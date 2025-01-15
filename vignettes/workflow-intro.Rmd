@@ -16,13 +16,15 @@ knitr::opts_chunk$set(
 
 # Git intro
 
+## Cloning the repository
+
 Assuming you are on Windows, install Git from [here](https://git-scm.com/downloads/win)
-(if you don’t know whether it’s the 32 or 64 bits version, you most likely need the 
-64 bit one). You should have something called ‘Git Bash’ installed. You can open 
-Git Bash inside a specific folder by right-clicking your folder and selecting 
-‘Open Git Bash here’, or you may want to learn some basic commands to navigate 
-from the command line itself (from now on, __writing <> is not part of the command__,
-I just use it as a __placeholder__ for what you need to write there):
+(if you don't know whether it's the 32 or 64 bits version, you most likely need the
+64 bit one). You should have something called 'Git Bash' installed. You can open
+Git Bash inside a specific folder by right-clicking your folder and selecting
+'Open Git Bash here', or you may want to learn some basic commands to navigate
+from the command line itself (from now on, __writing `<some-text>` is not part
+of the command__, I just use it as a __placeholder__ for what you need to write there):
 
 - Print your current directory:
 ```
@@ -34,159 +36,239 @@ ls
 ```
 - Move to another directory relative to the one you are in right now:
 ```
-cd <relative_path_where_to_move>
+cd <relative-path-where-to-move>
 ```
 
-We assume here that the repository you want to contribute to already exists. 
+We assume here that the repository you want to contribute to already exists.
 You can go to its page in Github and copy the URL as seen in the image below:
 
 ```{r, fig.alt="Where to copy URL from", echo=FALSE}
 knitr::include_graphics("imgs/im1.png")
 ```
- 
-We can clone it using the command 
+
+The git terminology used for 'downloading' a repository to our local file system
+is 'cloning'. We can clone a remote repository (in this case from Github)
+using the following command:
 ```
-git clone <url_you_copied>
+git clone <url-you-copied>
 ```
 
-This is called cloning via HTTPS. You should be asked to introduce your Github 
-credentials. You can also clone via SSH which is more secure in the sense that 
-it won’t ask you to sign in, but if you know that you probably don’t need this 
+This is called cloning via HTTPS. You should be asked to introduce your Github
+credentials. You can also clone via SSH which is more secure in the sense that
+it won't ask you to sign in, but if you know that you probably don't need this
 guide.
 
-Now a new directory should have been created with the content of the repository 
-in your local file system. From now on we will see the basic git commands that 
-you would need in daily usage. We assume you are inside the repository. We 
+## Pulling remote changes
+
+Now a new directory should have been created with the content of the repository
+in your local file system. From now on we will see the basic git commands that
+you would need in daily usage. We assume you are inside the repository. We
 explain them with an example.
 
-Suppose you want to start contributing to this repository. A good practice 
-(and one that we will enforce to use) is to make your own code changes in a 
-‘different place’ than the ones you currently see in the repository. The things 
-you see now are in what it’s called the ‘main branch’, and you will make your 
-code changes in a ‘new branch’, which will start with the same content as the 
-main one, but will then evolve with different changes. If you haven’t done 
-anything yet, you should be in the main branch (maybe it’s called ‘main’ or 
-‘master’, these are just conventions). You can use the command ‘git status’ 
-to check this:
+Suppose you want to start contributing to this repository. A good practice
+(and one that we will enforce to use) is to make your own code changes in a
+'different place' than the ones you currently see in the repository. The things
+you see now are in what it's called the 'main branch', and you will make your
+code changes in a 'new branch', which will start with the same content as the
+main one, but will then evolve with different changes. If you haven't done
+anything yet, you should be in the main branch (maybe it's called 'main' or
+'master', these are just conventions, but I will assume it's called 'main').
+You can use the command `git status` to check this (don't mind that my terminal
+looks different in the screenshots, you can use the same commands in Git Bash):
 
-```{r, fig.alt="", echo=FALSE}
+```{r, fig.alt="Using git status", echo=FALSE}
 knitr::include_graphics("imgs/im2.png")
 ```
 
-Your local version of a repository does not need to match the remote version 
-(the one we store in Github in this case), but before you start your work on 
-a new branch, you should keep your main branch up to date in case someone 
-added new code since the last time you checked. We get remote changes to local 
-by using the command ‘git pull’: 
+Your local version of a repository does not need to match the remote version
+(the one we store in Github in this case), but before you start your work on
+a new branch, you should keep your main branch up to date in case someone
+added new code in the Github repository since the last time you checked. We
+get any new remote changes to the local repository by using the command
+```
+git pull
+```
 
-```{r, fig.alt="", echo=FALSE}
+```{r, fig.alt="Using git pull outputs 'Already up to date'", echo=FALSE}
 knitr::include_graphics("imgs/im3.png")
 ```
 
-In this case I already had all the remote changes, but the message will be 
-different if you had missing changes. Now we are ready to create our own 
-‘branch’, from which we will start working on new code.
+In this case I already had all the remote changes, and that's why the message
+says 'Already up to date', but the message will be different if you had missing
+changes. This is the 'easy way' to do it. The command `git pull` tries to
+fetch changes from the equivalent remote branch, i.e., the one that has the same
+name on remote as it has on your local repository. This may not always work as
+expected so there is a way to always specify from which remote branch you
+want to get these changes (and I highly recommend always using it explicitly):
+```
+git pull origin <name-of-remote-branch>
+```
+For example, imagine you asked someone for help on your own branch and they
+added some new changes on your branch, that you do not have locally. Then,
+if your branch is called `my-branch`, and you are already on your branch
+locally, you would want to use the command
+```
+git pull origin my-branch
+```
+Likewise, for the first example shown here (keeping the main branch updated),
+I would always be explicit:
+```
+git pull origin main
+```
 
-```{r, fig.alt="", echo=FALSE}
+## Creating our own branch
+
+After the pull, we are now safely up to date with the remote changes. Now it's
+time to learn how to create our own 'branch', from which we will start working
+on new code. We use the following command:
+```
+git checkout -b <name-of-branch>
+```
+
+```{r, fig.alt="Using branch creation command", echo=FALSE}
 knitr::include_graphics("imgs/im4.png")
 ```
- 
-The command ‘git checkout <name-of-branch>’ is used to change from one branch
-to another (so that you will now see the files and changes that are in that
-branch). Additionally, if we add the ‘-b’ option, it will create the branch with
-the given name if it doesn’t already exist, which is our case in this example.
 
-Some common practices for naming your branches (that we should follow):
+The command `git checkout <name-of-branch>` is used to change from one branch
+to another (so that you will now see the files and changes that are in that
+branch). Additionally, if we add the `-b` option, it will create the branch with
+the given name if it doesn't already exist, which is our case in this example.
+The branch name should be something like `author/name-of-branch`. Thus, some
+common practices for naming your branches (and that we should follow) are:
 
 - They do not contain caps (all lowercase)
-- Words are separated with dashes (-)
-- The name includes the author and some descriptive name separated by a slash (/)
+- Words are separated with dashes (`-`)
+- The name includes the author and some descriptive name separated by a slash (`/`)
+- The descriptive name should ideally start with an action (a verb) in imperative
+style (fix, create, test...).
 
 If Ermenegildo wants to create some code for preprocessing bilateral trade data,
-an acceptable branch name could be ‘ermenegildo/preprocess-bilateral-trade-data’.
+an acceptable branch name could be `ermenegildo/preprocess-bilateral-trade-data`.
 
-Now you are in your own branch and you can start working on your changes. While 
-you work on them, you should keep track of changes with git. We can add all 
-changes using ‘git add .’, where the dot means ‘this directory’, or we can add 
-a specific file with ‘git add <relative_name_of_file>’
+## Adding changes to our branch
 
-```{r, fig.alt="", echo=FALSE}
+Now you are in your own branch and you can start working on your changes. While
+you work on them, you should keep track of changes with git. We can add all
+changes using the command
+```
+git add .
+```
+Here the dot means 'this directory', which essentially adds all new changes, i.e.
+all things inside the directory. We can add just a specific file instead using
+the command
+```
+git add <relative-name-of-file>
+```
+
+```{r, fig.alt="Add all git changes", echo=FALSE}
 knitr::include_graphics("imgs/im5.png")
 ```
 
-After adding our changes, we must ‘commit’ them. This commit step is what actually 
-saves your changes in the git history. You do this with the command 
-`git commit -m ‘Some descriptive message for your changes’`
-A common practice for commit messages is to start them with a verb in infinitive 
-(imperative style), indicating an action that was performed, e.g., 
-‘Create tests for bilateral trade data preprocessing’.  
+After adding our changes, we must 'commit' them. This commit step is what actually
+saves your changes in the git history. You do this with the command
+```
+git commit -m 'Some descriptive message for your changes'
+```
+A common practice for commit messages is to start them with a verb in infinitive
+(imperative style), indicating an action that was performed, e.g.,
+`'Create tests for bilateral trade data preprocessing'`.
 
-```{r, fig.alt="", echo=FALSE}
+```{r, fig.alt="Commit the changes", echo=FALSE}
 knitr::include_graphics("imgs/im6.png")
 ```
 
-A common practice is to make small commits, that is, include just a few changes 
-in each commit, so that it is easier to keep track of your work’s history, instead 
-of just having a single commit when you are done with everything. Ultimately, the 
+A common practice is to make small commits, that is, include just a few changes
+in each commit, so that it is easier to keep track of your work's history, instead
+of just having a single commit when you are done with everything. Ultimately, the
 amount of commits is your decision, but should not be just one commit per branch.
 
-After committing, we now have our changes in local git history, but we should 
+## Pushing our changes
+
+After committing, we now have our changes in local git history, but we should
 probably also add them to the remote Github repository. We do this using the command
-`git push origin <name-of-branch>`
-Now you should be able to see your changes in your own branch from Github.
+```
+git push origin <name-of-branch>
+```
+Now you should be able to see your changes in your own branch from Github itself,
+you just need to select your own branch instead of the `main` one.
 
-Suppose you are done with your changes and you want to add these to the main 
-branch. Mixing one branch with another is known as ‘merging’. In this case we would 
-like to merge our new branch with the main branch. This can be done forcefully, but 
-the common practice we will be following is to create what is known as a ‘Pull 
-request’ from our branch into the main one, and we do this directly from Github.
+You should remember to push your changes regularly to the remote repository.
+Otherwise you risk having a bunch of code features in your local computer that
+could be lost if something happened to it. This is aligned with the previous
+suggestion of creating many smaller commits as opposed to giant ones, so that
+you can also push them more frequently.
 
-```{r, fig.alt="", echo=FALSE}
+## Creating a pull request
+
+Suppose you are done with your changes and you want to add these to the main
+branch. Mixing one branch with another is known as 'merging'. In this case we would
+like to merge our new branch with the main branch. This can be done forcefully, but
+the common practice we will be following is to create what is known as a 'Pull
+request' from our branch into the main one, and we do this directly from Github,
+once we have pushed all of our changes.
+
+```{r, fig.alt="Click 'New pull request' in Github", echo=FALSE}
 knitr::include_graphics("imgs/im7.png")
 ```
 
-```{r, fig.alt="", echo=FALSE}
+```{r, fig.alt="Click 'Create pull request'", echo=FALSE}
 knitr::include_graphics("imgs/im8.png")
 ```
 
 Here you can see all the changes you made (that differ from the main branch) before
-clicking again ‘Create pull request’. Then you will see the following, where you
+clicking again 'Create pull request'. Then you will see the following, where you
 should add some title and description to explain what you have done. You finally
-click ‘Create pull request’.
+click 'Create pull request' again.
 
-```{r, fig.alt="", echo=FALSE}
+```{r, fig.alt="Add title and description and click 'Create pull request'", echo=FALSE}
 knitr::include_graphics("imgs/im9.png")
 ```
 
 Now the Pull Request (often abbreviated as PR) is created and the next step is to
-ask for someone’s review. 
+ask for someone's review.
 
-```{r, fig.alt="", echo=FALSE}
+```{r, fig.alt="Adding people to review your PR", echo=FALSE}
 knitr::include_graphics("imgs/im10.png")
 ```
 
 Ideally these changes would not be merged until someone else reviews your code.
 This person might find things you have to change and request these changes before
 merging, so you would have to keep working on your branch until they are satisfied.
-Then they would accept your changes and you would be ready to merge your changes
-into the main branch, and the process would be done.
+Then they would accept your changes and you would be ready to merge your branch
+into the main one, and the process would be done.
+
+However, sometimes there is
+an additional step that must be passed before merging, which is related to
+automatic code checks, e.g. check whether your code is well formatted and
+whether it passes all tests successfully. If configured, these can run
+automatically when creating a Pull Request. We will indeed work with them, but we
+will explain these automatic checks better in a later section.
 
 While working on your own branch, others may have merged their own branches
 into the main branch and then your own branch would be outdated. When creating
 a Pull Request yourself, you should make sure your branch is also up to date with
-everything already on the main branch. We do this with the command 
-`git pull origin main`
+everything already on the main branch. Recall from
+[the pulling remote changes section](#pulling-remote-changes) that we can do this
+with the command
+```
+git pull origin main
+```
+Even if you are locally on your own branch and directly try to fetch changes from
+a different remote one (in this case `main`), this works as expected, that is,
+it tries to merge all new changes from the `main` branch into your own local one.
+This automatic merge works most of the times, but sometimes you may find conflicts,
+because the program doesn't know how to combine everything neatly. If this happens,
+you must manually check which parts of the code should be kept. We won't talk more
+about this here since it's just an introduction. Whenever this happens to you,
+you can ask others for help.
 
-The previous command will try to automatically merge new changes from the main
-branch into yours. This automatic merge works most of the times, but sometimes
-you may find conflicts. If this happens, you should manually check which parts
-of the code should be kept. You can ask others for help at this point.
 
+# R package and renv intro
 
-# Using virtual environments with renv package in R
+## Using virtual environments with renv package in R
 
 For a new project or one not using renv yet, open an R shell in the root
-directory of your project and run inside the shell: 
+directory of your project and run inside the shell:
 `renv::init()`
 It will probably ask to close and reopen a clean shell. After that, every
 time we open an R shell inside our project, it will automatically use renv
@@ -211,19 +293,19 @@ do this every time you pull remote changes and someone else has included a
 new package, so that you are then up to date with them. In any case, when
 opening the R shell, it will probably remind you with a message:
 
-```{r, fig.alt="", echo=FALSE}
+```{r, fig.alt="renv warns packages not installed", echo=FALSE}
 knitr::include_graphics("imgs/im11.png")
 ```
 
 [renv source](https://rstudio.github.io/renv/articles/renv.html#getting-started)
 
-# R code style and formatting
+## R code style and formatting
 
 There are some conventions and good practice for how to write neat code
 in R (see e.g. [this](http://adv-r.had.co.nz/Style.html)). While it is nice to
 know them, most of them can be automatically applied using some formatting tool.
-There should be something like that in RStudio (I don’t use it so I’m not sure)
+There should be something like that in RStudio (I don't use it so I'm not sure)
 or in other editors. It is good to try to make one of these autoformatters work
 on your code because at some point I will try to add a formatting check on
-Github in order not to allow pull requests being approved if they don’t follow
-these conventions, and it’s way more tedious to try to check them manually.
+Github in order not to allow pull requests being approved if they don't follow
+these conventions, and it's way more tedious to try to check them manually.
