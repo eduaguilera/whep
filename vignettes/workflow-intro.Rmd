@@ -43,7 +43,7 @@ We assume here that the repository you want to contribute to already exists.
 You can go to its page in Github and copy the URL as seen in the image below:
 
 ```{r, fig.alt="Where to copy URL from", echo=FALSE}
-knitr::include_graphics("imgs/im1.png")
+knitr::include_graphics("imgs/copy_repo_url.png")
 ```
 
 The git terminology used for 'downloading' a repository to our local file system
@@ -77,7 +77,7 @@ You can use the command `git status` to check this (don't mind that my terminal
 looks different in the screenshots, you can use the same commands in Git Bash):
 
 ```{r, fig.alt="Using git status", echo=FALSE}
-knitr::include_graphics("imgs/im2.png")
+knitr::include_graphics("imgs/git_status_command.png")
 ```
 
 Your local version of a repository does not need to match the remote version
@@ -90,7 +90,7 @@ git pull
 ```
 
 ```{r, fig.alt="Using git pull outputs 'Already up to date'", echo=FALSE}
-knitr::include_graphics("imgs/im3.png")
+knitr::include_graphics("imgs/git_pull_command.png")
 ```
 
 In this case I already had all the remote changes, and that's why the message
@@ -126,7 +126,7 @@ git checkout -b <name-of-branch>
 ```
 
 ```{r, fig.alt="Using branch creation command", echo=FALSE}
-knitr::include_graphics("imgs/im4.png")
+knitr::include_graphics("imgs/branch_creation_command.png")
 ```
 
 The command `git checkout <name-of-branch>` is used to change from one branch
@@ -161,7 +161,7 @@ git add <relative-name-of-file>
 ```
 
 ```{r, fig.alt="Add all git changes", echo=FALSE}
-knitr::include_graphics("imgs/im5.png")
+knitr::include_graphics("imgs/add_all_git_changes.png")
 ```
 
 After adding our changes, we must 'commit' them. This commit step is what actually
@@ -174,7 +174,7 @@ A common practice for commit messages is to start them with a verb in infinitive
 `'Create tests for bilateral trade data preprocessing'`.
 
 ```{r, fig.alt="Commit the changes", echo=FALSE}
-knitr::include_graphics("imgs/im6.png")
+knitr::include_graphics("imgs/commit_changes.png")
 ```
 
 A common practice is to make small commits, that is, include just a few changes
@@ -208,11 +208,11 @@ request' from our branch into the main one, and we do this directly from Github,
 once we have pushed all of our changes.
 
 ```{r, fig.alt="Click 'New pull request' in Github", echo=FALSE}
-knitr::include_graphics("imgs/im7.png")
+knitr::include_graphics("imgs/new_pull_request.png")
 ```
 
 ```{r, fig.alt="Click 'Create pull request'", echo=FALSE}
-knitr::include_graphics("imgs/im8.png")
+knitr::include_graphics("imgs/create_pull_request.png")
 ```
 
 Here you can see all the changes you made (that differ from the main branch) before
@@ -221,14 +221,14 @@ should add some title and description to explain what you have done. You finally
 click 'Create pull request' again.
 
 ```{r, fig.alt="Add title and description and click 'Create pull request'", echo=FALSE}
-knitr::include_graphics("imgs/im9.png")
+knitr::include_graphics("imgs/add_pr_title_description.png")
 ```
 
 Now the Pull Request (often abbreviated as PR) is created and the next step is to
 ask for someone's review.
 
 ```{r, fig.alt="Adding people to review your PR", echo=FALSE}
-knitr::include_graphics("imgs/im10.png")
+knitr::include_graphics("imgs/add_people_review_pr.png")
 ```
 
 Ideally these changes would not be merged until someone else reviews your code.
@@ -265,39 +265,134 @@ you can ask others for help.
 
 # R package and renv intro
 
-## Using virtual environments with renv package in R
+## Project structure
 
-For a new project or one not using renv yet, open an R shell in the root
-directory of your project and run inside the shell:
-`renv::init()`
-It will probably ask to close and reopen a clean shell. After that, every
-time we open an R shell inside our project, it will automatically use renv
-whenever we want to install new packages. For example, we can install a
-testing package with
-`install.packages(“testthat”)`
-and this will not be a global installation, which means it will only work
-inside this project. This is a way of isolating your project dependencies
-and making your projects reproducible, by letting others know exactly
-which packages your code needs to run, and not add unnecessary ones
-that you may have because of other projects.
-There is a file called `renv.lock` which stores information about the
-required packages and their versions. After installing new packages,
-it is not updated automatically and we have to do it manually by running
-`renv::snapshot()`
-This will update the `renv.lock` file. If someone else wants to reproduce
-your code, they may have to run
-`renv::restore()`
-which will install any packages from `renv.lock` that they may still not
-have installed. If you use Github with others, then you might also need to
-do this every time you pull remote changes and someone else has included a
-new package, so that you are then up to date with them. In any case, when
-opening the R shell, it will probably remind you with a message:
+It seems clear that even though we would work fine with bare R scripts that are run
+directly, when working on a large project it makes sense to have some kind of
+file structure, to keep everything organised. You can build your ad-hoc file
+structures, and you could probably come up with something rather simple. Here,
+instead, we will focus on using the standard structure of an R package. This
+is a standard everyone has to follow if they want their projects to turn into
+packages which can be publicly downloaded by anyone from the
+[CRAN repositories](https://cran.r-project.org/). Just the same way you do, e.g.,
+`install.packages(tidyverse)` to install all Tidyverse packages, if you
+follow this standard R package structure, you can upload your package and one could do
+`install.packages(your_package)` the same way.
 
-```{r, fig.alt="renv warns packages not installed", echo=FALSE}
-knitr::include_graphics("imgs/im11.png")
+Even if you don't want to upload a package, there are still advantages if you
+follow this structure. This is the one we will follow, so the rest of this section
+will try to explain its different parts, that will all become part of our workflow.
+
+This is the whole structure of an R package:
+
+```{r, fig.alt="Structure of an R package", echo=FALSE}
+knitr::include_graphics("imgs/r_package_structure.png")
 ```
 
-[renv source](https://rstudio.github.io/renv/articles/renv.html#getting-started)
+Luckily, there are a lot of files there that you do not need to know about,
+at least for now, so we will try to explain the most important ones in the
+next sections.
+
+There is a whole [R packages book](https://r-pkgs.org/) which
+I followed myself to setup the basics for our project. It is very well
+written and available for free online, so if you are interested in knowing
+more about R packages and their project structure, I recommend checking the
+book.
+
+## Virtual environments with renv
+
+We just mentioned we were going to use the R package structure. And technically,
+R package developers don't use `renv`... Then why should we? Well, the main
+reason they don't use it is because when creating packages, you want to
+make sure they work on fresh installations, i.e., computers that do not
+have anything else installed, so this also excludes packages like `renv`.
+However, if strictly necessary, it is possible to work with `renv` during
+development phase and get rid of it in the final package sent publicly, and
+there are enough advantages of using virtual environments that we should
+try to benefit from.
+
+But what are virtual environments? This is a fancy term, but its practical
+meaning is quite simple. First consider the following:
+
+- If you are not using them, it means you just have a global R installation
+in your computer, and whenever you install a package, it is installed globally.
+- If you want to run someone's code and they use a bunch of packages
+that you usually do not, you would have to install all of them to be able
+to run their code, and these would mix with all your other packages. If
+you want to uninstall them after that, you would have to do a lot of manual
+work to make sure you know all of them (some package dependencies could have
+also been installed, and you cannot be sure if they were only used for these
+packages or also some other package that you already had).
+- If you want to write some code that uses some packages, and you want
+another person to run it, you should make a list of the packages used only
+in this project, because they should not have to install any other packages
+you have from other projects but are not necessary here. If you do not
+even make this 'package list', the other person should have to go through
+your whole code or run it and install a new package every time the code
+fails because of a missing one. Overall, this is a poor experience.
+
+Virtual environments try to fix this. Essentially, they provide a 'local'
+installation of packages, that are only visible inside your project, and
+do not get mixed at all with those from your global R installation or from
+other individual projects. In practice, a virtual environment is just a
+folder containing installed packages, isolated from the folder that
+contains your global R installation. It's like having several different
+R installations, each one with their own packages and versions.
+
+Chances are you follow this guide with an existing repository that is
+already using `renv` (then you can skip the `renv::init()` step). If this
+were not the case, open an R prompt in the root directory of your project
+and run inside the prompt:
+```
+renv::init()
+```
+It will probably ask to close and reopen a clean prompt. After that, every
+time we open an R prompt inside our project, it will automatically use `renv`
+to work within a virtual environment. If you use `renv` for the first time
+but on a project that already uses it, when you open the R prompt in its
+root directory, the `renv` package will be installed automatically.
+
+Now that we have `renv`, we can, for example, install a testing package
+with `install.packages("testthat")` and this will not be a global
+installation, which means it will only work inside this project. This is
+a way of isolating your project dependencies and making your projects
+reproducible, by letting others know exactly which packages your code
+needs to run, and not add unnecessary ones that you may have because
+of other projects, as we mentioned previously.
+
+The 'list' of required packages for the project, along with their versions,
+which is used by `renv` to manage the virtual environment, is in a file
+called `renv.lock`. After installing new packages, this file is not updated
+automatically and we have to do it manually by running
+```
+renv::snapshot()
+```
+This will update the `renv.lock` file, and you should push it to the
+repository. If someone else wants to reproduce your code, they may have to run
+```
+renv::restore()
+```
+which will install any packages from `renv.lock` that they may still not
+have installed, but again, only on a project level, not conflicting with
+their global R installation. If you use Github with others, then you might
+also need to do this every time you pull remote changes and someone else
+has included a new package, so that you are then up to date with them.
+In any case, when opening the R shell, it will probably remind you that there
+are missing packages in your virtual environment with a message:
+
+```{r, fig.alt="renv warns packages not installed", echo=FALSE}
+knitr::include_graphics("imgs/renv_warn_packages_not_installed.png")
+```
+
+And this is basically all you need to start using a virtual environment,
+keeping in mind the commands
+
+- `renv::snapshot()`: add new required packages to `renv.lock` file
+- `renv::restore()`: install packages from `renv.lock` that you do not have yet
+
+I wrote this introduction to `renv` by reading their own package documentation.
+If you want to learn more about it, you can read it yourself at
+[their package website](https://rstudio.github.io/renv/articles/renv.html).
 
 ## R code style and formatting
 
