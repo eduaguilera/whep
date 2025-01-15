@@ -394,6 +394,160 @@ I wrote this introduction to `renv` by reading their own package documentation.
 If you want to learn more about it, you can read it yourself at
 [their package website](https://rstudio.github.io/renv/articles/renv.html).
 
+## Writing code
+
+Looking back at the package's file structure, in the `R/` directory is
+where we will put all the main code. The R files stored here must not
+contain any top-level code, that is, it must all be inside functions.
+We can add more than one function in each file if they are somehow related,
+but there must not be too many either. If a file becomes too large and it
+has several functions inside, consider splitting it into shorter files.
+
+Take the following as an example (you do not have to understand the code,
+you can keep reading). We save it in `R/sources.R`.
+```r
+#' Create a new dataframe where each row has a year range into one where each
+#' row is a single year, effectively 'expanding' the whole year range
+#'
+#' @param trade_sources A tibble dataframe
+#' where each row contains the year range
+#'
+#' @return A tibble dataframe where each row
+#' corresponds to a single year for a given source
+#'
+#' @export
+#'
+#' @examples
+#' trade_sources <- tibble::tibble(
+#'   Name = c("a", "b", "c"),
+#'   Trade = c("t1", "t2", "t3"),
+#'   Info_Format = c("year", "partial_series", "year"),
+#'   Timeline_Start = c(1, 1, 2),
+#'   Timeline_End = c(3, 4, 5),
+#'   Timeline_Freq = c(1, 1, 2),
+#'   `Imp/Exp` = "Imp",
+#'   SACO_link = NA,
+#' )
+#' expand_trade_sources(trade_sources)
+expand_trade_sources <- function(trade_sources) {
+  non_na_cols <- c("Trade", "Timeline_Start", "Timeline_End", "Timeline_Freq")
+  trade_sources |>
+    dplyr::filter(!.any_na_col(non_na_cols)) |>
+    .expand_trade_years() |>
+    dplyr::mutate(
+      Name = dplyr::if_else(
+        Info_Format == "year", paste(Name, Year, sep = "_"), Name
+      ),
+      ImpExp = `Imp/Exp`,
+      In_Saco = as.integer(!is.na(SACO_link)),
+    )
+}
+
+.expand_trade_years <- function(trade_sources) {
+  trade_sources <- dplyr::mutate(trade_sources, No = dplyr::row_number())
+
+  trade_sources |>
+    dplyr::group_by(No) |>
+    tidyr::expand(Year = seq(Timeline_Start, Timeline_End, Timeline_Freq)) |>
+    dplyr::inner_join(trade_sources, by = "No")
+}
+
+.any_na_col <- function(cols_to_check) {
+  dplyr::if_any(dplyr::all_of(cols_to_check), is.na)
+}
+```
+
+In this sample code there are some things to keep in mind:
+
+- All the code is written inside functions, and there are three of them. The
+name of two of them starts with a dot. This is a convention for private functions.
+Private functions are just helpers that are used in other functions from the
+same file, they do not need to be used from outside.
+- The functions that are not private, are then called public, and those are the ones
+that we want to 'export', in the sense that we want to allow for them to be used
+from outside this file. In our `sources.R` example, the first function is public.
+- The public function has a large commented section before it, each line starting
+with `#' `. This is a special type of comment and it is considered documentation.
+Every public function __must__ be documented in the same way (more on this special
+function documentation in the next section). The private functions can be
+introduced by explanatory comments if you consider it necessary, but they should
+be normal comments instead (starting with just `# `, without the single quote).
+
+The most important take from here anyway is that these files should contain all
+the code inside functions and nothing outside them.
+
+## Function documentation
+
+The special commented section seen in the previous example will be used by a
+package called [`roxygen2`](https://roxygen2.r-lib.org/). We have to follow
+this exact syntax, so that this package can automatically build a really neat
+documentation of our package for us. Let's try to understand its basic
+structure. For reference, these were the different parts:
+
+- A small description of the function, nothing else.
+```
+#' Create a new dataframe where each row has a year range into one where each
+#' row is a single year, effectively 'expanding' the whole year range
+```
+
+- A small description of each parameter the function receives. It should be like:
+```
+#' @param param_name_1 Description of param 1
+#' @param param_name_2 Description of param 2
+#' ...
+```
+As you see here I think it's OK to add linebreaks in between, as long as each
+parameter starts with `@param`.
+```
+#' @param trade_sources A tibble dataframe
+#' where each row contains the year range
+```
+- A small description of the value the function returns. It should start with
+`@return`.
+```r
+#' @return A tibble dataframe where each row
+#' corresponds to a single year for a given source
+```
+- A simple line containing `@export` to indicate the function can be used in
+the package, i.e., it is public.
+```r
+#' @export
+```
+
+- A 'code' section of examples to illustrate the function's behaviour.
+It must start with `@examples`, and after that you can write usual R code.
+When this is processed, it automatically runs the code and adds some lines
+with its output in the documentation.
+```r
+#' @examples
+#' trade_sources <- tibble::tibble(
+#'   Name = c("a", "b", "c"),
+#'   Trade = c("t1", "t2", "t3"),
+#'   Info_Format = c("year", "partial_series", "year"),
+#'   Timeline_Start = c(1, 1, 2),
+#'   Timeline_End = c(3, 4, 5),
+#'   Timeline_Freq = c(1, 1, 2),
+#'   `Imp/Exp` = "Imp",
+#'   SACO_link = NA,
+#' )
+#' expand_trade_sources(trade_sources)
+```
+
+These options are enough to get us started with a nice documentation. In the
+[Writing articles](#writing-articles) section we will learn how to generate
+and see this documentation. In this example, it would look something like this
+(note the autogenerated example code output):
+
+```{r, fig.alt="Auto generated documentation appearance", echo=FALSE}
+knitr::include_graphics("imgs/roxygen_documentation.png")
+```
+
+## Writing tests
+
+## R CMD Check
+
+## Writing articles
+
 ## R code style and formatting
 
 There are some conventions and good practice for how to write neat code
@@ -404,3 +558,5 @@ or in other editors. It is good to try to make one of these autoformatters work
 on your code because at some point I will try to add a formatting check on
 Github in order not to allow pull requests being approved if they don't follow
 these conventions, and it's way more tedious to try to check them manually.
+
+## Automatic checks on Pull Requests
