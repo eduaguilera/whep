@@ -651,6 +651,26 @@ next section, there are some more checks a package must pass to be valid
 
 ## R CMD Check
 
+There is a standard tool that contains several steps ('checks') which every
+project that wants to be a package uploaded to
+[CRAN repositories](https://cran.r-project.org/) must pass. As part of our
+code workflow, you are also responsible to make this check pass, as we will
+also see in the
+[Automatic checks on Pull Requests](#automatic-checks-on-pull-requests) section.
+This check is known as 'R CMD check', and it is actually very easy to run:
+
+```r
+devtools::check()
+```
+
+The whole output of this call is rather long, since it lists all the
+different checks it makes, but at the end, if there are no issues,
+this is the output you should see:
+
+```{r, fig.alt="Correct output of R CMD check", echo=FALSE}
+knitr::include_graphics("imgs/r_cmd_check_pass.png")
+```
+
 ## Writing articles
 
 ## R code style and formatting
