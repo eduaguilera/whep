@@ -544,6 +544,111 @@ knitr::include_graphics("imgs/roxygen_documentation.png")
 
 ## Writing tests
 
+So we just wrote a function, we are done with it, we now move to another function...
+No. You probably thought that we should check somehow that this function is indeed
+correct and it does what you expect. Right now it would be easy to just load
+the function in an R prompt and try some examples on it, but what if the next month
+someone has to make a change in this code? They would have to do this manual testing
+again to make sure they didn't break any functionality. What if they need to change
+dozens of functions? How many time will they spend on testing all of them?
+
+I think you can understand that this is really time consuming and that there is a
+better way. Tests can be automatized. We can write some tests whenever we create
+a new function, that together prove the function does what we expect, and if later
+on we add some changes to the function, we already have a test that can be run
+automatically to see if the function is still correct. Of course, this is not
+completely accurate. Maybe when we changed the function, some of its
+functionality was also changed, so the test is not accurate anymore and has to
+be tweaked as well, to represent what we really want. But this is still much
+less work than always testing the function manually in an R prompt, and eventually
+you just get used to it.
+
+The package that is used to write tests and is well integrated into the R package
+creation workflow is [testthat](https://testthat.r-lib.org/index.html). We will
+be using it to write our automated tests. Again, looking at the structure of an
+R package, the tests go into (surprise!) the directory `tests/`. In this directory
+there is a file called `testthat.R` that setups `testthat` and should not be
+changed, and the actual tests that we write will go into the `tests/testthat/`
+subdirectory. The convention is to name the test files the same way as the
+R files but with a `test-` prefix. In our case, for example, if we have an R file
+in `R/sources.R`, then our test file should be `tests/testthat/test-sources.R`.
+Let's see how one of our tests could look like:
+
+```r
+library("testthat")
+
+test_that("trade source data is expanded from year range to single year rows", {
+  trade_sources <- tibble::tibble(
+    Name = c("a", "b", "c", "d", "e"),
+    Trade = c("t1", "t2", "t3", NA, "t5"),
+    Info_Format = c("year", "partial_series", "year", "year", "year"),
+    Timeline_Start = c(1, 1, 2, 1, 3),
+    Timeline_End = c(3, 4, 5, 1, 2),
+    Timeline_Freq = c(1, 1, 2, 1, NA),
+    `Imp/Exp` = "Imp",
+    SACO_link = NA,
+  )
+  expected <- tibble::tibble(
+    Name = c("a_1", "a_2", "a_3", "b", "b", "b", "b", "c_2", "c_4"),
+    Trade = c("t1", "t1", "t1", "t2", "t2", "t2", "t2", "t3", "t3"),
+    Info_Format = c(
+      "year", "year", "year", "partial_series", "partial_series",
+      "partial_series", "partial_series", "year", "year"
+    ),
+    Year = c(1, 2, 3, 1, 2, 3, 4, 2, 4),
+  )
+
+  actual <-
+    trade_sources |>
+    expand_trade_sources() |>
+    dplyr::ungroup()
+
+  expect_equal(
+    dplyr::select(actual, Name, Trade, Info_Format, Year),
+    expected
+  )
+})
+```
+
+Again, you don't have to understand the whole code. Just note that we use two
+packages from `testthat`:
+
+- `testthat::test_that`: this is the main function used to delimit what a test is.
+It receives a text description about what the test is checking, and a body
+containing all the code of the test itself.
+- `testthat::expect_equal`: this is just one of the many utilities `testthat`
+brings to actually assert things in the test's code. It's probably the most
+general assert, and it just checks if everything is identical in both arguments,
+including internal object metadata, not just "appearance" (what you may see
+when printing an object). You can look for more testing utility functions in
+[their documentation](https://testthat.r-lib.org/reference/index.html).
+
+So now we have a test. How do we execute it? It is not recommended to run the
+test as usual R code (e.g. run the file as a script). Instead, there are some
+functions provided by `testthat` for running tests. Here are some of them:
+
+- `testthat::auto_test_package()`: This one will run all the tests in the
+package the first time, and after that it will not stop running, but wait
+for code changes. This means that whenever you 'save' a test file, it only
+reruns all the tests in that file. This is extremely useful when you are
+actively writing some tests, so that you can get fast feedback.
+- `testthat::test_file()`: This one receives as argument the path to a test
+file, and it only runs the tests inside it. For example, we could run
+in our case `testthat::test_file("tests/testthat/test-sources.R")`.
+- `testthat::test_dir()`: In this case, this could be different to running
+all the tests if we had e.g. some subdirectories in the `tests/testthat`
+one. If there was a subdirectory `tests/testthat/sources` with many test
+files related to sources, we could run
+`testthat::test_dir("tests/testthat/sources")` and all test files inside
+this directory would be executed.
+- `testthat::test_package()`: This is the most general one. It just runs
+all the tests in the project.
+
+All of these can be useful to run tests while you are actively working on them.
+You are suppossed to make all your tests pass, and as we will see in the
+next section, there are some more checks a package must pass to be valid
+(so that it can be publicly uploaded), but tests are definitely one of them.
+
 ## R CMD Check
 
 ## Writing articles
