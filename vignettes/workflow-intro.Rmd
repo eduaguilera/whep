@@ -927,6 +927,23 @@ Otherwise, if both checks succeeded, you will see something like:
 knitr::include_graphics("imgs/github_action_pass.png")
 ```
 
+Overall, you should be able to see this at the bottom of the PR:
+
+```{r, fig.alt="Github Action Pull Request passed", echo=FALSE}
+knitr::include_graphics("imgs/all_pr_ok.png")
+```
+
+In case you are wondering, both checks we mentioned before are actually done
+in a single Github automatic step (these steps are called 'Github actions'), 
+so it should say '1 successful check' instead of '2 successful checks'.
+However, there is an additional Github action there, which essentially
+just updates the documentation site (only when the PR is actually merged into
+the main branch). This is not relevant to you as a developer but it makes the
+overall workflow easier, since the project documentation is automatically updated
+without any more human intervention. If you want to know more about this
+automatic site update you can check this
+[section from the R Packages book](https://r-pkgs.org/website.html).
+
 Recall that for a PR to be accepted and merged into the main branch, it must
 also be reviewed by another developer. A good practice would be to make sure the
 Github checks pass before even asking for someone's reviewing, because if any
