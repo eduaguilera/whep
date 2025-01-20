@@ -301,17 +301,21 @@ book.
 
 ## Virtual environments with renv
 
-We just mentioned we were going to use the R package structure. And technically,
-R package developers don't use `renv`... Then why should we? Well, the main
-reason they don't use it is because when creating packages, you want to
-make sure they work on fresh installations, i.e., computers that do not
-have anything else installed, so this also excludes packages like `renv`.
-However, if strictly necessary, it is possible to work with `renv` during
-development phase and get rid of it in the final package sent publicly, and
-there are enough advantages of using virtual environments that we should
-try to benefit from.
+We just mentioned we were going to use the R package structure, and it seems
+R package developers don't use `renv`... Or do they? At least they do not seem
+to include `renv` related files in their package repositories... Well, why
+should _we_ use it then? While writing this guide I was a bit confused myself
+about mixing both things, but my conclusion was that it just doesn't hurt
+in any way, `renv` just makes things easier without apparent drawbacks
+(do tell me if you know of any). When creating packages, you want to make sure
+they work on fresh installations, i.e., computers that do not have anything
+unnecessary installed. The package creation process as we will use it, does
+not need to know anything about `renv`, so we should be fine. The packages use
+their own file called `DESCRIPTION` which includes information about the
+other packages it needs as dependencies, as we will see later on. So we can
+just try to benefit from using virtual environments.
 
-But what are virtual environments? This is a fancy term, but its practical
+OK, but what are virtual environments? This is a fancy term, but its practical
 meaning is quite simple. First consider the following:
 
 - If you are not using them, it means you just have a global R installation
@@ -670,6 +674,66 @@ this is the output you should see:
 ```{r, fig.alt="Correct output of R CMD check", echo=FALSE}
 knitr::include_graphics("imgs/r_cmd_check_pass.png")
 ```
+
+OK, but if you just followed the steps in this guide and included our example
+code from the [Writing code](#writing-code) and [Writing tests](#writing-tests)
+sections, the above check should not have ended successfully with 0 errors,
+and you probably see (among the really large output), some error like this:
+
+```{r, fig.alt="Error no package called tidyr", echo=FALSE}
+knitr::include_graphics("imgs/r_cmd_check_fail.png")
+```
+
+The problem here is that before performing the check on your package, it
+must build it. And for that, it must know which other packages it has
+as dependencies. Again, if you just followed everything from here, we never
+got to do that, so your built package just does not include any other packages.
+To fix this, we must have a quick look at the `DESCRIPTION` file.
+
+```markdown
+Package: WHEP
+Title: What the Package Does (One Line, Title Case)
+Version: 0.0.0.9000
+Authors@R: 
+    person("First", "Last", , "first.last@example.com", role = c("aut", "cre"))
+Description: What the package does (one paragraph).
+License: MIT + file LICENSE
+Imports:
+    dplyr,
+    tidyr
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2
+Suggests: 
+    knitr,
+    rmarkdown,
+    testthat (>= 3.0.0),
+    tibble,
+    ggplot2,
+    here,
+    googlesheets4
+Config/testthat/edition: 3
+VignetteBuilder: knitr
+URL: https://eduaguilera.github.io/WHEP/
+```
+
+In the above file, the `Imports` section is where we should make sure we have
+all dependencies for code which was saved specifically in the `R/` directory.
+On the other hand, dependencies for code written in other places, such as
+`tests/` or `vignettes/` (we will see this one in the following
+[Writing articles](#writing-articles) section), should be included in the
+`Suggests` section of the `DESCRIPTION` file. Together these two fields
+tell everyone which dependencies our package needs to work correctly.
+After adding these, you could run again `devtools::check()` and confirm
+that it does not fail anymore (at least no errors).
+
+We will not go into detail as to which checks are being performed. We will
+all slowly learn about them whenever they show up as real issues in our code
+when running the check tool. Just keep in mind that one of the important points
+is that all the tests you write are also executed here, and the 'R CMD check'
+also fails if one of your tests fail. If you really want to know more about
+the checks, you can read, e.g.,
+[this detailed list](https://r-pkgs.org/R-CMD-check.html).
 
 ## Writing articles
 
