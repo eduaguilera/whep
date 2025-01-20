@@ -900,3 +900,36 @@ Github in order not to allow pull requests being approved if they don't follow
 these conventions, and it's way more tedious to try to check them manually.
 
 ## Automatic checks on Pull Requests
+
+By this point we assume you are already done with all your new code, you documented
+and tested it, or perhaps you just created some report in the form of an article. As
+we have seen in the [Git intro](#git-intro), it is now time to create a Pull
+Request so that someone else reviews what you have done. But when you create the
+Pull Request, our workflow is designed so that two checks are run automatically on
+Github, each time you push your changes to a branch which has an open Pull Request:
+
+- First, the R CMD check is performed. We have seen in a previous section how you can
+run it locally, so you should have made sure it outputs no errors. Otherwise, you
+will see this step failing.
+- Then, a linting check is performed. We have also seen how to autoformat your code,
+so that it follows the R code styling standards, and how to make sure that it is
+indeed well formatted. Otherwise, you will see this step failing.
+
+If any of the steps above fail, you will see something like this in your PR page:
+
+```{r, fig.alt="Github Action check fails", echo=FALSE}
+knitr::include_graphics("imgs/github_action_fail.png")
+```
+
+Otherwise, if both checks succeeded, you will see something like:
+
+```{r, fig.alt="Github Action check succeeds", echo=FALSE}
+knitr::include_graphics("imgs/github_action_pass.png")
+```
+
+Recall that for a PR to be accepted and merged into the main branch, it must
+also be reviewed by another developer. A good practice would be to make sure the
+Github checks pass before even asking for someone's reviewing, because if any
+check failed you most likely need to add more code changes to fix them, so some
+of the code the reviewer could have checked before could become obsolete, and
+they would have to read it again, so we better avoid that.
