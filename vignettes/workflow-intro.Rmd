@@ -745,7 +745,7 @@ what indeed looks like an article, mixing natural text and code rendering. This
 is ideal if you want to make guides about your package, or some kind of reports
 in general. As you can probably guess, this guide that you are reading was
 built the same way. Luckily this is already very well integrated with the
-R packages workflow, and we will learn how to make our own articles here.
+R packages workflow, and we will learn how to make our own articles here easily.
 
 Everything that we want to appear in this `Articles` section of the site, should
 be included in the `vignettes/` directory of the package. And inside this
@@ -837,9 +837,9 @@ see that just as in Markdown, we can write R code chunks inside triple backticks
 but the difference here is that this code will be executed, and by default
 we will also be able to see its output in the rendered article.
 
-The next chunk (with the `r setup` option) is used for some initialization code
-that you may need through the rest of the article. At the time of writing I do not
-really know the implications of writing the `r setup` option or writing this code
+The next chunk (with the `"r setup"` option) is used for some initialization code
+that you may need throughout the rest of the article. At the time of writing I do not
+really know the implications of writing the `"r setup"` option or writing this code
 in a normal R code chunk (without the option), but it is at least good practice.
 
 ````
@@ -867,8 +867,26 @@ pkgdown::build_site()
 ```
 
 We should now be able to see our article in the 'Articles' section. It should look
-something like the one you can see directly on this site at [Trades sources coverage](articles/trade-sources-coverage)
+something like the one you can see directly on this site at
+[Trades sources coverage](trade-sources-coverage.html) (with some additional plots).
 
+After running this command once, there is no need to rerun it every time we want
+to see changes, since it takes a bit longer to run. We can instead use a simpler one
+
+```r
+pkgdown::build_articles()
+```
+
+which checks for code changes in articles and only reruns those that have changed.
+I am not completely convinced they are equivalent, since it seems at some point one
+failed and one worked for me, but if you are not doing something strange (like me
+building this guide and writing R Markdown inside R Markdown) it should probably work
+the same.
+
+As mentioned in a previous section, also remember to include all package
+dependencies your article code uses in the `Suggests` part of the `DESCRIPTION`
+file, so that you do not get errors of packages not being found when building the
+articles or running R CMD check.
 
 ## R code style and formatting
 
