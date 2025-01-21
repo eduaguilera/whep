@@ -887,6 +887,59 @@ dependencies your article code uses in the `Suggests` part of the `DESCRIPTION`
 file, so that you do not get errors of packages not being found when building the
 articles or running R CMD check.
 
+## Environment variables and secrets
+
+When running code, you can sometimes customize some behaviour by specifying the
+value of some variable to your needs. For example, maybe there is an option whose
+value is a number from 1 to 5, indicating the level of debugging (the amount of
+output you want to see in the console, so as to understand the code's execution).
+A possible way of introducing this would be with what is known as an 'environment
+variable', which is just a value stored with a name in the 'environment' where
+your code runs (not an R variable, it's more related to the operating system).
+These should be loaded before the code starts running, and our package workflow
+allows us to do this quite easily, by creating a top-level file called `.Renviron`,
+which can include one variable per line, like this:
+```
+DEBUG_LEVEL=1
+GOOGLESHEETS_AUTH_FILE=inst/google_cloud_key.json
+```
+It can be accessed from R code by using
+
+```r
+Sys.getenv("NAME_OF_VARIABLE")
+```
+
+You can also use environment variables for constants, or whatever you feel that
+could be used in several places. This file will be uploaded to the repository,
+so it is important that it does not contain any sensitive information (also known
+as 'secrets'). I also introduced this section because in the example code for the
+[Writing articles](#writing-articles) section, there is the line:
+
+```r
+key_path <- here::here(Sys.getenv("GOOGLESHEETS_AUTH_FILE"))
+```
+
+In that example, an Excel sheet must be read. When using the `googlesheets4`
+package, it can automatically open a browser interactively and ask for your
+Google account credentials, but when running check tools, we want everything
+to work from beginning to end without human intervention. This is achievable
+by providing a secret token. 
+
+Since we _must not_ include secret information in `.Renviron`, the workaround
+is to instead add just the secret file path as an environment variable and then
+read from it, so the `.Renviron` is uploaded to Github but the secret file,
+which according to our environment variable should be found in
+`inst/google_cloud_key.json`, _is not uploaded_. Instead, the file should be
+uploaded to another private storage service, so that only you have access to it.
+
+In examples like this one, ideally every developer would create and use their
+own token. The specific case of the token in this example is out of the scope
+of this guide, but if you are interested you could probably start from
+[this `gargle` package guide](https://gargle.r-lib.org/articles/get-api-credentials.html).
+Also, the `here` package was used above for easy file path referencing from the
+root directory of a project, so that paths are not hard-coded, and you can read
+more in [their package site](https://here.r-lib.org/).
+
 ## R code style and formatting
 
 There are some conventions and good practices for how to write neat code
