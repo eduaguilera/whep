@@ -3,7 +3,8 @@ pkgdown: 2.1.1
 pkgdown_sha: ~
 articles:
   trade-sources-coverage: trade-sources-coverage.html
-last_built: 2025-01-21T09:45Z
+  workflow-intro: workflow-intro.html
+last_built: 2025-01-21T13:52Z
 urls:
   reference: https://eduaguilera.github.io/WHEP/reference
   article: https://eduaguilera.github.io/WHEP/articles
