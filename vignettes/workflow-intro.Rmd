@@ -890,14 +890,36 @@ articles or running R CMD check.
 
 ## R code style and formatting
 
-There are some conventions and good practice for how to write neat code
-in R (see e.g. [this](http://adv-r.had.co.nz/Style.html)). While it is nice to
-know them, most of them can be automatically applied using some formatting tool.
-There should be something like that in RStudio (I don't use it so I'm not sure)
-or in other editors. It is good to try to make one of these autoformatters work
-on your code because at some point I will try to add a formatting check on
-Github in order not to allow pull requests being approved if they don't follow
-these conventions, and it's way more tedious to try to check them manually.
+There are some conventions and good practices for how to write neat code
+in R. The most followed style guide is the
+[Tidyverse style guide](https://style.tidyverse.org/). You can read it or just
+skim through it to get a grasp of their conventions. The key is that most of them
+can be checked automatically. There are tools which conform to these standards
+and let you apply the necessary changes to the code by just clicking one button.
+In the same way, there are also ways to check whether a code is correctly
+following a style or not, without explicitly changing it. In the context of
+the Tidyverse style guide, these two points directly match with two R packages:
+
+- `styler`: it applies the Tidyverse style guide to a specific code, be it a chunk,
+a file or an entire project. Most code editors incorporate some way of doing this.
+Since you are most likely using RStudio, you can do it
+- `lintr`: it checks whether the given code/file/project follows the Tidyverse
+style guide, without making any actual changes. You are responsible for making
+sure this check passes, since it will also be automatically checked on your
+Pull Requests (see the [next section](#automatic-checks-on-pull-requests) on this
+guide). The check we will use is:
+```r
+lintr::lint_package(
+  linters = lintr::linters_with_defaults(object_usage_linter = NULL)
+)
+```
+The default call would be as easy as `lintr::lint_package()`. I will not go into
+detail about the specific option added here, but it is there to ignore warnings
+about undeclared global variables, which are false positives when using `dplyr`
+column names. For convenience, if you are following our
+[example repository](https://github.com/lbm364dl/R-example), you could find this
+call in `inst/scripts/check_lint.R`, so if you want to check everything you would
+just have to run this script.
 
 ## Automatic checks on Pull Requests
 
