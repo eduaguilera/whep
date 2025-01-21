@@ -18,29 +18,43 @@ knitr::opts_chunk$set(
 
 ## Cloning the repository
 
-Assuming you are on Windows, install Git from [here](https://git-scm.com/downloads/win)
-(if you don't know whether it's the 32 or 64 bits version, you most likely need the
-64 bit one). You should have something called 'Git Bash' installed. You can open
-Git Bash inside a specific folder by right-clicking your folder and selecting
-'Open Git Bash here', or you may want to learn some basic commands to navigate
-from the command line itself (from now on, __writing `<some-text>` is not part
-of the command__, I just use it as a __placeholder__ for what you need to write there):
+To get started with Git, you need your operating system to recognize Git commands.
+We will assume you are on Windows, so you will have to install Git from
+[here](https://git-scm.com/downloads/win). If you do not know whether it is the 32
+or 64 bits version, you most likely need the 64 bit one. You should now have
+something called 'Git Bash' installed, which is like a command line tool
+(similar to Windows CMD). You can open Git Bash inside a specific directory
+(this is just a technical name for folders and I will use it from now on)
+by right-clicking your desired directory in the file explorer and selecting
+'Open Git Bash here'. However, I would recommend you to learn some basic commands
+to navigate from the command line itself (from now on, __writing `<some-text>` is
+not part of the command__, I just use it as a __placeholder__ for what you need
+to write there):
 
 - Print your current directory:
-```
-pwd
-```
+  ```
+  pwd
+  ```
+  This is just useful so you can see where you are right now.
 - List files from your current directory:
-```
-ls
-```
+  ```
+  ls
+  ```
+  Suppose you do not know the exact path to follow but you know it is inside a
+  certain subdirectory from the one you are in right now. Listing everything in
+  the current directory with `ls` is a useful way to spot which subdirectory
+  you are looking for, so that you can then navigate inside it with `cd`.
 - Move to another directory relative to the one you are in right now:
-```
-cd <relative-path-where-to-move>
-```
+  ```
+  cd <relative-path-where-to-move>
+  ```
+
+You can use `ls` and `cd <relative-path>` repeatedly until you are in the
+directory where you want to place a subdirectory containing the repository.
+Again, you can double check that using `pwd`.
 
 We assume here that the repository you want to contribute to already exists.
-You can go to its page in Github and copy the URL as seen in the image below:
+You can go to its page on Github and copy the URL as seen in the image below:
 
 ```{r, fig.alt="Where to copy URL from", echo=FALSE}
 knitr::include_graphics("imgs/copy_repo_url.png")
@@ -53,10 +67,9 @@ using the following command:
 git clone <url-you-copied>
 ```
 
-This is called cloning via HTTPS. You should be asked to introduce your Github
-credentials. You can also clone via SSH which is more secure in the sense that
-it won't ask you to sign in, but if you know that you probably don't need this
-guide.
+This is called cloning via HTTPS. A browser should open and ask you to introduce
+your Github credentials. There are other ways of cloning like SSH, but that is
+out of the scope of this guide.
 
 ## Pulling remote changes
 
@@ -68,12 +81,12 @@ explain them with an example.
 Suppose you want to start contributing to this repository. A good practice
 (and one that we will enforce to use) is to make your own code changes in a
 'different place' than the ones you currently see in the repository. The things
-you see now are in what it's called the 'main branch', and you will make your
+you see now are in what it is called the 'main branch', and you will make your
 code changes in a 'new branch', which will start with the same content as the
-main one, but will then evolve with different changes. If you haven't done
-anything yet, you should be in the main branch (maybe it's called 'main' or
-'master', these are just conventions, but I will assume it's called 'main').
-You can use the command `git status` to check this (don't mind that my terminal
+main one, but will then evolve with different changes. If you have not done
+anything yet, you should be in the main branch (maybe it is called 'main' or
+'master', these are just conventions, but I will assume it is called 'main').
+You can use the command `git status` to check this (do not mind that my terminal
 looks different in the screenshots, you can use the same commands in Git Bash):
 
 ```{r, fig.alt="Using git status", echo=FALSE}
@@ -93,7 +106,7 @@ git pull
 knitr::include_graphics("imgs/git_pull_command.png")
 ```
 
-In this case I already had all the remote changes, and that's why the message
+In this case I already had all the remote changes, and that is why the message
 says 'Already up to date', but the message will be different if you had missing
 changes. This is the 'easy way' to do it. The command `git pull` tries to
 fetch changes from the equivalent remote branch, i.e., the one that has the same
@@ -118,7 +131,7 @@ git pull origin main
 
 ## Creating our own branch
 
-After the pull, we are now safely up to date with the remote changes. Now it's
+After the pull, we are now safely up to date with the remote changes. Now it is
 time to learn how to create our own 'branch', from which we will start working
 on new code. We use the following command:
 ```
@@ -132,7 +145,7 @@ knitr::include_graphics("imgs/branch_creation_command.png")
 The command `git checkout <name-of-branch>` is used to change from one branch
 to another (so that you will now see the files and changes that are in that
 branch). Additionally, if we add the `-b` option, it will create the branch with
-the given name if it doesn't already exist, which is our case in this example.
+the given name if it does not already exist, which is our case in this example.
 The branch name should be something like `author/name-of-branch`. Thus, some
 common practices for naming your branches (and that we should follow) are:
 
@@ -242,7 +255,8 @@ an additional step that must be passed before merging, which is related to
 automatic code checks, e.g. check whether your code is well formatted and
 whether it passes all tests successfully. If configured, these can run
 automatically when creating a Pull Request. We will indeed work with them, but we
-will explain these automatic checks better in a later section.
+will explain these automatic checks better in the
+[Automatic checks on Pull Requests section](#automatic-checks-on-pull-requests).
 
 While working on your own branch, others may have merged their own branches
 into the main branch and then your own branch would be outdated. When creating
@@ -257,9 +271,9 @@ Even if you are locally on your own branch and directly try to fetch changes fro
 a different remote one (in this case `main`), this works as expected, that is,
 it tries to merge all new changes from the `main` branch into your own local one.
 This automatic merge works most of the times, but sometimes you may find conflicts,
-because the program doesn't know how to combine everything neatly. If this happens,
-you must manually check which parts of the code should be kept. We won't talk more
-about this here since it's just an introduction. Whenever this happens to you,
+because the program does not know how to combine everything neatly. If this happens,
+you must manually check which parts of the code should be kept. We will not talk more
+about this here since it is just an introduction. Whenever this happens to you,
 you can ask others for help.
 
 
@@ -279,7 +293,7 @@ packages which can be publicly downloaded by anyone from the
 follow this standard R package structure, you can upload your package and one could do
 `install.packages(your_package)` the same way.
 
-Even if you don't want to upload a package, there are still advantages if you
+Even if you do not want to upload a package, there are still advantages if you
 follow this structure. This is the one we will follow, so the rest of this section
 will try to explain its different parts, that will all become part of our workflow.
 
@@ -302,10 +316,10 @@ book.
 ## Virtual environments with renv
 
 We just mentioned we were going to use the R package structure, and it seems
-R package developers don't use `renv`... Or do they? At least they do not seem
+R package developers do not use `renv`... Or do they? At least they do not seem
 to include `renv` related files in their package repositories... Well, why
 should _we_ use it then? While writing this guide I was a bit confused myself
-about mixing both things, but my conclusion was that it just doesn't hurt
+about mixing both things, but my conclusion was that it just does not hurt
 in any way, `renv` just makes things easier without apparent drawbacks
 (do tell me if you know of any). When creating packages, you want to make sure
 they work on fresh installations, i.e., computers that do not have anything
@@ -340,7 +354,7 @@ installation of packages, that are only visible inside your project, and
 do not get mixed at all with those from your global R installation or from
 other individual projects. In practice, a virtual environment is just a
 folder containing installed packages, isolated from the folder that
-contains your global R installation. It's like having several different
+contains your global R installation. It is like having several different
 R installations, each one with their own packages and versions.
 
 Chances are you follow this guide with an existing repository that is
@@ -500,7 +514,7 @@ structure. For reference, these were the different parts:
 #' @param param_name_2 Description of param 2
 #' ...
 ```
-As you see here I think it's OK to add linebreaks in between, as long as each
+As you see here I think it is OK to add linebreaks in between, as long as each
 parameter starts with `@param`.
 ```
 #' @param trade_sources A tibble dataframe
@@ -553,7 +567,7 @@ No. You probably thought that we should check somehow that this function is inde
 correct and it does what you expect. Right now it would be easy to just load
 the function in an R prompt and try some examples on it, but what if the next month
 someone has to make a change in this code? They would have to do this manual testing
-again to make sure they didn't break any functionality. What if they need to change
+again to make sure they did not break any functionality. What if they need to change
 dozens of functions? How many time will they spend on testing all of them?
 
 I think you can understand that this is really time consuming and that there is a
@@ -614,14 +628,14 @@ test_that("trade source data is expanded from year range to single year rows", {
 })
 ```
 
-Again, you don't have to understand the whole code. Just note that we use two
+Again, you do not have to understand the whole code. Just note that we use two
 packages from `testthat`:
 
 - `testthat::test_that`: this is the main function used to delimit what a test is.
 It receives a text description about what the test is checking, and a body
 containing all the code of the test itself.
 - `testthat::expect_equal`: this is just one of the many utilities `testthat`
-brings to actually assert things in the test's code. It's probably the most
+brings to actually assert things in the test's code. It is probably the most
 general assert, and it just checks if everything is identical in both arguments,
 including internal object metadata, not just "appearance" (what you may see
 when printing an object). You can look for more testing utility functions in
@@ -694,7 +708,7 @@ To fix this, we must have a quick look at the `DESCRIPTION` file.
 Package: WHEP
 Title: What the Package Does (One Line, Title Case)
 Version: 0.0.0.9000
-Authors@R: 
+Authors@R:
     person("First", "Last", , "first.last@example.com", role = c("aut", "cre"))
 Description: What the package does (one paragraph).
 License: MIT + file LICENSE
@@ -704,7 +718,7 @@ Imports:
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.2
-Suggests: 
+Suggests:
     knitr,
     rmarkdown,
     testthat (>= 3.0.0),
@@ -895,7 +909,7 @@ value is a number from 1 to 5, indicating the level of debugging (the amount of
 output you want to see in the console, so as to understand the code's execution).
 A possible way of introducing this would be with what is known as an 'environment
 variable', which is just a value stored with a name in the 'environment' where
-your code runs (not an R variable, it's more related to the operating system).
+your code runs (not an R variable, it is more related to the operating system).
 These should be loaded before the code starts running, and our package workflow
 allows us to do this quite easily, by creating a top-level file called `.Renviron`,
 which can include one variable per line, like this:
@@ -923,7 +937,7 @@ In that example, an Excel sheet must be read. When using the `googlesheets4`
 package, it can automatically open a browser interactively and ask for your
 Google account credentials, but when running check tools, we want everything
 to work from beginning to end without human intervention. This is achievable
-by providing a secret token. 
+by providing a secret token.
 
 Since we _must not_ include secret information in `.Renviron`, the workaround
 is to instead add just the secret file path as an environment variable and then
@@ -955,65 +969,65 @@ style guide, these two points directly match with two R packages:
 - `styler`: it applies the Tidyverse style guide to a specific code, be it a chunk,
   a file or an entire project. For example, we could apply the style to the whole
   package by simply using the command:
-  
+
   ```r
   styler::style_pkg()
   ```
-  
+
   Most code editors incorporate some way of doing this. Since you are most likely
   using RStudio, you can do it by finding the `styler` options in the 'addins' dropdown:
-  
+
   ```{r, fig.alt="Use styler package from RStudio", echo=FALSE}
   knitr::include_graphics("imgs/styler_rstudio.png")
   ```
-  
+
   When using `renv`, it seems RStudio only shows in the 'addins' dropdown the
   options from packages included in `renv`, so keep that in mind in case you want
   it in a different project, that is, if `styler` does not show up there, it means
   you do not have it installed in the current `renv` environment.
-  
+
   An important thing to keep in mind is that the Tidyverse style guide states lines
   should have at most 80 characters, but the `styler` package cannot by itself try
   to separate a really long single line into several lines to match the 80 character
   limit. You _must_ fix this anyway, and the usual way for the `styler` to work
   is to first manually split some of the code into two lines, and then run the
   `styler` again, so it can now split the rest accordingly. For example, you have:
-  
+
   ```r
   call_my_incredibly_long_function(my_first_long_argument, my_second_long_argument, my_third_long_argument)
   ```
-  
+
   In this case, if you use `styler` it may not change anything and still leave
   this code in a single line, but you can help it a bit by sending the arguments
   to the next line, like this:
-  
+
   ```r
   call_my_incredibly_long_function(
     my_first_long_argument, my_second_long_argument, my_third_long_argument)
   ```
-  
+
   This does not conform to the standard yet, but now trying to use `styler` again,
   it should be able to understand what is going on and split the code accordingly.
   Depending on the length of the line, it may leave it like this (note the closing
   parenthesis goes in its own line):
-  
+
   ```r
   call_my_incredibly_long_function(
     my_first_long_argument, my_second_long_argument, my_third_long_argument
   )
   ```
-  
+
   Or if the line was even longer, it would split each argument into its own line:
-  
+
   ```r
   call_my_incredibly_long_function(
-    my_first_long_argument, 
-    my_second_long_argument, 
+    my_first_long_argument,
+    my_second_long_argument,
     my_third_long_argument,
     my_fourth_long_argument
   )
   ```
-  
+
   Any of those should work now, because they successfully follow the 80 character
   per line limit. If you do not follow the limit, you would fail the `lintr`
   check (see next point below).
@@ -1036,7 +1050,7 @@ style guide, these two points directly match with two R packages:
   [example repository](https://github.com/lbm364dl/R-example), you could find this
   call in `inst/scripts/check_lint.R`, so if you want to check everything you would
   just have to run this script.
-  
+
   In the screenshot above you can see there are also options for `lintr` checks
   from Rstudio's 'addins', but by default they perform the `lintr::lint_package()`
   call without any options. Remember we added one option to our check, so you
@@ -1085,7 +1099,7 @@ knitr::include_graphics("imgs/all_pr_ok.png")
 ```
 
 In case you are wondering, both checks we mentioned before are actually done
-in a single Github automatic step (these steps are called 'Github actions'), 
+in a single Github automatic step (these steps are called 'Github actions'),
 so it should say '1 successful check' instead of '2 successful checks'.
 However, there is an additional Github action there, which essentially
 just updates the documentation site (only when the PR is actually merged into
