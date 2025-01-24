@@ -385,8 +385,13 @@ automatically and we have to do it manually by running
 ```
 renv::snapshot()
 ```
-This will update the `renv.lock` file, and you should push it to the
-repository. If someone else wants to reproduce your code, they may have to run
+This will update the `renv.lock` file with all the packages `renv` finds
+are used in your code. If for some reason you need to install a package not
+explicitly used in the code, this may fail to recognize it. In that case, you
+should instead explicitly call `renv::snapshot(type="all")` to force every
+package in your `renv` environment to be added to `renv.lock`. You should push
+this file to the repository. If someone else wants to reproduce your code, then
+they may have to run
 ```
 renv::restore()
 ```
@@ -411,6 +416,15 @@ keeping in mind the commands
 I wrote this introduction to `renv` by reading their own package documentation.
 If you want to learn more about it, you can read it yourself at
 [their package website](https://rstudio.github.io/renv/articles/renv.html).
+
+While this is not directly related to `renv` usage, I wanted to highlight
+here that in Windows you may have errors trying to install some R packages.
+Most of the times this may be related to missing operating system dependencies
+or commands. In Windows this should be easily fixable by installing the version
+of [Rtools](https://cran.r-project.org/bin/windows/Rtools/) that matches with
+your R version. After selecting the version you can download it by clicking
+the first installer link. After installing Rtools, you can try again to
+install the R packages you wanted.
 
 ## Writing code
 
@@ -629,7 +643,7 @@ test_that("trade source data is expanded from year range to single year rows", {
 ```
 
 Again, you do not have to understand the whole code. Just note that we use two
-packages from `testthat`:
+functions from the `testthat` package:
 
 - `testthat::test_that`: this is the main function used to delimit what a test is.
 It receives a text description about what the test is checking, and a body
@@ -854,6 +868,7 @@ The next chunk (with the `"r setup"` option) is used for some initialization cod
 that you may need throughout the rest of the article. At the time of writing I do not
 really know the implications of writing the `"r setup"` option or writing this code
 in a normal R code chunk (without the option), but it is at least good practice.
+Note that the package being loaded is your own package (called WHEP in our case).
 
 ````
 ```_{r setup}
@@ -895,6 +910,18 @@ I am not completely convinced they are equivalent, since it seems at some point 
 failed and one worked for me, but if you are not doing something strange (like me
 building this guide and writing R Markdown inside R Markdown) it should probably work
 the same.
+
+The `pkgdown::build_articles()` one could still fail with some error indicating
+that the package cannot be loaded. It most likely refers to your own package.
+Since you use code from your own package inside the R markdown, this package
+itself must also be installed. When running `pkgdown::build_site()`, I think
+the package is installed but only in a temporary directory for that execution,
+so maybe it does not work anymore when calling `pkgdown::build_articles()`
+after that. If this is your case, you may want to try installing your own
+package first via `devtools::install()`. Note that this assumes you do not
+change your package code (the one in `R/` directory) while actively working
+on articles. If you do, you would have to reinstall your own package every time
+you change something in the `R/` directory.
 
 As mentioned in a previous section, also remember to include all package
 dependencies your article code uses in the `Suggests` part of the `DESCRIPTION`
