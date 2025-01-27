@@ -400,9 +400,14 @@ environment, is in a file called <code>renv.lock</code>. After
 installing new packages, this file is not updated automatically and we
 have to do it manually by running</p>
 <pre><code><span><span class="fu">renv</span><span class="fu">::</span><span class="fu"><a href="https://rstudio.github.io/renv/reference/snapshot.html" class="external-link">snapshot</a></span><span class="op">(</span><span class="op">)</span></span></code></pre>
-<p>This will update the <code>renv.lock</code> file, and you should push
-it to the repository. If someone else wants to reproduce your code, they
-may have to run</p>
+<p>This will update the <code>renv.lock</code> file with all the
+packages <code>renv</code> finds are used in your code. If for some
+reason you need to install a package not explicitly used in the code,
+this may fail to recognize it. In that case, you should instead
+explicitly call <code>renv::snapshot(type="all")</code> to force every
+package in your <code>renv</code> environment to be added to
+<code>renv.lock</code>. You should push this file to the repository. If
+someone else wants to reproduce your code, then they may have to run</p>
 <pre><code><span><span class="fu">renv</span><span class="fu">::</span><span class="fu"><a href="https://rstudio.github.io/renv/reference/restore.html" class="external-link">restore</a></span><span class="op">(</span><span class="op">)</span></span></code></pre>
 <p>which will install any packages from <code>renv.lock</code> that they
 may still not have installed, but again, only on a project level, not
@@ -427,6 +432,14 @@ environment, keeping in mind the commands</p>
 package documentation. If you want to learn more about it, you can read
 it yourself at <a href="https://rstudio.github.io/renv/articles/renv.html" class="external-link">their package
 website</a>.</p>
+<p>While this is not directly related to <code>renv</code> usage, I
+wanted to highlight here that in Windows you may have errors trying to
+install some R packages. Most of the times this may be related to
+missing operating system dependencies or commands. In Windows this
+should be easily fixable by installing the version of <a href="https://cran.r-project.org/bin/windows/Rtools/" class="external-link">Rtools</a> that
+matches with your R version. After selecting the version you can
+download it by clicking the first installer link. After installing
+Rtools, you can try again to install the R packages you wanted.</p>
 </div>
 <div class="section level3">
 <h3 id="writing-code">Writing code<a class="anchor" aria-label="anchor" href="#writing-code"></a>
@@ -648,7 +661,7 @@ tests could look like:</p>
 <span>  <span class="op">)</span></span>
 <span><span class="op">}</span><span class="op">)</span></span></code></pre></div>
 <p>Again, you do not have to understand the whole code. Just note that
-we use two packages from <code>testthat</code>:</p>
+we use two functions from the <code>testthat</code> package:</p>
 <ul>
 <li>
 <code><a href="https://testthat.r-lib.org/reference/test_that.html" class="external-link">testthat::test_that</a></code>: this is the main function used to
@@ -871,7 +884,8 @@ some initialization code that you may need throughout the rest of the
 article. At the time of writing I do not really know the implications of
 writing the <code>"r setup"</code> option or writing this code in a
 normal R code chunk (without the option), but it is at least good
-practice.</p>
+practice. Note that the package being loaded is your own package (called
+WHEP in our case).</p>
 <pre><code>```_{r setup}
 library(WHEP)
 key_path &lt;- here::here(Sys.getenv("GOOGLESHEETS_AUTH_FILE"))
@@ -904,6 +918,20 @@ have changed. I am not completely convinced they are equivalent, since
 it seems at some point one failed and one worked for me, but if you are
 not doing something strange (like me building this guide and writing R
 Markdown inside R Markdown) it should probably work the same.</p>
+<p>The <code><a href="https://pkgdown.r-lib.org/reference/build_articles.html" class="external-link">pkgdown::build_articles()</a></code> one could still fail with
+some error indicating that the package cannot be loaded. It most likely
+refers to your own package. Since you use code from your own package
+inside the R markdown, this package itself must also be installed. When
+running <code><a href="https://pkgdown.r-lib.org/reference/build_site.html" class="external-link">pkgdown::build_site()</a></code>, I think the package is
+installed but only in a temporary directory for that execution, so maybe
+it does not work anymore when calling
+<code><a href="https://pkgdown.r-lib.org/reference/build_articles.html" class="external-link">pkgdown::build_articles()</a></code> after that. If this is your case,
+you may want to try installing your own package first via
+<code><a href="https://devtools.r-lib.org/reference/install.html" class="external-link">devtools::install()</a></code>. Note that this assumes you do not
+change your package code (the one in <code>R/</code> directory) while
+actively working on articles. If you do, you would have to reinstall
+your own package every time you change something in the <code>R/</code>
+directory.</p>
 <p>As mentioned in a previous section, also remember to include all
 package dependencies your article code uses in the <code>Suggests</code>
 part of the <code>DESCRIPTION</code> file, so that you do not get errors
