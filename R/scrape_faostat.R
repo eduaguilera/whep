@@ -13,7 +13,7 @@
 
   # manually fix some crazy countries/ISO3_CODE
   df[df$area == "China, mainland", "ISO3_CODE"] <- "CHN"
-  df[df$area == "Türkiye", "ISO3_CODE"] <- "TUR"
+  df[df$area == "T\u00FCrkiye", "ISO3_CODE"] <- "TUR"
   df[df$area == "Netherlands (Kingdom of the)", "ISO3_CODE"] <- "NLD"
   df[df$area == "Sudan", "ISO3_CODE"] <- "SDN"
   df[df$area == "South Sudan", "ISO3_CODE"] <- "SSD"
@@ -95,7 +95,6 @@ get_faostat_data <- function(
       "livestock", "crop_area", "crop_yield", "crop_production"
     ),
     ...) {
-  require("FAOSTAT")
   faostat_converters <- .faostat_converter(activity_data_param)
 
   # scrape bulk data from FAOSTAT for a specific parameter
