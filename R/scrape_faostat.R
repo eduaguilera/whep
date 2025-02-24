@@ -1,8 +1,7 @@
-#' .populate_iso3_code
+#' Populates ISO3CODE based on "area" column from FAOSTAT
+#' also postprocesses "wrong" ISO3 codes
 #'
 #' @param df data.frame from FAOSTAT
-#' @description populates ISO3CODE based on "area" column from FAOSTAT
-#' also postprocesses "wrong" ISO3 codes
 #'
 #' @returns data.frame
 .populate_iso3_code <- function(df) {
@@ -22,19 +21,15 @@
   df
 }
 
-#' .faostat_converter
+#' Converts activity_data_param on the necessary FAOSTAT code
+#' (to scrape from FAOSTAT) and the necessary FAO parameter
 #'
 #' @note to add new parameters from FAOSTAT IS HERE
 #' @param activity_data_param activity data required from FAOSTAT;
 #' needs to be one of c('livestock','crop_area','crop_yield','crop_production')
-#' @description converts activity_data_param on the necessary FAOSTAT code
-#' (to scrape from FAOSTAT) and the necessary FAO parameter
 #'
 #' @returns list of length n=2; first index is FAOSTAT code and second index
 #' is FAOSTAT parameter
-#'
-#' @examples .faostat_converter("livestock")
-#' @examples .faostat_converter("crop_area")
 .faostat_converter <- function(
     activity_data_param = c(
       "livestock", "crop_area", "crop_yield", "crop_production"
@@ -69,27 +64,26 @@
   }
 }
 
-#' get_faostat_data
-#'
-#' @important dynamically allows for the introduction of subsets as "..."
-#' @note overhead by individually scraping FAOSTAT code QCL for crop data;
-#' it's fine
+#' Scrapes activity_data_param from FAOSTAT and slightly post-processes it.
+#' Important: Dynamically allows for the introduction of subsets as "...".
+#' Note: overhead by individually scraping FAOSTAT code QCL for crop data;
+#' it's fine.
 #'
 #' @param activity_data_param activity data required from FAOSTAT; needs
 #' to be one of c('livestock','crop_area','crop_yield','crop_production')
 #' @param ... can be whichever column name from get_faostat_bulk,
 #' particularly year, area or ISO3_CODE
-#' @description scrapes activity_data_param from FAOSTAT and slightly
-#' post-processes it
 #'
 #' @returns data.frame of FAOSTAT for activity_data_param; default is for
 #' all years and countries
+#'
 #' @export
 #'
-#' @examples get_faostat_data("livestock")
-#' @examples get_faostat_data("livestock", year == 2010)
-#' @examples get_faostat_data("livestock", year == 2010 & area == "Portugal")
-#' @examples get_faostat_data("livestock", area == "Portugal")
+#' @examples
+#' get_faostat_data("livestock")
+#' get_faostat_data("livestock", year == 2010)
+#' get_faostat_data("livestock", year == 2010 & area == "Portugal")
+#' get_faostat_data("livestock", area == "Portugal")
 get_faostat_data <- function(
     activity_data_param = c(
       "livestock", "crop_area", "crop_yield", "crop_production"
