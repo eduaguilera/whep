@@ -7,7 +7,8 @@ Description: What the package does (one paragraph).
 License: MIT + file LICENSE
 Imports:
     dplyr,
-    tidyr
+    tidyr,
+    FAOSTAT
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.2
