@@ -89,6 +89,10 @@ get_faostat_data <- function(
       "livestock", "crop_area", "crop_yield", "crop_production"
     ),
     ...) {
+  # Some functions from FAOSTAT pkg don't work by only using prefixed functions.
+  # It is detached again at the end of this function call.
+  library("FAOSTAT")
+
   faostat_converters <- .faostat_converter(activity_data_param)
 
   # scrape bulk data from FAOSTAT for a specific parameter
@@ -128,5 +132,6 @@ get_faostat_data <- function(
 
   # Properly detach FAOSTAT to avoid issues
   detach("package:FAOSTAT", unload = TRUE)
+
   return(faostat_data)
 }
