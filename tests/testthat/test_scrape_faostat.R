@@ -25,7 +25,15 @@ test_that("get_faostat_data fails for wrong activity_data_param", {
 })
 
 test_that("get_faostat_data returns correct filtered results", {
-  result <- get_faostat_data("livestock", year = 2010, area = "Portugal")
+  expect_warning(
+    result <- get_faostat_data(
+      "livestock",
+      year = 2010,
+      area = "Portugal",
+      whatever = 30
+    ),
+    "Column whatever not found in FAOSTAT data."
+  )
 
   result[, "element"] |>
     unique() |>
