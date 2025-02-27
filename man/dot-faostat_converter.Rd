@@ -5,7 +5,7 @@
 \title{Converts activity_data on the necessary FAOSTAT code
 (to scrape from FAOSTAT) and the necessary FAO parameter}
 \usage{
-.faostat_converter(activity_data = .activity_data_choices())
+.faostat_converter(activity_data)
 }
 \arguments{
 \item{activity_data}{activity data required from FAOSTAT;

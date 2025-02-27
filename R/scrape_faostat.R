@@ -23,11 +23,7 @@
 #' "livestock" |>
 #'   get_faostat_data(year = 2010, area = "Portugal") |>
 #'   dplyr::sample_n(10)
-get_faostat_data <- function(
-    activity_data = c(
-      "livestock", "crop_area", "crop_yield", "crop_production"
-    ),
-    ...) {
+get_faostat_data <- function(activity_data, ...) {
   # Some functions from FAOSTAT pkg don't work by only using prefixed functions.
   # It is detached again at the end of this function call.
   # Also this is another way to write require("FAOSTAT") without triggering
@@ -107,8 +103,11 @@ get_faostat_data <- function(
 #'
 #' @returns list of length n=2; first index is FAOSTAT code and second index
 #'   is FAOSTAT parameter
-.faostat_converter <- function(activity_data = .activity_data_choices()) {
-  if (!all(activity_data %in% .activity_data_choices())) {
+.faostat_converter <- function(activity_data) {
+  if (
+    length(activity_data) != 1 ||
+      !(activity_data %in% .activity_data_choices())
+  ) {
     stop(.bad_activity_data_param_error())
   }
 
