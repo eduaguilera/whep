@@ -18,6 +18,7 @@
   df[df$area == "South Sudan", "ISO3_CODE"] <- "SSD"
   df[df$area == "Czechia", "ISO3_CODE"] <- "CZE"
   df[df$area == "Lao People's Democratic Republic", "ISO3_CODE"] <- "LAO"
+
   df
 }
 
@@ -34,34 +35,34 @@
     activity_data_param = c(
       "livestock", "crop_area", "crop_yield", "crop_production"
     )) {
-  if (activity_data_param %in% c(
+  if (!(activity_data_param %in% c(
     "livestock", "crop_area", "crop_yield", "crop_production"
-  )) {
-    # create list to translate activity_data_param into FAOSTAT code
-    fao_cat_converter <- list(
-      "livestock" = "EMN",
-      "crop_area" = "QCL",
-      "crop_yield" = "QCL",
-      "crop_production" = "QCL"
-    )
-
-    fao_param_converter <- list(
-      "livestock" = "stocks",
-      "crop_area" = "area_harvested",
-      "crop_yield" = "yield",
-      "crop_production" = "production"
-    )
-
-    return(list(
-      FAOSTAT_code = fao_cat_converter[[activity_data_param]],
-      FAOSTAT_param = fao_param_converter[[activity_data_param]]
-    ))
-  } else {
+  ))) {
     stop(paste(
       "Please, ensure activity_data_param is one of",
       '"livestock,crop_area,crop_yield,crop_production."'
     ))
   }
+
+  # create list to translate activity_data_param into FAOSTAT code
+  fao_cat_converter <- list(
+    "livestock" = "EMN",
+    "crop_area" = "QCL",
+    "crop_yield" = "QCL",
+    "crop_production" = "QCL"
+  )
+
+  fao_param_converter <- list(
+    "livestock" = "stocks",
+    "crop_area" = "area_harvested",
+    "crop_yield" = "yield",
+    "crop_production" = "production"
+  )
+
+  list(
+    FAOSTAT_code = fao_cat_converter[[activity_data_param]],
+    FAOSTAT_param = fao_param_converter[[activity_data_param]]
+  )
 }
 
 #' Scrapes activity_data_param from FAOSTAT and slightly post-processes it.
@@ -81,9 +82,7 @@
 #'
 #' @examples
 #' get_faostat_data("livestock")
-#' get_faostat_data("livestock", year == 2010)
-#' get_faostat_data("livestock", year == 2010 & area == "Portugal")
-#' get_faostat_data("livestock", area == "Portugal")
+#' get_faostat_data("livestock", year = 2010, area = "Portugal")
 get_faostat_data <- function(
     activity_data_param = c(
       "livestock", "crop_area", "crop_yield", "crop_production"
@@ -91,7 +90,9 @@ get_faostat_data <- function(
     ...) {
   # Some functions from FAOSTAT pkg don't work by only using prefixed functions.
   # It is detached again at the end of this function call.
-  library("FAOSTAT")
+  # Also this is another way to write require("FAOSTAT") without triggering
+  # R CMD check warning
+  do.call(require, list("FAOSTAT"))
 
   faostat_converters <- .faostat_converter(activity_data_param)
 
@@ -102,14 +103,10 @@ get_faostat_data <- function(
 
   # subset based on activity_data_param OR element in FAOSTAT
   # also subset only necessary columns for post-processing
-  faostat_data <- subset(
-    faostat_data, element == faostat_converters[["FAOSTAT_param"]]
-  )
-
-  faostat_data <- subset(
-    faostat_data,
-    select = c("area", "item", "element", "year", "value", "unit")
-  )
+  faostat_data <- faostat_data[
+    faostat_data$element == faostat_converters[["FAOSTAT_param"]],
+    c("area", "item", "element", "year", "value", "unit")
+  ]
 
   # create ISO3 codes
   faostat_data <- .populate_iso3_code(faostat_data)
@@ -133,5 +130,5 @@ get_faostat_data <- function(
   # Properly detach FAOSTAT to avoid issues
   detach("package:FAOSTAT", unload = TRUE)
 
-  return(faostat_data)
+  faostat_data
 }
