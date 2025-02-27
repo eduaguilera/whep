@@ -1,15 +1,18 @@
-#' Scrapes activity_data from FAOSTAT and slightly post-processes it.
-#'   Important: Dynamically allows for the introduction of subsets as "...".
-#'   Note: overhead by individually scraping FAOSTAT code QCL for crop data;
-#'   it's fine.
+#' Scrapes activity_data from FAOSTAT and slightly post-processes it
+#'
+#' @description
+#' Important: Dynamically allows for the introduction of subsets as `"..."`.
+#'
+#' Note: overhead by individually scraping FAOSTAT code QCL for crop data;
+#' it's fine.
 #'
 #' @param activity_data activity data required from FAOSTAT; needs
-#'   to be one of c('livestock','crop_area','crop_yield','crop_production')
-#' @param ... can be whichever column name from get_faostat_bulk,
-#'   particularly year, area or ISO3_CODE
+#'   to be one of `c('livestock','crop_area','crop_yield','crop_production')`.
+#' @param ... can be whichever column name from `get_faostat_bulk`,
+#'   particularly `year`, `area` or `ISO3_CODE`.
 #'
-#' @returns data.frame of FAOSTAT for activity_data; default is for
-#'   all years and countries
+#' @returns `data.frame` of FAOSTAT for `activity_data`; default is for
+#'   all years and countries.
 #'
 #' @export
 #'
