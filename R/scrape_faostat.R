@@ -22,30 +22,22 @@
   df
 }
 
-#' Converts activity_data_param on the necessary FAOSTAT code
+#' Converts activity_data on the necessary FAOSTAT code
 #'   (to scrape from FAOSTAT) and the necessary FAO parameter
 #'
 #' @note to add new parameters from FAOSTAT IS HERE
-#' @param activity_data_param activity data required from FAOSTAT;
+#' @param activity_data activity data required from FAOSTAT;
 #'   needs to be one of
 #'   `c('livestock','crop_area','crop_yield','crop_production')`
 #'
 #' @returns list of length n=2; first index is FAOSTAT code and second index
 #'   is FAOSTAT parameter
-.faostat_converter <- function(
-    activity_data_param = c(
-      "livestock", "crop_area", "crop_yield", "crop_production"
-    )) {
-  if (!(activity_data_param %in% c(
-    "livestock", "crop_area", "crop_yield", "crop_production"
-  ))) {
-    stop(paste(
-      "Please, ensure activity_data_param is one of",
-      '"livestock,crop_area,crop_yield,crop_production."'
-    ))
+.faostat_converter <- function(activity_data = .activity_data_choices()) {
+  if (!all(activity_data %in% .activity_data_choices())) {
+    stop(.bad_activity_data_param_error())
   }
 
-  # create list to translate activity_data_param into FAOSTAT code
+  # create list to translate activity_data into FAOSTAT code
   fao_cat_converter <- list(
     "livestock" = "EMN",
     "crop_area" = "QCL",
@@ -61,22 +53,33 @@
   )
 
   list(
-    FAOSTAT_code = fao_cat_converter[[activity_data_param]],
-    FAOSTAT_param = fao_param_converter[[activity_data_param]]
+    FAOSTAT_code = fao_cat_converter[[activity_data]],
+    FAOSTAT_param = fao_param_converter[[activity_data]]
   )
 }
 
-#' Scrapes activity_data_param from FAOSTAT and slightly post-processes it.
+.activity_data_choices <- function() {
+  c("livestock", "crop_area", "crop_yield", "crop_production")
+}
+
+.bad_activity_data_param_error <- function() {
+  paste(
+    "Please, ensure activity_data is one of",
+    '"livestock,crop_area,crop_yield,crop_production."'
+  )
+}
+
+#' Scrapes activity_data from FAOSTAT and slightly post-processes it.
 #'   Important: Dynamically allows for the introduction of subsets as "...".
 #'   Note: overhead by individually scraping FAOSTAT code QCL for crop data;
 #'   it's fine.
 #'
-#' @param activity_data_param activity data required from FAOSTAT; needs
+#' @param activity_data activity data required from FAOSTAT; needs
 #'   to be one of c('livestock','crop_area','crop_yield','crop_production')
 #' @param ... can be whichever column name from get_faostat_bulk,
 #'   particularly year, area or ISO3_CODE
 #'
-#' @returns data.frame of FAOSTAT for activity_data_param; default is for
+#' @returns data.frame of FAOSTAT for activity_data; default is for
 #'   all years and countries
 #'
 #' @export
@@ -85,7 +88,7 @@
 #' get_faostat_data("livestock")
 #' get_faostat_data("livestock", year = 2010, area = "Portugal")
 get_faostat_data <- function(
-    activity_data_param = c(
+    activity_data = c(
       "livestock", "crop_area", "crop_yield", "crop_production"
     ),
     ...) {
@@ -95,14 +98,14 @@ get_faostat_data <- function(
   # R CMD check warning
   do.call(require, list("FAOSTAT"))
 
-  faostat_converters <- .faostat_converter(activity_data_param)
+  faostat_converters <- .faostat_converter(activity_data)
 
   # scrape bulk data from FAOSTAT for a specific parameter
   faostat_data <- FAOSTAT::get_faostat_bulk(
     code = faostat_converters[["FAOSTAT_code"]]
   )
 
-  # subset based on activity_data_param OR element in FAOSTAT
+  # subset based on activity_data OR element in FAOSTAT
   # also subset only necessary columns for post-processing
   faostat_data <- faostat_data[
     faostat_data$element == faostat_converters[["FAOSTAT_param"]],
