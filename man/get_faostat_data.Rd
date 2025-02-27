@@ -4,10 +4,7 @@
 \alias{get_faostat_data}
 \title{Scrapes activity_data from FAOSTAT and slightly post-processes it}
 \usage{
-get_faostat_data(
-  activity_data = c("livestock", "crop_area", "crop_yield", "crop_production"),
-  ...
-)
+get_faostat_data(activity_data, ...)
 }
 \arguments{
 \item{activity_data}{activity data required from FAOSTAT; needs
