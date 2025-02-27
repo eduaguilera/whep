@@ -1,5 +1,5 @@
 #' Populates ISO3CODE based on "area" column from FAOSTAT
-#' also postprocesses "wrong" ISO3 codes
+#'   also postprocesses "wrong" ISO3 codes
 #'
 #' @param df data.frame from FAOSTAT
 #'
@@ -23,14 +23,15 @@
 }
 
 #' Converts activity_data_param on the necessary FAOSTAT code
-#' (to scrape from FAOSTAT) and the necessary FAO parameter
+#'   (to scrape from FAOSTAT) and the necessary FAO parameter
 #'
 #' @note to add new parameters from FAOSTAT IS HERE
 #' @param activity_data_param activity data required from FAOSTAT;
-#' needs to be one of c('livestock','crop_area','crop_yield','crop_production')
+#'   needs to be one of
+#'   `c('livestock','crop_area','crop_yield','crop_production')`
 #'
 #' @returns list of length n=2; first index is FAOSTAT code and second index
-#' is FAOSTAT parameter
+#'   is FAOSTAT parameter
 .faostat_converter <- function(
     activity_data_param = c(
       "livestock", "crop_area", "crop_yield", "crop_production"
@@ -66,17 +67,17 @@
 }
 
 #' Scrapes activity_data_param from FAOSTAT and slightly post-processes it.
-#' Important: Dynamically allows for the introduction of subsets as "...".
-#' Note: overhead by individually scraping FAOSTAT code QCL for crop data;
-#' it's fine.
+#'   Important: Dynamically allows for the introduction of subsets as "...".
+#'   Note: overhead by individually scraping FAOSTAT code QCL for crop data;
+#'   it's fine.
 #'
 #' @param activity_data_param activity data required from FAOSTAT; needs
-#' to be one of c('livestock','crop_area','crop_yield','crop_production')
+#'   to be one of c('livestock','crop_area','crop_yield','crop_production')
 #' @param ... can be whichever column name from get_faostat_bulk,
-#' particularly year, area or ISO3_CODE
+#'   particularly year, area or ISO3_CODE
 #'
 #' @returns data.frame of FAOSTAT for activity_data_param; default is for
-#' all years and countries
+#'   all years and countries
 #'
 #' @export
 #'
