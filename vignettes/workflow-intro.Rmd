@@ -272,10 +272,64 @@ a different remote one (in this case `main`), this works as expected, that is,
 it tries to merge all new changes from the `main` branch into your own local one.
 This automatic merge works most of the times, but sometimes you may find conflicts,
 because the program does not know how to combine everything neatly. If this happens,
-you must manually check which parts of the code should be kept. We will not talk more
-about this here since it is just an introduction. Whenever this happens to you,
-you can ask others for help.
+you must manually check which parts of the code should be kept. In the next section
+we explain how to solve conflicts.
 
+## Solving conflicts
+
+As noted in the previous section, sometimes when you `git pull` from another
+branch or from the same remote one (if you are missing some changes), you can
+find conflicts. A conflict looks like this:
+
+```
+<<<<<<< HEAD
+this is my content
+that I just added
+=======
+this is some different conflicting content
+from the branch I pulled from
+>>>>>>> some_branch_name
+```
+
+So in a conflict, there are at least three lines the were added by git to
+separate the conflicting parts. The conflict starts at the line `<<<<<<< HEAD`,
+and until we get to the `=======` line, the lines in between are the content
+_we_ added. Then from this one until the end `>>>>>>> some_branch_name`, the
+lines in between are the content that _someone else_ added and we did not
+have yet. Then solving a conflict essentially means removing these three lines
+added by git. We have three options here. You will have to decide which one
+you want depending on the situation:
+
+- Keep only our content. Solving the conflict would involve removing all lines
+  except:
+  ```
+  this is my content
+  that I just added
+  ```
+- Keep only the other content. We remove everything except:
+  ```
+  this is some different conflicting content
+  from the branch I pulled from
+  ```
+- Keep some (or all) content from both parts, or even adapt it adding other
+  things. We remove the three lines added by git and everything else we do
+  not want to keep, leaving something like a mix:
+  ```
+  this is my content
+  that I just added
+  this is some different conflicting content
+  ```
+
+If you have to find conflicts (I advise to do it manually), you could use
+some text finding tool in your editor, and look for the text `HEAD`, as this
+always appears in the first line of a conflict. After you solved all
+conflicts, you have to do the rest of the steps explained in previous
+sections, involving `git add` and `git commit`, because a pull also counts
+as a code change, so you have to make a commit from it. In case you are
+wondering, when you perform a pull without conflicts, you are not creating
+a commit yourself but git does it for you, automatically. So whether you
+solved the conflicts or git did it for you, there will always be a commit
+representing it.
 
 # R package and renv intro
 
@@ -927,6 +981,26 @@ As mentioned in a previous section, also remember to include all package
 dependencies your article code uses in the `Suggests` part of the `DESCRIPTION`
 file, so that you do not get errors of packages not being found when building the
 articles or running R CMD check.
+
+This way we can render our articles by default in HTML, which is what browsers
+use. Having your own site is perfect because you can keep it up to date, but
+in case you need it, you should also be able to export an article as PDF. For
+this to work, you first need a LaTeX distribution installed. If you are on
+Windows, you can try MiKTeX
+([maybe start from here](https://miktex.org/howto/install-miktex)). Remember
+to choose "Yes" when asked for "missing packages installation on the fly",
+otherwise our PDF generation from R might fail. Once we have a LaTeX
+distribution installed, we can build a PDF from our article with just a single
+command:
+
+```
+rmarkdown::render("vignettes/my-vignette.Rmd", output_format = "pdf_document")
+```
+
+The output PDF (probably as expected) does not look exactly like the one from
+the site, but it has its own style (LaTeX's style). There are also other valid
+formats, you can look them up if you are curious, but I thought the PDF output
+format would be the most useful one besides the HTML for website generation.
 
 ## Environment variables and secrets
 
