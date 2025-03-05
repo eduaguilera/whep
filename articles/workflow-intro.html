@@ -288,9 +288,65 @@ the <code>main</code> branch into your own local one. This automatic
 merge works most of the times, but sometimes you may find conflicts,
 because the program does not know how to combine everything neatly. If
 this happens, you must manually check which parts of the code should be
-kept. We will not talk more about this here since it is just an
-introduction. Whenever this happens to you, you can ask others for
-help.</p>
+kept. In the next section we explain how to solve conflicts.</p>
+</div>
+<div class="section level3">
+<h3 id="solving-conflicts">Solving conflicts<a class="anchor" aria-label="anchor" href="#solving-conflicts"></a>
+</h3>
+<p>As noted in the previous section, sometimes when you
+<code>git pull</code> from another branch or from the same remote one
+(if you are missing some changes), you can find conflicts. A conflict
+looks like this:</p>
+<pre><code>&lt;&lt;&lt;&lt;&lt;&lt;&lt; HEAD
+this is my content
+that I just added
+=======
+this is some different conflicting content
+from the branch I pulled from
+&gt;&gt;&gt;&gt;&gt;&gt;&gt; some_branch_name</code></pre>
+<p>So in a conflict, there are at least three lines the were added by
+git to separate the conflicting parts. The conflict starts at the line
+<code>&lt;&lt;&lt;&lt;&lt;&lt;&lt; HEAD</code>, and until we get to the
+<code>=======</code> line, the lines in between are the content
+<em>we</em> added. Then from this one until the end
+<code>&gt;&gt;&gt;&gt;&gt;&gt;&gt; some_branch_name</code>, the lines in
+between are the content that <em>someone else</em> added and we did not
+have yet. Then solving a conflict essentially means removing these three
+lines added by git. We have three options here. You will have to decide
+which one you want depending on the situation:</p>
+<ul>
+<li>
+<p>Keep only our content. Solving the conflict would involve
+removing all lines except:</p>
+<pre><code>this is my content
+that I just added</code></pre>
+</li>
+<li>
+<p>Keep only the other content. We remove everything except:</p>
+<pre><code>this is some different conflicting content
+from the branch I pulled from</code></pre>
+</li>
+<li>
+<p>Keep some (or all) content from both parts, or even adapt it
+adding other things. We remove the three lines added by git and
+everything else we do not want to keep, leaving something like a
+mix:</p>
+<pre><code>this is my content
+that I just added
+this is some different conflicting content</code></pre>
+</li>
+</ul>
+<p>If you have to find conflicts (I advise to do it manually), you could
+use some text finding tool in your editor, and look for the text
+<code>HEAD</code>, as this always appears in the first line of a
+conflict. After you solved all conflicts, you have to do the rest of the
+steps explained in previous sections, involving <code>git add</code> and
+<code>git commit</code>, because a pull also counts as a code change, so
+you have to make a commit from it. In case you are wondering, when you
+perform a pull without conflicts, you are not creating a commit yourself
+but git does it for you, automatically. So whether you solved the
+conflicts or git did it for you, there will always be a commit
+representing it.</p>
 </div>
 </div>
 <div class="section level2">
@@ -454,7 +510,7 @@ splitting it into shorter files.</p>
 <p>Take the following code as an example, written by our colleague
 Justin (you do not have to understand the code, you can keep reading).
 We save it in <code>R/sources.R</code>.</p>
-<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb22"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co">#' Create a new dataframe where each row has a year range into one where each</span></span>
 <span><span class="co">#' row is a single year, effectively 'expanding' the whole year range</span></span>
 <span><span class="co">#'</span></span>
@@ -555,14 +611,14 @@ long as each parameter starts with <code>@param</code>.</p>
 <li>A small description of the value the function returns. It should
 start with <code>@return</code>.</li>
 </ul>
-<div class="sourceCode" id="cb22"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb26"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co">#' @return A tibble dataframe where each row</span></span>
 <span><span class="co">#' corresponds to a single year for a given source</span></span></code></pre></div>
 <ul>
 <li>A simple line containing <code>@export</code> to indicate the
 function can be used in the package, i.e., it is public.</li>
 </ul>
-<div class="sourceCode" id="cb23"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb27"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co">#' @export</span></span></code></pre></div>
 <ul>
 <li>A ‘code’ section of examples to illustrate the function’s behaviour.
@@ -570,7 +626,7 @@ It must start with <code>@examples</code>, and after that you can write
 usual R code. When this is processed, it automatically runs the code and
 adds some lines with its output in the documentation.</li>
 </ul>
-<div class="sourceCode" id="cb24"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb28"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co">#' @examples</span></span>
 <span><span class="co">#' trade_sources &lt;- tibble::tibble(</span></span>
 <span><span class="co">#'   Name = c("a", "b", "c"),</span></span>
@@ -626,7 +682,7 @@ prefix. In our case, for example, if we have an R file in
 <code>R/sources.R</code>, then our test file should be
 <code>tests/testthat/test-sources.R</code>. Let’s see how one of our
 tests could look like:</p>
-<div class="sourceCode" id="cb25"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb29"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="st"><a href="https://testthat.r-lib.org" class="external-link">"testthat"</a></span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu"><a href="https://testthat.r-lib.org/reference/test_that.html" class="external-link">test_that</a></span><span class="op">(</span><span class="st">"trade source data is expanded from year range to single year rows"</span>, <span class="op">{</span></span>
@@ -721,7 +777,7 @@ part of our code workflow, you are also responsible to make this check
 pass, as we will also see in the <a href="#automatic-checks-on-pull-requests">Automatic checks on Pull
 Requests</a> section. This check is known as ‘R CMD check’, and it is
 actually very easy to run:</p>
-<div class="sourceCode" id="cb26"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb30"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu">devtools</span><span class="fu">::</span><span class="fu"><a href="https://devtools.r-lib.org/reference/check.html" class="external-link">check</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
 <p>The whole output of this call is rather long, since it lists all the
 different checks it makes, but at the end, if there are no issues, this
@@ -738,30 +794,30 @@ as dependencies. Again, if you just followed everything from here, we
 never got to do that, so your built package just does not include any
 other packages. To fix this, we must have a quick look at the
 <code>DESCRIPTION</code> file.</p>
-<div class="sourceCode" id="cb27"><pre class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb27-1"><a href="#cb27-1" tabindex="-1"></a><span class="an">Package:</span><span class="co"> WHEP</span></span>
-<span id="cb27-2"><a href="#cb27-2" tabindex="-1"></a><span class="an">Title:</span><span class="co"> What the Package Does (One Line, Title Case)</span></span>
-<span id="cb27-3"><a href="#cb27-3" tabindex="-1"></a><span class="an">Version:</span><span class="co"> 0.0.0.9000</span></span>
-<span id="cb27-4"><a href="#cb27-4" tabindex="-1"></a>Authors@R:</span>
-<span id="cb27-5"><a href="#cb27-5" tabindex="-1"></a>    person("First", "Last", , "first.last@example.com", role = c("aut", "cre"))</span>
-<span id="cb27-6"><a href="#cb27-6" tabindex="-1"></a>Description: What the package does (one paragraph).</span>
-<span id="cb27-7"><a href="#cb27-7" tabindex="-1"></a>License: MIT + file LICENSE</span>
-<span id="cb27-8"><a href="#cb27-8" tabindex="-1"></a>Imports:</span>
-<span id="cb27-9"><a href="#cb27-9" tabindex="-1"></a>    dplyr,</span>
-<span id="cb27-10"><a href="#cb27-10" tabindex="-1"></a>    tidyr</span>
-<span id="cb27-11"><a href="#cb27-11" tabindex="-1"></a>Encoding: UTF-8</span>
-<span id="cb27-12"><a href="#cb27-12" tabindex="-1"></a>Roxygen: list(markdown = TRUE)</span>
-<span id="cb27-13"><a href="#cb27-13" tabindex="-1"></a>RoxygenNote: 7.3.2</span>
-<span id="cb27-14"><a href="#cb27-14" tabindex="-1"></a>Suggests:</span>
-<span id="cb27-15"><a href="#cb27-15" tabindex="-1"></a>    knitr,</span>
-<span id="cb27-16"><a href="#cb27-16" tabindex="-1"></a>    rmarkdown,</span>
-<span id="cb27-17"><a href="#cb27-17" tabindex="-1"></a>    testthat (&gt;= 3.0.0),</span>
-<span id="cb27-18"><a href="#cb27-18" tabindex="-1"></a>    tibble,</span>
-<span id="cb27-19"><a href="#cb27-19" tabindex="-1"></a>    ggplot2,</span>
-<span id="cb27-20"><a href="#cb27-20" tabindex="-1"></a>    here,</span>
-<span id="cb27-21"><a href="#cb27-21" tabindex="-1"></a>    googlesheets4</span>
-<span id="cb27-22"><a href="#cb27-22" tabindex="-1"></a>Config/testthat/edition: 3</span>
-<span id="cb27-23"><a href="#cb27-23" tabindex="-1"></a>VignetteBuilder: knitr</span>
-<span id="cb27-24"><a href="#cb27-24" tabindex="-1"></a>URL: https://eduaguilera.github.io/WHEP/</span></code></pre></div>
+<div class="sourceCode" id="cb31"><pre class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb31-1"><a href="#cb31-1" tabindex="-1"></a><span class="an">Package:</span><span class="co"> WHEP</span></span>
+<span id="cb31-2"><a href="#cb31-2" tabindex="-1"></a><span class="an">Title:</span><span class="co"> What the Package Does (One Line, Title Case)</span></span>
+<span id="cb31-3"><a href="#cb31-3" tabindex="-1"></a><span class="an">Version:</span><span class="co"> 0.0.0.9000</span></span>
+<span id="cb31-4"><a href="#cb31-4" tabindex="-1"></a>Authors@R:</span>
+<span id="cb31-5"><a href="#cb31-5" tabindex="-1"></a>    person("First", "Last", , "first.last@example.com", role = c("aut", "cre"))</span>
+<span id="cb31-6"><a href="#cb31-6" tabindex="-1"></a>Description: What the package does (one paragraph).</span>
+<span id="cb31-7"><a href="#cb31-7" tabindex="-1"></a>License: MIT + file LICENSE</span>
+<span id="cb31-8"><a href="#cb31-8" tabindex="-1"></a>Imports:</span>
+<span id="cb31-9"><a href="#cb31-9" tabindex="-1"></a>    dplyr,</span>
+<span id="cb31-10"><a href="#cb31-10" tabindex="-1"></a>    tidyr</span>
+<span id="cb31-11"><a href="#cb31-11" tabindex="-1"></a>Encoding: UTF-8</span>
+<span id="cb31-12"><a href="#cb31-12" tabindex="-1"></a>Roxygen: list(markdown = TRUE)</span>
+<span id="cb31-13"><a href="#cb31-13" tabindex="-1"></a>RoxygenNote: 7.3.2</span>
+<span id="cb31-14"><a href="#cb31-14" tabindex="-1"></a>Suggests:</span>
+<span id="cb31-15"><a href="#cb31-15" tabindex="-1"></a>    knitr,</span>
+<span id="cb31-16"><a href="#cb31-16" tabindex="-1"></a>    rmarkdown,</span>
+<span id="cb31-17"><a href="#cb31-17" tabindex="-1"></a>    testthat (&gt;= 3.0.0),</span>
+<span id="cb31-18"><a href="#cb31-18" tabindex="-1"></a>    tibble,</span>
+<span id="cb31-19"><a href="#cb31-19" tabindex="-1"></a>    ggplot2,</span>
+<span id="cb31-20"><a href="#cb31-20" tabindex="-1"></a>    here,</span>
+<span id="cb31-21"><a href="#cb31-21" tabindex="-1"></a>    googlesheets4</span>
+<span id="cb31-22"><a href="#cb31-22" tabindex="-1"></a>Config/testthat/edition: 3</span>
+<span id="cb31-23"><a href="#cb31-23" tabindex="-1"></a>VignetteBuilder: knitr</span>
+<span id="cb31-24"><a href="#cb31-24" tabindex="-1"></a>URL: https://eduaguilera.github.io/WHEP/</span></code></pre></div>
 <p>In the above file, the <code>Imports</code> section is where we
 should make sure we have all dependencies for code which was saved
 specifically in the <code>R/</code> directory. On the other hand,
@@ -902,7 +958,7 @@ be displayed correctly in a browser.</p>
 it. There are at least two useful R commands for this. The first one
 creates the whole documentation website locally in our computers, and it
 automatically opens your browser on the site. This is simply:</p>
-<div class="sourceCode" id="cb31"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb35"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu">pkgdown</span><span class="fu">::</span><span class="fu"><a href="https://pkgdown.r-lib.org/reference/build_site.html" class="external-link">build_site</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
 <p>We should now be able to see our article in the ‘Articles’ section.
 It should look something like the one you can see directly on this site
@@ -911,7 +967,7 @@ at <a href="trade-sources-coverage.html">Trades sources coverage</a>
 <p>After running this command once, there is no need to rerun it every
 time we want to see changes, since it takes a bit longer to run. We can
 instead use a simpler one</p>
-<div class="sourceCode" id="cb32"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb36"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu">pkgdown</span><span class="fu">::</span><span class="fu"><a href="https://pkgdown.r-lib.org/reference/build_articles.html" class="external-link">build_articles</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
 <p>which checks for code changes in articles and only reruns those that
 have changed. I am not completely convinced they are equivalent, since
@@ -937,6 +993,21 @@ package dependencies your article code uses in the <code>Suggests</code>
 part of the <code>DESCRIPTION</code> file, so that you do not get errors
 of packages not being found when building the articles or running R CMD
 check.</p>
+<p>This way we can render our articles by default in HTML, which is what
+browsers use. Having your own site is perfect because you can keep it up
+to date, but in case you need it, you should also be able to export an
+article as PDF. For this to work, you first need a LaTeX distribution
+installed. If you are on Windows, you can try MiKTeX (<a href="https://miktex.org/howto/install-miktex" class="external-link">maybe start from
+here</a>). Remember to choose “Yes” when asked for “missing packages
+installation on the fly”, otherwise our PDF generation from R might
+fail. Once we have a LaTeX distribution installed, we can build a PDF
+from our article with just a single command:</p>
+<pre><code><span><span class="fu">rmarkdown</span><span class="fu">::</span><span class="fu"><a href="https://pkgs.rstudio.com/rmarkdown/reference/render.html" class="external-link">render</a></span><span class="op">(</span><span class="st">"vignettes/my-vignette.Rmd"</span>, output_format <span class="op">=</span> <span class="st">"pdf_document"</span><span class="op">)</span></span></code></pre>
+<p>The output PDF (probably as expected) does not look exactly like the
+one from the site, but it has its own style (LaTeX’s style). There are
+also other valid formats, you can look them up if you are curious, but I
+thought the PDF output format would be the most useful one besides the
+HTML for website generation.</p>
 </div>
 <div class="section level3">
 <h3 id="environment-variables-and-secrets">Environment variables and secrets<a class="anchor" aria-label="anchor" href="#environment-variables-and-secrets"></a>
@@ -956,7 +1027,7 @@ like this:</p>
 <pre><code><span><span class="va">DEBUG_LEVEL</span><span class="op">=</span><span class="fl">1</span></span>
 <span><span class="va">GOOGLESHEETS_AUTH_FILE</span><span class="op">=</span><span class="va">inst</span><span class="op">/</span><span class="va">google_cloud_key.json</span></span></code></pre>
 <p>It can be accessed from R code by using</p>
-<div class="sourceCode" id="cb34"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb39"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Sys.getenv.html" class="external-link">Sys.getenv</a></span><span class="op">(</span><span class="st">"NAME_OF_VARIABLE"</span><span class="op">)</span></span></code></pre></div>
 <p>You can also use environment variables for constants, or whatever you
 feel that could be used in several places. This file will be uploaded to
@@ -964,7 +1035,7 @@ the repository, so it is important that it does not contain any
 sensitive information (also known as ‘secrets’). I also introduced this
 section because in the example code for the <a href="#writing-articles">Writing articles</a> section, there is the
 line:</p>
-<div class="sourceCode" id="cb35"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb40"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">key_path</span> <span class="op">&lt;-</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org//reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/Sys.getenv.html" class="external-link">Sys.getenv</a></span><span class="op">(</span><span class="st">"GOOGLESHEETS_AUTH_FILE"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 <p>In that example, an Excel sheet must be read. When using the
 <code>googlesheets4</code> package, it can automatically open a browser
@@ -1008,7 +1079,7 @@ guide, these two points directly match with two R packages:</p>
 specific code, be it a chunk, a file or an entire project. For example,
 we could apply the style to the whole package by simply using the
 command:</p>
-<div class="sourceCode" id="cb36"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb41"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu">styler</span><span class="fu">::</span><span class="fu"><a href="https://styler.r-lib.org/reference/style_pkg.html" class="external-link">style_pkg</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
 <p>Most code editors incorporate some way of doing this. Since you are
 most likely using RStudio, you can do it by finding the
@@ -1028,12 +1099,12 @@ long single line into several lines to match the 80 character limit. You
 <code>styler</code> to work is to first manually split some of the code
 into two lines, and then run the <code>styler</code> again, so it can
 now split the rest accordingly. For example, you have:</p>
-<div class="sourceCode" id="cb37"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb42"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu">call_my_incredibly_long_function</span><span class="op">(</span><span class="va">my_first_long_argument</span>, <span class="va">my_second_long_argument</span>, <span class="va">my_third_long_argument</span><span class="op">)</span></span></code></pre></div>
 <p>In this case, if you use <code>styler</code> it may not change
 anything and still leave this code in a single line, but you can help it
 a bit by sending the arguments to the next line, like this:</p>
-<div class="sourceCode" id="cb38"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb43"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu">call_my_incredibly_long_function</span><span class="op">(</span></span>
 <span>  <span class="va">my_first_long_argument</span>, <span class="va">my_second_long_argument</span>, <span class="va">my_third_long_argument</span><span class="op">)</span></span></code></pre></div>
 <p>This does not conform to the standard yet, but now trying to use
@@ -1041,13 +1112,13 @@ a bit by sending the arguments to the next line, like this:</p>
 on and split the code accordingly. Depending on the length of the line,
 it may leave it like this (note the closing parenthesis goes in its own
 line):</p>
-<div class="sourceCode" id="cb39"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb44"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu">call_my_incredibly_long_function</span><span class="op">(</span></span>
 <span>  <span class="va">my_first_long_argument</span>, <span class="va">my_second_long_argument</span>, <span class="va">my_third_long_argument</span></span>
 <span><span class="op">)</span></span></code></pre></div>
 <p>Or if the line was even longer, it would split each argument into its
 own line:</p>
-<div class="sourceCode" id="cb40"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb45"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu">call_my_incredibly_long_function</span><span class="op">(</span></span>
 <span>  <span class="va">my_first_long_argument</span>,</span>
 <span>  <span class="va">my_second_long_argument</span>,</span>
@@ -1065,7 +1136,7 @@ You are responsible for making sure this check passes (probably using
 <code>styler</code> as explained above), since it will also be
 automatically checked on your Pull Requests (see the <a href="#automatic-checks-on-pull-requests">next section</a> on this
 guide). The check we will use is:</p>
-<div class="sourceCode" id="cb41"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb46"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu">lintr</span><span class="fu">::</span><span class="fu"><a href="https://lintr.r-lib.org/reference/lint.html" class="external-link">lint_package</a></span><span class="op">(</span></span>
 <span>  linters <span class="op">=</span> <span class="fu">lintr</span><span class="fu">::</span><span class="fu"><a href="https://lintr.r-lib.org/reference/linters_with_defaults.html" class="external-link">linters_with_defaults</a></span><span class="op">(</span>object_usage_linter <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
