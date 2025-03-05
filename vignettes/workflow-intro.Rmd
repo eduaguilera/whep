@@ -286,7 +286,7 @@ find conflicts. A conflict looks like this:
 this is my content
 that I just added
 =======
-this is some different conflicting content 
+this is some different conflicting content
 from the branch I pulled from
 >>>>>>> some_branch_name
 ```
@@ -308,7 +308,7 @@ you want depending on the situation:
   ```
 - Keep only the other content. We remove everything except:
   ```
-  this is some different conflicting content 
+  this is some different conflicting content
   from the branch I pulled from
   ```
 - Keep some (or all) content from both parts, or even adapt it adding other
@@ -317,7 +317,7 @@ you want depending on the situation:
   ```
   this is my content
   that I just added
-  this is some different conflicting content 
+  this is some different conflicting content
   ```
 
 If you have to find conflicts (I advise to do it manually), you could use
@@ -981,6 +981,26 @@ As mentioned in a previous section, also remember to include all package
 dependencies your article code uses in the `Suggests` part of the `DESCRIPTION`
 file, so that you do not get errors of packages not being found when building the
 articles or running R CMD check.
+
+This way we can render our articles by default in HTML, which is what browsers
+use. Having your own site is perfect because you can keep it up to date, but
+in case you need it, you should also be able to export an article as PDF. For
+this to work, you first need a LaTeX distribution installed. If you are on
+Windows, you can try MiKTeX
+([maybe start from here](https://miktex.org/howto/install-miktex)). Remember
+to choose "Yes" when asked for "missing packages installation on the fly",
+otherwise our PDF generation from R might fail. Once we have a LaTeX
+distribution installed, we can build a PDF from our article with just a single
+command:
+
+```
+rmarkdown::render("vignettes/my-vignette.Rmd", output_format = "pdf_document")
+```
+
+The output PDF (probably as expected) does not look exactly like the one from
+the site, but it has its own style (LaTeX's style). There are also other valid
+formats, you can look them up if you are curious, but I thought the PDF output
+format would be the most useful one besides the HTML for website generation.
 
 ## Environment variables and secrets
 
