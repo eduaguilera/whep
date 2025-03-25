@@ -11,9 +11,12 @@ k_ignore_unbalanced <- c(
 k_tolerance <- 1e-6
 
 testthat::test_that("get_wide_cbs gives consistent Commodity Balance Sheet", {
-  cbs <-
-    "inst/extdata/input/processed/cbs.csv" |>
-    here::here() |>
+  cbs_path <- here::here("inst/extdata/input/processed/cbs.csv")
+  if (!file.exists(cbs_path)) {
+    skip("Not running local test that depends on file")
+  }
+
+  cbs <- cbs_path |>
     get_wide_cbs() |>
     dplyr::filter(!(item_code %in% k_ignore_unbalanced)) |>
     dplyr::mutate(
@@ -40,20 +43,30 @@ testthat::test_that("get_wide_cbs gives consistent Commodity Balance Sheet", {
 testthat::test_that(
   "get_codes_coeffs gives consistent shares of processed items",
   {
-    coefs <- "inst/extdata/input/processed/processing_coefs.csv" |>
-      here::here() |>
+    cbs_path <- here::here("inst/extdata/input/processed/cbs.csv")
+    coefs_path <- here::here(
+      "inst/extdata/input/processed/processing_coefs.csv"
+    )
+    if (!all(file.exists(cbs_path, coefs_path))) {
+      skip("Not running local test that depends on files")
+    }
+
+    coefs <- coefs_path |>
+      testthat::test_path() |>
       get_processing_coefs()
 
-    cbs <- "inst/extdata/input/processed/cbs.csv" |>
-      here::here() |>
+    cbs <- cbs_path |>
+      testthat::test_path() |>
       get_wide_cbs()
 
     df <- coefs |>
-      dplyr::left_join(cbs, c("year", "area", "area_code", "item")) |>
-      dplyr::group_by(year, area_code, item) |>
-      dplyr::mutate(total_proc_item = sum(value_proc))
+      dplyr::left_join(
+        cbs,
+        dplyr::join_by(year, area, area_code, item_processed == item)
+      ) |>
+      dplyr::group_by(year, area_code, item_processed) |>
+      dplyr::mutate(total_proc_item = sum(final_value_processed))
 
-    # value_proc was correctly obtained from production data
     pointblank::expect_col_vals_expr(
       df,
       rlang::expr(
@@ -66,8 +79,8 @@ testthat::test_that(
       df,
       rlang::expr(
         dplyr::near(
-          value * product_fraction,
-          value_proc_raw,
+          value_to_process * initial_conversion_factor,
+          initial_value_processed,
           tol = !!k_tolerance
         )
       )
@@ -75,13 +88,21 @@ testthat::test_that(
     pointblank::expect_col_vals_expr(
       df,
       rlang::expr(
-        dplyr::near(value_proc_raw * scaling, value_proc, tol = !!k_tolerance)
+        dplyr::near(
+          initial_value_processed * conversion_factor_scaling,
+          final_value_processed,
+          tol = !!k_tolerance
+        )
       )
     )
     pointblank::expect_col_vals_expr(
       df,
       rlang::expr(
-        dplyr::near(product_fraction * scaling, cf, tol = !!k_tolerance)
+        dplyr::near(
+          initial_conversion_factor * conversion_factor_scaling,
+          final_conversion_factor,
+          tol = !!k_tolerance
+        )
       )
     )
   }
