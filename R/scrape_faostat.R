@@ -17,12 +17,10 @@
 #' @export
 #'
 #' @examples
-#' "livestock" |>
-#'   get_faostat_data() |>
-#'   dplyr::sample_n(10)
-#' "livestock" |>
-#'   get_faostat_data(year = 2010, area = "Portugal") |>
-#'   dplyr::sample_n(10)
+#' \dontrun{
+#' get_faostat_data("livestock")
+#' get_faostat_data("livestock", year = 2010, area = "Portugal")
+#' }
 get_faostat_data <- function(activity_data, ...) {
   # Some functions from FAOSTAT pkg don't work by only using prefixed functions.
   # It is detached again at the end of this function call.
@@ -74,6 +72,8 @@ get_faostat_data <- function(activity_data, ...) {
 #'
 #' @param df data.frame from FAOSTAT
 #'
+#' @noRd
+#'
 #' @returns data.frame
 .populate_iso3_code <- function(df) {
   # create new column "ISO3_CODE" and fill it
@@ -100,6 +100,8 @@ get_faostat_data <- function(activity_data, ...) {
 #' @param activity_data activity data required from FAOSTAT;
 #'   needs to be one of
 #'   `c('livestock','crop_area','crop_yield','crop_production')`
+#'
+#' @noRd
 #'
 #' @returns list of length n=2; first index is FAOSTAT code and second index
 #'   is FAOSTAT parameter

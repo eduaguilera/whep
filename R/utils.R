@@ -1,9 +1,12 @@
 # Suppress R CMD check warnings for dplyr NSE (Non Standard Evaluation)
 utils::globalVariables(
   c(
+    "area_code",
+    "area_code_p",
     "cf",
     "element",
     "Element",
+    "from_code",
     "Imp/Exp",
     "Info_Format",
     "item",
@@ -20,11 +23,14 @@ utils::globalVariables(
     "Timeline_End",
     "Timeline_Freq",
     "Timeline_Start",
+    "to_code",
     "Trade",
+    "unit",
     "value",
     "Value",
     "value_proc",
     "value_proc_raw",
+    "year",
     "Year"
   )
 )
