@@ -8,3 +8,6 @@
 ^pkgdown$
 ^.*\.Rproj$
 ^\.Rproj\.user$
+^inst/extdata/input/processed/bilateral_trade.csv$
+^inst/extdata/input/processed/cbs.csv$
+^inst/extdata/input/processed/processing_coefs.csv$
