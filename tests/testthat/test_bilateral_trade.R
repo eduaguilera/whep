@@ -1,16 +1,20 @@
 testthat::test_that("get_bilateral_trade has consistent data", {
-  bilateral_trade_path <- here::here(
-    "inst/extdata/input/processed/bilateral_trade.csv"
+  bilateral_trade_alias <- "bilateral_trade"
+  test_file_path <- file.path(
+    .get_destdir(),
+    stringr::str_glue("test_file_{bilateral_trade_alias}.csv")
   )
-  if (!file.exists(bilateral_trade_path)) {
-    skip("Not running local test that depends on file")
-  }
+  testthat::expect_false(file.exists(test_file_path))
+  testthat::local_mocked_bindings(.get_destfile = function(...) test_file_path)
 
-  bilateral_trade <- bilateral_trade_path |>
+  bilateral_trade_alias |>
+    get_file_path() |>
     get_bilateral_trade() |>
     is.na() |>
     any() |>
     testthat::expect_false()
+
+  file.remove(test_file_path)
 })
 
 testthat::test_that("prefer_flow_direction chooses preferred trade data", {

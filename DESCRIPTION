@@ -8,7 +8,9 @@ License: MIT + file LICENSE
 Imports:
     dplyr,
     FAOSTAT,
+    googledrive,
     readr,
+    stringr,
     tidyr
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
