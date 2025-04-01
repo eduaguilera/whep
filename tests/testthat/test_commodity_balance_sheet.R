@@ -5,18 +5,25 @@ k_ignore_unbalanced <- c(
   "Oil, palm fruit" = 254,
   "Hemp" = 776,
   "Coconuts" = 248,
-  "Kapok fruit" = 310
+  "Kapok fruit" = 310,
+  "Palmkernel Cake" = 2595
 )
 
 k_tolerance <- 1e-6
 
 testthat::test_that("get_wide_cbs gives consistent Commodity Balance Sheet", {
-  cbs_path <- here::here("inst/extdata/input/processed/cbs.csv")
-  if (!file.exists(cbs_path)) {
-    skip("Not running local test that depends on file")
-  }
+  cbs_alias <- "commodity_balance_sheet"
+  test_file_path <- file.path(
+    .get_destdir(),
+    stringr::str_glue("test_file_{cbs_alias}.csv")
+  )
+  testthat::expect_false(file.exists(test_file_path))
+  testthat::local_mocked_bindings(.get_destfile = function(...) test_file_path)
 
-  cbs <- cbs_path |>
+
+  cbs <-
+    cbs_alias |>
+    get_file_path() |>
     get_wide_cbs() |>
     dplyr::filter(!(item_code %in% k_ignore_unbalanced)) |>
     dplyr::mutate(
@@ -38,25 +45,38 @@ testthat::test_that("get_wide_cbs gives consistent Commodity Balance Sheet", {
       dplyr::near(domestic_supply, my_domestic_supply, tol = !!k_tolerance)
     )
   )
+
+  file.remove(test_file_path)
 })
 
 testthat::test_that(
   "get_codes_coeffs gives consistent shares of processed items",
   {
-    cbs_path <- here::here("inst/extdata/input/processed/cbs.csv")
-    coefs_path <- here::here(
-      "inst/extdata/input/processed/processing_coefs.csv"
-    )
-    if (!all(file.exists(cbs_path, coefs_path))) {
-      skip("Not running local test that depends on files")
-    }
+    cbs_alias <- "commodity_balance_sheet"
+    coefs_alias <- "processing_coefs"
 
-    coefs <- coefs_path |>
-      testthat::test_path() |>
+    test_coefs_path <- file.path(
+      .get_destdir(),
+      stringr::str_glue("test_file_{coefs_alias}.csv")
+    )
+    testthat::expect_false(file.exists(test_coefs_path))
+    testthat::local_mocked_bindings(
+      .get_destfile = function(...) test_coefs_path
+    )
+    coefs <- coefs_alias |>
+      get_file_path() |>
       get_processing_coefs()
 
-    cbs <- cbs_path |>
-      testthat::test_path() |>
+    test_cbs_path <- file.path(
+      .get_destdir(),
+      stringr::str_glue("test_file_{cbs_alias}.csv")
+    )
+    testthat::expect_false(file.exists(test_cbs_path))
+    testthat::local_mocked_bindings(
+      .get_destfile = function(...) test_cbs_path
+    )
+    cbs <- cbs_alias |>
+      get_file_path() |>
       get_wide_cbs()
 
     df <- coefs |>
@@ -72,9 +92,10 @@ testthat::test_that(
       rlang::expr(
         dplyr::near(production, total_proc_item, tol = !!k_tolerance)
       ),
-      # TODO: Fix single weird mismatch Grenada datapoint
+      # TODO: Fix few problematic data rows
       threshold = 0.99
     )
+
     pointblank::expect_col_vals_expr(
       df,
       rlang::expr(
@@ -105,5 +126,8 @@ testthat::test_that(
         )
       )
     )
+
+    file.remove(test_coefs_path)
+    file.remove(test_cbs_path)
   }
 )

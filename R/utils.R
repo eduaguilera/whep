@@ -1,6 +1,7 @@
 # Suppress R CMD check warnings for dplyr NSE (Non Standard Evaluation)
 utils::globalVariables(
   c(
+    "alias",
     "area_code",
     "area_code_p",
     "cf",
