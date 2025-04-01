@@ -1,6 +1,6 @@
 get_wide_cbs <- function(file_path) {
   file_path |>
-    readr::read_csv() |>
+    readr::read_csv(show_col_types = FALSE) |>
     tidyr::pivot_wider(names_from = Element, values_from = Value) |>
     dplyr::rename_with(tolower) |>
     dplyr::mutate(stock_retrieval = -stock_variation, .keep = "unused")
@@ -8,7 +8,7 @@ get_wide_cbs <- function(file_path) {
 
 get_processing_coefs <- function(file_path) {
   file_path |>
-    readr::read_csv() |>
+    readr::read_csv(show_col_types = FALSE) |>
     dplyr::select(-Item, -Element) |>
     dplyr::rename_with(tolower) |>
     dplyr::rename(
