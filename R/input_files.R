@@ -1,3 +1,27 @@
+#' Download and cache files
+#'
+#' @description
+#' If the requested file doesn't exist locally, it is downloaded from a public
+#' Google Drive link and stored in a cache directory obtained using
+#' `tools::R_user_dir`.
+#'
+#' @param file_alias Alias of the requested file. For now the possible
+#'    values are:
+#'    - `"commodity_balance_sheet"`: Intended for `get_wide_cbs()`.
+#'    - `"bilateral_trade"`: Intended for `get_bilateral_trade()`.
+#'    - `"processing_coefs"`: Intended for `get_processing_coefs()`.
+#' @param force_download If `TRUE`, does not try to cache the file and
+#' redownloads it anyway.
+#'
+#' @returns A character vector with the path where the requested file is located
+#'
+#' @export
+#'
+#' @examples
+#' \dontrun{
+#' get_file_path("processing_coefs")
+#' get_file_path("commodity_balance_sheet", force_download = TRUE)
+#' }
 get_file_path <- function(file_alias, force_download = FALSE) {
   message(stringr::str_glue("Fetching file {file_alias}..."))
   .download(file_alias, force_download)
