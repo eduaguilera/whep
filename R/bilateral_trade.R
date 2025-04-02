@@ -43,6 +43,7 @@ get_bilateral_trade <- function(file_path) {
     readr::read_csv() |>
     dplyr::rename_with(tolower) |>
     dplyr::mutate(
+      item = as.factor(item),
       unit = ifelse(unit == "Head", "heads", unit),
       from_code = ifelse(element == "Export", area_code, area_code_p),
       to_code = ifelse(element == "Export", area_code_p, area_code),
