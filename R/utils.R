@@ -1,6 +1,37 @@
 # Suppress R CMD check warnings for dplyr NSE (Non Standard Evaluation)
-utils::globalVariables(c(
-  "sex", "No", "Trade", "Timeline_Start", "Timeline_End",
-  "Timeline_Freq", "Info_Format", "SACO_link", "Imp/Exp",
-  "Name", "Year", "element"
-))
+utils::globalVariables(
+  c(
+    "alias",
+    "area_code",
+    "area_code_p",
+    "cf",
+    "element",
+    "Element",
+    "from_code",
+    "Imp/Exp",
+    "Info_Format",
+    "item",
+    "Item",
+    "item_code",
+    "Name",
+    "No",
+    "processeditem",
+    "product_fraction",
+    "SACO_link",
+    "scaling",
+    "sex",
+    "stock_variation",
+    "Timeline_End",
+    "Timeline_Freq",
+    "Timeline_Start",
+    "to_code",
+    "Trade",
+    "unit",
+    "value",
+    "Value",
+    "value_proc",
+    "value_proc_raw",
+    "year",
+    "Year"
+  )
+)

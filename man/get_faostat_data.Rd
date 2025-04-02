@@ -24,10 +24,8 @@ Note: overhead by individually scraping FAOSTAT code QCL for crop data;
 it's fine.
 }
 \examples{
-"livestock" |>
-  get_faostat_data() |>
-  dplyr::sample_n(10)
-"livestock" |>
-  get_faostat_data(year = 2010, area = "Portugal") |>
-  dplyr::sample_n(10)
+\dontrun{
+get_faostat_data("livestock")
+get_faostat_data("livestock", year = 2010, area = "Portugal")
+}
 }
