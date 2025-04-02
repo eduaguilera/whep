@@ -1038,7 +1038,11 @@ In that example, an Excel sheet must be read. When using the `googlesheets4`
 package, it can automatically open a browser interactively and ask for your
 Google account credentials, but when running check tools, we want everything
 to work from beginning to end without human intervention. This is achievable
-by providing a secret token.
+by providing a secret token ^[For educational purposes I won't change
+anything from this explanation in the guide. However, recently I found out
+that the token is not needed when you're reading public files. For this to
+work automatically we only have to call `googlesheets4::gs4_deauth()` before
+reading the public file.].
 
 Since we _must not_ include secret information in `.Renviron`, the workaround
 is to instead add just the secret file path as an environment variable and then
