@@ -9,7 +9,7 @@
 #' @returns
 #' A tibble with the reported trade between countries.
 #' It contains the following columns:
-#' - `year`: The year when the data was collected.
+#' - `year`: The year in which the recorded event occurred.
 #' - `from_code`: FAOSTAT internal code for the country that is exporting the
 #'    item. Equivalences with ISO 3166-1 numeric can be found in the
 #'    _Area Codes_ CSV from the zip file that can be downloaded from
@@ -19,8 +19,8 @@
 #'    item. See previous `from_code`.
 #' - `item`: Natural language name for the item that is being traded.
 #' - `unit`: Measure unit for the traded item. It can have two values:
-#'      - `"tonnes"`: Trade amount in tonnes (for crop items)
-#'      - `"heads"`: Trade amount in number of animals (for livestock items)
+#'      - `"tonnes"`: Trade amount in tonnes (for crop and livestock products)
+#'      - `"heads"`: Trade amount in number of animals (for live animal items)
 #' - `value`: The amount traded in the corresponding measure unit.
 #'
 #' For the final data obtained, the export data was preferred, i.e.,
