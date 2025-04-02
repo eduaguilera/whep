@@ -73,53 +73,10 @@ all years and countries.</p>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="st">"livestock"</span> <span class="op">|&gt;</span></span></span>
-<span class="r-in"><span>  <span class="fu">get_faostat_data</span><span class="op">(</span><span class="op">)</span> <span class="op">|&gt;</span></span></span>
-<span class="r-in"><span>  <span class="fu">dplyr</span><span class="fu">::</span><span class="fu"><a href="https://dplyr.tidyverse.org/reference/sample_n.html" class="external-link">sample_n</a></span><span class="op">(</span><span class="fl">10</span><span class="op">)</span></span></span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> Loading required package: FAOSTAT</span>
-<span class="r-wrn co"><span class="r-pr">#&gt;</span> <span class="warning">Warning: </span>Duplicated ISO3_CODE matched, double check the data</span>
-<span class="r-wrn co"><span class="r-pr">#&gt;</span> <span class="warning">Warning: </span>Certain ISO3_CODE were not matched.</span>
-<span class="r-wrn co"><span class="r-pr">#&gt;</span> <span class="warning">Warning: </span>Please check the correct China has been specified.</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>                   area               item element year        value unit</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1                 Cuba    Swine, breeding  stocks 2012 1.545100e+05   An</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2               Sweden             Horses  stocks 2020 1.050040e+05   An</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3             Bulgaria Chickens, broilers  stocks 1986 2.123200e+07   An</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4            Nicaragua             Cattle  stocks 2021 5.501018e+06   An</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 5          Saint Lucia             Horses  stocks 1983 1.000000e+03   An</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 6  European Union (27)      Swine, market  stocks 2000 1.390762e+08   An</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 7   Belgium-Luxembourg             Horses  stocks 1964 2.366000e+05   An</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 8                Nauru      Swine, market  stocks 1963 9.675000e+02   An</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 9           Micronesia            Buffalo  stocks 2020 2.654054e+02   An</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 10               Malta              Goats  stocks 1985 5.000000e+03   An</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    ISO3_CODE</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1        CUB</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2        SWE</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3        BGR</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4        NIC</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 5        LCA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 6       &lt;NA&gt;</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 7       &lt;NA&gt;</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 8        NRU</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 9        FSM</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 10       MLT</span>
-<span class="r-in"><span><span class="st">"livestock"</span> <span class="op">|&gt;</span></span></span>
-<span class="r-in"><span>  <span class="fu">get_faostat_data</span><span class="op">(</span>year <span class="op">=</span> <span class="fl">2010</span>, area <span class="op">=</span> <span class="st">"Portugal"</span><span class="op">)</span> <span class="op">|&gt;</span></span></span>
-<span class="r-in"><span>  <span class="fu">dplyr</span><span class="fu">::</span><span class="fu"><a href="https://dplyr.tidyverse.org/reference/sample_n.html" class="external-link">sample_n</a></span><span class="op">(</span><span class="fl">10</span><span class="op">)</span></span></span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> Loading required package: FAOSTAT</span>
-<span class="r-wrn co"><span class="r-pr">#&gt;</span> <span class="warning">Warning: </span>Duplicated ISO3_CODE matched, double check the data</span>
-<span class="r-wrn co"><span class="r-pr">#&gt;</span> <span class="warning">Warning: </span>Certain ISO3_CODE were not matched.</span>
-<span class="r-wrn co"><span class="r-pr">#&gt;</span> <span class="warning">Warning: </span>Please check the correct China has been specified.</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>        area               item element year    value unit ISO3_CODE</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1  Portugal      Swine, market  stocks 2010  1725300   An       PRT</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2  Portugal              Swine  stocks 2010  1917000   An       PRT</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3  Portugal   Chickens, layers  stocks 2010  6500000   An       PRT</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4  Portugal      Poultry Birds  stocks 2010 34464878   An       PRT</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 5  Portugal            Turkeys  stocks 2010  2231878   An       PRT</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 6  Portugal             Cattle  stocks 2010  1447000   An       PRT</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 7  Portugal      Cattle, dairy  stocks 2010   243000   An       PRT</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 8  Portugal              Goats  stocks 2010   419000   An       PRT</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 9  Portugal Chickens, broilers  stocks 2010 25733000   An       PRT</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 10 Portugal           Chickens  stocks 2010 32233000   An       PRT</span>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="kw">if</span> <span class="op">(</span><span class="cn">FALSE</span><span class="op">)</span> <span class="op">{</span> <span class="co"># \dontrun{</span></span></span>
+<span class="r-in"><span><span class="fu">get_faostat_data</span><span class="op">(</span><span class="st">"livestock"</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="fu">get_faostat_data</span><span class="op">(</span><span class="st">"livestock"</span>, year <span class="op">=</span> <span class="fl">2010</span>, area <span class="op">=</span> <span class="st">"Portugal"</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="op">}</span> <span class="co"># }</span></span></span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
