@@ -176,12 +176,12 @@ get_bilateral_trade <- function(file_path) {
 }
 
 .estimate_bilateral_trade <- function(exports, imports) {
+  if (sum(exports) == 0 || sum(imports) == 0) {
+    return(matrix(0, nrow = length(exports), ncol = length(imports)))
+  }
   est1 <- outer(exports, imports) / sum(imports)
-  est2 <- outer(imports, exports) / sum(exports)
-  average_est <- sum(est1 + est2, na.rm = TRUE) / 2
-  # Can have NAs if we divided by 0 because of 0 imports and exports
-  average_est[is.na(average_est)] <- 0
-  average_est
+  est2 <- outer(exports, imports) / sum(exports)
+  (est1 + est2) / 2
 }
 
 # Get bilateral trade data in tidy format including estimates
