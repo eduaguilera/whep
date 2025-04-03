@@ -39,8 +39,25 @@
 #' get_bilateral_trade(get_file_path("bilateral_trade"))
 #' }
 get_bilateral_trade <- function(file_path) {
-  file_path |>
-    readr::read_csv() |>
+  cbs <- "commodity_balance_sheet" |>
+    get_file_path() |>
+    get_wide_cbs() |>
+    dplyr::select(year, item, area_code, export, import)
+
+  btd <-
+    file_path |>
+    readr::read_csv(show_col_types = FALSE) |>
+    .clean_bilateral_trade()
+
+  codes <- .get_all_country_codes(btd, cbs)
+
+  btd |>
+    .build_trade_matrices(cbs, codes) |>
+    .fill_all_missing_trade(cbs, codes)
+}
+
+.clean_bilateral_trade <- function(btd) {
+  btd |>
     dplyr::rename_with(tolower) |>
     dplyr::mutate(
       item = as.factor(item),
@@ -48,14 +65,15 @@ get_bilateral_trade <- function(file_path) {
       from_code = ifelse(element == "Export", area_code, area_code_p),
       to_code = ifelse(element == "Export", area_code_p, area_code),
     ) |>
-    prefer_flow_direction("Export") |>
+    .prefer_flow_direction("Export") |>
     dplyr::select(year, from_code, to_code, item, unit, value)
 }
 
 # Keep all rows with preferred direction (Import, Export)
 # when both of them exist. Otherwise use the one present.
-prefer_flow_direction <- function(bilateral_trade, direction) {
-  preferred_direction <- dplyr::filter(bilateral_trade, element == direction)
+.prefer_flow_direction <- function(bilateral_trade, direction) {
+  preferred_direction <- bilateral_trade |>
+    dplyr::filter(element == direction)
 
   bilateral_trade |>
     dplyr::anti_join(
@@ -63,4 +81,128 @@ prefer_flow_direction <- function(bilateral_trade, direction) {
       by = c("from_code", "to_code", "year", "item")
     ) |>
     dplyr::bind_rows(preferred_direction)
+}
+
+.fill_all_missing_trade <- function(btd, cbs, codes) {
+  btd |>
+    dplyr::mutate(
+      bilateral_trade = purrr::map2(
+        bilateral_trade,
+        total_trade,
+        ~ .fill_missing_trade(.x, .y, codes)
+      )
+    )
+}
+
+.fill_missing_trade <- function(trade_matrix, total_trade, codes) {
+  total_trade <- total_trade |>
+    tidyr::complete(
+      area_code = codes,
+      fill = list(export = 0, import = 0)
+    ) |>
+    dplyr::arrange(area_code)
+
+  estimate <- .estimate_bilateral_trade(
+    dplyr::pull(total_trade, export),
+    dplyr::pull(total_trade, import)
+  )
+
+  stopifnot(dim(trade_matrix) == dim(estimate))
+  stopifnot(all(!is.na(estimate)))
+
+  ifelse(is.na(trade_matrix), estimate, trade_matrix)
+}
+
+.build_trade_matrices <- function(btd, cbs, codes) {
+  btd |>
+    dplyr::filter(unit == "tonnes") |>
+    dplyr::select(-unit) |>
+    .filter_only_items_in_cbs(cbs) |>
+    tidyr::nest(
+      bilateral_trade = c(from_code, to_code, value),
+      .by = c(year, item)
+    ) |>
+    dplyr::left_join(.get_nested_cbs(cbs), c("year", "item")) |>
+    dplyr::mutate(
+      bilateral_trade = purrr::map2(
+        bilateral_trade,
+        total_trade,
+        ~ .build_trade_matrix(.x, .y, codes)
+      )
+    )
+}
+
+.get_nested_cbs <- function(cbs) {
+  cbs |>
+    tidyr::nest(
+      total_trade = c(area_code, export, import), .by = c(year, item)
+    )
+}
+
+.filter_only_items_in_cbs <- function(btd, cbs) {
+  btd_items <- btd |>
+    dplyr::pull(item) |>
+    unique() |>
+    sort()
+
+  cbs_items <- cbs |>
+    dplyr::pull(item) |>
+    unique() |>
+    sort()
+
+  # TODO: Also include these (need total export/import reports)
+  items_not_in_cbs <- btd_items[!btd_items %in% cbs_items]
+
+  btd |>
+    dplyr::filter(!item %in% items_not_in_cbs)
+}
+
+.get_all_country_codes <- function(btd, cbs) {
+  c(
+    dplyr::pull(btd, from_code),
+    dplyr::pull(btd, to_code),
+    dplyr::pull(cbs, area_code)
+  ) |>
+    unique() |>
+    sort()
+}
+
+.build_trade_matrix <- function(btd, total_trade, codes) {
+  btd |>
+    tidyr::complete(from_code = codes, to_code = codes) |>
+    tidyr::pivot_wider(names_from = to_code, values_from = value) |>
+    tibble::column_to_rownames(var = "from_code") |>
+    as.matrix()
+}
+
+.estimate_bilateral_trade <- function(exports, imports) {
+  est1 <- outer(exports, imports) / sum(imports)
+  est2 <- outer(imports, exports) / sum(exports)
+  average_est <- sum(est1 + est2, na.rm = TRUE) / 2
+  # Can have NAs if we divided by 0 because of 0 imports and exports
+  average_est[is.na(average_est)] <- 0
+  average_est
+}
+
+# Get bilateral trade data in tidy format including estimates
+# Quite useless because of high memory usage
+.get_full_tidy_bilateral_trade <- function(file_path) {
+  file_path |>
+    get_bilateral_trade() |>
+    dplyr::mutate(
+      bilateral_trade = purrr::map(bilateral_trade, .convert_matrix_to_tidy)
+    ) |>
+    tidyr::unnest(cols = bilateral_trade) |>
+    dplyr::select(-total_trade) |>
+    dplyr::mutate(dplyr::across(c(from_code, to_code), as.integer))
+}
+
+.convert_matrix_to_tidy <- function(btd) {
+  btd |>
+    tibble::as_tibble() |>
+    tibble::rownames_to_column(var = "from_code") |>
+    tidyr::pivot_longer(
+      setdiff(tidyr::everything(), tidyr::one_of("from_code")),
+      names_to = "to_code"
+    )
 }

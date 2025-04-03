@@ -17,7 +17,7 @@ testthat::test_that("get_bilateral_trade has consistent data", {
   file.remove(test_file_path)
 })
 
-testthat::test_that("prefer_flow_direction chooses preferred trade data", {
+testthat::test_that(".prefer_flow_direction chooses preferred trade data", {
   bilateral_trade <- tibble::tribble(
     ~from_code, ~to_code, ~year, ~item, ~element, ~value,
     1, 2, 2000, "item_1", "Import", 0,
@@ -37,7 +37,7 @@ testthat::test_that("prefer_flow_direction chooses preferred trade data", {
     dplyr::ungroup() |>
     dplyr::arrange(from_code, to_code, year, item)
 
-  my_result <- prefer_flow_direction(bilateral_trade, "Import") |>
+  my_result <- .prefer_flow_direction(bilateral_trade, "Import") |>
     dplyr::arrange(from_code, to_code, year, item)
 
   expected_import_result <- tibble::tribble(
@@ -60,7 +60,7 @@ testthat::test_that("prefer_flow_direction chooses preferred trade data", {
     dplyr::ungroup() |>
     dplyr::arrange(from_code, to_code, year, item)
 
-  my_result <- prefer_flow_direction(bilateral_trade, "Export") |>
+  my_result <- .prefer_flow_direction(bilateral_trade, "Export") |>
     dplyr::arrange(from_code, to_code, year, item)
 
   expected_export_result <- tibble::tribble(
