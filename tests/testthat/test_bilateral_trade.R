@@ -76,3 +76,82 @@ testthat::test_that(".prefer_flow_direction chooses preferred trade data", {
   testthat::expect_equal(my_result, brute_group_by_result)
   testthat::expect_equal(my_result, expected_export_result)
 })
+
+testthat::test_that(".estimate_bilateral_trade creates expected matrix", {
+  exports <- c(5, 0, 4)
+  imports <- c(1, 3, 0)
+  expected <- matrix(
+    c(
+      0.9027778, 2.708333, 0,
+      0.0000000, 0.000000, 0,
+      0.7222222, 2.166667, 0
+    ),
+    byrow = TRUE,
+    ncol = 3
+  )
+  result <- .estimate_bilateral_trade(exports, imports)
+  testthat::expect_equal(result, expected, tolerance = 1e-6)
+
+  # Martin' slide example
+  exports <- c(500, 300, 100, 0, 0, 0)
+  imports <- c(200, 150, 120, 200, 190, 30)
+  expected <- matrix(
+    c(
+      112, 84, 67, 112, 106, 17,
+      67, 50, 40, 67, 64, 10,
+      22, 17, 13, 22, 21, 3,
+      0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0
+    ),
+    byrow = TRUE,
+    ncol = 6
+  )
+  result <- .estimate_bilateral_trade(exports, imports)
+  testthat::expect_equal(result, expected, tolerance = 1)
+
+  # No data imports sum 0
+  exports <- c(5, 0, 4)
+  imports <- c(0, 0, 0)
+  expected <- matrix(
+    c(
+      0, 0, 0,
+      0, 0, 0,
+      0, 0, 0
+    ),
+    byrow = TRUE,
+    ncol = 3
+  )
+  result <- .estimate_bilateral_trade(exports, imports)
+  testthat::expect_equal(result, expected, tolerance = 1)
+
+  # No data exports sum 0
+  exports <- c(0, 0, 0)
+  imports <- c(1, 3, 0)
+  expected <- matrix(
+    c(
+      0, 0, 0,
+      0, 0, 0,
+      0, 0, 0
+    ),
+    byrow = TRUE,
+    ncol = 3
+  )
+  result <- .estimate_bilateral_trade(exports, imports)
+  testthat::expect_equal(result, expected, tolerance = 1)
+
+  # No data both sum 0
+  exports <- c(0, 0, 0)
+  imports <- c(0, 0, 0)
+  expected <- matrix(
+    c(
+      0, 0, 0,
+      0, 0, 0,
+      0, 0, 0
+    ),
+    byrow = TRUE,
+    ncol = 3
+  )
+  result <- .estimate_bilateral_trade(exports, imports)
+  testthat::expect_equal(result, expected, tolerance = 1)
+})
