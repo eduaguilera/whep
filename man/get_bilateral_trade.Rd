@@ -13,7 +13,7 @@ get_bilateral_trade(file_path)
 A tibble with the reported trade between countries.
 It contains the following columns:
 \itemize{
-\item \code{year}: The year when the data was collected.
+\item \code{year}: The year in which the recorded event occurred.
 \item \code{from_code}: FAOSTAT internal code for the country that is exporting the
 item. Equivalences with ISO 3166-1 numeric can be found in the
 \emph{Area Codes} CSV from the zip file that can be downloaded from
@@ -24,8 +24,8 @@ item. See previous \code{from_code}.
 \item \code{item}: Natural language name for the item that is being traded.
 \item \code{unit}: Measure unit for the traded item. It can have two values:
 \itemize{
-\item \code{"tonnes"}: Trade amount in tonnes (for crop items)
-\item \code{"heads"}: Trade amount in number of animals (for livestock items)
+\item \code{"tonnes"}: Trade amount in tonnes (for crop and livestock products)
+\item \code{"heads"}: Trade amount in number of animals (for live animal items)
 }
 \item \code{value}: The amount traded in the corresponding measure unit.
 }
