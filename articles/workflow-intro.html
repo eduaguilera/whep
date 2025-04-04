@@ -1042,7 +1042,12 @@ line:</p>
 interactively and ask for your Google account credentials, but when
 running check tools, we want everything to work from beginning to end
 without human intervention. This is achievable by providing a secret
-token.</p>
+token <a class="footnote-ref" tabindex="0" data-bs-toggle="popover" data-bs-content='&lt;p&gt;For educational purposes I won’t change anything from
+this explanation in the guide. However, recently I found out that the
+token is not needed when you’re reading public files. For this to work
+automatically we only have to call
+&lt;code&gt;&lt;a href="https://googlesheets4.tidyverse.org/reference/gs4_deauth.html" class="external-link"&gt;googlesheets4::gs4_deauth()&lt;/a&gt;&lt;/code&gt; before reading the public
+file.&lt;/p&gt;'><sup>2</sup></a>.</p>
 <p>Since we <em>must not</em> include secret information in
 <code>.Renviron</code>, the workaround is to instead add just the secret
 file path as an environment variable and then read from it, so the
