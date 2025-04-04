@@ -9,7 +9,7 @@
 #' @returns
 #' A tibble with the commodity balance sheet data in wide format.
 #' It contains the following columns:
-#' - `year`: The year when the data was collected.
+#' - `year`: The year in which the recorded event occurred.
 #' - `area`: The name of the country where the data is from.
 #' - `area_code`: FAOSTAT internal code for each country. Equivalences
 #'    with ISO 3166-1 numeric can be found in the _Area Codes_ CSV from the
@@ -68,7 +68,7 @@ get_wide_cbs <- function(file_path) {
 #' @returns
 #' A tibble with the quantities for each processed product.
 #' It contains the following columns:
-#' - `year`: The year when the data was collected.
+#' - `year`: The year in which the recorded event occurred.
 #' - `area`: The name of the country where the data is from.
 #' - `area_code`: FAOSTAT internal code for each country. Equivalences
 #'    with ISO 3166-1 numeric can be found in the _Area Codes_ CSV from the
