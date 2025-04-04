@@ -1,11 +1,21 @@
 testthat::test_that("get_bilateral_trade has consistent data", {
   bilateral_trade_alias <- "bilateral_trade"
-  test_file_path <- file.path(
+  cbs_alias <- "commodity_balance_sheet"
+  test_btd_file_path <- file.path(
     .get_destdir(),
     stringr::str_glue("test_file_{bilateral_trade_alias}.csv")
   )
-  testthat::expect_false(file.exists(test_file_path))
-  testthat::local_mocked_bindings(.get_destfile = function(...) test_file_path)
+  test_cbs_file_path <- file.path(
+    .get_destdir(),
+    stringr::str_glue("test_file_{cbs_alias}.csv")
+  )
+  testthat::expect_false(file.exists(test_btd_file_path))
+  testthat::expect_false(file.exists(test_cbs_file_path))
+  testthat::local_mocked_bindings(
+    .get_destfile = function(destdir, alias, ...) {
+      if (alias == cbs_alias) test_cbs_file_path else test_btd_file_path
+    }
+  )
 
   bilateral_trade_alias |>
     get_file_path() |>
@@ -14,7 +24,8 @@ testthat::test_that("get_bilateral_trade has consistent data", {
     any() |>
     testthat::expect_false()
 
-  file.remove(test_file_path)
+  file.remove(test_cbs_file_path)
+  file.remove(test_btd_file_path)
 })
 
 testthat::test_that(".prefer_flow_direction chooses preferred trade data", {
