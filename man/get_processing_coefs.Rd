@@ -13,7 +13,7 @@ get_processing_coefs(file_path)
 A tibble with the quantities for each processed product.
 It contains the following columns:
 \itemize{
-\item \code{year}: The year when the data was collected.
+\item \code{year}: The year in which the recorded event occurred.
 \item \code{area}: The name of the country where the data is from.
 \item \code{area_code}: FAOSTAT internal code for each country. Equivalences
 with ISO 3166-1 numeric can be found in the \emph{Area Codes} CSV from the
