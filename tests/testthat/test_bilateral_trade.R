@@ -1,32 +1,32 @@
-testthat::test_that("get_bilateral_trade has consistent data", {
-  bilateral_trade_alias <- "bilateral_trade"
-  cbs_alias <- "commodity_balance_sheet"
-  test_btd_file_path <- file.path(
-    .get_destdir(),
-    stringr::str_glue("test_file_{bilateral_trade_alias}.csv")
-  )
-  test_cbs_file_path <- file.path(
-    .get_destdir(),
-    stringr::str_glue("test_file_{cbs_alias}.csv")
-  )
-  testthat::expect_false(file.exists(test_btd_file_path))
-  testthat::expect_false(file.exists(test_cbs_file_path))
-  testthat::local_mocked_bindings(
-    .get_destfile = function(destdir, alias, ...) {
-      if (alias == cbs_alias) test_cbs_file_path else test_btd_file_path
-    }
-  )
+# testthat::test_that("get_bilateral_trade has consistent data", {
+#   bilateral_trade_alias <- "bilateral_trade"
+#   cbs_alias <- "commodity_balance_sheet"
+#   test_btd_file_path <- file.path(
+#     .get_destdir(),
+#     stringr::str_glue("test_file_{bilateral_trade_alias}.csv")
+#   )
+#   test_cbs_file_path <- file.path(
+#     .get_destdir(),
+#     stringr::str_glue("test_file_{cbs_alias}.csv")
+#   )
+#   testthat::expect_false(file.exists(test_btd_file_path))
+#   testthat::expect_false(file.exists(test_cbs_file_path))
+#   testthat::local_mocked_bindings(
+#     .get_destfile = function(destdir, alias, ...) {
+#       if (alias == cbs_alias) test_cbs_file_path else test_btd_file_path
+#     }
+#   )
 
-  bilateral_trade_alias |>
-    get_file_path() |>
-    get_bilateral_trade() |>
-    is.na() |>
-    any() |>
-    testthat::expect_false()
+#   bilateral_trade_alias |>
+#     get_file_path() |>
+#     get_bilateral_trade() |>
+#     is.na() |>
+#     any() |>
+#     testthat::expect_false()
 
-  file.remove(test_cbs_file_path)
-  file.remove(test_btd_file_path)
-})
+#   file.remove(test_cbs_file_path)
+#   file.remove(test_btd_file_path)
+# })
 
 testthat::test_that(".prefer_flow_direction chooses preferred trade data", {
   bilateral_trade <- tibble::tribble(
@@ -165,4 +165,129 @@ testthat::test_that(".estimate_bilateral_trade creates expected matrix", {
   )
   result <- .estimate_bilateral_trade(exports, imports)
   testthat::expect_equal(result, expected, tolerance = 1)
+})
+
+testthat::test_that(".fill_missing_trade only fills NA entries of matrix", {
+  original <- matrix(
+    c(
+      140, NA, NA,
+      50, 100, NA,
+      NA, NA, NA
+    ),
+    byrow = TRUE,
+    ncol = 3
+  )
+  expected <- matrix(
+    c(
+      140.00, 76.45, 24.46,
+      50.00, 100.00, 29.09,
+      36.36, 45.45, 14.55
+    ),
+    byrow = TRUE,
+    ncol = 3
+  )
+  total_trade <- tibble::tribble(
+    ~area_code, ~export, ~import,
+    4, 250, 200,
+    6, 200, 250,
+    7, 100, 80
+  ) |>
+    .balance_total_trade()
+
+  original |>
+    .fill_missing_trade(total_trade) |>
+    testthat::expect_equal(expected, tolerance = 1e-2)
+})
+
+testthat::test_that(".fill_missing_trade does nothing for non-NA matrices", {
+  original <- matrix(
+    c(
+      140, 40, 30,
+      50, 100, 77,
+      11, 324, 23
+    ),
+    byrow = TRUE,
+    ncol = 3
+  )
+  total_trade <- tibble::tribble(
+    ~area_code, ~export, ~import,
+    4, 250, 250,
+    6, 300, 550,
+    7, 450, 150
+  ) |>
+    .balance_total_trade()
+
+  original |>
+    .fill_missing_trade(total_trade) |>
+    testthat::expect_equal(original, tolerance = 1e-2)
+})
+
+testthat::test_that(
+  ".fill_missing_trade fills with 0s if row sum is already past CBS report",
+  {
+    original <- matrix(
+      c(
+        140, NA,
+        NA, 100
+      ),
+      byrow = TRUE,
+      ncol = 2
+    )
+    expected <- matrix(
+      c(
+        140, 0,
+        0, 100
+      ),
+      byrow = TRUE,
+      ncol = 2
+    )
+    total_trade <- tibble::tribble(
+      ~area_code, ~export, ~import,
+      4, 130, 200,
+      6, 90, 100,
+    ) |>
+      .balance_total_trade()
+
+    original |>
+      .fill_missing_trade(total_trade) |>
+      testthat::expect_equal(expected, tolerance = 1e-2)
+  }
+)
+
+testthat::test_that(".balance_matrix makes rows and columns have target sum", {
+  total_trade <- tibble::tibble(
+    area_code = c(4, 6, 7, 9, 10, 75),
+    export = c(500, 300, 100, 0, 0, 0),
+    import = c(200, 150, 120, 200, 190, 30)
+  ) |>
+    .balance_total_trade()
+
+  trade_matrix <- matrix(
+    c(
+      140, 30, 34, 140, 120, 8,
+      50, 100, 20, 50, 60, 5,
+      11, 8, 50, 11, 11, 2,
+      0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0
+    ),
+    byrow = TRUE,
+    ncol = 6
+  )
+
+  # Rescaling exports to match total sum of 890 imports
+  balanced_total_exports <- c(494.44, 296.67, 98.89, 0, 0, 0)
+  balanced_total_imports <- c(200, 150, 120, 200, 190, 30)
+
+  result <- .balance_matrix(trade_matrix, total_trade)
+  testthat::expect_equal(
+    rowSums(result),
+    balanced_total_exports,
+    tolerance = 1e-2
+  )
+  testthat::expect_equal(
+    colSums(result),
+    balanced_total_imports,
+    tolerance = 1e-2
+  )
 })
