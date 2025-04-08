@@ -53,7 +53,57 @@ get_bilateral_trade <- function(file_path) {
 
   btd |>
     .build_trade_matrices(cbs, codes) |>
-    .fill_all_missing_trade(cbs, codes)
+    .fill_all_missing_trade(cbs) |>
+    .balance_matrices()
+}
+
+.balance_matrices <- function(btd) {
+  btd |>
+    dplyr::mutate(
+      bilateral_trade = purrr::map2(
+        bilateral_trade,
+        total_trade,
+        .balance_matrix
+      )
+    )
+}
+
+.balance_matrix <- function(trade_matrix, total_trade) {
+  exports <- total_trade |>
+    dplyr::pull(export)
+  imports <- total_trade |>
+    dplyr::pull(import)
+
+  stopifnot(abs(sum(exports) - sum(imports)) < 1e-4)
+  stopifnot(length(exports) == length(imports))
+
+  fitting <- mipfp::Ipfp(
+    ifelse(trade_matrix == 0, 1, trade_matrix),
+    target.list = list(1, 2),
+    target.data = list(exports, imports),
+    tol = 1e-1,
+    tol.margins = 1e-1
+  )
+  balanced_matrix <- fitting$x.hat
+  balanced_matrix
+}
+
+.balance_total_trade <- function(total_trade) {
+  total_trade |>
+    dplyr::mutate(
+      total_export = sum(export),
+      total_import = sum(import),
+      export = ifelse(
+        total_export > total_import,
+        total_import * export / total_export,
+        export
+      ),
+      import = ifelse(
+        total_import > total_export,
+        total_export * import / total_import,
+        import
+      )
+    )
 }
 
 .clean_bilateral_trade <- function(btd) {
@@ -83,34 +133,47 @@ get_bilateral_trade <- function(file_path) {
     dplyr::bind_rows(preferred_direction)
 }
 
-.fill_all_missing_trade <- function(btd, cbs, codes) {
+.fill_all_missing_trade <- function(btd, cbs) {
   btd |>
     dplyr::mutate(
       bilateral_trade = purrr::map2(
         bilateral_trade,
         total_trade,
-        ~ .fill_missing_trade(.x, .y, codes)
+        .fill_missing_trade
       )
     )
 }
 
-.fill_missing_trade <- function(trade_matrix, total_trade, codes) {
-  total_trade <- total_trade |>
-    tidyr::complete(
-      area_code = codes,
-      fill = list(export = 0, import = 0)
-    ) |>
-    dplyr::arrange(area_code)
+.fill_missing_trade <- function(trade_matrix, total_trade) {
+  exports <- total_trade |>
+    dplyr::pull(export)
+  imports <- total_trade |>
+    dplyr::pull(import)
 
-  estimate <- .estimate_bilateral_trade(
-    dplyr::pull(total_trade, export),
-    dplyr::pull(total_trade, import)
-  )
+  estimate <- .estimate_bilateral_trade(exports, imports)
+  needed_estimates <- ifelse(is.na(trade_matrix), estimate, 0)
+  balances <- max(0, exports - rowSums(trade_matrix, na.rm = TRUE))
+
+  estimate <- purrr::map2(
+    purrr::array_branch(needed_estimates, 1),
+    balances,
+    .downscale_large_estimates
+  ) |>
+    do.call(rbind, args = _)
 
   stopifnot(dim(trade_matrix) == dim(estimate))
   stopifnot(all(!is.na(estimate)))
 
   ifelse(is.na(trade_matrix), estimate, trade_matrix)
+}
+
+.downscale_large_estimates <- function(needed_estimates_row, balance) {
+  estimates_sum <- sum(needed_estimates_row, na.rm = TRUE)
+  if (0 < estimates_sum && estimates_sum > balance) {
+    balance * needed_estimates_row / estimates_sum
+  } else {
+    needed_estimates_row
+  }
 }
 
 .build_trade_matrices <- function(btd, cbs, codes) {
@@ -122,7 +185,7 @@ get_bilateral_trade <- function(file_path) {
       bilateral_trade = c(from_code, to_code, value),
       .by = c(year, item)
     ) |>
-    dplyr::left_join(.get_nested_cbs(cbs), c("year", "item")) |>
+    dplyr::left_join(.get_nested_cbs(cbs, codes), c("year", "item")) |>
     dplyr::mutate(
       bilateral_trade = purrr::map2(
         bilateral_trade,
@@ -132,11 +195,40 @@ get_bilateral_trade <- function(file_path) {
     )
 }
 
-.get_nested_cbs <- function(cbs) {
+.get_nested_cbs <- function(cbs, codes) {
   cbs |>
     tidyr::nest(
       total_trade = c(area_code, export, import), .by = c(year, item)
+    ) |>
+    dplyr::mutate(
+      total_trade = purrr::map(
+        total_trade,
+        function(total_trade) {
+          total_trade |>
+            .complete_total_trade(codes) |>
+            .balance_total_trade()
+        }
+      )
     )
+}
+
+.complete_total_trade <- function(total_trade, codes) {
+  total_trade |>
+    tidyr::complete(
+      area_code = codes,
+      fill = list(export = 0, import = 0)
+    ) |>
+    dplyr::arrange(area_code)
+}
+
+.complete_faster <- function(total_trade, codes) {
+  codes <- tibble::tibble(area_code = codes)
+
+  codes |>
+    dplyr::anti_join(total_trade, by = "area_code") |>
+    dplyr::mutate(import = 0, export = 0) |>
+    dplyr::bind_rows(total_trade) |>
+    dplyr::arrange(area_code)
 }
 
 .filter_only_items_in_cbs <- function(btd, cbs) {

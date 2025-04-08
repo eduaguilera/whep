@@ -27,6 +27,8 @@ utils::globalVariables(
     "Timeline_End",
     "Timeline_Freq",
     "Timeline_Start",
+    "total_export",
+    "total_import",
     "total_trade",
     "to_code",
     "Trade",
