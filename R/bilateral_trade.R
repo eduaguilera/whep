@@ -337,26 +337,3 @@ get_bilateral_trade <- function(file_path) {
   est2 <- outer(exports, imports) / sum(exports)
   (est1 + est2) / 2
 }
-
-# Get bilateral trade data in tidy format including estimates
-# Quite useless because of high memory usage
-.get_full_tidy_bilateral_trade <- function(file_path) {
-  file_path |>
-    get_bilateral_trade() |>
-    dplyr::mutate(
-      bilateral_trade = purrr::map(bilateral_trade, .convert_matrix_to_tidy)
-    ) |>
-    tidyr::unnest(cols = bilateral_trade) |>
-    dplyr::select(-total_trade) |>
-    dplyr::mutate(dplyr::across(c(from_code, to_code), as.integer))
-}
-
-.convert_matrix_to_tidy <- function(btd) {
-  btd |>
-    tibble::as_tibble() |>
-    tibble::rownames_to_column(var = "from_code") |>
-    tidyr::pivot_longer(
-      setdiff(tidyr::everything(), tidyr::one_of("from_code")),
-      names_to = "to_code"
-    )
-}
