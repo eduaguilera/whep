@@ -270,16 +270,15 @@ get_bilateral_trade <- function(file_path) {
 .get_nested_cbs <- function(cbs, codes) {
   cbs |>
     tidyr::nest(
-      total_trade = c(area_code, export, import), .by = c(year, item)
+      total_trade = c(area_code, export, import),
+      .by = c(year, item)
     ) |>
     dplyr::mutate(
       total_trade = purrr::map(
         total_trade,
-        function(total_trade) {
-          total_trade |>
-            .complete_total_trade(codes) |>
-            .balance_total_trade()
-        }
+        ~ .x |>
+          .complete_total_trade(codes) |>
+          .balance_total_trade()
       )
     )
 }
