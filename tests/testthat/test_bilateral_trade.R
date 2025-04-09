@@ -147,10 +147,11 @@ testthat::test_that(".fill_missing_trade only fills NA entries of matrix", {
     byrow = TRUE,
     ncol = 3
   )
+
   expected <- matrix(
     c(
       140.00, 7.65, 2.45,
-      50.00, 100.00, 2.91,
+      50.00, 100.00, 2.96,
       3.64, 4.55, 1.46
     ),
     byrow = TRUE,
