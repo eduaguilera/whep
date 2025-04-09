@@ -4,6 +4,8 @@ utils::globalVariables(
     "alias",
     "area_code",
     "area_code_p",
+    "balanced_export",
+    "balanced_import",
     "bilateral_trade",
     "cf",
     "element",
