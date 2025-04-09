@@ -164,7 +164,11 @@ get_bilateral_trade <- function(file_path) {
   stopifnot(dim(trade_matrix) == dim(estimate))
   stopifnot(all(!is.na(estimate)))
 
-  ifelse(is.na(trade_matrix), estimate, trade_matrix)
+  # According to FABIO, missing data may be because it's truly zero,
+  # so only use a small ratio of the estimate just in case.
+  # TODO: Adapt this to our needs
+  k_trust_factor <- 0.1
+  ifelse(is.na(trade_matrix), estimate * k_trust_factor, trade_matrix)
 }
 
 .downscale_large_estimates <- function(needed_estimates_row, balance) {
