@@ -9,6 +9,8 @@ Imports:
     dplyr,
     FAOSTAT,
     googledrive,
+    mipfp,
+    purrr,
     readr,
     stringr,
     tidyr

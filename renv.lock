@@ -174,6 +174,19 @@
       ],
       "Hash": "e7bdd9ee90e96921ca8a0f1972d66682"
     },
+    "Rsolnp": {
+      "Package": "Rsolnp",
+      "Version": "1.16",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Requirements": [
+        "R",
+        "parallel",
+        "stats",
+        "truncnorm"
+      ],
+      "Hash": "2cd14f57e6b9f0c22e6b458db5cfc710"
+    },
     "V8": {
       "Package": "V8",
       "Version": "6.0.2",
@@ -422,6 +435,13 @@
         "utils"
       ],
       "Hash": "3f038e5ac7f41d4ac41ce658c85e3042"
+    },
+    "cmm": {
+      "Package": "cmm",
+      "Version": "1.0",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "65055dde7f551aa1b017c8cccb4ea883"
     },
     "codetools": {
       "Package": "codetools",
@@ -1337,6 +1357,19 @@
       ],
       "Hash": "fec5f52652d60615fdb3957b3d74324a"
     },
+    "mipfp": {
+      "Package": "mipfp",
+      "Version": "3.2.1",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Requirements": [
+        "R",
+        "Rsolnp",
+        "cmm",
+        "numDeriv"
+      ],
+      "Hash": "ce13de73ae0f9a2ef674827250738f44"
+    },
     "munsell": {
       "Package": "munsell",
       "Version": "0.5.1",
@@ -1361,6 +1394,16 @@
         "utils"
       ],
       "Hash": "ccbb8846be320b627e6aa2b4616a2ded"
+    },
+    "numDeriv": {
+      "Package": "numDeriv",
+      "Version": "2016.8-1.1",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Requirements": [
+        "R"
+      ],
+      "Hash": "df58958f293b166e4ab885ebcad90e02"
     },
     "openssl": {
       "Package": "openssl",
@@ -2115,6 +2158,16 @@
         "xfun"
       ],
       "Hash": "3ec7e3ddcacc2d34a9046941222bf94d"
+    },
+    "truncnorm": {
+      "Package": "truncnorm",
+      "Version": "1.0-9",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Requirements": [
+        "R"
+      ],
+      "Hash": "ef5b32c5194351ff409dfb37ca9468f1"
     },
     "tzdb": {
       "Package": "tzdb",
