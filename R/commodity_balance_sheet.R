@@ -54,7 +54,11 @@ get_wide_cbs <- function(file_path) {
     readr::read_csv(show_col_types = FALSE) |>
     tidyr::pivot_wider(names_from = Element, values_from = Value) |>
     dplyr::rename_with(tolower) |>
-    dplyr::mutate(stock_retrieval = -stock_variation, .keep = "unused")
+    dplyr::mutate(
+      stock_retrieval = -stock_variation,
+      dplyr::across(c(year, area_code), as.integer),
+      .keep = "unused"
+    )
 }
 
 #' Processed products share factors
