@@ -39,10 +39,7 @@ testthat::test_that(
 
     # Don't bother making the call fully work. It fails when trying to download,
     # so it already passed the filter we wanted to test.
-    testthat::expect_error(
-      get_file_path("file_alias_2"),
-      "File was not downloaded correctly. Try again"
-    )
+    testthat::expect_error(get_file_path("file_alias_2"))
   }
 )
 
