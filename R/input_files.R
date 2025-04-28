@@ -2,8 +2,7 @@
 #'
 #' @description
 #' If the requested file doesn't exist locally, it is downloaded from a public
-#' Google Drive link and stored in a cache directory obtained using
-#' `tools::R_user_dir`.
+#' link and stored in a cache directory obtained using `tools::R_user_dir`.
 #'
 #' @param file_alias Alias of the requested file. For now the possible
 #'    values are:
@@ -47,13 +46,13 @@ get_file_path <- function(file_alias, force_download = FALSE) {
   tryCatch(
     {
       message(stringr::str_glue("Downloading {file_info$alias}..."))
-      .download_from_drive(file_info$drive_file_id, destfile)
+      .download_from_somewhere(file_info, destfile)
     },
     error = function(cond) {
       if (file.exists(destfile)) {
         file.remove(destfile)
       }
-      stop("File was not downloaded correctly. Try again.")
+      stop(cond)
     }
   )
   destfile
@@ -68,6 +67,21 @@ get_file_path <- function(file_alias, force_download = FALSE) {
     destdir,
     stringr::str_glue("{alias}.{extension}")
   )
+}
+
+.download_from_somewhere <- function(file_info, destfile) {
+  if (!is.na(file_info$drive_file_id)) {
+    .download_from_drive(file_info$drive_file_id, destfile)
+  } else {
+    .download_from_any_url(file_info$file_url, destfile)
+  }
+}
+
+.download_from_any_url <- function(file_url, destfile) {
+  file_url |>
+    httr2::request() |>
+    httr2::req_progress() |>
+    httr2::req_perform(destfile)
 }
 
 .download_from_drive <- function(drive_file_id, destfile) {
