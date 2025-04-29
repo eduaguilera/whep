@@ -282,10 +282,7 @@ get_bilateral_trade <- function(file_path) {
 
   total_trade |>
     dplyr::right_join(combs, by = c("year", "item", "area_code")) |>
-    dplyr::mutate(
-      export = ifelse(is.na(export), 0, export),
-      import = ifelse(is.na(import), 0, import)
-    )
+    tidyr::replace_na(list(export = 0, import = 0))
 }
 
 .filter_only_items_in_cbs <- function(btd, cbs) {
