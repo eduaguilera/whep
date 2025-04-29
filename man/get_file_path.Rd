@@ -23,8 +23,7 @@ A character vector with the path where the requested file is located
 }
 \description{
 If the requested file doesn't exist locally, it is downloaded from a public
-Google Drive link and stored in a cache directory obtained using
-\code{tools::R_user_dir}.
+link and stored in a cache directory obtained using \code{tools::R_user_dir}.
 }
 \examples{
 \dontrun{
