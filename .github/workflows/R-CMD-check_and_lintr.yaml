@@ -28,8 +28,6 @@ jobs:
 
       - uses: r-lib/actions/setup-renv@v2
 
-      - name: Set googlesheets4 token
-        run: echo "$GOOGLE_CLOUD_KEY" > ${{ github.workspace }}/inst/google_cloud_key.json
 
       - uses: r-lib/actions/check-r-package@v2
         with:
