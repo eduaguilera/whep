@@ -15,7 +15,6 @@ jobs:
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
       R_KEEP_PKG_SOURCE: yes
-      GOOGLE_CLOUD_KEY: ${{ secrets.GOOGLE_CLOUD_KEY }}
     steps:
       - uses: actions/checkout@v4
 
@@ -26,13 +25,7 @@ jobs:
           r-version: 'renv'
           use-public-rspm: true
 
-      - name: Check if dep installed
-        run: sudo apt-get install --simulate libfontconfig1-dev 
-
       - uses: r-lib/actions/setup-renv@v2
-
-      - name: Check if dep installed after setup-renv
-        run: sudo apt-get install --simulate libfontconfig1-dev 
 
       - uses: r-lib/actions/check-r-package@v2
         with:

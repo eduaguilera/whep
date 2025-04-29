@@ -21,7 +21,6 @@ jobs:
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
       R_KEEP_PKG_SOURCE: yes
-      GOOGLE_CLOUD_KEY: ${{ secrets.GOOGLE_CLOUD_KEY }}
     permissions:
       contents: write
     steps:
@@ -34,9 +33,6 @@ jobs:
           use-public-rspm: true
 
       - uses: r-lib/actions/setup-renv@v2
-
-      - name: Set googlesheets4 token
-        run: echo "$GOOGLE_CLOUD_KEY" > ${{ github.workspace }}/inst/google_cloud_key.json
 
       - name: Install package
         run: devtools::install()
