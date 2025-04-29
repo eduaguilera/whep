@@ -26,8 +26,13 @@ jobs:
           r-version: 'renv'
           use-public-rspm: true
 
+      - name: Check if dep installed
+        run: sudo apt-get install --simulate libfontconfig1-dev 
+
       - uses: r-lib/actions/setup-renv@v2
 
+      - name: Check if dep installed after setup-renv
+        run: sudo apt-get install --simulate libfontconfig1-dev 
 
       - uses: r-lib/actions/check-r-package@v2
         with:
