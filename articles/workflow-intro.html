@@ -112,7 +112,7 @@ using <code>pwd</code>.</p>
 <p>We assume here that the repository you want to contribute to already
 exists. You can go to its page on Github and copy the URL as seen in the
 image below:</p>
-<p><img src="imgs%2Fcopy_repo_url.png" alt="Where to copy URL from"></p>
+<p><img src="imgs/copy_repo_url.png" alt="Where to copy URL from"></p>
 <p>The git terminology used for ‘downloading’ a repository to our local
 file system is ‘cloning’. We can clone a remote repository (in this case
 from Github) using the following command:</p>
@@ -140,7 +140,7 @@ just conventions, but I will assume it is called ‘main’). You can use
 the command <code>git status</code> to check this (do not mind that my
 terminal looks different in the screenshots, you can use the same
 commands in Git Bash):</p>
-<p><img src="imgs%2Fgit_status_command.png" alt="Using git status"></p>
+<p><img src="imgs/git_status_command.png" alt="Using git status"></p>
 <p>Your local version of a repository does not need to match the remote
 version (the one we store in Github in this case), but before you start
 your work on a new branch, you should keep your main branch up to date
@@ -148,7 +148,7 @@ in case someone added new code in the Github repository since the last
 time you checked. We get any new remote changes to the local repository
 by using the command</p>
 <pre><code>git pull</code></pre>
-<p><img src="imgs%2Fgit_pull_command.png" alt="Using git pull outputs 'Already up to date'"></p>
+<p><img src="imgs/git_pull_command.png" alt="Using git pull outputs 'Already up to date'"></p>
 <p>In this case I already had all the remote changes, and that is why
 the message says ‘Already up to date’, but the message will be different
 if you had missing changes. This is the ‘easy way’ to do it. The command
@@ -175,7 +175,7 @@ updated), I would always be explicit:</p>
 Now it is time to learn how to create our own ‘branch’, from which we
 will start working on new code. We use the following command:</p>
 <pre><code>git checkout -b &lt;name-of-branch&gt;</code></pre>
-<p><img src="imgs%2Fbranch_creation_command.png" alt="Using branch creation command"></p>
+<p><img src="imgs/branch_creation_command.png" alt="Using branch creation command"></p>
 <p>The command <code>git checkout &lt;name-of-branch&gt;</code> is used
 to change from one branch to another (so that you will now see the files
 and changes that are in that branch). Additionally, if we add the
@@ -207,7 +207,7 @@ git. We can add all changes using the command</p>
 changes, i.e. all things inside the directory. We can add just a
 specific file instead using the command</p>
 <pre><code>git add &lt;relative-name-of-file&gt;</code></pre>
-<p><img src="imgs%2Fadd_all_git_changes.png" alt="Add all git changes"></p>
+<p><img src="imgs/add_all_git_changes.png" alt="Add all git changes"></p>
 <p>After adding our changes, we must ‘commit’ them. This commit step is
 what actually saves your changes in the git history. You do this with
 the command</p>
@@ -216,7 +216,7 @@ the command</p>
 infinitive (imperative style), indicating an action that was performed,
 e.g.,
 <code>'Create tests for bilateral trade data preprocessing'</code>.</p>
-<p><img src="imgs%2Fcommit_changes.png" alt="Commit the changes"></p>
+<p><img src="imgs/commit_changes.png" alt="Commit the changes"></p>
 <p>A common practice is to make small commits, that is, include just a
 few changes in each commit, so that it is easier to keep track of your
 work’s history, instead of just having a single commit when you are done
@@ -250,17 +250,17 @@ This can be done forcefully, but the common practice we will be
 following is to create what is known as a ‘Pull request’ from our branch
 into the main one, and we do this directly from Github, once we have
 pushed all of our changes.</p>
-<p><img src="imgs%2Fnew_pull_request.png" alt="Click 'New pull request' in Github"></p>
-<p><img src="imgs%2Fcreate_pull_request.png" alt="Click 'Create pull request'"></p>
+<p><img src="imgs/new_pull_request.png" alt="Click 'New pull request' in Github"></p>
+<p><img src="imgs/create_pull_request.png" alt="Click 'Create pull request'"></p>
 <p>Here you can see all the changes you made (that differ from the main
 branch) before clicking again ‘Create pull request’. Then you will see
 the following, where you should add some title and description to
 explain what you have done. You finally click ‘Create pull request’
 again.</p>
-<p><img src="imgs%2Fadd_pr_title_description.png" alt="Add title and description and click 'Create pull request'"></p>
+<p><img src="imgs/add_pr_title_description.png" alt="Add title and description and click 'Create pull request'"></p>
 <p>Now the Pull Request (often abbreviated as PR) is created and the
 next step is to ask for someone’s review.</p>
-<p><img src="imgs%2Fadd_people_review_pr.png" alt="Adding people to review your PR"></p>
+<p><img src="imgs/add_people_review_pr.png" alt="Adding people to review your PR"></p>
 <p>Ideally these changes would not be merged until someone else reviews
 your code. This person might find things you have to change and request
 these changes before merging, so you would have to keep working on your
@@ -372,7 +372,7 @@ advantages if you follow this structure. This is the one we will follow,
 so the rest of this section will try to explain its different parts,
 that will all become part of our workflow.</p>
 <p>This is the whole structure of an R package:</p>
-<p><img src="imgs%2Fr_package_structure.png" alt="Structure of an R package"></p>
+<p><img src="imgs/r_package_structure.png" alt="Structure of an R package"></p>
 <p>Luckily, there are a lot of files there that you do not need to know
 about, at least for now, so we will try to explain the most important
 ones in the next sections.</p>
@@ -473,7 +473,7 @@ changes and someone else has included a new package, so that you are
 then up to date with them. In any case, when opening the R shell, it
 will probably remind you that there are missing packages in your virtual
 environment with a message:</p>
-<p><img src="imgs%2Frenv_warn_packages_not_installed.png" alt="renv warns packages not installed"></p>
+<p><img src="imgs/renv_warn_packages_not_installed.png" alt="renv warns packages not installed"></p>
 <p>And this is basically all you need to start using a virtual
 environment, keeping in mind the commands</p>
 <ul>
@@ -644,7 +644,7 @@ In the <a href="#writing-articles">Writing articles</a> section we will
 learn how to generate and see this documentation. In this example, it
 would look something like this (note the autogenerated example code
 output):</p>
-<p><img src="imgs%2Froxygen_documentation.png" alt="Auto generated documentation appearance"></p>
+<p><img src="imgs/roxygen_documentation.png" alt="Auto generated documentation appearance"></p>
 </div>
 <div class="section level3">
 <h3 id="writing-tests">Writing tests<a class="anchor" aria-label="anchor" href="#writing-tests"></a>
@@ -782,12 +782,12 @@ actually very easy to run:</p>
 <p>The whole output of this call is rather long, since it lists all the
 different checks it makes, but at the end, if there are no issues, this
 is the output you should see:</p>
-<p><img src="imgs%2Fr_cmd_check_pass.png" alt="Correct output of R CMD check"></p>
+<p><img src="imgs/r_cmd_check_pass.png" alt="Correct output of R CMD check"></p>
 <p>OK, but if you just followed the steps in this guide and included our
 example code from the <a href="#writing-code">Writing code</a> and <a href="#writing-tests">Writing tests</a> sections, the above check should
 not have ended successfully with 0 errors, and you probably see (among
 the really large output), some error like this:</p>
-<p><img src="imgs%2Fr_cmd_check_fail.png" alt="Error no package called tidyr"></p>
+<p><img src="imgs/r_cmd_check_fail.png" alt="Error no package called tidyr"></p>
 <p>The problem here is that before performing the check on your package,
 it must build it. And for that, it must know which other packages it has
 as dependencies. Again, if you just followed everything from here, we
@@ -1089,7 +1089,7 @@ command:</p>
 <p>Most code editors incorporate some way of doing this. Since you are
 most likely using RStudio, you can do it by finding the
 <code>styler</code> options in the ‘addins’ dropdown:</p>
-<p><img src="imgs%2Fstyler_rstudio.png" alt="Use styler package from RStudio"></p>
+<p><img src="imgs/styler_rstudio.png" alt="Use styler package from RStudio"></p>
 <p>When using <code>renv</code>, it seems RStudio only shows in the
 ‘addins’ dropdown the options from packages included in
 <code>renv</code>, so keep that in mind in case you want it in a
@@ -1191,11 +1191,11 @@ will see this step failing.</li>
 </ul>
 <p>If any of the steps above fail, you will see something like this in
 your PR page:</p>
-<p><img src="imgs%2Fgithub_action_fail.png" alt="Github Action check fails"></p>
+<p><img src="imgs/github_action_fail.png" alt="Github Action check fails"></p>
 <p>Otherwise, if both checks succeeded, you will see something like:</p>
-<p><img src="imgs%2Fgithub_action_pass.png" alt="Github Action check succeeds"></p>
+<p><img src="imgs/github_action_pass.png" alt="Github Action check succeeds"></p>
 <p>Overall, you should be able to see this at the bottom of the PR:</p>
-<p><img src="imgs%2Fall_pr_ok.png" alt="Github Action Pull Request passed"></p>
+<p><img src="imgs/all_pr_ok.png" alt="Github Action Pull Request passed"></p>
 <p>In case you are wondering, both checks we mentioned before are
 actually done in a single Github automatic step (these steps are called
 ‘Github actions’), so it should say ‘1 successful check’ instead of ‘2
@@ -1228,7 +1228,7 @@ again, so we better avoid that.</p>
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.1.1.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.1.2.</p>
 </div>
 
     </footer>
