@@ -109,27 +109,28 @@ get_bilateral_trade <- function(file_path) {
     get_wide_cbs() |>
     dplyr::select(year, item, area_code, export, import)
 
-  btd <-
-    file_path |>
+  btd <- file_path |>
     readr::read_csv(show_col_types = FALSE) |>
     .clean_bilateral_trade()
 
   codes <- .get_all_country_codes(btd, cbs)
 
   btd |>
-    .build_trade_matrices(cbs, codes) |>
-    .fill_all_missing_trade(cbs) |>
-    .balance_matrices() |>
+    .nest_by_year_item(cbs, codes) |>
+    .process_bilateral_trade(codes) |>
     dplyr::select(-total_trade)
 }
 
-.balance_matrices <- function(btd) {
+.process_bilateral_trade <- function(btd, codes) {
   btd |>
     dplyr::mutate(
       bilateral_trade = purrr::map2(
         bilateral_trade,
         total_trade,
-        .balance_matrix
+        ~ .x |>
+          .build_trade_matrix(codes) |>
+          .fill_missing_trade(.y) |>
+          .balance_matrix(.y)
       )
     )
 }
@@ -180,6 +181,7 @@ get_bilateral_trade <- function(file_path) {
       unit = ifelse(unit == "Head", "heads", unit),
       from_code = ifelse(element == "Export", area_code, area_code_p),
       to_code = ifelse(element == "Export", area_code_p, area_code),
+      dplyr::across(c(year, from_code, to_code), as.integer)
     ) |>
     .prefer_flow_direction("Export") |>
     dplyr::select(year, from_code, to_code, item, unit, value)
@@ -197,17 +199,6 @@ get_bilateral_trade <- function(file_path) {
       by = c("from_code", "to_code", "year", "item")
     ) |>
     dplyr::bind_rows(preferred_direction)
-}
-
-.fill_all_missing_trade <- function(btd, cbs) {
-  btd |>
-    dplyr::mutate(
-      bilateral_trade = purrr::map2(
-        bilateral_trade,
-        total_trade,
-        .fill_missing_trade
-      )
-    )
 }
 
 .fill_missing_trade <- function(trade_matrix, total_trade) {
@@ -249,47 +240,49 @@ get_bilateral_trade <- function(file_path) {
   }
 }
 
-.build_trade_matrices <- function(btd, cbs, codes) {
+.nest_by_year_item <- function(btd, cbs, codes) {
+  cbs <- cbs |>
+    dplyr::mutate(area_code = factor(area_code, levels = codes))
+
   btd |>
     dplyr::filter(unit == "tonnes") |>
     dplyr::select(-unit) |>
+    dplyr::mutate(
+      from_code = factor(from_code, levels = codes),
+      to_code = factor(to_code, levels = codes),
+    ) |>
     .filter_only_items_in_cbs(cbs) |>
     tidyr::nest(
       bilateral_trade = c(from_code, to_code, value),
       .by = c(year, item)
     ) |>
-    dplyr::left_join(.get_nested_cbs(cbs, codes), c("year", "item")) |>
-    dplyr::mutate(
-      bilateral_trade = purrr::map(
-        bilateral_trade,
-        ~ .build_trade_matrix(.x, codes)
-      )
-    )
+    dplyr::left_join(.get_nested_cbs(cbs, codes), c("year", "item"))
 }
 
 .get_nested_cbs <- function(cbs, codes) {
   cbs |>
+    dplyr::mutate(item = as.factor(item)) |>
+    .complete_total_trade(codes) |>
+    dplyr::group_by(year, item) |>
+    .balance_total_trade() |>
+    dplyr::ungroup() |>
     tidyr::nest(
-      total_trade = c(area_code, export, import),
+      total_trade = c(
+        area_code, export, import, balanced_export, balanced_import
+      ),
       .by = c(year, item)
-    ) |>
-    dplyr::mutate(
-      total_trade = purrr::map(
-        total_trade,
-        ~ .x |>
-          .complete_total_trade(codes) |>
-          .balance_total_trade()
-      )
     )
 }
 
 .complete_total_trade <- function(total_trade, codes) {
+  df_codes <- tibble::tibble(area_code = codes)
+  combs <- total_trade |>
+    dplyr::distinct(year, item) |>
+    dplyr::cross_join(df_codes)
+
   total_trade |>
-    tidyr::complete(
-      area_code = codes,
-      fill = list(export = 0, import = 0)
-    ) |>
-    dplyr::arrange(area_code)
+    dplyr::right_join(combs, by = c("year", "item", "area_code")) |>
+    tidyr::replace_na(list(export = 0, import = 0))
 }
 
 .filter_only_items_in_cbs <- function(btd, cbs) {
@@ -317,13 +310,18 @@ get_bilateral_trade <- function(file_path) {
     dplyr::pull(cbs, area_code)
   ) |>
     unique() |>
-    sort()
+    sort() |>
+    as.factor()
 }
 
 .build_trade_matrix <- function(btd, codes) {
   btd |>
-    tidyr::complete(from_code = codes, to_code = codes) |>
-    tidyr::pivot_wider(names_from = to_code, values_from = value) |>
+    tidyr::pivot_wider(
+      names_from = to_code,
+      values_from = value,
+      names_expand = TRUE
+    ) |>
+    tidyr::complete(from_code = codes) |>
     tibble::column_to_rownames(var = "from_code") |>
     as.matrix()
 }

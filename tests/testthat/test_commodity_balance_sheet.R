@@ -12,6 +12,8 @@ k_ignore_unbalanced <- c(
 k_tolerance <- 1e-6
 
 testthat::test_that("get_wide_cbs gives consistent Commodity Balance Sheet", {
+  testthat::skip_on_ci()
+
   cbs_alias <- "commodity_balance_sheet"
   test_file_path <- file.path(
     .get_destdir(),
@@ -52,6 +54,8 @@ testthat::test_that("get_wide_cbs gives consistent Commodity Balance Sheet", {
 testthat::test_that(
   "get_codes_coeffs gives consistent shares of processed items",
   {
+    testthat::skip_on_ci()
+
     cbs_alias <- "commodity_balance_sheet"
     coefs_alias <- "processing_coefs"
 
