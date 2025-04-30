@@ -433,10 +433,10 @@ having several different R installations, each one with their own
 packages and versions.</p>
 <p>Chances are you follow this guide with an existing repository that is
 already using <code>renv</code> (then you can skip the
-<code><a href="https://rstudio.github.io/renv/reference/init.html" class="external-link">renv::init()</a></code> step). If this were not the case, open an R
+<code>renv::init()</code> step). If this were not the case, open an R
 prompt in the root directory of your project and run inside the
 prompt:</p>
-<pre><code><span><span class="fu">renv</span><span class="fu">::</span><span class="fu"><a href="https://rstudio.github.io/renv/reference/init.html" class="external-link">init</a></span><span class="op">(</span><span class="op">)</span></span></code></pre>
+<pre><code><span><span class="fu">renv</span><span class="fu">::</span><span class="fu">init</span><span class="op">(</span><span class="op">)</span></span></code></pre>
 <p>It will probably ask to close and reopen a clean prompt. After that,
 every time we open an R prompt inside our project, it will automatically
 use <code>renv</code> to work within a virtual environment. If you use
@@ -455,7 +455,7 @@ versions, which is used by <code>renv</code> to manage the virtual
 environment, is in a file called <code>renv.lock</code>. After
 installing new packages, this file is not updated automatically and we
 have to do it manually by running</p>
-<pre><code><span><span class="fu">renv</span><span class="fu">::</span><span class="fu"><a href="https://rstudio.github.io/renv/reference/snapshot.html" class="external-link">snapshot</a></span><span class="op">(</span><span class="op">)</span></span></code></pre>
+<pre><code><span><span class="fu">renv</span><span class="fu">::</span><span class="fu">snapshot</span><span class="op">(</span><span class="op">)</span></span></code></pre>
 <p>This will update the <code>renv.lock</code> file with all the
 packages <code>renv</code> finds are used in your code. If for some
 reason you need to install a package not explicitly used in the code,
@@ -464,7 +464,7 @@ explicitly call <code>renv::snapshot(type="all")</code> to force every
 package in your <code>renv</code> environment to be added to
 <code>renv.lock</code>. You should push this file to the repository. If
 someone else wants to reproduce your code, then they may have to run</p>
-<pre><code><span><span class="fu">renv</span><span class="fu">::</span><span class="fu"><a href="https://rstudio.github.io/renv/reference/restore.html" class="external-link">restore</a></span><span class="op">(</span><span class="op">)</span></span></code></pre>
+<pre><code><span><span class="fu">renv</span><span class="fu">::</span><span class="fu">restore</span><span class="op">(</span><span class="op">)</span></span></code></pre>
 <p>which will install any packages from <code>renv.lock</code> that they
 may still not have installed, but again, only on a project level, not
 conflicting with their global R installation. If you use Github with
@@ -478,10 +478,10 @@ environment with a message:</p>
 environment, keeping in mind the commands</p>
 <ul>
 <li>
-<code><a href="https://rstudio.github.io/renv/reference/snapshot.html" class="external-link">renv::snapshot()</a></code>: add new required packages to
+<code>renv::snapshot()</code>: add new required packages to
 <code>renv.lock</code> file</li>
 <li>
-<code><a href="https://rstudio.github.io/renv/reference/restore.html" class="external-link">renv::restore()</a></code>: install packages from
+<code>renv::restore()</code>: install packages from
 <code>renv.lock</code> that you do not have yet</li>
 </ul>
 <p>I wrote this introduction to <code>renv</code> by reading their own
@@ -778,7 +778,7 @@ pass, as we will also see in the <a href="#automatic-checks-on-pull-requests">Au
 Requests</a> section. This check is known as ‘R CMD check’, and it is
 actually very easy to run:</p>
 <div class="sourceCode" id="cb30"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu">devtools</span><span class="fu">::</span><span class="fu"><a href="https://devtools.r-lib.org/reference/check.html" class="external-link">check</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
+<code class="sourceCode R"><span><span class="fu">devtools</span><span class="fu">::</span><span class="fu">check</span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
 <p>The whole output of this call is rather long, since it lists all the
 different checks it makes, but at the end, if there are no issues, this
 is the output you should see:</p>
@@ -827,7 +827,7 @@ the following <a href="#writing-articles">Writing articles</a> section),
 should be included in the <code>Suggests</code> section of the
 <code>DESCRIPTION</code> file. Together these two fields tell everyone
 which dependencies our package needs to work correctly. After adding
-these, you could run again <code><a href="https://devtools.r-lib.org/reference/check.html" class="external-link">devtools::check()</a></code> and confirm
+these, you could run again <code>devtools::check()</code> and confirm
 that it does not fail anymore (at least no errors).</p>
 <p>We will not go into detail as to which checks are being performed. We
 will all slowly learn about them whenever they show up as real issues in
@@ -983,7 +983,7 @@ installed but only in a temporary directory for that execution, so maybe
 it does not work anymore when calling
 <code><a href="https://pkgdown.r-lib.org/reference/build_articles.html" class="external-link">pkgdown::build_articles()</a></code> after that. If this is your case,
 you may want to try installing your own package first via
-<code><a href="https://devtools.r-lib.org/reference/install.html" class="external-link">devtools::install()</a></code>. Note that this assumes you do not
+<code>devtools::install()</code>. Note that this assumes you do not
 change your package code (the one in <code>R/</code> directory) while
 actively working on articles. If you do, you would have to reinstall
 your own package every time you change something in the <code>R/</code>
@@ -1085,7 +1085,7 @@ specific code, be it a chunk, a file or an entire project. For example,
 we could apply the style to the whole package by simply using the
 command:</p>
 <div class="sourceCode" id="cb41"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu">styler</span><span class="fu">::</span><span class="fu"><a href="https://styler.r-lib.org/reference/style_pkg.html" class="external-link">style_pkg</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
+<code class="sourceCode R"><span><span class="fu">styler</span><span class="fu">::</span><span class="fu">style_pkg</span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
 <p>Most code editors incorporate some way of doing this. Since you are
 most likely using RStudio, you can do it by finding the
 <code>styler</code> options in the ‘addins’ dropdown:</p>
@@ -1142,11 +1142,11 @@ You are responsible for making sure this check passes (probably using
 automatically checked on your Pull Requests (see the <a href="#automatic-checks-on-pull-requests">next section</a> on this
 guide). The check we will use is:</p>
 <div class="sourceCode" id="cb46"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu">lintr</span><span class="fu">::</span><span class="fu"><a href="https://lintr.r-lib.org/reference/lint.html" class="external-link">lint_package</a></span><span class="op">(</span></span>
-<span>  linters <span class="op">=</span> <span class="fu">lintr</span><span class="fu">::</span><span class="fu"><a href="https://lintr.r-lib.org/reference/linters_with_defaults.html" class="external-link">linters_with_defaults</a></span><span class="op">(</span>object_usage_linter <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span>
+<code class="sourceCode R"><span><span class="fu">lintr</span><span class="fu">::</span><span class="fu">lint_package</span><span class="op">(</span></span>
+<span>  linters <span class="op">=</span> <span class="fu">lintr</span><span class="fu">::</span><span class="fu">linters_with_defaults</span><span class="op">(</span>object_usage_linter <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
 <p>The default call would be as easy as
-<code><a href="https://lintr.r-lib.org/reference/lint.html" class="external-link">lintr::lint_package()</a></code>. I will not go into detail about the
+<code>lintr::lint_package()</code>. I will not go into detail about the
 specific option added here, but it is there to ignore warnings about
 undeclared global variables, which are false positives when using
 <code>dplyr</code> column names. For convenience, if you are following
@@ -1156,7 +1156,7 @@ repository</a>, you could find this call in
 everything you would just have to run this script.</p>
 <p>In the screenshot above you can see there are also options for
 <code>lintr</code> checks from Rstudio’s ‘addins’, but by default they
-perform the <code><a href="https://lintr.r-lib.org/reference/lint.html" class="external-link">lintr::lint_package()</a></code> call without any options.
+perform the <code>lintr::lint_package()</code> call without any options.
 Remember we added one option to our check, so you should either find out
 how to change the default behaviour or just run the script we included
 in <code>inst/scripts/check_lint.R</code>.</p>
