@@ -1,29 +1,27 @@
-#' Fill the gaps (NA values) in a time-dependent variable, creating complete time series
-#'
-#' @param trade_sources A tibble dataframe
-#' where each row contains the year range
-#'
-#' @return A tibble dataframe where each row
-#' corresponds to a single year for a given source
+# Simple functions to fill gaps (NA values) in a time-dependent variable, creating complete time series
+
+
+#' Fill gaps in a variable by linear interpolation, when possible, or carrying forward or backwards, 
+#' when not possible, and label output accordingly
+#' 
+#' @param df A tibble data frame containing one observation per row
+#' @param var The variable of df containing gaps to be filled
+#' @param time_index The time index variable (usually year)
+#' @param ... The grouping variables (optional)
+#' 
+#' @return A tibble data frame (ungrouped) where gaps in var have been filled, 
+#' and a new "Source" variable has been created indicating if the value is original or,
+#' in case it has been estimated, the gapfilling method that has been used
 #'
 #' @export
 #'
 #' @examples
-
-sample_tibble <- tibble::tibble(
-  category = c("a", "a", "a", "a", "a", "a", "b", "b", "b", "b", "b", "b"),
-  year = c("2015", "2016", "2017", "2018", "2019", "2020", "2015", "2016", "2017", "2018", "2019", "2020"),
-  value = c(NA, 3, NA, NA, 0, NA, 1, NA, NA, NA, 5, NA),
-  proxy_variable = c(1,2,2,2,2,2,1,2,3,4,5,6),
-  change_variable =c(1,1,1,1,1,1,0,0,0,0,0,0)
-)
-
-linear_filled_tibble <- linear_fill(sample_tibble, value, year, category)
-proxy_filled_tibble <- proxy_fill(sample_tibble, value, proxy_variable, year, category)
-sum_filled_tibble <- sum_fill(sample_tibble, value, change_variable, category)
-
-# Fills gaps by linear interpolation, when possible, or carrying forward or backwards, when not possible, and labels output accordingly
-# The data should be he data when needed before running the function
+#' sample_tibble <- tibble::tibble(
+#'   category = c("a", "a", "a", "a", "a", "a", "b", "b", "b", "b", "b", "b"),
+#'   year = c("2015", "2016", "2017", "2018", "2019", "2020", "2015", "2016", "2017", "2018", "2019", "2020"),
+#'   value = c(NA, 3, NA, NA, 0, NA, 1, NA, NA, NA, 5, NA),
+#' )
+#' linear_filled_tibble <- linear_fill(sample_tibble, value, year, category)
 linear_fill <- function(df, var, time_index, ...) { # df = data frame; var = variable to be filled; time_index = time index (usually year); ... = grouping variables
   df |> 
     dplyr::group_by(...) |> 
@@ -59,8 +57,30 @@ linear_fill <- function(df, var, time_index, ...) { # df = data frame; var = var
     dplyr::ungroup()
 }
 
-# Fills gaps by using changes in a proxy variable, using ratios between filled variable and proxy variable, and labels output accordingly
-# Remember to group the data when needed before running the function
+#' Fills gaps in a variable based on changes in a proxy variable, using ratios between 
+#' the filled variable and the proxy variable, and labels output accordingly
+#' 
+#' @param df A tibble data frame containing one observation per row
+#' @param var The variable of df containing gaps to be filled
+#' @param proxy_var The variable to be used as proxy
+#' @param time_index The time index variable (usually year)
+#' @param ... The grouping variables (optional)
+#' 
+#' @return A tibble dataframe (ungrouped) where gaps in var have been filled, 
+#' a new proxy_ratio variable has been created,
+#' and a new "Source" variable has been created indicating if the value is original or,
+#' in case it has been estimated, the gapfilling method that has been used
+#'
+#' @export
+#'
+#' @examples
+#' sample_tibble <- tibble::tibble(
+#'   category = c("a", "a", "a", "a", "a", "a", "b", "b", "b", "b", "b", "b"),
+#'   year = c("2015", "2016", "2017", "2018", "2019", "2020", "2015", "2016", "2017", "2018", "2019", "2020"),
+#'   value = c(NA, 3, NA, NA, 0, NA, 1, NA, NA, NA, 5, NA),
+#'   proxy_variable = c(1,2,2,2,2,2,1,2,3,4,5,6)
+#' )
+#' proxy_filled_tibble <- proxy_fill(sample_tibble, value, proxy_variable, year, category)
 proxy_fill <- function(df, var, proxy_var, time_index, ...) { # df = data frame, var = variable to be filled, proxy_var = variable used as proxy, time_index = time index (usually year); ... = grouping variables
   df |>
     dplyr::mutate(proxy_ratio = {{ var }} / {{ proxy_var }}) |>
@@ -86,7 +106,30 @@ proxy_fill <- function(df, var, proxy_var, time_index, ...) { # df = data frame,
     )
 }
 
-# Function to fill gaps in a given variable (var) of a time series with the sum of the previous value of var and the value of another column (change_var). The values of var are accumulated along the series.
+
+#' Fill gaps in a variable with the sum of its previous value and the value of another variable. 
+#' When a gap has multiple observations, the values are accumulated along the series.
+#' 
+#' @param df A tibble data frame containing one observation per row
+#' @param var The variable of df containing gaps to be filled
+#' @param time_index The time index variable (usually year)
+#' @param change_var The variable whose values will be used to fill the gaps
+#' @param ... The grouping variables (optional)
+#' 
+#' @return A tibble dataframe (ungrouped) where gaps in var have been filled, 
+#' and a new "Source" variable has been created indicating if the value is original or,
+#' in case it has been estimated, the gapfilling method that has been used
+#'
+#' @export
+#'
+#' @examples
+#' sample_tibble <- tibble::tibble(
+#'   category = c("a", "a", "a", "a", "a", "a", "b", "b", "b", "b", "b", "b"),
+#'   year = c("2015", "2016", "2017", "2018", "2019", "2020", "2015", "2016", "2017", "2018", "2019", "2020"),
+#'   value = c(NA, 3, NA, NA, 0, NA, 1, NA, NA, NA, 5, NA),
+#'   change_variable =c(1,1,1,1,1,1,0,0,0,0,0,0)
+#' )
+#' sum_filled_tibble <- sum_fill(sample_tibble, value, change_variable, category)
 sum_fill <- function(df, var, change_var, ...) {
   var_sym <- rlang::ensym(var)
   change_var_sym <- rlang::ensym(change_var)
