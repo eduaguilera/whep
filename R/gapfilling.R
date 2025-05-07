@@ -57,3 +57,39 @@ linear_fill <- function(data, var, time_index, ...) { # data= data frame; var = 
     dplyr::ungroup()
 }
 
+# Fills gaps by using changes in a proxy variable, using ratios between filled variable and proxy variable, and labels output accordingly
+# Remember to group the data when needed before running the function
+proxy_fill <- function(data, var, proxyvar, time_index, ...) { # data=dataframe, var=variable to be filled, proxyvar=variable used as proxy, Index=time index (usually year)
+  data %>%
+    dplyr::mutate(proxy_ratio = {{ var }} / {{ proxyvar }}) %>%
+    linear_fill(proxy_ratio, time_index) %>%
+    dplyr::mutate(
+      "Source_{{var}}" := ifelse(!is.na({{ var }}),
+                                 "Original",
+                                 ifelse(Source_Proxy_ratio == "Linear interpolation",
+                                        "Proxy interpolated",
+                                        ifelse(Source_Proxy_ratio == "Last value carried forward",
+                                               "Proxy carried forward",
+                                               ifelse(Source_Proxy_ratio == "First value carried backwards",
+                                                      "Proxy carried backwards",
+                                                      NA
+                                               )
+                                        )
+                                 )
+      ),
+      "{{var}}" := ifelse(!is.na({{ var }}),
+                          {{ var }},
+                          proxy_ratio * {{ proxyvar }}
+      )
+    )
+}
+
+# Function to fill gaps in a given variable (var) of a time series with the sum of the previous value of var and the value of another column (change_var). The values of var are accumulated along the series.
+sum_fill <- function(var, change_var) {
+  for (i in seq_along(var)) {
+    if (is.na(var[i]) && i > 1) {
+      var1[i] <- var1[i - 1] + change_var[i]
+    }
+  }
+  return(var)
+}
