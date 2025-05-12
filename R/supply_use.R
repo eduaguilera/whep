@@ -1,13 +1,23 @@
-build_supply_use_table <- function() {
+build_supply_use <- function() {
   # TODO: There's a name mismatch in two items
   # CBS_item                  supply_process_item
   # Fodder cereal and grasses Fodder crops
   # Fodder legumes            Grazing
   # Keep balance sheet names for now
-  supply_process_table <- .get_processes_table("input/raw/items_supply.csv")
-  use_process_table <- .get_processes_table("input/raw/items_use.csv")
-  coeffs <- get_processing_coefs(get_file_path("processing_coefs"))
 
+  .build_supply_use_from_inputs(
+    supply_process_table = .get_processes_table("input/raw/items_supply.csv"),
+    use_process_table = .get_processes_table("input/raw/items_use.csv"),
+    coeffs = get_processing_coefs(get_file_path("processing_coefs")),
+    cbs = get_wide_cbs(get_file_path("commodity_balance_sheet"))
+  )
+}
+
+.build_supply_use_from_inputs <- function(
+    supply_process_table,
+    use_process_table,
+    coeffs,
+    cbs) {
   processes_table <- use_process_table |>
     dplyr::full_join(
       supply_process_table,
@@ -18,21 +28,43 @@ build_supply_use_table <- function() {
 
   dplyr::bind_rows(
     .process_feed(processes_table),
-    .process_seed(processes_table),
+    .process_seed(processes_table, cbs),
     .process_slaughtering(processes_table),
     .process_others(processes_table, coeffs)
   )
 }
 
-.process_feed <- function(processes_table) {
-  tibble::tibble()
+.process_seed <- function(processes_table, cbs) {
+  processes <- processes_table |>
+    dplyr::filter(type == "seedwaste")
+
+  use <- processes |>
+    # TODO: compare with full_join, why seedwaste use on animal products?
+    dplyr::inner_join(cbs, dplyr::join_by(item_code_to_process == item_code)) |>
+    dplyr::filter(seed > 0) |>
+    dplyr::select(year, area, proc, item_to_process, seed) |>
+    dplyr::rename(item = item_to_process, value = seed) |>
+    dplyr::mutate(type = "use")
+
+  supply <- processes |>
+    dplyr::inner_join(cbs, dplyr::join_by(item_code_processed == item_code)) |>
+    dplyr::filter(domestic_supply > 0) |>
+    dplyr::select(year, area, proc, item_processed, domestic_supply) |>
+    dplyr::rename(item = item_processed, value = domestic_supply) |>
+    dplyr::mutate(type = "supply")
+
+  dplyr::bind_rows(supply, use)
 }
 
-.process_seed <- function(processes_table) {
-  tibble::tibble()
-}
-
+# TODO: Treat slaughtering processes
+# (probably need conversion factor from Livestock Units to physical unit)
 .process_slaughtering <- function(processes_table) {
+  tibble::tibble()
+}
+
+# TODO: Treat animal feed use processes
+# Use feed intake data from Eduardo
+.process_feed <- function(processes_table) {
   tibble::tibble()
 }
 
