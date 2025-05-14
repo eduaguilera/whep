@@ -27,14 +27,14 @@ build_supply_use <- function() {
     )
 
   dplyr::bind_rows(
-    .process_feed(processes_table),
-    .process_seed(processes_table, cbs),
-    .process_slaughtering(processes_table),
-    .process_others(processes_table, coeffs)
+    .add_use_for_feed(processes_table),
+    .add_use_for_seed(processes_table, cbs),
+    .add_use_for_slaughtering(processes_table),
+    .add_supply_use_for_processing(processes_table, coeffs)
   )
 }
 
-.process_seed <- function(processes_table, cbs) {
+.add_use_for_seed <- function(processes_table, cbs) {
   processes <- processes_table |>
     dplyr::filter(type == "seedwaste")
 
@@ -46,29 +46,29 @@ build_supply_use <- function() {
     dplyr::rename(item = item_to_process, value = seed) |>
     dplyr::mutate(type = "use")
 
-  supply <- processes |>
-    dplyr::inner_join(cbs, dplyr::join_by(item_code_processed == item_code)) |>
-    dplyr::filter(domestic_supply > 0) |>
-    dplyr::select(year, area, proc, item_processed, domestic_supply) |>
-    dplyr::rename(item = item_processed, value = domestic_supply) |>
-    dplyr::mutate(type = "supply")
+  # supply <- processes |>
+  #   dplyr::inner_join(cbs, dplyr::join_by(item_code_processed == item_code)) |>
+  #   dplyr::filter(domestic_supply > 0) |>
+  #   dplyr::select(year, area, proc, item_processed, domestic_supply) |>
+  #   dplyr::rename(item = item_processed, value = domestic_supply) |>
+  #   dplyr::mutate(type = "supply")
 
-  dplyr::bind_rows(supply, use)
+  dplyr::bind_rows(use)
 }
 
 # TODO: Treat slaughtering processes
 # (probably need conversion factor from Livestock Units to physical unit)
-.process_slaughtering <- function(processes_table) {
+.add_use_for_slaughtering <- function(processes_table) {
   tibble::tibble()
 }
 
 # TODO: Treat animal feed use processes
 # Use feed intake data from Eduardo
-.process_feed <- function(processes_table) {
+.add_use_for_feed <- function(processes_table) {
   tibble::tibble()
 }
 
-.process_others <- function(processes_table, coeffs) {
+.add_supply_use_for_processing <- function(processes_table, coeffs) {
   processes <- processes_table |>
     dplyr::filter(!type %in% c("feed", "seedwaste", "slaughtering")) |>
     # TODO: compare with full_join, deal with missing processes
@@ -77,6 +77,7 @@ build_supply_use <- function() {
   supply <- processes |>
     dplyr::group_by(year, area, proc, item_processed) |>
     dplyr::summarise(value = sum(final_value_processed)) |>
+    dplyr::ungroup() |>
     dplyr::rename(item = item_processed) |>
     dplyr::mutate(type = "supply")
 
