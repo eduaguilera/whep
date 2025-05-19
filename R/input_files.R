@@ -94,7 +94,8 @@ get_file_path <- function(file_alias, force_download = FALSE) {
 }
 
 .fetch_file_info <- function(file_alias) {
-  file_info <- dplyr::filter(.get_input_files_data(), alias == file_alias)
+  input_files <- .read_local_csv("input/raw/input_files.csv")
+  file_info <- dplyr::filter(input_files, alias == file_alias)
 
   if (nrow(file_info) == 0) {
     stop(stringr::str_glue("There is no file entry with alias {file_alias}"))
@@ -114,8 +115,8 @@ get_file_path <- function(file_alias, force_download = FALSE) {
   c(file_info)
 }
 
-.get_input_files_data <- function() {
+.read_local_csv <- function(csv_path) {
   "extdata" |>
-    system.file("input/raw/input_files.csv", package = utils::packageName()) |>
+    system.file(csv_path, package = utils::packageName()) |>
     readr::read_csv(show_col_types = FALSE)
 }
