@@ -20,7 +20,8 @@ an \code{NA} is included.
 }
 \description{
 Add a new column to an existing tibble with the corresponding name
-for each code.
+for each code. The codes are assumed to be from those defined by
+the \code{FABIO} model.
 }
 \examples{
 table <- tibble::tibble(area_code = c(1, 2, 4444, 3))
@@ -28,8 +29,8 @@ table <- tibble::tibble(area_code = c(1, 2, 4444, 3))
 add_area_name(table)
 
 table |>
- dplyr::rename(my_area_code = area_code) |>
- add_area_name(code_column = "my_area_code")
+  dplyr::rename(my_area_code = area_code) |>
+  add_area_name(code_column = "my_area_code")
 
 add_area_name(table, name_column = "my_custom_name")
 }
