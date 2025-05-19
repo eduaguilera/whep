@@ -1,6 +1,6 @@
 testthat::test_that("get_file_path fails for non-existent file_alias", {
   testthat::local_mocked_bindings(
-    .get_input_files_data = function(...) {
+    .read_local_csv = function(...) {
       dplyr::tribble(
         ~extension, ~alias, ~drive_file_id,
         "csv", "file_alias_1", "some_id"
@@ -18,7 +18,7 @@ testthat::test_that(
   "get_file_path fails for duplicated entries only in filtered rows",
   {
     testthat::local_mocked_bindings(
-      .get_input_files_data = function(...) {
+      .read_local_csv = function(...) {
         dplyr::tribble(
           ~extension, ~alias, ~drive_file_id,
           "csv", "file_alias_1", "some_id",
@@ -52,7 +52,7 @@ testthat::test_that(
     testthat::expect_false(file.exists(destfile))
 
     testthat::local_mocked_bindings(
-      .get_input_files_data = function(...) {
+      .read_local_csv = function(...) {
         dplyr::tribble(
           ~extension, ~alias, ~drive_file_id,
           "csv", file_alias, "some_id",
