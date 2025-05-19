@@ -2,6 +2,8 @@
 
 export(add_area_code)
 export(add_area_name)
+export(add_item_code)
+export(add_item_name)
 export(build_supply_use)
 export(expand_trade_sources)
 export(get_bilateral_trade)
