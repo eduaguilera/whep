@@ -13,13 +13,12 @@
 #' It contains the following columns:
 #' - `year`: The year in which the recorded event occurred.
 #' - `area`: The name of the country where the data is from.
-#' - `area_code`: FAOSTAT internal code for each country. Equivalences
-#'    with ISO 3166-1 numeric can be found in the _Area Codes_ CSV from the
-#'    zip file that can be downloaded from
-#'    [FAOSTAT](https://www.fao.org/faostat/en/#data/FBS). TODO: Think about
-#'    this, would be nice to use ISO3 codes but won't be enough for our periods
-#' - `item`: Natural language name for the item.
-#' - `item_code`: FAOSTAT internal code for each item.
+#' - `proc`: Natural language name of the process taking place.
+#' - `item`: Natural language name of the item taking part in the process.
+#' - `type`: Can have two values:
+#'    - `use`: The given item is an input of the process.
+#'    - `supply`: The given item is an output of the process.
+#' - `value`: Quantity in tonnes.
 #'
 #' @export
 #'
