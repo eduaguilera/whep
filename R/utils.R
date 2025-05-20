@@ -27,6 +27,8 @@ utils::globalVariables(
     "Name",
     "No",
     "proc",
+    "process",
+    "process_code",
     "processeditem",
     "product_fraction",
     "SACO_link",

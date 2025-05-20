@@ -19,7 +19,6 @@ testthat::test_that("get_wide_cbs gives consistent Commodity Balance Sheet", {
     .get_destdir(),
     stringr::str_glue("test_file_{cbs_alias}.csv")
   )
-  testthat::expect_false(file.exists(test_file_path))
   testthat::local_mocked_bindings(.get_destfile = function(...) test_file_path)
 
 
@@ -47,8 +46,6 @@ testthat::test_that("get_wide_cbs gives consistent Commodity Balance Sheet", {
       dplyr::near(domestic_supply, my_domestic_supply, tol = !!k_tolerance)
     )
   )
-
-  file.remove(test_file_path)
 })
 
 testthat::test_that(
@@ -63,7 +60,6 @@ testthat::test_that(
       .get_destdir(),
       stringr::str_glue("test_file_{coefs_alias}.csv")
     )
-    testthat::expect_false(file.exists(test_coefs_path))
     testthat::local_mocked_bindings(
       .get_destfile = function(...) test_coefs_path
     )
@@ -75,7 +71,6 @@ testthat::test_that(
       .get_destdir(),
       stringr::str_glue("test_file_{cbs_alias}.csv")
     )
-    testthat::expect_false(file.exists(test_cbs_path))
     testthat::local_mocked_bindings(
       .get_destfile = function(...) test_cbs_path
     )
@@ -130,8 +125,5 @@ testthat::test_that(
         )
       )
     )
-
-    file.remove(test_coefs_path)
-    file.remove(test_cbs_path)
   }
 )

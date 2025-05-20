@@ -1,0 +1,120 @@
+process_code,process
+p001,Rice production
+p002,Wheat production
+p003,Barley production
+p004,Maize production
+p005,Rye production
+p006,Oat production
+p007,Millet production
+p008,Sorghum production
+p009,"Cereals production, Other"
+p010,Potatoes  production
+p011,Cassava production
+p012,Sweet potatoes production
+p013,"Roots production, Other"
+p014,Yams production
+p015,Sugar cane production
+p016,Sugar beet production
+p017,Beans production
+p018,Peas production
+p019,"Pulses  production, Other"
+p020,Nuts production
+p021,Soyabeans production
+p022,Groundnuts production
+p023,Sunflower seed production
+p024,Rape and Mustardseed production
+p025,Seed cotton production
+p026,Coconuts production
+p027,Sesame seed production
+p028,Oil palm fruit production
+p029,Olives production
+p030,"Oilcrops production, Other"
+p031,Tomatoes production
+p032,Onions production
+p033,"Vegetables production, Other"
+p034,"Oranges, Mandarines production"
+p035,"Lemons, Limes production"
+p036,Grapefruit production
+p037,"Citrus production, Other"
+p038,Bananas production
+p039,Plantains production
+p040,Apples production
+p041,Pineapples production
+p042,Dates production
+p043,Grapes production
+p044,"Fruits production, Other"
+p045,Coffee production
+p046,Cocoa Beans production
+p047,Tea production
+p048,Hops production
+p049,Pepper production
+p050,Pimento production
+p051,Cloves production
+p052,"Spices production, Other"
+p053,Jute production
+p054,Jute-Like Fibres production
+p055,"Soft-Fibres production, Other"
+p056,Sisal production
+p057,Abaca production
+p058,"Hard Fibres production, Other"
+p059,Tobacco production
+p060,Rubber production
+p061,Fodder crops production
+p062,Grazing production
+p063,Cotton production
+p064,"Sugar production, non-centrifugal"
+p065,Sugar production
+p066,"Sweeteners production, Other"
+p067,Soyabean Oil extraction
+p068,Groundnut Oil extraction
+p069,Sunflowerseed Oil extraction
+p070,Rape and Mustard Oil extraction
+p071,Cottonseed Oil extraction
+p072,Palmkernel Oil extraction
+p073,Palm Oil production
+p074,Coconut Oil extraction
+p075,Sesameseed Oil extraction
+p076,Olive Oil extraction
+p077,Ricebran Oil extraction
+p078,Maize Germ Oil extraction
+p079,"Oilcrops Oil extraction, Other"
+p080,Wine production
+p081,Beer production
+p082,"Beverages production, Fermented"
+p083,"Beverages production, Alcoholic"
+p084,"Alcohol production, Non-Food"
+p085,Cattle husbandry
+p086,Buffaloes husbandry
+p087,Sheep husbandry
+p088,Goats husbandry
+p089,Pigs farming
+p090,Poultry Birds farming
+p091,Horses husbandry
+p092,Asses husbandry
+p093,Mules husbandry
+p094,Camels husbandry
+p095,"Camelids husbandry, other"
+p096,Rabbits husbandry
+p097,"Rodents husbandry, other"
+p099,Dairy cattle husbandry
+p100,Dairy buffaloes husbandry
+p101,Dairy sheep husbandry
+p102,Dairy goats husbandry
+p103,Dairy camels husbandry
+p121,Butter production
+p104,Cattle slaughtering
+p105,Buffaloes slaughtering
+p106,Sheep slaughtering
+p107,Goat slaughtering
+p108,Pigs slaughtering
+p109,Poultry slaughtering
+p110,Horses slaughtering
+p111,Asses slaughtering
+p112,Mules slaughtering
+p113,Camels slaughtering
+p114,"Camelids slaughtering, other"
+p115,Rabbits slaughtering
+p116,"Rodents slaughtering, other"
+p118,Beekeeping
+p119,Silkworm breeding
+p120,Fishing
