@@ -13,6 +13,7 @@ Imports:
     mipfp,
     purrr,
     readr,
+    rlang,
     stringr,
     tidyr
 Encoding: UTF-8
@@ -24,7 +25,6 @@ Suggests:
     here,
     knitr,
     pointblank,
-    rlang,
     rmarkdown,
     testthat (>= 3.0.0),
     tibble
