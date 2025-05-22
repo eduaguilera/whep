@@ -1,165 +1,296 @@
-proc_code,proc,comm_code,item_code,item
-p001,Rice production,c001,2807,Rice and products
-p002,Wheat production,c002,2511,Wheat and products
-p003,Barley production,c003,2513,Barley and products
-p004,Maize production,c004,2514,Maize and products
-p005,Rye production,c005,2515,Rye and products
-p006,Oat production,c006,2516,Oats
-p007,Millet production,c007,2517,Millet and products
-p008,Sorghum production,c008,2518,Sorghum and products
-p009,"Cereals production, Other",c009,2520,"Cereals, Other"
-p010,Potatoes  production,c010,2531,Potatoes and products
-p011,Cassava production,c011,2532,Cassava and products
-p012,Sweet potatoes production,c012,2533,Sweet potatoes
-p013,"Roots production, Other",c013,2534,"Roots, Other"
-p014,Yams production,c014,2535,Yams
-p015,Sugar cane production,c015,2536,Sugar cane
-p016,Sugar beet production,c016,2537,Sugar beet
-p017,Beans production,c017,2546,Beans
-p018,Peas production,c018,2547,Peas
-p019,"Pulses  production, Other",c019,2549,"Pulses, Other and products"
-p020,Nuts production,c020,2551,Nuts and products
-p021,Soyabeans production,c021,2555,Soyabeans
-p022,Groundnuts production,c022,2552,Groundnuts
-p023,Sunflower seed production,c023,2557,Sunflower seed
-p024,Rape and Mustardseed production,c024,2558,Rape and Mustardseed
-p025,Seed cotton production,c025,328,Seed cotton
-p026,Coconuts production,c026,2560,Coconuts - Incl Copra
-p027,Sesame seed production,c027,2561,Sesame seed
-p028,Oil palm fruit production,c028,254,"Oil, palm fruit"
-p029,Olives production,c029,2563,Olives (including preserved)
-p030,"Oilcrops production, Other",c030,2570,"Oilcrops, Other"
-p031,Tomatoes production,c031,2601,Tomatoes and products
-p032,Onions production,c032,2602,Onions
-p033,"Vegetables production, Other",c033,2605,"Vegetables, Other"
-p034,"Oranges, Mandarines production",c034,2611,"Oranges, Mandarines"
-p035,"Lemons, Limes production",c035,2612,"Lemons, Limes and products"
-p036,Grapefruit production,c036,2613,Grapefruit and products
-p037,"Citrus production, Other",c037,2614,"Citrus, Other"
-p038,Bananas production,c038,2615,Bananas
-p039,Plantains production,c039,2616,Plantains
-p040,Apples production,c040,2617,Apples and products
-p041,Pineapples production,c041,2618,Pineapples and products
-p042,Dates production,c042,2619,Dates
-p043,Grapes production,c043,2620,Grapes and products (excl wine)
-p044,"Fruits production, Other",c044,2625,"Fruits, Other"
-p045,Coffee production,c045,2630,Coffee and products
-p046,Cocoa Beans production,c046,2633,Cocoa Beans and products
-p047,Tea production,c047,2635,Tea (including mate)
-p048,Hops production,c048,677,Hops
-p049,Pepper production,c049,2640,Pepper
-p050,Pimento production,c050,2641,Pimento
-p051,Cloves production,c051,2642,Cloves
-p052,"Spices production, Other",c052,2645,"Spices, Other"
-p053,Jute production,c053,2662,Jute
-p054,Jute-Like Fibres production,c054,2663,Jute-Like Fibres
-p055,"Soft-Fibres production, Other",c055,2664,"Soft-Fibres, Other"
-p056,Sisal production,c056,2665,Sisal
-p057,Abaca production,c057,2666,Abaca
-p058,"Hard Fibres production, Other",c058,2667,"Hard Fibres, Other"
-p059,Tobacco production,c059,2671,Tobacco
-p060,Rubber production,c060,2672,Rubber
-p061,Fodder crops production,c061,2000,Fodder crops
-p062,Grazing production,c062,2001,Grazing
-p063,Cotton production,c063,2559,Cottonseed
-p063,Cotton production,c096,2661,Cotton lint
-p064,"Sugar production, non-centrifugal",c065,2541,Sugar non-centrifugal
-p065,Sugar production,c067,2542,"Sugar (Raw Equivalent)"
-p066,"Sweeteners production, Other",c068,2543,"Sweeteners, Other"
-p067,Soyabean Oil extraction,c069,2571,Soyabean Oil
-p068,Groundnut Oil extraction,c070,2572,Groundnut Oil
-p069,Sunflowerseed Oil extraction,c071,2573,Sunflowerseed Oil
-p070,Rape and Mustard Oil extraction,c072,2574,Rape and Mustard Oil
-p071,Cottonseed Oil extraction,c073,2575,Cottonseed Oil
-p072,Palmkernel Oil extraction,c074,2576,Palmkernel Oil
-p073,Palm Oil production,c064,2562,Palm kernels
-p073,Palm Oil production,c075,2577,Palm Oil
-p074,Coconut Oil extraction,c076,2578,Coconut Oil
-p075,Sesameseed Oil extraction,c077,2579,Sesameseed Oil
-p076,Olive Oil extraction,c078,2580,Olive Oil
-p077,Ricebran Oil extraction,c079,2581,Ricebran Oil
-p078,Maize Germ Oil extraction,c080,2582,Maize Germ Oil
-p079,"Oilcrops Oil extraction, Other",c081,2586,"Oilcrops Oil, Other"
-p067,Soyabean Oil extraction,c082,2590,Soyabean Cake
-p068,Groundnut Oil extraction,c083,2591,Groundnut Cake
-p069,Sunflowerseed Oil extraction,c084,2592,Sunflowerseed Cake
-p070,Rape and Mustard Oil extraction,c085,2593,Rape and Mustard Cake
-p071,Cottonseed Oil extraction,c086,2594,Cottonseed Cake
-p072,Palmkernel Oil extraction,c087,2595,Palmkernel Cake
-p074,Coconut Oil extraction,c088,2596,Copra Cake
-p075,Sesameseed Oil extraction,c089,2597,Sesameseed Cake
-p077,Ricebran Oil extraction,c090,2598,"Oilseed Cakes, Other"
-p078,Maize Germ Oil extraction,c090,2598,"Oilseed Cakes, Other"
-p079,"Oilcrops Oil extraction, Other",c090,2598,"Oilseed Cakes, Other"
-p080,Wine production,c091,2655,Wine
-p081,Beer production,c092,2656,Beer
-p082,"Beverages production, Fermented",c093,2657,"Beverages, Fermented"
-p083,"Beverages production, Alcoholic",c094,2658,"Beverages, Alcoholic"
-p084,"Alcohol production, Non-Food",c095,2659,"Alcohol, Non-Food"
-p085,Cattle husbandry,c097,866,Cattle
-p086,Buffaloes husbandry,c098,946,Buffaloes
-p087,Sheep husbandry,c099,976,Sheep
-p088,Goats husbandry,c100,1016,Goats
-p089,Pigs farming,c101,1034,Pigs
-p090,Poultry Birds farming,c102,2029,Poultry Birds
-p091,Horses husbandry,c103,1096,Horses
-p092,Asses husbandry,c104,1107,Asses
-p093,Mules husbandry,c105,1110,Mules
-p094,Camels husbandry,c106,1126,Camels
-p095,"Camelids husbandry, other",c107,1157,"Camelids, other"
-p096,Rabbits husbandry,c108,1140,Rabbits and hares
-p097,"Rodents husbandry, other",c109,1150,"Rodents, other"
-p099,Dairy cattle husbandry,c110,2848,Milk - Excluding Butter
-p100,Dairy buffaloes husbandry,c110,2848,Milk - Excluding Butter
-p101,Dairy sheep husbandry,c110,2848,Milk - Excluding Butter
-p102,Dairy goats husbandry,c110,2848,Milk - Excluding Butter
-p103,Dairy camels husbandry,c110,2848,Milk - Excluding Butter
-p121,Butter production,c111,2740,"Butter, Ghee"
-p104,Cattle slaughtering,c114,2731,Bovine Meat
-p105,Buffaloes slaughtering,c114,2731,Bovine Meat
-p106,Sheep slaughtering,c115,2732,Mutton & Goat Meat
-p107,Goat slaughtering,c115,2732,Mutton & Goat Meat
-p106,Sheep slaughtering,c113,2746,Wool (Clean Eq.)
-p108,Pigs slaughtering,c116,2733,Pigmeat
-p109,Poultry slaughtering,c117,2734,Poultry Meat
-p109,Poultry slaughtering,c112,2744,Eggs
-p110,Horses slaughtering,c118,2735,"Meat, Other"
-p111,Asses slaughtering,c118,2735,"Meat, Other"
-p112,Mules slaughtering,c118,2735,"Meat, Other"
-p113,Camels slaughtering,c118,2735,"Meat, Other"
-p114,"Camelids slaughtering, other",c118,2735,"Meat, Other"
-p115,Rabbits slaughtering,c118,2735,"Meat, Other"
-p116,"Rodents slaughtering, other",c118,2735,"Meat, Other"
-p104,Cattle slaughtering,c119,2736,"Offals, Edible"
-p105,Buffaloes slaughtering,c119,2736,"Offals, Edible"
-p106,Sheep slaughtering,c119,2736,"Offals, Edible"
-p107,Goat slaughtering,c119,2736,"Offals, Edible"
-p108,Pigs slaughtering,c119,2736,"Offals, Edible"
-p109,Poultry slaughtering,c119,2736,"Offals, Edible"
-p110,Horses slaughtering,c119,2736,"Offals, Edible"
-p111,Asses slaughtering,c119,2736,"Offals, Edible"
-p112,Mules slaughtering,c119,2736,"Offals, Edible"
-p113,Camels slaughtering,c119,2736,"Offals, Edible"
-p114,"Camelids slaughtering, other",c119,2736,"Offals, Edible"
-p115,Rabbits slaughtering,c119,2736,"Offals, Edible"
-p116,"Rodents slaughtering, other",c119,2736,"Offals, Edible"
-p104,Cattle slaughtering,c120,2737,"Fats, Animals, Raw"
-p105,Buffaloes slaughtering,c120,2737,"Fats, Animals, Raw"
-p106,Sheep slaughtering,c120,2737,"Fats, Animals, Raw"
-p107,Goat slaughtering,c120,2737,"Fats, Animals, Raw"
-p108,Pigs slaughtering,c120,2737,"Fats, Animals, Raw"
-p109,Poultry slaughtering,c120,2737,"Fats, Animals, Raw"
-p110,Horses slaughtering,c120,2737,"Fats, Animals, Raw"
-p111,Asses slaughtering,c120,2737,"Fats, Animals, Raw"
-p112,Mules slaughtering,c120,2737,"Fats, Animals, Raw"
-p113,Camels slaughtering,c120,2737,"Fats, Animals, Raw"
-p114,"Camelids slaughtering, other",c120,2737,"Fats, Animals, Raw"
-p115,Rabbits slaughtering,c120,2737,"Fats, Animals, Raw"
-p116,"Rodents slaughtering, other",c120,2737,"Fats, Animals, Raw"
-p104,Cattle slaughtering,c121,2748,Hides and skins
-p105,Buffaloes slaughtering,c121,2748,Hides and skins
-p106,Sheep slaughtering,c121,2748,Hides and skins
-p107,Goat slaughtering,c121,2748,Hides and skins
-p118,Beekeeping,c123,2745,Honey
-p119,Silkworm breeding,c124,2747,Silk
-p120,Fishing,c125,2960,"Fish, Seafood"
+item_code;item;comm_code;proc_code;proc
+2807;Rice and products;c2807;p001;Rice production
+2105;Straw;c2105;p001;Rice production
+2511;Wheat and products;c2511;p002;Wheat production
+2105;Straw;c2105;p002;Wheat production
+2513;Barley and products;c2513;p003;Barley production
+2105;Straw;c2105;p003;Barley production
+2514;Maize and products;c2514;p004;Maize production
+2105;Straw;c2105;p004;Maize production
+2515;Rye and products;c2515;p005;Rye production
+2105;Straw;c2105;p005;Rye production
+2516;Oats;c2516;p006;Oat production
+2105;Straw;c2105;p006;Oat production
+2517;Millet and products;c2517;p007;Millet production
+2105;Straw;c2105;p007;Millet production
+2518;Sorghum and products;c2518;p008;Sorghum production
+2105;Straw;c2105;p008;Sorghum production
+2520;Cereals, Other;c2520;p009;Cereals production, Other
+2105;Straw;c2105;p009;Cereals production, Other
+2106;Other crop residues;c2106;p009;Cereals production, Other
+2531;Potatoes and products;c2531;p010;Potatoes  production
+2106;Other crop residues;c2106;p010;Potatoes  production
+2532;Cassava and products;c2532;p011;Cassava production
+2106;Other crop residues;c2106;p011;Cassava production
+2533;Sweet potatoes;c2533;p012;Sweet potatoes production
+2106;Other crop residues;c2106;p012;Sweet potatoes production
+2534;Roots, Other;c2534;p013;Roots production, Other
+2106;Other crop residues;c2106;p013;Roots production, Other
+2535;Yams;c2535;p014;Yams production
+2106;Other crop residues;c2106;p014;Yams production
+2536;Sugar cane;c2536;p015;Sugar cane production
+2106;Other crop residues;c2106;p015;Sugar cane production
+2537;Sugar beet;c2537;p016;Sugar beet production
+2106;Other crop residues;c2106;p016;Sugar beet production
+2546;Beans;c2546;p017;Beans production
+2105;Straw;c2105;p017;Beans production
+2547;Peas;c2547;p018;Peas production
+2105;Straw;c2105;p018;Peas production
+2549;Pulses, Other and products;c2549;p019;Pulses  production, Other
+2105;Straw;c2105;p019;Pulses  production, Other
+2551;Nuts and products;c2551;p020;Nuts production
+2107;Firewood;c2107;p020;Nuts production
+2555;Soyabeans;c2555;p021;Soyabeans production
+2106;Other crop residues;c2106;p021;Soyabeans production
+2552;Groundnuts;c2552;p022;Groundnuts production
+2106;Other crop residues;c2106;p022;Groundnuts production
+2557;Sunflower seed;c2557;p023;Sunflower seed production
+2106;Other crop residues;c2106;p023;Sunflower seed production
+2558;Rape and Mustardseed;c2558;p024;Rape and Mustardseed production
+2106;Other crop residues;c2106;p024;Rape and Mustardseed production
+2559;Cottonseed;c2559;p025;Cotton production
+2661;Cotton lint;c2661;p025;Cotton production
+328;Seed cotton, unginned;c328;p025;Cotton production
+2106;Other crop residues;c2106;p025;Cotton production
+248;Coconuts;c248;p026;Coconuts production
+2560;Coconuts - Incl Copra;c2560;p026;Coconuts production
+2667;Hard Fibres, Other;c2667;p026;Coconuts production
+2107;Firewood;c2107;p026;Coconuts production
+2561;Sesame seed;c2561;p027;Sesame seed production
+2106;Other crop residues;c2106;p027;Sesame seed production
+254;Oil, palm fruit;c254;p028;Oil Palm production
+2562;Palm kernels;c2562;p028;Oil Palm production
+2577;Palm Oil;c2577;p028;Oil Palm production
+2107;Firewood;c2107;p028;Oil Palm production
+2563;Olives (including preserved);c2563;p029;Olives production
+2107;Firewood;c2107;p029;Olives production
+2570;Oilcrops, Other;c2570;p030;Oilcrops production, Other
+2106;Other crop residues;c2106;p030;Oilcrops production, Other
+2107;Firewood;c2107;p030;Oilcrops production, Other
+2601;Tomatoes and products;c2601;p031;Tomatoes production
+2106;Other crop residues;c2106;p031;Tomatoes production
+2602;Onions;c2602;p032;Onions production
+2106;Other crop residues;c2106;p032;Onions production
+2605;Vegetables, Other;c2605;p033;Vegetables production, Other
+2105;Straw;c2105;p033;Vegetables production, Other
+2106;Other crop residues;c2106;p033;Vegetables production, Other
+2107;Firewood;c2107;p033;Vegetables production, Other
+2611;Oranges, Mandarines;c2611;p034;Oranges, Mandarines production
+2107;Firewood;c2107;p034;Oranges, Mandarines production
+2612;Lemons, Limes and products;c2612;p035;Lemons, Limes production
+2107;Firewood;c2107;p035;Lemons, Limes production
+2613;Grapefruit and products;c2613;p036;Grapefruit production
+2107;Firewood;c2107;p036;Grapefruit production
+2614;Citrus, Other;c2614;p037;Citrus production, Other
+2107;Firewood;c2107;p037;Citrus production, Other
+2615;Bananas;c2615;p038;Bananas production
+2107;Firewood;c2107;p038;Bananas production
+2616;Plantains;c2616;p039;Plantains production
+2107;Firewood;c2107;p039;Plantains production
+2617;Apples and products;c2617;p040;Apples production
+2107;Firewood;c2107;p040;Apples production
+2618;Pineapples and products;c2618;p041;Pineapples production
+2107;Firewood;c2107;p041;Pineapples production
+2619;Dates;c2619;p042;Dates production
+2107;Firewood;c2107;p042;Dates production
+2620;Grapes and products (excl wine);c2620;p043;Grapes production
+2107;Firewood;c2107;p043;Grapes production
+2625;Fruits, Other;c2625;p044;Fruits production, Other
+2106;Other crop residues;c2106;p044;Fruits production, Other
+2107;Firewood;c2107;p044;Fruits production, Other
+2630;Coffee and products;c2630;p045;Coffee production
+2107;Firewood;c2107;p045;Coffee production
+2633;Cocoa Beans and products;c2633;p046;Cocoa Beans production
+2107;Firewood;c2107;p046;Cocoa Beans production
+2635;Tea (including mate);c2635;p047;Tea production
+2107;Firewood;c2107;p047;Tea production
+677;Hops;c677;p048;Hops production
+2106;Other crop residues;c2106;p048;Hops production
+2640;Pepper;c2640;p049;Pepper production
+2106;Other crop residues;c2106;p049;Pepper production
+2641;Pimento;c2641;p050;Pimento production
+2106;Other crop residues;c2106;p050;Pimento production
+2642;Cloves;c2642;p051;Cloves production
+2106;Other crop residues;c2106;p051;Cloves production
+2645;Spices, Other;c2645;p052;Spices production, Other
+2106;Other crop residues;c2106;p052;Spices production, Other
+2662;Jute;c2662;p053;Jute production
+2106;Other crop residues;c2106;p053;Jute production
+2663;Jute-Like Fibres;c2663;p054;Jute-Like Fibres production
+2106;Other crop residues;c2106;p054;Jute-Like Fibres production
+2664;Soft-Fibres, Other;c2664;p055;Soft-Fibres production, Other
+2106;Other crop residues;c2106;p055;Soft-Fibres production, Other
+2665;Sisal;c2665;p056;Sisal production
+2106;Other crop residues;c2106;p056;Sisal production
+2666;Abaca;c2666;p057;Abaca production
+2106;Other crop residues;c2106;p057;Abaca production
+2667;Hard Fibres, Other;c2667;p058;Hard Fibres production, Other
+2106;Other crop residues;c2106;p058;Hard Fibres production, Other
+2671;Tobacco;c2671;p059;Tobacco production
+2106;Other crop residues;c2106;p059;Tobacco production
+2672;Rubber;c2672;p060;Rubber production
+2107;Firewood;c2107;p060;Rubber production
+2000;Fodder cereal and grasses;c2000;p061;Fodder cereals and grasses production
+2541;Sugar non-centrifugal;c2541;p064;Sugar production, non-centrifugal
+2104;Sugarbeet pulp;c2104;p065;Sugar production
+2542;Sugar (Raw Equivalent);c2542;p065;Sugar production
+2544;Molasses;c2544;p065;Sugar production
+2543;Sweeteners, Other;c2543;p066;Sweeteners production, Other
+2103;Soy hulls;c2103;p067;Soyabean Oil extraction
+2571;Soyabean Oil;c2571;p067;Soyabean Oil extraction
+2590;Soyabean Cake;c2590;p067;Soyabean Oil extraction
+2572;Groundnut Oil;c2572;p068;Groundnut Oil extraction
+2591;Groundnut Cake;c2591;p068;Groundnut Oil extraction
+2573;Sunflowerseed Oil;c2573;p069;Sunflowerseed Oil extraction
+2592;Sunflowerseed Cake;c2592;p069;Sunflowerseed Oil extraction
+2574;Rape and Mustard Oil;c2574;p070;Rape and Mustard Oil extraction
+2593;Rape and Mustard Cake;c2593;p070;Rape and Mustard Oil extraction
+2575;Cottonseed Oil;c2575;p071;Cottonseed Oil extraction
+2594;Cottonseed Cake;c2594;p071;Cottonseed Oil extraction
+2576;Palmkernel Oil;c2576;p072;Palmkernel Oil extraction
+2595;Palmkernel Cake;c2595;p072;Palmkernel Oil extraction
+2578;Coconut Oil;c2578;p074;Coconut Oil extraction
+2596;Copra Cake;c2596;p074;Coconut Oil extraction
+2579;Sesameseed Oil;c2579;p075;Sesameseed Oil extraction
+2597;Sesameseed Cake;c2597;p075;Sesameseed Oil extraction
+2580;Olive Oil;c2580;p076;Olive Oil extraction
+2581;Ricebran Oil;c2581;p077;Ricebran Oil extraction
+2598;Oilseed Cakes, Other;c2598;p077;Ricebran Oil extraction
+2582;Maize Germ Oil;c2582;p078;Maize Germ Oil extraction
+2598;Oilseed Cakes, Other;c2598;p078;Maize Germ Oil extraction
+2586;Oilcrops Oil, Other;c2586;p079;Oilcrops Oil extraction, Other
+2598;Oilseed Cakes, Other;c2598;p079;Oilcrops Oil extraction, Other
+2655;Wine;c2655;p080;Wine production
+2101;DDGS;c2101;p081;Beer production
+2102;DDGS Barley;c2102;p081;Beer production
+2656;Beer;c2656;p081;Beer production
+2101;DDGS;c2101;p082;Beverages production, Fermented
+2102;DDGS Barley;c2102;p082;Beverages production, Fermented
+2657;Beverages, Fermented;c2657;p082;Beverages production, Fermented
+2101;DDGS;c2101;p083;Beverages production, Alcoholic
+2102;DDGS Barley;c2102;p083;Beverages production, Alcoholic
+2658;Beverages, Alcoholic;c2658;p083;Beverages production, Alcoholic
+2101;DDGS;c2101;p084;Alcohol production, Non-Food
+2102;DDGS Barley;c2102;p084;Alcohol production, Non-Food
+2659;Alcohol, Non-Food;c2659;p084;Alcohol production, Non-Food
+2731;Bovine Meat;c2731;p085;Non-dairy Cattle husbandry
+2736;Offals, Edible;c2736;p085;Non-dairy Cattle husbandry
+2737;Fats, Animals, Raw;c2737;p085;Non-dairy Cattle husbandry
+2748;Hides and skins;c2748;p085;Non-dairy Cattle husbandry
+4000;Animal draught;c4000;p085;Non-dairy Cattle husbandry
+961;Cattle, non-dairy;c961;p085;Non-dairy Cattle husbandry
+2731;Bovine Meat;c2731;p086;Buffaloes husbandry
+2736;Offals, Edible;c2736;p086;Buffaloes husbandry
+2737;Fats, Animals, Raw;c2737;p086;Buffaloes husbandry
+2748;Hides and skins;c2748;p086;Buffaloes husbandry
+2848;Milk - Excluding Butter;c2848;p086;Buffaloes husbandry
+4000;Animal draught;c4000;p086;Buffaloes husbandry
+946;Buffaloes;c946;p086;Buffaloes husbandry
+2732;Mutton & Goat Meat;c2732;p087;Sheep husbandry
+2736;Offals, Edible;c2736;p087;Sheep husbandry
+2737;Fats, Animals, Raw;c2737;p087;Sheep husbandry
+2746;Wool (Clean Eq.);c2746;p087;Sheep husbandry
+2748;Hides and skins;c2748;p087;Sheep husbandry
+2848;Milk - Excluding Butter;c2848;p087;Sheep husbandry
+976;Sheep;c976;p087;Sheep husbandry
+1016;Goats;c1016;p088;Goats husbandry
+2732;Mutton & Goat Meat;c2732;p088;Goats husbandry
+2736;Offals, Edible;c2736;p088;Goats husbandry
+2737;Fats, Animals, Raw;c2737;p088;Goats husbandry
+2748;Hides and skins;c2748;p088;Goats husbandry
+2848;Milk - Excluding Butter;c2848;p088;Goats husbandry
+1049;Pigs;c1049;p089;Pigs farming
+2733;Pigmeat;c2733;p089;Pigs farming
+2736;Offals, Edible;c2736;p089;Pigs farming
+2737;Fats, Animals, Raw;c2737;p089;Pigs farming
+1096;Horses;c1096;p091;Horses husbandry
+2735;Meat, Other;c2735;p091;Horses husbandry
+2736;Offals, Edible;c2736;p091;Horses husbandry
+4000;Animal draught;c4000;p091;Horses husbandry
+1107;Asses;c1107;p092;Asses husbandry
+2735;Meat, Other;c2735;p092;Asses husbandry
+2736;Offals, Edible;c2736;p092;Asses husbandry
+4000;Animal draught;c4000;p092;Asses husbandry
+1110;Mules;c1110;p093;Mules husbandry
+2735;Meat, Other;c2735;p093;Mules husbandry
+2736;Offals, Edible;c2736;p093;Mules husbandry
+4000;Animal draught;c4000;p093;Mules husbandry
+1126;Camels;c1126;p094;Camels husbandry
+2735;Meat, Other;c2735;p094;Camels husbandry
+2736;Offals, Edible;c2736;p094;Camels husbandry
+2737;Fats, Animals, Raw;c2737;p094;Camels husbandry
+2848;Milk - Excluding Butter;c2848;p094;Camels husbandry
+4000;Animal draught;c4000;p094;Camels husbandry
+1157;Camelids, other;c1157;p095;Camelids husbandry, other
+2735;Meat, Other;c2735;p095;Camelids husbandry, other
+2736;Offals, Edible;c2736;p095;Camelids husbandry, other
+4000;Animal draught;c4000;p095;Camelids husbandry, other
+1140;Rabbits and hares;c1140;p096;Rabbits farming
+2735;Meat, Other;c2735;p096;Rabbits farming
+1150;Rodents, other;c1150;p097;Rodents farming, other
+2735;Meat, Other;c2735;p097;Rodents farming, other
+2848;Milk - Excluding Butter;c2848;p099;Dairy cattle husbandry
+4000;Animal draught;c4000;p099;Dairy cattle husbandry
+960;Cattle, dairy;c960;p099;Dairy cattle husbandry
+1053;Chickens, broilers;c1053;p109;Broilers chickens farming
+2734;Poultry Meat;c2734;p109;Broilers chickens farming
+1052;Chickens, layers;c1052;p110;Layers chickens farming
+2744;Eggs;c2744;p110;Layers chickens farming
+1068;Ducks;c1068;p111;Other birds farming
+1072;Geese;c1072;p111;Other birds farming
+1079;Turkeys;c1079;p111;Other birds farming
+2734;Poultry Meat;c2734;p111;Other birds farming
+2744;Eggs;c2744;p111;Other birds farming
+1171;Animals live nes;c1171;p112;Other animals husbandry
+2735;Meat, Other;c2735;p112;Other animals husbandry
+1190;Game;c1190;p113;Hunting
+2735;Meat, Other;c2735;p113;Hunting
+1181;Bees;c1181;p114;Beekeeping
+1183;Beeswax;c1183;p114;Beekeeping
+2745;Honey;c2745;p114;Beekeeping
+2747;Silk;c2747;p115;Silkworm breeding
+2740;Butter, Ghee;c2740;p116;Butter production
+2001;Fodder legumes;c2001;p118;Fodder legumes production
+2003;Fodder mix;c2003;p119;Fodder mix production
+2002;Fodder vegetables and roots;c2002;p120;Fodder vegetables and roots production
+3002;Temporary grassland;c3002;p121;Temporary grassland production
+776;Hemp;c776;p122;Hemp production
+2106;Other crop residues;c2106;p122;Hemp production
+310;Kapok fruit;c310;p123;Kapok production
+2107;Firewood;c2107;p123;Kapok production
+2570;Oilcrops, Other;c2570;p124;Linum production
+2664;Soft-Fibres, Other;c2664;p124;Linum production
+772;Linum;c772;p124;Linum production
+2106;Other crop residues;c2106;p124;Linum production
+2112;Meat Meal;c2112;p125;Meat meal production
+2690;Flowers;c2690;p126;Flowers production
+3500;Scavenging;c3500;p127;Scavenging production
+2108;Acorns;c2108;p128;Acorns production
+3003;Fallow;c3003;p129;Fallowing
+3000;Grassland;c3000;p130;Grassland production
+2107;Firewood;c2107;p131;Forestry
+3004;Wood;c3004;p131;Forestry
+2761;Freshwater Fish;c2761;p132;Aquaculture
+2762;Demersal Fish;c2762;p132;Aquaculture
+2763;Pelagic Fish;c2763;p132;Aquaculture
+2764;Marine Fish, Other;c2764;p132;Aquaculture
+2765;Crustaceans;c2765;p132;Aquaculture
+2766;Cephalopods;c2766;p132;Aquaculture
+2767;Molluscs, Other;c2767;p132;Aquaculture
+2769;Aquatic Animals, Others;c2769;p132;Aquaculture
+2775;Aquatic Plants;c2775;p132;Aquaculture
+2781;Fish, Body Oil;c2781;p132;Aquaculture
+2782;Fish, Liver Oil;c2782;p132;Aquaculture
+2790;Fish meal;c2790;p132;Aquaculture
+2761;Freshwater Fish;c2761;p133;Fishing
+2762;Demersal Fish;c2762;p133;Fishing
+2763;Pelagic Fish;c2763;p133;Fishing
+2764;Marine Fish, Other;c2764;p133;Fishing
+2765;Crustaceans;c2765;p133;Fishing
+2766;Cephalopods;c2766;p133;Fishing
+2767;Molluscs, Other;c2767;p133;Fishing
+2769;Aquatic Animals, Others;c2769;p133;Fishing
+2775;Aquatic Plants;c2775;p133;Fishing
+2781;Fish, Body Oil;c2781;p133;Fishing
+2782;Fish, Liver Oil;c2782;p133;Fishing
+2790;Fish meal;c2790;p133;Fishing
