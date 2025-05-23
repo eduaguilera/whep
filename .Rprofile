@@ -1,4 +1,7 @@
 if (Sys.getenv("USE_RENV", unset = "TRUE") == "TRUE") {
   source("renv/activate.R")
 }
-devtools::load_all()
+
+if (requireNamespace("devtools", quietly = TRUE)) {
+  devtools::load_all()
+}
