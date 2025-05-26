@@ -75,8 +75,6 @@ run_code <- function() {
   # Combine all Inputs -----------------------------------------------------------------------------------------------------------------------------------------------------
   N_Inputs <- dplyr::full_join(N_inputs_summary, manure_summary, by = c("Year", "Province_name", "Name_biomass", "Item", "Box"))
 
-  write.csv(N_Inputs, "Outputs/Outputs_new/N_Inputs_Items.csv", row.names = FALSE)
-
   # Summing Inputs for each Year, Province_name, Box
   N_Inputs_sum <- N_Inputs |>
     dplyr::group_by(Year, Province_name, Box) |>
@@ -108,15 +106,11 @@ run_code <- function() {
     ) |>
     dplyr::arrange(Year, Province_name, Box) |>
     dplyr::select(Year, Province_name, Box, Import_MgN, Prod_MgN)
-  View(GRAFS_Prod_Destiny)
 
   # Combine with N_Inputs dataset
   N_Inputs_combined <- dplyr::full_join(N_Inputs_sum, GRAFS_Prod_Destiny_summary,
     by = c("Year", "Province_name", "Box")
   )
-
-  write.csv(N_Inputs_combined, "Outputs/Outputs_new/N_Inputs_Box.csv")
-  N_Inputs_combined <- readr::read_csv("Outputs/Outputs_new/N_Inputs_Box.csv")
   View(N_Inputs_combined)
 
   # NUE for Cropland and Semi-natural agrocosystems ------------------------------------------------------------------------------------------------------
@@ -143,7 +137,7 @@ run_code <- function() {
   GRAFS_Prod_Destiny_Residues <- GRAFS_Prod_Destiny |>
     dplyr::filter(Box %in% c("Cropland", "Semi_natural_agroecosystems")) |>
     dplyr::mutate(
-      Prod_type = if_else(Item %in% residue_items, "Production_residues", "Production")
+      Prod_type = ifelse(Item %in% residue_items, "Production_residues", "Production")
     ) |>
     dplyr::group_by(Year, Item, Destiny, Prod_type) |>
     dplyr::summarise(MgN = sum(MgN, na.rm = TRUE), .groups = "drop") |>
@@ -176,8 +170,8 @@ run_code <- function() {
     ) |>
     dplyr::left_join(GRAFS_Prod_Destiny_Residues, by = "Year") |>
     dplyr::mutate(
-      Production = coalesce(Production, 0),
-      Production_residues = coalesce(Production_residues, 0),
+      Production = dplyr::coalesce(Production, 0),
+      Production_residues = dplyr::coalesce(Production_residues, 0),
       Input_Total = Deposition + Fixation + Manure + Synthetic_fertilizer + Urban,
       Surplus = Input_Total - Production - Production_residues
     )
@@ -190,13 +184,13 @@ run_code <- function() {
     ) |>
     dplyr::mutate(
       Value = Value / 1000,
-      Value = case_when(
+      Value = dplyr::case_when(
         Type %in% c("Synthetic_fertilizer", "Manure", "Fixation", "Deposition", "Urban") ~ -Value,
         TRUE ~ Value
       )
     ) |>
     dplyr::bind_rows(
-      N_summary |> mutate(Type = "Surplus", Value = Surplus / 1000) |> select(Year, Type, Value)
+      N_summary |> dplyr::mutate(Type = "Surplus", Value = Surplus / 1000) |> dplyr::select(Year, Type, Value)
     ) |>
     dplyr::mutate(
       Type = factor(Type, levels = c(
@@ -207,11 +201,11 @@ run_code <- function() {
 
   ggplot2::ggplot(
     N_long,
-    aes(x = Year, y = Value, fill = Type)
+    ggplot2::aes(x = Year, y = Value, fill = Type)
   ) +
     ggplot2::geom_area(position = "stack") +
     ggplot2::geom_hline(yintercept = 0, linetype = "dashed") +
-    labs(
+    ggplot2::labs(
       title = "N Inputs, Production and Surplus in Spain (Cropland + Semi-natural agroecosystems)",
       x = "Year",
       y = "Gg N",
@@ -241,9 +235,9 @@ run_code <- function() {
       .groups = "drop"
     )
 
-  ggplot2::ggplot(NUE_spain, aes(x = Year, y = NUE_spain, color = Box)) +
+  ggplot2::ggplot(NUE_spain, ggplot2::aes(x = Year, y = NUE_spain, color = Box)) +
     ggplot2::geom_line(size = 0.8) +
-    labs(
+    ggplot2::labs(
       title = "Nitrogen Use Efficiency (NUE) in Spain",
       x = "Year",
       y = "NUE (%)",
@@ -252,10 +246,10 @@ run_code <- function() {
     ggplot2::theme_minimal(base_size = 9) +
     ggplot2::theme(
       legend.position = "bottom",
-      plot.title = element_text(size = 11, face = "bold"),
-      legend.title = element_text(size = 9),
-      legend.text = element_text(size = 8),
-      axis.text = element_text(size = 7)
+      plot.title = ggplot2::element_text(size = 11, face = "bold"),
+      legend.title = ggplot2::element_text(size = 9),
+      legend.text = ggplot2::element_text(size = 8),
+      axis.text = ggplot2::element_text(size = 7)
     )
 
   # Plot Spain Input/Output no imports, but surpluses ---------------------------------------------------------------------------------------------------------
@@ -264,7 +258,7 @@ run_code <- function() {
   GRAFS_Prod_Destiny_Residues <- GRAFS_Prod_Destiny |>
     dplyr::filter(Box == "Cropland") |>
     dplyr::mutate(
-      Prod_type = if_else(Item %in% residue_items, "Production_residues", "Production")
+      Prod_type = ifelse(Item %in% residue_items, "Production_residues", "Production")
     ) |>
     dplyr::group_by(Year, Province_name, Item, Destiny, Prod_type) |>
     dplyr::summarise(MgN = sum(MgN, na.rm = TRUE), .groups = "drop") |>
@@ -297,8 +291,8 @@ run_code <- function() {
     ) |>
     dplyr::left_join(GRAFS_Prod_Destiny_Residues, by = "Year") |>
     dplyr::mutate(
-      Production = coalesce(Production, 0),
-      Production_residues = coalesce(Production_residues, 0),
+      Production = dplyr::coalesce(Production, 0),
+      Production_residues = dplyr::coalesce(Production_residues, 0),
       Input_Total = Deposition + Fixation + Manure + Synthetic_fertilizer + Urban,
       Surplus = Input_Total - Production - Production_residues
     )
@@ -311,15 +305,15 @@ run_code <- function() {
     ) |>
     dplyr::mutate(
       Value = Value / 1000,
-      Value = case_when(
+      Value = dplyr::case_when(
         Type %in% c("Synthetic_fertilizer", "Manure", "Fixation", "Deposition", "Urban") ~ -Value,
         TRUE ~ Value
       )
     ) |>
     dplyr::bind_rows(
       N_summary_Residues |>
-        mutate(Type = "Surplus", Value = Surplus / 1000) |>
-        select(Year, Type, Value)
+        dplyr::mutate(Type = "Surplus", Value = Surplus / 1000) |>
+        dplyr::select(Year, Type, Value)
     ) |>
     dplyr::mutate(
       Type = factor(Type, levels = c(
@@ -330,11 +324,11 @@ run_code <- function() {
 
   ggplot2::ggplot(
     N_summary_Residues,
-    aes(x = Year, y = Value, fill = Type)
+    ggplot2::aes(x = Year, y = Value, fill = Type)
   ) +
     ggplot2::geom_area(position = "stack") +
     ggplot2::geom_hline(yintercept = 0, linetype = "dashed") +
-    labs(
+    ggplot2::labs(
       title = "N Inputs, Production and Surpluses in Spanish Cropland",
       x = "Year",
       y = "Gg N",
@@ -355,13 +349,13 @@ run_code <- function() {
     ggplot2::theme_minimal()
 
 
-  # Plot Spain Input/Output no imports, but surpluses for Provinces ----------------------------------------------------------------------------------------------------------------
-  N_Inputs_combined <- N_Inputs_combined |> filter(Province_name != "Sea")
+  # Plot Spain Input/ no imports, but surpluses for Provinces ----------------------------------------------------------------------------------------------------------------
+  N_Inputs_combined <- N_Inputs_combined |> dplyr::filter(Province_name != "Sea")
 
   GRAFS_Prod_Destiny_Residues_prov <- GRAFS_Prod_Destiny |>
     dplyr::filter(Box == "Cropland") |>
     dplyr::mutate(
-      Prod_type = if_else(Item %in% residue_items, "Production_residues", "Production")
+      Prod_type = ifelse(Item %in% residue_items, "Production_residues", "Production")
     ) |>
     dplyr::group_by(Year, Province_name, Item, Destiny, Prod_type) |>
     dplyr::summarise(MgN = sum(MgN, na.rm = TRUE), .groups = "drop") |>
@@ -394,8 +388,8 @@ run_code <- function() {
     ) |>
     dplyr::left_join(GRAFS_Prod_Destiny_Residues_prov, by = c("Year", "Province_name")) |>
     dplyr::mutate(
-      Production = coalesce(Production, 0),
-      Production_residues = coalesce(Production_residues, 0),
+      Production = dplyr::coalesce(Production, 0),
+      Production_residues = dplyr::coalesce(Production_residues, 0),
       Input_Total = Deposition + Fixation + Manure + Synthetic_fertilizer + Urban,
       Surplus = Input_Total - Production - Production_residues
     )
@@ -408,15 +402,15 @@ run_code <- function() {
     ) |>
     dplyr::mutate(
       Value = Value / 1000,
-      Value = case_when(
+      Value = dplyr::case_when(
         Type %in% c("Synthetic_fertilizer", "Manure", "Fixation", "Deposition", "Urban") ~ -Value,
         TRUE ~ Value
       )
     ) |>
     dplyr::bind_rows(
       N_summary_prov_residues |>
-        mutate(Type = "Surplus", Value = Surplus / 1000) |>
-        select(Year, Province_name, Type, Value)
+        dplyr::mutate(Type = "Surplus", Value = Surplus / 1000) |>
+        dplyr::select(Year, Province_name, Type, Value)
     ) |>
     dplyr::mutate(
       Type = factor(Type, levels = c(
@@ -425,9 +419,9 @@ run_code <- function() {
       ))
     )
 
-  plot_prov_residues <- ggplot(
+  plot_prov_residues <- ggplot2::ggplot(
     N_long_prov_residues,
-    aes(x = Year, y = Value, fill = Type)
+    ggplot2::aes(x = Year, y = Value, fill = Type)
   ) +
     ggplot2::geom_area(position = "stack") +
     ggplot2::geom_hline(yintercept = 0, linetype = "dashed") +
@@ -452,15 +446,7 @@ run_code <- function() {
     ) +
     ggplot2::theme_minimal() +
     ggplot2::theme(
-      strip.text = element_text(size = 10),
+      strip.text = ggplot2::element_text(size = 10),
       legend.position = "bottom"
     )
-
-  ggplot2::ggsave(
-    filename = "Outputs/N_Inputs_Prod_Resi_Surplus_Provinces.png",
-    plot = plot_prov_residues,
-    width = 12,
-    height = 8,
-    units = "in"
-  )
 }
