@@ -1,5 +1,5 @@
 extension,alias,drive_file_id,file_url
-csv,commodity_balance_sheet,,"https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Sources%20(proposed%20by%20alvaro)/Model%20inputs/New%20FABIO/commodity_balance_sheet.csv"
-csv,bilateral_trade,,"https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Sources%20(proposed%20by%20alvaro)/Model%20inputs/New%20FABIO/bilateral_trade.csv"
-csv,processing_coefs,,"https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Sources%20(proposed%20by%20alvaro)/Model%20inputs/New%20FABIO/processing_coefs.csv"
+csv,commodity_balance_sheet,,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/commodity_balance_sheet.csv
+csv,bilateral_trade,,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/bilateral_trade.csv
+csv,processing_coefs,,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/processing_coefs.csv
 csv,example_cbs_drive,1N6N4DI3PDowKvWwreFbcSe3YwYjV24k9,
