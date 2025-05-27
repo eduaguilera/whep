@@ -1,36 +1,53 @@
-run_code <- function() {
-  #' Load required datasets from the input directory
-  #'
-  #' @param inputs_dir Path to the input folder containing data files.
-  #' @return A named list of all loaded datasets.
-  #' @examples
-  #' data <- load_data("C:/PhD/GRAFS/Production Boxes/Final Files/Inputs")
-  load_data <- function(inputs_dir) {
-    # Load datasets from inputs folder
-    N_Excretion_ygs <- readRDS(file.path(inputs_dir, "N_Excretion_ygs.rds"))
-    N_balance_ygpit_all <- readRDS(file.path(inputs_dir, "N_balance_ygpit_all.rds"))
-    GRAFS_Prod_Destiny <- readr::read_csv(file.path(inputs_dir, "GRAFS_Prod_Destiny.csv"))
-    Codes_coefs <- readxl::read_excel(file.path(inputs_dir, "Codes_coefs.xlsx"), sheet = "Names_biomass_CB")
-
-    # Return all loaded datasets as a named list
-    list(
-      N_Excretion_ygs = N_Excretion_ygs,
-      N_balance_ygpit_all = N_balance_ygpit_all,
-      GRAFS_Prod_Destiny = GRAFS_Prod_Destiny,
-      Codes_coefs = Codes_coefs
-    )
-  }
-
+create_n_inputs_grafs_spain <- function() {
   # Define input directory
   inputs_dir <- "C:/PhD/GRAFS/Production Boxes/Final Files/Inputs"
 
-  # Load datasets and assign them to the global environment
-  data <- load_data(inputs_dir)
-  list2env(data, envir = .GlobalEnv)
+  # Load datasets
+  data <- .load_inputs(inputs_dir)
 
-  # N Inputs -----------------------------------------------------------------------------------------------------------------------------------
-  # Prepare data -------------------------------------------------------------------------------------------------------------------------------
-  # Define Semi_natural_agroecosystems and firewood
+  # Calculate N inputs and manure
+  n_inputs_prepared <- .calculate_n_inputs(data$N_balance_ygpit_all, data$Codes_coefs)
+
+  # Summarise inputs
+  n_inputs_summary <- .summarise_inputs(n_inputs_prepared)
+
+  # Summarise production
+  n_inputs_combined <- .summarise_production(data$GRAFS_Prod_Destiny, n_inputs_summary)
+
+  # Calculate NUE
+  nue <- .calculate_nue(n_inputs_combined)
+
+  # Create plots
+  plot1 <- .plot_n_inputs_production_cropland_semi_natural_agroecosystems(data$GRAFS_Prod_Destiny, n_inputs_combined)
+  plot2 <- .plot_nue_spain(nue)
+  plot3 <- .plot_n_inputs_production_cropland(data$GRAFS_Prod_Destiny, n_inputs_combined)
+  plot4 <- .plot_n_inputs_production_provinces(data$GRAFS_Prod_Destiny, n_inputs_combined)
+
+  # Return the loaded datasets
+  list(
+    N_Inputs_combined = n_inputs_combined,
+    NUE = nue,
+    plots = list(
+      cropland_seminatural = plot1,
+      nue = plot2,
+      cropland = plot3,
+      provinces = plot4
+    )
+  )
+}
+
+# N Inputs -----------------------------------------------------------------------------------------------------------------------------------
+# Prepare data -------------------------------------------------------------------------------------------------------------------------------
+.load_inputs <- function(inputs_dir) {
+  list(
+    N_Excretion_ygs = readRDS(file.path(inputs_dir, "N_Excretion_ygs.rds")),
+    N_balance_ygpit_all = readRDS(file.path(inputs_dir, "N_balance_ygpit_all.rds")),
+    GRAFS_Prod_Destiny = readr::read_csv(file.path(inputs_dir, "GRAFS_Prod_Destiny.csv")),
+    Codes_coefs = readxl::read_excel(file.path(inputs_dir, "Codes_coefs.xlsx"), sheet = "Names_biomass_CB")
+  )
+}
+
+.calculate_n_inputs <- function(N_balance_ygpit_all, Codes_coefs) {
   Semi_natural_agroecosystems <- c("Dehesa", "Forest_high", "Forest_low", "Other", "Pasture_Shrubland")
   firewood_biomass <- c("Holm oak", "Mediterranean shrubland", "Conifers", "Holm oak forest")
 
@@ -72,8 +89,19 @@ run_code <- function() {
     dplyr::group_by(Year, Province_name, Name_biomass, Item, Box) |>
     dplyr::summarise(Total_Manure = sum(Excreta + Solid + Liquid, na.rm = TRUE), .groups = "drop")
 
-  # Combine all Inputs -----------------------------------------------------------------------------------------------------------------------------------------------------
-  N_Inputs <- dplyr::full_join(N_inputs_summary, manure_summary, by = c("Year", "Province_name", "Name_biomass", "Item", "Box"))
+  list(
+    N_inputs_summary = N_inputs_summary,
+    manure_summary = manure_summary
+  )
+}
+
+# Combine all Inputs -----------------------------------------------------------------------------------------------------------------------------------------------------
+.summarise_inputs <- function(n_inputs_prepared) {
+  N_Inputs <- dplyr::full_join(
+    n_inputs_prepared$N_inputs_summary,
+    n_inputs_prepared$manure_summary,
+    by = c("Year", "Province_name", "Name_biomass", "Item", "Box")
+  )
 
   # Summing Inputs for each Year, Province_name, Box
   N_Inputs_sum <- N_Inputs |>
@@ -86,10 +114,13 @@ run_code <- function() {
       MgN_urban = sum(Urban, na.rm = TRUE),
       .groups = "drop"
     )
+  return(N_Inputs_sum)
+}
 
-  # GRAFS_Prod_Destiny -------------------------------------------------------------------------------------------------------------------------------------------------
-  # Summarize and calculate new columns: Prod_MgN
-  # Spread the Destiny column to separate columns for Food, Feed, Other_uses, Export
+# GRAFS_Prod_Destiny -------------------------------------------------------------------------------------------------------------------------------------------------
+# Summarize and calculate new columns: Prod_MgN
+# Spread the Destiny column to separate columns for Food, Feed, Other_uses, Export
+.summarise_production <- function(GRAFS_Prod_Destiny, N_Inputs_sum) {
   GRAFS_Prod_Destiny_summary <- GRAFS_Prod_Destiny |>
     tidyr::pivot_wider(names_from = Destiny, values_from = MgN, values_fn = sum, values_fill = list(MgN = 0)) |>
     dplyr::mutate(
@@ -111,9 +142,11 @@ run_code <- function() {
   N_Inputs_combined <- dplyr::full_join(N_Inputs_sum, GRAFS_Prod_Destiny_summary,
     by = c("Year", "Province_name", "Box")
   )
-  View(N_Inputs_combined)
+  return(N_Inputs_combined)
+}
 
-  # NUE for Cropland and Semi-natural agrocosystems ------------------------------------------------------------------------------------------------------
+# NUE for Cropland and Semi-natural agroecosystems ------------------------------------------------------------------------------------------------------
+.calculate_nue <- function(N_Inputs_combined) {
   NUE <- N_Inputs_combined |>
     dplyr::group_by(Year, Province_name, Box) |>
     dplyr::mutate(
@@ -125,13 +158,16 @@ run_code <- function() {
     dplyr::mutate(
       NUE = ifelse(Box %in% c("Semi_natural_agroecosystems", "Cropland"),
         Prod_MgN / Inputs_MgN * 100,
-        NA
+        NA_real_
       )
     )
+  return(NUE)
+}
 
-  # Plots --------------------------------------------------------------------------------------------------------------------------------------------------
-  # Plot for Cropland AND Semi_natural_agroecosystems ------------------------------------------------------------------------------------------------------
-  # Summarise Inputs + Production for Cropland & Semi_natural_agroecosystems
+# Plots --------------------------------------------------------------------------------------------------------------------------------------------------
+# Plot for Cropland AND Semi_natural_agroecosystems ------------------------------------------------------------------------------------------------------
+# Summarise Inputs + Production for Cropland & Semi_natural_agroecosystems
+.plot_n_inputs_production_cropland_semi_natural_agroecosystems <- function(GRAFS_Prod_Destiny, N_Inputs_combined) {
   residue_items <- c("Other crop residues", "Straw", "Firewood")
 
   GRAFS_Prod_Destiny_Residues <- GRAFS_Prod_Destiny |>
@@ -225,8 +261,16 @@ run_code <- function() {
     ) +
     ggplot2::theme_minimal()
 
+  list(
+    plot = plot,
+    data_long = N_long,
+    summary = N_summary,
+    residues = GRAFS_Prod_Destiny_Residues
+  )
+}
 
-  # NUE plot -----------------------------------------------------------------------------------------------------------------------------------------------
+# NUE plot -----------------------------------------------------------------------------------------------------------------------------------------------
+.plot_nue_spain <- function(NUE) {
   NUE_spain <- NUE |>
     dplyr::filter(Box %in% c("Cropland", "Semi_natural_agroecosystems"), Province_name != "Sea") |>
     dplyr::group_by(Year, Box) |>
@@ -252,7 +296,14 @@ run_code <- function() {
       axis.text = ggplot2::element_text(size = 7)
     )
 
-  # Plot Spain Input/Output no imports, but surpluses ---------------------------------------------------------------------------------------------------------
+  list(
+    plot = plot,
+    data = NUE_spain
+  )
+}
+
+# Plot Spain Input/Output no imports, but surpluses ---------------------------------------------------------------------------------------------------------
+.plot_n_inputs_production_cropland <- function(GRAFS_Prod_Destiny, N_Inputs_combined) {
   residue_items <- c("Other crop residues", "Straw", "Firewood")
 
   GRAFS_Prod_Destiny_Residues <- GRAFS_Prod_Destiny |>
@@ -348,8 +399,17 @@ run_code <- function() {
     ) +
     ggplot2::theme_minimal()
 
+  list(
+    plot = plot,
+    data_long = N_summary_Residues_long,
+    summary = N_summary_Residues,
+    residues = GRAFS_Prod_Destiny_Residues
+  )
+}
 
-  # Plot Spain Input/ no imports, but surpluses for Provinces ----------------------------------------------------------------------------------------------------------------
+
+# Plot Spain Input/ no imports, but surpluses for Provinces ----------------------------------------------------------------------------------------------------------------
+.plot_n_inputs_production_provinces <- function(GRAFS_Prod_Destiny, N_Inputs_combined) {
   N_Inputs_combined <- N_Inputs_combined |> dplyr::filter(Province_name != "Sea")
 
   GRAFS_Prod_Destiny_Residues_prov <- GRAFS_Prod_Destiny |>
@@ -449,4 +509,10 @@ run_code <- function() {
       strip.text = ggplot2::element_text(size = 10),
       legend.position = "bottom"
     )
+  list(
+    plot = plot_prov_residues,
+    data_long = N_long_prov_residues,
+    summary = N_summary_prov_residues,
+    residues = GRAFS_Prod_Destiny_Residues_prov
+  )
 }
