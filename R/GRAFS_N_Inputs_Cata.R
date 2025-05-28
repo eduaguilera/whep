@@ -1,3 +1,19 @@
+#' N Inputs, Production and NUE in Spain
+#'
+#' @description
+#' This code is creating a dataset with nitrogen (N) inputs (deposition, fixation, synthetic, urban, manure)
+#' and N production in Spain between 1860 and 2020 for the GRAFS model on a provincial level
+#'
+#' @returns
+#' The output (N_Inputs_combined) contains data on N in MgN for the columns MgN_dep,  MgN_fix, MgN_syn, MgN_manure, MgN_urban, Prod_MgN
+#' for each Year, Province and Box (Cropland, Semi_natural_agroecosystems, Livestock, Fish, Additives).
+#' As a base, data from the files N_balance_ygpit_all.rds and GRAFS_Prod_Destiny.csv were used.
+#' The data are assigned to Items. For this purpose, definitions in Name_biomasses were assigned to Items with the file Codes_coefs.xlsx (sheet = Names_biomass_CB).
+#' Manure was calculated by the sum of Excreta, Solid, and Liquid from the file N_balance_ygpit_all.rds.
+#' N production was calculated with data from the file GRAFS_Prod_Destiny.csv withe the following formula: (Prod_MgN = (Food + Feed + Other_uses + Export) - Import)
+#' Nitrogen use efficiency (NUE) for Cropland and Semi_natural_agroecosystems was calculated by the sum of Inputs with the following formula: (NUE = (Prod_MgN / Inputs_MgN) * 100)
+
+
 create_n_inputs_grafs_spain <- function() {
   # Define input directory
   inputs_dir <- "C:/PhD/GRAFS/Production Boxes/Final Files/Inputs"
@@ -37,19 +53,30 @@ create_n_inputs_grafs_spain <- function() {
 }
 
 # N Inputs -----------------------------------------------------------------------------------------------------------------------------------
-# Prepare data -------------------------------------------------------------------------------------------------------------------------------
+# load data -------------------------------------------------------------------------------------------------------------------------------
 .load_inputs <- function(inputs_dir) {
   list(
-    N_Excretion_ygs = readRDS(file.path(inputs_dir, "N_Excretion_ygs.rds")),
+    N_Excretion_ygs = readRDS(file.path(inputs_dir, "N_Excretion_ygs.rds")), # TODO: Excretion need to be added to dataset as an input of Livestock
     N_balance_ygpit_all = readRDS(file.path(inputs_dir, "N_balance_ygpit_all.rds")),
     GRAFS_Prod_Destiny = readr::read_csv(file.path(inputs_dir, "GRAFS_Prod_Destiny.csv")),
     Codes_coefs = readxl::read_excel(file.path(inputs_dir, "Codes_coefs.xlsx"), sheet = "Names_biomass_CB")
   )
 }
 
+# Assign some special items to Boxes -------------------------------------------------------------------------------------------------------------
+.assign_items <- function() {
+  list(
+    Semi_natural_agroecosystems = c("Dehesa", "Forest_high", "Forest_low", "Other", "Pasture_Shrubland"),
+    Firewood_biomass = c("Holm oak", "Mediterranean shrubland", "Conifers", "Holm oak forest"),
+    residue_items = c("Other crop residues", "Straw", "Firewood")
+  )
+}
+
+# Calculate N Inputs -------------------------------------------------------------------------------------------------------------------------------
 .calculate_n_inputs <- function(N_balance_ygpit_all, Codes_coefs) {
-  Semi_natural_agroecosystems <- c("Dehesa", "Forest_high", "Forest_low", "Other", "Pasture_Shrubland")
-  firewood_biomass <- c("Holm oak", "Mediterranean shrubland", "Conifers", "Holm oak forest")
+  categories <- .assign_items()
+  firewood_biomass <- categories$Firewood_biomass
+  Semi_natural_agroecosystems <- categories$Semi_natural_agroecosystems
 
   # Merge Name_biomass with Item
   Items <- Codes_coefs |>
@@ -72,7 +99,7 @@ create_n_inputs_grafs_spain <- function() {
     ) |>
     dplyr::select(Year, Province_name, Name_biomass, Item, Box, Deposition, BNF, Synthetic, Urban)
 
-  # Calculation of Manure from Excreta, Solid, Liquid ----------------------------------------------------------------------------------------------------
+  # Calculation of Manure from Excreta, Solid, Liquid
   item_lookup <- Codes_coefs |>
     dplyr::select(Name_biomass, Item) |>
     dplyr::distinct()
@@ -168,12 +195,13 @@ create_n_inputs_grafs_spain <- function() {
 # Plot for Cropland AND Semi_natural_agroecosystems ------------------------------------------------------------------------------------------------------
 # Summarise Inputs + Production for Cropland & Semi_natural_agroecosystems
 .plot_n_inputs_production_cropland_semi_natural_agroecosystems <- function(GRAFS_Prod_Destiny, N_Inputs_combined) {
-  residue_items <- c("Other crop residues", "Straw", "Firewood")
+  categories <- .assign_items()
+  residue_items <- categories$residue_items
 
   GRAFS_Prod_Destiny_Residues <- GRAFS_Prod_Destiny |>
     dplyr::filter(Box %in% c("Cropland", "Semi_natural_agroecosystems")) |>
     dplyr::mutate(
-      Prod_type = ifelse(Item %in% residue_items, "Production_residues", "Production")
+      Prod_type = ifelse(Item %in% local(residue_items), "Production_residues", "Production")
     ) |>
     dplyr::group_by(Year, Item, Destiny, Prod_type) |>
     dplyr::summarise(MgN = sum(MgN, na.rm = TRUE), .groups = "drop") |>
@@ -235,7 +263,7 @@ create_n_inputs_grafs_spain <- function() {
       ))
     )
 
-  ggplot2::ggplot(
+  plot_Spain_cropland_seminatural <- ggplot2::ggplot(
     N_long,
     ggplot2::aes(x = Year, y = Value, fill = Type)
   ) +
@@ -262,7 +290,7 @@ create_n_inputs_grafs_spain <- function() {
     ggplot2::theme_minimal()
 
   list(
-    plot = plot,
+    plot = plot_Spain_cropland_seminatural,
     data_long = N_long,
     summary = N_summary,
     residues = GRAFS_Prod_Destiny_Residues
@@ -279,7 +307,7 @@ create_n_inputs_grafs_spain <- function() {
       .groups = "drop"
     )
 
-  ggplot2::ggplot(NUE_spain, ggplot2::aes(x = Year, y = NUE_spain, color = Box)) +
+  plot_nue_Spain <- ggplot2::ggplot(NUE_spain, ggplot2::aes(x = Year, y = NUE_spain, color = Box)) +
     ggplot2::geom_line(size = 0.8) +
     ggplot2::labs(
       title = "Nitrogen Use Efficiency (NUE) in Spain",
@@ -297,14 +325,15 @@ create_n_inputs_grafs_spain <- function() {
     )
 
   list(
-    plot = plot,
+    plot = plot_nue_Spain,
     data = NUE_spain
   )
 }
 
 # Plot Spain Input/Output no imports, but surpluses ---------------------------------------------------------------------------------------------------------
 .plot_n_inputs_production_cropland <- function(GRAFS_Prod_Destiny, N_Inputs_combined) {
-  residue_items <- c("Other crop residues", "Straw", "Firewood")
+  categories <- .assign_items()
+  residue_items <- categories$residue_items
 
   GRAFS_Prod_Destiny_Residues <- GRAFS_Prod_Destiny |>
     dplyr::filter(Box == "Cropland") |>
@@ -348,7 +377,7 @@ create_n_inputs_grafs_spain <- function() {
       Surplus = Input_Total - Production - Production_residues
     )
 
-  N_summary_Residues <- N_summary_Residues |>
+  N_summary_Residues_long <- N_summary_Residues |>
     tidyr::pivot_longer(
       cols = c(Synthetic_fertilizer, Manure, Fixation, Deposition, Urban, Production, Production_residues),
       names_to = "Type",
@@ -373,8 +402,8 @@ create_n_inputs_grafs_spain <- function() {
       ))
     )
 
-  ggplot2::ggplot(
-    N_summary_Residues,
+  plot_spain_cropland <- ggplot2::ggplot(
+    N_summary_Residues_long,
     ggplot2::aes(x = Year, y = Value, fill = Type)
   ) +
     ggplot2::geom_area(position = "stack") +
@@ -400,7 +429,7 @@ create_n_inputs_grafs_spain <- function() {
     ggplot2::theme_minimal()
 
   list(
-    plot = plot,
+    plot = plot_spain_cropland,
     data_long = N_summary_Residues_long,
     summary = N_summary_Residues,
     residues = GRAFS_Prod_Destiny_Residues
