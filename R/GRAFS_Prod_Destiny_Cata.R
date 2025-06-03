@@ -10,24 +10,26 @@
 create_production_and_destinies_grafs <- function(inputs_dir = "C:/PhD/GRAFS/Production Boxes/Final Files/Inputs") {
   data <- .load_data(inputs_dir)
   biomass_item_merged <- .merge_items_biomass(data$Crop_AreaNPP_ygpit_all, data$NPP_ygpit_csv, data$Codes_coefs)
+  data$Crop_AreaNPP_ygpit_all <- biomass_item_merged$Crop_AreaNPP_merged
+  data$NPP_ygpit_csv <- biomass_item_merged$NPP_ygpit_merged
   production_crops_residues <- .summarise_crops_residues(data$Crop_AreaNPP_ygpitr_NoFallow)
-  grazed_data_added <- .aggregate_grazed_cropland(data$NPP_ygpit_csv, production_crops_residues)
+  grazed_data_added <- .aggregate_grazed_cropland(biomass_item_merged$NPP_ygpit_merged, production_crops_residues)
   semi_natural_agroecosystems_data <- .aggregate_semi_natural_agroecosystems(data$NPP_ygpit_csv)
   livestock_data <- .prepare_livestock_production(data$Livestock_Prod_ygps)
   prod_combined_boxes <- .combine_production_boxes(grazed_data_added, semi_natural_agroecosystems_data, livestock_data)
   seeds_removed <- .remove_seeds_from_system(data$Crop_AreaNPP_ygpit_all, data$PIE_FullDestinies_FM, prod_combined_boxes)
   grass_wood_added <- .adding_grass_wood(seeds_removed)
   prepared_processed_data <- .prepare_processed_data(data$processed_prov_fixed)
-  prepared_prod_data <- .prepare_prod_data(grass_wood_added, prepared_processed_data)
-  converted_data_FM_DM_N <- .convert_FM_DM_N(data$Biomass_coefs, prepared_prod_data)
+  prepared_prod_data <- .prepare_prod_data(grass_wood_added, prepared_processed_data, data$Codes_coefs_items_full)
+  converted_data_FM_DM_N <- .convert_FM_DM_N(prepared_prod_data, data$Biomass_coefs)
   feed_data <- .adding_feed(data$Feed_Intake)
   population_share <- .calculate_population_share(data$Population_share)
-  food_data <- .adding_food(population_share, data$PIE_FullDestinies_FM)
-  other_uses_data <- .adding_other_uses(population_share, data$PIE_FullDestinies_FM)
+  food_data <- .adding_food(data$PIE_FullDestinies_FM, population_share)
+  other_uses_data <- .adding_other_uses(data$PIE_FullDestinies_FM, population_share)
   combined_destinies <- .combine_destinies(converted_data_FM_DM_N, feed_data, food_data, other_uses_data)
   converted_items_N <- .convert_to_items_N(combined_destinies, data$Codes_coefs_items_full, data$Biomass_coefs)
   trade <- .calculate_trade(converted_items_N)
-  final_data <- .finalize_prod_destiny(trade)
+  final_data <- .finalize_prod_destiny(trade, data$Codes_coefs_items_full)
 
 
   return(list(
@@ -89,7 +91,6 @@ create_production_and_destinies_grafs <- function(inputs_dir = "C:/PhD/GRAFS/Pro
   return(data_list)
 }
 
-
 #' Production of Cropland, Livestock, and Semi natural agroecosystems --------------------------------------------------------------------
 #' Merge items with biomasses
 .merge_items_biomass <- function(Crop_AreaNPP_ygpit_all, NPP_ygpit_csv, Codes_coefs) {
@@ -148,11 +149,11 @@ create_production_and_destinies_grafs <- function(inputs_dir = "C:/PhD/GRAFS/Pro
 
 #' Combining crops, residues, feed (grass, fallow) production
 #' Grazed: Aggregate GrazedWeeds_MgDM for Cropland (Fallow) ---
-.aggregate_grazed_cropland <- function(NPP_ygpit_csv, Crop_AreaNPP_prod_residue) {
-  grazed_data <- NPP_ygpit_csv |>
+.aggregate_grazed_cropland <- function(NPP_ygpit_merged, Crop_AreaNPP_prod_residue) {
+  grazed_data <- NPP_ygpit_merged |>
     dplyr::filter(LandUse == "Cropland", !(Item == "Fallow" | Name_biomass == "Fallow")) |>
-    dplyr::select(Year, Province_name, GrazedWeeds_MgDM, Item, Name_biomass) |>
-    dplyr::group_by(Year, Province_name, Item, Name_biomass) |>
+    dplyr::select(Year, Province_name, GrazedWeeds_MgDM, Name_biomass, Item) |>
+    dplyr::group_by(Year, Province_name, Name_biomass, Item) |>
     dplyr::summarise(GrazedWeeds_MgDM = sum(GrazedWeeds_MgDM, na.rm = TRUE), .groups = "drop")
 
   #' Merge `grazed_data` with `Crop_AreaNPP_prod_residue`
@@ -160,7 +161,7 @@ create_production_and_destinies_grafs <- function(inputs_dir = "C:/PhD/GRAFS/Pro
     dplyr::left_join(grazed_data, by = c("Year", "Province_name", "Item", "Name_biomass"))
 
   #' Add missing Production data from NPP (Fallow)
-  fallow_data <- NPP_ygpit_csv |>
+  fallow_data <- NPP_ygpit_merged |>
     dplyr::filter(LandUse == "Cropland", Item == "Fallow" | Name_biomass == "Fallow") |>
     dplyr::group_by(Year, Province_name, Name_biomass, Item) |>
     dplyr::summarise(
@@ -184,8 +185,8 @@ create_production_and_destinies_grafs <- function(inputs_dir = "C:/PhD/GRAFS/Pro
 }
 
 #' Semi_natural_agroecosystems: Aggregate Grazed Weeds and Production plus Used Residues from Forest, Shrubland, Dehesa, Other ---
-.aggregate_semi_natural_agroecosystems <- function(NPP_ygpit_csv) {
-  semi_natural_agroecosystems <- NPP_ygpit_csv |>
+.aggregate_semi_natural_agroecosystems <- function(NPP_ygpit_merged) {
+  semi_natural_agroecosystems <- NPP_ygpit_merged |>
     dplyr::ungroup() |>
     dplyr::filter(LandUse != "Cropland") |>
     dplyr::mutate(Box = "Semi_natural_agroecosystems") |>
@@ -361,7 +362,7 @@ create_production_and_destinies_grafs <- function(inputs_dir = "C:/PhD/GRAFS/Pro
 }
 
 #' Match structure of GRAFS_prod_combined_no_seeds ---------------------------------------------------------------------------------------------------------------------
-.prepare_prod_data <- function(GRAFS_prod_added_grass_wood, processed_data) {
+.prepare_prod_data <- function(GRAFS_prod_added_grass_wood, processed_data, Codes_coefs_items_full) {
   GRAFS_prod_added_grass_wood_prepared <- GRAFS_prod_added_grass_wood |>
     dplyr::select(Year, Province_name, Name_biomass, Item, Box, Production_FM) |>
     dplyr::bind_rows(processed_data) |>
@@ -429,6 +430,7 @@ create_production_and_destinies_grafs <- function(inputs_dir = "C:/PhD/GRAFS/Pro
 
 #' Consumption (Destinies) -----------------------------------------------------------------------------------------------------------------------------------------------------------
 #' Intake Livestock: sum all values (FM_Mg) for the same Year, Province_name and Item -------------------------------------------------------------------------------------
+#' Comment!!! Feed from all animals are summed together, also from pets. Do they have to be assigned to humans?
 .adding_feed <- function(Feed_Intake) {
   feed_intake <- Feed_Intake |>
     dplyr::select(Year, Province_name, Item, FM_Mg) |>
@@ -457,12 +459,17 @@ create_production_and_destinies_grafs <- function(inputs_dir = "C:/PhD/GRAFS/Pro
 #' Food --------------------------------------------------------------------------------------------------------------------------------------------------------------------
 #' Sum all Elements for Food and multiply with population share
 .adding_food <- function(PIE_FullDestinies_FM, population_share) {
-  food_with_share <- PIE_FullDestinies_FM |>
-    dplyr::filter(Destiny == "Food") |>
-    dplyr::filter(Element == "Domestic_supply") |>
+  total_food <- PIE_FullDestinies_FM |>
+    dplyr::filter(Destiny == "Food", Element == "Domestic_supply") |>
     dplyr::group_by(Year, Item) |>
-    dplyr::summarise(Total_Food_value = sum(Value_destiny, na.rm = TRUE), .groups = "drop") |>
-    dplyr::left_join(population_share, by = "Year") |>
+    dplyr::summarise(Total_Food_value = sum(Value_destiny, na.rm = TRUE), .groups = "drop")
+
+  food_with_share <- dplyr::left_join(
+    total_food,
+    population_share,
+    by = "Year",
+    relationship = "many-to-many"
+  ) |>
     dplyr::mutate(Food_Mg = Pop_share * Total_Food_value) |>
     dplyr::select(Year, Province_name, Item, Food_Mg)
 
@@ -473,11 +480,10 @@ create_production_and_destinies_grafs <- function(inputs_dir = "C:/PhD/GRAFS/Pro
 #' Sum all Elements for Other_uses and multiply with population share
 .adding_other_uses <- function(PIE_FullDestinies_FM, population_share) {
   other_uses_with_share <- PIE_FullDestinies_FM |>
-    dplyr::filter(Destiny == "Other_uses") |>
-    dplyr::filter(Element == "Domestic_supply") |>
+    dplyr::filter(Destiny == "Other_uses", Element == "Domestic_supply") |>
     dplyr::group_by(Year, Item) |>
     dplyr::summarise(Total_OtherUses_value = sum(Value_destiny, na.rm = TRUE), .groups = "drop") |>
-    dplyr::left_join(Population_share, by = "Year") |>
+    dplyr::left_join(population_share, by = "Year") |>
     dplyr::mutate(OtherUses_Mg = Pop_share * Total_OtherUses_value) |>
     dplyr::select(Year, Province_name, Item, OtherUses_Mg)
 
@@ -485,15 +491,15 @@ create_production_and_destinies_grafs <- function(inputs_dir = "C:/PhD/GRAFS/Pro
 }
 
 #' Putting all together ---------------------------------------------------------------------------------------------------------------------------------------
-.combine_destinies <- function(GRAFS_prod_item, feed_intake, other_uses_with_share, food_with_share) {
+.combine_destinies <- function(GRAFS_prod_item, feed_intake, food_with_share, other_uses_with_share) {
   GRAFS_prod_item_combined <- GRAFS_prod_item |>
-    dplyr::full_join(food_with_share |> rename(Food_MgFM = Food_Mg),
+    dplyr::full_join(food_with_share |> dplyr::rename(Food_MgFM = Food_Mg),
       by = c("Year", "Province_name", "Item")
     ) |>
-    dplyr::full_join(other_uses_with_share |> rename(OtherUses_MgFM = OtherUses_Mg),
+    dplyr::full_join(other_uses_with_share |> dplyr::rename(OtherUses_MgFM = OtherUses_Mg),
       by = c("Year", "Province_name", "Item")
     ) |>
-    dplyr::full_join(feed_intake |> rename(Feed_MgFM = FM_Mg_total),
+    dplyr::full_join(feed_intake |> dplyr::rename(Feed_MgFM = FM_Mg_total),
       by = c("Year", "Province_name", "Item")
     )
 
@@ -532,8 +538,8 @@ create_production_and_destinies_grafs <- function(inputs_dir = "C:/PhD/GRAFS/Pro
   GRAFS_prod_item_trade <- GRAFS_prod_item_N |>
     dplyr::group_by(Year, Province_name, Item, Name_biomass, Box) |>
     dplyr::mutate(
-      Consumption_N = rowSums(across(c(Food_MgN, OtherUses_MgN, Feed_MgN)), na.rm = TRUE),
-      Production_N_tmp = replace_na(Production_N, 0),
+      Consumption_N = rowSums(cbind(Food_MgN, OtherUses_MgN, Feed_MgN), na.rm = TRUE),
+      Production_N_tmp = tidyr::replace_na(Production_N, 0),
       Net_trade = Production_N_tmp - Consumption_N,
       Export_MgN = ifelse(Net_trade > 0, Net_trade, 0),
       Import_MgN = ifelse(Net_trade < 0, -Net_trade, 0)
@@ -546,14 +552,14 @@ create_production_and_destinies_grafs <- function(inputs_dir = "C:/PhD/GRAFS/Pro
 
 #' Adding missing Boxes for Imports ---------------------------------------------------------------------------------------------------------------------------------------------
 #' Join group info from Codes_coefs to GRAFS where Box is NA
-.finalize_prod_destiny <- function(GRAFS_prod_item_trade) {
+.finalize_prod_destiny <- function(GRAFS_prod_item_trade, Codes_coefs_items_full) {
   GRAFS_prod_destiny <- GRAFS_prod_item_trade |>
     dplyr::left_join(
-      Codes_coefs_items_full |> select(item, group),
+      dplyr::select(Codes_coefs_items_full, item, group),
       by = c("Item" = "item")
     ) |>
     dplyr::mutate(
-      Box = case_when(
+      Box = dplyr::case_when(
         Item == "Acorns" ~ "Semi_natural_agroecosystems",
         is.na(Box) & Item == "Fallow" ~ "Cropland",
         is.na(Box) & group %in% c("Crop products", "Primary crops", "crop residue") ~ "Cropland",
@@ -571,7 +577,7 @@ create_production_and_destinies_grafs <- function(inputs_dir = "C:/PhD/GRAFS/Pro
       values_to = "MgN"
     ) |>
     dplyr::mutate(
-      Destiny = recode(Destiny,
+      Destiny = dplyr::recode(Destiny,
         Food_MgN = "Food",
         OtherUses_MgN = "Other_uses",
         Feed_MgN = "Feed",
@@ -581,120 +587,9 @@ create_production_and_destinies_grafs <- function(inputs_dir = "C:/PhD/GRAFS/Pro
     ) |>
     dplyr::select(Year, Province_name, Item, Box, Destiny, MgN)
 
+  write.csv(GRAFS_prod_destiny_final, "C:/PhD/GRAFS/Production Boxes/Final Files/Outputs/GRAFS_Prod_Destiny_git.csv")
+  GRAFS_prod_destiny_final <- readr::read_csv("C:/PhD/GRAFS/Production Boxes/Final Files/Outputs/GRAFS_Prod_Destiny_git.csv")
+  View(GRAFS_prod_destiny_final)
+
   return(GRAFS_prod_destiny_final)
-
-  write.csv(GRAFS_Prod_Destiny, "Outputs/GRAFS_Prod_Destiny.csv")
-  GRAFS_Prod_Destiny <- readr::read_csv("Outputs/GRAFS_Prod_Destiny.csv")
-  View(GRAFS_Prod_Destiny)
 }
-
-
-#' Plots
-#' Plot Spain Destinies ----------------------------------------------------------------------------------------------------------------------
-#' Summarize and transform MgN → GgN; make Imports negative
-MgN_time_series <- GRAFS_Prod_Destiny |>
-  dplyr::group_by(Year, Destiny) |>
-  dplyr::summarise(
-    MgN_total = sum(MgN, na.rm = TRUE),
-    .groups = "drop"
-  ) |>
-  dplyr::mutate(
-    GgN_total = MgN_total / 1000,
-    GgN_total = ifelse(Destiny == "Import", -GgN_total, GgN_total)
-  )
-
-#' Create a time series line plot in GgN
-ggplot2::ggplot(MgN_time_series, aes(x = Year, y = GgN_total, color = Destiny)) +
-  ggplot2::geom_line(size = 1) +
-  ggplot2::geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
-  ggplot2::labs(
-    title = "Nitrogen in Spain by Destiny",
-    x = "Year",
-    y = "Nitrogen (GgN)",
-    color = "Destiny"
-  ) +
-  ggplot2::theme_minimal()
-
-ggplot2::ggsave(
-  filename = "N_Spain_Destiny.png",
-  width = 16,
-  height = 10,
-  dpi = 300
-)
-
-
-#' Plot Provinces Destinies -------------------------------------------------------------------------------------------------------------------
-#' Summarize and transform MgN to GgN; set Import to negative
-MgN_time_series_province <- GRAFS_Prod_Destiny |>
-  dplyr::filter(Province_name != "Sea") |>
-  dplyr::group_by(Year, Province_name, Destiny) |>
-  dplyr::summarise(MgN_total = sum(MgN, na.rm = TRUE), .groups = "drop") |>
-  dplyr::mutate(
-    GgN_total = MgN_total / 1000,
-    GgN_total = ifelse(Destiny == "Import", -GgN_total, GgN_total)
-  )
-
-#' Plot with facet per province and horizontal zero line
-ggplot2::ggplot(MgN_time_series_province, aes(x = Year, y = GgN_total, color = Destiny)) +
-  ggplot2::geom_line(size = 0.8) +
-  ggplot2::geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
-  ggplot2::facet_wrap(~Province_name, scales = "free_y") +
-  ggplot2::labs(
-    title = "Nitrogen Spain per Destiny and Province",
-    x = "Year",
-    y = "Gg N",
-    color = "Destiny"
-  ) +
-  ggplot2::theme_minimal(base_size = 8) +
-  ggplot2::theme(
-    strip.text = element_text(size = 7),
-    axis.text = element_text(size = 6),
-    legend.title = element_text(size = 9),
-    legend.text = element_text(size = 9),
-    plot.title = element_text(size = 10, face = "bold"),
-    legend.position = "bottom"
-  )
-
-ggplot2::ggsave(
-  filename = "N_Spain_Provinces.png",
-  width = 16,
-  height = 10,
-  dpi = 300
-)
-
-#' Plot per Box and provinces -----------------------------------------------------------------------------------------------------------------------
-#' Summarize MgN per year, province, and box
-MgN_time_series_box_province <- GRAFS_Prod_Destiny |>
-  dplyr::filter(Province_name != "Sea") |>
-  dplyr::group_by(Year, Province_name, Box) |>
-  dplyr::summarise(MgN_total = sum(MgN, na.rm = TRUE), .groups = "drop") |>
-  dplyr::mutate(
-    GgN_total = MgN_total / 1000
-  )
-
-
-#' Faceted time series plot per province
-ggplot2::ggplot(MgN_time_series_box_province, aes(x = Year, y = GgN_total, color = Box)) +
-  ggplot2::geom_line(size = 0.8) +
-  ggplot2::facet_wrap(~Province_name, scales = "free_y") +
-  ggplot2::labs(
-    title = "Nitrogen in Spain by Box and Province",
-    x = "Year",
-    y = "Gg N",
-    color = "Box"
-  ) +
-  ggplot2::theme_minimal(base_size = 8) +
-  ggplot2::theme(
-    strip.text = element_text(size = 7),
-    axis.text = element_text(size = 6),
-    legend.title = element_text(size = 7),
-    legend.text = element_text(size = 6),
-    plot.title = element_text(size = 9, face = "bold"),
-    legend.position = "bottom"
-  )
-ggplot2::ggsave(
-  filename = "N_Spain_Provinces_Box.png",
-  width = 16,
-  height = 10,
-  dpi = 300
-)
