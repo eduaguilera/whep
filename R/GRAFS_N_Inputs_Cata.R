@@ -46,7 +46,7 @@ create_n_inputs_grafs_spain <- function() {
   list(
     N_Excretion_ygs = readRDS(file.path(inputs_dir, "N_Excretion_ygs.rds")), # TODO: Excretion need to be added to dataset as an input of Livestock
     N_balance_ygpit_all = readRDS(file.path(inputs_dir, "N_balance_ygpit_all.rds")),
-    GRAFS_Prod_Destiny = readr::read_csv(file.path(inputs_dir, "GRAFS_Prod_Destiny.csv")),
+    GRAFS_Prod_Destiny = readr::read_csv(file.path(inputs_dir, "GRAFS_Prod_Destiny_git.csv")),
     Codes_coefs = readxl::read_excel(file.path(inputs_dir, "Codes_coefs.xlsx"), sheet = "Names_biomass_CB")
   )
 }
@@ -120,7 +120,7 @@ create_n_inputs_grafs_spain <- function() {
 
   # Summing Inputs for each Year, Province_name, Box
   N_Inputs_sum <- N_Inputs |>
-    dplyr::group_by(Year, Province_name, Box) |>
+    dplyr::group_by(Year, Province_name, Item, Box) |>
     dplyr::summarise(
       MgN_dep = sum(Deposition, na.rm = TRUE),
       MgN_fix = sum(BNF, na.rm = TRUE),
@@ -144,29 +144,28 @@ create_n_inputs_grafs_spain <- function() {
       # Set Production to 0 for Fish Box
       Prod_MgN = ifelse(Box == "Fish", 0, Prod_MgN)
     ) |>
-    dplyr::group_by(Year, Province_name, Box) |>
+    dplyr::group_by(Year, Province_name, Item, Box) |>
     dplyr::summarise(
       Import_MgN = sum(Import_MgN, na.rm = TRUE),
       Prod_MgN = sum(Prod_MgN, na.rm = TRUE),
       .groups = "drop"
     ) |>
-    dplyr::arrange(Year, Province_name, Box) |>
-    dplyr::select(Year, Province_name, Box, Import_MgN, Prod_MgN)
+    dplyr::arrange(Year, Province_name, Item, Box) |>
+    dplyr::select(Year, Province_name, Item, Box, Import_MgN, Prod_MgN)
 
   # Combine with N_Inputs dataset
   N_Inputs_combined <- dplyr::full_join(N_Inputs_sum, GRAFS_Prod_Destiny_summary,
-    by = c("Year", "Province_name", "Box")
+    by = c("Year", "Province_name", "Item", "Box")
   ) |>
     dplyr::filter(!is.na(Box))
 
-  View(N_Inputs_combined)
   return(N_Inputs_combined)
 }
 
 # NUE for Cropland and Semi-natural agroecosystems ------------------------------------------------------------------------------------------------------
 .calculate_nue <- function(N_Inputs_combined) {
   NUE <- N_Inputs_combined |>
-    dplyr::group_by(Year, Province_name, Box) |>
+    dplyr::group_by(Year, Province_name, Item, Box) |>
     dplyr::mutate(
       Inputs_MgN = sum(MgN_dep, MgN_fix, MgN_syn, MgN_manure, MgN_urban, na.rm = TRUE)
     ) |>
@@ -179,6 +178,6 @@ create_n_inputs_grafs_spain <- function() {
         NA_real_
       )
     )
-  View(NUE)
+
   return(NUE)
 }
