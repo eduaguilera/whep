@@ -32,7 +32,6 @@ create_n_inputs_grafs_spain <- function() {
   # Calculate NUE
   nue <- .calculate_nue(n_inputs_combined)
 
-
   # Return the loaded datasets
   list(
     N_Inputs_combined = n_inputs_combined,
@@ -159,13 +158,15 @@ create_n_inputs_grafs_spain <- function() {
   ) |>
     dplyr::filter(!is.na(Box))
 
+  write.csv(N_Inputs_combined, "C:/PhD/GRAFS/Production Boxes/Final Files/Inputs/N_Inputs_combined.csv")
+
   return(N_Inputs_combined)
 }
 
 # NUE for Cropland and Semi-natural agroecosystems ------------------------------------------------------------------------------------------------------
 .calculate_nue <- function(N_Inputs_combined) {
   NUE <- N_Inputs_combined |>
-    dplyr::group_by(Year, Province_name, Item, Box) |>
+    dplyr::group_by(Year, Province_name, Box) |>
     dplyr::mutate(
       Inputs_MgN = sum(MgN_dep, MgN_fix, MgN_syn, MgN_manure, MgN_urban, na.rm = TRUE)
     ) |>
@@ -179,5 +180,6 @@ create_n_inputs_grafs_spain <- function() {
       )
     )
 
+  write.csv(NUE, "C:/PhD/GRAFS/Production Boxes/Final Files/Inputs/NUE.csv")
   return(NUE)
 }
