@@ -1,10 +1,13 @@
-#' Create GRAFS Production and Destiny Outputs
+#' GRAFS Production and Destiny Outputs
 #'
 #' @description
-#' Loads all relevant input data and processes production and destinies for the GRAFS model.
+#' This code is creating a dataset, based on N production data of crops and livestock, which represents
+#' the following destinies: food, feed, other uses, exports, imports. This is the base of the GRAFS model.
+#' The dataset contains data in MgN for each year, province, item, and box (cropland, semi natural agroecosystems,
+#' livestock, fish, additives)
 #'
 #' @returns
-#' A list containing all key data frames for further analysis or visualization.
+#' A list containing all key data frames for further analysis.
 #'
 #' @export
 create_production_and_destinies_grafs <- function(inputs_dir = "C:/PhD/GRAFS/Production Boxes/Final Files/Inputs") {
