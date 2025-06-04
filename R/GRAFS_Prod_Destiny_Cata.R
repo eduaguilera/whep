@@ -1,10 +1,14 @@
-#' Create GRAFS Production and Destiny Outputs
+#' GRAFS Production and Destiny Outputs
 #'
 #' @description
-#' Loads all relevant input data and processes production and destinies for the GRAFS model.
+#' This code is creating a dataset, based on N production data of crops and livestock, which represents
+#' the following destinies: food, feed, other uses, exports, imports. This is the base of the GRAFS model.
+#' The dataset contains data in MgN for each year, province, item, and box (cropland, semi natural agroecosystems,
+#' livestock, fish, additives). Processed items, residues, woody crops, and grazed weeds are taken into account.
+#' Seeds were subtracted from crop production.
 #'
-#' @returns
-#' A list containing all key data frames for further analysis or visualization.
+#' #' @returns
+#' A list containing all key data frames for further analysis.
 #'
 #' @export
 create_production_and_destinies_grafs <- function(inputs_dir = "C:/PhD/GRAFS/Production Boxes/Final Files/Inputs") {
@@ -378,7 +382,7 @@ create_production_and_destinies_grafs <- function(inputs_dir = "C:/PhD/GRAFS/Pro
   return(GRAFS_prod_added_grass_wood_merged)
 }
 
-#' Convert Fresh Matter (FM) to Dry Matter (DM) and Nitrogen Content (N) -------------------------------------------------------------------------------------
+#' Convert Fresh Matter (FM) to Dry Matter (DM) and finally to Nitrogen (N) -------------------------------------------------------------------------------------
 #' Define a list of special items that require using the primary biomass name for selecting conversion coefficients
 .convert_FM_DM_N <- function(GRAFS_prod_added_grass_wood_merged, Biomass_coefs) {
   special_items <- c(
