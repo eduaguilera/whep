@@ -7,7 +7,7 @@
 # . Plots N inputs main function --------------------------------------------------------------------------------------------------------------------------------------------
 create_plots_n_inputs_grafs_spain <- function() {
   inputs_dir <- "C:/PhD/GRAFS/Production Boxes/Final Files/Inputs"
-  data <- .load_inputs(inputs_dir)
+  data <- .load_inputs_plots(inputs_dir)
   plot_cropland_semi_natural_agroecosystems <- .plot_n_inputs_production_cropland_semi_natural_agroecosystems(data$GRAFS_Prod_Destiny, data$N_Inputs_combined)
   plot_nue_spain <- .plot_nue_spain(data$NUE)
   plot_cropland <- .plot_n_inputs_production_cropland(data$GRAFS_Prod_Destiny, data$N_Inputs_combined)
@@ -23,7 +23,7 @@ create_plots_n_inputs_grafs_spain <- function() {
 }
 
 #' Input data, created in the function create_n_inputs_grafs_spain
-.load_inputs <- function(inputs_dir) {
+.load_inputs_plots <- function(inputs_dir) {
   list(
     GRAFS_Prod_Destiny = readr::read_csv(file.path(inputs_dir, "GRAFS_Prod_Destiny_git.csv")),
     N_Inputs_combined = readr::read_csv(file.path(inputs_dir, "N_Inputs_combined.csv")),
