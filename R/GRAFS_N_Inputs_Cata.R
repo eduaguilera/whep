@@ -42,12 +42,15 @@ create_n_inputs_grafs_spain <- function() {
 # N Inputs -----------------------------------------------------------------------------------------------------------------------------------
 # load data -------------------------------------------------------------------------------------------------------------------------------
 .load_inputs <- function(inputs_dir) {
-  list(
-    N_Excretion_ygs = readRDS(file.path(inputs_dir, "N_Excretion_ygs.rds")), # TODO: Excretion need to be added to dataset as an input of Livestock
-    N_balance_ygpit_all = readRDS(file.path(inputs_dir, "N_balance_ygpit_all.rds")),
-    GRAFS_Prod_Destiny = readr::read_csv(file.path(inputs_dir, "GRAFS_Prod_Destiny_git.csv")),
-    Codes_coefs = readxl::read_excel(file.path(inputs_dir, "Codes_coefs.xlsx"), sheet = "Names_biomass_CB")
-  )
+  result <-
+    list(
+      N_Excretion_ygs = readRDS(file.path(inputs_dir, "N_Excretion_ygs.rds")), # TODO: Excretion need to be added to dataset as an input of Livestock
+      N_balance_ygpit_all = readRDS(file.path(inputs_dir, "N_balance_ygpit_all.rds")),
+      GRAFS_Prod_Destiny = readr::read_csv(file.path(inputs_dir, "GRAFS_Prod_Destiny_git.csv")),
+      Codes_coefs = readxl::read_excel(file.path(inputs_dir, "Codes_coefs.xlsx"), sheet = "Names_biomass_CB")
+    )
+
+  result
 }
 
 # Assign some special items to Boxes -------------------------------------------------------------------------------------------------------------
@@ -166,13 +169,9 @@ create_n_inputs_grafs_spain <- function() {
 # NUE for Cropland and Semi-natural agroecosystems ------------------------------------------------------------------------------------------------------
 .calculate_nue <- function(N_Inputs_combined) {
   NUE <- N_Inputs_combined |>
-    dplyr::group_by(Year, Province_name, Box) |>
     dplyr::mutate(
-      Inputs_MgN = sum(MgN_dep, MgN_fix, MgN_syn, MgN_manure, MgN_urban, na.rm = TRUE)
+      Inputs_MgN = MgN_dep + MgN_fix + MgN_syn + MgN_manure + MgN_urban
     ) |>
-    dplyr::ungroup()
-
-  NUE <- NUE |>
     dplyr::mutate(
       NUE = ifelse(Box %in% c("Semi_natural_agroecosystems", "Cropland"),
         Prod_MgN / Inputs_MgN * 100,

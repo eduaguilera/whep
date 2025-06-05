@@ -1,4 +1,4 @@
-#' GRAFS Production and Destiny Outputs
+#' GRAFS production and destiny
 #'
 #' @description
 #' This code is creating a dataset, based on N production data of crops and livestock, which represents
@@ -138,18 +138,17 @@ create_production_and_destinies_grafs <- function(inputs_dir = "C:/PhD/GRAFS/Pro
       names_from = Product_residue,
       values_from = Total_Mg
     ) |>
-    dplyr::rename(
-      Prod_Residue_Product_Mg = Product,
-      Residue_Mg = Residue
-    ) |>
     dplyr::mutate(
-      Prod_Residue_Product_Mg = dplyr::coalesce(Prod_Residue_Product_Mg, Residue_Mg)
+      Prod_Residue_Product_Mg = dplyr::coalesce(Product, 0) + dplyr::coalesce(Residue, 0),
+      Box = "Cropland"
     ) |>
-    dplyr::select(-Residue_Mg) |>
-    dplyr::mutate(Box = "Cropland")
+    dplyr::select(
+      Year, Province_name, Name_biomass, Item, Prod_Residue_Product_Mg, Box
+    )
 
   return(Crop_AreaNPP_prod_residue)
 }
+
 
 #' Combining crops, residues, feed (grass, fallow) production
 #' Grazed: Aggregate GrazedWeeds_MgDM for Cropland (Fallow) ---
@@ -591,8 +590,8 @@ create_production_and_destinies_grafs <- function(inputs_dir = "C:/PhD/GRAFS/Pro
     ) |>
     dplyr::select(Year, Province_name, Item, Box, Destiny, MgN)
 
-  write.csv(GRAFS_prod_destiny_final, "C:/PhD/GRAFS/Production Boxes/Final Files/Outputs/GRAFS_Prod_Destiny_git.csv")
-  GRAFS_prod_destiny_final <- readr::read_csv("C:/PhD/GRAFS/Production Boxes/Final Files/Outputs/GRAFS_Prod_Destiny_git.csv")
+  write.csv(GRAFS_prod_destiny_final, "C:/PhD/GRAFS/Production Boxes/Final Files/Inputs/GRAFS_Prod_Destiny_git.csv")
+  GRAFS_prod_destiny_final <- readr::read_csv("C:/PhD/GRAFS/Production Boxes/Final Files/Inputs/GRAFS_Prod_Destiny_git.csv")
   View(GRAFS_prod_destiny_final)
 
   return(GRAFS_prod_destiny_final)
