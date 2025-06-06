@@ -11,8 +11,8 @@
 #' A list containing all key data frames for further analysis.
 #'
 #' @export
-create_production_and_destinies_grafs <- function(inputs_dir = "C:/PhD/GRAFS/Production Boxes/Final Files/Inputs") {
-  data <- .load_data(inputs_dir)
+create_production_and_destinies_grafs <- function() {
+  data <- .load_data()
   biomass_item_merged <- .merge_items_biomass(data$Crop_AreaNPP_ygpit_all, data$NPP_ygpit_csv, data$Codes_coefs)
   data$Crop_AreaNPP_ygpit_all <- biomass_item_merged$Crop_AreaNPP_merged
   data$NPP_ygpit_csv <- biomass_item_merged$NPP_ygpit_merged
@@ -60,21 +60,21 @@ create_production_and_destinies_grafs <- function(inputs_dir = "C:/PhD/GRAFS/Pro
 
 
 #' Load all required datasets from input directory ---
-.load_data <- function(inputs_dir) {
-  NPP_ygpit_csv <- readr::read_csv(file.path(inputs_dir, "NPP_ygpit.csv.gz"))
-  Feed_avail_all <- readRDS(file.path(inputs_dir, "Feed_avail_all.rds"))
-  Crop_AreaNPP_ygpitr_NoFallow <- readRDS(file.path(inputs_dir, "Crop_AreaNPP_ygpitr_NoFallow.rds"))
-  Crop_AreaNPP_ygpit_all <- readRDS(file.path(inputs_dir, "Crop_AreaNPP_ygpit_all.rds"))
-  PIE_FullDestinies_FM <- readr::read_csv(file.path(inputs_dir, "PIE_FullDestinies_FM.csv"))
-  Feed_Intake <- readr::read_csv(file.path(inputs_dir, "Intake_ygiac.csv.gz"))
-  Population_share <- readr::read_csv(file.path(inputs_dir, "Population_yg.csv"))
-  N_Excretion_ygs <- readRDS(file.path(inputs_dir, "N_Excretion_ygs.rds"))
-  Livestock_Prod_ygps <- readr::read_csv(file.path(inputs_dir, "Livestock_Prod_ygps.csv"))
+.load_data <- function() {
+  NPP_ygpit_csv <- readr::read_csv(get_file_path("npp_ygpit"))
+  Feed_avail_all <- readRDS(get_file_path("feed_avail_all"))
+  Crop_AreaNPP_ygpitr_NoFallow <- readRDS(get_file_path("crop_area_npp_ygpitr_no_fallow"))
+  Crop_AreaNPP_ygpit_all <- readRDS(get_file_path("crop_area_npp_ygpit_all"))
+  PIE_FullDestinies_FM <- readr::read_csv(get_file_path("pie_full_destinies_fm"))
+  Feed_Intake <- readr::read_csv(get_file_path("intake_ygiac"))
+  Population_share <- readr::read_csv(get_file_path("population_yg"))
+  N_Excretion_ygs <- readRDS(get_file_path("n_excretion_ygs"))
+  Livestock_Prod_ygps <- readr::read_csv(get_file_path("livestock_prod_ygps"))
 
-  Codes_coefs <- readxl::read_excel(file.path(inputs_dir, "Codes_coefs.xlsx"), sheet = "Names_biomass_CB")
-  Codes_coefs_items_full <- readxl::read_excel(file.path(inputs_dir, "Codes_coefs.xlsx"), sheet = "items_full")
-  Biomass_coefs <- readxl::read_excel(file.path(inputs_dir, "Biomass_coefs.xlsx"), skip = 1)
-  processed_prov_fixed <- readxl::read_excel(file.path(inputs_dir, "processed_prov_fixed.xlsx"), sheet = "ProcessedItems_biomass")
+  Codes_coefs <- readxl::read_excel(get_file_path("codes_coefs"), sheet = "Names_biomass_CB")
+  Codes_coefs_items_full <- readxl::read_excel(get_file_path("codes_coefs"), sheet = "items_full")
+  Biomass_coefs <- readxl::read_excel(get_file_path("biomass_coefs"), skip = 1)
+  processed_prov_fixed <- readxl::read_excel(get_file_path("processed_prov_fixed"), sheet = "ProcessedItems_biomass")
 
   data_list <- list(
     NPP_ygpit_csv = NPP_ygpit_csv,

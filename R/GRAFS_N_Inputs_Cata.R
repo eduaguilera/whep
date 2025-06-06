@@ -44,12 +44,11 @@ create_n_inputs_grafs_spain <- function() {
 .load_inputs <- function(inputs_dir) {
   result <-
     list(
-      N_Excretion_ygs = readRDS(file.path(inputs_dir, "N_Excretion_ygs.rds")), # TODO: Excretion need to be added to dataset as an input of Livestock
-      N_balance_ygpit_all = readRDS(file.path(inputs_dir, "N_balance_ygpit_all.rds")),
-      GRAFS_Prod_Destiny = readr::read_csv(file.path(inputs_dir, "GRAFS_Prod_Destiny_git.csv")),
-      Codes_coefs = readxl::read_excel(file.path(inputs_dir, "Codes_coefs.xlsx"), sheet = "Names_biomass_CB")
+      N_Excretion_ygs = readRDS(get_file_path("n_excretion_ygs")), # TODO: Excretion need to be added to dataset as an input of Livestock
+      N_balance_ygpit_all = readRDS(get_file_path("n_balance_ygpit_all")),
+      GRAFS_Prod_Destiny = readr::read_csv(file.path(inputs_dir, "GRAFS_Prod_Destiny_git.csv")), # TODO: Upload final version to SACO and add link
+      Codes_coefs = readxl::read_excel(get_file_path("codes_coefs"), sheet = "Names_biomass_CB")
     )
-
   result
 }
 
