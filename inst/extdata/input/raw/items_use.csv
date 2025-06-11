@@ -23,10 +23,9 @@ p021,Soyabeans production,c021,2555,Soyabeans,seedwaste
 p022,Groundnuts production,c022,2552,Groundnuts,seedwaste
 p023,Sunflower seed production,c023,2557,Sunflower seed,seedwaste
 p024,Rape and Mustardseed production,c024,2558,Rape and Mustardseed,seedwaste
-p025,Seed cotton production,c025,328,Seed cotton,seedwaste
 p026,Coconuts production,c026,2560,Coconuts - Incl Copra,seedwaste
 p027,Sesame seed production,c027,2561,Sesame seed,seedwaste
-p028,Oil palm fruit production,c028,254,"Oil, palm fruit",seedwaste
+p028,Oil palm fruit production,c028,254,Palm kernels,seedwaste
 p029,Olives production,c029,2563,Olives (including preserved),seedwaste
 p030,"Oilcrops production, Other",c030,2570,"Oilcrops, Other",seedwaste
 p031,Tomatoes production,c031,2601,Tomatoes and products,seedwaste
@@ -164,6 +163,15 @@ p107,Goat slaughtering,c121,2748,Hides and skins,seedwaste
 p118,Beekeeping,c123,2745,Honey,seedwaste
 p119,Silkworm breeding,c124,2747,Silk,seedwaste
 p120,Fishing,c125,2960,"Fish, Seafood",seedwaste
+p123,Kapok production,c310,310,Kapok fruit,seedwaste
+p061,Fodder cereal and grasses production,c2000,2000,Fodder cereal and grasses,seedwaste
+p118,Fodder legumes production,c2001,2001,Fodder legumes,seedwaste
+p120,Fodder vegetables and roots production,c2002,2002,Fodder vegetables and roots,seedwaste
+p119,Fodder mix production,c2003,2003,Fodder mix,seedwaste
+p122,Hemp production,c776,776,Hemp,seedwaste
+p124,Linum production,c772,772,Linum,seedwaste
+p130,Grassland production,c3000,3000,Grassland,seedwaste
+p121,Temporary grassland production,c3002,3002,Temporary grassland,seedwaste
 p064,"Sugar production, non-centrifugal",c015,2536,Sugar cane,TCF
 p065,Sugar production,c015,2536,Sugar cane,TCF
 p065,Sugar production,c016,2537,Sugar beet,TCF
