@@ -37,7 +37,9 @@ build_supply_use <- function() {
     supply_processes = .read_local_csv("input/raw/items_supply.csv"),
     use_processes = .read_local_csv("input/raw/items_use.csv"),
     coeffs = get_processing_coefs(get_file_path("processing_coefs")),
-    cbs = get_wide_cbs(get_file_path("commodity_balance_sheet"))
+    cbs = get_wide_cbs(get_file_path("commodity_balance_sheet")),
+    crop_supply = readr::read_csv(get_file_path("crop_residues")),
+    primary_prod = readr::read_csv(get_file_path("primary_prod"))
   )
 }
 
@@ -45,10 +47,14 @@ build_supply_use <- function() {
     supply_processes,
     use_processes,
     coeffs,
-    cbs) {
+    cbs,
+    crop_supply,
+    primary_prod) {
   processes_table <- .join_supply_use_processes(supply_processes, use_processes)
 
   tibble::tibble() |>
+    .add_supply_crop_residue(processes_table, crop_supply) |>
+    .add_supply_crop_product(processes_table, primary_prod) |>
     .add_use_for_feed(processes_table) |>
     .add_use_for_seed(processes_table, cbs) |>
     .add_use_for_slaughtering(processes_table) |>
@@ -64,6 +70,86 @@ build_supply_use <- function() {
       relationship = "many-to-many",
       suffix = c("_to_process", "_processed")
     )
+}
+
+.add_supply_crop_residue <- function(supply_use, processes_table, crop_supply) {
+  k_use_seedname <- list(
+    "Seed cotton" = "Cottonseed",
+    "Coconuts" = "Coconuts - Incl Copra",
+    "Oil, palm fruit" = "Palm kernels"
+  )
+
+  processes_table <- processes_table |>
+    dplyr::filter(data_group == "crop_residue")
+
+  crop_supply <- crop_supply |>
+    dplyr::mutate(
+      item_cbs_crop = purrr::map_chr(
+        item_cbs_crop,
+        ~ k_use_seedname[[.x]] %||% .x
+      )
+    ) |>
+    dplyr::filter(Product_residue == "Residue") |>
+    dplyr::group_by(Year, area, item_cbs_crop, item_cbs) |>
+    dplyr::summarise(value = sum(Prod_ygpit_Mg)) |>
+    dplyr::ungroup() |>
+    dplyr::filter(value > 0) |>
+    dplyr::left_join(
+      processes_table,
+      dplyr::join_by(
+        item_cbs_crop == item_to_process,
+        item_cbs == item_processed
+      )
+    ) |>
+    dplyr::select(
+      year = Year,
+      area,
+      item_to_process = item_cbs_crop,
+      item_processed = item_cbs,
+      proc,
+      value
+    ) |>
+    dplyr::mutate(type = "supply")
+
+  no_process_found <- crop_supply |>
+    dplyr::filter(is.na(proc)) |>
+    dplyr::pull(item_to_process) |>
+    unique()
+
+  if (length(no_process_found) > 0) {
+    items <- paste0(no_process_found, collapse = ", ")
+    warning(stringr::str_glue("No process found for items {items}"))
+  }
+
+  crop_supply |>
+    dplyr::select(-item_to_process, item = item_processed) |>
+    dplyr::bind_rows(supply_use)
+}
+
+.add_supply_crop_product <- function(supply_use, processes_table, primary_prod) {
+  processes_table <- processes_table |>
+    dplyr::filter(data_group == "crop_product")
+
+  multiproduct_crop_processes <- processes_table |>
+    dplyr::filter(!is.na(item_prod))
+
+  primary_prod <- primary_prod |>
+    dplyr::filter(unit == "tonnes")
+
+  browser()
+
+  results <- multiproduct_crop_processes |>
+    dplyr::left_join(primary_prod, dplyr::join_by(item_prod == item)) |>
+    dplyr::select(
+      year = Year, area, proc, item = item_processed, value = Value
+    ) |>
+    dplyr::mutate(type = "supply")
+
+  primary_prod |>
+    # dplyr::anti_join(multiproduct_crop_processes, dplyr::join_by(item == item_prod)) |>
+    dplyr::group_by(item) |>
+    dplyr::count() |>
+    dplyr::filter(item == "Coir, raw")
 }
 
 .add_rest_of_supply <- function(supply_use, supply_process_table, cbs) {
