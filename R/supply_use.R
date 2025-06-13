@@ -27,11 +27,9 @@
 #' build_supply_use()
 #' }
 build_supply_use <- function() {
-  # TODO: There's a name mismatch in two items
-  # CBS_item                  supply_process_item
-  # Fodder cereal and grasses Fodder crops
-  # Fodder legumes            Grazing
-  # Keep balance sheet names for now
+  primary_prod <- get_file_path("primary_prod") |>
+    readr::read_csv() |>
+    dplyr::filter(unit == "tonnes")
 
   .build_supply_use_from_inputs(
     supply_processes = .read_local_csv("input/raw/items_supply.csv"),
@@ -39,7 +37,7 @@ build_supply_use <- function() {
     coeffs = get_processing_coefs(get_file_path("processing_coefs")),
     cbs = get_wide_cbs(get_file_path("commodity_balance_sheet")),
     crop_supply = readr::read_csv(get_file_path("crop_residues")),
-    primary_prod = readr::read_csv(get_file_path("primary_prod"))
+    primary_prod = primary_prod
   )
 }
 
@@ -52,14 +50,21 @@ build_supply_use <- function() {
     primary_prod) {
   processes_table <- .join_supply_use_processes(supply_processes, use_processes)
 
-  tibble::tibble() |>
-    .add_supply_crop_residue(processes_table, crop_supply) |>
-    .add_supply_crop_product(processes_table, primary_prod) |>
-    .add_use_for_feed(processes_table) |>
-    .add_use_for_seed(processes_table, cbs) |>
-    .add_use_for_slaughtering(processes_table) |>
-    .add_supply_use_for_processing(processes_table, coeffs) |>
-    .add_rest_of_supply(supply_processes, cbs)
+  dplyr::bind_rows(
+    .build_supply(processes_table, crop_supply, primary_prod)
+  )
+  # .add_use_for_feed(processes_table) |>
+  # .add_use_for_seed(processes_table, cbs) |>
+  # .add_supply_use_for_processing(processes_table, coeffs) |>
+  # .add_rest_of_supply(supply_processes, cbs)
+}
+
+.build_supply <- function(processes_table, crop_supply, primary_prod) {
+  dplyr::bind_rows(
+    .build_supply_crop_residue(processes_table, crop_supply),
+    .build_supply_crop_product(processes_table, primary_prod)
+  ) |>
+    dplyr::mutate(type = "supply")
 }
 
 .join_supply_use_processes <- function(supply_processes, use_processes) {
@@ -72,7 +77,9 @@ build_supply_use <- function() {
     )
 }
 
-.add_supply_crop_residue <- function(supply_use, processes_table, crop_supply) {
+.build_supply_crop_residue <- function(processes_table, crop_supply) {
+  # TODO: consider renaming directly in crop_supply dataset to avoid
+  # this manual naming change here
   k_use_seedname <- list(
     "Seed cotton" = "Cottonseed",
     "Coconuts" = "Coconuts - Incl Copra",
@@ -108,8 +115,7 @@ build_supply_use <- function() {
       item_processed = item_cbs,
       proc,
       value
-    ) |>
-    dplyr::mutate(type = "supply")
+    )
 
   no_process_found <- crop_supply |>
     dplyr::filter(is.na(proc)) |>
@@ -122,34 +128,38 @@ build_supply_use <- function() {
   }
 
   crop_supply |>
-    dplyr::select(-item_to_process, item = item_processed) |>
-    dplyr::bind_rows(supply_use)
+    dplyr::select(-item_to_process, item = item_processed)
 }
 
-.add_supply_crop_product <- function(supply_use, processes_table, primary_prod) {
+.build_supply_crop_product <- function(processes_table, primary_prod) {
   processes_table <- processes_table |>
     dplyr::filter(data_group == "crop_product")
 
   multiproduct_crop_processes <- processes_table |>
     dplyr::filter(!is.na(item_prod))
 
-  primary_prod <- primary_prod |>
-    dplyr::filter(unit == "tonnes")
+  singleproduct_crop_processes <- processes_table |>
+    dplyr::filter(is.na(item_prod))
 
-  browser()
-
-  results <- multiproduct_crop_processes |>
+  multiproduct_crops <- multiproduct_crop_processes |>
     dplyr::left_join(primary_prod, dplyr::join_by(item_prod == item)) |>
     dplyr::select(
       year = Year, area, proc, item = item_processed, value = Value
-    ) |>
-    dplyr::mutate(type = "supply")
+    )
 
   primary_prod |>
-    # dplyr::anti_join(multiproduct_crop_processes, dplyr::join_by(item == item_prod)) |>
-    dplyr::group_by(item) |>
-    dplyr::count() |>
-    dplyr::filter(item == "Coir, raw")
+    dplyr::anti_join(
+      multiproduct_crop_processes,
+      dplyr::join_by(item == item_prod)
+    ) |>
+    dplyr::group_by(Year, area, item_cbs) |>
+    dplyr::summarise(value = sum(Value)) |>
+    dplyr::right_join(
+      singleproduct_crop_processes,
+      dplyr::join_by(item_cbs == item_processed)
+    ) |>
+    dplyr::select(year = Year, area, proc, item = item_cbs, value) |>
+    dplyr::bind_rows(multiproduct_crops)
 }
 
 .add_rest_of_supply <- function(supply_use, supply_process_table, cbs) {
@@ -179,12 +189,6 @@ build_supply_use <- function() {
     dplyr::bind_rows(supply_use)
 }
 
-# TODO: Treat slaughtering processes
-# (probably need conversion factor from Livestock Units to physical unit)
-.add_use_for_slaughtering <- function(supply_use, processes_table) {
-  supply_use
-}
-
 # TODO: Treat animal feed use processes
 # Use feed intake data from Eduardo
 .add_use_for_feed <- function(supply_use, processes_table) {
@@ -196,7 +200,7 @@ build_supply_use <- function() {
     processes_table,
     coeffs) {
   processes <- processes_table |>
-    dplyr::filter(!type %in% c("feed", "seedwaste", "slaughtering")) |>
+    dplyr::filter(!type %in% c("feed", "seedwaste")) |>
     # TODO: compare with full_join, deal with missing processes
     dplyr::inner_join(coeffs, by = c("item_processed", "item_to_process"))
 
