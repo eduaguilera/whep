@@ -140,12 +140,12 @@ test_that("._calculate_nue calculates NUE correctly for Cropland and Semi_natura
   n_inputs_sum <- .summarise_inputs(n_inputs_prepared)
 
   GRAFS_Prod_Destiny <- tibble::tibble(
-    Year = c(2000, 2000, 2000, 2000),
-    Province_name = c("Madrid", "Madrid", "Madrid", "Madrid"),
-    Item = rep("Dehesa_item", 4),
-    Box = rep("Semi_natural_agroecosystems", 4),
-    Destiny = c("Food", "Feed", "Export", "Import"),
-    MgN = c(10, 5, 3, 2)
+    Year = c(2000, 2000, 2000, 2000, 2000),
+    Province_name = rep("Madrid", 5),
+    Item = rep("Dehesa_item", 5),
+    Box = rep("Semi_natural_agroecosystems", 5),
+    Destiny = c("Food", "Feed", "Other_uses", "Export", "Import"),
+    MgN = c(10, 5, 4, 3, 2)
   )
 
   prod_combined <- .summarise_production(GRAFS_Prod_Destiny, n_inputs_sum)

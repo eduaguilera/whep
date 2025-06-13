@@ -2,7 +2,6 @@
 
 fake_Crop_AreaNPP_ygpit_all <- data.frame(
   Name_biomass = c("BiomassA", "BiomassB"),
-  Item = c("ItemA", "ItemB"),
   Area_ygpit_ha = c(100, 200),
   LandUse = c("Cropland", "Cropland"),
   Year = c(2020, 2020),
