@@ -14,7 +14,7 @@
 #' - `year`: The year in which the recorded event occurred.
 #' - `area`: The name of the country where the data is from.
 #' - `proc`: Natural language name of the process taking place.
-#' - `item`: Natural language name of the item taking part in the process.
+#' - `item_cbs`: Natural language name of the item taking part in the process.
 #' - `type`: Can have two values:
 #'    - `use`: The given item is an input of the process.
 #'    - `supply`: The given item is an output of the process.
@@ -104,22 +104,22 @@ build_supply_use <- function() {
     dplyr::left_join(
       processes_table,
       dplyr::join_by(
-        item_cbs_crop == item_to_process,
-        item_cbs == item_processed
+        item_cbs_crop == item_cbs_to_process,
+        item_cbs == item_cbs_processed
       )
     ) |>
     dplyr::select(
       year = Year,
       area,
-      item_to_process = item_cbs_crop,
-      item_processed = item_cbs,
+      item_cbs_to_process = item_cbs_crop,
+      item_cbs_processed = item_cbs,
       proc,
       value
     )
 
   no_process_found <- crop_supply |>
     dplyr::filter(is.na(proc)) |>
-    dplyr::pull(item_to_process) |>
+    dplyr::pull(item_cbs_to_process) |>
     unique()
 
   if (length(no_process_found) > 0) {
@@ -128,7 +128,7 @@ build_supply_use <- function() {
   }
 
   crop_supply |>
-    dplyr::select(-item_to_process, item = item_processed)
+    dplyr::select(-item_cbs_to_process, item_cbs = item_cbs_processed)
 }
 
 .build_supply_crop_product <- function(processes_table, primary_prod) {
@@ -142,23 +142,23 @@ build_supply_use <- function() {
     dplyr::filter(is.na(item_prod))
 
   multiproduct_crops <- multiproduct_crop_processes |>
-    dplyr::left_join(primary_prod, dplyr::join_by(item_prod == item)) |>
+    dplyr::left_join(primary_prod, dplyr::join_by(item_prod == item_cbs)) |>
     dplyr::select(
-      year = Year, area, proc, item = item_processed, value = Value
+      year = Year, area, proc, item_cbs = item_cbs_processed, value = Value
     )
 
   primary_prod |>
     dplyr::anti_join(
       multiproduct_crop_processes,
-      dplyr::join_by(item == item_prod)
+      dplyr::join_by(item_cbs == item_prod)
     ) |>
     dplyr::group_by(Year, area, item_cbs) |>
     dplyr::summarise(value = sum(Value)) |>
     dplyr::right_join(
       singleproduct_crop_processes,
-      dplyr::join_by(item_cbs == item_processed)
+      dplyr::join_by(item_cbs == item_cbs_processed)
     ) |>
-    dplyr::select(year = Year, area, proc, item = item_cbs, value) |>
+    dplyr::select(year = Year, area, proc, item_cbs = item_cbs, value) |>
     dplyr::bind_rows(multiproduct_crops)
 }
 
