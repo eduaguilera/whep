@@ -13,7 +13,7 @@ It contains the following columns:
 \item \code{year}: The year in which the recorded event occurred.
 \item \code{area}: The name of the country where the data is from.
 \item \code{proc}: Natural language name of the process taking place.
-\item \code{item}: Natural language name of the item taking part in the process.
+\item \code{item_cbs}: Natural language name of the item taking part in the process.
 \item \code{type}: Can have two values:
 \itemize{
 \item \code{use}: The given item is an input of the process.
