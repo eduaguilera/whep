@@ -162,6 +162,87 @@ testthat::test_that("add_item_cbs_code correctly sets new column in table", {
     )
 })
 
+testthat::test_that("add_item_prod_name correctly sets new column in table", {
+  table <- tibble::tibble(item_prod_code = c(27, 358, 12345))
+
+  table |>
+    add_item_prod_name() |>
+    testthat::expect_equal(
+      tibble::tribble(
+        ~item_prod_code, ~item_prod_name,
+        27, "Rice",
+        358, "Cabbages",
+        12345, NA
+      )
+    )
+
+  table |>
+    dplyr::rename(dummy_code = item_prod_code) |>
+    add_item_prod_name(code_column = "dummy_code") |>
+    testthat::expect_equal(
+      tibble::tribble(
+        ~dummy_code, ~item_prod_name,
+        27, "Rice",
+        358, "Cabbages",
+        12345, NA
+      )
+    )
+
+  table |>
+    dplyr::rename(dummy_code = item_prod_code) |>
+    add_item_prod_name(code_column = "dummy_code", name_column = "my_name") |>
+    testthat::expect_equal(
+      tibble::tribble(
+        ~dummy_code, ~my_name,
+        27, "Rice",
+        358, "Cabbages",
+        12345, NA
+      )
+    )
+})
+
+testthat::test_that("add_item_prod_code correctly sets new column in table", {
+  table <- tibble::tibble(item_prod_name = c("Rice", "Cabbages", "Dummy item"))
+
+  table |>
+    add_item_prod_code() |>
+    testthat::expect_equal(
+      tibble::tribble(
+        ~item_prod_name, ~item_prod_code,
+        "Rice", 27,
+        "Cabbages", 358,
+        "Dummy item", NA
+      )
+    )
+
+  table |>
+    dplyr::rename(dummy_name = item_prod_name) |>
+    add_item_prod_code(name_column = "dummy_name") |>
+    testthat::expect_equal(
+      tibble::tribble(
+        ~dummy_name, ~item_prod_code,
+        "Rice", 27,
+        "Cabbages", 358,
+        "Dummy item", NA
+      )
+    )
+
+  table |>
+    dplyr::rename(dummy_name = item_prod_name) |>
+    add_item_prod_code(
+      name_column = "dummy_name",
+      code_column = "dummy_code"
+    ) |>
+    testthat::expect_equal(
+      tibble::tribble(
+        ~dummy_name, ~dummy_code,
+        "Rice", 27,
+        "Cabbages", 358,
+        "Dummy item", NA
+      )
+    )
+})
+
 testthat::test_that("add_process_name correctly sets new column in table", {
   table <- tibble::tibble(process_code = c("p017", "p076", "dummy"))
 
