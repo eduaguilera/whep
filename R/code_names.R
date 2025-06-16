@@ -92,19 +92,19 @@ add_area_code <- function(
 #' @export
 #'
 #' @examples
-#' table <- tibble::tibble(item_code = c(2559, 2744, 9876))
-#' add_item_name(table)
+#' table <- tibble::tibble(item_cbs_code = c(2559, 2744, 9876))
+#' add_item_cbs_name(table)
 #'
 #' table |>
-#'   dplyr::rename(my_item_code = item_code) |>
-#'   add_item_name(code_column = "my_item_code")
+#'   dplyr::rename(my_item_cbs_code = item_cbs_code) |>
+#'   add_item_cbs_name(code_column = "my_item_cbs_code")
 #'
-#' add_item_name(table, name_column = "my_custom_name")
-add_item_name <- function(
+#' add_item_cbs_name(table, name_column = "my_custom_name")
+add_item_cbs_name <- function(
     table,
-    code_column = "item_code",
-    name_column = "item_name") {
-  items <- .get_items(name_column, code_column)
+    code_column = "item_cbs_code",
+    name_column = "item_cbs_name") {
+  items <- .get_cbs_items(name_column, code_column)
 
   table |>
     dplyr::left_join(items, {{ code_column }})
@@ -128,19 +128,21 @@ add_item_name <- function(
 #' @export
 #'
 #' @examples
-#' table <- tibble::tibble(item_name = c("Cottonseed", "Eggs", "Dummy Item"))
-#' add_item_code(table)
+#' table <- tibble::tibble(
+#'   item_cbs_name = c("Cottonseed", "Eggs", "Dummy Item")
+#' )
+#' add_item_cbs_code(table)
 #'
 #' table |>
-#'   dplyr::rename(my_item_name = item_name) |>
-#'   add_item_code(name_column = "my_item_name")
+#'   dplyr::rename(my_item_cbs_name = item_cbs_name) |>
+#'   add_item_cbs_code(name_column = "my_item_cbs_name")
 #'
-#' add_item_code(table, code_column = "my_custom_code")
-add_item_code <- function(
+#' add_item_cbs_code(table, code_column = "my_custom_code")
+add_item_cbs_code <- function(
     table,
-    name_column = "item_name",
-    code_column = "item_code") {
-  items <- .get_items(name_column, code_column)
+    name_column = "item_cbs_name",
+    code_column = "item_cbs_code") {
+  items <- .get_cbs_items(name_column, code_column)
 
   table |>
     dplyr::left_join(items, {{ name_column }})
@@ -226,10 +228,10 @@ add_process_code <- function(
     dplyr::select(!!name_column := area, !!code_column := area_code)
 }
 
-.get_items <- function(name_column, code_column) {
-  "input/raw/items.csv" |>
+.get_cbs_items <- function(name_column, code_column) {
+  "input/raw/items_cbs.csv" |>
     .read_local_csv() |>
-    dplyr::select(!!name_column := item, !!code_column := item_code)
+    dplyr::select(!!name_column := item, !!code_column := item_cbs_code)
 }
 
 .get_processes <- function(name_column, code_column) {
