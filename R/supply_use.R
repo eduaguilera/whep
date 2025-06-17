@@ -12,9 +12,12 @@
 #' A tibble with the supply and use data for processes.
 #' It contains the following columns:
 #' - `year`: The year in which the recorded event occurred.
-#' - `area`: The name of the country where the data is from.
-#' - `proc`: Natural language name of the process taking place.
-#' - `item_cbs`: Natural language name of the item taking part in the process.
+#' - `area_code`: The code of the country where the data is from. For code
+#'    details see e.g. `add_area_name()`.
+#' - `proc_code`: The code of the process taking place. For code details see
+#'   e.g. `add_process_name()`.
+#' - `item_cbs_code`: The code of the item taking part in the process. For code
+#'    details see e.g. `add_item_cbs_name()`.
 #' - `type`: Can have two values:
 #'    - `use`: The given item is an input of the process.
 #'    - `supply`: The given item is an output of the process.
@@ -47,20 +50,23 @@ build_supply_use <- function() {
   processes_table <- .join_supply_use_processes(supply_processes, use_processes)
 
   dplyr::bind_rows(
-    .build_supply(processes_table, crop_residues, primary_prod)
+    .build_supply(processes_table, crop_residues, primary_prod),
+    .build_use()
   )
-  # .add_use_for_feed(processes_table) |>
-  # .add_use_for_seed(processes_table, cbs) |>
-  # .add_supply_use_for_processing(processes_table, coeffs) |>
-  # .add_rest_of_supply(supply_processes, cbs)
 }
 
 .build_supply <- function(processes_table, crop_residues, primary_prod) {
+  # TODO: Add more supply entries (processing, husbandry, etc)
   dplyr::bind_rows(
     .build_supply_crop_residue(processes_table, crop_residues),
     .build_supply_crop_product(processes_table, primary_prod)
   ) |>
     dplyr::mutate(type = "supply")
+}
+
+# TODO: Add use entries
+.build_use <- function() {
+  tibble::tibble()
 }
 
 .join_supply_use_processes <- function(supply_processes, use_processes) {
@@ -77,43 +83,35 @@ build_supply_use <- function() {
   processes_table <- processes_table |>
     dplyr::filter(data_group == "crop_residue")
 
-  browser()
-
   crop_residues <- crop_residues |>
-    dplyr::filter(Product_residue == "Residue") |>
-    dplyr::summarise(
-      value = sum(Prod_ygpit_Mg),
-      .by = c(Year, area, item_cbs_crop, item_cbs)
-    ) |>
-    dplyr::filter(value > 0) |>
     dplyr::left_join(
       processes_table,
       dplyr::join_by(
-        item_cbs_crop == item_cbs_to_process,
-        item_cbs == item_cbs_processed
+        item_cbs_code_crop == item_cbs_code_to_process,
+        item_cbs_code_residue == item_cbs_code_processed
       )
     ) |>
     dplyr::select(
-      year = Year,
-      area,
-      item_cbs_to_process = item_cbs_crop,
-      item_cbs_processed = item_cbs,
-      proc,
+      year,
+      area_code,
+      item_cbs_code_crop,
+      item_cbs_code_residue,
+      proc_code,
       value
     )
 
   no_process_found <- crop_residues |>
-    dplyr::filter(is.na(proc)) |>
-    dplyr::pull(item_cbs_to_process) |>
+    dplyr::filter(is.na(proc_code)) |>
+    dplyr::pull(item_cbs_code_crop) |>
     unique()
 
   if (length(no_process_found) > 0) {
-    items <- paste0(no_process_found, collapse = ", ")
-    warning(stringr::str_glue("No process found for items {items}"))
+    item_codes <- paste0(no_process_found, collapse = ", ")
+    warning(stringr::str_glue("No process found for item codes {item_codes}"))
   }
 
   crop_residues |>
-    dplyr::select(-item_cbs_to_process, item_cbs = item_cbs_processed)
+    dplyr::select(-item_cbs_code_crop, item_cbs_code = item_cbs_code_residue)
 }
 
 .build_supply_crop_product <- function(processes_table, primary_prod) {
@@ -133,6 +131,7 @@ build_supply_use <- function() {
     multiproduct_crop_processes,
     primary_prod
   )
+
   singleproduct_crops <- .build_singleproduct_crops(
     multiproduct_crop_processes,
     singleproduct_crop_processes,

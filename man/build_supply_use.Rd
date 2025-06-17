@@ -11,9 +11,12 @@ A tibble with the supply and use data for processes.
 It contains the following columns:
 \itemize{
 \item \code{year}: The year in which the recorded event occurred.
-\item \code{area}: The name of the country where the data is from.
-\item \code{proc}: Natural language name of the process taking place.
-\item \code{item_cbs}: Natural language name of the item taking part in the process.
+\item \code{area_code}: The code of the country where the data is from. For code
+details see e.g. \code{add_area_name()}.
+\item \code{proc_code}: The code of the process taking place. For code details see
+e.g. \code{add_process_name()}.
+\item \code{item_cbs_code}: The code of the item taking part in the process. For code
+details see e.g. \code{add_item_cbs_name()}.
 \item \code{type}: Can have two values:
 \itemize{
 \item \code{use}: The given item is an input of the process.
