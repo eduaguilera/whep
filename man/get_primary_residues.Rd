@@ -20,10 +20,10 @@ is from. Equivalences with ISO 3166-1 numeric can be found in the
 \emph{Area Codes} CSV from the zip file that can be downloaded from
 \href{https://www.fao.org/faostat/en/#data/FBS}{FAOSTAT}. TODO: Think about
 this, would be nice to use ISO3 codes but won't be enough for our periods
-\item \code{item_prod_code}: FAOSTAT internal code for each production item. This is
-the crop that is generating the residue.
-\item \code{item_cbs_code}: FAOSTAT internal code for each commodity balance sheet
-item. This is the obtained residue. In the commodity balance sheet,
+\item \code{item_cbs_code_crop}: FAOSTAT internal code for each commodity balance
+sheet item. This is the crop that is generating the residue.
+\item \code{item_cbs_code_residue}: FAOSTAT internal code for each commodity balance
+sheet item. This is the obtained residue. In the commodity balance sheet,
 this can be three different items right now:
 \itemize{
 \item \code{2105}: \code{Straw}

@@ -1,4 +1,4 @@
-item_cbs_code,item_cbs,comm_code,proc_code,proc,data_group,item_prod
+item_cbs_code,item_cbs,comm_code,proc_code,proc,data_group,item_prod_code
 2807,Rice and products,c2807,p001,Rice production,crop_product,
 2105,Straw,c2105,p001,Rice production,crop_residue,
 2511,Wheat and products,c2511,p002,Wheat production,crop_product,
@@ -119,27 +119,27 @@ item_cbs_code,item_cbs,comm_code,proc_code,proc,data_group,item_prod
 2672,Rubber,c2672,p060,Rubber production,crop_product,
 2107,Firewood,c2107,p060,Rubber production,crop_residue,
 2000,Fodder cereal and grasses,c2000,p061,Fodder cereal and grasses production,crop_product,
-2570,"Oilcrops, Other",c2570,p122,Hemp production,crop_product,Hempseed
-2664,"Soft-Fibres, Other",c2664,p122,Hemp production,crop_product,"True hemp, raw or retted"
+2570,"Oilcrops, Other",c2570,p122,Hemp production,crop_product,336
+2664,"Soft-Fibres, Other",c2664,p122,Hemp production,crop_product,777
 2106,Other crop residues,c2106,p122,Hemp production,crop_residue,
-2664,"Soft-Fibres, Other",c2664,p123,Kapok production,crop_product,"Kapok fibre, raw"
-2570,"Oilcrops, Other",c2570,p123,Kapok production,crop_product,"Kapokseed in shell"
+2664,"Soft-Fibres, Other",c2664,p123,Kapok production,crop_product,778
+2570,"Oilcrops, Other",c2570,p123,Kapok production,crop_product,311
 2107,Firewood,c2107,p123,Kapok production,crop_residue,
 2001,Fodder legumes,c2001,p118,Fodder legumes production,crop_product,
 2002,Fodder vegetables and roots,c2002,p120,Fodder vegetables and roots production,crop_product,
 2003,Fodder mix,c2003,p119,Fodder mix production,crop_product,
 3002,Temporary grassland,c3002,p121,Temporary grassland production,crop_product,
-2560,Coconuts - Incl Copra,c2560,p026,Coconuts production,crop_product,"Coconuts, in shell"
-2667,"Hard Fibres, Other",c2667,p026,Coconuts production,crop_product,"Coir, raw"
+2560,Coconuts - Incl Copra,c2560,p026,Coconuts production,crop_product,249
+2667,"Hard Fibres, Other",c2667,p026,Coconuts production,crop_product,813
 2107,Firewood,c2107,p026,Coconuts production,crop_residue,
-2570,"Oilcrops, Other",c2570,p124,Linum production,crop_product,Linseed
-2664,"Soft-Fibres, Other",c2664,p124,Linum production,crop_product,"Flax, processed but not spun"
+2570,"Oilcrops, Other",c2570,p124,Linum production,crop_product,333
+2664,"Soft-Fibres, Other",c2664,p124,Linum production,crop_product,773
 2106,Other crop residues,c2106,p124,Linum production,crop_residue,
-2562,Palm kernels,c2562,p028,Oil Palm production,crop_product,Palm kernels
-2577,Palm Oil,c2577,p028,Oil Palm production,crop_product,Palm oil
+2562,Palm kernels,c2562,p028,Oil Palm production,crop_product,256
+2577,Palm Oil,c2577,p028,Oil Palm production,crop_product,257
 2107,Firewood,c2107,p028,Oil Palm production,crop_residue,
-2559,Cottonseed,c2559,p025,Cotton production,crop_product,Cotton seed
-2661,Cotton lint,c2661,p025,Cotton production,crop_product,"Cotton lint, ginned"
+2559,Cottonseed,c2559,p025,Cotton production,crop_product,329
+2661,Cotton lint,c2661,p025,Cotton production,crop_product,767
 2106,Other crop residues,c2106,p025,Cotton production,crop_residue,
 2541,Sugar non-centrifugal,c2541,p064,"Sugar production, non-centrifugal",processing,
 2104,Sugarbeet pulp,c2104,p065,Sugar production,processing,

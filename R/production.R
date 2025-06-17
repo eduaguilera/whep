@@ -76,10 +76,10 @@ get_primary_production <- function(file_path) {
 #'    _Area Codes_ CSV from the zip file that can be downloaded from
 #'    [FAOSTAT](https://www.fao.org/faostat/en/#data/FBS). TODO: Think about
 #'    this, would be nice to use ISO3 codes but won't be enough for our periods
-#' - `item_prod_code`: FAOSTAT internal code for each production item. This is
-#'    the crop that is generating the residue.
-#' - `item_cbs_code`: FAOSTAT internal code for each commodity balance sheet
-#'    item. This is the obtained residue. In the commodity balance sheet,
+#' - `item_cbs_code_crop`: FAOSTAT internal code for each commodity balance
+#'    sheet item. This is the crop that is generating the residue.
+#' - `item_cbs_code_residue`: FAOSTAT internal code for each commodity balance
+#'    sheet item. This is the obtained residue. In the commodity balance sheet,
 #'    this can be three different items right now:
 #'    - `2105`: `Straw`
 #'    - `2106`: `Other crop residues`
@@ -101,13 +101,44 @@ get_primary_residues <- function(file_path) {
     dplyr::rename_with(tolower) |>
     dplyr::filter(product_residue == "Residue") |>
     add_area_code(name_column = "area") |>
-    add_item_cbs_code(name_column = "item_cbs") |>
-    add_item_prod_code(name_column = "item_prod") |>
+    add_item_cbs_code(
+      name_column = "item_cbs_crop",
+      code_column = "item_cbs_code_crop"
+    ) |>
+    add_item_cbs_code(
+      name_column = "item_cbs",
+      code_column = "item_cbs_code_residue"
+    ) |>
+    dplyr::summarise(
+      value = sum(prod_ygpit_mg),
+      .by = c(year, area_code, item_cbs_code_crop, item_cbs_code_residue)
+    ) |>
+    dplyr::filter(value > 0) |>
     dplyr::select(
       year,
       area_code,
-      item_prod_code = item_prod_code,
-      item_cbs_code,
-      value = prod_ygpit_mg
+      item_cbs_code_crop,
+      item_cbs_code_residue,
+      value
+    ) |>
+    .use_seed_cbs_item()
+}
+
+# TODO: This is dirty, revisit when we build the data here directly.
+# Change CBS names to the item that is used as seed
+.use_seed_cbs_item <- function(crop_residues) {
+  crop_residues |>
+    dplyr::mutate(
+      item_cbs_code_crop = dplyr::case_match(
+        item_cbs_code_crop,
+        # "Seed cotton" changes to "Cottonseed",
+        328 ~ 2559,
+        # "Coconuts" changes to "Coconuts - Incl Copra",
+        248 ~ 2560,
+        # "Oil, palm fruit" changes to "Palm kernels"
+        254 ~ 2562,
+        # Leave others unchanged
+        .default = item_cbs_code_crop
+      )
     )
 }
