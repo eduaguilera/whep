@@ -1,14 +1,23 @@
 item_cbs_code,item_cbs
 2666,Abaca
 2617,Apples and products
+1107,Asses
 2615,Bananas
 2513,Barley and products
 2546,Beans
 2656,Beer
+1181,Bees
 2731,Bovine Meat
+946,Buffaloes
 2740,"Butter, Ghee"
+1157,"Camelids, other"
+1126,Camels
 2532,Cassava and products
+960,"Cattle, dairy"
+961,"Cattle, non-dairy"
 2520,"Cereals, Other"
+1053,"Chickens, broilers"
+1052,"Chickens, layers"
 2614,"Citrus, Other"
 2642,Cloves
 2633,Cocoa Beans and products
@@ -20,6 +29,7 @@ item_cbs_code,item_cbs
 2559,Cottonseed
 2575,Cottonseed Oil
 2619,Dates
+1068,Ducks
 2744,Eggs
 2737,"Fats, Animals, Raw"
 2107,Firewood
@@ -28,6 +38,9 @@ item_cbs_code,item_cbs
 2003,Fodder mix
 2002,Fodder vegetables and roots
 2625,"Fruits, Other"
+1190,Game
+1072,Geese
+1016,Goats
 2613,Grapefruit and products
 2620,Grapes and products (excl wine)
 3000,Grassland
@@ -38,6 +51,7 @@ item_cbs_code,item_cbs
 2748,Hides and skins
 2745,Honey
 677,Hops
+1096,Horses
 2662,Jute
 2663,Jute-Like Fibres
 310,Kapok fruit
@@ -49,6 +63,7 @@ item_cbs_code,item_cbs
 2848,Milk - Excluding Butter
 2517,Millet and products
 2544,Molasses
+1110,Mules
 2732,Mutton & Goat Meat
 2551,Nuts and products
 2516,Oats
@@ -67,15 +82,18 @@ item_cbs_code,item_cbs
 2547,Peas
 2640,Pepper
 2733,Pigmeat
+1049,Pigs
 2641,Pimento
 2618,Pineapples and products
 2616,Plantains
 2531,Potatoes and products
 2734,Poultry Meat
 2549,"Pulses, Other and products"
+1140,Rabbits and hares
 2574,Rape and Mustard Oil
 2558,Rape and Mustardseed
 2807,Rice and products
+1150,"Rodents, other"
 2534,"Roots, Other"
 2672,Rubber
 2515,Rye and products
@@ -83,6 +101,7 @@ item_cbs_code,item_cbs
 328,Seed cotton
 2561,Sesame seed
 2579,Sesameseed Oil
+976,Sheep
 2747,Silk
 2665,Sisal
 2664,"Soft-Fibres, Other"
@@ -101,6 +120,7 @@ item_cbs_code,item_cbs
 3002,Temporary grassland
 2671,Tobacco
 2601,Tomatoes and products
+1079,Turkeys
 2605,"Vegetables, Other"
 2511,Wheat and products
 2655,Wine
