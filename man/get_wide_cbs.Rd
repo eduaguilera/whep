@@ -17,8 +17,8 @@ It contains the following columns:
 \item \code{year}: The year in which the recorded event occurred.
 \item \code{area_code}: The code of the country where the data is from. For code
 details see e.g. \code{add_area_name()}.
-\item \code{item}: Natural language name for the item.
-\item \code{item_code}: FAOSTAT internal code for each item.
+\item \code{item_cbs_code}: FAOSTAT internal code for each item. For code details
+see e.g. \code{add_item_cbs_name()}.
 }
 
 The other columns are quantities (measured in tonnes), where total supply

@@ -12,8 +12,8 @@
 #' - `year`: The year in which the recorded event occurred.
 #' - `area_code`: The code of the country where the data is from. For code
 #'    details see e.g. `add_area_name()`.
-#' - `item`: Natural language name for the item.
-#' - `item_code`: FAOSTAT internal code for each item.
+#' - `item_cbs_code`: FAOSTAT internal code for each item. For code details
+#'   see e.g. `add_item_cbs_name()`.
 #'
 #' The other columns are quantities (measured in tonnes), where total supply
 #' and total use should be balanced.
@@ -54,7 +54,9 @@ get_wide_cbs <- function(file_path) {
       stock_retrieval = -stock_variation,
       dplyr::across(c(year, area_code), as.integer),
       .keep = "unused"
-    )
+    ) |>
+    dplyr::select(-area, -item) |>
+    dplyr::rename(item_cbs_code = item_code)
 }
 
 #' Processed products share factors
