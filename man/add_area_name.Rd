@@ -21,7 +21,11 @@ an \code{NA} is included.
 \description{
 Add a new column to an existing tibble with the corresponding name
 for each code. The codes are assumed to be from those defined by
-the \code{FABIO} model.
+the \code{FABIO} model, which them themselves come from \code{FAOSTAT} internal
+codes. Equivalences with ISO 3166-1 numeric can be found in the
+\emph{Area Codes} CSV from the zip file that can be downloaded from
+\href{https://www.fao.org/faostat/en/#data/FBS}{FAOSTAT}. TODO: Think about
+this, would be nice to use ISO3 codes but won't be enough for our periods.
 }
 \examples{
 table <- tibble::tibble(area_code = c(1, 2, 4444, 3))
