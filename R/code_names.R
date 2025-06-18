@@ -3,7 +3,11 @@
 #' @description
 #' Add a new column to an existing tibble with the corresponding name
 #' for each code. The codes are assumed to be from those defined by
-#' the `FABIO` model.
+#' the `FABIO` model, which them themselves come from `FAOSTAT` internal
+#' codes. Equivalences with ISO 3166-1 numeric can be found in the
+#' _Area Codes_ CSV from the zip file that can be downloaded from
+#' [FAOSTAT](https://www.fao.org/faostat/en/#data/FBS). TODO: Think about
+#' this, would be nice to use ISO3 codes but won't be enough for our periods.
 #'
 #' @param table The table that will be modified with a new column.
 #' @param code_column The name of the column in `table` containing the codes.

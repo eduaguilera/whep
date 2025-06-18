@@ -10,12 +10,8 @@
 #' A tibble with the commodity balance sheet data in wide format.
 #' It contains the following columns:
 #' - `year`: The year in which the recorded event occurred.
-#' - `area`: The name of the country where the data is from.
-#' - `area_code`: FAOSTAT internal code for each country. Equivalences
-#'    with ISO 3166-1 numeric can be found in the _Area Codes_ CSV from the
-#'    zip file that can be downloaded from
-#'    [FAOSTAT](https://www.fao.org/faostat/en/#data/FBS). TODO: Think about
-#'    this, would be nice to use ISO3 codes but won't be enough for our periods
+#' - `area_code`: The code of the country where the data is from. For code
+#'    details see e.g. `add_area_name()`.
 #' - `item`: Natural language name for the item.
 #' - `item_code`: FAOSTAT internal code for each item.
 #'
@@ -73,44 +69,44 @@ get_wide_cbs <- function(file_path) {
 #' A tibble with the quantities for each processed product.
 #' It contains the following columns:
 #' - `year`: The year in which the recorded event occurred.
-#' - `area`: The name of the country where the data is from.
-#' - `area_code`: FAOSTAT internal code for each country. Equivalences
-#'    with ISO 3166-1 numeric can be found in the _Area Codes_ CSV from the
-#'    zip file that can be downloaded from
-#'    [FAOSTAT](https://www.fao.org/faostat/en/#data/FBS). TODO: Think about
-#'    this, would be nice to use ISO3 codes but won't be enough for our periods
-#' - `item_to_process`: Natural language name for the item that is being
-#'    processed and will give other subproduct items.
-#' - `item_to_process_code`: FAOSTAT internal code for each of those items.
+#' - `area_code`: The code of the country where the data is from. For code
+#'    details see e.g. `add_area_name()`.
+#' - `item_cbs_code_to_process`: FAOSTAT internal code for each one of the
+#'    items that are being processed and will give other subproduct items.
+#'    For code details see e.g. `add_item_cbs_name()`.
 #' - `value_to_process`: tonnes of this item that are being processed. It
 #'    matches the amount found in the `processing` column from the data
 #'    obtained by `get_wide_cbs()`.
-#' - `item_processed`: Natural language name for the subproduct item obtained.
+#' - `item_cbs_code_processed`: FAOSTAT internal code for each one of the
+#'    subproduct items that are obtained when processing. For code details
+#'    see e.g. `add_item_cbs_name()`.
 #' - `initial_conversion_factor`: estimate for the number of tonnes of
-#'    `item_processed` obtained for each tonne of `item_to_process`. It will be
-#'    used to compute the `final_conversion_factor`, which leaves everything
-#'    balanced. TODO: explain how it's computed.
+#'    `item_cbs_code_processed` obtained for each tonne of
+#'    `item_cbs_code_to_process`. It will be used to compute the
+#'    `final_conversion_factor`, which leaves everything balanced.
+#'    TODO: explain how it's computed.
 #' - `initial_value_processed`: first estimate for the number of tonnes of
-#'    `item_processed` obtained from `item_to_process`. It is computed as
-#'    `value_to_process * initial_conversion_factor`.
+#'    `item_cbs_code_processed` obtained from `item_cbs_code_to_process`. It
+#'    is computed as `value_to_process * initial_conversion_factor`.
 #' - `conversion_factor_scaling`: computed scaling needed to adapt
 #'    `initial_conversion_factor` so as to get a final balanced total of
 #'    subproduct quantities. TODO: explain how it's computed.
 #' - `final_conversion_factor`: final used estimate for the number of tonnes of
-#'    `item_processed` obtained for each tonne of `item_to_process`. It is
-#'    computed as `initial_conversion_factor * conversion_factor_scaling`.
+#'    `item_cbs_code_processed` obtained for each tonne of
+#'    `item_cbs_code_to_process`. It is computed as
+#'    `initial_conversion_factor * conversion_factor_scaling`.
 #' - `final_value_processed`: final estimate for the number of tonnes of
-#'    `item_processed` obtained from `item_to_process`. It is computed as
-#'    `initial_value_processed * final_conversion_factor`.
+#'    `item_cbs_code_processed` obtained from `item_cbs_code_to_process`. It
+#'    is computed as `initial_value_processed * final_conversion_factor`.
 #'
 #' For the final data obtained, the quantities `final_value_processed` are
 #' balanced in the following sense: the total sum of `final_value_processed`
-#' for each unique tuple of `(year, area_code, item_processed)` should be
-#' exactly the quantity reported for that year, country and `item_processed`
-#' item in the `production` column obtained from `get_wide_cbs()`. This is
-#' because they are not primary products, so the amount from 'production' is
-#' actually the amount of subproduct obtained. TODO: Fix few data where this
-#' doesn't hold.
+#' for each unique tuple of `(year, area_code, item_cbs_code_processed)`
+#' should be exactly the quantity reported for that year, country and
+#' `item_cbs_code_processed` item in the `production` column obtained from
+#' `get_wide_cbs()`. This is because they are not primary products, so the
+#' amount from 'production' is actually the amount of subproduct obtained.
+#' TODO: Fix few data where this doesn't hold.
 #'
 #' @export
 #'
@@ -123,11 +119,13 @@ get_processing_coefs <- function(file_path) {
     readr::read_csv(show_col_types = FALSE) |>
     dplyr::select(-Item, -Element) |>
     dplyr::rename_with(tolower) |>
-    dplyr::rename(
-      item_to_process = processeditem,
-      item_to_process_code = item_code,
+    add_item_cbs_code(name_column = "item") |>
+    dplyr::select(
+      year,
+      area_code,
+      item_cbs_code_to_process = item_code,
       value_to_process = value,
-      item_processed = item,
+      item_cbs_code_processed = item_cbs_code,
       initial_conversion_factor = product_fraction,
       initial_value_processed = value_proc_raw,
       conversion_factor_scaling = scaling,
