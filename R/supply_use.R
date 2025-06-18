@@ -73,7 +73,7 @@ build_supply_use <- function() {
   use_processes |>
     dplyr::full_join(
       supply_processes,
-      by = c("proc", "proc_code"),
+      by = c("proc_name", "proc_code"),
       relationship = "many-to-many",
       suffix = c("_to_process", "_processed")
     )

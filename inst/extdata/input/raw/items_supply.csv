@@ -1,4 +1,4 @@
-item_cbs_code,item_cbs,comm_code,proc_code,proc,data_group,item_prod_code
+item_cbs_code,item_cbs_name,comm_code,proc_code,proc_name,data_group,item_prod_code
 2807,Rice and products,c2807,p001,Rice production,crop_product,
 2105,Straw,c2105,p001,Rice production,crop_residue,
 2511,Wheat and products,c2511,p002,Wheat production,crop_product,
