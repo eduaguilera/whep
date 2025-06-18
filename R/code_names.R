@@ -303,23 +303,23 @@ add_process_code <- function(
 .get_regions <- function(name_column, code_column) {
   "input/raw/regions.csv" |>
     .read_local_csv() |>
-    dplyr::select(!!name_column := area, !!code_column := area_code)
+    dplyr::select(!!name_column := area_name, !!code_column := area_code)
 }
 
 .get_cbs_items <- function(name_column, code_column) {
   "input/raw/items_cbs.csv" |>
     .read_local_csv() |>
-    dplyr::select(!!name_column := item_cbs, !!code_column := item_cbs_code)
+    dplyr::select(!!name_column := item_cbs_name, !!code_column := item_cbs_code)
 }
 
 .get_prod_items <- function(name_column, code_column) {
   "input/raw/items_prod.csv" |>
     .read_local_csv() |>
-    dplyr::select(!!name_column := item_prod, !!code_column := item_prod_code)
+    dplyr::select(!!name_column := item_prod_name, !!code_column := item_prod_code)
 }
 
 .get_processes <- function(name_column, code_column) {
   "input/raw/processes.csv" |>
     .read_local_csv() |>
-    dplyr::select(!!name_column := process, !!code_column := process_code)
+    dplyr::select(!!name_column := process_name, !!code_column := process_code)
 }

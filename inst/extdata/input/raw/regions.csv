@@ -1,4 +1,4 @@
-iso3c,area_code,area,continent,region,EU27
+iso3c,area_code,area_name,continent,region,EU27
 ARM,1,Armenia,ASI,Former USSR,FALSE
 AFG,2,Afghanistan,ASI,South Asia,FALSE
 ALB,3,Albania,EUR,Eastern Europe,FALSE

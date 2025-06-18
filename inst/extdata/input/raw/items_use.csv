@@ -1,4 +1,4 @@
-proc_code,proc,comm_code,item_cbs_code,item_cbs,type
+proc_code,proc_name,comm_code,item_cbs_code,item_cbs_name,type
 p001,Rice production,c001,2807,Rice and products,seedwaste
 p002,Wheat production,c002,2511,Wheat and products,seedwaste
 p003,Barley production,c003,2513,Barley and products,seedwaste
