@@ -12,7 +12,8 @@
 #' memory usage, the tibble is not exactly in tidy format.
 #' It contains the following columns:
 #' - `year`: The year in which the recorded event occurred.
-#' - `item`: Natural language name for the item that is being traded.
+#' - `item_cbs_code`: FAOSTAT internal code for the item that is being traded.
+#'   For code details see e.g. `add_item_cbs_name()`.
 #' - `bilateral_trade`: Square matrix of `NxN` dimensions where `N` is the
 #'   total number of countries being considered. The matrix row and column
 #'   names are exactly equal and they represent country codes.
@@ -103,7 +104,7 @@ get_bilateral_trade <- function(file_path) {
   cbs <- "commodity_balance_sheet" |>
     get_file_path() |>
     get_wide_cbs() |>
-    dplyr::select(year, item, area_code, export, import)
+    dplyr::select(year, item_cbs_code, area_code, export, import)
 
   btd <- file_path |>
     readr::read_csv(show_col_types = FALSE) |>
@@ -112,7 +113,7 @@ get_bilateral_trade <- function(file_path) {
   codes <- .get_all_country_codes(btd, cbs)
 
   btd |>
-    .nest_by_year_item(cbs, codes) |>
+    .nest_by_year_item_code(cbs, codes) |>
     .process_bilateral_trade(codes) |>
     dplyr::select(-total_trade)
 }
@@ -173,14 +174,14 @@ get_bilateral_trade <- function(file_path) {
   btd |>
     dplyr::rename_with(tolower) |>
     dplyr::mutate(
-      item = as.factor(item),
       unit = ifelse(unit == "Head", "heads", unit),
       from_code = ifelse(element == "Export", area_code, area_code_p),
       to_code = ifelse(element == "Export", area_code_p, area_code),
       dplyr::across(c(year, from_code, to_code), as.integer)
     ) |>
+    add_item_cbs_code(name_column = "item") |>
     .prefer_flow_direction("Export") |>
-    dplyr::select(year, from_code, to_code, item, unit, value)
+    dplyr::select(year, from_code, to_code, item_cbs_code, unit, value)
 }
 
 # Keep all rows with preferred direction (Import, Export)
@@ -192,7 +193,7 @@ get_bilateral_trade <- function(file_path) {
   bilateral_trade |>
     dplyr::anti_join(
       preferred_direction,
-      by = c("from_code", "to_code", "year", "item")
+      by = c("from_code", "to_code", "year", "item_cbs_code")
     ) |>
     dplyr::bind_rows(preferred_direction)
 }
@@ -236,7 +237,7 @@ get_bilateral_trade <- function(file_path) {
   }
 }
 
-.nest_by_year_item <- function(btd, cbs, codes) {
+.nest_by_year_item_code <- function(btd, cbs, codes) {
   cbs <- cbs |>
     dplyr::mutate(area_code = factor(area_code, levels = codes))
 
@@ -250,45 +251,44 @@ get_bilateral_trade <- function(file_path) {
     .filter_only_items_in_cbs(cbs) |>
     tidyr::nest(
       bilateral_trade = c(from_code, to_code, value),
-      .by = c(year, item)
+      .by = c(year, item_cbs_code)
     ) |>
-    dplyr::left_join(.get_nested_cbs(cbs, codes), c("year", "item"))
+    dplyr::left_join(.get_nested_cbs(cbs, codes), c("year", "item_cbs_code"))
 }
 
 .get_nested_cbs <- function(cbs, codes) {
   cbs |>
-    dplyr::mutate(item = as.factor(item)) |>
     .complete_total_trade(codes) |>
-    dplyr::group_by(year, item) |>
+    dplyr::group_by(year, item_cbs_code) |>
     .balance_total_trade() |>
     dplyr::ungroup() |>
     tidyr::nest(
       total_trade = c(
         area_code, export, import, balanced_export, balanced_import
       ),
-      .by = c(year, item)
+      .by = c(year, item_cbs_code)
     )
 }
 
 .complete_total_trade <- function(total_trade, codes) {
   df_codes <- tibble::tibble(area_code = codes)
   combs <- total_trade |>
-    dplyr::distinct(year, item) |>
+    dplyr::distinct(year, item_cbs_code) |>
     dplyr::cross_join(df_codes)
 
   total_trade |>
-    dplyr::right_join(combs, by = c("year", "item", "area_code")) |>
+    dplyr::right_join(combs, by = c("year", "item_cbs_code", "area_code")) |>
     tidyr::replace_na(list(export = 0, import = 0))
 }
 
 .filter_only_items_in_cbs <- function(btd, cbs) {
   btd_items <- btd |>
-    dplyr::pull(item) |>
+    dplyr::pull(item_cbs_code) |>
     unique() |>
     sort()
 
   cbs_items <- cbs |>
-    dplyr::pull(item) |>
+    dplyr::pull(item_cbs_code) |>
     unique() |>
     sort()
 
@@ -296,7 +296,7 @@ get_bilateral_trade <- function(file_path) {
   items_not_in_cbs <- btd_items[!btd_items %in% cbs_items]
 
   btd |>
-    dplyr::filter(!item %in% items_not_in_cbs)
+    dplyr::filter(!item_cbs_code %in% items_not_in_cbs)
 }
 
 .get_all_country_codes <- function(btd, cbs) {
