@@ -21,12 +21,8 @@ It contains the following columns:
 total number of countries being considered. The matrix row and column
 names are exactly equal and they represent country codes.
 \itemize{
-\item Row name: FAOSTAT internal code for the country that is exporting the
-item. Equivalences with ISO 3166-1 numeric can be found in the
-\emph{Area Codes} CSV from the zip file that can be downloaded from
-\href{https://www.fao.org/faostat/en/#data/FBS}{FAOSTAT}. TODO: Think about
-this, would be nice to use ISO3 codes but won't be enough for our
-periods
+\item Row name: The code of the country where the data is from. For code
+details see e.g. \code{add_area_name()}.
 \item Column name: FAOSTAT internal code for the country that is importing the
 item. See row name explanation above.
 }
