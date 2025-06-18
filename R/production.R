@@ -10,11 +10,8 @@
 #' A tibble with the item production data.
 #' It contains the following columns:
 #' - `year`: The year in which the recorded event occurred.
-#' - `area_code`: FAOSTAT internal code for each country from where the data
-#'    is from. Equivalences with ISO 3166-1 numeric can be found in the
-#'    _Area Codes_ CSV from the zip file that can be downloaded from
-#'    [FAOSTAT](https://www.fao.org/faostat/en/#data/FBS). TODO: Think about
-#'    this, would be nice to use ISO3 codes but won't be enough for our periods
+#' - `area_code`: The code of the country where the data is from. For code
+#'    details see e.g. `add_area_name()`.
 #' - `item_prod_code`: FAOSTAT internal code for each produced item.
 #' - `item_cbs_code`: FAOSTAT internal code for each commodity balance sheet
 #'    item. The commodity balance sheet contains an aggregated version of
@@ -71,11 +68,8 @@ get_primary_production <- function(file_path) {
 #' A tibble with the crop residue data.
 #' It contains the following columns:
 #' - `year`: The year in which the recorded event occurred.
-#' - `area_code`: FAOSTAT internal code for each country from where the data
-#'    is from. Equivalences with ISO 3166-1 numeric can be found in the
-#'    _Area Codes_ CSV from the zip file that can be downloaded from
-#'    [FAOSTAT](https://www.fao.org/faostat/en/#data/FBS). TODO: Think about
-#'    this, would be nice to use ISO3 codes but won't be enough for our periods
+#' - `area_code`: The code of the country where the data is from. For code
+#'    details see e.g. `add_area_name()`.
 #' - `item_cbs_code_crop`: FAOSTAT internal code for each commodity balance
 #'    sheet item. This is the crop that is generating the residue.
 #' - `item_cbs_code_residue`: FAOSTAT internal code for each commodity balance
