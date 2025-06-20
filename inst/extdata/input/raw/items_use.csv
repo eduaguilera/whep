@@ -76,6 +76,15 @@ p076,Olive Oil extraction,c078,2580,Olive Oil,seedwaste
 p077,Ricebran Oil extraction,c079,2581,Ricebran Oil,seedwaste
 p078,Maize Germ Oil extraction,c080,2582,Maize Germ Oil,seedwaste
 p079,"Oilcrops Oil extraction, Other",c081,2586,"Oilcrops Oil, Other",seedwaste
+p079,"Oilcrops Oil extraction, Other",c070,2572,Groundnut Oil,processing
+p079,"Oilcrops Oil extraction, Other",c075,2577,Palm Oil,processing
+p079,"Oilcrops Oil extraction, Other",c072,2574,Rape and Mustard Oil,processing
+p079,"Oilcrops Oil extraction, Other",c077,2579,Sesameseed Oil,processing
+p079,"Oilcrops Oil extraction, Other",c074,2576,Palmkernel Oil,processing
+p079,"Oilcrops Oil extraction, Other",c077,2579,Sesameseed Oil,processing
+p079,"Oilcrops Oil extraction, Other",c069,2571,Soyabean Oil,processing
+p079,"Oilcrops Oil extraction, Other",c071,2573,Sunflowerseed Oil,processing
+p079,"Oilcrops Oil extraction, Other",c080,2582,Maize Germ Oil,processing
 p067,Soyabean Oil extraction,c082,2590,Soyabean Cake,seedwaste
 p068,Groundnut Oil extraction,c083,2591,Groundnut Cake,seedwaste
 p069,Sunflowerseed Oil extraction,c084,2592,Sunflowerseed Cake,seedwaste
@@ -170,6 +179,7 @@ p124,Linum production,c772,772,Linum,seedwaste
 p130,Grassland production,c3000,3000,Grassland,seedwaste
 p121,Temporary grassland production,c3002,3002,Temporary grassland,seedwaste
 p064,"Sugar production, non-centrifugal",c015,2536,Sugar cane,TCF
+p064,"Sugar production, non-centrifugal",c016,2537,Sugar beet,TCF
 p065,Sugar production,c015,2536,Sugar cane,TCF
 p065,Sugar production,c016,2537,Sugar beet,TCF
 p066,"Sweeteners production, Other",c002,2511,Wheat and products,optim
@@ -179,6 +189,15 @@ p066,"Sweeteners production, Other",c010,2531,Potatoes and products,optim
 p066,"Sweeteners production, Other",c011,2532,Cassava and products,optim
 p066,"Sweeteners production, Other",c012,2533,Sweet potatoes,optim
 p066,"Sweeteners production, Other",c001,2807,Rice and products,optim
+p066,"Sweeteners production, Other",c016,2537,Sugar beet,optim
+p066,"Sweeteners production, Other",c015,2536,Sugar cane,optim
+p066,"Sweeteners production, Other",c2544,2544,Molasses,optim
+p066,"Sweeteners production, Other",c040,2617,Apples and products,optim
+p066,"Sweeteners production, Other",c044,2625,"Fruits, Other",optim
+p066,"Sweeteners production, Other",c038,2615,Bananas,optim
+p066,"Sweeteners production, Other",c039,2616,Plantains,optim
+p066,"Sweeteners production, Other",c034,2611,"Oranges, Mandarines",optim
+p066,"Sweeteners production, Other",c035,2612,"Lemons, Limes and products",optim
 p067,Soyabean Oil extraction,c021,2555,Soyabeans,100%
 p068,Groundnut Oil extraction,c022,2552,Groundnuts,100%
 p069,Sunflowerseed Oil extraction,c023,2557,Sunflower seed,100%
@@ -213,6 +232,10 @@ p082,"Beverages production, Fermented",c040,2617,Apples and products,optim
 p082,"Beverages production, Fermented",c043,2620,Grapes and products (excl wine),optim
 p082,"Beverages production, Fermented",c044,2625,"Fruits, Other",optim
 p082,"Beverages production, Fermented",c001,2807,Rice and products,optim
+p082,"Beverages production, Fermented",c016,2537,Sugar beet,optim
+p082,"Beverages production, Fermented",c015,2536,Sugar cane,optim
+p082,"Beverages production, Fermented",c034,2611,"Oranges, Mandarines",optim
+p082,"Beverages production, Fermented",c035,2612,"Lemons, Limes and products",optim
 p083,"Beverages production, Alcoholic",c002,2511,Wheat and products,optim
 p083,"Beverages production, Alcoholic",c003,2513,Barley and products,optim
 p083,"Beverages production, Alcoholic",c004,2514,Maize and products,optim
@@ -235,6 +258,8 @@ p083,"Beverages production, Alcoholic",c044,2625,"Fruits, Other",optim
 p083,"Beverages production, Alcoholic",c091,2655,Wine,optim
 p083,"Beverages production, Alcoholic",c001,2807,Rice and products,optim
 p083,"Beverages production, Alcoholic",c067,2542,"Sugar (Raw Equivalent)",optim
+p083,"Beverages production, Alcoholic",c034,2611,"Oranges, Mandarines",optim
+p083,"Beverages production, Alcoholic",c035,2612,"Lemons, Limes and products",optim
 p084,"Alcohol production, Non-Food",c002,2511,Wheat and products,ethanol
 p084,"Alcohol production, Non-Food",c003,2513,Barley and products,ethanol
 p084,"Alcohol production, Non-Food",c004,2514,Maize and products,ethanol
@@ -250,6 +275,9 @@ p084,"Alcohol production, Non-Food",c043,2620,Grapes and products (excl wine),et
 p084,"Alcohol production, Non-Food",c044,2625,"Fruits, Other",ethanol
 p084,"Alcohol production, Non-Food",c091,2655,Wine,ethanol
 p084,"Alcohol production, Non-Food",c001,2807,Rice and products,ethanol
+p084,"Alcohol production, Non-Food",c006,2516,Oats,ethanol
+p084,"Alcohol production, Non-Food",c007,2517,Millet and products,ethanol
+p084,"Alcohol production, Non-Food",c2544,2544,Molasses,ethanol
 p085,Cattle husbandry,c061,2000,Fodder crops,feed
 p085,Cattle husbandry,c062,2001,Grazing,feed
 p085,Cattle husbandry,c002,2511,Wheat and products,feed
