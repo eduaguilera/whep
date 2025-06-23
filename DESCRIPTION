@@ -7,18 +7,27 @@ Description: What the package does (one paragraph).
 License: MIT + file LICENSE
 Imports:
     dplyr,
+    FAOSTAT,
+    googledrive,
+    httr2,
+    mipfp,
+    purrr,
+    readr,
+    rlang,
+    stringr,
     tidyr
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.2
 Suggests: 
+    ggplot2,
+    googlesheets4,
+    here,
     knitr,
+    pointblank,
     rmarkdown,
     testthat (>= 3.0.0),
-    tibble,
-    ggplot2,
-    here,
-    googlesheets4
+    tibble
 Config/testthat/edition: 3
 VignetteBuilder: knitr
 URL: https://eduaguilera.github.io/WHEP/
