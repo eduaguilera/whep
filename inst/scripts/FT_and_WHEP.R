@@ -183,8 +183,8 @@ polities_whep <- polities_whep |>
 
 
 output <- paste0(
-  "C:/Users/", user,
+  "C:/Users/", 
+  user,
   "/Desktop/WHEP/inst/extdata/output/polities_whep.csv"
 )
-write.csv(polities_whep, output, row.names = FALSE)
-
+readr::write_csv(polities_whep, output)
