@@ -7,7 +7,8 @@ user <- "Usuario"
 
 # OPEN WHEP-POLITIES FILE:
 whep_polities_path <- paste0(
-  "C:/Users/", user,
+  "C:/Users/",
+  user,
   "/Desktop/WHEP/inst/extdata/input/processed/polities/whep-polities.xlsx"
 )
 whep_polities <- read_excel(whep_polities_path)
@@ -16,7 +17,8 @@ colnames(whep_polities)
 
 # OPEN FEDERICO-TENA FILE
 federico_tena_path <- paste0(
-  "C:/Users/", user,
+  "C:/Users/",
+  user,
   "/Desktop/WHEP/inst/extdata/input/processed/polities/federico-tena.xlsx"
 )
 federico_tena <- read_excel(federico_tena_path)
@@ -103,19 +105,20 @@ ft_names <- federico_tena_clean |>
 
 
 whep_polities_clean <- whep_polities_clean |>
-  left_join(ft_names,
-    by =
-      c("polity_name_full" = "name_match")
+  dplyr::left_join(
+    ft_names,
+    by = c("polity_name_full" = "name_match")
   ) |>
-  left_join(ft_names,
-    by =
-      c("polity_name" = "name_match"), suffix = c("", "_alt")
+  dplyr::left_join(
+    ft_names,
+    by = c("polity_name" = "name_match"),
+    suffix = c("", "_alt")
   ) |>
   # if there's matches
-  mutate(
+  dplyr::mutate(
     polity_name_FT = coalesce(ft_name, ft_name_alt)
   ) |>
-  select(-ft_name, -ft_name_alt)
+  dplyr::select(-ft_name, -ft_name_alt)
 
 
 new_ft <- federico_tena_clean$polity_name_FT[
@@ -126,7 +129,7 @@ new_ft <- federico_tena_clean$polity_name_FT[
 ]
 
 federico_new <- federico_tena_clean |>
-  filter(polity_name_FT %in% new_ft)
+  dplyr::filter(polity_name_FT %in% new_ft)
 
 
 # MERGING
