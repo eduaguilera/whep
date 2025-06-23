@@ -2,13 +2,18 @@
 # Alejandra Fuentes-Hinojosa - WHEP project
 # 06.23.2025 - IEGD/CCHS/CSIC
 
+library(sf)
+library(dplyr)
+library(tidyr)
+library(readxl)
+library(openxlsx)
 
 # Definir usuario
 user <- "Usuario"
 
 # OPEN WHEP-POLITIES FILE:
 whep_polities_path <- paste0("C:/Users/", user, "/Desktop/WHEP/inst/extdata/input/processed/polities/whep-polities.xlsx")
-whep_polities <- readxl::read_excel(whep_polities_path)
+whep_polities <- read_excel(whep_polities_path)
 
 colnames(whep_polities)
 
@@ -20,13 +25,13 @@ colnames(federico_tena)
 
 # Renaming columns of FT
 federico_tena_clean <- federico_tena |>
-  dplyr::select(
+  select(
     polity_name_FT_raw = `List of trading polities`,
     start_year = `Trading polity Starting`,
     end_year = `Trading polity End`,
     `Comments FT` = Notes
   ) |>
-  dplyr::mutate(
+  mutate(
     polity_code = NA,
     polity_name = NA,
     polity_name_full = polity_name_FT_raw, # polity_name_FT_raw -> polity_name_full
@@ -38,12 +43,12 @@ federico_tena_clean <- federico_tena |>
 
 # Standardize polity names and create final structure
 federico_tena_clean <- federico_tena_clean |>
-  dplyr::select(
+  select(
     polity_name_FT = polity_name_FT_raw,
     start_year, end_year, `Comments FT`, polity_name_full
   ) |>
   # Manually changing polity names that are same as WHEP/FAO or part of new category other *continent*
-  dplyr::mutate(polity_name_FT = case_when(
+  mutate(polity_name_FT = case_when(
     polity_name_FT == "United States" ~ "United States of America",
     polity_name_FT == "Australia Commonwealth" ~ "Australia",
     polity_name_FT == "Cameroon (Kamerun)" ~ "Cameroon",
@@ -57,7 +62,7 @@ federico_tena_clean <- federico_tena_clean |>
     polity_name_FT == "Morocco (French)" ~ "Morocco",
     TRUE ~ polity_name_FT
   )) |>
-  dplyr::mutate(
+  mutate(
     polity_code = NA,
     polity_name = polity_name_FT,
     polity_name_full = polity_name_full, # keeping the original
@@ -68,25 +73,25 @@ federico_tena_clean <- federico_tena_clean |>
   )
 
 whep_polities_clean <- whep_polities |>
-  dplyr::mutate(polity_name_source = case_when(
+  mutate(polity_name_source = case_when(
     is.na(polity_code_source) | is.na(polity_name_source) ~ "WHEP",
     TRUE ~ polity_name_source
   ))
 
-ft_names <- federico_tena_clean |>
-  dplyr::select(name_match = polity_name_FT, ft_name = polity_name_FT) |>
-  dplyr::filter(!is.na(name_match) & name_match != "") |>
+ft_names <- federico_tena_clean %>%
+  select(name_match = polity_name_FT, ft_name = polity_name_FT) %>%
+  filter(!is.na(name_match) & name_match != "") %>%
   distinct()
 
 
 
-whep_polities_clean <- whep_polities_clean |>
-  dplyr::left_join(ft_names, by = c("polity_name_full" = "name_match")) |>
-  dplyr::left_join(ft_names, by = c("polity_name" = "name_match"), suffix = c("", "_alt")) |>
+whep_polities_clean <- whep_polities_clean %>%
+  left_join(ft_names, by = c("polity_name_full" = "name_match")) %>%
+  left_join(ft_names, by = c("polity_name" = "name_match"), suffix = c("", "_alt")) %>%
   mutate(
     polity_name_FT = coalesce(ft_name, ft_name_alt) # if there's matches
-  ) |>
-  dplyr::select(-ft_name, -ft_name_alt)
+  ) %>%
+  select(-ft_name, -ft_name_alt)
 
 
 new_ft <- federico_tena_clean$polity_name_FT[
@@ -96,8 +101,8 @@ new_ft <- federico_tena_clean$polity_name_FT[
   )
 ]
 
-federico_new <- federico_tena_clean |>
-  dplyr::filter(polity_name_FT %in% new_ft)
+federico_new <- federico_tena_clean %>%
+  filter(polity_name_FT %in% new_ft)
 
 
 # MERGING
@@ -138,12 +143,12 @@ federico_final <- dplyr::select(federico_final, all_of(final_columns))
 
 
 # merging the datasets
-polities_whep <- dplyr::bind_rows(whep_final, federico_final)
+polities_whep <- bind_rows(whep_final, federico_final)
 
 
 # NA to WHEP
 polities_whep <- polities_whep |>
-  dplyr::mutate(
+  mutate(
     polity_name_source = case_when(
       is.na(polity_name_source) ~ "WHEP",
       TRUE ~ polity_name_source
@@ -152,4 +157,4 @@ polities_whep <- polities_whep |>
 
 
 output <- paste0("C:/Users/", user, "/Desktop/WHEP/inst/extdata/output/polities_whep.csv")
-readr::write_csv(polities_whep, output)
+write.csv(polities_whep, output, row.names = FALSE)
