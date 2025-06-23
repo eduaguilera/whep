@@ -2,23 +2,23 @@
 # Alejandra Fuentes-Hinojosa - WHEP project
 # 06.23.2025 - IEGD/CCHS/CSIC
 
-library(sf)
-library(dplyr)
-library(tidyr)
-library(readxl)
-library(openxlsx)
-
 # Definir usuario
 user <- "Usuario"
 
 # OPEN WHEP-POLITIES FILE:
-whep_polities_path <- paste0("C:/Users/", user, "/Desktop/WHEP/inst/extdata/input/processed/polities/whep-polities.xlsx")
+whep_polities_path <- paste0(
+  "C:/Users/", user,
+  "/Desktop/WHEP/inst/extdata/input/processed/polities/whep-polities.xlsx"
+)
 whep_polities <- read_excel(whep_polities_path)
 
 colnames(whep_polities)
 
 # OPEN FEDERICO-TENA FILE
-federico_tena_path <- paste0("C:/Users/", user, "/Desktop/WHEP/inst/extdata/input/processed/polities/federico-tena.xlsx")
+federico_tena_path <- paste0(
+  "C:/Users/", user,
+  "/Desktop/WHEP/inst/extdata/input/processed/polities/federico-tena.xlsx"
+)
 federico_tena <- read_excel(federico_tena_path)
 colnames(federico_tena)
 
@@ -78,19 +78,19 @@ whep_polities_clean <- whep_polities |>
     TRUE ~ polity_name_source
   ))
 
-ft_names <- federico_tena_clean %>%
-  select(name_match = polity_name_FT, ft_name = polity_name_FT) %>%
-  filter(!is.na(name_match) & name_match != "") %>%
+ft_names <- federico_tena_clean |>
+  select(name_match = polity_name_FT, ft_name = polity_name_FT) |>
+  filter(!is.na(name_match) & name_match != "") |>
   distinct()
 
 
 
-whep_polities_clean <- whep_polities_clean %>%
-  left_join(ft_names, by = c("polity_name_full" = "name_match")) %>%
-  left_join(ft_names, by = c("polity_name" = "name_match"), suffix = c("", "_alt")) %>%
+whep_polities_clean <- whep_polities_clean |>
+  left_join(ft_names, by = c("polity_name_full" = "name_match")) |>
+  left_join(ft_names, by = c("polity_name" = "name_match"), suffix = c("", "_alt")) |>
   mutate(
     polity_name_FT = coalesce(ft_name, ft_name_alt) # if there's matches
-  ) %>%
+  ) |>
   select(-ft_name, -ft_name_alt)
 
 
@@ -101,7 +101,7 @@ new_ft <- federico_tena_clean$polity_name_FT[
   )
 ]
 
-federico_new <- federico_tena_clean %>%
+federico_new <- federico_tena_clean |>
   filter(polity_name_FT %in% new_ft)
 
 
