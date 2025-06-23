@@ -34,7 +34,8 @@ federico_tena_clean <- federico_tena |>
   mutate(
     polity_code = NA,
     polity_name = NA,
-    polity_name_full = polity_name_FT_raw, # polity_name_FT_raw -> polity_name_full
+    # polity_name_FT_raw -> polity_name_full
+    polity_name_full = polity_name_FT_raw,
     polity_code_full = NA,
     polity_name_FAO = NA,
     polity_name_source = "FT",
@@ -47,25 +48,37 @@ federico_tena_clean <- federico_tena_clean |>
     polity_name_FT = polity_name_FT_raw,
     start_year, end_year, `Comments FT`, polity_name_full
   ) |>
-  # Manually changing polity names that are same as WHEP/FAO or part of new category other *continent*
+  # Manually changing polity names
   mutate(polity_name_FT = case_when(
-    polity_name_FT == "United States" ~ "United States of America",
-    polity_name_FT == "Australia Commonwealth" ~ "Australia",
-    polity_name_FT == "Cameroon (Kamerun)" ~ "Cameroon",
-    polity_name_FT == "Ceylon (Sri Lanka)" ~ "Sri Lanka",
-    polity_name_FT == "Guinea Bisau (Portuguese Guinea)" ~ "Guinea-Bissau",
-    polity_name_FT == "Hong-Kong" ~ "China, Hong Kong SAR",
-    polity_name_FT == "South Australia" ~ "Australia",
-    polity_name_FT == "Wallis and Futuna Island" ~ "Wallis and Futuna Islands",
-    polity_name_FT == "Western Australia" ~ "Australia",
-    polity_name_FT == "Western Samoa" ~ "American Samoa",
-    polity_name_FT == "Morocco (French)" ~ "Morocco",
+    polity_name_FT ==
+      "United States" ~ "United States of America",
+    polity_name_FT ==
+      "Australia Commonwealth" ~ "Australia",
+    polity_name_FT ==
+      "Cameroon (Kamerun)" ~ "Cameroon",
+    polity_name_FT ==
+      "Ceylon (Sri Lanka)" ~ "Sri Lanka",
+    polity_name_FT ==
+      "Guinea Bisau (Portuguese Guinea)" ~ "Guinea-Bissau",
+    polity_name_FT ==
+      "Hong-Kong" ~ "China, Hong Kong SAR",
+    polity_name_FT ==
+      "South Australia" ~ "Australia",
+    polity_name_FT ==
+      "Wallis and Futuna Island" ~ "Wallis and Futuna Islands",
+    polity_name_FT ==
+      "Western Australia" ~ "Australia",
+    polity_name_FT ==
+      "Western Samoa" ~ "American Samoa",
+    polity_name_FT ==
+      "Morocco (French)" ~ "Morocco",
     TRUE ~ polity_name_FT
   )) |>
   mutate(
     polity_code = NA,
     polity_name = polity_name_FT,
-    polity_name_full = polity_name_full, # keeping the original
+    # keeping the original
+    polity_name_full = polity_name_full,
     polity_code_full = NA,
     polity_name_FAO = NA,
     polity_name_source = "FT",
@@ -74,22 +87,33 @@ federico_tena_clean <- federico_tena_clean |>
 
 whep_polities_clean <- whep_polities |>
   mutate(polity_name_source = case_when(
-    is.na(polity_code_source) | is.na(polity_name_source) ~ "WHEP",
+    is.na(polity_code_source) |
+      is.na(polity_name_source) ~ "WHEP",
     TRUE ~ polity_name_source
   ))
 
 ft_names <- federico_tena_clean |>
-  select(name_match = polity_name_FT, ft_name = polity_name_FT) |>
+  select(
+    name_match = polity_name_FT,
+    ft_name = polity_name_FT
+  ) |>
   filter(!is.na(name_match) & name_match != "") |>
   distinct()
 
 
 
 whep_polities_clean <- whep_polities_clean |>
-  left_join(ft_names, by = c("polity_name_full" = "name_match")) |>
-  left_join(ft_names, by = c("polity_name" = "name_match"), suffix = c("", "_alt")) |>
+  left_join(ft_names,
+    by =
+      c("polity_name_full" = "name_match")
+  ) |>
+  left_join(ft_names,
+    by =
+      c("polity_name" = "name_match"), suffix = c("", "_alt")
+  ) |>
+  # if there's matches
   mutate(
-    polity_name_FT = coalesce(ft_name, ft_name_alt) # if there's matches
+    polity_name_FT = coalesce(ft_name, ft_name_alt)
   ) |>
   select(-ft_name, -ft_name_alt)
 
@@ -156,5 +180,8 @@ polities_whep <- polities_whep |>
   )
 
 
-output <- paste0("C:/Users/", user, "/Desktop/WHEP/inst/extdata/output/polities_whep.csv")
+output <- paste0(
+  "C:/Users/", user,
+  "/Desktop/WHEP/inst/extdata/output/polities_whep.csv"
+)
 write.csv(polities_whep, output, row.names = FALSE)
