@@ -11,7 +11,7 @@ whep_polities_path <- paste0(
   user,
   "/Desktop/WHEP/inst/extdata/input/processed/polities/whep-polities.xlsx"
 )
-whep_polities <- read_excel(whep_polities_path)
+whep_polities <- readxl::read_excel(whep_polities_path)
 
 colnames(whep_polities)
 
@@ -21,19 +21,19 @@ federico_tena_path <- paste0(
   user,
   "/Desktop/WHEP/inst/extdata/input/processed/polities/federico-tena.xlsx"
 )
-federico_tena <- read_excel(federico_tena_path)
+federico_tena <- readxl::read_excel(federico_tena_path)
 colnames(federico_tena)
 
 
 # Renaming columns of FT
 federico_tena_clean <- federico_tena |>
-  select(
+  dplyr::select(
     polity_name_FT_raw = `List of trading polities`,
     start_year = `Trading polity Starting`,
     end_year = `Trading polity End`,
     `Comments FT` = Notes
   ) |>
-  mutate(
+  dplyr::mutate(
     polity_code = NA,
     polity_name = NA,
     polity_name_full = polity_name_FT_raw,
@@ -45,12 +45,12 @@ federico_tena_clean <- federico_tena |>
 
 # Standardize polity names and create final structure
 federico_tena_clean <- federico_tena_clean |>
-  select(
+  dplyr::select(
     polity_name_FT = polity_name_FT_raw,
     start_year, end_year, `Comments FT`, polity_name_full
   ) |>
   # Manually changing polity names
-  mutate(polity_name_FT = case_when(
+  dplyr::mutate(polity_name_FT = dplyr::case_when(
     polity_name_FT ==
       "United States" ~ "United States of America",
     polity_name_FT ==
@@ -75,7 +75,7 @@ federico_tena_clean <- federico_tena_clean |>
       "Morocco (French)" ~ "Morocco",
     TRUE ~ polity_name_FT
   )) |>
-  mutate(
+  dplyr::mutate(
     polity_code = NA,
     polity_name = polity_name_FT,
     # keeping the original
@@ -87,19 +87,19 @@ federico_tena_clean <- federico_tena_clean |>
   )
 
 whep_polities_clean <- whep_polities |>
-  mutate(polity_name_source = case_when(
+  dplyr::mutate(polity_name_source = dplyr::case_when(
     is.na(polity_code_source) |
       is.na(polity_name_source) ~ "WHEP",
     TRUE ~ polity_name_source
   ))
 
 ft_names <- federico_tena_clean |>
-  select(
+  dplyr::select(
     name_match = polity_name_FT,
     ft_name = polity_name_FT
   ) |>
-  filter(!is.na(name_match) & name_match != "") |>
-  distinct()
+  dplyr::filter(!is.na(name_match) & name_match != "") |>
+  dplyr::distinct()
 
 
 
@@ -115,7 +115,7 @@ whep_polities_clean <- whep_polities_clean |>
   ) |>
   # if there's matches
   dplyr::mutate(
-    polity_name_FT = coalesce(ft_name, ft_name_alt)
+    polity_name_FT = dplyr::coalesce(ft_name, ft_name_alt)
   ) |>
   dplyr::select(-ft_name, -ft_name_alt)
 
@@ -169,13 +169,13 @@ federico_final <- dplyr::select(federico_final, all_of(final_columns))
 
 
 # merging the datasets
-polities_whep <- bind_rows(whep_final, federico_final)
+polities_whep <- dplyr::bind_rows(whep_final, federico_final)
 
 
 # NA to WHEP
 polities_whep <- polities_whep |>
-  mutate(
-    polity_name_source = case_when(
+  dplyr::mutate(
+    polity_name_source = dplyr::case_when(
       is.na(polity_name_source) ~ "WHEP",
       TRUE ~ polity_name_source
     )
@@ -187,3 +187,4 @@ output <- paste0(
   "/Desktop/WHEP/inst/extdata/output/polities_whep.csv"
 )
 write.csv(polities_whep, output, row.names = FALSE)
+
