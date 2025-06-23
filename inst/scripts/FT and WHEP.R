@@ -21,50 +21,93 @@ colnames(federico_tena)
 # Renaming columns of FT
 federico_tena_clean <- federico_tena |>
   select(
-    polity_name_FT = `List of trading polities`,
+    polity_name_FT_raw = `List of trading polities`,
     start_year = `Trading polity Starting`,
     end_year = `Trading polity End`,
     `Comments FT` = Notes
   ) |>
-  #changing manually the polity names that are same as WHEP/FAO or part of the new category other *continent*
-
-    mutate(`polity_name_FT` = case_when(
-    `polity_name_FT` == "United States" ~ "United States of America",
-    `polity_name_FT` == "Australian Commonwealth" ~ "Australia",
-
-
-    TRUE ~ `polity_name_FT`
-  )) |>
   mutate(
     polity_code = NA,
-    polity_name = polity_name_FT,  # Use polity_name_FT as polity_name
-    polity_name_full = polity_name_FT,  # Use polity_name_FT as polity_name_full
+    polity_name = NA,
+    polity_name_full = polity_name_FT_raw,  #polity_name_FT_raw -> polity_name_full
     polity_code_full = NA,
     polity_name_FAO = NA,
     polity_name_source = "FT",
     polity_code_source = "FT"
   )
 
-# WHEP data
-whep_polities_clean <- whep_polities |>
+# Standardize polity names and create final structure
+federico_tena_clean <- federico_tena_clean |>
+  select(
+    polity_name_FT = polity_name_FT_raw,
+    start_year, end_year, `Comments FT`, polity_name_full
+  ) |>
+  # Manually changing polity names that are same as WHEP/FAO or part of new category other *continent*
+  mutate(polity_name_FT = case_when(
+    polity_name_FT == "United States" ~ "United States of America",
+    polity_name_FT == "Australia Commonwealth" ~ "Australia",
+    polity_name_FT == "Cameroon (Kamerun)" ~ "Cameroon",
+    polity_name_FT == "Ceylon (Sri Lanka)" ~ "Sri Lanka", 
+    polity_name_FT == "Guinea Bisau (Portuguese Guinea)" ~ "Guinea-Bissau",
+    polity_name_FT == "Hong-Kong" ~ "China, Hong Kong SAR",
+    polity_name_FT == "South Australia" ~ "Australia",
+    polity_name_FT == "Wallis and Futuna Island" ~ "Wallis and Futuna Islands",
+    polity_name_FT == "Western Australia" ~ "Australia",
+    polity_name_FT == "Western Samoa" ~ "American Samoa",
+    polity_name_FT == "Morocco (French)" ~ "Morocco",
+    TRUE ~ polity_name_FT
+  )) |>
   mutate(
-    polity_name_source = case_when(
-      is.na(polity_code_source) | is.na(polity_name_source) ~ "WHEP",
-      TRUE ~ polity_name_source
-    ),
-    # Ensure Comments FT column exists
-    `Comments FT` = if("Comments FT" %in% names(.)) `Comments FT` else NA
+    polity_code = NA,
+    polity_name = polity_name_FT,
+    polity_name_full = polity_name_full, #keeping the original
+    polity_code_full = NA,
+    polity_name_FAO = NA,
+    polity_name_source = "FT",
+    polity_code_source = "FT"
   )
 
-# Identify polity_name_FT that don't exist in WHEP
+# # WHEP data
+# whep_polities_clean <- whep_polities |>
+#   dplyr::mutate(
+#     polity_name_source = case_when(
+#       is.na(polity_code_source) | is.na(polity_name_source) ~ "WHEP",
+#       TRUE ~ polity_name_source
+#   )
+# )
+
+ft_names <- federico_tena_clean %>%
+  select(name_match = polity_name_FT, ft_name = polity_name_FT) %>%
+  filter(!is.na(name_match) & name_match != "") %>%
+  distinct()
+
+
+whep_polities_clean <- whep_polities_clean %>%
+  left_join(ft_names, by = c("polity_name_full" = "name_match")) %>%
+  left_join(ft_names, by = c("polity_name" = "name_match"), suffix = c("", "_alt")) %>%
+  mutate(
+    polity_name_FT = coalesce(ft_name, ft_name_alt)  # Usar el nombre FT si existe coincidencia
+  ) %>%
+  select(-ft_name, -ft_name_alt)
+
+
 new_ft <- federico_tena_clean$polity_name_FT[
   !federico_tena_clean$polity_name_FT %in% c(whep_polities_clean$polity_name_full,
                                              whep_polities_clean$polity_name)
 ]
 
-# Filter only new FT records
-federico_new <- federico_tena_clean |>
-  filter(polity_name_FT %in% new_ft)
+federico_new <- federico_tena_clean %>%
+  filter(polity_name_FT %in% new_ft)  
+
+# # Identify polity_name_FT that don't exist in WHEP
+# new_ft <- federico_tena_clean$polity_name_FT[
+#   !federico_tena_clean$polity_name_FT %in% c(whep_polities_clean$polity_name_full,
+#                                              whep_polities_clean$polity_name)
+# ]
+# 
+# # Filter only new FT records
+# federico_new <- federico_tena_clean |>
+#   filter(polity_name_FT %in% new_ft)
 
 #MERGING
 final_columns <- c("polity_code", "polity_name", "polity_name_full",
@@ -73,34 +116,41 @@ final_columns <- c("polity_code", "polity_name", "polity_name_full",
                    "end_year", "Comments FT")
 
 
-whep_final <- whep_polities_clean |>
-  mutate(polity_name_FT = if("polity_name_FT" %in% names(.)) polity_name_FT else NA) |>
-  select(any_of(final_columns)) |>
-  # Add missing columns with NA if they don't exist
-  {
-    missing_cols <- setdiff(final_columns, names(.))
-    for(col in missing_cols) {
-      .[[col]] <- NA
-    }
-    .
-  } |>
-  select(all_of(final_columns))
+whep_raw <- whep_polities_clean
+
+# Asegura que la columna existe
+if (!("polity_name_FT" %in% names(whep_raw))) {
+  whep_raw$polity_name_FT <- NA_character_
+}
+  
+  whep_raw <- dplyr::select(whep_raw, any_of(final_columns))
+  
+  missing_cols <- setdiff(final_columns, names(whep_raw))
+                  for (col in missing_cols) {
+                  whep_raw[[col]] <- NA
+}
+
+  whep_final <- dplyr::select(whep_raw, all_of(final_columns))
 
 # Adjust Federico-Tena to have all columns
-federico_final <- federico_new |>
-  select(any_of(final_columns)) |>
-  # Add missing columns with NA if they don't exist
-  {
-    missing_cols <- setdiff(final_columns, names(.))
-    for(col in missing_cols) {
-      .[[col]] <- NA
-    }
-    .
-  } |>
-  select(all_of(final_columns))
 
+federico_final <- dplyr::select(federico_new, any_of(final_columns))
+#   
+# 
+missing_cols <- setdiff(final_columns, names(federico_final))
+                 for (col in missing_cols) {
+                   federico_final[[col]] <- NA
+                 }
+   
+federico_final <- dplyr::select(federico_final, all_of(final_columns))
+
+
+
+  
+  
 # merging the datasets
 polities_whep <- bind_rows(whep_final, federico_final)
+
 
 # NA to WHEP
 polities_whep <- polities_whep |>
@@ -113,5 +163,6 @@ polities_whep <- polities_whep |>
 
 
 # Save the dataset
-output_path <- paste0("C:/Users/", user, "/Desktop/WHEP/inst/extdata/output/polities_whep.xlsx")
+output_path <- paste0("C:/Users/", user, "/Desktop/WHEP/inst/extdata/output/polities_whep.csv")
 write.xlsx(polities_whep, output_path, rowNames = FALSE)
+
