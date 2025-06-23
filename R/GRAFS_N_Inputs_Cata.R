@@ -18,7 +18,7 @@ create_n_inputs_grafs_spain <- function() {
   inputs_dir <- "C:/PhD/GRAFS/Production Boxes/Final Files/Inputs"
 
   # Load datasets
-  data <- .load_inputs(inputs_dir)
+  data <- .load_inputs_N_inputs(inputs_dir)
 
   # Calculate N inputs and manure
   n_inputs_prepared <- .calculate_n_inputs(data$N_balance_ygpit_all, data$Codes_coefs)
@@ -41,7 +41,7 @@ create_n_inputs_grafs_spain <- function() {
 
 # N Inputs -----------------------------------------------------------------------------------------------------------------------------------
 # load data -------------------------------------------------------------------------------------------------------------------------------
-.load_inputs <- function(inputs_dir) {
+.load_inputs_N_inputs <- function(inputs_dir) {
   result <-
     list(
       N_Excretion_ygs = readRDS(get_file_path("n_excretion_ygs")), # TODO: Excretion need to be added to dataset as an input of Livestock
