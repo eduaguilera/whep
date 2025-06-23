@@ -36,7 +36,6 @@ federico_tena_clean <- federico_tena |>
   mutate(
     polity_code = NA,
     polity_name = NA,
-    # polity_name_FT_raw -> polity_name_full
     polity_name_full = polity_name_FT_raw,
     polity_code_full = NA,
     polity_name_FAO = NA,
