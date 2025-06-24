@@ -16,7 +16,8 @@ memory usage, the tibble is not exactly in tidy format.
 It contains the following columns:
 \itemize{
 \item \code{year}: The year in which the recorded event occurred.
-\item \code{item}: Natural language name for the item that is being traded.
+\item \code{item_cbs_code}: FAOSTAT internal code for the item that is being traded.
+For code details see e.g. \code{add_item_cbs_name()}.
 \item \code{bilateral_trade}: Square matrix of \code{NxN} dimensions where \code{N} is the
 total number of countries being considered. The matrix row and column
 names are exactly equal and they represent country codes.
