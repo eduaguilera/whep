@@ -36,7 +36,8 @@ build_supply_use <- function() {
     coeffs = get_processing_coefs(get_file_path("processing_coefs")),
     cbs = get_wide_cbs(get_file_path("commodity_balance_sheet")),
     crop_residues = get_primary_residues(get_file_path("crop_residues")),
-    primary_prod = get_primary_production(get_file_path("primary_prod"))
+    primary_prod = get_primary_production(get_file_path("primary_prod")),
+    feed_intake = get_feed_intake(get_file_path("feed_intake"))
   )
 }
 
@@ -46,28 +47,90 @@ build_supply_use <- function() {
     coeffs,
     cbs,
     crop_residues,
-    primary_prod) {
-  processes_table <- .join_supply_use_processes(supply_processes, use_processes)
+    primary_prod,
+    feed_intake) {
+  # processes_table <- .join_supply_use_processes(supply_processes, use_processes)
 
   dplyr::bind_rows(
-    .build_supply(processes_table, crop_residues, primary_prod),
-    .build_use()
-  )
+    .build_crop_production(cbs, primary_prod, crop_residues),
+    .build_husbandry(feed_intake, primary_prod),
+    .build_processing(coeffs),
+  ) |>
+    dplyr::select(
+      year,
+      area_code,
+      proc_group,
+      proc_cbs_code,
+      item_cbs_code,
+      value,
+      type
+    )
+}
+
+.build_crop_production <- function(cbs, primary_prod, crop_residues) {
+  dplyr::bind_rows(
+    .build_supply_crop_residue(crop_residues),
+    .build_supply_crop_product(primary_prod),
+  ) |>
+    dplyr::mutate(proc_group = "crop_production")
+}
+
+.build_husbandry <- function(feed_intake, primary_prod) {
+  dplyr::bind_rows(
+    .build_use_husbandry(feed_intake),
+    .build_supply_husbandry(primary_prod),
+  ) |>
+    dplyr::mutate(proc_group = "husbandry")
+}
+
+.build_processing <- function(coeffs) {
+  processing_use <- coeffs |>
+    dplyr::distinct(
+      year,
+      area_code,
+      proc_cbs_code = item_cbs_code_to_process,
+      item_cbs_code = item_cbs_code_to_process,
+      value = value_to_process
+    ) |>
+    dplyr::mutate(type = "use")
+
+  processing_supply <- coeffs |>
+    dplyr::select(
+      year,
+      area_code,
+      proc_cbs_code = item_cbs_code_to_process,
+      item_cbs_code = item_cbs_code_processed,
+      value = final_value_processed
+    ) |>
+    dplyr::mutate(type = "supply")
+
+  dplyr::bind_rows(processing_use, processing_supply) |>
+    dplyr::mutate(proc_group = "processing")
 }
 
 .build_supply <- function(processes_table, crop_residues, primary_prod) {
   # TODO: Add more supply entries (processing, husbandry, etc)
   dplyr::bind_rows(
     .build_supply_crop_residue(processes_table, crop_residues),
-    .build_supply_crop_product(processes_table, primary_prod)
+    .build_supply_crop_product(processes_table, primary_prod),
+    .build_supply_husbandry(primary_prod)
   ) |>
     dplyr::mutate(type = "supply")
 }
 
 # TODO: Add use entries
-.build_use <- function() {
-  tibble::tibble()
+.build_use <- function(feed_intake) {
+  dplyr::bind_rows(
+    .build_use_husbandry(feed_intake)
+  ) |>
+    dplyr::mutate(type = "use")
 }
+
+# .build_use_husbandry <- function(feed_intake) {
+#   feed_intake |>
+#     dplyr::mutate(proc_code = paste0("p", as.character(live_anim_code))) |>
+#     dplyr::select(year, area_code, proc_code, item_cbs_code, value = intake)
+# }
 
 .join_supply_use_processes <- function(supply_processes, use_processes) {
   use_processes |>
@@ -79,44 +142,28 @@ build_supply_use <- function() {
     )
 }
 
-.build_supply_crop_residue <- function(processes_table, crop_residues) {
-  processes_table <- processes_table |>
-    dplyr::filter(data_group == "crop_residue")
-
-  crop_residues <- crop_residues |>
-    dplyr::left_join(
-      processes_table,
-      dplyr::join_by(
-        item_cbs_code_crop == item_cbs_code_to_process,
-        item_cbs_code_residue == item_cbs_code_processed
-      )
-    ) |>
+.build_supply_crop_residue <- function(crop_residues) {
+  crop_residues |>
     dplyr::select(
       year,
       area_code,
-      item_cbs_code_crop,
-      item_cbs_code_residue,
-      proc_code,
+      proc_cbs_code = item_cbs_code_crop,
+      item_cbs_code = item_cbs_code_residue,
       value
-    )
-
-  no_process_found <- crop_residues |>
-    dplyr::filter(is.na(proc_code)) |>
-    dplyr::pull(item_cbs_code_crop) |>
-    unique()
-
-  if (length(no_process_found) > 0) {
-    item_codes <- paste0(no_process_found, collapse = ", ")
-    warning(stringr::str_glue("No process found for item codes {item_codes}"))
-  }
-
-  crop_residues |>
-    dplyr::select(-item_cbs_code_crop, item_cbs_code = item_cbs_code_residue)
+    ) |>
+    dplyr::mutate(type = "supply")
 }
 
-.build_supply_crop_product <- function(processes_table, primary_prod) {
+.build_supply_crop_product <- function(primary_prod) {
+  browser()
   primary_prod <- primary_prod |>
     dplyr::filter(unit == "tonnes")
+
+  primary_prod |>
+    dplyr::filter(is.na(live_anim_code)) |>
+    add_item_cbs_name(code_column = "item_cbs_code") |>
+    dplyr::distinct(item_cbs_code, item_cbs_name) |>
+    print(n = 200)
 
   processes_table <- processes_table |>
     dplyr::filter(data_group == "crop_product")
@@ -167,6 +214,62 @@ build_supply_use <- function() {
       dplyr::join_by(item_cbs_code == item_cbs_code_processed)
     ) |>
     dplyr::select(year, area_code, proc_code, item_cbs_code, value)
+}
+
+.build_use_husbandry <- function(feed_intake) {
+  feed_intake |>
+    dplyr::select(
+      year,
+      area_code,
+      proc_cbs_code = live_anim_code,
+      item_cbs_code,
+      value = supply
+    ) |>
+    dplyr::mutate(type = "use")
+}
+
+.build_supply_husbandry <- function(primary_prod) {
+  livestock <- primary_prod |>
+    dplyr::filter(!is.na(live_anim_code)) |>
+    dplyr::distinct(live_anim_code)
+
+  dplyr::bind_rows(
+    .build_livestock_supply(primary_prod, livestock),
+    .build_livestock_prods_supply(primary_prod, livestock),
+  ) |>
+    dplyr::mutate(type = "supply")
+}
+
+.build_livestock_supply <- function(primary_prod, livestock_items) {
+  k_tonnes_per_livestock_unit <- 0.65
+
+  primary_prod |>
+    dplyr::filter(unit == "LU") |>
+    dplyr::inner_join(
+      livestock_items,
+      dplyr::join_by(item_cbs_code == live_anim_code)
+    ) |>
+    dplyr::mutate(value = k_tonnes_per_livestock_unit * value) |>
+    dplyr::select(
+      year,
+      area_code,
+      proc_cbs_code = item_cbs_code,
+      item_cbs_code = item_cbs_code,
+      value
+    )
+}
+
+.build_livestock_prods_supply <- function(primary_prod, livestock_items) {
+  primary_prod |>
+    dplyr::filter(unit == "tonnes") |>
+    dplyr::inner_join(livestock_items, "live_anim_code") |>
+    dplyr::select(
+      year,
+      area_code,
+      proc_cbs_code = live_anim_code,
+      item_cbs_code,
+      value
+    )
 }
 
 .add_rest_of_supply <- function(supply_use, supply_process_table, cbs) {
