@@ -50,10 +50,9 @@
 #' - Federico-Tena trading polities dataset with temporal coverage
 #'
 #' The resulting dataset provides comprehensive polity information suitable for
-#' historical trade analysis with proper source attribution and standardized
-#' naming conventions.
+#' historical production and trade analysis with proper source attribution and
+#' standardized naming conventions.
 #'
-#' @export
 #'
 #' @examples
 #' \dontrun{
