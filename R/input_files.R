@@ -120,3 +120,9 @@ get_file_path <- function(file_alias, force_download = FALSE) {
     system.file(csv_path, package = utils::packageName()) |>
     readr::read_csv(show_col_types = FALSE)
 }
+
+.read_local_xlsx <- function(xlsx_path) {
+  "extdata" |>
+    system.file(xlsx_path, package = utils::packageName()) |>
+    readxl::read_xlsx()
+}

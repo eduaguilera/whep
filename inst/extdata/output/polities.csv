@@ -33,7 +33,7 @@ CAN,Canada,Canada,CAN,Canada,Canada,FAOSTAT,ISO3,NA,NA,NA
 CAF,Central African Republic,Central African Republic,CAF,Central African Republic,NA,FAOSTAT,ISO3,NA,NA,NA
 TCD,Chad,Chad,TCD,Chad,NA,FAOSTAT,ISO3,NA,NA,NA
 CHL,Chile,Chile,CHL,Chile,Chile,FAOSTAT,ISO3,NA,NA,NA
-HKG,"China, Hong Kong SAR","China, Hong Kong SAR",HKG,"China, Hong Kong SAR","China, Hong Kong SAR",FAOSTAT,ISO3,NA,NA,NA
+HKG,"China, Hong Kong SAR","China, Hong Kong SAR",HKG,"China, Hong Kong SAR",NA,FAOSTAT,ISO3,NA,NA,NA
 MAC,"China, Macao SAR","China, Macao SAR",MAC,"China, Macao SAR",NA,FAOSTAT,ISO3,NA,NA,NA
 CHN,"China, mainland","China, mainland",CHN,"China, mainland",NA,FAOSTAT,ISO3,NA,NA,NA
 TWN,"China, Taiwan","China, Taiwan",TWN,"China, Taiwan Province of",NA,FAOSTAT,ISO3,NA,NA,NA
@@ -325,6 +325,7 @@ NA,French India,French India,NA,NA,French India,FT,FT,1800,1938,NA
 NA,French Indochina,French Indochina,NA,NA,French Indochina,FT,FT,1887,1938,NA
 NA,Fujairah,Fujairah,NA,NA,Fujairah,FT,FT,1886,1938,1816-1886 Sharjah
 NA,Herat,Herat,NA,NA,Herat,FT,FT,1800,1862,1863-1938 Afghanistan; joint estimate with Afghanistan
+NA,Hong-Kong,Hong-Kong,NA,NA,Hong-Kong,FT,FT,1841,1938,1816-1839 China
 NA,Khiva,Khiva,NA,NA,Khiva,FT,FT,1800,1873,1873-1938 Russia and Soviet Union
 NA,Kiautchou,Kiautchou,NA,NA,Kiautchou,FT,FT,1898,1922,1800-1898 and 1922-1938 China; joint estimate with China
 NA,Kokand,Kokand,NA,NA,Kokand,FT,FT,1800,1883,1873-1938 Russia and Soviet Union
@@ -385,8 +386,10 @@ NA,Palmyra Island,Palmyra Island,NA,NA,Palmyra Island,FT,FT,1889,1912,1862-1898 
 NA,Pitcairn Island,Pitcairn Island,NA,NA,Pitcairn Island,FT,FT,1839,1938,UK colony; joint estimation British settlement Oceania
 NA,Queensland,Queensland,NA,NA,Queensland,FT,FT,1859,1900,Joint estimation with Australia; 1800-1858 part of New South Wales
 NA,Society Islands  (Tahiti),Society Islands  (Tahiti),NA,NA,Society Islands  (Tahiti),FT,FT,1844,1903,independent Kingdom to 1844; French protectorate 1844-1881; then French colony joint estimate with French settlement Oceania
+NA,South Australia,South Australia,NA,NA,South Australia,FT,FT,1838,1900,Joint estimation with Australia
 NA,Tokelau Island,Tokelau Island,NA,NA,Tokelau Island,FT,FT,1877,1938,British colony; administered New Zealand after 1926 Joint estimation with British Settlement Oceania
 NA,Tongan Islands,Tongan Islands,NA,NA,Tongan Islands,FT,FT,1800,1938,Quasi independent kingdom; joit estimate with British settlment Oceania
 NA,US settlement Oceania,US settlement Oceania,NA,NA,US settlement Oceania,FT,FT,1859,1938,NA
 NA,Van Diemen's Land (Tasmania),Van Diemen's Land (Tasmania),NA,NA,Van Diemen's Land (Tasmania),FT,FT,1828,1900,Joint estimation with Australia; 1800-1825 New South Wales;
 NA,Victoria,Victoria,NA,NA,Victoria,FT,FT,1853,1900,Joint estimation with Australia; 1800-1852 New South Wales;
+NA,Western Australia,Western Australia,NA,NA,Western Australia,FT,FT,1838,1900,Joint estimation with Australia

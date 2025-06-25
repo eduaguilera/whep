@@ -124,7 +124,7 @@ French India,1800,1938,NA,French India,NA,French India,NA,NA,FT,FT
 French Indochina,1887,1938,NA,French Indochina,NA,French Indochina,NA,NA,FT,FT
 Fujairah,1886,1938,1816-1886 Sharjah,Fujairah,NA,Fujairah,NA,NA,FT,FT
 Herat,1800,1862,1863-1938 Afghanistan; joint estimate with Afghanistan,Herat,NA,Herat,NA,NA,FT,FT
-"China, Hong Kong SAR",1841,1938,1816-1839 China,Hong-Kong,NA,"China, Hong Kong SAR",NA,NA,FT,FT
+Hong-Kong,1841,1938,1816-1839 China,Hong-Kong,NA,Hong-Kong,NA,NA,FT,FT
 India,1800,1938,NA,India,NA,India,NA,NA,FT,FT
 Iraq,1921,1938,1800-1918 Ottoman Empire,Iraq,NA,Iraq,NA,NA,FT,FT
 Japan,1800,1938,NA,Japan,NA,Japan,NA,NA,FT,FT
@@ -233,7 +233,7 @@ Pitcairn Island,1839,1938,UK colony; joint estimation British settlement Oceania
 Queensland,1859,1900,Joint estimation with Australia; 1800-1858 part of New South Wales,Queensland,NA,Queensland,NA,NA,FT,FT
 Society Islands  (Tahiti),1844,1903,independent Kingdom to 1844; French protectorate 1844-1881; then French colony joint estimate with French settlement Oceania,Society Islands  (Tahiti),NA,Society Islands  (Tahiti),NA,NA,FT,FT
 Solomon Islands,1885,1938,German colony 1885-1900; British 1900-1938; Joint estimation with British settlement Oceania,Solomon Islands,NA,Solomon Islands,NA,NA,FT,FT
-Australia,1838,1900,Joint estimation with Australia,South Australia,NA,Australia,NA,NA,FT,FT
+South Australia,1838,1900,Joint estimation with Australia,South Australia,NA,South Australia,NA,NA,FT,FT
 Tokelau Island,1877,1938,British colony; administered New Zealand after 1926 Joint estimation with British Settlement Oceania,Tokelau Island,NA,Tokelau Island,NA,NA,FT,FT
 Tongan Islands,1800,1938,Quasi independent kingdom; joit estimate with British settlment Oceania,Tongan Islands,NA,Tongan Islands,NA,NA,FT,FT
 US settlement Oceania,1859,1938,NA,US settlement Oceania,NA,US settlement Oceania,NA,NA,FT,FT
@@ -241,5 +241,5 @@ Van Diemen's Land (Tasmania),1828,1900,Joint estimation with Australia; 1800-182
 Victoria,1853,1900,Joint estimation with Australia; 1800-1852 New South Wales;,Victoria,NA,Victoria,NA,NA,FT,FT
 Wake Island,1898,1938,Joint estimation with US settlement Oceania,Wake Island,NA,Wake Island,NA,NA,FT,FT
 Wallis and Futuna Islands,1842,1938,Joint estimation with French Polinesia,Wallis and Futuna Island,NA,Wallis and Futuna Islands,NA,NA,FT,FT
-Australia,1838,1900,Joint estimation with Australia,Western Australia,NA,Australia,NA,NA,FT,FT
+Western Australia,1838,1900,Joint estimation with Australia,Western Australia,NA,Western Australia,NA,NA,FT,FT
 American Samoa,1900,1938,German colony 1899-1915; New Zealand mandate; joint estimate with German colonies Oceania,Western Samoa,NA,American Samoa,NA,NA,FT,FT
