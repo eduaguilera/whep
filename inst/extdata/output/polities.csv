@@ -1,195 +1,195 @@
 polity_code,polity_name,polity_name_full,polity_code_full,polity_name_FAO,polity_name_FT,polity_name_source,polity_code_source,start_year,end_year,Comments FT
-AFG,Afghanistan,Afghanistan,AFG,Afghanistan,Afghanistan,FAOSTAT,ISO3,1800,NA,NA
-ALB,Albania,Albania,ALB,Albania,Albania,FAOSTAT,ISO3,1913,NA,NA
-DZA,Algeria,Algeria,DZA,Algeria,Algeria,FAOSTAT,ISO3,NA,NA,NA
-AGO,Angola,Angola,AGO,Angola,Angola,FAOSTAT,ISO3,NA,NA,NA
-ATG,Antigua and Barbuda,Antigua and Barbuda,ATG,Antigua and Barbuda,NA,FAOSTAT,ISO3,1816,NA,"in 1816 it was divided in two, with Antigua, Barbuda and Montserrat in one colony, and Saint Christopher, Nevis, Anguilla, and the Virgin Islands in another"
-ARG,Argentina,Argentina,ARG,Argentina,Argentina,FAOSTAT,ISO3,NA,NA,NA
+AFG,Afghanistan,Afghanistan,AFG,Afghanistan,Afghanistan,FAOSTAT,ISO3,1800,1938,NA
+ALB,Albania,Albania,ALB,Albania,Albania,FAOSTAT,ISO3,1913,1938,1800-1913 Ottoman Empire
+DZA,Algeria,Algeria,DZA,Algeria,Algeria,FAOSTAT,ISO3,1831,1938,1800-1830 Ottoman Empire
+AGO,Angola,Angola,AGO,Angola,Angola,FAOSTAT,ISO3,1816,1938,NA
+ATG,Antigua and Barbuda,Antigua and Barbuda,ATG,Antigua and Barbuda,"Leeward Islands (Antigua, Dominica, St.Christopher, Montserrat, Nevis, Virgin Island)",FAOSTAT,ISO3,1816,NA,"in 1816 it was divided in two, with Antigua, Barbuda and Montserrat in one colony, and Saint Christopher, Nevis, Anguilla, and the Virgin Islands in another"
+ARG,Argentina,Argentina,ARG,Argentina,Argentina,FAOSTAT,ISO3,1800,1938,until 1811 Spanish colony (Viceroyalty Plata)
 ARM,Armenia,Armenia,ARM,Armenia,NA,FAOSTAT,ISO3,1992,NA,NA
-AUS,Australia,Australia,AUS,Australia,Australia,FAOSTAT,ISO3,1901,NA,NA
-AUT,Austria,Austria,AUT,Austria,Austria,FAOSTAT,ISO3,NA,NA,NA
+AUS,Australia,Australia,AUS,Australia,Australia Commonwealth,FAOSTAT,ISO3,1901,1940,NA
+AUT,Austria,Austria,AUT,Austria,Austria,FAOSTAT,ISO3,1918,1938,1800-1918 Austria-Hungary
 AZE,Azerbaijan,Azerbaijan,AZE,Azerbaijan,NA,FAOSTAT,ISO3,1992,NA,NA
-BHS,Bahamas,Bahamas,BHS,Bahamas,Bahamas,FAOSTAT,ISO3,NA,NA,NA
-BHR,Bahrain,Bahrain,BHR,Bahrain,Bahrain,FAOSTAT,ISO3,NA,NA,NA
+BHS,Bahamas,Bahamas,BHS,Bahamas,Bahamas,FAOSTAT,ISO3,1800,1938,NA
+BHR,Bahrain,Bahrain,BHR,Bahrain,Bahrain,FAOSTAT,ISO3,1800,1938,NA
 BGD,Bangladesh,Bangladesh,BGD,Bangladesh,NA,FAOSTAT,ISO3,NA,NA,NA
-BRB,Barbados,Barbados,BRB,Barbados,Barbados,FAOSTAT,ISO3,NA,NA,NA
+BRB,Barbados,Barbados,BRB,Barbados,Barbados,FAOSTAT,ISO3,1800,1938,NA
 BLR,Belarus,Belarus,BLR,Belarus,NA,FAOSTAT,ISO3,1992,NA,NA
-BEL,Belgium,Belgium,BEL,Belgium,Belgium,FAOSTAT,ISO3,2000,NA,NA
+BEL,Belgium,Belgium,BEL,Belgium,Belgium,FAOSTAT,ISO3,2000,1938,NA
 BLX,Belgium-Luxembourg,Belgium-Luxembourg,BLX,Belgium-Luxembourg,NA,FAOSTAT,ISO3,NA,1999,NA
 BLZ,Belize,Belize,BLZ,Belize,NA,FAOSTAT,ISO3,NA,NA,NA
 BEN,Benin,Benin,BEN,Benin,NA,FAOSTAT,ISO3,NA,NA,NA
-BOL,Bolivia,Bolivia,BOL,Bolivia (Plurinational State of),Bolivia,FAOSTAT shortened,ISO3,NA,NA,NA
+BOL,Bolivia,Bolivia,BOL,Bolivia (Plurinational State of),Bolivia,FAOSTAT shortened,ISO3,1825,1938,until 1825 Spanish colony (Viceroyalty de la Plata)
 BIH,Bosnia and Herzegovina,Bosnia and Herzegovina,BIH,Bosnia and Herzegovina,NA,FAOSTAT,ISO3,1992,NA,NA
 BWA,Botswana,Botswana,BWA,Botswana,NA,FAOSTAT,ISO3,NA,NA,NA
-BRA,Brazil,Brazil,BRA,Brazil,Brazil,FAOSTAT,ISO3,NA,NA,NA
+BRA,Brazil,Brazil,BRA,Brazil,Brazil,FAOSTAT,ISO3,1800,1938,NA
 BRN,Brunei Darussalam,Brunei Darussalam,BRN,Brunei Darussalam,NA,FAOSTAT,ISO3,NA,NA,NA
-BGR,Bulgaria,Bulgaria,BGR,Bulgaria,Bulgaria,FAOSTAT,ISO3,NA,NA,NA
+BGR,Bulgaria,Bulgaria,BGR,Bulgaria,Bulgaria,FAOSTAT,ISO3,1878,1938,1800-1878 Ottoman Empire
 BFA,Burkina Faso,Burkina Faso,BFA,Burkina Faso,NA,FAOSTAT,ISO3,NA,NA,NA
 BDI,Burundi,Burundi,BDI,Burundi,NA,FAOSTAT,ISO3,NA,NA,NA
 CPV,Cabo Verde,Cabo Verde,CPV,Cabo Verde,NA,FAOSTAT,ISO3,NA,NA,NA
 KHM,Cambodia,Cambodia,KHM,Cambodia,NA,FAOSTAT,ISO3,NA,NA,NA
-CMR,Cameroon,Cameroon,CMR,Cameroon,Cameroon,FAOSTAT,ISO3,NA,NA,NA
-CAN,Canada,Canada,CAN,Canada,Canada,FAOSTAT,ISO3,NA,NA,NA
+CMR,Cameroon,Cameroon,CMR,Cameroon,Cameroon (Kamerun),FAOSTAT,ISO3,1884,1938,"German colony until 1914, French mandate thereafter"
+CAN,Canada,Canada,CAN,Canada,Canada,FAOSTAT,ISO3,1866,1938,"Sum of Canada (Ports of Quebec and Montreal), Nova Scotia and Cape Breton, New Brunswick and Prince Edward Island from 1827-1867."
 CAF,Central African Republic,Central African Republic,CAF,Central African Republic,NA,FAOSTAT,ISO3,NA,NA,NA
 TCD,Chad,Chad,TCD,Chad,NA,FAOSTAT,ISO3,NA,NA,NA
-CHL,Chile,Chile,CHL,Chile,Chile,FAOSTAT,ISO3,NA,NA,NA
+CHL,Chile,Chile,CHL,Chile,Chile,FAOSTAT,ISO3,1810,1938,Until 1810 Spanish colony (viceroyalty de Peru)
 HKG,"China, Hong Kong SAR","China, Hong Kong SAR",HKG,"China, Hong Kong SAR",NA,FAOSTAT,ISO3,NA,NA,NA
 MAC,"China, Macao SAR","China, Macao SAR",MAC,"China, Macao SAR",NA,FAOSTAT,ISO3,NA,NA,NA
 CHN,"China, mainland","China, mainland",CHN,"China, mainland",NA,FAOSTAT,ISO3,NA,NA,NA
 TWN,"China, Taiwan","China, Taiwan",TWN,"China, Taiwan Province of",NA,FAOSTAT,ISO3,NA,NA,NA
-COL,Colombia,Colombia,COL,Colombia,Colombia,FAOSTAT,ISO3,NA,NA,NA
+COL,Colombia,Colombia,COL,Colombia,Colombia,FAOSTAT,ISO3,1800,1938,until 1811 spanish colony (Viceroyalty New Granada)
 COG,Congo,Congo,COG,Congo,NA,FAOSTAT,ISO3,NA,NA,NA
-CRI,Costa Rica,Costa Rica,CRI,Costa Rica,Costa Rica,FAOSTAT,ISO3,NA,NA,NA
+CRI,Costa Rica,Costa Rica,CRI,Costa Rica,Costa Rica,FAOSTAT,ISO3,1800,1938,until 1821 Spanish colony; 1821-1823(nominal)  Mexico; 1823-1841 part of  (very loose) Federal Republic Central America
 HRV,Croatia,Croatia,HRV,Croatia,NA,FAOSTAT,ISO3,1992,NA,NA
-CUB,Cuba,Cuba,CUB,Cuba,Cuba,FAOSTAT,ISO3,NA,NA,NA
-CYP,Cyprus,Cyprus,CYP,Cyprus,Cyprus,FAOSTAT,ISO3,NA,NA,NA
+CUB,Cuba,Cuba,CUB,Cuba,Cuba,FAOSTAT,ISO3,1800,1938,NA
+CYP,Cyprus,Cyprus,CYP,Cyprus,Cyprus,FAOSTAT,ISO3,1879,1938,"1800-1878 Ottoman Empire, then British colony"
 CZE,Czechia,Czechia,CZE,Czechia,NA,FAOSTAT,ISO3,1993,NA,NA
-CSK,Czechoslovakia,Czechoslovakia,CSK,Czechoslovakia,Czechoslovakia,FAOSTAT,ISO3,NA,1992,NA
-DNK,Denmark,Denmark,DNK,Denmark,Denmark,FAOSTAT,ISO3,NA,NA,NA
+CSK,Czechoslovakia,Czechoslovakia,CSK,Czechoslovakia,Czechoslovakia,FAOSTAT,ISO3,1918,1992,1800-1918 Austria-Hungary
+DNK,Denmark,Denmark,DNK,Denmark,Denmark,FAOSTAT,ISO3,1800,1938,NA
 DJI,Djibouti,Djibouti,DJI,Djibouti,NA,FAOSTAT,ISO3,NA,NA,NA
 DMA,Dominica,Dominica,DMA,Dominica,NA,FAOSTAT,ISO3,NA,NA,NA
-DOM,Dominican Republic,Dominican Republic,DOM,Dominican Republic,Dominican Republic,FAOSTAT,ISO3,NA,NA,NA
+DOM,Dominican Republic,Dominican Republic,DOM,Dominican Republic,Dominican Republic,FAOSTAT,ISO3,1800,1938,NA
 COD,DR Congo,DR Congo,COD,Democratic Republic of the Congo,NA,FAOSTAT shortened,ISO3,NA,NA,NA
-ECU,Ecuador,Ecuador,ECU,Ecuador,Ecuador,FAOSTAT,ISO3,NA,NA,NA
-EGY,Egypt,Egypt,EGY,Egypt,Egypt,FAOSTAT,ISO3,NA,NA,NA
-SLV,El Salvador,El Salvador,SLV,El Salvador,El Salvador,FAOSTAT,ISO3,NA,NA,NA
-ERI,Eritrea,Eritrea,ERI,Eritrea,Eritrea,FAOSTAT,ISO3,1993,NA,NA
-EST,Estonia,Estonia,EST,Estonia,Estonia,FAOSTAT,ISO3,1992,NA,NA
-ETH,Ethiopia,Ethiopia,ETH,Ethiopia,Ethiopia,FAOSTAT unified (Ethiopia and Ethiopia PDR),ISO3,NA,NA,NA
-FJI,Fiji,Fiji,FJI,Fiji,Fiji,FAOSTAT,ISO3,NA,NA,NA
-FIN,Finland,Finland,FIN,Finland,Finland,FAOSTAT,ISO3,NA,NA,NA
-FRA,France,France,FRA,France,France,FAOSTAT,ISO3,NA,NA,NA
+ECU,Ecuador,Ecuador,ECU,Ecuador,Ecuador,FAOSTAT,ISO3,1800,1938,NA
+EGY,Egypt,Egypt,EGY,Egypt,Egypt,FAOSTAT,ISO3,1800,1938,NA
+SLV,El Salvador,El Salvador,SLV,El Salvador,El Salvador,FAOSTAT,ISO3,1821,1938,until 1821 Spanish colony; 1821-1823(nominal)  Mexico; 1823-1841 part of  (very loose) Federal Republic Central America
+ERI,Eritrea,Eritrea,ERI,Eritrea,Eritrea,FAOSTAT,ISO3,1993,1938,NA
+EST,Estonia,Estonia,EST,Estonia,Estonia,FAOSTAT,ISO3,1992,1938,1800-1918 Russia
+ETH,Ethiopia,Ethiopia,ETH,Ethiopia,Ethiopia,FAOSTAT unified (Ethiopia and Ethiopia PDR),ISO3,1800,1938,Since 1936 Italian colony
+FJI,Fiji,Fiji,FJI,Fiji,Fiji,FAOSTAT,ISO3,1874,1938,Joint estimation British settlement Oceania
+FIN,Finland,Finland,FIN,Finland,Finland,FAOSTAT,ISO3,1917,1938,1800-1812 Russia
+FRA,France,France,FRA,France,France,FAOSTAT,ISO3,1800,1938,NA
 PYF,French Polynesia,French Polynesia,PYF,French Polynesia,NA,FAOSTAT,ISO3,NA,NA,NA
 GAB,Gabon,Gabon,GAB,Gabon,NA,FAOSTAT,ISO3,NA,NA,NA
-GMB,Gambia,Gambia,GMB,Gambia,Gambia,FAOSTAT,ISO3,NA,NA,NA
+GMB,Gambia,Gambia,GMB,Gambia,Gambia,FAOSTAT,ISO3,1800,1938,NA
 GEO,Georgia,Georgia,GEO,Georgia,NA,FAOSTAT,ISO3,1992,NA,NA
 DEU,Germany,Germany,DEU,Germany,NA,FAOSTAT,ISO3,NA,NA,NA
 GHA,Ghana,Ghana,GHA,Ghana,NA,FAOSTAT,ISO3,NA,NA,NA
 GRC,Greece,Greece,GRC,Greece,NA,FAOSTAT,ISO3,NA,NA,NA
-GRD,Grenada,Grenada,GRD,Grenada,Grenada,FAOSTAT,ISO3,NA,NA,NA
-GTM,Guatemala,Guatemala,GTM,Guatemala,Guatemala,FAOSTAT,ISO3,NA,NA,NA
+GRD,Grenada,Grenada,GRD,Grenada,Grenada,FAOSTAT,ISO3,1800,1833,British Windward colony after 1833
+GTM,Guatemala,Guatemala,GTM,Guatemala,Guatemala,FAOSTAT,ISO3,1821,1938,until 1821 Spanish colony; 1821-1823(nominal)  Mexico; 1823-1841 part of  (very loose) Federal Republic Central America
 GIN,Guinea,Guinea,GIN,Guinea,NA,FAOSTAT,ISO3,NA,NA,NA
-GNB,Guinea-Bissau,Guinea-Bissau,GNB,Guinea-Bissau,Guinea-Bissau,FAOSTAT,ISO3,NA,NA,NA
+GNB,Guinea-Bissau,Guinea-Bissau,GNB,Guinea-Bissau,Guinea Bisau (Portuguese Guinea),FAOSTAT,ISO3,1879,1938,Present-day Guinea Bissau
 GUY,Guyana,Guyana,GUY,Guyana,NA,FAOSTAT,ISO3,NA,NA,NA
-HTI,Haiti,Haiti,HTI,Haiti,Haiti,FAOSTAT,ISO3,NA,NA,NA
-HND,Honduras,Honduras,HND,Honduras,Honduras,FAOSTAT,ISO3,NA,NA,NA
+HTI,Haiti,Haiti,HTI,Haiti,Haiti,FAOSTAT,ISO3,1800,1938,NA
+HND,Honduras,Honduras,HND,Honduras,Honduras,FAOSTAT,ISO3,1800,1938,until 1821 Spanish colony; 1821-1823(nominal)  Mexico; 1823-1841 part of  (very loose) Federal Republic Central America
 HUN,Hungary,Hungary,HUN,Hungary,NA,FAOSTAT,ISO3,NA,NA,NA
-ISL,Iceland,Iceland,ISL,Iceland,Iceland,FAOSTAT,ISO3,NA,NA,NA
-IND,India,India,IND,India,India,FAOSTAT,ISO3,NA,NA,NA
+ISL,Iceland,Iceland,ISL,Iceland,Iceland,FAOSTAT,ISO3,1800,1938,NA
+IND,India,India,IND,India,India,FAOSTAT,ISO3,1800,1938,NA
 IDN,Indonesia,Indonesia,IDN,Indonesia,NA,FAOSTAT,ISO3,NA,NA,NA
 IRN,Iran,Iran,IRN,Iran (Islamic Republic of),NA,FAOSTAT shortened,ISO3,NA,NA,NA
-IRQ,Iraq,Iraq,IRQ,Iraq,Iraq,FAOSTAT,ISO3,NA,NA,NA
-IRL,Ireland,Ireland,IRL,Ireland,Ireland,FAOSTAT,ISO3,NA,NA,NA
+IRQ,Iraq,Iraq,IRQ,Iraq,Iraq,FAOSTAT,ISO3,1921,1938,1800-1918 Ottoman Empire
+IRL,Ireland,Ireland,IRL,Ireland,Ireland,FAOSTAT,ISO3,1921,1938,1800-1921 United Kingdom
 ISR,Israel,Israel,ISR,Israel,NA,FAOSTAT,ISO3,NA,NA,NA
-ITA,Italy,Italy,ITA,Italy,Italy,FAOSTAT,ISO3,NA,NA,NA
+ITA,Italy,Italy,ITA,Italy,Italy,FAOSTAT,ISO3,1861,1938,NA
 CIV,Ivory Coast,Ivory Coast,CIV,Côte d'Ivoire,NA,FAOSTAT,ISO3,NA,NA,NA
-JAM,Jamaica,Jamaica,JAM,Jamaica,Jamaica,FAOSTAT,ISO3,NA,NA,NA
-JPN,Japan,Japan,JPN,Japan,Japan,FAOSTAT,ISO3,NA,NA,NA
-JOR,Jordan,Jordan,JOR,Jordan,Jordan,FAOSTAT,ISO3,NA,NA,NA
+JAM,Jamaica,Jamaica,JAM,Jamaica,Jamaica,FAOSTAT,ISO3,1800,1938,Including Cayman islands
+JPN,Japan,Japan,JPN,Japan,Japan,FAOSTAT,ISO3,1800,1938,NA
+JOR,Jordan,Jordan,JOR,Jordan,Jordan,FAOSTAT,ISO3,1918,1938,1800-1918 Ottoman Empire; joint estimate with Palestine
 KAZ,Kazakhstan,Kazakhstan,KAZ,Kazakhstan,NA,FAOSTAT,ISO3,1992,NA,NA
 KEN,Kenya,Kenya,KEN,Kenya,NA,FAOSTAT,ISO3,NA,NA,NA
 KIR,Kiribati,Kiribati,KIR,Kiribati,NA,FAOSTAT,ISO3,NA,NA,NA
-KWT,Kuwait,Kuwait,KWT,Kuwait,Kuwait,FAOSTAT,ISO3,NA,NA,NA
+KWT,Kuwait,Kuwait,KWT,Kuwait,Kuwait,FAOSTAT,ISO3,1800,1938,population in 1920
 KGZ,Kyrgyzstan,Kyrgyzstan,KGZ,Kyrgyzstan,NA,FAOSTAT,ISO3,1992,NA,NA
 LAO,Lao,Lao,LAO,Lao People's Democratic Republic,NA,FAOSTAT shortened,ISO3,NA,NA,NA
-LVA,Latvia,Latvia,LVA,Latvia,Latvia,FAOSTAT,ISO3,1992,NA,NA
+LVA,Latvia,Latvia,LVA,Latvia,Latvia,FAOSTAT,ISO3,1992,1938,1800-1918 Russia
 LBN,Lebanon,Lebanon,LBN,Lebanon,NA,FAOSTAT,ISO3,NA,NA,NA
 LSO,Lesotho,Lesotho,LSO,Lesotho,NA,FAOSTAT,ISO3,NA,NA,NA
-LBR,Liberia,Liberia,LBR,Liberia,Liberia,FAOSTAT,ISO3,NA,NA,NA
+LBR,Liberia,Liberia,LBR,Liberia,Liberia,FAOSTAT,ISO3,1847,1938,NA
 LBY,Libya,Libya,LBY,Libya,NA,FAOSTAT,ISO3,NA,NA,NA
-LTU,Lithuania,Lithuania,LTU,Lithuania,Lithuania,FAOSTAT,ISO3,1992,NA,NA
-LUX,Luxembourg,Luxembourg,LUX,Luxembourg,Luxembourg,FAOSTAT,ISO3,2000,NA,NA
+LTU,Lithuania,Lithuania,LTU,Lithuania,Lithuania,FAOSTAT,ISO3,1992,1938,1800-1918 Russia
+LUX,Luxembourg,Luxembourg,LUX,Luxembourg,Luxembourg,FAOSTAT,ISO3,2000,1938,NA
 MKD,North Macedonia,North Macedonia,MKD,North Macedonia,NA,FAOSTAT,ISO3,1992,NA,NA
-MDG,Madagascar,Madagascar,MDG,Madagascar,Madagascar,FAOSTAT,ISO3,NA,NA,NA
+MDG,Madagascar,Madagascar,MDG,Madagascar,Madagascar,FAOSTAT,ISO3,1882,1938,NA
 MWI,Malawi,Malawi,MWI,Malawi,NA,FAOSTAT,ISO3,NA,NA,NA
 MYS,Malaysia,Malaysia,MYS,Malaysia,NA,FAOSTAT,ISO3,NA,NA,NA
 MDV,Maldives,Maldives,MDV,Maldives,NA,FAOSTAT,ISO3,NA,NA,NA
 MLI,Mali,Mali,MLI,Mali,NA,FAOSTAT,ISO3,NA,NA,NA
-MLT,Malta,Malta,MLT,Malta,Malta,FAOSTAT,ISO3,NA,NA,NA
+MLT,Malta,Malta,MLT,Malta,Malta,FAOSTAT,ISO3,1800,1938,NA
 MRT,Mauritania,Mauritania,MRT,Mauritania,NA,FAOSTAT,ISO3,NA,NA,NA
-MUS,Mauritius,Mauritius,MUS,Mauritius,Mauritius,FAOSTAT,ISO3,NA,NA,NA
-MEX,Mexico,Mexico,MEX,Mexico,Mexico,FAOSTAT,ISO3,NA,NA,NA
+MUS,Mauritius,Mauritius,MUS,Mauritius,Mauritius,FAOSTAT,ISO3,1800,1938,NA
+MEX,Mexico,Mexico,MEX,Mexico,Mexico,FAOSTAT,ISO3,1800,1938,NA
 MDA,Republic of Moldova,Republic of Moldova,MDA,Republic of Moldova,NA,FAOSTAT,ISO3,1992,NA,NA
-MNG,Mongolia,Mongolia,MNG,Mongolia,Mongolia,FAOSTAT,ISO3,NA,NA,NA
-MNE,Montenegro,Montenegro,MNE,Montenegro,Montenegro,FAOSTAT,ISO3,2006,NA,NA
-MAR,Morocco,Morocco,MAR,Morocco,Morocco,FAOSTAT,ISO3,NA,NA,NA
-MOZ,Mozambique,Mozambique,MOZ,Mozambique,Mozambique,FAOSTAT,ISO3,NA,NA,NA
+MNG,Mongolia,Mongolia,MNG,Mongolia,Mongolia,FAOSTAT,ISO3,1911,1938,1800-1911 China
+MNE,Montenegro,Montenegro,MNE,Montenegro,Montenegro,FAOSTAT,ISO3,2006,1918,1800-1878 Ottoman Empire; 1918-1938 Yugoslavia
+MAR,Morocco,Morocco,MAR,Morocco,Morocco (French),FAOSTAT,ISO3,1911,1938,NA
+MOZ,Mozambique,Mozambique,MOZ,Mozambique,Mozambique,FAOSTAT,ISO3,1816,1938,NA
 MMR,Myanmar,Myanmar,MMR,Myanmar,NA,FAOSTAT,ISO3,NA,NA,NA
 NAM,Namibia,Namibia,NAM,Namibia,NA,FAOSTAT,ISO3,NA,NA,NA
-NPL,Nepal,Nepal,NPL,Nepal,Nepal,FAOSTAT,ISO3,NA,NA,NA
-NLD,Netherlands,Netherlands,NLD,Netherlands (Kingdom of the),Netherlands,FAOSTAT shortened,ISO3,NA,NA,NA
+NPL,Nepal,Nepal,NPL,Nepal,Nepal,FAOSTAT,ISO3,1800,1938,NA
+NLD,Netherlands,Netherlands,NLD,Netherlands (Kingdom of the),Netherlands,FAOSTAT shortened,ISO3,1800,1938,NA
 NZL,New Zealand,New Zealand,NZL,New Zealand,NA,FAOSTAT,ISO3,NA,NA,NA
-NIC,Nicaragua,Nicaragua,NIC,Nicaragua,Nicaragua,FAOSTAT,ISO3,NA,NA,NA
+NIC,Nicaragua,Nicaragua,NIC,Nicaragua,Nicaragua,FAOSTAT,ISO3,1800,1938,until 1821 Spanish colony; 1821-1823(nominal)  Mexico; 1823-1841 part of  (very loose) Federal Republic Central America
 NER,Niger,Niger,NER,Niger,NA,FAOSTAT,ISO3,NA,NA,NA
-NGA,Nigeria,Nigeria,NGA,Nigeria,Nigeria,FAOSTAT,ISO3,NA,NA,NA
+NGA,Nigeria,Nigeria,NGA,Nigeria,Nigeria,FAOSTAT,ISO3,1861,1938,"Includes Lagos (separate colony 1861-1906), Southern Nigeria (protectorate 1899-1914) and Northern Nigeria (protectorate 1900-1914)"
 PRK,North Korea,North Korea,PRK,Democratic People's Republic of Korea,NA,FAOSTAT shortened,ISO3,NA,NA,NA
-NOR,Norway,Norway,NOR,Norway,Norway,FAOSTAT,ISO3,NA,NA,NA
-OMN,Oman,Oman,OMN,Oman,Oman,FAOSTAT,ISO3,NA,NA,NA
+NOR,Norway,Norway,NOR,Norway,Norway,FAOSTAT,ISO3,1800,1938,NA
+OMN,Oman,Oman,OMN,Oman,Oman,FAOSTAT,ISO3,1800,1938,NA
 PAK,Pakistan,Pakistan,PAK,Pakistan,NA,FAOSTAT,ISO3,NA,NA,NA
 PSE,Palestine,Palestine,PSE,Palestine,NA,FAOSTAT,ISO3,1992,NA,NA
-PAN,Panama,Panama,PAN,Panama,Panama,FAOSTAT,ISO3,NA,NA,NA
+PAN,Panama,Panama,PAN,Panama,Panama,FAOSTAT,ISO3,1906,1938,until 1821 Spanish colony; until 1905 part of Colombia
 PNG,Papua New Guinea,Papua New Guinea,PNG,Papua New Guinea,NA,FAOSTAT,ISO3,NA,NA,NA
-PRY,Paraguay,Paraguay,PRY,Paraguay,Paraguay,FAOSTAT,ISO3,NA,NA,NA
-PER,Peru,Peru,PER,Peru,Peru,FAOSTAT,ISO3,NA,NA,NA
-PHL,Philippines,Philippines,PHL,Philippines,Philippines,FAOSTAT,ISO3,NA,NA,NA
-POL,Poland,Poland,POL,Poland,Poland,FAOSTAT,ISO3,NA,NA,NA
-PRT,Portugal,Portugal,PRT,Portugal,Portugal,FAOSTAT,ISO3,NA,NA,NA
-PRI,Puerto Rico,Puerto Rico,PRI,Puerto Rico,Puerto Rico,FAOSTAT,ISO3,NA,NA,NA
+PRY,Paraguay,Paraguay,PRY,Paraguay,Paraguay,FAOSTAT,ISO3,1811,1938,NA
+PER,Peru,Peru,PER,Peru,Peru,FAOSTAT,ISO3,1825,1938,until 1824 Spanish colony (viceroyalty of Peru)
+PHL,Philippines,Philippines,PHL,Philippines,Philippines,FAOSTAT,ISO3,1800,1938,NA
+POL,Poland,Poland,POL,Poland,Poland,FAOSTAT,ISO3,1918,1938,"1800-1918 divided between  Russia,  Austria-Hungary and  Germany"
+PRT,Portugal,Portugal,PRT,Portugal,Portugal,FAOSTAT,ISO3,1800,1938,NA
+PRI,Puerto Rico,Puerto Rico,PRI,Puerto Rico,Puerto Rico,FAOSTAT,ISO3,1800,1938,since 1901 trade of Porto Rico is included in the United States  statistics.
 QAT,Qatar,Qatar,QAT,Qatar,NA,FAOSTAT,ISO3,NA,NA,NA
-ROU,Romania,Romania,ROU,Romania,Romania,FAOSTAT,ISO3,NA,NA,NA
+ROU,Romania,Romania,ROU,Romania,Romania,FAOSTAT,ISO3,1859,1938,1800-1876 Ottoman Empire
 RUS,Russian Federation,Russian Federation,RUS,Russian Federation,NA,FAOSTAT,ISO3,1992,NA,NA
 RWA,Rwanda,Rwanda,RWA,Rwanda,NA,FAOSTAT,ISO3,NA,NA,NA
 KNA,Saint Kitts and Nevis,Saint Kitts and Nevis,KNA,Saint Kitts and Nevis,NA,FAOSTAT,ISO3,NA,NA,NA
 LCA,Saint Lucia,Saint Lucia,LCA,Saint Lucia,NA,FAOSTAT,ISO3,NA,NA,NA
 VCT,Saint Vincent and the Grenadines,Saint Vincent and the Grenadines,VCT,Saint Vincent and the Grenadines,NA,FAOSTAT,ISO3,NA,NA,NA
 WSM,Samoa,Samoa,WSM,Samoa,NA,FAOSTAT,ISO3,NA,NA,NA
-STP,Sao Tome and Principe,Sao Tome and Principe,STP,Sao Tome and Principe,Sao Tome and Principe,FAOSTAT,ISO3,NA,NA,NA
-SAU,Saudi Arabia,Saudi Arabia,SAU,Saudi Arabia,Saudi Arabia,FAOSTAT,ISO3,NA,NA,NA
+STP,Sao Tome and Principe,Sao Tome and Principe,STP,Sao Tome and Principe,Sao Tome and Principe,FAOSTAT,ISO3,1800,1938,NA
+SAU,Saudi Arabia,Saudi Arabia,SAU,Saudi Arabia,Saudi Arabia,FAOSTAT,ISO3,1924,1938,1800-1918 Ottoman Empire
 SEN,Senegal,Senegal,SEN,Senegal,NA,FAOSTAT,ISO3,NA,NA,NA
 SRB,Serbia,Serbia,SRB,Serbia,NA,FAOSTAT,ISO3,2006,NA,NA
 SCG,Serbia and Montenegro,Serbia and Montenegro,SCG,Serbia and Montenegro,NA,FAOSTAT,ISO3,1992,2005,NA
-SLE,Sierra Leone,Sierra Leone,SLE,Sierra Leone,Sierra Leone,FAOSTAT,ISO3,NA,NA,NA
+SLE,Sierra Leone,Sierra Leone,SLE,Sierra Leone,Sierra Leone,FAOSTAT,ISO3,1800,1938,NA
 SGP,Singapore,Singapore,SGP,Singapore,NA,FAOSTAT,ISO3,NA,NA,NA
 SVK,Slovakia,Slovakia,SVK,Slovakia,NA,FAOSTAT,ISO3,1993,NA,NA
 SVN,Slovenia,Slovenia,SVN,Slovenia,NA,FAOSTAT,ISO3,1992,NA,NA
-SLB,Solomon Islands,Solomon Islands,SLB,Solomon Islands,Solomon Islands,FAOSTAT,ISO3,NA,NA,NA
+SLB,Solomon Islands,Solomon Islands,SLB,Solomon Islands,Solomon Islands,FAOSTAT,ISO3,1885,1938,German colony 1885-1900; British 1900-1938; Joint estimation with British settlement Oceania
 SOM,Somalia,Somalia,SOM,Somalia,NA,FAOSTAT,ISO3,NA,NA,NA
-ZAF,South Africa,South Africa,ZAF,South Africa,South Africa,FAOSTAT,ISO3,NA,NA,NA
+ZAF,South Africa,South Africa,ZAF,South Africa,South Africa,FAOSTAT,ISO3,1828,1938,"includes Cape Good Hope (since 1828), Natal (since 1897)"
 KOR,Republic of Korea,Republic of Korea,KOR,Republic of Korea,NA,FAOSTAT,ISO3,NA,NA,NA
-ESP,Spain,Spain,ESP,Spain,Spain,FAOSTAT,ISO3,NA,NA,NA
-LKA,Sri Lanka,Sri Lanka,LKA,Sri Lanka,Sri Lanka,FAOSTAT,ISO3,NA,NA,NA
+ESP,Spain,Spain,ESP,Spain,Spain,FAOSTAT,ISO3,1800,1938,NA
+LKA,Sri Lanka,Sri Lanka,LKA,Sri Lanka,Ceylon (Sri Lanka),FAOSTAT,ISO3,1800,1938,NA
 SDN,Sudan,Sudan,SDN,Sudan,NA,FAOSTAT unified (Sudan (Former) and Sudan),ISO3,NA,NA,NA
 SSD,South Sudan,South Sudan,SSD,South Sudan,NA,FAOSTAT,ISO3,2012,NA,NA
 SUR,Suriname,Suriname,SUR,Suriname,NA,FAOSTAT,ISO3,NA,NA,NA
 SWZ,Eswatini,Eswatini,SWZ,Eswatini,NA,FAOSTAT,ISO3,NA,NA,NA
-SWE,Sweden,Sweden,SWE,Sweden,Sweden,FAOSTAT,ISO3,NA,NA,NA
-CHE,Switzerland,Switzerland,CHE,Switzerland,Switzerland,FAOSTAT,ISO3,NA,NA,NA
+SWE,Sweden,Sweden,SWE,Sweden,Sweden,FAOSTAT,ISO3,1800,1938,NA
+CHE,Switzerland,Switzerland,CHE,Switzerland,Switzerland,FAOSTAT,ISO3,1800,1938,NA
 SYR,Syria,Syria,SYR,Syria,NA,FAOSTAT shortened,ISO3,NA,NA,NA
 TJK,Tajikistan,Tajikistan,TJK,Tajikistan,NA,FAOSTAT,ISO3,1992,NA,NA
 TZA,Tanzania,Tanzania,TZA,United Republic of Tanzania,NA,FAOSTAT shortened,ISO3,NA,NA,NA
 THA,Thailand,Thailand,THA,Thailand,NA,FAOSTAT,ISO3,NA,NA,NA
 TLS,Timor-Leste,Timor-Leste,TLS,Timor-Leste,NA,FAOSTAT,ISO3,NA,NA,NA
 TGO,Togo,Togo,TGO,Togo,NA,FAOSTAT,ISO3,NA,NA,NA
-TTO,Trinidad and Tobago,Trinidad and Tobago,TTO,Trinidad and Tobago,Trinidad and Tobago,FAOSTAT,ISO3,NA,NA,NA
-TUN,Tunisia,Tunisia,TUN,Tunisia,Tunisia,FAOSTAT,ISO3,NA,NA,NA
+TTO,Trinidad and Tobago,Trinidad and Tobago,TTO,Trinidad and Tobago,Trinidad and Tobago,FAOSTAT,ISO3,1800,1938,Tobago independent colony until 1889
+TUN,Tunisia,Tunisia,TUN,Tunisia,Tunisia,FAOSTAT,ISO3,1881,1938,NA
 TUR,Turkey,Turkey,TUR,Türkiye,NA,FAOSTAT,ISO3,NA,NA,NA
 TKM,Turkmenistan,Turkmenistan,TKM,Turkmenistan,NA,FAOSTAT,ISO3,1992,NA,NA
 UGA,Uganda,Uganda,UGA,Uganda,NA,FAOSTAT,ISO3,NA,NA,NA
 UKR,Ukraine,Ukraine,UKR,Ukraine,NA,FAOSTAT,ISO3,1992,NA,NA
 ARE,United Arab Emirates,United Arab Emirates,ARE,United Arab Emirates,NA,FAOSTAT,ISO3,NA,NA,NA
-GBR,United Kingdom,United Kingdom,GBR,United Kingdom of Great Britain and Northern Ireland,United Kingdom,FAOSTAT shortened,ISO3,NA,NA,NA
-USA,United States of America,United States of America,USA,United States of America,United States of America,FAOSTAT,ISO3,NA,NA,NA
-URY,Uruguay,Uruguay,URY,Uruguay,Uruguay,FAOSTAT,ISO3,NA,NA,NA
+GBR,United Kingdom,United Kingdom,GBR,United Kingdom of Great Britain and Northern Ireland,United Kingdom,FAOSTAT shortened,ISO3,1800,1938,NA
+USA,United States of America,United States of America,USA,United States of America,United States,FAOSTAT,ISO3,1800,1938,NA
+URY,Uruguay,Uruguay,URY,Uruguay,Uruguay,FAOSTAT,ISO3,1828,1938,until 1814 Spanish colony (Viceroyalty Rio de la Plata); 1816-1825 Brazil;
 SUN,USSR,USSR,SUN,USSR,NA,FAOSTAT,ISO3,NA,1991,NA
 UZB,Uzbekistan,Uzbekistan,UZB,Uzbekistan,NA,FAOSTAT,ISO3,1992,NA,NA
 VUT,Vanuatu,Vanuatu,VUT,Vanuatu,NA,FAOSTAT,ISO3,NA,NA,NA
-VEN,Venezuela,Venezuela,VEN,Venezuela (Bolivarian Republic of),Venezuela,FAOSTAT shortened,ISO3,NA,NA,NA
+VEN,Venezuela,Venezuela,VEN,Venezuela (Bolivarian Republic of),Venezuela,FAOSTAT shortened,ISO3,1821,1938,until 1821 Spanish colony (viceroyalty New granada)
 VNM,Viet Nam,Viet Nam,VNM,Viet Nam,NA,FAOSTAT,ISO3,NA,NA,NA
 YEM,Yemen,Yemen,YEM,Yemen,NA,FAOSTAT,ISO3,NA,NA,NA
 YUG,Yugoslav SFR,Yugoslav SFR,YUG,Yugoslav SFR,NA,FAOSTAT,ISO3,NA,1991,NA
 ZMB,Zambia,Zambia,ZMB,Zambia,NA,FAOSTAT,ISO3,NA,NA,NA
 ZWE,Zimbabwe,Zimbabwe,ZWE,Zimbabwe,NA,FAOSTAT,ISO3,NA,NA,NA
-GUF,French Guiana,French Guiana,GUF,French Guiana,French Guiana,FAOSTAT,ISO3,NA,NA,NA
+GUF,French Guiana,French Guiana,GUF,French Guiana,French Guiana,FAOSTAT,ISO3,1800,1938,NA
 GNQ,Equatorial Guinea,Equatorial Guinea,GNQ,Equatorial Guinea,NA,FAOSTAT,ISO3,NA,NA,NA
 RAFR,Africa Other,Africa Other,RAFR,NA,NA,WHEP,WHEP,NA,NA,NA
 RASI,Asia Other,Asia Other,RASI,NA,NA,WHEP,WHEP,NA,NA,NA
@@ -197,13 +197,13 @@ REUR,Europe Other,Europe Other,REUR,NA,NA,WHEP,WHEP,NA,NA,NA
 RLAM,Latin America Other,Latin America Other,RLAM,NA,NA,WHEP,WHEP,NA,NA,NA
 RNAM,North America Other,North America Other,RNAM,NA,NA,WHEP,WHEP,NA,NA,NA
 ROCE,Oceania Other,Oceania Other,ROCE,NA,NA,WHEP,WHEP,NA,NA,NA
-NA,Leeward Islands,Leeward Islands,NA,NA,NA,WHEP,NA,1800,1938,NA
-NA,NA,American Samoa,ROCE,NA,American Samoa,WHEP,NA,NA,NA,NA
-NA,NA,Andorra,REUR,NA,Andorra,WHEP,NA,NA,NA,NA
+NA,Leeward Islands,Leeward Islands,NA,NA,"Leeward Islands (Antigua, Dominica, St.Christopher, Montserrat, Nevis, Virgin Island)",WHEP,NA,1800,1938,NA
+NA,NA,American Samoa,ROCE,NA,NA,WHEP,NA,NA,NA,NA
+NA,NA,Andorra,REUR,NA,NA,WHEP,NA,NA,NA,NA
 NA,NA,Anguilla,RLAM,NA,NA,WHEP,NA,NA,NA,NA
 NA,NA,Aruba,RLAM,NA,NA,WHEP,NA,NA,NA,NA
-NA,NA,Bermuda,RLAM,NA,Bermuda,WHEP,NA,NA,NA,NA
-NA,NA,Bhutan,RASI,NA,Bhutan,WHEP,NA,NA,NA,NA
+NA,NA,Bermuda,RLAM,NA,NA,WHEP,NA,NA,NA,NA
+NA,NA,Bhutan,RASI,NA,NA,WHEP,NA,NA,NA,NA
 NA,NA,Bouvet Island,RLAM,NA,NA,WHEP,NA,NA,NA,NA
 NA,NA,British Indian Ocean Territory,RASI,NA,NA,WHEP,NA,NA,NA,NA
 NA,NA,British Virgin Islands,RLAM,NA,NA,WHEP,NA,NA,NA,NA
@@ -217,179 +217,197 @@ NA,NA,CuraÃ§ao,RLAM,NA,NA,WHEP,NA,NA,NA,NA
 NA,NA,Falkland Islands (Malvinas),RLAM,NA,NA,WHEP,NA,NA,NA,NA
 NA,NA,Faroe Islands,REUR,NA,NA,WHEP,NA,NA,NA,NA
 NA,NA,French Southern and Antarctic Territories,ROCE,NA,NA,WHEP,NA,NA,NA,NA
-NA,NA,Gibraltar,REUR,NA,Gibraltar,WHEP,NA,NA,NA,NA
+NA,NA,Gibraltar,REUR,NA,NA,WHEP,NA,NA,NA,NA
 NA,NA,Greenland,REUR,NA,NA,WHEP,NA,NA,NA,NA
-NA,NA,Guadeloupe,RLAM,NA,Guadeloupe,WHEP,NA,NA,NA,NA
+NA,NA,Guadeloupe,RLAM,NA,NA,WHEP,NA,NA,NA,NA
 NA,NA,Guam,ROCE,NA,NA,WHEP,NA,NA,NA,NA
 NA,NA,Heard and McDonald Islands,ROCE,NA,NA,WHEP,NA,NA,NA,NA
 NA,NA,Holy See,REUR,NA,NA,WHEP,NA,NA,NA,NA
 NA,NA,Johnston Island,ROCE,NA,NA,WHEP,NA,NA,NA,NA
 NA,NA,Liechtenstein,REUR,NA,NA,WHEP,NA,NA,NA,NA
 NA,NA,Marshall Islands,ROCE,NA,NA,WHEP,NA,NA,NA,NA
-NA,NA,Martinique,RLAM,NA,Martinique,WHEP,NA,NA,NA,NA
+NA,NA,Martinique,RLAM,NA,NA,WHEP,NA,NA,NA,NA
 NA,NA,Mayotte,RAFR,NA,NA,WHEP,NA,NA,NA,NA
 NA,NA,Micronesia (Federated States of),ROCE,NA,NA,WHEP,NA,NA,NA,NA
-NA,NA,Midway Island,ROCE,NA,Midway Island,WHEP,NA,NA,NA,NA
-NA,NA,Monaco,REUR,NA,Monaco,WHEP,NA,NA,NA,NA
+NA,NA,Midway Island,ROCE,NA,NA,WHEP,NA,NA,NA,NA
+NA,NA,Monaco,REUR,NA,NA,WHEP,NA,NA,NA,NA
 NA,NA,Montserrat,RLAM,NA,NA,WHEP,NA,NA,NA,NA
-NA,NA,Nauru,ROCE,NA,Nauru,WHEP,NA,NA,NA,NA
+NA,NA,Nauru,ROCE,NA,NA,WHEP,NA,NA,NA,NA
 NA,NA,Netherlands Antilles,RLAM,NA,NA,WHEP,NA,NA,NA,NA
-NA,NA,New Caledonia,ROCE,NA,New Caledonia,WHEP,NA,NA,NA,NA
+NA,NA,New Caledonia,ROCE,NA,NA,WHEP,NA,NA,NA,NA
 NA,NA,Niue,ROCE,NA,NA,WHEP,NA,NA,NA,NA
-NA,NA,Norfolk Island,ROCE,NA,Norfolk Island,WHEP,NA,NA,NA,NA
+NA,NA,Norfolk Island,ROCE,NA,NA,WHEP,NA,NA,NA,NA
 NA,NA,Northern Mariana Islands,ROCE,NA,NA,WHEP,NA,NA,NA,NA
 NA,NA,Pacific Islands Trust Territory,RASI,NA,NA,WHEP,NA,NA,NA,NA
 NA,NA,Palau,ROCE,NA,NA,WHEP,NA,NA,NA,NA
 NA,NA,Pitcairn Islands,ROCE,NA,NA,WHEP,NA,NA,NA,NA
-NA,NA,Reunion,RAFR,NA,Reunion,WHEP,NA,NA,NA,NA
+NA,NA,Reunion,RAFR,NA,NA,WHEP,NA,NA,NA,NA
 NA,NA,"Saint Helena, Ascension and Tristan da Cunha",RAFR,NA,NA,WHEP,NA,NA,NA,NA
 NA,NA,Saint Pierre and Miquelon,RNAM,NA,NA,WHEP,NA,NA,NA,NA
 NA,NA,Saint-Martin (French Part),RLAM,NA,NA,WHEP,NA,NA,NA,NA
 NA,NA,San Marino,REUR,NA,NA,WHEP,NA,NA,NA,NA
-NA,NA,Seychelles,RAFR,NA,Seychelles,WHEP,NA,NA,NA,NA
+NA,NA,Seychelles,RAFR,NA,NA,WHEP,NA,NA,NA,NA
 NA,NA,South Georgia and the South Sandwich Islands,RLAM,NA,NA,WHEP,NA,NA,NA,NA
 NA,NA,Svalbard and Jan Mayen Islands,REUR,NA,NA,WHEP,NA,NA,NA,NA
 NA,NA,Tokelau,ROCE,NA,NA,WHEP,NA,NA,NA,NA
 NA,NA,Tonga,ROCE,NA,NA,WHEP,NA,NA,NA,NA
-NA,NA,Turks and Caicos Islands,RLAM,NA,Turks and Caicos Islands,WHEP,NA,NA,NA,NA
+NA,NA,Turks and Caicos Islands,RLAM,NA,NA,WHEP,NA,NA,NA,NA
 NA,NA,Tuvalu,ROCE,NA,NA,WHEP,NA,NA,NA,NA
 NA,NA,United States Virgin Islands,RLAM,NA,NA,WHEP,NA,NA,NA,NA
 NA,NA,US Minor Is.,RNAM,NA,NA,WHEP,NA,NA,NA,NA
-NA,NA,Wake Island,ROCE,NA,Wake Island,WHEP,NA,NA,NA,NA
-NA,NA,Wallis and Futuna Islands,ROCE,NA,Wallis and Futuna Islands,WHEP,NA,NA,NA,NA
+NA,NA,Wake Island,ROCE,NA,NA,WHEP,NA,NA,NA,NA
+NA,NA,Wallis and Futuna Islands,ROCE,NA,NA,WHEP,NA,NA,NA,NA
 NA,NA,Western Sahara,RAFR,NA,NA,WHEP,NA,NA,NA,NA
-NA,Basutoland,Basutoland,NA,NA,Basutoland,FT,FT,1884,1938,present-day Lesotho
-NA,Bechuanaland Protectorate,Bechuanaland Protectorate,NA,NA,Bechuanaland Protectorate,FT,FT,1885,1938,present-day Botswana
+NA,Basutoland,Basutoland,NA,NA,Basutoland,FT,FT,1884,1938,NA
+NA,Bechuanaland Protectorate,Bechuanaland Protectorate,NA,NA,Bechuanaland Protectorate,FT,FT,1885,1938,NA
 NA,Belgian Congo,Belgian Congo,NA,NA,Belgian Congo,FT,FT,1885,1938,NA
-NA,British Bechuanaland,British Bechuanaland,NA,NA,British Bechuanaland,FT,FT,1885,1895,1896-1938 annexed to  South Africa
-NA,British Cameroon,British Cameroon,NA,NA,British Cameroon,FT,FT,1914,1938,"population in 1921; Before 1914 part of German Kameroon, then divided between Nigeria and Cameroon; estimate jointly with Nigeria"
-NA,British East Africa,British East Africa,NA,NA,British East Africa,FT,FT,1895,1938,Present day Kenya and Uganda
+NA,British Bechuanaland,British Bechuanaland,NA,NA,British Bechuanaland,FT,FT,1885,1895,NA
+NA,British Cameroon,British Cameroon,NA,NA,British Cameroon,FT,FT,1914,1938,NA
+NA,British East Africa,British East Africa,NA,NA,British East Africa,FT,FT,1895,1938,NA
 NA,British Protectorate (British Somaliland),British Protectorate (British Somaliland),NA,NA,British Protectorate (British Somaliland),FT,FT,1884,1938,NA
 NA,Canary Islands,Canary Islands,NA,NA,Canary Islands,FT,FT,1800,1938,NA
 NA,CapoVerde,CapoVerde,NA,NA,CapoVerde,FT,FT,1800,1938,NA
 NA,Ceuta Y Melilla,Ceuta Y Melilla,NA,NA,Ceuta Y Melilla,FT,FT,1800,1938,NA
-NA,French Equatorial Africa,French Equatorial Africa,NA,NA,French Equatorial Africa,FT,FT,1910,1938,"Includes present-day Central African republic (colony 1906-1910), Chad (1891-1910), Gabon (protectorate 1839-1885, colony 1885-1910), French Congo (1882-1910)"
+NA,French Equatorial Africa,French Equatorial Africa,NA,NA,French Equatorial Africa,FT,FT,1910,1938,NA
 NA,French Somaliland,French Somaliland,NA,NA,French Somaliland,FT,FT,1887,1938,NA
-NA,French West Africa,French West Africa,NA,NA,French West Africa,FT,FT,1895,1938,"Includes present-day Mauritania, Dahomey (or Benin), French Guinea, Ivory Coast (protectorate since mid 19th century, colony 1889), Mali, Niger  Senegal (colony since mid 19th century), French Sudan, Upper Volta (now Burkina Faso), Niger and Togo (independent polity as German West Africa  until 1914)"
-NA,German East Africa (Tanganyika),German East Africa (Tanganyika),NA,NA,German East Africa (Tanganyika),FT,FT,1884,1938,After 1919   British mandate; present-day  Tanzania
-NA,German South West Africa,German South West Africa,NA,NA,German South West Africa,FT,FT,1884,1938,After 1919 South African mandate; present day Namibia
-NA,German West Africa,German West Africa,NA,NA,German West Africa,FT,FT,1884,1914,After 1919 part of  French West Africa; present-day Togo
-NA,Gold Coast,Gold Coast,NA,NA,Gold Coast,FT,FT,1843,1938,1821-1843 and  1866-1874 part of Sierra Leone; present-day Ghana
-NA,Italian Libia Cyrenaica (Lybia),Italian Libia Cyrenaica (Lybia),NA,NA,Italian Libia Cyrenaica (Lybia),FT,FT,1911,1938,1800-1910 Ottoman Empire
+NA,French West Africa,French West Africa,NA,NA,French West Africa,FT,FT,1895,1938,NA
+NA,German East Africa (Tanganyika),German East Africa (Tanganyika),NA,NA,German East Africa (Tanganyika),FT,FT,1884,1938,NA
+NA,German South West Africa,German South West Africa,NA,NA,German South West Africa,FT,FT,1884,1938,NA
+NA,German West Africa,German West Africa,NA,NA,German West Africa,FT,FT,1884,1914,NA
+NA,Gold Coast,Gold Coast,NA,NA,Gold Coast,FT,FT,1843,1938,NA
+NA,Italian Libia Cyrenaica (Lybia),Italian Libia Cyrenaica (Lybia),NA,NA,Italian Libia Cyrenaica (Lybia),FT,FT,1911,1938,NA
 NA,Italian Somaliland,Italian Somaliland,NA,NA,Italian Somaliland,FT,FT,1908,1938,NA
-NA,Mayotte and Noissi-be,Mayotte and Noissi-be,NA,NA,Mayotte and Noissi-be,FT,FT,1843,1914,1914-1938 annexed to Madagascar; estimated jointly with Magadascar
-NA,Nyasaland Protectorate (Malawi),Nyasaland Protectorate (Malawi),NA,NA,Nyasaland Protectorate (Malawi),FT,FT,1891,1938,present day Malawi
-NA,Orange Free State,Orange Free State,NA,NA,Orange Free State,FT,FT,1848,1900,After 1900 South Africa; jointly estimated South Africa
-NA,Rhodesia,Rhodesia,NA,NA,Rhodesia,FT,FT,1890,1938,"Includes Southern Rhodesia (colony 1901 - present-day Zimbabwe), North-Western  Rhodesia (protectorate 1890- present-day Zambia) and North Eastern Rhodesia (protectorate  ca 1900 - present-day Zambia)"
-NA,Rwanda and Burundi,Rwanda and Burundi,NA,NA,Rwanda and Burundi,FT,FT,1919,1938,Until 1918 part of German East Africa; thereafter of British East Africa
-NA,Spanish Guinea,Spanish Guinea,NA,NA,Spanish Guinea,FT,FT,1858,1938,present-day Equatorial Guinea
+NA,Mayotte and Noissi-be,Mayotte and Noissi-be,NA,NA,Mayotte and Noissi-be,FT,FT,1843,1914,NA
+NA,Nyasaland Protectorate (Malawi),Nyasaland Protectorate (Malawi),NA,NA,Nyasaland Protectorate (Malawi),FT,FT,1891,1938,NA
+NA,Orange Free State,Orange Free State,NA,NA,Orange Free State,FT,FT,1848,1900,NA
+NA,Reunion,Reunion,NA,NA,Reunion,FT,FT,1816,1938,NA
+NA,Rhodesia,Rhodesia,NA,NA,Rhodesia,FT,FT,1890,1938,NA
+NA,Rwanda and Burundi,Rwanda and Burundi,NA,NA,Rwanda and Burundi,FT,FT,1919,1938,NA
+NA,Seychelles,Seychelles,NA,NA,Seychelles,FT,FT,1903,1938,NA
+NA,Spanish Guinea,Spanish Guinea,NA,NA,Spanish Guinea,FT,FT,1858,1938,NA
 NA,St. Helena,St. Helena,NA,NA,St. Helena,FT,FT,1800,1938,NA
-NA,Sudan (Anglo-Egyptian),Sudan (Anglo-Egyptian),NA,NA,Sudan (Anglo-Egyptian),FT,FT,1882,1938,Until 1881 formally  belonged to Egypt
+NA,Sudan (Anglo-Egyptian),Sudan (Anglo-Egyptian),NA,NA,Sudan (Anglo-Egyptian),FT,FT,1882,1938,NA
 NA,Swaziland,Swaziland,NA,NA,Swaziland,FT,FT,1894,1938,NA
-NA,Transvaal,Transvaal,NA,NA,Transvaal,FT,FT,1856,1902,After 1900 South Africa; jointly estimated South Africa
-NA,Zanzibar,Zanzibar,NA,NA,Zanzibar,FT,FT,1800,1938,British protectorate 1890; present-day Tanzania
-NA,British Guiana,British Guiana,NA,NA,British Guiana,FT,FT,1800,1938,"Including Berbice, Demerara and Essequebio (independent colonies 1802-1831); now Guyana"
-NA,British Honduras (Belize),British Honduras (Belize),NA,NA,British Honduras (Belize),FT,FT,1800,1938,"quasi independent  until 1862, then British colony. Present-day Belize"
-NA,British Columbia,British Columbia,NA,NA,British Columbia,FT,FT,1858,1866,Joint estimate with Canada
+NA,Transvaal,Transvaal,NA,NA,Transvaal,FT,FT,1856,1902,NA
+NA,Zanzibar,Zanzibar,NA,NA,Zanzibar,FT,FT,1800,1938,NA
+NA,Bermuda,Bermuda,NA,NA,Bermuda,FT,FT,1800,1938,NA
+NA,British Guiana,British Guiana,NA,NA,British Guiana,FT,FT,1800,1938,NA
+NA,British Honduras (Belize),British Honduras (Belize),NA,NA,British Honduras (Belize),FT,FT,1800,1938,NA
+NA,British Columbia,British Columbia,NA,NA,British Columbia,FT,FT,1858,1866,NA
 NA,Danish Virgin Islands,Danish Virgin Islands,NA,NA,Danish Virgin Islands,FT,FT,1800,1938,NA
-NA,Dutch Guayana,Dutch Guayana,NA,NA,Dutch Guayana,FT,FT,1800,1938,present-day Suriname
-NA,Dutch West Indies (Netherland Antilles),Dutch West Indies (Netherland Antilles),NA,NA,Dutch West Indies (Netherland Antilles),FT,FT,1800,1938,"Islands Aruba, Bonaire and Curacao and minor ones"
-NA,Falkland Islands,Falkland Islands,NA,NA,Falkland Islands,FT,FT,1833,1938,1816-1833 Argentina
-NA,"Leeward Islands (Antigua, Dominica, St.Christopher, Montserrat, Nevis, Virgin Island)","Leeward Islands (Antigua, Dominica, St.Christopher, Montserrat, Nevis, Virgin Island)",NA,NA,"Leeward Islands (Antigua, Dominica, St.Christopher, Montserrat, Nevis, Virgin Island)",FT,FT,1800,1938,"in 1816 it was divided in two, with Antigua, Barbuda and Montserrat in one colony, and Saint Christopher, Nevis, Anguilla, and the Virgin Islands in another"
-NA,Lower Quebec,Lower Quebec,NA,NA,Lower Quebec,FT,FT,1800,1866,Joint estimate with Canada
-NA,New Brunswick,New Brunswick,NA,NA,New Brunswick,FT,FT,1800,1866,Joint estimate with Canada
+NA,Dutch Guayana,Dutch Guayana,NA,NA,Dutch Guayana,FT,FT,1800,1938,NA
+NA,Dutch West Indies (Netherland Antilles),Dutch West Indies (Netherland Antilles),NA,NA,Dutch West Indies (Netherland Antilles),FT,FT,1800,1938,NA
+NA,Falkland Islands,Falkland Islands,NA,NA,Falkland Islands,FT,FT,1833,1938,NA
+NA,Guadeloupe,Guadeloupe,NA,NA,Guadeloupe,FT,FT,1800,1938,NA
+NA,"Leeward Islands (Antigua, Dominica, St.Christopher, Montserrat, Nevis, Virgin Island)","Leeward Islands (Antigua, Dominica, St.Christopher, Montserrat, Nevis, Virgin Island)",NA,NA,"Leeward Islands (Antigua, Dominica, St.Christopher, Montserrat, Nevis, Virgin Island)",FT,FT,1800,1938,NA
+NA,Lower Quebec,Lower Quebec,NA,NA,Lower Quebec,FT,FT,1800,1866,NA
+NA,Martinique,Martinique,NA,NA,Martinique,FT,FT,1800,1938,NA
+NA,New Brunswick,New Brunswick,NA,NA,New Brunswick,FT,FT,1800,1866,NA
 NA,Newfoundland,Newfoundland,NA,NA,Newfoundland,FT,FT,1816,1938,NA
-NA,Nova Scotia  Cape Breton Isl.,Nova Scotia  Cape Breton Isl.,NA,NA,Nova Scotia  Cape Breton Isl.,FT,FT,1800,1866,Joint estimate with Canada
-NA,Ontario,Ontario,NA,NA,Ontario,FT,FT,1800,1866,Joint estimate with Canada
-NA,Prince Edward Island,Prince Edward Island,NA,NA,Prince Edward Island,FT,FT,1800,1866,Joint estimate with Canada
-NA,St. Lucía,St. Lucía,NA,NA,St. Lucía,FT,FT,1800,1838,British Windward colony after 1833
-NA,St Martin and St Barthélemy,St Martin and St Barthélemy,NA,NA,St Martin and St Barthélemy,FT,FT,1816,1878,population 1870; 1878-1938 part of Guadaloupe
+NA,Nova Scotia  Cape Breton Isl.,Nova Scotia  Cape Breton Isl.,NA,NA,Nova Scotia  Cape Breton Isl.,FT,FT,1800,1866,NA
+NA,Ontario,Ontario,NA,NA,Ontario,FT,FT,1800,1866,NA
+NA,Prince Edward Island,Prince Edward Island,NA,NA,Prince Edward Island,FT,FT,1800,1866,NA
+NA,St. Lucía,St. Lucía,NA,NA,St. Lucía,FT,FT,1800,1838,NA
+NA,St Martin and St Barthélemy,St Martin and St Barthélemy,NA,NA,St Martin and St Barthélemy,FT,FT,1816,1878,NA
 NA,St Pierre & Miquelon,St Pierre & Miquelon,NA,NA,St Pierre & Miquelon,FT,FT,1800,1938,NA
-NA,St. Vincent,St. Vincent,NA,NA,St. Vincent,FT,FT,1800,1833,British Windward colony after 1833
-NA,Vancouver´s Island,Vancouver´s Island,NA,NA,Vancouver´s Island,FT,FT,1849,1866,Joint estimate with Canada
+NA,St. Vincent,St. Vincent,NA,NA,St. Vincent,FT,FT,1800,1833,NA
+NA,Turks and Caicos Islands,Turks and Caicos Islands,NA,NA,Turks and Caicos Islands,FT,FT,1800,1938,NA
+NA,Vancouver´s Island,Vancouver´s Island,NA,NA,Vancouver´s Island,FT,FT,1849,1866,NA
 NA,Abu Dhabi,Abu Dhabi,NA,NA,Abu Dhabi,FT,FT,1800,1938,NA
 NA,Aden,Aden,NA,NA,Aden,FT,FT,1839,1938,NA
 NA,Ajman,Ajman,NA,NA,Ajman,FT,FT,1800,1938,NA
-NA,Badakhshan,Badakhshan,NA,NA,Badakhshan,FT,FT,1800,1873,1873-1938 Afghanistan; joint estimate with Afghanistan
-NA,Bonin island,Bonin island,NA,NA,Bonin island,FT,FT,1846,1873,1876-1938 Japan; joint estimate with Japan
-NA,British Malaya,British Malaya,NA,NA,British Malaya,FT,FT,1922,1938,"Created 1922 unifying Strait Settlements, Federated Malay states and Unfederated Malay States (all Briish colonies or protectorates)"
+NA,Badakhshan,Badakhshan,NA,NA,Badakhshan,FT,FT,1800,1873,NA
+NA,Bhutan,Bhutan,NA,NA,Bhutan,FT,FT,1800,1938,NA
+NA,Bonin island,Bonin island,NA,NA,Bonin island,FT,FT,1846,1873,NA
+NA,British Malaya,British Malaya,NA,NA,British Malaya,FT,FT,1922,1938,NA
 NA,Brunei,Brunei,NA,NA,Brunei,FT,FT,1800,1938,NA
-NA,Bukhara,Bukhara,NA,NA,Bukhara,FT,FT,1800,1920,1920-1938 USSR
-NA,Burma (Myammar),Burma (Myammar),NA,NA,Burma (Myammar),FT,FT,1800,1938,Joint estimate with India
+NA,Bukhara,Bukhara,NA,NA,Bukhara,FT,FT,1800,1920,NA
+NA,Burma (Myammar),Burma (Myammar),NA,NA,Burma (Myammar),FT,FT,1800,1938,NA
 NA,China,China,NA,NA,China,FT,FT,1800,1938,NA
-NA,Danish India,Danish India,NA,NA,Danish India,FT,FT,1800,1845,1846-1938 British India
+NA,Danish India,Danish India,NA,NA,Danish India,FT,FT,1800,1845,NA
 NA,Dutch East Indies (Indonesia),Dutch East Indies (Indonesia),NA,NA,Dutch East Indies (Indonesia),FT,FT,1800,1938,NA
-NA,Federated Malay States,Federated Malay States,NA,NA,Federated Malay States,FT,FT,1895,1922,1922-1938 British Malaya; Joint estimate with British Malaya
-NA,Formosa (Taiwan),Formosa (Taiwan),NA,NA,Formosa (Taiwan),FT,FT,1896,1938,1800-1895 China
+NA,Federated Malay States,Federated Malay States,NA,NA,Federated Malay States,FT,FT,1895,1922,NA
+NA,Formosa (Taiwan),Formosa (Taiwan),NA,NA,Formosa (Taiwan),FT,FT,1896,1938,NA
 NA,French India,French India,NA,NA,French India,FT,FT,1800,1938,NA
 NA,French Indochina,French Indochina,NA,NA,French Indochina,FT,FT,1887,1938,NA
-NA,Fujairah,Fujairah,NA,NA,Fujairah,FT,FT,1886,1938,1816-1886 Sharjah
-NA,Herat,Herat,NA,NA,Herat,FT,FT,1800,1862,1863-1938 Afghanistan; joint estimate with Afghanistan
-NA,Hong-Kong,Hong-Kong,NA,NA,Hong-Kong,FT,FT,1841,1938,1816-1839 China
-NA,Khiva,Khiva,NA,NA,Khiva,FT,FT,1800,1873,1873-1938 Russia and Soviet Union
-NA,Kiautchou,Kiautchou,NA,NA,Kiautchou,FT,FT,1898,1922,1800-1898 and 1922-1938 China; joint estimate with China
-NA,Kokand,Kokand,NA,NA,Kokand,FT,FT,1800,1883,1873-1938 Russia and Soviet Union
+NA,Fujairah,Fujairah,NA,NA,Fujairah,FT,FT,1886,1938,NA
+NA,Herat,Herat,NA,NA,Herat,FT,FT,1800,1862,NA
+NA,Hong-Kong,Hong-Kong,NA,NA,Hong-Kong,FT,FT,1841,1938,NA
+NA,Khiva,Khiva,NA,NA,Khiva,FT,FT,1800,1873,NA
+NA,Kiautchou,Kiautchou,NA,NA,Kiautchou,FT,FT,1898,1922,NA
+NA,Kokand,Kokand,NA,NA,Kokand,FT,FT,1800,1883,NA
 NA,Korea,Korea,NA,NA,Korea,FT,FT,1800,1938,NA
-NA,Kwang-Chou-Wan,Kwang-Chou-Wan,NA,NA,Kwang-Chou-Wan,FT,FT,1898,1938,population in 1926; 1800-1898 and 1922-1938 China; joint estimate with China
-NA,Kwantung (Port Arthur),Kwantung (Port Arthur),NA,NA,Kwantung (Port Arthur),FT,FT,1898,1938,"1800-1898  China, 1898-1905 Russia, 1905-1938 Japan"
+NA,Kwang-Chou-Wan,Kwang-Chou-Wan,NA,NA,Kwang-Chou-Wan,FT,FT,1898,1938,NA
+NA,Kwantung (Port Arthur),Kwantung (Port Arthur),NA,NA,Kwantung (Port Arthur),FT,FT,1898,1938,NA
 NA,Maldive,Maldive,NA,NA,Maldive,FT,FT,1800,1938,NA
-NA,Manchukuo,Manchukuo,NA,NA,Manchukuo,FT,FT,1932,1938,1800-1932 China
-NA,North Yemen,North Yemen,NA,NA,North Yemen,FT,FT,1918,1938,1871-1918 Ottoman Empire; 1918-1938 Included with Saudi Arabia
+NA,Manchukuo,Manchukuo,NA,NA,Manchukuo,FT,FT,1932,1938,NA
+NA,North Yemen,North Yemen,NA,NA,North Yemen,FT,FT,1918,1938,NA
 NA,Ottoman Empire/Turkey,Ottoman Empire/Turkey,NA,NA,Ottoman Empire/Turkey,FT,FT,1800,1938,NA
-NA,Palestine/Jordan,Palestine/Jordan,NA,NA,Palestine/Jordan,FT,FT,1918,1938,population in 1920; 1800-1918 Ottoman Empire
+NA,Palestine/Jordan,Palestine/Jordan,NA,NA,Palestine/Jordan,FT,FT,1918,1938,NA
 NA,Persia (Iran),Persia (Iran),NA,NA,Persia (Iran),FT,FT,1800,1938,NA
 NA,Portuguese India,Portuguese India,NA,NA,Portuguese India,FT,FT,1800,1938,NA
-NA,Quatar,Quatar,NA,NA,Quatar,FT,FT,1800,1938,1871-1916 Ottoman Empire
-NA,Ras al Khaimah,Ras al Khaimah,NA,NA,Ras al Khaimah,FT,FT,1919,1938,1900-1919 Sharjah
-NA,Sabah (British Borneo),Sabah (British Borneo),NA,NA,Sabah (British Borneo),FT,FT,1888,1938,1816-1888 Brunei
+NA,Quatar,Quatar,NA,NA,Quatar,FT,FT,1800,1938,NA
+NA,Ras al Khaimah,Ras al Khaimah,NA,NA,Ras al Khaimah,FT,FT,1919,1938,NA
+NA,Sabah (British Borneo),Sabah (British Borneo),NA,NA,Sabah (British Borneo),FT,FT,1888,1938,NA
 NA,Sarawak,Sarawak,NA,NA,Sarawak,FT,FT,1841,1938,NA
 NA,Sharjah,Sharjah,NA,NA,Sharjah,FT,FT,1800,1938,NA
 NA,Siam (Thailand),Siam (Thailand),NA,NA,Siam (Thailand),FT,FT,1800,1938,NA
 NA,Sikkim,Sikkim,NA,NA,Sikkim,FT,FT,1800,1938,NA
-NA,Straits Settlement,Straits Settlement,NA,NA,Straits Settlement,FT,FT,1826,1922,1922-1938 British Malaya; joint estimate with British Malaya
-NA,Syria and Lebanon,Syria and Lebanon,NA,NA,Syria and Lebanon,FT,FT,1918,1938,population 1919; 1800-1918 Ottoman Empire
-NA,Tibet,Tibet,NA,NA,Tibet,FT,FT,1800,1938,Estimated inside China
+NA,Straits Settlement,Straits Settlement,NA,NA,Straits Settlement,FT,FT,1826,1922,NA
+NA,Syria and Lebanon,Syria and Lebanon,NA,NA,Syria and Lebanon,FT,FT,1918,1938,NA
+NA,Tibet,Tibet,NA,NA,Tibet,FT,FT,1800,1938,NA
 NA,Timor,Timor,NA,NA,Timor,FT,FT,1800,1938,NA
 NA,Umm al Qawain,Umm al Qawain,NA,NA,Umm al Qawain,FT,FT,1892,1938,NA
-NA,Yunnan,Yunnan,NA,NA,Yunnan,FT,FT,1856,1871,1800-1857 and 1872-1938 China; joint estimate with China
+NA,Yunnan,Yunnan,NA,NA,Yunnan,FT,FT,1856,1871,NA
+NA,Andorra,Andorra,NA,NA,Andorra,FT,FT,1800,1938,NA
 NA,Austria-Hungary,Austria-Hungary,NA,NA,Austria-Hungary,FT,FT,1800,1918,NA
-NA,Crete,Crete,NA,NA,Crete,FT,FT,1898,1913,1800-1897 Ottoman Empire; 1914-1938 Greece
-NA,Dodecanese Is.,Dodecanese Is.,NA,NA,Dodecanese Is.,FT,FT,1912,1938,"1800-1912 Ottoman Empire, then Italian colony"
-NA,Duchy Modena,Duchy Modena,NA,NA,Duchy Modena,FT,FT,1800,1860,1861-1938 Italy; joint estimation with Italy
-NA,Duchy Parma,Duchy Parma,NA,NA,Duchy Parma,FT,FT,1800,1860,1861-1938 Italy; joint estimation with Italy
+NA,Crete,Crete,NA,NA,Crete,FT,FT,1898,1913,NA
+NA,Dodecanese Is.,Dodecanese Is.,NA,NA,Dodecanese Is.,FT,FT,1912,1938,NA
+NA,Duchy Modena,Duchy Modena,NA,NA,Duchy Modena,FT,FT,1800,1860,NA
+NA,Duchy Parma,Duchy Parma,NA,NA,Duchy Parma,FT,FT,1800,1860,NA
 NA,Faroe Is,Faroe Is,NA,NA,Faroe Is,FT,FT,1800,1938,NA
 NA,Germany/Zollverein,Germany/Zollverein,NA,NA,Germany/Zollverein,FT,FT,1800,1938,NA
-NA,Ionian islands,Ionian islands,NA,NA,Ionian islands,FT,FT,1815,1862,1864-1938 Greece
-NA,Kingdom Two sicilies,Kingdom Two sicilies,NA,NA,Kingdom Two sicilies,FT,FT,1800,1860,1861-1938 Italy; joint estimation with Italy
-NA,Papal States,Papal States,NA,NA,Papal States,FT,FT,1800,1870,1871-1938 Italy; joint estimation with Italy
+NA,Gibraltar,Gibraltar,NA,NA,Gibraltar,FT,FT,1800,1938,NA
+NA,Ionian islands,Ionian islands,NA,NA,Ionian islands,FT,FT,1815,1862,NA
+NA,Kingdom Two sicilies,Kingdom Two sicilies,NA,NA,Kingdom Two sicilies,FT,FT,1800,1860,NA
+NA,Monaco,Monaco,NA,NA,Monaco,FT,FT,1800,1938,NA
+NA,Papal States,Papal States,NA,NA,Papal States,FT,FT,1800,1870,NA
 NA,Russia/USSR,Russia/USSR,NA,NA,Russia/USSR,FT,FT,1800,1938,NA
-NA,Sardinia,Sardinia,NA,NA,Sardinia,FT,FT,1800,1860,1861-1938 Italy; joint estimation with Italy
-NA,Serbia/Yugoslavia,Serbia/Yugoslavia,NA,NA,Serbia/Yugoslavia,FT,FT,1816,1938,1800-1815 Ottoman Empire
-NA,Tuscany,Tuscany,NA,NA,Tuscany,FT,FT,1800,1860,1861-1938 Italy; joint estimation with Italy
-NA,Two Sicilies,Two Sicilies,NA,NA,Two Sicilies,FT,FT,1800,1860,1861-1938 Italy; joint estimation with Italy
-NA,British New Guinea,British New Guinea,NA,NA,British New Guinea,FT,FT,1884,1938,Joint estimation british settlement Oceania; since 1905 administered by Australia; now Papua New Guinea
+NA,Sardinia,Sardinia,NA,NA,Sardinia,FT,FT,1800,1860,NA
+NA,Serbia/Yugoslavia,Serbia/Yugoslavia,NA,NA,Serbia/Yugoslavia,FT,FT,1816,1938,NA
+NA,Tuscany,Tuscany,NA,NA,Tuscany,FT,FT,1800,1860,NA
+NA,Two Sicilies,Two Sicilies,NA,NA,Two Sicilies,FT,FT,1800,1860,NA
+NA,American Samoa,American Samoa,NA,NA,American Samoa,FT,FT,1900,1938,NA
+NA,British New Guinea,British New Guinea,NA,NA,British New Guinea,FT,FT,1884,1938,NA
 NA,British settlement Oceania,British settlement Oceania,NA,NA,British settlement Oceania,FT,FT,1839,1938,NA
-NA,Caroline Island,Caroline Island,NA,NA,Caroline Island,FT,FT,1885,1938,Spanish colony 1885-1899; German 1899-1914; Japan mandate 1914-1938; joint estimation with German colonies Oceania
-NA,Cook Island,Cook Island,NA,NA,Cook Island,FT,FT,1893,1901,1901-1938 New Zealand; Joint estimation New Zealand
-NA,Dutch new Guinea,Dutch new Guinea,NA,NA,Dutch new Guinea,FT,FT,1898,1938,Present-day Indonesia
-NA,French Settlements in Oceania,French Settlements in Oceania,NA,NA,French Settlements in Oceania,FT,FT,1844,1938,"Polities included: New Caledonia, Polynesia"
-NA,Gambier Island,Gambier Island,NA,NA,Gambier Island,FT,FT,1881,1903,Joint estimation French Settlements Oceania
-NA,German colonies Oceania,German colonies Oceania,NA,NA,German colonies Oceania,FT,FT,1884,1938,1915-1938 mandate Ldn (different colonial powers(
-NA,Gilbert and Ellice Island,Gilbert and Ellice Island,NA,NA,Gilbert and Ellice Island,FT,FT,1892,1938,Joint estimation British settlement Oceania
-NA,Mariana Island,Mariana Island,NA,NA,Mariana Island,FT,FT,1800,1938,Spanish colony 1800-1898; German colony 1898-1914;Japanese mandate 1914-1938; joint estimate with German colonies Oceania
-NA,Marquesas Island,Marquesas Island,NA,NA,Marquesas Island,FT,FT,1844,1903,Joint estimation with French settlements Oceania
-NA,Marshall Island,Marshall Island,NA,NA,Marshall Island,FT,FT,1874,1938,Spanish colony 1870-1898; German colony 1898-1914;Japanese mandate 1914-1938; joint estimate with German colonies Oceania
-NA,New Guinea,New Guinea,NA,NA,New Guinea,FT,FT,1884,1938,German colony 1884; Australian mandate 1914-1938; Joint estimation with German colonies Oceania
-NA,New Hebrides,New Hebrides,NA,NA,New Hebrides,FT,FT,1906,1938,British-French condominium;  joint estimates British settlement Oceania; present-day Vanuatu
-NA,Niue Island,Niue Island,NA,NA,Niue Island,FT,FT,1900,1901,annexed to New Zealand 1901-1938; Joint estimation New Zealand
-NA,Palmyra Island,Palmyra Island,NA,NA,Palmyra Island,FT,FT,1889,1912,1862-1898 Hawaii then USA; joint estimate with Hawaii
-NA,Pitcairn Island,Pitcairn Island,NA,NA,Pitcairn Island,FT,FT,1839,1938,UK colony; joint estimation British settlement Oceania
-NA,Queensland,Queensland,NA,NA,Queensland,FT,FT,1859,1900,Joint estimation with Australia; 1800-1858 part of New South Wales
-NA,Society Islands  (Tahiti),Society Islands  (Tahiti),NA,NA,Society Islands  (Tahiti),FT,FT,1844,1903,independent Kingdom to 1844; French protectorate 1844-1881; then French colony joint estimate with French settlement Oceania
-NA,South Australia,South Australia,NA,NA,South Australia,FT,FT,1838,1900,Joint estimation with Australia
-NA,Tokelau Island,Tokelau Island,NA,NA,Tokelau Island,FT,FT,1877,1938,British colony; administered New Zealand after 1926 Joint estimation with British Settlement Oceania
-NA,Tongan Islands,Tongan Islands,NA,NA,Tongan Islands,FT,FT,1800,1938,Quasi independent kingdom; joit estimate with British settlment Oceania
+NA,Caroline Island,Caroline Island,NA,NA,Caroline Island,FT,FT,1885,1938,NA
+NA,Cook Island,Cook Island,NA,NA,Cook Island,FT,FT,1893,1901,NA
+NA,Dutch new Guinea,Dutch new Guinea,NA,NA,Dutch new Guinea,FT,FT,1898,1938,NA
+NA,French Settlements in Oceania,French Settlements in Oceania,NA,NA,French Settlements in Oceania,FT,FT,1844,1938,NA
+NA,Gambier Island,Gambier Island,NA,NA,Gambier Island,FT,FT,1881,1903,NA
+NA,German colonies Oceania,German colonies Oceania,NA,NA,German colonies Oceania,FT,FT,1884,1938,NA
+NA,Gilbert and Ellice Island,Gilbert and Ellice Island,NA,NA,Gilbert and Ellice Island,FT,FT,1892,1938,NA
+NA,Mariana Island,Mariana Island,NA,NA,Mariana Island,FT,FT,1800,1938,NA
+NA,Marquesas Island,Marquesas Island,NA,NA,Marquesas Island,FT,FT,1844,1903,NA
+NA,Marshall Island,Marshall Island,NA,NA,Marshall Island,FT,FT,1874,1938,NA
+NA,Midway Island,Midway Island,NA,NA,Midway Island,FT,FT,1859,1938,NA
+NA,Nauru,Nauru,NA,NA,Nauru,FT,FT,1888,1938,NA
+NA,New Caledonia,New Caledonia,NA,NA,New Caledonia,FT,FT,1853,1938,NA
+NA,New Guinea,New Guinea,NA,NA,New Guinea,FT,FT,1884,1938,NA
+NA,New Hebrides,New Hebrides,NA,NA,New Hebrides,FT,FT,1906,1938,NA
+NA,Niue Island,Niue Island,NA,NA,Niue Island,FT,FT,1900,1901,NA
+NA,Norfolk Island,Norfolk Island,NA,NA,Norfolk Island,FT,FT,1800,1901,NA
+NA,Palmyra Island,Palmyra Island,NA,NA,Palmyra Island,FT,FT,1889,1912,NA
+NA,Pitcairn Island,Pitcairn Island,NA,NA,Pitcairn Island,FT,FT,1839,1938,NA
+NA,Queensland,Queensland,NA,NA,Queensland,FT,FT,1859,1900,NA
+NA,Society Islands  (Tahiti),Society Islands  (Tahiti),NA,NA,Society Islands  (Tahiti),FT,FT,1844,1903,NA
+NA,South Australia,South Australia,NA,NA,South Australia,FT,FT,1838,1900,NA
+NA,Tokelau Island,Tokelau Island,NA,NA,Tokelau Island,FT,FT,1877,1938,NA
+NA,Tongan Islands,Tongan Islands,NA,NA,Tongan Islands,FT,FT,1800,1938,NA
 NA,US settlement Oceania,US settlement Oceania,NA,NA,US settlement Oceania,FT,FT,1859,1938,NA
-NA,Van Diemen's Land (Tasmania),Van Diemen's Land (Tasmania),NA,NA,Van Diemen's Land (Tasmania),FT,FT,1828,1900,Joint estimation with Australia; 1800-1825 New South Wales;
-NA,Victoria,Victoria,NA,NA,Victoria,FT,FT,1853,1900,Joint estimation with Australia; 1800-1852 New South Wales;
-NA,Western Australia,Western Australia,NA,NA,Western Australia,FT,FT,1838,1900,Joint estimation with Australia
+NA,Van Diemen's Land (Tasmania),Van Diemen's Land (Tasmania),NA,NA,Van Diemen's Land (Tasmania),FT,FT,1828,1900,NA
+NA,Victoria,Victoria,NA,NA,Victoria,FT,FT,1853,1900,NA
+NA,Wake Island,Wake Island,NA,NA,Wake Island,FT,FT,1898,1938,NA
+NA,Wallis and Futuna Islands,Wallis and Futuna Island,NA,NA,Wallis and Futuna Island,FT,FT,1842,1938,NA
+NA,Western Australia,Western Australia,NA,NA,Western Australia,FT,FT,1838,1900,NA
+NA,American Samoa,Western Samoa,NA,NA,Western Samoa,FT,FT,1900,1938,NA
