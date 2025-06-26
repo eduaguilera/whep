@@ -14,10 +14,44 @@
 #' - `year`: The year in which the recorded event occurred.
 #' - `area_code`: The code of the country where the data is from. For code
 #'    details see e.g. `add_area_name()`.
-#' - `proc_code`: The code of the process taking place. For code details see
-#'   e.g. `add_process_name()`.
-#' - `item_cbs_code`: The code of the item taking part in the process. For code
-#'    details see e.g. `add_item_cbs_name()`.
+#' - `proc_group`: The type of process taking place. It can be one of:
+#'    - `crop_production`: Production of crops and their residues, e.g. rice
+#'    production, coconut production, etc.
+#'    - `husbandry`: Animal husbandry, e.g. dairy cattle husbandry, non-dairy
+#'    cattle husbandry, layers chickens farming, etc.
+#'    - `processing`: Derived subproducts obtained from processing other items.
+#'    The items used as inputs are those that have a non-zero processing use in
+#'    the commodity balance sheet. See `get_wide_cbs()` for more details.
+#'    In each process there is a single input. In some processes like olive oil
+#'    extraction or soyabean oil extraction this might make sense. Others like
+#'    alcohol production need multiple inputs (e.g. multiple crops work), so
+#'    in this data there would not be a process like alcohol production but
+#'    rather a _virtual_ process like 'Wheat and products processing', giving
+#'    all its possible outputs. This is a constraint because of how the data was
+#'    obtained and might be improved in the future. See
+#'    `get_processing_coefs()` for more details.
+#' - `proc_cbs_code`: The code of the main item in the process taking place.
+#'    Together with `proc_group`, these two columns uniquely represent a
+#'    process. The main item is predictable depending on the value of
+#'    `proc_group`:
+#'    - `crop_production`: The code is from the item for which seed usage
+#'    (if any) is reported in the commodity balance sheet (see
+#'    `get_wide_cbs()` for more). For example, the rice code for a rice
+#'    production process or the cottonseed code for the cotton production one.
+#'    - `husbandry`: The code of the farmed animal, e.g. bees for beekeeping,
+#'    non-dairy cattle for non-dairy cattle husbandry, etc.
+#'    - `processing`: The code of the item that is used as input, i.e., the one
+#'    that is processed to get other derived products. This uniquely defines a
+#'    process within the group because of the nature of the data that was used,
+#'    which you can see in `get_processing_coefs()`.
+#'
+#'    For code details see e.g. `add_item_cbs_name()`.
+#' - `item_cbs_code`: The code of the item produced or used in the process.
+#'    Note that this might be the same value as `proc_cbs_code`, e.g., in rice
+#'    production process for the row defining the amount of rice produced or
+#'    the amount of rice seed as input, but it might also have a different
+#'    value, e.g. for the row defining the amount of straw residue from rice
+#'    production. For code details see e.g. `add_item_cbs_name()`.
 #' - `type`: Can have two values:
 #'    - `use`: The given item is an input of the process.
 #'    - `supply`: The given item is an output of the process.
@@ -60,8 +94,8 @@ build_supply_use <- function() {
       proc_group,
       proc_cbs_code,
       item_cbs_code,
-      value,
-      type
+      type,
+      value
     )
 }
 
