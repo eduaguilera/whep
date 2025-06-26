@@ -13,6 +13,7 @@ Imports:
     mipfp,
     purrr,
     readr,
+    readxl,
     rlang,
     stringr,
     tidyr

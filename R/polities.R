@@ -159,8 +159,9 @@ get_final_polities <- function(federico_tena_clean) {
   merged_data <- whep_polities_clean |>
     dplyr::left_join(
       federico_tena_clean |>
-        dplyr::select
-        (polity_name, polity_name_FT, start_year, end_year, comments_ft),
+        dplyr::select(
+          polity_name, polity_name_FT, start_year, end_year, comments_ft
+        ),
       by = "polity_name",
       suffix = c("", "_from_ft")
     ) |>
