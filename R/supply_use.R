@@ -32,6 +32,7 @@
 build_supply_use <- function() {
   .build_supply_use_from_inputs(
     crop_prod_items = .read_local_csv("input/raw/crop_production_items.csv"),
+    husbandry_items = .read_local_csv("input/raw/husbandry_items.csv"),
     coeffs = get_processing_coefs(get_file_path("processing_coefs")),
     cbs = get_wide_cbs(get_file_path("commodity_balance_sheet")),
     crop_residues = get_primary_residues(get_file_path("crop_residues")),
@@ -42,6 +43,7 @@ build_supply_use <- function() {
 
 .build_supply_use_from_inputs <- function(
     crop_prod_items,
+    husbandry_items,
     coeffs,
     cbs,
     crop_residues,
@@ -49,7 +51,7 @@ build_supply_use <- function() {
     feed_intake) {
   dplyr::bind_rows(
     .build_crop_production(crop_prod_items, cbs, primary_prod, crop_residues),
-    .build_husbandry(feed_intake, primary_prod),
+    .build_husbandry(husbandry_items, feed_intake, primary_prod),
     .build_processing(coeffs),
   ) |>
     dplyr::select(
@@ -138,10 +140,10 @@ build_supply_use <- function() {
     )
 }
 
-.build_husbandry <- function(feed_intake, primary_prod) {
+.build_husbandry <- function(husbandry_items, feed_intake, primary_prod) {
   dplyr::bind_rows(
     .build_use_husbandry(feed_intake),
-    .build_supply_husbandry(primary_prod),
+    .build_supply_husbandry(husbandry_items, primary_prod),
   ) |>
     dplyr::mutate(proc_group = "husbandry")
 }
@@ -158,25 +160,21 @@ build_supply_use <- function() {
     dplyr::mutate(type = "use")
 }
 
-.build_supply_husbandry <- function(primary_prod) {
-  livestock <- primary_prod |>
-    dplyr::filter(!is.na(live_anim_code)) |>
-    dplyr::distinct(live_anim_code)
-
+.build_supply_husbandry <- function(husbandry_items, primary_prod) {
   dplyr::bind_rows(
-    .build_livestock_supply(primary_prod, livestock),
-    .build_livestock_prods_supply(primary_prod, livestock),
+    .build_livestock_supply(primary_prod, husbandry_items),
+    .build_livestock_prods_supply(primary_prod, husbandry_items),
   ) |>
     dplyr::mutate(type = "supply")
 }
 
-.build_livestock_supply <- function(primary_prod, livestock_items) {
+.build_livestock_supply <- function(primary_prod, husbandry_items) {
   k_tonnes_per_livestock_unit <- 0.65
 
   primary_prod |>
     dplyr::filter(unit == "LU") |>
     dplyr::inner_join(
-      livestock_items,
+      husbandry_items,
       dplyr::join_by(item_cbs_code == live_anim_code)
     ) |>
     dplyr::mutate(value = k_tonnes_per_livestock_unit * value) |>
@@ -189,10 +187,10 @@ build_supply_use <- function() {
     )
 }
 
-.build_livestock_prods_supply <- function(primary_prod, livestock_items) {
+.build_livestock_prods_supply <- function(primary_prod, husbandry_items) {
   primary_prod |>
     dplyr::filter(unit == "tonnes") |>
-    dplyr::inner_join(livestock_items, "live_anim_code") |>
+    dplyr::inner_join(husbandry_items, "live_anim_code") |>
     dplyr::select(
       year,
       area_code,
