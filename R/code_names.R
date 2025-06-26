@@ -235,11 +235,17 @@ add_item_prod_code <- function(
 .get_cbs_items <- function(name_column, code_column) {
   "input/raw/items_cbs.csv" |>
     .read_local_csv() |>
-    dplyr::select(!!name_column := item_cbs_name, !!code_column := item_cbs_code)
+    dplyr::select(
+      !!name_column := item_cbs_name,
+      !!code_column := item_cbs_code
+    )
 }
 
 .get_prod_items <- function(name_column, code_column) {
   "input/raw/items_prod.csv" |>
     .read_local_csv() |>
-    dplyr::select(!!name_column := item_prod_name, !!code_column := item_prod_code)
+    dplyr::select(
+      !!name_column := item_prod_name,
+      !!code_column := item_prod_code
+    )
 }
