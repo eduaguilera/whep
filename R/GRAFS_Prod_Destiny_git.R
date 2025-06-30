@@ -150,8 +150,8 @@ create_production_and_destinies_grafs <- function() {
 }
 
 
-#' Combining crops, residues, feed (grass, fallow) production
-#' Grazed: Aggregate GrazedWeeds_MgDM for Cropland (Fallow) ---
+#' Combining crops, residues, feed (grass, fallow) production ----------------------------------------------------------------------
+#' Grazed: Aggregate GrazedWeeds_MgDM for Cropland (Fallow)
 .aggregate_grazed_cropland <- function(NPP_ygpit_merged, Crop_AreaNPP_prod_residue) {
   grazed_data <- NPP_ygpit_merged |>
     dplyr::filter(LandUse == "Cropland", !(Item == "Fallow" | Name_biomass == "Fallow")) |>
@@ -187,7 +187,7 @@ create_production_and_destinies_grafs <- function() {
   return(crops_residues_grazed)
 }
 
-#' Semi_natural_agroecosystems: Aggregate Grazed Weeds and Production plus Used Residues from Forest, Shrubland, Dehesa, Other ---
+#' Semi_natural_agroecosystems: Aggregate Grazed Weeds and Production plus Used Residues from Forest, Shrubland, Dehesa, Other -----------
 .aggregate_semi_natural_agroecosystems <- function(NPP_ygpit_merged) {
   semi_natural_agroecosystems <- NPP_ygpit_merged |>
     dplyr::ungroup() |>
@@ -198,7 +198,7 @@ create_production_and_destinies_grafs <- function() {
   return(semi_natural_agroecosystems)
 }
 
-#' Livestock Production ---------------------------------------------------------------------------------------------------------------
+#' Livestock Production ------------------------------------------------------------------------------------------------------------------
 .prepare_livestock_production <- function(Livestock_Prod_ygps) {
   livestock <- Livestock_Prod_ygps |>
     dplyr::select(
@@ -215,7 +215,7 @@ create_production_and_destinies_grafs <- function() {
   return(livestock)
 }
 
-#' Combine Cropland, Semi_natural_agroecosystems and Livestock -----------------------------------------------------------------------------------------------------------
+#' Combine Cropland, Semi_natural_agroecosystems and Livestock -------------------------------------------------------------------------------------------------
 .combine_production_boxes <- function(crops_residues_grazed, semi_natural_agroecosystems, livestock) {
   GRAFS_prod_combined <- dplyr::bind_rows(
     crops_residues_grazed |>
@@ -229,7 +229,7 @@ create_production_and_destinies_grafs <- function() {
   return(GRAFS_prod_combined)
 }
 
-#' Seed production per province, based on the national seed share per Area ------------------------------------------------------------------------------------------------
+#' Seed production per province, based on the national seed share per Area ------------------------------------------------------------------------------------
 .remove_seeds_from_system <- function(Crop_AreaNPP_ygpit_all, PIE_FullDestinies_FM, GRAFS_prod_combined) {
   seeds_substracted <- Crop_AreaNPP_ygpit_all |>
     dplyr::filter(LandUse == "Cropland") |>
@@ -444,7 +444,7 @@ create_production_and_destinies_grafs <- function() {
 }
 
 #' Popoulation: use column Pop_Mpeop_yg. Calculate the share of population -------------------------------------------------------------------------------------------------
-#' (population in each province divided through whole population in Spain to get the share; multiply with Food from PIE full destiny)
+#' (population in each province divided through whole population in Spain to get the share)
 .calculate_population_share <- function(Population_share) {
   population_share <- Population_share |>
     dplyr::select(Year, Province_name, Pop_Mpeop_yg) |>
@@ -589,10 +589,6 @@ create_production_and_destinies_grafs <- function() {
       )
     ) |>
     dplyr::select(Year, Province_name, Item, Box, Destiny, MgN)
-
-  write.csv(GRAFS_prod_destiny_final, "C:/PhD/GRAFS/Production Boxes/Final Files/Inputs/GRAFS_Prod_Destiny_git.csv")
-  GRAFS_prod_destiny_final <- readr::read_csv("C:/PhD/GRAFS/Production Boxes/Final Files/Inputs/GRAFS_Prod_Destiny_git.csv")
-  View(GRAFS_prod_destiny_final)
 
   return(GRAFS_prod_destiny_final)
 }
