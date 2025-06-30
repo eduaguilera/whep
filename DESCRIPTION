@@ -33,4 +33,5 @@ Suggests:
     tibble
 Config/testthat/edition: 3
 VignetteBuilder: knitr
-URL: https://eduaguilera.github.io/WHEP/
+URL: https://eduaguilera.github.io/WHEP, https://github.com/eduaguilera/WHEP
+BugReports: https://github.com/eduaguilera/WHEP/issues
