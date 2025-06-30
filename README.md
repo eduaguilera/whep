@@ -1,6 +1,6 @@
 # WHEP (Who Has Eaten the Planet)
 
-## Project
+## [Project](https://cordis.europa.eu/project/id/101115126)
 
 #### **Who Has Eaten the Planet? The paths of food systems beyond the safe and just operating space (1850-2020)**
 
@@ -13,14 +13,14 @@ and often unfair development in food supply and related environmental impacts,
 and how these depend on agro-climatic factors, technology, and trade flows, all
 of which have greatly changed but with different trajectories around the world.
 However, these developments lack an integrated approach, and are very poorly
-quantified before 1961. WHEP will bridge these knowledge gaps, assessing “who
-has eaten the planet” by answering the questions: 
+quantified before 1961. WHEP will bridge these knowledge gaps, assessing "who
+has eaten the planet" by answering the questions: 
 
-> _What are the environmental impacts of food production since 1850?_
+> What are the environmental impacts of food production since 1850?
 
-> _What is the role of trade in food supply and in displacing the responsibilities for these impacts?_
+> What is the role of trade in food supply and in displacing the responsibilities for these impacts?
 
-> _How are impacts related to planetary boundaries, food supply and inequality?_
+> How are impacts related to planetary boundaries, food supply and inequality?
 
 These highly ambitious goals are addressed by four objectives: 
 
@@ -43,13 +43,14 @@ These highly ambitious goals are addressed by four objectives:
 
 The WHEP project heavily relies on data. We use the R programming language.
 This repository is built as an R package containing functionality that we
-think might be useful to share to others as part of the project.
+think might be useful to share to others as part of the project. This will
+also include functions for easily downloading the data gathered by the project.
 
 ## Installation
 
 The package is still in an early stage and thus a work in progress, so it's
-still not on CRAN. You can install the development version of WHEP from
-[GitHub](https://github.com/) with:
+still not on CRAN. You can install the development version of WHEP available
+on [GitHub](https://github.com/eduaguilera/WHEP) with:
 
 ``` r
 pak::pak("eduaguilera/WHEP")
@@ -62,7 +63,7 @@ at the [reference page](https://eduaguilera.github.io/WHEP/reference/index.html)
 
 ## Contributing
 
-We try to follow best coding practices and specifically focused on R package
+We try to follow best coding practices, specifically focused on R package
 creation. The process is roughly summarized in:
 
 - Use git. Work on your own branch.
