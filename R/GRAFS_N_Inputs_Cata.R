@@ -1,46 +1,39 @@
-#' n Inputs, Production and nue in Spain
+#' N Inputs, Production and NUE in Spain
 #'
 #' @description
-#' This code is creating a dataset with nitrogen (n) inputs (deposition,
+#' This code is creating a dataset with nitrogen (N) inputs (deposition,
 #' fixation, synthetic, urban, manure)
-#' and n production in Spain between 1860 and 2020 for the GRAFS model on a
+#' and N production in Spain between 1860 and 2020 for the GRAFS model on a
 #' provincial level
 #'
 #' @returns
-#' The output (n_inputs_combined) contains data on n in MgN for the columns
+#' The output (N_Inputs_combined) contains data on N in MgN for the columns
 #' MgN_dep,  MgN_fix, MgN_syn, MgN_manure, MgN_urban, Prod_MgN
-#' for each Year, Province and Box (Cropland, semi_natural_agroecosystems,
+#' for each Year, Province and Box (Cropland, Semi_natural_agroecosystems,
 #' Livestock, Fish, Additives).
-#' As a base, data from the files n_balance_ygpit_all.rds and
+#' As a base, data from the files N_balance_ygpit_all.rds and
 #' GRAFS_Prod_Destiny.csv were used.
-#' The data are assigned to items. For this purpose, definitions in
-#' Name_biomasses were assigned to items with the
-#' file Codes_coefs.xlsx (sheet = Names_biomass_CB).
-#' Manure was calculated by the sum of Excreta, Solid, and Liquid from the
-#' file n_balance_ygpit_all.rds.
-#' n production was calculated with data from the
-#' file GRAFS_Prod_Destiny.csv with the following formula:
+#' The data are assigned to Items. For this purpose, definitions in
+#' Name_biomasses were assigned to Items with the file
+#' Codes_coefs.xlsx (sheet = Names_biomass_CB).
+#' Manure was calculated by the sum of Excreta, Solid,
+#' and Liquid from the file N_balance_ygpit_all.rds.
+#' N production was calculated with data from the file
+#' GRAFS_Prod_Destiny.csv withe the following formula:
 #' (Prod_MgN = (Food + Feed + Other_uses + Export) - Import)
-#' nitrogen use efficiency (nue) for Cropland and
-#' semi_natural_agroecosystems was calculated by the sum of Inputs
-#' with the following formula: (nue = (Prod_MgN / Inputs_MgN) * 100)
+#' Nitrogen use efficiency (NUE) for Cropland and
+#' Semi_natural_agroecosystems was calculated by the sum of Inputs
+#' with the following formula: (NUE = (Prod_MgN / Inputs_MgN) * 100)
 
-utils::globalVariables(c(
-  "Year", "Province_name", "Name_biomass", "Item", "Box",
-  "Deposition", "BNF", "Synthetic", "Urban", "Excreta", "Solid", "Liquid",
-  "Total_Manure", "MgN_dep", "MgN_fix", "MgN_syn", "MgN_manure", "MgN_urban",
-  "Import", "Food", "Feed", "Other_uses", "Export", "Prod_MgN", "Import_MgN",
-  "Inputs_MgN", "NA_real_"
-))
 
 create_n_inputs_grafs_spain <- function() {
   # Load datasets
-  data <- .load_inputs_n_inputs()
+  data <- .load_inputs_N_inputs()
 
-  # Calculate n inputs and manure
+  # Calculate N inputs and manure
   n_inputs_prepared <- .calculate_n_inputs(
-    data$n_balance_ygpit_all,
-    data$codes_coefs
+    data$N_balance_ygpit_all,
+    data$Codes_coefs
   )
 
   # Summarise inputs
@@ -48,32 +41,32 @@ create_n_inputs_grafs_spain <- function() {
 
   # Summarise production
   n_inputs_combined <- .summarise_production(
-    data$grafs_prod_destiny,
+    data$GRAFS_Prod_Destiny,
     n_inputs_summary
   )
 
-  # Calculate nue
+  # Calculate NUE
   nue <- .calculate_nue(n_inputs_combined)
 
   # Return the loaded datasets
   list(
-    n_inputs_combined = n_inputs_combined,
-    nUE = nue
+    N_Inputs_combined = n_inputs_combined,
+    NUE = nue
   )
 }
 
 # N Inputs --------------------------------------------------------------------
 # load data -------------------------------------------------------------------
-.load_inputs_n_inputs <- function() {
+.load_inputs_N_inputs <- function() {
   result <-
     list(
-      n_Excretion_ygs = readRDS(get_file_path("n_excretion_ygs")),
+      N_Excretion_ygs = readRDS(get_file_path("n_excretion_ygs")),
       # TODO: Excretion need to be added to dataset as an input of Livestock
-      n_balance_ygpit_all = readRDS(get_file_path("n_balance_ygpit_all")),
-      grafs_prod_destiny = readr::read_csv(get_file_path(
-        "GRAFS_prod_destiny_git"
-      )),
-      codes_coefs = readxl::read_excel(get_file_path("codes_coefs"),
+      N_balance_ygpit_all = readRDS(get_file_path("n_balance_ygpit_all")),
+      GRAFS_Prod_Destiny = readr::read_csv(
+        get_file_path("GRAFS_prod_destiny_git")
+      ),
+      Codes_coefs = readxl::read_excel(get_file_path("codes_coefs"),
         sheet = "Names_biomass_CB"
       )
     )
@@ -83,7 +76,7 @@ create_n_inputs_grafs_spain <- function() {
 # Assign some special items to Boxes ------------------------------------------
 .assign_items <- function() {
   list(
-    semi_natural_agroecosystems = c(
+    Semi_natural_agroecosystems = c(
       "Dehesa", "Forest_high", "Forest_low",
       "Other", "Pasture_Shrubland"
     ),
@@ -95,23 +88,23 @@ create_n_inputs_grafs_spain <- function() {
   )
 }
 
-# Calculate n Inputs ----------------------------------------------------------
-.calculate_n_inputs <- function(n_balance_ygpit_all, codes_coefs) {
+# Calculate N Inputs ----------------------------------------------------------
+.calculate_n_inputs <- function(N_balance_ygpit_all, Codes_coefs) {
   categories <- .assign_items()
   firewood_biomass <- categories$Firewood_biomass
-  semi_natural_agroecosystems <- categories$semi_natural_agroecosystems
+  Semi_natural_agroecosystems <- categories$Semi_natural_agroecosystems
 
   # Merge Name_biomass with Item
-  items <- codes_coefs |>
+  Items <- Codes_coefs |>
     dplyr::select(Name_biomass, Item)
 
-  # Combine all necessary n Inputs
-  n_inputs_summary <- n_balance_ygpit_all |>
-    dplyr::left_join(items, by = "Name_biomass") |>
+  # Combine all necessary N Inputs
+  N_inputs_summary <- N_balance_ygpit_all |>
+    dplyr::left_join(Items, by = "Name_biomass") |>
     dplyr::mutate(
       Item = ifelse(Name_biomass %in% firewood_biomass, "Firewood", Item),
-      Box = ifelse(LandUse %in% semi_natural_agroecosystems,
-        "semi_natural_agroecosystems", LandUse
+      Box = ifelse(LandUse %in% Semi_natural_agroecosystems,
+        "Semi_natural_agroecosystems", LandUse
       )
     ) |>
     dplyr::group_by(Year, Province_name, Name_biomass, Item, Box) |>
@@ -123,21 +116,21 @@ create_n_inputs_grafs_spain <- function() {
       .groups = "drop"
     ) |>
     dplyr::select(
-      Year, Province_name, Name_biomass, Item, Box, Deposition,
-      BNF, Synthetic, Urban
+      Year, Province_name, Name_biomass, Item, Box,
+      Deposition, BNF, Synthetic, Urban
     )
 
   # Calculation of Manure from Excreta, Solid, Liquid
-  item_lookup <- codes_coefs |>
+  item_lookup <- Codes_coefs |>
     dplyr::select(Name_biomass, Item) |>
     dplyr::distinct()
 
-  manure_selected <- n_balance_ygpit_all |>
+  manure_selected <- N_balance_ygpit_all |>
     dplyr::left_join(item_lookup, by = "Name_biomass") |>
     dplyr::mutate(
       Item = ifelse(Name_biomass %in% firewood_biomass, "Firewood", Item),
-      Box = ifelse(LandUse %in% semi_natural_agroecosystems,
-        "semi_natural_agroecosystems", LandUse
+      Box = ifelse(LandUse %in% Semi_natural_agroecosystems,
+        "Semi_natural_agroecosystems", LandUse
       )
     ) |>
     dplyr::select(
@@ -153,21 +146,21 @@ create_n_inputs_grafs_spain <- function() {
     )
 
   list(
-    n_inputs_summary = n_inputs_summary,
+    N_inputs_summary = N_inputs_summary,
     manure_summary = manure_summary
   )
 }
 
 # Combine all Inputs ----------------------------------------------------------
 .summarise_inputs <- function(n_inputs_prepared) {
-  n_inputs <- dplyr::full_join(
-    n_inputs_prepared$n_inputs_summary,
+  N_Inputs <- dplyr::full_join(
+    n_inputs_prepared$N_inputs_summary,
     n_inputs_prepared$manure_summary,
     by = c("Year", "Province_name", "Name_biomass", "Item", "Box")
   )
 
   # Summing Inputs for each Year, Province_name, Box
-  n_inputs_sum <- n_inputs |>
+  N_Inputs_sum <- N_Inputs |>
     dplyr::group_by(Year, Province_name, Item, Box) |>
     dplyr::summarise(
       MgN_dep = sum(Deposition, na.rm = TRUE),
@@ -177,18 +170,19 @@ create_n_inputs_grafs_spain <- function() {
       MgN_urban = sum(Urban, na.rm = TRUE),
       .groups = "drop"
     )
-  n_inputs_sum
+  N_Inputs_sum
 }
 
 #' GRAFS_Prod_Destiny ---------------------------------------------------------
 #' Summarize and calculate new columns: Prod_MgN
 #' Spread the Destiny column to separate columns for Food,
-#' Feed, Other_uses, Export
-.summarise_production <- function(grafs_prod_destiny, n_inputs_sum) {
-  grafs_prod_destiny_summary <- grafs_prod_destiny |>
+#' Feed, Other_uses,Export
+
+.summarise_production <- function(GRAFS_Prod_Destiny, N_Inputs_sum) {
+  GRAFS_Prod_Destiny_summary <- GRAFS_Prod_Destiny |>
     tidyr::pivot_wider(
-      names_from = Destiny, values_from = MgN, values_fn = sum,
-      values_fill = list(MgN = 0)
+      names_from = Destiny, values_from = MgN,
+      values_fn = sum, values_fill = list(MgN = 0)
     ) |>
     dplyr::mutate(
       Prod_MgN = (Food + Feed + Other_uses + Export) - Import,
@@ -205,28 +199,28 @@ create_n_inputs_grafs_spain <- function() {
     dplyr::arrange(Year, Province_name, Item, Box) |>
     dplyr::select(Year, Province_name, Item, Box, Import_MgN, Prod_MgN)
 
-  # Combine with n_inputs dataset
-  n_inputs_combined <- dplyr::full_join(n_inputs_sum,
-    grafs_prod_destiny_summary,
+  # Combine with N_Inputs dataset
+  N_Inputs_combined <- dplyr::full_join(N_Inputs_sum,
+    GRAFS_Prod_Destiny_summary,
     by = c("Year", "Province_name", "Item", "Box")
   ) |>
     dplyr::filter(!is.na(Box))
 
-  n_inputs_combined
+  N_Inputs_combined
 }
 
 # NUE for Cropland and Semi-natural agroecosystems ----------------------------
-.calculate_nue <- function(n_inputs_combined) {
-  nue <- n_inputs_combined |>
+.calculate_nue <- function(N_Inputs_combined) {
+  NUE <- N_Inputs_combined |>
     dplyr::mutate(
       Inputs_MgN = MgN_dep + MgN_fix + MgN_syn + MgN_manure + MgN_urban
     ) |>
     dplyr::mutate(
-      nue = ifelse(Box %in% c("semi_natural_agroecosystems", "Cropland"),
+      NUE = ifelse(Box %in% c("Semi_natural_agroecosystems", "Cropland"),
         Prod_MgN / Inputs_MgN * 100,
         NA_real_
       )
     )
 
-  nue
+  NUE
 }
