@@ -4,6 +4,8 @@
 # Who Has Eaten the Planet <a href="https://eduaguilera.github.io/WHEP/"><img src="man/figures/logo.png" align="right" height="139" alt="WHEP website" /></a>
 
 <!-- badges: start -->
+
+[![R-CMD-check](https://github.com/eduaguilera/WHEP/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/eduaguilera/WHEP/actions/workflows/R-CMD-check.yaml)
 <!-- badges: end -->
 
 ## Project
