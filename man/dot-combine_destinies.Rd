@@ -5,7 +5,7 @@
 \title{Putting all together -------------------------------------------------------}
 \usage{
 .combine_destinies(
-  GRAFS_prod_item,
+  grafs_prod_item,
   feed_intake,
   food_with_share,
   other_uses_with_share

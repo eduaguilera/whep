@@ -2,16 +2,16 @@
 % Please edit documentation in R/GRAFS_Prod_Destiny_git.R
 \name{.prepare_prod_data}
 \alias{.prepare_prod_data}
-\title{Match structure of GRAFS_prod_combined_no_seeds ----------------------------
+\title{Match structure of grafs_prod_combined_no_seeds ----------------------------
 Merging Item and Name_biomass and creating Name_biomass_primary}
 \usage{
 .prepare_prod_data(
-  GRAFS_prod_added_grass_wood,
+  grafs_prod_added_grass_wood,
   processed_data,
-  Codes_coefs_items_full
+  codes_coefs_items_full
 )
 }
 \description{
-Match structure of GRAFS_prod_combined_no_seeds ----------------------------
+Match structure of grafs_prod_combined_no_seeds ----------------------------
 Merging Item and Name_biomass and creating Name_biomass_primary
 }

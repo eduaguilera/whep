@@ -2,12 +2,14 @@
 % Please edit documentation in R/Typologies_Josette.R
 \name{.calculate_feed_domestic_share}
 \alias{.calculate_feed_domestic_share}
-\title{Decision: >25\% animal feed from local crop ------------------------------------------------------------------------------------------
+\title{Decision: >25\% animal feed from local crop ---------------------------------
 Calculate domestic feed supply per province}
 \usage{
 .calculate_feed_domestic_share(feed_df, lu_df)
 }
 \description{
-Decision: >25\% animal feed from local crop ------------------------------------------------------------------------------------------
-Calculate domestic feed supply per province
+Filter relevant feed data: Production, Exports and
+Imports destined for feed use
+Allocate Production and Import to provinces proportional to LU share
+Calculate local feed share per province: share of feed coming from domestic
 }

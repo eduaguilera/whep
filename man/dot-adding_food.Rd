@@ -5,7 +5,7 @@
 \title{Food -----------------------------------------------------------------------
 Sum all Elements for Food and multiply with population share}
 \usage{
-.adding_food(PIE_FullDestinies_FM, population_share)
+.adding_food(pie_full_destinies_fm, population_share)
 }
 \description{
 Food -----------------------------------------------------------------------

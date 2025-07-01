@@ -1,5 +1,7 @@
 #' Typologies of Julia
 #'
+#' @name Typologies_Julia
+NULL
 
 utils::globalVariables(c(
   "Province_name", "Year", "Livestock_cat", "Animal_class", "LU_head",

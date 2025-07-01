@@ -6,7 +6,7 @@
 (population in each province divided through whole population in
 Spain to get the share)}
 \usage{
-.calculate_population_share(Population_share)
+.calculate_population_share(population_share)
 }
 \description{
 Popoulation: use column Pop_Mpeop_yg. Calculate the share of population ----
