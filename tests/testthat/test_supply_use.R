@@ -130,13 +130,7 @@ testthat::test_that(
 testthat::test_that(
   ".build_supply_crop_production gives crops and their residues",
   {
-    items_prod <- tibble::tribble(
-      ~item_prod_code, ~item_prod_name, ~prod_type,
-      1, "p1", "crop_product",
-      2, "p2", "crop_product",
-      4, "p4", "crop_product",
-      6, "p4", "other"
-    )
+    crop_prod_items <- tibble::tibble(item_prod_code = c(1, 2, 4))
 
     primary_prod <- tibble::tribble(
       ~year, ~area_code, ~item_prod_code, ~item_cbs_code, ~live_anim_code,
@@ -166,7 +160,7 @@ testthat::test_that(
       2001, 1, 5, 12, 60, "supply"
     )
 
-    items_prod |>
+    crop_prod_items |>
       .build_supply_crop_production(primary_prod, crop_residues) |>
       .expect_equal_unordered(expected)
   }
