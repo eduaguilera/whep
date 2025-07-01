@@ -24,6 +24,9 @@
 #' nitrogen use efficiency (nue) for Cropland and
 #' semi_natural_agroecosystems was calculated by the sum of Inputs
 #' with the following formula: (nue = (Prod_MgN / Inputs_MgN) * 100)
+#'
+#' @name GRAFS_N_Inputs
+NULL
 
 utils::globalVariables(c(
   "Year", "Province_name", "Name_biomass", "Item", "Box",
@@ -58,7 +61,7 @@ create_n_inputs_grafs_spain <- function() {
   # Return the loaded datasets
   list(
     n_inputs_combined = n_inputs_combined,
-    nUE = nue
+    nue = nue
   )
 }
 

@@ -3,11 +3,11 @@
 test_that("._assign_items returns expected categories", {
   cats <- .assign_items()
 
-  expect_true("Semi_natural_agroecosystems" %in% names(cats))
+  expect_true("semi_natural_agroecosystems" %in% names(cats))
   expect_true("Firewood_biomass" %in% names(cats))
   expect_true("residue_items" %in% names(cats))
 
-  expect_true("Dehesa" %in% cats$Semi_natural_agroecosystems)
+  expect_true("Dehesa" %in% cats$semi_natural_agroecosystems)
   expect_true("Holm oak" %in% cats$Firewood_biomass)
 })
 
@@ -34,10 +34,10 @@ test_that("._calculate_n_inputs calculates inputs and manure correctly", {
 
   result <- .calculate_n_inputs(n_balance_ygpit_all, codes_coefs)
 
-  expect_named(result, c("N_inputs_summary", "manure_summary"))
+  expect_named(result, c("n_inputs_summary", "manure_summary"))
 
   # Check that Deposition values are non-negative
-  expect_true(all(result$N_inputs_summary$Deposition >= 0))
+  expect_true(all(result$n_inputs_summary$Deposition >= 0))
 
   # Check Manure calculation (sum of Excreta + Solid + Liquid)
   manure_val <- result$manure_summary %>%
@@ -81,12 +81,12 @@ test_that(
   "._summarise_production correctly combines inputs and production data",
   {
     n_inputs_prepared <- list(
-      N_inputs_summary = tibble::tibble(
+      n_inputs_summary = tibble::tibble(
         Year = 2000,
         Province_name = "Madrid",
         Name_biomass = "Dehesa",
         Item = "Dehesa_item",
-        Box = "Semi_natural_agroecosystems",
+        Box = "semi_natural_agroecosystems",
         Deposition = 1,
         BNF = 0.5,
         Synthetic = 0,
@@ -97,7 +97,7 @@ test_that(
         Province_name = "Madrid",
         Name_biomass = "Dehesa",
         Item = "Dehesa_item",
-        Box = "Semi_natural_agroecosystems",
+        Box = "semi_natural_agroecosystems",
         Total_Manure = 0
       )
     )
@@ -108,7 +108,7 @@ test_that(
       Year = rep(2000, 5),
       Province_name = rep("Madrid", 5),
       Item = rep("Dehesa_item", 5),
-      Box = rep("Semi_natural_agroecosystems", 5),
+      Box = rep("semi_natural_agroecosystems", 5),
       Destiny = c("Food", "Feed", "Other_uses", "Export", "Import"),
       MgN = c(10, 5, 4, 3, 2)
     )
@@ -122,16 +122,16 @@ test_that(
 )
 
 test_that(
-  "._calculate_nue calculates NUE correctly for
-  Cropland and Semi_natural_agroecosystems",
+  "._calculate_nue calculates nue correctly for
+  Cropland and semi_natural_agroecosystems",
   {
     n_inputs_prepared <- list(
-      N_inputs_summary = tibble::tibble(
+      n_inputs_summary = tibble::tibble(
         Year = 2000,
         Province_name = "Madrid",
         Name_biomass = "Dehesa",
         Item = "Dehesa_item",
-        Box = "Semi_natural_agroecosystems",
+        Box = "semi_natural_agroecosystems",
         Deposition = 1,
         BNF = 0.5,
         Synthetic = 0,
@@ -142,7 +142,7 @@ test_that(
         Province_name = "Madrid",
         Name_biomass = "Dehesa",
         Item = "Dehesa_item",
-        Box = "Semi_natural_agroecosystems",
+        Box = "semi_natural_agroecosystems",
         Total_Manure = 0
       )
     )
@@ -153,7 +153,7 @@ test_that(
       Year = c(2000, 2000, 2000, 2000, 2000),
       Province_name = rep("Madrid", 5),
       Item = rep("Dehesa_item", 5),
-      Box = rep("Semi_natural_agroecosystems", 5),
+      Box = rep("semi_natural_agroecosystems", 5),
       Destiny = c("Food", "Feed", "Other_uses", "Export", "Import"),
       MgN = c(10, 5, 4, 3, 2)
     )
@@ -161,13 +161,13 @@ test_that(
     prod_combined <- .summarise_production(grafs_prod_destiny, n_inputs_sum)
     nue <- .calculate_nue(prod_combined)
 
-    # Check NUE is calculated for Cropland and Semi_natural_agroecosystems
-    nue_filtered <- nue %>% dplyr::filter(Box == "Semi_natural_agroecosystems")
-    expect_true(all(!is.na(nue_filtered$NUE)))
+    # Check nue is calculated for Cropland and semi_natural_agroecosystems
+    nue_filtered <- nue %>% dplyr::filter(Box == "semi_natural_agroecosystems")
+    expect_true(all(!is.na(nue_filtered$nue)))
 
-    # NUE should be NA for other Box categories (e.g. Fish)
+    # nue should be NA for other Box categories (e.g. Fish)
     nue$Box[1] <- "Fish"
-    nue$NUE[1] <- NA_real_
-    expect_true(is.na(nue$NUE[1]))
+    nue$nue[1] <- NA_real_
+    expect_true(is.na(nue$nue[1]))
   }
 )

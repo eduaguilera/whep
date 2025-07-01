@@ -4,7 +4,7 @@
 \alias{.finalize_prod_destiny}
 \title{Adding missing Boxes for Imports -------------------------------------------}
 \usage{
-.finalize_prod_destiny(GRAFS_prod_item_trade, Codes_coefs_items_full)
+.finalize_prod_destiny(grafs_prod_item_trade, codes_coefs_items_full)
 }
 \description{
 Adding missing Boxes for Imports -------------------------------------------

@@ -2,12 +2,12 @@
 % Please edit documentation in R/GRAFS_Prod_Destiny_git.R
 \name{.prepare_processed_data}
 \alias{.prepare_processed_data}
-\title{Processed Items ----------------------------------------------------------------------------------------------------------------------------------------
+\title{Processed Items ------------------------------------------------------------
 Summarise processed items by Year, Province, Biomass, Item, and ProcessedItem}
 \usage{
 .prepare_processed_data(processed_prov_fixed)
 }
 \description{
-Processed Items ----------------------------------------------------------------------------------------------------------------------------------------
+Processed Items ------------------------------------------------------------
 Summarise processed items by Year, Province, Biomass, Item, and ProcessedItem
 }

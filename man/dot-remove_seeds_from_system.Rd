@@ -3,15 +3,15 @@
 \name{.remove_seeds_from_system}
 \alias{.remove_seeds_from_system}
 \title{Seed production per province, based on the national seed share per Area ----
-Substracting the Seed data from Production in GRAFS_prod_combined}
+Substracting the Seed data from Production in grafs_prod_combined}
 \usage{
 .remove_seeds_from_system(
-  Crop_AreaNPP_ygpit_all,
-  PIE_FullDestinies_FM,
-  GRAFS_prod_combined
+  crop_area_npp_ygpit_all,
+  pie_full_destinies_fm,
+  grafs_prod_combined
 )
 }
 \description{
 Seed production per province, based on the national seed share per Area ----
-Substracting the Seed data from Production in GRAFS_prod_combined
+Substracting the Seed data from Production in grafs_prod_combined
 }

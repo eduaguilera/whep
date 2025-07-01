@@ -5,7 +5,7 @@
 \title{Production of Cropland, Livestock, and Semi natural agroecosystems ---------
 Merge items with biomasses}
 \usage{
-.merge_items_biomass(Crop_AreaNPP_ygpit_all, NPP_ygpit_csv, Codes_coefs)
+.merge_items_biomass(crop_area_npp_ygpit_all, npp_ygpit_csv, codes_coefs)
 }
 \description{
 Production of Cropland, Livestock, and Semi natural agroecosystems ---------

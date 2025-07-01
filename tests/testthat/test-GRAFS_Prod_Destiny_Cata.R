@@ -29,10 +29,10 @@ test_that(".merge_items_biomass merges correctly", {
     fake_npp_ygpit_csv, fake_codes_coefs
   )
 
-  expect_true("Crop_AreaNPP_merged" %in% names(result))
-  expect_true("NPP_ygpit_merged" %in% names(result))
-  expect_equal(nrow(result$Crop_AreaNPP_merged), 2)
-  expect_equal(result$Crop_AreaNPP_merged$Item[1], "ItemA")
+  expect_true("crop_area_npp_merged" %in% names(result))
+  expect_true("npp_ygpit_merged" %in% names(result))
+  expect_equal(nrow(result$crop_area_npp_merged), 2)
+  expect_equal(result$crop_area_npp_merged$Item[1], "ItemA")
 })
 
 # Test: .summarise_crops_residues ---------------------------------------------

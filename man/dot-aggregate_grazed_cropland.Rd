@@ -3,13 +3,13 @@
 \name{.aggregate_grazed_cropland}
 \alias{.aggregate_grazed_cropland}
 \title{Combining crops, residues, feed (grass, fallow) production -----------------
-Merge \code{grazed_data} with \code{Crop_AreaNPP_prod_residue}
+Merge \code{grazed_data} with \code{crop_area_npp_prod_residue}
 Add missing Production data from NPP (Fallow)}
 \usage{
-.aggregate_grazed_cropland(NPP_ygpit_merged, Crop_AreaNPP_prod_residue)
+.aggregate_grazed_cropland(npp_ygpit_merged, crop_area_npp_prod_residue)
 }
 \description{
 Combining crops, residues, feed (grass, fallow) production -----------------
-Merge \code{grazed_data} with \code{Crop_AreaNPP_prod_residue}
+Merge \code{grazed_data} with \code{crop_area_npp_prod_residue}
 Add missing Production data from NPP (Fallow)
 }

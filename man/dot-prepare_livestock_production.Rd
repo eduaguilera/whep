@@ -4,7 +4,7 @@
 \alias{.prepare_livestock_production}
 \title{Livestock Production -------------------------------------------------------}
 \usage{
-.prepare_livestock_production(Livestock_Prod_ygps)
+.prepare_livestock_production(livestock_prod_ygps)
 }
 \description{
 Livestock Production -------------------------------------------------------

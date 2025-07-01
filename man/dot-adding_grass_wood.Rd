@@ -11,9 +11,11 @@ Combine the two into one dataframe
 Create Firewood rows for other biomass types using Used_Residue_MgFM
 Create Grass rows for other biomass types using GrazedWeeds_MgDM
 Combine all new rows with existing data
+Convert only Grass rows from DM to FM using 20\% coefficient from
+biomass_coefs
 Aggregate Grassland rows across same Year/Province_name/Item/Box}
 \usage{
-.adding_grass_wood(GRAFS_prod_combined_no_seeds, Biomass_coefs)
+.adding_grass_wood(grafs_prod_combined_no_seeds, biomass_coefs)
 }
 \description{
 Structuring dataset (GrazedWeeds und Used_Residues in ProductionFM) --------
@@ -25,5 +27,7 @@ Combine the two into one dataframe
 Create Firewood rows for other biomass types using Used_Residue_MgFM
 Create Grass rows for other biomass types using GrazedWeeds_MgDM
 Combine all new rows with existing data
+Convert only Grass rows from DM to FM using 20\% coefficient from
+biomass_coefs
 Aggregate Grassland rows across same Year/Province_name/Item/Box
 }

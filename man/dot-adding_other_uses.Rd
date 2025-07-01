@@ -5,7 +5,7 @@
 \title{Other_uses -----------------------------------------------------------------
 Sum all Elements for Other_uses and multiply with population share}
 \usage{
-.adding_other_uses(PIE_FullDestinies_FM, population_share)
+.adding_other_uses(pie_full_destinies_fm, population_share)
 }
 \description{
 Other_uses -----------------------------------------------------------------

@@ -2,19 +2,21 @@
 #'
 #' @description
 #' This code is creating a dataset, based on N production data of crops and
-#' livestock, which represents
-#' the following destinies: food, feed, other uses, exports, imports.
+#' livestock, which represents the following destinies:
+#' food, feed, other uses, exports, imports.
 #' This is the base of the GRAFS model.
 #' The dataset contains data in MgN for each year, province, item, and box
-#' (cropland, semi natural agroecosystems,
-#' livestock, fish, additives). Processed items, residues, woody crops,
-#' and grazed weeds are taken into account.
+#' (cropland, semi natural agroecosystems, livestock, fish, additives).
+#' Processed items, residues, woody crops, grazed weeds are taken into account.
 #' Seeds were subtracted from crop production.
 #'
 #' #' @returns
 #' A list containing all key data frames for further analysis.
 #'
-#'
+#' @name GRAFS_Prod_Destiny_git
+NULL
+
+
 utils::globalVariables(c(
   "Year", "Province_name", "Name_biomass", "Item", "Prod_ygpit_Mg",
   "Product_residue", "Prod_Residue_Product_Mg", "Residue", "Product", "Box",

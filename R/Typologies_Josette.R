@@ -1,5 +1,7 @@
 #' Typologies of Josette
 #'
+#' @name Typologies_Josette
+NULL
 
 utils::globalVariables(c(
   "Year", "Province_name", "Destiny", "MgN", "Food_Consumption_MgN",

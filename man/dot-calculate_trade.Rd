@@ -4,7 +4,7 @@
 \alias{.calculate_trade}
 \title{Calculating Consumption and Trade ------------------------------------------}
 \usage{
-.calculate_trade(GRAFS_prod_item_N)
+.calculate_trade(grafs_prod_item_n)
 }
 \description{
 Calculating Consumption and Trade ------------------------------------------

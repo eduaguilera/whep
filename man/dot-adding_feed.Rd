@@ -8,7 +8,7 @@ Province_name and Item
 Comment!!! Feed from all animals are summed together, also from pets.
 Do they have to be assigned to humans?}
 \usage{
-.adding_feed(Feed_Intake)
+.adding_feed(feed_intake)
 }
 \description{
 Consumption (Destinies) ----------------------------------------------------
