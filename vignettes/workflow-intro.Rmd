@@ -498,7 +498,7 @@ have to understand the code, you can keep reading). We save it in `R/sources.R`.
 #' @param trade_sources A tibble dataframe
 #' where each row contains the year range
 #'
-#' @return A tibble dataframe where each row
+#' @returns A tibble dataframe where each row
 #' corresponds to a single year for a given source
 #'
 #' @export
@@ -589,9 +589,9 @@ parameter starts with `@param`.
 #' where each row contains the year range
 ```
 - A small description of the value the function returns. It should start with
-`@return`.
+`@returns`.
 ```r
-#' @return A tibble dataframe where each row
+#' @returns A tibble dataframe where each row
 #' corresponds to a single year for a given source
 ```
 - A simple line containing `@export` to indicate the function can be used in
