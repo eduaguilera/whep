@@ -65,7 +65,7 @@
 #' }
 build_supply_use <- function() {
   .build_supply_use_from_inputs(
-    crop_prod_items = .read_local_csv("input/raw/crop_production_items.csv"),
+    items_prod = .read_local_csv("input/raw/items_prod.csv"),
     husbandry_items = .read_local_csv("input/raw/husbandry_items.csv"),
     coeffs = get_processing_coefs(get_file_path("processing_coefs")),
     cbs = get_wide_cbs(get_file_path("commodity_balance_sheet")),
@@ -76,7 +76,7 @@ build_supply_use <- function() {
 }
 
 .build_supply_use_from_inputs <- function(
-    crop_prod_items,
+    items_prod,
     husbandry_items,
     coeffs,
     cbs,
@@ -84,7 +84,7 @@ build_supply_use <- function() {
     primary_prod,
     feed_intake) {
   dplyr::bind_rows(
-    .build_crop_production(crop_prod_items, cbs, primary_prod, crop_residues),
+    .build_crop_production(items_prod, cbs, primary_prod, crop_residues),
     .build_husbandry(husbandry_items, feed_intake, primary_prod),
     .build_processing(coeffs),
   ) |>
@@ -100,12 +100,12 @@ build_supply_use <- function() {
 }
 
 .build_crop_production <- function(
-    crop_prod_items,
+    items_prod,
     cbs,
     primary_prod,
     crop_residues) {
   supply_crop_production <- .build_supply_crop_production(
-    crop_prod_items,
+    items_prod,
     primary_prod,
     crop_residues
   ) |>
@@ -122,11 +122,11 @@ build_supply_use <- function() {
 }
 
 .build_supply_crop_production <- function(
-    crop_prod_items,
+    items_prod,
     primary_prod,
     crop_residues) {
   supply_crop_product <- .build_supply_crop_product(
-    crop_prod_items,
+    items_prod,
     primary_prod
   )
 
@@ -151,7 +151,10 @@ build_supply_use <- function() {
     )
 }
 
-.build_supply_crop_product <- function(crop_prod_items, primary_prod) {
+.build_supply_crop_product <- function(items_prod, primary_prod) {
+  crop_prod_items <- items_prod |>
+    dplyr::filter(prod_type == "crop_product")
+
   primary_prod |>
     dplyr::filter(unit == "tonnes") |>
     dplyr::inner_join(crop_prod_items, "item_prod_code") |>
