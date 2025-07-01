@@ -1,6 +1,6 @@
 #' Tests for N production and destinies in Spain
 
-fake_Crop_AreaNPP_ygpit_all <- data.frame(
+fake_crop_areanpp_ygpit_all <- data.frame(
   Name_biomass = c("BiomassA", "BiomassB"),
   Area_ygpit_ha = c(100, 200),
   LandUse = c("Cropland", "Cropland"),
@@ -8,7 +8,7 @@ fake_Crop_AreaNPP_ygpit_all <- data.frame(
   Province_name = c("Province1", "Province2")
 )
 
-fake_NPP_ygpit_csv <- data.frame(
+fake_npp_ygpit_csv <- data.frame(
   Name_biomass = c("BiomassA", "BiomassB"),
   GrazedWeeds_MgDM = c(10, 20),
   LandUse = c("Cropland", "Cropland"),
@@ -17,14 +17,17 @@ fake_NPP_ygpit_csv <- data.frame(
   Province_name = c("Province1", "Province2")
 )
 
-fake_Codes_coefs <- data.frame(
+fake_codes_coefs <- data.frame(
   Name_biomass = c("BiomassA", "BiomassB"),
   Item = c("ItemA", "ItemB")
 )
 
-# Test: .merge_items_biomass ---------------------------------------------------------
+# Test: .merge_items_biomass --------------------------------------------------
 test_that(".merge_items_biomass merges correctly", {
-  result <- .merge_items_biomass(fake_Crop_AreaNPP_ygpit_all, fake_NPP_ygpit_csv, fake_Codes_coefs)
+  result <- .merge_items_biomass(
+    fake_crop_areanpp_ygpit_all,
+    fake_npp_ygpit_csv, fake_codes_coefs
+  )
 
   expect_true("Crop_AreaNPP_merged" %in% names(result))
   expect_true("NPP_ygpit_merged" %in% names(result))
@@ -32,7 +35,7 @@ test_that(".merge_items_biomass merges correctly", {
   expect_equal(result$Crop_AreaNPP_merged$Item[1], "ItemA")
 })
 
-# Test: .summarise_crops_residues -----------------------------------------------------
+# Test: .summarise_crops_residues ---------------------------------------------
 fake_crop_input <- data.frame(
   Year = c(2020, 2020),
   Province_name = c("Province1", "Province1"),
@@ -50,7 +53,7 @@ test_that(".summarise_crops_residues summarizes correctly", {
   expect_equal(result$Box[1], "Cropland")
 })
 
-# Test: .aggregate_grazed_cropland ---------------------------------------------------
+# Test: .aggregate_grazed_cropland --------------------------------------------
 fake_grazed <- data.frame(
   Year = c(2020),
   Province_name = c("Province1"),
@@ -106,7 +109,7 @@ test_that(".calculate_population_share calculates correct share", {
 
 # Test: Adding food correctly
 test_that(".adding_food multiplies population share with total food", {
-  PIE_data <- data.frame(
+  pie_data <- data.frame(
     Year = c(2020, 2020),
     Item = c("Wheat", "Wheat"),
     Destiny = "Food",
@@ -121,7 +124,7 @@ test_that(".adding_food multiplies population share with total food", {
     Pop_share = c(0.25, 0.75)
   )
 
-  result <- .adding_food(PIE_data, pop_share)
+  result <- .adding_food(pie_data, pop_share)
   expect_equal(nrow(result), 2)
   expect_equal(result$Food_Mg[result$Province_name == "A"], 100)
   expect_equal(result$Food_Mg[result$Province_name == "B"], 300)
@@ -129,7 +132,7 @@ test_that(".adding_food multiplies population share with total food", {
 
 # Test: Adding other uses correctly
 test_that(".adding_other_uses works same as food with other uses", {
-  PIE_data <- data.frame(
+  pie_data <- data.frame(
     Year = c(2020, 2020),
     Item = c("Wheat", "Wheat"),
     Destiny = "Other_uses",
@@ -144,17 +147,29 @@ test_that(".adding_other_uses works same as food with other uses", {
     Pop_share = c(0.25, 0.75)
   )
 
-  result <- .adding_other_uses(PIE_data, pop_share)
+  result <- .adding_other_uses(pie_data, pop_share)
   expect_equal(result$OtherUses_Mg[result$Province_name == "A"], 100)
   expect_equal(result$OtherUses_Mg[result$Province_name == "B"], 300)
 })
 
 # Test: combine destinies correctly
 test_that(".combine_destinies joins correctly", {
-  prod <- data.frame(Year = 2020, Province_name = "A", Item = "Wheat", Box = "Cropland", Production_N = 500)
-  food <- data.frame(Year = 2020, Province_name = "A", Item = "Wheat", Food_Mg = 100)
-  other <- data.frame(Year = 2020, Province_name = "A", Item = "Wheat", OtherUses_Mg = 50)
-  feed <- data.frame(Year = 2020, Province_name = "A", Item = "Wheat", FM_Mg_total = 25)
+  prod <- data.frame(
+    Year = 2020, Province_name = "A", Item = "Wheat",
+    Box = "Cropland", Production_N = 500
+  )
+  food <- data.frame(
+    Year = 2020, Province_name = "A", Item = "Wheat",
+    Food_Mg = 100
+  )
+  other <- data.frame(
+    Year = 2020, Province_name = "A", Item = "Wheat",
+    OtherUses_Mg = 50
+  )
+  feed <- data.frame(
+    Year = 2020, Province_name = "A", Item = "Wheat",
+    FM_Mg_total = 25
+  )
 
   result <- .combine_destinies(prod, feed, food, other)
   expect_equal(result$Food_MgFM, 100)
@@ -171,7 +186,10 @@ test_that(".convert_to_items_n applies conversions correctly", {
   )
 
   code_map <- data.frame(item = "Wheat", Name_biomass = "BiomassWheat")
-  coefs <- data.frame(Name_biomass = "BiomassWheat", Product_kgDM_kgFM = 0.8, Product_kgN_kgDM = 0.02)
+  coefs <- data.frame(
+    Name_biomass = "BiomassWheat",
+    Product_kgDM_kgFM = 0.8, Product_kgN_kgDM = 0.02
+  )
 
   result <- .convert_to_items_n(input, code_map, coefs)
   expect_equal(result$Food_MgN, 1.6)
