@@ -203,8 +203,6 @@ build_supply_use <- function() {
 }
 
 .build_livestock_supply <- function(primary_prod, husbandry_items) {
-  k_tonnes_per_livestock_unit <- 0.65
-
   primary_prod |>
     dplyr::filter(unit == "LU") |>
     dplyr::inner_join(
