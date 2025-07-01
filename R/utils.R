@@ -36,6 +36,7 @@ utils::globalVariables(
     "item_prod_code",
     "item_prod_name",
     "item_to_process",
+    "item_type",
     "live_anim_code",
     "loss",
     "loss_share",
