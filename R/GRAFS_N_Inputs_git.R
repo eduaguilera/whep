@@ -1,4 +1,4 @@
-#' n Inputs, Production and nue in Spain
+#' N Inputs, Production and nue in Spain
 #'
 #' @description
 #' This code is creating a dataset with nitrogen (n) inputs (deposition,
@@ -27,14 +27,6 @@
 #'
 #' @name GRAFS_N_Inputs
 NULL
-
-utils::globalVariables(c(
-  "Year", "Province_name", "Name_biomass", "Item", "Box",
-  "Deposition", "BNF", "Synthetic", "Urban", "Excreta", "Solid", "Liquid",
-  "Total_Manure", "MgN_dep", "MgN_fix", "MgN_syn", "MgN_manure", "MgN_urban",
-  "Import", "Food", "Feed", "Other_uses", "Export", "Prod_MgN", "Import_MgN",
-  "Inputs_MgN", "NA_real_"
-))
 
 create_n_inputs_grafs_spain <- function() {
   # Load datasets

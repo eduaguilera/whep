@@ -5,13 +5,12 @@
 \title{GRAFS production and destiny}
 \description{
 This code is creating a dataset, based on N production data of crops and
-livestock, which represents
-the following destinies: food, feed, other uses, exports, imports.
+livestock, which represents the following destinies:
+food, feed, other uses, exports, imports.
 This is the base of the GRAFS model.
 The dataset contains data in MgN for each year, province, item, and box
-(cropland, semi natural agroecosystems,
-livestock, fish, additives). Processed items, residues, woody crops,
-and grazed weeds are taken into account.
+(cropland, semi natural agroecosystems, livestock, fish, additives).
+Processed items, residues, woody crops, grazed weeds are taken into account.
 Seeds were subtracted from crop production.
 
 #' @returns

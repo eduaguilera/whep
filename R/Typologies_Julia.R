@@ -3,21 +3,12 @@
 #' @name Typologies_Julia
 NULL
 
-utils::globalVariables(c(
-  "Province_name", "Year", "Livestock_cat", "Animal_class", "LU_head",
-  "LU_total", "Area_ha", "Livestock_density", "Prod_MgN_total",
-  "Area_ha_cropland", "Productivity_kgN_ha", "Semi_nat_feed_MgN",
-  "Cropland_feed_MgN", "Total_feed_MgN", "Semi_nat_share", "Domestic_feed_MgN",
-  "Feed_import_MgN", "Imported_feed_share", "Typologie", "Value_destiny",
-  "LU_share", "LU_total_spain", "Element", "Destiny", "Box", "Stock_Number",
-  "MgN", "name", "Typologies_all_years", "Typologies", "Typologies_map",
-  "stri_trans_general", "Total_feed_import", ".load_inputs_typologies_julia"
-))
-
 create_typologies_grafs_spain <- function(
     make_map = TRUE,
-    shapefile_path = "C:/PhD/GRAFS/Production Boxes/
-    Final Files/Inputs/ne_10m_admin_1_states_provinces.shp",
+    shapefile_path = paste0(
+      "C:/PhD/GRAFS/Production Boxes/",
+      "Final Files/Inputs/ne_10m_admin_1_states_provinces.shp"
+    ),
     map_year = 1980) {
   inputs_dir <- "C:/PhD/GRAFS/Production Boxes/Final Files/Inputs"
 
@@ -102,7 +93,6 @@ create_typologies_grafs_spain <- function(
     sf_provinces = data$sf_provinces,
     year = map_year
   )
-  View(typologies_result$Typologies_all_years)
 
   if (make_map) {
     typologies_df <- typologies_result$Typologies
