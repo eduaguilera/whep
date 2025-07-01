@@ -196,6 +196,9 @@ build_supply_use <- function() {
 
 .build_supply_husbandry <- function(husbandry_items, primary_prod) {
   dplyr::bind_rows(
+    # TODO: This is essentially double counting animals' mass both as livestock
+    # and their products. Go back to this when integrating input-output matrix
+    # with trade, to look for a satisfying fix.
     .build_livestock_supply(primary_prod, husbandry_items),
     .build_livestock_prods_supply(primary_prod, husbandry_items),
   ) |>
