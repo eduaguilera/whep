@@ -218,6 +218,15 @@ get_final_polities <- function(federico_tena_clean) {
       polity_code = dplyr::case_when(
         is.na(polity_code) & !is.na(polity_code_full) ~ polity_code_full,
         TRUE ~ polity_code
+      ),
+      polity_name = dplyr::case_when(
+        polity_code == "ROCE" ~ "Oceania Other",
+        polity_code == "RAFR" ~ "Africa Other",
+        polity_code == "RASI" ~ "Asia Other",
+        polity_code == "REUR" ~ "Europe Other",
+        polity_code == "RLAM" ~ "Latin America Other",
+        polity_code == "RNAM" ~ "North America Other",
+        TRUE ~ polity_name
       )
     )
 }
