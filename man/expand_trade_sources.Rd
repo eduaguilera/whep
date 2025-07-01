@@ -2,22 +2,21 @@
 % Please edit documentation in R/sources.R
 \name{expand_trade_sources}
 \alias{expand_trade_sources}
-\title{Create a new dataframe where each row has a year range into one where each
-row is a single year, effectively 'expanding' the whole year range}
+\title{Trade data sources}
 \usage{
 expand_trade_sources(trade_sources)
 }
 \arguments{
-\item{trade_sources}{A tibble dataframe
-where each row contains the year range}
+\item{trade_sources}{A tibble dataframe where each row contains the
+year range.}
 }
 \value{
-A tibble dataframe where each row
-corresponds to a single year for a given source
+A tibble dataframe where each row corresponds to a single year for
+a given source.
 }
 \description{
 Create a new dataframe where each row has a year range into one where each
-row is a single year, effectively 'expanding' the whole year range
+row is a single year, effectively 'expanding' the whole year range.
 }
 \examples{
 trade_sources <- tibble::tibble(
