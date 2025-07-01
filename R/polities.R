@@ -214,6 +214,10 @@ get_final_polities <- function(federico_tena_clean) {
       polity_name_source = dplyr::case_when(
         is.na(polity_name_source) ~ "WHEP",
         TRUE ~ polity_name_source
+      ),
+      polity_code = dplyr::case_when(
+        is.na(polity_code) & !is.na(polity_code_full) ~ polity_code_full,
+        TRUE ~ polity_code
       )
     )
 }
