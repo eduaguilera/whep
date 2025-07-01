@@ -40,8 +40,8 @@ test_that("._calculate_n_inputs calculates inputs and manure correctly", {
   expect_true(all(result$n_inputs_summary$Deposition >= 0))
 
   # Check Manure calculation (sum of Excreta + Solid + Liquid)
-  manure_val <- result$manure_summary %>%
-    dplyr::filter(Name_biomass == "Excreta") %>%
+  manure_val <- result$manure_summary |>
+    dplyr::filter(Name_biomass == "Excreta") |>
     dplyr::pull(Total_Manure)
   expect_equal(manure_val, 5 + 1 + 2)
 })
@@ -162,7 +162,7 @@ test_that(
     nue <- .calculate_nue(prod_combined)
 
     # Check nue is calculated for Cropland and semi_natural_agroecosystems
-    nue_filtered <- nue %>% dplyr::filter(Box == "semi_natural_agroecosystems")
+    nue_filtered <- nue |> dplyr::filter(Box == "semi_natural_agroecosystems")
     expect_true(all(!is.na(nue_filtered$nue)))
 
     # nue should be NA for other Box categories (e.g. Fish)

@@ -16,23 +16,6 @@
 #' @name GRAFS_Prod_Destiny_git
 NULL
 
-
-utils::globalVariables(c(
-  "Year", "Province_name", "Name_biomass", "Item", "Prod_ygpit_Mg",
-  "Product_residue", "Prod_Residue_Product_Mg", "Residue", "Product", "Box",
-  "GrazedWeeds_MgDM", "LandUse", "Used_Residue_MgFM", "Prod_Mg", "Area_ha",
-  "Area_ygpit_ha", "Seeds_used_MgFM", "Seed_rate_per_ha", "Seed_total",
-  "National_area", "Value_destiny", "Element", "Destiny", "Production_FM",
-  "FM_Mg", "FM_Mg_total", "Pop_Mpeop_yg", "Total_pop_spain", "Pop_share",
-  "Total_Food_value", "Food_Mg", "Total_OtherUses_value", "OtherUses_Mg",
-  "Food_MgFM", "OtherUses_MgFM", "Feed_MgFM", "Product_kgDM_kgFM",
-  "Product_kgN_kgDM", "Food_MgDM", "OtherUses_MgDM", "Feed_MgDM", "Food_MgN",
-  "OtherUses_MgN", "Feed_MgN", "Consumption_N", "Production_N",
-  "Production_N_tmp", "Net_trade", "Export_MgN", "Import_MgN", "MgN", "group",
-  "Total_Mg", "across", "Name_biomass_primary", "Production_DM",
-  "Biomass_match", "everything", "ProcessedItem", "ProcessedItem_amount"
-))
-
 #' @export
 .create_prod_and_destiny_grafs <- function() {
   data <- .load_data()

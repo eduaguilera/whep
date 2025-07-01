@@ -20,8 +20,8 @@ Return the relevant map_years}
 \usage{
 create_typologies_grafs_spain(
   make_map = TRUE,
-  shapefile_path =
-    "C:/PhD/GRAFS/Production Boxes/\\n    Final Files/Inputs/ne_10m_admin_1_states_provinces.shp",
+  shapefile_path = paste0("C:/PhD/GRAFS/Production Boxes/",
+    "Final Files/Inputs/ne_10m_admin_1_states_provinces.shp"),
   map_year = 1980
 )
 }

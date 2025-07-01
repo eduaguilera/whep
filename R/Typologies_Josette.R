@@ -3,19 +3,6 @@
 #' @name Typologies_Josette
 NULL
 
-utils::globalVariables(c(
-  "Year", "Province_name", "Destiny", "MgN", "Food_Consumption_MgN",
-  "Production_MgN", "Food", "Feed", "Other_uses", "Export", "Import", "Box",
-  "Cropland_Production_MgN", "Animal_Ingestion_MgN", "Livestock_density",
-  "Imported_feed_share", "SemiNatural_feed_share", "local_feed_share",
-  "Manure_share", "MgN_manure", "MgN_dep", "MgN_fix", "MgN_syn", "MgN_urban",
-  "LU_total", "LU_share", "Production_prov", "Import_prov", "Export_prov",
-  "SemiNatural_feed_MgN", "Total_feed_MgN", "Element", "Value_destiny", "name",
-  "Typology", "Production", "MgN_total", "mutate", "ggplot", "geom_sf", "aes",
-  "scale_fill_manual", "labs", "theme_minimal"
-))
-
-
 create_typologies_of_josette <- function(
     make_map = TRUE, shapefile_path = "C:/PhD/GRAFS/Production Boxes/
     Final Files/Inputs/ne_10m_admin_1_states_provinces.shp", map_year = 2020) {
@@ -328,7 +315,7 @@ create_typologies_of_josette <- function(
     "SELECT * FROM ", layer_name, " WHERE iso_a2 = 'ES'"
   ))
 
-  sf_provinces <- sf_provinces %>%
+  sf_provinces <- sf_provinces |>
     mutate(
       name = stringi::stri_trans_general(name, "Latin-ASCII"),
       name = gsub(" ", "_", name),
@@ -342,18 +329,18 @@ create_typologies_of_josette <- function(
         name == "Gerona" ~ "Girona",
         TRUE ~ name
       )
-    ) %>%
-    filter(!name %in% c("Las_Palmas", "Tenerife", "Illes_Balears"))
+    ) |>
+    dplyr::filter(!name %in% c("Las_Palmas", "Tenerife", "Illes_Balears"))
 
-  typologies_year <- typologies_df %>%
-    filter(Year == map_year) %>%
-    filter(!Province_name %in% c("Las_Palmas", "Tenerife", "Illes_Balears"))
+  typologies_year <- typologies_df |>
+    dplyr::filter(Year == map_year) |>
+    dplyr::filter(!Province_name %in% c("Las_Palmas", "Tenerife", "Illes_Balears"))
 
-  sf_provinces_filtered <- sf_provinces %>%
-    filter(name %in% typologies_year$Province_name)
+  sf_provinces_filtered <- sf_provinces |>
+    dplyr::filter(name %in% typologies_year$Province_name)
 
-  map_data <- sf_provinces_filtered %>%
-    dplyr::rename(Province_name = name) %>%
+  map_data <- sf_provinces_filtered |>
+    dplyr::rename(Province_name = name) |>
     dplyr::inner_join(typologies_year, by = "Province_name")
 
   map_typologies_josette <- ggplot(map_data) +
