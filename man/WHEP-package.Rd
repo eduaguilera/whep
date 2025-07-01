@@ -4,19 +4,33 @@
 \name{WHEP-package}
 \alias{WHEP}
 \alias{WHEP-package}
-\title{WHEP: What the Package Does (One Line, Title Case)}
+\title{WHEP: Who Has Eaten the Planet}
 \description{
-What the package does (one paragraph).
+\if{html}{\figure{logo.png}{options: style='float: right' alt='logo' width='120'}}
+
+Gather historical agricultural and trade data from 1850.
 }
 \seealso{
 Useful links:
 \itemize{
-  \item \url{https://eduaguilera.github.io/WHEP/}
+  \item \url{https://eduaguilera.github.io/WHEP}
+  \item \url{https://github.com/eduaguilera/WHEP}
+  \item Report bugs at \url{https://github.com/eduaguilera/WHEP/issues}
 }
 
 }
 \author{
-\strong{Maintainer}: First Last \email{first.last@example.com}
+\strong{Maintainer}: Catalin Covaci \email{catalin.covaci@csic.es} (\href{https://orcid.org/0009-0005-2186-5972}{ORCID})
+
+Authors:
+\itemize{
+  \item Eduardo Aguilera \email{eduardo.aguilera@csic.es} (\href{https://orcid.org/0000-0003-4382-124X}{ORCID})
+}
+
+Other contributors:
+\itemize{
+  \item João Serra \email{jserra@agro.au.dk} (\href{https://orcid.org/0000-0002-3561-5350}{ORCID}) [contributor]
+}
 
 }
 \keyword{internal}
