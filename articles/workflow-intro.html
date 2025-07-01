@@ -6,6 +6,11 @@
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <title>Follow the workflow • WHEP</title>
+<!-- favicons --><link rel="icon" type="image/png" sizes="96x96" href="../favicon-96x96.png">
+<link rel="icon" type="”image/svg+xml”" href="../favicon.svg">
+<link rel="apple-touch-icon" sizes="180x180" href="../apple-touch-icon.png">
+<link rel="icon" sizes="any" href="../favicon.ico">
+<link rel="manifest" href="../site.webmanifest">
 <script src="../deps/jquery-3.6.0/jquery-3.6.0.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <link href="../deps/bootstrap-5.3.1/bootstrap.min.css" rel="stylesheet">
 <script src="../deps/bootstrap-5.3.1/bootstrap.bundle.min.js"></script><link href="../deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
@@ -42,6 +47,7 @@
 <li class="nav-item"><form class="form-inline" role="search">
  <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="../search.json">
 </form></li>
+<li class="nav-item"><a class="external-link nav-link" href="https://github.com/eduaguilera/WHEP/" aria-label="GitHub"><span class="fa fab fa-github fa-lg"></span></a></li>
       </ul>
 </div>
 
@@ -54,11 +60,10 @@
 
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
-
-      <h1>Follow the workflow</h1>
+      <img src="../logo.png" class="logo" alt=""><h1>Follow the workflow</h1>
             
       
-
+      <small class="dont-index">Source: <a href="https://github.com/eduaguilera/WHEP/blob/main/vignettes/workflow-intro.Rmd" class="external-link"><code>vignettes/workflow-intro.Rmd</code></a></small>
       <div class="d-none name"><code>workflow-intro.Rmd</code></div>
     </div>
 
@@ -517,7 +522,7 @@ We save it in <code>R/sources.R</code>.</p>
 <span><span class="co">#' @param trade_sources A tibble dataframe</span></span>
 <span><span class="co">#' where each row contains the year range</span></span>
 <span><span class="co">#'</span></span>
-<span><span class="co">#' @return A tibble dataframe where each row</span></span>
+<span><span class="co">#' @returns A tibble dataframe where each row</span></span>
 <span><span class="co">#' corresponds to a single year for a given source</span></span>
 <span><span class="co">#'</span></span>
 <span><span class="co">#' @export</span></span>
@@ -609,10 +614,10 @@ long as each parameter starts with <code>@param</code>.</p>
 <span><span class="co">#' where each row contains the year range</span></span></code></pre>
 <ul>
 <li>A small description of the value the function returns. It should
-start with <code>@return</code>.</li>
+start with <code>@returns</code>.</li>
 </ul>
 <div class="sourceCode" id="cb26"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co">#' @return A tibble dataframe where each row</span></span>
+<code class="sourceCode R"><span><span class="co">#' @returns A tibble dataframe where each row</span></span>
 <span><span class="co">#' corresponds to a single year for a given source</span></span></code></pre></div>
 <ul>
 <li>A simple line containing <code>@export</code> to indicate the
@@ -1224,7 +1229,7 @@ again, so we better avoid that.</p>
 
 
     <footer><div class="pkgdown-footer-left">
-  <p>Developed by First Last.</p>
+  <p>Developed by Catalin Covaci, Eduardo Aguilera.</p>
 </div>
 
 <div class="pkgdown-footer-right">
