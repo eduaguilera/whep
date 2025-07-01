@@ -16,3 +16,4 @@ csv,population_yg,,"https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Mo
 csv,livestock_prod_ygps,,"https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/GRAFS_spain/Livestock_Prod_ygps.csv"
 xlsx,biomass_coefs,,"https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/GRAFS_spain/Biomass_coefs.xlsx"
 xlsx,processed_prov_fixed,,"https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/GRAFS_spain/processed_prov_fixed.xlsx"
+csv,GRAFS_prod_destiny_git,,"https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/GRAFS_spain/GRAFS_Prod_Destiny_git.csv"

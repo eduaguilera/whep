@@ -163,7 +163,7 @@ test_that(".combine_destinies joins correctly", {
 })
 
 # Test: convert to N correctly
-test_that(".convert_to_items_N applies conversions correctly", {
+test_that(".convert_to_items_n applies conversions correctly", {
   input <- data.frame(
     Year = 2020, Province_name = "A", Item = "Wheat",
     Box = "Cropland", Production_N = 500,
@@ -173,7 +173,7 @@ test_that(".convert_to_items_N applies conversions correctly", {
   code_map <- data.frame(item = "Wheat", Name_biomass = "BiomassWheat")
   coefs <- data.frame(Name_biomass = "BiomassWheat", Product_kgDM_kgFM = 0.8, Product_kgN_kgDM = 0.02)
 
-  result <- .convert_to_items_N(input, code_map, coefs)
+  result <- .convert_to_items_n(input, code_map, coefs)
   expect_equal(result$Food_MgN, 1.6)
   expect_equal(result$OtherUses_MgN, 0.8)
   expect_equal(result$Feed_MgN, 0.4)
