@@ -1083,7 +1083,7 @@ style guide, these two points directly match with two R packages:
   using RStudio, you can do it by finding the `styler` options in the 'addins' dropdown:
 
   ```{r, fig.alt="Use styler package from RStudio", echo=FALSE}
-  knitr::include_graphics("imgs/styler_rstudio.png")
+knitr::include_graphics("imgs/styler_rstudio.png")
   ```
 
   When using `renv`, it seems RStudio only shows in the 'addins' dropdown the
