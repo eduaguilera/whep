@@ -15,6 +15,9 @@ reference:
   contents:
   - build_supply_use
   - get_bilateral_trade
+  - get_feed_intake
+  - get_primary_production
+  - get_primary_residues
   - get_processing_coefs
   - get_wide_cbs
 
@@ -33,12 +36,12 @@ reference:
   - add_area_name
 - subtitle: Commodity balance sheet items
   contents:
-  - add_item_code
-  - add_item_name
-- subtitle: Processes
+  - add_item_cbs_code
+  - add_item_cbs_name
+- subtitle: Primary production items
   contents:
-  - add_process_code
-  - add_process_name
+  - add_item_prod_code
+  - add_item_prod_name
 
 - title: FAOSTAT raw data
   desc: >

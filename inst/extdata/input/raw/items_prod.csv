@@ -1,0 +1,305 @@
+item_prod_code,item_prod_name,item_type
+809,"Abaca, manila hemp, raw",crop_product
+800,"Agave fibres, raw, n.e.c.",crop_product
+221,"Almonds, in shell",crop_product
+711,"Anise, badian, coriander, cumin, caraway, fennel and juniper berries, raw",crop_product
+515,Apples,crop_product
+526,Apricots,crop_product
+226,Areca nuts,crop_product
+366,Artichokes,crop_product
+367,Asparagus,crop_product
+572,Avocados,crop_product
+839,"Balata, gutta-percha, guayule, chicle and similar natural gums in primary forms or in plates, sheets or strip",crop_product
+203,"Bambara beans, dry",crop_product
+486,Bananas,crop_product
+44,Barley,crop_product
+176,"Beans, dry",crop_product
+1806,"Beef and Buffalo Meat, primary",other
+51,"Beer of barley, malted",other
+1183,Beeswax,other
+647,Beets for fodder,crop_product
+552,Blueberries,crop_product
+216,"Brazil nuts, in shell",crop_product
+181,"Broad beans and horse beans, dry",crop_product
+420,"Broad beans and horse beans, green",crop_product
+89,Buckwheat,crop_product
+949,"Buffalo fat, unrendered",other
+1811,Butter and Ghee,other
+983,Butter and ghee of sheep milk,other
+952,Butter of buffalo milk,other
+886,Butter of cow milk,other
+1022,Butter of goat milk,other
+899,"Buttermilk, dry",other
+644,Cabbage for fodder,crop_product
+358,Cabbages,crop_product
+101,Canary seed,crop_product
+568,Cantaloupes and other melons,crop_product
+426,Carrots and turnips,crop_product
+648,Carrots for fodder,crop_product
+217,"Cashew nuts, in shell",crop_product
+591,Cashewapple,crop_product
+378,Cassava leaves,crop_product
+125,"Cassava, fresh",crop_product
+265,Castor oil seeds,crop_product
+869,"Cattle fat, unrendered",other
+393,Cauliflowers and broccoli,crop_product
+108,Cereals n.e.c.,crop_product
+1717,"Cereals, primary",other
+1745,Cheese (All Kinds),other
+955,"Cheese from milk of buffalo, fresh or processed",other
+1021,"Cheese from milk of goats, fresh or processed",other
+984,"Cheese from milk of sheep, fresh or processed",other
+904,Cheese from skimmed cow milk,other
+901,Cheese from whole cow milk,other
+531,Cherries,crop_product
+220,"Chestnuts, in shell",crop_product
+191,"Chick peas, dry",crop_product
+459,Chicory roots,crop_product
+689,"Chillies and peppers, dry (Capsicum spp., Pimenta spp.), raw",crop_product
+401,"Chillies and peppers, green (Capsicum spp. and Pimenta spp.)",crop_product
+693,"Cinnamon and cinnamon-tree flowers, raw",crop_product
+1807,"Citrus Fruit, Total",other
+698,"Cloves (whole stems), raw",crop_product
+661,Cocoa beans,crop_product
+252,Coconut oil,other
+248,Coconuts,other
+249,"Coconuts, in shell",crop_product
+656,"Coffee, green",crop_product
+813,"Coir, raw",crop_product
+767,"Cotton lint, ginned",crop_product
+329,Cotton seed,crop_product
+331,Cottonseed oil,other
+195,"Cow peas, dry",crop_product
+554,Cranberries,crop_product
+885,"Cream, fresh",other
+397,Cucumbers and gherkins,crop_product
+550,Currants,crop_product
+577,Dates,crop_product
+948,"Edible offal of buffalo, fresh, chilled or frozen",other
+868,"Edible offal of cattle, fresh, chilled or frozen",other
+1018,"Edible offal of goat, fresh, chilled or frozen",other
+1036,"Edible offal of pigs, fresh, chilled or frozen",other
+978,"Edible offal of sheep, fresh, chilled or frozen",other
+1128,"Edible offals of camels and other camelids, fresh, chilled or frozen",other
+1098,"Edible offals of horses and other equines,  fresh, chilled or frozen",other
+149,"Edible roots and tubers with high starch or inulin content, n.e.c., fresh",crop_product
+399,Eggplants (aubergines),crop_product
+1783,Eggs Primary,other
+1091,"Eggs from other birds in shell, fresh, n.e.c.",other
+1816,Evaporated & Condensed Milk,other
+1129,Fat of camels,other
+1037,Fat of pigs,other
+17530,"Fibre Crops, Fibre Equivalent",other
+569,Figs,crop_product
+773,"Flax, processed but not spun",crop_product
+2108,Flowers,other
+94,Fonio,crop_product
+641,"Forage and silage, alfalfa",crop_product
+640,"Forage and silage, clover",crop_product
+639,"Forage and silage, grasses nes",crop_product
+642,"Forage and silage, green oilseeds",crop_product
+643,"Forage and silage, legumes",crop_product
+636,"Forage and silage, maize",crop_product
+638,"Forage and silage, rye grass",crop_product
+637,"Forage and silage, sorghum",crop_product
+651,Forage products,crop_product
+1738,Fruit Primary,other
+1163,"Game meat, fresh, chilled or frozen",other
+953,Ghee from buffalo milk,other
+887,Ghee from cow milk,other
+720,"Ginger, raw",crop_product
+1019,"Goat fat, unrendered",other
+549,Gooseberries,crop_product
+560,Grapes,crop_product
+446,Green corn (maize),crop_product
+406,Green garlic,crop_product
+244,Groundnut oil,other
+242,"Groundnuts, excluding shelled",crop_product
+225,"Hazelnuts, in shell",crop_product
+776,Hemp,other
+336,Hempseed,crop_product
+1062,"Hen eggs in shell, fresh",other
+677,Hop cones,crop_product
+1097,"Horse meat, fresh or chilled",other
+277,Jojoba seeds,crop_product
+780,"Jute, raw or retted",crop_product
+778,"Kapok fibre, raw",crop_product
+310,Kapok fruit,other
+311,Kapokseed in shell,crop_product
+263,Karite nuts (sheanuts),crop_product
+782,"Kenaf, and other textile bast fibres, raw or retted",crop_product
+592,Kiwi fruit,crop_product
+224,Kola nuts,crop_product
+407,Leeks and other alliaceous vegetables,crop_product
+497,Lemons and limes,crop_product
+201,"Lentils, dry",crop_product
+372,Lettuce and chicory,crop_product
+333,Linseed,crop_product
+772,Linum,other
+461,Locust beans (carobs),crop_product
+210,Lupins,crop_product
+56,Maize (corn),crop_product
+571,"Mangoes, guavas and mangosteens",crop_product
+1242,Margarine and shortening,other
+671,Mate leaves,crop_product
+1108,"Meat of asses, fresh or chilled",other
+947,"Meat of buffalo, fresh or chilled",other
+1127,"Meat of camels, fresh or chilled",other
+867,"Meat of cattle with the bone, fresh or chilled",other
+1058,"Meat of chickens, fresh or chilled",other
+1069,"Meat of ducks, fresh or chilled",other
+1073,"Meat of geese, fresh or chilled",other
+1017,"Meat of goat, fresh or chilled",other
+1111,"Meat of mules, fresh or chilled",other
+1158,"Meat of other domestic camelids, fresh or chilled",other
+1151,"Meat of other domestic rodents, fresh or chilled",other
+1035,"Meat of pig with the bone, fresh or chilled",other
+1089,"Meat of pigeons and other birds n.e.c., fresh, chilled or frozen",other
+1141,"Meat of rabbits and hares, fresh or chilled",other
+977,"Meat of sheep, fresh or chilled",other
+1080,"Meat of turkeys, fresh or chilled",other
+1808,"Meat, Poultry",other
+1765,"Meat, Total",other
+299,Melonseed,crop_product
+1780,"Milk, Total",other
+79,Millet,crop_product
+645,Mixed Grasses and Legumes,crop_product
+103,Mixed grain,crop_product
+165,Molasses,other
+449,Mushrooms and truffles,crop_product
+292,Mustard seed,crop_product
+1182,Natural honey,other
+836,Natural rubber in primary forms,crop_product
+702,"Nutmeg, mace, cardamoms, raw",crop_product
+75,Oats,crop_product
+334,Oil of linseed,other
+60,Oil of maize,other
+258,Oil of palm kernel,other
+290,Oil of sesame seed,other
+254,Oil palm fruit,other
+1841,"Oilcrops, Cake Equivalent",other
+1732,"Oilcrops, Oil Equivalent",other
+430,Okra,crop_product
+261,Olive oil,other
+260,Olives,crop_product
+403,"Onions and shallots, dry (excluding dehydrated)",crop_product
+402,"Onions and shallots, green",crop_product
+490,Oranges,crop_product
+414,"Other beans, green",crop_product
+558,Other berries and fruits of the genus vaccinium n.e.c.,crop_product
+512,"Other citrus fruit, n.e.c.",crop_product
+821,"Other fibre crops, raw, n.e.c.",crop_product
+619,"Other fruits, n.e.c.",crop_product
+1166,"Other meat n.e.c. (excluding mammals), fresh, chilled or frozen",other
+234,"Other nuts (excluding wild edible nuts and groundnuts), in shell, n.e.c.",crop_product
+339,"Other oil seeds, n.e.c.",crop_product
+542,Other pome fruits,crop_product
+211,Other pulses n.e.c.,crop_product
+723,"Other stimulant, spice and aromatic crops, n.e.c.",crop_product
+541,Other stone fruits,crop_product
+161,Other sugar crops n.e.c.,crop_product
+603,"Other tropical fruits, n.e.c.",crop_product
+463,"Other vegetables, fresh n.e.c.",crop_product
+256,Palm kernels,crop_product
+257,Palm oil,crop_product
+600,Papayas,crop_product
+3001,Pasture,other
+534,Peaches and nectarines,crop_product
+521,Pears,crop_product
+187,"Peas, dry",crop_product
+417,"Peas, green",crop_product
+687,"Pepper (Piper spp.), raw",crop_product
+748,"Peppermint, spearmint",crop_product
+587,Persimmons,crop_product
+1043,"Pig fat, rendered",other
+197,"Pigeon peas, dry",crop_product
+574,Pineapples,crop_product
+223,"Pistachios, in shell",crop_product
+489,Plantains and cooking bananas,crop_product
+536,Plums and sloes,crop_product
+507,Pomelos and grapefruits,crop_product
+296,Poppy seed,crop_product
+116,Potatoes,crop_product
+1726,"Pulses, Total",other
+394,"Pumpkins, squash and gourds",crop_product
+754,"Pyrethrum, dried flowers",crop_product
+523,Quinces,crop_product
+92,Quinoa,crop_product
+788,"Ramie, raw or retted",crop_product
+270,Rape or colza seed,crop_product
+271,"Rapeseed or canola oil, crude",other
+547,Raspberries,crop_product
+162,Raw cane or beet sugar (centrifugal only),other
+957,Raw hides and skins of buffaloes,other
+919,Raw hides and skins of cattle,other
+1025,Raw hides and skins of goats or kids,other
+995,Raw hides and skins of sheep or lambs,other
+951,Raw milk of buffalo,other
+1130,Raw milk of camel,other
+882,Raw milk of cattle,other
+1020,Raw milk of goats,other
+982,Raw milk of sheep,other
+1186,Raw silk (not thrown),other
+27,Rice,crop_product
+1720,"Roots and Tubers, Total",other
+71,Rye,crop_product
+280,Safflower seed,crop_product
+281,"Safflower-seed oil, crude",other
+328,"Seed cotton, unginned",other
+289,Sesame seed,crop_product
+1807,Sheep and Goat Meat,other
+979,"Sheep fat, unrendered",other
+987,"Shorn wool, greasy, including fleece-washed shorn wool",other
+1185,Silk-worm cocoons suitable for reeling,other
+789,"Sisal, raw",crop_product
+1809,"Skim Milk & Buttermilk, Dry",other
+898,Skim milk and whey powder,other
+888,Skim milk of cows,other
+896,"Skim milk, condensed",other
+895,"Skim milk, evaporated",other
+1176,"Snails, fresh, chilled, frozen, dried, salted or in brine, except sea snails",other
+83,Sorghum,crop_product
+530,Sour cherries,crop_product
+237,Soya bean oil,other
+236,Soya beans,crop_product
+373,Spinach,crop_product
+544,Strawberries,crop_product
+423,String beans,crop_product
+1723,Sugar Crops Primary,other
+157,Sugar beet,crop_product
+156,Sugar cane,crop_product
+267,Sunflower seed,crop_product
+268,"Sunflower-seed oil, crude",other
+649,Swedes for fodder,crop_product
+122,Sweet potatoes,crop_product
+1225,Tallow,other
+305,Tallowtree seed,crop_product
+495,"Tangerines, mandarins, clementines",crop_product
+136,Taro,crop_product
+667,Tea leaves,crop_product
+674,Tea nes,other
+996,Temporary grassland,crop_product
+388,Tomatoes,crop_product
+1729,"Treenuts, Total",other
+97,Triticale,crop_product
+777,"True hemp, raw or retted",crop_product
+275,Tung nuts,crop_product
+646,Turnips for fodder,crop_product
+826,Unmanufactured tobacco,crop_product
+692,"Vanilla, raw",crop_product
+1735,Vegetables Primary,other
+655,Vegetables and roots fodder,crop_product
+205,Vetches,crop_product
+222,"Walnuts, in shell",crop_product
+567,Watermelons,crop_product
+15,Wheat,crop_product
+890,"Whey, condensed",other
+900,"Whey, dry",other
+897,Whole milk powder,other
+889,"Whole milk, condensed",other
+894,"Whole milk, evaporated",other
+564,Wine,other
+137,Yams,crop_product
+135,Yautia,crop_product
+891,Yoghurt,other
+3002,range,other

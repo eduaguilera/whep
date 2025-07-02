@@ -13,6 +13,7 @@ values are:
 \item \code{"commodity_balance_sheet"}: Intended for \code{get_wide_cbs()}.
 \item \code{"bilateral_trade"}: Intended for \code{get_bilateral_trade()}.
 \item \code{"processing_coefs"}: Intended for \code{get_processing_coefs()}.
+\item \code{"feed_intake"}: Intended for \code{get_feed_intake()}.
 }}
 
 \item{force_download}{If \code{TRUE}, does not try to cache the file and
