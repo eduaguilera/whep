@@ -52,9 +52,44 @@ outputs (<em>supply</em>).</p>
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>A tibble with the supply and use data for processes.
 It contains the following columns:</p><ul><li><p><code>year</code>: The year in which the recorded event occurred.</p></li>
-<li><p><code>area</code>: The name of the country where the data is from.</p></li>
-<li><p><code>proc</code>: Natural language name of the process taking place.</p></li>
-<li><p><code>item</code>: Natural language name of the item taking part in the process.</p></li>
+<li><p><code>area_code</code>: The code of the country where the data is from. For code
+details see e.g. <code><a href="add_area_name.html">add_area_name()</a></code>.</p></li>
+<li><p><code>proc_group</code>: The type of process taking place. It can be one of:</p><ul><li><p><code>crop_production</code>: Production of crops and their residues, e.g. rice
+production, coconut production, etc.</p></li>
+<li><p><code>husbandry</code>: Animal husbandry, e.g. dairy cattle husbandry, non-dairy
+cattle husbandry, layers chickens farming, etc.</p></li>
+<li><p><code>processing</code>: Derived subproducts obtained from processing other items.
+The items used as inputs are those that have a non-zero processing use in
+the commodity balance sheet. See <code><a href="get_wide_cbs.html">get_wide_cbs()</a></code> for more details.
+In each process there is a single input. In some processes like olive oil
+extraction or soyabean oil extraction this might make sense. Others like
+alcohol production need multiple inputs (e.g. multiple crops work), so
+in this data there would not be a process like alcohol production but
+rather a <em>virtual</em> process like 'Wheat and products processing', giving
+all its possible outputs. This is a constraint because of how the data was
+obtained and might be improved in the future. See
+<code><a href="get_processing_coefs.html">get_processing_coefs()</a></code> for more details.</p></li>
+</ul></li>
+<li><p><code>proc_cbs_code</code>: The code of the main item in the process taking place.
+Together with <code>proc_group</code>, these two columns uniquely represent a
+process. The main item is predictable depending on the value of
+<code>proc_group</code>:</p><ul><li><p><code>crop_production</code>: The code is from the item for which seed usage
+(if any) is reported in the commodity balance sheet (see
+<code><a href="get_wide_cbs.html">get_wide_cbs()</a></code> for more). For example, the rice code for a rice
+production process or the cottonseed code for the cotton production one.</p></li>
+<li><p><code>husbandry</code>: The code of the farmed animal, e.g. bees for beekeeping,
+non-dairy cattle for non-dairy cattle husbandry, etc.</p></li>
+<li><p><code>processing</code>: The code of the item that is used as input, i.e., the one
+that is processed to get other derived products. This uniquely defines a
+process within the group because of the nature of the data that was used,
+which you can see in <code><a href="get_processing_coefs.html">get_processing_coefs()</a></code>.</p></li>
+</ul><p>For code details see e.g. <code><a href="add_item_cbs_name.html">add_item_cbs_name()</a></code>.</p></li>
+<li><p><code>item_cbs_code</code>: The code of the item produced or used in the process.
+Note that this might be the same value as <code>proc_cbs_code</code>, e.g., in rice
+production process for the row defining the amount of rice produced or
+the amount of rice seed as input, but it might also have a different
+value, e.g. for the row defining the amount of straw residue from rice
+production. For code details see e.g. <code><a href="add_item_cbs_name.html">add_item_cbs_name()</a></code>.</p></li>
 <li><p><code>type</code>: Can have two values:</p><ul><li><p><code>use</code>: The given item is an input of the process.</p></li>
 <li><p><code>supply</code>: The given item is an output of the process.</p></li>
 </ul></li>
