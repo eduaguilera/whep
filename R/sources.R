@@ -1,11 +1,14 @@
+#' Trade data sources
+#'
+#' @description
 #' Create a new dataframe where each row has a year range into one where each
-#' row is a single year, effectively 'expanding' the whole year range
+#' row is a single year, effectively 'expanding' the whole year range.
 #'
-#' @param trade_sources A tibble dataframe
-#' where each row contains the year range
+#' @param trade_sources A tibble dataframe where each row contains the
+#'   year range.
 #'
-#' @return A tibble dataframe where each row
-#' corresponds to a single year for a given source
+#' @returns A tibble dataframe where each row corresponds to a single year for
+#'   a given source.
 #'
 #' @export
 #'
