@@ -1,0 +1,171 @@
+item_cbs_code,item_cbs_name,item_type
+2666,Abaca,other
+2659,"Alcohol, Non-Food",other
+4000,Animal draught,other
+1171,Animals live nes,other
+2617,Apples and products,other
+2769,"Aquatic Animals, Others",other
+2775,Aquatic Plants,other
+1107,Asses,livestock
+2615,Bananas,other
+2513,Barley and products,other
+2546,Beans,other
+2656,Beer,other
+1181,Bees,livestock
+1183,Beeswax,other
+2658,"Beverages, Alcoholic",other
+2657,"Beverages, Fermented",other
+2731,Bovine Meat,other
+2111,Brans,other
+946,Buffaloes,livestock
+2740,"Butter, Ghee",other
+1157,"Camelids, other",livestock
+1126,Camels,livestock
+2532,Cassava and products,other
+960,"Cattle, dairy",livestock
+961,"Cattle, non-dairy",livestock
+2766,Cephalopods,other
+2520,"Cereals, Other",other
+1053,"Chickens, broilers",livestock
+1052,"Chickens, layers",livestock
+2614,"Citrus, Other",other
+2642,Cloves,other
+2633,Cocoa Beans and products,other
+2578,Coconut Oil,other
+248,Coconuts,other
+2560,Coconuts - Incl Copra,other
+2630,Coffee and products,other
+2596,Copra Cake,other
+2661,Cotton lint,other
+2559,Cottonseed,other
+2594,Cottonseed Cake,other
+2575,Cottonseed Oil,other
+2765,Crustaceans,other
+2101,DDGS,other
+2102,DDGS Barley,other
+2619,Dates,other
+2762,Demersal Fish,other
+1068,Ducks,livestock
+2744,Eggs,other
+3003,Fallow,other
+2737,"Fats, Animals, Raw",other
+2107,Firewood,other
+2781,"Fish, Body Oil",other
+2782,"Fish, Liver Oil",other
+2000,Fodder cereal and grasses,other
+2001,Fodder legumes,other
+2003,Fodder mix,other
+2002,Fodder vegetables and roots,other
+2761,Freshwater Fish,other
+2625,"Fruits, Other",other
+1190,Game,livestock
+1072,Geese,livestock
+1016,Goats,livestock
+2613,Grapefruit and products,other
+2620,Grapes and products (excl wine),other
+3000,Grassland,other
+2591,Groundnut Cake,other
+2572,Groundnut Oil,other
+2552,Groundnuts,other
+2667,"Hard Fibres, Other",other
+776,Hemp,other
+2748,Hides and skins,other
+2745,Honey,other
+677,Hops,other
+1096,Horses,livestock
+5002,Infant food,other
+2662,Jute,other
+2663,Jute-Like Fibres,other
+310,Kapok fruit,other
+2612,"Lemons, Limes and products",other
+772,Linum,other
+2582,Maize Germ Oil,other
+2514,Maize and products,other
+2764,"Marine Fish, Other",other
+2112,Meat Meal,other
+2735,"Meat, Other",other
+4011,Methionine,other
+2848,Milk - Excluding Butter,other
+2517,Millet and products,other
+4013,Minerals,other
+2899,Miscellaneous,other
+2544,Molasses,other
+2767,"Molluscs, Other",other
+1110,Mules,livestock
+2732,Mutton & Goat Meat,other
+2551,Nuts and products,other
+2516,Oats,other
+2736,"Offals, Edible",other
+254,"Oil, palm fruit",other
+2586,"Oilcrops Oil, Other",other
+2570,"Oilcrops, Other",other
+2598,"Oilseed Cakes, Other",other
+2580,Olive Oil,other
+2563,Olives (including preserved),other
+2602,Onions,other
+2611,"Oranges, Mandarines",other
+5001,Other,other
+2106,Other crop residues,other
+5003,Other fodder,other
+2577,Palm Oil,other
+2562,Palm kernels,other
+2595,Palmkernel Cake,other
+2576,Palmkernel Oil,other
+2547,Peas,other
+2763,Pelagic Fish,other
+2640,Pepper,other
+2733,Pigmeat,other
+1049,Pigs,livestock
+2641,Pimento,other
+2618,Pineapples and products,other
+2616,Plantains,other
+2531,Potatoes and products,other
+2734,Poultry Meat,other
+2549,"Pulses, Other and products",other
+1140,Rabbits and hares,livestock
+2593,Rape and Mustard Cake,other
+2574,Rape and Mustard Oil,other
+2558,Rape and Mustardseed,other
+2807,Rice and products,other
+2581,Ricebran Oil,other
+1150,"Rodents, other",livestock
+2534,"Roots, Other",other
+2672,Rubber,other
+2515,Rye and products,other
+3500,Scavenging,other
+328,Seed cotton,other
+2561,Sesame seed,other
+2597,Sesameseed Cake,other
+2579,Sesameseed Oil,other
+976,Sheep,livestock
+2747,Silk,other
+2665,Sisal,other
+2664,"Soft-Fibres, Other",other
+2518,Sorghum and products,other
+2103,Soy hulls,other
+2590,Soyabean Cake,other
+2571,Soyabean Oil,other
+2555,Soyabeans,other
+2645,"Spices, Other",other
+2105,Straw,other
+2542,Sugar (Raw Equivalent),other
+2537,Sugar beet,other
+2536,Sugar cane,other
+2541,Sugar non-centrifugal,other
+2104,Sugarbeet pulp,other
+2557,Sunflower seed,other
+2592,Sunflowerseed Cake,other
+2573,Sunflowerseed Oil,other
+2533,Sweet potatoes,other
+2543,"Sweeteners, Other",other
+2635,Tea (including mate),other
+3002,Temporary grassland,other
+2671,Tobacco,other
+2601,Tomatoes and products,other
+1079,Turkeys,livestock
+2605,"Vegetables, Other",other
+4027,Vitamins,other
+2511,Wheat and products,other
+2655,Wine,other
+2746,Wool (Clean Eq.),other
+2535,Yams,other
