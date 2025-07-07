@@ -1,3 +1,5 @@
+#' @title Create N Inputs and NUE Dataset for GRAFS Spain
+#'
 #' @description
 #' N Inputs, Production and nue in Spain:
 #' This code is creating a dataset with nitrogen (n) inputs (deposition,
@@ -27,6 +29,7 @@
 #' @name GRAFS_N_Inputs
 NULL
 
+#' @export
 create_n_inputs_grafs_spain <- function() {
   # Load datasets
   data <- .load_inputs_n_inputs()
