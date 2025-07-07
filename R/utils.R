@@ -3,6 +3,7 @@
 utils::globalVariables(
   c(
     "Acoss",
+    "across",
     "aes",
     "alias",
     "Animal_class",
@@ -24,6 +25,7 @@ utils::globalVariables(
     "Deposition",
     "Destiny",
     "Domestic_feed_MgN",
+    "domestic_supply",
     "element",
     "Element",
     "Excreta",
@@ -70,6 +72,7 @@ utils::globalVariables(
     "Liquid",
     "Livestock_cat",
     "Livestock_density",
+    ".load_inputs_typologies_julia",
     "local_feed_share",
     "LU_head",
     "LU_share",
@@ -114,6 +117,7 @@ utils::globalVariables(
     "product_fraction",
     "Product_kgDM_kgFM",
     "Product_kgN_kgDM",
+    "Product_residue",
     "Production",
     "Production_DM",
     "Production_FM",

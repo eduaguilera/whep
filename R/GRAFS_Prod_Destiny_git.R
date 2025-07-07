@@ -1,4 +1,4 @@
-#' GRAFS production and destiny
+#' @title GRAFS production and destiny
 #'
 #' @description
 #' This code is creating a dataset, based on N production data of crops and
@@ -13,7 +13,7 @@
 #' @returns
 #' A list containing all key data frames for further analysis.
 #'
-# @name GRAFS_Prod_Destiny_git
+#' @name GRAFS_Prod_Destiny_git
 NULL
 
 
