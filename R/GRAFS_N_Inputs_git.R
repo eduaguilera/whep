@@ -1,6 +1,5 @@
-#' N Inputs, Production and nue in Spain
-#'
 #' @description
+#' N Inputs, Production and nue in Spain:
 #' This code is creating a dataset with nitrogen (n) inputs (deposition,
 #' fixation, synthetic, urban, manure)
 #' and n production in Spain between 1860 and 2020 for the GRAFS model on a
@@ -175,10 +174,10 @@ create_n_inputs_grafs_spain <- function() {
   n_inputs_sum
 }
 
-#' GRAFS_Prod_Destiny ---------------------------------------------------------
-#' Summarize and calculate new columns: Prod_MgN
-#' Spread the Destiny column to separate columns for Food,
-#' Feed, Other_uses, Export
+# GRAFS_Prod_Destiny ---------------------------------------------------------
+# Summarize and calculate new columns: Prod_MgN
+# Spread the Destiny column to separate columns for Food,
+# Feed, Other_uses, Export
 .summarise_production <- function(grafs_prod_destiny, n_inputs_sum) {
   grafs_prod_destiny_summary <- grafs_prod_destiny |>
     tidyr::pivot_wider(

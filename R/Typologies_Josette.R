@@ -90,8 +90,8 @@ create_typologies_of_josette <- function(
   )
 }
 
-#' Calculate food consumption and total production
-#'
+# Calculate food consumption and total production
+#
 .calculate_consumption_prod <- function(grafs_prod_destiny_git) {
   # Food consumption
   food_consumption <- grafs_prod_destiny_git |>
@@ -157,8 +157,8 @@ create_typologies_of_josette <- function(
   )
 }
 
-#' Decision: Livestock density > 1 LU/ha UAA & >33% animal feed from imports
-#'
+# Decision: Livestock density > 1 LU/ha UAA & >33% animal feed from imports
+#
 .calculate_imported_feed <- function(
     livestock_df, codes_coefs_df, npp_df, feed_df, destiny_df) {
   lu_coefs <- .prepare_lu_coefs(codes_coefs_df)
@@ -188,8 +188,8 @@ create_typologies_of_josette <- function(
   )
 }
 
-#' Decision: >50% animal feed from Semi-natural agroecosystems
-#'
+# Decision: >50% animal feed from Semi-natural agroecosystems
+#
 .calculate_natural_feed_share <- function(destiny_df) {
   seminatural_feed <- destiny_df |>
     dplyr::filter(Destiny == "Feed", Box == "Semi_natural_agroecosystems") |>
@@ -213,12 +213,12 @@ create_typologies_of_josette <- function(
   seminatural_share_df
 }
 
-#' Decision: >25% animal feed from local crop ---------------------------------
-#' Calculate domestic feed supply per province
-#'
+# Decision: >25% animal feed from local crop ---------------------------------
+# Calculate domestic feed supply per province
+#
 .calculate_feed_domestic_share <- function(feed_df, lu_df) {
-  #' Filter relevant feed data: Production, Exports and
-  #' Imports destined for feed use
+  # Filter relevant feed data: Production, Exports and
+  # Imports destined for feed use
   feed_summary <- feed_df |>
     dplyr::filter(
       Element %in% c("Production", "Export", "Import"),
@@ -243,8 +243,8 @@ create_typologies_of_josette <- function(
     dplyr::left_join(total_lu_spain, by = "Year") |>
     dplyr::mutate(LU_share = LU_total / LU_total_spain)
 
-  #' Allocate Production and Import to provinces proportional to LU share
-  #' Calculate local feed share per province: share of feed coming from domestic
+  # Allocate Production and Import to provinces proportional to LU share
+  # Calculate local feed share per province: share of feed coming from domestic
   feed_prov <- lu_with_share |>
     dplyr::left_join(feed_summary, by = "Year") |>
     dplyr::mutate(
@@ -264,8 +264,8 @@ create_typologies_of_josette <- function(
 
 
 
-#' Decision: >25% cropland N input from manure
-#'
+# Decision: >25% cropland N input from manure
+#
 .calculate_manure_share <- function(n_input_df) {
   cropland_n_inputs <- n_input_df |>
     dplyr::filter(Box == "Cropland") |>
@@ -285,8 +285,8 @@ create_typologies_of_josette <- function(
   cropland_n_inputs
 }
 
-#' Assign Typologies
-#'
+# Assign Typologies
+#
 .assign_typologies <- function(df) {
   df |>
     dplyr::mutate(
@@ -305,8 +305,8 @@ create_typologies_of_josette <- function(
     dplyr::select(Year, Province_name, Typology)
 }
 
-#' Create map
-#'
+# Create map
+#
 .create_typologies_map_josette <- function(
     typologies_df, shapefile_path, map_year) {
   layer_name <- tools::file_path_sans_ext(basename(shapefile_path))
@@ -334,7 +334,9 @@ create_typologies_of_josette <- function(
 
   typologies_year <- typologies_df |>
     dplyr::filter(Year == map_year) |>
-    dplyr::filter(!Province_name %in% c("Las_Palmas", "Tenerife", "Illes_Balears"))
+    dplyr::filter(!Province_name %in% c(
+      "Las_Palmas", "Tenerife", "Illes_Balears"
+    ))
 
   sf_provinces_filtered <- sf_provinces |>
     dplyr::filter(name %in% typologies_year$Province_name)
