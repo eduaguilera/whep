@@ -6,6 +6,9 @@
 \usage{
 .prepare_livestock_production(livestock_prod_ygps)
 }
+\arguments{
+\item{livestock_prod_ygps}{A data frame including livestock production data.}
+}
 \description{
 Livestock Production -------------------------------------------------------
 }

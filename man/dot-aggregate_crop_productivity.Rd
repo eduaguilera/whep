@@ -6,6 +6,14 @@
 \usage{
 .aggregate_crop_productivity(npp_df)
 }
+\arguments{
+\item{npp_df}{A data frame containing columns \code{Year}, \code{Province_name},
+\code{LandUse},\code{Prod_MgN}, and \code{Area_ygpit_ha}.}
+}
+\value{
+A tibble grouped by year and province with total production,
+total cropland area, and productivity in kg N per hectare.
+}
 \description{
 Aggregate Productivity for Cropland -----------------------------------------
 }

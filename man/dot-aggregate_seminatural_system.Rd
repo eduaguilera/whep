@@ -7,6 +7,13 @@ Used Residues from Forest, Shrubland, Dehesa, Other}
 \usage{
 .aggregate_seminatural_system(npp_ygpit_merged)
 }
+\arguments{
+\item{npp_ygpit_merged}{A data frame containing biomass data}
+}
+\value{
+A tibble filtered and transformed with selected columns for
+semi-natural agroecosystems.
+}
 \description{
 Semi_natural_agroecosystems: Aggregate Grazed Weeds and Production plus
 Used Residues from Forest, Shrubland, Dehesa, Other

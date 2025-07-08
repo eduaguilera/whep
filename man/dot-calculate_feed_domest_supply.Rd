@@ -2,12 +2,22 @@
 % Please edit documentation in R/Typologies_Julia.R
 \name{.calculate_feed_domest_supply}
 \alias{.calculate_feed_domest_supply}
-\title{Calculate feed domestic supply ---------------------------------------------
-Add LU_total for use in further steps}
+\title{Calculate feed domestic supply ---------------------------------------------}
 \usage{
 .calculate_feed_domest_supply(grafs_df, lu_df)
 }
+\arguments{
+\item{grafs_df}{A data frame containing GRAFS data with the columns Destiny',
+'Year', 'Province_name', and 'MgN'.}
+
+\item{lu_df}{A data frame with land use data.}
+}
+\value{
+A tibble with columns 'Year', 'Province_name', and
+'Domestic_feed_MgN' representing the total domestic feed supply in MgN.
+
+Add LU_total for use in further steps
+}
 \description{
 Calculate feed domestic supply ---------------------------------------------
-Add LU_total for use in further steps
 }

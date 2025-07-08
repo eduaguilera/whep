@@ -2,8 +2,7 @@
 % Please edit documentation in R/Typologies_Julia.R
 \name{.assign_decision_tree}
 \alias{.assign_decision_tree}
-\title{Assign Typologies and optionally plot map
-Typologies for each year as a dataset}
+\title{Assign Typologies and optionally plot map}
 \usage{
 .assign_decision_tree(
   livestock_density,
@@ -14,7 +13,25 @@ Typologies for each year as a dataset}
   year
 )
 }
+\arguments{
+\item{livestock_density}{A data frame with livestock density values.}
+
+\item{productivity}{A data frame with productivity (kgN/ha) values.}
+
+\item{semi_nat_share}{A data frame with semi-natural agroecosystem share.}
+
+\item{imported_feed_share}{A data frame with share of imported feed.}
+
+\item{sf_provinces}{An sf object with province geometries.}
+
+\item{year}{Integer specifying the year for which typologies are assigned.}
+}
+\value{
+A tibble with province names and their assigned farming system
+typology for the specified year.
+
+Typologies for each year as a dataset
+}
 \description{
 Assign Typologies and optionally plot map
-Typologies for each year as a dataset
 }

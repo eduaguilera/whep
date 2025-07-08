@@ -2,10 +2,20 @@
 % Please edit documentation in R/Typologies_Julia.R
 \name{.aggregate_lu_totals}
 \alias{.aggregate_lu_totals}
-\title{Aggregate LU_total ----------------------------------------------------------}
+\title{Aggregate LU_total ----------------------------------------------------------
+Aggregates total land use (LU_total) by year and province.}
 \usage{
 .aggregate_lu_totals(lu_detailed_df)
 }
+\arguments{
+\item{lu_detailed_df}{A data frame containing columns \code{Year},
+\code{Province_name}, and \code{LU_total}.}
+}
+\value{
+A tibble with total land use summed for each year and province,
+sorted by year and province.
+}
 \description{
 Aggregate LU_total ----------------------------------------------------------
+Aggregates total land use (LU_total) by year and province.
 }

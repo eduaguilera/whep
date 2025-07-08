@@ -6,6 +6,9 @@
 \usage{
 .prepare_lu_coefs(codes_coefs_df)
 }
+\arguments{
+\item{codes_coefs_df}{An excel file including coefficients.}
+}
 \description{
 Prepare LU coefficients with Livestock_cat mapping --------------------------
 }

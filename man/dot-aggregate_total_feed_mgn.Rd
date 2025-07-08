@@ -6,6 +6,13 @@
 \usage{
 .aggregate_total_feed_mgn(df)
 }
+\arguments{
+\item{df}{A data frame containing nitrogen data with columns including
+\code{Year}, \code{Province_name}, \code{Destiny}, \code{Box}, and \code{MgN}.}
+}
+\value{
+A tibble with total feed nitrogen (MgN) summed by year and province.
+}
 \description{
 Aggregate total feed from all boxes (Feed destiny) -------------------------
 }

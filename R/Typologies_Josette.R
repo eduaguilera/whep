@@ -1,11 +1,26 @@
 #' Typologies of Josette
 #'
-#' @name Typologies_Josette
-NULL
-
+#' @description
+#' Creates typologies of provinces in Spain based on nitrogen (N) production
+#' data of crops and livestock, considering multiple data inputs and
+#' producing classification maps and data frames.
+#'
+#' @param make_map If TRUE a map of the typologies will be created.
+#'
+#' @param shapefile_path Path to the shapefile used for mapping provinces.
+#'
+#' @param map_year The year for which the typology map is created.
+#'
+#' @return A tibble with the typology classification per year and province.
+#'
+#' @export
 create_typologies_of_josette <- function(
-    make_map = TRUE, shapefile_path = "C:/PhD/GRAFS/Production Boxes/
-    Final Files/Inputs/ne_10m_admin_1_states_provinces.shp", map_year = 2020) {
+    make_map = TRUE,
+    shapefile_path = paste0(
+      "C:/PhD/GRAFS/Production Boxes/",
+      "Final Files/Inputs/ne_10m_admin_1_states_provinces.shp"
+    ),
+    map_year = 1980) {
   inputs_dir <- "C:/PhD/GRAFS/Production Boxes/Final Files/Inputs"
 
   # Load datasets
@@ -63,7 +78,10 @@ create_typologies_of_josette <- function(
 }
 
 
-# Load input datasets ---------------------------------------------------------
+#' Load input datasets ---------------------------------------------------------
+#' @param shapefile_path The local path where the input data are located.
+#' @param inputs_dir Path to the input data directory.
+#'
 .load_inputs_josette <- function(inputs_dir, shapefile_path) {
   layer_name <- tools::file_path_sans_ext(basename(shapefile_path))
 
@@ -157,8 +175,26 @@ create_typologies_of_josette <- function(
   )
 }
 
-# Decision: Livestock density > 1 LU/ha UAA & >33% animal feed from imports
-#
+#' Decision: Livestock density > 1 LU/ha UAA & >33% animal feed from imports
+#'
+#' @description
+#' Calculates livestock unit totals, livestock density per UAA (Utilized
+#' Agricultural Area), and the share of imported feed at the province level.
+#'
+#' @param livestock_df A data frame containing livestock production per year
+#' and province.
+#' @param codes_coefs_df A data frame with livestock unit (LU) coefficients for
+#' different categories.
+#' @param npp_df A data frame with net primary production (NPP) and agricultural
+#'  area (UAA) data.
+#' @param feed_df A data frame containing feed data including import, export,
+#' and production.
+#' @param destiny_df A data frame from GRAFS showing nitrogen fluxes by
+#' destination and box.
+#'
+#' @return A list containing LU per province and year, Livestock Density,
+#' share of imported feed
+#'
 .calculate_imported_feed <- function(
     livestock_df, codes_coefs_df, npp_df, feed_df, destiny_df) {
   lu_coefs <- .prepare_lu_coefs(codes_coefs_df)

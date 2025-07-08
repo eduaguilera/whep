@@ -6,6 +6,15 @@
 \usage{
 .calculate_livestock_density(lu_totals_df, area_df)
 }
+\arguments{
+\item{lu_totals_df}{A data frame containing livestock total data.}
+
+\item{area_df}{A data frame containing area information.}
+}
+\value{
+A tibble with columns 'Year', 'Province_name', 'LU_total', 'Area_ha',
+and 'Livestock_density' (LU_total divided by Area_ha).
+}
 \description{
 Calculate livestock density -------------------------------------------------
 }

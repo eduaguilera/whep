@@ -1,8 +1,19 @@
 #' Typologies of Julia
 #'
-#' @name Typologies_Julia
-NULL
-
+#' @description
+#' Creates typologies of provinces in Spain based on nitrogen (N) production
+#' data of crops and livestock, using various input datasets and generating
+#' classification maps and data frames.
+#'
+#' @param make_map If TRUE a map of the typologies will be created.
+#'
+#' @param shapefile_path Path to the shapefile used for mapping provinces.
+#'
+#' @param map_year The year for which the typology map is created.
+#'
+#' @return A tibble with the typology classification for each year and province.
+#'
+#' @export
 create_typologies_grafs_spain <- function(
     make_map = TRUE,
     shapefile_path = paste0(
@@ -12,7 +23,7 @@ create_typologies_grafs_spain <- function(
     map_year = 1980) {
   inputs_dir <- "C:/PhD/GRAFS/Production Boxes/Final Files/Inputs"
 
-  #' Load datasets
+  # Load datasets
   data <- .load_inputs_typologies_julia(inputs_dir, shapefile_path)
 
   data$sf_provinces$name <- stri_trans_general(
@@ -34,57 +45,56 @@ create_typologies_grafs_spain <- function(
     "Las_Palmas", "Tenerife"
   ), ]
 
-  #' Prepare LU coefficients with Livestock_cat mapping
+  # Prepare LU coefficients with Livestock_cat mapping
   lu_coefs_mapped <- .prepare_lu_coefs(data$Codes_coefs)
 
-  #' Merge livestock data with LU coefficients and calculate totals
+  # Merge livestock data with LU coefficients and calculate totals
   lu_totals_detailed <- .calculate_lu_totals(
     data$Livestock_Prod_ygps,
     lu_coefs_mapped
   )
 
-  #' Aggregate LU_total per Year, Province
+  # Aggregate LU_total per Year, Province
   lu_aggregated <- .aggregate_lu_totals(lu_totals_detailed)
 
-  #' Aggregate Area
+  # Aggregate Area
   area_aggregated <- .aggregate_area_aa(data$NPP_ygpit)
 
-  #' Calculate livestock density
+  # Calculate livestock density
   livestock_density <- .calculate_livestock_density(
     lu_aggregated,
     area_aggregated
   )
 
-  #' Calculate cropland productivity
+  # Calculate cropland productivity
   cropland_productivity <- .aggregate_crop_productivity(data$NPP_ygpit)
 
-  #' Aggregate feed from semi natural agroecosystems
+  # Aggregate feed from semi natural agroecosystems
   semi_natural_feed <- .aggregate_semi_nat_feed_mgn(data$GRAFS_Prod_Destiny_git)
 
-  #' Aggregate feed from cropland
   cropland_feed <- .aggregate_cropland_feed_mgn(data$GRAFS_Prod_Destiny_git)
 
-  #' Calculate feed share (semi_natural feed / total feed)
+  # Calculate feed share (semi_natural feed / total feed)
   feed_share <- .calculate_semi_nat_feed_share(data$GRAFS_Prod_Destiny_git)
 
-  #' Use feed supply from GRAFS_Prod_Destiny_git + LU data
+  # Use feed supply from GRAFS_Prod_Destiny_git + LU data
   feed_domestic_prov <- .calculate_feed_domest_supply(
     data$GRAFS_Prod_Destiny_git, lu_aggregated
   )
 
-  #' Calculate feed import per province based on national imports & LU shares
+  # Calculate feed import per province based on national imports & LU shares
   feed_import_by_province <- .calculate_feed_import_share(
     data$PIE_FullDestinies_FM, lu_aggregated
   )
 
-  #' Calculate imported feed share at province level
+  # Calculate imported feed share at province level
   feed_imported_share <- .calculate_imported_feed_share(
     feed_import_by_province,
     feed_domestic_prov
   )
 
 
-  #' Assign Typologies + map
+  # Assign Typologies + map
   typologies_result <- .assign_decision_tree(
     livestock_density,
     cropland_productivity,
@@ -102,7 +112,7 @@ create_typologies_grafs_spain <- function(
     map_plot <- NULL
   }
 
-  #' Return the relevant map_years
+  # Return the relevant map_years
   list(
     LU_detailed = lu_totals_detailed,
     LU_totals = lu_aggregated,
@@ -121,6 +131,10 @@ create_typologies_grafs_spain <- function(
 }
 
 #' Load input datasets ---------------------------------------------------------
+#' @param shapefile_path The local path where the input data are located.
+#' @param inputs_dir Path to the input data directory.
+
+#'
 .load_inputs <- function(inputs_dir, shapefile_path) {
   layer_name <- tools::file_path_sans_ext(basename(shapefile_path))
 
@@ -165,6 +179,8 @@ create_typologies_grafs_spain <- function(
 }
 
 #' Prepare LU coefficients with Livestock_cat mapping --------------------------
+#' @param codes_coefs_df An excel file including coefficients.
+#'
 .prepare_lu_coefs <- function(codes_coefs_df) {
   mapping <- .create_livestockcat_mapping()
 
@@ -175,6 +191,13 @@ create_typologies_grafs_spain <- function(
 }
 
 #' Calculate LU_total per row --------------------------------------------------
+#' @param livestock_df A data frame containing livestock data.
+#'
+#' @param lu_coefs_df A data frame with livestock unit coefficients.
+#'
+#' @return A tibble with columns 'Year', 'Province_name', 'Livestock_cat',
+#' 'Animal_class', Stock_Number', 'LU_head', and 'LU_total'.
+#'
 .calculate_lu_totals <- function(livestock_df, lu_coefs_df) {
   livestock_df |>
     dplyr::select(Year, Province_name, Livestock_cat, Stock_Number) |>
@@ -188,6 +211,14 @@ create_typologies_grafs_spain <- function(
 }
 
 #' Aggregate LU_total ----------------------------------------------------------
+#' Aggregates total land use (LU_total) by year and province.
+#'
+#' @param lu_detailed_df A data frame containing columns `Year`,
+#' `Province_name`, and `LU_total`.
+#'
+#' @return A tibble with total land use summed for each year and province,
+#' sorted by year and province.
+#'
 .aggregate_lu_totals <- function(lu_detailed_df) {
   lu_aggregated <- lu_detailed_df |>
     dplyr::group_by(Year, Province_name) |>
@@ -201,6 +232,13 @@ create_typologies_grafs_spain <- function(
 }
 
 #' Aggregate Area AA -----------------------------------------------------------
+#' Aggregates the area (`Area_ygpit_ha`) by year and province.
+#'
+#' @param npp_df A data frame containing the columns `Year`, `Province_name`,
+#' and `Area_ygpit_ha`.
+#'
+#' @return A tibble with the sum of areas per year and province.
+#'
 .aggregate_area_aa <- function(npp_df) {
   npp_df |>
     dplyr::group_by(Year, Province_name) |>
@@ -211,6 +249,13 @@ create_typologies_grafs_spain <- function(
 }
 
 #' Calculate livestock density -------------------------------------------------
+#' @param lu_totals_df A data frame containing livestock total data.
+#'
+#' @param area_df A data frame containing area information.
+#'
+#' @return A tibble with columns 'Year', 'Province_name', 'LU_total', 'Area_ha',
+#' and 'Livestock_density' (LU_total divided by Area_ha).
+#'
 .calculate_livestock_density <- function(lu_totals_df, area_df) {
   lu_totals_df |>
     dplyr::left_join(area_df, by = c("Year", "Province_name")) |>
@@ -220,6 +265,12 @@ create_typologies_grafs_spain <- function(
 }
 
 #' Aggregate Productivity for Cropland -----------------------------------------
+#' @param npp_df A data frame containing columns `Year`, `Province_name`,
+#' `LandUse`,`Prod_MgN`, and `Area_ygpit_ha`.
+#'
+#' @return A tibble grouped by year and province with total production,
+#' total cropland area, and productivity in kg N per hectare.
+#'
 .aggregate_crop_productivity <- function(npp_df) {
   cropland_prod <- npp_df |>
     dplyr::filter(LandUse == "Cropland") |>
@@ -238,7 +289,14 @@ create_typologies_grafs_spain <- function(
 }
 
 #' Aggregate Feed from Semi natural agroecosystems for Grassland > 60% of
-#' Livestock intake from Grassland ----------------
+#' Livestock intake from Grassland
+#'
+#' @param df A data frame containing columns `Year`, `Province_name`, `Box`,
+#' `Destiny`, and `MgN`.
+#'
+#' @return A tibble grouped by year and province with the total feed nitrogen
+#' (MgN) from semi-natural agroecosystems.
+#'
 .aggregate_semi_nat_feed_mgn <- function(df) {
   df |>
     dplyr::filter(Box == "Semi_natural_agroecosystems", Destiny == "Feed") |>
@@ -250,6 +308,12 @@ create_typologies_grafs_spain <- function(
 }
 
 #' Aggregate Feed from Cropland -----------------------------------------------
+#' @param df A data frame containing columns `Year`, `Province_name`,
+#' `Box`, `Destiny`, and `MgN`.
+#'
+#' @return A tibble grouped by year and province with the total cropland feed
+#' nitrogen (MgN).
+#'
 .aggregate_cropland_feed_mgn <- function(df) {
   df |>
     dplyr::filter(Box == "Cropland", Destiny == "Feed") |>
@@ -261,6 +325,12 @@ create_typologies_grafs_spain <- function(
 }
 
 #' Aggregate total feed from all boxes (Feed destiny) -------------------------
+#'
+#' @param df A data frame containing nitrogen data with columns including
+#' `Year`, `Province_name`, `Destiny`, `Box`, and `MgN`.
+#'
+#' @return A tibble with total feed nitrogen (MgN) summed by year and province.
+#'
 .aggregate_total_feed_mgn <- function(df) {
   df |>
     dplyr::filter(
@@ -276,6 +346,13 @@ create_typologies_grafs_spain <- function(
 }
 
 #' Calculate Feed share (between semi natural agroecosystems and total feed)
+#'
+#' @param df A data frame containing nitrogen data with columns including
+#' `Year`, `Province_name`, `Destiny`, `Box`, and `MgN`.
+#'
+#' @return A data frame including the share of feed from semi natural
+#' agroecosystems
+#'
 .calculate_semi_nat_feed_share <- function(df) {
   total_feed <- .aggregate_total_feed_mgn(df)
   semi_nat_feed <- .aggregate_semi_nat_feed_mgn(df)
@@ -293,6 +370,14 @@ create_typologies_grafs_spain <- function(
 }
 
 #' Calculate feed domestic supply ---------------------------------------------
+#' @param grafs_df A data frame containing GRAFS data with the columns Destiny',
+#' 'Year', 'Province_name', and 'MgN'.
+#'
+#' @param lu_df A data frame with land use data.
+#'
+#' @return A tibble with columns 'Year', 'Province_name', and
+#' 'Domestic_feed_MgN' representing the total domestic feed supply in MgN.
+#'
 .calculate_feed_domest_supply <- function(grafs_df, lu_df) {
   domestic_feed <- grafs_df |>
     dplyr::filter(Destiny == "Feed") |>
@@ -311,6 +396,14 @@ create_typologies_grafs_spain <- function(
 }
 
 #' Calculate feed import per province -----------------------------------------
+#' @param feed_df A data frame containing feed data.
+#'
+#' @param lu_df A data frame with land use information.
+#'
+#' @return A tibble with columns 'Year', 'Province_name', 'LU_total',
+#' 'LU_share', and 'Feed_import_MgN', where 'Feed_import_MgN' is the estimated
+#'  feed import allocated to each province.
+#'
 .calculate_feed_import_share <- function(feed_df, lu_df) {
   feed_filtered <- feed_df |>
     dplyr::filter(Element == "Import", Destiny == "Feed") |>
@@ -340,6 +433,11 @@ create_typologies_grafs_spain <- function(
 }
 
 #' Calculate feed share of imported/consumed feed -----------------------------
+#' @param feed_import_by_province A data frame containing imported feed data.
+#' @param domestic_feed_by_province A data frame containing domestic feed data.
+#'
+#' @return A data frame with the imported feed share.
+#'
 .calculate_imported_feed_share <- function(feed_import_by_province,
                                            domestic_feed_by_province) {
   feed_import_by_province |>
@@ -366,6 +464,16 @@ create_typologies_grafs_spain <- function(
 }
 
 #' Assign Typologies and optionally plot map
+#' @param livestock_density A data frame with livestock density values.
+#' @param productivity A data frame with productivity (kgN/ha) values.
+#' @param semi_nat_share A data frame with semi-natural agroecosystem share.
+#' @param imported_feed_share A data frame with share of imported feed.
+#' @param sf_provinces An sf object with province geometries.
+#' @param year Integer specifying the year for which typologies are assigned.
+#'
+#' @return A tibble with province names and their assigned farming system
+#' typology for the specified year.
+#'
 .assign_decision_tree <- function(
     livestock_density, productivity, semi_nat_share, imported_feed_share,
     sf_provinces, year) {

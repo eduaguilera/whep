@@ -2,10 +2,19 @@
 % Please edit documentation in R/Typologies_Julia.R
 \name{.aggregate_area_aa}
 \alias{.aggregate_area_aa}
-\title{Aggregate Area AA -----------------------------------------------------------}
+\title{Aggregate Area AA -----------------------------------------------------------
+Aggregates the area (\code{Area_ygpit_ha}) by year and province.}
 \usage{
 .aggregate_area_aa(npp_df)
 }
+\arguments{
+\item{npp_df}{A data frame containing the columns \code{Year}, \code{Province_name},
+and \code{Area_ygpit_ha}.}
+}
+\value{
+A tibble with the sum of areas per year and province.
+}
 \description{
 Aggregate Area AA -----------------------------------------------------------
+Aggregates the area (\code{Area_ygpit_ha}) by year and province.
 }
