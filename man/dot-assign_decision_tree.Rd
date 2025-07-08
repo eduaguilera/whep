@@ -29,9 +29,8 @@
 \value{
 A tibble with province names and their assigned farming system
 typology for the specified year.
-
-Typologies for each year as a dataset
 }
 \description{
 Assign Typologies and optionally plot map
 }
+\keyword{internal}

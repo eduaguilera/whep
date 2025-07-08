@@ -11,3 +11,4 @@
 Mapping: Livestock_cat (from livestock data) to Animal_class
 (from coefficients)
 }
+\keyword{internal}

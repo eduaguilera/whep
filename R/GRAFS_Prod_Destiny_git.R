@@ -138,6 +138,7 @@
 
 # Production of Cropland, Livestock, and Semi natural agroecosystems ---------
 # Merge items with biomasses
+# @keywords internal
 .merge_items_biomass <- function(crop_area_npp_ygpit_all, npp_ygpit_csv,
                                  codes_coefs) {
   crop_area_npp_merged <- crop_area_npp_ygpit_all |>
@@ -161,6 +162,7 @@
 }
 
 # Crops Production and Residues ----------------------------------------------
+# @keywords internal
 .summarise_crops_residues <- function(crop_area_npp_ygpitr_no_fallow) {
   crop_area_npp_prod_residue <- crop_area_npp_ygpitr_no_fallow |>
     dplyr::select(
@@ -194,6 +196,7 @@
 
 
 # Combining crops, residues, feed (grass, fallow) production -----------------
+# @keywords internal
 .aggregate_grazed_cropland <- function(npp_ygpit_merged,
                                        crop_area_npp_prod_residue) {
   grazed_data <- npp_ygpit_merged |>
@@ -256,7 +259,7 @@
 #'
 #' @return A tibble filtered and transformed with selected columns for
 #' semi-natural agroecosystems.
-#'
+#' @keywords internal
 .aggregate_seminatural_system <- function(npp_ygpit_merged) {
   semi_natural_agroecosystems <- npp_ygpit_merged |>
     dplyr::ungroup() |>
@@ -272,7 +275,7 @@
 
 #' Livestock Production -------------------------------------------------------
 #' @param livestock_prod_ygps A data frame including livestock production data.
-#'
+#' @keywords internal
 .prepare_livestock_production <- function(livestock_prod_ygps) {
   livestock <- livestock_prod_ygps |>
     dplyr::select(
@@ -290,6 +293,7 @@
 }
 
 # Combine Cropland, Semi_natural_agroecosystems and Livestock ----------------
+# @keywords internal
 .combine_production_boxes <- function(crops_residues_grazed,
                                       semi_natural_agroecosystems, livestock) {
   grafs_prod_combined <- dplyr::bind_rows(
@@ -313,6 +317,7 @@
 }
 
 # Seed production per province, based on the national seed share per Area ----
+# @keywords internal
 .remove_seeds_from_system <- function(crop_area_npp_ygpit_all,
                                       pie_full_destinies_fm,
                                       grafs_prod_combined) {
@@ -367,6 +372,7 @@
 # Structuring dataset (GrazedWeeds und Used_Residues in ProductionFM) --------
 # Rename Prod_Residue_Product_Mg to Production_FM and replace Production_FM
 # with GrazedWeeds_MgDM (for Fallow)
+# @keywords internal
 .adding_grass_wood <- function(grafs_prod_combined_no_seeds, biomass_coefs) {
   grafs_prod_structured <- grafs_prod_combined_no_seeds |>
     dplyr::rename(Production_FM = Prod_Residue_Product_Mg) |>
@@ -462,6 +468,7 @@
 
 # Processed Items ------------------------------------------------------------
 # Summarise processed items by Year, Province, Biomass, Item, and ProcessedItem
+# @keywords internal
 .prepare_processed_data <- function(processed_prov_fixed) {
   processed_data <- processed_prov_fixed |>
     dplyr::group_by(Year, Province_name, Name_biomass, Item, ProcessedItem) |>
@@ -480,6 +487,7 @@
 }
 
 # Match structure of grafs_prod_combined_no_seeds ----------------------------
+# @keywords internal
 .prepare_prod_data <- function(grafs_prod_added_grass_wood,
                                processed_data, codes_coefs_items_full) {
   added_grass_wood_prepared <- grafs_prod_added_grass_wood |>
@@ -509,6 +517,7 @@
 # Convert Fresh Matter (FM) to Dry Matter (DM) and finally to Nitrogen (N) ---
 # Define a list of special items that require using the primary biomass name
 # for selecting conversion coefficients
+# @keywords internal
 .convert_fm_dm_n <- function(added_grass_wood_merged,
                              biomass_coefs) {
   special_items <- c(
@@ -572,6 +581,7 @@
 # Province_name and Item
 # Comment!!! Feed from all animals are summed together, also from pets.
 # Do they have to be assigned to humans?
+# @keywords internal
 .adding_feed <- function(feed_intake) {
   feed_intake <- feed_intake |>
     dplyr::select(Year, Province_name, Item, FM_Mg) |>
@@ -584,6 +594,7 @@
 # Popoulation: use column Pop_Mpeop_yg. Calculate the share of population ----
 # (population in each province divided through whole population in
 # Spain to get the share)
+# @keywords internal
 .calculate_population_share <- function(population_share) {
   population_share <- population_share |>
     dplyr::select(Year, Province_name, Pop_Mpeop_yg) |>
@@ -600,6 +611,7 @@
 
 # Food -----------------------------------------------------------------------
 # Sum all Elements for Food and multiply with population share
+# @keywords internal
 .adding_food <- function(pie_full_destinies_fm, population_share) {
   total_food <- pie_full_destinies_fm |>
     dplyr::filter(Destiny == "Food", Element == "Domestic_supply") |>
@@ -623,6 +635,7 @@
 
 # Other_uses -----------------------------------------------------------------
 # Sum all Elements for Other_uses and multiply with population share
+# @keywords internal
 .adding_other_uses <- function(pie_full_destinies_fm, population_share) {
   other_uses_with_share <- pie_full_destinies_fm |>
     dplyr::filter(Destiny == "Other_uses", Element == "Domestic_supply") |>
@@ -639,6 +652,7 @@
 }
 
 # Putting all together -------------------------------------------------------
+# @keywords internal
 .combine_destinies <- function(grafs_prod_item, feed_intake, food_with_share,
                                other_uses_with_share) {
   grafs_prod_item_combined <- grafs_prod_item |>
@@ -658,6 +672,7 @@
 }
 
 # Converting Item and Name_biomass again and converting FM to DM, and DM to N
+# @keywords internal
 .convert_to_items_n <- function(grafs_prod_item_combined,
                                 codes_coefs_items_full, biomass_coefs) {
   grafs_prod_item_n <- grafs_prod_item_combined |>
@@ -692,6 +707,7 @@
 }
 
 # Calculating Consumption and Trade ------------------------------------------
+# @keywords internal
 .calculate_trade <- function(grafs_prod_item_n) {
   grafs_prod_item_trade <- grafs_prod_item_n |>
     dplyr::group_by(Year, Province_name, Item, Name_biomass, Box) |>
@@ -711,6 +727,7 @@
 }
 
 # Adding missing Boxes for Imports -------------------------------------------
+# @keywords internal
 .finalize_prod_destiny <- function(grafs_prod_item_trade,
                                    codes_coefs_items_full) {
   grafs_prod_destiny <- grafs_prod_item_trade |>

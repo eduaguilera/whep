@@ -18,3 +18,4 @@ A tibble with columns 'Year', 'Province_name', 'Livestock_cat',
 \description{
 Calculate LU_total per row --------------------------------------------------
 }
+\keyword{internal}
