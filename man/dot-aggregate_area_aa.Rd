@@ -18,3 +18,4 @@ A tibble with the sum of areas per year and province.
 Aggregate Area AA -----------------------------------------------------------
 Aggregates the area (\code{Area_ygpit_ha}) by year and province.
 }
+\keyword{internal}

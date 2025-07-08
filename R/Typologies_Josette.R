@@ -81,7 +81,7 @@ create_typologies_of_josette <- function(
 #' Load input datasets ---------------------------------------------------------
 #' @param shapefile_path The local path where the input data are located.
 #' @param inputs_dir Path to the input data directory.
-#'
+#' @keywords internal
 .load_inputs_josette <- function(inputs_dir, shapefile_path) {
   layer_name <- tools::file_path_sans_ext(basename(shapefile_path))
 
@@ -109,7 +109,7 @@ create_typologies_of_josette <- function(
 }
 
 # Calculate food consumption and total production
-#
+# @keywords internal
 .calculate_consumption_prod <- function(grafs_prod_destiny_git) {
   # Food consumption
   food_consumption <- grafs_prod_destiny_git |>
@@ -143,6 +143,7 @@ create_typologies_of_josette <- function(
   )
 }
 
+# @keywords internal
 .calculate_crop_prod_feed <- function(grafs_prod_destiny_git) {
   # Cropland  production
   cropland_prod <- grafs_prod_destiny_git |>
@@ -194,7 +195,7 @@ create_typologies_of_josette <- function(
 #'
 #' @return A list containing LU per province and year, Livestock Density,
 #' share of imported feed
-#'
+#' @keywords internal
 .calculate_imported_feed <- function(
     livestock_df, codes_coefs_df, npp_df, feed_df, destiny_df) {
   lu_coefs <- .prepare_lu_coefs(codes_coefs_df)
@@ -225,7 +226,7 @@ create_typologies_of_josette <- function(
 }
 
 # Decision: >50% animal feed from Semi-natural agroecosystems
-#
+# @keywords internal
 .calculate_natural_feed_share <- function(destiny_df) {
   seminatural_feed <- destiny_df |>
     dplyr::filter(Destiny == "Feed", Box == "Semi_natural_agroecosystems") |>
@@ -251,7 +252,7 @@ create_typologies_of_josette <- function(
 
 # Decision: >25% animal feed from local crop ---------------------------------
 # Calculate domestic feed supply per province
-#
+# @keywords internal
 .calculate_feed_domestic_share <- function(feed_df, lu_df) {
   # Filter relevant feed data: Production, Exports and
   # Imports destined for feed use
@@ -301,7 +302,7 @@ create_typologies_of_josette <- function(
 
 
 # Decision: >25% cropland N input from manure
-#
+# @keywords internal
 .calculate_manure_share <- function(n_input_df) {
   cropland_n_inputs <- n_input_df |>
     dplyr::filter(Box == "Cropland") |>
@@ -322,7 +323,7 @@ create_typologies_of_josette <- function(
 }
 
 # Assign Typologies
-#
+# @keywords internal
 .assign_typologies <- function(df) {
   df |>
     dplyr::mutate(
@@ -342,7 +343,7 @@ create_typologies_of_josette <- function(
 }
 
 # Create map
-#
+# @keywords internal
 .create_typologies_map_josette <- function(
     typologies_df, shapefile_path, map_year) {
   layer_name <- tools::file_path_sans_ext(basename(shapefile_path))

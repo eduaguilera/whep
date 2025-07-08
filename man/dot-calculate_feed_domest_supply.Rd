@@ -15,9 +15,15 @@
 \value{
 A tibble with columns 'Year', 'Province_name', and
 'Domestic_feed_MgN' representing the total domestic feed supply in MgN.
-
-Add LU_total for use in further steps
 }
 \description{
 Calculate feed domestic supply ---------------------------------------------
 }
+\keyword{Add}
+\keyword{LU_total}
+\keyword{for}
+\keyword{further}
+\keyword{in}
+\keyword{internal}
+\keyword{steps}
+\keyword{use}

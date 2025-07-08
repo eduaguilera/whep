@@ -48,6 +48,7 @@ create_n_inputs_grafs_spain <- function() {
 
 # N Inputs --------------------------------------------------------------------
 # load data -------------------------------------------------------------------
+# @keywords internal
 .load_inputs_n_inputs <- function() {
   result <-
     list(
@@ -65,6 +66,7 @@ create_n_inputs_grafs_spain <- function() {
 }
 
 # Assign some special items to Boxes ------------------------------------------
+# @keywords internal
 .assign_items <- function() {
   list(
     semi_natural_agroecosystems = c(
@@ -80,6 +82,7 @@ create_n_inputs_grafs_spain <- function() {
 }
 
 # Calculate n Inputs ----------------------------------------------------------
+# @keywords internal
 .calculate_n_inputs <- function(n_balance_ygpit_all, codes_coefs) {
   categories <- .assign_items()
   firewood_biomass <- categories$Firewood_biomass
@@ -143,6 +146,7 @@ create_n_inputs_grafs_spain <- function() {
 }
 
 # Combine all Inputs ----------------------------------------------------------
+# @keywords internal
 .summarise_inputs <- function(n_inputs_prepared) {
   n_inputs <- dplyr::full_join(
     n_inputs_prepared$n_inputs_summary,
@@ -168,6 +172,7 @@ create_n_inputs_grafs_spain <- function() {
 # Summarize and calculate new columns: Prod_MgN
 # Spread the Destiny column to separate columns for Food,
 # Feed, Other_uses, Export
+# @keywords internal
 .summarise_production <- function(grafs_prod_destiny, n_inputs_sum) {
   grafs_prod_destiny_summary <- grafs_prod_destiny |>
     tidyr::pivot_wider(
@@ -200,6 +205,7 @@ create_n_inputs_grafs_spain <- function() {
 }
 
 # NUE for Cropland and Semi-natural agroecosystems ----------------------------
+# @keywords internal
 .calculate_nue <- function(n_inputs_combined) {
   nue <- n_inputs_combined |>
     dplyr::mutate(
