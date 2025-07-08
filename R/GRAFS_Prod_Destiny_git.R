@@ -10,13 +10,9 @@
 #' Processed items, residues, woody crops, grazed weeds are taken into account.
 #' Seeds were subtracted from crop production.
 #'
-#' @returns
+#' @return
 #' A list containing all key data frames for further analysis.
 #'
-#' @name GRAFS_Prod_Destiny_git
-NULL
-
-
 # @export
 .create_prod_and_destiny_grafs <- function() {
   data <- .load_data()
@@ -255,6 +251,12 @@ NULL
 
 #' Semi_natural_agroecosystems: Aggregate Grazed Weeds and Production plus
 #' Used Residues from Forest, Shrubland, Dehesa, Other
+#'
+#' @param npp_ygpit_merged A data frame containing biomass data
+#'
+#' @return A tibble filtered and transformed with selected columns for
+#' semi-natural agroecosystems.
+#'
 .aggregate_seminatural_system <- function(npp_ygpit_merged) {
   semi_natural_agroecosystems <- npp_ygpit_merged |>
     dplyr::ungroup() |>
@@ -269,6 +271,8 @@ NULL
 }
 
 #' Livestock Production -------------------------------------------------------
+#' @param livestock_prod_ygps A data frame including livestock production data.
+#'
 .prepare_livestock_production <- function(livestock_prod_ygps) {
   livestock <- livestock_prod_ygps |>
     dplyr::select(

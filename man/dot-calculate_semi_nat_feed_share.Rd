@@ -6,6 +6,14 @@
 \usage{
 .calculate_semi_nat_feed_share(df)
 }
+\arguments{
+\item{df}{A data frame containing nitrogen data with columns including
+\code{Year}, \code{Province_name}, \code{Destiny}, \code{Box}, and \code{MgN}.}
+}
+\value{
+A data frame including the share of feed from semi natural
+agroecosystems
+}
 \description{
 Calculate Feed share (between semi natural agroecosystems and total feed)
 }

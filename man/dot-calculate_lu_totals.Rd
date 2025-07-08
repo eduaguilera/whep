@@ -6,6 +6,15 @@
 \usage{
 .calculate_lu_totals(livestock_df, lu_coefs_df)
 }
+\arguments{
+\item{livestock_df}{A data frame containing livestock data.}
+
+\item{lu_coefs_df}{A data frame with livestock unit coefficients.}
+}
+\value{
+A tibble with columns 'Year', 'Province_name', 'Livestock_cat',
+'Animal_class', Stock_Number', 'LU_head', and 'LU_total'.
+}
 \description{
 Calculate LU_total per row --------------------------------------------------
 }

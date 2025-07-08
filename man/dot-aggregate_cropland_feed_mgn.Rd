@@ -6,6 +6,14 @@
 \usage{
 .aggregate_cropland_feed_mgn(df)
 }
+\arguments{
+\item{df}{A data frame containing columns \code{Year}, \code{Province_name},
+\code{Box}, \code{Destiny}, and \code{MgN}.}
+}
+\value{
+A tibble grouped by year and province with the total cropland feed
+nitrogen (MgN).
+}
 \description{
 Aggregate Feed from Cropland -----------------------------------------------
 }

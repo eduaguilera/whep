@@ -3,11 +3,19 @@
 \name{.aggregate_semi_nat_feed_mgn}
 \alias{.aggregate_semi_nat_feed_mgn}
 \title{Aggregate Feed from Semi natural agroecosystems for Grassland > 60\% of
-Livestock intake from Grassland ----------------}
+Livestock intake from Grassland}
 \usage{
 .aggregate_semi_nat_feed_mgn(df)
 }
+\arguments{
+\item{df}{A data frame containing columns \code{Year}, \code{Province_name}, \code{Box},
+\code{Destiny}, and \code{MgN}.}
+}
+\value{
+A tibble grouped by year and province with the total feed nitrogen
+(MgN) from semi-natural agroecosystems.
+}
 \description{
 Aggregate Feed from Semi natural agroecosystems for Grassland > 60\% of
-Livestock intake from Grassland ----------------
+Livestock intake from Grassland
 }

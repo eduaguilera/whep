@@ -9,6 +9,14 @@
   domestic_feed_by_province
 )
 }
+\arguments{
+\item{feed_import_by_province}{A data frame containing imported feed data.}
+
+\item{domestic_feed_by_province}{A data frame containing domestic feed data.}
+}
+\value{
+A data frame with the imported feed share.
+}
 \description{
 Calculate feed share of imported/consumed feed -----------------------------
 }

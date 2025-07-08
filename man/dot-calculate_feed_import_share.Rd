@@ -6,6 +6,16 @@
 \usage{
 .calculate_feed_import_share(feed_df, lu_df)
 }
+\arguments{
+\item{feed_df}{A data frame containing feed data.}
+
+\item{lu_df}{A data frame with land use information.}
+}
+\value{
+A tibble with columns 'Year', 'Province_name', 'LU_total',
+'LU_share', and 'Feed_import_MgN', where 'Feed_import_MgN' is the estimated
+feed import allocated to each province.
+}
 \description{
 Calculate feed import per province -----------------------------------------
 }
