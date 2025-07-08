@@ -15,45 +15,45 @@ A tibble with the quantities for each processed product.
 It contains the following columns:
 \itemize{
 \item \code{year}: The year in which the recorded event occurred.
-\item \code{area}: The name of the country where the data is from.
-\item \code{area_code}: FAOSTAT internal code for each country. Equivalences
-with ISO 3166-1 numeric can be found in the \emph{Area Codes} CSV from the
-zip file that can be downloaded from
-\href{https://www.fao.org/faostat/en/#data/FBS}{FAOSTAT}. TODO: Think about
-this, would be nice to use ISO3 codes but won't be enough for our periods
-\item \code{item_to_process}: Natural language name for the item that is being
-processed and will give other subproduct items.
-\item \code{item_to_process_code}: FAOSTAT internal code for each of those items.
+\item \code{area_code}: The code of the country where the data is from. For code
+details see e.g. \code{add_area_name()}.
+\item \code{item_cbs_code_to_process}: FAOSTAT internal code for each one of the
+items that are being processed and will give other subproduct items.
+For code details see e.g. \code{add_item_cbs_name()}.
 \item \code{value_to_process}: tonnes of this item that are being processed. It
 matches the amount found in the \code{processing} column from the data
 obtained by \code{get_wide_cbs()}.
-\item \code{item_processed}: Natural language name for the subproduct item obtained.
+\item \code{item_cbs_code_processed}: FAOSTAT internal code for each one of the
+subproduct items that are obtained when processing. For code details
+see e.g. \code{add_item_cbs_name()}.
 \item \code{initial_conversion_factor}: estimate for the number of tonnes of
-\code{item_processed} obtained for each tonne of \code{item_to_process}. It will be
-used to compute the \code{final_conversion_factor}, which leaves everything
-balanced. TODO: explain how it's computed.
+\code{item_cbs_code_processed} obtained for each tonne of
+\code{item_cbs_code_to_process}. It will be used to compute the
+\code{final_conversion_factor}, which leaves everything balanced.
+TODO: explain how it's computed.
 \item \code{initial_value_processed}: first estimate for the number of tonnes of
-\code{item_processed} obtained from \code{item_to_process}. It is computed as
-\code{value_to_process * initial_conversion_factor}.
+\code{item_cbs_code_processed} obtained from \code{item_cbs_code_to_process}. It
+is computed as \code{value_to_process * initial_conversion_factor}.
 \item \code{conversion_factor_scaling}: computed scaling needed to adapt
 \code{initial_conversion_factor} so as to get a final balanced total of
 subproduct quantities. TODO: explain how it's computed.
 \item \code{final_conversion_factor}: final used estimate for the number of tonnes of
-\code{item_processed} obtained for each tonne of \code{item_to_process}. It is
-computed as \code{initial_conversion_factor * conversion_factor_scaling}.
+\code{item_cbs_code_processed} obtained for each tonne of
+\code{item_cbs_code_to_process}. It is computed as
+\code{initial_conversion_factor * conversion_factor_scaling}.
 \item \code{final_value_processed}: final estimate for the number of tonnes of
-\code{item_processed} obtained from \code{item_to_process}. It is computed as
-\code{initial_value_processed * final_conversion_factor}.
+\code{item_cbs_code_processed} obtained from \code{item_cbs_code_to_process}. It
+is computed as \code{initial_value_processed * final_conversion_factor}.
 }
 
 For the final data obtained, the quantities \code{final_value_processed} are
 balanced in the following sense: the total sum of \code{final_value_processed}
-for each unique tuple of \verb{(year, area_code, item_processed)} should be
-exactly the quantity reported for that year, country and \code{item_processed}
-item in the \code{production} column obtained from \code{get_wide_cbs()}. This is
-because they are not primary products, so the amount from 'production' is
-actually the amount of subproduct obtained. TODO: Fix few data where this
-doesn't hold.
+for each unique tuple of \verb{(year, area_code, item_cbs_code_processed)}
+should be exactly the quantity reported for that year, country and
+\code{item_cbs_code_processed} item in the \code{production} column obtained from
+\code{get_wide_cbs()}. This is because they are not primary products, so the
+amount from 'production' is actually the amount of subproduct obtained.
+TODO: Fix few data where this doesn't hold.
 }
 \description{
 Clean CSV data from the given \code{file_path}.

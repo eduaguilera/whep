@@ -16,17 +16,14 @@ memory usage, the tibble is not exactly in tidy format.
 It contains the following columns:
 \itemize{
 \item \code{year}: The year in which the recorded event occurred.
-\item \code{item}: Natural language name for the item that is being traded.
+\item \code{item_cbs_code}: FAOSTAT internal code for the item that is being traded.
+For code details see e.g. \code{add_item_cbs_name()}.
 \item \code{bilateral_trade}: Square matrix of \code{NxN} dimensions where \code{N} is the
 total number of countries being considered. The matrix row and column
 names are exactly equal and they represent country codes.
 \itemize{
-\item Row name: FAOSTAT internal code for the country that is exporting the
-item. Equivalences with ISO 3166-1 numeric can be found in the
-\emph{Area Codes} CSV from the zip file that can be downloaded from
-\href{https://www.fao.org/faostat/en/#data/FBS}{FAOSTAT}. TODO: Think about
-this, would be nice to use ISO3 codes but won't be enough for our
-periods
+\item Row name: The code of the country where the data is from. For code
+details see e.g. \code{add_area_name()}.
 \item Column name: FAOSTAT internal code for the country that is importing the
 item. See row name explanation above.
 }

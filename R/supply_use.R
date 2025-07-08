@@ -12,9 +12,46 @@
 #' A tibble with the supply and use data for processes.
 #' It contains the following columns:
 #' - `year`: The year in which the recorded event occurred.
-#' - `area`: The name of the country where the data is from.
-#' - `proc`: Natural language name of the process taking place.
-#' - `item`: Natural language name of the item taking part in the process.
+#' - `area_code`: The code of the country where the data is from. For code
+#'    details see e.g. `add_area_name()`.
+#' - `proc_group`: The type of process taking place. It can be one of:
+#'    - `crop_production`: Production of crops and their residues, e.g. rice
+#'    production, coconut production, etc.
+#'    - `husbandry`: Animal husbandry, e.g. dairy cattle husbandry, non-dairy
+#'    cattle husbandry, layers chickens farming, etc.
+#'    - `processing`: Derived subproducts obtained from processing other items.
+#'    The items used as inputs are those that have a non-zero processing use in
+#'    the commodity balance sheet. See `get_wide_cbs()` for more details.
+#'    In each process there is a single input. In some processes like olive oil
+#'    extraction or soyabean oil extraction this might make sense. Others like
+#'    alcohol production need multiple inputs (e.g. multiple crops work), so
+#'    in this data there would not be a process like alcohol production but
+#'    rather a _virtual_ process like 'Wheat and products processing', giving
+#'    all its possible outputs. This is a constraint because of how the data was
+#'    obtained and might be improved in the future. See
+#'    `get_processing_coefs()` for more details.
+#' - `proc_cbs_code`: The code of the main item in the process taking place.
+#'    Together with `proc_group`, these two columns uniquely represent a
+#'    process. The main item is predictable depending on the value of
+#'    `proc_group`:
+#'    - `crop_production`: The code is from the item for which seed usage
+#'    (if any) is reported in the commodity balance sheet (see
+#'    `get_wide_cbs()` for more). For example, the rice code for a rice
+#'    production process or the cottonseed code for the cotton production one.
+#'    - `husbandry`: The code of the farmed animal, e.g. bees for beekeeping,
+#'    non-dairy cattle for non-dairy cattle husbandry, etc.
+#'    - `processing`: The code of the item that is used as input, i.e., the one
+#'    that is processed to get other derived products. This uniquely defines a
+#'    process within the group because of the nature of the data that was used,
+#'    which you can see in `get_processing_coefs()`.
+#'
+#'    For code details see e.g. `add_item_cbs_name()`.
+#' - `item_cbs_code`: The code of the item produced or used in the process.
+#'    Note that this might be the same value as `proc_cbs_code`, e.g., in rice
+#'    production process for the row defining the amount of rice produced or
+#'    the amount of rice seed as input, but it might also have a different
+#'    value, e.g. for the row defining the amount of straw residue from rice
+#'    production. For code details see e.g. `add_item_cbs_name()`.
 #' - `type`: Can have two values:
 #'    - `use`: The given item is an input of the process.
 #'    - `supply`: The given item is an output of the process.
@@ -27,104 +64,206 @@
 #' build_supply_use()
 #' }
 build_supply_use <- function() {
-  # TODO: There's a name mismatch in two items
-  # CBS_item                  supply_process_item
-  # Fodder cereal and grasses Fodder crops
-  # Fodder legumes            Grazing
-  # Keep balance sheet names for now
-
   .build_supply_use_from_inputs(
-    supply_processes = .read_local_csv("input/raw/items_supply.csv"),
-    use_processes = .read_local_csv("input/raw/items_use.csv"),
+    items_prod = .read_local_csv("input/raw/items_prod.csv"),
+    items_cbs = .read_local_csv("input/raw/items_cbs.csv"),
     coeffs = get_processing_coefs(get_file_path("processing_coefs")),
-    cbs = get_wide_cbs(get_file_path("commodity_balance_sheet"))
+    cbs = get_wide_cbs(get_file_path("commodity_balance_sheet")),
+    crop_residues = get_primary_residues(get_file_path("crop_residues")),
+    primary_prod = get_primary_production(get_file_path("primary_prod")),
+    feed_intake = get_feed_intake(get_file_path("feed_intake"))
   )
 }
 
 .build_supply_use_from_inputs <- function(
-    supply_processes,
-    use_processes,
+    items_prod,
+    items_cbs,
     coeffs,
-    cbs) {
-  processes_table <- .join_supply_use_processes(supply_processes, use_processes)
+    cbs,
+    crop_residues,
+    primary_prod,
+    feed_intake) {
+  husbandry_items <- items_cbs |>
+    dplyr::filter(item_type == "livestock") |>
+    dplyr::select(live_anim_code = item_cbs_code)
 
-  tibble::tibble() |>
-    .add_use_for_feed(processes_table) |>
-    .add_use_for_seed(processes_table, cbs) |>
-    .add_use_for_slaughtering(processes_table) |>
-    .add_supply_use_for_processing(processes_table, coeffs) |>
-    .add_rest_of_supply(supply_processes, cbs)
-}
+  crop_prod_items <- items_prod |>
+    dplyr::filter(item_type == "crop_product") |>
+    dplyr::select(item_prod_code)
 
-.join_supply_use_processes <- function(supply_processes, use_processes) {
-  use_processes |>
-    dplyr::full_join(
-      supply_processes,
-      by = c("proc", "proc_code"),
-      relationship = "many-to-many",
-      suffix = c("_to_process", "_processed")
+  dplyr::bind_rows(
+    .build_crop_production(crop_prod_items, cbs, primary_prod, crop_residues),
+    .build_husbandry(husbandry_items, feed_intake, primary_prod),
+    .build_processing(coeffs),
+  ) |>
+    dplyr::select(
+      year,
+      area_code,
+      proc_group,
+      proc_cbs_code,
+      item_cbs_code,
+      type,
+      value
     )
 }
 
-.add_rest_of_supply <- function(supply_use, supply_process_table, cbs) {
-  items_done <- supply_use |>
-    dplyr::filter(type == "supply") |>
-    dplyr::distinct(item)
-
-  cbs |>
-    dplyr::anti_join(items_done, "item") |>
-    dplyr::inner_join(supply_process_table, "item") |>
-    dplyr::filter(domestic_supply > 0) |>
-    dplyr::select(year, area, proc, item, domestic_supply) |>
-    dplyr::rename(value = domestic_supply) |>
-    dplyr::mutate(type = "supply") |>
-    dplyr::bind_rows(supply_use)
-}
-
-.add_use_for_seed <- function(supply_use, processes_table, cbs) {
-  processes_table |>
-    dplyr::filter(type == "seedwaste") |>
-    # TODO: compare with full_join, why seedwaste use on animal products?
-    dplyr::inner_join(cbs, dplyr::join_by(item_code_to_process == item_code)) |>
-    dplyr::filter(seed > 0) |>
-    dplyr::select(year, area, proc, item_to_process, seed) |>
-    dplyr::rename(item = item_to_process, value = seed) |>
-    dplyr::mutate(type = "use") |>
-    dplyr::bind_rows(supply_use)
-}
-
-# TODO: Treat slaughtering processes
-# (probably need conversion factor from Livestock Units to physical unit)
-.add_use_for_slaughtering <- function(supply_use, processes_table) {
-  supply_use
-}
-
-# TODO: Treat animal feed use processes
-# Use feed intake data from Eduardo
-.add_use_for_feed <- function(supply_use, processes_table) {
-  supply_use
-}
-
-.add_supply_use_for_processing <- function(
-    supply_use,
-    processes_table,
-    coeffs) {
-  processes <- processes_table |>
-    dplyr::filter(!type %in% c("feed", "seedwaste", "slaughtering")) |>
-    # TODO: compare with full_join, deal with missing processes
-    dplyr::inner_join(coeffs, by = c("item_processed", "item_to_process"))
-
-  supply <- processes |>
-    dplyr::group_by(year, area, proc, item_processed) |>
-    dplyr::summarise(value = sum(final_value_processed)) |>
-    dplyr::ungroup() |>
-    dplyr::rename(item = item_processed) |>
+.build_crop_production <- function(
+    crop_prod_items,
+    cbs,
+    primary_prod,
+    crop_residues) {
+  supply_crop_production <- .build_supply_crop_production(
+    crop_prod_items,
+    primary_prod,
+    crop_residues
+  ) |>
     dplyr::mutate(type = "supply")
 
-  use <- processes |>
-    dplyr::distinct(year, area, proc, item_to_process, value_to_process) |>
-    dplyr::rename(item = item_to_process, value = value_to_process) |>
+  cbs_items <- supply_crop_production |>
+    dplyr::distinct(item_cbs_code)
+
+  use_crop_production <- .build_use_crop_production(cbs_items, cbs) |>
     dplyr::mutate(type = "use")
 
-  dplyr::bind_rows(supply, use, supply_use)
+  dplyr::bind_rows(supply_crop_production, use_crop_production) |>
+    dplyr::mutate(proc_group = "crop_production")
+}
+
+.build_supply_crop_production <- function(
+    crop_prod_items,
+    primary_prod,
+    crop_residues) {
+  supply_crop_product <- .build_supply_crop_product(
+    crop_prod_items,
+    primary_prod
+  )
+
+  cbs_items <- supply_crop_product |>
+    dplyr::distinct(item_cbs_code_crop = item_cbs_code)
+
+  supply_crop_residue <- .build_supply_crop_residue(cbs_items, crop_residues)
+
+  dplyr::bind_rows(supply_crop_product, supply_crop_residue)
+}
+
+.build_use_crop_production <- function(cbs_items, cbs) {
+  cbs |>
+    dplyr::inner_join(cbs_items, "item_cbs_code") |>
+    dplyr::filter(seed > 0) |>
+    dplyr::select(
+      year,
+      area_code,
+      proc_cbs_code = item_cbs_code,
+      item_cbs_code = item_cbs_code,
+      value = seed
+    )
+}
+
+.build_supply_crop_product <- function(crop_prod_items, primary_prod) {
+  primary_prod |>
+    dplyr::filter(unit == "tonnes") |>
+    dplyr::inner_join(crop_prod_items, "item_prod_code") |>
+    dplyr::summarise(
+      value = sum(value),
+      .by = c(year, area_code, item_cbs_code)
+    ) |>
+    dplyr::mutate(proc_cbs_code = item_cbs_code)
+}
+
+.build_supply_crop_residue <- function(cbs_items, crop_residues) {
+  crop_residues |>
+    dplyr::inner_join(cbs_items, "item_cbs_code_crop") |>
+    dplyr::select(
+      year,
+      area_code,
+      proc_cbs_code = item_cbs_code_crop,
+      item_cbs_code = item_cbs_code_residue,
+      value
+    )
+}
+
+.build_husbandry <- function(husbandry_items, feed_intake, primary_prod) {
+  dplyr::bind_rows(
+    .build_use_husbandry(feed_intake),
+    .build_supply_husbandry(husbandry_items, primary_prod),
+  ) |>
+    dplyr::mutate(proc_group = "husbandry")
+}
+
+.build_use_husbandry <- function(feed_intake) {
+  feed_intake |>
+    dplyr::select(
+      year,
+      area_code,
+      proc_cbs_code = live_anim_code,
+      item_cbs_code,
+      value = supply
+    ) |>
+    dplyr::mutate(type = "use")
+}
+
+.build_supply_husbandry <- function(husbandry_items, primary_prod) {
+  dplyr::bind_rows(
+    # TODO: This is essentially double counting animals' mass both as livestock
+    # and their products. Go back to this when integrating input-output matrix
+    # with trade, to look for a satisfying fix.
+    .build_livestock_supply(primary_prod, husbandry_items),
+    .build_livestock_prods_supply(primary_prod, husbandry_items),
+  ) |>
+    dplyr::mutate(type = "supply")
+}
+
+.build_livestock_supply <- function(primary_prod, husbandry_items) {
+  primary_prod |>
+    dplyr::filter(unit == "LU") |>
+    dplyr::inner_join(
+      husbandry_items,
+      dplyr::join_by(item_cbs_code == live_anim_code)
+    ) |>
+    dplyr::mutate(value = k_tonnes_per_livestock_unit * value) |>
+    dplyr::select(
+      year,
+      area_code,
+      proc_cbs_code = item_cbs_code,
+      item_cbs_code = item_cbs_code,
+      value
+    )
+}
+
+.build_livestock_prods_supply <- function(primary_prod, husbandry_items) {
+  primary_prod |>
+    dplyr::filter(unit == "tonnes") |>
+    dplyr::inner_join(husbandry_items, "live_anim_code") |>
+    dplyr::select(
+      year,
+      area_code,
+      proc_cbs_code = live_anim_code,
+      item_cbs_code,
+      value
+    )
+}
+
+.build_processing <- function(coeffs) {
+  processing_use <- coeffs |>
+    dplyr::distinct(
+      year,
+      area_code,
+      proc_cbs_code = item_cbs_code_to_process,
+      item_cbs_code = item_cbs_code_to_process,
+      value = value_to_process
+    ) |>
+    dplyr::mutate(type = "use")
+
+  processing_supply <- coeffs |>
+    dplyr::select(
+      year,
+      area_code,
+      proc_cbs_code = item_cbs_code_to_process,
+      item_cbs_code = item_cbs_code_processed,
+      value = final_value_processed
+    ) |>
+    dplyr::mutate(type = "supply")
+
+  dplyr::bind_rows(processing_use, processing_supply) |>
+    dplyr::mutate(proc_group = "processing")
 }
