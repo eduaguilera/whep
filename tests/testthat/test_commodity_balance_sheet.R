@@ -21,12 +21,10 @@ testthat::test_that("get_wide_cbs gives consistent Commodity Balance Sheet", {
   )
   testthat::local_mocked_bindings(.get_destfile = function(...) test_file_path)
 
-
-  cbs <-
-    cbs_alias |>
+  cbs <- cbs_alias |>
     get_file_path() |>
     get_wide_cbs() |>
-    dplyr::filter(!(item_code %in% k_ignore_unbalanced)) |>
+    dplyr::filter(!(item_cbs_code %in% k_ignore_unbalanced)) |>
     dplyr::mutate(
       value_in = production + import + stock_retrieval,
       value_out = export + food + feed + seed + processing + other_uses,
@@ -81,9 +79,13 @@ testthat::test_that(
     df <- coefs |>
       dplyr::left_join(
         cbs,
-        dplyr::join_by(year, area, area_code, item_processed == item)
+        dplyr::join_by(
+          year,
+          area_code,
+          item_cbs_code_processed == item_cbs_code
+        )
       ) |>
-      dplyr::group_by(year, area_code, item_processed) |>
+      dplyr::group_by(year, area_code, item_cbs_code_processed) |>
       dplyr::mutate(total_proc_item = sum(final_value_processed))
 
     pointblank::expect_col_vals_expr(

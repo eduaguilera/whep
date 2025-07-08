@@ -15,14 +15,10 @@ A tibble with the commodity balance sheet data in wide format.
 It contains the following columns:
 \itemize{
 \item \code{year}: The year in which the recorded event occurred.
-\item \code{area}: The name of the country where the data is from.
-\item \code{area_code}: FAOSTAT internal code for each country. Equivalences
-with ISO 3166-1 numeric can be found in the \emph{Area Codes} CSV from the
-zip file that can be downloaded from
-\href{https://www.fao.org/faostat/en/#data/FBS}{FAOSTAT}. TODO: Think about
-this, would be nice to use ISO3 codes but won't be enough for our periods
-\item \code{item}: Natural language name for the item.
-\item \code{item_code}: FAOSTAT internal code for each item.
+\item \code{area_code}: The code of the country where the data is from. For code
+details see e.g. \code{add_area_name()}.
+\item \code{item_cbs_code}: FAOSTAT internal code for each item. For code details
+see e.g. \code{add_item_cbs_name()}.
 }
 
 The other columns are quantities (measured in tonnes), where total supply

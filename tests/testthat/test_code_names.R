@@ -84,14 +84,14 @@ testthat::test_that("add_area_code correctly sets new column in table", {
     )
 })
 
-testthat::test_that("add_item_name correctly sets new column in table", {
-  table <- tibble::tibble(item_code = c(2559, 2744, 9876))
+testthat::test_that("add_item_cbs_name correctly sets new column in table", {
+  table <- tibble::tibble(item_cbs_code = c(2559, 2744, 9876))
 
   table |>
-    add_item_name() |>
+    add_item_cbs_name() |>
     testthat::expect_equal(
       tibble::tribble(
-        ~item_code, ~item_name,
+        ~item_cbs_code, ~item_cbs_name,
         2559, "Cottonseed",
         2744, "Eggs",
         9876, NA
@@ -99,11 +99,11 @@ testthat::test_that("add_item_name correctly sets new column in table", {
     )
 
   table |>
-    dplyr::rename(dummy_code = item_code) |>
-    add_item_name(code_column = "dummy_code") |>
+    dplyr::rename(dummy_code = item_cbs_code) |>
+    add_item_cbs_name(code_column = "dummy_code") |>
     testthat::expect_equal(
       tibble::tribble(
-        ~dummy_code, ~item_name,
+        ~dummy_code, ~item_cbs_name,
         2559, "Cottonseed",
         2744, "Eggs",
         9876, NA
@@ -111,8 +111,8 @@ testthat::test_that("add_item_name correctly sets new column in table", {
     )
 
   table |>
-    dplyr::rename(dummy_code = item_code) |>
-    add_item_name(code_column = "dummy_code", name_column = "my_name") |>
+    dplyr::rename(dummy_code = item_cbs_code) |>
+    add_item_cbs_name(code_column = "dummy_code", name_column = "my_name") |>
     testthat::expect_equal(
       tibble::tribble(
         ~dummy_code, ~my_name,
@@ -123,14 +123,14 @@ testthat::test_that("add_item_name correctly sets new column in table", {
     )
 })
 
-testthat::test_that("add_item_code correctly sets new column in table", {
-  table <- tibble::tibble(item_name = c("Cottonseed", "Eggs", "Dummy item"))
+testthat::test_that("add_item_cbs_code correctly sets new column in table", {
+  table <- tibble::tibble(item_cbs_name = c("Cottonseed", "Eggs", "Dummy item"))
 
   table |>
-    add_item_code() |>
+    add_item_cbs_code() |>
     testthat::expect_equal(
       tibble::tribble(
-        ~item_name, ~item_code,
+        ~item_cbs_name, ~item_cbs_code,
         "Cottonseed", 2559,
         "Eggs", 2744,
         "Dummy item", NA
@@ -138,11 +138,11 @@ testthat::test_that("add_item_code correctly sets new column in table", {
     )
 
   table |>
-    dplyr::rename(dummy_name = item_name) |>
-    add_item_code(name_column = "dummy_name") |>
+    dplyr::rename(dummy_name = item_cbs_name) |>
+    add_item_cbs_code(name_column = "dummy_name") |>
     testthat::expect_equal(
       tibble::tribble(
-        ~dummy_name, ~item_code,
+        ~dummy_name, ~item_cbs_code,
         "Cottonseed", 2559,
         "Eggs", 2744,
         "Dummy item", NA
@@ -150,8 +150,8 @@ testthat::test_that("add_item_code correctly sets new column in table", {
     )
 
   table |>
-    dplyr::rename(dummy_name = item_name) |>
-    add_item_code(name_column = "dummy_name", code_column = "dummy_code") |>
+    dplyr::rename(dummy_name = item_cbs_name) |>
+    add_item_cbs_code(name_column = "dummy_name", code_column = "dummy_code") |>
     testthat::expect_equal(
       tibble::tribble(
         ~dummy_name, ~dummy_code,
@@ -162,82 +162,83 @@ testthat::test_that("add_item_code correctly sets new column in table", {
     )
 })
 
-testthat::test_that("add_process_name correctly sets new column in table", {
-  table <- tibble::tibble(process_code = c("p017", "p076", "dummy"))
+testthat::test_that("add_item_prod_name correctly sets new column in table", {
+  table <- tibble::tibble(item_prod_code = c(27, 358, 12345))
 
   table |>
-    add_process_name() |>
+    add_item_prod_name() |>
     testthat::expect_equal(
       tibble::tribble(
-        ~process_code, ~process_name,
-        "p017", "Beans production",
-        "p076", "Olive Oil extraction",
-        "dummy", NA
+        ~item_prod_code, ~item_prod_name,
+        27, "Rice",
+        358, "Cabbages",
+        12345, NA
       )
     )
 
   table |>
-    dplyr::rename(dummy_code = process_code) |>
-    add_process_name(code_column = "dummy_code") |>
+    dplyr::rename(dummy_code = item_prod_code) |>
+    add_item_prod_name(code_column = "dummy_code") |>
     testthat::expect_equal(
       tibble::tribble(
-        ~dummy_code, ~process_name,
-        "p017", "Beans production",
-        "p076", "Olive Oil extraction",
-        "dummy", NA
+        ~dummy_code, ~item_prod_name,
+        27, "Rice",
+        358, "Cabbages",
+        12345, NA
       )
     )
 
   table |>
-    dplyr::rename(dummy_code = process_code) |>
-    add_process_name(code_column = "dummy_code", name_column = "my_name") |>
+    dplyr::rename(dummy_code = item_prod_code) |>
+    add_item_prod_name(code_column = "dummy_code", name_column = "my_name") |>
     testthat::expect_equal(
       tibble::tribble(
         ~dummy_code, ~my_name,
-        "p017", "Beans production",
-        "p076", "Olive Oil extraction",
-        "dummy", NA
+        27, "Rice",
+        358, "Cabbages",
+        12345, NA
       )
     )
 })
 
-testthat::test_that("add_process_code correctly sets new column in table", {
-  table <- tibble::tibble(
-    process_name = c("Beans production", "Olive Oil extraction", "Dummy")
-  )
+testthat::test_that("add_item_prod_code correctly sets new column in table", {
+  table <- tibble::tibble(item_prod_name = c("Rice", "Cabbages", "Dummy item"))
 
   table |>
-    add_process_code() |>
+    add_item_prod_code() |>
     testthat::expect_equal(
       tibble::tribble(
-        ~process_name, ~process_code,
-        "Beans production", "p017",
-        "Olive Oil extraction", "p076",
-        "Dummy", NA,
+        ~item_prod_name, ~item_prod_code,
+        "Rice", 27,
+        "Cabbages", 358,
+        "Dummy item", NA
       )
     )
 
   table |>
-    dplyr::rename(dummy_name = process_name) |>
-    add_process_code(name_column = "dummy_name") |>
+    dplyr::rename(dummy_name = item_prod_name) |>
+    add_item_prod_code(name_column = "dummy_name") |>
     testthat::expect_equal(
       tibble::tribble(
-        ~dummy_name, ~process_code,
-        "Beans production", "p017",
-        "Olive Oil extraction", "p076",
-        "Dummy", NA,
+        ~dummy_name, ~item_prod_code,
+        "Rice", 27,
+        "Cabbages", 358,
+        "Dummy item", NA
       )
     )
 
   table |>
-    dplyr::rename(dummy_name = process_name) |>
-    add_process_code(name_column = "dummy_name", code_column = "dummy_code") |>
+    dplyr::rename(dummy_name = item_prod_name) |>
+    add_item_prod_code(
+      name_column = "dummy_name",
+      code_column = "dummy_code"
+    ) |>
     testthat::expect_equal(
       tibble::tribble(
         ~dummy_name, ~dummy_code,
-        "Beans production", "p017",
-        "Olive Oil extraction", "p076",
-        "Dummy", NA,
+        "Rice", 27,
+        "Cabbages", 358,
+        "Dummy item", NA
       )
     )
 })

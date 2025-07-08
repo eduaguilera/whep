@@ -9,6 +9,7 @@
 #'    - `"commodity_balance_sheet"`: Intended for `get_wide_cbs()`.
 #'    - `"bilateral_trade"`: Intended for `get_bilateral_trade()`.
 #'    - `"processing_coefs"`: Intended for `get_processing_coefs()`.
+#'    - `"feed_intake"`: Intended for `get_feed_intake()`.
 #' @param force_download If `TRUE`, does not try to cache the file and
 #' redownloads it anyway.
 #'
