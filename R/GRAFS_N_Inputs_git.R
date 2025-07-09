@@ -1,8 +1,8 @@
 #' @title Create N Inputs and NUE Dataset for GRAFS Spain
 #'
 #' @description
-#' N Inputs, Production and nue in Spain:
-#' This code is creating a dataset with nitrogen (n) inputs (deposition,
+#' N Inputs, Production and NUE in Spain:
+#' This code is creating a dataset with nitrogen (N) inputs (deposition,
 #' fixation, synthetic, urban, manure)
 #' and n production in Spain between 1860 and 2020 for the GRAFS model on a
 #' provincial level
@@ -21,7 +21,7 @@ create_n_inputs_grafs_spain <- function() {
   # Load datasets
   data <- .load_inputs_n_inputs()
 
-  # Calculate n inputs and manure
+  # Calculate N inputs and manure
   n_inputs_prepared <- .calculate_n_inputs(
     data$n_balance_ygpit_all,
     data$codes_coefs
@@ -36,7 +36,7 @@ create_n_inputs_grafs_spain <- function() {
     n_inputs_summary
   )
 
-  # Calculate nue
+  # Calculate NUE
   nue <- .calculate_nue(n_inputs_combined)
 
   # Return the loaded datasets
@@ -170,8 +170,7 @@ create_n_inputs_grafs_spain <- function() {
 
 # GRAFS_Prod_Destiny ---------------------------------------------------------
 # Summarize and calculate new columns: Prod_MgN
-# Spread the Destiny column to separate columns for Food,
-# Feed, Other_uses, Export
+# Spread Destiny column to separate columns for Food, Feed, Other_uses, Export
 # @keywords internal
 .summarise_production <- function(grafs_prod_destiny, n_inputs_sum) {
   grafs_prod_destiny_summary <- grafs_prod_destiny |>
