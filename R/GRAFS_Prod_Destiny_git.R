@@ -252,14 +252,14 @@
   crops_residues_grazed
 }
 
-#' Semi_natural_agroecosystems: Aggregate Grazed Weeds and Production plus
-#' Used Residues from Forest, Shrubland, Dehesa, Other
-#'
-#' @param npp_ygpit_merged A data frame containing biomass data
-#'
-#' @return A tibble filtered and transformed with selected columns for
-#' semi-natural agroecosystems.
-#' @keywords internal
+# Semi_natural_agroecosystems: Aggregate Grazed Weeds and Production plus
+# Used Residues from Forest, Shrubland, Dehesa, Other
+#
+# @param npp_ygpit_merged A data frame containing biomass data
+#
+# @return A tibble filtered and transformed with selected columns for
+# semi-natural agroecosystems.
+# @keywords internal
 .aggregate_seminatural_system <- function(npp_ygpit_merged) {
   semi_natural_agroecosystems <- npp_ygpit_merged |>
     dplyr::ungroup() |>
@@ -273,9 +273,9 @@
   semi_natural_agroecosystems
 }
 
-#' Livestock Production -------------------------------------------------------
-#' @param livestock_prod_ygps A data frame including livestock production data.
-#' @keywords internal
+# Livestock Production -------------------------------------------------------
+# @param livestock_prod_ygps A data frame including livestock production data.
+# @keywords internal
 .prepare_livestock_production <- function(livestock_prod_ygps) {
   livestock <- livestock_prod_ygps |>
     dplyr::select(
