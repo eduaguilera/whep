@@ -19,6 +19,6 @@ and semi-natural ecosystems.}
 N Inputs, Production and NUE in Spain:
 This code is creating a dataset with nitrogen (N) inputs (deposition,
 fixation, synthetic, urban, manure)
-and n production in Spain between 1860 and 2020 for the GRAFS model on a
+and N production in Spain between 1860 and 2020 for the GRAFS model on a
 provincial level
 }

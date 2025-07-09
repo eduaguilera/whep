@@ -11,9 +11,9 @@
 #' Seeds were subtracted from crop production.
 #'
 #' @return
-#' A list containing all key data frames for further analysis.
+#' A tibble with N data for each Year, Province, Item, Box, and Destiny
 #'
-# @export
+#' @export
 .create_prod_and_destiny_grafs <- function() {
   data <- .load_data()
   biomass_item_merged <- .merge_items_biomass(
