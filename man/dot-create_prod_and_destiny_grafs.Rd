@@ -7,7 +7,7 @@
 .create_prod_and_destiny_grafs()
 }
 \value{
-A list containing all key data frames for further analysis.
+A tibble with N data for each Year, Province, Item, Box, and Destiny
 }
 \description{
 This code is creating a dataset, based on N production data of crops and
