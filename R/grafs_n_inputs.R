@@ -1,11 +1,10 @@
-#' @title Create N Inputs and NUE Dataset for GRAFS Spain
+#' @title N Inputs and NUE for GRAFS Spain
 #'
 #' @description
 #' N Inputs, Production and NUE in Spain:
 #' This code is creating a dataset with nitrogen (N) inputs (deposition,
-#' fixation, synthetic, urban, manure)
-#' and N production in Spain between 1860 and 2020 for the GRAFS model on a
-#' provincial level
+#' fixation, synthetic, urban, manure) and N production in Spain between
+#' 1860 and 2020 for the GRAFS model on a provincial level
 #'
 #' @return
 #' A named list with two elements:
@@ -46,18 +45,20 @@ create_n_inputs_grafs_spain <- function() {
   )
 }
 
-# N Inputs --------------------------------------------------------------------
-# load data -------------------------------------------------------------------
-# @keywords internal
+#' @title N Inputs -------------------------------------------------------------
+#' @description Loading all required data sets.
+#' @return A named list including four datasets.
+#' @keywords internal
+#' @noRd
 .load_inputs_n_inputs <- function() {
   result <-
     list(
       n_Excretion_ygs = readRDS(get_file_path("n_excretion_ygs")),
       # TODO: Excretion need to be added to dataset as an input of Livestock
       n_balance_ygpit_all = readRDS(get_file_path("n_balance_ygpit_all")),
-      grafs_prod_destiny = readr::read_csv(get_file_path(
-        "GRAFS_prod_destiny_git"
-      )),
+      grafs_prod_destiny = readr::read_csv(
+        get_file_path("GRAFS_prod_destiny_git")
+      ),
       codes_coefs = readxl::read_excel(get_file_path("codes_coefs"),
         sheet = "Names_biomass_CB"
       )
@@ -65,8 +66,10 @@ create_n_inputs_grafs_spain <- function() {
   result
 }
 
-# Assign some special items to Boxes ------------------------------------------
-# @keywords internal
+#' @title Assign some special items to Boxes -----------------------------------
+#' @return A named list with assigned items.
+#' @keywords internal
+#' @noRd
 .assign_items <- function() {
   list(
     semi_natural_agroecosystems = c(
@@ -81,9 +84,21 @@ create_n_inputs_grafs_spain <- function() {
   )
 }
 
-# Calculate n Inputs ----------------------------------------------------------
-# @keywords internal
-.calculate_n_inputs <- function(n_balance_ygpit_all, codes_coefs) {
+#' @title Calculate N Inputs ---------------------------------------------------
+#' @description Merges N balance data with items and aggregates deposition,
+#' fixation, synthetic, urban, and manure inputs for each combination of year,
+#' province, item, and box.
+#'
+#' @param n_balance_ygpit_all A data frame containing nitrogen balance data.
+#' @param codes_coefs A data frame merging biomass names to item names.
+#'
+#' @return A list with two tibbles: 'n_inputs_summary' and 'manure_summary'.
+#' @keywords internal
+#' @noRd
+.calculate_n_inputs <- function(
+  n_balance_ygpit_all,
+  codes_coefs
+) {
   categories <- .assign_items()
   firewood_biomass <- categories$Firewood_biomass
   semi_natural_agroecosystems <- categories$semi_natural_agroecosystems
@@ -145,9 +160,18 @@ create_n_inputs_grafs_spain <- function() {
   )
 }
 
-# Combine all Inputs ----------------------------------------------------------
-# @keywords internal
-.summarise_inputs <- function(n_inputs_prepared) {
+#' @title Combine all Inputs ---------------------------------------------------
+#' @description Combines different N input sources and calculates total values
+#' per year, province, item, and box.
+#'
+#' @param n_inputs_prepared A list with 'n_inputs_summary' and 'manure_summary'
+#'
+#' @return A tibble summarising nitrogen input components by item and region.
+#' @keywords internal
+#' @noRd
+.summarise_inputs <- function(
+  n_inputs_prepared
+) {
   n_inputs <- dplyr::full_join(
     n_inputs_prepared$n_inputs_summary,
     n_inputs_prepared$manure_summary,
@@ -168,11 +192,20 @@ create_n_inputs_grafs_spain <- function() {
   n_inputs_sum
 }
 
-# GRAFS_Prod_Destiny ---------------------------------------------------------
-# Summarize and calculate new columns: Prod_MgN
-# Spread Destiny column to separate columns for Food, Feed, Other_uses, Export
-# @keywords internal
-.summarise_production <- function(grafs_prod_destiny, n_inputs_sum) {
+#' @title GRAFS_Prod_Destiny ---------------------------------------------------
+#' @description Summarize and calculate new columns: Prod_MgN
+#' Spread Destiny column to separate columns for Food, Feed, Other_uses, Export
+#'
+#' @param grafs_prod_destiny Data containing production values by destiny.
+#' @param n_inputs_sum A tibble of summarized N inputs.
+#'
+#' @return A tibble with combined N input and production data.
+#' @keywords internal
+#' @noRd
+.summarise_production <- function(
+  grafs_prod_destiny,
+  n_inputs_sum
+) {
   grafs_prod_destiny_summary <- grafs_prod_destiny |>
     tidyr::pivot_wider(
       names_from = Destiny, values_from = MgN, values_fn = sum,
@@ -194,8 +227,8 @@ create_n_inputs_grafs_spain <- function() {
     dplyr::select(Year, Province_name, Item, Box, Import_MgN, Prod_MgN)
 
   # Combine with n_inputs dataset
-  n_inputs_combined <- dplyr::full_join(n_inputs_sum,
-    grafs_prod_destiny_summary,
+  n_inputs_combined <- dplyr::full_join(
+    n_inputs_sum, grafs_prod_destiny_summary,
     by = c("Year", "Province_name", "Item", "Box")
   ) |>
     dplyr::filter(!is.na(Box))
@@ -203,9 +236,19 @@ create_n_inputs_grafs_spain <- function() {
   n_inputs_combined
 }
 
-# NUE for Cropland and Semi-natural agroecosystems ----------------------------
-# @keywords internal
-.calculate_nue <- function(n_inputs_combined) {
+#' @title NUE for Cropland and Semi-natural agroecosystems ---------------------
+#' @description Calculates NUE for cropland and semi-natural agroecosystems as
+#' the ratio of production to total N input.
+#'
+#' @param n_inputs_combined A data frame combining N inputs and production.
+#'
+#' @return A tibble with calculated NUE values for cropland and semi-natural
+#' agroecosystems.
+#' @keywords internal
+#' @noRd
+.calculate_nue <- function(
+  n_inputs_combined
+) {
   nue <- n_inputs_combined |>
     dplyr::mutate(
       Inputs_MgN = MgN_dep + MgN_fix + MgN_syn + MgN_manure + MgN_urban

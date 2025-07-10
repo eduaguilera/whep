@@ -15,12 +15,13 @@
 #'
 #' @export
 create_typologies_grafs_spain <- function(
-    make_map = TRUE,
-    shapefile_path = paste0(
-      "C:/PhD/GRAFS/Production Boxes/",
-      "Final Files/Inputs/ne_10m_admin_1_states_provinces.shp"
-    ),
-    map_year = 1980) {
+  make_map = TRUE,
+  shapefile_path = paste0(
+    "C:/PhD/GRAFS/Production Boxes/",
+    "Final Files/Inputs/ne_10m_admin_1_states_provinces.shp"
+  ),
+  map_year = 1980
+) {
   inputs_dir <- "C:/PhD/GRAFS/Production Boxes/Final Files/Inputs"
 
   # Load datasets
@@ -131,6 +132,7 @@ create_typologies_grafs_spain <- function(
 }
 
 #' Load input datasets ---------------------------------------------------------
+#'
 #' @param shapefile_path The local path where the input data are located.
 #' @param inputs_dir Path to the input data directory.
 #'
@@ -180,6 +182,7 @@ create_typologies_grafs_spain <- function(
 }
 
 #' Prepare LU coefficients with Livestock_cat mapping --------------------------
+#'
 #' @param codes_coefs_df An excel file including coefficients.
 #' @keywords internal
 .prepare_lu_coefs <- function(codes_coefs_df) {
@@ -192,8 +195,8 @@ create_typologies_grafs_spain <- function(
 }
 
 #' Calculate LU_total per row --------------------------------------------------
-#' @param livestock_df A data frame containing livestock data.
 #'
+#' @param livestock_df A data frame containing livestock data.
 #' @param lu_coefs_df A data frame with livestock unit coefficients.
 #'
 #' @return A tibble with columns 'Year', 'Province_name', 'Livestock_cat',
@@ -250,8 +253,8 @@ create_typologies_grafs_spain <- function(
 }
 
 #' Calculate livestock density -------------------------------------------------
-#' @param lu_totals_df A data frame containing livestock total data.
 #'
+#' @param lu_totals_df A data frame containing livestock total data.
 #' @param area_df A data frame containing area information.
 #'
 #' @return A tibble with columns 'Year', 'Province_name', 'LU_total', 'Area_ha',
@@ -266,6 +269,7 @@ create_typologies_grafs_spain <- function(
 }
 
 #' Aggregate Productivity for Cropland -----------------------------------------
+#'
 #' @param npp_df A data frame containing columns `Year`, `Province_name`,
 #' `LandUse`,`Prod_MgN`, and `Area_ygpit_ha`.
 #'
@@ -309,6 +313,7 @@ create_typologies_grafs_spain <- function(
 }
 
 #' Aggregate Feed from Cropland -----------------------------------------------
+#'
 #' @param df A data frame containing columns `Year`, `Province_name`,
 #' `Box`, `Destiny`, and `MgN`.
 #'
@@ -371,9 +376,9 @@ create_typologies_grafs_spain <- function(
 }
 
 #' Calculate feed domestic supply ---------------------------------------------
+#'
 #' @param grafs_df A data frame containing GRAFS data with the columns Destiny',
 #' 'Year', 'Province_name', and 'MgN'.
-#'
 #' @param lu_df A data frame with land use data.
 #'
 #' @return A tibble with columns 'Year', 'Province_name', and
@@ -388,7 +393,7 @@ create_typologies_grafs_spain <- function(
       na.rm = TRUE
     ), .groups = "drop")
 
-  #' Add LU_total for use in further steps
+  # Add LU_total for use in further steps
   domestic_feed |>
     dplyr::left_join(
       lu_df |> dplyr::select(Year, Province_name, LU_total),
@@ -397,8 +402,8 @@ create_typologies_grafs_spain <- function(
 }
 
 #' Calculate feed import per province -----------------------------------------
-#' @param feed_df A data frame containing feed data.
 #'
+#' @param feed_df A data frame containing feed data.
 #' @param lu_df A data frame with land use information.
 #'
 #' @return A tibble with columns 'Year', 'Province_name', 'LU_total',
@@ -434,13 +439,16 @@ create_typologies_grafs_spain <- function(
 }
 
 #' Calculate feed share of imported/consumed feed -----------------------------
+#'
 #' @param feed_import_by_province A data frame containing imported feed data.
 #' @param domestic_feed_by_province A data frame containing domestic feed data.
 #'
 #' @return A data frame with the imported feed share.
 #' @keywords internal
-.calculate_imported_feed_share <- function(feed_import_by_province,
-                                           domestic_feed_by_province) {
+.calculate_imported_feed_share <- function(
+  feed_import_by_province,
+  domestic_feed_by_province
+) {
   feed_import_by_province |>
     dplyr::left_join(
       domestic_feed_by_province,
@@ -465,6 +473,7 @@ create_typologies_grafs_spain <- function(
 }
 
 #' Assign Typologies and optionally plot map
+#'
 #' @param livestock_density A data frame with livestock density values.
 #' @param productivity A data frame with productivity (kgN/ha) values.
 #' @param semi_nat_share A data frame with semi-natural agroecosystem share.
@@ -476,8 +485,9 @@ create_typologies_grafs_spain <- function(
 #' typology for the specified year.
 #' @keywords internal
 .assign_decision_tree <- function(
-    livestock_density, productivity, semi_nat_share, imported_feed_share,
-    sf_provinces, year) {
+  livestock_density, productivity, semi_nat_share, imported_feed_share,
+  sf_provinces, year
+) {
   typologies <- livestock_density |>
     dplyr::inner_join(productivity, by = c("Year", "Province_name")) |>
     dplyr::inner_join(semi_nat_share, by = c("Year", "Province_name")) |>
@@ -554,4 +564,44 @@ create_typologies_grafs_spain <- function(
     Typologies_map = map,
     Typologies_all_years = typologies_all_years
   )
+}
+
+
+# Create bar plots for N inputs per typology and year
+.create_bar_plots_typologies <- function(n_inputs_data,
+                                         typologies, output_dir = NULL) {
+  # Merging n_inputs_data with typologies (per Year and Province_name)
+  typologies <- n_inputs_data %>%
+    inner_join(typologies, by = c("Year", "Province_name"))
+
+  bar_plot_data <- typologies %>%
+    group_by(Typology, Year) %>%
+    summarise(
+      MgN_dep = sum(MgN_dep, na.rm = TRUE),
+      MgN_fix = sum(MgN_fix, na.rm = TRUE),
+      MgN_syn = sum(MgN_syn, na.rm = TRUE),
+      .groups = "drop"
+    ) %>%
+    pivot_longer(
+      cols = c(MgN_dep, MgN_fix, MgN_syn),
+      names_to = "n_input",
+      values_to = "MgN_amount"
+    )
+
+  # Stacked Bar Plot erstellen
+  p <- ggplot(bar_plot_data, aes(x = factor(Year), y = MgN_amount, fill = n_input)) +
+    geom_bar(stat = "identity") +
+    facet_wrap(~Typology) +
+    labs(
+      title = "Stacked Barplots of N_Inputs per Typology",
+      x = "Year",
+      y = "MgN",
+      fill = "Input"
+    ) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+  print(p)
+
+  return(p)
 }
