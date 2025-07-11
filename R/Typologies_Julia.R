@@ -321,7 +321,7 @@ create_typologies_grafs_spain <- function(
     ), .groups = "drop")
 }
 
-#' @title Aggregate Feed from Cropland ----------------------------------------------
+#' @title Aggregate Feed from Cropland ----------------------------------------
 #'
 #' @param df A data frame containing columns `Year`, `Province_name`,
 #' `Box`, `Destiny`, and `MgN`.
