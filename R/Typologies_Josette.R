@@ -1,4 +1,4 @@
-#' Typologies of Josette
+#' @title Typologies of Josette
 #'
 #' @description
 #' Creates typologies of provinces in Spain based on nitrogen (N) production
@@ -15,12 +15,13 @@
 #'
 #' @export
 create_typologies_of_josette <- function(
-    make_map = TRUE,
-    shapefile_path = paste0(
-      "C:/PhD/GRAFS/Production Boxes/",
-      "Final Files/Inputs/ne_10m_admin_1_states_provinces.shp"
-    ),
-    map_year = 1980) {
+  make_map = TRUE,
+  shapefile_path = paste0(
+    "C:/PhD/GRAFS/Production Boxes/",
+    "Final Files/Inputs/ne_10m_admin_1_states_provinces.shp"
+  ),
+  map_year = 1980
+) {
   inputs_dir <- "C:/PhD/GRAFS/Production Boxes/Final Files/Inputs"
 
   # Load datasets
@@ -78,10 +79,13 @@ create_typologies_of_josette <- function(
 }
 
 
-#' Load input datasets ---------------------------------------------------------
+#' @title Load input datasets -------------------------------------------------
+#' @description Loads all necessary datasets, including shapefiles for
+#' Spanish provinces.
 #' @param shapefile_path The local path where the input data are located.
 #' @param inputs_dir Path to the input data directory.
 #' @keywords internal
+#' @noRd
 .load_inputs_josette <- function(inputs_dir, shapefile_path) {
   layer_name <- tools::file_path_sans_ext(basename(shapefile_path))
 
@@ -108,8 +112,14 @@ create_typologies_of_josette <- function(
   )
 }
 
-# Calculate food consumption and total production
-# @keywords internal
+#' @title Calculate food consumption and total production----------------------
+#' @description Calculated N from food consumption and agricultural
+#' production per province and year.
+#' @param grafs_prod_destiny_git Data frame containing nitrogen data by
+#' destiny and box.
+#' @return A list with two tibbles: `food_consumption` and `production`
+#' @keywords internal
+#' @noRd
 .calculate_consumption_prod <- function(grafs_prod_destiny_git) {
   # Food consumption
   food_consumption <- grafs_prod_destiny_git |>
@@ -143,7 +153,12 @@ create_typologies_of_josette <- function(
   )
 }
 
-# @keywords internal
+#' @title Calculate Crop Production and Animal Feed Ingestion------------------
+#' @description Calculates total cropland N production and N ingested by animals
+#' @param grafs_prod_destiny_git Data frame containing N data by destiny and box
+#' @return A list with two tibbles: `cropland_prod` and `animal_ingestion`.
+#' @keywords internal
+#' @noRd
 .calculate_crop_prod_feed <- function(grafs_prod_destiny_git) {
   # Cropland  production
   cropland_prod <- grafs_prod_destiny_git |>
@@ -176,7 +191,8 @@ create_typologies_of_josette <- function(
   )
 }
 
-#' Decision: Livestock density > 1 LU/ha UAA & >33% animal feed from imports
+#' @title Decision: Livestock density > 1 LU/ha UAA & >33% animal feed
+#' from imports
 #'
 #' @description
 #' Calculates livestock unit totals, livestock density per UAA (Utilized
@@ -196,8 +212,10 @@ create_typologies_of_josette <- function(
 #' @return A list containing LU per province and year, Livestock Density,
 #' share of imported feed
 #' @keywords internal
+#' @noRd
 .calculate_imported_feed <- function(
-    livestock_df, codes_coefs_df, npp_df, feed_df, destiny_df) {
+  livestock_df, codes_coefs_df, npp_df, feed_df, destiny_df
+) {
   lu_coefs <- .prepare_lu_coefs(codes_coefs_df)
   lu_detailed <- .calculate_lu_totals(livestock_df, lu_coefs)
   lu_totals <- .aggregate_lu_totals(lu_detailed)
@@ -225,8 +243,13 @@ create_typologies_of_josette <- function(
   )
 }
 
-# Decision: >50% animal feed from Semi-natural agroecosystems
-# @keywords internal
+#' @title Decision: >50% animal feed from Semi-natural agroecosystems
+#' @description Calculates the share of feed N that comes from semi-natural
+#' agroecosystems.
+#' @param destiny_df Data frame of N data by destiny and box.
+#' @return A tibble with `Year`, `Province_name`, and `SemiNatural_feed_share`.
+#' @keywords internal
+#' @noRd
 .calculate_natural_feed_share <- function(destiny_df) {
   seminatural_feed <- destiny_df |>
     dplyr::filter(Destiny == "Feed", Box == "Semi_natural_agroecosystems") |>
@@ -250,9 +273,13 @@ create_typologies_of_josette <- function(
   seminatural_share_df
 }
 
-# Decision: >25% animal feed from local crop ---------------------------------
-# Calculate domestic feed supply per province
-# @keywords internal
+#' @title Decision: >25% animal feed from local crop ---------------------------
+#' @description Calculate domestic feed supply by province.
+#' @param feed_df Data frame of feed data (PIE_FullDestinies_FM).
+#' @param lu_df Data frame with livestock unit totals per province and year.
+#' @return A tibble with domestic feed share.
+#' @keywords internal
+#' @noRd
 .calculate_feed_domestic_share <- function(feed_df, lu_df) {
   # Filter relevant feed data: Production, Exports and
   # Imports destined for feed use
@@ -300,9 +327,12 @@ create_typologies_of_josette <- function(
 }
 
 
-
-# Decision: >25% cropland N input from manure
-# @keywords internal
+#' @title Decision: >25% cropland N input from manure--------------------------
+#' @description Calculates the share of cropland N inputs, coming from manure.
+#' @param n_input_df Data frame of N inputs.
+#' @return A tibble with `Year`, `Province_name`, and `Manure_share`.
+#' @keywords internal
+#' @noRd
 .calculate_manure_share <- function(n_input_df) {
   cropland_n_inputs <- n_input_df |>
     dplyr::filter(Box == "Cropland") |>
@@ -322,8 +352,13 @@ create_typologies_of_josette <- function(
   cropland_n_inputs
 }
 
-# Assign Typologies
-# @keywords internal
+#' @title Assign Typologies----------------------------------------------------
+#' @description Applies classifications to assign each province to one of the
+#' typologies.
+#' @param df A tibble containing all required indicator variables.
+#' @return A tibble with `Year`, `Province_name`, and `Typology`.
+#' @keywords internal
+#' @noRd
 .assign_typologies <- function(df) {
   df |>
     dplyr::mutate(
@@ -342,10 +377,18 @@ create_typologies_of_josette <- function(
     dplyr::select(Year, Province_name, Typology)
 }
 
-# Create map
-# @keywords internal
+#' @title Create map-----------------------------------------------------------
+#' @description Generates a map of typologies for Spanish provinces for a
+#' specified year using ggplot2 and sf.
+#' @param typologies_df A tibble with province-level typologies.
+#' @param shapefile_path Path to the shapefile.
+#' @param map_year Year for which the map should be drawn.
+#' @return A ggplot2 object displaying the typology map.
+#' @keywords internal
+#' @noRd
 .create_typologies_map_josette <- function(
-    typologies_df, shapefile_path, map_year) {
+  typologies_df, shapefile_path, map_year
+) {
   layer_name <- tools::file_path_sans_ext(basename(shapefile_path))
 
   sf_provinces <- sf::st_read(shapefile_path, query = paste0(
