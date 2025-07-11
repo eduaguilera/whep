@@ -131,12 +131,13 @@ create_typologies_grafs_spain <- function(
   )
 }
 
-#' Load input datasets ---------------------------------------------------------
+#' @title Load input datasets --------------------------------------------------
 #'
 #' @param shapefile_path The local path where the input data are located.
 #' @param inputs_dir Path to the input data directory.
 #'
 #' @keywords internal
+#' @noRd
 .load_inputs <- function(inputs_dir, shapefile_path) {
   layer_name <- tools::file_path_sans_ext(basename(shapefile_path))
 
@@ -163,9 +164,10 @@ create_typologies_grafs_spain <- function(
   )
 }
 
-#' Mapping: Livestock_cat (from livestock data) to Animal_class
+#' @title Mapping: Livestock_cat (from livestock data) to Animal_class
 #' (from coefficients)
 #' @keywords internal
+#' @noRd
 .create_livestockcat_mapping <- function() {
   tibble::tribble(
     ~Livestock_cat,    ~Animal_class,
@@ -181,10 +183,11 @@ create_typologies_grafs_spain <- function(
   )
 }
 
-#' Prepare LU coefficients with Livestock_cat mapping --------------------------
+#' @title Prepare LU coefficients with Livestock_cat mapping -------------------
 #'
 #' @param codes_coefs_df An excel file including coefficients.
 #' @keywords internal
+#' @noRd
 .prepare_lu_coefs <- function(codes_coefs_df) {
   mapping <- .create_livestockcat_mapping()
 
@@ -194,7 +197,7 @@ create_typologies_grafs_spain <- function(
     dplyr::distinct()
 }
 
-#' Calculate LU_total per row --------------------------------------------------
+#' @title Calculate LU_total per row -------------------------------------------
 #'
 #' @param livestock_df A data frame containing livestock data.
 #' @param lu_coefs_df A data frame with livestock unit coefficients.
@@ -202,6 +205,7 @@ create_typologies_grafs_spain <- function(
 #' @return A tibble with columns 'Year', 'Province_name', 'Livestock_cat',
 #' 'Animal_class', Stock_Number', 'LU_head', and 'LU_total'.
 #' @keywords internal
+#' @noRd
 .calculate_lu_totals <- function(livestock_df, lu_coefs_df) {
   livestock_df |>
     dplyr::select(Year, Province_name, Livestock_cat, Stock_Number) |>
@@ -214,8 +218,8 @@ create_typologies_grafs_spain <- function(
     dplyr::distinct()
 }
 
-#' Aggregate LU_total ----------------------------------------------------------
-#' Aggregates total land use (LU_total) by year and province.
+#' @title Aggregate LU_total ---------------------------------------------------
+#' @description Aggregates total land use (LU_total) by year and province.
 #'
 #' @param lu_detailed_df A data frame containing columns `Year`,
 #' `Province_name`, and `LU_total`.
@@ -223,6 +227,7 @@ create_typologies_grafs_spain <- function(
 #' @return A tibble with total land use summed for each year and province,
 #' sorted by year and province.
 #' @keywords internal
+#' @noRd
 .aggregate_lu_totals <- function(lu_detailed_df) {
   lu_aggregated <- lu_detailed_df |>
     dplyr::group_by(Year, Province_name) |>
@@ -235,14 +240,15 @@ create_typologies_grafs_spain <- function(
   lu_aggregated
 }
 
-#' Aggregate Area AA -----------------------------------------------------------
-#' Aggregates the area (`Area_ygpit_ha`) by year and province.
+#' @title Aggregate Area AA ----------------------------------------------------
+#' @description Aggregates the area (`Area_ygpit_ha`) by year and province.
 #'
 #' @param npp_df A data frame containing the columns `Year`, `Province_name`,
 #' and `Area_ygpit_ha`.
 #'
 #' @return A tibble with the sum of areas per year and province.
 #' @keywords internal
+#' @noRd
 .aggregate_area_aa <- function(npp_df) {
   npp_df |>
     dplyr::group_by(Year, Province_name) |>
@@ -252,7 +258,7 @@ create_typologies_grafs_spain <- function(
     ), .groups = "drop")
 }
 
-#' Calculate livestock density -------------------------------------------------
+#' @title Calculate livestock density ------------------------------------------
 #'
 #' @param lu_totals_df A data frame containing livestock total data.
 #' @param area_df A data frame containing area information.
@@ -260,6 +266,7 @@ create_typologies_grafs_spain <- function(
 #' @return A tibble with columns 'Year', 'Province_name', 'LU_total', 'Area_ha',
 #' and 'Livestock_density' (LU_total divided by Area_ha).
 #' @keywords internal
+#' @noRd
 .calculate_livestock_density <- function(lu_totals_df, area_df) {
   lu_totals_df |>
     dplyr::left_join(area_df, by = c("Year", "Province_name")) |>
@@ -268,7 +275,7 @@ create_typologies_grafs_spain <- function(
     dplyr::arrange(Year, Province_name)
 }
 
-#' Aggregate Productivity for Cropland -----------------------------------------
+#' @title Aggregate Productivity for Cropland ----------------------------------
 #'
 #' @param npp_df A data frame containing columns `Year`, `Province_name`,
 #' `LandUse`,`Prod_MgN`, and `Area_ygpit_ha`.
@@ -276,6 +283,7 @@ create_typologies_grafs_spain <- function(
 #' @return A tibble grouped by year and province with total production,
 #' total cropland area, and productivity in kg N per hectare.
 #' @keywords internal
+#' @noRd
 .aggregate_crop_productivity <- function(npp_df) {
   cropland_prod <- npp_df |>
     dplyr::filter(LandUse == "Cropland") |>
@@ -293,8 +301,8 @@ create_typologies_grafs_spain <- function(
   cropland_prod
 }
 
-#' Aggregate Feed from Semi natural agroecosystems for Grassland > 60% of
-#' Livestock intake from Grassland
+#' @title Aggregate Feed from Semi natural agroecosystems for Grassland > 60%
+#' of Livestock intake from Grassland
 #'
 #' @param df A data frame containing columns `Year`, `Province_name`, `Box`,
 #' `Destiny`, and `MgN`.
@@ -302,6 +310,7 @@ create_typologies_grafs_spain <- function(
 #' @return A tibble grouped by year and province with the total feed nitrogen
 #' (MgN) from semi-natural agroecosystems.
 #' @keywords internal
+#' @noRd
 .aggregate_semi_nat_feed_mgn <- function(df) {
   df |>
     dplyr::filter(Box == "Semi_natural_agroecosystems", Destiny == "Feed") |>
@@ -312,7 +321,7 @@ create_typologies_grafs_spain <- function(
     ), .groups = "drop")
 }
 
-#' Aggregate Feed from Cropland -----------------------------------------------
+#' @title Aggregate Feed from Cropland ----------------------------------------------
 #'
 #' @param df A data frame containing columns `Year`, `Province_name`,
 #' `Box`, `Destiny`, and `MgN`.
@@ -320,6 +329,7 @@ create_typologies_grafs_spain <- function(
 #' @return A tibble grouped by year and province with the total cropland feed
 #' nitrogen (MgN).
 #' @keywords internal
+#' @noRd
 .aggregate_cropland_feed_mgn <- function(df) {
   df |>
     dplyr::filter(Box == "Cropland", Destiny == "Feed") |>
@@ -337,6 +347,7 @@ create_typologies_grafs_spain <- function(
 #'
 #' @return A tibble with total feed nitrogen (MgN) summed by year and province.
 #' @keywords internal
+#' @noRd
 .aggregate_total_feed_mgn <- function(df) {
   df |>
     dplyr::filter(
@@ -351,7 +362,8 @@ create_typologies_grafs_spain <- function(
     dplyr::arrange(Year, Province_name)
 }
 
-#' Calculate Feed share (between semi natural agroecosystems and total feed)
+#' @title Calculate Feed share (between semi natural agroecosystems and total
+#' feed)
 #'
 #' @param df A data frame containing nitrogen data with columns including
 #' `Year`, `Province_name`, `Destiny`, `Box`, and `MgN`.
@@ -359,6 +371,7 @@ create_typologies_grafs_spain <- function(
 #' @return A data frame including the share of feed from semi natural
 #' agroecosystems
 #' @keywords internal
+#' @noRd
 .calculate_semi_nat_feed_share <- function(df) {
   total_feed <- .aggregate_total_feed_mgn(df)
   semi_nat_feed <- .aggregate_semi_nat_feed_mgn(df)
@@ -375,7 +388,7 @@ create_typologies_grafs_spain <- function(
     dplyr::arrange(Year, Province_name)
 }
 
-#' Calculate feed domestic supply ---------------------------------------------
+#' @title Calculate feed domestic supply ---------------------------------------
 #'
 #' @param grafs_df A data frame containing GRAFS data with the columns Destiny',
 #' 'Year', 'Province_name', and 'MgN'.
@@ -384,6 +397,7 @@ create_typologies_grafs_spain <- function(
 #' @return A tibble with columns 'Year', 'Province_name', and
 #' 'Domestic_feed_MgN' representing the total domestic feed supply in MgN.
 #' @keywords internal
+#' @noRd
 .calculate_feed_domest_supply <- function(grafs_df, lu_df) {
   domestic_feed <- grafs_df |>
     dplyr::filter(Destiny == "Feed") |>
@@ -401,7 +415,7 @@ create_typologies_grafs_spain <- function(
     )
 }
 
-#' Calculate feed import per province -----------------------------------------
+#' @title Calculate feed import per province -----------------------------------
 #'
 #' @param feed_df A data frame containing feed data.
 #' @param lu_df A data frame with land use information.
@@ -410,6 +424,7 @@ create_typologies_grafs_spain <- function(
 #' 'LU_share', and 'Feed_import_MgN', where 'Feed_import_MgN' is the estimated
 #'  feed import allocated to each province.
 #' @keywords internal
+#' @noRd
 .calculate_feed_import_share <- function(feed_df, lu_df) {
   feed_filtered <- feed_df |>
     dplyr::filter(Element == "Import", Destiny == "Feed") |>
@@ -438,13 +453,14 @@ create_typologies_grafs_spain <- function(
   feed_import_by_province
 }
 
-#' Calculate feed share of imported/consumed feed -----------------------------
+#' @title Calculate feed share of imported/consumed feed -----------------------
 #'
 #' @param feed_import_by_province A data frame containing imported feed data.
 #' @param domestic_feed_by_province A data frame containing domestic feed data.
 #'
 #' @return A data frame with the imported feed share.
 #' @keywords internal
+#' @noRd
 .calculate_imported_feed_share <- function(
   feed_import_by_province,
   domestic_feed_by_province
@@ -472,7 +488,7 @@ create_typologies_grafs_spain <- function(
     )
 }
 
-#' Assign Typologies and optionally plot map
+#' @title Assign Typologies and optionally plot map----------------------------
 #'
 #' @param livestock_density A data frame with livestock density values.
 #' @param productivity A data frame with productivity (kgN/ha) values.
@@ -484,6 +500,7 @@ create_typologies_grafs_spain <- function(
 #' @return A tibble with province names and their assigned farming system
 #' typology for the specified year.
 #' @keywords internal
+#' @noRd
 .assign_decision_tree <- function(
   livestock_density, productivity, semi_nat_share, imported_feed_share,
   sf_provinces, year
