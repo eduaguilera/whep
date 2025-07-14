@@ -1,19 +1,30 @@
-#' @title N Inputs and NUE for GRAFS Spain
+#' @title Nitrogen (N) inputs and Nitrogen Use Efficiency (NUE) for GRAFS Spain
 #'
 #' @description
-#' N Inputs, Production and NUE in Spain:
-#' This code is creating a dataset with nitrogen (N) inputs (deposition,
-#' fixation, synthetic, urban, manure) and N production in Spain between
-#' 1860 and 2020 for the GRAFS model on a provincial level
+#' N inputs (deposition, fixation, synthetic fertilizers, urban sources, manure)
+#' and N production in Spain between 1860 and 2020 for the GRAFS model at the
+#' provincial level. Nitrogen use efficiency (NUE) is also calculated for
+#' cropland and semi-natural ecosystems.
 #'
-#' @return
-#' A named list with two elements:
-#' \describe{
-#'   \item{n_inputs_combined}{A tibble with nitrogen input and production data
-#'   by year, province, item, and box.}
-#'   \item{nue}{A tibble with calculated nitrogen use efficiency for cropland
-#'   and semi-natural ecosystems.}
-#' }
+#' @returns
+#' A named list with one element:
+#' - `nue`: A tibble containing nitrogen input, production, and NUE data.
+#'   It includes the following columns:
+#'   - `Year`: The year in which the recorded event occurred.
+#'   - `Province_name`: The Spanish province where the data is from.
+#'   - `Item`: The item which was produced, defined in `codes_coefs`.
+#'   - `Box`: One of the two systems of the GRAFS model: cropland or
+#'            semi-natural agroecosystems.
+#'   - `MgN_dep`: Atmospheric nitrogen deposition in megagrams (Mg).
+#'   - `MgN_fix`: Nitrogen fixation in megagrams (Mg).
+#'   - `MgN_syn`: Synthetic nitrogen fertilizer applied to the land in megagrams
+#'               (Mg).
+#'   - `MgN_manure`: Nitrogen in manure applied to the land in megagrams (Mg).
+#'   - `MgN_urban`: Nitrogen in wastewater from human sources in megagrams (Mg).
+#'   - `Import_MgN`: Imported nitrogen in megagrams (Mg).
+#'   - `Prod_MgN`: Produced nitrogen in megagrams (Mg).
+#'   - `Inputs_MgN`: Total nitrogen inputs in megagrams (Mg).
+#'   - `nue`: Nitrogen use efficiency, expressed in percent.
 #'
 #' @export
 create_n_inputs_grafs_spain <- function() {
@@ -193,8 +204,8 @@ create_n_inputs_grafs_spain <- function() {
 }
 
 #' @title GRAFS_Prod_Destiny ---------------------------------------------------
-#' @description Summarize and calculate new columns: Prod_MgN
-#' Spread Destiny column to separate columns for Food, Feed, Other_uses, Export
+#' @description Summarizes and calculates new columns: Prod_MgN
+#' Spread Destiny column to separate columns for Food, Feed, Other_uses, Export.
 #'
 #' @param grafs_prod_destiny Data containing production values by destiny.
 #' @param n_inputs_sum A tibble of summarized N inputs.

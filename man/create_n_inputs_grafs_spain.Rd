@@ -2,22 +2,37 @@
 % Please edit documentation in R/grafs_n_inputs.R
 \name{create_n_inputs_grafs_spain}
 \alias{create_n_inputs_grafs_spain}
-\title{N Inputs and NUE for GRAFS Spain}
+\title{Nitrogen (N) inputs and Nitrogen Use Efficiency (NUE) for GRAFS Spain}
 \usage{
 create_n_inputs_grafs_spain()
 }
 \value{
-A named list with two elements:
-\describe{
-\item{n_inputs_combined}{A tibble with nitrogen input and production data
-by year, province, item, and box.}
-\item{nue}{A tibble with calculated nitrogen use efficiency for cropland
-and semi-natural ecosystems.}
+A named list with one element:
+\itemize{
+\item \code{nue}: A tibble containing nitrogen input, production, and NUE data.
+It includes the following columns:
+\itemize{
+\item \code{Year}: The year in which the recorded event occurred.
+\item \code{Province_name}: The Spanish province where the data is from.
+\item \code{Item}: The item which was produced, defined in \code{codes_coefs}.
+\item \code{Box}: One of the two systems of the GRAFS model: cropland or
+semi-natural agroecosystems.
+\item \code{MgN_dep}: Atmospheric nitrogen deposition in megagrams (Mg).
+\item \code{MgN_fix}: Nitrogen fixation in megagrams (Mg).
+\item \code{MgN_syn}: Synthetic nitrogen fertilizer applied to the land in megagrams
+(Mg).
+\item \code{MgN_manure}: Nitrogen in manure applied to the land in megagrams (Mg).
+\item \code{MgN_urban}: Nitrogen in wastewater from human sources in megagrams (Mg).
+\item \code{Import_MgN}: Imported nitrogen in megagrams (Mg).
+\item \code{Prod_MgN}: Produced nitrogen in megagrams (Mg).
+\item \code{Inputs_MgN}: Total nitrogen inputs in megagrams (Mg).
+\item \code{nue}: Nitrogen use efficiency, expressed in percent.
+}
 }
 }
 \description{
-N Inputs, Production and NUE in Spain:
-This code is creating a dataset with nitrogen (N) inputs (deposition,
-fixation, synthetic, urban, manure) and N production in Spain between
-1860 and 2020 for the GRAFS model on a provincial level
+N inputs (deposition, fixation, synthetic fertilizers, urban sources, manure)
+and N production in Spain between 1860 and 2020 for the GRAFS model at the
+provincial level. Nitrogen use efficiency (NUE) is also calculated for
+cropland and semi-natural ecosystems.
 }

@@ -22,7 +22,7 @@ create_typologies_of_josette(
 A tibble with the typology classification per year and province.
 }
 \description{
-Creates typologies of provinces in Spain based on nitrogen (N) production
+Typologies of provinces in Spain based on nitrogen (N) production
 data of crops and livestock, considering multiple data inputs and
 producing classification maps and data frames.
 }

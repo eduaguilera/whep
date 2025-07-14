@@ -19,10 +19,31 @@ create_typologies_grafs_spain(
 \item{map_year}{The year for which the typology map is created.}
 }
 \value{
-A tibble with the typology classification for each year and province.
+A tibble with the classification of Spanish provinces into typologies.
+It contains the following columns:
+\itemize{
+\item \code{year}: The year in which the classification is performed.
+\item \code{province_name}: The name of the Spanish province.
+\item \code{livestock_density}: Livestock units (LU) per hectare of agricultural area
+(UAA). Reflects the intensity of animal farming.
+\item \code{productivity_kgN_ha}: Crop N productivity, in kilograms of N harvested
+per hectare of cropland.
+\item \code{semi_nat_share}: Share of total feed coming from semi-natural
+agroecosystems. Expressed between 0 and 1.
+\item \code{feed_imported_share}: Share of feed that is imported. Expressed between
+0 and 1.
+\item \code{typology}: Assigned typology category for each province.
+This is based on thresholds in livestock density, crop
+productivity, and feed patterns. The typologies include:
+- \verb{Specialized cropping system}
+- \verb{Extensive cropping system}
+- \verb{Extensive mixed crop-livestock system}
+- \verb{Intensive mixed crop-livestock system}
+- \verb{Specialized livestock-farming system}
+}
 }
 \description{
-Creates typologies of provinces in Spain based on nitrogen (N) production
+Typologies of provinces in Spain based on nitrogen (N) production
 data of crops and livestock, using various input datasets and generating
 classification maps and data frames.
 }

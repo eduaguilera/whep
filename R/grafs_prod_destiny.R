@@ -1,17 +1,25 @@
-#' @title GRAFS production and destiny
+#' @title GRAFS Nitrogen (N) production and their destinies
 #'
 #' @description
-#' This code is creating a dataset, based on N production data of crops and
-#' livestock, which represents the following destinies:
-#' food, feed, other uses, exports, imports.
-#' This is the base of the GRAFS model.
-#' The dataset contains data in MgN for each year, province, item, and box
-#' (cropland, semi natural agroecosystems, livestock, fish, additives).
-#' Processed items, residues, woody crops, grazed weeds are taken into account.
-#' Seeds were subtracted from crop production.
+#' Provides N production of crops and livestock, categorized by their destinies:
+#'  food, feed, other uses, exports, imports, which is the base of the
+#'  GRAFS model. The dataset contains data in megagrams of N (MgN) for each
+#'  year, province, item, and box (cropland, semi natural agroecosystems,
+#'  livestock, fish, additives). Processed items, residues, woody crops,
+#'  grazed weeds are taken into account.
 #'
 #' @return
-#' A tibble with N data for each Year, Province, Item, Box, and Destiny
+#' A named list with one element:
+#' - `n_prod_destiny`: A tibble containing nitrogen production data by destiny.
+#'   It includes the following columns:
+#'   - `year`: The year in which the recorded event occurred.
+#'   - `province_name`: The Spanish province where the data is from.
+#'   - `item`: The item which was produced, defined in `codes_coefs`.
+#'   - `box`: One of the GRAFS model systems: cropland,
+#'            Semi-natural agroecosystems, Livestock, Fish, or Additives.
+#'   - `destiny`: The use category of the nitrogen: Food, Feed, Other_uses,
+#'                Export, or Import.
+#'   - `MgN`: Nitrogen amount in megagrams (Mg).
 #'
 #' @export
 create_prod_and_destiny_grafs <- function() {
@@ -62,7 +70,7 @@ create_prod_and_destiny_grafs <- function() {
     combined_destinies, data$codes_coefs_items_full, data$biomass_coefs
   )
   trade <- .calculate_trade(converted_items_n)
-  final_data <- .finalize_prod_destiny(trade, data$codes_coefs_items_full)
+  n_prod_destiny <- .finalize_prod_destiny(trade, data$codes_coefs_items_full)
 
 
   list(
@@ -83,7 +91,7 @@ create_prod_and_destiny_grafs <- function() {
     combined_destinies = combined_destinies,
     converted_items_n = converted_items_n,
     trade = trade,
-    final_data = final_data
+    n_prod_destiny = n_prod_destiny
   )
 }
 
@@ -137,7 +145,7 @@ create_prod_and_destiny_grafs <- function() {
 }
 
 #' @title Production of Cropland, Livestock, and Semi-natural agroecosystems
-#' @description Merge items with biomasses
+#' @description Merge items with biomasses.
 #'
 #' @param crop_area_npp_ygpit_all Data frame with cropland area and N data.
 #' @param npp_ygpit_csv Data frame with N data.
@@ -216,9 +224,10 @@ create_prod_and_destiny_grafs <- function() {
 #' @title Combining crops, residues, feed (grass, fallow) production -----------
 #'
 #' @param npp_ygpit_merged NPP merged data including cropland and fallow.
-#' @param crop_area_npp_prod_residue Data frame with crop production and residue
+#' @param crop_area_npp_prod_residue Data frame with crop production and
+#' residue.
 #'
-#' @return A data frame combining production, residues, and grazed biomass
+#' @return A data frame combining production, residues, and grazed biomass.
 #' @keywords internal
 #' @noRd
 .aggregate_grazed_cropland <- function(
@@ -280,9 +289,9 @@ create_prod_and_destiny_grafs <- function() {
 
 #' @title Semi_natural_agroecosystems
 #' @description Aggregate Grazed Weeds and Production plus Used Residues from
-#' Forest, Shrubland, Dehesa, Other
+#' Forest, Shrubland, Dehesa, Other.
 #'
-#' @param npp_ygpit_merged A data frame containing biomass data
+#' @param npp_ygpit_merged A data frame containing biomass data.
 #'
 #' @return A tibble filtered and transformed with selected columns for
 #' semi-natural agroecosystems.
@@ -424,13 +433,13 @@ create_prod_and_destiny_grafs <- function() {
 
 #' @title Structuring dataset (GrazedWeeds und Used_Residues in ProductionFM)
 #' @description Rename Prod_Residue_Product_Mg to Production_FM and replace
-#' Production_FM with GrazedWeeds_MgDM (for Fallow)
+#' Production_FM with GrazedWeeds_MgDM (for Fallow).
 #'
 #' @param grafs_prod_combined_no_seeds Data frame of production without seeds.
 #' @param biomass_coefs Data frame containing conversion coefficients for
 #' biomass (FM to DM and DM to N).
 #'
-#' @return A data frame with added grass and wood production
+#' @return A data frame with added grass and wood production.
 #' @keywords internal
 #' @noRd
 .adding_grass_wood <- function(
@@ -536,7 +545,7 @@ create_prod_and_destiny_grafs <- function() {
 
 #' @title Processed Items ------------------------------------------------------
 #' @description Summarise processed items by Year, Province, Biomass,
-#' Item & ProcessedItem
+#' Item & ProcessedItem.
 #'
 #' @param processed_prov_fixed Data frame containing data for processed items.
 #'
@@ -606,7 +615,7 @@ create_prod_and_destiny_grafs <- function() {
 
 #' @title Convert Fresh Matter (FM) to Dry Matter (DM) and finally to N
 #' @description Define a list of special items that require using the primary
-#' biomass name for selecting conversion coefficients
+#' biomass name for selecting conversion coefficients.
 #'
 #' @param added_grass_wood_merged Data frame with production values and biomass.
 #' @param biomass_coefs Data frame with FM→DM and DM→N conversion coefficients
@@ -678,7 +687,7 @@ create_prod_and_destiny_grafs <- function() {
 #' @title Consumption (Destinies) ---------------------------------------------
 #'
 #' @description Intake Livestock: sum all data (FM_Mg) for the same Year,
-#' Province_name, Item
+#' Province_name, Item.
 #' Comment!!! Feed from all animals are summed together, also from pets.
 #' Do they have to be assigned to humans?
 #'
@@ -701,9 +710,9 @@ create_prod_and_destiny_grafs <- function() {
 #' @title Popoulation
 #' @description Use column Pop_Mpeop_yg. Calculate the share of population
 #' (population in each province divided through whole population in
-#' Spain to get the share)
+#' Spain to get the share).
 #'
-#' @param population_share A data frame with population data.ç
+#' @param population_share A data frame with population data.
 #'
 #' @return A data frame including population shares.
 #' @keywords internal
@@ -727,7 +736,7 @@ create_prod_and_destiny_grafs <- function() {
 }
 
 #' @title Food -----------------------------------------------------------------
-#' @description Sum all Elements for Food and multiply with population share
+#' @description Sum all Elements for food and multiply with population share
 #'
 #' @param pie_full_destinies_fm A data frame containing domestic supply food.
 #' @param population_share A data frame containing population share by province.
@@ -760,9 +769,9 @@ create_prod_and_destiny_grafs <- function() {
 }
 
 #' @title Other_uses -----------------------------------------------------------
-#' @description Sum all Elements for Other_uses and multiply with pop share
+#' @description Sum all elements for Other_uses and multiply with pop share.
 #'
-#' @param pie_full_destinies_fm A data frame containing domestic supply
+#' @param pie_full_destinies_fm A data frame containing domestic supply.
 #' other uses.
 #' @param population_share A data frame containing population share by province.
 #'
@@ -822,12 +831,13 @@ create_prod_and_destiny_grafs <- function() {
 
 #' @title Finalizing data
 #' @description Final merging of Item and Name_biomass and converting FM to DM,
-#' and DM to N
+#' and DM to N.
 #'
 #' @param grafs_prod_item_combined Data frame with FM values for food, feed,
 #' and other uses.
 #' @param codes_coefs_items_full Data frame linking items to biomass names.
-#' @param biomass_coefs Data frame including conversion factors (DM/FM and N/DM)
+#' @param biomass_coefs Data frame including conversion factors
+#' (DM/FM and N/DM).
 #'
 #' @return A data frame with food, feed, and other uses in MgN.
 #' @keywords internal
@@ -869,9 +879,10 @@ create_prod_and_destiny_grafs <- function() {
 }
 
 #' @title Consumption and Trade
-#' @description Calculation of consumption by destiny and trade (export, import)
+#' @description Calculation of consumption by destiny and trade
+#' (export, import).
 #'
-#' @param grafs_prod_item_n A data frame with N values (MgN) by desntiny.
+#' @param grafs_prod_item_n A data frame with N values (MgN) by destiny.
 #'
 #' @return A data frame with consumption, exports, and imports in MgN.
 #' @keywords internal
@@ -903,7 +914,7 @@ create_prod_and_destiny_grafs <- function() {
 #' @param grafs_prod_item_trade A data frame containing N trade data.
 #' @param codes_coefs_items_full A data frame used to assign items to biomasses.
 #'
-#' @return A final data frame with N data by year, province, box, destiny
+#' @return A final data frame with N data by year, province, box, destiny.
 #' @keywords internal
 #' @noRd
 .finalize_prod_destiny <- function(
