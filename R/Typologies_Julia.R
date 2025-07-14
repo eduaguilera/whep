@@ -1,7 +1,7 @@
-#' Typologies of Julia
+#' @title Typologies of Julia
 #'
 #' @description
-#' Creates typologies of provinces in Spain based on nitrogen (N) production
+#' Typologies of provinces in Spain based on nitrogen (N) production
 #' data of crops and livestock, using various input datasets and generating
 #' classification maps and data frames.
 #'
@@ -11,7 +11,27 @@
 #'
 #' @param map_year The year for which the typology map is created.
 #'
-#' @return A tibble with the typology classification for each year and province.
+#' @returns
+#' A tibble with the classification of Spanish provinces into typologies.
+#' It contains the following columns:
+#' - `year`: The year in which the classification is performed.
+#' - `province_name`: The name of the Spanish province.
+#' - `livestock_density`: Livestock units (LU) per hectare of agricultural area
+#'                        (UAA). Reflects the intensity of animal farming.
+#' - `productivity_kgN_ha`: Crop N productivity, in kilograms of N harvested
+#'                          per hectare of cropland.
+#' - `semi_nat_share`: Share of total feed coming from semi-natural
+#'                     agroecosystems. Expressed between 0 and 1.
+#' - `feed_imported_share`: Share of feed that is imported. Expressed between
+#'                          0 and 1.
+#' - `typology`: Assigned typology category for each province.
+#'               This is based on thresholds in livestock density, crop
+#'               productivity, and feed patterns. The typologies include:
+#'               - `Specialized cropping system`
+#'               - `Extensive cropping system`
+#'               - `Extensive mixed crop-livestock system`
+#'               - `Intensive mixed crop-livestock system`
+#'               - `Specialized livestock-farming system`
 #'
 #' @export
 create_typologies_grafs_spain <- function(
@@ -222,8 +242,8 @@ create_typologies_grafs_spain <- function(
 #' @title Aggregate LU_total ---------------------------------------------------
 #' @description Aggregates total land use (LU_total) by year and province.
 #'
-#' @param lu_detailed_df A data frame containing columns `Year`,
-#' `Province_name`, and `LU_total`.
+#' @param lu_detailed_df A data frame containing columns 'Year',
+#' 'Province_name', and 'LU_total'.
 #'
 #' @return A tibble with total land use summed for each year and province,
 #' sorted by year and province.
@@ -242,10 +262,10 @@ create_typologies_grafs_spain <- function(
 }
 
 #' @title Aggregate Area AA ----------------------------------------------------
-#' @description Aggregates the area (`Area_ygpit_ha`) by year and province.
+#' @description Aggregates the area (Area_ygpit_ha) by year and province.
 #'
-#' @param npp_df A data frame containing the columns `Year`, `Province_name`,
-#' and `Area_ygpit_ha`.
+#' @param npp_df A data frame containing the columns 'Year', 'Province_name',
+#' and 'Area_ygpit_ha'.
 #'
 #' @return A tibble with the sum of areas per year and province.
 #' @keywords internal
@@ -278,8 +298,8 @@ create_typologies_grafs_spain <- function(
 
 #' @title Aggregate Productivity for Cropland ----------------------------------
 #'
-#' @param npp_df A data frame containing columns `Year`, `Province_name`,
-#' `LandUse`,`Prod_MgN`, and `Area_ygpit_ha`.
+#' @param npp_df A data frame containing columns 'Year', 'Province_name',
+#' 'LandUse','Prod_MgN', and 'Area_ygpit_ha'.
 #'
 #' @return A tibble grouped by year and province with total production,
 #' total cropland area, and productivity in kg N per hectare.
@@ -305,8 +325,8 @@ create_typologies_grafs_spain <- function(
 #' @title Aggregate Feed from Semi natural agroecosystems for Grassland > 60%
 #' of Livestock intake from Grassland
 #'
-#' @param df A data frame containing columns `Year`, `Province_name`, `Box`,
-#' `Destiny`, and `MgN`.
+#' @param df A data frame containing columns'Year','Province_name','Box',
+#'' Destiny', and'MgN'.
 #'
 #' @return A tibble grouped by year and province with the total feed nitrogen
 #' (MgN) from semi-natural agroecosystems.
@@ -324,8 +344,8 @@ create_typologies_grafs_spain <- function(
 
 #' @title Aggregate Feed from Cropland ----------------------------------------
 #'
-#' @param df A data frame containing columns `Year`, `Province_name`,
-#' `Box`, `Destiny`, and `MgN`.
+#' @param df A data frame containing columns 'Year', 'Province_name',
+#' 'Box', 'Destiny', and 'MgN'.
 #'
 #' @return A tibble grouped by year and province with the total cropland feed
 #' nitrogen (MgN).
@@ -344,7 +364,7 @@ create_typologies_grafs_spain <- function(
 #' Aggregate total feed from all boxes (Feed destiny) -------------------------
 #'
 #' @param df A data frame containing nitrogen data with columns including
-#' `Year`, `Province_name`, `Destiny`, `Box`, and `MgN`.
+#' 'Year', 'Province_name', 'Destiny', 'Box', and 'MgN'.
 #'
 #' @return A tibble with total feed nitrogen (MgN) summed by year and province.
 #' @keywords internal
@@ -367,7 +387,7 @@ create_typologies_grafs_spain <- function(
 #' feed)
 #'
 #' @param df A data frame containing nitrogen data with columns including
-#' `Year`, `Province_name`, `Destiny`, `Box`, and `MgN`.
+#' 'Year', 'Province_name', 'Destiny', 'Box', and 'MgN'.
 #'
 #' @return A data frame including the share of feed from semi natural
 #' agroecosystems

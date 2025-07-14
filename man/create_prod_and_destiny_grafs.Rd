@@ -2,20 +2,32 @@
 % Please edit documentation in R/grafs_prod_destiny.R
 \name{create_prod_and_destiny_grafs}
 \alias{create_prod_and_destiny_grafs}
-\title{GRAFS production and destiny}
+\title{GRAFS Nitrogen (N) production and their destinies}
 \usage{
 create_prod_and_destiny_grafs()
 }
 \value{
-A tibble with N data for each Year, Province, Item, Box, and Destiny
+A named list with one element:
+\itemize{
+\item \code{n_prod_destiny}: A tibble containing nitrogen production data by destiny.
+It includes the following columns:
+\itemize{
+\item \code{year}: The year in which the recorded event occurred.
+\item \code{province_name}: The Spanish province where the data is from.
+\item \code{item}: The item which was produced, defined in \code{codes_coefs}.
+\item \code{box}: One of the GRAFS model systems: cropland,
+Semi-natural agroecosystems, Livestock, Fish, or Additives.
+\item \code{destiny}: The use category of the nitrogen: Food, Feed, Other_uses,
+Export, or Import.
+\item \code{MgN}: Nitrogen amount in megagrams (Mg).
+}
+}
 }
 \description{
-This code is creating a dataset, based on N production data of crops and
-livestock, which represents the following destinies:
-food, feed, other uses, exports, imports.
-This is the base of the GRAFS model.
-The dataset contains data in MgN for each year, province, item, and box
-(cropland, semi natural agroecosystems, livestock, fish, additives).
-Processed items, residues, woody crops, grazed weeds are taken into account.
-Seeds were subtracted from crop production.
+Provides N production of crops and livestock, categorized by their destinies:
+food, feed, other uses, exports, imports, which is the base of the
+GRAFS model. The dataset contains data in megagrams of N (MgN) for each
+year, province, item, and box (cropland, semi natural agroecosystems,
+livestock, fish, additives). Processed items, residues, woody crops,
+grazed weeds are taken into account.
 }

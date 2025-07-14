@@ -1,7 +1,7 @@
 #' @title Typologies of Josette
 #'
 #' @description
-#' Creates typologies of provinces in Spain based on nitrogen (N) production
+#' Typologies of provinces in Spain based on nitrogen (N) production
 #' data of crops and livestock, considering multiple data inputs and
 #' producing classification maps and data frames.
 #'
@@ -127,7 +127,7 @@ create_typologies_of_josette <- function(
 #' production per province and year.
 #' @param grafs_prod_destiny_git Data frame containing nitrogen data by
 #' destiny and box.
-#' @return A list with two tibbles: `food_consumption` and `production`
+#' @return A list with two tibbles: 'food_consumption' and 'production'.
 #' @keywords internal
 #' @noRd
 .calculate_consumption_prod <- function(grafs_prod_destiny_git) {
@@ -166,7 +166,7 @@ create_typologies_of_josette <- function(
 #' @title Calculate Crop Production and Animal Feed Ingestion------------------
 #' @description Calculates total cropland N production and N ingested by animals
 #' @param grafs_prod_destiny_git Data frame containing N data by destiny and box
-#' @return A list with two tibbles: `cropland_prod` and `animal_ingestion`.
+#' @return A list with two tibbles: 'cropland_prod' and 'animal_ingestion'.
 #' @keywords internal
 #' @noRd
 .calculate_crop_prod_feed <- function(grafs_prod_destiny_git) {
@@ -257,7 +257,7 @@ create_typologies_of_josette <- function(
 #' @description Calculates the share of feed N that comes from semi-natural
 #' agroecosystems.
 #' @param destiny_df Data frame of N data by destiny and box.
-#' @return A tibble with `Year`, `Province_name`, and `SemiNatural_feed_share`.
+#' @return A tibble with 'Year', 'Province_name', and 'SemiNatural_feed_share'.
 #' @keywords internal
 #' @noRd
 .calculate_natural_feed_share <- function(destiny_df) {
@@ -341,7 +341,7 @@ create_typologies_of_josette <- function(
 #' @title Decision: >25% cropland N input from manure--------------------------
 #' @description Calculates the share of cropland N inputs, coming from manure.
 #' @param n_input_df Data frame of N inputs.
-#' @return A tibble with `Year`, `Province_name`, and `Manure_share`.
+#' @return A tibble with 'Year', 'Province_name', and 'Manure_share'.
 #' @keywords internal
 #' @noRd
 .calculate_manure_share <- function(n_input_df) {
@@ -367,7 +367,7 @@ create_typologies_of_josette <- function(
 #' @description Applies classifications to assign each province to one of the
 #' typologies.
 #' @param df A tibble containing all required indicator variables.
-#' @return A tibble with `Year`, `Province_name`, and `Typology`.
+#' @return A tibble with 'Year', 'Province_name', and 'Typology'.
 #' @keywords internal
 #' @noRd
 .assign_typologies <- function(df) {
