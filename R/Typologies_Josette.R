@@ -528,6 +528,5 @@ create_typologies_of_josette <- function(
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
   print(p)
-
-  return(df_plot)
+  df_plot
 }
