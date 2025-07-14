@@ -51,7 +51,7 @@ create_typologies_of_josette <- function(
   feed_domestic_df <- .calculate_feed_domestic_share(
     data$PIE_FullDestinies_FM, intensive_list$lu_totals
   )
-  manure_share_df <- .calculate_manure_share(data$N_inputs)
+  manure_share_df <- .calculate_manure_share(data$n_input_df)
 
   typologies_df <- food_consumption_df |>
     dplyr::left_join(production_df, by = c("Year", "Province_name")) |>
@@ -75,9 +75,19 @@ create_typologies_of_josette <- function(
     .create_typologies_map_josette(typologies_df, shapefile_path, map_year)
   }
 
-  typologies_df
-}
+  df_inputs_plots <- .create_bar_plots_inputs(
+    typologies_df = typologies_df,
+    n_input_df = data$n_input_df,
+    imported_feed_share_df = feed_domestic_df
+  )
 
+  return(list(
+    typologies_df = typologies_df,
+    n_input_df = data$n_input_df,
+    imported_feed_share_df = intensive_list$imported_feed_share_df,
+    df_inputs_plots = df_inputs_plots
+  ))
+}
 
 #' @title Load input datasets -------------------------------------------------
 #' @description Loads all necessary datasets, including shapefiles for
@@ -108,7 +118,7 @@ create_typologies_of_josette <- function(
       inputs_dir, "PIE_FullDestinies_FM.csv"
     )),
     sf_provinces_spain = sf_provinces_spain,
-    N_inputs = readr::read_csv(file.path(inputs_dir, "N_Inputs_combined.csv"))
+    n_input_df = readr::read_csv(file.path(inputs_dir, "n_inputs_combined.csv"))
   )
 }
 
@@ -315,12 +325,13 @@ create_typologies_of_josette <- function(
       Production_prov = LU_share * Production,
       Import_prov = LU_share * Import,
       Export_prov = LU_share * Export,
+      Net_feed_import = Import_prov - Export_prov,
       local_feed_share = (Production_prov - Export_prov) /
         ((Production_prov - Export_prov) + Import_prov),
     ) |>
     dplyr::select(
-      Year, Province_name, LU_total, LU_share,
-      Production_prov, Import_prov, Export_prov, local_feed_share
+      Year, Province_name, LU_total, LU_share, Production_prov,
+      Import_prov, Export_prov, Net_feed_import, local_feed_share
     )
 
   feed_prov
@@ -439,4 +450,84 @@ create_typologies_of_josette <- function(
     theme_minimal()
 
   print(map_typologies_josette)
+}
+
+#' @title Create stacked bar plots for N inputs --------------------------------
+#' @description Stacked bar plots by province and typology, taking N deposition,
+#' fixation, synthetic fertilizer, net feed import into account.
+#'
+#' @param typologies_df A data frame with columns Year, Province_name, Typology
+#' @param n_input_df A data frame with N input values by Year and Province_name
+#' @return A plot showing stacked bar plots of inputs by typology.
+#' @param year The year to filter the data for plotting
+#' @keywords internal
+#' @noRd
+
+.create_bar_plots_inputs <- function(
+  typologies_df,
+  n_input_df,
+  imported_feed_share_df
+) {
+  # Define benchmark years
+  benchmark_years <- c(1880, 1930, 1980, 2020)
+
+  # Filter datasets to those years
+  typologies_df_filtered <- typologies_df |>
+    dplyr::filter(Year %in% benchmark_years)
+
+  n_inputs_agg <- n_input_df |>
+    dplyr::filter(Year %in% benchmark_years) |>
+    dplyr::group_by(Year, Province_name) |>
+    dplyr::summarise(
+      Deposition = sum(MgN_dep, na.rm = TRUE),
+      Fixation = sum(MgN_fix, na.rm = TRUE),
+      Synthetic_fert = sum(MgN_syn, na.rm = TRUE),
+      .groups = "drop"
+    )
+
+  feed_import_agg <- imported_feed_share_df |>
+    dplyr::filter(Year %in% benchmark_years) |>
+    dplyr::select(Year, Province_name, Net_feed_import)
+
+  # Join all data
+  df_joined <- n_inputs_agg |>
+    dplyr::left_join(feed_import_agg, by = c("Year", "Province_name")) |>
+    dplyr::left_join(typologies_df_filtered, by = c("Year", "Province_name"))
+
+  # Convert to long format
+  df_long <- df_joined |>
+    tidyr::pivot_longer(
+      cols = c("Deposition", "Fixation", "Synthetic_fert", "Net_feed_import"),
+      names_to = "N_input_type",
+      values_to = "N_input_value"
+    )
+
+  # Aggregate by typology and year, convert to GgN
+  df_plot <- df_long |>
+    dplyr::group_by(Year, Typology, N_input_type) |>
+    dplyr::summarise(
+      N_input_value = sum(N_input_value, na.rm = TRUE) / 1000,
+      .groups = "drop"
+    )
+
+  # Create stacked bar plot
+  p <- ggplot(df_plot, aes(
+    x = factor(Year),
+    y = N_input_value,
+    fill = N_input_type
+  )) +
+    geom_bar(stat = "identity") +
+    facet_wrap(~Typology, scales = "free_y") +
+    labs(
+      title = "Nitrogen Inputs by Typology",
+      x = "Year",
+      y = "Nitrogen Input (GgN)",
+      fill = "Input Type"
+    ) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+  print(p)
+
+  return(df_plot)
 }

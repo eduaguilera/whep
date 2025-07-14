@@ -26,6 +26,7 @@ create_typologies_grafs_spain <- function(
 
   # Load datasets
   data <- .load_inputs_typologies_julia(inputs_dir, shapefile_path)
+  data$sf_provinces <- data$sf_provinces_spain
 
   data$sf_provinces$name <- stri_trans_general(
     data$sf_provinces$name,
@@ -101,7 +102,7 @@ create_typologies_grafs_spain <- function(
     cropland_productivity,
     feed_share,
     feed_imported_share,
-    sf_provinces = data$sf_provinces,
+    sf_provinces = data$sf_provinces_spain,
     year = map_year
   )
 
@@ -138,7 +139,7 @@ create_typologies_grafs_spain <- function(
 #'
 #' @keywords internal
 #' @noRd
-.load_inputs <- function(inputs_dir, shapefile_path) {
+.load_inputs_typologies_julia <- function(inputs_dir, shapefile_path) {
   layer_name <- tools::file_path_sans_ext(basename(shapefile_path))
 
   sf_provinces_spain <- sf::st_read(shapefile_path, query = paste0(
@@ -512,16 +513,16 @@ create_typologies_grafs_spain <- function(
     dplyr::filter(Year == year) |>
     dplyr::mutate(
       Typologie = dplyr::case_when(
-        Livestock_density < 0.3 &
+        Livestock_density < 0.4 &
           Productivity_kgN_ha > 60 ~ "Specialized cropping system",
-        Livestock_density < 0.3 &
+        Livestock_density < 0.4 &
           Productivity_kgN_ha <= 60 ~ "Extensive cropping system",
-        Livestock_density >= 0.3 &
+        Livestock_density >= 0.4 &
           Semi_nat_share > 0.6 ~ "Extensive mixed crop-livestock system",
-        Livestock_density >= 0.3 &
+        Livestock_density >= 0.4 &
           Semi_nat_share <= 0.6 &
           Imported_feed_share < 0.5 ~ "Intensive mixed crop-livestock system",
-        Livestock_density >= 0.3 &
+        Livestock_density >= 0.4 &
           Semi_nat_share <= 0.6 &
           Imported_feed_share >= 0.5 ~ "Specialized livestock-farming system",
         TRUE ~ NA_character_
@@ -558,16 +559,16 @@ create_typologies_grafs_spain <- function(
     dplyr::inner_join(imported_feed_share, by = c("Year", "Province_name")) |>
     dplyr::mutate(
       Typologie = dplyr::case_when(
-        Livestock_density < 0.3 &
+        Livestock_density < 0.4 &
           Productivity_kgN_ha > 60 ~ "Specialized cropping system",
-        Livestock_density < 0.3 &
+        Livestock_density < 0.4 &
           Productivity_kgN_ha <= 60 ~ "Extensive cropping system",
-        Livestock_density >= 0.3 &
+        Livestock_density >= 0.4 &
           Semi_nat_share > 0.6 ~ "Extensive mixed crop-livestock system",
-        Livestock_density >= 0.3 &
+        Livestock_density >= 0.4 &
           Semi_nat_share <= 0.6 &
           Imported_feed_share < 0.5 ~ "Intensive mixed crop-livestock system",
-        Livestock_density >= 0.3 &
+        Livestock_density >= 0.4 &
           Semi_nat_share <= 0.6 &
           Imported_feed_share >= 0.5 ~ "Specialized livestock-farming system",
         TRUE ~ NA_character_
