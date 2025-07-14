@@ -21,11 +21,11 @@ reference:
   - get_processing_coefs
   - get_wide_cbs
 
-- title: Download large datasets
+- title: Download large input datasets
   desc: >
     Fetch large files from external sources and cache them.
   contents:
-  - get_file_path
+  - whep_read_file
 
 - title: Code namings
   desc: >
