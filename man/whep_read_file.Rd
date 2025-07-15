@@ -7,16 +7,8 @@
 whep_read_file(file_alias, type = "parquet", version = NULL)
 }
 \arguments{
-\item{file_alias}{Alias of the requested file. For now the possible
-values are:
-\itemize{
-\item \code{"commodity_balance_sheet"}: Intended for \code{get_wide_cbs()}.
-\item \code{"bilateral_trade"}: Intended for \code{get_bilateral_trade()}.
-\item \code{"processing_coefs"}: Intended for \code{get_processing_coefs()}.
-\item \code{"feed_intake"}: Intended for \code{get_feed_intake()}.
-\item \code{"primary_prod"}: Intended for \code{get_primary_production()}.
-\item \code{"crop_residues"}: Intended for \code{get_primary_residues()}.
-}}
+\item{file_alias}{Internal name of the requested file. You can find the
+possible values in the \code{\link{whep_inputs}} dataset.}
 
 \item{type}{The extension of the file that must be read. Possible values:
 \itemize{
@@ -37,17 +29,13 @@ supplied in e.g. \code{parquet} format but was in another one.}
 \itemize{
 \item \code{NULL}: This is the default value. A frozen version is chosen to make
 the code reproducible. Each release will have its own frozen versions.
-The version is the string that can be found in
-\code{inst/extdata/input/raw/input_files.csv} in the \code{version} column.
+The version is the string that can be found in \code{\link{whep_inputs}} in the
+\code{version} column.
 \item \code{"latest"}: This overrides the frozen version and instead fetches the
 latest one that is available. This might or might not match the frozen
 version.
-\item Other: A specific version can also be used. You can search through
-the available files in the public URLs given in the \code{board_url} column
-in \code{inst/extdata/input/raw/input_files.csv} and find the file you're
-interested in. Each file has one subfolder for each version. The folder
-name is the version you must specify, which should look similar to
-\code{"20250714T123343Z-114b5"}.
+\item Other: A specific version can also be used. For more details read the
+\code{version} column information from \code{\link{whep_inputs}}.
 }}
 }
 \value{

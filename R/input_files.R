@@ -12,14 +12,8 @@
 #' [`pins`](https://pins.rstudio.com/index.html) package. It supports multiple
 #' file formats and file versioning.
 #'
-#' @param file_alias Alias of the requested file. For now the possible
-#'   values are:
-#'   - `"commodity_balance_sheet"`: Intended for `get_wide_cbs()`.
-#'   - `"bilateral_trade"`: Intended for `get_bilateral_trade()`.
-#'   - `"processing_coefs"`: Intended for `get_processing_coefs()`.
-#'   - `"feed_intake"`: Intended for `get_feed_intake()`.
-#'   - `"primary_prod"`: Intended for `get_primary_production()`.
-#'   - `"crop_residues"`: Intended for `get_primary_residues()`.
+#' @param file_alias Internal name of the requested file. You can find the
+#'   possible values in the [`whep_inputs`] dataset.
 #' @param type The extension of the file that must be read. Possible values:
 #'   - `parquet`: This is the default value for code efficiency reasons.
 #'   - `csv`: Mainly available for those who want a more human-readable option.
@@ -35,17 +29,13 @@
 #' @param version The version of the file that must be read. Possible values:
 #'   - `NULL`: This is the default value. A frozen version is chosen to make
 #'     the code reproducible. Each release will have its own frozen versions.
-#'     The version is the string that can be found in
-#'     `inst/extdata/input/raw/input_files.csv` in the `version` column.
+#'     The version is the string that can be found in [`whep_inputs`] in the
+#'     `version` column.
 #'   - `"latest"`: This overrides the frozen version and instead fetches the
 #'     latest one that is available. This might or might not match the frozen
 #'     version.
-#'   - Other: A specific version can also be used. You can search through
-#'     the available files in the public URLs given in the `board_url` column
-#'     in `inst/extdata/input/raw/input_files.csv` and find the file you're
-#'     interested in. Each file has one subfolder for each version. The folder
-#'     name is the version you must specify, which should look similar to
-#'     `"20250714T123343Z-114b5"`.
+#'   - Other: A specific version can also be used. For more details read the
+#'     `version` column information from [`whep_inputs`].
 #'
 #' @returns A character vector with the path where the requested file is
 #'   located.
