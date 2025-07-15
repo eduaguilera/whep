@@ -9,11 +9,12 @@ Authors@R: c(
 Description: Gather historical agricultural and trade data from 1850.
 License: MIT + file LICENSE
 Imports:
+    cli,
     dplyr,
+    fs,
     FAOSTAT,
-    googledrive,
-    httr2,
     mipfp,
+    nanoparquet,
     pins,
     purrr,
     readr,
