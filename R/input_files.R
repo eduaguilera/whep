@@ -93,9 +93,12 @@ whep_list_file_versions <- function(file_alias) {
   path <- purrr::detect(paths, ~ stringr::str_ends(.x, extension))
 
   if (extension == "csv") {
-    readr::read_csv(path)
+    readr::read_csv(path, show_col_types = FALSE)
   } else if (extension == "parquet") {
-    nanoparquet::read_parquet(path)
+    path |>
+      nanoparquet::read_parquet() |>
+      # Make sure it has `tbl_df` subclass, not present by default
+      tibble::as_tibble()
   } else {
     extensions <- purrr::map(paths, fs::path_ext)
     cli::cli_abort(
