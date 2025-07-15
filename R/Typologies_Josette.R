@@ -26,6 +26,7 @@ create_typologies_of_josette <- function(
 
   # Load datasets
   data <- .load_inputs_josette(inputs_dir, shapefile_path)
+  str(data$n_input_df)
 
   consumption <- .calculate_consumption_prod(data$grafs_prod_destiny_git)
   food_consumption_df <- consumption$food_consumption
@@ -350,13 +351,13 @@ create_typologies_of_josette <- function(
     dplyr::group_by(Year, Province_name) |>
     dplyr::summarise(
       MgN_manure = sum(MgN_manure, na.rm = TRUE),
-      MgN_total = sum(
-        MgN_dep + MgN_fix + MgN_syn + MgN_manure + MgN_urban,
-        na.rm = TRUE
-      ),
-      .groups = "drop"
+      MgN_dep = sum(MgN_dep, na.rm = TRUE),
+      MgN_fix = sum(MgN_fix, na.rm = TRUE),
+      MgN_syn = sum(MgN_syn, na.rm = TRUE),
+      MgN_urban = sum(MgN_urban, na.rm = TRUE)
     ) |>
     dplyr::mutate(
+      MgN_total = MgN_dep + MgN_fix + MgN_syn + MgN_manure + MgN_urban,
       Manure_share = MgN_manure / MgN_total
     )
 
@@ -407,7 +408,7 @@ create_typologies_of_josette <- function(
   ))
 
   sf_provinces <- sf_provinces |>
-    mutate(
+    dplyr::mutate(
       name = stringi::stri_trans_general(name, "Latin-ASCII"),
       name = gsub(" ", "_", name),
       name = dplyr::case_when(
@@ -436,9 +437,9 @@ create_typologies_of_josette <- function(
     dplyr::rename(Province_name = name) |>
     dplyr::inner_join(typologies_year, by = "Province_name")
 
-  map_typologies_josette <- ggplot(map_data) +
-    geom_sf(aes(fill = Typology)) +
-    scale_fill_manual(values = c(
+  map_typologies_josette <- ggplot2::ggplot(map_data) +
+    ggplot2::geom_sf(ggplot2::aes(fill = Typology)) +
+    ggplot2::scale_fill_manual(values = c(
       "Urban system" = "#FF6666",
       "Specialized stockless cropping system" = "#FFEB00",
       "Grass-based crop & livestock system" = "#66a61e",
@@ -446,8 +447,8 @@ create_typologies_of_josette <- function(
       "Disconnected crop & livestock system" = "#FFFF99",
       "Specialized livestock system" = "#FF0000"
     )) +
-    labs(title = paste("Typologies in Spain for", map_year)) +
-    theme_minimal()
+    ggplot2::labs(title = paste("Typologies in Spain for", map_year)) +
+    ggplot2::theme_minimal()
 
   print(map_typologies_josette)
 }
@@ -468,15 +469,10 @@ create_typologies_of_josette <- function(
   n_input_df,
   imported_feed_share_df
 ) {
-  # Define benchmark years
-  benchmark_years <- c(1880, 1930, 1980, 2020)
-
   # Filter datasets to those years
-  typologies_df_filtered <- typologies_df |>
-    dplyr::filter(Year %in% benchmark_years)
+  typologies_df_filtered <- typologies_df
 
   n_inputs_agg <- n_input_df |>
-    dplyr::filter(Year %in% benchmark_years) |>
     dplyr::group_by(Year, Province_name) |>
     dplyr::summarise(
       Deposition = sum(MgN_dep, na.rm = TRUE),
@@ -486,7 +482,6 @@ create_typologies_of_josette <- function(
     )
 
   feed_import_agg <- imported_feed_share_df |>
-    dplyr::filter(Year %in% benchmark_years) |>
     dplyr::select(Year, Province_name, Net_feed_import)
 
   # Join all data
@@ -511,22 +506,97 @@ create_typologies_of_josette <- function(
     )
 
   # Create stacked bar plot
-  p <- ggplot(df_plot, aes(
+  year_breaks <- df_plot$Year |>
+    unique() |>
+    sort()
+  year_breaks <- year_breaks[year_breaks %% 20 == 0]
+
+  df_plot$N_input_type <- factor(df_plot$N_input_type, levels = c(
+    "Synthetic_fert", "Fixation", "Deposition", "Net_feed_import"
+  ))
+
+  p <- ggplot2::ggplot(df_plot, ggplot2::aes(
     x = factor(Year),
     y = N_input_value,
     fill = N_input_type
   )) +
-    geom_bar(stat = "identity") +
-    facet_wrap(~Typology, scales = "free_y") +
-    labs(
+    ggplot2::geom_bar(stat = "identity", position = "stack") +
+    ggplot2::facet_wrap(~Typology, scales = "free_y") +
+    ggplot2::scale_x_discrete(breaks = year_breaks) +
+    ggplot2::scale_fill_manual(
+      values = c(
+        "Net_feed_import" = "dodgerblue4",
+        "Deposition" = "gray40",
+        "Fixation" = "olivedrab4",
+        "Synthetic_fert" = "red4"
+      )
+    ) +
+    ggplot2::labs(
       title = "Nitrogen Inputs by Typology",
       x = "Year",
       y = "Nitrogen Input (GgN)",
       fill = "Input Type"
     ) +
-    theme_minimal() +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+    ggplot2::theme_minimal() +
+    ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 45, hjust = 1))
 
   print(p)
   df_plot
+
+
+  # Additional plot: Total N inputs by typology over time-----------------------
+
+  # Aggregate total N inputs per province and year
+  df_total_input_typ <- df_long |>
+    dplyr::group_by(Year, Province_name) |>
+    dplyr::summarise(
+      Total_N_input = sum(N_input_value, na.rm = TRUE),
+      .groups = "drop"
+    ) |>
+    dplyr::left_join(typologies_df_filtered, by = c("Year", "Province_name")) |>
+    dplyr::group_by(Year, Typology) |>
+    dplyr::summarise(
+      Total_N_input = sum(Total_N_input, na.rm = TRUE) / 1000,
+      .groups = "drop"
+    )
+
+  typology_colors <- c(
+    "Forage-based crop & livestock system" = "#FFA500",
+    "Disconnected crop & livestock system" = "#FFFF99",
+    "Specialized stockless cropping system" = "#FFEB00",
+    "Specialized livestock system" = "#FF0000",
+    "Grass-based crop & livestock system" = "#66a61e",
+    "Urban system" = "#FF6666"
+  )
+
+  df_total_input_typ$Typology <- factor(
+    df_total_input_typ$Typology,
+    levels = names(typology_colors)
+  )
+
+  # Define year breaks
+  year_breaks_typ <- df_total_input_typ$Year |>
+    unique() |>
+    sort()
+  year_breaks_typ <- year_breaks_typ[year_breaks_typ %% 20 == 0]
+
+  # Create stacked bar plot
+  p_typology_stack <- ggplot2::ggplot(df_total_input_typ, ggplot2::aes(
+    x = factor(Year),
+    y = Total_N_input,
+    fill = Typology
+  )) +
+    ggplot2::geom_bar(stat = "identity") +
+    ggplot2::scale_x_discrete(breaks = year_breaks_typ) +
+    ggplot2::scale_fill_manual(values = typology_colors) +
+    ggplot2::labs(
+      title = "Total Nitrogen Inputs in Spain by Typology",
+      x = "Year",
+      y = "Total Nitrogen Input (GgN)",
+      fill = "Typology"
+    ) +
+    ggplot2::theme_minimal() +
+    ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 45, hjust = 1))
+
+  print(p_typology_stack)
 }
