@@ -64,6 +64,31 @@ whep_read_file <- function(file_alias, type = "parquet", version = NULL) {
     .read_file(type)
 }
 
+#' Input file versions
+#'
+#' @description
+#' Lists all existing versions of an input file from [`whep_inputs`].
+#'
+#' @param file_alias Internal name of the requested file. You can find the
+#'   possible values in the [`whep_inputs`] dataset.
+#'
+#' @returns A tibble where each row is a version. For details about its format,
+#'   see `pins::pin_versions()`.
+#'
+#' @export
+#'
+#' @examples
+#' \dontrun{
+#' whep_list_file_versions("primary_prod")
+#' }
+whep_list_file_versions <- function(file_alias) {
+  file_alias |>
+    .fetch_file_info() |>
+    purrr::pluck("board_url") |>
+    pins::board_url() |>
+    pins::pin_versions(file_alias)
+}
+
 .read_file <- function(paths, extension) {
   path <- purrr::detect(paths, ~ stringr::str_ends(.x, extension))
 
