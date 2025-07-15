@@ -55,7 +55,7 @@
 whep_read_file <- function(file_alias, type = "parquet", version = NULL) {
   cli::cli_alert_info("Fetching file {file_alias}...")
 
-  file_info <- .fetch_file_info(file_alias, whep_inputs)
+  file_info <- .fetch_file_info(file_alias, whep::whep_inputs)
   version <- .choose_version(file_info$version, version)
 
   file_info$board_url |>
@@ -83,7 +83,7 @@ whep_read_file <- function(file_alias, type = "parquet", version = NULL) {
 #' }
 whep_list_file_versions <- function(file_alias) {
   file_alias |>
-    .fetch_file_info(whep_inputs) |>
+    .fetch_file_info(whep::whep_inputs) |>
     purrr::pluck("board_url") |>
     pins::board_url() |>
     pins::pin_versions(file_alias)

@@ -227,12 +227,12 @@ add_item_prod_code <- function(
 }
 
 .get_polities <- function(name_column, code_column) {
-  polities |>
+  whep::polities |>
     dplyr::select(!!name_column := area_name, !!code_column := area_code)
 }
 
 .get_cbs_items <- function(name_column, code_column) {
-  items_cbs |>
+  whep::items_cbs |>
     dplyr::select(
       !!name_column := item_cbs_name,
       !!code_column := item_cbs_code
@@ -240,7 +240,7 @@ add_item_prod_code <- function(
 }
 
 .get_prod_items <- function(name_column, code_column) {
-  items_prod |>
+  whep::items_prod |>
     dplyr::select(
       !!name_column := item_prod_name,
       !!code_column := item_prod_code

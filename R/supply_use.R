@@ -65,8 +65,8 @@
 #' }
 build_supply_use <- function() {
   .build_supply_use_from_inputs(
-    items_prod = items_prod,
-    items_cbs = items_cbs,
+    items_prod = whep::items_prod,
+    items_cbs = whep::items_cbs,
     coeffs = get_processing_coefs(),
     cbs = get_wide_cbs(),
     crop_residues = get_primary_residues(),
