@@ -115,8 +115,7 @@ whep_list_file_versions <- function(file_alias) {
 }
 
 .fetch_file_info <- function(file_alias) {
-  file_info <- "input/raw/input_files.csv" |>
-    .read_local_csv() |>
+  file_info <- whep_inputs |>
     dplyr::filter(alias == file_alias)
 
   if (nrow(file_info) == 0) {
@@ -126,8 +125,8 @@ whep_list_file_versions <- function(file_alias) {
     cli::cli_abort(
       paste0(
         "There are {nrow(file_info)} file entries with alias {file_alias} ",
-        "and there should be only one. Double check the content of file ",
-        '"inst/extdata/input/raw/input_files.csv"'
+        "and there should be only one. Double check the content of ",
+        "'whep_inputs' dataset"
       )
     )
   }
