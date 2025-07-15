@@ -26,6 +26,7 @@ reference:
     Fetch large files from external sources and cache them.
   contents:
   - whep_read_file
+  - whep_inputs
 
 - title: Code namings
   desc: >
