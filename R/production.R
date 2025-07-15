@@ -84,7 +84,7 @@ get_primary_production <- function() {
 #' get_primary_residues()
 #' }
 get_primary_residues <- function() {
-  "primary_residues" |>
+  "crop_residues" |>
     whep_read_file() |>
     dplyr::rename_with(tolower) |>
     dplyr::filter(product_residue == "Residue") |>
