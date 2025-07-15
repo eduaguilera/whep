@@ -98,9 +98,7 @@
 #' get_bilateral_trade()
 #' }
 get_bilateral_trade <- function() {
-  cbs <- "commodity_balance_sheet" |>
-    whep_read_file() |>
-    get_wide_cbs() |>
+  cbs <- get_wide_cbs() |>
     dplyr::select(year, item_cbs_code, area_code, export, import)
 
   btd <- "bilateral_trade" |>
