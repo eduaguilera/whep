@@ -34,14 +34,17 @@ reference:
     Add name columns in dataframes from their codes or viceversa.
 - subtitle: Polities
   contents:
+  - polities
   - add_area_code
   - add_area_name
 - subtitle: Commodity balance sheet items
   contents:
+  - items_cbs
   - add_item_cbs_code
   - add_item_cbs_name
 - subtitle: Primary production items
   contents:
+  - items_prod
   - add_item_prod_code
   - add_item_prod_name
 
