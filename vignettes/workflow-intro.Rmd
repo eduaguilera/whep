@@ -773,7 +773,7 @@ got to do that, so your built package just does not include any other packages.
 To fix this, we must have a quick look at the `DESCRIPTION` file.
 
 ```markdown
-Package: WHEP
+Package: whep
 Title: What the Package Does (One Line, Title Case)
 Version: 0.0.0.9000
 Authors@R:
@@ -796,7 +796,7 @@ Suggests:
     googlesheets4
 Config/testthat/edition: 3
 VignetteBuilder: knitr
-URL: https://eduaguilera.github.io/WHEP/
+URL: https://eduaguilera.github.io/whep/
 ```
 
 In the above file, the `Imports` section is where we should make sure we have
@@ -860,7 +860,7 @@ knitr::opts_chunk$set(
 ```
 
 ```_{r setup}
-library(WHEP)
+library(whep)
 key_path <- here::here(Sys.getenv("GOOGLESHEETS_AUTH_FILE"))
 googlesheets4::gs4_auth(path = key_path)
 ```
@@ -922,11 +922,11 @@ The next chunk (with the `"r setup"` option) is used for some initialization cod
 that you may need throughout the rest of the article. At the time of writing I do not
 really know the implications of writing the `"r setup"` option or writing this code
 in a normal R code chunk (without the option), but it is at least good practice.
-Note that the package being loaded is your own package (called WHEP in our case).
+Note that the package being loaded is your own package (called whep in our case).
 
 ````
 ```_{r setup}
-library(WHEP)
+library(whep)
 key_path <- here::here(Sys.getenv("GOOGLESHEETS_AUTH_FILE"))
 googlesheets4::gs4_auth(path = key_path)
 ```
