@@ -18,13 +18,11 @@ use for storing these input datasets.
 package. The version is a string similar to \code{"20250714T123343Z-114b5"}.
 This version is the one used by default if no \code{version} is specified when
 calling \code{whep_read_file()}. If you want to use a different one, you can
-search through the available files in the public URLs given in \code{board_url}
-column and find the file you're interested in. Each file has one subfolder
-for each version. The subfolder name is the version you must specify.
+find the available versions of a file by using \code{whep_list_file_versions()}.
 }
 }
 \source{
-Created by the package author.
+Created by the package authors.
 }
 \usage{
 whep_inputs

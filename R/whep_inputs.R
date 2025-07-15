@@ -16,9 +16,7 @@
 #'   package. The version is a string similar to `"20250714T123343Z-114b5"`.
 #'   This version is the one used by default if no `version` is specified when
 #'   calling `whep_read_file()`. If you want to use a different one, you can
-#'   search through the available files in the public URLs given in `board_url`
-#'   column and find the file you're interested in. Each file has one subfolder
-#'   for each version. The subfolder name is the version you must specify.
+#'   find the available versions of a file by using `whep_list_file_versions()`.
 #'
-#' @source Created by the package author.
+#' @source Created by the package authors.
 "whep_inputs"

@@ -13,7 +13,7 @@
 #' file formats and file versioning.
 #'
 #' @param file_alias Internal name of the requested file. You can find the
-#'   possible values in the [`whep_inputs`] dataset.
+#'   possible values in the `alias` column of the [`whep_inputs`] dataset.
 #' @param type The extension of the file that must be read. Possible values:
 #'   - `parquet`: This is the default value for code efficiency reasons.
 #'   - `csv`: Mainly available for those who want a more human-readable option.
@@ -37,8 +37,8 @@
 #'   - Other: A specific version can also be used. For more details read the
 #'     `version` column information from [`whep_inputs`].
 #'
-#' @returns A character vector with the path where the requested file is
-#'   located.
+#' @returns A tibble with the dataset. Some information about each dataset can
+#'   be found in the code where it's used as input for further processing.
 #'
 #' @export
 #'

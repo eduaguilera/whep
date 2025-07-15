@@ -8,7 +8,7 @@ whep_read_file(file_alias, type = "parquet", version = NULL)
 }
 \arguments{
 \item{file_alias}{Internal name of the requested file. You can find the
-possible values in the \code{\link{whep_inputs}} dataset.}
+possible values in the \code{alias} column of the \code{\link{whep_inputs}} dataset.}
 
 \item{type}{The extension of the file that must be read. Possible values:
 \itemize{
@@ -39,8 +39,8 @@ version.
 }}
 }
 \value{
-A character vector with the path where the requested file is
-located.
+A tibble with the dataset. Some information about each dataset can
+be found in the code where it's used as input for further processing.
 }
 \description{
 Used to fetch input files that are needed for the package's functions
