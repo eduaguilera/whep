@@ -65,13 +65,13 @@
 #' }
 build_supply_use <- function() {
   .build_supply_use_from_inputs(
-    items_prod = .read_local_csv("input/raw/items_prod.csv"),
-    items_cbs = .read_local_csv("input/raw/items_cbs.csv"),
-    coeffs = get_processing_coefs(get_file_path("processing_coefs")),
-    cbs = get_wide_cbs(get_file_path("commodity_balance_sheet")),
-    crop_residues = get_primary_residues(get_file_path("crop_residues")),
-    primary_prod = get_primary_production(get_file_path("primary_prod")),
-    feed_intake = get_feed_intake(get_file_path("feed_intake"))
+    items_prod = items_prod,
+    items_cbs = items_cbs,
+    coeffs = get_processing_coefs(),
+    cbs = get_wide_cbs(),
+    crop_residues = get_primary_residues(),
+    primary_prod = get_primary_production(),
+    feed_intake = get_feed_intake()
   )
 }
 
