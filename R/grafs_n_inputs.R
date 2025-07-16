@@ -7,8 +7,7 @@
 #' cropland and semi-natural ecosystems.
 #'
 #' @returns
-#' A named list with one element:
-#' - `nue`: A tibble containing nitrogen input, production, and NUE data.
+#' A tibble containing nitrogen input, production, and NUE data.
 #'   It includes the following columns:
 #'   - `Year`: The year in which the recorded event occurred.
 #'   - `Province_name`: The Spanish province where the data is from.
@@ -49,11 +48,7 @@ create_n_inputs_grafs_spain <- function() {
   # Calculate NUE
   nue <- .calculate_nue(n_inputs_combined)
 
-  # Return the loaded datasets
-  list(
-    n_inputs_combined = n_inputs_combined,
-    nue = nue
-  )
+  return(nue)
 }
 
 #' @title N Inputs -------------------------------------------------------------

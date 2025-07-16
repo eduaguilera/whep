@@ -9,9 +9,8 @@
 #'  grazed weeds are taken into account.
 #'
 #' @return
-#' A named list with one element:
-#' - `n_prod_destiny`: A tibble containing nitrogen production data by destiny.
-#'   It includes the following columns:
+#' A final tibble (`n_prod_destiny`) containing N production data by destiny.
+#' It includes the following columns:
 #'   - `year`: The year in which the recorded event occurred.
 #'   - `province_name`: The Spanish province where the data is from.
 #'   - `item`: The item which was produced, defined in `codes_coefs`.
@@ -71,7 +70,6 @@ create_prod_and_destiny_grafs <- function() {
   )
   trade <- .calculate_trade(converted_items_n)
   n_prod_destiny <- .finalize_prod_destiny(trade, data$codes_coefs_items_full)
-
 
   list(
     data = data,
