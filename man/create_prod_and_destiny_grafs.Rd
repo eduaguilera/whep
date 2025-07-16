@@ -7,9 +7,7 @@
 create_prod_and_destiny_grafs()
 }
 \value{
-A named list with one element:
-\itemize{
-\item \code{n_prod_destiny}: A tibble containing nitrogen production data by destiny.
+A final tibble (\code{n_prod_destiny}) containing N production data by destiny.
 It includes the following columns:
 \itemize{
 \item \code{year}: The year in which the recorded event occurred.
@@ -20,7 +18,6 @@ Semi-natural agroecosystems, Livestock, Fish, or Additives.
 \item \code{destiny}: The use category of the nitrogen: Food, Feed, Other_uses,
 Export, or Import.
 \item \code{MgN}: Nitrogen amount in megagrams (Mg).
-}
 }
 }
 \description{
