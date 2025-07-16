@@ -136,9 +136,3 @@ whep_list_file_versions <- function(file_alias) {
 
   c(file_info)
 }
-
-.read_local_csv <- function(csv_path) {
-  "extdata" |>
-    system.file(csv_path, package = utils::packageName()) |>
-    readr::read_csv(show_col_types = FALSE)
-}
