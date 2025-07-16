@@ -1,8 +1,7 @@
 #' Bilateral trade data
 #'
 #' @description
-#' Cleans and processes large dataset coming from an external source as
-#' starting point.
+#' Reports trade between pairs of countries in given years.
 #'
 #' @returns
 #' A tibble with the reported trade between countries. For efficient

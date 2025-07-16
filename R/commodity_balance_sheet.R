@@ -1,8 +1,7 @@
 #' Commodity balance sheet data
 #'
 #' @description
-#' Cleans and processes large dataset coming from an external source as
-#' starting point.
+#' States supply and use parts for each commodity balance sheet (CBS) item.
 #'
 #' @returns
 #' A tibble with the commodity balance sheet data in wide format.
@@ -60,8 +59,8 @@ get_wide_cbs <- function() {
 #' Processed products share factors
 #'
 #' @description
-#' Cleans and processes large dataset coming from an external source as
-#' starting point.
+#' Reports quantities of commodity balance sheet items used for `processing`
+#' and quantities of their corresponding processed output items.
 #'
 #' @returns
 #' A tibble with the quantities for each processed product.

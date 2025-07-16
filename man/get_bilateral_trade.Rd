@@ -105,8 +105,7 @@ algorithm is performed directly using the \href{https://cran.r-project.org/web/p
 }
 }
 \description{
-Cleans and processes large dataset coming from an external source as
-starting point.
+Reports trade between pairs of countries in given years.
 }
 \examples{
 \dontrun{
