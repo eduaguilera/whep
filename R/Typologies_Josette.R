@@ -50,7 +50,10 @@ create_typologies_of_josette <- function(
     data$grafs_prod_destiny_git
   )
   feed_domestic_df <- .calculate_feed_domestic_share(
-    data$PIE_FullDestinies_FM, intensive_list$lu_totals
+    data$PIE_FullDestinies_FM,
+    intensive_list$lu_totals,
+    data$Codes_coefs_item,
+    data$biomass_coefs
   )
   manure_share_df <- .calculate_manure_share(data$n_input_df)
 
@@ -111,6 +114,10 @@ create_typologies_of_josette <- function(
     Codes_coefs = readxl::read_excel(file.path(inputs_dir, "Codes_coefs.xlsx"),
       sheet = "Liv_LU_coefs"
     ),
+    Codes_coefs_item = readxl::read_excel(
+      file.path(inputs_dir, "Codes_coefs.xlsx"),
+      sheet = "items_full"
+    ),
     NPP_ygpit = readr::read_csv(file.path(inputs_dir, "NPP_ygpit.csv.gz")),
     grafs_prod_destiny_git = readr::read_csv(file.path(
       inputs_dir, "GRAFS_Prod_Destiny_git.csv"
@@ -118,6 +125,13 @@ create_typologies_of_josette <- function(
     PIE_FullDestinies_FM = readr::read_csv(file.path(
       inputs_dir, "PIE_FullDestinies_FM.csv"
     )),
+    biomass_coefs = readxl::read_excel(
+      file.path(
+        inputs_dir, "Biomass_coefs.xlsx"
+      ),
+      sheet = "Coefs",
+      skip = 1
+    ),
     sf_provinces_spain = sf_provinces_spain,
     n_input_df = readr::read_csv(file.path(inputs_dir, "n_inputs_combined.csv"))
   )
@@ -291,7 +305,27 @@ create_typologies_of_josette <- function(
 #' @return A tibble with domestic feed share.
 #' @keywords internal
 #' @noRd
-.calculate_feed_domestic_share <- function(feed_df, lu_df) {
+.calculate_feed_domestic_share <- function(
+  feed_df, lu_df, Codes_coefs_item, biomass_coefs
+) {
+  # FM to DM to N
+  feed_df <- feed_df |>
+    dplyr::left_join(
+      Codes_coefs_item |> dplyr::select(item, Name_biomass),
+      by = c("Item" = "item")
+    ) |>
+    dplyr::left_join(
+      biomass_coefs |> dplyr::select(
+        Name_biomass, Product_kgDM_kgFM, Product_kgN_kgDM
+      ),
+      by = "Name_biomass"
+    ) |>
+    dplyr::mutate(
+      Value_destiny_DM = Value_destiny * Product_kgDM_kgFM,
+      Value_destiny_N = Value_destiny_DM * Product_kgN_kgDM
+    )
+  View(feed_df)
+
   # Filter relevant feed data: Production, Exports and
   # Imports destined for feed use
   feed_summary <- feed_df |>
@@ -301,7 +335,7 @@ create_typologies_of_josette <- function(
     ) |>
     tidyr::pivot_wider(
       names_from = Element,
-      values_from = Value_destiny,
+      values_from = Value_destiny_N,
       values_fill = 0
     )
 
@@ -470,7 +504,9 @@ create_typologies_of_josette <- function(
   imported_feed_share_df
 ) {
   # Filter datasets to those years
-  typologies_df_filtered <- typologies_df
+  typologies_df_filtered <- typologies_df |>
+    dplyr::group_by(Year, Province_name) |>
+    dplyr::summarise(Typology = dplyr::first(Typology), .groups = "drop")
 
   n_inputs_agg <- n_input_df |>
     dplyr::group_by(Year, Province_name) |>
@@ -482,7 +518,11 @@ create_typologies_of_josette <- function(
     )
 
   feed_import_agg <- imported_feed_share_df |>
-    dplyr::select(Year, Province_name, Net_feed_import)
+    dplyr::group_by(Year, Province_name) |>
+    dplyr::summarise(
+      Net_feed_import = sum(Net_feed_import, na.rm = TRUE),
+      .groups = "drop"
+    )
 
   # Join all data
   df_joined <- n_inputs_agg |>

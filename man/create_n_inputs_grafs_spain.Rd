@@ -7,9 +7,7 @@
 create_n_inputs_grafs_spain()
 }
 \value{
-A named list with one element:
-\itemize{
-\item \code{nue}: A tibble containing nitrogen input, production, and NUE data.
+A tibble containing nitrogen input, production, and NUE data.
 It includes the following columns:
 \itemize{
 \item \code{Year}: The year in which the recorded event occurred.
@@ -27,7 +25,6 @@ semi-natural agroecosystems.
 \item \code{Prod_MgN}: Produced nitrogen in megagrams (Mg).
 \item \code{Inputs_MgN}: Total nitrogen inputs in megagrams (Mg).
 \item \code{nue}: Nitrogen use efficiency, expressed in percent.
-}
 }
 }
 \description{
