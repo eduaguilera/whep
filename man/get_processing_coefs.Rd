@@ -52,8 +52,8 @@ amount from 'production' is actually the amount of subproduct obtained.
 TODO: Fix few data where this doesn't hold.
 }
 \description{
-Cleans and processes large dataset coming from an external source as
-starting point.
+Reports quantities of commodity balance sheet items used for \code{processing}
+and quantities of their corresponding processed output items.
 }
 \examples{
 \dontrun{

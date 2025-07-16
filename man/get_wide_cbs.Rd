@@ -46,8 +46,7 @@ There is an additional column \code{domestic_supply} which is computed as the
 total use excluding \code{export}.
 }
 \description{
-Cleans and processes large dataset coming from an external source as
-starting point.
+States supply and use parts for each commodity balance sheet (CBS) item.
 }
 \examples{
 \dontrun{
