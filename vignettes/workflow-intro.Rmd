@@ -1169,6 +1169,88 @@ I do not use RStudio myself, I am not particularly familiar with its
 functionalities, so if you think they may be helpful to you, you can check
 them yourself.
 
+## Reading large files
+
+Many packages don't work with data per se. Others need data, but their datasets
+are small enough to be directly included in the package (and thus the code
+repository). GitHub has a limit on file size of
+[100 MiB](https://docs.github.com/en/repositories/working-with-files/managing-large-files/about-large-files-on-github),
+but even adding such files will make working with the repository noticeably
+slow. My recommendation for us is to consider a file _large_ if it has more
+than a couple of megabytes. Assuming our package needs to work with _large_
+files, we need to find a workaround that is not storing them in GitHub. After
+thinking about this for a while, I considered using the 
+[`pins`](https://pins.rstudio.com/articles/pins.html) package. I encourage you
+to read through that *Get started* guide, since I won't explain too much
+about this package itself, but rather how we implement it in our workflow.
+
+A `pins` board is like a repository but for files. You can even store a version
+history of them. Here we assume that someone already created a board for you.
+If you just want to use a file someone else already added, you don't need any
+of the following. See the documentation for `whep_read_file()`.
+However, if you need a new file that is still not uploaded, or a new version of
+an existing one, you'll need to do these steps:
+
+1. Prepare a local version of your data. I created a script helper for us, which
+  can be found in the [WHEP repository
+  ](https://github.com/eduaguilera/WHEP/blob/main/inst/scripts/prepare_upload.R).
+  You have to fill your own local data path and a name for the data, run the
+  script and follow the instructions. For example, I could set the following
+  ```{r, eval = FALSE}
+  prepare_for_upload(
+    "~/Downloads/Processing_coefs.csv",
+    "processing_coefs"
+  )
+  #> Creating new version '20250716T102305Z-f8189'
+  #> ℹ 1. Manually upload the folder /tmp/RtmpHFHNUO/pins-1f3c39c418e0/processi
+  #> ng_coefs/20250716T102305Z-f8189 into your board. Folder path copied to you
+  #> r clipboard.
+  #> ℹ 2. Add the corresponding line
+  #> - processing_coefs/20250716T102305Z-f8189/
+  #> in _pins.yaml at the end of the 'processing_coefs:' section
+  #> ℹ 3. If you want the package to use this version, add a new row to whep_in
+  #> puts.csv if it's a new file or update the version in the existing row. The
+  #>  version is 20250716T102305Z-f8189.
+  ```
+
+2. A temporary local folder is created whose name is the data version. You must
+  upload this folder inside the one with the data's name in the public board,
+  assuming you have write access.
+
+  ```{r, fig.alt="New version uploaded", echo=FALSE}
+  knitr::include_graphics("imgs/new_version_uploaded.png")
+  ```
+
+3. You must add one line to the `_pins.yaml` file in the root folder of the
+  board, like it's specified in the instructions. This is an internal file
+  that the `pins` package uses to keep track of files and versions.
+
+  ```{r, fig.alt="Update _pins.yaml", echo=FALSE}
+  knitr::include_graphics("imgs/update_pins_yaml.png")
+  ```
+
+4. To use the version in the next package release, you must also update the
+  version inside the [`whep_inputs.csv`
+  ](https://github.com/eduaguilera/WHEP/blob/main/inst/extdata/whep_inputs.csv)
+  file:
+
+  ```
+  alias,board_url,version
+  ...
+  processing_coefs,https://some/url/to/_pins.yaml,20250716T102305Z-f8189
+  ...
+  ```
+
+And now you're done. You added a new file or a new version, and you can now
+access it from the code by using the `whep_read_file()` function.
+
+If you're wondering why there are manual steps in this process and the script
+doesn't automate everything, it's because our storage service is hosted by a
+Nextcloud server, and the easiest way to interact with it from outside is
+having a synced version of the whole storage locally. I thought some people
+might not be able to afford that, and since we don't have to upload new data
+files often, I decided a few manual steps wouldn't hurt that much.
+
 ## Automatic checks on Pull Requests
 
 By this point we assume you are already done with all your new code, you documented
