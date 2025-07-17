@@ -71,8 +71,14 @@ also include functions for easily downloading the data gathered by the project.
 ## Installation
 
 The package is still in an early stage and thus a work in progress, so it's
-still not on CRAN. You can install the development version of WHEP available
-on [GitHub](https://github.com/eduaguilera/WHEP) with:
+still not on CRAN. It is however available on R-universe:
+
+``` r
+install.packages('WHEP', repos = c('https://eduaguilera.r-universe.dev'))
+```
+
+You can also install the development version of WHEP available
+on [GitHub](https://github.com/eduaguilera/whep) with:
 
 ``` r
 pak::pak("eduaguilera/WHEP")

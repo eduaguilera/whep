@@ -7,6 +7,7 @@
 
 [![R-CMD-check](https://github.com/eduaguilera/WHEP/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/eduaguilera/WHEP/actions/workflows/R-CMD-check.yaml)
 [![whep status
+badge](https://eduaguilera.r-universe.dev/whep/badges/version)](https://eduaguilera.r-universe.dev/whep)
 <!-- badges: end -->
 
 ## Project
@@ -66,8 +67,14 @@ the data gathered by the project.
 ## Installation
 
 The package is still in an early stage and thus a work in progress, so
-it’s still not on CRAN. You can install the development version of WHEP
-available on [GitHub](https://github.com/eduaguilera/WHEP) with:
+it’s still not on CRAN. It is however available on R-universe:
+
+``` r
+install.packages('WHEP', repos = c('https://eduaguilera.r-universe.dev'))
+```
+
+You can also install the development version of WHEP available on
+[GitHub](https://github.com/eduaguilera/whep) with:
 
 ``` r
 pak::pak("eduaguilera/WHEP")
