@@ -52,7 +52,7 @@ create_typologies_of_josette <- function(
   feed_domestic_df <- .calculate_feed_domestic_share(
     data$PIE_FullDestinies_FM,
     intensive_list$lu_totals,
-    data$Codes_coefs_item,
+    data$codes_coefs_item,
     data$biomass_coefs
   )
   manure_share_df <- .calculate_manure_share(data$n_input_df)
@@ -114,7 +114,7 @@ create_typologies_of_josette <- function(
     Codes_coefs = readxl::read_excel(file.path(inputs_dir, "Codes_coefs.xlsx"),
       sheet = "Liv_LU_coefs"
     ),
-    Codes_coefs_item = readxl::read_excel(
+    codes_coefs_item = readxl::read_excel(
       file.path(inputs_dir, "Codes_coefs.xlsx"),
       sheet = "items_full"
     ),
@@ -306,12 +306,12 @@ create_typologies_of_josette <- function(
 #' @keywords internal
 #' @noRd
 .calculate_feed_domestic_share <- function(
-  feed_df, lu_df, Codes_coefs_item, biomass_coefs
+  feed_df, lu_df, codes_coefs_item, biomass_coefs
 ) {
   # FM to DM to N
   feed_df <- feed_df |>
     dplyr::left_join(
-      Codes_coefs_item |> dplyr::select(item, Name_biomass),
+      codes_coefs_item |> dplyr::select(item, Name_biomass),
       by = c("Item" = "item")
     ) |>
     dplyr::left_join(
@@ -324,7 +324,6 @@ create_typologies_of_josette <- function(
       Value_destiny_DM = Value_destiny * Product_kgDM_kgFM,
       Value_destiny_N = Value_destiny_DM * Product_kgN_kgDM
     )
-  View(feed_df)
 
   # Filter relevant feed data: Production, Exports and
   # Imports destined for feed use
