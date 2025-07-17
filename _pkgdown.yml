@@ -57,10 +57,7 @@ reference:
   
 - title: "Nitrogen cycles Spain"
   desc: >
-    Functions to generate data for N inputs, outputs, production, destinies,
-    typologies, etc.
+    Functions to generate data for N inputs, outputs, production, destinies
   contents:
   - create_n_inputs_grafs_spain
-  - create_typologies_grafs_spain
-  - create_typologies_of_josette
   - create_prod_and_destiny_grafs
