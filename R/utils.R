@@ -206,6 +206,8 @@ utils::globalVariables(
     "Value",
     "value_destiny",
     "Value_destiny",
+    "Value_destiny_DM",
+    "Value_destiny_N",
     "value_proc",
     "value_proc_raw",
     "value_to_process",
