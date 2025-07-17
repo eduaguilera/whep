@@ -48,11 +48,11 @@ create_typologies_grafs_spain <- function(
   data <- .load_inputs_typologies_julia(inputs_dir, shapefile_path)
   data$sf_provinces <- data$sf_provinces_spain
 
-  data$sf_provinces$name <- stri_trans_general(
+  data$sf_provinces$name <- stringi::stri_trans_general(
     data$sf_provinces$name,
     "Latin-ASCII"
   )
-  data$Livestock_Prod_ygps$Province_name <- stri_trans_general(
+  data$Livestock_Prod_ygps$Province_name <- stringi::stri_trans_general(
     data$Livestock_Prod_ygps$Province_name, "Latin-ASCII"
   )
   data$sf_provinces$name <- gsub(" ", "_", data$sf_provinces$name)
@@ -115,8 +115,6 @@ create_typologies_grafs_spain <- function(
     feed_domestic_prov
   )
 
-
-  # Assign Typologies + map
   typologies_result <- .assign_decision_tree(
     livestock_density,
     cropland_productivity,
@@ -134,22 +132,7 @@ create_typologies_grafs_spain <- function(
     map_plot <- NULL
   }
 
-  # Return the relevant map_years
-  list(
-    LU_detailed = lu_totals_detailed,
-    LU_totals = lu_aggregated,
-    Livestock_density = livestock_density,
-    Cropland_productivity = cropland_productivity,
-    Semi_natural_feed = semi_natural_feed,
-    Cropland_feed = cropland_feed,
-    Feed_share = feed_share,
-    Feed_domestic_supply_province = feed_domestic_prov,
-    Feed_import_by_province = feed_import_by_province,
-    Feed_imported_share = feed_imported_share,
-    Typologies = typologies_df,
-    Typologies_map = map_plot,
-    Typologies_all_years = typologies_result$Typologies_all_years
-  )
+  typologies_df
 }
 
 #' @title Load input datasets --------------------------------------------------
