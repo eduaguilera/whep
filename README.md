@@ -6,6 +6,7 @@
 <!-- badges: start -->
 
 [![R-CMD-check](https://github.com/eduaguilera/WHEP/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/eduaguilera/WHEP/actions/workflows/R-CMD-check.yaml)
+[![whep status
 <!-- badges: end -->
 
 ## Project
