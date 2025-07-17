@@ -71,26 +71,7 @@ create_prod_and_destiny_grafs <- function() {
   trade <- .calculate_trade(converted_items_n)
   n_prod_destiny <- .finalize_prod_destiny(trade, data$codes_coefs_items_full)
 
-  list(
-    data = data,
-    biomass_item_merged = biomass_item_merged,
-    production_crops_residues = production_crops_residues,
-    grazed_data_added = grazed_data_added,
-    semi_natural_systems_data = semi_natural_systems_data,
-    prod_combined_boxes = prod_combined_boxes,
-    seeds_removed = seeds_removed,
-    grass_wood_added = grass_wood_added,
-    prepared_processed_data = prepared_processed_data,
-    converted_data_fm_dm_n = converted_data_fm_dm_n,
-    feed_data = feed_data,
-    population_share = population_share,
-    food_data = food_data,
-    other_uses_data = other_uses_data,
-    combined_destinies = combined_destinies,
-    converted_items_n = converted_items_n,
-    trade = trade,
-    n_prod_destiny = n_prod_destiny
-  )
+  n_prod_destiny
 }
 
 #' Load all required datasets from input directory -----------------------------

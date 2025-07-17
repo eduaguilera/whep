@@ -46,9 +46,7 @@ create_n_inputs_grafs_spain <- function() {
   )
 
   # Calculate NUE
-  nue <- .calculate_nue(n_inputs_combined)
-
-  nue
+  .calculate_nue(n_inputs_combined)
 }
 
 #' @title N Inputs -------------------------------------------------------------
