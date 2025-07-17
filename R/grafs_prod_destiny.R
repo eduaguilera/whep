@@ -69,9 +69,8 @@ create_prod_and_destiny_grafs <- function() {
     combined_destinies, data$codes_coefs_items_full, data$biomass_coefs
   )
   trade <- .calculate_trade(converted_items_n)
-  n_prod_destiny <- .finalize_prod_destiny(trade, data$codes_coefs_items_full)
 
-  n_prod_destiny
+  .finalize_prod_destiny(trade, data$codes_coefs_items_full)
 }
 
 #' Load all required datasets from input directory -----------------------------
