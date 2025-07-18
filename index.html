@@ -5,7 +5,7 @@
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-<title>Who Has Eaten the Planet • WHEP</title>
+<title>Who Has Eaten the Planet • whep</title>
 <!-- favicons --><link rel="icon" type="image/png" sizes="96x96" href="favicon-96x96.png">
 <link rel="icon" type="”image/svg+xml”" href="favicon.svg">
 <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
@@ -18,7 +18,7 @@
 <script src="deps/headroom-0.11.0/headroom.min.js"></script><script src="deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="deps/search-1.0.0/fuse.min.js"></script><script src="deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="pkgdown.js"></script><meta property="og:title" content="Who Has Eaten the Planet">
 <meta name="description" content="Gather historical agricultural and trade data from 1850.">
 <meta property="og:description" content="Gather historical agricultural and trade data from 1850.">
-<meta property="og:image" content="https://eduaguilera.github.io/WHEP/logo.png">
+<meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png">
 </head>
 <body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
@@ -26,7 +26,7 @@
 
     <nav class="navbar navbar-expand-lg fixed-top bg-light" data-bs-theme="light" aria-label="Site navigation"><div class="container">
 
-    <a class="navbar-brand me-2" href="index.html">WHEP</a>
+    <a class="navbar-brand me-2" href="index.html">whep</a>
 
     <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.0.0.9000</small>
 
@@ -50,7 +50,7 @@
 <li class="nav-item"><form class="form-inline" role="search">
  <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="search.json">
 </form></li>
-<li class="nav-item"><a class="external-link nav-link" href="https://github.com/eduaguilera/WHEP/" aria-label="GitHub"><span class="fa fab fa-github fa-lg"></span></a></li>
+<li class="nav-item"><a class="external-link nav-link" href="https://github.com/eduaguilera/whep/" aria-label="GitHub"><span class="fa fab fa-github fa-lg"></span></a></li>
       </ul>
 </div>
 
@@ -101,17 +101,17 @@
 <div class="section level2">
 <h2 id="installation">Installation<a class="anchor" aria-label="anchor" href="#installation"></a>
 </h2>
-<p>The package is still in an early stage and thus a work in progress, so it’s still not on CRAN. It is however available on R-universe:</p>
+<p>The package is still in an early stage and thus a work in progress, so it’s still not on CRAN. It’s however already available on R-universe:</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="st">'WHEP'</span>, repos <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">'https://eduaguilera.r-universe.dev'</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
-<p>You can also install the development version of WHEP available on <a href="https://github.com/eduaguilera/whep" class="external-link">GitHub</a> with:</p>
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="st">'whep'</span>, repos <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">'https://eduaguilera.r-universe.dev'</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+<p>You can also install the development version of <code>whep</code> available on <a href="https://github.com/eduaguilera/whep" class="external-link">GitHub</a> with:</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu">pak</span><span class="fu">::</span><span class="fu"><a href="https://pak.r-lib.org/reference/pak.html" class="external-link">pak</a></span><span class="op">(</span><span class="st">"eduaguilera/WHEP"</span><span class="op">)</span></span></code></pre></div>
+<code class="sourceCode R"><span><span class="fu">pak</span><span class="fu">::</span><span class="fu"><a href="https://pak.r-lib.org/reference/pak.html" class="external-link">pak</a></span><span class="op">(</span><span class="st">"eduaguilera/whep"</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="usage">Usage<a class="anchor" aria-label="anchor" href="#usage"></a>
 </h2>
-<p>You can read more about the package’s functionalities from the documentation at the <a href="https://eduaguilera.github.io/WHEP/reference/index.html">reference page</a>.</p>
+<p>You can read more about the package’s functionalities from the documentation at the <a href="https://eduaguilera.github.io/whep/reference/index.html">reference page</a>.</p>
 </div>
 <div class="section level2">
 <h2 id="contributing">Contributing<a class="anchor" aria-label="anchor" href="#contributing"></a>
@@ -126,14 +126,14 @@
 <li>Write tests for your code.</li>
 <li>Create pull requests. Ask for review.</li>
 </ul>
-<p>The project is starting with <strong>contributors</strong> that are still learning about coding and best practices. For this reason <strong>we have created a guide</strong> explaining most of the things you need from the previous steps, covering both git and R package development. You can find the guide <a href="https://eduaguilera.github.io/WHEP/articles/workflow-intro.html"><strong>here</strong></a>. Anyone is welcome to contribute, but we highly recommend to go through this guide to become familiar with the workflow if you are still not used to it.</p>
+<p>The project is starting with <strong>contributors</strong> that are still learning about coding and best practices. For this reason <strong>we have created a guide</strong> explaining most of the things you need from the previous steps, covering both git and R package development. You can find the guide <a href="https://eduaguilera.github.io/whep/articles/workflow-intro.html"><strong>here</strong></a>. Anyone is welcome to contribute, but we highly recommend to go through this guide to become familiar with the workflow if you are still not used to it.</p>
 </div>
 </div>
   </main><aside class="col-md-3"><div class="links">
 <h2 data-toc-skip>Links</h2>
 <ul class="list-unstyled">
-<li><a href="https://github.com/eduaguilera/WHEP/" class="external-link">Browse source code</a></li>
-<li><a href="https://github.com/eduaguilera/WHEP/issues" class="external-link">Report a bug</a></li>
+<li><a href="https://github.com/eduaguilera/whep/" class="external-link">Browse source code</a></li>
+<li><a href="https://github.com/eduaguilera/whep/issues" class="external-link">Report a bug</a></li>
 <li><a href="https://cordis.europa.eu/project/id/101115126" class="external-link">WHEP ERC project</a></li>
 </ul>
 </div>
@@ -150,7 +150,7 @@
 <div class="citation">
 <h2 data-toc-skip>Citation</h2>
 <ul class="list-unstyled">
-<li><a href="authors.html#citation">Citing WHEP</a></li>
+<li><a href="authors.html#citation">Citing whep</a></li>
 </ul>
 </div>
 
@@ -166,7 +166,7 @@
 <div class="dev-status">
 <h2 data-toc-skip>Dev status</h2>
 <ul class="list-unstyled">
-<li><a href="https://github.com/eduaguilera/WHEP/actions/workflows/R-CMD-check.yaml" class="external-link"><img src="https://github.com/eduaguilera/WHEP/actions/workflows/R-CMD-check.yaml/badge.svg" alt="R-CMD-check"></a></li>
+<li><a href="https://github.com/eduaguilera/whep/actions/workflows/R-CMD-check.yaml" class="external-link"><img src="https://github.com/eduaguilera/whep/actions/workflows/R-CMD-check.yaml/badge.svg" alt="R-CMD-check"></a></li>
 <li><a href="https://eduaguilera.r-universe.dev/whep" class="external-link"><img src="https://eduaguilera.r-universe.dev/whep/badges/version" alt="whep status badge"></a></li>
 </ul>
 </div>

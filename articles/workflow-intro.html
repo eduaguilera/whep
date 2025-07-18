@@ -5,7 +5,7 @@
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-<title>Follow the workflow • WHEP</title>
+<title>Follow the workflow • whep</title>
 <!-- favicons --><link rel="icon" type="image/png" sizes="96x96" href="../favicon-96x96.png">
 <link rel="icon" type="”image/svg+xml”" href="../favicon.svg">
 <link rel="apple-touch-icon" sizes="180x180" href="../apple-touch-icon.png">
@@ -23,7 +23,7 @@
 
     <nav class="navbar navbar-expand-lg fixed-top bg-light" data-bs-theme="light" aria-label="Site navigation"><div class="container">
 
-    <a class="navbar-brand me-2" href="../index.html">WHEP</a>
+    <a class="navbar-brand me-2" href="../index.html">whep</a>
 
     <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.0.0.9000</small>
 
@@ -47,7 +47,7 @@
 <li class="nav-item"><form class="form-inline" role="search">
  <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="../search.json">
 </form></li>
-<li class="nav-item"><a class="external-link nav-link" href="https://github.com/eduaguilera/WHEP/" aria-label="GitHub"><span class="fa fab fa-github fa-lg"></span></a></li>
+<li class="nav-item"><a class="external-link nav-link" href="https://github.com/eduaguilera/whep/" aria-label="GitHub"><span class="fa fab fa-github fa-lg"></span></a></li>
       </ul>
 </div>
 
@@ -63,7 +63,7 @@
       <img src="../logo.png" class="logo" alt=""><h1>Follow the workflow</h1>
             
       
-      <small class="dont-index">Source: <a href="https://github.com/eduaguilera/WHEP/blob/main/vignettes/workflow-intro.Rmd" class="external-link"><code>vignettes/workflow-intro.Rmd</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/eduaguilera/whep/blob/main/vignettes/workflow-intro.Rmd" class="external-link"><code>vignettes/workflow-intro.Rmd</code></a></small>
       <div class="d-none name"><code>workflow-intro.Rmd</code></div>
     </div>
 
@@ -652,6 +652,141 @@ output):</p>
 <p><img src="imgs/roxygen_documentation.png" alt="Auto generated documentation appearance"></p>
 </div>
 <div class="section level3">
+<h3 id="package-data">Package data<a class="anchor" aria-label="anchor" href="#package-data"></a>
+</h3>
+<p>Some of the data we have to work with might be very large. If the
+final datasets we want to produce are too large, we can’t directly
+include them in the package because there are size limits and
+recommendations. In that case, we will have to export them as
+<em>functions</em>. In this way, the package itself won’t contain the
+output dataset, but the user will have to generate it through running a
+function, so it will be stored in their own computer. An example of this
+is our function <code><a href="../reference/get_wide_cbs.html">get_wide_cbs()</a></code>. Unless we generate the
+dataset ourselves in the function, we will also probably be using a very
+large input dataset which we just process somehow. For reading large
+datasets, see the relevant <a href="#reading-large-files">Reading large
+files section</a>.</p>
+<p>From now on, in this section we assume that you have some small
+datasets (maybe up to a couple of megabytes) as inputs. We will go
+through both public and private ones. The public ones are those that you
+want to export to users of your package, and the private ones are only
+intended for being used in your own code.</p>
+<p>Let’s start with the exported datasets. The whole aim of this is to
+allow users (or even our own code) to access them easily by writing
+<code>my_pkg::my_dataset</code>. In order to achieve this, you must
+follow these steps:</p>
+<ol style="list-style-type: decimal">
+<li>
+<p>Create a file in <code>data-raw/my_dataset.R</code>. Scripts
+inside the <code>data-raw</code> folder aren’t included as part of the
+package. They will just be helpers for us to generate the actual data.
+Inside this file we do some processing and, assuming we have a variable
+called <code>my_dataset</code>, we end the script by calling
+<code>usethis::use_data(my_dataset)</code>. This will automatically
+create an <code>.rda</code> file in <code>data/my_dataset.rda</code>. We
+have to manually run this script. After that, we can now refer to the
+dataset as <code>my_pkg::my_dataset</code>.</p>
+<p>You can directly create your data in the script
+<code>data-raw/my_dataset.R</code>, or you can make it rather short by
+just importing some data from another raw file. In this case, I
+recommend having the raw file as a CSV in the <code>inst/extdata</code>
+folder, say, <code>inst/extdata/my_raw_dataset.csv</code>. This is for
+accessibility, so that everyone can see where this data comes from
+regardless of whether they know how to read an <code>.rda</code> file or
+not. A <code>data-raw/my_dataset.R</code> script could then look
+like:</p>
+</li>
+</ol>
+<div class="sourceCode" id="cb29"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">my_dataset</span> <span class="op">&lt;-</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"inst"</span>, <span class="st">"extdata"</span>, <span class="st">"my_raw_dataset.csv"</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu">readr</span><span class="fu">::</span><span class="fu"><a href="https://readr.tidyverse.org/reference/read_delim.html" class="external-link">read_csv</a></span><span class="op">(</span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu">usethis</span><span class="fu">::</span><span class="fu">use_data</span><span class="op">(</span><span class="va">my_raw_dataset</span>, overwrite <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
+<p>Every time you introduce some change in the raw CSV file, you would
+have to run this script again. The <code>overwrite = TRUE</code> is
+exactly for this purpose, so that the <code>my_dataset.rda</code> file
+is overwritten with the updated data.</p>
+<ol start="2" style="list-style-type: decimal">
+<li>Document your dataset. In the previous section we learned how to
+document functions. Datasets aren’t functions, but they’re documented
+very similarly. We start by creating a file <code>R/my_dataset.R</code>.
+Note that the name matches that of <code>data-raw/my_dataset.R</code>.
+It doesn’t need to match that of the variable used with
+<code>usethis::use_data()</code>, but they should match each other. You
+can define more than one dataset in the same file if you think they’re
+related, so then you can also use a more general name for the file. This
+is how you would document your dataset, also using <code>roxygen2</code>
+comments:</li>
+</ol>
+<div class="sourceCode" id="cb30"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co">#' Title of my dataset</span></span>
+<span><span class="co">#'</span></span>
+<span><span class="co">#' My description of my dataset</span></span>
+<span><span class="co">#'</span></span>
+<span><span class="co">#' @format</span></span>
+<span><span class="co">#' What my dataset is. I would ideally make it a tibble and explain all</span></span>
+<span><span class="co">#' columns. My dataset contains the following columns:</span></span>
+<span><span class="co">#' - `column_1`: My explanation of column 1.</span></span>
+<span><span class="co">#' - `column_2`: My explanation of column 2.</span></span>
+<span><span class="co">#' - `column_3`: My explanation of column 3.</span></span>
+<span><span class="co">#'</span></span>
+<span><span class="co">#' @source Where my data comes from. Maybe an external link if you have one.</span></span>
+<span><span class="st">"my_dataset"</span></span></code></pre></div>
+<p>As you can see, we use <code>roxygen2</code> style comments right
+before a line containing a character vector with the name of our
+dataset, in this case <code>"my_dataset"</code>. Now your dataset will
+be correctly documented after doing <code>devtools::document()</code>
+and
+<code><a href="https://pkgdown.r-lib.org/reference/build_site.html" class="external-link">pkgdown::build_site()</a></code>/<code><a href="https://pkgdown.r-lib.org/reference/build_reference.html" class="external-link">pkgdown::build_reference()</a></code>.</p>
+<p>Now we should talk about internal data. This is data that only the
+developers of the package themselves use throughout the code. This could
+be either actual tibble datasets or just bare constants. Any value that
+doesn’t change and you would like to share throughout the whole package
+code applies for this. Creating internal data is quite similar to
+exported data:</p>
+<ol style="list-style-type: decimal">
+<li>Create a file <code>data-raw/constants.R</code> if it doesn’t
+already exist. For internal data, all of them should be defined in this
+same file. The file could look like this:</li>
+</ol>
+<div class="sourceCode" id="cb31"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">my_constant_number</span> <span class="op">&lt;-</span> <span class="fl">0.65</span></span>
+<span><span class="va">my_constant_name</span> <span class="op">&lt;-</span> <span class="st">"name"</span></span>
+<span><span class="va">my_constant_tibble</span> <span class="op">&lt;-</span> <span class="fu">tibble</span><span class="fu">::</span><span class="fu"><a href="https://tibble.tidyverse.org/reference/tribble.html" class="external-link">tribble</a></span><span class="op">(</span></span>
+<span>  <span class="op">~</span><span class="va">col_1</span>, <span class="op">~</span><span class="va">col_2</span>,</span>
+<span>  <span class="fl">1</span>,      <span class="fl">2</span>,</span>
+<span>  <span class="fl">3</span>,      <span class="fl">4</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu">usethis</span><span class="fu">::</span><span class="fu">use_data</span><span class="op">(</span></span>
+<span>  <span class="va">my_constant_number</span>,</span>
+<span>  <span class="va">my_constant_name</span>,</span>
+<span>  <span class="va">my_constant_tibble</span>,</span>
+<span>  internal <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  overwrite <span class="op">=</span> <span class="cn">TRUE</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<p>As you can see, you can pass more than one variable to
+<code>usethis::use_data()</code>. We should include all our constants in
+the same call to this function. In addition, it must also include the
+<code>internal = TRUE</code> option to identify this as internal
+data.</p>
+<ol start="2" style="list-style-type: decimal">
+<li>Manually run the previous file. This will create a single file in
+<code>R/sysdata.rda</code>, which contains all your internal data. You
+can now refer to these data the same way as for exported data, e.g.,
+<code>my_pkg::my_constant_tibble</code> or
+<code>my_pkg::my_constant_number</code>, but these will only be
+available through the package’s code, and won’t be exported to the
+package users. Again, any time you want to add new internal data or
+modify the existing entries, you will have to manually run that script
+again.</li>
+</ol>
+<p>Whether some data is worth being exported as part of the package or
+just used as internal, this is your decision, but now you know how to
+implement both. This section was heavily inspired by the <a href="https://r-pkgs.org/data.html" class="external-link"><em>Data</em> chapter</a> in the R
+Packages book, which I recommend reading if you want to dive deeper.</p>
+</div>
+<div class="section level3">
 <h3 id="writing-tests">Writing tests<a class="anchor" aria-label="anchor" href="#writing-tests"></a>
 </h3>
 <p>So we just wrote a function, we are done with it, we now move to
@@ -661,7 +796,7 @@ now it would be easy to just load the function in an R prompt and try
 some examples on it, but what if the next month someone has to make a
 change in this code? They would have to do this manual testing again to
 make sure they did not break any functionality. What if they need to
-change dozens of functions? How many time will they spend on testing all
+change dozens of functions? How much time will they spend on testing all
 of them?</p>
 <p>I think you can understand that this is really time consuming and
 that there is a better way. Tests can be automatized. We can write some
@@ -687,7 +822,7 @@ prefix. In our case, for example, if we have an R file in
 <code>R/sources.R</code>, then our test file should be
 <code>tests/testthat/test-sources.R</code>. Let’s see how one of our
 tests could look like:</p>
-<div class="sourceCode" id="cb29"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb32"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="st"><a href="https://testthat.r-lib.org" class="external-link">"testthat"</a></span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu"><a href="https://testthat.r-lib.org/reference/test_that.html" class="external-link">test_that</a></span><span class="op">(</span><span class="st">"trade source data is expanded from year range to single year rows"</span>, <span class="op">{</span></span>
@@ -782,7 +917,7 @@ part of our code workflow, you are also responsible to make this check
 pass, as we will also see in the <a href="#automatic-checks-on-pull-requests">Automatic checks on Pull
 Requests</a> section. This check is known as ‘R CMD check’, and it is
 actually very easy to run:</p>
-<div class="sourceCode" id="cb30"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb33"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu">devtools</span><span class="fu">::</span><span class="fu">check</span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
 <p>The whole output of this call is rather long, since it lists all the
 different checks it makes, but at the end, if there are no issues, this
@@ -799,30 +934,30 @@ as dependencies. Again, if you just followed everything from here, we
 never got to do that, so your built package just does not include any
 other packages. To fix this, we must have a quick look at the
 <code>DESCRIPTION</code> file.</p>
-<div class="sourceCode" id="cb31"><pre class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb31-1"><a href="#cb31-1" tabindex="-1"></a><span class="an">Package:</span><span class="co"> WHEP</span></span>
-<span id="cb31-2"><a href="#cb31-2" tabindex="-1"></a><span class="an">Title:</span><span class="co"> What the Package Does (One Line, Title Case)</span></span>
-<span id="cb31-3"><a href="#cb31-3" tabindex="-1"></a><span class="an">Version:</span><span class="co"> 0.0.0.9000</span></span>
-<span id="cb31-4"><a href="#cb31-4" tabindex="-1"></a>Authors@R:</span>
-<span id="cb31-5"><a href="#cb31-5" tabindex="-1"></a>    person("First", "Last", , "first.last@example.com", role = c("aut", "cre"))</span>
-<span id="cb31-6"><a href="#cb31-6" tabindex="-1"></a>Description: What the package does (one paragraph).</span>
-<span id="cb31-7"><a href="#cb31-7" tabindex="-1"></a>License: MIT + file LICENSE</span>
-<span id="cb31-8"><a href="#cb31-8" tabindex="-1"></a>Imports:</span>
-<span id="cb31-9"><a href="#cb31-9" tabindex="-1"></a>    dplyr,</span>
-<span id="cb31-10"><a href="#cb31-10" tabindex="-1"></a>    tidyr</span>
-<span id="cb31-11"><a href="#cb31-11" tabindex="-1"></a>Encoding: UTF-8</span>
-<span id="cb31-12"><a href="#cb31-12" tabindex="-1"></a>Roxygen: list(markdown = TRUE)</span>
-<span id="cb31-13"><a href="#cb31-13" tabindex="-1"></a>RoxygenNote: 7.3.2</span>
-<span id="cb31-14"><a href="#cb31-14" tabindex="-1"></a>Suggests:</span>
-<span id="cb31-15"><a href="#cb31-15" tabindex="-1"></a>    knitr,</span>
-<span id="cb31-16"><a href="#cb31-16" tabindex="-1"></a>    rmarkdown,</span>
-<span id="cb31-17"><a href="#cb31-17" tabindex="-1"></a>    testthat (&gt;= 3.0.0),</span>
-<span id="cb31-18"><a href="#cb31-18" tabindex="-1"></a>    tibble,</span>
-<span id="cb31-19"><a href="#cb31-19" tabindex="-1"></a>    ggplot2,</span>
-<span id="cb31-20"><a href="#cb31-20" tabindex="-1"></a>    here,</span>
-<span id="cb31-21"><a href="#cb31-21" tabindex="-1"></a>    googlesheets4</span>
-<span id="cb31-22"><a href="#cb31-22" tabindex="-1"></a>Config/testthat/edition: 3</span>
-<span id="cb31-23"><a href="#cb31-23" tabindex="-1"></a>VignetteBuilder: knitr</span>
-<span id="cb31-24"><a href="#cb31-24" tabindex="-1"></a>URL: https://eduaguilera.github.io/WHEP/</span></code></pre></div>
+<div class="sourceCode" id="cb34"><pre class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb34-1"><a href="#cb34-1" tabindex="-1"></a><span class="an">Package:</span><span class="co"> whep</span></span>
+<span id="cb34-2"><a href="#cb34-2" tabindex="-1"></a><span class="an">Title:</span><span class="co"> What the Package Does (One Line, Title Case)</span></span>
+<span id="cb34-3"><a href="#cb34-3" tabindex="-1"></a><span class="an">Version:</span><span class="co"> 0.0.0.9000</span></span>
+<span id="cb34-4"><a href="#cb34-4" tabindex="-1"></a>Authors@R:</span>
+<span id="cb34-5"><a href="#cb34-5" tabindex="-1"></a>    person("First", "Last", , "first.last@example.com", role = c("aut", "cre"))</span>
+<span id="cb34-6"><a href="#cb34-6" tabindex="-1"></a>Description: What the package does (one paragraph).</span>
+<span id="cb34-7"><a href="#cb34-7" tabindex="-1"></a>License: MIT + file LICENSE</span>
+<span id="cb34-8"><a href="#cb34-8" tabindex="-1"></a>Imports:</span>
+<span id="cb34-9"><a href="#cb34-9" tabindex="-1"></a>    dplyr,</span>
+<span id="cb34-10"><a href="#cb34-10" tabindex="-1"></a>    tidyr</span>
+<span id="cb34-11"><a href="#cb34-11" tabindex="-1"></a>Encoding: UTF-8</span>
+<span id="cb34-12"><a href="#cb34-12" tabindex="-1"></a>Roxygen: list(markdown = TRUE)</span>
+<span id="cb34-13"><a href="#cb34-13" tabindex="-1"></a>RoxygenNote: 7.3.2</span>
+<span id="cb34-14"><a href="#cb34-14" tabindex="-1"></a>Suggests:</span>
+<span id="cb34-15"><a href="#cb34-15" tabindex="-1"></a>    knitr,</span>
+<span id="cb34-16"><a href="#cb34-16" tabindex="-1"></a>    rmarkdown,</span>
+<span id="cb34-17"><a href="#cb34-17" tabindex="-1"></a>    testthat (&gt;= 3.0.0),</span>
+<span id="cb34-18"><a href="#cb34-18" tabindex="-1"></a>    tibble,</span>
+<span id="cb34-19"><a href="#cb34-19" tabindex="-1"></a>    ggplot2,</span>
+<span id="cb34-20"><a href="#cb34-20" tabindex="-1"></a>    here,</span>
+<span id="cb34-21"><a href="#cb34-21" tabindex="-1"></a>    googlesheets4</span>
+<span id="cb34-22"><a href="#cb34-22" tabindex="-1"></a>Config/testthat/edition: 3</span>
+<span id="cb34-23"><a href="#cb34-23" tabindex="-1"></a>VignetteBuilder: knitr</span>
+<span id="cb34-24"><a href="#cb34-24" tabindex="-1"></a>URL: https://eduaguilera.github.io/whep/</span></code></pre></div>
 <p>In the above file, the <code>Imports</code> section is where we
 should make sure we have all dependencies for code which was saved
 specifically in the <code>R/</code> directory. On the other hand,
@@ -886,7 +1021,7 @@ knitr::opts_chunk$set(
 ```
 
 ```_{r setup}
-library(WHEP)
+library(whep)
 key_path &lt;- here::here(Sys.getenv("GOOGLESHEETS_AUTH_FILE"))
 googlesheets4::gs4_auth(path = key_path)
 ```
@@ -946,9 +1081,9 @@ article. At the time of writing I do not really know the implications of
 writing the <code>"r setup"</code> option or writing this code in a
 normal R code chunk (without the option), but it is at least good
 practice. Note that the package being loaded is your own package (called
-WHEP in our case).</p>
+whep in our case).</p>
 <pre><code>```_{r setup}
-library(WHEP)
+library(whep)
 key_path &lt;- here::here(Sys.getenv("GOOGLESHEETS_AUTH_FILE"))
 googlesheets4::gs4_auth(path = key_path)
 ```</code></pre>
@@ -963,7 +1098,7 @@ be displayed correctly in a browser.</p>
 it. There are at least two useful R commands for this. The first one
 creates the whole documentation website locally in our computers, and it
 automatically opens your browser on the site. This is simply:</p>
-<div class="sourceCode" id="cb35"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb38"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu">pkgdown</span><span class="fu">::</span><span class="fu"><a href="https://pkgdown.r-lib.org/reference/build_site.html" class="external-link">build_site</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
 <p>We should now be able to see our article in the ‘Articles’ section.
 It should look something like the one you can see directly on this site
@@ -972,7 +1107,7 @@ at <a href="trade-sources-coverage.html">Trades sources coverage</a>
 <p>After running this command once, there is no need to rerun it every
 time we want to see changes, since it takes a bit longer to run. We can
 instead use a simpler one</p>
-<div class="sourceCode" id="cb36"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb39"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu">pkgdown</span><span class="fu">::</span><span class="fu"><a href="https://pkgdown.r-lib.org/reference/build_articles.html" class="external-link">build_articles</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
 <p>which checks for code changes in articles and only reruns those that
 have changed. I am not completely convinced they are equivalent, since
@@ -1032,7 +1167,7 @@ like this:</p>
 <pre><code><span><span class="va">DEBUG_LEVEL</span><span class="op">=</span><span class="fl">1</span></span>
 <span><span class="va">GOOGLESHEETS_AUTH_FILE</span><span class="op">=</span><span class="va">inst</span><span class="op">/</span><span class="va">google_cloud_key.json</span></span></code></pre>
 <p>It can be accessed from R code by using</p>
-<div class="sourceCode" id="cb39"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb42"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Sys.getenv.html" class="external-link">Sys.getenv</a></span><span class="op">(</span><span class="st">"NAME_OF_VARIABLE"</span><span class="op">)</span></span></code></pre></div>
 <p>You can also use environment variables for constants, or whatever you
 feel that could be used in several places. This file will be uploaded to
@@ -1040,7 +1175,7 @@ the repository, so it is important that it does not contain any
 sensitive information (also known as ‘secrets’). I also introduced this
 section because in the example code for the <a href="#writing-articles">Writing articles</a> section, there is the
 line:</p>
-<div class="sourceCode" id="cb40"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb43"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">key_path</span> <span class="op">&lt;-</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/Sys.getenv.html" class="external-link">Sys.getenv</a></span><span class="op">(</span><span class="st">"GOOGLESHEETS_AUTH_FILE"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 <p>In that example, an Excel sheet must be read. When using the
 <code>googlesheets4</code> package, it can automatically open a browser
@@ -1089,7 +1224,7 @@ guide, these two points directly match with two R packages:</p>
 specific code, be it a chunk, a file or an entire project. For example,
 we could apply the style to the whole package by simply using the
 command:</p>
-<div class="sourceCode" id="cb41"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb44"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu">styler</span><span class="fu">::</span><span class="fu">style_pkg</span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
 <p>Most code editors incorporate some way of doing this. Since you are
 most likely using RStudio, you can do it by finding the
@@ -1109,12 +1244,12 @@ long single line into several lines to match the 80 character limit. You
 <code>styler</code> to work is to first manually split some of the code
 into two lines, and then run the <code>styler</code> again, so it can
 now split the rest accordingly. For example, you have:</p>
-<div class="sourceCode" id="cb42"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb45"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu">call_my_incredibly_long_function</span><span class="op">(</span><span class="va">my_first_long_argument</span>, <span class="va">my_second_long_argument</span>, <span class="va">my_third_long_argument</span><span class="op">)</span></span></code></pre></div>
 <p>In this case, if you use <code>styler</code> it may not change
 anything and still leave this code in a single line, but you can help it
 a bit by sending the arguments to the next line, like this:</p>
-<div class="sourceCode" id="cb43"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb46"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu">call_my_incredibly_long_function</span><span class="op">(</span></span>
 <span>  <span class="va">my_first_long_argument</span>, <span class="va">my_second_long_argument</span>, <span class="va">my_third_long_argument</span><span class="op">)</span></span></code></pre></div>
 <p>This does not conform to the standard yet, but now trying to use
@@ -1122,13 +1257,13 @@ a bit by sending the arguments to the next line, like this:</p>
 on and split the code accordingly. Depending on the length of the line,
 it may leave it like this (note the closing parenthesis goes in its own
 line):</p>
-<div class="sourceCode" id="cb44"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb47"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu">call_my_incredibly_long_function</span><span class="op">(</span></span>
 <span>  <span class="va">my_first_long_argument</span>, <span class="va">my_second_long_argument</span>, <span class="va">my_third_long_argument</span></span>
 <span><span class="op">)</span></span></code></pre></div>
 <p>Or if the line was even longer, it would split each argument into its
 own line:</p>
-<div class="sourceCode" id="cb45"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb48"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu">call_my_incredibly_long_function</span><span class="op">(</span></span>
 <span>  <span class="va">my_first_long_argument</span>,</span>
 <span>  <span class="va">my_second_long_argument</span>,</span>
@@ -1146,7 +1281,7 @@ You are responsible for making sure this check passes (probably using
 <code>styler</code> as explained above), since it will also be
 automatically checked on your Pull Requests (see the <a href="#automatic-checks-on-pull-requests">next section</a> on this
 guide). The check we will use is:</p>
-<div class="sourceCode" id="cb46"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb49"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu">lintr</span><span class="fu">::</span><span class="fu">lint_package</span><span class="op">(</span></span>
 <span>  linters <span class="op">=</span> <span class="fu">lintr</span><span class="fu">::</span><span class="fu">linters_with_defaults</span><span class="op">(</span>object_usage_linter <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
@@ -1173,6 +1308,83 @@ documentation). In this guide I tried to provide a code editor agnostic
 approach for everything. Since I do not use RStudio myself, I am not
 particularly familiar with its functionalities, so if you think they may
 be helpful to you, you can check them yourself.</p>
+</div>
+<div class="section level3">
+<h3 id="reading-large-files">Reading large files<a class="anchor" aria-label="anchor" href="#reading-large-files"></a>
+</h3>
+<p>Many packages don’t work with data per se. Others need data, but
+their datasets are small enough to be directly included in the package
+(and thus the code repository). GitHub has a limit on file size of <a href="https://docs.github.com/en/repositories/working-with-files/managing-large-files/about-large-files-on-github" class="external-link">100
+MiB</a>, but even adding such files will make working with the
+repository noticeably slow. My recommendation for us is to consider a
+file <em>large</em> if it has more than a couple of megabytes. Assuming
+our package needs to work with <em>large</em> files, we need to find a
+workaround that is not storing them in GitHub. After thinking about this
+for a while, I considered using the <a href="https://pins.rstudio.com/articles/pins.html" class="external-link"><code>pins</code></a>
+package. I encourage you to read through that <em>Get started</em>
+guide, since I won’t explain too much about this package itself, but
+rather how we implement it in our workflow.</p>
+<p>A <code>pins</code> board is like a repository but for files. You can
+even store a version history of them. Here we assume that someone
+already created a board for you. If you just want to use a file someone
+else already added, you don’t need any of the following. See the
+documentation for <code><a href="../reference/whep_read_file.html">whep_read_file()</a></code>. However, if you need a
+new file that is still not uploaded, or a new version of an existing
+one, you’ll need to do these steps:</p>
+<ol style="list-style-type: decimal">
+<li>Prepare a local version of your data. I created a script helper for
+us, which can be found in the <a href="https://github.com/eduaguilera/whep/blob/main/inst/scripts/prepare_upload.R" class="external-link"><code>whep</code>
+repository</a>. You have to fill your own local data path and a name for
+the data, run the script and follow the instructions. For example, I
+could set the following</li>
+</ol>
+<div class="sourceCode" id="cb50"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu">prepare_for_upload</span><span class="op">(</span></span>
+<span><span class="st">"~/Downloads/Processing_coefs.csv"</span>,</span>
+<span><span class="st">"processing_coefs"</span></span>
+<span><span class="op">)</span></span>
+<span><span class="co">#&gt; Creating new version '20250716T102305Z-f8189'</span></span>
+<span><span class="co">#&gt; ℹ 1. Manually upload the folder /tmp/RtmpHFHNUO/pins-1f3c39c418e0/processi</span></span>
+<span><span class="co">#&gt; ng_coefs/20250716T102305Z-f8189 into your board. Folder path copied to you</span></span>
+<span><span class="co">#&gt; r clipboard.</span></span>
+<span><span class="co">#&gt; ℹ 2. Add the corresponding line</span></span>
+<span><span class="co">#&gt; - processing_coefs/20250716T102305Z-f8189/</span></span>
+<span><span class="co">#&gt; in _pins.yaml at the end of the 'processing_coefs:' section</span></span>
+<span><span class="co">#&gt; ℹ 3. If you want the package to use this version, add a new row to whep_in</span></span>
+<span><span class="co">#&gt; puts.csv if it's a new file or update the version in the existing row. The</span></span>
+<span><span class="co">#&gt;  version is 20250716T102305Z-f8189.</span></span></code></pre></div>
+<ol start="2" style="list-style-type: decimal">
+<li>A temporary local folder is created whose name is the data version.
+You must upload this folder inside the one with the data’s name in the
+public board, assuming you have write access.</li>
+</ol>
+<p><img src="imgs/new_version_uploaded.png" alt="New version uploaded"></p>
+<ol start="3" style="list-style-type: decimal">
+<li>You must add one line to the <code>_pins.yaml</code> file in the
+root folder of the board, like it’s specified in the instructions. This
+is an internal file that the <code>pins</code> package uses to keep
+track of files and versions.</li>
+</ol>
+<p><img src="imgs/update_pins_yaml.png" alt="Update _pins.yaml"></p>
+<ol start="4" style="list-style-type: decimal">
+<li>To use the version in the next package release, you must also update
+the version inside the <a href="https://github.com/eduaguilera/whep/blob/main/inst/extdata/whep_inputs.csv" class="external-link"><code>whep_inputs.csv</code></a>
+file:</li>
+</ol>
+<pre><code>alias,board_url,version
+...
+processing_coefs,https://some/url/to/_pins.yaml,20250716T102305Z-f8189
+...</code></pre>
+<p>And now you’re done. You added a new file or a new version, and you
+can now access it from the code by using the
+<code><a href="../reference/whep_read_file.html">whep_read_file()</a></code> function.</p>
+<p>If you’re wondering why there are manual steps in this process and
+the script doesn’t automate everything, it’s because our storage service
+is hosted by a Nextcloud server, and the easiest way to interact with it
+from outside is having a synced version of the whole storage locally. I
+thought some people might not be able to afford that, and since we don’t
+have to upload new data files often, I decided a few manual steps
+wouldn’t hurt that much.</p>
 </div>
 <div class="section level3">
 <h3 id="automatic-checks-on-pull-requests">Automatic checks on Pull Requests<a class="anchor" aria-label="anchor" href="#automatic-checks-on-pull-requests"></a>
