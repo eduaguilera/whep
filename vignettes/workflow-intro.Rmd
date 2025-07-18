@@ -920,7 +920,7 @@ Suggests:
     googlesheets4
 Config/testthat/edition: 3
 VignetteBuilder: knitr
-URL: https://eduaguilera.github.io/whep/
+URL: https://eduaguilera.github.io/WHEP/
 ```
 
 In the above file, the `Imports` section is where we should make sure we have

@@ -88,7 +88,7 @@
 #'    ). The target sums for rows and columns are respectively the balanced
 #'    exports and imports computed from the commodity balance sheet. The
 #'    algorithm is performed directly using the [mipfp R package](
-#'      https://cran.r-project.org/web/packages/mipfp/index.html).
+#'    https://CRAN.R-project.org/package=mipfp).
 #'
 #' @export
 #'

@@ -13,9 +13,9 @@ A set of tools for processing and analyzing data developed in the context of the
 \seealso{
 Useful links:
 \itemize{
-  \item \url{https://eduaguilera.github.io/whep}
-  \item \url{https://github.com/eduaguilera/whep}
-  \item Report bugs at \url{https://github.com/eduaguilera/whep/issues}
+  \item \url{https://eduaguilera.github.io/WHEP/}
+  \item \url{https://github.com/eduaguilera/WHEP}
+  \item Report bugs at \url{https://github.com/eduaguilera/WHEP/issues}
 }
 
 }
@@ -30,7 +30,7 @@ Authors:
 Other contributors:
 \itemize{
   \item João Serra \email{jserra@agro.au.dk} (\href{https://orcid.org/0000-0002-3561-5350}{ORCID}) [contributor]
-  \item European Research Council (ERC) (https://erc.europa.eu/homepage) [funder]
+  \item European Research Council [funder]
 }
 
 }

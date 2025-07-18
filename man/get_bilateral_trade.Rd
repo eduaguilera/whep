@@ -101,7 +101,7 @@ matrix.
 \item The matrix is balanced, as mentioned before, using the
 \href{https://en.wikipedia.org/wiki/Iterative_proportional_fitting}{iterative proportional fitting algorithm}. The target sums for rows and columns are respectively the balanced
 exports and imports computed from the commodity balance sheet. The
-algorithm is performed directly using the \href{https://cran.r-project.org/web/packages/mipfp/index.html}{mipfp R package}.
+algorithm is performed directly using the \href{https://CRAN.R-project.org/package=mipfp}{mipfp R package}.
 }
 }
 \description{
