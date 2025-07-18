@@ -1,11 +1,11 @@
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
 
-# Who Has Eaten the Planet <a href="https://eduaguilera.github.io/WHEP/"><img src="man/figures/logo.png" align="right" height="139" alt="WHEP website" /></a>
+# Who Has Eaten the Planet <a href="https://eduaguilera.github.io/whep/"><img src="man/figures/logo.png" align="right" height="139" alt="whep website" /></a>
 
 <!-- badges: start -->
 
-[![R-CMD-check](https://github.com/eduaguilera/WHEP/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/eduaguilera/WHEP/actions/workflows/R-CMD-check.yaml)
+[![R-CMD-check](https://github.com/eduaguilera/whep/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/eduaguilera/whep/actions/workflows/R-CMD-check.yaml)
 [![whep status
 badge](https://eduaguilera.r-universe.dev/whep/badges/version)](https://eduaguilera.r-universe.dev/whep)
 <!-- badges: end -->
@@ -67,44 +67,44 @@ the data gathered by the project.
 ## Installation
 
 The package is still in an early stage and thus a work in progress, so
-it’s still not on CRAN. It is however available on R-universe:
+it’s still not on CRAN. It’s however already available on R-universe:
 
 ``` r
-install.packages('WHEP', repos = c('https://eduaguilera.r-universe.dev'))
+install.packages('whep', repos = c('https://eduaguilera.r-universe.dev'))
 ```
 
-You can also install the development version of WHEP available on
+You can also install the development version of `whep` available on
 [GitHub](https://github.com/eduaguilera/whep) with:
 
 ``` r
-pak::pak("eduaguilera/WHEP")
+pak::pak("eduaguilera/whep")
 ```
 
 ## Usage
 
 You can read more about the package’s functionalities from the
 documentation at the [reference
-page](https://eduaguilera.github.io/WHEP/reference/index.html).
+page](https://eduaguilera.github.io/whep/reference/index.html).
 
 ## Contributing
 
 We try to follow best coding practices, specifically focused on R
 package creation. The process is roughly summarized in:
 
-- Use git. Work on your own branch.
-- Track dependencies using `renv` R package.
-- Add your new functionality inside `R/` directory as functions.
-- Add function documentation.
-- Write clean code. Follow [Tidyverse style
-  guide](https://style.tidyverse.org/).
-- Write tests for your code.
-- Create pull requests. Ask for review.
+  - Use git. Work on your own branch.
+  - Track dependencies using `renv` R package.
+  - Add your new functionality inside `R/` directory as functions.
+  - Add function documentation.
+  - Write clean code. Follow [Tidyverse style
+    guide](https://style.tidyverse.org/).
+  - Write tests for your code.
+  - Create pull requests. Ask for review.
 
 The project is starting with **contributors** that are still learning
 about coding and best practices. For this reason **we have created a
 guide** explaining most of the things you need from the previous steps,
 covering both git and R package development. You can find the guide
-[**here**](https://eduaguilera.github.io/WHEP/articles/workflow-intro.html).
+[**here**](https://eduaguilera.github.io/whep/articles/workflow-intro.html).
 Anyone is welcome to contribute, but we highly recommend to go through
 this guide to become familiar with the workflow if you are still not
 used to it.

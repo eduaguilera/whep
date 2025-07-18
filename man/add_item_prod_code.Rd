@@ -25,7 +25,7 @@ an \code{NA} is included.
 \description{
 Add a new column to an existing tibble with the corresponding code
 for each production item name. The codes are assumed to be from those
-defined by the FAOSTAT.
+defined by FAOSTAT.
 }
 \examples{
 table <- tibble::tibble(
