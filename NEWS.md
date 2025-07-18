@@ -1,4 +1,4 @@
-# whep (development version)
+# whep 0.1.0
 
 * Work in Progress FABIO model implementation:
   - Build supply-use tables (`build_supply_use()`) (#17).
