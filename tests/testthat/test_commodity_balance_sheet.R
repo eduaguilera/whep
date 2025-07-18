@@ -13,6 +13,7 @@ k_tolerance <- 1e-6
 
 testthat::test_that("get_wide_cbs gives consistent Commodity Balance Sheet", {
   testthat::skip_on_ci()
+  testthat::skip_on_cran()
 
   cbs <- get_wide_cbs() |>
     dplyr::filter(!(item_cbs_code %in% k_ignore_unbalanced)) |>
@@ -41,6 +42,7 @@ testthat::test_that(
   "get_codes_coeffs gives consistent shares of processed items",
   {
     testthat::skip_on_ci()
+    testthat::skip_on_cran()
 
     coefs <- get_processing_coefs()
     cbs <- get_wide_cbs()
