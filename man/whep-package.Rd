@@ -4,11 +4,11 @@
 \name{whep-package}
 \alias{whep}
 \alias{whep-package}
-\title{whep: Who Has Eaten the Planet}
+\title{whep: Processing of Agro-Environmental Data}
 \description{
 \if{html}{\figure{logo.png}{options: style='float: right' alt='logo' width='120'}}
 
-Gather historical agricultural and trade data from 1850.
+A set of tools for processing and analyzing data developed in the context of the "Who Has Eaten the Planet" (WHEP) project, funded by the European Research Council (ERC).
 }
 \seealso{
 Useful links:
