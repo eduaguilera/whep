@@ -8,6 +8,11 @@ home:
   - text: WHEP ERC project
     href: https://cordis.europa.eu/project/id/101115126
 
+authors:
+  European Research Council: 
+    html: "<img src='https://erc.europa.eu/themes/custom/erc_theme/ERC_FAVICON.png' width=55 alt='European Research Council'>"
+    href: "https://erc.europa.eu/homepage"
+
 reference:
 - title: Tidy datasets
   desc: >

@@ -24,12 +24,13 @@ Useful links:
 
 Authors:
 \itemize{
-  \item Eduardo Aguilera \email{eduardo.aguilera@csic.es} (\href{https://orcid.org/0000-0003-4382-124X}{ORCID})
+  \item Eduardo Aguilera \email{eduardo.aguilera@csic.es} (\href{https://orcid.org/0000-0003-4382-124X}{ORCID}) [copyright holder]
 }
 
 Other contributors:
 \itemize{
   \item João Serra \email{jserra@agro.au.dk} (\href{https://orcid.org/0000-0002-3561-5350}{ORCID}) [contributor]
+  \item European Research Council (ERC) (https://erc.europa.eu/homepage) [funder]
 }
 
 }
