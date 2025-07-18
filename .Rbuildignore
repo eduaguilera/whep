@@ -1,6 +1,6 @@
 ^renv$
 ^renv\.lock$
-^WHEP.Rproj$
+^whep.Rproj$
 ^LICENSE\.md$
 ^docs$
 ^\.github$

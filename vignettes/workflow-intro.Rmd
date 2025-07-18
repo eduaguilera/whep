@@ -628,6 +628,130 @@ and see this documentation. In this example, it would look something like this
 knitr::include_graphics("imgs/roxygen_documentation.png")
 ```
 
+## Package data
+
+Some of the data we have to work with might be very large. If the final datasets
+we want to produce are too large, we can't directly include them in the package
+because there are size limits and recommendations. In that case, we will have to
+export them as _functions_. In this way, the package itself won't contain the
+output dataset, but the user will have to generate it through running a function,
+so it will be stored in their own computer. An example of this is our function
+`get_wide_cbs()`. Unless we generate the dataset ourselves in the function, we
+will also probably be using a very large input dataset which we just process
+somehow. For reading large datasets, see the relevant
+[Reading large files section](#reading-large-files).
+
+From now on, in this section we assume that you have some small datasets (maybe
+up to a couple of megabytes) as inputs. We will go through both public and
+private ones. The public ones are those that you want to export to users of your
+package, and the private ones are only intended for being used in your own code.
+
+Let's start with the exported datasets. The whole aim of this is to allow users
+(or even our own code) to access them easily by writing `my_pkg::my_dataset`. In
+order to achieve this, you must follow these steps:
+
+1. Create a file in `data-raw/my_dataset.R`. Scripts inside the `data-raw`
+  folder aren't included as part of the package. They will just be helpers
+  for us to generate the actual data. Inside this file we do some processing
+  and, assuming we have a variable called `my_dataset`, we end the script by
+  calling `usethis::use_data(my_dataset)`. This will automatically create an
+  `.rda` file in `data/my_dataset.rda`. We have to manually run this script.
+  After that, we can now refer to the dataset as `my_pkg::my_dataset`.
+
+    You can directly create your data in the script `data-raw/my_dataset.R`,
+  or you can make it rather short by just importing some data from another
+  raw file. In this case, I recommend having the raw file as a CSV in the
+  `inst/extdata` folder, say, `inst/extdata/my_raw_dataset.csv`. This is 
+  for accessibility, so that everyone can see where this data comes from
+  regardless of whether they know how to read an `.rda` file or not. A
+  `data-raw/my_dataset.R` script could then look like:
+
+  ```r
+  my_dataset <- here::here("inst", "extdata", "my_raw_dataset.csv") |>
+    readr::read_csv()
+  
+  usethis::use_data(my_raw_dataset, overwrite = TRUE)
+  ```
+
+  Every time you introduce some change in the raw CSV file, you would have
+  to run this script again. The `overwrite = TRUE` is exactly for this purpose,
+  so that the `my_dataset.rda` file is overwritten with the updated data.
+
+2. Document your dataset. In the previous section we learned how to document
+  functions. Datasets aren't functions, but they're documented very similarly.
+  We start by creating a file `R/my_dataset.R`. Note that the name matches that
+  of `data-raw/my_dataset.R`. It doesn't need to match that of the variable used
+  with `usethis::use_data()`, but they should match each other. You can define
+  more than one dataset in the same file if you think they're related, so then
+  you can also use a more general name for the file. This is how you would
+  document your dataset, also using `roxygen2` comments:
+
+  ```r
+  #' Title of my dataset
+  #'
+  #' My description of my dataset
+  #'
+  #' @format
+  #' What my dataset is. I would ideally make it a tibble and explain all
+  #' columns. My dataset contains the following columns:
+  #' - `column_1`: My explanation of column 1.
+  #' - `column_2`: My explanation of column 2.
+  #' - `column_3`: My explanation of column 3.
+  #'
+  #' @source Where my data comes from. Maybe an external link if you have one.
+  "my_dataset"
+  ```
+  As you can see, we use `roxygen2` style comments right before a line
+  containing a character vector with the name of our dataset, in this case
+  `"my_dataset"`. Now your dataset will be correctly documented after doing
+  `devtools::document()` and `pkgdown::build_site()`/`pkgdown::build_reference()`.
+
+Now we should talk about internal data. This is data that only the developers
+of the package themselves use throughout the code. This could be either actual
+tibble datasets or just bare constants. Any value that doesn't change and you
+would like to share throughout the whole package code applies for this.
+Creating internal data is quite similar to exported data:
+
+1. Create a file `data-raw/constants.R` if it doesn't already exist. For
+  internal data, all of them should be defined in this same file. The file
+  could look like this:
+
+  ```r
+  my_constant_number <- 0.65
+  my_constant_name <- "name"
+  my_constant_tibble <- tibble::tribble(
+    ~col_1, ~col_2,
+    1,      2,
+    3,      4
+  )
+  
+  usethis::use_data(
+    my_constant_number,
+    my_constant_name,
+    my_constant_tibble,
+    internal = TRUE,
+    overwrite = TRUE
+  )
+  ```
+  As you can see, you can pass more than one variable to `usethis::use_data()`.
+  We should include all our constants in the same call to this function. In
+  addition, it must also include the `internal = TRUE` option to identify this
+  as internal data.
+
+2. Manually run the previous file. This will create a single file in
+  `R/sysdata.rda`, which contains all your internal data. You can now refer
+  to these data the same way as for exported data, e.g.,
+  `my_pkg::my_constant_tibble` or `my_pkg::my_constant_number`, but these will
+  only be available through the package's code, and won't be exported to
+  the package users. Again, any time you want to add new internal data or
+  modify the existing entries, you will have to manually run that script again.
+
+Whether some data is worth being exported as part of the package or just
+used as internal, this is your decision, but now you know how to implement both.
+This section was heavily inspired by the [_Data_ chapter
+](https://r-pkgs.org/data.html) in the R Packages book, which I recommend
+reading if you want to dive deeper.
+
 ## Writing tests
 
 So we just wrote a function, we are done with it, we now move to another function...
@@ -636,7 +760,7 @@ correct and it does what you expect. Right now it would be easy to just load
 the function in an R prompt and try some examples on it, but what if the next month
 someone has to make a change in this code? They would have to do this manual testing
 again to make sure they did not break any functionality. What if they need to change
-dozens of functions? How many time will they spend on testing all of them?
+dozens of functions? How much time will they spend on testing all of them?
 
 I think you can understand that this is really time consuming and that there is a
 better way. Tests can be automatized. We can write some tests whenever we create
@@ -773,7 +897,7 @@ got to do that, so your built package just does not include any other packages.
 To fix this, we must have a quick look at the `DESCRIPTION` file.
 
 ```markdown
-Package: WHEP
+Package: whep
 Title: What the Package Does (One Line, Title Case)
 Version: 0.0.0.9000
 Authors@R:
@@ -796,7 +920,7 @@ Suggests:
     googlesheets4
 Config/testthat/edition: 3
 VignetteBuilder: knitr
-URL: https://eduaguilera.github.io/WHEP/
+URL: https://eduaguilera.github.io/whep/
 ```
 
 In the above file, the `Imports` section is where we should make sure we have
@@ -860,7 +984,7 @@ knitr::opts_chunk$set(
 ```
 
 ```_{r setup}
-library(WHEP)
+library(whep)
 key_path <- here::here(Sys.getenv("GOOGLESHEETS_AUTH_FILE"))
 googlesheets4::gs4_auth(path = key_path)
 ```
@@ -922,11 +1046,11 @@ The next chunk (with the `"r setup"` option) is used for some initialization cod
 that you may need throughout the rest of the article. At the time of writing I do not
 really know the implications of writing the `"r setup"` option or writing this code
 in a normal R code chunk (without the option), but it is at least good practice.
-Note that the package being loaded is your own package (called WHEP in our case).
+Note that the package being loaded is your own package (called whep in our case).
 
 ````
 ```_{r setup}
-library(WHEP)
+library(whep)
 key_path <- here::here(Sys.getenv("GOOGLESHEETS_AUTH_FILE"))
 googlesheets4::gs4_auth(path = key_path)
 ```
@@ -1083,7 +1207,7 @@ style guide, these two points directly match with two R packages:
   using RStudio, you can do it by finding the `styler` options in the 'addins' dropdown:
 
   ```{r, fig.alt="Use styler package from RStudio", echo=FALSE}
-  knitr::include_graphics("imgs/styler_rstudio.png")
+knitr::include_graphics("imgs/styler_rstudio.png")
   ```
 
   When using `renv`, it seems RStudio only shows in the 'addins' dropdown the
@@ -1168,6 +1292,88 @@ guide I tried to provide a code editor agnostic approach for everything. Since
 I do not use RStudio myself, I am not particularly familiar with its
 functionalities, so if you think they may be helpful to you, you can check
 them yourself.
+
+## Reading large files
+
+Many packages don't work with data per se. Others need data, but their datasets
+are small enough to be directly included in the package (and thus the code
+repository). GitHub has a limit on file size of
+[100 MiB](https://docs.github.com/en/repositories/working-with-files/managing-large-files/about-large-files-on-github),
+but even adding such files will make working with the repository noticeably
+slow. My recommendation for us is to consider a file _large_ if it has more
+than a couple of megabytes. Assuming our package needs to work with _large_
+files, we need to find a workaround that is not storing them in GitHub. After
+thinking about this for a while, I considered using the 
+[`pins`](https://pins.rstudio.com/articles/pins.html) package. I encourage you
+to read through that *Get started* guide, since I won't explain too much
+about this package itself, but rather how we implement it in our workflow.
+
+A `pins` board is like a repository but for files. You can even store a version
+history of them. Here we assume that someone already created a board for you.
+If you just want to use a file someone else already added, you don't need any
+of the following. See the documentation for `whep_read_file()`.
+However, if you need a new file that is still not uploaded, or a new version of
+an existing one, you'll need to do these steps:
+
+1. Prepare a local version of your data. I created a script helper for us, which
+  can be found in the [`whep` repository
+  ](https://github.com/eduaguilera/whep/blob/main/inst/scripts/prepare_upload.R).
+  You have to fill your own local data path and a name for the data, run the
+  script and follow the instructions. For example, I could set the following
+  ```{r, eval = FALSE}
+prepare_for_upload(
+  "~/Downloads/Processing_coefs.csv",
+  "processing_coefs"
+)
+#> Creating new version '20250716T102305Z-f8189'
+#> ℹ 1. Manually upload the folder /tmp/RtmpHFHNUO/pins-1f3c39c418e0/processi
+#> ng_coefs/20250716T102305Z-f8189 into your board. Folder path copied to you
+#> r clipboard.
+#> ℹ 2. Add the corresponding line
+#> - processing_coefs/20250716T102305Z-f8189/
+#> in _pins.yaml at the end of the 'processing_coefs:' section
+#> ℹ 3. If you want the package to use this version, add a new row to whep_in
+#> puts.csv if it's a new file or update the version in the existing row. The
+#>  version is 20250716T102305Z-f8189.
+  ```
+
+2. A temporary local folder is created whose name is the data version. You must
+  upload this folder inside the one with the data's name in the public board,
+  assuming you have write access.
+
+  ```{r, fig.alt="New version uploaded", echo=FALSE}
+knitr::include_graphics("imgs/new_version_uploaded.png")
+  ```
+
+3. You must add one line to the `_pins.yaml` file in the root folder of the
+  board, like it's specified in the instructions. This is an internal file
+  that the `pins` package uses to keep track of files and versions.
+
+  ```{r, fig.alt="Update _pins.yaml", echo=FALSE}
+knitr::include_graphics("imgs/update_pins_yaml.png")
+  ```
+
+4. To use the version in the next package release, you must also update the
+  version inside the [`whep_inputs.csv`
+  ](https://github.com/eduaguilera/whep/blob/main/inst/extdata/whep_inputs.csv)
+  file:
+
+  ```
+  alias,board_url,version
+  ...
+  processing_coefs,https://some/url/to/_pins.yaml,20250716T102305Z-f8189
+  ...
+  ```
+
+And now you're done. You added a new file or a new version, and you can now
+access it from the code by using the `whep_read_file()` function.
+
+If you're wondering why there are manual steps in this process and the script
+doesn't automate everything, it's because our storage service is hosted by a
+Nextcloud server, and the easiest way to interact with it from outside is
+having a synced version of the whole storage locally. I thought some people
+might not be able to afford that, and since we don't have to upload new data
+files often, I decided a few manual steps wouldn't hurt that much.
 
 ## Automatic checks on Pull Requests
 
