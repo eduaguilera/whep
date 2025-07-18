@@ -1316,8 +1316,8 @@ However, if you need a new file that is still not uploaded, or a new version of
 an existing one, you'll need to do these steps:
 
 1. Prepare a local version of your data. I created a script helper for us, which
-  can be found in the [WHEP repository
-  ](https://github.com/eduaguilera/WHEP/blob/main/inst/scripts/prepare_upload.R).
+  can be found in the [`whep` repository
+  ](https://github.com/eduaguilera/whep/blob/main/inst/scripts/prepare_upload.R).
   You have to fill your own local data path and a name for the data, run the
   script and follow the instructions. For example, I could set the following
   ```{r, eval = FALSE}
@@ -1355,7 +1355,7 @@ knitr::include_graphics("imgs/update_pins_yaml.png")
 
 4. To use the version in the next package release, you must also update the
   version inside the [`whep_inputs.csv`
-  ](https://github.com/eduaguilera/WHEP/blob/main/inst/extdata/whep_inputs.csv)
+  ](https://github.com/eduaguilera/whep/blob/main/inst/extdata/whep_inputs.csv)
   file:
 
   ```
