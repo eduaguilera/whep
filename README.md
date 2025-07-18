@@ -66,14 +66,26 @@ the data gathered by the project.
 
 ## Installation
 
-The package is still in an early stage and thus a work in progress, so
-it’s still not on CRAN. It’s however already available on R-universe:
+The package is under constant development. Initial stable releases are
+available from both CRAN and
+[R-universe](https://eduaguilera.r-universe.dev/whep).
+
+You can install the stable version on CRAN (once accepted):
 
 ``` r
-install.packages('whep', repos = c('https://eduaguilera.r-universe.dev'))
+install.packages('whep')
 ```
 
-You can also install the development version of `whep` available on
+You can also install the stable version on R-universe:
+
+``` r
+install.packages(
+  "whep",
+  repos = c("https://eduaguilera.r-universe.dev", "https://cloud.r-project.org")
+)
+```
+
+If you want the development version of `whep`, you can install it from
 [GitHub](https://github.com/eduaguilera/whep) with:
 
 ``` r
