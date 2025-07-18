@@ -38,8 +38,8 @@ Suggests:
     tibble
 Config/testthat/edition: 3
 VignetteBuilder: knitr
-URL: https://eduaguilera.github.io/whep, https://github.com/eduaguilera/whep
-BugReports: https://github.com/eduaguilera/whep/issues
+URL: https://eduaguilera.github.io/WHEP, https://github.com/eduaguilera/WHEP
+BugReports: https://github.com/eduaguilera/WHEP/issues
 Depends: 
     R (>= 3.5)
 LazyData: true
