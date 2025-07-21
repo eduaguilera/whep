@@ -55,13 +55,11 @@ link and cached before reading it. This is all implemented using the
 file formats and file versioning.
 }
 \examples{
-\dontrun{
-whep_read_file("processing_coefs")
-whep_read_file("crop_residues", type = "parquet", version = "latest")
+whep_read_file("read_example")
+whep_read_file("read_example", type = "parquet", version = "latest")
 whep_read_file(
-  "commodity_balance_sheet",
+  "read_example",
   type = "csv",
-  version = "20250714T123343Z-114b5"
+  version = "20250721T152646Z-ce61b"
 )
-}
 }

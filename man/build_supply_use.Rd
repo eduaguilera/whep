@@ -4,7 +4,27 @@
 \alias{build_supply_use}
 \title{Supply and use tables}
 \usage{
-build_supply_use()
+build_supply_use(
+  cbs_version = NULL,
+  feed_intake_version = NULL,
+  primary_prod_version = NULL,
+  primary_residues_version = NULL,
+  processing_coefs_version = NULL
+)
+}
+\arguments{
+\item{cbs_version}{File version passed to \code{get_wide_cbs()} call.}
+
+\item{feed_intake_version}{File version passed to \code{get_feed_intake()} call.}
+
+\item{primary_prod_version}{File version passed to
+\code{get_primary_production()} call.}
+
+\item{primary_residues_version}{File version passed to
+\code{get_primary_residues()} call.}
+
+\item{processing_coefs_version}{File version passed to
+\code{get_processing_coefs()} call.}
 }
 \value{
 A tibble with the supply and use data for processes.
@@ -68,7 +88,13 @@ Create a table with processes, their inputs (\emph{use}) and their
 outputs (\emph{supply}).
 }
 \examples{
-\dontrun{
-build_supply_use()
-}
+# Note: These are smaller samples to show outputs, not the real data.
+# For all data, call the function with default versions (i.e. no arguments).
+build_supply_use(
+  cbs_version = "20250721T132006Z-8ea47",
+  feed_intake_version = "20250721T143825Z-c1313",
+  primary_prod_version = "20250721T145805Z-8e12a",
+  primary_residues_version = "20250721T150132Z-dfd94",
+  processing_coefs_version = "20250721T143403Z-216d7"
+)
 }

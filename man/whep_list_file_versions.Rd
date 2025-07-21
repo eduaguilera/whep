@@ -18,7 +18,5 @@ see \code{pins::pin_versions()}.
 Lists all existing versions of an input file from \code{\link{whep_inputs}}.
 }
 \examples{
-\dontrun{
-whep_list_file_versions("primary_prod")
-}
+whep_list_file_versions("read_example")
 }
