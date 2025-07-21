@@ -17,8 +17,7 @@
 #' @export
 #'
 #' @examples
-#' \dontrun{
-#' get_faostat_data("livestock")
+#' \donttest{
 #' get_faostat_data("livestock", year = 2010, area = "Portugal")
 #' }
 get_faostat_data <- function(activity_data, ...) {
