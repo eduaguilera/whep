@@ -1,5 +1,5 @@
 Package: whep
-Title: Processing of Agro-Environmental Data
+Title: Processing Agro-Environmental Data
 Version: 0.1.0
 Authors@R: c(
     person("Catalin", "Covaci", , "catalin.covaci@csic.es", role = c("aut", "cre"), comment = c(ORCID = "0009-0005-2186-5972")),
