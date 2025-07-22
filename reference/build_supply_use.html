@@ -45,9 +45,42 @@ outputs (<em>supply</em>).</p>
 
     <div class="section level2">
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">build_supply_use</span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">build_supply_use</span><span class="op">(</span></span>
+<span>  cbs_version <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  feed_intake_version <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  primary_prod_version <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  primary_residues_version <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  processing_coefs_version <span class="op">=</span> <span class="cn">NULL</span></span>
+<span><span class="op">)</span></span></code></pre></div>
     </div>
 
+    <div class="section level2">
+    <h2 id="arguments">Arguments<a class="anchor" aria-label="anchor" href="#arguments"></a></h2>
+
+
+<dl><dt id="arg-cbs-version">cbs_version<a class="anchor" aria-label="anchor" href="#arg-cbs-version"></a></dt>
+<dd><p>File version passed to <code><a href="get_wide_cbs.html">get_wide_cbs()</a></code> call.</p></dd>
+
+
+<dt id="arg-feed-intake-version">feed_intake_version<a class="anchor" aria-label="anchor" href="#arg-feed-intake-version"></a></dt>
+<dd><p>File version passed to <code><a href="get_feed_intake.html">get_feed_intake()</a></code> call.</p></dd>
+
+
+<dt id="arg-primary-prod-version">primary_prod_version<a class="anchor" aria-label="anchor" href="#arg-primary-prod-version"></a></dt>
+<dd><p>File version passed to
+<code><a href="get_primary_production.html">get_primary_production()</a></code> call.</p></dd>
+
+
+<dt id="arg-primary-residues-version">primary_residues_version<a class="anchor" aria-label="anchor" href="#arg-primary-residues-version"></a></dt>
+<dd><p>File version passed to
+<code><a href="get_primary_residues.html">get_primary_residues()</a></code> call.</p></dd>
+
+
+<dt id="arg-processing-coefs-version">processing_coefs_version<a class="anchor" aria-label="anchor" href="#arg-processing-coefs-version"></a></dt>
+<dd><p>File version passed to
+<code><a href="get_processing_coefs.html">get_processing_coefs()</a></code> call.</p></dd>
+
+</dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>A tibble with the supply and use data for processes.
@@ -98,9 +131,34 @@ production. For code details see e.g. <code><a href="add_item_cbs_name.html">add
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="kw">if</span> <span class="op">(</span><span class="cn">FALSE</span><span class="op">)</span> <span class="op">{</span> <span class="co"># \dontrun{</span></span></span>
-<span class="r-in"><span><span class="fu">build_supply_use</span><span class="op">(</span><span class="op">)</span></span></span>
-<span class="r-in"><span><span class="op">}</span> <span class="co"># }</span></span></span>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="co"># Note: These are smaller samples to show outputs, not the real data.</span></span></span>
+<span class="r-in"><span><span class="co"># For all data, call the function with default versions (i.e. no arguments).</span></span></span>
+<span class="r-in"><span><span class="fu">build_supply_use</span><span class="op">(</span></span></span>
+<span class="r-in"><span>  cbs_version <span class="op">=</span> <span class="st">"20250721T132006Z-8ea47"</span>,</span></span>
+<span class="r-in"><span>  feed_intake_version <span class="op">=</span> <span class="st">"20250721T143825Z-c1313"</span>,</span></span>
+<span class="r-in"><span>  primary_prod_version <span class="op">=</span> <span class="st">"20250721T145805Z-8e12a"</span>,</span></span>
+<span class="r-in"><span>  primary_residues_version <span class="op">=</span> <span class="st">"20250721T150132Z-dfd94"</span>,</span></span>
+<span class="r-in"><span>  processing_coefs_version <span class="op">=</span> <span class="st">"20250721T143403Z-216d7"</span></span></span>
+<span class="r-in"><span><span class="op">)</span></span></span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BBBB;">ℹ</span> Fetching files for primary_prod...</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BBBB;">ℹ</span> Fetching files for crop_residues...</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BBBB;">ℹ</span> Fetching files for commodity_balance_sheet...</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BBBB;">ℹ</span> Fetching files for feed_intake...</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BBBB;">ℹ</span> Fetching files for processing_coefs...</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 27,914 × 7</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     year area_code proc_group      proc_cbs_code item_cbs_code type       value</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                   <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>      <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 1</span>  <span style="text-decoration: underline;">1</span>965        38 crop_production          <span style="text-decoration: underline;">2</span>645          <span style="text-decoration: underline;">2</span>645 supply     <span style="text-decoration: underline;">4</span>460 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 2</span>  <span style="text-decoration: underline;">1</span>984        50 crop_production          <span style="text-decoration: underline;">2</span>625          <span style="text-decoration: underline;">2</span>625 supply       45 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 3</span>  <span style="text-decoration: underline;">2</span>003       131 crop_production          <span style="text-decoration: underline;">2</span>577          <span style="text-decoration: underline;">2</span>577 supply 13<span style="text-decoration: underline;">354</span>800 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 4</span>  <span style="text-decoration: underline;">1</span>996       235 crop_production          <span style="text-decoration: underline;">2</span>517          <span style="text-decoration: underline;">2</span>517 supply     <span style="text-decoration: underline;">1</span>600 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 5</span>  <span style="text-decoration: underline;">2</span>021        10 crop_production          <span style="text-decoration: underline;">2</span>511          <span style="text-decoration: underline;">2</span>511 supply 31<span style="text-decoration: underline;">922</span>555.</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 6</span>  <span style="text-decoration: underline;">1</span>970        41 crop_production          <span style="text-decoration: underline;">2</span>605          <span style="text-decoration: underline;">2</span>605 supply     <span style="text-decoration: underline;">7</span>000 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 7</span>  <span style="text-decoration: underline;">1</span>997       222 crop_production          <span style="text-decoration: underline;">2</span>605          <span style="text-decoration: underline;">2</span>605 supply    <span style="text-decoration: underline;">12</span>000 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 8</span>  <span style="text-decoration: underline;">2</span>003        59 crop_production          <span style="text-decoration: underline;">2</span>662          <span style="text-decoration: underline;">2</span>662 supply     <span style="text-decoration: underline;">2</span>049.</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 9</span>  <span style="text-decoration: underline;">1</span>966       236 crop_production          <span style="text-decoration: underline;">2</span>549          <span style="text-decoration: underline;">2</span>549 supply     <span style="text-decoration: underline;">5</span>891 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">10</span>  <span style="text-decoration: underline;">1</span>976       105 crop_production          <span style="text-decoration: underline;">2</span>533          <span style="text-decoration: underline;">2</span>533 supply      800 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 27,904 more rows</span></span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

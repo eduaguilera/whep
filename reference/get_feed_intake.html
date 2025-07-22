@@ -42,9 +42,17 @@
 
     <div class="section level2">
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">get_feed_intake</span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">get_feed_intake</span><span class="op">(</span>version <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span></code></pre></div>
     </div>
 
+    <div class="section level2">
+    <h2 id="arguments">Arguments<a class="anchor" aria-label="anchor" href="#arguments"></a></h2>
+
+
+<dl><dt id="arg-version">version<a class="anchor" aria-label="anchor" href="#arg-version"></a></dt>
+<dd><p>File version to use as input. See <a href="whep_inputs.html">whep_inputs</a> for details.</p></dd>
+
+</dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>A tibble with the feed intake data.
@@ -74,9 +82,25 @@ dry matter, so it should be less than <code>intake</code>.</p></li>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="kw">if</span> <span class="op">(</span><span class="cn">FALSE</span><span class="op">)</span> <span class="op">{</span> <span class="co"># \dontrun{</span></span></span>
-<span class="r-in"><span><span class="fu">get_feed_intake</span><span class="op">(</span><span class="op">)</span></span></span>
-<span class="r-in"><span><span class="op">}</span> <span class="co"># }</span></span></span>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="co"># Note: These are smaller samples to show outputs, not the real data.</span></span></span>
+<span class="r-in"><span><span class="co"># For all data, call the function with default version (i.e. no arguments).</span></span></span>
+<span class="r-in"><span><span class="fu">get_feed_intake</span><span class="op">(</span>version <span class="op">=</span> <span class="st">"20250721T143825Z-c1313"</span><span class="op">)</span></span></span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BBBB;">ℹ</span> Fetching files for feed_intake...</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 10,000 × 10</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     year area_code live_anim_code item_cbs_code feed_type   supply   intake</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>          <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>        <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 1</span>  <span style="text-decoration: underline;">1</span>983        15           <span style="text-decoration: underline;">1</span>096          <span style="text-decoration: underline;">2</span>102 crops         21.1     18.9</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 2</span>  <span style="text-decoration: underline;">1</span>985       251           <span style="text-decoration: underline;">1</span>016          <span style="text-decoration: underline;">3</span>000 grass     <span style="text-decoration: underline;">269</span>616.  <span style="text-decoration: underline;">269</span>616. </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 3</span>  <span style="text-decoration: underline;">2</span>021       222           <span style="text-decoration: underline;">1</span>052          <span style="text-decoration: underline;">2</span>781 animals       35.9     32.3</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 4</span>  <span style="text-decoration: underline;">2</span>017       105           <span style="text-decoration: underline;">1</span>079          <span style="text-decoration: underline;">2</span>598 crops       <span style="text-decoration: underline;">1</span>727.    <span style="text-decoration: underline;">1</span>554. </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 5</span>  <span style="text-decoration: underline;">2</span>000        39           <span style="text-decoration: underline;">1</span>053          <span style="text-decoration: underline;">2</span>106 residues   <span style="text-decoration: underline;">12</span>662.   <span style="text-decoration: underline;">11</span>396. </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 6</span>  <span style="text-decoration: underline;">1</span>968        84           <span style="text-decoration: underline;">1</span>016          <span style="text-decoration: underline;">2</span>002 residues    <span style="text-decoration: underline;">3</span>015.    <span style="text-decoration: underline;">2</span>714. </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 7</span>  <span style="text-decoration: underline;">2</span>008       170           <span style="text-decoration: underline;">1</span>053          <span style="text-decoration: underline;">2</span>595 crops       <span style="text-decoration: underline;">4</span>294.    <span style="text-decoration: underline;">3</span>864. </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 8</span>  <span style="text-decoration: underline;">2</span>015         3            976          <span style="text-decoration: underline;">2</span>101 crops         40.1     36.1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 9</span>  <span style="text-decoration: underline;">2</span>002        79           <span style="text-decoration: underline;">1</span>052          <span style="text-decoration: underline;">2</span>558 crops       <span style="text-decoration: underline;">3</span>788.    <span style="text-decoration: underline;">3</span>409. </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">10</span>  <span style="text-decoration: underline;">2</span>014        41           <span style="text-decoration: underline;">1</span>068          <span style="text-decoration: underline;">2</span>518 crops     <span style="text-decoration: underline;">148</span>505.  <span style="text-decoration: underline;">133</span>654. </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 9,990 more rows</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 3 more variables: intake_dry_matter &lt;dbl&gt;, loss &lt;dbl&gt;, loss_share &lt;dbl&gt;</span></span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

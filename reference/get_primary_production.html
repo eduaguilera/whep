@@ -42,9 +42,17 @@
 
     <div class="section level2">
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">get_primary_production</span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">get_primary_production</span><span class="op">(</span>version <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span></code></pre></div>
     </div>
 
+    <div class="section level2">
+    <h2 id="arguments">Arguments<a class="anchor" aria-label="anchor" href="#arguments"></a></h2>
+
+
+<dl><dt id="arg-version">version<a class="anchor" aria-label="anchor" href="#arg-version"></a></dt>
+<dd><p>File version to use as input. See <a href="whep_inputs.html">whep_inputs</a> for details.</p></dd>
+
+</dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>A tibble with the item production data.
@@ -76,9 +84,24 @@ items: crops (e.g. <code>Apples and products</code>, <code>Beans</code>...), liv
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="kw">if</span> <span class="op">(</span><span class="cn">FALSE</span><span class="op">)</span> <span class="op">{</span> <span class="co"># \dontrun{</span></span></span>
-<span class="r-in"><span><span class="fu">get_primary_production</span><span class="op">(</span><span class="op">)</span></span></span>
-<span class="r-in"><span><span class="op">}</span> <span class="co"># }</span></span></span>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="co"># Note: These are smaller samples to show outputs, not the real data.</span></span></span>
+<span class="r-in"><span><span class="co"># For all data, call the function with default version (i.e. no arguments).</span></span></span>
+<span class="r-in"><span><span class="fu">get_primary_production</span><span class="op">(</span>version <span class="op">=</span> <span class="st">"20250721T145805Z-8e12a"</span><span class="op">)</span></span></span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BBBB;">ℹ</span> Fetching files for primary_prod...</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 10,000 × 7</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     year area_code item_prod_code item_cbs_code live_anim_code unit       value</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>          <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>          <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>      <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 1</span>  <span style="text-decoration: underline;">1</span>965        38            720          <span style="text-decoration: underline;">2</span>645             <span style="color: #BB0000;">NA</span> tonnes <span style="text-decoration: underline;">4</span>460     </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 2</span>  <span style="text-decoration: underline;">2</span>019       213           <span style="text-decoration: underline;">1</span>062          <span style="text-decoration: underline;">2</span>744           <span style="text-decoration: underline;">1</span>052 t_LU    581.    </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 3</span>  <span style="text-decoration: underline;">1</span>999        39            826          <span style="text-decoration: underline;">2</span>671             <span style="color: #BB0000;">NA</span> t_ha      1.45  </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 4</span>  <span style="text-decoration: underline;">1</span>968       114            772           772             <span style="color: #BB0000;">NA</span> t_ha      1     </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 5</span>  <span style="text-decoration: underline;">2</span>001       236            406          <span style="text-decoration: underline;">2</span>605             <span style="color: #BB0000;">NA</span> ha     <span style="text-decoration: underline;">1</span>591     </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 6</span>  <span style="text-decoration: underline;">1</span>984        50            603          <span style="text-decoration: underline;">2</span>625             <span style="color: #BB0000;">NA</span> tonnes   45     </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 7</span>  <span style="text-decoration: underline;">1</span>981       136            567          <span style="text-decoration: underline;">2</span>605             <span style="color: #BB0000;">NA</span> ha      720     </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 8</span>  <span style="text-decoration: underline;">2</span>005        40            547          <span style="text-decoration: underline;">2</span>625             <span style="color: #BB0000;">NA</span> ha     <span style="text-decoration: underline;">4</span>532     </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 9</span>  <span style="text-decoration: underline;">2</span>009       215            977          <span style="text-decoration: underline;">2</span>732            976 t_LU      0.032<span style="text-decoration: underline;">1</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">10</span>  <span style="text-decoration: underline;">1</span>996       158            191          <span style="text-decoration: underline;">2</span>549             <span style="color: #BB0000;">NA</span> ha      270     </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 9,990 more rows</span></span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
