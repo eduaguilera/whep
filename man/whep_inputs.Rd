@@ -29,6 +29,6 @@ whep_inputs
 }
 \description{
 The information needed for accessing external datasets used as inputs
-in our modelling.
+in our modeling.
 }
 \keyword{datasets}

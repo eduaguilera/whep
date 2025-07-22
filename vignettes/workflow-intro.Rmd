@@ -54,21 +54,21 @@ directory where you want to place a subdirectory containing the repository.
 Again, you can double check that using `pwd`.
 
 We assume here that the repository you want to contribute to already exists.
-You can go to its page on Github and copy the URL as seen in the image below:
+You can go to its page on GitHub and copy the URL as seen in the image below:
 
 ```{r, fig.alt="Where to copy URL from", echo=FALSE}
 knitr::include_graphics("imgs/copy_repo_url.png")
 ```
 
 The git terminology used for 'downloading' a repository to our local file system
-is 'cloning'. We can clone a remote repository (in this case from Github)
+is 'cloning'. We can clone a remote repository (in this case from GitHub)
 using the following command:
 ```
 git clone <url-you-copied>
 ```
 
 This is called cloning via HTTPS. A browser should open and ask you to introduce
-your Github credentials. There are other ways of cloning like SSH, but that is
+your GitHub credentials. There are other ways of cloning like SSH, but that is
 out of the scope of this guide.
 
 ## Pulling remote changes
@@ -94,9 +94,9 @@ knitr::include_graphics("imgs/git_status_command.png")
 ```
 
 Your local version of a repository does not need to match the remote version
-(the one we store in Github in this case), but before you start your work on
+(the one we store in GitHub in this case), but before you start your work on
 a new branch, you should keep your main branch up to date in case someone
-added new code in the Github repository since the last time you checked. We
+added new code in the GitHub repository since the last time you checked. We
 get any new remote changes to the local repository by using the command
 ```
 git pull
@@ -198,11 +198,11 @@ amount of commits is your decision, but should not be just one commit per branch
 ## Pushing our changes
 
 After committing, we now have our changes in local git history, but we should
-probably also add them to the remote Github repository. We do this using the command
+probably also add them to the remote GitHub repository. We do this using the command
 ```
 git push origin <name-of-branch>
 ```
-Now you should be able to see your changes in your own branch from Github itself,
+Now you should be able to see your changes in your own branch from GitHub itself,
 you just need to select your own branch instead of the `main` one.
 
 You should remember to push your changes regularly to the remote repository.
@@ -217,10 +217,10 @@ Suppose you are done with your changes and you want to add these to the main
 branch. Mixing one branch with another is known as 'merging'. In this case we would
 like to merge our new branch with the main branch. This can be done forcefully, but
 the common practice we will be following is to create what is known as a 'Pull
-request' from our branch into the main one, and we do this directly from Github,
+request' from our branch into the main one, and we do this directly from GitHub,
 once we have pushed all of our changes.
 
-```{r, fig.alt="Click 'New pull request' in Github", echo=FALSE}
+```{r, fig.alt="Click 'New pull request' in GitHub", echo=FALSE}
 knitr::include_graphics("imgs/new_pull_request.png")
 ```
 
@@ -337,7 +337,7 @@ representing it.
 
 It seems clear that even though we would work fine with bare R scripts that are run
 directly, when working on a large project it makes sense to have some kind of
-file structure, to keep everything organised. You can build your ad-hoc file
+file structure, to keep everything organized. You can build your ad-hoc file
 structures, and you could probably come up with something rather simple. Here,
 instead, we will focus on using the standard structure of an R package. This
 is a standard everyone has to follow if they want their projects to turn into
@@ -451,7 +451,7 @@ renv::restore()
 ```
 which will install any packages from `renv.lock` that they may still not
 have installed, but again, only on a project level, not conflicting with
-their global R installation. If you use Github with others, then you might
+their global R installation. If you use GitHub with others, then you might
 also need to do this every time you pull remote changes and someone else
 has included a new package, so that you are then up to date with them.
 In any case, when opening the R shell, it will probably remind you that there
@@ -582,7 +582,7 @@ structure. For reference, these were the different parts:
 #' @param param_name_2 Description of param 2
 #' ...
 ```
-As you see here I think it is OK to add linebreaks in between, as long as each
+As you see here I think it is OK to add line breaks in between, as long as each
 parameter starts with `@param`.
 ```
 #' @param trade_sources A tibble dataframe
@@ -600,7 +600,7 @@ the package, i.e., it is public.
 #' @export
 ```
 
-- A 'code' section of examples to illustrate the function's behaviour.
+- A 'code' section of examples to illustrate the function's behavior.
 It must start with `@examples`, and after that you can write usual R code.
 When this is processed, it automatically runs the code and adds some lines
 with its output in the documentation.
@@ -855,7 +855,7 @@ this directory would be executed.
 all the tests in the project.
 
 All of these can be useful to run tests while you are actively working on them.
-You are suppossed to make all your tests pass, and as we will see in the
+You are supposed to make all your tests pass, and as we will see in the
 next section, there are some more checks a package must pass to be valid
 (so that it can be publicly uploaded), but tests are definitely one of them.
 
@@ -1128,7 +1128,7 @@ format would be the most useful one besides the HTML for website generation.
 
 ## Environment variables and secrets
 
-When running code, you can sometimes customize some behaviour by specifying the
+When running code, you can sometimes customize some behavior by specifying the
 value of some variable to your needs. For example, maybe there is an option whose
 value is a number from 1 to 5, indicating the level of debugging (the amount of
 output you want to see in the console, so as to understand the code's execution).
@@ -1170,7 +1170,7 @@ reading the public file.].
 
 Since we _must not_ include secret information in `.Renviron`, the workaround
 is to instead add just the secret file path as an environment variable and then
-read from it, so the `.Renviron` is uploaded to Github but the secret file,
+read from it, so the `.Renviron` is uploaded to GitHub but the secret file,
 which according to our environment variable should be found in
 `inst/google_cloud_key.json`, _is not uploaded_. Instead, the file should be
 uploaded to another private storage service, so that only you have access to it.
@@ -1204,13 +1204,13 @@ style guide, these two points directly match with two R packages:
   ```
 
   Most code editors incorporate some way of doing this. Since you are most likely
-  using RStudio, you can do it by finding the `styler` options in the 'addins' dropdown:
+  using RStudio, you can do it by finding the `styler` options in the 'addins' drop-down:
 
   ```{r, fig.alt="Use styler package from RStudio", echo=FALSE}
 knitr::include_graphics("imgs/styler_rstudio.png")
   ```
 
-  When using `renv`, it seems RStudio only shows in the 'addins' dropdown the
+  When using `renv`, it seems RStudio only shows in the 'addins' drop-down the
   options from packages included in `renv`, so keep that in mind in case you want
   it in a different project, that is, if `styler` does not show up there, it means
   you do not have it installed in the current `renv` environment.
@@ -1283,7 +1283,7 @@ knitr::include_graphics("imgs/styler_rstudio.png")
   In the screenshot above you can see there are also options for `lintr` checks
   from Rstudio's 'addins', but by default they perform the `lintr::lint_package()`
   call without any options. Remember we added one option to our check, so you
-  should either find out how to change the default behaviour or just run the
+  should either find out how to change the default behavior or just run the
   script we included in `inst/scripts/check_lint.R`.
 
 Again, as you can see in the screenshot, there are more things you can do
@@ -1382,7 +1382,7 @@ and tested it, or perhaps you just created some report in the form of an article
 we have seen in the [Git intro](#git-intro), it is now time to create a Pull
 Request so that someone else reviews what you have done. But when you create the
 Pull Request, our workflow is designed so that two checks are run automatically on
-Github, each time you push your changes to a branch which has an open Pull Request:
+GitHub, each time you push your changes to a branch which has an open Pull Request:
 
 - First, the R CMD check is performed. We have seen in a previous section how you can
 run it locally, so you should have made sure it outputs no errors. Otherwise, you
@@ -1393,26 +1393,26 @@ indeed well formatted. Otherwise, you will see this step failing.
 
 If any of the steps above fail, you will see something like this in your PR page:
 
-```{r, fig.alt="Github Action check fails", echo=FALSE}
+```{r, fig.alt="GitHub Action check fails", echo=FALSE}
 knitr::include_graphics("imgs/github_action_fail.png")
 ```
 
 Otherwise, if both checks succeeded, you will see something like:
 
-```{r, fig.alt="Github Action check succeeds", echo=FALSE}
+```{r, fig.alt="GitHub Action check succeeds", echo=FALSE}
 knitr::include_graphics("imgs/github_action_pass.png")
 ```
 
 Overall, you should be able to see this at the bottom of the PR:
 
-```{r, fig.alt="Github Action Pull Request passed", echo=FALSE}
+```{r, fig.alt="GitHub Action Pull Request passed", echo=FALSE}
 knitr::include_graphics("imgs/all_pr_ok.png")
 ```
 
 In case you are wondering, both checks we mentioned before are actually done
-in a single Github automatic step (these steps are called 'Github actions'),
+in a single GitHub automatic step (these steps are called 'GitHub actions'),
 so it should say '1 successful check' instead of '2 successful checks'.
-However, there is an additional Github action there, which essentially
+However, there is an additional GitHub action there, which essentially
 just updates the documentation site (only when the PR is actually merged into
 the main branch). This is not relevant to you as a developer but it makes the
 overall workflow easier, since the project documentation is automatically updated
@@ -1422,7 +1422,7 @@ automatic site update you can check this
 
 Recall that for a PR to be accepted and merged into the main branch, it must
 also be reviewed by another developer. A good practice would be to make sure the
-Github checks pass before even asking for someone's reviewing, because if any
+GitHub checks pass before even asking for someone's reviewing, because if any
 check failed you most likely need to add more code changes to fix them, so some
 of the code the reviewer could have checked before could become obsolete, and
 they would have to read it again, so we better avoid that.

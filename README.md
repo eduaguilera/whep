@@ -39,10 +39,10 @@ These highly ambitious goals are addressed by four objectives:
 
 1.  Constructing a consolidated global country-level annual database on
     agricultural production and management, using massive data collation
-    in combination with modelling.
+    in combination with modeling.
 2.  Estimating the environmental impacts: greenhouse gas emissions and
     carbon, land, water, nitrogen, and phosphorus through spatially
-    explicit, integrated, dynamic modelling.
+    explicit, integrated, dynamic modeling.
 3.  Calculating product footprints and tracing them along international
     trade chains.
 4.  Analyzing the observed trajectories in the safe and just operating
