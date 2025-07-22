@@ -638,4 +638,59 @@ create_typologies_of_josette <- function(
     ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 45, hjust = 1))
 
   print(p_typology_stack)
+
+
+  # Relative share of N inputs by typology (in %) ------------------------------
+
+  # Aggregate total N inputs per province and year
+  df_total_input_typ_pct <- df_long |>
+    dplyr::group_by(Year, Province_name) |>
+    dplyr::summarise(
+      Total_N_input = sum(N_input_value, na.rm = TRUE),
+      .groups = "drop"
+    ) |>
+    dplyr::left_join(typologies_df_filtered, by = c("Year", "Province_name")) |>
+    dplyr::group_by(Year, Typology) |>
+    dplyr::summarise(
+      Total_N_input = sum(Total_N_input, na.rm = TRUE),
+      .groups = "drop"
+    ) |>
+    dplyr::group_by(Year) |>
+    dplyr::mutate(
+      Total_N_input_all = sum(Total_N_input, na.rm = TRUE),
+      Percent_N_input = (Total_N_input / Total_N_input_all) * 100
+    ) |>
+    dplyr::ungroup()
+
+  # Keep the same color mapping for typologies
+  df_total_input_typ_pct$Typology <- factor(
+    df_total_input_typ_pct$Typology,
+    levels = names(typology_colors)
+  )
+
+  # Define x-axis breaks (every 20 years)
+  year_breaks_typ_pct <- df_total_input_typ_pct$Year |>
+    unique() |>
+    sort()
+  year_breaks_typ_pct <- year_breaks_typ_pct[year_breaks_typ_pct %% 20 == 0]
+
+  # Create stacked bar plot with percentages
+  p_typology_pct <- ggplot2::ggplot(df_total_input_typ_pct, ggplot2::aes(
+    x = factor(Year),
+    y = Percent_N_input,
+    fill = Typology
+  )) +
+    ggplot2::geom_bar(stat = "identity") +
+    ggplot2::scale_x_discrete(breaks = year_breaks_typ_pct) +
+    ggplot2::scale_fill_manual(values = typology_colors) +
+    ggplot2::labs(
+      title = "Nitrogen Inputs by Typology in Spain (%)",
+      x = "Year",
+      y = "Share of Total N Input (%)",
+      fill = "Typology"
+    ) +
+    ggplot2::theme_minimal() +
+    ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 45, hjust = 1))
+
+  print(p_typology_pct)
 }
