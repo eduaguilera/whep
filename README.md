@@ -70,7 +70,7 @@ The package is under constant development. Initial stable releases are
 available from both CRAN and
 [R-universe](https://eduaguilera.r-universe.dev/whep).
 
-You can install the stable version on CRAN (once accepted):
+You can install the stable version on CRAN:
 
 ``` r
 install.packages('whep')
@@ -103,14 +103,14 @@ page](https://eduaguilera.github.io/WHEP/reference/index.html).
 We try to follow best coding practices, specifically focused on R
 package creation. The process is roughly summarized in:
 
-  - Use git. Work on your own branch.
-  - Track dependencies using `renv` R package.
-  - Add your new functionality inside `R/` directory as functions.
-  - Add function documentation.
-  - Write clean code. Follow [Tidyverse style
-    guide](https://style.tidyverse.org/).
-  - Write tests for your code.
-  - Create pull requests. Ask for review.
+- Use git. Work on your own branch.
+- Track dependencies using `renv` R package.
+- Add your new functionality inside `R/` directory as functions.
+- Add function documentation.
+- Write clean code. Follow [Tidyverse style
+  guide](https://style.tidyverse.org/).
+- Write tests for your code.
+- Create pull requests. Ask for review.
 
 The project is starting with **contributors** that are still learning
 about coding and best practices. For this reason **we have created a
