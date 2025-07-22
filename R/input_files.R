@@ -43,15 +43,13 @@
 #' @export
 #'
 #' @examples
-#' \dontrun{
-#' whep_read_file("processing_coefs")
-#' whep_read_file("crop_residues", type = "parquet", version = "latest")
+#' whep_read_file("read_example")
+#' whep_read_file("read_example", type = "parquet", version = "latest")
 #' whep_read_file(
-#'   "commodity_balance_sheet",
+#'   "read_example",
 #'   type = "csv",
-#'   version = "20250714T123343Z-114b5"
+#'   version = "20250721T152646Z-ce61b"
 #' )
-#' }
 whep_read_file <- function(file_alias, type = "parquet", version = NULL) {
   cli::cli_alert_info("Fetching files for {file_alias}...")
 
@@ -79,9 +77,7 @@ whep_read_file <- function(file_alias, type = "parquet", version = NULL) {
 #' @export
 #'
 #' @examples
-#' \dontrun{
-#' whep_list_file_versions("primary_prod")
-#' }
+#' whep_list_file_versions("read_example")
 whep_list_file_versions <- function(file_alias) {
   file_alias |>
     .fetch_file_info(whep::whep_inputs) |>

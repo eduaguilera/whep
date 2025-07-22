@@ -3,6 +3,10 @@
 #' @description
 #' Reports trade between pairs of countries in given years.
 #'
+#' @param cbs_version File version passed to `get_wide_cbs()` call.
+#' @param trade_version File version used for bilateral trade input.
+#'   See [whep_inputs] for version details.
+#'
 #' @returns
 #' A tibble with the reported trade between countries. For efficient
 #' memory usage, the tibble is not exactly in tidy format.
@@ -93,15 +97,18 @@
 #' @export
 #'
 #' @examples
-#' \dontrun{
-#' get_bilateral_trade()
-#' }
-get_bilateral_trade <- function() {
-  cbs <- get_wide_cbs() |>
+#' # Note: These are smaller samples to show outputs, not the real data.
+#' # For all data, call the function with default versions (i.e. no arguments).
+#' get_bilateral_trade(
+#'   trade_version = "20250721T141553Z-5707e",
+#'   cbs_version = "20250721T132006Z-8ea47"
+#' )
+get_bilateral_trade <- function(trade_version = NULL, cbs_version = NULL) {
+  cbs <- get_wide_cbs(version = cbs_version) |>
     dplyr::select(year, item_cbs_code, area_code, export, import)
 
   btd <- "bilateral_trade" |>
-    whep_read_file() |>
+    whep_read_file(version = trade_version) |>
     .clean_bilateral_trade()
 
   codes <- .get_all_country_codes(btd, cbs)
@@ -247,7 +254,7 @@ get_bilateral_trade <- function() {
       bilateral_trade = c(from_code, to_code, value),
       .by = c(year, item_cbs_code)
     ) |>
-    dplyr::left_join(.get_nested_cbs(cbs, codes), c("year", "item_cbs_code"))
+    dplyr::inner_join(.get_nested_cbs(cbs, codes), c("year", "item_cbs_code"))
 }
 
 .get_nested_cbs <- function(cbs, codes) {
