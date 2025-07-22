@@ -39,15 +39,18 @@ test_that("get_faostat_data returns correct filtered results", {
     "Column whatever not found in FAOSTAT data."
   )
 
-  result[, "element"] |>
-    unique() |>
+  result |>
+    dplyr::distinct(element) |>
+    dplyr::pull() |>
     expect_equal("stocks")
 
-  result[, "year"] |>
-    unique() |>
+  result |>
+    dplyr::distinct(year) |>
+    dplyr::pull() |>
     expect_equal(2010)
 
-  result[, "area"] |>
-    unique() |>
+  result |>
+    dplyr::distinct(area) |>
+    dplyr::pull() |>
     expect_equal("Portugal")
 })

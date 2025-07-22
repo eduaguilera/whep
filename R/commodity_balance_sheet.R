@@ -3,6 +3,8 @@
 #' @description
 #' States supply and use parts for each commodity balance sheet (CBS) item.
 #'
+#' @param version File version to use as input. See [whep_inputs] for details.
+#'
 #' @returns
 #' A tibble with the commodity balance sheet data in wide format.
 #' It contains the following columns:
@@ -39,13 +41,17 @@
 #' @export
 #'
 #' @examples
-#' \dontrun{
-#' get_wide_cbs()
-#' }
-get_wide_cbs <- function() {
+#' # Note: These are smaller samples to show outputs, not the real data.
+#' # For all data, call the function with default version (i.e. no arguments).
+#' get_wide_cbs(version = "20250721T132006Z-8ea47")
+get_wide_cbs <- function(version = NULL) {
   "commodity_balance_sheet" |>
-    whep_read_file() |>
-    tidyr::pivot_wider(names_from = Element, values_from = Value) |>
+    whep_read_file(version = version) |>
+    tidyr::pivot_wider(
+      names_from = Element,
+      values_from = Value,
+      values_fill = 0
+    ) |>
     dplyr::rename_with(tolower) |>
     dplyr::mutate(
       stock_retrieval = -stock_variation,
@@ -61,6 +67,8 @@ get_wide_cbs <- function() {
 #' @description
 #' Reports quantities of commodity balance sheet items used for `processing`
 #' and quantities of their corresponding processed output items.
+#'
+#' @param version File version to use as input. See [whep_inputs] for details.
 #'
 #' @returns
 #' A tibble with the quantities for each processed product.
@@ -108,12 +116,12 @@ get_wide_cbs <- function() {
 #' @export
 #'
 #' @examples
-#' \dontrun{
-#' get_processing_coefs()
-#' }
-get_processing_coefs <- function() {
+#' # Note: These are smaller samples to show outputs, not the real data.
+#' # For all data, call the function with default version (i.e. no arguments).
+#' get_processing_coefs(version = "20250721T143403Z-216d7")
+get_processing_coefs <- function(version = NULL) {
   "processing_coefs" |>
-    whep_read_file() |>
+    whep_read_file(version = version) |>
     dplyr::select(-Item, -Element) |>
     dplyr::rename_with(tolower) |>
     add_item_cbs_code(name_column = "item") |>
