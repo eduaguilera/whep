@@ -4,7 +4,13 @@
 \alias{get_bilateral_trade}
 \title{Bilateral trade data}
 \usage{
-get_bilateral_trade()
+get_bilateral_trade(trade_version = NULL, cbs_version = NULL)
+}
+\arguments{
+\item{trade_version}{File version used for bilateral trade input.
+See \link{whep_inputs} for version details.}
+
+\item{cbs_version}{File version passed to \code{get_wide_cbs()} call.}
 }
 \value{
 A tibble with the reported trade between countries. For efficient
@@ -108,7 +114,10 @@ algorithm is performed directly using the \href{https://CRAN.R-project.org/packa
 Reports trade between pairs of countries in given years.
 }
 \examples{
-\dontrun{
-get_bilateral_trade()
-}
+# Note: These are smaller samples to show outputs, not the real data.
+# For all data, call the function with default versions (i.e. no arguments).
+get_bilateral_trade(
+  trade_version = "20250721T141553Z-5707e",
+  cbs_version = "20250721T132006Z-8ea47"
+)
 }

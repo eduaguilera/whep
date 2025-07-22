@@ -4,7 +4,10 @@
 \alias{get_feed_intake}
 \title{Livestock feed intake}
 \usage{
-get_feed_intake()
+get_feed_intake(version = NULL)
+}
+\arguments{
+\item{version}{File version to use as input. See \link{whep_inputs} for details.}
 }
 \value{
 A tibble with the feed intake data.
@@ -40,7 +43,7 @@ dry matter, so it should be less than \code{intake}.
 Get amount of items used for feeding livestock.
 }
 \examples{
-\dontrun{
-get_feed_intake()
-}
+# Note: These are smaller samples to show outputs, not the real data.
+# For all data, call the function with default version (i.e. no arguments).
+get_feed_intake(version = "20250721T143825Z-c1313")
 }
