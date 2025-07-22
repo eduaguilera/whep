@@ -1,7 +1,7 @@
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
 
-# Who Has Eaten the Planet <a href="https://eduaguilera.github.io/WHEP/"><img src="man/figures/logo.png" align="right" height="139" alt="whep website" /></a>
+# Who Has Eaten the Planet <a href="https://eduaguilera.github.io/whep/"><img src="man/figures/logo.png" align="right" height="139" alt="whep website" /></a>
 
 <!-- badges: start -->
 
@@ -96,7 +96,7 @@ pak::pak("eduaguilera/whep")
 
 You can read more about the package’s functionalities from the
 documentation at the [reference
-page](https://eduaguilera.github.io/WHEP/reference/index.html).
+page](https://eduaguilera.github.io/whep/reference/index.html).
 
 ## Contributing
 
@@ -116,7 +116,7 @@ The project is starting with **contributors** that are still learning
 about coding and best practices. For this reason **we have created a
 guide** explaining most of the things you need from the previous steps,
 covering both git and R package development. You can find the guide
-[**here**](https://eduaguilera.github.io/WHEP/articles/workflow-intro.html).
+[**here**](https://eduaguilera.github.io/whep/articles/workflow-intro.html).
 Anyone is welcome to contribute, but we highly recommend to go through
 this guide to become familiar with the workflow if you are still not
 used to it.
