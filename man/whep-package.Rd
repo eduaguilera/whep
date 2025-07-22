@@ -8,14 +8,14 @@
 \description{
 \if{html}{\figure{logo.png}{options: style='float: right' alt='logo' width='120'}}
 
-A set of tools for processing and analyzing data developed in the context of the "Who Has Eaten the Planet" (WHEP) project, funded by the European Research Council (ERC). For more details on multiregional input–output model "Food and Agriculture Biomass Input–Output" (FABIO) see Bruckner et al. (2019) \doi{10.1021/acs.est.9b03554}.
+A set of tools for processing and analyzing data developed in the context of the "Who Has Eaten the Planet" (WHEP) project, funded by the European Research Council (ERC). For more details on multi-regional input–output model "Food and Agriculture Biomass Input–Output" (FABIO) see Bruckner et al. (2019) \doi{10.1021/acs.est.9b03554}.
 }
 \seealso{
 Useful links:
 \itemize{
-  \item \url{https://eduaguilera.github.io/WHEP/}
-  \item \url{https://github.com/eduaguilera/WHEP}
-  \item Report bugs at \url{https://github.com/eduaguilera/WHEP/issues}
+  \item \url{https://eduaguilera.github.io/whep/}
+  \item \url{https://github.com/eduaguilera/whep}
+  \item Report bugs at \url{https://github.com/eduaguilera/whep/issues}
 }
 
 }
