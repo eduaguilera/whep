@@ -4,7 +4,10 @@
 \alias{get_primary_residues}
 \title{Crop residue items}
 \usage{
-get_primary_residues()
+get_primary_residues(version = NULL)
+}
+\arguments{
+\item{version}{File version to use as input. See \link{whep_inputs} for details.}
 }
 \value{
 A tibble with the crop residue data.
@@ -33,7 +36,7 @@ When necessary, FAOSTAT codes are extended for our needs.
 Get type and amount of residue produced for each crop production item.
 }
 \examples{
-\dontrun{
-get_primary_residues()
-}
+# Note: These are smaller samples to show outputs, not the real data.
+# For all data, call the function with default version (i.e. no arguments).
+get_primary_residues(version = "20250721T150132Z-dfd94")
 }

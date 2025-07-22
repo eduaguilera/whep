@@ -3,6 +3,8 @@
 #' @description
 #' Get amount of crops, livestock and livestock products.
 #'
+#' @param version File version to use as input. See [whep_inputs] for details.
+#'
 #' @returns
 #' A tibble with the item production data.
 #' It contains the following columns:
@@ -35,12 +37,12 @@
 #' @export
 #'
 #' @examples
-#' \dontrun{
-#' get_primary_production()
-#' }
-get_primary_production <- function() {
+#' # Note: These are smaller samples to show outputs, not the real data.
+#' # For all data, call the function with default version (i.e. no arguments).
+#' get_primary_production(version = "20250721T145805Z-8e12a")
+get_primary_production <- function(version = NULL) {
   "primary_prod" |>
-    whep_read_file() |>
+    whep_read_file(version = version) |>
     dplyr::rename_with(tolower) |>
     dplyr::select(
       year,
@@ -57,6 +59,8 @@ get_primary_production <- function() {
 #'
 #' @description
 #' Get type and amount of residue produced for each crop production item.
+#'
+#' @param version File version to use as input. See [whep_inputs] for details.
 #'
 #' @returns
 #' A tibble with the crop residue data.
@@ -80,12 +84,12 @@ get_primary_production <- function() {
 #' @export
 #'
 #' @examples
-#' \dontrun{
-#' get_primary_residues()
-#' }
-get_primary_residues <- function() {
+#' # Note: These are smaller samples to show outputs, not the real data.
+#' # For all data, call the function with default version (i.e. no arguments).
+#' get_primary_residues(version = "20250721T150132Z-dfd94")
+get_primary_residues <- function(version = NULL) {
   "crop_residues" |>
-    whep_read_file() |>
+    whep_read_file(version = version) |>
     dplyr::rename_with(tolower) |>
     dplyr::filter(product_residue == "Residue") |>
     add_area_code(name_column = "area") |>

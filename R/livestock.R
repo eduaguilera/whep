@@ -3,6 +3,8 @@
 #' @description
 #' Get amount of items used for feeding livestock.
 #'
+#' @param version File version to use as input. See [whep_inputs] for details.
+#'
 #' @returns
 #' A tibble with the feed intake data.
 #' It contains the following columns:
@@ -32,12 +34,12 @@
 #' @export
 #'
 #' @examples
-#' \dontrun{
-#' get_feed_intake()
-#' }
-get_feed_intake <- function() {
+#' # Note: These are smaller samples to show outputs, not the real data.
+#' # For all data, call the function with default version (i.e. no arguments).
+#' get_feed_intake(version = "20250721T143825Z-c1313")
+get_feed_intake <- function(version = NULL) {
   "feed_intake" |>
-    whep_read_file() |>
+    whep_read_file(version = version) |>
     dplyr::rename_with(tolower) |>
     add_area_code(name_column = "area") |>
     add_item_cbs_code(

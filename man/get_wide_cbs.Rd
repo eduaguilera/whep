@@ -4,7 +4,10 @@
 \alias{get_wide_cbs}
 \title{Commodity balance sheet data}
 \usage{
-get_wide_cbs()
+get_wide_cbs(version = NULL)
+}
+\arguments{
+\item{version}{File version to use as input. See \link{whep_inputs} for details.}
 }
 \value{
 A tibble with the commodity balance sheet data in wide format.
@@ -49,7 +52,7 @@ total use excluding \code{export}.
 States supply and use parts for each commodity balance sheet (CBS) item.
 }
 \examples{
-\dontrun{
-get_wide_cbs()
-}
+# Note: These are smaller samples to show outputs, not the real data.
+# For all data, call the function with default version (i.e. no arguments).
+get_wide_cbs(version = "20250721T132006Z-8ea47")
 }

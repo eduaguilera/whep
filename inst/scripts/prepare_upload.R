@@ -2,7 +2,7 @@
 # Remember doing the manual steps. See prepare_for_upload call at the end
 # of the script, fill with your data, run and follow printed instructions.
 
-create_version <- function(data, board, name) {
+create_version <- function(data, board, name, ...) {
   paths <- file.path(
     tempdir(),
     c(
@@ -15,7 +15,7 @@ create_version <- function(data, board, name) {
   nanoparquet::write_parquet(data, paths[[2]])
 
   board |>
-    pins::pin_upload(paths, name)
+    pins::pin_upload(paths, name, ...)
 
   board |>
     pins::pin_versions(name) |>
@@ -30,14 +30,15 @@ read_input <- function(path) {
     readr::read_csv(show_col_types = FALSE)
 }
 
-prepare_for_upload <- function(input_path, data_name) {
+prepare_for_upload <- function(input_path, data_name, ...) {
   board <- pins::board_temp(versioned = TRUE)
 
   version <- input_path |>
     read_input() |>
     create_version(
       board,
-      data_name
+      data_name,
+      ...
     )
 
   output_path <- file.path(board$path, data_name, version)
