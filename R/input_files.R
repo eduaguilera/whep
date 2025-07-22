@@ -53,13 +53,14 @@
 #' )
 #' }
 whep_read_file <- function(file_alias, type = "parquet", version = NULL) {
-  cli::cli_alert_info("Fetching file {file_alias}...")
+  cli::cli_alert_info("Fetching files for {file_alias}...")
 
   file_info <- .fetch_file_info(file_alias, whep::whep_inputs)
   version <- .choose_version(file_info$version, version)
 
-  file_info$board_url |>
-    pins::board_url() |>
+  file_info |>
+    purrr::pluck("board_url") |>
+    .build_board_with_progress() |>
     pins::pin_download(file_alias, version = version) |>
     .read_file(type)
 }
@@ -135,4 +136,46 @@ whep_list_file_versions <- function(file_alias) {
   }
 
   c(file_info)
+}
+
+.build_board_with_progress <- function(board_url) {
+  board <- pins::board_url(board_url)
+  # Make our own pin_fetch method to include progress bar
+  # https://github.com/rstudio/pins-r/issues/873
+  class(board) <- c("pins_with_progress", class(board))
+
+  board
+}
+
+#' @importFrom pins pin_fetch
+#' @method pin_fetch pins_with_progress
+#' @export
+#' @noRd
+pin_fetch.pins_with_progress <- function(
+    board,
+    name,
+    version = NULL,
+    ...) {
+  meta <- pins::pin_meta(board, name, version = version)
+  pins:::cache_touch(board, meta)
+
+  purrr::pmap_chr(
+    list(
+      meta$local$file_url,
+      meta$file,
+      meta$file_size
+    ),
+    function(url, file, size) {
+      pins:::http_download(
+        url = url,
+        path_dir = meta$local$dir,
+        path_file = file,
+        use_cache_on_failure = board$use_cache_on_failure,
+        headers = board$headers,
+        pins:::http_utils_progress(size = size)
+      )
+    }
+  )
+
+  meta
 }
