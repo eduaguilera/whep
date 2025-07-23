@@ -1,4 +1,4 @@
-url: https://eduaguilera.github.io/WHEP
+url: https://eduaguilera.github.io/whep
 
 template:
   bootstrap: 5
@@ -21,25 +21,30 @@ reference:
   - get_processing_coefs
   - get_wide_cbs
 
-- title: Download large datasets
+- title: Download large input datasets
   desc: >
     Fetch large files from external sources and cache them.
   contents:
-  - get_file_path
+  - whep_read_file
+  - whep_inputs
+  - whep_list_file_versions
 
 - title: Code namings
   desc: >
     Add name columns in dataframes from their codes or viceversa.
 - subtitle: Polities
   contents:
+  - polities
   - add_area_code
   - add_area_name
 - subtitle: Commodity balance sheet items
   contents:
+  - items_cbs
   - add_item_cbs_code
   - add_item_cbs_name
 - subtitle: Primary production items
   contents:
+  - items_prod
   - add_item_prod_code
   - add_item_prod_name
 
