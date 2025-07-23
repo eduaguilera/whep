@@ -153,7 +153,7 @@ pin_fetch.pins_with_progress <- function(
     version = NULL,
     ...) {
   meta <- pins::pin_meta(board, name, version = version)
-  pins:::cache_touch(board, meta)
+  .pins_cache_touch(board, meta)
 
   purrr::pmap_chr(
     list(
@@ -162,13 +162,13 @@ pin_fetch.pins_with_progress <- function(
       meta$file_size
     ),
     function(url, file, size) {
-      pins:::http_download(
+      .pins_http_download(
         url = url,
         path_dir = meta$local$dir,
         path_file = file,
         use_cache_on_failure = board$use_cache_on_failure,
         headers = board$headers,
-        pins:::http_utils_progress(size = size)
+        .pins_http_utils_progress(size = size)
       )
     }
   )
