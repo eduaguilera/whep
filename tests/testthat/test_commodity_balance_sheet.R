@@ -14,16 +14,7 @@ k_tolerance <- 1e-6
 testthat::test_that("get_wide_cbs gives consistent Commodity Balance Sheet", {
   testthat::skip_on_ci()
 
-  cbs_alias <- "commodity_balance_sheet"
-  test_file_path <- file.path(
-    .get_destdir(),
-    stringr::str_glue("test_file_{cbs_alias}.csv")
-  )
-  testthat::local_mocked_bindings(.get_destfile = function(...) test_file_path)
-
-  cbs <- cbs_alias |>
-    get_file_path() |>
-    get_wide_cbs() |>
+  cbs <- get_wide_cbs() |>
     dplyr::filter(!(item_cbs_code %in% k_ignore_unbalanced)) |>
     dplyr::mutate(
       value_in = production + import + stock_retrieval,
@@ -51,30 +42,8 @@ testthat::test_that(
   {
     testthat::skip_on_ci()
 
-    cbs_alias <- "commodity_balance_sheet"
-    coefs_alias <- "processing_coefs"
-
-    test_coefs_path <- file.path(
-      .get_destdir(),
-      stringr::str_glue("test_file_{coefs_alias}.csv")
-    )
-    testthat::local_mocked_bindings(
-      .get_destfile = function(...) test_coefs_path
-    )
-    coefs <- coefs_alias |>
-      get_file_path() |>
-      get_processing_coefs()
-
-    test_cbs_path <- file.path(
-      .get_destdir(),
-      stringr::str_glue("test_file_{cbs_alias}.csv")
-    )
-    testthat::local_mocked_bindings(
-      .get_destfile = function(...) test_cbs_path
-    )
-    cbs <- cbs_alias |>
-      get_file_path() |>
-      get_wide_cbs()
+    coefs <- get_processing_coefs()
+    cbs <- get_wide_cbs()
 
     df <- coefs |>
       dplyr::left_join(

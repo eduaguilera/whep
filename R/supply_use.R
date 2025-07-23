@@ -8,6 +8,15 @@
 #' Create a table with processes, their inputs (_use_) and their
 #' outputs (_supply_).
 #'
+#' @param cbs_version File version passed to `get_wide_cbs()` call.
+#' @param feed_intake_version File version passed to `get_feed_intake()` call.
+#' @param primary_prod_version File version passed to
+#'   `get_primary_production()` call.
+#' @param primary_residues_version File version passed to
+#'   `get_primary_residues()` call.
+#' @param processing_coefs_version File version passed to
+#'   `get_processing_coefs()` call.
+#'
 #' @returns
 #' A tibble with the supply and use data for processes.
 #' It contains the following columns:
@@ -60,18 +69,29 @@
 #' @export
 #'
 #' @examples
-#' \dontrun{
-#' build_supply_use()
-#' }
-build_supply_use <- function() {
+#' # Note: These are smaller samples to show outputs, not the real data.
+#' # For all data, call the function with default versions (i.e. no arguments).
+#' build_supply_use(
+#'   cbs_version = "20250721T132006Z-8ea47",
+#'   feed_intake_version = "20250721T143825Z-c1313",
+#'   primary_prod_version = "20250721T145805Z-8e12a",
+#'   primary_residues_version = "20250721T150132Z-dfd94",
+#'   processing_coefs_version = "20250721T143403Z-216d7"
+#' )
+build_supply_use <- function(
+    cbs_version = NULL,
+    feed_intake_version = NULL,
+    primary_prod_version = NULL,
+    primary_residues_version = NULL,
+    processing_coefs_version = NULL) {
   .build_supply_use_from_inputs(
-    items_prod = .read_local_csv("input/raw/items_prod.csv"),
-    items_cbs = .read_local_csv("input/raw/items_cbs.csv"),
-    coeffs = get_processing_coefs(get_file_path("processing_coefs")),
-    cbs = get_wide_cbs(get_file_path("commodity_balance_sheet")),
-    crop_residues = get_primary_residues(get_file_path("crop_residues")),
-    primary_prod = get_primary_production(get_file_path("primary_prod")),
-    feed_intake = get_feed_intake(get_file_path("feed_intake"))
+    items_prod = whep::items_prod,
+    items_cbs = whep::items_cbs,
+    coeffs = get_processing_coefs(version = processing_coefs_version),
+    cbs = get_wide_cbs(version = cbs_version),
+    crop_residues = get_primary_residues(version = primary_residues_version),
+    primary_prod = get_primary_production(version = primary_prod_version),
+    feed_intake = get_feed_intake(version = feed_intake_version)
   )
 }
 
