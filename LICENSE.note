@@ -1,0 +1,8 @@
+The whep package as a whole is distributed under MIT. The whep package includes
+as part of their code some code taken from other R packages. The following is a
+list of these parts:
+
+* whep: written by package authors
+* pins: Apache 2.0
+
+A copy of the Apache 2.0 license can be found at inst/APACHE-LICENSE.md.
