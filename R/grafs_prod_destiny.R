@@ -80,21 +80,28 @@ create_prod_and_destiny_grafs <- function() {
 .load_data <- function() {
   npp_ygpit_csv <- readr::read_csv(get_file_path("npp_ygpit"))
   feed_avail_all <- readRDS(get_file_path("feed_avail_all")) |> dplyr::ungroup()
-  crop_area_npp_ygpitr_no_fallow <-
-    readRDS(get_file_path("crop_area_npp_ygpitr_no_fallow")) |> dplyr::ungroup()
-  crop_area_npp_ygpit_all <-
-    readRDS(get_file_path("crop_area_npp_ygpit_all")) |> dplyr::ungroup()
+  crop_area_npp_ygpitr_no_fallow <- readRDS(
+    get_file_path("crop_area_npp_ygpitr_no_fallow")
+  ) |> dplyr::ungroup()
+  crop_area_npp_ygpit_all <- readRDS(
+    get_file_path("crop_area_npp_ygpit_all")
+  ) |>
+    dplyr::ungroup()
   pie_full_destinies_fm <- readr::read_csv(
     get_file_path("pie_full_destinies_fm")
   )
   feed_intake <- readr::read_csv(get_file_path("intake_ygiac"))
   population_share <- readr::read_csv(get_file_path("population_yg"))
-  n_excretion_ygs <-
-    readRDS(get_file_path("n_excretion_ygs")) |> dplyr::ungroup()
+  n_excretion_ygs <- readRDS(
+    get_file_path("n_excretion_ygs")
+  ) |>
+    dplyr::ungroup()
   livestock_prod_ygps <- readr::read_csv(get_file_path("livestock_prod_ygps"))
 
-  codes_coefs <-
-    readxl::read_excel(get_file_path("codes_coefs"), sheet = "Names_biomass_CB")
+  codes_coefs <- readxl::read_excel(
+    get_file_path("codes_coefs"),
+    sheet = "Names_biomass_CB"
+  )
   codes_coefs_items_full <- readxl::read_excel(
     get_file_path("codes_coefs"),
     sheet = "items_full"
