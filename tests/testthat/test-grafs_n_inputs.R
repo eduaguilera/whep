@@ -10,7 +10,7 @@ test_that("._assign_items returns expected categories", {
   expect_true("Holm oak" %in% cats$Firewood_biomass)
 })
 
-test_that("._calculate_n_inputs calculates inputs and manure correctly", {
+test_that("._calculate_n_inputs calculates N soil inputs correctly", {
   # Sample data for n_balance_ygpit_all
   n_balance_ygpit_all <- tibble::tibble(
     Year = c(2000, 2000, 2000, 2000),
@@ -33,140 +33,72 @@ test_that("._calculate_n_inputs calculates inputs and manure correctly", {
 
   result <- .calculate_n_inputs(n_balance_ygpit_all, codes_coefs)
 
-  expect_named(result, c("n_inputs_summary", "manure_summary"))
+  expect_true(all(c(
+    "Year", "Province_name", "Item", "Box",
+    "MgN_dep", "MgN_fix", "MgN_syn", "MgN_manure", "MgN_urban"
+  ) %in% names(result)))
 
-  # Check that Deposition values are non-negative
-  expect_true(all(result$n_inputs_summary$Deposition >= 0))
+  expect_true(all(result$MgN_dep >= 0))
 
   # Check Manure calculation (sum of Excreta + Solid + Liquid)
-  manure_val <- result$manure_summary |>
-    dplyr::filter(Name_biomass == "Excreta") |>
-    dplyr::pull(Total_Manure)
+  manure_val <- result |>
+    dplyr::filter(Item == "Manure") |>
+    dplyr::pull(MgN_manure)
+
   expect_equal(manure_val, 5 + 1 + 2)
 })
 
-test_that("._summarise_inputs correctly summarizes inputs", {
-  n_balance_ygpit_all <- tibble::tibble(
-    Year = c(2000, 2000, 2000),
-    Province_name = c("Madrid", "Madrid", "Madrid"),
-    Name_biomass = c("Dehesa", "Holm oak", "Other crop residues"),
-    LandUse = c("Dehesa", "Holm oak", "Cropland"),
-    Deposition = c(1, 2, 3),
-    BNF = c(0.5, 0.2, 0.1),
-    Synthetic = c(0, 0, 1),
-    Urban = c(0, 0, 0),
-    Excreta = c(NA, NA, NA),
-    Solid = c(NA, NA, NA),
-    Liquid = c(NA, NA, NA)
+test_that("._summarise_production combines inputs and production correctly", {
+  n_inputs <- tibble::tibble(
+    Year = 2000,
+    Province_name = "Madrid",
+    Item = "Dehesa_item",
+    Box = "semi_natural_agroecosystems",
+    MgN_dep = 1,
+    MgN_fix = 0.5,
+    MgN_syn = 0,
+    MgN_manure = 0,
+    MgN_urban = 0
   )
 
-  codes_coefs <- tibble::tibble(
-    Name_biomass = c("Dehesa", "Holm oak", "Other crop residues"),
-    Item = c("Dehesa_item", "Firewood", "Residue")
+  grafs_prod_destiny <- tibble::tibble(
+    Year = rep(2000, 5),
+    Province_name = rep("Madrid", 5),
+    Item = rep("Dehesa_item", 5),
+    Box = rep("semi_natural_agroecosystems", 5),
+    Destiny = c("Food", "Feed", "Other_uses", "Export", "Import"),
+    MgN = c(10, 5, 4, 3, 2)
   )
 
-  n_inputs_prepared <- .calculate_n_inputs(n_balance_ygpit_all, codes_coefs)
-  sum_inputs <- .summarise_inputs(n_inputs_prepared)
+  combined <- .summarise_production(grafs_prod_destiny, n_inputs)
 
-  expect_true(all(c(
-    "MgN_dep", "MgN_fix", "MgN_syn", "MgN_manure", "MgN_urban"
-  ) %in% colnames(
-    sum_inputs
-  )))
-  expect_true(all(sum_inputs$MgN_dep >= 0))
+  expect_true(all(c("Prod_MgN", "Import_MgN") %in% colnames(combined)))
+  expect_true(all(!is.na(combined$Box)))
+  expect_true("Madrid" %in% combined$Province_name)
 })
 
-test_that(
-  "._summarise_production correctly combines inputs and production data",
-  {
-    n_inputs_prepared <- list(
-      n_inputs_summary = tibble::tibble(
-        Year = 2000,
-        Province_name = "Madrid",
-        Name_biomass = "Dehesa",
-        Item = "Dehesa_item",
-        Box = "semi_natural_agroecosystems",
-        Deposition = 1,
-        BNF = 0.5,
-        Synthetic = 0,
-        Urban = 0
-      ),
-      manure_summary = tibble::tibble(
-        Year = 2000,
-        Province_name = "Madrid",
-        Name_biomass = "Dehesa",
-        Item = "Dehesa_item",
-        Box = "semi_natural_agroecosystems",
-        Total_Manure = 0
-      )
-    )
+test_that("._calculate_nue calculates NUE correctly", {
+  n_inputs_combined <- tibble::tibble(
+    Year = 2000,
+    Province_name = "Madrid",
+    Item = "Dehesa_item",
+    Box = "semi_natural_agroecosystems",
+    MgN_dep = 1,
+    MgN_fix = 0.5,
+    MgN_syn = 0,
+    MgN_manure = 0,
+    MgN_urban = 0,
+    Import_MgN = 2,
+    Prod_MgN = 15
+  )
 
-    n_inputs_sum <- .summarise_inputs(n_inputs_prepared)
+  nue <- .calculate_nue(n_inputs_combined)
 
-    grafs_prod_destiny <- tibble::tibble(
-      Year = rep(2000, 5),
-      Province_name = rep("Madrid", 5),
-      Item = rep("Dehesa_item", 5),
-      Box = rep("semi_natural_agroecosystems", 5),
-      Destiny = c("Food", "Feed", "Other_uses", "Export", "Import"),
-      MgN = c(10, 5, 4, 3, 2)
-    )
+  expect_true("nue" %in% colnames(nue))
+  expect_true(all(!is.na(nue$nue)))
 
-    prod_combined <- .summarise_production(grafs_prod_destiny, n_inputs_sum)
-
-    expect_true(all(c("Prod_MgN", "Import_MgN") %in% colnames(prod_combined)))
-    expect_true(all(!is.na(prod_combined$Box)))
-    expect_true("Madrid" %in% prod_combined$Province_name)
-  }
-)
-
-test_that(
-  "._calculate_nue calculates nue correctly for
-  Cropland and semi_natural_agroecosystems",
-  {
-    n_inputs_prepared <- list(
-      n_inputs_summary = tibble::tibble(
-        Year = 2000,
-        Province_name = "Madrid",
-        Name_biomass = "Dehesa",
-        Item = "Dehesa_item",
-        Box = "semi_natural_agroecosystems",
-        Deposition = 1,
-        BNF = 0.5,
-        Synthetic = 0,
-        Urban = 0
-      ),
-      manure_summary = tibble::tibble(
-        Year = 2000,
-        Province_name = "Madrid",
-        Name_biomass = "Dehesa",
-        Item = "Dehesa_item",
-        Box = "semi_natural_agroecosystems",
-        Total_Manure = 0
-      )
-    )
-
-    n_inputs_sum <- .summarise_inputs(n_inputs_prepared)
-
-    grafs_prod_destiny <- tibble::tibble(
-      Year = c(2000, 2000, 2000, 2000, 2000),
-      Province_name = rep("Madrid", 5),
-      Item = rep("Dehesa_item", 5),
-      Box = rep("semi_natural_agroecosystems", 5),
-      Destiny = c("Food", "Feed", "Other_uses", "Export", "Import"),
-      MgN = c(10, 5, 4, 3, 2)
-    )
-
-    prod_combined <- .summarise_production(grafs_prod_destiny, n_inputs_sum)
-    nue <- .calculate_nue(prod_combined)
-
-    # Check nue is calculated for Cropland and semi_natural_agroecosystems
-    nue_filtered <- nue |> dplyr::filter(Box == "semi_natural_agroecosystems")
-    expect_true(all(!is.na(nue_filtered$nue)))
-
-    # nue should be NA for other Box categories (e.g. Fish)
-    nue$Box[1] <- "Fish"
-    nue$nue[1] <- NA_real_
-    expect_true(is.na(nue$nue[1]))
-  }
-)
+  nue_other <- nue
+  nue_other$Box[1] <- "Fish"
+  nue_other$nue[1] <- NA_real_
+  expect_true(is.na(nue_other$nue[1]))
+})
