@@ -68,8 +68,8 @@ create_n_inputs_grafs_spain <- function() {
         readxl::read_excel(
           get_file_path("codes_coefs"),
           sheet = "Names_biomass_CB"
-          )
-      )
+        )
+    )
   result
 }
 
