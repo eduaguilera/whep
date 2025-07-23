@@ -50,20 +50,23 @@ create_n_inputs_grafs_spain <- function() {
 }
 
 #' @title N Inputs -------------------------------------------------------------
-#' @description Loading all required data sets.
+#' @description Loading all required datasets.
 #' @return A named list including four datasets.
 #' @keywords internal
 #' @noRd
 .load_inputs_n_inputs <- function() {
   result <-
     list(
-      n_Excretion_ygs = readRDS(get_file_path("n_excretion_ygs")),
+      n_Excretion_ygs =
+        readRDS(get_file_path("n_excretion_ygs")) |> dplyr::ungroup(),
       # TODO: Excretion need to be added to dataset as an input of Livestock
-      n_balance_ygpit_all = readRDS(get_file_path("n_balance_ygpit_all")),
+      n_balance_ygpit_all =
+        readRDS(get_file_path("n_balance_ygpit_all")) |> dplyr::ungroup(),
       grafs_prod_destiny = readr::read_csv(
         get_file_path("GRAFS_prod_destiny_git")
       ),
-      codes_coefs = readxl::read_excel(get_file_path("codes_coefs"),
+      codes_coefs = readxl::read_excel(
+        get_file_path("codes_coefs"),
         sheet = "Names_biomass_CB"
       )
     )
@@ -77,14 +80,18 @@ create_n_inputs_grafs_spain <- function() {
 .assign_items <- function() {
   list(
     semi_natural_agroecosystems = c(
-      "Dehesa", "Forest_high", "Forest_low",
-      "Other", "Pasture_Shrubland"
+      "Dehesa",
+      "Forest_high",
+      "Forest_low",
+      "Other",
+      "Pasture_Shrubland"
     ),
     Firewood_biomass = c(
-      "Holm oak", "Mediterranean shrubland", "Conifers",
-      "Holm oak forest"
-    ),
-    residue_items = c("Other crop residues", "Straw", "Firewood")
+      "Conifers",
+      "Holm oak",
+      "Holm oak forest",
+      "Mediterranean shrubland"
+    )
   )
 }
 
@@ -192,7 +199,9 @@ create_n_inputs_grafs_spain <- function() {
       MgN_manure = sum(Total_Manure, na.rm = TRUE),
       MgN_urban = sum(Urban, na.rm = TRUE),
       .groups = "drop"
-    )
+    ) |>
+    dplyr::ungroup()
+
   n_inputs_sum
 }
 
@@ -227,6 +236,7 @@ create_n_inputs_grafs_spain <- function() {
       Prod_MgN = sum(Prod_MgN, na.rm = TRUE),
       .groups = "drop"
     ) |>
+    dplyr::ungroup() |>
     dplyr::arrange(Year, Province_name, Item, Box) |>
     dplyr::select(Year, Province_name, Item, Box, Import_MgN, Prod_MgN)
 
@@ -235,7 +245,8 @@ create_n_inputs_grafs_spain <- function() {
     n_inputs_sum, grafs_prod_destiny_summary,
     by = c("Year", "Province_name", "Item", "Box")
   ) |>
-    dplyr::filter(!is.na(Box))
+    dplyr::filter(!is.na(Box)) |>
+    dplyr::ungroup()
 
   n_inputs_combined
 }
@@ -262,7 +273,8 @@ create_n_inputs_grafs_spain <- function() {
         Prod_MgN / Inputs_MgN * 100,
         NA_real_
       )
-    )
+    ) |>
+    dplyr::ungroup()
 
   nue
 }
