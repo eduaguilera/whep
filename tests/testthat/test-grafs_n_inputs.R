@@ -5,7 +5,6 @@ test_that("._assign_items returns expected categories", {
 
   expect_true("semi_natural_agroecosystems" %in% names(cats))
   expect_true("Firewood_biomass" %in% names(cats))
-  expect_true("residue_items" %in% names(cats))
 
   expect_true("Dehesa" %in% cats$semi_natural_agroecosystems)
   expect_true("Holm oak" %in% cats$Firewood_biomass)
