@@ -12,7 +12,7 @@ Description: A set of tools for processing and analyzing data developed in the
     European Research Council (ERC). For more details on multi-regional
     input–output model "Food and Agriculture Biomass Input–Output" (FABIO) see 
     Bruckner et al. (2019) <doi:10.1021/acs.est.9b03554>.
-License: MIT + file LICENSE | Apache License 2.0 + file LICENSE-APACHE
+License: MIT + file LICENSE
 Imports:
     cli,
     dplyr,
