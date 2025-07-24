@@ -17,8 +17,7 @@
 #' @export
 #'
 #' @examples
-#' \dontrun{
-#' get_faostat_data("livestock")
+#' \donttest{
 #' get_faostat_data("livestock", year = 2010, area = "Portugal")
 #' }
 get_faostat_data <- function(activity_data, ...) {
@@ -64,7 +63,8 @@ get_faostat_data <- function(activity_data, ...) {
   # Properly detach FAOSTAT to avoid issues
   detach("package:FAOSTAT", unload = TRUE)
 
-  faostat_data
+  faostat_data |>
+    tibble::as_tibble()
 }
 
 #' Populates ISO3CODE based on "area" column from FAOSTAT
