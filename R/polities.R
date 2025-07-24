@@ -230,3 +230,18 @@ get_final_polities <- function(federico_tena_clean) {
       )
     )
 }
+
+# Used for dataset generation in constants.R
+.clean_faostat_regions <- function() {
+  "faostat_regions" |>
+    whep_read_file() |>
+    dplyr::rename(
+      region_code = `Country Code`,
+      region_name = Country,
+      m49 = `M49 Code`,
+      iso2 = `ISO2 Code`,
+      iso3 = `ISO3 Code`,
+      start_year = `Start Year`,
+      end_year = `End Year`
+    )
+}
