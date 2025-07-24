@@ -16,10 +16,15 @@ k_unstats_m49 <- .clean_unstats_m49()
 k_unstats_m49 |>
   readr::write_csv(file.path(polities_inputs_path, "unstats_m49.csv"))
 
+k_historical_m49 <- .clean_historical_m49()
+k_historical_m49 |>
+  readr::write_csv(file.path(polities_inputs_path, "historical_m49.csv"))
+
 usethis::use_data(
   k_tonnes_per_livestock_unit,
   k_faostat_regions,
   k_unstats_m49,
+  k_historical_m49,
   internal = TRUE,
   overwrite = TRUE
 )

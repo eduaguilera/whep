@@ -1,0 +1,286 @@
+m49_name,m49_code,start_year,end_year,notes
+Afghanistan,4,1982,NA,Current ISO 3166-1 country
+Albania,8,1982,NA,Current ISO 3166-1 country
+Antarctica,10,1982,NA,Re-introduced from ISO-3166 numerical code list
+Algeria,12,1982,NA,Current ISO 3166-1 country
+American Samoa,16,1982,NA,Current ISO 3166-1 country
+Andorra,20,1982,NA,Current ISO 3166-1 country
+Angola,24,1982,NA,Current ISO 3166-1 country
+Antigua and Barbuda,28,1982,NA,Current ISO 3166-1 country
+Azerbaijan,31,1991,NA,Formerly part of the Union of Soviet Socialist Republics (numerical code 810)
+Argentina,32,1982,NA,Current ISO 3166-1 country
+Australia,36,1982,NA,Current ISO 3166-1 country
+Austria,40,1982,NA,Current ISO 3166-1 country
+Bahamas,44,1982,NA,Current ISO 3166-1 country
+Bahrain,48,1982,NA,Current ISO 3166-1 country
+Bangladesh,50,1982,NA,Current ISO 3166-1 country
+Armenia,51,1991,NA,Formerly part of the Union of Soviet Socialist Republics (numerical code 810)
+Barbados,52,1982,NA,Current ISO 3166-1 country
+Belgium,56,1982,NA,Current ISO 3166-1 country
+Bermuda,60,1982,NA,Current ISO 3166-1 country
+Bhutan,64,1982,NA,Current ISO 3166-1 country
+Bolivia (Plurinational State of),68,1982,NA,Current ISO 3166-1 country
+Bosnia and Herzegovina,70,1992,NA,Formerly part of the Socialist Federal Republic of Yugoslavia (numerical code 890)
+Botswana,72,1982,NA,Current ISO 3166-1 country
+Bouvet Island,74,1982,NA,Re-introduced from ISO-3166 numerical code list
+Brazil,76,1982,NA,Current ISO 3166-1 country
+Belize,84,1982,NA,Current ISO 3166-1 country
+British Indian Ocean Territory,86,1982,NA,Re-introduced from ISO-3166 numerical code list
+Solomon Islands,90,1982,NA,Current ISO 3166-1 country
+Virgin Islands (British),92,1982,NA,Current ISO 3166-1 country
+Brunei Darussalam,96,1982,NA,Current ISO 3166-1 country
+Bulgaria,100,1982,NA,Current ISO 3166-1 country
+Myanmar,104,1982,NA,Current ISO 3166-1 country
+Burundi,108,1982,NA,Current ISO 3166-1 country
+Belarus,112,1982,NA,Current ISO 3166-1 country
+Cambodia,116,1982,NA,Current ISO 3166-1 country
+Cameroon,120,1982,NA,Current ISO 3166-1 country
+Canada,124,1982,NA,Current ISO 3166-1 country
+Cabo Verde,132,1982,NA,Current ISO 3166-1 country
+Cayman Islands,136,1982,NA,Current ISO 3166-1 country
+Central African Republic,140,1982,NA,Current ISO 3166-1 country
+Sri Lanka,144,1982,NA,Current ISO 3166-1 country
+Chad,148,1982,NA,Current ISO 3166-1 country
+Chile,152,1982,NA,Current ISO 3166-1 country
+China,156,1982,NA,Current ISO 3166-1 country
+"Taiwan, Province of China",158,1982,NA,Current ISO 3166-1 country
+Christmas Island,162,1982,NA,Re-introduced from ISO-3166 numerical code list
+Cocos (Keeling) Islands,166,1982,NA,Re-introduced from ISO-3166 numerical code list
+Colombia,170,1982,NA,Current ISO 3166-1 country
+Comoros,174,1982,NA,Current ISO 3166-1 country
+Mayotte,175,2002,NA,Issued a numerical code in 2002
+Congo,178,1982,NA,Current ISO 3166-1 country
+"Congo, Democratic Republic of the",180,1982,NA,Current ISO 3166-1 country
+Cook Islands,184,1982,NA,Current ISO 3166-1 country
+Costa Rica,188,1982,NA,Current ISO 3166-1 country
+Croatia,191,1992,NA,Formerly part of the Socialist Federal Republic of Yugoslavia (numerical code 890)
+Cuba,192,1982,NA,Current ISO 3166-1 country
+Cyprus,196,1982,NA,Current ISO 3166-1 country
+Sub-Saharan Africa,202,2017,NA,M49 regional grouping only
+Czechia,203,1993,NA,Formerly part of Czechoslovakia (numerical code 200)
+Benin,204,1982,NA,Current ISO 3166-1 country
+Denmark,208,1982,NA,Current ISO 3166-1 country
+Dominica,212,1982,NA,Current ISO 3166-1 country
+Dominican Republic,214,1982,NA,Current ISO 3166-1 country
+Ecuador,218,1982,NA,Current ISO 3166-1 country
+El Salvador,222,1982,NA,Current ISO 3166-1 country
+Equatorial Guinea,226,1982,NA,Current ISO 3166-1 country
+Ethiopia,231,1993,NA,Formerly part of Ethiopia (numerical code 230)
+Eritrea,232,1993,NA,Formerly part of Ethiopia (numerical code 230)
+Estonia,233,1991,NA,Formerly part of the Union of Soviet Socialist Republics (numerical code 810)
+Faroe Islands,234,1982,NA,Current ISO 3166-1 country
+Falkland Islands (Malvinas),238,1982,NA,Current ISO 3166-1 country
+South Georgia and the South Sandwich Islands,239,1982,NA,Re-introduced from ISO-3166 numerical code list
+Fiji,242,1982,NA,Current ISO 3166-1 country
+Finland,246,1982,NA,Current ISO 3166-1 country
+Åland Islands,248,2003,NA,Issued a numerical code in 2003
+France,250,1982,NA,Current ISO 3166-1 country
+French Guiana,254,1982,NA,Current ISO 3166-1 country
+French Polynesia,258,1982,NA,Current ISO 3166-1 country
+French Southern and Antarctic Territories,260,1982,NA,Re-introduced from ISO-3166 numerical code list
+Djibouti,262,1982,NA,Current ISO 3166-1 country
+Gabon,266,1982,NA,Current ISO 3166-1 country
+Georgia,268,1991,NA,Formerly part of the Union of Soviet Socialist Republics (numerical code 810)
+Gambia,270,1982,NA,Current ISO 3166-1 country
+"Palestine, State of",275,1999,NA,Issued a numerical code in 1999. Later renamed to State of Palestine
+Germany,276,1990,NA,Unified from Federal Republic of Germany and German Democratic Republic
+Ghana,288,1982,NA,Current ISO 3166-1 country
+Gibraltar,292,1982,NA,Current ISO 3166-1 country
+Kiribati,296,1982,NA,Current ISO 3166-1 country
+Greece,300,1982,NA,Current ISO 3166-1 country
+Greenland,304,1982,NA,Current ISO 3166-1 country
+Grenada,308,1982,NA,Current ISO 3166-1 country
+Guadeloupe,312,1982,NA,Current ISO 3166-1 country
+Guam,316,1982,NA,Current ISO 3166-1 country
+Guatemala,320,1982,NA,Current ISO 3166-1 country
+Guinea,324,1982,NA,Current ISO 3166-1 country
+Guyana,328,1982,NA,Current ISO 3166-1 country
+Haiti,332,1982,NA,Current ISO 3166-1 country
+Heard Island and McDonald Islands,334,1982,NA,Re-introduced from ISO-3166 numerical code list
+Holy See,336,1982,NA,Current ISO 3166-1 country
+Honduras,340,1982,NA,Current ISO 3166-1 country
+Hong Kong,344,1982,NA,Current ISO 3166-1 country
+Hungary,348,1982,NA,Current ISO 3166-1 country
+Iceland,352,1982,NA,Current ISO 3166-1 country
+India,356,1982,NA,Current ISO 3166-1 country
+Indonesia,360,1982,NA,Current ISO 3166-1 country
+"Iran, Islamic Republic of",364,1982,NA,Current ISO 3166-1 country
+Iraq,368,1982,NA,Current ISO 3166-1 country
+Ireland,372,1982,NA,Current ISO 3166-1 country
+Israel,376,1982,NA,Current ISO 3166-1 country
+Italy,380,1982,NA,Current ISO 3166-1 country
+Côte d'Ivoire,384,1982,NA,Current ISO 3166-1 country
+Jamaica,388,1982,NA,Current ISO 3166-1 country
+Japan,392,1982,NA,Current ISO 3166-1 country
+Kazakhstan,398,1991,NA,Formerly part of the Union of Soviet Socialist Republics (numerical code 810)
+Jordan,400,1982,NA,Current ISO 3166-1 country
+Kenya,404,1982,NA,Current ISO 3166-1 country
+"Korea, Democratic People's Republic of",408,1982,NA,Current ISO 3166-1 country
+"Korea, Republic of",410,1982,NA,Current ISO 3166-1 country
+Kuwait,414,1982,NA,Current ISO 3166-1 country
+Kyrgyzstan,417,1991,NA,Formerly part of the Union of Soviet Socialist Republics (numerical code 810)
+Lao People's Democratic Republic,418,1982,NA,Current ISO 3166-1 country
+Lebanon,422,1982,NA,Current ISO 3166-1 country
+Lesotho,426,1982,NA,Current ISO 3166-1 country
+Latvia,428,1991,NA,Formerly part of the Union of Soviet Socialist Republics (numerical code 810)
+Liberia,430,1982,NA,Current ISO 3166-1 country
+Libya,434,1982,NA,Current ISO 3166-1 country
+Liechtenstein,438,1982,NA,Current ISO 3166-1 country
+Lithuania,440,1991,NA,Formerly part of the Union of Soviet Socialist Republics (numerical code 810)
+Luxembourg,442,1982,NA,Current ISO 3166-1 country
+Macao,446,1982,NA,Current ISO 3166-1 country
+Madagascar,450,1982,NA,Current ISO 3166-1 country
+Malawi,454,1982,NA,Current ISO 3166-1 country
+Malaysia,458,1982,NA,Current ISO 3166-1 country
+Maldives,462,1982,NA,Current ISO 3166-1 country
+Mali,466,1982,NA,Current ISO 3166-1 country
+Malta,470,1982,NA,Current ISO 3166-1 country
+Martinique,474,1982,NA,Current ISO 3166-1 country
+Mauritania,478,1982,NA,Current ISO 3166-1 country
+Mauritius,480,1982,NA,Current ISO 3166-1 country
+Mexico,484,1982,NA,Current ISO 3166-1 country
+Monaco,492,1982,NA,Current ISO 3166-1 country
+Mongolia,496,1982,NA,Current ISO 3166-1 country
+Republic of Moldova,498,1991,NA,Formerly part of the Union of Soviet Socialist Republics (numerical code 810)
+Montenegro,499,2006,NA,Formerly part of Serbia and Montenegro (numerical code 891)
+Montserrat,500,1982,NA,Current ISO 3166-1 country
+Morocco,504,1982,NA,Current ISO 3166-1 country
+Mozambique,508,1982,NA,Current ISO 3166-1 country
+Oman,512,1982,NA,Current ISO 3166-1 country
+Namibia,516,1982,NA,Current ISO 3166-1 country
+Nauru,520,1982,NA,Current ISO 3166-1 country
+Nepal,524,1982,NA,Current ISO 3166-1 country
+"Netherlands, Kingdom of the",528,1982,NA,Current ISO 3166-1 country
+Curaçao,531,2010,NA,Formerly part of the Netherlands Antilles (numerical code 530)
+Aruba,533,1986,NA,Formerly included in Netherlands Antilles
+Sint Maarten (Dutch part),534,2010,NA,Formerly part of the Netherlands Antilles (numerical code 530)
+"Bonaire, Sint Eustatius and Saba",535,2010,NA,Formerly part of the Netherlands Antilles (numerical code 530)
+New Caledonia,540,1982,NA,Current ISO 3166-1 country
+Vanuatu,548,1982,NA,Current ISO 3166-1 country
+New Zealand,554,1982,NA,Current ISO 3166-1 country
+Nicaragua,558,1982,NA,Current ISO 3166-1 country
+Niger,562,1982,NA,Current ISO 3166-1 country
+Nigeria,566,1982,NA,Current ISO 3166-1 country
+Niue,570,1982,NA,Current ISO 3166-1 country
+Norfolk Island,574,1982,NA,Current ISO 3166-1 country
+Norway,578,1982,NA,Current ISO 3166-1 country
+Northern Mariana Islands,580,1991,NA,Formerly part of Pacific Islands (Trust Territory) (numerical code 582)
+United States Minor Outlying Islands,581,1982,NA,Re-introduced from ISO-3166 numerical code list
+"Micronesia, Federated States of",583,1991,NA,Formerly part of Pacific Islands (Trust Territory) (numerical code 582)
+Marshall Islands,584,1991,NA,Formerly part of Pacific Islands (Trust Territory) (numerical code 582)
+Palau,585,1994,NA,Formerly part of Pacific Islands (Trust Territory) (numerical code 582)
+Pakistan,586,1982,NA,Current ISO 3166-1 country
+Panama,591,1982,NA,Current ISO 3166-1 country
+Papua New Guinea,598,1982,NA,Current ISO 3166-1 country
+Paraguay,600,1982,NA,Current ISO 3166-1 country
+Peru,604,1982,NA,Current ISO 3166-1 country
+Philippines,608,1982,NA,Current ISO 3166-1 country
+Pitcairn,612,1982,NA,Current ISO 3166-1 country
+Poland,616,1982,NA,Current ISO 3166-1 country
+Portugal,620,1982,NA,Current ISO 3166-1 country
+Guinea-Bissau,624,1982,NA,Current ISO 3166-1 country
+Timor-Leste,626,1982,NA,Current ISO 3166-1 country
+Puerto Rico,630,1982,NA,Current ISO 3166-1 country
+Qatar,634,1982,NA,Current ISO 3166-1 country
+Réunion,638,1982,NA,Current ISO 3166-1 country
+Romania,642,1982,NA,Current ISO 3166-1 country
+Russian Federation,643,1991,NA,Formerly part of the Union of Soviet Socialist Republics (numerical code 810)
+Rwanda,646,1982,NA,Current ISO 3166-1 country
+Saint Barthélemy,652,2007,NA,Issued a numerical code in 2007
+"Saint Helena, Ascension and Tristan da Cunha",654,1982,NA,Current ISO 3166-1 country
+Saint Kitts and Nevis,659,1982,NA,Current ISO 3166-1 country
+Anguilla,660,1982,NA,Current ISO 3166-1 country
+Saint Lucia,662,1982,NA,Current ISO 3166-1 country
+Saint Martin (French part),663,2007,NA,Issued a numerical code in 2007
+Saint Pierre and Miquelon,666,1982,NA,Current ISO 3166-1 country
+Saint Vincent and the Grenadines,670,1982,NA,Current ISO 3166-1 country
+San Marino,674,1982,NA,Current ISO 3166-1 country
+Sao Tome and Principe,678,1982,NA,Current ISO 3166-1 country
+Sark,680,2011,2023,"Part of the Channel Islands (numerical code 830), issued a separate numerical code in 2011. Removed from the list in 2023"
+Saudi Arabia,682,1982,NA,Current ISO 3166-1 country
+Senegal,686,1982,NA,Current ISO 3166-1 country
+Serbia,688,2006,NA,Formerly part of Serbia and Montenegro (numerical code 891)
+Seychelles,690,1982,NA,Current ISO 3166-1 country
+Sierra Leone,694,1982,NA,Current ISO 3166-1 country
+Singapore,702,1982,NA,Current ISO 3166-1 country
+Slovakia,703,1993,NA,Formerly part of Czechoslovakia (numerical code 200)
+Viet Nam,704,1982,NA,Current ISO 3166-1 country
+Slovenia,705,1992,NA,Formerly part of the Socialist Federal Republic of Yugoslavia (numerical code 890)
+Somalia,706,1982,NA,Current ISO 3166-1 country
+South Africa,710,1982,NA,Current ISO 3166-1 country
+Zimbabwe,716,1982,NA,Current ISO 3166-1 country
+Spain,724,1982,NA,Current ISO 3166-1 country
+South Sudan,728,2011,NA,Formerly part of Sudan (numerical code 736)
+Sudan,729,2011,NA,Formerly part of Sudan (numerical code 736)
+Western Sahara,732,1982,NA,Current ISO 3166-1 country
+Suriname,740,1982,NA,Current ISO 3166-1 country
+Svalbard and Jan Mayen,744,1982,NA,Current ISO 3166-1 country
+Eswatini,748,1982,NA,Current ISO 3166-1 country
+Sweden,752,1982,NA,Current ISO 3166-1 country
+Switzerland,756,1982,NA,Current ISO 3166-1 country
+Syrian Arab Republic,760,1982,NA,Current ISO 3166-1 country
+Tajikistan,762,1991,NA,Formerly part of the Union of Soviet Socialist Republics (numerical code 810)
+Thailand,764,1982,NA,Current ISO 3166-1 country
+Togo,768,1982,NA,Current ISO 3166-1 country
+Tokelau,772,1982,NA,Current ISO 3166-1 country
+Tonga,776,1982,NA,Current ISO 3166-1 country
+Trinidad and Tobago,780,1982,NA,Current ISO 3166-1 country
+United Arab Emirates,784,1982,NA,Current ISO 3166-1 country
+Tunisia,788,1982,NA,Current ISO 3166-1 country
+Türkiye,792,1982,NA,Current ISO 3166-1 country
+Turkmenistan,795,1991,NA,Formerly part of the Union of Soviet Socialist Republics (numerical code 810)
+Turks and Caicos Islands,796,1982,NA,Current ISO 3166-1 country
+Tuvalu,798,1982,NA,Current ISO 3166-1 country
+Uganda,800,1982,NA,Current ISO 3166-1 country
+Ukraine,804,1991,NA,Formerly part of the Union of Soviet Socialist Republics (numerical code 810)
+North Macedonia,807,1992,NA,Formerly part of the Socialist Federal Republic of Yugoslavia (numerical code 890). Later renamed to North Macedonia
+Egypt,818,1982,NA,Current ISO 3166-1 country
+United Kingdom of Great Britain and Northern Ireland,826,1982,NA,Current ISO 3166-1 country
+Channel Islands,830,1982,2023,"Removed from M49 list, individual islands given separate codes"
+Guernsey,831,2005,NA,Part of the Channel Islands (numerical code 830)
+Jersey,832,2005,NA,Part of the Channel Islands (numerical code 830)
+Isle of Man,833,1982,NA,Current ISO 3166-1 country
+"Tanzania, United Republic of",834,1982,NA,Current ISO 3166-1 country
+United States of America,840,1982,NA,Current ISO 3166-1 country
+Virgin Islands (U.S.),850,1982,NA,Current ISO 3166-1 country
+Burkina Faso,854,1982,NA,Current ISO 3166-1 country
+Uruguay,858,1982,NA,Current ISO 3166-1 country
+Uzbekistan,860,1991,NA,Formerly part of the Union of Soviet Socialist Republics (numerical code 810)
+"Venezuela, Bolivarian Republic of",862,1982,NA,Current ISO 3166-1 country
+Wallis and Futuna,876,1982,NA,Current ISO 3166-1 country
+Samoa,882,1982,NA,Current ISO 3166-1 country
+Yemen,887,1990,NA,Merged from Democratic Yemen and Yemen
+Zambia,894,1982,NA,Current ISO 3166-1 country
+Southern Asia,34,2005,NA,Formerly part of South-Central Asia (numerical code 062)
+Central Asia,143,2005,NA,Formerly part of South-Central Asia (numerical code 062)
+Developed regions,514,2021,NA,"The distinction of ""Developed regions"" and ""Developing regions"" has been removed from the Other groupings of M49"
+Developing regions,515,2021,NA,"The distinction of ""Developed regions"" and ""Developing regions"" has been removed from the Other groupings of M49"
+Sudan (old),736,1982,2011,Old Sudan code before South Sudan independence
+Netherlands Antilles,530,1986,2010,Federation dissolved in 2010
+Netherlands Antilles (original),532,1982,1986,Original code before Aruba separation
+Czechoslovakia,200,1982,1993,Split into Czech Republic and Slovakia
+Democratic Yemen,720,1982,1990,Merged with Yemen to form unified Yemen
+Ethiopia (old),230,1982,1993,Before Eritrea independence
+Federal Republic of Germany,280,1982,1990,Unified with German Democratic Republic to form Germany
+German Democratic Republic,278,1982,1990,Unified with Federal Republic of Germany to form Germany
+Pacific Islands (Trust Territory),582,1982,1990,"Dissolved into Northern Mariana Islands, Micronesia, Marshall Islands, and Palau"
+Serbia and Montenegro,891,1992,2006,Split into Serbia and Montenegro
+Socialist Federal Republic of Yugoslavia,890,1982,1992,Split into multiple countries
+South-Central Asia,62,1982,2005,Split into Southern Asia and Central Asia
+USSR,810,1982,1991,Dissolved into 15 independent countries
+Yemen (old),886,1982,1990,Merged with Democratic Yemen to form unified Yemen
+Canton and Enderbury Islands,128,1982,1982,Merged with Kiribati
+Johnston Island,396,1982,1982,Merged into United States Minor Outlying Islands
+Midway Islands,488,1982,1982,Merged into United States Minor Outlying Islands
+United States miscellaneous Pacific Islands,849,1982,1982,Merged into United States Minor Outlying Islands
+Wake Island,872,1982,1982,Merged into United States Minor Outlying Islands
+Gaza Strip,274,1982,1982,Discontinued
+Dronning Maud Land,216,1982,1982,Withdrawn from ISO 3166-1
+"France, Metropolitan",249,1982,1982,Withdrawn from ISO 3166-1
+Neutral Zone,536,1982,1982,Withdrawn from ISO 3166-1
+Panama (before Canal Zone),590,1982,1979,Panama before adding Panama Canal Zone in 1979
+Saint Kitts-Nevis-Anguilla,658,1982,1982,Withdrawn from ISO 3166-1
+"German Democratic Republic, Berlin",282,1982,1982,"UN Statistics Division code, never officially included in ISO 3166-1"
+"Germany, West Berlin",284,1982,1982,"UN Statistics Division code, never officially included in ISO 3166-1"
+Ryukyu Islands,650,1982,1982,"UN Statistics Division code, never officially included in ISO 3166-1"
+Spanish North Africa,728,1982,1982,"UN Statistics Division code, never officially included in ISO 3166-1 (code now used by South Sudan)"

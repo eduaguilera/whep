@@ -273,3 +273,11 @@ get_final_polities <- function(federico_tena_clean) {
       )
     )
 }
+
+.clean_historical_m49 <- function() {
+  "historical_m49" |>
+    whep_read_file() |>
+    dplyr::select(
+      -iso3166_code, -code_mismatch
+    )
+}
