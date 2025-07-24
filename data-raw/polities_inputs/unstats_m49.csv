@@ -1,4 +1,4 @@
-m49_code,m49_name,group1_code,group1_name,group2_code,group2_name,group3_code,group3_name,group4_code,group4_name,iso2,iso3,least_developed,land_locked_developing,small_island_developing
+m49_code,m49_name,region1_code,region1_name,region2_code,region2_name,region3_code,region3_name,region4_code,region4_name,iso2_code,iso3_code,least_developed,land_locked_developing,small_island_developing
 012,Algeria,NA,NA,015,Northern Africa,002,Africa,001,World,DZ,DZA,FALSE,FALSE,FALSE
 818,Egypt,NA,NA,015,Northern Africa,002,Africa,001,World,EG,EGY,FALSE,FALSE,FALSE
 434,Libya,NA,NA,015,Northern Africa,002,Africa,001,World,LY,LBY,FALSE,FALSE,FALSE

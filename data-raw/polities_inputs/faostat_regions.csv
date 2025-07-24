@@ -1,4 +1,4 @@
-region_code,region_name,m49,iso2,iso3,start_year,end_year
+country_code,country_name,m49_code,iso2_code,iso3_code,start_year,end_year
 2,Afghanistan,004,AF,AFG,NA,NA
 5100,Africa,002,F5100,X06,NA,NA
 284,Åland Islands,248,AX,ALA,NA,NA
