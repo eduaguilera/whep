@@ -235,7 +235,7 @@ get_final_polities <- function(federico_tena_clean) {
 .clean_faostat_regions <- function() {
   "faostat_regions" |>
     whep_read_file() |>
-    dplyr::rename(
+    dplyr::select(
       region_code = `Country Code`,
       region_name = Country,
       m49 = `M49 Code`,
@@ -243,5 +243,33 @@ get_final_polities <- function(federico_tena_clean) {
       iso3 = `ISO3 Code`,
       start_year = `Start Year`,
       end_year = `End Year`
+    )
+}
+
+.clean_unstats_m49 <- function() {
+  "unstats_m49" |>
+    whep_read_file() |>
+    dplyr::select(
+      m49_code = `M49 Code`,
+      m49_name = `Country or Area`,
+      group1_code = `Intermediate Region Code`,
+      group1_name = `Intermediate Region Name`,
+      group2_code = `Sub-region Code`,
+      group2_name = `Sub-region Name`,
+      group3_code = `Region Code`,
+      group3_name = `Region Name`,
+      group4_code = `Global Code`,
+      group4_name = `Global Name`,
+      iso2 = `ISO-alpha2 Code`,
+      iso3 = `ISO-alpha3 Code`,
+      least_developed = `Least Developed Countries (LDC)`,
+      land_locked_developing = `Land Locked Developing Countries (LLDC)`,
+      small_island_developing = `Small Island Developing States (SIDS)`
+    ) |>
+    dplyr::mutate(
+      across(
+        c(least_developed, land_locked_developing, small_island_developing),
+        ~ !is.na(.x)
+      )
     )
 }
