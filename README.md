@@ -6,6 +6,8 @@
 <!-- badges: start -->
 
 [![R-CMD-check](https://github.com/eduaguilera/whep/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/eduaguilera/whep/actions/workflows/R-CMD-check.yaml)
+[![CRAN
+status](https://www.r-pkg.org/badges/version/whep)](https://CRAN.R-project.org/package=whep)
 [![whep status
 badge](https://eduaguilera.r-universe.dev/whep/badges/version)](https://eduaguilera.r-universe.dev/whep)
 <!-- badges: end -->
@@ -39,10 +41,10 @@ These highly ambitious goals are addressed by four objectives:
 
 1.  Constructing a consolidated global country-level annual database on
     agricultural production and management, using massive data collation
-    in combination with modelling.
+    in combination with modeling.
 2.  Estimating the environmental impacts: greenhouse gas emissions and
     carbon, land, water, nitrogen, and phosphorus through spatially
-    explicit, integrated, dynamic modelling.
+    explicit, integrated, dynamic modeling.
 3.  Calculating product footprints and tracing them along international
     trade chains.
 4.  Analyzing the observed trajectories in the safe and just operating
@@ -66,18 +68,27 @@ the data gathered by the project.
 
 ## Installation
 
-The package is still in an early stage and thus a work in progress, so
-it’s still not on CRAN. It’s however already available on R-universe:
+The package is under constant development. Initial stable releases are
+available from both CRAN and
+[R-universe](https://eduaguilera.r-universe.dev/whep).
+
+You can install the stable version on CRAN:
 
 ``` r
-install.packages('whep', repos = c('https://eduaguilera.r-universe.dev'))
+install.packages('whep')
 ```
 
-You can also install the development version of `whep` available on
-[GitHub](https://github.com/eduaguilera/whep) with:
+If you want the development version of `whep`, you can:
 
 ``` r
+# Install from GitHub
 pak::pak("eduaguilera/whep")
+
+# Install from R-universe
+install.packages(
+  "whep",
+  repos = c("https://eduaguilera.r-universe.dev", "https://cloud.r-project.org")
+)
 ```
 
 ## Usage
@@ -91,14 +102,14 @@ page](https://eduaguilera.github.io/whep/reference/index.html).
 We try to follow best coding practices, specifically focused on R
 package creation. The process is roughly summarized in:
 
-  - Use git. Work on your own branch.
-  - Track dependencies using `renv` R package.
-  - Add your new functionality inside `R/` directory as functions.
-  - Add function documentation.
-  - Write clean code. Follow [Tidyverse style
-    guide](https://style.tidyverse.org/).
-  - Write tests for your code.
-  - Create pull requests. Ask for review.
+- Use git. Work on your own branch.
+- Track dependencies using `renv` R package.
+- Add your new functionality inside `R/` directory as functions.
+- Add function documentation.
+- Write clean code. Follow [Tidyverse style
+  guide](https://style.tidyverse.org/).
+- Write tests for your code.
+- Create pull requests. Ask for review.
 
 The project is starting with **contributors** that are still learning
 about coding and best practices. For this reason **we have created a
