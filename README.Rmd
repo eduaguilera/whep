@@ -17,8 +17,8 @@ knitr::opts_chunk$set(
 
 <!-- badges: start -->
 [![R-CMD-check](https://github.com/eduaguilera/whep/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/eduaguilera/whep/actions/workflows/R-CMD-check.yaml)
-[![whep status badge](https://eduaguilera.r-universe.dev/whep/badges/version)](https://eduaguilera.r-universe.dev/whep)
 [![CRAN status](https://www.r-pkg.org/badges/version/whep)](https://CRAN.R-project.org/package=whep)
+[![whep status badge](https://eduaguilera.r-universe.dev/whep/badges/version)](https://eduaguilera.r-universe.dev/whep)
 <!-- badges: end -->
 
 ## Project
@@ -81,20 +81,17 @@ You can install the stable version on CRAN:
 install.packages('whep')
 ```
 
-You can also install the stable version on R-universe:
+If you want the development version of `whep`, you can:
 
 ``` r
+# Install from GitHub
+pak::pak("eduaguilera/whep")
+
+# Install from R-universe
 install.packages(
   "whep",
   repos = c("https://eduaguilera.r-universe.dev", "https://cloud.r-project.org")
 )
-```
-
-If you want the development version of `whep`, you can install it from
-[GitHub](https://github.com/eduaguilera/whep) with:
-
-``` r
-pak::pak("eduaguilera/whep")
 ```
 
 ## Usage
