@@ -8,6 +8,8 @@
 [![R-CMD-check](https://github.com/eduaguilera/whep/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/eduaguilera/whep/actions/workflows/R-CMD-check.yaml)
 [![whep status
 badge](https://eduaguilera.r-universe.dev/whep/badges/version)](https://eduaguilera.r-universe.dev/whep)
+[![CRAN
+status](https://www.r-pkg.org/badges/version/whep)](https://CRAN.R-project.org/package=whep)
 <!-- badges: end -->
 
 ## Project
