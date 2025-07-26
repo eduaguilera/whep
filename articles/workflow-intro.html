@@ -25,7 +25,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">whep</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.0.9000</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -64,7 +64,7 @@
       <img src="../logo.png" class="logo" alt=""><h1>Follow the workflow</h1>
             
       
-      <small class="dont-index">Source: <a href="https://github.com/eduaguilera/whep/blob/v0.1.0/vignettes/workflow-intro.Rmd" class="external-link"><code>vignettes/workflow-intro.Rmd</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/eduaguilera/whep/blob/main/vignettes/workflow-intro.Rmd" class="external-link"><code>vignettes/workflow-intro.Rmd</code></a></small>
       <div class="d-none name"><code>workflow-intro.Rmd</code></div>
     </div>
 
@@ -1283,11 +1283,11 @@ You are responsible for making sure this check passes (probably using
 automatically checked on your Pull Requests (see the <a href="#automatic-checks-on-pull-requests">next section</a> on this
 guide). The check we will use is:</p>
 <div class="sourceCode" id="cb49"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu">lintr</span><span class="fu">::</span><span class="fu">lint_package</span><span class="op">(</span></span>
-<span>  linters <span class="op">=</span> <span class="fu">lintr</span><span class="fu">::</span><span class="fu">linters_with_defaults</span><span class="op">(</span>object_usage_linter <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span>
+<code class="sourceCode R"><span><span class="fu">lintr</span><span class="fu">::</span><span class="fu"><a href="https://lintr.r-lib.org/reference/lint.html" class="external-link">lint_package</a></span><span class="op">(</span></span>
+<span>  linters <span class="op">=</span> <span class="fu">lintr</span><span class="fu">::</span><span class="fu"><a href="https://lintr.r-lib.org/reference/linters_with_defaults.html" class="external-link">linters_with_defaults</a></span><span class="op">(</span>object_usage_linter <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
 <p>The default call would be as easy as
-<code>lintr::lint_package()</code>. I will not go into detail about the
+<code><a href="https://lintr.r-lib.org/reference/lint.html" class="external-link">lintr::lint_package()</a></code>. I will not go into detail about the
 specific option added here, but it is there to ignore warnings about
 undeclared global variables, which are false positives when using
 <code>dplyr</code> column names. For convenience, if you are following
@@ -1297,7 +1297,7 @@ repository</a>, you could find this call in
 everything you would just have to run this script.</p>
 <p>In the screenshot above you can see there are also options for
 <code>lintr</code> checks from Rstudio’s ‘addins’, but by default they
-perform the <code>lintr::lint_package()</code> call without any options.
+perform the <code><a href="https://lintr.r-lib.org/reference/lint.html" class="external-link">lintr::lint_package()</a></code> call without any options.
 Remember we added one option to our check, so you should either find out
 how to change the default behavior or just run the script we included in
 <code>inst/scripts/check_lint.R</code>.</p>
