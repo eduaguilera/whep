@@ -25,7 +25,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">whep</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.0.0.9000</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -42,6 +42,7 @@
     <li><a class="dropdown-item" href="../articles/workflow-intro.html">Follow the workflow</a></li>
   </ul>
 </li>
+<li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
       </ul>
 <ul class="navbar-nav">
 <li class="nav-item"><form class="form-inline" role="search">
@@ -63,7 +64,7 @@
       <img src="../logo.png" class="logo" alt=""><h1>Follow the workflow</h1>
             
       
-      <small class="dont-index">Source: <a href="https://github.com/eduaguilera/whep/blob/main/vignettes/workflow-intro.Rmd" class="external-link"><code>vignettes/workflow-intro.Rmd</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/eduaguilera/whep/blob/v0.1.0/vignettes/workflow-intro.Rmd" class="external-link"><code>vignettes/workflow-intro.Rmd</code></a></small>
       <div class="d-none name"><code>workflow-intro.Rmd</code></div>
     </div>
 
@@ -115,15 +116,15 @@ repeatedly until you are in the directory where you want to place a
 subdirectory containing the repository. Again, you can double check that
 using <code>pwd</code>.</p>
 <p>We assume here that the repository you want to contribute to already
-exists. You can go to its page on Github and copy the URL as seen in the
+exists. You can go to its page on GitHub and copy the URL as seen in the
 image below:</p>
 <p><img src="imgs/copy_repo_url.png" alt="Where to copy URL from"></p>
 <p>The git terminology used for ‘downloading’ a repository to our local
 file system is ‘cloning’. We can clone a remote repository (in this case
-from Github) using the following command:</p>
+from GitHub) using the following command:</p>
 <pre><code>git clone &lt;url-you-copied&gt;</code></pre>
 <p>This is called cloning via HTTPS. A browser should open and ask you
-to introduce your Github credentials. There are other ways of cloning
+to introduce your GitHub credentials. There are other ways of cloning
 like SSH, but that is out of the scope of this guide.</p>
 </div>
 <div class="section level3">
@@ -147,9 +148,9 @@ terminal looks different in the screenshots, you can use the same
 commands in Git Bash):</p>
 <p><img src="imgs/git_status_command.png" alt="Using git status"></p>
 <p>Your local version of a repository does not need to match the remote
-version (the one we store in Github in this case), but before you start
+version (the one we store in GitHub in this case), but before you start
 your work on a new branch, you should keep your main branch up to date
-in case someone added new code in the Github repository since the last
+in case someone added new code in the GitHub repository since the last
 time you checked. We get any new remote changes to the local repository
 by using the command</p>
 <pre><code>git pull</code></pre>
@@ -232,11 +233,11 @@ should not be just one commit per branch.</p>
 <h3 id="pushing-our-changes">Pushing our changes<a class="anchor" aria-label="anchor" href="#pushing-our-changes"></a>
 </h3>
 <p>After committing, we now have our changes in local git history, but
-we should probably also add them to the remote Github repository. We do
+we should probably also add them to the remote GitHub repository. We do
 this using the command</p>
 <pre><code>git push origin &lt;name-of-branch&gt;</code></pre>
 <p>Now you should be able to see your changes in your own branch from
-Github itself, you just need to select your own branch instead of the
+GitHub itself, you just need to select your own branch instead of the
 <code>main</code> one.</p>
 <p>You should remember to push your changes regularly to the remote
 repository. Otherwise you risk having a bunch of code features in your
@@ -253,9 +254,9 @@ the main branch. Mixing one branch with another is known as ‘merging’.
 In this case we would like to merge our new branch with the main branch.
 This can be done forcefully, but the common practice we will be
 following is to create what is known as a ‘Pull request’ from our branch
-into the main one, and we do this directly from Github, once we have
+into the main one, and we do this directly from GitHub, once we have
 pushed all of our changes.</p>
-<p><img src="imgs/new_pull_request.png" alt="Click 'New pull request' in Github"></p>
+<p><img src="imgs/new_pull_request.png" alt="Click 'New pull request' in GitHub"></p>
 <p><img src="imgs/create_pull_request.png" alt="Click 'Create pull request'"></p>
 <p>Here you can see all the changes you made (that differ from the main
 branch) before clicking again ‘Create pull request’. Then you will see
@@ -362,7 +363,7 @@ representing it.</p>
 </h3>
 <p>It seems clear that even though we would work fine with bare R
 scripts that are run directly, when working on a large project it makes
-sense to have some kind of file structure, to keep everything organised.
+sense to have some kind of file structure, to keep everything organized.
 You can build your ad-hoc file structures, and you could probably come
 up with something rather simple. Here, instead, we will focus on using
 the standard structure of an R package. This is a standard everyone has
@@ -472,7 +473,7 @@ someone else wants to reproduce your code, then they may have to run</p>
 <pre><code><span><span class="fu">renv</span><span class="fu">::</span><span class="fu">restore</span><span class="op">(</span><span class="op">)</span></span></code></pre>
 <p>which will install any packages from <code>renv.lock</code> that they
 may still not have installed, but again, only on a project level, not
-conflicting with their global R installation. If you use Github with
+conflicting with their global R installation. If you use GitHub with
 others, then you might also need to do this every time you pull remote
 changes and someone else has included a new package, so that you are
 then up to date with them. In any case, when opening the R shell, it
@@ -608,7 +609,7 @@ should be like:</li>
 <pre><code><span><span class="co">#' @param param_name_1 Description of param 1</span></span>
 <span><span class="co">#' @param param_name_2 Description of param 2</span></span>
 <span><span class="co">#' ...</span></span></code></pre>
-<p>As you see here I think it is OK to add linebreaks in between, as
+<p>As you see here I think it is OK to add line breaks in between, as
 long as each parameter starts with <code>@param</code>.</p>
 <pre><code><span><span class="co">#' @param trade_sources A tibble dataframe</span></span>
 <span><span class="co">#' where each row contains the year range</span></span></code></pre>
@@ -626,7 +627,7 @@ function can be used in the package, i.e., it is public.</li>
 <div class="sourceCode" id="cb27"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co">#' @export</span></span></code></pre></div>
 <ul>
-<li>A ‘code’ section of examples to illustrate the function’s behaviour.
+<li>A ‘code’ section of examples to illustrate the function’s behavior.
 It must start with <code>@examples</code>, and after that you can write
 usual R code. When this is processed, it automatically runs the code and
 adds some lines with its output in the documentation.</li>
@@ -903,10 +904,10 @@ files inside this directory would be executed.</li>
 It just runs all the tests in the project.</li>
 </ul>
 <p>All of these can be useful to run tests while you are actively
-working on them. You are suppossed to make all your tests pass, and as
-we will see in the next section, there are some more checks a package
-must pass to be valid (so that it can be publicly uploaded), but tests
-are definitely one of them.</p>
+working on them. You are supposed to make all your tests pass, and as we
+will see in the next section, there are some more checks a package must
+pass to be valid (so that it can be publicly uploaded), but tests are
+definitely one of them.</p>
 </div>
 <div class="section level3">
 <h3 id="r-cmd-check">R CMD Check<a class="anchor" aria-label="anchor" href="#r-cmd-check"></a>
@@ -1152,7 +1153,7 @@ HTML for website generation.</p>
 <div class="section level3">
 <h3 id="environment-variables-and-secrets">Environment variables and secrets<a class="anchor" aria-label="anchor" href="#environment-variables-and-secrets"></a>
 </h3>
-<p>When running code, you can sometimes customize some behaviour by
+<p>When running code, you can sometimes customize some behavior by
 specifying the value of some variable to your needs. For example, maybe
 there is an option whose value is a number from 1 to 5, indicating the
 level of debugging (the amount of output you want to see in the console,
@@ -1191,7 +1192,7 @@ file.&lt;/p&gt;'><sup>2</sup></a>.</p>
 <p>Since we <em>must not</em> include secret information in
 <code>.Renviron</code>, the workaround is to instead add just the secret
 file path as an environment variable and then read from it, so the
-<code>.Renviron</code> is uploaded to Github but the secret file, which
+<code>.Renviron</code> is uploaded to GitHub but the secret file, which
 according to our environment variable should be found in
 <code>inst/google_cloud_key.json</code>, <em>is not uploaded</em>.
 Instead, the file should be uploaded to another private storage service,
@@ -1228,10 +1229,10 @@ command:</p>
 <code class="sourceCode R"><span><span class="fu">styler</span><span class="fu">::</span><span class="fu">style_pkg</span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
 <p>Most code editors incorporate some way of doing this. Since you are
 most likely using RStudio, you can do it by finding the
-<code>styler</code> options in the ‘addins’ dropdown:</p>
+<code>styler</code> options in the ‘addins’ drop-down:</p>
 <p><img src="imgs/styler_rstudio.png" alt="Use styler package from RStudio"></p>
 <p>When using <code>renv</code>, it seems RStudio only shows in the
-‘addins’ dropdown the options from packages included in
+‘addins’ drop-down the options from packages included in
 <code>renv</code>, so keep that in mind in case you want it in a
 different project, that is, if <code>styler</code> does not show up
 there, it means you do not have it installed in the current
@@ -1298,8 +1299,8 @@ everything you would just have to run this script.</p>
 <code>lintr</code> checks from Rstudio’s ‘addins’, but by default they
 perform the <code>lintr::lint_package()</code> call without any options.
 Remember we added one option to our check, so you should either find out
-how to change the default behaviour or just run the script we included
-in <code>inst/scripts/check_lint.R</code>.</p>
+how to change the default behavior or just run the script we included in
+<code>inst/scripts/check_lint.R</code>.</p>
 </li>
 </ul>
 <p>Again, as you can see in the screenshot, there are more things you
@@ -1394,7 +1395,7 @@ you documented and tested it, or perhaps you just created some report in
 the form of an article. As we have seen in the <a href="#git-intro">Git
 intro</a>, it is now time to create a Pull Request so that someone else
 reviews what you have done. But when you create the Pull Request, our
-workflow is designed so that two checks are run automatically on Github,
+workflow is designed so that two checks are run automatically on GitHub,
 each time you push your changes to a branch which has an open Pull
 Request:</p>
 <ul>
@@ -1408,15 +1409,15 @@ will see this step failing.</li>
 </ul>
 <p>If any of the steps above fail, you will see something like this in
 your PR page:</p>
-<p><img src="imgs/github_action_fail.png" alt="Github Action check fails"></p>
+<p><img src="imgs/github_action_fail.png" alt="GitHub Action check fails"></p>
 <p>Otherwise, if both checks succeeded, you will see something like:</p>
-<p><img src="imgs/github_action_pass.png" alt="Github Action check succeeds"></p>
+<p><img src="imgs/github_action_pass.png" alt="GitHub Action check succeeds"></p>
 <p>Overall, you should be able to see this at the bottom of the PR:</p>
-<p><img src="imgs/all_pr_ok.png" alt="Github Action Pull Request passed"></p>
+<p><img src="imgs/all_pr_ok.png" alt="GitHub Action Pull Request passed"></p>
 <p>In case you are wondering, both checks we mentioned before are
-actually done in a single Github automatic step (these steps are called
-‘Github actions’), so it should say ‘1 successful check’ instead of ‘2
-successful checks’. However, there is an additional Github action there,
+actually done in a single GitHub automatic step (these steps are called
+‘GitHub actions’), so it should say ‘1 successful check’ instead of ‘2
+successful checks’. However, there is an additional GitHub action there,
 which essentially just updates the documentation site (only when the PR
 is actually merged into the main branch). This is not relevant to you as
 a developer but it makes the overall workflow easier, since the project
@@ -1426,7 +1427,7 @@ you can check this <a href="https://r-pkgs.org/website.html" class="external-lin
 from the R Packages book</a>.</p>
 <p>Recall that for a PR to be accepted and merged into the main branch,
 it must also be reviewed by another developer. A good practice would be
-to make sure the Github checks pass before even asking for someone’s
+to make sure the GitHub checks pass before even asking for someone’s
 reviewing, because if any check failed you most likely need to add more
 code changes to fix them, so some of the code the reviewer could have
 checked before could become obsolete, and they would have to read it
@@ -1441,7 +1442,7 @@ again, so we better avoid that.</p>
 
 
     <footer><div class="pkgdown-footer-left">
-  <p>Developed by Catalin Covaci, Eduardo Aguilera.</p>
+  <p>Developed by Catalin Covaci, Eduardo Aguilera, <a href="https://erc.europa.eu/homepage" class="external-link"><img src="https://erc.europa.eu/themes/custom/erc_theme/ERC_FAVICON.png" width="55" alt="European Research Council"></a>.</p>
 </div>
 
 <div class="pkgdown-footer-right">

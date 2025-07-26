@@ -5,7 +5,7 @@
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-<title>Who Has Eaten the Planet • whep</title>
+<title>Processing Agro-Environmental Data • whep</title>
 <!-- favicons --><link rel="icon" type="image/png" sizes="96x96" href="favicon-96x96.png">
 <link rel="icon" type="”image/svg+xml”" href="favicon.svg">
 <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
@@ -15,9 +15,9 @@
 <link href="deps/bootstrap-5.3.1/bootstrap.min.css" rel="stylesheet">
 <script src="deps/bootstrap-5.3.1/bootstrap.bundle.min.js"></script><link href="deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
 <link href="deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
-<script src="deps/headroom-0.11.0/headroom.min.js"></script><script src="deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="deps/search-1.0.0/fuse.min.js"></script><script src="deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="pkgdown.js"></script><meta property="og:title" content="Who Has Eaten the Planet">
-<meta name="description" content="Gather historical agricultural and trade data from 1850.">
-<meta property="og:description" content="Gather historical agricultural and trade data from 1850.">
+<script src="deps/headroom-0.11.0/headroom.min.js"></script><script src="deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="deps/search-1.0.0/fuse.min.js"></script><script src="deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="pkgdown.js"></script><meta property="og:title" content="Processing Agro-Environmental Data">
+<meta name="description" content='A set of tools for processing and analyzing data developed in the context of the "Who Has Eaten the Planet" (WHEP) project, funded by the European Research Council (ERC). For more details on multi-regional input–output model "Food and Agriculture Biomass Input–Output" (FABIO) see Bruckner et al. (2019) &lt;doi:10.1021/acs.est.9b03554&gt;.'>
+<meta property="og:description" content='A set of tools for processing and analyzing data developed in the context of the "Who Has Eaten the Planet" (WHEP) project, funded by the European Research Council (ERC). For more details on multi-regional input–output model "Food and Agriculture Biomass Input–Output" (FABIO) see Bruckner et al. (2019) &lt;doi:10.1021/acs.est.9b03554&gt;.'>
 <meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png">
 </head>
 <body>
@@ -28,7 +28,7 @@
 
     <a class="navbar-brand me-2" href="index.html">whep</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.0.0.9000</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -45,6 +45,7 @@
     <li><a class="dropdown-item" href="articles/workflow-intro.html">Follow the workflow</a></li>
   </ul>
 </li>
+<li class="nav-item"><a class="nav-link" href="news/index.html">Changelog</a></li>
       </ul>
 <ul class="navbar-nav">
 <li class="nav-item"><form class="form-inline" role="search">
@@ -85,8 +86,8 @@
 </blockquote>
 <p>These highly ambitious goals are addressed by four objectives:</p>
 <ol style="list-style-type: decimal">
-<li>Constructing a consolidated global country-level annual database on agricultural production and management, using massive data collation in combination with modelling.</li>
-<li>Estimating the environmental impacts: greenhouse gas emissions and carbon, land, water, nitrogen, and phosphorus through spatially explicit, integrated, dynamic modelling.</li>
+<li>Constructing a consolidated global country-level annual database on agricultural production and management, using massive data collation in combination with modeling.</li>
+<li>Estimating the environmental impacts: greenhouse gas emissions and carbon, land, water, nitrogen, and phosphorus through spatially explicit, integrated, dynamic modeling.</li>
 <li>Calculating product footprints and tracing them along international trade chains.</li>
 <li>Analyzing the observed trajectories in the safe and just operating space, by assessing the drivers, and how impacts at the production and consumption levels are related to fair and healthy supply. This ground-breaking research will shed new light on the environmental history of food, opening up many new research frontiers, and providing necessary information to design fair and sustainable policies.</li>
 </ol>
@@ -101,11 +102,18 @@
 <div class="section level2">
 <h2 id="installation">Installation<a class="anchor" aria-label="anchor" href="#installation"></a>
 </h2>
-<p>The package is still in an early stage and thus a work in progress, so it’s still not on CRAN. It’s however already available on R-universe:</p>
+<p>The package is under constant development. Initial stable releases are available from both CRAN and <a href="https://eduaguilera.r-universe.dev/whep" class="external-link">R-universe</a>.</p>
+<p>You can install the stable version on CRAN:</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="st">'whep'</span>, repos <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">'https://eduaguilera.r-universe.dev'</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
-<p>You can also install the development version of <code>whep</code> available on <a href="https://github.com/eduaguilera/whep" class="external-link">GitHub</a> with:</p>
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="st">'whep'</span><span class="op">)</span></span></code></pre></div>
+<p>You can also install the stable version on R-universe:</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span></span>
+<span>  <span class="st">"whep"</span>,</span>
+<span>  repos <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"https://eduaguilera.r-universe.dev"</span>, <span class="st">"https://cloud.r-project.org"</span><span class="op">)</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<p>If you want the development version of <code>whep</code>, you can install it from <a href="https://github.com/eduaguilera/whep" class="external-link">GitHub</a> with:</p>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu">pak</span><span class="fu">::</span><span class="fu"><a href="https://pak.r-lib.org/reference/pak.html" class="external-link">pak</a></span><span class="op">(</span><span class="st">"eduaguilera/whep"</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level2">
@@ -132,6 +140,7 @@
   </main><aside class="col-md-3"><div class="links">
 <h2 data-toc-skip>Links</h2>
 <ul class="list-unstyled">
+<li><a href="https://cloud.r-project.org/package=whep" class="external-link">View on CRAN</a></li>
 <li><a href="https://github.com/eduaguilera/whep/" class="external-link">Browse source code</a></li>
 <li><a href="https://github.com/eduaguilera/whep/issues" class="external-link">Report a bug</a></li>
 <li><a href="https://cordis.europa.eu/project/id/101115126" class="external-link">WHEP ERC project</a></li>
@@ -158,7 +167,9 @@
 <h2 data-toc-skip>Developers</h2>
 <ul class="list-unstyled">
 <li>Catalin Covaci <br><small class="roles"> Author, maintainer </small> <a href="https://orcid.org/0009-0005-2186-5972" target="orcid.widget" aria-label="ORCID" class="external-link"><span class="fab fa-orcid orcid" aria-hidden="true"></span></a>  </li>
-<li>Eduardo Aguilera <br><small class="roles"> Author </small> <a href="https://orcid.org/0000-0003-4382-124X" target="orcid.widget" aria-label="ORCID" class="external-link"><span class="fab fa-orcid orcid" aria-hidden="true"></span></a>  </li>
+<li>Eduardo Aguilera <br><small class="roles"> Author, copyright holder </small> <a href="https://orcid.org/0000-0003-4382-124X" target="orcid.widget" aria-label="ORCID" class="external-link"><span class="fab fa-orcid orcid" aria-hidden="true"></span></a>  </li>
+<li>
+<a href="https://erc.europa.eu/homepage" class="external-link"><img src="https://erc.europa.eu/themes/custom/erc_theme/ERC_FAVICON.png" width="55" alt="European Research Council"></a> <br><small class="roles"> Funder </small>   </li>
 <li><a href="authors.html">More about authors...</a></li>
 </ul>
 </div>
@@ -176,7 +187,7 @@
 
 
     <footer><div class="pkgdown-footer-left">
-  <p>Developed by Catalin Covaci, Eduardo Aguilera.</p>
+  <p>Developed by Catalin Covaci, Eduardo Aguilera, <a href="https://erc.europa.eu/homepage" class="external-link"><img src="https://erc.europa.eu/themes/custom/erc_theme/ERC_FAVICON.png" width="55" alt="European Research Council"></a>.</p>
 </div>
 
 <div class="pkgdown-footer-right">
