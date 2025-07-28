@@ -6,3 +6,15 @@ feed_intake,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20in
 primary_prod,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20250714T123350Z-74e7f
 crop_residues,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20250714T123350Z-1d7be
 read_example,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20250721T152756Z-f00da
+grafs_prod_destiny,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/nitrogen_spain/_pins.yaml,20250724T110924Z-0508f
+biomass_coefs,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/nitrogen_spain/_pins.yaml,20250724T115542Z-d1224
+codes_coefs,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/nitrogen_spain/_pins.yaml,20250724T143014Z-a83d1
+crop_area_npp_ygpit_all,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/nitrogen_spain/_pins.yaml,20250724T115900Z-e1d20
+crop_area_npp_ygpitr_no_fallow,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/nitrogen_spain/_pins.yaml,20250724T115957Z-6d6bb
+feed_avail_all,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/nitrogen_spain/_pins.yaml,20250724T120137Z-6239a
+livestock_prod_ygps,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/nitrogen_spain/_pins.yaml,20250724T120256Z-1d546
+n_balance_ygpit_all,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/nitrogen_spain/_pins.yaml,20250728T064859Z-8dedf
+n_excretion_ygs,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/nitrogen_spain/_pins.yaml,20250724T120459Z-2b5e8
+pie_full_destinies_fm,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/nitrogen_spain/_pins.yaml,20250724T120558Z-96c11
+population_yg,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/nitrogen_spain/_pins.yaml,20250724T120651Z-b4f44
+processed_prov_fixed,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/nitrogen_spain/_pins.yaml,20250724T140654Z-23fcb
