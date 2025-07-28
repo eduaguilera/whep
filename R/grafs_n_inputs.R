@@ -2,7 +2,7 @@
 #'
 #' @description
 #' N inputs (deposition, fixation, synthetic fertilizers, urban sources, manure)
-#' and N production in Spain between 1860 and 2020 for the GRAFS model at the
+#' and N production in Spain from 1860 to the present for the GRAFS model at the
 #' provincial level. Nitrogen use efficiency (NUE) is also calculated for
 #' cropland and semi-natural ecosystems.
 #'
@@ -13,36 +13,32 @@
 #'   - `Province_name`: The Spanish province where the data is from.
 #'   - `Item`: The item which was produced, defined in `codes_coefs`.
 #'   - `Box`: One of the two systems of the GRAFS model: cropland or
-#'            semi-natural agroecosystems.
-#'   - `MgN_dep`: Atmospheric nitrogen deposition in megagrams (Mg).
-#'   - `MgN_fix`: Nitrogen fixation in megagrams (Mg).
-#'   - `MgN_syn`: Synthetic nitrogen fertilizer applied to the land in megagrams
-#'               (Mg).
-#'   - `MgN_manure`: Nitrogen in manure applied to the land in megagrams (Mg).
-#'   - `MgN_urban`: Nitrogen in wastewater from human sources in megagrams (Mg).
-#'   - `Import_MgN`: Imported nitrogen in megagrams (Mg).
-#'   - `Prod_MgN`: Produced nitrogen in megagrams (Mg).
-#'   - `Inputs_MgN`: Total nitrogen inputs in megagrams (Mg).
+#'   semi-natural agroecosystems.
+#'   - `deposition`: Atmospheric nitrogen deposition in megagrams (Mg).
+#'   - `fixation`: Nitrogen fixation in megagrams (Mg).
+#'   - `synthetic`: Synthetic nitrogen fertilizer applied to the land in
+#'   megagrams (Mg).
+#'   - `manure`: Nitrogen in manure applied to the land in megagrams (Mg).
+#'   - `urban`: Nitrogen in wastewater from human sources in megagrams (Mg).
+#'   - `import`: Imported nitrogen in megagrams (Mg).
+#'   - `prod`: Produced nitrogen in megagrams (Mg).
+#'   - `inputs`: Total nitrogen inputs in megagrams (Mg).
 #'   - `nue`: Nitrogen use efficiency, expressed in percent.
 #'
 #' @export
 create_n_inputs_grafs_spain <- function() {
-  # Load datasets
   data <- .load_inputs_n_inputs()
 
-  # Calculate N inputs and manure
   n_soil_inputs <- .calculate_n_inputs(
     data$n_balance_ygpit_all,
     data$codes_coefs
   )
 
-  # Summarise production
   n_inputs_combined <- .summarise_production(
     data$grafs_prod_destiny,
     n_soil_inputs
   )
 
-  # Calculate NUE
   .calculate_nue(n_inputs_combined)
 }
 
@@ -122,11 +118,11 @@ create_n_inputs_grafs_spain <- function() {
       )
     ) |>
     dplyr::summarise(
-      MgN_dep = sum(Deposition, na.rm = TRUE),
-      MgN_fix = sum(BNF, na.rm = TRUE),
-      MgN_syn = sum(Synthetic, na.rm = TRUE),
-      MgN_manure = sum(Excreta + Solid + Liquid, na.rm = TRUE),
-      MgN_urban = sum(Urban, na.rm = TRUE),
+      deposition = sum(Deposition, na.rm = TRUE),
+      fixation = sum(BNF, na.rm = TRUE),
+      synthetic = sum(Synthetic, na.rm = TRUE),
+      manure = sum(Excreta + Solid + Liquid, na.rm = TRUE),
+      urban = sum(Urban, na.rm = TRUE),
       .by = c(Year, Province_name, Item, Box)
     ) |>
     dplyr::arrange(Year, Province_name)
@@ -136,7 +132,7 @@ create_n_inputs_grafs_spain <- function() {
 
 
 #' @title GRAFS_Prod_Destiny ---------------------------------------------------
-#' @description Summarizes and calculates new columns: Prod_MgN
+#' @description Summarizes and calculates new columns: prod
 #' Spread Destiny column to separate columns for Food, Feed, Other_uses, Export.
 #'
 #' @param grafs_prod_destiny Data containing production values by destiny.
@@ -150,25 +146,26 @@ create_n_inputs_grafs_spain <- function() {
   n_soil_inputs
 ) {
   grafs_prod_destiny_summary <- grafs_prod_destiny |>
+    dplyr::filter(!is.na(Box)) |>
     tidyr::pivot_wider(
       names_from = Destiny, values_from = MgN, values_fn = sum,
       values_fill = list(MgN = 0)
     ) |>
     dplyr::mutate(
-      Prod_MgN = (Food + Feed + Other_uses + Export) - Import,
-      Import_MgN = Import,
+      prod = (Food + Feed + Other_uses + Export) - Import,
+      import = Import,
       # Set Production to 0 for Fish Box
-      Prod_MgN = ifelse(Box == "Fish", 0, Prod_MgN)
+      prod = ifelse(Box == "Fish", 0, prod)
     ) |>
     dplyr::group_by(Year, Province_name, Item, Box) |>
     dplyr::summarise(
-      Import_MgN = sum(Import_MgN, na.rm = TRUE),
-      Prod_MgN = sum(Prod_MgN, na.rm = TRUE),
+      import = sum(import, na.rm = TRUE),
+      prod = sum(prod, na.rm = TRUE),
       .groups = "drop"
     ) |>
     dplyr::ungroup() |>
     dplyr::arrange(Year, Province_name, Item, Box) |>
-    dplyr::select(Year, Province_name, Item, Box, Import_MgN, Prod_MgN)
+    dplyr::select(Year, Province_name, Item, Box, import, prod)
 
   # Combine with n_inputs dataset
   n_inputs_combined <- dplyr::full_join(
@@ -196,11 +193,11 @@ create_n_inputs_grafs_spain <- function() {
 ) {
   nue <- n_inputs_combined |>
     dplyr::mutate(
-      Inputs_MgN = MgN_dep + MgN_fix + MgN_syn + MgN_manure + MgN_urban
+      inputs = deposition + fixation + synthetic + manure + urban
     ) |>
     dplyr::mutate(
       nue = ifelse(Box %in% c("semi_natural_agroecosystems", "Cropland"),
-        Prod_MgN / Inputs_MgN * 100,
+        prod / inputs * 100,
         NA_real_
       )
     ) |>

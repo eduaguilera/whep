@@ -15,9 +15,9 @@
 #'   - `province_name`: The Spanish province where the data is from.
 #'   - `item`: The item which was produced, defined in `codes_coefs`.
 #'   - `box`: One of the GRAFS model systems: cropland,
-#'            Semi-natural agroecosystems, Livestock, Fish, or Additives.
+#'   Semi-natural agroecosystems, Livestock, Fish, or Additives.
 #'   - `destiny`: The use category of the nitrogen: Food, Feed, Other_uses,
-#'                Export, or Import.
+#'   Export, or Import.
 #'   - `MgN`: Nitrogen amount in megagrams (Mg).
 #'
 #' @export
@@ -403,8 +403,8 @@ create_prod_and_destiny_grafs <- function() {
 }
 
 #' @title Structuring dataset (GrazedWeeds und Used_Residues in ProductionFM)
-#' @description Rename Prod_Residue_Product_Mg to Production_FM and replace
-#' Production_FM with GrazedWeeds_MgDM (for Fallow).
+#' @description Rename Prod_Residue_Product_Mg to production_fm and replace
+#' production_fm with GrazedWeeds_MgDM (for Fallow).
 #'
 #' @param grafs_prod_combined_no_seeds Data frame of production without seeds.
 #' @param biomass_coefs Data frame containing conversion coefficients for
@@ -418,12 +418,12 @@ create_prod_and_destiny_grafs <- function() {
   biomass_coefs
 ) {
   grafs_prod_structured <- grafs_prod_combined_no_seeds |>
-    dplyr::rename(Production_FM = Prod_Residue_Product_Mg) |>
+    dplyr::rename(production_fm = Prod_Residue_Product_Mg) |>
     dplyr::mutate(
-      Production_FM = dplyr::if_else(
+      production_fm = dplyr::if_else(
         Name_biomass == "Fallow" | Item == "Fallow",
         GrazedWeeds_MgDM,
-        Production_FM
+        production_fm
       )
     )
 
@@ -433,9 +433,9 @@ create_prod_and_destiny_grafs <- function() {
     dplyr::distinct(Year, Province_name, Name_biomass, Box, GrazedWeeds_MgDM) |>
     dplyr::mutate(
       Item = "Grass",
-      Production_FM = GrazedWeeds_MgDM
+      production_fm = GrazedWeeds_MgDM
     ) |>
-    dplyr::select(Year, Province_name, Name_biomass, Item, Production_FM, Box)
+    dplyr::select(Year, Province_name, Name_biomass, Item, production_fm, Box)
 
   # Create 'Firewood' rows for Holm oak using Used_Residue_MgFM
   holm_oak_firewood <- grafs_prod_structured |>
@@ -446,10 +446,10 @@ create_prod_and_destiny_grafs <- function() {
     ) |>
     dplyr::mutate(
       Item = "Firewood",
-      Production_FM = Used_Residue_MgFM
+      production_fm = Used_Residue_MgFM
     ) |>
     dplyr::select(
-      Year, Province_name, Name_biomass, Item, Production_FM, Box
+      Year, Province_name, Name_biomass, Item, production_fm, Box
     )
 
   # Combine the two into one dataframe
@@ -463,10 +463,10 @@ create_prod_and_destiny_grafs <- function() {
     dplyr::filter(!is.na(Used_Residue_MgFM) & Used_Residue_MgFM > 0) |>
     dplyr::mutate(
       Item = "Firewood",
-      Production_FM = Used_Residue_MgFM
+      production_fm = Used_Residue_MgFM
     ) |>
     dplyr::select(
-      Year, Province_name, Name_biomass, Item, Production_FM, Box
+      Year, Province_name, Name_biomass, Item, production_fm, Box
     )
 
   # Create Grass rows for other biomass types using GrazedWeeds_MgDM
@@ -478,27 +478,27 @@ create_prod_and_destiny_grafs <- function() {
     dplyr::filter(!is.na(GrazedWeeds_MgDM) & GrazedWeeds_MgDM > 0) |>
     dplyr::mutate(
       Item = "Grass",
-      Production_FM = GrazedWeeds_MgDM
+      production_fm = GrazedWeeds_MgDM
     ) |>
     dplyr::select(
-      Year, Province_name, Name_biomass, Item, Production_FM, Box
+      Year, Province_name, Name_biomass, Item, production_fm, Box
     )
 
   # Combine all new rows with existing data
   grafs_prod_added_grass_wood <- grafs_prod_structured |>
     dplyr::select(
       Year, Province_name, Name_biomass, Item,
-      Production_FM, Box
+      production_fm, Box
     ) |>
     dplyr::bind_rows(holm_oak_extra, firewood_extra, grass_extra) |>
-    dplyr::filter(!is.na(Production_FM)) |>
+    dplyr::filter(!is.na(production_fm)) |>
     # Convert only Grass rows from DM to FM using 20% coefficient from
     # biomass_coefs
     dplyr::mutate(
-      Production_FM = dplyr::if_else(
-        Item == "Grass" & !is.na(Production_FM),
-        Production_FM / 0.2,
-        Production_FM
+      production_fm = dplyr::if_else(
+        Item == "Grass" & !is.na(production_fm),
+        production_fm / 0.2,
+        production_fm
       ),
       Item = dplyr::if_else(Item == "Grass", "Grassland", Item),
       Name_biomass = dplyr::if_else(Item == "Grassland", "Grass", Name_biomass)
@@ -506,7 +506,7 @@ create_prod_and_destiny_grafs <- function() {
     # Aggregate Grassland rows across same Year/Province_name/Item/Box
     dplyr::group_by(Year, Province_name, Name_biomass, Item, Box) |>
     dplyr::summarise(
-      Production_FM = sum(Production_FM, na.rm = TRUE),
+      production_fm = sum(production_fm, na.rm = TRUE),
       .groups = "drop"
     ) |>
     dplyr::arrange(Year, Province_name, Name_biomass, Item)
@@ -534,11 +534,11 @@ create_prod_and_destiny_grafs <- function() {
     ) |>
     dplyr::mutate(
       Item = ProcessedItem,
-      Production_FM = ProcessedItem_amount,
+      production_fm = ProcessedItem_amount,
       Box = "Cropland"
     ) |>
     dplyr::select(
-      Year, Province_name, Name_biomass, Item, Box, Production_FM
+      Year, Province_name, Name_biomass, Item, Box, production_fm
     )
 
   processed_data
@@ -563,7 +563,7 @@ create_prod_and_destiny_grafs <- function() {
   added_grass_wood_prepared <- grafs_prod_added_grass_wood |>
     dplyr::select(
       Year, Province_name, Name_biomass, Item, Box,
-      Production_FM
+      production_fm
     ) |>
     dplyr::bind_rows(processed_data) |>
     dplyr::arrange(Year, Province_name, Name_biomass, Item)
@@ -621,7 +621,7 @@ create_prod_and_destiny_grafs <- function() {
       by = c("Biomass_match" = "Name_biomass")
     ) |>
     dplyr::mutate(
-      Production_DM = Production_FM * Product_kgDM_kgFM
+      production_dm = production_fm * Product_kgDM_kgFM
     )
 
   # Join with DM to N conversion factors using Biomass_match, then calculate
@@ -633,11 +633,11 @@ create_prod_and_destiny_grafs <- function() {
       by = c("Biomass_match" = "Name_biomass")
     ) |>
     dplyr::mutate(
-      Production_N = Production_DM * Product_kgN_kgDM
+      production_n = production_dm * Product_kgN_kgDM
     ) |>
     # Remove intermediate columns and rename Biomass_match to Name_biomass
     dplyr::select(
-      -Production_FM, -Product_kgDM_kgFM, -Product_kgN_kgDM,
+      -production_fm, -Product_kgDM_kgFM, -Product_kgN_kgDM,
       -Name_biomass
     ) |>
     dplyr::rename(Name_biomass = Biomass_match)
@@ -647,8 +647,8 @@ create_prod_and_destiny_grafs <- function() {
   grafs_prod_item <- prod_grazed_no_seeds_n |>
     dplyr::group_by(Year, Province_name, Item, Box) |>
     dplyr::summarise(
-      Production_DM = sum(Production_DM, na.rm = TRUE),
-      Production_N = sum(Production_N, na.rm = TRUE),
+      production_dm = sum(production_dm, na.rm = TRUE),
+      production_n = sum(production_n, na.rm = TRUE),
       .groups = "drop"
     )
 
@@ -834,16 +834,16 @@ create_prod_and_destiny_grafs <- function() {
     ) |>
     # Convert FM → DM → N for each use type
     dplyr::mutate(
-      Food_MgDM = Food_MgFM * Product_kgDM_kgFM,
-      OtherUses_MgDM = OtherUses_MgFM * Product_kgDM_kgFM,
-      Feed_MgDM = Feed_MgFM * Product_kgDM_kgFM,
-      Food_MgN = Food_MgDM * Product_kgN_kgDM,
-      OtherUses_MgN = OtherUses_MgDM * Product_kgN_kgDM,
-      Feed_MgN = Feed_MgDM * Product_kgN_kgDM
+      food_mg_dm = Food_MgFM * Product_kgDM_kgFM,
+      other_uses_mg_dm = OtherUses_MgFM * Product_kgDM_kgFM,
+      feed_mg_dm = Feed_MgFM * Product_kgDM_kgFM,
+      food = food_mg_dm * Product_kgN_kgDM,
+      other_uses = other_uses_mg_dm * Product_kgN_kgDM,
+      feed = feed_mg_dm * Product_kgN_kgDM
     ) |>
     dplyr::select(
-      Year, Province_name, Item, Name_biomass, Box, Production_N,
-      Food_MgN, OtherUses_MgN, Feed_MgN
+      Year, Province_name, Item, Name_biomass, Box, production_n,
+      food, other_uses, feed
     )
 
   grafs_prod_item_n
@@ -864,15 +864,15 @@ create_prod_and_destiny_grafs <- function() {
   grafs_prod_item_trade <- grafs_prod_item_n |>
     dplyr::group_by(Year, Province_name, Item, Name_biomass, Box) |>
     dplyr::mutate(
-      Consumption_N = rowSums(cbind(Food_MgN, OtherUses_MgN, Feed_MgN),
+      consumption = rowSums(cbind(food, other_uses, feed),
         na.rm = TRUE
       ),
-      Production_N_tmp = tidyr::replace_na(Production_N, 0),
-      Net_trade = Production_N_tmp - Consumption_N,
-      Export_MgN = ifelse(Net_trade > 0, Net_trade, 0),
-      Import_MgN = ifelse(Net_trade < 0, -Net_trade, 0)
+      production_n_tmp = tidyr::replace_na(production_n, 0),
+      net_trade = production_n_tmp - consumption,
+      export = ifelse(net_trade > 0, net_trade, 0),
+      import = ifelse(net_trade < 0, -net_trade, 0)
     ) |>
-    dplyr::select(-Production_N_tmp) |>
+    dplyr::select(-production_n_tmp) |>
     dplyr::ungroup()
 
   grafs_prod_item_trade
@@ -915,17 +915,17 @@ create_prod_and_destiny_grafs <- function() {
 
   grafs_prod_destiny_final <- grafs_prod_destiny |>
     tidyr::pivot_longer(
-      cols = c(Food_MgN, OtherUses_MgN, Feed_MgN, Export_MgN, Import_MgN),
+      cols = c(food, other_uses, feed, export, import),
       names_to = "Destiny",
       values_to = "MgN"
     ) |>
     dplyr::mutate(
       Destiny = dplyr::recode(Destiny,
-        Food_MgN = "Food",
-        OtherUses_MgN = "Other_uses",
-        Feed_MgN = "Feed",
-        Export_MgN = "Export",
-        Import_MgN = "Import"
+        food = "Food",
+        other_uses = "Other_uses",
+        feed = "Feed",
+        export = "Export",
+        import = "Import"
       )
     ) |>
     dplyr::select(

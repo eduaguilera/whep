@@ -15,21 +15,21 @@ It includes the following columns:
 \item \code{Item}: The item which was produced, defined in \code{codes_coefs}.
 \item \code{Box}: One of the two systems of the GRAFS model: cropland or
 semi-natural agroecosystems.
-\item \code{MgN_dep}: Atmospheric nitrogen deposition in megagrams (Mg).
-\item \code{MgN_fix}: Nitrogen fixation in megagrams (Mg).
-\item \code{MgN_syn}: Synthetic nitrogen fertilizer applied to the land in megagrams
-(Mg).
-\item \code{MgN_manure}: Nitrogen in manure applied to the land in megagrams (Mg).
-\item \code{MgN_urban}: Nitrogen in wastewater from human sources in megagrams (Mg).
-\item \code{Import_MgN}: Imported nitrogen in megagrams (Mg).
-\item \code{Prod_MgN}: Produced nitrogen in megagrams (Mg).
-\item \code{Inputs_MgN}: Total nitrogen inputs in megagrams (Mg).
+\item \code{deposition}: Atmospheric nitrogen deposition in megagrams (Mg).
+\item \code{fixation}: Nitrogen fixation in megagrams (Mg).
+\item \code{synthetic}: Synthetic nitrogen fertilizer applied to the land in
+megagrams (Mg).
+\item \code{manure}: Nitrogen in manure applied to the land in megagrams (Mg).
+\item \code{urban}: Nitrogen in wastewater from human sources in megagrams (Mg).
+\item \code{import}: Imported nitrogen in megagrams (Mg).
+\item \code{prod}: Produced nitrogen in megagrams (Mg).
+\item \code{inputs}: Total nitrogen inputs in megagrams (Mg).
 \item \code{nue}: Nitrogen use efficiency, expressed in percent.
 }
 }
 \description{
 N inputs (deposition, fixation, synthetic fertilizers, urban sources, manure)
-and N production in Spain between 1860 and 2020 for the GRAFS model at the
+and N production in Spain from 1860 to the present for the GRAFS model at the
 provincial level. Nitrogen use efficiency (NUE) is also calculated for
 cropland and semi-natural ecosystems.
 }
