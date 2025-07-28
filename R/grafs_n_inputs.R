@@ -55,21 +55,14 @@ create_n_inputs_grafs_spain <- function() {
   result <-
     list(
       # TODO: Excretion need to be added to dataset as an input of Livestock
-      n_Excretion_ygs = readRDS(
-        get_file_path("n_excretion_ygs")
-      ) |>
+      n_Excretion_ygs = whep_read_file("n_excretion_ygs") |>
         dplyr::ungroup(),
-      n_balance_ygpit_all = readRDS(
-        get_file_path("n_balance_ygpit_all")
-      ) |> dplyr::ungroup(),
-      grafs_prod_destiny = readr::read_csv(
-        get_file_path("GRAFS_prod_destiny_git")
-      ),
-      codes_coefs = readxl::read_excel(
-        get_file_path("codes_coefs"),
-        sheet = "Names_biomass_CB"
-      )
+      n_balance_ygpit_all = whep_read_file("n_balance_ygpit_all") |>
+        dplyr::ungroup(),
+      grafs_prod_destiny = whep_read_file("grafs_prod_destiny"),
+      codes_coefs = whep_read_file("codes_coefs")
     )
+
   result
 }
 
