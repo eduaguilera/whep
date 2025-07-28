@@ -1,7 +1,7 @@
 #' External inputs
 #'
 #' The information needed for accessing external datasets used as inputs
-#' in our modelling.
+#' in our modeling.
 #'
 #' @format
 #' A tibble where each row corresponds to one external input dataset.

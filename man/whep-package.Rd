@@ -4,16 +4,16 @@
 \name{whep-package}
 \alias{whep}
 \alias{whep-package}
-\title{whep: Who Has Eaten the Planet}
+\title{whep: Processing Agro-Environmental Data}
 \description{
 \if{html}{\figure{logo.png}{options: style='float: right' alt='logo' width='120'}}
 
-Gather historical agricultural and trade data from 1850.
+A set of tools for processing and analyzing data developed in the context of the "Who Has Eaten the Planet" (WHEP) project, funded by the European Research Council (ERC). For more details on multi-regional input–output model "Food and Agriculture Biomass Input–Output" (FABIO) see Bruckner et al. (2019) \doi{10.1021/acs.est.9b03554}.
 }
 \seealso{
 Useful links:
 \itemize{
-  \item \url{https://eduaguilera.github.io/whep}
+  \item \url{https://eduaguilera.github.io/whep/}
   \item \url{https://github.com/eduaguilera/whep}
   \item Report bugs at \url{https://github.com/eduaguilera/whep/issues}
 }
@@ -24,13 +24,13 @@ Useful links:
 
 Authors:
 \itemize{
-  \item Eduardo Aguilera \email{eduardo.aguilera@csic.es} (\href{https://orcid.org/0000-0003-4382-124X}{ORCID})
-  \item Alice Beckmann \email{alice.beckmann@cchs.csic.es} (\href{https://orcid.org/0009-0009-6840-0258}{ORCID})
+  \item Eduardo Aguilera \email{eduardo.aguilera@csic.es} (\href{https://orcid.org/0000-0003-4382-124X}{ORCID}) [copyright holder]
 }
 
 Other contributors:
 \itemize{
   \item João Serra \email{jserra@agro.au.dk} (\href{https://orcid.org/0000-0002-3561-5350}{ORCID}) [contributor]
+  \item European Research Council [funder]
 }
 
 }
