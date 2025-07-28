@@ -156,7 +156,7 @@ test_that(".adding_other_uses works same as food with other uses", {
 test_that(".combine_destinies joins correctly", {
   prod <- data.frame(
     Year = 2020, Province_name = "A", Item = "Wheat",
-    Box = "Cropland", Production_N = 500
+    Box = "Cropland", production_n = 500
   )
   food <- data.frame(
     Year = 2020, Province_name = "A", Item = "Wheat",
@@ -181,7 +181,7 @@ test_that(".combine_destinies joins correctly", {
 test_that(".convert_to_items_n applies conversions correctly", {
   input <- data.frame(
     Year = 2020, Province_name = "A", Item = "Wheat",
-    Box = "Cropland", Production_N = 500,
+    Box = "Cropland", production_n = 500,
     Food_MgFM = 100, OtherUses_MgFM = 50, Feed_MgFM = 25
   )
 
@@ -192,9 +192,9 @@ test_that(".convert_to_items_n applies conversions correctly", {
   )
 
   result <- .convert_to_items_n(input, code_map, coefs)
-  expect_equal(result$Food_MgN, 1.6)
-  expect_equal(result$OtherUses_MgN, 0.8)
-  expect_equal(result$Feed_MgN, 0.4)
+  expect_equal(result$food, 1.6)
+  expect_equal(result$other_uses, 0.8)
+  expect_equal(result$feed, 0.4)
 })
 
 # Test: calculate trade correctly
@@ -202,14 +202,14 @@ test_that(".calculate_trade computes export/import properly", {
   input <- data.frame(
     Year = 2020, Province_name = "A", Item = "Wheat",
     Name_biomass = "BiomassWheat", Box = "Cropland",
-    Production_N = 10, Food_MgN = 2, OtherUses_MgN = 3, Feed_MgN = 1
+    production_n = 10, food = 2, other_uses = 3, feed = 1
   )
 
   result <- .calculate_trade(input)
-  expect_equal(result$Consumption_N, 6)
-  expect_equal(result$Net_trade, 4)
-  expect_equal(result$Export_MgN, 4)
-  expect_equal(result$Import_MgN, 0)
+  expect_equal(result$consumption, 6)
+  expect_equal(result$net_trade, 4)
+  expect_equal(result$export, 4)
+  expect_equal(result$import, 0)
 })
 
 # Test: finalising dataset correctly
@@ -217,8 +217,8 @@ test_that(".finalize_prod_destiny completes with pivot and recoding", {
   input <- data.frame(
     Year = 2020, Province_name = "A", Item = "Wheat", Box = NA,
     Name_biomass = "BiomassWheat",
-    Food_MgN = 1.5, OtherUses_MgN = 0.5, Feed_MgN = 1.0,
-    Export_MgN = 0.2, Import_MgN = 0.1
+    food = 1.5, other_uses = 0.5, feed = 1.0,
+    export = 0.2, import = 0.1
   )
 
   code_map <- data.frame(item = "Wheat", group = "Primary crops")

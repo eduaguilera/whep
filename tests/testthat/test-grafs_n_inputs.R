@@ -35,15 +35,15 @@ test_that("._calculate_n_inputs calculates N soil inputs correctly", {
 
   expect_true(all(c(
     "Year", "Province_name", "Item", "Box",
-    "MgN_dep", "MgN_fix", "MgN_syn", "MgN_manure", "MgN_urban"
+    "deposition", "fixation", "synthetic", "manure", "urban"
   ) %in% names(result)))
 
-  expect_true(all(result$MgN_dep >= 0))
+  expect_true(all(result$deposition >= 0))
 
   # Check Manure calculation (sum of Excreta + Solid + Liquid)
   manure_val <- result |>
     dplyr::filter(Item == "Manure") |>
-    dplyr::pull(MgN_manure)
+    dplyr::pull(manure)
 
   expect_equal(manure_val, 5 + 1 + 2)
 })
@@ -54,11 +54,11 @@ test_that("._summarise_production combines inputs and production correctly", {
     Province_name = "Madrid",
     Item = "Dehesa_item",
     Box = "semi_natural_agroecosystems",
-    MgN_dep = 1,
-    MgN_fix = 0.5,
-    MgN_syn = 0,
-    MgN_manure = 0,
-    MgN_urban = 0
+    deposition = 1,
+    fixation = 0.5,
+    synthetic = 0,
+    manure = 0,
+    urban = 0
   )
 
   grafs_prod_destiny <- tibble::tibble(
@@ -72,7 +72,7 @@ test_that("._summarise_production combines inputs and production correctly", {
 
   combined <- .summarise_production(grafs_prod_destiny, n_inputs)
 
-  expect_true(all(c("Prod_MgN", "Import_MgN") %in% colnames(combined)))
+  expect_true(all(c("prod", "import") %in% colnames(combined)))
   expect_true(all(!is.na(combined$Box)))
   expect_true("Madrid" %in% combined$Province_name)
 })
@@ -83,13 +83,13 @@ test_that("._calculate_nue calculates NUE correctly", {
     Province_name = "Madrid",
     Item = "Dehesa_item",
     Box = "semi_natural_agroecosystems",
-    MgN_dep = 1,
-    MgN_fix = 0.5,
-    MgN_syn = 0,
-    MgN_manure = 0,
-    MgN_urban = 0,
-    Import_MgN = 2,
-    Prod_MgN = 15
+    deposition = 1,
+    fixation = 0.5,
+    synthetic = 0,
+    manure = 0,
+    urban = 0,
+    import = 2,
+    prod = 15
   )
 
   nue <- .calculate_nue(n_inputs_combined)
