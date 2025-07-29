@@ -141,8 +141,8 @@ get_polities <- function() {
       has_fao_years = !is.na(start_year_fao) | !is.na(end_year_fao),
       start_year = ifelse(has_fao_years, start_year_fao, start_year_ft),
       end_year = ifelse(has_fao_years, end_year_fao, end_year_ft),
+      has_fao_years = NULL
     ) |>
-    dplyr::select(-has_fao_years) |>
     tidyr::replace_na(list(start_year = 1970, end_year = 2025))
 }
 
