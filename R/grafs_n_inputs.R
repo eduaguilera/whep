@@ -126,9 +126,6 @@ create_n_soil_inputs <- function() {
 #' @description Summarizes and calculates new columns: prod
 #' Spread Destiny column to separate columns for Food, Feed, Other_uses, Export.
 #'
-#' @param grafs_prod_destiny Data containing production values by destiny.
-#' @param n_soil_inputs A tibble of summarized N soil inputs.
-#'
 #' @return A tibble with combined N input and production data.
 #' @export
 create_n_production <- function() {
@@ -177,8 +174,6 @@ create_n_production <- function() {
 #' @title NUE for Cropland and Semi-natural agroecosystems ---------------------
 #' @description Calculates NUE for cropland and semi-natural agroecosystems as
 #' the ratio of production to total N soil input.
-#'
-#' @param n_prod_data A data frame including n production.
 #'
 #' @return A tibble with calculated NUE values for cropland and semi-natural
 #' agroecosystems.
