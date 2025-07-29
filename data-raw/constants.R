@@ -20,11 +20,18 @@ k_historical_m49 <- .clean_historical_m49()
 k_historical_m49 |>
   readr::write_csv(file.path(polities_inputs_path, "historical_m49.csv"))
 
+k_federico_tena_polities <- .clean_federico_tena_polities()
+k_federico_tena_polities |>
+  readr::write_csv(
+    file.path(polities_inputs_path, "federico_tena_polities.csv")
+  )
+
 usethis::use_data(
   k_tonnes_per_livestock_unit,
   k_faostat_regions,
   k_unstats_m49,
   k_historical_m49,
+  k_federico_tena_polities,
   internal = TRUE,
   overwrite = TRUE
 )

@@ -281,3 +281,15 @@ get_final_polities <- function(federico_tena_clean) {
       -iso3166_code, -code_mismatch
     )
 }
+
+.clean_federico_tena_polities <- function() {
+  "federico_tena_polities" |>
+    whep_read_file() |>
+    dplyr::select(
+      polity_name = list_of_trading_polities,
+      start_year = trading_polity_starting,
+      end_year = trading_polity_end,
+      population = population_1913_000,
+      notes = notes
+    )
+}
