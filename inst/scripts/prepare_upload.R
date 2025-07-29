@@ -26,11 +26,9 @@ create_version <- function(data, board, name, ...) {
 # Change this accordingly if your data is not CSV.
 # Please make the output a tibble.
 read_input <- function(path) {
-  readr::read_csv(path) |>
-    tibble::as_tibble()
+  path |>
+    readr::read_csv(show_col_types = FALSE)
 }
-
-
 
 prepare_for_upload <- function(input_path, data_name, ...) {
   board <- pins::board_temp(versioned = TRUE)
@@ -70,6 +68,6 @@ prepare_for_upload <- function(input_path, data_name, ...) {
 }
 
 prepare_for_upload(
-  "C:/PhD/GRAFS/Inputs_SACO/Livestock_Prod_ygps.csv",
-  "livestock_prod_ygps"
+  "/path/to/your/data",
+  "simple_name_for_your_data"
 )

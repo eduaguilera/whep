@@ -77,7 +77,7 @@ test_that("._summarise_production combines inputs and production correctly", {
   expect_true("Madrid" %in% combined$Province_name)
 })
 
-test_that("._calculate_nue calculates NUE correctly", {
+test_that("calculate_nue_crops calculates NUE correctly", {
   n_inputs_combined <- tibble::tibble(
     Year = 2000,
     Province_name = "Madrid",
@@ -92,7 +92,7 @@ test_that("._calculate_nue calculates NUE correctly", {
     prod = 15
   )
 
-  nue <- .calculate_nue(n_inputs_combined)
+  nue <- calculate_nue_crops(n_inputs_combined)
 
   expect_true("nue" %in% colnames(nue))
   expect_true(all(!is.na(nue$nue)))
