@@ -258,6 +258,15 @@ get_final_polities <- function(federico_tena_clean) {
 .clean_historical_m49 <- function() {
   "historical_m49" |>
     whep_read_file() |>
+    dplyr::mutate(
+      is_old = !is.na(end_year),
+      m49_code = stringr::str_pad(
+        m49_code,
+        width = 3,
+        side = "left",
+        pad = "0"
+      )
+    ) |>
     dplyr::select(-iso3166_code, -code_mismatch)
 }
 
