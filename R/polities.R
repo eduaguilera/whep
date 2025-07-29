@@ -81,7 +81,6 @@
 get_polities <- function() {
   .merge_datasets() |>
     .fill_year_range() |>
-    dplyr::filter(is.na(iso3_code)) |>
     dplyr::mutate(
       polity_name = m49_name,
       polity_code = dplyr::row_number()
@@ -102,14 +101,12 @@ get_polities <- function() {
 }
 
 .merge_datasets <- function() {
-  # TODO: Add also historical M49 regions
   # TODO: Look at FAOSTAT regions not in other datasets if any, consider adding?
   k_historical_m49 |>
     # TODO: Do this cleanly. M49 code 728 is reused, so only use for new country
     dplyr::mutate(
       m49_code = ifelse(m49_name == "Spanish North Africa", NA, m49_code)
     ) |>
-    # TODO: Check why some iso codes are different in both datasets
     dplyr::left_join(
       k_faostat_regions,
       by = "m49_code",
@@ -138,12 +135,14 @@ get_polities <- function() {
 .fill_year_range <- function(polities) {
   # TODO: Use United Nations defined year range for out of use M49 regions
   polities |>
+    pointblank::col_vals_expr(~ start_year_ft <= end_year_ft) |>
+    pointblank::col_vals_expr(~ start_year_fao <= end_year_fao) |>
     dplyr::mutate(
-      start_year = dplyr::coalesce(start_year_fao, start_year_ft),
-      end_year = dplyr::coalesce(end_year_fao, end_year_ft),
-      # start_year = dplyr::coalesce(start_year_m49, start_year_ft),
-      # end_year = dplyr::coalesce(end_year_m49, end_year_ft)
+      has_fao_years = !is.na(start_year_fao) | !is.na(end_year_fao),
+      start_year = ifelse(has_fao_years, start_year_fao, start_year_ft),
+      end_year = ifelse(has_fao_years, end_year_fao, end_year_ft),
     ) |>
+    dplyr::select(-has_fao_years) |>
     tidyr::replace_na(list(start_year = 1970, end_year = 2025))
 }
 

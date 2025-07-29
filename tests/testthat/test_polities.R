@@ -24,5 +24,6 @@ testthat::test_that("get_polities is consistent", {
     pointblank::expect_rows_distinct(
       m49_code,
       preconditions = \(df) df |> dplyr::filter(!is.na(m49_code))
-    )
+    ) |>
+    pointblank::col_vals_expr(~ start_year <= end_year)
 })
