@@ -78,7 +78,7 @@ test_that("._summarise_production combines inputs and production correctly", {
 })
 
 test_that("calculate_nue_crops calculates NUE correctly", {
-  n_inputs_combined <- tibble::tibble(
+  n_soil_inputs <- tibble::tibble(
     Year = 2000,
     Province_name = "Madrid",
     Item = "Dehesa_item",
@@ -87,12 +87,20 @@ test_that("calculate_nue_crops calculates NUE correctly", {
     fixation = 0.5,
     synthetic = 0,
     manure = 0,
-    urban = 0,
+    urban = 0
+  )
+
+  n_prod_data <- tibble::tibble(
+    Year = 2000,
+    Province_name = "Madrid",
+    Item = "Dehesa_item",
+    Box = "semi_natural_agroecosystems",
     import = 2,
     prod = 15
   )
 
-  nue <- calculate_nue_crops(n_inputs_combined)
+
+  nue <- calculate_nue_crops()
 
   expect_true("nue" %in% colnames(nue))
   expect_true(all(!is.na(nue$nue)))

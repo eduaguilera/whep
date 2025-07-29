@@ -6,9 +6,6 @@
 \usage{
 calculate_nue_crops()
 }
-\arguments{
-\item{n_prod_data}{A data frame including n production.}
-}
 \value{
 A tibble with calculated NUE values for cropland and semi-natural
 agroecosystems.

@@ -6,11 +6,6 @@
 \usage{
 create_n_production()
 }
-\arguments{
-\item{grafs_prod_destiny}{Data containing production values by destiny.}
-
-\item{n_soil_inputs}{A tibble of summarized N soil inputs.}
-}
 \value{
 A tibble with combined N input and production data.
 }
