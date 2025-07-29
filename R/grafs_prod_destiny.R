@@ -81,15 +81,12 @@ create_prod_and_destiny_grafs <- function() {
   npp_ygpit_csv <- whep_read_file("npp_ygpit")
   crop_area_npp_ygpitr_no_fallow <- whep_read_file(
     "crop_area_npp_ygpitr_no_fallow"
-  ) |>
-    dplyr::ungroup()
-  crop_area_npp_ygpit_all <- whep_read_file("crop_area_npp_ygpit_all") |>
-    dplyr::ungroup()
+  )
+  crop_area_npp_ygpit_all <- whep_read_file("crop_area_npp_ygpit_all")
   pie_full_destinies_fm <- whep_read_file("pie_full_destinies_fm")
   feed_intake <- whep_read_file("intake_ygiac")
   population_share <- whep_read_file("population_yg")
-  n_excretion_ygs <- whep_read_file("n_excretion_ygs") |>
-    dplyr::ungroup()
+  n_excretion_ygs <- whep_read_file("n_excretion_ygs")
   livestock_prod_ygps <- whep_read_file("livestock_prod_ygps")
 
   codes_coefs <- whep_read_file("codes_coefs")
@@ -272,7 +269,6 @@ create_prod_and_destiny_grafs <- function() {
   npp_ygpit_merged
 ) {
   semi_natural_agroecosystems <- npp_ygpit_merged |>
-    dplyr::ungroup() |>
     dplyr::filter(LandUse != "Cropland") |>
     dplyr::mutate(Box = "Semi_natural_agroecosystems") |>
     dplyr::select(

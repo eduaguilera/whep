@@ -1,10 +1,10 @@
-#' @title Nitrogen (N) inputs and Nitrogen Use Efficiency (NUE) for GRAFS Spain
+#' @title Nitrogen (N) soil inputs and Nitrogen Use Efficiency (NUE) for
+#' crops in Spain
 #'
 #' @description
 #' N inputs (deposition, fixation, synthetic fertilizers, urban sources, manure)
 #' and N production in Spain from 1860 to the present for the GRAFS model at the
-#' provincial level. Nitrogen use efficiency (NUE) is also calculated for
-#' cropland and semi-natural ecosystems.
+#' provincial level.
 #'
 #' @returns
 #' A tibble containing nitrogen input, production, and NUE data.
@@ -23,10 +23,9 @@
 #'   - `import`: Imported nitrogen in megagrams (Mg).
 #'   - `prod`: Produced nitrogen in megagrams (Mg).
 #'   - `inputs`: Total nitrogen inputs in megagrams (Mg).
-#'   - `nue`: Nitrogen use efficiency, expressed in percent.
 #'
 #' @export
-create_n_inputs_grafs_spain <- function() {
+create_soil_n_balance <- function() {
   data <- .load_inputs_n_inputs()
 
   n_soil_inputs <- .calculate_n_inputs(
@@ -34,15 +33,15 @@ create_n_inputs_grafs_spain <- function() {
     data$codes_coefs
   )
 
-  n_inputs_combined <- .summarise_production(
+  n_balance_data <- .summarise_production(
     data$grafs_prod_destiny,
     n_soil_inputs
   )
 
-  .calculate_nue(n_inputs_combined)
+  n_balance_data
 }
 
-#' @title N Inputs -------------------------------------------------------------
+#' @title Soil N Inputs --------------------------------------------------------
 #' @description Loading all required datasets.
 #' @return A named list including four datasets.
 #' @keywords internal
@@ -50,11 +49,9 @@ create_n_inputs_grafs_spain <- function() {
 .load_inputs_n_inputs <- function() {
   result <-
     list(
-      # TODO: Excretion need to be added to dataset as an input of Livestock
-      n_Excretion_ygs = whep_read_file("n_excretion_ygs") |>
-        dplyr::ungroup(),
-      n_balance_ygpit_all = whep_read_file("n_balance_ygpit_all") |>
-        dplyr::ungroup(),
+      # TODO: Feed intake need to be added to dataset as an input of Livestock
+      n_Excretion_ygs = whep_read_file("n_excretion_ygs"),
+      n_balance_ygpit_all = whep_read_file("n_balance_ygpit_all"),
       grafs_prod_destiny = whep_read_file("grafs_prod_destiny"),
       codes_coefs = whep_read_file("codes_coefs")
     )
@@ -163,35 +160,35 @@ create_n_inputs_grafs_spain <- function() {
       prod = sum(prod, na.rm = TRUE),
       .groups = "drop"
     ) |>
-    dplyr::ungroup() |>
     dplyr::arrange(Year, Province_name, Item, Box) |>
     dplyr::select(Year, Province_name, Item, Box, import, prod)
 
   # Combine with n_inputs dataset
-  n_inputs_combined <- dplyr::full_join(
+  n_balance_data <- dplyr::full_join(
     n_soil_inputs, grafs_prod_destiny_summary,
     by = c("Year", "Province_name", "Item", "Box")
   ) |>
-    dplyr::filter(!is.na(Box)) |>
-    dplyr::ungroup()
+    dplyr::filter(!is.na(Box))
 
-  n_inputs_combined
+  n_balance_data
 }
 
 #' @title NUE for Cropland and Semi-natural agroecosystems ---------------------
 #' @description Calculates NUE for cropland and semi-natural agroecosystems as
-#' the ratio of production to total N input.
+#' the ratio of production to total N soil input.
 #'
-#' @param n_inputs_combined A data frame combining N inputs and production.
+#' @param n_balance_data A data frame combining N soil inputs and production.
 #'
 #' @return A tibble with calculated NUE values for cropland and semi-natural
 #' agroecosystems.
-#' @keywords internal
-#' @noRd
-.calculate_nue <- function(
-  n_inputs_combined
+#'
+#' @export
+calculate_crop_nue <- function(
+  n_balance_data
 ) {
-  nue <- n_inputs_combined |>
+  n_soil_balance <- create_soil_n_balance()
+
+  nue <- n_soil_balance |>
     dplyr::mutate(
       inputs = deposition + fixation + synthetic + manure + urban
     ) |>
@@ -201,7 +198,7 @@ create_n_inputs_grafs_spain <- function() {
         NA_real_
       )
     ) |>
-    dplyr::ungroup()
+    dplyr::select(Year, Province_name, Item, Box, nue)
 
   nue
 }
