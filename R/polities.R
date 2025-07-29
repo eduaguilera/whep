@@ -79,66 +79,47 @@
 #' }
 #'
 get_polities <- function() {
-  federico_tena <- read_ft()
-  get_final_polities(federico_tena)
-}
-
-
-read_ft <- function() {
-  # open federico-tena file
-  federico_tena <- .read_local_xlsx(
-    "input/processed/polities/federico-tena.xlsx"
-  )
-
-  colnames(federico_tena)
-
-
-  federico_tena_clean <- federico_tena |>
-    dplyr::select(
-      polity_name_raw = `List of trading polities`,
-      polity_name_FT = `List of trading polities`,
-      start_year = `Trading polity Starting`,
-      end_year = `Trading polity End`,
-      comments_ft = Notes
-    ) |>
-    # manually changing polity names
-    dplyr::mutate(polity_name = dplyr::case_when(
-      polity_name_raw ==
-        "United States" ~ "United States of America",
-      polity_name_raw ==
-        "Australia Commonwealth" ~ "Australia",
-      polity_name_raw ==
-        "Cameroon (Kamerun)" ~ "Cameroon",
-      polity_name_raw ==
-        "Ceylon (Sri Lanka)" ~ "Sri Lanka",
-      polity_name_raw ==
-        "Guinea Bisau (Portuguese Guinea)" ~ "Guinea-Bissau",
-      polity_name_raw ==
-        "Wallis and Futuna Island" ~ "Wallis and Futuna Islands",
-      polity_name_raw ==
-        "Western Samoa" ~ "American Samoa",
-      polity_name_raw ==
-        "Morocco (French)" ~ "Morocco",
-      TRUE ~ polity_name_raw
-    )) |>
+  .merge_datasets() |>
+    .fill_year_range() |>
     dplyr::mutate(
-      polity_code = NA,
-      polity_name_full = polity_name_raw,
-      polity_name_FT = polity_name_raw,
-      polity_code_full = NA,
-      polity_name_FAO = NA,
-      polity_name_source = "FT",
-      polity_code_source = "FT"
+      polity_name = m49_name,
+      polity_code = dplyr::row_number(),
+      # TODO: Find other approach for entries without ISO3
+      display_code = stringr::str_glue("{iso3_code.x}_{start_year}"),
     ) |>
     dplyr::select(
+      polity_code,
       polity_name,
-      polity_name_FT,
-      start_year, end_year, comments_ft,
-      polity_code, polity_name_full, polity_code_full,
-      polity_name_FAO, polity_name_source, polity_code_source
+      display_code,
+      start_year,
+      end_year,
+      m49_code
     )
 }
 
+.merge_datasets <- function() {
+  # TODO: Add also historical M49 regions
+  # TODO: Look at FAOSTAT regions not in other datasets if any, consider adding?
+  k_unstats_m49 |>
+    # TODO: Check why some iso codes are different in both datasets
+    dplyr::left_join(k_faostat_regions, by = "m49_code") |>
+    # TODO: Obviously wrong, use instead lookup table with correct namings
+    dplyr::right_join(
+      k_federico_tena_polities,
+      by = dplyr::join_by(m49_name == polity_name),
+      suffix = c("_m49", "_ft")
+    )
+}
+
+.fill_year_range <- function(polities) {
+  # TODO: Use United Nations defined year range for out of use M49 regions
+  polities |>
+    dplyr::mutate(
+      start_year = dplyr::coalesce(start_year_m49, start_year_ft),
+      end_year = dplyr::coalesce(end_year_m49, end_year_ft)
+    ) |>
+    tidyr::replace_na(list(start_year = 1970, end_year = 2025))
+}
 
 get_final_polities <- function(federico_tena_clean) {
   whep_polities <- .read_local_xlsx(
@@ -277,8 +258,55 @@ get_final_polities <- function(federico_tena_clean) {
 .clean_historical_m49 <- function() {
   "historical_m49" |>
     whep_read_file() |>
+    dplyr::select(-iso3166_code, -code_mismatch)
+}
+
+.clean_federico_tena <- function() {
+  # open federico-tena file
+  "input/processed/polities/federico-tena.xlsx" |>
+    .read_local_xlsx() |>
     dplyr::select(
-      -iso3166_code, -code_mismatch
+      polity_name_raw = `List of trading polities`,
+      polity_name_FT = `List of trading polities`,
+      start_year = `Trading polity Starting`,
+      end_year = `Trading polity End`,
+      comments_ft = Notes
+    ) |>
+    # manually changing polity names
+    dplyr::mutate(polity_name = dplyr::case_when(
+      polity_name_raw ==
+        "United States" ~ "United States of America",
+      polity_name_raw ==
+        "Australia Commonwealth" ~ "Australia",
+      polity_name_raw ==
+        "Cameroon (Kamerun)" ~ "Cameroon",
+      polity_name_raw ==
+        "Ceylon (Sri Lanka)" ~ "Sri Lanka",
+      polity_name_raw ==
+        "Guinea Bisau (Portuguese Guinea)" ~ "Guinea-Bissau",
+      polity_name_raw ==
+        "Wallis and Futuna Island" ~ "Wallis and Futuna Islands",
+      polity_name_raw ==
+        "Western Samoa" ~ "American Samoa",
+      polity_name_raw ==
+        "Morocco (French)" ~ "Morocco",
+      TRUE ~ polity_name_raw
+    )) |>
+    dplyr::mutate(
+      polity_code = NA,
+      polity_name_full = polity_name_raw,
+      polity_name_FT = polity_name_raw,
+      polity_code_full = NA,
+      polity_name_FAO = NA,
+      polity_name_source = "FT",
+      polity_code_source = "FT"
+    ) |>
+    dplyr::select(
+      polity_name,
+      polity_name_FT,
+      start_year, end_year, comments_ft,
+      polity_code, polity_name_full, polity_code_full,
+      polity_name_FAO, polity_name_source, polity_code_source
     )
 }
 
