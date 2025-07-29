@@ -291,5 +291,7 @@ get_final_polities <- function(federico_tena_clean) {
       end_year = trading_polity_end,
       population = population_1913_000,
       notes = notes
-    )
+    ) |>
+    # There was an empty row in the original dataset
+    dplyr::filter(!is.na(polity_name))
 }
