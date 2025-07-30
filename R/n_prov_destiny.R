@@ -928,7 +928,5 @@ create_prod_and_destiny_grafs <- function() {
       Year, Province_name, Item, Box, Destiny, MgN
     )
 
-  readr::write_csv(grafs_prod_destiny_final, "grafs_prod_destiny.csv")
-
   grafs_prod_destiny_final
 }
