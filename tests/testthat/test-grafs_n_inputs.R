@@ -35,7 +35,7 @@ test_that(".calculate_n_soil_inputs calculates N soil inputs correctly", {
     Item = c("ItemA", "ItemB")
   )
 
-  # Test: .merge_items_biomass -------------------------------------------------
+  # Test: .merge_items_biomass ------------------------------------------------
   test_that(".merge_items_biomass merges correctly", {
     testthat::skip_on_ci()
 
@@ -50,7 +50,7 @@ test_that(".calculate_n_soil_inputs calculates N soil inputs correctly", {
     expect_equal(result$crop_area_npp_merged$Item[1], "ItemA")
   })
 
-  # Test: .summarise_crops_residues --------------------------------------------
+  # Test: .summarise_crops_residues -------------------------------------------
   fake_crop_input <- data.frame(
     Year = c(2020, 2020),
     Province_name = c("Province1", "Province1"),
@@ -70,7 +70,7 @@ test_that(".calculate_n_soil_inputs calculates N soil inputs correctly", {
     expect_equal(result$Box[1], "Cropland")
   })
 
-  # Test: .aggregate_grazed_cropland -------------------------------------------
+  # Test: .aggregate_grazed_cropland ------------------------------------------
   fake_grazed <- data.frame(
     Year = c(2020),
     Province_name = c("Province1"),
@@ -89,15 +89,18 @@ test_that(".calculate_n_soil_inputs calculates N soil inputs correctly", {
     Box = c("Cropland")
   )
 
-  test_that(".aggregate_grazed_cropland combines grazed and crop residue data", {
-    testthat::skip_on_ci()
+  test_that(
+    ".aggregate_grazed_cropland combines grazed and crop residue data",
+    {
+      testthat::skip_on_ci()
 
-    result <- .aggregate_grazed_cropland(fake_grazed, fake_crop_residue)
+      result <- .aggregate_grazed_cropland(fake_grazed, fake_crop_residue)
 
-    expect_true("GrazedWeeds_MgDM" %in% names(result))
-    expect_equal(result$GrazedWeeds_MgDM[1], 15)
-    expect_equal(result$Prod_Residue_Product_Mg[1], 50)
-  })
+      expect_true("GrazedWeeds_MgDM" %in% names(result))
+      expect_equal(result$GrazedWeeds_MgDM[1], 15)
+      expect_equal(result$Prod_Residue_Product_Mg[1], 50)
+    }
+  )
 
   # Test: Adding feed correctly
   test_that(".adding_feed correctly aggregates FM_Mg", {
