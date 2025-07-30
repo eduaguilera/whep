@@ -26,7 +26,7 @@
 #'
 #' @export
 create_n_soil_inputs <- function() {
-  data <- .load_inputs_n_inputs()
+  data <- .load_n_inputs()
 
   n_soil_inputs <- .calculate_n_soil_inputs(
     data$n_balance_ygpit_all,
@@ -43,7 +43,7 @@ create_n_soil_inputs <- function() {
 #' province and destiny (food, feed, other_uses, export, import).
 #' @keywords internal
 #' @noRd
-.load_inputs_n_inputs <- function() {
+.load_n_inputs <- function() {
   result <-
     list(
       # TODO: Feed intake need to be added to dataset as an input of Livestock
@@ -141,7 +141,7 @@ create_n_soil_inputs <- function() {
 #' @return A tibble with combined N input and production data.
 #' @export
 create_n_production <- function() {
-  data <- .load_inputs_n_inputs()
+  data <- .load_n_inputs()
 
   n_prod_data <- .calculate_n_production(
     data$grafs_prod_destiny

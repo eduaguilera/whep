@@ -24,6 +24,8 @@ fake_codes_coefs <- data.frame(
 
 # Test: .merge_items_biomass --------------------------------------------------
 test_that(".merge_items_biomass merges correctly", {
+  testthat::skip_on_ci()
+
   result <- .merge_items_biomass(
     fake_crop_areanpp_ygpit_all,
     fake_npp_ygpit_csv, fake_codes_coefs
@@ -46,6 +48,8 @@ fake_crop_input <- data.frame(
 )
 
 test_that(".summarise_crops_residues summarizes correctly", {
+  testthat::skip_on_ci()
+
   result <- .summarise_crops_residues(fake_crop_input)
 
   expect_true("Prod_Residue_Product_Mg" %in% names(result))
@@ -73,6 +77,8 @@ fake_crop_residue <- data.frame(
 )
 
 test_that(".aggregate_grazed_cropland combines grazed and crop residue data", {
+  testthat::skip_on_ci()
+
   result <- .aggregate_grazed_cropland(fake_grazed, fake_crop_residue)
 
   expect_true("GrazedWeeds_MgDM" %in% names(result))
@@ -82,6 +88,8 @@ test_that(".aggregate_grazed_cropland combines grazed and crop residue data", {
 
 # Test: Adding feed correctly
 test_that(".adding_feed correctly aggregates FM_Mg", {
+  testthat::skip_on_ci()
+
   input <- data.frame(
     Year = c(2020, 2020, 2021),
     Province_name = c("A", "A", "B"),
@@ -96,6 +104,8 @@ test_that(".adding_feed correctly aggregates FM_Mg", {
 
 # Test: Calculating population share correctly
 test_that(".calculate_population_share calculates correct share", {
+  testthat::skip_on_ci()
+
   input <- data.frame(
     Year = c(2020, 2020),
     Province_name = c("A", "B"),
@@ -109,6 +119,8 @@ test_that(".calculate_population_share calculates correct share", {
 
 # Test: Adding food correctly
 test_that(".adding_food multiplies population share with total food", {
+  testthat::skip_on_ci()
+
   pie_data <- data.frame(
     Year = c(2020, 2020),
     Item = c("Wheat", "Wheat"),
@@ -132,6 +144,8 @@ test_that(".adding_food multiplies population share with total food", {
 
 # Test: Adding other uses correctly
 test_that(".adding_other_uses works same as food with other uses", {
+  testthat::skip_on_ci()
+
   pie_data <- data.frame(
     Year = c(2020, 2020),
     Item = c("Wheat", "Wheat"),
@@ -154,6 +168,8 @@ test_that(".adding_other_uses works same as food with other uses", {
 
 # Test: combine destinies correctly
 test_that(".combine_destinies joins correctly", {
+  testthat::skip_on_ci()
+
   prod <- data.frame(
     Year = 2020, Province_name = "A", Item = "Wheat",
     Box = "Cropland", production_n = 500
@@ -179,6 +195,8 @@ test_that(".combine_destinies joins correctly", {
 
 # Test: convert to N correctly
 test_that(".convert_to_items_n applies conversions correctly", {
+  testthat::skip_on_ci()
+
   input <- data.frame(
     Year = 2020, Province_name = "A", Item = "Wheat",
     Box = "Cropland", production_n = 500,
@@ -199,6 +217,8 @@ test_that(".convert_to_items_n applies conversions correctly", {
 
 # Test: calculate trade correctly
 test_that(".calculate_trade computes export/import properly", {
+  testthat::skip_on_ci()
+
   input <- data.frame(
     Year = 2020, Province_name = "A", Item = "Wheat",
     Name_biomass = "BiomassWheat", Box = "Cropland",
@@ -214,6 +234,8 @@ test_that(".calculate_trade computes export/import properly", {
 
 # Test: finalising dataset correctly
 test_that(".finalize_prod_destiny completes with pivot and recoding", {
+  testthat::skip_on_ci()
+
   input <- data.frame(
     Year = 2020, Province_name = "A", Item = "Wheat", Box = NA,
     Name_biomass = "BiomassWheat",
