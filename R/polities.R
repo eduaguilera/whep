@@ -347,5 +347,10 @@ get_final_polities <- function(federico_tena_clean) {
       notes = notes
     ) |>
     # There was an empty row in the original dataset
-    dplyr::filter(!is.na(polity_name))
+    dplyr::filter(!is.na(polity_name)) |>
+    # Remove virtual time boundaries due to dataset study range
+    dplyr::mutate(
+      start_year = ifelse(start_year == 1800, NA, start_year),
+      end_year = ifelse(end_year == 1938, NA, end_year)
+    )
 }
