@@ -10,7 +10,7 @@ test_that("._assign_items returns expected categories", {
   expect_true("Holm oak" %in% cats$Firewood_biomass)
 })
 
-test_that("._calculate_n_inputs calculates N soil inputs correctly", {
+test_that("_.calculate_n_soil_inputs calculates N soil inputs correctly", {
   # Sample data for n_balance_ygpit_all
   n_balance_ygpit_all <- tibble::tibble(
     Year = c(2000, 2000, 2000, 2000),
@@ -31,7 +31,7 @@ test_that("._calculate_n_inputs calculates N soil inputs correctly", {
     Item = c("Dehesa_item", "Firewood", "Residue", "Manure")
   )
 
-  result <- .calculate_n_inputs(n_balance_ygpit_all, codes_coefs)
+  result <- .calculate_n_soil_inputs(n_balance_ygpit_all, codes_coefs)
 
   expect_true(all(c(
     "Year", "Province_name", "Item", "Box",
@@ -48,19 +48,7 @@ test_that("._calculate_n_inputs calculates N soil inputs correctly", {
   expect_equal(manure_val, 5 + 1 + 2)
 })
 
-test_that("._summarise_production combines inputs and production correctly", {
-  n_inputs <- tibble::tibble(
-    Year = 2000,
-    Province_name = "Madrid",
-    Item = "Dehesa_item",
-    Box = "semi_natural_agroecosystems",
-    deposition = 1,
-    fixation = 0.5,
-    synthetic = 0,
-    manure = 0,
-    urban = 0
-  )
-
+test_that(".calculate_n_production computes production correctly", {
   grafs_prod_destiny <- tibble::tibble(
     Year = rep(2000, 5),
     Province_name = rep("Madrid", 5),
@@ -70,11 +58,11 @@ test_that("._summarise_production combines inputs and production correctly", {
     MgN = c(10, 5, 4, 3, 2)
   )
 
-  combined <- .summarise_production(grafs_prod_destiny, n_inputs)
+  result <- .calculate_n_production(grafs_prod_destiny)
 
-  expect_true(all(c("prod", "import") %in% colnames(combined)))
-  expect_true(all(!is.na(combined$Box)))
-  expect_true("Madrid" %in% combined$Province_name)
+  expect_true(all(c("prod", "import") %in% colnames(result)))
+  expect_equal(result$prod, (10 + 5 + 4 + 3) - 2)
+  expect_equal(result$import, 2)
 })
 
 test_that("calculate_nue_crops calculates NUE correctly", {
