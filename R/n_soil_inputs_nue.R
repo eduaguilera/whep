@@ -38,7 +38,9 @@ create_n_soil_inputs <- function() {
 
 #' @title Soil N Inputs --------------------------------------------------------
 #' @description Loading all required datasets.
-#' @return A named list including four datasets.
+#' @return A named list including four datasets."grafs_prod_destiny" is the
+#' final output from the script "grafs_prod_destiny.R", a datset with N data by
+#' province and destiny (food, feed, other_uses, export, import).
 #' @keywords internal
 #' @noRd
 .load_inputs_n_inputs <- function() {
@@ -47,7 +49,7 @@ create_n_soil_inputs <- function() {
       # TODO: Feed intake need to be added to dataset as an input of Livestock
       n_Excretion_ygs = whep_read_file("n_excretion_ygs"),
       n_balance_ygpit_all = whep_read_file("n_balance_ygpit_all"),
-      grafs_prod_destiny = whep_read_file("grafs_prod_destiny"),
+      grafs_prod_destiny = create_prod_and_destiny_grafs(),
       codes_coefs = whep_read_file("codes_coefs")
     )
 
@@ -92,22 +94,32 @@ create_n_soil_inputs <- function() {
   codes_coefs
 ) {
   categories <- .assign_items()
-  firewood_biomass <- categories$Firewood_biomass
-  semi_natural_agroecosystems <- categories$semi_natural_agroecosystems
 
   # Merge Name_biomass with Item
   items <- codes_coefs |>
     dplyr::distinct(Name_biomass, Item)
 
+  # Create mapping tables
+  firewood_biomass <- tibble::tibble(
+    Name_biomass = categories$Firewood_biomass,
+    item_firewood = "Firewood"
+  )
+
+  semi_natural_agroecosystems <- tibble::tibble(
+    LandUse = categories$semi_natural_agroecosystems,
+    Box_semi_natural_agroecosystems = "semi_natural_agroecosystems"
+  )
+
   # Combine all necessary n Inputs
   n_soil_inputs <- n_balance_ygpit_all |>
     dplyr::left_join(items, by = "Name_biomass") |>
+    dplyr::left_join(firewood_biomass, by = "Name_biomass") |>
+    dplyr::left_join(semi_natural_agroecosystems, by = "LandUse") |>
     dplyr::mutate(
-      Item = ifelse(Name_biomass %in% firewood_biomass, "Firewood", Item),
-      Box = ifelse(LandUse %in% semi_natural_agroecosystems,
-        "semi_natural_agroecosystems", LandUse
-      )
+      Item = dplyr::coalesce(item_firewood, Item),
+      Box = dplyr::coalesce(Box_semi_natural_agroecosystems, LandUse)
     ) |>
+    dplyr::select(-item_firewood, -Box_semi_natural_agroecosystems) |>
     dplyr::summarise(
       deposition = sum(Deposition, na.rm = TRUE),
       fixation = sum(BNF, na.rm = TRUE),
