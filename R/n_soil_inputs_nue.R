@@ -11,7 +11,7 @@
 #'   It includes the following columns:
 #'   - `Year`: The year in which the recorded event occurred.
 #'   - `Province_name`: The Spanish province where the data is from.
-#'   - `Item`: The item which was produced, defined in `codes_coefs`.
+#'   - `Item`: The item which was produced, defined in `names_biomass_cb`.
 #'   - `Box`: One of the two systems of the GRAFS model: cropland or
 #'   semi-natural agroecosystems.
 #'   - `deposition`: Atmospheric nitrogen deposition in megagrams (Mg).
@@ -28,12 +28,10 @@
 create_n_soil_inputs <- function() {
   data <- .load_n_inputs()
 
-  n_soil_inputs <- .calculate_n_soil_inputs(
+  .calculate_n_soil_inputs(
     data$n_balance_ygpit_all,
-    data$codes_coefs
+    data$names_biomass_cb
   )
-
-  n_soil_inputs
 }
 
 #' @title Soil N Inputs --------------------------------------------------------
@@ -50,7 +48,7 @@ create_n_soil_inputs <- function() {
       n_Excretion_ygs = whep_read_file("n_excretion_ygs"),
       n_balance_ygpit_all = whep_read_file("n_balance_ygpit_all"),
       grafs_prod_destiny = create_prod_and_destiny_grafs(),
-      codes_coefs = whep_read_file("codes_coefs")
+      names_biomass_cb = whep_read_file("codes_coefs")
     )
 
   result
@@ -84,19 +82,19 @@ create_n_soil_inputs <- function() {
 #' province, item, and box.
 #'
 #' @param n_balance_ygpit_all A data frame containing nitrogen balance data.
-#' @param codes_coefs A data frame merging biomass names to item names.
+#' @param names_biomass_cb A data frame merging biomass names to item names.
 #'
 #' @return One tibble: 'n_soil_inputs'
 #' @keywords internal
 #' @noRd
 .calculate_n_soil_inputs <- function(
   n_balance_ygpit_all,
-  codes_coefs
+  names_biomass_cb
 ) {
   categories <- .assign_items()
 
   # Merge Name_biomass with Item
-  items <- codes_coefs |>
+  items <- names_biomass_cb |>
     dplyr::distinct(Name_biomass, Item)
 
   # Create mapping tables
@@ -143,12 +141,9 @@ create_n_soil_inputs <- function() {
 create_n_production <- function() {
   data <- .load_n_inputs()
 
-  n_prod_data <- .calculate_n_production(
-    data$grafs_prod_destiny
-  )
-
-  n_prod_data
+  .calculate_n_production(data$grafs_prod_destiny)
 }
+
 
 #' @title Calculate N Production
 #' @description Internal function to calculate nitrogen production.

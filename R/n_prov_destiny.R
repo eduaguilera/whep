@@ -9,11 +9,11 @@
 #'  grazed weeds are taken into account.
 #'
 #' @return
-#' A final tibble (`n_prod_destiny`) containing N production data by destiny.
+#' A final tibble containing N production data by destiny.
 #' It includes the following columns:
 #'   - `year`: The year in which the recorded event occurred.
 #'   - `province_name`: The Spanish province where the data is from.
-#'   - `item`: The item which was produced, defined in `codes_coefs`.
+#'   - `item`: The item which was produced, defined in `names_biomass_cb`.
 #'   - `box`: One of the GRAFS model systems: cropland,
 #'   Semi-natural agroecosystems, Livestock, Fish, or Additives.
 #'   - `destiny`: The use category of the nitrogen: Food, Feed, Other_uses,
@@ -25,7 +25,7 @@ create_prod_and_destiny_grafs <- function() {
   data <- .load_data()
   biomass_item_merged <- .merge_items_biomass(
     data$crop_area_npp_ygpit_all,
-    data$npp_ygpit_csv, data$codes_coefs
+    data$npp_ygpit_csv, data$names_biomass_cb
   )
   data$crop_area_npp_ygpit_all <- biomass_item_merged$crop_area_npp_merged
   data$npp_ygpit_csv <- biomass_item_merged$npp_ygpit_merged
@@ -37,7 +37,7 @@ create_prod_and_destiny_grafs <- function() {
       production_crops_residues
     )
   semi_natural_systems_data <-
-    .aggregate_seminatural_system(data$npp_ygpit_csv)
+    .prepare_seminatural_system(data$npp_ygpit_csv)
   livestock_data <- .prepare_livestock_production(data$livestock_prod_ygps)
   prod_combined_boxes <- .combine_production_boxes(
     grazed_data_added,
@@ -89,7 +89,7 @@ create_prod_and_destiny_grafs <- function() {
   n_excretion_ygs <- whep_read_file("n_excretion_ygs")
   livestock_prod_ygps <- whep_read_file("livestock_prod_ygps")
 
-  codes_coefs <- whep_read_file("codes_coefs")
+  names_biomass_cb <- whep_read_file("codes_coefs")
   codes_coefs_items_full <- whep_read_file("codes_coefs_items_full")
   biomass_coefs <- whep_read_file("biomass_coefs")
   processed_prov_fixed <- whep_read_file("processed_prov_fixed")
@@ -103,7 +103,7 @@ create_prod_and_destiny_grafs <- function() {
     population_share = population_share,
     n_excretion_ygs = n_excretion_ygs,
     livestock_prod_ygps = livestock_prod_ygps,
-    codes_coefs = codes_coefs,
+    names_biomass_cb = names_biomass_cb,
     codes_coefs_items_full = codes_coefs_items_full,
     biomass_coefs = biomass_coefs,
     processed_prov_fixed = processed_prov_fixed
@@ -115,29 +115,30 @@ create_prod_and_destiny_grafs <- function() {
 #' @title Production of Cropland, Livestock, and Semi-natural agroecosystems
 #' @description Merge items with biomasses.
 #'
-#' @param crop_area_npp_ygpit_all Data frame with cropland area and N data.
-#' @param npp_ygpit_csv Data frame with N data.
-#' @param codes_coefs Data frame with biomass names and associated item names.
+#' @param crop_area_npp_ygpit_all Dataframe with cropland area and N data.
+#' @param npp_ygpit_csv Dataframe with N data.
+#' @param names_biomass_cb Dataframe with biomass names and associated item
+#' names.
 #'
-#' @return A list with two merged data frames: 'crop_area_npp_merged' and
+#' @return A list with two merged dataframes: 'crop_area_npp_merged' and
 #' 'npp_ygpit_merged'.
 #' @keywords internal
 #' @noRd
 .merge_items_biomass <- function(
   crop_area_npp_ygpit_all,
   npp_ygpit_csv,
-  codes_coefs
+  names_biomass_cb
 ) {
   crop_area_npp_merged <- crop_area_npp_ygpit_all |>
     dplyr::left_join(
-      codes_coefs |>
+      names_biomass_cb |>
         dplyr::select(Name_biomass, Item),
       by = "Name_biomass"
     )
 
   npp_ygpit_merged <- npp_ygpit_csv |>
     dplyr::left_join(
-      codes_coefs |> dplyr::select(Name_biomass, Item),
+      names_biomass_cb |> dplyr::select(Name_biomass, Item),
       by = "Name_biomass"
     )
 
@@ -149,9 +150,9 @@ create_prod_and_destiny_grafs <- function() {
 
 #' @title Crops Production and Residues ----------------------------------------
 #'
-#' @param crop_area_npp_ygpitr_no_fallow Data frame excluding fallow.
+#' @param crop_area_npp_ygpitr_no_fallow Dataframe excluding fallow.
 #'
-#' @return A data frame summarizing total crop production and residues per
+#' @return A dataframe summarizing total crop production and residues per
 #' province and year.
 #' @keywords internal
 #' @noRd
@@ -177,79 +178,63 @@ create_prod_and_destiny_grafs <- function() {
       values_from = Total_Mg
     ) |>
     dplyr::mutate(
-      Prod_Residue_Product_Mg = dplyr::coalesce(Product, 0) +
+      production_fm = dplyr::coalesce(Product, 0) +
         dplyr::coalesce(Residue, 0),
       Box = "Cropland"
     ) |>
     dplyr::select(
-      Year, Province_name, Name_biomass, Item, Prod_Residue_Product_Mg, Box
+      Year, Province_name, Name_biomass, Item, production_fm, Box
     )
 
   crop_area_npp_prod_residue
 }
 
 
-#' @title Combining crops, residues, feed (grass, fallow) production -----------
+#' @title Combining all plant production (harvested products and residues,
+#' and grazed grass) ----------------------------------------------------------
 #'
 #' @param npp_ygpit_merged NPP merged data including cropland and fallow.
-#' @param crop_area_npp_prod_residue Data frame with crop production and
-#' residue.
+#' and harvested crop residues.
 #'
-#' @return A data frame combining production, residues, and grazed biomass.
+#' @return A dataframe combining products, residues, and grazed biomass.
 #' @keywords internal
 #' @noRd
 .aggregate_grazed_cropland <- function(
   npp_ygpit_merged,
   crop_area_npp_prod_residue
 ) {
-  grazed_data <- npp_ygpit_merged |>
+  fallow_grazed <- npp_ygpit_merged |>
     dplyr::filter(
       LandUse == "Cropland",
-      !(Item == "Fallow" | Name_biomass == "Fallow")
+      Item == "Fallow",
+      Name_biomass == "Fallow"
     ) |>
-    dplyr::select(Year, Province_name, GrazedWeeds_MgDM, Name_biomass, Item) |>
     dplyr::group_by(Year, Province_name, Name_biomass, Item) |>
     dplyr::summarise(
       GrazedWeeds_MgDM = sum(GrazedWeeds_MgDM, na.rm = TRUE),
       .groups = "drop"
     )
 
-  # Merge 'grazed_data' with 'crop_area_npp_prod_residue'
-  prod_residue_grass <- crop_area_npp_prod_residue |>
-    dplyr::left_join(grazed_data, by = c(
-      "Year", "Province_name", "Item",
-      "Name_biomass"
-    ))
+  crop_area_npp_fallow <- crop_area_npp_prod_residue |>
+    dplyr::bind_rows(
+      fallow_grazed |>
+        dplyr::anti_join(crop_area_npp_prod_residue,
+          by = c("Year", "Province_name", "Name_biomass", "Item")
+        ) |>
+        dplyr::mutate(production_fm = 0, Box = "Cropland")
+    )
 
-  # Add missing Production data from NPP (Fallow)
-  fallow_data <- npp_ygpit_merged |>
-    dplyr::filter(
-      LandUse == "Cropland",
-      Item == "Fallow" | Name_biomass == "Fallow"
-    ) |>
-    dplyr::group_by(Year, Province_name, Name_biomass, Item) |>
-    dplyr::summarise(
-      GrazedWeeds_MgDM = sum(GrazedWeeds_MgDM, na.rm = TRUE),
-      .groups = "drop"
+  crops_residues_grazed <- crop_area_npp_fallow |>
+    dplyr::select(-GrazedWeeds_MgDM) |>
+    dplyr::left_join(
+      fallow_grazed,
+      by = c("Year", "Province_name", "Name_biomass", "Item")
     ) |>
     dplyr::mutate(
-      Prod_Residue_Product_Mg = 0,
+      GrazedWeeds_MgDM = tidyr::replace_na(GrazedWeeds_MgDM, 0),
+      production_fm = tidyr::replace_na(production_fm, 0),
       Box = "Cropland"
     ) |>
-    dplyr::select(
-      Year, Province_name, Name_biomass, Item,
-      Prod_Residue_Product_Mg, GrazedWeeds_MgDM, Box
-    )
-
-  crop_area_npp_residue_grass <-
-    dplyr::bind_rows(prod_residue_grass, fallow_data) |>
-    dplyr::arrange(Year, Province_name, Name_biomass, Item)
-
-  crops_residues_grazed <- crop_area_npp_residue_grass |>
-    dplyr::mutate(across(
-      c(Prod_Residue_Product_Mg, GrazedWeeds_MgDM),
-      ~ tidyr::replace_na(., 0)
-    )) |>
     dplyr::select(-Box, everything(), Box)
 
   crops_residues_grazed
@@ -259,13 +244,13 @@ create_prod_and_destiny_grafs <- function() {
 #' @description Aggregate Grazed Weeds and Production plus Used Residues from
 #' Forest, Shrubland, Dehesa, Other.
 #'
-#' @param npp_ygpit_merged A data frame containing biomass data.
+#' @param npp_ygpit_merged A dataframe containing biomass data.
 #'
 #' @return A tibble filtered and transformed with selected columns for
 #' semi-natural agroecosystems.
 #' @keywords internal
 #' @noRd
-.aggregate_seminatural_system <- function(
+.prepare_seminatural_system <- function(
   npp_ygpit_merged
 ) {
   semi_natural_agroecosystems <- npp_ygpit_merged |>
@@ -281,9 +266,9 @@ create_prod_and_destiny_grafs <- function() {
 
 #' @title Livestock Production -------------------------------------------------
 #'
-#' @param livestock_prod_ygps A data frame including livestock production data.
+#' @param livestock_prod_ygps A dataframe including livestock production data.
 #'
-#' @return A data frame formatted for integration with other production data.
+#' @return A dataframe formatted for integration with other production data.
 #' @keywords internal
 #' @noRd
 .prepare_livestock_production <- function(
@@ -300,12 +285,12 @@ create_prod_and_destiny_grafs <- function() {
 
 #' @title Combine Cropland, Semi_natural_agroecosystems and Livestock ----------
 #'
-#' @param crops_residues_grazed Data frame of crop production.
-#' @param semi_natural_agroecosystems Data frame of production from semi-natural
+#' @param crops_residues_grazed Dataframe of crop production.
+#' @param semi_natural_agroecosystems Dataframe of production from semi-natural
 #' agroecosystems.
-#' @param livestock Data frame of livestock production.
+#' @param livestock Dataframe of livestock production.
 #'
-#' @return Combined data frame of all production systems.
+#' @return Combined dataframe of all production systems.
 #' @keywords internal
 #' @noRd
 .combine_production_boxes <- function(
@@ -317,32 +302,32 @@ create_prod_and_destiny_grafs <- function() {
     crops_residues_grazed |>
       dplyr::select(
         Year, Province_name, Name_biomass, Item,
-        Prod_Residue_Product_Mg, GrazedWeeds_MgDM, Box
+        production_fm, GrazedWeeds_MgDM, Box
       ),
     semi_natural_agroecosystems |>
       dplyr::select(Year, Province_name, Name_biomass, Item,
-        Prod_Residue_Product_Mg = Prod_ygpit_Mg, Used_Residue_MgFM,
+        production_fm = Prod_ygpit_Mg, Used_Residue_MgFM,
         GrazedWeeds_MgDM, Box
       ),
     livestock |>
       dplyr::select(Year, Province_name, Name_biomass, Item,
-        Prod_Residue_Product_Mg = Prod_Mg, Box
+        production_fm = Prod_Mg, Box
       )
   )
 
   grafs_prod_combined
 }
 
-#' @title Seed production per province, based on national seed share per Area
+#' @title Seed production per province, based on national seed rate per Area
 #' @description Calculates the amount of seeds used per province and subtracts
 #' it from total production.
 #'
-#' @param crop_area_npp_ygpit_all Data frame containing crop data by province.
-#' @param pie_full_destinies_fm Data frame containing domestic supply by
+#' @param crop_area_npp_ygpit_all Dataframe containing crop data by province.
+#' @param pie_full_destinies_fm Dataframe containing domestic supply by
 #' destiny, including seed usage.
-#' @param grafs_prod_combined Data frame with total production values.
+#' @param grafs_prod_combined Dataframe with total production values.
 #'
-#' @return A data frame with production values after subtracting seed usage.
+#' @return A dataframe with production values after subtracting seed usage.
 #' @keywords internal
 #' @noRd
 .remove_seeds_from_system <- function(
@@ -350,7 +335,7 @@ create_prod_and_destiny_grafs <- function() {
   pie_full_destinies_fm,
   grafs_prod_combined
 ) {
-  seeds_substracted <- crop_area_npp_ygpit_all |>
+  seed_rates <- crop_area_npp_ygpit_all |>
     dplyr::filter(LandUse == "Cropland") |>
     dplyr::group_by(Year, Province_name, Item) |>
     dplyr::summarise(
@@ -385,12 +370,12 @@ create_prod_and_destiny_grafs <- function() {
   # Substracting the Seed data from Production in grafs_prod_combined
   grafs_prod_combined_no_seeds <- grafs_prod_combined |>
     dplyr::left_join(
-      seeds_substracted |>
+      seed_rates |>
         dplyr::select(Year, Province_name, Item, Seeds_used_MgFM),
       by = c("Year", "Province_name", "Item")
     ) |>
     dplyr::mutate(
-      Prod_Residue_Product_Mg = Prod_Residue_Product_Mg -
+      production_fm = production_fm -
         dplyr::coalesce(Seeds_used_MgFM, 0)
     ) |>
     dplyr::select(-Seeds_used_MgFM)
@@ -399,14 +384,13 @@ create_prod_and_destiny_grafs <- function() {
 }
 
 #' @title Structuring dataset (GrazedWeeds und Used_Residues in ProductionFM)
-#' @description Rename Prod_Residue_Product_Mg to production_fm and replace
-#' production_fm with GrazedWeeds_MgDM (for Fallow).
+#' @description Replace production_fm with GrazedWeeds_MgDM (for Fallow).
 #'
-#' @param grafs_prod_combined_no_seeds Data frame of production without seeds.
-#' @param biomass_coefs Data frame containing conversion coefficients for
+#' @param grafs_prod_combined_no_seeds Dataframe of production without seeds.
+#' @param biomass_coefs Dataframe containing conversion coefficients for
 #' biomass (FM to DM and DM to N).
 #'
-#' @return A data frame with added grass and wood production.
+#' @return A dataframe with added grass and wood production.
 #' @keywords internal
 #' @noRd
 .adding_grass_wood <- function(
@@ -414,7 +398,6 @@ create_prod_and_destiny_grafs <- function() {
   biomass_coefs
 ) {
   grafs_prod_structured <- grafs_prod_combined_no_seeds |>
-    dplyr::rename(production_fm = Prod_Residue_Product_Mg) |>
     dplyr::mutate(
       production_fm = dplyr::if_else(
         Name_biomass == "Fallow" | Item == "Fallow",
@@ -514,9 +497,9 @@ create_prod_and_destiny_grafs <- function() {
 #' @description Summarise processed items by Year, Province, Biomass,
 #' Item & ProcessedItem.
 #'
-#' @param processed_prov_fixed Data frame containing data for processed items.
+#' @param processed_prov_fixed Dataframe containing data for processed items.
 #'
-#' @return A data frame with processed item values structured for integration.
+#' @return A dataframe with processed item values structured for integration.
 #' @keywords internal
 #' @noRd
 .prepare_processed_data <- function(
@@ -545,10 +528,10 @@ create_prod_and_destiny_grafs <- function() {
 #' structure and merges biomass names.
 #'
 #' @param grafs_prod_added_grass_wood Data with added grass and wood production.
-#' @param processed_data Data frame with processed item values.
-#' @param codes_coefs_items_full Data frame with item-to-biomass names.
+#' @param processed_data Dataframe with processed item values.
+#' @param codes_coefs_items_full Dataframe with item-to-biomass names.
 #'
-#' @return A unified data frame with complete production data for items.
+#' @return A unified dataframe with complete production data for items.
 #' @keywords internal
 #' @noRd
 .prepare_prod_data <- function(
@@ -584,11 +567,11 @@ create_prod_and_destiny_grafs <- function() {
 #' @description Define a list of special items that require using the primary
 #' biomass name for selecting conversion coefficients.
 #'
-#' @param added_grass_wood_merged Data frame with production values and biomass.
-#' @param biomass_coefs Data frame with FM→DM and DM→N conversion coefficients
+#' @param added_grass_wood_merged Dataframe with production values and biomass.
+#' @param biomass_coefs Dataframe with FM→DM and DM→N conversion coefficients
 #' for each biomass.
 #'
-#' @return A data frame with total dry matter and N production.
+#' @return A dataframe with total dry matter and N production.
 #' @keywords internal
 #' @noRd
 .convert_fm_dm_n <- function(
@@ -658,9 +641,9 @@ create_prod_and_destiny_grafs <- function() {
 #' Comment!!! Feed from all animals are summed together, also from pets.
 #' Do they have to be assigned to humans?
 #'
-#' @param feed_intake A data frame with feed intake data in FM.
+#' @param feed_intake A dataframe with feed intake data in FM.
 #'
-#' @return A data frame with the total FM_Mg per year, province, and item.
+#' @return A dataframe with the total FM_Mg per year, province, and item.
 #' @keywords internal
 #' @noRd
 .adding_feed <- function(
@@ -679,9 +662,9 @@ create_prod_and_destiny_grafs <- function() {
 #' (population in each province divided through whole population in
 #' Spain to get the share).
 #'
-#' @param population_share A data frame with population data.
+#' @param population_share A dataframe with population data.
 #'
-#' @return A data frame including population shares.
+#' @return A dataframe including population shares.
 #' @keywords internal
 #' @noRd
 .calculate_population_share <- function(
@@ -705,10 +688,10 @@ create_prod_and_destiny_grafs <- function() {
 #' @title Food -----------------------------------------------------------------
 #' @description Sum all Elements for food and multiply with population share
 #'
-#' @param pie_full_destinies_fm A data frame containing domestic supply food.
-#' @param population_share A data frame containing population share by province.
+#' @param pie_full_destinies_fm A dataframe containing domestic supply food.
+#' @param population_share A dataframe containing population share by province.
 #'
-#' @return A data frame including food consumption per province and item.
+#' @return A dataframe including food consumption per province and item.
 #' @keywords internal
 #' @noRd
 .adding_food <- function(
@@ -738,11 +721,11 @@ create_prod_and_destiny_grafs <- function() {
 #' @title Other_uses -----------------------------------------------------------
 #' @description Sum all elements for Other_uses and multiply with pop share.
 #'
-#' @param pie_full_destinies_fm A data frame containing domestic supply.
+#' @param pie_full_destinies_fm A dataframe containing domestic supply.
 #' other uses.
-#' @param population_share A data frame containing population share by province.
+#' @param population_share A dataframe containing population share by province.
 #'
-#' @return A data frame including other uses per province and item.
+#' @return A dataframe including other uses per province and item.
 #' @keywords internal
 #' @noRd
 .adding_other_uses <- function(
@@ -766,12 +749,12 @@ create_prod_and_destiny_grafs <- function() {
 #' @title Combine all destinies ------------------------------------------------
 #' @description Merges food, feed, and other uses into one dataset.
 #'
-#' @param grafs_prod_item Data frame production data for items.
+#' @param grafs_prod_item Dataframe production data for items.
 #' @param feed_intake Feed intake values per province and item.
 #' @param food_with_share Food values per province and item.
 #' @param other_uses_with_share Other uses per province and item.
 #'
-#' @return A combined data frame with food, feed, and other uses.
+#' @return A combined dataframe with food, feed, and other uses.
 #' @keywords internal
 #' @noRd
 .combine_destinies <- function(
@@ -800,13 +783,13 @@ create_prod_and_destiny_grafs <- function() {
 #' @description Final merging of Item and Name_biomass and converting FM to DM,
 #' and DM to N.
 #'
-#' @param grafs_prod_item_combined Data frame with FM values for food, feed,
+#' @param grafs_prod_item_combined Dataframe with FM values for food, feed,
 #' and other uses.
-#' @param codes_coefs_items_full Data frame linking items to biomass names.
-#' @param biomass_coefs Data frame including conversion factors
+#' @param codes_coefs_items_full Dataframe linking items to biomass names.
+#' @param biomass_coefs Dataframe including conversion factors
 #' (DM/FM and N/DM).
 #'
-#' @return A data frame with food, feed, and other uses in MgN.
+#' @return A dataframe with food, feed, and other uses in MgN.
 #' @keywords internal
 #' @noRd
 .convert_to_items_n <- function(
@@ -849,9 +832,9 @@ create_prod_and_destiny_grafs <- function() {
 #' @description Calculation of consumption by destiny and trade
 #' (export, import).
 #'
-#' @param grafs_prod_item_n A data frame with N values (MgN) by destiny.
+#' @param grafs_prod_item_n A dataframe with N values (MgN) by destiny.
 #'
-#' @return A data frame with consumption, exports, and imports in MgN.
+#' @return A dataframe with consumption, exports, and imports in MgN.
 #' @keywords internal
 #' @noRd
 .calculate_trade <- function(
@@ -878,10 +861,10 @@ create_prod_and_destiny_grafs <- function() {
 #' @description Fills in missing box categories and transforms data into a
 #' long format.
 #'
-#' @param grafs_prod_item_trade A data frame containing N trade data.
-#' @param codes_coefs_items_full A data frame used to assign items to biomasses.
+#' @param grafs_prod_item_trade A dataframe containing N trade data.
+#' @param codes_coefs_items_full A dataframe used to assign items to biomasses.
 #'
-#' @return A final data frame with N data by year, province, box, destiny.
+#' @return A final dataframe with N data by year, province, box, destiny.
 #' @keywords internal
 #' @noRd
 .finalize_prod_destiny <- function(

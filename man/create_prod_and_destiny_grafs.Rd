@@ -7,12 +7,12 @@
 create_prod_and_destiny_grafs()
 }
 \value{
-A final tibble (\code{n_prod_destiny}) containing N production data by destiny.
+A final tibble containing N production data by destiny.
 It includes the following columns:
 \itemize{
 \item \code{year}: The year in which the recorded event occurred.
 \item \code{province_name}: The Spanish province where the data is from.
-\item \code{item}: The item which was produced, defined in \code{codes_coefs}.
+\item \code{item}: The item which was produced, defined in \code{names_biomass_cb}.
 \item \code{box}: One of the GRAFS model systems: cropland,
 Semi-natural agroecosystems, Livestock, Fish, or Additives.
 \item \code{destiny}: The use category of the nitrogen: Food, Feed, Other_uses,
