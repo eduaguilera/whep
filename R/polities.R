@@ -81,7 +81,7 @@
 get_polities <- function() {
   .merge_datasets() |>
     .add_common_names() |>
-    .fill_year_range() |>
+    .aggregate_year_range() |>
     dplyr::mutate(
       polity_name = m49_name,
       polity_code = dplyr::row_number()
@@ -154,18 +154,36 @@ get_polities <- function() {
     )
 }
 
-.fill_year_range <- function(polities) {
-  # TODO: Use United Nations defined year range for out of use M49 regions
+.aggregate_year_range <- function(polities) {
   polities |>
-    pointblank::col_vals_expr(~ start_year_ft <= end_year_ft) |>
-    pointblank::col_vals_expr(~ start_year_fao <= end_year_fao) |>
     dplyr::mutate(
-      has_fao_years = !is.na(start_year_fao) | !is.na(end_year_fao),
-      start_year = ifelse(has_fao_years, start_year_fao, start_year_ft),
-      end_year = ifelse(has_fao_years, end_year_fao, end_year_ft),
-      has_fao_years = NULL
+      # TODO: Make this a better estimation
+      # Now assuming 1938-1970 gap without country changes
+      start_year = min(start_year),
+      end_year = max(end_year),
+      .by = "common_name"
     ) |>
-    tidyr::replace_na(list(start_year = 1970, end_year = 2025))
+    tidyr::replace_na(
+      list(
+        start_year = k_polity_first_year,
+        end_year = k_polity_last_year
+      )
+    )
+
+
+
+
+  # TODO: Use United Nations defined year range for out of use M49 regions
+  # polities |>
+  #   pointblank::col_vals_expr(~ start_year_ft <= end_year_ft) |>
+  #   pointblank::col_vals_expr(~ start_year_fao <= end_year_fao) |>
+  #   dplyr::mutate(
+  #     has_fao_years = !is.na(start_year_fao) | !is.na(end_year_fao),
+  #     start_year = ifelse(has_fao_years, start_year_fao, start_year_ft),
+  #     end_year = ifelse(has_fao_years, end_year_fao, end_year_ft),
+  #     has_fao_years = NULL
+  #   ) |>
+  #   tidyr::replace_na(list(start_year = 1970, end_year = 2025))
 }
 
 get_final_polities <- function(federico_tena_clean) {
