@@ -30,6 +30,9 @@ k_polity_common_names <- polities_inputs_path |>
   fs::path("common_names.csv") |>
   readr::read_csv()
 
+k_polity_first_year <- 1800
+k_polity_last_year <- 2025
+
 usethis::use_data(
   k_tonnes_per_livestock_unit,
   k_faostat_regions,
@@ -37,6 +40,8 @@ usethis::use_data(
   k_historical_m49,
   k_federico_tena_polities,
   k_polity_common_names,
+  k_polity_first_year,
+  k_polity_last_year,
   internal = TRUE,
   overwrite = TRUE
 )
