@@ -148,10 +148,11 @@ whep_list_file_versions <- function(file_alias) {
 #' @export
 #' @noRd
 pin_fetch.pins_with_progress <- function(
-    board,
-    name,
-    version = NULL,
-    ...) {
+  board,
+  name,
+  version = NULL,
+  ...
+) {
   meta <- pins::pin_meta(board, name, version = version)
   .pins_cache_touch(board, meta)
 
