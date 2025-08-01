@@ -60,6 +60,7 @@ testthat::test_that(".estimate_bilateral_trade creates expected matrix", {
   exports <- c(5, 0, 4)
   imports <- c(1, 3, 0)
   expected <- matrix(
+    # fmt: skip
     c(
       0.9027778, 2.708333, 0,
       0.0000000, 0.000000, 0,
@@ -75,6 +76,7 @@ testthat::test_that(".estimate_bilateral_trade creates expected matrix", {
   exports <- c(500, 300, 100, 0, 0, 0)
   imports <- c(200, 150, 120, 200, 190, 30)
   expected <- matrix(
+    # fmt: skip
     c(
       112, 84, 67, 112, 106, 17,
       67, 50, 40, 67, 64, 10,
