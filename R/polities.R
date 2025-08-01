@@ -80,6 +80,7 @@
 #'
 get_polities <- function() {
   .merge_datasets() |>
+    .add_common_names() |>
     .fill_year_range() |>
     dplyr::mutate(
       polity_name = m49_name,
@@ -102,23 +103,44 @@ get_polities <- function() {
 
 .merge_datasets <- function() {
   # TODO: Look at FAOSTAT regions not in other datasets if any, consider adding?
+  dplyr::bind_rows(
+    .prepare_historical_m49(),
+    .prepare_federico_tena()
+  )
+}
+
+.add_common_names <- function(merged_datasets) {
+  merged_datasets |>
+    dplyr::inner_join(k_polity_common_names, unmatched = "error")
+}
+
+.prepare_historical_m49 <- function() {
   k_historical_m49 |>
     # TODO: Do this cleanly. M49 code 728 is reused, so only use for new country
     dplyr::mutate(
       m49_code = ifelse(m49_name == "Spanish North Africa", NA, m49_code)
     ) |>
-    dplyr::left_join(
-      k_faostat_regions,
-      by = "m49_code",
-      suffix = c("_m49", "_fao")
-    ) |>
-    # TODO: Obviously wrong, use instead lookup table with correct namings
-    dplyr::full_join(
-      k_federico_tena_polities,
-      by = dplyr::join_by(m49_name == polity_name),
-      suffix = c("_m49", "_ft")
-    ) |>
-    dplyr::rename(start_year_ft = start_year, end_year_ft = end_year)
+    dplyr::mutate(source = "m49") |>
+    dplyr::select(
+      original_name = m49_name,
+      source,
+      start_year,
+      end_year,
+      notes,
+      m49_code
+    )
+}
+
+.prepare_federico_tena <- function() {
+  k_federico_tena_polities |>
+    dplyr::mutate(source = "federico_tena") |>
+    dplyr::select(
+      original_name = polity_name,
+      source,
+      start_year,
+      end_year,
+      notes
+    )
 }
 
 .build_display_code <- function(polities) {

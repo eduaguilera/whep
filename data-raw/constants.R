@@ -26,12 +26,17 @@ k_federico_tena_polities |>
     file.path(polities_inputs_path, "federico_tena_polities.csv")
   )
 
+k_polity_common_names <- polities_inputs_path |>
+  fs::path("common_names.csv") |>
+  readr::read_csv()
+
 usethis::use_data(
   k_tonnes_per_livestock_unit,
   k_faostat_regions,
   k_unstats_m49,
   k_historical_m49,
   k_federico_tena_polities,
+  k_polity_common_names,
   internal = TRUE,
   overwrite = TRUE
 )
