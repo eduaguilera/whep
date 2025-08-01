@@ -52,28 +52,28 @@ test_that(".summarise_crops_residues summarizes correctly", {
 
   result <- .summarise_crops_residues(fake_crop_input)
 
-  expect_true("Prod_Residue_Product_Mg" %in% names(result))
-  expect_equal(result$Prod_Residue_Product_Mg[1], 100)
+  expect_true("production_fm" %in% names(result))
+  expect_equal(result$production_fm[1], 100)
   expect_equal(result$Box[1], "Cropland")
 })
 
 # Test: .aggregate_grazed_cropland --------------------------------------------
 fake_grazed <- data.frame(
-  Year = c(2020),
-  Province_name = c("Province1"),
-  Name_biomass = c("BiomassA"),
-  Item = c("ItemA"),
-  GrazedWeeds_MgDM = c(15),
-  LandUse = c("Cropland")
+  Year = 2020,
+  Province_name = "Province1",
+  Name_biomass = "Fallow",
+  Item = "Fallow",
+  GrazedWeeds_MgDM = 15,
+  LandUse = "Cropland"
 )
 
 fake_crop_residue <- data.frame(
-  Year = c(2020),
-  Province_name = c("Province1"),
-  Name_biomass = c("BiomassA"),
-  Item = c("ItemA"),
-  Prod_Residue_Product_Mg = c(50),
-  Box = c("Cropland")
+  Year = 2020,
+  Province_name = "Province1",
+  Name_biomass = "Fallow",
+  Item = "Fallow",
+  production_fm = 50,
+  Box = "Cropland"
 )
 
 test_that(".aggregate_grazed_cropland combines grazed and crop residue data", {
@@ -83,7 +83,7 @@ test_that(".aggregate_grazed_cropland combines grazed and crop residue data", {
 
   expect_true("GrazedWeeds_MgDM" %in% names(result))
   expect_equal(result$GrazedWeeds_MgDM[1], 15)
-  expect_equal(result$Prod_Residue_Product_Mg[1], 50)
+  expect_equal(result$production_fm[1], 50)
 })
 
 # Test: Adding feed correctly
