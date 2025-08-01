@@ -4,10 +4,15 @@
 # Original copyright 2023, Posit, PBC
 # Licensed under the Apache License, Version 2.0
 
-.pins_http_download <- function(url, path_dir, path_file, ...,
-                                use_cache_on_failure = FALSE,
-                                headers = NULL,
-                                on_failure = NULL) {
+.pins_http_download <- function(
+  url,
+  path_dir,
+  path_file,
+  ...,
+  use_cache_on_failure = FALSE,
+  headers = NULL,
+  on_failure = NULL
+) {
   cache_path <- fs::path(path_dir, "download-cache.yaml")
   cache <- .pins_read_cache(cache_path)[[url]]
 
@@ -47,18 +52,24 @@
     cache$path
   } else if (httr::status_code(req) <= 200) {
     rlang::signal("", "pins_cache_downloaded")
-    if (fs::file_exists(path)) fs::file_chmod(path, "u+w")
+    if (fs::file_exists(path)) {
+      fs::file_chmod(path, "u+w")
+    }
     fs::file_copy(tmp_path, path, overwrite = TRUE)
     fs::file_chmod(path, "u=r")
 
     info <- httr::cache_info(req)
     if (info$cacheable) {
-      .pins_update_cache(cache_path, url, list(
-        expires = info$expires,
-        etag = info$etag,
-        modified = unclass(info$modified),
-        path = path
-      ))
+      .pins_update_cache(
+        cache_path,
+        url,
+        list(
+          expires = info$expires,
+          etag = info$etag,
+          modified = unclass(info$modified),
+          path = path
+        )
+      )
     } else {
       cli::cli_alert("{.url {url}} is not cacheable")
     }
@@ -157,7 +168,9 @@
 }
 
 .pins_show_progress <- function(size = 0) {
-  if (is.character(size)) size <- as.integer(size)
+  if (is.character(size)) {
+    size <- as.integer(size)
+  }
 
   large_file <- getOption("pins.progress.size", 10^7)
   identical(getOption("pins.progress", size > large_file), TRUE) &&

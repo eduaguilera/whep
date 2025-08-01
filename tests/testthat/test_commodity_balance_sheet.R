@@ -38,65 +38,62 @@ testthat::test_that("get_wide_cbs gives consistent Commodity Balance Sheet", {
   )
 })
 
-testthat::test_that(
-  "get_codes_coeffs gives consistent shares of processed items",
-  {
-    testthat::skip_on_ci()
-    testthat::skip_on_cran()
+testthat::test_that("get_codes_coeffs gives consistent shares of processed items", {
+  testthat::skip_on_ci()
+  testthat::skip_on_cran()
 
-    coefs <- get_processing_coefs()
-    cbs <- get_wide_cbs()
+  coefs <- get_processing_coefs()
+  cbs <- get_wide_cbs()
 
-    df <- coefs |>
-      dplyr::left_join(
-        cbs,
-        dplyr::join_by(
-          year,
-          area_code,
-          item_cbs_code_processed == item_cbs_code
-        )
-      ) |>
-      dplyr::group_by(year, area_code, item_cbs_code_processed) |>
-      dplyr::mutate(total_proc_item = sum(final_value_processed))
+  df <- coefs |>
+    dplyr::left_join(
+      cbs,
+      dplyr::join_by(
+        year,
+        area_code,
+        item_cbs_code_processed == item_cbs_code
+      )
+    ) |>
+    dplyr::group_by(year, area_code, item_cbs_code_processed) |>
+    dplyr::mutate(total_proc_item = sum(final_value_processed))
 
-    pointblank::expect_col_vals_expr(
-      df,
-      rlang::expr(
-        dplyr::near(production, total_proc_item, tol = !!k_tolerance)
-      ),
-      # TODO: Fix few problematic data rows
-      threshold = 0.99
-    )
+  pointblank::expect_col_vals_expr(
+    df,
+    rlang::expr(
+      dplyr::near(production, total_proc_item, tol = !!k_tolerance)
+    ),
+    # TODO: Fix few problematic data rows
+    threshold = 0.99
+  )
 
-    pointblank::expect_col_vals_expr(
-      df,
-      rlang::expr(
-        dplyr::near(
-          value_to_process * initial_conversion_factor,
-          initial_value_processed,
-          tol = !!k_tolerance
-        )
+  pointblank::expect_col_vals_expr(
+    df,
+    rlang::expr(
+      dplyr::near(
+        value_to_process * initial_conversion_factor,
+        initial_value_processed,
+        tol = !!k_tolerance
       )
     )
-    pointblank::expect_col_vals_expr(
-      df,
-      rlang::expr(
-        dplyr::near(
-          initial_value_processed * conversion_factor_scaling,
-          final_value_processed,
-          tol = !!k_tolerance
-        )
+  )
+  pointblank::expect_col_vals_expr(
+    df,
+    rlang::expr(
+      dplyr::near(
+        initial_value_processed * conversion_factor_scaling,
+        final_value_processed,
+        tol = !!k_tolerance
       )
     )
-    pointblank::expect_col_vals_expr(
-      df,
-      rlang::expr(
-        dplyr::near(
-          initial_conversion_factor * conversion_factor_scaling,
-          final_conversion_factor,
-          tol = !!k_tolerance
-        )
+  )
+  pointblank::expect_col_vals_expr(
+    df,
+    rlang::expr(
+      dplyr::near(
+        initial_conversion_factor * conversion_factor_scaling,
+        final_conversion_factor,
+        tol = !!k_tolerance
       )
     )
-  }
-)
+  )
+})
