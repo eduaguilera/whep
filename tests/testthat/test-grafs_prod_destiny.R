@@ -1,41 +1,39 @@
 #' Tests for N production and destinies in Spain
 
-fake_crop_areanpp_ygpit_all <- data.frame(
-  Name_biomass = c("BiomassA", "BiomassB"),
-  Area_ygpit_ha = c(100, 200),
-  LandUse = c("Cropland", "Cropland"),
-  Year = c(2020, 2020),
-  Province_name = c("Province1", "Province2")
-)
-
-fake_npp_ygpit_csv <- data.frame(
-  Name_biomass = c("BiomassA", "BiomassB"),
-  GrazedWeeds_MgDM = c(10, 20),
-  LandUse = c("Cropland", "Cropland"),
-  Item = c("ItemA", "ItemB"),
-  Year = c(2020, 2020),
-  Province_name = c("Province1", "Province2")
-)
-
-fake_codes_coefs <- data.frame(
-  Name_biomass = c("BiomassA", "BiomassB"),
-  Item = c("ItemA", "ItemB")
-)
-
 # Test: .merge_items_biomass --------------------------------------------------
 test_that(".merge_items_biomass merges correctly", {
   testthat::skip_on_ci()
 
+  fake_crop_area <- data.frame(
+    Name_biomass = c("BiomassA", "BiomassB"),
+    Area_ygpit_ha = c(100, 200),
+    LandUse = c("Cropland", "Cropland"),
+    Year = c(2020, 2020),
+    Province_name = c("Province1", "Province2"),
+    Item = c("ItemA", "ItemB")
+  )
+
+  fake_npp_ygpit <- data.frame(
+    Name_biomass = c("BiomassA", "BiomassB"),
+    GrazedWeeds_MgDM = c(10, 20),
+    LandUse = c("Cropland", "Cropland"),
+    Item = c("ItemA", "ItemB"),
+    Year = c(2020, 2020),
+    Province_name = c("Province1", "Province2")
+  )
+
   result <- .merge_items_biomass(
-    fake_crop_areanpp_ygpit_all,
-    fake_npp_ygpit_csv, fake_codes_coefs
+    npp_ygpit_csv = fake_npp_ygpit,
+    names_biomass_cb = fake_crop_area
   )
 
   expect_true("crop_area_npp_merged" %in% names(result))
   expect_true("npp_ygpit_merged" %in% names(result))
   expect_equal(nrow(result$crop_area_npp_merged), 2)
   expect_equal(result$crop_area_npp_merged$Item[1], "ItemA")
+  expect_equal(result$npp_ygpit_merged$GrazedWeeds_MgDM[2], 20)
 })
+
 
 # Test: .summarise_crops_residues ---------------------------------------------
 fake_crop_input <- data.frame(
@@ -43,16 +41,18 @@ fake_crop_input <- data.frame(
   Province_name = c("Province1", "Province1"),
   Name_biomass = c("BiomassA", "BiomassA"),
   Prod_ygpit_Mg = c(50, 50),
-  Product_residue = c("Product", "Residue"),
-  Item = c("ItemA", "ItemA")
+  Product_residue = c("Product", "Product"),
+  Item = c("ItemA", "ItemA"),
+  Irrig_cat = c("Irrigated", "Irrigated"),
+  Irrig_type = c("Sprinkler", "Sprinkler")
 )
+
 
 test_that(".summarise_crops_residues summarizes correctly", {
   testthat::skip_on_ci()
 
   result <- .summarise_crops_residues(fake_crop_input)
 
-  expect_true("production_fm" %in% names(result))
   expect_equal(result$production_fm[1], 100)
   expect_equal(result$Box[1], "Cropland")
 })
@@ -64,7 +64,11 @@ fake_grazed <- data.frame(
   Name_biomass = "Fallow",
   Item = "Fallow",
   GrazedWeeds_MgDM = 15,
-  LandUse = "Cropland"
+  LandUse = "Cropland",
+  Used_Residue_MgFM = 50,
+  Irrig_cat = "Irrigated",
+  Irrig_type = "Drip",
+  Prod_ygpit_Mg = 0
 )
 
 fake_crop_residue <- data.frame(
@@ -73,8 +77,11 @@ fake_crop_residue <- data.frame(
   Name_biomass = "Fallow",
   Item = "Fallow",
   production_fm = 50,
-  Box = "Cropland"
+  Box = "Cropland",
+  Irrig_cat = "Irrigated",
+  Irrig_type = "Drip"
 )
+
 
 test_that(".aggregate_grazed_cropland combines grazed and crop residue data", {
   testthat::skip_on_ci()

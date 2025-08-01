@@ -144,7 +144,6 @@ create_n_production <- function() {
   .calculate_n_production(data$grafs_prod_destiny)
 }
 
-
 #' @title Calculate N Production
 #' @description Internal function to calculate nitrogen production.
 #' @param grafs_prod_destiny A data frame with consumption, export, import data.
