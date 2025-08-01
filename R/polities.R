@@ -82,23 +82,10 @@ get_polities <- function() {
   .merge_datasets() |>
     .add_common_names() |>
     .aggregate_year_range() |>
-    dplyr::mutate(
-      polity_name = m49_name,
-      polity_code = dplyr::row_number()
-    ) |>
-    .build_display_code() |>
-    dplyr::mutate(
-      across(c(polity_code, start_year, end_year), as.integer),
-      across(c(polity_name, display_code, m49_code), as.character)
-    ) |>
-    dplyr::select(
-      polity_code,
-      polity_name,
-      display_code,
-      start_year,
-      end_year,
-      m49_code
-    )
+    .pivot_source_info_wider() |>
+    .set_polity_name_code() |>
+    # .build_display_code() |>
+    .set_column_types()
 }
 
 .merge_datasets <- function() {
@@ -109,9 +96,39 @@ get_polities <- function() {
   )
 }
 
+# TODO: For this to make sense... This wasn't discussed but I like
+# the idea of also making the polity name (i.e. common_name) unique.
+# For users, if we can afford showing longer names (instead of display_code)
+# then the polity name should be enough for someone to discern.
+# There's no clear usefulness for polity name not being unique.
+# If we want to group by historical situations of a modern polity we will
+# clearly implement other more complete methods for achieving that.
 .add_common_names <- function(merged_datasets) {
   merged_datasets |>
     dplyr::inner_join(k_polity_common_names, unmatched = "error")
+}
+
+.pivot_source_info_wider <- function(merged_datasets) {
+  merged_datasets |>
+    dplyr::rename(name = original_name) |>
+    tidyr::pivot_wider(names_from = source, values_from = c(notes, name))
+}
+
+.set_polity_name_code <- function(merged_datasets) {
+  merged_datasets |>
+    dplyr::mutate(polity_code = dplyr::row_number(), .before = 1) |>
+    dplyr::relocate(polity_name = common_name, .before = 1)
+}
+
+.set_column_types <- function(polities) {
+  int_cols <- c("polity_code", "start_year", "end_year")
+  chr_cols <- setdiff(names(polities), int_cols)
+
+  polities |>
+    dplyr::mutate(
+      across(all_of(int_cols), as.integer),
+      across(all_of(chr_cols), as.character)
+    )
 }
 
 .prepare_historical_m49 <- function() {
@@ -143,12 +160,14 @@ get_polities <- function() {
     )
 }
 
+# TODO: Currently broken. Change this. Easiest implementation is to use
+# display code mapping table defaulting to ISO3 code when makes sense,
+# otherwise create our own ISO3-like variant.
 .build_display_code <- function(polities) {
   polities |>
     dplyr::mutate(
       display_code = dplyr::case_when(
         !is.na(iso3_code) ~ stringr::str_glue("{iso3_code}_{start_year}"),
-        # TODO: Use something better, this is just to pass tests
         .default = stringr::str_glue("{polity_code}_{start_year}")
       )
     )
@@ -169,21 +188,6 @@ get_polities <- function() {
         end_year = k_polity_last_year
       )
     )
-
-
-
-
-  # TODO: Use United Nations defined year range for out of use M49 regions
-  # polities |>
-  #   pointblank::col_vals_expr(~ start_year_ft <= end_year_ft) |>
-  #   pointblank::col_vals_expr(~ start_year_fao <= end_year_fao) |>
-  #   dplyr::mutate(
-  #     has_fao_years = !is.na(start_year_fao) | !is.na(end_year_fao),
-  #     start_year = ifelse(has_fao_years, start_year_fao, start_year_ft),
-  #     end_year = ifelse(has_fao_years, end_year_fao, end_year_ft),
-  #     has_fao_years = NULL
-  #   ) |>
-  #   tidyr::replace_na(list(start_year = 1970, end_year = 2025))
 }
 
 get_final_polities <- function(federico_tena_clean) {
