@@ -30,9 +30,10 @@
 #'
 #' add_area_name(table, name_column = "my_custom_name")
 add_area_name <- function(
-    table,
-    code_column = "area_code",
-    name_column = "area_name") {
+  table,
+  code_column = "area_code",
+  name_column = "area_name"
+) {
   polities <- .get_polities(name_column, code_column)
 
   table |>
@@ -69,9 +70,10 @@ add_area_name <- function(
 #'
 #' add_area_code(table, code_column = "my_custom_code")
 add_area_code <- function(
-    table,
-    name_column = "area_name",
-    code_column = "area_code") {
+  table,
+  name_column = "area_name",
+  code_column = "area_code"
+) {
   polities <- .get_polities(name_column, code_column)
 
   table |>
@@ -105,9 +107,10 @@ add_area_code <- function(
 #'
 #' add_item_cbs_name(table, name_column = "my_custom_name")
 add_item_cbs_name <- function(
-    table,
-    code_column = "item_cbs_code",
-    name_column = "item_cbs_name") {
+  table,
+  code_column = "item_cbs_code",
+  name_column = "item_cbs_name"
+) {
   items <- .get_cbs_items(name_column, code_column)
 
   table |>
@@ -143,9 +146,10 @@ add_item_cbs_name <- function(
 #'
 #' add_item_cbs_code(table, code_column = "my_custom_code")
 add_item_cbs_code <- function(
-    table,
-    name_column = "item_cbs_name",
-    code_column = "item_cbs_code") {
+  table,
+  name_column = "item_cbs_name",
+  code_column = "item_cbs_code"
+) {
   items <- .get_cbs_items(name_column, code_column)
 
   table |>
@@ -179,9 +183,10 @@ add_item_cbs_code <- function(
 #'
 #' add_item_prod_name(table, name_column = "my_custom_name")
 add_item_prod_name <- function(
-    table,
-    code_column = "item_prod_code",
-    name_column = "item_prod_name") {
+  table,
+  code_column = "item_prod_code",
+  name_column = "item_prod_name"
+) {
   items <- .get_prod_items(name_column, code_column)
 
   table |>
@@ -217,9 +222,10 @@ add_item_prod_name <- function(
 #'
 #' add_item_prod_code(table, code_column = "my_custom_code")
 add_item_prod_code <- function(
-    table,
-    name_column = "item_prod_name",
-    code_column = "item_prod_code") {
+  table,
+  name_column = "item_prod_name",
+  code_column = "item_prod_code"
+) {
   items <- .get_prod_items(name_column, code_column)
 
   table |>

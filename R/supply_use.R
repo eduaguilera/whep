@@ -79,11 +79,12 @@
 #'   processing_coefs_version = "20250721T143403Z-216d7"
 #' )
 build_supply_use <- function(
-    cbs_version = NULL,
-    feed_intake_version = NULL,
-    primary_prod_version = NULL,
-    primary_residues_version = NULL,
-    processing_coefs_version = NULL) {
+  cbs_version = NULL,
+  feed_intake_version = NULL,
+  primary_prod_version = NULL,
+  primary_residues_version = NULL,
+  processing_coefs_version = NULL
+) {
   .build_supply_use_from_inputs(
     items_prod = whep::items_prod,
     items_cbs = whep::items_cbs,
@@ -96,13 +97,14 @@ build_supply_use <- function(
 }
 
 .build_supply_use_from_inputs <- function(
-    items_prod,
-    items_cbs,
-    coeffs,
-    cbs,
-    crop_residues,
-    primary_prod,
-    feed_intake) {
+  items_prod,
+  items_cbs,
+  coeffs,
+  cbs,
+  crop_residues,
+  primary_prod,
+  feed_intake
+) {
   husbandry_items <- items_cbs |>
     dplyr::filter(item_type == "livestock") |>
     dplyr::select(live_anim_code = item_cbs_code)
@@ -128,10 +130,11 @@ build_supply_use <- function(
 }
 
 .build_crop_production <- function(
-    crop_prod_items,
-    cbs,
-    primary_prod,
-    crop_residues) {
+  crop_prod_items,
+  cbs,
+  primary_prod,
+  crop_residues
+) {
   supply_crop_production <- .build_supply_crop_production(
     crop_prod_items,
     primary_prod,
@@ -150,9 +153,10 @@ build_supply_use <- function(
 }
 
 .build_supply_crop_production <- function(
-    crop_prod_items,
-    primary_prod,
-    crop_residues) {
+  crop_prod_items,
+  primary_prod,
+  crop_residues
+) {
   supply_crop_product <- .build_supply_crop_product(
     crop_prod_items,
     primary_prod
