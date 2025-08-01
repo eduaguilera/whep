@@ -44,8 +44,8 @@
 #' # Note: These are smaller samples to show outputs, not the real data.
 #' # For all data, call the function with default version (i.e. no arguments).
 #' get_wide_cbs(version = "20250721T132006Z-8ea47")
-get_wide_cbs <- function(version = NULL) {
-  "commodity_balance_sheet" |>
+get_wide_cbs <- function(version = NULL){
+  "commodity_balance_sheet" |> 
     whep_read_file(version = version) |>
     tidyr::pivot_wider(
       names_from = Element,
