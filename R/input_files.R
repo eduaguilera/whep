@@ -56,7 +56,7 @@ whep_read_file <- function(file_alias, type = "parquet", version = NULL) {
   file_info <- .fetch_file_info(file_alias, whep::whep_inputs)
   version <- .choose_version(file_info$version, version)
 
-  file_info |>
+  file_info |> 
     purrr::pluck("board_url") |>
     .build_board_with_progress() |>
     pins::pin_download(file_alias, version = version) |>
