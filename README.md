@@ -102,20 +102,20 @@ page](https://eduaguilera.github.io/whep/reference/index.html).
 We try to follow best coding practices, specifically focused on R
 package creation. The process is roughly summarized in:
 
-- Use git. Work on your own branch.
-- Track dependencies using `renv` R package.
-- Add your new functionality inside `R/` directory as functions.
-- Add function documentation.
-- Write clean code. Follow [Tidyverse style
-  guide](https://style.tidyverse.org/).
-- Write tests for your code.
-- Create pull requests. Ask for review.
+  - Use git. Work on your own branch.
+  - Track dependencies using `renv` R package.
+  - Add your new functionality inside `R/` directory as functions.
+  - Add function documentation.
+  - Write clean code. Follow [Tidyverse style
+    guide](https://style.tidyverse.org/).
+  - Write tests for your code.
+  - Create pull requests. Ask for review.
 
 The project is starting with **contributors** that are still learning
-about coding and best practices. For this reason **we have created a
-guide** explaining most of the things you need from the previous steps,
-covering both git and R package development. You can find the guide
-[**here**](https://eduaguilera.github.io/whep/articles/workflow-intro.html).
-Anyone is welcome to contribute, but we highly recommend to go through
-this guide to become familiar with the workflow if you are still not
-used to it.
+about coding and best practices. For this reason, if you’re
+**inexperienced**, we have written a **small free online book**
+explaining most of the things you need from the previous steps, covering
+both git and R package development. You can directly **access it
+[here](https://lbm364dl.github.io/follow-the-workflow)**. Anyone is
+welcome to contribute, but we highly recommend to go through this guide
+to become familiar with the workflow if you are still not used to it.
