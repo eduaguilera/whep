@@ -37,7 +37,7 @@ Armenia,m49,Armenia
 Armenia,faostat,Armenia
 Aruba,m49,Aruba
 Aruba,faostat,Aruba
-"Ascension, Saint Helena and Tristan da Cunha",faostat,"Ascension, Saint Helena and Tristan da Cunha"
+"Ascension, Saint Helena and Tristan da Cunha",faostat,"Saint Helena, Ascension and Tristan da Cunha"
 Asia,faostat,Asia
 Australia,m49,Australia
 Australia,faostat,Australia
@@ -142,12 +142,12 @@ Central African Republic,faostat,Central African Republic
 Central America,faostat,Central America
 Central Asia,m49,Central Asia
 Central Asia,faostat,Central Asia
-Central Asia and Southern Asia,faostat,Central Asia and Southern Asia
+Central Asia and Southern Asia,faostat,South-Central Asia
 Ceuta Y Melilla,federico_tena,Ceuta Y Melilla
 Ceylon (Sri Lanka),federico_tena,Ceylon (Sri Lanka)
 Chad,m49,Chad
 Chad,faostat,Chad
-Chagos Archipelago,faostat,Chagos Archipelago
+Chagos Archipelago,faostat,British Indian Ocean Territory
 Channel Islands,m49,Channel Islands
 Channel Islands,faostat,Channel Islands
 Chile,m49,Chile
@@ -156,9 +156,9 @@ Chile,federico_tena,Chile
 China,m49,"China, mainland"
 China,faostat,China
 China,federico_tena,"China, mainland"
-"China, Hong Kong SAR",faostat,"China, Hong Kong SAR"
-"China, Macao SAR",faostat,"China, Macao SAR"
-"China, Taiwan Province of",faostat,"China, Taiwan Province of"
+"China, Hong Kong SAR",faostat,Hong Kong
+"China, Macao SAR",faostat,Macao
+"China, Taiwan Province of",faostat,Taiwan
 "China, mainland",faostat,"China, mainland"
 Christmas Island,m49,Christmas Island
 Christmas Island,faostat,Christmas Island
@@ -171,7 +171,7 @@ Comoros,m49,Comoros
 Comoros,faostat,Comoros
 Congo,m49,Congo
 Congo,faostat,Congo
-"Congo, Democratic Republic of the",m49,"Congo, Democratic Republic of the"
+"Congo, Democratic Republic of the",m49,Democratic Republic of the Congo
 Cook Island,federico_tena,Cook Island
 Cook Islands,m49,Cook Islands
 Cook Islands,faostat,Cook Islands
@@ -198,9 +198,9 @@ Côte d'Ivoire,m49,Côte d'Ivoire
 Côte d'Ivoire,faostat,Côte d'Ivoire
 Danish India,federico_tena,Danish India
 Danish Virgin Islands,federico_tena,Danish Virgin Islands
-Democratic People's Republic of Korea,faostat,Democratic People's Republic of Korea
+Democratic People's Republic of Korea,faostat,North Korea
 Democratic Republic of the Congo,faostat,Democratic Republic of the Congo
-Democratic Yemen,m49,Democratic Yemen
+Democratic Yemen,m49,South Yemen
 Denmark,m49,Denmark
 Denmark,faostat,Denmark
 Denmark,federico_tena,Denmark
@@ -248,7 +248,7 @@ Eswatini,faostat,Eswatini
 Ethiopia,m49,Ethiopia
 Ethiopia,faostat,Ethiopia
 Ethiopia,federico_tena,Ethiopia
-Ethiopia (old),m49,Ethiopia (old)
+Ethiopia (old),m49,Ethiopia PDR
 Ethiopia PDR,faostat,Ethiopia PDR
 Europe,faostat,Europe
 "Europe, Northern America, Australia and New Zealand",faostat,"Europe, Northern America, Australia and New Zealand"
@@ -298,7 +298,7 @@ French Polynesia,faostat,French Polynesia
 French Settlements in Oceania,federico_tena,French Settlements in Oceania
 French Somaliland,federico_tena,French Somaliland
 French Southern Territories,faostat,French Southern Territories
-French Southern and Antarctic Territories,m49,French Southern and Antarctic Territories
+French Southern and Antarctic Territories,m49,French Southern Territories
 French West Africa,federico_tena,French West Africa
 Fujairah,federico_tena,Fujairah
 Gabon,m49,Gabon
@@ -318,8 +318,8 @@ German West Africa,federico_tena,German West Africa
 German colonies Oceania,federico_tena,German colonies Oceania
 Germany,m49,Germany
 Germany,faostat,Germany
-Germany Fr,faostat,Germany Fr
-Germany Nl,faostat,Germany Nl
+Germany Fr,faostat,Federal Republic of Germany
+Germany Nl,faostat,German Democratic Republic
 "Germany, West Berlin",m49,"Germany, West Berlin"
 Germany/Zollverein,federico_tena,Germany/Zollverein
 Ghana,m49,Ghana
@@ -379,8 +379,8 @@ Indonesia,m49,Indonesia
 Indonesia,faostat,Indonesia
 International Centres (FAO) (2.5.1.a),faostat,International Centres (FAO) (2.5.1.a)
 Ionian islands,federico_tena,Ionian islands
-Iran (Islamic Republic of),faostat,Iran (Islamic Republic of)
-"Iran, Islamic Republic of",m49,"Iran, Islamic Republic of"
+Iran (Islamic Republic of),faostat,Iran
+"Iran, Islamic Republic of",m49,Iran
 Iraq,m49,Iraq
 Iraq,faostat,Iraq
 Iraq,federico_tena,Iraq
@@ -420,8 +420,8 @@ Kiribati,m49,Kiribati
 Kiribati,faostat,Kiribati
 Kokand,federico_tena,Kokand
 Korea,federico_tena,Korea
-"Korea, Democratic People's Republic of",m49,"Korea, Democratic People's Republic of"
-"Korea, Republic of",m49,"Korea, Republic of"
+"Korea, Democratic People's Republic of",m49,North Korea
+"Korea, Republic of",m49,South Korea
 Kuwait,m49,Kuwait
 Kuwait,faostat,Kuwait
 Kuwait,federico_tena,Kuwait
@@ -497,11 +497,11 @@ Melanesia,faostat,Melanesia
 Mexico,m49,Mexico
 Mexico,faostat,Mexico
 Mexico,federico_tena,Mexico
-Micronesia,faostat,Micronesia
-Micronesia (Federated States of),faostat,Micronesia (Federated States of)
-"Micronesia, Federated States of",m49,"Micronesia, Federated States of"
+Micronesia,faostat,Micronesia (Oceania region)
+Micronesia (Federated States of),faostat,Micronesia
+"Micronesia, Federated States of",m49,Micronesia
 Middle Africa,faostat,Middle Africa
-Midway Island,faostat,Midway Island
+Midway Island,faostat,Midway Islands
 Midway Island,federico_tena,Midway Island
 Midway Islands,m49,Midway Islands
 Monaco,m49,Monaco
@@ -532,12 +532,12 @@ Nepal,m49,Nepal
 Nepal,faostat,Nepal
 Nepal,federico_tena,Nepal
 Net Food Importing Developing Countries (NFIDCs),faostat,Net Food Importing Developing Countries (NFIDCs)
-Netherlands,federico_tena,Netherlands
-Netherlands (Kingdom of the),faostat,Netherlands (Kingdom of the)
+Netherlands,federico_tena,Netherlands (all)
+Netherlands (Kingdom of the),faostat,Netherlands
 Netherlands Antilles,m49,Netherlands Antilles
-Netherlands Antilles (former),faostat,Netherlands Antilles (former)
+Netherlands Antilles (former),faostat,Netherlands Antilles
 Netherlands Antilles (original),m49,Netherlands Antilles (original)
-"Netherlands, Kingdom of the",m49,"Netherlands, Kingdom of the"
+"Netherlands, Kingdom of the",m49,Netherlands
 Neutral Zone,m49,Neutral Zone
 New Brunswick,federico_tena,New Brunswick
 New Caledonia,m49,New Caledonia
@@ -588,14 +588,14 @@ Oman,federico_tena,Oman
 Ontario,federico_tena,Ontario
 Orange Free State,federico_tena,Orange Free State
 Ottoman Empire/Turkey,federico_tena,Ottoman Empire/Turkey
-Pacific Islands (Trust Territory),m49,Pacific Islands (Trust Territory)
+Pacific Islands (Trust Territory),m49,Pacific Islands Trust Territory
 Pacific Islands Trust Territory,faostat,Pacific Islands Trust Territory
 Pakistan,m49,Pakistan
 Pakistan,faostat,Pakistan
 Palau,m49,Palau
 Palau,faostat,Palau
 Palestine,faostat,Palestine
-"Palestine, State of",m49,"Palestine, State of"
+"Palestine, State of",m49,Palestine
 Palestine/Jordan,federico_tena,Palestine/Jordan
 Palmyra Island,federico_tena,Palmyra Island
 Panama,m49,Panama
@@ -636,7 +636,7 @@ Quatar,federico_tena,Quatar
 Queensland,federico_tena,Queensland
 Ras al Khaimah,federico_tena,Ras al Khaimah
 Regional Centres (FAO) (2.5.1.a),faostat,Regional Centres (FAO) (2.5.1.a)
-Republic of Korea,faostat,Republic of Korea
+Republic of Korea,faostat,South Korea
 Republic of Moldova,m49,Republic of Moldova
 Republic of Moldova,faostat,Republic of Moldova
 Reunion,federico_tena,Reunion
@@ -707,7 +707,7 @@ Slovakia,faostat,Slovakia
 Slovenia,m49,Slovenia
 Slovenia,faostat,Slovenia
 Small Island Developing States (SIDS),faostat,Small Island Developing States (SIDS)
-Socialist Federal Republic of Yugoslavia,m49,Socialist Federal Republic of Yugoslavia
+Socialist Federal Republic of Yugoslavia,m49,Yugoslavia
 Society Islands  (Tahiti),federico_tena,Society Islands  (Tahiti)
 Solomon Islands,m49,Solomon Islands
 Solomon Islands,faostat,Solomon Islands
@@ -749,12 +749,12 @@ Sub-Saharan Africa (including Sudan),faostat,Sub-Saharan Africa (including Sudan
 Sudan,m49,Sudan
 Sudan,faostat,Sudan
 Sudan (Anglo-Egyptian),federico_tena,Sudan (Anglo-Egyptian)
-Sudan (former),faostat,Sudan (former)
+Sudan (former),faostat,Sudan (old)
 Sudan (old),m49,Sudan (old)
 Suriname,m49,Suriname
 Suriname,faostat,Suriname
 Svalbard and Jan Mayen,m49,Svalbard and Jan Mayen
-Svalbard and Jan Mayen Islands,faostat,Svalbard and Jan Mayen Islands
+Svalbard and Jan Mayen Islands,faostat,Svalbard and Jan Mayen
 Swaziland,federico_tena,Swaziland
 Sweden,m49,Sweden
 Sweden,faostat,Sweden
@@ -765,10 +765,10 @@ Switzerland,federico_tena,Switzerland
 Syria and Lebanon,federico_tena,Syria and Lebanon
 Syrian Arab Republic,m49,Syrian Arab Republic
 Syrian Arab Republic,faostat,Syrian Arab Republic
-"Taiwan, Province of China",m49,"Taiwan, Province of China"
+"Taiwan, Province of China",m49,Taiwan
 Tajikistan,m49,Tajikistan
 Tajikistan,faostat,Tajikistan
-"Tanzania, United Republic of",m49,"Tanzania, United Republic of"
+"Tanzania, United Republic of",m49,Tanzania
 Thailand,m49,Thailand
 Thailand,faostat,Thailand
 Tibet,federico_tena,Tibet
@@ -814,7 +814,7 @@ United Arab Emirates,faostat,United Arab Emirates
 United Kingdom,federico_tena,United Kingdom
 United Kingdom of Great Britain and Northern Ireland,m49,United Kingdom of Great Britain and Northern Ireland
 United Kingdom of Great Britain and Northern Ireland,faostat,United Kingdom of Great Britain and Northern Ireland
-United Republic of Tanzania,faostat,United Republic of Tanzania
+United Republic of Tanzania,faostat,Tanzania
 United States,federico_tena,United States
 United States Minor Outlying Islands,m49,United States Minor Outlying Islands
 United States Minor Outlying Islands,faostat,United States Minor Outlying Islands
@@ -833,19 +833,19 @@ Vancouver´s Island,federico_tena,Vancouver´s Island
 Vanuatu,m49,Vanuatu
 Vanuatu,faostat,Vanuatu
 Venezuela,federico_tena,Venezuela
-Venezuela (Bolivarian Republic of),faostat,Venezuela (Bolivarian Republic of)
-"Venezuela, Bolivarian Republic of",m49,"Venezuela, Bolivarian Republic of"
+Venezuela (Bolivarian Republic of),faostat,Venezuela
+"Venezuela, Bolivarian Republic of",m49,Venezuela
 Victoria,federico_tena,Victoria
 Viet Nam,m49,Viet Nam
 Viet Nam,faostat,Viet Nam
-Virgin Islands (British),m49,Virgin Islands (British)
-Virgin Islands (U.S.),m49,Virgin Islands (U.S.)
+Virgin Islands (British),m49,British Virgin Islands
+Virgin Islands (U.S.),m49,United States Virgin Islands
 Wake Island,m49,Wake Island
 Wake Island,faostat,Wake Island
 Wake Island,federico_tena,Wake Island
 Wallis and Futuna,m49,Wallis and Futuna
-Wallis and Futuna Island,federico_tena,Wallis and Futuna Island
-Wallis and Futuna Islands,faostat,Wallis and Futuna Islands
+Wallis and Futuna Island,federico_tena,Wallis and Futuna
+Wallis and Futuna Islands,faostat,Wallis and Futuna
 Western Africa,faostat,Western Africa
 Western Asia,faostat,Western Asia
 "Western Asia (exc. Armenia, Azerbaijan, Cyprus, Israel and Georgia)",faostat,"Western Asia (exc. Armenia, Azerbaijan, Cyprus, Israel and Georgia)"
@@ -858,10 +858,10 @@ Western Samoa,federico_tena,Western Samoa
 World,faostat,World
 Yemen,m49,Yemen
 Yemen,faostat,Yemen
-Yemen (old),m49,Yemen (old)
-Yemen Ar Rp,faostat,Yemen Ar Rp
-Yemen Dem,faostat,Yemen Dem
-Yugoslav SFR,faostat,Yugoslav SFR
+Yemen (old),m49,North Yemen
+Yemen Ar Rp,faostat,North Yemen
+Yemen Dem,faostat,South Yemen
+Yugoslav SFR,faostat,Yugoslavia
 Yunnan,federico_tena,Yunnan
 Zambia,m49,Zambia
 Zambia,faostat,Zambia

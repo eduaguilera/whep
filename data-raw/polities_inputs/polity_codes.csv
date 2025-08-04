@@ -18,7 +18,6 @@ Antigua and Barbuda,ATG-1800-2025
 Argentina,ARG-1800-2025
 Armenia,ARM-1991-2025
 Aruba,ABW-1986-2025
-"Ascension, Saint Helena and Tristan da Cunha",SHN-1800-2025
 Asia,F5300-1800-2025
 Australia,AUS-1800-2025
 Australia Commonwealth,AUS-1901-1940
@@ -83,24 +82,18 @@ Cayman Islands,CYM-1800-2025
 Central African Republic,CAF-1800-2025
 Central America,F5204-1800-2025
 Central Asia,F5301-2005-2025
-Central Asia and Southern Asia,F5306-1800-2025
 Ceuta Y Melilla,CEU-1800-2025
 Ceylon (Sri Lanka),CEY-1800-2025
 Chad,TCD-1800-2025
-Chagos Archipelago,IOT-1800-2025
 Channel Islands,CHA-1800-2023
 Chile,CHL-1810-2025
 China,F351-1800-2025
-"China, Hong Kong SAR",HKG-1800-2025
-"China, Macao SAR",MAC-1800-2025
-"China, Taiwan Province of",TWN-1800-2025
 "China, mainland",CHN-1800-2025
 Christmas Island,CXR-1800-2025
 Cocos (Keeling) Islands,CCK-1800-2025
 Colombia,COL-1800-2025
 Comoros,COM-1800-2025
 Congo,COG-1800-2025
-"Congo, Democratic Republic of the",CON-1800-2025
 Cook Island,COO-1893-1901
 Cook Islands,COK-1800-2025
 Costa Rica,CRI-1800-2025
@@ -114,9 +107,7 @@ Czechoslovakia,F51-1918-1993
 Côte d'Ivoire,CIV-1800-2025
 Danish India,DAN-1800-1845
 Danish Virgin Islands,DAN-1800-2025
-Democratic People's Republic of Korea,PRK-1800-2025
 Democratic Republic of the Congo,COD-1800-2025
-Democratic Yemen,DEM-1800-1990
 Denmark,DNK-1800-2025
 Developed regions,DEV-2021-2025
 Developing regions,DEV-2021-2025
@@ -144,7 +135,6 @@ Eritrea,ERI-1882-2025
 Estonia,EST-1918-2025
 Eswatini,SWZ-1800-2025
 Ethiopia,ETH-1993-2025
-Ethiopia (old),ETH-1800-1993
 Ethiopia PDR,F62-1800-1992
 Europe,F5400-1800-2025
 "Europe, Northern America, Australia and New Zealand",EUR-1800-2025
@@ -183,7 +173,6 @@ French Polynesia,PYF-1800-2025
 French Settlements in Oceania,FRE-1844-2025
 French Somaliland,FRE-1887-2025
 French Southern Territories,ATF-1800-2025
-French Southern and Antarctic Territories,FRE-1800-2025
 French West Africa,FRE-1895-2025
 Fujairah,FUJ-1886-2025
 Gabon,GAB-1800-2025
@@ -198,8 +187,6 @@ German South West Africa,GER-1884-2025
 German West Africa,GER-1884-1914
 German colonies Oceania,GER-1884-2025
 Germany,DEU-1990-2025
-Germany Fr,F78-1800-1989
-Germany Nl,F77-1800-1989
 "Germany, West Berlin",GER-1800-1982
 Germany/Zollverein,GER-1800-2025
 Ghana,GHA-1800-2025
@@ -231,8 +218,7 @@ India,IND-1800-2025
 Indonesia,IDN-1800-2025
 International Centres (FAO) (2.5.1.a),F5823-1800-2025
 Ionian islands,ION-1815-1862
-Iran (Islamic Republic of),IRN-1800-2025
-"Iran, Islamic Republic of",IRA-1800-2025
+Iran,IRN-1800-2025
 Iraq,IRQ-1921-2025
 Ireland,IRL-1921-2025
 Isle of Man,IMN-1800-2025
@@ -253,8 +239,8 @@ Kingdom Two sicilies,KIN-1800-1860
 Kiribati,KIR-1800-2025
 Kokand,KOK-1800-1883
 Korea,KOR-1800-2025
-"Korea, Democratic People's Republic of",KOR-1800-2025
-"Korea, Republic of",KOR-1800-2025
+North Korea,PRK-1800-2025
+South Korea,KOR-1800-2025
 Kuwait,KWT-1800-2025
 Kwang-Chou-Wan,KWA-1898-2025
 Kwantung (Port Arthur),KWA-1898-2025
@@ -297,9 +283,8 @@ Mayotte,MYT-2002-2025
 Mayotte and Noissi-be,MAY-1843-1914
 Melanesia,F5502-1800-2025
 Mexico,MEX-1800-2025
-Micronesia,F5503-1800-2025
-Micronesia (Federated States of),FSM-1991-2025
-"Micronesia, Federated States of",MIC-1991-2025
+Micronesia (Oceania region),F5503-1800-2025
+Micronesia,FSM-1991-2025
 Middle Africa,F5102-1800-2025
 Midway Island,MID-1859-2025
 Midway Islands,MID-1800-1982
@@ -315,12 +300,10 @@ Namibia,NAM-1800-2025
 Nauru,NRU-1888-2025
 Nepal,NPL-1800-2025
 Net Food Importing Developing Countries (NFIDCs),F5817-1800-2025
-Netherlands,NET-1800-2025
-Netherlands (Kingdom of the),NLD-1800-2025
-Netherlands Antilles,NET-1986-2010
-Netherlands Antilles (former),ANT-1800-2010
+Netherlands (all),NET-1800-2025
+Netherlands,NLD-1800-2025
+Netherlands Antilles,ANT-1800-2010
 Netherlands Antilles (original),NET-1800-1986
-"Netherlands, Kingdom of the",NET-1800-2025
 Neutral Zone,NEU-1800-1982
 New Brunswick,NEW-1800-1866
 New Caledonia,NCL-1853-2025
@@ -336,7 +319,6 @@ Niue Island,NIU-1900-1901
 Non-Annex I countries,F5849-1800-2025
 Norfolk Island,NFK-1800-1901
 North Macedonia,MKD-1992-2025
-North Yemen,NOR-1918-2025
 North and Central America,F336-1800-2025
 Northern Africa,F5103-1800-2025
 Northern Africa (excluding Sudan),F429-1800-2025
@@ -354,12 +336,10 @@ Oman,OMN-1800-2025
 Ontario,ONT-1800-1866
 Orange Free State,ORA-1848-1900
 Ottoman Empire/Turkey,OTT-1800-2025
-Pacific Islands (Trust Territory),PAC-1800-1990
-Pacific Islands Trust Territory,F164-1800-1990
+Pacific Islands Trust Territory,PAC-1800-1990
 Pakistan,PAK-1800-2025
 Palau,PLW-1991-2025
 Palestine,PSE-1800-2025
-"Palestine, State of",PAL-1999-2025
 Palestine/Jordan,PAL-1918-2025
 Palmyra Island,PAL-1889-1912
 Panama,PAN-1906-2025
@@ -383,7 +363,6 @@ Quatar,QUA-1800-2025
 Queensland,QUE-1859-1900
 Ras al Khaimah,RAS-1919-2025
 Regional Centres (FAO) (2.5.1.a),F5822-1800-2025
-Republic of Korea,KOR-1800-2025
 Republic of Moldova,MDA-1991-2025
 Reunion,REU-1816-2025
 Rhodesia,RHO-1890-2025
@@ -396,7 +375,7 @@ Ryukyu Islands,RYU-1800-1982
 Réunion,REU-1800-2025
 Sabah (British Borneo),SAB-1888-2025
 Saint Barthélemy,BLM-2007-2025
-"Saint Helena, Ascension and Tristan da Cunha",SAI-1800-2025
+"Saint Helena, Ascension and Tristan da Cunha",SHN-1800-2025
 Saint Kitts and Nevis,KNA-1800-2025
 Saint Kitts-Nevis-Anguilla,SAI-1800-1982
 Saint Lucia,LCA-1800-2025
@@ -424,7 +403,6 @@ Sint Maarten (Dutch part),SXM-2010-2025
 Slovakia,SVK-1993-2025
 Slovenia,SVN-1992-2025
 Small Island Developing States (SIDS),F5803-1800-2025
-Socialist Federal Republic of Yugoslavia,SOC-1800-1992
 Society Islands  (Tahiti),SOC-1844-1903
 Solomon Islands,SLB-1885-2025
 Somalia,SOM-1800-2025
@@ -453,19 +431,16 @@ Sub-Saharan Africa,F420-2017-2025
 Sub-Saharan Africa (including Sudan),F5810-1800-2025
 Sudan,SDN-2011-2025
 Sudan (Anglo-Egyptian),SUD-1882-2025
-Sudan (former),F206-1800-2011
-Sudan (old),SUD-1800-2011
+Sudan (old),F206-1800-2011
 Suriname,SUR-1800-2025
-Svalbard and Jan Mayen,SVA-1800-2025
-Svalbard and Jan Mayen Islands,SJM-1800-2025
+Svalbard and Jan Mayen,SJM-1800-2025
 Swaziland,SWA-1894-2025
 Sweden,SWE-1800-2025
 Switzerland,CHE-1800-2025
 Syria and Lebanon,SYR-1918-2025
 Syrian Arab Republic,SYR-1800-2025
-"Taiwan, Province of China",TAI-1800-2025
+Taiwan,TAI-1800-2025
 Tajikistan,TJK-1991-2025
-"Tanzania, United Republic of",TAN-1800-2025
 Thailand,THA-1800-2025
 Tibet,TIB-1800-2025
 Timor,TIM-1800-2025
@@ -492,7 +467,7 @@ Umm al Qawain,UMM-1892-2025
 United Arab Emirates,ARE-1800-2025
 United Kingdom,UNI-1800-2025
 United Kingdom of Great Britain and Northern Ireland,GBR-1800-2025
-United Republic of Tanzania,TZA-1800-2025
+Tanzania,TZA-1800-2025
 United States,UNI-1800-2025
 United States Minor Outlying Islands,UMI-1800-2025
 United States Virgin Islands,VIR-1800-2025
@@ -505,16 +480,10 @@ Van Diemen's Land (Tasmania),VAN-1828-1900
 Vancouver´s Island,VAN-1849-1866
 Vanuatu,VUT-1800-2025
 Venezuela,VEN-1821-2025
-Venezuela (Bolivarian Republic of),VEN-1800-2025
-"Venezuela, Bolivarian Republic of",VEN-1800-2025
 Victoria,VIC-1853-1900
 Viet Nam,VNM-1800-2025
-Virgin Islands (British),VIR-1800-2025
-Virgin Islands (U.S.),VIR-1800-2025
 Wake Island,WAK-1898-1982
-Wallis and Futuna,WAL-1800-2025
-Wallis and Futuna Island,WAL-1842-2025
-Wallis and Futuna Islands,WLF-1800-2025
+Wallis and Futuna,WLF-1842-2025
 Western Africa,F5105-1800-2025
 Western Asia,F5305-1800-2025
 "Western Asia (exc. Armenia, Azerbaijan, Cyprus, Israel and Georgia)",F5828-1800-2025
@@ -525,10 +494,9 @@ Western Sahara,ESH-1800-2025
 Western Samoa,WES-1900-2025
 World,X01-1800-2025
 Yemen,YEM-1990-2025
-Yemen (old),YEM-1800-1990
-Yemen Ar Rp,F246-1800-1989
-Yemen Dem,F247-1800-1989
-Yugoslav SFR,F248-1800-1991
+North Yemen,F246-1800-1989
+South Yemen,F247-1800-1989
+Yugoslavia,F248-1800-1991
 Yunnan,YUN-1856-1871
 Zambia,ZMB-1800-2025
 Zanzibar,ZAN-1800-2025
