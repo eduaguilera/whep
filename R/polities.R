@@ -238,97 +238,6 @@ get_polities <- function() {
   }
 }
 
-get_final_polities <- function(federico_tena_clean) {
-  whep_polities <- .read_local_xlsx(
-    "input/processed/polities/whep-polities.xlsx"
-  )
-
-  colnames(whep_polities)
-
-
-  whep_polities_clean <- whep_polities |>
-    dplyr::mutate(polity_name_source = dplyr::case_when(
-      is.na(polity_code_source) |
-        is.na(polity_name_source) ~ "WHEP",
-      TRUE ~ polity_name_source
-    ))
-
-  # merging
-  merged_data <- whep_polities_clean |>
-    dplyr::left_join(
-      federico_tena_clean |>
-        dplyr::select(
-          polity_name, polity_name_FT, start_year, end_year, comments_ft
-        ),
-      by = "polity_name",
-      suffix = c("", "_from_ft")
-    ) |>
-    # keeping polity_name_FT
-    dplyr::mutate(
-      polity_name_FT = dplyr::case_when(
-        !is.na(polity_name_FT_from_ft) ~ polity_name_FT_from_ft,
-        TRUE ~ polity_name_FT
-      ),
-      start_year = dplyr::coalesce(start_year, start_year_from_ft),
-      end_year = dplyr::coalesce(end_year, end_year_from_ft),
-      `Comments FT` = dplyr::coalesce(`Comments FT`, comments_ft)
-    ) |>
-    dplyr::select(-ends_with("_from_ft"))
-
-  # Adding polities that only exist in FT
-  ft_only <- federico_tena_clean |>
-    dplyr::anti_join(whep_polities_clean, by = "polity_name")
-
-  # Final columns structure
-  final_columns <- c(
-    "polity_code", "polity_name", "polity_name_full",
-    "polity_code_full", "polity_name_FAO", "polity_name_FT",
-    "polity_name_source", "polity_code_source", "start_year",
-    "end_year", "Comments FT"
-  )
-
-  # Prepare FT data
-  ft_final <- ft_only |>
-    dplyr::select(any_of(final_columns))
-
-  missing_cols <- setdiff(final_columns, names(ft_final))
-  for (col in missing_cols) {
-    ft_final[[col]] <- NA
-  }
-
-  ft_final <- dplyr::select(ft_final, all_of(final_columns))
-
-  # Ensure merged_data has all columns
-  missing_cols <- setdiff(final_columns, names(merged_data))
-  for (col in missing_cols) {
-    merged_data[[col]] <- NA
-  }
-
-  merged_final <- dplyr::select(merged_data, all_of(final_columns))
-
-  # merged
-  polities_final <- dplyr::bind_rows(merged_final, ft_final) |>
-    dplyr::mutate(
-      polity_name_source = dplyr::case_when(
-        is.na(polity_name_source) ~ "WHEP",
-        TRUE ~ polity_name_source
-      ),
-      polity_code = dplyr::case_when(
-        is.na(polity_code) & !is.na(polity_code_full) ~ polity_code_full,
-        TRUE ~ polity_code
-      ),
-      polity_name = dplyr::case_when(
-        polity_code == "ROCE" ~ "Oceania Other",
-        polity_code == "RAFR" ~ "Africa Other",
-        polity_code == "RASI" ~ "Asia Other",
-        polity_code == "REUR" ~ "Europe Other",
-        polity_code == "RLAM" ~ "Latin America Other",
-        polity_code == "RNAM" ~ "North America Other",
-        TRUE ~ polity_name
-      )
-    )
-}
-
 # Used for dataset generation in constants.R
 .clean_faostat_regions <- function() {
   "faostat_regions" |>
@@ -379,55 +288,6 @@ get_final_polities <- function(federico_tena_clean) {
     dplyr::select(-iso3166_code, -code_mismatch)
 }
 
-.clean_federico_tena <- function() {
-  # open federico-tena file
-  "input/processed/polities/federico-tena.xlsx" |>
-    .read_local_xlsx() |>
-    dplyr::select(
-      polity_name_raw = `List of trading polities`,
-      polity_name_FT = `List of trading polities`,
-      start_year = `Trading polity Starting`,
-      end_year = `Trading polity End`,
-      comments_ft = Notes
-    ) |>
-    # manually changing polity names
-    dplyr::mutate(polity_name = dplyr::case_when(
-      polity_name_raw ==
-        "United States" ~ "United States of America",
-      polity_name_raw ==
-        "Australia Commonwealth" ~ "Australia",
-      polity_name_raw ==
-        "Cameroon (Kamerun)" ~ "Cameroon",
-      polity_name_raw ==
-        "Ceylon (Sri Lanka)" ~ "Sri Lanka",
-      polity_name_raw ==
-        "Guinea Bisau (Portuguese Guinea)" ~ "Guinea-Bissau",
-      polity_name_raw ==
-        "Wallis and Futuna Island" ~ "Wallis and Futuna Islands",
-      polity_name_raw ==
-        "Western Samoa" ~ "American Samoa",
-      polity_name_raw ==
-        "Morocco (French)" ~ "Morocco",
-      TRUE ~ polity_name_raw
-    )) |>
-    dplyr::mutate(
-      polity_code = NA,
-      polity_name_full = polity_name_raw,
-      polity_name_FT = polity_name_raw,
-      polity_code_full = NA,
-      polity_name_FAO = NA,
-      polity_name_source = "FT",
-      polity_code_source = "FT"
-    ) |>
-    dplyr::select(
-      polity_name,
-      polity_name_FT,
-      start_year, end_year, comments_ft,
-      polity_code, polity_name_full, polity_code_full,
-      polity_name_FAO, polity_name_source, polity_code_source
-    )
-}
-
 .clean_federico_tena_polities <- function() {
   "federico_tena_polities" |>
     whep_read_file() |>
@@ -446,3 +306,18 @@ get_final_polities <- function(federico_tena_clean) {
       end_year = ifelse(end_year == 1938, NA, end_year)
     )
 }
+
+# TODO: todos from removed old code:
+# - Set source of polity (but can be more than one)
+# - Revise Edu's polities for special handlings
+# - Introduce 'rest of continent'-like polities
+#   "ROCE" "RAFR" "RASI" "REUR" "RLAM" "RNAM"
+# - Manual tweaks for common_name (but surely there are more?)
+#   "United States" ~ "United States of America",
+#   "Australia Commonwealth" ~ "Australia",
+#   "Cameroon (Kamerun)" ~ "Cameroon",
+#   "Ceylon (Sri Lanka)" ~ "Sri Lanka",
+#   "Guinea Bisau (Portuguese Guinea)" ~ "Guinea-Bissau",
+#   "Wallis and Futuna Island" ~ "Wallis and Futuna Islands",
+#   "Western Samoa" ~ "American Samoa",
+#   "Morocco (French)" ~ "Morocco",
