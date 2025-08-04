@@ -86,6 +86,7 @@ get_polities <- function() {
     .aggregate_cols() |>
     # .build_display_code() |>
     .set_column_types() |>
+    dplyr::arrange(polity_name)
 }
 
 .merge_datasets <- function() {
