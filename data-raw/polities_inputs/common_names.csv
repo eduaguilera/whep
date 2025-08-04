@@ -153,9 +153,9 @@ Channel Islands,faostat,Channel Islands
 Chile,m49,Chile
 Chile,faostat,Chile
 Chile,federico_tena,Chile
-China,m49,China
+China,m49,"China, mainland"
 China,faostat,China
-China,federico_tena,China
+China,federico_tena,"China, mainland"
 "China, Hong Kong SAR",faostat,"China, Hong Kong SAR"
 "China, Macao SAR",faostat,"China, Macao SAR"
 "China, Taiwan Province of",faostat,"China, Taiwan Province of"
