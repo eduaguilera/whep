@@ -82,8 +82,8 @@ get_polities <- function() {
   .merge_datasets() |>
     .add_common_names() |>
     .pivot_source_info_wider() |>
-    .set_polity_name_code() |>
     .aggregate_cols() |>
+    .set_polity_name_code() |>
     # .build_display_code() |>
     .set_column_types() |>
     dplyr::arrange(polity_name)
@@ -118,12 +118,16 @@ get_polities <- function() {
 
 .set_polity_name_code <- function(merged_datasets) {
   merged_datasets |>
-    dplyr::mutate(polity_code = dplyr::row_number(), .before = 1) |>
-    dplyr::relocate(polity_name = common_name, .before = 1)
+    dplyr::relocate(polity_name = common_name, .before = 1) |>
+    dplyr::mutate(
+      # TODO: shorten with e.g. iso3-like name part
+      polity_code = stringr::str_glue("{polity_name}-{start_year}-{end_year}"),
+      .after = "polity_name"
+    )
 }
 
 .set_column_types <- function(polities) {
-  int_cols <- c("polity_code", "start_year", "end_year")
+  int_cols <- c("start_year", "end_year")
   chr_cols <- setdiff(names(polities), int_cols)
 
   polities |>
@@ -191,17 +195,12 @@ get_polities <- function() {
 
 .aggregate_cols <- function(polities) {
   polities |>
-    dplyr::arrange(polity_name)
-
-  polities |>
     dplyr::summarise(
       start_year = .aggregate_start_year(start_year),
       end_year = .aggregate_end_year(end_year),
       m49_code = .check_unique_value(m49_code),
-      .by = "polity_name"
-    ) |>
-    dplyr::arrange(polity_name) |>
-    print(n = 20)
+      .by = "common_name"
+    )
 }
 
 .aggregate_start_year <- function(start_year) {
