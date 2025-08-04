@@ -81,11 +81,11 @@
 get_polities <- function() {
   .merge_datasets() |>
     .add_common_names() |>
-    .aggregate_year_range() |>
     .pivot_source_info_wider() |>
     .set_polity_name_code() |>
+    .aggregate_cols() |>
     # .build_display_code() |>
-    .set_column_types()
+    .set_column_types() |>
 }
 
 .merge_datasets <- function() {
@@ -188,21 +188,53 @@ get_polities <- function() {
     )
 }
 
-.aggregate_year_range <- function(polities) {
+.aggregate_cols <- function(polities) {
   polities |>
-    dplyr::mutate(
-      # TODO: Make this a better estimation
-      # Now assuming 1938-1970 gap without country changes
-      start_year = min(start_year),
-      end_year = max(end_year),
-      .by = "common_name"
+    dplyr::arrange(polity_name)
+
+  polities |>
+    dplyr::summarise(
+      start_year = .aggregate_start_year(start_year),
+      end_year = .aggregate_end_year(end_year),
+      m49_code = .check_unique_value(m49_code),
+      .by = "polity_name"
     ) |>
-    tidyr::replace_na(
-      list(
-        start_year = k_polity_first_year,
-        end_year = k_polity_last_year
-      )
-    )
+    dplyr::arrange(polity_name) |>
+    print(n = 20)
+}
+
+.aggregate_start_year <- function(start_year) {
+  # TODO: Make this a better estimation
+  # Now assuming 1938-1970 gap without country changes
+  if (all(is.na(start_year))) {
+    k_polity_first_year
+  } else {
+    min(start_year, na.rm = TRUE)
+  }
+}
+
+.aggregate_end_year <- function(end_year) {
+  # TODO: Make this a better estimation
+  # Now assuming 1938-1970 gap without country changes
+  if (all(is.na(end_year))) {
+    k_polity_last_year
+  } else {
+    max(end_year, na.rm = TRUE)
+  }
+}
+
+.check_unique_value <- function(column) {
+  unique_vals <- column |>
+    na.omit() |>
+    unique()
+
+  if (length(unique_vals) > 1) {
+    cli::cli_abort("Can't summarise, more than one unique value: {unique_vals}")
+  } else if (length(unique_vals) == 0) {
+    NA
+  } else {
+    unique_vals
+  }
 }
 
 get_final_polities <- function(federico_tena_clean) {
