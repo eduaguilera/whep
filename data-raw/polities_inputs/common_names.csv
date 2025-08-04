@@ -41,7 +41,7 @@ Aruba,faostat,Aruba
 Asia,faostat,Asia
 Australia,m49,Australia
 Australia,faostat,Australia
-Australia Commonwealth,federico_tena,Australia Commonwealth
+Australia Commonwealth,federico_tena,Australia
 Australia and New Zealand,faostat,Australia and New Zealand
 Austria,m49,Austria
 Austria,faostat,Austria
@@ -144,7 +144,7 @@ Central Asia,m49,Central Asia
 Central Asia,faostat,Central Asia
 Central Asia and Southern Asia,faostat,South-Central Asia
 Ceuta Y Melilla,federico_tena,Ceuta Y Melilla
-Ceylon (Sri Lanka),federico_tena,Ceylon (Sri Lanka)
+Ceylon (Sri Lanka),federico_tena,Sri Lanka
 Chad,m49,Chad
 Chad,faostat,Chad
 Chagos Archipelago,faostat,British Indian Ocean Territory
@@ -313,8 +313,8 @@ Georgia,faostat,Georgia
 German Democratic Republic,m49,German Democratic Republic
 "German Democratic Republic, Berlin",m49,"German Democratic Republic, Berlin"
 German East Africa (Tanganyika),federico_tena,German East Africa (Tanganyika)
-German South West Africa,federico_tena,German South West Africa
-German West Africa,federico_tena,German West Africa
+German South West Africa,federico_tena,Namibia
+German West Africa,federico_tena,Togo
 German colonies Oceania,federico_tena,German colonies Oceania
 Germany,m49,Germany
 Germany,faostat,Germany
@@ -348,7 +348,7 @@ Guernsey,m49,Guernsey
 Guernsey,faostat,Guernsey
 Guinea,m49,Guinea
 Guinea,faostat,Guinea
-Guinea Bisau (Portuguese Guinea),federico_tena,Guinea Bisau (Portuguese Guinea)
+Guinea Bisau (Portuguese Guinea),federico_tena,Guinea-Bissau
 Guinea-Bissau,m49,Guinea-Bissau
 Guinea-Bissau,faostat,Guinea-Bissau
 Guyana,m49,Guyana
@@ -366,7 +366,7 @@ Honduras,m49,Honduras
 Honduras,faostat,Honduras
 Honduras,federico_tena,Honduras
 Hong Kong,m49,Hong Kong
-Hong-Kong,federico_tena,Hong-Kong
+Hong-Kong,federico_tena,Hong Kong
 Hungary,m49,Hungary
 Hungary,faostat,Hungary
 Iceland,m49,Iceland
@@ -468,7 +468,7 @@ Malawi,m49,Malawi
 Malawi,faostat,Malawi
 Malaysia,m49,Malaysia
 Malaysia,faostat,Malaysia
-Maldive,federico_tena,Maldive
+Maldive,federico_tena,Maldives
 Maldives,m49,Maldives
 Maldives,faostat,Maldives
 Mali,m49,Mali
@@ -558,7 +558,7 @@ Nigeria,faostat,Nigeria
 Nigeria,federico_tena,Nigeria
 Niue,m49,Niue
 Niue,faostat,Niue
-Niue Island,federico_tena,Niue Island
+Niue Island,federico_tena,Niue
 Non-Annex I countries,faostat,Non-Annex I countries
 Norfolk Island,m49,Norfolk Island
 Norfolk Island,faostat,Norfolk Island
@@ -608,7 +608,7 @@ Papua New Guinea,faostat,Papua New Guinea
 Paraguay,m49,Paraguay
 Paraguay,faostat,Paraguay
 Paraguay,federico_tena,Paraguay
-Persia (Iran),federico_tena,Persia (Iran)
+Persia (Iran),federico_tena,Iran
 Peru,m49,Peru
 Peru,faostat,Peru
 Peru,federico_tena,Peru
@@ -617,7 +617,7 @@ Philippines,faostat,Philippines
 Philippines,federico_tena,Philippines
 Pitcairn,m49,Pitcairn
 Pitcairn,faostat,Pitcairn
-Pitcairn Island,federico_tena,Pitcairn Island
+Pitcairn Island,federico_tena,Pitcairn
 Poland,m49,Poland
 Poland,faostat,Poland
 Poland,federico_tena,Poland
@@ -632,14 +632,14 @@ Puerto Rico,faostat,Puerto Rico
 Puerto Rico,federico_tena,Puerto Rico
 Qatar,m49,Qatar
 Qatar,faostat,Qatar
-Quatar,federico_tena,Quatar
+Quatar,federico_tena,Qatar
 Queensland,federico_tena,Queensland
 Ras al Khaimah,federico_tena,Ras al Khaimah
 Regional Centres (FAO) (2.5.1.a),faostat,Regional Centres (FAO) (2.5.1.a)
 Republic of Korea,faostat,South Korea
 Republic of Moldova,m49,Republic of Moldova
 Republic of Moldova,faostat,Republic of Moldova
-Reunion,federico_tena,Reunion
+Reunion,federico_tena,Réunion
 Rhodesia,federico_tena,Rhodesia
 Romania,m49,Romania
 Romania,faostat,Romania
@@ -854,7 +854,7 @@ Western Australia,federico_tena,Western Australia
 Western Europe,faostat,Western Europe
 Western Sahara,m49,Western Sahara
 Western Sahara,faostat,Western Sahara
-Western Samoa,federico_tena,Western Samoa
+Western Samoa,federico_tena,Samoa
 World,faostat,World
 Yemen,m49,Yemen
 Yemen,faostat,Yemen

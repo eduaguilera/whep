@@ -303,12 +303,3 @@ get_polities <- function() {
 # - Revise Edu's polities for special handlings
 # - Introduce 'rest of continent'-like polities
 #   "ROCE" "RAFR" "RASI" "REUR" "RLAM" "RNAM"
-# - Manual tweaks for common_name (but surely there are more?)
-#   "United States" ~ "United States of America",
-#   "Australia Commonwealth" ~ "Australia",
-#   "Cameroon (Kamerun)" ~ "Cameroon",
-#   "Ceylon (Sri Lanka)" ~ "Sri Lanka",
-#   "Guinea Bisau (Portuguese Guinea)" ~ "Guinea-Bissau",
-#   "Wallis and Futuna Island" ~ "Wallis and Futuna Islands",
-#   "Western Samoa" ~ "American Samoa",
-#   "Morocco (French)" ~ "Morocco",

@@ -20,7 +20,6 @@ Armenia,ARM-1991-2025
 Aruba,ABW-1986-2025
 Asia,F5300-1800-2025
 Australia,AUS-1800-2025
-Australia Commonwealth,AUS-1901-1940
 Australia and New Zealand,F5501-1800-2025
 Austria,AUT-1918-2025
 Austria-Hungary,AUS-1800-1918
@@ -81,7 +80,6 @@ Central African Republic,CAF-1800-2025
 Central America,F5204-1800-2025
 Central Asia,F5301-2005-2025
 Ceuta Y Melilla,CEU-1800-2025
-Ceylon (Sri Lanka),CEY-1800-2025
 Chad,TCD-1800-2025
 Channel Islands,CHA-1800-2023
 Chile,CHL-1810-2025
@@ -181,8 +179,6 @@ Georgia,GEO-1991-2025
 German Democratic Republic,GER-1800-1990
 "German Democratic Republic, Berlin",GEB-1800-1982
 German East Africa (Tanganyika),GEA-1884-2025
-German South West Africa,GSW-1884-2025
-German West Africa,GER-1884-1914
 German colonies Oceania,GER-1884-2025
 Germany,DEU-1990-2025
 "Germany, West Berlin",GWB-1800-1982
@@ -199,7 +195,6 @@ Guam,GUM-1800-2025
 Guatemala,GTM-1821-2025
 Guernsey,GGY-2005-2025
 Guinea,GIN-1800-2025
-Guinea Bisau (Portuguese Guinea),GUI-1879-2025
 Guinea-Bissau,GNB-1800-2025
 Guyana,GUY-1800-2025
 Haiti,HTI-1800-2025
@@ -209,7 +204,6 @@ High-income economies,F9010-1800-2025
 Holy See,VAT-1800-2025
 Honduras,HND-1800-2025
 Hong Kong,HON-1800-2025
-Hong-Kong,HON-1841-2025
 Hungary,HUN-1800-2025
 Iceland,ISL-1800-2025
 India,IND-1800-2025
@@ -265,7 +259,6 @@ Macao,MAC-1800-2025
 Madagascar,MDG-1882-2025
 Malawi,MWI-1800-2025
 Malaysia,MYS-1800-2025
-Maldive,MAL-1800-2025
 Maldives,MDV-1800-2025
 Mali,MLI-1800-2025
 Malta,MLT-1800-2025
@@ -312,7 +305,6 @@ Nicaragua,NIC-1800-2025
 Niger,NER-1800-2025
 Nigeria,NGA-1861-2025
 Niue,NIU-1800-2025
-Niue Island,NIU-1900-1901
 Non-Annex I countries,F5849-1800-2025
 Norfolk Island,NFK-1800-1901
 North Macedonia,MKD-1992-2025
@@ -344,11 +336,9 @@ Panama (before Canal Zone),PAN-1800-1979
 Papal States,PAP-1800-1870
 Papua New Guinea,PNG-1800-2025
 Paraguay,PRY-1811-2025
-Persia (Iran),PER-1800-2025
 Peru,PER-1825-2025
 Philippines,PHL-1800-2025
 Pitcairn,PCN-1800-2025
-Pitcairn Island,PIT-1839-2025
 Poland,POL-1918-2025
 Polynesia,F5504-1800-2025
 Portugal,PRT-1800-2025
@@ -356,12 +346,10 @@ Portuguese India,POR-1800-2025
 Prince Edward Island,PRI-1800-1866
 Puerto Rico,PRI-1800-2025
 Qatar,QAT-1800-2025
-Quatar,QUA-1800-2025
 Queensland,QUE-1859-1900
 Ras al Khaimah,RAS-1919-2025
 Regional Centres (FAO) (2.5.1.a),F5822-1800-2025
 Republic of Moldova,MDA-1991-2025
-Reunion,REU-1816-2025
 Rhodesia,RHO-1890-2025
 Romania,ROU-1859-2025
 Russia/USSR,RUS-1800-2025
@@ -484,7 +472,6 @@ Western Asia and Northern Africa,F5308-1800-2025
 Western Australia,WES-1838-1900
 Western Europe,F5404-1800-2025
 Western Sahara,ESH-1800-2025
-Western Samoa,WES-1900-2025
 World,X01-1800-2025
 Yemen,YEM-1990-2025
 North Yemen,F246-1800-1989
