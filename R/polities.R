@@ -90,7 +90,6 @@ get_polities <- function() {
 }
 
 .merge_datasets <- function() {
-  # TODO: Look at FAOSTAT regions not in other datasets if any, consider adding?
   dplyr::bind_rows(
     .prepare_historical_m49(),
     .prepare_faostat(),
