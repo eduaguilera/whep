@@ -194,11 +194,14 @@ get_polities <- function() {
 }
 
 .aggregate_cols <- function(polities) {
+  all_cols <- names(polities)
+  other_cols <- setdiff(all_cols, c("common_name", "start_year", "end_year"))
+
   polities |>
     dplyr::summarise(
       start_year = .aggregate_start_year(start_year),
       end_year = .aggregate_end_year(end_year),
-      m49_code = .check_unique_value(m49_code),
+      across(all_of(other_cols), .check_unique_value),
       .by = "common_name"
     )
 }
