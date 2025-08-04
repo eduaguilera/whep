@@ -92,6 +92,7 @@ get_polities <- function() {
   # TODO: Look at FAOSTAT regions not in other datasets if any, consider adding?
   dplyr::bind_rows(
     .prepare_historical_m49(),
+    .prepare_faostat(),
     .prepare_federico_tena()
   )
 }
@@ -145,6 +146,20 @@ get_polities <- function() {
       end_year,
       notes,
       m49_code
+    )
+}
+
+.prepare_faostat <- function() {
+  k_faostat_regions |>
+    dplyr::mutate(source = "faostat") |>
+    dplyr::select(
+      original_name = country_name,
+      source,
+      start_year,
+      end_year,
+      m49_code,
+      iso2_code,
+      iso3_code
     )
 }
 

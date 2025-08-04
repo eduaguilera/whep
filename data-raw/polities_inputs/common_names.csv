@@ -1,529 +1,872 @@
 original_name,source,common_name
+Abu Dhabi,federico_tena,Abu Dhabi
+Aden,federico_tena,Aden
 Afghanistan,m49,Afghanistan
+Afghanistan,faostat,Afghanistan
+Afghanistan,federico_tena,Afghanistan
+Africa,faostat,Africa
+Ajman,federico_tena,Ajman
 Albania,m49,Albania
-Antarctica,m49,Antarctica
+Albania,faostat,Albania
+Albania,federico_tena,Albania
 Algeria,m49,Algeria
-American Samoa,m49,American Samoa
-Andorra,m49,Andorra
-Angola,m49,Angola
-Antigua and Barbuda,m49,Antigua and Barbuda
-Azerbaijan,m49,Azerbaijan
-Argentina,m49,Argentina
-Australia,m49,Australia
-Austria,m49,Austria
-Bahamas,m49,Bahamas
-Bahrain,m49,Bahrain
-Bangladesh,m49,Bangladesh
-Armenia,m49,Armenia
-Barbados,m49,Barbados
-Belgium,m49,Belgium
-Bermuda,m49,Bermuda
-Bhutan,m49,Bhutan
-Bolivia (Plurinational State of),m49,Bolivia (Plurinational State of)
-Bosnia and Herzegovina,m49,Bosnia and Herzegovina
-Botswana,m49,Botswana
-Bouvet Island,m49,Bouvet Island
-Brazil,m49,Brazil
-Belize,m49,Belize
-British Indian Ocean Territory,m49,British Indian Ocean Territory
-Solomon Islands,m49,Solomon Islands
-Virgin Islands (British),m49,Virgin Islands (British)
-Brunei Darussalam,m49,Brunei Darussalam
-Bulgaria,m49,Bulgaria
-Myanmar,m49,Myanmar
-Burundi,m49,Burundi
-Belarus,m49,Belarus
-Cambodia,m49,Cambodia
-Cameroon,m49,Cameroon
-Canada,m49,Canada
-Cabo Verde,m49,Cabo Verde
-Cayman Islands,m49,Cayman Islands
-Central African Republic,m49,Central African Republic
-Sri Lanka,m49,Sri Lanka
-Chad,m49,Chad
-Chile,m49,Chile
-China,m49,China
-"Taiwan, Province of China",m49,"Taiwan, Province of China"
-Christmas Island,m49,Christmas Island
-Cocos (Keeling) Islands,m49,Cocos (Keeling) Islands
-Colombia,m49,Colombia
-Comoros,m49,Comoros
-Mayotte,m49,Mayotte
-Congo,m49,Congo
-"Congo, Democratic Republic of the",m49,"Congo, Democratic Republic of the"
-Cook Islands,m49,Cook Islands
-Costa Rica,m49,Costa Rica
-Croatia,m49,Croatia
-Cuba,m49,Cuba
-Cyprus,m49,Cyprus
-Sub-Saharan Africa,m49,Sub-Saharan Africa
-Czechia,m49,Czechia
-Benin,m49,Benin
-Denmark,m49,Denmark
-Dominica,m49,Dominica
-Dominican Republic,m49,Dominican Republic
-Ecuador,m49,Ecuador
-El Salvador,m49,El Salvador
-Equatorial Guinea,m49,Equatorial Guinea
-Ethiopia,m49,Ethiopia
-Eritrea,m49,Eritrea
-Estonia,m49,Estonia
-Faroe Islands,m49,Faroe Islands
-Falkland Islands (Malvinas),m49,Falkland Islands (Malvinas)
-South Georgia and the South Sandwich Islands,m49,South Georgia and the South Sandwich Islands
-Fiji,m49,Fiji
-Finland,m49,Finland
-Åland Islands,m49,Åland Islands
-France,m49,France
-French Guiana,m49,French Guiana
-French Polynesia,m49,French Polynesia
-French Southern and Antarctic Territories,m49,French Southern and Antarctic Territories
-Djibouti,m49,Djibouti
-Gabon,m49,Gabon
-Georgia,m49,Georgia
-Gambia,m49,Gambia
-"Palestine, State of",m49,"Palestine, State of"
-Germany,m49,Germany
-Ghana,m49,Ghana
-Gibraltar,m49,Gibraltar
-Kiribati,m49,Kiribati
-Greece,m49,Greece
-Greenland,m49,Greenland
-Grenada,m49,Grenada
-Guadeloupe,m49,Guadeloupe
-Guam,m49,Guam
-Guatemala,m49,Guatemala
-Guinea,m49,Guinea
-Guyana,m49,Guyana
-Haiti,m49,Haiti
-Heard Island and McDonald Islands,m49,Heard Island and McDonald Islands
-Holy See,m49,Holy See
-Honduras,m49,Honduras
-Hong Kong,m49,Hong Kong
-Hungary,m49,Hungary
-Iceland,m49,Iceland
-India,m49,India
-Indonesia,m49,Indonesia
-"Iran, Islamic Republic of",m49,"Iran, Islamic Republic of"
-Iraq,m49,Iraq
-Ireland,m49,Ireland
-Israel,m49,Israel
-Italy,m49,Italy
-Côte d'Ivoire,m49,Côte d'Ivoire
-Jamaica,m49,Jamaica
-Japan,m49,Japan
-Kazakhstan,m49,Kazakhstan
-Jordan,m49,Jordan
-Kenya,m49,Kenya
-"Korea, Democratic People's Republic of",m49,"Korea, Democratic People's Republic of"
-"Korea, Republic of",m49,"Korea, Republic of"
-Kuwait,m49,Kuwait
-Kyrgyzstan,m49,Kyrgyzstan
-Lao People's Democratic Republic,m49,Lao People's Democratic Republic
-Lebanon,m49,Lebanon
-Lesotho,m49,Lesotho
-Latvia,m49,Latvia
-Liberia,m49,Liberia
-Libya,m49,Libya
-Liechtenstein,m49,Liechtenstein
-Lithuania,m49,Lithuania
-Luxembourg,m49,Luxembourg
-Macao,m49,Macao
-Madagascar,m49,Madagascar
-Malawi,m49,Malawi
-Malaysia,m49,Malaysia
-Maldives,m49,Maldives
-Mali,m49,Mali
-Malta,m49,Malta
-Martinique,m49,Martinique
-Mauritania,m49,Mauritania
-Mauritius,m49,Mauritius
-Mexico,m49,Mexico
-Monaco,m49,Monaco
-Mongolia,m49,Mongolia
-Republic of Moldova,m49,Republic of Moldova
-Montenegro,m49,Montenegro
-Montserrat,m49,Montserrat
-Morocco,m49,Morocco
-Mozambique,m49,Mozambique
-Oman,m49,Oman
-Namibia,m49,Namibia
-Nauru,m49,Nauru
-Nepal,m49,Nepal
-"Netherlands, Kingdom of the",m49,"Netherlands, Kingdom of the"
-Curaçao,m49,Curaçao
-Aruba,m49,Aruba
-Sint Maarten (Dutch part),m49,Sint Maarten (Dutch part)
-"Bonaire, Sint Eustatius and Saba",m49,"Bonaire, Sint Eustatius and Saba"
-New Caledonia,m49,New Caledonia
-Vanuatu,m49,Vanuatu
-New Zealand,m49,New Zealand
-Nicaragua,m49,Nicaragua
-Niger,m49,Niger
-Nigeria,m49,Nigeria
-Niue,m49,Niue
-Norfolk Island,m49,Norfolk Island
-Norway,m49,Norway
-Northern Mariana Islands,m49,Northern Mariana Islands
-United States Minor Outlying Islands,m49,United States Minor Outlying Islands
-"Micronesia, Federated States of",m49,"Micronesia, Federated States of"
-Marshall Islands,m49,Marshall Islands
-Palau,m49,Palau
-Pakistan,m49,Pakistan
-Panama,m49,Panama
-Papua New Guinea,m49,Papua New Guinea
-Paraguay,m49,Paraguay
-Peru,m49,Peru
-Philippines,m49,Philippines
-Pitcairn,m49,Pitcairn
-Poland,m49,Poland
-Portugal,m49,Portugal
-Guinea-Bissau,m49,Guinea-Bissau
-Timor-Leste,m49,Timor-Leste
-Puerto Rico,m49,Puerto Rico
-Qatar,m49,Qatar
-Réunion,m49,Réunion
-Romania,m49,Romania
-Russian Federation,m49,Russian Federation
-Rwanda,m49,Rwanda
-Saint Barthélemy,m49,Saint Barthélemy
-"Saint Helena, Ascension and Tristan da Cunha",m49,"Saint Helena, Ascension and Tristan da Cunha"
-Saint Kitts and Nevis,m49,Saint Kitts and Nevis
-Anguilla,m49,Anguilla
-Saint Lucia,m49,Saint Lucia
-Saint Martin (French part),m49,Saint Martin (French part)
-Saint Pierre and Miquelon,m49,Saint Pierre and Miquelon
-Saint Vincent and the Grenadines,m49,Saint Vincent and the Grenadines
-San Marino,m49,San Marino
-Sao Tome and Principe,m49,Sao Tome and Principe
-Sark,m49,Sark
-Saudi Arabia,m49,Saudi Arabia
-Senegal,m49,Senegal
-Serbia,m49,Serbia
-Seychelles,m49,Seychelles
-Sierra Leone,m49,Sierra Leone
-Singapore,m49,Singapore
-Slovakia,m49,Slovakia
-Viet Nam,m49,Viet Nam
-Slovenia,m49,Slovenia
-Somalia,m49,Somalia
-South Africa,m49,South Africa
-Zimbabwe,m49,Zimbabwe
-Spain,m49,Spain
-South Sudan,m49,South Sudan
-Sudan,m49,Sudan
-Western Sahara,m49,Western Sahara
-Suriname,m49,Suriname
-Svalbard and Jan Mayen,m49,Svalbard and Jan Mayen
-Eswatini,m49,Eswatini
-Sweden,m49,Sweden
-Switzerland,m49,Switzerland
-Syrian Arab Republic,m49,Syrian Arab Republic
-Tajikistan,m49,Tajikistan
-Thailand,m49,Thailand
-Togo,m49,Togo
-Tokelau,m49,Tokelau
-Tonga,m49,Tonga
-Trinidad and Tobago,m49,Trinidad and Tobago
-United Arab Emirates,m49,United Arab Emirates
-Tunisia,m49,Tunisia
-Türkiye,m49,Türkiye
-Turkmenistan,m49,Turkmenistan
-Turks and Caicos Islands,m49,Turks and Caicos Islands
-Tuvalu,m49,Tuvalu
-Uganda,m49,Uganda
-Ukraine,m49,Ukraine
-North Macedonia,m49,North Macedonia
-Egypt,m49,Egypt
-United Kingdom of Great Britain and Northern Ireland,m49,United Kingdom of Great Britain and Northern Ireland
-Channel Islands,m49,Channel Islands
-Guernsey,m49,Guernsey
-Jersey,m49,Jersey
-Isle of Man,m49,Isle of Man
-"Tanzania, United Republic of",m49,"Tanzania, United Republic of"
-United States of America,m49,United States of America
-Virgin Islands (U.S.),m49,Virgin Islands (U.S.)
-Burkina Faso,m49,Burkina Faso
-Uruguay,m49,Uruguay
-Uzbekistan,m49,Uzbekistan
-"Venezuela, Bolivarian Republic of",m49,"Venezuela, Bolivarian Republic of"
-Wallis and Futuna,m49,Wallis and Futuna
-Samoa,m49,Samoa
-Yemen,m49,Yemen
-Zambia,m49,Zambia
-Southern Asia,m49,Southern Asia
-Central Asia,m49,Central Asia
-Developed regions,m49,Developed regions
-Developing regions,m49,Developing regions
-Sudan (old),m49,Sudan (old)
-Netherlands Antilles,m49,Netherlands Antilles
-Netherlands Antilles (original),m49,Netherlands Antilles (original)
-Czechoslovakia,m49,Czechoslovakia
-Democratic Yemen,m49,Democratic Yemen
-Ethiopia (old),m49,Ethiopia (old)
-Federal Republic of Germany,m49,Federal Republic of Germany
-German Democratic Republic,m49,German Democratic Republic
-Pacific Islands (Trust Territory),m49,Pacific Islands (Trust Territory)
-Serbia and Montenegro,m49,Serbia and Montenegro
-Socialist Federal Republic of Yugoslavia,m49,Socialist Federal Republic of Yugoslavia
-South-Central Asia,m49,South-Central Asia
-USSR,m49,USSR
-Yemen (old),m49,Yemen (old)
-Canton and Enderbury Islands,m49,Canton and Enderbury Islands
-Johnston Island,m49,Johnston Island
-Midway Islands,m49,Midway Islands
-United States miscellaneous Pacific Islands,m49,United States miscellaneous Pacific Islands
-Wake Island,m49,Wake Island
-Gaza Strip,m49,Gaza Strip
-Dronning Maud Land,m49,Dronning Maud Land
-"France, Metropolitan",m49,"France, Metropolitan"
-Neutral Zone,m49,Neutral Zone
-Panama (before Canal Zone),m49,Panama (before Canal Zone)
-Saint Kitts-Nevis-Anguilla,m49,Saint Kitts-Nevis-Anguilla
-"German Democratic Republic, Berlin",m49,"German Democratic Republic, Berlin"
-"Germany, West Berlin",m49,"Germany, West Berlin"
-Ryukyu Islands,m49,Ryukyu Islands
-Spanish North Africa,m49,Spanish North Africa
+Algeria,faostat,Algeria
 Algeria,federico_tena,Algeria
+American Samoa,m49,American Samoa
+American Samoa,faostat,American Samoa
+American Samoa,federico_tena,American Samoa
+Americas,faostat,Americas
+Andorra,m49,Andorra
+Andorra,faostat,Andorra
+Andorra,federico_tena,Andorra
+Angola,m49,Angola
+Angola,faostat,Angola
 Angola,federico_tena,Angola
+Anguilla,m49,Anguilla
+Anguilla,faostat,Anguilla
+Annex I countries,faostat,Annex I countries
+Antarctic Region,faostat,Antarctic Region
+Antarctica,m49,Antarctica
+Antarctica,faostat,Antarctica
+Antigua and Barbuda,m49,Antigua and Barbuda
+Antigua and Barbuda,faostat,Antigua and Barbuda
+Argentina,m49,Argentina
+Argentina,faostat,Argentina
+Argentina,federico_tena,Argentina
+Armenia,m49,Armenia
+Armenia,faostat,Armenia
+Aruba,m49,Aruba
+Aruba,faostat,Aruba
+"Ascension, Saint Helena and Tristan da Cunha",faostat,"Ascension, Saint Helena and Tristan da Cunha"
+Asia,faostat,Asia
+Australia,m49,Australia
+Australia,faostat,Australia
+Australia Commonwealth,federico_tena,Australia Commonwealth
+Australia and New Zealand,faostat,Australia and New Zealand
+Austria,m49,Austria
+Austria,faostat,Austria
+Austria,federico_tena,Austria
+Austria-Hungary,federico_tena,Austria-Hungary
+Azerbaijan,m49,Azerbaijan
+Azerbaijan,faostat,Azerbaijan
+Badakhshan,federico_tena,Badakhshan
+Bahamas,m49,Bahamas
+Bahamas,faostat,Bahamas
+Bahamas,federico_tena,Bahamas
+Bahrain,m49,Bahrain
+Bahrain,faostat,Bahrain
+Bahrain,federico_tena,Bahrain
+Bangladesh,m49,Bangladesh
+Bangladesh,faostat,Bangladesh
+Barbados,m49,Barbados
+Barbados,faostat,Barbados
+Barbados,federico_tena,Barbados
 Basutoland,federico_tena,Basutoland
 Bechuanaland Protectorate,federico_tena,Bechuanaland Protectorate
+Belarus,m49,Belarus
+Belarus,faostat,Belarus
 Belgian Congo,federico_tena,Belgian Congo
+Belgium,m49,Belgium
+Belgium,faostat,Belgium
+Belgium,federico_tena,Belgium
+Belgium-Luxembourg,faostat,Belgium-Luxembourg
+Belize,m49,Belize
+Belize,faostat,Belize
+Benin,m49,Benin
+Benin,faostat,Benin
+Bermuda,m49,Bermuda
+Bermuda,faostat,Bermuda
+Bermuda,federico_tena,Bermuda
+Bhutan,m49,Bhutan
+Bhutan,faostat,Bhutan
+Bhutan,federico_tena,Bhutan
+Bolivia,federico_tena,Bolivia
+Bolivia (Plurinational State of),m49,Bolivia (Plurinational State of)
+Bolivia (Plurinational State of),faostat,Bolivia (Plurinational State of)
+"Bonaire, Sint Eustatius and Saba",m49,"Bonaire, Sint Eustatius and Saba"
+"Bonaire, Sint Eustatius and Saba",faostat,"Bonaire, Sint Eustatius and Saba"
+Bonin island,federico_tena,Bonin island
+Bosnia and Herzegovina,m49,Bosnia and Herzegovina
+Bosnia and Herzegovina,faostat,Bosnia and Herzegovina
+Botswana,m49,Botswana
+Botswana,faostat,Botswana
+Bouvet Island,m49,Bouvet Island
+Bouvet Island,faostat,Bouvet Island
+Brazil,m49,Brazil
+Brazil,faostat,Brazil
+Brazil,federico_tena,Brazil
 British Bechuanaland,federico_tena,British Bechuanaland
 British Cameroon,federico_tena,British Cameroon
+British Columbia,federico_tena,British Columbia
 British East Africa,federico_tena,British East Africa
+British Guiana,federico_tena,British Guiana
+British Honduras (Belize),federico_tena,British Honduras (Belize)
+British Indian Ocean Territory,m49,British Indian Ocean Territory
+British Malaya,federico_tena,British Malaya
+British New Guinea,federico_tena,British New Guinea
 British Protectorate (British Somaliland),federico_tena,British Protectorate (British Somaliland)
-Canary Islands,federico_tena,Canary Islands
+British Virgin Islands,faostat,British Virgin Islands
+British settlement Oceania,federico_tena,British settlement Oceania
+Brunei,federico_tena,Brunei
+Brunei Darussalam,m49,Brunei Darussalam
+Brunei Darussalam,faostat,Brunei Darussalam
+Bukhara,federico_tena,Bukhara
+Bulgaria,m49,Bulgaria
+Bulgaria,faostat,Bulgaria
+Bulgaria,federico_tena,Bulgaria
+Burkina Faso,m49,Burkina Faso
+Burkina Faso,faostat,Burkina Faso
+Burma (Myammar),federico_tena,Burma (Myammar)
+Burundi,m49,Burundi
+Burundi,faostat,Burundi
+Cabo Verde,m49,Cabo Verde
+Cabo Verde,faostat,Cabo Verde
+Cambodia,m49,Cambodia
+Cambodia,faostat,Cambodia
+Cameroon,m49,Cameroon
+Cameroon,faostat,Cameroon
 Cameroon (Kamerun),federico_tena,Cameroon (Kamerun)
+Canada,m49,Canada
+Canada,faostat,Canada
+Canada,federico_tena,Canada
+Canary Islands,federico_tena,Canary Islands
+Canton and Enderbury Islands,m49,Canton and Enderbury Islands
 CapoVerde,federico_tena,CapoVerde
+Caribbean,faostat,Caribbean
+Caroline Island,federico_tena,Caroline Island
+Caucasus and Central Asia,faostat,Caucasus and Central Asia
+Cayman Islands,m49,Cayman Islands
+Cayman Islands,faostat,Cayman Islands
+Central African Republic,m49,Central African Republic
+Central African Republic,faostat,Central African Republic
+Central America,faostat,Central America
+Central Asia,m49,Central Asia
+Central Asia,faostat,Central Asia
+Central Asia and Southern Asia,faostat,Central Asia and Southern Asia
 Ceuta Y Melilla,federico_tena,Ceuta Y Melilla
+Ceylon (Sri Lanka),federico_tena,Ceylon (Sri Lanka)
+Chad,m49,Chad
+Chad,faostat,Chad
+Chagos Archipelago,faostat,Chagos Archipelago
+Channel Islands,m49,Channel Islands
+Channel Islands,faostat,Channel Islands
+Chile,m49,Chile
+Chile,faostat,Chile
+Chile,federico_tena,Chile
+China,m49,China
+China,faostat,China
+China,federico_tena,China
+"China, Hong Kong SAR",faostat,"China, Hong Kong SAR"
+"China, Macao SAR",faostat,"China, Macao SAR"
+"China, Taiwan Province of",faostat,"China, Taiwan Province of"
+"China, mainland",faostat,"China, mainland"
+Christmas Island,m49,Christmas Island
+Christmas Island,faostat,Christmas Island
+Cocos (Keeling) Islands,m49,Cocos (Keeling) Islands
+Cocos (Keeling) Islands,faostat,Cocos (Keeling) Islands
+Colombia,m49,Colombia
+Colombia,faostat,Colombia
+Colombia,federico_tena,Colombia
+Comoros,m49,Comoros
+Comoros,faostat,Comoros
+Congo,m49,Congo
+Congo,faostat,Congo
+"Congo, Democratic Republic of the",m49,"Congo, Democratic Republic of the"
+Cook Island,federico_tena,Cook Island
+Cook Islands,m49,Cook Islands
+Cook Islands,faostat,Cook Islands
+Costa Rica,m49,Costa Rica
+Costa Rica,faostat,Costa Rica
+Costa Rica,federico_tena,Costa Rica
+Crete,federico_tena,Crete
+Croatia,m49,Croatia
+Croatia,faostat,Croatia
+Cuba,m49,Cuba
+Cuba,faostat,Cuba
+Cuba,federico_tena,Cuba
+Curaçao,m49,Curaçao
+Curaçao,faostat,Curaçao
+Cyprus,m49,Cyprus
+Cyprus,faostat,Cyprus
+Cyprus,federico_tena,Cyprus
+Czechia,m49,Czechia
+Czechia,faostat,Czechia
+Czechoslovakia,m49,Czechoslovakia
+Czechoslovakia,faostat,Czechoslovakia
+Czechoslovakia,federico_tena,Czechoslovakia
+Côte d'Ivoire,m49,Côte d'Ivoire
+Côte d'Ivoire,faostat,Côte d'Ivoire
+Danish India,federico_tena,Danish India
+Danish Virgin Islands,federico_tena,Danish Virgin Islands
+Democratic People's Republic of Korea,faostat,Democratic People's Republic of Korea
+Democratic Republic of the Congo,faostat,Democratic Republic of the Congo
+Democratic Yemen,m49,Democratic Yemen
+Denmark,m49,Denmark
+Denmark,faostat,Denmark
+Denmark,federico_tena,Denmark
+Developed regions,m49,Developed regions
+Developing regions,m49,Developing regions
+Djibouti,m49,Djibouti
+Djibouti,faostat,Djibouti
+Dodecanese Is.,federico_tena,Dodecanese Is.
+Dominica,m49,Dominica
+Dominica,faostat,Dominica
+Dominican Republic,m49,Dominican Republic
+Dominican Republic,faostat,Dominican Republic
+Dominican Republic,federico_tena,Dominican Republic
+Dronning Maud Land,m49,Dronning Maud Land
+Duchy Modena,federico_tena,Duchy Modena
+Duchy Parma,federico_tena,Duchy Parma
+Dutch East Indies (Indonesia),federico_tena,Dutch East Indies (Indonesia)
+Dutch Guayana,federico_tena,Dutch Guayana
+Dutch West Indies (Netherland Antilles),federico_tena,Dutch West Indies (Netherland Antilles)
+Dutch new Guinea,federico_tena,Dutch new Guinea
+Eastern Africa,faostat,Eastern Africa
+Eastern Asia,faostat,Eastern Asia
+Eastern Asia (excluding Japan and China),faostat,Eastern Asia (excluding Japan and China)
+Eastern Asia and South-eastern Asia,faostat,Eastern Asia and South-eastern Asia
+Eastern Europe,faostat,Eastern Europe
+Ecuador,m49,Ecuador
+Ecuador,faostat,Ecuador
+Ecuador,federico_tena,Ecuador
+Egypt,m49,Egypt
+Egypt,faostat,Egypt
 Egypt,federico_tena,Egypt
+El Salvador,m49,El Salvador
+El Salvador,faostat,El Salvador
+El Salvador,federico_tena,El Salvador
+Equatorial Guinea,m49,Equatorial Guinea
+Equatorial Guinea,faostat,Equatorial Guinea
+Eritrea,m49,Eritrea
+Eritrea,faostat,Eritrea
 Eritrea,federico_tena,Eritrea
+Estonia,m49,Estonia
+Estonia,faostat,Estonia
+Estonia,federico_tena,Estonia
+Eswatini,m49,Eswatini
+Eswatini,faostat,Eswatini
+Ethiopia,m49,Ethiopia
+Ethiopia,faostat,Ethiopia
 Ethiopia,federico_tena,Ethiopia
+Ethiopia (old),m49,Ethiopia (old)
+Ethiopia PDR,faostat,Ethiopia PDR
+Europe,faostat,Europe
+"Europe, Northern America, Australia and New Zealand",faostat,"Europe, Northern America, Australia and New Zealand"
+European Union (27),faostat,European Union (27)
+"FAO Major Fishing Area: Atlantic, Eastern Central (14.4.1)",faostat,"FAO Major Fishing Area: Atlantic, Eastern Central (14.4.1)"
+"FAO Major Fishing Area: Atlantic, Northeast (14.4.1)",faostat,"FAO Major Fishing Area: Atlantic, Northeast (14.4.1)"
+"FAO Major Fishing Area: Atlantic, Northwest (14.4.1)",faostat,"FAO Major Fishing Area: Atlantic, Northwest (14.4.1)"
+"FAO Major Fishing Area: Atlantic, Southeast (14.4.1)",faostat,"FAO Major Fishing Area: Atlantic, Southeast (14.4.1)"
+"FAO Major Fishing Area: Atlantic, Southwest (14.4.1)",faostat,"FAO Major Fishing Area: Atlantic, Southwest (14.4.1)"
+"FAO Major Fishing Area: Atlantic, Western Central (14.4.1)",faostat,"FAO Major Fishing Area: Atlantic, Western Central (14.4.1)"
+"FAO Major Fishing Area: Indian Ocean, Eastern (14.4.1)",faostat,"FAO Major Fishing Area: Indian Ocean, Eastern (14.4.1)"
+"FAO Major Fishing Area: Indian Ocean, Western (14.4.1)",faostat,"FAO Major Fishing Area: Indian Ocean, Western (14.4.1)"
+FAO Major Fishing Area: Mediterranean and Black Sea (14.4.1),faostat,FAO Major Fishing Area: Mediterranean and Black Sea (14.4.1)
+"FAO Major Fishing Area: Pacific, Eastern Central (14.4.1)",faostat,"FAO Major Fishing Area: Pacific, Eastern Central (14.4.1)"
+"FAO Major Fishing Area: Pacific, Northeast (14.4.1)",faostat,"FAO Major Fishing Area: Pacific, Northeast (14.4.1)"
+"FAO Major Fishing Area: Pacific, Northwest (14.4.1)",faostat,"FAO Major Fishing Area: Pacific, Northwest (14.4.1)"
+"FAO Major Fishing Area: Pacific, Southeast (14.4.1)",faostat,"FAO Major Fishing Area: Pacific, Southeast (14.4.1)"
+"FAO Major Fishing Area: Pacific, Southwest (14.4.1)",faostat,"FAO Major Fishing Area: Pacific, Southwest (14.4.1)"
+"FAO Major Fishing Area: Pacific, Western Central (14.4.1)",faostat,"FAO Major Fishing Area: Pacific, Western Central (14.4.1)"
+Falkland Islands,federico_tena,Falkland Islands
+Falkland Islands (Malvinas),m49,Falkland Islands (Malvinas)
+Falkland Islands (Malvinas),faostat,Falkland Islands (Malvinas)
+Faroe Is,federico_tena,Faroe Is
+Faroe Islands,m49,Faroe Islands
+Faroe Islands,faostat,Faroe Islands
+Federal Republic of Germany,m49,Federal Republic of Germany
+Federated Malay States,federico_tena,Federated Malay States
+Fiji,m49,Fiji
+Fiji,faostat,Fiji
+Fiji,federico_tena,Fiji
+Finland,m49,Finland
+Finland,faostat,Finland
+Finland,federico_tena,Finland
+Formosa (Taiwan),federico_tena,Formosa (Taiwan)
+France,m49,France
+France,faostat,France
+France,federico_tena,France
+"France, Metropolitan",m49,"France, Metropolitan"
 French Equatorial Africa,federico_tena,French Equatorial Africa
+French Guiana,m49,French Guiana
+French Guiana,faostat,French Guiana
+French Guiana,federico_tena,French Guiana
+French India,federico_tena,French India
+French Indochina,federico_tena,French Indochina
+French Polynesia,m49,French Polynesia
+French Polynesia,faostat,French Polynesia
+French Settlements in Oceania,federico_tena,French Settlements in Oceania
 French Somaliland,federico_tena,French Somaliland
+French Southern Territories,faostat,French Southern Territories
+French Southern and Antarctic Territories,m49,French Southern and Antarctic Territories
 French West Africa,federico_tena,French West Africa
+Fujairah,federico_tena,Fujairah
+Gabon,m49,Gabon
+Gabon,faostat,Gabon
+Gambia,m49,Gambia
+Gambia,faostat,Gambia
 Gambia,federico_tena,Gambia
+Gambier Island,federico_tena,Gambier Island
+Gaza Strip,m49,Gaza Strip
+Georgia,m49,Georgia
+Georgia,faostat,Georgia
+German Democratic Republic,m49,German Democratic Republic
+"German Democratic Republic, Berlin",m49,"German Democratic Republic, Berlin"
 German East Africa (Tanganyika),federico_tena,German East Africa (Tanganyika)
 German South West Africa,federico_tena,German South West Africa
 German West Africa,federico_tena,German West Africa
+German colonies Oceania,federico_tena,German colonies Oceania
+Germany,m49,Germany
+Germany,faostat,Germany
+Germany Fr,faostat,Germany Fr
+Germany Nl,faostat,Germany Nl
+"Germany, West Berlin",m49,"Germany, West Berlin"
+Germany/Zollverein,federico_tena,Germany/Zollverein
+Ghana,m49,Ghana
+Ghana,faostat,Ghana
+Gibraltar,m49,Gibraltar
+Gibraltar,faostat,Gibraltar
+Gibraltar,federico_tena,Gibraltar
+Gilbert and Ellice Island,federico_tena,Gilbert and Ellice Island
 Gold Coast,federico_tena,Gold Coast
+Greece,m49,Greece
+Greece,faostat,Greece
+Greenland,m49,Greenland
+Greenland,faostat,Greenland
+Grenada,m49,Grenada
+Grenada,faostat,Grenada
+Grenada,federico_tena,Grenada
+Guadeloupe,m49,Guadeloupe
+Guadeloupe,faostat,Guadeloupe
+Guadeloupe,federico_tena,Guadeloupe
+Guam,m49,Guam
+Guam,faostat,Guam
+Guatemala,m49,Guatemala
+Guatemala,faostat,Guatemala
+Guatemala,federico_tena,Guatemala
+Guernsey,m49,Guernsey
+Guernsey,faostat,Guernsey
+Guinea,m49,Guinea
+Guinea,faostat,Guinea
 Guinea Bisau (Portuguese Guinea),federico_tena,Guinea Bisau (Portuguese Guinea)
+Guinea-Bissau,m49,Guinea-Bissau
+Guinea-Bissau,faostat,Guinea-Bissau
+Guyana,m49,Guyana
+Guyana,faostat,Guyana
+Haiti,m49,Haiti
+Haiti,faostat,Haiti
+Haiti,federico_tena,Haiti
+Heard Island and McDonald Islands,m49,Heard Island and McDonald Islands
+Heard Island and McDonald Islands,faostat,Heard Island and McDonald Islands
+Herat,federico_tena,Herat
+High-income economies,faostat,High-income economies
+Holy See,m49,Holy See
+Holy See,faostat,Holy See
+Honduras,m49,Honduras
+Honduras,faostat,Honduras
+Honduras,federico_tena,Honduras
+Hong Kong,m49,Hong Kong
+Hong-Kong,federico_tena,Hong-Kong
+Hungary,m49,Hungary
+Hungary,faostat,Hungary
+Iceland,m49,Iceland
+Iceland,faostat,Iceland
+Iceland,federico_tena,Iceland
+India,m49,India
+India,faostat,India
+India,federico_tena,India
+Indonesia,m49,Indonesia
+Indonesia,faostat,Indonesia
+International Centres (FAO) (2.5.1.a),faostat,International Centres (FAO) (2.5.1.a)
+Ionian islands,federico_tena,Ionian islands
+Iran (Islamic Republic of),faostat,Iran (Islamic Republic of)
+"Iran, Islamic Republic of",m49,"Iran, Islamic Republic of"
+Iraq,m49,Iraq
+Iraq,faostat,Iraq
+Iraq,federico_tena,Iraq
+Ireland,m49,Ireland
+Ireland,faostat,Ireland
+Ireland,federico_tena,Ireland
+Isle of Man,m49,Isle of Man
+Isle of Man,faostat,Isle of Man
+Israel,m49,Israel
+Israel,faostat,Israel
 Italian Libia Cyrenaica (Lybia),federico_tena,Italian Libia Cyrenaica (Lybia)
 Italian Somaliland,federico_tena,Italian Somaliland
-Liberia,federico_tena,Liberia
-Madagascar,federico_tena,Madagascar
-Mauritius,federico_tena,Mauritius
-Mayotte and Noissi-be,federico_tena,Mayotte and Noissi-be
-Morocco (French),federico_tena,Morocco (French)
-Mozambique,federico_tena,Mozambique
-Nigeria,federico_tena,Nigeria
-Nyasaland Protectorate (Malawi),federico_tena,Nyasaland Protectorate (Malawi)
-Orange Free State,federico_tena,Orange Free State
-Reunion,federico_tena,Reunion
-Rhodesia,federico_tena,Rhodesia
-Rwanda and Burundi,federico_tena,Rwanda and Burundi
-Sao Tome and Principe,federico_tena,Sao Tome and Principe
-Seychelles,federico_tena,Seychelles
-Sierra Leone,federico_tena,Sierra Leone
-South Africa,federico_tena,South Africa
-Spanish Guinea,federico_tena,Spanish Guinea
-St. Helena,federico_tena,St. Helena
-Sudan (Anglo-Egyptian),federico_tena,Sudan (Anglo-Egyptian)
-Swaziland,federico_tena,Swaziland
-Transvaal,federico_tena,Transvaal
-Tunisia,federico_tena,Tunisia
-Zanzibar,federico_tena,Zanzibar
-Argentina,federico_tena,Argentina
-Bahamas,federico_tena,Bahamas
-Barbados,federico_tena,Barbados
-Bermuda,federico_tena,Bermuda
-Bolivia,federico_tena,Bolivia
-Brazil,federico_tena,Brazil
-British Guiana,federico_tena,British Guiana
-British Honduras (Belize),federico_tena,British Honduras (Belize)
-Canada,federico_tena,Canada
-British Columbia,federico_tena,British Columbia
-Chile,federico_tena,Chile
-Colombia,federico_tena,Colombia
-Costa Rica,federico_tena,Costa Rica
-Cuba,federico_tena,Cuba
-Danish Virgin Islands,federico_tena,Danish Virgin Islands
-Dominican Republic,federico_tena,Dominican Republic
-Dutch Guayana,federico_tena,Dutch Guayana
-Dutch West Indies (Netherland Antilles),federico_tena,Dutch West Indies (Netherland Antilles)
-Ecuador,federico_tena,Ecuador
-El Salvador,federico_tena,El Salvador
-Falkland Islands,federico_tena,Falkland Islands
-French Guiana,federico_tena,French Guiana
-Grenada,federico_tena,Grenada
-Guadeloupe,federico_tena,Guadeloupe
-Guatemala,federico_tena,Guatemala
-Haiti,federico_tena,Haiti
-Honduras,federico_tena,Honduras
+Italy,m49,Italy
+Italy,faostat,Italy
+Italy,federico_tena,Italy
+Jamaica,m49,Jamaica
+Jamaica,faostat,Jamaica
 Jamaica,federico_tena,Jamaica
-"Leeward Islands (Antigua, Dominica, St.Christopher, Montserrat, Nevis, Virgin Island)",federico_tena,"Leeward Islands (Antigua, Dominica, St.Christopher, Montserrat, Nevis, Virgin Island)"
-Lower Quebec,federico_tena,Lower Quebec
-Martinique,federico_tena,Martinique
-Mexico,federico_tena,Mexico
-New Brunswick,federico_tena,New Brunswick
-Newfoundland,federico_tena,Newfoundland
-Nicaragua,federico_tena,Nicaragua
-Nova Scotia  Cape Breton Isl.,federico_tena,Nova Scotia  Cape Breton Isl.
-Ontario,federico_tena,Ontario
-Panama,federico_tena,Panama
-Paraguay,federico_tena,Paraguay
-Peru,federico_tena,Peru
-Prince Edward Island,federico_tena,Prince Edward Island
-Puerto Rico,federico_tena,Puerto Rico
-St. Lucía,federico_tena,St. Lucía
-St Martin and St Barthélemy,federico_tena,St Martin and St Barthélemy
-St Pierre & Miquelon,federico_tena,St Pierre & Miquelon
-St. Vincent,federico_tena,St. Vincent
-Trinidad and Tobago,federico_tena,Trinidad and Tobago
-Turks and Caicos Islands,federico_tena,Turks and Caicos Islands
-United States,federico_tena,United States
-Vancouver´s Island,federico_tena,Vancouver´s Island
-Uruguay,federico_tena,Uruguay
-Venezuela,federico_tena,Venezuela
-Abu Dhabi,federico_tena,Abu Dhabi
-Aden,federico_tena,Aden
-Afghanistan,federico_tena,Afghanistan
-Ajman,federico_tena,Ajman
-Badakhshan,federico_tena,Badakhshan
-Bahrain,federico_tena,Bahrain
-Bhutan,federico_tena,Bhutan
-Bonin island,federico_tena,Bonin island
-British Malaya,federico_tena,British Malaya
-Brunei,federico_tena,Brunei
-Bukhara,federico_tena,Bukhara
-Burma (Myammar),federico_tena,Burma (Myammar)
-Ceylon (Sri Lanka),federico_tena,Ceylon (Sri Lanka)
-China,federico_tena,China
-Danish India,federico_tena,Danish India
-Dutch East Indies (Indonesia),federico_tena,Dutch East Indies (Indonesia)
-Federated Malay States,federico_tena,Federated Malay States
-Formosa (Taiwan),federico_tena,Formosa (Taiwan)
-French India,federico_tena,French India
-French Indochina,federico_tena,French Indochina
-Fujairah,federico_tena,Fujairah
-Herat,federico_tena,Herat
-Hong-Kong,federico_tena,Hong-Kong
-India,federico_tena,India
-Iraq,federico_tena,Iraq
+Japan,m49,Japan
+Japan,faostat,Japan
 Japan,federico_tena,Japan
+Jersey,m49,Jersey
+Jersey,faostat,Jersey
+Johnston Island,m49,Johnston Island
+Johnston Island,faostat,Johnston Island
+Jordan,m49,Jordan
+Jordan,faostat,Jordan
 Jordan,federico_tena,Jordan
+Kazakhstan,m49,Kazakhstan
+Kazakhstan,faostat,Kazakhstan
+Kenya,m49,Kenya
+Kenya,faostat,Kenya
 Khiva,federico_tena,Khiva
 Kiautchou,federico_tena,Kiautchou
+Kingdom Two sicilies,federico_tena,Kingdom Two sicilies
+Kiribati,m49,Kiribati
+Kiribati,faostat,Kiribati
 Kokand,federico_tena,Kokand
 Korea,federico_tena,Korea
+"Korea, Democratic People's Republic of",m49,"Korea, Democratic People's Republic of"
+"Korea, Republic of",m49,"Korea, Republic of"
+Kuwait,m49,Kuwait
+Kuwait,faostat,Kuwait
 Kuwait,federico_tena,Kuwait
 Kwang-Chou-Wan,federico_tena,Kwang-Chou-Wan
 Kwantung (Port Arthur),federico_tena,Kwantung (Port Arthur)
-Maldive,federico_tena,Maldive
-Manchukuo,federico_tena,Manchukuo
-Mongolia,federico_tena,Mongolia
-Nepal,federico_tena,Nepal
-North Yemen,federico_tena,North Yemen
-Oman,federico_tena,Oman
-Ottoman Empire/Turkey,federico_tena,Ottoman Empire/Turkey
-Palestine/Jordan,federico_tena,Palestine/Jordan
-Persia (Iran),federico_tena,Persia (Iran)
-Philippines,federico_tena,Philippines
-Portuguese India,federico_tena,Portuguese India
-Quatar,federico_tena,Quatar
-Ras al Khaimah,federico_tena,Ras al Khaimah
-Sabah (British Borneo),federico_tena,Sabah (British Borneo)
-Sarawak,federico_tena,Sarawak
-Saudi Arabia,federico_tena,Saudi Arabia
-Sharjah,federico_tena,Sharjah
-Siam (Thailand),federico_tena,Siam (Thailand)
-Sikkim,federico_tena,Sikkim
-Straits Settlement,federico_tena,Straits Settlement
-Syria and Lebanon,federico_tena,Syria and Lebanon
-Tibet,federico_tena,Tibet
-Timor,federico_tena,Timor
-Umm al Qawain,federico_tena,Umm al Qawain
-Yunnan,federico_tena,Yunnan
-Albania,federico_tena,Albania
-Andorra,federico_tena,Andorra
-Austria,federico_tena,Austria
-Austria-Hungary,federico_tena,Austria-Hungary
-Belgium,federico_tena,Belgium
-Bulgaria,federico_tena,Bulgaria
-Crete,federico_tena,Crete
-Cyprus,federico_tena,Cyprus
-Czechoslovakia,federico_tena,Czechoslovakia
-Denmark,federico_tena,Denmark
-Dodecanese Is.,federico_tena,Dodecanese Is.
-Duchy Modena,federico_tena,Duchy Modena
-Duchy Parma,federico_tena,Duchy Parma
-Estonia,federico_tena,Estonia
-Faroe Is,federico_tena,Faroe Is
-Finland,federico_tena,Finland
-France,federico_tena,France
-Germany/Zollverein,federico_tena,Germany/Zollverein
-Gibraltar,federico_tena,Gibraltar
-Iceland,federico_tena,Iceland
-Ionian islands,federico_tena,Ionian islands
-Ireland,federico_tena,Ireland
-Italy,federico_tena,Italy
-Kingdom Two sicilies,federico_tena,Kingdom Two sicilies
+Kyrgyzstan,m49,Kyrgyzstan
+Kyrgyzstan,faostat,Kyrgyzstan
+Land Locked Developing Countries (LLDCs),faostat,Land Locked Developing Countries (LLDCs)
+Lao People's Democratic Republic,m49,Lao People's Democratic Republic
+Lao People's Democratic Republic,faostat,Lao People's Democratic Republic
+Latin America,faostat,Latin America
+Latin America and the Caribbean,faostat,Latin America and the Caribbean
+Latvia,m49,Latvia
+Latvia,faostat,Latvia
 Latvia,federico_tena,Latvia
+Least Developed Countries (LDCs),faostat,Least Developed Countries (LDCs)
+Lebanon,m49,Lebanon
+Lebanon,faostat,Lebanon
+"Leeward Islands (Antigua, Dominica, St.Christopher, Montserrat, Nevis, Virgin Island)",federico_tena,"Leeward Islands (Antigua, Dominica, St.Christopher, Montserrat, Nevis, Virgin Island)"
+Lesotho,m49,Lesotho
+Lesotho,faostat,Lesotho
+Liberia,m49,Liberia
+Liberia,faostat,Liberia
+Liberia,federico_tena,Liberia
+Libya,m49,Libya
+Libya,faostat,Libya
+Liechtenstein,m49,Liechtenstein
+Liechtenstein,faostat,Liechtenstein
+Lithuania,m49,Lithuania
+Lithuania,faostat,Lithuania
 Lithuania,federico_tena,Lithuania
+Low Income Food Deficit Countries (LIFDCs),faostat,Low Income Food Deficit Countries (LIFDCs)
+Low-income economies,faostat,Low-income economies
+Lower Quebec,federico_tena,Lower Quebec
+Lower-middle-income economies,faostat,Lower-middle-income economies
+Luxembourg,m49,Luxembourg
+Luxembourg,faostat,Luxembourg
 Luxembourg,federico_tena,Luxembourg
+Macao,m49,Macao
+Madagascar,m49,Madagascar
+Madagascar,faostat,Madagascar
+Madagascar,federico_tena,Madagascar
+Malawi,m49,Malawi
+Malawi,faostat,Malawi
+Malaysia,m49,Malaysia
+Malaysia,faostat,Malaysia
+Maldive,federico_tena,Maldive
+Maldives,m49,Maldives
+Maldives,faostat,Maldives
+Mali,m49,Mali
+Mali,faostat,Mali
+Malta,m49,Malta
+Malta,faostat,Malta
 Malta,federico_tena,Malta
-Monaco,federico_tena,Monaco
-Montenegro,federico_tena,Montenegro
-Netherlands,federico_tena,Netherlands
-Norway,federico_tena,Norway
-Papal States,federico_tena,Papal States
-Poland,federico_tena,Poland
-Portugal,federico_tena,Portugal
-Romania,federico_tena,Romania
-Russia/USSR,federico_tena,Russia/USSR
-Sardinia,federico_tena,Sardinia
-Serbia/Yugoslavia,federico_tena,Serbia/Yugoslavia
-Spain,federico_tena,Spain
-Sweden,federico_tena,Sweden
-Switzerland,federico_tena,Switzerland
-Tuscany,federico_tena,Tuscany
-Two Sicilies,federico_tena,Two Sicilies
-United Kingdom,federico_tena,United Kingdom
-American Samoa,federico_tena,American Samoa
-Australia Commonwealth,federico_tena,Australia Commonwealth
-British New Guinea,federico_tena,British New Guinea
-British settlement Oceania,federico_tena,British settlement Oceania
-Caroline Island,federico_tena,Caroline Island
-Cook Island,federico_tena,Cook Island
-Dutch new Guinea,federico_tena,Dutch new Guinea
-Fiji,federico_tena,Fiji
-French Settlements in Oceania,federico_tena,French Settlements in Oceania
-Gambier Island,federico_tena,Gambier Island
-German colonies Oceania,federico_tena,German colonies Oceania
-Gilbert and Ellice Island,federico_tena,Gilbert and Ellice Island
+Manchukuo,federico_tena,Manchukuo
 Mariana Island,federico_tena,Mariana Island
 Marquesas Island,federico_tena,Marquesas Island
 Marshall Island,federico_tena,Marshall Island
+Marshall Islands,m49,Marshall Islands
+Marshall Islands,faostat,Marshall Islands
+Martinique,m49,Martinique
+Martinique,faostat,Martinique
+Martinique,federico_tena,Martinique
+Mauritania,m49,Mauritania
+Mauritania,faostat,Mauritania
+Mauritius,m49,Mauritius
+Mauritius,faostat,Mauritius
+Mauritius,federico_tena,Mauritius
+Mayotte,m49,Mayotte
+Mayotte,faostat,Mayotte
+Mayotte and Noissi-be,federico_tena,Mayotte and Noissi-be
+Melanesia,faostat,Melanesia
+Mexico,m49,Mexico
+Mexico,faostat,Mexico
+Mexico,federico_tena,Mexico
+Micronesia,faostat,Micronesia
+Micronesia (Federated States of),faostat,Micronesia (Federated States of)
+"Micronesia, Federated States of",m49,"Micronesia, Federated States of"
+Middle Africa,faostat,Middle Africa
+Midway Island,faostat,Midway Island
 Midway Island,federico_tena,Midway Island
+Midway Islands,m49,Midway Islands
+Monaco,m49,Monaco
+Monaco,faostat,Monaco
+Monaco,federico_tena,Monaco
+Mongolia,m49,Mongolia
+Mongolia,faostat,Mongolia
+Mongolia,federico_tena,Mongolia
+Montenegro,m49,Montenegro
+Montenegro,faostat,Montenegro
+Montenegro,federico_tena,Montenegro
+Montserrat,m49,Montserrat
+Montserrat,faostat,Montserrat
+Morocco,m49,Morocco
+Morocco,faostat,Morocco
+Morocco (French),federico_tena,Morocco (French)
+Mozambique,m49,Mozambique
+Mozambique,faostat,Mozambique
+Mozambique,federico_tena,Mozambique
+Myanmar,m49,Myanmar
+Myanmar,faostat,Myanmar
+Namibia,m49,Namibia
+Namibia,faostat,Namibia
+Nauru,m49,Nauru
+Nauru,faostat,Nauru
 Nauru,federico_tena,Nauru
+Nepal,m49,Nepal
+Nepal,faostat,Nepal
+Nepal,federico_tena,Nepal
+Net Food Importing Developing Countries (NFIDCs),faostat,Net Food Importing Developing Countries (NFIDCs)
+Netherlands,federico_tena,Netherlands
+Netherlands (Kingdom of the),faostat,Netherlands (Kingdom of the)
+Netherlands Antilles,m49,Netherlands Antilles
+Netherlands Antilles (former),faostat,Netherlands Antilles (former)
+Netherlands Antilles (original),m49,Netherlands Antilles (original)
+"Netherlands, Kingdom of the",m49,"Netherlands, Kingdom of the"
+Neutral Zone,m49,Neutral Zone
+New Brunswick,federico_tena,New Brunswick
+New Caledonia,m49,New Caledonia
+New Caledonia,faostat,New Caledonia
 New Caledonia,federico_tena,New Caledonia
 New Guinea,federico_tena,New Guinea
 New Hebrides,federico_tena,New Hebrides
+New Zealand,m49,New Zealand
+New Zealand,faostat,New Zealand
+Newfoundland,federico_tena,Newfoundland
+Nicaragua,m49,Nicaragua
+Nicaragua,faostat,Nicaragua
+Nicaragua,federico_tena,Nicaragua
+Niger,m49,Niger
+Niger,faostat,Niger
+Nigeria,m49,Nigeria
+Nigeria,faostat,Nigeria
+Nigeria,federico_tena,Nigeria
+Niue,m49,Niue
+Niue,faostat,Niue
 Niue Island,federico_tena,Niue Island
+Non-Annex I countries,faostat,Non-Annex I countries
+Norfolk Island,m49,Norfolk Island
+Norfolk Island,faostat,Norfolk Island
 Norfolk Island,federico_tena,Norfolk Island
+North Macedonia,m49,North Macedonia
+North Macedonia,faostat,North Macedonia
+North Yemen,federico_tena,North Yemen
+North and Central America,faostat,North and Central America
+Northern Africa,faostat,Northern Africa
+Northern Africa (excluding Sudan),faostat,Northern Africa (excluding Sudan)
+Northern America,faostat,Northern America
+Northern America and Europe,faostat,Northern America and Europe
+Northern Europe,faostat,Northern Europe
+Northern Mariana Islands,m49,Northern Mariana Islands
+Northern Mariana Islands,faostat,Northern Mariana Islands
+Norway,m49,Norway
+Norway,faostat,Norway
+Norway,federico_tena,Norway
+Nova Scotia  Cape Breton Isl.,federico_tena,Nova Scotia  Cape Breton Isl.
+Nyasaland Protectorate (Malawi),federico_tena,Nyasaland Protectorate (Malawi)
+OECD,faostat,OECD
+Oceania,faostat,Oceania
+Oceania excluding Australia and New Zealand,faostat,Oceania excluding Australia and New Zealand
+Oman,m49,Oman
+Oman,faostat,Oman
+Oman,federico_tena,Oman
+Ontario,federico_tena,Ontario
+Orange Free State,federico_tena,Orange Free State
+Ottoman Empire/Turkey,federico_tena,Ottoman Empire/Turkey
+Pacific Islands (Trust Territory),m49,Pacific Islands (Trust Territory)
+Pacific Islands Trust Territory,faostat,Pacific Islands Trust Territory
+Pakistan,m49,Pakistan
+Pakistan,faostat,Pakistan
+Palau,m49,Palau
+Palau,faostat,Palau
+Palestine,faostat,Palestine
+"Palestine, State of",m49,"Palestine, State of"
+Palestine/Jordan,federico_tena,Palestine/Jordan
 Palmyra Island,federico_tena,Palmyra Island
+Panama,m49,Panama
+Panama,faostat,Panama
+Panama,federico_tena,Panama
+Panama (before Canal Zone),m49,Panama (before Canal Zone)
+Papal States,federico_tena,Papal States
+Papua New Guinea,m49,Papua New Guinea
+Papua New Guinea,faostat,Papua New Guinea
+Paraguay,m49,Paraguay
+Paraguay,faostat,Paraguay
+Paraguay,federico_tena,Paraguay
+Persia (Iran),federico_tena,Persia (Iran)
+Peru,m49,Peru
+Peru,faostat,Peru
+Peru,federico_tena,Peru
+Philippines,m49,Philippines
+Philippines,faostat,Philippines
+Philippines,federico_tena,Philippines
+Pitcairn,m49,Pitcairn
+Pitcairn,faostat,Pitcairn
 Pitcairn Island,federico_tena,Pitcairn Island
+Poland,m49,Poland
+Poland,faostat,Poland
+Poland,federico_tena,Poland
+Polynesia,faostat,Polynesia
+Portugal,m49,Portugal
+Portugal,faostat,Portugal
+Portugal,federico_tena,Portugal
+Portuguese India,federico_tena,Portuguese India
+Prince Edward Island,federico_tena,Prince Edward Island
+Puerto Rico,m49,Puerto Rico
+Puerto Rico,faostat,Puerto Rico
+Puerto Rico,federico_tena,Puerto Rico
+Qatar,m49,Qatar
+Qatar,faostat,Qatar
+Quatar,federico_tena,Quatar
 Queensland,federico_tena,Queensland
+Ras al Khaimah,federico_tena,Ras al Khaimah
+Regional Centres (FAO) (2.5.1.a),faostat,Regional Centres (FAO) (2.5.1.a)
+Republic of Korea,faostat,Republic of Korea
+Republic of Moldova,m49,Republic of Moldova
+Republic of Moldova,faostat,Republic of Moldova
+Reunion,federico_tena,Reunion
+Rhodesia,federico_tena,Rhodesia
+Romania,m49,Romania
+Romania,faostat,Romania
+Romania,federico_tena,Romania
+Russia/USSR,federico_tena,Russia/USSR
+Russian Federation,m49,Russian Federation
+Russian Federation,faostat,Russian Federation
+Rwanda,m49,Rwanda
+Rwanda,faostat,Rwanda
+Rwanda and Burundi,federico_tena,Rwanda and Burundi
+Ryukyu Islands,m49,Ryukyu Islands
+Réunion,m49,Réunion
+Réunion,faostat,Réunion
+Sabah (British Borneo),federico_tena,Sabah (British Borneo)
+Saint Barthélemy,m49,Saint Barthélemy
+Saint Barthélemy,faostat,Saint Barthélemy
+"Saint Helena, Ascension and Tristan da Cunha",m49,"Saint Helena, Ascension and Tristan da Cunha"
+Saint Kitts and Nevis,m49,Saint Kitts and Nevis
+Saint Kitts and Nevis,faostat,Saint Kitts and Nevis
+Saint Kitts-Nevis-Anguilla,m49,Saint Kitts-Nevis-Anguilla
+Saint Lucia,m49,Saint Lucia
+Saint Lucia,faostat,Saint Lucia
+Saint Martin (French part),m49,Saint Martin (French part)
+Saint Martin (French part),faostat,Saint Martin (French part)
+Saint Pierre and Miquelon,m49,Saint Pierre and Miquelon
+Saint Pierre and Miquelon,faostat,Saint Pierre and Miquelon
+Saint Vincent and the Grenadines,m49,Saint Vincent and the Grenadines
+Saint Vincent and the Grenadines,faostat,Saint Vincent and the Grenadines
+Samoa,m49,Samoa
+Samoa,faostat,Samoa
+San Marino,m49,San Marino
+San Marino,faostat,San Marino
+Sao Tome and Principe,m49,Sao Tome and Principe
+Sao Tome and Principe,faostat,Sao Tome and Principe
+Sao Tome and Principe,federico_tena,Sao Tome and Principe
+Sarawak,federico_tena,Sarawak
+Sardinia,federico_tena,Sardinia
+Sark,m49,Sark
+Sark,faostat,Sark
+Saudi Arabia,m49,Saudi Arabia
+Saudi Arabia,faostat,Saudi Arabia
+Saudi Arabia,federico_tena,Saudi Arabia
+Senegal,m49,Senegal
+Senegal,faostat,Senegal
+Serbia,m49,Serbia
+Serbia,faostat,Serbia
+Serbia and Montenegro,m49,Serbia and Montenegro
+Serbia and Montenegro,faostat,Serbia and Montenegro
+Serbia/Yugoslavia,federico_tena,Serbia/Yugoslavia
+Seychelles,m49,Seychelles
+Seychelles,faostat,Seychelles
+Seychelles,federico_tena,Seychelles
+Sharjah,federico_tena,Sharjah
+Siam (Thailand),federico_tena,Siam (Thailand)
+Sierra Leone,m49,Sierra Leone
+Sierra Leone,faostat,Sierra Leone
+Sierra Leone,federico_tena,Sierra Leone
+Sikkim,federico_tena,Sikkim
+Singapore,m49,Singapore
+Singapore,faostat,Singapore
+Sint Maarten (Dutch part),m49,Sint Maarten (Dutch part)
+Sint Maarten (Dutch part),faostat,Sint Maarten (Dutch part)
+Slovakia,m49,Slovakia
+Slovakia,faostat,Slovakia
+Slovenia,m49,Slovenia
+Slovenia,faostat,Slovenia
+Small Island Developing States (SIDS),faostat,Small Island Developing States (SIDS)
+Socialist Federal Republic of Yugoslavia,m49,Socialist Federal Republic of Yugoslavia
 Society Islands  (Tahiti),federico_tena,Society Islands  (Tahiti)
+Solomon Islands,m49,Solomon Islands
+Solomon Islands,faostat,Solomon Islands
 Solomon Islands,federico_tena,Solomon Islands
+Somalia,m49,Somalia
+Somalia,faostat,Somalia
+South Africa,m49,South Africa
+South Africa,faostat,South Africa
+South Africa,federico_tena,South Africa
+South America,faostat,South America
 South Australia,federico_tena,South Australia
+South Georgia and the South Sandwich Islands,m49,South Georgia and the South Sandwich Islands
+South Georgia and the South Sandwich Islands,faostat,South Georgia and the South Sandwich Islands
+South Sudan,m49,South Sudan
+South Sudan,faostat,South Sudan
+South-Central Asia,m49,South-Central Asia
+South-eastern Asia,faostat,South-eastern Asia
+Southern Africa,faostat,Southern Africa
+Southern Asia,m49,Southern Asia
+Southern Asia,faostat,Southern Asia
+Southern Asia (excluding India),faostat,Southern Asia (excluding India)
+Southern Europe,faostat,Southern Europe
+Spain,m49,Spain
+Spain,faostat,Spain
+Spain,federico_tena,Spain
+Spanish Guinea,federico_tena,Spanish Guinea
+Spanish North Africa,m49,Spanish North Africa
+Sri Lanka,m49,Sri Lanka
+Sri Lanka,faostat,Sri Lanka
+St Martin and St Barthélemy,federico_tena,St Martin and St Barthélemy
+St Pierre & Miquelon,federico_tena,St Pierre & Miquelon
+St. Helena,federico_tena,St. Helena
+St. Lucía,federico_tena,St. Lucía
+St. Vincent,federico_tena,St. Vincent
+Straits Settlement,federico_tena,Straits Settlement
+Sub-Saharan Africa,m49,Sub-Saharan Africa
+Sub-Saharan Africa,faostat,Sub-Saharan Africa
+Sub-Saharan Africa (including Sudan),faostat,Sub-Saharan Africa (including Sudan)
+Sudan,m49,Sudan
+Sudan,faostat,Sudan
+Sudan (Anglo-Egyptian),federico_tena,Sudan (Anglo-Egyptian)
+Sudan (former),faostat,Sudan (former)
+Sudan (old),m49,Sudan (old)
+Suriname,m49,Suriname
+Suriname,faostat,Suriname
+Svalbard and Jan Mayen,m49,Svalbard and Jan Mayen
+Svalbard and Jan Mayen Islands,faostat,Svalbard and Jan Mayen Islands
+Swaziland,federico_tena,Swaziland
+Sweden,m49,Sweden
+Sweden,faostat,Sweden
+Sweden,federico_tena,Sweden
+Switzerland,m49,Switzerland
+Switzerland,faostat,Switzerland
+Switzerland,federico_tena,Switzerland
+Syria and Lebanon,federico_tena,Syria and Lebanon
+Syrian Arab Republic,m49,Syrian Arab Republic
+Syrian Arab Republic,faostat,Syrian Arab Republic
+"Taiwan, Province of China",m49,"Taiwan, Province of China"
+Tajikistan,m49,Tajikistan
+Tajikistan,faostat,Tajikistan
+"Tanzania, United Republic of",m49,"Tanzania, United Republic of"
+Thailand,m49,Thailand
+Thailand,faostat,Thailand
+Tibet,federico_tena,Tibet
+Timor,federico_tena,Timor
+Timor-Leste,m49,Timor-Leste
+Timor-Leste,faostat,Timor-Leste
+Togo,m49,Togo
+Togo,faostat,Togo
+Tokelau,m49,Tokelau
+Tokelau,faostat,Tokelau
 Tokelau Island,federico_tena,Tokelau Island
+Tonga,m49,Tonga
+Tonga,faostat,Tonga
 Tongan Islands,federico_tena,Tongan Islands
+Transvaal,federico_tena,Transvaal
+Trinidad and Tobago,m49,Trinidad and Tobago
+Trinidad and Tobago,faostat,Trinidad and Tobago
+Trinidad and Tobago,federico_tena,Trinidad and Tobago
+Tunisia,m49,Tunisia
+Tunisia,faostat,Tunisia
+Tunisia,federico_tena,Tunisia
+Turkmenistan,m49,Turkmenistan
+Turkmenistan,faostat,Turkmenistan
+Turks and Caicos Islands,m49,Turks and Caicos Islands
+Turks and Caicos Islands,faostat,Turks and Caicos Islands
+Turks and Caicos Islands,federico_tena,Turks and Caicos Islands
+Tuscany,federico_tena,Tuscany
+Tuvalu,m49,Tuvalu
+Tuvalu,faostat,Tuvalu
+Two Sicilies,federico_tena,Two Sicilies
+Türkiye,m49,Türkiye
+Türkiye,faostat,Türkiye
 US settlement Oceania,federico_tena,US settlement Oceania
+USSR,m49,USSR
+USSR,faostat,USSR
+Uganda,m49,Uganda
+Uganda,faostat,Uganda
+Ukraine,m49,Ukraine
+Ukraine,faostat,Ukraine
+Umm al Qawain,federico_tena,Umm al Qawain
+United Arab Emirates,m49,United Arab Emirates
+United Arab Emirates,faostat,United Arab Emirates
+United Kingdom,federico_tena,United Kingdom
+United Kingdom of Great Britain and Northern Ireland,m49,United Kingdom of Great Britain and Northern Ireland
+United Kingdom of Great Britain and Northern Ireland,faostat,United Kingdom of Great Britain and Northern Ireland
+United Republic of Tanzania,faostat,United Republic of Tanzania
+United States,federico_tena,United States
+United States Minor Outlying Islands,m49,United States Minor Outlying Islands
+United States Minor Outlying Islands,faostat,United States Minor Outlying Islands
+United States Virgin Islands,faostat,United States Virgin Islands
+United States miscellaneous Pacific Islands,m49,United States miscellaneous Pacific Islands
+United States of America,m49,United States of America
+United States of America,faostat,United States of America
+Upper-middle-income economies,faostat,Upper-middle-income economies
+Uruguay,m49,Uruguay
+Uruguay,faostat,Uruguay
+Uruguay,federico_tena,Uruguay
+Uzbekistan,m49,Uzbekistan
+Uzbekistan,faostat,Uzbekistan
 Van Diemen's Land (Tasmania),federico_tena,Van Diemen's Land (Tasmania)
+Vancouver´s Island,federico_tena,Vancouver´s Island
+Vanuatu,m49,Vanuatu
+Vanuatu,faostat,Vanuatu
+Venezuela,federico_tena,Venezuela
+Venezuela (Bolivarian Republic of),faostat,Venezuela (Bolivarian Republic of)
+"Venezuela, Bolivarian Republic of",m49,"Venezuela, Bolivarian Republic of"
 Victoria,federico_tena,Victoria
+Viet Nam,m49,Viet Nam
+Viet Nam,faostat,Viet Nam
+Virgin Islands (British),m49,Virgin Islands (British)
+Virgin Islands (U.S.),m49,Virgin Islands (U.S.)
+Wake Island,m49,Wake Island
+Wake Island,faostat,Wake Island
 Wake Island,federico_tena,Wake Island
+Wallis and Futuna,m49,Wallis and Futuna
 Wallis and Futuna Island,federico_tena,Wallis and Futuna Island
+Wallis and Futuna Islands,faostat,Wallis and Futuna Islands
+Western Africa,faostat,Western Africa
+Western Asia,faostat,Western Asia
+"Western Asia (exc. Armenia, Azerbaijan, Cyprus, Israel and Georgia)",faostat,"Western Asia (exc. Armenia, Azerbaijan, Cyprus, Israel and Georgia)"
+Western Asia and Northern Africa,faostat,Western Asia and Northern Africa
 Western Australia,federico_tena,Western Australia
+Western Europe,faostat,Western Europe
+Western Sahara,m49,Western Sahara
+Western Sahara,faostat,Western Sahara
 Western Samoa,federico_tena,Western Samoa
+World,faostat,World
+Yemen,m49,Yemen
+Yemen,faostat,Yemen
+Yemen (old),m49,Yemen (old)
+Yemen Ar Rp,faostat,Yemen Ar Rp
+Yemen Dem,faostat,Yemen Dem
+Yugoslav SFR,faostat,Yugoslav SFR
+Yunnan,federico_tena,Yunnan
+Zambia,m49,Zambia
+Zambia,faostat,Zambia
+Zanzibar,federico_tena,Zanzibar
+Zimbabwe,m49,Zimbabwe
+Zimbabwe,faostat,Zimbabwe
+Åland Islands,m49,Åland Islands
+Åland Islands,faostat,Åland Islands
