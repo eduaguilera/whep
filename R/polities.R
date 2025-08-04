@@ -84,7 +84,7 @@ get_polities <- function() {
     .pivot_source_info_wider() |>
     .aggregate_cols() |>
     .set_polity_name_code() |>
-    # .build_display_code() |>
+    .build_display_code() |>
     .set_column_types() |>
     dplyr::arrange(polity_name)
 }
@@ -118,12 +118,9 @@ get_polities <- function() {
 
 .set_polity_name_code <- function(merged_datasets) {
   merged_datasets |>
-    dplyr::relocate(polity_name = common_name, .before = 1) |>
-    dplyr::mutate(
-      # TODO: shorten with e.g. iso3-like name part
-      polity_code = stringr::str_glue("{polity_name}-{start_year}-{end_year}"),
-      .after = "polity_name"
-    )
+    dplyr::rename(polity_name = common_name) |>
+    dplyr::inner_join(k_polity_codes, unmatched = "error") |>
+    dplyr::relocate(polity_name, polity_code, .before = 1)
 }
 
 .set_column_types <- function(polities) {
@@ -180,17 +177,10 @@ get_polities <- function() {
     )
 }
 
-# TODO: Currently broken. Change this. Easiest implementation is to use
-# display code mapping table defaulting to ISO3 code when makes sense,
-# otherwise create our own ISO3-like variant.
+# TODO: Think if worth to shorten, maybe another mapping table
 .build_display_code <- function(polities) {
   polities |>
-    dplyr::mutate(
-      display_code = dplyr::case_when(
-        !is.na(iso3_code) ~ stringr::str_glue("{iso3_code}_{start_year}"),
-        .default = stringr::str_glue("{polity_code}_{start_year}")
-      )
-    )
+    dplyr::mutate(display_code = polity_code)
 }
 
 .aggregate_cols <- function(polities) {
