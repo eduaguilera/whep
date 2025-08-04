@@ -99,8 +99,8 @@ British Bechuanaland,federico_tena,British Bechuanaland
 British Cameroon,federico_tena,British Cameroon
 British Columbia,federico_tena,British Columbia
 British East Africa,federico_tena,British East Africa
-British Guiana,federico_tena,British Guiana
-British Honduras (Belize),federico_tena,British Honduras (Belize)
+British Guiana,federico_tena,Guyana
+British Honduras (Belize),federico_tena,Belize
 British Indian Ocean Territory,m49,British Indian Ocean Territory
 British Malaya,federico_tena,British Malaya
 British New Guinea,federico_tena,British New Guinea
@@ -419,7 +419,7 @@ Kingdom Two sicilies,federico_tena,Kingdom Two sicilies
 Kiribati,m49,Kiribati
 Kiribati,faostat,Kiribati
 Kokand,federico_tena,Kokand
-Korea,federico_tena,Korea
+Korea,federico_tena,Korea (old)
 "Korea, Democratic People's Republic of",m49,North Korea
 "Korea, Republic of",m49,South Korea
 Kuwait,m49,Kuwait
@@ -479,7 +479,7 @@ Malta,federico_tena,Malta
 Manchukuo,federico_tena,Manchukuo
 Mariana Island,federico_tena,Mariana Island
 Marquesas Island,federico_tena,Marquesas Island
-Marshall Island,federico_tena,Marshall Island
+Marshall Island,federico_tena,Marshall Islands
 Marshall Islands,m49,Marshall Islands
 Marshall Islands,faostat,Marshall Islands
 Martinique,m49,Martinique
@@ -738,7 +738,7 @@ Spanish North Africa,m49,Spanish North Africa
 Sri Lanka,m49,Sri Lanka
 Sri Lanka,faostat,Sri Lanka
 St Martin and St Barthélemy,federico_tena,St Martin and St Barthélemy
-St Pierre & Miquelon,federico_tena,St Pierre & Miquelon
+St Pierre & Miquelon,federico_tena,Saint Pierre and Miquelon
 St. Helena,federico_tena,St. Helena
 St. Lucía,federico_tena,St. Lucía
 St. Vincent,federico_tena,St. Vincent
@@ -782,7 +782,7 @@ Tokelau,faostat,Tokelau
 Tokelau Island,federico_tena,Tokelau Island
 Tonga,m49,Tonga
 Tonga,faostat,Tonga
-Tongan Islands,federico_tena,Tongan Islands
+Tongan Islands,federico_tena,Tonga
 Transvaal,federico_tena,Transvaal
 Trinidad and Tobago,m49,Trinidad and Tobago
 Trinidad and Tobago,faostat,Trinidad and Tobago
@@ -812,10 +812,10 @@ Umm al Qawain,federico_tena,Umm al Qawain
 United Arab Emirates,m49,United Arab Emirates
 United Arab Emirates,faostat,United Arab Emirates
 United Kingdom,federico_tena,United Kingdom
-United Kingdom of Great Britain and Northern Ireland,m49,United Kingdom of Great Britain and Northern Ireland
-United Kingdom of Great Britain and Northern Ireland,faostat,United Kingdom of Great Britain and Northern Ireland
+United Kingdom of Great Britain and Northern Ireland,m49,United Kingdom
+United Kingdom of Great Britain and Northern Ireland,faostat,United Kingdom
 United Republic of Tanzania,faostat,Tanzania
-United States,federico_tena,United States
+United States,federico_tena,United States of America
 United States Minor Outlying Islands,m49,United States Minor Outlying Islands
 United States Minor Outlying Islands,faostat,United States Minor Outlying Islands
 United States Virgin Islands,faostat,United States Virgin Islands

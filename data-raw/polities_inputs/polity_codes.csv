@@ -52,12 +52,10 @@ British Bechuanaland,BRI-1885-1895
 British Cameroon,BRI-1914-2025
 British Columbia,BRI-1858-1866
 British East Africa,BRI-1895-2025
-British Guiana,BRI-1800-2025
-British Honduras (Belize),BRI-1800-2025
 British Indian Ocean Territory,BRI-1800-2025
 British Malaya,BRI-1922-2025
-British New Guinea,BRI-1884-2025
-British Protectorate (British Somaliland),BRI-1884-2025
+British New Guinea,BNG-1884-2025
+British Protectorate (British Somaliland),BSO-1884-2025
 British Virgin Islands,VGB-1800-2025
 British settlement Oceania,BRI-1839-2025
 Brunei,BRU-1800-2025
@@ -109,17 +107,17 @@ Danish India,DAN-1800-1845
 Danish Virgin Islands,DAN-1800-2025
 Democratic Republic of the Congo,COD-1800-2025
 Denmark,DNK-1800-2025
-Developed regions,DEV-2021-2025
-Developing regions,DEV-2021-2025
+Developed regions,DEDREG-2021-2025
+Developing regions,DNGREG-2021-2025
 Djibouti,DJI-1800-2025
 Dodecanese Is.,DOD-1912-2025
 Dominica,DMA-1800-2025
 Dominican Republic,DOM-1800-2025
 Dronning Maud Land,DRO-1800-1982
-Duchy Modena,DUC-1800-1860
-Duchy Parma,DUC-1800-1860
-Dutch East Indies (Indonesia),DUT-1800-2025
-Dutch Guayana,DUT-1800-2025
+Duchy Modena,DMO-1800-1860
+Duchy Parma,DPA-1800-1860
+Dutch East Indies (Indonesia),DEI-1800-2025
+Dutch Guayana,DGU-1800-2025
 Dutch West Indies (Netherland Antilles),DUT-1800-2025
 Dutch new Guinea,DUT-1898-2025
 Eastern Africa,F5101-1800-2025
@@ -168,10 +166,10 @@ France,FRA-1800-2025
 French Equatorial Africa,FRE-1910-2025
 French Guiana,GUF-1800-2025
 French India,FRE-1800-2025
-French Indochina,FRE-1887-2025
+French Indochina,FID-1887-2025
 French Polynesia,PYF-1800-2025
 French Settlements in Oceania,FRE-1844-2025
-French Somaliland,FRE-1887-2025
+French Somaliland,FSO-1887-2025
 French Southern Territories,ATF-1800-2025
 French West Africa,FRE-1895-2025
 Fujairah,FUJ-1886-2025
@@ -181,13 +179,13 @@ Gambier Island,GAM-1881-1903
 Gaza Strip,GAZ-1800-1982
 Georgia,GEO-1991-2025
 German Democratic Republic,GER-1800-1990
-"German Democratic Republic, Berlin",GER-1800-1982
-German East Africa (Tanganyika),GER-1884-2025
-German South West Africa,GER-1884-2025
+"German Democratic Republic, Berlin",GEB-1800-1982
+German East Africa (Tanganyika),GEA-1884-2025
+German South West Africa,GSW-1884-2025
 German West Africa,GER-1884-1914
 German colonies Oceania,GER-1884-2025
 Germany,DEU-1990-2025
-"Germany, West Berlin",GER-1800-1982
+"Germany, West Berlin",GWB-1800-1982
 Germany/Zollverein,GER-1800-2025
 Ghana,GHA-1800-2025
 Gibraltar,GIB-1800-2025
@@ -238,11 +236,11 @@ Kiautchou,KIA-1898-1922
 Kingdom Two sicilies,KIN-1800-1860
 Kiribati,KIR-1800-2025
 Kokand,KOK-1800-1883
-Korea,KOR-1800-2025
+Korea (old),OKO-1800-2025
 North Korea,PRK-1800-2025
 South Korea,KOR-1800-2025
 Kuwait,KWT-1800-2025
-Kwang-Chou-Wan,KWA-1898-2025
+Kwang-Chou-Wan,KCW-1898-2025
 Kwantung (Port Arthur),KWA-1898-2025
 Kyrgyzstan,KGZ-1991-2025
 Land Locked Developing Countries (LLDCs),F5802-1800-2025
@@ -272,9 +270,8 @@ Maldives,MDV-1800-2025
 Mali,MLI-1800-2025
 Malta,MLT-1800-2025
 Manchukuo,MAN-1932-2025
-Mariana Island,MAR-1800-2025
-Marquesas Island,MAR-1844-1903
-Marshall Island,MAR-1874-2025
+Mariana Island,MRI-1800-2025
+Marquesas Island,MRQ-1844-1903
 Marshall Islands,MHL-1991-2025
 Martinique,MTQ-1800-2025
 Mauritania,MRT-1800-2025
@@ -422,7 +419,6 @@ Spanish Guinea,SPA-1858-2025
 Spanish North Africa,SPA-1800-1982
 Sri Lanka,LKA-1800-2025
 St Martin and St Barthélemy,STM-1816-1878
-St Pierre & Miquelon,STP-1800-2025
 St. Helena,ST.-1800-2025
 St. Lucía,ST.-1800-1838
 St. Vincent,ST.-1800-1833
@@ -449,7 +445,6 @@ Togo,TGO-1800-2025
 Tokelau,TKL-1800-2025
 Tokelau Island,TOK-1877-2025
 Tonga,TON-1800-2025
-Tongan Islands,TON-1800-2025
 Transvaal,TRA-1856-1902
 Trinidad and Tobago,TTO-1800-2025
 Tunisia,TUN-1881-2025
@@ -465,10 +460,8 @@ Uganda,UGA-1800-2025
 Ukraine,UKR-1991-2025
 Umm al Qawain,UMM-1892-2025
 United Arab Emirates,ARE-1800-2025
-United Kingdom,UNI-1800-2025
-United Kingdom of Great Britain and Northern Ireland,GBR-1800-2025
+United Kingdom,GBR-1800-2025
 Tanzania,TZA-1800-2025
-United States,UNI-1800-2025
 United States Minor Outlying Islands,UMI-1800-2025
 United States Virgin Islands,VIR-1800-2025
 United States miscellaneous Pacific Islands,UNI-1800-1982
