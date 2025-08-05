@@ -302,7 +302,7 @@ get_polities <- function() {
     # Remove virtual time boundaries due to dataset study range
     dplyr::mutate(
       start_year = ifelse(start_year == 1800, NA, start_year),
-      end_year = ifelse(end_year == 1938, NA, end_year)
+      end_year = ifelse(end_year >= 1938, NA, end_year)
     )
 }
 
