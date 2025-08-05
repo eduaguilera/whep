@@ -107,9 +107,11 @@ British New Guinea,federico_tena,British New Guinea
 British Protectorate (British Somaliland),federico_tena,British Protectorate (British Somaliland)
 British Virgin Islands,faostat,British Virgin Islands
 British settlement Oceania,federico_tena,British settlement Oceania
-Brunei,federico_tena,Brunei
+Brunei,federico_tena,Brunei Darussalam
 Brunei Darussalam,m49,Brunei Darussalam
 Brunei Darussalam,faostat,Brunei Darussalam
+Brunei,whep,Brunei Darussalam
+Brunei (greater),whep,Brunei (greater)
 Bukhara,federico_tena,Bukhara
 Bulgaria,m49,Bulgaria
 Bulgaria,faostat,Bulgaria
@@ -559,6 +561,7 @@ Nigeria,federico_tena,Nigeria
 Niue,m49,Niue
 Niue,faostat,Niue
 Niue Island,federico_tena,Niue
+Niue,whep,Niue
 Non-Annex I countries,faostat,Non-Annex I countries
 Norfolk Island,m49,Norfolk Island
 Norfolk Island,faostat,Norfolk Island

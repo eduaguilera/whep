@@ -120,7 +120,8 @@ get_polity_sources <- function(polity_codes = NULL) {
   dplyr::bind_rows(
     .prepare_historical_m49(),
     .prepare_faostat(),
-    .prepare_federico_tena()
+    .prepare_federico_tena(),
+    .prepare_whep_fixes()
   )
 }
 
@@ -167,7 +168,7 @@ get_polity_sources <- function(polity_codes = NULL) {
     dplyr::mutate(
       m49_code = ifelse(m49_name == "Spanish North Africa", NA, m49_code)
     ) |>
-    dplyr::mutate(source = "m49") |>
+    dplyr::mutate(source = k_source_m49) |>
     dplyr::select(
       original_name = m49_name,
       source,
@@ -180,7 +181,7 @@ get_polity_sources <- function(polity_codes = NULL) {
 
 .prepare_faostat <- function() {
   k_faostat_regions |>
-    dplyr::mutate(source = "faostat") |>
+    dplyr::mutate(source = k_source_faostat) |>
     dplyr::select(
       original_name = country_name,
       source,
@@ -194,7 +195,19 @@ get_polity_sources <- function(polity_codes = NULL) {
 
 .prepare_federico_tena <- function() {
   k_federico_tena_polities |>
-    dplyr::mutate(source = "federico_tena") |>
+    dplyr::mutate(source = k_source_federico_tena) |>
+    dplyr::select(
+      original_name = polity_name,
+      source,
+      start_year,
+      end_year,
+      notes
+    )
+}
+
+.prepare_whep_fixes <- function() {
+  k_whep_polity_fixes |>
+    dplyr::mutate(source = k_source_whep) |>
     dplyr::select(
       original_name = polity_name,
       source,
@@ -216,27 +229,40 @@ get_polity_sources <- function(polity_codes = NULL) {
 
   polities |>
     dplyr::summarise(
-      start_year = .aggregate_start_year(start_year),
-      end_year = .aggregate_end_year(end_year),
+      start_year = .aggregate_start_year(start_year, source),
+      end_year = .aggregate_end_year(end_year, source),
       across(all_of(unique_cols), .check_unique_value),
       .by = "common_name"
     )
 }
 
-.aggregate_start_year <- function(start_year) {
+.aggregate_start_year <- function(start_year, source) {
+  # Force year from whep source if present
+  i <- purrr::detect_index(source, ~ .x == k_source_whep)
+
   # TODO: Make this a better estimation
   # Now assuming 1938-1970 gap without country changes
-  if (all(is.na(start_year))) {
+  if (i > 0 && is.na(start_year[i])) {
+    k_polity_first_year
+  } else if (i > 0) {
+    start_year[i]
+  } else if (all(is.na(start_year))) {
     k_polity_first_year
   } else {
     min(start_year, na.rm = TRUE)
   }
 }
 
-.aggregate_end_year <- function(end_year) {
+.aggregate_end_year <- function(end_year, source) {
+  i <- purrr::detect_index(source, ~ .x == k_source_whep)
+
   # TODO: Make this a better estimation
   # Now assuming 1938-1970 gap without country changes
-  if (all(is.na(end_year))) {
+  if (i > 0 && is.na(end_year[i])) {
+    k_polity_last_year
+  } else if (i > 0) {
+    end_year[i]
+  } else if (all(is.na(end_year))) {
     k_polity_last_year
   } else {
     max(end_year, na.rm = TRUE)
