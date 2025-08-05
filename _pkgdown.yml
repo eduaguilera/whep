@@ -37,6 +37,7 @@ reference:
   - polities
   - add_area_code
   - add_area_name
+  - get_polities
 - subtitle: Commodity balance sheet items
   contents:
   - items_cbs
