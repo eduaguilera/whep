@@ -81,12 +81,39 @@
 get_polities <- function() {
   .merge_datasets() |>
     .add_common_names() |>
-    .pivot_source_info_wider() |>
     .aggregate_cols() |>
     .set_polity_name_code() |>
     .build_display_code() |>
     .set_column_types() |>
-    dplyr::arrange(polity_name)
+    dplyr::arrange(polity_name) |>
+    dplyr::select(
+      polity_name,
+      polity_code,
+      start_year,
+      end_year,
+      m49_code,
+      iso3_code,
+      iso2_code,
+      display_code
+    )
+}
+
+get_polity_sources <- function(polity_codes = NULL) {
+  if (is.null(polity_codes)) {
+    polity_codes <- get_polities() |>
+      dplyr::select(polity_code)
+  } else {
+    polity_codes <- tibble::tibble(polity_code = polity_codes)
+  }
+
+  polity_names <- get_polities() |>
+    dplyr::inner_join(polity_codes, by = "polity_code") |>
+    dplyr::select(common_name = polity_name, polity_code)
+
+  .merge_datasets() |>
+    .add_common_names() |>
+    dplyr::inner_join(polity_names, by = "common_name") |>
+    dplyr::arrange(original_name)
 }
 
 .merge_datasets <- function() {
@@ -113,12 +140,6 @@ get_polities <- function() {
     )
 }
 
-.pivot_source_info_wider <- function(merged_datasets) {
-  merged_datasets |>
-    dplyr::rename(name = original_name) |>
-    tidyr::pivot_wider(names_from = source, values_from = c(notes, name))
-}
-
 .set_polity_name_code <- function(merged_datasets) {
   merged_datasets |>
     dplyr::rename(polity_name = common_name) |>
@@ -126,8 +147,7 @@ get_polities <- function() {
       k_polity_codes,
       by = "polity_name",
       unmatched = "error"
-    ) |>
-    dplyr::relocate(polity_name, polity_code, .before = 1)
+    )
 }
 
 .set_column_types <- function(polities) {
@@ -192,13 +212,13 @@ get_polities <- function() {
 
 .aggregate_cols <- function(polities) {
   all_cols <- names(polities)
-  other_cols <- setdiff(all_cols, c("common_name", "start_year", "end_year"))
+  unique_cols <- c("m49_code", "iso2_code", "iso3_code")
 
   polities |>
     dplyr::summarise(
       start_year = .aggregate_start_year(start_year),
       end_year = .aggregate_end_year(end_year),
-      across(all_of(other_cols), .check_unique_value),
+      across(all_of(unique_cols), .check_unique_value),
       .by = "common_name"
     )
 }

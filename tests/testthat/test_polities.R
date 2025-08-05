@@ -22,12 +22,6 @@ testthat::test_that("get_polities is consistent", {
     "m49_code",
     "iso2_code",
     "iso3_code",
-    "notes_m49",
-    "notes_faostat",
-    "notes_federico_tena",
-    "name_m49",
-    "name_faostat",
-    "name_federico_tena",
     "display_code"
   )
 
