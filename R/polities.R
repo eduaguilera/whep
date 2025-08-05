@@ -106,7 +106,11 @@ get_polities <- function() {
 # clearly implement other more complete methods for achieving that.
 .add_common_names <- function(merged_datasets) {
   merged_datasets |>
-    dplyr::inner_join(k_polity_common_names, unmatched = "error")
+    dplyr::inner_join(
+      k_polity_common_names,
+      by = c("original_name", "source"),
+      unmatched = "error",
+    )
 }
 
 .pivot_source_info_wider <- function(merged_datasets) {
@@ -118,7 +122,11 @@ get_polities <- function() {
 .set_polity_name_code <- function(merged_datasets) {
   merged_datasets |>
     dplyr::rename(polity_name = common_name) |>
-    dplyr::inner_join(k_polity_codes, unmatched = "error") |>
+    dplyr::inner_join(
+      k_polity_codes,
+      by = "polity_name",
+      unmatched = "error"
+    ) |>
     dplyr::relocate(polity_name, polity_code, .before = 1)
 }
 
