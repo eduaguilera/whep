@@ -24,7 +24,8 @@
 create_prod_and_destiny_grafs <- function() {
   data <- .load_data()
   biomass_item_merged <- .merge_items_biomass(
-    data$npp_ygpit_csv, data$names_biomass_cb
+    data$npp_ygpit_csv,
+    data$names_biomass_cb
   )
   data$npp_ygpit_csv <- biomass_item_merged$npp_ygpit_merged
   production_crops_residues <-
@@ -41,12 +42,15 @@ create_prod_and_destiny_grafs <- function() {
   )
   seeds_removed <- .remove_seeds_from_system(
     biomass_item_merged$npp_ygpit_merged,
-    data$pie_full_destinies_fm, prod_combined_boxes
+    data$pie_full_destinies_fm,
+    prod_combined_boxes
   )
   grass_wood_added <- .adding_grass_wood(seeds_removed)
   prepared_processed_data <- .prepare_processed_data(data$processed_prov_fixed)
   prepared_prod_data <- .prepare_prod_data(
-    grass_wood_added, prepared_processed_data, data$codes_coefs_items_full
+    grass_wood_added,
+    prepared_processed_data,
+    data$codes_coefs_items_full
   )
   converted_data_fm_dm_n <- .convert_fm_dm_n(
     prepared_prod_data,
@@ -56,13 +60,19 @@ create_prod_and_destiny_grafs <- function() {
   population_share <- .calculate_population_share(data$population_share)
   food_data <- .adding_food(data$pie_full_destinies_fm, population_share)
   other_uses_data <- .adding_other_uses(
-    data$pie_full_destinies_fm, population_share
+    data$pie_full_destinies_fm,
+    population_share
   )
   combined_destinies <- .combine_destinies(
-    converted_data_fm_dm_n, feed_data, food_data, other_uses_data
+    converted_data_fm_dm_n,
+    feed_data,
+    food_data,
+    other_uses_data
   )
   converted_items_n <- .convert_to_items_n(
-    combined_destinies, data$codes_coefs_items_full, data$biomass_coefs
+    combined_destinies,
+    data$codes_coefs_items_full,
+    data$biomass_coefs
   )
   trade <- .calculate_trade(converted_items_n)
 
@@ -212,24 +222,39 @@ create_prod_and_destiny_grafs <- function() {
     npp_ygpit_merged |>
       dplyr::filter(LandUse != "Cropland") |>
       dplyr::select(
-        Year, Province_name, Name_biomass, Item,
-        LandUse, Irrig_cat, Irrig_type,
+        Year,
+        Province_name,
+        Name_biomass,
+        Item,
+        LandUse,
+        Irrig_cat,
+        Irrig_type,
         production_fm = GrazedWeeds_MgDM
       ) |>
       dplyr::mutate(prod_type = "Grass"),
     npp_ygpit_merged |>
       dplyr::filter(LandUse != "Cropland") |>
       dplyr::select(
-        Year, Province_name, Name_biomass, Item,
-        LandUse, Irrig_cat, Irrig_type,
+        Year,
+        Province_name,
+        Name_biomass,
+        Item,
+        LandUse,
+        Irrig_cat,
+        Irrig_type,
         production_fm = Prod_ygpit_Mg
       ) |>
       dplyr::mutate(prod_type = "Product"),
     npp_ygpit_merged |>
       dplyr::filter(LandUse != "Cropland") |>
       dplyr::select(
-        Year, Province_name, Name_biomass, Item,
-        LandUse, Irrig_cat, Irrig_type,
+        Year,
+        Province_name,
+        Name_biomass,
+        Item,
+        LandUse,
+        Irrig_cat,
+        Irrig_type,
         production_fm = Used_Residue_MgFM
       ) |>
       dplyr::mutate(prod_type = "Residue")
@@ -258,7 +283,11 @@ create_prod_and_destiny_grafs <- function() {
 ) {
   livestock <- livestock_prod_ygps |>
     dplyr::select(
-      Year, Province_name, Item, Name_biomass, Prod_Mg
+      Year,
+      Province_name,
+      Item,
+      Name_biomass,
+      Prod_Mg
     ) |>
     dplyr::mutate(
       Box = "Livestock",
@@ -371,10 +400,15 @@ create_prod_and_destiny_grafs <- function() {
       Item = dplyr::case_when(
         prod_type == "Grass" & Name_biomass == "Fallow" ~ "Fallow",
         prod_type == "Grass" ~ "Grassland",
-        prod_type == "Residue" & Box != "Cropland" &
-          Name_biomass %in% c(
-            "Holm oak forest", "Conifers", "Mediterranean shrubland"
-          ) ~ "Firewood",
+        prod_type == "Residue" &
+          Box != "Cropland" &
+          Name_biomass %in%
+            c(
+              "Holm oak forest",
+              "Conifers",
+              "Mediterranean shrubland"
+            ) ~
+          "Firewood",
         TRUE ~ Item
       ),
       Name_biomass = dplyr::case_when(
@@ -392,8 +426,15 @@ create_prod_and_destiny_grafs <- function() {
     ) |>
     dplyr::filter(!is.na(production_fm)) |>
     dplyr::group_by(
-      Year, Province_name, Name_biomass, Item, Box, LandUse,
-      Irrig_cat, Irrig_type, prod_type
+      Year,
+      Province_name,
+      Name_biomass,
+      Item,
+      Box,
+      LandUse,
+      Irrig_cat,
+      Irrig_type,
+      prod_type
     ) |>
     dplyr::summarise(
       production_fm = sum(production_fm, na.rm = TRUE),
@@ -430,7 +471,13 @@ create_prod_and_destiny_grafs <- function() {
       prod_type = "Product"
     ) |>
     dplyr::select(
-      Year, Province_name, Name_biomass, Item, Box, production_fm, prod_type
+      Year,
+      Province_name,
+      Name_biomass,
+      Item,
+      Box,
+      production_fm,
+      prod_type
     )
 
   processed_data
@@ -454,8 +501,16 @@ create_prod_and_destiny_grafs <- function() {
 ) {
   added_grass_wood_prepared <- grafs_prod_added |>
     dplyr::select(
-      Year, Province_name, Name_biomass, Item, Box, LandUse,
-      Irrig_cat, Irrig_type, prod_type, production_fm
+      Year,
+      Province_name,
+      Name_biomass,
+      Item,
+      Box,
+      LandUse,
+      Irrig_cat,
+      Irrig_type,
+      prod_type,
+      production_fm
     ) |>
     dplyr::bind_rows(processed_data) |>
     dplyr::arrange(Year, Province_name, Name_biomass, Item)
@@ -468,9 +523,13 @@ create_prod_and_destiny_grafs <- function() {
         dplyr::select(item, Name_biomass),
       by = c("Item" = "item")
     ) |>
-    dplyr::mutate(Name_biomass = dplyr::if_else(!is.na(Name_biomass),
-      Name_biomass, Name_biomass_primary
-    )) |>
+    dplyr::mutate(
+      Name_biomass = dplyr::if_else(
+        !is.na(Name_biomass),
+        Name_biomass,
+        Name_biomass_primary
+      )
+    ) |>
     dplyr::relocate(Name_biomass, .after = Name_biomass_primary)
 
   added_grass_wood_merged
@@ -492,16 +551,21 @@ create_prod_and_destiny_grafs <- function() {
   biomass_coefs
 ) {
   special_items <- c(
-    "Nuts and products", "Vegetables, Other", "Fruits, Other",
-    "Cereals, Other", "Pulses, Other and products"
+    "Nuts and products",
+    "Vegetables, Other",
+    "Fruits, Other",
+    "Cereals, Other",
+    "Pulses, Other and products"
   )
 
   # Add a column to choose the appropriate biomass name for matching
   # conversion factors
   grazed_no_seeds_primary <- added_grass_wood_merged |>
     dplyr::mutate(
-      Biomass_match = dplyr::if_else(Item %in% special_items,
-        Name_biomass_primary, Name_biomass
+      Biomass_match = dplyr::if_else(
+        Item %in% special_items,
+        Name_biomass_primary,
+        Name_biomass
       )
     )
 
@@ -529,7 +593,9 @@ create_prod_and_destiny_grafs <- function() {
     ) |>
     # Remove intermediate columns and rename Biomass_match to Name_biomass
     dplyr::select(
-      -production_fm, -Product_kgDM_kgFM, -Product_kgN_kgDM,
+      -production_fm,
+      -Product_kgDM_kgFM,
+      -Product_kgN_kgDM,
       -Name_biomass
     ) |>
     dplyr::rename(Name_biomass = Biomass_match)
@@ -592,7 +658,10 @@ create_prod_and_destiny_grafs <- function() {
     ) |>
     dplyr::ungroup() |>
     dplyr::select(
-      Year, Province_name, Pop_Mpeop_yg, Pop_share
+      Year,
+      Province_name,
+      Pop_Mpeop_yg,
+      Pop_share
     )
 
   population_share
@@ -677,7 +746,8 @@ create_prod_and_destiny_grafs <- function() {
   other_uses_with_share
 ) {
   grafs_prod_item_combined <- grafs_prod_item |>
-    dplyr::full_join(food_with_share |> dplyr::rename(Food_MgFM = Food_Mg),
+    dplyr::full_join(
+      food_with_share |> dplyr::rename(Food_MgFM = Food_Mg),
       by = c("Year", "Province_name", "Item")
     ) |>
     dplyr::full_join(
@@ -685,7 +755,8 @@ create_prod_and_destiny_grafs <- function() {
         dplyr::rename(OtherUses_MgFM = OtherUses_Mg),
       by = c("Year", "Province_name", "Item")
     ) |>
-    dplyr::full_join(feed_intake |> dplyr::rename(Feed_MgFM = FM_Mg_total),
+    dplyr::full_join(
+      feed_intake |> dplyr::rename(Feed_MgFM = FM_Mg_total),
       by = c("Year", "Province_name", "Item")
     )
 
@@ -718,10 +789,12 @@ create_prod_and_destiny_grafs <- function() {
     dplyr::relocate(Name_biomass, .after = Item) |>
     # Convert the conversion factors into grafs_prod_item
     dplyr::left_join(
-      biomass_coefs |> dplyr::select(
-        Name_biomass, Product_kgDM_kgFM,
-        Product_kgN_kgDM
-      ),
+      biomass_coefs |>
+        dplyr::select(
+          Name_biomass,
+          Product_kgDM_kgFM,
+          Product_kgN_kgDM
+        ),
       by = "Name_biomass"
     ) |>
     # Convert FM → DM → N for each use type
@@ -734,8 +807,15 @@ create_prod_and_destiny_grafs <- function() {
       feed = feed_mg_dm * Product_kgN_kgDM
     ) |>
     dplyr::select(
-      Year, Province_name, Item, Name_biomass, Box, production_n,
-      food, other_uses, feed
+      Year,
+      Province_name,
+      Item,
+      Name_biomass,
+      Box,
+      production_n,
+      food,
+      other_uses,
+      feed
     )
 
   grafs_prod_item_n
@@ -756,9 +836,7 @@ create_prod_and_destiny_grafs <- function() {
   grafs_prod_item_trade <- grafs_prod_item_n |>
     dplyr::group_by(Year, Province_name, Item, Name_biomass, Box) |>
     dplyr::mutate(
-      consumption = rowSums(cbind(food, other_uses, feed),
-        na.rm = TRUE
-      ),
+      consumption = rowSums(cbind(food, other_uses, feed), na.rm = TRUE),
       production_n_tmp = tidyr::replace_na(production_n, 0),
       net_trade = production_n_tmp - consumption,
       export = ifelse(net_trade > 0, net_trade, 0),
@@ -793,12 +871,16 @@ create_prod_and_destiny_grafs <- function() {
       Box = dplyr::case_when(
         Item == "Acorns" ~ "Semi_natural_agroecosystems",
         is.na(Box) & Item == "Fallow" ~ "Cropland",
-        is.na(Box) & group %in% c(
-          "Crop products", "Primary crops",
-          "crop residue"
-        ) ~ "Cropland",
-        is.na(Box) & group %in% c("Livestock products", "Livestock")
-        ~ "Livestock",
+        is.na(Box) &
+          group %in%
+            c(
+              "Crop products",
+              "Primary crops",
+              "crop residue"
+            ) ~
+          "Cropland",
+        is.na(Box) & group %in% c("Livestock products", "Livestock") ~
+          "Livestock",
         is.na(Box) & group %in% c("Additives", "Fish") ~ group,
         TRUE ~ Box
       )
@@ -812,7 +894,8 @@ create_prod_and_destiny_grafs <- function() {
       values_to = "MgN"
     ) |>
     dplyr::mutate(
-      Destiny = dplyr::recode(Destiny,
+      Destiny = dplyr::recode(
+        Destiny,
         food = "Food",
         other_uses = "Other_uses",
         feed = "Feed",
@@ -821,7 +904,12 @@ create_prod_and_destiny_grafs <- function() {
       )
     ) |>
     dplyr::select(
-      Year, Province_name, Item, Box, Destiny, MgN
+      Year,
+      Province_name,
+      Item,
+      Box,
+      Destiny,
+      MgN
     )
 
   grafs_prod_destiny_final
