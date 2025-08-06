@@ -12,3 +12,6 @@
 ^README\.Rmd$
 ^cran-comments\.md$
 ^CRAN-SUBMISSION$
+^air.toml$
+^doc$
+^Meta$
