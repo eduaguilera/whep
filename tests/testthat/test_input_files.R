@@ -10,30 +10,27 @@ testthat::test_that(".fetch_file_info fails for non-existent file_alias", {
   )
 })
 
-testthat::test_that(
-  ".fetch_file_info fails for duplicated entries only in filtered rows",
-  {
-    file_inputs <- dplyr::tribble(
-      ~alias, ~board_url, ~version,
-      "file_alias_1", "some_url", "some_version",
-      "file_alias_1", "some_other_url", "some_other_version",
-      "file_alias_2", "some_url", "some_version_2"
-    )
+testthat::test_that(".fetch_file_info fails for duplicated entries only in filtered rows", {
+  file_inputs <- dplyr::tribble(
+    ~alias, ~board_url, ~version,
+    "file_alias_1", "some_url", "some_version",
+    "file_alias_1", "some_other_url", "some_other_version",
+    "file_alias_2", "some_url", "some_version_2"
+  )
 
-    testthat::expect_error(
-      .fetch_file_info("file_alias_1", file_inputs),
-      paste0(
-        "There are 2 file entries with alias file_alias_1 and there should ",
-        "be only one. Double check the content of ",
-        "'whep_inputs' dataset."
-      )
+  testthat::expect_error(
+    .fetch_file_info("file_alias_1", file_inputs),
+    paste0(
+      "There are 2 file entries with alias file_alias_1 and there should ",
+      "be only one. Double check the content of ",
+      "'whep_inputs' dataset."
     )
+  )
 
-    # Don't bother making the call fully work. It fails when trying to download,
-    # so it already passed the filter we wanted to test.
-    testthat::expect_error(whep_read_file("file_alias_2"))
-  }
-)
+  # Don't bother making the call fully work. It fails when trying to download,
+  # so it already passed the filter we wanted to test.
+  testthat::expect_error(whep_read_file("file_alias_2"))
+})
 
 testthat::test_that(".read_file reads file with correct extension", {
   testthat::local_mocked_bindings(

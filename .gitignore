@@ -9,4 +9,5 @@
 inst/google_cloud_key.json
 inst/doc
 docs
-grafs_prod_destiny.csv
+/doc/
+/Meta/

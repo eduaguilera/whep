@@ -265,7 +265,11 @@ get_bilateral_trade <- function(trade_version = NULL, cbs_version = NULL) {
     dplyr::ungroup() |>
     tidyr::nest(
       total_trade = c(
-        area_code, export, import, balanced_export, balanced_import
+        area_code,
+        export,
+        import,
+        balanced_export,
+        balanced_import
       ),
       .by = c(year, item_cbs_code)
     )
