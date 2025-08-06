@@ -31,7 +31,9 @@ expand_trade_sources <- function(trade_sources) {
     .expand_trade_years() |>
     dplyr::mutate(
       Name = dplyr::if_else(
-        Info_Format == "year", paste(Name, Year, sep = "_"), Name
+        Info_Format == "year",
+        paste(Name, Year, sep = "_"),
+        Name
       ),
       ImpExp = `Imp/Exp`,
       In_Saco = as.integer(!is.na(SACO_link)),
