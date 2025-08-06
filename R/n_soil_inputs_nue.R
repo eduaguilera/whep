@@ -156,7 +156,9 @@ create_n_production <- function() {
   n_prod_data <- grafs_prod_destiny |>
     dplyr::filter(!is.na(Box)) |>
     tidyr::pivot_wider(
-      names_from = Destiny, values_from = MgN, values_fn = sum,
+      names_from = Destiny,
+      values_from = MgN,
+      values_fn = sum,
       values_fill = list(MgN = 0)
     ) |>
     dplyr::mutate(
@@ -190,7 +192,8 @@ calculate_nue_crops <- function() {
   n_prod_data <- create_n_production()
 
   nue <- dplyr::inner_join(
-    n_soil_inputs, n_prod_data,
+    n_soil_inputs,
+    n_prod_data,
     by = c("Year", "Province_name", "Item", "Box")
   ) |>
     dplyr::filter(!is.na(Box)) |>
@@ -198,8 +201,10 @@ calculate_nue_crops <- function() {
       inputs = deposition + fixation + synthetic + manure + urban
     ) |>
     dplyr::filter(
-      !is.na(prod), !is.na(inputs),
-      prod > 0, inputs > 0
+      !is.na(prod),
+      !is.na(inputs),
+      prod > 0,
+      inputs > 0
     ) |>
     dplyr::mutate(
       nue = prod / inputs * 100
