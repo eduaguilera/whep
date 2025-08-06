@@ -33,10 +33,20 @@ test_that(".calculate_n_soil_inputs calculates N soil inputs correctly", {
 
   result <- .calculate_n_soil_inputs(n_balance_ygpit_all, codes_coefs)
 
-  expect_true(all(c(
-    "Year", "Province_name", "Item", "Box",
-    "deposition", "fixation", "synthetic", "manure", "urban"
-  ) %in% names(result)))
+  expect_true(all(
+    c(
+      "Year",
+      "Province_name",
+      "Item",
+      "Box",
+      "deposition",
+      "fixation",
+      "synthetic",
+      "manure",
+      "urban"
+    ) %in%
+      names(result)
+  ))
 
   expect_true(all(result$deposition >= 0))
 
