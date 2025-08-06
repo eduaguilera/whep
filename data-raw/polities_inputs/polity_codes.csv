@@ -40,7 +40,6 @@ Benin,BEN-1800-2025
 Bermuda,BMU-1800-2025
 Bhutan,BTN-1800-2025
 Bolivia,BOL-1825-2025
-Bolivia (Plurinational State of),BOL-1800-2025
 "Bonaire, Sint Eustatius and Saba",BES-2010-2025
 Bonin island,BON-1846-1873
 Bosnia and Herzegovina,BIH-1992-2025
@@ -62,7 +61,6 @@ Brunei (greater),BRG-1816-1888
 Bukhara,BUK-1800-1920
 Bulgaria,BGR-1878-2025
 Burkina Faso,BFA-1800-2025
-Burma (Myammar),BUR-1800-2025
 Burundi,BDI-1800-2025
 Cabo Verde,CPV-1800-2025
 Cambodia,KHM-1800-2025
@@ -71,7 +69,6 @@ Cameroon (Kamerun),CAM-1884-2025
 Canada,CAN-1866-2025
 Canary Islands,CAN-1800-2025
 Canton and Enderbury Islands,CAN-1800-1982
-CapoVerde,CAP-1800-2025
 Caribbean,F5206-1800-2025
 Caroline Island,CAR-1885-2025
 Caucasus and Central Asia,F5857-1800-2025
@@ -90,8 +87,7 @@ Cocos (Keeling) Islands,CCK-1800-2025
 Colombia,COL-1800-2025
 Comoros,COM-1800-2025
 Congo,COG-1800-2025
-Cook Island,COO-1893-1901
-Cook Islands,COK-1800-2025
+Cook Islands,COK-1893-2025
 Costa Rica,CRI-1800-2025
 Crete,CRE-1898-1913
 Croatia,HRV-1992-2025
@@ -129,7 +125,7 @@ El Salvador,SLV-1821-2025
 Equatorial Guinea,GNQ-1800-2025
 Eritrea,ERI-1882-2025
 Estonia,EST-1918-2025
-Eswatini,SWZ-1800-2025
+Eswatini,SWZ-1894-2025
 Ethiopia,ETH-1993-2025
 Ethiopia PDR,F62-1800-1993
 Europe,F5400-1800-2025
@@ -150,9 +146,7 @@ FAO Major Fishing Area: Mediterranean and Black Sea (14.4.1),F99032-1800-2025
 "FAO Major Fishing Area: Pacific, Southeast (14.4.1)",F99031-1800-2025
 "FAO Major Fishing Area: Pacific, Southwest (14.4.1)",F99022-1800-2025
 "FAO Major Fishing Area: Pacific, Western Central (14.4.1)",F99021-1800-2025
-Falkland Islands,FAL-1833-2025
-Falkland Islands (Malvinas),FLK-1800-2025
-Faroe Is,FAR-1800-2025
+Falkland Islands,FLK-1833-2025
 Faroe Islands,FRO-1800-2025
 Federal Republic of Germany,F78-1800-1990
 Federated Malay States,FED-1895-1922
@@ -239,7 +233,7 @@ Kwang-Chou-Wan,KCW-1898-2025
 Kwantung (Port Arthur),KWA-1898-2025
 Kyrgyzstan,KGZ-1991-2025
 Land Locked Developing Countries (LLDCs),F5802-1800-2025
-Lao People's Democratic Republic,LAO-1800-2025
+Laos,LAO-1800-2025
 Latin America,F348-1800-2025
 Latin America and the Caribbean,F5205-1800-2025
 Latvia,LVA-1918-2025
@@ -277,8 +271,7 @@ Mexico,MEX-1800-2025
 Micronesia (Oceania region),F5503-1800-2025
 Micronesia,FSM-1991-2025
 Middle Africa,F5102-1800-2025
-Midway Island,MID-1859-2025
-Midway Islands,MID-1800-1982
+Midway Islands,MID-1859-1982
 Monaco,MCO-1800-2025
 Mongolia,MNG-1911-2025
 Montenegro,MNE-1878-1918
@@ -350,10 +343,8 @@ Qatar,QAT-1800-2025
 Queensland,QUE-1859-1900
 Ras al Khaimah,RAS-1919-2025
 Regional Centres (FAO) (2.5.1.a),F5822-1800-2025
-Republic of Moldova,MDA-1991-2025
-Rhodesia,RHO-1890-2025
+Moldova,MDA-1991-2025
 Romania,ROU-1859-2025
-Russia/USSR,RUS-1800-2025
 Russian Federation,RUS-1991-2025
 Rwanda,RWA-1800-2025
 Rwanda and Burundi,RWA-1919-2025
@@ -419,7 +410,6 @@ Sudan (Anglo-Egyptian),SUD-1882-2025
 Sudan (old),F206-1800-2011
 Suriname,SUR-1800-2025
 Svalbard and Jan Mayen,SJM-1800-2025
-Swaziland,SWA-1894-2025
 Sweden,SWE-1800-2025
 Switzerland,CHE-1800-2025
 Syria and Lebanon,SYR-1918-2025
@@ -428,11 +418,9 @@ Taiwan,TWN-1800-2025
 Tajikistan,TJK-1991-2025
 Thailand,THA-1800-2025
 Tibet,TIB-1800-2025
-Timor,TIM-1800-2025
 Timor-Leste,TLS-1800-2025
 Togo,TGO-1800-2025
-Tokelau,TKL-1800-2025
-Tokelau Island,TOK-1877-2025
+Tokelau,TKL-1877-2025
 Tonga,TON-1800-2025
 Transvaal,TRA-1856-1902
 Trinidad and Tobago,TTO-1800-2025
@@ -463,7 +451,7 @@ Vancouver´s Island,VAN-1849-1866
 Vanuatu,VUT-1800-2025
 Venezuela,VEN-1821-2025
 Victoria,VIC-1853-1900
-Viet Nam,VNM-1800-2025
+Vietnam,VNM-1800-2025
 Wake Island,WAK-1898-1982
 Wallis and Futuna,WLF-1842-2025
 Western Africa,F5105-1800-2025
@@ -481,5 +469,5 @@ Yugoslavia,F248-1800-1992
 Yunnan,YUN-1856-1871
 Zambia,ZMB-1800-2025
 Zanzibar,ZAN-1800-2025
-Zimbabwe,ZWE-1800-2025
+Zimbabwe,ZWE-1890-2025
 Åland Islands,ALA-2003-2025
