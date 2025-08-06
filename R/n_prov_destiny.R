@@ -509,37 +509,61 @@ create_prod_and_destiny_grafs <- function() {
   # Dry Matter production
   prod_grazed_no_seeds_dm <- grazed_no_seeds_primary |>
     dplyr::left_join(
-      biomass_coefs |> dplyr::select(Name_biomass, Product_kgDM_kgFM),
+      biomass_coefs |> dplyr::select(
+        Name_biomass, Product_kgDM_kgFM, Residue_kgDM_kgFM
+      ),
       by = c("Biomass_match" = "Name_biomass")
     ) |>
     dplyr::mutate(
-      production_dm = production_fm * Product_kgDM_kgFM
+      conversion_dm = dplyr::if_else(
+        prod_type %in% c(
+          "Residue", "Grass"
+        ), Residue_kgDM_kgFM, Product_kgDM_kgFM
+      ),
+      production_dm = production_fm * conversion_dm
     )
+
 
   # Join with DM to N conversion factors using Biomass_match, then calculate
   # N production
   prod_grazed_no_seeds_n <- prod_grazed_no_seeds_dm |>
     dplyr::left_join(
       biomass_coefs |>
-        dplyr::select(Name_biomass, Product_kgN_kgDM),
+        dplyr::select(Name_biomass, Product_kgN_kgDM, Residue_kgN_kgDM),
       by = c("Biomass_match" = "Name_biomass")
     ) |>
     dplyr::mutate(
-      production_n = production_dm * Product_kgN_kgDM
+      conversion_n = dplyr::if_else(
+        prod_type %in% c(
+          "Residue", "Grass"
+        ), Residue_kgN_kgDM, Product_kgN_kgDM
+      ),
+      production_n = production_dm * conversion_n
     ) |>
     # Remove intermediate columns and rename Biomass_match to Name_biomass
+    dplyr::select(-Name_biomass) |>
     dplyr::select(
-      -production_fm, -Product_kgDM_kgFM, -Product_kgN_kgDM,
-      -Name_biomass
+      Year, Province_name, Item, Box, LandUse, Irrig_cat,
+      Irrig_type, prod_type, production_n
     ) |>
-    dplyr::rename(Name_biomass = Biomass_match)
+    dplyr::filter(!(is.na(Item) & production_n == 0)) |>
+    dplyr::group_by(
+      Year, Province_name, Item, Box, LandUse, Irrig_cat,
+      Irrig_type, prod_type
+    ) |>
+    dplyr::summarise(
+      production_n = sum(production_n, na.rm = TRUE),
+      .groups = "drop"
+    )
 
   # Summarize total Dry Matter and Nitrogen production per Item, Year,
   # Province, and Box
   grafs_prod_item <- prod_grazed_no_seeds_n |>
-    dplyr::group_by(Year, Province_name, Item, Box) |>
+    dplyr::group_by(
+      Year, Province_name, Item, Box, LandUse,
+      Irrig_cat, Irrig_type, prod_type, production_n
+    ) |>
     dplyr::summarise(
-      production_dm = sum(production_dm, na.rm = TRUE),
       production_n = sum(production_n, na.rm = TRUE),
       .groups = "drop"
     )
@@ -570,7 +594,7 @@ create_prod_and_destiny_grafs <- function() {
   feed_intake
 }
 
-#' @title Popoulation
+#' @title Population
 #' @description Use column Pop_Mpeop_yg. Calculate the share of population
 #' (population in each province divided through whole population in
 #' Spain to get the share).
@@ -676,7 +700,15 @@ create_prod_and_destiny_grafs <- function() {
   food_with_share,
   other_uses_with_share
 ) {
-  grafs_prod_item_combined <- grafs_prod_item |>
+  grafs_prod_item_sum <- grafs_prod_item |>
+    dplyr::select(Year, Province_name, Item, Box, production_n) |>
+    dplyr::group_by(Year, Province_name, Item, Box) |>
+    dplyr::summarise(production_n = sum(
+      production_n,
+      na.rm = TRUE
+    ), .groups = "drop")
+
+  grafs_prod_item_combined <- grafs_prod_item_sum |>
     dplyr::full_join(food_with_share |> dplyr::rename(Food_MgFM = Food_Mg),
       by = c("Year", "Province_name", "Item")
     ) |>
@@ -715,31 +747,49 @@ create_prod_and_destiny_grafs <- function() {
       codes_coefs_items_full |> dplyr::select(item, Name_biomass),
       by = c("Item" = "item")
     ) |>
-    dplyr::relocate(Name_biomass, .after = Item) |>
-    # Convert the conversion factors into grafs_prod_item
+    dplyr::mutate(
+      prod_type = dplyr::case_when(
+        Name_biomass %in% c("Grass", "Holm oak forest", "Fallow") ~ "Grass",
+        Name_biomass == "Average wood" ~ "Residue",
+        TRUE ~ "Product"
+      )
+    ) |>
     dplyr::left_join(
       biomass_coefs |> dplyr::select(
-        Name_biomass, Product_kgDM_kgFM,
-        Product_kgN_kgDM
+        Name_biomass,
+        Product_kgDM_kgFM, Product_kgN_kgDM,
+        Residue_kgDM_kgFM, Residue_kgN_kgDM
       ),
       by = "Name_biomass"
     ) |>
-    # Convert FM → DM → N for each use type
     dplyr::mutate(
-      food_mg_dm = Food_MgFM * Product_kgDM_kgFM,
-      other_uses_mg_dm = OtherUses_MgFM * Product_kgDM_kgFM,
-      feed_mg_dm = Feed_MgFM * Product_kgDM_kgFM,
-      food = food_mg_dm * Product_kgN_kgDM,
-      other_uses = other_uses_mg_dm * Product_kgN_kgDM,
-      feed = feed_mg_dm * Product_kgN_kgDM
+      food_mg_dm = Food_MgFM * dplyr::if_else(
+        prod_type == "Residue", Residue_kgDM_kgFM, Product_kgDM_kgFM
+      ),
+      other_uses_mg_dm = OtherUses_MgFM * dplyr::if_else(
+        prod_type == "Residue", Residue_kgDM_kgFM, Product_kgDM_kgFM
+      ),
+      feed_mg_dm = Feed_MgFM * dplyr::if_else(
+        prod_type == "Residue", Residue_kgDM_kgFM, Product_kgDM_kgFM
+      ),
+      food = food_mg_dm * dplyr::if_else(
+        prod_type == "Residue", Residue_kgN_kgDM, Product_kgN_kgDM
+      ),
+      other_uses = other_uses_mg_dm * dplyr::if_else(
+        prod_type == "Residue", Residue_kgN_kgDM, Product_kgN_kgDM
+      ),
+      feed = feed_mg_dm * dplyr::if_else(
+        prod_type == "Residue", Residue_kgN_kgDM, Product_kgN_kgDM
+      )
     ) |>
     dplyr::select(
-      Year, Province_name, Item, Name_biomass, Box, production_n,
+      Year, Province_name, Item, Name_biomass, prod_type, Box, production_n,
       food, other_uses, feed
     )
 
   grafs_prod_item_n
 }
+
 
 #' @title Consumption and Trade
 #' @description Calculation of consumption by destiny and trade
