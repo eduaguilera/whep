@@ -11,6 +11,7 @@ polities_inputs_path <- here::here("data-raw", "polities_inputs")
 k_source_faostat <- "faostat"
 k_source_m49 <- "m49"
 k_source_federico_tena <- "federico_tena"
+k_source_cshapes <- "cshapes"
 k_source_whep <- "whep"
 
 k_faostat_regions <- .clean_faostat_regions()
@@ -30,6 +31,10 @@ k_federico_tena_polities |>
   readr::write_csv(
     file.path(polities_inputs_path, "federico_tena_polities.csv")
   )
+
+k_cshapes <- .clean_cshapes()
+k_cshapes |>
+  readr::write_csv(file.path(polities_inputs_path, "cshapes.csv"))
 
 k_whep_polity_fixes <- polities_inputs_path |>
   fs::path("whep_fixes.csv") |>
@@ -52,6 +57,7 @@ usethis::use_data(
   k_unstats_m49,
   k_historical_m49,
   k_federico_tena_polities,
+  k_cshapes,
   k_whep_polity_fixes,
   k_polity_common_names,
   k_polity_codes,
@@ -60,6 +66,7 @@ usethis::use_data(
   k_source_faostat,
   k_source_m49,
   k_source_federico_tena,
+  k_source_cshapes,
   k_source_whep,
   internal = TRUE,
   overwrite = TRUE
