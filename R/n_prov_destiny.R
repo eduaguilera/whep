@@ -137,16 +137,6 @@ create_prod_and_destiny_grafs <- function() {
 #' @noRd
 .summarise_crops_residues <- function(crop_area_npp_ygpitr_no_fallow) {
   crop_area_npp_prod_residue <- crop_area_npp_ygpitr_no_fallow |>
-    dplyr::select(
-      Year,
-      Province_name,
-      Name_biomass,
-      Prod_ygpit_Mg,
-      Product_residue,
-      Item,
-      Irrig_cat,
-      Irrig_type
-    ) |>
     dplyr::mutate(LandUse = "Cropland") |>
     dplyr::rename(prod_type = Product_residue) |>
     dplyr::group_by(
@@ -641,8 +631,7 @@ create_prod_and_destiny_grafs <- function() {
       LandUse,
       Irrig_cat,
       Irrig_type,
-      prod_type,
-      production_n
+      prod_type
     ) |>
     dplyr::summarise(
       production_n = sum(production_n, na.rm = TRUE),
@@ -668,9 +657,8 @@ create_prod_and_destiny_grafs <- function() {
   feed_intake
 ) {
   feed_intake <- feed_intake |>
-    dplyr::select(Year, Province_name, Item, FM_Mg) |>
     dplyr::group_by(Year, Province_name, Item) |>
-    dplyr::summarise(FM_Mg_total = sum(FM_Mg, na.rm = TRUE), .groups = "drop")
+    dplyr::summarise(feed = sum(FM_Mg, na.rm = TRUE), .groups = "drop")
 
   feed_intake
 }
@@ -707,7 +695,7 @@ create_prod_and_destiny_grafs <- function() {
 }
 
 #' @title Food -----------------------------------------------------------------
-#' @description Sum all Elements for food and multiply with population share
+#' @description Sum all Elements for food and multiply by population share
 #'
 #' @param pie_full_destinies_fm A dataframe containing domestic supply food.
 #' @param population_share A dataframe containing population share by province.
@@ -727,20 +715,20 @@ create_prod_and_destiny_grafs <- function() {
       .groups = "drop"
     )
 
-  food_with_share <- dplyr::left_join(
+  provincial_food <- dplyr::left_join(
     total_food,
     population_share,
     by = "Year",
     relationship = "many-to-many"
   ) |>
-    dplyr::mutate(Food_Mg = Pop_share * Total_Food_value) |>
-    dplyr::select(Year, Province_name, Item, Food_Mg)
+    dplyr::mutate(food = Pop_share * Total_Food_value) |>
+    dplyr::select(Year, Province_name, Item, food)
 
-  food_with_share
+  provincial_food
 }
 
 #' @title Other_uses -----------------------------------------------------------
-#' @description Sum all elements for Other_uses and multiply with pop share.
+#' @description Sum all elements for Other_uses and multiply by pop share.
 #'
 #' @param pie_full_destinies_fm A dataframe containing domestic supply.
 #' other uses.
@@ -753,7 +741,7 @@ create_prod_and_destiny_grafs <- function() {
   pie_full_destinies_fm,
   population_share
 ) {
-  other_uses_with_share <- pie_full_destinies_fm |>
+  provincial_other_uses <- pie_full_destinies_fm |>
     dplyr::filter(Destiny == "Other_uses", Element == "Domestic_supply") |>
     dplyr::group_by(Year, Item) |>
     dplyr::summarise(
@@ -761,10 +749,10 @@ create_prod_and_destiny_grafs <- function() {
       .groups = "drop"
     ) |>
     dplyr::left_join(population_share, by = "Year") |>
-    dplyr::mutate(OtherUses_Mg = Pop_share * Total_OtherUses_value) |>
-    dplyr::select(Year, Province_name, Item, OtherUses_Mg)
+    dplyr::mutate(other_uses = Pop_share * Total_OtherUses_value) |>
+    dplyr::select(Year, Province_name, Item, other_uses)
 
-  other_uses_with_share
+  provincial_other_uses
 }
 
 #' @title Combine all destinies ------------------------------------------------
@@ -772,8 +760,8 @@ create_prod_and_destiny_grafs <- function() {
 #'
 #' @param grafs_prod_item Dataframe production data for items.
 #' @param feed_intake Feed intake values per province and item.
-#' @param food_with_share Food values per province and item.
-#' @param other_uses_with_share Other uses per province and item.
+#' @param provincial_food Food values per province and item.
+#' @param provincial_other_uses Other uses per province and item.
 #'
 #' @return A combined dataframe with food, feed, and other uses.
 #' @keywords internal
@@ -781,8 +769,8 @@ create_prod_and_destiny_grafs <- function() {
 .combine_destinies <- function(
   grafs_prod_item,
   feed_intake,
-  food_with_share,
-  other_uses_with_share
+  provincial_food,
+  provincial_other_uses
 ) {
   grafs_prod_item_sum <- grafs_prod_item |>
     dplyr::select(Year, Province_name, Item, Box, production_n) |>
@@ -797,16 +785,15 @@ create_prod_and_destiny_grafs <- function() {
 
   grafs_prod_item_combined <- grafs_prod_item_sum |>
     dplyr::full_join(
-      food_with_share |> dplyr::rename(Food_MgFM = Food_Mg),
+      provincial_food,
       by = c("Year", "Province_name", "Item")
     ) |>
     dplyr::full_join(
-      other_uses_with_share |>
-        dplyr::rename(OtherUses_MgFM = OtherUses_Mg),
+      provincial_other_uses,
       by = c("Year", "Province_name", "Item")
     ) |>
     dplyr::full_join(
-      feed_intake |> dplyr::rename(Feed_MgFM = FM_Mg_total),
+      feed_intake,
       by = c("Year", "Province_name", "Item")
     )
 
@@ -831,7 +818,7 @@ create_prod_and_destiny_grafs <- function() {
   codes_coefs_items_full,
   biomass_coefs
 ) {
-  grafs_prod_item_n <- grafs_prod_item_combined |>
+  grafs_prod_item_combined |>
     dplyr::left_join(
       codes_coefs_items_full |> dplyr::select(item, Name_biomass),
       by = c("Item" = "item")
@@ -843,54 +830,33 @@ create_prod_and_destiny_grafs <- function() {
         TRUE ~ "Product"
       )
     ) |>
+    tidyr::pivot_longer(
+      cols = c(food, other_uses, feed),
+      names_to = "destiny",
+      values_to = "value_fm"
+    ) |>
     dplyr::left_join(
-      biomass_coefs |>
-        dplyr::select(
-          Name_biomass,
-          Product_kgDM_kgFM,
-          Product_kgN_kgDM,
-          Residue_kgDM_kgFM,
-          Residue_kgN_kgDM
-        ),
+      biomass_coefs |> dplyr::select(
+        Name_biomass,
+        Product_kgDM_kgFM,
+        Product_kgN_kgDM,
+        Residue_kgDM_kgFM,
+        Residue_kgN_kgDM
+      ),
       by = "Name_biomass"
     ) |>
     dplyr::mutate(
-      food_mg_dm = Food_MgFM *
+      n_value = value_fm *
         dplyr::if_else(
-          prod_type == "Residue",
-          Residue_kgDM_kgFM,
-          Product_kgDM_kgFM
-        ),
-      other_uses_mg_dm = OtherUses_MgFM *
+          prod_type == "Residue", Residue_kgDM_kgFM, Product_kgDM_kgFM
+        ) *
         dplyr::if_else(
-          prod_type == "Residue",
-          Residue_kgDM_kgFM,
-          Product_kgDM_kgFM
-        ),
-      feed_mg_dm = Feed_MgFM *
-        dplyr::if_else(
-          prod_type == "Residue",
-          Residue_kgDM_kgFM,
-          Product_kgDM_kgFM
-        ),
-      food = food_mg_dm *
-        dplyr::if_else(
-          prod_type == "Residue",
-          Residue_kgN_kgDM,
-          Product_kgN_kgDM
-        ),
-      other_uses = other_uses_mg_dm *
-        dplyr::if_else(
-          prod_type == "Residue",
-          Residue_kgN_kgDM,
-          Product_kgN_kgDM
-        ),
-      feed = feed_mg_dm *
-        dplyr::if_else(
-          prod_type == "Residue",
-          Residue_kgN_kgDM,
-          Product_kgN_kgDM
+          prod_type == "Residue", Residue_kgN_kgDM, Product_kgN_kgDM
         )
+    ) |>
+    tidyr::pivot_wider(
+      names_from = destiny,
+      values_from = n_value
     ) |>
     dplyr::select(
       Year,
@@ -904,10 +870,7 @@ create_prod_and_destiny_grafs <- function() {
       other_uses,
       feed
     )
-
-  grafs_prod_item_n
 }
-
 
 #' @title Consumption and Trade
 #' @description Calculation of consumption by destiny and trade
@@ -918,22 +881,34 @@ create_prod_and_destiny_grafs <- function() {
 #' @return A dataframe with consumption, exports, and imports in MgN.
 #' @keywords internal
 #' @noRd
-.calculate_trade <- function(
-  grafs_prod_item_n
-) {
-  grafs_prod_item_trade <- grafs_prod_item_n |>
-    dplyr::group_by(Year, Province_name, Item, Name_biomass, Box) |>
+.calculate_trade <- function(grafs_prod_item_n) {
+  grafs_prod_item_n |>
+    dplyr::group_by(Year, Province_name, Item, Box) |>
+    dplyr::summarise(
+      food = sum(food, na.rm = TRUE),
+      other_uses = sum(other_uses, na.rm = TRUE),
+      feed = sum(feed, na.rm = TRUE),
+      production_n = sum(production_n, na.rm = TRUE),
+      .groups = "drop"
+    ) |>
     dplyr::mutate(
-      consumption = rowSums(cbind(food, other_uses, feed), na.rm = TRUE),
-      production_n_tmp = tidyr::replace_na(production_n, 0),
-      net_trade = production_n_tmp - consumption,
+      consumption = food + other_uses + feed,
+      net_trade = production_n - consumption,
       export = ifelse(net_trade > 0, net_trade, 0),
       import = ifelse(net_trade < 0, -net_trade, 0)
     ) |>
-    dplyr::select(-production_n_tmp) |>
-    dplyr::ungroup()
-
-  grafs_prod_item_trade
+    dplyr::select(
+      Year,
+      Province_name,
+      Item,
+      Box,
+      food,
+      other_uses,
+      feed,
+      production_n,
+      export,
+      import
+    )
 }
 
 #' @title Finalize production and destiny output -------------------------------
@@ -950,7 +925,7 @@ create_prod_and_destiny_grafs <- function() {
   grafs_prod_item_trade,
   codes_coefs_items_full
 ) {
-  grafs_prod_destiny <- grafs_prod_item_trade |>
+  grafs_prod_destiny_final <- grafs_prod_item_trade |>
     dplyr::left_join(
       dplyr::select(codes_coefs_items_full, item, group),
       by = c("Item" = "item")
@@ -959,37 +934,37 @@ create_prod_and_destiny_grafs <- function() {
       Box = dplyr::case_when(
         Item == "Acorns" ~ "Semi_natural_agroecosystems",
         is.na(Box) & Item == "Fallow" ~ "Cropland",
-        is.na(Box) &
-          group %in%
-            c(
-              "Crop products",
-              "Primary crops",
-              "crop residue"
-            ) ~
-          "Cropland",
-        is.na(Box) & group %in% c("Livestock products", "Livestock") ~
-          "Livestock",
-        is.na(Box) & group %in% c("Additives", "Fish") ~ group,
+        is.na(Box) & group %in% c(
+          "Crop products", "Primary crops", "crop residue"
+        ) ~ "Cropland",
+        is.na(Box) & group %in% c(
+          "Livestock products", "Livestock"
+        ) ~ "Livestock",
+        is.na(Box) & group %in% c(
+          "Additives", "Fish"
+        ) ~ group,
         TRUE ~ Box
       )
     ) |>
-    dplyr::select(-group)
-
-  grafs_prod_destiny_final <- grafs_prod_destiny |>
+    dplyr::select(-group) |>
     tidyr::pivot_longer(
       cols = c(food, other_uses, feed, export, import),
       names_to = "Destiny",
       values_to = "MgN"
     ) |>
+    dplyr::group_by(Year, Province_name, Item, Box, Destiny) |>
+    dplyr::summarise(MgN = sum(MgN, na.rm = TRUE), .groups = "drop") |>
     dplyr::mutate(
-      Destiny = dplyr::recode(
-        Destiny,
-        food = "Food",
-        other_uses = "Other_uses",
-        feed = "Feed",
-        export = "Export",
-        import = "Import"
-      )
+      Destiny = factor(Destiny, levels = c(
+        "food", "other_uses", "feed", "export", "import"
+      ))
+    ) |>
+    dplyr::arrange(
+      Year,
+      Province_name,
+      Box,
+      Item,
+      Destiny
     ) |>
     dplyr::select(
       Year,

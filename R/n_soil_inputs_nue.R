@@ -25,7 +25,6 @@
 #'   - `inputs`: Total nitrogen inputs in megagrams (Mg).
 #'
 #' @export
-#' @export
 create_n_soil_inputs <- function() {
   .calculate_n_soil_inputs(
     whep_read_file("n_balance_ygpit_all"),
@@ -118,9 +117,9 @@ create_n_soil_inputs <- function() {
 #' @return A tibble with combined N input and production data.
 #' @export
 create_n_production <- function() {
-  data <- .load_n_inputs()
-
-  .calculate_n_production(data$grafs_prod_destiny)
+  .calculate_n_production(
+    whep_read_file("grafs_prod_destiny")
+  )
 }
 
 #' @title Calculate N Production
