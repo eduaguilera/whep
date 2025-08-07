@@ -24,6 +24,7 @@ Imports:
     pins,
     purrr,
     readr,
+    readxl,
     rlang,
     stringr,
     tidyr,
