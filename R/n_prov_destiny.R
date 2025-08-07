@@ -836,22 +836,27 @@ create_prod_and_destiny_grafs <- function() {
       values_to = "value_fm"
     ) |>
     dplyr::left_join(
-      biomass_coefs |> dplyr::select(
-        Name_biomass,
-        Product_kgDM_kgFM,
-        Product_kgN_kgDM,
-        Residue_kgDM_kgFM,
-        Residue_kgN_kgDM
-      ),
+      biomass_coefs |>
+        dplyr::select(
+          Name_biomass,
+          Product_kgDM_kgFM,
+          Product_kgN_kgDM,
+          Residue_kgDM_kgFM,
+          Residue_kgN_kgDM
+        ),
       by = "Name_biomass"
     ) |>
     dplyr::mutate(
       n_value = value_fm *
         dplyr::if_else(
-          prod_type == "Residue", Residue_kgDM_kgFM, Product_kgDM_kgFM
+          prod_type == "Residue",
+          Residue_kgDM_kgFM,
+          Product_kgDM_kgFM
         ) *
         dplyr::if_else(
-          prod_type == "Residue", Residue_kgN_kgDM, Product_kgN_kgDM
+          prod_type == "Residue",
+          Residue_kgN_kgDM,
+          Product_kgN_kgDM
         )
     ) |>
     tidyr::pivot_wider(
