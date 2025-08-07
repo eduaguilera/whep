@@ -939,15 +939,28 @@ create_prod_and_destiny_grafs <- function() {
       Box = dplyr::case_when(
         Item == "Acorns" ~ "Semi_natural_agroecosystems",
         is.na(Box) & Item == "Fallow" ~ "Cropland",
-        is.na(Box) & group %in% c(
-          "Crop products", "Primary crops", "crop residue"
-        ) ~ "Cropland",
-        is.na(Box) & group %in% c(
-          "Livestock products", "Livestock"
-        ) ~ "Livestock",
-        is.na(Box) & group %in% c(
-          "Additives", "Fish"
-        ) ~ group,
+        is.na(Box) &
+          group %in%
+            c(
+              "Crop products",
+              "Primary crops",
+              "crop residue"
+            ) ~
+          "Cropland",
+        is.na(Box) &
+          group %in%
+            c(
+              "Livestock products",
+              "Livestock"
+            ) ~
+          "Livestock",
+        is.na(Box) &
+          group %in%
+            c(
+              "Additives",
+              "Fish"
+            ) ~
+          group,
         TRUE ~ Box
       )
     ) |>
