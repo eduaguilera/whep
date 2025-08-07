@@ -973,9 +973,16 @@ create_prod_and_destiny_grafs <- function() {
     dplyr::group_by(Year, Province_name, Item, Box, Destiny) |>
     dplyr::summarise(MgN = sum(MgN, na.rm = TRUE), .groups = "drop") |>
     dplyr::mutate(
-      Destiny = factor(Destiny, levels = c(
-        "food", "other_uses", "feed", "export", "import"
-      ))
+      Destiny = factor(
+        Destiny,
+        levels = c(
+          "food",
+          "other_uses",
+          "feed",
+          "export",
+          "import"
+        )
+      )
     ) |>
     dplyr::arrange(
       Year,
