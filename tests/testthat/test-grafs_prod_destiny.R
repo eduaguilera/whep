@@ -178,19 +178,28 @@ test_that(".combine_destinies joins correctly", {
   testthat::skip_on_ci()
 
   prod <- data.frame(
-    Year = 2020, Province_name = "A", Item = "Wheat",
-    Box = "Cropland", production_n = 500
+    Year = 2020,
+    Province_name = "A",
+    Item = "Wheat",
+    Box = "Cropland",
+    production_n = 500
   )
   food <- data.frame(
-    Year = 2020, Province_name = "A", Item = "Wheat",
+    Year = 2020,
+    Province_name = "A",
+    Item = "Wheat",
     Food_Mg = 100
   )
   other <- data.frame(
-    Year = 2020, Province_name = "A", Item = "Wheat",
+    Year = 2020,
+    Province_name = "A",
+    Item = "Wheat",
     OtherUses_Mg = 50
   )
   feed <- data.frame(
-    Year = 2020, Province_name = "A", Item = "Wheat",
+    Year = 2020,
+    Province_name = "A",
+    Item = "Wheat",
     FM_Mg_total = 25
   )
 
@@ -205,15 +214,21 @@ test_that(".convert_to_items_n applies conversions correctly", {
   testthat::skip_on_ci()
 
   input <- data.frame(
-    Year = 2020, Province_name = "A", Item = "Wheat",
-    Box = "Cropland", production_n = 500,
-    Food_MgFM = 100, OtherUses_MgFM = 50, Feed_MgFM = 25
+    Year = 2020,
+    Province_name = "A",
+    Item = "Wheat",
+    Box = "Cropland",
+    production_n = 500,
+    Food_MgFM = 100,
+    OtherUses_MgFM = 50,
+    Feed_MgFM = 25
   )
 
   code_map <- data.frame(item = "Wheat", Name_biomass = "BiomassWheat")
   coefs <- data.frame(
     Name_biomass = "BiomassWheat",
-    Product_kgDM_kgFM = 0.8, Product_kgN_kgDM = 0.02
+    Product_kgDM_kgFM = 0.8,
+    Product_kgN_kgDM = 0.02
   )
 
   result <- .convert_to_items_n(input, code_map, coefs)
@@ -227,9 +242,15 @@ test_that(".calculate_trade computes export/import properly", {
   testthat::skip_on_ci()
 
   input <- data.frame(
-    Year = 2020, Province_name = "A", Item = "Wheat",
-    Name_biomass = "BiomassWheat", Box = "Cropland",
-    production_n = 10, food = 2, other_uses = 3, feed = 1
+    Year = 2020,
+    Province_name = "A",
+    Item = "Wheat",
+    Name_biomass = "BiomassWheat",
+    Box = "Cropland",
+    production_n = 10,
+    food = 2,
+    other_uses = 3,
+    feed = 1
   )
 
   result <- .calculate_trade(input)
@@ -244,10 +265,16 @@ test_that(".finalize_prod_destiny completes with pivot and recoding", {
   testthat::skip_on_ci()
 
   input <- data.frame(
-    Year = 2020, Province_name = "A", Item = "Wheat", Box = NA,
+    Year = 2020,
+    Province_name = "A",
+    Item = "Wheat",
+    Box = NA,
     Name_biomass = "BiomassWheat",
-    food = 1.5, other_uses = 0.5, feed = 1.0,
-    export = 0.2, import = 0.1
+    food = 1.5,
+    other_uses = 0.5,
+    feed = 1.0,
+    export = 0.2,
+    import = 0.1
   )
 
   code_map <- data.frame(item = "Wheat", group = "Primary crops")
