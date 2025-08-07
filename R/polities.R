@@ -352,6 +352,67 @@ get_polity_sources <- function(polity_codes = NULL) {
     )
 }
 
+.clean_cshapes <- function() {
+  countries <- .load_cshapes()
+
+  csh_df <- countries |>
+    tibble::as_tibble() |>
+    dplyr::select(
+      country_name,
+      start,
+      end,
+      area
+    ) |>
+    .filter_relevant_area_changes()
+
+  csh_df |>
+    dplyr::inner_join(
+      readr::read_csv("data-raw/polities_inputs/rename_cshapes.csv"),
+      by = "country_name",
+      unmatched = "error"
+    ) |>
+    dplyr::arrange(desc(country_name), desc(start), desc(end)) |>
+    dplyr::mutate(
+      start_year = lubridate::year(start),
+      end_year = lubridate::year(end),
+      start_year = ifelse(start == as.Date("1886-01-01"), NA, start_year),
+      end_year = ifelse(end == as.Date("2019-12-31"), NA, end_year),
+      original_name = ifelse(
+        is.na(end_year),
+        stringr::str_glue("{country_name}"),
+        stringr::str_glue("{country_name} ({start_year}-{end_year})")
+      ),
+      area = units::set_units(area, km^2)
+    ) |>
+    dplyr::select(original_name, area) |>
+    print(n = 600)
+}
+
+.load_cshapes <- function() {
+  countries <- cshapes::cshp() |>
+    sf::st_make_valid()
+
+  countries |>
+    dplyr::mutate(
+      area = sf::st_area(countries)
+    )
+}
+
+.filter_relevant_area_changes <- function(countries) {
+  browser()
+
+  countries |>
+    print(n = 100)
+
+  countries |>
+    dplyr::arrange(country_name, start) |>
+    dplyr::filter(
+      (abs(area - dplyr::lag(area)) > units::set_units(2500, km^2)) |
+        is.na(dplyr::lag(area)),
+      .by = "country_name"
+    )
+}
+
 # TODO: todos from removed old code:
 # - Set source of polity (but can be more than one)
 # - Revise Edu's polities for special handlings
