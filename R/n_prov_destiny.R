@@ -906,8 +906,16 @@ create_prod_and_destiny_grafs <- function() {
         )
     ) |>
     dplyr::select(
-      Year, Province_name, Item, Name_biomass, prod_type, Box, production_n,
-      food, other_uses, feed
+      Year,
+      Province_name,
+      Item,
+      Name_biomass,
+      prod_type,
+      Box,
+      production_n,
+      food,
+      other_uses,
+      feed
     )
 
   grafs_prod_item_n
@@ -929,9 +937,7 @@ create_prod_and_destiny_grafs <- function() {
   grafs_prod_item_trade <- grafs_prod_item_n |>
     dplyr::group_by(Year, Province_name, Item, Name_biomass, Box) |>
     dplyr::mutate(
-      consumption = rowSums(cbind(food, other_uses, feed),
-        na.rm = TRUE
-      ),
+      consumption = rowSums(cbind(food, other_uses, feed), na.rm = TRUE),
       production_n_tmp = tidyr::replace_na(production_n, 0),
       net_trade = production_n_tmp - consumption,
       export = ifelse(net_trade > 0, net_trade, 0),
@@ -966,12 +972,16 @@ create_prod_and_destiny_grafs <- function() {
       Box = dplyr::case_when(
         Item == "Acorns" ~ "Semi_natural_agroecosystems",
         is.na(Box) & Item == "Fallow" ~ "Cropland",
-        is.na(Box) & group %in% c(
-          "Crop products", "Primary crops",
-          "crop residue"
-        ) ~ "Cropland",
-        is.na(Box) & group %in% c("Livestock products", "Livestock")
-        ~ "Livestock",
+        is.na(Box) &
+          group %in%
+            c(
+              "Crop products",
+              "Primary crops",
+              "crop residue"
+            ) ~
+          "Cropland",
+        is.na(Box) & group %in% c("Livestock products", "Livestock") ~
+          "Livestock",
         is.na(Box) & group %in% c("Additives", "Fish") ~ group,
         TRUE ~ Box
       )
@@ -985,7 +995,8 @@ create_prod_and_destiny_grafs <- function() {
       values_to = "MgN"
     ) |>
     dplyr::mutate(
-      Destiny = dplyr::recode(Destiny,
+      Destiny = dplyr::recode(
+        Destiny,
         food = "Food",
         other_uses = "Other_uses",
         feed = "Feed",
@@ -994,7 +1005,12 @@ create_prod_and_destiny_grafs <- function() {
       )
     ) |>
     dplyr::select(
-      Year, Province_name, Item, Box, Destiny, MgN
+      Year,
+      Province_name,
+      Item,
+      Box,
+      Destiny,
+      MgN
     )
 
   grafs_prod_destiny_final
