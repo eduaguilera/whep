@@ -25,33 +25,12 @@
 #'   - `inputs`: Total nitrogen inputs in megagrams (Mg).
 #'
 #' @export
+#' @export
 create_n_soil_inputs <- function() {
-  data <- .load_n_inputs()
-
   .calculate_n_soil_inputs(
-    data$n_balance_ygpit_all,
-    data$names_biomass_cb
+    whep_read_file("n_balance_ygpit_all"),
+    whep_read_file("codes_coefs")
   )
-}
-
-#' @title Soil N Inputs --------------------------------------------------------
-#' @description Loading all required datasets.
-#' @return A named list including four datasets."grafs_prod_destiny" is the
-#' final output from the script "grafs_prod_destiny.R", a datset with N data by
-#' province and destiny (food, feed, other_uses, export, import).
-#' @keywords internal
-#' @noRd
-.load_n_inputs <- function() {
-  result <-
-    list(
-      # TODO: Feed intake need to be added to dataset as an input of Livestock
-      n_Excretion_ygs = whep_read_file("n_excretion_ygs"),
-      n_balance_ygpit_all = whep_read_file("n_balance_ygpit_all"),
-      grafs_prod_destiny = create_prod_and_destiny_grafs(),
-      names_biomass_cb = whep_read_file("codes_coefs")
-    )
-
-  result
 }
 
 #' @title Assign some special items to Boxes -----------------------------------
