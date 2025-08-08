@@ -14,7 +14,7 @@ It includes the following columns:
 \item \code{province_name}: The Spanish province where the data is from.
 \item \code{item}: The item which was produced, defined in \code{names_biomass_cb}.
 \item \code{box}: One of the GRAFS model systems: cropland,
-Semi-natural agroecosystems, Livestock, Fish, or Additives.
+Semi-natural agroecosystems, Livestock, Fish, or Agro-industry.
 \item \code{destiny}: The use category of the nitrogen: Food, Feed, Other_uses,
 Export, or Import.
 \item \code{MgN}: Nitrogen amount in megagrams (Mg).
@@ -25,6 +25,6 @@ Provides N production of crops and livestock, categorized by their destinies:
 food, feed, other uses, exports, imports, which is the base of the
 GRAFS model. The dataset contains data in megagrams of N (MgN) for each
 year, province, item, and box (cropland, semi natural agroecosystems,
-livestock, fish, additives). Processed items, residues, woody crops,
+livestock, fish, Agro-industry). Processed items, residues, woody crops,
 grazed weeds are taken into account.
 }
