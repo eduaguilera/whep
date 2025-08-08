@@ -706,7 +706,8 @@ create_prod_and_destiny_grafs <- function() {
 ) {
   total_food_other_uses <- pie_full_destinies_fm |>
     dplyr::filter(
-      Destiny %in% c("Food", "Other_uses"), Element == "Domestic_supply"
+      Destiny %in% c("Food", "Other_uses"),
+      Element == "Domestic_supply"
     ) |>
     dplyr::group_by(Year, Item, Destiny) |>
     dplyr::summarise(
@@ -721,7 +722,8 @@ create_prod_and_destiny_grafs <- function() {
   provincial_food_other_uses <- total_food_other_uses |>
     dplyr::left_join(
       population_share,
-      by = "Year", relationship = "many-to-many"
+      by = "Year",
+      relationship = "many-to-many"
     ) |>
     dplyr::mutate(
       Food = Pop_share * Food,
@@ -824,8 +826,8 @@ create_prod_and_destiny_grafs <- function() {
     ) |>
     dplyr::mutate(
       n_value = dplyr::case_when(
-        prod_type %in% c("Residue", "Grass")
-        ~ value_fm * Residue_kgDM_kgFM * Residue_kgN_kgDM,
+        prod_type %in% c("Residue", "Grass") ~
+          value_fm * Residue_kgDM_kgFM * Residue_kgN_kgDM,
         prod_type == "Product" ~
           value_fm * Product_kgDM_kgFM * Product_kgN_kgDM,
         TRUE ~ NA_real_
@@ -961,22 +963,38 @@ create_prod_and_destiny_grafs <- function() {
       Box_destiny = dplyr::case_when(
         Box == "Cropland" & Destiny == "export" ~ "crop_export",
         Box == "Livestock" & Destiny == "export" ~ "livestock_export",
-        Box == "Livestock" & Destiny %in% c(
-          "food", "other_uses"
-        ) ~ "livestock_to_pop",
-        Box == "Cropland" & Destiny %in% c(
-          "food", "other_uses"
-        ) ~ "crops_to_pop",
+        Box == "Livestock" &
+          Destiny %in%
+            c(
+              "food",
+              "other_uses"
+            ) ~
+          "livestock_to_pop",
+        Box == "Cropland" &
+          Destiny %in%
+            c(
+              "food",
+              "other_uses"
+            ) ~
+          "crops_to_pop",
         Box == "Grass" & Destiny == "feed" ~ "grass_to_livestock",
         Box == "Cropland" & Destiny == "feed" ~ "crops_to_livestock",
-        Box == "Fish" & Destiny %in% c(
-          "food", "other_uses"
-        ) ~ "fish_to_pop",
+        Box == "Fish" &
+          Destiny %in%
+            c(
+              "food",
+              "other_uses"
+            ) ~
+          "fish_to_pop",
         Box == "Fish" & Destiny == "feed" ~ "fish_to_livestock",
         Box == "Agro-industry" & Destiny == "feed" ~ "additives_to_livestock",
-        Box == "Agro-industry" & Destiny %in% c(
-          "food", "other_uses"
-        ) ~ "additives_to_pop",
+        Box == "Agro-industry" &
+          Destiny %in%
+            c(
+              "food",
+              "other_uses"
+            ) ~
+          "additives_to_pop",
         TRUE ~ NA_character_
       )
     ) |>
