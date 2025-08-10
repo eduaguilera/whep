@@ -63,6 +63,7 @@ utils::globalVariables(
     "food_mg_dm",
     "Food_MgFM",
     "Food_MgN",
+    "food_pets",
     "from_code",
     "geom_bar",
     "geom_sf",

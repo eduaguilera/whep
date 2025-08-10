@@ -647,12 +647,14 @@ create_prod_and_destiny_grafs <- function() {
 #' @return A dataframe with the total FM_Mg per year, province, and item.
 #' @keywords internal
 #' @noRd
-.adding_feed <- function(
-  feed_intake
-) {
+.adding_feed <- function(feed_intake) {
   feed_intake <- feed_intake |>
     dplyr::group_by(Year, Province_name, Item) |>
-    dplyr::summarise(feed = sum(FM_Mg, na.rm = TRUE), .groups = "drop")
+    dplyr::summarise(
+      feed = sum(FM_Mg[Livestock_cat != "Pets"], na.rm = TRUE),
+      food_pets = sum(FM_Mg[Livestock_cat == "Pets"], na.rm = TRUE),
+      .groups = "drop"
+    )
 
   feed_intake
 }
@@ -772,7 +774,11 @@ create_prod_and_destiny_grafs <- function() {
     dplyr::full_join(
       feed_intake,
       by = c("Year", "Province_name", "Item")
-    )
+    ) |>
+    dplyr::mutate(
+      food = dplyr::coalesce(food, 0) + dplyr::coalesce(food_pets, 0)
+    ) |>
+    dplyr::select(-food_pets)
 
   grafs_prod_item_combined
 }
