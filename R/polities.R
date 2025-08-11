@@ -196,7 +196,11 @@ get_polity_sources <- function(polity_codes = NULL) {
 
 .prepare_federico_tena <- function() {
   k_federico_tena_polities |>
-    dplyr::mutate(source = k_source_federico_tena) |>
+    dplyr::mutate(
+      source = k_source_federico_tena,
+      # Force first year because federico tena has earliest cover
+      start_year = ifelse(is.na(start_year), k_polity_first_year, start_year)
+    ) |>
     dplyr::select(
       original_name = polity_name,
       source,
