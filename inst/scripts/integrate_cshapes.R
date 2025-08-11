@@ -30,7 +30,10 @@ k_polity_common_names |>
   )
 
 cshapes_polity_codes <- cshapes |>
-  dplyr::anti_join(k_polity_codes, by = dplyr::join_by(common_name == polity_name)) |>
+  dplyr::anti_join(
+    k_polity_codes,
+    by = dplyr::join_by(common_name == polity_name)
+  ) |>
   dplyr::mutate(
     polity_code = .build_auto_polity_code(polity_name, start_year, end_year)
   ) |>
