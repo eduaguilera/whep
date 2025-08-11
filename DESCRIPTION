@@ -21,6 +21,7 @@ Imports:
     readxl,
     rlang,
     stringr,
+    sf,
     tidyr
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)

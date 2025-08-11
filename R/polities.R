@@ -121,6 +121,7 @@ get_polity_sources <- function(polity_codes = NULL) {
     .prepare_historical_m49(),
     .prepare_faostat(),
     .prepare_federico_tena(),
+    .prepare_cshapes(),
     .prepare_whep_fixes()
   )
 }
@@ -202,6 +203,21 @@ get_polity_sources <- function(polity_codes = NULL) {
       start_year,
       end_year,
       notes
+    )
+}
+
+.prepare_cshapes <- function() {
+  k_cshapes |>
+    dplyr::mutate(
+      source = k_source_cshapes,
+      polity_name = .add_years_in_name(polity_name, start_year, end_year)
+    ) |>
+    dplyr::select(
+      original_name = polity_name,
+      source,
+      start_year,
+      end_year,
+      geometry
     )
 }
 
@@ -353,39 +369,20 @@ get_polity_sources <- function(polity_codes = NULL) {
 }
 
 .clean_cshapes <- function() {
-  countries <- .load_cshapes()
-
-  csh_df <- countries |>
-    tibble::as_tibble() |>
+  .load_cshapes() |>
+    .filter_relevant_area_changes() |>
+    # Remove virtual time boundaries due to dataset study range
+    dplyr::mutate(
+      start_year = ifelse(start_year <= 1886, NA, start_year),
+      end_year = ifelse(end_year >= 2019, NA, end_year)
+    ) |>
     dplyr::select(
-      country_name,
-      start,
-      end,
+      polity_name = country_name,
+      start_year,
+      end_year,
       area
     ) |>
-    .filter_relevant_area_changes()
-
-  csh_df |>
-    dplyr::inner_join(
-      readr::read_csv("data-raw/polities_inputs/rename_cshapes.csv"),
-      by = "country_name",
-      unmatched = "error"
-    ) |>
-    dplyr::arrange(desc(country_name), desc(start), desc(end)) |>
-    dplyr::mutate(
-      start_year = lubridate::year(start),
-      end_year = lubridate::year(end),
-      start_year = ifelse(start == as.Date("1886-01-01"), NA, start_year),
-      end_year = ifelse(end == as.Date("2019-12-31"), NA, end_year),
-      original_name = ifelse(
-        is.na(end_year),
-        stringr::str_glue("{country_name}"),
-        stringr::str_glue("{country_name} ({start_year}-{end_year})")
-      ),
-      area = units::set_units(area, km^2)
-    ) |>
-    dplyr::select(original_name, area) |>
-    print(n = 600)
+    dplyr::arrange(polity_name)
 }
 
 .load_cshapes <- function() {
@@ -394,23 +391,51 @@ get_polity_sources <- function(polity_codes = NULL) {
 
   countries |>
     dplyr::mutate(
-      area = sf::st_area(countries)
+      area = countries |>
+        sf::st_area() |>
+        units::set_units(km^2),
+      start_year = lubridate::year(start),
+      end_year = lubridate::year(end),
     )
 }
 
 .filter_relevant_area_changes <- function(countries) {
-  browser()
+  zero_km2 <- units::set_units(0, km^2)
 
   countries |>
-    print(n = 100)
+    dplyr::arrange(country_name, start_year) |>
+    dplyr::group_by(country_name) |>
+    # Remove same year changes
+    dplyr::filter(dplyr::n() == 1 | start_year != end_year) |>
+    # Aggregate adjacent entries with no area change
+    dplyr::mutate(group_tmp = cumsum(c(0, diff(area) != zero_km2))) |>
+    dplyr::ungroup() |>
+    dplyr::summarise(
+      geometry = dplyr::first(geometry),
+      area = dplyr::first(area),
+      start_year = min(start_year),
+      end_year = max(end_year),
+      .by = c("country_name", "group_tmp")
+    ) |>
+    dplyr::select(-group_tmp)
+}
 
-  countries |>
-    dplyr::arrange(country_name, start) |>
-    dplyr::filter(
-      (abs(area - dplyr::lag(area)) > units::set_units(2500, km^2)) |
-        is.na(dplyr::lag(area)),
-      .by = "country_name"
-    )
+.add_years_in_name <- function(name, start_year, end_year) {
+  dplyr::case_when(
+    is.na(end_year) ~ stringr::str_glue("{name}"),
+    is.na(start_year) ~ stringr::str_glue("{name} (to {end_year})"),
+    .default = stringr::str_glue("{name} ({start_year}-{end_year})"),
+  )
+}
+
+.build_auto_polity_code <- function(name, start_year, end_year) {
+  start_year <- ifelse(is.na(start_year), k_polity_first_year, start_year)
+  end_year <- ifelse(is.na(end_year), k_polity_last_year, end_year)
+  short <- name |>
+    stringr::str_to_upper() |>
+    stringr::str_sub(1, 3)
+
+  stringr::str_glue("{short}-{start_year}-{end_year}")
 }
 
 # TODO: todos from removed old code:
