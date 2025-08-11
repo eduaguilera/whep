@@ -442,6 +442,24 @@ get_polity_sources <- function(polity_codes = NULL) {
   stringr::str_glue("{short}-{start_year}-{end_year}")
 }
 
+# Use with `get_polities()` as argument for debugging when
+# you get failed test because of polity code not matching
+# short name or year range
+.get_bad_code_polities <- function(polities) {
+  get_polities() |>
+    tidyr::separate_wider_delim(
+      polity_code,
+      "-",
+      names = c("code_iso", "code_start_year", "code_end_year"),
+      cols_remove = FALSE
+    ) |>
+    dplyr::filter(
+      as.integer(code_start_year) != start_year |
+        as.integer(code_end_year) != end_year
+    ) |>
+    dplyr::select(-code_iso, -code_start_year, -code_end_year)
+}
+
 # TODO: todos from removed old code:
 # - Set source of polity (but can be more than one)
 # - Revise Edu's polities for special handlings
