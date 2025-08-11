@@ -34,7 +34,11 @@ k_federico_tena_polities |>
 
 k_cshapes <- .clean_cshapes()
 k_cshapes |>
-  readr::write_csv(file.path(polities_inputs_path, "cshapes.csv"))
+  # Can't affort also saving geometry, slow and too large for repository
+  sf::st_set_geometry(NULL) |>
+  readr::write_csv(
+    file.path(polities_inputs_path, "cshapes.csv")
+  )
 
 k_whep_polity_fixes <- polities_inputs_path |>
   fs::path("whep_fixes.csv") |>
