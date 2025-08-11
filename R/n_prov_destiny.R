@@ -21,7 +21,7 @@
 #'   - `MgN`: Nitrogen amount in megagrams (Mg).
 #'
 #' @export
-create_prod_and_destiny_grafs <- function() {
+create_n_production_and_destiny <- function() {
   biomass_item_merged <- .merge_items_biomass(
     whep_read_file("npp_ygpit"),
     whep_read_file("codes_coefs")
@@ -53,45 +53,39 @@ create_prod_and_destiny_grafs <- function() {
 
   grass_wood_added <- .adding_grass_wood(seeds_removed)
 
+
   prepared_processed_data <- .prepare_processed_data(
     whep_read_file("processed_prov_fixed")
   )
 
-  prepared_prod_data <- .prepare_prod_data(
-    grass_wood_added,
-    prepared_processed_data,
-    whep_read_file("codes_coefs_items_full")
-  )
+  converted_production <- grass_wood_added |>
+    .prepare_prod_data(
+      prepared_processed_data,
+      whep_read_file("codes_coefs_items_full")
+    ) |>
+    .convert_fm_dm_n(
+      whep_read_file("biomass_coefs")
+    )
 
-  converted_data_fm_dm_n <- .convert_fm_dm_n(
-    prepared_prod_data,
-    whep_read_file("biomass_coefs")
-  )
 
-  feed_data <- .adding_feed(whep_read_file("intake_ygiac"))
+  combined_destinies <- converted_production |>
+    .combine_destinies(
+      .adding_feed(whep_read_file("intake_ygiac")),
+      .calculate_food_and_other_uses(
+        whep_read_file("pie_full_destinies_fm"),
+        .calculate_population_share(
+          whep_read_file("population_yg")
+        )
+      )
+    )
 
-  population_share <- .calculate_population_share(
-    whep_read_file("population_yg")
-  )
-
-  food_other_uses_data <- .calculate_food_and_other_uses(
-    whep_read_file("pie_full_destinies_fm"),
-    population_share
-  )
-
-  combined_destinies <- .combine_destinies(
-    converted_data_fm_dm_n,
-    feed_data,
-    food_other_uses_data
-  )
-
-  converted_items_n <- .convert_to_items_n(
+  converted_consumption <- .convert_to_items_n(
     combined_destinies,
     whep_read_file("codes_coefs_items_full"),
     whep_read_file("biomass_coefs")
   )
 
-  trade <- .calculate_trade(converted_items_n)
+  trade <- .calculate_trade(converted_consumption)
 
   .finalize_prod_destiny(
     trade,
