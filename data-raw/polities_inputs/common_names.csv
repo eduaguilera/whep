@@ -1,11 +1,14 @@
 original_name,source,common_name
 Abu Dhabi,federico_tena,Abu Dhabi
+Abu Dhabi,whep,Abu Dhabi
 Aden,federico_tena,Aden
+Aden,whep,Aden
 Afghanistan,m49,Afghanistan
 Afghanistan,faostat,Afghanistan
-Afghanistan,federico_tena,Afghanistan
+Afghanistan,federico_tena,Afghanistan (to 1888)
 Africa,faostat,Africa
 Ajman,federico_tena,Ajman
+Ajman,whep,Ajman
 Albania,m49,Albania
 Albania,faostat,Albania
 Albania,federico_tena,Albania
@@ -32,7 +35,7 @@ Antigua and Barbuda,m49,Antigua and Barbuda
 Antigua and Barbuda,faostat,Antigua and Barbuda
 Argentina,m49,Argentina
 Argentina,faostat,Argentina
-Argentina,federico_tena,Argentina
+Argentina,federico_tena,Argentina (to 1899)
 Armenia,m49,Armenia
 Armenia,faostat,Armenia
 Aruba,m49,Aruba
@@ -46,7 +49,7 @@ Australia and New Zealand,faostat,Australia and New Zealand
 Austria,m49,Austria
 Austria,faostat,Austria
 Austria,federico_tena,Austria
-Austria-Hungary,federico_tena,Austria-Hungary
+Austria-Hungary,federico_tena,Austria-Hungary (to 1908)
 Azerbaijan,m49,Azerbaijan
 Azerbaijan,faostat,Azerbaijan
 Badakhshan,federico_tena,Badakhshan
@@ -80,7 +83,7 @@ Bermuda,federico_tena,Bermuda
 Bhutan,m49,Bhutan
 Bhutan,faostat,Bhutan
 Bhutan,federico_tena,Bhutan
-Bolivia,federico_tena,Bolivia
+Bolivia,federico_tena,Bolivia (to 1903)
 Bolivia (Plurinational State of),m49,Bolivia
 Bolivia (Plurinational State of),faostat,Bolivia
 "Bonaire, Sint Eustatius and Saba",m49,"Bonaire, Sint Eustatius and Saba"
@@ -94,7 +97,7 @@ Bouvet Island,m49,Bouvet Island
 Bouvet Island,faostat,Bouvet Island
 Brazil,m49,Brazil
 Brazil,faostat,Brazil
-Brazil,federico_tena,Brazil
+Brazil,federico_tena,Brazil (to 1903)
 British Bechuanaland,federico_tena,British Bechuanaland
 British Cameroon,federico_tena,British Cameroon
 British Columbia,federico_tena,British Columbia
@@ -115,7 +118,7 @@ Brunei (greater),whep,Brunei (greater)
 Bukhara,federico_tena,Bukhara
 Bulgaria,m49,Bulgaria
 Bulgaria,faostat,Bulgaria
-Bulgaria,federico_tena,Bulgaria
+Bulgaria,federico_tena,Bulgaria (to 1913)
 Burkina Faso,m49,Burkina Faso
 Burkina Faso,faostat,Burkina Faso
 Burma (Myammar),federico_tena,Myanmar
@@ -130,7 +133,7 @@ Cameroon,faostat,Cameroon
 Cameroon (Kamerun),federico_tena,Cameroon (Kamerun)
 Canada,m49,Canada
 Canada,faostat,Canada
-Canada,federico_tena,Canada
+Canada,federico_tena,Canada (to 1948)
 Canary Islands,federico_tena,Canary Islands
 Canton and Enderbury Islands,m49,Canton and Enderbury Islands
 CapoVerde,federico_tena,Cabo Verde
@@ -154,7 +157,7 @@ Channel Islands,m49,Channel Islands
 Channel Islands,faostat,Channel Islands
 Chile,m49,Chile
 Chile,faostat,Chile
-Chile,federico_tena,Chile
+Chile,federico_tena,Chile (to 1899)
 China,m49,"China, mainland"
 China,faostat,China
 China,federico_tena,"China, mainland"
@@ -168,7 +171,7 @@ Cocos (Keeling) Islands,m49,Cocos (Keeling) Islands
 Cocos (Keeling) Islands,faostat,Cocos (Keeling) Islands
 Colombia,m49,Colombia
 Colombia,faostat,Colombia
-Colombia,federico_tena,Colombia
+Colombia,federico_tena,Colombia (to 1903)
 Comoros,m49,Comoros
 Comoros,faostat,Comoros
 Congo,m49,Congo
@@ -194,9 +197,9 @@ Cyprus,faostat,Cyprus
 Cyprus,federico_tena,Cyprus
 Czechia,m49,Czechia
 Czechia,faostat,Czechia
-Czechoslovakia,m49,Czechoslovakia
-Czechoslovakia,faostat,Czechoslovakia
-Czechoslovakia,federico_tena,Czechoslovakia
+Czechoslovakia,m49,Czechoslovakia (1947-1993)
+Czechoslovakia,faostat,Czechoslovakia (1947-1993)
+Czechoslovakia,federico_tena,Czechoslovakia (1918-1938)
 Côte d'Ivoire,m49,Côte d'Ivoire
 Côte d'Ivoire,faostat,Côte d'Ivoire
 Danish India,federico_tena,Danish India
@@ -206,7 +209,7 @@ Democratic Republic of the Congo,faostat,Democratic Republic of the Congo
 Democratic Yemen,m49,South Yemen
 Denmark,m49,Denmark
 Denmark,faostat,Denmark
-Denmark,federico_tena,Denmark
+Denmark,federico_tena,Denmark (to 1920)
 Developed regions,m49,Developed regions
 Developing regions,m49,Developing regions
 Djibouti,m49,Djibouti
@@ -231,10 +234,11 @@ Eastern Asia and South-eastern Asia,faostat,Eastern Asia and South-eastern Asia
 Eastern Europe,faostat,Eastern Europe
 Ecuador,m49,Ecuador
 Ecuador,faostat,Ecuador
-Ecuador,federico_tena,Ecuador
+Ecuador,federico_tena,Ecuador (to 1942)
 Egypt,m49,Egypt
 Egypt,faostat,Egypt
-Egypt,federico_tena,Egypt
+Egypt,federico_tena,Egypt (to 1922)
+Egypt (to 1922),whep,Egypt (to 1922)
 El Salvador,m49,El Salvador
 El Salvador,faostat,El Salvador
 El Salvador,federico_tena,El Salvador
@@ -245,12 +249,12 @@ Eritrea,faostat,Eritrea
 Eritrea,federico_tena,Eritrea
 Estonia,m49,Estonia
 Estonia,faostat,Estonia
-Estonia,federico_tena,Estonia
+Estonia,federico_tena,Estonia (1918-1940)
 Eswatini,m49,Eswatini
 Eswatini,faostat,Eswatini
 Ethiopia,m49,Ethiopia
 Ethiopia,faostat,Ethiopia
-Ethiopia,federico_tena,Ethiopia
+Ethiopia,federico_tena,Ethiopia (old)
 Ethiopia (old),m49,Ethiopia PDR
 Ethiopia PDR,faostat,Ethiopia PDR
 Europe,faostat,Europe
@@ -277,18 +281,18 @@ Falkland Islands (Malvinas),faostat,Falkland Islands
 Faroe Is,federico_tena,Faroe Islands
 Faroe Islands,m49,Faroe Islands
 Faroe Islands,faostat,Faroe Islands
-Federal Republic of Germany,m49,Federal Republic of Germany
+Federal Republic of Germany,m49,West Germany
 Federated Malay States,federico_tena,Federated Malay States
 Fiji,m49,Fiji
 Fiji,faostat,Fiji
 Fiji,federico_tena,Fiji
 Finland,m49,Finland
 Finland,faostat,Finland
-Finland,federico_tena,Finland
-Formosa (Taiwan),federico_tena,Formosa (Taiwan)
+Finland,federico_tena,Finland (1917-1940)
+Formosa (Taiwan),federico_tena,Taiwan
 France,m49,France
 France,faostat,France
-France,federico_tena,France
+France,federico_tena,France (to 1919)
 "France, Metropolitan",m49,"France, Metropolitan"
 French Equatorial Africa,federico_tena,French Equatorial Africa
 French Guiana,m49,French Guiana
@@ -313,17 +317,17 @@ Gambier Island,federico_tena,Gambier Island
 Gaza Strip,m49,Gaza Strip
 Georgia,m49,Georgia
 Georgia,faostat,Georgia
-German Democratic Republic,m49,German Democratic Republic
-"German Democratic Republic, Berlin",m49,"German Democratic Republic, Berlin"
+German Democratic Republic,m49,East Germany
+"German Democratic Republic, Berlin",m49,East Berlin
 German East Africa (Tanganyika),federico_tena,German East Africa (Tanganyika)
 German South West Africa,federico_tena,Namibia
 German West Africa,federico_tena,German West Africa
 German colonies Oceania,federico_tena,German colonies Oceania
 Germany,m49,Germany
 Germany,faostat,Germany
-Germany Fr,faostat,Federal Republic of Germany
-Germany Nl,faostat,German Democratic Republic
-"Germany, West Berlin",m49,"Germany, West Berlin"
+Germany Fr,faostat,West Germany
+Germany Nl,faostat,East Germany
+"Germany, West Berlin",m49,West Berlin
 Germany/Zollverein,federico_tena,Germany/Zollverein
 Ghana,m49,Ghana
 Ghana,faostat,Ghana
@@ -377,7 +381,8 @@ Iceland,faostat,Iceland
 Iceland,federico_tena,Iceland
 India,m49,India
 India,faostat,India
-India,federico_tena,India
+India,federico_tena,India (to 1947)
+India (to 1947),whep,India (to 1947)
 Indonesia,m49,Indonesia
 Indonesia,faostat,Indonesia
 International Centres (FAO) (2.5.1.a),faostat,International Centres (FAO) (2.5.1.a)
@@ -398,7 +403,7 @@ Italian Libia Cyrenaica (Lybia),federico_tena,Italian Libia Cyrenaica (Lybia)
 Italian Somaliland,federico_tena,Italian Somaliland
 Italy,m49,Italy
 Italy,faostat,Italy
-Italy,federico_tena,Italy
+Italy,federico_tena,Italy (to 1919)
 Jamaica,m49,Jamaica
 Jamaica,faostat,Jamaica
 Jamaica,federico_tena,Jamaica
@@ -422,7 +427,7 @@ Kingdom Two sicilies,federico_tena,Kingdom Two sicilies
 Kiribati,m49,Kiribati
 Kiribati,faostat,Kiribati
 Kokand,federico_tena,Kokand
-Korea,federico_tena,Korea (old)
+Korea,federico_tena,Korea (to 1910)
 "Korea, Democratic People's Republic of",m49,North Korea
 "Korea, Republic of",m49,South Korea
 Kuwait,m49,Kuwait
@@ -439,7 +444,7 @@ Latin America,faostat,Latin America
 Latin America and the Caribbean,faostat,Latin America and the Caribbean
 Latvia,m49,Latvia
 Latvia,faostat,Latvia
-Latvia,federico_tena,Latvia
+Latvia,federico_tena,Latvia (1918-1940)
 Least Developed Countries (LDCs),faostat,Least Developed Countries (LDCs)
 Lebanon,m49,Lebanon
 Lebanon,faostat,Lebanon
@@ -455,14 +460,14 @@ Liechtenstein,m49,Liechtenstein
 Liechtenstein,faostat,Liechtenstein
 Lithuania,m49,Lithuania
 Lithuania,faostat,Lithuania
-Lithuania,federico_tena,Lithuania
+Lithuania,federico_tena,Lithuania (1918-1920)
 Low Income Food Deficit Countries (LIFDCs),faostat,Low Income Food Deficit Countries (LIFDCs)
 Low-income economies,faostat,Low-income economies
 Lower Quebec,federico_tena,Lower Quebec
 Lower-middle-income economies,faostat,Lower-middle-income economies
 Luxembourg,m49,Luxembourg
 Luxembourg,faostat,Luxembourg
-Luxembourg,federico_tena,Luxembourg
+Luxembourg,federico_tena,Luxembourg (old)
 Macao,m49,Macao
 Madagascar,m49,Madagascar
 Madagascar,faostat,Madagascar
@@ -515,12 +520,12 @@ Mongolia,faostat,Mongolia
 Mongolia,federico_tena,Mongolia
 Montenegro,m49,Montenegro
 Montenegro,faostat,Montenegro
-Montenegro,federico_tena,Montenegro
+Montenegro,federico_tena,Montenegro (to 1913)
 Montserrat,m49,Montserrat
 Montserrat,faostat,Montserrat
 Morocco,m49,Morocco
 Morocco,faostat,Morocco
-Morocco (French),federico_tena,Morocco (French)
+Morocco (French),federico_tena,Morocco (to 1958)
 Mozambique,m49,Mozambique
 Mozambique,faostat,Mozambique
 Mozambique,federico_tena,Mozambique
@@ -535,7 +540,7 @@ Nepal,m49,Nepal
 Nepal,faostat,Nepal
 Nepal,federico_tena,Nepal
 Net Food Importing Developing Countries (NFIDCs),faostat,Net Food Importing Developing Countries (NFIDCs)
-Netherlands,federico_tena,Netherlands (all)
+Netherlands,federico_tena,Netherlands (old)
 Netherlands (Kingdom of the),faostat,Netherlands
 Netherlands Antilles,m49,Netherlands Antilles
 Netherlands Antilles (former),faostat,Netherlands Antilles
@@ -558,7 +563,7 @@ Niger,m49,Niger
 Niger,faostat,Niger
 Nigeria,m49,Nigeria
 Nigeria,faostat,Nigeria
-Nigeria,federico_tena,Nigeria
+Nigeria,federico_tena,Nigeria (old)
 Niue,m49,Niue
 Niue,faostat,Niue
 Niue Island,federico_tena,Niue
@@ -591,7 +596,7 @@ Oman,faostat,Oman
 Oman,federico_tena,Oman
 Ontario,federico_tena,Ontario
 Orange Free State,federico_tena,Orange Free State
-Ottoman Empire/Turkey,federico_tena,Ottoman Empire/Turkey
+Ottoman Empire/Turkey,federico_tena,Türkiye (to 1912)
 Pacific Islands (Trust Territory),m49,Pacific Islands Trust Territory
 Pacific Islands Trust Territory,faostat,Pacific Islands Trust Territory
 Pakistan,m49,Pakistan
@@ -611,11 +616,11 @@ Papua New Guinea,m49,Papua New Guinea
 Papua New Guinea,faostat,Papua New Guinea
 Paraguay,m49,Paraguay
 Paraguay,faostat,Paraguay
-Paraguay,federico_tena,Paraguay
+Paraguay,federico_tena,Paraguay (to 1938)
 Persia (Iran),federico_tena,Iran
 Peru,m49,Peru
 Peru,faostat,Peru
-Peru,federico_tena,Peru
+Peru,federico_tena,Peru (to 1909)
 Philippines,m49,Philippines
 Philippines,faostat,Philippines
 Philippines,federico_tena,Philippines
@@ -624,7 +629,7 @@ Pitcairn,faostat,Pitcairn
 Pitcairn Island,federico_tena,Pitcairn
 Poland,m49,Poland
 Poland,faostat,Poland
-Poland,federico_tena,Poland
+Poland,federico_tena,Poland (1918-1919)
 Polynesia,faostat,Polynesia
 Portugal,m49,Portugal
 Portugal,faostat,Portugal
@@ -647,10 +652,11 @@ Reunion,federico_tena,Réunion
 Rhodesia,federico_tena,Zimbabwe
 Romania,m49,Romania
 Romania,faostat,Romania
-Romania,federico_tena,Romania
-Russia/USSR,federico_tena,USSR
-Russian Federation,m49,Russian Federation
-Russian Federation,faostat,Russian Federation
+Romania,federico_tena,Romania (to 1913)
+Russia/USSR,federico_tena,USSR (to 1905)
+Russian Federation,m49,Russia
+Russian Federation,faostat,Russia
+Russia,whep,Russia
 Rwanda,m49,Rwanda
 Rwanda,faostat,Rwanda
 Rwanda and Burundi,federico_tena,Rwanda and Burundi
@@ -685,19 +691,21 @@ Sark,m49,Sark
 Sark,faostat,Sark
 Saudi Arabia,m49,Saudi Arabia
 Saudi Arabia,faostat,Saudi Arabia
-Saudi Arabia,federico_tena,Saudi Arabia
+Saudi Arabia,federico_tena,Saudi Arabia (1924-1932)
+Saudi Arabia (1924-1932),whep,Saudi Arabia (1924-1932)
 Senegal,m49,Senegal
 Senegal,faostat,Senegal
 Serbia,m49,Serbia
 Serbia,faostat,Serbia
+Serbia,whep,Serbia
 Serbia and Montenegro,m49,Serbia and Montenegro
 Serbia and Montenegro,faostat,Serbia and Montenegro
-Serbia/Yugoslavia,federico_tena,Serbia/Yugoslavia
+Serbia/Yugoslavia,federico_tena,Serbia (1816-1913)
 Seychelles,m49,Seychelles
 Seychelles,faostat,Seychelles
 Seychelles,federico_tena,Seychelles
 Sharjah,federico_tena,Sharjah
-Siam (Thailand),federico_tena,Siam (Thailand)
+Siam (Thailand),federico_tena,Thailand (to 1893)
 Sierra Leone,m49,Sierra Leone
 Sierra Leone,faostat,Sierra Leone
 Sierra Leone,federico_tena,Sierra Leone
@@ -711,7 +719,7 @@ Slovakia,faostat,Slovakia
 Slovenia,m49,Slovenia
 Slovenia,faostat,Slovenia
 Small Island Developing States (SIDS),faostat,Small Island Developing States (SIDS)
-Socialist Federal Republic of Yugoslavia,m49,Yugoslavia
+Socialist Federal Republic of Yugoslavia,m49,Yugoslavia (1991-1992)
 Society Islands  (Tahiti),federico_tena,Society Islands  (Tahiti)
 Solomon Islands,m49,Solomon Islands
 Solomon Islands,faostat,Solomon Islands
@@ -775,7 +783,7 @@ Tajikistan,faostat,Tajikistan
 "Tanzania, United Republic of",m49,Tanzania
 Thailand,m49,Thailand
 Thailand,faostat,Thailand
-Tibet,federico_tena,Tibet
+Tibet,federico_tena,Tibet (old)
 Timor,federico_tena,Timor-Leste
 Timor-Leste,m49,Timor-Leste
 Timor-Leste,faostat,Timor-Leste
@@ -787,7 +795,7 @@ Tokelau Island,federico_tena,Tokelau
 Tonga,m49,Tonga
 Tonga,faostat,Tonga
 Tongan Islands,federico_tena,Tonga
-Transvaal,federico_tena,Transvaal
+Transvaal,federico_tena,Transvaal (to 1910)
 Trinidad and Tobago,m49,Trinidad and Tobago
 Trinidad and Tobago,faostat,Trinidad and Tobago
 Trinidad and Tobago,federico_tena,Trinidad and Tobago
@@ -806,20 +814,21 @@ Two Sicilies,federico_tena,Two Sicilies
 Türkiye,m49,Türkiye
 Türkiye,faostat,Türkiye
 US settlement Oceania,federico_tena,US settlement Oceania
-USSR,m49,USSR
-USSR,faostat,USSR
+USSR,m49,USSR (1945-1991)
+USSR,faostat,USSR (1945-1991)
 Uganda,m49,Uganda
 Uganda,faostat,Uganda
 Ukraine,m49,Ukraine
 Ukraine,faostat,Ukraine
+Ukraine,whep,Ukraine
 Umm al Qawain,federico_tena,Umm al Qawain
 United Arab Emirates,m49,United Arab Emirates
 United Arab Emirates,faostat,United Arab Emirates
-United Kingdom,federico_tena,United Kingdom
+United Kingdom,federico_tena,United Kingdom (to 1921)
 United Kingdom of Great Britain and Northern Ireland,m49,United Kingdom
 United Kingdom of Great Britain and Northern Ireland,faostat,United Kingdom
 United Republic of Tanzania,faostat,Tanzania
-United States,federico_tena,United States of America
+United States,federico_tena,United States of America (to 1959)
 United States Minor Outlying Islands,m49,United States Minor Outlying Islands
 United States Minor Outlying Islands,faostat,United States Minor Outlying Islands
 United States Virgin Islands,faostat,United States Virgin Islands
@@ -833,7 +842,7 @@ Uruguay,federico_tena,Uruguay
 Uzbekistan,m49,Uzbekistan
 Uzbekistan,faostat,Uzbekistan
 Van Diemen's Land (Tasmania),federico_tena,Van Diemen's Land (Tasmania)
-Vancouver´s Island,federico_tena,Vancouver´s Island
+Vancouver´s Island,federico_tena,Vancouver's Island
 Vanuatu,m49,Vanuatu
 Vanuatu,faostat,Vanuatu
 Venezuela,federico_tena,Venezuela
@@ -862,10 +871,11 @@ Western Samoa,federico_tena,Samoa
 World,faostat,World
 Yemen,m49,Yemen
 Yemen,faostat,Yemen
+Yemen,whep,Yemen
 Yemen (old),m49,North Yemen
 Yemen Ar Rp,faostat,North Yemen
 Yemen Dem,faostat,South Yemen
-Yugoslav SFR,faostat,Yugoslavia
+Yugoslav SFR,faostat,Yugoslavia (1991-1992)
 Yunnan,federico_tena,Yunnan
 Zambia,m49,Zambia
 Zambia,faostat,Zambia
@@ -887,6 +897,7 @@ Australia,cshapes,Australia
 Austria (1918-1919),cshapes,Austria (1918-1919)
 Austria,cshapes,Austria
 Austria-Hungary (to 1908),cshapes,Austria-Hungary (to 1908)
+Austria-Hungary (to 1908),whep,Austria-Hungary (to 1908)
 Austria-Hungary (1908-1918),cshapes,Austria-Hungary (1908-1918)
 Azerbaijan,cshapes,Azerbaijan
 Bahamas,cshapes,Bahamas
@@ -950,7 +961,7 @@ Czech Republic,cshapes,Czechia
 Czechoslovakia (1918-1938),cshapes,Czechoslovakia (1918-1938)
 Czechoslovakia (1938-1945),cshapes,Czechoslovakia (1938-1945)
 Czechoslovakia (1945-1947),cshapes,Czechoslovakia (1945-1947)
-Czechoslovakia (1947-1992),cshapes,Czechoslovakia (1947-1992)
+Czechoslovakia (1947-1992),cshapes,Czechoslovakia (1947-1993)
 Denmark (to 1920),cshapes,Denmark (to 1920)
 Denmark,cshapes,Denmark
 Djibouti,cshapes,Djibouti
@@ -982,9 +993,9 @@ France,cshapes,France
 Gabon,cshapes,Gabon
 Gambia,cshapes,Gambia
 Georgia,cshapes,Georgia
-German Democratic Republic (1949-1990),cshapes,German Democratic Republic (1949-1990)
-German Federal Republic (1949-1990),cshapes,Federal Republic of Germany (1949-1990)
-German Federal Republic,cshapes,Federal Republic of Germany
+German Democratic Republic (1949-1990),cshapes,East Germany
+German Federal Republic (1949-1990),cshapes,West Germany
+German Federal Republic,cshapes,Germany
 Germany (Prussia) (to 1919),cshapes,Germany (to 1919)
 Germany (Prussia) (1919-1920),cshapes,Germany (1919-1920)
 Germany (Prussia) (1920-1938),cshapes,Germany (1920-1938)
@@ -1025,7 +1036,7 @@ Japan,cshapes,Japan
 Jordan,cshapes,Jordan
 Kazakhstan,cshapes,Kazakhstan
 Kenya,cshapes,Kenya
-Korea (to 1910),cshapes,Korea (old) (to 1910)
+Korea (to 1910),cshapes,Korea (to 1910)
 "Korea, People's Republic of",cshapes,North Korea
 "Korea, Republic of",cshapes,South Korea
 Kosovo,cshapes,Kosovo
@@ -1059,6 +1070,7 @@ Mexico,cshapes,Mexico
 Moldova,cshapes,Moldova
 Mongolia,cshapes,Mongolia
 Montenegro (to 1913),cshapes,Montenegro (to 1913)
+Montenegro (to 1913),whep,Montenegro (to 1913)
 Montenegro (1913-1915),cshapes,Montenegro (1913-1915)
 Montenegro,cshapes,Montenegro
 Morocco (to 1958),cshapes,Morocco (to 1958)
@@ -1112,13 +1124,13 @@ Russia (Soviet Union) (1920-1921),cshapes,USSR (1920-1921)
 Russia (Soviet Union) (1921-1940),cshapes,USSR (1921-1940)
 Russia (Soviet Union) (1940-1945),cshapes,USSR (1940-1945)
 Russia (Soviet Union) (1945-1991),cshapes,USSR (1945-1991)
-Russia (Soviet Union) (1991-2014),cshapes,USSR (1991-2014)
-Russia (Soviet Union),cshapes,USSR
+Russia (Soviet Union) (1991-2014),cshapes,Russia (1991-2014)
+Russia (Soviet Union),cshapes,Russia
 Rwanda,cshapes,Rwanda
 Saudi Arabia (1932-2000),cshapes,Saudi Arabia (1932-2000)
 Saudi Arabia,cshapes,Saudi Arabia
 Senegal,cshapes,Senegal
-Serbia (to 1913),cshapes,Serbia (to 1913)
+Serbia (to 1913),cshapes,Serbia (1816-1913)
 Serbia (1913-1915),cshapes,Serbia (1913-1915)
 Serbia (2006-2008),cshapes,Serbia (2006-2008)
 Serbia,cshapes,Serbia
@@ -1174,18 +1186,18 @@ Uruguay,cshapes,Uruguay
 Uzbekistan,cshapes,Uzbekistan
 Venezuela,cshapes,Venezuela
 Vietnam (Annam/Cochin China/Tonkin) (to 1893),cshapes,Vietnam (to 1893)
-"Vietnam, Democratic Republic of (1954-1975)",cshapes,North Vietnam (1954-1975)
-"Vietnam, Democratic Republic of",cshapes,North Vietnam
-"Vietnam, Republic of (1954-1975)",cshapes,South Vietnam (1954-1975)
-Yemen (Arab Republic of Yemen) (1918-1990),cshapes,North Yemen (1918-1990)
-Yemen (Arab Republic of Yemen) (1990-2000),cshapes,North Yemen (1990-2000)
-Yemen (Arab Republic of Yemen),cshapes,North Yemen
-"Yemen, People's Republic of (1967-1990)",cshapes,South Yemen (1967-1990)
+"Vietnam, Democratic Republic of (1954-1975)",cshapes,North Vietnam
+"Vietnam, Democratic Republic of",cshapes,Vietnam
+"Vietnam, Republic of (1954-1975)",cshapes,South Vietnam
+Yemen (Arab Republic of Yemen) (1918-1990),cshapes,North Yemen
+Yemen (Arab Republic of Yemen) (1990-2000),cshapes,Yemen (1990-2000)
+Yemen (Arab Republic of Yemen),cshapes,Yemen
+"Yemen, People's Republic of (1967-1990)",cshapes,South Yemen
 Yugoslavia (1918-1919),cshapes,Yugoslavia (1918-1919)
 Yugoslavia (1919-1920),cshapes,Yugoslavia (1919-1920)
 Yugoslavia (1920-1991),cshapes,Yugoslavia (1920-1991)
 Yugoslavia (1991-1992),cshapes,Yugoslavia (1991-1992)
-Yugoslavia (1992-2006),cshapes,Yugoslavia (1992-2006)
+Yugoslavia (1992-2006),cshapes,Serbia and Montenegro
 Zambia,cshapes,Zambia
-Zanzibar (1963-1964),cshapes,Zanzibar (1963-1964)
+Zanzibar (1963-1964),cshapes,Zanzibar
 Zimbabwe (Rhodesia),cshapes,Zimbabwe
