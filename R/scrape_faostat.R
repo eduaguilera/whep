@@ -78,7 +78,9 @@ get_faostat_data <- function(activity_data, ...) {
 .populate_iso3_code <- function(df) {
   # create new column "ISO3_CODE" and fill it
   df <- FAOSTAT::fillCountryCode(
-    country = "area", data = df, outCode = "ISO3_CODE"
+    country = "area",
+    data = df,
+    outCode = "ISO3_CODE"
   )
 
   # manually fix some crazy countries/ISO3_CODE
