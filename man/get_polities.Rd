@@ -2,81 +2,125 @@
 % Please edit documentation in R/polities.R
 \name{get_polities}
 \alias{get_polities}
-\title{Polities data integration}
+\title{WHEP polities}
 \usage{
 get_polities()
 }
 \value{
-A tibble with the polities data in wide format containing the following columns:
+An sf object on top of a tibble where each row represents one polity.
+It has the following columns:
 \itemize{
-\item \code{polity_code}: WHEP internal code for each polity (may be NA for some records).
-\item \code{polity_name}: Standardized polity name used across the WHEP project.
-\item \code{polity_name_full}: Full original polity name for reference purposes.
-\item \code{polity_code_full}: Extended polity code when available (may be NA).
-\item \code{polity_name_FAO}: FAO standardized name for the polity when available.
-\item \code{polity_name_FT}: Federico-Tena standardized polity name (NA for WHEP-only records).
-\item \code{polity_name_source}: Source attribution indicating data origin ("WHEP" or "FT").
-\item \code{polity_code_source}: Code system source attribution ("WHEP" or "FT").
-\item \code{start_year}: Starting year for the trading polity period (from Federico-Tena data).
-\item \code{end_year}: Ending year for the trading polity period (from Federico-Tena data).
-\item \verb{Comments FT}: Notes and comments from Federico-Tena dataset.
+\item \code{polity_name}: Natural language name that uniquely represents a polity.
+It must not necessarily match the official name of the polity at some
+point in time. As a consequence, some names have been shortened or adapted
+for easier understanding. Polity names might change in the future as
+long as they are still unique. If you need to perform checks for specific
+polities, use \code{polity_code} instead.
+\item \code{polity_code}: Internal code that uniquely represents each polity. It
+follows a specific format for easier understanding. The format is
+\code{"XXX-yyyy-YYYY"}, where:
+\itemize{
+\item \code{XXX} is a corresponding ISO3 code if one exists, or an artificial one
+otherwise, but trying to be meaningful if possible.
+\item \code{yyyy} is the \code{start_year} of the polity.
+\item \code{YYYY} is the \code{end_year} of the polity.
 }
 
-The function applies the following name standardization rules to Federico-Tena data. These are some examples:
-\itemize{
-\item "United States" → "United States of America"
-\item "Australia Commonwealth" → "Australia"
-\item "Cameroon (Kamerun)" → "Cameroon"
-\item "Ceylon (Sri Lanka)" → "Sri Lanka"
-\item "Guinea Bisau (Portuguese Guinea)" → "Guinea-Bissau"
-\item "Wallis and Futuna Island" → "Wallis and Futuna Islands"
-\item "Western Samoa" → "American Samoa"
-\item "Morocco (French)" → "Morocco"
-\item All other names remain unchanged
+For polities that traditionally refer to the same country (just a
+territory change), the \code{XXX} part will typically be the same as a hint,
+so that only the year range will vary.
+\item \code{start_year}: The year in which the polity starts.
+\item \code{end_year}: The year in which the polity ends.
+\item \code{m49_code}: The M49 code for the polity if one exists, as defined by the
+\href{https://unstats.un.org/unsd/methodology/m49/overview/}{United Nations}.
+\item \code{iso3_code}: One valid
+\href{https://en.wikipedia.org/wiki/ISO_3166-1_alpha-3}{ISO 3166-1 alpha-3}
+code, if such code exists. Note: One polity could have more than one such
+code. If this situation is found, this column might be moved to a different
+table.
+\item \code{iso2_code}: One valid
+\href{https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2}{ISO 3166-1 alpha-2}
+code, if such code exists. Note: One polity could have more than one such
+code. If this situation is found, this column might be moved to a different
+table.
+\item \code{display_code}: A short code that uniquely represents a polity and might be
+useful for visualization purposes. It's initially intended to have the
+value as \code{polity_code}, but could change if necessary, as opposed to the
+\code{polity_code} not changing.
+\item \code{geometry}: An sf \code{MULTIPOLYGON} with the territorial information for the
+polity. Ideally each polity should have a non empty geometry, but this
+might not hold while the table is a work in progress.
 }
 }
 \description{
-Combines polities data from two sources to create a unified dataset while
-maintaining data integrity and applying specific transformation rules. This
-function integrates data from the WHEP-polities sheet in Codes_coefs.xlsx and the Federico-Tena
-dataset to produce a harmonized polities dataset for the project.
+Lists all polities defined in the WHEP project that are obtained merging
+together information from several sources.
+The term polity comes from \emph{political entity} and is a more general term
+than country.
 
-The integration process ensures consistency across both data sources and
-applies standardized transformation protocols including manual name
-standardization and proper source attribution.
+A polity can be defined as a fixed territory over a continuous
+period of time. Whenever a region changes its overall territory, it should
+start being treated as a new polity. Likewise, if there's only a change in
+official name for a country or region, but no territory change, it will
+still be the same polity.
+
+In most cases a polity is included in this list as a consequence of it
+having reported production or trade data individually, as opposed to this
+data being included in a larger territory. In this sense, most colonies are
+considered their own polities if there is data for them.
 }
 \details{
-The function performs the following operations:
+This dataset itself was built from various other datasets. The methodology
+followed to get the final result is roughly like this:
 \enumerate{
-\item Reads and preprocesses Federico-Tena data with standardized column mapping
-\item Applies manual name corrections to align with WHEP/FAO standards
-\item Loads WHEP-polities data and ensures proper source labeling
-\item Identifies new records from Federico-Tena not present in WHEP data
-\item Standardizes column structure across both datasets
-\item Combines datasets vertically while maintaining data integrity
-\item Applies final cleaning rules for consistent source attribution
-}
-
-Data sources:
+\item Clean data coming from other sources and prepare a tibble with
+same columns for all of them, so that they're all homogeneous. Check
+\code{get_polity_sources()} to know more about each source.
+\item Put together in a single tibble all rows from the different sources that
+were prepared in the previous step.
+\item Assign a polity name for each entry in the combined tibble. This name is
+also referred to as a \emph{common name}, in the sense that a polity could come
+from more than one source, each having different names, and we want a
+common one to be able to group these into a single entry. This step is
+performed using a join with a manually crafted set of mappings from a
+combination of both original name and source, to a common name.
+\item Aggregate specific source data into a single entry, grouping by the common
+name defined in previous step. For now, this common name will also be the
+final value of \code{polity_name}. The aggregations are these:
 \itemize{
-\item WHEP-polities sheet from the WHEP project database
-\item Federico-Tena trading polities dataset with temporal coverage
+\item \code{start_year} and \code{end_year}: A simple minimum and maximum is calculated
+for \code{start_year} and \code{end_year} respectively, with two edge cases:
+\itemize{
+\item If an entry in the \code{whep} source is present for this polity, use its
+year range directly. This is a simple way of overwriting the year
+range in cases where the original years needed to be changed for some
+reason, and the min/max approach does not give the desired year.
+\item If all values are \code{NA} for either \code{start_year} or \code{end_year}, a
+default value is used instead, which denotes the limits of the period
+we want to cover. These years are 1800 (earliest source used) and
+2025 (present day) respectively. This also applies for the edge case
+of using the \code{whep} source. If there is an \code{NA} value there, the
+default value is used.
 }
-
-The resulting dataset provides comprehensive polity information suitable for
-historical production and trade analysis with proper source attribution and
-standardized naming conventions.
+\item \code{m49_code}, \code{iso2_code}, \code{iso3_code} and \code{geometry}: Check whether
+there is a single unique value, excluding \code{NA}s, and use that value as
+aggregate. Otherwise, fail. This can change in the future if there is
+something meaningful to merge but for now it's a useful way to make
+sure there is no information loss.
+}
+\item Assign a unique code (\code{polity_code}) for each polity. This is also done
+with a manually crafted mapping, which is used to perform a join. The
+mapping table defines the polity code for each polity name, the common
+name created before, which also uniquely defines a polity. However, after
+this code is set, all subsequent operations on polities should be done
+using this code instead of the polity name, since it is expected for the
+code not to change in the future, but the polity name could, so it's less
+reliable.
+\item Create the \code{display_code}. As mentioned before, this is currently just
+the same as \code{polity_code}, but could change in the future if it seems a
+good idea to use other intuitive short names.
+}
 }
 \examples{
-\dontrun{
-# Get combined polities dataset
-polities_data <- get_polities()
-
-# View column structure
-colnames(polities_data)
-
-# Check source distribution
-table(polities_data$polity_name_source)
-}
-
+get_polities()
 }

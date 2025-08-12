@@ -1,83 +1,115 @@
-#' Polities data integration
+#' WHEP polities
 #'
 #' @description
-#' Combines polities data from two sources to create a unified dataset while
-#' maintaining data integrity and applying specific transformation rules. This
-#' function integrates data from the WHEP-polities sheet in Codes_coefs.xlsx
-#' and the Federico-Tena
-#' dataset to produce a harmonized polities dataset for the project.
+#' Lists all polities defined in the WHEP project that are obtained merging
+#' together information from several sources.
+#' The term polity comes from _political entity_ and is a more general term
+#' than country.
 #'
-#' The integration process ensures consistency across both data sources and
-#' applies standardized transformation protocols including manual name
-#' standardization and proper source attribution.
+#' A polity can be defined as a fixed territory over a continuous
+#' period of time. Whenever a region changes its overall territory, it should
+#' start being treated as a new polity. Likewise, if there's only a change in
+#' official name for a country or region, but no territory change, it will
+#' still be the same polity.
+#'
+#' In most cases a polity is included in this list as a consequence of it
+#' having reported production or trade data individually, as opposed to this
+#' data being included in a larger territory. In this sense, most colonies are
+#' considered their own polities if there is data for them.
 #'
 #' @returns
-#' A tibble with the polities data in wide format containing the
-#' following columns:
-#' - `polity_code`: WHEP internal code for each polity (may be NA for some
-#' records).
-#' - `polity_name`: Standardized polity name used across the WHEP project.
-#' - `polity_name_full`: Full original polity name for reference purposes.
-#' - `polity_code_full`: Extended polity code when available (may be NA).
-#' - `polity_name_FAO`: FAO standardized name for the polity when available.
-#' - `polity_name_FT`: Federico-Tena standardized polity name
-#' (NA for WHEP-only records).
-#' - `polity_name_source`: Source attribution indicating data origin
-#' ("WHEP" or "FT").
-#' - `polity_code_source`: Code system source attribution
-#'  ("WHEP" or "FT").
-#' - `start_year`: Starting year for the trading polity period
-#' (from Federico-Tena data).
-#' - `end_year`: Ending year for the trading polity period
-#' (from Federico-Tena data).
-#' - `Comments FT`: Notes and comments from Federico-Tena dataset.
+#' An sf object on top of a tibble where each row represents one polity.
+#' It has the following columns:
+#' - `polity_name`: Natural language name that uniquely represents a polity.
+#'   It must not necessarily match the official name of the polity at some
+#'   point in time. As a consequence, some names have been shortened or adapted
+#'   for easier understanding. Polity names might change in the future as
+#'   long as they are still unique. If you need to perform checks for specific
+#'   polities, use `polity_code` instead.
+#' - `polity_code`: Internal code that uniquely represents each polity. It
+#'    follows a specific format for easier understanding. The format is
+#'    `"XXX-yyyy-YYYY"`, where:
+#'    - `XXX` is a corresponding ISO3 code if one exists, or an artificial one
+#'      otherwise, but trying to be meaningful if possible.
+#'    - `yyyy` is the `start_year` of the polity.
+#'    - `YYYY` is the `end_year` of the polity.
 #'
-#' The function applies the following name standardization rules to
-#' Federico-Tena data. These are some examples:
-#'
-#' - "United States" → "United States of America"
-#' - "Australia Commonwealth" → "Australia"
-#' - "Cameroon (Kamerun)" → "Cameroon"
-#' - "Ceylon (Sri Lanka)" → "Sri Lanka"
-#' - "Guinea Bisau (Portuguese Guinea)" → "Guinea-Bissau"
-#' - "Wallis and Futuna Island" → "Wallis and Futuna Islands"
-#' - "Western Samoa" → "American Samoa"
-#' - "Morocco (French)" → "Morocco"
-#' - All other names remain unchanged
+#'    For polities that traditionally refer to the same country (just a
+#'    territory change), the `XXX` part will typically be the same as a hint,
+#'    so that only the year range will vary.
+#' - `start_year`: The year in which the polity starts.
+#' - `end_year`: The year in which the polity ends.
+#' - `m49_code`: The M49 code for the polity if one exists, as defined by the
+#'   [United Nations](https://unstats.un.org/unsd/methodology/m49/overview/).
+#' - `iso3_code`: One valid
+#'   [ISO 3166-1 alpha-3](https://en.wikipedia.org/wiki/ISO_3166-1_alpha-3)
+#'   code, if such code exists. Note: One polity could have more than one such
+#'   code. If this situation is found, this column might be moved to a different
+#'   table.
+#' - `iso2_code`: One valid
+#'   [ISO 3166-1 alpha-2](https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2)
+#'   code, if such code exists. Note: One polity could have more than one such
+#'   code. If this situation is found, this column might be moved to a different
+#'   table.
+#' - `display_code`: A short code that uniquely represents a polity and might be
+#'   useful for visualization purposes. It's initially intended to have the
+#'   value as `polity_code`, but could change if necessary, as opposed to the
+#'   `polity_code` not changing.
+#' - `geometry`: An sf `MULTIPOLYGON` with the territorial information for the
+#'   polity. Ideally each polity should have a non empty geometry, but this
+#'   might not hold while the table is a work in progress.
 #'
 #' @details
-#' The function performs the following operations:
-#' 1. Reads and preprocesses Federico-Tena data with standardized column
-#' mapping
+#' This dataset itself was built from various other datasets. The methodology
+#' followed to get the final result is roughly like this:
 #'
-#' 2. Applies manual name corrections to align with WHEP/FAO standards
-#' 3. Loads WHEP-polities data and ensures proper source labeling
-#' 4. Identifies new records from Federico-Tena not present in WHEP data
-#' 5. Standardizes column structure across both datasets
-#' 6. Combines datasets vertically while maintaining data integrity
-#' 7. Applies final cleaning rules for consistent source attribution
+#' 1. Clean data coming from other sources and prepare a tibble with
+#'   same columns for all of them, so that they're all homogeneous. Check
+#'   `get_polity_sources()` to know more about each source.
+#' 2. Put together in a single tibble all rows from the different sources that
+#'   were prepared in the previous step.
+#' 3. Assign a polity name for each entry in the combined tibble. This name is
+#'   also referred to as a _common name_, in the sense that a polity could come
+#'   from more than one source, each having different names, and we want a
+#'   common one to be able to group these into a single entry. This step is
+#'   performed using a join with a manually crafted set of mappings from a
+#'   combination of both original name and source, to a common name.
+#' 4. Aggregate specific source data into a single entry, grouping by the common
+#'   name defined in previous step. For now, this common name will also be the
+#'   final value of `polity_name`. The aggregations are these:
+#'     - `start_year` and `end_year`: A simple minimum and maximum is calculated
+#'     for `start_year` and `end_year` respectively, with two edge cases:
+#'       - If an entry in the `whep` source is present for this polity, use its
+#'         year range directly. This is a simple way of overwriting the year
+#'         range in cases where the original years needed to be changed for some
+#'         reason, and the min/max approach does not give the desired year.
+#'       - If all values are `NA` for either `start_year` or `end_year`, a
+#'         default value is used instead, which denotes the limits of the period
+#'         we want to cover. These years are 1800 (earliest source used) and
+#'         2025 (present day) respectively. This also applies for the edge case
+#'         of using the `whep` source. If there is an `NA` value there, the
+#'         default value is used.
+#'     - `m49_code`, `iso2_code`, `iso3_code` and `geometry`: Check whether
+#'       there is a single unique value, excluding `NA`s, and use that value as
+#'       aggregate. Otherwise, fail. This can change in the future if there is
+#'       something meaningful to merge but for now it's a useful way to make
+#'       sure there is no information loss.
+#' 5. Assign a unique code (`polity_code`) for each polity. This is also done
+#'   with a manually crafted mapping, which is used to perform a join. The
+#'   mapping table defines the polity code for each polity name, the common
+#'   name created before, which also uniquely defines a polity. However, after
+#'   this code is set, all subsequent operations on polities should be done
+#'   using this code instead of the polity name, since it is expected for the
+#'   code not to change in the future, but the polity name could, so it's less
+#'   reliable.
+#' 6. Create the `display_code`. As mentioned before, this is currently just
+#'   the same as `polity_code`, but could change in the future if it seems a
+#'   good idea to use other intuitive short names.
 #'
-#' Data sources:
-#' - WHEP-polities sheet from the WHEP project database
-#' - Federico-Tena trading polities dataset with temporal coverage
-#'
-#' The resulting dataset provides comprehensive polity information suitable for
-#' historical production and trade analysis with proper source attribution and
-#' standardized naming conventions.
-#'
+#' @export
 #'
 #' @examples
-#' \dontrun{
-#' # Get combined polities dataset
-#' polities_data <- get_polities()
-#'
-#' # View column structure
-#' colnames(polities_data)
-#'
-#' # Check source distribution
-#' table(polities_data$polity_name_source)
-#' }
-#'
+#' get_polities()
 get_polities <- function() {
   .merge_datasets() |>
     .add_common_names() |>
