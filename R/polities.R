@@ -86,6 +86,7 @@ get_polities <- function() {
     .build_display_code() |>
     .set_column_types() |>
     dplyr::arrange(polity_name) |>
+    sf::st_as_sf() |>
     dplyr::select(
       polity_name,
       polity_code,
@@ -154,7 +155,8 @@ get_polity_sources <- function(polity_codes = NULL) {
 
 .set_column_types <- function(polities) {
   int_cols <- c("start_year", "end_year")
-  chr_cols <- setdiff(names(polities), int_cols)
+  geom_cols <- c("geometry")
+  chr_cols <- setdiff(names(polities), c(int_cols, geom_cols))
 
   polities |>
     dplyr::mutate(
@@ -244,7 +246,6 @@ get_polity_sources <- function(polity_codes = NULL) {
 }
 
 .aggregate_cols <- function(polities) {
-  all_cols <- names(polities)
   unique_cols <- c("m49_code", "iso2_code", "iso3_code")
 
   polities |>
@@ -252,6 +253,7 @@ get_polity_sources <- function(polity_codes = NULL) {
       start_year = .aggregate_start_year(start_year, source),
       end_year = .aggregate_end_year(end_year, source),
       across(all_of(unique_cols), .check_unique_value),
+      geometry = .check_unique_geometry(geometry),
       .by = "common_name"
     )
 }
@@ -286,6 +288,20 @@ get_polity_sources <- function(polity_codes = NULL) {
     k_polity_last_year
   } else {
     max(end_year, na.rm = TRUE)
+  }
+}
+
+.check_unique_geometry <- function(column) {
+  unique_vals <- column |>
+    purrr::discard(sf::st_is_empty) |>
+    unique()
+
+  if (length(unique_vals) > 1) {
+    cli::cli_abort("Can't summarise, more than one unique value: {unique_vals}")
+  } else if (length(unique_vals) == 0) {
+    sf::st_sfc(sf::st_multipolygon(), crs = sf::st_crs(column))
+  } else {
+    sf::st_sfc(unique_vals, crs = sf::st_crs(column))
   }
 }
 
@@ -442,10 +458,9 @@ get_polity_sources <- function(polity_codes = NULL) {
   stringr::str_glue("{short}-{start_year}-{end_year}")
 }
 
-# Use with `get_polities()` as argument for debugging when
-# you get failed test because of polity code not matching
-# short name or year range
-.get_bad_code_polities <- function(polities) {
+# Use for debugging when you get failed test because of polity
+# code not matching short name or year range.
+.get_bad_code_polities <- function() {
   get_polities() |>
     tidyr::separate_wider_delim(
       polity_code,
@@ -461,7 +476,6 @@ get_polity_sources <- function(polity_codes = NULL) {
 }
 
 # TODO: todos from removed old code:
-# - Set source of polity (but can be more than one)
 # - Revise Edu's polities for special handlings
 # - Introduce 'rest of continent'-like polities
 #   "ROCE" "RAFR" "RASI" "REUR" "RLAM" "RNAM"
