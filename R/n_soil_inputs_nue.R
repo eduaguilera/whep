@@ -188,5 +188,4 @@ calculate_nue_crops <- function() {
     dplyr::select(Year, Province_name, Item, Box, Box_destiny, nue)
 
   nue
-  View(nue)
 }
