@@ -15,10 +15,12 @@ Description: A set of tools for processing and analyzing data developed in the
 License: MIT + file LICENSE
 Imports:
     cli,
+    cshapes,
     dplyr,
     fs,
     FAOSTAT,
     httr,
+    lubridate,
     mipfp,
     nanoparquet,
     pins,
@@ -29,6 +31,7 @@ Imports:
     stringr,
     sf,
     tidyr,
+    units,
     withr,
     yaml
 Encoding: UTF-8
