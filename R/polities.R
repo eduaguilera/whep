@@ -226,13 +226,6 @@ get_polity_sources <- function(polity_codes = NULL) {
   )
 }
 
-# TODO: For this to make sense... This wasn't discussed but I like
-# the idea of also making the polity name (i.e. common_name) unique.
-# For users, if we can afford showing longer names (instead of display_code)
-# then the polity name should be enough for someone to discern.
-# There's no clear usefulness for polity name not being unique.
-# If we want to group by historical situations of a modern polity we will
-# clearly implement other more complete methods for achieving that.
 .add_common_names <- function(merged_datasets) {
   merged_datasets |>
     dplyr::inner_join(
@@ -361,8 +354,6 @@ get_polity_sources <- function(polity_codes = NULL) {
   # Force year from whep source if present
   i <- purrr::detect_index(source, ~ .x == k_source_whep)
 
-  # TODO: Make this a better estimation
-  # Now assuming 1938-1970 gap without country changes
   if (i > 0 && is.na(start_year[i])) {
     k_polity_first_year
   } else if (i > 0) {
@@ -377,8 +368,6 @@ get_polity_sources <- function(polity_codes = NULL) {
 .aggregate_end_year <- function(end_year, source) {
   i <- purrr::detect_index(source, ~ .x == k_source_whep)
 
-  # TODO: Make this a better estimation
-  # Now assuming 1938-1970 gap without country changes
   if (i > 0 && is.na(end_year[i])) {
     k_polity_last_year
   } else if (i > 0) {
