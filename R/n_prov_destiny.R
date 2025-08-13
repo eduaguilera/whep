@@ -22,73 +22,46 @@
 #'
 #' @export
 create_n_production_and_destiny <- function() {
-  biomass_item_merged <- .merge_items_biomass(
-    whep_read_file("npp_ygpit"),
-    whep_read_file("codes_coefs")
-  )
+  codes_coefs_items_full <- whep_read_file("codes_coefs_items_full")
+  biomass_coefs <- whep_read_file("biomass_coefs")
+  pie_full_destinies_fm <- whep_read_file("pie_full_destinies_fm")
+  processed_prov_fixed <- whep_read_file("processed_prov_fixed")
+  livestock_prod_ygps <- whep_read_file("livestock_prod_ygps")
+  crop_area_npp_no_fallow <- whep_read_file("crop_area_npp_ygpitr_no_fallow")
+  npp_ygpit <- whep_read_file("npp_ygpit")
+  codes_coefs <- whep_read_file("codes_coefs")
+  intake_ygiac <- whep_read_file("intake_ygiac")
+  population_yg <- whep_read_file("population_yg")
 
-  production_crops_residues <- .summarise_crops_residues(
-    whep_read_file("crop_area_npp_ygpitr_no_fallow")
-  )
+  biomass_item_merged <- .merge_items_biomass(npp_ygpit, codes_coefs)
 
-  crop_seminatural_data <- .aggregate_crop_seminatural(
-    biomass_item_merged,
-    production_crops_residues
-  )
-
-  livestock_data <- .prepare_livestock_production(
-    whep_read_file("livestock_prod_ygps")
-  )
-
-  prod_combined_boxes <- .combine_production_boxes(
-    crop_seminatural_data,
-    livestock_data
-  )
-
-  seeds_removed <- .remove_seeds_from_system(
-    biomass_item_merged,
-    whep_read_file("pie_full_destinies_fm"),
-    prod_combined_boxes
-  )
-
-  grass_wood_added <- .adding_grass_wood(seeds_removed)
-
-  prepared_processed_data <- .prepare_processed_data(
-    whep_read_file("processed_prov_fixed")
-  )
-
-  converted_production <- grass_wood_added |>
-    .prepare_prod_data(
-      prepared_processed_data,
-      whep_read_file("codes_coefs_items_full")
+  prod_combined_boxes <- biomass_item_merged |>
+    .aggregate_crop_seminatural(
+      .summarise_crops_residues(crop_area_npp_no_fallow)
     ) |>
-    .convert_fm_dm_n(
-      whep_read_file("biomass_coefs")
+    .combine_production_boxes(
+      .prepare_livestock_production(livestock_prod_ygps)
     )
 
-  combined_destinies <- converted_production |>
+  food_and_other_uses <- population_yg |>
+    .calculate_population_share() |>
+    .calculate_food_and_other_uses(pie_full_destinies_fm)
+
+  biomass_item_merged |>
+    .remove_seeds_from_system(pie_full_destinies_fm, prod_combined_boxes) |>
+    .adding_grass_wood() |>
+    .prepare_prod_data(
+      .prepare_processed_data(processed_prov_fixed),
+      codes_coefs_items_full
+    ) |>
+    .convert_fm_dm_n(biomass_coefs) |>
     .combine_destinies(
-      .adding_feed(whep_read_file("intake_ygiac")),
-      .calculate_food_and_other_uses(
-        whep_read_file("pie_full_destinies_fm"),
-        .calculate_population_share(
-          whep_read_file("population_yg")
-        )
-      )
-    )
-
-  converted_consumption <- .convert_to_items_n(
-    combined_destinies,
-    whep_read_file("codes_coefs_items_full"),
-    whep_read_file("biomass_coefs")
-  )
-
-  trade <- .calculate_trade(converted_consumption)
-
-  .finalize_prod_destiny(
-    trade,
-    whep_read_file("codes_coefs_items_full")
-  )
+      .adding_feed(intake_ygiac),
+      food_and_other_uses
+    ) |>
+    .convert_to_items_n(codes_coefs_items_full, biomass_coefs) |>
+    .calculate_trade() |>
+    .finalize_prod_destiny(codes_coefs_items_full)
 }
 
 #' @title Production of Cropland, Livestock, and Semi-natural agroecosystems
@@ -695,8 +668,8 @@ create_n_production_and_destiny <- function() {
 #' @keywords internal
 #' @noRd
 .calculate_food_and_other_uses <- function(
-  pie_full_destinies_fm,
-  population_share
+  population_share,
+  pie_full_destinies_fm
 ) {
   total_food_other_uses <- pie_full_destinies_fm |>
     dplyr::filter(
