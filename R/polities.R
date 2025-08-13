@@ -131,15 +131,82 @@ get_polities <- function() {
     )
 }
 
+#' WHEP polity sources
+#'
+#' @description
+#' Lists all sources for each requested polity along with their specific data.
+#'
+#' @param polity_codes The values of `polity_code` for the requested polities.
+#'   This argument accepts three different kinds of values:
+#'   - A single string, the `polity_code` of the single requested polity.
+#'   - A character vector, containing all the values of `polity_code` for the
+#'     requested polities.
+#'   - Default `NULL` value, which is equivalent to passing a character vector
+#'     containing the codes of all polities present in `get_polities()`.
+#'
+#' @returns
+#' A single tibble with the following columns:
+#' - `original_name`: The natural language name for the region in that specific
+#'   source, before defining a common name.
+#' - `source`: The source this region was taken from. It can be one of the
+#'   following:
+#'   - `federico_tena`: [Federico-Tena list of polities
+#'     ](https://edatos.consorciomadrono.es/dataset.xhtml?persistentId=doi:10.21950/3SK54X),
+#'     covering the period 1800-1938. This is the earliest source used, being
+#'     the only one that covers the whole nineteenth century. It includes no
+#'     geometry.
+#'   - `faostat`: [FAOSTAT country/region list
+#'     ](https://www.fao.org/faostat/en/#definitions) that is used in their
+#'     agricultural production and trade data, and covers from 1961 to
+#'     present day. It includes no geometry.
+#'   - `m49`: [United Nations list of countries
+#'     ](https://unstats.un.org/unsd/methodology/m49/overview/) using the M49
+#'     standard. It was first issued in 1970 and aims to cover present day
+#'     countries, but here some historical codes no longer in use are also
+#'     included. It includes no geometry.
+#'   - `cshapes`: [CShapes 2.0](https://icr.ethz.ch/data/cshapes/) mapping
+#'     of territorial changes in independent and dependent states. It covers
+#'     the period 1886-2017. For now this is the only source that includes
+#'     the geometry of the polity's territory.
+#'   - `whep`: Custom made source for overwriting specific data. For now,
+#'     it is only used to overwrite the year range for a polity when the
+#'     one calculated automatically is not satisfying. Thus, it includes
+#'     no geometry or other data, but this could change in the future if
+#'     it becomes a necessity.
+#' - `common_name`: The given name that will be shared by entries across
+#'   sources if they represent the same polity. This will be `polity_name`
+#'   in the main tibble obtained from `get_polities()`.
+#' - `polity_code`: The unique code identifying the polity. Note that this
+#'   is included as a helper but there might be more than one row with the
+#'   same `polity_code` in this table if the polity appears in more than
+#'   one source.
+#' - `notes`: A natural language description of the polity, focused on
+#'   clarifying the existence of this entry, possibly including its relation
+#'   with other entries. In the case of `whep` source entries, it explains
+#'   why that entry was created to overwrite the other sources' information.
+#' - Other information specifically found in that source that might be
+#'   aggregated in the final polity table. This includes `start_year`,
+#'   `end_year`, `m49_code`, `iso2_code`, `iso3_code` and `geometry`. For
+#'   more details about these, check `get_polities()`.
+#'
+#' @export
+#'
+#' @examples
+#' get_polity_sources()
+#' get_polity_sources("VEN-1821-2025")
+#' get_polity_sources(c("VEN-1821-2025", "UGA-1962-2025"))
 get_polity_sources <- function(polity_codes = NULL) {
+  polities <- get_polities() |>
+    tibble::as_tibble()
+
   if (is.null(polity_codes)) {
-    polity_codes <- get_polities() |>
+    polity_codes <- polities |>
       dplyr::select(polity_code)
   } else {
     polity_codes <- tibble::tibble(polity_code = polity_codes)
   }
 
-  polity_names <- get_polities() |>
+  polity_names <- polities |>
     dplyr::inner_join(polity_codes, by = "polity_code") |>
     dplyr::select(common_name = polity_name, polity_code)
 
