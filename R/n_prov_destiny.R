@@ -833,6 +833,7 @@ create_n_production_and_destiny <- function() {
         TRUE ~ NA_real_
       )
     ) |>
+    dplyr::select(-value_fm) |>
     tidyr::pivot_wider(
       names_from = destiny,
       values_from = n_value
@@ -889,6 +890,7 @@ create_n_production_and_destiny <- function() {
       import
     )
 }
+
 
 #' @title Finalize production and destiny output -------------------------------
 #' @description Fills in missing box categories and transforms data into a
@@ -961,40 +963,30 @@ create_n_production_and_destiny <- function() {
     ) |>
     dplyr::mutate(
       Box_destiny = dplyr::case_when(
+        Destiny == "import" ~ "import",
+        Box == "Semi_natural_agroecosystems" & Destiny %in% c(
+          "food", "other_uses"
+        ) ~ "semi_natural_to_pop",
+        Box == "Semi_natural_agroecosystems" &
+          Destiny == "feed" ~ "semi_natural_to_livestock",
+        Box == "Semi_natural_agroecosystems" &
+          Destiny == "export" ~ "semi_natural_export",
         Box == "Cropland" & Destiny == "export" ~ "crop_export",
-        Box == "Livestock" & Destiny == "export" ~ "livestock_export",
-        Box == "Livestock" &
-          Destiny %in%
-            c(
-              "food",
-              "other_uses"
-            ) ~
-          "livestock_to_pop",
-        Box == "Cropland" &
-          Destiny %in%
-            c(
-              "food",
-              "other_uses"
-            ) ~
-          "crops_to_pop",
-        Box == "Grass" & Destiny == "feed" ~ "grass_to_livestock",
+        Box == "Cropland" & Destiny %in% c(
+          "food", "other_uses"
+        ) ~ "crops_to_pop",
         Box == "Cropland" & Destiny == "feed" ~ "crops_to_livestock",
-        Box == "Fish" &
-          Destiny %in%
-            c(
-              "food",
-              "other_uses"
-            ) ~
-          "fish_to_pop",
+        Box == "Livestock" & Destiny == "export" ~ "livestock_export",
+        Box == "Livestock" & Destiny %in% c(
+          "food", "other_uses"
+        ) ~ "livestock_to_pop",
+        Box == "Grass" & Destiny == "feed" ~ "grass_to_livestock",
+        Box == "Fish" & Destiny %in% c("food", "other_uses") ~ "fish_to_pop",
         Box == "Fish" & Destiny == "feed" ~ "fish_to_livestock",
         Box == "Agro-industry" & Destiny == "feed" ~ "additives_to_livestock",
-        Box == "Agro-industry" &
-          Destiny %in%
-            c(
-              "food",
-              "other_uses"
-            ) ~
-          "additives_to_pop",
+        Box == "Agro-industry" & Destiny %in% c(
+          "food", "other_uses"
+        ) ~ "additives_to_pop",
         TRUE ~ NA_character_
       )
     ) |>
@@ -1016,4 +1008,5 @@ create_n_production_and_destiny <- function() {
     )
 
   grafs_prod_destiny_final
+  View(grafs_prod_destiny_final)
 }

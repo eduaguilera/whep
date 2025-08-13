@@ -117,9 +117,9 @@ create_n_soil_inputs <- function() {
 #' @return A tibble with combined N input and production data.
 #' @export
 create_n_production <- function() {
-  .calculate_n_production(
-    whep_read_file("grafs_prod_destiny")
-  )
+  grafs_prod_destiny_final <- create_n_production_and_destiny()
+
+  .calculate_n_production(grafs_prod_destiny_final)
 }
 
 #' @title Calculate N Production
@@ -133,26 +133,24 @@ create_n_production <- function() {
 ) {
   n_prod_data <- grafs_prod_destiny |>
     dplyr::filter(!is.na(Box)) |>
+    tidyr::replace_na(list(MgN = 0)) |>
     tidyr::pivot_wider(
       names_from = Destiny,
       values_from = MgN,
-      values_fn = sum,
       values_fill = list(MgN = 0)
     ) |>
     dplyr::mutate(
-      prod = (Food + Feed + Other_uses + Export) - Import,
-      import = Import,
+      prod = (food + feed + other_uses + export) - import,
       # Set Production to 0 for Fish Box
       prod = ifelse(Box == "Fish", 0, prod)
     ) |>
-    dplyr::group_by(Year, Province_name, Item, Box) |>
     dplyr::summarise(
       import = sum(import, na.rm = TRUE),
       prod = sum(prod, na.rm = TRUE),
-      .groups = "drop"
+      .by = c(Year, Province_name, Item, Box, Box_destiny)
     ) |>
-    dplyr::arrange(Year, Province_name, Item, Box) |>
-    dplyr::select(Year, Province_name, Item, Box, import, prod)
+    dplyr::arrange(Year, Province_name, Item, Box, Box_destiny) |>
+    dplyr::select(Year, Province_name, Item, Box, Box_destiny, import, prod)
 
   n_prod_data
 }
@@ -187,7 +185,8 @@ calculate_nue_crops <- function() {
     dplyr::mutate(
       nue = prod / inputs * 100
     ) |>
-    dplyr::select(Year, Province_name, Item, Box, nue)
+    dplyr::select(Year, Province_name, Item, Box, Box_destiny, nue)
 
   nue
+  View(nue)
 }
