@@ -53,7 +53,6 @@ create_n_production_and_destiny <- function() {
 
   grass_wood_added <- .adding_grass_wood(seeds_removed)
 
-
   prepared_processed_data <- .prepare_processed_data(
     whep_read_file("processed_prov_fixed")
   )
@@ -66,7 +65,6 @@ create_n_production_and_destiny <- function() {
     .convert_fm_dm_n(
       whep_read_file("biomass_coefs")
     )
-
 
   combined_destinies <- converted_production |>
     .combine_destinies(
