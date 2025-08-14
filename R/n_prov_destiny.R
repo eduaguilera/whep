@@ -49,7 +49,7 @@ create_n_prov_destiny <- function() {
 
   biomass_item_merged |>
     .remove_seeds_from_system(pie_full_destinies_fm, prod_combined_boxes) |>
-    .adding_grass_wood() |>
+    .add_grass_wood() |>
     .prepare_prod_data(
       .prepare_processed_data(processed_prov_fixed),
       codes_coefs_items_full
@@ -116,7 +116,6 @@ create_n_prov_destiny <- function() {
 
   crop_area_npp_prod_residue
 }
-
 
 #' @title Combining all plant production (harvested products and residues,
 #' and grazed grass) ----------------------------------------------------------
@@ -205,7 +204,6 @@ create_n_prov_destiny <- function() {
 
   combined_biomasses
 }
-
 
 #' @title Livestock Production -------------------------------------------------
 #'
@@ -330,7 +328,7 @@ create_n_prov_destiny <- function() {
 #' @return A dataframe with added grass and wood production.
 #' @keywords internal
 #' @noRd
-.adding_grass_wood <- function(grafs_prod_combined_no_seeds) {
+.add_grass_wood <- function(grafs_prod_combined_no_seeds) {
   grafs_prod_added <- grafs_prod_combined_no_seeds |>
     dplyr::mutate(
       Item = dplyr::case_when(
@@ -380,7 +378,6 @@ create_n_prov_destiny <- function() {
 
   grafs_prod_added
 }
-
 
 #' @title Processed Items ------------------------------------------------------
 #' @description Summarise processed items by Year, Province, Biomass,
@@ -861,7 +858,6 @@ create_n_prov_destiny <- function() {
       import
     )
 }
-
 
 #' @title Finalize production and destiny output -------------------------------
 #' @description Fills in missing box categories and transforms data into a

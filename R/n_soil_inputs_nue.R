@@ -109,7 +109,6 @@ create_n_soil_inputs <- function() {
   n_soil_inputs
 }
 
-
 #' @title GRAFS_Prod_Destiny ---------------------------------------------------
 #' @description Summarizes and calculates new columns: prod
 #' Spread Destiny column to separate columns for Food, Feed, Other_uses, Export.
@@ -117,7 +116,7 @@ create_n_soil_inputs <- function() {
 #' @return A tibble with combined N input and production data.
 #' @export
 create_n_production <- function() {
-  grafs_prod_destiny_final <- create_n_production_and_destiny()
+  grafs_prod_destiny_final <- create_n_prov_destiny()
 
   .calculate_n_production(grafs_prod_destiny_final)
 }
@@ -188,4 +187,54 @@ calculate_nue_crops <- function() {
     dplyr::select(Year, Province_name, Item, Box, Box_destiny, nue)
 
   nue
+}
+
+
+#' @title NUE for Livestock ----------------------------------------------------
+#' @description Calculates NUE for livestock as the ratio of N in livestock
+#' products to N in feed intake.
+#'
+#' @return A tibble with calculated NUE values for livestock.
+#'
+#' @export
+calculate_nue_livestock <- function() {
+  intake_n <- whep_read_file("intake_ygiac") |>
+    dplyr::filter(Livestock_cat != "Pets") |>
+    dplyr::group_by(Year, Province_name, Livestock_cat) |>
+    dplyr::summarise(
+      feed_n = sum(N_MgN, na.rm = TRUE),
+      .groups = "drop"
+    )
+
+  prod_n <- whep_read_file("livestock_prod_ygps") |>
+    dplyr::filter(!is.na(Prod_MgN)) |>
+    dplyr::group_by(Year, Province_name, Livestock_cat, Item) |>
+    dplyr::summarise(
+      prod_N = sum(Prod_MgN, na.rm = TRUE),
+      .groups = "drop"
+    )
+
+  excretion_n <- whep_read_file("n_excretion_ygs") |>
+    dplyr::group_by(Year, Province_name, Livestock_cat) |>
+    dplyr::summarise(
+      excretion_N = sum(Excr_MgN, na.rm = TRUE),
+      .groups = "drop"
+    )
+
+  nue_livestock <- intake_n |>
+    dplyr::inner_join(
+      prod_n,
+      by = c("Year", "Province_name", "Livestock_cat")
+    ) |>
+    dplyr::left_join(
+      excretion_n,
+      by = c("Year", "Province_name", "Livestock_cat")
+    ) |>
+    dplyr::mutate(
+      nue = prod_N / feed_n * 100,
+      mass_balance = (prod_N + excretion_N) / feed_n
+    ) |>
+    dplyr::select(Year, Province_name, Livestock_cat, Item, nue, mass_balance)
+
+  nue_livestock
 }
