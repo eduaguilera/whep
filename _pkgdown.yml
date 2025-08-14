@@ -71,7 +71,7 @@ reference:
   desc: >
     Functions to generate data for N inputs, outputs, production, destinies
   contents:
-  - create_prod_and_destiny_grafs
+  - create_n_prov_destiny
   - create_n_soil_inputs
   - create_n_production
   - calculate_nue_crops
