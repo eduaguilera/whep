@@ -2,14 +2,23 @@
 % Please edit documentation in R/n_soil_inputs_nue.R
 \name{create_n_production}
 \alias{create_n_production}
-\title{GRAFS_Prod_Destiny ---------------------------------------------------}
+\title{N production for Spain -----------------------------------------------}
 \usage{
 create_n_production()
 }
 \value{
-A tibble with combined N input and production data.
+A tibble containing:
+\itemize{
+\item \code{Year}: Year
+\item \code{Province_name}: Spanish province
+\item \code{Item}: Product item
+\item \code{Box}: Ecosystem box
+\item \code{Box_destiny}: Destination box
+\item \code{import}: Imported N (Mg)
+\item \code{prod}: Produced N (Mg)
+}
 }
 \description{
-Summarizes and calculates new columns: prod
-Spread Destiny column to separate columns for Food, Feed, Other_uses, Export.
+Calculates N production at the provincial level in Spain.
+Production is derived from consumption, export, import, and other uses.
 }
