@@ -36,6 +36,7 @@ testthat::test_that("get_polities is consistent", {
   )
 
   get_polities() |>
+    tibble::as_tibble() |>
     pointblank::expect_col_exists(all_of(cols)) |>
     pointblank::expect_col_is_integer(all_of(int_cols)) |>
     pointblank::expect_col_is_character(all_of(other_cols)) |>
