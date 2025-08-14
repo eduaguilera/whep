@@ -10,6 +10,8 @@
 status](https://www.r-pkg.org/badges/version/whep)](https://CRAN.R-project.org/package=whep)
 [![whep status
 badge](https://eduaguilera.r-universe.dev/whep/badges/version)](https://eduaguilera.r-universe.dev/whep)
+[![Codecov test
+coverage](https://codecov.io/gh/eduaguilera/whep/branch/main/graph/badge.svg)](https://app.codecov.io/gh/eduaguilera/whep?branch=main)
 <!-- badges: end -->
 
 ## Project
