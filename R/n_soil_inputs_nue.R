@@ -1,28 +1,28 @@
-#' @title Nitrogen (N) soil inputs and Nitrogen Use Efficiency (NUE) for
-#' crops in Spain
+#' @title Nitrogen (N) soil inputs for Spain ----------------------------------
 #'
 #' @description
-#' N inputs (deposition, fixation, synthetic fertilizers, urban sources, manure)
-#' and N production in Spain from 1860 to the present for the GRAFS model at the
-#' provincial level.
+#' Calculates total nitrogen inputs to soils in Spain at the provincial level.
+#' This includes contributions from:
+#' - Atmospheric deposition (`deposition`)
+#' - Biological nitrogen fixation (`fixation`)
+#' - Synthetic fertilizers (`synthetic`)
+#' - Manure (excreta, solid, liquid) (`manure`)
+#' - Urban sources (`urban`)
 #'
-#' @returns
-#' A tibble containing nitrogen input, production, and NUE data.
-#'   It includes the following columns:
-#'   - `Year`: The year in which the recorded event occurred.
-#'   - `Province_name`: The Spanish province where the data is from.
-#'   - `Item`: The item which was produced, defined in `names_biomass_cb`.
-#'   - `Box`: One of the two systems of the GRAFS model: cropland or
-#'   semi-natural agroecosystems.
-#'   - `deposition`: Atmospheric nitrogen deposition in megagrams (Mg).
-#'   - `fixation`: Nitrogen fixation in megagrams (Mg).
-#'   - `synthetic`: Synthetic nitrogen fertilizer applied to the land in
-#'   megagrams (Mg).
-#'   - `manure`: Nitrogen in manure applied to the land in megagrams (Mg).
-#'   - `urban`: Nitrogen in wastewater from human sources in megagrams (Mg).
-#'   - `import`: Imported nitrogen in megagrams (Mg).
-#'   - `prod`: Produced nitrogen in megagrams (Mg).
-#'   - `inputs`: Total nitrogen inputs in megagrams (Mg).
+#' Special land use categories and items are aggregated:
+#' - Semi-natural agroecosystems (e.g., Dehesa, Pasture_Shrubland)
+#' - Firewood biomass (e.g., Conifers, Holm oak)
+#'
+#' @return A tibble containing:
+#'   - `Year`: Year
+#'   - `Province_name`: Spanish province
+#'   - `Item`: Crop, land use, or biomass item
+#'   - `Box`: Land use or ecosystem box for aggregation
+#'   - `deposition`: N input from atmospheric deposition (Mg)
+#'   - `fixation`: N input from biological N fixation (Mg)
+#'   - `synthetic`: N input from synthetic fertilizers (Mg)
+#'   - `manure`: N input from livestock manure (Mg)
+#'   - `urban`: N input from urban sources (Mg)
 #'
 #' @export
 create_n_soil_inputs <- function() {
@@ -109,11 +109,20 @@ create_n_soil_inputs <- function() {
   n_soil_inputs
 }
 
-#' @title GRAFS_Prod_Destiny ---------------------------------------------------
-#' @description Summarizes and calculates new columns: prod
-#' Spread Destiny column to separate columns for Food, Feed, Other_uses, Export.
+#' @title N production for Spain -----------------------------------------------
 #'
-#' @return A tibble with combined N input and production data.
+#' @description Calculates N production at the provincial level in Spain.
+#' Production is derived from consumption, export, import, and other uses.
+#'
+#' @return A tibble containing:
+#'   - `Year`: Year
+#'   - `Province_name`: Spanish province
+#'   - `Item`: Product item
+#'   - `Box`: Ecosystem box
+#'   - `Box_destiny`: Destination box
+#'   - `import`: Imported N (Mg)
+#'   - `prod`: Produced N (Mg)
+#'
 #' @export
 create_n_production <- function() {
   grafs_prod_destiny_final <- create_n_prov_destiny()
@@ -154,12 +163,34 @@ create_n_production <- function() {
   n_prod_data
 }
 
-#' @title NUE for Cropland and Semi-natural agroecosystems ---------------------
-#' @description Calculates NUE for cropland and semi-natural agroecosystems as
-#' the ratio of production to total N soil input.
+#' @title N soil inputs and Nitrogen Use Efficiency (NUE) for crop -------------
 #'
-#' @return A tibble with calculated NUE values for cropland and semi-natural
-#' agroecosystems.
+#' @description
+#' N inputs (deposition, fixation, synthetic fertilizers, urban sources, manure)
+#' and N production in Spain from 1860 to the present for the GRAFS model at the
+#' provincial level.
+#' The crop NUE is defined as the percentage of produced nitrogen relative to
+#' the total nitrogen inputs to the soil.
+#' Total soil inputs are calculated as:
+#' inputs = deposition + fixation + synthetic + manure + urban
+#'
+#' @returns
+#' A tibble containing nitrogen input, production, and NUE data.
+#'   It includes the following columns:
+#'   - `Year`: Year.
+#'   - `Province_name`: The Spanish province.
+#'   - `Item`: The item which was produced, defined in `names_biomass_cb`.
+#'   - `Box`: One of the two systems of the GRAFS model: cropland or
+#'            semi-natural agroecosystems.
+#'   - `deposition`: Atmospheric nitrogen deposition in megagrams (Mg).
+#'   - `fixation`: Nitrogen fixation in megagrams (Mg).
+#'   - `synthetic`: Synthetic nitrogen fertilizer applied to the land in
+#'                  megagrams (Mg).
+#'   - `manure`: Nitrogen in manure applied to the land in megagrams (Mg).
+#'   - `urban`: Nitrogen in wastewater from human sources in megagrams (Mg).
+#'   - `prod`: Produced nitrogen in megagrams (Mg).
+#'   - `inputs`: Total nitrogen inputs in megagrams (Mg).
+#'
 #'
 #' @export
 calculate_nue_crops <- function() {
@@ -191,10 +222,29 @@ calculate_nue_crops <- function() {
 
 
 #' @title NUE for Livestock ----------------------------------------------------
-#' @description Calculates NUE for livestock as the ratio of N in livestock
-#' products to N in feed intake.
 #'
-#' @return A tibble with calculated NUE values for livestock.
+#' @description
+#' Calculates Nitrogen Use Efficiency (NUE) for livestock categories
+#' (excluding pets).
+#'
+#' The livestock NUE is defined as the percentage of nitrogen in livestock
+#' products relative to the nitrogen in feed intake:
+#' nue = prod_n / feed_n * 100
+#'
+#' Additionally, a mass balance is calculated to check the recovery of N in
+#' products and excretion relative to feed intake:
+#' mass_balance = (prod_n + excretion_n) / feed_n
+#'
+#' @return A tibble containing:
+#'   - `Year`: Year
+#'   - `Province_name`: Spanish province
+#'   - `Livestock_cat`: Livestock category
+#'   - `Item`: Produced item
+#'   - `prod_n`: Nitrogen in livestock products (Mg)
+#'   - `feed_n`: Nitrogen in feed intake (Mg)
+#'   - `excretion_n`: Nitrogen excreted (Mg)
+#'   - `nue`: Nitrogen Use Efficiency (%)
+#'   - `mass_balance`: Mass balance ratio (%)
 #'
 #' @export
 calculate_nue_livestock <- function() {
@@ -210,14 +260,14 @@ calculate_nue_livestock <- function() {
     dplyr::filter(!is.na(Prod_MgN)) |>
     dplyr::group_by(Year, Province_name, Livestock_cat, Item) |>
     dplyr::summarise(
-      prod_N = sum(Prod_MgN, na.rm = TRUE),
+      prod_n = sum(Prod_MgN, na.rm = TRUE),
       .groups = "drop"
     )
 
   excretion_n <- whep_read_file("n_excretion_ygs") |>
     dplyr::group_by(Year, Province_name, Livestock_cat) |>
     dplyr::summarise(
-      excretion_N = sum(Excr_MgN, na.rm = TRUE),
+      excretion_n = sum(Excr_MgN, na.rm = TRUE),
       .groups = "drop"
     )
 
@@ -231,10 +281,20 @@ calculate_nue_livestock <- function() {
       by = c("Year", "Province_name", "Livestock_cat")
     ) |>
     dplyr::mutate(
-      nue = prod_N / feed_n * 100,
-      mass_balance = (prod_N + excretion_N) / feed_n
+      nue = prod_n / feed_n * 100,
+      mass_balance = (prod_n + excretion_n) / feed_n
     ) |>
-    dplyr::select(Year, Province_name, Livestock_cat, Item, nue, mass_balance)
+    dplyr::select(
+      Year,
+      Province_name,
+      Livestock_cat,
+      Item,
+      prod_n,
+      feed_n,
+      excretion_n,
+      nue,
+      mass_balance
+    )
 
   nue_livestock
 }

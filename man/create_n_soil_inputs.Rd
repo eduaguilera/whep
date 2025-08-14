@@ -2,33 +2,38 @@
 % Please edit documentation in R/n_soil_inputs_nue.R
 \name{create_n_soil_inputs}
 \alias{create_n_soil_inputs}
-\title{Nitrogen (N) soil inputs and Nitrogen Use Efficiency (NUE) for
-crops in Spain}
+\title{Nitrogen (N) soil inputs for Spain ----------------------------------}
 \usage{
 create_n_soil_inputs()
 }
 \value{
-A tibble containing nitrogen input, production, and NUE data.
-It includes the following columns:
+A tibble containing:
 \itemize{
-\item \code{Year}: The year in which the recorded event occurred.
-\item \code{Province_name}: The Spanish province where the data is from.
-\item \code{Item}: The item which was produced, defined in \code{names_biomass_cb}.
-\item \code{Box}: One of the two systems of the GRAFS model: cropland or
-semi-natural agroecosystems.
-\item \code{deposition}: Atmospheric nitrogen deposition in megagrams (Mg).
-\item \code{fixation}: Nitrogen fixation in megagrams (Mg).
-\item \code{synthetic}: Synthetic nitrogen fertilizer applied to the land in
-megagrams (Mg).
-\item \code{manure}: Nitrogen in manure applied to the land in megagrams (Mg).
-\item \code{urban}: Nitrogen in wastewater from human sources in megagrams (Mg).
-\item \code{import}: Imported nitrogen in megagrams (Mg).
-\item \code{prod}: Produced nitrogen in megagrams (Mg).
-\item \code{inputs}: Total nitrogen inputs in megagrams (Mg).
+\item \code{Year}: Year
+\item \code{Province_name}: Spanish province
+\item \code{Item}: Crop, land use, or biomass item
+\item \code{Box}: Land use or ecosystem box for aggregation
+\item \code{deposition}: N input from atmospheric deposition (Mg)
+\item \code{fixation}: N input from biological N fixation (Mg)
+\item \code{synthetic}: N input from synthetic fertilizers (Mg)
+\item \code{manure}: N input from livestock manure (Mg)
+\item \code{urban}: N input from urban sources (Mg)
 }
 }
 \description{
-N inputs (deposition, fixation, synthetic fertilizers, urban sources, manure)
-and N production in Spain from 1860 to the present for the GRAFS model at the
-provincial level.
+Calculates total nitrogen inputs to soils in Spain at the provincial level.
+This includes contributions from:
+\itemize{
+\item Atmospheric deposition (\code{deposition})
+\item Biological nitrogen fixation (\code{fixation})
+\item Synthetic fertilizers (\code{synthetic})
+\item Manure (excreta, solid, liquid) (\code{manure})
+\item Urban sources (\code{urban})
+}
+
+Special land use categories and items are aggregated:
+\itemize{
+\item Semi-natural agroecosystems (e.g., Dehesa, Pasture_Shrubland)
+\item Firewood biomass (e.g., Conifers, Holm oak)
+}
 }
