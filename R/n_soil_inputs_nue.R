@@ -298,3 +298,55 @@ calculate_nue_livestock <- function() {
 
   nue_livestock
 }
+
+#' @title System NUE -----------------------------------------------------------
+#'
+#' @description
+#' Calculates the NUE for Spain at the provincial level.
+#' The system NUE is defined as the percentage of total nitrogen production
+#' (`total_prod`) relative to the sum of all nitrogen inputs (`inputs`) into the
+#' soil system.
+#'
+#' @param n_soil_inputs A tibble of nitrogen soil input (deposition, fixation,
+#' synthetic, manure, urban)
+#'
+#' @return A tibble with the following columns:
+#'   - `Year`: Year
+#'   - `Province_name`: Spanish province
+#'   - `total_prod`: Total nitrogen production (Mg)
+#'   - `inputs`: Total nitrogen inputs (Mg)
+#'   - `nue_system`: System-level Nitrogen Use Efficiency (%)
+#'
+#' @export
+calculate_system_nue <- function(n_soil_inputs = create_n_soil_inputs()) {
+  n_soil_inputs <- n_soil_inputs |>
+    dplyr::group_by(Year, Province_name) |>
+    dplyr::summarise(
+      deposition = sum(deposition, na.rm = TRUE),
+      fixation = sum(fixation, na.rm = TRUE),
+      synthetic = sum(synthetic, na.rm = TRUE),
+      manure = sum(manure, na.rm = TRUE),
+      urban = sum(urban, na.rm = TRUE),
+      .groups = "drop"
+    )
+
+  total_outputs <- dplyr::bind_rows(
+    whep_read_file("n_balance_ygpit_all"),
+    whep_read_file("livestock_prod_ygps")
+  ) |>
+    dplyr::group_by(Year, Province_name) |>
+    dplyr::summarise(
+      total_prod = sum(Prod_MgN, na.rm = TRUE),
+      .groups = "drop"
+    )
+
+  system_nue <- total_outputs |>
+    dplyr::left_join(n_soil_inputs, by = c("Year", "Province_name")) |>
+    dplyr::mutate(
+      inputs = deposition + fixation + synthetic + manure + urban,
+      nue_system = total_prod / inputs * 100
+    ) |>
+    dplyr::select(Year, Province_name, total_prod, inputs, nue_system)
+
+  system_nue
+}
