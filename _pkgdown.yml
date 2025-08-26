@@ -78,3 +78,4 @@ reference:
   - calculate_nue_livestock
   - calculate_system_nue
   - create_alfredos_typologies
+  - create_typologies_whep

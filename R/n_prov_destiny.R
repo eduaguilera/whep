@@ -47,7 +47,7 @@ create_n_prov_destiny <- function() {
     .calculate_population_share() |>
     .calculate_food_and_other_uses(pie_full_destinies_fm)
 
-  biomass_item_merged |>
+  grafs_prod_item_n <- biomass_item_merged |>
     .remove_seeds_from_system(pie_full_destinies_fm, prod_combined_boxes) |>
     .add_grass_wood() |>
     .prepare_prod_data(
@@ -59,9 +59,16 @@ create_n_prov_destiny <- function() {
       .adding_feed(intake_ygiac),
       food_and_other_uses
     ) |>
-    .convert_to_items_n(codes_coefs_items_full, biomass_coefs) |>
+    .convert_to_items_n(codes_coefs_items_full, biomass_coefs)
+
+  prod_destiny <- grafs_prod_item_n |>
     .calculate_trade() |>
     .finalize_prod_destiny(codes_coefs_items_full)
+
+  list(
+    prod_destiny = prod_destiny,
+    grafs_prod_item_n = grafs_prod_item_n
+  )
 }
 
 #' @title Production of Cropland, Livestock, and Semi-natural agroecosystems
