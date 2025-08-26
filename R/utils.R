@@ -77,8 +77,10 @@ utils::globalVariables(
     "ggplot",
     "group",
     "grafs_prod_destiny",
+    "grafs_prod_item_n",
     "GrazedWeeds_MgDM",
     "herbaceous",
+    "human_share",
     "import",
     "Import",
     "import",
@@ -262,6 +264,7 @@ utils::globalVariables(
     "value_proc_raw",
     "value_to_process",
     "woody",
+    "woody_prod",
     "woody_share",
     "Year",
     "year"
