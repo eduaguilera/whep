@@ -15,9 +15,9 @@ knitr::opts_chunk$set(
 ```
 
 ```{r setup}
-library(WHEP)
-key_path <- here::here(Sys.getenv("GOOGLESHEETS_AUTH_FILE"))
-googlesheets4::gs4_auth(path = key_path)
+library(whep)
+# Don't ask for credentials (read public files)
+googlesheets4::gs4_deauth()
 ```
 
 First we read the trade sources sheet and build a dataframe where each row accounts for one year.

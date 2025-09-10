@@ -4,47 +4,120 @@
 \alias{get_bilateral_trade}
 \title{Bilateral trade data}
 \usage{
-get_bilateral_trade(file_path)
+get_bilateral_trade(trade_version = NULL, cbs_version = NULL)
 }
 \arguments{
-\item{file_path}{The local path where the input CSV is located}
+\item{trade_version}{File version used for bilateral trade input.
+See \link{whep_inputs} for version details.}
+
+\item{cbs_version}{File version passed to \code{get_wide_cbs()} call.}
 }
 \value{
-A tibble with the reported trade between countries.
+A tibble with the reported trade between countries. For efficient
+memory usage, the tibble is not exactly in tidy format.
 It contains the following columns:
 \itemize{
-\item \code{year}: The year when the data was collected.
-\item \code{from_code}: FAOSTAT internal code for the country that is exporting the
-item. Equivalences with ISO 3166-1 numeric can be found in the
-\emph{Area Codes} CSV from the zip file that can be downloaded from
-\href{https://www.fao.org/faostat/en/#data/FBS}{FAOSTAT}. TODO: Think about
-this, would be nice to use ISO3 codes but won't be enough for our periods
-\item \code{to_code}: FAOSTAT internal code for the country that is importing the
-item. See previous \code{from_code}.
-\item \code{item}: Natural language name for the item that is being traded.
-\item \code{unit}: Measure unit for the traded item. It can have two values:
+\item \code{year}: The year in which the recorded event occurred.
+\item \code{item_cbs_code}: FAOSTAT internal code for the item that is being traded.
+For code details see e.g. \code{add_item_cbs_name()}.
+\item \code{bilateral_trade}: Square matrix of \code{NxN} dimensions where \code{N} is the
+total number of countries being considered. The matrix row and column
+names are exactly equal and they represent country codes.
 \itemize{
-\item \code{"tonnes"}: Trade amount in tonnes (for crop items)
-\item \code{"heads"}: Trade amount in number of animals (for livestock items)
-}
-\item \code{value}: The amount traded in the corresponding measure unit.
+\item Row name: The code of the country where the data is from. For code
+details see e.g. \code{add_area_name()}.
+\item Column name: FAOSTAT internal code for the country that is importing the
+item. See row name explanation above.
 }
 
-For the final data obtained, the export data was preferred, i.e.,
-if country \code{"A"} says it exported \code{X} tonnes to country \code{"B"} but country
-\code{"B"} claims they got \code{Y} tonnes from country \code{"A"}, we trust the export data
-\code{X}. This choice is only needed if there exists a reported amount from both
-sides. Otherwise, the single existing report is chosen.
+If \code{m} is the matrix, the value at \code{m["A", "B"]} is the trade in tonnes
+from country \code{"A"} to country \code{"B"}, for the corresponding year and item.
+The matrix can be considered \emph{balanced}. This means:
+\itemize{
+\item The sum of all values from row \code{"A"}, where \code{"A"} is any country,
+should match the total exports from country \code{"A"} reported in the
+commodity balance sheet (which is considered more accurate for totals).
+\item The sum of all values from column \code{"A"}, where \code{"A"} is any country,
+should match the total imports into country \code{"A"} reported in the
+commodity balance sheet (which is considered more accurate for totals).
+}
 
-For each item and year, the total exports should match the total imports.
-TODO: Balance data for this to be true.
+The sums may not be exactly the expected values because of precision
+issues and/or the iterative proportional fitting algorithm not converging
+fast enough, but should be relatively very close to the desired totals.
+}
+
+The step by step approach to obtain this data tries to follow the FABIO
+model and is explained below. All the steps are performed separately for
+each group of year and item.
+\itemize{
+\item From the FAOSTAT reported bilateral trade, there are sometimes two values
+for one trade flow: the exported amount claimed by the reporter country
+and the import amount claimed by the partner country. Here, the export
+data was preferred, i.e., if country \code{"A"} says it exported \code{X} tonnes to
+country \code{"B"} but country \code{"B"} claims they got \code{Y} tonnes from country
+\code{"A"}, we trust the export data \code{X}. This choice is only needed if there
+exists a reported amount from both sides. Otherwise, the single existing
+report is chosen.
+\item Complete the country data, that is, add any missing combinations of
+country trade with NAs, which will be estimated later. In the matrix
+form, this doesn't increase the memory usage since we had to build a
+matrix anyway (for the balancing algorithm), and the \emph{empty} parts also
+take up memory. This is also done for total imports/exports from the
+commodity balance sheet, but these are directly filled with 0s instead.
+\item The total imports and exports from the commodity balance sheet are
+balanced by downscaling the largest of the two to match the lowest.
+This is done in the following way:
+\itemize{
+\item If \code{total_imports > total_exports}: Set \code{import} as
+\code{total_exports * import / total_import}.
+\item If \code{total_exports > total_exports}: Set \code{export} as
+\code{total_exports * export / total_export}.
+}
+\item The missing data in the matrix must be estimated. It's done like this:
+\itemize{
+\item For each pair of exporter \code{i} and importer \code{j}, we estimate a bilateral
+trade \code{m[i, j]} using the export shares of \code{i} and import shares of \code{j}
+from the commodity balance sheet:
+\itemize{
+\item \code{est_1 <- exports[i] * imports[j] / sum(imports)}, i.e., total
+exports of country \code{i} spread among other countries' import shares.
+\item \code{est_2 <- imports[j] * exports[i] / sum(exports)}, i.e. total
+imports of country \code{j} spread among other countries' export shares.
+\item \code{est <- (est_1 + est_2) / 2}, i.e., the mean of both estimates.
+}
+
+In the above computations, exports and imports are the original values
+before they were balanced.
+\item The estimates for data that already existed (i.e. non-NA) are discarded.
+For the ones left, for each row (i.e. exporter country), we get the
+difference between its balanced total export and the sum of original
+non-estimated data. The result is the \emph{\code{gap}} we can actually fill with
+estimates, so as to not get past the reported total export. If the sum
+of non-discarded estimates is larger, it must be downscaled and spread
+by computing
+\code{gap * non_discarded_estimate / sum(non_discarded_estimates)}.
+\item The estimates are divided by a \emph{trust factor}, in the sense that we
+don't rely on the whole value, thinking that a non-present value might
+actually be because that specific trade was 0, so we don't overestimate
+too much. The chosen factor is 10\%, so only 10\% of the estimate's value
+is actually used to fill the NA from the original bilateral trade
+matrix.
+}
+\item The matrix is balanced, as mentioned before, using the
+\href{https://en.wikipedia.org/wiki/Iterative_proportional_fitting}{iterative proportional fitting algorithm}. The target sums for rows and columns are respectively the balanced
+exports and imports computed from the commodity balance sheet. The
+algorithm is performed directly using the \href{https://CRAN.R-project.org/package=mipfp}{mipfp R package}.
+}
 }
 \description{
-Clean CSV data from the given \code{file_path}. It is recommended to use an
-autogenerated path by \code{get_file_path()} function.
+Reports trade between pairs of countries in given years.
 }
 \examples{
-\dontrun{
-get_bilateral_trade(get_file_path("bilateral_trade"))
-}
+# Note: These are smaller samples to show outputs, not the real data.
+# For all data, call the function with default versions (i.e. no arguments).
+get_bilateral_trade(
+  trade_version = "20250721T141553Z-5707e",
+  cbs_version = "20250721T132006Z-8ea47"
+)
 }
