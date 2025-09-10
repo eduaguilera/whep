@@ -61,8 +61,16 @@ reference:
   contents:
   - get_faostat_data
 
+- title: Harmonization
+  desc: >
+    Harmonize original source data with FAOSTAT trade data
+  contents:
+  - harmonization_function_interpolation
+
 - title: Data sources
   desc: >
     Get a tidy dataframe with the found sources for different data.
   contents:
   - expand_trade_sources
+  
+
