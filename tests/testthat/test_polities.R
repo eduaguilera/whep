@@ -51,3 +51,45 @@ testthat::test_that("get_polities is consistent", {
     pointblank::expect_col_vals_expr(~ start_year <= end_year) |>
     .expect_consistent_code_info()
 })
+
+testthat::test_that("error messages are useful", {
+  polities <- tibble::tibble(
+    polity_name = c("Polity 1", "Polity 2", "Polity 3")
+  )
+  polity_codes <- tibble::tibble(
+    polity_name = c("Polity 2"),
+    polity_code = c("POL2_code")
+  )
+  .error_polity_code_unmatched(polities, polity_codes) |>
+    testthat::expect_snapshot_error()
+
+  polities <- tibble::tibble(polity_name = c("Polity 2"))
+  polity_codes <- tibble::tibble(
+    polity_name = c("Polity 1", "Polity 2", "Polity 3"),
+    polity_code = c("POL1_code", "POL2_code", "POL3_code")
+  )
+  .error_polity_code_unmatched(polities, polity_codes) |>
+    testthat::expect_snapshot_error()
+
+  merged_sources <- tibble::tibble(
+    original_name = c("Polity 1", "Polity 2", "Polity 3"),
+    source = c("source_1", "source_1", "source_2")
+  )
+  common_names <- tibble::tibble(
+    original_name = c("Polity 2"),
+    source = c("source_1")
+  )
+  .error_common_names_unmatched(merged_sources, common_names) |>
+    testthat::expect_snapshot_error()
+
+  merged_sources <- tibble::tibble(
+    original_name = c("Polity 2"),
+    source = c("source_1")
+  )
+  common_names <- tibble::tibble(
+    original_name = c("Polity 1", "Polity 2", "Polity 3"),
+    source = c("source_1", "source_1", "source_2")
+  )
+  .error_common_names_unmatched(merged_sources, common_names) |>
+    testthat::expect_snapshot_error()
+})

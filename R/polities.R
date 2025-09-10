@@ -227,6 +227,8 @@ get_polity_sources <- function(polity_codes = NULL) {
 }
 
 .add_common_names <- function(merged_datasets) {
+  .error_common_names_unmatched(merged_datasets, k_polity_common_names)
+
   merged_datasets |>
     dplyr::inner_join(
       k_polity_common_names,
@@ -236,8 +238,12 @@ get_polity_sources <- function(polity_codes = NULL) {
 }
 
 .set_polity_name_code <- function(merged_datasets) {
+  merged_datasets <- merged_datasets |>
+    dplyr::rename(polity_name = common_name)
+
+  .error_polity_code_unmatched(merged_datasets, k_polity_codes)
+
   merged_datasets |>
-    dplyr::rename(polity_name = common_name) |>
     dplyr::inner_join(
       k_polity_codes,
       by = "polity_name",
@@ -561,6 +567,62 @@ get_polity_sources <- function(polity_codes = NULL) {
         as.integer(code_end_year) != end_year
     ) |>
     dplyr::select(-code_iso, -code_start_year, -code_end_year)
+}
+
+.error_common_names_unmatched <- function(merged_datasets, common_names) {
+  unmatched <- merged_datasets |>
+    dplyr::anti_join(common_names, by = c("original_name", "source")) |>
+    dplyr::mutate(which = .stringify_name_and_source(original_name, source)) |>
+    dplyr::pull()
+
+  if (length(unmatched) > 0) {
+    cli::cli_abort(
+      "Polities from some sources are not defined in common names table: {unmatched}. Include them in common_names.csv."
+    )
+  }
+
+  unmatched <- common_names |>
+    dplyr::anti_join(merged_datasets, by = c("original_name", "source")) |>
+    dplyr::mutate(which = .stringify_name_and_source(original_name, source)) |>
+    dplyr::pull()
+
+  if (length(unmatched) > 0) {
+    cli::cli_abort(
+      "Polities in common names table that do not exist in any source: {unmatched}."
+    )
+  }
+}
+
+.error_polity_code_unmatched <- function(merged_datasets, polity_codes) {
+  unmatched <- merged_datasets |>
+    dplyr::anti_join(polity_codes, by = "polity_name") |>
+    dplyr::pull(polity_name) |>
+    purrr::map(.quotify)
+
+  if (length(unmatched) > 0) {
+    cli::cli_abort(
+      "Polities with no defined polity_code: {unmatched}. Include them in polity_codes.csv."
+    )
+  }
+
+  unmatched <- polity_codes |>
+    dplyr::anti_join(merged_datasets, by = "polity_name") |>
+    dplyr::pull(polity_name) |>
+    purrr::map(.quotify)
+
+  if (length(unmatched) > 0) {
+    cli::cli_abort(
+      "Polities with polity_code but missing in common names table: {unmatched}. Include them in common_names.csv."
+    )
+  }
+}
+
+.stringify_name_and_source <- function(name, source) {
+  stringr::str_glue("(name: {.quotify(name)}, source: {.quotify(source)})")
+}
+
+.quotify <- function(x) {
+  stringr::str_glue('"{x}"')
 }
 
 # TODO: todos from removed old code:
