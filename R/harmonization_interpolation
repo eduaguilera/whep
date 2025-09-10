@@ -1,0 +1,62 @@
+harmonization_function_interpolation <- function(data){
+  data_groups <- data |> 
+    filter(type == "1:N") |> 
+    select(items, item_code_harm) |> 
+    distinct()
+  
+  harm_groups <- data_groups |> 
+    group_by(items) |> 
+    summarize(harm_set = list(unique(item_code_harm)), .groups = "drop")
+  
+  df_simple <- data |>
+    filter(type == "Simple") |>
+    group_by(item_name_harm, item_code_harm, year, measurement) |> 
+    summarize(value = sum(value)) |> 
+    ungroup()
+  
+  if(nrow(data_groups) == 0){
+    return(df_simple |> 
+             rename(item_code = item_code_harm,
+                    items = item_name_harm))
+  }
+  
+  group_year_presence <- df_simple |>
+    select(item_code_harm, year) |> 
+    left_join(data_groups, by = "item_code_harm") |>
+    group_by(items, year) |>
+    summarize(
+      observed_harm = list(unique(item_code_harm)),
+      .groups = "drop"
+    ) |>
+    left_join(harm_groups, by = "items") |>
+    mutate(all_present = map2_lgl(harm_set, observed_harm, ~ all(.x %in% .y))) |>
+    filter(all_present)
+  
+  complex_shares <- data_groups |>
+    left_join(group_year_presence, by = "items") |>
+    select(items, item_code_harm, year) |>
+    left_join(df_simple |> select(-item_name_harm, -measurement), by = c("year", "item_code_harm")) |> 
+    group_by(items, year) |> 
+    mutate(total_value = sum(value, na.rm = T),
+           value_share = value/total_value,
+           year = as.numeric(year)) |> 
+    select(-value, -total_value) |> 
+    ungroup() |> 
+    complete(items, item_code_harm, year = 1840:1960) |> 
+    group_by(items, item_code_harm) |> 
+    Filling(value_share, year) |> 
+    select(items, item_code_harm, year, value_share)
+  
+  return_tibble <- data |>
+    filter(type == "1:N") |>
+    left_join(complex_shares, by = c("items", "item_code_harm", "year")) |> 
+    mutate(value = value * value_share) |>
+    select(year, item_name_harm, item_code_harm, value, measurement) |> 
+    bind_rows(df_simple) |> 
+    rename(items = item_name_harm, item_code = item_code_harm) |> 
+    group_by(items, item_code, year, measurement) |> 
+    summarize(value = sum(value))
+  
+  return(return_tibble)
+  
+}
