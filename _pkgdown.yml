@@ -79,3 +79,4 @@ reference:
   - calculate_system_nue
   - create_alfredos_typologies
   - create_typologies_whep
+  - plot_whep_typologies
