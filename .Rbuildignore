@@ -1,6 +1,6 @@
 ^renv$
 ^renv\.lock$
-^WHEP.Rproj$
+^whep.Rproj$
 ^LICENSE\.md$
 ^docs$
 ^\.github$
@@ -10,3 +10,8 @@
 ^\.Rproj\.user$
 ^data-raw$
 ^README\.Rmd$
+^cran-comments\.md$
+^CRAN-SUBMISSION$
+^air.toml$
+^doc$
+^Meta$

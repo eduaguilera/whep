@@ -30,13 +30,14 @@
 #'
 #' add_area_name(table, name_column = "my_custom_name")
 add_area_name <- function(
-    table,
-    code_column = "area_code",
-    name_column = "area_name") {
-  regions <- .get_regions(name_column, code_column)
+  table,
+  code_column = "area_code",
+  name_column = "area_name"
+) {
+  polities <- .get_polities(name_column, code_column)
 
   table |>
-    dplyr::left_join(regions, {{ code_column }})
+    dplyr::left_join(polities, {{ code_column }})
 }
 
 #' Get area codes from area names
@@ -69,13 +70,14 @@ add_area_name <- function(
 #'
 #' add_area_code(table, code_column = "my_custom_code")
 add_area_code <- function(
-    table,
-    name_column = "area_name",
-    code_column = "area_code") {
-  regions <- .get_regions(name_column, code_column)
+  table,
+  name_column = "area_name",
+  code_column = "area_code"
+) {
+  polities <- .get_polities(name_column, code_column)
 
   table |>
-    dplyr::left_join(regions, {{ name_column }})
+    dplyr::left_join(polities, {{ name_column }})
 }
 
 #' Get commodity balance sheet item names from item codes
@@ -105,9 +107,10 @@ add_area_code <- function(
 #'
 #' add_item_cbs_name(table, name_column = "my_custom_name")
 add_item_cbs_name <- function(
-    table,
-    code_column = "item_cbs_code",
-    name_column = "item_cbs_name") {
+  table,
+  code_column = "item_cbs_code",
+  name_column = "item_cbs_name"
+) {
   items <- .get_cbs_items(name_column, code_column)
 
   table |>
@@ -119,7 +122,7 @@ add_item_cbs_name <- function(
 #' @description
 #' Add a new column to an existing tibble with the corresponding code
 #' for each commodity balance sheet item name. The codes are assumed to be
-#' from those defined by the FAOSTAT.
+#' from those defined by FAOSTAT.
 #'
 #' @param table The table that will be modified with a new column.
 #' @param code_column The name of the output column containing the codes.
@@ -143,9 +146,10 @@ add_item_cbs_name <- function(
 #'
 #' add_item_cbs_code(table, code_column = "my_custom_code")
 add_item_cbs_code <- function(
-    table,
-    name_column = "item_cbs_name",
-    code_column = "item_cbs_code") {
+  table,
+  name_column = "item_cbs_name",
+  code_column = "item_cbs_code"
+) {
   items <- .get_cbs_items(name_column, code_column)
 
   table |>
@@ -179,9 +183,10 @@ add_item_cbs_code <- function(
 #'
 #' add_item_prod_name(table, name_column = "my_custom_name")
 add_item_prod_name <- function(
-    table,
-    code_column = "item_prod_code",
-    name_column = "item_prod_name") {
+  table,
+  code_column = "item_prod_code",
+  name_column = "item_prod_name"
+) {
   items <- .get_prod_items(name_column, code_column)
 
   table |>
@@ -193,7 +198,7 @@ add_item_prod_name <- function(
 #' @description
 #' Add a new column to an existing tibble with the corresponding code
 #' for each production item name. The codes are assumed to be from those
-#' defined by the FAOSTAT.
+#' defined by FAOSTAT.
 #'
 #' @param table The table that will be modified with a new column.
 #' @param code_column The name of the output column containing the codes.
@@ -217,24 +222,23 @@ add_item_prod_name <- function(
 #'
 #' add_item_prod_code(table, code_column = "my_custom_code")
 add_item_prod_code <- function(
-    table,
-    name_column = "item_prod_name",
-    code_column = "item_prod_code") {
+  table,
+  name_column = "item_prod_name",
+  code_column = "item_prod_code"
+) {
   items <- .get_prod_items(name_column, code_column)
 
   table |>
     dplyr::left_join(items, {{ name_column }})
 }
 
-.get_regions <- function(name_column, code_column) {
-  "input/raw/regions.csv" |>
-    .read_local_csv() |>
+.get_polities <- function(name_column, code_column) {
+  whep::polities |>
     dplyr::select(!!name_column := area_name, !!code_column := area_code)
 }
 
 .get_cbs_items <- function(name_column, code_column) {
-  "input/raw/items_cbs.csv" |>
-    .read_local_csv() |>
+  whep::items_cbs |>
     dplyr::select(
       !!name_column := item_cbs_name,
       !!code_column := item_cbs_code
@@ -242,8 +246,7 @@ add_item_prod_code <- function(
 }
 
 .get_prod_items <- function(name_column, code_column) {
-  "input/raw/items_prod.csv" |>
-    .read_local_csv() |>
+  whep::items_prod |>
     dplyr::select(
       !!name_column := item_prod_name,
       !!code_column := item_prod_code

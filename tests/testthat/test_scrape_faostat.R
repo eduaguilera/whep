@@ -1,6 +1,8 @@
 library("testthat")
 
 test_that("get_faostat_data fails for wrong activity_data_param", {
+  skip_on_cran()
+
   get_faostat_data() |>
     expect_error('argument "activity_data" is missing, with no default')
 
@@ -25,6 +27,8 @@ test_that("get_faostat_data fails for wrong activity_data_param", {
 })
 
 test_that("get_faostat_data returns correct filtered results", {
+  skip_on_cran()
+
   expect_warning(
     result <- get_faostat_data(
       "livestock",
@@ -35,15 +39,18 @@ test_that("get_faostat_data returns correct filtered results", {
     "Column whatever not found in FAOSTAT data."
   )
 
-  result[, "element"] |>
-    unique() |>
+  result |>
+    dplyr::distinct(element) |>
+    dplyr::pull() |>
     expect_equal("stocks")
 
-  result[, "year"] |>
-    unique() |>
+  result |>
+    dplyr::distinct(year) |>
+    dplyr::pull() |>
     expect_equal(2010)
 
-  result[, "area"] |>
-    unique() |>
+  result |>
+    dplyr::distinct(area) |>
+    dplyr::pull() |>
     expect_equal("Portugal")
 })

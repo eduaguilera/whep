@@ -7,6 +7,6 @@
 # * https://testthat.r-lib.org/articles/special-files.html
 
 library(testthat)
-library(WHEP)
+library(whep)
 
-test_check("WHEP")
+test_check("whep")
