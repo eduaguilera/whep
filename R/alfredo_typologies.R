@@ -7,7 +7,7 @@
 #' @param prod_destiny A data frame containing production and destiny data.
 #' @param years Years between 1860 and 2020.
 #'
-#' @return A data frame with columns: Year, Province_name, grass_N,
+#' @return A data frame with the columns: Year, Province_name, grass_N,
 #' fertilizer_N, feed_import_N, woody, herbaceous, woody_share, and Category.
 #'
 #' @export
