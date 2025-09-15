@@ -164,8 +164,11 @@ create_typologies_whep <- function(
 #' @param whep_typologies A data frame returned by `create_typologies_whep()`.
 #'
 #' @return A plot showing province typology evolution from 1860 to 2020.
-#' @export
-plot_whep_typologies <- function(whep_typologies = create_typologies_whep()) {
+#' @keywords internal
+.plot_whep_typologies <- function(whep_typologies = NULL) {
+  if (is.null(whep_typologies)) {
+    whep_typologies <- create_typologies_whep()
+  }
   whep_typologies <- whep_typologies |>
     dplyr::filter(Province_name != "Sea") |>
     dplyr::mutate(
