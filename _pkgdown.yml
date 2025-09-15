@@ -78,3 +78,9 @@ reference:
   - create_typologies_grafs_spain
   - create_alfredos_typologies
   - create_typologies_whep
+  - create_n_prov_destiny
+  - create_n_soil_inputs
+  - create_n_production
+  - calculate_nue_crops
+  - calculate_nue_livestock
+  - calculate_system_nue
