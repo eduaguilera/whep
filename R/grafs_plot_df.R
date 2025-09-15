@@ -256,7 +256,7 @@
     df_population_label
   )
 
-  return(df_import_label)
+  df_import_label
 }
 
 #' @title Create Livestock LU (Livestock Units) dataset
@@ -333,7 +333,7 @@
     ) |>
     dplyr::mutate(align = "R")
 
-  return(df_lu)
+  df_lu
 }
 
 #' @title Create land input dataset by province
@@ -918,7 +918,7 @@
     ) |>
     dplyr::arrange(province, year, label)
 
-  return(df_combi)
+  df_combi
 }
 
 #' @title Create GRAFS plot dataset for provinces
@@ -935,9 +935,9 @@
 #'
 #' @export
 create_grafs_plot_df <- function() {
-  df_land <- create_land_input_df()
-  df_flow <- create_n_flow_df()
-  df_lu <- create_livestock_lu_df()
+  df_land <- .create_land_input_df()
+  df_flow <- .create_n_flow_df()
+  df_lu <- .create_livestock_lu_df()
 
   df_final <- dplyr::bind_rows(df_land, df_flow, df_lu) |>
     dplyr::arrange(province, year, label) |>
@@ -949,5 +949,5 @@ create_grafs_plot_df <- function() {
     file = "C:/PhD/GRAFS/Alfredos_package/GRAFS/inst/extdata/GRAFS_spain_data.xlsx"
   )
 
-  return(df_final)
+  df_final
 }
