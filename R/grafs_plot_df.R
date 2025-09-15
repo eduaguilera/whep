@@ -1,4 +1,17 @@
-create_n_flow_df <- function(prod_destiny_df = NULL) {
+#' @title Create nitrogen flow dataset by province
+#'
+#' @description
+#' Generates a dataset of nitrogen flows (MgN) by province and year, splitting
+#' imports, livestock, and population data into labels.
+#'
+#' @param prod_destiny_df A data frame containing production and destiny
+#' information.
+#'
+#' @return
+#' A tibble with columns `province`, `year`, `label`, `data`, and `align`.
+#'
+#' @keywords internal
+.create_n_flow_df <- function(prod_destiny_df = NULL) {
   if (is.null(prod_destiny_df)) {
     prod_destiny_df <- create_n_prov_destiny()$prod_destiny
   }
@@ -246,8 +259,18 @@ create_n_flow_df <- function(prod_destiny_df = NULL) {
   return(df_import_label)
 }
 
-# --- Livestock LU calculation ---
-create_livestock_lu_df <- function() {
+#' @title Create Livestock LU (Livestock Units) dataset
+#'
+#' @description
+#' Calculated livestock units (LU) by province and year for ruminants and
+#' monogastric animals.
+#' Converts stock numbers into standardized LU values using conversion factors.
+#'
+#' @return
+#' A tibble with columns `province`, `year`, `label`, `data`, and `align`.
+#'
+#' @keywords internal
+.create_livestock_lu_df <- function() {
   livestock_lu <- whep_read_file("livestock_prod_ygps")
 
   lu_factors <- c(
@@ -313,7 +336,17 @@ create_livestock_lu_df <- function() {
   return(df_lu)
 }
 
-create_land_input_df <- function() {
+#' @title Create land input dataset by province
+#'
+#' @description
+#' Generates a dataset of land use, crop production, grasslands,
+#' synthetic fertilizer, and nitrogen inputs by province and year.
+#'
+#' @return
+#' A tibble with columns `province`, `year`, `label`, `data`, and `align`.
+#'
+#' @keywords internal
+.create_land_input_df <- function() {
   n_balance <- whep_read_file("n_balance_ygpit_all")
 
   permanent_biomass <- c(

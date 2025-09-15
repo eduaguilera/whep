@@ -74,7 +74,4 @@ reference:
   contents:
   - create_n_inputs_grafs_spain
   - create_prod_and_destiny_grafs
-  - create_typologies_of_josette
-  - create_typologies_grafs_spain
-  - create_alfredos_typologies
-  - create_typologies_whep
+  - create_grafs_plot_df
