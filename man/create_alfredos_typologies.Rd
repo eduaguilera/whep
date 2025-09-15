@@ -18,7 +18,7 @@ create_alfredos_typologies(
 \item{years}{Years between 1860 and 2020.}
 }
 \value{
-A data frame with columns: Year, Province_name, grass_N,
+A data frame with the columns: Year, Province_name, grass_N,
 fertilizer_N, feed_import_N, woody, herbaceous, woody_share, and Category.
 }
 \description{
