@@ -71,6 +71,7 @@ create_n_prov_destiny <- function() {
   )
 }
 
+
 #' @title Production of Cropland, Livestock, and Semi-natural agroecosystems
 #' @description Merge items with biomasses.
 #'
