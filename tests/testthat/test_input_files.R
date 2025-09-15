@@ -1,87 +1,77 @@
-testthat::test_that("get_file_path fails for non-existent file_alias", {
-  testthat::local_mocked_bindings(
-    .read_local_csv = function(...) {
-      dplyr::tribble(
-        ~extension, ~alias, ~drive_file_id,
-        "csv", "file_alias_1", "some_id"
-      )
-    }
+testthat::test_that(".fetch_file_info fails for non-existent file_alias", {
+  file_inputs <- dplyr::tribble(
+    ~alias, ~board_url, ~version,
+    "file_alias_1", "some_url", "some_version"
   )
 
   testthat::expect_error(
-    get_file_path("file_alias_2"),
+    .fetch_file_info("file_alias_2", file_inputs),
     "There is no file entry with alias file_alias_2"
   )
 })
 
-testthat::test_that(
-  "get_file_path fails for duplicated entries only in filtered rows",
-  {
-    testthat::local_mocked_bindings(
-      .read_local_csv = function(...) {
-        dplyr::tribble(
-          ~extension, ~alias, ~drive_file_id,
-          "csv", "file_alias_1", "some_id",
-          "csv", "file_alias_1", "some_other_id",
-          "csv", "file_alias_2", "some_id_2"
-        )
-      }
-    )
+testthat::test_that(".fetch_file_info fails for duplicated entries only in filtered rows", {
+  file_inputs <- dplyr::tribble(
+    ~alias, ~board_url, ~version,
+    "file_alias_1", "some_url", "some_version",
+    "file_alias_1", "some_other_url", "some_other_version",
+    "file_alias_2", "some_url", "some_version_2"
+  )
 
+  testthat::expect_error(
+    .fetch_file_info("file_alias_1", file_inputs),
+    paste0(
+      "There are 2 file entries with alias file_alias_1 and there should ",
+      "be only one. Double check the content of ",
+      "'whep_inputs' dataset."
+    )
+  )
+
+  # Don't bother making the call fully work. It fails when trying to download,
+  # so it already passed the filter we wanted to test.
+  testthat::expect_error(whep_read_file("file_alias_2"))
+})
+
+testthat::test_that(".read_file reads file with correct extension", {
+  testthat::local_mocked_bindings(
+    read_csv = function(...) {
+      tibble::tibble(a = 1)
+    },
+    .package = "readr"
+  )
+  testthat::local_mocked_bindings(
+    read_parquet = function(...) {
+      tibble::tibble(a = 2)
+    },
+    .package = "nanoparquet"
+  )
+
+  paths <- c("some_file.csv", "some_file.parquet", "some_file.tsv")
+
+  .read_file(paths, "csv") |>
+    testthat::expect_equal(tibble::tibble(a = 1))
+
+  .read_file(paths, "parquet") |>
+    testthat::expect_equal(tibble::tibble(a = 2))
+
+  .read_file(paths, "txt") |>
     testthat::expect_error(
-      get_file_path("file_alias_1"),
-      paste0(
-        "There are 2 file entries with alias file_alias_1 and there should ",
-        "be only one. Double check the content of file ",
-        '"inst/extdata/input/raw/input_files.csv"'
-      )
+      "Unknown file type txt. Available for this file: csv, parquet, and tsv"
     )
+})
 
-    # Don't bother making the call fully work. It fails when trying to download,
-    # so it already passed the filter we wanted to test.
-    testthat::expect_error(get_file_path("file_alias_2"))
-  }
-)
+testthat::test_that(".choose_version sets correct version for pins call", {
+  paths <- c("some_file.csv", "some_file.parquet", "some_file.tsv")
 
-testthat::test_that(
-  "get_file_path correctly first downloads file if necessary",
-  {
-    file_alias <- "my_file_alias"
-    destdir <- .get_destdir()
-    destfile <- .get_destfile(destdir, file_alias, "csv")
-    testthat::expect_false(file.exists(destfile))
+  .choose_version(frozen_version = "some_version", user_version = NULL) |>
+    testthat::expect_equal("some_version")
 
-    testthat::local_mocked_bindings(
-      .read_local_csv = function(...) {
-        dplyr::tribble(
-          ~extension, ~alias, ~drive_file_id,
-          "csv", file_alias, "some_id",
-        )
-      },
-      .download_from_drive = function(...) file.create(destfile)
-    )
+  .choose_version(frozen_version = "some_version", user_version = "latest") |>
+    testthat::expect_equal(NULL)
 
-    force_download_msg <-
-      "Local file existed, but forcing redownload as requested."
-
-    testthat::expect_no_message(
-      get_file_path("my_file_alias"),
-      message = force_download_msg
-    )
-    testthat::expect_message(
-      get_file_path("my_file_alias", force_download = TRUE),
-      force_download_msg
-    )
-
-    testthat::local_mocked_bindings(
-      # Make sure .download_from_drive function was not called
-      .download_from_drive = function(...) testthat::expect_true(FALSE)
-    )
-    testthat::expect_message(
-      get_file_path("my_file_alias"),
-      "Using already existing local file"
-    )
-
-    file.remove(destfile)
-  }
-)
+  .choose_version(
+    frozen_version = "some_version",
+    user_version = "some_other_version"
+  ) |>
+    testthat::expect_equal("some_other_version")
+})

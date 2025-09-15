@@ -24,8 +24,7 @@ Note: overhead by individually scraping FAOSTAT code QCL for crop data;
 it's fine.
 }
 \examples{
-\dontrun{
-get_faostat_data("livestock")
+\donttest{
 get_faostat_data("livestock", year = 2010, area = "Portugal")
 }
 }

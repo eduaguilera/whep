@@ -13,8 +13,8 @@
 #' and Category.
 #' @export
 create_typologies_whep <- function(
-  prod_destiny = create_n_prov_destiny(),
-  prod_n = grafs_prod_item_n,
+  prod_destiny = create_n_prov_destiny()$prod_destiny,
+  prod_n = create_n_prov_destiny()$grafs_prod_item_n,
   years = 1860:2020
 ) {
   prod_destiny <- prod_destiny |>
@@ -24,8 +24,33 @@ create_typologies_whep <- function(
       Box != "Fish",
       Box != "Agro-industry"
     )
+
   prod_n <- prod_n |>
     dplyr::filter(Year %in% years, Province_name != "Sea")
+
+  # --- Feed-Import ------------------------------------------------
+  destiny_shares <- prod_destiny |>
+    dplyr::filter(Destiny %in% c("food", "feed", "other_uses")) |>
+    dplyr::group_by(Year, Province_name, Item) |>
+    dplyr::summarise(
+      total_consumption = sum(MgN, na.rm = TRUE),
+      feed_share = sum(MgN[Destiny == "feed"], na.rm = TRUE) /
+        sum(MgN, na.rm = TRUE),
+      .groups = "drop"
+    )
+
+  import_feed_df <- prod_destiny |>
+    dplyr::filter(Destiny == "import") |>
+    dplyr::left_join(destiny_shares, by = c("Year", "Province_name", "Item")) |>
+    dplyr::mutate(
+      import_feed = MgN * feed_share
+    ) |>
+    dplyr::select(Year, Province_name, Item, Box, import_feed) |>
+    dplyr::group_by(Year, Province_name) |>
+    dplyr::summarise(
+      feed_import = sum(import_feed, na.rm = TRUE),
+      .groups = "drop"
+    )
 
   # --- 1. Human share ------------------------------------------------------
   food_consumption <- prod_destiny |>
@@ -109,15 +134,18 @@ create_typologies_whep <- function(
     dplyr::left_join(woody_share, by = c("Year", "Province_name")) |>
     dplyr::left_join(crop_feed_list, by = c("Year", "Province_name")) |>
     dplyr::left_join(animal_ingestion, by = c("Year", "Province_name")) |>
+    dplyr::left_join(import_feed_df, by = c("Year", "Province_name")) |>
     dplyr::left_join(grass_feed, by = c("Year", "Province_name")) |>
     dplyr::left_join(crop_feed, by = c("Year", "Province_name"))
 
   # --- Assign WHEP Typologies ------------------------------------------------
   whep_typologies <- whep_typologies |>
     dplyr::mutate(
+      import_share = feed_import / animal_ingestion,
       Category = dplyr::case_when(
         human_share > 0.9 ~ "Urban System",
         woody_share > 0.1 ~ "Woody-based system",
+        import_share > 0.6 ~ "Imported feed-based system",
         crop_prod > animal_ingestion ~ "Cropland-based system",
         grass_feed_N > crop_feed_N ~ "Local grass-based livestock system",
         TRUE ~ "Local crop-based livestock system"
@@ -137,7 +165,7 @@ create_typologies_whep <- function(
 #'
 #' @return A plot showing province typology evolution from 1860 to 2020.
 #' @export
-plot_whep_typologies <- function(whep_typologies) {
+plot_whep_typologies <- function(whep_typologies = create_typologies_whep()) {
   whep_typologies <- whep_typologies |>
     dplyr::filter(Province_name != "Sea") |>
     dplyr::mutate(
@@ -150,11 +178,12 @@ plot_whep_typologies <- function(whep_typologies) {
     )
 
   typology_colors <- c(
-    "Urban System" = "#FF6666",
+    "Urban System" = "#1E90FF",
     "Woody-based system" = "#8B4513",
     "Cropland-based system" = "#FFD700",
     "Local grass-based livestock system" = "#2E8B57",
-    "Local crop-based livestock system" = "#C2B280"
+    "Local crop-based livestock system" = "#C2B280",
+    "Imported feed-based system" = "#FF6666"
   )
 
   ggplot2::ggplot(

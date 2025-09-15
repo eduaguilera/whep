@@ -4,7 +4,7 @@
 \alias{plot_whep_typologies}
 \title{Plot of WHEP typology classification}
 \usage{
-plot_whep_typologies(whep_typologies)
+plot_whep_typologies(whep_typologies = create_typologies_whep())
 }
 \arguments{
 \item{whep_typologies}{A data frame returned by \code{create_typologies_whep()}.}
