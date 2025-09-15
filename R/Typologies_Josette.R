@@ -61,16 +61,17 @@ create_typologies_of_josette <- function(
     dplyr::left_join(production_df, by = c("Year", "Province_name")) |>
     dplyr::left_join(cropland_prod_df, by = c("Year", "Province_name")) |>
     dplyr::left_join(animal_ingestion_df, by = c("Year", "Province_name")) |>
-    dplyr::left_join(intensive_list$livestock_density_df,
+    dplyr::left_join(
+      intensive_list$livestock_density_df,
       by = c("Year", "Province_name")
     ) |>
-    dplyr::left_join(intensive_list$imported_feed_share_df,
+    dplyr::left_join(
+      intensive_list$imported_feed_share_df,
       by = c("Year", "Province_name")
     ) |>
     dplyr::left_join(seminatural_df, by = c("Year", "Province_name")) |>
     dplyr::left_join(feed_domestic_df, by = c("Year", "Province_name")) |>
     dplyr::left_join(manure_share_df, by = c("Year", "Province_name"))
-
 
   typologies_df <- .assign_typologies(typologies_df) |>
     dplyr::distinct(Year, Province_name, Typology)
@@ -103,15 +104,22 @@ create_typologies_of_josette <- function(
 .load_inputs_josette <- function(inputs_dir, shapefile_path) {
   layer_name <- tools::file_path_sans_ext(basename(shapefile_path))
 
-  sf_provinces_spain <- sf::st_read(shapefile_path, query = paste0(
-    "SELECT * FROM ", layer_name, " WHERE iso_a2 = 'ES'"
-  ))
+  sf_provinces_spain <- sf::st_read(
+    shapefile_path,
+    query = paste0(
+      "SELECT * FROM ",
+      layer_name,
+      " WHERE iso_a2 = 'ES'"
+    )
+  )
 
   list(
     Livestock_Prod_ygps = readr::read_csv(file.path(
-      inputs_dir, "Livestock_Prod_ygps.csv"
+      inputs_dir,
+      "Livestock_Prod_ygps.csv"
     )),
-    Codes_coefs = readxl::read_excel(file.path(inputs_dir, "Codes_coefs.xlsx"),
+    Codes_coefs = readxl::read_excel(
+      file.path(inputs_dir, "Codes_coefs.xlsx"),
       sheet = "Liv_LU_coefs"
     ),
     codes_coefs_item = readxl::read_excel(
@@ -120,14 +128,17 @@ create_typologies_of_josette <- function(
     ),
     NPP_ygpit = readr::read_csv(file.path(inputs_dir, "NPP_ygpit.csv.gz")),
     grafs_prod_destiny_git = readr::read_csv(file.path(
-      inputs_dir, "GRAFS_Prod_Destiny_git.csv"
+      inputs_dir,
+      "GRAFS_Prod_Destiny_git.csv"
     )),
     PIE_FullDestinies_FM = readr::read_csv(file.path(
-      inputs_dir, "PIE_FullDestinies_FM.csv"
+      inputs_dir,
+      "PIE_FullDestinies_FM.csv"
     )),
     biomass_coefs = readxl::read_excel(
       file.path(
-        inputs_dir, "Biomass_coefs.xlsx"
+        inputs_dir,
+        "Biomass_coefs.xlsx"
       ),
       sheet = "Coefs",
       skip = 1
@@ -150,24 +161,42 @@ create_typologies_of_josette <- function(
   food_consumption <- grafs_prod_destiny_git |>
     dplyr::filter(Destiny == "Food") |>
     dplyr::group_by(Year, Province_name) |>
-    dplyr::summarise(Food_Consumption_MgN = sum(
-      MgN,
-      na.rm = TRUE
-    ), .groups = "drop")
+    dplyr::summarise(
+      Food_Consumption_MgN = sum(
+        MgN,
+        na.rm = TRUE
+      ),
+      .groups = "drop"
+    )
 
   # Agricultural production
   production <- grafs_prod_destiny_git |>
-    dplyr::filter(Destiny %in% c(
-      "Food", "Feed", "Other_uses",
-      "Export", "Import"
-    )) |>
+    dplyr::filter(
+      Destiny %in%
+        c(
+          "Food",
+          "Feed",
+          "Other_uses",
+          "Export",
+          "Import"
+        )
+    ) |>
     dplyr::group_by(Year, Province_name, Destiny) |>
     dplyr::summarise(MgN = sum(MgN, na.rm = TRUE), .groups = "drop") |>
     dplyr::group_by(Year, Province_name) |>
     dplyr::summarise(
-      Production_MgN = sum(MgN[Destiny %in% c(
-        "Food", "Feed", "Other_uses", "Export"
-      )], na.rm = TRUE) -
+      Production_MgN = sum(
+        MgN[
+          Destiny %in%
+            c(
+              "Food",
+              "Feed",
+              "Other_uses",
+              "Export"
+            )
+        ],
+        na.rm = TRUE
+      ) -
         sum(MgN[Destiny == "Import"], na.rm = TRUE),
       .groups = "drop"
     )
@@ -187,14 +216,23 @@ create_typologies_of_josette <- function(
 .calculate_crop_prod_feed <- function(grafs_prod_destiny_git) {
   # Cropland  production
   cropland_prod <- grafs_prod_destiny_git |>
-    dplyr::filter(Box == "Cropland", Destiny %in% c(
-      "Food", "Feed", "Other_uses", "Export", "Import"
-    )) |>
+    dplyr::filter(
+      Box == "Cropland",
+      Destiny %in%
+        c(
+          "Food",
+          "Feed",
+          "Other_uses",
+          "Export",
+          "Import"
+        )
+    ) |>
     dplyr::group_by(Year, Province_name, Destiny) |>
     dplyr::summarise(MgN = sum(MgN, na.rm = TRUE), .groups = "drop") |>
     tidyr::pivot_wider(
       names_from = Destiny,
-      values_from = MgN, values_fill = 0
+      values_from = MgN,
+      values_fill = 0
     ) |>
     dplyr::mutate(
       Cropland_Production_MgN = Food + Feed + `Other_uses` + Export - Import
@@ -205,10 +243,13 @@ create_typologies_of_josette <- function(
   animal_ingestion <- grafs_prod_destiny_git |>
     dplyr::filter(Destiny == "Feed") |>
     dplyr::group_by(Year, Province_name) |>
-    dplyr::summarise(Animal_Ingestion_MgN = sum(
-      MgN,
-      na.rm = TRUE
-    ), .groups = "drop")
+    dplyr::summarise(
+      Animal_Ingestion_MgN = sum(
+        MgN,
+        na.rm = TRUE
+      ),
+      .groups = "drop"
+    )
 
   list(
     cropland_prod = cropland_prod,
@@ -239,7 +280,11 @@ create_typologies_of_josette <- function(
 #' @keywords internal
 #' @noRd
 .calculate_imported_feed <- function(
-  livestock_df, codes_coefs_df, npp_df, feed_df, destiny_df
+  livestock_df,
+  codes_coefs_df,
+  npp_df,
+  feed_df,
+  destiny_df
 ) {
   lu_coefs <- .prepare_lu_coefs(codes_coefs_df)
   lu_detailed <- .calculate_lu_totals(livestock_df, lu_coefs)
@@ -258,7 +303,8 @@ create_typologies_of_josette <- function(
     )
 
   imported_feed_share_df <- .calculate_imported_feed_share(
-    feed_import_by_province, domestic_feed_by_province
+    feed_import_by_province,
+    domestic_feed_by_province
   )
 
   list(
@@ -279,10 +325,13 @@ create_typologies_of_josette <- function(
   seminatural_feed <- destiny_df |>
     dplyr::filter(Destiny == "Feed", Box == "Semi_natural_agroecosystems") |>
     dplyr::group_by(Year, Province_name) |>
-    dplyr::summarise(SemiNatural_feed_MgN = sum(
-      MgN,
-      na.rm = TRUE
-    ), .groups = "drop")
+    dplyr::summarise(
+      SemiNatural_feed_MgN = sum(
+        MgN,
+        na.rm = TRUE
+      ),
+      .groups = "drop"
+    )
 
   total_feed <- destiny_df |>
     dplyr::filter(Destiny == "Feed") |>
@@ -306,7 +355,10 @@ create_typologies_of_josette <- function(
 #' @keywords internal
 #' @noRd
 .calculate_feed_domestic_share <- function(
-  feed_df, lu_df, codes_coefs_item, biomass_coefs
+  feed_df,
+  lu_df,
+  codes_coefs_item,
+  biomass_coefs
 ) {
   # FM to DM to N
   feed_df <- feed_df |>
@@ -315,9 +367,12 @@ create_typologies_of_josette <- function(
       by = c("Item" = "item")
     ) |>
     dplyr::left_join(
-      biomass_coefs |> dplyr::select(
-        Name_biomass, Product_kgDM_kgFM, Product_kgN_kgDM
-      ),
+      biomass_coefs |>
+        dplyr::select(
+          Name_biomass,
+          Product_kgDM_kgFM,
+          Product_kgN_kgDM
+        ),
       by = "Name_biomass"
     ) |>
     dplyr::mutate(
@@ -341,10 +396,13 @@ create_typologies_of_josette <- function(
   # Calculate total Livestock Units (LU) in Spain per year
   total_lu_spain <- lu_df |>
     dplyr::group_by(Year) |>
-    dplyr::summarise(LU_total_spain = sum(
-      LU_total,
-      na.rm = TRUE
-    ), .groups = "drop")
+    dplyr::summarise(
+      LU_total_spain = sum(
+        LU_total,
+        na.rm = TRUE
+      ),
+      .groups = "drop"
+    )
 
   # Calculate LU share per province
   lu_with_share <- lu_df |>
@@ -364,8 +422,15 @@ create_typologies_of_josette <- function(
         ((Production_prov - Export_prov) + Import_prov),
     ) |>
     dplyr::select(
-      Year, Province_name, LU_total, LU_share, Production_prov,
-      Import_prov, Export_prov, Net_feed_import, local_feed_share
+      Year,
+      Province_name,
+      LU_total,
+      LU_share,
+      Production_prov,
+      Import_prov,
+      Export_prov,
+      Net_feed_import,
+      local_feed_share
     )
 
   feed_prov
@@ -412,10 +477,12 @@ create_typologies_of_josette <- function(
         Cropland_Production_MgN > 1.5 * Animal_Ingestion_MgN ~
           "Specialized stockless cropping system",
         Livestock_density > 1 &
-          Imported_feed_share > 0.33 ~ "Specialized livestock system",
+          Imported_feed_share > 0.33 ~
+          "Specialized livestock system",
         SemiNatural_feed_share > 0.5 ~ "Grass-based crop & livestock system",
         local_feed_share > 0.05 &
-          Manure_share > 0.05 ~ "Forage-based crop & livestock system",
+          Manure_share > 0.05 ~
+          "Forage-based crop & livestock system",
         TRUE ~ "Disconnected crop & livestock system"
       )
     ) |>
@@ -432,13 +499,20 @@ create_typologies_of_josette <- function(
 #' @keywords internal
 #' @noRd
 .create_typologies_map_josette <- function(
-  typologies_df, shapefile_path, map_year
+  typologies_df,
+  shapefile_path,
+  map_year
 ) {
   layer_name <- tools::file_path_sans_ext(basename(shapefile_path))
 
-  sf_provinces <- sf::st_read(shapefile_path, query = paste0(
-    "SELECT * FROM ", layer_name, " WHERE iso_a2 = 'ES'"
-  ))
+  sf_provinces <- sf::st_read(
+    shapefile_path,
+    query = paste0(
+      "SELECT * FROM ",
+      layer_name,
+      " WHERE iso_a2 = 'ES'"
+    )
+  )
 
   sf_provinces <- sf_provinces |>
     dplyr::mutate(
@@ -459,9 +533,14 @@ create_typologies_of_josette <- function(
 
   typologies_year <- typologies_df |>
     dplyr::filter(Year == map_year) |>
-    dplyr::filter(!Province_name %in% c(
-      "Las_Palmas", "Tenerife", "Illes_Balears"
-    ))
+    dplyr::filter(
+      !Province_name %in%
+        c(
+          "Las_Palmas",
+          "Tenerife",
+          "Illes_Balears"
+        )
+    )
 
   sf_provinces_filtered <- sf_provinces |>
     dplyr::filter(name %in% typologies_year$Province_name)
@@ -472,14 +551,16 @@ create_typologies_of_josette <- function(
 
   map_typologies_josette <- ggplot2::ggplot(map_data) +
     ggplot2::geom_sf(ggplot2::aes(fill = Typology)) +
-    ggplot2::scale_fill_manual(values = c(
-      "Urban system" = "#FF6666",
-      "Specialized stockless cropping system" = "#FFEB00",
-      "Grass-based crop & livestock system" = "#66a61e",
-      "Forage-based crop & livestock system" = "#FFA500",
-      "Disconnected crop & livestock system" = "#FFFF99",
-      "Specialized livestock system" = "#FF0000"
-    )) +
+    ggplot2::scale_fill_manual(
+      values = c(
+        "Urban system" = "#FF6666",
+        "Specialized stockless cropping system" = "#FFEB00",
+        "Grass-based crop & livestock system" = "#66a61e",
+        "Forage-based crop & livestock system" = "#FFA500",
+        "Disconnected crop & livestock system" = "#FFFF99",
+        "Specialized livestock system" = "#FF0000"
+      )
+    ) +
     ggplot2::labs(title = paste("Typologies in Spain for", map_year)) +
     ggplot2::theme_minimal()
 
@@ -550,15 +631,24 @@ create_typologies_of_josette <- function(
     sort()
   year_breaks <- year_breaks[year_breaks %% 20 == 0]
 
-  df_plot$N_input_type <- factor(df_plot$N_input_type, levels = c(
-    "Synthetic_fert", "Fixation", "Deposition", "Net_feed_import"
-  ))
+  df_plot$N_input_type <- factor(
+    df_plot$N_input_type,
+    levels = c(
+      "Synthetic_fert",
+      "Fixation",
+      "Deposition",
+      "Net_feed_import"
+    )
+  )
 
-  p <- ggplot2::ggplot(df_plot, ggplot2::aes(
-    x = factor(Year),
-    y = N_input_value,
-    fill = N_input_type
-  )) +
+  p <- ggplot2::ggplot(
+    df_plot,
+    ggplot2::aes(
+      x = factor(Year),
+      y = N_input_value,
+      fill = N_input_type
+    )
+  ) +
     ggplot2::geom_bar(stat = "identity", position = "stack") +
     ggplot2::facet_wrap(~Typology, scales = "free_y") +
     ggplot2::scale_x_discrete(breaks = year_breaks) +
@@ -581,7 +671,6 @@ create_typologies_of_josette <- function(
 
   print(p)
   df_plot
-
 
   # Additional plot: Total N inputs by typology over time-----------------------
 
@@ -620,11 +709,14 @@ create_typologies_of_josette <- function(
   year_breaks_typ <- year_breaks_typ[year_breaks_typ %% 20 == 0]
 
   # Create stacked bar plot
-  p_typology_stack <- ggplot2::ggplot(df_total_input_typ, ggplot2::aes(
-    x = factor(Year),
-    y = Total_N_input,
-    fill = Typology
-  )) +
+  p_typology_stack <- ggplot2::ggplot(
+    df_total_input_typ,
+    ggplot2::aes(
+      x = factor(Year),
+      y = Total_N_input,
+      fill = Typology
+    )
+  ) +
     ggplot2::geom_bar(stat = "identity") +
     ggplot2::scale_x_discrete(breaks = year_breaks_typ) +
     ggplot2::scale_fill_manual(values = typology_colors) +
@@ -638,7 +730,6 @@ create_typologies_of_josette <- function(
     ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 45, hjust = 1))
 
   print(p_typology_stack)
-
 
   # Relative share of N inputs by typology (in %) ------------------------------
 
@@ -675,11 +766,14 @@ create_typologies_of_josette <- function(
   year_breaks_typ_pct <- year_breaks_typ_pct[year_breaks_typ_pct %% 20 == 0]
 
   # Create stacked bar plot with percentages
-  p_typology_pct <- ggplot2::ggplot(df_total_input_typ_pct, ggplot2::aes(
-    x = factor(Year),
-    y = Percent_N_input,
-    fill = Typology
-  )) +
+  p_typology_pct <- ggplot2::ggplot(
+    df_total_input_typ_pct,
+    ggplot2::aes(
+      x = factor(Year),
+      y = Percent_N_input,
+      fill = Typology
+    )
+  ) +
     ggplot2::geom_bar(stat = "identity") +
     ggplot2::scale_x_discrete(breaks = year_breaks_typ_pct) +
     ggplot2::scale_fill_manual(values = typology_colors) +

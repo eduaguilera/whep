@@ -53,7 +53,8 @@ create_typologies_grafs_spain <- function(
     "Latin-ASCII"
   )
   data$Livestock_Prod_ygps$Province_name <- stringi::stri_trans_general(
-    data$Livestock_Prod_ygps$Province_name, "Latin-ASCII"
+    data$Livestock_Prod_ygps$Province_name,
+    "Latin-ASCII"
   )
   data$sf_provinces$name <- gsub(" ", "_", data$sf_provinces$name)
   data$sf_provinces$name[data$sf_provinces$name == "La_Rioja"] <- "Rioja"
@@ -63,9 +64,13 @@ create_typologies_grafs_spain <- function(
   data$sf_provinces$name[data$sf_provinces$name == "La_Coruna"] <- "A_Coruna"
   data$sf_provinces$name[data$sf_provinces$name == "Orense"] <- "Ourense"
   data$sf_provinces$name[data$sf_provinces$name == "Gerona"] <- "Girona"
-  data$sf_provinces <- data$sf_provinces[!data$sf_provinces$name %in% c(
-    "Las_Palmas", "Tenerife"
-  ), ]
+  data$sf_provinces <- data$sf_provinces[
+    !data$sf_provinces$name %in%
+      c(
+        "Las_Palmas",
+        "Tenerife"
+      ),
+  ]
 
   # Prepare LU coefficients with Livestock_cat mapping
   lu_coefs_mapped <- .prepare_lu_coefs(data$Codes_coefs)
@@ -101,12 +106,14 @@ create_typologies_grafs_spain <- function(
 
   # Use feed supply from GRAFS_Prod_Destiny_git + LU data
   feed_domestic_prov <- .calculate_feed_domest_supply(
-    data$GRAFS_Prod_Destiny_git, lu_aggregated
+    data$GRAFS_Prod_Destiny_git,
+    lu_aggregated
   )
 
   # Calculate feed import per province based on national imports & LU shares
   feed_import_by_province <- .calculate_feed_import_share(
-    data$PIE_FullDestinies_FM, lu_aggregated
+    data$PIE_FullDestinies_FM,
+    lu_aggregated
   )
 
   # Calculate imported feed share at province level
@@ -145,24 +152,32 @@ create_typologies_grafs_spain <- function(
 .load_inputs_typologies_julia <- function(inputs_dir, shapefile_path) {
   layer_name <- tools::file_path_sans_ext(basename(shapefile_path))
 
-  sf_provinces_spain <- sf::st_read(shapefile_path, query = paste0(
-    "SELECT * FROM ", layer_name, " WHERE iso_a2 = 'ES'"
-  ))
+  sf_provinces_spain <- sf::st_read(
+    shapefile_path,
+    query = paste0(
+      "SELECT * FROM ",
+      layer_name,
+      " WHERE iso_a2 = 'ES'"
+    )
+  )
 
   list(
     Livestock_Prod_ygps = readr::read_csv(file.path(
       inputs_dir,
       "Livestock_Prod_ygps.csv"
     )),
-    Codes_coefs = readxl::read_excel(file.path(inputs_dir, "Codes_coefs.xlsx"),
+    Codes_coefs = readxl::read_excel(
+      file.path(inputs_dir, "Codes_coefs.xlsx"),
       sheet = "Liv_LU_coefs"
     ),
     NPP_ygpit = readr::read_csv(file.path(inputs_dir, "NPP_ygpit.csv.gz")),
     GRAFS_Prod_Destiny_git = readr::read_csv(file.path(
-      inputs_dir, "GRAFS_Prod_Destiny_git.csv"
+      inputs_dir,
+      "GRAFS_Prod_Destiny_git.csv"
     )),
     PIE_FullDestinies_FM = readr::read_csv(file.path(
-      inputs_dir, "PIE_FullDestinies_FM.csv"
+      inputs_dir,
+      "PIE_FullDestinies_FM.csv"
     )),
     sf_provinces_spain = sf_provinces_spain
   )
@@ -216,8 +231,13 @@ create_typologies_grafs_spain <- function(
     dplyr::left_join(lu_coefs_df, by = "Livestock_cat") |>
     dplyr::mutate(LU_total = Stock_Number * LU_head) |>
     dplyr::select(
-      Year, Province_name, Livestock_cat, Animal_class,
-      Stock_Number, LU_head, LU_total
+      Year,
+      Province_name,
+      Livestock_cat,
+      Animal_class,
+      Stock_Number,
+      LU_head,
+      LU_total
     ) |>
     dplyr::distinct()
 }
@@ -235,10 +255,13 @@ create_typologies_grafs_spain <- function(
 .aggregate_lu_totals <- function(lu_detailed_df) {
   lu_aggregated <- lu_detailed_df |>
     dplyr::group_by(Year, Province_name) |>
-    dplyr::summarise(LU_total = sum(
-      LU_total,
-      na.rm = TRUE
-    ), .groups = "drop") |>
+    dplyr::summarise(
+      LU_total = sum(
+        LU_total,
+        na.rm = TRUE
+      ),
+      .groups = "drop"
+    ) |>
     dplyr::arrange(Year, Province_name)
 
   lu_aggregated
@@ -256,10 +279,13 @@ create_typologies_grafs_spain <- function(
 .aggregate_area_aa <- function(npp_df) {
   npp_df |>
     dplyr::group_by(Year, Province_name) |>
-    dplyr::summarise(Area_ha = sum(
-      Area_ygpit_ha,
-      na.rm = TRUE
-    ), .groups = "drop")
+    dplyr::summarise(
+      Area_ha = sum(
+        Area_ygpit_ha,
+        na.rm = TRUE
+      ),
+      .groups = "drop"
+    )
 }
 
 #' @title Calculate livestock density ------------------------------------------
@@ -319,10 +345,13 @@ create_typologies_grafs_spain <- function(
   df |>
     dplyr::filter(Box == "Semi_natural_agroecosystems", Destiny == "Feed") |>
     dplyr::group_by(Year, Province_name) |>
-    dplyr::summarise(Semi_nat_feed_MgN = sum(
-      MgN,
-      na.rm = TRUE
-    ), .groups = "drop")
+    dplyr::summarise(
+      Semi_nat_feed_MgN = sum(
+        MgN,
+        na.rm = TRUE
+      ),
+      .groups = "drop"
+    )
 }
 
 #' @title Aggregate Feed from Cropland ----------------------------------------
@@ -338,10 +367,13 @@ create_typologies_grafs_spain <- function(
   df |>
     dplyr::filter(Box == "Cropland", Destiny == "Feed") |>
     dplyr::group_by(Year, Province_name) |>
-    dplyr::summarise(Cropland_feed_MgN = sum(
-      MgN,
-      na.rm = TRUE
-    ), .groups = "drop")
+    dplyr::summarise(
+      Cropland_feed_MgN = sum(
+        MgN,
+        na.rm = TRUE
+      ),
+      .groups = "drop"
+    )
 }
 
 #' Aggregate total feed from all boxes (Feed destiny) -------------------------
@@ -359,10 +391,13 @@ create_typologies_grafs_spain <- function(
       Box %in% c("Semi_natural_agroecosystems", "Cropland")
     ) |>
     dplyr::group_by(Year, Province_name) |>
-    dplyr::summarise(Total_feed_MgN = sum(
-      MgN,
-      na.rm = TRUE
-    ), .groups = "drop") |>
+    dplyr::summarise(
+      Total_feed_MgN = sum(
+        MgN,
+        na.rm = TRUE
+      ),
+      .groups = "drop"
+    ) |>
     dplyr::arrange(Year, Province_name)
 }
 
@@ -380,12 +415,16 @@ create_typologies_grafs_spain <- function(
   total_feed <- .aggregate_total_feed_mgn(df)
   semi_nat_feed <- .aggregate_semi_nat_feed_mgn(df)
 
-  dplyr::left_join(total_feed, semi_nat_feed,
+  dplyr::left_join(
+    total_feed,
+    semi_nat_feed,
     by = c("Year", "Province_name")
   ) |>
     dplyr::mutate(
       Semi_nat_feed_MgN = ifelse(
-        is.na(Semi_nat_feed_MgN), 0, Semi_nat_feed_MgN
+        is.na(Semi_nat_feed_MgN),
+        0,
+        Semi_nat_feed_MgN
       ),
       Semi_nat_share = Semi_nat_feed_MgN / Total_feed_MgN
     ) |>
@@ -406,10 +445,13 @@ create_typologies_grafs_spain <- function(
   domestic_feed <- grafs_df |>
     dplyr::filter(Destiny == "Feed") |>
     dplyr::group_by(Year, Province_name) |>
-    dplyr::summarise(Domestic_feed_MgN = sum(
-      MgN,
-      na.rm = TRUE
-    ), .groups = "drop")
+    dplyr::summarise(
+      Domestic_feed_MgN = sum(
+        MgN,
+        na.rm = TRUE
+      ),
+      .groups = "drop"
+    )
 
   # Add LU_total for use in further steps
   domestic_feed |>
@@ -433,17 +475,23 @@ create_typologies_grafs_spain <- function(
   feed_filtered <- feed_df |>
     dplyr::filter(Element == "Import", Destiny == "Feed") |>
     dplyr::group_by(Year) |>
-    dplyr::summarise(Total_feed_import = sum(
-      Value_destiny,
-      na.rm = TRUE
-    ), .groups = "drop")
+    dplyr::summarise(
+      Total_feed_import = sum(
+        Value_destiny,
+        na.rm = TRUE
+      ),
+      .groups = "drop"
+    )
 
   total_lu_spain <- lu_df |>
     dplyr::group_by(Year) |>
-    dplyr::summarise(LU_total_spain = sum(
-      LU_total,
-      na.rm = TRUE
-    ), .groups = "drop")
+    dplyr::summarise(
+      LU_total_spain = sum(
+        LU_total,
+        na.rm = TRUE
+      ),
+      .groups = "drop"
+    )
 
   lu_with_share <- lu_df |>
     dplyr::left_join(total_lu_spain, by = "Year") |>
@@ -478,7 +526,9 @@ create_typologies_grafs_spain <- function(
       Total_feed_MgN = Domestic_feed_MgN + Feed_import_MgN,
       Imported_feed_share = Feed_import_MgN / Total_feed_MgN,
       Imported_feed_share = ifelse(
-        is.nan(Imported_feed_share), NA, Imported_feed_share
+        is.nan(Imported_feed_share),
+        NA,
+        Imported_feed_share
       )
     ) |>
     dplyr::select(
@@ -506,8 +556,12 @@ create_typologies_grafs_spain <- function(
 #' @keywords internal
 #' @noRd
 .assign_decision_tree <- function(
-  livestock_density, productivity, semi_nat_share, imported_feed_share,
-  sf_provinces, year
+  livestock_density,
+  productivity,
+  semi_nat_share,
+  imported_feed_share,
+  sf_provinces,
+  year
 ) {
   typologies <- livestock_density |>
     dplyr::inner_join(productivity, by = c("Year", "Province_name")) |>
@@ -517,17 +571,22 @@ create_typologies_grafs_spain <- function(
     dplyr::mutate(
       Typologie = dplyr::case_when(
         Livestock_density < 0.4 &
-          Productivity_kgN_ha > 60 ~ "Specialized cropping system",
+          Productivity_kgN_ha > 60 ~
+          "Specialized cropping system",
         Livestock_density < 0.4 &
-          Productivity_kgN_ha <= 60 ~ "Extensive cropping system",
+          Productivity_kgN_ha <= 60 ~
+          "Extensive cropping system",
         Livestock_density >= 0.4 &
-          Semi_nat_share > 0.6 ~ "Extensive mixed crop-livestock system",
+          Semi_nat_share > 0.6 ~
+          "Extensive mixed crop-livestock system",
         Livestock_density >= 0.4 &
           Semi_nat_share <= 0.6 &
-          Imported_feed_share < 0.5 ~ "Intensive mixed crop-livestock system",
+          Imported_feed_share < 0.5 ~
+          "Intensive mixed crop-livestock system",
         Livestock_density >= 0.4 &
           Semi_nat_share <= 0.6 &
-          Imported_feed_share >= 0.5 ~ "Specialized livestock-farming system",
+          Imported_feed_share >= 0.5 ~
+          "Specialized livestock-farming system",
         TRUE ~ NA_character_
       )
     ) |>
@@ -563,17 +622,22 @@ create_typologies_grafs_spain <- function(
     dplyr::mutate(
       Typologie = dplyr::case_when(
         Livestock_density < 0.4 &
-          Productivity_kgN_ha > 60 ~ "Specialized cropping system",
+          Productivity_kgN_ha > 60 ~
+          "Specialized cropping system",
         Livestock_density < 0.4 &
-          Productivity_kgN_ha <= 60 ~ "Extensive cropping system",
+          Productivity_kgN_ha <= 60 ~
+          "Extensive cropping system",
         Livestock_density >= 0.4 &
-          Semi_nat_share > 0.6 ~ "Extensive mixed crop-livestock system",
+          Semi_nat_share > 0.6 ~
+          "Extensive mixed crop-livestock system",
         Livestock_density >= 0.4 &
           Semi_nat_share <= 0.6 &
-          Imported_feed_share < 0.5 ~ "Intensive mixed crop-livestock system",
+          Imported_feed_share < 0.5 ~
+          "Intensive mixed crop-livestock system",
         Livestock_density >= 0.4 &
           Semi_nat_share <= 0.6 &
-          Imported_feed_share >= 0.5 ~ "Specialized livestock-farming system",
+          Imported_feed_share >= 0.5 ~
+          "Specialized livestock-farming system",
         TRUE ~ NA_character_
       )
     ) |>
