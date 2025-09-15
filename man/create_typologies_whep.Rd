@@ -5,8 +5,8 @@
 \title{Create WHEP typologies for Spain}
 \usage{
 create_typologies_whep(
-  prod_destiny = create_n_prov_destiny(),
-  prod_n = grafs_prod_item_n,
+  prod_destiny = create_n_prov_destiny()$prod_destiny,
+  prod_n = create_n_prov_destiny()$grafs_prod_item_n,
   years = 1860:2020
 )
 }
