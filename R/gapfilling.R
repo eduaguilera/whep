@@ -1,8 +1,8 @@
 # Simple functions to fill gaps (NA values) in a time-dependent variable, creating complete time series
 
 
-#' Fill gaps in a variable by linear interpolation, when possible, or carrying forward or backwards, 
-#' when not possible, and label output accordingly
+#' Fill gaps in a variable by linear interpolation between two points, or carrying forward or backwards 
+#' the last or initial values, respectively, and label output accordingly
 #' 
 #' @param df A tibble data frame containing one observation per row
 #' @param var The variable of df containing gaps to be filled
@@ -21,7 +21,7 @@
 #'   year = c("2015", "2016", "2017", "2018", "2019", "2020", "2015", "2016", "2017", "2018", "2019", "2020"),
 #'   value = c(NA, 3, NA, NA, 0, NA, 1, NA, NA, NA, 5, NA),
 #' )
-#' linear_filled_tibble <- linear_fill(sample_tibble, value, year, category)
+#'linear_fill(sample_tibble, value, year, category)
 linear_fill <- function(df, var, time_index, ...) { # df = data frame; var = variable to be filled; time_index = time index (usually year); ... = grouping variables
   df |> 
     dplyr::group_by(...) |> 
@@ -80,8 +80,8 @@ linear_fill <- function(df, var, time_index, ...) { # df = data frame; var = var
 #'   value = c(NA, 3, NA, NA, 0, NA, 1, NA, NA, NA, 5, NA),
 #'   proxy_variable = c(1,2,2,2,2,2,1,2,3,4,5,6)
 #' )
-#' proxy_filled_tibble <- proxy_fill(sample_tibble, value, proxy_variable, year, category)
-proxy_fill <- function(df, var, proxy_var, time_index, ...) { # df = data frame, var = variable to be filled, proxy_var = variable used as proxy, time_index = time index (usually year); ... = grouping variables
+#'proxy_fill(sample_tibble, value, proxy_variable, year, category)
+proxy_fill <- function(df, var, proxy_var, time_index, ...) {
   df |>
     dplyr::mutate(proxy_ratio = {{ var }} / {{ proxy_var }}) |>
     linear_fill(proxy_ratio, {{ time_index }}, ...) |>
@@ -129,7 +129,7 @@ proxy_fill <- function(df, var, proxy_var, time_index, ...) { # df = data frame,
 #'   value = c(NA, 3, NA, NA, 0, NA, 1, NA, NA, NA, 5, NA),
 #'   change_variable =c(1,1,1,1,1,1,0,0,0,0,0,0)
 #' )
-#' sum_filled_tibble <- sum_fill(sample_tibble, value, change_variable, category)
+#'sum_fill(sample_tibble, value, change_variable, category)
 sum_fill <- function(df, var, change_var, ...) {
   var_sym <- rlang::ensym(var)
   change_var_sym <- rlang::ensym(change_var)
