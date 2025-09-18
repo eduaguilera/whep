@@ -7,6 +7,12 @@
 #' @param df A tibble data frame containing one observation per row
 #' @param var The variable of df containing gaps to be filled
 #' @param time_index The time index variable (usually year)
+#' @param method The filling method to use. Options are:
+#'   - "fill_everything" (default): interpolate and carry backward and forward
+#'   - "interpolate": only linear interpolation
+#'   - "interp_back": interpolate and carry backward
+#'   - "interp_forward": interpolate and carry forward  
+#'   - "carry_only": only carry backward and forward
 #' @param ... The grouping variables (optional)
 #' 
 #' @return A tibble data frame (ungrouped) where gaps in var have been filled, 
@@ -22,23 +28,43 @@
 #'   value = c(NA, 3, NA, NA, 0, NA, 1, NA, NA, NA, 5, NA),
 #' )
 #'linear_fill(sample_tibble, value, year, category)
-linear_fill <- function(df, var, time_index, ...) { # df = data frame; var = variable to be filled; time_index = time index (usually year); ... = grouping variables
+#'linear_fill(sample_tibble, value, year, category, method = "interpolate")
+linear_fill <- function(df, var, time_index, ..., method = "fill_everything") { 
+  
+  # Validate method parameter
+  valid_methods <- c("fill_everything", "interpolate", "interp_back", "interp_forward", "carry_only")
+  if (!method %in% valid_methods) {
+    stop("method must be one of: ", paste(valid_methods, collapse = ", "))
+  }
+  
   df |> 
     dplyr::group_by(...) |> 
     dplyr::mutate(
-      Value_interpfilled = zoo::na.approx({{ var }},
-                                          x = zoo::index({{ time_index }}),
-                                          na.rm = FALSE
-      ),
-      Value_CarriedBackward = zoo::na.locf0({{ var }}),
-      Value_CarriedForward = zoo::na.locf0({{ var }}, fromLast = TRUE),
+      Value_interpfilled = if (method %in% c("fill_everything", "interpolate", "interp_back", "interp_forward")) {
+        zoo::na.approx({{ var }}, x = zoo::index({{ time_index }}), na.rm = FALSE)
+      } else {
+        NA_real_
+      },
+      Value_CarriedBackward = if (method %in% c("fill_everything", "interp_back", "carry_only")) {
+        zoo::na.locf0({{ var }})
+      } else {
+        NA_real_
+      },
+      Value_CarriedForward = if (method %in% c("fill_everything", "interp_forward", "carry_only")) {
+        zoo::na.locf0({{ var }}, fromLast = TRUE)
+      } else {
+        NA_real_
+      },
       "Source_{{var}}" := ifelse(!is.na({{ var }}),
                                  "Original",
                                  ifelse(!is.na(Value_interpfilled),
                                         "Linear interpolation",
                                         ifelse(!is.na(Value_CarriedBackward),
                                                "Last value carried forward",
-                                               "First value carried backwards"
+                                               ifelse(!is.na(Value_CarriedForward),
+                                                      "First value carried backwards",
+                                                      "Gap not filled"
+                                               )
                                         )
                                  )
       ),
@@ -53,7 +79,7 @@ linear_fill <- function(df, var, time_index, ...) { # df = data frame; var = var
                           )
       )
     ) |>
-    dplyr::select(-Value_interpfilled, -Value_CarriedForward, -Value_CarriedBackward, -Value_CarriedForward) |>
+    dplyr::select(-Value_interpfilled, -Value_CarriedForward, -Value_CarriedBackward) |>
     dplyr::ungroup()
 }
 
