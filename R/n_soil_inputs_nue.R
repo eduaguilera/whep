@@ -38,7 +38,7 @@ create_n_soil_inputs <- function() {
 #' @noRd
 .assign_items <- function() {
   list(
-    semi_natural_agroecosystems = c(
+    Semi_natural_agroecosystems = c(
       "Dehesa",
       "Forest_high",
       "Forest_low",
@@ -81,16 +81,16 @@ create_n_soil_inputs <- function() {
     item_firewood = "Firewood"
   )
 
-  semi_natural_agroecosystems <- tibble::tibble(
-    LandUse = categories$semi_natural_agroecosystems,
-    Box_semi_natural_agroecosystems = "semi_natural_agroecosystems"
+  Semi_natural_agroecosystems <- tibble::tibble(
+    LandUse = categories$Semi_natural_agroecosystems,
+    Box_semi_natural_agroecosystems = "Semi_natural_agroecosystems"
   )
 
   # Combine all necessary n Inputs
   n_soil_inputs <- n_balance_ygpit_all |>
     dplyr::left_join(items, by = "Name_biomass") |>
     dplyr::left_join(firewood_biomass, by = "Name_biomass") |>
-    dplyr::left_join(semi_natural_agroecosystems, by = "LandUse") |>
+    dplyr::left_join(Semi_natural_agroecosystems, by = "LandUse") |>
     dplyr::mutate(
       Item = dplyr::coalesce(item_firewood, Item),
       Box = dplyr::coalesce(Box_semi_natural_agroecosystems, LandUse)
@@ -102,7 +102,7 @@ create_n_soil_inputs <- function() {
       synthetic = sum(Synthetic, na.rm = TRUE),
       manure = sum(Excreta + Solid + Liquid, na.rm = TRUE),
       urban = sum(Urban, na.rm = TRUE),
-      .by = c(Year, Province_name, Item, Box)
+      .by = c(Year, Province_name, Item, Irrig_cat, Box)
     ) |>
     dplyr::arrange(Year, Province_name)
 
