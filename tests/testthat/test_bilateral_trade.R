@@ -1,58 +1,56 @@
 testthat::test_that(".prefer_flow_direction chooses preferred trade data", {
   bilateral_trade <- tibble::tribble(
-    ~from_code, ~to_code, ~year, ~item, ~element, ~value,
-    1, 2, 2000, "item_1", "Import", 0,
-    1, 2, 2000, "item_1", "Export", 0,
-    1, 2, 2000, "item_2", "Export", 0,
-    1, 3, 2000, "item_2", "Import", 0,
-    2, 3, 2000, "item_2", "Import", 0,
-    2, 3, 2001, "item_2", "Export", 0,
-    2, 3, 2001, "item_2", "Import", 0,
+    ~from_code, ~to_code, ~year, ~item_cbs_code, ~element, ~value,
+    1, 2, 2000, 1, "Import", 0,
+    1, 2, 2000, 1, "Export", 0,
+    1, 2, 2000, 2, "Export", 0,
+    1, 3, 2000, 2, "Import", 0,
+    2, 3, 2000, 2, "Import", 0,
+    2, 3, 2001, 2, "Export", 0,
+    2, 3, 2001, 2, "Import", 0,
   ) |>
-    dplyr::arrange(from_code, to_code, year, item)
+    dplyr::arrange(from_code, to_code, year, item_cbs_code)
 
-  brute_group_by_result <-
-    bilateral_trade |>
-    dplyr::group_by(from_code, to_code, year, item) |>
+  brute_group_by_result <- bilateral_trade |>
+    dplyr::group_by(from_code, to_code, year, item_cbs_code) |>
     dplyr::filter(dplyr::n() == 1 | element == "Import") |>
     dplyr::ungroup() |>
-    dplyr::arrange(from_code, to_code, year, item)
+    dplyr::arrange(from_code, to_code, year, item_cbs_code)
 
   my_result <- .prefer_flow_direction(bilateral_trade, "Import") |>
-    dplyr::arrange(from_code, to_code, year, item)
+    dplyr::arrange(from_code, to_code, year, item_cbs_code)
 
   expected_import_result <- tibble::tribble(
-    ~from_code, ~to_code, ~year, ~item, ~element, ~value,
-    1, 2, 2000, "item_1", "Import", 0,
-    1, 2, 2000, "item_2", "Export", 0,
-    1, 3, 2000, "item_2", "Import", 0,
-    2, 3, 2000, "item_2", "Import", 0,
-    2, 3, 2001, "item_2", "Import", 0,
+    ~from_code, ~to_code, ~year, ~item_cbs_code, ~element, ~value,
+    1, 2, 2000, 1, "Import", 0,
+    1, 2, 2000, 2, "Export", 0,
+    1, 3, 2000, 2, "Import", 0,
+    2, 3, 2000, 2, "Import", 0,
+    2, 3, 2001, 2, "Import", 0,
   ) |>
-    dplyr::arrange(from_code, to_code, year, item)
+    dplyr::arrange(from_code, to_code, year, item_cbs_code)
 
   testthat::expect_equal(my_result, brute_group_by_result)
   testthat::expect_equal(my_result, expected_import_result)
 
-  brute_group_by_result <-
-    bilateral_trade |>
-    dplyr::group_by(from_code, to_code, year, item) |>
+  brute_group_by_result <- bilateral_trade |>
+    dplyr::group_by(from_code, to_code, year, item_cbs_code) |>
     dplyr::filter(dplyr::n() == 1 | element == "Export") |>
     dplyr::ungroup() |>
-    dplyr::arrange(from_code, to_code, year, item)
+    dplyr::arrange(from_code, to_code, year, item_cbs_code)
 
   my_result <- .prefer_flow_direction(bilateral_trade, "Export") |>
-    dplyr::arrange(from_code, to_code, year, item)
+    dplyr::arrange(from_code, to_code, year, item_cbs_code)
 
   expected_export_result <- tibble::tribble(
-    ~from_code, ~to_code, ~year, ~item, ~element, ~value,
-    1, 2, 2000, "item_1", "Export", 0,
-    1, 2, 2000, "item_2", "Export", 0,
-    1, 3, 2000, "item_2", "Import", 0,
-    2, 3, 2000, "item_2", "Import", 0,
-    2, 3, 2001, "item_2", "Export", 0,
+    ~from_code, ~to_code, ~year, ~item_cbs_code, ~element, ~value,
+    1, 2, 2000, 1, "Export", 0,
+    1, 2, 2000, 2, "Export", 0,
+    1, 3, 2000, 2, "Import", 0,
+    2, 3, 2000, 2, "Import", 0,
+    2, 3, 2001, 2, "Export", 0,
   ) |>
-    dplyr::arrange(from_code, to_code, year, item)
+    dplyr::arrange(from_code, to_code, year, item_cbs_code)
 
   testthat::expect_equal(my_result, brute_group_by_result)
   testthat::expect_equal(my_result, expected_export_result)
@@ -62,6 +60,7 @@ testthat::test_that(".estimate_bilateral_trade creates expected matrix", {
   exports <- c(5, 0, 4)
   imports <- c(1, 3, 0)
   expected <- matrix(
+    # fmt: skip
     c(
       0.9027778, 2.708333, 0,
       0.0000000, 0.000000, 0,
@@ -77,6 +76,7 @@ testthat::test_that(".estimate_bilateral_trade creates expected matrix", {
   exports <- c(500, 300, 100, 0, 0, 0)
   imports <- c(200, 150, 120, 200, 190, 30)
   expected <- matrix(
+    # fmt: skip
     c(
       112, 84, 67, 112, 106, 17,
       67, 50, 40, 67, 64, 10,
@@ -95,6 +95,7 @@ testthat::test_that(".estimate_bilateral_trade creates expected matrix", {
   exports <- c(5, 0, 4)
   imports <- c(0, 0, 0)
   expected <- matrix(
+    # fmt: skip
     c(
       0, 0, 0,
       0, 0, 0,
@@ -110,6 +111,7 @@ testthat::test_that(".estimate_bilateral_trade creates expected matrix", {
   exports <- c(0, 0, 0)
   imports <- c(1, 3, 0)
   expected <- matrix(
+    # fmt: skip
     c(
       0, 0, 0,
       0, 0, 0,
@@ -125,6 +127,7 @@ testthat::test_that(".estimate_bilateral_trade creates expected matrix", {
   exports <- c(0, 0, 0)
   imports <- c(0, 0, 0)
   expected <- matrix(
+    # fmt: skip
     c(
       0, 0, 0,
       0, 0, 0,
@@ -139,6 +142,7 @@ testthat::test_that(".estimate_bilateral_trade creates expected matrix", {
 
 testthat::test_that(".fill_missing_trade only fills NA entries of matrix", {
   original <- matrix(
+    # fmt: skip
     c(
       140, NA, NA,
       50, 100, NA,
@@ -149,6 +153,7 @@ testthat::test_that(".fill_missing_trade only fills NA entries of matrix", {
   )
 
   expected <- matrix(
+    # fmt: skip
     c(
       140.00, 7.65, 2.45,
       50.00, 100.00, 2.96,
@@ -172,6 +177,7 @@ testthat::test_that(".fill_missing_trade only fills NA entries of matrix", {
 
 testthat::test_that(".fill_missing_trade does nothing for non-NA matrices", {
   original <- matrix(
+    # fmt: skip
     c(
       140, 40, 30,
       50, 100, 77,
@@ -193,37 +199,36 @@ testthat::test_that(".fill_missing_trade does nothing for non-NA matrices", {
     testthat::expect_equal(original, tolerance = 1e-2)
 })
 
-testthat::test_that(
-  ".fill_missing_trade fills with 0s if row sum is already past CBS report",
-  {
-    original <- matrix(
-      c(
-        140, NA,
-        NA, 100
-      ),
-      byrow = TRUE,
-      ncol = 2
-    )
-    expected <- matrix(
-      c(
-        140, 0,
-        0, 100
-      ),
-      byrow = TRUE,
-      ncol = 2
-    )
-    total_trade <- tibble::tribble(
-      ~area_code, ~export, ~import,
-      4, 130, 200,
-      6, 90, 100,
-    ) |>
-      .balance_total_trade()
+testthat::test_that(".fill_missing_trade fills with 0s if row sum is already past CBS report", {
+  original <- matrix(
+    # fmt: skip
+    c(
+      140, NA,
+      NA, 100
+    ),
+    byrow = TRUE,
+    ncol = 2
+  )
+  expected <- matrix(
+    # fmt: skip
+    c(
+      140, 0,
+      0, 100
+    ),
+    byrow = TRUE,
+    ncol = 2
+  )
+  total_trade <- tibble::tribble(
+    ~area_code, ~export, ~import,
+    4, 130, 200,
+    6, 90, 100,
+  ) |>
+    .balance_total_trade()
 
-    original |>
-      .fill_missing_trade(total_trade) |>
-      testthat::expect_equal(expected, tolerance = 1e-2)
-  }
-)
+  original |>
+    .fill_missing_trade(total_trade) |>
+    testthat::expect_equal(expected, tolerance = 1e-2)
+})
 
 testthat::test_that(".balance_matrix makes rows and columns have target sum", {
   total_trade <- tibble::tibble(
@@ -234,6 +239,7 @@ testthat::test_that(".balance_matrix makes rows and columns have target sum", {
     .balance_total_trade()
 
   trade_matrix <- matrix(
+    # fmt: skip
     c(
       140, 30, 34, 140, 120, 8,
       50, 100, 20, 50, 60, 5,
@@ -277,6 +283,7 @@ testthat::test_that(".build_trade_matrix completes missing countries", {
       to_code = factor(to_code, levels = codes),
     )
   expected <- matrix(
+    # fmt: skip
     c(
       NA, 1, 2, NA, NA,
       NA, NA, NA, NA, NA,
