@@ -41,7 +41,7 @@ linear_fill <- function(df, var, time_index, ..., method = "fill_everything") {
     dplyr::group_by(...) |> 
     dplyr::mutate(
       Value_interpfilled = if (method %in% c("fill_everything", "interpolate", "interp_back", "interp_forward")) {
-        zoo::na.approx({{ var }}, x = zoo::index({{ time_index }}), na.rm = FALSE)
+        zoo::na.approx({{ var }}, x = {{ time_index }}, na.rm = FALSE)
       } else {
         NA_real_
       },
