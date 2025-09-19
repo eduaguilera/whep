@@ -2,26 +2,38 @@
 testthat::test_that("linear_fill works with default method (fill_everything)", {
   test_data <- tibble::tibble(
     category = c("a", "a", "a", "a", "a", "a", "b", "b", "b", "b", "b", "b"),
-    year = c(2015, 2016, 2017, 2018, 2019, 2020, 2015, 2016, 2017, 2018, 2019, 2020),
+    year = c(
+      2015,
+      2016,
+      2017,
+      2018,
+      2019,
+      2020,
+      2015,
+      2016,
+      2017,
+      2018,
+      2019,
+      2020
+    ),
     value = c(NA, 3, NA, NA, 0, NA, 1, NA, NA, NA, 5, NA),
     proxy_variable = c(1, 2, 2, 2, 2, 2, 1, 2, 3, 4, 5, 6),
     change_variable = c(1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0)
   )
 
   result <- linear_fill(test_data, value, year, category)
-  
   # Check that function returns a data frame
   testthat::expect_s3_class(result, "data.frame")
-  
   # Check that no NAs remain in the value column
   testthat::expect_false(any(is.na(result$value)))
-  
   # Check that Source column is created
   testthat::expect_true("Source_value" %in% names(result))
-  
   # Check that original values are preserved
-  testthat::expect_equal(result$value[result$Source_value == "Original"], c(3, 0, 1, 5))
-  
+  testthat::expect_equal(
+    result$value[result$Source_value == "Original"],
+    c(3, 0, 1, 5)
+  )
+
   # Check that result is ungrouped
   testthat::expect_false(dplyr::is.grouped_df(result))
 })
@@ -29,82 +41,170 @@ testthat::test_that("linear_fill works with default method (fill_everything)", {
 testthat::test_that("linear_fill method = 'interpolate' only interpolates", {
   test_data <- tibble::tibble(
     category = c("a", "a", "a", "a", "a", "a", "b", "b", "b", "b", "b", "b"),
-    year = c(2015, 2016, 2017, 2018, 2019, 2020, 2015, 2016, 2017, 2018, 2019, 2020),
+    year = c(
+      2015,
+      2016,
+      2017,
+      2018,
+      2019,
+      2020,
+      2015,
+      2016,
+      2017,
+      2018,
+      2019,
+      2020
+    ),
     value = c(NA, 3, NA, NA, 0, NA, 1, NA, NA, NA, 5, NA),
     proxy_variable = c(1, 2, 2, 2, 2, 2, 1, 2, 3, 4, 5, 6),
     change_variable = c(1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0)
   )
-  
-  result <- linear_fill(test_data, value, year, category, method = "interpolate")
-  
+
+  result <- linear_fill(
+    test_data,
+    value,
+    year,
+    category,
+    method = "interpolate"
+  )
+
   # Check that some NAs remain (no carrying forward/backward)
   testthat::expect_true(any(is.na(result$value)))
-  
   # Check for interpolation in category "a" between years 2016 and 2019
   category_a <- result[result$category == "a", ]
-  interpolated_values <- category_a$value[category_a$Source_value == "Linear interpolation"]
+  interpolated_values <- category_a$value[
+    category_a$Source_value == "Linear interpolation"
+  ]
   testthat::expect_true(length(interpolated_values) > 0)
 })
 
 testthat::test_that("linear_fill method = 'interp_back' interpolates and carries backward", {
   test_data <- tibble::tibble(
     category = c("a", "a", "a", "a", "a", "a", "b", "b", "b", "b", "b", "b"),
-    year = c(2015, 2016, 2017, 2018, 2019, 2020, 2015, 2016, 2017, 2018, 2019, 2020),
+    year = c(
+      2015,
+      2016,
+      2017,
+      2018,
+      2019,
+      2020,
+      2015,
+      2016,
+      2017,
+      2018,
+      2019,
+      2020
+    ),
     value = c(NA, 3, NA, NA, 0, NA, 1, NA, NA, NA, 5, NA),
     proxy_variable = c(1, 2, 2, 2, 2, 2, 1, 2, 3, 4, 5, 6),
     change_variable = c(1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0)
   )
-  
-  result <- linear_fill(test_data, value, year, category, method = "interp_back")
-  
+
+  result <- linear_fill(
+    test_data,
+    value,
+    year,
+    category,
+    method = "interp_back"
+  )
+
   # Should have both interpolation and carrying backward
   testthat::expect_true("Linear interpolation" %in% result$Source_value)
   testthat::expect_true("Last value carried forward" %in% result$Source_value)
-  testthat::expect_false("First value carried backwards" %in% result$Source_value)
+  testthat::expect_false(
+    "First value carried backwards" %in% result$Source_value
+  )
 })
 
 testthat::test_that("linear_fill method = 'interp_forward' interpolates and carries forward", {
   test_data <- tibble::tibble(
     category = c("a", "a", "a", "a", "a", "a", "b", "b", "b", "b", "b", "b"),
-    year = c(2015, 2016, 2017, 2018, 2019, 2020, 2015, 2016, 2017, 2018, 2019, 2020),
+    year = c(
+      2015,
+      2016,
+      2017,
+      2018,
+      2019,
+      2020,
+      2015,
+      2016,
+      2017,
+      2018,
+      2019,
+      2020
+    ),
     value = c(NA, 3, NA, NA, 0, NA, 1, NA, NA, NA, 5, NA),
     proxy_variable = c(1, 2, 2, 2, 2, 2, 1, 2, 3, 4, 5, 6),
     change_variable = c(1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0)
   )
-  
-  result <- linear_fill(test_data, value, year, category, method = "interp_forward")
-  
+
+  result <- linear_fill(
+    test_data,
+    value,
+    year,
+    category,
+    method = "interp_forward"
+  )
+
   # Should have both interpolation and carrying forward
   testthat::expect_true("Linear interpolation" %in% result$Source_value)
-  testthat::expect_true("First value carried backwards" %in% result$Source_value)
+  testthat::expect_true(
+    "First value carried backwards" %in% result$Source_value
+  )
   testthat::expect_false("Last value carried forward" %in% result$Source_value)
 })
 
 testthat::test_that("linear_fill method = 'carry_only' only carries values", {
   test_data <- tibble::tibble(
     category = c("a", "a", "a", "a", "a", "a", "b", "b", "b", "b", "b", "b"),
-    year = c(2015, 2016, 2017, 2018, 2019, 2020, 2015, 2016, 2017, 2018, 2019, 2020),
+    year = c(
+      2015,
+      2016,
+      2017,
+      2018,
+      2019,
+      2020,
+      2015,
+      2016,
+      2017,
+      2018,
+      2019,
+      2020
+    ),
     value = c(NA, 3, NA, NA, 0, NA, 1, NA, NA, NA, 5, NA),
     proxy_variable = c(1, 2, 2, 2, 2, 2, 1, 2, 3, 4, 5, 6),
     change_variable = c(1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0)
   )
-  
   result <- linear_fill(test_data, value, year, category, method = "carry_only")
-  
   # Should only have carrying methods, no interpolation
   testthat::expect_false("Linear interpolation" %in% result$Source_value)
-  testthat::expect_true(any(c("Last value carried forward", "First value carried backwards") %in% result$Source_value))
+  testthat::expect_true(any(
+    c("Last value carried forward", "First value carried backwards") %in%
+      result$Source_value
+  ))
 })
 
 testthat::test_that("linear_fill validates method parameter", {
   test_data <- tibble::tibble(
     category = c("a", "a", "a", "a", "a", "a", "b", "b", "b", "b", "b", "b"),
-    year = c(2015, 2016, 2017, 2018, 2019, 2020, 2015, 2016, 2017, 2018, 2019, 2020),
+    year = c(
+      2015,
+      2016,
+      2017,
+      2018,
+      2019,
+      2020,
+      2015,
+      2016,
+      2017,
+      2018,
+      2019,
+      2020
+    ),
     value = c(NA, 3, NA, NA, 0, NA, 1, NA, NA, NA, 5, NA),
     proxy_variable = c(1, 2, 2, 2, 2, 2, 1, 2, 3, 4, 5, 6),
     change_variable = c(1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0)
   )
-  
   testthat::expect_error(
     linear_fill(test_data, value, year, category, method = "invalid_method"),
     "method must be one of:"
@@ -116,9 +216,7 @@ testthat::test_that("linear_fill works without grouping variables", {
     year = c(2015, 2016, 2017, 2018, 2019),
     value = c(1, NA, NA, NA, 5)
   )
-  
   result <- linear_fill(simple_data, value, year)
-  
   testthat::expect_s3_class(result, "data.frame")
   testthat::expect_false(any(is.na(result$value)))
   testthat::expect_true("Source_value" %in% names(result))
@@ -131,22 +229,19 @@ testthat::test_that("linear_fill interpolation produces correct values", {
     year = c(2015, 2016, 2017, 2018, 2019),
     value = c(10, NA, NA, NA, 20)
   )
-  
   result <- linear_fill(simple_data, value, year, method = "interpolate")
-  
   # Check interpolated values are correct
   # Should be 10, 12.5, 15, 17.5, 20
   # Original
   testthat::expect_equal(result$value[1], 10)
   # 10 + (20-10) * 1/4
   testthat::expect_equal(result$value[2], 12.5)
-  # 10 + (20-10) * 2/4  
+  # 10 + (20-10) * 2/4
   testthat::expect_equal(result$value[3], 15)
   # 10 + (20-10) * 3/4
   testthat::expect_equal(result$value[4], 17.5)
   # Original
   testthat::expect_equal(result$value[5], 20)
-  
   # Check source labels
   testthat::expect_equal(result$Source_value[1], "Original")
   testthat::expect_equal(result$Source_value[2], "Linear interpolation")
@@ -161,9 +256,7 @@ testthat::test_that("linear_fill carry forward produces correct values", {
     year = c(2015, 2016, 2017, 2018),
     value = c(NA, NA, NA, 15)
   )
-  
   result <- linear_fill(carry_data, value, year, method = "interp_forward")
-  
   # All NA values should be filled with 15 (last value carried forward)
   testthat::expect_equal(result$value, c(15, 15, 15, 15))
   testthat::expect_equal(result$Source_value[1], "First value carried backwards")
