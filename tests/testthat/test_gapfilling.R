@@ -234,11 +234,11 @@ testthat::test_that("linear_fill interpolation produces correct values", {
   # Should be 10, 12.5, 15, 17.5, 20
   # Original
   testthat::expect_equal(result$value[1], 10)
-  # 10 + (20-10) * 1/4
+  # Should be: 10 + (20-10) * 1/4
   testthat::expect_equal(result$value[2], 12.5)
-  # 10 + (20-10) * 2/4
+  # Should be: 10 + (20-10) * 2/4
   testthat::expect_equal(result$value[3], 15)
-  # 10 + (20-10) * 3/4
+  # Should be: 10 + (20-10) * 3/4
   testthat::expect_equal(result$value[4], 17.5)
   # Original
   testthat::expect_equal(result$value[5], 20)
@@ -348,9 +348,9 @@ testthat::test_that("linear_fill handles complex interpolation with groups", {
   group_a <- result[result$group == "A", ]
   # Original
   testthat::expect_equal(group_a$value[1], 0)
-  # 0 + (12-0) * 1/3
+  # Should be: 0 + (12-0) * 1/3
   testthat::expect_equal(group_a$value[2], 4)
-  # 0 + (12-0) * 2/3
+  # Should be: 0 + (12-0) * 2/3
   testthat::expect_equal(group_a$value[3], 8)
   # Original
   testthat::expect_equal(group_a$value[4], 12)
@@ -358,9 +358,9 @@ testthat::test_that("linear_fill handles complex interpolation with groups", {
   group_b <- result[result$group == "B", ]
   # Original
   testthat::expect_equal(group_b$value[1], 20)
-  # 20 + (40-20) * 1/3
+  # Should be: 20 + (40-20) * 1/3
   testthat::expect_equal(group_b$value[2], 26.666667, tolerance = 1e-6)
-  # 20 + (40-20) * 2/3
+  # Should be: 20 + (40-20) * 2/3
   testthat::expect_equal(group_b$value[3], 33.333333, tolerance = 1e-6)
   # Original
   testthat::expect_equal(group_b$value[4], 40)
@@ -466,9 +466,9 @@ testthat::test_that("proxy_fill calculates proxy ratios correctly", {
   )
   result <- proxy_fill(simple_data, value, proxy_variable, year)
   # Check that proxy ratios are calculated correctly for original values
-  # 10/5
+  # Should be: 10/5
   testthat::expect_equal(result$proxy_ratio[1], 2)
-  # 30/15
+  # Should be: 30/15
   testthat::expect_equal(result$proxy_ratio[3], 2)
 })
 
@@ -533,11 +533,11 @@ testthat::test_that("sum_fill fills gaps by summing with change variable", {
   # Check the cumulative sum behavior
   # Original value
   testthat::expect_equal(result$value[1], 10)
-  # 10 + 2
+  # Should be: 10 + 2
   testthat::expect_equal(result$value[2], 12)
-  # 12 + 3
+  # Should be: 12 + 3
   testthat::expect_equal(result$value[3], 15)
-  # 15 + 1
+  # Should be: 15 + 1
   testthat::expect_equal(result$value[4], 16)
 
   # Check source labels
@@ -615,11 +615,11 @@ testthat::test_that("sum_fill handles starting NA with start_with_zero = TRUE", 
   result <- sum_fill(start_na_data, value, change_variable, TRUE)
   # With start_with_zero = TRUE, should start with 0 and accumulate
   testthat::expect_equal(result$value[1], 0)
-  # 0 + 2
+  # Should be: 0 + 2
   testthat::expect_equal(result$value[2], 2)
-  # 2 + 3
+  # Should be: 2 + 3
   testthat::expect_equal(result$value[3], 5)
-  # 5 + 4
+  # Should be: 5 + 4
   testthat::expect_equal(result$value[4], 9)
   # Check source labels
   testthat::expect_equal(result$Source_value[1], "Started with zero")
