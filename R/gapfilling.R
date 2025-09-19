@@ -210,8 +210,8 @@ sum_fill <- function(df, var, change_var, start_with_zero = FALSE, ...) {
       }
       .x[[var_name]] <- var_vec
       .x[[paste0("Source_", var_name)]] <- status_vec
-      return(.x)
+      .x
     }) |>
     dplyr::ungroup()
-  return(df)
+  df
 }
