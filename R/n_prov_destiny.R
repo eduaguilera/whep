@@ -199,7 +199,7 @@ create_n_prov_destiny <- function() {
       ) |>
       dplyr::mutate(prod_type = "Residue")
   ) |>
-    dplyr::mutate(Box = "Semi_natural_agroecosystems")
+    dplyr::mutate(Box = "semi_natural_agroecosystems")
 
   combined_biomasses <- dplyr::bind_rows(
     crop_area_npp_prod_residue,
@@ -886,7 +886,7 @@ create_n_prov_destiny <- function() {
     dplyr::mutate(
       group = dplyr::recode(group, "Additives" = "Agro-industry"),
       Box = dplyr::case_when(
-        Item == "Acorns" ~ "Semi_natural_agroecosystems",
+        Item == "Acorns" ~ "semi_natural_agroecosystems",
         is.na(Box) & Item == "Fallow" ~ "Cropland",
         is.na(Box) &
           group %in% c("Crop products", "Primary crops", "crop residue") ~
