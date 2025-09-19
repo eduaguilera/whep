@@ -554,13 +554,10 @@ testthat::test_that("sum_fill handles multiple groups correctly", {
     value = c(10, NA, NA, 20, NA, NA),
     change_variable = c(0, 1, 2, 0, 3, 4)
   )
-  
   result <- sum_fill(grouped_data, value, change_variable, FALSE, group)
-  
   # Check group A
   group_a <- result[result$group == "A", ]
   testthat::expect_equal(group_a$value, c(10, 11, 13))
-  
   # Check group B
   group_b <- result[result$group == "B", ]
   testthat::expect_equal(group_b$value, c(20, 23, 27))
@@ -584,16 +581,13 @@ testthat::test_that("sum_fill handles edge cases", {
     value = c(10, NA, NA, NA),
     change_variable = c(1, 2, 3, 4)
   )
-  
   result <- sum_fill(all_na_data, value, change_variable)
   testthat::expect_equal(result$value, c(10, 12, 15, 19))
-  
   # Test with no NAs
   no_na_data <- tibble::tibble(
     value = c(1, 2, 3, 4),
     change_variable = c(1, 1, 1, 1)
   )
-  
   result <- sum_fill(no_na_data, value, change_variable)
   # Should remain unchanged
   testthat::expect_equal(result$value, c(1, 2, 3, 4))
@@ -605,13 +599,10 @@ testthat::test_that("sum_fill handles starting NA with start_with_zero = FALSE (
     value = c(NA, NA, NA, NA),
     change_variable = c(1, 2, 3, 4)
   )
-  
   result <- sum_fill(start_na_data, value, change_variable)
-  
   # With default behavior, starting NA should remain unfilled
   testthat::expect_true(is.na(result$value[1]))
   testthat::expect_true(is.na(result$Source_value[1]))
-  
   # All subsequent values should also remain NA since no starting point
   testthat::expect_true(all(is.na(result$value)))
 })
@@ -621,9 +612,7 @@ testthat::test_that("sum_fill handles starting NA with start_with_zero = TRUE", 
     value = c(NA, NA, NA, NA),
     change_variable = c(1, 2, 3, 4)
   )
-  
   result <- sum_fill(start_na_data, value, change_variable, TRUE)
-  
   # With start_with_zero = TRUE, should start with 0 and accumulate
   testthat::expect_equal(result$value[1], 0)
   # 0 + 2
@@ -632,7 +621,6 @@ testthat::test_that("sum_fill handles starting NA with start_with_zero = TRUE", 
   testthat::expect_equal(result$value[3], 5)
   # 5 + 4
   testthat::expect_equal(result$value[4], 9)
-  
   # Check source labels
   testthat::expect_equal(result$Source_value[1], "Started with zero")
   testthat::expect_equal(result$Source_value[2], "Filled with sum")
@@ -646,14 +634,11 @@ testthat::test_that("sum_fill with start_with_zero works with groups", {
     value = c(NA, NA, NA, 5, NA, NA),
     change_variable = c(1, 2, 3, 0, 2, 4)
   )
-  
   result <- sum_fill(grouped_start_na_data, value, change_variable, TRUE, group)
-  
   # Check group A (starts with NA, should be filled with 0)
   group_a <- result[result$group == "A", ]
   testthat::expect_equal(group_a$value, c(0, 2, 5))
   testthat::expect_equal(group_a$Source_value[1], "Started with zero")
-  
   # Check group B (starts with 5, should remain original)
   group_b <- result[result$group == "B", ]
   testthat::expect_equal(group_b$value, c(5, 7, 11))
@@ -664,14 +649,33 @@ testthat::test_that("sum_fill with start_with_zero works with groups", {
 testthat::test_that("All functions work together in a pipeline", {
   test_data <- tibble::tibble(
     category = c("a", "a", "a", "a", "a", "a", "b", "b", "b", "b", "b", "b"),
-    year = c(2015, 2016, 2017, 2018, 2019, 2020, 2015, 2016, 2017, 2018, 2019, 2020),
+    year = c(
+      2015,
+      2016,
+      2017,
+      2018,
+      2019,
+      2020,
+      2015,
+      2016,
+      2017,
+      2018,
+      2019,
+      2020
+    ),
     value = c(NA, 3, NA, NA, 0, NA, 1, NA, NA, NA, 5, NA),
     proxy_variable = c(1, 2, 2, 2, 2, 2, 1, 2, 3, 4, 5, 6),
     change_variable = c(1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0)
   )
-  
- # Test that functions can be chained together
-  result1 <- linear_fill(test_data, value, year, category, method = "interpolate")
+
+  # Test that functions can be chained together
+  result1 <- linear_fill(
+    test_data,
+    value,
+    year,
+    category,
+    method = "interpolate"
+  )
   result2 <- proxy_fill(test_data, value, proxy_variable, year, category)
   result3 <- sum_fill(test_data, value, change_variable, FALSE, category)
   result4 <- sum_fill(test_data, value, change_variable, TRUE, category)
