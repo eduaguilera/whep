@@ -135,11 +135,13 @@ proxy_fill <- function(df, var, proxy_var, time_index, ...) {
 
 #' Fill gaps in a variable with the sum of its previous value and the value of another variable. 
 #' When a gap has multiple observations, the values are accumulated along the series.
+#' When there is a gap at the start of the series, it can either remain unfilled or be replaced with zero.
 #' 
 #' @param df A tibble data frame containing one observation per row
 #' @param var The variable of df containing gaps to be filled
-#' @param time_index The time index variable (usually year)
 #' @param change_var The variable whose values will be used to fill the gaps
+#' @param start_with_zero Logical. If TRUE, replaces starting NA values with 0. If FALSE (default), 
+#'   starting NA values remain unfilled.
 #' @param ... The grouping variables (optional)
 #' 
 #' @return A tibble dataframe (ungrouped) where gaps in var have been filled, 
@@ -153,10 +155,11 @@ proxy_fill <- function(df, var, proxy_var, time_index, ...) {
 #'   category = c("a", "a", "a", "a", "a", "a", "b", "b", "b", "b", "b", "b"),
 #'   year = c("2015", "2016", "2017", "2018", "2019", "2020", "2015", "2016", "2017", "2018", "2019", "2020"),
 #'   value = c(NA, 3, NA, NA, 0, NA, 1, NA, NA, NA, 5, NA),
-#'   change_variable =c(1,1,1,1,1,1,0,0,0,0,0,0)
+#'   change_variable =c(1,2,3,4,1,1,0,0,0,0,0,1)
 #' )
 #'sum_fill(sample_tibble, value, change_variable, category)
-sum_fill <- function(df, var, change_var, ...) {
+#'sum_fill(sample_tibble, value, change_variable, TRUE, category)
+sum_fill <- function(df, var, change_var, start_with_zero = FALSE, ...) {
   var_sym <- rlang::ensym(var)
   change_var_sym <- rlang::ensym(change_var)
   var_name <- rlang::as_string(var_sym)
@@ -170,6 +173,12 @@ sum_fill <- function(df, var, change_var, ...) {
       change_vec <- .x[[change_var_name]]
       
       status_vec <- ifelse(is.na(var_vec), NA, "Original")
+      
+      # Handle starting NA values if start_with_zero is TRUE
+      if (start_with_zero && length(var_vec) > 0 && is.na(var_vec[1])) {
+        var_vec[1] <- 0
+        status_vec[1] <- "Started with zero"
+      }
       
       for (i in seq_along(var_vec)) {
         if (is.na(var_vec[i]) && i > 1) {
