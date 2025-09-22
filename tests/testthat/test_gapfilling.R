@@ -671,16 +671,17 @@ testthat::test_that("sum_fill handles starting NA with start_with_zero = TRUE", 
     change_variable = c(1, 2, 3, 4)
   )
   result <- sum_fill(start_na_data, value, change_variable, TRUE)
-  # With start_with_zero = TRUE, should start with 0 and accumulate
-  testthat::expect_equal(result$value[1], 0)
-  # Should be: 0 + 2
-  testthat::expect_equal(result$value[2], 2)
-  # Should be: 2 + 3
-  testthat::expect_equal(result$value[3], 5)
-  # Should be: 5 + 4
-  testthat::expect_equal(result$value[4], 9)
-  # Check source labels
-  testthat::expect_equal(result$source_value[1], "Started with zero")
+  # With start_with_zero = TRUE, assumes invisible 0 before first observation
+  # First value should be the first change_var value (1)
+  testthat::expect_equal(result$value[1], 1)
+  # Should be: 1 + 2 = 3
+  testthat::expect_equal(result$value[2], 3)
+  # Should be: 3 + 3 = 6
+  testthat::expect_equal(result$value[3], 6)
+  # Should be: 6 + 4 = 10
+  testthat::expect_equal(result$value[4], 10)
+  # Check source labels - all should be "Filled with sum"
+  testthat::expect_equal(result$source_value[1], "Filled with sum")
   testthat::expect_equal(result$source_value[2], "Filled with sum")
   testthat::expect_equal(result$source_value[3], "Filled with sum")
   testthat::expect_equal(result$source_value[4], "Filled with sum")
@@ -693,10 +694,10 @@ testthat::test_that("sum_fill with start_with_zero works with groups", {
     change_variable = c(1, 2, 3, 0, 2, 4)
   )
   result <- sum_fill(grouped_start_na_data, value, change_variable, TRUE, group)
-  # Check group A (starts with NA, should be filled with 0)
+  # Check group A (starts with NA, should be filled with cumsum starting from change_var)
   group_a <- result[result$group == "A", ]
-  testthat::expect_equal(group_a$value, c(0, 2, 5))
-  testthat::expect_equal(group_a$source_value[1], "Started with zero")
+  testthat::expect_equal(group_a$value, c(1, 3, 6)) # 1, 1+2, 3+3
+  testthat::expect_equal(group_a$source_value[1], "Filled with sum")
   # Check group B (starts with 5, should remain original)
   group_b <- result[result$group == "B", ]
   testthat::expect_equal(group_b$value, c(5, 7, 11))

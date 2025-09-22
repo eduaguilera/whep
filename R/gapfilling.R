@@ -133,13 +133,15 @@ proxy_fill <- function(df, var, proxy_var, time_index, ...) {
 #' Fill gaps in a variable with the sum of its previous value and the value
 #' of another variable. When a gap has multiple observations, the values are
 #' accumulated along the series. When there is a gap at the start of the
-#' series, it can either remain unfilled or be replaced with zero.
+#' series, it can either remain unfilled or assume an invisible 0 value before
+#' the first observation and start filling with cumulative sum.
 #'
 #' @param df A tibble data frame containing one observation per row.
 #' @param var The variable of df containing gaps to be filled.
 #' @param change_var The variable whose values will be used to fill the gaps.
-#' @param start_with_zero Logical. If TRUE, replaces starting NA values with 0.
-#'   If FALSE (default), starting NA values remain unfilled.
+#' @param start_with_zero Logical. If TRUE, assumes an invisible 0 value before
+#'   the first observation and fills with cumulative sum starting from the first
+#'   change_var value. If FALSE (default), starting NA values remain unfilled.
 #' @param ... The grouping variables (optional).
 #'
 #' @return A tibble dataframe (ungrouped) where gaps in var have been filled,
@@ -166,20 +168,20 @@ sum_fill <- function(df, var, change_var, start_with_zero = FALSE, ...) {
       original_value = {{ var }},
       groups = cumsum(!is.na({{ var }})),
       all_na = all(is.na({{ var }})),
+      # When start_with_zero = TRUE, assume invisible 0 before first observation
+      # so cumsum starts from change_var values, not from 0
+      cumsum_start_zero = cumsum({{ change_var }}),
       prefilled = dplyr::coalesce({{ var }}, {{ change_var }}),
       cumsum_regular = ave(prefilled, groups, FUN = cumsum),
-      cumsum_start_zero = c(0, cumsum({{ change_var }}[-1])),
       cumsum_value = dplyr::case_when(
         start_with_zero & all_na ~ cumsum_start_zero,
         groups != 0 ~ cumsum_regular,
-        start_with_zero ~ cumsum_regular,
+        start_with_zero ~ cumsum_start_zero,
         .default = NA_real_
       ),
       value = dplyr::coalesce(original_value, cumsum_value),
       source_value = dplyr::case_when(
         !is.na(original_value) ~ "Original",
-        start_with_zero & groups == 0 & dplyr::row_number() == 1 ~
-          "Started with zero",
         !is.na(value) ~ "Filled with sum",
         .default = NA_character_
       )
