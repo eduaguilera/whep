@@ -66,3 +66,11 @@ reference:
     Get a tidy dataframe with the found sources for different data.
   contents:
   - expand_trade_sources
+
+- title: Gap filling functions
+  desc: >
+    Functions to fill gaps (NA values) in time-dependent variables using different methods.
+  contents:
+  - linear_fill
+  - proxy_fill
+  - sum_fill
