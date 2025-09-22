@@ -13,8 +13,9 @@ sum_fill(df, var, change_var, start_with_zero = FALSE, ...)
 
 \item{change_var}{The variable whose values will be used to fill the gaps.}
 
-\item{start_with_zero}{Logical. If TRUE, replaces starting NA values with 0.
-If FALSE (default), starting NA values remain unfilled.}
+\item{start_with_zero}{Logical. If TRUE, assumes an invisible 0 value before
+the first observation and fills with cumulative sum starting from the first
+change_var value. If FALSE (default), starting NA values remain unfilled.}
 
 \item{...}{The grouping variables (optional).}
 }
@@ -28,7 +29,8 @@ been used.
 Fill gaps in a variable with the sum of its previous value and the value
 of another variable. When a gap has multiple observations, the values are
 accumulated along the series. When there is a gap at the start of the
-series, it can either remain unfilled or be replaced with zero.
+series, it can either remain unfilled or assume an invisible 0 value before
+the first observation and start filling with cumulative sum.
 }
 \examples{
 sample_tibble <- tibble::tibble(

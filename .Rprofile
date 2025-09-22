@@ -1,5 +1,5 @@
 if (Sys.getenv("USE_RENV", unset = "TRUE") == "TRUE") {
-  # source("renv/activate.R")
+  source("renv/activate.R")
 }
 
 if (requireNamespace("devtools", quietly = TRUE)) {
