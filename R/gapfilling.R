@@ -1,217 +1,196 @@
-# Simple functions to fill gaps (NA values) in a time-dependent variable, creating complete time series
-
-#' Fill gaps in a variable by linear interpolation between two points, or carrying forward or backwards
-#' the last or initial values, respectively, and label output accordingly
+# Simple functions to fill gaps (NA values) in a time-dependent variable,
+# creating complete time series.
+#' Fill gaps by linear interpolation, or carrying forward or backwards.
 #'
-#' @param df A tibble data frame containing one observation per row
-#' @param var The variable of df containing gaps to be filled
-#' @param time_index The time index variable (usually year)
-#' @param method The filling method to use. Options are:
-#'   - "fill_everything" (default): interpolate and carry backward and forward
-#'   - "interpolate": only linear interpolation
-#'   - "interp_back": interpolate and carry backward
-#'   - "interp_forward": interpolate and carry forward
-#'   - "carry_only": only carry backward and forward
-#' @param ... The grouping variables (optional)
+#' @description
+#' Fills gaps (NA values) in a time-dependent variable by
+#' linear interpolation between two points, or carrying forward or backwards
+#' the last or initial values, respectively. It also creates a new variable
+#' indicating the source of the filled values.
+#'
+#' @param df A tibble data frame containing one observation per row.
+#' @param var The variable of df containing gaps to be filled.
+#' @param time_index The time index variable (usually year).
+#' @param interpolate Logical. If TRUE (default), performs linear interpolation.
+#' @param fill_forward Logical. If TRUE (default), carries last value forward.
+#' @param fill_backward Logical. If TRUE (default), carries first value backward.
+#' @param ... The grouping variables (optional).
 #'
 #' @return A tibble data frame (ungrouped) where gaps in var have been filled,
-#' and a new "Source" variable has been created indicating if the value is original or,
-#' in case it has been estimated, the gapfilling method that has been used
+#'   and a new "source" variable has been created indicating if the value is
+#'   original or, in case it has been estimated, the gapfilling method that has
+#'   been used.
 #'
 #' @export
 #'
 #' @examples
 #' sample_tibble <- tibble::tibble(
 #'   category = c("a", "a", "a", "a", "a", "a", "b", "b", "b", "b", "b", "b"),
-#'   year = c("2015", "2016", "2017", "2018", "2019", "2020", "2015", "2016", "2017", "2018", "2019", "2020"),
+#'   year = c("2015", "2016", "2017", "2018", "2019", "2020",
+#'            "2015", "2016", "2017", "2018", "2019", "2020"),
 #'   value = c(NA, 3, NA, NA, 0, NA, 1, NA, NA, NA, 5, NA),
 #' )
-#'linear_fill(sample_tibble, value, year, category)
-#'linear_fill(sample_tibble, value, year, category, method = "interpolate")
-linear_fill <- function(df, var, time_index, ..., method = "fill_everything") {
-  # Validate method parameter
-  valid_methods <- c(
-    "fill_everything",
-    "interpolate",
-    "interp_back",
-    "interp_forward",
-    "carry_only"
-  )
-  if (!method %in% valid_methods) {
-    stop("method must be one of: ", paste(valid_methods, collapse = ", "))
-  }
-
+#' linear_fill(sample_tibble, value, year, category)
+#' linear_fill(sample_tibble, value, year, category, interpolate = FALSE)
+linear_fill <- function(
+  df,
+  var,
+  time_index,
+  ...,
+  interpolate = TRUE,
+  fill_forward = TRUE,
+  fill_backward = TRUE
+) {
   df |>
     dplyr::group_by(...) |>
     dplyr::mutate(
-      Value_interpfilled = if (
-        method %in%
-          c("fill_everything", "interpolate", "interp_back", "interp_forward")
-      ) {
+      value_interpfilled = if (interpolate) {
         zoo::na.approx({{ var }}, x = {{ time_index }}, na.rm = FALSE)
       } else {
         NA_real_
       },
-      Value_CarriedBackward = if (
-        method %in% c("fill_everything", "interp_back", "carry_only")
-      ) {
+      value_carried_forward = if (fill_forward) {
         zoo::na.locf0({{ var }})
       } else {
         NA_real_
       },
-      Value_CarriedForward = if (
-        method %in% c("fill_everything", "interp_forward", "carry_only")
-      ) {
+      value_carried_backward = if (fill_backward) {
         zoo::na.locf0({{ var }}, fromLast = TRUE)
       } else {
         NA_real_
       },
-      "Source_{{var}}" := ifelse(
-        !is.na({{ var }}),
-        "Original",
-        ifelse(
-          !is.na(Value_interpfilled),
-          "Linear interpolation",
-          ifelse(
-            !is.na(Value_CarriedBackward),
-            "Last value carried forward",
-            ifelse(
-              !is.na(Value_CarriedForward),
-              "First value carried backwards",
-              "Gap not filled"
-            )
-          )
-        )
+      "source_{{var}}" := dplyr::case_when(
+        !is.na({{ var }}) ~ "Original",
+        !is.na(value_interpfilled) ~ "Linear interpolation",
+        !is.na(value_carried_backward) ~ "First value carried backwards",
+        !is.na(value_carried_forward) ~ "Last value carried forward",
+        TRUE ~ "Gap not filled"
       ),
-      "{{var}}" := ifelse(
-        !is.na({{ var }}),
+      "{{var}}" := dplyr::coalesce(
         {{ var }},
-        ifelse(
-          !is.na(Value_interpfilled),
-          Value_interpfilled,
-          ifelse(
-            !is.na(Value_CarriedBackward),
-            Value_CarriedBackward,
-            Value_CarriedForward
-          )
-        )
+        value_interpfilled,
+        value_carried_backward,
+        value_carried_forward
       )
     ) |>
     dplyr::select(
-      -Value_interpfilled,
-      -Value_CarriedForward,
-      -Value_CarriedBackward
+      -value_interpfilled,
+      -value_carried_forward,
+      -value_carried_backward
     ) |>
     dplyr::ungroup()
 }
 
-#' Fills gaps in a variable based on changes in a proxy variable, using ratios between
-#' the filled variable and the proxy variable, and labels output accordingly
+#' Fill gaps using a proxy variable.
 #'
-#' @param df A tibble data frame containing one observation per row
-#' @param var The variable of df containing gaps to be filled
-#' @param proxy_var The variable to be used as proxy
-#' @param time_index The time index variable (usually year)
-#' @param ... The grouping variables (optional)
+#' @description
+#' Fills gaps in a variable based on changes in a proxy variable, using ratios between
+#' the filled variable and the proxy variable, and labels output accordingly.
+#'
+#' @param df A tibble data frame containing one observation per row.
+#' @param var The variable of df containing gaps to be filled.
+#' @param proxy_var The variable to be used as proxy.
+#' @param time_index The time index variable (usually year).
+#' @param ... The grouping variables (optional).
 #'
 #' @return A tibble dataframe (ungrouped) where gaps in var have been filled,
-#' a new proxy_ratio variable has been created,
-#' and a new "Source" variable has been created indicating if the value is original or,
-#' in case it has been estimated, the gapfilling method that has been used
+#'   a new proxy_ratio variable has been created,
+#'   and a new "source" variable has been created indicating if the value is
+#'   original or, in case it has been estimated, the gapfilling method that has
+#'   been used.
 #'
 #' @export
 #'
 #' @examples
 #' sample_tibble <- tibble::tibble(
 #'   category = c("a", "a", "a", "a", "a", "a", "b", "b", "b", "b", "b", "b"),
-#'   year = c("2015", "2016", "2017", "2018", "2019", "2020", "2015", "2016", "2017", "2018", "2019", "2020"),
+#'   year = c("2015", "2016", "2017", "2018", "2019", "2020",
+#'            "2015", "2016", "2017", "2018", "2019", "2020"),
 #'   value = c(NA, 3, NA, NA, 0, NA, 1, NA, NA, NA, 5, NA),
 #'   proxy_variable = c(1,2,2,2,2,2,1,2,3,4,5,6)
 #' )
-#'proxy_fill(sample_tibble, value, proxy_variable, year, category)
+#' proxy_fill(sample_tibble, value, proxy_variable, year, category)
 proxy_fill <- function(df, var, proxy_var, time_index, ...) {
   df |>
     dplyr::mutate(proxy_ratio = {{ var }} / {{ proxy_var }}) |>
     linear_fill(proxy_ratio, {{ time_index }}, ...) |>
     dplyr::mutate(
-      "Source_{{var}}" := ifelse(
-        !is.na({{ var }}),
-        "Original",
-        ifelse(
-          Source_proxy_ratio == "Linear interpolation",
-          "Proxy interpolated",
-          ifelse(
-            Source_proxy_ratio == "Last value carried forward",
-            "Proxy carried forward",
-            ifelse(
-              Source_proxy_ratio == "First value carried backwards",
-              "Proxy carried backwards",
-              NA
-            )
-          )
-        )
+      "source_{{var}}" := dplyr::case_when(
+        !is.na({{ var }}) ~ "Original",
+        source_proxy_ratio == "Linear interpolation" ~ "Proxy interpolated",
+        source_proxy_ratio == "Last value carried forward" ~
+          "Proxy carried forward",
+        source_proxy_ratio == "First value carried backwards" ~
+          "Proxy carried backwards",
+        .default = NA_character_
       ),
-      "{{var}}" := ifelse(
-        !is.na({{ var }}),
-        {{ var }},
-        proxy_ratio * {{ proxy_var }}
-      )
+      "{{var}}" := dplyr::coalesce({{ var }}, proxy_ratio * {{ proxy_var }})
     )
 }
 
-
-#' Fill gaps in a variable with the sum of its previous value and the value of another variable.
-#' When a gap has multiple observations, the values are accumulated along the series.
-#' When there is a gap at the start of the series, it can either remain unfilled or be replaced with zero.
+#' Fill gaps summing the previous value of a variable to the value of another variable.
 #'
-#' @param df A tibble data frame containing one observation per row
-#' @param var The variable of df containing gaps to be filled
-#' @param change_var The variable whose values will be used to fill the gaps
-#' @param start_with_zero Logical. If TRUE, replaces starting NA values with 0. If FALSE (default),
-#'   starting NA values remain unfilled.
-#' @param ... The grouping variables (optional)
+#' Fill gaps in a variable with the sum of its previous value and the value
+#' of another variable. When a gap has multiple observations, the values are
+#' accumulated along the series. When there is a gap at the start of the
+#' series, it can either remain unfilled or be replaced with zero.
+#'
+#' @param df A tibble data frame containing one observation per row.
+#' @param var The variable of df containing gaps to be filled.
+#' @param change_var The variable whose values will be used to fill the gaps.
+#' @param start_with_zero Logical. If TRUE, replaces starting NA values with 0.
+#'   If FALSE (default), starting NA values remain unfilled.
+#' @param ... The grouping variables (optional).
 #'
 #' @return A tibble dataframe (ungrouped) where gaps in var have been filled,
-#' and a new "Source" variable has been created indicating if the value is original or,
-#' in case it has been estimated, the gapfilling method that has been used
+#' and a new "source" variable has been created indicating if the value is
+#' original or, in case it has been estimated, the gapfilling method that has
+#' been used.
 #'
 #' @export
 #'
 #' @examples
 #' sample_tibble <- tibble::tibble(
 #'   category = c("a", "a", "a", "a", "a", "a", "b", "b", "b", "b", "b", "b"),
-#'   year = c("2015", "2016", "2017", "2018", "2019", "2020", "2015", "2016", "2017", "2018", "2019", "2020"),
+#'   year = c("2015", "2016", "2017", "2018", "2019", "2020",
+#'            "2015", "2016", "2017", "2018", "2019", "2020"),
 #'   value = c(NA, 3, NA, NA, 0, NA, 1, NA, NA, NA, 5, NA),
 #'   change_variable =c(1,2,3,4,1,1,0,0,0,0,0,1)
 #' )
-#'sum_fill(sample_tibble, value, change_variable, category)
-#'sum_fill(sample_tibble, value, change_variable, TRUE, category)
+#' sum_fill(sample_tibble, value, change_variable, category)
+#' sum_fill(sample_tibble, value, change_variable, TRUE, category)
 sum_fill <- function(df, var, change_var, start_with_zero = FALSE, ...) {
-  var_sym <- rlang::ensym(var)
-  change_var_sym <- rlang::ensym(change_var)
-  var_name <- rlang::as_string(var_sym)
-  change_var_name <- rlang::as_string(change_var_sym)
-  group_syms <- rlang::ensyms(...)
-  df <- dplyr::group_by(df, !!!group_syms) |>
-    dplyr::group_modify(function(.x, .y) {
-      var_vec <- .x[[var_name]]
-      change_vec <- .x[[change_var_name]]
-      status_vec <- ifelse(is.na(var_vec), NA, "Original")
-      # Handle starting NA values if start_with_zero is TRUE
-      if (start_with_zero && length(var_vec) > 0 && is.na(var_vec[1])) {
-        var_vec[1] <- 0
-        status_vec[1] <- "Started with zero"
-      }
-      for (i in seq_along(var_vec)) {
-        if (is.na(var_vec[i]) && i > 1) {
-          var_vec[i] <- var_vec[i - 1] + change_vec[i]
-          status_vec[i] <- "Filled with sum"
-        }
-      }
-      .x[[var_name]] <- var_vec
-      .x[[paste0("Source_", var_name)]] <- status_vec
-      .x
-    }) |>
+  df |>
+    dplyr::group_by(...) |>
+    dplyr::mutate(
+      original_value = {{ var }},
+      groups = cumsum(!is.na({{ var }})),
+      all_na = all(is.na({{ var }})),
+      prefilled = dplyr::coalesce({{ var }}, {{ change_var }}),
+      cumsum_regular = ave(prefilled, groups, FUN = cumsum),
+      cumsum_start_zero = c(0, cumsum({{ change_var }}[-1])),
+      cumsum_value = dplyr::case_when(
+        start_with_zero & all_na ~ cumsum_start_zero,
+        groups != 0 ~ cumsum_regular,
+        start_with_zero ~ cumsum_regular,
+        .default = NA_real_
+      ),
+      value = dplyr::coalesce(original_value, cumsum_value),
+      source_value = dplyr::case_when(
+        !is.na(original_value) ~ "Original",
+        start_with_zero & groups == 0 & dplyr::row_number() == 1 ~
+          "Started with zero",
+        !is.na(value) ~ "Filled with sum",
+        .default = NA_character_
+      )
+    ) |>
+    dplyr::select(
+      -original_value,
+      -cumsum_value,
+      -all_na,
+      -prefilled,
+      -cumsum_regular,
+      -cumsum_start_zero
+    ) |>
     dplyr::ungroup()
-  df
 }
