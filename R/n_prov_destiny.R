@@ -262,6 +262,9 @@ create_n_prov_destiny <- function() {
 #' @title Seed production per province, based on national seed rate per Area
 #' @description Calculates the amount of seeds used per province and subtracts
 #' it from total production.
+#' COMMENT: in a few cases, seeds are higher then production, so that we get
+#' negative values. In the final ds we have N inputs, but no outputs.
+#' Please check that.
 #'
 #' @param npp_ygpit_csv Dataframe containing crop area by province.
 #' @param pie_full_destinies_fm Dataframe containing domestic supply by
@@ -864,6 +867,8 @@ create_n_prov_destiny <- function() {
 #' @title Finalize production and destiny output -------------------------------
 #' @description Fills in missing box categories and transforms data into a
 #' long format.
+#' Comment: there is no distinction between irrigated and rainfed of processed
+#' items. How can we solve that?
 #'
 #' @param grafs_prod_item_trade A dataframe containing N trade data.
 #' @param codes_coefs_items_full A dataframe used to assign items to biomasses.
@@ -923,22 +928,22 @@ create_n_prov_destiny <- function() {
       Year,
       Province_name,
       Item,
+      Irrig_cat,
+      consumption_total,
       food_share,
       other_uses_share,
       feed_share
     )
 
   local_vs_import <- grafs_prod_destiny_final |>
-    dplyr::mutate(
-      consumption_total = food + other_uses + feed,
-      local_consumption = dplyr::if_else(
-        consumption_total == import,
-        0,
-        pmax(consumption_total - import, 0)
-      ),
-      import_consumption = import
+    dplyr::left_join(
+      shares_import,
+      by = c("Year", "Province_name", "Item", "Irrig_cat")
     ) |>
-    dplyr::left_join(shares_import, by = c("Year", "Province_name", "Item"))
+    dplyr::mutate(
+      local_consumption = pmax(consumption_total - import, 0),
+      import_consumption = import
+    )
 
   local_split <- local_vs_import |>
     dplyr::filter(local_consumption > 0) |>
@@ -987,8 +992,7 @@ create_n_prov_destiny <- function() {
     dplyr::summarise(MgN = sum(MgN, na.rm = TRUE), .groups = "drop")
 
   exports <- grafs_prod_destiny_final |>
-    dplyr::mutate(include_export = (food + other_uses + feed - import) > 0) |>
-    dplyr::filter(include_export) |>
+    dplyr::filter(export > 0) |>
     dplyr::transmute(
       Year,
       Province_name,
@@ -1014,6 +1018,10 @@ create_n_prov_destiny <- function() {
 #' @description Transforms soil N inputs (deposition, fixation, synthetic,
 #' manure, urban) into long format and adds them to the production-destiny
 #' dataframe.
+#' COMMENT: as described above concerning the ".remove_seeds_from_system"
+#' function, we get negative production values in a few cases, which leads to
+#' N inputs, but no outputs (e.g. in A_Coruna, 1860, irrigated, Beans).
+#' This needs to be checked.
 #'
 #' @param grafs_prod_destiny_final A tibble from `.finalize_prod_destiny()`
 #'   containing destinies.
