@@ -1,0 +1,53 @@
+Package: whep
+Title: Processing Agro-Environmental Data
+Version: 0.1.0.9000
+Authors@R: c(
+    person("Catalin", "Covaci", , "catalin.covaci@csic.es", role = c("aut", "cre"), comment = c(ORCID = "0009-0005-2186-5972")),
+    person("Eduardo", "Aguilera", , "eduardo.aguilera@csic.es", role = c("aut", "cph"), comment = c(ORCID = "0000-0003-4382-124X")),
+    person("João", "Serra", , "jserra@agro.au.dk", role = c("ctb"), comment = c(ORCID = "0000-0002-3561-5350")),
+    person("European Research Council", role = c("fnd"))
+  )
+Description: A set of tools for processing and analyzing data developed in the
+    context of the "Who Has Eaten the Planet" (WHEP) project, funded by the
+    European Research Council (ERC). For more details on multi-regional
+    input–output model "Food and Agriculture Biomass Input–Output" (FABIO) see 
+    Bruckner et al. (2019) <doi:10.1021/acs.est.9b03554>.
+License: MIT + file LICENSE
+Imports:
+    cli,
+    dplyr,
+    fs,
+    FAOSTAT,
+    httr,
+    mipfp,
+    nanoparquet,
+    pins,
+    purrr,
+    readr,
+    rlang,
+    stringr,
+    tidyr,
+    withr,
+    yaml,
+    readxl,
+    sf,
+    stringi
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2
+Suggests: 
+    ggplot2,
+    googlesheets4,
+    here,
+    knitr,
+    pointblank,
+    rmarkdown,
+    testthat (>= 3.0.0),
+    tibble
+Config/testthat/edition: 3
+VignetteBuilder: knitr
+URL: https://eduaguilera.github.io/whep/, https://github.com/eduaguilera/whep
+BugReports: https://github.com/eduaguilera/whep/issues
+Depends: 
+    R (>= 3.5)
+LazyData: true
