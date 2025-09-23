@@ -40,6 +40,6 @@ sample_tibble <- tibble::tibble(
   value = c(NA, 3, NA, NA, 0, NA, 1, NA, NA, NA, 5, NA),
   change_variable =c(1,2,3,4,1,1,0,0,0,0,0,1)
 )
-sum_fill(sample_tibble, value, change_variable, category)
+sum_fill(sample_tibble, value, change_variable, FALSE, category)
 sum_fill(sample_tibble, value, change_variable, TRUE, category)
 }
