@@ -992,7 +992,6 @@ create_n_prov_destiny <- function() {
     dplyr::summarise(MgN = sum(MgN, na.rm = TRUE), .groups = "drop")
 
   exports <- grafs_prod_destiny_final |>
-    dplyr::filter(export > 0) |>
     dplyr::transmute(
       Year,
       Province_name,
