@@ -159,40 +159,21 @@ proxy_fill <- function(df, var, proxy_var, time_index, ...) {
 #'   value = c(NA, 3, NA, NA, 0, NA, 1, NA, NA, NA, 5, NA),
 #'   change_variable =c(1,2,3,4,1,1,0,0,0,0,0,1)
 #' )
-#' sum_fill(sample_tibble, value, change_variable, category)
+#' sum_fill(sample_tibble, value, change_variable, FALSE, category)
 #' sum_fill(sample_tibble, value, change_variable, TRUE, category)
 sum_fill <- function(df, var, change_var, start_with_zero = FALSE, ...) {
   df |>
     dplyr::group_by(...) |>
     dplyr::mutate(
-      original_value = {{ var }},
       groups = cumsum(!is.na({{ var }})),
-      all_na = all(is.na({{ var }})),
-      # When start_with_zero = TRUE, assume invisible 0 before first observation
-      # so cumsum starts from change_var values, not from 0
-      cumsum_start_zero = cumsum({{ change_var }}),
       prefilled = dplyr::coalesce({{ var }}, {{ change_var }}),
-      cumsum_regular = ave(prefilled, groups, FUN = cumsum),
-      cumsum_value = dplyr::case_when(
-        start_with_zero & all_na ~ cumsum_start_zero,
-        groups != 0 ~ cumsum_regular,
-        start_with_zero ~ cumsum_start_zero,
-        .default = NA_real_
-      ),
-      value = dplyr::coalesce(original_value, cumsum_value),
-      source_value = dplyr::case_when(
-        !is.na(original_value) ~ "Original",
-        !is.na(value) ~ "Filled with sum",
-        .default = NA_character_
-      )
+      source_value = ifelse(is.na({{ var }}), "Filled with sum", "Original"),
+      "{{ var }}" := ave(prefilled, groups, FUN = cumsum),
+      "{{ var }}" := if (start_with_zero) {{ var }} else {
+        ifelse(groups == 0, NA, {{ var }})
+      },
+      source_value = ifelse(is.na({{ var }}), NA_character_, source_value),
     ) |>
-    dplyr::select(
-      -original_value,
-      -cumsum_value,
-      -all_na,
-      -prefilled,
-      -cumsum_regular,
-      -cumsum_start_zero
-    ) |>
+    dplyr::select(-prefilled, -groups) |>
     dplyr::ungroup()
 }
