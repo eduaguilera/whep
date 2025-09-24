@@ -545,40 +545,48 @@ testthat::test_that("proxy_fill works without grouping variables", {
 
 # Tests for sum_fill function
 testthat::test_that("sum_fill works correctly", {
-  test_data <- tibble::tibble(
-    category = c("a", "a", "a", "a", "a", "a", "b", "b", "b", "b", "b", "b"),
-    year = c(
-      2015,
-      2016,
-      2017,
-      2018,
-      2019,
-      2020,
-      2015,
-      2016,
-      2017,
-      2018,
-      2019,
-      2020
-    ),
-    value = c(NA, 3, NA, NA, 0, NA, 1, NA, NA, NA, 5, NA),
-    proxy_variable = c(1, 2, 2, 2, 2, 2, 1, 2, 3, 4, 5, 6),
-    change_variable = c(1, 2, 3, 4, 1, 1, 0, 0, 0, 0, 0, 1)
+  test_data <- tibble::tribble(
+    ~category, ~year, ~value, ~change_variable,
+    "a", 2014, NA, 2,
+    "a", 2015, NA, 3,
+    "a", 2016,  3, 2,
+    "a", 2017, NA, 3,
+    "a", 2018, NA, 4,
+    "a", 2019,  0, 1,
+    "a", 2020, NA, 1,
+    "b", 2015,  1, 0,
+    "b", 2016, NA, 0,
+    "b", 2017, NA, 0,
+    "b", 2018, NA, 0,
+    "b", 2019,  5, 0,
+    "b", 2020, NA, 1
   )
-  result <- sum_fill(test_data, value, change_variable, FALSE, category)
-  # Check that function returns a data frame
+
+  result <- sum_fill(
+    test_data,
+    value,
+    change_variable,
+    start_with_zero = TRUE,
+    category
+  )
+
   testthat::expect_s3_class(result, "data.frame")
-  # Check that Source column is created
-  testthat::expect_true("source_value" %in% names(result))
 
-  # Check that original values are preserved
-  original_rows <- result[
-    result$source_value == "Original" & !is.na(result$source_value),
-  ]
-  testthat::expect_equal(original_rows$value, c(3, 0, 1, 5))
+  result |>
+    pointblank::expect_col_exists("source_value") |>
+    pointblank::expect_col_vals_equal(
+      value,
+      c(2, 5, 3, 6, 10, 0, 1, 1, 1, 1, 1, 5, 6)
+    ) |>
+    pointblank::expect_col_vals_equal(
+      value,
+      c(3, 0, 1, 5),
+      preconditions = \(df) df |> dplyr::filter(source_value == "Original")
+    )
 
-  # Check that result is ungrouped
-  testthat::expect_false(dplyr::is.grouped_df(result))
+  result |>
+    dplyr::is_grouped_df() |>
+    testthat::expect_false()
 })
 
 testthat::test_that("sum_fill fills gaps by summing with change variable", {
