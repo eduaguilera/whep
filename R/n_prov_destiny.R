@@ -319,10 +319,14 @@ create_n_prov_destiny <- function() {
       by = c("Year", "Province_name", "Item")
     ) |>
     dplyr::mutate(
-      production_fm = production_fm -
+      Seeds_used_capped = dplyr::if_else(
+        dplyr::coalesce(Seeds_used_MgFM, 0) > 0.5 * production_fm,
+        0.5 * production_fm,
         dplyr::coalesce(Seeds_used_MgFM, 0)
+      ),
+      production_fm = production_fm - Seeds_used_capped
     ) |>
-    dplyr::select(-Seeds_used_MgFM)
+    dplyr::select(-Seeds_used_MgFM, -Seeds_used_capped)
 
   grafs_prod_combined_no_seeds
 }
@@ -1056,5 +1060,6 @@ create_n_prov_destiny <- function() {
     grafs_prod_destiny_final,
     soil_inputs_long
   ) |>
+    dplyr::filter(MgN != 0) |>
     dplyr::arrange(Year, Province_name, Item, Irrig_cat, Origin, Destiny)
 }
