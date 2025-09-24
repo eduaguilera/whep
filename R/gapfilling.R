@@ -39,13 +39,14 @@
 #' linear_fill(sample_tibble, value, year, category)
 #' linear_fill(sample_tibble, value, year, category, interpolate = FALSE)
 linear_fill <- function(
-    df,
-    var,
-    time_index,
-    ...,
-    interpolate = TRUE,
-    fill_forward = TRUE,
-    fill_backward = TRUE) {
+  df,
+  var,
+  time_index,
+  ...,
+  interpolate = TRUE,
+  fill_forward = TRUE,
+  fill_backward = TRUE
+) {
   df |>
     dplyr::group_by(...) |>
     dplyr::mutate(
