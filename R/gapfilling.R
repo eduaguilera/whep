@@ -1,10 +1,9 @@
 # Simple functions to fill gaps (NA values) in a time-dependent variable,
 # creating complete time series.
-
-#' Fill gaps by linear interpolation, or carrying forward or backward.
+#' Fill gaps by linear interpolation, or carrying forward or backwards.
 #'
 #' @description
-#' Fills gaps (`NA` values) in a time-dependent variable by
+#' Fills gaps (NA values) in a time-dependent variable by
 #' linear interpolation between two points, or carrying forward or backwards
 #' the last or initial values, respectively. It also creates a new variable
 #' indicating the source of the filled values.
@@ -12,12 +11,9 @@
 #' @param df A tibble data frame containing one observation per row.
 #' @param var The variable of df containing gaps to be filled.
 #' @param time_index The time index variable (usually year).
-#' @param interpolate Logical. If `TRUE` (default),
-#'   performs linear interpolation.
-#' @param fill_forward Logical. If `TRUE` (default),
-#'   carries last value forward.
-#' @param fill_backward Logical. If `TRUE` (default),
-#'   carries first value backward.
+#' @param interpolate Logical. If TRUE (default), performs linear interpolation.
+#' @param fill_forward Logical. If TRUE (default), carries last value forward.
+#' @param fill_backward Logical. If TRUE (default), carries first value backward.
 #' @param ... The grouping variables (optional).
 #'
 #' @return A tibble data frame (ungrouped) where gaps in var have been filled,
@@ -39,16 +35,13 @@
 #' linear_fill(sample_tibble, value, year, category)
 #' linear_fill(sample_tibble, value, year, category, interpolate = FALSE)
 linear_fill <- function(
-  df,
-  var,
-  time_index,
-  ...,
-  interpolate = TRUE,
-  fill_forward = TRUE,
-  fill_backward = TRUE
-) {
+    df,
+    var,
+    time_index,
+    interpolate = TRUE,
+    fill_forward = TRUE,
+    fill_backward = TRUE) {
   df |>
-    dplyr::group_by(...) |>
     dplyr::mutate(
       value_interpfilled = if (interpolate) {
         zoo::na.approx({{ var }}, x = {{ time_index }}, na.rm = FALSE)
@@ -87,12 +80,11 @@ linear_fill <- function(
     dplyr::ungroup()
 }
 
-#' Fill gaps using a proxy variable
+#' Fill gaps using a proxy variable.
 #'
 #' @description
-#' Fills gaps in a variable based on changes in a proxy variable, using ratios
-#' between the filled variable and the proxy variable, and labels output
-#' accordingly.
+#' Fills gaps in a variable based on changes in a proxy variable, using ratios between
+#' the filled variable and the proxy variable, and labels output accordingly.
 #'
 #' @param df A tibble data frame containing one observation per row.
 #' @param var The variable of df containing gaps to be filled.
@@ -137,10 +129,8 @@ proxy_fill <- function(df, var, proxy_var, time_index, ...) {
     )
 }
 
-#' Fill gaps summing the previous value of a variable to the value of
-#' another variable.
+#' Fill gaps summing the previous value of a variable to the value of another variable.
 #'
-#' @description
 #' Fill gaps in a variable with the sum of its previous value and the value
 #' of another variable. When a gap has multiple observations, the values are
 #' accumulated along the series. When there is a gap at the start of the
@@ -174,7 +164,7 @@ proxy_fill <- function(df, var, proxy_var, time_index, ...) {
 #' )
 #' sum_fill(sample_tibble, value, change_variable, FALSE, category)
 #' sum_fill(sample_tibble, value, change_variable, TRUE, category)
-sum_fill <- function(df, var, change_var, start_with_zero = FALSE, groups = NULL) {
+sum_fill <- function(df, var, change_var, start_with_zero = FALSE, ...) {
   df |>
     dplyr::group_by(...) |>
     dplyr::mutate(
