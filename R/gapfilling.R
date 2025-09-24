@@ -80,8 +80,8 @@ linear_fill <- function(
       value_interpfilled = NULL,
       value_carried_forward = NULL,
       value_carried_backward = NULL
-    )
-    |> dplyr::ungroup()
+    ) |>
+    dplyr::ungroup()
 }
 
 #' Fill gaps using a proxy variable
@@ -189,4 +189,4 @@ sum_fill <- function(
       prefilled = NULL
     ) |>
     dplyr::ungroup()
-    }
+}
