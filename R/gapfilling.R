@@ -26,21 +26,22 @@
 #' @examples
 #' sample_tibble <- tibble::tibble(
 #'   category = c("a", "a", "a", "a", "a", "a", "b", "b", "b", "b", "b", "b"),
-#'   year = c("2015", "2016", "2017", "2018", "2019", "2020",
-#'            "2015", "2016", "2017", "2018", "2019", "2020"),
+#'   year = c(
+#'     "2015", "2016", "2017", "2018", "2019", "2020",
+#'     "2015", "2016", "2017", "2018", "2019", "2020"
+#'   ),
 #'   value = c(NA, 3, NA, NA, 0, NA, 1, NA, NA, NA, 5, NA),
 #' )
 #' linear_fill(sample_tibble, value, year, category)
 #' linear_fill(sample_tibble, value, year, category, interpolate = FALSE)
 linear_fill <- function(
-  df,
-  var,
-  time_index,
-  ...,
-  interpolate = TRUE,
-  fill_forward = TRUE,
-  fill_backward = TRUE
-) {
+    df,
+    var,
+    time_index,
+    ...,
+    interpolate = TRUE,
+    fill_forward = TRUE,
+    fill_backward = TRUE) {
   df |>
     dplyr::group_by(...) |>
     dplyr::mutate(
@@ -104,10 +105,12 @@ linear_fill <- function(
 #' @examples
 #' sample_tibble <- tibble::tibble(
 #'   category = c("a", "a", "a", "a", "a", "a", "b", "b", "b", "b", "b", "b"),
-#'   year = c("2015", "2016", "2017", "2018", "2019", "2020",
-#'            "2015", "2016", "2017", "2018", "2019", "2020"),
+#'   year = c(
+#'     "2015", "2016", "2017", "2018", "2019", "2020",
+#'     "2015", "2016", "2017", "2018", "2019", "2020"
+#'   ),
 #'   value = c(NA, 3, NA, NA, 0, NA, 1, NA, NA, NA, 5, NA),
-#'   proxy_variable = c(1,2,2,2,2,2,1,2,3,4,5,6)
+#'   proxy_variable = c(1, 2, 2, 2, 2, 2, 1, 2, 3, 4, 5, 6)
 #' )
 #' proxy_fill(sample_tibble, value, proxy_variable, year, category)
 proxy_fill <- function(df, var, proxy_var, time_index, ...) {
@@ -154,10 +157,12 @@ proxy_fill <- function(df, var, proxy_var, time_index, ...) {
 #' @examples
 #' sample_tibble <- tibble::tibble(
 #'   category = c("a", "a", "a", "a", "a", "a", "b", "b", "b", "b", "b", "b"),
-#'   year = c("2015", "2016", "2017", "2018", "2019", "2020",
-#'            "2015", "2016", "2017", "2018", "2019", "2020"),
+#'   year = c(
+#'     "2015", "2016", "2017", "2018", "2019", "2020",
+#'     "2015", "2016", "2017", "2018", "2019", "2020"
+#'   ),
 #'   value = c(NA, 3, NA, NA, 0, NA, 1, NA, NA, NA, 5, NA),
-#'   change_variable =c(1,2,3,4,1,1,0,0,0,0,0,1)
+#'   change_variable = c(1, 2, 3, 4, 1, 1, 0, 0, 0, 0, 0, 1)
 #' )
 #' sum_fill(sample_tibble, value, change_variable, category)
 #' sum_fill(sample_tibble, value, change_variable, TRUE, category)
