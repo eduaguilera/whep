@@ -76,14 +76,12 @@ linear_fill <- function(
         value_interpfilled,
         value_carried_backward,
         value_carried_forward
-      )
-    ) |>
-    dplyr::select(
-      -value_interpfilled,
-      -value_carried_forward,
-      -value_carried_backward
-    ) |>
-    dplyr::ungroup()
+      ),
+      value_interpfilled = NULL,
+      value_carried_forward = NULL,
+      value_carried_backward = NULL
+    )
+    |> dplyr::ungroup()
 }
 
 #' Fill gaps using a proxy variable
@@ -173,7 +171,9 @@ proxy_fill <- function(df, var, proxy_var, time_index, ...) {
 #' )
 #' sum_fill(sample_tibble, value, change_variable, FALSE, category)
 #' sum_fill(sample_tibble, value, change_variable, TRUE, category)
-sum_fill <- function(df, var, change_var, start_with_zero = FALSE, groups = NULL) {
+sum_fill <- function(
+    df, var, change_var, ...,
+    start_with_zero = FALSE, groups = NULL) {
   df |>
     dplyr::group_by(...) |>
     dplyr::mutate(
@@ -185,7 +185,8 @@ sum_fill <- function(df, var, change_var, start_with_zero = FALSE, groups = NULL
         ifelse(groups == 0, NA, {{ var }})
       },
       source_value = ifelse(is.na({{ var }}), NA_character_, source_value),
+      groups = NULL,
+      prefilled = NULL
     ) |>
-    dplyr::select(-prefilled, -groups) |>
     dplyr::ungroup()
-}
+    }
