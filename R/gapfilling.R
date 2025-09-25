@@ -173,8 +173,13 @@ proxy_fill <- function(df, var, proxy_var, time_index, ...) {
 #' sum_fill(sample_tibble, value, change_variable, FALSE, category)
 #' sum_fill(sample_tibble, value, change_variable, TRUE, category)
 sum_fill <- function(
-    df, var, change_var, ...,
-    start_with_zero = FALSE, groups = NULL) {
+  df,
+  var,
+  change_var,
+  ...,
+  start_with_zero = FALSE,
+  groups = NULL
+) {
   df |>
     dplyr::group_by(...) |>
     dplyr::mutate(
