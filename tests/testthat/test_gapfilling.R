@@ -1,5 +1,5 @@
 # Tests for linear_fill function
-testthat::test_that("linear_fill works with default method (fill_everything)", {
+testthat::test_that("linear_fill works with defaults (fill everything)", {
   test_data <- tibble::tibble(
     category = c("a", "a", "a", "a", "a", "a", "b", "b", "b", "b", "b", "b"),
     year = c(
@@ -20,7 +20,7 @@ testthat::test_that("linear_fill works with default method (fill_everything)", {
     change_variable = c(1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0)
   )
 
-  result <- linear_fill(test_data, value, year, category)
+  result <- linear_fill(test_data, value, year, .by = c("category"))
   # Check that function returns a data frame
   testthat::expect_s3_class(result, "data.frame")
   # Check that no NAs remain in the value column
@@ -63,7 +63,7 @@ testthat::test_that("linear_fill interpolate = TRUE only interpolates", {
     test_data,
     value,
     year,
-    category,
+    .by = c("category"),
     interpolate = TRUE,
     fill_forward = FALSE,
     fill_backward = FALSE
@@ -105,7 +105,7 @@ testthat::test_that("linear_fill interpolate + fill_backward interpolates and ca
     test_data,
     value,
     year,
-    category,
+    .by = c("category"),
     interpolate = TRUE,
     fill_forward = FALSE,
     fill_backward = TRUE
@@ -147,7 +147,7 @@ testthat::test_that("linear_fill interpolate + fill_forward interpolates and car
     test_data,
     value,
     year,
-    category,
+    .by = c("category"),
     interpolate = TRUE,
     fill_forward = TRUE,
     fill_backward = FALSE
@@ -188,12 +188,12 @@ testthat::test_that("linear_fill carry only (no interpolation)", {
     test_data,
     value,
     year,
-    category,
+    .by = c("category"),
     interpolate = FALSE,
     fill_forward = TRUE,
     fill_backward = TRUE
   )
-  # Should only have carrying methods, no interpolation
+  # Should only fill forward and/or backward, no interpolation
   testthat::expect_false("Linear interpolation" %in% result$source_value)
   testthat::expect_true(any(
     c("Last value carried forward", "First value carried backwards") %in%
@@ -201,7 +201,7 @@ testthat::test_that("linear_fill carry only (no interpolation)", {
   ))
 })
 
-testthat::test_that("linear_fill validates method parameter", {
+testthat::test_that("linear_fill does nothing when fill options are FALSE", {
   test_data <- tibble::tibble(
     category = c("a", "a", "a", "a", "a", "a", "b", "b", "b", "b", "b", "b"),
     year = c(
@@ -227,7 +227,7 @@ testthat::test_that("linear_fill validates method parameter", {
     test_data,
     value,
     year,
-    category,
+    .by = c("category"),
     interpolate = FALSE,
     fill_forward = FALSE,
     fill_backward = FALSE
@@ -346,7 +346,13 @@ testthat::test_that("linear_fill carry forwards from first value produces correc
     year = c(2015, 2016, 2017, 2018),
     value = c(30, NA, NA, NA)
   )
-  result <- linear_fill(carry_data, value, year, method = "carry_only")
+  result <- linear_fill(
+    carry_data,
+    value,
+    year,
+    fill_forward = TRUE,
+    fill_backward = TRUE
+  )
   # All NA values should be filled with 30 (first value carried forwards)
   testthat::expect_equal(result$value, c(30, 30, 30, 30))
   testthat::expect_equal(result$source_value[1], "Original")
@@ -361,7 +367,13 @@ testthat::test_that("linear_fill carry backwards from last value produces correc
     year = c(2015, 2016, 2017, 2018),
     value = c(NA, NA, NA, 50)
   )
-  result <- linear_fill(carry_data, value, year, method = "carry_only")
+  result <- linear_fill(
+    carry_data,
+    value,
+    year,
+    fill_forward = TRUE,
+    fill_backward = TRUE
+  )
   # All NA values should be filled with 50 (last value carried backwards)
   testthat::expect_equal(result$value, c(50, 50, 50, 50))
   testthat::expect_equal(
@@ -391,8 +403,8 @@ testthat::test_that("linear_fill handles complex interpolation with groups", {
     grouped_data,
     value,
     year,
-    group,
-    method = "interpolate"
+    .by = c("group"),
+    interpolate = TRUE
   )
 
   # Check Group A: interpolation from 0 to 12 over 3 intervals
@@ -456,7 +468,9 @@ testthat::test_that("linear_fill handles edge cases with single values", {
     single_value_data,
     value,
     year,
-    method = "fill_everything"
+    interpolate = TRUE,
+    fill_forward = TRUE,
+    fill_backward = TRUE
   )
 
   # Both NAs should be filled with 42 (carried in both directions)
@@ -491,7 +505,13 @@ testthat::test_that("proxy_fill works correctly", {
     proxy_variable = c(1, 2, 2, 2, 2, 2, 1, 2, 3, 4, 5, 6),
     change_variable = c(1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0)
   )
-  result <- proxy_fill(test_data, value, proxy_variable, year, category)
+  result <- proxy_fill(
+    test_data,
+    value,
+    proxy_variable,
+    year,
+    .by = c("category")
+  )
   # Check that function returns a data frame
   testthat::expect_s3_class(result, "data.frame")
   # Check that proxy_ratio column is created
@@ -567,7 +587,7 @@ testthat::test_that("sum_fill works correctly", {
     value,
     change_variable,
     start_with_zero = TRUE,
-    category
+    .by = c("category")
   )
 
   testthat::expect_s3_class(result, "data.frame")
@@ -620,7 +640,13 @@ testthat::test_that("sum_fill handles multiple groups correctly", {
     value = c(10, NA, NA, 20, NA, NA),
     change_variable = c(0, 1, 2, 0, 3, 4)
   )
-  result <- sum_fill(grouped_data, value, change_variable, FALSE, group)
+  result <- sum_fill(
+    grouped_data,
+    value,
+    change_variable,
+    FALSE,
+    .by = c("group")
+  )
   # Check group A
   group_a <- result[result$group == "A", ]
   testthat::expect_equal(group_a$value, c(10, 11, 13))
@@ -701,7 +727,13 @@ testthat::test_that("sum_fill with start_with_zero works with groups", {
     value = c(NA, NA, NA, 5, NA, NA),
     change_variable = c(1, 2, 3, 0, 2, 4)
   )
-  result <- sum_fill(grouped_start_na_data, value, change_variable, TRUE, group)
+  result <- sum_fill(
+    grouped_start_na_data,
+    value,
+    change_variable,
+    TRUE,
+    .by = c("group")
+  )
   # Check group A (starts with NA, should be filled with cumsum starting from change_var)
   group_a <- result[result$group == "A", ]
   testthat::expect_equal(group_a$value, c(1, 3, 6)) # 1, 1+2, 3+3
@@ -740,12 +772,30 @@ testthat::test_that("All functions work together in a pipeline", {
     test_data,
     value,
     year,
-    category,
-    method = "interpolate"
+    .by = c("category"),
+    interpolate = TRUE
   )
-  result2 <- proxy_fill(test_data, value, proxy_variable, year, category)
-  result3 <- sum_fill(test_data, value, change_variable, FALSE, category)
-  result4 <- sum_fill(test_data, value, change_variable, TRUE, category)
+  result2 <- proxy_fill(
+    test_data,
+    value,
+    proxy_variable,
+    year,
+    .by = c("category")
+  )
+  result3 <- sum_fill(
+    test_data,
+    value,
+    change_variable,
+    FALSE,
+    .by = c("category")
+  )
+  result4 <- sum_fill(
+    test_data,
+    value,
+    change_variable,
+    TRUE,
+    .by = c("category")
+  )
 
   testthat::expect_s3_class(result1, "data.frame")
   testthat::expect_s3_class(result2, "data.frame")
