@@ -2,7 +2,7 @@
 % Please edit documentation in R/gapfilling.R
 \name{proxy_fill}
 \alias{proxy_fill}
-\title{Fill gaps using a proxy variable.}
+\title{Fill gaps using a proxy variable}
 \usage{
 proxy_fill(df, var, proxy_var, time_index, ...)
 }
@@ -15,7 +15,9 @@ proxy_fill(df, var, proxy_var, time_index, ...)
 
 \item{time_index}{The time index variable (usually year).}
 
-\item{...}{The grouping variables (optional).}
+\item{...}{Optionally, additional arguments that will be passed to
+\code{linear_fill()} with the ratios. See that function to know the accepted
+arguments.}
 }
 \value{
 A tibble dataframe (ungrouped) where gaps in var have been filled,
@@ -25,16 +27,19 @@ original or, in case it has been estimated, the gapfilling method that has
 been used.
 }
 \description{
-Fills gaps in a variable based on changes in a proxy variable, using ratios between
-the filled variable and the proxy variable, and labels output accordingly.
+Fills gaps in a variable based on changes in a proxy variable, using ratios
+between the filled variable and the proxy variable, and labels output
+accordingly.
 }
 \examples{
 sample_tibble <- tibble::tibble(
   category = c("a", "a", "a", "a", "a", "a", "b", "b", "b", "b", "b", "b"),
-  year = c("2015", "2016", "2017", "2018", "2019", "2020",
-           "2015", "2016", "2017", "2018", "2019", "2020"),
+  year = c(
+    "2015", "2016", "2017", "2018", "2019", "2020",
+    "2015", "2016", "2017", "2018", "2019", "2020"
+  ),
   value = c(NA, 3, NA, NA, 0, NA, 1, NA, NA, NA, 5, NA),
-  proxy_variable = c(1,2,2,2,2,2,1,2,3,4,5,6)
+  proxy_variable = c(1, 2, 2, 2, 2, 2, 1, 2, 3, 4, 5, 6)
 )
-proxy_fill(sample_tibble, value, proxy_variable, year, category)
+proxy_fill(sample_tibble, value, proxy_variable, year, .by = c("category"))
 }

@@ -2,9 +2,10 @@
 % Please edit documentation in R/gapfilling.R
 \name{sum_fill}
 \alias{sum_fill}
-\title{Fill gaps summing the previous value of a variable to the value of another variable.}
+\title{Fill gaps summing the previous value of a variable to the value of
+another variable.}
 \usage{
-sum_fill(df, var, change_var, start_with_zero = FALSE, ...)
+sum_fill(df, var, change_var, start_with_zero = FALSE, .by = NULL)
 }
 \arguments{
 \item{df}{A tibble data frame containing one observation per row.}
@@ -17,7 +18,7 @@ sum_fill(df, var, change_var, start_with_zero = FALSE, ...)
 the first observation and fills with cumulative sum starting from the first
 change_var value. If FALSE (default), starting NA values remain unfilled.}
 
-\item{...}{The grouping variables (optional).}
+\item{.by}{A character vector with the grouping variables (optional).}
 }
 \value{
 A tibble dataframe (ungrouped) where gaps in var have been filled,
@@ -35,11 +36,25 @@ the first observation and start filling with cumulative sum.
 \examples{
 sample_tibble <- tibble::tibble(
   category = c("a", "a", "a", "a", "a", "a", "b", "b", "b", "b", "b", "b"),
-  year = c("2015", "2016", "2017", "2018", "2019", "2020",
-           "2015", "2016", "2017", "2018", "2019", "2020"),
+  year = c(
+    "2015", "2016", "2017", "2018", "2019", "2020",
+    "2015", "2016", "2017", "2018", "2019", "2020"
+  ),
   value = c(NA, 3, NA, NA, 0, NA, 1, NA, NA, NA, 5, NA),
-  change_variable =c(1,2,3,4,1,1,0,0,0,0,0,1)
+  change_variable = c(1, 2, 3, 4, 1, 1, 0, 0, 0, 0, 0, 1)
 )
-sum_fill(sample_tibble, value, change_variable, FALSE, category)
-sum_fill(sample_tibble, value, change_variable, TRUE, category)
+sum_fill(
+  sample_tibble,
+  value,
+  change_variable,
+  start_with_zero = FALSE,
+  .by = c("category")
+)
+sum_fill(
+  sample_tibble,
+  value,
+  change_variable,
+  start_with_zero = TRUE,
+  .by = c("category")
+)
 }
