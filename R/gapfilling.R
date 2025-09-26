@@ -42,13 +42,12 @@ linear_fill <- function(
   df,
   var,
   time_index,
-  ...,
   interpolate = TRUE,
   fill_forward = TRUE,
-  fill_backward = TRUE
+  fill_backward = TRUE,
+  .by = NULL
 ) {
   df |>
-    dplyr::group_by(...) |>
     dplyr::mutate(
       value_interpfilled = if (interpolate) {
         zoo::na.approx({{ var }}, x = {{ time_index }}, na.rm = FALSE)
@@ -80,9 +79,9 @@ linear_fill <- function(
       ),
       value_interpfilled = NULL,
       value_carried_forward = NULL,
-      value_carried_backward = NULL
-    ) |>
-    dplyr::ungroup()
+      value_carried_backward = NULL,
+      .by = .by
+    )
 }
 
 #' Fill gaps using a proxy variable
@@ -176,12 +175,10 @@ sum_fill <- function(
   df,
   var,
   change_var,
-  ...,
   start_with_zero = FALSE,
-  groups = NULL
+  .by = NULL
 ) {
   df |>
-    dplyr::group_by(...) |>
     dplyr::mutate(
       groups = cumsum(!is.na({{ var }})),
       prefilled = dplyr::coalesce({{ var }}, {{ change_var }}),
@@ -192,7 +189,7 @@ sum_fill <- function(
       },
       source_value = ifelse(is.na({{ var }}), NA_character_, source_value),
       groups = NULL,
-      prefilled = NULL
-    ) |>
-    dplyr::ungroup()
+      prefilled = NULL,
+      .by = .by
+    )
 }
