@@ -86,7 +86,7 @@ linear_fill <- function(
       value_interpfilled = NULL,
       value_carried_forward = NULL,
       value_carried_backward = NULL,
-      .by = .by
+      .by = dplyr::all_of(.by)
     )
 }
 
@@ -167,6 +167,8 @@ proxy_fill <- function(df, var, proxy_var, time_index, ...) {
 #'
 #' @export
 #'
+#' @importFrom stats ave
+#'
 #' @examples
 #' sample_tibble <- tibble::tibble(
 #'   category = c("a", "a", "a", "a", "a", "a", "b", "b", "b", "b", "b", "b"),
@@ -210,6 +212,6 @@ sum_fill <- function(
       source_value = ifelse(is.na({{ var }}), NA_character_, source_value),
       groups = NULL,
       prefilled = NULL,
-      .by = .by
+      .by = dplyr::all_of(.by)
     )
 }
