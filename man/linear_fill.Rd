@@ -2,16 +2,16 @@
 % Please edit documentation in R/gapfilling.R
 \name{linear_fill}
 \alias{linear_fill}
-\title{Fill gaps by linear interpolation, or carrying forward or backwards.}
+\title{Fill gaps by linear interpolation, or carrying forward or backward.}
 \usage{
 linear_fill(
   df,
   var,
   time_index,
-  ...,
   interpolate = TRUE,
   fill_forward = TRUE,
-  fill_backward = TRUE
+  fill_backward = TRUE,
+  .by = NULL
 )
 }
 \arguments{
@@ -21,13 +21,16 @@ linear_fill(
 
 \item{time_index}{The time index variable (usually year).}
 
-\item{...}{The grouping variables (optional).}
+\item{interpolate}{Logical. If \code{TRUE} (default),
+performs linear interpolation.}
 
-\item{interpolate}{Logical. If TRUE (default), performs linear interpolation.}
+\item{fill_forward}{Logical. If \code{TRUE} (default),
+carries last value forward.}
 
-\item{fill_forward}{Logical. If TRUE (default), carries last value forward.}
+\item{fill_backward}{Logical. If \code{TRUE} (default),
+carries first value backward.}
 
-\item{fill_backward}{Logical. If TRUE (default), carries first value backward.}
+\item{.by}{A character vector with the grouping variables (optional).}
 }
 \value{
 A tibble data frame (ungrouped) where gaps in var have been filled,
@@ -36,7 +39,7 @@ original or, in case it has been estimated, the gapfilling method that has
 been used.
 }
 \description{
-Fills gaps (NA values) in a time-dependent variable by
+Fills gaps (\code{NA} values) in a time-dependent variable by
 linear interpolation between two points, or carrying forward or backwards
 the last or initial values, respectively. It also creates a new variable
 indicating the source of the filled values.
@@ -44,10 +47,18 @@ indicating the source of the filled values.
 \examples{
 sample_tibble <- tibble::tibble(
   category = c("a", "a", "a", "a", "a", "a", "b", "b", "b", "b", "b", "b"),
-  year = c("2015", "2016", "2017", "2018", "2019", "2020",
-           "2015", "2016", "2017", "2018", "2019", "2020"),
+  year = c(
+    "2015", "2016", "2017", "2018", "2019", "2020",
+    "2015", "2016", "2017", "2018", "2019", "2020"
+  ),
   value = c(NA, 3, NA, NA, 0, NA, 1, NA, NA, NA, 5, NA),
 )
-linear_fill(sample_tibble, value, year, category)
-linear_fill(sample_tibble, value, year, category, interpolate = FALSE)
+linear_fill(sample_tibble, value, year, .by = c("category"))
+linear_fill(
+  sample_tibble,
+  value,
+  year,
+  interpolate = FALSE,
+  .by = c("category"),
+)
 }

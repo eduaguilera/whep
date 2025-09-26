@@ -18,7 +18,7 @@
 #'   carries last value forward.
 #' @param fill_backward Logical. If `TRUE` (default),
 #'   carries first value backward.
-#' @param ... The grouping variables (optional).
+#' @param .by A character vector with the grouping variables (optional).
 #'
 #' @return A tibble data frame (ungrouped) where gaps in var have been filled,
 #'   and a new "source" variable has been created indicating if the value is
@@ -36,8 +36,14 @@
 #'   ),
 #'   value = c(NA, 3, NA, NA, 0, NA, 1, NA, NA, NA, 5, NA),
 #' )
-#' linear_fill(sample_tibble, value, year, category)
-#' linear_fill(sample_tibble, value, year, category, interpolate = FALSE)
+#' linear_fill(sample_tibble, value, year, .by = c("category"))
+#' linear_fill(
+#'   sample_tibble,
+#'   value,
+#'   year,
+#'   interpolate = FALSE,
+#'   .by = c("category"),
+#' )
 linear_fill <- function(
   df,
   var,
@@ -95,7 +101,9 @@ linear_fill <- function(
 #' @param var The variable of df containing gaps to be filled.
 #' @param proxy_var The variable to be used as proxy.
 #' @param time_index The time index variable (usually year).
-#' @param ... The grouping variables (optional).
+#' @param ... Optionally, additional arguments that will be passed to
+#'   `linear_fill()` with the ratios. See that function to know the accepted
+#'   arguments.
 #'
 #' @return A tibble dataframe (ungrouped) where gaps in var have been filled,
 #'   a new proxy_ratio variable has been created,
@@ -115,7 +123,7 @@ linear_fill <- function(
 #'   value = c(NA, 3, NA, NA, 0, NA, 1, NA, NA, NA, 5, NA),
 #'   proxy_variable = c(1, 2, 2, 2, 2, 2, 1, 2, 3, 4, 5, 6)
 #' )
-#' proxy_fill(sample_tibble, value, proxy_variable, year, category)
+#' proxy_fill(sample_tibble, value, proxy_variable, year, .by = c("category"))
 proxy_fill <- function(df, var, proxy_var, time_index, ...) {
   df |>
     dplyr::mutate(proxy_ratio = {{ var }} / {{ proxy_var }}) |>
@@ -150,7 +158,7 @@ proxy_fill <- function(df, var, proxy_var, time_index, ...) {
 #' @param start_with_zero Logical. If TRUE, assumes an invisible 0 value before
 #'   the first observation and fills with cumulative sum starting from the first
 #'   change_var value. If FALSE (default), starting NA values remain unfilled.
-#' @param ... The grouping variables (optional).
+#' @param .by A character vector with the grouping variables (optional).
 #'
 #' @return A tibble dataframe (ungrouped) where gaps in var have been filled,
 #' and a new "source" variable has been created indicating if the value is
@@ -169,8 +177,20 @@ proxy_fill <- function(df, var, proxy_var, time_index, ...) {
 #'   value = c(NA, 3, NA, NA, 0, NA, 1, NA, NA, NA, 5, NA),
 #'   change_variable = c(1, 2, 3, 4, 1, 1, 0, 0, 0, 0, 0, 1)
 #' )
-#' sum_fill(sample_tibble, value, change_variable, FALSE, category)
-#' sum_fill(sample_tibble, value, change_variable, TRUE, category)
+#' sum_fill(
+#'   sample_tibble,
+#'   value,
+#'   change_variable,
+#'   start_with_zero = FALSE,
+#'   .by = c("category")
+#' )
+#' sum_fill(
+#'   sample_tibble,
+#'   value,
+#'   change_variable,
+#'   start_with_zero = TRUE,
+#'   .by = c("category")
+#' )
 sum_fill <- function(
   df,
   var,
