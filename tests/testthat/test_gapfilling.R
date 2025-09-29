@@ -367,7 +367,13 @@ testthat::test_that("gapfilling helpers compose in pipelines", {
   fixture_sum <- sum_fill_fixture()
 
   linear <- linear_fill(fixture_linear, value, year, .by = "category")
-  proxy <- proxy_fill(fixture_proxy, value, proxy_variable, year, .by = "category")
+  proxy <- proxy_fill(
+    fixture_proxy,
+    value,
+    proxy_variable,
+    year,
+    .by = "category"
+  )
   summed <- sum_fill(
     fixture_sum,
     value,
