@@ -363,8 +363,8 @@ testthat::test_that("sum_fill respects grouping keys", {
 
 testthat::test_that("gapfilling helpers compose in pipelines", {
   fixture_linear <- linear_fill_fixture()
-  fixture_proxy  <- proxy_fill_fixture()
-  fixture_sum    <- sum_fill_fixture()
+  fixture_proxy <- proxy_fill_fixture()
+  fixture_sum <- sum_fill_fixture()
 
   linear <- linear_fill(fixture_linear, value, year, .by = "category")
   proxy <- proxy_fill(fixture_proxy, value, proxy_variable, year, .by = "category")
