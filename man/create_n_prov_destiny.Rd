@@ -2,12 +2,12 @@
 % Please edit documentation in R/n_prov_destiny.R
 \name{create_n_prov_destiny}
 \alias{create_n_prov_destiny}
-\title{GRAFS Nitrogen (N) production and their destinies}
+\title{GRAFS Nitrogen (N) flows}
 \usage{
 create_n_prov_destiny()
 }
 \value{
-A final tibble containing N production data by destiny.
+A final tibble containing N flow data by origin and destiny.
 It includes the following columns:
 \itemize{
 \item \code{year}: The year in which the recorded event occurred.
@@ -15,16 +15,22 @@ It includes the following columns:
 \item \code{item}: The item which was produced, defined in \code{names_biomass_cb}.
 \item \code{box}: One of the GRAFS model systems: cropland,
 Semi-natural agroecosystems, Livestock, Fish, or Agro-industry.
-\item \code{destiny}: The use category of the nitrogen: Food, Feed, Other_uses,
-Export, or Import.
+\item \code{origin}: The origin category of N: Cropland,
+Semi-natural agroecosystems, Livestock, Fish, Agro-industry, Deposition,
+Fixation, Synthetic, People (waste water), Livestock (manure).
+\item \code{destiny}: The destiny category of N: population_food,
+population_other_uses, livestock (feed), export, Cropland (for N soil
+inputs).
 \item \code{MgN}: Nitrogen amount in megagrams (Mg).
 }
 }
 \description{
-Provides N production of crops and livestock, categorized by their destinies:
-food, feed, other uses, exports, imports, which is the base of the
-GRAFS model. The dataset contains data in megagrams of N (MgN) for each
-year, province, item, and box (cropland, semi natural agroecosystems,
-livestock, fish, Agro-industry). Processed items, residues, woody crops,
-grazed weeds are taken into account.
+Provides N flows of the spanish agro-food system on a provincial level
+between 1860 and 2020. This dataset is the the base of the GRAFS model and
+contains data in megagrams of N (MgN) for each year, province, item, origin
+and destiny. Thereby, the origin column represents where N comes from, which
+includes N soil inputs, imports and production. The destiny column shows
+where N goes to, which includes export, population food, population other
+uses and feed or cropland (in case of N soil inputs).
+Processed items, residues, woody crops, grazed weeds are taken into account.
 }

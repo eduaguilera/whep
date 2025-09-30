@@ -1,23 +1,29 @@
-#' @title GRAFS Nitrogen (N) production and their destinies
+#' @title GRAFS Nitrogen (N) flows
 #'
 #' @description
-#' Provides N production of crops and livestock, categorized by their destinies:
-#'  food, feed, other uses, exports, imports, which is the base of the
-#'  GRAFS model. The dataset contains data in megagrams of N (MgN) for each
-#'  year, province, item, and box (cropland, semi natural agroecosystems,
-#'  livestock, fish, Agro-industry). Processed items, residues, woody crops,
-#'  grazed weeds are taken into account.
+#' Provides N flows of the spanish agro-food system on a provincial level
+#' between 1860 and 2020. This dataset is the the base of the GRAFS model and
+#' contains data in megagrams of N (MgN) for each year, province, item, origin
+#' and destiny. Thereby, the origin column represents where N comes from, which
+#' includes N soil inputs, imports and production. The destiny column shows
+#' where N goes to, which includes export, population food, population other
+#' uses and feed or cropland (in case of N soil inputs).
+#' Processed items, residues, woody crops, grazed weeds are taken into account.
 #'
 #' @return
-#' A final tibble containing N production data by destiny.
+#' A final tibble containing N flow data by origin and destiny.
 #' It includes the following columns:
 #'   - `year`: The year in which the recorded event occurred.
 #'   - `province_name`: The Spanish province where the data is from.
 #'   - `item`: The item which was produced, defined in `names_biomass_cb`.
 #'   - `box`: One of the GRAFS model systems: cropland,
 #'   Semi-natural agroecosystems, Livestock, Fish, or Agro-industry.
-#'   - `destiny`: The use category of the nitrogen: Food, Feed, Other_uses,
-#'   Export, or Import.
+#'   - `origin`: The origin category of N: Cropland,
+#'   Semi-natural agroecosystems, Livestock, Fish, Agro-industry, Deposition,
+#'   Fixation, Synthetic, People (waste water), Livestock (manure).
+#'   - `destiny`: The destiny category of N: population_food,
+#'   population_other_uses, livestock (feed), export, Cropland (for N soil
+#'   inputs).
 #'   - `MgN`: Nitrogen amount in megagrams (Mg).
 #'
 #' @export
@@ -868,9 +874,8 @@ create_n_prov_destiny <- function() {
     )
 }
 
-#' @title Finalize production and destiny output -------------------------------
-#' @description Fills in missing box categories and transforms data into a
-#' long format.
+#' @title Finalize N flow output ---------------------------------------------
+#' @description Adding the columns Origin and Destiny.
 #' Comment: there is no distinction between irrigated and rainfed of processed
 #' items. How can we solve that?
 #'
