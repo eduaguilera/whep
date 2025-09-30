@@ -75,10 +75,11 @@ sum_fill_fixture <- function() {
   )
 }
 
-# linear_fill -------------------------------------------------------------------
+# linear_fill ------------------------------------------------------------------
 
 testthat::test_that("linear_fill fills gaps and preserves originals", {
-  result <- linear_fill(linear_fill_fixture(), value, year, .by = "category")
+  result <- linear_fill_fixture() |>
+    linear_fill(value, year, .by = "category")
 
   result |>
     pointblank::expect_col_exists("source_value") |>
@@ -91,7 +92,12 @@ testthat::test_that("linear_fill fills gaps and preserves originals", {
         "First value carried backwards"
       )
     ) |>
-    pointblank::expect_col_vals_not_null(value)
+    pointblank::expect_col_vals_not_null(value) |>
+    pointblank::expect_col_vals_equal(
+      value,
+      c(3, 0, 1, 5),
+      preconditions = \(df) df |> dplyr::filter(source_value == "Original")
+    )
 
   result |>
     dplyr::filter(source_value == "Original") |>
@@ -116,9 +122,23 @@ testthat::test_that("linear_fill interpolates and carries flags", {
   )
 
   only_interp |>
-    dplyr::filter(category == "a", year %in% c(2017, 2018)) |>
-    dplyr::pull(source_value) |>
-    testthat::expect_equal(rep("Linear interpolation", 2))
+    testthat::expect_equal(
+      tibble::tribble(
+        ~category, ~year, ~value, ~source_value,
+        "a", 2015, NA, "Gap not filled",
+        "a", 2016, 3, "Original",
+        "a", 2017, 2, "Linear interpolation",
+        "a", 2018, 1, "Linear interpolation",
+        "a", 2019, 0, "Original",
+        "a", 2020, NA, "Gap not filled",
+        "b", 2015, 1, "Original",
+        "b", 2016, 2, "Linear interpolation",
+        "b", 2017, 3, "Linear interpolation",
+        "b", 2018, 4, "Linear interpolation",
+        "b", 2019, 5, "Original",
+        "b", 2020, NA, "Gap not filled"
+      )
+    )
 
   backward_only <- linear_fill(
     base,
@@ -164,17 +184,17 @@ testthat::test_that("linear_fill interpolates grouped series", {
     "B", 2018, 40
   )
 
-  result <- linear_fill(grouped_data, value, year, .by = "group")
-
-  result |>
-    dplyr::filter(group == "A") |>
-    dplyr::pull(value) |>
-    testthat::expect_equal(c(0, 4, 8, 12))
-
-  result |>
-    dplyr::filter(group == "B") |>
-    dplyr::pull(value) |>
-    testthat::expect_equal(c(20, 26.666667, 33.333333, 40), tolerance = 1e-6)
+  grouped_data |>
+    linear_fill(value, year, .by = "group") |>
+    pointblank::expect_col_vals_equal(
+      value,
+      c(0, 4, 8, 12),
+      preconditions = \(df) df |> dplyr::filter(group == "A")
+    ) |>
+    pointblank::expect_col_vals_expr(
+      ~ dplyr::near(value, c(20, 26.666667, 33.333333, 40), tol = 1e-6),
+      preconditions = \(df) df |> dplyr::filter(group == "B")
+    )
 })
 
 testthat::test_that("linear_fill propagates a single anchor value", {
@@ -199,7 +219,7 @@ testthat::test_that("linear_fill propagates a single anchor value", {
     )
 })
 
-# proxy_fill --------------------------------------------------------------------
+# proxy_fill ------------------------------------------------------------------
 
 testthat::test_that("proxy_fill scales gaps from proxy ratios", {
   result <- proxy_fill(
@@ -228,15 +248,11 @@ testthat::test_that("proxy_fill scales gaps from proxy ratios", {
     dplyr::pull(value) |>
     testthat::expect_equal(c(3, 0, 1, 5))
 
-  ratio_diff <- result |>
-    dplyr::filter(!is.na(value)) |>
-    dplyr::mutate(calculated_ratio = value / proxy_variable) |>
-    dplyr::summarise(
-      max_diff = max(abs(calculated_ratio - proxy_ratio), na.rm = TRUE)
-    ) |>
-    dplyr::pull(max_diff)
-
-  testthat::expect_lt(ratio_diff, 1e-6)
+  result |>
+    pointblank::expect_col_vals_expr(
+      ~ dplyr::near(proxy_ratio, value / proxy_variable, tol = 1e-6),
+      preconditions = \(df) df |> dplyr::filter(!is.na(value))
+    )
 
   dplyr::is_grouped_df(result) |>
     testthat::expect_false()
@@ -250,12 +266,12 @@ testthat::test_that("proxy_fill works without grouping variables", {
     2017, 30, 15
   )
 
-  proxy_fill(simple_proxy, value, proxy_variable, year) |>
+  simple_proxy |>
+    proxy_fill(value, proxy_variable, year) |>
     pointblank::expect_col_exists("proxy_ratio") |>
     pointblank::expect_col_vals_not_null(proxy_ratio)
 })
-
-# sum_fill ----------------------------------------------------------------------
+# sum_fill ---------------------------------------------------------------------
 
 testthat::test_that("sum_fill accumulates changes while keeping originals", {
   result <- sum_fill(
@@ -358,38 +374,3 @@ testthat::test_that("sum_fill respects grouping keys", {
   testthat::expect_equal(totals$values[[1]], c(1, 3, 6))
   testthat::expect_equal(totals$values[[2]], c(5, 7, 11))
 })
-
-# Integration -------------------------------------------------------------------
-
-testthat::test_that("gapfilling helpers compose in pipelines", {
-  fixture_linear <- linear_fill_fixture()
-  fixture_proxy <- proxy_fill_fixture()
-  fixture_sum <- sum_fill_fixture()
-
-  linear <- linear_fill(fixture_linear, value, year, .by = "category")
-  proxy <- proxy_fill(
-    fixture_proxy,
-    value,
-    proxy_variable,
-    year,
-    .by = "category"
-  )
-  summed <- sum_fill(
-    fixture_sum,
-    value,
-    change_variable,
-    start_with_zero = FALSE,
-    .by = "category"
-  )
-  summed_zero <- sum_fill(
-    fixture_sum,
-    value,
-    change_variable,
-    start_with_zero = TRUE,
-    .by = "category"
-  )
-
-  list(linear, proxy, summed, summed_zero) |>
-    purrr::walk(~ testthat::expect_s3_class(.x, "data.frame"))
-})
-
