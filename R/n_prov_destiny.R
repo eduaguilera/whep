@@ -965,7 +965,15 @@ create_n_prov_destiny <- function() {
       ),
       Origin = Box
     ) |>
-    dplyr::group_by(Year, Province_name, Item, Irrig_cat, Origin, Destiny) |>
+    dplyr::group_by(
+      Year,
+      Province_name,
+      Item,
+      Irrig_cat,
+      Box,
+      Origin,
+      Destiny
+    ) |>
     dplyr::summarise(MgN = sum(MgN, na.rm = TRUE), .groups = "drop")
 
   imports_split <- local_vs_import |>
@@ -992,7 +1000,15 @@ create_n_prov_destiny <- function() {
         NA_character_
       )
     ) |>
-    dplyr::group_by(Year, Province_name, Item, Irrig_cat, Origin, Destiny) |>
+    dplyr::group_by(
+      Year,
+      Province_name,
+      Item,
+      Irrig_cat,
+      Box,
+      Origin,
+      Destiny
+    ) |>
     dplyr::summarise(MgN = sum(MgN, na.rm = TRUE), .groups = "drop")
 
   exports <- grafs_prod_destiny_final |>
@@ -1001,11 +1017,20 @@ create_n_prov_destiny <- function() {
       Province_name,
       Item,
       Irrig_cat,
+      Box,
       Destiny = "export",
       MgN = export,
       Origin = Box
     ) |>
-    dplyr::group_by(Year, Province_name, Item, Irrig_cat, Origin, Destiny) |>
+    dplyr::group_by(
+      Year,
+      Province_name,
+      Item,
+      Irrig_cat,
+      Box,
+      Origin,
+      Destiny
+    ) |>
     dplyr::summarise(MgN = sum(MgN, na.rm = TRUE), .groups = "drop")
 
   grafs_prod_destiny_final <- dplyr::bind_rows(
@@ -1054,12 +1079,21 @@ create_n_prov_destiny <- function() {
         Origin == "urban" ~ "People"
       )
     ) |>
-    dplyr::select(Year, Province_name, Item, Irrig_cat, Origin, Destiny, MgN)
+    dplyr::select(
+      Year,
+      Province_name,
+      Item,
+      Irrig_cat,
+      Box,
+      Origin,
+      Destiny,
+      MgN
+    )
 
   dplyr::bind_rows(
     grafs_prod_destiny_final,
     soil_inputs_long
   ) |>
     dplyr::filter(MgN != 0) |>
-    dplyr::arrange(Year, Province_name, Item, Irrig_cat, Origin, Destiny)
+    dplyr::arrange(Year, Province_name, Item, Box, Irrig_cat, Origin, Destiny)
 }
