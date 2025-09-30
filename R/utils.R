@@ -249,6 +249,7 @@ utils::globalVariables(
     "seed",
     "Seed_rate_per_ha",
     "Seed_total",
+    "Seeds_used_capped",
     "Seeds_used_MgFM",
     "Semi_nat_feed_MgN",
     "Semi_nat_share",
