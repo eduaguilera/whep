@@ -681,32 +681,10 @@
     ) |>
     dplyr::select(province, year, label, data, align)
 
-  df_livestock_total <- livestock_items |>
-    dplyr::group_by(Province_name, Year) |>
-    dplyr::summarise(
-      data = sum(
-        MgN[
-          Destiny %in%
-            c("population_food", "livestock", "other_uses", "export")
-        ],
-        na.rm = TRUE
-      ) -
-        sum(MgN[Origin == "Outside"], na.rm = TRUE),
-      .groups = "drop"
-    ) |>
-    dplyr::mutate(
-      label = "<LVSTCKTOTN>",
-      align = "L",
-      province = Province_name,
-      year = Year
-    ) |>
-    dplyr::select(province, year, label, data, align)
-
   df_livestock <- dplyr::bind_rows(
     df_livestock,
     df_milk,
-    df_livestock_export,
-    df_livestock_total
+    df_livestock_export
   )
 
   # --- Feed from Cropland ---
@@ -811,13 +789,30 @@
     dplyr::mutate(align = "R") |>
     dplyr::rename(province = Province_name, year = Year)
 
+  df_livestock_total <- dplyr::bind_rows(
+    df_flows,
+    df_livestock_export,
+    df_animal_losses
+  ) |>
+    dplyr::filter(
+      label %in%
+        c("<LIVESTOCK_TO_HUMAN>", "<LIVESTOCK_EXPORTED>", "<AN_LS_OTH>")
+    ) |>
+    dplyr::group_by(province, year) |>
+    dplyr::summarise(data = sum(data, na.rm = TRUE), .groups = "drop") |>
+    dplyr::mutate(
+      label = "<LVSTCKTOTN>",
+      align = "L"
+    )
+
   # --- Combine ---
   df_combi <- dplyr::bind_rows(
     df_flows |> dplyr::select(province, year, label, data, align),
     df_livestock |> dplyr::select(province, year, label, data, align),
     df_lv_r_m |> dplyr::select(province, year, label, data, align),
     df_crop_losses |> dplyr::select(province, year, label, data, align),
-    df_animal_losses |> dplyr::select(province, year, label, data, align)
+    df_animal_losses |> dplyr::select(province, year, label, data, align),
+    df_livestock_total |> dplyr::select(province, year, label, data, align)
   ) |>
     dplyr::arrange(province, year, label)
 
