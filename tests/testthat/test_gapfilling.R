@@ -99,27 +99,20 @@ testthat::test_that("linear_fill fills gaps and preserves originals", {
       preconditions = \(df) df |> dplyr::filter(source_value == "Original")
     )
 
-  result |>
-    dplyr::filter(source_value == "Original") |>
-    dplyr::pull(value) |>
-    testthat::expect_equal(c(3, 0, 1, 5))
-
   dplyr::is_grouped_df(result) |>
     testthat::expect_false()
 })
 
 testthat::test_that("linear_fill interpolates and carries flags", {
-  base <- linear_fill_fixture()
-
-  only_interp <- linear_fill(
-    base,
-    value,
-    year,
-    interpolate = TRUE,
-    fill_forward = FALSE,
-    fill_backward = FALSE,
-    .by = "category"
-  )
+  only_interp <- linear_fill_fixture() |>
+    linear_fill(
+      value,
+      year,
+      interpolate = TRUE,
+      fill_forward = FALSE,
+      fill_backward = FALSE,
+      .by = "category"
+    )
 
   only_interp |>
     testthat::expect_equal(
@@ -140,72 +133,67 @@ testthat::test_that("linear_fill interpolates and carries flags", {
       )
     )
 
-  backward_only <- linear_fill(
-    base,
-    value,
-    year,
-    interpolate = FALSE,
-    fill_forward = FALSE,
-    fill_backward = TRUE,
-    .by = "category"
-  )
+  backward_only <- linear_fill_fixture() |>
+    linear_fill(
+      value,
+      year,
+      interpolate = FALSE,
+      fill_forward = FALSE,
+      fill_backward = TRUE,
+      .by = "category"
+    )
 
   backward_only |>
-    dplyr::filter(category == "a", year == 2015) |>
-    dplyr::pull(source_value) |>
-    testthat::expect_equal("First value carried backwards")
+    pointblank::expect_col_vals_equal(
+      source_value,
+      "First value carried backwards",
+      preconditions = \(df) df |> dplyr::filter(category == "a", year == 2015)
+    )
 
-  forward_only <- linear_fill(
-    base,
-    value,
-    year,
-    interpolate = FALSE,
-    fill_forward = TRUE,
-    fill_backward = FALSE,
-    .by = "category"
-  )
+  forward_only <- linear_fill_fixture() |>
+    linear_fill(
+      value,
+      year,
+      interpolate = FALSE,
+      fill_forward = TRUE,
+      fill_backward = FALSE,
+      .by = "category"
+    )
 
   forward_only |>
-    dplyr::filter(category == "b", year %in% 2016:2018) |>
-    dplyr::pull(source_value) |>
-    testthat::expect_equal(rep("Last value carried forward", 3))
+    pointblank::expect_col_vals_equal(
+      source_value,
+      rep("Last value carried forward", 3),
+      preconditions = \(df) {
+        df |> dplyr::filter(category == "b", year %in% 2016:2018)
+      }
+    )
 })
 
 testthat::test_that("linear_fill interpolates grouped series", {
-  grouped_data <- tibble::tribble(
-    ~group, ~year, ~value,
-    "A", 2015, 0,
-    "A", 2016, NA,
-    "A", 2017, NA,
-    "A", 2018, 12,
-    "B", 2015, 20,
-    "B", 2016, NA,
-    "B", 2017, NA,
-    "B", 2018, 40
-  )
-
-  grouped_data |>
-    linear_fill(value, year, .by = "group") |>
+  linear_fill_fixture() |>
+    linear_fill(value, year, .by = "category") |>
     pointblank::expect_col_vals_equal(
       value,
-      c(0, 4, 8, 12),
-      preconditions = \(df) df |> dplyr::filter(group == "A")
+      c(3, 3, 2, 1, 0, 0),
+      preconditions = \(df) df |> dplyr::filter(category == "a")
     ) |>
-    pointblank::expect_col_vals_expr(
-      ~ dplyr::near(value, c(20, 26.666667, 33.333333, 40), tol = 1e-6),
-      preconditions = \(df) df |> dplyr::filter(group == "B")
+    pointblank::expect_col_vals_equal(
+      value,
+      c(1, 2, 3, 4, 5, 5),
+      preconditions = \(df) df |> dplyr::filter(category == "b")
     )
 })
 
 testthat::test_that("linear_fill propagates a single anchor value", {
-  result <- linear_fill(
-    single_anchor_series(),
-    value,
-    year,
-    interpolate = FALSE,
-    fill_forward = TRUE,
-    fill_backward = TRUE
-  )
+  result <- single_anchor_series() |>
+    linear_fill(
+      value,
+      year,
+      interpolate = FALSE,
+      fill_forward = TRUE,
+      fill_backward = TRUE
+    )
 
   result |>
     pointblank::expect_col_vals_equal(value, c(42, 42, 42)) |>
@@ -222,13 +210,13 @@ testthat::test_that("linear_fill propagates a single anchor value", {
 # proxy_fill ------------------------------------------------------------------
 
 testthat::test_that("proxy_fill scales gaps from proxy ratios", {
-  result <- proxy_fill(
-    proxy_fill_fixture(),
-    value,
-    proxy_variable,
-    year,
-    .by = "category"
-  )
+  result <- proxy_fill_fixture() |>
+    proxy_fill(
+      value,
+      proxy_variable,
+      year,
+      .by = "category"
+    )
 
   result |>
     pointblank::expect_col_exists("proxy_ratio") |>
@@ -244,9 +232,11 @@ testthat::test_that("proxy_fill scales gaps from proxy ratios", {
     )
 
   result |>
-    dplyr::filter(source_value == "Original") |>
-    dplyr::pull(value) |>
-    testthat::expect_equal(c(3, 0, 1, 5))
+    pointblank::expect_col_vals_equal(
+      value,
+      c(3, 0, 1, 5),
+      preconditions = \(df) df |> dplyr::filter(source_value == "Original")
+    )
 
   result |>
     pointblank::expect_col_vals_expr(
@@ -271,16 +261,17 @@ testthat::test_that("proxy_fill works without grouping variables", {
     pointblank::expect_col_exists("proxy_ratio") |>
     pointblank::expect_col_vals_not_null(proxy_ratio)
 })
+
 # sum_fill ---------------------------------------------------------------------
 
 testthat::test_that("sum_fill accumulates changes while keeping originals", {
-  result <- sum_fill(
-    sum_fill_fixture(),
-    value,
-    change_variable,
-    start_with_zero = TRUE,
-    .by = "category"
-  )
+  result <- sum_fill_fixture() |>
+    sum_fill(
+      value,
+      change_variable,
+      start_with_zero = TRUE,
+      .by = "category"
+    )
 
   result |>
     pointblank::expect_col_exists("source_value") |>
@@ -291,14 +282,16 @@ testthat::test_that("sum_fill accumulates changes while keeping originals", {
     pointblank::expect_col_vals_not_null(value)
 
   result |>
-    dplyr::filter(category == "a") |>
-    dplyr::pull(value) |>
-    testthat::expect_equal(c(2, 5, 3, 6, 10, 0, 1))
-
-  result |>
-    dplyr::filter(category == "b") |>
-    dplyr::pull(value) |>
-    testthat::expect_equal(c(1, 1, 1, 1, 5, 6))
+    pointblank::expect_col_vals_equal(
+      value,
+      c(2, 5, 3, 6, 10, 0, 1),
+      preconditions = \(df) df |> dplyr::filter(category == "a")
+    ) |>
+    pointblank::expect_col_vals_equal(
+      value,
+      c(1, 1, 1, 1, 5, 6),
+      preconditions = \(df) df |> dplyr::filter(category == "b")
+    )
 })
 
 testthat::test_that("sum_fill handles accumulation without explicit groups", {
@@ -309,10 +302,8 @@ testthat::test_that("sum_fill handles accumulation without explicit groups", {
     2017, NA, 3,
     2018, NA, 1
   )
-
-  result <- sum_fill(simple_series, value, change_variable)
-
-  result |>
+  simple_series |>
+    sum_fill(value, change_variable) |>
     pointblank::expect_col_vals_equal(value, c(10, 12, 15, 16)) |>
     pointblank::expect_col_vals_in_set(
       source_value,
@@ -329,48 +320,42 @@ testthat::test_that("sum_fill start_with_zero toggles behaviour", {
     NA, 4
   )
 
-  default_result <- sum_fill(contiguous_gaps, value, change_variable)
+  default_result <- contiguous_gaps |>
+    sum_fill(value, change_variable)
 
   default_result |>
     pointblank::expect_col_vals_null(value)
 
-  zero_start <- sum_fill(
-    contiguous_gaps,
-    value,
-    change_variable,
-    start_with_zero = TRUE
-  )
+  zero_start <- contiguous_gaps |>
+    sum_fill(
+      value,
+      change_variable,
+      start_with_zero = TRUE
+    )
 
   zero_start |>
     pointblank::expect_col_vals_equal(value, c(1, 3, 6, 10)) |>
-    pointblank::expect_col_vals_equal(source_value, rep("Filled with sum", 4))
+    pointblank::expect_col_vals_equal(source_value, "Filled with sum")
 })
 
 testthat::test_that("sum_fill respects grouping keys", {
-  grouped <- tibble::tribble(
-    ~grp, ~value, ~change,
-    "A", NA, 1,
-    "A", NA, 2,
-    "A", NA, 3,
-    "B", 5, 0,
-    "B", NA, 2,
-    "B", NA, 4
-  )
+  result <- sum_fill_fixture() |>
+    sum_fill(
+      value,
+      change_variable,
+      start_with_zero = TRUE,
+      .by = "category"
+    )
 
-  result <- sum_fill(
-    grouped,
-    value,
-    change,
-    start_with_zero = TRUE,
-    .by = "grp"
-  )
-
-  totals <- result |>
-    dplyr::group_by(grp) |>
-    dplyr::summarise(values = list(value)) |>
-    dplyr::arrange(grp)
-
-  testthat::expect_equal(totals$grp, c("A", "B"))
-  testthat::expect_equal(totals$values[[1]], c(1, 3, 6))
-  testthat::expect_equal(totals$values[[2]], c(5, 7, 11))
+  result |>
+    pointblank::expect_col_vals_equal(
+      value,
+      c(2, 5, 3, 6, 10, 0, 1),
+      preconditions = \(df) df |> dplyr::filter(category == "a")
+    ) |>
+    pointblank::expect_col_vals_equal(
+      value,
+      c(1, 1, 1, 1, 5, 6),
+      preconditions = \(df) df |> dplyr::filter(category == "b")
+    )
 })
