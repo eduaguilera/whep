@@ -103,8 +103,7 @@ testthat::test_that("linear_fill fills gaps and preserves originals", {
     testthat::expect_false()
 })
 
-testthat::test_that("linear_fill interpolates between anchor points,
-and adds flags", {
+testthat::test_that("linear_fill interpolates between anchor points, and adds flags", {
   linear_fill_fixture() |>
     linear_fill(
       value,
@@ -133,8 +132,7 @@ and adds flags", {
     )
 })
 
-testthat::test_that("linear_fill carries values backward from first anchor,
-and adds flags", {
+testthat::test_that("linear_fill carries values backward from first anchor, and adds flags", {
   linear_fill_fixture() |>
     linear_fill(
       value,
@@ -163,8 +161,7 @@ and adds flags", {
     )
 })
 
-testthat::test_that("linear_fill carries values forward from last anchor,
-and adds flags", {
+testthat::test_that("linear_fill carries values forward from last anchor, and adds flags", {
   linear_fill_fixture() |>
     linear_fill(
       value,
