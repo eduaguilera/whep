@@ -103,8 +103,9 @@ testthat::test_that("linear_fill fills gaps and preserves originals", {
     testthat::expect_false()
 })
 
-testthat::test_that("linear_fill interpolates and carries flags", {
-  only_interp <- linear_fill_fixture() |>
+testthat::test_that("linear_fill interpolates between anchor points,
+and adds flags", {
+  linear_fill_fixture() |>
     linear_fill(
       value,
       year,
@@ -112,9 +113,7 @@ testthat::test_that("linear_fill interpolates and carries flags", {
       fill_forward = FALSE,
       fill_backward = FALSE,
       .by = "category"
-    )
-
-  only_interp |>
+    ) |>
     testthat::expect_equal(
       tibble::tribble(
         ~category, ~year, ~value, ~source_value,
@@ -132,8 +131,11 @@ testthat::test_that("linear_fill interpolates and carries flags", {
         "b", 2020, NA, "Gap not filled"
       )
     )
+})
 
-  backward_only <- linear_fill_fixture() |>
+testthat::test_that("linear_fill carries values backward from first anchor,
+and adds flags", {
+  linear_fill_fixture() |>
     linear_fill(
       value,
       year,
@@ -141,16 +143,29 @@ testthat::test_that("linear_fill interpolates and carries flags", {
       fill_forward = FALSE,
       fill_backward = TRUE,
       .by = "category"
+    ) |>
+    testthat::expect_equal(
+      tibble::tribble(
+        ~category, ~year, ~value, ~source_value,
+        "a", 2015, 3, "First value carried backwards",
+        "a", 2016, 3, "Original",
+        "a", 2017, NA, "Gap not filled",
+        "a", 2018, NA, "Gap not filled",
+        "a", 2019, 0, "Original",
+        "a", 2020, NA, "Gap not filled",
+        "b", 2015, 1, "Original",
+        "b", 2016, NA, "Gap not filled",
+        "b", 2017, NA, "Gap not filled",
+        "b", 2018, NA, "Gap not filled",
+        "b", 2019, 5, "Original",
+        "b", 2020, NA, "Gap not filled"
+      )
     )
+})
 
-  backward_only |>
-    pointblank::expect_col_vals_equal(
-      source_value,
-      "First value carried backwards",
-      preconditions = \(df) df |> dplyr::filter(category == "a", year == 2015)
-    )
-
-  forward_only <- linear_fill_fixture() |>
+testthat::test_that("linear_fill carries values forward from last anchor,
+and adds flags", {
+  linear_fill_fixture() |>
     linear_fill(
       value,
       year,
@@ -158,15 +173,23 @@ testthat::test_that("linear_fill interpolates and carries flags", {
       fill_forward = TRUE,
       fill_backward = FALSE,
       .by = "category"
-    )
-
-  forward_only |>
-    pointblank::expect_col_vals_equal(
-      source_value,
-      rep("Last value carried forward", 3),
-      preconditions = \(df) {
-        df |> dplyr::filter(category == "b", year %in% 2016:2018)
-      }
+    ) |>
+    testthat::expect_equal(
+      tibble::tribble(
+        ~category, ~year, ~value, ~source_value,
+        "a", 2015, NA, "Gap not filled",
+        "a", 2016, 3, "Original",
+        "a", 2017, NA, "Gap not filled",
+        "a", 2018, NA, "Gap not filled",
+        "a", 2019, 0, "Original",
+        "a", 2020, 0, "Last value carried forward",
+        "b", 2015, 1, "Original",
+        "b", 2016, NA, "Gap not filled",
+        "b", 2017, NA, "Gap not filled",
+        "b", 2018, NA, "Gap not filled",
+        "b", 2019, 5, "Original",
+        "b", 2020, 5, "Last value carried forward"
+      )
     )
 })
 
@@ -186,16 +209,14 @@ testthat::test_that("linear_fill interpolates grouped series", {
 })
 
 testthat::test_that("linear_fill propagates a single anchor value", {
-  result <- single_anchor_series() |>
+  single_anchor_series() |>
     linear_fill(
       value,
       year,
       interpolate = FALSE,
       fill_forward = TRUE,
       fill_backward = TRUE
-    )
-
-  result |>
+    ) |>
     pointblank::expect_col_vals_equal(value, c(42, 42, 42)) |>
     pointblank::expect_col_vals_in_set(
       source_value,
