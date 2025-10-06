@@ -69,17 +69,14 @@
         } else {
           NULL
         },
-
         if (
           Origin == "Fish" &
-            Destiny == "population_food" &
-            Destiny == "population_other_uses"
+            Destiny %in% c("population_food", "population_other_uses")
         ) {
           "<IMPHUMFISH>"
         } else {
           NULL
         },
-
         if (
           Box == "Livestock" &
             Origin == "Outside" &
@@ -125,10 +122,7 @@
             "<CROP_POPIMPORT>",
             "<IMPORT_ANIMALCR>",
             "<IMPORT_ANIMALCR_RUM>",
-            "<IMPORT_ANIMALCR_MONOG>",
-            "<IMANOT>",
-            "<IMANOTR>",
-            "<IMANOTM>"
+            "<IMPORT_ANIMALCR_MONOG>"
           ) ~
           "R",
         TRUE ~ "L"
@@ -146,8 +140,8 @@
     ) |>
     dplyr::group_by(Province_name, Year) |>
     dplyr::summarise(
-      data_rum = sum(MgN, na.rm = TRUE) * 0.3,
-      data_monog = sum(MgN, na.rm = TRUE) * 0.7,
+      data_rum = sum(MgN, na.rm = TRUE) * 0.35,
+      data_monog = sum(MgN, na.rm = TRUE) * 0.65,
       .groups = "drop"
     ) |>
     tidyr::pivot_longer(
@@ -173,8 +167,8 @@
   if (nrow(df_imanot_split) > 0) {
     df_imanot_split <- df_imanot_split |>
       dplyr::mutate(
-        IMANOTR_val = data * 0.3,
-        IMANOTM_val = data * 0.7
+        IMANOTR_val = data * 0.35,
+        IMANOTM_val = data * 0.65
       ) |>
       dplyr::select(-data) |>
       tidyr::pivot_longer(
@@ -477,12 +471,6 @@
         na.rm = TRUE
       ),
       `<GRASSMha>` = `<HAGRASS>` / 1e6,
-      `<GRASSN>` = sum(
-        Prod_MgN[LandUse %in% c("Pasture_Shrubland", "Other")] +
-          UsedResidue_MgN[LandUse %in% c("Pasture_Shrubland", "Other")] +
-          GrazedWeeds_MgN[LandUse %in% c("Pasture_Shrubland", "Other")],
-        na.rm = TRUE
-      ),
       `<HACULT>` = sum(Area_ygpit_ha[LandUse == "Cropland"], na.rm = TRUE),
       `<KM2_PROVINCE>` = sum(Area_ygpit_ha, na.rm = TRUE) / 100,
       `<OXDEPCROPS>` = sum(Deposition[LandUse == "Cropland"], na.rm = TRUE),
@@ -522,6 +510,7 @@
         na.rm = TRUE
       ),
       `<WASTEWATER>` = sum(Urban, na.rm = TRUE),
+      `<CRPLNDTOTN>` = sum(Prod_MgN[LandUse == "Cropland"], na.rm = TRUE),
       .groups = "drop"
     ) |>
     tidyr::pivot_longer(
@@ -546,9 +535,9 @@
             "<CROP_SURPLUS>",
             "<HAGRASS>",
             "<GRASSMha>",
-            "<KM2GRASS>",
             "<GRASS_SURPLUS>",
-            "<WASTEWATER>"
+            "<WASTEWATER>",
+            "<KM2_PROVINCE>"
           ),
         "L",
         "R"
@@ -692,8 +681,8 @@
     dplyr::filter(Origin == "Cropland", Destiny == "livestock") |>
     dplyr::group_by(Province_name, Year) |>
     dplyr::summarise(
-      `<CRTOLVSTCK_R>` = sum(MgN, na.rm = TRUE) * 0.3,
-      `<CRTOLVSTCK_M>` = sum(MgN, na.rm = TRUE) * 0.7,
+      `<CRTOLVSTCK_R>` = sum(MgN, na.rm = TRUE) * 0.55,
+      `<CRTOLVSTCK_M>` = sum(MgN, na.rm = TRUE) * 0.45,
       .groups = "drop"
     ) |>
     tidyr::pivot_longer(
@@ -742,10 +731,11 @@
     ) |>
     dplyr::mutate(
       `<CRP_LS>` = inputs - outputs,
-      `<CRP_LS_OTHUSES>` = inputs - outputs_other
+      `<CRP_LS_OTHUSES>` = inputs - outputs_other,
+      `<CRP_OTHUSES>` = outputs_other
     ) |>
     tidyr::pivot_longer(
-      c(`<CRP_LS>`, `<CRP_LS_OTHUSES>`),
+      c(`<CRP_LS>`, `<CRP_LS_OTHUSES>`, `<CRP_OTHUSES>`),
       names_to = "label",
       values_to = "data"
     ) |>
@@ -786,7 +776,7 @@
       names_to = "label",
       values_to = "data"
     ) |>
-    dplyr::mutate(align = "R") |>
+    dplyr::mutate(align = as.character("R")) |>
     dplyr::rename(province = Province_name, year = Year)
 
   df_livestock_total <- dplyr::bind_rows(
@@ -830,25 +820,50 @@
     "<CRPNOLV>",
     "<NCONTCROP>",
     "<ORGOT>",
-    "<PROVINCE_NAME>",
     "<WIDTH_MAX>"
   )
 
   df_combi <- df_combi |>
-    dplyr::bind_rows(
-      dplyr::distinct(df_combi, province, year) |>
-        dplyr::mutate(label = "<YEAR>", data = year) |>
-        dplyr::select(province, year, label, data)
-    ) |>
+    dplyr::mutate(data = as.character(data)) |>
     tidyr::complete(
       province,
       year,
       label = c(unique(df_combi$label), missing_labels),
-      fill = list(data = 0)
+      fill = list(data = "0", align = "L")
     ) |>
     dplyr::mutate(
       align = dplyr::case_when(
-        !is.na(align) ~ align,
+        label %in% c("<AN_LS>", "<AN_OTH>", "<AN_LS_OTH>") ~ "R",
+        label == "<WIDTH_MAX>" ~ "L",
+        TRUE ~ align
+      ),
+      data = as.numeric(data),
+      data = ifelse(data < 0, 0, data),
+      data = as.character(data)
+    ) |>
+    dplyr::bind_rows(
+      dplyr::distinct(df_combi, province, year) |>
+        dplyr::mutate(
+          label = "<YEAR>",
+          data = as.character(year),
+          align = "L"
+        ) |>
+        dplyr::select(province, year, label, data, align),
+      dplyr::distinct(df_combi, province, year) |>
+        dplyr::mutate(
+          label = "<PROVINCE_NAME>",
+          data = as.character(province),
+          align = "L"
+        ) |>
+        dplyr::select(province, year, label, data, align)
+    ) |>
+    dplyr::mutate(
+      data = dplyr::case_when(
+        label == "<WIDTH_MAX>" ~ "1500",
+        TRUE ~ as.character(data)
+      ),
+      align = dplyr::case_when(
+        label == "<WIDTH_MAX>" ~ "L",
         label %in%
           c(
             "<HORiha>",
@@ -862,15 +877,13 @@
             "<ORGOT>"
           ) ~
           "R",
-        TRUE ~ "L"
+        TRUE ~ align
       )
-    )
-
-  df_combi <- dplyr::arrange(df_combi, province, year, label)
+    ) |>
+    dplyr::arrange(province, year, label)
 
   return(df_combi)
 }
-
 
 #' @title Create GRAFS plot dataset for provinces
 #'
@@ -886,21 +899,24 @@
 #'
 #' @export
 create_grafs_plot_df <- function() {
-  df_land <- .create_land_input_df()
-  df_flow <- .create_n_flow_df()
-  df_import <- .create_n_import_df()
-  df_lu <- .create_livestock_lu_df()
+  df_land <- .create_land_input_df() |> dplyr::mutate(data = as.character(data))
+  df_flow <- .create_n_flow_df() |> dplyr::mutate(data = as.character(data))
+  df_import <- .create_n_import_df() |> dplyr::mutate(data = as.character(data))
+  df_lu <- .create_livestock_lu_df() |> dplyr::mutate(data = as.character(data))
 
   df_final <- dplyr::bind_rows(df_land, df_flow, df_import, df_lu) |>
     dplyr::arrange(province, year, label) |>
     dplyr::filter(!is.na(province) & !is.na(year)) |>
     dplyr::mutate(arrowColor = "") |>
-    dplyr::select(province, year, label, data, align)
+    dplyr::select(province, year, label, data, align, arrowColor)
 
-  openxlsx::write.xlsx(
-    df_final,
-    file = "C:/PhD/GRAFS/Alfredos_package/GRAFS/inst/extdata/GRAFS_spain_data.xlsx"
-  )
+  #openxlsx::write.xlsx(
+  #df_final,
+  #file = system.file("extdata", "GRAFS_spain_data.xlsx", package = "GRAFS")
+  #)
+
+  write_path <- "C:/PhD/GRAFS/GRAFS_spain_data.xlsx"
+  openxlsx::write.xlsx(df_final, file = write_path)
 
   df_final
 }
