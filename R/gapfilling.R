@@ -60,13 +60,27 @@ linear_fill <- function(
       } else {
         NA_real_
       },
-      value_carried_forward = if (fill_forward) {
-        zoo::na.locf0({{ var }})
+      value_after_interp = dplyr::coalesce({{ var }}, value_interpfilled),
+      has_value = !is.na(value_after_interp),
+      seen_value = cummax(has_value),
+      seen_value_reversed = rev(cummax(rev(has_value))),
+      is_leading_na = !has_value & !seen_value,
+      is_trailing_na = !has_value & !seen_value_reversed,
+      value_carried_backward = if (fill_backward) {
+        ifelse(
+          is_leading_na,
+          zoo::na.locf0(value_after_interp, fromLast = TRUE),
+          NA_real_
+        )
       } else {
         NA_real_
       },
-      value_carried_backward = if (fill_backward) {
-        zoo::na.locf0({{ var }}, fromLast = TRUE)
+      value_carried_forward = if (fill_forward) {
+        ifelse(
+          is_trailing_na,
+          zoo::na.locf0(value_after_interp),
+          NA_real_
+        )
       } else {
         NA_real_
       },
@@ -84,6 +98,12 @@ linear_fill <- function(
         value_carried_forward
       ),
       value_interpfilled = NULL,
+      value_after_interp = NULL,
+      has_value = NULL,
+      seen_value = NULL,
+      seen_value_reversed = NULL,
+      is_leading_na = NULL,
+      is_trailing_na = NULL,
       value_carried_forward = NULL,
       value_carried_backward = NULL,
       .by = dplyr::all_of(.by)
