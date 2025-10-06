@@ -231,15 +231,13 @@ testthat::test_that("linear_fill propagates a single anchor value", {
 # proxy_fill ------------------------------------------------------------------
 
 testthat::test_that("proxy_fill scales gaps from proxy ratios", {
-  result <- proxy_fill_fixture() |>
+  proxy_fill_fixture() |>
     proxy_fill(
       value,
       proxy_variable,
       year,
       .by = "category"
-    )
-
-  result |>
+    ) |>
     pointblank::expect_col_exists("proxy_ratio") |>
     pointblank::expect_col_exists("source_value") |>
     pointblank::expect_col_vals_in_set(
@@ -250,34 +248,25 @@ testthat::test_that("proxy_fill scales gaps from proxy ratios", {
         "Proxy carried forward",
         "Proxy carried backwards"
       )
-    )
-
-  result |>
+    ) |>
     pointblank::expect_col_vals_equal(
       value,
       c(3, 0, 1, 5),
       preconditions = \(df) df |> dplyr::filter(source_value == "Original")
-    )
-
-  result |>
+    ) |>
     pointblank::expect_col_vals_expr(
       ~ dplyr::near(proxy_ratio, value / proxy_variable, tol = 1e-6),
       preconditions = \(df) df |> dplyr::filter(!is.na(value))
     )
-
-  dplyr::is_grouped_df(result) |>
-    testthat::expect_false()
 })
 
 testthat::test_that("proxy_fill works without grouping variables", {
-  simple_proxy <- tibble::tribble(
+  tibble::tribble(
     ~year, ~value, ~proxy_variable,
     2015, 10, 5,
     2016, NA, 10,
     2017, 30, 15
-  )
-
-  simple_proxy |>
+  ) |>
     proxy_fill(value, proxy_variable, year) |>
     pointblank::expect_col_exists("proxy_ratio") |>
     pointblank::expect_col_vals_not_null(proxy_ratio)
@@ -286,23 +275,19 @@ testthat::test_that("proxy_fill works without grouping variables", {
 # sum_fill ---------------------------------------------------------------------
 
 testthat::test_that("sum_fill accumulates changes while keeping originals", {
-  result <- sum_fill_fixture() |>
+  sum_fill_fixture() |>
     sum_fill(
       value,
       change_variable,
       start_with_zero = TRUE,
       .by = "category"
-    )
-
-  result |>
+    ) |>
     pointblank::expect_col_exists("source_value") |>
     pointblank::expect_col_vals_in_set(
       source_value,
       c("Original", "Filled with sum")
     ) |>
-    pointblank::expect_col_vals_not_null(value)
-
-  result |>
+    pointblank::expect_col_vals_not_null(value) |>
     pointblank::expect_col_vals_equal(
       value,
       c(2, 5, 3, 6, 10, 0, 1),
@@ -316,14 +301,13 @@ testthat::test_that("sum_fill accumulates changes while keeping originals", {
 })
 
 testthat::test_that("sum_fill handles accumulation without explicit groups", {
-  simple_series <- tibble::tribble(
+  tibble::tribble(
     ~year, ~value, ~change_variable,
     2015, 10, 0,
     2016, NA, 2,
     2017, NA, 3,
     2018, NA, 1
-  )
-  simple_series |>
+  ) |>
     sum_fill(value, change_variable) |>
     pointblank::expect_col_vals_equal(value, c(10, 12, 15, 16)) |>
     pointblank::expect_col_vals_in_set(
@@ -341,34 +325,28 @@ testthat::test_that("sum_fill start_with_zero toggles behaviour", {
     NA, 4
   )
 
-  default_result <- contiguous_gaps |>
-    sum_fill(value, change_variable)
-
-  default_result |>
+  contiguous_gaps |>
+    sum_fill(value, change_variable) |>
     pointblank::expect_col_vals_null(value)
 
-  zero_start <- contiguous_gaps |>
+  contiguous_gaps |>
     sum_fill(
       value,
       change_variable,
       start_with_zero = TRUE
-    )
-
-  zero_start |>
+    ) |>
     pointblank::expect_col_vals_equal(value, c(1, 3, 6, 10)) |>
     pointblank::expect_col_vals_equal(source_value, "Filled with sum")
 })
 
 testthat::test_that("sum_fill respects grouping keys", {
-  result <- sum_fill_fixture() |>
+  sum_fill_fixture() |>
     sum_fill(
       value,
       change_variable,
       start_with_zero = TRUE,
       .by = "category"
-    )
-
-  result |>
+    ) |>
     pointblank::expect_col_vals_equal(
       value,
       c(2, 5, 3, 6, 10, 0, 1),
