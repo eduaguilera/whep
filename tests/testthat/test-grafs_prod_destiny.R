@@ -222,20 +222,32 @@ test_that(".convert_fm_dm_n calculates N correctly", {
 })
 
 # Test: .adding_feed ------------------------------------------------
-test_that(".adding_feed sums feed and pets correctly", {
+test_that(".adding_feed calculates feed and shares correctly", {
   fake_feed <- tibble(
     Year = 2020,
     Province_name = "Province1",
-    Item = c("Wheat", "Wheat", "Wheat"),
-    FM_Mg = c(50, 10, 5),
-    Livestock_cat = c("Cattle", "Sheep", "Pets")
+    Item = c("Wheat", "Wheat", "Wheat", "Wheat"),
+    FM_Mg = c(50, 10, 5, 7),
+    Livestock_cat = c("Cattle_meat", "Sheep", "Pets", "Pigs")
   )
 
   result <- .adding_feed(fake_feed)
 
-  expect_equal(result$feed[1], 50 + 10)
-  expect_equal(result$food_pets[1], 5)
+  feed_df <- result$feed_intake
+  share_df <- result$feed_share_rum_mono
+
+  expect_equal(sum(feed_df$feed[feed_df$Livestock_type == "ruminant"]), 60)
+  expect_equal(sum(feed_df$feed[feed_df$Livestock_type == "monogastric"]), 7)
+  expect_equal(sum(feed_df$food_pets), 5)
+
+  wheat_share <- share_df %>%
+    filter(Item == "Wheat", Province_name == "Province1", Year == 2020) %>%
+    slice(1)
+
+  expect_equal(wheat_share$share_rum, 60 / (60 + 7))
+  expect_equal(wheat_share$share_mono, 7 / (60 + 7))
 })
+
 
 # Test: .calculate_population_share ---------------------------------
 test_that(".calculate_population_share calculates shares correctly", {
@@ -399,10 +411,19 @@ test_that(".finalize_prod_destiny splits local, import (Outside) and export corr
     group = c("Crop products", "Livestock products", "Fish")
   )
 
+  feed_share_rum_mono <- tibble(
+    Year = 2020,
+    Province_name = "A",
+    Item = c("Wheat", "Milk", "Fish"),
+    share_rum = c(0.5, 0.5, 0),
+    share_mono = c(0.5, 0.5, 0)
+  )
+
   result <- .finalize_prod_destiny(
     grafs_prod_item_trade,
     codes_coefs_items_full,
-    n_soil_inputs = NULL
+    n_soil_inputs = NULL,
+    feed_share_rum_mono = feed_share_rum_mono
   )
 
   wheat_local <- result |>
