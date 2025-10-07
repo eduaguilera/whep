@@ -86,25 +86,26 @@
         } else {
           NULL
         },
-
         if (Box == "Cropland" & Origin == "Outside" & Destiny == "livestock") {
           "<IMPORT_ANIMALCR>"
         } else {
           NULL
         },
-
         if (
-          Box == "Livestock" &
-            Origin == "Outside" &
-            Destiny == "population_other_uses"
+          Origin == "Agro-industry" &
+            Destiny %in% c("livestock_rum", "livestock_mono")
         ) {
-          "<IMPOTHANIM>"
+          "<IMANOT>"
         } else {
           NULL
         },
-
-        if (Origin == "Agro-industry" & Destiny == "livestock") {
-          "<IMANOT>"
+        if (Origin == "Agro-industry" & Destiny == "livestock_rum") {
+          "<IMANOTR>"
+        } else {
+          NULL
+        },
+        if (Origin == "Agro-industry" & Destiny == "livestock_mono") {
+          "<IMANOTM>"
         } else {
           NULL
         }
@@ -131,60 +132,23 @@
       year = Year
     )
 
-  # --- Split import feed (Ruminants / Monogastrics) ---
+  # --- Import feed (Ruminants / Monogastrics) ---
   df_feed <- prov_destiny_df |>
     dplyr::filter(
-      Box == "Cropland",
       Origin == "Outside",
-      Destiny == "livestock"
-    ) |>
-    dplyr::group_by(Province_name, Year) |>
-    dplyr::summarise(
-      data_rum = sum(MgN, na.rm = TRUE) * 0.35,
-      data_monog = sum(MgN, na.rm = TRUE) * 0.65,
-      .groups = "drop"
-    ) |>
-    tidyr::pivot_longer(
-      cols = c(data_rum, data_monog),
-      names_to = "label_temp",
-      values_to = "data"
+      Destiny %in% c("livestock_rum", "livestock_mono")
     ) |>
     dplyr::mutate(
       label = dplyr::case_when(
-        label_temp == "data_rum" ~ "<IMPORT_ANIMALCR_RUM>",
-        label_temp == "data_monog" ~ "<IMPORT_ANIMALCR_MONOG>"
+        Destiny == "livestock_rum" ~ "<IMPORT_ANIMALCR_RUM>",
+        Destiny == "livestock_mono" ~ "<IMPORT_ANIMALCR_MONOG>"
       ),
       align = "R",
       province = Province_name,
-      year = Year
+      year = Year,
+      data = MgN
     ) |>
     dplyr::select(province, year, label, data, align)
-
-  # --- Split IMANOT (Ruminants / Monogastrics) ---
-  df_imanot_split <- df_n_flows |>
-    dplyr::filter(label == "<IMANOT>")
-
-  if (nrow(df_imanot_split) > 0) {
-    df_imanot_split <- df_imanot_split |>
-      dplyr::mutate(
-        IMANOTR_val = data * 0.35,
-        IMANOTM_val = data * 0.65
-      ) |>
-      dplyr::select(-data) |>
-      tidyr::pivot_longer(
-        cols = c(IMANOTR_val, IMANOTM_val),
-        names_to = "label_temp",
-        values_to = "data"
-      ) |>
-      dplyr::mutate(
-        label = dplyr::case_when(
-          label_temp == "IMANOTR_val" ~ "<IMANOTR>",
-          label_temp == "IMANOTM_val" ~ "<IMANOTM>"
-        ),
-        align = "R"
-      ) |>
-      dplyr::select(province, year, label, data, align)
-  }
 
   # --- Population label ---
   df_pop <- whep_read_file("population_yg")
@@ -212,7 +176,6 @@
   df_import_label <- dplyr::bind_rows(
     df_n_flows,
     df_feed,
-    df_imanot_split,
     df_population_label
   )
 
