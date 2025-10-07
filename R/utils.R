@@ -15,6 +15,7 @@ utils::globalVariables(
     "Element",
     "export",
     "feedtype",
+    "fill_value",
     "final_value_processed",
     "from_code",
     "groups",
