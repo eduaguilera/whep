@@ -1,0 +1,8 @@
+[
+    {
+        "key": "ctrl+shift+p",
+        "command": "workbench.action.tasks.runTask",
+        "args": "Lint and Push",
+        "when": "!inDebugMode"
+    }
+]
