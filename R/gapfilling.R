@@ -55,57 +55,36 @@ linear_fill <- function(
 ) {
   df |>
     dplyr::mutate(
-      value_interpfilled = if (interpolate) {
-        zoo::na.approx({{ var }}, x = {{ time_index }}, na.rm = FALSE)
-      } else {
-        NA_real_
-      },
-      value_after_interp = dplyr::coalesce({{ var }}, value_interpfilled),
-      has_value = !is.na(value_after_interp),
-      seen_value = cummax(has_value),
-      seen_value_reversed = rev(cummax(rev(has_value))),
-      is_leading_na = !has_value & !seen_value,
-      is_trailing_na = !has_value & !seen_value_reversed,
-      value_carried_backward = if (fill_backward) {
-        ifelse(
-          is_leading_na,
-          zoo::na.locf0(value_after_interp, fromLast = TRUE),
-          NA_real_
-        )
-      } else {
-        NA_real_
-      },
-      value_carried_forward = if (fill_forward) {
-        ifelse(
-          is_trailing_na,
-          zoo::na.locf0(value_after_interp),
-          NA_real_
-        )
-      } else {
-        NA_real_
-      },
+      place = dplyr::case_when(
+        !cummax(!is.na({{ var }})) ~ "leading",
+        rev(!cummax(rev(!is.na({{ var }})))) ~ "trailing",
+        .default = "middle"
+      ),
+      fill_value = dplyr::case_when(
+        place == "leading" & fill_backward ~
+          zoo::na.locf0({{ var }}, fromLast = TRUE),
+        place == "trailing" & fill_forward ~
+          zoo::na.locf0({{ var }}, fromLast = FALSE),
+        place == "middle" & interpolate ~
+          zoo::na.approx(
+            {{ var }},
+            x = {{ time_index }},
+            na.rm = FALSE
+          ),
+        .default = NA_real_
+      ),
+      fill_value = dplyr::coalesce({{ var }}, fill_value),
       "source_{{var}}" := dplyr::case_when(
         !is.na({{ var }}) ~ "Original",
-        !is.na(value_interpfilled) ~ "Linear interpolation",
-        !is.na(value_carried_backward) ~ "First value carried backwards",
-        !is.na(value_carried_forward) ~ "Last value carried forward",
+        place == "leading" & !is.na(fill_value) ~
+          "First value carried backwards",
+        place == "trailing" & !is.na(fill_value) ~ "Last value carried forward",
+        place == "middle" & !is.na(fill_value) ~ "Linear interpolation",
         TRUE ~ "Gap not filled"
       ),
-      "{{var}}" := dplyr::coalesce(
-        {{ var }},
-        value_interpfilled,
-        value_carried_backward,
-        value_carried_forward
-      ),
-      value_interpfilled = NULL,
-      value_after_interp = NULL,
-      has_value = NULL,
-      seen_value = NULL,
-      seen_value_reversed = NULL,
-      is_leading_na = NULL,
-      is_trailing_na = NULL,
-      value_carried_forward = NULL,
-      value_carried_backward = NULL,
+      "{{var}}" := fill_value,
+      place = NULL,
+      fill_value = NULL,
       .by = dplyr::all_of(.by)
     )
 }
