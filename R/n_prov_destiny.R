@@ -83,6 +83,8 @@ create_n_prov_destiny <- function() {
     feed_share_rum_mono = adding_feed_output$feed_share_rum_mono
   )
 
+  prod_destiny <- .add_n_soil_inputs(prod_destiny, n_soil_inputs)
+
   prod_destiny
 }
 
@@ -229,16 +231,31 @@ create_n_prov_destiny <- function() {
 #' @return A dataframe formatted for integration with other production data.
 #' @keywords internal
 #' @noRd
-.prepare_livestock_production <- function(
-  livestock_prod_ygps
-) {
+.prepare_livestock_production <- function(livestock_prod_ygps) {
   livestock <- livestock_prod_ygps |>
+    dplyr::mutate(
+      Livestock_type = dplyr::case_when(
+        Livestock_cat %in%
+          c(
+            "Cattle_meat",
+            "Cattle_milk",
+            "Goats",
+            "Sheep",
+            "Donkeys_mules",
+            "Horses"
+          ) ~
+          "livestock_rum",
+        Livestock_cat %in% c("Pigs", "Poultry", "Rabbits") ~ "livestock_mono"
+      )
+    ) |>
     dplyr::select(
       Year,
       Province_name,
       Item,
       Name_biomass,
-      Prod_Mg
+      Prod_Mg,
+      Livestock_cat,
+      Livestock_type
     ) |>
     dplyr::mutate(
       Box = "Livestock",
@@ -1002,7 +1019,15 @@ create_n_prov_destiny <- function() {
       ),
       Origin = Box
     ) |>
-    dplyr::group_by(Year, Province_name, Item, Irrig_cat, Origin, Destiny) |>
+    dplyr::group_by(
+      Year,
+      Province_name,
+      Item,
+      Irrig_cat,
+      Box,
+      Origin,
+      Destiny
+    ) |>
     dplyr::summarise(MgN = sum(MgN, na.rm = TRUE), .groups = "drop") |>
     dplyr::left_join(
       feed_share_rum_mono,
@@ -1052,7 +1077,15 @@ create_n_prov_destiny <- function() {
         NA_character_
       )
     ) |>
-    dplyr::group_by(Year, Province_name, Item, Irrig_cat, Origin, Destiny) |>
+    dplyr::group_by(
+      Year,
+      Province_name,
+      Item,
+      Irrig_cat,
+      Box,
+      Origin,
+      Destiny
+    ) |>
     dplyr::summarise(MgN = sum(MgN, na.rm = TRUE), .groups = "drop") |>
     dplyr::left_join(
       feed_share_rum_mono,
@@ -1086,9 +1119,18 @@ create_n_prov_destiny <- function() {
       Irrig_cat,
       Destiny = "export",
       MgN = export,
-      Origin = Box
+      Origin = Box,
+      Box = Box
     ) |>
-    dplyr::group_by(Year, Province_name, Item, Irrig_cat, Origin, Destiny) |>
+    dplyr::group_by(
+      Year,
+      Province_name,
+      Item,
+      Irrig_cat,
+      Box,
+      Origin,
+      Destiny
+    ) |>
     dplyr::summarise(MgN = sum(MgN, na.rm = TRUE), .groups = "drop")
 
   grafs_prod_destiny_final <- dplyr::bind_rows(
@@ -1097,7 +1139,15 @@ create_n_prov_destiny <- function() {
     exports
   ) |>
     dplyr::filter(MgN > 0) |>
-    dplyr::group_by(Year, Province_name, Item, Irrig_cat, Origin, Destiny) |>
+    dplyr::group_by(
+      Year,
+      Province_name,
+      Item,
+      Irrig_cat,
+      Box,
+      Origin,
+      Destiny
+    ) |>
     dplyr::summarise(MgN = sum(MgN, na.rm = TRUE), .groups = "drop")
 
   grafs_prod_destiny_final
@@ -1138,7 +1188,8 @@ create_n_prov_destiny <- function() {
         Origin == "synthetic" ~ "Synthetic",
         Origin == "manure" ~ "Livestock",
         Origin == "urban" ~ "People"
-      )
+      ),
+      Box = Destiny
     ) |>
     dplyr::select(Year, Province_name, Item, Irrig_cat, Origin, Destiny, MgN)
 
