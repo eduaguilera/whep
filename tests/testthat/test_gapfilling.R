@@ -324,16 +324,16 @@ testthat::test_that("sum_fill start_with_zero toggles behaviour", {
 
   contiguous_gaps |>
     sum_fill(value, change_variable) |>
-    pointblank::expect_col_vals_null(value)
+    pointblank::expect_col_vals_equal(value, c(1, 3, 6, 10)) |>
+    pointblank::expect_col_vals_equal(source_value, "Filled with sum")
 
   contiguous_gaps |>
     sum_fill(
       value,
       change_variable,
-      start_with_zero = TRUE
+      start_with_zero = FALSE
     ) |>
-    pointblank::expect_col_vals_equal(value, c(1, 3, 6, 10)) |>
-    pointblank::expect_col_vals_equal(source_value, "Filled with sum")
+    pointblank::expect_col_vals_null(value)
 })
 
 testthat::test_that("sum_fill respects grouping keys", {
@@ -341,7 +341,6 @@ testthat::test_that("sum_fill respects grouping keys", {
     sum_fill(
       value,
       change_variable,
-      start_with_zero = TRUE,
       .by = "category"
     ) |>
     pointblank::expect_col_vals_equal(
