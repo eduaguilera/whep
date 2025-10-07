@@ -145,7 +145,7 @@ proxy_fill <- function(df, var, proxy_var, time_index, ...) {
 #' another variable.
 #'
 #' @description
-#' Fill gaps in a variable with the sum of its previous value and the value
+#' Fills gaps in a variable with the sum of its previous value and the value
 #' of another variable. When a gap has multiple observations, the values are
 #' accumulated along the series. When there is a gap at the start of the
 #' series, it can either remain unfilled or assume an invisible 0 value before
@@ -196,7 +196,7 @@ sum_fill <- function(
   df,
   var,
   change_var,
-  start_with_zero = FALSE,
+  start_with_zero = TRUE,
   .by = NULL
 ) {
   df |>
