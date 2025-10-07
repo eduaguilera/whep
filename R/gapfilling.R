@@ -55,15 +55,16 @@ linear_fill <- function(
 ) {
   df |>
     dplyr::mutate(
+      # relative to first/last non-NA
       place = dplyr::case_when(
-        !cummax(!is.na({{ var }})) ~ "leading",
-        rev(!cummax(rev(!is.na({{ var }})))) ~ "trailing",
+        !cummax(!is.na({{ var }})) ~ "left",
+        rev(!cummax(rev(!is.na({{ var }})))) ~ "right",
         .default = "middle"
       ),
       fill_value = dplyr::case_when(
-        place == "leading" & fill_backward ~
+        place == "left" & fill_backward ~
           zoo::na.locf0({{ var }}, fromLast = TRUE),
-        place == "trailing" & fill_forward ~
+        place == "right" & fill_forward ~
           zoo::na.locf0({{ var }}, fromLast = FALSE),
         place == "middle" & interpolate ~
           zoo::na.approx(
@@ -76,9 +77,8 @@ linear_fill <- function(
       fill_value = dplyr::coalesce({{ var }}, fill_value),
       "source_{{var}}" := dplyr::case_when(
         !is.na({{ var }}) ~ "Original",
-        place == "leading" & !is.na(fill_value) ~
-          "First value carried backwards",
-        place == "trailing" & !is.na(fill_value) ~ "Last value carried forward",
+        place == "left" & !is.na(fill_value) ~ "First value carried backwards",
+        place == "right" & !is.na(fill_value) ~ "Last value carried forward",
         place == "middle" & !is.na(fill_value) ~ "Linear interpolation",
         TRUE ~ "Gap not filled"
       ),
