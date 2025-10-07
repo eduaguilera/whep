@@ -113,6 +113,7 @@
     ) |>
     tidyr::unnest(label) |>
     dplyr::filter(!is.na(label)) |>
+    dplyr::distinct(Province_name, Year, label, .keep_all = TRUE) |>
     dplyr::ungroup() |>
     dplyr::group_by(Province_name, Year, label) |>
     dplyr::summarise(data = sum(MgN, na.rm = TRUE), .groups = "drop") |>
@@ -123,7 +124,9 @@
             "<CROP_POPIMPORT>",
             "<IMPORT_ANIMALCR>",
             "<IMPORT_ANIMALCR_RUM>",
-            "<IMPORT_ANIMALCR_MONOG>"
+            "<IMPORT_ANIMALCR_MONOG>",
+            "<IMANOTR>",
+            "<IMANOTM>"
           ) ~
           "R",
         TRUE ~ "L"
