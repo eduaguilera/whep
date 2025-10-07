@@ -5,7 +5,7 @@
 \title{Fill gaps summing the previous value of a variable to the value of
 another variable.}
 \usage{
-sum_fill(df, var, change_var, start_with_zero = FALSE, .by = NULL)
+sum_fill(df, var, change_var, start_with_zero = TRUE, .by = NULL)
 }
 \arguments{
 \item{df}{A tibble data frame containing one observation per row.}
@@ -27,7 +27,7 @@ original or, in case it has been estimated, the gapfilling method that has
 been used.
 }
 \description{
-Fill gaps in a variable with the sum of its previous value and the value
+Fills gaps in a variable with the sum of its previous value and the value
 of another variable. When a gap has multiple observations, the values are
 accumulated along the series. When there is a gap at the start of the
 series, it can either remain unfilled or assume an invisible 0 value before
