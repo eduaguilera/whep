@@ -236,8 +236,15 @@ test_that(".adding_feed calculates feed and shares correctly", {
   feed_df <- result$feed_intake
   share_df <- result$feed_share_rum_mono
 
-  expect_equal(sum(feed_df$feed[feed_df$Livestock_type == "ruminant"]), 60)
-  expect_equal(sum(feed_df$feed[feed_df$Livestock_type == "monogastric"]), 7)
+  expect_equal(
+    sum(feed_df$feed[feed_df$Livestock_type == "ruminant"], na.rm = TRUE),
+    60
+  )
+  expect_equal(
+    sum(feed_df$feed[feed_df$Livestock_type == "monogastric"], na.rm = TRUE),
+    7
+  )
+
   expect_equal(sum(feed_df$food_pets), 5)
 
   wheat_share <- share_df %>%
@@ -389,63 +396,113 @@ test_that(".calculate_trade calculates export/import correctly", {
   expect_equal(result$import, expected_import)
 })
 
-
-# Test: .finalize_prod_destiny -------------------------------------------------
-test_that(".finalize_prod_destiny splits local, import (Outside) and export correctly", {
+# Test: .prep_final_ds ---------------------------------------------
+test_that(".prep_final_ds assigns Box and Irrig_cat correctly", {
   grafs_prod_item_trade <- tibble(
-    Year = 2020,
-    Province_name = "A",
-    Item = c("Wheat", "Milk", "Fish"),
-    Box = c(NA, NA, "Fish"),
-    Irrig_cat = c("Irrigated", NA, NA),
-    food = c(30, 2, 1),
-    feed = c(20, 2, 0),
-    other_uses = c(10, 1, 0),
-    production_n = c(60, 5, 1),
-    export = c(5, 0, 0),
-    import = c(0, 5, 0)
+    Item = c("Wheat", "Milk", "Fish", "Fallow", "Acorns"),
+    Irrig_cat = c("Irrigated", "Rainfed", NA, "Rainfed", NA),
+    Box = c(NA, NA, NA, NA, NA)
   )
 
   codes_coefs_items_full <- tibble(
-    item = c("Wheat", "Milk", "Fish"),
-    group = c("Crop products", "Livestock products", "Fish")
+    item = c("Wheat", "Milk", "Fish", "Fallow", "Acorns"),
+    group = c(
+      "Crop products",
+      "Livestock products",
+      "Fish",
+      "Primary crops",
+      "Agro-industry"
+    )
+  )
+
+  result <- .prep_final_ds(grafs_prod_item_trade, codes_coefs_items_full)
+
+  expect_equal(result$Box[result$Item == "Wheat"], "Cropland")
+  expect_equal(result$Box[result$Item == "Milk"], "Livestock")
+  expect_equal(result$Box[result$Item == "Fish"], "Fish")
+  expect_equal(result$Box[result$Item == "Fallow"], "Cropland")
+  expect_equal(
+    result$Box[result$Item == "Acorns"],
+    "semi_natural_agroecosystems"
+  )
+  expect_true(all(is.na(result$Irrig_cat[result$Box != "Cropland"])))
+})
+
+# Test: .calculate_consumption_shares ------------------------------------------
+test_that(".calculate_consumption_shares calculates shares correctly", {
+  data <- tibble(
+    Year = 2020,
+    Province_name = "A",
+    Item = "Wheat",
+    Irrig_cat = "Irrigated",
+    food = 40,
+    feed = 40,
+    other_uses = 20
+  )
+
+  result <- .calculate_consumption_shares(data)
+
+  expect_equal(result$consumption_total, 100)
+  expect_equal(result$food_share, 0.4)
+  expect_equal(result$feed_share, 0.4)
+  expect_equal(result$other_uses_share, 0.2)
+})
+
+# Test: .split_local_consumption -----------------------------------------------
+test_that(".split_local_consumption splits correctly into food, feed, and other uses", {
+  local_vs_import <- tibble(
+    Year = 2020,
+    Province_name = "A",
+    Item = "Wheat",
+    Irrig_cat = "Irrigated",
+    Box = "Cropland",
+    local_consumption = 100,
+    food_share = 0.5,
+    feed_share = 0.3,
+    other_uses_share = 0.2
   )
 
   feed_share_rum_mono <- tibble(
     Year = 2020,
     Province_name = "A",
-    Item = c("Wheat", "Milk", "Fish"),
-    share_rum = c(0.5, 0.5, 0),
-    share_mono = c(0.5, 0.5, 0)
+    Item = "Wheat",
+    share_rum = 0.6,
+    share_mono = 0.4
   )
 
-  result <- .finalize_prod_destiny(
-    grafs_prod_item_trade,
-    codes_coefs_items_full,
-    n_soil_inputs = NULL,
-    feed_share_rum_mono = feed_share_rum_mono
-  )
+  result <- .split_local_consumption(local_vs_import, feed_share_rum_mono)
 
-  wheat_local <- result |>
-    filter(Item == "Wheat", Destiny != "export", Origin != "Outside") |>
-    pull(MgN)
-  expect_true(all(wheat_local > 0))
-
-  milk_import <- result |>
-    filter(Item == "Milk", Origin == "Outside") |>
-    pull(MgN)
-  expect_equal(sum(milk_import), 5)
-
-  wheat_export <- result |>
-    filter(Item == "Wheat", Destiny == "export") |>
-    pull(MgN)
-  expect_equal(sum(wheat_export), 5)
-
-  fish_origin <- result |>
-    filter(Item == "Fish") |>
-    pull(Origin)
-  expect_true(all(fish_origin == "Fish"))
+  expect_true(all(
+    c(
+      "livestock_rum",
+      "livestock_mono",
+      "population_food",
+      "population_other_uses"
+    ) %in%
+      result$Destiny
+  ))
+  expect_equal(sum(result$MgN), 100) # total should remain constant
 })
+
+
+# Test: .add_exports ----------------------------------------------
+test_that(".add_exports adds exports correctly", {
+  grafs_prod_destiny_final <- tibble(
+    Year = 2020,
+    Province_name = "A",
+    Item = c("Wheat", "Milk"),
+    Irrig_cat = c("Irrigated", "Rainfed"),
+    Box = c("Cropland", "Livestock"),
+    export = c(10, 5)
+  )
+
+  result <- .add_exports(grafs_prod_destiny_final)
+
+  expect_equal(unique(result$Destiny), "export")
+  expect_equal(sum(result$MgN), 15)
+  expect_equal(result$Origin[result$Item == "Milk"], "Livestock")
+})
+
 
 # Test: .add_n_soil_inputs ---------------------------------------------------
 test_that(".add_n_soil_inputs adds soil N inputs in long format", {
