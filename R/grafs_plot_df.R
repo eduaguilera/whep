@@ -10,180 +10,88 @@
 #' @return
 #' A tibble with columns `province`, `year`, `label`, `data`, and `align`.
 #'
-#' @keywords internal
 .create_n_import_df <- function(prov_destiny_df = NULL) {
   if (is.null(prov_destiny_df)) {
     prov_destiny_df <- create_n_prov_destiny()
   }
 
   df_n_flows <- prov_destiny_df |>
-    dplyr::rowwise() |>
     dplyr::mutate(
-      label = list(c(
-        if (
-          Item %in%
-            c(
-              "Milk - Excluding Butter",
-              "Milk, lactation",
-              "Whey",
-              "Butter, Ghee"
-            ) &
-            Origin == "Outside" &
-            Destiny == "population_food"
-        ) {
-          "<IMPHUMMILK>"
-        } else {
-          NULL
-        },
-
-        if (
-          Box == "Cropland" & Origin == "Outside" & Destiny == "population_food"
-        ) {
-          "<CROP_POPIMPORT>"
-        } else {
-          NULL
-        },
-
-        if (
-          Item %in%
-            c(
-              "Bovine Meat",
-              "Mutton & Goat Meat",
-              "Pigmeat",
-              "Poultry Meat",
-              "Meat, Other",
-              "Offals, Edible"
-            ) &
-            Origin == "Outside" &
-            Destiny == "population_food"
-        ) {
-          "<IMPHUMANMEAT>"
-        } else {
-          NULL
-        },
-
-        if (
-          Item == "Eggs" & Origin == "Outside" & Destiny == "population_food"
-        ) {
-          "<IMPHUMANEGGS>"
-        } else {
-          NULL
-        },
-        if (
-          Origin == "Fish" &
-            Destiny %in% c("population_food", "population_other_uses")
-        ) {
-          "<IMPHUMFISH>"
-        } else {
-          NULL
-        },
-        if (
-          Box == "Livestock" &
-            Origin == "Outside" &
-            Destiny == "population_food"
-        ) {
-          "<IMPHMANA>"
-        } else {
-          NULL
-        },
-        if (Box == "Cropland" & Origin == "Outside" & Destiny == "livestock") {
-          "<IMPORT_ANIMALCR>"
-        } else {
-          NULL
-        },
-        if (
-          Origin == "Agro-industry" &
-            Destiny %in% c("livestock_rum", "livestock_mono")
-        ) {
-          "<IMANOT>"
-        } else {
-          NULL
-        },
-        if (Origin == "Agro-industry" & Destiny == "livestock_rum") {
-          "<IMANOTR>"
-        } else {
-          NULL
-        },
-        if (Origin == "Agro-industry" & Destiny == "livestock_mono") {
-          "<IMANOTM>"
-        } else {
-          NULL
-        }
-      ))
+      label = dplyr::case_when(
+        Origin == "Agro-industry" & Destiny == "livestock_rum" ~ "<IMANOTR>",
+        Origin == "Agro-industry" & Destiny == "livestock_mono" ~ "<IMANOTM>",
+        Item %in%
+          c(
+            "Milk - Excluding Butter",
+            "Milk, lactation",
+            "Whey",
+            "Butter, Ghee"
+          ) &
+          Origin == "Outside" &
+          Destiny == "population_food" ~
+          "<IMPHUMMILK>",
+        Box == "Cropland" & Origin == "Outside" & Destiny == "population_food" ~
+          "<CROP_POPIMPORT>",
+        Item %in%
+          c(
+            "Bovine Meat",
+            "Mutton & Goat Meat",
+            "Pigmeat",
+            "Poultry Meat",
+            "Meat, Other",
+            "Offals, Edible"
+          ) &
+          Origin == "Outside" &
+          Destiny == "population_food" ~
+          "<IMPHUMANMEAT>",
+        Item == "Eggs" & Origin == "Outside" & Destiny == "population_food" ~
+          "<IMPHUMANEGGS>",
+        Origin == "Fish" &
+          Destiny %in% c("population_food", "population_other_uses") ~
+          "<IMPHUMFISH>",
+        Box == "Livestock" &
+          Origin == "Outside" &
+          Destiny == "population_food" ~
+          "<IMPHMANA>",
+        Box == "Cropland" &
+          Origin == "Outside" &
+          Destiny %in% c("livestock_rum", "livestock_mono") ~
+          "<IMPORT_ANIMALCR>",
+        TRUE ~ NA_character_
+      )
     ) |>
-    tidyr::unnest(label) |>
     dplyr::filter(!is.na(label)) |>
-    dplyr::distinct(Province_name, Year, label, .keep_all = TRUE) |>
-    dplyr::ungroup() |>
     dplyr::group_by(Province_name, Year, label) |>
-    dplyr::summarise(data = sum(MgN, na.rm = TRUE), .groups = "drop") |>
+    dplyr::summarise(data = sum(MgN, na.rm = TRUE), .groups = "drop")
+
+  df_imanot <- df_n_flows |>
+    dplyr::filter(label %in% c("<IMANOTR>", "<IMANOTM>")) |>
+    dplyr::group_by(Province_name, Year) |>
+    dplyr::summarise(data = sum(data), .groups = "drop") |>
+    dplyr::mutate(label = "<IMANOT>")
+
+  df_n_flows <- dplyr::bind_rows(df_n_flows, df_imanot) |>
     dplyr::mutate(
       align = dplyr::case_when(
         label %in%
           c(
             "<CROP_POPIMPORT>",
             "<IMPORT_ANIMALCR>",
-            "<IMPORT_ANIMALCR_RUM>",
-            "<IMPORT_ANIMALCR_MONOG>",
             "<IMANOTR>",
-            "<IMANOTM>"
+            "<IMANOTM>",
+            "<IMANOT>"
           ) ~
           "R",
         TRUE ~ "L"
       ),
       province = Province_name,
       year = Year
-    )
-
-  # --- Import feed (Ruminants / Monogastrics) ---
-  df_feed <- prov_destiny_df |>
-    dplyr::filter(
-      Origin == "Outside",
-      Destiny %in% c("livestock_rum", "livestock_mono")
-    ) |>
-    dplyr::mutate(
-      label = dplyr::case_when(
-        Destiny == "livestock_rum" ~ "<IMPORT_ANIMALCR_RUM>",
-        Destiny == "livestock_mono" ~ "<IMPORT_ANIMALCR_MONOG>"
-      ),
-      align = "R",
-      province = Province_name,
-      year = Year,
-      data = MgN
     ) |>
     dplyr::select(province, year, label, data, align)
 
-  # --- Population label ---
-  df_pop <- whep_read_file("population_yg")
-
-  df_population_label <- df_pop |>
-    dplyr::mutate(
-      `<POPULATION>` = Pop_Mpeop_yg,
-      `<POPULATIONM>` = Pop_Mpeop_yg / 1e6
-    ) |>
-    dplyr::select(
-      province = Province_name,
-      year = Year,
-      `<POPULATION>`,
-      `<POPULATIONM>`
-    ) |>
-    tidyr::pivot_longer(
-      cols = c(`<POPULATION>`, `<POPULATIONM>`),
-      names_to = "label",
-      values_to = "data",
-      names_repair = "unique"
-    ) |>
-    dplyr::mutate(align = "L")
-
-  # Combine
-  df_import_label <- dplyr::bind_rows(
-    df_n_flows,
-    df_feed,
-    df_population_label
-  )
-
-  df_import_label
+  return(df_n_flows)
 }
+
 
 #' @title Create Livestock LU (Livestock Units) dataset
 #'
@@ -312,6 +220,40 @@
     "Holm oak"
   )
 
+  horticulture_biomass <- c(
+    "Artichoke thistle",
+    "Cabbage, Broccoli",
+    "Carrot",
+    "Cauliflower",
+    "Chard",
+    "Garlic",
+    "Onion",
+    "Pea, green, with pod",
+    "Pepper",
+    "Tomato",
+    "Turnip",
+    "Beans, green",
+    "Melon",
+    "Artichoke",
+    "Celery",
+    "Endive",
+    "Asparagus",
+    "Zucchini",
+    "Caper",
+    "Lettuce",
+    "Vegetables, other",
+    "Cucumber",
+    "Squash, pumpkin",
+    "Vegetables, leguminous nes",
+    "Watermelon",
+    "Aubergine",
+    "Leek",
+    "Spinach",
+    "Beet",
+    "Chili pepper",
+    "Borage"
+  )
+
   # --- LAND BALANCE FOR CROPLAND AND FOREST ---
   df_split <- n_balance |>
     dplyr::filter(
@@ -348,6 +290,25 @@
           ] +
           GrazedWeeds_MgN[
             LandUse == "Cropland" & Name_biomass %in% permanent_biomass
+          ],
+        na.rm = TRUE
+      ),
+      `<HORha>` = sum(
+        Area_ygpit_ha[
+          LandUse == "Cropland" & Name_biomass %in% horticulture_biomass
+        ],
+        na.rm = TRUE
+      ),
+      `<HORMha>` = `<HORha>` / 1e6,
+      `<HORN>` = sum(
+        Prod_MgN[
+          LandUse == "Cropland" & Name_biomass %in% horticulture_biomass
+        ] +
+          UsedResidue_MgN[
+            LandUse == "Cropland" & Name_biomass %in% horticulture_biomass
+          ] +
+          GrazedWeeds_MgN[
+            LandUse == "Cropland" & Name_biomass %in% horticulture_biomass
           ],
         na.rm = TRUE
       ),
@@ -390,6 +351,10 @@
           gsub("<PER", "<PERi", label_base),
         Irrig_cat == "Rainfed" & grepl("^<PER", label_base) ~
           gsub("<PER", "<PERr", label_base),
+        Irrig_cat == "Irrigated" & grepl("^<HOR", label_base) ~
+          gsub("<HOR", "<HORi", label_base),
+        Irrig_cat == "Rainfed" & grepl("^<HOR", label_base) ~
+          gsub("<HOR", "<HORr", label_base),
         Irrig_cat == "Irrigated" & grepl("^<NPE", label_base) ~
           gsub("<NPE", "<NPEi", label_base),
         Irrig_cat == "Rainfed" & grepl("^<NPE", label_base) ~
@@ -410,6 +375,9 @@
           "<PERha>",
           "<PERMha>",
           "<PERN>",
+          "<HORha>",
+          "<HORMha>",
+          "<HORN>",
           "<NPEha>",
           "<NPEMha>",
           "<NPEN>",
@@ -418,7 +386,9 @@
           "<ARAN>"
         )
     ) |>
-    dplyr::select(province = Province_name, year = Year, label, data)
+    dplyr::select(province = Province_name, year = Year, label, data) |>
+    dplyr::group_by(province, year, label) |>
+    dplyr::summarise(data = sum(data, na.rm = TRUE), .groups = "drop")
 
   # --- Land balance for rest and N inputs ---
   df_rest <- n_balance |>
@@ -523,10 +493,13 @@
       label = dplyr::case_when(
         Origin == "Cropland" & Destiny == "export" ~ "<CROP_EXPORT>",
         Origin == "Cropland" & Destiny == "population_food" ~ "<CROPS_TO_POP>",
-        Origin == "Cropland" & Destiny == "livestock" ~ "<CROPS_TO_LIVESTOCK>",
+        Origin == "Cropland" &
+          Destiny %in% c("livestock_rum", "livestock_mono") ~
+          "<CROPS_TO_LIVESTOCK>",
         Origin == "Livestock" & Destiny == "population_food" ~
           "<LIVESTOCK_TO_HUMAN>",
-        Origin == "semi_natural_agroecosystems" & Destiny == "livestock" ~
+        Origin == "semi_natural_agroecosystems" &
+          Destiny %in% c("livestock_rum", "livestock_mono") ~
           "<GRASS_TO_LIVESTOCK>",
         TRUE ~ NA_character_
       )
@@ -555,7 +528,13 @@
     dplyr::mutate(
       flow_type = dplyr::case_when(
         Destiny %in%
-          c("population_food", "livestock", "other_uses", "export") ~
+          c(
+            "population_food",
+            "livestock_mono",
+            "livestock_rum",
+            "other_uses",
+            "export"
+          ) ~
           "output",
         Origin == "Outside" ~ "import",
         TRUE ~ NA_character_
@@ -644,19 +623,22 @@
 
   # --- Feed from Cropland ---
   df_lv_r_m <- prov_destiny_df |>
-    dplyr::filter(Origin == "Cropland", Destiny == "livestock") |>
-    dplyr::group_by(Province_name, Year) |>
+    dplyr::filter(
+      Origin == "Cropland",
+      Destiny %in% c("livestock_rum", "livestock_mono")
+    ) |>
+    dplyr::group_by(Province_name, Year, Destiny) |>
     dplyr::summarise(
-      `<CRTOLVSTCK_R>` = sum(MgN, na.rm = TRUE) * 0.55,
-      `<CRTOLVSTCK_M>` = sum(MgN, na.rm = TRUE) * 0.45,
+      data = sum(MgN, na.rm = TRUE),
       .groups = "drop"
     ) |>
-    tidyr::pivot_longer(
-      -c(Province_name, Year),
-      names_to = "label",
-      values_to = "data"
+    dplyr::mutate(
+      label = dplyr::case_when(
+        Destiny == "livestock_rum" ~ "<CRTOLVSTCK_R>",
+        Destiny == "livestock_mono" ~ "<CRTOLVSTCK_M>"
+      ),
+      align = "L"
     ) |>
-    dplyr::mutate(align = "L") |>
     dplyr::rename(province = Province_name, year = Year) |>
     dplyr::select(province, year, label, data, align)
 
@@ -675,7 +657,8 @@
             c(
               "population_food",
               "population_other_uses",
-              "livestock",
+              "livestock_mono",
+              "livestock_rum",
               "export"
             ) ~
           MgN,
@@ -711,13 +694,22 @@
   # --- Animal losses ---
   df_animal_losses <- prov_destiny_df |>
     dplyr::mutate(
-      feed_inputs = ifelse(Destiny == "livestock", MgN, 0),
+      feed_inputs = ifelse(
+        Destiny %in% c("livestock_rum", "livestock_mono"),
+        MgN,
+        0
+      ),
       animal_outputs = ifelse(
         Origin == "Livestock" &
           Destiny %in%
             c("population_food", "population_other_uses", "export"),
         MgN,
-        ifelse(Origin == "Outside" & Destiny == "Livestock", -MgN, 0)
+        ifelse(
+          Origin == "Outside" &
+            Destiny %in% c("livestock_rum", "livestock_mono"),
+          -MgN,
+          0
+        )
       ),
       animal_outputs_other = ifelse(
         Origin == "Livestock" & Destiny == "population_other_uses",
