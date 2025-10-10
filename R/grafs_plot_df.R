@@ -523,26 +523,8 @@
     )
 
   # --- Livestock production ---
-  livestock_items <- prov_destiny_df |>
-    dplyr::filter(Box == "Livestock") |>
-    dplyr::mutate(
-      flow_type = dplyr::case_when(
-        Destiny %in%
-          c(
-            "population_food",
-            "livestock_mono",
-            "livestock_rum",
-            "other_uses",
-            "export"
-          ) ~
-          "output",
-        Origin == "Outside" ~ "import",
-        TRUE ~ NA_character_
-      )
-    ) |>
-    dplyr::filter(!is.na(flow_type))
-
-  df_livestock <- livestock_items |>
+  df_livestock <- prov_destiny_df |>
+    dplyr::filter(Origin == "Livestock") |>
     dplyr::mutate(
       group_item = ifelse(
         Item %in% c("Hides and skins", "Wool (Clean Eq.)", "Silk"),
@@ -550,15 +532,9 @@
         "edible"
       )
     ) |>
-    dplyr::group_by(Province_name, Year, group_item, flow_type) |>
+    dplyr::group_by(Province_name, Year, group_item) |>
     dplyr::summarise(MgN = sum(MgN, na.rm = TRUE), .groups = "drop") |>
-    tidyr::pivot_wider(
-      names_from = flow_type,
-      values_from = MgN,
-      values_fill = 0
-    ) |>
     dplyr::mutate(
-      prod = output - import,
       label = dplyr::case_when(
         group_item == "non_edible" ~ "<LVSTCK_NOEDIBLE>",
         group_item == "edible" ~ "<LV_EDBL>"
@@ -569,29 +545,21 @@
       province = Province_name,
       year = Year,
       label,
-      data = prod,
+      data = MgN,
       align
     )
 
-  df_milk <- livestock_items |>
+  # --- Milk production ---
+  df_milk <- prov_destiny_df |>
     dplyr::filter(
+      Box == "Livestock",
+      Origin == "Livestock",
       Item %in%
-        c(
-          "Milk - Excluding Butter",
-          "Milk, lactation",
-          "Whey",
-          "Butter, Ghee"
-        )
+        c("Milk - Excluding Butter", "Milk, lactation", "Whey", "Butter, Ghee")
     ) |>
-    dplyr::group_by(Province_name, Year, flow_type) |>
+    dplyr::group_by(Province_name, Year) |>
     dplyr::summarise(MgN = sum(MgN, na.rm = TRUE), .groups = "drop") |>
-    tidyr::pivot_wider(
-      names_from = flow_type,
-      values_from = MgN,
-      values_fill = 0
-    ) |>
     dplyr::mutate(
-      prod = output - import,
       label = "<LVST_MILK>",
       align = "L"
     ) |>
@@ -599,11 +567,11 @@
       province = Province_name,
       year = Year,
       label,
-      data = prod,
+      data = MgN,
       align
     )
 
-  df_livestock_export <- livestock_items |>
+  df_livestock_export <- prov_destiny_df |>
     dplyr::filter(Destiny == "export") |>
     dplyr::group_by(Province_name, Year) |>
     dplyr::summarise(data = sum(MgN, na.rm = TRUE), .groups = "drop") |>
@@ -643,48 +611,34 @@
     dplyr::select(province, year, label, data, align)
 
   # --- Crop losses ---
-  df_crop_losses <- prov_destiny_df |>
-    dplyr::mutate(
-      crop_inputs = dplyr::case_when(
-        Origin %in% c("Fixation", "Synthetic", "Deposition") ~ MgN,
-        Origin == "Livestock" ~ MgN,
-        Origin == "People" ~ MgN,
-        TRUE ~ 0
-      ),
-      crop_outputs = dplyr::case_when(
-        Origin == "Cropland" &
-          Destiny %in%
-            c(
-              "population_food",
-              "population_other_uses",
-              "livestock_mono",
-              "livestock_rum",
-              "export"
-            ) ~
-          MgN,
-        Origin == "Outside" & Destiny == "Cropland" ~ -MgN,
-        TRUE ~ 0
-      ),
-      crop_outputs_other = dplyr::case_when(
-        Origin == "Cropland" & Destiny == "population_other_uses" ~ MgN,
-        Origin == "Outside" & Destiny == "Cropland" ~ -MgN,
-        TRUE ~ 0
-      )
-    ) |>
+  n_balance <- whep_read_file("n_balance_ygpit_all")
+
+  df_crop_gas <- n_balance |>
     dplyr::group_by(Province_name, Year) |>
     dplyr::summarise(
-      inputs = sum(crop_inputs, na.rm = TRUE),
-      outputs = sum(crop_outputs, na.rm = TRUE),
-      outputs_other = sum(crop_outputs_other, na.rm = TRUE),
+      `<CRP_LS>` = sum(Denitrif_MgN + NH3_MgN + N2O_MgN, na.rm = TRUE),
       .groups = "drop"
-    ) |>
+    )
+
+  df_crop_oth <- prov_destiny_df |>
+    dplyr::filter(Origin == "Cropland", Destiny == "population_other_uses") |>
+    dplyr::group_by(Province_name, Year) |>
+    dplyr::summarise(
+      `<CRP_OTHUSES>` = sum(MgN, na.rm = TRUE),
+      .groups = "drop"
+    )
+
+  df_crop_losses <- dplyr::left_join(
+    df_crop_gas,
+    df_crop_oth,
+    by = c("Province_name", "Year")
+  ) |>
     dplyr::mutate(
-      `<CRP_LS>` = inputs - outputs,
-      `<CRP_LS_OTHUSES>` = inputs - outputs_other,
-      `<CRP_OTHUSES>` = outputs_other
+      `<CRP_OTHUSES>` = ifelse(is.na(`<CRP_OTHUSES>`), 0, `<CRP_OTHUSES>`),
+      `<CRP_LS_OTHUSES>` = `<CRP_LS>` + `<CRP_OTHUSES>`
     ) |>
     tidyr::pivot_longer(
-      c(`<CRP_LS>`, `<CRP_LS_OTHUSES>`, `<CRP_OTHUSES>`),
+      c(`<CRP_LS>`, `<CRP_OTHUSES>`, `<CRP_LS_OTHUSES>`),
       names_to = "label",
       values_to = "data"
     ) |>
@@ -692,50 +646,53 @@
     dplyr::rename(province = Province_name, year = Year)
 
   # --- Animal losses ---
-  df_animal_losses <- prov_destiny_df |>
+  n_excretion <- whep_read_file("n_excretion_ygs") |>
+    dplyr::select(
+      Year,
+      Province_name,
+      Livestock_cat,
+      Gross_Prod_GgN,
+      Net_Prod_GgN
+    ) |>
+    dplyr::distinct() |>
     dplyr::mutate(
-      feed_inputs = ifelse(
-        Destiny %in% c("livestock_rum", "livestock_mono"),
-        MgN,
-        0
-      ),
-      animal_outputs = ifelse(
-        Origin == "Livestock" &
-          Destiny %in%
-            c("population_food", "population_other_uses", "export"),
-        MgN,
-        ifelse(
-          Origin == "Outside" &
-            Destiny %in% c("livestock_rum", "livestock_mono"),
-          -MgN,
-          0
-        )
-      ),
-      animal_outputs_other = ifelse(
-        Origin == "Livestock" & Destiny == "population_other_uses",
-        MgN,
-        0
-      )
+      `<AN_LS>` = (Gross_Prod_GgN - Net_Prod_GgN) * 1e3
     ) |>
     dplyr::group_by(Province_name, Year) |>
     dplyr::summarise(
-      feed = sum(feed_inputs, na.rm = TRUE),
-      outputs = sum(animal_outputs, na.rm = TRUE),
-      outputs_other = sum(animal_outputs_other, na.rm = TRUE),
+      `<AN_LS>` = sum(`<AN_LS>`, na.rm = TRUE),
       .groups = "drop"
+    )
+
+  an_oth <- prov_destiny_df |>
+    dplyr::filter(
+      Origin == "Livestock",
+      Destiny == "population_other_uses"
     ) |>
+    dplyr::group_by(Province_name, Year) |>
+    dplyr::summarise(
+      `<AN_OTH>` = sum(MgN, na.rm = TRUE),
+      .groups = "drop"
+    )
+
+  df_animal_losses <- n_excretion |>
+    dplyr::left_join(an_oth, by = c("Province_name", "Year")) |>
     dplyr::mutate(
-      `<AN_LS>` = feed - outputs,
-      `<AN_OTH>` = outputs_other,
-      `<AN_LS_OTH>` = (feed - outputs) + outputs_other
+      `<AN_OTH>` = ifelse(is.na(`<AN_OTH>`), 0, `<AN_OTH>`),
+      `<AN_LS_OTH>` = `<AN_LS>` + `<AN_OTH>`
     ) |>
     tidyr::pivot_longer(
-      c(`<AN_LS>`, `<AN_OTH>`, `<AN_LS_OTH>`),
+      cols = c(`<AN_LS>`, `<AN_OTH>`, `<AN_LS_OTH>`),
       names_to = "label",
       values_to = "data"
     ) |>
-    dplyr::mutate(align = as.character("R")) |>
-    dplyr::rename(province = Province_name, year = Year)
+    dplyr::mutate(
+      align = "R"
+    ) |>
+    dplyr::rename(
+      province = Province_name,
+      year = Year
+    )
 
   df_livestock_total <- dplyr::bind_rows(
     df_flows,
@@ -753,6 +710,20 @@
       align = "L"
     )
 
+  df_livestock_gas_loss <- whep_read_file("n_excretion_ygs") |>
+    dplyr::group_by(Province_name, Year) |>
+    dplyr::summarise(
+      data = sum(Excr_GgN * Loss_share * 1e3, na.rm = TRUE),
+      .groups = "drop"
+    ) |>
+    dplyr::mutate(
+      province = Province_name,
+      year = Year,
+      label = "<LIVGASLOSS>",
+      align = "R"
+    ) |>
+    dplyr::select(province, year, label, data, align)
+
   # --- Combine ---
   df_combi <- dplyr::bind_rows(
     df_flows |> dplyr::select(province, year, label, data, align),
@@ -760,21 +731,15 @@
     df_lv_r_m |> dplyr::select(province, year, label, data, align),
     df_crop_losses |> dplyr::select(province, year, label, data, align),
     df_animal_losses |> dplyr::select(province, year, label, data, align),
-    df_livestock_total |> dplyr::select(province, year, label, data, align)
+    df_livestock_total |> dplyr::select(province, year, label, data, align),
+    df_livestock_gas_loss |> dplyr::select(province, year, label, data, align)
   ) |>
     dplyr::arrange(province, year, label)
 
   # ---Finalize -------------------------------------------------------------
   missing_labels <- c(
-    "<HORiha>",
-    "<HORiMha>",
-    "<HORiN>",
-    "<HORrha>",
-    "<HORrMha>",
-    "<HORrN>",
     "<IMPHUMHONEY>",
     "<UNKMANURE>",
-    "<LIVGASLOSS>",
     "<CRPNOLV>",
     "<NCONTCROP>",
     "<ORGOT>",
@@ -791,7 +756,6 @@
     ) |>
     dplyr::mutate(
       align = dplyr::case_when(
-        label %in% c("<AN_LS>", "<AN_OTH>", "<AN_LS_OTH>") ~ "R",
         label == "<WIDTH_MAX>" ~ "L",
         TRUE ~ align
       ),
@@ -824,13 +788,6 @@
         label == "<WIDTH_MAX>" ~ "L",
         label %in%
           c(
-            "<HORiha>",
-            "<HORiMha>",
-            "<HORiN>",
-            "<HORrha>",
-            "<HORrMha>",
-            "<HORrN>",
-            "<LIVGASLOSS>",
             "<NCONTCROP>",
             "<ORGOT>"
           ) ~
