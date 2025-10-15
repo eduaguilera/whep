@@ -1,0 +1,14 @@
+file:
+- read_example.csv
+- read_example.parquet
+file_size:
+- 47
+- 581
+pin_hash: ce61b2e6ff89c6e8061066cec25c3bfc
+type: file
+title: 'read_example: 2 pinned files'
+description: 'Warn: this is only an example dataset'
+tags: ~
+urls: ~
+created: 20250721T152646Z
+api_version: 1

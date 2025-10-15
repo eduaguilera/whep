@@ -1,0 +1,14 @@
+file:
+- processing_coefs.csv
+- processing_coefs.parquet
+file_size:
+- 865881
+- 247526
+pin_hash: 216d7d48e6e21f3d1e07d7f76073633d
+type: file
+title: 'processing_coefs: 2 pinned files'
+description: 'Warn: this is only a sample'
+tags: ~
+urls: ~
+created: 20250721T143403Z
+api_version: 1

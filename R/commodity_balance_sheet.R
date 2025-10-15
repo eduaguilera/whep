@@ -43,7 +43,7 @@
 #' @examples
 #' # Note: These are smaller samples to show outputs, not the real data.
 #' # For all data, call the function with default version (i.e. no arguments).
-#' get_wide_cbs(version = "20250721T132006Z-8ea47")
+#' get_wide_cbs(version = "example")
 get_wide_cbs <- function(version = NULL) {
   "commodity_balance_sheet" |>
     whep_read_file(version = version) |>
@@ -118,7 +118,7 @@ get_wide_cbs <- function(version = NULL) {
 #' @examples
 #' # Note: These are smaller samples to show outputs, not the real data.
 #' # For all data, call the function with default version (i.e. no arguments).
-#' get_processing_coefs(version = "20250721T143403Z-216d7")
+#' get_processing_coefs(version = "example")
 get_processing_coefs <- function(version = NULL) {
   "processing_coefs" |>
     whep_read_file(version = version) |>
