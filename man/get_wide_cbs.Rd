@@ -54,5 +54,5 @@ States supply and use parts for each commodity balance sheet (CBS) item.
 \examples{
 # Note: These are smaller samples to show outputs, not the real data.
 # For all data, call the function with default version (i.e. no arguments).
-get_wide_cbs(version = "20250721T132006Z-8ea47")
+get_wide_cbs(version = "example")
 }

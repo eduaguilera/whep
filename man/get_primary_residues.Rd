@@ -38,5 +38,5 @@ Get type and amount of residue produced for each crop production item.
 \examples{
 # Note: These are smaller samples to show outputs, not the real data.
 # For all data, call the function with default version (i.e. no arguments).
-get_primary_residues(version = "20250721T150132Z-dfd94")
+get_primary_residues(version = "example")
 }

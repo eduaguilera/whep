@@ -39,7 +39,7 @@
 #' @examples
 #' # Note: These are smaller samples to show outputs, not the real data.
 #' # For all data, call the function with default version (i.e. no arguments).
-#' get_primary_production(version = "20250721T145805Z-8e12a")
+#' get_primary_production(version = "example")
 get_primary_production <- function(version = NULL) {
   "primary_prod" |>
     whep_read_file(version = version) |>
@@ -86,7 +86,7 @@ get_primary_production <- function(version = NULL) {
 #' @examples
 #' # Note: These are smaller samples to show outputs, not the real data.
 #' # For all data, call the function with default version (i.e. no arguments).
-#' get_primary_residues(version = "20250721T150132Z-dfd94")
+#' get_primary_residues(version = "example")
 get_primary_residues <- function(version = NULL) {
   "crop_residues" |>
     whep_read_file(version = version) |>

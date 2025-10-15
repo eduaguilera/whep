@@ -1,0 +1,14 @@
+file:
+- primary_prod.csv
+- primary_prod.parquet
+file_size:
+- 924572
+- 151607
+pin_hash: 8e12ab59306efbef0b65a29f9c205ec9
+type: file
+title: 'primary_prod: 2 pinned files'
+description: 'Warn: this is only a sample'
+tags: ~
+urls: ~
+created: 20250721T145805Z
+api_version: 1

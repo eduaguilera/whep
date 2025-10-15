@@ -61,5 +61,5 @@ and quantities of their corresponding processed output items.
 \examples{
 # Note: These are smaller samples to show outputs, not the real data.
 # For all data, call the function with default version (i.e. no arguments).
-get_processing_coefs(version = "20250721T143403Z-216d7")
+get_processing_coefs(version = "example")
 }
