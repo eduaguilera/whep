@@ -100,8 +100,8 @@
 #' # Note: These are smaller samples to show outputs, not the real data.
 #' # For all data, call the function with default versions (i.e. no arguments).
 #' get_bilateral_trade(
-#'   trade_version = "20250721T141553Z-5707e",
-#'   cbs_version = "20250721T132006Z-8ea47"
+#'   trade_version = "example",
+#'   cbs_version = "example"
 #' )
 get_bilateral_trade <- function(trade_version = NULL, cbs_version = NULL) {
   cbs <- get_wide_cbs(version = cbs_version) |>

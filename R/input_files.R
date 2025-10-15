@@ -56,11 +56,15 @@ whep_read_file <- function(file_alias, type = "parquet", version = NULL) {
   file_info <- .fetch_file_info(file_alias, whep::whep_inputs)
   version <- .choose_version(file_info$version, version)
 
-  file_info |>
-    purrr::pluck("board_url") |>
-    .build_board_with_progress() |>
-    pins::pin_download(file_alias, version = version) |>
-    .read_file(type)
+  tryCatch(
+    .get_local_board() |>
+      .download_and_read(file_alias, type, version),
+    error = function(e) {
+      file_info |>
+        .get_remote_board() |>
+        .download_and_read(file_alias, type, version)
+    }
+  )
 }
 
 #' Input file versions
@@ -79,10 +83,15 @@ whep_read_file <- function(file_alias, type = "parquet", version = NULL) {
 #' @examples
 #' whep_list_file_versions("read_example")
 whep_list_file_versions <- function(file_alias) {
-  file_alias |>
-    .fetch_file_info(whep::whep_inputs) |>
-    purrr::pluck("board_url") |>
-    pins::board_url() |>
+  board <- if (file_alias == "read_example") {
+    .get_local_board()
+  } else {
+    file_alias |>
+      .fetch_file_info(whep::whep_inputs) |>
+      .get_remote_board()
+  }
+
+  board |>
     pins::pin_versions(file_alias)
 }
 
@@ -102,6 +111,24 @@ whep_list_file_versions <- function(file_alias) {
       "Unknown file type {extension}. Available for this file: {extensions}"
     )
   }
+}
+
+.get_local_board <- function() {
+  "extdata" |>
+    system.file("examples", package = "whep") |>
+    pins::board_folder()
+}
+
+.get_remote_board <- function(file_info) {
+  file_info |>
+    purrr::pluck("board_url") |>
+    .build_board_with_progress()
+}
+
+.download_and_read <- function(board, file_alias, type, version) {
+  board |>
+    pins::pin_download(file_alias, version = version) |>
+    .read_file(type)
 }
 
 .choose_version <- function(frozen_version, user_version) {

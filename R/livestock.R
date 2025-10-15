@@ -36,7 +36,7 @@
 #' @examples
 #' # Note: These are smaller samples to show outputs, not the real data.
 #' # For all data, call the function with default version (i.e. no arguments).
-#' get_feed_intake(version = "20250721T143825Z-c1313")
+#' get_feed_intake(version = "example")
 get_feed_intake <- function(version = NULL) {
   "feed_intake" |>
     whep_read_file(version = version) |>

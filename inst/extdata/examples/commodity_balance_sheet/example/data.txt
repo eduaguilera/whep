@@ -1,0 +1,14 @@
+file:
+- commodity_balance_sheet.csv
+- commodity_balance_sheet.parquet
+file_size:
+- 529200
+- 90904
+pin_hash: 8ea477072e33d10036037607961fc1bd
+type: file
+title: 'commodity_balance_sheet: 2 pinned files'
+description: 'Warn: this is only a sample'
+tags: ~
+urls: ~
+created: 20250721T132006Z
+api_version: 1

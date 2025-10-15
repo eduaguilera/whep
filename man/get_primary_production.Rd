@@ -49,5 +49,5 @@ Get amount of crops, livestock and livestock products.
 \examples{
 # Note: These are smaller samples to show outputs, not the real data.
 # For all data, call the function with default version (i.e. no arguments).
-get_primary_production(version = "20250721T145805Z-8e12a")
+get_primary_production(version = "example")
 }
