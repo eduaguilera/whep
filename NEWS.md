@@ -1,5 +1,10 @@
 # whep (development version)
 
+# whep 0.2.0
+
+* Add gapfilling functions `linear_fill()`, `proxy_fill()`, `sum_fill()` (@eduaguilera, #14).
+* Now examples can't fail because of unavailable Internet resources (#58).
+
 # whep 0.1.0
 
 * Work in Progress FABIO model implementation:
