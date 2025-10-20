@@ -572,11 +572,11 @@ lmdi_calculation <- function(
 
     for (i in seq_len(nrow(periods))) {
       t0 <- periods$t0[i]
-      tT <- periods$tT[i]
+      t_final <- periods$tT[i]
       d0 <- subset_data |> dplyr::filter(.data[[time_var]] == t0)
-      dT <- subset_data |> dplyr::filter(.data[[time_var]] == tT)
+      d_final <- subset_data |> dplyr::filter(.data[[time_var]] == t_final)
 
-      if (nrow(d0) == 0 || nrow(dT) == 0) {
+      if (nrow(d0) == 0 || nrow(d_final) == 0) {
         if (verbose) {
           group_tag <- if (is.null(analysis_values)) {
             "Global"
@@ -587,12 +587,12 @@ lmdi_calculation <- function(
             )
           }
           message(sprintf(
-            "⚠ Skipping period %s-%s for %s: No data found (t0: %d rows, tT: %d rows)",
+            "⚠ Skipping period %s-%s for %s: No data found (t0: %d rows, t_final: %d rows)",
             t0,
-            tT,
+            t_final,
             group_tag,
             nrow(d0),
-            nrow(dT)
+            nrow(d_final)
           ))
         }
         next
@@ -608,11 +608,11 @@ lmdi_calculation <- function(
         group_index_str <- ""
       }
 
-      Y0_total <- sum(d0[[target_var]], na.rm = TRUE)
-      YT_total <- sum(dT[[target_var]], na.rm = TRUE)
-      total_change <- YT_total - Y0_total
+      y0_total <- sum(d0[[target_var]], na.rm = TRUE)
+      y_final_total <- sum(d_final[[target_var]], na.rm = TRUE)
+      total_change <- y_final_total - y0_total
       period_years <- suppressWarnings(
-        as.numeric(as.character(tT)) - as.numeric(as.character(t0))
+        as.numeric(as.character(t_final)) - as.numeric(as.character(t0))
       )
       if (is.na(period_years)) {
         period_years <- 0
@@ -620,7 +620,7 @@ lmdi_calculation <- function(
 
       period_contribs_add <- rep(0, length(factors))
       period_contribs_mult_log <- rep(0, length(factors))
-      L_total <- log_mean(YT_total, Y0_total)
+      log_mean_total <- log_mean(y_final_total, y0_total)
 
       for (g in seq_len(nrow(groups))) {
         if (!is.null(group_vars)) {
@@ -630,35 +630,35 @@ lmdi_calculation <- function(
         }
 
         d0g <- filter_by_group(d0, group_index_str, group_vals)
-        dTg <- filter_by_group(dT, group_index_str, group_vals)
+        d_final_g <- filter_by_group(d_final, group_index_str, group_vals)
 
-        Y0 <- sum(d0g[[target_var]], na.rm = TRUE)
-        YT <- sum(dTg[[target_var]], na.rm = TRUE)
+        y0 <- sum(d0g[[target_var]], na.rm = TRUE)
+        y_final <- sum(d_final_g[[target_var]], na.rm = TRUE)
 
-        if (Y0 == 0 || YT == 0) {
+        if (y0 == 0 || y_final == 0) {
           next
         }
 
-        # Evaluate factors using the FULL period data (d0/dT) not just the group subset
+        # Evaluate factors using the FULL period data (d0/d_final) not just the group subset
         # This allows eval_factor to apply its own filtering based on selectors
-        F0 <- sapply(factors, function(f) {
+        f0 <- sapply(factors, function(f) {
           as.numeric(eval_factor(d0, f, group_vals))
         })
-        FT <- sapply(factors, function(f) {
-          as.numeric(eval_factor(dT, f, group_vals))
+        f_final <- sapply(factors, function(f) {
+          as.numeric(eval_factor(d_final, f, group_vals))
         })
 
-        if (any(is.na(F0)) || any(is.na(FT))) {
+        if (any(is.na(f0)) || any(is.na(f_final))) {
           if (verbose) {
-            # Identificar qué factores son problemáticos
-            invalid_f0 <- which(is.na(F0))
-            invalid_fT <- which(is.na(FT))
+            # Identify problematic factors
+            invalid_f0 <- which(is.na(f0))
+            invalid_f_final <- which(is.na(f_final))
 
             message(sprintf(
               "\n⚠ Invalid factors for group %s in period %s-%s:",
               g,
               t0,
-              tT
+              t_final
             ))
             if (!is.null(group_vals) && length(group_vals) > 0) {
               message(sprintf(
@@ -681,9 +681,9 @@ lmdi_calculation <- function(
               }
             }
 
-            if (length(invalid_fT) > 0) {
-              message(sprintf("  Period %s - Invalid factors:", tT))
-              for (idx in invalid_fT) {
+            if (length(invalid_f_final) > 0) {
+              message(sprintf("  Period %s - Invalid factors:", t_final))
+              for (idx in invalid_f_final) {
                 message(sprintf(
                   "    Factor %d: %s → NA (likely denominator = 0)",
                   idx,
@@ -697,26 +697,26 @@ lmdi_calculation <- function(
           next
         }
 
-        L <- log_mean(YT, Y0)
+        log_mean_val <- log_mean(y_final, y0)
         for (j in seq_along(factors)) {
-          if (F0[j] > 0 && FT[j] > 0) {
+          if (f0[j] > 0 && f_final[j] > 0) {
             period_contribs_add[j] <- period_contribs_add[j] +
-              L * log(FT[j] / F0[j])
+              log_mean_val * log(f_final[j] / f0[j])
           }
         }
 
-        if (L_total != 0) {
-          weight <- L / L_total
+        if (log_mean_total != 0) {
+          weight <- log_mean_val / log_mean_total
           for (j in seq_along(factors)) {
-            if (F0[j] > 0 && FT[j] > 0) {
+            if (f0[j] > 0 && f_final[j] > 0) {
               period_contribs_mult_log[j] <- period_contribs_mult_log[j] +
-                weight * log(FT[j] / F0[j])
+                weight * log(f_final[j] / f0[j])
             }
           }
         }
       }
 
-      period_contribs_mult <- if (L_total == 0) {
+      period_contribs_mult <- if (log_mean_total == 0) {
         rep(1, length(factors))
       } else {
         exp(period_contribs_mult_log)
@@ -727,7 +727,7 @@ lmdi_calculation <- function(
         NA_real_
       )
       additive_gap <- total_change - sum(period_contribs_add)
-      target_ratio <- ifelse(Y0_total > 0, YT_total / Y0_total, NA_real_)
+      target_ratio <- ifelse(y0_total > 0, y_final_total / y0_total, NA_real_)
       mult_product <- prod(period_contribs_mult, na.rm = TRUE)
       multiplicative_gap <- ifelse(
         is.na(target_ratio) || mult_product == 0,
@@ -735,7 +735,7 @@ lmdi_calculation <- function(
         target_ratio / mult_product
       )
 
-      period_id <- paste(t0, tT, sep = "-")
+      period_id <- paste(t0, t_final, sep = "-")
       factor_rows <- data.frame(
         period = rep(period_id, length(factors)),
         period_years = period_years,
@@ -784,16 +784,16 @@ lmdi_calculation <- function(
         identity_label = NA_character_, # Removed in simplified API
         identity_acronym = NA_character_, # Removed in simplified API
         identity_var = target_var,
-        target_initial = Y0_total,
-        target_final = YT_total,
+        target_initial = y0_total,
+        target_final = y_final_total,
         total_change = total_change,
-        percentage_change = if (Y0_total != 0) {
-          (total_change / Y0_total) * 100
+        percentage_change = if (y0_total != 0) {
+          (total_change / y0_total) * 100
         } else {
           NA_real_
         },
-        annual_growth_rate = if (Y0_total > 0 && period_years > 0) {
-          ((YT_total / Y0_total)^(1 / period_years) - 1) * 100
+        annual_growth_rate = if (y0_total > 0 && period_years > 0) {
+          ((y_final_total / y0_total)^(1 / period_years) - 1) * 100
         } else {
           NA_real_
         },
@@ -846,9 +846,9 @@ lmdi_calculation <- function(
       period_target_df <- data.frame(
         period = period_id,
         t0 = t0,
-        tT = tT,
-        target_initial = Y0_total,
-        target_final = YT_total,
+        tT = t_final,
+        target_initial = y0_total,
+        target_final = y_final_total,
         total_change = total_change,
         stringsAsFactors = FALSE,
         check.names = FALSE
