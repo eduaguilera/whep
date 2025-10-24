@@ -4,17 +4,23 @@
 \alias{.create_n_flow_df}
 \title{Create nitrogen flow dataset by province}
 \usage{
-.create_n_flow_df(prod_destiny_df = NULL)
+.create_n_flow_df(prov_destiny_df = NULL)
 }
 \arguments{
-\item{prod_destiny_df}{A data frame containing production and destiny
+\item{prov_destiny_df}{A data frame containing production and destiny
 information.}
 }
 \value{
-A tibble with columns \code{province}, \code{year}, \code{label}, \code{data}, and \code{align}.
+A tibble with columns \code{province}, \code{year}, \code{label}, \code{data}, and
+\code{align}.
+
+A tibble with columns \code{province}, \code{year}, \code{label}, \code{data}, \code{align}.
 }
 \description{
-Generates a dataset of nitrogen flows (MgN) by province and year, splitting
-imports, livestock, and population data into labels.
+Generates nitrogen flow data (MgN) by province and year, representing
+#' @title Create nitrogen flow dataset by province
+
+Generates nitrogen flow data (MgN) by province and year, representing
+exchanges between cropland, livestock, grassland, population, and exports.
 }
 \keyword{internal}

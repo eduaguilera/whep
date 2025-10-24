@@ -1,7 +1,69 @@
-#' @title Create nitrogen flow dataset by province
+#' @title Create GRAFS plot dataset
 #'
 #' @description
-#' Generates a dataset of nitrogen flows (MgN) by province and year, splitting
+#' Combines land input data and N flows from crops, livestock, imports, and
+#' exports to generate a dataset of nitrogen (MgN) by province and year, to
+#' create a GRAFS plot, offered by Alfredo Rodríguez.
+#'
+#' @return
+#' A tibble containing province, year, label, data, and alignment.
+#'
+#' @export
+create_grafs_plot_df <- function() {
+  prov_destiny_df <- create_n_prov_destiny()
+  n_balance <- whep_read_file("n_balance_ygpit_all")
+
+  df_land <- .create_land_df()
+  df_flow <- .create_n_flow_df(prov_destiny_df)
+  df_import <- .create_n_import_df(prov_destiny_df)
+  df_lu <- .create_livestock_lu_df()
+  df_N_input <- .create_N_input_df(n_balance, df_land)
+  df_livestock <- .create_livestock_df(prov_destiny_df)
+  df_lv_r_m <- .create_feed_df(prov_destiny_df)
+  df_crop_losses <- .create_crop_losses_df(n_balance, prov_destiny_df)
+  df_animal_losses <- .create_animal_losses_df(prov_destiny_df)
+  df_livestock_export <- .create_livestock_export_df(prov_destiny_df)
+  df_milk <- .create_milk_df(prov_destiny_df)
+  df_livestock_total <- .create_livestock_total_df(
+    df_flow,
+    df_livestock_export,
+    df_animal_losses
+  )
+  df_livestock_gas_loss <- .create_livestock_gas_loss_df()
+
+  df_combined <- .combine_and_finalize_df(
+    crop_livestock_flows = df_flow,
+    df_livestock = dplyr::bind_rows(df_livestock, df_milk, df_livestock_export),
+    df_lv_r_m = df_lv_r_m,
+    df_crop_losses = df_crop_losses,
+    df_animal_losses = df_animal_losses,
+    df_livestock_total = df_livestock_total,
+    df_livestock_gas_loss = df_livestock_gas_loss
+  )
+
+  df_final <- dplyr::bind_rows(
+    df_land |> dplyr::mutate(data = as.character(data)),
+    df_combined,
+    df_import |> dplyr::mutate(data = as.character(data)),
+    df_lu |> dplyr::mutate(data = as.character(data)),
+    df_N_input |> dplyr::mutate(data = as.character(data))
+  ) |>
+    dplyr::arrange(province, year, label) |>
+    dplyr::filter(!is.na(province) & !is.na(year)) |>
+    dplyr::mutate(arrowColor = "") |>
+    dplyr::select(province, year, label, data, align, arrowColor) |>
+    dplyr::distinct(province, year, label, .keep_all = TRUE)
+
+  write_path <- "C:/PhD/GRAFS/GRAFS_spain_data.xlsx"
+  openxlsx::write.xlsx(df_final, file = write_path)
+
+  df_final
+}
+
+#' @title Create nitrogen import dataset by province
+#'
+#' @description
+#' Generates a dataset of nitrogen imports (MgN) by province and year, splitting
 #' imports, livestock, and population data into labels.
 #'
 #' @param prov_destiny_df A data frame containing production and destiny
@@ -491,7 +553,31 @@
   df_all
 }
 
-#--- N flows ----------------------------------------------------------------
+#' @title Create nitrogen flow dataset by province
+#'
+#' @description
+#' Generates nitrogen flow data (MgN) by province and year, representing
+#' #' @title Create nitrogen flow dataset by province
+#'
+#' @description
+#' Generates nitrogen flow data (MgN) by province and year, representing
+#' exchanges between cropland, livestock, grassland, population, and exports.
+#'
+#' @param prov_destiny_df A data frame containing production and destiny
+#' information.
+#'
+#' @return A tibble with columns `province`, `year`, `label`, `data`, and
+#' `align`.
+#'
+#' @keywords internal
+
+#'
+#' @param prov_destiny_df A data frame containing production and destiny
+#' information.
+#'
+#' @return A tibble with columns `province`, `year`, `label`, `data`, `align`.
+#'
+#' @keywords internal
 .create_n_flow_df <- function(prov_destiny_df = NULL) {
   if (is.null(prov_destiny_df)) {
     prov_destiny_df <- create_n_prov_destiny()
@@ -539,7 +625,19 @@
   crop_livestock_flows
 }
 
-# --- Livestock production ---
+#' @title Create livestock production dataset
+#'
+#' @description
+#' Generates nitrogen production from livestock destined for population
+#' (food or other uses) by province and year, distinguishing edible and
+#' non-edible products.
+#'
+#' @param prov_destiny_df A data frame containing production and destiny
+#' information.
+#'
+#' @return A tibble with columns `province`, `year`, `label`, `data`, `align`.
+#'
+#' @keywords internal
 .create_livestock_df <- function(prov_destiny_df) {
   df_livestock <- prov_destiny_df |>
     dplyr::filter(
@@ -573,7 +671,17 @@
   df_livestock
 }
 
-# --- Milk production ---
+#' @title Create milk production dataset
+#'
+#' @description
+#' Generates nitrogen data for milk and dairy products consumed by population.
+#'
+#' @param prov_destiny_df A data frame containing production and destiny
+#' information.
+#'
+#' @return A tibble with columns `province`, `year`, `label`, `data`, `align`.
+#'
+#' @keywords internal
 .create_milk_df <- function(prov_destiny_df) {
   df_milk <- prov_destiny_df |>
     dplyr::filter(
@@ -599,6 +707,17 @@
   df_milk
 }
 
+#' @title Create livestock export dataset
+#'
+#' @description
+#' Generates nitrogen flows associated with exported livestock products.
+#'
+#' @param prov_destiny_df A data frame containing production and destiny
+#' information.
+#'
+#' @return A tibble with columns `province`, `year`, `label`, `data`, `align`.
+#'
+#' @keywords internal
 .create_livestock_export_df <- function(prov_destiny_df) {
   df_livestock_export <- prov_destiny_df |>
     dplyr::filter(
@@ -618,7 +737,18 @@
   df_livestock_export
 }
 
-# --- Feed from Cropland ---
+#' @title Create feed from cropland dataset
+#'
+#' @description
+#' Creates nitrogen data representing feed transfers from cropland to
+#' ruminant and monogastric livestock.
+#'
+#' @param prov_destiny_df A data frame containing production and destiny
+#' information.
+#'
+#' @return A tibble with columns `province`, `year`, `label`, `data`, `align`.
+#'
+#' @keywords internal
 .create_feed_df <- function(prov_destiny_df) {
   df_feed <- prov_destiny_df |>
     dplyr::filter(
@@ -643,7 +773,20 @@
   df_feed
 }
 
-# --- Crop losses ---
+#' @title Create crop losses dataset
+#'
+#' @description
+#' Generates nitrogen loss data from croplands, including gaseous losses (NH₃,
+#' N₂O, denitrification) and other uses.
+#'
+#' @param n_balance A data frame from the nitrogen balance dataset, including
+#' N losses from cropland.
+#' @param prov_destiny_df A data frame containing production and destiny
+#' information.
+#'
+#' @return A tibble with columns `province`, `year`, `label`, `data`, `align`.
+#'
+#' @keywords internal
 .create_crop_losses_df <- function(n_balance, prov_destiny_df) {
   df_crop_gas <- n_balance |>
     dplyr::group_by(Province_name, Year) |>
@@ -678,7 +821,18 @@
     dplyr::rename(province = Province_name, year = Year)
 }
 
-# --- Animal losses ---
+#' @title Create animal losses dataset
+#'
+#' @description
+#' Generates nitrogen loss data from livestock, including metabolic losses and
+#' livestock products used for other uses.
+#'
+#' @param prov_destiny_df A data frame containing production and destiny
+#' information.
+#'
+#' @return A tibble with columns `province`, `year`, `label`, `data`, `align`.
+#'
+#' @keywords internal
 .create_animal_losses_df <- function(prov_destiny_df) {
   n_excretion <- whep_read_file("n_excretion_ygs") |>
     dplyr::select(
@@ -731,6 +885,19 @@
   df_animal_losses
 }
 
+#' @title Create combined livestock nitrogen dataset
+#'
+#' @description
+#' Combines nitrogen data from livestock destined for humans, exports, and
+#' losses to generate combined nitrogen output from livestock.
+#'
+#' @param crop_livestock_flows Data frame with livestock-to-human nitrogen data.
+#' @param df_livestock_export Data frame with livestock export nitrogen data.
+#' @param df_animal_losses Data frame with livestock loss nitrogen data.
+#'
+#' @return A tibble with columns `province`, `year`, `label`, `data`, `align`.
+#'
+#' @keywords internal
 .create_livestock_total_df <- function(
   crop_livestock_flows,
   df_livestock_export,
@@ -755,6 +922,15 @@
   df_livestock_total
 }
 
+#' @title Create livestock gaseous loss dataset
+#'
+#' @description
+#' Calculates gaseous nitrogen losses from livestock excretion based on
+#' excretion and loss share data.
+#'
+#' @return A tibble with columns `province`, `year`, `label`, `data`, `align`.
+#'
+#' @keywords internal
 .create_livestock_gas_loss_df <- function() {
   df_livestock_gas_loss <- whep_read_file("n_excretion_ygs") |>
     dplyr::group_by(Province_name, Year) |>
@@ -773,7 +949,26 @@
   df_livestock_gas_loss
 }
 
-# --- Combine and finalize ---
+#' @title Combine and finalize nitrogen flow dataset
+#'
+#' @description
+#' Merges all the created nitrogen datasets into a unified structure.
+#' Adding missing labels and setting WIDTH_MAX to 1500. IMPHUMHONEY should be 0.
+#' The other labels ("<UNKMANURE>", "<CRPNOLV>", "<NCONTCROP>","<ORGOT>") are
+#' set to 0, since I don't know how to create them yet.
+#'
+#' @param crop_livestock_flows Data frame of crop-livestock nitrogen flows.
+#' @param df_livestock Data frame of livestock nitrogen data.
+#' @param df_lv_r_m Data frame of livestock feed data.
+#' @param df_crop_losses Data frame of crop nitrogen losses.
+#' @param df_animal_losses Data frame of animal nitrogen losses.
+#' @param df_livestock_total Data frame of total livestock nitrogen.
+#' @param df_livestock_gas_loss Data frame of livestock gaseous nitrogen losses.
+#'
+#' @return A tibble with standardized columns `province`, `year`, `label`,
+#' `data`, and `align`.
+#'
+#' @keywords internal
 .combine_and_finalize_df <- function(
   crop_livestock_flows,
   df_livestock,
@@ -856,74 +1051,4 @@
     dplyr::arrange(province, year, label)
 
   return(df_combi)
-}
-
-#' @title Create GRAFS plot dataset for provinces
-#'
-#' @description
-#' Combines land input data and N flows from crops, livestock, imports, and
-#' exports to generate a dataset of nitrogen (MgN) by province and year, to
-#' create a GRAFS plot, offered by Alfredo Rodríguez.
-#' The data includes labels for different land uses, livestock, animal supply,
-#' imports, and population.
-#'
-#' @return
-#' A tibble containing province, year, label, data, and alignment.
-#'
-#' @export
-create_grafs_plot_df <- function() {
-  prov_destiny_df <- create_n_prov_destiny()
-  n_balance <- whep_read_file("n_balance_ygpit_all")
-
-  df_land <- .create_land_df()
-  df_flow <- .create_n_flow_df(prov_destiny_df)
-  df_import <- .create_n_import_df(prov_destiny_df)
-  df_lu <- .create_livestock_lu_df()
-  df_N_input <- .create_N_input_df(n_balance, df_land)
-  df_livestock <- .create_livestock_df(prov_destiny_df)
-  df_lv_r_m <- .create_feed_df(prov_destiny_df)
-  df_crop_losses <- .create_crop_losses_df(n_balance, prov_destiny_df)
-  df_animal_losses <- .create_animal_losses_df(prov_destiny_df)
-  df_livestock_export <- .create_livestock_export_df(prov_destiny_df)
-  df_milk <- .create_milk_df(prov_destiny_df)
-  df_livestock_export <- .create_livestock_export_df(prov_destiny_df)
-  df_livestock_total <- .create_livestock_total_df(
-    df_flow,
-    df_livestock_export,
-    df_animal_losses
-  )
-  df_livestock_gas_loss <- .create_livestock_gas_loss_df()
-
-  df_combined <- .combine_and_finalize_df(
-    crop_livestock_flows = df_flow,
-    df_livestock = dplyr::bind_rows(df_livestock, df_milk, df_livestock_export),
-    df_lv_r_m = df_lv_r_m,
-    df_crop_losses = df_crop_losses,
-    df_animal_losses = df_animal_losses,
-    df_livestock_total = df_livestock_total,
-    df_livestock_gas_loss = df_livestock_gas_loss
-  )
-
-  df_final <- dplyr::bind_rows(
-    df_land |> dplyr::mutate(data = as.character(data)),
-    df_combined,
-    df_import |> dplyr::mutate(data = as.character(data)),
-    df_lu |> dplyr::mutate(data = as.character(data)),
-    df_N_input |> dplyr::mutate(data = as.character(data))
-  ) |>
-    dplyr::arrange(province, year, label) |>
-    dplyr::filter(!is.na(province) & !is.na(year)) |>
-    dplyr::mutate(arrowColor = "") |>
-    dplyr::select(province, year, label, data, align, arrowColor) |>
-    dplyr::distinct(province, year, label, .keep_all = TRUE)
-
-  #openxlsx::write.xlsx(
-  #df_final,
-  #file = system.file("extdata", "GRAFS_spain_data.xlsx", package = "GRAFS")
-  #)
-
-  write_path <- "C:/PhD/GRAFS/GRAFS_spain_data.xlsx"
-  openxlsx::write.xlsx(df_final, file = write_path)
-
-  df_final
 }

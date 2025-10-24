@@ -2,7 +2,7 @@
 % Please edit documentation in R/grafs_plot_df.R
 \name{create_grafs_plot_df}
 \alias{create_grafs_plot_df}
-\title{Create GRAFS plot dataset for provinces}
+\title{Create GRAFS plot dataset}
 \usage{
 create_grafs_plot_df()
 }
@@ -13,6 +13,4 @@ A tibble containing province, year, label, data, and alignment.
 Combines land input data and N flows from crops, livestock, imports, and
 exports to generate a dataset of nitrogen (MgN) by province and year, to
 create a GRAFS plot, offered by Alfredo Rodríguez.
-The data includes labels for different land uses, livestock, animal supply,
-imports, and population.
 }
