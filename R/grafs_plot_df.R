@@ -910,7 +910,7 @@ create_grafs_plot_df <- function() {
   ) |>
     dplyr::filter(
       label %in%
-        c("<LIVESTOCK_TO_HUMAN>", "<LIVESTOCK_EXPORTED>", "<AN_LS_OTH>")
+        c("<LIVESTOCK_TO_HUMAN>", "<LIVESTOCK_EXPORTED>", "<AN_OTH>")
     ) |>
     dplyr::group_by(province, year) |>
     dplyr::summarise(data = sum(data, na.rm = TRUE), .groups = "drop") |>
