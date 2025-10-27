@@ -1,0 +1,51 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Run Lint Check",
+            "type": "shell",
+            "command": "Rscript",
+            "args": ["inst/scripts/check_lint.R"],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "new"
+            },
+            "problemMatcher": [],
+            "detail": "Run R package linting checks"
+        },
+        {
+            "label": "Lint and Push",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "Run Lint Check",
+                "Git Push"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "new"
+            },
+            "detail": "Run lint check then push to repository"
+        },
+        {
+            "label": "Git Push",
+            "type": "shell",
+            "command": "git",
+            "args": ["push"],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": [],
+            "detail": "Push changes to repository"
+        }
+    ]
+}

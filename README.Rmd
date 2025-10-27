@@ -116,6 +116,6 @@ The project is starting with **contributors** that are still learning about
 coding and best practices. For this reason, if you're **inexperienced**, we have
 written a **small free online book** explaining most of the things you need from
 the previous steps, covering both git and R package development. You can
-directly **access it [here](https://lbm364dl.github.io/follow-the-workflow)**.
+directly **access it [here](https://lbm364dl.github.io/follow-the-workflow/)**.
 Anyone is welcome to contribute, but we highly recommend to go through this
 guide to become familiar with the workflow if you are still not used to it.

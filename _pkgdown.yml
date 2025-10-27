@@ -66,7 +66,7 @@ reference:
     Get a tidy dataframe with the found sources for different data.
   contents:
   - expand_trade_sources
-  
+
 - title: "Nitrogen cycles Spain"
   desc: >
     Functions to generate data for N inputs, outputs, production, destinies,
@@ -75,3 +75,11 @@ reference:
   - create_n_inputs_grafs_spain
   - create_prod_and_destiny_grafs
   - create_grafs_plot_df
+
+- title: Gap filling functions
+  desc: >
+    Functions to fill gaps (NA values) in time-dependent variables using different methods.
+  contents:
+  - linear_fill
+  - proxy_fill
+  - sum_fill
