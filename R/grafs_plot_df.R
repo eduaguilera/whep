@@ -72,6 +72,7 @@ create_grafs_plot_df <- function() {
 #' @return
 #' A tibble with columns `province`, `year`, `label`, `data`, and `align`.
 #'
+#' @keywords internal
 .create_n_import_df <- function(prov_destiny_df = NULL) {
   if (is.null(prov_destiny_df)) {
     prov_destiny_df <- create_n_prov_destiny()

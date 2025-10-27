@@ -17,3 +17,4 @@ A tibble with columns \code{province}, \code{year}, \code{label}, \code{data}, a
 Generates a dataset of nitrogen imports (MgN) by province and year, splitting
 imports, livestock, and population data into labels.
 }
+\keyword{internal}

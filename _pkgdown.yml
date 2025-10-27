@@ -66,8 +66,19 @@ reference:
     Get a tidy dataframe with the found sources for different data.
   contents:
   - expand_trade_sources
-
-- title: "N GRAFS plots"
+  
+- title: N calculations
+  desc: >
+    Functions to calculate nitrogen flows and efficiency.
+  contents:
+  - calculate_nue_crops
+  - calculate_nue_livestock
+  - calculate_system_nue
+  - create_n_production
+  - create_n_prov_destiny
+  - create_n_soil_inputs
+  
+- title: N GRAFS plot
   desc: >
     Functions to generate data for creating GRAFS plots
   contents:
