@@ -29,7 +29,6 @@ Imports:
     tidyr,
     withr,
     yaml,
-    openxlsx,
     zoo
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
