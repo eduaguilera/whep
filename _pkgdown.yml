@@ -72,7 +72,6 @@ reference:
     Functions to generate data for N inputs, outputs, production, destinies,
     typologies, etc.
   contents:
-  - create_n_inputs_grafs_spain
   - create_prod_and_destiny_grafs
   - create_grafs_plot_df
 
