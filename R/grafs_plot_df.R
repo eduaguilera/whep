@@ -17,7 +17,7 @@ create_grafs_plot_df <- function() {
   df_flow <- .create_n_flow_df(prov_destiny_df)
   df_import <- .create_n_import_df(prov_destiny_df)
   df_lu <- .create_livestock_lu_df()
-  df_N_input <- .create_N_input_df(n_balance, df_land)
+  df_N_input <- .create_n_input_df(n_balance, df_land)
   df_livestock <- .create_livestock_df(prov_destiny_df)
   df_lv_r_m <- .create_feed_df(prov_destiny_df)
   df_crop_losses <- .create_crop_losses_df(n_balance, prov_destiny_df)
@@ -54,8 +54,8 @@ create_grafs_plot_df <- function() {
     dplyr::select(province, year, label, data, align, arrowColor) |>
     dplyr::distinct(province, year, label, .keep_all = TRUE)
 
-  #'write_path <- "C:/PhD/GRAFS/GRAFS_spain_data.xlsx"
-  #'openxlsx::write.xlsx(df_final, file = write_path)
+  #write_path <- "C:/PhD/GRAFS/GRAFS_spain_data.xlsx"
+  #openxlsx::write.xlsx(df_final, file = write_path)
 
   df_final
 }
@@ -155,7 +155,7 @@ create_grafs_plot_df <- function() {
     ) |>
     dplyr::select(province, year, label, data, align)
 
-  return(df_n_flows)
+  df_n_flows
 }
 
 
@@ -472,7 +472,7 @@ create_grafs_plot_df <- function() {
 #' A tibble with columns `province`, `year`, `label`, `data`, and `align`.
 #'
 #' @keywords internal
-.create_N_input_df <- function(n_balance, df_land) {
+.create_n_input_df <- function(n_balance, df_land) {
   df_N_soil_inputs <- n_balance |>
     dplyr::group_by(Province_name, Year) |>
     dplyr::summarise(
@@ -1050,5 +1050,5 @@ create_grafs_plot_df <- function() {
     ) |>
     dplyr::arrange(province, year, label)
 
-  return(df_combi)
+  df_combi
 }

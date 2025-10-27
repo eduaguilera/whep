@@ -67,12 +67,10 @@ reference:
   contents:
   - expand_trade_sources
 
-- title: "Nitrogen cycles Spain"
+- title: "N GRAFS plots"
   desc: >
-    Functions to generate data for N inputs, outputs, production, destinies,
-    typologies, etc.
+    Functions to generate data for creating GRAFS plots
   contents:
-  - create_prod_and_destiny_grafs
   - create_grafs_plot_df
 
 - title: Gap filling functions
