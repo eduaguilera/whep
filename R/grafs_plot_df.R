@@ -471,7 +471,7 @@ create_grafs_plot_df <- function() {
 #'
 #' @keywords internal
 .create_n_input_df <- function(n_balance, df_land) {
-  df_N_soil_inputs <- n_balance |>
+  df_n_soil_inputs <- n_balance |>
     dplyr::group_by(Province_name, Year) |>
     dplyr::summarise(
       `<GREHha>` = sum(Area_ygpit_ha[Irrig_cat == "Greenhouse"], na.rm = TRUE),
@@ -545,7 +545,7 @@ create_grafs_plot_df <- function() {
   # --- Combine ---
   df_all <- dplyr::bind_rows(
     df_land,
-    df_N_soil_inputs
+    df_n_soil_inputs
   )
 
   df_all
