@@ -112,21 +112,17 @@
 #' get_polities()
 get_polities <- function() {
   .merge_datasets() |>
-    .add_common_names() |>
-    .aggregate_cols() |>
     .set_polity_name_code() |>
     .build_display_code() |>
     .set_column_types() |>
     dplyr::arrange(polity_name) |>
     sf::st_as_sf() |>
+    # TODO: think about m49 and iso codes after refactoring, here or elsewhere?
     dplyr::select(
       polity_name,
       polity_code,
       start_year,
       end_year,
-      m49_code,
-      iso3_code,
-      iso2_code,
       display_code
     )
 }
@@ -216,37 +212,21 @@ get_polity_sources <- function(polity_codes = NULL) {
     dplyr::arrange(original_name)
 }
 
+# Intended to use only datasets that actually define polygons
+# For now this is only CShapes
 .merge_datasets <- function() {
   dplyr::bind_rows(
-    .prepare_historical_m49(),
-    .prepare_faostat(),
-    .prepare_federico_tena(),
-    .prepare_cshapes(),
-    .prepare_whep_fixes()
+    .prepare_cshapes()
   )
 }
 
-.add_common_names <- function(merged_datasets) {
-  .error_common_names_unmatched(merged_datasets, k_polity_common_names)
-
-  merged_datasets |>
-    dplyr::inner_join(
-      k_polity_common_names,
-      by = c("original_name", "source"),
-      unmatched = "error",
-    )
-}
-
 .set_polity_name_code <- function(merged_datasets) {
-  merged_datasets <- merged_datasets |>
-    dplyr::rename(polity_name = common_name)
-
-  .error_polity_code_unmatched(merged_datasets, k_polity_codes)
+  .error_polity_code_unmatched(merged_datasets, k_polity_names_codes)
 
   merged_datasets |>
     dplyr::inner_join(
-      k_polity_codes,
-      by = "polity_name",
+      k_polity_names_codes,
+      by = "original_name",
       unmatched = "error"
     )
 }
@@ -341,76 +321,6 @@ get_polity_sources <- function(polity_codes = NULL) {
 .build_display_code <- function(polities) {
   polities |>
     dplyr::mutate(display_code = polity_code)
-}
-
-.aggregate_cols <- function(polities) {
-  unique_cols <- c("m49_code", "iso2_code", "iso3_code")
-
-  polities |>
-    dplyr::summarise(
-      start_year = .aggregate_start_year(start_year, source),
-      end_year = .aggregate_end_year(end_year, source),
-      across(all_of(unique_cols), .check_unique_value),
-      geometry = .check_unique_geometry(geometry),
-      .by = "common_name"
-    )
-}
-
-.aggregate_start_year <- function(start_year, source) {
-  # Force year from whep source if present
-  i <- purrr::detect_index(source, ~ .x == k_source_whep)
-
-  if (i > 0 && is.na(start_year[i])) {
-    k_polity_first_year
-  } else if (i > 0) {
-    start_year[i]
-  } else if (all(is.na(start_year))) {
-    k_polity_first_year
-  } else {
-    min(start_year, na.rm = TRUE)
-  }
-}
-
-.aggregate_end_year <- function(end_year, source) {
-  i <- purrr::detect_index(source, ~ .x == k_source_whep)
-
-  if (i > 0 && is.na(end_year[i])) {
-    k_polity_last_year
-  } else if (i > 0) {
-    end_year[i]
-  } else if (all(is.na(end_year))) {
-    k_polity_last_year
-  } else {
-    max(end_year, na.rm = TRUE)
-  }
-}
-
-.check_unique_geometry <- function(column) {
-  unique_vals <- column |>
-    purrr::discard(sf::st_is_empty) |>
-    unique()
-
-  if (length(unique_vals) > 1) {
-    cli::cli_abort("Can't summarise, more than one unique value: {unique_vals}")
-  } else if (length(unique_vals) == 0) {
-    sf::st_sfc(sf::st_multipolygon(), crs = sf::st_crs(column))
-  } else {
-    sf::st_sfc(unique_vals, crs = sf::st_crs(column))
-  }
-}
-
-.check_unique_value <- function(column) {
-  unique_vals <- column |>
-    na.omit() |>
-    unique()
-
-  if (length(unique_vals) > 1) {
-    cli::cli_abort("Can't summarise, more than one unique value: {unique_vals}")
-  } else if (length(unique_vals) == 0) {
-    NA
-  } else {
-    unique_vals
-  }
 }
 
 # Used for dataset generation in constants.R
@@ -569,34 +479,10 @@ get_polity_sources <- function(polity_codes = NULL) {
     dplyr::select(-code_iso, -code_start_year, -code_end_year)
 }
 
-.error_common_names_unmatched <- function(merged_datasets, common_names) {
-  unmatched <- merged_datasets |>
-    dplyr::anti_join(common_names, by = c("original_name", "source")) |>
-    dplyr::mutate(which = .stringify_name_and_source(original_name, source)) |>
-    dplyr::pull()
-
-  if (length(unmatched) > 0) {
-    cli::cli_abort(
-      "Polities from some sources are not defined in common names table: {unmatched}. Include them in common_names.csv."
-    )
-  }
-
-  unmatched <- common_names |>
-    dplyr::anti_join(merged_datasets, by = c("original_name", "source")) |>
-    dplyr::mutate(which = .stringify_name_and_source(original_name, source)) |>
-    dplyr::pull()
-
-  if (length(unmatched) > 0) {
-    cli::cli_abort(
-      "Polities in common names table that do not exist in any source: {unmatched}."
-    )
-  }
-}
-
 .error_polity_code_unmatched <- function(merged_datasets, polity_codes) {
   unmatched <- merged_datasets |>
-    dplyr::anti_join(polity_codes, by = "polity_name") |>
-    dplyr::pull(polity_name) |>
+    dplyr::anti_join(polity_codes, by = "original_name") |>
+    dplyr::pull(original_name) |>
     purrr::map(.quotify)
 
   if (length(unmatched) > 0) {
@@ -606,8 +492,8 @@ get_polity_sources <- function(polity_codes = NULL) {
   }
 
   unmatched <- polity_codes |>
-    dplyr::anti_join(merged_datasets, by = "polity_name") |>
-    dplyr::pull(polity_name) |>
+    dplyr::anti_join(merged_datasets, by = "original_name") |>
+    dplyr::pull(original_name) |>
     purrr::map(.quotify)
 
   if (length(unmatched) > 0) {
@@ -615,10 +501,6 @@ get_polity_sources <- function(polity_codes = NULL) {
       "Polities with polity_code but missing in common names table: {unmatched}. Include them in common_names.csv."
     )
   }
-}
-
-.stringify_name_and_source <- function(name, source) {
-  stringr::str_glue("(name: {.quotify(name)}, source: {.quotify(source)})")
 }
 
 .quotify <- function(x) {

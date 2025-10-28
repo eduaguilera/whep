@@ -48,8 +48,8 @@ k_polity_common_names <- polities_inputs_path |>
   fs::path("common_names.csv") |>
   readr::read_csv()
 
-k_polity_codes <- polities_inputs_path |>
-  fs::path("polity_codes.csv") |>
+k_polity_names_codes <- polities_inputs_path |>
+  fs::path("polity_names_codes.csv") |>
   readr::read_csv()
 
 k_polity_first_year <- 1800
@@ -64,7 +64,7 @@ usethis::use_data(
   k_cshapes,
   k_whep_polity_fixes,
   k_polity_common_names,
-  k_polity_codes,
+  k_polity_names_codes,
   k_polity_first_year,
   k_polity_last_year,
   k_source_faostat,
