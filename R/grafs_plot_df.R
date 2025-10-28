@@ -17,7 +17,7 @@ create_grafs_plot_df <- function() {
   df_flow <- .create_n_flow_df(prov_destiny_df)
   df_import <- .create_n_import_df(prov_destiny_df)
   df_lu <- .create_livestock_lu_df()
-  df_N_input <- .create_n_input_df(n_balance, df_land)
+  df_n_input <- .create_n_input_df(n_balance, df_land)
   df_livestock <- .create_livestock_df(prov_destiny_df)
   df_lv_r_m <- .create_feed_df(prov_destiny_df)
   df_crop_losses <- .create_crop_losses_df(n_balance, prov_destiny_df)
@@ -46,16 +46,13 @@ create_grafs_plot_df <- function() {
     df_combined,
     df_import |> dplyr::mutate(data = as.character(data)),
     df_lu |> dplyr::mutate(data = as.character(data)),
-    df_N_input |> dplyr::mutate(data = as.character(data))
+    df_n_input |> dplyr::mutate(data = as.character(data))
   ) |>
     dplyr::arrange(province, year, label) |>
     dplyr::filter(!is.na(province) & !is.na(year)) |>
     dplyr::mutate(arrowColor = "") |>
     dplyr::select(province, year, label, data, align, arrowColor) |>
     dplyr::distinct(province, year, label, .keep_all = TRUE)
-
-  #write_path <- "C:/PhD/GRAFS/GRAFS_spain_data.xlsx"
-  #openxlsx::write.xlsx(df_final, file = write_path)
 
   df_final
 }
