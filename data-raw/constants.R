@@ -52,6 +52,11 @@ k_polity_names_codes <- polities_inputs_path |>
   fs::path("polity_names_codes.csv") |>
   readr::read_csv()
 
+k_polity_alias_table <- polities_inputs_path |>
+  fs::path("alias_manual.csv") |>
+  readr::read_csv() |>
+  .expand_alias_table()
+
 k_polity_first_year <- 1800
 k_polity_last_year <- 2025
 
@@ -63,6 +68,7 @@ usethis::use_data(
   k_federico_tena_polities,
   k_cshapes,
   k_whep_polity_fixes,
+  k_polity_alias_table,
   k_polity_common_names,
   k_polity_names_codes,
   k_polity_first_year,

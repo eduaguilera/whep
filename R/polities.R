@@ -212,6 +212,14 @@ get_polity_sources <- function(polity_codes = NULL) {
     dplyr::arrange(original_name)
 }
 
+.expand_alias_table <- function(intermediate_alias) {
+  intermediate_alias |>
+    dplyr::group_by(original_name, polity_code) |>
+    tidyr::expand(year = seq(start_year, end_year)) |>
+    dplyr::ungroup() |>
+    dplyr::select(original_name, year, polity_code)
+}
+
 # Intended to use only datasets that actually define polygons
 # For now this is only CShapes
 .merge_datasets <- function() {
