@@ -212,6 +212,62 @@ get_polity_sources <- function(polity_codes = NULL) {
     dplyr::arrange(original_name)
 }
 
+get_polity_code <- function(
+  originals,
+  code_mappings = k_polity_alias_table,
+  open_mismatches = FALSE
+) {
+  result <- originals |>
+    dplyr::left_join(code_mappings, c("original_name", "year"))
+
+  .warn_if_no_code_match(result)
+
+  if (open_mismatches) {
+    .analize_polities_matching(result)
+  }
+
+  result
+}
+
+.analize_polities_matching <- function(result) {
+  result |>
+    .identify_issues() |>
+    .group_years() |>
+    pointblank::create_agent() |>
+    pointblank::col_vals_equal(issue, "ok") |>
+    pointblank::interrogate() |>
+    print()
+}
+
+.group_years <- function(data) {
+  data |>
+    dplyr::group_by(original_name, polity_code, issue) |>
+    dplyr::arrange(year) |>
+    dplyr::mutate(group = cumsum(c(1, diff(year) > 1))) |>
+    dplyr::group_by(group, .add = TRUE) |>
+    dplyr::summarise(
+      start_year = min(year),
+      end_year = max(year),
+    ) |>
+    dplyr::ungroup() |>
+    dplyr::select(-group)
+}
+
+.identify_issues <- function(data) {
+  data |>
+    dplyr::mutate(
+      any_year_match = any(!is.na(polity_code)),
+      all_year_match = all(!is.na(polity_code)),
+      issue = dplyr::case_when(
+        any_year_match & !all_year_match ~ "some_years_missing",
+        !any_year_match ~ "unmatched_polity",
+        all_year_match ~ "ok",
+        .default = "unexpected_issue"
+      ),
+      .by = "original_name"
+    )
+}
+
 .expand_alias_table <- function(intermediate_alias) {
   intermediate_alias |>
     dplyr::group_by(original_name, polity_code) |>
@@ -508,6 +564,23 @@ get_polity_sources <- function(polity_codes = NULL) {
     cli::cli_abort(
       "Polities with polity_code but missing in common names table: {unmatched}. Include them in common_names.csv."
     )
+  }
+}
+
+.warn_if_no_code_match <- function(polities) {
+  unmatched <- polities |>
+    dplyr::filter(is.na(polity_code)) |>
+    dplyr::select(-polity_code)
+
+  if (nrow(unmatched) > 0) {
+    unmatched_pairs <- stringr::str_glue(
+      '"{unmatched$original_name}" in {unmatched$year}'
+    )
+    cli::cli_warn(c(
+      "x" = "No polity code found for {length(unmatched_pairs)} {?entry/entries}:",
+      "{unmatched_pairs}",
+      "i" = "Call the function with the argument `open_mismatches = TRUE` for a more detailed interactive analysis."
+    ))
   }
 }
 
