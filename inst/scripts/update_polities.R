@@ -1,23 +1,24 @@
 # Please read comments before running
 
-# Manual update steps
+# Download GeoJSON polities from SACO
+"whep_polities" |>
+  whep_read_file(type = "geojson") |>
+  sf::write_sf("choose/some/path")
 
-# (optional) If you need to forcefully write year ranges, add manual entry to
-# the file data-raw/polities_inputs/whep_fixes.csv
+# Edit: simple text editor for just attributes or ArcGIS/QGIS for features
+# This step is essentially manual work
 
-# Add or update entries in data-raw/polities_inputs/common_names.csv.
-# If you did previous step, also make sure to add entry for whep source.
+# Upload new version to SACO
+# Use scripts from whep-inputs repository
 
-# Add or update entries in data-raw/polities_inputs/polity_codes.csv
-
-# Update package constants with your changes
-source("data-raw/constants.R")
-
-# Load code changes
+# Set new version in whep_inputs.csv (manually)
+# Now update whep_inputs package data running this:
+source("data-raw/whep_inputs.R")
 devtools::load_all()
 
-# Try getting the polities table to make sure it doesn't error
-get_polities()
+# Build new whep_polities package data:
+source("data-raw/polities.R")
+devtools::load_all()
 
 # Run polities tests to make sure info is still consistent
 testthat::test_file("tests/testthat/test_polities.R")

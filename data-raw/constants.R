@@ -40,10 +40,6 @@ k_cshapes |>
     file.path(polities_inputs_path, "cshapes.csv")
   )
 
-k_whep_polity_fixes <- polities_inputs_path |>
-  fs::path("whep_fixes.csv") |>
-  readr::read_csv()
-
 k_polity_common_names <- polities_inputs_path |>
   fs::path("common_names.csv") |>
   readr::read_csv()
@@ -67,7 +63,6 @@ usethis::use_data(
   k_historical_m49,
   k_federico_tena_polities,
   k_cshapes,
-  k_whep_polity_fixes,
   k_polity_alias_table,
   k_polity_common_names,
   k_polity_names_codes,
