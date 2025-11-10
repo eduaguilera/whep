@@ -18,20 +18,24 @@ test_that(".calculate_n_soil_inputs aggregates N inputs correctly", {
   n_balance_ygpit_all <- tibble(
     Year = c(2000, 2000, 2000, 2000),
     Province_name = c("Madrid", "Madrid", "Madrid", "Madrid"),
-    Name_biomass = c("Dehesa", "Holm oak", "Other crop residues", "Excreta"),
+    Name_biomass = c(
+      "Dehesa",
+      "Holm oak",
+      "Other crop residues",
+      "Manure"
+    ),
     LandUse = c("Dehesa", "Holm oak", "Cropland", "Livestock"),
     Deposition = c(1, 2, 3, 4),
     BNF = c(0.5, 0.2, 0.1, 0),
     Synthetic = c(0, 0, 1, 0),
     Urban = c(0, 0, 0, 1),
-    Excreta = c(NA, NA, NA, 5),
     Solid = c(NA, NA, NA, 1),
     Liquid = c(NA, NA, NA, 2),
     Irrig_cat = c("Irrigated", NA, "Rainfed", NA)
   )
 
   codes_coefs <- tibble(
-    Name_biomass = c("Dehesa", "Holm oak", "Other crop residues", "Excreta"),
+    Name_biomass = c("Dehesa", "Holm oak", "Other crop residues", "Manure"),
     Item = c("Dehesa_item", "Firewood", "Residue", "Manure")
   )
 
@@ -53,7 +57,7 @@ test_that(".calculate_n_soil_inputs aggregates N inputs correctly", {
   ))
 
   manure_val <- result |> filter(Item == "Manure") |> pull(manure)
-  expect_equal(manure_val, 5 + 1 + 2)
+  expect_equal(manure_val, 1 + 2)
   expect_true(all(result$deposition >= 0))
 })
 
