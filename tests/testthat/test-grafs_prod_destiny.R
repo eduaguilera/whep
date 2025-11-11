@@ -1,288 +1,543 @@
-#' Tests for N production and destinies in Spain
+# Tests for n_prov_destiny
 
-# Test: .merge_items_biomass --------------------------------------------------
-test_that(".merge_items_biomass merges correctly", {
-  testthat::skip_on_ci()
+library(testthat)
+library(dplyr)
+library(tibble)
 
-  fake_crop_area <- data.frame(
-    Name_biomass = c("BiomassA", "BiomassB"),
-    Area_ygpit_ha = c(100, 200),
-    LandUse = c("Cropland", "Cropland"),
+# Test: .summarise_crops_residues ---------------------------------------------
+test_that(".summarise_crops_residues aggregates correctly", {
+  fake_crop <- tibble(
     Year = c(2020, 2020),
-    Province_name = c("Province1", "Province2"),
-    Item = c("ItemA", "ItemB")
+    Province_name = c("Province1", "Province1"),
+    Name_biomass = c("BiomassA", "BiomassA"),
+    Item = c("ItemA", "ItemA"),
+    Product_residue = c("Product", "Residue"),
+    Prod_ygpit_Mg = c(50, 30),
+    Irrig_cat = c("Irrigated", "Irrigated")
   )
 
-  fake_npp_ygpit <- data.frame(
-    Name_biomass = c("BiomassA", "BiomassB"),
-    GrazedWeeds_MgDM = c(10, 20),
-    LandUse = c("Cropland", "Cropland"),
-    Item = c("ItemA", "ItemB"),
-    Year = c(2020, 2020),
-    Province_name = c("Province1", "Province2")
+  result <- .summarise_crops_residues(fake_crop)
+
+  expect_equal(nrow(result), 2)
+  expect_equal(result$production_fm[1], 50)
+  expect_equal(result$production_fm[2], 30)
+  expect_equal(unique(result$Box), "Cropland")
+})
+
+# Test: .aggregate_crop_seminatural -------------------------------------------
+test_that(".aggregate_crop_seminatural combines correctly", {
+  fake_crop_residue <- tibble(
+    Year = 2020,
+    Province_name = "Province1",
+    Name_biomass = "BiomassA",
+    Item = "ItemA",
+    prod_type = "Product",
+    production_fm = 50,
+    LandUse = "Cropland",
+    Irrig_cat = "Irrigated",
+    Box = "Cropland"
   )
 
-  result <- .merge_items_biomass(
-    npp_ygpit_csv = fake_npp_ygpit,
-    names_biomass_cb = fake_crop_area
+  fake_npp_merged <- tibble(
+    Year = 2020,
+    Province_name = "Province1",
+    Name_biomass = c("Fallow", "Shrubland"),
+    Item = c("Fallow", "Shrub"),
+    LandUse = c("Cropland", "Semi-natural"),
+    Irrig_cat = c("Irrigated", "Rainfed"),
+    Prod_ygpit_Mg = c(0, 40),
+    Used_Residue_MgFM = c(0, 10),
+    GrazedWeeds_MgDM = c(15, 5)
   )
 
-  expect_true("crop_area_npp_merged" %in% names(result))
-  expect_true("npp_ygpit_merged" %in% names(result))
-  expect_equal(nrow(result$crop_area_npp_merged), 2)
-  expect_equal(result$crop_area_npp_merged$Item[1], "ItemA")
-  expect_equal(result$npp_ygpit_merged$GrazedWeeds_MgDM[2], 20)
+  result <- .aggregate_crop_seminatural(fake_npp_merged, fake_crop_residue)
+
+  expect_true(any(result$Item == "Fallow"))
+  expect_true(any(result$Item == "Shrub"))
+  expect_equal(sum(result$production_fm), 50 + 15 + 40 + 10 + 5)
+})
+
+# Test: .combine_production_boxes ---------------------------------------------
+test_that(".combine_production_boxes binds correctly", {
+  fake_crop <- tibble(
+    Year = 2020,
+    Province_name = "Province1",
+    Item = "ItemA",
+    production_fm = 50,
+    Box = "Cropland"
+  )
+
+  fake_livestock <- tibble(
+    Year = 2020,
+    Province_name = "Province1",
+    Item = "Cow",
+    Prod_Mg = 100,
+    Box = "Livestock",
+    prod_type = "Product"
+  )
+
+  result <- .combine_production_boxes(fake_crop, fake_livestock)
+
+  expect_equal(nrow(result), 2)
+  expect_equal(result$production_fm[result$Item == "Cow"], 100)
+})
+
+# Test: .remove_seeds_from_system --------------------------------------------
+test_that(".remove_seeds_from_system subtracts seeds correctly", {
+  fake_npp <- tibble(
+    Year = 2020,
+    Province_name = "Province1",
+    Item = "Wheat",
+    LandUse = "Cropland",
+    Area_ygpit_ha = 100
+  )
+
+  fake_pie <- tibble(
+    Year = 2020,
+    Item = "Wheat",
+    Element = "Domestic_supply",
+    Destiny = "Seed",
+    Value_destiny = 50
+  )
+
+  fake_prod <- tibble(
+    Year = 2020,
+    Province_name = "Province1",
+    Item = "Wheat",
+    production_fm = 500,
+    Box = "Cropland"
+  )
+
+  result <- .remove_seeds_from_system(fake_npp, fake_pie, fake_prod)
+
+  expect_equal(result$production_fm[1], 500 - (50 / 100 * 100))
 })
 
 
-# Test: .summarise_crops_residues ---------------------------------------------
-fake_crop_input <- data.frame(
-  Year = c(2020, 2020),
-  Province_name = c("Province1", "Province1"),
-  Name_biomass = c("BiomassA", "BiomassA"),
-  Prod_ygpit_Mg = c(50, 50),
-  Product_residue = c("Product", "Product"),
-  Item = c("ItemA", "ItemA"),
-  Irrig_cat = c("Irrigated", "Irrigated"),
-  Irrig_type = c("Sprinkler", "Sprinkler")
-)
+# Test: .add_grass_wood ---------------------------------------------
+test_that(".add_grass_wood transforms items correctly", {
+  fake_data <- tibble(
+    Year = 2020,
+    Province_name = "Province1",
+    Name_biomass = c("Fallow", "Grass", "Holm oak forest"),
+    Item = c("OldItem1", "OldItem2", "OldItem3"),
+    Box = c("Cropland", "Semi-natural", "Semi-natural"),
+    LandUse = c("Cropland", "Semi-natural", "Semi-natural"),
+    Irrig_cat = c("Irrigated", "Rainfed", "Rainfed"),
+    prod_type = c("Grass", "Grass", "Residue"),
+    production_fm = c(10, 20, 30)
+  )
 
+  result <- .add_grass_wood(fake_data)
 
-test_that(".summarise_crops_residues summarizes correctly", {
-  testthat::skip_on_ci()
+  expect_true(any(result$Item == "Fallow"))
+  expect_true(any(result$Item == "Grassland"))
+  expect_true(any(result$Item == "Firewood"))
 
-  result <- .summarise_crops_residues(fake_crop_input)
+  expect_equal(result$production_fm[result$Item == "Grassland"], 20 / 0.2)
+})
 
-  expect_equal(result$production_fm[1], 100)
+# Test: .prepare_processed_data ---------------------------------------
+test_that(".prepare_processed_data sums processed items correctly", {
+  fake_processed <- tibble(
+    Year = c(2020, 2020),
+    Province_name = c("Province1", "Province1"),
+    Name_biomass = c("Wheat", "Wheat"),
+    Item = c("Wheat", "Wheat"),
+    ProcessedItem = c("Alcohol", "Alcohol"),
+    ProcessedItem_amount = c(5, 15)
+  )
+
+  result <- .prepare_processed_data(fake_processed)
+
+  expect_equal(nrow(result), 1)
+  expect_equal(result$production_fm[1], 20)
+  expect_equal(result$Item[1], "Alcohol")
   expect_equal(result$Box[1], "Cropland")
 })
 
-# Test: .aggregate_grazed_cropland --------------------------------------------
-fake_grazed <- data.frame(
-  Year = 2020,
-  Province_name = "Province1",
-  Name_biomass = "Fallow",
-  Item = "Fallow",
-  GrazedWeeds_MgDM = 15,
-  LandUse = "Cropland",
-  Used_Residue_MgFM = 50,
-  Irrig_cat = "Irrigated",
-  Irrig_type = "Drip",
-  Prod_ygpit_Mg = 0
-)
-
-fake_crop_residue <- data.frame(
-  Year = 2020,
-  Province_name = "Province1",
-  Name_biomass = "Fallow",
-  Item = "Fallow",
-  production_fm = 50,
-  Box = "Cropland",
-  Irrig_cat = "Irrigated",
-  Irrig_type = "Drip"
-)
-
-
-test_that(".aggregate_grazed_cropland combines grazed and crop residue data", {
-  testthat::skip_on_ci()
-
-  result <- .aggregate_grazed_cropland(fake_grazed, fake_crop_residue)
-
-  expect_true("GrazedWeeds_MgDM" %in% names(result))
-  expect_equal(result$GrazedWeeds_MgDM[1], 15)
-  expect_equal(result$production_fm[1], 50)
-})
-
-# Test: Adding feed correctly
-test_that(".adding_feed correctly aggregates FM_Mg", {
-  testthat::skip_on_ci()
-
-  input <- data.frame(
-    Year = c(2020, 2020, 2021),
-    Province_name = c("A", "A", "B"),
-    Item = c("Wheat", "Wheat", "Barley"),
-    FM_Mg = c(10, 5, 20)
+# Test: .prepare_prod_data --------------------------------------------
+test_that(".prepare_prod_data combines grafs and processed data", {
+  grafs_data <- tibble(
+    Year = 2020,
+    Province_name = "Province1",
+    Name_biomass = "Grass",
+    Item = "Grassland",
+    Box = "Semi-natural",
+    LandUse = "Semi-natural",
+    Irrig_cat = "Rainfed",
+    prod_type = "Grass",
+    production_fm = 50
   )
 
-  result <- .adding_feed(input)
+  processed_data <- tibble(
+    Year = 2020,
+    Province_name = "Province1",
+    Name_biomass = "Wheat",
+    Item = "Alcohol",
+    Box = "Cropland",
+    production_fm = 20,
+    prod_type = "Product"
+  )
+
+  codes_cb <- tibble(
+    item = c("Grassland", "Alcohol"),
+    Name_biomass = c("Grass", "Wheat")
+  )
+
+  result <- .prepare_prod_data(grafs_data, processed_data, codes_cb)
+
   expect_equal(nrow(result), 2)
-  expect_equal(result$FM_Mg_total[result$Year == 2020], 15)
+  expect_true(all(c("Grassland", "Alcohol") %in% result$Item))
+  expect_true("Name_biomass" %in% colnames(result))
 })
 
-# Test: Calculating population share correctly
-test_that(".calculate_population_share calculates correct share", {
-  testthat::skip_on_ci()
+# Test: .convert_fm_dm_n ---------------------------------------------
+test_that(".convert_fm_dm_n calculates N correctly", {
+  fake_prod <- tibble(
+    Year = 2020,
+    Province_name = "Province1",
+    Name_biomass = "Grass",
+    Name_biomass_primary = "Grass",
+    Item = "Grassland",
+    Box = "Semi-natural",
+    LandUse = "Semi-natural",
+    Irrig_cat = "Rainfed",
+    prod_type = "Grass",
+    production_fm = 10
+  )
 
-  input <- data.frame(
-    Year = c(2020, 2020),
-    Province_name = c("A", "B"),
+  biomass_coefs <- tibble(
+    Name_biomass = "Grass",
+    Product_kgDM_kgFM = 0.5,
+    Residue_kgDM_kgFM = 0.2,
+    Product_kgN_kgDM = 0.03,
+    Residue_kgN_kgDM = 0.05
+  )
+
+  result <- .convert_fm_dm_n(fake_prod, biomass_coefs)
+
+  expect_equal(nrow(result), 1)
+  expect_equal(result$production_n[1], 10 * 0.2 * 0.05)
+})
+
+# Test: .adding_feed ------------------------------------------------
+test_that(".adding_feed calculates feed and shares correctly", {
+  fake_feed <- tibble(
+    Year = 2020,
+    Province_name = "Province1",
+    Item = c("Wheat", "Wheat", "Wheat", "Wheat"),
+    FM_Mg = c(50, 10, 5, 7),
+    Livestock_cat = c("Cattle_meat", "Sheep", "Pets", "Pigs")
+  )
+
+  result <- .adding_feed(fake_feed)
+
+  feed_df <- result$feed_intake
+  share_df <- result$feed_share_rum_mono
+
+  expect_equal(
+    sum(feed_df$feed[feed_df$Livestock_type == "ruminant"], na.rm = TRUE),
+    60
+  )
+  expect_equal(
+    sum(feed_df$feed[feed_df$Livestock_type == "monogastric"], na.rm = TRUE),
+    7
+  )
+
+  expect_equal(sum(feed_df$food_pets), 5)
+
+  wheat_share <- share_df %>%
+    filter(Item == "Wheat", Province_name == "Province1", Year == 2020) %>%
+    slice(1)
+
+  expect_equal(wheat_share$share_rum, 60 / (60 + 7))
+  expect_equal(wheat_share$share_mono, 7 / (60 + 7))
+})
+
+
+# Test: .calculate_population_share ---------------------------------
+test_that(".calculate_population_share calculates shares correctly", {
+  pop <- tibble(
+    Year = 2020,
+    Province_name = c("Province1", "Province2"),
     Pop_Mpeop_yg = c(100, 300)
   )
 
-  result <- .calculate_population_share(input)
-  expect_equal(result$Pop_share[result$Province_name == "A"], 0.25)
-  expect_equal(result$Pop_share[result$Province_name == "B"], 0.75)
+  result <- .calculate_population_share(pop)
+
+  expect_equal(result$Pop_share[1], 100 / 400)
+  expect_equal(result$Pop_share[2], 300 / 400)
 })
 
-# Test: Adding food correctly
-test_that(".adding_food multiplies population share with total food", {
-  testthat::skip_on_ci()
-
-  pie_data <- data.frame(
-    Year = c(2020, 2020),
-    Item = c("Wheat", "Wheat"),
-    Destiny = "Food",
-    Element = "Domestic_supply",
-    Value_destiny = c(100, 300)
-  )
-
-  pop_share <- data.frame(
+# Test: .calculate_food_and_other_uses -------------------------------
+test_that(".calculate_food_and_other_uses scales by population share", {
+  pop_share <- tibble(
     Year = 2020,
-    Province_name = c("A", "B"),
-    Pop_Mpeop_yg = c(50, 150),
+    Province_name = c("Province1", "Province2"),
     Pop_share = c(0.25, 0.75)
   )
-
-  result <- .adding_food(pie_data, pop_share)
-  expect_equal(nrow(result), 2)
-  expect_equal(result$Food_Mg[result$Province_name == "A"], 100)
-  expect_equal(result$Food_Mg[result$Province_name == "B"], 300)
-})
-
-# Test: Adding other uses correctly
-test_that(".adding_other_uses works same as food with other uses", {
-  testthat::skip_on_ci()
-
-  pie_data <- data.frame(
-    Year = c(2020, 2020),
-    Item = c("Wheat", "Wheat"),
-    Destiny = "Other_uses",
+  pie <- tibble(
+    Year = 2020,
+    Item = "Wheat",
+    Destiny = c("Food", "Other_uses"),
     Element = "Domestic_supply",
-    Value_destiny = c(100, 300)
+    Value_destiny = c(100, 200)
   )
 
-  pop_share <- data.frame(
-    Year = 2020,
-    Province_name = c("A", "B"),
-    Pop_Mpeop_yg = c(50, 150),
-    Pop_share = c(0.25, 0.75)
-  )
+  result <- .calculate_food_and_other_uses(pop_share, pie)
 
-  result <- .adding_other_uses(pie_data, pop_share)
-  expect_equal(result$OtherUses_Mg[result$Province_name == "A"], 100)
-  expect_equal(result$OtherUses_Mg[result$Province_name == "B"], 300)
+  expect_equal(result$food[result$Province_name == "Province1"], 100 * 0.25)
+  expect_equal(
+    result$other_uses[result$Province_name == "Province2"],
+    200 * 0.75
+  )
 })
 
-# Test: combine destinies correctly
-test_that(".combine_destinies joins correctly", {
-  testthat::skip_on_ci()
-
-  prod <- data.frame(
+# Test: .combine_destinies -------------------------------------------
+test_that(".combine_destinies merges correctly", {
+  grafs <- tibble(
     Year = 2020,
-    Province_name = "A",
+    Province_name = "Province1",
     Item = "Wheat",
     Box = "Cropland",
-    production_n = 500
+    Irrig_cat = "Irrigated",
+    production_n = 100
   )
-  food <- data.frame(
+  feed <- tibble(
     Year = 2020,
-    Province_name = "A",
+    Province_name = "Province1",
     Item = "Wheat",
-    Food_Mg = 100
+    feed = 50,
+    food_pets = 10
   )
-  other <- data.frame(
+  food_other <- tibble(
     Year = 2020,
-    Province_name = "A",
+    Province_name = "Province1",
     Item = "Wheat",
-    OtherUses_Mg = 50
-  )
-  feed <- data.frame(
-    Year = 2020,
-    Province_name = "A",
-    Item = "Wheat",
-    FM_Mg_total = 25
+    food = 30,
+    other_uses = 20
   )
 
-  result <- .combine_destinies(prod, feed, food, other)
-  expect_equal(result$Food_MgFM, 100)
-  expect_equal(result$OtherUses_MgFM, 50)
-  expect_equal(result$Feed_MgFM, 25)
+  result <- .combine_destinies(grafs, feed, food_other)
+
+  expect_equal(result$food, 30 + 10)
+  expect_equal(result$feed, 50)
+  expect_equal(result$other_uses, 20)
 })
 
-# Test: convert to N correctly
-test_that(".convert_to_items_n applies conversions correctly", {
-  testthat::skip_on_ci()
-
-  input <- data.frame(
+# Test: .convert_to_items_n ------------------------------------------
+test_that(".convert_to_items_n calculates n_value correctly", {
+  grafs_combined <- tibble(
     Year = 2020,
-    Province_name = "A",
+    Province_name = "Province1",
     Item = "Wheat",
     Box = "Cropland",
-    production_n = 500,
-    Food_MgFM = 100,
-    OtherUses_MgFM = 50,
-    Feed_MgFM = 25
+    Irrig_cat = "Irrigated",
+    production_n = 100,
+    food = 50,
+    other_uses = 30,
+    feed = 20
+  )
+  codes_cb <- tibble(item = "Wheat", Name_biomass = "Wheat")
+  biomass_coefs <- tibble(
+    Name_biomass = "Wheat",
+    Product_kgDM_kgFM = 0.5,
+    Product_kgN_kgDM = 0.03,
+    Residue_kgDM_kgFM = 0.2,
+    Residue_kgN_kgDM = 0.05
   )
 
-  code_map <- data.frame(item = "Wheat", Name_biomass = "BiomassWheat")
-  coefs <- data.frame(
-    Name_biomass = "BiomassWheat",
-    Product_kgDM_kgFM = 0.8,
-    Product_kgN_kgDM = 0.02
-  )
+  result <- .convert_to_items_n(grafs_combined, codes_cb, biomass_coefs)
 
-  result <- .convert_to_items_n(input, code_map, coefs)
-  expect_equal(result$food, 1.6)
-  expect_equal(result$other_uses, 0.8)
-  expect_equal(result$feed, 0.4)
+  expect_equal(result$food, 50 * 0.5 * 0.03)
+  expect_equal(result$feed, 20 * 0.5 * 0.03)
 })
 
-# Test: calculate trade correctly
-test_that(".calculate_trade computes export/import properly", {
-  testthat::skip_on_ci()
+# Test: .calculate_trade ---------------------------------------------
+test_that(".calculate_trade calculates export/import correctly", {
+  grafs_prod_item_n <- tibble(
+    Year = 2020,
+    Province_name = "A",
+    Item = c("Wheat", "Milk"),
+    Box = c("Cropland", "Livestock"),
+    Irrig_cat = c("Irrigated", NA),
+    food = c(30, 2),
+    other_uses = c(10, 1),
+    feed = c(20, 2),
+    production_n = c(60, 5)
+  )
 
-  input <- data.frame(
+  result <- .calculate_trade(grafs_prod_item_n) |>
+    arrange(Item)
+
+  expected_order <- result$Item
+
+  expected_food <- c(2, 30)[order(c("Milk", "Wheat"))]
+  expected_other <- c(1, 10)[order(c("Milk", "Wheat"))]
+  expected_feed <- c(2, 20)[order(c("Milk", "Wheat"))]
+  expected_prod <- c(5, 60)[order(c("Milk", "Wheat"))]
+
+  expect_equal(result$food, expected_food)
+  expect_equal(result$other_uses, expected_other)
+  expect_equal(result$feed, expected_feed)
+  expect_equal(result$production_n, expected_prod)
+
+  expected_export <- pmax(
+    result$production_n - (result$food + result$other_uses + result$feed),
+    0
+  )
+  expected_import <- pmax(
+    -(result$production_n - (result$food + result$other_uses + result$feed)),
+    0
+  )
+
+  expect_equal(result$export, expected_export)
+  expect_equal(result$import, expected_import)
+})
+
+# Test: .prep_final_ds ---------------------------------------------
+test_that(".prep_final_ds assigns Box and Irrig_cat correctly", {
+  grafs_prod_item_trade <- tibble(
+    Item = c("Wheat", "Milk", "Fish", "Fallow", "Acorns"),
+    Irrig_cat = c("Irrigated", "Rainfed", NA, "Rainfed", NA),
+    Box = c(NA, NA, NA, NA, NA)
+  )
+
+  codes_coefs_items_full <- tibble(
+    item = c("Wheat", "Milk", "Fish", "Fallow", "Acorns"),
+    group = c(
+      "Crop products",
+      "Livestock products",
+      "Fish",
+      "Primary crops",
+      "Agro-industry"
+    )
+  )
+
+  result <- .prep_final_ds(grafs_prod_item_trade, codes_coefs_items_full)
+
+  expect_equal(result$Box[result$Item == "Wheat"], "Cropland")
+  expect_equal(result$Box[result$Item == "Milk"], "Livestock")
+  expect_equal(result$Box[result$Item == "Fish"], "Fish")
+  expect_equal(result$Box[result$Item == "Fallow"], "Cropland")
+  expect_equal(
+    result$Box[result$Item == "Acorns"],
+    "semi_natural_agroecosystems"
+  )
+  expect_true(all(is.na(result$Irrig_cat[result$Box != "Cropland"])))
+})
+
+# Test: .calculate_consumption_shares ------------------------------------------
+test_that(".calculate_consumption_shares calculates shares correctly", {
+  data <- tibble(
     Year = 2020,
     Province_name = "A",
     Item = "Wheat",
-    Name_biomass = "BiomassWheat",
+    Irrig_cat = "Irrigated",
+    food = 40,
+    feed = 40,
+    other_uses = 20
+  )
+
+  result <- .calculate_consumption_shares(data)
+
+  expect_equal(result$consumption_total, 100)
+  expect_equal(result$food_share, 0.4)
+  expect_equal(result$feed_share, 0.4)
+  expect_equal(result$other_uses_share, 0.2)
+})
+
+# Test: .split_local_consumption -----------------------------------------------
+test_that(".split_local_consumption splits correctly into food, feed, and other uses", {
+  local_vs_import <- tibble(
+    Year = 2020,
+    Province_name = "A",
+    Item = "Wheat",
+    Irrig_cat = "Irrigated",
     Box = "Cropland",
-    production_n = 10,
-    food = 2,
-    other_uses = 3,
-    feed = 1
+    local_consumption = 100,
+    food_share = 0.5,
+    feed_share = 0.3,
+    other_uses_share = 0.2
   )
 
-  result <- .calculate_trade(input)
-  expect_equal(result$consumption, 6)
-  expect_equal(result$net_trade, 4)
-  expect_equal(result$export, 4)
-  expect_equal(result$import, 0)
-})
-
-# Test: finalising dataset correctly
-test_that(".finalize_prod_destiny completes with pivot and recoding", {
-  testthat::skip_on_ci()
-
-  input <- data.frame(
+  feed_share_rum_mono <- tibble(
     Year = 2020,
     Province_name = "A",
     Item = "Wheat",
-    Box = NA,
-    Name_biomass = "BiomassWheat",
-    food = 1.5,
-    other_uses = 0.5,
-    feed = 1.0,
-    export = 0.2,
-    import = 0.1
+    share_rum = 0.6,
+    share_mono = 0.4
   )
 
-  code_map <- data.frame(item = "Wheat", group = "Primary crops")
+  result <- .split_local_consumption(local_vs_import, feed_share_rum_mono)
 
-  suppressMessages({
-    result <- .finalize_prod_destiny(input, code_map)
-  })
+  expect_true(all(
+    c(
+      "livestock_rum",
+      "livestock_mono",
+      "population_food",
+      "population_other_uses"
+    ) %in%
+      result$Destiny
+  ))
+  expect_equal(sum(result$MgN), 100) # total should remain constant
+})
 
-  expect_true(all(c("Destiny", "MgN") %in% names(result)))
-  expect_equal(dplyr::n_distinct(result$Destiny), 5)
+
+# Test: .add_exports ----------------------------------------------
+test_that(".add_exports adds exports correctly", {
+  grafs_prod_destiny_final <- tibble(
+    Year = 2020,
+    Province_name = "A",
+    Item = c("Wheat", "Milk"),
+    Irrig_cat = c("Irrigated", "Rainfed"),
+    Box = c("Cropland", "Livestock"),
+    export = c(10, 5)
+  )
+
+  result <- .add_exports(grafs_prod_destiny_final)
+
+  expect_equal(unique(result$Destiny), "export")
+  expect_equal(sum(result$MgN), 15)
+  expect_equal(result$Origin[result$Item == "Milk"], "Livestock")
+})
+
+
+# Test: .add_n_soil_inputs ---------------------------------------------------
+test_that(".add_n_soil_inputs adds soil N inputs in long format", {
+  grafs_final <- tibble(
+    Year = 2020,
+    Province_name = "Province1",
+    Item = "Wheat",
+    Irrig_cat = "Irrigated",
+    Origin = "Cropland",
+    Destiny = "population_food",
+    MgN = 100
+  )
+
+  soil_inputs <- tibble(
+    Year = 2020,
+    Province_name = "Province1",
+    Item = "Wheat",
+    Box = "Cropland",
+    Irrig_cat = "Irrigated",
+    deposition = 5,
+    fixation = 3,
+    synthetic = 2,
+    manure = 10,
+    urban = 7
+  )
+
+  result <- .add_n_soil_inputs(grafs_final, soil_inputs)
+
+  expect_true(all(
+    c("Deposition", "Fixation", "Synthetic", "Livestock", "People") %in%
+      result$Origin
+  ))
+
+  expect_gt(nrow(result), nrow(grafs_final))
+
+  deposition_val <- result[result$Origin == "Deposition", "MgN"][[1]]
+  expect_equal(deposition_val, 5)
 })

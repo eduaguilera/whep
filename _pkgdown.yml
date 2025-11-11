@@ -83,3 +83,10 @@ reference:
   - calculate_nue_livestock
   - calculate_system_nue
 
+- title: Gap filling functions
+  desc: >
+    Functions to fill gaps (NA values) in time-dependent variables using different methods.
+  contents:
+  - linear_fill
+  - proxy_fill
+  - sum_fill
