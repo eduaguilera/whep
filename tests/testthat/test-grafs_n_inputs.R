@@ -17,6 +17,7 @@ test_that(".calculate_n_soil_inputs calculates N soil inputs correctly", {
     Province_name = c("Madrid", "Madrid", "Madrid", "Madrid"),
     Name_biomass = c("Dehesa", "Holm oak", "Other crop residues", "Manure"),
     LandUse = c("Dehesa", "Holm oak", "Cropland", "Livestock"),
+    Irrig_cat = NA_character_,
     Deposition = c(1, 2, 3, 4),
     BNF = c(0.5, 0.2, 0.1, 0),
     Synthetic = c(0, 0, 1, 0),
@@ -65,16 +66,18 @@ test_that(".calculate_n_production computes production correctly", {
     Province_name = rep("Madrid", 5),
     Item = rep("Dehesa_item", 5),
     Box = rep("semi_natural_agroecosystems", 5),
-    Destiny = c("Food", "Feed", "Other_uses", "Export", "Import"),
+    Box_destiny = rep("cropland", 5),
+    Destiny = c("food", "feed", "other_uses", "export", "import"),
     MgN = c(10, 5, 4, 3, 2)
   )
 
   result <- .calculate_n_production(grafs_prod_destiny)
 
   expect_true(all(c("prod", "import") %in% colnames(result)))
-  expect_equal(result$prod, (10 + 5 + 4 + 3) - 2)
-  expect_equal(result$import, 2)
+  expect_equal(sum(result$prod), (10 + 5 + 4 + 3) - 2)
+  expect_equal(sum(result$import), 2)
 })
+
 
 test_that("calculate_nue_crops output structure is correct", {
   testthat::skip_on_ci()
