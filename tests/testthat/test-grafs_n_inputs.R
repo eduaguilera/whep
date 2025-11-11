@@ -90,9 +90,6 @@ test_that(".calculate_n_production calculates production and import correctly", 
   expect_equal(sum(result$import), 2)
 })
 
-
-test_that("calculate_nue_crops output structure is correct", {
-  testthat::skip_on_ci()
 #Test: calculate_nue_livestock -----------------------------------------------
 test_that("calculate_nue_livestock calculates NUE and mass balance correctly", {
   intake_n <- tibble(
