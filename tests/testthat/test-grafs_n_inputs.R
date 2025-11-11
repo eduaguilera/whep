@@ -19,14 +19,7 @@ test_that(".calculate_n_soil_inputs aggregates N inputs correctly", {
     Year = c(2000, 2000, 2000, 2000),
     Province_name = c("Madrid", "Madrid", "Madrid", "Madrid"),
     Name_biomass = c("Dehesa", "Holm oak", "Other crop residues", "Manure"),
-    Name_biomass = c(
-      "Dehesa",
-      "Holm oak",
-      "Other crop residues",
-      "Manure"
-    ),
     LandUse = c("Dehesa", "Holm oak", "Cropland", "Livestock"),
-    Irrig_cat = NA_character_,
     Deposition = c(1, 2, 3, 4),
     BNF = c(0.5, 0.2, 0.1, 0),
     Synthetic = c(0, 0, 1, 0),
@@ -77,7 +70,6 @@ test_that(".calculate_n_production calculates production and import correctly", 
     Province_name = rep("Madrid", 5),
     Item = rep("Dehesa_item", 5),
     Box = rep("semi_natural_agroecosystems", 5),
-    Box_destiny = rep("cropland", 5),
     Box_destiny = rep("semi_natural_agroecosystems", 5),
     Destiny = c("food", "feed", "other_uses", "export", "import"),
     MgN = c(10, 5, 4, 3, 2)
