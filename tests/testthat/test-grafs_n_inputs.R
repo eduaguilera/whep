@@ -36,7 +36,6 @@ test_that(".calculate_n_soil_inputs aggregates N inputs correctly", {
     Irrig_cat = c("Irrigated", NA, "Rainfed", NA)
   )
 
-  codes_coefs <- tibble::tibble(
   codes_coefs <- tibble(
     Name_biomass = c("Dehesa", "Holm oak", "Other crop residues", "Manure"),
     Item = c("Dehesa_item", "Firewood", "Residue", "Manure")
