@@ -31,7 +31,7 @@ Imports:
     yaml,
     readxl,
     sf,
-    stringi
+    stringi,
     zoo
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
