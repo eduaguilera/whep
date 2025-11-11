@@ -18,7 +18,6 @@ test_that(".calculate_n_soil_inputs aggregates N inputs correctly", {
   n_balance_ygpit_all <- tibble(
     Year = c(2000, 2000, 2000, 2000),
     Province_name = c("Madrid", "Madrid", "Madrid", "Madrid"),
-    Name_biomass = c("Dehesa", "Holm oak", "Other crop residues", "Manure"),
     Name_biomass = c(
       "Dehesa",
       "Holm oak",
@@ -26,7 +25,6 @@ test_that(".calculate_n_soil_inputs aggregates N inputs correctly", {
       "Manure"
     ),
     LandUse = c("Dehesa", "Holm oak", "Cropland", "Livestock"),
-    Irrig_cat = NA_character_,
     Deposition = c(1, 2, 3, 4),
     BNF = c(0.5, 0.2, 0.1, 0),
     Synthetic = c(0, 0, 1, 0),
@@ -36,7 +34,6 @@ test_that(".calculate_n_soil_inputs aggregates N inputs correctly", {
     Irrig_cat = c("Irrigated", NA, "Rainfed", NA)
   )
 
-  codes_coefs <- tibble::tibble(
   codes_coefs <- tibble(
     Name_biomass = c("Dehesa", "Holm oak", "Other crop residues", "Manure"),
     Item = c("Dehesa_item", "Firewood", "Residue", "Manure")
@@ -62,13 +59,6 @@ test_that(".calculate_n_soil_inputs aggregates N inputs correctly", {
   manure_val <- result |> filter(Item == "Manure") |> pull(manure)
   expect_equal(manure_val, 1 + 2)
   expect_true(all(result$deposition >= 0))
-
-  # Check Manure calculation (sum of Solid + Liquid)
-  manure_val <- result |>
-    dplyr::filter(Item == "Manure") |>
-    dplyr::pull(manure)
-
-  expect_equal(manure_val, 1 + 2)
 })
 
 #Test: .calculate_n_production -----------------------------------------------
@@ -78,7 +68,6 @@ test_that(".calculate_n_production calculates production and import correctly", 
     Province_name = rep("Madrid", 5),
     Item = rep("Dehesa_item", 5),
     Box = rep("semi_natural_agroecosystems", 5),
-    Box_destiny = rep("cropland", 5),
     Box_destiny = rep("semi_natural_agroecosystems", 5),
     Destiny = c("food", "feed", "other_uses", "export", "import"),
     MgN = c(10, 5, 4, 3, 2)
@@ -87,13 +76,10 @@ test_that(".calculate_n_production calculates production and import correctly", 
   result <- .calculate_n_production(grafs_prod_destiny)
 
   expect_true(all(c("prod", "import") %in% colnames(result)))
-  expect_equal(sum(result$prod), (10 + 5 + 4 + 3) - 2)
-  expect_equal(sum(result$import), 2)
+  expect_equal(result$prod, (10 + 5 + 4 + 3) - 2)
+  expect_equal(result$import, 2)
 })
 
-
-test_that("calculate_nue_crops output structure is correct", {
-  testthat::skip_on_ci()
 #Test: calculate_nue_livestock -----------------------------------------------
 test_that("calculate_nue_livestock calculates NUE and mass balance correctly", {
   intake_n <- tibble(
