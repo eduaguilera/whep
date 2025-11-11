@@ -102,7 +102,7 @@ create_n_soil_inputs <- function() {
       synthetic = sum(Synthetic, na.rm = TRUE),
       manure = sum(Solid + Liquid, na.rm = TRUE),
       urban = sum(Urban, na.rm = TRUE),
-      .by = c(Year, Province_name, Item, Box)
+      .by = c(Year, Province_name, Item, Irrig_cat, Box)
     ) |>
     dplyr::arrange(Year, Province_name)
 
