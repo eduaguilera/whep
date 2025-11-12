@@ -6,7 +6,7 @@
 #' - Atmospheric deposition (`deposition`)
 #' - Biological nitrogen fixation (`fixation`)
 #' - Synthetic fertilizers (`synthetic`)
-#' - Manure (excreta, solid, liquid) (`manure`)
+#' - Manure (solid, liquid) (`manure`)
 #' - Urban sources (`urban`)
 #'
 #' Special land use categories and items are aggregated:
