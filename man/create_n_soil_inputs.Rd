@@ -27,7 +27,7 @@ This includes contributions from:
 \item Atmospheric deposition (\code{deposition})
 \item Biological nitrogen fixation (\code{fixation})
 \item Synthetic fertilizers (\code{synthetic})
-\item Manure (excreta, solid, liquid) (\code{manure})
+\item Manure (solid, liquid) (\code{manure})
 \item Urban sources (\code{urban})
 }
 

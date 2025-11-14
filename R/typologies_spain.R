@@ -1,8 +1,10 @@
+#'
+#'
 create_typologies_spain <- function(
   n_prov_destiny = NULL,
   make_map = TRUE,
   shapefile_path = "C:/PhD/GRAFS/Production Boxes/Final Files/Inputs/ne_10m_admin_1_states_provinces.shp",
-  map_year = 1900
+  map_year = 2020
 ) {
   if (is.null(n_prov_destiny)) {
     n_prov_destiny <- create_n_prov_destiny()
@@ -10,17 +12,17 @@ create_typologies_spain <- function(
 
   n_agg <- n_prov_destiny |>
     dplyr::group_by(Year, Province_name, Origin, Destiny, Box) |>
-    dplyr::summarise(MgN = base::sum(MgN, na.rm = TRUE), .groups = "drop")
+    dplyr::summarise(MgN = sum(MgN, na.rm = TRUE), .groups = "drop")
 
   indicators <- n_agg |>
     dplyr::group_by(Year, Province_name) |>
     dplyr::summarise(
-      production_crops = base::sum(MgN[Origin == "Cropland"], na.rm = TRUE),
-      production_seminatural = base::sum(
+      production_crops = sum(MgN[Origin == "Cropland"], na.rm = TRUE),
+      production_seminatural = sum(
         MgN[Origin == "semi_natural_agroecosystems"],
         na.rm = TRUE
       ),
-      production_total = base::sum(
+      production_total = sum(
         MgN[
           Origin %in%
             c("Cropland", "Livestock", "semi_natural_agroecosystems") &
@@ -35,26 +37,43 @@ create_typologies_spain <- function(
         ],
         na.rm = TRUE
       ),
-      pop_consumption = base::sum(
+      pop_consumption = sum(
         MgN[Destiny == "population_food" & Origin != "Fish"],
         na.rm = TRUE
       ),
-      animal_ingestion = base::sum(
+      production_livestock = sum(
+        MgN[
+          Origin == "Livestock" &
+            Destiny %in%
+              c(
+                "export",
+                "population_food",
+                "population_other_uses",
+                "livestock_mono",
+                "livestock_rum"
+              )
+        ],
+        na.rm = TRUE
+      ),
+      animal_ingestion = sum(
         MgN[Destiny %in% c("livestock_mono", "livestock_rum")],
         na.rm = TRUE
       ),
-      imported_feed_share = base::sum(
+      imported_feed_share = sum(
         MgN[
           Origin == "Outside" &
             Destiny %in% c("livestock_mono", "livestock_rum")
         ],
         na.rm = TRUE
       ) /
-        base::sum(
-          MgN[Destiny %in% c("livestock_mono", "livestock_rum")],
-          na.rm = TRUE
+        sum(
+          MgN[
+            Origin %in%
+              c("Cropland", "semi_natural_agroecosystems", "Outside") &
+              Destiny %in% c("livestock_mono", "livestock_rum")
+          ]
         ),
-      local_feed_share = base::sum(
+      local_feed_share = sum(
         MgN[
           Origin %in%
             c("Cropland", "semi_natural_agroecosystems") &
@@ -62,7 +81,7 @@ create_typologies_spain <- function(
         ],
         na.rm = TRUE
       ) /
-        base::sum(
+        sum(
           MgN[
             Origin %in%
               c("Cropland", "semi_natural_agroecosystems", "Outside") &
@@ -70,14 +89,28 @@ create_typologies_spain <- function(
           ],
           na.rm = TRUE
         ),
-      Manure_share = base::sum(
+      feed_from_seminatural_share = sum(
+        MgN[
+          Origin == "semi_natural_agroecosystems" &
+            Destiny %in% c("livestock_mono", "livestock_rum")
+        ],
+        na.rm = TRUE
+      ) /
+        sum(
+          MgN[
+            Origin %in%
+              c("Cropland", "semi_natural_agroecosystems", "Outside") &
+              Destiny %in% c("livestock_mono", "livestock_rum")
+          ]
+        ),
+      Manure_share = sum(
         MgN[
           Origin == "Livestock" &
             Destiny %in% c("Cropland", "semi_natural_agroecosystems")
         ],
         na.rm = TRUE
       ) /
-        base::sum(
+        sum(
           MgN[
             Origin %in%
               c("Livestock", "Synthetic", "Fixation", "Deposition") &
@@ -87,18 +120,23 @@ create_typologies_spain <- function(
         )
     ) |>
     dplyr::mutate(
+      livestock_share = production_livestock / production_total,
       dplyr::across(dplyr::where(is.numeric), ~ tidyr::replace_na(., 0)),
-      Year = base::as.numeric(Year)
+      Year = as.numeric(Year)
     )
 
   indicators <- indicators |>
     dplyr::mutate(
       Typology = dplyr::case_when(
-        pop_consumption > 1.5 * production_total ~ "Urban systems",
+        pop_consumption > 2.5 * production_total ~ "Urban systems",
         production_seminatural > production_crops ~
           "Semi-natural agroecosystems",
         production_crops > 1.5 * animal_ingestion ~
           "Specialized cropping systems",
+        livestock_share > 0.2 &
+          imported_feed_share > 0.6 &
+          feed_from_seminatural_share < 0.3 ~
+          "Specialized livestock systems",
         local_feed_share > 0.4 & Manure_share > 0.15 ~
           "Connected crop-livestock systems",
         TRUE ~ "Disconnected crop-livestock systems"
@@ -106,10 +144,10 @@ create_typologies_spain <- function(
     )
 
   if (make_map) {
-    layer_name <- tools::file_path_sans_ext(base::basename(shapefile_path))
+    layer_name <- tools::file_path_sans_ext(basename(shapefile_path))
     sf_provinces <- sf::st_read(
       shapefile_path,
-      query = base::paste0(
+      query = paste0(
         "SELECT * FROM ",
         layer_name,
         " WHERE iso_a2 = 'ES'"
@@ -117,9 +155,9 @@ create_typologies_spain <- function(
       quiet = TRUE
     )
 
-    province_col <- base::intersect(
+    province_col <- intersect(
       c("NAME_1", "name", "NAME", "province"),
-      base::colnames(sf_provinces)
+      colnames(sf_provinces)
     )[1]
 
     sf_provinces <- sf_provinces |>
@@ -128,7 +166,7 @@ create_typologies_spain <- function(
           .data[[province_col]],
           "Latin-ASCII"
         ),
-        name_clean = base::gsub(" ", "_", name_clean)
+        name_clean = gsub(" ", "_", name_clean)
       )
 
     sf_provinces$name_clean[sf_provinces$name_clean == "La_Rioja"] <- "Rioja"
@@ -164,11 +202,12 @@ create_typologies_spain <- function(
           "Urban systems" = "#7570b3",
           "Semi-natural agroecosystems" = "#66a61e",
           "Specialized cropping systems" = "#FFD700",
+          "Specialized livestock systems" = "#e41a1c",
           "Connected crop-livestock systems" = "#FFFF99",
           "Disconnected crop-livestock systems" = "#FF6666"
         )
       ) +
-      ggplot2::labs(title = base::paste("Typologies in Spain for", map_year)) +
+      ggplot2::labs(title = paste("Typologies in Spain for", map_year)) +
       ggplot2::theme_minimal()
   }
 }
