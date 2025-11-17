@@ -779,7 +779,9 @@ create_n_prov_destiny <- function() {
       by = c("Year", "Province_name", "Item")
     ) |>
     dplyr::mutate(
-      food = dplyr::coalesce(food, 0) + dplyr::coalesce(food_pets, 0)
+      food = dplyr::coalesce(food, 0) + dplyr::coalesce(food_pets, 0),
+      feed = dplyr::coalesce(feed, 0),
+      other_uses = dplyr::coalesce(other_uses, 0)
     ) |>
     dplyr::select(-food_pets)
 
