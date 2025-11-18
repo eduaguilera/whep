@@ -28,6 +28,13 @@ reference:
   - get_processing_coefs
   - get_wide_cbs
 
+- title: WHEP polities
+  desc: >
+    Get polities dataset and convert countries to polities.
+  contents:
+  - whep_polities
+  - get_polity_code
+
 - title: Download large input datasets
   desc: >
     Fetch large files from external sources and cache them.
@@ -39,13 +46,11 @@ reference:
 - title: Code namings
   desc: >
     Add name columns in dataframes from their codes or viceversa.
-- subtitle: Polities
+- subtitle: Countries
   contents:
-  - polities
+  - countries
   - add_area_code
   - add_area_name
-  - get_polities
-  - get_polity_sources
 - subtitle: Commodity balance sheet items
   contents:
   - items_cbs

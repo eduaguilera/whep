@@ -1,4 +1,4 @@
-# TODO: revise/update this documentation
+# TODO: rewrite this outdated documentation
 
 #' WHEP polities
 #'
@@ -111,7 +111,11 @@
 #' @source TODO
 "whep_polities"
 
-# TODO: write docs
+#' Recode names to polity codes
+#'
+#' TODO: write docs
+#'
+#' @export
 get_polity_code <- function(
   originals,
   code_mappings = k_polity_alias_table,
@@ -174,68 +178,6 @@ get_polity_code <- function(
     tidyr::expand(year = seq(start_year, end_year)) |>
     dplyr::ungroup() |>
     dplyr::select(original_name, year, polity_code)
-}
-
-.prepare_historical_m49 <- function() {
-  k_historical_m49 |>
-    # TODO: Do this cleanly. M49 code 728 is reused, so only use for new country
-    dplyr::mutate(
-      m49_code = ifelse(m49_name == "Spanish North Africa", NA, m49_code)
-    ) |>
-    dplyr::mutate(source = k_source_m49) |>
-    dplyr::select(
-      original_name = m49_name,
-      source,
-      start_year,
-      end_year,
-      notes,
-      m49_code
-    )
-}
-
-.prepare_faostat <- function() {
-  k_faostat_regions |>
-    dplyr::mutate(source = k_source_faostat) |>
-    dplyr::select(
-      original_name = country_name,
-      source,
-      start_year,
-      end_year,
-      m49_code,
-      iso2_code,
-      iso3_code
-    )
-}
-
-.prepare_federico_tena <- function() {
-  k_federico_tena_polities |>
-    dplyr::mutate(
-      source = k_source_federico_tena,
-      # Force first year because federico tena has earliest cover
-      start_year = ifelse(is.na(start_year), k_polity_first_year, start_year)
-    ) |>
-    dplyr::select(
-      original_name = polity_name,
-      source,
-      start_year,
-      end_year,
-      notes
-    )
-}
-
-.prepare_cshapes <- function() {
-  k_cshapes |>
-    dplyr::mutate(
-      source = k_source_cshapes,
-      polity_name = .add_years_in_name(polity_name, start_year, end_year)
-    ) |>
-    dplyr::select(
-      original_name = polity_name,
-      source,
-      start_year,
-      end_year,
-      geometry
-    )
 }
 
 # Used for dataset generation in constants.R
@@ -359,65 +301,6 @@ get_polity_code <- function(
     dplyr::select(-group_tmp)
 }
 
-.add_years_in_name <- function(name, start_year, end_year) {
-  dplyr::case_when(
-    is.na(end_year) ~ stringr::str_glue("{name}"),
-    is.na(start_year) ~ stringr::str_glue("{name} (to {end_year})"),
-    .default = stringr::str_glue("{name} ({start_year}-{end_year})"),
-  )
-}
-
-.build_auto_polity_code <- function(name, start_year, end_year) {
-  start_year <- ifelse(is.na(start_year), k_polity_first_year, start_year)
-  end_year <- ifelse(is.na(end_year), k_polity_last_year, end_year)
-  short <- name |>
-    stringr::str_to_upper() |>
-    stringr::str_sub(1, 3)
-
-  stringr::str_glue("{short}-{start_year}-{end_year}")
-}
-
-# Use for debugging when you get failed test because of polity
-# code not matching short name or year range.
-.get_bad_code_polities <- function() {
-  get_polities() |>
-    tidyr::separate_wider_delim(
-      polity_code,
-      "-",
-      names = c("code_iso", "code_start_year", "code_end_year"),
-      cols_remove = FALSE
-    ) |>
-    dplyr::filter(
-      as.integer(code_start_year) != start_year |
-        as.integer(code_end_year) != end_year
-    ) |>
-    dplyr::select(-code_iso, -code_start_year, -code_end_year)
-}
-
-.error_polity_code_unmatched <- function(merged_datasets, polity_codes) {
-  unmatched <- merged_datasets |>
-    dplyr::anti_join(polity_codes, by = "original_name") |>
-    dplyr::pull(original_name) |>
-    purrr::map(.quotify)
-
-  if (length(unmatched) > 0) {
-    cli::cli_abort(
-      "Polities with no defined polity_code: {unmatched}. Include them in polity_codes.csv."
-    )
-  }
-
-  unmatched <- polity_codes |>
-    dplyr::anti_join(merged_datasets, by = "original_name") |>
-    dplyr::pull(original_name) |>
-    purrr::map(.quotify)
-
-  if (length(unmatched) > 0) {
-    cli::cli_abort(
-      "Polities with polity_code but missing in common names table: {unmatched}. Include them in common_names.csv."
-    )
-  }
-}
-
 .warn_if_no_code_match <- function(polities) {
   unmatched <- polities |>
     dplyr::filter(is.na(polity_code)) |>
@@ -434,12 +317,3 @@ get_polity_code <- function(
     ))
   }
 }
-
-.quotify <- function(x) {
-  stringr::str_glue('"{x}"')
-}
-
-# TODO: todos from removed old code:
-# - Revise Edu's polities for special handlings
-# - Introduce 'rest of continent'-like polities
-#   "ROCE" "RAFR" "RASI" "REUR" "RLAM" "RNAM"

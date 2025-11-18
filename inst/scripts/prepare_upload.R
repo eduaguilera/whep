@@ -68,6 +68,6 @@ prepare_for_upload <- function(input_path, data_name, ...) {
 }
 
 prepare_for_upload(
-  "C:/Users/Usuario/Desktop/WHEP_ALE/DATA/Harmonization/m49/historical_m49.csv",
-  "historical_m49"
+  "/path/to/your/data",
+  "simple_name_for_your_data"
 )

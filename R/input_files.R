@@ -205,9 +205,3 @@ pin_fetch.pins_with_progress <- function(
 
   meta
 }
-
-.read_local_xlsx <- function(xlsx_path) {
-  "extdata" |>
-    system.file(xlsx_path, package = utils::packageName()) |>
-    readxl::read_xlsx()
-}
