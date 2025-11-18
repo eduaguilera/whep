@@ -54,6 +54,10 @@ create_grafs_plot_df <- function() {
     dplyr::select(province, year, label, data, align, arrowColor) |>
     dplyr::distinct(province, year, label, .keep_all = TRUE)
 
+  writexl::write_xlsx(
+    df_final,
+    path = "C:/PhD/GRAFS plot/inst/extdata/GRAFS_spain_data.xlsx"
+  )
   df_final
 }
 
