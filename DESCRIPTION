@@ -26,6 +26,7 @@ Imports:
     readr,
     rlang,
     stringr,
+    sf,
     tidyr,
     withr,
     yaml,
@@ -34,14 +35,17 @@ Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.2
 Suggests: 
+    cshapes,
     ggplot2,
     googlesheets4,
     here,
     knitr,
+    lubridate,
     pointblank,
     rmarkdown,
     testthat (>= 3.0.0),
-    tibble
+    tibble,
+    units
 Config/testthat/edition: 3
 VignetteBuilder: knitr
 URL: https://eduaguilera.github.io/whep/, https://github.com/eduaguilera/whep

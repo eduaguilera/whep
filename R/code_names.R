@@ -34,10 +34,10 @@ add_area_name <- function(
   code_column = "area_code",
   name_column = "area_name"
 ) {
-  polities <- .get_polities(name_column, code_column)
+  countries <- .get_countries(name_column, code_column)
 
   table |>
-    dplyr::left_join(polities, {{ code_column }})
+    dplyr::left_join(countries, {{ code_column }})
 }
 
 #' Get area codes from area names
@@ -74,10 +74,10 @@ add_area_code <- function(
   name_column = "area_name",
   code_column = "area_code"
 ) {
-  polities <- .get_polities(name_column, code_column)
+  countries <- .get_countries(name_column, code_column)
 
   table |>
-    dplyr::left_join(polities, {{ name_column }})
+    dplyr::left_join(countries, {{ name_column }})
 }
 
 #' Get commodity balance sheet item names from item codes
@@ -232,8 +232,8 @@ add_item_prod_code <- function(
     dplyr::left_join(items, {{ name_column }})
 }
 
-.get_polities <- function(name_column, code_column) {
-  whep::polities |>
+.get_countries <- function(name_column, code_column) {
+  whep::countries |>
     dplyr::select(!!name_column := area_name, !!code_column := area_code)
 }
 

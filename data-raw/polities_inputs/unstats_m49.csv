@@ -1,0 +1,249 @@
+m49_code,m49_name,region1_code,region1_name,region2_code,region2_name,region3_code,region3_name,region4_code,region4_name,iso2_code,iso3_code,least_developed,land_locked_developing,small_island_developing
+012,Algeria,NA,NA,015,Northern Africa,002,Africa,001,World,DZ,DZA,FALSE,FALSE,FALSE
+818,Egypt,NA,NA,015,Northern Africa,002,Africa,001,World,EG,EGY,FALSE,FALSE,FALSE
+434,Libya,NA,NA,015,Northern Africa,002,Africa,001,World,LY,LBY,FALSE,FALSE,FALSE
+504,Morocco,NA,NA,015,Northern Africa,002,Africa,001,World,MA,MAR,FALSE,FALSE,FALSE
+729,Sudan,NA,NA,015,Northern Africa,002,Africa,001,World,SD,SDN,TRUE,FALSE,FALSE
+788,Tunisia,NA,NA,015,Northern Africa,002,Africa,001,World,TN,TUN,FALSE,FALSE,FALSE
+732,Western Sahara,NA,NA,015,Northern Africa,002,Africa,001,World,EH,ESH,FALSE,FALSE,FALSE
+086,British Indian Ocean Territory,014,Eastern Africa,202,Sub-Saharan Africa,002,Africa,001,World,IO,IOT,FALSE,FALSE,FALSE
+108,Burundi,014,Eastern Africa,202,Sub-Saharan Africa,002,Africa,001,World,BI,BDI,TRUE,TRUE,FALSE
+174,Comoros,014,Eastern Africa,202,Sub-Saharan Africa,002,Africa,001,World,KM,COM,TRUE,FALSE,TRUE
+262,Djibouti,014,Eastern Africa,202,Sub-Saharan Africa,002,Africa,001,World,DJ,DJI,TRUE,FALSE,FALSE
+232,Eritrea,014,Eastern Africa,202,Sub-Saharan Africa,002,Africa,001,World,ER,ERI,TRUE,FALSE,FALSE
+231,Ethiopia,014,Eastern Africa,202,Sub-Saharan Africa,002,Africa,001,World,ET,ETH,TRUE,TRUE,FALSE
+260,French Southern Territories,014,Eastern Africa,202,Sub-Saharan Africa,002,Africa,001,World,TF,ATF,FALSE,FALSE,FALSE
+404,Kenya,014,Eastern Africa,202,Sub-Saharan Africa,002,Africa,001,World,KE,KEN,FALSE,FALSE,FALSE
+450,Madagascar,014,Eastern Africa,202,Sub-Saharan Africa,002,Africa,001,World,MG,MDG,TRUE,FALSE,FALSE
+454,Malawi,014,Eastern Africa,202,Sub-Saharan Africa,002,Africa,001,World,MW,MWI,TRUE,TRUE,FALSE
+480,Mauritius,014,Eastern Africa,202,Sub-Saharan Africa,002,Africa,001,World,MU,MUS,FALSE,FALSE,TRUE
+175,Mayotte,014,Eastern Africa,202,Sub-Saharan Africa,002,Africa,001,World,YT,MYT,FALSE,FALSE,FALSE
+508,Mozambique,014,Eastern Africa,202,Sub-Saharan Africa,002,Africa,001,World,MZ,MOZ,TRUE,FALSE,FALSE
+638,Réunion,014,Eastern Africa,202,Sub-Saharan Africa,002,Africa,001,World,RE,REU,FALSE,FALSE,FALSE
+646,Rwanda,014,Eastern Africa,202,Sub-Saharan Africa,002,Africa,001,World,RW,RWA,TRUE,TRUE,FALSE
+690,Seychelles,014,Eastern Africa,202,Sub-Saharan Africa,002,Africa,001,World,SC,SYC,FALSE,FALSE,TRUE
+706,Somalia,014,Eastern Africa,202,Sub-Saharan Africa,002,Africa,001,World,SO,SOM,TRUE,FALSE,FALSE
+728,South Sudan,014,Eastern Africa,202,Sub-Saharan Africa,002,Africa,001,World,SS,SSD,TRUE,TRUE,FALSE
+800,Uganda,014,Eastern Africa,202,Sub-Saharan Africa,002,Africa,001,World,UG,UGA,TRUE,TRUE,FALSE
+834,United Republic of Tanzania,014,Eastern Africa,202,Sub-Saharan Africa,002,Africa,001,World,TZ,TZA,TRUE,FALSE,FALSE
+894,Zambia,014,Eastern Africa,202,Sub-Saharan Africa,002,Africa,001,World,ZM,ZMB,TRUE,TRUE,FALSE
+716,Zimbabwe,014,Eastern Africa,202,Sub-Saharan Africa,002,Africa,001,World,ZW,ZWE,FALSE,TRUE,FALSE
+024,Angola,017,Middle Africa,202,Sub-Saharan Africa,002,Africa,001,World,AO,AGO,TRUE,FALSE,FALSE
+120,Cameroon,017,Middle Africa,202,Sub-Saharan Africa,002,Africa,001,World,CM,CMR,FALSE,FALSE,FALSE
+140,Central African Republic,017,Middle Africa,202,Sub-Saharan Africa,002,Africa,001,World,CF,CAF,TRUE,TRUE,FALSE
+148,Chad,017,Middle Africa,202,Sub-Saharan Africa,002,Africa,001,World,TD,TCD,TRUE,TRUE,FALSE
+178,Congo,017,Middle Africa,202,Sub-Saharan Africa,002,Africa,001,World,CG,COG,FALSE,FALSE,FALSE
+180,Democratic Republic of the Congo,017,Middle Africa,202,Sub-Saharan Africa,002,Africa,001,World,CD,COD,TRUE,FALSE,FALSE
+226,Equatorial Guinea,017,Middle Africa,202,Sub-Saharan Africa,002,Africa,001,World,GQ,GNQ,FALSE,FALSE,FALSE
+266,Gabon,017,Middle Africa,202,Sub-Saharan Africa,002,Africa,001,World,GA,GAB,FALSE,FALSE,FALSE
+678,Sao Tome and Principe,017,Middle Africa,202,Sub-Saharan Africa,002,Africa,001,World,ST,STP,FALSE,FALSE,TRUE
+072,Botswana,018,Southern Africa,202,Sub-Saharan Africa,002,Africa,001,World,BW,BWA,FALSE,TRUE,FALSE
+748,Eswatini,018,Southern Africa,202,Sub-Saharan Africa,002,Africa,001,World,SZ,SWZ,FALSE,TRUE,FALSE
+426,Lesotho,018,Southern Africa,202,Sub-Saharan Africa,002,Africa,001,World,LS,LSO,TRUE,TRUE,FALSE
+516,Namibia,018,Southern Africa,202,Sub-Saharan Africa,002,Africa,001,World,NA,NAM,FALSE,FALSE,FALSE
+710,South Africa,018,Southern Africa,202,Sub-Saharan Africa,002,Africa,001,World,ZA,ZAF,FALSE,FALSE,FALSE
+204,Benin,011,Western Africa,202,Sub-Saharan Africa,002,Africa,001,World,BJ,BEN,TRUE,FALSE,FALSE
+854,Burkina Faso,011,Western Africa,202,Sub-Saharan Africa,002,Africa,001,World,BF,BFA,TRUE,TRUE,FALSE
+132,Cabo Verde,011,Western Africa,202,Sub-Saharan Africa,002,Africa,001,World,CV,CPV,FALSE,FALSE,TRUE
+384,Côte d’Ivoire,011,Western Africa,202,Sub-Saharan Africa,002,Africa,001,World,CI,CIV,FALSE,FALSE,FALSE
+270,Gambia,011,Western Africa,202,Sub-Saharan Africa,002,Africa,001,World,GM,GMB,TRUE,FALSE,FALSE
+288,Ghana,011,Western Africa,202,Sub-Saharan Africa,002,Africa,001,World,GH,GHA,FALSE,FALSE,FALSE
+324,Guinea,011,Western Africa,202,Sub-Saharan Africa,002,Africa,001,World,GN,GIN,TRUE,FALSE,FALSE
+624,Guinea-Bissau,011,Western Africa,202,Sub-Saharan Africa,002,Africa,001,World,GW,GNB,TRUE,FALSE,TRUE
+430,Liberia,011,Western Africa,202,Sub-Saharan Africa,002,Africa,001,World,LR,LBR,TRUE,FALSE,FALSE
+466,Mali,011,Western Africa,202,Sub-Saharan Africa,002,Africa,001,World,ML,MLI,TRUE,TRUE,FALSE
+478,Mauritania,011,Western Africa,202,Sub-Saharan Africa,002,Africa,001,World,MR,MRT,TRUE,FALSE,FALSE
+562,Niger,011,Western Africa,202,Sub-Saharan Africa,002,Africa,001,World,NE,NER,TRUE,TRUE,FALSE
+566,Nigeria,011,Western Africa,202,Sub-Saharan Africa,002,Africa,001,World,NG,NGA,FALSE,FALSE,FALSE
+654,Saint Helena,011,Western Africa,202,Sub-Saharan Africa,002,Africa,001,World,SH,SHN,FALSE,FALSE,FALSE
+686,Senegal,011,Western Africa,202,Sub-Saharan Africa,002,Africa,001,World,SN,SEN,TRUE,FALSE,FALSE
+694,Sierra Leone,011,Western Africa,202,Sub-Saharan Africa,002,Africa,001,World,SL,SLE,TRUE,FALSE,FALSE
+768,Togo,011,Western Africa,202,Sub-Saharan Africa,002,Africa,001,World,TG,TGO,TRUE,FALSE,FALSE
+660,Anguilla,029,Caribbean,419,Latin America and the Caribbean,019,Americas,001,World,AI,AIA,FALSE,FALSE,TRUE
+028,Antigua and Barbuda,029,Caribbean,419,Latin America and the Caribbean,019,Americas,001,World,AG,ATG,FALSE,FALSE,TRUE
+533,Aruba,029,Caribbean,419,Latin America and the Caribbean,019,Americas,001,World,AW,ABW,FALSE,FALSE,TRUE
+044,Bahamas,029,Caribbean,419,Latin America and the Caribbean,019,Americas,001,World,BS,BHS,FALSE,FALSE,TRUE
+052,Barbados,029,Caribbean,419,Latin America and the Caribbean,019,Americas,001,World,BB,BRB,FALSE,FALSE,TRUE
+535,"Bonaire, Sint Eustatius and Saba",029,Caribbean,419,Latin America and the Caribbean,019,Americas,001,World,BQ,BES,FALSE,FALSE,TRUE
+092,British Virgin Islands,029,Caribbean,419,Latin America and the Caribbean,019,Americas,001,World,VG,VGB,FALSE,FALSE,TRUE
+136,Cayman Islands,029,Caribbean,419,Latin America and the Caribbean,019,Americas,001,World,KY,CYM,FALSE,FALSE,FALSE
+192,Cuba,029,Caribbean,419,Latin America and the Caribbean,019,Americas,001,World,CU,CUB,FALSE,FALSE,TRUE
+531,Curaçao,029,Caribbean,419,Latin America and the Caribbean,019,Americas,001,World,CW,CUW,FALSE,FALSE,TRUE
+212,Dominica,029,Caribbean,419,Latin America and the Caribbean,019,Americas,001,World,DM,DMA,FALSE,FALSE,TRUE
+214,Dominican Republic,029,Caribbean,419,Latin America and the Caribbean,019,Americas,001,World,DO,DOM,FALSE,FALSE,TRUE
+308,Grenada,029,Caribbean,419,Latin America and the Caribbean,019,Americas,001,World,GD,GRD,FALSE,FALSE,TRUE
+312,Guadeloupe,029,Caribbean,419,Latin America and the Caribbean,019,Americas,001,World,GP,GLP,FALSE,FALSE,FALSE
+332,Haiti,029,Caribbean,419,Latin America and the Caribbean,019,Americas,001,World,HT,HTI,TRUE,FALSE,TRUE
+388,Jamaica,029,Caribbean,419,Latin America and the Caribbean,019,Americas,001,World,JM,JAM,FALSE,FALSE,TRUE
+474,Martinique,029,Caribbean,419,Latin America and the Caribbean,019,Americas,001,World,MQ,MTQ,FALSE,FALSE,FALSE
+500,Montserrat,029,Caribbean,419,Latin America and the Caribbean,019,Americas,001,World,MS,MSR,FALSE,FALSE,TRUE
+630,Puerto Rico,029,Caribbean,419,Latin America and the Caribbean,019,Americas,001,World,PR,PRI,FALSE,FALSE,TRUE
+652,Saint Barthélemy,029,Caribbean,419,Latin America and the Caribbean,019,Americas,001,World,BL,BLM,FALSE,FALSE,FALSE
+659,Saint Kitts and Nevis,029,Caribbean,419,Latin America and the Caribbean,019,Americas,001,World,KN,KNA,FALSE,FALSE,TRUE
+662,Saint Lucia,029,Caribbean,419,Latin America and the Caribbean,019,Americas,001,World,LC,LCA,FALSE,FALSE,TRUE
+663,Saint Martin (French Part),029,Caribbean,419,Latin America and the Caribbean,019,Americas,001,World,MF,MAF,FALSE,FALSE,FALSE
+670,Saint Vincent and the Grenadines,029,Caribbean,419,Latin America and the Caribbean,019,Americas,001,World,VC,VCT,FALSE,FALSE,TRUE
+534,Sint Maarten (Dutch part),029,Caribbean,419,Latin America and the Caribbean,019,Americas,001,World,SX,SXM,FALSE,FALSE,TRUE
+780,Trinidad and Tobago,029,Caribbean,419,Latin America and the Caribbean,019,Americas,001,World,TT,TTO,FALSE,FALSE,TRUE
+796,Turks and Caicos Islands,029,Caribbean,419,Latin America and the Caribbean,019,Americas,001,World,TC,TCA,FALSE,FALSE,FALSE
+850,United States Virgin Islands,029,Caribbean,419,Latin America and the Caribbean,019,Americas,001,World,VI,VIR,FALSE,FALSE,TRUE
+084,Belize,013,Central America,419,Latin America and the Caribbean,019,Americas,001,World,BZ,BLZ,FALSE,FALSE,TRUE
+188,Costa Rica,013,Central America,419,Latin America and the Caribbean,019,Americas,001,World,CR,CRI,FALSE,FALSE,FALSE
+222,El Salvador,013,Central America,419,Latin America and the Caribbean,019,Americas,001,World,SV,SLV,FALSE,FALSE,FALSE
+320,Guatemala,013,Central America,419,Latin America and the Caribbean,019,Americas,001,World,GT,GTM,FALSE,FALSE,FALSE
+340,Honduras,013,Central America,419,Latin America and the Caribbean,019,Americas,001,World,HN,HND,FALSE,FALSE,FALSE
+484,Mexico,013,Central America,419,Latin America and the Caribbean,019,Americas,001,World,MX,MEX,FALSE,FALSE,FALSE
+558,Nicaragua,013,Central America,419,Latin America and the Caribbean,019,Americas,001,World,NI,NIC,FALSE,FALSE,FALSE
+591,Panama,013,Central America,419,Latin America and the Caribbean,019,Americas,001,World,PA,PAN,FALSE,FALSE,FALSE
+032,Argentina,005,South America,419,Latin America and the Caribbean,019,Americas,001,World,AR,ARG,FALSE,FALSE,FALSE
+068,Bolivia (Plurinational State of),005,South America,419,Latin America and the Caribbean,019,Americas,001,World,BO,BOL,FALSE,TRUE,FALSE
+074,Bouvet Island,005,South America,419,Latin America and the Caribbean,019,Americas,001,World,BV,BVT,FALSE,FALSE,FALSE
+076,Brazil,005,South America,419,Latin America and the Caribbean,019,Americas,001,World,BR,BRA,FALSE,FALSE,FALSE
+152,Chile,005,South America,419,Latin America and the Caribbean,019,Americas,001,World,CL,CHL,FALSE,FALSE,FALSE
+170,Colombia,005,South America,419,Latin America and the Caribbean,019,Americas,001,World,CO,COL,FALSE,FALSE,FALSE
+218,Ecuador,005,South America,419,Latin America and the Caribbean,019,Americas,001,World,EC,ECU,FALSE,FALSE,FALSE
+238,Falkland Islands (Malvinas),005,South America,419,Latin America and the Caribbean,019,Americas,001,World,FK,FLK,FALSE,FALSE,FALSE
+254,French Guiana,005,South America,419,Latin America and the Caribbean,019,Americas,001,World,GF,GUF,FALSE,FALSE,FALSE
+328,Guyana,005,South America,419,Latin America and the Caribbean,019,Americas,001,World,GY,GUY,FALSE,FALSE,TRUE
+600,Paraguay,005,South America,419,Latin America and the Caribbean,019,Americas,001,World,PY,PRY,FALSE,TRUE,FALSE
+604,Peru,005,South America,419,Latin America and the Caribbean,019,Americas,001,World,PE,PER,FALSE,FALSE,FALSE
+239,South Georgia and the South Sandwich Islands,005,South America,419,Latin America and the Caribbean,019,Americas,001,World,GS,SGS,FALSE,FALSE,FALSE
+740,Suriname,005,South America,419,Latin America and the Caribbean,019,Americas,001,World,SR,SUR,FALSE,FALSE,TRUE
+858,Uruguay,005,South America,419,Latin America and the Caribbean,019,Americas,001,World,UY,URY,FALSE,FALSE,FALSE
+862,Venezuela (Bolivarian Republic of),005,South America,419,Latin America and the Caribbean,019,Americas,001,World,VE,VEN,FALSE,FALSE,FALSE
+060,Bermuda,NA,NA,021,Northern America,019,Americas,001,World,BM,BMU,FALSE,FALSE,FALSE
+124,Canada,NA,NA,021,Northern America,019,Americas,001,World,CA,CAN,FALSE,FALSE,FALSE
+304,Greenland,NA,NA,021,Northern America,019,Americas,001,World,GL,GRL,FALSE,FALSE,FALSE
+666,Saint Pierre and Miquelon,NA,NA,021,Northern America,019,Americas,001,World,PM,SPM,FALSE,FALSE,FALSE
+840,United States of America,NA,NA,021,Northern America,019,Americas,001,World,US,USA,FALSE,FALSE,FALSE
+010,Antarctica,NA,NA,NA,NA,NA,NA,001,World,AQ,ATA,FALSE,FALSE,FALSE
+398,Kazakhstan,NA,NA,143,Central Asia,142,Asia,001,World,KZ,KAZ,FALSE,TRUE,FALSE
+417,Kyrgyzstan,NA,NA,143,Central Asia,142,Asia,001,World,KG,KGZ,FALSE,TRUE,FALSE
+762,Tajikistan,NA,NA,143,Central Asia,142,Asia,001,World,TJ,TJK,FALSE,TRUE,FALSE
+795,Turkmenistan,NA,NA,143,Central Asia,142,Asia,001,World,TM,TKM,FALSE,TRUE,FALSE
+860,Uzbekistan,NA,NA,143,Central Asia,142,Asia,001,World,UZ,UZB,FALSE,TRUE,FALSE
+156,China,NA,NA,030,Eastern Asia,142,Asia,001,World,CN,CHN,FALSE,FALSE,FALSE
+344,"China, Hong Kong Special Administrative Region",NA,NA,030,Eastern Asia,142,Asia,001,World,HK,HKG,FALSE,FALSE,FALSE
+446,"China, Macao Special Administrative Region",NA,NA,030,Eastern Asia,142,Asia,001,World,MO,MAC,FALSE,FALSE,FALSE
+408,Democratic People's Republic of Korea,NA,NA,030,Eastern Asia,142,Asia,001,World,KP,PRK,FALSE,FALSE,FALSE
+392,Japan,NA,NA,030,Eastern Asia,142,Asia,001,World,JP,JPN,FALSE,FALSE,FALSE
+496,Mongolia,NA,NA,030,Eastern Asia,142,Asia,001,World,MN,MNG,FALSE,TRUE,FALSE
+410,Republic of Korea,NA,NA,030,Eastern Asia,142,Asia,001,World,KR,KOR,FALSE,FALSE,FALSE
+096,Brunei Darussalam,NA,NA,035,South-eastern Asia,142,Asia,001,World,BN,BRN,FALSE,FALSE,FALSE
+116,Cambodia,NA,NA,035,South-eastern Asia,142,Asia,001,World,KH,KHM,TRUE,FALSE,FALSE
+360,Indonesia,NA,NA,035,South-eastern Asia,142,Asia,001,World,ID,IDN,FALSE,FALSE,FALSE
+418,Lao People's Democratic Republic,NA,NA,035,South-eastern Asia,142,Asia,001,World,LA,LAO,TRUE,TRUE,FALSE
+458,Malaysia,NA,NA,035,South-eastern Asia,142,Asia,001,World,MY,MYS,FALSE,FALSE,FALSE
+104,Myanmar,NA,NA,035,South-eastern Asia,142,Asia,001,World,MM,MMR,TRUE,FALSE,FALSE
+608,Philippines,NA,NA,035,South-eastern Asia,142,Asia,001,World,PH,PHL,FALSE,FALSE,FALSE
+702,Singapore,NA,NA,035,South-eastern Asia,142,Asia,001,World,SG,SGP,FALSE,FALSE,TRUE
+764,Thailand,NA,NA,035,South-eastern Asia,142,Asia,001,World,TH,THA,FALSE,FALSE,FALSE
+626,Timor-Leste,NA,NA,035,South-eastern Asia,142,Asia,001,World,TL,TLS,TRUE,FALSE,TRUE
+704,Viet Nam,NA,NA,035,South-eastern Asia,142,Asia,001,World,VN,VNM,FALSE,FALSE,FALSE
+004,Afghanistan,NA,NA,034,Southern Asia,142,Asia,001,World,AF,AFG,TRUE,TRUE,FALSE
+050,Bangladesh,NA,NA,034,Southern Asia,142,Asia,001,World,BD,BGD,TRUE,FALSE,FALSE
+064,Bhutan,NA,NA,034,Southern Asia,142,Asia,001,World,BT,BTN,FALSE,TRUE,FALSE
+356,India,NA,NA,034,Southern Asia,142,Asia,001,World,IN,IND,FALSE,FALSE,FALSE
+364,Iran (Islamic Republic of),NA,NA,034,Southern Asia,142,Asia,001,World,IR,IRN,FALSE,FALSE,FALSE
+462,Maldives,NA,NA,034,Southern Asia,142,Asia,001,World,MV,MDV,FALSE,FALSE,TRUE
+524,Nepal,NA,NA,034,Southern Asia,142,Asia,001,World,NP,NPL,TRUE,TRUE,FALSE
+586,Pakistan,NA,NA,034,Southern Asia,142,Asia,001,World,PK,PAK,FALSE,FALSE,FALSE
+144,Sri Lanka,NA,NA,034,Southern Asia,142,Asia,001,World,LK,LKA,FALSE,FALSE,FALSE
+051,Armenia,NA,NA,145,Western Asia,142,Asia,001,World,AM,ARM,FALSE,TRUE,FALSE
+031,Azerbaijan,NA,NA,145,Western Asia,142,Asia,001,World,AZ,AZE,FALSE,TRUE,FALSE
+048,Bahrain,NA,NA,145,Western Asia,142,Asia,001,World,BH,BHR,FALSE,FALSE,FALSE
+196,Cyprus,NA,NA,145,Western Asia,142,Asia,001,World,CY,CYP,FALSE,FALSE,FALSE
+268,Georgia,NA,NA,145,Western Asia,142,Asia,001,World,GE,GEO,FALSE,FALSE,FALSE
+368,Iraq,NA,NA,145,Western Asia,142,Asia,001,World,IQ,IRQ,FALSE,FALSE,FALSE
+376,Israel,NA,NA,145,Western Asia,142,Asia,001,World,IL,ISR,FALSE,FALSE,FALSE
+400,Jordan,NA,NA,145,Western Asia,142,Asia,001,World,JO,JOR,FALSE,FALSE,FALSE
+414,Kuwait,NA,NA,145,Western Asia,142,Asia,001,World,KW,KWT,FALSE,FALSE,FALSE
+422,Lebanon,NA,NA,145,Western Asia,142,Asia,001,World,LB,LBN,FALSE,FALSE,FALSE
+512,Oman,NA,NA,145,Western Asia,142,Asia,001,World,OM,OMN,FALSE,FALSE,FALSE
+634,Qatar,NA,NA,145,Western Asia,142,Asia,001,World,QA,QAT,FALSE,FALSE,FALSE
+682,Saudi Arabia,NA,NA,145,Western Asia,142,Asia,001,World,SA,SAU,FALSE,FALSE,FALSE
+275,State of Palestine,NA,NA,145,Western Asia,142,Asia,001,World,PS,PSE,FALSE,FALSE,FALSE
+760,Syrian Arab Republic,NA,NA,145,Western Asia,142,Asia,001,World,SY,SYR,FALSE,FALSE,FALSE
+792,Türkiye,NA,NA,145,Western Asia,142,Asia,001,World,TR,TUR,FALSE,FALSE,FALSE
+784,United Arab Emirates,NA,NA,145,Western Asia,142,Asia,001,World,AE,ARE,FALSE,FALSE,FALSE
+887,Yemen,NA,NA,145,Western Asia,142,Asia,001,World,YE,YEM,TRUE,FALSE,FALSE
+112,Belarus,NA,NA,151,Eastern Europe,150,Europe,001,World,BY,BLR,FALSE,FALSE,FALSE
+100,Bulgaria,NA,NA,151,Eastern Europe,150,Europe,001,World,BG,BGR,FALSE,FALSE,FALSE
+203,Czechia,NA,NA,151,Eastern Europe,150,Europe,001,World,CZ,CZE,FALSE,FALSE,FALSE
+348,Hungary,NA,NA,151,Eastern Europe,150,Europe,001,World,HU,HUN,FALSE,FALSE,FALSE
+616,Poland,NA,NA,151,Eastern Europe,150,Europe,001,World,PL,POL,FALSE,FALSE,FALSE
+498,Republic of Moldova,NA,NA,151,Eastern Europe,150,Europe,001,World,MD,MDA,FALSE,TRUE,FALSE
+642,Romania,NA,NA,151,Eastern Europe,150,Europe,001,World,RO,ROU,FALSE,FALSE,FALSE
+643,Russian Federation,NA,NA,151,Eastern Europe,150,Europe,001,World,RU,RUS,FALSE,FALSE,FALSE
+703,Slovakia,NA,NA,151,Eastern Europe,150,Europe,001,World,SK,SVK,FALSE,FALSE,FALSE
+804,Ukraine,NA,NA,151,Eastern Europe,150,Europe,001,World,UA,UKR,FALSE,FALSE,FALSE
+248,Åland Islands,NA,NA,154,Northern Europe,150,Europe,001,World,AX,ALA,FALSE,FALSE,FALSE
+208,Denmark,NA,NA,154,Northern Europe,150,Europe,001,World,DK,DNK,FALSE,FALSE,FALSE
+233,Estonia,NA,NA,154,Northern Europe,150,Europe,001,World,EE,EST,FALSE,FALSE,FALSE
+234,Faroe Islands,NA,NA,154,Northern Europe,150,Europe,001,World,FO,FRO,FALSE,FALSE,FALSE
+246,Finland,NA,NA,154,Northern Europe,150,Europe,001,World,FI,FIN,FALSE,FALSE,FALSE
+831,Guernsey,NA,NA,154,Northern Europe,150,Europe,001,World,GG,GGY,FALSE,FALSE,FALSE
+352,Iceland,NA,NA,154,Northern Europe,150,Europe,001,World,IS,ISL,FALSE,FALSE,FALSE
+372,Ireland,NA,NA,154,Northern Europe,150,Europe,001,World,IE,IRL,FALSE,FALSE,FALSE
+833,Isle of Man,NA,NA,154,Northern Europe,150,Europe,001,World,IM,IMN,FALSE,FALSE,FALSE
+832,Jersey,NA,NA,154,Northern Europe,150,Europe,001,World,JE,JEY,FALSE,FALSE,FALSE
+428,Latvia,NA,NA,154,Northern Europe,150,Europe,001,World,LV,LVA,FALSE,FALSE,FALSE
+440,Lithuania,NA,NA,154,Northern Europe,150,Europe,001,World,LT,LTU,FALSE,FALSE,FALSE
+578,Norway,NA,NA,154,Northern Europe,150,Europe,001,World,NO,NOR,FALSE,FALSE,FALSE
+744,Svalbard and Jan Mayen Islands,NA,NA,154,Northern Europe,150,Europe,001,World,SJ,SJM,FALSE,FALSE,FALSE
+752,Sweden,NA,NA,154,Northern Europe,150,Europe,001,World,SE,SWE,FALSE,FALSE,FALSE
+826,United Kingdom of Great Britain and Northern Ireland,NA,NA,154,Northern Europe,150,Europe,001,World,GB,GBR,FALSE,FALSE,FALSE
+008,Albania,NA,NA,039,Southern Europe,150,Europe,001,World,AL,ALB,FALSE,FALSE,FALSE
+020,Andorra,NA,NA,039,Southern Europe,150,Europe,001,World,AD,AND,FALSE,FALSE,FALSE
+070,Bosnia and Herzegovina,NA,NA,039,Southern Europe,150,Europe,001,World,BA,BIH,FALSE,FALSE,FALSE
+191,Croatia,NA,NA,039,Southern Europe,150,Europe,001,World,HR,HRV,FALSE,FALSE,FALSE
+292,Gibraltar,NA,NA,039,Southern Europe,150,Europe,001,World,GI,GIB,FALSE,FALSE,FALSE
+300,Greece,NA,NA,039,Southern Europe,150,Europe,001,World,GR,GRC,FALSE,FALSE,FALSE
+336,Holy See,NA,NA,039,Southern Europe,150,Europe,001,World,VA,VAT,FALSE,FALSE,FALSE
+380,Italy,NA,NA,039,Southern Europe,150,Europe,001,World,IT,ITA,FALSE,FALSE,FALSE
+470,Malta,NA,NA,039,Southern Europe,150,Europe,001,World,MT,MLT,FALSE,FALSE,FALSE
+499,Montenegro,NA,NA,039,Southern Europe,150,Europe,001,World,ME,MNE,FALSE,FALSE,FALSE
+807,North Macedonia,NA,NA,039,Southern Europe,150,Europe,001,World,MK,MKD,FALSE,TRUE,FALSE
+620,Portugal,NA,NA,039,Southern Europe,150,Europe,001,World,PT,PRT,FALSE,FALSE,FALSE
+674,San Marino,NA,NA,039,Southern Europe,150,Europe,001,World,SM,SMR,FALSE,FALSE,FALSE
+688,Serbia,NA,NA,039,Southern Europe,150,Europe,001,World,RS,SRB,FALSE,FALSE,FALSE
+705,Slovenia,NA,NA,039,Southern Europe,150,Europe,001,World,SI,SVN,FALSE,FALSE,FALSE
+724,Spain,NA,NA,039,Southern Europe,150,Europe,001,World,ES,ESP,FALSE,FALSE,FALSE
+040,Austria,NA,NA,155,Western Europe,150,Europe,001,World,AT,AUT,FALSE,FALSE,FALSE
+056,Belgium,NA,NA,155,Western Europe,150,Europe,001,World,BE,BEL,FALSE,FALSE,FALSE
+250,France,NA,NA,155,Western Europe,150,Europe,001,World,FR,FRA,FALSE,FALSE,FALSE
+276,Germany,NA,NA,155,Western Europe,150,Europe,001,World,DE,DEU,FALSE,FALSE,FALSE
+438,Liechtenstein,NA,NA,155,Western Europe,150,Europe,001,World,LI,LIE,FALSE,FALSE,FALSE
+442,Luxembourg,NA,NA,155,Western Europe,150,Europe,001,World,LU,LUX,FALSE,FALSE,FALSE
+492,Monaco,NA,NA,155,Western Europe,150,Europe,001,World,MC,MCO,FALSE,FALSE,FALSE
+528,Netherlands (Kingdom of the),NA,NA,155,Western Europe,150,Europe,001,World,NL,NLD,FALSE,FALSE,FALSE
+756,Switzerland,NA,NA,155,Western Europe,150,Europe,001,World,CH,CHE,FALSE,FALSE,FALSE
+036,Australia,NA,NA,053,Australia and New Zealand,009,Oceania,001,World,AU,AUS,FALSE,FALSE,FALSE
+162,Christmas Island,NA,NA,053,Australia and New Zealand,009,Oceania,001,World,CX,CXR,FALSE,FALSE,FALSE
+166,Cocos (Keeling) Islands,NA,NA,053,Australia and New Zealand,009,Oceania,001,World,CC,CCK,FALSE,FALSE,FALSE
+334,Heard Island and McDonald Islands,NA,NA,053,Australia and New Zealand,009,Oceania,001,World,HM,HMD,FALSE,FALSE,FALSE
+554,New Zealand,NA,NA,053,Australia and New Zealand,009,Oceania,001,World,NZ,NZL,FALSE,FALSE,FALSE
+574,Norfolk Island,NA,NA,053,Australia and New Zealand,009,Oceania,001,World,NF,NFK,FALSE,FALSE,FALSE
+242,Fiji,NA,NA,054,Melanesia,009,Oceania,001,World,FJ,FJI,FALSE,FALSE,TRUE
+540,New Caledonia,NA,NA,054,Melanesia,009,Oceania,001,World,NC,NCL,FALSE,FALSE,TRUE
+598,Papua New Guinea,NA,NA,054,Melanesia,009,Oceania,001,World,PG,PNG,FALSE,FALSE,TRUE
+090,Solomon Islands,NA,NA,054,Melanesia,009,Oceania,001,World,SB,SLB,TRUE,FALSE,TRUE
+548,Vanuatu,NA,NA,054,Melanesia,009,Oceania,001,World,VU,VUT,FALSE,FALSE,TRUE
+316,Guam,NA,NA,057,Micronesia,009,Oceania,001,World,GU,GUM,FALSE,FALSE,TRUE
+296,Kiribati,NA,NA,057,Micronesia,009,Oceania,001,World,KI,KIR,TRUE,FALSE,TRUE
+584,Marshall Islands,NA,NA,057,Micronesia,009,Oceania,001,World,MH,MHL,FALSE,FALSE,TRUE
+583,Micronesia (Federated States of),NA,NA,057,Micronesia,009,Oceania,001,World,FM,FSM,FALSE,FALSE,TRUE
+520,Nauru,NA,NA,057,Micronesia,009,Oceania,001,World,NR,NRU,FALSE,FALSE,TRUE
+580,Northern Mariana Islands,NA,NA,057,Micronesia,009,Oceania,001,World,MP,MNP,FALSE,FALSE,TRUE
+585,Palau,NA,NA,057,Micronesia,009,Oceania,001,World,PW,PLW,FALSE,FALSE,TRUE
+581,United States Minor Outlying Islands,NA,NA,057,Micronesia,009,Oceania,001,World,UM,UMI,FALSE,FALSE,FALSE
+016,American Samoa,NA,NA,061,Polynesia,009,Oceania,001,World,AS,ASM,FALSE,FALSE,TRUE
+184,Cook Islands,NA,NA,061,Polynesia,009,Oceania,001,World,CK,COK,FALSE,FALSE,TRUE
+258,French Polynesia,NA,NA,061,Polynesia,009,Oceania,001,World,PF,PYF,FALSE,FALSE,TRUE
+570,Niue,NA,NA,061,Polynesia,009,Oceania,001,World,NU,NIU,FALSE,FALSE,TRUE
+612,Pitcairn,NA,NA,061,Polynesia,009,Oceania,001,World,PN,PCN,FALSE,FALSE,FALSE
+882,Samoa,NA,NA,061,Polynesia,009,Oceania,001,World,WS,WSM,FALSE,FALSE,TRUE
+772,Tokelau,NA,NA,061,Polynesia,009,Oceania,001,World,TK,TKL,FALSE,FALSE,FALSE
+776,Tonga,NA,NA,061,Polynesia,009,Oceania,001,World,TO,TON,FALSE,FALSE,TRUE
+798,Tuvalu,NA,NA,061,Polynesia,009,Oceania,001,World,TV,TUV,TRUE,FALSE,TRUE
+876,Wallis and Futuna Islands,NA,NA,061,Polynesia,009,Oceania,001,World,WF,WLF,FALSE,FALSE,FALSE

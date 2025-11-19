@@ -105,6 +105,8 @@ whep_list_file_versions <- function(file_alias) {
       nanoparquet::read_parquet() |>
       # Make sure it has `tbl_df` subclass, not present by default
       tibble::as_tibble()
+  } else if (extension == "geojson") {
+    sf::read_sf(path)
   } else {
     extensions <- purrr::map(paths, fs::path_ext)
     cli::cli_abort(

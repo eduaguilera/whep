@@ -1,0 +1,231 @@
+original_name,polity_code,start_year,end_year
+Afghanistan,AFG--1888,1800,1888
+Afghanistan,AFG-1919-,1961,2025
+Angola,AGO-1975-,1975,2025
+Albania,ALB-1913-,1913,2025
+United Arab Emirates,ARE-1971-,1971,2025
+Argentina,ARG--1899,1800,1899
+Argentina,ARG-1902-,1961,2025
+Armenia,ARM-1991-,1991,2025
+Austria-Hungary,AUH--1908,1800,1908
+Australia,AUS-1901-,1961,2025
+Australia Commonwealth,AUS-1901-,1901,1938
+Austria,AUT-1919-,1919,2025
+Azerbaijan,AZE-1991-,1991,2025
+Burundi,BDI-1962-,1962,2025
+Belgium,BEL--,1831,2025
+Benin,BEN-1960-,1961,2025
+Burkina Faso,BFA-1960-,1961,2025
+Bangladesh,BGD-1971-,1971,2025
+Bulgaria,BGR--1913,1878,1913
+Bulgaria,BGR-1940-,1961,2025
+Bahrain,BHR-1971-,1971,2025
+Bahamas,BHS-1973-,1973,2025
+Bosnia and Herzegovina,BIH-1992-,1992,2025
+Belarus,BLR-1991-,1991,2025
+Belize,BLZ-1981-,1981,2025
+Bolivia,BOL--1903,1825,1903
+Bolivia (Plurinational State of),BOL-1938-,1961,2025
+Brazil,BRA--1903,1800,1903
+Brazil,BRA-1909-,1961,2025
+Barbados,BRB-1966-,1966,2025
+Brunei Darussalam,BRN-1984-,1984,2025
+Bhutan,BTN-1949-,1949,2025
+Botswana,BWA-1966-,1966,2025
+Central African Republic,CAF-1960-,1961,2025
+Canada,CAN--1948,1866,1938
+Canada,CAN-1948-,1961,2025
+Switzerland,CHE--,1800,2025
+Chile,CHL--1899,1810,1899
+Chile,CHL-1902-,1961,2025
+Côte d'Ivoire,CIV-1960-,1961,2025
+Cameroon,CMR-1961-,1961,2025
+"Congo, Democratic Republic of the",COD-1960-,1970,2025
+Democratic Republic of the Congo,COD-1960-,1961,2025
+Congo,COG-1960-,1961,2025
+Colombia,COL--1903,1800,1903
+Colombia,COL-1922-,1961,2025
+Comoros,COM-1975-,1975,2025
+Cabo Verde,CPV-1975-,1975,2025
+Costa Rica,CRI--,1800,2025
+Cuba,CUB-1902-,1902,2025
+Cyprus,CYP-1960-,1960,2025
+Czechia,CZE-1993-,1993,2025
+Germany,DEU-1990-,1990,2025
+Djibouti,DJI-1977-,1977,2025
+Denmark,DNK--1920,1800,1920
+Denmark,DNK-1920-,1961,2025
+Dominican Republic,DOM--,1800,2025
+Algeria,DZA-1962-,1962,2025
+Ecuador,ECU--1942,1800,1938
+Ecuador,ECU-1942-,1961,2025
+Egypt,EGY-1979-,1979,2025
+Eritrea,ERI-1993-,1993,2025
+Spain,ESP--,1800,2025
+Estonia,EST-1918-1940,1918,1938
+Estonia,EST-1991-,1991,2025
+Ethiopia,ETH-1993-,1993,2025
+Russia/USSR,F228--1905,1800,1905
+USSR,F228-1945-1991,1961,1991
+North Yemen,F246-1918-1990,1918,1938
+Yemen (old),F246-1918-1990,1970,1990
+Yemen Ar Rp,F246-1918-1990,1961,1989
+Democratic Yemen,F247-1967-1990,1970,1990
+Yemen Dem,F247-1967-1990,1967,1989
+Socialist Federal Republic of Yugoslavia,F248-1991-1992,1991,1992
+Yugoslav SFR,F248-1991-1992,1991,1991
+China,F351-1950-,1961,2025
+Czechoslovakia,F51-1918-1938,1918,1937
+Czechoslovakia,F51-1947-1992,1961,1992
+German Democratic Republic,F77-1949-1990,1970,1990
+Germany Nl,F77-1949-1990,1961,1989
+Federal Republic of Germany,F78-1949-1990,1970,1990
+Germany Fr,F78-1949-1990,1961,1989
+Finland,FIN-1917-1940,1917,1938
+Finland,FIN-1940-,1961,2025
+Fiji,FJI-1970-,1970,2025
+France,FRA--1919,1800,1919
+France,FRA-1919-,1961,2025
+Gabon,GAB-1960-,1961,2025
+United Kingdom,GBR--1921,1800,1921
+United Kingdom of Great Britain and Northern Ireland,GBR-1921-,1961,2025
+Georgia,GEO-1991-,1991,2025
+Ghana,GHA-1957-,1961,2025
+Guinea,GIN-1958-,1961,2025
+Gambia,GMB-1965-,1965,2025
+Guinea-Bissau,GNB-1974-,1974,2025
+Equatorial Guinea,GNQ-1968-,1968,2025
+Greece,GRC-1919-,1961,2025
+Guatemala,GTM--,1821,2025
+Guyana,GUY-1966-,1966,2025
+Honduras,HND--,1800,2025
+Croatia,HRV-1992-,1992,2025
+Haiti,HTI--,1800,2025
+Hungary,HUN-1947-,1961,2025
+Indonesia,IDN-2002-,2002,2025
+India,IND-1949-,1961,2025
+Ireland,IRL-1921-,1921,2025
+Iran (Islamic Republic of),IRN--,1961,2025
+"Iran, Islamic Republic of",IRN--,1970,2025
+Persia (Iran),IRN--,1800,1938
+Iraq,IRQ-1932-,1932,2025
+Iceland,ISL-1944-,1944,2025
+Israel,ISR-1979-,1979,2025
+Italy,ITA--1919,1861,1919
+Italy,ITA-1919-,1961,2025
+Jamaica,JAM-1962-,1962,2025
+Jordan,JOR-1946-,1946,2025
+Japan,JPN--,1800,2025
+Kazakhstan,KAZ-1991-,1991,2025
+Kenya,KEN-1963-,1963,2025
+Kyrgyzstan,KGZ-1991-,1991,2025
+Cambodia,KHM-1953-,1961,2025
+"Korea, Republic of",KOR-1948-,1970,2025
+Republic of Korea,KOR-1948-,1961,2025
+Kuwait,KWT-1961-,1961,2025
+Lao People's Democratic Republic,LAO-1954-,1961,2025
+Lebanon,LBN-1944-,1961,2025
+Liberia,LBR--,1847,2025
+Libya,LBY-1951-,1961,2025
+Sri Lanka,LKA-1948-,1961,2025
+Lesotho,LSO-1966-,1966,2025
+Lithuania,LTU-1918-1920,1918,1920
+Lithuania,LTU-1991-,1991,2025
+Luxembourg,LUX--,1970,2025
+Latvia,LVA-1918-1940,1918,1938
+Latvia,LVA-1991-,1991,2025
+Morocco (French),MAR--1958,1911,1938
+Morocco,MAR-1979-,1979,2025
+Republic of Moldova,MDA-1991-,1991,2025
+Madagascar,MDG--,1882,2025
+Maldives,MDV-1965-,1965,2025
+Mexico,MEX--,1800,2025
+North Macedonia,MKD-1991-,1992,2025
+Mali,MLI-1960-,1961,2025
+Malta,MLT-1964-,1964,2025
+Myanmar,MMR-1948-,1961,2025
+Montenegro,MNE--1913,1878,1913
+Montenegro,MNE-2006-,2006,2025
+Mongolia,MNG-1921-,1921,2025
+Mozambique,MOZ-1975-,1975,2025
+Mauritania,MRT-1979-,1979,2025
+Mauritius,MUS-1968-,1968,2025
+Malawi,MWI-1964-,1964,2025
+Malaysia,MYS-1965-,1965,2025
+Namibia,NAM-1990-,1990,2025
+Niger,NER-1960-,1961,2025
+Nigeria,NGA-1961-,1961,2025
+Nicaragua,NIC--,1800,2025
+Netherlands (Kingdom of the),NLD--,1961,2025
+"Netherlands, Kingdom of the",NLD--,1970,2025
+Norway,NOR-1905-,1905,2025
+Nepal,NPL--,1800,2025
+New Zealand,NZL-1907-,1961,2025
+Korea,OKO--1910,1800,1910
+Oman,OMN--,1800,2025
+Pakistan,PAK-1971-,1971,2025
+Panama,PAN-1903-,1906,2025
+Peru,PER--1909,1825,1909
+Peru,PER-1942-,1961,2025
+Philippines,PHL-1946-,1946,2025
+Papua New Guinea,PNG-1975-,1975,2025
+Poland,POL-1918-1919,1918,1919
+Poland,POL-1945-,1961,2025
+Democratic People's Republic of Korea,PRK-1948-,1961,2025
+"Korea, Democratic People's Republic of",PRK-1948-,1970,2025
+Portugal,PRT--,1800,2025
+Paraguay,PRY--1938,1811,1938
+Paraguay,PRY-1938-,1961,2025
+Qatar,QAT-1971-,1971,2025
+Romania,ROU--1913,1859,1913
+Romania,ROU-1940-,1961,2025
+Russian Federation,RUS-2014-,2014,2025
+Rwanda,RWA-1962-,1962,2025
+Saudi Arabia,SAU-2000-,2000,2025
+Serbia and Montenegro,SCG-1992-2006,1992,2006
+Sudan,SDN-2011-,2011,2025
+Senegal,SEN-1960-,1961,2025
+Serbia/Yugoslavia,SER--1913,1816,1913
+Singapore,SGP-1965-,1965,2025
+Solomon Islands,SLB-1978-,1978,2025
+Sierra Leone,SLE-1961-,1961,2025
+El Salvador,SLV--,1821,2025
+Somalia,SOM-1960-,1961,2025
+Serbia,SRB-2008-,2008,2025
+South Sudan,SSD-2011-,2011,2025
+Suriname,SUR-1975-,1975,2025
+Slovakia,SVK-1993-,1993,2025
+Slovenia,SVN-1992-,1992,2025
+Sweden,SWE-1905-,1905,2025
+Eswatini,SWZ-1968-,1968,2025
+Syrian Arab Republic,SYR-1967-,1967,2025
+Chad,TCD-1960-,1961,2025
+Togo,TGO-1960-,1961,2025
+Siam (Thailand),THA--1893,1800,1893
+Thailand,THA-1909-,1961,2025
+Tajikistan,TJK-1991-,1991,2025
+Turkmenistan,TKM-1991-,1991,2025
+Timor-Leste,TLS-2002-,2002,2025
+Transvaal,TRA--1910,1856,1902
+Trinidad and Tobago,TTO-1962-,1962,2025
+Tunisia,TUN-1956-,1956,2025
+Ottoman Empire/Turkey,TUR--1912,1800,1912
+Türkiye,TUR-1920-,1961,2025
+"China, Taiwan Province of",TWN-1949-,1961,2025
+"Taiwan, Province of China",TWN-1949-,1970,2025
+"Tanzania, United Republic of",TZA-1964-,1970,2025
+United Republic of Tanzania,TZA-1964-,1964,2025
+Uganda,UGA-1962-,1962,2025
+Ukraine,UKR-2014-,2014,2025
+Uruguay,URY--,1828,2025
+United States,USA--1959,1800,1938
+United States of America,USA-1959-,1961,2025
+Uzbekistan,UZB-1991-,1991,2025
+Venezuela,VEN--,1821,1938
+Venezuela (Bolivarian Republic of),VEN--,1961,2025
+"Venezuela, Bolivarian Republic of",VEN--,1970,2025
+Viet Nam,VNM-1975-,1975,2025
+Yemen,YEM-2000-,2000,2025
+South Africa,ZAF-1910-,1910,2025
+Zambia,ZMB-1964-,1964,2025
+Zimbabwe,ZWE-1965-,1965,2025

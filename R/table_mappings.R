@@ -32,12 +32,12 @@
 #' @source Inspired by [FAOSTAT data](https://www.fao.org/faostat/en/#data/QCL).
 "items_prod"
 
-#' Polities
+#' Countries
 #'
-#' Defines name/code correspondences for polities (political entities).
+#' Defines name/code correspondences for countries.
 #'
 #' @format
-#' A tibble where each row corresponds to one polity.
+#' A tibble where each row corresponds to one country.
 #' It contains the following columns:
 #'   TODO: On polities Pull Request, coming soon
-"polities"
+"countries"
