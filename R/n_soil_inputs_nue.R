@@ -6,7 +6,7 @@
 #' - Atmospheric deposition (`deposition`)
 #' - Biological nitrogen fixation (`fixation`)
 #' - Synthetic fertilizers (`synthetic`)
-#' - Manure (excreta, solid, liquid) (`manure`)
+#' - Manure (solid, liquid) (`manure`)
 #' - Urban sources (`urban`)
 #'
 #' Special land use categories and items are aggregated:
@@ -100,7 +100,7 @@ create_n_soil_inputs <- function() {
       deposition = sum(Deposition, na.rm = TRUE),
       fixation = sum(BNF, na.rm = TRUE),
       synthetic = sum(Synthetic, na.rm = TRUE),
-      manure = sum(Excreta + Solid + Liquid, na.rm = TRUE),
+      manure = sum(Solid + Liquid, na.rm = TRUE),
       urban = sum(Urban, na.rm = TRUE),
       .by = c(Year, Province_name, Item, Irrig_cat, Box)
     ) |>

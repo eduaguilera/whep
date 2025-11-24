@@ -56,8 +56,9 @@ create_grafs_plot_df <- function() {
 
   writexl::write_xlsx(
     df_final,
-    path = "C:/PhD/GRAFS plot/inst/extdata/GRAFS_spain_data.xlsx"
+    "C:/PhD/GRAFS_plot/inst/extdata/GRAFS_spain_data.xlsx"
   )
+
   df_final
 }
 
