@@ -2,6 +2,8 @@
 #'
 #' @description
 #' Distributes livestock head counts into cohorts and production systems using provided shares.
+#' This step is essential for applying GLEAM 3.0 methodology, which differentiates emissions
+#' factors by animal cohort (e.g., adult females, calves) and production system (e.g., grassland, mixed).
 #'
 #' @param data A dataframe containing at least `year`, `geog_id`, `species`, and `heads`.
 #' @param cohort_shares A dataframe with columns `species`, `cohort`, `share`.
@@ -9,6 +11,28 @@
 #'
 #' @return A dataframe with added columns `cohort`, `system`, and updated `heads`.
 #' @export
+#'
+#' @examples
+#' \dontrun{
+#'   # Dummy data
+#'   data <- tibble::tibble(
+#'     year = 2020,
+#'     geog_id = "USA",
+#'     species = "Cattle",
+#'     heads = 1000
+#'   )
+#'   cohort_shares <- tibble::tibble(
+#'     species = "Cattle",
+#'     cohort = c("Adult Female", "Adult Male", "Calf"),
+#'     share = c(0.5, 0.3, 0.2)
+#'   )
+#'   system_shares <- tibble::tibble(
+#'     species = "Cattle",
+#'     system = c("Grassland", "Mixed"),
+#'     share = c(0.6, 0.4)
+#'   )
+#'   calculate_cohorts_systems(data, cohort_shares, system_shares)
+#' }
 #'
 #' @importFrom dplyr left_join mutate select filter group_by summarize rename
 calculate_cohorts_systems <- function(data, cohort_shares, system_shares) {
@@ -42,7 +66,9 @@ calculate_cohorts_systems <- function(data, cohort_shares, system_shares) {
 #' Estimate Energy Demand (Gross Energy) - Tier 2
 #'
 #' @description
-#' Calculates Gross Energy (GE) intake based on IPCC Tier 2 equations.
+#' Calculates Gross Energy (GE) intake based on IPCC 2019 Tier 2 equations (Vol 4, Chap 10).
+#' It estimates Net Energy for Maintenance (NEm), Activity (NEa), and other requirements
+#' to derive the total Gross Energy (GE) intake per head per day.
 #'
 #' @param data A dataframe with `species`, `cohort`, `heads`, `weight` (optional).
 #' @param energy_coefs A dataframe with `species`, `Cfi`, `Ca_pasture`, `Cp`, etc.
@@ -51,6 +77,27 @@ calculate_cohorts_systems <- function(data, cohort_shares, system_shares) {
 #'
 #' @return Dataframe with added `GE` (MJ/day).
 #' @export
+#'
+#' @examples
+#' \dontrun{
+#'   data <- tibble::tibble(
+#'     species = "Cattle",
+#'     cohort = "Adult Female",
+#'     heads = 100,
+#'     weight = 500
+#'   )
+#'   energy_coefs <- tibble::tibble(
+#'     species = "Cattle",
+#'     Cfi = 0.3, Ca_pasture = 0.17, Cp = 0
+#'   )
+#'   weight_data <- tibble::tibble(
+#'     species = "Cattle", cohort = "Adult Female", weight_kg = 500
+#'   )
+#'   feed_data <- tibble::tibble(
+#'     species = "Cattle", DE_percent = 60, UE_frac = 0.04, REM_ratio = 0.5
+#'   )
+#'   estimate_energy_demand(data, energy_coefs, weight_data, feed_data)
+#' }
 estimate_energy_demand <- function(data, energy_coefs, weight_data, feed_data) {
   
   # Ensure weight column exists or join from weight_data
@@ -97,7 +144,9 @@ estimate_energy_demand <- function(data, energy_coefs, weight_data, feed_data) {
 #' Calculate Enteric Methane Emissions
 #'
 #' @description
-#' Calculates enteric CH4 emissions using Tier 1 (EF) or Tier 2 (GE + Ym).
+#' Calculates enteric CH4 emissions using IPCC Tier 1 (fixed Emission Factors) or
+#' Tier 2 (based on Gross Energy intake and Methane Conversion Factor Ym).
+#' References: IPCC 2019, Vol 4, Chapter 10, Eq 10.21 (Tier 2).
 #'
 #' @param data Dataframe.
 #' @param method "tier1" or "tier2".
@@ -107,6 +156,21 @@ estimate_energy_demand <- function(data, energy_coefs, weight_data, feed_data) {
 #'
 #' @return Dataframe with added `enteric_ch4_tonnes`.
 #' @export
+#'
+#' @examples
+#' \dontrun{
+#'   data <- tibble::tibble(
+#'     species = "Cattle", heads = 100, GE = 200
+#'   )
+#'   # Tier 1
+#'   tier1_coefs <- tibble::tibble(species = "Cattle", ef_enteric = 50)
+#'   calculate_enteric_ch4(data, method = "tier1", tier1_coefs = tier1_coefs)
+#'
+#'   # Tier 2
+#'   tier2_coefs <- tibble::tibble(species = "Cattle", Ym = 6.5)
+#'   constants <- list(days_in_year = 365, energy_content_ch4 = 55.65)
+#'   calculate_enteric_ch4(data, method = "tier2", tier2_coefs = tier2_coefs, constants = constants)
+#' }
 calculate_enteric_ch4 <- function(data, method = "tier2", tier1_coefs = NULL, tier2_coefs = NULL, constants = NULL) {
   
   if (method == "tier1") {
@@ -139,7 +203,9 @@ calculate_enteric_ch4 <- function(data, method = "tier2", tier1_coefs = NULL, ti
 #' Calculate Manure Management Emissions
 #'
 #' @description
-#' Calculates manure CH4 and N2O emissions using Tier 1 or Tier 2.
+#' Calculates manure CH4 and N2O emissions using IPCC Tier 1 or Tier 2 methods.
+#' For Tier 2 CH4: Uses Volatile Solids (VS) and Methane Producing Potential (Bo) (IPCC 2019 Eq 10.23, 10.24).
+#' For N2O: Uses Nitrogen Excretion (Nex) and direct emission factors.
 #'
 #' @param data Dataframe.
 #' @param method "tier1" or "tier2".
@@ -151,6 +217,29 @@ calculate_enteric_ch4 <- function(data, method = "tier2", tier1_coefs = NULL, ti
 #'
 #' @return Dataframe with added `manure_ch4_tonnes`, `manure_n2o_tonnes`.
 #' @export
+#'
+#' @examples
+#' \dontrun{
+#'   data <- tibble::tibble(
+#'     species = "Cattle", heads = 100, GE = 200
+#'   )
+#'   # Tier 2
+#'   tier2_coefs <- tibble::tibble(species = "Cattle", Bo = 0.24, MCF_temp = 0.1)
+#'   manure_params <- tibble::tibble(
+#'     species = "Cattle", Nex_kg_head_yr = 50, EF_n2o_direct = 0.005
+#'   )
+#'   feed_data <- tibble::tibble(
+#'     species = "Cattle", UE_frac = 0.04, DE_percent = 60, Ash_content = 0.08
+#'   )
+#'   constants <- list(
+#'     vs_energy_content = 18.45, days_in_year = 365, ch4_density = 0.67,
+#'     n2o_n_conversion = 44/28
+#'   )
+#'   calculate_manure_emissions(
+#'     data, method = "tier2", tier2_coefs = tier2_coefs,
+#'     manure_params = manure_params, feed_data = feed_data, constants = constants
+#'   )
+#' }
 calculate_manure_emissions <- function(data, method = "tier2", tier1_coefs = NULL, tier2_coefs = NULL, manure_params = NULL, feed_data = NULL, constants = NULL) {
   
   if (method == "tier1") {
@@ -216,6 +305,8 @@ calculate_manure_emissions <- function(data, method = "tier2", tier1_coefs = NUL
 #' @description
 #' Orchestrates the calculation of livestock emissions.
 #' Loads default coefficients from package data if not provided.
+#' This function integrates the GLEAM 3.0 herd structure (cohorts/systems) and
+#' IPCC 2019 Tier 2 energy and emissions calculations.
 #'
 #' @param data Input dataframe.
 #' @param method Method to use ("tier1", "tier2", "all").
@@ -223,6 +314,15 @@ calculate_manure_emissions <- function(data, method = "tier2", tier1_coefs = NUL
 #'
 #' @return Dataframe with emission columns.
 #' @export
+#'
+#' @examples
+#' \dontrun{
+#'   # Requires internal package data to be available or passed in coefs_list
+#'   data <- tibble::tibble(
+#'     year = 2020, geog_id = "USA", species = "Cattle", heads = 1000
+#'   )
+#'   # calculate_livestock_emissions(data, method = "tier1")
+#' }
 calculate_livestock_emissions <- function(data, method = "all", coefs_list = NULL) {
   
   # Load defaults if not provided
