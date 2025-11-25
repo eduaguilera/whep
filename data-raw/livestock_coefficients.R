@@ -56,19 +56,30 @@ generate_ipcc_tier1 <- function() {
 generate_ipcc_tier2 <- function() {
   list(
     energy = data.frame(
-      species = c("Cattle", "Sheep", "Goats"),
-      Cfi = c(0.386, 0.236, 0.246),
-      Ca_stall = c(0, 0, 0),
-      Ca_pasture = c(0.17, 0.10, 0.10),
-      Cp = c(0.1, 0.13, 0.13)
+      species = c("Cattle", "Dairy Cattle", "Other Cattle", "Buffalo", "Sheep", "Goats", "Camels", "Horses", "Mules", "Asses", "Pigs"),
+      # Maintenance (Cfi) - MJ/day/kg^0.75
+      Cfi = c(0.322, 0.386, 0.322, 0.386, 0.236, 0.246, 0.36, NA, NA, NA, NA), 
+      # Activity (Ca)
+      Ca_stall = c(0, 0, 0, 0, 0, 0, 0, NA, NA, NA, NA),
+      Ca_pasture = c(0.17, 0.17, 0.17, 0.17, 0.10, 0.10, 0.17, NA, NA, NA, NA),
+      Ca_grazing = c(0.36, 0.36, 0.36, 0.36, 0.36, 0.36, 0.36, NA, NA, NA, NA),
+      # Pregnancy (Cp) - Ratio of NEm
+      Cp_ratio = c(0.10, 0.10, 0.10, 0.10, 0.13, 0.13, 0.10, NA, NA, NA, NA),
+      # Work (Cwork) - Ratio of NEm per hour
+      Cwork_ratio = c(0.10, 0.10, 0.10, 0.10, 0.10, 0.10, 0.10, NA, NA, NA, NA),
+      # Lactation (Cl) - MJ/kg milk
+      Cl_base = c(1.47, 1.47, 1.47, 1.18, NA, NA, NA, NA, NA, NA, NA), 
+      Cl_fat = c(0.40, 0.40, 0.40, 0.40, NA, NA, NA, NA, NA, NA, NA),
+      # Growth (Cg) - MJ/kg gain
+      Cg = c(22, 22, 22, 22, 15, 15, 20, NA, NA, NA, NA) 
     ),
     methane = data.frame(
-      species = c("Cattle", "Dairy Cattle", "Other Cattle", "Sheep", "Goats", "Pigs"),
-      Ym = c(6.5, 6.5, 6.5, 6.5, 5.5, 0),
-      Bo = c(0.24, 0.24, 0.24, 0.19, 0.18, 0.45),
-      MCF_cool = c(0.10, 0.10, 0.10, 0.10, 0.10, 0.10),
-      MCF_temp = c(0.15, 0.15, 0.15, 0.15, 0.15, 0.15),
-      MCF_warm = c(0.20, 0.20, 0.20, 0.20, 0.20, 0.20)
+      species = c("Cattle", "Dairy Cattle", "Other Cattle", "Buffalo", "Sheep", "Goats", "Pigs", "Camels", "Horses", "Mules", "Asses"),
+      Ym = c(6.5, 6.5, 6.5, 6.5, 6.5, 5.5, 0, 7.0, 2.5, 2.5, 2.5),
+      Bo = c(0.24, 0.24, 0.24, 0.10, 0.19, 0.18, 0.45, 0.26, 0.3, 0.3, 0.3),
+      MCF_cool = c(0.10, 0.10, 0.10, 0.10, 0.10, 0.10, 0.10, 0.10, 0.10, 0.10, 0.10),
+      MCF_temp = c(0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15),
+      MCF_warm = c(0.20, 0.20, 0.20, 0.20, 0.20, 0.20, 0.20, 0.20, 0.20, 0.20, 0.20)
     )
   )
 }
@@ -94,6 +105,14 @@ generate_additional_params <- function() {
       species = c("Cattle", "Sheep", "Goats", "Pigs"),
       Nex_kg_head_yr = c(50, 12, 12, 10),
       EF_n2o_direct = c(0.005, 0.005, 0.005, 0.005)
+    ),
+    production_defaults = data.frame(
+      species = c("Cattle", "Dairy Cattle", "Sheep", "Goats"),
+      milk_yield_kg_day = c(0, 15, 0, 0),
+      fat_percent = c(4.0, 4.0, 7.0, 4.5),
+      weight_gain_kg_day = c(0, 0, 0, 0),
+      work_hours_day = c(0, 0, 0, 0),
+      pregnant_fraction = c(0, 0.9, 0, 0)
     ),
     constants = list(
       energy_content_ch4 = 55.65,
@@ -129,6 +148,25 @@ generate_gleam_shares <- function() {
   )
 }
 
+#' Generate MMS Data (Shares and Coefficients)
+#'
+#' @return List of dataframes.
+generate_mms_data <- function() {
+  list(
+    shares = data.frame(
+      species = c("Cattle", "Cattle", "Cattle", "Cattle"),
+      system = c("Grassland", "Grassland", "Mixed", "Mixed"),
+      mms = c("Pasture", "Solid Storage", "Pasture", "Solid Storage"),
+      share = c(0.8, 0.2, 0.4, 0.6)
+    ),
+    coefs = data.frame(
+      mms = c("Pasture", "Solid Storage", "Liquid", "Daily Spread"),
+      MCF = c(0.01, 0.02, 0.20, 0.005), # Simplified MCFs
+      EF_n2o = c(0.005, 0.005, 0.005, 0.005) # Simplified EFs
+    )
+  )
+}
+
 #' Main Execution Function
 #'
 #' @return None. Saves data to file.
@@ -157,6 +195,7 @@ main <- function() {
   livestock_weights <- add$weights
   feed_params <- add$feed
   manure_params <- add$manure
+  production_defaults <- add$production_defaults
   livestock_constants <- add$constants
   
   # 5. GLEAM Shares
@@ -165,13 +204,20 @@ main <- function() {
   gleam_default_cohort_shares <- shares$cohort
   gleam_default_system_shares <- shares$system
   
-  # 6. Save
+  # 6. MMS Data
+  message("Generating MMS Data...")
+  mms <- generate_mms_data()
+  gleam_mms_shares <- mms$shares
+  ipcc_mms_coefs <- mms$coefs
+  
+  # 7. Save
   message("Saving to data/livestock_coefs.rda ...")
   save(gleam_coefs, 
        ipcc_tier1_enteric, ipcc_tier1_manure, 
        gleam_default_cohort_shares, gleam_default_system_shares,
+       gleam_mms_shares, ipcc_mms_coefs,
        ipcc_tier2_energy, ipcc_tier2_methane,
-       livestock_weights, feed_params, manure_params, livestock_constants,
+       livestock_weights, feed_params, manure_params, production_defaults, livestock_constants,
        file = "data/livestock_coefs.rda", compress = "xz")
   
   message("Done!")
