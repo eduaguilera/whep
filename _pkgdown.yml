@@ -27,6 +27,11 @@ reference:
   - get_primary_residues
   - get_processing_coefs
   - get_wide_cbs
+  - calculate_cohorts_systems
+  - calculate_enteric_ch4
+  - calculate_livestock_emissions
+  - calculate_manure_emissions
+  - estimate_energy_demand
 
 - title: Download large input datasets
   desc: >

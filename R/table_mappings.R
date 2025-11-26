@@ -13,6 +13,8 @@
 #'   - `livestock`: The CBS item represents a live animal.
 #'   - `other`: Not any of the previous groups.
 #' @source Inspired by [FAOSTAT data](https://www.fao.org/faostat/en/#data/FBS).
+#' @examples
+#' items_cbs
 "items_cbs"
 
 #' Primary production items

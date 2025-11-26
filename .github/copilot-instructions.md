@@ -12,6 +12,11 @@
 - Use `snake_case` for column namings
 - Always make sure that all rules in this document and all lintrs have passed after a change in the code
 
+- Documentation for data objects saved in `data/*.rda` should be placed in `data-raw/` as a
+  script named after the object (for example `data-raw/livestock_coefs.R`) following the
+  pattern used by `data-raw/whep_inputs.R` (read source into an object and call
+  `usethis::use_data()`).
+
 ## Tests
 
 - All functions should have a set of tests, made with the testthat package

@@ -28,4 +28,7 @@ items_cbs
 \description{
 Defines name/code correspondences for commodity balance sheet (CBS) items.
 }
+\examples{
+items_cbs
+}
 \keyword{datasets}
