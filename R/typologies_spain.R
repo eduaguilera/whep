@@ -127,8 +127,7 @@ create_typologies_spain <- function(
 
   indicators <- indicators |>
     dplyr::mutate(
-      Typology = dplyr::case_when(
-        pop_consumption > 2.5 * production_total ~ "Urban systems",
+      Typology_base = dplyr::case_when(
         production_seminatural > production_crops ~
           "Semi-natural agroecosystems",
         production_crops > 1.5 * animal_ingestion ~
@@ -140,6 +139,14 @@ create_typologies_spain <- function(
         local_feed_share > 0.4 & Manure_share > 0.15 ~
           "Connected crop-livestock systems",
         TRUE ~ "Disconnected crop-livestock systems"
+      )
+    )
+
+  indicators <- indicators |>
+    dplyr::mutate(
+      Typology = dplyr::case_when(
+        pop_consumption > 2.5 * production_total ~ "Urban systems",
+        TRUE ~ Typology_base
       )
     )
 
@@ -187,7 +194,11 @@ create_typologies_spain <- function(
 
     filtered_indicators <- indicators |>
       dplyr::filter(Year == map_year) |>
-      dplyr::select(Province_name, Typology)
+      dplyr::select(Province_name, Typology, Typology_base) |>
+      dplyr::mutate(
+        pattern_type = ifelse(Typology == "Urban systems", "stripe", "none"),
+        pattern_fill = "Urban systems"
+      )
 
     typologies_map <- sf_provinces |>
       dplyr::inner_join(
@@ -195,16 +206,57 @@ create_typologies_spain <- function(
         by = c("name_clean" = "Province_name")
       )
 
+    typology_colors <- c(
+      "Semi-natural agroecosystems" = "#66a61e",
+      "Specialized cropping systems" = "#FFF8B0",
+      "Specialized livestock systems" = "#FF6666",
+      "Connected crop-livestock systems" = "#C49A6C",
+      "Disconnected crop-livestock systems" = "#FFA500",
+      "Urban systems" = "#7570b3"
+    )
+
+    typologies_map$Typology_base <- factor(
+      typologies_map$Typology_base,
+      levels = c(
+        "Semi-natural agroecosystems",
+        "Specialized cropping systems",
+        "Specialized livestock systems",
+        "Connected crop-livestock systems",
+        "Disconnected crop-livestock systems"
+      )
+    )
+
     ggplot2::ggplot(typologies_map) +
-      ggplot2::geom_sf(ggplot2::aes(fill = Typology), color = "black") +
+      ggpattern::geom_sf_pattern(
+        ggplot2::aes(
+          fill = Typology_base,
+          pattern = pattern_type,
+          pattern_fill = pattern_fill
+        ),
+        color = "black",
+        pattern_angle = 45,
+        pattern_density = 0.5,
+        pattern_spacing = 0.03
+      ) +
       ggplot2::scale_fill_manual(
-        values = c(
-          "Urban systems" = "#7570b3",
-          "Semi-natural agroecosystems" = "#66a61e",
-          "Specialized cropping systems" = "#FFD700",
-          "Specialized livestock systems" = "#e41a1c",
-          "Connected crop-livestock systems" = "#FFFF99",
-          "Disconnected crop-livestock systems" = "#FF6666"
+        values = typology_colors[names(typology_colors) != "Urban systems"],
+        name = "Typologies",
+        drop = TRUE,
+        guide = ggplot2::guide_legend(
+          order = 1,
+          override.aes = list(pattern = "none")
+        )
+      ) +
+      ggpattern::scale_pattern_fill_manual(
+        values = c("Urban systems" = typology_colors["Urban systems"]),
+        na.value = NA,
+        guide = ggplot2::guide_legend(
+          title = NULL,
+          override.aes = list(
+            fill = "white",
+            pattern = "stripe"
+          ),
+          order = 2
         )
       ) +
       ggplot2::labs(title = paste("Typologies in Spain for", map_year)) +
