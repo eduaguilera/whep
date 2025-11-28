@@ -7,45 +7,43 @@
 calculate_manure_emissions(
   data,
   method = "tier2",
-  tier1_coefs = NULL,
-  tier2_coefs = NULL,
-  manure_params = NULL,
-  feed_data = NULL,
-  mms_shares = NULL,
-  mms_coefs = NULL,
-  constants = NULL
+  tier1_version = "2019",
+  mcf_method = "climate_zone",
+  include_indirect = TRUE
 )
 }
 \arguments{
-\item{data}{Dataframe with \code{species}, \code{heads}, \code{GE}, \code{weight}, \code{weight_gain_kg_day}, \code{milk_yield_kg_day}.}
+\item{data}{Dataframe with \code{species}, \code{heads}, and for Tier 2: \code{GE}, \code{weight}.
+Optional: \code{iso3}, \code{climate}, \code{system}, \code{temperature_c}.}
 
 \item{method}{"tier1" or "tier2".}
 
-\item{tier1_coefs}{Dataframe with \code{species}, \code{ef_manure_ch4}, \code{ef_manure_n2o}.}
+\item{tier1_version}{"2019" or "2006" (default "2019").}
 
-\item{tier2_coefs}{Dataframe with \code{species}, \code{Bo}, \code{MCF_temp}.}
+\item{mcf_method}{"climate_zone" (2019) or "temperature" (2006) (default "climate_zone").}
 
-\item{manure_params}{Dataframe with \code{species}, \code{Nex_kg_head_yr}, \code{EF_n2o_direct}.}
-
-\item{feed_data}{Dataframe with \code{species}, \code{UE_frac}, \code{DE_percent}, \code{Ash_content}, \code{CP_percent}.}
-
-\item{mms_shares}{Dataframe with \code{species}, \code{system}, \code{mms}, \code{share}. Optional.}
-
-\item{mms_coefs}{Dataframe with \code{mms}, \code{MCF}, \code{EF_n2o}. Optional.}
-
-\item{constants}{List with \code{vs_energy_content}, \code{ch4_density}, \code{n2o_n_conversion}, \code{protein_n_content}.}
+\item{include_indirect}{Logical, include indirect N2O emissions (default TRUE).}
 }
 \value{
-Dataframe with added \code{manure_ch4_tonnes}, \code{manure_n2o_tonnes}.
+Dataframe with added \code{manure_ch4_tonnes}, \code{manure_n2o_tonnes}, and \code{Method_Manure} tracking column.
 }
 \description{
 Calculates manure CH4 and N2O emissions using IPCC Tier 1 or Tier 2 methods.
-For Tier 2 CH4: Uses Volatile Solids (VS) and Methane Producing Potential (Bo) (IPCC 2019 Eq 10.23).
-For Tier 2 N2O: Calculates Nitrogen Excretion (Nex) based on intake (Eq 10.30) and estimates emissions
-from different Manure Management Systems (MMS).
+Supports granular method selection (IPCC 2006 vs 2019).
+
+All coefficients loaded from internal package data.
+
+\strong{Missing Data Behavior}:
+\itemize{
+\item \strong{Tier 1}: Requires \code{species} and \code{heads}. Optional: \code{iso3} for regional EFs, \code{climate} for climate-specific EFs (defaults to "Temperate").
+\item \strong{Tier 2 CH4}: Requires \code{GE}, \code{weight}. Optional: \code{climate} or \code{temperature_c} for MCF selection.
+\itemize{
+\item If MMS distribution not found, uses fallback (Pasture 100\%) and tracks in Method column.
+\item If MCF not found, uses fallback (1.0\%) and tracks in Method column.
 }
-\examples{
-\dontrun{
-  # ...
+\item \strong{Tier 2 N2O}: Requires \code{GE} for N excretion calculation.
+\itemize{
+\item If \code{include_indirect=TRUE}, calculates indirect N2O from volatilization and leaching.
+}
 }
 }

@@ -4,40 +4,32 @@
 \alias{estimate_energy_demand}
 \title{Estimate Energy Demand (Gross Energy) - Tier 2}
 \usage{
-estimate_energy_demand(data, energy_coefs, weight_data, feed_data)
+estimate_energy_demand(data, method = "ipcc2019")
 }
 \arguments{
-\item{data}{A dataframe with \code{species}, \code{cohort}, \code{heads}. Optional columns:
-\code{weight}, \code{milk_yield_kg_day}, \code{fat_percent}, \code{weight_gain_kg_day},
-\code{work_hours_day}, \code{pregnant_fraction}.}
+\item{data}{A dataframe with \code{species}, \code{cohort}, \code{heads}, and optionally \code{iso3}.
+Optional production columns: \code{weight}, \code{milk_yield_kg_day}, \code{fat_percent},
+\code{weight_gain_kg_day}, \code{work_hours_day}, \code{pregnant_fraction}, \code{temperature_c}, \code{diet_quality}, \code{grazing_distance_km}.}
 
-\item{energy_coefs}{A dataframe with \code{species} (and optionally \code{cohort}) and coefficients:
-\code{Cfi} (Maintenance), \code{Ca_stall}, \code{Ca_pasture}, \code{Ca_grazing} (Activity),
-\code{Cp_ratio} (Pregnancy), \code{Cwork_ratio} (Work), \code{Cl_base}, \code{Cl_fat} (Lactation).}
-
-\item{weight_data}{A dataframe with \code{species}, \code{cohort}, \code{weight_kg}. Used if \code{weight} missing in data.}
-
-\item{feed_data}{A dataframe with \code{species}, \code{DE_percent}, \code{UE_frac}, \code{REM_ratio}.}
+\item{method}{Method for calculation (default "ipcc2019").}
 }
 \value{
-Dataframe with added \code{GE} (MJ/day) and intermediate NE components.
+Dataframe with added \code{GE} (MJ/day), intermediate NE components, and \code{Method_Energy} tracking column.
 }
 \description{
 Calculates Gross Energy (GE) intake based on IPCC 2019 Tier 2 equations (Vol 4, Chap 10).
 It estimates Net Energy for Maintenance (NEm), Activity (NEa), Lactation (NEl),
 Work (NEwork), Pregnancy (NEp), and Growth (NEg) to derive the total Gross Energy (GE).
-}
-\examples{
-\dontrun{
-  data <- tibble::tibble(
-    species = "Cattle",
-    cohort = "Adult Female",
-    heads = 100,
-    weight = 500,
-    milk_yield_kg_day = 15,
-    fat_percent = 4.0
-  )
-  # ... coefs ...
-  estimate_energy_demand(data, energy_coefs, weight_data, feed_data)
+
+All coefficients are loaded from internal package data tables.
+
+\strong{Missing Data Behavior}:
+\itemize{
+\item \code{weight}: If missing, uses GLEAM regional defaults (or global if region unavailable). Returns NA if no default exists.
+\item \code{temperature_c}: If missing, assumes thermoneutral (15°C). Method column will indicate "temp_assumed".
+\item \code{diet_quality}: If missing, returns NA for GE (cannot calculate without feed characteristics).
+\item \code{grazing_distance_km}: If missing, assumes 0 km (no grazing energy cost).
+\item \code{milk_yield_kg_day}, \code{work_hours_day}, \code{pregnant_fraction}, \code{weight_gain_kg_day}, \code{wool_production_kg_yr}: If missing, assumes 0 (no energy requirement for that component).
+\item \code{system}: If missing, assumes "Pasture" for activity coefficient.
 }
 }

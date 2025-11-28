@@ -7,42 +7,40 @@
 calculate_enteric_ch4(
   data,
   method = "tier2",
-  tier1_coefs = NULL,
-  tier2_coefs = NULL,
-  constants = NULL
+  tier1_version = "2019",
+  ym_method = "ipcc2019",
+  ym_interpolation = "continuous"
 )
 }
 \arguments{
-\item{data}{Dataframe.}
+\item{data}{Dataframe with \code{species}, \code{heads}, and for Tier 2: \code{GE}.
+Optional: \code{iso3} for regional Tier 1 factors, \code{diet_quality} for Tier 2 Ym.}
 
 \item{method}{"tier1" or "tier2".}
 
-\item{tier1_coefs}{Dataframe with \code{species}, \code{ef_enteric}.}
+\item{tier1_version}{"2019" or "2006" (default "2019").}
 
-\item{tier2_coefs}{Dataframe with \code{species}, \code{Ym}.}
+\item{ym_method}{"ipcc2019" (dynamic) or "ipcc2006" (fixed) (default "ipcc2019").}
 
-\item{constants}{List with \code{energy_content_ch4}.}
+\item{ym_interpolation}{"continuous" (default) or "categorical" for Ym calculation.}
 }
 \value{
-Dataframe with added \code{enteric_ch4_tonnes}.
+Dataframe with added \code{enteric_ch4_tonnes} and \code{Method_Enteric} tracking column.
 }
 \description{
 Calculates enteric CH4 emissions using IPCC Tier 1 (fixed Emission Factors) or
 Tier 2 (based on Gross Energy intake and Methane Conversion Factor Ym).
-References: IPCC 2019, Vol 4, Chapter 10, Eq 10.21 (Tier 2).
-}
-\examples{
-\dontrun{
-  data <- tibble::tibble(
-    species = "Cattle", heads = 100, GE = 200
-  )
-  # Tier 1
-  tier1_coefs <- tibble::tibble(species = "Cattle", ef_enteric = 50)
-  calculate_enteric_ch4(data, method = "tier1", tier1_coefs = tier1_coefs)
+Supports granular method selection (IPCC 2006 vs 2019).
 
-  # Tier 2
-  tier2_coefs <- tibble::tibble(species = "Cattle", Ym = 6.5)
-  constants <- list(days_in_year = 365, energy_content_ch4 = 55.65)
-  calculate_enteric_ch4(data, method = "tier2", tier2_coefs = tier2_coefs, constants = constants)
+All coefficients loaded from internal package data.
+
+\strong{Missing Data Behavior}:
+\itemize{
+\item \strong{Tier 1}: Requires \code{species} and \code{heads}. Optional: \code{iso3} for regional EFs (otherwise uses Global).
+\item \strong{Tier 2}: Requires \code{GE} (Gross Energy) from energy calculation.
+\itemize{
+\item If \code{diet_quality} is missing, uses fallback Ym (6.5\%) and tracks in Method column.
+\item If \code{GE} is NA, returns NA for enteric CH4.
+}
 }
 }
