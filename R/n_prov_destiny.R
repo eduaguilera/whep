@@ -712,16 +712,26 @@ create_n_prov_destiny <- function() {
   total_food_other_uses <- pie_full_destinies_fm |>
     dplyr::filter(
       Destiny %in% c("Food", "Other_uses"),
-      Element == "Domestic_supply"
+      Element %in% c("Production", "Import", "Export")
     ) |>
-    dplyr::group_by(Year, Item, Destiny) |>
+    dplyr::group_by(Year, Item, Destiny, Element) |>
     dplyr::summarise(
-      Total_value = sum(Value_destiny, na.rm = TRUE),
+      Value = sum(Value_destiny, na.rm = TRUE),
       .groups = "drop"
     ) |>
     tidyr::pivot_wider(
+      names_from = Element,
+      values_from = Value,
+      values_fill = 0
+    ) |>
+    dplyr::mutate(
+      total_value = Production + Import - Export
+    ) |>
+    dplyr::select(Year, Item, Destiny, total_value) |>
+    tidyr::pivot_wider(
       names_from = Destiny,
-      values_from = Total_value
+      values_from = total_value,
+      values_fill = 0
     )
 
   provincial_food_other_uses <- total_food_other_uses |>
@@ -940,7 +950,7 @@ create_n_prov_destiny <- function() {
 #' @description Calculates food, feed, and other uses shares for each item.
 #' @param grafs_prod_destiny_final A dataset containing consumption and trade
 #' per item, province, origin, and destiny.
-#' @return A dataset with total consumption and consumption shares for food,
+#' @return A dataset with total consumption shares for food,
 #' other uses, and feed.
 #' @keywords internal
 #' @noRd
