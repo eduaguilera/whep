@@ -4,7 +4,7 @@ create_typologies_spain <- function(
   n_prov_destiny = NULL,
   make_map = TRUE,
   shapefile_path = "C:/PhD/GRAFS/Production Boxes/Final Files/Inputs/ne_10m_admin_1_states_provinces.shp",
-  map_year = 2020
+  map_year = 1860
 ) {
   if (is.null(n_prov_destiny)) {
     n_prov_destiny <- create_n_prov_destiny()
@@ -88,7 +88,7 @@ create_typologies_spain <- function(
       .groups = "drop"
     ) |>
     dplyr::mutate(
-      crop_productivity = Prod_MgN_total / Area_ha_crops
+      crop_productivity = Prod_MgN_total / Area_ha_crops * 1000
     )
 
   n_agg <- n_prov_destiny |>
@@ -224,12 +224,12 @@ create_typologies_spain <- function(
           synthetic_share <= 0.4 &
           crop_productivity < 60 ~
           "Specialized cropping systems (extensive)",
-        Livestock_density > 0.8 &
+        Livestock_density > 1.2 &
           imported_feed_share > 0.6 &
           feed_from_seminatural_share < 0.3 ~
           "Specialized livestock systems (intensive)",
-        Livestock_density > 0.5 &
-          Livestock_density <= 0.8 &
+        Livestock_density > 0.8 &
+          Livestock_density <= 1.2 &
           imported_feed_share > 0.6 &
           feed_from_seminatural_share < 0.3 ~
           "Specialized livestock systems (extensive)",
