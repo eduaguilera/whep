@@ -216,30 +216,30 @@ create_typologies_spain <- function(
       Typology_base = dplyr::case_when(
         production_seminatural > production_crops ~
           "Semi-natural agroecosystems",
-        production_crops > 1.5 * animal_ingestion &
-          synthetic_share > 0.4 &
-          crop_productivity >= 60 ~
+        production_crops > 1.2 * animal_ingestion &
+          synthetic_share > 0.3 &
+          crop_productivity >= 20 ~
           "Specialized cropping systems (intensive)",
-        production_crops > 1.5 * animal_ingestion &
-          synthetic_share <= 0.4 &
-          crop_productivity < 60 ~
+        production_crops > 1.2 * animal_ingestion &
+          synthetic_share <= 0.3 &
+          crop_productivity < 20 ~
           "Specialized cropping systems (extensive)",
-        Livestock_density > 1.2 &
+        Livestock_density > 1.4 &
           imported_feed_share > 0.6 &
-          feed_from_seminatural_share < 0.3 ~
+          feed_from_seminatural_share < 0.4 ~
           "Specialized livestock systems (intensive)",
-        Livestock_density > 0.8 &
-          Livestock_density <= 1.2 &
+        Livestock_density > 1 &
+          Livestock_density <= 1.4 &
           imported_feed_share > 0.6 &
-          feed_from_seminatural_share < 0.3 ~
+          feed_from_seminatural_share < 0.4 ~
           "Specialized livestock systems (extensive)",
         local_feed_share > 0.4 &
           Manure_share > 0.15 &
-          crop_productivity >= 60 ~
+          crop_productivity >= 40 ~
           "Connected crop-livestock systems (intensive)",
         local_feed_share > 0.4 &
           Manure_share > 0.15 &
-          crop_productivity < 60 ~
+          crop_productivity < 40 ~
           "Connected crop-livestock systems (extensive)",
         local_feed_share < 0.4 &
           Manure_share < 0.15 &
@@ -315,15 +315,20 @@ create_typologies_spain <- function(
 
     typology_colors <- c(
       "Semi-natural agroecosystems" = "#66a61e",
-      "Specialized cropping systems (intensive)" = "#fddc5c",
-      "Specialized cropping systems (extensive)" = "#FFF8B0",
+
+      "Specialized cropping systems (intensive)" = "#F7DD5A",
+      "Specialized cropping systems (extensive)" = "#FFF7C2",
+
       "Specialized livestock systems (intensive)" = "#b3001b",
-      "Specialized livestock systems (extensive)" = "#ea6a8e",
-      "Connected crop-livestock systems (intensive)" = "#C49A6C",
-      "Connected crop-livestock systems (extensive)" = "#D9C2A3",
-      "Disconnected crop-livestock systems (intensive)" = "#FFA500",
-      "Disconnected crop-livestock systems (extensive)" = "#FFD27F",
-      "Urban systems" = "#7570b3"
+      "Specialized livestock systems (extensive)" = "#C94F6B",
+
+      "Connected crop-livestock systems (intensive)" = "#7A4F20",
+      "Connected crop-livestock systems (extensive)" = "#AF814B",
+
+      "Disconnected crop-livestock systems (intensive)" = "#E67E00",
+      "Disconnected crop-livestock systems (extensive)" = "#F6A640",
+
+      "Urban systems" = "#6A5ACD"
     )
 
     typologies_map$Typology_base <- factor(
@@ -377,4 +382,5 @@ create_typologies_spain <- function(
       ggplot2::labs(title = paste("Typologies in Spain for", map_year)) +
       ggplot2::theme_minimal()
   }
+  return(indicators)
 }

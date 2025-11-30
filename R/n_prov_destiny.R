@@ -753,38 +753,54 @@ create_n_prov_destiny <- function() {
 #' @return A combined dataframe with food, feed, and other uses.
 #' @keywords internal
 #' @noRd
+#'
 .combine_destinies <- function(
   grafs_prod_item,
   feed_intake,
   provincial_food_other_uses
 ) {
   grafs_prod_item_sum <- grafs_prod_item |>
-    dplyr::select(Year, Province_name, Item, Box, Irrig_cat, production_n) |>
     dplyr::group_by(Year, Province_name, Item, Box, Irrig_cat) |>
     dplyr::summarise(
-      production_n = sum(
-        production_n,
-        na.rm = TRUE
-      ),
+      production_n = sum(production_n, na.rm = TRUE),
+      .groups = "drop"
+    )
+
+  feed_clean <- feed_intake |>
+    dplyr::group_by(Year, Province_name, Item) |>
+    dplyr::summarise(
+      feed = sum(feed, na.rm = TRUE),
+      food_pets = sum(food_pets, na.rm = TRUE),
+      .groups = "drop"
+    )
+
+  provincial_food_other_uses_clean <- provincial_food_other_uses |>
+    dplyr::group_by(Year, Province_name, Item) |>
+    dplyr::summarise(
+      food = sum(food, na.rm = TRUE),
+      other_uses = sum(other_uses, na.rm = TRUE),
       .groups = "drop"
     )
 
   grafs_prod_item_combined <- grafs_prod_item_sum |>
-    dplyr::full_join(
-      provincial_food_other_uses,
+    dplyr::left_join(
+      provincial_food_other_uses_clean,
       by = c("Year", "Province_name", "Item")
     ) |>
-    dplyr::full_join(
-      feed_intake,
+    dplyr::left_join(
+      feed_clean,
       by = c("Year", "Province_name", "Item")
     ) |>
     dplyr::mutate(
-      food = dplyr::coalesce(food, 0) + dplyr::coalesce(food_pets, 0)
+      food = dplyr::coalesce(food, 0) + dplyr::coalesce(food_pets, 0),
+      feed = dplyr::coalesce(feed, 0),
+      other_uses = dplyr::coalesce(other_uses, 0)
     ) |>
     dplyr::select(-food_pets)
 
   grafs_prod_item_combined
 }
+
 
 #' @title Finalizing data
 #' @description Final merging of Item and Name_biomass and converting FM to DM,
