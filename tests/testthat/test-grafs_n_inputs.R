@@ -1,21 +1,16 @@
-#' Tests for GRAFS N Inputs
-library(testthat)
-library(dplyr)
-library(tidyr)
-
 #Test: .assign_items ----------------------------------------------------------
-test_that(".assign_items returns expected categories", {
+testthat::test_that(".assign_items returns expected categories", {
   cats <- .assign_items()
 
-  expect_true("semi_natural_agroecosystems" %in% names(cats))
-  expect_true("Firewood_biomass" %in% names(cats))
-  expect_true("Dehesa" %in% cats$semi_natural_agroecosystems)
-  expect_true("Holm oak" %in% cats$Firewood_biomass)
+  testthat::expect_true("semi_natural_agroecosystems" %in% names(cats))
+  testthat::expect_true("Firewood_biomass" %in% names(cats))
+  testthat::expect_true("Dehesa" %in% cats$semi_natural_agroecosystems)
+  testthat::expect_true("Holm oak" %in% cats$Firewood_biomass)
 })
 
 #Test: .calculate_n_soil_inputs -----------------------------------------------
-test_that(".calculate_n_soil_inputs aggregates N inputs correctly", {
-  n_balance_ygpit_all <- tibble(
+testthat::test_that(".calculate_n_soil_inputs aggregates N inputs correctly", {
+  n_balance_ygpit_all <- tibble::tibble(
     Year = c(2000, 2000, 2000, 2000),
     Province_name = c("Madrid", "Madrid", "Madrid", "Madrid"),
     Name_biomass = c(
@@ -34,14 +29,14 @@ test_that(".calculate_n_soil_inputs aggregates N inputs correctly", {
     Irrig_cat = c("Irrigated", NA, "Rainfed", NA)
   )
 
-  codes_coefs <- tibble(
+  codes_coefs <- tibble::tibble(
     Name_biomass = c("Dehesa", "Holm oak", "Other crop residues", "Manure"),
     Item = c("Dehesa_item", "Firewood", "Residue", "Manure")
   )
 
   result <- .calculate_n_soil_inputs(n_balance_ygpit_all, codes_coefs)
 
-  expect_true(all(
+  testthat::expect_true(all(
     c(
       "Year",
       "Province_name",
@@ -56,14 +51,14 @@ test_that(".calculate_n_soil_inputs aggregates N inputs correctly", {
       names(result)
   ))
 
-  manure_val <- result |> filter(Item == "Manure") |> pull(manure)
-  expect_equal(manure_val, 1 + 2)
-  expect_true(all(result$deposition >= 0))
+  manure_val <- result |> dplyr::filter(Item == "Manure") |> dplyr::pull(manure)
+  testthat::expect_equal(manure_val, 1 + 2)
+  testthat::expect_true(all(result$deposition >= 0))
 })
 
 #Test: .calculate_n_production -----------------------------------------------
-test_that(".calculate_n_production calculates production and import correctly", {
-  grafs_prod_destiny <- tibble(
+testthat::test_that(".calculate_n_production calculates production and import correctly", {
+  grafs_prod_destiny <- tibble::tibble(
     Year = rep(2000, 5),
     Province_name = rep("Madrid", 5),
     Item = rep("Dehesa_item", 5),
@@ -75,21 +70,21 @@ test_that(".calculate_n_production calculates production and import correctly", 
 
   result <- .calculate_n_production(grafs_prod_destiny)
 
-  expect_true(all(c("prod", "import") %in% colnames(result)))
-  expect_equal(result$prod, (10 + 5 + 4 + 3) - 2)
-  expect_equal(result$import, 2)
+  testthat::expect_true(all(c("prod", "import") %in% colnames(result)))
+  testthat::expect_equal(result$prod, (10 + 5 + 4 + 3) - 2)
+  testthat::expect_equal(result$import, 2)
 })
 
 #Test: calculate_nue_livestock -----------------------------------------------
-test_that("calculate_nue_livestock calculates NUE and mass balance correctly", {
-  intake_n <- tibble(
+testthat::test_that("calculate_nue_livestock calculates NUE and mass balance correctly", {
+  intake_n <- tibble::tibble(
     Year = 2000,
     Province_name = "Madrid",
     Livestock_cat = "Cattle",
     feed_n = 100
   )
 
-  prod_n <- tibble(
+  prod_n <- tibble::tibble(
     Year = 2000,
     Province_name = "Madrid",
     Livestock_cat = "Cattle",
@@ -97,7 +92,7 @@ test_that("calculate_nue_livestock calculates NUE and mass balance correctly", {
     prod_n = 30
   )
 
-  excretion_n <- tibble(
+  excretion_n <- tibble::tibble(
     Year = 2000,
     Province_name = "Madrid",
     Livestock_cat = "Cattle",
@@ -105,20 +100,26 @@ test_that("calculate_nue_livestock calculates NUE and mass balance correctly", {
   )
 
   nue_livestock <- intake_n |>
-    inner_join(prod_n, by = c("Year", "Province_name", "Livestock_cat")) |>
-    left_join(excretion_n, by = c("Year", "Province_name", "Livestock_cat")) |>
-    mutate(
+    dplyr::inner_join(
+      prod_n,
+      by = c("Year", "Province_name", "Livestock_cat")
+    ) |>
+    dplyr::left_join(
+      excretion_n,
+      by = c("Year", "Province_name", "Livestock_cat")
+    ) |>
+    dplyr::mutate(
       nue = prod_n / feed_n * 100,
       mass_balance = (prod_n + excretion_n) / feed_n * 100
     )
 
-  expect_equal(nue_livestock$nue, 30)
-  expect_equal(nue_livestock$mass_balance, 90)
+  testthat::expect_equal(nue_livestock$nue, 30)
+  testthat::expect_equal(nue_livestock$mass_balance, 90)
 })
 
 #Test: calculate_system_nue --------------------------------------------------
-test_that("calculate_system_nue calculates system-level NUE correctly", {
-  n_soil_inputs <- tibble(
+testthat::test_that("calculate_system_nue calculates system-level NUE correctly", {
+  n_soil_inputs <- tibble::tibble(
     Year = 2000,
     Province_name = "Madrid",
     deposition = 10,
@@ -128,19 +129,22 @@ test_that("calculate_system_nue calculates system-level NUE correctly", {
     urban = 0
   )
 
-  total_outputs <- tibble(
+  total_outputs <- tibble::tibble(
     Year = 2000,
     Province_name = "Madrid",
     total_prod = 40
   )
 
   system_nue <- total_outputs |>
-    left_join(n_soil_inputs, by = c("Year", "Province_name")) |>
-    mutate(
+    dplyr::left_join(n_soil_inputs, by = c("Year", "Province_name")) |>
+    dplyr::mutate(
       inputs = deposition + fixation + synthetic + manure + urban,
       nue_system = total_prod / inputs * 100
     ) |>
-    select(Year, Province_name, total_prod, inputs, nue_system)
+    dplyr::select(Year, Province_name, total_prod, inputs, nue_system)
 
-  expect_equal(system_nue$nue_system, 40 / (10 + 5 + 15 + 20 + 0) * 100)
+  testthat::expect_equal(
+    system_nue$nue_system,
+    40 / (10 + 5 + 15 + 20 + 0) * 100
+  )
 })
