@@ -74,7 +74,12 @@ create_n_prov_destiny <- function() {
     codes_coefs
   )
 
-  trade_data <- .calculate_trade(grafs_prod_item_n)
+  trade_data <- .calculate_trade(
+    grafs_prod_item_n,
+    pie_full_destinies_fm,
+    biomass_coefs,
+    codes_coefs_items_full
+  )
 
   prod_destiny <- .finalize_prod_destiny(
     grafs_prod_item_trade = trade_data,
@@ -754,7 +759,6 @@ create_n_prov_destiny <- function() {
 #' @keywords internal
 #' @noRd
 #'
-
 .combine_destinies <- function(
   grafs_prod_item,
   feed_intake,
@@ -783,19 +787,24 @@ create_n_prov_destiny <- function() {
       .groups = "drop"
     )
 
+  # Feed for pets is assigned to food, therefore we have for example DDGS in
+  # human consumption
   grafs_prod_item_combined <- grafs_prod_item_sum |>
-    dplyr::left_join(
+    dplyr::full_join(
       provincial_food_other_uses_clean,
       by = c("Year", "Province_name", "Item")
     ) |>
-    dplyr::left_join(
+    dplyr::full_join(
       feed_clean,
       by = c("Year", "Province_name", "Item")
     ) |>
     dplyr::mutate(
-      food = dplyr::coalesce(food, 0) + dplyr::coalesce(food_pets, 0),
-      feed = dplyr::coalesce(feed, 0),
-      other_uses = dplyr::coalesce(other_uses, 0)
+      food = coalesce(food, 0) + coalesce(food_pets, 0),
+      feed = coalesce(feed, 0),
+      other_uses = coalesce(other_uses, 0),
+      production_n = coalesce(production_n, 0),
+      Box = coalesce(Box, "Outside"),
+      Irrig_cat = coalesce(Irrig_cat, NA_character_)
     ) |>
     dplyr::select(-food_pets)
 
@@ -881,15 +890,22 @@ create_n_prov_destiny <- function() {
 
 #' @title Consumption and Trade
 #' @description Calculation of consumption by destiny and trade
-#' (export, import).
+#' (export, import). National scaling can be activated, for analysis for whole
+#' Spain. It should be deactivated for provincial analysis
 #'
 #' @param grafs_prod_item_n A dataframe with N values (MgN) by destiny.
 #'
 #' @return A dataframe with consumption, exports, and imports in MgN.
 #' @keywords internal
 #' @noRd
-.calculate_trade <- function(grafs_prod_item_n) {
-  grafs_prod_item_n |>
+.calculate_trade <- function(
+  grafs_prod_item_n,
+  pie_full_destinies_fm,
+  biomass_coefs,
+  codes_coefs_items_full,
+  national_scaling = FALSE #deactivate for provincial analysis!!!!!!!!!!!!!!
+) {
+  trade_data <- grafs_prod_item_n |>
     dplyr::group_by(Year, Province_name, Item, Box, Irrig_cat) |>
     dplyr::summarise(
       food = sum(food, na.rm = TRUE),
@@ -917,7 +933,59 @@ create_n_prov_destiny <- function() {
       export,
       import
     )
+
+  # Only necessary for national investigations
+  if (national_scaling) {
+    national_trade_n <- pie_full_destinies_fm |>
+      dplyr::left_join(
+        codes_coefs_items_full |> dplyr::select(item, Name_biomass),
+        by = c("Item" = "item")
+      ) |>
+      dplyr::left_join(
+        biomass_coefs |>
+          dplyr::select(
+            Name_biomass,
+            Product_kgDM_kgFM,
+            Product_kgN_kgDM
+          ),
+        by = "Name_biomass"
+      ) |>
+      dplyr::filter(Element %in% c("Import", "Export")) |>
+      dplyr::mutate(
+        N_value = Value_destiny * Product_kgDM_kgFM * Product_kgN_kgDM
+      ) |>
+      dplyr::group_by(Year, Item, Element) |>
+      dplyr::summarise(
+        N_total = sum(N_value, na.rm = TRUE),
+        .groups = "drop"
+      ) |>
+      tidyr::pivot_wider(
+        names_from = Element,
+        values_from = N_total,
+        names_prefix = "N_total_"
+      )
+
+    trade_data <- trade_data |>
+      dplyr::left_join(national_trade_n, by = c("Year", "Item")) |>
+      dplyr::group_by(Year, Item) |>
+      dplyr::mutate(
+        import = dplyr::if_else(
+          sum(import, na.rm = TRUE) > 0 & !is.na(N_total_Import),
+          import * (N_total_Import / sum(import, na.rm = TRUE)),
+          import
+        ),
+        export = dplyr::if_else(
+          sum(export, na.rm = TRUE) > 0 & !is.na(N_total_Export),
+          export * (N_total_Export / sum(export, na.rm = TRUE)),
+          export
+        )
+      ) |>
+      dplyr::ungroup()
+  }
+
+  trade_data
 }
+
 
 #' @title Prepare final dataset
 #' @description Assigns Box to item groups and Irrig_cat to Cropland.
@@ -935,6 +1003,7 @@ create_n_prov_destiny <- function() {
     ) |>
     dplyr::mutate(
       group = dplyr::recode(group, "Additives" = "Agro-industry"),
+
       Box = dplyr::case_when(
         Item == "Acorns" ~ "semi_natural_agroecosystems",
         is.na(Box) & Item == "Fallow" ~ "Cropland",
@@ -943,13 +1012,14 @@ create_n_prov_destiny <- function() {
           "Cropland",
         is.na(Box) & group %in% c("Livestock products", "Livestock") ~
           "Livestock",
-        is.na(Box) & group %in% c("Agro-industry", "Fish") ~ group,
+        group %in% c("Agro-industry", "Fish") ~ group,
         TRUE ~ Box
       ),
       Irrig_cat = dplyr::if_else(Box == "Cropland", Irrig_cat, NA_character_)
     ) |>
     dplyr::select(-group)
 }
+
 
 #' @title Calculate consumption shares
 #' @description Calculates food, feed, and other uses shares for each item.
@@ -1078,16 +1148,8 @@ create_n_prov_destiny <- function() {
         share_type == "feed_share" ~ "livestock",
         share_type == "other_uses_share" ~ "population_other_uses"
       ),
-      Origin = dplyr::if_else(
-        Box %in% c("Fish", "Agro-industry"),
-        Box,
-        "Outside"
-      ),
-      Irrig_cat = dplyr::if_else(
-        Box %in% c("Fish", "Agro-industry"),
-        Irrig_cat,
-        NA_character_
-      )
+      Origin = "Outside",
+      Irrig_cat = NA_character_
     ) |>
     dplyr::group_by(
       Year,

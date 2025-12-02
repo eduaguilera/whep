@@ -17,6 +17,7 @@ create_grafs_plot_df <- function() {
   df_flow <- .create_n_flow_df(prov_destiny_df)
   df_import <- .create_n_import_df(prov_destiny_df)
   df_lu <- .create_livestock_lu_df()
+  df_population <- .create_population_df()
   df_n_input <- .create_n_input_df(n_balance, df_land)
   df_livestock <- .create_livestock_df(prov_destiny_df)
   df_lv_r_m <- .create_feed_df(prov_destiny_df)
@@ -46,13 +47,103 @@ create_grafs_plot_df <- function() {
     df_combined,
     df_import |> dplyr::mutate(data = as.character(data)),
     df_lu |> dplyr::mutate(data = as.character(data)),
-    df_n_input |> dplyr::mutate(data = as.character(data))
+    df_n_input |> dplyr::mutate(data = as.character(data)),
+    df_population |> dplyr::mutate(data = as.character(data))
   ) |>
     dplyr::arrange(province, year, label) |>
     dplyr::filter(!is.na(province) & !is.na(year)) |>
     dplyr::mutate(arrowColor = "") |>
     dplyr::select(province, year, label, data, align, arrowColor) |>
     dplyr::distinct(province, year, label, .keep_all = TRUE)
+
+  n_labels <- c(
+    "{IMANOT}",
+    "{IMANOTR}",
+    "{IMANOTM}",
+    "{IMPHUMANMEAT}",
+    "{IMPHUMANEGGS}",
+    "{IMPHUMFISH}",
+    "{IMPHUMMILK}",
+    "{IMPORT_ANIMALCR}",
+    "{IMPORT_ANIMALCR_RUM}",
+    "{IMPORT_ANIMALCR_MONOG}",
+    "{CROP_POPIMPORT}",
+    "{IMPHMANA}",
+    "{CROP_EXPORT}",
+    "{CROPS_TO_POP}",
+    "{CROPS_TO_LIVESTOCK}",
+    "{LIVESTOCK_TO_HUMAN}",
+    "{GRASS_TO_LIVESTOCK}",
+    "{RCRTOLVSTCK_R}",
+    "{MCRTOLVSTCK_M}",
+    "{CRP_LS}",
+    "{CRP_OTHUSES}",
+    "{CRP_LS_OTHUSES}",
+    "{AN_LS}",
+    "{AN_OTH}",
+    "{AN_LS_OTH}",
+    "{LIVGASLOSS}",
+    "{LV_EDBL}",
+    "{LVSTCK_NOEDIBLE}",
+    "{LVST_MILK}",
+    "{LIVESTOCK_EXPORTED}",
+    "{LVSTCKTOTN}",
+    "{OXDEPCROPS}",
+    "{FIXCR}",
+    "{LIVESTOCK_TO_CROPS}",
+    "{LIVESTOCK_TO_GRASS}",
+    "{OXDEPGRASS}",
+    "{SYF_GRASS}",
+    "{SYNTHF_TOTAL}",
+    "{SYNTHF}",
+    "{FIXGR}",
+    "{FIX_DEP_GRASS}",
+    "{FIX_DEP_CR}",
+    "{CROP_SURPLUS}",
+    "{GRASS_SURPLUS}",
+    "{WASTEWATER}",
+    "{CRPLNDTOTN}",
+    "{GREHN}",
+    "{FORN}",
+    "{PERiN}",
+    "{PERrN}",
+    "{HORiN}",
+    "{HORrN}",
+    "{NPEiN}",
+    "{NPErN}",
+    "{ARAiN}",
+    "{ARArN}"
+  )
+
+  df_final <- df_final |>
+    mutate(
+      data = ifelse(
+        label %in% n_labels,
+        as.numeric(data) / 1000,
+        as.numeric(data)
+      ),
+      data = as.character(data)
+    )
+
+  df_spain <- df_final |>
+    group_by(year, label, align, arrowColor) |>
+    summarise(data = sum(as.numeric(data), na.rm = TRUE), .groups = "drop") |>
+    mutate(
+      province = "Spain",
+      data = as.character(data)
+    ) |>
+    select(province, year, label, data, align, arrowColor)
+
+  df_final <- bind_rows(df_final, df_spain)
+
+  df_final <- df_final |>
+    mutate(
+      data_num = suppressWarnings(as.numeric(data))
+    ) |>
+    group_by(province, year, label) |>
+    filter(!(n() > 1 & (is.na(data_num) | data_num == 0))) |>
+    select(-data_num) |>
+    ungroup()
 
   readr::write_csv(
     df_final,
@@ -83,8 +174,14 @@ create_grafs_plot_df <- function() {
   df_n_flows <- prov_destiny_df |>
     dplyr::mutate(
       label = dplyr::case_when(
-        Origin == "Agro-industry" & Destiny == "livestock_rum" ~ "{IMANOTR}",
-        Origin == "Agro-industry" & Destiny == "livestock_mono" ~ "{IMANOTM}",
+        Box == "Agro-industry" &
+          Origin == "Outside" &
+          Destiny == "livestock_rum" ~
+          "{IMANOTR}",
+        Box == "Agro-industry" &
+          Origin == "Outside" &
+          Destiny == "livestock_mono" ~
+          "{IMANOTM}",
         Item %in%
           c(
             "Milk - Excluding Butter",
@@ -115,7 +212,8 @@ create_grafs_plot_df <- function() {
           Origin == "Outside" &
           Destiny %in% c("population_food", "population_other_uses") ~
           "{IMPHUMANEGGS}",
-        Origin == "Fish" &
+        Box == "Fish" &
+          Origin == "Outside" &
           Destiny %in% c("population_food", "population_other_uses") ~
           "{IMPHUMFISH}",
         Box == "Livestock" &
@@ -124,14 +222,26 @@ create_grafs_plot_df <- function() {
           "{IMPHMANA}",
         Box == "Cropland" &
           Origin == "Outside" &
-          Destiny %in% c("livestock_rum", "livestock_mono") ~
-          "{IMPORT_ANIMALCR}",
+          Destiny == "livestock_rum" ~
+          "{IMPORT_ANIMALCR_RUM}",
+        Box == "Cropland" &
+          Origin == "Outside" &
+          Destiny == "livestock_mono" ~
+          "{IMPORT_ANIMALCR_MONOG}",
         TRUE ~ NA_character_
       )
     ) |>
     dplyr::filter(!is.na(label)) |>
     dplyr::group_by(Province_name, Year, label) |>
     dplyr::summarise(data = sum(MgN, na.rm = TRUE), .groups = "drop")
+
+  df_import_animalcr <- df_n_flows |>
+    filter(label %in% c("{IMPORT_ANIMALCR_RUM}", "{IMPORT_ANIMALCR_MONOG}")) |>
+    group_by(Province_name, Year) |>
+    summarise(data = sum(data), .groups = "drop") |>
+    mutate(label = "{IMPORT_ANIMALCR}")
+
+  df_n_flows <- bind_rows(df_n_flows, df_import_animalcr)
 
   df_imanot <- df_n_flows |>
     dplyr::filter(label %in% c("{IMANOTR}", "{IMANOTM}")) |>
@@ -145,6 +255,8 @@ create_grafs_plot_df <- function() {
         label %in%
           c(
             "{CROP_POPIMPORT}",
+            "{IMPORT_ANIMALCR_RUM}",
+            "{IMPORT_ANIMALCR_MONOG}",
             "{IMPORT_ANIMALCR}",
             "{IMANOTR}",
             "{IMANOTM}",
@@ -324,145 +436,198 @@ create_grafs_plot_df <- function() {
     "Borage"
   )
 
-  # --- LAND BALANCE FOR CROPLAND AND FOREST ---
   df_land <- n_balance |>
     dplyr::filter(
       LandUse %in% c("Cropland", "Forest_low", "Forest_high", "Dehesa")
     ) |>
-    dplyr::group_by(Province_name, Year, Irrig_cat) |>
+    dplyr::group_by(Province_name, Year) |>
     dplyr::summarise(
-      `{FORha}` = sum(
-        Area_ygpit_ha[LandUse %in% c("Forest_low", "Forest_high", "Dehesa")],
+      FORha = sum(
+        ifelse(
+          LandUse %in% c("Forest_low", "Forest_high", "Dehesa"),
+          Area_ygpit_ha,
+          0
+        ),
         na.rm = TRUE
       ),
-      `{FORMha}` = `{FORha}` / 1e6,
-      `{FORN}` = sum(
-        Prod_MgN[LandUse %in% c("Forest_low", "Forest_high", "Dehesa")] +
-          UsedResidue_MgN[
-            LandUse %in% c("Forest_low", "Forest_high", "Dehesa")
-          ] +
-          GrazedWeeds_MgN[
-            LandUse %in% c("Forest_low", "Forest_high", "Dehesa")
-          ],
+      FORMha = FORha / 1e6,
+      FORN = sum(
+        ifelse(
+          LandUse %in% c("Forest_low", "Forest_high", "Dehesa"),
+          Prod_MgN + UsedResidue_MgN + GrazedWeeds_MgN,
+          0
+        ),
         na.rm = TRUE
       ),
-      `{PERha}` = sum(
-        Area_ygpit_ha[
-          LandUse == "Cropland" & Name_biomass %in% permanent_biomass
-        ],
+
+      PERiha = sum(
+        ifelse(
+          LandUse == "Cropland" &
+            Name_biomass %in% permanent_biomass &
+            Irrig_cat == "Irrigated",
+          Area_ygpit_ha,
+          0
+        ),
         na.rm = TRUE
       ),
-      `{PERMha}` = `{PERha}` / 1e6,
-      `{PERN}` = sum(
-        Prod_MgN[LandUse == "Cropland" & Name_biomass %in% permanent_biomass] +
-          UsedResidue_MgN[
-            LandUse == "Cropland" & Name_biomass %in% permanent_biomass
-          ] +
-          GrazedWeeds_MgN[
-            LandUse == "Cropland" & Name_biomass %in% permanent_biomass
-          ],
+
+      PERrha = sum(
+        ifelse(
+          LandUse == "Cropland" &
+            Name_biomass %in% permanent_biomass &
+            Irrig_cat == "Rainfed",
+          Area_ygpit_ha,
+          0
+        ),
         na.rm = TRUE
       ),
-      `{HORha}` = sum(
-        Area_ygpit_ha[
-          LandUse == "Cropland" & Name_biomass %in% horticulture_biomass
-        ],
+
+      PERiMha = PERiha / 1e6,
+      PERrMha = PERrha / 1e6,
+
+      PERiN = sum(
+        ifelse(
+          LandUse == "Cropland" &
+            Name_biomass %in% permanent_biomass &
+            Irrig_cat == "Irrigated",
+          Prod_MgN + UsedResidue_MgN + GrazedWeeds_MgN,
+          0
+        ),
         na.rm = TRUE
       ),
-      `{HORMha}` = `{HORha}` / 1e6,
-      `{HORN}` = sum(
-        Prod_MgN[
-          LandUse == "Cropland" & Name_biomass %in% horticulture_biomass
-        ] +
-          UsedResidue_MgN[
-            LandUse == "Cropland" & Name_biomass %in% horticulture_biomass
-          ] +
-          GrazedWeeds_MgN[
-            LandUse == "Cropland" & Name_biomass %in% horticulture_biomass
-          ],
+
+      PERrN = sum(
+        ifelse(
+          LandUse == "Cropland" &
+            Name_biomass %in% permanent_biomass &
+            Irrig_cat == "Rainfed",
+          Prod_MgN + UsedResidue_MgN + GrazedWeeds_MgN,
+          0
+        ),
         na.rm = TRUE
       ),
-      `{NPEha}` = sum(
-        Area_ygpit_ha[
-          LandUse == "Cropland" & !(Name_biomass %in% permanent_biomass)
-        ],
+
+      HORiha = sum(
+        ifelse(
+          LandUse == "Cropland" &
+            Name_biomass %in% horticulture_biomass &
+            Irrig_cat == "Irrigated",
+          Area_ygpit_ha,
+          0
+        ),
         na.rm = TRUE
       ),
-      `{NPEMha}` = `{NPEha}` / 1e6,
-      `{NPEN}` = sum(
-        Prod_MgN[
-          LandUse == "Cropland" & !(Name_biomass %in% permanent_biomass)
-        ] +
-          UsedResidue_MgN[
-            LandUse == "Cropland" & !(Name_biomass %in% permanent_biomass)
-          ] +
-          GrazedWeeds_MgN[
-            LandUse == "Cropland" & !(Name_biomass %in% permanent_biomass)
-          ],
+
+      HORrha = sum(
+        ifelse(
+          LandUse == "Cropland" &
+            Name_biomass %in% horticulture_biomass &
+            Irrig_cat == "Rainfed",
+          Area_ygpit_ha,
+          0
+        ),
         na.rm = TRUE
       ),
-      `{ARAha}` = `{NPEha}`,
-      `{ARAMha}` = `{ARAha}` / 1e6,
-      `{ARAN}` = `{NPEN}`,
+
+      HORiMha = HORiha / 1e6,
+      HORrMha = HORrha / 1e6,
+
+      HORiN = sum(
+        ifelse(
+          LandUse == "Cropland" &
+            Name_biomass %in% horticulture_biomass &
+            Irrig_cat == "Irrigated",
+          Prod_MgN + UsedResidue_MgN + GrazedWeeds_MgN,
+          0
+        ),
+        na.rm = TRUE
+      ),
+
+      HORrN = sum(
+        ifelse(
+          LandUse == "Cropland" &
+            Name_biomass %in% horticulture_biomass &
+            Irrig_cat == "Rainfed",
+          Prod_MgN + UsedResidue_MgN + GrazedWeeds_MgN,
+          0
+        ),
+        na.rm = TRUE
+      ),
+
+      NPEiha = sum(
+        ifelse(
+          LandUse == "Cropland" &
+            !(Name_biomass %in% permanent_biomass) &
+            Irrig_cat == "Irrigated",
+          Area_ygpit_ha,
+          0
+        ),
+        na.rm = TRUE
+      ),
+
+      NPErha = sum(
+        ifelse(
+          LandUse == "Cropland" &
+            !(Name_biomass %in% permanent_biomass) &
+            Irrig_cat == "Rainfed",
+          Area_ygpit_ha,
+          0
+        ),
+        na.rm = TRUE
+      ),
+
+      NPEiMha = NPEiha / 1e6,
+      NPErMha = NPErha / 1e6,
+
+      NPEiN = sum(
+        ifelse(
+          LandUse == "Cropland" &
+            !(Name_biomass %in% permanent_biomass) &
+            Irrig_cat == "Irrigated",
+          Prod_MgN + UsedResidue_MgN + GrazedWeeds_MgN,
+          0
+        ),
+        na.rm = TRUE
+      ),
+
+      NPErN = sum(
+        ifelse(
+          LandUse == "Cropland" &
+            !(Name_biomass %in% permanent_biomass) &
+            Irrig_cat == "Rainfed",
+          Prod_MgN + UsedResidue_MgN + GrazedWeeds_MgN,
+          0
+        ),
+        na.rm = TRUE
+      ),
+
+      ARAiha = NPEiha,
+      ARArha = NPErha,
+      ARAiMha = ARAiha / 1e6,
+      ARArMha = ARArha / 1e6,
+      ARAiN = NPEiN,
+      ARArN = NPErN,
+
       .groups = "drop"
     ) |>
+
     tidyr::pivot_longer(
-      -c(Province_name, Year, Irrig_cat),
-      names_to = "label_base",
+      -c(Province_name, Year),
+      names_to = "var",
       values_to = "data"
     ) |>
+
     dplyr::mutate(
-      label = dplyr::case_when(
-        Irrig_cat == "Irrigated" & grepl("^FOR", label_base) ~
-          gsub("FOR", "FORi", label_base),
-        Irrig_cat == "Rainfed" & grepl("^FOR", label_base) ~
-          gsub("FOR", "FORr", label_base),
-        Irrig_cat == "Irrigated" & grepl("^PER", label_base) ~
-          gsub("PER", "PERi", label_base),
-        Irrig_cat == "Rainfed" & grepl("^PER", label_base) ~
-          gsub("PER", "PERr", label_base),
-        Irrig_cat == "Irrigated" & grepl("^HOR", label_base) ~
-          gsub("HOR", "HORi", label_base),
-        Irrig_cat == "Rainfed" & grepl("^HOR", label_base) ~
-          gsub("HOR", "HORr", label_base),
-        Irrig_cat == "Irrigated" & grepl("^NPE", label_base) ~
-          gsub("NPE", "NPEi", label_base),
-        Irrig_cat == "Rainfed" & grepl("^NPE", label_base) ~
-          gsub("NPE", "NPEr", label_base),
-        Irrig_cat == "Irrigated" & grepl("^ARA", label_base) ~
-          gsub("ARA", "ARAi", label_base),
-        Irrig_cat == "Rainfed" & grepl("^ARA", label_base) ~
-          gsub("ARA", "ARAr", label_base),
-        TRUE ~ label_base
-      )
+      label = paste0("{", var, "}"),
+      province = Province_name,
+      year = Year,
+      align = "R"
     ) |>
-    dplyr::filter(
-      !label %in%
-        c(
-          "FORha",
-          "FORMha",
-          "FORN",
-          "PERha",
-          "PERMha",
-          "PERN",
-          "HORha",
-          "HORMha",
-          "HORN",
-          "NPEha",
-          "NPEMha",
-          "NPEN",
-          "ARAha",
-          "ARAMha",
-          "ARAN"
-        )
-    ) |>
-    dplyr::select(province = Province_name, year = Year, label, data) |>
-    dplyr::group_by(province, year, label) |>
-    dplyr::summarise(data = sum(data, na.rm = TRUE), .groups = "drop") |>
-    dplyr::mutate(align = "R")
+    dplyr::select(province, year, label, data, align)
 
   df_land
 }
+
 
 #' @title Create dataset for greeonhouse, grassland, and N soil input
 #'
@@ -489,7 +654,16 @@ create_grafs_plot_df <- function() {
       ),
       # Is Grassland correctly filtered here with Pasture_Shrubland and Other?
       `{HAGRASS}` = sum(
-        Area_ygpit_ha[LandUse %in% c("Pasture_Shrubland", "Other")],
+        Area_ygpit_ha[
+          LandUse %in%
+            c(
+              "Dehesa",
+              "Forest_high",
+              "Forest_low",
+              "Other",
+              "Pasture_Shrubland"
+            )
+        ],
         na.rm = TRUE
       ),
       `{GRASSMha}` = `{HAGRASS}` / 1e6,
@@ -500,15 +674,55 @@ create_grafs_plot_df <- function() {
       `{LIVESTOCK_TO_CROPS}` = sum(Solid[LandUse == "Cropland"], na.rm = TRUE) +
         sum(Liquid[LandUse == "Cropland"], na.rm = TRUE),
       `{LIVESTOCK_TO_GRASS}` = sum(
-        Solid[LandUse %in% c("Pasture_Shrubland", "Other")],
+        Solid[
+          LandUse %in%
+            c(
+              "Dehesa",
+              "Forest_high",
+              "Forest_low",
+              "Other",
+              "Pasture_Shrubland"
+            )
+        ],
         na.rm = TRUE
-      ),
+      ) +
+        sum(
+          Liquid[
+            LandUse %in%
+              c(
+                "Dehesa",
+                "Forest_high",
+                "Forest_low",
+                "Other",
+                "Pasture_Shrubland"
+              )
+          ],
+          na.rm = TRUE
+        ),
       `{OXDEPGRASS}` = sum(
-        Deposition[LandUse %in% c("Pasture_Shrubland", "Other")],
+        Deposition[
+          LandUse %in%
+            c(
+              "Dehesa",
+              "Forest_high",
+              "Forest_low",
+              "Other",
+              "Pasture_Shrubland"
+            )
+        ],
         na.rm = TRUE
       ),
       `{SYF_GRASS}` = sum(
-        Synthetic[LandUse %in% c("Pasture_Shrubland", "Other")],
+        Synthetic[
+          LandUse %in%
+            c(
+              "Dehesa",
+              "Forest_high",
+              "Forest_low",
+              "Other",
+              "Pasture_Shrubland"
+            )
+        ],
         na.rm = TRUE
       ),
       # COMMENT: what is the difference between SYNTHF_TOTAL and SYNTHF. Should
@@ -516,12 +730,39 @@ create_grafs_plot_df <- function() {
       `{SYNTHF_TOTAL}` = sum(Synthetic, na.rm = TRUE),
       `{SYNTHF}` = sum(Synthetic, na.rm = TRUE),
       `{FIXGR}` = sum(
-        BNF[LandUse %in% c("Pasture_Shrubland", "Other")],
+        BNF[
+          LandUse %in%
+            c(
+              "Dehesa",
+              "Forest_high",
+              "Forest_low",
+              "Other",
+              "Pasture_Shrubland"
+            )
+        ],
         na.rm = TRUE
       ),
       `{FIX_DEP_GRASS}` = sum(
-        BNF[LandUse %in% c("Pasture_Shrubland", "Other")] +
-          Deposition[LandUse %in% c("Pasture_Shrubland", "Other")],
+        BNF[
+          LandUse %in%
+            c(
+              "Dehesa",
+              "Forest_high",
+              "Forest_low",
+              "Other",
+              "Pasture_Shrubland"
+            )
+        ] +
+          Deposition[
+            LandUse %in%
+              c(
+                "Dehesa",
+                "Forest_high",
+                "Forest_low",
+                "Other",
+                "Pasture_Shrubland"
+              )
+          ],
         na.rm = TRUE
       ),
       `{FIX_DEP_CR}` = sum(
@@ -530,7 +771,16 @@ create_grafs_plot_df <- function() {
       ),
       `{CROP_SURPLUS}` = sum(Surplus[LandUse == "Cropland"], na.rm = TRUE),
       `{GRASS_SURPLUS}` = sum(
-        Surplus[LandUse %in% c("Pasture_Shrubland", "Other")],
+        Surplus[
+          LandUse %in%
+            c(
+              "Dehesa",
+              "Forest_high",
+              "Forest_low",
+              "Other",
+              "Pasture_Shrubland"
+            )
+        ],
         na.rm = TRUE
       ),
       `{WASTEWATER}` = sum(Urban, na.rm = TRUE),
@@ -765,8 +1015,8 @@ create_grafs_plot_df <- function() {
     ) |>
     dplyr::mutate(
       label = dplyr::case_when(
-        Destiny == "livestock_rum" ~ "{CRTOLVSTCK_R}",
-        Destiny == "livestock_mono" ~ "{CRTOLVSTCK_M}"
+        Destiny == "livestock_rum" ~ "{RCRTOLVSTCK_R}",
+        Destiny == "livestock_mono" ~ "{MCRTOLVSTCK_M}"
       ),
       align = "L"
     ) |>
@@ -952,12 +1202,42 @@ create_grafs_plot_df <- function() {
   df_livestock_gas_loss
 }
 
+#' @title Create population dataset
+#'
+#' @description
+#' Loads population data (in million inhabitants, MInhab) and converts it
+#' into the GRAFS plot structure.
+#'
+#' @return
+#' A tibble with columns `province`, `year`, `label`, `data`, `align`.
+#'
+#' @keywords internal
+.create_population_df <- function() {
+  population <- whep_read_file("population_yg")
+
+  df_pop <- population |>
+    dplyr::select(
+      province = Province_name,
+      year = Year,
+      Pop_Mpeop_yg
+    ) |>
+    dplyr::mutate(
+      label = "{POPULATIONM}",
+      data = Pop_Mpeop_yg,
+      align = "L" # falls du rechts willst → "R"
+    ) |>
+    dplyr::select(province, year, label, data, align)
+
+  df_pop
+}
+
+
 #' @title Combine and finalize nitrogen flow dataset
 #'
 #' @description
 #' Merges all the created nitrogen datasets into a unified structure.
 #' Adding missing labels and setting WIDTH_MAX to 1500. IMPHUMHONEY should be 0.
-#' The other labels ("UNKMANURE", "CRPNOLV", "NCONTCROP","ORGOT") are
+#' The other labels (CRPNOLV", "NCONTCROP") are
 #' set to 0, since I don't know how to create them yet.
 #'
 #' @param crop_livestock_flows Data frame of crop-livestock nitrogen flows.
@@ -998,10 +1278,8 @@ create_grafs_plot_df <- function() {
 
   missing_labels <- c(
     "{IMPHUMHONEY}",
-    "{UNKMANURE}",
     "{CRPNOLV}",
     "{NCONTCROP}",
-    "{ORGOT}",
     "{WIDTH_MAX}"
   )
 
