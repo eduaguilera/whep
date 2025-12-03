@@ -802,9 +802,7 @@ create_n_prov_destiny <- function() {
       food = coalesce(food, 0) + coalesce(food_pets, 0),
       feed = coalesce(feed, 0),
       other_uses = coalesce(other_uses, 0),
-      production_n = coalesce(production_n, 0),
-      Box = coalesce(Box, "Outside"),
-      Irrig_cat = coalesce(Irrig_cat, NA_character_)
+      production_n = coalesce(production_n, 0)
     ) |>
     dplyr::select(-food_pets)
 
