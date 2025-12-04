@@ -806,6 +806,28 @@ create_n_prov_destiny <- function() {
     ) |>
     dplyr::select(-food_pets)
 
+  # calculating production shares to distinguish between consumption of e.g.
+  # rainfed vs. irrigated crops
+  grafs_prod_item_combined <- grafs_prod_item_combined |>
+    dplyr::group_by(Year, Province_name, Item) |>
+    dplyr::mutate(
+      production_total = sum(production_n, na.rm = TRUE),
+      production_share = dplyr::if_else(
+        production_total > 0,
+        production_n / production_total,
+        1
+      ),
+
+      food = food * production_share,
+      feed = feed * production_share,
+      other_uses = other_uses * production_share
+    ) |>
+    dplyr::ungroup() |>
+    dplyr::select(
+      -production_total,
+      -production_share
+    )
+
   grafs_prod_item_combined
 }
 
@@ -900,8 +922,7 @@ create_n_prov_destiny <- function() {
   grafs_prod_item_n,
   pie_full_destinies_fm,
   biomass_coefs,
-  codes_coefs_items_full,
-  national_scaling = FALSE #deactivate for provincial analysis!!!!!!!!!!!!!!
+  codes_coefs_items_full
 ) {
   trade_data <- grafs_prod_item_n |>
     dplyr::group_by(Year, Province_name, Item, Box, Irrig_cat) |>
@@ -931,55 +952,6 @@ create_n_prov_destiny <- function() {
       export,
       import
     )
-
-  # Only necessary for national investigations
-  if (national_scaling) {
-    national_trade_n <- pie_full_destinies_fm |>
-      dplyr::left_join(
-        codes_coefs_items_full |> dplyr::select(item, Name_biomass),
-        by = c("Item" = "item")
-      ) |>
-      dplyr::left_join(
-        biomass_coefs |>
-          dplyr::select(
-            Name_biomass,
-            Product_kgDM_kgFM,
-            Product_kgN_kgDM
-          ),
-        by = "Name_biomass"
-      ) |>
-      dplyr::filter(Element %in% c("Import", "Export")) |>
-      dplyr::mutate(
-        N_value = Value_destiny * Product_kgDM_kgFM * Product_kgN_kgDM
-      ) |>
-      dplyr::group_by(Year, Item, Element) |>
-      dplyr::summarise(
-        N_total = sum(N_value, na.rm = TRUE),
-        .groups = "drop"
-      ) |>
-      tidyr::pivot_wider(
-        names_from = Element,
-        values_from = N_total,
-        names_prefix = "N_total_"
-      )
-
-    trade_data <- trade_data |>
-      dplyr::left_join(national_trade_n, by = c("Year", "Item")) |>
-      dplyr::group_by(Year, Item) |>
-      dplyr::mutate(
-        import = dplyr::if_else(
-          sum(import, na.rm = TRUE) > 0 & !is.na(N_total_Import),
-          import * (N_total_Import / sum(import, na.rm = TRUE)),
-          import
-        ),
-        export = dplyr::if_else(
-          sum(export, na.rm = TRUE) > 0 & !is.na(N_total_Export),
-          export * (N_total_Export / sum(export, na.rm = TRUE)),
-          export
-        )
-      ) |>
-      dplyr::ungroup()
-  }
 
   trade_data
 }
