@@ -379,6 +379,7 @@ create_n_prov_destiny <- function() {
         TRUE ~ Name_biomass
       )
     ) |>
+    # 20% DM to FM for Grass
     dplyr::mutate(
       production_fm = dplyr::if_else(
         prod_type == "Grass" & Item == "Grassland" & !is.na(production_fm),
