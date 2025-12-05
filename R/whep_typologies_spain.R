@@ -15,7 +15,7 @@
 create_typologies_whep <- function(
   prod_destiny = create_n_prov_destiny()$prod_destiny,
   prod_n = create_n_prov_destiny()$grafs_prod_item_n,
-  years = 1860:2020
+  years = 2020
 ) {
   prod_destiny <- prod_destiny |>
     dplyr::filter(
