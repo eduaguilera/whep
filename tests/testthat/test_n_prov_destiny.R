@@ -332,3 +332,157 @@ test_dups <- grafs_prod_item_combined |>
   dplyr::filter(n > 1)
 
 test_dups
+
+# Check Alfredos data vs. mine (comparison crops)
+alfredos_values <- data.frame(
+  period = c("1990-1994", "2011-2015"),
+  source = "paper",
+  input_total_Gg = c(1485, 1499),
+  output_Gg = c(575, 634),
+  surplus_Gg = c(897, 857),
+  NUE = c(575 / 1485, 634 / 1499),
+  synthetic_share = c(0.70, 0.70),
+  manure_share = c(0.20, 0.20),
+  fixation_share = c(0.08, 0.08),
+  deposition_share = c(0.02, 0.03)
+)
+
+inputs <- prod_destiny |>
+  dplyr::filter(
+    Destiny == "Cropland",
+    tolower(Origin) %in% c("synthetic", "livestock", "fixation", "deposition")
+  ) |>
+  dplyr::mutate(
+    input_type = dplyr::case_when(
+      grepl("synthetic", Origin, ignore.case = TRUE) ~ "synthetic",
+      grepl("livestock", Origin, ignore.case = TRUE) ~ "manure",
+      grepl("fixation", Origin, ignore.case = TRUE) ~ "fixation",
+      grepl("deposition", Origin, ignore.case = TRUE) ~ "deposition"
+    )
+  ) |>
+  dplyr::group_by(Year, input_type) |>
+  dplyr::summarise(MgN = sum(MgN, na.rm = TRUE), .groups = "drop")
+
+outputs <- prod_destiny |>
+  dplyr::filter(
+    Origin == "Cropland",
+    tolower(Destiny) %in%
+      c(
+        "population_food",
+        "population_other_uses",
+        "livestock_rum",
+        "livestock_mono",
+        "export"
+      )
+  ) |>
+  dplyr::group_by(Year) |>
+  dplyr::summarise(output_total = sum(MgN, na.rm = TRUE), .groups = "drop")
+
+annual <- inputs |>
+  tidyr::pivot_wider(
+    names_from = input_type,
+    values_from = MgN,
+    values_fill = 0
+  ) |>
+  dplyr::mutate(input_total = synthetic + manure + fixation + deposition) |>
+  dplyr::left_join(outputs, by = "Year") |>
+  dplyr::mutate(
+    surplus = input_total - output_total,
+    NUE = output_total / input_total
+  )
+
+my_values <- annual |>
+  dplyr::mutate(
+    period = dplyr::case_when(
+      Year >= 1990 & Year <= 1994 ~ "1990-1994",
+      Year >= 2011 & Year <= 2015 ~ "2011-2015",
+      TRUE ~ NA_character_
+    )
+  ) |>
+  dplyr::filter(!is.na(period)) |>
+  dplyr::group_by(period) |>
+  dplyr::summarise(
+    source = "model",
+    input_total_Gg = mean(input_total, na.rm = TRUE) / 1000,
+    output_Gg = mean(output_total, na.rm = TRUE) / 1000,
+    surplus_Gg = (mean(input_total, na.rm = TRUE) -
+      mean(output_total, na.rm = TRUE)) /
+      1000,
+    NUE = mean(output_total, na.rm = TRUE) / mean(input_total, na.rm = TRUE),
+    synthetic_share = mean(synthetic / input_total, na.rm = TRUE),
+    manure_share = mean(manure / input_total, na.rm = TRUE),
+    fixation_share = mean(fixation / input_total, na.rm = TRUE),
+    deposition_share = mean(deposition / input_total, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+comparison_crops <- dplyr::bind_rows(alfredos_values, my_values) |>
+  dplyr::arrange(period, source)
+
+comparison_crops
+
+# Check Alfredos data and mine for livestock
+# Result: our values are a bit higher. Maybe because export also includes
+# other uses and animal based livestock ingestion. In Alfredos paper livestock
+# production is defines as: Spanish total livestock production, expressed as
+# edible N.
+# Also I added pet feed to population_food
+paper_livestock <- data.frame(
+  period = c("1990-1994", "2011-2015"),
+  source = "paper",
+  production_Gg = c(138, 202),
+  ingestion_Gg = c(901, 1049)
+)
+
+prod <- prod_destiny |>
+  dplyr::filter(
+    Origin == "Livestock",
+    tolower(Destiny) %in% c("population_food", "export")
+  ) |>
+  dplyr::group_by(Year) |>
+  dplyr::summarise(
+    production = sum(MgN, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+feed <- prod_destiny |>
+  dplyr::filter(
+    tolower(Destiny) %in% c("livestock_mono", "livestock_rum")
+  ) |>
+  dplyr::group_by(Year) |>
+  dplyr::summarise(
+    ingestion = sum(MgN, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+annual <- prod |>
+  dplyr::left_join(feed, by = "Year") |>
+  dplyr::mutate(
+    production_total = dplyr::coalesce(production, 0),
+    ingestion_total = dplyr::coalesce(ingestion, 0)
+  )
+
+your_livestock <- annual |>
+  dplyr::mutate(
+    period = dplyr::case_when(
+      Year >= 1990 & Year <= 1994 ~ "1990-1994",
+      Year >= 2011 & Year <= 2015 ~ "2011-2015",
+      TRUE ~ NA_character_
+    )
+  ) |>
+  dplyr::filter(!is.na(period)) |>
+  dplyr::group_by(period) |>
+  dplyr::summarise(
+    source = "model",
+    production_Gg = mean(production_total) / 1000,
+    ingestion_Gg = mean(ingestion_total) / 1000,
+    .groups = "drop"
+  )
+
+livestock_comparison <- dplyr::bind_rows(
+  paper_livestock,
+  your_livestock
+) |>
+  dplyr::arrange(period, source)
+
+livestock_comparison
