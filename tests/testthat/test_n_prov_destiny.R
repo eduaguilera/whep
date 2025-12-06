@@ -337,14 +337,13 @@ test_dups
 alfredos_values <- data.frame(
   period = c("1990-1994", "2011-2015"),
   source = "paper",
-  input_total_Gg = c(1485, 1499),
-  output_Gg = c(575, 634),
-  surplus_Gg = c(897, 857),
+  input_total_GgN = c(1485, 1499),
+  output_GgN = c(575, 634),
+  surplus_GgN = c(897, 857),
   NUE = c(575 / 1485, 634 / 1499),
   synthetic_share = c(0.70, 0.70),
   manure_share = c(0.20, 0.20),
-  fixation_share = c(0.08, 0.08),
-  deposition_share = c(0.02, 0.03)
+  human_crop_ingestion_GgN = c(98, 108)
 )
 
 inputs <- prod_destiny |>
@@ -378,6 +377,17 @@ outputs <- prod_destiny |>
   dplyr::group_by(Year) |>
   dplyr::summarise(output_total = sum(MgN, na.rm = TRUE), .groups = "drop")
 
+human <- prod_destiny |>
+  dplyr::filter(
+    Box == "Cropland",
+    Destiny == "population_food"
+  ) |>
+  dplyr::group_by(Year) |>
+  dplyr::summarise(
+    human_crop_ingestion_GgN = sum(MgN, na.rm = TRUE) / 1000,
+    .groups = "drop"
+  )
+
 annual <- inputs |>
   tidyr::pivot_wider(
     names_from = input_type,
@@ -386,12 +396,13 @@ annual <- inputs |>
   ) |>
   dplyr::mutate(input_total = synthetic + manure + fixation + deposition) |>
   dplyr::left_join(outputs, by = "Year") |>
+  dplyr::left_join(human, by = "Year") |>
   dplyr::mutate(
     surplus = input_total - output_total,
     NUE = output_total / input_total
   )
 
-my_values <- annual |>
+model_values <- annual |>
   dplyr::mutate(
     period = dplyr::case_when(
       Year >= 1990 & Year <= 1994 ~ "1990-1994",
@@ -403,23 +414,26 @@ my_values <- annual |>
   dplyr::group_by(period) |>
   dplyr::summarise(
     source = "model",
-    input_total_Gg = mean(input_total, na.rm = TRUE) / 1000,
-    output_Gg = mean(output_total, na.rm = TRUE) / 1000,
-    surplus_Gg = (mean(input_total, na.rm = TRUE) -
+    input_total_GgN = mean(input_total, na.rm = TRUE) / 1000,
+    output_GgN = mean(output_total, na.rm = TRUE) / 1000,
+    surplus_GgN = (mean(input_total, na.rm = TRUE) -
       mean(output_total, na.rm = TRUE)) /
       1000,
     NUE = mean(output_total, na.rm = TRUE) / mean(input_total, na.rm = TRUE),
     synthetic_share = mean(synthetic / input_total, na.rm = TRUE),
     manure_share = mean(manure / input_total, na.rm = TRUE),
-    fixation_share = mean(fixation / input_total, na.rm = TRUE),
-    deposition_share = mean(deposition / input_total, na.rm = TRUE),
+    human_crop_ingestion_GgN = mean(human_crop_ingestion_GgN, na.rm = TRUE),
     .groups = "drop"
   )
 
-comparison_crops <- dplyr::bind_rows(alfredos_values, my_values) |>
+comparison_crops <- dplyr::bind_rows(
+  alfredos_values,
+  model_values
+) |>
   dplyr::arrange(period, source)
 
 comparison_crops
+
 
 # Check Alfredos data and mine for livestock
 # Result: our values are a bit higher. Maybe because export also includes
@@ -430,8 +444,8 @@ comparison_crops
 paper_livestock <- data.frame(
   period = c("1990-1994", "2011-2015"),
   source = "paper",
-  production_Gg = c(138, 202),
-  ingestion_Gg = c(901, 1049)
+  production_GgN = c(138, 202),
+  ingestion_GgN = c(901, 1049)
 )
 
 prod <- prod_destiny |>
@@ -462,7 +476,7 @@ annual <- prod |>
     ingestion_total = dplyr::coalesce(ingestion, 0)
   )
 
-your_livestock <- annual |>
+model_livestock <- annual |>
   dplyr::mutate(
     period = dplyr::case_when(
       Year >= 1990 & Year <= 1994 ~ "1990-1994",
@@ -474,14 +488,14 @@ your_livestock <- annual |>
   dplyr::group_by(period) |>
   dplyr::summarise(
     source = "model",
-    production_Gg = mean(production_total) / 1000,
-    ingestion_Gg = mean(ingestion_total) / 1000,
+    production_GgN = mean(production_total) / 1000,
+    ingestion_GgN = mean(ingestion_total) / 1000,
     .groups = "drop"
   )
 
 livestock_comparison <- dplyr::bind_rows(
   paper_livestock,
-  your_livestock
+  model_livestock
 ) |>
   dplyr::arrange(period, source)
 
