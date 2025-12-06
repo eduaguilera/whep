@@ -1098,6 +1098,12 @@ create_n_prov_destiny <- function() {
 #' @description Splits imports by consumption and assigns origins.
 #' Livestock feed is split into livestock_rum (ruminants) and livestock_mono
 #' (monogastric).
+#' COMMENT: pmin prevents imported N for food and other uses from becoming
+#' unrealistically high.
+#' For human consumption, imports usually replace local supply instead of
+#' adding to it. So I limited imported food and other uses to the smaller
+#' value of imports or local use with pmin. Feed is treated differently because
+#' imports can exceed local production.
 #' @param local_vs_import A dataset containing local and import consumption.
 #' @param feed_share_rum_mono A dataset with feed shares split into ruminants
 #' and monogastric animals.
@@ -1113,7 +1119,11 @@ create_n_prov_destiny <- function() {
       values_to = "share"
     ) |>
     dplyr::mutate(
-      MgN = import_consumption * share,
+      MgN = dplyr::case_when(
+        share_type %in% c("food_share", "other_uses_share") ~
+          pmin(import_consumption, local_consumption) * share,
+        TRUE ~ import_consumption * share
+      ),
       Destiny = dplyr::case_when(
         share_type == "food_share" ~ "population_food",
         share_type == "feed_share" ~ "livestock",
