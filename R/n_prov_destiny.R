@@ -800,10 +800,10 @@ create_n_prov_destiny <- function() {
       by = c("Year", "Province_name", "Item")
     ) |>
     dplyr::mutate(
-      food = coalesce(food, 0) + coalesce(food_pets, 0),
-      feed = coalesce(feed, 0),
-      other_uses = coalesce(other_uses, 0),
-      production_n = coalesce(production_n, 0)
+      food = dplyr::coalesce(food, 0) + dplyr::coalesce(food_pets, 0),
+      feed = dplyr::coalesce(feed, 0),
+      other_uses = dplyr::coalesce(other_uses, 0),
+      production_n = dplyr::coalesce(production_n, 0)
     ) |>
     dplyr::select(-food_pets)
 
@@ -1045,7 +1045,6 @@ create_n_prov_destiny <- function() {
 #' @noRd
 .split_local_consumption <- function(local_vs_import, feed_share_rum_mono) {
   local_vs_import |>
-    dplyr::filter(local_consumption > 0) |>
     tidyr::pivot_longer(
       cols = c(food_share, feed_share, other_uses_share),
       names_to = "share_type",
@@ -1098,6 +1097,13 @@ create_n_prov_destiny <- function() {
 #' @description Splits imports by consumption and assigns origins.
 #' Livestock feed is split into livestock_rum (ruminants) and livestock_mono
 #' (monogastric).
+#' COMMENT: pmin prevents imported N for food and other uses from becoming
+#' unrealistically high.
+#' For human consumption, imports usually replace local supply instead of
+#' adding to it. So I limited imported food and other uses to the smaller
+#' value of imports or local use with pmin. Feed is treated differently because
+#' imports can exceed local production. Fish and Agro-industry are excluded in
+#' pmin because all of these values are considered as imports.
 #' @param local_vs_import A dataset containing local and import consumption.
 #' @param feed_share_rum_mono A dataset with feed shares split into ruminants
 #' and monogastric animals.
@@ -1107,13 +1113,22 @@ create_n_prov_destiny <- function() {
 #' @noRd
 .split_import_consumption <- function(local_vs_import, feed_share_rum_mono) {
   local_vs_import |>
+    dplyr::mutate(Box = Box) |>
     tidyr::pivot_longer(
       cols = c(food_share, feed_share, other_uses_share),
       names_to = "share_type",
       values_to = "share"
     ) |>
     dplyr::mutate(
-      MgN = import_consumption * share,
+      MgN = case_when(
+        Box %in%
+          c("Fish", "Agro-industry") &
+          share_type %in% c("food_share", "other_uses_share") ~
+          import_consumption * share,
+        share_type %in% c("food_share", "other_uses_share") ~
+          pmin(import_consumption, local_consumption) * share,
+        TRUE ~ import_consumption * share
+      ),
       Destiny = dplyr::case_when(
         share_type == "food_share" ~ "population_food",
         share_type == "feed_share" ~ "livestock",
@@ -1218,8 +1233,8 @@ create_n_prov_destiny <- function() {
       by = c("Year", "Province_name", "Item", "Irrig_cat")
     ) |>
     dplyr::mutate(
-      local_consumption = pmax(consumption_total - import, 0),
-      import_consumption = import
+      local_consumption = pmin(production_n, consumption_total),
+      import_consumption = consumption_total - local_consumption
     )
 
   local_split <- .split_local_consumption(local_vs_import, feed_share_rum_mono)
