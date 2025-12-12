@@ -354,3 +354,332 @@ testthat::test_that("sum_fill respects grouping keys", {
       preconditions = \(df) df |> dplyr::filter(category == "b")
     )
 })
+
+# fill_growth ------------------------------------------------------------------
+
+test_that("fill_growth fills missing values using proxy growth rates", {
+  data <- tibble::tribble(
+    ~country, ~year, ~gdp, ~population,
+    "ESP", 2010, 100, 46,
+    "ESP", 2011, NA, 47,
+    "ESP", 2012, 120, 48,
+    "ESP", 2013, NA, 49
+  )
+
+  result <- fill_growth(
+    data,
+    value_col = "gdp",
+    proxy_col = "population",
+    group_by = "country",
+    verbose = FALSE
+  )
+
+  # Should have filled the NA values
+  expect_false(any(is.na(result$gdp)))
+})
+
+test_that("fill_growth respects max_gap parameter", {
+  data <- tibble::tribble(
+    ~year, ~value, ~proxy,
+    2010, 100, 1000,
+    2011, NA, 1100,
+    2012, NA, 1200,
+    2013, NA, 1300,
+    2014, 150, 1400
+  )
+
+  result <- fill_growth(
+    data,
+    value_col = "value",
+    proxy_col = "proxy",
+    max_gap = 2,
+    verbose = FALSE
+  )
+
+  # With max_gap = 2, should not fill 3 consecutive NAs
+  expect_true(is.na(result$value[3]))
+})
+
+test_that("fill_growth works with grouping", {
+  data <- tibble::tribble(
+    ~country, ~year, ~emissions, ~gdp,
+    "ESP", 2010, 100, 1000,
+    "ESP", 2011, NA, 1100,
+    "ESP", 2012, 130, 1200,
+    "FRA", 2010, 200, 2000,
+    "FRA", 2011, NA, 2200,
+    "FRA", 2012, 250, 2400
+  )
+
+  result <- fill_growth(
+    data,
+    value_col = "emissions",
+    proxy_col = "gdp",
+    group_by = "country",
+    verbose = FALSE
+  )
+
+  # Check both groups have filled values
+  esp_filled <- result |>
+    dplyr::filter(country == "ESP", year == 2011) |>
+    dplyr::pull(emissions)
+
+  fra_filled <- result |>
+    dplyr::filter(country == "FRA", year == 2011) |>
+    dplyr::pull(emissions)
+
+  expect_false(is.na(esp_filled))
+  expect_false(is.na(fra_filled))
+})
+
+test_that("fill_growth returns same number of rows", {
+  data <- tibble::tribble(
+    ~year, ~value, ~proxy,
+    2010, 100, 1000,
+    2011, NA, 1100,
+    2012, 120, 1200
+  )
+
+  result <- fill_growth(
+    data,
+    value_col = "value",
+    proxy_col = "proxy",
+    verbose = FALSE
+  )
+
+  expect_equal(nrow(result), nrow(data))
+})
+
+# Hierarchical Segmented Interpolation -----------------------------------------
+
+test_that("fill_growth uses hierarchical segmentation with intermediate proxy data", {
+  # Spain wages example: household_ppp has gap 2008-2019
+  # formal_ppp has data 2010-2018 (should be used for middle segment)
+  # gdp_pc_constant has complete data (fallback for edges)
+
+  data_wages <- tibble::tribble(
+    ~country, ~year, ~household_ppp, ~formal_ppp, ~gdp_pc_constant,
+    "ESP", 2008, 100, NA, 50,
+    "ESP", 2009, NA, NA, 51,
+    "ESP", 2010, NA, 105, 52,
+    "ESP", 2011, NA, 108, 53,
+    "ESP", 2012, NA, 112, 54,
+    "ESP", 2013, NA, 115, 55,
+    "ESP", 2014, NA, 118, 56,
+    "ESP", 2015, NA, 122, 57,
+    "ESP", 2016, NA, 125, 58,
+    "ESP", 2017, NA, 130, 59,
+    "ESP", 2018, NA, 135, 60,
+    "ESP", 2019, 150, NA, 61
+  )
+
+  result <- fill_growth(
+    data_wages,
+    value_col = "household_ppp",
+    proxy_col = c("formal_ppp", "gdp_pc_constant"),
+    group_by = "country",
+    output_format = "detailed",
+    verbose = FALSE
+  )
+
+  # All gaps should be filled
+  expect_false(any(is.na(result$household_ppp)))
+
+  # Original values should be preserved
+  expect_equal(result$household_ppp[result$year == 2008], 100)
+  expect_equal(result$household_ppp[result$year == 2019], 150)
+
+  # Check that method column indicates bridge interpolation was used
+  middle_methods <- result |>
+    dplyr::filter(year >= 2009, year <= 2018) |>
+    dplyr::pull(method_household_ppp)
+
+  expect_true(any(grepl("bridge", middle_methods)))
+})
+
+test_that("fill_growth maintains continuity without jumps between segments", {
+  # Test that segmented interpolation produces smooth transitions with bridge
+  data_test <- tibble::tribble(
+    ~year, ~primary, ~proxy1, ~proxy2,
+    2000, 100, 100, 100,
+    2001, NA, 105, 102,
+    2002, NA, 110, 104,
+    2003, NA, 115, 106,
+    2004, NA, 120, 108,
+    2005, 200, 125, 110
+  )
+
+  result <- fill_growth(
+    data_test,
+    value_col = "primary",
+    proxy_col = c("proxy1", "proxy2"),
+    verbose = FALSE
+  )
+
+  # Check for continuity: bridge should connect smoothly
+  values <- result$primary
+
+  # First and last values should match original anchors
+  expect_equal(values[1], 100)
+  expect_equal(values[6], 200)
+
+  # Check that bridge method was used (not simple forward/backfill)
+  expect_true(any(grepl("bridge", result$method_primary)))
+
+  # Values should increase (since both proxies increase monotonically)
+  expect_true(all(diff(values) >= 0))
+
+  # Growth rates should be reasonable (smooth with bridge adjustment)
+  growth_rates <- diff(values) / values[-length(values)]
+  expect_true(all(abs(growth_rates) < 1.0))
+})
+
+test_that("fill_growth respects proxy hierarchy in segmentation", {
+  # Better proxy (proxy1) should be used when available
+  data_hierarchy <- tibble::tribble(
+    ~year, ~value, ~proxy1, ~proxy2,
+    2010, 100, NA, 50,
+    2011, NA, NA, 52,
+    2012, NA, 120, 54,
+    2013, NA, 125, 56,
+    2014, NA, NA, 58,
+    2015, 180, NA, 60
+  )
+
+  result <- fill_growth(
+    data_hierarchy,
+    value_col = "value",
+    proxy_col = c("proxy1", "proxy2"),
+    output_format = "detailed",
+    verbose = FALSE
+  )
+
+  # Should have used better proxy for middle segment
+  expect_false(any(is.na(result$value)))
+  expect_equal(nrow(result), 6)
+})
+
+test_that("fill_growth backward compatible: single proxy behaves as before", {
+  # Without intermediate data, should work exactly as old version
+  data_simple <- tibble::tribble(
+    ~year, ~value, ~proxy,
+    2010, 100, 1000,
+    2011, NA, 1100,
+    2012, NA, 1200,
+    2013, NA, 1300,
+    2014, 150, 1400
+  )
+
+  result <- fill_growth(
+    data_simple,
+    value_col = "value",
+    proxy_col = "proxy",
+    verbose = FALSE
+  )
+
+  # Should fill all gaps
+  expect_false(any(is.na(result$value)))
+
+  # Should maintain anchors
+  expect_equal(result$value[result$year == 2010], 100)
+  expect_equal(result$value[result$year == 2014], 150)
+
+  # Interpolated values should be between anchors
+  expect_true(all(result$value[2:4] > 100))
+  expect_true(all(result$value[2:4] < 150))
+})
+
+test_that("fill_growth handles case with no intermediate data gracefully", {
+  # Hierarchical proxies but none have intermediate data
+  data_no_intermediate <- tibble::tribble(
+    ~year, ~value, ~proxy1, ~proxy2,
+    2010, 100, NA, 50,
+    2011, NA, NA, 52,
+    2012, NA, NA, 54,
+    2013, 150, NA, 56
+  )
+
+  result <- fill_growth(
+    data_no_intermediate,
+    value_col = "value",
+    proxy_col = c("proxy1", "proxy2"),
+    verbose = FALSE
+  )
+
+  # Should fall back to proxy2 for entire gap
+  expect_false(any(is.na(result$value)))
+  expect_equal(result$value[result$year == 2010], 100)
+  expect_equal(result$value[result$year == 2013], 150)
+})
+
+test_that("fill_growth preserves original data points when they exist", {
+  data_mixed <- tibble::tribble(
+    ~year, ~value, ~proxy,
+    2010, 100, 1000,
+    2011, NA, 1100,
+    2012, 120, 1200,
+    2013, NA, 1300,
+    2014, 150, 1400
+  )
+
+  result <- fill_growth(
+    data_mixed,
+    value_col = "value",
+    proxy_col = "proxy",
+    verbose = FALSE
+  )
+
+  # Original data points should be exactly preserved
+  expect_equal(result$value[result$year == 2010], 100)
+  expect_equal(result$value[result$year == 2012], 120)
+  expect_equal(result$value[result$year == 2014], 150)
+
+  # Gaps should be filled
+  expect_false(is.na(result$value[result$year == 2011]))
+  expect_false(is.na(result$value[result$year == 2013]))
+})
+
+test_that("fill_growth preserves non-NA values", {
+  data <- tibble::tribble(
+    ~year, ~value, ~proxy,
+    2010, 100, 1000,
+    2011, NA, 1100,
+    2012, 120, 1200
+  )
+
+  result <- fill_growth(
+    data,
+    value_col = "value",
+    proxy_col = "proxy",
+    verbose = FALSE
+  )
+
+  # Original non-NA values should be unchanged
+  expect_equal(result$value[1], 100)
+  expect_equal(result$value[3], 120)
+})
+
+test_that("fill_growth extrapolates at ends with hierarchical growth", {
+  data <- tibble::tribble(
+    ~year, ~value, ~proxy1, ~proxy2,
+    2010, NA, 100, 50,
+    2011, NA, 103, 51,
+    2012, 120, 106, 52,
+    2013, NA, 109, 53,
+    2014, NA, 112, 54
+  )
+
+  res <- fill_growth(
+    data,
+    value_col = "value",
+    proxy_col = c("proxy1", "proxy2"),
+    max_gap_linear = 1,
+    output_format = "detailed",
+    verbose = FALSE
+  )
+
+  # Start and end should be filled (edge extrapolation)
+  expect_false(any(is.na(res$value)))
+  # Methods at ends should be growth_* (not *_bridge)
+  expect_true(any(grepl("^growth_", res$method_value)))
+})
