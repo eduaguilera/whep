@@ -3,7 +3,7 @@ pkgdown: 2.2.0
 pkgdown_sha: ~
 articles:
   trade-sources-coverage: trade-sources-coverage.html
-last_built: 2025-12-14T12:39Z
+last_built: 2025-12-14T12:41Z
 urls:
   reference: https://eduaguilera.github.io/whep/reference
   article: https://eduaguilera.github.io/whep/articles
