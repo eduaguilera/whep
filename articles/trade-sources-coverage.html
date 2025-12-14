@@ -101,7 +101,7 @@ each row accounts for one year.</p>
 <span>  <span class="fu">ggplot2</span><span class="fu">::</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">labs</a></span><span class="op">(</span>title <span class="op">=</span> <span class="st">"Source Availability by Country"</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu">ggplot2</span><span class="fu">::</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_identity.html" class="external-link">scale_fill_identity</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu">ggplot2</span><span class="fu">::</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/facet_wrap.html" class="external-link">facet_wrap</a></span><span class="op">(</span><span class="op">~</span><span class="va">Reporter</span>, ncol <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span></code></pre></div>
-<p><img src="trade-sources-coverage_files/figure-html/unnamed-chunk-3-1.png" alt="Plot showing years covered by expanded_trade_sources" width="700"></p>
+<p><img src="trade-sources-coverage_files/figure-html/unnamed-chunk-3-1.png" class="r-plt" alt="Plot showing years covered by expanded_trade_sources" width="700"></p>
 <p>Plot showing by years, colored by
 <code>expanded_trade_sources</code>:</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
@@ -114,7 +114,7 @@ each row accounts for one year.</p>
 <span>  <span class="fu">ggplot2</span><span class="fu">::</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/theme.html" class="external-link">theme</a></span><span class="op">(</span>legend.position <span class="op">=</span> <span class="st">"None"</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu">ggplot2</span><span class="fu">::</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">labs</a></span><span class="op">(</span>title <span class="op">=</span> <span class="st">"Source Availability by Country"</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu">ggplot2</span><span class="fu">::</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/facet_grid.html" class="external-link">facet_grid</a></span><span class="op">(</span><span class="va">ImpExp</span> <span class="op">~</span> <span class="va">Reporter</span>, scales <span class="op">=</span> <span class="st">"free"</span>, space <span class="op">=</span> <span class="st">"free_x"</span><span class="op">)</span></span></code></pre></div>
-<p><img src="trade-sources-coverage_files/figure-html/unnamed-chunk-4-1.png" alt="Plot showing by years, colored by expanded_trade_sources" width="700"></p>
+<p><img src="trade-sources-coverage_files/figure-html/unnamed-chunk-4-1.png" class="r-plt" alt="Plot showing by years, colored by expanded_trade_sources" width="700"></p>
 <p>Plot showing years covered by <code>expanded_trade_sources</code>,
 colored by quality:</p>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
@@ -129,7 +129,7 @@ colored by quality:</p>
 <span>    values <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Bad"</span> <span class="op">=</span> <span class="st">"red"</span>, <span class="st">"Good"</span> <span class="op">=</span> <span class="st">"green"</span>, <span class="st">"Unknown"</span> <span class="op">=</span> <span class="st">"blue"</span><span class="op">)</span></span>
 <span>  <span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu">ggplot2</span><span class="fu">::</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/facet_grid.html" class="external-link">facet_grid</a></span><span class="op">(</span><span class="va">ImpExp</span> <span class="op">~</span> <span class="va">Reporter</span>, scales <span class="op">=</span> <span class="st">"free"</span>, space <span class="op">=</span> <span class="st">"free_x"</span><span class="op">)</span></span></code></pre></div>
-<p><img src="trade-sources-coverage_files/figure-html/unnamed-chunk-5-1.png" alt="Plot showing years covered by expanded_trade_sources, colored by quality" width="700"></p>
+<p><img src="trade-sources-coverage_files/figure-html/unnamed-chunk-5-1.png" class="r-plt" alt="Plot showing years covered by expanded_trade_sources, colored by quality" width="700"></p>
 <p>Plot showing years covered by <code>expanded_trade_sources</code>,
 colored by scanned/not scanned:</p>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
@@ -142,7 +142,7 @@ colored by scanned/not scanned:</p>
 <span>  <span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu">ggplot2</span><span class="fu">::</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/guides.html" class="external-link">guides</a></span><span class="op">(</span>alpha <span class="op">=</span> <span class="st">"none"</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu">ggplot2</span><span class="fu">::</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/facet_grid.html" class="external-link">facet_grid</a></span><span class="op">(</span><span class="va">ImpExp</span> <span class="op">~</span> <span class="va">Reporter</span>, scales <span class="op">=</span> <span class="st">"free"</span>, space <span class="op">=</span> <span class="st">"free_x"</span><span class="op">)</span></span></code></pre></div>
-<p><img src="trade-sources-coverage_files/figure-html/unnamed-chunk-6-1.png" alt="Plot showing years covered by expanded_trade_sources, colored by scanned/not scanned" width="700"></p>
+<p><img src="trade-sources-coverage_files/figure-html/unnamed-chunk-6-1.png" class="r-plt" alt="Plot showing years covered by expanded_trade_sources, colored by scanned/not scanned" width="700"></p>
 <p>Plot showing years covered by <code>expanded_trade_sources</code>,
 colored by whether or not in SACO:</p>
 <div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
@@ -158,7 +158,7 @@ colored by whether or not in SACO:</p>
 <span>    labels <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"0"</span> <span class="op">=</span> <span class="st">"No"</span>, <span class="st">"1"</span> <span class="op">=</span> <span class="st">"Yes"</span><span class="op">)</span>, values <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"0"</span> <span class="op">=</span> <span class="st">"red"</span>, <span class="st">"1"</span> <span class="op">=</span> <span class="st">"green"</span><span class="op">)</span></span>
 <span>  <span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu">ggplot2</span><span class="fu">::</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/facet_grid.html" class="external-link">facet_grid</a></span><span class="op">(</span><span class="va">ImpExp</span> <span class="op">~</span> <span class="va">Reporter</span>, scales <span class="op">=</span> <span class="st">"free"</span>, space <span class="op">=</span> <span class="st">"free_x"</span><span class="op">)</span></span></code></pre></div>
-<p><img src="trade-sources-coverage_files/figure-html/unnamed-chunk-7-1.png" alt="Plot showing years covered by expanded_trade_sources, colored by whether or not in SACO" width="700"></p>
+<p><img src="trade-sources-coverage_files/figure-html/unnamed-chunk-7-1.png" class="r-plt" alt="Plot showing years covered by expanded_trade_sources, colored by whether or not in SACO" width="700"></p>
   </main>
 </div>
 
@@ -169,7 +169,7 @@ colored by whether or not in SACO:</p>
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.1.3.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
 </div>
 
     </footer>
