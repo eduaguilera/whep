@@ -6,3 +6,11 @@ feed_intake,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20in
 primary_prod,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20250714T123350Z-74e7f
 crop_residues,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20250714T123350Z-1d7be
 read_example,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20250721T152756Z-f00da
+faostat-production,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20251215T163321Z-8e916
+faostat-production-old,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20251215T164810Z-abbd2
+faostat-fbs-new,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20251215T163502Z-a1a2e
+faostat-fbs-old,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20251215T163718Z-4732b
+faostat-cbs-new,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20251215T164414Z-0837f
+faostat-cbs-old-crops,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20251215T164432Z-38555
+faostat-cbs-old-animal,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20251215T164627Z-45919
+eu-agridb-fodder,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20251215T165238Z-4769f
