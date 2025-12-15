@@ -216,7 +216,7 @@ calculate_lmdi <- function(
       den_df <- filter_by_group(df_period, group2, group_vals)
       num <- sum(num_df[[var1]], na.rm = TRUE)
       den <- sum(den_df[[var2]], na.rm = TRUE)
-      return(ifelse(den == 0, NA_real_, num / den))
+      ifelse(den == 0, NA_real_, num / den)
     } else if (stringr::str_detect(factor, pat3)) {
       m <- stringr::str_match(factor, pat3)
       var1 <- m[2]
@@ -225,7 +225,7 @@ calculate_lmdi <- function(
       num_df <- filter_by_group(df_period, group1, group_vals)
       num <- sum(num_df[[var1]], na.rm = TRUE)
       den <- sum(df_period[[var2]], na.rm = TRUE)
-      return(ifelse(den == 0, NA_real_, num / den))
+      ifelse(den == 0, NA_real_, num / den)
     } else if (stringr::str_detect(factor, pat4)) {
       m <- stringr::str_match(factor, pat4)
       var1 <- m[2]
@@ -234,22 +234,22 @@ calculate_lmdi <- function(
       num <- sum(df_period[[var1]], na.rm = TRUE)
       den_df <- filter_by_group(df_period, group2, group_vals)
       den <- sum(den_df[[var2]], na.rm = TRUE)
-      return(ifelse(den == 0, NA_real_, num / den))
+      ifelse(den == 0, NA_real_, num / den)
     } else if (stringr::str_detect(factor, pat2)) {
       m <- stringr::str_match(factor, pat2)
       var1 <- m[2]
       var2 <- m[3]
       num <- sum(df_period[[var1]], na.rm = TRUE)
       den <- sum(df_period[[var2]], na.rm = TRUE)
-      return(ifelse(den == 0, NA_real_, num / den))
+      ifelse(den == 0, NA_real_, num / den)
     } else if (stringr::str_detect(factor, pat1)) {
       m <- stringr::str_match(factor, pat1)
       var1 <- m[2]
       group1 <- m[3]
       sub_df <- filter_by_group(df_period, group1, group_vals)
-      return(sum(sub_df[[var1]], na.rm = TRUE))
+      sum(sub_df[[var1]], na.rm = TRUE)
     } else {
-      return(sum(df_period[[factor]], na.rm = TRUE))
+      sum(df_period[[factor]], na.rm = TRUE)
     }
   }
 

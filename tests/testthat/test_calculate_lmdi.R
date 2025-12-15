@@ -22,10 +22,10 @@ test_that("calculate_lmdi performs basic decomposition", {
 test_that("calculate_lmdi works with grouping", {
   data <- tibble::tribble(
     ~country, ~year, ~emissions, ~gdp, ~population,
-       "ESP", 2010,        100, 1000,          46,
-       "ESP", 2011,        110, 1100,          47,
-       "FRA", 2010,        200, 2000,          65,
-       "FRA", 2011,        220, 2200,          66
+    "ESP", 2010, 100, 1000, 46,
+    "ESP", 2011, 110, 1100, 47,
+    "FRA", 2010, 200, 2000, 65,
+    "FRA", 2011, 220, 2200, 66
   )
 
   result <- calculate_lmdi(
