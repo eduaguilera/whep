@@ -3,8 +3,15 @@
 
 # Global variables to avoid R CMD check NOTE
 utils::globalVariables(c(
-  ".", ".N", ".fill_scope", "ma_base", "lag_source", "lag_year",
-  "lag_weight", "growth_weight", "individual_growth"
+  ".",
+  ".N",
+  ".fill_scope",
+  "ma_base",
+  "lag_source",
+  "lag_year",
+  "lag_weight",
+  "growth_weight",
+  "individual_growth"
 ))
 
 #' Fill gaps by linear interpolation, or carrying forward or backward.
