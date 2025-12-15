@@ -1,20 +1,29 @@
-# Functions to extend primary production data to historical periods (1850-1961)
-# Uses proxy variables (land use data) and historical yield estimates
+## Historical extension of primary production (1850-1960)
+##
+## This file mirrors the last section of `Global/R/crop_liv_prod.r`.
+## It extends the FAOSTAT-period primary production series backwards using
+## LUH2 land areas as a proxy and adds international historical yields.
 
 #' Extend primary production to historical period
 #'
 #' @description
-#' Extends FAOSTAT production data (typically starting in 1961) back to 1850
-#' using land use data as a proxy for area changes and historical yield
-#' estimates.
+#' Extends FAOSTAT-period primary production data (typically starting in 1961)
+#' back to 1850 using LUH2 land areas as proxy variables and (optionally)
+#' international historical yield estimates.
 #'
-#' @param production_data Tibble with processed FAOSTAT production data from
-#'   `process_faostat_production()`.
-#' @param land_use_data Tibble with historical cropland and pasture areas
-#'   (e.g., from LUH2 dataset).
-#' @param historical_yields Optional tibble with historical yield estimates.
+#' @param production_data Tibble with processed production data.
+#'   It must contain at least: `year`, `area`, `area_code`, `item_prod`,
+#'   `item_prod_code`, `item_cbs_code`, `live_anim_code`, `unit`, `value`.
+#' @param stock_area_full Tibble with LUH2 land areas in long format.
+#'   It must contain at least: `Year`, `area`, `area_code`, `Land_Use`,
+#'   `Area_Mha`.
+#' @param international_yields Optional tibble with international historical
+#'   yields. It must contain at least: `Year`, `area`, `item_code_prod`,
+#'   `yield`.
 #' @param start_year First year to extend to (default 1850).
 #' @param faostat_start_year First year of FAOSTAT data (default 1961).
+#' @param cropland_varnames LUH2 variable names considered cropland.
+#' @param pasture_varnames LUH2 variable names considered pasture.
 #'
 #' @return A tibble with production data extended to the historical period.
 #' @export
@@ -23,129 +32,119 @@
 #' \dontrun{
 #'   extended <- extend_production_historical(
 #'     production_data,
-#'     land_use_data,
-#'     historical_yields
+#'     stock_area_full,
+#'     international_yields
 #'   )
 #' }
 extend_production_historical <- function(
   production_data,
-  land_use_data,
-  historical_yields = NULL,
+  stock_area_full,
+  international_yields = NULL,
   start_year = 1850,
-  faostat_start_year = 1961
+  faostat_start_year = 1961,
+  cropland_varnames = c("c3ann", "c3per", "c4ann", "c4per", "c3nfx"),
+  pasture_varnames = c("pastr", "range")
 ) {
-  # Classify items by land use type
-  classified_data <- production_data |>
-    dplyr::mutate(
-      land_use_type = dplyr::case_when(
-        unit %in% c("ha", "t_ha") ~ "cropland",
-        unit == "tonnes" & is.na(live_anim_code) ~ "cropland",
-        unit %in% c("heads", "LU", "t_head", "t_LU") ~ "pasture",
-        unit == "tonnes" & !is.na(live_anim_code) ~ "pasture",
-        TRUE ~ NA_character_
-      )
-    )
-
-  # Create full year sequence
-  years <- tibble::tibble(year = seq(start_year, max(production_data$year)))
-
-  # Extend data
-  extended <- classified_data |>
-    dplyr::full_join(years, by = "year") |>
-    tidyr::complete(
-      year,
-      tidyr::nesting(
-        area, area_code, item_prod, item_prod_code,
-        item_cbs_code, live_anim_code, unit, land_use_type
-      )
-    )
-
-  # Join land use data
-  extended <- extended |>
-    dplyr::left_join(
-      land_use_data |>
-        dplyr::select(year, area_code, cropland, pasture, agriland),
-      by = c("year", "area_code")
-    )
-
-  # Apply proxy-based filling for historical period
-  extended <- .fill_historical_values(
-    extended,
-    faostat_start_year
+  land_areas_wide <- .build_land_areas_wide(
+    stock_area_full = stock_area_full,
+    cropland_varnames = cropland_varnames,
+    pasture_varnames = pasture_varnames
   )
 
-  # Apply historical yields if provided
-  if (!is.null(historical_yields)) {
-    extended <- .apply_historical_yields(extended, historical_yields)
+  grassland <- .build_grassland_from_luh2(
+    stock_area_full = stock_area_full,
+    pasture_varnames = pasture_varnames
+  )
+
+  extended <- production_data |>
+    dplyr::mutate(
+      land_use = dplyr::if_else(
+        unit %in% c("ha", "t_ha") |
+          (unit == "tonnes" & is.na(live_anim_code)),
+        "Cropland",
+        "Agriland"
+      )
+    ) |>
+    dplyr::select(
+      year,
+      area,
+      area_code,
+      item_prod,
+      item_prod_code,
+      item_cbs_code,
+      land_use,
+      unit,
+      live_anim_code,
+      value
+    ) |>
+    .extend_pre_faostat_years(
+      start_year = start_year,
+      faostat_start_year = faostat_start_year,
+      land_areas_wide = land_areas_wide
+    ) |>
+    dplyr::bind_rows(grassland) |>
+    dplyr::filter(
+      !is.na(area),
+      area != "",
+      !is.na(unit)
+    )
+
+  if (!is.null(international_yields)) {
+    extended <- .apply_international_yields(
+      data = extended,
+      international_yields = international_yields,
+      faostat_start_year = faostat_start_year
+    )
   }
 
   extended |>
-    dplyr::filter(!is.na(value), value != 0) |>
-    dplyr::select(
-      year, area, area_code, item_prod, item_prod_code,
-      item_cbs_code, live_anim_code, unit, value
-    )
+    filter_country_temporal_validity() |>
+    dplyr::filter(!is.na(value), value != 0)
 }
 
-#' Prepare land use data from LUH2 dataset
+#' Prepare land areas from LUH2 dataset
 #'
 #' @description
-#' Processes LUH2 (Land Use Harmonization) data to create cropland and
-#' pasture area time series for use as proxy variables.
+#' Aggregates LUH2 land use categories to cropland, pasture and agriland.
+#' This reproduces the `Land_areas_wide` object built in
+#' `Global/R/crop_liv_prod.r`.
 #'
-#' @param luh2_data Tibble with LUH2 land use categories.
-#' @param cropland_categories Character vector of LUH2 cropland variable names.
-#' @param pasture_categories Character vector of LUH2 pasture variable names.
+#' @param stock_area_full Tibble with LUH2 land use categories.
+#' @param cropland_varnames Character vector of LUH2 cropland variable names.
+#' @param pasture_varnames Character vector of LUH2 pasture variable names.
 #'
-#' @return A tibble with year, area_code, cropland, pasture, and agriland
-#'   (total agricultural land) in hectares.
+#' @return A tibble with `year`, `area`, `area_code`, `Cropland`, `Pasture`,
+#'   and `Agriland` in hectares.
 #' @export
 #'
 #' @examples
 #' \dontrun{
 #'   land_use <- prepare_luh2_land_use(
-#'     luh2_data,
-#'     cropland_categories = c("c3ann", "c4ann", "c3per", "c4per", "c3nfx"),
-#'     pasture_categories = c("pastr", "range")
+#'     stock_area_full,
+#'     cropland_varnames = c("c3ann", "c3per", "c4ann", "c4per", "c3nfx"),
+#'     pasture_varnames = c("pastr", "range")
 #'   )
 #' }
 prepare_luh2_land_use <- function(
-  luh2_data,
-  cropland_categories,
-  pasture_categories
+  stock_area_full,
+  cropland_varnames,
+  pasture_varnames
 ) {
-  luh2_data |>
-    dplyr::mutate(
-      land_use_type = dplyr::case_when(
-        land_use %in% cropland_categories ~ "cropland",
-        land_use %in% pasture_categories ~ "pasture",
-        TRUE ~ "other"
-      )
-    ) |>
-    dplyr::filter(land_use_type != "other") |>
-    dplyr::summarize(
-      area_mha = sum(area_mha, na.rm = TRUE),
-      .by = c(year, area, area_code, land_use_type)
-    ) |>
-    tidyr::pivot_wider(
-      names_from = land_use_type,
-      values_from = area_mha
-    ) |>
-    dplyr::mutate(
-      cropland = dplyr::coalesce(cropland, 0) * 1e6,
-      pasture = dplyr::coalesce(pasture, 0) * 1e6,
-      agriland = cropland + pasture
-    )
+  .build_land_areas_wide(
+    stock_area_full = stock_area_full,
+    cropland_varnames = cropland_varnames,
+    pasture_varnames = pasture_varnames
+  )
 }
 
-#' Add grassland production from LUH2 pasture data
+#' Add grassland areas from LUH2 pasture data
 #'
 #' @description
-#' Creates grassland area entries from LUH2 pasture data categories.
+#' Creates grassland area entries from LUH2 pasture categories.
+#' This reproduces the `grassland` object built in `Global/R/crop_liv_prod.r`.
 #'
-#' @param land_use_data Tibble from `prepare_luh2_land_use()`.
-#' @param pasture_item_code Item code for managed pasture (default 3001).
-#' @param range_item_code Item code for rangeland (default 3002).
+#' @param stock_area_full Tibble with LUH2 land use categories.
+#' @param pasture_varnames Character vector of LUH2 pasture variable names.
 #' @param grassland_cbs_code CBS code for grassland (default 3000).
 #'
 #' @return A tibble with grassland production entries.
@@ -153,143 +152,226 @@ prepare_luh2_land_use <- function(
 #'
 #' @examples
 #' \dontrun{
-#'   grassland <- create_grassland_production(land_use_data)
+#'   grassland <- create_grassland_production(stock_area_full)
 #' }
 create_grassland_production <- function(
-  land_use_data,
-  pasture_item_code = 3001,
-  range_item_code = 3002,
+  stock_area_full,
+  pasture_varnames = c("pastr", "range"),
   grassland_cbs_code = 3000
 ) {
-  # This would need the detailed LUH2 data with pastr/range separation
-
-  # For now, return pasture as a single category
-
-  land_use_data |>
-    dplyr::filter(pasture > 0) |>
-    dplyr::transmute(
-      year,
-      area,
-      area_code,
-      item_prod = "Grassland",
-      item_prod_code = pasture_item_code,
-      item_cbs = "Grassland",
-      item_cbs_code = grassland_cbs_code,
-      unit = "ha",
-      value = pasture
-    )
+  .build_grassland_from_luh2(
+    stock_area_full = stock_area_full,
+    pasture_varnames = pasture_varnames,
+    grassland_cbs_code = grassland_cbs_code
+  )
 }
 
-#' Fill historical values using proxy variables
-#'
-#' @description
-#' Fills pre-FAOSTAT values using land use data as a proxy.
-#' Crop areas and yields are indexed to cropland; livestock parameters
-#' are indexed to total agricultural land.
-#'
-#' @param data Tibble with production data and land use columns.
-#' @param faostat_start_year First year of FAOSTAT data.
-#'
-#' @return Tibble with filled historical values.
-#'
-#' @keywords internal
-.fill_historical_values <- function(data, faostat_start_year) {
-  # Split into historical and FAOSTAT periods
-  historical <- data |>
-    dplyr::filter(year < faostat_start_year)
+## Internal helpers ---------------------------------------------------------
 
-  faostat <- data |>
-    dplyr::filter(year >= faostat_start_year)
-
-  # Apply proxy filling to historical data
-  historical_filled <- historical |>
+.build_land_areas_wide <- function(
+  stock_area_full,
+  cropland_varnames,
+  pasture_varnames
+) {
+  stock_area_full |>
     dplyr::mutate(
-      proxy_var = dplyr::case_when(
-        land_use_type == "cropland" ~ cropland,
-        land_use_type == "pasture" & unit %in% c("t_head", "t_LU") ~ NA_real_,
-        land_use_type == "pasture" ~ agriland,
-        TRUE ~ NA_real_
+      land_use = dplyr::if_else(
+        Land_Use %in% cropland_varnames,
+        "Cropland",
+        dplyr::if_else(Land_Use %in% pasture_varnames, "Pasture", "Other")
       )
     ) |>
-    dplyr::group_by(area, area_code, item_prod, unit) |>
-    proxy_fill(
-      var = value,
-      proxy = proxy_var,
-      time_index = year
+    dplyr::filter(land_use != "Other") |>
+    dplyr::summarise(
+      Area_Mha = sum(Area_Mha, na.rm = TRUE),
+      .by = c(Year, area, area_code, land_use)
     ) |>
-    dplyr::ungroup()
-
-  # For livestock yields, use linear fill (constant backwards)
-  historical_filled <- historical_filled |>
-    dplyr::group_by(area, area_code, item_prod, unit) |>
-    linear_fill(
-      var = value,
-      time_index = year,
-      interpolate = FALSE,
-      fill_forward = FALSE,
-      fill_backward = TRUE
+    dplyr::filter(!is.na(area)) |>
+    tidyr::pivot_wider(names_from = land_use, values_from = Area_Mha) |>
+    dplyr::mutate(
+      Cropland = dplyr::coalesce(Cropland, 0) * 1e6,
+      Pasture = dplyr::coalesce(Pasture, 0) * 1e6,
+      Agriland = Cropland + Pasture,
+      year = Year
     ) |>
-    dplyr::ungroup()
-
-  # Combine
-dplyr::bind_rows(historical_filled, faostat)
+    dplyr::select(year, area, area_code, Cropland, Pasture, Agriland)
 }
 
-#' Apply historical yield estimates
-#'
-#' @description
-#' Adjusts historical production values using independent yield estimates.
-#' Production is recalculated as area * yield when historical yields are
-#' available.
-#'
-#' @param data Tibble with extended production data.
-#' @param historical_yields Tibble with year, area_code, item_prod_code, yield.
-#'
-#' @return Tibble with adjusted historical production.
-#'
-#' @keywords internal
-.apply_historical_yields <- function(data, historical_yields) {
-  # Pivot to wide format for calculation
-  wide_data <- data |>
-    tidyr::pivot_wider(
-      names_from = unit,
-      values_from = value
-    )
-
-  # Join historical yields
-  wide_data <- wide_data |>
-    dplyr::left_join(
-      historical_yields |>
-        dplyr::select(year, area_code, item_prod_code, hist_yield = yield),
-      by = c("year", "area_code", "item_prod_code")
-    )
-
-  # Apply historical yields with proxy fill
-  wide_data <- wide_data |>
-    dplyr::group_by(area, item_prod) |>
-    proxy_fill(
-      var = t_ha,
-      proxy = hist_yield,
-      time_index = year
-    ) |>
-    dplyr::ungroup()
-
-  # Recalculate production
-  wide_data <- wide_data |>
+.build_grassland_from_luh2 <- function(
+  stock_area_full,
+  pasture_varnames,
+  grassland_cbs_code = 3000
+) {
+  stock_area_full |>
+    dplyr::filter(Land_Use %in% pasture_varnames) |>
     dplyr::mutate(
-      t_ha = dplyr::coalesce(t_ha, ha / tonnes),
+      item_prod = dplyr::if_else(Land_Use == "pastr", "Pasture", "range"),
+      item_prod_code = dplyr::if_else(Land_Use == "pastr", 3001, 3002),
+      item_cbs_code = grassland_cbs_code,
+      live_anim_code = NA_real_,
+      unit = "ha"
+    ) |>
+    dplyr::summarize(
+      value = sum(Area_Mha, na.rm = TRUE) * 1e6,
+      .by = c(
+        Year,
+        area,
+        area_code,
+        item_prod,
+        item_prod_code,
+        item_cbs_code,
+        live_anim_code,
+        unit
+      )
+    ) |>
+    dplyr::rename(year = Year)
+}
+
+.extend_pre_faostat_years <- function(
+  data,
+  start_year,
+  faostat_start_year,
+  land_areas_wide
+) {
+  years_tbl <- tibble::tibble(year = seq(start_year, max(data$year)))
+
+  data <- data |>
+    dplyr::full_join(years_tbl, by = "year")
+
+  dplyr::bind_rows(
+    data |>
+      dplyr::filter(year < faostat_start_year) |>
+      tidyr::complete(
+        year,
+        tidyr::nesting(
+          area,
+          area_code,
+          item_prod,
+          item_prod_code,
+          item_cbs_code,
+          land_use,
+          unit,
+          live_anim_code
+        )
+      ) |>
+      dplyr::left_join(land_areas_wide, by = c("year", "area", "area_code")) |>
+      dplyr::mutate(
+        value_cropland = value,
+        value_agriland = value,
+        value_livestock_yield = value
+      ) |>
+      proxy_fill(
+        value_cropland,
+        Cropland,
+        year,
+        .by = c("area", "area_code", "item_prod", "land_use", "unit")
+      ) |>
+      proxy_fill(
+        value_agriland,
+        Agriland,
+        year,
+        .by = c("area", "area_code", "item_prod", "land_use", "unit")
+      ) |>
+      linear_fill(
+        value_livestock_yield,
+        year,
+        .by = c("area", "area_code", "item_prod", "land_use", "unit")
+      ) |>
+      dplyr::mutate(
+        value = dplyr::if_else(
+          land_use == "Cropland",
+          value_cropland,
+          dplyr::if_else(
+            unit %in% c("t_head", "t_LU"),
+            value_livestock_yield,
+            value_agriland
+          )
+        )
+      ) |>
+      dplyr::select(
+        year,
+        area,
+        area_code,
+        item_prod,
+        item_prod_code,
+        item_cbs_code,
+        land_use,
+        unit,
+        live_anim_code,
+        value
+      ),
+    data |>
+      dplyr::filter(year >= faostat_start_year)
+  )
+}
+
+.apply_international_yields <- function(
+  data,
+  international_yields,
+  faostat_start_year
+) {
+  yields_std <- international_yields |>
+    dplyr::rename(
+      year = Year,
+      item_prod_code = item_code_prod
+    ) |>
+    dplyr::select(year, area_code, item_prod_code, yield)
+
+  wide <- data |>
+    tidyr::pivot_wider(names_from = unit, values_from = value)
+
+  wide <- wide |>
+    dplyr::left_join(
+      yields_std,
+      by = c("year", "area_code", "item_prod_code")
+    ) |>
+    dplyr::mutate(
+      t_ha_raw = tonnes / ha,
+      t_ha = dplyr::if_else(year < faostat_start_year, NA_real_, t_ha_raw)
+    ) |>
+    proxy_fill(t_ha, yield, year, .by = c("area", "item_prod")) |>
+    dplyr::mutate(
+      t_ha = dplyr::if_else(!is.na(t_ha), t_ha, t_ha_raw),
       tonnes = dplyr::if_else(!is.na(ha), ha * t_ha, tonnes)
     )
 
-  # Pivot back to long format
-  wide_data |>
-    tidyr::pivot_longer(
-      cols = c(ha, tonnes, t_ha, LU, heads, t_LU, t_head),
-      names_to = "unit",
-      values_to = "value",
-      values_drop_na = TRUE
+  wide |>
+    dplyr::select(
+      year,
+      area,
+      area_code,
+      item_prod,
+      item_prod_code,
+      item_cbs_code,
+      live_anim_code,
+      ha,
+      LU,
+      heads,
+      tonnes,
+      t_ha,
+      t_LU,
+      t_head
     ) |>
-    dplyr::filter(value != 0)
+    tidyr::pivot_longer(
+      ha:t_head,
+      names_to = "unit",
+      values_to = "value"
+    ) |>
+    dplyr::filter(!is.na(value), value != 0) |>
+    dplyr::distinct() |>
+    dplyr::summarize(
+      value = mean(value, na.rm = TRUE),
+      .by = c(
+        year,
+        area,
+        area_code,
+        item_prod,
+        item_prod_code,
+        item_cbs_code,
+        live_anim_code,
+        unit
+      )
+    )
 }
 
 #' Filter data by country temporal validity
