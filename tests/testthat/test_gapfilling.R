@@ -1,6 +1,6 @@
 # Helper fixtures --------------------------------------------------------------
 
-linear_fill_fixture <- function() {
+fill_linear_fixture <- function() {
   tibble::tribble(
     ~category, ~year, ~value,
     "a", 2015, NA,
@@ -75,11 +75,11 @@ sum_fill_fixture <- function() {
   )
 }
 
-# linear_fill ------------------------------------------------------------------
+# fill_linear ------------------------------------------------------------------
 
-testthat::test_that("linear_fill fills gaps and preserves originals", {
-  result <- linear_fill_fixture() |>
-    linear_fill(value, year, .by = "category")
+testthat::test_that("fill_linear fills gaps and preserves originals", {
+  result <- fill_linear_fixture() |>
+    fill_linear(value, year, .by = "category")
 
   result |>
     pointblank::expect_col_exists("source_value") |>
@@ -103,9 +103,9 @@ testthat::test_that("linear_fill fills gaps and preserves originals", {
     testthat::expect_false()
 })
 
-testthat::test_that("linear_fill interpolates between anchor points, and adds flags", {
-  linear_fill_fixture() |>
-    linear_fill(
+testthat::test_that("fill_linear interpolates between anchor points, and adds flags", {
+  fill_linear_fixture() |>
+    fill_linear(
       value,
       year,
       interpolate = TRUE,
@@ -132,9 +132,9 @@ testthat::test_that("linear_fill interpolates between anchor points, and adds fl
     )
 })
 
-testthat::test_that("linear_fill carries values backward from first anchor, and adds flags", {
-  linear_fill_fixture() |>
-    linear_fill(
+testthat::test_that("fill_linear carries values backward from first anchor, and adds flags", {
+  fill_linear_fixture() |>
+    fill_linear(
       value,
       year,
       interpolate = FALSE,
@@ -161,9 +161,9 @@ testthat::test_that("linear_fill carries values backward from first anchor, and 
     )
 })
 
-testthat::test_that("linear_fill carries values forward from last anchor, and adds flags", {
-  linear_fill_fixture() |>
-    linear_fill(
+testthat::test_that("fill_linear carries values forward from last anchor, and adds flags", {
+  fill_linear_fixture() |>
+    fill_linear(
       value,
       year,
       interpolate = FALSE,
@@ -190,9 +190,9 @@ testthat::test_that("linear_fill carries values forward from last anchor, and ad
     )
 })
 
-testthat::test_that("linear_fill interpolates grouped series", {
-  linear_fill_fixture() |>
-    linear_fill(value, year, .by = "category") |>
+testthat::test_that("fill_linear interpolates grouped series", {
+  fill_linear_fixture() |>
+    fill_linear(value, year, .by = "category") |>
     pointblank::expect_col_vals_equal(
       value,
       c(3, 3, 2, 1, 0, 0),
@@ -205,9 +205,9 @@ testthat::test_that("linear_fill interpolates grouped series", {
     )
 })
 
-testthat::test_that("linear_fill propagates a single anchor value", {
+testthat::test_that("fill_linear propagates a single anchor value", {
   single_anchor_series() |>
-    linear_fill(
+    fill_linear(
       value,
       year,
       interpolate = FALSE,
