@@ -139,21 +139,21 @@ fill_linear <- function(
 #'   value = c(NA, 3, NA, NA, 0, NA, 1, NA, NA, NA, 5, NA),
 #'   change_variable = c(1, 2, 3, 4, 1, 1, 0, 0, 0, 0, 0, 1)
 #' )
-#' sum_fill(
+#' fill_sum(
 #'   sample_tibble,
 #'   value,
 #'   change_variable,
 #'   start_with_zero = FALSE,
 #'   .by = c("category")
 #' )
-#' sum_fill(
+#' fill_sum(
 #'   sample_tibble,
 #'   value,
 #'   change_variable,
 #'   start_with_zero = TRUE,
 #'   .by = c("category")
 #' )
-sum_fill <- function(
+fill_sum <- function(
   df,
   var,
   change_var,
@@ -248,7 +248,7 @@ sum_fill <- function(
 #'   group_by = "country"
 #' )
 #'
-#' @seealso [fill_linear()], [sum_fill()]
+#' @seealso [fill_linear()], [fill_sum()]
 #'
 #' @importFrom data.table := as.data.table setorderv shift fifelse setnames
 #' @importFrom dplyr filter select mutate group_by ungroup across all_of
