@@ -38,24 +38,6 @@ single_anchor_series <- function(anchor = 42) {
   )
 }
 
-proxy_fill_fixture <- function() {
-  tibble::tribble(
-    ~category, ~year, ~value, ~proxy_variable,
-    "a", 2015, NA, 1,
-    "a", 2016, 3, 2,
-    "a", 2017, NA, 2,
-    "a", 2018, NA, 2,
-    "a", 2019, 0, 2,
-    "a", 2020, NA, 2,
-    "b", 2015, 1, 1,
-    "b", 2016, NA, 2,
-    "b", 2017, NA, 3,
-    "b", 2018, NA, 4,
-    "b", 2019, 5, 5,
-    "b", 2020, NA, 6
-  )
-}
-
 sum_fill_fixture <- function() {
   tibble::tribble(
     ~category, ~year, ~value, ~change_variable,
@@ -223,50 +205,6 @@ testthat::test_that("fill_linear propagates a single anchor value", {
         "Last value carried forward"
       )
     )
-})
-
-# proxy_fill ------------------------------------------------------------------
-
-testthat::test_that("proxy_fill scales gaps from proxy ratios", {
-  proxy_fill_fixture() |>
-    proxy_fill(
-      value,
-      proxy_variable,
-      year,
-      .by = "category"
-    ) |>
-    pointblank::expect_col_exists("proxy_ratio") |>
-    pointblank::expect_col_exists("source_value") |>
-    pointblank::expect_col_vals_in_set(
-      source_value,
-      c(
-        "Original",
-        "Proxy interpolated",
-        "Proxy carried forward",
-        "Proxy carried backwards"
-      )
-    ) |>
-    pointblank::expect_col_vals_equal(
-      value,
-      c(3, 0, 1, 5),
-      preconditions = \(df) df |> dplyr::filter(source_value == "Original")
-    ) |>
-    pointblank::expect_col_vals_expr(
-      ~ dplyr::near(proxy_ratio, value / proxy_variable, tol = 1e-6),
-      preconditions = \(df) df |> dplyr::filter(!is.na(value))
-    )
-})
-
-testthat::test_that("proxy_fill works without grouping variables", {
-  tibble::tribble(
-    ~year, ~value, ~proxy_variable,
-    2015, 10, 5,
-    2016, NA, 10,
-    2017, 30, 15
-  ) |>
-    proxy_fill(value, proxy_variable, year) |>
-    pointblank::expect_col_exists("proxy_ratio") |>
-    pointblank::expect_col_vals_not_null(proxy_ratio)
 })
 
 # sum_fill ---------------------------------------------------------------------

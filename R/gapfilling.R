@@ -102,58 +102,6 @@ fill_linear <- function(
     )
 }
 
-#' Fill gaps using a proxy variable
-#'
-#' @description
-#' Fills gaps in a variable based on changes in a proxy variable, using ratios
-#' between the filled variable and the proxy variable, and labels output
-#' accordingly.
-#'
-#' @param df A tibble data frame containing one observation per row.
-#' @param var The variable of df containing gaps to be filled.
-#' @param proxy_var The variable to be used as proxy.
-#' @param time_index The time index variable (usually year).
-#' @param ... Optionally, additional arguments that will be passed to
-#'   `linear_fill()` with the ratios. See that function to know the accepted
-#'   arguments.
-#'
-#' @return A tibble dataframe (ungrouped) where gaps in var have been filled,
-#'   a new proxy_ratio variable has been created,
-#'   and a new "source" variable has been created indicating if the value is
-#'   original or, in case it has been estimated, the gapfilling method that has
-#'   been used.
-#'
-#' @export
-#'
-#' @examples
-#' sample_tibble <- tibble::tibble(
-#'   category = c("a", "a", "a", "a", "a", "a", "b", "b", "b", "b", "b", "b"),
-#'   year = c(
-#'     "2015", "2016", "2017", "2018", "2019", "2020",
-#'     "2015", "2016", "2017", "2018", "2019", "2020"
-#'   ),
-#'   value = c(NA, 3, NA, NA, 0, NA, 1, NA, NA, NA, 5, NA),
-#'   proxy_variable = c(1, 2, 2, 2, 2, 2, 1, 2, 3, 4, 5, 6)
-#' )
-#' proxy_fill(sample_tibble, value, proxy_variable, year, .by = c("category"))
-proxy_fill <- function(df, var, proxy_var, time_index, ...) {
-  df |>
-    dplyr::mutate(proxy_ratio = {{ var }} / {{ proxy_var }}) |>
-    linear_fill(proxy_ratio, {{ time_index }}, ...) |>
-    dplyr::mutate(
-      "source_{{var}}" := dplyr::case_when(
-        !is.na({{ var }}) ~ "Original",
-        source_proxy_ratio == "Linear interpolation" ~ "Proxy interpolated",
-        source_proxy_ratio == "Last value carried forward" ~
-          "Proxy carried forward",
-        source_proxy_ratio == "First value carried backwards" ~
-          "Proxy carried backwards",
-        .default = NA_character_
-      ),
-      "{{var}}" := dplyr::coalesce({{ var }}, proxy_ratio * {{ proxy_var }})
-    )
-}
-
 #' Fill gaps summing the previous value of a variable to the value of
 #' another variable.
 #'
@@ -300,7 +248,7 @@ sum_fill <- function(
 #'   group_by = "country"
 #' )
 #'
-#' @seealso [linear_fill()], [proxy_fill()], [sum_fill()]
+#' @seealso [fill_linear()], [sum_fill()]
 #'
 #' @importFrom data.table := as.data.table setorderv shift fifelse setnames
 #' @importFrom dplyr filter select mutate group_by ungroup across all_of
