@@ -38,7 +38,7 @@ single_anchor_series <- function(anchor = 42) {
   )
 }
 
-sum_fill_fixture <- function() {
+fill_sum_fixture <- function() {
   tibble::tribble(
     ~category, ~year, ~value, ~change_variable,
     "a", 2014, NA, 2,
@@ -207,11 +207,11 @@ testthat::test_that("fill_linear propagates a single anchor value", {
     )
 })
 
-# sum_fill ---------------------------------------------------------------------
+# fill_sum --------------------------------------------------------------------
 
-testthat::test_that("sum_fill accumulates changes while keeping originals", {
-  sum_fill_fixture() |>
-    sum_fill(
+testthat::test_that("fill_sum accumulates changes while keeping originals", {
+  fill_sum_fixture() |>
+    fill_sum(
       value,
       change_variable,
       start_with_zero = TRUE,
@@ -235,7 +235,7 @@ testthat::test_that("sum_fill accumulates changes while keeping originals", {
     )
 })
 
-testthat::test_that("sum_fill handles accumulation without explicit groups", {
+testthat::test_that("fill_sum handles accumulation without explicit groups", {
   tibble::tribble(
     ~year, ~value, ~change_variable,
     2015, 10, 0,
@@ -243,7 +243,7 @@ testthat::test_that("sum_fill handles accumulation without explicit groups", {
     2017, NA, 3,
     2018, NA, 1
   ) |>
-    sum_fill(value, change_variable) |>
+    fill_sum(value, change_variable) |>
     pointblank::expect_col_vals_equal(value, c(10, 12, 15, 16)) |>
     pointblank::expect_col_vals_in_set(
       source_value,
@@ -251,7 +251,7 @@ testthat::test_that("sum_fill handles accumulation without explicit groups", {
     )
 })
 
-testthat::test_that("sum_fill start_with_zero toggles behaviour", {
+testthat::test_that("fill_sum start_with_zero toggles behaviour", {
   contiguous_gaps <- tibble::tribble(
     ~value, ~change_variable,
     NA, 1,
@@ -261,12 +261,12 @@ testthat::test_that("sum_fill start_with_zero toggles behaviour", {
   )
 
   contiguous_gaps |>
-    sum_fill(value, change_variable) |>
+    fill_sum(value, change_variable) |>
     pointblank::expect_col_vals_equal(value, c(1, 3, 6, 10)) |>
     pointblank::expect_col_vals_equal(source_value, "Filled with sum")
 
   contiguous_gaps |>
-    sum_fill(
+    fill_sum(
       value,
       change_variable,
       start_with_zero = FALSE
@@ -274,9 +274,9 @@ testthat::test_that("sum_fill start_with_zero toggles behaviour", {
     pointblank::expect_col_vals_null(value)
 })
 
-testthat::test_that("sum_fill respects grouping keys", {
-  sum_fill_fixture() |>
-    sum_fill(
+testthat::test_that("fill_sum respects grouping keys", {
+  fill_sum_fixture() |>
+    fill_sum(
       value,
       change_variable,
       .by = "category"

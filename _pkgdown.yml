@@ -72,4 +72,4 @@ reference:
     Functions to fill gaps (NA values) in time-dependent variables using different methods.
   contents:
   - fill_linear
-  - sum_fill
+  - fill_sum

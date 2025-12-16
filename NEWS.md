@@ -2,7 +2,7 @@
 
 # whep 0.2.0
 
-* Add gapfilling functions `fill_linear()`, `sum_fill()` (@eduaguilera, #11).
+* Add gapfilling functions `fill_linear()`, `fill_sum()` (@eduaguilera, #11).
 * Now examples can't fail because of unavailable Internet resources (#58).
 
 # whep 0.1.0
