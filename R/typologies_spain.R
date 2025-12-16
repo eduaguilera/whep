@@ -216,34 +216,28 @@ create_typologies_spain <- function(
       Typology_base = dplyr::case_when(
         production_seminatural > production_crops ~
           "Semi-natural agroecosystems",
-        production_crops > 1.2 * animal_ingestion &
-          synthetic_share > 0.3 &
-          crop_productivity >= 20 ~
+        production_crops > animal_ingestion &
+          synthetic_share > 0.2 &
+          crop_productivity >= 15 ~
           "Specialized cropping systems (intensive)",
-        production_crops > 1.2 * animal_ingestion &
-          synthetic_share <= 0.3 &
-          crop_productivity < 20 ~
+        production_crops > animal_ingestion &
+          synthetic_share <= 0.2 &
+          crop_productivity < 15 ~
           "Specialized cropping systems (extensive)",
-        Livestock_density > 1.4 &
+        Livestock_density > 1.3 &
           imported_feed_share > 0.6 &
           feed_from_seminatural_share < 0.4 ~
           "Specialized livestock systems (intensive)",
         Livestock_density > 1 &
-          Livestock_density <= 1.4 &
+          Livestock_density <= 1.3 &
           imported_feed_share > 0.6 &
           feed_from_seminatural_share < 0.4 ~
           "Specialized livestock systems (extensive)",
-        local_feed_share > 0.4 &
-          Manure_share > 0.15 &
-          crop_productivity >= 40 ~
+        local_feed_share > 0.3 & Manure_share > 0.13 & crop_productivity >= 40 ~
           "Connected crop-livestock systems (intensive)",
-        local_feed_share > 0.4 &
-          Manure_share > 0.15 &
-          crop_productivity < 40 ~
+        local_feed_share > 0.3 & Manure_share > 0.13 & crop_productivity < 40 ~
           "Connected crop-livestock systems (extensive)",
-        local_feed_share < 0.4 &
-          Manure_share < 0.15 &
-          synthetic_share > 0.4 ~
+        local_feed_share < 0.2 & Manure_share < 0.13 & synthetic_share > 0.4 ~
           "Disconnected crop-livestock systems (intensive)",
         TRUE ~ "Disconnected crop-livestock systems (extensive)"
       )
@@ -252,7 +246,7 @@ create_typologies_spain <- function(
   indicators <- indicators |>
     dplyr::mutate(
       Typology = dplyr::case_when(
-        pop_consumption > 2.5 * production_total ~ "Urban systems",
+        pop_consumption > production_total ~ "Urban systems",
         TRUE ~ Typology_base
       )
     )
