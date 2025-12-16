@@ -911,8 +911,7 @@ create_n_prov_destiny <- function() {
 
 #' @title Consumption and Trade
 #' @description Calculation of consumption by destiny and trade
-#' (export, import). National scaling can be activated, for analysis for whole
-#' Spain. It should be deactivated for provincial analysis
+#' (export, import).
 #'
 #' @param grafs_prod_item_n A dataframe with N values (MgN) by destiny.
 #'
@@ -1120,7 +1119,7 @@ create_n_prov_destiny <- function() {
       values_to = "share"
     ) |>
     dplyr::mutate(
-      MgN = case_when(
+      MgN = dplyr::case_when(
         Box %in%
           c("Fish", "Agro-industry") &
           share_type %in% c("food_share", "other_uses_share") ~

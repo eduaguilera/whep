@@ -167,16 +167,16 @@ create_typologies_timeseries_plot <- function(
           imported_feed_share > 0.6 &
           feed_from_seminatural_share < 0.4 ~
           "Specialized livestock systems (extensive)",
-        local_feed_share > 0.2 & Manure_share > 0.13 & crop_productivity >= 40 ~
+        local_feed_share > 0.3 & Manure_share > 0.13 & crop_productivity >= 40 ~
           "Connected crop-livestock systems (intensive)",
-        local_feed_share > 0.2 & Manure_share > 0.13 & crop_productivity < 40 ~
+        local_feed_share > 0.3 & Manure_share > 0.13 & crop_productivity < 40 ~
           "Connected crop-livestock systems (extensive)",
         local_feed_share < 0.2 & Manure_share < 0.13 & synthetic_share > 0.4 ~
           "Disconnected crop-livestock systems (intensive)",
         TRUE ~ "Disconnected crop-livestock systems (extensive)"
       ),
       Typology = dplyr::case_when(
-        pop_consumption > 2 * production_total ~ "Urban systems",
+        pop_consumption > production_total ~ "Urban systems",
         TRUE ~ Typology_base
       )
     )
@@ -252,7 +252,7 @@ create_typologies_timeseries_plot <- function(
         color = "black",
         pattern_angle = 45,
         pattern_density = 0.5,
-        pattern_spacing = 0.03
+        pattern_spacing = 0.05
       ) +
       ggplot2::scale_fill_manual(
         values = typology_colors[names(typology_colors) != "Urban systems"],
@@ -264,18 +264,21 @@ create_typologies_timeseries_plot <- function(
       ) +
       ggplot2::labs(title = paste("Year", yr)) +
       ggplot2::theme_minimal() +
-      ggplot2::theme(legend.position = "none")
+      ggplot2::theme(
+        legend.position = "none",
+        plot.title = ggplot2::element_text(size = 9, face = "plain")
+      )
 
     map_list[[as.character(yr)]] <- p
   }
 
-  block_width <- 0.01
-  block_height <- 0.01
-  block_gap <- 0.003
+  block_width <- 0.002
+  block_height <- 0.002
+  block_gap <- 0.0006
 
   n <- length(typology_levels)
 
-  y_top <- seq(from = 1, by = -(block_height + block_gap), length.out = n)
+  y_top <- seq(from = 0.5, by = -(block_height + block_gap), length.out = n)
   y_bottom <- y_top - block_height
 
   legend_df <- data.frame(
@@ -286,7 +289,7 @@ create_typologies_timeseries_plot <- function(
     ymax = y_top
   )
 
-  n_stripes <- 18
+  n_stripes <- 10
   stripe_df <- subset(legend_df, is_urban)
 
   stripe_lines <- do.call(
@@ -306,12 +309,12 @@ create_typologies_timeseries_plot <- function(
     ggplot2::geom_text(
       ggplot2::aes(
         x = 0,
-        y = max(y_top) + block_height + 0.02,
+        y = max(y_top) + block_height + 0.08,
         label = "Typologies"
       ),
       hjust = 0,
       vjust = 0,
-      size = 3.5
+      size = 5
     ) +
     ggplot2::geom_rect(
       ggplot2::aes(
@@ -336,23 +339,23 @@ create_typologies_timeseries_plot <- function(
     ) +
     ggplot2::geom_text(
       ggplot2::aes(
-        x = block_width + 0.003,
+        x = block_width + 0.001,
         y = (ymin + ymax) / 2,
         label = Typology
       ),
       hjust = 0,
-      size = 2.8
+      size = 5
     ) +
     ggplot2::scale_fill_identity() +
     ggplot2::scale_x_continuous(
-      limits = c(0, 0.17),
+      limits = c(0, 0.05),
       expand = c(0, 0)
     ) +
     ggplot2::scale_y_continuous(
-      limits = c(min(y_bottom) - 0.02, max(y_top) + 0.05),
+      limits = c(min(y_bottom) - 0.005, max(y_top) + 0.01),
       expand = c(0, 0)
     ) +
-    ggplot2::coord_cartesian(clip = "off") +
+    ggplot2::coord_fixed(ratio = 1, clip = "off") +
     ggplot2::theme_void() +
     ggplot2::theme(
       plot.margin = ggplot2::margin(2, 2, 2, 2)
@@ -363,10 +366,26 @@ create_typologies_timeseries_plot <- function(
   final_plot <- (combined | legend_plot) +
     patchwork::plot_annotation(
       title = "Typologies in Spain (1860–2020)"
+    ) &
+    ggplot2::theme(
+      plot.title = ggplot2::element_text(
+        size = 18,
+        margin = ggplot2::margin(t = 0, b = 8)
+      )
     )
 
   grid::grid.newpage()
   print(final_plot)
+
+  output_path <- "C:/PhD/Typologies/Typologies_spain/new_typologies/typologies_spain.png"
+
+  ggplot2::ggsave(
+    filename = output_path,
+    plot = final_plot,
+    width = 16,
+    height = 10,
+    dpi = 300
+  )
 
   return(indicators)
 }
