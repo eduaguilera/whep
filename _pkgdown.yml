@@ -71,6 +71,6 @@ reference:
   desc: >
     Functions to fill gaps (NA values) in time-dependent variables using different methods.
   contents:
-  - linear_fill
+  - fill_linear
   - proxy_fill
   - sum_fill

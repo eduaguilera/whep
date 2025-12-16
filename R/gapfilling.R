@@ -49,15 +49,15 @@ utils::globalVariables(c(
 #'   ),
 #'   value = c(NA, 3, NA, NA, 0, NA, 1, NA, NA, NA, 5, NA),
 #' )
-#' linear_fill(sample_tibble, value, year, .by = c("category"))
-#' linear_fill(
+#' fill_linear(sample_tibble, value, year, .by = c("category"))
+#' fill_linear(
 #'   sample_tibble,
 #'   value,
 #'   year,
 #'   interpolate = FALSE,
 #'   .by = c("category"),
 #' )
-linear_fill <- function(
+fill_linear <- function(
   df,
   var,
   time_index,
