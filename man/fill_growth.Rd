@@ -102,5 +102,5 @@ filled <- fill_growth(
 
 }
 \seealso{
-\code{\link[=linear_fill]{linear_fill()}}, \code{\link[=proxy_fill]{proxy_fill()}}, \code{\link[=sum_fill]{sum_fill()}}
+\code{\link[=fill_linear]{fill_linear()}}, \code{\link[=fill_sum]{fill_sum()}}
 }
