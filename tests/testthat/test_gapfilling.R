@@ -344,11 +344,11 @@ testthat::test_that("fill_sum handles accumulation without explicit groups", {
 
 testthat::test_that("fill_sum start_with_zero toggles behaviour", {
   contiguous_gaps <- tibble::tribble(
-    ~value, ~change_variable,
-    NA, 1,
-    NA, 2,
-    NA, 3,
-    NA, 4
+    ~year, ~value, ~change_variable,
+    2015, NA, 1,
+    2016, NA, 2,
+    2017, NA, 3,
+    2018, NA, 4
   )
 
   contiguous_gaps |>
