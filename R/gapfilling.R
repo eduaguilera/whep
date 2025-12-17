@@ -146,6 +146,7 @@ fill_linear <- function(
 #' @param data A data frame containing one observation per row.
 #' @param value_col The column containing gaps to be filled.
 #' @param change_col The column whose values will be used to fill the gaps.
+#' @param time_col Character. Name of the time column. Default: "year".
 #' @param start_with_zero Logical. If TRUE, assumes an invisible 0 value before
 #'   the first observation and fills with cumulative sum starting from the first
 #'   change_col value. If FALSE (default), starting NA values remain unfilled.
@@ -188,10 +189,12 @@ fill_sum <- function(
   data,
   value_col,
   change_col,
+  time_col = "year",
   start_with_zero = TRUE,
   .by = NULL
 ) {
   data |>
+    dplyr::arrange(dplyr::across(dplyr::all_of(c(.by, time_col)))) |>
     dplyr::mutate(
       groups = cumsum(!is.na({{ value_col }})),
       prefilled = dplyr::coalesce({{ value_col }}, {{ change_col }}),
