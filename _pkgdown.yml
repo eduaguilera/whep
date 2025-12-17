@@ -73,3 +73,10 @@ reference:
   contents:
   - fill_linear
   - fill_sum
+  - fill_growth
+
+- title: Decomposition analysis
+  desc: >
+    Functions for index decomposition analysis.
+  contents:
+  - calculate_lmdi
