@@ -6,6 +6,7 @@ utils::globalVariables(c(
   ".",
   ".N",
   ".fill_scope",
+  ".smooth_var",
   "ma_base",
   "lag_source",
   "lag_year",
@@ -31,6 +32,10 @@ utils::globalVariables(c(
 #'   carries last value forward.
 #' @param fill_backward Logical. If `TRUE` (default),
 #'   carries first value backward.
+#' @param value_smooth_window An integer specifying the window size for a
+#'   centered moving average applied to the variable before gap-filling. Useful
+#'   for variables with high inter-annual variability. If `NULL` (default), no
+#'   smoothing is applied.
 #' @param .by A character vector with the grouping variables (optional).
 #'
 #' @return A tibble data frame (ungrouped) where gaps in var have been filled,
@@ -64,29 +69,54 @@ fill_linear <- function(
   interpolate = TRUE,
   fill_forward = TRUE,
   fill_backward = TRUE,
+  value_smooth_window = NULL,
   .by = NULL
 ) {
+  # Apply smoothing before main mutate to avoid tidy eval issues with if
+  use_smoothing <- !is.null(value_smooth_window)
+
+  # Create smoothed variable in separate step
+  if (use_smoothing) {
+    df <- df |>
+      dplyr::mutate(
+        .smooth_var = zoo::rollmean(
+          {{ var }},
+          k = value_smooth_window,
+          fill = NA,
+          align = "center"
+        ),
+        .by = dplyr::all_of(.by)
+      )
+  } else {
+    df <- df |>
+      dplyr::mutate(
+        .smooth_var = {{ var }},
+        .by = dplyr::all_of(.by)
+      )
+  }
+
   df |>
     dplyr::mutate(
-      # relative to first/last non-NA
+      # relative to first/last non-NA (use smoothed values for position)
       place = dplyr::case_when(
-        !cummax(!is.na({{ var }})) ~ "left",
-        rev(!cummax(rev(!is.na({{ var }})))) ~ "right",
+        !cummax(!is.na(.smooth_var)) ~ "left",
+        rev(!cummax(rev(!is.na(.smooth_var)))) ~ "right",
         .default = "middle"
       ),
       fill_value = dplyr::case_when(
         place == "left" & fill_backward ~
-          zoo::na.locf0({{ var }}, fromLast = TRUE),
+          zoo::na.locf0(.smooth_var, fromLast = TRUE),
         place == "right" & fill_forward ~
-          zoo::na.locf0({{ var }}, fromLast = FALSE),
+          zoo::na.locf0(.smooth_var, fromLast = FALSE),
         place == "middle" & interpolate ~
           zoo::na.approx(
-            {{ var }},
+            .smooth_var,
             x = {{ time_index }},
             na.rm = FALSE
           ),
         .default = NA_real_
       ),
+      # Use original values where available, fill otherwise
       fill_value = dplyr::coalesce({{ var }}, fill_value),
       "source_{{var}}" := dplyr::case_when(
         !is.na({{ var }}) ~ "Original",
@@ -98,6 +128,7 @@ fill_linear <- function(
       "{{var}}" := fill_value,
       place = NULL,
       fill_value = NULL,
+      .smooth_var = NULL,
       .by = dplyr::all_of(.by)
     )
 }
