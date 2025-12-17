@@ -23,9 +23,9 @@ utils::globalVariables(c(
 #' the last or initial values, respectively. It also creates a new variable
 #' indicating the source of the filled values.
 #'
-#' @param df A tibble data frame containing one observation per row.
-#' @param var The variable of df containing gaps to be filled.
-#' @param time_index The time index variable (usually year).
+#' @param data A data frame containing one observation per row.
+#' @param value_col The column containing gaps to be filled.
+#' @param time_col Character. Name of the time column. Default: "year".
 #' @param interpolate Logical. If `TRUE` (default),
 #'   performs linear interpolation.
 #' @param fill_forward Logical. If `TRUE` (default),
@@ -38,10 +38,10 @@ utils::globalVariables(c(
 #'   smoothing is applied.
 #' @param .by A character vector with the grouping variables (optional).
 #'
-#' @return A tibble data frame (ungrouped) where gaps in var have been filled,
-#'   and a new "source" variable has been created indicating if the value is
-#'   original or, in case it has been estimated, the gapfilling method that has
-#'   been used.
+#' @return A tibble data frame (ungrouped) where gaps in value_col have been
+#'   filled, and a new "source" variable has been created indicating if the
+#'   value is original or, in case it has been estimated, the gapfilling method
+#'   that has been used.
 #'
 #' @export
 #'
@@ -54,19 +54,19 @@ utils::globalVariables(c(
 #'   ),
 #'   value = c(NA, 3, NA, NA, 0, NA, 1, NA, NA, NA, 5, NA),
 #' )
-#' fill_linear(sample_tibble, value, year, .by = c("category"))
+#' fill_linear(sample_tibble, value, .by = c("category"))
 #' fill_linear(
 #'   sample_tibble,
 #'   value,
-#'   year,
 #'   interpolate = FALSE,
 #'   .by = c("category"),
 #' )
 fill_linear <- function(
-  df,
-  var,
-  time_index,
+  data,
+  value_col,
+  time_col = "year",
   interpolate = TRUE,
+
   fill_forward = TRUE,
   fill_backward = TRUE,
   value_smooth_window = NULL,
@@ -77,10 +77,10 @@ fill_linear <- function(
 
   # Create smoothed variable in separate step
   if (use_smoothing) {
-    df <- df |>
+    data <- data |>
       dplyr::mutate(
         .smooth_var = zoo::rollmean(
-          {{ var }},
+          {{ value_col }},
           k = value_smooth_window,
           fill = NA,
           align = "center"
@@ -88,14 +88,14 @@ fill_linear <- function(
         .by = dplyr::all_of(.by)
       )
   } else {
-    df <- df |>
+    data <- data |>
       dplyr::mutate(
-        .smooth_var = {{ var }},
+        .smooth_var = {{ value_col }},
         .by = dplyr::all_of(.by)
       )
   }
 
-  df |>
+  data |>
     dplyr::mutate(
       # relative to first/last non-NA (use smoothed values for position)
       place = dplyr::case_when(
@@ -111,21 +111,21 @@ fill_linear <- function(
         place == "middle" & interpolate ~
           zoo::na.approx(
             .smooth_var,
-            x = {{ time_index }},
+            x = .data[[time_col]],
             na.rm = FALSE
           ),
         .default = NA_real_
       ),
       # Use original values where available, fill otherwise
-      fill_value = dplyr::coalesce({{ var }}, fill_value),
-      "source_{{var}}" := dplyr::case_when(
-        !is.na({{ var }}) ~ "Original",
+      fill_value = dplyr::coalesce({{ value_col }}, fill_value),
+      "source_{{value_col}}" := dplyr::case_when(
+        !is.na({{ value_col }}) ~ "Original",
         place == "left" & !is.na(fill_value) ~ "First value carried backwards",
         place == "right" & !is.na(fill_value) ~ "Last value carried forward",
         place == "middle" & !is.na(fill_value) ~ "Linear interpolation",
         TRUE ~ "Gap not filled"
       ),
-      "{{var}}" := fill_value,
+      "{{value_col}}" := fill_value,
       place = NULL,
       fill_value = NULL,
       .smooth_var = NULL,
@@ -143,18 +143,18 @@ fill_linear <- function(
 #' series, it can either remain unfilled or assume an invisible 0 value before
 #' the first observation and start filling with cumulative sum.
 #'
-#' @param df A tibble data frame containing one observation per row.
-#' @param var The variable of df containing gaps to be filled.
-#' @param change_var The variable whose values will be used to fill the gaps.
+#' @param data A data frame containing one observation per row.
+#' @param value_col The column containing gaps to be filled.
+#' @param change_col The column whose values will be used to fill the gaps.
 #' @param start_with_zero Logical. If TRUE, assumes an invisible 0 value before
 #'   the first observation and fills with cumulative sum starting from the first
-#'   change_var value. If FALSE (default), starting NA values remain unfilled.
+#'   change_col value. If FALSE (default), starting NA values remain unfilled.
 #' @param .by A character vector with the grouping variables (optional).
 #'
-#' @return A tibble dataframe (ungrouped) where gaps in var have been filled,
-#' and a new "source" variable has been created indicating if the value is
-#' original or, in case it has been estimated, the gapfilling method that has
-#' been used.
+#' @return A tibble dataframe (ungrouped) where gaps in value_col have been
+#'   filled, and a new "source" variable has been created indicating if the
+#'   value is original or, in case it has been estimated, the gapfilling method
+#'   that has been used.
 #'
 #' @export
 #'
@@ -185,22 +185,30 @@ fill_linear <- function(
 #'   .by = c("category")
 #' )
 fill_sum <- function(
-  df,
-  var,
-  change_var,
+  data,
+  value_col,
+  change_col,
   start_with_zero = TRUE,
   .by = NULL
 ) {
-  df |>
+  data |>
     dplyr::mutate(
-      groups = cumsum(!is.na({{ var }})),
-      prefilled = dplyr::coalesce({{ var }}, {{ change_var }}),
-      source_value = ifelse(is.na({{ var }}), "Filled with sum", "Original"),
-      "{{ var }}" := ave(prefilled, groups, FUN = cumsum),
-      "{{ var }}" := if (start_with_zero) {{ var }} else {
-        ifelse(groups == 0, NA, {{ var }})
+      groups = cumsum(!is.na({{ value_col }})),
+      prefilled = dplyr::coalesce({{ value_col }}, {{ change_col }}),
+      source_value = ifelse(
+        is.na({{ value_col }}),
+        "Filled with sum",
+        "Original"
+      ),
+      "{{ value_col }}" := ave(prefilled, groups, FUN = cumsum),
+      "{{ value_col }}" := if (start_with_zero) {{ value_col }} else {
+        ifelse(groups == 0, NA, {{ value_col }})
       },
-      source_value = ifelse(is.na({{ var }}), NA_character_, source_value),
+      source_value = ifelse(
+        is.na({{ value_col }}),
+        NA_character_,
+        source_value
+      ),
       groups = NULL,
       prefilled = NULL,
       .by = dplyr::all_of(.by)

@@ -61,7 +61,7 @@ fill_sum_fixture <- function() {
 
 testthat::test_that("fill_linear fills gaps and preserves originals", {
   result <- fill_linear_fixture() |>
-    fill_linear(value, year, .by = "category")
+    fill_linear(value, .by = "category")
 
   result |>
     pointblank::expect_col_exists("source_value") |>
@@ -89,7 +89,6 @@ testthat::test_that("fill_linear interpolates between anchor points, and adds fl
   fill_linear_fixture() |>
     fill_linear(
       value,
-      year,
       interpolate = TRUE,
       fill_forward = FALSE,
       fill_backward = FALSE,
@@ -118,7 +117,6 @@ testthat::test_that("fill_linear carries values backward from first anchor, and 
   fill_linear_fixture() |>
     fill_linear(
       value,
-      year,
       interpolate = FALSE,
       fill_forward = FALSE,
       fill_backward = TRUE,
@@ -147,7 +145,6 @@ testthat::test_that("fill_linear carries values forward from last anchor, and ad
   fill_linear_fixture() |>
     fill_linear(
       value,
-      year,
       interpolate = FALSE,
       fill_forward = TRUE,
       fill_backward = FALSE,
@@ -174,7 +171,7 @@ testthat::test_that("fill_linear carries values forward from last anchor, and ad
 
 testthat::test_that("fill_linear interpolates grouped series", {
   fill_linear_fixture() |>
-    fill_linear(value, year, .by = "category") |>
+    fill_linear(value, .by = "category") |>
     pointblank::expect_col_vals_equal(
       value,
       c(3, 3, 2, 1, 0, 0),
@@ -191,7 +188,6 @@ testthat::test_that("fill_linear propagates a single anchor value", {
   single_anchor_series() |>
     fill_linear(
       value,
-      year,
       interpolate = FALSE,
       fill_forward = TRUE,
       fill_backward = TRUE
@@ -219,19 +215,16 @@ testthat::test_that("fill_linear with value_smooth_window uses smoothed values f
     2015, 110,
     2016, 90,
     2017, 130
-
-)
+  )
 
   # Without smoothing: interpolation uses raw anchor values (80 and 110)
   result_no_smooth <- noisy_data |>
-    fill_linear(value, year, fill_forward = FALSE, fill_backward = FALSE)
+    fill_linear(value, fill_forward = FALSE, fill_backward = FALSE)
 
   # With smoothing (window = 3): uses moving average of anchors
-
   result_smooth <- noisy_data |>
     fill_linear(
       value,
-      year,
       fill_forward = FALSE,
       fill_backward = FALSE,
       value_smooth_window = 3
@@ -255,10 +248,10 @@ testthat::test_that("fill_linear with value_smooth_window uses smoothed values f
 
 testthat::test_that("fill_linear value_smooth_window NULL behaves as default", {
   result_default <- simple_linear_series() |>
-    fill_linear(value, year)
+    fill_linear(value)
 
   result_null <- simple_linear_series() |>
-    fill_linear(value, year, value_smooth_window = NULL)
+    fill_linear(value, value_smooth_window = NULL)
 
   testthat::expect_equal(result_default, result_null)
 })
@@ -278,7 +271,6 @@ testthat::test_that("fill_linear value_smooth_window works with carry forward/ba
   result_no_smooth <- edge_data |>
     fill_linear(
       value,
-      year,
       interpolate = FALSE,
       fill_forward = TRUE,
       fill_backward = FALSE
@@ -291,7 +283,6 @@ testthat::test_that("fill_linear value_smooth_window works with carry forward/ba
   result_smooth <- edge_data |>
     fill_linear(
       value,
-      year,
       interpolate = FALSE,
       fill_forward = TRUE,
       fill_backward = FALSE,
