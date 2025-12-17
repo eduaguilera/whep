@@ -207,6 +207,106 @@ testthat::test_that("fill_linear propagates a single anchor value", {
     )
 })
 
+testthat::test_that("fill_linear with value_smooth_window uses smoothed values for filling", {
+  # Create data with high variability
+  noisy_data <- tibble::tribble(
+    ~year, ~value,
+    2010, 100,
+    2011, 120,
+    2012, 80,
+    2013, NA,
+    2014, NA,
+    2015, 110,
+    2016, 90,
+    2017, 130
+
+)
+
+  # Without smoothing: interpolation uses raw anchor values (80 and 110)
+  result_no_smooth <- noisy_data |>
+    fill_linear(value, year, fill_forward = FALSE, fill_backward = FALSE)
+
+  # With smoothing (window = 3): uses moving average of anchors
+
+  result_smooth <- noisy_data |>
+    fill_linear(
+      value,
+      year,
+      fill_forward = FALSE,
+      fill_backward = FALSE,
+      value_smooth_window = 3
+    )
+
+  # Both should fill the gaps
+  testthat::expect_false(any(is.na(result_no_smooth$value[4:5])))
+  testthat::expect_false(any(is.na(result_smooth$value[4:5])))
+
+  # Smoothed result should differ from non-smoothed due to moving average
+  testthat::expect_false(
+    all(result_no_smooth$value[4:5] == result_smooth$value[4:5])
+  )
+
+  # Original values should be preserved in both cases
+  testthat::expect_equal(result_no_smooth$value[1], 100)
+  testthat::expect_equal(result_smooth$value[1], 100)
+  testthat::expect_equal(result_no_smooth$value[6], 110)
+  testthat::expect_equal(result_smooth$value[6], 110)
+})
+
+testthat::test_that("fill_linear value_smooth_window NULL behaves as default", {
+  result_default <- simple_linear_series() |>
+    fill_linear(value, year)
+
+  result_null <- simple_linear_series() |>
+    fill_linear(value, year, value_smooth_window = NULL)
+
+  testthat::expect_equal(result_default, result_null)
+})
+
+testthat::test_that("fill_linear value_smooth_window works with carry forward/backward", {
+  # Data where smoothing affects the carried value
+  edge_data <- tibble::tribble(
+    ~year, ~value,
+    2010, 100,
+    2011, 120,
+    2012, 80,
+    2013, NA,
+    2014, NA
+  )
+
+  # Without smoothing: carries 80 forward
+  result_no_smooth <- edge_data |>
+    fill_linear(
+      value,
+      year,
+      interpolate = FALSE,
+      fill_forward = TRUE,
+      fill_backward = FALSE
+    )
+
+  # With smoothing (window = 3): carries smoothed value forward
+  # MA of (100, 120, 80) = 100 for 2011, MA of (120, 80, NA) won't work
+  # But 2012 has neighbours so its smoothed value = mean(120, 80, NA) = NA
+  # This tests edge behaviour
+  result_smooth <- edge_data |>
+    fill_linear(
+      value,
+      year,
+      interpolate = FALSE,
+      fill_forward = TRUE,
+      fill_backward = FALSE,
+      value_smooth_window = 3
+    )
+
+  # Without smoothing, should carry 80
+  testthat::expect_equal(result_no_smooth$value[4], 80)
+  testthat::expect_equal(result_no_smooth$value[5], 80)
+
+  # Original values preserved
+  testthat::expect_equal(result_smooth$value[1], 100)
+  testthat::expect_equal(result_smooth$value[3], 80)
+})
+
 # fill_sum --------------------------------------------------------------------
 
 testthat::test_that("fill_sum accumulates changes while keeping originals", {
