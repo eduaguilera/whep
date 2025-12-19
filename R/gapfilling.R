@@ -695,7 +695,7 @@ fill_growth <- function(
     }
   }
 
-  dt[,
+  res <- dt[,
     {
       val <- mean(ind_growth) # Default unweighted
       cnt <- .N
@@ -710,7 +710,7 @@ fill_growth <- function(
       .(g_val = val, o_val = cnt)
     },
     by = by_vars
-  ] -> res
+  ]
 
   data.table::setnames(res, c("g_val", "o_val"), c(growth_col, obs_col))
   res
