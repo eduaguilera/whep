@@ -291,13 +291,6 @@ fill_sum <- function(
 #' )
 #'
 #' @seealso [fill_linear()], [fill_sum()]
-#'
-#' @importFrom data.table := as.data.table setorderv shift fifelse setnames
-#' @importFrom dplyr filter select mutate group_by ungroup across all_of
-#'   group_modify pull any_of left_join
-#' @importFrom rlang enquo quo_is_null .data
-#' @importFrom tibble as_tibble tibble
-#' @importFrom stats approx
 fill_growth <- function(
   data,
   value_col,
