@@ -26,8 +26,8 @@ create_version <- function(data, board, name, ...) {
 # Change this accordingly if your data is not CSV.
 # Please make the output a tibble.
 read_input <- function(path) {
-  path |>
-    readr::read_csv(show_col_types = FALSE)
+  data <- readRDS(path)
+  tibble::as_tibble(data)
 }
 
 prepare_for_upload <- function(input_path, data_name, ...) {
@@ -68,6 +68,6 @@ prepare_for_upload <- function(input_path, data_name, ...) {
 }
 
 prepare_for_upload(
-  "/path/to/your/data",
-  "simple_name_for_your_data"
+  "C:/PhD/GRAFS/Inputs_SACO/N_Excretion_ygs.rds",
+  "n_excretion_ygs"
 )
