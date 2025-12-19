@@ -305,61 +305,158 @@ fill_growth <- function(
   output_format = "clean",
   verbose = TRUE
 ) {
-  # Validate inputs
+  # 1. Validate and preprocess arguments
+  fg_inputs <- .fg_validate_inputs(
+    data = data,
+    value_col = value_col,
+    time_col = time_col,
+    group_by = group_by,
+    smooth_window = smooth_window,
+    max_gap_linear = max_gap_linear
+  )
 
-  if (!time_col %in% names(data)) {
-    stop("Time column '", time_col, "' not found in data")
+  # 2. Calculate scope mask
+  scope_mask <- .fg_calculate_scope_mask(
+    data = fg_inputs$data,
+    fill_scope = fill_scope
+  )
+
+  # 3. Prepare working columns
+  prep <- .fg_prepare_working_columns(
+    data = fg_inputs$data,
+    value_col = value_col
+  )
+
+  data_work <- prep$data_work
+  method_col <- prep$method_col
+  raw_missing_col <- prep$raw_missing_col
+  raw_numeric_col <- prep$raw_numeric_col
+  raw_col <- prep$raw_col
+  original_value_numeric <- prep$original_value_numeric
+  original_method <- prep$original_method
+
+  # 4. Calculate growth rates for all proxy specs
+  data_work <- .fg_calculate_growth_rates(
+    data_work = data_work,
+    proxy_col = proxy_col,
+    value_col = value_col,
+    group_by = group_by,
+    smooth_window = fg_inputs$smooth_window,
+    verbose = verbose
+  )
+
+  # 5. Apply hierarchical filling
+  data_work <- .fg_apply_hierarchical_filling(
+    data_work = data_work,
+    proxy_col = proxy_col,
+    value_col = value_col,
+    method_col = method_col,
+    raw_missing_col = raw_missing_col,
+    max_gap = max_gap,
+    max_gap_linear = fg_inputs$max_gap_linear,
+    time_col = time_col,
+    group_by = group_by,
+    verbose = verbose
+  )
+
+  # 6. Finalize and cleanup
+  data_work <- .fg_finalize_output(
+    data_work = data_work,
+    value_col = value_col,
+    method_col = method_col,
+    raw_col = raw_col,
+    raw_numeric_col = raw_numeric_col,
+    raw_missing_col = raw_missing_col,
+    original_value_numeric = original_value_numeric,
+    original_method = original_method,
+    scope_mask = scope_mask,
+    output_format = output_format
+  )
+
+  # 7. Verbose reporting
+  if (verbose) {
+    n_original_missing <- sum(is.na(data[[value_col]]))
+    n_final_missing <- sum(is.na(data_work[[value_col]]))
+    n_filled_total <- n_original_missing - n_final_missing
+    message(
+      "Total filled: ",
+      n_filled_total,
+      " out of ",
+      n_original_missing,
+      " missing values"
+    )
   }
 
-  if (!value_col %in% names(data)) {
-    stop("Value column '", value_col, "' not found in data")
-  }
+  data_work
+}
 
+# Private helpers for fill_growth
+
+.fg_validate_inputs <- function(
+  data,
+  value_col,
+  time_col,
+  group_by,
+  smooth_window,
+  max_gap_linear
+) {
+  if (!rlang::has_name(data, time_col)) {
+    cli::cli_abort("Time column '{time_col}' not found in data")
+  }
+  if (!rlang::has_name(data, value_col)) {
+    cli::cli_abort("Value column '{value_col}' not found in data")
+  }
   if (!is.null(smooth_window)) {
     if (
       !is.numeric(smooth_window) ||
         length(smooth_window) != 1 ||
         smooth_window < 1
     ) {
-      stop("`smooth_window` must be NULL or a positive integer")
+      cli::cli_abort("`smooth_window` must be NULL or a positive integer")
     }
     smooth_window <- as.integer(smooth_window)
   } else {
     smooth_window <- 1L
   }
-
-  fill_scope_expr <- rlang::enquo(fill_scope)
-
-  scope_mask <- rep(TRUE, nrow(data))
-  if (!rlang::quo_is_null(fill_scope_expr)) {
-    scope_mask <- data |>
-      dplyr::mutate(.fill_scope = !!fill_scope_expr) |>
-      dplyr::pull(.fill_scope)
-    if (!is.logical(scope_mask) || length(scope_mask) != nrow(data)) {
-      stop(
-        "`fill_scope` must evaluate to a logical vector ",
-        "with length equal to nrow(data)"
-      )
-    }
-    scope_mask[is.na(scope_mask)] <- FALSE
-  }
-
   if (!is.null(group_by)) {
     missing <- setdiff(group_by, names(data))
     if (length(missing) > 0) {
-      stop("Group columns not found: ", paste(missing, collapse = ", "))
+      cli::cli_abort(
+        "Group columns not found: {paste(missing, collapse = ', ')}"
+      )
     }
   }
-
   max_gap_linear <- max(0L, as.integer(max_gap_linear))
+  list(
+    data = data,
+    smooth_window = smooth_window,
+    max_gap_linear = max_gap_linear
+  )
+}
 
-  # Create working copy
+.fg_calculate_scope_mask <- function(data, fill_scope) {
+  if (is.null(fill_scope)) {
+    return(rep(TRUE, nrow(data)))
+  }
+  fill_scope_expr <- rlang::enquo(fill_scope)
+  scope_mask <- data |>
+    dplyr::mutate(scope_mask = !!fill_scope_expr) |>
+    dplyr::pull()
+  if (!is.logical(scope_mask) || length(scope_mask) != nrow(data)) {
+    cli::cli_abort(
+      "`fill_scope` must evaluate to a logical vector with length equal to nrow(data)"
+    )
+  }
+  scope_mask[is.na(scope_mask)] <- FALSE
+  scope_mask
+}
+
+.fg_prepare_working_columns <- function(data, value_col) {
   function_tag <- "proxy"
   raw_original_col <- paste0(value_col, "_raw_original")
   if (!raw_original_col %in% names(data)) {
     data[[raw_original_col]] <- suppressWarnings(as.numeric(data[[value_col]]))
   }
-
   snapshot_base <- paste0(value_col, "_raw_", function_tag)
   snapshot_col <- snapshot_base
   snapshot_index <- 1L
@@ -368,13 +465,11 @@ fill_growth <- function(
     snapshot_col <- paste0(snapshot_base, "_", snapshot_index)
   }
   data[[snapshot_col]] <- suppressWarnings(as.numeric(data[[value_col]]))
-
   raw_col <- snapshot_col
   raw_numeric_col <- paste0(raw_col, "_numeric")
   raw_missing_col <- paste0(raw_col, "_missing")
   method_col <- paste0("method_", value_col)
   has_method_col <- method_col %in% names(data)
-
   original_value_numeric <- suppressWarnings(as.numeric(data[[value_col]]))
   original_value_numeric[!is.finite(original_value_numeric)] <- NA_real_
   original_method <- if (has_method_col) {
@@ -382,7 +477,6 @@ fill_growth <- function(
   } else {
     ifelse(is.na(original_value_numeric), "missing", "original")
   }
-
   data_work <- data |>
     dplyr::mutate(
       !!raw_col := .data[[value_col]],
@@ -402,26 +496,26 @@ fill_growth <- function(
       },
       !!value_col := .data[[raw_numeric_col]]
     )
-
   data_work[[method_col]][is.na(data_work[[value_col]])] <- "missing"
+  list(
+    data_work = data_work,
+    method_col = method_col,
+    raw_missing_col = raw_missing_col,
+    raw_numeric_col = raw_numeric_col,
+    raw_col = raw_col,
+    original_value_numeric = original_value_numeric,
+    original_method = original_method
+  )
+}
 
-  if (verbose) {
-    n_missing <- sum(is.na(data_work[[value_col]]))
-    n_total <- nrow(data_work)
-    message(
-      "Starting with ",
-      n_missing,
-      " missing values out of ",
-      n_total,
-      " total observations"
-    )
-  }
-
-  # Step 1: Calculate growth rates
-  if (verbose) {
-    message("Step 1: Calculating growth rate columns...")
-  }
-
+.fg_calculate_growth_rates <- function(
+  data_work,
+  proxy_col,
+  value_col,
+  group_by,
+  smooth_window,
+  verbose
+) {
   for (i in seq_along(proxy_col)) {
     spec_info <- .parse_proxy_spec(
       proxy_col[i],
@@ -442,12 +536,24 @@ fill_growth <- function(
       verbose
     )
   }
+  data_work
+}
 
-  # Step 2: Apply filling
+.fg_apply_hierarchical_filling <- function(
+  data_work,
+  proxy_col,
+  value_col,
+  method_col,
+  raw_missing_col,
+  max_gap,
+  max_gap_linear,
+  time_col,
+  group_by,
+  verbose
+) {
   if (verbose) {
     message("Step 2: Applying hierarchical filling...")
   }
-
   all_proxy_spec_names <- vector("list", length(proxy_col))
   for (j in seq_along(proxy_col)) {
     spec <- .parse_proxy_spec(
@@ -459,7 +565,6 @@ fill_growth <- function(
     )
     all_proxy_spec_names[[j]] <- spec$spec_name
   }
-
   for (i in seq_along(proxy_col)) {
     spec_info <- .parse_proxy_spec(
       proxy_col[i],
@@ -470,13 +575,10 @@ fill_growth <- function(
     )
     growth_col_name <- paste0("growth_", i, "_", spec_info$spec_name)
     method_name <- paste0("growth_", spec_info$spec_name)
-
     if (verbose) {
       message("Applying proxy level ", i, ": ", proxy_col[i])
     }
-
     missing_before <- sum(is.na(data_work[[value_col]]))
-
     if (!is.null(group_by) && length(group_by) > 0) {
       data_work <- data_work |>
         dplyr::group_by(dplyr::across(dplyr::all_of(group_by))) |>
@@ -511,10 +613,8 @@ fill_growth <- function(
         time_col = time_col
       )
     }
-
     missing_after <- sum(is.na(data_work[[value_col]]))
     filled_this_round <- missing_before - missing_after
-
     if (verbose) {
       message(
         "   Filled ",
@@ -524,7 +624,6 @@ fill_growth <- function(
         " remaining)"
       )
     }
-
     if (missing_after == 0) {
       if (verbose) {
         message("All missing values resolved; stopping proxy traversal")
@@ -532,17 +631,28 @@ fill_growth <- function(
       break
     }
   }
+  data_work
+}
 
-  # Finalize
+.fg_finalize_output <- function(
+  data_work,
+  value_col,
+  method_col,
+  raw_col,
+  raw_numeric_col,
+  raw_missing_col,
+  original_value_numeric,
+  original_method,
+  scope_mask,
+  output_format
+) {
   data_work[[value_col]] <- suppressWarnings(as.numeric(data_work[[value_col]]))
   data_work[[value_col]][!is.finite(data_work[[value_col]])] <- NA_real_
   data_work[[method_col]][is.na(data_work[[value_col]])] <- "missing"
-
   if (!all(scope_mask)) {
     data_work[[value_col]][!scope_mask] <- original_value_numeric[!scope_mask]
     data_work[[method_col]][!scope_mask] <- original_method[!scope_mask]
   }
-
   if (identical(output_format, "clean")) {
     growth_cols <- names(data_work)[grepl("^growth_", names(data_work))]
     obs_cols <- names(data_work)[grepl("^n_obs_", names(data_work))]
@@ -563,22 +673,9 @@ fill_growth <- function(
     data_work <- data_work |>
       dplyr::select(-dplyr::any_of(c(raw_numeric_col, raw_missing_col)))
   }
-
-  if (verbose) {
-    n_original_missing <- sum(is.na(data[[value_col]]))
-    n_final_missing <- sum(is.na(data_work[[value_col]]))
-    n_filled_total <- n_original_missing - n_final_missing
-    message(
-      "Total filled: ",
-      n_filled_total,
-      " out of ",
-      n_original_missing,
-      " missing values"
-    )
-  }
-
   data_work
 }
+
 
 .compute_ma_base <- function(dt, value_var, window, group_vars = NULL) {
   if (window <= 1) {
