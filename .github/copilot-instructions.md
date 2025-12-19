@@ -15,6 +15,20 @@
 - For argument validation try to use `rlang` functions as much as possible instead of base R. For example, instead of `time_col %in% names(data)` use `rlang::has_name(data, time_col)`.
 - For error messages, try to use `cli::cli_abort()` instead of `stop()`. For example, instead of `stop("Time column '", time_col, "' not found in data")` use `cli::cli_abort("Time column '{time_col}' not found in data")`. This also applies to warnings with `cli::cli_warn()`, info messages, etc... Try to use well formatted cli messages instead of base R messages.
 - If the code uses regex, keep in mind that escaped characters must be double-escaped in R strings. For example, to match a dot (`.`) you must use `\\.` in the R string, so `\.` is not enough.
+- When defining functions that expect column names as arguments, expect symbolic names (unquoted) instead of strings (quoted). For example, use `function(data, time_col)` instead of `function(data, time_col_name)`. Inside the function then, use `{{ time_col }}` to refer to the column.
+- There must not be functions inside functions. All functions must be defined at the top level. This means that if you need a helper function, define it as a private function (with a name starting with a dot) at the end of the script, instead of including its definition inside the function where it's used.
+- Always strive to use pipes, native R pipes (`|>`). But in general, use piped expressions as much as possible to improve readability. If you can, make functions ideally look like this:
+```
+result <- data |>
+  dplyr::filter(...) |>
+  dplyr::mutate(...) |>
+  some_other_function(...) |>
+  dplyr::summarise(...) |>
+  some_final_function(...)
+```
+- Make as many functions as necessary to make code look like the above example. Avoid long intermediate expressions that assign to variables, unless necessary for readability.
+- For the same purpose, avoid things like for loops. Try to use vectorised operations, use `purrr` if necessary or just plain functions from `dplyr` or `tidyr` to operate on entire columns or datasets at once. Explicit loops should be the last resort.
+
 
 ## Documentation
 
