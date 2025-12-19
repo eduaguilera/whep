@@ -4,13 +4,31 @@
 
 - Follow the workflow: https://lbm364dl.github.io/follow-the-workflow/
 - Follow tidyverse style guide: https://style.tidyverse.org/
-- In the documentation section of functions, ensure these tags exist: `@description`, `@param` (for each function parameter), `@return`, `@export`, `@examples`
 - Maximum line width is 80 characters
-- There must be one space after `#'`
-- If you start the text for an annotation in that same line, then the next lines should be indented two spaces to easily know it's for that same section
-- Finish all doc sentences with full stop
-- Use `snake_case` for column namings
+- For code formatting, use `air format` if this is available in the user's computer
+- Functions should be short. Ideally no more than 25 lines. There might be exceptions if the code is easy to follow, but try to keep functions short and modular. If necessary, split large functions into smaller ones, with meaningful names.
+- Main exported functions should come first in the file. The private helpers should come at the end, after all exported functions.
+- Use `snake_case` for column namings in tibbles
 - Always make sure that all rules in this document and all lintrs have passed after a change in the code
+- Don't use imported functions without namespace prefix (e.g. use `dplyr::filter()` instead of just `filter()`). This also means in the package functions you must not use `@importFrom` in the roxygen2 documentation.
+- This is a tidy data project. Don't use `data.frame` or `data.table`. Always use `tibble` from tidyverse.
+- For argument validation try to use `rlang` functions as much as possible instead of base R. For example, instead of `time_col %in% names(data)` use `rlang::has_name(data, time_col)`.
+- For error messages, try to use `cli::cli_abort()` instead of `stop()`. For example, instead of `stop("Time column '", time_col, "' not found in data")` use `cli::cli_abort("Time column '{time_col}' not found in data")`. This also applies to warnings with `cli::cli_warn()`, info messages, etc... Try to use well formatted cli messages instead of base R messages.
+- If the code uses regex, keep in mind that escaped characters must be double-escaped in R strings. For example, to match a dot (`.`) you must use `\\.` in the R string, so `\.` is not enough.
+
+## Documentation
+
+- Use roxygen2 for function documentation
+- It's enough to document only exported functions. The private ones can remain undocumented. The private functions' names should start with a dot (`.`).
+- Finish all doc sentences with full stop
+- The first line must be the documentation title. No need to use `@title` tag. Keep it short and start with a verb in imperative form.
+- Next part should be the description, starting with `@description` tag. This part can be multiple lines. It can become long if necessary, but don't fill it with useless sentences that say nothing.
+- Next part should be the parameters, each starting with `@param` tag. Each parameter should have its own `@param` tag.
+- Next part should be the return value, starting with `@return` tag. Describe what the function returns.
+- Next part should be the `@export` tag.
+- Last part should be the examples, starting with `@examples` tag. Provide meaningful examples that show how to use the function. Avoid unnecessary examples.
+- There must be one space after `#'` for each roxygen2 line
+- If you start the text for one tag in that same line, then the next lines should be indented two spaces to easily know it's for that same section. For example, if each parameter description starts in the same line as `@param`, then the next lines should be indented two spaces.
 
 ## Tests
 
