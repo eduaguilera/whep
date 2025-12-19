@@ -353,39 +353,6 @@ fill_growth <- function(
 
   max_gap_linear <- max(0L, as.integer(max_gap_linear))
 
-  # Helper: Compute moving average base for growth rate calculation
-  compute_ma_base <- function(dt, value_var, window, group_vars = NULL) {
-    if (window <= 1) {
-      return(dt)
-    }
-
-    compute_ma <- function(vals, w) {
-      ma <- rep(NA_real_, length(vals))
-      for (i in seq_along(vals)) {
-        if (i > 1) {
-          start_idx <- max(1, i - w)
-          window_vals <- vals[start_idx:(i - 1)]
-          window_vals <- window_vals[!is.na(window_vals)]
-          if (length(window_vals) > 0) {
-            ma[i] <- mean(
-              window_vals[
-                max(1, length(window_vals) - w + 1):length(window_vals)
-              ]
-            )
-          }
-        }
-      }
-      ma
-    }
-
-    if (length(group_vars) > 0) {
-      dt[, ma_base := compute_ma(get(value_var), window), by = group_vars]
-    } else {
-      dt[, ma_base := compute_ma(get(value_var), window)]
-    }
-    dt
-  }
-
   # Create working copy
   function_tag <- "proxy"
   raw_original_col <- paste0(value_col, "_raw_original")
@@ -450,338 +417,29 @@ fill_growth <- function(
     )
   }
 
-  # Parse proxy specification
-  parse_proxy_spec <- function(spec) {
-    if (!grepl(":", spec)) {
-      weight_col <- NULL
-      col_name <- spec
-      if (grepl("\\[", spec)) {
-        start_pos <- regexpr("\\[", spec)[1]
-        if (start_pos > 0) {
-          after_bracket <- substr(spec, start_pos + 1, nchar(spec))
-          end_pos <- regexpr("\\]", after_bracket)[1]
-          if (end_pos > 0) {
-            weight_col <- trimws(substr(after_bracket, 1, end_pos - 1))
-          }
-        }
-        col_name <- sub("\\[.*$", "", spec)
-      }
-
-      col_name <- trimws(col_name)
-
-      if (col_name %in% c("global", "all", "total")) {
-        if (verbose) {
-          message("Using global aggregation (no grouping)")
-        }
-        return(list(
-          source_var = value_col,
-          group_vars = NULL,
-          weight_col = weight_col,
-          spec_name = paste0("global", if (!is.null(weight_col)) "_w" else "")
-        ))
-      }
-
-      if (col_name %in% names(data)) {
-        col_data <- data[[col_name]]
-        is_numeric <- is.numeric(col_data) ||
-          all(!is.na(suppressWarnings(as.numeric(as.character(col_data)))))
-
-        if (is_numeric) {
-          if (verbose) {
-            message(
-              "Auto-detected '",
-              col_name,
-              "' as numeric -> ",
-              "using as source variable"
-            )
-          }
-          return(list(
-            source_var = col_name,
-            group_vars = group_by,
-            weight_col = weight_col,
-            spec_name = paste0(
-              col_name,
-              if (!is.null(weight_col)) "_w" else ""
-            )
-          ))
-        } else {
-          if (verbose) {
-            message(
-              "Auto-detected '",
-              col_name,
-              "' as categorical -> ",
-              "using as grouping variable"
-            )
-          }
-          return(list(
-            source_var = value_col,
-            group_vars = col_name,
-            weight_col = weight_col,
-            spec_name = paste0(
-              value_col,
-              "_",
-              col_name,
-              if (!is.null(weight_col)) "_w" else ""
-            )
-          ))
-        }
-      } else {
-        warning("Column '", col_name, "' not found in data")
-        return(list(
-          source_var = value_col,
-          group_vars = col_name,
-          weight_col = weight_col,
-          spec_name = paste0(
-            value_col,
-            "_",
-            col_name,
-            if (!is.null(weight_col)) "_w" else ""
-          )
-        ))
-      }
-    }
-
-    parts <- strsplit(spec, ":")[[1]]
-    source_var <- parts[1]
-    rhs <- if (length(parts) > 1) parts[2] else ""
-
-    if (is.na(rhs)) {
-      rhs <- ""
-    }
-
-    weight_col <- NULL
-    if (nchar(rhs) > 0 && grepl("\\[", rhs)) {
-      start_pos <- regexpr("\\[", rhs)[1]
-      if (start_pos > 0) {
-        after_bracket <- substr(rhs, start_pos + 1, nchar(rhs))
-        end_pos <- regexpr("\\]", after_bracket)[1]
-        if (end_pos > 0) {
-          weight_col <- trimws(substr(after_bracket, 1, end_pos - 1))
-        }
-      }
-      rhs <- sub("\\[.*$", "", rhs)
-    }
-
-    group_vars <- if (rhs == "") NULL else trimws(strsplit(rhs, "\\+")[[1]])
-
-    if (is.null(group_vars) || length(group_vars) == 0) {
-      spec_name <- paste0(source_var, "_global")
-    } else {
-      spec_name <- paste0(source_var, "_", paste(group_vars, collapse = "_"))
-    }
-    if (!is.null(weight_col)) {
-      spec_name <- paste0(spec_name, "_w")
-    }
-
-    list(
-      source_var = source_var,
-      group_vars = group_vars,
-      weight_col = weight_col,
-      spec_name = spec_name
-    )
-  }
-
-  # Calculate growth rates for a specification
-  calculate_growth_for_spec <- function(
-    data,
-    spec_info,
-    growth_col_name,
-    obs_col_name
-  ) {
-    source_var <- spec_info$source_var
-    group_vars <- spec_info$group_vars
-    weight_col <- spec_info$weight_col
-    has_weight <- !is.null(weight_col) && weight_col %in% names(data)
-
-    if (!is.null(weight_col) && !has_weight && verbose) {
-      message(
-        "Weight column '",
-        weight_col,
-        "' not found; falling back to unweighted means"
-      )
-    }
-
-    if (verbose) {
-      message("Calculating growth rates for: ", spec_info$spec_name)
-    }
-
-    if (!source_var %in% names(data)) {
-      warning("Source variable '", source_var, "' not found")
-      data[[growth_col_name]] <- NA_real_
-      data[[obs_col_name]] <- 0L
-      return(data)
-    }
-
-    present_group_vars <- group_vars[group_vars %in% names(data)]
-    missing_group_vars <- setdiff(group_vars, present_group_vars)
-    if (length(missing_group_vars) > 0 && verbose) {
-      message(
-        "Ignoring missing grouping columns for growth: ",
-        paste(missing_group_vars, collapse = ", ")
-      )
-    }
-
-    lag_group_vars <- if (!is.null(group_by)) {
-      unique(c(group_by, present_group_vars))
-    } else {
-      present_group_vars
-    }
-    lag_group_vars <- lag_group_vars[lag_group_vars %in% names(data)]
-
-    subset_cols <- unique(c("year", lag_group_vars, source_var))
-    if (has_weight) {
-      subset_cols <- unique(c(subset_cols, weight_col))
-    }
-    dt_growth <- data.table::as.data.table(data[, subset_cols, drop = FALSE])
-    order_cols <- unique(c(lag_group_vars, "year"))
-    data.table::setorderv(dt_growth, order_cols)
-
-    if (smooth_window > 1) {
-      dt_growth <- compute_ma_base(
-        dt_growth,
-        source_var,
-        smooth_window,
-        lag_group_vars
-      )
-      if (length(lag_group_vars) > 0) {
-        dt_growth[,
-          lag_source := data.table::shift(ma_base),
-          by = lag_group_vars
-        ]
-        dt_growth[, lag_year := data.table::shift(year), by = lag_group_vars]
-      } else {
-        dt_growth[, lag_source := data.table::shift(ma_base)]
-        dt_growth[, lag_year := data.table::shift(year)]
-      }
-    } else {
-      if (length(lag_group_vars) > 0) {
-        dt_growth[,
-          lag_source := data.table::shift(get(source_var)),
-          by = lag_group_vars
-        ]
-        dt_growth[, lag_year := data.table::shift(year), by = lag_group_vars]
-      } else {
-        dt_growth[, lag_source := data.table::shift(get(source_var))]
-        dt_growth[, lag_year := data.table::shift(year)]
-      }
-    }
-
-    if (has_weight) {
-      if (length(lag_group_vars) > 0) {
-        dt_growth[,
-          lag_weight := data.table::shift(get(weight_col)),
-          by = lag_group_vars
-        ]
-      } else {
-        dt_growth[, lag_weight := data.table::shift(get(weight_col))]
-      }
-      dt_growth[, growth_weight := suppressWarnings(as.numeric(lag_weight))]
-      dt_growth[
-        !is.finite(growth_weight) | growth_weight <= 0,
-        growth_weight := NA_real_
-      ]
-    } else {
-      dt_growth[, growth_weight := NA_real_]
-    }
-
-    if (length(lag_group_vars) > 0) {
-      dt_growth[,
-        individual_growth := data.table::fifelse(
-          year == lag_year + 1 &
-            !is.na(get(source_var)) &
-            !is.na(lag_source) &
-            lag_source > 0,
-          (get(source_var) - lag_source) / lag_source,
-          NA_real_
-        ),
-        by = lag_group_vars
-      ]
-    } else {
-      dt_growth[,
-        individual_growth := data.table::fifelse(
-          year == lag_year + 1 &
-            !is.na(get(source_var)) &
-            !is.na(lag_source) &
-            lag_source > 0,
-          (get(source_var) - lag_source) / lag_source,
-          NA_real_
-        )
-      ]
-    }
-
-    dt_growth <- dt_growth[!is.na(individual_growth)]
-
-    if (nrow(dt_growth) == 0) {
-      data[[growth_col_name]] <- NA_real_
-      data[[obs_col_name]] <- 0L
-      return(data)
-    }
-
-    group_summary_cols <- if (length(present_group_vars) == 0) {
-      "year"
-    } else {
-      c("year", present_group_vars)
-    }
-
-    summary_dt <- dt_growth[,
-      {
-        g <- individual_growth
-        if (has_weight) {
-          w <- growth_weight
-          valid <- !is.na(w) & is.finite(w) & w > 0
-          if (any(valid)) {
-            denom <- sum(w[valid], na.rm = TRUE)
-            if (!is.na(denom) && denom > 0) {
-              growth_val <- sum(g[valid] * w[valid], na.rm = TRUE) / denom
-              obs_val <- sum(valid)
-            } else {
-              growth_val <- mean(g, na.rm = TRUE)
-              obs_val <- .N
-            }
-          } else {
-            growth_val <- mean(g, na.rm = TRUE)
-            obs_val <- .N
-          }
-        } else {
-          growth_val <- mean(g, na.rm = TRUE)
-          obs_val <- .N
-        }
-        .(.growth_value = growth_val, .obs_value = obs_val)
-      },
-      by = group_summary_cols
-    ]
-
-    data.table::setnames(
-      summary_dt,
-      c(".growth_value", ".obs_value"),
-      c(growth_col_name, obs_col_name)
-    )
-    summary_tbl <- tibble::as_tibble(summary_dt)
-
-    if (length(present_group_vars) == 0) {
-      data <- dplyr::left_join(data, summary_tbl, by = "year")
-    } else {
-      join_cols <- c("year", present_group_vars)
-      data <- dplyr::left_join(data, summary_tbl, by = join_cols)
-    }
-
-    data
-  }
-
   # Step 1: Calculate growth rates
   if (verbose) {
     message("Step 1: Calculating growth rate columns...")
   }
 
   for (i in seq_along(proxy_col)) {
-    spec_info <- parse_proxy_spec(proxy_col[i])
+    spec_info <- .parse_proxy_spec(
+      proxy_col[i],
+      data_work,
+      value_col,
+      group_by,
+      verbose
+    )
     growth_col_name <- paste0("growth_", i, "_", spec_info$spec_name)
     obs_col_name <- paste0("n_obs_", i, "_", spec_info$spec_name)
-    data_work <- calculate_growth_for_spec(
+    data_work <- .calculate_growth_for_spec(
       data_work,
       spec_info,
       growth_col_name,
-      obs_col_name
+      obs_col_name,
+      smooth_window,
+      group_by,
+      verbose
     )
   }
 
@@ -790,320 +448,26 @@ fill_growth <- function(
     message("Step 2: Applying hierarchical filling...")
   }
 
-  fill_with_growth <- function(
-    df,
-    growth_col_name,
-    method_name,
-    current_proxy_level = 1,
-    all_proxy_specs = NULL
-  ) {
-    df <- df[order(df[[time_col]]), , drop = FALSE]
-    values <- df[[value_col]]
-    methods <- df[[method_col]]
-    growth <- df[[growth_col_name]]
-    years <- df[[time_col]]
-
-    original_na_runs <- list()
-    if (raw_missing_col %in% names(df)) {
-      original_missing <- df[[raw_missing_col]]
-      original_missing[is.na(original_missing)] <- TRUE
-
-      rle_result <- rle(original_missing)
-      run_ends <- cumsum(rle_result$lengths)
-      run_starts <- c(1, run_ends[-length(run_ends)] + 1)
-
-      for (i in seq_along(rle_result$values)) {
-        if (rle_result$values[i]) {
-          start_i <- run_starts[i]
-          end_i <- run_ends[i]
-          internal_i <- FALSE
-          if (start_i > 1 && end_i < length(original_missing)) {
-            left_ok <- !isTRUE(original_missing[start_i - 1])
-            right_ok <- !isTRUE(original_missing[end_i + 1])
-            internal_i <- left_ok && right_ok
-          }
-          original_na_runs[[length(original_na_runs) + 1]] <- list(
-            start = start_i,
-            end = end_i,
-            length = rle_result$lengths[i],
-            internal = internal_i
-          )
-        }
-      }
-    }
-
-    exceeds_max_gap <- function(idx) {
-      if (is.null(max_gap) || !is.finite(max_gap)) {
-        return(FALSE)
-      }
-      for (run in original_na_runs) {
-        if (idx >= run$start && idx <= run$end && run$length > max_gap) {
-          return(TRUE)
-        }
-      }
-      FALSE
-    }
-
-    exceeds_max_gap_linear <- function(idx) {
-      if (is.null(max_gap_linear) || !is.finite(max_gap_linear)) {
-        return(FALSE)
-      }
-      for (run in original_na_runs) {
-        if (
-          isTRUE(run$internal) &&
-            idx >= run$start &&
-            idx <= run$end &&
-            run$length > max_gap_linear
-        ) {
-          return(TRUE)
-        }
-      }
-      FALSE
-    }
-
-    # Forward fill
-    for (idx in seq_along(values)) {
-      if (!is.na(values[idx])) {
-        next
-      }
-      if (idx == 1) {
-        next
-      }
-      if (is.na(growth[idx])) {
-        next
-      }
-      if (exceeds_max_gap(idx)) {
-        next
-      }
-      if (exceeds_max_gap_linear(idx)) {
-        next
-      }
-
-      prev_indices <- which(!is.na(values[seq_len(idx - 1)]))
-      if (length(prev_indices) == 0) {
-        next
-      }
-      prev_idx <- prev_indices[length(prev_indices)]
-
-      if (is.na(values[prev_idx]) || values[prev_idx] <= 0) {
-        next
-      }
-
-      candidate <- values[prev_idx] * (1 + growth[idx])
-      if (is.na(candidate) || !is.finite(candidate)) {
-        next
-      }
-
-      values[idx] <- candidate
-      if (methods[idx] == "missing") {
-        methods[idx] <- method_name
-      }
-    }
-
-    method_name_back <- paste0(method_name, "_backfill")
-
-    # Backward fill
-    for (idx in seq(length(values) - 1L, 1L)) {
-      if (!is.na(values[idx])) {
-        next
-      }
-      if (idx == length(values)) {
-        next
-      }
-      if (exceeds_max_gap(idx)) {
-        next
-      }
-      if (exceeds_max_gap_linear(idx)) {
-        next
-      }
-
-      next_idx <- idx + 1L
-      if (is.na(values[next_idx])) {
-        next
-      }
-
-      growth_val <- growth[next_idx]
-      denom <- 1 + growth_val
-      if (is.na(denom) || abs(denom) < .Machine$double.eps) {
-        next
-      }
-
-      candidate <- values[next_idx] / denom
-      if (is.na(candidate) || !is.finite(candidate) || candidate <= 0) {
-        next
-      }
-
-      values[idx] <- candidate
-      if (methods[idx] == "missing") {
-        methods[idx] <- method_name_back
-      }
-    }
-
-    df[[value_col]] <- values
-    df[[method_col]] <- methods
-
-    # Bridge filling for larger gaps
-    if (raw_missing_col %in% names(df) && length(values) > 1) {
-      original_missing_flags <- df[[raw_missing_col]]
-      original_missing_flags[is.na(original_missing_flags)] <- TRUE
-      anchor_idx <- which(!original_missing_flags & !is.na(values))
-
-      if (length(anchor_idx) >= 2) {
-        for (anchor_pos in seq_len(length(anchor_idx) - 1L)) {
-          start_idx <- anchor_idx[anchor_pos]
-          end_idx <- anchor_idx[anchor_pos + 1L]
-          if (end_idx - start_idx <= 1L) {
-            next
-          }
-
-          gap_range <- (start_idx + 1L):(end_idx - 1L)
-          gap_missing <- gap_range[original_missing_flags[gap_range]]
-          if (length(gap_missing) == 0) {
-            next
-          }
-
-          num_consecutive_nas <- length(gap_missing)
-          if (
-            !is.null(max_gap) &&
-              is.finite(max_gap) &&
-              num_consecutive_nas > max_gap
-          ) {
-            next
-          }
-
-          # Linear interpolation for small gaps
-          if (num_consecutive_nas <= max_gap_linear) {
-            start_val <- values[start_idx]
-            end_val <- values[end_idx]
-            if (
-              !is.finite(start_val) ||
-                !is.finite(end_val) ||
-                start_val <= 0 ||
-                end_val <= 0
-            ) {
-              next
-            }
-
-            start_year <- years[start_idx]
-            end_year <- years[end_idx]
-            approx_vals <- stats::approx(
-              x = c(start_year, end_year),
-              y = c(start_val, end_val),
-              xout = years[gap_missing]
-            )$y
-            if (any(!is.finite(approx_vals))) {
-              next
-            }
-
-            values[gap_missing] <- approx_vals
-            methods[gap_missing] <- "linear_interp"
-
-            df[[value_col]] <- values
-            df[[method_col]] <- methods
-            next
-          }
-
-          # Bridge with lambda adjustment for larger gaps
-          growth_seq_indices <- (start_idx + 1L):end_idx
-
-          if (!is.null(all_proxy_specs) && length(all_proxy_specs) >= 1) {
-            combined_growth <- rep(NA_real_, length(growth_seq_indices))
-            combined_source <- rep(NA_character_, length(growth_seq_indices))
-            for (lvl in seq_len(current_proxy_level)) {
-              spec_name_lvl <- all_proxy_specs[[lvl]]
-              growth_col_lvl <- paste0("growth_", lvl, "_", spec_name_lvl)
-              if (growth_col_lvl %in% names(df)) {
-                vals_lvl <- df[[growth_col_lvl]][growth_seq_indices]
-                take <- is.na(combined_growth) & is.finite(vals_lvl)
-                if (any(take)) {
-                  combined_growth[take] <- vals_lvl[take]
-                  combined_source[take] <- spec_name_lvl
-                }
-              }
-            }
-          } else {
-            combined_growth <- growth[growth_seq_indices]
-            combined_source <- rep(
-              spec_info$spec_name,
-              length(growth_seq_indices)
-            )
-          }
-
-          if (any(is.na(combined_growth)) || any(!is.finite(combined_growth))) {
-            next
-          }
-
-          predicted_end <- values[start_idx]
-          if (!is.finite(predicted_end) || predicted_end <= 0) {
-            next
-          }
-          valid_sequence <- TRUE
-          for (g_val in combined_growth) {
-            factor_val <- 1 + g_val
-            if (!is.finite(factor_val) || factor_val <= 0) {
-              valid_sequence <- FALSE
-              break
-            }
-            predicted_end <- predicted_end * factor_val
-          }
-          if (
-            !valid_sequence ||
-              !is.finite(predicted_end) ||
-              predicted_end <= 0
-          ) {
-            next
-          }
-
-          actual_end <- values[end_idx]
-          if (is.na(actual_end) || !is.finite(actual_end) || actual_end <= 0) {
-            next
-          }
-
-          ratio <- actual_end / predicted_end
-          if (!is.finite(ratio) || ratio <= 0) {
-            next
-          }
-
-          steps <- length(combined_growth)
-          lambda <- ratio^(1 / steps)
-          if (!is.finite(lambda) || lambda <= 0) {
-            next
-          }
-
-          running <- values[start_idx]
-          for (step_idx in seq_len(steps)) {
-            target_idx <- start_idx + step_idx
-            running <- running * ((1 + combined_growth[step_idx]) * lambda)
-            if (
-              target_idx < end_idx &&
-                original_missing_flags[target_idx] &&
-                is.na(values[target_idx])
-            ) {
-              values[target_idx] <- running
-              src <- combined_source[step_idx]
-              if (is.na(src) || !nzchar(src)) {
-                src <- spec_info$spec_name
-              }
-              methods[target_idx] <- paste0("growth_", src, "_bridge")
-            }
-          }
-
-          df[[value_col]] <- values
-          df[[method_col]] <- methods
-        }
-      }
-    }
-    df
-  }
-
   all_proxy_spec_names <- vector("list", length(proxy_col))
   for (j in seq_along(proxy_col)) {
-    spec <- parse_proxy_spec(proxy_col[j])
+    spec <- .parse_proxy_spec(
+      proxy_col[j],
+      data_work,
+      value_col,
+      group_by,
+      verbose
+    )
     all_proxy_spec_names[[j]] <- spec$spec_name
   }
 
   for (i in seq_along(proxy_col)) {
-    spec_info <- parse_proxy_spec(proxy_col[i])
+    spec_info <- .parse_proxy_spec(
+      proxy_col[i],
+      data_work,
+      value_col,
+      group_by,
+      verbose
+    )
     growth_col_name <- paste0("growth_", i, "_", spec_info$spec_name)
     method_name <- paste0("growth_", spec_info$spec_name)
 
@@ -1117,22 +481,34 @@ fill_growth <- function(
       data_work <- data_work |>
         dplyr::group_by(dplyr::across(dplyr::all_of(group_by))) |>
         dplyr::group_modify(
-          ~ fill_with_growth(
+          ~ .fill_with_growth(
             .x,
             growth_col_name,
             method_name,
             current_proxy_level = i,
-            all_proxy_specs = all_proxy_spec_names
+            all_proxy_specs = all_proxy_spec_names,
+            value_col = value_col,
+            method_col = method_col,
+            raw_missing_col = raw_missing_col,
+            max_gap = max_gap,
+            max_gap_linear = max_gap_linear,
+            time_col = time_col
           )
         ) |>
         dplyr::ungroup()
     } else {
-      data_work <- fill_with_growth(
+      data_work <- .fill_with_growth(
         data_work,
         growth_col_name,
         method_name,
         current_proxy_level = i,
-        all_proxy_specs = all_proxy_spec_names
+        all_proxy_specs = all_proxy_spec_names,
+        value_col = value_col,
+        method_col = method_col,
+        raw_missing_col = raw_missing_col,
+        max_gap = max_gap,
+        max_gap_linear = max_gap_linear,
+        time_col = time_col
       )
     }
 
@@ -1202,4 +578,667 @@ fill_growth <- function(
   }
 
   data_work
+}
+
+.compute_ma_base <- function(dt, value_var, window, group_vars = NULL) {
+  if (window <= 1) {
+    return(dt)
+  }
+
+  compute_ma <- function(vals, w) {
+    ma <- rep(NA_real_, length(vals))
+    for (i in seq_along(vals)) {
+      if (i > 1) {
+        start_idx <- max(1, i - w)
+        window_vals <- vals[start_idx:(i - 1)]
+        window_vals <- window_vals[!is.na(window_vals)]
+        if (length(window_vals) > 0) {
+          ma[i] <- mean(
+            window_vals[
+              max(1, length(window_vals) - w + 1):length(window_vals)
+            ]
+          )
+        }
+      }
+    }
+    ma
+  }
+
+  if (length(group_vars) > 0) {
+    dt[, ma_base := compute_ma(get(value_var), window), by = group_vars]
+  } else {
+    dt[, ma_base := compute_ma(get(value_var), window)]
+  }
+  dt
+}
+
+.parse_proxy_spec <- function(spec, data, value_col, group_by, verbose) {
+  weight_col <- NULL
+  col_name <- spec
+  if (grepl("\\[", spec)) {
+    start_pos <- regexpr("\\[", spec)[1]
+    if (start_pos > 0) {
+      after_bracket <- substr(spec, start_pos + 1, nchar(spec))
+      end_pos <- regexpr("\\]", after_bracket)[1]
+      if (end_pos > 0) {
+        weight_col <- trimws(substr(after_bracket, 1, end_pos - 1))
+      }
+    }
+    col_name <- sub("\\[.*$", "", spec)
+  }
+
+  col_name <- trimws(col_name)
+
+  if (col_name %in% c("global", "all", "total")) {
+    if (verbose) {
+      message("Using global aggregation (no grouping)")
+    }
+    return(list(
+      source_var = value_col,
+      group_vars = NULL,
+      weight_col = weight_col,
+      spec_name = paste0("global", if (!is.null(weight_col)) "_w" else "")
+    ))
+  }
+
+  if (col_name %in% names(data)) {
+    col_data <- data[[col_name]]
+    is_numeric <- is.numeric(col_data) ||
+      all(!is.na(suppressWarnings(as.numeric(as.character(col_data)))))
+
+    if (is_numeric) {
+      if (verbose) {
+        message(
+          "Auto-detected '",
+          col_name,
+          "' as numeric -> ",
+          "using as source variable"
+        )
+      }
+      return(list(
+        source_var = col_name,
+        group_vars = group_by,
+        weight_col = weight_col,
+        spec_name = paste0(
+          col_name,
+          if (!is.null(weight_col)) "_w" else ""
+        )
+      ))
+    } else {
+      if (verbose) {
+        message(
+          "Auto-detected '",
+          col_name,
+          "' as categorical -> ",
+          "using as grouping variable"
+        )
+      }
+      return(list(
+        source_var = value_col,
+        group_vars = col_name,
+        weight_col = weight_col,
+        spec_name = paste0(
+          value_col,
+          "_",
+          col_name,
+          if (!is.null(weight_col)) "_w" else ""
+        )
+      ))
+    }
+  } else {
+    warning("Column '", col_name, "' not found in data")
+    return(list(
+      source_var = value_col,
+      group_vars = col_name,
+      weight_col = weight_col,
+      spec_name = paste0(
+        value_col,
+        "_",
+        col_name,
+        if (!is.null(weight_col)) "_w" else ""
+      )
+    ))
+  }
+
+  parts <- strsplit(spec, ":")[[1]]
+  source_var <- parts[1]
+  rhs <- if (length(parts) > 1) parts[2] else ""
+
+  if (is.na(rhs)) {
+    rhs <- ""
+  }
+
+  weight_col <- NULL
+  if (nchar(rhs) > 0 && grepl("\\[", rhs)) {
+    start_pos <- regexpr("\\[", rhs)[1]
+    if (start_pos > 0) {
+      after_bracket <- substr(rhs, start_pos + 1, nchar(rhs))
+      end_pos <- regexpr("\\]", after_bracket)[1]
+      if (end_pos > 0) {
+        weight_col <- trimws(substr(after_bracket, 1, end_pos - 1))
+      }
+    }
+    rhs <- sub("\\[.*$", "", rhs)
+  }
+
+  group_vars <- if (rhs == "") NULL else trimws(strsplit(rhs, "\\+")[[1]])
+
+  if (is.null(group_vars) || length(group_vars) == 0) {
+    spec_name <- paste0(source_var, "_global")
+  } else {
+    spec_name <- paste0(source_var, "_", paste(group_vars, collapse = "_"))
+  }
+  if (!is.null(weight_col)) {
+    spec_name <- paste0(spec_name, "_w")
+  }
+
+  list(
+    source_var = source_var,
+    group_vars = group_vars,
+    weight_col = weight_col,
+    spec_name = spec_name
+  )
+}
+
+.calculate_growth_for_spec <- function(
+  data,
+  spec_info,
+  growth_col_name,
+  obs_col_name,
+  smooth_window,
+  group_by,
+  verbose
+) {
+  # expects 'group_by', 'smooth_window', 'verbose' in parent env
+  source_var <- spec_info$source_var
+  group_vars <- spec_info$group_vars
+  weight_col <- spec_info$weight_col
+  has_weight <- !is.null(weight_col) && weight_col %in% names(data)
+
+  if (!is.null(weight_col) && !has_weight && verbose) {
+    message(
+      "Weight column '",
+      weight_col,
+      "' not found; falling back to unweighted means"
+    )
+  }
+
+  if (verbose) {
+    message("Calculating growth rates for: ", spec_info$spec_name)
+  }
+
+  if (!source_var %in% names(data)) {
+    warning("Source variable '", source_var, "' not found")
+    data[[growth_col_name]] <- NA_real_
+    data[[obs_col_name]] <- 0L
+    return(data)
+  }
+
+  present_group_vars <- group_vars[group_vars %in% names(data)]
+  missing_group_vars <- setdiff(group_vars, present_group_vars)
+  if (length(missing_group_vars) > 0 && verbose) {
+    message(
+      "Ignoring missing grouping columns for growth: ",
+      paste(missing_group_vars, collapse = ", ")
+    )
+  }
+
+  lag_group_vars <- if (!is.null(group_by)) {
+    unique(c(group_by, present_group_vars))
+  } else {
+    present_group_vars
+  }
+  lag_group_vars <- lag_group_vars[lag_group_vars %in% names(data)]
+
+  subset_cols <- unique(c("year", lag_group_vars, source_var))
+  if (has_weight) {
+    subset_cols <- unique(c(subset_cols, weight_col))
+  }
+  dt_growth <- data.table::as.data.table(data[, subset_cols, drop = FALSE])
+  order_cols <- unique(c(lag_group_vars, "year"))
+  data.table::setorderv(dt_growth, order_cols)
+
+  if (smooth_window > 1) {
+    dt_growth <- .compute_ma_base(
+      dt_growth,
+      source_var,
+      smooth_window,
+      lag_group_vars
+    )
+    if (length(lag_group_vars) > 0) {
+      dt_growth[,
+        lag_source := data.table::shift(ma_base),
+        by = lag_group_vars
+      ]
+      dt_growth[, lag_year := data.table::shift(year), by = lag_group_vars]
+    } else {
+      dt_growth[, lag_source := data.table::shift(ma_base)]
+      dt_growth[, lag_year := data.table::shift(year)]
+    }
+  } else {
+    if (length(lag_group_vars) > 0) {
+      dt_growth[,
+        lag_source := data.table::shift(get(source_var)),
+        by = lag_group_vars
+      ]
+      dt_growth[, lag_year := data.table::shift(year), by = lag_group_vars]
+    } else {
+      dt_growth[, lag_source := data.table::shift(get(source_var))]
+      dt_growth[, lag_year := data.table::shift(year)]
+    }
+  }
+
+  if (has_weight) {
+    if (length(lag_group_vars) > 0) {
+      dt_growth[,
+        lag_weight := data.table::shift(get(weight_col)),
+        by = lag_group_vars
+      ]
+    } else {
+      dt_growth[, lag_weight := data.table::shift(get(weight_col))]
+    }
+    dt_growth[, growth_weight := suppressWarnings(as.numeric(lag_weight))]
+    dt_growth[
+      !is.finite(growth_weight) | growth_weight <= 0,
+      growth_weight := NA_real_
+    ]
+  } else {
+    dt_growth[, growth_weight := NA_real_]
+  }
+
+  if (length(lag_group_vars) > 0) {
+    dt_growth[,
+      individual_growth := data.table::fifelse(
+        year == lag_year + 1 &
+          !is.na(get(source_var)) &
+          !is.na(lag_source) &
+          lag_source > 0,
+        (get(source_var) - lag_source) / lag_source,
+        NA_real_
+      ),
+      by = lag_group_vars
+    ]
+  } else {
+    dt_growth[,
+      individual_growth := data.table::fifelse(
+        year == lag_year + 1 &
+          !is.na(get(source_var)) &
+          !is.na(lag_source) &
+          lag_source > 0,
+        (get(source_var) - lag_source) / lag_source,
+        NA_real_
+      )
+    ]
+  }
+
+  dt_growth <- dt_growth[!is.na(individual_growth)]
+
+  if (nrow(dt_growth) == 0) {
+    data[[growth_col_name]] <- NA_real_
+    data[[obs_col_name]] <- 0L
+    return(data)
+  }
+
+  group_summary_cols <- if (length(present_group_vars) == 0) {
+    "year"
+  } else {
+    c("year", present_group_vars)
+  }
+
+  summary_dt <- dt_growth[,
+    {
+      g <- individual_growth
+      if (has_weight) {
+        w <- growth_weight
+        valid <- !is.na(w) & is.finite(w) & w > 0
+        if (any(valid)) {
+          denom <- sum(w[valid], na.rm = TRUE)
+          if (!is.na(denom) && denom > 0) {
+            growth_val <- sum(g[valid] * w[valid], na.rm = TRUE) / denom
+            obs_val <- sum(valid)
+          } else {
+            growth_val <- mean(g, na.rm = TRUE)
+            obs_val <- .N
+          }
+        } else {
+          growth_val <- mean(g, na.rm = TRUE)
+          obs_val <- .N
+        }
+      } else {
+        growth_val <- mean(g, na.rm = TRUE)
+        obs_val <- .N
+      }
+      .(.growth_value = growth_val, .obs_value = obs_val)
+    },
+    by = group_summary_cols
+  ]
+
+  data.table::setnames(
+    summary_dt,
+    c(".growth_value", ".obs_value"),
+    c(growth_col_name, obs_col_name)
+  )
+  summary_tbl <- tibble::as_tibble(summary_dt)
+
+  if (length(present_group_vars) == 0) {
+    data <- dplyr::left_join(data, summary_tbl, by = "year")
+  } else {
+    join_cols <- c("year", present_group_vars)
+    data <- dplyr::left_join(data, summary_tbl, by = join_cols)
+  }
+
+  data
+}
+
+.fill_with_growth <- function(
+  df,
+  growth_col_name,
+  method_name,
+  current_proxy_level = 1,
+  all_proxy_specs = NULL,
+  value_col,
+  method_col,
+  raw_missing_col,
+  max_gap,
+  max_gap_linear,
+  time_col
+) {
+  # expects 'value_col', 'method_col', 'raw_missing_col', 'max_gap', 'max_gap_linear', 'time_col' in parent env
+  df <- df[order(df[[time_col]]), , drop = FALSE]
+  values <- df[[value_col]]
+  methods <- df[[method_col]]
+  growth <- df[[growth_col_name]]
+  years <- df[[time_col]]
+
+  original_na_runs <- list()
+  if (raw_missing_col %in% names(df)) {
+    original_missing <- df[[raw_missing_col]]
+    original_missing[is.na(original_missing)] <- TRUE
+
+    rle_result <- rle(original_missing)
+    run_ends <- cumsum(rle_result$lengths)
+    run_starts <- c(1, run_ends[-length(run_ends)] + 1)
+
+    for (i in seq_along(rle_result$values)) {
+      if (rle_result$values[i]) {
+        start_i <- run_starts[i]
+        end_i <- run_ends[i]
+        internal_i <- FALSE
+        if (start_i > 1 && end_i < length(original_missing)) {
+          left_ok <- !isTRUE(original_missing[start_i - 1])
+          right_ok <- !isTRUE(original_missing[end_i + 1])
+          internal_i <- left_ok && right_ok
+        }
+        original_na_runs[[length(original_na_runs) + 1]] <- list(
+          start = start_i,
+          end = end_i,
+          length = rle_result$lengths[i],
+          internal = internal_i
+        )
+      }
+    }
+  }
+
+  exceeds_max_gap <- function(idx) {
+    if (is.null(max_gap) || !is.finite(max_gap)) {
+      return(FALSE)
+    }
+    for (run in original_na_runs) {
+      if (idx >= run$start && idx <= run$end && run$length > max_gap) {
+        return(TRUE)
+      }
+    }
+    FALSE
+  }
+
+  exceeds_max_gap_linear <- function(idx) {
+    if (is.null(max_gap_linear) || !is.finite(max_gap_linear)) {
+      return(FALSE)
+    }
+    for (run in original_na_runs) {
+      if (
+        isTRUE(run$internal) &&
+          idx >= run$start &&
+          idx <= run$end &&
+          run$length > max_gap_linear
+      ) {
+        return(TRUE)
+      }
+    }
+    FALSE
+  }
+
+  # Forward fill
+  for (idx in seq_along(values)) {
+    if (!is.na(values[idx])) {
+      next
+    }
+    if (idx == 1) {
+      next
+    }
+    if (is.na(growth[idx])) {
+      next
+    }
+    if (exceeds_max_gap(idx)) {
+      next
+    }
+    if (exceeds_max_gap_linear(idx)) {
+      next
+    }
+
+    prev_indices <- which(!is.na(values[seq_len(idx - 1)]))
+    if (length(prev_indices) == 0) {
+      next
+    }
+    prev_idx <- prev_indices[length(prev_indices)]
+
+    if (is.na(values[prev_idx]) || values[prev_idx] <= 0) {
+      next
+    }
+
+    candidate <- values[prev_idx] * (1 + growth[idx])
+    if (is.na(candidate) || !is.finite(candidate)) {
+      next
+    }
+
+    values[idx] <- candidate
+    if (methods[idx] == "missing") {
+      methods[idx] <- method_name
+    }
+  }
+
+  method_name_back <- paste0(method_name, "_backfill")
+
+  # Backward fill
+  for (idx in seq(length(values) - 1L, 1L)) {
+    if (!is.na(values[idx])) {
+      next
+    }
+    if (idx == length(values)) {
+      next
+    }
+    if (exceeds_max_gap(idx)) {
+      next
+    }
+    if (exceeds_max_gap_linear(idx)) {
+      next
+    }
+
+    next_idx <- idx + 1L
+    if (is.na(values[next_idx])) {
+      next
+    }
+
+    growth_val <- growth[next_idx]
+    denom <- 1 + growth_val
+    if (is.na(denom) || abs(denom) < .Machine$double.eps) {
+      next
+    }
+
+    candidate <- values[next_idx] / denom
+    if (is.na(candidate) || !is.finite(candidate) || candidate <= 0) {
+      next
+    }
+
+    values[idx] <- candidate
+    if (methods[idx] == "missing") {
+      methods[idx] <- method_name_back
+    }
+  }
+
+  df[[value_col]] <- values
+  df[[method_col]] <- methods
+
+  # Bridge filling for larger gaps
+  if (raw_missing_col %in% names(df) && length(values) > 1) {
+    original_missing_flags <- df[[raw_missing_col]]
+    original_missing_flags[is.na(original_missing_flags)] <- TRUE
+    anchor_idx <- which(!original_missing_flags & !is.na(values))
+
+    if (length(anchor_idx) >= 2) {
+      for (anchor_pos in seq_len(length(anchor_idx) - 1L)) {
+        start_idx <- anchor_idx[anchor_pos]
+        end_idx <- anchor_idx[anchor_pos + 1L]
+        if (end_idx - start_idx <= 1L) {
+          next
+        }
+
+        gap_range <- (start_idx + 1L):(end_idx - 1L)
+        gap_missing <- gap_range[original_missing_flags[gap_range]]
+        if (length(gap_missing) == 0) {
+          next
+        }
+
+        num_consecutive_nas <- length(gap_missing)
+        if (
+          !is.null(max_gap) &&
+            is.finite(max_gap) &&
+            num_consecutive_nas > max_gap
+        ) {
+          next
+        }
+
+        # Linear interpolation for small gaps
+        if (num_consecutive_nas <= max_gap_linear) {
+          start_val <- values[start_idx]
+          end_val <- values[end_idx]
+          if (
+            !is.finite(start_val) ||
+              !is.finite(end_val) ||
+              start_val <= 0 ||
+              end_val <= 0
+          ) {
+            next
+          }
+
+          start_year <- years[start_idx]
+          end_year <- years[end_idx]
+          approx_vals <- stats::approx(
+            x = c(start_year, end_year),
+            y = c(start_val, end_val),
+            xout = years[gap_missing]
+          )$y
+          if (any(!is.finite(approx_vals))) {
+            next
+          }
+
+          values[gap_missing] <- approx_vals
+          methods[gap_missing] <- "linear_interp"
+
+          df[[value_col]] <- values
+          df[[method_col]] <- methods
+          next
+        }
+
+        # Bridge with lambda adjustment for larger gaps
+        growth_seq_indices <- (start_idx + 1L):end_idx
+
+        if (!is.null(all_proxy_specs) && length(all_proxy_specs) >= 1) {
+          combined_growth <- rep(NA_real_, length(growth_seq_indices))
+          combined_source <- rep(NA_character_, length(growth_seq_indices))
+          for (lvl in seq_len(current_proxy_level)) {
+            spec_name_lvl <- all_proxy_specs[[lvl]]
+            growth_col_lvl <- paste0("growth_", lvl, "_", spec_name_lvl)
+            if (growth_col_lvl %in% names(df)) {
+              vals_lvl <- df[[growth_col_lvl]][growth_seq_indices]
+              take <- is.na(combined_growth) & is.finite(vals_lvl)
+              if (any(take)) {
+                combined_growth[take] <- vals_lvl[take]
+                combined_source[take] <- spec_name_lvl
+              }
+            }
+          }
+        } else {
+          combined_growth <- growth[growth_seq_indices]
+          combined_source <- rep(
+            spec_info$spec_name,
+            length(growth_seq_indices)
+          )
+        }
+
+        if (any(is.na(combined_growth)) || any(!is.finite(combined_growth))) {
+          next
+        }
+
+        predicted_end <- values[start_idx]
+        if (!is.finite(predicted_end) || predicted_end <= 0) {
+          next
+        }
+        valid_sequence <- TRUE
+        for (g_val in combined_growth) {
+          factor_val <- 1 + g_val
+          if (!is.finite(factor_val) || factor_val <= 0) {
+            valid_sequence <- FALSE
+            break
+          }
+          predicted_end <- predicted_end * factor_val
+        }
+        if (
+          !valid_sequence ||
+            !is.finite(predicted_end) ||
+            predicted_end <= 0
+        ) {
+          next
+        }
+
+        actual_end <- values[end_idx]
+        if (is.na(actual_end) || !is.finite(actual_end) || actual_end <= 0) {
+          next
+        }
+
+        ratio <- actual_end / predicted_end
+        if (!is.finite(ratio) || ratio <= 0) {
+          next
+        }
+
+        steps <- length(combined_growth)
+        lambda <- ratio^(1 / steps)
+        if (!is.finite(lambda) || lambda <= 0) {
+          next
+        }
+
+        running <- values[start_idx]
+        for (step_idx in seq_len(steps)) {
+          target_idx <- start_idx + step_idx
+          running <- running * ((1 + combined_growth[step_idx]) * lambda)
+          if (
+            target_idx < end_idx &&
+              original_missing_flags[target_idx] &&
+              is.na(values[target_idx])
+          ) {
+            values[target_idx] <- running
+            src <- combined_source[step_idx]
+            if (is.na(src) || !nzchar(src)) {
+              src <- spec_info$spec_name
+            }
+            methods[target_idx] <- paste0("growth_", src, "_bridge")
+          }
+        }
+
+        df[[value_col]] <- values
+        df[[method_col]] <- methods
+      }
+    }
+  }
+  df
 }
