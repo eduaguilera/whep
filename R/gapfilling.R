@@ -290,6 +290,7 @@ fill_sum <- function(
 #'   group_by = "country"
 #' )
 #'
+#' @importFrom data.table :=
 #' @seealso [fill_linear()], [fill_sum()]
 fill_growth <- function(
   data,
