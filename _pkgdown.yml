@@ -71,6 +71,12 @@ reference:
   desc: >
     Functions to fill gaps (NA values) in time-dependent variables using different methods.
   contents:
-  - linear_fill
-  - proxy_fill
-  - sum_fill
+  - fill_linear
+  - fill_sum
+  - fill_growth
+
+- title: Decomposition analysis
+  desc: >
+    Functions for index decomposition analysis.
+  contents:
+  - calculate_lmdi
