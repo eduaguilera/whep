@@ -1120,7 +1120,7 @@ create_n_prov_destiny <- function() {
       values_to = "share"
     ) |>
     dplyr::mutate(
-      MgN = case_when(
+      MgN = dplyr::case_when(
         Box %in%
           c("Fish", "Agro-industry") &
           share_type %in% c("food_share", "other_uses_share") ~
