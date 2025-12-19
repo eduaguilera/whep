@@ -13,7 +13,7 @@ fill_growth(
   max_gap = Inf,
   max_gap_linear = 3,
   fill_scope = NULL,
-  smooth_window = NULL,
+  smooth_window = 1,
   output_format = "clean",
   verbose = TRUE
 )

@@ -301,7 +301,7 @@ fill_growth <- function(
   max_gap = Inf,
   max_gap_linear = 3,
   fill_scope = NULL,
-  smooth_window = NULL,
+  smooth_window = 1,
   output_format = "clean",
   verbose = TRUE
 ) {
@@ -406,18 +406,11 @@ fill_growth <- function(
   if (!rlang::has_name(data, value_col)) {
     cli::cli_abort("Value column '{value_col}' not found in data")
   }
-  if (!is.null(smooth_window)) {
-    if (
-      !is.numeric(smooth_window) ||
-        length(smooth_window) != 1 ||
-        smooth_window < 1
-    ) {
-      cli::cli_abort("`smooth_window` must be NULL or a positive integer")
-    }
-    smooth_window <- as.integer(smooth_window)
-  } else {
-    smooth_window <- 1L
+  if (!rlang::is_scalar_integerish(smooth_window) || smooth_window < 1) {
+    cli::cli_abort("`smooth_window` must be a positive integer")
   }
+  smooth_window <- as.integer(smooth_window)
+
   if (!is.null(group_by)) {
     missing <- setdiff(group_by, names(data))
     if (length(missing) > 0) {
