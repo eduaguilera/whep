@@ -41,6 +41,7 @@ result <- data |>
 - Next part should be the return value, starting with `@return` tag. Describe what the function returns.
 - Next part should be the `@export` tag.
 - Last part should be the examples, starting with `@examples` tag. Provide meaningful examples that show how to use the function. Avoid unnecessary examples.
+- In examples, the last line should show the output of the function, so that when the user runs the example, they can see what the function returns.
 - There must be one space after `#'` for each roxygen2 line
 - If you start the text for one tag in that same line, then the next lines should be indented two spaces to easily know it's for that same section. For example, if each parameter description starts in the same line as `@param`, then the next lines should be indented two spaces.
 

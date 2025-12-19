@@ -93,7 +93,8 @@ data <- tibble::tibble(
   gdp = c(1000, NA, NA, 1200),
   population = c(46, 46.5, 47, 47.5)
 )
-filled <- fill_growth(
+
+fill_growth(
   data,
   value_col = "gdp",
   proxy_col = "population",
