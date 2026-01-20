@@ -10,7 +10,10 @@
 #'
 #' @export
 create_grafs_plot_df <- function() {
-  prov_destiny_df <- create_n_prov_destiny()
+  prov_destiny_df <- dplyr::bind_rows(
+    create_n_prov_destiny(),
+    create_n_nat_destiny()
+  )
   n_balance <- whep_read_file("n_balance_ygpit_all")
 
   df_land <- .create_land_df()
@@ -52,9 +55,28 @@ create_grafs_plot_df <- function() {
   ) |>
     dplyr::arrange(province, year, label) |>
     dplyr::filter(!is.na(province) & !is.na(year)) |>
+    .add_missing_spain_labels() |>
     dplyr::mutate(arrowColor = "") |>
-    dplyr::select(province, year, label, data, align, arrowColor) |>
-    dplyr::distinct(province, year, label, .keep_all = TRUE)
+    dplyr::select(province, year, label, data, align, arrowColor)
+
+  align_ref <- df_final |>
+    dplyr::filter(province != "Spain") |>
+    dplyr::group_by(label) |>
+    dplyr::summarise(
+      align_ref = dplyr::first(align),
+      .groups = "drop"
+    )
+
+  df_final <- df_final |>
+    dplyr::left_join(align_ref, by = "label", suffix = c("", "_ref")) |>
+    dplyr::mutate(
+      align = dplyr::if_else(
+        province == "Spain" & !is.na(align_ref),
+        align_ref,
+        align
+      )
+    ) |>
+    dplyr::select(-align_ref)
 
   n_labels <- c(
     "{IMANOT}",
@@ -123,28 +145,40 @@ create_grafs_plot_df <- function() {
       data = as.character(data)
     )
 
-  df_spain <- df_final |>
-    dplyr::group_by(year, label, align, arrowColor) |>
-    dplyr::summarise(
-      data = sum(as.numeric(data), na.rm = TRUE),
-      .groups = "drop"
-    ) |>
-    dplyr::mutate(
-      province = "Spain",
-      data = as.character(data)
-    ) |>
-    dplyr::select(province, year, label, data, align, arrowColor)
-
-  df_final <- dplyr::bind_rows(df_final, df_spain)
-
   df_final <- df_final |>
     dplyr::mutate(
-      data_num = ifelse(grepl("^-?[0-9.]+$", data), as.numeric(data), NA_real_)
+      data_num = readr::parse_number(data)
     ) |>
     dplyr::group_by(province, year, label) |>
-    dplyr::filter(!(dplyr::n() > 1 & (is.na(data_num) | data_num == 0))) |>
+    dplyr::filter(
+      province == "Spain" |
+        !(dplyr::n() > 1 & (is.na(data_num) | data_num == 0))
+    ) |>
     dplyr::ungroup() |>
     dplyr::select(-data_num)
+
+  df_final <- df_final |>
+    dplyr::group_by(province, year, label) |>
+    dplyr::summarise(
+      data = as.character(sum(readr::parse_number(data), na.rm = TRUE)),
+      align = dplyr::first(align),
+      arrowColor = dplyr::first(arrowColor),
+      .groups = "drop"
+    )
+
+  df_final <- df_final |>
+    tidyr::complete(
+      province,
+      year,
+      label,
+      fill = list(data = "0")
+    ) |>
+    dplyr::filter(!is.na(label))
+
+  df_final <- df_final |>
+    dplyr::filter(
+      !label %in% c("{YEAR}", "{PROVINCE_NAME}", "{WIDTH_MAX}", "{YEARCHANGE}")
+    )
 
   readr::write_csv(
     df_final,
@@ -153,6 +187,50 @@ create_grafs_plot_df <- function() {
 
   df_final
 }
+
+#' @keywords internal
+.add_missing_spain_labels <- function(df) {
+  .true_national_labels <- c(
+    "{IMANOT}",
+    "{IMANOTR}",
+    "{IMANOTM}",
+    "{IMPORT_ANIMALCR}",
+    "{IMPORT_ANIMALCR_RUM}",
+    "{IMPORT_ANIMALCR_MONOG}",
+    "{IMPHUMANMEAT}",
+    "{IMPHUMANEGGS}",
+    "{IMPHUMFISH}",
+    "{IMPHUMMILK}",
+    "{IMPHMANA}",
+    "{CROP_POPIMPORT}"
+  )
+
+  df_prov <- df |>
+    dplyr::filter(
+      province != "Spain",
+      !label %in% .true_national_labels,
+      !label %in% c("{YEAR}", "{PROVINCE_NAME}", "{WIDTH_MAX}")
+    )
+
+  df_spain <- df_prov |>
+    dplyr::group_by(year, label) |>
+    dplyr::summarise(
+      data = sum(suppressWarnings(as.numeric(data)), na.rm = TRUE),
+      .groups = "drop"
+    ) |>
+    dplyr::mutate(
+      province = "Spain",
+      data = as.character(data)
+    )
+
+  df <- df |>
+    dplyr::filter(
+      !(province == "Spain" & label %in% df_spain$label)
+    )
+
+  dplyr::bind_rows(df, df_spain)
+}
+
 
 #' @title Create nitrogen import dataset by province
 #'
@@ -863,8 +941,6 @@ create_grafs_plot_df <- function() {
         Origin == "Cropland" &
           Destiny %in% c("livestock_rum", "livestock_mono") ~
           "{CROPS_TO_LIVESTOCK}",
-        # Do I need to substract Milk from LIVESTOCK_TO_HUMAN, since it is
-        # already covered in another label?
         Origin == "Livestock" &
           Destiny == "population_food" ~
           "{LIVESTOCK_TO_HUMAN}",
@@ -880,7 +956,7 @@ create_grafs_plot_df <- function() {
     dplyr::mutate(align = "L") |>
     dplyr::rename(province = Province_name, year = Year) |>
     tidyr::complete(
-      province = unique(prov_destiny_df$Province_name),
+      province = setdiff(unique(prov_destiny_df$Province_name), "Spain"),
       year = unique(prov_destiny_df$Year),
       label = c(
         "{CROP_EXPORT}",
@@ -891,6 +967,7 @@ create_grafs_plot_df <- function() {
       ),
       fill = list(data = 0, align = "L")
     )
+
   crop_livestock_flows
 }
 
@@ -1174,6 +1251,7 @@ create_grafs_plot_df <- function() {
     df_livestock_export,
     df_animal_losses
   ) |>
+
     dplyr::filter(
       label %in%
         c("{LIVESTOCK_TO_HUMAN}", "{LIVESTOCK_EXPORTED}", "{AN_OTH}")
@@ -1198,7 +1276,7 @@ create_grafs_plot_df <- function() {
 #'
 #' @keywords internal
 .create_livestock_gas_loss_df <- function() {
-  df_livestock_gas_loss <- whep_read_file("n_excretion_ygs") |>
+  df <- whep_read_file("n_excretion_ygs") |>
     dplyr::group_by(Province_name, Year) |>
     dplyr::summarise(
       data = sum(Excr_MgN * Loss_share, na.rm = TRUE),
@@ -1212,8 +1290,15 @@ create_grafs_plot_df <- function() {
     ) |>
     dplyr::select(province, year, label, data, align)
 
-  df_livestock_gas_loss
+  df_spain <- df |>
+    dplyr::filter(province != "Spain") |>
+    dplyr::group_by(year, label, align) |>
+    dplyr::summarise(data = sum(data, na.rm = TRUE), .groups = "drop") |>
+    dplyr::mutate(province = "Spain")
+
+  dplyr::bind_rows(df, df_spain)
 }
+
 
 #' @title Create population dataset
 #'

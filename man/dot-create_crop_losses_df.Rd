@@ -7,9 +7,6 @@
 .create_crop_losses_df(n_balance, prov_destiny_df)
 }
 \arguments{
-\item{n_balance}{A data frame from the nitrogen balance dataset, including
-N losses from cropland.}
-
 \item{prov_destiny_df}{A data frame containing production and destiny
 information.}
 }
@@ -17,7 +14,6 @@ information.}
 A tibble with columns \code{province}, \code{year}, \code{label}, \code{data}, \code{align}.
 }
 \description{
-Generates nitrogen loss data from croplands, including gaseous losses (NH₃,
-N₂O, denitrification) and other uses.
+Generates nitrogen other uses from cropland.
 }
 \keyword{internal}

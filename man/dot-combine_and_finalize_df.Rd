@@ -36,7 +36,7 @@ A tibble with standardized columns \code{province}, \code{year}, \code{label},
 \description{
 Merges all the created nitrogen datasets into a unified structure.
 Adding missing labels and setting WIDTH_MAX to 1500. IMPHUMHONEY should be 0.
-The other labels ("\if{html}{\out{<UNKMANURE>}}", "\if{html}{\out{<CRPNOLV>}}", "\if{html}{\out{<NCONTCROP>}}","\if{html}{\out{<ORGOT>}}") are
+The other labels (CRPNOLV", "NCONTCROP") are
 set to 0, since I don't know how to create them yet.
 }
 \keyword{internal}
