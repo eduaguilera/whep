@@ -35,7 +35,9 @@ harmonization_function_interpolation_updated <- function(data) {
     ungroup()
 
   if (nrow(data_groups) == 0) {
-    print('only simple harmonization detected, returning simple harmonizations only')
+    print(
+      'only simple harmonization detected, returning simple harmonizations only'
+    )
     return(
       df_simple |>
         rename(item_code = item_code_harm, items = item_name_harm)
@@ -60,7 +62,7 @@ harmonization_function_interpolation_updated <- function(data) {
   groups_with_complete_years <- unique(group_year_presence$items)
   all_groups <- unique(harm_groups$items)
   incomplete_groups <- setdiff(all_groups, groups_with_complete_years)
-  
+
   if (length(incomplete_groups) > 0) {
     stop("error - incomplete groups. revise data.")
   }
@@ -99,10 +101,9 @@ harmonization_function_interpolation_updated <- function(data) {
 }
 
 
-
 harmonization_function_interpolation <- function(data, ...) {
   grouping_cols <- enquos(...)
-  
+
   data_groups <- data |>
     filter(type == "1:N") |>
     select(items, item_code_harm, !!!grouping_cols) |>
@@ -119,7 +120,9 @@ harmonization_function_interpolation <- function(data, ...) {
     ungroup()
 
   if (nrow(data_groups) == 0) {
-    cat('only simple harmonization detected, returning simple harmonizations only')
+    cat(
+      'only simple harmonization detected, returning simple harmonizations only'
+    )
     return(
       df_simple |>
         rename(item_code = item_code_harm, items = item_name_harm)
@@ -128,15 +131,21 @@ harmonization_function_interpolation <- function(data, ...) {
 
   group_year_presence <- df_simple |>
     select(item_code_harm, year, !!!grouping_cols) |>
-    left_join(data_groups, by = c("item_code_harm", names(select(data_groups, !!!grouping_cols))),
-        relationship = "many-to-many") |>
+    left_join(
+      data_groups,
+      by = c("item_code_harm", names(select(data_groups, !!!grouping_cols))),
+      relationship = "many-to-many"
+    ) |>
     group_by(items, year, !!!grouping_cols) |>
     summarize(
       observed_harm = list(unique(item_code_harm)),
       .groups = "drop"
     ) |>
-    left_join(harm_groups, by = c("items", names(select(harm_groups, !!!grouping_cols))),
-      relationship = "many-to-many") |>
+    left_join(
+      harm_groups,
+      by = c("items", names(select(harm_groups, !!!grouping_cols))),
+      relationship = "many-to-many"
+    ) |>
     mutate(
       all_present = map2_lgl(harm_set, observed_harm, ~ all(.x %in% .y))
     ) |>
@@ -146,27 +155,39 @@ harmonization_function_interpolation <- function(data, ...) {
   groups_with_complete_years <- group_year_presence |>
     select(items, !!!grouping_cols) |>
     distinct()
-  
+
   all_groups <- harm_groups |>
     select(items, !!!grouping_cols) |>
     distinct()
-  
-  incomplete_groups <- anti_join(all_groups, groups_with_complete_years, 
-                                by = c("items", names(select(all_groups, !!!grouping_cols))))
-  
+
+  incomplete_groups <- anti_join(
+    all_groups,
+    groups_with_complete_years,
+    by = c("items", names(select(all_groups, !!!grouping_cols)))
+  )
+
   if (nrow(incomplete_groups) > 0) {
-    cat("ERROR: Incomplete 1:N groups detected \nRevise following groups to ensure items have data for all years: \n")
+    cat(
+      "ERROR: Incomplete 1:N groups detected \nRevise following groups to ensure items have data for all years: \n"
+    )
     print(incomplete_groups)
     stop("error - incomplete groups. revise data.")
   }
 
   complex_shares <- data_groups |>
-    left_join(group_year_presence, by = c("items", names(select(data_groups, !!!grouping_cols))),
-    relationship = "many-to-many") |>
+    left_join(
+      group_year_presence,
+      by = c("items", names(select(data_groups, !!!grouping_cols))),
+      relationship = "many-to-many"
+    ) |>
     select(items, item_code_harm, year, !!!grouping_cols) |>
     left_join(
       df_simple |> select(-item_name_harm),
-      by = c("year", "item_code_harm", names(select(data_groups, !!!grouping_cols))),
+      by = c(
+        "year",
+        "item_code_harm",
+        names(select(data_groups, !!!grouping_cols))
+      ),
       relationship = "many-to-many"
     ) |>
     group_by(items, year, !!!grouping_cols) |>
@@ -184,8 +205,16 @@ harmonization_function_interpolation <- function(data, ...) {
 
   return_tibble <- data |>
     filter(type == "1:N") |>
-    left_join(complex_shares, by = c("items", "item_code_harm", "year", names(select(data, !!!grouping_cols))),
-      relationship = "many-to-many") |>
+    left_join(
+      complex_shares,
+      by = c(
+        "items",
+        "item_code_harm",
+        "year",
+        names(select(data, !!!grouping_cols))
+      ),
+      relationship = "many-to-many"
+    ) |>
     mutate(value = value * value_share) |>
     select(year, item_name_harm, item_code_harm, value, !!!grouping_cols) |>
     bind_rows(df_simple) |>
@@ -203,22 +232,16 @@ test_data_sheet_err <- test_data_sheet |>
     values_to = "value"
   ) |>
   mutate(year = as.numeric(year)) |>
-  filter(items != "prodfivesix") |> 
-  left_join(test_harm_sheet, by = c("items"),
-  relationship = "many-to-many") |> 
-  filter(!is.na(value)) |> 
+  filter(items != "prodfivesix") |>
+  left_join(test_harm_sheet, by = c("items"), relationship = "many-to-many") |>
+  filter(!is.na(value)) |>
   harmonization_function_interpolation_extracols(measurement, country)
-
-
-
-
-
 
 
 harmonization_function_interpolation_extracols <- function(data, ...) {
   # Capture additional grouping columns
   grouping_cols <- enquos(...)
-  
+
   data_groups <- data |>
     filter(type == "1:N") |>
     select(items, item_code_harm, !!!grouping_cols) |>
@@ -230,12 +253,20 @@ harmonization_function_interpolation_extracols <- function(data, ...) {
 
   df_simple <- data |>
     filter(type == "Simple") |>
-    group_by(item_name_harm, item_code_harm, year, measurement, !!!grouping_cols) |>
+    group_by(
+      item_name_harm,
+      item_code_harm,
+      year,
+      measurement,
+      !!!grouping_cols
+    ) |>
     summarize(value = sum(value), .groups = "drop") |>
     ungroup()
 
   if (nrow(data_groups) == 0) {
-    cat('only simple harmonization detected, returning simple harmonizations only')
+    cat(
+      'only simple harmonization detected, returning simple harmonizations only'
+    )
     return(
       df_simple |>
         rename(item_code = item_code_harm, items = item_name_harm)
@@ -244,15 +275,21 @@ harmonization_function_interpolation_extracols <- function(data, ...) {
 
   group_year_presence <- df_simple |>
     select(item_code_harm, year, !!!grouping_cols) |>
-    left_join(data_groups, by = c("item_code_harm", names(select(data_groups, !!!grouping_cols))),
-        relationship = "many-to-many") |>
+    left_join(
+      data_groups,
+      by = c("item_code_harm", names(select(data_groups, !!!grouping_cols))),
+      relationship = "many-to-many"
+    ) |>
     group_by(items, year, !!!grouping_cols) |>
     summarize(
       observed_harm = list(unique(item_code_harm)),
       .groups = "drop"
     ) |>
-    left_join(harm_groups, by = c("items", names(select(harm_groups, !!!grouping_cols))),
-      relationship = "many-to-many") |>
+    left_join(
+      harm_groups,
+      by = c("items", names(select(harm_groups, !!!grouping_cols))),
+      relationship = "many-to-many"
+    ) |>
     mutate(
       all_present = map2_lgl(harm_set, observed_harm, ~ all(.x %in% .y))
     ) |>
@@ -262,27 +299,39 @@ harmonization_function_interpolation_extracols <- function(data, ...) {
   groups_with_complete_years <- group_year_presence |>
     select(items, !!!grouping_cols) |>
     distinct()
-  
+
   all_groups <- harm_groups |>
     select(items, !!!grouping_cols) |>
     distinct()
-  
-  incomplete_groups <- anti_join(all_groups, groups_with_complete_years, 
-                                by = c("items", names(select(all_groups, !!!grouping_cols))))
-  
+
+  incomplete_groups <- anti_join(
+    all_groups,
+    groups_with_complete_years,
+    by = c("items", names(select(all_groups, !!!grouping_cols)))
+  )
+
   if (nrow(incomplete_groups) > 0) {
-    cat("ERROR: Incomplete 1:N groups detected \nRevise following groups to ensure items have data for all years: \n")
+    cat(
+      "ERROR: Incomplete 1:N groups detected \nRevise following groups to ensure items have data for all years: \n"
+    )
     print(incomplete_groups)
     stop("error - incomplete groups. revise data.")
   }
 
   complex_shares <- data_groups |>
-    left_join(group_year_presence, by = c("items", names(select(data_groups, !!!grouping_cols))),
-  relationship = "many-to-many") |>
+    left_join(
+      group_year_presence,
+      by = c("items", names(select(data_groups, !!!grouping_cols))),
+      relationship = "many-to-many"
+    ) |>
     select(items, item_code_harm, year, !!!grouping_cols) |>
     left_join(
       df_simple |> select(-item_name_harm, -measurement),
-      by = c("year", "item_code_harm", names(select(data_groups, !!!grouping_cols))),
+      by = c(
+        "year",
+        "item_code_harm",
+        names(select(data_groups, !!!grouping_cols))
+      ),
       relationship = "many-to-many"
     ) |>
     group_by(items, year, !!!grouping_cols) |>
@@ -300,10 +349,25 @@ harmonization_function_interpolation_extracols <- function(data, ...) {
 
   return_tibble <- data |>
     filter(type == "1:N") |>
-    left_join(complex_shares, by = c("items", "item_code_harm", "year", names(select(data, !!!grouping_cols))),
-      relationship = "many-to-many") |>
+    left_join(
+      complex_shares,
+      by = c(
+        "items",
+        "item_code_harm",
+        "year",
+        names(select(data, !!!grouping_cols))
+      ),
+      relationship = "many-to-many"
+    ) |>
     mutate(value = value * value_share) |>
-    select(year, item_name_harm, item_code_harm, value, measurement, !!!grouping_cols) |>
+    select(
+      year,
+      item_name_harm,
+      item_code_harm,
+      value,
+      measurement,
+      !!!grouping_cols
+    ) |>
     bind_rows(df_simple) |>
     rename(items = item_name_harm, item_code = item_code_harm) |>
     group_by(items, item_code, year, measurement, !!!grouping_cols) |>
