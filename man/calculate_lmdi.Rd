@@ -155,12 +155,11 @@ data <- tibble::tribble(
 )
 
 # Example: Complete form with multiple factors
-lmdi_result <- calculate_lmdi(
+calculate_lmdi(
   data,
   identity = "emissions:(emissions/gdp)*(gdp/population)*population",
   time_var = year,
   analysis_by = "country",
   verbose = FALSE
 )
-lmdi_result
 }
