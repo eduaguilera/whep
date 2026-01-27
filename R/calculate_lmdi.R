@@ -163,16 +163,20 @@ calculate_lmdi <- function(
   output_format <- match.arg(tolower(output_format), c("clean", "total"))
   analysis_cols <- if (is.null(analysis_by)) character(0) else analysis_by
 
+  identity_info <- list(
+    identity = identity,
+    target_var = target_var,
+    factors = factors,
+    factor_labels = labels$factor_labels,
+    target_label_final = labels$target_label_final
+  )
+
   all_results <- .lmdi_process_all_groups(
     data,
     periods,
     time_var,
     group_vars,
-    target_var,
-    factors,
-    labels$factor_labels,
-    labels$target_label_final,
-    identity,
+    identity_info,
     analysis_cols
   )
 
@@ -313,13 +317,8 @@ calculate_lmdi <- function(
   i,
   time_var,
   group_vars,
-  target_var,
-  factors,
-  factor_labels,
-  target_label_final,
-  identity,
-  analysis_cols,
-  analysis_values
+  identity_info,
+  analysis_info
 ) {
   t0 <- periods$t0[i]
   t_final <- periods$t_t[i]
@@ -330,41 +329,31 @@ calculate_lmdi <- function(
   }
 
   group_info <- .lmdi_setup_groups(d0, group_vars)
-  groups <- group_info$groups
-  group_index_str <- group_info$group_index_str
+  period_data <- list(d0 = d0, d_final = d_final, t0 = t0, t_final = t_final)
 
+  target_var <- identity_info$target_var
   y0_total <- sum(d0[[target_var]], na.rm = TRUE)
   y_final_total <- sum(d_final[[target_var]], na.rm = TRUE)
-  total_change <- y_final_total - y0_total
-  period_years <- .lmdi_calc_period_years(t0, t_final)
+  period_totals <- list(
+    y0_total = y0_total,
+    y_final_total = y_final_total,
+    total_change = y_final_total - y0_total,
+    period_years = .lmdi_calc_period_years(t0, t_final)
+  )
 
   contribs <- .lmdi_calc_contributions(
-    d0,
-    d_final,
-    groups,
-    group_index_str,
-    group_vars,
-    target_var,
-    factors,
-    y0_total,
-    y_final_total
+    period_data,
+    group_info,
+    identity_info,
+    period_totals
   )
 
   .lmdi_build_result(
-    t0,
-    t_final,
-    period_years,
-    factors,
-    factor_labels,
-    target_label_final,
-    identity,
-    target_var,
-    y0_total,
-    y_final_total,
-    total_change,
+    period_data,
+    period_totals,
+    identity_info,
     contribs,
-    analysis_cols,
-    analysis_values
+    analysis_info
   )
 }
 
@@ -707,7 +696,11 @@ calculate_lmdi <- function(
     groups <- tibble::tibble(dummy = 1)
     group_index_str <- ""
   }
-  list(groups = groups, group_index_str = group_index_str)
+  list(
+    groups = groups,
+    group_index_str = group_index_str,
+    group_vars = group_vars
+  )
 }
 
 .lmdi_calc_period_years <- function(t0, t_final) {
@@ -718,19 +711,22 @@ calculate_lmdi <- function(
 }
 
 .lmdi_calc_contributions <- function(
-  d0,
-  d_final,
-  groups,
-  group_index_str,
-  group_vars,
-  target_var,
-  factors,
-  y0_total,
-  y_final_total
+  period_data,
+  group_info,
+  identity_info,
+  period_totals
 ) {
+  d0 <- period_data$d0
+  d_final <- period_data$d_final
+  groups <- group_info$groups
+  group_index_str <- group_info$group_index_str
+  group_vars <- group_info$group_vars
+  target_var <- identity_info$target_var
+  factors <- identity_info$factors
+
   period_contribs_add <- rep(0, length(factors))
   period_contribs_mult_log <- rep(0, length(factors))
-  l_total <- .log_mean(y_final_total, y0_total)
+  l_total <- .log_mean(period_totals$y_final_total, period_totals$y0_total)
 
   for (g in seq_len(nrow(groups))) {
     group_vals <- if (!is.null(group_vars)) {
@@ -786,21 +782,28 @@ calculate_lmdi <- function(
 }
 
 .lmdi_build_result <- function(
-  t0,
-  t_final,
-  period_years,
-  factors,
-  factor_labels,
-  target_label_final,
-  identity,
-  target_var,
-  y0_total,
-  y_final_total,
-  total_change,
+  period_data,
+  period_totals,
+  identity_info,
   contribs,
-  analysis_cols,
-  analysis_values
+  analysis_info
 ) {
+  t0 <- period_data$t0
+  t_final <- period_data$t_final
+  period_years <- period_totals$period_years
+  y0_total <- period_totals$y0_total
+  y_final_total <- period_totals$y_final_total
+  total_change <- period_totals$total_change
+
+  factors <- identity_info$factors
+  factor_labels <- identity_info$factor_labels
+  target_label_final <- identity_info$target_label_final
+  identity <- identity_info$identity
+  target_var <- identity_info$target_var
+
+  analysis_cols <- analysis_info$cols
+  analysis_values <- analysis_info$values
+
   period_id <- paste(t0, t_final, sep = "-")
   target_ratio <- if (y0_total > 0) y_final_total / y0_total else NA_real_
   additive_gap <- total_change - sum(contribs$add)
@@ -903,11 +906,7 @@ calculate_lmdi <- function(
   periods,
   time_var,
   group_vars,
-  target_var,
-  factors,
-  factor_labels,
-  target_label_final,
-  identity,
+  identity_info,
   analysis_cols
 ) {
   analysis_groups <- if (length(analysis_cols) == 0) {
@@ -932,6 +931,7 @@ calculate_lmdi <- function(
       next
     }
 
+    analysis_info <- list(cols = analysis_cols, values = subset_info$values)
     period_results <- purrr::map(
       seq_len(nrow(periods)),
       ~ .lmdi_calc_period(
@@ -940,13 +940,8 @@ calculate_lmdi <- function(
         .x,
         time_var,
         group_vars,
-        target_var,
-        factors,
-        factor_labels,
-        target_label_final,
-        identity,
-        analysis_cols,
-        subset_info$values
+        identity_info,
+        analysis_info
       )
     ) |>
       purrr::compact()
