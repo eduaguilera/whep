@@ -3,15 +3,15 @@
 test_that("calculate_lmdi performs basic decomposition", {
   data <- tibble::tribble(
     ~year, ~emissions, ~gdp, ~population,
-    2010,        100, 1000,          46,
-    2011,        110, 1100,          47,
-    2012,        120, 1200,          48
+    2010, 100, 1000, 46,
+    2011, 110, 1100, 47,
+    2012, 120, 1200, 48
   )
 
   result <- calculate_lmdi(
     data,
     identity = "emissions:gdp*population",
-    time_var = "year",
+    time_var = year,
     verbose = FALSE
   )
 
@@ -31,7 +31,7 @@ test_that("calculate_lmdi works with grouping", {
   result <- calculate_lmdi(
     data,
     identity = "emissions:gdp*population",
-    time_var = "year",
+    time_var = year,
     analysis_by = "country",
     verbose = FALSE
   )
@@ -44,15 +44,15 @@ test_that("calculate_lmdi works with grouping", {
 test_that("calculate_lmdi returns expected columns", {
   data <- tibble::tribble(
     ~year, ~emissions, ~gdp, ~population,
-    2010,        100, 1000,          46,
-    2011,        110, 1100,          47,
-    2012,        120, 1200,          48
+    2010, 100, 1000, 46,
+    2011, 110, 1100, 47,
+    2012, 120, 1200, 48
   )
 
   result <- calculate_lmdi(
     data,
     identity = "emissions:gdp*population",
-    time_var = "year",
+    time_var = year,
     verbose = FALSE
   )
 
@@ -64,16 +64,16 @@ test_that("calculate_lmdi returns expected columns", {
 test_that("calculate_lmdi handles multiple periods", {
   data <- tibble::tribble(
     ~year, ~emissions, ~gdp, ~population,
-    2010,        100, 1000,          46,
-    2011,        110, 1100,          47,
-    2012,        120, 1200,          48,
-    2013,        130, 1300,          49
+    2010, 100, 1000, 46,
+    2011, 110, 1100, 47,
+    2012, 120, 1200, 48,
+    2013, 130, 1300, 49
   )
 
   result <- calculate_lmdi(
     data,
     identity = "emissions:gdp*population",
-    time_var = "year",
+    time_var = year,
     periods = c(2010, 2012, 2013),
     verbose = FALSE
   )

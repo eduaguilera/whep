@@ -8,7 +8,7 @@ calculate_lmdi(
   data,
   identity,
   identity_labels = NULL,
-  time_var = "year",
+  time_var = year,
   periods = NULL,
   periods_2 = NULL,
   analysis_by = NULL,
@@ -31,8 +31,8 @@ factors after, separated by asterisks. Supports explicit ratios with
 to use in output instead of variable names. Default: NULL uses variable
 names as-is.}
 
-\item{time_var}{Character. Name of the time variable column in the data.
-Default: "year". Must be numeric or coercible to numeric.}
+\item{time_var}{Unquoted name of the time variable column in the data.
+Default: \code{year}. Must be numeric or coercible to numeric.}
 
 \item{periods}{Numeric vector. Years defining analysis periods. Each
 consecutive pair defines one period. Default: NULL uses all available
@@ -158,7 +158,7 @@ data <- tibble::tribble(
 lmdi_result <- calculate_lmdi(
   data,
   identity = "emissions:(emissions/gdp)*(gdp/population)*population",
-  time_var = "year",
+  time_var = year,
   analysis_by = "country",
   verbose = FALSE
 )

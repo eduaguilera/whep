@@ -68,8 +68,8 @@
 #' @param identity_labels Named character vector. Custom labels for factors
 #'   to use in output instead of variable names. Default: NULL uses variable
 #'   names as-is.
-#' @param time_var Character. Name of the time variable column in the data.
-#'   Default: "year". Must be numeric or coercible to numeric.
+#' @param time_var Unquoted name of the time variable column in the data.
+#'   Default: `year`. Must be numeric or coercible to numeric.
 #' @param periods Numeric vector. Years defining analysis periods. Each
 #'   consecutive pair defines one period. Default: NULL uses all available
 #'   years.
@@ -117,7 +117,7 @@
 #' lmdi_result <- calculate_lmdi(
 #'   data,
 #'   identity = "emissions:(emissions/gdp)*(gdp/population)*population",
-#'   time_var = "year",
+#'   time_var = year,
 #'   analysis_by = "country",
 #'   verbose = FALSE
 #' )
@@ -126,7 +126,7 @@ calculate_lmdi <- function(
   data,
   identity,
   identity_labels = NULL,
-  time_var = "year",
+  time_var = year,
   periods = NULL,
   periods_2 = NULL,
   analysis_by = NULL,
@@ -142,14 +142,14 @@ calculate_lmdi <- function(
     data,
     identity,
     target_var,
-    time_var,
+    {{ time_var }},
     rolling_mean,
     verbose
   )
 
   labels <- .lmdi_handle_identity_labels(identity_labels, factors, target_var)
   group_vars <- .lmdi_detect_group_vars(identity, verbose)
-  periods <- .lmdi_setup_periods(data, time_var, periods, periods_2)
+  periods <- .lmdi_setup_periods(data, {{ time_var }}, periods, periods_2)
 
   validation <- .lmdi_validate_inputs(data, group_vars, analysis_by)
   group_vars <- validation$group_vars
@@ -169,7 +169,7 @@ calculate_lmdi <- function(
   all_results <- .lmdi_process_all_groups(
     data,
     periods,
-    time_var,
+    {{ time_var }},
     group_vars,
     identity_info,
     analysis_cols
@@ -264,7 +264,10 @@ calculate_lmdi <- function(
 
 .lmdi_setup_periods <- function(data, time_var, periods, periods_2) {
   if (is.null(periods)) {
-    years <- sort(unique(data[[time_var]]))
+    years <- data |>
+      dplyr::pull({{ time_var }}) |>
+      unique() |>
+      sort()
     if (length(years) < 2) {
       cli::cli_abort("Need at least two periods to perform the decomposition")
     }
@@ -317,8 +320,8 @@ calculate_lmdi <- function(
 ) {
   t0 <- periods$t0[i]
   t_final <- periods$t_t[i]
-  d0 <- subset_data |> dplyr::filter(.data[[time_var]] == t0)
-  d_final <- subset_data |> dplyr::filter(.data[[time_var]] == t_final)
+  d0 <- subset_data |> dplyr::filter({{ time_var }} == t0)
+  d_final <- subset_data |> dplyr::filter({{ time_var }} == t_final)
   if (nrow(d0) == 0 || nrow(d_final) == 0) {
     return(NULL)
   }
@@ -539,13 +542,14 @@ calculate_lmdi <- function(
 }
 
 .lmdi_extract_vars <- function(data, identity, target_var, time_var) {
+  time_var_str <- rlang::as_name(rlang::enquo(time_var))
   all_vars <- unique(c(
     target_var,
     stringr::str_extract_all(identity, "[a-zA-Z0-9_]+")[[1]]
   ))
   numeric_vars <- all_vars[all_vars %in% names(data)]
   numeric_vars <- numeric_vars[purrr::map_lgl(data[numeric_vars], is.numeric)]
-  group_cols <- setdiff(names(data), c(time_var, numeric_vars))
+  group_cols <- setdiff(names(data), c(time_var_str, numeric_vars))
   list(numeric_vars = numeric_vars, group_cols = group_cols)
 }
 
@@ -559,11 +563,12 @@ calculate_lmdi <- function(
   if (verbose) {
     cli::cli_inform("Step 1: Panel balancing")
   }
+  time_var_str <- rlang::as_name(rlang::enquo(time_var))
   n_before <- nrow(data)
   if (length(group_cols) > 0) {
     data <- data |>
       tidyr::complete(
-        !!!rlang::syms(c(time_var, group_cols)),
+        !!!rlang::syms(c(time_var_str, group_cols)),
         fill = as.list(
           stats::setNames(rep(NA_real_, length(numeric_vars)), numeric_vars)
         )
@@ -611,11 +616,13 @@ calculate_lmdi <- function(
     data |>
       dplyr::group_by(dplyr::across(dplyr::all_of(group_cols))) |>
       dplyr::summarise(
-        n_years = dplyr::n_distinct(.data[[time_var]]),
+        n_years = dplyr::n_distinct({{ time_var }}),
         .groups = "drop"
       )
   } else {
-    tibble::tibble(n_years = dplyr::n_distinct(data[[time_var]]))
+    tibble::tibble(
+      n_years = data |> dplyr::pull({{ time_var }}) |> dplyr::n_distinct()
+    )
   }
   min_years <- min(years_per_group$n_years)
   k_orig <- as.integer(rolling_mean)
@@ -653,7 +660,7 @@ calculate_lmdi <- function(
   }
   if (length(group_cols) > 0) {
     data <- data |>
-      dplyr::arrange(!!!rlang::syms(group_cols), .data[[time_var]]) |>
+      dplyr::arrange(!!!rlang::syms(group_cols), {{ time_var }}) |>
       dplyr::group_by(dplyr::across(dplyr::all_of(group_cols))) |>
       dplyr::mutate(dplyr::across(
         dplyr::all_of(numeric_vars),
@@ -663,7 +670,7 @@ calculate_lmdi <- function(
       dplyr::filter(!is.na(.data[[target_var]]))
   } else {
     data <- data |>
-      dplyr::arrange(.data[[time_var]]) |>
+      dplyr::arrange({{ time_var }}) |>
       dplyr::mutate(dplyr::across(
         dplyr::all_of(numeric_vars),
         ~ zoo::rollmean(.x, k = k_eff, fill = NA, align = "center")
@@ -933,7 +940,7 @@ calculate_lmdi <- function(
         subset_info$data,
         periods,
         .x,
-        time_var,
+        {{ time_var }},
         group_vars,
         identity_info,
         analysis_info
