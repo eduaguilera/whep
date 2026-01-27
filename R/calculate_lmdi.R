@@ -185,11 +185,6 @@ calculate_lmdi <- function(
     all_results,
     output_format,
     analysis_cols,
-    identity,
-    identity_labels,
-    target_var,
-    periods,
-    rolling_mean,
     verbose
   )
 }
@@ -996,15 +991,9 @@ calculate_lmdi <- function(
   all_results,
   output_format,
   analysis_cols,
-  identity,
-  identity_labels,
-  target_var,
-  periods,
-  rolling_mean,
   verbose
 ) {
   out <- dplyr::bind_rows(all_results$results)
-  period_targets_df <- dplyr::bind_rows(all_results$period_targets)
 
   if (output_format == "clean") {
     select_cols <- c(
@@ -1023,16 +1012,9 @@ calculate_lmdi <- function(
     out <- out |> dplyr::select(dplyr::all_of(select_cols))
   }
 
-  attr(out, "identity") <- identity
-  attr(out, "identity_labels") <- identity_labels
-  attr(out, "identity_var") <- target_var
-  attr(out, "period_targets") <- period_targets_df
-  attr(out, "periods") <- periods
-  attr(out, "analysis_by") <- analysis_cols
-  attr(out, "rolling_mean") <- rolling_mean
-
   if (verbose) {
     cli::cli_inform("LMDI calculation complete.")
   }
+
   out
 }
