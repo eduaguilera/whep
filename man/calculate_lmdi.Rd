@@ -2,7 +2,7 @@
 % Please edit documentation in R/calculate_lmdi.R
 \name{calculate_lmdi}
 \alias{calculate_lmdi}
-\title{Calculate LMDI decomposition}
+\title{Calculate LMDI decomposition.}
 \usage{
 calculate_lmdi(
   data,
@@ -55,7 +55,7 @@ applied before decomposition. Default: NULL (no smoothing).}
 decomposition.}
 }
 \value{
-A data frame with LMDI decomposition results containing:
+A tibble with LMDI decomposition results containing:
 \itemize{
 \item Time variables and grouping variables (if specified).
 \item \code{additive}: Additive contributions (sum equals total change in target).
@@ -138,32 +138,29 @@ The input data frame must contain:
 
 \examples{
 # Simple LMDI decomposition
-data <- data.frame(
-  year = rep(2010:2015, 2),
-  country = rep(c("ESP", "FRA"), each = 6),
-  emissions = c(100, 105, 110, 115, 120, 125, 200, 210, 220, 230, 240, 250),
-  gdp = c(
-    1000, 1050, 1100, 1150, 1200, 1250,
-    2000, 2100, 2200, 2300, 2400, 2500
-  ),
-  population = c(46, 46.5, 47, 47.5, 48, 48.5, 65, 65.5, 66, 66.5, 67, 67.5)
+data <- tibble::tribble(
+  ~year, ~country, ~emissions, ~gdp, ~population,
+  2010,  "ESP",    100,        1000, 46,
+  2011,  "ESP",    105,        1050, 46.5,
+  2012,  "ESP",    110,        1100, 47,
+  2013,  "ESP",    115,        1150, 47.5,
+  2014,  "ESP",    120,        1200, 48,
+  2015,  "ESP",    125,        1250, 48.5,
+  2010,  "FRA",    200,        2000, 65,
+  2011,  "FRA",    210,        2100, 65.5,
+  2012,  "FRA",    220,        2200, 66,
+  2013,  "FRA",    230,        2300, 66.5,
+  2014,  "FRA",    240,        2400, 67,
+  2015,  "FRA",    250,        2500, 67.5
 )
 
-# Example 1: Simple decomposition by country
-lmdi_basic <- calculate_lmdi(
-  data,
-  identity = "emissions:gdp*(emissions/gdp)",
-  time_var = "year",
-  analysis_by = "country"
-)
-
-# Example 2: Complete form with multiple factors
-lmdi_complete <- calculate_lmdi(
+# Example: Complete form with multiple factors
+lmdi_result <- calculate_lmdi(
   data,
   identity = "emissions:(emissions/gdp)*(gdp/population)*population",
   time_var = "year",
-  analysis_by = "country"
+  analysis_by = "country",
+  verbose = FALSE
 )
-
+lmdi_result
 }
-\concept{calculations}
