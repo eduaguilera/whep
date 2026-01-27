@@ -144,7 +144,12 @@ calculate_lmdi <- function(
   factors <- id$factors
 
   data <- .lmdi_prepare_rolling_mean(
-    data, identity, target_var, time_var, rolling_mean, verbose
+    data,
+    identity,
+    target_var,
+    time_var,
+    rolling_mean,
+    verbose
   )
 
   labels <- .lmdi_handle_identity_labels(identity_labels, factors, target_var)
@@ -159,19 +164,35 @@ calculate_lmdi <- function(
   analysis_cols <- if (is.null(analysis_by)) character(0) else analysis_by
 
   all_results <- .lmdi_process_all_groups(
-    data, periods, time_var, group_vars, target_var, factors,
-    labels$factor_labels, labels$target_label_final, identity,
+    data,
+    periods,
+    time_var,
+    group_vars,
+    target_var,
+    factors,
+    labels$factor_labels,
+    labels$target_label_final,
+    identity,
     analysis_cols
   )
 
   if (length(all_results$results) == 0) {
-    if (verbose) cli::cli_inform("No results produced.")
+    if (verbose) {
+      cli::cli_inform("No results produced.")
+    }
     return(tibble::tibble())
   }
 
   .lmdi_format_output(
-    all_results, output_format, analysis_cols, identity, identity_labels,
-    target_var, periods, rolling_mean, verbose
+    all_results,
+    output_format,
+    analysis_cols,
+    identity,
+    identity_labels,
+    target_var,
+    periods,
+    rolling_mean,
+    verbose
   )
 }
 
@@ -205,11 +226,21 @@ calculate_lmdi <- function(
   data <- .lmdi_treat_zeros(data, numeric_vars, verbose)
 
   k_eff <- .lmdi_calc_effective_k(
-    data, time_var, group_cols, rolling_mean, verbose
+    data,
+    time_var,
+    group_cols,
+    rolling_mean,
+    verbose
   )
 
   data <- .lmdi_apply_rolling_mean(
-    data, target_var, time_var, group_cols, numeric_vars, k_eff, verbose
+    data,
+    target_var,
+    time_var,
+    group_cols,
+    numeric_vars,
+    k_eff,
+    verbose
   )
 
   data
@@ -308,14 +339,32 @@ calculate_lmdi <- function(
   period_years <- .lmdi_calc_period_years(t0, t_final)
 
   contribs <- .lmdi_calc_contributions(
-    d0, d_final, groups, group_index_str, group_vars,
-    target_var, factors, y0_total, y_final_total
+    d0,
+    d_final,
+    groups,
+    group_index_str,
+    group_vars,
+    target_var,
+    factors,
+    y0_total,
+    y_final_total
   )
 
   .lmdi_build_result(
-    t0, t_final, period_years, factors, factor_labels, target_label_final,
-    identity, target_var, y0_total, y_final_total, total_change,
-    contribs, analysis_cols, analysis_values
+    t0,
+    t_final,
+    period_years,
+    factors,
+    factor_labels,
+    target_label_final,
+    identity,
+    target_var,
+    y0_total,
+    y_final_total,
+    total_change,
+    contribs,
+    analysis_cols,
+    analysis_values
   )
 }
 
@@ -349,7 +398,10 @@ calculate_lmdi <- function(
     add_diff <- closure_summary$target_add[row_idx] -
       closure_summary$sum_factors_add[row_idx]
     if (!is.na(add_diff) && abs(add_diff) > tolerance_add) {
-      context <- paste(closure_summary[row_idx, closure_group_cols, drop = TRUE], collapse = ", ")
+      context <- paste(
+        closure_summary[row_idx, closure_group_cols, drop = TRUE],
+        collapse = ", "
+      )
       cli::cli_warn(
         "[{context}] Additive contributions differ from target change by {round(add_diff, 4)}"
       )
@@ -361,7 +413,10 @@ calculate_lmdi <- function(
     ) {
       mult_diff <- abs(target_mult_val / prod_mult_val - 1)
       if (mult_diff > tolerance_mult) {
-        context <- paste(closure_summary[row_idx, closure_group_cols, drop = TRUE], collapse = ", ")
+        context <- paste(
+          closure_summary[row_idx, closure_group_cols, drop = TRUE],
+          collapse = ", "
+        )
         cli::cli_warn(
           "[{context}] Multiplicative contributions differ from target ratio by {round(mult_diff, 4)}"
         )
@@ -476,7 +531,9 @@ calculate_lmdi <- function(
 
 .lmdi_validate_inputs <- function(data, group_vars, analysis_by) {
   if (!is.null(group_vars)) {
-    missing <- group_vars[!purrr::map_lgl(group_vars, ~ rlang::has_name(data, .x))]
+    missing <- group_vars[
+      !purrr::map_lgl(group_vars, ~ rlang::has_name(data, .x))
+    ]
     if (length(missing) > 0) {
       cli::cli_abort(
         "group_vars not found in data: {paste(missing, collapse = ', ')}"
@@ -485,7 +542,9 @@ calculate_lmdi <- function(
   }
   if (!is.null(analysis_by)) {
     analysis_by <- unique(analysis_by)
-    missing <- analysis_by[!purrr::map_lgl(analysis_by, ~ rlang::has_name(data, .x))]
+    missing <- analysis_by[
+      !purrr::map_lgl(analysis_by, ~ rlang::has_name(data, .x))
+    ]
     if (length(missing) > 0) {
       cli::cli_abort(
         "analysis_by columns not found in data: {paste(missing, collapse = ', ')}"
@@ -506,7 +565,13 @@ calculate_lmdi <- function(
   list(numeric_vars = numeric_vars, group_cols = group_cols)
 }
 
-.lmdi_balance_panel <- function(data, time_var, group_cols, numeric_vars, verbose) {
+.lmdi_balance_panel <- function(
+  data,
+  time_var,
+  group_cols,
+  numeric_vars,
+  verbose
+) {
   if (verbose) {
     cli::cli_inform("Step 1: Panel balancing")
   }
@@ -542,18 +607,29 @@ calculate_lmdi <- function(
       )
     )
   if (verbose) {
-    cli::cli_inform("  - Replacement value: {format(epsilon, scientific = TRUE)} (epsilon)")
+    cli::cli_inform(
+      "  - Replacement value: {format(epsilon, scientific = TRUE)} (epsilon)"
+    )
     cli::cli_inform("-----------------------------")
     cli::cli_inform("")
   }
   data
 }
 
-.lmdi_calc_effective_k <- function(data, time_var, group_cols, rolling_mean, verbose) {
+.lmdi_calc_effective_k <- function(
+  data,
+  time_var,
+  group_cols,
+  rolling_mean,
+  verbose
+) {
   years_per_group <- if (length(group_cols) > 0) {
     data |>
       dplyr::group_by(dplyr::across(dplyr::all_of(group_cols))) |>
-      dplyr::summarise(n_years = dplyr::n_distinct(.data[[time_var]]), .groups = "drop")
+      dplyr::summarise(
+        n_years = dplyr::n_distinct(.data[[time_var]]),
+        .groups = "drop"
+      )
   } else {
     tibble::tibble(n_years = dplyr::n_distinct(data[[time_var]]))
   }
@@ -561,7 +637,10 @@ calculate_lmdi <- function(
   k_orig <- as.integer(rolling_mean)
   k_eff <- k_orig
   if (min_years < k_orig) {
-    k_eff <- max(3L, min(min_years, ifelse(k_orig %% 2 == 1, k_orig, k_orig - 1)))
+    k_eff <- max(
+      3L,
+      min(min_years, ifelse(k_orig %% 2 == 1, k_orig, k_orig - 1))
+    )
     if (k_eff > min_years) {
       k_eff <- max(3L, min_years - (1L - (min_years %% 2)))
     }
@@ -575,7 +654,13 @@ calculate_lmdi <- function(
 }
 
 .lmdi_apply_rolling_mean <- function(
-  data, target_var, time_var, group_cols, numeric_vars, k_eff, verbose
+  data,
+  target_var,
+  time_var,
+  group_cols,
+  numeric_vars,
+  k_eff,
+  verbose
 ) {
   if (verbose) {
     cli::cli_inform(
@@ -633,8 +718,15 @@ calculate_lmdi <- function(
 }
 
 .lmdi_calc_contributions <- function(
-  d0, d_final, groups, group_index_str, group_vars,
-  target_var, factors, y0_total, y_final_total
+  d0,
+  d_final,
+  groups,
+  group_index_str,
+  group_vars,
+  target_var,
+  factors,
+  y0_total,
+  y_final_total
 ) {
   period_contribs_add <- rep(0, length(factors))
   period_contribs_mult_log <- rep(0, length(factors))
@@ -650,13 +742,21 @@ calculate_lmdi <- function(
     d_final_g <- .filter_by_group(d_final, group_index_str, group_vals)
     y0 <- sum(d0g[[target_var]], na.rm = TRUE)
     y_final <- sum(d_final_g[[target_var]], na.rm = TRUE)
-    if (y0 == 0 || y_final == 0) next
+    if (y0 == 0 || y_final == 0) {
+      next
+    }
 
-    f0 <- purrr::map_dbl(factors, ~ as.numeric(.eval_factor(d0, .x, group_vals)))
-    f_final <- purrr::map_dbl(
-      factors, ~ as.numeric(.eval_factor(d_final, .x, group_vals))
+    f0 <- purrr::map_dbl(
+      factors,
+      ~ as.numeric(.eval_factor(d0, .x, group_vals))
     )
-    if (any(is.na(f0)) || any(is.na(f_final))) next
+    f_final <- purrr::map_dbl(
+      factors,
+      ~ as.numeric(.eval_factor(d_final, .x, group_vals))
+    )
+    if (any(is.na(f0)) || any(is.na(f_final))) {
+      next
+    }
 
     l_val <- .log_mean(y_final, y0)
     valid <- f0 > 0 & f_final > 0
@@ -677,14 +777,29 @@ calculate_lmdi <- function(
   list(
     add = period_contribs_add,
     mult = period_contribs_mult,
-    mult_log = ifelse(period_contribs_mult > 0, log(period_contribs_mult), NA_real_)
+    mult_log = ifelse(
+      period_contribs_mult > 0,
+      log(period_contribs_mult),
+      NA_real_
+    )
   )
 }
 
 .lmdi_build_result <- function(
-  t0, t_final, period_years, factors, factor_labels, target_label_final,
-  identity, target_var, y0_total, y_final_total, total_change,
-  contribs, analysis_cols, analysis_values
+  t0,
+  t_final,
+  period_years,
+  factors,
+  factor_labels,
+  target_label_final,
+  identity,
+  target_var,
+  y0_total,
+  y_final_total,
+  total_change,
+  contribs,
+  analysis_cols,
+  analysis_values
 ) {
   period_id <- paste(t0, t_final, sep = "-")
   target_ratio <- if (y0_total > 0) y_final_total / y0_total else NA_real_
@@ -726,7 +841,11 @@ calculate_lmdi <- function(
     target_initial = y0_total,
     target_final = y_final_total,
     total_change = total_change,
-    percentage_change = if (y0_total != 0) (total_change / y0_total) * 100 else NA_real_,
+    percentage_change = if (y0_total != 0) {
+      (total_change / y0_total) * 100
+    } else {
+      NA_real_
+    },
     additive = total_change,
     multiplicative = target_ratio,
     multiplicative_log = if (!is.na(target_ratio) && target_ratio > 0) {
@@ -780,8 +899,16 @@ calculate_lmdi <- function(
 }
 
 .lmdi_process_all_groups <- function(
-  data, periods, time_var, group_vars, target_var, factors,
-  factor_labels, target_label_final, identity, analysis_cols
+  data,
+  periods,
+  time_var,
+  group_vars,
+  target_var,
+  factors,
+  factor_labels,
+  target_label_final,
+  identity,
+  analysis_cols
 ) {
   analysis_groups <- if (length(analysis_cols) == 0) {
     tibble::tibble(.analysis_id = 1)
@@ -795,31 +922,65 @@ calculate_lmdi <- function(
   period_targets_all <- list()
 
   for (idx in seq_len(nrow(analysis_groups))) {
-    subset_info <- .lmdi_get_analysis_subset(data, analysis_groups, idx, analysis_cols)
-    if (is.null(subset_info)) next
+    subset_info <- .lmdi_get_analysis_subset(
+      data,
+      analysis_groups,
+      idx,
+      analysis_cols
+    )
+    if (is.null(subset_info)) {
+      next
+    }
 
     period_results <- purrr::map(
       seq_len(nrow(periods)),
       ~ .lmdi_calc_period(
-        subset_info$data, periods, .x, time_var, group_vars, target_var,
-        factors, factor_labels, target_label_final, identity,
-        analysis_cols, subset_info$values
+        subset_info$data,
+        periods,
+        .x,
+        time_var,
+        group_vars,
+        target_var,
+        factors,
+        factor_labels,
+        target_label_final,
+        identity,
+        analysis_cols,
+        subset_info$values
       )
-    ) |> purrr::compact()
+    ) |>
+      purrr::compact()
 
-    if (length(period_results) == 0) next
+    if (length(period_results) == 0) {
+      next
+    }
 
     analysis_result <- dplyr::bind_rows(purrr::map(period_results, "result"))
-    analysis_period_targets <- dplyr::bind_rows(purrr::map(period_results, "target"))
-    .lmdi_closure_check(analysis_result, analysis_cols, tolerance_add, tolerance_mult)
+    analysis_period_targets <- dplyr::bind_rows(purrr::map(
+      period_results,
+      "target"
+    ))
+    .lmdi_closure_check(
+      analysis_result,
+      analysis_cols,
+      tolerance_add,
+      tolerance_mult
+    )
     results_all[[length(results_all) + 1]] <- analysis_result
-    period_targets_all[[length(period_targets_all) + 1]] <- analysis_period_targets
+    period_targets_all[[
+      length(period_targets_all) + 1
+    ]] <- analysis_period_targets
   }
 
   list(results = results_all, period_targets = period_targets_all)
 }
 
-.lmdi_get_analysis_subset <- function(data, analysis_groups, idx, analysis_cols) {
+.lmdi_get_analysis_subset <- function(
+  data,
+  analysis_groups,
+  idx,
+  analysis_cols
+) {
   if (length(analysis_cols) == 0) {
     return(list(data = data, values = NULL))
   }
@@ -836,16 +997,31 @@ calculate_lmdi <- function(
 }
 
 .lmdi_format_output <- function(
-  all_results, output_format, analysis_cols, identity, identity_labels,
-  target_var, periods, rolling_mean, verbose
+  all_results,
+  output_format,
+  analysis_cols,
+  identity,
+  identity_labels,
+  target_var,
+  periods,
+  rolling_mean,
+  verbose
 ) {
   out <- dplyr::bind_rows(all_results$results)
   period_targets_df <- dplyr::bind_rows(all_results$period_targets)
 
   if (output_format == "clean") {
     select_cols <- c(
-      analysis_cols, "period", "period_years", "factor_label", "component_type",
-      "identity", "identity_var", "additive", "multiplicative", "multiplicative_log"
+      analysis_cols,
+      "period",
+      "period_years",
+      "factor_label",
+      "component_type",
+      "identity",
+      "identity_var",
+      "additive",
+      "multiplicative",
+      "multiplicative_log"
     )
     select_cols <- select_cols[select_cols %in% names(out)]
     out <- out |> dplyr::select(dplyr::all_of(select_cols))
@@ -859,6 +1035,8 @@ calculate_lmdi <- function(
   attr(out, "analysis_by") <- analysis_cols
   attr(out, "rolling_mean") <- rolling_mean
 
-  if (verbose) cli::cli_inform("LMDI calculation complete.")
+  if (verbose) {
+    cli::cli_inform("LMDI calculation complete.")
+  }
   out
 }
