@@ -442,7 +442,11 @@ test_that("calculate_lmdi uses custom identity labels", {
   result <- calculate_lmdi(
     data,
     identity = "emissions:activity*intensity",
-    identity_labels = c("Total Emissions", "Activity Effect", "Intensity Effect"),
+    identity_labels = c(
+      "Total Emissions",
+      "Activity Effect",
+      "Intensity Effect"
+    ),
     time_var = year,
     verbose = FALSE
   )
