@@ -1,6 +1,6 @@
 # Tests for calculate_lmdi()
 
-# Helper fixtures ---------------------------------------------------------------
+# Helper fixtures --------------------------------------------------------------
 
 #' Generate consistent LMDI test data where emissions = activity * intensity.
 #' This ensures perfect decomposition closure.
@@ -81,7 +81,7 @@ lmdi_rolling_fixture <- function() {
 }
 
 
-# Basic decomposition -----------------------------------------------------------
+# Basic decomposition ----------------------------------------------------------
 
 test_that("calculate_lmdi performs basic decomposition with perfect closure", {
   data <- lmdi_basic_fixture()
@@ -203,7 +203,7 @@ test_that("calculate_lmdi produces correct values (manual calculation)", {
   expect_equal(intensity_mult, 1.0, tolerance = 1e-6)
 })
 
-# Ratio notation ----------------------------------------------------------------
+# Ratio notation ---------------------------------------------------------------
 
 test_that("calculate_lmdi accepts ratio notation in identity", {
   data <- lmdi_basic_fixture()
@@ -214,7 +214,6 @@ test_that("calculate_lmdi accepts ratio notation in identity", {
     time_var = year,
     verbose = FALSE
   )
-  browser()
 
   expect_true(tibble::is_tibble(result))
   expect_true(nrow(result) > 0)
@@ -248,7 +247,7 @@ test_that("calculate_lmdi accepts ratio notation in identity", {
 })
 
 
-# Multi-period analysis ---------------------------------------------------------
+# Multi-period analysis --------------------------------------------------------
 
 test_that("calculate_lmdi default periods creates year-over-year", {
   data <- lmdi_basic_fixture()
@@ -309,7 +308,7 @@ test_that("calculate_lmdi periods_2 appends additional period", {
 })
 
 
-# Grouping with analysis_by -----------------------------------------------------
+# Grouping with analysis_by ----------------------------------------------------
 
 test_that("calculate_lmdi performs separate decomposition per group", {
   data <- lmdi_country_fixture()
@@ -354,7 +353,7 @@ test_that("calculate_lmdi performs separate decomposition per group", {
 })
 
 
-# Structural decomposition with [] brackets -------------------------------------
+# Structural decomposition with [] brackets ------------------------------------
 
 test_that("calculate_lmdi auto-detects sector selectors from identity", {
   data <- lmdi_sector_fixture()
@@ -365,9 +364,6 @@ test_that("calculate_lmdi auto-detects sector selectors from identity", {
     dplyr::mutate(total_activity = sum(activity)) |>
     dplyr::ungroup()
 
-  # Three-factor structural decomposition:
-  # emissions = total_activity * (activity[sector]/total_activity) *
-  #             (emissions[sector]/activity[sector])
   result <- calculate_lmdi(
     data_with_total,
     identity = paste0(
@@ -391,7 +387,7 @@ test_that("calculate_lmdi auto-detects sector selectors from identity", {
 })
 
 
-# Rolling mean ------------------------------------------------------------------
+# Rolling mean -----------------------------------------------------------------
 
 # KNOWN BUG: This test exposes a bug in .lmdi_balance_panel where it fails to
 # properly handle the time_var when data has no grouping columns. The error
@@ -435,7 +431,7 @@ test_that("calculate_lmdi rejects invalid rolling_mean values", {
 })
 
 
-# Identity labels ---------------------------------------------------------------
+# Identity labels --------------------------------------------------------------
 
 test_that("calculate_lmdi uses custom identity labels", {
   data <- lmdi_basic_fixture()
@@ -443,7 +439,11 @@ test_that("calculate_lmdi uses custom identity labels", {
   result <- calculate_lmdi(
     data,
     identity = "emissions:activity*intensity",
-    identity_labels = c("Total Emissions", "Activity Effect", "Intensity Effect"),
+    identity_labels = c(
+      "Total Emissions",
+      "Activity Effect",
+      "Intensity Effect"
+    ),
     time_var = year,
     verbose = FALSE
   )
@@ -473,7 +473,7 @@ test_that("calculate_lmdi rejects wrong number of identity labels", {
 })
 
 
-# Output formats ----------------------------------------------------------------
+# Output formats ---------------------------------------------------------------
 
 test_that("calculate_lmdi clean output has fewer columns", {
   data <- lmdi_basic_fixture()
@@ -492,7 +492,7 @@ test_that("calculate_lmdi clean output has fewer columns", {
 })
 
 
-# Edge cases --------------------------------------------------------------------
+# Edge cases -------------------------------------------------------------------
 
 test_that("calculate_lmdi handles minimum data (2 years)", {
   data <- tibble::tribble(
@@ -545,7 +545,7 @@ test_that("calculate_lmdi handles zeros with epsilon replacement", {
 })
 
 
-# Closure warning tests ---------------------------------------------------------
+# Closure warning tests --------------------------------------------------------
 
 test_that("calculate_lmdi warns on inconsistent data", {
   data <- lmdi_inconsistent_fixture()
