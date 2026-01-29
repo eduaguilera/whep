@@ -67,14 +67,14 @@ create_n_prov_destiny <- function() {
       adding_feed_output$feed_intake,
       food_and_other_uses
     ) |>
-    .convert_to_items_n(codes_coefs_items_full, biomass_coefs)
+    convert_to_items_n(codes_coefs_items_full, biomass_coefs)
 
   n_soil_inputs <- .calculate_n_soil_inputs(
     whep_read_file("n_balance_ygpit_all"),
     codes_coefs
   )
 
-  trade_data <- .calculate_trade(
+  trade_data <- calculate_trade(
     grafs_prod_item_n,
     pie_full_destinies_fm,
     biomass_coefs,
@@ -844,9 +844,8 @@ create_n_prov_destiny <- function() {
 #' (DM/FM and N/DM).
 #'
 #' @return A dataframe with food, feed, and other uses in MgN.
-#' @keywords internal
-#' @noRd
-.convert_to_items_n <- function(
+#' @export
+convert_to_items_n <- function(
   grafs_prod_item_combined,
   codes_coefs_items_full,
   biomass_coefs
@@ -917,9 +916,8 @@ create_n_prov_destiny <- function() {
 #' @param grafs_prod_item_n A dataframe with N values (MgN) by destiny.
 #'
 #' @return A dataframe with consumption, exports, and imports in MgN.
-#' @keywords internal
-#' @noRd
-.calculate_trade <- function(
+#' @export
+calculate_trade <- function(
   grafs_prod_item_n,
   pie_full_destinies_fm,
   biomass_coefs,
