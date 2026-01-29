@@ -206,7 +206,7 @@ calculate_lmdi <- function(
     )
   }
 
-  vars_info <- .lmdi_extract_vars(data, identity, target_var, time_var)
+  vars_info <- .lmdi_extract_vars(data, identity, target_var, {{ time_var }})
   numeric_vars <- vars_info$numeric_vars
   group_cols <- vars_info$group_cols
 
@@ -215,12 +215,18 @@ calculate_lmdi <- function(
     cli::cli_inform("--- LMDI Data Preparation ---")
   }
 
-  data <- .lmdi_balance_panel(data, time_var, group_cols, numeric_vars, verbose)
+  data <- .lmdi_balance_panel(
+    data,
+    {{ time_var }},
+    group_cols,
+    numeric_vars,
+    verbose
+  )
   data <- .lmdi_treat_zeros(data, numeric_vars, verbose)
 
   k_eff <- .lmdi_calc_effective_k(
     data,
-    time_var,
+    {{ time_var }},
     group_cols,
     rolling_mean,
     verbose
@@ -229,7 +235,7 @@ calculate_lmdi <- function(
   data <- .lmdi_apply_rolling_mean(
     data,
     target_var,
-    time_var,
+    {{ time_var }},
     group_cols,
     numeric_vars,
     k_eff,
