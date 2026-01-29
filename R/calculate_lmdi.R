@@ -412,8 +412,8 @@ calculate_lmdi <- function(
 }
 
 .parse_identity <- function(identity_expr) {
-  identity_expr <- gsub(" ", "", identity_expr)
-  parts <- strsplit(identity_expr, ":")[[1]]
+  identity_expr <- stringr::str_replace_all(identity_expr, " ", "")
+  parts <- stringr::str_split_1(identity_expr, ":")
   if (length(parts) != 2) {
     cli::cli_abort(
       "identity must follow the pattern 'target:factor1*factor2*...'"
@@ -421,8 +421,8 @@ calculate_lmdi <- function(
   }
   target <- parts[1]
   rhs <- parts[2]
-  factors <- strsplit(rhs, "\\*")[[1]]
-  factors <- gsub("^\\((.*)\\)$", "\\1", factors)
+  factors <- stringr::str_split_1(rhs, "\\*")
+  factors <- stringr::str_replace(factors, "^\\((.*)\\)$", "\\1")
   list(target = target, factors = factors)
 }
 
@@ -434,15 +434,15 @@ calculate_lmdi <- function(
   if (length(matches) == 0) {
     return(character(0))
   }
-  selectors <- gsub("\\[|\\]", "", matches)
-  unique(unlist(strsplit(selectors, "\\+")))
+  selectors <- stringr::str_replace_all(matches, "\\[|\\]", "")
+  unique(unlist(stringr::str_split(selectors, "\\+")))
 }
 
 .filter_by_group <- function(df, index_str, group_vals) {
   if (is.null(index_str) || index_str == "" || is.na(index_str)) {
     return(df)
   }
-  indices <- strsplit(index_str, "\\+")[[1]]
+  indices <- stringr::str_split_1(index_str, "\\+")
   out <- df
   for (idx in indices) {
     val <- group_vals[[idx]]

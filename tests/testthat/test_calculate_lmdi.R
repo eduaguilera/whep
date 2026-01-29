@@ -214,7 +214,6 @@ test_that("calculate_lmdi accepts ratio notation in identity", {
     time_var = year,
     verbose = FALSE
   )
-  browser()
 
   expect_true(tibble::is_tibble(result))
   expect_true(nrow(result) > 0)
@@ -229,7 +228,7 @@ test_that("calculate_lmdi accepts ratio notation in identity", {
   expect_true("activity" %in% labels)
 
   # No control characters in labels
-  expect_false(any(grepl("[\x01-\x1f]", labels)))
+  expect_false(any(stringr::str_detect(labels, "[\x01-\x1f]")))
 
   # Check closure
   period_result <- result |>
