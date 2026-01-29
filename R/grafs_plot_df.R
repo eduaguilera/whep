@@ -113,35 +113,44 @@ create_grafs_plot_df <- function() {
   )
 
   df_final <- df_final |>
-    mutate(
-      data = ifelse(
-        label %in% n_labels,
-        as.numeric(data) / 1000,
-        as.numeric(data)
+    dplyr::mutate(
+      data = suppressWarnings(
+        ifelse(
+          label %in% n_labels,
+          as.numeric(data) / 1000,
+          as.numeric(data)
+        )
       ),
       data = as.character(data)
     )
 
   df_spain <- df_final |>
-    group_by(year, label, align, arrowColor) |>
-    summarise(data = sum(as.numeric(data), na.rm = TRUE), .groups = "drop") |>
-    mutate(
+    dplyr::group_by(year, label, align, arrowColor) |>
+    dplyr::summarise(
+      data = sum(as.numeric(data), na.rm = TRUE),
+      .groups = "drop"
+    ) |>
+    dplyr::mutate(
       province = "Spain",
       data = as.character(data)
     ) |>
-    select(province, year, label, data, align, arrowColor)
+    dplyr::select(province, year, label, data, align, arrowColor)
 
-  df_final <- bind_rows(df_final, df_spain)
+  df_final <- dplyr::bind_rows(df_final, df_spain)
 
   df_final <- df_final |>
-    mutate(
+    dplyr::mutate(
       data_num = suppressWarnings(as.numeric(data))
     ) |>
-    group_by(province, year, label) |>
-    filter(!(n() > 1 & (is.na(data_num) | data_num == 0))) |>
-    select(-data_num) |>
-    ungroup()
+    dplyr::group_by(province, year, label) |>
+    dplyr::filter(
+      !(dplyr::n() > 1 & (is.na(data_num) | data_num == 0))
+    ) |>
+    dplyr::select(-data_num) |>
+    dplyr::ungroup()
 
+  #Path needs to be adjusted by user, until the final version can be uploaded
+  #to SACO
   readr::write_csv(
     df_final,
     "C:/PhD/GRAFS_plot/inst/extdata/GRAFS_spain_data.csv"
@@ -343,42 +352,27 @@ create_grafs_plot_df <- function() {
 #' @keywords internal
 .create_livestock_lu_df <- function() {
   livestock_lu <- whep_read_file("livestock_prod_ygps")
-
-  lu_factors <- c(
-    Cattle_meat = 0.8,
-    Cattle_milk = 1.0,
-    Goats = 1.0,
-    Sheep = 1.0,
-    Horses = 0.8,
-    Donkeys_mules = 0.8,
-    Rabbits = 0.02,
-    Pigs = 0.3,
-    Poultry = 0.02
-  )
+  lu_lookup <- whep_read_file("livestock_units")
 
   df_lu <- livestock_lu |>
-    dplyr::select(Province_name, Year, Livestock_cat, Stock_Number) |>
-    dplyr::filter(Livestock_cat %in% names(lu_factors)) |>
-    dplyr::mutate(
-      LU = Stock_Number * dplyr::recode(Livestock_cat, !!!lu_factors),
-      group = dplyr::case_when(
-        Livestock_cat %in%
-          c(
-            "Cattle_meat",
-            "Cattle_milk",
-            "Goats",
-            "Sheep",
-            "Horses",
-            "Donkeys_mules"
-          ) ~
-          "ruminant",
-        Livestock_cat %in% c("Rabbits", "Pigs", "Poultry") ~ "monogastric"
-      )
+    dplyr::select(
+      Province_name,
+      Year,
+      Livestock_cat,
+      Stock_Number
     ) |>
-    dplyr::group_by(Province_name, Year, group) |>
+    dplyr::left_join(
+      lu_lookup,
+      by = "Livestock_cat"
+    ) |>
+    dplyr::filter(!is.na(LU_head), system %in% c("ruminant", "monogastric")) |>
+    dplyr::mutate(
+      LU = Stock_Number * LU_head
+    ) |>
+    dplyr::group_by(Province_name, Year, system) |>
     dplyr::summarise(LU = sum(LU, na.rm = TRUE), .groups = "drop") |>
     tidyr::pivot_wider(
-      names_from = group,
+      names_from = system,
       values_from = LU,
       values_fill = 0
     ) |>
@@ -397,7 +391,7 @@ create_grafs_plot_df <- function() {
       `{MONOGMLU}`
     ) |>
     tidyr::pivot_longer(
-      cols = c(`{RUMIANTSLU}`, `{RUMIANTSMLU}`, `{MONOGLU}`, `{MONOGMLU}`),
+      cols = -c(province, year),
       names_to = "label",
       values_to = "data"
     ) |>
@@ -405,6 +399,7 @@ create_grafs_plot_df <- function() {
 
   df_lu
 }
+
 
 #' @title Create land dataset by province
 #'
@@ -419,78 +414,19 @@ create_grafs_plot_df <- function() {
 #' @keywords internal
 .create_land_df <- function() {
   n_balance <- whep_read_file("n_balance_ygpit_all")
+  crop_lookup <- whep_read_file("grafs_crop_categories")
 
-  permanent_biomass <- c(
-    "Apple",
-    "Chestnut",
-    "Figs",
-    "Grapevine",
-    "Lemon",
-    "Peach",
-    "Pear",
-    "Pomegranate",
-    "Almonds",
-    "Apricot",
-    "Olive",
-    "Plum",
-    "Carob",
-    "Cherries",
-    "Grapefruit",
-    "Orange",
-    "Walnut",
-    "Mandarin",
-    "Hazelnut",
-    "Crack willow",
-    "Bananas, platains",
-    "Fruits",
-    "Dates",
-    "Fruit, tropical fresh nes",
-    "Quince",
-    "Avocado",
-    "Citrus",
-    "Nuts nes",
-    "Raspberries",
-    "Kiwifruit",
-    "Berries nes",
-    "Pistachios",
-    "Persimmon",
-    "Blueberries",
-    "Holm oak"
-  )
+  permanent_biomass <- crop_lookup |>
+    dplyr::filter(crop_type == "permanent") |>
+    dplyr::pull(Name_biomass)
 
-  horticulture_biomass <- c(
-    "Artichoke thistle",
-    "Cabbage, Broccoli",
-    "Carrot",
-    "Cauliflower",
-    "Chard",
-    "Garlic",
-    "Onion",
-    "Pea, green, with pod",
-    "Pepper",
-    "Tomato",
-    "Turnip",
-    "Beans, green",
-    "Melon",
-    "Artichoke",
-    "Celery",
-    "Endive",
-    "Asparagus",
-    "Zucchini",
-    "Caper",
-    "Lettuce",
-    "Vegetables, other",
-    "Cucumber",
-    "Squash, pumpkin",
-    "Vegetables, leguminous nes",
-    "Watermelon",
-    "Aubergine",
-    "Leek",
-    "Spinach",
-    "Beet",
-    "Chili pepper",
-    "Borage"
-  )
+  horticulture_biomass <- crop_lookup |>
+    dplyr::filter(crop_type == "horticulture") |>
+    dplyr::pull(Name_biomass)
+
+  non_permanent_biomass <- crop_lookup |>
+    dplyr::filter(crop_type == "non_permanent") |>
+    dplyr::pull(Name_biomass)
 
   df_land <- n_balance |>
     dplyr::filter(
@@ -613,7 +549,7 @@ create_grafs_plot_df <- function() {
       NPEiha = sum(
         ifelse(
           LandUse == "Cropland" &
-            !(Name_biomass %in% permanent_biomass) &
+            Name_biomass %in% non_permanent_biomass &
             Irrig_cat == "Irrigated",
           Area_ygpit_ha,
           0
@@ -624,7 +560,7 @@ create_grafs_plot_df <- function() {
       NPErha = sum(
         ifelse(
           LandUse == "Cropland" &
-            !(Name_biomass %in% permanent_biomass) &
+            Name_biomass %in% non_permanent_biomass &
             Irrig_cat == "Rainfed",
           Area_ygpit_ha,
           0
@@ -638,7 +574,7 @@ create_grafs_plot_df <- function() {
       NPEiN = sum(
         ifelse(
           LandUse == "Cropland" &
-            !(Name_biomass %in% permanent_biomass) &
+            Name_biomass %in% non_permanent_biomass &
             Irrig_cat == "Irrigated",
           Prod_MgN + UsedResidue_MgN + GrazedWeeds_MgN,
           0
@@ -649,7 +585,7 @@ create_grafs_plot_df <- function() {
       NPErN = sum(
         ifelse(
           LandUse == "Cropland" &
-            !(Name_biomass %in% permanent_biomass) &
+            Name_biomass %in% non_permanent_biomass &
             Irrig_cat == "Rainfed",
           Prod_MgN + UsedResidue_MgN + GrazedWeeds_MgN,
           0
@@ -1115,10 +1051,11 @@ create_grafs_plot_df <- function() {
 #'
 #' @keywords internal
 .create_livestock_gas_loss_df <- function() {
-  df_livestock_gas_loss <- whep_read_file("n_excretion_ygs") |>
+  whep_read_file("n_excretion_ygs") |>
+    dplyr::filter(Loss_share > 0) |>
     dplyr::group_by(Province_name, Year) |>
     dplyr::summarise(
-      data = sum(Excr_GgN * Loss_share, na.rm = TRUE),
+      data = sum(Excr_MgN * Loss_share, na.rm = TRUE) / 1000,
       .groups = "drop"
     ) |>
     dplyr::mutate(
@@ -1128,9 +1065,8 @@ create_grafs_plot_df <- function() {
       align = "R"
     ) |>
     dplyr::select(province, year, label, data, align)
-
-  df_livestock_gas_loss
 }
+
 
 #' @title Create population dataset
 #'
