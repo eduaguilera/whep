@@ -422,7 +422,7 @@ calculate_lmdi <- function(
   target <- parts[1]
   rhs <- parts[2]
   factors <- strsplit(rhs, "\\*")[[1]]
-  factors <- gsub("^\\((.*)\\)$", "\1", factors)
+  factors <- gsub("^\\((.*)\\)$", "\\1", factors)
   list(target = target, factors = factors)
 }
 
