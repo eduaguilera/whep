@@ -215,15 +215,6 @@ calculate_lmdi <- function(
     cli::cli_inform("--- LMDI Data Preparation ---")
   }
 
-  data <- .lmdi_balance_panel(
-    data,
-    {{ time_var }},
-    group_cols,
-    numeric_vars,
-    verbose
-  )
-  data <- .lmdi_treat_zeros(data, numeric_vars, verbose)
-
   k_eff <- .lmdi_calc_effective_k(
     data,
     {{ time_var }},
@@ -232,17 +223,17 @@ calculate_lmdi <- function(
     verbose
   )
 
-  data <- .lmdi_apply_rolling_mean(
-    data,
-    target_var,
-    {{ time_var }},
-    group_cols,
-    numeric_vars,
-    k_eff,
-    verbose
-  )
-
-  data
+  data |>
+    .lmdi_balance_panel({{ time_var }}, group_cols, numeric_vars, verbose) |>
+    .lmdi_treat_zeros(numeric_vars, verbose) |>
+    .lmdi_apply_rolling_mean(
+      target_var,
+      {{ time_var }},
+      group_cols,
+      numeric_vars,
+      k_eff,
+      verbose
+    )
 }
 
 .lmdi_handle_identity_labels <- function(identity_labels, factors, target_var) {
@@ -425,38 +416,39 @@ calculate_lmdi <- function(
       "identity must follow the pattern 'target:factor1*factor2*...'"
     )
   }
-  target <- parts[1]
-  rhs <- parts[2]
-  factors <- stringr::str_split_1(rhs, "\\*")
-  factors <- stringr::str_replace(factors, "^\\((.*)\\)$", "\\1")
-  list(target = target, factors = factors)
+  factors <- parts[2] |>
+    stringr::str_split_1("\\*") |>
+    stringr::str_replace("^\\((.*)\\)$", "\\1")
+  list(target = parts[1], factors = factors)
 }
 
 .extract_selectors <- function(identity_expr) {
-  matches <- stringr::str_extract_all(
-    identity_expr,
-    "\\[([a-zA-Z0-9_+]+)\\]"
-  )[[1]]
-  if (length(matches) == 0) {
-    return(character(0))
-  }
-  selectors <- stringr::str_replace_all(matches, "\\[|\\]", "")
-  unique(unlist(stringr::str_split(selectors, "\\+")))
+  identity_expr |>
+    stringr::str_extract_all("\\[([a-zA-Z0-9_+]+)\\]") |>
+    purrr::pluck(1) |>
+    stringr::str_replace_all("\\[|\\]", "") |>
+    stringr::str_split("\\+") |>
+    unlist() |>
+    unique()
 }
 
 .filter_by_group <- function(df, index_str, group_vals) {
   if (is.null(index_str) || index_str == "" || is.na(index_str)) {
     return(df)
   }
-  indices <- stringr::str_split_1(index_str, "\\+")
-  out <- df
-  for (idx in indices) {
-    val <- group_vals[[idx]]
-    if (!is.null(val) && !is.na(val)) {
-      out <- out |> dplyr::filter(.data[[idx]] == val)
-    }
-  }
-  out
+  index_str |>
+    stringr::str_split_1("\\+") |>
+    purrr::reduce(
+      \(acc, idx) {
+        val <- group_vals[[idx]]
+        if (!is.null(val) && !is.na(val)) {
+          acc |> dplyr::filter(.data[[idx]] == val)
+        } else {
+          acc
+        }
+      },
+      .init = df
+    )
 }
 
 .eval_factor <- function(df_period, factor, group_vals) {
