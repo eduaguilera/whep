@@ -11,7 +11,7 @@ calculate_lmdi(
   time_var = year,
   periods = NULL,
   periods_2 = NULL,
-  analysis_by = NULL,
+  .by = NULL,
   rolling_mean = 1,
   output_format = "clean",
   verbose = TRUE
@@ -41,7 +41,7 @@ years.}
 \item{periods_2}{Numeric vector. Additional period specification for
 complex multi-period analyses. Default: NULL.}
 
-\item{analysis_by}{Character vector. Grouping variables for performing
+\item{.by}{Character vector. Grouping variables for performing
 separate decompositions. Default: NULL (single decomposition for all
 data).}
 
@@ -88,7 +88,7 @@ The function can decompose changes over single or multiple periods.
 Periods are defined by consecutive pairs in the \code{periods} vector.
 
 \strong{Grouping capabilities:}
-Use \code{analysis_by} to perform separate decompositions for different
+Use \code{.by} to perform separate decompositions for different
 groups (e.g., countries, regions) while maintaining consistent factor
 structure.
 }
@@ -131,7 +131,7 @@ The input data frame must contain:
 \itemize{
 \item All variables mentioned in the identity.
 \item The time variable (default: "year").
-\item Grouping variables if using \code{analysis_by}.
+\item Grouping variables if using \code{.by}.
 \item No missing values in key variables for decomposition periods.
 }
 }
@@ -159,7 +159,7 @@ calculate_lmdi(
   data,
   identity = "emissions:(emissions/gdp)*(gdp/population)*population",
   time_var = year,
-  analysis_by = "country",
+  .by = "country",
   verbose = FALSE
 )
 }
