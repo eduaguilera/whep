@@ -67,14 +67,14 @@ create_n_prov_destiny <- function() {
       adding_feed_output$feed_intake,
       food_and_other_uses
     ) |>
-    .convert_to_items_n(codes_coefs_items_full, biomass_coefs)
+    convert_to_items_n(codes_coefs_items_full, biomass_coefs)
 
   n_soil_inputs <- .calculate_n_soil_inputs(
     whep_read_file("n_balance_ygpit_all"),
     codes_coefs
   )
 
-  trade_data <- .calculate_trade(
+  trade_data <- calculate_trade(
     grafs_prod_item_n,
     pie_full_destinies_fm,
     biomass_coefs,
@@ -730,7 +730,7 @@ create_n_prov_destiny <- function() {
       values_from = Total_value
     )
 
-  provincial_food_other_uses <- total_food_other_uses |>
+  prov_food_other_uses <- total_food_other_uses |>
     dplyr::left_join(
       population_share,
       by = "Year",
@@ -746,7 +746,7 @@ create_n_prov_destiny <- function() {
     ) |>
     dplyr::select(Year, Province_name, Item, food, other_uses)
 
-  provincial_food_other_uses
+  prov_food_other_uses
 }
 
 #' @title Combine all destinies ------------------------------------------------
@@ -754,7 +754,7 @@ create_n_prov_destiny <- function() {
 #'
 #' @param grafs_prod_item Dataframe production data for items.
 #' @param feed_intake Feed intake values per province and item.
-#' @param provincial_food_other_uses Food and Other uses per province and item.
+#' @param prov_food_other_uses Food and Other uses per province and item.
 #'
 #' @return A combined dataframe with food, feed, and other uses.
 #' @keywords internal
@@ -763,7 +763,7 @@ create_n_prov_destiny <- function() {
 .combine_destinies <- function(
   grafs_prod_item,
   feed_intake,
-  provincial_food_other_uses
+  prov_food_other_uses
 ) {
   grafs_prod_item_sum <- grafs_prod_item |>
     dplyr::group_by(Year, Province_name, Item, Box, Irrig_cat) |>
@@ -780,7 +780,7 @@ create_n_prov_destiny <- function() {
       .groups = "drop"
     )
 
-  provincial_food_other_uses_clean <- provincial_food_other_uses |>
+  prov_food_other_uses_clean <- prov_food_other_uses |>
     dplyr::group_by(Year, Province_name, Item) |>
     dplyr::summarise(
       food = sum(food, na.rm = TRUE),
@@ -792,7 +792,7 @@ create_n_prov_destiny <- function() {
   # human consumption
   grafs_prod_item_combined <- grafs_prod_item_sum |>
     dplyr::full_join(
-      provincial_food_other_uses_clean,
+      prov_food_other_uses_clean,
       by = c("Year", "Province_name", "Item")
     ) |>
     dplyr::full_join(
@@ -844,9 +844,8 @@ create_n_prov_destiny <- function() {
 #' (DM/FM and N/DM).
 #'
 #' @return A dataframe with food, feed, and other uses in MgN.
-#' @keywords internal
-#' @noRd
-.convert_to_items_n <- function(
+#' @export
+convert_to_items_n <- function(
   grafs_prod_item_combined,
   codes_coefs_items_full,
   biomass_coefs
@@ -917,9 +916,8 @@ create_n_prov_destiny <- function() {
 #' @param grafs_prod_item_n A dataframe with N values (MgN) by destiny.
 #'
 #' @return A dataframe with consumption, exports, and imports in MgN.
-#' @keywords internal
-#' @noRd
-.calculate_trade <- function(
+#' @export
+calculate_trade <- function(
   grafs_prod_item_n,
   pie_full_destinies_fm,
   biomass_coefs,
