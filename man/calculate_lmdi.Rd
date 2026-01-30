@@ -12,7 +12,7 @@ calculate_lmdi(
   periods = NULL,
   periods_2 = NULL,
   analysis_by = NULL,
-  rolling_mean = NULL,
+  rolling_mean = 1,
   output_format = "clean",
   verbose = TRUE
 )
@@ -46,7 +46,7 @@ separate decompositions. Default: NULL (single decomposition for all
 data).}
 
 \item{rolling_mean}{Numeric. Window size for rolling mean smoothing
-applied before decomposition. Default: NULL (no smoothing).}
+applied before decomposition. Default: 1 (no smoothing).}
 
 \item{output_format}{Character. Format of output data frame. Options:
 \code{"clean"} (default) or \code{"detailed"}.}

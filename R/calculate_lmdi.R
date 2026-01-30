@@ -79,7 +79,7 @@
 #'   separate decompositions. Default: NULL (single decomposition for all
 #'   data).
 #' @param rolling_mean Numeric. Window size for rolling mean smoothing
-#'   applied before decomposition. Default: NULL (no smoothing).
+#'   applied before decomposition. Default: 1 (no smoothing).
 #' @param output_format Character. Format of output data frame. Options:
 #'   `"clean"` (default) or `"detailed"`.
 #' @param verbose Logical. If TRUE (default), prints progress messages during
@@ -129,7 +129,7 @@ calculate_lmdi <- function(
   periods = NULL,
   periods_2 = NULL,
   analysis_by = NULL,
-  rolling_mean = NULL,
+  rolling_mean = 1,
   output_format = "clean",
   verbose = TRUE
 ) {
@@ -197,13 +197,8 @@ calculate_lmdi <- function(
   rolling_mean,
   verbose
 ) {
-  if (is.null(rolling_mean)) {
+  if (rolling_mean <= 1) {
     return(data)
-  }
-  if (!is.numeric(rolling_mean) || rolling_mean < 2) {
-    cli::cli_abort(
-      "rolling_mean must be a numeric value >= 2 (number of years for centered moving average)"
-    )
   }
 
   vars_info <- .lmdi_extract_vars(data, identity, target_var, {{ time_var }})
