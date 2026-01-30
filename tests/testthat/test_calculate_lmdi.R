@@ -305,7 +305,7 @@ test_that("calculate_lmdi periods_2 appends additional period", {
 })
 
 
-# Grouping with analysis_by ----------------------------------------------------
+# Grouping with .by ------------------------------------------------------------
 
 test_that("calculate_lmdi performs separate decomposition per group", {
   data <- lmdi_country_fixture()
@@ -314,7 +314,7 @@ test_that("calculate_lmdi performs separate decomposition per group", {
     data,
     identity = "emissions:activity*intensity",
     time_var = year,
-    analysis_by = "country",
+    .by = "country",
     verbose = FALSE
   )
 

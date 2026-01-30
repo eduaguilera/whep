@@ -22,7 +22,7 @@
 #'   Periods are defined by consecutive pairs in the `periods` vector.
 #'
 #'   **Grouping capabilities:**
-#'   Use `analysis_by` to perform separate decompositions for different
+#'   Use `.by` to perform separate decompositions for different
 #'   groups (e.g., countries, regions) while maintaining consistent factor
 #'   structure.
 #'
@@ -55,7 +55,7 @@
 #'   The input data frame must contain:
 #'   - All variables mentioned in the identity.
 #'   - The time variable (default: "year").
-#'   - Grouping variables if using `analysis_by`.
+#'   - Grouping variables if using `.by`.
 #'   - No missing values in key variables for decomposition periods.
 #'
 #' @param data A data frame containing the variables for decomposition. Must
@@ -75,7 +75,7 @@
 #'   years.
 #' @param periods_2 Numeric vector. Additional period specification for
 #'   complex multi-period analyses. Default: NULL.
-#' @param analysis_by Character vector. Grouping variables for performing
+#' @param .by Character vector. Grouping variables for performing
 #'   separate decompositions. Default: NULL (single decomposition for all
 #'   data).
 #' @param rolling_mean Numeric. Window size for rolling mean smoothing
@@ -118,7 +118,7 @@
 #'   data,
 #'   identity = "emissions:(emissions/gdp)*(gdp/population)*population",
 #'   time_var = year,
-#'   analysis_by = "country",
+#'   .by = "country",
 #'   verbose = FALSE
 #' )
 calculate_lmdi <- function(
@@ -128,7 +128,7 @@ calculate_lmdi <- function(
   time_var = year,
   periods = NULL,
   periods_2 = NULL,
-  analysis_by = NULL,
+  .by = NULL,
   rolling_mean = 1,
   output_format = "clean",
   verbose = TRUE
@@ -150,12 +150,12 @@ calculate_lmdi <- function(
   group_vars <- .lmdi_detect_group_vars(identity, verbose)
   periods <- .lmdi_setup_periods(data, {{ time_var }}, periods, periods_2)
 
-  validation <- .lmdi_validate_inputs(data, group_vars, analysis_by)
+  validation <- .lmdi_validate_inputs(data, group_vars, .by)
   group_vars <- validation$group_vars
-  analysis_by <- validation$analysis_by
+  .by <- validation$.by
 
   output_format <- match.arg(tolower(output_format), c("clean", "total"))
-  analysis_cols <- if (is.null(analysis_by)) character(0) else analysis_by
+  analysis_cols <- if (is.null(.by)) character(0) else .by
 
   identity_info <- list(
     identity = identity,
@@ -509,7 +509,7 @@ calculate_lmdi <- function(
   }
 }
 
-.lmdi_validate_inputs <- function(data, group_vars, analysis_by) {
+.lmdi_validate_inputs <- function(data, group_vars, .by) {
   if (!is.null(group_vars)) {
     missing <- group_vars[
       !purrr::map_lgl(group_vars, ~ rlang::has_name(data, .x))
@@ -520,18 +520,18 @@ calculate_lmdi <- function(
       )
     }
   }
-  if (!is.null(analysis_by)) {
-    analysis_by <- unique(analysis_by)
-    missing <- analysis_by[
-      !purrr::map_lgl(analysis_by, ~ rlang::has_name(data, .x))
+  if (!is.null(.by)) {
+    .by <- unique(.by)
+    missing <- .by[
+      !purrr::map_lgl(.by, ~ rlang::has_name(data, .x))
     ]
     if (length(missing) > 0) {
       cli::cli_abort(
-        "analysis_by columns not found in data: {paste(missing, collapse = ', ')}"
+        ".by columns not found in data: {paste(missing, collapse = ', ')}"
       )
     }
   }
-  list(group_vars = group_vars, analysis_by = analysis_by)
+  list(group_vars = group_vars, .by = .by)
 }
 
 .lmdi_extract_vars <- function(data, identity, target_var, time_var) {
