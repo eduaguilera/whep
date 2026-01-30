@@ -565,8 +565,6 @@ test_that("calculate_lmdi errors with insufficient data (1 year)", {
 test_that("calculate_lmdi handles zeros with epsilon replacement", {
   data <- lmdi_zeros_fixture()
 
-  # Should run without error (zeros replaced internally)
-  # Note: Not using rolling_mean here as zeros test doesn't require it
   result <- calculate_lmdi(
     data,
     identity = "emissions:activity*intensity",
@@ -575,6 +573,70 @@ test_that("calculate_lmdi handles zeros with epsilon replacement", {
   )
 
   expect_true(tibble::is_tibble(result))
+  # 2 periods × 3 rows (2 factors + 1 target)
+  expect_equal(nrow(result), 6)
+
+  # Get period 2010-2011 results (drop from 100 to ~0)
+  period_1 <- result |> dplyr::filter(period == "2010-2011")
+  target_add_1 <- period_1 |>
+    dplyr::filter(component_type == "target") |>
+    dplyr::pull(additive)
+  factors_sum_1 <- period_1 |>
+    dplyr::filter(component_type == "factor") |>
+    dplyr::pull(additive) |>
+    sum()
+
+  # Additive contributions should sum to target change (within tolerance)
+  expect_equal(factors_sum_1, target_add_1, tolerance = 1)
+
+  # Get period 2011-2012 results (rise from ~0 to 120)
+  period_2 <- result |> dplyr::filter(period == "2011-2012")
+  target_add_2 <- period_2 |>
+    dplyr::filter(component_type == "target") |>
+    dplyr::pull(additive)
+  factors_sum_2 <- period_2 |>
+    dplyr::filter(component_type == "factor") |>
+    dplyr::pull(additive) |>
+    sum()
+
+  expect_equal(factors_sum_2, target_add_2, tolerance = 1)
+
+  # Verify target changes match original data (emissions went 100 -> ~0 -> 120)
+  expect_equal(target_add_1, -100, tolerance = 1)
+  expect_equal(target_add_2, 120, tolerance = 1)
+})
+
+test_that("calculate_lmdi recalculates target after epsilon replacement", {
+  # Test that identity is preserved after zero replacement
+  # emissions = activity * intensity, but row 2 has intensity = 0
+  data <- tibble::tribble(
+    ~year, ~activity, ~intensity, ~emissions,
+    2010, 1000, 0.1, 100,
+    2011, 1100, 0.0, 0
+  )
+
+  result <- calculate_lmdi(
+    data,
+    identity = "emissions:activity*intensity",
+    time_var = year,
+    verbose = FALSE
+  )
+
+  # Get the decomposition for this period
+  factors <- result |> dplyr::filter(component_type == "factor")
+  target <- result |> dplyr::filter(component_type == "target")
+
+  # Additive factors should sum to target additive (closure)
+  factors_add_sum <- sum(factors$additive)
+  target_add <- target$additive
+
+  expect_equal(factors_add_sum, target_add, tolerance = 0.01)
+
+  # Multiplicative factors should multiply to target multiplicative (closure)
+  factors_mult_prod <- prod(factors$multiplicative)
+  target_mult <- target$multiplicative
+
+  expect_equal(factors_mult_prod, target_mult, tolerance = 0.001)
 })
 
 
@@ -583,32 +645,17 @@ test_that("calculate_lmdi handles zeros with epsilon replacement", {
 test_that("calculate_lmdi warns on inconsistent data", {
   data <- lmdi_inconsistent_fixture()
 
+  # Nest expect_warning to capture both warnings from single execution
   expect_warning(
-    calculate_lmdi(
-      data,
-      identity = "emissions:activity*intensity",
-      time_var = year,
-      verbose = FALSE
+    expect_warning(
+      calculate_lmdi(
+        data,
+        identity = "emissions:activity*intensity",
+        time_var = year,
+        verbose = FALSE
+      ),
+      "Additive contributions differ"
     ),
-    "Additive contributions differ"
-  )
-})
-
-test_that("calculate_lmdi warns when identity doesn't match target", {
-  # Using gdp*population for emissions target (nonsense identity)
-  data <- tibble::tribble(
-    ~year, ~emissions, ~gdp, ~population,
-    2010,  100,        1000, 46,
-    2011,  110,        1100, 47
-  )
-
-  expect_warning(
-    calculate_lmdi(
-      data,
-      identity = "emissions:gdp*population",
-      time_var = year,
-      verbose = FALSE
-    ),
-    "contributions differ"
+    "Multiplicative contributions differ"
   )
 })

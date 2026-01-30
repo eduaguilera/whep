@@ -137,7 +137,7 @@ calculate_lmdi <- function(
   target_var <- id$target
   factors <- id$factors
 
-  data <- .lmdi_prepare_rolling_mean(
+  data <- .lmdi_prepare_data(
     data,
     identity,
     target_var,
@@ -189,7 +189,7 @@ calculate_lmdi <- function(
   )
 }
 
-.lmdi_prepare_rolling_mean <- function(
+.lmdi_prepare_data <- function(
   data,
   identity,
   target_var,
@@ -197,10 +197,6 @@ calculate_lmdi <- function(
   rolling_mean,
   verbose
 ) {
-  if (rolling_mean <= 1) {
-    return(data)
-  }
-
   vars_info <- .lmdi_extract_vars(data, identity, target_var, {{ time_var }})
   numeric_vars <- vars_info$numeric_vars
   group_cols <- vars_info$group_cols
@@ -210,25 +206,35 @@ calculate_lmdi <- function(
     cli::cli_inform("--- LMDI Data Preparation ---")
   }
 
-  k_eff <- .lmdi_calc_effective_k(
-    data,
-    {{ time_var }},
-    group_cols,
-    rolling_mean,
-    verbose
-  )
+  # Parse factors from identity
+  factors <- .parse_identity(identity)$factors
 
-  data |>
-    .lmdi_balance_panel({{ time_var }}, group_cols, numeric_vars, verbose) |>
-    .lmdi_treat_zeros(numeric_vars, verbose) |>
-    .lmdi_apply_rolling_mean(
-      target_var,
+  # Always treat zeros (required for LMDI log calculations)
+  data <- .lmdi_treat_zeros(data, numeric_vars, target_var, factors, verbose)
+
+  # Only apply rolling mean smoothing if requested (rolling_mean > 1)
+  if (rolling_mean > 1) {
+    k_eff <- .lmdi_calc_effective_k(
+      data,
       {{ time_var }},
       group_cols,
-      numeric_vars,
-      k_eff,
+      rolling_mean,
       verbose
     )
+
+    data <- data |>
+      .lmdi_balance_panel({{ time_var }}, group_cols, numeric_vars, verbose) |>
+      .lmdi_apply_rolling_mean(
+        target_var,
+        {{ time_var }},
+        group_cols,
+        numeric_vars,
+        k_eff,
+        verbose
+      )
+  }
+
+  data
 }
 
 .lmdi_handle_identity_labels <- function(identity_labels, factors, target_var) {
@@ -569,12 +575,28 @@ calculate_lmdi <- function(
   data
 }
 
-.lmdi_treat_zeros <- function(data, numeric_vars, verbose) {
+.lmdi_treat_zeros <- function(
+  data,
+  numeric_vars,
+  target_var,
+  factors,
+  verbose
+) {
   if (verbose) {
     cli::cli_inform("")
     cli::cli_inform("Step 2: Zero/NA treatment (Ang, 2015 methodology)")
   }
-  epsilon <- 1e-10
+  epsilon <- 1e-12
+
+  # Check if any zeros/NAs exist before replacement
+  has_zeros <- any(
+    purrr::map_lgl(
+      numeric_vars,
+      ~ any(is.na(data[[.x]]) | data[[.x]] == 0)
+    )
+  )
+
+  # Replace zeros/NAs with epsilon in all numeric columns
   data <- data |>
     dplyr::mutate(
       dplyr::across(
@@ -582,6 +604,27 @@ calculate_lmdi <- function(
         ~ dplyr::if_else(is.na(.x) | .x == 0, epsilon, .x)
       )
     )
+
+  # Recalculate target to maintain identity after epsilon replacement
+  # Only when: (1) zeros were replaced, and (2) factors are simple column names
+  simple_factors <- factors[!stringr::str_detect(factors, "[/\\[\\]]")]
+  if (
+    has_zeros &&
+      length(simple_factors) == length(factors) &&
+      all(simple_factors %in% names(data))
+  ) {
+    data <- data |>
+      dplyr::mutate(
+        !!rlang::sym(target_var) := purrr::reduce(
+          dplyr::across(dplyr::all_of(simple_factors)),
+          `*`
+        )
+      )
+    if (verbose) {
+      cli::cli_inform("  - Target '{target_var}' recalculated from factors")
+    }
+  }
+
   if (verbose) {
     cli::cli_inform(
       "  - Replacement value: {format(epsilon, scientific = TRUE)} (epsilon)"
