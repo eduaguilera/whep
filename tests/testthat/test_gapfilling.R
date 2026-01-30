@@ -311,7 +311,7 @@ testthat::test_that("fill_sum accumulates changes while keeping originals", {
     pointblank::expect_col_exists("source_value") |>
     pointblank::expect_col_vals_in_set(
       source_value,
-      c("Original", "Filled with sum")
+      c("Original", "Filled with sum", NA)
     ) |>
     pointblank::expect_col_vals_not_null(value) |>
     pointblank::expect_col_vals_equal(
@@ -338,7 +338,7 @@ testthat::test_that("fill_sum handles accumulation without explicit groups", {
     pointblank::expect_col_vals_equal(value, c(10, 12, 15, 16)) |>
     pointblank::expect_col_vals_in_set(
       source_value,
-      c("Original", "Filled with sum")
+      c("Original", "Filled with sum", NA)
     )
 })
 
@@ -384,6 +384,28 @@ testthat::test_that("fill_sum respects grouping keys", {
     )
 })
 
+testthat::test_that("fill_sum creates source column with dynamic name based on value_col", {
+  data <- tibble::tribble(
+    ~year, ~my_variable, ~change_variable,
+    2015, 10, 0,
+    2016, NA, 2,
+    2017, 20, 3
+  )
+
+  result <- data |>
+    fill_sum(my_variable, change_variable)
+
+  # Should create source_my_variable, not source_value
+  testthat::expect_true("source_my_variable" %in% names(result))
+  testthat::expect_false("source_value" %in% names(result))
+
+  result |>
+    pointblank::expect_col_vals_in_set(
+      source_my_variable,
+      c("Original", "Filled with sum")
+    )
+})
+
 # fill_growth ------------------------------------------------------------------
 
 test_that("fill_growth fills missing values using proxy growth rates", {
@@ -397,9 +419,9 @@ test_that("fill_growth fills missing values using proxy growth rates", {
 
   result <- fill_growth(
     data,
-    value_col = "gdp",
+    value_col = gdp,
     proxy_col = "population",
-    group_by = "country",
+    .by = "country",
     verbose = FALSE
   )
 
@@ -419,7 +441,7 @@ test_that("fill_growth respects max_gap parameter", {
 
   result <- fill_growth(
     data,
-    value_col = "value",
+    value_col = value,
     proxy_col = "proxy",
     max_gap = 2,
     verbose = FALSE
@@ -442,9 +464,9 @@ test_that("fill_growth works with grouping", {
 
   result <- fill_growth(
     data,
-    value_col = "emissions",
+    value_col = emissions,
     proxy_col = "gdp",
-    group_by = "country",
+    .by = "country",
     verbose = FALSE
   )
 
@@ -471,7 +493,7 @@ test_that("fill_growth returns same number of rows", {
 
   result <- fill_growth(
     data,
-    value_col = "value",
+    value_col = value,
     proxy_col = "proxy",
     verbose = FALSE
   )
@@ -504,9 +526,9 @@ test_that("fill_growth uses hierarchical segmentation with intermediate proxy da
 
   result <- fill_growth(
     data_wages,
-    value_col = "household_ppp",
+    value_col = household_ppp,
     proxy_col = c("formal_ppp", "gdp_pc_constant"),
-    group_by = "country",
+    .by = "country",
     output_format = "detailed",
     verbose = FALSE
   )
@@ -518,12 +540,12 @@ test_that("fill_growth uses hierarchical segmentation with intermediate proxy da
   expect_equal(result$household_ppp[result$year == 2008], 100)
   expect_equal(result$household_ppp[result$year == 2019], 150)
 
-  # Check that method column indicates bridge interpolation was used
-  middle_methods <- result |>
+  # Check that source column indicates bridge interpolation was used
+  middle_sources <- result |>
     dplyr::filter(year >= 2009, year <= 2018) |>
-    dplyr::pull(method_household_ppp)
+    dplyr::pull(source_household_ppp)
 
-  expect_true(any(grepl("bridge", middle_methods)))
+  expect_true(any(grepl("bridge", middle_sources)))
 })
 
 test_that("fill_growth maintains continuity without jumps between segments", {
@@ -540,7 +562,7 @@ test_that("fill_growth maintains continuity without jumps between segments", {
 
   result <- fill_growth(
     data_test,
-    value_col = "primary",
+    value_col = primary,
     proxy_col = c("proxy1", "proxy2"),
     verbose = FALSE
   )
@@ -552,8 +574,8 @@ test_that("fill_growth maintains continuity without jumps between segments", {
   expect_equal(values[1], 100)
   expect_equal(values[6], 200)
 
-  # Check that bridge method was used (not simple forward/backfill)
-  expect_true(any(grepl("bridge", result$method_primary)))
+  # Check that bridge source was used (not simple forward/backfill)
+  expect_true(any(grepl("bridge", result$source_primary)))
 
   # Values should increase (since both proxies increase monotonically)
   expect_true(all(diff(values) >= 0))
@@ -577,7 +599,7 @@ test_that("fill_growth respects proxy hierarchy in segmentation", {
 
   result <- fill_growth(
     data_hierarchy,
-    value_col = "value",
+    value_col = value,
     proxy_col = c("proxy1", "proxy2"),
     output_format = "detailed",
     verbose = FALSE
@@ -601,7 +623,7 @@ test_that("fill_growth backward compatible: single proxy behaves as before", {
 
   result <- fill_growth(
     data_simple,
-    value_col = "value",
+    value_col = value,
     proxy_col = "proxy",
     verbose = FALSE
   )
@@ -630,7 +652,7 @@ test_that("fill_growth handles case with no intermediate data gracefully", {
 
   result <- fill_growth(
     data_no_intermediate,
-    value_col = "value",
+    value_col = value,
     proxy_col = c("proxy1", "proxy2"),
     verbose = FALSE
   )
@@ -653,7 +675,7 @@ test_that("fill_growth preserves original data points when they exist", {
 
   result <- fill_growth(
     data_mixed,
-    value_col = "value",
+    value_col = value,
     proxy_col = "proxy",
     verbose = FALSE
   )
@@ -678,7 +700,7 @@ test_that("fill_growth preserves non-NA values", {
 
   result <- fill_growth(
     data,
-    value_col = "value",
+    value_col = value,
     proxy_col = "proxy",
     verbose = FALSE
   )
@@ -700,7 +722,7 @@ test_that("fill_growth extrapolates at ends with hierarchical growth", {
 
   res <- fill_growth(
     data,
-    value_col = "value",
+    value_col = value,
     proxy_col = c("proxy1", "proxy2"),
     max_gap_linear = 1,
     output_format = "detailed",
@@ -709,6 +731,6 @@ test_that("fill_growth extrapolates at ends with hierarchical growth", {
 
   # Start and end should be filled (edge extrapolation)
   expect_false(any(is.na(res$value)))
-  # Methods at ends should be growth_* (not *_bridge)
-  expect_true(any(grepl("^growth_", res$method_value)))
+  # Sources at ends should be growth_* (not *_bridge)
+  expect_true(any(grepl("^growth_", res$source_value)))
 })
