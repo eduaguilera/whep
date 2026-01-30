@@ -453,10 +453,10 @@ test_that("calculate_lmdi rejects wrong number of identity labels", {
 
 # Output formats ---------------------------------------------------------------
 
-test_that("calculate_lmdi clean output has fewer columns", {
+test_that("calculate_lmdi clean output contains expected columns only", {
   data <- lmdi_basic_fixture()
 
-  result_clean <- calculate_lmdi(
+  result <- calculate_lmdi(
     data,
     identity = "emissions:activity*intensity",
     time_var = year,
@@ -464,9 +464,64 @@ test_that("calculate_lmdi clean output has fewer columns", {
     verbose = FALSE
   )
 
-  expect_true("period" %in% names(result_clean))
-  expect_true("factor_label" %in% names(result_clean))
-  expect_true("additive" %in% names(result_clean))
+  # Clean format should have these columns
+  clean_cols <- c(
+    "period",
+    "period_years",
+    "factor_label",
+    "component_type",
+    "identity",
+    "identity_var",
+    "additive",
+    "multiplicative",
+    "multiplicative_log"
+  )
+  purrr::walk(clean_cols, ~ expect_true(.x %in% names(result)))
+
+  # Clean format should NOT have these columns (only in total)
+  total_only_cols <- c(
+    "factor_formula",
+    "target_initial",
+    "target_final",
+    "total_change",
+    "percentage_change",
+    "closure_gap_additive",
+    "closure_gap_ratio"
+  )
+  purrr::walk(total_only_cols, ~ expect_false(.x %in% names(result)))
+})
+
+test_that("calculate_lmdi total output contains all columns", {
+  data <- lmdi_basic_fixture()
+
+  result <- calculate_lmdi(
+    data,
+    identity = "emissions:activity*intensity",
+    time_var = year,
+    output_format = "total",
+    verbose = FALSE
+  )
+
+  # Total format should have all columns
+  all_cols <- c(
+    "period",
+    "period_years",
+    "factor_label",
+    "factor_formula",
+    "component_type",
+    "identity",
+    "identity_var",
+    "target_initial",
+    "target_final",
+    "total_change",
+    "percentage_change",
+    "additive",
+    "multiplicative",
+    "multiplicative_log",
+    "closure_gap_additive",
+    "closure_gap_ratio"
+  )
+  purrr::walk(all_cols, ~ expect_true(.x %in% names(result)))
 })
 
 
