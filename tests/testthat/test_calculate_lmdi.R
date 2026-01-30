@@ -143,7 +143,7 @@ test_that("calculate_lmdi multiplicative closure holds", {
 test_that("calculate_lmdi produces correct values (manual calculation)", {
   # Create a simple 2-year, 2-factor case for manual verification
 
-  # emissions = activity * intensity
+  # Identity emissions = activity * intensity
   # Year 2010: 100 = 1000 * 0.10
   # Year 2011: 110 = 1100 * 0.10 (only activity changes by 10%)
   data <- tibble::tribble(
@@ -188,7 +188,7 @@ test_that("calculate_lmdi produces correct values (manual calculation)", {
   expect_equal(activity_add, expected_activity_add, tolerance = 1e-6)
   expect_equal(intensity_add, expected_intensity_add, tolerance = 1e-6)
 
-  # Multiplicative: exp(ln(factor_T / factor_0))
+  # Multiplicative exp(ln(factor_T / factor_0))
   # Activity mult = 1100/1000 = 1.1
   # Intensity mult = 0.10/0.10 = 1.0
   activity_mult <- period_result |>
@@ -361,9 +361,7 @@ test_that("calculate_lmdi auto-detects sector selectors from identity", {
     dplyr::mutate(total_activity = sum(activity)) |>
     dplyr::ungroup()
 
-  # Three-factor structural decomposition:
-  # emissions = total_activity * (activity[sector]/total_activity) *
-  #             (emissions[sector]/activity[sector])
+  # Three-factor structural decomposition
   result <- calculate_lmdi(
     data_with_total,
     identity = paste0(
@@ -411,7 +409,7 @@ test_that("calculate_lmdi applies rolling mean smoothing", {
 })
 
 
-# Identity labels ---------------------------------------------------------------
+# Identity labels --------------------------------------------------------------
 
 test_that("calculate_lmdi uses custom identity labels", {
   data <- lmdi_basic_fixture()
@@ -453,7 +451,7 @@ test_that("calculate_lmdi rejects wrong number of identity labels", {
 })
 
 
-# Output formats ----------------------------------------------------------------
+# Output formats ---------------------------------------------------------------
 
 test_that("calculate_lmdi clean output has fewer columns", {
   data <- lmdi_basic_fixture()
@@ -472,7 +470,7 @@ test_that("calculate_lmdi clean output has fewer columns", {
 })
 
 
-# Edge cases --------------------------------------------------------------------
+# Edge cases -------------------------------------------------------------------
 
 test_that("calculate_lmdi handles minimum data (2 years)", {
   data <- tibble::tribble(
@@ -525,7 +523,7 @@ test_that("calculate_lmdi handles zeros with epsilon replacement", {
 })
 
 
-# Closure warning tests ---------------------------------------------------------
+# Closure warning tests --------------------------------------------------------
 
 test_that("calculate_lmdi warns on inconsistent data", {
   data <- lmdi_inconsistent_fixture()
