@@ -75,6 +75,7 @@ reference:
   - calculate_nue_livestock
   - calculate_system_nue
   - create_n_production
+  - create_n_nat_destiny
   - create_n_prov_destiny
   - create_n_soil_inputs
   
