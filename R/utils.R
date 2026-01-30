@@ -1,6 +1,9 @@
 # Suppress R CMD check warnings for dplyr NSE (Non Standard Evaluation)
 utils::globalVariables(
   c(
+    ".data",
+    ".source_temp",
+    ".smooth_var",
     "alias",
     "area",
     "area_code",
@@ -21,6 +24,7 @@ utils::globalVariables(
     "groups",
     "import",
     "Imp/Exp",
+    "ind_growth",
     "Info_Format",
     "intake",
     "intake_dm",
@@ -39,9 +43,12 @@ utils::globalVariables(
     "item_prod_name",
     "item_to_process",
     "item_type",
+    "lag_src",
+    "lag_yr",
     "live_anim_code",
     "loss",
     "loss_share",
+    "ma_base",
     "Name",
     "No",
     "prefilled",
@@ -78,6 +85,7 @@ utils::globalVariables(
     "value_proc",
     "value_proc_raw",
     "value_to_process",
+    "w",
     "year",
     "Year"
   )

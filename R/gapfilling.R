@@ -1,26 +1,6 @@
 # Simple functions to fill gaps (NA values) in a time-dependent variable,
 # creating complete time series.
 
-# Global variables to avoid R CMD check NOTE
-utils::globalVariables(c(
-  ".",
-  ".N",
-  ".fill_scope",
-  ".smooth_var",
-  "ma_base",
-  "lag_source",
-  "lag_year",
-  "lag_weight",
-  "growth_weight",
-  "individual_growth",
-  "ind_growth",
-  "lag_src",
-  "lag_yr",
-  "w",
-  "g_val",
-  "o_val"
-))
-
 #' Fill gaps by linear interpolation, or carrying forward or backward.
 #'
 #' @description
@@ -31,7 +11,7 @@ utils::globalVariables(c(
 #'
 #' @param data A data frame containing one observation per row.
 #' @param value_col The column containing gaps to be filled.
-#' @param time_col Character. Name of the time column. Default: "year".
+#' @param time_col The column containing time values. Default: `year`.
 #' @param interpolate Logical. If `TRUE` (default),
 #'   performs linear interpolation.
 #' @param fill_forward Logical. If `TRUE` (default),
@@ -70,14 +50,16 @@ utils::globalVariables(c(
 fill_linear <- function(
   data,
   value_col,
-  time_col = "year",
+  time_col = year,
   interpolate = TRUE,
-
   fill_forward = TRUE,
   fill_backward = TRUE,
   value_smooth_window = NULL,
   .by = NULL
 ) {
+  # Convert time_col to string for internal use
+  time_col_name <- rlang::as_name(rlang::enquo(time_col))
+
   # Apply smoothing before main mutate to avoid tidy eval issues with if
   use_smoothing <- !is.null(value_smooth_window)
 
@@ -117,7 +99,7 @@ fill_linear <- function(
         place == "middle" & interpolate ~
           zoo::na.approx(
             .smooth_var,
-            x = .data[[time_col]],
+            x = .data[[time_col_name]],
             na.rm = FALSE
           ),
         .default = NA_real_
@@ -152,7 +134,7 @@ fill_linear <- function(
 #' @param data A data frame containing one observation per row.
 #' @param value_col The column containing gaps to be filled.
 #' @param change_col The column whose values will be used to fill the gaps.
-#' @param time_col Character. Name of the time column. Default: "year".
+#' @param time_col The column containing time values. Default: `year`.
 #' @param start_with_zero Logical. If TRUE, assumes an invisible 0 value before
 #'   the first observation and fills with cumulative sum starting from the first
 #'   change_col value. If FALSE (default), starting NA values remain unfilled.
@@ -195,16 +177,20 @@ fill_sum <- function(
   data,
   value_col,
   change_col,
-  time_col = "year",
+  time_col = year,
   start_with_zero = TRUE,
   .by = NULL
 ) {
+  value_col_name <- rlang::as_name(rlang::enquo(value_col))
+  time_col_name <- rlang::as_name(rlang::enquo(time_col))
+  source_col_name <- paste0("source_", value_col_name)
+
   data |>
-    dplyr::arrange(dplyr::across(dplyr::all_of(c(.by, time_col)))) |>
+    dplyr::arrange(dplyr::across(dplyr::all_of(c(.by, time_col_name)))) |>
     dplyr::mutate(
       groups = cumsum(!is.na({{ value_col }})),
       prefilled = dplyr::coalesce({{ value_col }}, {{ change_col }}),
-      source_value = ifelse(
+      .source_temp = ifelse(
         is.na({{ value_col }}),
         "Filled with sum",
         "Original"
@@ -213,15 +199,16 @@ fill_sum <- function(
       "{{ value_col }}" := if (start_with_zero) {{ value_col }} else {
         ifelse(groups == 0, NA, {{ value_col }})
       },
-      source_value = ifelse(
+      .source_temp = ifelse(
         is.na({{ value_col }}),
         NA_character_,
-        source_value
+        .source_temp
       ),
       groups = NULL,
       prefilled = NULL,
       .by = dplyr::all_of(.by)
-    )
+    ) |>
+    dplyr::rename(!!source_col_name := .source_temp)
 }
 
 #' Fill gaps using growth rates from proxy variables
@@ -232,11 +219,11 @@ fill_sum <- function(
 #'   interpolation for small gaps.
 #'
 #' @param data A data frame containing time series data.
-#' @param value_col Character. Name of the column with values to fill.
+#' @param value_col The column containing values to fill.
 #' @param proxy_col Character or vector. Proxy variable(s) for calculating
 #'   growth rates. Supports multiple syntax formats:
 #'   - **Simple numeric proxy** (e.g., `"population"`): Auto-detects numeric
-#'     columns and uses them as proxy variable. Inherits the `group_by`
+#'     columns and uses them as proxy variable. Inherits the `.by`
 #'     parameter to compute proxy values per group.
 #'   - **Simple categorical proxy** (e.g., `"region"`): Auto-detects
 #'     categorical columns and interprets as `value_col:region`. Aggregates
@@ -247,8 +234,8 @@ fill_sum <- function(
 #'     Tries first proxy, falls back to second if first fails.
 #'   - **Weighted aggregation** (e.g., `"gdp[population]"`): Weight variable
 #'     by specified column during aggregation.
-#' @param time_col Character. Name of the time column. Default: "year".
-#' @param group_by Character vector of grouping column names. Default: NULL.
+#' @param time_col The column containing time values. Default: `year`.
+#' @param .by A character vector with the grouping variables (optional).
 #' @param max_gap Numeric. Maximum gap size to fill using growth method.
 #'   Default: Inf.
 #' @param max_gap_linear Numeric. Maximum gap size for linear interpolation
@@ -256,14 +243,14 @@ fill_sum <- function(
 #' @param fill_scope Quosure. Filter expression to limit filling scope.
 #'   Default: NULL.
 #' @param smooth_window Integer. Window size for moving average smoothing of
-#'   proxy reference values before computing growth rates. Default: NULL.
+#'   proxy reference values before computing growth rates. Default: 1.
 #' @param output_format Character. Output format: "clean" or "detailed".
 #'   Default: "clean".
 #' @param verbose Logical. Print progress messages. Default: TRUE.
 #'
 #' @return
 #'   A data frame with filled values. If output_format = "clean", returns
-#'   original columns with updated value_col and added method_col. If
+#'   original columns with updated value_col and added source column. If
 #'   "detailed", includes all intermediate columns.
 #'
 #' @details
@@ -292,19 +279,18 @@ fill_sum <- function(
 #'
 #' fill_growth(
 #'   data,
-#'   value_col = "gdp",
+#'   value_col = gdp,
 #'   proxy_col = "population",
-#'   group_by = "country"
+#'   .by = "country"
 #' )
 #'
-#' @importFrom data.table :=
 #' @seealso [fill_linear()], [fill_sum()]
 fill_growth <- function(
   data,
   value_col,
   proxy_col,
-  time_col = "year",
-  group_by = NULL,
+  time_col = year,
+  .by = NULL,
   max_gap = Inf,
   max_gap_linear = 3,
   fill_scope = NULL,
@@ -312,12 +298,16 @@ fill_growth <- function(
   output_format = "clean",
   verbose = TRUE
 ) {
+  # Convert column names to strings for internal use
+  value_col_name <- rlang::as_name(rlang::enquo(value_col))
+  time_col_name <- rlang::as_name(rlang::enquo(time_col))
+
   # 1. Setup and Validation
   setup <- .fg_setup(
     data,
-    value_col,
-    time_col,
-    group_by,
+    value_col_name,
+    time_col_name,
+    .by,
     fill_scope,
     smooth_window,
     max_gap_linear
@@ -327,8 +317,8 @@ fill_growth <- function(
   data_work <- .fg_compute_all_growth_rates(
     setup$data_work,
     proxy_col,
-    value_col,
-    group_by,
+    value_col_name,
+    .by,
     setup$inputs$smooth_window,
     verbose
   )
@@ -337,12 +327,12 @@ fill_growth <- function(
   data_work <- .fg_apply_hierarchical_filling(
     data_work,
     proxy_col,
-    value_col,
+    value_col_name,
     setup$cols,
     max_gap,
     setup$inputs$max_gap_linear,
-    time_col,
-    group_by,
+    time_col_name,
+    .by,
     verbose
   )
 
@@ -350,7 +340,7 @@ fill_growth <- function(
   .fg_finalize_and_report(
     data_work,
     data,
-    value_col,
+    value_col_name,
     setup$cols,
     setup$scope_mask,
     output_format,
@@ -364,7 +354,7 @@ fill_growth <- function(
   data,
   value_col,
   time_col,
-  group_by,
+  .by,
   fill_scope,
   smooth_window,
   max_gap_linear
@@ -373,7 +363,7 @@ fill_growth <- function(
     data,
     value_col,
     time_col,
-    group_by,
+    .by,
     smooth_window,
     max_gap_linear
   )
@@ -386,12 +376,12 @@ fill_growth <- function(
     scope_mask = scope_mask,
     data_work = prep$data_work,
     cols = list(
-      method = prep$method_col,
+      source = prep$source_col,
       raw_missing = prep$raw_missing_col,
       raw_numeric = prep$raw_numeric_col,
       raw = prep$raw_col,
       orig_val = prep$original_value_numeric,
-      orig_method = prep$original_method
+      orig_source = prep$original_source
     )
   )
 }
@@ -400,7 +390,7 @@ fill_growth <- function(
   data,
   value_col,
   time_col,
-  group_by,
+  .by,
   smooth_window,
   max_gap_linear
 ) {
@@ -415,8 +405,8 @@ fill_growth <- function(
   }
   smooth_window <- as.integer(smooth_window)
 
-  if (!is.null(group_by)) {
-    missing <- setdiff(group_by, names(data))
+  if (!is.null(.by)) {
+    missing <- setdiff(.by, names(data))
     if (length(missing) > 0) {
       cli::cli_abort(
         "Group columns not found: {paste(missing, collapse = ', ')}"
@@ -469,13 +459,13 @@ fill_growth <- function(
   raw_col <- snapshot_col
   raw_numeric_col <- paste0(raw_col, "_numeric")
   raw_missing_col <- paste0(raw_col, "_missing")
-  method_col <- paste0("method_", value_col)
-  has_method_col <- method_col %in% names(data)
+  source_col <- paste0("source_", value_col)
+  has_source_col <- source_col %in% names(data)
 
   original_value_numeric <- suppressWarnings(as.numeric(data[[value_col]]))
   original_value_numeric[!is.finite(original_value_numeric)] <- NA_real_
-  original_method <- if (has_method_col) {
-    as.character(data[[method_col]])
+  original_source <- if (has_source_col) {
+    as.character(data[[source_col]])
   } else {
     ifelse(is.na(original_value_numeric), "missing", "original")
   }
@@ -493,23 +483,23 @@ fill_growth <- function(
         NA_real_
       ),
       !!raw_missing_col := is.na(.data[[raw_numeric_col]]),
-      !!method_col := if (has_method_col) {
-        .data[[method_col]]
+      !!source_col := if (has_source_col) {
+        .data[[source_col]]
       } else {
         ifelse(.data[[raw_missing_col]], "missing", "original")
       },
       !!value_col := .data[[raw_numeric_col]]
     )
-  data_work[[method_col]][is.na(data_work[[value_col]])] <- "missing"
+  data_work[[source_col]][is.na(data_work[[value_col]])] <- "missing"
 
   list(
     data_work = data_work,
-    method_col = method_col,
+    source_col = source_col,
     raw_missing_col = raw_missing_col,
     raw_numeric_col = raw_numeric_col,
     raw_col = raw_col,
     original_value_numeric = original_value_numeric,
-    original_method = original_method
+    original_source = original_source
   )
 }
 
@@ -550,7 +540,7 @@ fill_growth <- function(
   data_work,
   proxy_col,
   value_col,
-  group_by,
+  .by,
   smooth_window,
   verbose
 ) {
@@ -559,7 +549,7 @@ fill_growth <- function(
       proxy_col[i],
       data_work,
       value_col,
-      group_by,
+      .by,
       verbose
     )
     # Calculate for this specific proxy
@@ -568,7 +558,7 @@ fill_growth <- function(
       spec,
       i,
       smooth_window,
-      group_by,
+      .by,
       verbose
     )
   }
@@ -580,7 +570,7 @@ fill_growth <- function(
   spec,
   idx,
   smooth_window,
-  group_by,
+  .by,
   verbose
 ) {
   growth_col <- paste0("growth_", idx, "_", spec$spec_name)
@@ -590,17 +580,17 @@ fill_growth <- function(
     message("Calculating growth rates for: ", spec$spec_name)
   }
 
-  # 1. Prepare Data.Table with Lags
-  dt <- .fg_growth_prep_dt(data, spec, group_by)
-  if (nrow(dt) == 0) {
+  # 1. Prepare tibble with relevant columns
+  prep <- .fg_growth_prep(data, spec, .by)
+  if (nrow(prep) == 0) {
     return(.fg_add_empty_cols(data, growth_col, obs_col))
   }
 
   # 2. Compute Individual Row Growth (with Smoothing)
-  dt <- .fg_growth_calc_individual(dt, spec, smooth_window)
+  prep <- .fg_growth_calc_individual(prep, spec, smooth_window)
 
   # 3. Aggregate to Groups
-  summary_dt <- .fg_growth_aggregate(dt, spec, growth_col, obs_col)
+  summary_tbl <- .fg_growth_aggregate(prep, spec, growth_col, obs_col)
 
   # 4. Join back
   join_keys <- c("year", spec$present_group_vars)
@@ -608,25 +598,26 @@ fill_growth <- function(
     join_keys <- "year"
   }
 
-  dplyr::left_join(data, tibble::as_tibble(summary_dt), by = join_keys)
+  dplyr::left_join(data, summary_tbl, by = join_keys)
 }
 
-.fg_growth_prep_dt <- function(data, spec, group_by) {
+.fg_growth_prep <- function(data, spec, .by) {
   if (!spec$source_var %in% names(data)) {
-    return(data.table::data.table())
+    return(tibble::tibble())
   }
 
-  lag_vars <- unique(c(group_by, spec$present_group_vars))
+  lag_vars <- unique(c(.by, spec$present_group_vars))
   lag_vars <- lag_vars[lag_vars %in% names(data)]
 
   cols <- unique(c("year", lag_vars, spec$source_var, spec$weight_col))
-  dt <- data.table::as.data.table(data[, cols, drop = FALSE])
+  cols <- cols[!is.na(cols)]
 
-  data.table::setorderv(dt, unique(c(lag_vars, "year")))
-  dt
+  data |>
+    dplyr::select(dplyr::all_of(cols)) |>
+    dplyr::arrange(dplyr::across(dplyr::all_of(unique(c(lag_vars, "year")))))
 }
 
-.fg_growth_calc_individual <- function(dt, spec, window) {
+.fg_growth_calc_individual <- function(data, spec, window) {
   # Helper to manage lag vars
   by_vars <- if (length(spec$present_group_vars) > 0) {
     spec$present_group_vars
@@ -636,44 +627,33 @@ fill_growth <- function(
 
   # Apply Smoothing (Moving Average)
   if (window > 1) {
-    dt <- .compute_ma_base(dt, spec$source_var, window, by_vars)
+    data <- .compute_ma_base_dplyr(data, spec$source_var, window, by_vars)
     val_col <- "ma_base"
   } else {
     val_col <- spec$source_var
   }
 
-  # Create Lags
-  if (!is.null(by_vars)) {
-    dt[,
-      `:=`(
-        lag_src = data.table::shift(get(val_col)),
-        lag_yr = data.table::shift(year)
+  # Create Lags and Calculate Growth
+  data <- data |>
+    dplyr::mutate(
+      lag_src = dplyr::lag(.data[[val_col]]),
+      lag_yr = dplyr::lag(year),
+      ind_growth = dplyr::if_else(
+        year == lag_yr + 1 &
+          !is.na(.data[[val_col]]) &
+          !is.na(lag_src) &
+          lag_src > 0,
+        (.data[[val_col]] - lag_src) / lag_src,
+        NA_real_
       ),
-      by = by_vars
-    ]
-  } else {
-    dt[, `:=`(
-      lag_src = data.table::shift(get(val_col)),
-      lag_yr = data.table::shift(year)
-    )]
-  }
-
-  # Calculate Growth
-  dt[,
-    ind_growth := data.table::fifelse(
-      year == lag_yr + 1 &
-        !is.na(get(val_col)) &
-        !is.na(lag_src) &
-        lag_src > 0,
-      (get(val_col) - lag_src) / lag_src,
-      NA_real_
+      .by = dplyr::all_of(by_vars)
     )
-  ]
 
-  dt[!is.na(ind_growth)]
+  data |>
+    dplyr::filter(!is.na(ind_growth))
 }
 
-.fg_growth_aggregate <- function(dt, spec, growth_col, obs_col) {
+.fg_growth_aggregate <- function(data, spec, growth_col, obs_col) {
   by_vars <- c("year", spec$present_group_vars)
   if (length(spec$present_group_vars) == 0) {
     by_vars <- "year"
@@ -681,6 +661,7 @@ fill_growth <- function(
 
   # Setup weights
   has_w <- !is.null(spec$weight_col)
+
   if (has_w) {
     # Shift weights to align with growth period (previous year weight)
     grp <- if (length(spec$present_group_vars) > 0) {
@@ -688,32 +669,39 @@ fill_growth <- function(
     } else {
       NULL
     }
-    if (!is.null(grp)) {
-      dt[, w := data.table::shift(get(spec$weight_col)), by = grp]
-    } else {
-      dt[, w := data.table::shift(get(spec$weight_col))]
-    }
+
+    data <- data |>
+      dplyr::mutate(
+        w = dplyr::lag(.data[[spec$weight_col]]),
+        .by = dplyr::all_of(grp)
+      )
+
+    # Weighted aggregation
+    data |>
+      dplyr::summarise(
+        !!growth_col := {
+          valid_w <- !is.na(w) & is.finite(w) & w > 0
+          if (any(valid_w)) {
+            sum(ind_growth[valid_w] * w[valid_w]) / sum(w[valid_w])
+          } else {
+            mean(ind_growth)
+          }
+        },
+        !!obs_col := {
+          valid_w <- !is.na(w) & is.finite(w) & w > 0
+          if (any(valid_w)) sum(valid_w) else dplyr::n()
+        },
+        .by = dplyr::all_of(by_vars)
+      )
+  } else {
+    # Unweighted aggregation
+    data |>
+      dplyr::summarise(
+        !!growth_col := mean(ind_growth),
+        !!obs_col := dplyr::n(),
+        .by = dplyr::all_of(by_vars)
+      )
   }
-
-  res <- dt[,
-    {
-      val <- mean(ind_growth) # Default unweighted
-      cnt <- .N
-
-      if (has_w) {
-        valid_w <- !is.na(w) & is.finite(w) & w > 0
-        if (any(valid_w)) {
-          val <- sum(ind_growth[valid_w] * w[valid_w]) / sum(w[valid_w])
-          cnt <- sum(valid_w)
-        }
-      }
-      .(g_val = val, o_val = cnt)
-    },
-    by = by_vars
-  ]
-
-  data.table::setnames(res, c("g_val", "o_val"), c(growth_col, obs_col))
-  res
 }
 
 .fg_add_empty_cols <- function(data, g_col, o_col) {
@@ -721,6 +709,7 @@ fill_growth <- function(
   data[[o_col]] <- 0L
   data
 }
+
 
 # --- 3. Filling Logic ---
 
@@ -732,7 +721,7 @@ fill_growth <- function(
   max_gap,
   max_gap_lin,
   time_col,
-  group_by,
+  .by,
   verbose
 ) {
   if (verbose) {
@@ -741,7 +730,7 @@ fill_growth <- function(
 
   # Pre-calculate spec names for bridge fallback
   specs <- lapply(proxy_cols, function(p) {
-    .parse_proxy_spec(p, data, value_col, group_by, FALSE)$spec_name
+    .parse_proxy_spec(p, data, value_col, .by, FALSE)$spec_name
   })
 
   for (i in seq_along(proxy_cols)) {
@@ -764,7 +753,7 @@ fill_growth <- function(
         g_col,
         m_name,
         value_col,
-        cols$method,
+        cols$source,
         cols$raw_missing,
         max_gap,
         max_gap_lin,
@@ -774,9 +763,9 @@ fill_growth <- function(
       )
     }
 
-    if (!is.null(group_by)) {
+    if (!is.null(.by)) {
       data <- data |>
-        dplyr::group_by(dplyr::across(dplyr::all_of(group_by))) |>
+        dplyr::group_by(dplyr::across(dplyr::all_of(.by))) |>
         dplyr::group_modify(~ fill_fun(.x)) |>
         dplyr::ungroup()
     } else {
@@ -1096,7 +1085,7 @@ fill_growth <- function(
   # Restore non-scope values
   if (!all(mask)) {
     data[[value_col]][!mask] <- cols$orig_val[!mask]
-    data[[cols$method]][!mask] <- cols$orig_method[!mask]
+    data[[cols$source]][!mask] <- cols$orig_source[!mask]
   }
 
   if (format == "clean") {
@@ -1143,6 +1132,37 @@ fill_growth <- function(
     dt[, ma_base := compute_ma(get(value_var), window)]
   }
   dt
+}
+
+.compute_ma_base_dplyr <- function(data, value_var, window, group_vars = NULL) {
+  if (window <= 1) {
+    return(data)
+  }
+
+  compute_ma <- function(vals, w) {
+    ma <- rep(NA_real_, length(vals))
+    for (i in seq_along(vals)) {
+      if (i > 1) {
+        start_idx <- max(1, i - w)
+        window_vals <- vals[start_idx:(i - 1)]
+        window_vals <- window_vals[!is.na(window_vals)]
+        if (length(window_vals) > 0) {
+          ma[i] <- mean(
+            window_vals[
+              max(1, length(window_vals) - w + 1):length(window_vals)
+            ]
+          )
+        }
+      }
+    }
+    ma
+  }
+
+  data |>
+    dplyr::mutate(
+      ma_base = compute_ma(.data[[value_var]], window),
+      .by = dplyr::all_of(group_vars)
+    )
 }
 
 .parse_proxy_spec <- function(spec, data, value_col, group_by, verbose) {
