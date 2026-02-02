@@ -242,8 +242,12 @@ fill_sum <- function(
 #'   fallback. Default: 3.
 #' @param fill_scope Quosure. Filter expression to limit filling scope.
 #'   Default: NULL.
-#' @param smooth_window Integer. Window size for moving average smoothing of
-#'   proxy reference values before computing growth rates. Default: 1.
+#' @param value_smooth_window Integer. Window size for a centered moving
+#'   average applied to the value column before gap-filling. Useful for
+#'   variables with high inter-annual variability. If `NULL` (default), no
+#'   smoothing is applied.
+#' @param proxy_smooth_window Integer. Window size for moving average smoothing
+#'   of proxy reference values before computing growth rates. Default: 1.
 #' @param output_format Character. Output format: "clean" or "detailed".
 #'   Default: "clean".
 #' @param verbose Logical. Print progress messages. Default: TRUE.
@@ -294,7 +298,8 @@ fill_proxy_growth <- function(
   max_gap = Inf,
   max_gap_linear = 3,
   fill_scope = NULL,
-  smooth_window = 1,
+  value_smooth_window = NULL,
+  proxy_smooth_window = 1,
   output_format = "clean",
   verbose = TRUE
 ) {
@@ -309,7 +314,8 @@ fill_proxy_growth <- function(
     time_col_name,
     .by,
     fill_scope,
-    smooth_window,
+    value_smooth_window,
+    proxy_smooth_window,
     max_gap_linear
   )
 
@@ -319,7 +325,7 @@ fill_proxy_growth <- function(
     proxy_col,
     value_col_name,
     .by,
-    setup$inputs$smooth_window,
+    setup$inputs$proxy_smooth_window,
     verbose
   )
 
@@ -356,7 +362,8 @@ fill_proxy_growth <- function(
   time_col,
   .by,
   fill_scope,
-  smooth_window,
+  value_smooth_window,
+  proxy_smooth_window,
   max_gap_linear
 ) {
   inputs <- .fg_validate_inputs(
@@ -364,12 +371,18 @@ fill_proxy_growth <- function(
     value_col,
     time_col,
     .by,
-    smooth_window,
+    value_smooth_window,
+    proxy_smooth_window,
     max_gap_linear
   )
 
   scope_mask <- .fg_calculate_scope_mask(inputs$data, fill_scope)
-  prep <- .fg_prepare_working_columns(inputs$data, value_col)
+  prep <- .fg_prepare_working_columns(
+    inputs$data,
+    value_col,
+    inputs$value_smooth_window,
+    .by
+  )
 
   list(
     inputs = inputs,
@@ -391,7 +404,8 @@ fill_proxy_growth <- function(
   value_col,
   time_col,
   .by,
-  smooth_window,
+  value_smooth_window,
+  proxy_smooth_window,
   max_gap_linear
 ) {
   if (!rlang::has_name(data, time_col)) {
@@ -400,10 +414,18 @@ fill_proxy_growth <- function(
   if (!rlang::has_name(data, value_col)) {
     cli::cli_abort("Value column '{value_col}' not found in data")
   }
-  if (!rlang::is_scalar_integerish(smooth_window) || smooth_window < 1) {
-    cli::cli_abort("`smooth_window` must be a positive integer")
+  if (
+    !is.null(value_smooth_window) &&
+      (!rlang::is_scalar_integerish(value_smooth_window) ||
+        value_smooth_window < 1)
+  ) {
+    cli::cli_abort("`value_smooth_window` must be a positive integer or NULL")
   }
-  smooth_window <- as.integer(smooth_window)
+  if (!rlang::is_scalar_integerish(proxy_smooth_window) ||
+    proxy_smooth_window < 1) {
+    cli::cli_abort("`proxy_smooth_window` must be a positive integer")
+  }
+  proxy_smooth_window <- as.integer(proxy_smooth_window)
 
   if (!is.null(.by)) {
     missing <- setdiff(.by, names(data))
@@ -416,7 +438,8 @@ fill_proxy_growth <- function(
   max_gap_linear <- max(0L, as.integer(max_gap_linear))
   list(
     data = data,
-    smooth_window = smooth_window,
+    value_smooth_window = value_smooth_window,
+    proxy_smooth_window = proxy_smooth_window,
     max_gap_linear = max_gap_linear
   )
 }
@@ -438,7 +461,12 @@ fill_proxy_growth <- function(
   scope_mask
 }
 
-.fg_prepare_working_columns <- function(data, value_col) {
+.fg_prepare_working_columns <- function(
+  data,
+  value_col,
+  value_smooth_window,
+  .by
+) {
   function_tag <- "proxy"
   # Original raw capture
   raw_original_col <- paste0(value_col, "_raw_original")
@@ -470,25 +498,48 @@ fill_proxy_growth <- function(
     ifelse(is.na(original_value_numeric), "missing", "original")
   }
 
+  # Apply smoothing to value column if requested
+  # Smoothed values are used for interpolation anchors, but original non-NA
+
+  # values are always preserved (smoothing only affects gap-filling behavior)
+  use_smoothing <- !is.null(value_smooth_window)
+  if (use_smoothing) {
+    data <- data |>
+      dplyr::mutate(
+        .smooth_var = zoo::rollmean(
+          original_value_numeric,
+          k = value_smooth_window,
+          fill = NA,
+          align = "center"
+        ),
+        .by = dplyr::all_of(.by)
+      )
+  } else {
+    data <- data |>
+      dplyr::mutate(.smooth_var = original_value_numeric)
+  }
+
   # Add working columns
+  # raw_missing tracks what was ORIGINALLY missing (before smoothing)
+  # value_col uses smoothed values for gap-filling, but coalesces with original
   data_work <- data |>
     dplyr::mutate(
       !!raw_col := .data[[value_col]],
-      !!raw_numeric_col := suppressWarnings(as.numeric(.data[[value_col]]))
+      !!raw_numeric_col := .smooth_var,
+      !!raw_missing_col := is.na(original_value_numeric),
+      .smooth_var = NULL
     ) |>
     dplyr::mutate(
-      !!raw_numeric_col := replace(
-        .data[[raw_numeric_col]],
-        !is.finite(.data[[raw_numeric_col]]),
-        NA_real_
-      ),
-      !!raw_missing_col := is.na(.data[[raw_numeric_col]]),
       !!source_col := if (has_source_col) {
         .data[[source_col]]
       } else {
         ifelse(.data[[raw_missing_col]], "missing", "original")
       },
-      !!value_col := .data[[raw_numeric_col]]
+      # Use original where available, smoothed otherwise (for anchor points)
+      !!value_col := dplyr::coalesce(
+        original_value_numeric,
+        .data[[raw_numeric_col]]
+      )
     )
   data_work[[source_col]][is.na(data_work[[value_col]])] <- "missing"
 
