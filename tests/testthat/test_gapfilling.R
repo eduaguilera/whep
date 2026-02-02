@@ -734,3 +734,180 @@ test_that("fill_proxy_growth extrapolates at ends with hierarchical growth", {
   # Sources at ends should be growth_* (not *_bridge)
   expect_true(any(grepl("^growth_", res$source_value)))
 })
+
+test_that("fill_proxy_growth proxy_smooth_window smooths proxy before growth calc", {
+  # Noisy proxy data - smoothing should reduce volatility in growth rates
+
+  data_noisy <- tibble::tribble(
+    ~year, ~value, ~proxy,
+    2010, 100, 1000,
+    2011, NA, 1200,
+    2012, NA, 900,
+    2013, NA, 1300,
+    2014, 150, 1100
+  )
+
+  result_no_smooth <- fill_proxy_growth(
+    data_noisy,
+    value_col = value,
+    proxy_col = "proxy",
+    proxy_smooth_window = 1,
+    verbose = FALSE
+  )
+
+  result_smooth <- fill_proxy_growth(
+    data_noisy,
+    value_col = value,
+    proxy_col = "proxy",
+    proxy_smooth_window = 3,
+    verbose = FALSE
+  )
+
+  # Both should fill gaps
+  expect_false(any(is.na(result_no_smooth$value)))
+  expect_false(any(is.na(result_smooth$value)))
+
+  # Original values preserved in both
+
+  expect_equal(result_no_smooth$value[1], 100)
+  expect_equal(result_smooth$value[1], 100)
+  expect_equal(result_no_smooth$value[5], 150)
+  expect_equal(result_smooth$value[5], 150)
+})
+
+test_that("fill_proxy_growth value_smooth_window smooths value before filling", {
+  # Data with high variability in value column
+  data_noisy_value <- tibble::tribble(
+    ~year, ~value, ~proxy,
+    2010, 100, 1000,
+    2011, 130, 1050,
+    2012, 90, 1100,
+    2013, NA, 1150,
+    2014, NA, 1200,
+    2015, 110, 1250,
+    2016, 140, 1300,
+    2017, 95, 1350
+  )
+
+  result_no_smooth <- fill_proxy_growth(
+    data_noisy_value,
+    value_col = value,
+    proxy_col = "proxy",
+    value_smooth_window = NULL,
+    verbose = FALSE
+  )
+
+  result_smooth <- fill_proxy_growth(
+    data_noisy_value,
+    value_col = value,
+    proxy_col = "proxy",
+    value_smooth_window = 3,
+    verbose = FALSE
+  )
+
+  # Both should fill gaps
+  expect_false(any(is.na(result_no_smooth$value)))
+  expect_false(any(is.na(result_smooth$value)))
+
+  # Original non-NA values must be preserved exactly
+  expect_equal(result_no_smooth$value[1], 100)
+  expect_equal(result_smooth$value[1], 100)
+  expect_equal(result_no_smooth$value[2], 130)
+  expect_equal(result_smooth$value[2], 130)
+  expect_equal(result_no_smooth$value[6], 110)
+  expect_equal(result_smooth$value[6], 110)
+})
+
+test_that("fill_proxy_growth value_smooth_window NULL is default behavior", {
+  data <- tibble::tribble(
+    ~year, ~value, ~proxy,
+    2010, 100, 1000,
+    2011, NA, 1100,
+    2012, 120, 1200
+  )
+
+  result_default <- fill_proxy_growth(
+    data,
+    value_col = value,
+    proxy_col = "proxy",
+    verbose = FALSE
+  )
+
+  result_null <- fill_proxy_growth(
+    data,
+    value_col = value,
+    proxy_col = "proxy",
+    value_smooth_window = NULL,
+    verbose = FALSE
+  )
+
+  expect_equal(result_default$value, result_null$value)
+})
+
+test_that("fill_proxy_growth both smooth windows can be used together", {
+  data <- tibble::tribble(
+    ~year, ~value, ~proxy,
+    2010, 100, 1000,
+    2011, 120, 1200,
+    2012, 80, 900,
+    2013, NA, 1300,
+    2014, NA, 1100,
+    2015, 110, 1250,
+    2016, 90, 950,
+    2017, 130, 1350
+  )
+
+  result <- fill_proxy_growth(
+    data,
+    value_col = value,
+    proxy_col = "proxy",
+    value_smooth_window = 3,
+    proxy_smooth_window = 2,
+    verbose = FALSE
+  )
+
+  # Gaps should be filled
+  expect_false(any(is.na(result$value)))
+
+  # Original values preserved
+  expect_equal(result$value[1], 100)
+  expect_equal(result$value[2], 120)
+  expect_equal(result$value[3], 80)
+  expect_equal(result$value[6], 110)
+})
+
+test_that("fill_proxy_growth value_smooth_window preserves original non-NA values", {
+  # Critical test: smoothing should NOT turn original values into NA
+  # even when smoothing window extends into gaps
+  data <- tibble::tribble(
+    ~year, ~value, ~proxy,
+    2010, 100, 1000,
+    2011, NA, 1100,
+    2012, NA, 1200,
+    2013, 150, 1300,
+    2014, NA, 1400,
+    2015, NA, 1500,
+    2016, 200, 1600
+  )
+
+  result <- fill_proxy_growth(
+    data,
+    value_col = value,
+    proxy_col = "proxy",
+    value_smooth_window = 3,
+    verbose = FALSE
+  )
+
+  # Original values at 2010, 2013, 2016 MUST be preserved exactly
+  expect_equal(result$value[result$year == 2010], 100)
+  expect_equal(result$value[result$year == 2013], 150)
+  expect_equal(result$value[result$year == 2016], 200)
+
+  # All gaps should be filled
+  expect_false(any(is.na(result$value)))
+
+  # Source should indicate original for non-NA inputs
+  expect_equal(result$source_value[result$year == 2010], "original")
+  expect_equal(result$source_value[result$year == 2013], "original")
+  expect_equal(result$source_value[result$year == 2016], "original")
+})
