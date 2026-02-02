@@ -277,7 +277,7 @@ fill_sum <- function(
 #'   population = c(46, 46.5, 47, 47.5)
 #' )
 #'
-#' fill_growth(
+#' fill_proxy_growth(
 #'   data,
 #'   value_col = gdp,
 #'   proxy_col = "population",
@@ -285,7 +285,7 @@ fill_sum <- function(
 #' )
 #'
 #' @seealso [fill_linear()], [fill_sum()]
-fill_growth <- function(
+fill_proxy_growth <- function(
   data,
   value_col,
   proxy_col,

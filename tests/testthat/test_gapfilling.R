@@ -406,9 +406,9 @@ testthat::test_that("fill_sum creates source column with dynamic name based on v
     )
 })
 
-# fill_growth ------------------------------------------------------------------
+# fill_proxy_growth ------------------------------------------------------------------
 
-test_that("fill_growth fills missing values using proxy growth rates", {
+test_that("fill_proxy_growth fills missing values using proxy growth rates", {
   data <- tibble::tribble(
     ~country, ~year, ~gdp, ~population,
     "ESP", 2010, 100, 46,
@@ -417,7 +417,7 @@ test_that("fill_growth fills missing values using proxy growth rates", {
     "ESP", 2013, NA, 49
   )
 
-  result <- fill_growth(
+  result <- fill_proxy_growth(
     data,
     value_col = gdp,
     proxy_col = "population",
@@ -429,7 +429,7 @@ test_that("fill_growth fills missing values using proxy growth rates", {
   expect_false(any(is.na(result$gdp)))
 })
 
-test_that("fill_growth respects max_gap parameter", {
+test_that("fill_proxy_growth respects max_gap parameter", {
   data <- tibble::tribble(
     ~year, ~value, ~proxy,
     2010, 100, 1000,
@@ -439,7 +439,7 @@ test_that("fill_growth respects max_gap parameter", {
     2014, 150, 1400
   )
 
-  result <- fill_growth(
+  result <- fill_proxy_growth(
     data,
     value_col = value,
     proxy_col = "proxy",
@@ -451,7 +451,7 @@ test_that("fill_growth respects max_gap parameter", {
   expect_true(is.na(result$value[3]))
 })
 
-test_that("fill_growth works with grouping", {
+test_that("fill_proxy_growth works with grouping", {
   data <- tibble::tribble(
     ~country, ~year, ~emissions, ~gdp,
     "ESP", 2010, 100, 1000,
@@ -462,7 +462,7 @@ test_that("fill_growth works with grouping", {
     "FRA", 2012, 250, 2400
   )
 
-  result <- fill_growth(
+  result <- fill_proxy_growth(
     data,
     value_col = emissions,
     proxy_col = "gdp",
@@ -483,7 +483,7 @@ test_that("fill_growth works with grouping", {
   expect_false(is.na(fra_filled))
 })
 
-test_that("fill_growth returns same number of rows", {
+test_that("fill_proxy_growth returns same number of rows", {
   data <- tibble::tribble(
     ~year, ~value, ~proxy,
     2010, 100, 1000,
@@ -491,7 +491,7 @@ test_that("fill_growth returns same number of rows", {
     2012, 120, 1200
   )
 
-  result <- fill_growth(
+  result <- fill_proxy_growth(
     data,
     value_col = value,
     proxy_col = "proxy",
@@ -503,7 +503,7 @@ test_that("fill_growth returns same number of rows", {
 
 # Hierarchical Segmented Interpolation -----------------------------------------
 
-test_that("fill_growth uses hierarchical segmentation with intermediate proxy data", {
+test_that("fill_proxy_growth uses hierarchical segmentation with intermediate proxy data", {
   # Spain wages example: household_ppp has gap 2008-2019
   # formal_ppp has data 2010-2018 (should be used for middle segment)
   # gdp_pc_constant has complete data (fallback for edges)
@@ -524,7 +524,7 @@ test_that("fill_growth uses hierarchical segmentation with intermediate proxy da
     "ESP", 2019, 150, NA, 61
   )
 
-  result <- fill_growth(
+  result <- fill_proxy_growth(
     data_wages,
     value_col = household_ppp,
     proxy_col = c("formal_ppp", "gdp_pc_constant"),
@@ -548,7 +548,7 @@ test_that("fill_growth uses hierarchical segmentation with intermediate proxy da
   expect_true(any(grepl("bridge", middle_sources)))
 })
 
-test_that("fill_growth maintains continuity without jumps between segments", {
+test_that("fill_proxy_growth maintains continuity without jumps between segments", {
   # Test that segmented interpolation produces smooth transitions with bridge
   data_test <- tibble::tribble(
     ~year, ~primary, ~proxy1, ~proxy2,
@@ -560,7 +560,7 @@ test_that("fill_growth maintains continuity without jumps between segments", {
     2005, 200, 125, 110
   )
 
-  result <- fill_growth(
+  result <- fill_proxy_growth(
     data_test,
     value_col = primary,
     proxy_col = c("proxy1", "proxy2"),
@@ -585,7 +585,7 @@ test_that("fill_growth maintains continuity without jumps between segments", {
   expect_true(all(abs(growth_rates) < 1.0))
 })
 
-test_that("fill_growth respects proxy hierarchy in segmentation", {
+test_that("fill_proxy_growth respects proxy hierarchy in segmentation", {
   # Better proxy (proxy1) should be used when available
   data_hierarchy <- tibble::tribble(
     ~year, ~value, ~proxy1, ~proxy2,
@@ -597,7 +597,7 @@ test_that("fill_growth respects proxy hierarchy in segmentation", {
     2015, 180, NA, 60
   )
 
-  result <- fill_growth(
+  result <- fill_proxy_growth(
     data_hierarchy,
     value_col = value,
     proxy_col = c("proxy1", "proxy2"),
@@ -610,7 +610,7 @@ test_that("fill_growth respects proxy hierarchy in segmentation", {
   expect_equal(nrow(result), 6)
 })
 
-test_that("fill_growth backward compatible: single proxy behaves as before", {
+test_that("fill_proxy_growth backward compatible: single proxy behaves as before", {
   # Without intermediate data, should work exactly as old version
   data_simple <- tibble::tribble(
     ~year, ~value, ~proxy,
@@ -621,7 +621,7 @@ test_that("fill_growth backward compatible: single proxy behaves as before", {
     2014, 150, 1400
   )
 
-  result <- fill_growth(
+  result <- fill_proxy_growth(
     data_simple,
     value_col = value,
     proxy_col = "proxy",
@@ -640,7 +640,7 @@ test_that("fill_growth backward compatible: single proxy behaves as before", {
   expect_true(all(result$value[2:4] < 150))
 })
 
-test_that("fill_growth handles case with no intermediate data gracefully", {
+test_that("fill_proxy_growth handles case with no intermediate data gracefully", {
   # Hierarchical proxies but none have intermediate data
   data_no_intermediate <- tibble::tribble(
     ~year, ~value, ~proxy1, ~proxy2,
@@ -650,7 +650,7 @@ test_that("fill_growth handles case with no intermediate data gracefully", {
     2013, 150, NA, 56
   )
 
-  result <- fill_growth(
+  result <- fill_proxy_growth(
     data_no_intermediate,
     value_col = value,
     proxy_col = c("proxy1", "proxy2"),
@@ -663,7 +663,7 @@ test_that("fill_growth handles case with no intermediate data gracefully", {
   expect_equal(result$value[result$year == 2013], 150)
 })
 
-test_that("fill_growth preserves original data points when they exist", {
+test_that("fill_proxy_growth preserves original data points when they exist", {
   data_mixed <- tibble::tribble(
     ~year, ~value, ~proxy,
     2010, 100, 1000,
@@ -673,7 +673,7 @@ test_that("fill_growth preserves original data points when they exist", {
     2014, 150, 1400
   )
 
-  result <- fill_growth(
+  result <- fill_proxy_growth(
     data_mixed,
     value_col = value,
     proxy_col = "proxy",
@@ -690,7 +690,7 @@ test_that("fill_growth preserves original data points when they exist", {
   expect_false(is.na(result$value[result$year == 2013]))
 })
 
-test_that("fill_growth preserves non-NA values", {
+test_that("fill_proxy_growth preserves non-NA values", {
   data <- tibble::tribble(
     ~year, ~value, ~proxy,
     2010, 100, 1000,
@@ -698,7 +698,7 @@ test_that("fill_growth preserves non-NA values", {
     2012, 120, 1200
   )
 
-  result <- fill_growth(
+  result <- fill_proxy_growth(
     data,
     value_col = value,
     proxy_col = "proxy",
@@ -710,7 +710,7 @@ test_that("fill_growth preserves non-NA values", {
   expect_equal(result$value[3], 120)
 })
 
-test_that("fill_growth extrapolates at ends with hierarchical growth", {
+test_that("fill_proxy_growth extrapolates at ends with hierarchical growth", {
   data <- tibble::tribble(
     ~year, ~value, ~proxy1, ~proxy2,
     2010, NA, 100, 50,
@@ -720,7 +720,7 @@ test_that("fill_growth extrapolates at ends with hierarchical growth", {
     2014, NA, 112, 54
   )
 
-  res <- fill_growth(
+  res <- fill_proxy_growth(
     data,
     value_col = value,
     proxy_col = c("proxy1", "proxy2"),

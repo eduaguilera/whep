@@ -9,7 +9,7 @@ fill_sum(
   data,
   value_col,
   change_col,
-  time_col = "year",
+  time_col = year,
   start_with_zero = TRUE,
   .by = NULL
 )
@@ -21,7 +21,7 @@ fill_sum(
 
 \item{change_col}{The column whose values will be used to fill the gaps.}
 
-\item{time_col}{Character. Name of the time column. Default: "year".}
+\item{time_col}{The column containing time values. Default: \code{year}.}
 
 \item{start_with_zero}{Logical. If TRUE, assumes an invisible 0 value before
 the first observation and fills with cumulative sum starting from the first
