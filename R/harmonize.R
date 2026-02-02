@@ -69,7 +69,7 @@ harmonize_interpolate <- function(data, ...) {
     year_bounds,
     grouping_cols
   )
-  return(.calc_return_harm_int(data, complex_shares, df_simple, grouping_cols))
+  .calc_return_harm_int(data, complex_shares, df_simple, grouping_cols)
 }
 
 # convert quosures -> character column names
@@ -82,7 +82,10 @@ harmonize_interpolate <- function(data, ...) {
 }
 # helper for group_by()
 .group_by_across <- function(..., grouping_cols) {
-  dplyr::group_by(..., dplyr::across(dplyr::all_of(.group_names(grouping_cols))))
+  dplyr::group_by(
+    ...,
+    dplyr::across(dplyr::all_of(.group_names(grouping_cols)))
+  )
 }
 
 # Checks if all the series is all simple of if there are 1:N
@@ -95,10 +98,9 @@ harmonize_interpolate <- function(data, ...) {
     cli::cli_inform(c(
       "i" = "only simple harmonization detected, returning simple harmonizations only"
     ))
-    return(
-      df_simple |>
-        dplyr::rename(item_code = item_code_harm)
-    )
+
+    df_simple |>
+      dplyr::rename(item_code = item_code_harm)
   }
 }
 
