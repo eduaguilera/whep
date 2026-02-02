@@ -26,9 +26,10 @@ create_version <- function(data, board, name, ...) {
 # Change this accordingly if your data is not CSV.
 # Please make the output a tibble.
 read_input <- function(path) {
-  data <- readRDS(path)
+  data <- readr::read_csv(path, show_col_types = FALSE)
   tibble::as_tibble(data)
 }
+
 
 prepare_for_upload <- function(input_path, data_name, ...) {
   board <- pins::board_temp(versioned = TRUE)
@@ -68,6 +69,6 @@ prepare_for_upload <- function(input_path, data_name, ...) {
 }
 
 prepare_for_upload(
-  "C:/PhD/GRAFS/Inputs_SACO/N_Excretion_ygs.rds",
-  "n_excretion_ygs"
+  "C:/PhD/GRAFS/Inputs_SACO/N_fix_ygpit_all.csv",
+  "n_fix_ygpit_all"
 )
