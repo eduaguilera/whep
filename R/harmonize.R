@@ -15,16 +15,11 @@
 #'    - additional columns (...)
 #' @export
 harmonize_simple <- function(data, ...) {
-  grouping_cols <- rlang::enquos(...)
   data |>
     dplyr::filter(type == "Simple") |>
     dplyr::summarize(
       value = sum(value, na.rm = TRUE),
-      .by = c(
-        "item_code_harm",
-        "year",
-        !!!grouping_cols
-      )
+      .by = c("item_code_harm", "year", ...)
     )
 }
 
@@ -87,18 +82,14 @@ harmonize_interpolate <- function(data, ...) {
 }
 # helper for group_by()
 .group_by_across <- function(..., grouping_cols) {
-  dplyr::group_by(..., across(all_of(.group_names(grouping_cols))))
+  dplyr::group_by(..., dplyr::across(dplyr::all_of(.group_names(grouping_cols))))
 }
 
-
-#' .check_all_simple(data_groups, df_simple)
-#' Checks if all the series is all simple of if there are 1:N
-#' Input
-#'    - data_groups
-#'    - df_simple
-#' Return: df_simple
-#'
-#'
+# Checks if all the series is all simple of if there are 1:N
+# Input
+#    - data_groups
+#    - df_simple
+# Return: df_simple
 .check_all_simple <- function(data_groups, df_simple) {
   if (nrow(data_groups) == 0) {
     cli::cli_inform(c(
@@ -119,7 +110,7 @@ harmonize_interpolate <- function(data, ...) {
 ) {
   grouping_names <- .group_names(grouping_cols)
   df_simple |>
-    dplyr::select(item_code_harm, year, all_of(grouping_names)) |>
+    dplyr::select(item_code_harm, year, dplyr::all_of(grouping_names)) |>
     dplyr::left_join(
       data_groups,
       by = c("item_code_harm", grouping_names),
@@ -170,7 +161,7 @@ harmonize_interpolate <- function(data, ...) {
     )
     cli::cli_abort(c(
       msg,
-      setNames(formatted_rows, rep("*", length(formatted_rows)))
+      stats::setNames(formatted_rows, rep("*", length(formatted_rows)))
     ))
   }
 }
@@ -179,12 +170,12 @@ harmonize_interpolate <- function(data, ...) {
   grouping_names <- .group_names(grouping_cols)
   dplyr::bind_rows(
     group_year_presence |>
-      dplyr::select(items, year, all_of(grouping_names)),
+      dplyr::select(items, year, dplyr::all_of(grouping_names)),
     data |>
       dplyr::filter(type == "1:N") |>
-      dplyr::select(items, year, all_of(grouping_names))
+      dplyr::select(items, year, dplyr::all_of(grouping_names))
   ) |>
-    dplyr::group_by(items, across(all_of(grouping_names))) |>
+    dplyr::group_by(items, dplyr::across(dplyr::all_of(grouping_names))) |>
     dplyr::summarize(
       start_year = min(year, na.rm = TRUE),
       end_year = max(year, na.rm = TRUE),
@@ -232,7 +223,7 @@ harmonize_interpolate <- function(data, ...) {
       item_code_harm,
       year,
       value_share,
-      all_of(grouping_names)
+      dplyr::all_of(grouping_names)
     )
 }
 
@@ -255,7 +246,7 @@ harmonize_interpolate <- function(data, ...) {
       year,
       item_code_harm,
       value,
-      all_of(grouping_names)
+      dplyr::all_of(grouping_names)
     ) |>
     dplyr::bind_rows(df_simple) |>
     dplyr::rename(item_code = item_code_harm) |>
