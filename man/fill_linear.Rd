@@ -7,7 +7,7 @@
 fill_linear(
   data,
   value_col,
-  time_col = "year",
+  time_col = year,
   interpolate = TRUE,
   fill_forward = TRUE,
   fill_backward = TRUE,
@@ -20,7 +20,7 @@ fill_linear(
 
 \item{value_col}{The column containing gaps to be filled.}
 
-\item{time_col}{Character. Name of the time column. Default: "year".}
+\item{time_col}{The column containing time values. Default: \code{year}.}
 
 \item{interpolate}{Logical. If \code{TRUE} (default),
 performs linear interpolation.}

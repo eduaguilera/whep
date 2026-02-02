@@ -73,7 +73,7 @@ reference:
   contents:
   - fill_linear
   - fill_sum
-  - fill_growth
+  - fill_proxy_growth
 
 - title: Decomposition analysis
   desc: >
