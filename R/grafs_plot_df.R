@@ -149,13 +149,6 @@ create_grafs_plot_df <- function() {
     dplyr::select(-data_num) |>
     dplyr::ungroup()
 
-  #Path needs to be adjusted by user, until the final version can be uploaded
-  #to SACO
-  readr::write_csv(
-    df_final,
-    "C:/PhD/GRAFS_plot/inst/extdata/GRAFS_spain_data.csv"
-  )
-
   df_final
 }
 
