@@ -2,46 +2,26 @@
 % Please edit documentation in R/harmonize.R
 \name{harmonize_simple}
 \alias{harmonize_simple}
-\title{harmon_simple(data, ...)
-Harmonizes simple data
-Input
-\itemize{
-\item data (dataframe to be harmonized)
-\itemize{
-\item col1: item_code_harm
-\item col2: year
-\item col3: value
-\item col4: type
-}
-\item ... (additional columns)
-Returns: Dataframe of harmonized data
-Return structure:
-\item item_code_harm: numeric (harmonized code of item)
-\item year: numeric (year of observation)
-\item value: numeric (value of observation)
-\item additional columns (...)
-}}
+\title{Harmonize rows labelled "Simple" by summing values}
 \usage{
 harmonize_simple(data, ...)
 }
+\arguments{
+\item{data}{A data frame containing at least \code{item_code_harm},
+\code{year}, \code{value} and \code{type}.}
+
+\item{...}{Additional grouping columns supplied as bare names.}
+}
+\value{
+A tibble with columns \code{item_code_harm}, \code{year}, \code{value}
+and any additional grouping columns.
+}
 \description{
-harmon_simple(data, ...)
-Harmonizes simple data
-Input
-\itemize{
-\item data (dataframe to be harmonized)
-\itemize{
-\item col1: item_code_harm
-\item col2: year
-\item col3: value
-\item col4: type
+Sum \code{value} for rows where \code{type == "Simple"}.
+The results are grouped by \code{item_code_harm}, \code{year} and any
+additional grouping columns supplied via \code{...}.
 }
-\item ... (additional columns)
-Returns: Dataframe of harmonized data
-Return structure:
-\item item_code_harm: numeric (harmonized code of item)
-\item year: numeric (year of observation)
-\item value: numeric (value of observation)
-\item additional columns (...)
-}
+\examples{
+# TODO: add example
+# df |> harmonize_simple(country)
 }
