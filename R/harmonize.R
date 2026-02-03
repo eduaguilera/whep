@@ -143,7 +143,7 @@ harmonize_interpolate <- function(data, ...) {
     )
   )
   if (nrow(incomplete_groups) > 0) {
-    formatted_rows <- with(incomplete_groups, paste0(items, " in ", country))
+    formatted_rows <- with(incomplete_groups, paste0(items))
     msg <- c(
       "x" = "ERROR: Incomplete 1:N groups detected",
       "i" = "Revise following groups to ensure items have data for all years:"
