@@ -2,56 +2,26 @@
 % Please edit documentation in R/harmonize.R
 \name{harmonize_interpolate}
 \alias{harmonize_interpolate}
-\title{harmon_advanced_int(data, ...)
-Harmonizes data with simple 1:1, N:1, and 1:N combinations.
-Input:
-\itemize{
-\item data
-\itemize{
-\item Dataframe with data you wish to harmonize, with harmonization table
-already attached
-\item Columns
-\itemize{
-\item year (numeric): year of observation
-\item value (numeric): value of observation
-\item items (string): name of observation
-\item item_code_harm (numeric): code of harmonized item
-\item type (string): either "Simple" or "1:N"
-}
-}
-\item ...
-\itemize{
-\item column names for grouping
-Output:
-}
-\item 
-}}
+\title{Harmonize advanced cases with interpolation for 1:N groups}
 \usage{
 harmonize_interpolate(data, ...)
 }
+\arguments{
+\item{data}{Data frame with columns \code{year}, \code{value}, \code{items},
+\code{item_code_harm} and \code{type}.}
+
+\item{...}{Additional grouping columns provided as bare names.}
+}
+\value{
+Tibble with harmonized series (\code{item_code}, \code{year}, \code{value})
+and grouping columns.
+}
 \description{
-harmon_advanced_int(data, ...)
-Harmonizes data with simple 1:1, N:1, and 1:N combinations.
-Input:
-\itemize{
-\item data
-\itemize{
-\item Dataframe with data you wish to harmonize, with harmonization table
-already attached
-\item Columns
-\itemize{
-\item year (numeric): year of observation
-\item value (numeric): value of observation
-\item items (string): name of observation
-\item item_code_harm (numeric): code of harmonized item
-\item type (string): either "Simple" or "1:N"
+Harmonize data containing simple, 1:1, N:1 and 1:N
+mappings. For 1:N groups this function computes shares across
+the full year range and applies them to split values.
 }
-}
-\item ...
-\itemize{
-\item column names for grouping
-Output:
-}
-\item 
-}
+\examples{
+# TODO: add example
+# harmonize_interpolate(data, country)
 }

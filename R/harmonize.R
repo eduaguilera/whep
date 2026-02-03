@@ -67,16 +67,10 @@ harmonize_interpolate <- function(data, ...) {
   .calc_return_harm_int(data, complex_shares, df_simple, grouping_cols)
 }
 
-#' Return simple harmonizations when no 1:N groups exist
-#'
-#' @description If `data_groups` is empty the function informs the
-#'   user and returns `df_simple` with `item_code` renamed.
-#' @param data_groups Data frame of 1:N mappings.
-#' @param df_simple Data frame returned by `harmonize_simple()`.
-#' @return `df_simple` with `item_code` renamed when only simple
-#'   rows exist; otherwise invisible NULL.
-#' @examples
-#' .check_all_simple(tibble::tibble(), tibble::tribble(~item_code_harm, ~year, ~value))
+# Return simple harmonizations when no 1:N groups exist
+#
+# If `data_groups` is empty the function informs the
+# user and returns `df_simple` with `item_code` renamed.
 .check_all_simple <- function(data_groups, df_simple) {
   if (nrow(data_groups) == 0) {
     cli::cli_inform(c(
@@ -88,20 +82,11 @@ harmonize_interpolate <- function(data, ...) {
   }
 }
 
-#' Identify 1:N groups with full year presence
-#'
-#' @description For each `items` group determine which harm members
-#'   are observed for each year and return only groups where all harm
-#'   members are present.
-#' @param df_simple Tibble of simple harmonized values.
-#' @param data_groups Tibble mapping items to `item_code_harm`.
-#' @param harm_groups Tibble with `harm_set` per `items` and groups.
-#' @param grouping_cols List of quosures produced by `rlang::enquos()`.
-#' @return Tibble of group-year rows where all harm members are present.
-#' @examples
-#' .find_group_year_presence(df_simple, data_groups, harm_groups,
-#'   grouping_cols = rlang::enquos(country)
-#' )
+# Identify 1:N groups with full year presence
+#
+# For each `items` group determine which harm members
+# are observed for each year and return only groups where all harm
+# members are present.
 .find_group_year_presence <- function(
   df_simple,
   data_groups,
@@ -131,18 +116,10 @@ harmonize_interpolate <- function(data, ...) {
     dplyr::filter(all_present)
 }
 
-#' Abort on incomplete 1:N groups
-#'
-#' @description Abort with an informative message if any 1:N group is
-#'   missing data for some years.
-#' @param harm_groups Tibble of harm groups.
-#' @param group_year_presence Tibble of groups with full year presence.
-#' @param grouping_cols List of quosures produced by `rlang::enquos()`.
-#' @return Invisible NULL when groups are complete; otherwise aborts.
-#' @examples
-#' .check_group_year_presence(harm_groups, group_year_presence,
-#'   grouping_cols = rlang::enquos(country)
-#' )
+# Abort on incomplete 1:N groups
+#
+# Abort with an informative message if any 1:N group is
+# missing data for some years.
 .check_group_year_presence <- function(
   harm_groups,
   group_year_presence,
@@ -178,16 +155,10 @@ harmonize_interpolate <- function(data, ...) {
   }
 }
 
-#' Compute start and end year bounds for each items group
-#'
-#' @description Combine observed group-year rows with original
-#'   1:N rows and compute start and end years per `items` group.
-#' @param group_year_presence Tibble of groups with full year presence.
-#' @param data Original data containing `type` and `year`.
-#' @param grouping_cols List of quosures produced by `rlang::enquos()`.
-#' @return Tibble with `start_year` and `end_year` per `items` group.
-#' @examples
-#' .find_year_bounds(group_year_presence, data, rlang::enquos(country))
+# Compute start and end year bounds for each items group
+#
+# Combine observed group-year rows with original
+# 1:N rows and compute start and end years per `items` group.
 .find_year_bounds <- function(group_year_presence, data, grouping_cols) {
   grouping_names <- .group_names(grouping_cols)
   dplyr::bind_rows(
@@ -205,21 +176,11 @@ harmonize_interpolate <- function(data, ...) {
     )
 }
 
-#' Calculate value shares for complex 1:N harmonizations
-#'
-#' @description Expand `data_groups` to all years between `start_year`
-#'   and `end_year`, join simple values and compute value shares per
-#'   year. Missing years are filled using `Filling()`.
-#' @param data_groups Tibble mapping `items` to `item_code_harm`.
-#' @param df_simple Tibble of simple harmonized values.
-#' @param year_bounds Tibble with `start_year` and `end_year` per group.
-#' @param grouping_cols List of quosures produced by `rlang::enquos()`.
-#' @return Tibble with `items`, `item_code_harm`, `year`, `value_share`
-#'   and grouping columns.
-#' @examples
-#' .calc_complex_shares(data_groups, df_simple, year_bounds,
-#'   grouping_cols = rlang::enquos(country)
-#' )
+# Calculate value shares for complex 1:N harmonizations
+#
+# Expand `data_groups` to all years between `start_year`
+# and `end_year`, join simple values and compute value shares per
+# year. Missing years are filled using `Filling()`.
 .calc_complex_shares <- function(
   data_groups,
   df_simple,
@@ -264,20 +225,11 @@ harmonize_interpolate <- function(data, ...) {
     )
 }
 
-#' Apply computed shares and return harmonized series
-#'
-#' @description Multiply 1:N `value` by `value_share`, bind simple
-#'   series and sum to return harmonized series by `item_code` and
-#'   `year`.
-#' @param data Original data frame with `type`, `value` and mapping cols.
-#' @param complex_shares Tibble returned by `.calc_complex_shares()`.
-#' @param df_simple Tibble returned by `harmonize_simple()`.
-#' @param grouping_cols List of quosures produced by `rlang::enquos()`.
-#' @return Tibble with `item_code`, `year`, `value` and grouping cols.
-#' @examples
-#' .calc_return_harm_int(data, complex_shares, df_simple,
-#'   grouping_cols = rlang::enquos(country)
-#' )
+# Apply computed shares and return harmonized series
+#
+# Multiply 1:N `value` by `value_share`, bind simple
+# series and sum to return harmonized series by `item_code` and
+# year.
 .calc_return_harm_int <- function(
   data,
   complex_shares,
@@ -307,44 +259,27 @@ harmonize_interpolate <- function(data, ...) {
     )
 }
 
-#' Convert quosures to character column names
-#'
-#' @description Convert a list of quosures (from
-#'   `rlang::enquos()`) to a character vector of column names.
-#' @param grouping_cols A list of quosures produced by
-#'   `rlang::enquos()`.
-#' @return Character vector of column names.
-#' @examples
-#' .group_names(rlang::enquos(country))
+# Convert quosures to character column names
+#
+# Convert a list of quosures (from
+# `rlang::enquos()`) to a character vector of column names.
 .group_names <- function(grouping_cols) {
   purrr::map_chr(grouping_cols, rlang::as_name)
 }
 
-#' Build character vector for joins and .by helpers
-#'
-#' @description Create a character vector combining provided prefixes
-#'   and the names from quosures for use in joins, `.by`, `select` or
-#'   `complete`.
-#' @param ... Character prefixes to include (e.g. "items").
-#' @param grouping_cols A list of quosures produced by
-#'   `rlang::enquos()`.
-#' @return Character vector suitable for dplyr helpers.
-#' @examples
-#' .group_by_chars("items", grouping_cols = rlang::enquos(country))
+# Build character vector for joins and .by helpers
+#
+# Create a character vector combining provided prefixes
+# and the names from quosures for use in joins, `.by`, `select` or
+# complete.
 .group_by_chars <- function(..., grouping_cols) {
   c(..., .group_names(grouping_cols))
 }
 
-#' Group by across helper using quosures
-#'
-#' @description Wrapper around `dplyr::group_by()` that applies
-#'   `across()` to the columns named by quosures.
-#' @param ... Data frame or tibble to group.
-#' @param grouping_cols A list of quosures produced by
-#'   `rlang::enquos()`.
-#' @return A grouped tibble.
-#' @examples
-#' mtcars |> .group_by_across(grouping_cols = rlang::enquos(cyl))
+# Group by across helper using quosures
+#
+# Wrapper around `dplyr::group_by()` that applies
+# `across()` to the columns named by quosures.
 .group_by_across <- function(..., grouping_cols) {
   dplyr::group_by(..., across(all_of(.group_names(grouping_cols))))
 }
