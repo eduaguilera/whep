@@ -279,7 +279,10 @@ harmonize_interpolate <- function(data, ...) {
 # Group by across helper using quosures
 #
 # Wrapper around `dplyr::group_by()` that applies
-# `across()` to the columns named by quosures.
+# `dplyr::across()` to the columns named by quosures.
 .group_by_across <- function(..., grouping_cols) {
-  dplyr::group_by(..., across(all_of(.group_names(grouping_cols))))
+  dplyr::group_by(
+    ...,
+    dplyr::across(dplyr::all_of(.group_names(grouping_cols)))
+  )
 }
