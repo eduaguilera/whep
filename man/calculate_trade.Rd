@@ -13,6 +13,12 @@ calculate_trade(
 }
 \arguments{
 \item{grafs_prod_item_n}{A dataframe with N values (MgN) by destiny.}
+
+\item{pie_full_destinies_fm}{A data frame with destiny data.}
+
+\item{biomass_coefs}{A data frame with biomass coefficients.}
+
+\item{codes_coefs_items_full}{A lookup table with coefficients.}
 }
 \value{
 A dataframe with consumption, exports, and imports in MgN.
