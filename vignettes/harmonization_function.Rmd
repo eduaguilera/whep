@@ -1,0 +1,24 @@
+---
+title: "Harmonization Function Guide"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Harmonization Function Guide}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(whep)
+# Don't ask for credentials (read public files)
+googlesheets4::gs4_deauth()
+```
+
+The WHEP package provides a function `harmonize_interpolate()` to harmonize data with 1:1, N:1, and 1:N mappings. This vignette demonstrates how to use this function effectively.
+

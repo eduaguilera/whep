@@ -92,7 +92,7 @@ test_that("Simple harmonization (0 groups) is completed successfully", {
       "prodone",     5,       5,       5,
       "prodtwo",     2,       2,       2,
       "prodtwotwo",  3,       3,       3
-    ) |> 
+    ) |>
     tidyr::pivot_longer(
       cols = starts_with("1"),
       names_to = "year",
@@ -108,7 +108,7 @@ test_that("Simple harmonization (0 groups) is completed successfully", {
       ),
       by = c("items"),
       relationship = "many-to-many"
-    ) |> 
+    ) |>
     dplyr::filter(is.na(value) == 0)
 
   test_tibble_output <- tibble::tribble(
@@ -120,10 +120,10 @@ test_that("Simple harmonization (0 groups) is completed successfully", {
       2,          1900,  5,
       2,          1902,  5
     )
-  
+
   actual <- test_tibble_input |>
     harmonize_interpolate()
-  
+
   expect_equal(actual, test_tibble_output)
 })
 
@@ -135,7 +135,7 @@ test_that("Complex harmonization (1 group, missing member) is failed successfull
         ~items,        ~`1901`, ~`1902`,
         "prodonetwo",  NA,      20,
         "prodone",     5,       NA
-    ) |> 
+    ) |>
     tidyr::pivot_longer(
       cols = starts_with("1"),
       names_to = "year",
@@ -151,14 +151,11 @@ test_that("Complex harmonization (1 group, missing member) is failed successfull
       ),
       by = c("items"),
       relationship = "many-to-many"
-    ) |> 
+    ) |>
     dplyr::filter(is.na(value) == 0)
-  
+
   testthat::expect_error(
     harmonize_interpolate(harmonize_interpolate(test_tibble_input)),
     "prodonetwo"
   )
 })
-
-
-
