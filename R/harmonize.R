@@ -26,8 +26,8 @@ harmonize_simple <- function(data, ...) {
 #' @description Harmonize data containing simple, 1:1, N:1 and 1:N
 #'   mappings. For 1:N groups this function computes shares across
 #'   the full year range and applies them to split values.
-#' @param data Data frame with columns `year`, `value`, `items`,
-#'   `item_code_harm` and `type`.
+#' @param data Data frame with columns `year` (numeric), `value` (numeric),
+#'   `items` (string), `item_code_harm` (numeric) and `type` (string).
 #' @param ... Additional grouping columns provided as bare names.
 #' @return Tibble with harmonized series (`item_code`, `year`, `value`)
 #'   and grouping columns.
