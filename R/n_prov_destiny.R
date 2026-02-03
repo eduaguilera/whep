@@ -16,6 +16,7 @@
 #'   - `year`: The year in which the recorded event occurred.
 #'   - `province_name`: The Spanish province where the data is from.
 #'   - `item`: The item which was produced, defined in `names_biomass_cb`.
+#'   - `irrig_cat`: Irrigation form (irrigated or rainfed)
 #'   - `box`: One of the GRAFS model systems: cropland,
 #'   Semi-natural agroecosystems, Livestock, Fish, or Agro-industry.
 #'   - `origin`: The origin category of N: Cropland,
@@ -349,7 +350,6 @@ create_n_prov_destiny <- function() {
 
 #' @title Structuring dataset (GrazedWeeds and Used_Residues in ProductionFM)
 #' @description Replace production_fm with GrazedWeeds_MgDM (for Fallow).
-#' QUESTION: Is Acorns Residue Acorns or Firewood?
 #'
 #' @param grafs_prod_combined_no_seeds Dataframe of production without seeds.
 #'
@@ -914,6 +914,9 @@ convert_to_items_n <- function(
 #' Spain. It should be deactivated for provincial analysis
 #'
 #' @param grafs_prod_item_n A dataframe with N values (MgN) by destiny.
+#' @param pie_full_destinies_fm A data frame with destiny data.
+#' @param biomass_coefs A data frame with biomass coefficients.
+#' @param codes_coefs_items_full A lookup table with coefficients.
 #'
 #' @return A dataframe with consumption, exports, and imports in MgN.
 #' @export

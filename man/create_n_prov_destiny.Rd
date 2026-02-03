@@ -13,6 +13,7 @@ It includes the following columns:
 \item \code{year}: The year in which the recorded event occurred.
 \item \code{province_name}: The Spanish province where the data is from.
 \item \code{item}: The item which was produced, defined in \code{names_biomass_cb}.
+\item \code{irrig_cat}: Irrigation form (irrigated or rainfed)
 \item \code{box}: One of the GRAFS model systems: cropland,
 Semi-natural agroecosystems, Livestock, Fish, or Agro-industry.
 \item \code{origin}: The origin category of N: Cropland,
