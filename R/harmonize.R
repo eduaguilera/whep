@@ -43,17 +43,6 @@ group_by_across <- function(..., grouping_cols) {
   dplyr::group_by(..., across(all_of(group_names(grouping_cols))))
 }
 
-#' harm_simple(data, ...)
-#' Harmonizes simple data
-#' Input
-#'    - data (dataframe to be harmonized)
-#'       - col1: item_code_harm
-#'       - col2: year
-#'       - col3: value
-#'       - col4: type
-#'    - ... (additional columns)
-## Harmonic helpers and advanced interpolation functions
-
 #' Harmonize rows labelled "Simple" by summing values
 #'
 #' @description Sum `value` for rows where `type == "Simple"`.
@@ -73,11 +62,7 @@ harm_simple <- function(data, ...) {
     dplyr::filter(type == "Simple") |>
     dplyr::summarize(
       value = sum(value, na.rm = TRUE),
-      .by = c(
-        "item_code_harm",
-        "year",
-        !!!grouping_cols
-      )
+      .by = c("item_code_harm", "year", ...)
     )
 }
 
@@ -97,10 +82,9 @@ check_all_simple <- function(data_groups, df_simple) {
     cli::cli_inform(c(
       "i" = "only simple harmonization detected, returning simple harmonizations only"
     ))
-    return(
-      df_simple |>
-        dplyr::rename(item_code = item_code_harm)
-    )
+
+    df_simple |>
+      dplyr::rename(item_code = item_code_harm)
   }
 }
 
@@ -124,9 +108,9 @@ find_group_year_presence <- function(
   harm_groups,
   grouping_cols
 ) {
-  grouping_names <- group_names(grouping_cols)
+  grouping_names <- .group_names(grouping_cols)
   df_simple |>
-    dplyr::select(item_code_harm, year, all_of(grouping_names)) |>
+    dplyr::select(item_code_harm, year, dplyr::all_of(grouping_names)) |>
     dplyr::left_join(
       data_groups,
       by = c("item_code_harm", grouping_names),
@@ -134,7 +118,7 @@ find_group_year_presence <- function(
     ) |>
     dplyr::summarize(
       observed_harm = list(unique(item_code_harm)),
-      .by = group_by_chars("items", "year", grouping_cols = grouping_cols)
+      .by = .group_by_chars("items", "year", grouping_cols = grouping_cols)
     ) |>
     dplyr::left_join(
       harm_groups,
@@ -175,8 +159,8 @@ check_group_year_presence <- function(
       "items",
       names(dplyr::select(
         harm_groups |>
-          select(items, !!!grouping_cols) |>
-          distinct(),
+          dplyr::select(items, !!!grouping_cols) |>
+          dplyr::distinct(),
         !!!grouping_cols
       ))
     )
@@ -189,7 +173,7 @@ check_group_year_presence <- function(
     )
     cli::cli_abort(c(
       msg,
-      setNames(formatted_rows, rep("*", length(formatted_rows)))
+      stats::setNames(formatted_rows, rep("*", length(formatted_rows)))
     ))
   }
 }
@@ -209,13 +193,12 @@ find_year_bounds <- function(group_year_presence, data, grouping_cols) {
   grouping_names <- group_names(grouping_cols)
   dplyr::bind_rows(
     group_year_presence |>
-      dplyr::select(items, year, all_of(grouping_names)),
-
+      dplyr::select(items, year, dplyr::all_of(grouping_names)),
     data |>
       dplyr::filter(type == "1:N") |>
-      dplyr::select(items, year, all_of(grouping_names))
+      dplyr::select(items, year, dplyr::all_of(grouping_names))
   ) |>
-    dplyr::group_by(items, across(all_of(grouping_names))) |>
+    dplyr::group_by(items, dplyr::across(dplyr::all_of(grouping_names))) |>
     dplyr::summarize(
       start_year = min(year, na.rm = TRUE),
       end_year = max(year, na.rm = TRUE),
@@ -244,7 +227,7 @@ calc_complex_shares <- function(
   year_bounds,
   grouping_cols
 ) {
-  grouping_names <- group_names(grouping_cols)
+  grouping_names <- .group_names(grouping_cols)
   data_groups |>
     dplyr::left_join(
       year_bounds,
@@ -265,17 +248,20 @@ calc_complex_shares <- function(
       total_value = sum(value, na.rm = TRUE),
       value_share = value / total_value,
       year = as.numeric(year),
-      .by = group_by_chars("items", "year", grouping_cols = grouping_cols)
+      .by = .group_by_chars("items", "year", grouping_cols = grouping_cols)
     ) |>
     dplyr::select(-value, -total_value) |>
-    group_by_across(items, item_code_harm, grouping_cols = grouping_cols) |>
-    Filling(value_share, year) |>
+    linear_fill(
+      value_share,
+      year,
+      .by = c("items", "item_code_harm", grouping_names)
+    ) |>
     dplyr::select(
       items,
       item_code_harm,
       year,
       value_share,
-      all_of(grouping_names)
+      dplyr::all_of(grouping_names)
     )
 }
 
@@ -299,7 +285,7 @@ calc_return_harm_int <- function(
   df_simple,
   grouping_cols
 ) {
-  grouping_names <- group_names(grouping_cols)
+  grouping_names <- .group_names(grouping_cols)
   data |>
     dplyr::filter(type == "1:N") |>
     dplyr::left_join(
@@ -312,13 +298,13 @@ calc_return_harm_int <- function(
       year,
       item_code_harm,
       value,
-      all_of(grouping_names)
+      dplyr::all_of(grouping_names)
     ) |>
     dplyr::bind_rows(df_simple) |>
     dplyr::rename(item_code = item_code_harm) |>
     dplyr::summarize(
       value = sum(value),
-      .by = group_by_chars("item_code", "year", grouping_cols = grouping_cols)
+      .by = .group_by_chars("item_code", "year", grouping_cols = grouping_cols)
     )
 }
 

@@ -74,3 +74,10 @@ reference:
   - linear_fill
   - proxy_fill
   - sum_fill
+
+- title: Harmonization
+  desc: >
+    TODO: write small description
+  contents:
+  - harmonize_simple
+  - harmonize_interpolate
