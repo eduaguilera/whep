@@ -8,7 +8,7 @@
 #' @export
 #' @examples
 #' group_names(rlang::enquos(country))
-group_names <- function(grouping_cols) {
+.group_names <- function(grouping_cols) {
   purrr::map_chr(grouping_cols, rlang::as_name)
 }
 
@@ -24,7 +24,7 @@ group_names <- function(grouping_cols) {
 #' @export
 #' @examples
 #' group_by_chars("items", grouping_cols = rlang::enquos(country))
-group_by_chars <- function(..., grouping_cols) {
+.group_by_chars <- function(..., grouping_cols) {
   c(..., group_names(grouping_cols))
 }
 
@@ -39,7 +39,7 @@ group_by_chars <- function(..., grouping_cols) {
 #' @export
 #' @examples
 #' mtcars |> group_by_across(grouping_cols = rlang::enquos(cyl))
-group_by_across <- function(..., grouping_cols) {
+.group_by_across <- function(..., grouping_cols) {
   dplyr::group_by(..., across(all_of(group_names(grouping_cols))))
 }
 
@@ -57,7 +57,6 @@ group_by_across <- function(..., grouping_cols) {
 #' @examples
 #' df |> harm_simple(country)
 harm_simple <- function(data, ...) {
-  grouping_cols <- rlang::enquos(...)
   data |>
     dplyr::filter(type == "Simple") |>
     dplyr::summarize(
