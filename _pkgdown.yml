@@ -74,3 +74,10 @@ reference:
   - linear_fill
   - proxy_fill
   - sum_fill
+
+- title: Harmonization
+  desc: >
+    Functions to harmonize time series items according to specified mapping.
+  contents:
+  - harmonize_simple
+  - harmonize_interpolate
