@@ -77,8 +77,6 @@ reference:
   - calculate_nue_crops
   - calculate_nue_livestock
   - calculate_system_nue
-  - convert_to_items_n
-  - calculate_trade
   
 - title: GRAFS plot
   desc: >
