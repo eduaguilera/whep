@@ -3,11 +3,17 @@
 #' @description Sum `value` for rows where `type == "Simple"`.
 #'   The results are grouped by `item_code_harm`, `year` and any
 #'   additional grouping columns supplied via `...`.
-#' @param data A data frame containing at least `item_code_harm`,
-#'   `year`, `value` and `type`.
+#' @param data A data frame containing at least columns:
+#'   - `item_code_harm`: Numeric, code for harmonized item.
+#'   - `year`: Numeric, year of observation.
+#'   - `value`: Numeric, value of observation.
+#'   - `type`: String, harmonization type (only "Simple" rows are used).
 #' @param ... Additional grouping columns supplied as bare names.
-#' @return A tibble with columns `item_code_harm`, `year`, `value`
-#'   and any additional grouping columns.
+#' @return A tibble with columns:
+#'   - `item_code_harm`: Numeric, code for harmonized item.
+#'   - `year`: Numeric, year of observation.
+#'   - `value`: Numeric, summed value of observation.
+#'   - and any additional grouping columns.
 #' @export
 #' @examples
 #' # TODO: add example
@@ -26,11 +32,18 @@ harmonize_simple <- function(data, ...) {
 #' @description Harmonize data containing simple, 1:1, N:1 and 1:N
 #'   mappings. For 1:N groups this function computes shares across
 #'   the full year range and applies them to split values.
-#' @param data Data frame with columns `year` (numeric), `value` (numeric),
-#'   `items` (string), `item_code_harm` (numeric) and `type` (string).
+#' @param data A data frame containing at least columns:
+#'   - `items`: String, original item name.
+#'   - `item_code_harm`: Numeric, code for harmonized item.
+#'   - `year`: Numeric, year of observation.
+#'   - `value`: Numeric, value of observation.
+#'   - `type`: String, harmonization type (only "Simple" rows are used).
 #' @param ... Additional grouping columns provided as bare names.
-#' @return Tibble with harmonized series (`item_code`, `year`, `value`)
-#'   and grouping columns.
+#' @return A tibble with columns:
+#'   - `item_code_harm`: Numeric, code for harmonized item.
+#'   - `year`: Numeric, year of observation.
+#'   - `value`: Numeric, summed value of observation.
+#'   - and any additional grouping columns.
 #' @export
 #' @examples
 #' # TODO: add example

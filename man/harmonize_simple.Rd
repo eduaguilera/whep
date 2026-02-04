@@ -7,14 +7,24 @@
 harmonize_simple(data, ...)
 }
 \arguments{
-\item{data}{A data frame containing at least \code{item_code_harm},
-\code{year}, \code{value} and \code{type}.}
+\item{data}{A data frame containing at least columns:
+\itemize{
+\item \code{item_code_harm}: Numeric, code for harmonized item.
+\item \code{year}: Numeric, year of observation.
+\item \code{value}: Numeric, value of observation.
+\item \code{type}: String, harmonization type (only "Simple" rows are used).
+}}
 
 \item{...}{Additional grouping columns supplied as bare names.}
 }
 \value{
-A tibble with columns \code{item_code_harm}, \code{year}, \code{value}
-and any additional grouping columns.
+A tibble with columns:
+\itemize{
+\item \code{item_code_harm}: Numeric, code for harmonized item.
+\item \code{year}: Numeric, year of observation.
+\item \code{value}: Numeric, summed value of observation.
+\item and any additional grouping columns.
+}
 }
 \description{
 Sum \code{value} for rows where \code{type == "Simple"}.

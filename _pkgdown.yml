@@ -77,7 +77,7 @@ reference:
 
 - title: Harmonization
   desc: >
-    TODO: write small description
+    Functions to harmonize time series items according to specified mapping.
   contents:
   - harmonize_simple
   - harmonize_interpolate

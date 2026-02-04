@@ -7,14 +7,25 @@
 harmonize_interpolate(data, ...)
 }
 \arguments{
-\item{data}{Data frame with columns \code{year}, \code{value}, \code{items},
-\code{item_code_harm} and \code{type}.}
+\item{data}{A data frame containing at least columns:
+\itemize{
+\item \code{items}: String, original item name.
+\item \code{item_code_harm}: Numeric, code for harmonized item.
+\item \code{year}: Numeric, year of observation.
+\item \code{value}: Numeric, value of observation.
+\item \code{type}: String, harmonization type (only "Simple" rows are used).
+}}
 
 \item{...}{Additional grouping columns provided as bare names.}
 }
 \value{
-Tibble with harmonized series (\code{item_code}, \code{year}, \code{value})
-and grouping columns.
+A tibble with columns:
+\itemize{
+\item \code{item_code_harm}: Numeric, code for harmonized item.
+\item \code{year}: Numeric, year of observation.
+\item \code{value}: Numeric, summed value of observation.
+\item and any additional grouping columns.
+}
 }
 \description{
 Harmonize data containing simple, 1:1, N:1 and 1:N
