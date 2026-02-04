@@ -50,7 +50,6 @@ harmonize_simple <- function(data, ...) {
 #' # harmonize_interpolate(data, country)
 harmonize_interpolate <- function(data, ...) {
   grouping_cols <- rlang::enquos(...)
-  grouping_names <- .group_names(grouping_cols)
   data_groups <- data |>
     dplyr::filter(type == "1:N") |>
     dplyr::select(items, item_code_harm, !!!grouping_cols) |>
@@ -116,7 +115,7 @@ harmonize_interpolate <- function(data, ...) {
     ) |>
     dplyr::summarize(
       observed_harm = list(unique(item_code_harm)),
-      .by = .group_by_chars("items", "year", grouping_cols = grouping_cols)
+      .by = c("items", "year", dplyr::all_of(grouping_names))
     ) |>
     dplyr::left_join(
       harm_groups,
@@ -181,11 +180,10 @@ harmonize_interpolate <- function(data, ...) {
       dplyr::filter(type == "1:N") |>
       dplyr::select(items, year, dplyr::all_of(grouping_names))
   ) |>
-    dplyr::group_by(items, dplyr::across(dplyr::all_of(grouping_names))) |>
     dplyr::summarize(
       start_year = min(year, na.rm = TRUE),
       end_year = max(year, na.rm = TRUE),
-      .groups = "drop"
+      .by = c("items", dplyr::all_of(grouping_names))
     )
 }
 
@@ -193,7 +191,7 @@ harmonize_interpolate <- function(data, ...) {
 #
 # Expand `data_groups` to all years between `start_year`
 # and `end_year`, join simple values and compute value shares per
-# year. Missing years are filled using `Filling()`.
+# year. Missing years are filled using `linear_fill()`.
 .calc_complex_shares <- function(
   data_groups,
   df_simple,
@@ -207,9 +205,7 @@ harmonize_interpolate <- function(data, ...) {
       by = c("items", grouping_names),
       relationship = "many-to-many"
     ) |>
-    dplyr::mutate(
-      year = purrr::map2(start_year, end_year, seq)
-    ) |>
+    dplyr::mutate(year = purrr::map2(start_year, end_year, seq)) |>
     tidyr::unnest(year) |>
     dplyr::select(-end_year, -start_year) |>
     dplyr::left_join(
@@ -221,7 +217,7 @@ harmonize_interpolate <- function(data, ...) {
       total_value = sum(value, na.rm = TRUE),
       value_share = value / total_value,
       year = as.numeric(year),
-      .by = .group_by_chars("items", "year", grouping_cols = grouping_cols)
+      .by = c("items", "year", dplyr::all_of(grouping_names))
     ) |>
     dplyr::select(-value, -total_value) |>
     linear_fill(
