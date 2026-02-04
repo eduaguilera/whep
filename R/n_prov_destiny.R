@@ -818,7 +818,6 @@ create_n_prov_destiny <- function() {
         production_n / production_total,
         1
       ),
-
       food = food * production_share,
       feed = feed * production_share,
       other_uses = other_uses * production_share
@@ -844,7 +843,8 @@ create_n_prov_destiny <- function() {
 #' (DM/FM and N/DM).
 #'
 #' @return A dataframe with food, feed, and other uses in MgN.
-#' @export
+#' @keywords internal
+#' @noRd
 .convert_to_items_n <- function(
   grafs_prod_item_combined = whep_read_file(""),
   codes_coefs_items_full = whep_read_file("codes_coefs_items_full"),
@@ -919,7 +919,8 @@ create_n_prov_destiny <- function() {
 #' @param codes_coefs_items_full A lookup table with coefficients.
 #'
 #' @return A dataframe with consumption, exports, and imports in MgN.
-#' @export
+#' @keywords internal
+#' @noRd
 .calculate_trade <- function(
   grafs_prod_item_n,
   pie_full_destinies_fm,
@@ -975,7 +976,6 @@ create_n_prov_destiny <- function() {
     ) |>
     dplyr::mutate(
       group = dplyr::recode(group, "Additives" = "Agro-industry"),
-
       Box = dplyr::case_when(
         Item == "Acorns" ~ "semi_natural_agroecosystems",
         is.na(Box) & Item == "Fallow" ~ "Cropland",
