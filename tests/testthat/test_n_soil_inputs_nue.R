@@ -9,6 +9,7 @@ test_that(".assign_items returns expected item groups", {
   expect_true("Holm oak" %in% items$Firewood_biomass)
 })
 
+
 # .calculate_n_soil_inputs
 test_that(".calculate_n_soil_inputs aggregates soil inputs correctly", {
   n_balance <- tibble::tribble(
@@ -27,7 +28,7 @@ test_that(".calculate_n_soil_inputs aggregates soil inputs correctly", {
   expect_equal(out$deposition, 1)
   expect_equal(out$fixation, 2)
   expect_equal(out$synthetic, 3)
-  expect_equal(out$manure, 2) # Solid + Liquid
+  expect_equal(out$manure, 2)
   expect_equal(out$urban, 2)
 })
 
@@ -48,7 +49,7 @@ test_that(".calculate_n_soil_inputs assigns Firewood correctly", {
   expect_equal(unique(out$Item), "Firewood")
 })
 
-# .calculate_n_production
+
 test_that(".calculate_n_production sums production correctly", {
   grafs <- tibble::tribble(
     ~Year, ~Province_name, ~Item, ~Box, ~Destiny, ~MgN,
@@ -57,12 +58,27 @@ test_that(".calculate_n_production sums production correctly", {
     2000, "A", "Wheat", "Cropland", "livestock_rum", 2,
     2000, "A", "Wheat", "Cropland", "livestock_mono", 0,
     2000, "A", "Wheat", "Cropland", "export", 3
-  )
+  ) |>
+    tidyr::complete(
+      Year,
+      Province_name,
+      Item,
+      Box,
+      Destiny = c(
+        "population_food",
+        "population_other_uses",
+        "livestock_rum",
+        "livestock_mono",
+        "export"
+      ),
+      fill = list(MgN = 0)
+    )
 
   out <- .calculate_n_production(grafs)
 
   expect_equal(out$prod, 10)
 })
+
 
 # calculate_nue_crops
 test_that("calculate_nue_crops computes NUE correctly", {
