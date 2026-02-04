@@ -20,8 +20,8 @@ Semi-natural agroecosystems, Livestock, Fish, or Agro-industry.
 Semi-natural agroecosystems, Livestock, Fish, Agro-industry, Deposition,
 Fixation, Synthetic, People (waste water), Livestock (manure).
 \item \code{destiny}: The destiny category of N: population_food,
-population_other_uses, livestock (feed), export, Cropland (for N soil
-inputs).
+population_other_uses, livestock_mono, livestock_rum (feed), export,
+Cropland (for N soil inputs).
 \item \code{MgN}: Nitrogen amount in megagrams (Mg).
 }
 }
