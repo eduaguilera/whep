@@ -19,13 +19,13 @@
 Source:
 [`DESCRIPTION`](https://github.com/eduaguilera/whep/blob/main/DESCRIPTION)
 
-Covaci C, Aguilera E (2025). *whep: Processing Agro-Environmental Data*.
+Covaci C, Aguilera E (2026). *whep: Processing Agro-Environmental Data*.
 R package version 0.2.0.9000, <https://eduaguilera.github.io/whep/>.
 
     @Manual{,
       title = {whep: Processing Agro-Environmental Data},
       author = {Catalin Covaci and Eduardo Aguilera},
-      year = {2025},
+      year = {2026},
       note = {R package version 0.2.0.9000},
       url = {https://eduaguilera.github.io/whep/},
     }

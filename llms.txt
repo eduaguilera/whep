@@ -185,6 +185,25 @@ Get a tidy dataframe with the found sources for different data.
 - [`expand_trade_sources()`](https://eduaguilera.github.io/whep/reference/expand_trade_sources.md)
   : Trade data sources
 
+## Nitrogen cycles Spain
+
+Functions to generate data for N inputs, outputs, production, destinies
+
+- [`create_n_prov_destiny()`](https://eduaguilera.github.io/whep/reference/create_n_prov_destiny.md)
+  : GRAFS Nitrogen (N) flows
+- [`create_n_soil_inputs()`](https://eduaguilera.github.io/whep/reference/create_n_soil_inputs.md)
+  : Nitrogen (N) soil inputs for Spain ———————————-
+- [`create_n_production()`](https://eduaguilera.github.io/whep/reference/create_n_production.md)
+  : N production for Spain ———————————————–
+- [`calculate_nue_crops()`](https://eduaguilera.github.io/whep/reference/calculate_nue_crops.md)
+  : N soil inputs and Nitrogen Use Efficiency (NUE) for crop ————-
+- [`calculate_nue_livestock()`](https://eduaguilera.github.io/whep/reference/calculate_nue_livestock.md)
+  : NUE for Livestock —————————————————-
+- [`calculate_system_nue()`](https://eduaguilera.github.io/whep/reference/calculate_system_nue.md)
+  : System NUE ———————————————————–
+- [`create_n_nat_destiny()`](https://eduaguilera.github.io/whep/reference/create_n_nat_destiny.md)
+  : GRAFS Nitrogen (N) flows – National Spain
+
 ## Gap filling functions
 
 Functions to fill gaps (NA values) in time-dependent variables using
