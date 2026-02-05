@@ -77,13 +77,7 @@ reference:
   - calculate_nue_crops
   - calculate_nue_livestock
   - calculate_system_nue
-  
-- title: GRAFS plot
-  desc: >
-   Functions to create a dataset, which can be used to create GRAFS models
-  contents:
-   - create_grafs_plot_df  
-   - create_n_nat_destiny
+  - create_n_nat_destiny
 
 - title: Gap filling functions
   desc: >
