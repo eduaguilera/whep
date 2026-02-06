@@ -887,6 +887,14 @@ create_n_nat_destiny <- function() {
       .groups = "drop"
     )
 
+  # Pre-calculate production totals to avoid expensive group_by later
+  production_totals <- grafs_prod_item_sum |>
+    dplyr::group_by(Year, Province_name, Item) |>
+    dplyr::summarise(
+      production_total = sum(production_n, na.rm = TRUE),
+      .groups = "drop"
+    )
+
   feed_clean <- feed_intake |>
     dplyr::group_by(Year, Province_name, Item) |>
     dplyr::summarise(
@@ -914,20 +922,23 @@ create_n_nat_destiny <- function() {
       feed_clean,
       by = c("Year", "Province_name", "Item")
     ) |>
+    dplyr::left_join(
+      production_totals,
+      by = c("Year", "Province_name", "Item")
+    ) |>
     dplyr::mutate(
       food = dplyr::coalesce(food, 0) + dplyr::coalesce(food_pets, 0),
       feed = dplyr::coalesce(feed, 0),
       other_uses = dplyr::coalesce(other_uses, 0),
-      production_n = dplyr::coalesce(production_n, 0)
+      production_n = dplyr::coalesce(production_n, 0),
+      production_total = dplyr::coalesce(production_total, 0)
     ) |>
     dplyr::select(-food_pets)
 
   # calculating production shares to distinguish between consumption of e.g.
   # rainfed vs. irrigated crops
   grafs_prod_item_combined <- grafs_prod_item_combined |>
-    dplyr::group_by(Year, Province_name, Item) |>
     dplyr::mutate(
-      production_total = sum(production_n, na.rm = TRUE),
       production_share = dplyr::if_else(
         production_total > 0,
         production_n / production_total,
@@ -937,7 +948,6 @@ create_n_nat_destiny <- function() {
       feed = feed * production_share,
       other_uses = other_uses * production_share
     ) |>
-    dplyr::ungroup() |>
     dplyr::select(
       -production_total,
       -production_share
