@@ -1223,62 +1223,42 @@ create_n_nat_destiny <- function() {
 #' @noRd
 .split_import_consumption <- function(local_vs_import, feed_share_rum_mono) {
   local_vs_import |>
-    dplyr::mutate(Box = Box) |>
-    tidyr::pivot_longer(
-      cols = c(food_share, feed_share, other_uses_share),
-      names_to = "share_type",
-      values_to = "share"
-    ) |>
-    dplyr::mutate(
-      MgN = dplyr::case_when(
-        Box %in%
-          c("Fish", "Agro-industry") &
-          share_type %in% c("food_share", "other_uses_share") ~
-          import_consumption * share,
-        share_type %in% c("food_share", "other_uses_share") ~
-          pmin(import_consumption, local_consumption) * share,
-        TRUE ~ import_consumption * share
-      ),
-      Destiny = dplyr::case_when(
-        share_type == "food_share" ~ "population_food",
-        share_type == "feed_share" ~ "livestock",
-        share_type == "other_uses_share" ~ "population_other_uses"
-      ),
-      Origin = "Outside",
-      Irrig_cat = NA_character_
-    ) |>
-    dplyr::group_by(
-      Year,
-      Province_name,
-      Item,
-      Irrig_cat,
-      Box,
-      Origin,
-      Destiny
-    ) |>
-    dplyr::summarise(MgN = sum(MgN, na.rm = TRUE), .groups = "drop") |>
     dplyr::left_join(
       feed_share_rum_mono,
       by = c("Year", "Province_name", "Item")
     ) |>
     dplyr::mutate(
-      MgN_rum = dplyr::if_else(Destiny == "livestock", MgN * share_rum, MgN),
-      MgN_mono = dplyr::if_else(Destiny == "livestock", MgN * share_mono, 0)
+      # Pre-calculate the base amount for food/other (capped or not)
+      base_amount_food_other = dplyr::if_else(
+        Box %in% c("Fish", "Agro-industry"),
+        import_consumption,
+        pmin(import_consumption, local_consumption)
+      ),
+      population_food = base_amount_food_other * food_share,
+      population_other_uses = base_amount_food_other * other_uses_share,
+      livestock_rum = import_consumption * feed_share * share_rum,
+      livestock_mono = import_consumption * feed_share * share_mono,
+      Origin = "Outside",
+      Irrig_cat = NA_character_
+    ) |>
+    # Aggregate to remove duplicates caused by Irrig_cat becoming NA
+    dplyr::summarise(
+      population_food = sum(population_food, na.rm = TRUE),
+      population_other_uses = sum(population_other_uses, na.rm = TRUE),
+      livestock_rum = sum(livestock_rum, na.rm = TRUE),
+      livestock_mono = sum(livestock_mono, na.rm = TRUE),
+      .by = c("Year", "Province_name", "Item", "Box", "Origin", "Irrig_cat")
     ) |>
     tidyr::pivot_longer(
-      cols = c(MgN_rum, MgN_mono),
-      names_to = "Destiny_feed",
-      values_to = "MgN_feed"
-    ) |>
-    dplyr::mutate(
-      Destiny = dplyr::case_when(
-        Destiny == "livestock" & Destiny_feed == "MgN_rum" ~ "livestock_rum",
-        Destiny == "livestock" & Destiny_feed == "MgN_mono" ~ "livestock_mono",
-        TRUE ~ Destiny
+      cols = c(
+        population_food,
+        population_other_uses,
+        livestock_rum,
+        livestock_mono
       ),
-      MgN = MgN_feed
-    ) |>
-    dplyr::select(-share_rum, -share_mono, -Destiny_feed, -MgN_feed)
+      names_to = "Destiny",
+      values_to = "MgN"
+    )
 }
 
 #' @title Adding exports
@@ -1347,25 +1327,12 @@ create_n_nat_destiny <- function() {
       import_consumption = consumption_total - local_consumption
     )
 
-  local_split <- .split_local_consumption(local_vs_import, feed_share_rum_mono)
-  imports_split <- .split_import_consumption(
-    local_vs_import,
-    feed_share_rum_mono
-  )
-  exports <- .add_exports(grafs_prod_destiny_final)
-
-  dplyr::bind_rows(local_split, imports_split, exports) |>
-    dplyr::filter(MgN > 0) |>
-    dplyr::group_by(
-      Year,
-      Province_name,
-      Item,
-      Irrig_cat,
-      Box,
-      Origin,
-      Destiny
-    ) |>
-    dplyr::summarise(MgN = sum(MgN, na.rm = TRUE), .groups = "drop")
+  dplyr::bind_rows(
+    .split_local_consumption(local_vs_import, feed_share_rum_mono),
+    .split_import_consumption(local_vs_import, feed_share_rum_mono),
+    .add_exports(grafs_prod_destiny_final)
+  ) |>
+    dplyr::filter(MgN > 0)
 }
 
 #' @title Add soil N inputs
