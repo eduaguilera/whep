@@ -1171,52 +1171,27 @@ create_n_nat_destiny <- function() {
 #' @noRd
 .split_local_consumption <- function(local_vs_import, feed_share_rum_mono) {
   local_vs_import |>
-    tidyr::pivot_longer(
-      cols = c(food_share, feed_share, other_uses_share),
-      names_to = "share_type",
-      values_to = "share"
-    ) |>
-    dplyr::mutate(
-      MgN = local_consumption * share,
-      Destiny = dplyr::case_when(
-        share_type == "food_share" ~ "population_food",
-        share_type == "feed_share" ~ "livestock",
-        share_type == "other_uses_share" ~ "population_other_uses"
-      ),
-      Origin = Box
-    ) |>
-    dplyr::group_by(
-      Year,
-      Province_name,
-      Item,
-      Irrig_cat,
-      Box,
-      Origin,
-      Destiny
-    ) |>
-    dplyr::summarise(MgN = sum(MgN, na.rm = TRUE), .groups = "drop") |>
     dplyr::left_join(
       feed_share_rum_mono,
       by = c("Year", "Province_name", "Item")
     ) |>
     dplyr::mutate(
-      MgN_rum = dplyr::if_else(Destiny == "livestock", MgN * share_rum, MgN),
-      MgN_mono = dplyr::if_else(Destiny == "livestock", MgN * share_mono, 0)
+      population_food = local_consumption * food_share,
+      population_other_uses = local_consumption * other_uses_share,
+      livestock_rum = local_consumption * feed_share * share_rum,
+      livestock_mono = local_consumption * feed_share * share_mono,
+      Origin = Box
     ) |>
     tidyr::pivot_longer(
-      cols = c(MgN_rum, MgN_mono),
-      names_to = "Destiny_feed",
-      values_to = "MgN_feed"
-    ) |>
-    dplyr::mutate(
-      Destiny = dplyr::case_when(
-        Destiny == "livestock" & Destiny_feed == "MgN_rum" ~ "livestock_rum",
-        Destiny == "livestock" & Destiny_feed == "MgN_mono" ~ "livestock_mono",
-        TRUE ~ Destiny
+      cols = c(
+        population_food,
+        population_other_uses,
+        livestock_rum,
+        livestock_mono
       ),
-      MgN = MgN_feed
-    ) |>
-    dplyr::select(-share_rum, -share_mono, -Destiny_feed, -MgN_feed)
+      names_to = "Destiny",
+      values_to = "MgN"
+    )
 }
 
 #' @title Split imported consumption
