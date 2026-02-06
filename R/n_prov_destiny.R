@@ -39,8 +39,11 @@ create_n_prov_destiny <- function() {
   codes_coefs <- whep_read_file("codes_coefs")
   intake_ygiac <- whep_read_file("intake_ygiac")
   population_yg <- whep_read_file("population_yg")
+  n_balance_ygpit_all <- whep_read_file("n_balance_ygpit_all")
 
   biomass_item_merged <- .merge_items_biomass(npp_ygpit, codes_coefs)
+  n_soil_inputs <- .calculate_n_soil_inputs(n_balance_ygpit_all, codes_coefs)
+  add_feed_output <- .add_feed(intake_ygiac)
 
   prod_combined_boxes <- biomass_item_merged |>
     .aggregate_crop_seminatural(
@@ -54,9 +57,7 @@ create_n_prov_destiny <- function() {
     .calculate_population_share() |>
     .calculate_food_and_other_uses(pie_full_destinies_fm)
 
-  add_feed_output <- .add_feed(intake_ygiac)
-
-  grafs_prod_item_n <- biomass_item_merged |>
+  grafs_prod_item_trade <- biomass_item_merged |>
     .remove_seeds_from_system(pie_full_destinies_fm, prod_combined_boxes) |>
     .add_grass_wood() |>
     .prepare_prod_data(
@@ -64,34 +65,19 @@ create_n_prov_destiny <- function() {
       codes_coefs_items_full
     ) |>
     .convert_fm_dm_n(biomass_coefs) |>
-    .combine_destinies(
-      add_feed_output$feed_intake,
-      food_and_other_uses
+    .combine_destinies(add_feed_output$feed_intake, food_and_other_uses) |>
+    .convert_to_items_n(codes_coefs_items_full, biomass_coefs) |>
+    .calculate_trade(
+      pie_full_destinies_fm,
+      biomass_coefs,
+      codes_coefs_items_full
     ) |>
-    .convert_to_items_n(codes_coefs_items_full, biomass_coefs)
-
-  n_soil_inputs <- .calculate_n_soil_inputs(
-    whep_read_file("n_balance_ygpit_all"),
-    codes_coefs
-  )
-
-  trade_data <- .calculate_trade(
-    grafs_prod_item_n,
-    pie_full_destinies_fm,
-    biomass_coefs,
-    codes_coefs_items_full
-  )
-
-  prod_destiny <- .finalize_prod_destiny(
-    grafs_prod_item_trade = trade_data,
-    codes_coefs_items_full = codes_coefs_items_full,
-    n_soil_inputs = n_soil_inputs,
-    feed_share_rum_mono = add_feed_output$feed_share_rum_mono
-  )
-
-  prod_destiny <- .add_n_soil_inputs(prod_destiny, soil_inputs = n_soil_inputs)
-
-  prod_destiny
+    .finalize_prod_destiny(
+      codes_coefs_items_full,
+      n_soil_inputs,
+      add_feed_output$feed_share_rum_mono
+    ) |>
+    .add_n_soil_inputs(n_soil_inputs)
 }
 
 #' @title GRAFS Nitrogen (N) flows – National Spain
