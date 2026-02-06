@@ -54,7 +54,7 @@ create_n_prov_destiny <- function() {
     .calculate_population_share() |>
     .calculate_food_and_other_uses(pie_full_destinies_fm)
 
-  adding_feed_output <- .adding_feed(intake_ygiac)
+  add_feed_output <- .add_feed(intake_ygiac)
 
   grafs_prod_item_n <- biomass_item_merged |>
     .remove_seeds_from_system(pie_full_destinies_fm, prod_combined_boxes) |>
@@ -65,7 +65,7 @@ create_n_prov_destiny <- function() {
     ) |>
     .convert_fm_dm_n(biomass_coefs) |>
     .combine_destinies(
-      adding_feed_output$feed_intake,
+      add_feed_output$feed_intake,
       food_and_other_uses
     ) |>
     .convert_to_items_n(codes_coefs_items_full, biomass_coefs)
@@ -86,7 +86,7 @@ create_n_prov_destiny <- function() {
     grafs_prod_item_trade = trade_data,
     codes_coefs_items_full = codes_coefs_items_full,
     n_soil_inputs = n_soil_inputs,
-    feed_share_rum_mono = adding_feed_output$feed_share_rum_mono
+    feed_share_rum_mono = add_feed_output$feed_share_rum_mono
   )
 
   prod_destiny <- .add_n_soil_inputs(prod_destiny, soil_inputs = n_soil_inputs)
@@ -738,8 +738,8 @@ create_n_nat_destiny <- function() {
 #' @return A dataframe with the total FM_Mg per year, province, and item.
 #' @keywords internal
 #' @noRd
-.adding_feed <- function(feed_intake) {
-  feed_intake <- feed_intake |>
+.add_feed <- function(feed_intake) {
+  feed_wide <- feed_intake |>
     dplyr::mutate(
       Livestock_type = dplyr::case_when(
         Livestock_cat %in%
@@ -754,32 +754,41 @@ create_n_nat_destiny <- function() {
           "ruminant",
         Livestock_cat %in%
           c("Pigs", "Poultry", "Rabbits", "Fur animals", "Other") ~
-          "monogastric"
+          "monogastric",
+        Livestock_cat == "Pets" ~ "pets",
+        Livestock_cat == "Aquaculture" ~ "aquaculture",
+        TRUE ~ "other"
       )
     ) |>
-    dplyr::group_by(Year, Province_name, Item, Livestock_type) |>
     dplyr::summarise(
-      feed = sum(FM_Mg[Livestock_cat != "Pets"], na.rm = TRUE),
-      food_pets = sum(FM_Mg[Livestock_cat == "Pets"], na.rm = TRUE),
-      .groups = "drop"
-    )
-
-  feed_share_rum_mono <- feed_intake |>
+      feed_amount = sum(FM_Mg, na.rm = TRUE),
+      .by = c("Year", "Province_name", "Item", "Livestock_type"),
+    ) |>
     tidyr::pivot_wider(
       names_from = Livestock_type,
-      values_from = feed,
+      values_from = feed_amount,
       values_fill = 0
     ) |>
     dplyr::mutate(
-      feed_total = ruminant + monogastric,
+      # TODO: check if aquaculture belongs here
+      # aquaculture was already in feed before these changes, but "magically"
+      feed = ruminant + monogastric + aquaculture,
+      food_pets = pets
+    )
+
+  feed_share_rum_mono <- feed_wide |>
+    dplyr::mutate(
+      feed_total = feed,
       share_rum = dplyr::if_else(feed_total > 0, ruminant / feed_total, 0),
       share_mono = dplyr::if_else(feed_total > 0, monogastric / feed_total, 0)
-    ) |>
-    dplyr::select(Year, Province_name, Item, share_rum, share_mono)
+      # Note: Aquaculture share is implicit (1 - rum - mono)
+    )
 
   list(
-    feed_intake = feed_intake,
-    feed_share_rum_mono = feed_share_rum_mono
+    feed_intake = feed_wide |>
+      dplyr::select(Year, Province_name, Item, feed, food_pets),
+    feed_share_rum_mono = feed_share_rum_mono |>
+      dplyr::select(Year, Province_name, Item, share_rum, share_mono)
   )
 }
 
