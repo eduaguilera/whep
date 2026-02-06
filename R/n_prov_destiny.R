@@ -1062,14 +1062,6 @@ create_n_nat_destiny <- function() {
   codes_coefs_items_full
 ) {
   trade_data <- grafs_prod_item_n |>
-    dplyr::group_by(Year, Province_name, Item, Box, Irrig_cat) |>
-    dplyr::summarise(
-      food = sum(food, na.rm = TRUE),
-      other_uses = sum(other_uses, na.rm = TRUE),
-      feed = sum(feed, na.rm = TRUE),
-      production_n = sum(production_n, na.rm = TRUE),
-      .groups = "drop"
-    ) |>
     dplyr::mutate(
       consumption = food + other_uses + feed,
       net_trade = production_n - consumption,
