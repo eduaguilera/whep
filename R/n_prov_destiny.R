@@ -73,7 +73,17 @@ create_n_prov_destiny <- function() {
       n_soil_inputs,
       add_feed_output$feed_share_rum_mono
     ) |>
-    .add_n_soil_inputs(n_soil_inputs)
+    .add_n_soil_inputs(n_soil_inputs) |>
+    dplyr::select(
+      Year,
+      Province_name,
+      Item,
+      Irrig_cat,
+      Box,
+      Origin,
+      Destiny,
+      MgN
+    )
 }
 
 #' @title GRAFS Nitrogen (N) flows – National Spain
