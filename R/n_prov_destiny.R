@@ -67,11 +67,7 @@ create_n_prov_destiny <- function() {
     .convert_fm_dm_n(biomass_coefs) |>
     .combine_destinies(add_feed_output$feed_intake, food_and_other_uses) |>
     .convert_to_items_n(codes_coefs_items_full, biomass_coefs) |>
-    .calculate_trade(
-      pie_full_destinies_fm,
-      biomass_coefs,
-      codes_coefs_items_full
-    ) |>
+    .calculate_trade() |>
     .finalize_prod_destiny(
       codes_coefs_items_full,
       n_soil_inputs,
@@ -748,7 +744,7 @@ create_n_nat_destiny <- function() {
     ) |>
     dplyr::summarise(
       feed_amount = sum(FM_Mg, na.rm = TRUE),
-      .by = c("Year", "Province_name", "Item", "Livestock_type"),
+      .by = c("Year", "Province_name", "Item", "Livestock_type")
     ) |>
     tidyr::pivot_wider(
       names_from = Livestock_type,
@@ -1041,13 +1037,8 @@ create_n_nat_destiny <- function() {
 #' @return A dataframe with consumption, exports, and imports in MgN.
 #' @keywords internal
 #' @noRd
-.calculate_trade <- function(
-  grafs_prod_item_n,
-  pie_full_destinies_fm,
-  biomass_coefs,
-  codes_coefs_items_full
-) {
-  trade_data <- grafs_prod_item_n |>
+.calculate_trade <- function(grafs_prod_item_n) {
+  grafs_prod_item_n |>
     dplyr::mutate(
       consumption = food + other_uses + feed,
       net_trade = production_n - consumption,
@@ -1067,8 +1058,6 @@ create_n_nat_destiny <- function() {
       export,
       import
     )
-
-  trade_data
 }
 
 
