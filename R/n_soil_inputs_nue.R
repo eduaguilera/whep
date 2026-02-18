@@ -123,9 +123,8 @@ create_n_soil_inputs <- function() {
 #'
 #' @export
 create_n_production <- function() {
-  grafs_prod_destiny_final <- create_n_prov_destiny()
-
-  .calculate_n_production(grafs_prod_destiny_final)
+  create_n_prov_destiny() |>
+    .calculate_n_production()
 }
 
 #' @title Calculate N Production
@@ -135,7 +134,7 @@ create_n_production <- function() {
 #' @keywords internal
 #' @noRd
 .calculate_n_production <- function(grafs_prod_destiny) {
-  n_prod_data <- grafs_prod_destiny |>
+  grafs_prod_destiny |>
     dplyr::filter(!is.na(Box)) |>
     tidyr::replace_na(list(MgN = 0)) |>
     tidyr::pivot_wider(
@@ -145,10 +144,7 @@ create_n_production <- function() {
     ) |>
     dplyr::mutate(
       feed = livestock_rum + livestock_mono,
-      prod = population_food +
-        population_other_uses +
-        feed +
-        export,
+      prod = population_food + population_other_uses + feed + export,
       # Fish has no domestic production
       prod = dplyr::if_else(Box == "Fish", 0, prod)
     ) |>
@@ -157,8 +153,6 @@ create_n_production <- function() {
       .by = c(Year, Province_name, Item, Box)
     ) |>
     dplyr::arrange(Year, Province_name, Item, Box)
-
-  n_prod_data
 }
 
 
