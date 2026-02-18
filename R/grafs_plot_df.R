@@ -646,13 +646,22 @@ create_grafs_plot_df <- function() {
       `{HAGRASS}` = sum(
         Area_ygpit_ha[
           LandUse %in%
-            c("Other", "Pasture_Shrubland")
+            c(
+              "Dehesa",
+              "Forest_high",
+              "Forest_low",
+              "Other",
+              "Pasture_Shrubland"
+            )
         ],
         na.rm = TRUE
       ),
       `{GRASSMha}` = `{HAGRASS}` / 1e6,
       `{HACULT}` = sum(Area_ygpit_ha[LandUse == "Cropland"], na.rm = TRUE),
       `{KM2_PROVINCE}` = sum(Area_ygpit_ha, na.rm = TRUE) / 100,
+      # So far crop and semi-natural surpluses were used from the n_balance dataset.
+      # I am not sure if this approach is better or calculating these surpluses by the inputs
+      # and outputs of this dataset?
       `{CROP_SURPLUS}` = sum(Surplus[LandUse == "Cropland"], na.rm = TRUE),
       `{GRASS_SURPLUS}` = sum(
         Surplus[
