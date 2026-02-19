@@ -67,7 +67,7 @@ reference:
   contents:
   - expand_trade_sources
   
-- title: "Nitrogen cycles Spain"
+- title: Nitrogen cycles Spain
   desc: >
     Functions to generate data for N inputs, outputs, production, destinies,
     typologies, etc.
@@ -82,6 +82,7 @@ reference:
   - calculate_nue_crops
   - calculate_nue_livestock
   - calculate_system_nue
+  - create_n_nat_destiny
 
 - title: Gap filling functions
   desc: >

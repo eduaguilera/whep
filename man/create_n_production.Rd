@@ -13,8 +13,6 @@ A tibble containing:
 \item \code{Province_name}: Spanish province
 \item \code{Item}: Product item
 \item \code{Box}: Ecosystem box
-\item \code{Box_destiny}: Destination box
-\item \code{import}: Imported N (Mg)
 \item \code{prod}: Produced N (Mg)
 }
 }

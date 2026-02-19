@@ -1,0 +1,14 @@
+file:
+- crop_residues.csv
+- crop_residues.parquet
+file_size:
+- 1022349
+- 155648
+pin_hash: dfd94331111d28e9191436be323295dd
+type: file
+title: 'crop_residues: 2 pinned files'
+description: 'Warn: this is only a sample'
+tags: ~
+urls: ~
+created: 20250721T150132Z
+api_version: 1

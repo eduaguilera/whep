@@ -25,20 +25,29 @@ create_version <- function(data, board, name, ...) {
 
 # Change this accordingly if your data is not CSV.
 # Please make the output a tibble.
-read_input <- function(path) {
-  data <- readRDS(path)
+read_input <- function(path, sheet = NULL) {
+  ext <- tools::file_ext(path)
+
+  data <-
+    if (ext == "rds") {
+      readRDS(path)
+    } else if (ext == "csv") {
+      readr::read_csv(path, show_col_types = FALSE)
+    } else {
+      readxl::read_excel(path, sheet = sheet)
+    }
+
   tibble::as_tibble(data)
 }
+
 
 prepare_for_upload <- function(input_path, data_name, ...) {
   board <- pins::board_temp(versioned = TRUE)
 
-  version <- input_path |>
-    read_input() |>
+  version <- read_input(input_path, ...) |>
     create_version(
       board,
-      data_name,
-      ...
+      data_name
     )
 
   output_path <- file.path(board$path, data_name, version)
@@ -68,6 +77,7 @@ prepare_for_upload <- function(input_path, data_name, ...) {
 }
 
 prepare_for_upload(
-  "C:/PhD/GRAFS/Inputs_SACO/N_Excretion_ygs.rds",
-  "n_excretion_ygs"
+  "C:/PhD/GRAFS/Inputs_SACO/grafs_lookups.xlsx",
+  "livestock_units",
+  sheet = "lu_factors"
 )

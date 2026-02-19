@@ -119,15 +119,12 @@ create_n_soil_inputs <- function() {
 #'   - `Province_name`: Spanish province
 #'   - `Item`: Product item
 #'   - `Box`: Ecosystem box
-#'   - `Box_destiny`: Destination box
-#'   - `import`: Imported N (Mg)
 #'   - `prod`: Produced N (Mg)
 #'
 #' @export
 create_n_production <- function() {
-  grafs_prod_destiny_final <- create_n_prov_destiny()
-
-  .calculate_n_production(grafs_prod_destiny_final)
+  create_n_prov_destiny() |>
+    .calculate_n_production()
 }
 
 #' @title Calculate N Production
@@ -136,32 +133,28 @@ create_n_production <- function() {
 #' @return A tibble with production and import values.
 #' @keywords internal
 #' @noRd
-.calculate_n_production <- function(
-  grafs_prod_destiny
-) {
-  n_prod_data <- grafs_prod_destiny |>
+.calculate_n_production <- function(grafs_prod_destiny) {
+  grafs_prod_destiny |>
     dplyr::filter(!is.na(Box)) |>
     tidyr::replace_na(list(MgN = 0)) |>
     tidyr::pivot_wider(
       names_from = Destiny,
       values_from = MgN,
-      values_fill = list(MgN = 0)
+      values_fill = 0
     ) |>
     dplyr::mutate(
-      prod = (food + feed + other_uses + export) - import,
-      # Set Production to 0 for Fish Box
-      prod = ifelse(Box == "Fish", 0, prod)
+      feed = livestock_rum + livestock_mono,
+      prod = population_food + population_other_uses + feed + export,
+      # Fish has no domestic production
+      prod = dplyr::if_else(Box == "Fish", 0, prod)
     ) |>
     dplyr::summarise(
-      import = sum(import, na.rm = TRUE),
       prod = sum(prod, na.rm = TRUE),
-      .by = c(Year, Province_name, Item, Box, Box_destiny)
+      .by = c(Year, Province_name, Item, Box)
     ) |>
-    dplyr::arrange(Year, Province_name, Item, Box, Box_destiny) |>
-    dplyr::select(Year, Province_name, Item, Box, Box_destiny, import, prod)
-
-  n_prod_data
+    dplyr::arrange(Year, Province_name, Item, Box)
 }
+
 
 #' @title N soil inputs and Nitrogen Use Efficiency (NUE) for crop -------------
 #'
@@ -194,7 +187,17 @@ create_n_production <- function() {
 #'
 #' @export
 calculate_nue_crops <- function() {
-  n_soil_inputs <- create_n_soil_inputs()
+  n_soil_inputs <- create_n_soil_inputs() |>
+    dplyr::group_by(Year, Province_name, Item, Box) |>
+    dplyr::summarise(
+      deposition = sum(deposition, na.rm = TRUE),
+      fixation = sum(fixation, na.rm = TRUE),
+      synthetic = sum(synthetic, na.rm = TRUE),
+      manure = sum(manure, na.rm = TRUE),
+      urban = sum(urban, na.rm = TRUE),
+      .groups = "drop"
+    )
+
   n_prod_data <- create_n_production()
 
   nue <- dplyr::inner_join(
@@ -215,7 +218,7 @@ calculate_nue_crops <- function() {
     dplyr::mutate(
       nue = prod / inputs * 100
     ) |>
-    dplyr::select(Year, Province_name, Item, Box, Box_destiny, nue)
+    dplyr::select(Year, Province_name, Item, Box, nue)
 
   nue
 }
