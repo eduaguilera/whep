@@ -1,0 +1,14 @@
+file:
+- bilateral_trade.csv
+- bilateral_trade.parquet
+file_size:
+- 8635
+- 6768
+pin_hash: 5707e017dfbd838d726256837a3ae498
+type: file
+title: 'bilateral_trade: 2 pinned files'
+description: 'Warn: this is only a sample'
+tags: ~
+urls: ~
+created: 20250721T141553Z
+api_version: 1

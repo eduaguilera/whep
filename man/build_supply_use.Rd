@@ -91,10 +91,10 @@ outputs (\emph{supply}).
 # Note: These are smaller samples to show outputs, not the real data.
 # For all data, call the function with default versions (i.e. no arguments).
 build_supply_use(
-  cbs_version = "20250721T132006Z-8ea47",
-  feed_intake_version = "20250721T143825Z-c1313",
-  primary_prod_version = "20250721T145805Z-8e12a",
-  primary_residues_version = "20250721T150132Z-dfd94",
-  processing_coefs_version = "20250721T143403Z-216d7"
+  cbs_version = "example",
+  feed_intake_version = "example",
+  primary_prod_version = "example",
+  primary_residues_version = "example",
+  processing_coefs_version = "example"
 )
 }
