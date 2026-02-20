@@ -30,6 +30,9 @@ Imports:
     tidyr,
     withr,
     yaml,
+    readxl,
+    sf,
+    stringi,
     zoo
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)

@@ -1087,6 +1087,7 @@ create_n_nat_destiny <- function() {
     ) |>
     dplyr::mutate(
       group = dplyr::recode(group, "Additives" = "Agro-industry"),
+
       Box = dplyr::case_when(
         Item == "Acorns" ~ "semi_natural_agroecosystems",
         is.na(Box) & Item == "Fallow" ~ "Cropland",
