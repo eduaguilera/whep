@@ -1,11 +1,11 @@
 Package: whep
 Title: Processing Agro-Environmental Data
-Version: 0.2.0.9000
+Version: 0.1.0.9000
 Authors@R: c(
     person("Catalin", "Covaci", , "catalin.covaci@csic.es", role = c("aut", "cre"), comment = c(ORCID = "0009-0005-2186-5972")),
     person("Eduardo", "Aguilera", , "eduardo.aguilera@csic.es", role = c("aut", "cph"), comment = c(ORCID = "0000-0003-4382-124X")),
-    person("Alice", "Beckmann", , "alice.beckmann@cchs.csic.es", role = c("aut"), comment = c(ORCID = "0009-0009-6840-0258")),
     person("João", "Serra", , "jserra@agro.au.dk", role = c("ctb"), comment = c(ORCID = "0000-0002-3561-5350")),
+    person("Alice", "Beckmann", , "alice.beckmann@cchs.csic.es", role = c("aut"), comment = c(ORCID = "0009-0009-6840-0258")),
     person("European Research Council", role = c("fnd"))
   )
 Description: A set of tools for processing and analyzing data developed in the
@@ -16,7 +16,6 @@ Description: A set of tools for processing and analyzing data developed in the
 License: MIT + file LICENSE
 Imports:
     cli,
-    data.table,
     dplyr,
     fs,
     FAOSTAT,
@@ -28,11 +27,12 @@ Imports:
     readr,
     rlang,
     stringr,
-    tibble,
     tidyr,
     withr,
     yaml,
-    zoo
+    readxl,
+    sf,
+    stringi
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.2
@@ -43,7 +43,8 @@ Suggests:
     knitr,
     pointblank,
     rmarkdown,
-    testthat (>= 3.0.0)
+    testthat (>= 3.0.0),
+    tibble
 Config/testthat/edition: 3
 VignetteBuilder: knitr
 URL: https://eduaguilera.github.io/whep/, https://github.com/eduaguilera/whep
