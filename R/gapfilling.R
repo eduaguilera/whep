@@ -421,8 +421,10 @@ fill_proxy_growth <- function(
   ) {
     cli::cli_abort("`value_smooth_window` must be a positive integer or NULL")
   }
-  if (!rlang::is_scalar_integerish(proxy_smooth_window) ||
-    proxy_smooth_window < 1) {
+  if (
+    !rlang::is_scalar_integerish(proxy_smooth_window) ||
+      proxy_smooth_window < 1
+  ) {
     cli::cli_abort("`proxy_smooth_window` must be a positive integer")
   }
   proxy_smooth_window <- as.integer(proxy_smooth_window)
