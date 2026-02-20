@@ -417,7 +417,7 @@ fill_proxy_growth <- function(
   if (
     !is.null(value_smooth_window) &&
       (!rlang::is_scalar_integerish(value_smooth_window) ||
-        value_smooth_window < 1)
+        value_smooth_window < 1) # nolint: indentation_linter
   ) {
     cli::cli_abort("`value_smooth_window` must be a positive integer or NULL")
   }
