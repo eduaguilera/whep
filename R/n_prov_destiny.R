@@ -1068,8 +1068,6 @@ create_n_nat_destiny <- function() {
       export,
       import
     )
-
-  trade_data
 }
 
 
