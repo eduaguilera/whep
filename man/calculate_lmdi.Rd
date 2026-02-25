@@ -137,29 +137,198 @@ The input data frame must contain:
 }
 
 \examples{
-# Simple LMDI decomposition
-data <- tibble::tribble(
-  ~year, ~country, ~emissions, ~gdp, ~population,
-  2010,  "ESP",    100,        1000, 46,
-  2011,  "ESP",    105,        1050, 46.5,
-  2012,  "ESP",    110,        1100, 47,
-  2013,  "ESP",    115,        1150, 47.5,
-  2014,  "ESP",    120,        1200, 48,
-  2015,  "ESP",    125,        1250, 48.5,
-  2010,  "FRA",    200,        2000, 65,
-  2011,  "FRA",    210,        2100, 65.5,
-  2012,  "FRA",    220,        2200, 66,
-  2013,  "FRA",    230,        2300, 66.5,
-  2014,  "FRA",    240,        2400, 67,
-  2015,  "FRA",    250,        2500, 67.5
+# Note: In these examples, 'activity' is a measure of scale (e.g., GDP in million USD, production in tonnes, or population in millions),
+# and 'intensity' is the target variable per unit activity (e.g., emissions per million USD, emissions per tonne, etc.).
+# The units are illustrative; adapt to your context.
+# --- Shared sample data ---
+data_simple <- tibble::tribble(
+  ~year, ~activity, ~intensity, ~emissions,
+  2010,  1000,      0.10,       100,   # e.g., 1000 million USD, 0.10 tCO2/million USD, 100 tCO2
+  2011,  1100,      0.12,       132,
+  2012,  1200,      0.09,       108,
+  2013,  1300,      0.10,       130
 )
 
-# Example: Complete form with multiple factors
+# --- 1. Year-over-year decomposition (default) ---
+# Decompose annual emission changes into activity and intensity effects.
+# The additive column sums to the total change in emissions each period.
 calculate_lmdi(
-  data,
-  identity = "emissions:(emissions/gdp)*(gdp/population)*population",
+  data_simple,
+  identity = "emissions:activity*intensity",
+  time_var = year,
+  verbose = FALSE
+) |>
+  dplyr::select(
+    period,
+    component_type,
+    factor_label,
+    additive,
+    multiplicative
+  )
+
+# --- 2. Single baseline-to-end period ---
+# Pass a two-element periods vector to get a single cumulative period
+# instead of year-over-year results.
+calculate_lmdi(
+  data_simple,
+  identity = "emissions:activity*intensity",
+  time_var = year,
+  periods = c(2010, 2013),
+  verbose = FALSE
+) |>
+  dplyr::select(
+    period,
+    component_type,
+    factor_label,
+    additive,
+    multiplicative
+  )
+
+# --- 3. Year-over-year AND one cumulative summary period ---
+# Use periods_2 to append an extra comparison period alongside the
+# year-over-year results.
+calculate_lmdi(
+  data_simple,
+  identity = "emissions:activity*intensity",
+  time_var = year,
+  periods = c(2010, 2011, 2012, 2013),
+  periods_2 = c(2010, 2013),
+  verbose = FALSE
+) |>
+  dplyr::select(
+    period,
+    component_type,
+    factor_label,
+    additive,
+    multiplicative
+  )
+
+# --- 4. Per-country decomposition with .by ---
+# Separate LMDI runs per country; results are stacked with a country column.
+data_countries <- tibble::tribble(
+  ~year, ~country, ~activity, ~intensity, ~emissions,
+  2010, "ESP", 1000, 0.10, 100,
+  2011, "ESP", 1100, 0.11, 121,
+  2012, "ESP", 1200, 0.10, 120,
+  2010, "FRA", 2000, 0.05, 100,
+  2011, "FRA", 2200, 0.05, 110,
+  2012, "FRA", 2400, 0.05, 120
+)
+
+calculate_lmdi(
+  data_countries,
+  identity = "emissions:activity*intensity",
   time_var = year,
   .by = "country",
   verbose = FALSE
+) |>
+  dplyr::select(
+    country,
+    period,
+    component_type,
+    factor_label,
+    additive,
+    multiplicative
+  )
+
+# --- 5. Ratio notation ---
+# Express factors as explicit ratios (e.g. intensity = emissions/activity).
+# Factor labels in the output preserve the ratio form for clarity.
+calculate_lmdi(
+  data_simple,
+  identity = "emissions:(emissions/activity)*activity",
+  time_var = year,
+  verbose = FALSE
+) |>
+  dplyr::select(
+    period,
+    component_type,
+    factor_label,
+    additive,
+    multiplicative
+  )
+
+# --- 6. Structural (sectoral) decomposition with [] notation ---
+# Decomposes emissions into:
+#   total_activity * sector_structure * sector_intensity
+# [] sums the bracketed variable across sector before forming ratios,
+# enabling proper structural decomposition.
+data_sectors <- tibble::tribble(
+  ~year, ~sector,      ~activity, ~emissions,
+  2010, "industry",   600,        60,
+  2010, "transport",  400,        40,
+  2011, "industry",   700,        63,
+  2011, "transport",  500,        55
+) |>
+  dplyr::group_by(year) |>
+  dplyr::mutate(total_activity = sum(activity)) |>
+  dplyr::ungroup()
+
+calculate_lmdi(
+  data_sectors,
+  identity = paste0(
+    "emissions:",
+    "total_activity*",
+    "(activity[sector]/total_activity)*",
+    "(emissions[sector]/activity[sector])"
+  ),
+  time_var = year,
+  verbose = FALSE
+) |>
+  dplyr::select(
+    period,
+    component_type,
+    factor_label,
+    additive,
+    multiplicative
+  )
+
+# --- 7. Custom factor labels ---
+# Replace raw variable names with readable labels for reporting.
+# Supply one label per term (target first, then each factor in order).
+calculate_lmdi(
+  data_simple,
+  identity = "emissions:activity*intensity",
+  identity_labels = c(
+    "Total Emissions",
+    "Activity Effect",
+    "Intensity Effect"
+  ),
+  time_var = year,
+  verbose = FALSE
+) |>
+  dplyr::select(
+    period,
+    component_type,
+    factor_label,
+    additive,
+    multiplicative
+  )
+
+# --- 8. Rolling mean smoothing before decomposition ---
+# A 3-year rolling mean reduces noise in volatile series before
+# computing LMDI weights. Note: available periods shrink by
+# window - 1. Use a longer series with constant intensity so the
+# identity (emissions = activity * intensity) survives smoothing.
+data_smooth <- tibble::tibble(
+  year      = 2010:2020,
+  activity  = seq(1000, 2000, length.out = 11),
+  intensity = rep(0.1, 11),
+  emissions = seq(1000, 2000, length.out = 11) * 0.1
 )
+
+calculate_lmdi(
+  data_smooth,
+  identity = "emissions:activity*intensity",
+  time_var = year,
+  rolling_mean = 3,
+  verbose = FALSE
+) |>
+  dplyr::select(
+    period,
+    component_type,
+    factor_label,
+    additive,
+    multiplicative
+  )
 }
