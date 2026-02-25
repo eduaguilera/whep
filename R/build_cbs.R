@@ -16,7 +16,13 @@
 #'
 #' @returns A tibble in long format with columns:
 #'   `year`, `area`, `area_code`, `item_cbs`, `item_code_cbs`,
-#'   `element`, `value`.
+#'   `element`, `source`, `value`.
+#'
+#'   The `source` column indicates data provenance:
+#'   * `"Primary"` -- direct FAOSTAT production data.
+#'   * `"FBS_New"`, `"FBS_Old"`, `"mean"` -- food balance sheet selection.
+#'   * `"historical_fill"` -- pre-1961 historical extension.
+#'   * `"Processed"`, `"Processed_round2"` -- processing calibration.
 #'
 #' @export
 #'
@@ -677,13 +683,20 @@ build_processing_coefs <- function(
           is.na(fbs_comp) ~ value,
         fbs_comp > 0.9 & fbs_comp < 1.1 ~ FBS_New,
         TRUE ~ FBS_Old
+      ),
+      source = dplyr::case_when(
+        !is.na(Primary) ~ "Primary",
+        n == 1 | cv < 0.01 | value == 0 |
+          is.na(fbs_comp) ~ "mean",
+        fbs_comp > 0.9 & fbs_comp < 1.1 ~ "FBS_New",
+        TRUE ~ "FBS_Old"
       )
     ) |>
     dplyr::filter(!is.na(area)) |>
     dplyr::select(
       area, area_code, item_cbs,
       item_code_cbs, element, year,
-      value = value_sel
+      source, value = value_sel
     ) |>
     dplyr::mutate(
       value = dplyr::if_else(
@@ -706,6 +719,7 @@ build_processing_coefs <- function(
 
   cbs_hist <- cbs_raw0 |>
     dplyr::filter(year %in% years, year < 1962) |>
+    dplyr::select(-dplyr::any_of("source")) |>
     tidyr::complete(
       year,
       tidyr::nesting(
@@ -721,7 +735,9 @@ build_processing_coefs <- function(
     )
 
   dplyr::bind_rows(
-    cbs_hist |> dplyr::filter(year < 1961),
+    cbs_hist |>
+      dplyr::filter(year < 1961) |>
+      dplyr::mutate(source = "historical_fill"),
     cbs_raw0 |> dplyr::filter(year > 1960)
   )
 }
@@ -1004,7 +1020,6 @@ build_processing_coefs <- function(
 
   dplyr::bind_rows(
     cbs_raw |>
-      dplyr::mutate(source = "CBS") |>
       dplyr::left_join(
         items |>
           dplyr::select(item_cbs, item_code_cbs, group),
@@ -1026,6 +1041,7 @@ build_processing_coefs <- function(
     dplyr::filter(!is.na(area), !is.na(element)) |>
     dplyr::summarise(
       value = mean(value, na.rm = TRUE),
+      source = dplyr::first(source),
       .by = c(
         year, area, area_code,
         item_cbs, item_code_cbs, element
@@ -1038,6 +1054,15 @@ build_processing_coefs <- function(
 .cbs_redistribute_notprocessed <- function(
   cbs_raw2, processd_raw
 ) {
+  # Save source provenance before internal processing
+  src_lookup <- cbs_raw2 |>
+    dplyr::select(
+      year, area_code, item_code_cbs, element, source
+    ) |>
+    dplyr::distinct()
+  cbs_raw2 <- cbs_raw2 |>
+    dplyr::select(-dplyr::any_of("source"))
+
   not_processed <- cbs_raw2 |>
     dplyr::filter(element == "processing", value > 0) |>
     dplyr::select(-element) |>
@@ -1131,18 +1156,33 @@ build_processing_coefs <- function(
         item_cbs, item_code_cbs
       ),
       by = "item_cbs"
+    ) |>
+    dplyr::left_join(
+      src_lookup,
+      by = c(
+        "year", "area_code",
+        "item_code_cbs", "element"
+      )
     )
 }
 
 # -- Impute trade + domestic supply --------------------------------------------
 
 .cbs_impute_trade <- function(cbs_raw3, afse) {
+  # Save source provenance before pivot cycle
+  src_lookup <- cbs_raw3 |>
+    dplyr::select(
+      year, area_code, item_code_cbs, element, source
+    ) |>
+    dplyr::distinct()
+
   destiny_list <- c(
     "food", "feed", "seed", "other_uses",
     "processing", "processing_primary"
   )
 
   cbs_raw3 |>
+    dplyr::select(-dplyr::any_of("source")) |>
     tidyr::pivot_wider(
       names_from = element,
       values_from = value, values_fill = NA
@@ -1189,6 +1229,13 @@ build_processing_coefs <- function(
       domestic_supply:processing_primary,
       names_to = "element",
       values_to = "value"
+    ) |>
+    dplyr::left_join(
+      src_lookup,
+      by = c(
+        "year", "area_code",
+        "item_code_cbs", "element"
+      )
     )
 }
 
@@ -1299,7 +1346,7 @@ build_processing_coefs <- function(
     dplyr::select(
       year, area, area_code,
       item_cbs, item_code_cbs,
-      element, value = value2
+      element, source, value = value2
     ) |>
     dplyr::filter(value != 0, area != "")
 }
@@ -1386,9 +1433,13 @@ build_processing_coefs <- function(
   )
 
   cbs_raw5 |>
-    dplyr::bind_rows(processed_new_bal) |>
+    dplyr::bind_rows(
+      processed_new_bal |>
+        dplyr::mutate(source = "Processed_round2")
+    ) |>
     dplyr::summarise(
       value = sum(value, na.rm = TRUE),
+      source = dplyr::first(source),
       .by = c(
         year, area, area_code,
         item_cbs, item_code_cbs, element
@@ -1478,6 +1529,13 @@ build_processing_coefs <- function(
 .cbs_reclassify_processing <- function(
   cbs_raw6, cb_processing_glo, afse
 ) {
+  # Save source provenance before pivot cycle
+  src_lookup <- cbs_raw6 |>
+    dplyr::select(
+      year, area_code, item_code_cbs, element, source
+    ) |>
+    dplyr::distinct()
+
   proc_scaling <- cbs_raw6 |>
     .processed_raw(cb_processing_glo) |>
     dplyr::summarise(
@@ -1535,6 +1593,7 @@ build_processing_coefs <- function(
 
   cbs_raw6 |>
     dplyr::filter(!is.na(element)) |>
+    dplyr::select(-dplyr::any_of("source")) |>
     tidyr::pivot_wider(
       names_from = element,
       values_from = value, values_fill = 0
@@ -1565,10 +1624,17 @@ build_processing_coefs <- function(
       )
     ) |>
     dplyr::filter(value2 != 0, area != "") |>
+    dplyr::left_join(
+      src_lookup,
+      by = c(
+        "year", "area_code",
+        "item_code_cbs", "element"
+      )
+    ) |>
     dplyr::select(
       year, area, area_code,
       item_cbs, item_code_cbs,
-      element, value = value2
+      element, source, value = value2
     )
 }
 
@@ -1577,8 +1643,16 @@ build_processing_coefs <- function(
 .cbs_final_balance <- function(cbs_raw7, afse, years) {
   items <- afse$items_full
 
+  # Save source provenance before test_cbs pivot cycles
+  src_lookup <- cbs_raw7 |>
+    dplyr::select(
+      year, area_code, item_code_cbs, element, source
+    ) |>
+    dplyr::distinct()
+
   cbs_raw8 <- cbs_raw7 |>
     dplyr::filter(year %in% years) |>
+    dplyr::select(-dplyr::any_of("source")) |>
     .test_cbs(afse) |>
     dplyr::left_join(
       items |> dplyr::select(item_cbs, default_destiny),
@@ -1628,5 +1702,12 @@ build_processing_coefs <- function(
       )
     ) |>
     .untest_cbs() |>
-    dplyr::filter(value != 0)
+    dplyr::filter(value != 0) |>
+    dplyr::left_join(
+      src_lookup,
+      by = c(
+        "year", "area_code",
+        "item_code_cbs", "element"
+      )
+    )
 }

@@ -82,13 +82,15 @@ test_that(".combine_primary aggregates and keeps item_prod columns", {
     ~unit, ~value,
     2000L, "Spain", 203L, "Wheat", 15L, "t", 5000,
     2000L, "Spain", 203L, "Wheat", 15L, "ha", 200
-  )
+  ) |>
+    dplyr::mutate(source = NA_character_)
 
   fao_liv_all <- tibble::tibble(
     year = integer(), area = character(),
     area_code = integer(),
     item_prod = character(), item_code_prod = integer(),
-    unit = character(), value = double()
+    unit = character(), value = double(),
+    source = character()
   )
 
   result <- whep:::.combine_primary(
@@ -96,7 +98,10 @@ test_that(".combine_primary aggregates and keeps item_prod columns", {
   )
   expect_true("item_prod" %in% names(result))
   expect_true("item_code_prod" %in% names(result))
+  expect_true("source" %in% names(result))
   expect_equal(nrow(result), 2L)
+  # NA source gets tagged as FAOSTAT
+  expect_true(all(result$source == "FAOSTAT"))
 })
 
 

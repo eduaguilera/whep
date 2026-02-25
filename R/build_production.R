@@ -15,7 +15,17 @@
 #' @returns A tibble in long format with columns:
 #'   `year`, `area`, `area_code`, `item_prod`, `item_code_prod`,
 #'   `item_cbs`, `item_code_cbs`, `live_anim`, `live_anim_code`,
-#'   `unit`, `value`.
+#'   `unit`, `value`, `source`.
+#'
+#'   The `source` column indicates data provenance:
+#'   `"FAOSTAT"` (original FAOSTAT data), `"EU_AgriDB"` (European
+#'   AgriDB fodder), `"DM_yield_estimate"` (dry-matter yield imputation),
+#'   `"fill_linear"` (linear interpolation), `"imputed_yield"` (yield ×
+#'   area), `"imputed_cbs_ratio"` (CBS ratio imputation),
+#'   `"LUH2_cropland"` / `"LUH2_agriland"` (LUH2 proxy historical
+#'   extension), `"fill_linear_historical"` (linear extrapolation
+#'   pre-1962), `"LUH2"` (grassland from LUH2), `"Estimated"` (double-
+#'   product estimation).
 #'
 #' @export
 #'
@@ -301,7 +311,7 @@ fodder <- .build_fodder(fao_crop_liv, afse, max_year, version)
   fodder_all |>
     dplyr::select(
       year, area, area_code,
-      item_prod, item_code_prod, t_2, ha
+      item_prod, item_code_prod, source, t_2, ha
     ) |>
     dplyr::rename(t = t_2) |>
     tidyr::pivot_longer(
@@ -405,6 +415,11 @@ fodder <- .build_fodder(fao_crop_liv, afse, max_year, version)
       t_dmbased = ha * yield_dm / Product_kgDM_kgFM,
       t_2 = dplyr::if_else(
         !is.na(t_euadb), t_euadb, t_dmbased
+      ),
+      source = dplyr::case_when(
+        !is.na(t)       ~ "FAOSTAT",
+        !is.na(t_euadb) ~ "EU_AgriDB",
+        TRUE            ~ "DM_yield_estimate"
       )
     ) |>
     dplyr::filter(!is.na(item_prod), !is.na(t_2))
@@ -559,9 +574,15 @@ fodder <- .build_fodder(fao_crop_liv, afse, max_year, version)
       item_prod = item_cbs,
       item_code_prod = item_code_cbs
     ) |>
+    dplyr::mutate(
+      source = dplyr::if_else(
+        source_value == "Original", "FAOSTAT",
+        "fill_linear"
+      )
+    ) |>
     dplyr::select(
       year, area, area_code,
-      item_code_prod, item_prod, unit, value
+      item_code_prod, item_prod, unit, value, source
     )
 }
 
@@ -570,11 +591,17 @@ fodder <- .build_fodder(fao_crop_liv, afse, max_year, version)
 .combine_primary <- function(fao_combined, fao_liv_all, afse) {
   dplyr::bind_rows(
     fao_combined |>
-      dplyr::filter(unit %in% c("ha", "t")),
+      dplyr::filter(unit %in% c("ha", "t")) |>
+      dplyr::mutate(
+        source = dplyr::if_else(
+          is.na(source), "FAOSTAT", source
+        )
+      ),
     fao_liv_all
   ) |>
     dplyr::summarise(
       value = sum(value),
+      source = dplyr::first(source),
       .by = c(
         year, area, area_code,
         item_prod, item_code_prod, unit
@@ -880,6 +907,14 @@ fodder <- .build_fodder(fao_crop_liv, afse, max_year, version)
       ),
       fu2 = dplyr::if_else(
         is.na(fu), t2 / yield, fu
+      ),
+      source = dplyr::case_when(
+        !is.na(source) ~ source,
+        !is.na(t)      ~ "FAOSTAT",
+        !is.na(fu * yield) ~ "imputed_yield",
+        sumprod_cbs_ratio < 0.9 &
+          is.na(Multi_type) ~ "imputed_cbs_ratio",
+        TRUE               ~ "imputed_yield"
       )
     ) |>
     dplyr::mutate(
@@ -907,7 +942,7 @@ fodder <- .build_fodder(fao_crop_liv, afse, max_year, version)
     dplyr::select(
       year, area, area_code, item_prod,
       item_code_prod, Live_anim, Live_anim_code,
-      unit, value = fu2
+      unit, source, value = fu2
     )
 
   tonnes_df <- yield_all |>
@@ -916,20 +951,21 @@ fodder <- .build_fodder(fao_crop_liv, afse, max_year, version)
     dplyr::select(
       year, area, area_code, item_prod,
       item_code_prod, Live_anim, Live_anim_code,
-      unit, value = t2
+      unit, source, value = t2
     )
 
   yield_df <- yield_all |>
     dplyr::select(
       year, area, area_code, item_prod,
       item_code_prod, Live_anim, Live_anim_code,
-      unit, value = yield
+      unit, source, value = yield
     )
 
   live_anim_df <- yield_all |>
     dplyr::filter(unit %in% c("t_LU", "t_head")) |>
     dplyr::summarise(
       value = mean(fu2, na.rm = TRUE),
+      source = dplyr::first(source),
       .by = c(
         year, area, area_code,
         Live_anim_code, unit
@@ -1036,6 +1072,7 @@ fodder <- .build_fodder(fao_crop_liv, afse, max_year, version)
 .fill_pre_faostat <- function(df, land_wide) {
   pre <- df |>
     dplyr::filter(year < 1962) |>
+    dplyr::select(-dplyr::any_of("source")) |>
     tidyr::complete(
       year,
       tidyr::nesting(
@@ -1078,6 +1115,12 @@ fodder <- .build_fodder(fao_crop_liv, afse, max_year, version)
         unit %in% c("t_head", "t_LU") ~
           value_livestockyield,
         TRUE ~ value_agriland
+      ),
+      source = dplyr::case_when(
+        land_use == "Cropland" ~ "LUH2_cropland",
+        unit %in% c("t_head", "t_LU") ~
+          "fill_linear_historical",
+        TRUE ~ "LUH2_agriland"
       )
     )
 
@@ -1109,10 +1152,20 @@ fodder <- .build_fodder(fao_crop_liv, afse, max_year, version)
         item_cbs, item_code_cbs
       )
     ) |>
-    dplyr::mutate(unit = "ha")
+    dplyr::mutate(unit = "ha", source = "LUH2")
 }
 
 .add_historical_yields <- function(df, int_yields) {
+  # Capture source per key (take the source from tonnes/t rows as
+ # the primary source indicator)
+  src_lookup <- df |>
+    dplyr::filter(unit %in% c("tonnes", "t")) |>
+    dplyr::select(
+      year, area, area_code, item_prod,
+      item_code_prod, source
+    ) |>
+    dplyr::distinct()
+
   df |>
     dplyr::select(
       year, area, area_code, item_prod,
@@ -1123,6 +1176,10 @@ fodder <- .build_fodder(fao_crop_liv, afse, max_year, version)
     tidyr::pivot_wider(
       names_from = unit, values_from = value
     ) |>
+    dplyr::left_join(src_lookup, by = c(
+      "year", "area", "area_code",
+      "item_prod", "item_code_prod"
+    )) |>
     dplyr::left_join(
       int_yields,
       by = c("year", "area", "item_code_prod")
@@ -1153,7 +1210,7 @@ fodder <- .build_fodder(fao_crop_liv, afse, max_year, version)
     dplyr::select(
       year, area, area_code, item_prod,
       item_code_prod, item_cbs, item_code_cbs,
-      Live_anim, Live_anim_code,
+      Live_anim, Live_anim_code, source,
       ha, LU, heads, tonnes, t_ha, t_LU, t_head
     ) |>
     tidyr::pivot_longer(
@@ -1164,6 +1221,7 @@ fodder <- .build_fodder(fao_crop_liv, afse, max_year, version)
     dplyr::distinct() |>
     dplyr::summarise(
       value = mean(value, na.rm = TRUE),
+      source = dplyr::first(source),
       .by = c(
         year, area, area_code,
         item_prod, item_code_prod,
