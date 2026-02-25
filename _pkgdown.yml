@@ -16,6 +16,16 @@ authors:
     href: "https://erc.europa.eu/homepage"
 
 reference:
+- title: Build datasets
+  desc: >
+    Build full datasets from raw FAOSTAT inputs. These functions
+    orchestrate reading, gap-filling, historical extension,
+    and balance validation.
+  contents:
+  - build_primary_production
+  - build_commodity_balances
+  - build_processing_coefs
+
 - title: Tidy datasets
   desc: >
     Get cleaned dataframes with project related data.
