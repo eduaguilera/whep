@@ -398,14 +398,14 @@ test_that("calculate_lmdi applies rolling mean smoothing", {
   )
 
   expect_true(tibble::is_tibble(result))
-  # With 11 years and rolling_mean = 3, we lose 1 year on each end
-  # So 9 years remain, giving 8 periods
+  # With 11 years and rolling_mean = 3, edge years use partial
+  # windows so no years are lost -> 10 year-over-year periods
   n_periods <- result |>
     dplyr::pull(period) |>
     unique() |>
     length()
 
-  expect_equal(n_periods, 8)
+  expect_equal(n_periods, 10)
 })
 
 

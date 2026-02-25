@@ -307,9 +307,8 @@ calculate_lmdi(
 
 # --- 8. Rolling mean smoothing before decomposition ---
 # A 3-year rolling mean reduces noise in volatile series before
-# computing LMDI weights. Note: available periods shrink by
-# window - 1. Use a longer series with constant intensity so the
-# identity (emissions = activity * intensity) survives smoothing.
+# computing LMDI weights. Edge years use partial windows (fewer
+# than k observations) so no periods are lost.
 data_smooth <- tibble::tibble(
   year      = 2010:2020,
   activity  = seq(1000, 2000, length.out = 11),
