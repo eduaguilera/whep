@@ -13,7 +13,8 @@ fill_proxy_growth(
   max_gap = Inf,
   max_gap_linear = 3,
   fill_scope = NULL,
-  smooth_window = 1,
+  value_smooth_window = NULL,
+  proxy_smooth_window = 1,
   output_format = "clean",
   verbose = TRUE
 )
@@ -53,8 +54,13 @@ fallback. Default: 3.}
 \item{fill_scope}{Quosure. Filter expression to limit filling scope.
 Default: NULL.}
 
-\item{smooth_window}{Integer. Window size for moving average smoothing of
-proxy reference values before computing growth rates. Default: 1.}
+\item{value_smooth_window}{Integer. Window size for a centered moving
+average applied to the value column before gap-filling. Useful for
+variables with high inter-annual variability. If \code{NULL} (default), no
+smoothing is applied.}
+
+\item{proxy_smooth_window}{Integer. Window size for moving average smoothing
+of proxy reference values before computing growth rates. Default: 1.}
 
 \item{output_format}{Character. Output format: "clean" or "detailed".
 Default: "clean".}
