@@ -76,24 +76,50 @@ library(dplyr, warn.conflicts = FALSE)
     dplyr::mutate(item_prod_code = item_prod_code)
 }
 
-.read_luh2_carea <- function(luh2_dir) {
+.read_luh2_static <- function(luh2_dir, var_name) {
   static_path <- file.path(luh2_dir, "staticData_quarterdeg.nc")
   nc <- ncdf4::nc_open(static_path)
   on.exit(ncdf4::nc_close(nc))
 
   lat <- ncdf4::ncvar_get(nc, "lat")
-  carea <- ncdf4::ncvar_get(nc, "carea")
+  vals <- ncdf4::ncvar_get(nc, var_name)
 
-  # t(carea) -> rows = lat, cols = lon. When lat is descending
+  # t(vals) -> rows = lat, cols = lon. When lat is descending
   # (90 to -90), row 1 = north, which matches terra convention.
   r <- terra::rast(
-    t(carea),
+    t(vals),
     extent = terra::ext(-180, 180, -90, 90)
   )
   if (lat[1] < lat[length(lat)]) {
     r <- terra::flip(r, direction = "vertical")
   }
   r
+}
+
+.read_luh2_carea <- function(luh2_dir) {
+  .read_luh2_static(luh2_dir, "carea")
+}
+
+# CFT-to-LUH2 crop functional type mapping
+.cft_to_luh2_mapping <- function() {
+  tibble::tribble(
+    ~cft_name,             ~luh2_type,
+    "temperate_cereals",   "c3ann",
+    "rice",                "c3ann",
+    "oil_crops_rapeseed",  "c3ann",
+    "oil_crops_sunflower", "c3ann",
+    "oil_crops_other",     "c3ann",
+    "others_annual",       "c3ann",
+    "temperate_roots",     "c3ann",
+    "tropical_roots",      "c3ann",
+    "maize",               "c4ann",
+    "tropical_cereals",    "c4ann",
+    "sugarcane",           "c4ann",
+    "others_perennial",    "c3per",
+    "oil_crops_soybean",   "c3nfx",
+    "oil_crops_groundnut", "c3nfx",
+    "pulses",              "c3nfx"
+  )
 }
 
 .read_luh2_variables <- function(nc_path, var_names, time_idx) {
@@ -218,58 +244,81 @@ prepare_country_grid <- function(l_files_dir, target_res) {
     dplyr::mutate(area_code = as.integer(area_code))
 }
 
-# ---- 2. Country areas (FAOSTAT + AQUASTAT) --------------------------
+# ---- 2. Country areas (FAOSTAT + LUH2 irrigation) ------------------
 # Read FAOSTAT production CSV (element 5312: Area harvested) and
-# FAOSTAT Land Use CSV (item 6690: Land area equipped for irrigation)
-# to build per-crop irrigated area estimates.
+# derive per-crop irrigated area from LUH2 management layer.
 
-.read_aquastat_irrigation <- function(l_files_dir, year_range) {
-  lu_path <- file.path(
-    l_files_dir, "FAOSTAT", "LandUse",
-    "Inputs_LandUse_E_All_Data_(Normalized).csv"
-  )
-  if (!file.exists(lu_path)) {
-    cli::cli_alert_warning(
-      "Land Use CSV not found; irrigated_area_ha = 0"
-    )
-    return(NULL)
-  }
+.luh2_country_irrig <- function(
+  luh2_dir,
+  year_range,
+  country_grid,
+  target_res
+) {
   cli::cli_alert_info(
-    "Reading AQUASTAT irrigation from Land Use CSV"
+    "Computing country-level irrigation from LUH2"
   )
-  lu_raw <- readr::read_csv(
-    lu_path,
-    col_types = readr::cols(
-      `Area Code` = readr::col_integer(),
-      `Item Code` = readr::col_integer(),
-      `Element Code` = readr::col_integer(),
-      Year = readr::col_integer(),
-      Value = readr::col_double(),
-      .default = readr::col_character()
-    ),
-    show_col_types = FALSE
-  )
-  # Item 6690: Land area equipped for irrigation
-  # Element 5110: Area (unit = 1000 ha)
-  # Filter to WHEP polity area_codes to exclude aggregated
-  # regions (area_code > 5000)
-  valid_codes <- whep::polities$area_code
-  lu_raw |>
-    dplyr::filter(
-      .data$`Item Code` == 6690L,
-      .data$`Element Code` == 5110L,
-      .data$Year %in% year_range,
-      !is.na(.data$Value),
-      .data$`Area Code` %in% valid_codes
+
+  crop_vars <- c("c3ann", "c4ann", "c3per", "c4per", "c3nfx")
+  irrig_vars <- paste0("irrig_", crop_vars)
+  states_path <- file.path(luh2_dir, "states.nc")
+  mgmt_path <- file.path(luh2_dir, "management.nc")
+
+  # Cell area in hectares (km2 * 100) at 0.25 deg
+  carea_ha_r <- .read_luh2_carea(luh2_dir) * 100
+  agg_factor <- as.integer(target_res / 0.25)
+
+  purrr::map(year_range, \(yr) {
+    if (yr %% 10 == 0) {
+      cli::cli_alert("LUH2 irrigation: year {yr}")
+    }
+    time_idx <- yr - 850L + 1L
+
+    crop_r <- .read_luh2_variables(
+      states_path, crop_vars, time_idx
+    )
+    irrig_r <- .read_luh2_variables(
+      mgmt_path, irrig_vars, time_idx
+    )
+
+    # Per-type irrigated ha at 0.25deg, aggregate to target_res
+    purrr::map(crop_vars, \(cv) {
+      iv <- paste0("irrig_", cv)
+      irrig_ha_r <- irrig_r[[iv]] * crop_r[[cv]] * carea_ha_r
+      irrig_agg <- terra::aggregate(
+        irrig_ha_r, fact = agg_factor,
+        fun = "sum", na.rm = TRUE
+      )
+      .raster_to_tibble(irrig_agg, "irrig_ha") |>
+        dplyr::filter(
+          !is.na(.data$irrig_ha), .data$irrig_ha > 0
+        ) |>
+        dplyr::mutate(luh2_type = cv)
+    }) |>
+      dplyr::bind_rows() |>
+      # Join with NaturalEarth country grid for area_code
+      dplyr::inner_join(country_grid, by = c("lon", "lat")) |>
+      dplyr::summarise(
+        irrig_ha = sum(.data$irrig_ha),
+        .by = c("area_code", "luh2_type")
+      ) |>
+      dplyr::mutate(year = yr)
+  }) |>
+    dplyr::bind_rows() |>
+    # Merge c4per into c3per (both map to others_perennial)
+    dplyr::mutate(
+      luh2_type = dplyr::if_else(
+        .data$luh2_type == "c4per", "c3per", .data$luh2_type
+      )
     ) |>
-    dplyr::transmute(
-      year = .data$Year,
-      area_code = .data$`Area Code`,
-      equipped_irrig_ha = .data$Value * 1000
+    dplyr::summarise(
+      irrig_ha = sum(.data$irrig_ha),
+      .by = c("year", "area_code", "luh2_type")
     )
 }
 
-prepare_country_areas <- function(l_files_dir, year_range) {
+prepare_country_areas <- function(
+  l_files_dir, year_range, country_grid, target_res
+) {
   cli::cli_h1("Preparing FAOSTAT country areas")
 
   csv_path <- file.path(
@@ -312,31 +361,43 @@ prepare_country_areas <- function(l_files_dir, year_range) {
     ) |>
     dplyr::filter(harvested_area_ha > 0)
 
-  # Add irrigation: distribute country-level equipped area
-  # proportionally to each crop's harvested area share
-  irrig <- .read_aquastat_irrigation(
-    l_files_dir, year_range
+  # Add irrigation from LUH2: per-CFT country-level irrigated
+  # area distributed to individual crops by harvested-area share
+  # within each country-year-CFT group.
+  luh2_dir <- file.path(l_files_dir, "LUH2", "LUH2 v2h")
+  luh2_irrig <- .luh2_country_irrig(
+    luh2_dir, year_range, country_grid, target_res
   )
-  if (is.null(irrig)) {
-    return(dplyr::mutate(crop_areas, irrigated_area_ha = 0))
-  }
+
+  cft_luh2 <- .cft_to_luh2_mapping()
 
   crop_areas |>
-    dplyr::mutate(
-      country_total_ha = sum(.data$harvested_area_ha),
-      crop_share = .data$harvested_area_ha /
-        .data$country_total_ha,
-      .by = c(year, area_code)
+    # Map each FAOSTAT item to its CFT and LUH2 type
+    dplyr::left_join(
+      dplyr::select(cft_mapping, item_prod_code, cft_name),
+      by = "item_prod_code"
     ) |>
-    dplyr::left_join(irrig, by = c("year", "area_code")) |>
+    dplyr::left_join(
+      dplyr::select(cft_luh2, "cft_name", "luh2_type"),
+      by = "cft_name"
+    ) |>
+    # Within each country-year-LUH2 type, compute crop share
     dplyr::mutate(
-      equipped_irrig_ha = dplyr::if_else(
-        is.na(.data$equipped_irrig_ha),
-        0,
-        .data$equipped_irrig_ha
+      cft_total_ha = sum(.data$harvested_area_ha),
+      crop_share = .data$harvested_area_ha /
+        .data$cft_total_ha,
+      .by = c("year", "area_code", "luh2_type")
+    ) |>
+    # Join with LUH2 per-type irrigation
+    dplyr::left_join(
+      luh2_irrig,
+      by = c("year", "area_code", "luh2_type")
+    ) |>
+    dplyr::mutate(
+      irrig_ha = dplyr::if_else(
+        is.na(.data$irrig_ha), 0, .data$irrig_ha
       ),
-      irrigated_area_ha = .data$crop_share *
-        .data$equipped_irrig_ha,
+      irrigated_area_ha = .data$crop_share * .data$irrig_ha,
       # Cap irrigation at harvested area
       irrigated_area_ha = pmin(
         .data$irrigated_area_ha, .data$harvested_area_ha
@@ -393,7 +454,7 @@ prepare_gridded_cropland <- function(l_files_dir, year_range,
   cli::cli_h1("Preparing LUH2 gridded cropland")
 
 
-  luh2_dir <- file.path(l_files_dir, "Hurtt LUC", "LUH2 v2h")
+  luh2_dir <- file.path(l_files_dir, "LUH2", "LUH2 v2h")
   carea_rast <- .read_luh2_carea(luh2_dir)
 
   crop_vars <- c("c3ann", "c4ann", "c3per", "c4per", "c3nfx")
@@ -434,7 +495,9 @@ cli::cli_alert_success(
   "country_grid: {nrow(country_grid)} cells saved"
 )
 
-country_areas <- prepare_country_areas(l_files_dir, year_range)
+country_areas <- prepare_country_areas(
+  l_files_dir, year_range, country_grid, target_res
+)
 nanoparquet::write_parquet(
   country_areas,
   file.path(output_dir, "country_areas.parquet")
