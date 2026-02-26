@@ -218,8 +218,56 @@ prepare_country_grid <- function(l_files_dir, target_res) {
     dplyr::mutate(area_code = as.integer(area_code))
 }
 
-# ---- 2. Country areas (FAOSTAT) -------------------------------------
-# Read FAOSTAT production CSV, filter element 5312 (Area harvested).
+# ---- 2. Country areas (FAOSTAT + AQUASTAT) --------------------------
+# Read FAOSTAT production CSV (element 5312: Area harvested) and
+# FAOSTAT Land Use CSV (item 6690: Land area equipped for irrigation)
+# to build per-crop irrigated area estimates.
+
+.read_aquastat_irrigation <- function(l_files_dir, year_range) {
+  lu_path <- file.path(
+    l_files_dir, "FAOSTAT", "LandUse",
+    "Inputs_LandUse_E_All_Data_(Normalized).csv"
+  )
+  if (!file.exists(lu_path)) {
+    cli::cli_alert_warning(
+      "Land Use CSV not found; irrigated_area_ha = 0"
+    )
+    return(NULL)
+  }
+  cli::cli_alert_info(
+    "Reading AQUASTAT irrigation from Land Use CSV"
+  )
+  lu_raw <- readr::read_csv(
+    lu_path,
+    col_types = readr::cols(
+      `Area Code` = readr::col_integer(),
+      `Item Code` = readr::col_integer(),
+      `Element Code` = readr::col_integer(),
+      Year = readr::col_integer(),
+      Value = readr::col_double(),
+      .default = readr::col_character()
+    ),
+    show_col_types = FALSE
+  )
+  # Item 6690: Land area equipped for irrigation
+  # Element 5110: Area (unit = 1000 ha)
+  # Filter to WHEP polity area_codes to exclude aggregated
+  # regions (area_code > 5000)
+  valid_codes <- whep::polities$area_code
+  lu_raw |>
+    dplyr::filter(
+      .data$`Item Code` == 6690L,
+      .data$`Element Code` == 5110L,
+      .data$Year %in% year_range,
+      !is.na(.data$Value),
+      .data$`Area Code` %in% valid_codes
+    ) |>
+    dplyr::transmute(
+      year = .data$Year,
+      area_code = .data$`Area Code`,
+      equipped_irrig_ha = .data$Value * 1000
+    )
+}
 
 prepare_country_areas <- function(l_files_dir, year_range) {
   cli::cli_h1("Preparing FAOSTAT country areas")
@@ -248,7 +296,7 @@ prepare_country_areas <- function(l_files_dir, year_range) {
   element_area_harvested <- 5312L
   cft_mapping <- .read_cft_mapping()
 
-  fao_raw |>
+  crop_areas <- fao_raw |>
     dplyr::filter(
       .data$`Element Code` == element_area_harvested,
       .data$Year %in% year_range,
@@ -263,6 +311,41 @@ prepare_country_areas <- function(l_files_dir, year_range) {
       )
     ) |>
     dplyr::filter(harvested_area_ha > 0)
+
+  # Add irrigation: distribute country-level equipped area
+  # proportionally to each crop's harvested area share
+  irrig <- .read_aquastat_irrigation(
+    l_files_dir, year_range
+  )
+  if (is.null(irrig)) {
+    return(dplyr::mutate(crop_areas, irrigated_area_ha = 0))
+  }
+
+  crop_areas |>
+    dplyr::mutate(
+      country_total_ha = sum(.data$harvested_area_ha),
+      crop_share = .data$harvested_area_ha /
+        .data$country_total_ha,
+      .by = c(year, area_code)
+    ) |>
+    dplyr::left_join(irrig, by = c("year", "area_code")) |>
+    dplyr::mutate(
+      equipped_irrig_ha = dplyr::if_else(
+        is.na(.data$equipped_irrig_ha),
+        0,
+        .data$equipped_irrig_ha
+      ),
+      irrigated_area_ha = .data$crop_share *
+        .data$equipped_irrig_ha,
+      # Cap irrigation at harvested area
+      irrigated_area_ha = pmin(
+        .data$irrigated_area_ha, .data$harvested_area_ha
+      )
+    ) |>
+    dplyr::select(
+      year, area_code, item_prod_code,
+      harvested_area_ha, irrigated_area_ha
+    )
 }
 
 # ---- 3. Crop patterns (EarthStat / Monfreda) ------------------------
