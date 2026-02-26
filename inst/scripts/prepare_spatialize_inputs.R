@@ -1,12 +1,42 @@
 # -----------------------------------------------------------------------
 # prepare_spatialize_inputs.R
 #
-# Reads raw spatial data from L_files and prepares the four input
+# Reads raw spatial data from L_files and prepares the five input
 # tibbles required by build_gridded_landuse(). Each output is saved
 # as parquet to L_files/whep/inputs/.
 #
-# Raw data expected in L_files:
-#   FAOSTAT, EarthStat, LUH2 v2h, and NaturalEarth shapefiles.
+# Data sources and references:
+#   1. FAOSTAT Production_Crops_Livestock (FAO, 2024)
+#      Harvested area (element 5312), 1961–present.
+#      https://www.fao.org/faostat/en/#data/QCL
+#   2. EarthStat HarvestedAreaYield175Crops (Monfreda et al., 2008)
+#      Crop-specific harvest fractions at 5 arc-min, circa 2000.
+#      doi:10.1029/2007GB002947
+#   3. EarthStat Crop Specific Fertilizers (Mueller et al., 2012)
+#      N/P/K application rates for 17 major crops, ~10 km.
+#      doi:10.1038/nature11420
+#   4. LUH2 v2h — Land-Use Harmonization 2 (Hurtt et al., 2020)
+#      states.nc (crop fractions), management.nc (irrigation),
+#      staticData_quarterdeg.nc (cell area). 850–2015 at 0.25 deg.
+#      doi:10.5194/gmd-13-5425-2020
+#   5. MIRCA2000 (Portmann et al., 2010)
+#      Monthly irrigated/rainfed crop areas, 26 classes, 5 arc-min.
+#      doi:10.1029/2008GB003435
+#   6. NaturalEarth ne_10m_admin_0_countries (v5.1)
+#      https://www.naturalearthdata.com/
+#
+# Pre-FAOSTAT methodology (before 1961):
+#   Crop areas are back-extrapolated using 1961 FAOSTAT crop
+#   composition scaled by LUH2 country-level cropland trends.
+#   Historical predecessor entities (USSR, Yugoslavia, etc.) are
+#   redistributed to successor states proportionally to LUH2
+#   cropland. See FAO Statistical Yearbooks (1948–1960) for
+#   context on pre-digital agricultural statistics.
+#
+# Outputs (to L_files/whep/inputs/):
+#   country_grid.parquet, country_areas.parquet,
+#   crop_patterns.parquet, crop_fertilizer_patterns.parquet,
+#   gridded_cropland.parquet
 # -----------------------------------------------------------------------
 
 library(dplyr, warn.conflicts = FALSE)
@@ -36,6 +66,32 @@ library(dplyr, warn.conflicts = FALSE)
         item_prod_name = readr::col_character()
       )
     )
+}
+
+# EarthStat Crop Specific Fertilizer mapping (17 crops)
+# Maps folder names under "EarthStat - Crop Specific Fertilizers/"
+# to FAOSTAT item_prod_codes.  Mueller et al. (2012) Nature.
+.earthstat_fertilizer_mapping <- function() {
+  tibble::tribble(
+    ~earthstat_fert_name, ~item_prod_code,
+    "barley",      44L,
+    "cassava",    340L,
+    "cotton",     274L,
+    "groundnut",  242L,
+    "maize",       56L,
+    "millet",      79L,
+    "oilpalm",    217L,
+    "potato",     328L,
+    "rapeseed",   223L,
+    "rice",        27L,
+    "rye",         71L,
+    "sorghum",     83L,
+    "soybean",    216L,
+    "sugarbeet",  157L,
+    "sugarcane",  780L,
+    "sunflower",  222L,
+    "wheat",       15L
+  )
 }
 
 .raster_to_tibble <- function(r, value_name) {
@@ -72,6 +128,43 @@ library(dplyr, warn.conflicts = FALSE)
     dplyr::filter(
       !is.na(harvest_fraction),
       harvest_fraction > 0
+    ) |>
+    dplyr::mutate(item_prod_code = item_prod_code)
+}
+
+# Read one EarthStat Crop Specific Fertilizer raster (N, P, or K rate)
+.read_one_earthstat_fertilizer <- function(fert_dir, crop_name,
+                                           item_prod_code, nutrient,
+                                           target_res) {
+  tif_name <- paste0(
+    crop_name, "_", nutrient, "Application_Rate.tif"
+  )
+  tif_path <- file.path(
+    fert_dir, paste0("Fertilizer_", crop_name), tif_name
+  )
+
+  if (!file.exists(tif_path)) {
+    return(tibble::tibble())
+  }
+
+  r <- terra::rast(tif_path)
+  src_res <- terra::res(r)[1]
+  agg_factor <- max(1L, as.integer(round(target_res / src_res)))
+  if (agg_factor > 1) {
+    r_agg <- terra::aggregate(
+      r, fact = agg_factor, fun = "mean", na.rm = TRUE
+    )
+  } else {
+    r_agg <- r
+  }
+
+  col_name <- paste0(
+    "kg_", tolower(substr(nutrient, 1, 1)), "_ha"
+  )
+  .raster_to_tibble(r_agg, col_name) |>
+    dplyr::filter(
+      !is.na(.data[[col_name]]),
+      .data[[col_name]] > 0
     ) |>
     dplyr::mutate(item_prod_code = item_prod_code)
 }
@@ -758,6 +851,70 @@ prepare_crop_patterns <- function(l_files_dir, target_res) {
     )
 }
 
+# ---- 3b. Crop-specific fertilizer rates (EarthStat / Mueller) --------
+# Read N/P/K Application_Rate GeoTIFFs for 17 major crops,
+# aggregate to target resolution.
+
+prepare_crop_fertilizer_patterns <- function(l_files_dir, target_res) {
+  cli::cli_h1("Preparing EarthStat fertilizer application rates")
+
+  fert_dir <- file.path(
+    l_files_dir, "EarthStat - Crop Specific Fertilizers"
+  )
+  if (!dir.exists(fert_dir)) {
+    cli::cli_alert_warning(
+      "EarthStat fertilizer dir not found: {fert_dir}"
+    )
+    return(NULL)
+  }
+
+  fert_map <- .earthstat_fertilizer_mapping()
+  nutrients <- c("Nitrogen", "Phosphorus", "Potassium")
+  cli::cli_alert_info(
+    "Processing {nrow(fert_map)} crops \u00d7 {length(nutrients)} nutrients"
+  )
+
+  results <- purrr::map(nutrients, \(nutrient) {
+    purrr::map2(
+      fert_map$earthstat_fert_name,
+      fert_map$item_prod_code,
+      \(crop_name, code) {
+        .read_one_earthstat_fertilizer(
+          fert_dir, crop_name, code, nutrient, target_res
+        )
+      }
+    ) |>
+      dplyr::bind_rows()
+  }) |>
+    rlang::set_names(c("n", "p", "k"))
+
+  # Combine N, P, K rates per cell per crop via full join
+  combined <- results$n |>
+    dplyr::full_join(
+      results$p,
+      by = c("lon", "lat", "item_prod_code")
+    ) |>
+    dplyr::full_join(
+      results$k,
+      by = c("lon", "lat", "item_prod_code")
+    ) |>
+    dplyr::mutate(
+      dplyr::across(
+        dplyr::starts_with("kg_"),
+        \(x) dplyr::if_else(is.na(x), 0, x)
+      )
+    )
+
+  n_crops <- dplyr::n_distinct(combined$item_prod_code)
+  n_cells <- dplyr::n_distinct(paste(combined$lon, combined$lat))
+  cli::cli_alert_success(
+    "Fertilizer rates: {n_crops} crops, {n_cells} cells, ",
+    "{nrow(combined)} rows"
+  )
+
+  combined
+}
+
 # ---- 4. Gridded cropland (LUH2) -------------------------------------
 # Read LUH2 crop fractions + irrigation, convert to hectares.
 
@@ -826,6 +983,17 @@ nanoparquet::write_parquet(
 cli::cli_alert_success(
   "crop_patterns: {nrow(crop_patterns)} rows saved"
 )
+
+crop_fert <- prepare_crop_fertilizer_patterns(l_files_dir, target_res)
+if (!is.null(crop_fert)) {
+  nanoparquet::write_parquet(
+    crop_fert,
+    file.path(output_dir, "crop_fertilizer_patterns.parquet")
+  )
+  cli::cli_alert_success(
+    "crop_fertilizer_patterns: {nrow(crop_fert)} rows saved"
+  )
+}
 
 gridded_cropland <- prepare_gridded_cropland(
   l_files_dir, year_range, target_res
