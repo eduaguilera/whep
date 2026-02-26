@@ -19,7 +19,7 @@ output_dir <- file.path(l_files_dir, "whep")
 
 # Subset of years to process (must be within the range used
 # in prepare_spatialize_inputs.R)
-year_range <- 2000L:2015L
+year_range <- 1850L:2022L
 
 # ---- Load inputs -----------------------------------------------------
 

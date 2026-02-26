@@ -216,9 +216,18 @@ prepare_country_grid <- function(l_files_dir, target_res) {
   countries <- terra::vect(shp_path)
 
   polities <- whep::polities
-  ne_data <- tibble::tibble(
-    iso3c = as.character(countries$ISO_A3)
-  ) |>
+
+  # NaturalEarth has ISO_A3 = "-99" for some countries
+  # (e.g., France, Norway). Fall back to ISO_A3_EH then ADM0_A3.
+  iso_raw <- as.character(countries$ISO_A3)
+  iso_eh <- as.character(countries$ISO_A3_EH)
+  iso_adm <- as.character(countries$ADM0_A3)
+  iso3c <- dplyr::if_else(
+    iso_raw != "-99", iso_raw,
+    dplyr::if_else(iso_eh != "-99", iso_eh, iso_adm)
+  )
+
+  ne_data <- tibble::tibble(iso3c = iso3c) |>
     dplyr::left_join(
       dplyr::select(polities, "iso3c", "area_code"),
       by = "iso3c"
@@ -247,15 +256,17 @@ prepare_country_grid <- function(l_files_dir, target_res) {
 # ---- 2. Country areas (FAOSTAT + LUH2 irrigation) ------------------
 # Read FAOSTAT production CSV (element 5312: Area harvested) and
 # derive per-crop irrigated area from LUH2 management layer.
+# For years before FAOSTAT (pre-1961), backfill using 1961 crop
+# proportions applied to LUH2 country-level cropland totals.
 
-.luh2_country_irrig <- function(
+.luh2_country_totals <- function(
   luh2_dir,
   year_range,
   country_grid,
   target_res
 ) {
   cli::cli_alert_info(
-    "Computing country-level irrigation from LUH2"
+    "Computing country-level cropland & irrigation from LUH2"
   )
 
   crop_vars <- c("c3ann", "c4ann", "c3per", "c4per", "c3nfx")
@@ -269,7 +280,7 @@ prepare_country_grid <- function(l_files_dir, target_res) {
 
   purrr::map(year_range, \(yr) {
     if (yr %% 10 == 0) {
-      cli::cli_alert("LUH2 irrigation: year {yr}")
+      cli::cli_alert("LUH2 country totals: year {yr}")
     }
     time_idx <- yr - 850L + 1L
 
@@ -280,24 +291,38 @@ prepare_country_grid <- function(l_files_dir, target_res) {
       mgmt_path, irrig_vars, time_idx
     )
 
-    # Per-type irrigated ha at 0.25deg, aggregate to target_res
+    # Per-type cropland & irrigated ha at 0.25deg, aggregate
     purrr::map(crop_vars, \(cv) {
       iv <- paste0("irrig_", cv)
+      crop_ha_r <- crop_r[[cv]] * carea_ha_r
       irrig_ha_r <- irrig_r[[iv]] * crop_r[[cv]] * carea_ha_r
+      crop_agg <- terra::aggregate(
+        crop_ha_r, fact = agg_factor,
+        fun = "sum", na.rm = TRUE
+      )
       irrig_agg <- terra::aggregate(
         irrig_ha_r, fact = agg_factor,
         fun = "sum", na.rm = TRUE
       )
-      .raster_to_tibble(irrig_agg, "irrig_ha") |>
+      crop_tbl <- .raster_to_tibble(crop_agg, "crop_ha")
+      irrig_tbl <- .raster_to_tibble(irrig_agg, "irrig_ha")
+      dplyr::left_join(
+        crop_tbl, irrig_tbl, by = c("lon", "lat")
+      ) |>
         dplyr::filter(
-          !is.na(.data$irrig_ha), .data$irrig_ha > 0
+          !is.na(.data$crop_ha), .data$crop_ha > 0
         ) |>
-        dplyr::mutate(luh2_type = cv)
+        dplyr::mutate(
+          irrig_ha = dplyr::if_else(
+            is.na(.data$irrig_ha), 0, .data$irrig_ha
+          ),
+          luh2_type = cv
+        )
     }) |>
       dplyr::bind_rows() |>
-      # Join with NaturalEarth country grid for area_code
       dplyr::inner_join(country_grid, by = c("lon", "lat")) |>
       dplyr::summarise(
+        crop_ha = sum(.data$crop_ha),
         irrig_ha = sum(.data$irrig_ha),
         .by = c("area_code", "luh2_type")
       ) |>
@@ -311,9 +336,127 @@ prepare_country_grid <- function(l_files_dir, target_res) {
       )
     ) |>
     dplyr::summarise(
+      crop_ha = sum(.data$crop_ha),
       irrig_ha = sum(.data$irrig_ha),
       .by = c("year", "area_code", "luh2_type")
     )
+}
+
+# Predecessor -> successor country mappings.
+# Historical entities that dissolved into modern states.
+.predecessor_successors <- function() {
+  tibble::tribble(
+    ~predecessor_code, ~successor_code,
+    # USSR (1961-1991) -> 15 successor states
+    228L,   1L,   # Armenia
+    228L,  52L,   # Azerbaijan
+    228L,  57L,   # Belarus
+    228L,  63L,   # Estonia
+    228L,  73L,   # Georgia
+    228L, 108L,   # Kazakhstan
+    228L, 113L,   # Kyrgyzstan
+    228L, 119L,   # Latvia
+    228L, 126L,   # Lithuania
+    228L, 146L,   # Republic of Moldova
+    228L, 185L,   # Russian Federation
+    228L, 208L,   # Tajikistan
+    228L, 213L,   # Turkmenistan
+    228L, 230L,   # Ukraine
+    228L, 235L,   # Uzbekistan
+    # Yugoslav SFR (1961-1991) -> 6 successor states
+    248L,  80L,   # Bosnia and Herzegovina
+    248L,  98L,   # Croatia
+    248L, 154L,   # North Macedonia
+    248L, 198L,   # Slovenia
+    248L, 272L,   # Serbia
+    248L, 273L,   # Montenegro
+    # Czechoslovakia (1961-1992) -> 2 successor states
+     51L, 167L,   # Czech Republic
+     51L, 199L,   # Slovakia
+    # Belgium-Luxembourg (1961-1999) -> 2 successor states
+     15L, 255L,   # Belgium
+     15L, 256L,   # Luxembourg
+    # Serbia and Montenegro (1992-2005) -> 2 successor states
+    186L, 272L,   # Serbia
+    186L, 273L,   # Montenegro
+    # Ethiopia PDR (1961-1992) -> 2 successor states
+     62L, 238L,   # Ethiopia
+     62L, 178L,   # Eritrea
+    # Sudan (former) (1961-2011) -> 2 successor states
+    206L, 276L,   # Sudan
+    206L, 277L    # South Sudan
+  )
+}
+
+# Redistribute historical predecessor data to successor states
+# using LUH2 cropland shares as weights.
+.redistribute_predecessors <- function(crop_areas, luh2_totals) {
+  pred_map <- .predecessor_successors()
+  pred_codes <- unique(pred_map$predecessor_code)
+
+  pred_rows <- crop_areas |>
+    dplyr::filter(.data$area_code %in% pred_codes)
+
+  if (nrow(pred_rows) == 0) return(crop_areas)
+
+  other_rows <- crop_areas |>
+    dplyr::filter(!.data$area_code %in% pred_codes)
+
+  # Country-level LUH2 cropland for weighting
+  luh2_ctry <- luh2_totals |>
+    dplyr::summarise(
+      crop_ha = sum(.data$crop_ha),
+      .by = c("year", "area_code")
+    )
+
+  redistributed <- pred_rows |>
+    dplyr::inner_join(
+      pred_map,
+      by = c("area_code" = "predecessor_code"),
+      relationship = "many-to-many"
+    ) |>
+    # Get LUH2 cropland for each successor in each year
+    dplyr::left_join(
+      luh2_ctry,
+      by = c("year", "successor_code" = "area_code")
+    ) |>
+    dplyr::mutate(
+      crop_ha = dplyr::if_else(
+        is.na(.data$crop_ha), 0, .data$crop_ha
+      )
+    ) |>
+    # Share = successor cropland / total successor cropland
+    dplyr::mutate(
+      group_total = sum(.data$crop_ha),
+      share = dplyr::if_else(
+        .data$group_total > 0,
+        .data$crop_ha / .data$group_total,
+        1 / dplyr::n()
+      ),
+      .by = c("year", "area_code", "item_prod_code")
+    ) |>
+    dplyr::mutate(
+      harvested_area_ha = .data$harvested_area_ha * .data$share,
+      area_code = .data$successor_code
+    ) |>
+    dplyr::filter(.data$harvested_area_ha > 0) |>
+    dplyr::select(
+      "year", "area_code", "item_prod_code",
+      "harvested_area_ha"
+    )
+
+  n_pred <- length(unique(pred_rows$area_code))
+  n_succ <- length(unique(redistributed$area_code))
+  cli::cli_alert_success(
+    "Redistributed {n_pred} predecessor entities to ",
+    "{n_succ} successor states"
+  )
+
+  # Combine: successor rows may overlap with existing direct data
+  # (e.g., Russia has direct FAO data from 1992+; predecessor
+  # redistribution adds rows for 1961-1991). No deduplication needed
+  # since they cover different year ranges.
+  dplyr::bind_rows(other_rows, redistributed)
 }
 
 prepare_country_areas <- function(
@@ -344,11 +487,15 @@ prepare_country_areas <- function(
 
   element_area_harvested <- 5312L
   cft_mapping <- .read_cft_mapping()
+  cft_luh2 <- .cft_to_luh2_mapping()
+  fao_first_year <- 1961L
 
+  # FAOSTAT crop areas for available years
+  fao_years <- year_range[year_range >= fao_first_year]
   crop_areas <- fao_raw |>
     dplyr::filter(
       .data$`Element Code` == element_area_harvested,
-      .data$Year %in% year_range,
+      .data$Year %in% fao_years,
       .data$`Item Code` %in% cft_mapping$item_prod_code
     ) |>
     dplyr::transmute(
@@ -361,34 +508,113 @@ prepare_country_areas <- function(
     ) |>
     dplyr::filter(harvested_area_ha > 0)
 
-  # Add irrigation from LUH2: per-CFT country-level irrigated
-  # area distributed to individual crops by harvested-area share
-  # within each country-year-CFT group.
+  # ---- Filter FAO aggregate codes ----
+  # Codes >= 5000 are regional aggregates (World, Africa, etc.)
+  crop_areas <- crop_areas |>
+    dplyr::filter(.data$area_code < 5000L)
+
+  # LUH2 country-level cropland + irrigation for all years
   luh2_dir <- file.path(l_files_dir, "LUH2", "LUH2 v2h")
-  luh2_irrig <- .luh2_country_irrig(
+  luh2_totals <- .luh2_country_totals(
     luh2_dir, year_range, country_grid, target_res
   )
 
-  cft_luh2 <- .cft_to_luh2_mapping()
+  # ---- Redistribute predecessor entities ----
+  # Historical entities (USSR, Yugoslavia, etc.) have FAO data but
+  # no grid cells. Redistribute to successor states proportionally
+  # to each successor's LUH2 cropland.
+  crop_areas <- .redistribute_predecessors(
+    crop_areas, luh2_totals
+  )
 
-  crop_areas |>
-    # Map each FAOSTAT item to its CFT and LUH2 type
-    dplyr::left_join(
-      dplyr::select(cft_mapping, item_prod_code, cft_name),
-      by = "item_prod_code"
-    ) |>
+  # ---- Backfill pre-FAOSTAT years (before 1961) ----
+  # Use 1961 FAOSTAT crop areas scaled by country-level
+  # LUH2 cropland trends: backfill_ha = fao_1961 * ratio
+  # where ratio = LUH2_year / LUH2_1961 per country.
+  backfill_years <- year_range[year_range < fao_first_year]
+
+  if (length(backfill_years) > 0) {
+    cli::cli_alert_info(
+      "Backfilling {length(backfill_years)} pre-FAOSTAT years ",
+      "using {fao_first_year} crop proportions"
+    )
+
+    # 1961 crop areas as backfill template
+    fao_base <- crop_areas |>
+      dplyr::filter(.data$year == fao_first_year) |>
+      dplyr::select(
+        "area_code", "item_prod_code",
+        base_ha = "harvested_area_ha"
+      )
+
+    # Country-level LUH2 cropland: total across all types
+    luh2_ctry <- luh2_totals |>
+      dplyr::summarise(
+        total_ha = sum(.data$crop_ha),
+        .by = c("year", "area_code")
+      )
+
+    luh2_base <- luh2_ctry |>
+      dplyr::filter(.data$year == fao_first_year) |>
+      dplyr::select("area_code", base_total = "total_ha")
+
+    # Ratio: LUH2_year / LUH2_1961 per country
+    country_ratios <- luh2_ctry |>
+      dplyr::filter(.data$year %in% backfill_years) |>
+      dplyr::inner_join(luh2_base, by = "area_code") |>
+      dplyr::mutate(
+        ratio = dplyr::if_else(
+          .data$base_total > 0,
+          .data$total_ha / .data$base_total, 1
+        )
+      ) |>
+      dplyr::select("year", "area_code", "ratio")
+
+    # Scale 1961 crop values by country LUH2 trend
+    backfill_areas <- country_ratios |>
+      dplyr::inner_join(
+        fao_base,
+        by = "area_code",
+        relationship = "many-to-many"
+      ) |>
+      dplyr::mutate(
+        harvested_area_ha = .data$base_ha * .data$ratio
+      ) |>
+      dplyr::filter(.data$harvested_area_ha > 0) |>
+      dplyr::select(
+        "year", "area_code", "item_prod_code",
+        "harvested_area_ha"
+      )
+
+    crop_areas <- dplyr::bind_rows(backfill_areas, crop_areas)
+  }
+
+  # ---- Add LUH2 type mapping ----
+  type_map <- dplyr::select(
+    cft_mapping, "item_prod_code", "cft_name"
+  ) |>
     dplyr::left_join(
       dplyr::select(cft_luh2, "cft_name", "luh2_type"),
       by = "cft_name"
     ) |>
-    # Within each country-year-LUH2 type, compute crop share
+    dplyr::select("item_prod_code", "luh2_type")
+
+  crop_areas <- crop_areas |>
+    dplyr::left_join(type_map, by = "item_prod_code")
+
+  # ---- Distribute irrigation ----
+  # Within each country-year-LUH2 type, compute crop share
+  # and distribute LUH2 irrigation proportionally.
+  luh2_irrig <- luh2_totals |>
+    dplyr::select("year", "area_code", "luh2_type", "irrig_ha")
+
+  crop_areas |>
     dplyr::mutate(
       cft_total_ha = sum(.data$harvested_area_ha),
       crop_share = .data$harvested_area_ha /
         .data$cft_total_ha,
       .by = c("year", "area_code", "luh2_type")
     ) |>
-    # Join with LUH2 per-type irrigation
     dplyr::left_join(
       luh2_irrig,
       by = c("year", "area_code", "luh2_type")
@@ -398,14 +624,13 @@ prepare_country_areas <- function(
         is.na(.data$irrig_ha), 0, .data$irrig_ha
       ),
       irrigated_area_ha = .data$crop_share * .data$irrig_ha,
-      # Cap irrigation at harvested area
       irrigated_area_ha = pmin(
         .data$irrigated_area_ha, .data$harvested_area_ha
       )
     ) |>
     dplyr::select(
-      year, area_code, item_prod_code,
-      harvested_area_ha, irrigated_area_ha
+      "year", "area_code", "item_prod_code",
+      "harvested_area_ha", "irrigated_area_ha"
     )
 }
 
@@ -476,7 +701,7 @@ prepare_gridded_cropland <- function(l_files_dir, year_range,
 
 l_files_dir <- "WHEP_L_FILES_DIR_PLACEHOLDER"
 output_dir <- file.path(l_files_dir, "whep", "inputs")
-year_range <- 1961L:2015L
+year_range <- 1850L:2022L
 target_res <- 0.5
 
 if (!dir.exists(output_dir)) {
