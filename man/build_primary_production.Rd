@@ -16,7 +16,17 @@ frozen version from \link{whep_inputs}.}
 A tibble in long format with columns:
 \code{year}, \code{area}, \code{area_code}, \code{item_prod}, \code{item_code_prod},
 \code{item_cbs}, \code{item_code_cbs}, \code{live_anim}, \code{live_anim_code},
-\code{unit}, \code{value}.
+\code{unit}, \code{value}, \code{source}.
+
+The \code{source} column indicates data provenance:
+\code{"FAOSTAT"} (original FAOSTAT data), \code{"EU_AgriDB"} (European
+AgriDB fodder), \code{"DM_yield_estimate"} (dry-matter yield imputation),
+\code{"fill_linear"} (linear interpolation), \code{"imputed_yield"} (yield ×
+area), \code{"imputed_cbs_ratio"} (CBS ratio imputation),
+\code{"LUH2_cropland"} / \code{"LUH2_agriland"} (LUH2 proxy historical
+extension), \code{"fill_linear_historical"} (linear extrapolation
+pre-1962), \code{"LUH2"} (grassland from LUH2), \code{"Estimated"} (double-
+product estimation).
 }
 \description{
 Construct the full primary production dataset from raw FAOSTAT inputs,

@@ -18,7 +18,15 @@ frozen version from \link{whep_inputs}.}
 \value{
 A tibble in long format with columns:
 \code{year}, \code{area}, \code{area_code}, \code{item_cbs}, \code{item_code_cbs},
-\code{element}, \code{value}.
+\code{element}, \code{source}, \code{value}.
+
+The \code{source} column indicates data provenance:
+\itemize{
+\item \code{"Primary"} -- direct FAOSTAT production data.
+\item \code{"FBS_New"}, \code{"FBS_Old"}, \code{"mean"} -- food balance sheet selection.
+\item \code{"historical_fill"} -- pre-1961 historical extension.
+\item \code{"Processed"}, \code{"Processed_round2"} -- processing calibration.
+}
 }
 \description{
 Construct commodity balance sheets (CBS) from raw FAOSTAT data, combining
