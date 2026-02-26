@@ -30,17 +30,22 @@ Imports:
     tidyr,
     withr,
     yaml,
+    readxl,
+    sf,
+    stringi,
     zoo
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.2
 Suggests: 
+    ggpattern,
     ggplot2,
     googlesheets4,
     here,
     knitr,
     pointblank,
     rmarkdown,
+    patchwork,
     testthat (>= 3.0.0),
     tibble
 Config/testthat/edition: 3
