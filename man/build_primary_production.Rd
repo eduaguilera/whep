@@ -4,37 +4,36 @@
 \alias{build_primary_production}
 \title{Build primary production dataset}
 \usage{
-build_primary_production(max_year = 2021, version = NULL)
+build_primary_production(
+  max_year = 2021,
+  version = NULL,
+  smooth_carry_forward = FALSE
+)
 }
 \arguments{
 \item{max_year}{Integer. Latest year of FAOSTAT data. Default \code{2021}.}
 
 \item{version}{File version for input pins. \code{NULL} (default) uses the
 frozen version from \link{whep_inputs}.}
+
+\item{smooth_carry_forward}{Logical. If \code{TRUE}, carry-forward tails
+are replaced with a linear trend. Default \code{FALSE}.}
 }
 \value{
-A tibble in long format with columns:
-\code{year}, \code{area}, \code{area_code}, \code{item_prod}, \code{item_code_prod},
-\code{item_cbs}, \code{item_code_cbs}, \code{live_anim}, \code{live_anim_code},
-\code{unit}, \code{value}, \code{source}.
-
-The \code{source} column indicates data provenance:
-\code{"FAOSTAT"} (original FAOSTAT data), \code{"EU_AgriDB"} (European
-AgriDB fodder), \code{"DM_yield_estimate"} (dry-matter yield imputation),
-\code{"fill_linear"} (linear interpolation), \code{"imputed_yield"} (yield ×
-area), \code{"imputed_cbs_ratio"} (CBS ratio imputation),
-\code{"LUH2_cropland"} / \code{"LUH2_agriland"} (LUH2 proxy historical
-extension), \code{"fill_linear_historical"} (linear extrapolation
-pre-1962), \code{"LUH2"} (grassland from LUH2), \code{"Estimated"} (double-
-product estimation).
+A tibble in long format (see \code{\link[=read_production]{read_production()}} for column
+descriptions), plus a character \code{qc_flag} column from
+\code{\link[=qc_production]{qc_production()}}.
 }
 \description{
-Construct the full primary production dataset from raw FAOSTAT inputs,
-including crops, livestock and livestock products. The function covers
-gap-filling of yields, double-product handling, historical extension
-back to 1850 using LUH2 land-use areas as proxy, and grassland areas.
+Construct the full primary production dataset from raw FAOSTAT inputs.
+This is a convenience wrapper that chains the three pipeline steps:
+\enumerate{
+\item \code{\link[=read_production]{read_production()}} — read & reformat FAOSTAT data.
+\item \code{\link[=fix_production]{fix_production()}} — apply Global-ported corrections.
+\item \code{\link[=qc_production]{qc_production()}} — flag data-quality anomalies.
+}
 
-This is the whep-native equivalent of \code{Global/R/crop_liv_prod.r}.
+Each step can also be called independently for inspection or debugging.
 }
 \examples{
 \dontrun{

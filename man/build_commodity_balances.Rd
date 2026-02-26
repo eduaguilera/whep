@@ -4,7 +4,12 @@
 \alias{build_commodity_balances}
 \title{Build commodity balance sheets}
 \usage{
-build_commodity_balances(primary_all, max_year = 2021, version = NULL)
+build_commodity_balances(
+  primary_all,
+  max_year = 2021,
+  version = NULL,
+  smooth_carry_forward = FALSE
+)
 }
 \arguments{
 \item{primary_all}{A tibble of primary production, as returned by
@@ -14,27 +19,26 @@ build_commodity_balances(primary_all, max_year = 2021, version = NULL)
 
 \item{version}{File version for input pins. \code{NULL} (default) uses the
 frozen version from \link{whep_inputs}.}
+
+\item{smooth_carry_forward}{Logical. If \code{TRUE}, carry-forward tails
+are replaced with a linear trend. Default \code{FALSE}.}
 }
 \value{
-A tibble in long format with columns:
-\code{year}, \code{area}, \code{area_code}, \code{item_cbs}, \code{item_code_cbs},
-\code{element}, \code{source}, \code{value}.
-
-The \code{source} column indicates data provenance:
-\itemize{
-\item \code{"Primary"} -- direct FAOSTAT production data.
-\item \code{"FBS_New"}, \code{"FBS_Old"}, \code{"mean"} -- food balance sheet selection.
-\item \code{"historical_fill"} -- pre-1961 historical extension.
-\item \code{"Processed"}, \code{"Processed_round2"} -- processing calibration.
-}
+A tibble in long format (see \code{\link[=read_cbs]{read_cbs()}} for column
+descriptions), plus a character \code{qc_flag} column from
+\code{\link[=qc_cbs]{qc_cbs()}}.
 }
 \description{
-Construct commodity balance sheets (CBS) from raw FAOSTAT data, combining
-food balance sheets, historical commodity balances, own primary production,
-and trade data. Includes processing coefficient calibration, destiny
-imputation, historical extension, and balance validation.
+Construct commodity balance sheets (CBS) from raw FAOSTAT data.
+This is a convenience wrapper that chains the three pipeline steps:
+\enumerate{
+\item \code{\link[=read_cbs]{read_cbs()}} — read & reformat FAOSTAT CBS data.
+\item \code{\link[=fix_cbs]{fix_cbs()}} — processing calibration, trade imputation,
+destiny filling, and final balancing.
+\item \code{\link[=qc_cbs]{qc_cbs()}} — flag data-quality anomalies.
+}
 
-This is the whep-native equivalent of \code{Global/R/commodity_balances.r}.
+Each step can also be called independently for inspection or debugging.
 }
 \examples{
 \dontrun{

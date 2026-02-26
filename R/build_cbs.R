@@ -1,12 +1,56 @@
 #' Build commodity balance sheets
 #'
 #' @description
-#' Construct commodity balance sheets (CBS) from raw FAOSTAT data, combining
-#' food balance sheets, historical commodity balances, own primary production,
-#' and trade data. Includes processing coefficient calibration, destiny
-#' imputation, historical extension, and balance validation.
+#' Construct commodity balance sheets (CBS) from raw FAOSTAT data.
+#' This is a convenience wrapper that chains the three pipeline steps:
 #'
-#' This is the whep-native equivalent of `Global/R/commodity_balances.r`.
+#' 1. [read_cbs()] — read & reformat FAOSTAT CBS data.
+#' 2. [fix_cbs()] — processing calibration, trade imputation,
+#'    destiny filling, and final balancing.
+#' 3. [qc_cbs()] — flag data-quality anomalies.
+#'
+#' Each step can also be called independently for inspection or debugging.
+#'
+#' @inheritParams read_cbs
+#' @param smooth_carry_forward Logical. If `TRUE`, carry-forward tails
+#'   are replaced with a linear trend. Default `FALSE`.
+#'
+#' @returns A tibble in long format (see [read_cbs()] for column
+#'   descriptions), plus a character `qc_flag` column from
+#'   [qc_cbs()].
+#'
+#' @export
+#'
+#' @examples
+#' \dontrun{
+#' primary <- build_primary_production()
+#' cbs <- build_commodity_balances(primary)
+#' }
+build_commodity_balances <- function(
+  primary_all,
+  max_year = 2021,
+  version = NULL,
+  smooth_carry_forward = FALSE
+) {
+  read_cbs(primary_all, max_year, version) |>
+    fix_cbs() |>
+    qc_cbs(smooth = smooth_carry_forward)
+}
+
+
+#' Step 1: Read and reformat FAOSTAT CBS data
+#'
+#' @description
+#' Read raw FAOSTAT food balance sheets, commodity balances, trade data,
+#' crop residues and primary production, combine sources (selecting the
+#' best value among FBS-new, FBS-old, CBS-crops, CBS-animals), and
+#' extend the series back to 1850 using historical trade data.
+#'
+#' No processing calibration or balancing is applied at this stage.
+#' For the fully processed CBS, pipe into [fix_cbs()].
+#'
+#' The returned tibble carries `afse` and `years` as attributes so that
+#' [fix_cbs()] can reuse them without reloading.
 #'
 #' @param primary_all A tibble of primary production, as returned by
 #'   [build_primary_production()].
@@ -19,19 +63,18 @@
 #'   `element`, `source`, `value`.
 #'
 #'   The `source` column indicates data provenance:
-#'   * `"Primary"` -- direct FAOSTAT production data.
-#'   * `"FBS_New"`, `"FBS_Old"`, `"mean"` -- food balance sheet selection.
-#'   * `"historical_fill"` -- pre-1961 historical extension.
-#'   * `"Processed"`, `"Processed_round2"` -- processing calibration.
+#'   * `"Primary"` — direct FAOSTAT production data.
+#'   * `"FBS_New"`, `"FBS_Old"`, `"mean"` — food balance sheet selection.
+#'   * `"historical_fill"` — pre-1961 historical extension.
 #'
 #' @export
 #'
 #' @examples
 #' \dontrun{
 #' primary <- build_primary_production()
-#' cbs <- build_commodity_balances(primary)
+#' raw_cbs <- read_cbs(primary)
 #' }
-build_commodity_balances <- function(
+read_cbs <- function(
   primary_all,
   max_year = 2021,
   version = NULL
@@ -51,6 +94,51 @@ build_commodity_balances <- function(
   cbs_raw <- .cbs_extend_historical(
     cbs_raw0, inputs, afse, years
   )
+
+  # Attach context for downstream pipeline steps
+  attr(cbs_raw, ".afse") <- afse
+  attr(cbs_raw, ".years") <- years
+  cbs_raw
+}
+
+
+#' Step 2: Apply processing calibration and balancing to CBS
+#'
+#' @description
+#' Applies the data corrections and balancing steps that were originally
+#' in `Global/R/commodity_balances.r`.
+#'
+#' **Steps applied:**
+#' * Processing coefficient calibration (global).
+#' * Re-estimate processed products.
+#' * Redistribute non-processed items.
+#' * Trade and domestic supply imputation.
+#' * Destiny gap-filling (food, feed, processing, other_uses).
+#' * Second round of processed products.
+#' * Reclassify processing → other_uses.
+#' * Final balance (clamp DS ≥ 0, fix exports, default destiny).
+#'
+#' @param df A tibble from [read_cbs()]. Expects `.afse` and `.years`
+#'   attributes (set automatically by `read_cbs()`). If missing, lookup
+#'   tables are reloaded.
+#'
+#' @returns The same tibble with calibrated, imputed, and balanced values.
+#'
+#' @export
+#'
+#' @examples
+#' \dontrun{
+#' read_cbs(primary) |> fix_cbs()
+#' }
+fix_cbs <- function(df) {
+  afse <- attr(df, ".afse") %||% .load_afse_tables()
+  years <- attr(df, ".years") %||% 1850:2021
+  cbs_raw <- df
+
+  # Strip attributes to avoid carrying large objects downstream
+
+  attr(cbs_raw, ".afse") <- NULL
+  attr(cbs_raw, ".years") <- NULL
 
   # 4. Processing coefficients (global calibration)
   proc_result <- .cbs_calibrate_processing(
@@ -85,6 +173,66 @@ build_commodity_balances <- function(
 
   # 11. Final balancing
   .cbs_final_balance(cbs_raw7, afse, years)
+}
+
+
+#' Step 3: Flag CBS data-quality anomalies
+#'
+#' @description
+#' Detects and optionally smooths data-quality issues in the CBS
+#' dataset. Adds a `qc_flag` character column.
+#'
+#' **Flags applied:**
+#' * `carry_forward` — constant-value tail (≥ `min_run` identical final
+#'   years). Likely FAOSTAT carry-forward imputation.
+#' * `spike` — year-on-year change exceeding `spike_ratio`.
+#'
+#' @param df A tibble from [fix_cbs()] (or [read_cbs()]).
+#' @param smooth Logical. Replace carry-forward tails with a linear
+#'   trend? Default `FALSE`.
+#' @param anchor_years Integer. Years for trend anchor. Default `5`.
+#' @param spike_ratio Numeric. Threshold. Default `10`.
+#' @param spike_min Numeric. Minimum value. Default `1000`.
+#' @param min_run Integer. Minimum carry-forward run. Default `3`.
+#'
+#' @returns The input tibble plus a `qc_flag` column.
+#'
+#' @export
+#'
+#' @examples
+#' \dontrun{
+#' read_cbs(primary) |> fix_cbs() |> qc_cbs()
+#' }
+qc_cbs <- function(
+    df,
+    smooth = FALSE,
+    anchor_years = 5L,
+    spike_ratio = 10,
+    spike_min = 1000,
+    min_run = 3L
+) {
+  by_cols <- c(
+    "area", "area_code",
+    "item_cbs", "item_code_cbs", "element"
+  )
+
+  df <- df |>
+    .flag_carry_forward(by = by_cols, min_run = min_run) |>
+    .flag_spikes(
+      by = by_cols,
+      spike_ratio = spike_ratio,
+      min_value = spike_min
+    )
+
+  if (smooth) {
+    df <- .smooth_carry_forward(
+      df, by = by_cols, anchor_years = anchor_years
+    )
+  }
+
+  df <- .collapse_qc_flags(df)
+  .qc_summary(df, "Commodity Balance Sheets")
+  df
 }
 
 #' Build processing coefficients
