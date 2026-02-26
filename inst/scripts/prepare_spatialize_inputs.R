@@ -603,27 +603,114 @@ prepare_country_areas <- function(
     dplyr::left_join(type_map, by = "item_prod_code")
 
   # ---- Distribute irrigation ----
-  # Within each country-year-LUH2 type, compute crop share
-  # and distribute LUH2 irrigation proportionally.
+  # Priority: MIRCA2000 crop-specific fractions (static ~2000),
+  #           scaled by LUH2 total irrigation trend.
+  # Fallback: LUH2-proportional within crop type (original method).
+
   luh2_irrig <- luh2_totals |>
     dplyr::select("year", "area_code", "luh2_type", "irrig_ha")
 
+  # Check for MIRCA irrigation fractions
+  mirca_file <- file.path(l_files_dir, "whep", "inputs",
+                          "mirca_irrigation_country.parquet")
+  has_mirca <- file.exists(mirca_file)
+
+  if (has_mirca) {
+    cli::cli_alert_info(
+      "Using MIRCA2000 crop-specific irrigation fractions"
+    )
+    mirca <- nanoparquet::read_parquet(mirca_file) |>
+      dplyr::select("area_code", "item_prod_code", "irrig_frac")
+
+    # Compute total LUH2 irrigated area per country-year (all types)
+    luh2_total_irrig <- luh2_totals |>
+      dplyr::summarize(
+        total_irrig_ha = sum(.data$irrig_ha, na.rm = TRUE),
+        .by = c("year", "area_code")
+      )
+
+    crop_areas <- crop_areas |>
+      dplyr::left_join(mirca, by = c("area_code", "item_prod_code")) |>
+      dplyr::left_join(luh2_total_irrig, by = c("year", "area_code"))
+
+    # For crops with MIRCA data: use MIRCA fraction × harvested area,
+    # then scale so total irrigated across crops matches LUH2 total.
+    # For crops without MIRCA: fall back to LUH2 type-proportional.
+    crop_areas <- crop_areas |>
+      dplyr::mutate(
+        mirca_irrig_raw = dplyr::if_else(
+          !is.na(.data$irrig_frac),
+          .data$irrig_frac * .data$harvested_area_ha,
+          NA_real_
+        ),
+        # Sum of MIRCA-based irrigation per country-year
+        mirca_total = sum(.data$mirca_irrig_raw, na.rm = TRUE),
+        .by = c("year", "area_code")
+      ) |>
+      dplyr::mutate(
+        total_irrig_ha = dplyr::if_else(
+          is.na(.data$total_irrig_ha), 0, .data$total_irrig_ha
+        ),
+        # Scale MIRCA to match LUH2 total irrigation
+        mirca_scale = dplyr::if_else(
+          .data$mirca_total > 0,
+          .data$total_irrig_ha / .data$mirca_total, 1
+        ),
+        irrigated_area_ha = dplyr::case_when(
+          !is.na(.data$mirca_irrig_raw) ~
+            .data$mirca_irrig_raw * .data$mirca_scale,
+          TRUE ~ NA_real_  # Will be filled below for non-MIRCA crops
+        )
+      )
+
+    # Fallback for crops without MIRCA: LUH2 type-proportional
+    needs_fallback <- is.na(crop_areas$irrigated_area_ha)
+    if (any(needs_fallback)) {
+      fallback <- crop_areas |>
+        dplyr::filter(is.na(.data$irrigated_area_ha)) |>
+        dplyr::left_join(luh2_irrig,
+                         by = c("year", "area_code", "luh2_type")) |>
+        dplyr::mutate(
+          irrig_ha = dplyr::if_else(
+            is.na(.data$irrig_ha), 0, .data$irrig_ha
+          ),
+          cft_total = sum(.data$harvested_area_ha),
+          crop_share = .data$harvested_area_ha / .data$cft_total,
+          irrigated_area_ha = .data$crop_share * .data$irrig_ha,
+          .by = c("year", "area_code", "luh2_type")
+        )
+
+      crop_areas$irrigated_area_ha[needs_fallback] <-
+        fallback$irrigated_area_ha
+    }
+  } else {
+    cli::cli_alert_info(
+      "MIRCA not found — using LUH2-proportional irrigation allocation"
+    )
+    crop_areas <- crop_areas |>
+      dplyr::mutate(
+        cft_total_ha = sum(.data$harvested_area_ha),
+        crop_share = .data$harvested_area_ha /
+          .data$cft_total_ha,
+        .by = c("year", "area_code", "luh2_type")
+      ) |>
+      dplyr::left_join(
+        luh2_irrig,
+        by = c("year", "area_code", "luh2_type")
+      ) |>
+      dplyr::mutate(
+        irrig_ha = dplyr::if_else(
+          is.na(.data$irrig_ha), 0, .data$irrig_ha
+        ),
+        irrigated_area_ha = .data$crop_share * .data$irrig_ha
+      )
+  }
+
   crop_areas |>
     dplyr::mutate(
-      cft_total_ha = sum(.data$harvested_area_ha),
-      crop_share = .data$harvested_area_ha /
-        .data$cft_total_ha,
-      .by = c("year", "area_code", "luh2_type")
-    ) |>
-    dplyr::left_join(
-      luh2_irrig,
-      by = c("year", "area_code", "luh2_type")
-    ) |>
-    dplyr::mutate(
-      irrig_ha = dplyr::if_else(
-        is.na(.data$irrig_ha), 0, .data$irrig_ha
+      irrigated_area_ha = dplyr::if_else(
+        is.na(.data$irrigated_area_ha), 0, .data$irrigated_area_ha
       ),
-      irrigated_area_ha = .data$crop_share * .data$irrig_ha,
       irrigated_area_ha = pmin(
         .data$irrigated_area_ha, .data$harvested_area_ha
       )
