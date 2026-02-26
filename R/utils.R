@@ -241,6 +241,11 @@ utils::globalVariables(
     "yield",
     "yield_c",
     "yield_dm",
-    "yield_glo"
+    "yield_glo",
+    # clean_faostat.R / build_v2.R QC helpers
+    ".anchor", ".anchor_start", ".from_end", ".intercept", ".is_cf",
+    ".last_val", ".n_anchor", ".prev", ".ratio", ".run_length",
+    ".slope", ".smoothed", ".time", ".use_anchor", ".val",
+    "qc_carry_forward"
   )
 )
