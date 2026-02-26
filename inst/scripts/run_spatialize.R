@@ -89,29 +89,61 @@ cli::cli_alert_info(
 
 t_start <- proc.time()
 
-result <- whep::build_gridded_landuse(
+# ---- Run at individual crop level (no CFT aggregation) ----------------
+
+cli::cli_h2("Individual crop spatialization")
+
+result_crops <- whep::build_gridded_landuse(
   country_areas = country_areas,
   crop_patterns = crop_patterns,
   gridded_cropland = gridded_cropland,
   country_grid = country_grid,
-  cft_mapping = cft_mapping
+  cft_mapping = NULL  # No aggregation → individual item_prod_codes
 )
 
 elapsed <- (proc.time() - t_start)[["elapsed"]]
 cli::cli_alert_success(
-  "Done in {round(elapsed / 60, 1)} minutes"
+  "Individual crops done in {round(elapsed / 60, 1)} minutes"
 )
 cli::cli_alert_info(
-  "Result: {nrow(result)} rows, {ncol(result)} columns"
+  "Result: {nrow(result_crops)} rows, ",
+  "{dplyr::n_distinct(result_crops$item_prod_code)} crops"
 )
 
-# ---- Save output ------------------------------------------------------
+# ---- Save individual crop output --------------------------------------
+
+crop_path <- file.path(output_dir, "gridded_landuse_crops.parquet")
+nanoparquet::write_parquet(result_crops, crop_path)
+cli::cli_alert_success("Individual crops saved to {crop_path}")
+
+# ---- Aggregate to CFT level -------------------------------------------
+
+cli::cli_h2("CFT aggregation")
+
+result <- result_crops |>
+  dplyr::inner_join(
+    dplyr::select(cft_mapping, item_prod_code, cft_name),
+    by = "item_prod_code"
+  ) |>
+  dplyr::summarise(
+    rainfed_ha = sum(rainfed_ha, na.rm = TRUE),
+    irrigated_ha = sum(irrigated_ha, na.rm = TRUE),
+    .by = c(lon, lat, year, cft_name)
+  )
+
+cli::cli_alert_info(
+  "CFT result: {nrow(result)} rows, ",
+  "{dplyr::n_distinct(result$cft_name)} CFTs"
+)
+
+# ---- Save CFT output --------------------------------------------------
 
 out_path <- file.path(output_dir, "gridded_landuse.parquet")
 nanoparquet::write_parquet(result, out_path)
-cli::cli_alert_success("Output saved to {out_path}")
+cli::cli_alert_success("CFT output saved to {out_path}")
 
-# Also save a CSV summary by year and CFT
+# ---- Summary by year and CFT ------------------------------------------
+
 summary_tbl <- result |>
   dplyr::summarise(
     total_rainfed_ha = sum(rainfed_ha, na.rm = TRUE),
@@ -124,3 +156,90 @@ summary_tbl <- result |>
 summary_path <- file.path(output_dir, "landuse_summary.csv")
 readr::write_csv(summary_tbl, summary_path)
 cli::cli_alert_success("Summary saved to {summary_path}")
+
+# ---- Spatialize fertilizer inputs (if available) ----------------------
+
+n_inputs_file <- file.path(input_dir, "nitrogen_inputs.parquet")
+if (file.exists(n_inputs_file)) {
+  cli::cli_h2("Spatializing nitrogen inputs")
+
+  n_inputs <- nanoparquet::read_parquet(n_inputs_file)
+
+  # Join gridded crop areas with N rates per crop
+  # Both use item_prod_code (via crop_name → items_prod mapping)
+  n_rates <- n_inputs |>
+    dplyr::filter(!is.na(kg_n_ha), kg_n_ha > 0) |>
+    dplyr::summarize(
+      kg_n_ha = sum(kg_n_ha, na.rm = TRUE),
+      .by = c(year, area_code, crop_name, fert_type)
+    )
+
+  # Map crop names back to item_prod_code using items_prod
+  items_prod <- readr::read_csv(
+    system.file("extdata", "items_prod.csv", package = "whep"),
+    show_col_types = FALSE
+  )
+
+  n_rates <- n_rates |>
+    dplyr::left_join(
+      dplyr::select(items_prod, item_prod_code, item_prod_name),
+      by = c("crop_name" = "item_prod_name")
+    ) |>
+    dplyr::filter(!is.na(item_prod_code))
+
+  # Join with gridded areas to get N application per cell
+  gridded_n <- result_crops |>
+    dplyr::inner_join(country_grid, by = c("lon", "lat")) |>
+    dplyr::inner_join(
+      n_rates,
+      by = c("year", "area_code", "item_prod_code")
+    ) |>
+    dplyr::mutate(
+      rainfed_n_mg = rainfed_ha * kg_n_ha / 1000,
+      irrigated_n_mg = irrigated_ha * kg_n_ha / 1000
+    ) |>
+    dplyr::select(
+      lon, lat, year, area_code, item_prod_code,
+      fert_type, kg_n_ha, rainfed_ha, irrigated_ha,
+      rainfed_n_mg, irrigated_n_mg
+    )
+
+  n_grid_path <- file.path(output_dir, "gridded_nitrogen.parquet")
+  nanoparquet::write_parquet(gridded_n, n_grid_path)
+  cli::cli_alert_success(
+    "Gridded nitrogen: {nrow(gridded_n)} rows → {n_grid_path}"
+  )
+
+  # Also aggregate to CFT level
+  gridded_n_cft <- gridded_n |>
+    dplyr::inner_join(
+      dplyr::select(cft_mapping, item_prod_code, cft_name),
+      by = "item_prod_code"
+    ) |>
+    dplyr::summarize(
+      rainfed_n_mg = sum(rainfed_n_mg, na.rm = TRUE),
+      irrigated_n_mg = sum(irrigated_n_mg, na.rm = TRUE),
+      rainfed_ha = sum(rainfed_ha, na.rm = TRUE),
+      irrigated_ha = sum(irrigated_ha, na.rm = TRUE),
+      .by = c(lon, lat, year, cft_name, fert_type)
+    ) |>
+    dplyr::mutate(
+      total_ha = rainfed_ha + irrigated_ha,
+      kg_n_ha = dplyr::if_else(
+        total_ha > 0, (rainfed_n_mg + irrigated_n_mg) * 1000 / total_ha, 0
+      )
+    )
+
+  n_cft_path <- file.path(output_dir, "gridded_nitrogen_cft.parquet")
+  nanoparquet::write_parquet(gridded_n_cft, n_cft_path)
+  cli::cli_alert_success(
+    "CFT nitrogen: {nrow(gridded_n_cft)} rows → {n_cft_path}"
+  )
+} else {
+  cli::cli_alert_warning(
+    "nitrogen_inputs.parquet not found — skipping fertilizer spatialization"
+  )
+  cli::cli_alert_info(
+    "  Run prepare_nitrogen_inputs.R first to enable this step."
+  )
+}
