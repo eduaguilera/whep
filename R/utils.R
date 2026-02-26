@@ -1,6 +1,7 @@
 # Suppress R CMD check warnings for dplyr NSE (Non Standard Evaluation)
 utils::globalVariables(
   c(
+    ".data",
     "alias",
     "area",
     "area_code",
@@ -78,6 +79,38 @@ utils::globalVariables(
     "value_proc_raw",
     "value_to_process",
     "year",
-    "Year"
+    "Year",
+    # spatialize.R
+    "allocated_ir",
+    "allocated_rf",
+    "cft_name",
+    "cropland_ha",
+    "current_sum",
+    "deficit",
+    "frac",
+    "harvest_fraction",
+    "harvested_area_ha",
+    "increment",
+    "ir_capacity",
+    "ir_pot_sum",
+    "ir_potential",
+    "ir_uniform",
+    "irrigated_area_ha",
+    "irrigated_ha",
+    "is_under",
+    "lat",
+    "lon",
+    "mc_irrigated",
+    "mc_rainfed",
+    "rainfed_ha",
+    "rainfed_target",
+    "rf_capacity",
+    "rf_pot_sum",
+    "rf_potential",
+    "rf_uniform",
+    "scale_factor",
+    "target",
+    "total_ir",
+    "total_rf"
   )
 )
