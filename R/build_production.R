@@ -1,31 +1,22 @@
 #' Build primary production dataset
 #'
 #' @description
-#' Construct the full primary production dataset from raw FAOSTAT inputs,
-#' including crops, livestock and livestock products. The function covers
-#' gap-filling of yields, double-product handling, historical extension
-#' back to 1850 using LUH2 land-use areas as proxy, and grassland areas.
+#' Construct the full primary production dataset from raw FAOSTAT inputs.
+#' This is a convenience wrapper that chains the three pipeline steps:
 #'
-#' This is the whep-native equivalent of `Global/R/crop_liv_prod.r`.
+#' 1. [read_production()] — read & reformat FAOSTAT data.
+#' 2. [fix_production()] — apply Global-ported corrections.
+#' 3. [qc_production()] — flag data-quality anomalies.
 #'
-#' @param max_year Integer. Latest year of FAOSTAT data. Default `2021`.
-#' @param version File version for input pins. `NULL` (default) uses the
-#'   frozen version from [whep_inputs].
+#' Each step can also be called independently for inspection or debugging.
 #'
-#' @returns A tibble in long format with columns:
-#'   `year`, `area`, `area_code`, `item_prod`, `item_code_prod`,
-#'   `item_cbs`, `item_code_cbs`, `live_anim`, `live_anim_code`,
-#'   `unit`, `value`, `source`.
+#' @inheritParams read_production
+#' @param smooth_carry_forward Logical. If `TRUE`, carry-forward tails
+#'   are replaced with a linear trend. Default `FALSE`.
 #'
-#'   The `source` column indicates data provenance:
-#'   `"FAOSTAT"` (original FAOSTAT data), `"EU_AgriDB"` (European
-#'   AgriDB fodder), `"DM_yield_estimate"` (dry-matter yield imputation),
-#'   `"fill_linear"` (linear interpolation), `"imputed_yield"` (yield ×
-#'   area), `"imputed_cbs_ratio"` (CBS ratio imputation),
-#'   `"LUH2_cropland"` / `"LUH2_agriland"` (LUH2 proxy historical
-#'   extension), `"fill_linear_historical"` (linear extrapolation
-#'   pre-1962), `"LUH2"` (grassland from LUH2), `"Estimated"` (double-
-#'   product estimation).
+#' @returns A tibble in long format (see [read_production()] for column
+#'   descriptions), plus a character `qc_flag` column from
+#'   [qc_production()].
 #'
 #' @export
 #'
@@ -33,7 +24,54 @@
 #' \dontrun{
 #' primary <- build_primary_production()
 #' }
-build_primary_production <- function(max_year = 2021, version = NULL) {
+build_primary_production <- function(
+    max_year = 2021,
+    version = NULL,
+    smooth_carry_forward = FALSE
+) {
+  read_production(max_year, version) |>
+    fix_production() |>
+    qc_production(smooth = smooth_carry_forward)
+}
+
+
+#' Step 1: Read and reformat FAOSTAT production data
+#'
+#' @description
+#' Read raw FAOSTAT inputs (crops, livestock, fodder, emission-based
+#' stocks), gap-fill yields, handle double products, extend back to 1850
+#' using LUH2 land-use areas, and add grassland.
+#'
+#' No data corrections are applied at this stage. The output preserves
+#' FAOSTAT values as-is (including known issues such as un-corrected tea
+#' tonnages and the absence of game-meat stocks). For the corrected
+#' version, pipe into [fix_production()].
+#'
+#' @param max_year Integer. Latest year of FAOSTAT data. Default `2021`.
+#' @param version File version for input pins. `NULL` (default) uses the
+#'   frozen version from [whep_inputs].
+#'
+#' @returns A tibble in long format with columns:
+#'   `year`, `area`, `area_code`, `item_prod`, `item_code_prod`,
+#'   `item_cbs`, `item_code_cbs`, `Live_anim`, `Live_anim_code`,
+#'   `unit`, `value`, `source`.
+#'
+#'   The `source` column indicates data provenance:
+#'   `"FAOSTAT"` (original), `"EU_AgriDB"` (European AgriDB fodder),
+#'   `"DM_yield_estimate"` (dry-matter yield imputation),
+#'   `"fill_linear"` (interpolation), `"imputed_yield"` (yield × area),
+#'   `"imputed_cbs_ratio"` (CBS ratio imputation),
+#'   `"LUH2_cropland"` / `"LUH2_agriland"` (LUH2 proxy),
+#'   `"fill_linear_historical"` (pre-1962 linear extrapolation),
+#'   `"LUH2"` (grassland), `"Estimated"` (double-product estimation).
+#'
+#' @export
+#'
+#' @examples
+#' \dontrun{
+#' raw <- read_production()
+#' }
+read_production <- function(max_year = 2021, version = NULL) {
   afse <- .load_afse_tables()
   years_df <- tibble::tibble(year = 1850:max_year)
 
@@ -43,28 +81,27 @@ build_primary_production <- function(max_year = 2021, version = NULL) {
   # 2. Read and process FAOSTAT crop/livestock production
   fao_crop_liv <- .read_fao_crop_liv(afse, version)
 
-  # 3. Fodder crops
-fodder <- .build_fodder(fao_crop_liv, afse, max_year, version)
+  # 3. Fodder crops (year 2013 excluded — known bad data in old source)
+  fodder <- .build_fodder(fao_crop_liv, afse, max_year, version)
 
-  # 4. Combine FAO + fodder
-  fao_combined <- dplyr::bind_rows(fao_crop_liv, fodder) |>
-    .correct_tea()
+  # 4. Combine FAO + fodder (no tea correction — see fix_production)
+  fao_combined <- dplyr::bind_rows(fao_crop_liv, fodder)
 
   # 5. Livestock stocks
   fao_liv_all <- .build_livestock_stocks(
     fao_combined, afse, version
   )
 
-  # 6. Primary dataset (crops + livestock)
-  primary_raw <- .combine_primary(fao_combined, fao_liv_all, afse)
+  # 6. Primary dataset (crops + livestock, no game meat — see fix_production)
+  primary_raw <- .combine_primary_raw(fao_combined, fao_liv_all, afse)
 
   # 7. Yield calculation + gap-filling
   yield_all <- .compute_yields(
     primary_raw, cbs_prod_raw, afse
   )
 
-  # 8. Filter dissolved countries
-  primary_raw2 <- .assemble_production(yield_all, afse)
+  # 8. Assemble to final format (no dissolved-country filter — see fix_production)
+  primary_raw2 <- .assemble_production_raw(yield_all, afse)
 
   # 9. Historical extension
   land_areas <- .read_land_areas(afse, version)
@@ -81,6 +118,102 @@ fodder <- .build_fodder(fao_crop_liv, afse, max_year, version)
     dplyr::bind_rows(grassland) |>
     .add_historical_yields(int_yields) |>
     .finalise_primary()
+}
+
+
+#' Step 2: Apply Global-ported corrections to production data
+#'
+#' @description
+#' Applies the data corrections that were originally in
+#' `Global/R/crop_liv_prod.r`. These modify values but do not add
+#' QC metadata. Each correction is documented inline.
+#'
+#' **Corrections applied:**
+#' * **Tea ÷ 4.37** — FAOSTAT reports tea in fresh-leaf weight;
+#'   this converts to made-tea weight for years after 1990. Affects
+#'   both `tonnes` and yield units (`t_ha`, `t_head`, `t_LU`).
+#' * **Game meat stocks** — creates synthetic `LU` and `heads` rows
+#'   for item "Game" (1190) from game-meat production tonnes (1163).
+#' * **Dissolved countries** — removes overlapping country/year
+#'   observations (e.g. Czechoslovakia after 1992).
+#'
+#' @param df A tibble from [read_production()].
+#'
+#' @returns The same tibble with corrected values.
+#'
+#' @export
+#'
+#' @examples
+#' \dontrun{
+#' read_production() |> fix_production()
+#' }
+fix_production <- function(df) {
+  df |>
+    .correct_tea_final() |>
+    .add_game_meat_final() |>
+    .filter_dissolved_countries()
+}
+
+
+#' Step 3: Flag production data-quality anomalies
+#'
+#' @description
+#' Detects and optionally smooths data-quality issues in the production
+#' dataset. Adds a `qc_flag` character column.
+#'
+#' **Flags applied:**
+#' * `carry_forward` — constant-value tail (≥ `min_run` identical final
+#'   years). Likely FAOSTAT carry-forward imputation.
+#' * `spike` — year-on-year change exceeding `spike_ratio`.
+#' * `fodder_break` — the 1984/1985 EU fodder reporting discontinuity.
+#'
+#' @param df A tibble from [fix_production()] (or [read_production()]).
+#' @param smooth Logical. Replace carry-forward tails with a linear
+#'   trend? Default `FALSE`.
+#' @param anchor_years Integer. Years for trend anchor. Default `5`.
+#' @param spike_ratio Numeric. Threshold. Default `10`.
+#' @param spike_min Numeric. Minimum value. Default `1000`.
+#' @param min_run Integer. Minimum carry-forward run. Default `3`.
+#'
+#' @returns The input tibble plus a `qc_flag` column.
+#'
+#' @export
+#'
+#' @examples
+#' \dontrun{
+#' read_production() |> fix_production() |> qc_production()
+#' }
+qc_production <- function(
+    df,
+    smooth = FALSE,
+    anchor_years = 5L,
+    spike_ratio = 10,
+    spike_min = 1000,
+    min_run = 3L
+) {
+  by_cols <- c(
+    "area", "area_code",
+    "item_prod", "item_code_prod", "unit"
+  )
+
+  df <- df |>
+    .flag_carry_forward(by = by_cols, min_run = min_run) |>
+    .flag_spikes(
+      by = by_cols,
+      spike_ratio = spike_ratio,
+      min_value = spike_min
+    ) |>
+    .flag_fodder_break(item_col = "item_prod")
+
+  if (smooth) {
+    df <- .smooth_carry_forward(
+      df, by = by_cols, anchor_years = anchor_years
+    )
+  }
+
+  df <- .collapse_qc_flags(df)
+  .qc_summary(df, "Primary Production")
+  df
 }
 
 # -- Input reading helpers -----------------------------------------------------
@@ -588,7 +721,7 @@ fodder <- .build_fodder(fao_crop_liv, afse, max_year, version)
 
 # -- Primary combination & yields ---------------------------------------------
 
-.combine_primary <- function(fao_combined, fao_liv_all, afse) {
+.combine_primary_raw <- function(fao_combined, fao_liv_all, afse) {
   dplyr::bind_rows(
     fao_combined |>
       dplyr::filter(unit %in% c("ha", "t")) |>
@@ -606,8 +739,7 @@ fodder <- .build_fodder(fao_crop_liv, afse, max_year, version)
         year, area, area_code,
         item_prod, item_code_prod, unit
       )
-    ) |>
-    .add_game_meat()
+    )
 }
 
 .add_game_meat <- function(df) {
@@ -931,7 +1063,7 @@ fodder <- .build_fodder(fao_crop_liv, afse, max_year, version)
 
 # -- Assembly ------------------------------------------------------------------
 
-.assemble_production <- function(yield_all, afse) {
+.assemble_production_raw <- function(yield_all, afse) {
   items_prim <- afse$items_prim %||%
     .load_afse_tables("items_prim")$items_prim
   items <- afse$items_full
@@ -1003,8 +1135,7 @@ fodder <- .build_fodder(fao_crop_liv, afse, max_year, version)
       unit = dplyr::if_else(
         unit == "t", "tonnes", as.character(unit)
       )
-    ) |>
-    .filter_dissolved_countries()
+    )
 }
 
 .filter_dissolved_countries <- function(df) {
@@ -1022,6 +1153,55 @@ fodder <- .build_fodder(fao_crop_liv, afse, max_year, version)
       !(area %in% c("Belgium", "Luxembourg") &
         year < 2000)
     )
+}
+
+# -- Post-processing corrections (used by fix_production) ----------------------
+
+#' Correct tea fresh-leaf weight to made-tea weight (final format)
+#' @details FAOSTAT reports tea in fresh-leaf weight. Made-tea weight is
+#'   fresh / 4.37. Applied to `tonnes` and yield units for "Tea leaves"
+#'   from 1991 onward.
+#' @keywords internal
+.correct_tea_final <- function(df) {
+  tea_units <- c("tonnes", "t_ha", "t_head", "t_LU")
+  df |>
+    dplyr::mutate(
+      value = dplyr::if_else(
+        item_prod == "Tea leaves" &
+          year > 1990 &
+          unit %in% tea_units,
+        value / 4.37,
+        value
+      )
+    )
+}
+
+#' Add game-meat livestock units and heads (final format)
+#' @details Creates `LU` and `heads` rows for item "Game" (1190) from
+#'   game-meat production tonnes (item 1163). Conversion:
+#'   LU = tonnes * 3, heads = tonnes * 3 / 10.
+#' @keywords internal
+.add_game_meat_final <- function(df) {
+  game_tonnes <- df |>
+    dplyr::filter(item_code_prod == 1163, unit == "tonnes")
+
+  if (nrow(game_tonnes) == 0L) return(df)
+
+  game_lu <- game_tonnes |>
+    dplyr::mutate(
+      value = value * 3,
+      unit = "LU",
+      item_prod = "Game",
+      item_code_prod = 1190
+    )
+
+  game_heads <- game_lu |>
+    dplyr::mutate(
+      value = value / 10,
+      unit = "heads"
+    )
+
+  dplyr::bind_rows(df, game_lu, game_heads)
 }
 
 # -- Historical extension -----------------------------------------------------
