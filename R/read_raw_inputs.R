@@ -250,7 +250,8 @@
     tidyr::pivot_wider(
       names_from = "element",
       values_from = "value",
-      values_fill = 0
+      values_fill = 0,
+      names_sort = TRUE
     ) |>
     dplyr::mutate(
       ds_destinies = round(

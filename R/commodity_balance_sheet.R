@@ -33,6 +33,8 @@
 #'    - `export`: Released as export for other countries.
 #'    - `seed`: Intended for new production.
 #'    - `processing`: The product will be used to obtain other subproducts.
+#'    - `processing_primary`: Processing allocated to primary processing
+#'      items (e.g. oil palm fruit, seed cotton, coconuts).
 #'    - `other_uses`: Any other use not included in the above ones.
 #'
 #' There is an additional column `domestic_supply` which is computed as the
