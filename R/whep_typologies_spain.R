@@ -7,7 +7,7 @@
 #' (food, feed, other_uses).
 #' @param prod_n Data frame with production data (production_n) from
 #' grafs_prod_item_n.
-#' @param years Numeric vector of years to include (default = 1860:2020).
+#' @param years Numeric vector of years to include (default = 2020).
 #'
 #' @return A data frame with Year, Province_name, decision variables,
 #' and Category.

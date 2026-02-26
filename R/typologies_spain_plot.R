@@ -365,7 +365,7 @@ create_typologies_timeseries_plot <- function(
 
   final_plot <- (combined | legend_plot) +
     patchwork::plot_annotation(
-      title = "Typologies in Spain (1860–2020)"
+      title = "Typologies in Spain (1860-2020)"
     ) &
     ggplot2::theme(
       plot.title = ggplot2::element_text(
