@@ -1,40 +1,50 @@
 # -----------------------------------------------------------------------
 # prepare_nitrogen_inputs.R
 #
-# Generates crop-specific nitrogen (and P/K) input estimates per country
-# and year, combining multiple data sources:
+# Generates crop-specific nitrogen, phosphorus, and potassium input
+# estimates per country and year, combining multiple data sources:
 #
-#   1. FAOSTAT country-level totals:
-#      - Synthetic fertilizer N/P/K: Inputs_FertilizersNutrient (RFN)
-#        Element 5157 = "Agricultural Use", Item 3102/3103/3104
-#      - Manure N applied to soils: Environment_LivestockManure (EMN)
-#        Element = "Manure applied to soils (N content)"
-#      - Manure N left on pasture: Element = "Manure left on pasture"
+#   1. FAOSTAT country-level totals (FAO, 2024):
+#      - Synthetic fertilizer: Inputs_FertilizersNutrient (RFN)
+#        Element 5157 = "Agricultural Use"
+#        Items: 3102 (N), 3103 (P2O5), 3104 (K2O)
+#      - Manure N: Environment_LivestockManure (EMN)
+#        "Manure applied to soils" + "Manure left on pasture"
 #
 #   2. Cropland/Grassland split:
-#      - EuroAgriDB v1.0 (Einarsson et al., 2019 Sci. Data): EU countries
-#      - Lassaletta et al. 2014: rest-of-world grassland share of synth. N
+#      - EuroAgriDB v1.0 (Einarsson et al. 2019, Sci. Data)
+#        doi:10.1038/s41597-019-0283-z
+#      - Lassaletta et al. 2014: global grassland share
+#        doi:10.1088/1748-9326/9/10/105011
 #
-#   3. Crop-specific distribution (base year 2000, then scaled):
-#      - Mueller et al. 2012 (EarthStat): Synthetic N rates by crop
-#      - West et al.: Manure N by crop and country
+#   3. Crop-specific distribution (base year ~2000, then scaled):
+#      a. Mueller et al. 2012: Synthetic N rates (Excel matrix)
+#         doi:10.1038/nature11420
+#      b. West et al. 2014: Gridded manure N (170+ crops, NetCDF)
+#         5 arc-min rasters at L_files/Manure_Westetal2014/N/
+#      c. EarthStat Crop Specific Fertilizers: N/P/K rates for
+#         17 major crops (Mueller et al. 2012), country averages
+#      d. Global/input/Crops_manure_N.csv: country-level manure
+#         (West et al. aggregated, CSV fallback)
 #
 #   4. Atmospheric N deposition:
-#      - HaNi (Tian et al., 2022): NHx + NOy, 1850–2020, 5 arcmin
-#      - Country means extracted via rnaturalearth polygons
+#      - HaNi (Tian et al. 2022): NHx + NOy, 1850–2020, 5 arcmin
+#        doi:10.5194/essd-14-4551-2022
 #
 #   5. Biological N fixation (BNF):
-#      - afsetools::Calc_N_fix() if available; otherwise simple NSBNF
+#      - NSBNF: 13 kgN/ha (Herridge et al. 2008)
+#
+#   6. Coello et al. 2025 (planned):
+#      - Crop-group fertilization rates, 13 groups, N/P/K, 1961–2019
+#        doi:10.1038/s41597-024-04215-x
 #
 # Outputs (to L_files/whep/inputs/):
 #   - nitrogen_inputs.parquet: crop × country × year × fert_type
-#     Columns: year, area_code, area_name, item_prod_code, item_prod_name,
-#              land_use, fert_type, area_ha, mg_n, kg_n_ha
 #   - n_deposition.parquet: country × year deposition rates
+#   - pk_totals.parquet: P and K country × year totals
 #
-# Requires: FAOSTAT CSVs in L_files/FAOSTAT/, EuroAgriDB results in
-# L_files/EuropeAgriDB-v1.0-results/, Global/input/ reference files,
-# HaNi NetCDFs in L_files/HaNi/.
+# Requires: FAOSTAT CSVs, EuroAgriDB results, Global/input/,
+# HaNi NetCDFs, West manure NetCDFs, EarthStat fertilizer TIFs.
 # -----------------------------------------------------------------------
 
 library(dplyr, warn.conflicts = FALSE)
@@ -134,6 +144,53 @@ grassland_items <- c("Pasture", "range")
   )
 
   n_totals
+}
+
+
+# ==== 1b. P and K country-level totals ================================
+
+.read_faostat_pk_totals <- function(l_files_dir, regions) {
+  cli::cli_h2("FAOSTAT P and K totals")
+
+  fert_file <- file.path(
+    l_files_dir,
+    "FAOSTAT/Inputs_FertilizersNutrient_E_All_Data_(Normalized).csv"
+  )
+  if (!file.exists(fert_file)) {
+    cli::cli_alert_warning("FAOSTAT fertilizer file not found")
+    return(NULL)
+  }
+
+  fert_pk <- data.table::fread(fert_file) |>
+    tibble::as_tibble() |>
+    dplyr::filter(
+      Element == "Agricultural Use",
+      Item %in% c(
+        "Nutrient phosphate P2O5 (total)",
+        "Nutrient potash K2O (total)"
+      )
+    ) |>
+    dplyr::transmute(
+      area_code = `Area Code`,
+      year = as.integer(Year),
+      nutrient = dplyr::if_else(
+        grepl("phosphate", Item), "P", "K"
+      ),
+      mg_nutrient = Value
+    ) |>
+    dplyr::inner_join(
+      regions |> dplyr::select(area_code, area_name),
+      by = "area_code"
+    ) |>
+    dplyr::filter(!is.na(mg_nutrient), mg_nutrient >= 0)
+
+  cli::cli_alert_success(
+    "P/K totals: {n_distinct(fert_pk$area_code)} countries, ",
+    "P={sum(fert_pk$nutrient == 'P')} obs, ",
+    "K={sum(fert_pk$nutrient == 'K')} obs"
+  )
+
+  fert_pk
 }
 
 
@@ -324,6 +381,239 @@ grassland_items <- c("Pasture", "range")
 }
 
 
+# ==== 3b. West et al. 2014 gridded manure N ===========================
+
+# Reads a curated subset of West et al. gridded manure N NetCDFs
+# (17 major crops matching EarthStat coverage) and aggregates to
+# country-level average rates (kg N/ha).
+
+.read_west_gridded_manure <- function(l_files_dir, country_grid,
+                                      items_prod, target_res = 0.5) {
+  cli::cli_h2("West et al. 2014 gridded manure N (NetCDF)")
+
+  west_dir <- file.path(l_files_dir, "Manure_Westetal2014", "N")
+  if (!dir.exists(west_dir)) {
+    cli::cli_alert_warning("West manure dir not found: {west_dir}")
+    return(NULL)
+  }
+
+  # Map curated crop names -> FAOSTAT item_prod_codes
+  crop_map <- tibble::tribble(
+    ~west_crop,    ~item_prod_code,
+    "barley",      44L,
+    "cassava",    340L,
+    "cotton",     274L,
+    "groundnut",  242L,
+    "maize",       56L,
+    "millet",      79L,
+    "oilpalm",    217L,
+    "potato",     328L,
+    "rapeseed",   223L,
+    "rice",        27L,
+    "rye",         71L,
+    "sorghum",     83L,
+    "soybean",    216L,
+    "sugarbeet",  157L,
+    "sugarcane",  780L,
+    "sunflower",  222L,
+    "wheat",       15L
+  )
+
+  cli::cli_alert_info("Reading {nrow(crop_map)} West manure N rasters")
+
+  results <- purrr::map(seq_len(nrow(crop_map)), \(i) {
+    crop <- crop_map$west_crop[i]
+    code <- crop_map$item_prod_code[i]
+    nc_path <- file.path(
+      west_dir,
+      paste0("NappliedperHA", crop, "Westetal.nc")
+    )
+    if (!file.exists(nc_path)) return(tibble::tibble())
+
+    tryCatch({
+      r <- terra::rast(nc_path)
+      src_res <- terra::res(r)[1]
+      agg_factor <- max(1L, as.integer(round(target_res / src_res)))
+      if (agg_factor > 1) {
+        r_agg <- terra::aggregate(
+          r, fact = agg_factor, fun = "mean", na.rm = TRUE
+        )
+      } else {
+        r_agg <- r
+      }
+      coords <- terra::xyFromCell(r_agg, seq_len(terra::ncell(r_agg)))
+      tibble::tibble(
+        lon = round(coords[, 1], 2),
+        lat = round(coords[, 2], 2),
+        kg_n_ha_manure = terra::values(r_agg)[, 1]
+      ) |>
+        dplyr::filter(!is.na(kg_n_ha_manure), kg_n_ha_manure > 0) |>
+        dplyr::mutate(item_prod_code = code)
+    }, error = \(e) {
+      cli::cli_alert_warning("Failed: {crop} \u2014 {e$message}")
+      tibble::tibble()
+    })
+  }) |>
+    dplyr::bind_rows()
+
+  if (nrow(results) == 0) return(NULL)
+
+  # Aggregate to country-level weighted averages
+  country_rates <- results |>
+    dplyr::inner_join(country_grid, by = c("lon", "lat")) |>
+    dplyr::summarize(
+      kg_n_ha_manure_west = mean(kg_n_ha_manure, na.rm = TRUE),
+      .by = c("area_code", "item_prod_code")
+    ) |>
+    dplyr::left_join(
+      dplyr::select(items_prod, item_prod_code, item_prod_name),
+      by = "item_prod_code"
+    ) |>
+    dplyr::rename(crop_name = item_prod_name) |>
+    dplyr::filter(!is.na(crop_name))
+
+  n_crops <- dplyr::n_distinct(country_rates$item_prod_code)
+  n_ctry <- dplyr::n_distinct(country_rates$area_code)
+  cli::cli_alert_success(
+    "West gridded manure: {n_crops} crops \u00d7 {n_ctry} countries"
+  )
+
+  country_rates
+}
+
+
+# ==== 3c. EarthStat spatial fertilizer rates ===========================
+
+# Reads 17-crop EarthStat N application rate TIFs and averages to
+# country level for use as supplementary base-year synthetic N rates.
+
+.read_earthstat_country_rates <- function(l_files_dir, country_grid,
+                                          items_prod, target_res = 0.5) {
+  cli::cli_h2("EarthStat Crop Specific Fertilizer rates")
+
+  fert_dir <- file.path(
+    l_files_dir, "EarthStat - Crop Specific Fertilizers"
+  )
+  if (!dir.exists(fert_dir)) {
+    cli::cli_alert_warning(
+      "EarthStat fertilizer dir not found: {fert_dir}"
+    )
+    return(NULL)
+  }
+
+  crop_map <- tibble::tribble(
+    ~es_crop,      ~item_prod_code,
+    "barley",      44L,
+    "cassava",    340L,
+    "cotton",     274L,
+    "groundnut",  242L,
+    "maize",       56L,
+    "millet",      79L,
+    "oilpalm",    217L,
+    "potato",     328L,
+    "rapeseed",   223L,
+    "rice",        27L,
+    "rye",         71L,
+    "sorghum",     83L,
+    "soybean",    216L,
+    "sugarbeet",  157L,
+    "sugarcane",  780L,
+    "sunflower",  222L,
+    "wheat",       15L
+  )
+
+  cli::cli_alert_info(
+    "Reading {nrow(crop_map)} EarthStat N application rate rasters"
+  )
+
+  results <- purrr::map(seq_len(nrow(crop_map)), \(i) {
+    crop <- crop_map$es_crop[i]
+    code <- crop_map$item_prod_code[i]
+    tif_path <- file.path(
+      fert_dir, paste0("Fertilizer_", crop),
+      paste0(crop, "_NitrogenApplication_Rate.tif")
+    )
+    if (!file.exists(tif_path)) return(tibble::tibble())
+
+    tryCatch({
+      r <- terra::rast(tif_path)
+      src_res <- terra::res(r)[1]
+      agg_factor <- max(1L, as.integer(round(target_res / src_res)))
+      if (agg_factor > 1) {
+        r_agg <- terra::aggregate(
+          r, fact = agg_factor, fun = "mean", na.rm = TRUE
+        )
+      } else {
+        r_agg <- r
+      }
+      coords <- terra::xyFromCell(r_agg, seq_len(terra::ncell(r_agg)))
+      tibble::tibble(
+        lon = round(coords[, 1], 2),
+        lat = round(coords[, 2], 2),
+        kg_n_ha_synth_es = terra::values(r_agg)[, 1]
+      ) |>
+        dplyr::filter(!is.na(kg_n_ha_synth_es), kg_n_ha_synth_es > 0) |>
+        dplyr::mutate(item_prod_code = code)
+    }, error = \(e) {
+      tibble::tibble()
+    })
+  }) |>
+    dplyr::bind_rows()
+
+  if (nrow(results) == 0) return(NULL)
+
+  country_rates <- results |>
+    dplyr::inner_join(country_grid, by = c("lon", "lat")) |>
+    dplyr::summarize(
+      kg_n_ha_synth_es = mean(kg_n_ha_synth_es, na.rm = TRUE),
+      .by = c("area_code", "item_prod_code")
+    ) |>
+    dplyr::left_join(
+      dplyr::select(items_prod, item_prod_code, item_prod_name),
+      by = "item_prod_code"
+    ) |>
+    dplyr::rename(crop_name = item_prod_name) |>
+    dplyr::filter(!is.na(crop_name))
+
+  n_crops <- dplyr::n_distinct(country_rates$item_prod_code)
+  n_ctry <- dplyr::n_distinct(country_rates$area_code)
+  cli::cli_alert_success(
+    "EarthStat N rates: {n_crops} crops \u00d7 {n_ctry} countries"
+  )
+
+  country_rates
+}
+
+
+# ==== 3d. Coello et al. 2025 (future integration) =====================
+
+# Coello et al. (2025) "A global gridded crop-specific fertilization
+# dataset from 1961 to 2019". doi:10.1038/s41597-024-04215-x
+# Coverage: 13 crop groups, N/P/K, 1961-2019, gridded.
+# Crop groups: Cereals excl. rice, Rice, Roots & tubers, Sugar crops,
+# Pulses, Oil crops, Vegetables, Fruits, Stimulant crops, Spices,
+# Fibre crops, Tobacco, Rubber.
+
+.prepare_coello_inputs <- function(l_files_dir) {
+  cli::cli_h2("Coello et al. 2025 crop-group fertilization")
+
+  coello_dir <- file.path(l_files_dir, "Coello2025")
+  if (!dir.exists(coello_dir)) {
+    cli::cli_alert_info(
+      "Coello et al. 2025 data not available at {coello_dir}"
+    )
+    cli::cli_alert_info(
+      "  doi:10.1038/s41597-024-04215-x \u2014 download to {coello_dir}"
+    )
+    return(NULL)
+  }
+
+  # TODO: Read Coello gridded N/P/K time-series when data available
+  cli::cli_alert_info("Coello data reading not yet implemented")
+  NULL
+}
+
+
 # ==== 4. Atmospheric N deposition (HaNi) ==============================
 
 .prepare_n_deposition <- function(l_files_dir, regions, output_dir) {
@@ -438,6 +728,8 @@ grassland_items <- c("Pasture", "range")
   lass <- lu_split$lassaletta
   crop_manure <- base_rates$crop_manure
   crop_synthetic <- base_rates$crop_synthetic
+  west_rates <- base_rates$west_manure_rates
+  es_rates <- base_rates$earthstat_synth_rates
 
   # -- Step 1: Split N between cropland and grassland ---
   # For each country-year, compute the LU share of each N type
@@ -514,14 +806,41 @@ grassland_items <- c("Pasture", "range")
       )
   }
 
+  # Join West gridded manure rates (kg/ha from NetCDF spatial means)
+  if (!is.null(west_rates)) {
+    n_crop <- n_crop |>
+      left_join(
+        west_rates |> select(area_code, crop_name, kg_n_ha_manure_west),
+        by = c("area_code", "crop_name")
+      )
+  } else {
+    n_crop$kg_n_ha_manure_west <- NA_real_
+  }
+
+  # Join EarthStat spatial synthetic N rates (country-level averages)
+  if (!is.null(es_rates)) {
+    n_crop <- n_crop |>
+      left_join(
+        es_rates |> select(area_code, crop_name, kg_n_ha_synth_es),
+        by = c("area_code", "crop_name")
+      )
+  } else {
+    n_crop$kg_n_ha_synth_es <- NA_real_
+  }
+
   # Compute base-year rate for each crop
+  # Priority: Mueller/CSV > West gridded > EarthStat spatial
   n_crop <- n_crop |>
     mutate(
       kg_n_ha_base = case_when(
         fert_type == "Manure" & !is.na(manure_mg_n) ~
           manure_mg_n * 1000 / area_ha,
+        fert_type == "Manure" & !is.na(kg_n_ha_manure_west) ~
+          kg_n_ha_manure_west,
         fert_type == "Synthetic" & !is.na(kg_n_ha_synth) ~
           kg_n_ha_synth,
+        fert_type == "Synthetic" & !is.na(kg_n_ha_synth_es) ~
+          kg_n_ha_synth_es,
         TRUE ~ NA_real_
       )
     )
@@ -649,11 +968,41 @@ if (file.exists(crop_areas_file)) {
 # -- Step 1: FAOSTAT totals ---
 n_totals <- .read_faostat_totals(l_files_dir, regions)
 
+# -- Step 1b: P and K totals ---
+pk_totals <- .read_faostat_pk_totals(l_files_dir, regions)
+
 # -- Step 2: Cropland/Grassland split ---
 lu_split <- .read_cropland_grassland_split(l_files_dir, regions)
 
 # -- Step 3: Base-year crop-specific rates ---
 base_rates <- .read_crop_base_rates(l_files_dir, global_dir, regions)
+
+# -- Step 3b: Supplementary spatial base rates ---
+# Load country grid for spatial aggregation
+country_grid_file <- file.path(output_dir, "country_grid.parquet")
+if (file.exists(country_grid_file)) {
+  country_grid <- nanoparquet::read_parquet(country_grid_file)
+
+  # West gridded manure N (17 major crops, NetCDF -> country averages)
+  west_rates <- .read_west_gridded_manure(
+    l_files_dir, country_grid, items_prod, 0.5
+  )
+  base_rates$west_manure_rates <- west_rates
+
+  # EarthStat spatial N rates (17 crops -> country averages)
+  es_rates <- .read_earthstat_country_rates(
+    l_files_dir, country_grid, items_prod, 0.5
+  )
+  base_rates$earthstat_synth_rates <- es_rates
+} else {
+  cli::cli_alert_info(
+    "country_grid.parquet not found \u2014 ",
+    "skipping spatial rate enhancement"
+  )
+}
+
+# -- Step 3c: Coello et al. 2025 (future) ---
+.prepare_coello_inputs(l_files_dir)
 
 # -- Step 4: N deposition ---
 n_deposition <- .prepare_n_deposition(l_files_dir, regions, output_dir)
@@ -724,16 +1073,24 @@ if (length(all_parts) > 0) {
   cli::cli_alert_warning("No nitrogen input data generated")
 }
 
+# -- Save P/K totals ---
+if (!is.null(pk_totals) && nrow(pk_totals) > 0) {
+  nanoparquet::write_parquet(
+    pk_totals,
+    file.path(output_dir, "pk_totals.parquet")
+  )
+  cli::cli_alert_success(
+    "pk_totals.parquet: {nrow(pk_totals)} rows saved"
+  )
+}
+
 cli::cli_alert_success("Done!")
 
 # --- Future extensions (TODO) ---
-# - Coello et al. 2025: Crop-specific fertilization dataset 1961-2019
-#   (doi:10.1038/s41597-024-04215-x). Not yet integrated; need to locate
-#   the data repository URL from the paper's Data Availability section.
-#   Covers 13 crop groups with N/P/K time-series.
-# - EarthStat spatial fertilizer rasters (17 crops, Mueller et al. 2012)
-#   at L_files/EarthStat - Crop Specific Fertilizers/
-#   Can be used for spatialization of fertilizer application rates.
-# - afsetools::Calc_N_fix() for full BNF (crop + weed + NS components)
+# - Coello et al. 2025 (doi:10.1038/s41597-024-04215-x):
+#   Download and integrate gridded N/P/K time-series (13 crop groups,
+#   1961-2019) when data repository is accessible.
+# - afsetools::Calc_N_fix() for full BNF (crop + weed + NS components).
 #   Currently only NSBNF is computed.
-# - P and K inputs (FAOSTAT has P2O5 item 3103 and K2O item 3104)
+# - Distribute P and K to individual crops (similar to N pipeline)
+#   using EarthStat P/K rate TIFs as crop-specific base rates.
