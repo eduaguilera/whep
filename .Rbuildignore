@@ -16,3 +16,5 @@
 ^doc$
 ^Meta$
 ^.vscode$
+^Rplot\.png$
+^typology_kgha_agricultural\.jpg$

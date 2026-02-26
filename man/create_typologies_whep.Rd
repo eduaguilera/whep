@@ -7,7 +7,7 @@
 create_typologies_whep(
   prod_destiny = create_n_prov_destiny()$prod_destiny,
   prod_n = create_n_prov_destiny()$grafs_prod_item_n,
-  years = 1860:2020
+  years = 2020
 )
 }
 \arguments{
@@ -17,7 +17,7 @@ create_typologies_whep(
 \item{prod_n}{Data frame with production data (production_n) from
 grafs_prod_item_n.}
 
-\item{years}{Numeric vector of years to include (default = 1860:2020).}
+\item{years}{Numeric vector of years to include (default = 2020).}
 }
 \value{
 A data frame with Year, Province_name, decision variables,
