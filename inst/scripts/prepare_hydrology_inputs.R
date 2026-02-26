@@ -15,16 +15,19 @@
 #      commissioning year, area (km²), dominant purpose.
 #
 #   3. lakes_rivers.parquet — Lake and river cell fractions (optional)
-#      Source: GLWD Level 3 raster (30 arcsec). Only generated when the
-#      GLWD data directory is found. To enable, download GLWD-3 from
-#      https://www.worldwildlife.org/pages/global-lakes-and-wetlands-database
-#      and unzip to L_files/GLWD/glwd_3/.
+#      Sources (in order of preference):
+#        a) GLWD v2 (Lehner et al., 2025) — 15 arcsec, 33 classes,
+#           CC-BY 4.0 from Figshare. Run download_hydrology_data.R.
+#        b) GLWD Level 3 raster (30 arcsec, legacy format).
+#           Download from https://www.worldwildlife.org/pages/
+#           global-lakes-and-wetlands-database → L_files/GLWD/glwd_3/.
 #
 #   4. drainage.parquet — River routing directions (optional)
-#      Source: DDM30 drainage direction map (0.5-degree ASCII grid).
-#      Only generated when the DDM30 file is found. To enable, request
-#      DDM30 from https://www.uni-frankfurt.de/45218101/DDM30
-#      and place the ASCII grid at L_files/DDM30/ddm30.asc.
+#      Sources (in order of preference):
+#        a) DRT 0.5-degree (Wu et al., 2012) — freely available.
+#           Run download_hydrology_data.R to fetch automatically.
+#        b) DDM30 (Döll & Lehner, 2002) — request from
+#           https://www.uni-frankfurt.de/45218101/DDM30.
 #
 # The grid is taken from country_grid.parquet (58765 land cells).
 # -----------------------------------------------------------------------
@@ -261,65 +264,110 @@ library(dplyr, warn.conflicts = FALSE)
 }
 
 
-# ==== 3. Lakes & Rivers (GLWD Level 3) ================================
+# ==== 3. Lakes & Rivers (GLWD) ========================================
 
-#' Process GLWD Level 3 raster to compute lake and river cell fractions.
+#' Process GLWD data to compute lake and river cell fractions.
 #'
-#' GLWD-3 classes (30 arcsec raster):
-#'   1 = Lake, 2 = Reservoir, 3 = River
-#'   4-12 = various wetland types
+#' Supports two versions:
+#'   - GLWD v2 (Lehner et al., 2025): 15 arcsec, 33 classes. Uses
+#'     the combined dominant-type GeoTIFF. Lake classes: 1-3,
+#'     River class: 7.
+#'   - GLWD v1 Level 3 (legacy): 30 arcsec. Lake class: 1,
+#'     River class: 3.
 #'
 #' For LPJmL, we need the fraction of each 0.5-degree cell covered by:
-#'   - Lakes (class 1)
-#'   - Rivers (class 3)
-#' (Reservoirs = class 2 are handled separately via GRanD.)
+#'   - Lakes (freshwater lakes/ponds)
+#'   - Rivers
+#' (Reservoirs are handled separately via GRanD.)
 .prepare_lakes_rivers <- function(country_grid, glwd_dir, output_dir) {
   cli::cli_h2("Lakes & Rivers (GLWD)")
 
-  # GLWD-3 is usually unzipped as an ArcInfo grid: glwd_3/hdr.adf
-  glwd3_path <- file.path(glwd_dir, "glwd_3", "hdr.adf")
-  if (!file.exists(glwd3_path)) {
-    # Also check for a GeoTIFF version
-    glwd3_path <- file.path(glwd_dir, "glwd_3.tif")
+  # -- Find GLWD data: prefer v2, fall back to v1 ---
+  glwd_version <- NULL
+  glwd_path <- NULL
+
+  # GLWD v2: combined classes GeoTIFF
+  v2_dir <- file.path(glwd_dir, "GLWD_v2")
+  v2_tifs <- list.files(
+    v2_dir, pattern = "dominant.*\\.tif$",
+    recursive = TRUE, full.names = TRUE
+  )
+  if (length(v2_tifs) == 0) {
+    v2_tifs <- list.files(
+      v2_dir, pattern = "combined.*\\.tif$",
+      recursive = TRUE, full.names = TRUE
+    )
   }
-  if (!file.exists(glwd3_path)) {
+  if (length(v2_tifs) > 0) {
+    glwd_path <- v2_tifs[1]
+    glwd_version <- "v2"
+    cli::cli_alert_info("Using GLWD v2: {glwd_path}")
+  }
+
+  # GLWD v1 Level 3: ArcInfo grid or GeoTIFF
+  if (is.null(glwd_path)) {
+    glwd3_path <- file.path(glwd_dir, "glwd_3", "hdr.adf")
+    if (!file.exists(glwd3_path)) {
+      glwd3_path <- file.path(glwd_dir, "glwd_3.tif")
+    }
+    if (file.exists(glwd3_path)) {
+      glwd_path <- glwd3_path
+      glwd_version <- "v1"
+      cli::cli_alert_info("Using GLWD v1 Level 3: {glwd_path}")
+    }
+  }
+
+  if (is.null(glwd_path)) {
     cli::cli_alert_warning(
-      "GLWD Level 3 data not found at {glwd_dir}/glwd_3/ — skipping"
+      "GLWD data not found at {glwd_dir} — skipping"
     )
     cli::cli_alert_info(
-      "To enable, download GLWD-3 from: https://www.worldwildlife.org/pages/global-lakes-and-wetlands-database"
+      "Run download_hydrology_data.R to get GLWD v2 (CC-BY, Figshare)"
     )
-    cli::cli_alert_info("Unzip to {glwd_dir}/glwd_3/")
     return(invisible(NULL))
   }
 
-  cli::cli_alert("Reading GLWD Level 3 raster...")
-  glwd <- terra::rast(glwd3_path)
+  cli::cli_alert("Reading GLWD raster...")
+  glwd <- terra::rast(glwd_path)
   src_res <- terra::res(glwd)
   agg_factor <- round(0.5 / src_res[1])
   cli::cli_alert_info(paste0(
-    "GLWD-3 resolution: ", paste(round(src_res, 5), collapse = " x "),
+    "GLWD resolution: ", paste(round(src_res, 5), collapse = " x "),
     ", aggregation factor: ", agg_factor
   ))
 
-  # -- Create binary masks: lake (class 1) and river (class 3) ---
-  cli::cli_alert("Computing lake fraction (class == 1)...")
-  lake_mask <- terra::classify(
-    glwd,
-    cbind(1, 1),
-    othersNA = TRUE
-  )
-  lake_frac <- terra::aggregate(lake_mask, fact = agg_factor, fun = "mean",
-                                na.rm = TRUE)
+  # -- Define lake and river classes by version ---
+  if (glwd_version == "v2") {
+    # GLWD v2 dominant type classes:
+    # 1 = Large Lake, 2 = Small Lake, 3 = Pond,
+    # 4 = Reservoir, 5 = Dam, 6 = Canal,
+    # 7 = River, 8-33 = wetland types
+    lake_classes <- c(1, 2, 3)
+    river_classes <- 7
+    cli::cli_alert_info(
+      "v2 lake classes: {paste(lake_classes, collapse = ',')}, ",
+      "river: {paste(river_classes, collapse = ',')}"
+    )
+  } else {
+    # GLWD v1: 1 = Lake, 2 = Reservoir, 3 = River
+    lake_classes <- 1
+    river_classes <- 3
+  }
 
-  cli::cli_alert("Computing river fraction (class == 3)...")
-  river_mask <- terra::classify(
-    glwd,
-    cbind(3, 1),
-    othersNA = TRUE
+  # -- Create binary masks ---
+  cli::cli_alert("Computing lake fraction...")
+  lake_rcl <- cbind(lake_classes, rep(1, length(lake_classes)))
+  lake_mask <- terra::classify(glwd, lake_rcl, othersNA = TRUE)
+  lake_frac <- terra::aggregate(
+    lake_mask, fact = agg_factor, fun = "mean", na.rm = TRUE
   )
-  river_frac <- terra::aggregate(river_mask, fact = agg_factor, fun = "mean",
-                                 na.rm = TRUE)
+
+  cli::cli_alert("Computing river fraction...")
+  river_rcl <- cbind(river_classes, rep(1, length(river_classes)))
+  river_mask <- terra::classify(glwd, river_rcl, othersNA = TRUE)
+  river_frac <- terra::aggregate(
+    river_mask, fact = agg_factor, fun = "mean", na.rm = TRUE
+  )
 
   # -- Extract for grid cells ---
   grid_coords <- as.matrix(country_grid[, c("lon", "lat")])
@@ -351,33 +399,48 @@ library(dplyr, warn.conflicts = FALSE)
 }
 
 
-# ==== 4. Drainage Routing (DDM30) =====================================
+# ==== 4. Drainage Routing ==============================================
 
-#' Process DDM30 drainage direction map at 0.5-degree resolution.
+#' Process drainage direction map at 0.5-degree resolution.
 #'
-#' DDM30 encodes flow direction per cell as an integer 1-8 following
-#' the D8 convention (1=E, 2=SE, 3=S, 4=SW, 5=W, 6=NW, 7=N, 8=NE),
-#' plus 0 = ocean/sink and 9 = inland sink.
-.prepare_drainage <- function(country_grid, ddm30_path, output_dir) {
-  cli::cli_h2("Drainage Routing (DDM30)")
+#' Flow direction encodings:
+#'   - DDM30: D8 convention 1=E, 2=SE, 3=S, 4=SW, 5=W, 6=NW, 7=N,
+#'     8=NE. 0 = ocean/sink, 9 = inland sink.
+#'   - DRT: ArcGIS/ESRI convention powers of 2: 1=E, 2=SE, 4=S,
+#'     8=SW, 16=W, 32=NW, 64=N, 128=NE. 0 = sink/undefined.
+#'     Converted to DDM30 convention internally.
+.prepare_drainage <- function(country_grid, drainage_paths,
+                              output_dir) {
+  cli::cli_h2("Drainage Routing")
 
-  if (!file.exists(ddm30_path)) {
+  # -- Find drainage file: DDM30 or DRT ---
+  drainage_path <- NULL
+  drainage_type <- NULL
+
+  for (p in drainage_paths) {
+    if (file.exists(p)) {
+      drainage_path <- p
+      if (grepl("DRT|drt", p, ignore.case = TRUE)) {
+        drainage_type <- "DRT"
+      } else {
+        drainage_type <- "DDM30"
+      }
+      break
+    }
+  }
+
+  if (is.null(drainage_path)) {
     cli::cli_alert_warning(
-      "DDM30 drainage direction file not found at {ddm30_path} — skipping"
+      "No drainage direction file found — skipping"
     )
     cli::cli_alert_info(
-      "Available sources for 0.5-degree drainage direction maps:"
+      "Run download_hydrology_data.R to get the DRT flow direction"
     )
-    cli::cli_bullets(c(
-      " " = "DDM30: https://www.uni-frankfurt.de/45218101/DDM30",
-      " " = "STN-30: https://wsag.unh.edu/Stn-30/stn-30.html",
-      " " = "Upscaled HydroSHEDS: http://files.ntsg.umt.edu/data/DRT/upscaled_global_hydrography/"
-    ))
     return(invisible(NULL))
   }
 
-  cli::cli_alert("Reading DDM30 raster...")
-  ddm <- terra::rast(ddm30_path)
+  cli::cli_alert("Reading {drainage_type} raster: {drainage_path}")
+  ddm <- terra::rast(drainage_path)
   ddm_res <- paste(round(terra::res(ddm), 4), collapse = " x ")
   cli::cli_alert_info(
     "DDM30 resolution: {ddm_res}, dims: {terra::nrow(ddm)} x {terra::ncol(ddm)}"
@@ -387,6 +450,21 @@ library(dplyr, warn.conflicts = FALSE)
   grid_coords <- as.matrix(country_grid[, c("lon", "lat")])
   cell_ids <- terra::cellFromXY(ddm, grid_coords)
   flow_dir_vals <- terra::values(ddm)[cell_ids]
+
+  # -- Convert DRT (ESRI powers-of-2) to DDM30 (1-8) convention ---
+  if (drainage_type == "DRT") {
+    cli::cli_alert("Converting DRT (ESRI) to DDM30 direction codes...")
+    # ESRI: 1=E, 2=SE, 4=S, 8=SW, 16=W, 32=NW, 64=N, 128=NE
+    # DDM30: 1=E, 2=SE, 3=S, 4=SW, 5=W, 6=NW, 7=N, 8=NE
+    esri_to_ddm <- c(
+      `1` = 1L, `2` = 2L, `4` = 3L, `8` = 4L,
+      `16` = 5L, `32` = 6L, `64` = 7L, `128` = 8L
+    )
+    flow_dir_vals <- esri_to_ddm[
+      as.character(as.integer(flow_dir_vals))
+    ]
+    flow_dir_vals[is.na(flow_dir_vals)] <- 0L
+  }
 
   result <- country_grid |>
     select(lon, lat) |>
@@ -415,7 +493,11 @@ l_files_dir <- "WHEP_L_FILES_DIR_PLACEHOLDER"
 output_dir  <- file.path(l_files_dir, "whep", "inputs")
 grand_dir   <- file.path(l_files_dir, "GIS", "Global dams")
 glwd_dir    <- file.path(l_files_dir, "GLWD")
-ddm30_path  <- file.path(l_files_dir, "DDM30", "ddm30.asc")
+# Drainage: try DRT first (freely downloadable), then DDM30 (request)
+drainage_paths <- c(
+  file.path(l_files_dir, "DRT", "DRT_half_FDR_globe.asc"),
+  file.path(l_files_dir, "DDM30", "ddm30.asc")
+)
 
 if (!dir.exists(output_dir)) {
   dir.create(output_dir, recursive = TRUE)
@@ -439,7 +521,7 @@ reservoirs <- .prepare_reservoirs(country_grid, grand_dir, output_dir)
 lakes_rivers <- .prepare_lakes_rivers(country_grid, glwd_dir, output_dir)
 
 # -- 4. Drainage ---
-drainage <- .prepare_drainage(country_grid, ddm30_path, output_dir)
+drainage <- .prepare_drainage(country_grid, drainage_paths, output_dir)
 
 # -- Summary ---
 cli::cli_h1("Summary")
