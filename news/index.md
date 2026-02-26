@@ -7,9 +7,8 @@
 CRAN release: 2025-10-15
 
 - Add gapfilling functions
-  [`linear_fill()`](https://eduaguilera.github.io/whep/reference/linear_fill.md),
-  [`proxy_fill()`](https://eduaguilera.github.io/whep/reference/proxy_fill.md),
-  [`sum_fill()`](https://eduaguilera.github.io/whep/reference/sum_fill.md)
+  [`fill_linear()`](https://eduaguilera.github.io/whep/reference/fill_linear.md),
+  [`fill_sum()`](https://eduaguilera.github.io/whep/reference/fill_sum.md)
   ([@eduaguilera](https://github.com/eduaguilera),
   [\#11](https://github.com/eduaguilera/whep/issues/11)).
 - Now examples can’t fail because of unavailable Internet resources

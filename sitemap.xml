@@ -15,6 +15,7 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/add_item_prod_code.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/add_item_prod_name.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_supply_use.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/calculate_lmdi.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/calculate_nue_crops.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/calculate_nue_livestock.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/calculate_system_nue.html</loc></url>
@@ -23,6 +24,9 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/create_n_prov_destiny.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/create_n_soil_inputs.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/expand_trade_sources.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/fill_linear.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/fill_proxy_growth.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/fill_sum.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/get_bilateral_trade.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/get_faostat_data.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/get_feed_intake.html</loc></url>
@@ -33,10 +37,7 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/index.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/items_cbs.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/items_prod.html</loc></url>
-<url><loc>https://eduaguilera.github.io/whep/reference/linear_fill.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/polities.html</loc></url>
-<url><loc>https://eduaguilera.github.io/whep/reference/proxy_fill.html</loc></url>
-<url><loc>https://eduaguilera.github.io/whep/reference/sum_fill.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/whep-package.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/whep_inputs.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/whep_list_file_versions.html</loc></url>

@@ -209,13 +209,20 @@ Functions to generate data for N inputs, outputs, production, destinies
 Functions to fill gaps (NA values) in time-dependent variables using
 different methods.
 
-- [`linear_fill()`](https://eduaguilera.github.io/whep/reference/linear_fill.md)
+- [`fill_linear()`](https://eduaguilera.github.io/whep/reference/fill_linear.md)
   : Fill gaps by linear interpolation, or carrying forward or backward.
-- [`proxy_fill()`](https://eduaguilera.github.io/whep/reference/proxy_fill.md)
-  : Fill gaps using a proxy variable
-- [`sum_fill()`](https://eduaguilera.github.io/whep/reference/sum_fill.md)
+- [`fill_sum()`](https://eduaguilera.github.io/whep/reference/fill_sum.md)
   : Fill gaps summing the previous value of a variable to the value of
   another variable.
+- [`fill_proxy_growth()`](https://eduaguilera.github.io/whep/reference/fill_proxy_growth.md)
+  : Fill gaps using growth rates from proxy variables
+
+## Decomposition analysis
+
+Functions for index decomposition analysis.
+
+- [`calculate_lmdi()`](https://eduaguilera.github.io/whep/reference/calculate_lmdi.md)
+  : Calculate LMDI decomposition.
 
 # Articles
 

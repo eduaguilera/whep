@@ -27,6 +27,9 @@ Authors:
 - Eduardo Aguilera <eduardo.aguilera@csic.es>
   ([ORCID](https://orcid.org/0000-0003-4382-124X)) \[copyright holder\]
 
+- Alice Beckmann <alice.beckmann@cchs.csic.es>
+  ([ORCID](https://orcid.org/0009-0009-6840-0258))
+
 Other contributors:
 
 - João Serra <jserra@agro.au.dk>
