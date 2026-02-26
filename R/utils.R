@@ -554,6 +554,7 @@ utils::globalVariables(
     "woody_share",
     "year",
     "Year",
+<<<<<<< HEAD
     "yield",
     "yield_c",
     "yield_dm",
@@ -586,5 +587,39 @@ utils::globalVariables(
     "other_mean",
     "qc_carry_forward",
     "scale_new_old"
+=======
+    # spatialize.R
+    "allocated_ir",
+    "allocated_rf",
+    "cft_name",
+    "cropland_ha",
+    "current_sum",
+    "deficit",
+    "frac",
+    "harvest_fraction",
+    "harvested_area_ha",
+    "increment",
+    "ir_capacity",
+    "ir_pot_sum",
+    "ir_potential",
+    "ir_uniform",
+    "irrigated_area_ha",
+    "irrigated_ha",
+    "is_under",
+    "lat",
+    "lon",
+    "mc_irrigated",
+    "mc_rainfed",
+    "rainfed_ha",
+    "rainfed_target",
+    "rf_capacity",
+    "rf_pot_sum",
+    "rf_potential",
+    "rf_uniform",
+    "scale_factor",
+    "target",
+    "total_ir",
+    "total_rf"
+>>>>>>> 660a824 (add build_gridded_landuse() spatialization module)
   )
 )
