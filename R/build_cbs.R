@@ -1596,7 +1596,8 @@ build_processing_coefs <- function(
     dplyr::select(-dplyr::any_of("source")) |>
     tidyr::pivot_wider(
       names_from = element,
-      values_from = value, values_fill = 0
+      values_from = value, values_fill = 0,
+      names_sort = TRUE
     ) |>
     tidyr::pivot_longer(
       domestic_supply:dplyr::last_col(),
