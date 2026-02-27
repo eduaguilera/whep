@@ -27,9 +27,10 @@ grouping variables.}
 factors after, separated by asterisks. Supports explicit ratios with
 \code{/} and structural decomposition with \verb{[]}.}
 
-\item{identity_labels}{Named character vector. Custom labels for factors
-to use in output instead of variable names. Default: NULL uses variable
-names as-is.}
+\item{identity_labels}{Character vector. Custom labels for factors
+to use in output instead of variable names. The first element labels
+the target, and subsequent elements label each factor in order.
+Default: NULL uses variable names as-is.}
 
 \item{time_var}{Unquoted name of the time variable column in the data.
 Default: \code{year}. Must be numeric or coercible to numeric.}
@@ -49,7 +50,7 @@ data).}
 applied before decomposition. Default: 1 (no smoothing).}
 
 \item{output_format}{Character. Format of output data frame. Options:
-\code{"clean"} (default) or \code{"detailed"}.}
+\code{"clean"} (default) or \code{"total"}.}
 
 \item{verbose}{Logical. If TRUE (default), prints progress messages during
 decomposition.}

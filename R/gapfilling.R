@@ -135,9 +135,10 @@ fill_linear <- function(
 #' @param value_col The column containing gaps to be filled.
 #' @param change_col The column whose values will be used to fill the gaps.
 #' @param time_col The column containing time values. Default: `year`.
-#' @param start_with_zero Logical. If TRUE, assumes an invisible 0 value before
-#'   the first observation and fills with cumulative sum starting from the first
-#'   change_col value. If FALSE (default), starting NA values remain unfilled.
+#' @param start_with_zero Logical. If TRUE (default), assumes an invisible 0
+#'   value before the first observation and fills with cumulative sum starting
+#'   from the first change_col value. If FALSE, starting NA values remain
+#'   unfilled.
 #' @param .by A character vector with the grouping variables (optional).
 #'
 #' @return A tibble dataframe (ungrouped) where gaps in value_col have been
