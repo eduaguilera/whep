@@ -245,6 +245,10 @@ library(dplyr, warn.conflicts = FALSE)
     rlang::set_names(var_names)
 }
 
+# Read LUH2 cropland for one year, returning per-type AND total data.
+# Returns a list with two elements:
+#   $total — lon, lat, year, cropland_ha, irrigated_ha (backward compat)
+#   $by_type — lon, lat, year, luh2_type, type_ha, type_irrig_ha
 .read_luh2_year <- function(luh2_dir, yr, crop_vars,
                             carea_rast, target_res) {
   time_idx <- yr - 850L + 1L
@@ -260,38 +264,57 @@ library(dplyr, warn.conflicts = FALSE)
     mgmt_path, irrig_vars, time_idx
   )
 
-  # Total cropland = sum of crop fractions * cell area
-  cropland_frac <- Reduce(`+`, crop_rasters)
-  irrig_frac <- Reduce(`+`, purrr::map2(
-    irrig_rasters, crop_rasters,
-    \(irrig, crop) irrig * crop
-  ))
-
-  # Convert fractions to hectares (carea km^2 * 100 = ha)
-  cropland_ha <- cropland_frac * carea_rast * 100
-  irrigated_ha <- irrig_frac * carea_rast * 100
-
-  # Aggregate 0.25 deg -> target_res
   agg_factor <- as.integer(target_res / 0.25)
-  cropland_ha <- terra::aggregate(
-    cropland_ha, fact = agg_factor, fun = "sum", na.rm = TRUE
-  )
-  irrigated_ha <- terra::aggregate(
-    irrigated_ha, fact = agg_factor, fun = "sum", na.rm = TRUE
-  )
+  carea_ha <- carea_rast * 100 # km^2 -> ha
 
-  cropland_tbl <- .raster_to_tibble(cropland_ha, "cropland_ha")
-  irrigated_tbl <- .raster_to_tibble(irrigated_ha, "irrigated_ha")
+  # --- Per-type data ---
+  type_rows <- purrr::map(crop_vars, \(cv) {
+    iv <- paste0("irrig_", cv)
+    type_ha_r <- crop_rasters[[cv]] * carea_ha
+    type_ir_r <- irrig_rasters[[iv]] * crop_rasters[[cv]] * carea_ha
 
-  cropland_tbl |>
-    dplyr::left_join(irrigated_tbl, by = c("lon", "lat")) |>
-    dplyr::filter(!is.na(cropland_ha), cropland_ha > 0) |>
-    dplyr::mutate(
-      year = yr,
-      irrigated_ha = dplyr::if_else(
-        is.na(irrigated_ha), 0, irrigated_ha
-      )
+    type_ha_r <- terra::aggregate(
+      type_ha_r, fact = agg_factor, fun = "sum", na.rm = TRUE
     )
+    type_ir_r <- terra::aggregate(
+      type_ir_r, fact = agg_factor, fun = "sum", na.rm = TRUE
+    )
+
+    ha_tbl <- .raster_to_tibble(type_ha_r, "type_ha")
+    ir_tbl <- .raster_to_tibble(type_ir_r, "type_irrig_ha")
+
+    dplyr::left_join(ha_tbl, ir_tbl, by = c("lon", "lat")) |>
+      dplyr::filter(!is.na(type_ha), type_ha > 0) |>
+      dplyr::mutate(
+        type_irrig_ha = dplyr::if_else(
+          is.na(type_irrig_ha), 0, type_irrig_ha
+        ),
+        luh2_type = cv,
+        year = yr
+      )
+  }) |>
+    dplyr::bind_rows() |>
+    # Merge c4per into c3per (no CFT maps to c4per)
+    dplyr::mutate(
+      luh2_type = dplyr::if_else(
+        luh2_type == "c4per", "c3per", luh2_type
+      )
+    ) |>
+    dplyr::summarise(
+      type_ha = sum(type_ha),
+      type_irrig_ha = sum(type_irrig_ha),
+      .by = c(lon, lat, year, luh2_type)
+    )
+
+  # --- Total data (sum across types) ---
+  total_rows <- type_rows |>
+    dplyr::summarise(
+      cropland_ha = sum(type_ha),
+      irrigated_ha = sum(type_irrig_ha),
+      .by = c(lon, lat, year)
+    )
+
+  list(total = total_rows, by_type = type_rows)
 }
 
 # ==== Preparation functions ===========================================
@@ -919,7 +942,7 @@ prepare_crop_fertilizer_patterns <- function(l_files_dir, target_res) {
 # Read LUH2 crop fractions + irrigation, convert to hectares.
 
 prepare_gridded_cropland <- function(l_files_dir, year_range,
-                                     target_res) {
+                                     target_res, output_dir = NULL) {
   cli::cli_h1("Preparing LUH2 gridded cropland")
 
 
@@ -930,15 +953,33 @@ prepare_gridded_cropland <- function(l_files_dir, year_range,
 
   cli::cli_alert_info("Processing {length(year_range)} years of LUH2 data")
 
-  purrr::map(year_range, \(yr) {
+  all_years <- purrr::map(year_range, \(yr) {
     if (yr %% 10 == 0) {
       cli::cli_alert("Processing year {yr}")
     }
     .read_luh2_year(
       luh2_dir, yr, crop_vars, carea_rast, target_res
     )
-  }) |>
+  })
+
+  # Aggregate total cropland (backward-compatible output)
+  total <- purrr::map(all_years, "total") |>
     dplyr::bind_rows()
+
+  # Per-type cropland (new output for type-aware allocation)
+  by_type <- purrr::map(all_years, "by_type") |>
+    dplyr::bind_rows()
+
+  # Save type-level data if output_dir provided
+  if (!is.null(output_dir)) {
+    type_path <- file.path(output_dir, "type_cropland.parquet")
+    nanoparquet::write_parquet(by_type, type_path)
+    cli::cli_alert_success(
+      "type_cropland: {nrow(by_type)} rows saved to {type_path}"
+    )
+  }
+
+  total
 }
 
 # ==== Main execution ==================================================
@@ -996,7 +1037,7 @@ if (!is.null(crop_fert)) {
 }
 
 gridded_cropland <- prepare_gridded_cropland(
-  l_files_dir, year_range, target_res
+  l_files_dir, year_range, target_res, output_dir = output_dir
 )
 nanoparquet::write_parquet(
   gridded_cropland,
