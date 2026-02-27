@@ -571,7 +571,7 @@ utils::globalVariables(
     "bo_m3_kg_vs", "Ca", "ca_feedlot", "ca_pasture", "category",
     "cfi_mj_day_kg075", "climate_zone", "cohort", "cohort_share",
     "cp", "cp_percent", "cw", "DE_percent", "de_percent",
-    "de_percent_feed",
+    "de_percent_feed", "defaults_key",
     "diet_quality", "ef3", "ef_cattle", "ef_global",
     "ef_kg_head_yr", "ef_kg_n2o_n_per_kg_n", "ef_other",
     "energy_content_gain_mj_kg", "enteric_ch4_per_head",

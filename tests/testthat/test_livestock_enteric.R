@@ -1,4 +1,4 @@
-# test_livestock_enteric.R ------------------------------------------------------
+# test_livestock_enteric.R ----------------------------------------------------
 
 # calc_enteric_ch4_tier1 -------------------------------------------------------
 
@@ -59,6 +59,15 @@ testthat::test_that("Tier 1 all 10 species have non-NA EFs", {
 
   result |>
     pointblank::expect_col_vals_not_null("enteric_ef_kgch4")
+})
+
+testthat::test_that("Tier 1 Buffalo uses Table 10.11 EF", {
+  result <- single_tier1_fixture("Buffalo", 1) |>
+    calc_enteric_ch4_tier1()
+
+  ef <- result |> dplyr::pull(enteric_ef_kgch4)
+  # IPCC Table 10.11: Buffalo = 55
+  testthat::expect_equal(ef, 55)
 })
 
 # calc_enteric_ch4_tier2 -------------------------------------------------------

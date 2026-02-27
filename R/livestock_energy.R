@@ -367,12 +367,24 @@ estimate_gross_energy <- function(data) {
   defaults <- livestock_production_defaults |>
     dplyr::rename(species_match = category)
 
+  # Map species to defaults key (e.g. "Beef Cattle" -> "Other Cattle")
+  data <- data |>
+    dplyr::mutate(
+      defaults_key = dplyr::case_when(
+        grepl("Dairy", species, ignore.case = TRUE) &
+          species_gen == "Cattle" ~ "Dairy Cattle",
+        species_gen == "Cattle" ~ "Other Cattle",
+        TRUE ~ species_gen
+      )
+    )
+
   data |>
     dplyr::left_join(
       defaults,
-      by = c("species" = "species_match"),
+      by = c("defaults_key" = "species_match"),
       suffix = c("", "_default")
     ) |>
+    dplyr::select(-defaults_key) |>
     dplyr::mutate(
       milk_yield_kg_day = dplyr::coalesce(
         milk_yield_kg_day, 0
