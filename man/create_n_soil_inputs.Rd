@@ -4,7 +4,11 @@
 \alias{create_n_soil_inputs}
 \title{Nitrogen (N) soil inputs for Spain ----------------------------------}
 \usage{
-create_n_soil_inputs()
+create_n_soil_inputs(example = FALSE)
+}
+\arguments{
+\item{example}{If \code{TRUE}, return a small example output without downloading
+remote data. Default is \code{FALSE}.}
 }
 \value{
 A tibble containing:
@@ -36,4 +40,7 @@ Special land use categories and items are aggregated:
 \item Semi-natural agroecosystems (e.g., Dehesa, Pasture_Shrubland)
 \item Firewood biomass (e.g., Conifers, Holm oak)
 }
+}
+\examples{
+create_n_soil_inputs(example = TRUE)
 }

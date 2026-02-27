@@ -4,7 +4,11 @@
 \alias{create_n_production}
 \title{N production for Spain -----------------------------------------------}
 \usage{
-create_n_production()
+create_n_production(example = FALSE)
+}
+\arguments{
+\item{example}{If \code{TRUE}, return a small example output without downloading
+remote data. Default is \code{FALSE}.}
 }
 \value{
 A tibble containing:
@@ -19,4 +23,7 @@ A tibble containing:
 \description{
 Calculates N production at the provincial level in Spain.
 Production is derived from consumption, export, import, and other uses.
+}
+\examples{
+create_n_production(example = TRUE)
 }

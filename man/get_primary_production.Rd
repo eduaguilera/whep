@@ -4,10 +4,11 @@
 \alias{get_primary_production}
 \title{Primary items production}
 \usage{
-get_primary_production(version = NULL)
+get_primary_production(example = FALSE)
 }
 \arguments{
-\item{version}{File version to use as input. See \link{whep_inputs} for details.}
+\item{example}{If \code{TRUE}, return a small example output without downloading
+remote data. Default is \code{FALSE}.}
 }
 \value{
 A tibble with the item production data.
@@ -47,7 +48,5 @@ items: crops (e.g. \verb{Apples and products}, \code{Beans}...), livestock (e.g.
 Get amount of crops, livestock and livestock products.
 }
 \examples{
-# Note: These are smaller samples to show outputs, not the real data.
-# For all data, call the function with default version (i.e. no arguments).
-get_primary_production(version = "example")
+get_primary_production(example = TRUE)
 }

@@ -13,6 +13,9 @@
 #' - Semi-natural agroecosystems (e.g., Dehesa, Pasture_Shrubland)
 #' - Firewood biomass (e.g., Conifers, Holm oak)
 #'
+#' @param example If `TRUE`, return a small example output without downloading
+#'   remote data. Default is `FALSE`.
+#'
 #' @return A tibble containing:
 #'   - `Year`: Year
 #'   - `Province_name`: Spanish province
@@ -25,7 +28,13 @@
 #'   - `urban`: N input from urban sources (Mg)
 #'
 #' @export
-create_n_soil_inputs <- function() {
+#'
+#' @examples
+#' create_n_soil_inputs(example = TRUE)
+create_n_soil_inputs <- function(example = FALSE) {
+  if (example) {
+    return(.example_create_n_soil_inputs())
+  }
   .calculate_n_soil_inputs(
     whep_read_file("n_balance_ygpit_all"),
     whep_read_file("codes_coefs")
@@ -114,6 +123,9 @@ create_n_soil_inputs <- function() {
 #' @description Calculates N production at the provincial level in Spain.
 #' Production is derived from consumption, export, import, and other uses.
 #'
+#' @param example If `TRUE`, return a small example output without downloading
+#'   remote data. Default is `FALSE`.
+#'
 #' @return A tibble containing:
 #'   - `Year`: Year
 #'   - `Province_name`: Spanish province
@@ -122,7 +134,13 @@ create_n_soil_inputs <- function() {
 #'   - `prod`: Produced N (Mg)
 #'
 #' @export
-create_n_production <- function() {
+#'
+#' @examples
+#' create_n_production(example = TRUE)
+create_n_production <- function(example = FALSE) {
+  if (example) {
+    return(.example_create_n_production())
+  }
   create_n_prov_destiny() |>
     .calculate_n_production()
 }
@@ -167,6 +185,9 @@ create_n_production <- function() {
 #' Total soil inputs are calculated as:
 #' inputs = deposition + fixation + synthetic + manure + urban
 #'
+#' @param example If `TRUE`, return a small example output without downloading
+#'   remote data. Default is `FALSE`.
+#'
 #' @returns
 #' A tibble containing nitrogen input, production, and NUE data.
 #'   It includes the following columns:
@@ -186,7 +207,13 @@ create_n_production <- function() {
 #'
 #'
 #' @export
-calculate_nue_crops <- function() {
+#'
+#' @examples
+#' calculate_nue_crops(example = TRUE)
+calculate_nue_crops <- function(example = FALSE) {
+  if (example) {
+    return(.example_calculate_nue_crops())
+  }
   n_soil_inputs <- create_n_soil_inputs() |>
     dplyr::group_by(Year, Province_name, Item, Box) |>
     dplyr::summarise(
@@ -238,6 +265,9 @@ calculate_nue_crops <- function() {
 #' products and excretion relative to feed intake:
 #' mass_balance = (prod_n + excretion_n) / feed_n
 #'
+#' @param example If `TRUE`, return a small example output without downloading
+#'   remote data. Default is `FALSE`.
+#'
 #' @return A tibble containing:
 #'   - `Year`: Year
 #'   - `Province_name`: Spanish province
@@ -250,7 +280,13 @@ calculate_nue_crops <- function() {
 #'   - `mass_balance`: Mass balance ratio (%)
 #'
 #' @export
-calculate_nue_livestock <- function() {
+#'
+#' @examples
+#' calculate_nue_livestock(example = TRUE)
+calculate_nue_livestock <- function(example = FALSE) {
+  if (example) {
+    return(.example_calculate_nue_livestock())
+  }
   intake_n <- whep_read_file("intake_ygiac") |>
     dplyr::filter(Livestock_cat != "Pets") |>
     dplyr::group_by(Year, Province_name, Livestock_cat) |>
@@ -311,7 +347,10 @@ calculate_nue_livestock <- function() {
 #' soil system.
 #'
 #' @param n_soil_inputs A tibble of nitrogen soil input (deposition, fixation,
-#' synthetic, manure, urban)
+#'   synthetic, manure, urban). If not provided and `example = FALSE`, it will
+#'   be computed from `create_n_soil_inputs()`.
+#' @param example If `TRUE`, return a small example output without downloading
+#'   remote data. Default is `FALSE`.
 #'
 #' @return A tibble with the following columns:
 #'   - `Year`: Year
@@ -321,7 +360,13 @@ calculate_nue_livestock <- function() {
 #'   - `nue_system`: System-level Nitrogen Use Efficiency (%)
 #'
 #' @export
-calculate_system_nue <- function(n_soil_inputs = create_n_soil_inputs()) {
+#'
+#' @examples
+#' calculate_system_nue(example = TRUE)
+calculate_system_nue <- function(n_soil_inputs = create_n_soil_inputs(), example = FALSE) {
+  if (example) {
+    return(.example_calculate_system_nue())
+  }
   n_soil_inputs <- n_soil_inputs |>
     dplyr::group_by(Year, Province_name) |>
     dplyr::summarise(
