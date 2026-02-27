@@ -1,4 +1,4 @@
-#' @title Nitrogen (N) soil inputs for Spain ----------------------------------
+#' @title Nitrogen (N) soil inputs for Spain
 #'
 #' @description
 #' Calculates total nitrogen inputs to soils in Spain at the provincial level.
@@ -43,7 +43,7 @@ create_n_soil_inputs <- function(example = FALSE) {
     dplyr::rename_with(tolower)
 }
 
-#' @title Assign some special items to Boxes -----------------------------------
+#' @title Assign some special items to Boxes
 #' @return A named list with assigned items.
 #' @keywords internal
 #' @noRd
@@ -65,7 +65,7 @@ create_n_soil_inputs <- function(example = FALSE) {
   )
 }
 
-#' @title Calculate N Inputs ---------------------------------------------------
+#' @title Calculate N Inputs
 #' @description Merges N balance data with items and aggregates deposition,
 #' fixation, synthetic, urban, and manure inputs for each combination of year,
 #' province, item, and box.
@@ -120,7 +120,7 @@ create_n_soil_inputs <- function(example = FALSE) {
   n_soil_inputs
 }
 
-#' @title N production for Spain -----------------------------------------------
+#' @title N production for Spain
 #'
 #' @description Calculates N production at the provincial level in Spain.
 #' Production is derived from consumption, export, import, and other uses.
@@ -176,7 +176,7 @@ create_n_production <- function(example = FALSE) {
 }
 
 
-#' @title N soil inputs and Nitrogen Use Efficiency (NUE) for crop -------------
+#' @title N soil inputs and Nitrogen Use Efficiency (NUE) for crop
 #'
 #' @description
 #' N inputs (deposition, fixation, synthetic fertilizers, urban sources, manure)
@@ -246,7 +246,7 @@ calculate_nue_crops <- function(example = FALSE) {
 }
 
 
-#' @title NUE for Livestock ----------------------------------------------------
+#' @title NUE for Livestock
 #'
 #' @description
 #' Calculates Nitrogen Use Efficiency (NUE) for livestock categories
@@ -336,7 +336,7 @@ calculate_nue_livestock <- function(example = FALSE) {
   nue_livestock
 }
 
-#' @title System NUE -----------------------------------------------------------
+#' @title System NUE
 #'
 #' @description
 #' Calculates the NUE for Spain at the provincial level.

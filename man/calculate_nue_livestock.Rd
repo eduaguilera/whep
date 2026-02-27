@@ -2,7 +2,7 @@
 % Please edit documentation in R/n_soil_inputs_nue.R
 \name{calculate_nue_livestock}
 \alias{calculate_nue_livestock}
-\title{NUE for Livestock ----------------------------------------------------}
+\title{NUE for Livestock}
 \usage{
 calculate_nue_livestock(example = FALSE)
 }
@@ -13,10 +13,10 @@ remote data. Default is \code{FALSE}.}
 \value{
 A tibble containing:
 \itemize{
-\item \code{Year}: Year
-\item \code{Province_name}: Spanish province
-\item \code{Livestock_cat}: Livestock category
-\item \code{Item}: Produced item
+\item \code{year}: Year
+\item \code{province_name}: Spanish province
+\item \code{livestock_cat}: Livestock category
+\item \code{item}: Produced item
 \item \code{prod_n}: Nitrogen in livestock products (Mg)
 \item \code{feed_n}: Nitrogen in feed intake (Mg)
 \item \code{excretion_n}: Nitrogen excreted (Mg)

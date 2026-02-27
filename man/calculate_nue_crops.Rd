@@ -2,7 +2,7 @@
 % Please edit documentation in R/n_soil_inputs_nue.R
 \name{calculate_nue_crops}
 \alias{calculate_nue_crops}
-\title{N soil inputs and Nitrogen Use Efficiency (NUE) for crop -------------}
+\title{N soil inputs and Nitrogen Use Efficiency (NUE) for crop}
 \usage{
 calculate_nue_crops(example = FALSE)
 }
