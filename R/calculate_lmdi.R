@@ -65,9 +65,10 @@
 #'   `"target:factor1*factor2*..."`. The target appears before the colon,
 #'   factors after, separated by asterisks. Supports explicit ratios with
 #'   `/` and structural decomposition with `[]`.
-#' @param identity_labels Named character vector. Custom labels for factors
-#'   to use in output instead of variable names. Default: NULL uses variable
-#'   names as-is.
+#' @param identity_labels Character vector. Custom labels for factors
+#'   to use in output instead of variable names. The first element labels
+#'   the target, and subsequent elements label each factor in order.
+#'   Default: NULL uses variable names as-is.
 #' @param time_var Unquoted name of the time variable column in the data.
 #'   Default: `year`. Must be numeric or coercible to numeric.
 #' @param periods Numeric vector. Years defining analysis periods. Each
@@ -81,7 +82,7 @@
 #' @param rolling_mean Numeric. Window size for rolling mean smoothing
 #'   applied before decomposition. Default: 1 (no smoothing).
 #' @param output_format Character. Format of output data frame. Options:
-#'   `"clean"` (default) or `"detailed"`.
+#'   `"clean"` (default) or `"total"`.
 #' @param verbose Logical. If TRUE (default), prints progress messages during
 #'   decomposition.
 #'
