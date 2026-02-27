@@ -106,13 +106,12 @@ calc_enteric_ch4_tier2 <- function(data) {
 #' Join Tier 1 enteric EF (cattle tables have regional detail).
 #' @noRd
 .join_enteric_ef_tier1 <- function(data, cattle_ef, other_ef) {
+  # Buffalo uses Table 10.11 (other), not Table 10.10 (cattle)
   cattle_rows <- data |>
-    dplyr::filter(species_gen %in% c("Cattle", "Buffalo"))
+    dplyr::filter(species_gen == "Cattle")
 
   other_rows <- data |>
-    dplyr::filter(
-      !species_gen %in% c("Cattle", "Buffalo")
-    )
+    dplyr::filter(species_gen != "Cattle")
 
   if (nrow(cattle_rows) > 0) {
     cattle_rows <- .join_cattle_ef(cattle_rows, cattle_ef)

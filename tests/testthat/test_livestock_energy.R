@@ -1,4 +1,4 @@
-# test_livestock_energy.R -------------------------------------------------------
+# test_livestock_energy.R ------------------------------------------------------
 
 # estimate_energy_demand -------------------------------------------------------
 
@@ -147,4 +147,21 @@ testthat::test_that("custom de_percent overrides default", {
 
   # Higher DE% means less GE needed for same NE
   testthat::expect_lt(custom, default)
+})
+
+testthat::test_that("Beef cattle gets default weight gain", {
+  result <- tibble::tibble(
+    species = "Beef Cattle",
+    cohort = "Adult Male",
+    weight = 500,
+    diet_quality = "Medium",
+    heads = 100
+  ) |>
+    estimate_energy_demand()
+
+  wg <- result |> dplyr::pull(weight_gain_kg_day)
+  neg <- result |> dplyr::pull(NEg)
+  # Should receive default 0.5 kg/day from production defaults.
+  testthat::expect_equal(wg, 0.5)
+  testthat::expect_gt(neg, 0)
 })

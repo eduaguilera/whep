@@ -1,4 +1,4 @@
-# test_livestock_manure.R -------------------------------------------------------
+# test_livestock_manure.R ------------------------------------------------------
 
 # calc_manure_ch4_tier1 --------------------------------------------------------
 
@@ -133,4 +133,24 @@ testthat::test_that("Nex is positive for dairy cattle", {
 
   nex <- result |> dplyr::pull(Nex)
   testthat::expect_gt(nex, 0)
+})
+
+testthat::test_that("Nex is annualized (kgN/head/yr)", {
+  result <- dairy_tier2_fixture() |>
+    estimate_energy_demand() |>
+    calc_manure_n2o()
+
+  nex <- result |> dplyr::pull(Nex)
+  # IPCC Table 10.19: N. America dairy ~100-140 kgN/head/yr.
+  testthat::expect_gt(nex, 50)
+  testthat::expect_lt(nex, 200)
+})
+
+testthat::test_that("Manure Tier 1 Buffalo uses Table 10.15 EF", {
+  result <- single_tier1_fixture("Buffalo", 1) |>
+    calc_manure_ch4_tier1()
+
+  ef <- result |> dplyr::pull(manure_ef_kgch4)
+  # IPCC Table 10.15: Buffalo = 2
+  testthat::expect_equal(ef, 2)
 })

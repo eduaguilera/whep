@@ -174,14 +174,14 @@ calc_manure_n2o <- function(data) {
     unique()
 
   # Map species to EF table categories, preserving
-  # exact subcategory names when they exist in the table
+  # exact subcategory names when they exist in the table.
+  # Buffalo uses Table 10.14b (other), not cattle table.
   data <- data |>
     dplyr::mutate(
       manure_category = dplyr::case_when(
-        grepl("Dairy", species, ignore.case = TRUE) ~
-          "Dairy Cattle",
-        species_gen %in% c("Cattle", "Buffalo") ~
-          "Other Cattle",
+        grepl("Dairy", species, ignore.case = TRUE) &
+          species_gen == "Cattle" ~ "Dairy Cattle",
+        species_gen == "Cattle" ~ "Other Cattle",
         species %in% all_categories ~ species,
         TRUE ~ species_gen
       )
@@ -194,8 +194,8 @@ calc_manure_n2o <- function(data) {
     other_ef <- ipcc_2019_manure_ch4_ef_other |>
       dplyr::select(category, ef_kg_head_yr)
 
-    is_cattle <- data$species_gen %in% c("Cattle", "Buffalo")
-
+    # Buffalo uses other table, not cattle table
+    is_cattle <- data$species_gen == "Cattle"
     cattle_rows <- data |>
       dplyr::filter(is_cattle) |>
       dplyr::left_join(
@@ -422,7 +422,8 @@ calc_manure_n2o <- function(data) {
       ),
       N_intake = (GE / ge_content) *
         (cp_percent / 100) / 6.25,
-      Nex = N_intake * (1 - n_retention_frac)
+      Nex = N_intake * (1 - n_retention_frac) *
+        livestock_constants$days_in_year
     ) |>
     dplyr::select(-n_ret_category)
 }
