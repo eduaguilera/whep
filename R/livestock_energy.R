@@ -123,6 +123,8 @@ calc_energy_lactation <- function(data) {
   data |>
     dplyr::mutate(
       NEl = dplyr::case_when(
+        is.na(milk_yield_kg_day) |
+          milk_yield_kg_day == 0 ~ 0,
         !is.na(protein_percent) & protein_percent > 0 &
           !is.na(lactose_percent) & lactose_percent > 0 ~
           milk_yield_kg_day * (
@@ -431,12 +433,29 @@ estimate_gross_energy <- function(data) {
         )
       )
   }
-  data |>
+  has_de <- rlang::has_name(data, "de_percent")
+
+  data <- data |>
     dplyr::left_join(
       feed_characteristics |>
-        dplyr::select(diet_quality, de_percent, ndf_percent),
-      by = "diet_quality"
+        dplyr::select(
+          diet_quality, de_percent, ndf_percent
+        ),
+      by = "diet_quality",
+      suffix = c("", "_feed")
     )
+
+  if (has_de) {
+    data <- data |>
+      dplyr::mutate(
+        de_percent = dplyr::coalesce(
+          de_percent, de_percent_feed
+        )
+      ) |>
+      dplyr::select(-de_percent_feed)
+  }
+
+  data
 }
 
 #' Join temperature adjustment factors.
