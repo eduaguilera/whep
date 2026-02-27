@@ -97,7 +97,7 @@ create_n_prov_destiny <- function(example = FALSE) {
     )
 }
 
-#' @title GRAFS Nitrogen (N) flows – National Spain
+#' @title GRAFS Nitrogen (N) flows at Spain national level
 #'
 #' @description
 #' Provides N flows of the Spanish agro-food system on a national level

@@ -2,7 +2,7 @@
 % Please edit documentation in R/n_prov_destiny.R
 \name{create_n_nat_destiny}
 \alias{create_n_nat_destiny}
-\title{GRAFS Nitrogen (N) flows – National Spain}
+\title{GRAFS Nitrogen (N) flows at Spain national level}
 \usage{
 create_n_nat_destiny(example = FALSE)
 }
