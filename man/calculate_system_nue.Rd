@@ -2,7 +2,7 @@
 % Please edit documentation in R/n_soil_inputs_nue.R
 \name{calculate_system_nue}
 \alias{calculate_system_nue}
-\title{System NUE -----------------------------------------------------------}
+\title{System NUE}
 \usage{
 calculate_system_nue(n_soil_inputs = create_n_soil_inputs(), example = FALSE)
 }

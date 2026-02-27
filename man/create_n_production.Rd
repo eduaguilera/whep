@@ -2,7 +2,7 @@
 % Please edit documentation in R/n_soil_inputs_nue.R
 \name{create_n_production}
 \alias{create_n_production}
-\title{N production for Spain -----------------------------------------------}
+\title{N production for Spain}
 \usage{
 create_n_production(example = FALSE)
 }

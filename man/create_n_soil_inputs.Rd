@@ -2,7 +2,7 @@
 % Please edit documentation in R/n_soil_inputs_nue.R
 \name{create_n_soil_inputs}
 \alias{create_n_soil_inputs}
-\title{Nitrogen (N) soil inputs for Spain ----------------------------------}
+\title{Nitrogen (N) soil inputs for Spain}
 \usage{
 create_n_soil_inputs(example = FALSE)
 }
