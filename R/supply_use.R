@@ -68,7 +68,7 @@ build_supply_use <- function(example = FALSE) {
   if (example) {
     return(.example_build_supply_use())
   }
-  
+
   .build_supply_use_from_inputs(
     items_prod = whep::items_prod,
     items_cbs = whep::items_cbs,

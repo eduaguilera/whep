@@ -26,7 +26,7 @@ Fixation, Synthetic, People (waste water), Livestock (manure).
 \item \code{destiny}: The destiny category of N: population_food,
 population_other_uses, livestock_mono, livestock_rum (feed), export,
 Cropland (for N soil inputs).
-\item \code{MgN}: Nitrogen amount in megagrams (Mg).
+\item \code{mg_n}: Nitrogen amount in megagrams (Mg).
 }
 }
 \description{

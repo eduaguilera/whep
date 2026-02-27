@@ -47,7 +47,7 @@ get_wide_cbs <- function(example = FALSE) {
   if (example) {
     return(.example_get_wide_cbs())
   }
-  
+
   "commodity_balance_sheet" |>
     whep_read_file() |>
     tidyr::pivot_wider(
@@ -125,7 +125,7 @@ get_processing_coefs <- function(example = FALSE) {
   if (example) {
     return(.example_get_processing_coefs())
   }
-  
+
   "processing_coefs" |>
     whep_read_file() |>
     dplyr::select(-Item, -Element) |>

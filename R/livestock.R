@@ -40,7 +40,7 @@ get_feed_intake <- function(example = FALSE) {
   if (example) {
     return(.example_get_feed_intake())
   }
-  
+
   "feed_intake" |>
     whep_read_file() |>
     dplyr::rename_with(tolower) |>

@@ -17,10 +17,11 @@
 #'   remote data. Default is `FALSE`.
 #'
 #' @return A tibble containing:
-#'   - `Year`: Year
-#'   - `Province_name`: Spanish province
-#'   - `Item`: Crop, land use, or biomass item
-#'   - `Box`: Land use or ecosystem box for aggregation
+#'   - `year`: Year
+#'   - `province_name`: Spanish province
+#'   - `item`: Crop, land use, or biomass item
+#'   - `irrig_cat`: Irrigation form (irrigated or rainfed)
+#'   - `box`: Land use or ecosystem box for aggregation
 #'   - `deposition`: N input from atmospheric deposition (Mg)
 #'   - `fixation`: N input from biological N fixation (Mg)
 #'   - `synthetic`: N input from synthetic fertilizers (Mg)
@@ -38,7 +39,8 @@ create_n_soil_inputs <- function(example = FALSE) {
   .calculate_n_soil_inputs(
     whep_read_file("n_balance_ygpit_all"),
     whep_read_file("codes_coefs")
-  )
+  ) |>
+    dplyr::rename_with(tolower)
 }
 
 #' @title Assign some special items to Boxes -----------------------------------
@@ -127,10 +129,10 @@ create_n_soil_inputs <- function(example = FALSE) {
 #'   remote data. Default is `FALSE`.
 #'
 #' @return A tibble containing:
-#'   - `Year`: Year
-#'   - `Province_name`: Spanish province
-#'   - `Item`: Product item
-#'   - `Box`: Ecosystem box
+#'   - `year`: Year
+#'   - `province_name`: Spanish province
+#'   - `item`: Product item
+#'   - `box`: Ecosystem box
 #'   - `prod`: Produced N (Mg)
 #'
 #' @export
@@ -153,24 +155,24 @@ create_n_production <- function(example = FALSE) {
 #' @noRd
 .calculate_n_production <- function(grafs_prod_destiny) {
   grafs_prod_destiny |>
-    dplyr::filter(!is.na(Box)) |>
-    tidyr::replace_na(list(MgN = 0)) |>
+    dplyr::filter(!is.na(box)) |>
+    tidyr::replace_na(list(mg_n = 0)) |>
     tidyr::pivot_wider(
-      names_from = Destiny,
-      values_from = MgN,
+      names_from = destiny,
+      values_from = mg_n,
       values_fill = 0
     ) |>
     dplyr::mutate(
       feed = livestock_rum + livestock_mono,
       prod = population_food + population_other_uses + feed + export,
       # Fish has no domestic production
-      prod = dplyr::if_else(Box == "Fish", 0, prod)
+      prod = dplyr::if_else(box == "Fish", 0, prod)
     ) |>
     dplyr::summarise(
       prod = sum(prod, na.rm = TRUE),
-      .by = c(Year, Province_name, Item, Box)
+      .by = c(year, province_name, item, box)
     ) |>
-    dplyr::arrange(Year, Province_name, Item, Box)
+    dplyr::arrange(year, province_name, item, box)
 }
 
 
@@ -189,21 +191,14 @@ create_n_production <- function(example = FALSE) {
 #'   remote data. Default is `FALSE`.
 #'
 #' @returns
-#' A tibble containing nitrogen input, production, and NUE data.
+#' A tibble containing nitrogen use efficiency (NUE) for crops.
 #'   It includes the following columns:
-#'   - `Year`: Year.
-#'   - `Province_name`: The Spanish province.
-#'   - `Item`: The item which was produced, defined in `names_biomass_cb`.
-#'   - `Box`: One of the two systems of the GRAFS model: cropland or
+#'   - `year`: Year.
+#'   - `province_name`: The Spanish province.
+#'   - `item`: The item which was produced, defined in `names_biomass_cb`.
+#'   - `box`: One of the two systems of the GRAFS model: cropland or
 #'            semi-natural agroecosystems.
-#'   - `deposition`: Atmospheric nitrogen deposition in megagrams (Mg).
-#'   - `fixation`: Nitrogen fixation in megagrams (Mg).
-#'   - `synthetic`: Synthetic nitrogen fertilizer applied to the land in
-#'                  megagrams (Mg).
-#'   - `manure`: Nitrogen in manure applied to the land in megagrams (Mg).
-#'   - `urban`: Nitrogen in wastewater from human sources in megagrams (Mg).
-#'   - `prod`: Produced nitrogen in megagrams (Mg).
-#'   - `inputs`: Total nitrogen inputs in megagrams (Mg).
+#'   - `nue`: Nitrogen Use Efficiency as a percentage (%).
 #'
 #'
 #' @export
@@ -215,7 +210,7 @@ calculate_nue_crops <- function(example = FALSE) {
     return(.example_calculate_nue_crops())
   }
   n_soil_inputs <- create_n_soil_inputs() |>
-    dplyr::group_by(Year, Province_name, Item, Box) |>
+    dplyr::group_by(year, province_name, item, box) |>
     dplyr::summarise(
       deposition = sum(deposition, na.rm = TRUE),
       fixation = sum(fixation, na.rm = TRUE),
@@ -230,9 +225,9 @@ calculate_nue_crops <- function(example = FALSE) {
   nue <- dplyr::inner_join(
     n_soil_inputs,
     n_prod_data,
-    by = c("Year", "Province_name", "Item", "Box")
+    by = c("year", "province_name", "item", "box")
   ) |>
-    dplyr::filter(!is.na(Box)) |>
+    dplyr::filter(!is.na(box)) |>
     dplyr::mutate(
       inputs = deposition + fixation + synthetic + manure + urban
     ) |>
@@ -245,7 +240,7 @@ calculate_nue_crops <- function(example = FALSE) {
     dplyr::mutate(
       nue = prod / inputs * 100
     ) |>
-    dplyr::select(Year, Province_name, Item, Box, nue)
+    dplyr::select(year, province_name, item, box, nue)
 
   nue
 }
@@ -269,10 +264,10 @@ calculate_nue_crops <- function(example = FALSE) {
 #'   remote data. Default is `FALSE`.
 #'
 #' @return A tibble containing:
-#'   - `Year`: Year
-#'   - `Province_name`: Spanish province
-#'   - `Livestock_cat`: Livestock category
-#'   - `Item`: Produced item
+#'   - `year`: Year
+#'   - `province_name`: Spanish province
+#'   - `livestock_cat`: Livestock category
+#'   - `item`: Produced item
 #'   - `prod_n`: Nitrogen in livestock products (Mg)
 #'   - `feed_n`: Nitrogen in feed intake (Mg)
 #'   - `excretion_n`: Nitrogen excreted (Mg)
@@ -285,7 +280,7 @@ calculate_nue_crops <- function(example = FALSE) {
 #' calculate_nue_livestock(example = TRUE)
 calculate_nue_livestock <- function(example = FALSE) {
   if (example) {
-    return(.example_calculate_nue_livestock())
+    return(.ex_calc_nue_livestock())
   }
   intake_n <- whep_read_file("intake_ygiac") |>
     dplyr::filter(Livestock_cat != "Pets") |>
@@ -293,7 +288,8 @@ calculate_nue_livestock <- function(example = FALSE) {
     dplyr::summarise(
       feed_n = sum(N_MgN, na.rm = TRUE),
       .groups = "drop"
-    )
+    ) |>
+    dplyr::rename_with(tolower)
 
   prod_n <- whep_read_file("livestock_prod_ygps") |>
     dplyr::filter(!is.na(Prod_MgN)) |>
@@ -301,33 +297,35 @@ calculate_nue_livestock <- function(example = FALSE) {
     dplyr::summarise(
       prod_n = sum(Prod_MgN, na.rm = TRUE),
       .groups = "drop"
-    )
+    ) |>
+    dplyr::rename_with(tolower)
 
   excretion_n <- whep_read_file("n_excretion_ygs") |>
     dplyr::group_by(Year, Province_name, Livestock_cat) |>
     dplyr::summarise(
       excretion_n = sum(Excr_MgN, na.rm = TRUE),
       .groups = "drop"
-    )
+    ) |>
+    dplyr::rename_with(tolower)
 
   nue_livestock <- intake_n |>
     dplyr::inner_join(
       prod_n,
-      by = c("Year", "Province_name", "Livestock_cat")
+      by = c("year", "province_name", "livestock_cat")
     ) |>
     dplyr::left_join(
       excretion_n,
-      by = c("Year", "Province_name", "Livestock_cat")
+      by = c("year", "province_name", "livestock_cat")
     ) |>
     dplyr::mutate(
       nue = prod_n / feed_n * 100,
       mass_balance = (prod_n + excretion_n) / feed_n
     ) |>
     dplyr::select(
-      Year,
-      Province_name,
-      Livestock_cat,
-      Item,
+      year,
+      province_name,
+      livestock_cat,
+      item,
       prod_n,
       feed_n,
       excretion_n,
@@ -353,8 +351,8 @@ calculate_nue_livestock <- function(example = FALSE) {
 #'   remote data. Default is `FALSE`.
 #'
 #' @return A tibble with the following columns:
-#'   - `Year`: Year
-#'   - `Province_name`: Spanish province
+#'   - `year`: Year
+#'   - `province_name`: Spanish province
 #'   - `total_prod`: Total nitrogen production (Mg)
 #'   - `inputs`: Total nitrogen inputs (Mg)
 #'   - `nue_system`: System-level Nitrogen Use Efficiency (%)
@@ -363,12 +361,15 @@ calculate_nue_livestock <- function(example = FALSE) {
 #'
 #' @examples
 #' calculate_system_nue(example = TRUE)
-calculate_system_nue <- function(n_soil_inputs = create_n_soil_inputs(), example = FALSE) {
+calculate_system_nue <- function(
+  n_soil_inputs = create_n_soil_inputs(),
+  example = FALSE
+) {
   if (example) {
     return(.example_calculate_system_nue())
   }
   n_soil_inputs <- n_soil_inputs |>
-    dplyr::group_by(Year, Province_name) |>
+    dplyr::group_by(year, province_name) |>
     dplyr::summarise(
       deposition = sum(deposition, na.rm = TRUE),
       fixation = sum(fixation, na.rm = TRUE),
@@ -386,15 +387,16 @@ calculate_system_nue <- function(n_soil_inputs = create_n_soil_inputs(), example
     dplyr::summarise(
       total_prod = sum(Prod_MgN, na.rm = TRUE),
       .groups = "drop"
-    )
+    ) |>
+    dplyr::rename_with(tolower)
 
   system_nue <- total_outputs |>
-    dplyr::left_join(n_soil_inputs, by = c("Year", "Province_name")) |>
+    dplyr::left_join(n_soil_inputs, by = c("year", "province_name")) |>
     dplyr::mutate(
       inputs = deposition + fixation + synthetic + manure + urban,
       nue_system = total_prod / inputs * 100
     ) |>
-    dplyr::select(Year, Province_name, total_prod, inputs, nue_system)
+    dplyr::select(year, province_name, total_prod, inputs, nue_system)
 
   system_nue
 }

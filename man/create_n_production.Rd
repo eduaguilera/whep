@@ -13,10 +13,10 @@ remote data. Default is \code{FALSE}.}
 \value{
 A tibble containing:
 \itemize{
-\item \code{Year}: Year
-\item \code{Province_name}: Spanish province
-\item \code{Item}: Product item
-\item \code{Box}: Ecosystem box
+\item \code{year}: Year
+\item \code{province_name}: Spanish province
+\item \code{item}: Product item
+\item \code{box}: Ecosystem box
 \item \code{prod}: Produced N (Mg)
 }
 }

@@ -41,9 +41,9 @@
 #' get_primary_production(example = TRUE)
 get_primary_production <- function(example = FALSE) {
   if (example) {
-    return(.example_get_primary_production())
+    return(.ex_get_primary_prod())
   }
-  
+
   "primary_prod" |>
     whep_read_file() |>
     dplyr::rename_with(tolower) |>
@@ -93,7 +93,7 @@ get_primary_residues <- function(example = FALSE) {
   if (example) {
     return(.example_get_primary_residues())
   }
-  
+
   "crop_residues" |>
     whep_read_file() |>
     dplyr::rename_with(tolower) |>
