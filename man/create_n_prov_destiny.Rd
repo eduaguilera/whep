@@ -4,7 +4,11 @@
 \alias{create_n_prov_destiny}
 \title{GRAFS Nitrogen (N) flows}
 \usage{
-create_n_prov_destiny()
+create_n_prov_destiny(example = FALSE)
+}
+\arguments{
+\item{example}{If \code{TRUE}, return a small example output without downloading
+remote data. Default is \code{FALSE}.}
 }
 \value{
 A final tibble containing N flow data by origin and destiny.
@@ -34,4 +38,7 @@ includes N soil inputs, imports and production. The destiny column shows
 where N goes to, which includes export, population food, population other
 uses and feed or cropland (in case of N soil inputs).
 Processed items, residues, woody crops, grazed weeds are taken into account.
+}
+\examples{
+create_n_prov_destiny(example = TRUE)
 }

@@ -4,7 +4,11 @@
 \alias{calculate_nue_livestock}
 \title{NUE for Livestock ----------------------------------------------------}
 \usage{
-calculate_nue_livestock()
+calculate_nue_livestock(example = FALSE)
+}
+\arguments{
+\item{example}{If \code{TRUE}, return a small example output without downloading
+remote data. Default is \code{FALSE}.}
 }
 \value{
 A tibble containing:
@@ -31,4 +35,7 @@ nue = prod_n / feed_n * 100
 Additionally, a mass balance is calculated to check the recovery of N in
 products and excretion relative to feed intake:
 mass_balance = (prod_n + excretion_n) / feed_n
+}
+\examples{
+calculate_nue_livestock(example = TRUE)
 }

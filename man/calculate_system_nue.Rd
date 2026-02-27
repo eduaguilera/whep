@@ -4,11 +4,15 @@
 \alias{calculate_system_nue}
 \title{System NUE -----------------------------------------------------------}
 \usage{
-calculate_system_nue(n_soil_inputs = create_n_soil_inputs())
+calculate_system_nue(n_soil_inputs = create_n_soil_inputs(), example = FALSE)
 }
 \arguments{
 \item{n_soil_inputs}{A tibble of nitrogen soil input (deposition, fixation,
-synthetic, manure, urban)}
+synthetic, manure, urban). If not provided and \code{example = FALSE}, it will
+be computed from \code{create_n_soil_inputs()}.}
+
+\item{example}{If \code{TRUE}, return a small example output without downloading
+remote data. Default is \code{FALSE}.}
 }
 \value{
 A tibble with the following columns:
@@ -25,4 +29,7 @@ Calculates the NUE for Spain at the provincial level.
 The system NUE is defined as the percentage of total nitrogen production
 (\code{total_prod}) relative to the sum of all nitrogen inputs (\code{inputs}) into the
 soil system.
+}
+\examples{
+calculate_system_nue(example = TRUE)
 }

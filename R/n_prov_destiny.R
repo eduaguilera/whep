@@ -10,6 +10,9 @@
 #' uses and feed or cropland (in case of N soil inputs).
 #' Processed items, residues, woody crops, grazed weeds are taken into account.
 #'
+#' @param example If `TRUE`, return a small example output without downloading
+#'   remote data. Default is `FALSE`.
+#'
 #' @return
 #' A final tibble containing N flow data by origin and destiny.
 #' It includes the following columns:
@@ -28,7 +31,13 @@
 #'   - `MgN`: Nitrogen amount in megagrams (Mg).
 #'
 #' @export
-create_n_prov_destiny <- function() {
+#'
+#' @examples
+#' create_n_prov_destiny(example = TRUE)
+create_n_prov_destiny <- function(example = FALSE) {
+  if (example) {
+    return(.example_create_n_prov_destiny())
+  }
   codes_coefs_items_full <- whep_read_file("codes_coefs_items_full")
   biomass_coefs <- whep_read_file("biomass_coefs")
   pie_full_destinies_fm <- whep_read_file("pie_full_destinies_fm")
@@ -96,11 +105,20 @@ create_n_prov_destiny <- function() {
 #' inputs are aggregated nationally before calculating trade with the
 #' outside.
 #'
+#' @param example If `TRUE`, return a small example output without downloading
+#'   remote data. Default is `FALSE`.
+#'
 #' @return
 #' A final tibble containing national N flow data by origin and destiny.
 #'
 #' @export
-create_n_nat_destiny <- function() {
+#'
+#' @examples
+#' create_n_nat_destiny(example = TRUE)
+create_n_nat_destiny <- function(example = FALSE) {
+  if (example) {
+    return(.example_create_n_nat_destiny())
+  }
   prov <- create_n_prov_destiny()
 
   nat_shares <- prov |>
