@@ -3,9 +3,8 @@
 #' @description
 #' Reports trade between pairs of countries in given years.
 #'
-#' @param cbs_version File version passed to `get_wide_cbs()` call.
-#' @param trade_version File version used for bilateral trade input.
-#'   See [whep_inputs] for version details.
+#' @param example If `TRUE`, return a small example output without
+#'   downloading remote data. Default is `FALSE`.
 #'
 #' @returns
 #' A tibble with the reported trade between countries. For efficient

@@ -360,6 +360,13 @@ utils::globalVariables(
     "woody_prod",
     "woody_share",
     "Year",
-    "year"
+    "year",
+    "box",
+    "irrig_cat",
+    "livestock_cat",
+    "mg_n",
+    "mgn",
+    "origin",
+    "province_name"
   )
 )

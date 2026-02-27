@@ -7,10 +7,8 @@
 get_bilateral_trade(example = FALSE)
 }
 \arguments{
-\item{cbs_version}{File version passed to \code{get_wide_cbs()} call.}
-
-\item{trade_version}{File version used for bilateral trade input.
-See \link{whep_inputs} for version details.}
+\item{example}{If \code{TRUE}, return a small example output without
+downloading remote data. Default is \code{FALSE}.}
 }
 \value{
 A tibble with the reported trade between countries. For efficient

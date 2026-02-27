@@ -137,13 +137,14 @@ The input data frame must contain:
 }
 
 \examples{
-# Note: In these examples, 'activity' is a measure of scale (e.g., GDP in million USD, production in tonnes, or population in millions),
-# and 'intensity' is the target variable per unit activity (e.g., emissions per million USD, emissions per tonne, etc.).
+# In these examples, 'activity' is a measure of scale
+# (e.g., GDP in million USD) and 'intensity' is the target
+# variable per unit activity (e.g., emissions per million USD).
 # The units are illustrative; adapt to your context.
 # --- Shared sample data ---
 data_simple <- tibble::tribble(
   ~year, ~activity, ~intensity, ~emissions,
-  2010,  1000,      0.10,       100,   # e.g., 1000 million USD, 0.10 tCO2/million USD, 100 tCO2
+  2010,  1000,      0.10,       100,
   2011,  1100,      0.12,       132,
   2012,  1200,      0.09,       108,
   2013,  1300,      0.10,       130
