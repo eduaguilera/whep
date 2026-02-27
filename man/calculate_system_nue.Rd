@@ -17,8 +17,8 @@ remote data. Default is \code{FALSE}.}
 \value{
 A tibble with the following columns:
 \itemize{
-\item \code{Year}: Year
-\item \code{Province_name}: Spanish province
+\item \code{year}: Year
+\item \code{province_name}: Spanish province
 \item \code{total_prod}: Total nitrogen production (Mg)
 \item \code{inputs}: Total nitrogen inputs (Mg)
 \item \code{nue_system}: System-level Nitrogen Use Efficiency (\%)

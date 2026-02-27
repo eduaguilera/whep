@@ -56,7 +56,7 @@
   )
 }
 
-.example_get_primary_production <- function() {
+.ex_get_primary_prod <- function() {
   tibble::tribble(
     ~year, ~area_code, ~item_prod_code, ~item_cbs_code, ~live_anim_code, ~unit, ~value,
     1969, 216, 1049, 1049, NA, "heads", 4326071.,
@@ -122,7 +122,7 @@
 
 .example_create_n_prov_destiny <- function() {
   tibble::tribble(
-    ~Year, ~Province_name, ~Item, ~Irrig_cat, ~Box, ~Origin, ~Destiny, ~MgN,
+    ~year, ~province_name, ~item, ~irrig_cat, ~box, ~origin, ~destiny, ~mg_n,
     1865, "Huesca", "Sugarbeet pulp", NA, "Cropland", "Outside", "livestock_mono", 4.52e-3,
     1929, "Tarragona", "Olives (including preserved)", "Irrigated", "Cropland", "Cropland", "export", 6.92e+1,
     1955, "Albacete", "Wheat and products", "Rainfed", NA, "Synthetic", "Cropland", 6.16e+2,
@@ -138,7 +138,7 @@
 
 .example_create_n_soil_inputs <- function() {
   tibble::tribble(
-    ~Year, ~Province_name, ~Item, ~Irrig_cat, ~Box, ~deposition, ~fixation, ~synthetic, ~manure, ~urban,
+    ~year, ~province_name, ~item, ~irrig_cat, ~box, ~deposition, ~fixation, ~synthetic, ~manure, ~urban,
     1976, "Burgos", "Wheat and products", "Irrigated", "Cropland", 16.5, 13.0, 184., 2.04e+1, 0.509,
     1912, "Alicante", "Apples and products", "Irrigated", "Cropland", 0.0198, 0.159, 0.0132, 2.54e-2, 0.0208,
     1974, "Lleida", "Fallow", "Rainfed", "Cropland", 263., 151., 0., 0., 8.35,
@@ -154,7 +154,7 @@
 
 .example_create_n_production <- function() {
   tibble::tribble(
-    ~Year, ~Province_name, ~Item, ~Box, ~prod,
+    ~year, ~province_name, ~item, ~box, ~prod,
     1931, "Valencia", "Meat, Other", "Livestock", 36.5,
     1990, "Granada", "Nuts and products", "Cropland", 532.,
     1957, "Teruel", "Tomatoes and products", "Cropland", 9.19,
@@ -170,7 +170,7 @@
 
 .example_calculate_nue_crops <- function() {
   tibble::tribble(
-    ~Year, ~Province_name, ~Item, ~Box, ~nue,
+    ~year, ~province_name, ~item, ~box, ~nue,
     1937, "Tenerife", "Oranges, Mandarines", "Cropland", 97.3,
     1905, "Cantabria", "Apples and products", "Cropland", 59.8,
     2005, "Badajoz", "Firewood", "semi_natural_agroecosystems", 0.345,
@@ -184,9 +184,9 @@
   )
 }
 
-.example_calculate_nue_livestock <- function() {
+.ex_calc_nue_livestock <- function() {
   tibble::tribble(
-    ~Year, ~Province_name, ~Livestock_cat, ~Item, ~prod_n, ~feed_n, ~excretion_n, ~nue, ~mass_balance,
+    ~year, ~province_name, ~livestock_cat, ~item, ~prod_n, ~feed_n, ~excretion_n, ~nue, ~mass_balance,
     1921, "Lugo", "Horses", "Meat, Other", 7.28, 1078., 1158., 0.675, 1.08,
     1994, "Huelva", "Horses", "Offals, Edible", 0.921, 397., 423., 0.232, 1.07,
     2001, "Cuenca", "Goats", "Mutton & Goat Meat", 4.22, 347., 355., 1.22, 1.04,
@@ -202,7 +202,7 @@
 
 .example_calculate_system_nue <- function() {
   tibble::tribble(
-    ~Year, ~Province_name, ~total_prod, ~inputs, ~nue_system,
+    ~year, ~province_name, ~total_prod, ~inputs, ~nue_system,
     1917, "Tarragona", 4740., 9924., 47.8,
     1989, "A_Coruna", 27403., 52128., 52.6,
     1967, "Tenerife", 2080., 11614., 17.9,
@@ -218,7 +218,7 @@
 
 .example_create_n_nat_destiny <- function() {
   tibble::tribble(
-    ~Year, ~Item, ~Irrig_cat, ~Box, ~Origin, ~Destiny, ~MgN, ~Province_name,
+    ~year, ~item, ~irrig_cat, ~box, ~origin, ~destiny, ~mg_n, ~province_name,
     1863, "Hard Fibres, Other", "Irrigated", NA, "Livestock", "Cropland", 52.1, "Spain",
     2012, "Nuts and products", "Irrigated", NA, "People", "Cropland", 212., "Spain",
     1955, "Pulses, Other and products", "Irrigated", "Cropland", "Cropland", "export", 502., "Spain",

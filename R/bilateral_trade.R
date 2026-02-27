@@ -102,7 +102,7 @@ get_bilateral_trade <- function(example = FALSE) {
   if (example) {
     return(.example_get_bilateral_trade())
   }
-  
+
   cbs <- get_wide_cbs() |>
     dplyr::select(year, item_cbs_code, area_code, export, import)
 
