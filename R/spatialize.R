@@ -49,6 +49,25 @@
 #'   - `cft_name`: Target crop functional type name.
 #'   If `NULL`, no CFT aggregation is performed and individual crop
 #'   results are returned.
+#' @param type_cropland A tibble with per-cell, per-year, per-type
+#'   cropland. When provided alongside `type_mapping`, each crop is
+#'   allocated only into cells that contain its LUH2
+#'   crop-functional type, giving time-varying, type-constrained
+#'   allocation.
+#'   Expected columns:
+#'   - `lon`, `lat`: Cell centre coordinates.
+#'   - `year`: Integer year.
+#'   - `luh2_type`: LUH2 crop type (`c3ann`, `c4ann`, `c3per`,
+#'     or `c3nfx`).
+#'   - `type_ha`: Cropland hectares for this type.
+#'   - `type_irrig_ha`: Irrigated hectares for this type.
+#'   If `NULL`, falls back to total cropland (original behaviour).
+#' @param type_mapping A tibble mapping each crop to its LUH2 type.
+#'   Expected columns:
+#'   - `item_prod_code`: FAOSTAT item code.
+#'   - `luh2_type`: LUH2 crop type.
+#'   If `NULL`, type-aware allocation is disabled even when
+#'   `type_cropland` is provided.
 #' @param multicropping A tibble with per-cell multi-cropping
 #'   suitability factors. Expected columns:
 #'   - `lon`, `lat`: Cell coordinates.
@@ -101,6 +120,8 @@ build_gridded_landuse <- function(
   gridded_cropland,
   country_grid,
   cft_mapping = NULL,
+  type_cropland = NULL,
+  type_mapping = NULL,
   multicropping = NULL,
   max_iterations = 1000L,
   expansion_threshold = 100L
@@ -113,6 +134,18 @@ build_gridded_landuse <- function(
   country_areas <- .ensure_irrigation_cols(country_areas)
   gridded_cropland <- .ensure_gridded_irrigation(gridded_cropland)
 
+  # Build type lookup: item_prod_code -> luh2_type
+  type_lookup <- NULL
+  if (!is.null(type_cropland) && !is.null(type_mapping)) {
+    type_lookup <- dplyr::select(
+      type_mapping, item_prod_code, luh2_type
+    ) |>
+      dplyr::distinct()
+    cli::cli_alert_info(
+      "Type-aware allocation: {dplyr::n_distinct(type_lookup$luh2_type)} LUH2 types"
+    )
+  }
+
   years <- sort(unique(country_areas$year))
 
   result <- purrr::map(years, \(yr) {
@@ -122,6 +155,10 @@ build_gridded_landuse <- function(
       crop_patterns = crop_patterns,
       cropland = dplyr::filter(gridded_cropland, year == yr),
       country_grid = country_grid,
+      type_cropland_yr = if (!is.null(type_cropland)) {
+        dplyr::filter(type_cropland, year == yr)
+      },
+      type_lookup = type_lookup,
       multicropping = multicropping,
       max_iterations = max_iterations,
       expansion_threshold = expansion_threshold
@@ -146,6 +183,8 @@ build_gridded_landuse <- function(
   crop_patterns,
   cropland,
   country_grid,
+  type_cropland_yr = NULL,
+  type_lookup = NULL,
   multicropping,
   max_iterations,
   expansion_threshold
@@ -153,6 +192,22 @@ build_gridded_landuse <- function(
   crops <- unique(country_areas$item_prod_code)
 
   purrr::map(crops, \(crop_code) {
+    # Determine this crop's LUH2 type (if type-aware)
+    crop_type <- NULL
+    crop_type_cl <- NULL
+    if (!is.null(type_lookup) && !is.null(type_cropland_yr)) {
+      crop_type <- type_lookup$luh2_type[
+        type_lookup$item_prod_code == crop_code
+      ]
+      if (length(crop_type) == 1L) {
+        crop_type_cl <- dplyr::filter(
+          type_cropland_yr, luh2_type == crop_type
+        )
+      } else {
+        crop_type <- NULL
+      }
+    }
+
     .spatialize_crop(
       yr = yr,
       crop_code = crop_code,
@@ -163,7 +218,8 @@ build_gridded_landuse <- function(
         crop_patterns, item_prod_code == crop_code
       ),
       cropland = cropland,
-      country_grid = country_grid
+      country_grid = country_grid,
+      type_cropland = crop_type_cl
     )
   }) |>
     dplyr::bind_rows() |>
@@ -182,21 +238,64 @@ build_gridded_landuse <- function(
   country_areas,
   crop_pattern,
   cropland,
-  country_grid
+  country_grid,
+  type_cropland = NULL
 ) {
-  # Build working grid: join cropland with country assignment
-  grid <- country_grid |>
-    dplyr::inner_join(cropland, by = c("lon", "lat")) |>
-    dplyr::left_join(
-      dplyr::select(crop_pattern, lon, lat, harvest_fraction),
-      by = c("lon", "lat")
-    ) |>
-    dplyr::mutate(
-      harvest_fraction = dplyr::if_else(
-        is.na(harvest_fraction), 0, harvest_fraction
-      ),
-      rainfed_ha = cropland_ha - irrigated_ha
-    )
+  use_type <- !is.null(type_cropland) && nrow(type_cropland) > 0L
+
+  if (use_type) {
+    # Type-aware: use type-specific cropland
+    grid <- country_grid |>
+      dplyr::inner_join(
+        dplyr::select(
+          type_cropland,
+          lon, lat, type_ha, type_irrig_ha
+        ),
+        by = c("lon", "lat")
+      ) |>
+      dplyr::left_join(
+        dplyr::select(crop_pattern, lon, lat, harvest_fraction),
+        by = c("lon", "lat")
+      ) |>
+      dplyr::mutate(
+        harvest_fraction = dplyr::if_else(
+          is.na(harvest_fraction), 0, harvest_fraction
+        ),
+        cropland_ha = type_ha,
+        irrigated_ha = type_irrig_ha,
+        rainfed_ha = type_ha - type_irrig_ha
+      )
+
+    # Check if this type has any potential in the needed countries
+    needed <- unique(country_areas$area_code)
+    grid_has <- grid |>
+      dplyr::filter(area_code %in% needed) |>
+      dplyr::summarise(
+        total_pot = sum(harvest_fraction * cropland_ha)
+      ) |>
+      dplyr::pull(total_pot)
+
+    if (length(grid_has) == 0L || grid_has <= 0) {
+      # Fall back to total cropland for this crop
+      use_type <- FALSE
+    }
+  }
+
+  if (!use_type) {
+    # Original behaviour: total cropland
+    grid <- country_grid |>
+      dplyr::inner_join(cropland, by = c("lon", "lat")) |>
+      dplyr::left_join(
+        dplyr::select(crop_pattern, lon, lat, harvest_fraction),
+        by = c("lon", "lat")
+      ) |>
+      dplyr::mutate(
+        harvest_fraction = dplyr::if_else(
+          is.na(harvest_fraction), 0, harvest_fraction
+        ),
+        rainfed_ha = cropland_ha - irrigated_ha
+      )
+  }
 
   grid |>
     dplyr::inner_join(
