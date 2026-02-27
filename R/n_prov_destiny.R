@@ -242,8 +242,8 @@ create_n_nat_destiny <- function(example = FALSE) {
 #' @param names_biomass_cb Dataframe with biomass names and associated item
 #' names.
 #'
-#' @return A list with two merged dataframes: 'crop_area_npp_merged' and
-#' 'npp_ygpit_merged'.
+#' @return A tibble with npp data merged with item names from the
+#' biomass codes.
 #' @keywords internal
 #' @noRd
 .merge_items_biomass <- function(
@@ -291,6 +291,8 @@ create_n_nat_destiny <- function(example = FALSE) {
 #' and grazed grass) ----------------------------------------------------------
 #'
 #' @param npp_ygpit_merged NPP merged data including all biomasses and items.
+#' @param crop_area_npp_prod_residue Dataframe with crop production and
+#' residues summarised per province and year.
 #'
 #' @return A dataframe combining products, residues, and grazed biomass.
 #' @keywords internal
@@ -397,9 +399,7 @@ create_n_nat_destiny <- function(example = FALSE) {
 
 #' @title Combine Cropland, Semi_natural_agroecosystems and Livestock ----------
 #'
-#' @param combined_biomasses Dataframe of crop production.
-#' @param semi_natural_agroecosystems Dataframe of production from semi-natural
-#' agroecosystems.
+#' @param combined_biomasses Dataframe of crop and semi-natural production.
 #' @param livestock Dataframe of livestock production.
 #'
 #' @return Combined dataframe of all production systems.
@@ -424,7 +424,7 @@ create_n_nat_destiny <- function(example = FALSE) {
 #' COMMENT: in a few cases, seeds are higher then production, so that we get
 #' negative values. When the share is over 50%, it is therefore set back to 50%.
 #'
-#' @param npp_ygpit_csv Dataframe containing crop area by province.
+#' @param npp_ygpit_merged Dataframe containing crop area by province.
 #' @param pie_full_destinies_fm Dataframe containing domestic supply by
 #' destiny, including seed usage.
 #' @param grafs_prod_combined Dataframe with total production values.
@@ -761,7 +761,10 @@ create_n_nat_destiny <- function(example = FALSE) {
 #'
 #' @param feed_intake A dataframe with feed intake data in FM.
 #'
-#' @return A dataframe with the total FM_Mg per year, province, and item.
+#' @return A list with two elements: `feed_intake` (a tibble with total
+#' feed and pet food per year, province, and item) and
+#' `feed_share_rum_mono` (a tibble with ruminant and monogastric feed
+#' shares).
 #' @keywords internal
 #' @noRd
 .add_feed <- function(feed_intake) {
@@ -909,7 +912,6 @@ create_n_nat_destiny <- function(example = FALSE) {
 #' @return A combined dataframe with food, feed, and other uses.
 #' @keywords internal
 #' @noRd
-#'
 .combine_destinies <- function(
   grafs_prod_item,
   feed_intake,
@@ -1074,9 +1076,6 @@ create_n_nat_destiny <- function(example = FALSE) {
 #' Spain. It should be deactivated for provincial analysis
 #'
 #' @param grafs_prod_item_n A dataframe with N values (MgN) by destiny.
-#' @param pie_full_destinies_fm A data frame with destiny data.
-#' @param biomass_coefs A data frame with biomass coefficients.
-#' @param codes_coefs_items_full A lookup table with coefficients.
 #'
 #' @return A dataframe with consumption, exports, and imports in MgN.
 #' @keywords internal
@@ -1353,7 +1352,7 @@ create_n_nat_destiny <- function(example = FALSE) {
 #'
 #' @param grafs_prod_destiny_final A tibble from `.finalize_prod_destiny()`
 #'   containing destinies.
-#' @param n_soil_inputs A dataframe with soil inputs.
+#' @param soil_inputs A dataframe with soil inputs.
 #'
 #' @return The input dataframe extended with soil N input flows.
 #' @keywords internal

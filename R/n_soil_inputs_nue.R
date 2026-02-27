@@ -150,7 +150,8 @@ create_n_production <- function(example = FALSE) {
 #' @title Calculate N Production
 #' @description Internal function to calculate nitrogen production.
 #' @param grafs_prod_destiny A data frame with consumption, export, import data.
-#' @return A tibble with production and import values.
+#' @return A tibble with production values per year, province, item,
+#' and box.
 #' @keywords internal
 #' @noRd
 .calculate_n_production <- function(grafs_prod_destiny) {
@@ -190,16 +191,14 @@ create_n_production <- function(example = FALSE) {
 #' @param example If `TRUE`, return a small example output without downloading
 #'   remote data. Default is `FALSE`.
 #'
-#' @returns
-#' A tibble containing nitrogen use efficiency (NUE) for crops.
+#' @return A tibble containing nitrogen use efficiency (NUE) for crops.
 #'   It includes the following columns:
 #'   - `year`: Year.
 #'   - `province_name`: The Spanish province.
 #'   - `item`: The item which was produced, defined in `names_biomass_cb`.
 #'   - `box`: One of the two systems of the GRAFS model: cropland or
-#'            semi-natural agroecosystems.
+#'       semi-natural agroecosystems.
 #'   - `nue`: Nitrogen Use Efficiency as a percentage (%).
-#'
 #'
 #' @export
 #'
