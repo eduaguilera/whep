@@ -1,155 +1,155 @@
-item_prod_code,item_prod_name,cft_name
-15,Wheat,temperate_cereals
-27,Rice paddy,rice
-44,Barley,temperate_cereals
-56,Maize (corn),maize
-71,Rye,temperate_cereals
-75,Oats,temperate_cereals
-79,Millet,tropical_cereals
-83,Sorghum,tropical_cereals
-89,Buckwheat,temperate_cereals
-92,Quinoa,temperate_cereals
-94,Fonio,tropical_cereals
-97,Triticale,temperate_cereals
-101,Canary seed,temperate_cereals
-103,Mixed grain,temperate_cereals
-108,Cereals n.e.c.,temperate_cereals
-176,Beans dry,pulses
-181,Broad beans and horse beans dry,pulses
-187,Peas dry,pulses
-191,Chick peas,pulses
-195,Cow peas dry,pulses
-197,Pigeon peas,pulses
-201,Lentils,pulses
-203,Bambara beans,pulses
-205,Vetches,pulses
-210,Lupins,pulses
-211,Pulses n.e.c.,pulses
-216,Soybeans,oil_crops_soybean
-217,Oil palm fruit,others_perennial
-220,Coconuts in shell,others_perennial
-221,Castor oil seed,oil_crops_other
-222,Sunflower seed,oil_crops_sunflower
-223,Rapeseed or canola,oil_crops_rapeseed
-224,Tung nuts,others_perennial
-225,Jojoba seed,others_perennial
-226,Safflower seed,oil_crops_other
-227,Sesame seed,oil_crops_other
-229,Mustard seed,oil_crops_rapeseed
-230,Poppy seed,oil_crops_other
-231,Melonseed,oil_crops_other
-232,Tallowtree seed,oil_crops_other
-233,Linseed,oil_crops_other
-234,Hempseed,oil_crops_other
-236,Oil seeds n.e.c.,oil_crops_other
-242,Groundnuts excluding shelled,oil_crops_groundnut
-249,Olives,others_perennial
-254,Karite nuts (sheanuts),others_perennial
-260,Cashew nuts in shell,others_perennial
-261,Chestnuts in shell,others_perennial
-263,Almonds in shell,others_perennial
-264,Walnuts in shell,others_perennial
-265,Pistachios in shell,others_perennial
-266,Kola nuts,others_perennial
-267,Hazelnuts in shell,others_perennial
-268,Areca nuts,others_perennial
-270,Brazil nuts in shell,others_perennial
-271,Other nuts (excluding wild edible nuts and groundnuts),others_perennial
-274,Seed cotton unginned,others_annual
-280,Flax raw or retted,others_annual
-289,Jute and jute-like fibres,others_annual
-291,Sisal,others_perennial
-292,Agave fibres n.e.c.,others_perennial
-296,Hemp fibre and tow,others_annual
-297,Kapok fibre,others_perennial
-305,Ramie,others_annual
-310,Other fibre crops raw n.e.c.,others_annual
-328,Potatoes,temperate_roots
-333,Sweet potatoes,tropical_roots
-336,Yams,tropical_roots
-337,Taro,tropical_roots
-339,Yautia,tropical_roots
-340,Cassava fresh,tropical_roots
-358,Cabbages,others_annual
-366,Artichokes,others_annual
-367,Asparagus,others_annual
-372,Lettuce and chicory,others_annual
-373,Spinach,others_annual
-378,Cassava leaves,others_annual
-388,Tomatoes,others_annual
-393,Cauliflowers and broccoli,others_annual
-394,Pumpkins squash and gourds,others_annual
-397,Cucumbers and gherkins,others_annual
-399,Eggplants (aubergines),others_annual
-401,Chillies and peppers green (Capsicum spp. and Pimenta spp.),others_annual
-402,Onions and shallots green,others_annual
-403,Onions and shallots dry,others_annual
-406,Garlic,others_annual
-407,Leeks and other alliaceous vegetables,others_annual
-414,Other beans green,others_annual
-417,Peas green,others_annual
-423,String beans,others_annual
-426,Carrots and turnips,others_annual
-430,Okra,others_annual
-446,Maize green,maize
-449,Mushrooms and truffles,others_annual
-459,Other vegetables fresh n.e.c.,others_annual
-461,Carobs,others_perennial
-486,Bananas,others_perennial
-489,Plantains and cooking bananas,others_perennial
-490,Oranges,others_perennial
-495,Tangerines mandarins clementines,others_perennial
-497,Lemons and limes,others_perennial
-507,Grapefruits and pomelos,others_perennial
-512,Other citrus fruit n.e.c.,others_perennial
-515,Apples,others_perennial
-521,Pears,others_perennial
-523,Quinces,others_perennial
-526,Apricots,others_perennial
-530,Sour cherries,others_perennial
-531,Cherries,others_perennial
-534,Peaches and nectarines,others_perennial
-536,Plums and sloes,others_perennial
-541,Other stone fruits,others_perennial
-544,Strawberries,others_annual
-547,Raspberries,others_perennial
-549,Gooseberries,others_perennial
-550,Currants,others_perennial
-552,Blueberries,others_perennial
-554,Cranberries,others_perennial
-558,Other berries and fruits of the genus Vaccinium n.e.c.,others_perennial
-560,Grapes,others_perennial
-567,Watermelons,others_annual
-568,Other melons (including cantaloupes),others_annual
-569,Figs,others_perennial
-571,Mangoes guavas and mangosteens,others_perennial
-572,Avocados,others_perennial
-574,Pineapples,others_perennial
-577,Dates,others_perennial
-587,Persimmons,others_perennial
-591,Kiwi fruit,others_perennial
-592,Papayas,others_perennial
-600,Other tropical fruits n.e.c.,others_perennial
-603,Other fruits n.e.c.,others_perennial
-656,Coffee green,others_perennial
-661,Cocoa beans,others_perennial
-667,Tea leaves,others_perennial
-671,Mate leaves,others_perennial
-677,Hops,others_perennial
-687,Pepper (Piper spp.),others_perennial
-689,Chillies and peppers dry (Capsicum spp. and Pimenta spp.),others_annual
-692,Vanilla,others_perennial
-693,Cinnamon and cinnamon-tree flowers,others_perennial
-698,Cloves (whole stems),others_perennial
-702,Nutmeg mace cardamoms raw,others_perennial
-711,Anise badian coriander cumin caraway fennel and juniper berries raw,others_annual
-720,Ginger,others_annual
-723,Other stimulant spice and aromatic crops n.e.c.,others_annual
-748,Peppermint,others_annual
-753,Pyrethrum dried flowers,others_annual
-754,Natural rubber in primary forms,others_perennial
-773,Tobacco unmanufactured,others_annual
-780,Sugar cane,sugarcane
-157,Sugar beet,temperate_roots
-826,Natural gums,others_perennial
-836,Cocoa beans,others_perennial
+item_prod_code,item_prod_name,cft_name,luh2_type
+15,Wheat,temperate_cereals,c3ann
+27,Rice paddy,rice,c3ann
+44,Barley,temperate_cereals,c3ann
+56,Maize (corn),maize,c4ann
+71,Rye,temperate_cereals,c3ann
+75,Oats,temperate_cereals,c3ann
+79,Millet,tropical_cereals,c4ann
+83,Sorghum,tropical_cereals,c4ann
+89,Buckwheat,temperate_cereals,c3ann
+92,Quinoa,temperate_cereals,c3ann
+94,Fonio,tropical_cereals,c4ann
+97,Triticale,temperate_cereals,c3ann
+101,Canary seed,temperate_cereals,c3ann
+103,Mixed grain,temperate_cereals,c3ann
+108,Cereals n.e.c.,temperate_cereals,c3ann
+176,Beans dry,pulses,c3nfx
+181,Broad beans and horse beans dry,pulses,c3nfx
+187,Peas dry,pulses,c3nfx
+191,Chick peas,pulses,c3nfx
+195,Cow peas dry,pulses,c3nfx
+197,Pigeon peas,pulses,c3nfx
+201,Lentils,pulses,c3nfx
+203,Bambara beans,pulses,c3nfx
+205,Vetches,pulses,c3nfx
+210,Lupins,pulses,c3nfx
+211,Pulses n.e.c.,pulses,c3nfx
+216,Soybeans,oil_crops_soybean,c3nfx
+217,Oil palm fruit,others_perennial,c3per
+220,Coconuts in shell,others_perennial,c3per
+221,Castor oil seed,oil_crops_other,c3ann
+222,Sunflower seed,oil_crops_sunflower,c3ann
+223,Rapeseed or canola,oil_crops_rapeseed,c3ann
+224,Tung nuts,others_perennial,c3per
+225,Jojoba seed,others_perennial,c3per
+226,Safflower seed,oil_crops_other,c3ann
+227,Sesame seed,oil_crops_other,c3ann
+229,Mustard seed,oil_crops_rapeseed,c3ann
+230,Poppy seed,oil_crops_other,c3ann
+231,Melonseed,oil_crops_other,c3ann
+232,Tallowtree seed,oil_crops_other,c3ann
+233,Linseed,oil_crops_other,c3ann
+234,Hempseed,oil_crops_other,c3ann
+236,Oil seeds n.e.c.,oil_crops_other,c3ann
+242,Groundnuts excluding shelled,oil_crops_groundnut,c3nfx
+249,Olives,others_perennial,c3per
+254,Karite nuts (sheanuts),others_perennial,c3per
+260,Cashew nuts in shell,others_perennial,c3per
+261,Chestnuts in shell,others_perennial,c3per
+263,Almonds in shell,others_perennial,c3per
+264,Walnuts in shell,others_perennial,c3per
+265,Pistachios in shell,others_perennial,c3per
+266,Kola nuts,others_perennial,c3per
+267,Hazelnuts in shell,others_perennial,c3per
+268,Areca nuts,others_perennial,c3per
+270,Brazil nuts in shell,others_perennial,c3per
+271,Other nuts (excluding wild edible nuts and groundnuts),others_perennial,c3per
+274,Seed cotton unginned,others_annual,c3ann
+280,Flax raw or retted,others_annual,c3ann
+289,Jute and jute-like fibres,others_annual,c3ann
+291,Sisal,others_perennial,c3per
+292,Agave fibres n.e.c.,others_perennial,c3per
+296,Hemp fibre and tow,others_annual,c3ann
+297,Kapok fibre,others_perennial,c3per
+305,Ramie,others_annual,c3ann
+310,Other fibre crops raw n.e.c.,others_annual,c3ann
+328,Potatoes,temperate_roots,c3ann
+333,Sweet potatoes,tropical_roots,c3ann
+336,Yams,tropical_roots,c3ann
+337,Taro,tropical_roots,c3ann
+339,Yautia,tropical_roots,c3ann
+340,Cassava fresh,tropical_roots,c3ann
+358,Cabbages,others_annual,c3ann
+366,Artichokes,others_annual,c3ann
+367,Asparagus,others_annual,c3ann
+372,Lettuce and chicory,others_annual,c3ann
+373,Spinach,others_annual,c3ann
+378,Cassava leaves,others_annual,c3ann
+388,Tomatoes,others_annual,c3ann
+393,Cauliflowers and broccoli,others_annual,c3ann
+394,Pumpkins squash and gourds,others_annual,c3ann
+397,Cucumbers and gherkins,others_annual,c3ann
+399,Eggplants (aubergines),others_annual,c3ann
+401,Chillies and peppers green (Capsicum spp. and Pimenta spp.),others_annual,c3ann
+402,Onions and shallots green,others_annual,c3ann
+403,Onions and shallots dry,others_annual,c3ann
+406,Garlic,others_annual,c3ann
+407,Leeks and other alliaceous vegetables,others_annual,c3ann
+414,Other beans green,others_annual,c3ann
+417,Peas green,others_annual,c3ann
+423,String beans,others_annual,c3ann
+426,Carrots and turnips,others_annual,c3ann
+430,Okra,others_annual,c3ann
+446,Maize green,maize,c4ann
+449,Mushrooms and truffles,others_annual,c3ann
+459,Other vegetables fresh n.e.c.,others_annual,c3ann
+461,Carobs,others_perennial,c3per
+486,Bananas,others_perennial,c3per
+489,Plantains and cooking bananas,others_perennial,c3per
+490,Oranges,others_perennial,c3per
+495,Tangerines mandarins clementines,others_perennial,c3per
+497,Lemons and limes,others_perennial,c3per
+507,Grapefruits and pomelos,others_perennial,c3per
+512,Other citrus fruit n.e.c.,others_perennial,c3per
+515,Apples,others_perennial,c3per
+521,Pears,others_perennial,c3per
+523,Quinces,others_perennial,c3per
+526,Apricots,others_perennial,c3per
+530,Sour cherries,others_perennial,c3per
+531,Cherries,others_perennial,c3per
+534,Peaches and nectarines,others_perennial,c3per
+536,Plums and sloes,others_perennial,c3per
+541,Other stone fruits,others_perennial,c3per
+544,Strawberries,others_annual,c3ann
+547,Raspberries,others_perennial,c3per
+549,Gooseberries,others_perennial,c3per
+550,Currants,others_perennial,c3per
+552,Blueberries,others_perennial,c3per
+554,Cranberries,others_perennial,c3per
+558,Other berries and fruits of the genus Vaccinium n.e.c.,others_perennial,c3per
+560,Grapes,others_perennial,c3per
+567,Watermelons,others_annual,c3ann
+568,Other melons (including cantaloupes),others_annual,c3ann
+569,Figs,others_perennial,c3per
+571,Mangoes guavas and mangosteens,others_perennial,c3per
+572,Avocados,others_perennial,c3per
+574,Pineapples,others_perennial,c3per
+577,Dates,others_perennial,c3per
+587,Persimmons,others_perennial,c3per
+591,Kiwi fruit,others_perennial,c3per
+592,Papayas,others_perennial,c3per
+600,Other tropical fruits n.e.c.,others_perennial,c3per
+603,Other fruits n.e.c.,others_perennial,c3per
+656,Coffee green,others_perennial,c3per
+661,Cocoa beans,others_perennial,c3per
+667,Tea leaves,others_perennial,c3per
+671,Mate leaves,others_perennial,c3per
+677,Hops,others_perennial,c3per
+687,Pepper (Piper spp.),others_perennial,c3per
+689,Chillies and peppers dry (Capsicum spp. and Pimenta spp.),others_annual,c3ann
+692,Vanilla,others_perennial,c3per
+693,Cinnamon and cinnamon-tree flowers,others_perennial,c3per
+698,Cloves (whole stems),others_perennial,c3per
+702,Nutmeg mace cardamoms raw,others_perennial,c3per
+711,Anise badian coriander cumin caraway fennel and juniper berries raw,others_annual,c3ann
+720,Ginger,others_annual,c3ann
+723,Other stimulant spice and aromatic crops n.e.c.,others_annual,c3ann
+748,Peppermint,others_annual,c3ann
+753,Pyrethrum dried flowers,others_annual,c3ann
+754,Natural rubber in primary forms,others_perennial,c3per
+773,Tobacco unmanufactured,others_annual,c3ann
+780,Sugar cane,sugarcane,c4ann
+157,Sugar beet,temperate_roots,c3ann
+826,Natural gums,others_perennial,c3per
+836,Cocoa beans,others_perennial,c3per

@@ -56,6 +56,22 @@ cli::cli_alert_success(
   "gridded_cropland: {nrow(gridded_cropland)} rows"
 )
 
+# ---- Load type-level cropland (LUH2 per crop type) -------------------
+
+type_cl_path <- file.path(input_dir, "type_cropland.parquet")
+if (file.exists(type_cl_path)) {
+  type_cropland <- nanoparquet::read_parquet(type_cl_path) |>
+    dplyr::filter(year %in% year_range)
+  cli::cli_alert_success(
+    "type_cropland: {nrow(type_cropland)} rows ({dplyr::n_distinct(type_cropland$luh2_type)} types)"
+  )
+} else {
+  type_cropland <- NULL
+  cli::cli_alert_info(
+    "No type_cropland.parquet — using total-cropland allocation"
+  )
+}
+
 # ---- Load CFT mapping ------------------------------------------------
 
 cft_path <- file.path("inst", "extdata", "cft_mapping.csv")
@@ -98,7 +114,9 @@ result_crops <- whep::build_gridded_landuse(
   crop_patterns = crop_patterns,
   gridded_cropland = gridded_cropland,
   country_grid = country_grid,
-  cft_mapping = NULL  # No aggregation → individual item_prod_codes
+  cft_mapping = NULL,            # No aggregation → individual crops
+  type_cropland = type_cropland, # Per-type LUH2 cropland (NULL = fallback)
+  type_mapping = cft_mapping     # item_prod_code → luh2_type for type-aware
 )
 
 elapsed <- (proc.time() - t_start)[["elapsed"]]

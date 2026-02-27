@@ -10,6 +10,8 @@ build_gridded_landuse(
   gridded_cropland,
   country_grid,
   cft_mapping = NULL,
+  type_cropland = NULL,
+  type_mapping = NULL,
   multicropping = NULL,
   max_iterations = 1000L,
   expansion_threshold = 100L
@@ -63,6 +65,31 @@ Expected columns:
 \item \code{cft_name}: Target crop functional type name.
 If \code{NULL}, no CFT aggregation is performed and individual crop
 results are returned.
+}}
+
+\item{type_cropland}{A tibble with per-cell, per-year, per-type
+cropland. When provided alongside \code{type_mapping}, each crop is
+allocated only into cells that contain its LUH2
+crop-functional type, giving time-varying, type-constrained
+allocation.
+Expected columns:
+\itemize{
+\item \code{lon}, \code{lat}: Cell centre coordinates.
+\item \code{year}: Integer year.
+\item \code{luh2_type}: LUH2 crop type (\code{c3ann}, \code{c4ann}, \code{c3per},
+or \code{c3nfx}).
+\item \code{type_ha}: Cropland hectares for this type.
+\item \code{type_irrig_ha}: Irrigated hectares for this type.
+If \code{NULL}, falls back to total cropland (original behaviour).
+}}
+
+\item{type_mapping}{A tibble mapping each crop to its LUH2 type.
+Expected columns:
+\itemize{
+\item \code{item_prod_code}: FAOSTAT item code.
+\item \code{luh2_type}: LUH2 crop type.
+If \code{NULL}, type-aware allocation is disabled even when
+\code{type_cropland} is provided.
 }}
 
 \item{multicropping}{A tibble with per-cell multi-cropping
