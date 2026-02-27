@@ -34,17 +34,24 @@
 #   5. Biological N fixation (BNF):
 #      - NSBNF: 13 kgN/ha (Herridge et al. 2008)
 #
-#   6. Coello et al. 2025 (planned):
+#   6. Coello et al. 2025:
 #      - Crop-group fertilization rates, 13 groups, N/P/K, 1961–2019
 #        doi:10.1038/s41597-024-04215-x
+#      - Country-level CSV from companion GitHub repo
+#        (Rscript inst/scripts/download_coello_data.R)
+#      - Used as fallback N rate in crop distribution cascade, and
+#        as proportional weights for P/K crop-level distribution.
 #
 # Outputs (to L_files/whep/inputs/):
 #   - nitrogen_inputs.parquet: crop × country × year × fert_type
+#     (includes N, NSBNF, Deposition, and P2O5/K2O when Coello available)
 #   - n_deposition.parquet: country × year deposition rates
 #   - pk_totals.parquet: P and K country × year totals
+#   - coello_crop_rates.parquet: Coello crop-group rates (cached)
 #
 # Requires: FAOSTAT CSVs, EuroAgriDB results, Global/input/,
 # HaNi NetCDFs, West manure NetCDFs, EarthStat fertilizer TIFs.
+# Optional: Coello2025/Prediction_corrected.csv
 # -----------------------------------------------------------------------
 
 library(dplyr, warn.conflicts = FALSE)
@@ -184,10 +191,11 @@ grassland_items <- c("Pasture", "range")
     ) |>
     dplyr::filter(!is.na(mg_nutrient), mg_nutrient >= 0)
 
+  n_pk_countries <- n_distinct(fert_pk$area_code)
+  n_p_obs <- sum(fert_pk$nutrient == "P")
+  n_k_obs <- sum(fert_pk$nutrient == "K")
   cli::cli_alert_success(
-    "P/K totals: {n_distinct(fert_pk$area_code)} countries, ",
-    "P={sum(fert_pk$nutrient == 'P')} obs, ",
-    "K={sum(fert_pk$nutrient == 'K')} obs"
+    "P/K totals: {n_pk_countries} countries, P={n_p_obs} obs, K={n_k_obs} obs"
   )
 
   fert_pk
@@ -258,11 +266,10 @@ grassland_items <- c("Pasture", "range")
 
   lass <- NULL
   if (file.exists(lass_file)) {
-    lass_raw <- data.table::fread(lass_file) |>
+    lass_raw <- data.table::fread(lass_file, header = TRUE) |>
       tibble::as_tibble()
 
-    # Semicolon-separated, columns: Country, X1961..X2009
-    # (or just 1961..2009 as numbers)
+    # Columns: Country, 1961..2009 (numeric year names)
     year_cols <- grep("^(X?\\d{4})$", names(lass_raw), value = TRUE)
 
     lass <- lass_raw |>
@@ -284,9 +291,10 @@ grassland_items <- c("Pasture", "range")
       filter(!is.na(area_code)) |>
       select(year, area_code, grass_share)
 
+    n_lass_ctry <- n_distinct(lass$area_code)
+    lass_yr_range <- paste0(min(lass$year), "\u2013", max(lass$year))
     cli::cli_alert_info(
-      "Lassaletta: {n_distinct(lass$area_code)} countries, ",
-      "{min(lass$year)}–{max(lass$year)}"
+      "Lassaletta: {n_lass_ctry} countries, {lass_yr_range}"
     )
   } else {
     cli::cli_alert_warning(
@@ -585,32 +593,149 @@ grassland_items <- c("Pasture", "range")
 }
 
 
-# ==== 3d. Coello et al. 2025 (future integration) =====================
+# ==== 3d. Coello et al. 2025 crop-group fertilization ==================
 
 # Coello et al. (2025) "A global gridded crop-specific fertilization
 # dataset from 1961 to 2019". doi:10.1038/s41597-024-04215-x
-# Coverage: 13 crop groups, N/P/K, 1961-2019, gridded.
-# Crop groups: Cereals excl. rice, Rice, Roots & tubers, Sugar crops,
-# Pulses, Oil crops, Vegetables, Fruits, Stimulant crops, Spices,
-# Fibre crops, Tobacco, Rubber.
+#
+# Country-level ML-predicted N, P2O5 and K2O application rates (kg/ha)
+# for 13 crop groups, 1961-2019.  Predictions are corrected to match
+# FAOSTAT country totals (IFA + IFASTAT).
+#
+# Source: Prediction_corrected.csv from companion GitHub repository
+#   https://github.com/STAN-UAntwerp/fertilizers_use_by_crop
+# Download: Rscript inst/scripts/download_coello_data.R
+#
+# Crop groups:
+#   1_1 Wheat, 1_2 Maize, 1_3 Rice, 1_4 Other cereals,
+#   2_1 Soybean, 2_2 Palm, 2_3 Other oilseeds,
+#   3_1 Vegetables, 3_2 Fruits,
+#   4 Roots and tubers, 5 Sugar crops, 6 Fiber crops, 7 Other crops
 
-.prepare_coello_inputs <- function(l_files_dir) {
+.prepare_coello_inputs <- function(l_files_dir, regions, output_dir) {
   cli::cli_h2("Coello et al. 2025 crop-group fertilization")
 
+  # -- Check for pre-computed output ---
+  coello_file <- file.path(output_dir, "coello_crop_rates.parquet")
+  if (file.exists(coello_file)) {
+    cli::cli_alert_info("Reading pre-computed Coello rates: {coello_file}")
+    return(nanoparquet::read_parquet(coello_file))
+  }
+
+  # -- Check for raw CSV ---
   coello_dir <- file.path(l_files_dir, "Coello2025")
-  if (!dir.exists(coello_dir)) {
+  csv_file <- file.path(coello_dir, "Prediction_corrected.csv")
+
+  if (!file.exists(csv_file)) {
     cli::cli_alert_info(
-      "Coello et al. 2025 data not available at {coello_dir}"
+      "Coello et al. 2025 data not found at {csv_file}"
     )
     cli::cli_alert_info(
-      "  doi:10.1038/s41597-024-04215-x \u2014 download to {coello_dir}"
+      "  Run: Rscript inst/scripts/download_coello_data.R"
     )
     return(NULL)
   }
 
-  # TODO: Read Coello gridded N/P/K time-series when data available
-  cli::cli_alert_info("Coello data reading not yet implemented")
-  NULL
+  # -- Read raw predictions ---
+  cli::cli_alert("Reading {csv_file}")
+  raw <- data.table::fread(csv_file) |>
+    tibble::as_tibble()
+
+  # Standardize column names
+  # Expected: FAOStat_area_code, Crop_Code, Year,
+  #   predicted_N_avg_app_cor, predicted_P2O5_avg_app_cor,
+  #   predicted_K2O_avg_app_cor
+  coello <- raw |>
+    transmute(
+      area_code = as.integer(FAOStat_area_code),
+      coello_crop_code = as.character(Crop_Code),
+      year = as.integer(Year),
+      kg_n_ha_coello = as.numeric(predicted_N_avg_app_cor),
+      kg_p2o5_ha_coello = as.numeric(predicted_P2O5_avg_app_cor),
+      kg_k2o_ha_coello = as.numeric(predicted_K2O_avg_app_cor)
+    ) |>
+    filter(!is.na(area_code), !is.na(year))
+
+  cli::cli_alert_info(
+    "Raw Coello: {nrow(coello)} rows, ",
+    "{n_distinct(coello$area_code)} countries, ",
+    "{min(coello$year)}\u2013{max(coello$year)}"
+  )
+
+  # -- Load crop-group mapping ---
+  mapping_file <- system.file(
+    "extdata", "coello_mapping.csv", package = "whep"
+  )
+  if (!nzchar(mapping_file)) {
+    # Fallback: read from inst/ directly (e.g. during development)
+    mapping_file <- file.path(
+      getwd(), "inst", "extdata", "coello_mapping.csv"
+    )
+  }
+  if (!file.exists(mapping_file)) {
+    cli::cli_alert_warning("coello_mapping.csv not found — returning raw rates")
+    return(coello)
+  }
+
+  coello_map <- readr::read_csv(mapping_file, show_col_types = FALSE) |>
+    select(item_prod_code, coello_crop_code, coello_crop_name)
+
+  n_mapped <- n_distinct(coello_map$item_prod_code)
+  n_groups <- n_distinct(coello_map$coello_crop_code)
+  cli::cli_alert_info(
+    "Coello mapping: {n_mapped} FAOSTAT items \u2192 {n_groups} crop groups"
+  )
+
+  # -- Expand crop-group rates to individual FAOSTAT items ---
+  # Each item in a crop group gets the same rate (kg/ha) as the group.
+  coello_items <- coello |>
+    inner_join(coello_map, by = "coello_crop_code", relationship = "many-to-many") |>
+    left_join(
+      regions |> select(area_code, area_name),
+      by = "area_code"
+    ) |>
+    filter(!is.na(area_name))
+
+  # Clamp negative predictions to zero (can occur from correction)
+  coello_items <- coello_items |>
+    mutate(
+      kg_n_ha_coello = pmax(kg_n_ha_coello, 0),
+      kg_p2o5_ha_coello = pmax(kg_p2o5_ha_coello, 0),
+      kg_k2o_ha_coello = pmax(kg_k2o_ha_coello, 0)
+    )
+
+  # -- Join item names from items_prod ---
+  items_ref <- readr::read_csv(
+    system.file("extdata", "items_prod.csv", package = "whep"),
+    show_col_types = FALSE
+  ) |>
+    select(item_prod_code, item_prod_name)
+
+  coello_items <- coello_items |>
+    left_join(items_ref, by = "item_prod_code") |>
+    select(
+      year, area_code, area_name,
+      item_prod_code, crop_name = item_prod_name,
+      coello_crop_code, coello_crop_name,
+      kg_n_ha_coello, kg_p2o5_ha_coello, kg_k2o_ha_coello
+    )
+
+  # -- Save parquet ---
+  nanoparquet::write_parquet(coello_items, coello_file)
+  sz <- round(file.size(coello_file) / 1024 / 1024, 1)
+
+  n_crops <- n_distinct(coello_items$crop_name)
+  n_ctry <- n_distinct(coello_items$area_code)
+  n_yrs <- paste0(min(coello_items$year), "\u2013", max(coello_items$year))
+
+  cli::cli_alert_success(
+    "Coello rates: {n_crops} crops \u00d7 {n_ctry} countries \u00d7 {n_yrs}"
+  )
+  cli::cli_alert_success(
+    "  Saved: {coello_file} ({sz} MB, {nrow(coello_items)} rows)"
+  )
+
+  coello_items
 }
 
 
@@ -730,6 +855,7 @@ grassland_items <- c("Pasture", "range")
   crop_synthetic <- base_rates$crop_synthetic
   west_rates <- base_rates$west_manure_rates
   es_rates <- base_rates$earthstat_synth_rates
+  coello <- base_rates$coello_rates
 
   # -- Step 1: Split N between cropland and grassland ---
   # For each country-year, compute the LU share of each N type
@@ -766,8 +892,21 @@ grassland_items <- c("Pasture", "range")
   cli::cli_alert_info("LU split done for {n_distinct(n_by_lu$area_code)} countries")
 
   # -- Step 2: Distribute cropland N among individual crops ---
-  # Uses base-year rates from Mueller (synthetic) and West (manure),
-  # then scales to match FAOSTAT country totals
+  #
+  # Strategy: three-layer approach
+  #   Layer 1 — Mueller/West/EarthStat give crop-specific AND
+  #     country-specific differentiation at a base year (~2000).
+  #   Layer 2 — Coello et al. (2025) give year-specific temporal
+
+  #     trends per crop group × country (1961–2019).  We compute a
+  #     temporal index = coello(year) / coello(base_year) and multiply
+  #     the base-year rates to propagate them across all years.
+  #   Layer 3 — Scale everything to match FAOSTAT country totals
+  #     (which are the authoritative annual constraint).
+  #
+  # This preserves item-level and geographic differentiation from the
+  # detailed spatial datasets while letting Coello drive the historical
+  # trajectory.
 
   if (is.null(crop_areas) || nrow(crop_areas) == 0) {
     cli::cli_alert_warning("No crop area data available — returning LU-level only")
@@ -781,21 +920,22 @@ grassland_items <- c("Pasture", "range")
   # Rate limit: max 4× median to avoid outliers
   rate_limit <- 4
 
-  n_crop <- crop_areas |>
-    filter(!is.na(area_ha), area_ha > 0) |>
-    left_join(cropland_n |> select(-mg_n), by = c("year", "area_code")) |>
-    filter(!is.na(mg_n_lu))
+  # ---- Layer 1: Base-year rates (crop × country, ~2000) ----
 
-  # Join base-year rates
-  if (!is.null(crop_manure)) {
-    n_crop <- n_crop |>
-      left_join(
-        crop_manure |> select(area_code, crop_name, manure_mg_n),
-        by = c("area_code", "crop_name")
-      )
-  }
+  # Build a base-rate table with one row per (area_code, crop_name,
+  # fert_type).  These are time-invariant snapshots circa 2000.
+
+  # Start with crop areas (unique crop × country combos)
+  crop_ids <- crop_areas |>
+    distinct(area_code, crop_name)
+
+  # Expand to both fert types
+  base_tbl <- crop_ids |>
+    cross_join(tibble(fert_type = c("Synthetic", "Manure")))
+
+  # Join Mueller synthetic rates
   if (!is.null(crop_synthetic)) {
-    n_crop <- n_crop |>
+    base_tbl <- base_tbl |>
       left_join(
         crop_synthetic |>
           summarize(
@@ -804,37 +944,61 @@ grassland_items <- c("Pasture", "range")
           ),
         by = c("area_code", "crop_name")
       )
+  } else {
+    base_tbl$kg_n_ha_synth <- NA_real_
+  }
+
+  # Join West manure rates
+  if (!is.null(crop_manure)) {
+    base_tbl <- base_tbl |>
+      left_join(
+        crop_manure |> select(area_code, crop_name, manure_mg_n),
+        by = c("area_code", "crop_name")
+      )
+  } else {
+    base_tbl$manure_mg_n <- NA_real_
   }
 
   # Join West gridded manure rates (kg/ha from NetCDF spatial means)
   if (!is.null(west_rates)) {
-    n_crop <- n_crop |>
+    base_tbl <- base_tbl |>
       left_join(
         west_rates |> select(area_code, crop_name, kg_n_ha_manure_west),
         by = c("area_code", "crop_name")
       )
   } else {
-    n_crop$kg_n_ha_manure_west <- NA_real_
+    base_tbl$kg_n_ha_manure_west <- NA_real_
   }
 
   # Join EarthStat spatial synthetic N rates (country-level averages)
   if (!is.null(es_rates)) {
-    n_crop <- n_crop |>
+    base_tbl <- base_tbl |>
       left_join(
         es_rates |> select(area_code, crop_name, kg_n_ha_synth_es),
         by = c("area_code", "crop_name")
       )
   } else {
-    n_crop$kg_n_ha_synth_es <- NA_real_
+    base_tbl$kg_n_ha_synth_es <- NA_real_
   }
 
-  # Compute base-year rate for each crop
-  # Priority: Mueller/CSV > West gridded > EarthStat spatial
-  n_crop <- n_crop |>
+  # We also need a reference area_ha for converting manure_mg_n.
+  # Take the median area_ha around the base year as a stable reference.
+  base_year <- 2000L
+  base_area <- crop_areas |>
+    filter(year >= base_year - 2L, year <= base_year + 2L,
+           !is.na(area_ha), area_ha > 0) |>
+    summarize(area_ha_base = median(area_ha), .by = c(area_code, crop_name))
+
+  base_tbl <- base_tbl |>
+    left_join(base_area, by = c("area_code", "crop_name"))
+
+  # Priority cascade for base-year rate
+  # Mueller/CSV > West gridded > EarthStat spatial
+  base_tbl <- base_tbl |>
     mutate(
       kg_n_ha_base = case_when(
-        fert_type == "Manure" & !is.na(manure_mg_n) ~
-          manure_mg_n * 1000 / area_ha,
+        fert_type == "Manure" & !is.na(manure_mg_n) & !is.na(area_ha_base) ~
+          manure_mg_n * 1000 / area_ha_base,
         fert_type == "Manure" & !is.na(kg_n_ha_manure_west) ~
           kg_n_ha_manure_west,
         fert_type == "Synthetic" & !is.na(kg_n_ha_synth) ~
@@ -845,25 +1009,22 @@ grassland_items <- c("Pasture", "range")
       )
     )
 
-  # Impute missing rates with cascading medians
-  n_crop <- n_crop |>
+  # Impute missing base rates with cascading medians
+  base_tbl <- base_tbl |>
     mutate(
-      # Global crop-specific median
       kg_n_ha_global_crop = median(kg_n_ha_base, na.rm = TRUE),
       .by = c("crop_name", "fert_type")
     ) |>
     mutate(
-      # Country median across all crops
       kg_n_ha_country_med = median(kg_n_ha_base, na.rm = TRUE),
-      .by = c("year", "area_code", "fert_type")
+      .by = c("area_code", "fert_type")
     ) |>
     mutate(
-      # Global all-crop median
       kg_n_ha_global = median(kg_n_ha_base, na.rm = TRUE),
       .by = "fert_type"
     ) |>
     mutate(
-      # Cap outliers at rate_limit × median
+      # Cap outliers
       kg_n_ha_capped = case_when(
         is.na(kg_n_ha_base) ~ NA_real_,
         kg_n_ha_base == 0 ~ kg_n_ha_country_med / rate_limit,
@@ -872,7 +1033,7 @@ grassland_items <- c("Pasture", "range")
         TRUE ~ kg_n_ha_base
       ),
       # Imputation cascade
-      kg_n_ha_imputed = coalesce(
+      kg_n_ha_ref = coalesce(
         kg_n_ha_capped,
         kg_n_ha_country_med,
         kg_n_ha_global_crop,
@@ -880,20 +1041,121 @@ grassland_items <- c("Pasture", "range")
       )
     )
 
-  # Scale to match FAOSTAT country totals
+  n_base_filled <- sum(!is.na(base_tbl$kg_n_ha_base))
+  n_base_total <- nrow(base_tbl)
+  cli::cli_alert_info(
+    "Base-year rates: {n_base_filled}/{n_base_total} filled before imputation"
+  )
+
+  base_ref <- base_tbl |>
+    select(area_code, crop_name, fert_type, kg_n_ha_ref)
+
+  # ---- Layer 2: Coello temporal index ----
+  # For each crop group × country, compute an index relative to
+  # the base year: idx(y) = coello_rate(y) / coello_rate(base_year).
+  # This captures the historical trajectory without overriding the
+  # crop-level differentiation from Layer 1.
+
+  coello_idx <- NULL
+  if (!is.null(coello)) {
+    # Load mapping to get Coello crop group for each FAOSTAT item
+    mapping_file <- system.file(
+      "extdata", "coello_mapping.csv", package = "whep"
+    )
+    if (!nzchar(mapping_file)) {
+      mapping_file <- file.path(
+        getwd(), "inst", "extdata", "coello_mapping.csv"
+      )
+    }
+    if (file.exists(mapping_file)) {
+      coello_map <- readr::read_csv(mapping_file, show_col_types = FALSE) |>
+        select(item_prod_code, coello_crop_code)
+
+      # Coello rates at crop-group level (one rate per group × country × year)
+      coello_group <- coello |>
+        distinct(year, area_code, coello_crop_code, kg_n_ha_coello)
+
+      # Reference value at base year (or nearest available)
+      coello_base <- coello_group |>
+        filter(year >= base_year - 2L, year <= base_year + 2L) |>
+        summarize(
+          kg_n_ha_coello_ref = median(kg_n_ha_coello, na.rm = TRUE),
+          .by = c(area_code, coello_crop_code)
+        ) |>
+        filter(!is.na(kg_n_ha_coello_ref), kg_n_ha_coello_ref > 0)
+
+      # Temporal index: rate(year) / rate(base_year)
+      coello_idx <- coello_group |>
+        inner_join(coello_base, by = c("area_code", "coello_crop_code")) |>
+        mutate(
+          coello_temporal_idx = kg_n_ha_coello / kg_n_ha_coello_ref
+        ) |>
+        select(year, area_code, coello_crop_code, coello_temporal_idx)
+
+      # Map items to crop groups
+      items_ref <- readr::read_csv(
+        system.file("extdata", "items_prod.csv", package = "whep"),
+        show_col_types = FALSE
+      ) |>
+        select(item_prod_code, item_prod_name)
+
+      item_group <- coello_map |>
+        left_join(items_ref, by = "item_prod_code") |>
+        select(crop_name = item_prod_name, coello_crop_code)
+
+      n_idx_ctry <- n_distinct(coello_idx$area_code)
+      n_idx_yrs <- paste0(min(coello_idx$year), "\u2013", max(coello_idx$year))
+      cli::cli_alert_info(
+        "Coello temporal index: {n_idx_ctry} countries, {n_idx_yrs}"
+      )
+    }
+  }
+
+  # ---- Combine: base rate × temporal index ----
+
+  n_crop <- crop_areas |>
+    filter(!is.na(area_ha), area_ha > 0) |>
+    left_join(
+      cropland_n |> select(year, area_code, fert_type, land_use, mg_n_lu),
+      by = c("year", "area_code"),
+      relationship = "many-to-many"
+    ) |>
+    filter(!is.na(mg_n_lu)) |>
+    left_join(base_ref, by = c("area_code", "crop_name", "fert_type"))
+
+  # Apply Coello temporal scaling
+  if (!is.null(coello_idx)) {
+    n_crop <- n_crop |>
+      left_join(item_group, by = "crop_name") |>
+      left_join(coello_idx,
+                by = c("year", "area_code", "coello_crop_code")) |>
+      mutate(
+        # Scale base rate by temporal index; default to 1.0 if no index
+        kg_n_ha_trended = kg_n_ha_ref * coalesce(coello_temporal_idx, 1.0)
+      ) |>
+      select(-coello_crop_code, -coello_temporal_idx)
+  } else {
+    # Without Coello, base rates are used as-is for all years
+    n_crop <- n_crop |>
+      mutate(kg_n_ha_trended = kg_n_ha_ref)
+  }
+
+  # ---- Layer 3: Scale to FAOSTAT country totals ----
+
   n_crop <- n_crop |>
     mutate(
-      mg_n_raw = kg_n_ha_imputed * area_ha / 1000,
+      mg_n_raw = kg_n_ha_trended * area_ha / 1000,
       mg_n_raw_total = sum(mg_n_raw, na.rm = TRUE),
       scaling = if_else(mg_n_raw_total > 0, mg_n_lu / mg_n_raw_total, 0),
-      kg_n_ha = kg_n_ha_imputed * scaling,
+      kg_n_ha = kg_n_ha_trended * scaling,
       mg_n_crop = kg_n_ha * area_ha / 1000,
       .by = c("year", "area_code", "fert_type")
     )
 
+  n_crop_items <- n_distinct(n_crop$crop_name)
+  n_crop_ctry <- n_distinct(n_crop$area_code)
   cli::cli_alert_success(
-    "Crop-level N: {n_distinct(n_crop$crop_name)} crops, ",
-    "{n_distinct(n_crop$area_code)} countries"
+    "Crop-level N: {n_crop_items} crops, {n_crop_ctry} countries"
   )
 
   n_crop |>
@@ -950,13 +1212,14 @@ if (file.exists(crop_areas_file)) {
       area_code,
       area_name,
       crop_name = item_prod_name,
-      area_ha
+      area_ha = harvested_area_ha
     ) |>
     filter(!is.na(area_ha), area_ha > 0)
+  n_ca_crops <- n_distinct(crop_areas$crop_name)
+  n_ca_ctry <- n_distinct(crop_areas$area_code)
+  ca_yr_range <- paste0(min(crop_areas$year), "\u2013", max(crop_areas$year))
   cli::cli_alert_info(
-    "Crop areas: {n_distinct(crop_areas$crop_name)} crops, ",
-    "{n_distinct(crop_areas$area_code)} countries, ",
-    "{min(crop_areas$year)}–{max(crop_areas$year)}"
+    "Crop areas: {n_ca_crops} crops, {n_ca_ctry} countries, {ca_yr_range}"
   )
 } else {
   cli::cli_alert_warning(
@@ -1001,8 +1264,11 @@ if (file.exists(country_grid_file)) {
   )
 }
 
-# -- Step 3c: Coello et al. 2025 (future) ---
-.prepare_coello_inputs(l_files_dir)
+# -- Step 3c: Coello et al. 2025 crop-group rates ---
+coello_rates <- .prepare_coello_inputs(l_files_dir, regions, output_dir)
+if (!is.null(coello_rates)) {
+  base_rates$coello_rates <- coello_rates
+}
 
 # -- Step 4: N deposition ---
 n_deposition <- .prepare_n_deposition(l_files_dir, regions, output_dir)
@@ -1039,8 +1305,90 @@ if (!is.null(crop_areas) && !is.null(n_deposition)) {
            area_ha, mg_n, kg_n_ha)
 }
 
-# -- Combine all nitrogen inputs ---
-all_parts <- list(n_crops, nsbnf, n_dep_crop)
+# -- Step 8: Distribute P/K to crops using Coello rates ---
+pk_crop <- NULL
+if (!is.null(crop_areas) && !is.null(coello_rates) && !is.null(pk_totals)) {
+  cli::cli_h2("Distributing P/K among crops (Coello)")
+
+  # Coello rates give crop-group-specific P2O5 and K2O kg/ha.
+  # Use these as proportional weights to distribute FAOSTAT country
+  # totals to individual crops.
+  pk_crop_raw <- crop_areas |>
+    filter(!is.na(area_ha), area_ha > 0) |>
+    left_join(
+      coello_rates |>
+        select(year, area_code, crop_name,
+               kg_p2o5_ha_coello, kg_k2o_ha_coello),
+      by = c("year", "area_code", "crop_name")
+    ) |>
+    filter(!is.na(kg_p2o5_ha_coello) | !is.na(kg_k2o_ha_coello))
+
+  if (nrow(pk_crop_raw) > 0) {
+    # pk_totals is long-form: year, area_code, nutrient (P/K), mg_nutrient
+    pk_ref <- pk_totals |>
+      filter(!is.na(mg_nutrient), mg_nutrient > 0)
+
+    # Distribute P2O5 to crops
+    pk_p <- pk_crop_raw |>
+      filter(!is.na(kg_p2o5_ha_coello)) |>
+      mutate(
+        mg_raw = kg_p2o5_ha_coello * area_ha / 1000,
+        mg_raw_total = sum(mg_raw, na.rm = TRUE),
+        .by = c("year", "area_code")
+      ) |>
+      left_join(
+        pk_ref |>
+          filter(nutrient == "P") |>
+          select(year, area_code, mg_total = mg_nutrient),
+        by = c("year", "area_code")
+      ) |>
+      filter(!is.na(mg_total), mg_raw_total > 0) |>
+      mutate(
+        scaling = mg_total / mg_raw_total,
+        kg_ha = kg_p2o5_ha_coello * scaling,
+        mg = kg_ha * area_ha / 1000,
+        fert_type = "Synthetic_P2O5",
+        land_use = "Cropland"
+      ) |>
+      select(year, area_code, area_name, crop_name, land_use, fert_type,
+             area_ha, mg_n = mg, kg_n_ha = kg_ha)
+
+    # Distribute K2O to crops
+    pk_k <- pk_crop_raw |>
+      filter(!is.na(kg_k2o_ha_coello)) |>
+      mutate(
+        mg_raw = kg_k2o_ha_coello * area_ha / 1000,
+        mg_raw_total = sum(mg_raw, na.rm = TRUE),
+        .by = c("year", "area_code")
+      ) |>
+      left_join(
+        pk_ref |>
+          filter(nutrient == "K") |>
+          select(year, area_code, mg_total = mg_nutrient),
+        by = c("year", "area_code")
+      ) |>
+      filter(!is.na(mg_total), mg_raw_total > 0) |>
+      mutate(
+        scaling = mg_total / mg_raw_total,
+        kg_ha = kg_k2o_ha_coello * scaling,
+        mg = kg_ha * area_ha / 1000,
+        fert_type = "Synthetic_K2O",
+        land_use = "Cropland"
+      ) |>
+      select(year, area_code, area_name, crop_name, land_use, fert_type,
+             area_ha, mg_n = mg, kg_n_ha = kg_ha)
+
+    pk_crop <- bind_rows(pk_p, pk_k)
+    n_pk_crops <- n_distinct(pk_crop$crop_name)
+    n_pk_ctry <- n_distinct(pk_crop$area_code)
+    cli::cli_alert_success(
+      "P/K crop distribution: {n_pk_crops} crops \u00d7 {n_pk_ctry} countries"
+    )
+  }
+}
+
+# -- Combine all nutrient inputs ---
+all_parts <- list(n_crops, nsbnf, n_dep_crop, pk_crop)
 all_parts <- all_parts[!sapply(all_parts, is.null)]
 
 if (length(all_parts) > 0) {
@@ -1087,10 +1435,10 @@ if (!is.null(pk_totals) && nrow(pk_totals) > 0) {
 cli::cli_alert_success("Done!")
 
 # --- Future extensions (TODO) ---
-# - Coello et al. 2025 (doi:10.1038/s41597-024-04215-x):
-#   Download and integrate gridded N/P/K time-series (13 crop groups,
-#   1961-2019) when data repository is accessible.
+# - Coello et al. 2025 gridded data (doi:10.6084/m9.figshare.25435432):
+#   5-arcmin GeoTIFF maps for sub-national spatial disaggregation.
+#   Country-level CSV is now integrated (Steps 3c and 8).
 # - afsetools::Calc_N_fix() for full BNF (crop + weed + NS components).
 #   Currently only NSBNF is computed.
-# - Distribute P and K to individual crops (similar to N pipeline)
-#   using EarthStat P/K rate TIFs as crop-specific base rates.
+# - Refine P/K crop-level pipeline: EarthStat P/K rate TIFs could
+#   supplement Coello for crops outside the 13-group mapping.
