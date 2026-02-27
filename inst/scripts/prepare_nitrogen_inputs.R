@@ -394,9 +394,12 @@ grassland_items <- c("Pasture", "range")
 # Reads a curated subset of West et al. gridded manure N NetCDFs
 # (17 major crops matching EarthStat coverage) and aggregates to
 # country-level average rates (kg N/ha).
+# If output_dir is provided, also saves pixel-level rates for
+# sub-national spatial index computation.
 
 .read_west_gridded_manure <- function(l_files_dir, country_grid,
-                                      items_prod, target_res = 0.5) {
+                                      items_prod, target_res = 0.5,
+                                      output_dir = NULL) {
   cli::cli_h2("West et al. 2014 gridded manure N (NetCDF)")
 
   west_dir <- file.path(l_files_dir, "Manure_Westetal2014", "N")
@@ -466,9 +469,26 @@ grassland_items <- c("Pasture", "range")
 
   if (nrow(results) == 0) return(NULL)
 
-  # Aggregate to country-level weighted averages
-  country_rates <- results |>
-    dplyr::inner_join(country_grid, by = c("lon", "lat")) |>
+  # Join with country grid (single join for both gridded + country)
+  results_geo <- results |>
+    dplyr::inner_join(country_grid, by = c("lon", "lat"))
+
+  # Save pixel-level rates for sub-national spatial index
+  if (!is.null(output_dir)) {
+    gridded_path <- file.path(output_dir, "gridded_west_manure.parquet")
+    nanoparquet::write_parquet(
+      dplyr::select(
+        results_geo, lon, lat, area_code, item_prod_code, kg_n_ha_manure
+      ),
+      gridded_path
+    )
+    cli::cli_alert_success(
+      "Gridded West manure: {nrow(results_geo)} pixels \u2192 {gridded_path}"
+    )
+  }
+
+  # Aggregate to country-level averages
+  country_rates <- results_geo |>
     dplyr::summarize(
       kg_n_ha_manure_west = mean(kg_n_ha_manure, na.rm = TRUE),
       .by = c("area_code", "item_prod_code")
@@ -494,9 +514,12 @@ grassland_items <- c("Pasture", "range")
 
 # Reads 17-crop EarthStat N application rate TIFs and averages to
 # country level for use as supplementary base-year synthetic N rates.
+# If output_dir is provided, also saves pixel-level rates for
+# sub-national spatial index computation.
 
 .read_earthstat_country_rates <- function(l_files_dir, country_grid,
-                                          items_prod, target_res = 0.5) {
+                                          items_prod, target_res = 0.5,
+                                          output_dir = NULL) {
   cli::cli_h2("EarthStat Crop Specific Fertilizer rates")
 
   fert_dir <- file.path(
@@ -570,8 +593,26 @@ grassland_items <- c("Pasture", "range")
 
   if (nrow(results) == 0) return(NULL)
 
-  country_rates <- results |>
-    dplyr::inner_join(country_grid, by = c("lon", "lat")) |>
+  # Join with country grid (single join for both gridded + country)
+  results_geo <- results |>
+    dplyr::inner_join(country_grid, by = c("lon", "lat"))
+
+  # Save pixel-level rates for sub-national spatial index
+  if (!is.null(output_dir)) {
+    gridded_path <- file.path(output_dir, "gridded_earthstat_synth.parquet")
+    nanoparquet::write_parquet(
+      dplyr::select(
+        results_geo, lon, lat, area_code, item_prod_code, kg_n_ha_synth_es
+      ),
+      gridded_path
+    )
+    cli::cli_alert_success(
+      "Gridded EarthStat synth: {nrow(results_geo)} pixels \u2192 {gridded_path}"
+    )
+  }
+
+  # Aggregate to country-level averages
+  country_rates <- results_geo |>
     dplyr::summarize(
       kg_n_ha_synth_es = mean(kg_n_ha_synth_es, na.rm = TRUE),
       .by = c("area_code", "item_prod_code")
@@ -1190,6 +1231,96 @@ grassland_items <- c("Pasture", "range")
 }
 
 
+# ==== 7. Spatial N rate index ==========================================
+
+# Computes a sub-national spatial index from pixel-level West (manure)
+# and EarthStat (synthetic) gridded rates.  For each pixel × crop ×
+# fert_type:
+#   spatial_n_index = pixel_rate / country_mean_rate
+# This captures within-country spatial variation that would otherwise
+# be lost when aggregating to country averages.
+
+.compute_spatial_n_index <- function(output_dir) {
+  cli::cli_h2("Computing spatial N rate index")
+
+  west_path <- file.path(output_dir, "gridded_west_manure.parquet")
+  es_path <- file.path(output_dir, "gridded_earthstat_synth.parquet")
+
+  parts <- list()
+
+  # --- West manure spatial index ---
+  if (file.exists(west_path)) {
+    west <- nanoparquet::read_parquet(west_path)
+
+    west_means <- west |>
+      dplyr::summarize(
+        country_mean = mean(kg_n_ha_manure, na.rm = TRUE),
+        .by = c("area_code", "item_prod_code")
+      ) |>
+      dplyr::filter(country_mean > 0)
+
+    west_idx <- west |>
+      dplyr::inner_join(west_means, by = c("area_code", "item_prod_code")) |>
+      dplyr::mutate(
+        spatial_n_index = kg_n_ha_manure / country_mean,
+        fert_type = "Manure"
+      ) |>
+      dplyr::select(lon, lat, item_prod_code, fert_type, spatial_n_index)
+
+    parts <- c(parts, list(west_idx))
+    cli::cli_alert_info(
+      "West manure spatial index: {nrow(west_idx)} pixels"
+    )
+  }
+
+  # --- EarthStat synthetic spatial index ---
+  if (file.exists(es_path)) {
+    es <- nanoparquet::read_parquet(es_path)
+
+    es_means <- es |>
+      dplyr::summarize(
+        country_mean = mean(kg_n_ha_synth_es, na.rm = TRUE),
+        .by = c("area_code", "item_prod_code")
+      ) |>
+      dplyr::filter(country_mean > 0)
+
+    es_idx <- es |>
+      dplyr::inner_join(es_means, by = c("area_code", "item_prod_code")) |>
+      dplyr::mutate(
+        spatial_n_index = kg_n_ha_synth_es / country_mean,
+        fert_type = "Synthetic"
+      ) |>
+      dplyr::select(lon, lat, item_prod_code, fert_type, spatial_n_index)
+
+    parts <- c(parts, list(es_idx))
+    cli::cli_alert_info(
+      "EarthStat synth spatial index: {nrow(es_idx)} pixels"
+    )
+  }
+
+  if (length(parts) == 0) {
+    cli::cli_alert_warning("No gridded rate data for spatial index")
+    return(NULL)
+  }
+
+  spatial_idx <- dplyr::bind_rows(parts)
+
+  # Cap extreme values (0.1–10× country mean)
+  spatial_idx <- spatial_idx |>
+    dplyr::mutate(
+      spatial_n_index = pmax(0.1, pmin(10, spatial_n_index))
+    )
+
+  idx_path <- file.path(output_dir, "spatial_n_index.parquet")
+  nanoparquet::write_parquet(spatial_idx, idx_path)
+  cli::cli_alert_success(
+    "Spatial N index: {nrow(spatial_idx)} pixels \u2192 {idx_path}"
+  )
+
+  spatial_idx
+}
+
+
 # ==== Main execution ==================================================
 
 cli::cli_h1("Preparing nitrogen inputs")
@@ -1247,16 +1378,21 @@ if (file.exists(country_grid_file)) {
   country_grid <- nanoparquet::read_parquet(country_grid_file)
 
   # West gridded manure N (17 major crops, NetCDF -> country averages)
+  # Also saves pixel-level rates for sub-national spatial index
   west_rates <- .read_west_gridded_manure(
-    l_files_dir, country_grid, items_prod, 0.5
+    l_files_dir, country_grid, items_prod, 0.5, output_dir
   )
   base_rates$west_manure_rates <- west_rates
 
   # EarthStat spatial N rates (17 crops -> country averages)
+  # Also saves pixel-level rates for sub-national spatial index
   es_rates <- .read_earthstat_country_rates(
-    l_files_dir, country_grid, items_prod, 0.5
+    l_files_dir, country_grid, items_prod, 0.5, output_dir
   )
   base_rates$earthstat_synth_rates <- es_rates
+
+  # Compute sub-national spatial N rate index from pixel-level data
+  .compute_spatial_n_index(output_dir)
 } else {
   cli::cli_alert_info(
     "country_grid.parquet not found \u2014 ",
