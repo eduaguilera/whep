@@ -157,6 +157,145 @@ summary_path <- file.path(output_dir, "landuse_summary.csv")
 readr::write_csv(summary_tbl, summary_path)
 cli::cli_alert_success("Summary saved to {summary_path}")
 
+# ---- Irrigated/rainfed ratio tables -----------------------------------
+# Literature-based irrigated/rainfed ratios per CFT for:
+#   - Yield gaps: irrigated yield / rainfed yield
+#   - N rate split: irrigated N rate / rainfed N rate
+#
+# Sources: Siebert & Döll (2010), Mueller et al. (2012),
+#   Lassaletta et al. (2014), AQUASTAT yield tables,
+#   Zhang et al. (2015).
+
+irrig_rf_ratios <- tibble::tribble(
+  ~cft_name,              ~yield_ratio, ~n_rate_ratio,
+  "temperate_cereals",    1.3,          1.3,
+  "rice",                 1.6,          1.4,
+  "maize",                1.5,          1.4,
+  "tropical_cereals",     1.3,          1.3,
+  "pulses",               1.3,          1.2,
+  "oil_crops_soybean",    1.3,          1.2,
+  "oil_crops_groundnut",  1.3,          1.3,
+  "oil_crops_sunflower",  1.3,          1.3,
+  "oil_crops_rapeseed",   1.3,          1.3,
+  "oil_crops_other",      1.3,          1.3,
+  "sugarcane",            1.2,          1.3,
+  "temperate_roots",      1.3,          1.3,
+  "tropical_roots",       1.2,          1.2,
+  "others_annual",        1.3,          1.3,
+  "others_perennial",     1.2,          1.2
+)
+
+# Map ratios from CFT to item_prod_code for cell-level joins
+item_ratios <- cft_mapping |>
+  dplyr::select(item_prod_code, cft_name) |>
+  dplyr::inner_join(irrig_rf_ratios, by = "cft_name")
+
+cli::cli_alert_success(
+  "Irrigated/rainfed ratios: {nrow(irrig_rf_ratios)} CFTs mapped to {nrow(item_ratios)} items"
+)
+
+# ---- Spatialize crop yields (if available) ----------------------------
+
+yields_file <- file.path(input_dir, "country_yields.parquet")
+yield_idx_file <- file.path(input_dir, "spatial_yield_index.parquet")
+
+if (file.exists(yields_file)) {
+  cli::cli_h2("Spatializing crop yields")
+
+  country_yields <- nanoparquet::read_parquet(yields_file)
+
+  # Load spatial yield index (EarthStat sub-national variation)
+  if (file.exists(yield_idx_file)) {
+    spatial_yield_idx <- nanoparquet::read_parquet(yield_idx_file)
+    cli::cli_alert_success(
+      "spatial_yield_index: {nrow(spatial_yield_idx)} pixels loaded"
+    )
+  } else {
+    spatial_yield_idx <- NULL
+    cli::cli_alert_info(
+      "No spatial_yield_index — using uniform country yields"
+    )
+  }
+
+  # Join gridded areas with country-level yields
+  gridded_y <- result_crops |>
+    dplyr::inner_join(country_grid, by = c("lon", "lat")) |>
+    dplyr::inner_join(
+      country_yields,
+      by = c("year", "area_code", "item_prod_code")
+    )
+
+  # Apply spatial yield index (sub-national variation)
+  if (!is.null(spatial_yield_idx)) {
+    gridded_y <- gridded_y |>
+      dplyr::left_join(
+        spatial_yield_idx,
+        by = c("lon", "lat", "item_prod_code")
+      ) |>
+      dplyr::mutate(
+        spatial_yield_index = dplyr::coalesce(spatial_yield_index, 1.0)
+      )
+
+    # Renormalize to preserve country production totals
+    gridded_y <- gridded_y |>
+      dplyr::mutate(
+        total_ha = rainfed_ha + irrigated_ha,
+        weighted_sum = sum(
+          spatial_yield_index * total_ha, na.rm = TRUE
+        ),
+        ha_sum = sum(total_ha, na.rm = TRUE),
+        renorm = dplyr::if_else(
+          weighted_sum > 0, ha_sum / weighted_sum, 1.0
+        ),
+        yield_t_ha = yield_t_ha * spatial_yield_index * renorm,
+        .by = c("year", "area_code", "item_prod_code")
+      ) |>
+      dplyr::select(
+        -spatial_yield_index, -total_ha, -weighted_sum,
+        -ha_sum, -renorm
+      )
+
+    cli::cli_alert_success("Applied sub-national yield spatial index")
+  }
+
+  # Split into irrigated/rainfed using yield ratios
+  # Conservation: yield_rf * rf_ha + yield_irr * irr_ha = yield * total_ha
+  # Ratio: yield_irr = R * yield_rf
+  # Solve: yield_rf = yield * total_ha / (rf_ha + R * irr_ha)
+  gridded_y <- gridded_y |>
+    dplyr::left_join(
+      dplyr::select(item_ratios, item_prod_code, yield_ratio),
+      by = "item_prod_code"
+    ) |>
+    dplyr::mutate(
+      yield_ratio = dplyr::coalesce(yield_ratio, 1.0),
+      total_ha = rainfed_ha + irrigated_ha,
+      denom = rainfed_ha + yield_ratio * irrigated_ha,
+      yield_rainfed = dplyr::if_else(
+        denom > 0, yield_t_ha * total_ha / denom, yield_t_ha
+      ),
+      yield_irrigated = yield_ratio * yield_rainfed,
+      rainfed_prod_t = yield_rainfed * rainfed_ha,
+      irrigated_prod_t = yield_irrigated * irrigated_ha
+    ) |>
+    dplyr::select(
+      lon, lat, year, area_code, item_prod_code,
+      rainfed_ha, irrigated_ha,
+      yield_rainfed, yield_irrigated,
+      rainfed_prod_t, irrigated_prod_t
+    )
+
+  y_path <- file.path(output_dir, "gridded_yields.parquet")
+  nanoparquet::write_parquet(gridded_y, y_path)
+  cli::cli_alert_success(
+    "Gridded yields: {nrow(gridded_y)} rows \u2192 {y_path}"
+  )
+} else {
+  cli::cli_alert_info(
+    "No country_yields.parquet — skipping yield spatialization"
+  )
+}
+
 # ---- Spatialize fertilizer inputs (if available) ----------------------
 
 n_inputs_file <- file.path(input_dir, "nitrogen_inputs.parquet")
@@ -240,14 +379,30 @@ if (file.exists(n_inputs_file)) {
     cli::cli_alert_success("Applied sub-national N rate spatial index")
   }
 
+  # Split N rates between irrigated/rainfed using crop-specific ratios
+  # Conservation: n_rf * rf_ha + n_irr * irr_ha = n * total_ha
+  # Ratio: n_irr = R * n_rf
+  # Solve: n_rf = n * total_ha / (rf_ha + R * irr_ha)
   gridded_n <- gridded_n |>
+    dplyr::left_join(
+      dplyr::select(item_ratios, item_prod_code, n_rate_ratio),
+      by = "item_prod_code"
+    ) |>
     dplyr::mutate(
-      rainfed_n_mg = rainfed_ha * kg_n_ha / 1000,
-      irrigated_n_mg = irrigated_ha * kg_n_ha / 1000
+      n_rate_ratio = dplyr::coalesce(n_rate_ratio, 1.0),
+      total_ha = rainfed_ha + irrigated_ha,
+      denom = rainfed_ha + n_rate_ratio * irrigated_ha,
+      kg_n_ha_rainfed = dplyr::if_else(
+        denom > 0, kg_n_ha * total_ha / denom, kg_n_ha
+      ),
+      kg_n_ha_irrigated = n_rate_ratio * kg_n_ha_rainfed,
+      rainfed_n_mg = rainfed_ha * kg_n_ha_rainfed / 1000,
+      irrigated_n_mg = irrigated_ha * kg_n_ha_irrigated / 1000
     ) |>
     dplyr::select(
       lon, lat, year, area_code, item_prod_code,
-      fert_type, kg_n_ha, rainfed_ha, irrigated_ha,
+      fert_type, kg_n_ha, kg_n_ha_rainfed, kg_n_ha_irrigated,
+      rainfed_ha, irrigated_ha,
       rainfed_n_mg, irrigated_n_mg
     )
 
@@ -273,7 +428,14 @@ if (file.exists(n_inputs_file)) {
     dplyr::mutate(
       total_ha = rainfed_ha + irrigated_ha,
       kg_n_ha = dplyr::if_else(
-        total_ha > 0, (rainfed_n_mg + irrigated_n_mg) * 1000 / total_ha, 0
+        total_ha > 0,
+        (rainfed_n_mg + irrigated_n_mg) * 1000 / total_ha, 0
+      ),
+      kg_n_ha_rainfed = dplyr::if_else(
+        rainfed_ha > 0, rainfed_n_mg * 1000 / rainfed_ha, 0
+      ),
+      kg_n_ha_irrigated = dplyr::if_else(
+        irrigated_ha > 0, irrigated_n_mg * 1000 / irrigated_ha, 0
       )
     )
 

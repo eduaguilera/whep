@@ -634,6 +634,193 @@ grassland_items <- c("Pasture", "range")
 }
 
 
+# ==== 3c-ii. EarthStat gridded yields + spatial yield index ============
+
+# Reads EarthStat YieldPerHectare GeoTIFFs for all mapped crops,
+# aggregates to 0.5° grid, and computes a spatial yield index
+# (pixel_yield / country_mean_yield) for sub-national yield variation.
+# Uses earthstat_mapping.csv to map EarthStat folder names to FAOSTAT
+# item_prod_codes (~151 crops).
+
+.read_earthstat_gridded_yields <- function(l_files_dir, country_grid,
+                                           items_prod,
+                                           target_res = 0.5,
+                                           output_dir = NULL) {
+  cli::cli_h2("EarthStat gridded yields")
+
+  es_dir <- file.path(
+    l_files_dir,
+    "HarvestedAreaYield175Crops_Geotiff", "GeoTiff"
+  )
+  if (!dir.exists(es_dir)) {
+    cli::cli_alert_warning("EarthStat yield dir not found: {es_dir}")
+    return(NULL)
+  }
+
+  # Load full EarthStat -> FAOSTAT mapping
+  mapping_file <- system.file(
+    "extdata", "earthstat_mapping.csv", package = "whep"
+  )
+  if (!nzchar(mapping_file)) {
+    mapping_file <- file.path(
+      getwd(), "inst", "extdata", "earthstat_mapping.csv"
+    )
+  }
+  es_map <- readr::read_csv(mapping_file, show_col_types = FALSE) |>
+    dplyr::filter(!is.na(item_prod_code))
+
+  cli::cli_alert_info(
+    "Reading yields for up to {nrow(es_map)} EarthStat crops"
+  )
+
+  results <- purrr::map(seq_len(nrow(es_map)), \(i) {
+    es_name <- es_map$earthstat_name[i]
+    code <- es_map$item_prod_code[i]
+    tif_path <- file.path(
+      es_dir, es_name,
+      paste0(es_name, "_YieldPerHectare.tif")
+    )
+    if (!file.exists(tif_path)) return(tibble::tibble())
+
+    tryCatch({
+      r <- terra::rast(tif_path)
+      src_res <- terra::res(r)[1]
+      agg_factor <- max(1L, as.integer(round(target_res / src_res)))
+      if (agg_factor > 1) {
+        r_agg <- terra::aggregate(
+          r, fact = agg_factor, fun = "mean", na.rm = TRUE
+        )
+      } else {
+        r_agg <- r
+      }
+      coords <- terra::xyFromCell(r_agg, seq_len(terra::ncell(r_agg)))
+      tibble::tibble(
+        lon = round(coords[, 1], 2),
+        lat = round(coords[, 2], 2),
+        yield_t_ha = terra::values(r_agg)[, 1]
+      ) |>
+        dplyr::filter(!is.na(yield_t_ha), yield_t_ha > 0) |>
+        dplyr::mutate(item_prod_code = code)
+    }, error = \(e) {
+      tibble::tibble()
+    })
+  }) |>
+    dplyr::bind_rows()
+
+  if (nrow(results) == 0) return(NULL)
+
+  # Join with country grid
+  results_geo <- results |>
+    dplyr::inner_join(country_grid, by = c("lon", "lat"))
+
+  n_crops <- dplyr::n_distinct(results_geo$item_prod_code)
+  n_cells <- dplyr::n_distinct(paste(results_geo$lon, results_geo$lat))
+  cli::cli_alert_info(
+    "EarthStat yields: {n_crops} crops, {n_cells} cells"
+  )
+
+  # Compute spatial yield index = pixel / country mean
+  country_means <- results_geo |>
+    dplyr::summarize(
+      country_mean_yield = mean(yield_t_ha, na.rm = TRUE),
+      .by = c("area_code", "item_prod_code")
+    ) |>
+    dplyr::filter(country_mean_yield > 0)
+
+  spatial_yield_idx <- results_geo |>
+    dplyr::inner_join(
+      country_means, by = c("area_code", "item_prod_code")
+    ) |>
+    dplyr::mutate(
+      spatial_yield_index = yield_t_ha / country_mean_yield,
+      # Cap extreme values (0.1-10x country mean)
+      spatial_yield_index = pmax(0.1, pmin(10, spatial_yield_index))
+    ) |>
+    dplyr::select(lon, lat, item_prod_code, spatial_yield_index)
+
+  if (!is.null(output_dir)) {
+    idx_path <- file.path(output_dir, "spatial_yield_index.parquet")
+    nanoparquet::write_parquet(spatial_yield_idx, idx_path)
+    cli::cli_alert_success(
+      "Spatial yield index: {nrow(spatial_yield_idx)} pixels \u2192 {idx_path}"
+    )
+  }
+
+  spatial_yield_idx
+}
+
+
+# ==== 3c-iii. FAOSTAT crop yields =====================================
+
+# Reads FAOSTAT crop yield data (element 5419 = yield in hg/ha)
+# from the Production CSV and saves as a parquet.
+
+.read_faostat_yields <- function(l_files_dir, output_dir) {
+  cli::cli_h2("FAOSTAT crop yields")
+
+  yield_file <- file.path(output_dir, "country_yields.parquet")
+  if (file.exists(yield_file)) {
+    cli::cli_alert_success("country_yields.parquet already exists")
+    return(nanoparquet::read_parquet(yield_file))
+  }
+
+  csv_path <- file.path(
+    l_files_dir, "FAOSTAT",
+    "Production_Crops_Livestock_E_All_Data_(Normalized).csv"
+  )
+  if (!file.exists(csv_path)) {
+    cli::cli_alert_warning("FAOSTAT production CSV not found: {csv_path}")
+    return(NULL)
+  }
+
+  element_yield <- 5419L
+  cft_path <- system.file(
+    "extdata", "cft_mapping.csv", package = "whep"
+  )
+  if (!nzchar(cft_path)) {
+    cft_path <- file.path("inst", "extdata", "cft_mapping.csv")
+  }
+  cft_mapping <- readr::read_csv(cft_path, show_col_types = FALSE)
+
+  fao_raw <- readr::read_csv(
+    csv_path,
+    col_types = readr::cols(
+      `Area Code` = readr::col_integer(),
+      `Item Code` = readr::col_integer(),
+      `Element Code` = readr::col_integer(),
+      Year = readr::col_integer(),
+      Value = readr::col_double(),
+      .default = readr::col_character()
+    ),
+    show_col_types = FALSE
+  )
+
+  yields <- fao_raw |>
+    dplyr::filter(
+      `Element Code` == element_yield,
+      `Item Code` %in% cft_mapping$item_prod_code,
+      `Area Code` < 5000L
+    ) |>
+    dplyr::transmute(
+      year = Year,
+      area_code = `Area Code`,
+      item_prod_code = `Item Code`,
+      yield_t_ha = dplyr::if_else(
+        is.na(Value), 0, Value / 10000  # hg/ha -> t/ha
+      )
+    ) |>
+    dplyr::filter(yield_t_ha > 0)
+
+  nanoparquet::write_parquet(yields, yield_file)
+  n_cr <- dplyr::n_distinct(yields$item_prod_code)
+  n_ct <- dplyr::n_distinct(yields$area_code)
+  cli::cli_alert_success(
+    "FAOSTAT yields: {n_cr} crops \u00d7 {n_ct} countries \u2192 {yield_file}"
+  )
+  yields
+}
+
+
 # ==== 3d. Coello et al. 2025 crop-group fertilization ==================
 
 # Coello et al. (2025) "A global gridded crop-specific fertilization
@@ -1393,12 +1580,20 @@ if (file.exists(country_grid_file)) {
 
   # Compute sub-national spatial N rate index from pixel-level data
   .compute_spatial_n_index(output_dir)
+
+  # EarthStat gridded yields → spatial yield index (~151 crops)
+  .read_earthstat_gridded_yields(
+    l_files_dir, country_grid, items_prod, 0.5, output_dir
+  )
 } else {
   cli::cli_alert_info(
     "country_grid.parquet not found \u2014 ",
     "skipping spatial rate enhancement"
   )
 }
+
+# -- Step 3b-ii: FAOSTAT crop yields ---
+.read_faostat_yields(l_files_dir, output_dir)
 
 # -- Step 3c: Coello et al. 2025 crop-group rates ---
 coello_rates <- .prepare_coello_inputs(l_files_dir, regions, output_dir)
