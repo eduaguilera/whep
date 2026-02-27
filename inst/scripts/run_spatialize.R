@@ -165,8 +165,22 @@ if (file.exists(n_inputs_file)) {
 
   n_inputs <- nanoparquet::read_parquet(n_inputs_file)
 
+  # Load sub-national spatial N index (if available)
+  spatial_idx_file <- file.path(input_dir, "spatial_n_index.parquet")
+  if (file.exists(spatial_idx_file)) {
+    spatial_n_idx <- nanoparquet::read_parquet(spatial_idx_file)
+    cli::cli_alert_success(
+      "spatial_n_index: {nrow(spatial_n_idx)} pixels loaded"
+    )
+  } else {
+    spatial_n_idx <- NULL
+    cli::cli_alert_info(
+      "No spatial_n_index.parquet — using uniform country rates"
+    )
+  }
+
   # Join gridded crop areas with N rates per crop
-  # Both use item_prod_code (via crop_name → items_prod mapping)
+  # Both use item_prod_code (via crop_name -> items_prod mapping)
   n_rates <- n_inputs |>
     dplyr::filter(!is.na(kg_n_ha), kg_n_ha > 0) |>
     dplyr::summarize(
@@ -193,7 +207,40 @@ if (file.exists(n_inputs_file)) {
     dplyr::inner_join(
       n_rates,
       by = c("year", "area_code", "item_prod_code")
-    ) |>
+    )
+
+  # Apply sub-national spatial variation (West/EarthStat pixel index)
+  if (!is.null(spatial_n_idx)) {
+    gridded_n <- gridded_n |>
+      dplyr::left_join(
+        spatial_n_idx,
+        by = c("lon", "lat", "item_prod_code", "fert_type")
+      ) |>
+      dplyr::mutate(
+        spatial_n_index = dplyr::coalesce(spatial_n_index, 1.0)
+      )
+
+    # Renormalize within (year, area_code, item_prod_code, fert_type)
+    # so that country totals are preserved after applying the index
+    gridded_n <- gridded_n |>
+      dplyr::mutate(
+        total_ha = rainfed_ha + irrigated_ha,
+        weighted_sum = sum(spatial_n_index * total_ha, na.rm = TRUE),
+        ha_sum = sum(total_ha, na.rm = TRUE),
+        renorm = dplyr::if_else(
+          weighted_sum > 0, ha_sum / weighted_sum, 1.0
+        ),
+        kg_n_ha = kg_n_ha * spatial_n_index * renorm,
+        .by = c("year", "area_code", "item_prod_code", "fert_type")
+      ) |>
+      dplyr::select(
+        -spatial_n_index, -total_ha, -weighted_sum, -ha_sum, -renorm
+      )
+
+    cli::cli_alert_success("Applied sub-national N rate spatial index")
+  }
+
+  gridded_n <- gridded_n |>
     dplyr::mutate(
       rainfed_n_mg = rainfed_ha * kg_n_ha / 1000,
       irrigated_n_mg = irrigated_ha * kg_n_ha / 1000
