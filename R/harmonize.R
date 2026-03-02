@@ -220,7 +220,7 @@ harmonize_interpolate <- function(data, ...) {
       .by = c("items", "year", dplyr::all_of(grouping_names))
     ) |>
     dplyr::select(-value, -total_value) |>
-    linear_fill(
+    fill_linear(
       value_share,
       year,
       .by = c("items", "item_code_harm", grouping_names)
