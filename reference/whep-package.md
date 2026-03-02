@@ -30,6 +30,9 @@ Authors:
 - Alice Beckmann <alice.beckmann@cchs.csic.es>
   ([ORCID](https://orcid.org/0009-0009-6840-0258))
 
+- Juan Infante <jinfama@ugr.es>
+  ([ORCID](https://orcid.org/0000-0003-1446-7181))
+
 Other contributors:
 
 - João Serra <jserra@agro.au.dk>

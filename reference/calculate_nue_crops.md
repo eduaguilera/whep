@@ -1,4 +1,4 @@
-# N soil inputs and Nitrogen Use Efficiency (NUE) for crop ————-
+# N soil inputs and Nitrogen Use Efficiency (NUE) for crop
 
 N inputs (deposition, fixation, synthetic fertilizers, urban sources,
 manure) and N production in Spain from 1860 to the present for the GRAFS
@@ -10,34 +10,47 @@ synthetic + manure + urban
 ## Usage
 
 ``` r
-calculate_nue_crops()
+calculate_nue_crops(example = FALSE)
 ```
+
+## Arguments
+
+- example:
+
+  If `TRUE`, return a small example output without downloading remote
+  data. Default is `FALSE`.
 
 ## Value
 
-A tibble containing nitrogen input, production, and NUE data. It
-includes the following columns:
+A tibble containing nitrogen use efficiency (NUE) for crops. It includes
+the following columns:
 
-- `Year`: Year.
+- `year`: Year.
 
-- `Province_name`: The Spanish province.
+- `province_name`: The Spanish province.
 
-- `Item`: The item which was produced, defined in `names_biomass_cb`.
+- `item`: The item which was produced, defined in `names_biomass_cb`.
 
-- `Box`: One of the two systems of the GRAFS model: cropland or
+- `box`: One of the two systems of the GRAFS model: cropland or
   semi-natural agroecosystems.
 
-- `deposition`: Atmospheric nitrogen deposition in megagrams (Mg).
+- `nue`: Nitrogen Use Efficiency as a percentage (%).
 
-- `fixation`: Nitrogen fixation in megagrams (Mg).
+## Examples
 
-- `synthetic`: Synthetic nitrogen fertilizer applied to the land in
-  megagrams (Mg).
-
-- `manure`: Nitrogen in manure applied to the land in megagrams (Mg).
-
-- `urban`: Nitrogen in wastewater from human sources in megagrams (Mg).
-
-- `prod`: Produced nitrogen in megagrams (Mg).
-
-- `inputs`: Total nitrogen inputs in megagrams (Mg).
+``` r
+calculate_nue_crops(example = TRUE)
+#> # A tibble: 10 × 5
+#>     year province_name item                       box                        nue
+#>    <dbl> <chr>         <chr>                      <chr>                    <dbl>
+#>  1  1937 Tenerife      Oranges, Mandarines        Cropland                97.3  
+#>  2  1905 Cantabria     Apples and products        Cropland                59.8  
+#>  3  2005 Badajoz       Firewood                   semi_natural_agroecos…   0.345
+#>  4  1968 Murcia        Millet and products        Cropland               746    
+#>  5  1943 Gipuzkoa      Hard Fibres, Other         Cropland                59.4  
+#>  6  1954 Malaga        Firewood                   semi_natural_agroecos…   0.491
+#>  7  1973 Lugo          Tomatoes and products      Cropland                28.4  
+#>  8  1953 Almeria       Lemons, Limes and products Cropland                24.4  
+#>  9  1860 Lleida        Pulses, Other and products Cropland                68.3  
+#> 10  2015 Valencia      Grapefruit and products    Cropland                 6.39 
+```

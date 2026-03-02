@@ -5,16 +5,15 @@ Get amount of crops, livestock and livestock products.
 ## Usage
 
 ``` r
-get_primary_production(version = NULL)
+get_primary_production(example = FALSE)
 ```
 
 ## Arguments
 
-- version:
+- example:
 
-  File version to use as input. See
-  [whep_inputs](https://eduaguilera.github.io/whep/reference/whep_inputs.md)
-  for details.
+  If `TRUE`, return a small example output without downloading remote
+  data. Default is `FALSE`.
 
 ## Value
 
@@ -67,22 +66,18 @@ columns:
 ## Examples
 
 ``` r
-# Note: These are smaller samples to show outputs, not the real data.
-# For all data, call the function with default version (i.e. no arguments).
-get_primary_production(version = "example")
-#> ℹ Fetching files for primary_prod...
-#> # A tibble: 10,000 × 7
-#>     year area_code item_prod_code item_cbs_code live_anim_code unit       value
-#>    <dbl>     <dbl>          <dbl>         <dbl>          <dbl> <chr>      <dbl>
-#>  1  1965        38            720          2645             NA tonnes 4460     
-#>  2  2019       213           1062          2744           1052 t_LU    581.    
-#>  3  1999        39            826          2671             NA t_ha      1.45  
-#>  4  1968       114            772           772             NA t_ha      1     
-#>  5  2001       236            406          2605             NA ha     1591     
-#>  6  1984        50            603          2625             NA tonnes   45     
-#>  7  1981       136            567          2605             NA ha      720     
-#>  8  2005        40            547          2625             NA ha     4532     
-#>  9  2009       215            977          2732            976 t_LU      0.0321
-#> 10  1996       158            191          2549             NA ha      270     
-#> # ℹ 9,990 more rows
+get_primary_production(example = TRUE)
+#> # A tibble: 10 × 7
+#>     year area_code item_prod_code item_cbs_code live_anim_code unit        value
+#>    <dbl>     <dbl>          <dbl>         <dbl>          <dbl> <chr>       <dbl>
+#>  1  1969       216           1049          1049             NA heads     4.33e+6
+#>  2  2018       100            265          2570             NA tonnes    1.57e+6
+#>  3  1962        16            987          2746            976 t_LU      1.38e-2
+#>  4  1974       101           1091          2744           1068 tonnes    3.72e+4
+#>  5  1990       225            960           960             NA LU        2.39e+4
+#>  6  2005         4            406          2605             NA ha        1.08e+4
+#>  7  1988       137           1052          1052             NA heads     4.6 e+2
+#>  8  1981       130            486          2615             NA ha        1.76e+4
+#>  9  1962       171            122          2533             NA t_ha      5.15e+0
+#> 10  1964       173           1037          2737           1049 t_head    1.67e-2
 ```

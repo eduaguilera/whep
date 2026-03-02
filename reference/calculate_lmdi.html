@@ -83,9 +83,10 @@ factors after, separated by asterisks. Supports explicit ratios with
 
 
 <dt id="arg-identity-labels">identity_labels<a class="anchor" aria-label="anchor" href="#arg-identity-labels"></a></dt>
-<dd><p>Named character vector. Custom labels for factors
-to use in output instead of variable names. Default: NULL uses variable
-names as-is.</p></dd>
+<dd><p>Character vector. Custom labels for factors
+to use in output instead of variable names. The first element labels
+the target, and subsequent elements label each factor in order.
+Default: NULL uses variable names as-is.</p></dd>
 
 
 <dt id="arg-time-var">time_var<a class="anchor" aria-label="anchor" href="#arg-time-var"></a></dt>
@@ -117,7 +118,7 @@ applied before decomposition. Default: 1 (no smoothing).</p></dd>
 
 <dt id="arg-output-format">output_format<a class="anchor" aria-label="anchor" href="#arg-output-format"></a></dt>
 <dd><p>Character. Format of output data frame. Options:
-<code>"clean"</code> (default) or <code>"detailed"</code>.</p></dd>
+<code>"clean"</code> (default) or <code>"total"</code>.</p></dd>
 
 
 <dt id="arg-verbose">verbose<a class="anchor" aria-label="anchor" href="#arg-verbose"></a></dt>
@@ -181,13 +182,14 @@ Sectoral-fuel intensity.</p></li>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="co"># Note: In these examples, 'activity' is a measure of scale (e.g., GDP in million USD, production in tonnes, or population in millions),</span></span></span>
-<span class="r-in"><span><span class="co"># and 'intensity' is the target variable per unit activity (e.g., emissions per million USD, emissions per tonne, etc.).</span></span></span>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="co"># In these examples, 'activity' is a measure of scale</span></span></span>
+<span class="r-in"><span><span class="co"># (e.g., GDP in million USD) and 'intensity' is the target</span></span></span>
+<span class="r-in"><span><span class="co"># variable per unit activity (e.g., emissions per million USD).</span></span></span>
 <span class="r-in"><span><span class="co"># The units are illustrative; adapt to your context.</span></span></span>
 <span class="r-in"><span><span class="co"># --- Shared sample data ---</span></span></span>
 <span class="r-in"><span><span class="va">data_simple</span> <span class="op">&lt;-</span> <span class="fu">tibble</span><span class="fu">::</span><span class="fu"><a href="https://tibble.tidyverse.org/reference/tribble.html" class="external-link">tribble</a></span><span class="op">(</span></span></span>
 <span class="r-in"><span>  <span class="op">~</span><span class="va">year</span>, <span class="op">~</span><span class="va">activity</span>, <span class="op">~</span><span class="va">intensity</span>, <span class="op">~</span><span class="va">emissions</span>,</span></span>
-<span class="r-in"><span>  <span class="fl">2010</span>,  <span class="fl">1000</span>,      <span class="fl">0.10</span>,       <span class="fl">100</span>,   <span class="co"># e.g., 1000 million USD, 0.10 tCO2/million USD, 100 tCO2</span></span></span>
+<span class="r-in"><span>  <span class="fl">2010</span>,  <span class="fl">1000</span>,      <span class="fl">0.10</span>,       <span class="fl">100</span>,</span></span>
 <span class="r-in"><span>  <span class="fl">2011</span>,  <span class="fl">1100</span>,      <span class="fl">0.12</span>,       <span class="fl">132</span>,</span></span>
 <span class="r-in"><span>  <span class="fl">2012</span>,  <span class="fl">1200</span>,      <span class="fl">0.09</span>,       <span class="fl">108</span>,</span></span>
 <span class="r-in"><span>  <span class="fl">2013</span>,  <span class="fl">1300</span>,      <span class="fl">0.10</span>,       <span class="fl">130</span></span></span>
@@ -474,7 +476,7 @@ Sectoral-fuel intensity.</p></li>
 
 
     <footer><div class="pkgdown-footer-left">
-  <p>Developed by Catalin Covaci, Eduardo Aguilera, Alice Beckmann, <a href="https://erc.europa.eu/homepage" class="external-link"><img src="https://erc.europa.eu/themes/custom/erc_theme/ERC_FAVICON.png" width="55" alt="European Research Council"></a>.</p>
+  <p>Developed by Catalin Covaci, Eduardo Aguilera, Alice Beckmann, Juan Infante, <a href="https://erc.europa.eu/homepage" class="external-link"><img src="https://erc.europa.eu/themes/custom/erc_theme/ERC_FAVICON.png" width="55" alt="European Research Council"></a>.</p>
 </div>
 
 <div class="pkgdown-footer-right">

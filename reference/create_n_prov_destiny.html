@@ -63,9 +63,18 @@ Processed items, residues, woody crops, grazed weeds are taken into account.</p>
 
     <div class="section level2">
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">create_n_prov_destiny</span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">create_n_prov_destiny</span><span class="op">(</span>example <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></code></pre></div>
     </div>
 
+    <div class="section level2">
+    <h2 id="arguments">Arguments<a class="anchor" aria-label="anchor" href="#arguments"></a></h2>
+
+
+<dl><dt id="arg-example">example<a class="anchor" aria-label="anchor" href="#arg-example"></a></dt>
+<dd><p>If <code>TRUE</code>, return a small example output without downloading
+remote data. Default is <code>FALSE</code>.</p></dd>
+
+</dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>A final tibble containing N flow data by origin and destiny.
@@ -81,15 +90,33 @@ Fixation, Synthetic, People (waste water), Livestock (manure).</p></li>
 <li><p><code>destiny</code>: The destiny category of N: population_food,
 population_other_uses, livestock_mono, livestock_rum (feed), export,
 Cropland (for N soil inputs).</p></li>
-<li><p><code>MgN</code>: Nitrogen amount in megagrams (Mg).</p></li>
+<li><p><code>mg_n</code>: Nitrogen amount in megagrams (Mg).</p></li>
 </ul></div>
 
+    <div class="section level2">
+    <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="fu">create_n_prov_destiny</span><span class="op">(</span>example <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 10 × 8</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     year province_name item               irrig_cat box   origin destiny    mg_n</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>              <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>  <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 1</span>  <span style="text-decoration: underline;">1</span>865 Huesca        Sugarbeet pulp     <span style="color: #BB0000;">NA</span>        Crop… Outsi… livest… 4.52<span style="color: #949494;">e</span><span style="color: #BB0000;">-3</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 2</span>  <span style="text-decoration: underline;">1</span>929 Tarragona     Olives (including… Irrigated Crop… Cropl… export  6.92<span style="color: #949494;">e</span>+1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 3</span>  <span style="text-decoration: underline;">1</span>955 Albacete      Wheat and products Rainfed   <span style="color: #BB0000;">NA</span>    Synth… Cropla… 6.16<span style="color: #949494;">e</span>+2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 4</span>  <span style="text-decoration: underline;">1</span>957 Gipuzkoa      Wheat and products <span style="color: #BB0000;">NA</span>        Crop… Outsi… popula… 8.17<span style="color: #949494;">e</span><span style="color: #BB0000;">-1</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 5</span>  <span style="text-decoration: underline;">1</span>862 Huesca        Grapes and produc… Irrigated Crop… Cropl… popula… 9.39<span style="color: #949494;">e</span><span style="color: #BB0000;">-2</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 6</span>  <span style="text-decoration: underline;">1</span>980 Lleida        Wheat and products Irrigated <span style="color: #BB0000;">NA</span>    Fixat… Cropla… 1.71<span style="color: #949494;">e</span>+2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 7</span>  <span style="text-decoration: underline;">1</span>863 A_Coruna      Millet and produc… Rainfed   <span style="color: #BB0000;">NA</span>    Fixat… Cropla… 9.95<span style="color: #949494;">e</span><span style="color: #BB0000;">-3</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 8</span>  <span style="text-decoration: underline;">1</span>987 Lugo          Tomatoes and prod… Irrigated Crop… Cropl… livest… 1.29<span style="color: #949494;">e</span><span style="color: #BB0000;">-3</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 9</span>  <span style="text-decoration: underline;">1</span>950 Castello      Apples and produc… Irrigated Crop… Cropl… livest… 1.96<span style="color: #949494;">e</span><span style="color: #BB0000;">-2</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">10</span>  <span style="text-decoration: underline;">1</span>988 Zaragoza      Grassland          <span style="color: #BB0000;">NA</span>        semi… semi_… livest… 1.32<span style="color: #949494;">e</span>+3</span>
+</code></pre></div>
+    </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside></div>
 
 
     <footer><div class="pkgdown-footer-left">
-  <p>Developed by Catalin Covaci, Eduardo Aguilera, Alice Beckmann, <a href="https://erc.europa.eu/homepage" class="external-link"><img src="https://erc.europa.eu/themes/custom/erc_theme/ERC_FAVICON.png" width="55" alt="European Research Council"></a>.</p>
+  <p>Developed by Catalin Covaci, Eduardo Aguilera, Alice Beckmann, Juan Infante, <a href="https://erc.europa.eu/homepage" class="external-link"><img src="https://erc.europa.eu/themes/custom/erc_theme/ERC_FAVICON.png" width="55" alt="European Research Council"></a>.</p>
 </div>
 
 <div class="pkgdown-footer-right">

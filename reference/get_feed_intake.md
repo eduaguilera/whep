@@ -5,16 +5,15 @@ Get amount of items used for feeding livestock.
 ## Usage
 
 ``` r
-get_feed_intake(version = NULL)
+get_feed_intake(example = FALSE)
 ```
 
 ## Arguments
 
-- version:
+- example:
 
-  File version to use as input. See
-  [whep_inputs](https://eduaguilera.github.io/whep/reference/whep_inputs.md)
-  for details.
+  If `TRUE`, return a small example output without downloading remote
+  data. Default is `FALSE`.
 
 ## Value
 
@@ -65,23 +64,19 @@ A tibble with the feed intake data. It contains the following columns:
 ## Examples
 
 ``` r
-# Note: These are smaller samples to show outputs, not the real data.
-# For all data, call the function with default version (i.e. no arguments).
-get_feed_intake(version = "example")
-#> ℹ Fetching files for feed_intake...
-#> # A tibble: 10,000 × 10
-#>     year area_code live_anim_code item_cbs_code feed_type   supply   intake
-#>    <dbl>     <dbl>          <dbl>         <dbl> <chr>        <dbl>    <dbl>
-#>  1  1983        15           1096          2102 crops         21.1     18.9
-#>  2  1985       251           1016          3000 grass     269616.  269616. 
-#>  3  2021       222           1052          2781 animals       35.9     32.3
-#>  4  2017       105           1079          2598 crops       1727.    1554. 
-#>  5  2000        39           1053          2106 residues   12662.   11396. 
-#>  6  1968        84           1016          2002 residues    3015.    2714. 
-#>  7  2008       170           1053          2595 crops       4294.    3864. 
-#>  8  2015         3            976          2101 crops         40.1     36.1
-#>  9  2002        79           1052          2558 crops       3788.    3409. 
-#> 10  2014        41           1068          2518 crops     148505.  133654. 
-#> # ℹ 9,990 more rows
+get_feed_intake(example = TRUE)
+#> # A tibble: 10 × 10
+#>     year area_code live_anim_code item_cbs_code feed_type    supply     intake
+#>    <dbl>     <dbl>          <dbl>         <dbl> <chr>         <dbl>      <dbl>
+#>  1  1990        51           1096          2515 crops        429       386    
+#>  2  2007         3            976          2570 crops          5.51      4.96 
+#>  3  1996        54            960          2531 crops       5451      4906    
+#>  4  2011        NA           1052          2532 crops          0.84      0.756
+#>  5  1996       110           1052          2549 crops         17.1      15.4  
+#>  6  1986         4           1053          2514 crops     297464    267717    
+#>  7  2010       150           1068          2595 crops       2645      2380    
+#>  8  1978        NA           1096          2536 crops        159       143    
+#>  9  2021        23           1053          2511 crops        627       347    
+#> 10  1977       114            976          2517 crops         32.5      29.2  
 #> # ℹ 3 more variables: intake_dry_matter <dbl>, loss <dbl>, loss_share <dbl>
 ```

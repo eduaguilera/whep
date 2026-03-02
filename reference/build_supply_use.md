@@ -6,46 +6,15 @@ Create a table with processes, their inputs (*use*) and their outputs
 ## Usage
 
 ``` r
-build_supply_use(
-  cbs_version = NULL,
-  feed_intake_version = NULL,
-  primary_prod_version = NULL,
-  primary_residues_version = NULL,
-  processing_coefs_version = NULL
-)
+build_supply_use(example = FALSE)
 ```
 
 ## Arguments
 
-- cbs_version:
+- example:
 
-  File version passed to
-  [`get_wide_cbs()`](https://eduaguilera.github.io/whep/reference/get_wide_cbs.md)
-  call.
-
-- feed_intake_version:
-
-  File version passed to
-  [`get_feed_intake()`](https://eduaguilera.github.io/whep/reference/get_feed_intake.md)
-  call.
-
-- primary_prod_version:
-
-  File version passed to
-  [`get_primary_production()`](https://eduaguilera.github.io/whep/reference/get_primary_production.md)
-  call.
-
-- primary_residues_version:
-
-  File version passed to
-  [`get_primary_residues()`](https://eduaguilera.github.io/whep/reference/get_primary_residues.md)
-  call.
-
-- processing_coefs_version:
-
-  File version passed to
-  [`get_processing_coefs()`](https://eduaguilera.github.io/whep/reference/get_processing_coefs.md)
-  call.
+  If `TRUE`, return a small example output without downloading remote
+  data. Default is `FALSE`.
 
 ## Value
 
@@ -123,32 +92,18 @@ following columns:
 ## Examples
 
 ``` r
-# Note: These are smaller samples to show outputs, not the real data.
-# For all data, call the function with default versions (i.e. no arguments).
-build_supply_use(
-  cbs_version = "example",
-  feed_intake_version = "example",
-  primary_prod_version = "example",
-  primary_residues_version = "example",
-  processing_coefs_version = "example"
-)
-#> ℹ Fetching files for primary_prod...
-#> ℹ Fetching files for crop_residues...
-#> ℹ Fetching files for commodity_balance_sheet...
-#> ℹ Fetching files for feed_intake...
-#> ℹ Fetching files for processing_coefs...
-#> # A tibble: 27,914 × 7
-#>     year area_code proc_group      proc_cbs_code item_cbs_code type       value
-#>    <dbl>     <dbl> <chr>                   <dbl>         <dbl> <chr>      <dbl>
-#>  1  1965        38 crop_production          2645          2645 supply     4460 
-#>  2  1984        50 crop_production          2625          2625 supply       45 
-#>  3  2003       131 crop_production          2577          2577 supply 13354800 
-#>  4  1996       235 crop_production          2517          2517 supply     1600 
-#>  5  2021        10 crop_production          2511          2511 supply 31922555.
-#>  6  1970        41 crop_production          2605          2605 supply     7000 
-#>  7  1997       222 crop_production          2605          2605 supply    12000 
-#>  8  2003        59 crop_production          2662          2662 supply     2049.
-#>  9  1966       236 crop_production          2549          2549 supply     5891 
-#> 10  1976       105 crop_production          2533          2533 supply      800 
-#> # ℹ 27,904 more rows
+build_supply_use(example = TRUE)
+#> # A tibble: 10 × 7
+#>     year area_code proc_group      proc_cbs_code item_cbs_code type      value
+#>    <dbl>     <dbl> <chr>                   <dbl>         <dbl> <chr>     <dbl>
+#>  1  2021       255 husbandry                1053          2106 use    1.17e+ 5
+#>  2  2003        84 crop_production          2511          2105 supply 1.62e+ 6
+#>  3  1982         3 husbandry                 976          2737 supply 3.67e+ 2
+#>  4  2000         8 crop_production          2534          2534 supply 2.98e+ 1
+#>  5  2013       170 husbandry                1049          2594 use    3.21e+ 3
+#>  6  1985        75 husbandry                1190          1190 supply 1.95e+ 3
+#>  7  1969       144 husbandry                1052          1052 supply 2.18e+ 0
+#>  8  2010        NA husbandry                 976          2807 use    3.33e-14
+#>  9  1998       115 processing               2544          2543 supply 3.77e+ 3
+#> 10  1967       238 husbandry                 960          2740 supply 1.05e+ 3
 ```

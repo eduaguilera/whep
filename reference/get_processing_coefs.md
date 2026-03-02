@@ -7,16 +7,15 @@ items.
 ## Usage
 
 ``` r
-get_processing_coefs(version = NULL)
+get_processing_coefs(example = FALSE)
 ```
 
 ## Arguments
 
-- version:
+- example:
 
-  File version to use as input. See
-  [whep_inputs](https://eduaguilera.github.io/whep/reference/whep_inputs.md)
-  for details.
+  If `TRUE`, return a small example output without downloading remote
+  data. Default is `FALSE`.
 
 ## Value
 
@@ -81,24 +80,20 @@ few data where this doesn't hold.
 ## Examples
 
 ``` r
-# Note: These are smaller samples to show outputs, not the real data.
-# For all data, call the function with default version (i.e. no arguments).
-get_processing_coefs(version = "example")
-#> ℹ Fetching files for processing_coefs...
-#> # A tibble: 5,000 × 10
+get_processing_coefs(example = TRUE)
+#> # A tibble: 10 × 10
 #>     year area_code item_cbs_code_to_process value_to_process
 #>    <dbl>     <dbl>                    <dbl>            <dbl>
-#>  1  2012        38                     2561           1097. 
-#>  2  2009        28                     2537         372812. 
-#>  3  1992       110                     2537        3581000  
-#>  4  1965        51                     2555          25085  
-#>  5  2008        52                     2537          94467. 
-#>  6  2000       166                     2544          25108  
-#>  7  1962       156                     2513          39031. 
-#>  8  2010        28                     2537         374089. 
-#>  9  1966       121                     2557             23.8
-#> 10  2015       231                     2559        1142825. 
-#> # ℹ 4,990 more rows
+#>  1  1974       203                     2617           1118  
+#>  2  1991        28                     2536        1928388  
+#>  3  1983        68                     2555         836000  
+#>  4  1999        68                     2559            768  
+#>  5  2020       202                     2561           1000  
+#>  6  2010        20                     2513           8183  
+#>  7  1972       226                     2559         143074  
+#>  8  1974       103                     2570            874  
+#>  9  1995       230                     2625          59452  
+#> 10  1970       223                     2511              6.8
 #> # ℹ 6 more variables: item_cbs_code_processed <dbl>,
 #> #   initial_conversion_factor <dbl>, initial_value_processed <dbl>,
 #> #   conversion_factor_scaling <dbl>, final_conversion_factor <dbl>,

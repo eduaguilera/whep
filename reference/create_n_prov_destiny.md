@@ -13,8 +13,15 @@ account.
 ## Usage
 
 ``` r
-create_n_prov_destiny()
+create_n_prov_destiny(example = FALSE)
 ```
+
+## Arguments
+
+- example:
+
+  If `TRUE`, return a small example output without downloading remote
+  data. Default is `FALSE`.
 
 ## Value
 
@@ -40,4 +47,23 @@ the following columns:
   population_other_uses, livestock_mono, livestock_rum (feed), export,
   Cropland (for N soil inputs).
 
-- `MgN`: Nitrogen amount in megagrams (Mg).
+- `mg_n`: Nitrogen amount in megagrams (Mg).
+
+## Examples
+
+``` r
+create_n_prov_destiny(example = TRUE)
+#> # A tibble: 10 × 8
+#>     year province_name item               irrig_cat box   origin destiny    mg_n
+#>    <dbl> <chr>         <chr>              <chr>     <chr> <chr>  <chr>     <dbl>
+#>  1  1865 Huesca        Sugarbeet pulp     NA        Crop… Outsi… livest… 4.52e-3
+#>  2  1929 Tarragona     Olives (including… Irrigated Crop… Cropl… export  6.92e+1
+#>  3  1955 Albacete      Wheat and products Rainfed   NA    Synth… Cropla… 6.16e+2
+#>  4  1957 Gipuzkoa      Wheat and products NA        Crop… Outsi… popula… 8.17e-1
+#>  5  1862 Huesca        Grapes and produc… Irrigated Crop… Cropl… popula… 9.39e-2
+#>  6  1980 Lleida        Wheat and products Irrigated NA    Fixat… Cropla… 1.71e+2
+#>  7  1863 A_Coruna      Millet and produc… Rainfed   NA    Fixat… Cropla… 9.95e-3
+#>  8  1987 Lugo          Tomatoes and prod… Irrigated Crop… Cropl… livest… 1.29e-3
+#>  9  1950 Castello      Apples and produc… Irrigated Crop… Cropl… livest… 1.96e-2
+#> 10  1988 Zaragoza      Grassland          NA        semi… semi_… livest… 1.32e+3
+```

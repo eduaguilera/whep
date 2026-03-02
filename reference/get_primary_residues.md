@@ -5,16 +5,15 @@ Get type and amount of residue produced for each crop production item.
 ## Usage
 
 ``` r
-get_primary_residues(version = NULL)
+get_primary_residues(example = FALSE)
 ```
 
 ## Arguments
 
-- version:
+- example:
 
-  File version to use as input. See
-  [whep_inputs](https://eduaguilera.github.io/whep/reference/whep_inputs.md)
-  for details.
+  If `TRUE`, return a small example output without downloading remote
+  data. Default is `FALSE`.
 
 ## Value
 
@@ -47,22 +46,18 @@ A tibble with the crop residue data. It contains the following columns:
 ## Examples
 
 ``` r
-# Note: These are smaller samples to show outputs, not the real data.
-# For all data, call the function with default version (i.e. no arguments).
-get_primary_residues(version = "example")
-#> ℹ Fetching files for crop_residues...
-#> # A tibble: 4,504 × 5
-#>     year area_code item_cbs_code_crop item_cbs_code_residue    value
-#>    <dbl>     <dbl>              <dbl>                 <dbl>    <dbl>
-#>  1  2003        53               2570                  2107  19903. 
-#>  2  2008        NA               2551                  2107 222849. 
-#>  3  2001        NA               2605                  2106   2309. 
-#>  4  1981       136               2605                  2106    421. 
-#>  5  2019       121               2605                  2106  19703. 
-#>  6  2005        40               2625                  2107   5904. 
-#>  7  1978       166               2605                  2106    828. 
-#>  8  1996       158               2549                  2105     92.9
-#>  9  1976        10               2612                  2107   5401. 
-#> 10  2012         3               2605                  2106  12086. 
-#> # ℹ 4,494 more rows
+get_primary_residues(example = TRUE)
+#> # A tibble: 10 × 5
+#>     year area_code item_cbs_code_crop item_cbs_code_residue  value
+#>    <dbl>     <dbl>              <dbl>                 <dbl>  <dbl>
+#>  1  2010       174               2611                  2107  46260
+#>  2  1975        54               2511                  2105 569199
+#>  3  1988        53               2561                  2106   8213
+#>  4  2020       178               2513                  2105 161992
+#>  5  1972       131               2514                  2105  38845
+#>  6  2011         4               2611                  2107 238808
+#>  7  1965       144               2517                  2105  33688
+#>  8  2018       167               2549                  2105  13578
+#>  9  1994       109               2605                  2105   5597
+#> 10  1982       194               2605                  2106 280552
 ```

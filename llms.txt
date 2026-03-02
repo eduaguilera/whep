@@ -114,10 +114,12 @@ to become familiar with the workflow if you are still not used to it.
 
 Get cleaned dataframes with project related data.
 
+### Production
+
+Production, supply/use, and processing datasets.
+
 - [`build_supply_use()`](https://eduaguilera.github.io/whep/reference/build_supply_use.md)
   : Supply and use tables
-- [`get_bilateral_trade()`](https://eduaguilera.github.io/whep/reference/get_bilateral_trade.md)
-  : Bilateral trade data
 - [`get_feed_intake()`](https://eduaguilera.github.io/whep/reference/get_feed_intake.md)
   : Livestock feed intake
 - [`get_primary_production()`](https://eduaguilera.github.io/whep/reference/get_primary_production.md)
@@ -128,6 +130,32 @@ Get cleaned dataframes with project related data.
   : Processed products share factors
 - [`get_wide_cbs()`](https://eduaguilera.github.io/whep/reference/get_wide_cbs.md)
   : Commodity balance sheet data
+
+### Trade
+
+Bilateral trade datasets.
+
+- [`get_bilateral_trade()`](https://eduaguilera.github.io/whep/reference/get_bilateral_trade.md)
+  : Bilateral trade data
+
+### Nitrogen cycles
+
+Nitrogen inputs, outputs, production, and destinies for Spain.
+
+- [`create_n_prov_destiny()`](https://eduaguilera.github.io/whep/reference/create_n_prov_destiny.md)
+  : GRAFS Nitrogen (N) flows
+- [`create_n_soil_inputs()`](https://eduaguilera.github.io/whep/reference/create_n_soil_inputs.md)
+  : Nitrogen (N) soil inputs for Spain
+- [`create_n_production()`](https://eduaguilera.github.io/whep/reference/create_n_production.md)
+  : N production for Spain
+- [`calculate_nue_crops()`](https://eduaguilera.github.io/whep/reference/calculate_nue_crops.md)
+  : N soil inputs and Nitrogen Use Efficiency (NUE) for crop
+- [`calculate_nue_livestock()`](https://eduaguilera.github.io/whep/reference/calculate_nue_livestock.md)
+  : NUE for Livestock
+- [`calculate_system_nue()`](https://eduaguilera.github.io/whep/reference/calculate_system_nue.md)
+  : System NUE
+- [`create_n_nat_destiny()`](https://eduaguilera.github.io/whep/reference/create_n_nat_destiny.md)
+  : GRAFS Nitrogen (N) flows at Spain national level
 
 ## Download large input datasets
 
@@ -184,25 +212,6 @@ Get a tidy dataframe with the found sources for different data.
 
 - [`expand_trade_sources()`](https://eduaguilera.github.io/whep/reference/expand_trade_sources.md)
   : Trade data sources
-
-## Nitrogen cycles Spain
-
-Functions to generate data for N inputs, outputs, production, destinies
-
-- [`create_n_prov_destiny()`](https://eduaguilera.github.io/whep/reference/create_n_prov_destiny.md)
-  : GRAFS Nitrogen (N) flows
-- [`create_n_soil_inputs()`](https://eduaguilera.github.io/whep/reference/create_n_soil_inputs.md)
-  : Nitrogen (N) soil inputs for Spain ———————————-
-- [`create_n_production()`](https://eduaguilera.github.io/whep/reference/create_n_production.md)
-  : N production for Spain ———————————————–
-- [`calculate_nue_crops()`](https://eduaguilera.github.io/whep/reference/calculate_nue_crops.md)
-  : N soil inputs and Nitrogen Use Efficiency (NUE) for crop ————-
-- [`calculate_nue_livestock()`](https://eduaguilera.github.io/whep/reference/calculate_nue_livestock.md)
-  : NUE for Livestock —————————————————-
-- [`calculate_system_nue()`](https://eduaguilera.github.io/whep/reference/calculate_system_nue.md)
-  : System NUE ———————————————————–
-- [`create_n_nat_destiny()`](https://eduaguilera.github.io/whep/reference/create_n_nat_destiny.md)
-  : GRAFS Nitrogen (N) flows – National Spain
 
 ## Gap filling functions
 

@@ -5,22 +5,15 @@ Reports trade between pairs of countries in given years.
 ## Usage
 
 ``` r
-get_bilateral_trade(trade_version = NULL, cbs_version = NULL)
+get_bilateral_trade(example = FALSE)
 ```
 
 ## Arguments
 
-- trade_version:
+- example:
 
-  File version used for bilateral trade input. See
-  [whep_inputs](https://eduaguilera.github.io/whep/reference/whep_inputs.md)
-  for version details.
-
-- cbs_version:
-
-  File version passed to
-  [`get_wide_cbs()`](https://eduaguilera.github.io/whep/reference/get_wide_cbs.md)
-  call.
+  If `TRUE`, return a small example output without downloading remote
+  data. Default is `FALSE`.
 
 ## Value
 
@@ -141,26 +134,18 @@ each group of year and item.
 ## Examples
 
 ``` r
-# Note: These are smaller samples to show outputs, not the real data.
-# For all data, call the function with default versions (i.e. no arguments).
-get_bilateral_trade(
-  trade_version = "example",
-  cbs_version = "example"
-)
-#> ℹ Fetching files for commodity_balance_sheet...
-#> ℹ Fetching files for bilateral_trade...
-#> # A tibble: 72 × 3
+get_bilateral_trade(example = TRUE)
+#> # A tibble: 10 × 3
 #>     year item_cbs_code bilateral_trade  
 #>    <int>         <dbl> <list>           
-#>  1  1995          2630 <dbl [187 × 187]>
-#>  2  2001          2733 <dbl [187 × 187]>
-#>  3  2005          2671 <dbl [187 × 187]>
-#>  4  2017          2513 <dbl [187 × 187]>
-#>  5  2011          2601 <dbl [187 × 187]>
-#>  6  2011          2655 <dbl [187 × 187]>
-#>  7  2015          2558 <dbl [187 × 187]>
-#>  8  2014          2577 <dbl [187 × 187]>
-#>  9  2000          2625 <dbl [187 × 187]>
-#> 10  2018          2661 <dbl [187 × 187]>
-#> # ℹ 62 more rows
+#>  1  2003          2552 <dbl [187 × 187]>
+#>  2  2015          2672 <dbl [187 × 187]>
+#>  3  2015          2664 <dbl [187 × 187]>
+#>  4  2011          2543 <dbl [187 × 187]>
+#>  5  1991          2613 <dbl [187 × 187]>
+#>  6  1999          2578 <dbl [187 × 187]>
+#>  7  2001          2590 <dbl [187 × 187]>
+#>  8  2003          2613 <dbl [187 × 187]>
+#>  9  2018          2671 <dbl [187 × 187]>
+#> 10  2021          2582 <dbl [187 × 187]>
 ```

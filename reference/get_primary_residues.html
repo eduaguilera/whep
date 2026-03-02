@@ -42,15 +42,16 @@
 
     <div class="section level2">
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">get_primary_residues</span><span class="op">(</span>version <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">get_primary_residues</span><span class="op">(</span>example <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
     <h2 id="arguments">Arguments<a class="anchor" aria-label="anchor" href="#arguments"></a></h2>
 
 
-<dl><dt id="arg-version">version<a class="anchor" aria-label="anchor" href="#arg-version"></a></dt>
-<dd><p>File version to use as input. See <a href="whep_inputs.html">whep_inputs</a> for details.</p></dd>
+<dl><dt id="arg-example">example<a class="anchor" aria-label="anchor" href="#arg-example"></a></dt>
+<dd><p>If <code>TRUE</code>, return a small example output without downloading
+remote data. Default is <code>FALSE</code>.</p></dd>
 
 </dl></div>
     <div class="section level2">
@@ -73,24 +74,20 @@ When necessary, FAOSTAT codes are extended for our needs.</p></li>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="co"># Note: These are smaller samples to show outputs, not the real data.</span></span></span>
-<span class="r-in"><span><span class="co"># For all data, call the function with default version (i.e. no arguments).</span></span></span>
-<span class="r-in"><span><span class="fu">get_primary_residues</span><span class="op">(</span>version <span class="op">=</span> <span class="st">"example"</span><span class="op">)</span></span></span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BBBB;">ℹ</span> Fetching files for crop_residues...</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 4,504 × 5</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>     year area_code item_cbs_code_crop item_cbs_code_residue    value</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>              <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 1</span>  <span style="text-decoration: underline;">2</span>003        53               <span style="text-decoration: underline;">2</span>570                  <span style="text-decoration: underline;">2</span>107  <span style="text-decoration: underline;">19</span>903. </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 2</span>  <span style="text-decoration: underline;">2</span>008        <span style="color: #BB0000;">NA</span>               <span style="text-decoration: underline;">2</span>551                  <span style="text-decoration: underline;">2</span>107 <span style="text-decoration: underline;">222</span>849. </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 3</span>  <span style="text-decoration: underline;">2</span>001        <span style="color: #BB0000;">NA</span>               <span style="text-decoration: underline;">2</span>605                  <span style="text-decoration: underline;">2</span>106   <span style="text-decoration: underline;">2</span>309. </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 4</span>  <span style="text-decoration: underline;">1</span>981       136               <span style="text-decoration: underline;">2</span>605                  <span style="text-decoration: underline;">2</span>106    421. </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 5</span>  <span style="text-decoration: underline;">2</span>019       121               <span style="text-decoration: underline;">2</span>605                  <span style="text-decoration: underline;">2</span>106  <span style="text-decoration: underline;">19</span>703. </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 6</span>  <span style="text-decoration: underline;">2</span>005        40               <span style="text-decoration: underline;">2</span>625                  <span style="text-decoration: underline;">2</span>107   <span style="text-decoration: underline;">5</span>904. </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 7</span>  <span style="text-decoration: underline;">1</span>978       166               <span style="text-decoration: underline;">2</span>605                  <span style="text-decoration: underline;">2</span>106    828. </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 8</span>  <span style="text-decoration: underline;">1</span>996       158               <span style="text-decoration: underline;">2</span>549                  <span style="text-decoration: underline;">2</span>105     92.9</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 9</span>  <span style="text-decoration: underline;">1</span>976        10               <span style="text-decoration: underline;">2</span>612                  <span style="text-decoration: underline;">2</span>107   <span style="text-decoration: underline;">5</span>401. </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">10</span>  <span style="text-decoration: underline;">2</span>012         3               <span style="text-decoration: underline;">2</span>605                  <span style="text-decoration: underline;">2</span>106  <span style="text-decoration: underline;">12</span>086. </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 4,494 more rows</span></span>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="fu">get_primary_residues</span><span class="op">(</span>example <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 10 × 5</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     year area_code item_cbs_code_crop item_cbs_code_residue  value</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>              <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>  <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 1</span>  <span style="text-decoration: underline;">2</span>010       174               <span style="text-decoration: underline;">2</span>611                  <span style="text-decoration: underline;">2</span>107  <span style="text-decoration: underline;">46</span>260</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 2</span>  <span style="text-decoration: underline;">1</span>975        54               <span style="text-decoration: underline;">2</span>511                  <span style="text-decoration: underline;">2</span>105 <span style="text-decoration: underline;">569</span>199</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 3</span>  <span style="text-decoration: underline;">1</span>988        53               <span style="text-decoration: underline;">2</span>561                  <span style="text-decoration: underline;">2</span>106   <span style="text-decoration: underline;">8</span>213</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 4</span>  <span style="text-decoration: underline;">2</span>020       178               <span style="text-decoration: underline;">2</span>513                  <span style="text-decoration: underline;">2</span>105 <span style="text-decoration: underline;">161</span>992</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 5</span>  <span style="text-decoration: underline;">1</span>972       131               <span style="text-decoration: underline;">2</span>514                  <span style="text-decoration: underline;">2</span>105  <span style="text-decoration: underline;">38</span>845</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 6</span>  <span style="text-decoration: underline;">2</span>011         4               <span style="text-decoration: underline;">2</span>611                  <span style="text-decoration: underline;">2</span>107 <span style="text-decoration: underline;">238</span>808</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 7</span>  <span style="text-decoration: underline;">1</span>965       144               <span style="text-decoration: underline;">2</span>517                  <span style="text-decoration: underline;">2</span>105  <span style="text-decoration: underline;">33</span>688</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 8</span>  <span style="text-decoration: underline;">2</span>018       167               <span style="text-decoration: underline;">2</span>549                  <span style="text-decoration: underline;">2</span>105  <span style="text-decoration: underline;">13</span>578</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 9</span>  <span style="text-decoration: underline;">1</span>994       109               <span style="text-decoration: underline;">2</span>605                  <span style="text-decoration: underline;">2</span>105   <span style="text-decoration: underline;">5</span>597</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">10</span>  <span style="text-decoration: underline;">1</span>982       194               <span style="text-decoration: underline;">2</span>605                  <span style="text-decoration: underline;">2</span>106 <span style="text-decoration: underline;">280</span>552</span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
@@ -98,7 +95,7 @@ When necessary, FAOSTAT codes are extended for our needs.</p></li>
 
 
     <footer><div class="pkgdown-footer-left">
-  <p>Developed by Catalin Covaci, Eduardo Aguilera, Alice Beckmann, <a href="https://erc.europa.eu/homepage" class="external-link"><img src="https://erc.europa.eu/themes/custom/erc_theme/ERC_FAVICON.png" width="55" alt="European Research Council"></a>.</p>
+  <p>Developed by Catalin Covaci, Eduardo Aguilera, Alice Beckmann, Juan Infante, <a href="https://erc.europa.eu/homepage" class="external-link"><img src="https://erc.europa.eu/themes/custom/erc_theme/ERC_FAVICON.png" width="55" alt="European Research Council"></a>.</p>
 </div>
 
 <div class="pkgdown-footer-right">

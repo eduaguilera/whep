@@ -5,16 +5,15 @@ States supply and use parts for each commodity balance sheet (CBS) item.
 ## Usage
 
 ``` r
-get_wide_cbs(version = NULL)
+get_wide_cbs(example = FALSE)
 ```
 
 ## Arguments
 
-- version:
+- example:
 
-  File version to use as input. See
-  [whep_inputs](https://eduaguilera.github.io/whep/reference/whep_inputs.md)
-  for details.
+  If `TRUE`, return a small example output without downloading remote
+  data. Default is `FALSE`.
 
 ## Value
 
@@ -68,24 +67,20 @@ total use excluding `export`.
 ## Examples
 
 ``` r
-# Note: These are smaller samples to show outputs, not the real data.
-# For all data, call the function with default version (i.e. no arguments).
-get_wide_cbs(version = "example")
-#> ℹ Fetching files for commodity_balance_sheet...
-#> # A tibble: 9,959 × 13
-#>     year area_code item_cbs_code processing production other_uses  feed  seed
-#>    <int>     <int>         <dbl>      <dbl>      <dbl>      <dbl> <dbl> <dbl>
-#>  1  1968       216          2775          0         0           0     0     0
-#>  2  2011        57          2731          0    297800           0     0     0
-#>  3  1962        51          2590          0         0           0     0     0
-#>  4  1973        48          2737          0      6656.          0     0     0
-#>  5  1987       171          2106          0         0           0     0     0
-#>  6  2012       129          2105          0         0           0     0     0
-#>  7  1980       162          2737          0         0           0     0     0
-#>  8  2001        97          2781          0         0           0     0     0
-#>  9  2021       250          2613          0         0           0     0     0
-#> 10  1968       202          2807          0         0           0     0     0
-#> # ℹ 9,949 more rows
-#> # ℹ 5 more variables: import <dbl>, domestic_supply <dbl>, food <dbl>,
-#> #   export <dbl>, stock_retrieval <dbl>
+get_wide_cbs(example = TRUE)
+#> # A tibble: 10 × 13
+#>     year area_code item_cbs_code domestic_supply    food production   feed  seed
+#>    <int>     <int>         <dbl>           <dbl>   <dbl>      <dbl>  <dbl> <dbl>
+#>  1  1987       250          2106      13741247       0     13741247 1.37e7     0
+#>  2  2012        41          2633         82000   82000            0 0          0
+#>  3  1984       123          2595          1207       0         3854 1.21e3     0
+#>  4  1982       165          2633            86.5    86.5          0 0          0
+#>  5  1977       159          2658          2218    2218            0 0          0
+#>  6  1995       234          2671          4312       0         2500 0          0
+#>  7  1975        10           677          2270    2270         2270 0          0
+#>  8  1961       156          2658          6877    6877         2000 0          0
+#>  9  1961       236          2620         11177   11177            0 0          0
+#> 10  1995        49          2734         71117   71117        56724 0          0
+#> # ℹ 5 more variables: import <dbl>, export <dbl>, other_uses <dbl>,
+#> #   processing <dbl>, stock_retrieval <dbl>
 ```
