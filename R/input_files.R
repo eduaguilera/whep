@@ -178,7 +178,9 @@ whep_list_file_versions <- function(file_alias) {
   version_url <- paste0(base_url, file_alias, "/", version, "/")
   cache_hash <- rlang::hash(version_url)
   cache_path <- fs::path(
-    .pins_cache_base(), "url", cache_hash
+    .pins_cache_base(),
+    "url",
+    cache_hash
   )
 
   if (fs::dir_exists(cache_path)) cache_path else NULL
@@ -189,7 +191,9 @@ whep_list_file_versions <- function(file_alias) {
   # Check the older location first since that is where existing caches
   # are most likely to be.
   old_cache <- fs::path(rappdirs::user_cache_dir(), "pins")
-  if (fs::dir_exists(old_cache)) return(old_cache)
+  if (fs::dir_exists(old_cache)) {
+    return(old_cache)
+  }
 
   tools::R_user_dir("pins", "cache")
 }
