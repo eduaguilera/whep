@@ -3,7 +3,8 @@
 #' @description
 #' Get amount of crops, livestock and livestock products.
 #'
-#' @param version File version to use as input. See [whep_inputs] for details.
+#' @param example If `TRUE`, return a small example output without downloading
+#'   remote data. Default is `FALSE`.
 #'
 #' @returns
 #' A tibble with the item production data.
@@ -37,12 +38,14 @@
 #' @export
 #'
 #' @examples
-#' # Note: These are smaller samples to show outputs, not the real data.
-#' # For all data, call the function with default version (i.e. no arguments).
-#' get_primary_production(version = "example")
-get_primary_production <- function(version = NULL) {
+#' get_primary_production(example = TRUE)
+get_primary_production <- function(example = FALSE) {
+  if (example) {
+    return(.ex_get_primary_prod())
+  }
+
   "primary_prod" |>
-    whep_read_file(version = version) |>
+    whep_read_file() |>
     dplyr::rename_with(tolower) |>
     dplyr::select(
       year,
@@ -60,7 +63,8 @@ get_primary_production <- function(version = NULL) {
 #' @description
 #' Get type and amount of residue produced for each crop production item.
 #'
-#' @param version File version to use as input. See [whep_inputs] for details.
+#' @param example If `TRUE`, return a small example output without downloading
+#'   remote data. Default is `FALSE`.
 #'
 #' @returns
 #' A tibble with the crop residue data.
@@ -84,12 +88,14 @@ get_primary_production <- function(version = NULL) {
 #' @export
 #'
 #' @examples
-#' # Note: These are smaller samples to show outputs, not the real data.
-#' # For all data, call the function with default version (i.e. no arguments).
-#' get_primary_residues(version = "example")
-get_primary_residues <- function(version = NULL) {
+#' get_primary_residues(example = TRUE)
+get_primary_residues <- function(example = FALSE) {
+  if (example) {
+    return(.example_get_primary_residues())
+  }
+
   "crop_residues" |>
-    whep_read_file(version = version) |>
+    whep_read_file() |>
     dplyr::rename_with(tolower) |>
     dplyr::filter(product_residue == "Residue") |>
     add_area_code(name_column = "area") |>
