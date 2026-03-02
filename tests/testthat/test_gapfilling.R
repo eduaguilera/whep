@@ -911,3 +911,25 @@ test_that("fill_proxy_growth value_smooth_window preserves original non-NA value
   expect_equal(result$source_value[result$year == 2013], "original")
   expect_equal(result$source_value[result$year == 2016], "original")
 })
+
+test_that("fill_proxy_growth works with capitalized time column", {
+  data <- tibble::tribble(
+    ~country, ~Year, ~gdp, ~population,
+    "ESP", 2010, 100, 46,
+    "ESP", 2011, NA, 47,
+    "ESP", 2012, 120, 48,
+    "ESP", 2013, NA, 49
+  )
+
+  result <- fill_proxy_growth(
+    data,
+    value_col = gdp,
+    proxy_col = "population",
+    time_col = Year,
+    .by = "country",
+    verbose = FALSE
+  )
+
+  expect_false(any(is.na(result$gdp)))
+  expect_equal(nrow(result), 4)
+})
