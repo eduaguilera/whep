@@ -27,9 +27,10 @@ grouping variables.}
 factors after, separated by asterisks. Supports explicit ratios with
 \code{/} and structural decomposition with \verb{[]}.}
 
-\item{identity_labels}{Named character vector. Custom labels for factors
-to use in output instead of variable names. Default: NULL uses variable
-names as-is.}
+\item{identity_labels}{Character vector. Custom labels for factors
+to use in output instead of variable names. The first element labels
+the target, and subsequent elements label each factor in order.
+Default: NULL uses variable names as-is.}
 
 \item{time_var}{Unquoted name of the time variable column in the data.
 Default: \code{year}. Must be numeric or coercible to numeric.}
@@ -49,7 +50,7 @@ data).}
 applied before decomposition. Default: 1 (no smoothing).}
 
 \item{output_format}{Character. Format of output data frame. Options:
-\code{"clean"} (default) or \code{"detailed"}.}
+\code{"clean"} (default) or \code{"total"}.}
 
 \item{verbose}{Logical. If TRUE (default), prints progress messages during
 decomposition.}
@@ -137,13 +138,14 @@ The input data frame must contain:
 }
 
 \examples{
-# Note: In these examples, 'activity' is a measure of scale (e.g., GDP in million USD, production in tonnes, or population in millions),
-# and 'intensity' is the target variable per unit activity (e.g., emissions per million USD, emissions per tonne, etc.).
+# In these examples, 'activity' is a measure of scale
+# (e.g., GDP in million USD) and 'intensity' is the target
+# variable per unit activity (e.g., emissions per million USD).
 # The units are illustrative; adapt to your context.
 # --- Shared sample data ---
 data_simple <- tibble::tribble(
   ~year, ~activity, ~intensity, ~emissions,
-  2010,  1000,      0.10,       100,   # e.g., 1000 million USD, 0.10 tCO2/million USD, 100 tCO2
+  2010,  1000,      0.10,       100,
   2011,  1100,      0.12,       132,
   2012,  1200,      0.09,       108,
   2013,  1300,      0.10,       130

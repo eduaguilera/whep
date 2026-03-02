@@ -10,6 +10,9 @@
 #' uses and feed or cropland (in case of N soil inputs).
 #' Processed items, residues, woody crops, grazed weeds are taken into account.
 #'
+#' @param example If `TRUE`, return a small example output without downloading
+#'   remote data. Default is `FALSE`.
+#'
 #' @return
 #' A final tibble containing N flow data by origin and destiny.
 #' It includes the following columns:
@@ -25,10 +28,16 @@
 #'   - `destiny`: The destiny category of N: population_food,
 #'   population_other_uses, livestock_mono, livestock_rum (feed), export,
 #'   Cropland (for N soil inputs).
-#'   - `MgN`: Nitrogen amount in megagrams (Mg).
+#'   - `mg_n`: Nitrogen amount in megagrams (Mg).
 #'
 #' @export
-create_n_prov_destiny <- function() {
+#'
+#' @examples
+#' create_n_prov_destiny(example = TRUE)
+create_n_prov_destiny <- function(example = FALSE) {
+  if (example) {
+    return(.example_create_n_prov_destiny())
+  }
   codes_coefs_items_full <- whep_read_file("codes_coefs_items_full")
   biomass_coefs <- whep_read_file("biomass_coefs")
   pie_full_destinies_fm <- whep_read_file("pie_full_destinies_fm")
@@ -57,7 +66,7 @@ create_n_prov_destiny <- function() {
     .calculate_population_share() |>
     .calculate_food_and_other_uses(pie_full_destinies_fm)
 
-  grafs_prod_item_trade <- biomass_item_merged |>
+  biomass_item_merged |>
     .remove_seeds_from_system(pie_full_destinies_fm, prod_combined_boxes) |>
     .add_grass_wood() |>
     .prepare_prod_data(
@@ -74,19 +83,21 @@ create_n_prov_destiny <- function() {
       add_feed_output$feed_share_rum_mono
     ) |>
     .add_n_soil_inputs(n_soil_inputs) |>
+    dplyr::rename_with(tolower) |>
+    dplyr::rename(mg_n = mgn) |>
     dplyr::select(
-      Year,
-      Province_name,
-      Item,
-      Irrig_cat,
-      Box,
-      Origin,
-      Destiny,
-      MgN
+      year,
+      province_name,
+      item,
+      irrig_cat,
+      box,
+      origin,
+      destiny,
+      mg_n
     )
 }
 
-#' @title GRAFS Nitrogen (N) flows – National Spain
+#' @title GRAFS Nitrogen (N) flows at Spain national level
 #'
 #' @description
 #' Provides N flows of the Spanish agro-food system on a national level
@@ -96,16 +107,39 @@ create_n_prov_destiny <- function() {
 #' inputs are aggregated nationally before calculating trade with the
 #' outside.
 #'
+#' @param example If `TRUE`, return a small example output without downloading
+#'   remote data. Default is `FALSE`.
+#'
 #' @return
 #' A final tibble containing national N flow data by origin and destiny.
+#' It includes the following columns:
+#'   - `year`: The year in which the recorded event occurred.
+#'   - `item`: The item which was produced, defined in `names_biomass_cb`.
+#'   - `irrig_cat`: Irrigation form (irrigated or rainfed)
+#'   - `box`: One of the GRAFS model systems: cropland,
+#'   Semi-natural agroecosystems, Livestock, Fish, or Agro-industry.
+#'   - `origin`: The origin category of N: Cropland,
+#'   Semi-natural agroecosystems, Livestock, Fish, Agro-industry, Deposition,
+#'   Fixation, Synthetic, People (waste water), Livestock (manure).
+#'   - `destiny`: The destiny category of N: population_food,
+#'   population_other_uses, livestock_mono, livestock_rum (feed), export,
+#'   Cropland (for N soil inputs).
+#'   - `mg_n`: Nitrogen amount in megagrams (Mg).
+#'   - `province_name`: Set to "Spain" for all national-level rows.
 #'
 #' @export
-create_n_nat_destiny <- function() {
+#'
+#' @examples
+#' create_n_nat_destiny(example = TRUE)
+create_n_nat_destiny <- function(example = FALSE) {
+  if (example) {
+    return(.example_create_n_nat_destiny())
+  }
   prov <- create_n_prov_destiny()
 
   nat_shares <- prov |>
     dplyr::filter(
-      Destiny %in%
+      destiny %in%
         c(
           "population_food",
           "population_other_uses",
@@ -113,36 +147,36 @@ create_n_nat_destiny <- function() {
           "livestock_mono"
         )
     ) |>
-    dplyr::group_by(Year, Item, Destiny) |>
-    dplyr::summarise(MgN = sum(MgN, na.rm = TRUE), .groups = "drop") |>
-    dplyr::group_by(Year, Item) |>
-    dplyr::mutate(share = MgN / sum(MgN, na.rm = TRUE)) |>
+    dplyr::group_by(year, item, destiny) |>
+    dplyr::summarise(mg_n = sum(mg_n, na.rm = TRUE), .groups = "drop") |>
+    dplyr::group_by(year, item) |>
+    dplyr::mutate(share = mg_n / sum(mg_n, na.rm = TRUE)) |>
     dplyr::ungroup() |>
-    dplyr::select(Year, Item, Destiny, share)
+    dplyr::select(year, item, destiny, share)
 
   nat_core <- prov |>
-    dplyr::filter(Origin != "Outside", Destiny != "export") |>
+    dplyr::filter(origin != "Outside", destiny != "export") |>
     dplyr::group_by(
-      Year,
-      Item,
-      Irrig_cat,
-      Box,
-      Origin,
-      Destiny
+      year,
+      item,
+      irrig_cat,
+      box,
+      origin,
+      destiny
     ) |>
     dplyr::summarise(
-      MgN = sum(MgN, na.rm = TRUE),
+      mg_n = sum(mg_n, na.rm = TRUE),
       .groups = "drop"
     ) |>
-    dplyr::mutate(Province_name = "Spain")
+    dplyr::mutate(province_name = "Spain")
 
   nat_balance <- prov |>
-    dplyr::group_by(Year, Item, Box, Irrig_cat) |>
+    dplyr::group_by(year, item, box, irrig_cat) |>
     dplyr::summarise(
-      production = sum(MgN[Origin == Box], na.rm = TRUE),
+      production = sum(mg_n[origin == box], na.rm = TRUE),
       consumption = sum(
-        MgN[
-          Destiny %in%
+        mg_n[
+          destiny %in%
             c(
               "population_food",
               "population_other_uses",
@@ -157,40 +191,40 @@ create_n_nat_destiny <- function() {
     dplyr::mutate(
       export = pmax(production - consumption, 0),
       import = pmax(consumption - production, 0),
-      Province_name = "Spain"
+      province_name = "Spain"
     )
 
   exports <- nat_balance |>
     dplyr::filter(export > 0) |>
     dplyr::transmute(
-      Year,
-      Province_name,
-      Item,
-      Irrig_cat,
-      Box,
-      Origin = Box,
-      Destiny = "export",
-      MgN = export
+      year,
+      province_name,
+      item,
+      irrig_cat,
+      box,
+      origin = box,
+      destiny = "export",
+      mg_n = export
     )
 
   imports <- nat_balance |>
     dplyr::filter(import > 0) |>
-    dplyr::left_join(nat_shares, by = c("Year", "Item")) |>
+    dplyr::left_join(nat_shares, by = c("year", "item")) |>
     dplyr::mutate(
-      MgN = pmin(import, consumption) * share,
-      Origin = "Outside",
-      Irrig_cat = NA_character_
+      mg_n = pmin(import, consumption) * share,
+      origin = "Outside",
+      irrig_cat = NA_character_
     ) |>
-    dplyr::filter(MgN > 0) |>
+    dplyr::filter(mg_n > 0) |>
     dplyr::select(
-      Year,
-      Province_name,
-      Item,
-      Irrig_cat,
-      Box,
-      Origin,
-      Destiny,
-      MgN
+      year,
+      province_name,
+      item,
+      irrig_cat,
+      box,
+      origin,
+      destiny,
+      mg_n
     )
 
   dplyr::bind_rows(
@@ -198,7 +232,7 @@ create_n_nat_destiny <- function() {
     exports,
     imports
   ) |>
-    dplyr::arrange(Year, Item, Origin, Destiny)
+    dplyr::arrange(year, item, origin, destiny)
 }
 
 #' @title Production of Cropland, Livestock, and Semi-natural agroecosystems
@@ -208,8 +242,8 @@ create_n_nat_destiny <- function() {
 #' @param names_biomass_cb Dataframe with biomass names and associated item
 #' names.
 #'
-#' @return A list with two merged dataframes: 'crop_area_npp_merged' and
-#' 'npp_ygpit_merged'.
+#' @return A tibble with npp data merged with item names from the
+#' biomass codes.
 #' @keywords internal
 #' @noRd
 .merge_items_biomass <- function(
@@ -257,6 +291,8 @@ create_n_nat_destiny <- function() {
 #' and grazed grass) ----------------------------------------------------------
 #'
 #' @param npp_ygpit_merged NPP merged data including all biomasses and items.
+#' @param crop_area_npp_prod_residue Dataframe with crop production and
+#' residues summarised per province and year.
 #'
 #' @return A dataframe combining products, residues, and grazed biomass.
 #' @keywords internal
@@ -363,9 +399,7 @@ create_n_nat_destiny <- function() {
 
 #' @title Combine Cropland, Semi_natural_agroecosystems and Livestock ----------
 #'
-#' @param combined_biomasses Dataframe of crop production.
-#' @param semi_natural_agroecosystems Dataframe of production from semi-natural
-#' agroecosystems.
+#' @param combined_biomasses Dataframe of crop and semi-natural production.
 #' @param livestock Dataframe of livestock production.
 #'
 #' @return Combined dataframe of all production systems.
@@ -390,7 +424,7 @@ create_n_nat_destiny <- function() {
 #' COMMENT: in a few cases, seeds are higher then production, so that we get
 #' negative values. When the share is over 50%, it is therefore set back to 50%.
 #'
-#' @param npp_ygpit_csv Dataframe containing crop area by province.
+#' @param npp_ygpit_merged Dataframe containing crop area by province.
 #' @param pie_full_destinies_fm Dataframe containing domestic supply by
 #' destiny, including seed usage.
 #' @param grafs_prod_combined Dataframe with total production values.
@@ -727,7 +761,10 @@ create_n_nat_destiny <- function() {
 #'
 #' @param feed_intake A dataframe with feed intake data in FM.
 #'
-#' @return A dataframe with the total FM_Mg per year, province, and item.
+#' @return A list with two elements: `feed_intake` (a tibble with total
+#' feed and pet food per year, province, and item) and
+#' `feed_share_rum_mono` (a tibble with ruminant and monogastric feed
+#' shares).
 #' @keywords internal
 #' @noRd
 .add_feed <- function(feed_intake) {
@@ -875,7 +912,6 @@ create_n_nat_destiny <- function() {
 #' @return A combined dataframe with food, feed, and other uses.
 #' @keywords internal
 #' @noRd
-#'
 .combine_destinies <- function(
   grafs_prod_item,
   feed_intake,
@@ -972,7 +1008,7 @@ create_n_nat_destiny <- function() {
 #' @keywords internal
 #' @noRd
 .convert_to_items_n <- function(
-  grafs_prod_item_combined = whep_read_file(""),
+  grafs_prod_item_combined,
   codes_coefs_items_full = whep_read_file("codes_coefs_items_full"),
   biomass_coefs = whep_read_file("biomass_coefs")
 ) {
@@ -1040,9 +1076,6 @@ create_n_nat_destiny <- function() {
 #' Spain. It should be deactivated for provincial analysis
 #'
 #' @param grafs_prod_item_n A dataframe with N values (MgN) by destiny.
-#' @param pie_full_destinies_fm A data frame with destiny data.
-#' @param biomass_coefs A data frame with biomass coefficients.
-#' @param codes_coefs_items_full A lookup table with coefficients.
 #'
 #' @return A dataframe with consumption, exports, and imports in MgN.
 #' @keywords internal
@@ -1319,7 +1352,7 @@ create_n_nat_destiny <- function() {
 #'
 #' @param grafs_prod_destiny_final A tibble from `.finalize_prod_destiny()`
 #'   containing destinies.
-#' @param n_soil_inputs A dataframe with soil inputs.
+#' @param soil_inputs A dataframe with soil inputs.
 #'
 #' @return The input dataframe extended with soil N input flows.
 #' @keywords internal

@@ -3,9 +3,8 @@
 #' @description
 #' Reports trade between pairs of countries in given years.
 #'
-#' @param cbs_version File version passed to `get_wide_cbs()` call.
-#' @param trade_version File version used for bilateral trade input.
-#'   See [whep_inputs] for version details.
+#' @param example If `TRUE`, return a small example output without
+#'   downloading remote data. Default is `FALSE`.
 #'
 #' @returns
 #' A tibble with the reported trade between countries. For efficient
@@ -97,18 +96,17 @@
 #' @export
 #'
 #' @examples
-#' # Note: These are smaller samples to show outputs, not the real data.
-#' # For all data, call the function with default versions (i.e. no arguments).
-#' get_bilateral_trade(
-#'   trade_version = "example",
-#'   cbs_version = "example"
-#' )
-get_bilateral_trade <- function(trade_version = NULL, cbs_version = NULL) {
-  cbs <- get_wide_cbs(version = cbs_version) |>
+#' get_bilateral_trade(example = TRUE)
+get_bilateral_trade <- function(example = FALSE) {
+  if (example) {
+    return(.example_get_bilateral_trade())
+  }
+
+  cbs <- get_wide_cbs() |>
     dplyr::select(year, item_cbs_code, area_code, export, import)
 
   btd <- "bilateral_trade" |>
-    whep_read_file(version = trade_version) |>
+    whep_read_file() |>
     .clean_bilateral_trade()
 
   codes <- .get_all_country_codes(btd, cbs)

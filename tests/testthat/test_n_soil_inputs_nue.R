@@ -52,7 +52,7 @@ test_that(".calculate_n_soil_inputs assigns Firewood correctly", {
 
 test_that(".calculate_n_production sums production correctly", {
   grafs <- tibble::tribble(
-    ~Year, ~Province_name, ~Item, ~Box, ~Destiny, ~MgN,
+    ~year, ~province_name, ~item, ~box, ~destiny, ~mg_n,
     2000, "A", "Wheat", "Cropland", "population_food", 5,
     2000, "A", "Wheat", "Cropland", "population_other_uses", 0,
     2000, "A", "Wheat", "Cropland", "livestock_rum", 2,
@@ -60,18 +60,18 @@ test_that(".calculate_n_production sums production correctly", {
     2000, "A", "Wheat", "Cropland", "export", 3
   ) |>
     tidyr::complete(
-      Year,
-      Province_name,
-      Item,
-      Box,
-      Destiny = c(
+      year,
+      province_name,
+      item,
+      box,
+      destiny = c(
         "population_food",
         "population_other_uses",
         "livestock_rum",
         "livestock_mono",
         "export"
       ),
-      fill = list(MgN = 0)
+      fill = list(mg_n = 0)
     )
 
   out <- .calculate_n_production(grafs)
