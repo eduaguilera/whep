@@ -3,7 +3,8 @@
 #' @description
 #' States supply and use parts for each commodity balance sheet (CBS) item.
 #'
-#' @param version File version to use as input. See [whep_inputs] for details.
+#' @param example If `TRUE`, return a small example output without downloading
+#'   remote data. Default is `FALSE`.
 #'
 #' @returns
 #' A tibble with the commodity balance sheet data in wide format.
@@ -41,12 +42,14 @@
 #' @export
 #'
 #' @examples
-#' # Note: These are smaller samples to show outputs, not the real data.
-#' # For all data, call the function with default version (i.e. no arguments).
-#' get_wide_cbs(version = "example")
-get_wide_cbs <- function(version = NULL) {
+#' get_wide_cbs(example = TRUE)
+get_wide_cbs <- function(example = FALSE) {
+  if (example) {
+    return(.example_get_wide_cbs())
+  }
+
   "commodity_balance_sheet" |>
-    whep_read_file(version = version) |>
+    whep_read_file() |>
     tidyr::pivot_wider(
       names_from = Element,
       values_from = Value,
@@ -68,7 +71,8 @@ get_wide_cbs <- function(version = NULL) {
 #' Reports quantities of commodity balance sheet items used for `processing`
 #' and quantities of their corresponding processed output items.
 #'
-#' @param version File version to use as input. See [whep_inputs] for details.
+#' @param example If `TRUE`, return a small example output without downloading
+#'   remote data. Default is `FALSE`.
 #'
 #' @returns
 #' A tibble with the quantities for each processed product.
@@ -116,12 +120,14 @@ get_wide_cbs <- function(version = NULL) {
 #' @export
 #'
 #' @examples
-#' # Note: These are smaller samples to show outputs, not the real data.
-#' # For all data, call the function with default version (i.e. no arguments).
-#' get_processing_coefs(version = "example")
-get_processing_coefs <- function(version = NULL) {
+#' get_processing_coefs(example = TRUE)
+get_processing_coefs <- function(example = FALSE) {
+  if (example) {
+    return(.example_get_processing_coefs())
+  }
+
   "processing_coefs" |>
-    whep_read_file(version = version) |>
+    whep_read_file() |>
     dplyr::select(-Item, -Element) |>
     dplyr::rename_with(tolower) |>
     add_item_cbs_code(name_column = "item") |>
