@@ -23,9 +23,10 @@ fill_sum(
 
 \item{time_col}{The column containing time values. Default: \code{year}.}
 
-\item{start_with_zero}{Logical. If TRUE, assumes an invisible 0 value before
-the first observation and fills with cumulative sum starting from the first
-change_col value. If FALSE (default), starting NA values remain unfilled.}
+\item{start_with_zero}{Logical. If TRUE (default), assumes an invisible 0
+value before the first observation and fills with cumulative sum starting
+from the first change_col value. If FALSE, starting NA values remain
+unfilled.}
 
 \item{.by}{A character vector with the grouping variables (optional).}
 }
