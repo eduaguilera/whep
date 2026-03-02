@@ -57,11 +57,17 @@ whep_read_file <- function(file_alias, type = "parquet", version = NULL) {
   version <- .choose_version(file_info$version, version)
 
   paths <- tryCatch(
-    file_info |>
-      .get_remote_board() |>
+    .get_local_board() |>
       pins::pin_download(file_alias, version = version),
     error = function(e) {
-      .get_cache_paths(file_info, file_alias, version, e)
+      tryCatch(
+        file_info |>
+          .get_remote_board() |>
+          pins::pin_download(file_alias, version = version),
+        error = function(e) {
+          .get_cache_paths(file_info, file_alias, version, e)
+        }
+      )
     }
   )
 
@@ -85,9 +91,13 @@ whep_read_file <- function(file_alias, type = "parquet", version = NULL) {
 #' @examples
 #' whep_list_file_versions("read_example")
 whep_list_file_versions <- function(file_alias) {
-  board <- file_alias |>
-    .fetch_file_info(whep::whep_inputs) |>
-    .get_remote_board()
+  board <- if (file_alias == "read_example") {
+    .get_local_board()
+  } else {
+    file_alias |>
+      .fetch_file_info(whep::whep_inputs) |>
+      .get_remote_board()
+  }
 
   board |>
     pins::pin_versions(file_alias)
@@ -117,6 +127,11 @@ whep_list_file_versions <- function(file_alias) {
 
   board_url |>
     .build_board_with_progress()
+}
+
+.get_local_board <- function() {
+  system.file("extdata", "examples", package = "whep") |>
+    pins::board_folder()
 }
 
 .check_remote_reachable <- function(board_url) {
@@ -187,15 +202,7 @@ whep_list_file_versions <- function(file_alias) {
 }
 
 .pins_cache_base <- function() {
-  # pins < 1.4.0 used rappdirs, newer versions use tools::R_user_dir.
-  # Check the older location first since that is where existing caches
-  # are most likely to be.
-  old_cache <- fs::path(rappdirs::user_cache_dir(), "pins")
-  if (fs::dir_exists(old_cache)) {
-    return(old_cache)
-  }
-
-  tools::R_user_dir("pins", "cache")
+  rappdirs::user_cache_dir("pins")
 }
 
 .choose_version <- function(frozen_version, user_version) {

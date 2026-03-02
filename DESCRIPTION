@@ -25,6 +25,7 @@ Imports:
     nanoparquet,
     pins,
     purrr,
+    rappdirs,
     readr,
     rlang,
     stringr,
