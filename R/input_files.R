@@ -56,9 +56,17 @@ whep_read_file <- function(file_alias, type = "parquet", version = NULL) {
   file_info <- .fetch_file_info(file_alias, whep::whep_inputs)
   version <- .choose_version(file_info$version, version)
 
-  file_info |>
-    .get_remote_board() |>
-    .download_and_read(file_alias, type, version)
+  paths <- tryCatch(
+    file_info |>
+      .get_remote_board() |>
+      pins::pin_download(file_alias, version = version),
+    error = function(e) {
+      .get_cache_paths(file_info, file_alias, version, e)
+    }
+  )
+
+  paths |>
+    .read_file(type)
 }
 
 #' Input file versions
@@ -104,15 +112,86 @@ whep_list_file_versions <- function(file_alias) {
 }
 
 .get_remote_board <- function(file_info) {
-  file_info |>
-    purrr::pluck("board_url") |>
+  board_url <- purrr::pluck(file_info, "board_url")
+  .check_remote_reachable(board_url)
+
+  board_url |>
     .build_board_with_progress()
 }
 
-.download_and_read <- function(board, file_alias, type, version) {
-  board |>
-    pins::pin_download(file_alias, version = version) |>
-    .read_file(type)
+.check_remote_reachable <- function(board_url) {
+  url <- board_url[[1]]
+  host <- httr::parse_url(url)$hostname
+
+  response <- tryCatch(
+    httr::HEAD(
+      paste0("https://", host),
+      httr::timeout(5)
+    ),
+    error = function(e) NULL
+  )
+
+  if (is.null(response)) {
+    cli::cli_abort(
+      "Remote host {.val {host}} is not reachable."
+    )
+  }
+
+  invisible(NULL)
+}
+
+.get_cache_paths <- function(
+  file_info,
+  file_alias,
+  version,
+  original_error
+) {
+  cache_dir <- .find_cache_dir(file_info, file_alias, version)
+
+  if (is.null(cache_dir)) {
+    cli::cli_abort(
+      c(
+        "Could not fetch {.val {file_alias}} from remote source.",
+        "x" = "No local cached copy was found either.",
+        "i" = "Connect to the internet and try again.",
+        "Caused by" = conditionMessage(original_error)
+      )
+    )
+  }
+
+  cli::cli_warn(
+    c(
+      "Could not reach remote data source.",
+      "i" = "Using cached local copy of {.val {file_alias}}."
+    )
+  )
+
+  cache_dir |>
+    list.files(full.names = TRUE)
+}
+
+.find_cache_dir <- function(file_info, file_alias, version) {
+  base_url <- file_info |>
+    purrr::pluck("board_url") |>
+    stringr::str_replace("_pins\\.yaml$", "")
+
+  version_url <- paste0(base_url, file_alias, "/", version, "/")
+  cache_hash <- rlang::hash(version_url)
+  cache_path <- fs::path(
+    .pins_cache_base(), "url", cache_hash
+  )
+
+  if (fs::dir_exists(cache_path)) cache_path else NULL
+}
+
+.pins_cache_base <- function() {
+  # pins < 1.4.0 used rappdirs, newer versions use tools::R_user_dir.
+  # Check the older location first since that is where existing caches
+  # are most likely to be.
+  old_cache <- fs::path(rappdirs::user_cache_dir(), "pins")
+  if (fs::dir_exists(old_cache)) return(old_cache)
+
+  tools::R_user_dir("pins", "cache")
 }
 
 .choose_version <- function(frozen_version, user_version) {
