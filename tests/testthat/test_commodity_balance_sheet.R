@@ -15,7 +15,7 @@ testthat::test_that("get_wide_cbs gives consistent Commodity Balance Sheet", {
   testthat::skip_on_ci()
   testthat::skip_on_cran()
 
-  cbs <- get_wide_cbs() |>
+  cbs <- suppressWarnings(get_wide_cbs()) |>
     dplyr::filter(!(item_cbs_code %in% k_ignore_unbalanced)) |>
     dplyr::mutate(
       value_in = production + import + stock_retrieval,
@@ -42,8 +42,8 @@ testthat::test_that("get_codes_coeffs gives consistent shares of processed items
   testthat::skip_on_ci()
   testthat::skip_on_cran()
 
-  coefs <- get_processing_coefs()
-  cbs <- get_wide_cbs()
+  coefs <- suppressWarnings(get_processing_coefs())
+  cbs <- suppressWarnings(get_wide_cbs())
 
   df <- coefs |>
     dplyr::left_join(
