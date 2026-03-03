@@ -2,7 +2,7 @@
 % Please edit documentation in R/harmonize.R
 \name{harmonize_simple}
 \alias{harmonize_simple}
-\title{Harmonize rows labelled "Simple" by summing values}
+\title{Harmonize rows labeled "simple" by summing values}
 \usage{
 harmonize_simple(data, ...)
 }
@@ -12,7 +12,8 @@ harmonize_simple(data, ...)
 \item \code{item_code_harm}: Numeric, code for harmonized item.
 \item \code{year}: Numeric, year of observation.
 \item \code{value}: Numeric, value of observation.
-\item \code{type}: String, harmonization type (only "Simple" rows are used).
+\item \code{type}: String, harmonization type. Only \code{"simple"} rows
+are used.
 }}
 
 \item{...}{Additional grouping columns supplied as bare names.}
@@ -27,11 +28,48 @@ A tibble with columns:
 }
 }
 \description{
-Sum \code{value} for rows where \code{type == "Simple"}.
-The results are grouped by \code{item_code_harm}, \code{year} and any
-additional grouping columns supplied via \code{...}.
+Sum \code{value} for rows where \code{type == "simple"}.
+This covers both 1:1 and N:1 item mappings, since in both
+cases the values are simply summed. The results are grouped
+by \code{item_code_harm}, \code{year} and any additional grouping
+columns supplied via \code{...}.
 }
 \examples{
-# TODO: add example
-# df |> harmonize_simple(country)
+# 1:1 mapping: one original item -> one harmonized code
+df_one_to_one <- tibble::tribble(
+  ~item_code_harm, ~year, ~value, ~type,
+  1,               2000,  10,     "simple",
+  2,               2000,   3,     "simple",
+  1,               2001,  12,     "simple",
+  2,               2001,   5,     "simple"
+)
+harmonize_simple(df_one_to_one)
+
+# N:1 mapping: multiple items map to the same code
+df_many_to_one <- tibble::tribble(
+  ~item_code_harm, ~year, ~value, ~type,
+  1,               2000,   4,     "simple",
+  1,               2000,   6,     "simple",
+  2,               2000,   3,     "simple"
+)
+harmonize_simple(df_many_to_one)
+
+# With an extra grouping column (e.g. country)
+df_grouped <- tibble::tribble(
+  ~item_code_harm, ~year, ~value, ~type,    ~country,
+  1,               2000,   4,     "simple", "usa",
+  1,               2000,   6,     "simple", "usa",
+  1,               2000,   9,     "simple", "germany",
+  2,               2000,   3,     "simple", "usa"
+)
+harmonize_simple(df_grouped, country)
+
+# Rows with type != "simple" are ignored
+df_mixed <- tibble::tribble(
+  ~item_code_harm, ~year, ~value, ~type,
+  1,               2000,  10,     "simple",
+  1,               2000,  99,     "1:n",
+  2,               2000,   3,     "simple"
+)
+harmonize_simple(df_mixed)
 }
