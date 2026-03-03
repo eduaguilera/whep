@@ -122,3 +122,12 @@ Functions for index decomposition analysis.
 
 - [`calculate_lmdi()`](https://eduaguilera.github.io/whep/reference/calculate_lmdi.md)
   : Calculate LMDI decomposition.
+
+## Harmonization
+
+Functions to harmonize time series items according to specified mapping.
+
+- [`harmonize_simple()`](https://eduaguilera.github.io/whep/reference/harmonize_simple.md)
+  : Harmonize rows labeled "simple" by summing values
+- [`harmonize_interpolate()`](https://eduaguilera.github.io/whep/reference/harmonize_interpolate.md)
+  : Harmonize advanced cases with interpolation for 1:N groups

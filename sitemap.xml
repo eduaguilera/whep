@@ -2,6 +2,7 @@
 <url><loc>https://eduaguilera.github.io/whep/404.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/LICENSE-text.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/LICENSE.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/articles/harmonization_function.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/articles/index.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/articles/trade-sources-coverage.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/authors.html</loc></url>
@@ -34,6 +35,8 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/get_primary_residues.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/get_processing_coefs.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/get_wide_cbs.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/harmonize_interpolate.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/harmonize_simple.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/index.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/items_cbs.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/items_prod.html</loc></url>
