@@ -144,9 +144,18 @@ get_bilateral_trade <- function(example = FALSE) {
   stopifnot(abs(sum(exports) - sum(imports)) < 1e-4)
   stopifnot(length(exports) == length(imports))
 
-  seed <- trade_matrix
-  seed[seed == 0] <- 1
-  .ipf_2d(seed, exports, imports)
+  # Only run IPF on active countries to reduce matrix size.
+  # Inactive countries (0 export and 0 import) would be
+  # forced to 0 by IPF anyway, so excluding them gives the
+  # same result with much less computation.
+  active <- which(exports > 0 | imports > 0)
+  sub <- trade_matrix[active, active, drop = FALSE]
+  sub[sub == 0] <- 1
+  sub <- .ipf_2d(sub, exports[active], imports[active])
+
+  result <- trade_matrix * 0
+  result[active, active] <- sub
+  result
 }
 
 .balance_total_trade <- function(total_trade) {
@@ -342,21 +351,27 @@ get_bilateral_trade <- function(example = FALSE) {
   tol = 0.1
 ) {
   m <- seed
+  nr <- nrow(m)
+  nc <- ncol(m)
+  check_every <- 5L
   for (i in seq_len(max_iter)) {
-    # Scale rows
-    rs <- rowSums(m)
-    row_scale <- ifelse(rs > 0, target_rows / rs, 0)
-    m <- m * row_scale
+    rs <- .rowSums(m, nr, nc)
+    rs[rs == 0] <- 1
+    m <- m * (target_rows / rs)
 
-    # Scale columns
-    cs <- colSums(m)
-    col_scale <- ifelse(cs > 0, target_cols / cs, 0)
-    m <- t(t(m) * col_scale)
+    cs <- .colSums(m, nr, nc)
+    cs[cs == 0] <- 1
+    m <- t(t(m) * (target_cols / cs))
 
-    # Check convergence on margins
-    row_err <- max(abs(rowSums(m) - target_rows))
-    col_err <- max(abs(colSums(m) - target_cols))
-    if (row_err < tol && col_err < tol) break
+    if (i %% check_every == 0L) {
+      row_err <- max(abs(
+        .rowSums(m, nr, nc) - target_rows
+      ))
+      col_err <- max(abs(
+        .colSums(m, nr, nc) - target_cols
+      ))
+      if (row_err < tol && col_err < tol) break
+    }
   }
   m
 }
