@@ -146,14 +146,7 @@ get_bilateral_trade <- function(example = FALSE) {
 
   seed <- trade_matrix
   seed[seed == 0] <- 1
-  fitting <- mipfp::Ipfp(
-    seed,
-    target.list = list(1, 2),
-    target.data = list(exports, imports),
-    tol = 1e-1,
-    tol.margins = 1e-1
-  )
-  fitting$x.hat
+  .ipf_2d(seed, exports, imports)
 }
 
 .balance_total_trade <- function(total_trade) {
@@ -208,7 +201,8 @@ get_bilateral_trade <- function(example = FALSE) {
   balanced_exports <- total_trade$balanced_export
 
   estimate <- .estimate_bilateral_trade(exports, imports)
-  needed_estimates <- ifelse(is.na(trade_matrix), estimate, 0)
+  na_mask <- is.na(trade_matrix)
+  needed_estimates <- estimate * na_mask
   balances <- balanced_exports - rowSums(trade_matrix, na.rm = TRUE)
   balances <- pmax(balances, 0)
 
@@ -224,11 +218,9 @@ get_bilateral_trade <- function(example = FALSE) {
   # so only use a small ratio of the estimate just in case.
   # TODO: Adapt this to our needs
   k_trust_factor <- 0.1
-  ifelse(
-    is.na(trade_matrix),
-    estimate * k_trust_factor,
-    trade_matrix
-  )
+  result <- trade_matrix
+  result[na_mask] <- estimate[na_mask] * k_trust_factor
+  result
 }
 
 .downscale_estimate_matrix <- function(needed_estimates, balances) {
@@ -340,4 +332,31 @@ get_bilateral_trade <- function(example = FALSE) {
   outer(exports, imports) *
     (1 / sum_imp + 1 / sum_exp) /
     2
+}
+
+.ipf_2d <- function(
+  seed,
+  target_rows,
+  target_cols,
+  max_iter = 1000L,
+  tol = 0.1
+) {
+  m <- seed
+  for (i in seq_len(max_iter)) {
+    # Scale rows
+    rs <- rowSums(m)
+    row_scale <- ifelse(rs > 0, target_rows / rs, 0)
+    m <- m * row_scale
+
+    # Scale columns
+    cs <- colSums(m)
+    col_scale <- ifelse(cs > 0, target_cols / cs, 0)
+    m <- t(t(m) * col_scale)
+
+    # Check convergence on margins
+    row_err <- max(abs(rowSums(m) - target_rows))
+    col_err <- max(abs(colSums(m) - target_cols))
+    if (row_err < tol && col_err < tol) break
+  }
+  m
 }
