@@ -33,6 +33,9 @@ Authors:
 - Juan Infante <jinfama@ugr.es>
   ([ORCID](https://orcid.org/0000-0003-1446-7181))
 
+- Justin Morgan <justin.morgan@cchs.csic.es>
+  ([ORCID](https://orcid.org/0009-0003-7022-4288))
+
 Other contributors:
 
 - João Serra <jserra@agro.au.dk>

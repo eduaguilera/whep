@@ -12,6 +12,8 @@
 
 - **Juan Infante**. Author. [](https://orcid.org/0000-0003-1446-7181)
 
+- **Justin Morgan**. Author. [](https://orcid.org/0009-0003-7022-4288)
+
 - **João Serra**. Contributor. [](https://orcid.org/0000-0002-3561-5350)
 
 - **[![European Research
@@ -23,13 +25,13 @@
 Source:
 [`DESCRIPTION`](https://github.com/eduaguilera/whep/blob/main/DESCRIPTION)
 
-Covaci C, Aguilera E, Beckmann A, Infante J (2026). *whep: Processing
-Agro-Environmental Data*. R package version 0.2.0.9000,
+Covaci C, Aguilera E, Beckmann A, Infante J, Morgan J (2026). *whep:
+Processing Agro-Environmental Data*. R package version 0.2.0.9000,
 <https://eduaguilera.github.io/whep/>.
 
     @Manual{,
       title = {whep: Processing Agro-Environmental Data},
-      author = {Catalin Covaci and Eduardo Aguilera and Alice Beckmann and Juan Infante},
+      author = {Catalin Covaci and Eduardo Aguilera and Alice Beckmann and Juan Infante and Justin Morgan},
       year = {2026},
       note = {R package version 0.2.0.9000},
       url = {https://eduaguilera.github.io/whep/},
