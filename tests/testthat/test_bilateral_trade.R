@@ -1,3 +1,44 @@
+# Integration / regression tests -----------------------------------------------
+
+testthat::test_that("get_bilateral_trade returns expected structure", {
+  result <- get_bilateral_trade(example = TRUE)
+
+  testthat::expect_s3_class(result, "tbl_df")
+  testthat::expect_named(
+    result,
+    c("year", "item_cbs_code", "bilateral_trade")
+  )
+  testthat::expect_equal(nrow(result), 10)
+  testthat::expect_true(all(
+    purrr::map_lgl(result$bilateral_trade, is.matrix)
+  ))
+
+  # Every matrix must be square 187x187
+  purrr::walk(result$bilateral_trade, function(m) {
+    testthat::expect_equal(nrow(m), 187)
+    testthat::expect_equal(ncol(m), 187)
+  })
+})
+
+testthat::test_that("get_bilateral_trade example has expected content", {
+  result <- get_bilateral_trade(example = TRUE)
+
+  # All 10 groups should have matrices filled with 1s
+  purrr::walk(result$bilateral_trade, function(m) {
+    testthat::expect_true(all(m == 1))
+  })
+
+  # Check known year/item combinations exist
+  testthat::expect_true(
+    any(result$year == 2003 & result$item_cbs_code == 2552)
+  )
+  testthat::expect_true(
+    any(result$year == 2015 & result$item_cbs_code == 2672)
+  )
+})
+
+# Unit tests -------------------------------------------------------------------
+
 testthat::test_that(".prefer_flow_direction chooses preferred trade data", {
   bilateral_trade <- tibble::tribble(
     ~from_code, ~to_code, ~year, ~item_cbs_code, ~element, ~value,
@@ -271,6 +312,8 @@ testthat::test_that(".balance_matrix makes rows and columns have target sum", {
 
 testthat::test_that(".build_trade_matrix completes missing countries", {
   codes <- factor(c(1, 2, 4, 5, 999))
+  code_levels <- as.character(sort(codes))
+  n <- length(codes)
   btd <- tibble::tribble(
     ~from_code, ~to_code, ~value,
     1, 2, 1,
@@ -293,10 +336,10 @@ testthat::test_that(".build_trade_matrix completes missing countries", {
     ),
     byrow = TRUE,
     ncol = 5,
-    dimnames = list(sort(codes), sort(codes))
+    dimnames = list(code_levels, code_levels)
   )
 
   btd |>
-    .build_trade_matrix(codes) |>
+    .build_trade_matrix(n, code_levels) |>
     testthat::expect_equal(expected)
 })
