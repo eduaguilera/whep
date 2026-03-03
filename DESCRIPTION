@@ -21,7 +21,6 @@ Imports:
     fs,
     FAOSTAT,
     httr,
-    mipfp,
     nanoparquet,
     pins,
     purrr,
