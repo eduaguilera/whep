@@ -14,7 +14,7 @@ testthat::test_that(".find_cache_dir returns NULL for uncached version", {
 
 testthat::test_that("whep_read_file produces valid tibble", {
   testthat::expect_message(
-    result <- suppressWarnings(whep_read_file("commodity_balance_sheet")),
+    result <- whep_read_file("read_example"),
     "Fetching files"
   )
 
@@ -24,12 +24,8 @@ testthat::test_that("whep_read_file produces valid tibble", {
 })
 
 testthat::test_that("whep_read_file reads both csv and parquet formats", {
-  result_csv <- suppressWarnings(
-    whep_read_file("commodity_balance_sheet", type = "csv")
-  )
-  result_parquet <- suppressWarnings(
-    whep_read_file("commodity_balance_sheet", type = "parquet")
-  )
+  result_csv <- whep_read_file("read_example", type = "csv")
+  result_parquet <- whep_read_file("read_example", type = "parquet")
 
   testthat::expect_s3_class(result_csv, "tbl_df")
   testthat::expect_s3_class(result_parquet, "tbl_df")
@@ -46,9 +42,7 @@ testthat::test_that("whep_read_file errors with invalid file alias", {
 
 testthat::test_that("whep_read_file errors with invalid file type", {
   testthat::expect_error(
-    suppressWarnings(
-      whep_read_file("commodity_balance_sheet", type = "invalid_type")
-    ),
+    whep_read_file("read_example", type = "invalid_type"),
     "Unknown file type"
   )
 })
