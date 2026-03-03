@@ -89,9 +89,7 @@
 #'    [iterative proportional fitting algorithm](
 #'      https://en.wikipedia.org/wiki/Iterative_proportional_fitting
 #'    ). The target sums for rows and columns are respectively the balanced
-#'    exports and imports computed from the commodity balance sheet. The
-#'    algorithm is performed directly using the [mipfp R package](
-#'    https://CRAN.R-project.org/package=mipfp).
+#'    exports and imports computed from the commodity balance sheet.
 #'
 #' @export
 #'
