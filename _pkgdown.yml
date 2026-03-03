@@ -99,3 +99,10 @@ reference:
     Functions for index decomposition analysis.
   contents:
   - calculate_lmdi
+
+- title: Harmonization
+  desc: >
+    Functions to harmonize time series items according to specified mapping.
+  contents:
+  - harmonize_simple
+  - harmonize_interpolate
