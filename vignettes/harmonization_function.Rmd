@@ -20,5 +20,5 @@ library(whep)
 googlesheets4::gs4_deauth()
 ```
 
-The WHEP package provides a function `harmonize_interpolate()` to harmonize data with 1:1, N:1, and 1:N mappings. This vignette demonstrates how to use this function effectively.
+The WHEP package provides a function `harmonize_interpolate()` to harmonize data with simple (1:1, N:1) and 1:n mappings. This vignette demonstrates how to use this function effectively.
 
