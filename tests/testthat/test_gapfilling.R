@@ -298,6 +298,78 @@ testthat::test_that("fill_linear value_smooth_window works with carry forward/ba
   testthat::expect_equal(result_smooth$value[3], 80)
 })
 
+testthat::test_that("fill_linear handles single non-NA value without error", {
+  # Only 1 non-NA value: zoo::na.approx needs >= 2, should not error
+  tibble::tribble(
+    ~year, ~value,
+    2015, NA,
+    2016, 5,
+    2017, NA
+  ) |>
+    fill_linear(value) |>
+    pointblank::expect_col_vals_equal(value, c(5, 5, 5)) |>
+    pointblank::expect_col_vals_in_set(
+      source_value,
+      c(
+        "Original",
+        "First value carried backwards",
+        "Last value carried forward"
+      )
+    )
+})
+
+testthat::test_that("fill_linear handles all-NA group without error", {
+  tibble::tribble(
+    ~year, ~value,
+    2015, NA,
+    2016, NA,
+    2017, NA
+  ) |>
+    fill_linear(value) |>
+    pointblank::expect_col_vals_null(value) |>
+    pointblank::expect_col_vals_equal(
+      source_value,
+      "Gap not filled"
+    )
+})
+
+testthat::test_that("fill_linear handles mixed groups with single non-NA", {
+  # One group has 1 non-NA, another has 2+
+  tibble::tribble(
+    ~category, ~year, ~value,
+    "a", 2015, NA,
+    "a", 2016, 10,
+    "a", 2017, NA,
+    "b", 2015, 1,
+    "b", 2016, NA,
+    "b", 2017, 3
+  ) |>
+    fill_linear(value, .by = "category") |>
+    pointblank::expect_col_vals_not_null(value) |>
+    pointblank::expect_col_vals_equal(
+      value,
+      c(10, 10, 10),
+      preconditions = \(df) df |> dplyr::filter(category == "a")
+    ) |>
+    pointblank::expect_col_vals_equal(
+      value,
+      c(1, 2, 3),
+      preconditions = \(df) df |> dplyr::filter(category == "b")
+    )
+})
+
+testthat::test_that("fill_linear handles no NAs without error", {
+  tibble::tribble(
+    ~year, ~value,
+    2015, 1,
+    2016, 2,
+    2017, 3
+  ) |>
+    fill_linear(value) |>
+    pointblank::expect_col_vals_equal(value, c(1, 2, 3)) |>
+    pointblank::expect_col_vals_equal(source_value, "Original")
+})
+
 # fill_sum --------------------------------------------------------------------
 
 testthat::test_that("fill_sum accumulates changes while keeping originals", {
