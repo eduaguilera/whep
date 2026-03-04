@@ -572,8 +572,12 @@ build_processing_coefs <- function(
     fiber_tobacco, items
   )
 
+  # Splice FBS_Old onto FBS_New level before source selection
+  splice_ratios <- .compute_splice_ratios(cbs_raw_all)
+  cbs_spliced <- .apply_splice(cbs_raw_all, splice_ratios)
+
   # Select best value among sources
-  .select_best_source(cbs_raw_all)
+  .select_best_source(cbs_spliced)
 }
 
 .fix_palm_kernels <- function(inputs, afse) {
@@ -781,6 +785,77 @@ build_processing_coefs <- function(
           )
       )
     })()
+}
+
+.compute_splice_ratios <- function(
+    cbs_raw_all,
+    overlap = 2010:2013) {
+  series_keys <- c(
+    "area", "area_code",
+    "item_cbs", "item_code_cbs", "element"
+  )
+
+  overlap_wide <- cbs_raw_all |>
+    dplyr::filter(
+      year %in% overlap,
+      source %in% c("FBS_New", "FBS_Old")
+    ) |>
+    tidyr::pivot_wider(
+      names_from = source, values_from = value
+    )
+
+  if (
+    !rlang::has_name(overlap_wide, "FBS_New") ||
+      !rlang::has_name(overlap_wide, "FBS_Old")
+  ) {
+    return(
+      tibble::tibble(
+        area = character(),
+        area_code = integer(),
+        item_cbs = character(),
+        item_code_cbs = integer(),
+        element = character(),
+        splice_ratio = double(),
+        n_overlap = integer()
+      )
+    )
+  }
+
+  overlap_wide |>
+    dplyr::filter(
+      !is.na(FBS_New), !is.na(FBS_Old),
+      FBS_Old != 0
+    ) |>
+    dplyr::summarise(
+      splice_ratio = stats::median(
+        FBS_New / FBS_Old, na.rm = TRUE
+      ),
+      n_overlap = dplyr::n(),
+      .by = dplyr::all_of(series_keys)
+    )
+}
+
+.apply_splice <- function(cbs_raw_all, splice_ratios) {
+  cbs_raw_all |>
+    dplyr::left_join(
+      splice_ratios |>
+        dplyr::select(-n_overlap),
+      by = c(
+        "area", "area_code",
+        "item_cbs", "item_code_cbs", "element"
+      )
+    ) |>
+    dplyr::mutate(
+      splice_ratio = dplyr::if_else(
+        is.na(splice_ratio), 1, splice_ratio
+      ),
+      value = dplyr::if_else(
+        source == "FBS_Old",
+        value * splice_ratio,
+        value
+      )
+    ) |>
+    dplyr::select(-splice_ratio)
 }
 
 .select_best_source <- function(cbs_raw_all) {
