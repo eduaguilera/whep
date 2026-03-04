@@ -1,0 +1,5 @@
+summary:
+  num_imports: false
+  ci_checks: false
+  renv: false
+  coverage: false

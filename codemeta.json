@@ -1,0 +1,492 @@
+{
+  "@context": "https://doi.org/10.5063/schema/codemeta-2.0",
+  "@type": "SoftwareSourceCode",
+  "identifier": "whep",
+  "description": "A set of tools for processing and analyzing data developed in the context of the \"Who Has Eaten the Planet\" (WHEP) project, funded by the European Research Council (ERC). For more details on multi-regional input–output model \"Food and Agriculture Biomass Input–Output\" (FABIO) see Bruckner et al. (2019) <doi:10.1021/acs.est.9b03554>.",
+  "name": "whep: Processing Agro-Environmental Data",
+  "relatedLink": ["https://eduaguilera.github.io/whep/", "https://CRAN.R-project.org/package=whep"],
+  "codeRepository": "https://github.com/eduaguilera/whep",
+  "issueTracker": "https://github.com/eduaguilera/whep/issues",
+  "license": "https://spdx.org/licenses/MIT",
+  "version": "0.3.0.9000",
+  "programmingLanguage": {
+    "@type": "ComputerLanguage",
+    "name": "R",
+    "url": "https://r-project.org"
+  },
+  "runtimePlatform": "R version 4.5.2 (2025-10-31)",
+  "provider": {
+    "@id": "https://cran.r-project.org",
+    "@type": "Organization",
+    "name": "Comprehensive R Archive Network (CRAN)",
+    "url": "https://cran.r-project.org"
+  },
+  "author": [
+    {
+      "@type": "Person",
+      "givenName": "Catalin",
+      "familyName": "Covaci",
+      "email": "catalin.covaci@csic.es",
+      "@id": "https://orcid.org/0009-0005-2186-5972"
+    },
+    {
+      "@type": "Person",
+      "givenName": "Eduardo",
+      "familyName": "Aguilera",
+      "email": "eduardo.aguilera@csic.es",
+      "@id": "https://orcid.org/0000-0003-4382-124X"
+    },
+    {
+      "@type": "Person",
+      "givenName": "Alice",
+      "familyName": "Beckmann",
+      "email": "alice.beckmann@cchs.csic.es",
+      "@id": "https://orcid.org/0009-0009-6840-0258"
+    },
+    {
+      "@type": "Person",
+      "givenName": "Juan",
+      "familyName": "Infante",
+      "email": "jinfama@ugr.es",
+      "@id": "https://orcid.org/0000-0003-1446-7181"
+    },
+    {
+      "@type": "Person",
+      "givenName": "Justin",
+      "familyName": "Morgan",
+      "email": "justin.morgan@cchs.csic.es",
+      "@id": "https://orcid.org/0009-0003-7022-4288"
+    }
+  ],
+  "contributor": [
+    {
+      "@type": "Person",
+      "givenName": "João",
+      "familyName": "Serra",
+      "email": "jserra@agro.au.dk",
+      "@id": "https://orcid.org/0000-0002-3561-5350"
+    }
+  ],
+  "copyrightHolder": [
+    {
+      "@type": "Person",
+      "givenName": "Eduardo",
+      "familyName": "Aguilera",
+      "email": "eduardo.aguilera@csic.es",
+      "@id": "https://orcid.org/0000-0003-4382-124X"
+    }
+  ],
+  "funder": [
+    {
+      "@type": "Organization",
+      "name": "European Research Council"
+    }
+  ],
+  "maintainer": [
+    {
+      "@type": "Person",
+      "givenName": "Catalin",
+      "familyName": "Covaci",
+      "email": "catalin.covaci@csic.es",
+      "@id": "https://orcid.org/0009-0005-2186-5972"
+    }
+  ],
+  "softwareSuggestions": [
+    {
+      "@type": "SoftwareApplication",
+      "identifier": "ggplot2",
+      "name": "ggplot2",
+      "provider": {
+        "@id": "https://cran.r-project.org",
+        "@type": "Organization",
+        "name": "Comprehensive R Archive Network (CRAN)",
+        "url": "https://cran.r-project.org"
+      },
+      "sameAs": "https://CRAN.R-project.org/package=ggplot2"
+    },
+    {
+      "@type": "SoftwareApplication",
+      "identifier": "googlesheets4",
+      "name": "googlesheets4",
+      "provider": {
+        "@id": "https://cran.r-project.org",
+        "@type": "Organization",
+        "name": "Comprehensive R Archive Network (CRAN)",
+        "url": "https://cran.r-project.org"
+      },
+      "sameAs": "https://CRAN.R-project.org/package=googlesheets4"
+    },
+    {
+      "@type": "SoftwareApplication",
+      "identifier": "here",
+      "name": "here",
+      "provider": {
+        "@id": "https://cran.r-project.org",
+        "@type": "Organization",
+        "name": "Comprehensive R Archive Network (CRAN)",
+        "url": "https://cran.r-project.org"
+      },
+      "sameAs": "https://CRAN.R-project.org/package=here"
+    },
+    {
+      "@type": "SoftwareApplication",
+      "identifier": "knitr",
+      "name": "knitr",
+      "provider": {
+        "@id": "https://cran.r-project.org",
+        "@type": "Organization",
+        "name": "Comprehensive R Archive Network (CRAN)",
+        "url": "https://cran.r-project.org"
+      },
+      "sameAs": "https://CRAN.R-project.org/package=knitr"
+    },
+    {
+      "@type": "SoftwareApplication",
+      "identifier": "pointblank",
+      "name": "pointblank",
+      "provider": {
+        "@id": "https://cran.r-project.org",
+        "@type": "Organization",
+        "name": "Comprehensive R Archive Network (CRAN)",
+        "url": "https://cran.r-project.org"
+      },
+      "sameAs": "https://CRAN.R-project.org/package=pointblank"
+    },
+    {
+      "@type": "SoftwareApplication",
+      "identifier": "rmarkdown",
+      "name": "rmarkdown",
+      "provider": {
+        "@id": "https://cran.r-project.org",
+        "@type": "Organization",
+        "name": "Comprehensive R Archive Network (CRAN)",
+        "url": "https://cran.r-project.org"
+      },
+      "sameAs": "https://CRAN.R-project.org/package=rmarkdown"
+    },
+    {
+      "@type": "SoftwareApplication",
+      "identifier": "testthat",
+      "name": "testthat",
+      "version": ">= 3.0.0",
+      "provider": {
+        "@id": "https://cran.r-project.org",
+        "@type": "Organization",
+        "name": "Comprehensive R Archive Network (CRAN)",
+        "url": "https://cran.r-project.org"
+      },
+      "sameAs": "https://CRAN.R-project.org/package=testthat"
+    }
+  ],
+  "softwareRequirements": {
+    "1": {
+      "@type": "SoftwareApplication",
+      "identifier": "cli",
+      "name": "cli",
+      "provider": {
+        "@id": "https://cran.r-project.org",
+        "@type": "Organization",
+        "name": "Comprehensive R Archive Network (CRAN)",
+        "url": "https://cran.r-project.org"
+      },
+      "sameAs": "https://CRAN.R-project.org/package=cli"
+    },
+    "2": {
+      "@type": "SoftwareApplication",
+      "identifier": "dplyr",
+      "name": "dplyr",
+      "provider": {
+        "@id": "https://cran.r-project.org",
+        "@type": "Organization",
+        "name": "Comprehensive R Archive Network (CRAN)",
+        "url": "https://cran.r-project.org"
+      },
+      "sameAs": "https://CRAN.R-project.org/package=dplyr"
+    },
+    "3": {
+      "@type": "SoftwareApplication",
+      "identifier": "fs",
+      "name": "fs",
+      "provider": {
+        "@id": "https://cran.r-project.org",
+        "@type": "Organization",
+        "name": "Comprehensive R Archive Network (CRAN)",
+        "url": "https://cran.r-project.org"
+      },
+      "sameAs": "https://CRAN.R-project.org/package=fs"
+    },
+    "4": {
+      "@type": "SoftwareApplication",
+      "identifier": "FAOSTAT",
+      "name": "FAOSTAT",
+      "provider": {
+        "@id": "https://cran.r-project.org",
+        "@type": "Organization",
+        "name": "Comprehensive R Archive Network (CRAN)",
+        "url": "https://cran.r-project.org"
+      },
+      "sameAs": "https://CRAN.R-project.org/package=FAOSTAT"
+    },
+    "5": {
+      "@type": "SoftwareApplication",
+      "identifier": "httr",
+      "name": "httr",
+      "provider": {
+        "@id": "https://cran.r-project.org",
+        "@type": "Organization",
+        "name": "Comprehensive R Archive Network (CRAN)",
+        "url": "https://cran.r-project.org"
+      },
+      "sameAs": "https://CRAN.R-project.org/package=httr"
+    },
+    "6": {
+      "@type": "SoftwareApplication",
+      "identifier": "nanoparquet",
+      "name": "nanoparquet",
+      "provider": {
+        "@id": "https://cran.r-project.org",
+        "@type": "Organization",
+        "name": "Comprehensive R Archive Network (CRAN)",
+        "url": "https://cran.r-project.org"
+      },
+      "sameAs": "https://CRAN.R-project.org/package=nanoparquet"
+    },
+    "7": {
+      "@type": "SoftwareApplication",
+      "identifier": "pins",
+      "name": "pins",
+      "provider": {
+        "@id": "https://cran.r-project.org",
+        "@type": "Organization",
+        "name": "Comprehensive R Archive Network (CRAN)",
+        "url": "https://cran.r-project.org"
+      },
+      "sameAs": "https://CRAN.R-project.org/package=pins"
+    },
+    "8": {
+      "@type": "SoftwareApplication",
+      "identifier": "purrr",
+      "name": "purrr",
+      "provider": {
+        "@id": "https://cran.r-project.org",
+        "@type": "Organization",
+        "name": "Comprehensive R Archive Network (CRAN)",
+        "url": "https://cran.r-project.org"
+      },
+      "sameAs": "https://CRAN.R-project.org/package=purrr"
+    },
+    "9": {
+      "@type": "SoftwareApplication",
+      "identifier": "rappdirs",
+      "name": "rappdirs",
+      "provider": {
+        "@id": "https://cran.r-project.org",
+        "@type": "Organization",
+        "name": "Comprehensive R Archive Network (CRAN)",
+        "url": "https://cran.r-project.org"
+      },
+      "sameAs": "https://CRAN.R-project.org/package=rappdirs"
+    },
+    "10": {
+      "@type": "SoftwareApplication",
+      "identifier": "readr",
+      "name": "readr",
+      "provider": {
+        "@id": "https://cran.r-project.org",
+        "@type": "Organization",
+        "name": "Comprehensive R Archive Network (CRAN)",
+        "url": "https://cran.r-project.org"
+      },
+      "sameAs": "https://CRAN.R-project.org/package=readr"
+    },
+    "11": {
+      "@type": "SoftwareApplication",
+      "identifier": "rlang",
+      "name": "rlang",
+      "provider": {
+        "@id": "https://cran.r-project.org",
+        "@type": "Organization",
+        "name": "Comprehensive R Archive Network (CRAN)",
+        "url": "https://cran.r-project.org"
+      },
+      "sameAs": "https://CRAN.R-project.org/package=rlang"
+    },
+    "12": {
+      "@type": "SoftwareApplication",
+      "identifier": "stringr",
+      "name": "stringr",
+      "provider": {
+        "@id": "https://cran.r-project.org",
+        "@type": "Organization",
+        "name": "Comprehensive R Archive Network (CRAN)",
+        "url": "https://cran.r-project.org"
+      },
+      "sameAs": "https://CRAN.R-project.org/package=stringr"
+    },
+    "13": {
+      "@type": "SoftwareApplication",
+      "identifier": "tibble",
+      "name": "tibble",
+      "provider": {
+        "@id": "https://cran.r-project.org",
+        "@type": "Organization",
+        "name": "Comprehensive R Archive Network (CRAN)",
+        "url": "https://cran.r-project.org"
+      },
+      "sameAs": "https://CRAN.R-project.org/package=tibble"
+    },
+    "14": {
+      "@type": "SoftwareApplication",
+      "identifier": "tidyr",
+      "name": "tidyr",
+      "provider": {
+        "@id": "https://cran.r-project.org",
+        "@type": "Organization",
+        "name": "Comprehensive R Archive Network (CRAN)",
+        "url": "https://cran.r-project.org"
+      },
+      "sameAs": "https://CRAN.R-project.org/package=tidyr"
+    },
+    "15": {
+      "@type": "SoftwareApplication",
+      "identifier": "withr",
+      "name": "withr",
+      "provider": {
+        "@id": "https://cran.r-project.org",
+        "@type": "Organization",
+        "name": "Comprehensive R Archive Network (CRAN)",
+        "url": "https://cran.r-project.org"
+      },
+      "sameAs": "https://CRAN.R-project.org/package=withr"
+    },
+    "16": {
+      "@type": "SoftwareApplication",
+      "identifier": "yaml",
+      "name": "yaml",
+      "provider": {
+        "@id": "https://cran.r-project.org",
+        "@type": "Organization",
+        "name": "Comprehensive R Archive Network (CRAN)",
+        "url": "https://cran.r-project.org"
+      },
+      "sameAs": "https://CRAN.R-project.org/package=yaml"
+    },
+    "17": {
+      "@type": "SoftwareApplication",
+      "identifier": "zoo",
+      "name": "zoo",
+      "provider": {
+        "@id": "https://cran.r-project.org",
+        "@type": "Organization",
+        "name": "Comprehensive R Archive Network (CRAN)",
+        "url": "https://cran.r-project.org"
+      },
+      "sameAs": "https://CRAN.R-project.org/package=zoo"
+    },
+    "18": {
+      "@type": "SoftwareApplication",
+      "identifier": "R",
+      "name": "R",
+      "version": ">= 3.5"
+    },
+    "SystemRequirements": null
+  },
+  "fileSize": "1198.411KB",
+  "citation": [
+    {
+      "@type": "SoftwareSourceCode",
+      "datePublished": "2025",
+      "author": [
+        {
+          "@type": "Person",
+          "givenName": "Catalin",
+          "familyName": "Covaci"
+        },
+        {
+          "@type": "Person",
+          "givenName": "Eduardo",
+          "familyName": "Aguilera"
+        },
+        {
+          "@type": "Person",
+          "givenName": "Alice",
+          "familyName": "Beckmann"
+        },
+        {
+          "@type": "Person",
+          "givenName": "Juan",
+          "familyName": "Infante"
+        },
+        {
+          "@type": "Person",
+          "givenName": "Justin",
+          "familyName": "Morgan"
+        }
+      ],
+      "name": "whep: Processing Agro-Environmental Data",
+      "url": "https://github.com/eduaguilera/whep",
+      "description": "R package version 0.3.0.9000"
+    },
+    {
+      "@type": "ScholarlyArticle",
+      "datePublished": "2019",
+      "author": [
+        {
+          "@type": "Person",
+          "givenName": "Martin",
+          "familyName": "Bruckner"
+        },
+        {
+          "@type": "Person",
+          "givenName": "Richard",
+          "familyName": "Wood"
+        },
+        {
+          "@type": "Person",
+          "givenName": "Daniel",
+          "familyName": "Moran"
+        },
+        {
+          "@type": "Person",
+          "givenName": "Nikolas",
+          "familyName": "Kuschnig"
+        },
+        {
+          "@type": "Person",
+          "givenName": "Hanspeter",
+          "familyName": "Wieland"
+        },
+        {
+          "@type": "Person",
+          "givenName": "Victor",
+          "familyName": "Maus"
+        },
+        {
+          "@type": "Person",
+          "givenName": "Jan",
+          "familyName": "Borner"
+        }
+      ],
+      "name": "FABIO - The Construction of the Food and Agriculture Biomass Input-Output Model",
+      "identifier": "10.1021/acs.est.9b03554",
+      "pagination": "11302-11312",
+      "@id": "https://doi.org/10.1021/acs.est.9b03554",
+      "sameAs": "https://doi.org/10.1021/acs.est.9b03554",
+      "isPartOf": {
+        "@type": "PublicationIssue",
+        "issueNumber": "19",
+        "datePublished": "2019",
+        "isPartOf": {
+          "@type": ["PublicationVolume", "Periodical"],
+          "volumeNumber": "53",
+          "name": "Environmental Science & Technology"
+        }
+      }
+    }
+  ],
+  "releaseNotes": "https://github.com/eduaguilera/whep/blob/main/NEWS.md",
+  "readme": "https://github.com/eduaguilera/whep/blob/main/README.md",
+  "contIntegration": ["https://github.com/eduaguilera/whep/actions/workflows/R-CMD-check.yaml", "https://app.codecov.io/gh/eduaguilera/whep?branch=main"],
+  "developmentStatus": "https://www.repostatus.org/#active",
+  "keywords": ["agriculture", "biogeochemistry", "biophysical-modeling", "carbon", "crops", "environment", "footprints", "land-use", "livestock", "nitrogen", "nutrition", "phosphorus", "planetary-boundaries", "water", "quantitative-history", "social-metabolism"]
+}
