@@ -1236,7 +1236,9 @@ fill_proxy_growth <- function(
 }
 
 .safe_na_approx <- function(object, ...) {
-  if (sum(!is.na(object)) < 2) return(rep(NA_real_, length(object)))
+  if (sum(!is.na(object)) < 2) {
+    return(NA_real_)
+  }
   zoo::na.approx(object, ...)
 }
 
