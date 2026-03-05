@@ -47,14 +47,10 @@ test_that(".merge_items_biomass returns NA for unmatched biomass", {
 
 test_that(".summarise_crops_residues groups and sums correctly", {
   crop_data <- tibble::tribble(
-    ~Year, ~Province_name, ~Name_biomass, ~Item, ~Product_residue,
-    ~LandUse, ~Irrig_cat, ~Prod_ygpit_Mg,
-    2000, "A", "Wheat", "Wheat", "Product",
-    "Cropland", "irrig", 100,
-    2000, "A", "Wheat", "Wheat", "Product",
-    "Cropland", "irrig", 50,
-    2000, "A", "Wheat", "Wheat", "Residue",
-    "Cropland", "rainfed", 30
+    ~Year, ~Province_name, ~Name_biomass, ~Item, ~Product_residue, ~LandUse, ~Irrig_cat, ~Prod_ygpit_Mg,
+    2000, "A", "Wheat", "Wheat", "Product", "Cropland", "irrig", 100,
+    2000, "A", "Wheat", "Wheat", "Product", "Cropland", "irrig", 50,
+    2000, "A", "Wheat", "Wheat", "Residue", "Cropland", "rainfed", 30
   )
 
   out <- .summarise_crops_residues(crop_data)
@@ -78,20 +74,15 @@ test_that(".summarise_crops_residues groups and sums correctly", {
 
 test_that(".aggregate_crop_seminatural combines fallow, semi-natural, crops", {
   npp_merged <- tibble::tribble(
-    ~Year, ~Province_name, ~Name_biomass, ~Item, ~LandUse,
-    ~Irrig_cat, ~GrazedWeeds_MgDM, ~Prod_ygpit_Mg,
-    ~Used_Residue_MgFM,
-    2000, "A", "Fallow", "Fallow", "Cropland",
-    "rainfed", 10, 0, 0,
+    ~Year, ~Province_name, ~Name_biomass, ~Item, ~LandUse, ~Irrig_cat, ~GrazedWeeds_MgDM, ~Prod_ygpit_Mg, ~Used_Residue_MgFM,
+    2000, "A", "Fallow", "Fallow", "Cropland", "rainfed", 10, 0, 0,
     2000, "A", "Grass", "Grassland", "Dehesa",
     NA, 20, 5, 3
   )
 
   crop_prod <- tibble::tribble(
-    ~Year, ~Province_name, ~Name_biomass, ~Item, ~prod_type,
-    ~LandUse, ~Irrig_cat, ~production_fm, ~Box,
-    2000, "A", "Wheat", "Wheat", "Product",
-    "Cropland", "irrig", 100, "Cropland"
+    ~Year, ~Province_name, ~Name_biomass, ~Item, ~prod_type, ~LandUse, ~Irrig_cat, ~production_fm, ~Box,
+    2000, "A", "Wheat", "Wheat", "Product", "Cropland", "irrig", 100, "Cropland"
   )
 
   out <- .aggregate_crop_seminatural(npp_merged, crop_prod)
@@ -151,14 +142,10 @@ test_that(".combine_production_boxes binds crop and livestock data", {
 
 test_that(".add_grass_wood reclassifies grass items and converts DM to FM", {
   input <- tibble::tribble(
-    ~Year, ~Province_name, ~Name_biomass, ~Item, ~Box,
-    ~LandUse, ~Irrig_cat, ~prod_type, ~production_fm,
-    2000, "A", "Fallow", "Fallow", "Cropland",
-    "Cropland", "rainfed", "Grass", 10,
-    2000, "A", "SomeGrass", "SomeItem", "semi_natural_agroecosystems",
-    "Dehesa", NA, "Grass", 20,
-    2000, "A", "Wheat", "Wheat", "Cropland",
-    "Cropland", "irrig", "Product", 100
+    ~Year, ~Province_name, ~Name_biomass, ~Item, ~Box, ~LandUse, ~Irrig_cat, ~prod_type, ~production_fm,
+    2000, "A", "Fallow", "Fallow", "Cropland", "Cropland", "rainfed", "Grass", 10,
+    2000, "A", "SomeGrass", "SomeItem", "semi_natural_agroecosystems", "Dehesa", NA, "Grass", 20,
+    2000, "A", "Wheat", "Wheat", "Cropland", "Cropland", "irrig", "Product", 100
   )
 
   out <- .add_grass_wood(input)
@@ -180,12 +167,9 @@ test_that(".add_grass_wood reclassifies grass items and converts DM to FM", {
 
 test_that(".add_grass_wood reclassifies firewood from semi-natural residues", {
   input <- tibble::tribble(
-    ~Year, ~Province_name, ~Name_biomass, ~Item, ~Box,
-    ~LandUse, ~Irrig_cat, ~prod_type, ~production_fm,
-    2000, "A", "Holm oak forest", "Holm oak", "semi_natural_agroecosystems",
-    "Forest_low", NA, "Residue", 50,
-    2000, "A", "Conifers", "Conifers", "semi_natural_agroecosystems",
-    "Forest_low", NA, "Residue", 30
+    ~Year, ~Province_name, ~Name_biomass, ~Item, ~Box, ~LandUse, ~Irrig_cat, ~prod_type, ~production_fm,
+    2000, "A", "Holm oak forest", "Holm oak", "semi_natural_agroecosystems", "Forest_low", NA, "Residue", 50,
+    2000, "A", "Conifers", "Conifers", "semi_natural_agroecosystems", "Forest_low", NA, "Residue", 30
   )
 
   out <- .add_grass_wood(input)
@@ -196,12 +180,9 @@ test_that(".add_grass_wood reclassifies firewood from semi-natural residues", {
 
 test_that(".add_grass_wood filters out NA production", {
   input <- tibble::tribble(
-    ~Year, ~Province_name, ~Name_biomass, ~Item, ~Box,
-    ~LandUse, ~Irrig_cat, ~prod_type, ~production_fm,
-    2000, "A", "Wheat", "Wheat", "Cropland",
-    "Cropland", "irrig", "Product", NA_real_,
-    2000, "A", "Barley", "Barley", "Cropland",
-    "Cropland", "irrig", "Product", 50
+    ~Year, ~Province_name, ~Name_biomass, ~Item, ~Box, ~LandUse, ~Irrig_cat, ~prod_type, ~production_fm,
+    2000, "A", "Wheat", "Wheat", "Cropland", "Cropland", "irrig", "Product", NA_real_,
+    2000, "A", "Barley", "Barley", "Cropland", "Cropland", "irrig", "Product", 50
   )
 
   out <- .add_grass_wood(input)
@@ -215,8 +196,7 @@ test_that(".add_grass_wood filters out NA production", {
 
 test_that(".prepare_processed_data summarises processed items", {
   processed <- tibble::tribble(
-    ~Year, ~Province_name, ~Name_biomass, ~Item, ~ProcessedItem,
-    ~ProcessedItem_amount,
+    ~Year, ~Province_name, ~Name_biomass, ~Item, ~ProcessedItem, ~ProcessedItem_amount,
     2000, "A", "Wheat", "Wheat", "Flour", 40,
     2000, "A", "Wheat", "Wheat", "Flour", 10,
     2000, "A", "Wheat", "Wheat", "Bran", 20
@@ -240,15 +220,12 @@ test_that(".prepare_processed_data summarises processed items", {
 
 test_that(".prepare_prod_data merges biomass names from codes", {
   grafs_added <- tibble::tribble(
-    ~Year, ~Province_name, ~Name_biomass, ~Item, ~Box,
-    ~LandUse, ~Irrig_cat, ~prod_type, ~production_fm,
-    2000, "A", "Wheat", "WheatItem", "Cropland",
-    "Cropland", "irrig", "Product", 100
+    ~Year, ~Province_name, ~Name_biomass, ~Item, ~Box, ~LandUse, ~Irrig_cat, ~prod_type, ~production_fm,
+    2000, "A", "Wheat", "WheatItem", "Cropland", "Cropland", "irrig", "Product", 100
   )
 
   processed <- tibble::tribble(
-    ~Year, ~Province_name, ~Name_biomass, ~Item, ~Box,
-    ~production_fm, ~prod_type,
+    ~Year, ~Province_name, ~Name_biomass, ~Item, ~Box, ~production_fm, ~prod_type,
     2000, "A", "Wheat", "Flour", "Cropland", 30, "Product"
   )
 
@@ -271,10 +248,8 @@ test_that(".prepare_prod_data merges biomass names from codes", {
 
 test_that(".prepare_prod_data falls back to primary when code is missing", {
   grafs_added <- tibble::tribble(
-    ~Year, ~Province_name, ~Name_biomass, ~Item, ~Box,
-    ~LandUse, ~Irrig_cat, ~prod_type, ~production_fm,
-    2000, "A", "OrigBiomass", "UnknownItem", "Cropland",
-    "Cropland", "irrig", "Product", 50
+    ~Year, ~Province_name, ~Name_biomass, ~Item, ~Box, ~LandUse, ~Irrig_cat, ~prod_type, ~production_fm,
+    2000, "A", "OrigBiomass", "UnknownItem", "Cropland", "Cropland", "irrig", "Product", 50
   )
 
   processed <- tibble::tibble(
@@ -303,17 +278,13 @@ test_that(".prepare_prod_data falls back to primary when code is missing", {
 
 test_that(".convert_fm_dm_n converts FM to DM to N correctly", {
   merged <- tibble::tribble(
-    ~Year, ~Province_name, ~Item, ~Box, ~LandUse, ~Irrig_cat,
-    ~prod_type, ~production_fm, ~Name_biomass_primary, ~Name_biomass,
-    2000, "A", "Wheat", "Cropland", "Cropland", "irrig",
-    "Product", 1000, "Wheat", "Wheat",
-    2000, "A", "Straw", "Cropland", "Cropland", "irrig",
-    "Residue", 500, "Wheat", "Wheat"
+    ~Year, ~Province_name, ~Item, ~Box, ~LandUse, ~Irrig_cat, ~prod_type, ~production_fm, ~Name_biomass_primary, ~Name_biomass,
+    2000, "A", "Wheat", "Cropland", "Cropland", "irrig", "Product", 1000, "Wheat", "Wheat",
+    2000, "A", "Straw", "Cropland", "Cropland", "irrig", "Residue", 500, "Wheat", "Wheat"
   )
 
   coefs <- tibble::tribble(
-    ~Name_biomass, ~Product_kgDM_kgFM, ~Residue_kgDM_kgFM,
-    ~Product_kgN_kgDM, ~Residue_kgN_kgDM,
+    ~Name_biomass, ~Product_kgDM_kgFM, ~Residue_kgDM_kgFM, ~Product_kgN_kgDM, ~Residue_kgN_kgDM,
     "Wheat", 0.88, 0.85, 0.02, 0.005
   )
 
@@ -332,15 +303,12 @@ test_that(".convert_fm_dm_n converts FM to DM to N correctly", {
 
 test_that(".convert_fm_dm_n uses primary biomass for special items", {
   merged <- tibble::tribble(
-    ~Year, ~Province_name, ~Item, ~Box, ~LandUse, ~Irrig_cat,
-    ~prod_type, ~production_fm, ~Name_biomass_primary, ~Name_biomass,
-    2000, "A", "Nuts and products", "Cropland", "Cropland",
-    "irrig", "Product", 100, "Almond", "NutsGeneric"
+    ~Year, ~Province_name, ~Item, ~Box, ~LandUse, ~Irrig_cat, ~prod_type, ~production_fm, ~Name_biomass_primary, ~Name_biomass,
+    2000, "A", "Nuts and products", "Cropland", "Cropland", "irrig", "Product", 100, "Almond", "NutsGeneric"
   )
 
   coefs <- tibble::tribble(
-    ~Name_biomass, ~Product_kgDM_kgFM, ~Residue_kgDM_kgFM,
-    ~Product_kgN_kgDM, ~Residue_kgN_kgDM,
+    ~Name_biomass, ~Product_kgDM_kgFM, ~Residue_kgDM_kgFM, ~Product_kgN_kgDM, ~Residue_kgN_kgDM,
     "Almond", 0.9, 0.8, 0.03, 0.01,
     "NutsGeneric", 0.5, 0.5, 0.01, 0.01
   )
@@ -353,17 +321,13 @@ test_that(".convert_fm_dm_n uses primary biomass for special items", {
 
 test_that(".convert_fm_dm_n filters NA Item with zero production", {
   merged <- tibble::tribble(
-    ~Year, ~Province_name, ~Item, ~Box, ~LandUse, ~Irrig_cat,
-    ~prod_type, ~production_fm, ~Name_biomass_primary, ~Name_biomass,
-    2000, "A", NA_character_, "Cropland", "Cropland", "irrig",
-    "Product", 0, "Something", "Something",
-    2000, "A", "Wheat", "Cropland", "Cropland", "irrig",
-    "Product", 100, "Wheat", "Wheat"
+    ~Year, ~Province_name, ~Item, ~Box, ~LandUse, ~Irrig_cat, ~prod_type, ~production_fm, ~Name_biomass_primary, ~Name_biomass,
+    2000, "A", NA_character_, "Cropland", "Cropland", "irrig", "Product", 0, "Something", "Something",
+    2000, "A", "Wheat", "Cropland", "Cropland", "irrig", "Product", 100, "Wheat", "Wheat"
   )
 
   coefs <- tibble::tribble(
-    ~Name_biomass, ~Product_kgDM_kgFM, ~Residue_kgDM_kgFM,
-    ~Product_kgN_kgDM, ~Residue_kgN_kgDM,
+    ~Name_biomass, ~Product_kgDM_kgFM, ~Residue_kgDM_kgFM, ~Product_kgN_kgDM, ~Residue_kgN_kgDM,
     "Something", 0.5, 0.5, 0.01, 0.01,
     "Wheat", 0.88, 0.85, 0.02, 0.005
   )
@@ -498,8 +462,7 @@ test_that(".calculate_food_and_other_uses distributes by pop share", {
 
 test_that(".combine_destinies merges production with consumption data", {
   prod <- tibble::tribble(
-    ~Year, ~Province_name, ~Item, ~Box, ~Irrig_cat,
-    ~production_n, ~prod_type,
+    ~Year, ~Province_name, ~Item, ~Box, ~Irrig_cat, ~production_n, ~prod_type,
     2000, "A", "Wheat", "Cropland", "irrig", 60, "Product",
     2000, "A", "Wheat", "Cropland", "rainfed", 40, "Product"
   )
@@ -529,8 +492,7 @@ test_that(".combine_destinies merges production with consumption data", {
 
 test_that(".combine_destinies adds food_pets to food", {
   prod <- tibble::tribble(
-    ~Year, ~Province_name, ~Item, ~Box, ~Irrig_cat,
-    ~production_n, ~prod_type,
+    ~Year, ~Province_name, ~Item, ~Box, ~Irrig_cat, ~production_n, ~prod_type,
     2000, "A", "FishMeal", "Fish", NA, 10, "Product"
   )
 
@@ -555,10 +517,8 @@ test_that(".combine_destinies adds food_pets to food", {
 
 test_that(".convert_to_items_n converts consumption FM to N", {
   combined <- tibble::tribble(
-    ~Year, ~Province_name, ~Item, ~Box, ~Irrig_cat,
-    ~production_n, ~food, ~other_uses, ~feed,
-    2000, "A", "Wheat", "Cropland", "irrig",
-    100, 50, 20, 30
+    ~Year, ~Province_name, ~Item, ~Box, ~Irrig_cat, ~production_n, ~food, ~other_uses, ~feed,
+    2000, "A", "Wheat", "Cropland", "irrig", 100, 50, 20, 30
   )
 
   codes <- tibble::tribble(
@@ -567,8 +527,7 @@ test_that(".convert_to_items_n converts consumption FM to N", {
   )
 
   coefs <- tibble::tribble(
-    ~Name_biomass, ~Product_kgDM_kgFM, ~Product_kgN_kgDM,
-    ~Residue_kgDM_kgFM, ~Residue_kgN_kgDM,
+    ~Name_biomass, ~Product_kgDM_kgFM, ~Product_kgN_kgDM, ~Residue_kgDM_kgFM, ~Residue_kgN_kgDM,
     "Wheat", 0.88, 0.02, 0.85, 0.005
   )
 
@@ -583,10 +542,8 @@ test_that(".convert_to_items_n converts consumption FM to N", {
 
 test_that(".convert_to_items_n uses residue coefs for Grass items", {
   combined <- tibble::tribble(
-    ~Year, ~Province_name, ~Item, ~Box, ~Irrig_cat,
-    ~production_n, ~food, ~other_uses, ~feed,
-    2000, "A", "Grassland", "semi_natural_agroecosystems",
-    NA, 0, 0, 0, 100
+    ~Year, ~Province_name, ~Item, ~Box, ~Irrig_cat, ~production_n, ~food, ~other_uses, ~feed,
+    2000, "A", "Grassland", "semi_natural_agroecosystems", NA, 0, 0, 0, 100
   )
 
   codes <- tibble::tribble(
@@ -595,8 +552,7 @@ test_that(".convert_to_items_n uses residue coefs for Grass items", {
   )
 
   coefs <- tibble::tribble(
-    ~Name_biomass, ~Product_kgDM_kgFM, ~Product_kgN_kgDM,
-    ~Residue_kgDM_kgFM, ~Residue_kgN_kgDM,
+    ~Name_biomass, ~Product_kgDM_kgFM, ~Product_kgN_kgDM, ~Residue_kgDM_kgFM, ~Residue_kgN_kgDM,
     "Grass", 0.3, 0.01, 0.2, 0.025
   )
 
@@ -611,11 +567,8 @@ test_that(".convert_to_items_n uses residue coefs for Grass items", {
 
 test_that(".calculate_trade computes export when production > consumption", {
   trade_input <- tibble::tribble(
-    ~Year, ~Province_name, ~Item, ~Box, ~Irrig_cat,
-    ~Name_biomass, ~prod_type, ~production_n,
-    ~food, ~other_uses, ~feed,
-    2000, "A", "Wheat", "Cropland", "irrig",
-    "Wheat", "Product", 100, 30, 10, 20
+    ~Year, ~Province_name, ~Item, ~Box, ~Irrig_cat, ~Name_biomass, ~prod_type, ~production_n, ~food, ~other_uses, ~feed,
+    2000, "A", "Wheat", "Cropland", "irrig", "Wheat", "Product", 100, 30, 10, 20
   )
 
   out <- .calculate_trade(trade_input)
@@ -627,11 +580,8 @@ test_that(".calculate_trade computes export when production > consumption", {
 
 test_that(".calculate_trade computes import when consumption > production", {
   trade_input <- tibble::tribble(
-    ~Year, ~Province_name, ~Item, ~Box, ~Irrig_cat,
-    ~Name_biomass, ~prod_type, ~production_n,
-    ~food, ~other_uses, ~feed,
-    2000, "A", "Wheat", "Cropland", "irrig",
-    "Wheat", "Product", 30, 50, 10, 20
+    ~Year, ~Province_name, ~Item, ~Box, ~Irrig_cat, ~Name_biomass, ~prod_type, ~production_n, ~food, ~other_uses, ~feed,
+    2000, "A", "Wheat", "Cropland", "irrig", "Wheat", "Product", 30, 50, 10, 20
   )
 
   out <- .calculate_trade(trade_input)
@@ -646,16 +596,11 @@ test_that(".calculate_trade computes import when consumption > production", {
 
 test_that(".prep_final_ds assigns Box from group codes", {
   trade <- tibble::tribble(
-    ~Year, ~Province_name, ~Item, ~Box, ~Irrig_cat,
-    ~food, ~other_uses, ~feed, ~production_n, ~export, ~import,
-    2000, "A", "Sugar", NA, "irrig",
-    10, 5, 0, 15, 0, 0,
-    2000, "A", "Beef", NA, NA,
-    10, 0, 0, 10, 0, 0,
-    2000, "A", "FishProd", NA, NA,
-    5, 0, 0, 5, 0, 0,
-    2000, "A", "Additive", NA, NA,
-    2, 0, 0, 2, 0, 0
+    ~Year, ~Province_name, ~Item, ~Box, ~Irrig_cat, ~food, ~other_uses, ~feed, ~production_n, ~export, ~import,
+    2000, "A", "Sugar", NA, "irrig", 10, 5, 0, 15, 0, 0,
+    2000, "A", "Beef", NA, NA, 10, 0, 0, 10, 0, 0,
+    2000, "A", "FishProd", NA, NA, 5, 0, 0, 5, 0, 0,
+    2000, "A", "Additive", NA, NA, 2, 0, 0, 2, 0, 0
   )
 
   codes <- tibble::tribble(
@@ -691,8 +636,7 @@ test_that(".prep_final_ds assigns Box from group codes", {
 
 test_that(".prep_final_ds recognises Fallow and Acorns", {
   trade <- tibble::tribble(
-    ~Year, ~Province_name, ~Item, ~Box, ~Irrig_cat,
-    ~food, ~other_uses, ~feed, ~production_n, ~export, ~import,
+    ~Year, ~Province_name, ~Item, ~Box, ~Irrig_cat, ~food, ~other_uses, ~feed, ~production_n, ~export, ~import,
     2000, "A", "Fallow", NA, NA, 0, 0, 5, 5, 0, 0,
     2000, "A", "Acorns", NA, NA, 0, 0, 3, 3, 0, 0
   )
@@ -717,8 +661,7 @@ test_that(".prep_final_ds recognises Fallow and Acorns", {
 
 test_that(".calculate_consumption_shares computes correct shares", {
   data <- tibble::tribble(
-    ~Year, ~Province_name, ~Item, ~Irrig_cat,
-    ~food, ~other_uses, ~feed,
+    ~Year, ~Province_name, ~Item, ~Irrig_cat, ~food, ~other_uses, ~feed,
     2000, "A", "Wheat", "irrig", 60, 20, 20
   )
 
@@ -732,8 +675,7 @@ test_that(".calculate_consumption_shares computes correct shares", {
 
 test_that(".calculate_consumption_shares returns 0 when total is 0", {
   data <- tibble::tribble(
-    ~Year, ~Province_name, ~Item, ~Irrig_cat,
-    ~food, ~other_uses, ~feed,
+    ~Year, ~Province_name, ~Item, ~Irrig_cat, ~food, ~other_uses, ~feed,
     2000, "A", "Wheat", "irrig", 0, 0, 0
   )
 
@@ -749,11 +691,8 @@ test_that(".calculate_consumption_shares returns 0 when total is 0", {
 
 test_that(".split_local_consumption splits by shares and feed type", {
   local_import <- tibble::tribble(
-    ~Year, ~Province_name, ~Item, ~Box, ~Irrig_cat,
-    ~local_consumption, ~import_consumption,
-    ~food_share, ~feed_share, ~other_uses_share,
-    2000, "A", "Wheat", "Cropland", "irrig",
-    100, 0, 0.5, 0.3, 0.2
+    ~Year, ~Province_name, ~Item, ~Box, ~Irrig_cat, ~local_consumption, ~import_consumption, ~food_share, ~feed_share, ~other_uses_share,
+    2000, "A", "Wheat", "Cropland", "irrig", 100, 0, 0.5, 0.3, 0.2
   )
 
   feed_shares <- tibble::tribble(
@@ -779,9 +718,7 @@ test_that(".split_local_consumption splits by shares and feed type", {
 
 test_that(".split_import_consumption limits imports and splits", {
   local_vs_import <- tibble::tribble(
-    ~Year, ~Province_name, ~Item, ~Box,
-    ~local_consumption, ~import_consumption,
-    ~food_share, ~feed_share, ~other_uses_share,
+    ~Year, ~Province_name, ~Item, ~Box, ~local_consumption, ~import_consumption, ~food_share, ~feed_share, ~other_uses_share,
     2000, "A", "Wheat", "Cropland", 50, 30, 0.6, 0.3, 0.1,
     2000, "A", "FishProd", "Fish", 20, 10, 0.5, 0.4, 0.1
   )
@@ -839,13 +776,9 @@ test_that(".split_import_consumption limits imports and splits", {
 test_that(".split_import_consumption aggregates duplicates from Irrig_cat", {
   # Two Irrig_cat rows that become NA → should be aggregated
   local_vs_import <- tibble::tribble(
-    ~Year, ~Province_name, ~Item, ~Box, ~Irrig_cat,
-    ~local_consumption, ~import_consumption,
-    ~food_share, ~feed_share, ~other_uses_share,
-    2000, "A", "Wheat", "Cropland", "irrig",
-    40, 20, 0.5, 0.5, 0.0,
-    2000, "A", "Wheat", "Cropland", "rainfed",
-    60, 30, 0.5, 0.5, 0.0
+    ~Year, ~Province_name, ~Item, ~Box, ~Irrig_cat, ~local_consumption, ~import_consumption, ~food_share, ~feed_share, ~other_uses_share,
+    2000, "A", "Wheat", "Cropland", "irrig", 40, 20, 0.5, 0.5, 0.0,
+    2000, "A", "Wheat", "Cropland", "rainfed", 60, 30, 0.5, 0.5, 0.0
   )
 
   feed_shares <- tibble::tribble(
@@ -869,12 +802,9 @@ test_that(".split_import_consumption aggregates duplicates from Irrig_cat", {
 
 test_that(".add_exports creates export rows with correct structure", {
   data <- tibble::tribble(
-    ~Year, ~Province_name, ~Item, ~Irrig_cat, ~Box, ~export,
-    ~food, ~other_uses, ~feed, ~production_n, ~import,
-    2000, "A", "Wheat", "irrig", "Cropland", 40,
-    30, 10, 20, 100, 0,
-    2000, "A", "Wheat", "rainfed", "Cropland", 10,
-    10, 5, 5, 30, 0
+    ~Year, ~Province_name, ~Item, ~Irrig_cat, ~Box, ~export, ~food, ~other_uses, ~feed, ~production_n, ~import,
+    2000, "A", "Wheat", "irrig", "Cropland", 40, 30, 10, 20, 100, 0,
+    2000, "A", "Wheat", "rainfed", "Cropland", 10, 10, 5, 5, 30, 0
   )
 
   out <- .add_exports(data)
@@ -898,8 +828,7 @@ test_that(".add_n_soil_inputs pivots soil inputs and preserves totals", {
   )
 
   soil_inputs <- tibble::tribble(
-    ~Year, ~Province_name, ~Item, ~Irrig_cat, ~Box,
-    ~deposition, ~fixation, ~synthetic, ~manure, ~urban,
+    ~Year, ~Province_name, ~Item, ~Irrig_cat, ~Box, ~deposition, ~fixation, ~synthetic, ~manure, ~urban,
     2000, "A", "Wheat", "irrig", "Cropland",
     1, 2, 3, 4, 5
   )
@@ -936,10 +865,8 @@ test_that(".add_n_soil_inputs does not create duplicate flows", {
   )
 
   soil_inputs <- tibble::tribble(
-    ~Year, ~Province_name, ~Item, ~Irrig_cat, ~Box,
-    ~deposition, ~fixation, ~synthetic, ~manure, ~urban,
-    2000, "A", "Wheat", "irrig", "Cropland",
-    1, 2, 3, 4, 5
+    ~Year, ~Province_name, ~Item, ~Irrig_cat, ~Box, ~deposition, ~fixation, ~synthetic, ~manure, ~urban,
+    2000, "A", "Wheat", "irrig", "Cropland", 1, 2, 3, 4, 5
   )
 
   out <- .add_n_soil_inputs(base, soil_inputs)
@@ -957,10 +884,8 @@ test_that(".add_n_soil_inputs filters out zero values", {
   )
 
   soil_inputs <- tibble::tribble(
-    ~Year, ~Province_name, ~Item, ~Irrig_cat, ~Box,
-    ~deposition, ~fixation, ~synthetic, ~manure, ~urban,
-    2000, "A", "Wheat", "irrig", "Cropland",
-    0, 0, 3, 0, 0
+    ~Year, ~Province_name, ~Item, ~Irrig_cat, ~Box, ~deposition, ~fixation, ~synthetic, ~manure, ~urban,
+    2000, "A", "Wheat", "irrig", "Cropland", 0, 0, 3, 0, 0
   )
 
   out <- .add_n_soil_inputs(base, soil_inputs)
@@ -1068,12 +993,9 @@ test_that(".remove_seeds_from_system leaves non-seed items unchanged", {
 
 test_that(".finalize_prod_destiny combines local, import, export flows", {
   trade_data <- tibble::tribble(
-    ~Year, ~Province_name, ~Item, ~Box, ~Irrig_cat,
-    ~food, ~other_uses, ~feed, ~production_n, ~export, ~import,
-    2000, "A", "Wheat", "Cropland", "irrig",
-    30, 10, 20, 100, 40, 0,
-    2000, "A", "Fish", "Fish", NA,
-    5, 0, 0, 0, 0, 5
+    ~Year, ~Province_name, ~Item, ~Box, ~Irrig_cat, ~food, ~other_uses, ~feed, ~production_n, ~export, ~import,
+    2000, "A", "Wheat", "Cropland", "irrig", 30, 10, 20, 100, 40, 0,
+    2000, "A", "Fish", "Fish", NA, 5, 0, 0, 0, 0, 5
   )
 
   codes <- tibble::tribble(
@@ -1083,10 +1005,8 @@ test_that(".finalize_prod_destiny combines local, import, export flows", {
   )
 
   soil <- tibble::tribble(
-    ~Year, ~Province_name, ~Item, ~Irrig_cat, ~Box,
-    ~deposition, ~fixation, ~synthetic, ~manure, ~urban,
-    2000, "A", "Wheat", "irrig", "Cropland",
-    1, 0, 0, 0, 0
+    ~Year, ~Province_name, ~Item, ~Irrig_cat, ~Box, ~deposition, ~fixation, ~synthetic, ~manure, ~urban,
+    2000, "A", "Wheat", "irrig", "Cropland", 1, 0, 0, 0, 0
   )
 
   feed_shares <- tibble::tribble(
