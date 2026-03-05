@@ -156,13 +156,13 @@ testthat::test_that(".build_supply_crop_product summarises crop production", {
     item_prod_code = c(1, 2)
   )
   primary_prod <- tibble::tribble(
-      ~year, ~area_code, ~item_prod_code, ~item_cbs_code,
-      ~live_anim_code, ~unit, ~value,
-      2000, 1, 1, 10, NA, "tonnes", 50,
-      2000, 1, 2, 10, NA, "tonnes", 30,
-      2000, 1, 1, 20, NA, "tonnes", 40,
-      2000, 1, 3, 10, NA, "ha", 100
-    )
+    ~year, ~area_code, ~item_prod_code, ~item_cbs_code,
+    ~live_anim_code, ~unit, ~value,
+    2000, 1, 1, 10, NA, "tonnes", 50,
+    2000, 1, 2, 10, NA, "tonnes", 30,
+    2000, 1, 1, 20, NA, "tonnes", 40,
+    2000, 1, 3, 10, NA, "ha", 100
+  )
 
   result <- .build_supply_crop_product(
     crop_prod_items,
@@ -184,11 +184,11 @@ testthat::test_that(".build_supply_crop_residue joins residues correctly", {
     item_cbs_code_crop = c(10, 20)
   )
   crop_residues <- tibble::tribble(
-      ~year, ~area_code, ~item_cbs_code_crop,
-      ~item_cbs_code_residue, ~value,
-      2000, 1, 10, 100, 50,
-      2000, 1, 30, 101, 25
-    )
+    ~year, ~area_code, ~item_cbs_code_crop,
+    ~item_cbs_code_residue, ~value,
+    2000, 1, 10, 100, 50,
+    2000, 1, 30, 101, 25
+  )
 
   result <- .build_supply_crop_residue(
     cbs_items,
@@ -206,13 +206,13 @@ testthat::test_that(".build_livestock_supply filters LU and scales", {
     live_anim_code = c(1, 2)
   )
   primary_prod <- tibble::tribble(
-      ~year, ~area_code, ~item_prod_code, ~item_cbs_code,
-      ~live_anim_code, ~unit, ~value,
-      2000, 1, 10, 1, NA, "LU", 100,
-      2000, 1, 11, 2, NA, "LU", 200,
-      2000, 1, 12, 3, NA, "LU", 300,
-      2000, 1, 13, 1, NA, "tonnes", 50
-    )
+    ~year, ~area_code, ~item_prod_code, ~item_cbs_code,
+    ~live_anim_code, ~unit, ~value,
+    2000, 1, 10, 1, NA, "LU", 100,
+    2000, 1, 11, 2, NA, "LU", 200,
+    2000, 1, 12, 3, NA, "LU", 300,
+    2000, 1, 13, 1, NA, "tonnes", 50
+  )
 
   result <- .build_livestock_supply(
     primary_prod,
@@ -231,12 +231,12 @@ testthat::test_that(".build_livestock_prods_supply filters tonnes items", {
     live_anim_code = c(1, 2)
   )
   primary_prod <- tibble::tribble(
-      ~year, ~area_code, ~item_prod_code, ~item_cbs_code,
-      ~live_anim_code, ~unit, ~value,
-      2000, 1, 10, 50, 1, "tonnes", 100,
-      2000, 1, 11, 51, 3, "tonnes", 200,
-      2000, 1, 12, 1, NA, "LU", 300
-    )
+    ~year, ~area_code, ~item_prod_code, ~item_cbs_code,
+    ~live_anim_code, ~unit, ~value,
+    2000, 1, 10, 50, 1, "tonnes", 100,
+    2000, 1, 11, 51, 3, "tonnes", 200,
+    2000, 1, 12, 1, NA, "LU", 300
+  )
 
   result <- .build_livestock_prods_supply(
     primary_prod,
@@ -253,19 +253,19 @@ testthat::test_that(".build_crop_production combines supply and use", {
     item_prod_code = c(1)
   )
   cbs <- tibble::tribble(
-      ~year, ~area_code, ~item_cbs_code, ~seed,
-      2000, 1, 10, 5
-    )
+    ~year, ~area_code, ~item_cbs_code, ~seed,
+    2000, 1, 10, 5
+  )
   primary_prod <- tibble::tribble(
-      ~year, ~area_code, ~item_prod_code, ~item_cbs_code,
-      ~live_anim_code, ~unit, ~value,
-      2000, 1, 1, 10, NA, "tonnes", 100
-    )
+    ~year, ~area_code, ~item_prod_code, ~item_cbs_code,
+    ~live_anim_code, ~unit, ~value,
+    2000, 1, 1, 10, NA, "tonnes", 100
+  )
   crop_residues <- tibble::tribble(
-      ~year, ~area_code, ~item_cbs_code_crop,
-      ~item_cbs_code_residue, ~value,
-      2000, 1, 10, 200, 30
-    )
+    ~year, ~area_code, ~item_cbs_code_crop,
+    ~item_cbs_code_residue, ~value,
+    2000, 1, 10, 200, 30
+  )
 
   result <- .build_crop_production(
     crop_prod_items,
@@ -298,16 +298,16 @@ testthat::test_that(".build_husbandry combines feed use and livestock supply", {
     live_anim_code = c(1)
   )
   feed_intake <- tibble::tribble(
-      ~year, ~area_code, ~live_anim_code, ~item_cbs_code,
-      ~supply,
-      2000, 1, 1, 50, 20
-    )
+    ~year, ~area_code, ~live_anim_code, ~item_cbs_code,
+    ~supply,
+    2000, 1, 1, 50, 20
+  )
   primary_prod <- tibble::tribble(
-      ~year, ~area_code, ~item_prod_code, ~item_cbs_code,
-      ~live_anim_code, ~unit, ~value,
-      2000, 1, 10, 1, NA, "LU", 100,
-      2000, 1, 11, 60, 1, "tonnes", 40
-    )
+    ~year, ~area_code, ~item_prod_code, ~item_cbs_code,
+    ~live_anim_code, ~unit, ~value,
+    2000, 1, 10, 1, NA, "LU", 100,
+    2000, 1, 11, 60, 1, "tonnes", 40
+  )
 
   result <- .build_husbandry(
     husbandry_items,

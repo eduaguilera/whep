@@ -432,10 +432,10 @@ testthat::test_that(".complete_total_trade fills missing codes", {
 testthat::test_that(".complete_total_trade handles multiple year-item combos", {
   codes <- factor(c(10, 20))
   total_trade <- tibble::tribble(
-      ~year, ~item_cbs_code, ~area_code, ~export, ~import,
-      2000, 1, codes[1], 5, 3,
-      2001, 2, codes[1], 8, 1
-    )
+    ~year, ~item_cbs_code, ~area_code, ~export, ~import,
+    2000, 1, codes[1], 5, 3,
+    2001, 2, codes[1], 8, 1
+  )
   result <- .complete_total_trade(total_trade, codes)
 
   testthat::expect_equal(nrow(result), 4)
@@ -458,11 +458,11 @@ testthat::test_that(".get_all_country_codes returns unique sorted", {
 
 testthat::test_that(".filter_only_items_in_cbs removes items not in cbs", {
   btd <- tibble::tribble(
-      ~item_cbs_code, ~value,
-      1, 10,
-      2, 20,
-      3, 30
-    )
+    ~item_cbs_code, ~value,
+    1, 10,
+    2, 20,
+    3, 30
+  )
   cbs <- tibble::tibble(item_cbs_code = c(1, 3))
   result <- .filter_only_items_in_cbs(btd, cbs)
 
