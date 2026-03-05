@@ -2,6 +2,23 @@
 
 ## whep (development version)
 
+## whep 0.3.0
+
+CRAN release: 2026-03-03
+
+- Add
+  [`fill_proxy_growth()`](https://eduaguilera.github.io/whep/reference/fill_proxy_growth.md)
+  and
+  [`calculate_lmdi()`](https://eduaguilera.github.io/whep/reference/calculate_lmdi.md)
+  ([@jinfama](https://github.com/jinfama),
+  [\#65](https://github.com/eduaguilera/whep/issues/65)).
+- Build datasets for GRAFS model in Spain
+  ([@AliceBeckmann](https://github.com/AliceBeckmann),
+  [\#18](https://github.com/eduaguilera/whep/issues/18)).
+- Add harmonization functions
+  ([@justin-morgan-csic](https://github.com/justin-morgan-csic),
+  [\#66](https://github.com/eduaguilera/whep/issues/66)).
+
 ## whep 0.2.0
 
 CRAN release: 2025-10-15
