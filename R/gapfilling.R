@@ -97,7 +97,7 @@ fill_linear <- function(
         place == "right" & fill_forward ~
           zoo::na.locf0(.smooth_var, fromLast = FALSE),
         place == "middle" & interpolate ~
-          zoo::na.approx(
+          .safe_na_approx(
             .smooth_var,
             x = .data[[time_col_name]],
             na.rm = FALSE
@@ -1233,6 +1233,13 @@ fill_proxy_growth <- function(
       ma_base = compute_ma(.data[[value_var]], window),
       .by = dplyr::all_of(group_vars)
     )
+}
+
+.safe_na_approx <- function(object, ...) {
+  if (sum(!is.na(object)) < 2) {
+    return(NA_real_)
+  }
+  zoo::na.approx(object, ...)
 }
 
 .parse_proxy_spec <- function(spec, data, value_col, group_by, verbose) {
