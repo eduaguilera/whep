@@ -49,12 +49,32 @@ compute_footprint <- function(
   .validate_footprint_inputs(
     l_inv, x_vec, y_mat, extensions, labels
   )
+  n <- length(x_vec)
+  n_fd <- ncol(y_mat)
+  n_ext <- sum(extensions != 0)
 
+  cli::cli_inform(c(
+    "i" = "Computing footprint for {n} sectors.",
+    " " = "{n_ext} sectors have non-zero extensions.",
+    " " = "Final demand: {n_fd} column{?s}."
+  ))
+
+  cli::cli_inform("  Computing extension intensities...")
   intensity <- .extension_intensity(extensions, x_vec)
+
+  cli::cli_inform(
+    "  Multiplying L x Y ({n}x{n} * {n}x{n_fd})..."
+  )
   mp_mat <- intensity * l_inv
   fp_mat <- mp_mat %*% y_mat
 
-  .footprint_to_tibble(fp_mat, labels)
+  cli::cli_inform("  Converting to tidy tibble...")
+  result <- .footprint_to_tibble(fp_mat, labels)
+
+  cli::cli_alert_success(
+    "Footprint complete: {nrow(result)} non-zero flows."
+  )
+  result
 }
 
 .extension_intensity <- function(extensions, x_vec) {

@@ -40,35 +40,68 @@ build_io_model <- function(supply_use, bilateral_trade, cbs) {
   .validate_io_inputs(supply_use, bilateral_trade, cbs)
   years <- .get_common_years(supply_use, bilateral_trade, cbs)
   fd_cols <- .detect_fd_columns(cbs)
+  n_years <- length(years)
 
-  purrr::map(years, function(yr) {
+  cli::cli_inform(c(
+    "i" = "Building IO model for {n_years} year{?s}.",
+    " " = "Year range: {min(years)}-{max(years)}.",
+    " " = "Final demand columns: {.field {fd_cols}}."
+  ))
+
+  results <- purrr::imap(years, function(yr, i) {
+    cli::cli_inform(c(
+      ">" = "Year {yr} ({i}/{n_years})..."
+    ))
     .build_io_year(
       su = dplyr::filter(supply_use, year == yr),
       btd = dplyr::filter(bilateral_trade, year == yr),
       cbs_yr = dplyr::filter(cbs, year == yr),
       fd_cols = fd_cols
     )
-  }) |>
-    .io_results_to_tibble(years)
+  })
+
+  cli::cli_alert_success("IO model complete.")
+  .io_results_to_tibble(results, years)
 }
 
 # --- Main per-year builder ---
 
 .build_io_year <- function(su, btd, cbs_yr, fd_cols) {
   dims <- .get_io_dims(su, cbs_yr)
+  n_sectors <- dims$n_areas * dims$n_items
+  cli::cli_inform(c(
+    " " = "  {dims$n_areas} areas, {dims$n_items} items,",
+    " " = "  {dims$n_procs} processes -> {n_sectors} sectors."
+  ))
+
+  cli::cli_inform("  Computing trade shares...")
   trade_shares <- .build_trade_shares(btd, cbs_yr, dims)
   shares_mat <- .build_shares_matrix(
     trade_shares, dims$items, dims$n_areas, dims$n_items
   )
 
+  cli::cli_inform("  Building supply matrix...")
   mr_supply <- .build_mr_supply(su, dims)
   trans <- .row_normalize(mr_supply)
 
+  cli::cli_inform(
+    "  Building Z matrix ({n_sectors}x{n_sectors})..."
+  )
   z_mat <- .build_z_matrix(su, dims, shares_mat, trans)
+
+  cli::cli_inform("  Building final demand matrix...")
   y_mat <- .build_mr_final_demand(
     cbs_yr, shares_mat, dims, fd_cols
   )
+
+  cli::cli_inform("  Fixing negative outputs...")
   fixed <- .fix_negative_output(z_mat, y_mat)
+  n_neg <- sum(fixed$X < 0)
+  if (n_neg > 0) {
+    cli::cli_warn(
+      "  {n_neg} sector{?s} still have negative output."
+    )
+  }
 
   labels <- .build_io_labels(dims)
   list(
@@ -220,7 +253,15 @@ build_io_model <- function(supply_use, bilateral_trade, cbs) {
     return(mat_or_val)
   }
   areas_chr <- as.character(areas)
-  mat_or_val[areas_chr, areas_chr, drop = FALSE]
+  available <- intersect(areas_chr, rownames(mat_or_val))
+  result <- matrix(0, nrow = n, ncol = n)
+  if (length(available) > 0) {
+    idx <- match(available, areas_chr)
+    result[idx, idx] <- mat_or_val[
+      available, available, drop = FALSE
+    ]
+  }
+  result
 }
 
 .domestic_own_use <- function(cbs_yr, item, areas) {
