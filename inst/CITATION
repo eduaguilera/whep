@@ -35,7 +35,7 @@ bibentry(
     person("Nikolas", "Kuschnig"),
     person("Hanspeter", "Wieland"),
     person("Victor", "Maus"),
-    person("Jan", "Borner")
+    person("Jan", "Börner")
   ),
   journal = "Environmental Science & Technology",
   year = "2019",

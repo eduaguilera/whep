@@ -391,7 +391,7 @@
     },
     "SystemRequirements": null
   },
-  "fileSize": "1198.411KB",
+  "fileSize": "1249.887KB",
   "citation": [
     {
       "@type": "SoftwareSourceCode",
@@ -464,7 +464,7 @@
         {
           "@type": "Person",
           "givenName": "Jan",
-          "familyName": "Borner"
+          "familyName": "Börner"
         }
       ],
       "name": "FABIO - The Construction of the Food and Agriculture Biomass Input-Output Model",
