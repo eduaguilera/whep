@@ -60,3 +60,71 @@ testthat::test_that("whep_read_file errors when remote down and no cache", {
     "No local cached copy"
   )
 })
+
+# .choose_version -----------------------------------------------------------
+
+testthat::test_that(".choose_version returns frozen when user is NULL", {
+  result <- .choose_version("20240101T000000Z-abc", NULL)
+  testthat::expect_equal(
+    result,
+    "20240101T000000Z-abc"
+  )
+})
+
+testthat::test_that(".choose_version returns NULL for 'latest'", {
+  result <- .choose_version(
+    "20240101T000000Z-abc",
+    "latest"
+  )
+  testthat::expect_null(result)
+})
+
+testthat::test_that(".choose_version returns user version when specified", {
+  result <- .choose_version(
+    "20240101T000000Z-abc",
+    "custom-version"
+  )
+  testthat::expect_equal(result, "custom-version")
+})
+
+# .fetch_file_info ----------------------------------------------------------
+
+testthat::test_that(".fetch_file_info returns correct entry", {
+  result <- .fetch_file_info(
+    "read_example",
+    whep::whep_inputs
+  )
+  testthat::expect_type(result, "list")
+  testthat::expect_equal(result$alias, "read_example")
+})
+
+testthat::test_that(".fetch_file_info errors on unknown alias", {
+  testthat::expect_error(
+    .fetch_file_info(
+      "nonexistent_xyz",
+      whep::whep_inputs
+    ),
+    "There is no file entry"
+  )
+})
+
+testthat::test_that(".fetch_file_info errors on duplicate alias", {
+  duped_inputs <- dplyr::bind_rows(
+    whep::whep_inputs,
+    whep::whep_inputs |> dplyr::slice(1)
+  )
+  alias <- whep::whep_inputs$alias[[1]]
+
+  testthat::expect_error(
+    .fetch_file_info(alias, duped_inputs),
+    "there should be only one"
+  )
+})
+
+# whep_list_file_versions ---------------------------------------------------
+
+testthat::test_that("whep_list_file_versions works for local example", {
+  result <- whep_list_file_versions("read_example")
+  testthat::expect_s3_class(result, "tbl_df")
+  testthat::expect_true(nrow(result) >= 1)
+})
