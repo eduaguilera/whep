@@ -28,9 +28,25 @@
 #' compute_leontief_inverse(z_mat, x_vec)
 compute_leontief_inverse <- function(z_mat, x_vec) {
   .validate_leontief_inputs(z_mat, x_vec)
+  n <- nrow(z_mat)
+
+  cli::cli_inform(
+    "Computing Leontief inverse ({n}x{n} matrix)..."
+  )
   a_mat <- .technical_coefficients(z_mat, x_vec)
-  l_inv <- solve(diag(nrow(z_mat)) - a_mat)
+
+  cli::cli_inform("  Inverting (I - A)...")
+  l_inv <- solve(diag(n) - a_mat)
+
+  n_neg <- sum(l_inv < 0)
+  if (n_neg > 0) {
+    cli::cli_inform(
+      "  Zeroing {n_neg} negative entr{?y/ies} in L."
+    )
+  }
   l_inv[l_inv < 0] <- 0
+
+  cli::cli_alert_success("Leontief inverse computed.")
   l_inv
 }
 
