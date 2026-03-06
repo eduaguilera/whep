@@ -1,5 +1,8 @@
 # whep (development version)
 
+* Remove `get_faostat_data()` and FAOSTAT dependency (upstream package
+  broken).
+
 # whep 0.3.0
 
 * Add `fill_proxy_growth()` and `calculate_lmdi()` (@jinfama, #65).

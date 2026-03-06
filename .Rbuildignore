@@ -17,3 +17,6 @@
 ^Meta$
 ^.vscode$
 ^\.agent$
+^codemeta\.json$
+^\.pkgcheck$
+^CITATION\.cff$

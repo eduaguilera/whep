@@ -1,0 +1,46 @@
+citHeader("To cite whep in publications use:")
+
+bibentry(
+  key = "whep",
+  bibtype = "Manual",
+  title = paste(
+    "whep: Processing Agro-Environmental Data"
+  ),
+  author = c(
+    person("Catalin", "Covaci"),
+    person("Eduardo", "Aguilera"),
+    person("Alice", "Beckmann"),
+    person("Juan", "Infante"),
+    person("Justin", "Morgan")
+  ),
+  year = "2025",
+  url = "https://github.com/eduaguilera/whep",
+  note = paste(
+    "R package version",
+    meta$Version
+  )
+)
+
+bibentry(
+  key = "fabio",
+  bibtype = "Article",
+  title = paste(
+    "FABIO - The Construction of the Food and",
+    "Agriculture Biomass Input-Output Model"
+  ),
+  author = c(
+    person("Martin", "Bruckner"),
+    person("Richard", "Wood"),
+    person("Daniel", "Moran"),
+    person("Nikolas", "Kuschnig"),
+    person("Hanspeter", "Wieland"),
+    person("Victor", "Maus"),
+    person("Jan", "Börner")
+  ),
+  journal = "Environmental Science & Technology",
+  year = "2019",
+  volume = "53",
+  number = "19",
+  pages = "11302-11312",
+  doi = "10.1021/acs.est.9b03554"
+)

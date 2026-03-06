@@ -2,8 +2,8 @@
 #'
 #' @description
 #' Internal functions that return small example tibbles for documentation
-#' and testing purposes. These avoid the need to download remote data during
-#' CRAN checks and allow users to see function outputs quickly.
+#' and testing purposes. These avoid the need to download remote data
+#' during CRAN checks and allow users to see function outputs quickly.
 #'
 #' @keywords internal
 #' @noRd

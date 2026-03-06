@@ -113,16 +113,17 @@ ratios.
 
 \strong{Single-level structural decomposition:}
 \itemize{
-\item \code{"emissions:activity*(activity[sector]/activity)*(emissions[sector]/activity[sector])"}
-\item Creates 3 factors: Activity level, Sectoral structure, Sectoral
-intensity.
+\item \code{"emissions:activity*(activity[sector]/activity)* (emissions[sector]/activity[sector])"}
+\item Creates 3 factors: Activity level, Sectoral
+structure, Sectoral intensity.
 }
 
 \strong{Multi-level structural decomposition:}
 \itemize{
-\item Two levels: \code{"emissions:activity*(activity[sector]/activity)*(activity[sector+fuel]/activity[sector])*(emissions[sector+fuel]/activity[sector+fuel])"}
-\item Creates 4 factors: Activity level, Sector structure, Fuel structure,
-Sectoral-fuel intensity.
+\item Two levels:
+\code{"emissions:activity*(activity[sector]/activity)* (activity[sector+fuel]/activity[sector])* (emissions[sector+fuel]/activity[sector+fuel])"}
+\item Creates 4 factors: Activity level, Sector
+structure, Fuel structure, Sectoral-fuel intensity.
 }
 }
 
