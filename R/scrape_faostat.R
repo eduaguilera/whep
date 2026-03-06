@@ -17,15 +17,11 @@
 #' @export
 #'
 #' @examples
-#' \dontrun{
+#' \donttest{
 #' get_faostat_data("livestock", year = 2010, area = "Portugal")
 #' }
 get_faostat_data <- function(activity_data, ...) {
-  # Some functions from FAOSTAT pkg don't work by only using prefixed functions.
-  # It is detached again at the end of this function call.
-  # Also this is another way to write require("FAOSTAT") without triggering
-  # R CMD check warning
-  do.call(require, list("FAOSTAT"))
+  rlang::check_installed("FAOSTAT")
 
   faostat_converters <- .faostat_converter(activity_data)
 
@@ -55,13 +51,12 @@ get_faostat_data <- function(activity_data, ...) {
           faostat_data[[filter_name]] %in% filter_args[[filter_name]],
         ]
       } else {
-        warning(paste("Column", filter_name, "not found in FAOSTAT data."))
+        cli::cli_warn(
+          "Column '{filter_name}' not found in FAOSTAT data."
+        )
       }
     }
   }
-
-  # Properly detach FAOSTAT to avoid issues
-  detach("package:FAOSTAT", unload = TRUE)
 
   faostat_data |>
     tibble::as_tibble()
@@ -112,7 +107,7 @@ get_faostat_data <- function(activity_data, ...) {
     length(activity_data) != 1 ||
       !(activity_data %in% .activity_data_choices())
   ) {
-    stop(.bad_activity_data_param_error())
+    cli::cli_abort(.bad_activity_data_param_error())
   }
 
   # create list to translate activity_data into FAOSTAT code
@@ -141,8 +136,12 @@ get_faostat_data <- function(activity_data, ...) {
 }
 
 .bad_activity_data_param_error <- function() {
-  paste(
-    "Please, ensure activity_data is one of",
-    '"livestock,crop_area,crop_yield,crop_production."'
+  choices <- paste(.activity_data_choices(), collapse = ", ")
+  c(
+    paste0(
+      "`activity_data` must be one of: ",
+      choices, "."
+    ),
+    "i" = "See {.fun get_faostat_data} for details."
   )
 }

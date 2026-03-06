@@ -41,9 +41,9 @@ testthat::test_that(".bad_activity_data_param_error returns helpful message", {
 
   testthat::expect_type(msg, "character")
   testthat::expect_true(
-    stringr::str_detect(msg, "activity_data")
+    any(stringr::str_detect(msg, "activity_data"))
   )
   testthat::expect_true(
-    stringr::str_detect(msg, "livestock")
+    any(stringr::str_detect(msg, "livestock"))
   )
 })

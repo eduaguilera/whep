@@ -1316,7 +1316,7 @@ fill_proxy_growth <- function(
       ))
     }
   } else {
-    warning("Column '", col_name, "' not found in data")
+    cli::cli_warn("Column '{col_name}' not found in data")
     return(list(
       source_var = value_col,
       group_vars = col_name,
