@@ -343,3 +343,182 @@ testthat::test_that(".build_trade_matrix completes missing countries", {
     .build_trade_matrix(n, code_levels) |>
     testthat::expect_equal(expected)
 })
+
+testthat::test_that(".ipf_2d converges to target margins", {
+  seed <- matrix(1, nrow = 3, ncol = 3)
+  target_rows <- c(10, 20, 30)
+  target_cols <- c(15, 25, 20)
+  result <- .ipf_2d(seed, target_rows, target_cols)
+
+  testthat::expect_equal(
+    rowSums(result),
+    target_rows,
+    tolerance = 0.1
+  )
+  testthat::expect_equal(
+    colSums(result),
+    target_cols,
+    tolerance = 0.1
+  )
+})
+
+testthat::test_that(".ipf_2d handles unequal seed values", {
+  seed <- matrix(
+    c(5, 1, 3, 2, 4, 1, 1, 2, 6),
+    nrow = 3,
+    byrow = TRUE
+  )
+  target_rows <- c(100, 80, 120)
+  target_cols <- c(90, 110, 100)
+  result <- .ipf_2d(seed, target_rows, target_cols)
+
+  testthat::expect_equal(
+    rowSums(result),
+    target_rows,
+    tolerance = 0.1
+  )
+  testthat::expect_equal(
+    colSums(result),
+    target_cols,
+    tolerance = 0.1
+  )
+})
+
+testthat::test_that(".ipf_2d handles zero rows gracefully", {
+  seed <- matrix(
+    c(1, 1, 0, 0, 1, 1),
+    nrow = 2,
+    byrow = TRUE
+  )
+  target_rows <- c(10, 0)
+  target_cols <- c(5, 5, 0)
+  result <- .ipf_2d(seed, target_rows, target_cols)
+
+  testthat::expect_equal(
+    rowSums(result),
+    target_rows,
+    tolerance = 0.1
+  )
+  testthat::expect_equal(
+    result[2, ],
+    c(0, 0, 0),
+    tolerance = 0.1
+  )
+})
+
+testthat::test_that(".complete_total_trade fills missing codes", {
+  codes <- factor(c(10, 20, 30))
+  total_trade <- tibble::tribble(
+    ~year, ~item_cbs_code, ~area_code, ~export, ~import,
+    2000, 1, codes[1], 5, 3,
+    2000, 1, codes[2], 2, 4
+  )
+
+  result <- .complete_total_trade(total_trade, codes)
+
+  testthat::expect_equal(nrow(result), 3)
+  result_30 <- result |>
+    dplyr::filter(area_code == 30)
+  testthat::expect_equal(
+    result_30$export,
+    0
+  )
+  testthat::expect_equal(
+    result_30$import,
+    0
+  )
+})
+
+testthat::test_that(".complete_total_trade handles multiple year-item combos", {
+  codes <- factor(c(10, 20))
+  total_trade <- tibble::tribble(
+    ~year, ~item_cbs_code, ~area_code, ~export, ~import,
+    2000, 1, codes[1], 5, 3,
+    2001, 2, codes[1], 8, 1
+  )
+  result <- .complete_total_trade(total_trade, codes)
+
+  testthat::expect_equal(nrow(result), 4)
+})
+
+testthat::test_that(".get_all_country_codes returns unique sorted", {
+  btd <- tibble::tibble(
+    from_code = c(1, 2, 3),
+    to_code = c(2, 4, 5)
+  )
+  cbs <- tibble::tibble(area_code = c(1, 6))
+  result <- .get_all_country_codes(btd, cbs)
+
+  testthat::expect_equal(
+    as.integer(result),
+    c(1, 2, 3, 4, 5, 6)
+  )
+  testthat::expect_s3_class(result, "factor")
+})
+
+testthat::test_that(".filter_only_items_in_cbs removes items not in cbs", {
+  btd <- tibble::tribble(
+    ~item_cbs_code, ~value,
+    1, 10,
+    2, 20,
+    3, 30
+  )
+  cbs <- tibble::tibble(item_cbs_code = c(1, 3))
+  result <- .filter_only_items_in_cbs(btd, cbs)
+
+  testthat::expect_equal(nrow(result), 2)
+  items <- result |> dplyr::pull(item_cbs_code)
+  testthat::expect_true(all(items %in% c(1, 3)))
+})
+
+testthat::test_that(".downscale_estimate_matrix scales rows exceeding balance", {
+  estimates <- matrix(
+    c(6, 4, 3, 7),
+    nrow = 2,
+    byrow = TRUE
+  )
+  balances <- c(5, 10)
+  result <- .downscale_estimate_matrix(estimates, balances)
+
+  testthat::expect_equal(rowSums(result), c(5, 10))
+  testthat::expect_equal(
+    result[1, 1],
+    5 * 6 / 10,
+    tolerance = 1e-6
+  )
+})
+
+testthat::test_that(".downscale_estimate_matrix leaves small rows unchanged", {
+  estimates <- matrix(
+    c(2, 1, 3, 4),
+    nrow = 2,
+    byrow = TRUE
+  )
+  balances <- c(10, 20)
+  result <- .downscale_estimate_matrix(estimates, balances)
+
+  testthat::expect_equal(result, estimates)
+})
+
+testthat::test_that(".balance_total_trade rescales larger side", {
+  total_trade <- tibble::tribble(
+    ~area_code, ~export, ~import,
+    1, 100, 50,
+    2, 200, 100
+  )
+  result <- .balance_total_trade(total_trade)
+
+  pointblank::expect_col_exists(
+    result,
+    columns = c("balanced_export", "balanced_import")
+  )
+  testthat::expect_equal(
+    sum(result$balanced_export),
+    sum(result$balanced_import),
+    tolerance = 1e-6
+  )
+  testthat::expect_equal(
+    result$balanced_import,
+    c(50, 100)
+  )
+})
