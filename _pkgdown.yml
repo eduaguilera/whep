@@ -100,6 +100,14 @@ reference:
   contents:
   - calculate_lmdi
 
+- title: Multi-regional input-output model
+  desc: >
+    Build and analyze multi-regional input-output (MRIO) models following the FABIO framework.
+  contents:
+  - build_io_model
+  - compute_leontief_inverse
+  - compute_footprint
+
 - title: Harmonization
   desc: >
     Functions to harmonize time series items according to specified mapping.
