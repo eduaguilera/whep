@@ -167,26 +167,6 @@ references:
   year: '2026'
   doi: 10.32614/CRAN.package.fs
 - type: software
-  title: FAOSTAT
-  abstract: 'FAOSTAT: Download Data from the FAOSTAT Database'
-  notes: Imports
-  url: https://gitlab.com/paulrougieux/faostatpackage
-  repository: https://CRAN.R-project.org/package=FAOSTAT
-  authors:
-  - family-names: J.
-    given-names: Michael C.
-  - family-names: Gesmann
-    given-names: Markus
-  - family-names: Gheri
-    given-names: Filippo
-  - family-names: Rougieux
-    given-names: Paul
-    email: paul.rougieux@gmail.com
-  - family-names: Campbell
-    given-names: Sebastian
-  year: '2026'
-  doi: 10.32614/CRAN.package.FAOSTAT
-- type: software
   title: httr
   abstract: 'httr: Tools for Working with URLs and HTTP'
   notes: Imports
