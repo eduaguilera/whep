@@ -4,7 +4,10 @@ typology_stacked_bars <- function() {
 
   typologies_df <- indicators |>
     dplyr::group_by(Year, Province_name) |>
-    dplyr::summarise(Typology = dplyr::first(Typology), .groups = "drop")
+    dplyr::summarise(
+      Typology = dplyr::first(Typology_base),
+      .groups = "drop"
+    )
 
   soil_inputs <- n_prov_destiny |>
     dplyr::filter(
@@ -49,8 +52,7 @@ typology_stacked_bars <- function() {
     "Connected crop-livestock systems (intensive)" = "#7A4F20",
     "Connected crop-livestock systems (extensive)" = "#AF814B",
     "Disconnected crop-livestock systems (intensive)" = "#E67E00",
-    "Disconnected crop-livestock systems (extensive)" = "#F6A640",
-    "Urban systems" = "#6A5ACD"
+    "Disconnected crop-livestock systems (extensive)" = "#F6A640"
   )
 
   df_total$Typology <- factor(
@@ -75,9 +77,9 @@ typology_stacked_bars <- function() {
     ggplot2::scale_x_discrete(breaks = year_breaks) +
     ggplot2::scale_fill_manual(values = typology_colors) +
     ggplot2::labs(
-      title = "Total Nitrogen Inputs by Typology",
+      title = "Total N inputs by typology",
       x = "Year",
-      y = "Total N Input (Gg N)",
+      y = "Total N input (Gg N)",
       fill = "Typology"
     ) +
     ggplot2::theme_minimal() +
@@ -119,9 +121,9 @@ typology_stacked_bars <- function() {
     ggplot2::scale_x_discrete(breaks = year_breaks_pct) +
     ggplot2::scale_fill_manual(values = typology_colors) +
     ggplot2::labs(
-      title = "Nitrogen Inputs by Typology (%)",
+      title = "Nitrogen inputs by typology (%)",
       x = "Year",
-      y = "Share of Total N Input (%)",
+      y = "Share of total N input (%)",
       fill = "Typology"
     ) +
     ggplot2::theme_minimal() +
