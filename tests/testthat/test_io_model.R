@@ -139,6 +139,53 @@ testthat::test_that(
   }
 )
 
+testthat::test_that(
+  "build_io_model with years = NULL computes all years",
+  {
+    f <- io_two_country_fixture()
+    result <- build_io_model(f$su, f$btd, f$cbs, years = NULL)
+
+    testthat::expect_equal(nrow(result), 1)
+    testthat::expect_equal(result$year[[1]], 2000)
+  }
+)
+
+testthat::test_that(
+  "build_io_model with years filters to specified years",
+  {
+    f <- io_two_country_fixture()
+    result <- build_io_model(
+      f$su, f$btd, f$cbs,
+      years = c(2000)
+    )
+
+    testthat::expect_equal(nrow(result), 1)
+    testthat::expect_equal(result$year[[1]], 2000)
+  }
+)
+
+testthat::test_that(
+  "build_io_model with invalid years raises error",
+  {
+    f <- io_two_country_fixture()
+    testthat::expect_error(
+      build_io_model(f$su, f$btd, f$cbs, years = c(2001)),
+      "not available in data"
+    )
+  }
+)
+
+testthat::test_that(
+  "build_io_model with non-numeric years raises error",
+  {
+    f <- io_two_country_fixture()
+    testthat::expect_error(
+      build_io_model(f$su, f$btd, f$cbs, years = "2000"),
+      "must be numeric or NULL"
+    )
+  }
+)
+
 # Private helpers -------------------------------------------------------
 
 testthat::test_that(

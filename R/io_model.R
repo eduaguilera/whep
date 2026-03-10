@@ -21,6 +21,10 @@
 #'   `year`, `area_code`, `item_cbs_code`, `production`,
 #'   `import`, `export`, `stock_retrieval`, plus final demand
 #'   columns (`food`, `other_uses`, etc.).
+#' @param years Numeric vector of years to compute, or NULL.
+#'   If NULL, computes all years in the intersection of
+#'   available data across inputs. If specified, must be
+#'   a subset of available years.
 #'
 #' @return A tibble with one row per year and list-columns:
 #'   - `Z`: Inter-industry flow matrix (product-by-product).
@@ -36,9 +40,18 @@
 #' btd <- get_bilateral_trade(example = TRUE)
 #' cbs <- get_wide_cbs(example = TRUE)
 #' # build_io_model(su, btd, cbs)
-build_io_model <- function(supply_use, bilateral_trade, cbs) {
+build_io_model <- function(
+  supply_use, bilateral_trade, cbs, years = NULL
+) {
   .validate_io_inputs(supply_use, bilateral_trade, cbs)
-  years <- .get_common_years(supply_use, bilateral_trade, cbs)
+  common_years <- .get_common_years(
+    supply_use, bilateral_trade, cbs
+  )
+  if (is.null(years)) {
+    years <- common_years
+  } else {
+    .validate_years(years, common_years)
+  }
   fd_cols <- .detect_fd_columns(cbs)
   n_years <- length(years)
 
@@ -179,6 +192,21 @@ build_io_model <- function(supply_use, bilateral_trade, cbs) {
 .detect_fd_columns <- function(cbs) {
   possible <- c("food", "other_uses", "feed")
   intersect(possible, names(cbs))
+}
+
+.validate_years <- function(years, common_years) {
+  if (!is.numeric(years)) {
+    cli::cli_abort(
+      "{.arg years} must be numeric or NULL."
+    )
+  }
+  missing <- setdiff(years, common_years)
+  if (length(missing) > 0) {
+    cli::cli_abort(
+      "Years {.field {missing}} not available in data. \
+      Available: {.field {sort(common_years)}}."
+    )
+  }
 }
 
 # --- Supply matrix (block-diagonal) ---
