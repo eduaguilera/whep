@@ -2,7 +2,8 @@
 
 footprint_2sector_fixture <- function() {
   z <- matrix(
-    c(10, 5, 3, 2), nrow = 2, byrow = TRUE
+    c(10, 5, 3, 2),
+    nrow = 2, byrow = TRUE
   )
   x <- c(100, 50)
   l_inv <- compute_leontief_inverse(z, x)
@@ -44,7 +45,8 @@ testthat::test_that(
   "footprint sums match total extensions",
   {
     z <- matrix(
-      c(5, 10, 3, 2), nrow = 2, byrow = TRUE
+      c(5, 10, 3, 2),
+      nrow = 2, byrow = TRUE
     )
     y <- matrix(c(85, 45), ncol = 1)
     x <- rowSums(z) + as.vector(y)
@@ -100,6 +102,13 @@ testthat::test_that("compute_footprint validates inputs", {
     compute_footprint(l_inv, x, y, ext, labels),
     "must have 2 rows"
   )
+  testthat::expect_error(
+    compute_footprint(
+      x_vec = x, y_mat = y, extensions = ext,
+      labels = labels
+    ),
+    "Provide either"
+  )
 })
 
 testthat::test_that(
@@ -127,5 +136,26 @@ testthat::test_that(
       sum(result$value), sum(extensions),
       tolerance = 1e-6
     )
+  }
+)
+
+testthat::test_that(
+  "sparse path (z_mat) matches dense path (l_inv)",
+  {
+    f <- footprint_2sector_fixture()
+    dense <- compute_footprint(
+      f$l_inv, f$x, f$y, f$extensions, f$labels
+    )
+    sparse <- compute_footprint(
+      x_vec = f$x, y_mat = f$y,
+      extensions = f$extensions, labels = f$labels,
+      z_mat = f$z
+    )
+
+    testthat::expect_equal(
+      sum(sparse$value), sum(dense$value),
+      tolerance = 1e-6
+    )
+    testthat::expect_equal(nrow(sparse), nrow(dense))
   }
 )

@@ -100,7 +100,10 @@ testthat::test_that("x equals rowSums(z) + rowSums(y)", {
   y <- result$Y[[1]]
   x <- result$X[[1]]
 
-  testthat::expect_equal(x, rowSums(z) + rowSums(y))
+  testthat::expect_equal(
+    as.numeric(x),
+    as.numeric(Matrix::rowSums(z) + Matrix::rowSums(y))
+  )
 })
 
 testthat::test_that("z has no negative values", {
@@ -146,8 +149,14 @@ testthat::test_that(
     result <- .block_diag(list(a, b))
 
     testthat::expect_equal(dim(result), c(3, 5))
-    testthat::expect_equal(result[1:2, 1:2], a)
-    testthat::expect_equal(result[3, 3:5], as.vector(b))
+    testthat::expect_equal(
+      as.matrix(result[1:2, 1:2]),
+      a
+    )
+    testthat::expect_equal(
+      as.numeric(result[3, 3:5]),
+      as.vector(b)
+    )
     testthat::expect_equal(sum(result[1:2, 3:5]), 0)
     testthat::expect_equal(sum(result[3, 1:2]), 0)
   }
@@ -159,7 +168,9 @@ testthat::test_that(
     m <- matrix(c(10, 20, 30, 60), nrow = 2)
     result <- .row_normalize(m)
 
-    testthat::expect_equal(rowSums(result), c(1, 1))
+    testthat::expect_equal(
+      as.numeric(Matrix::rowSums(result)), c(1, 1)
+    )
   }
 )
 
@@ -179,7 +190,8 @@ testthat::test_that(
   {
     shares <- list(
       "10" = matrix(
-        c(0.9, 0.1, 0.05, 0.95), nrow = 2
+        c(0.9, 0.1, 0.05, 0.95),
+        nrow = 2
       ),
       "20" = diag(2)
     )

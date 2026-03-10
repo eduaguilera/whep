@@ -22,6 +22,8 @@ Imports:
     fs,
     FAOSTAT,
     httr,
+    Matrix,
+    methods,
     nanoparquet,
     pins,
     purrr,

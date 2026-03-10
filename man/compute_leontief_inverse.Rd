@@ -9,14 +9,14 @@ compute_leontief_inverse(z_mat, x_vec)
 \arguments{
 \item{z_mat}{Square numeric matrix of inter-industry flows.
 Entry \eqn{Z_{ij}} is the flow from sector \eqn{i} to
-sector \eqn{j}.}
+sector \eqn{j}. Can be dense or sparse.}
 
 \item{x_vec}{Numeric vector of total output per sector. Must
 have the same length as \code{nrow(z_mat)}.}
 }
 \value{
 The Leontief inverse matrix \eqn{L}. Negative
-values are set to zero.
+values are set to zero. Returns a dense matrix.
 }
 \description{
 Compute the Leontief inverse matrix from intermediate flows
@@ -28,6 +28,13 @@ The technical coefficients matrix is computed as
 \eqn{A_{ij} = Z_{ij} / X_j}, representing the input of
 sector \eqn{i} needed per unit of output from sector \eqn{j}.
 The Leontief inverse is then \eqn{L = (I - A)^{-1}}.
+
+For large systems (thousands of sectors), consider using
+\code{\link[=compute_footprint]{compute_footprint()}} directly with \code{z_mat} and \code{x_vec}
+instead of pre-computing L, which avoids materialising the
+dense inverse matrix.
+
+Accepts both dense and sparse (Matrix package) inputs.
 }
 \examples{
 z_mat <- matrix(c(0, 5, 10, 0), nrow = 2)

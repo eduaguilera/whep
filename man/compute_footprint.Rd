@@ -4,11 +4,12 @@
 \alias{compute_footprint}
 \title{Compute environmental footprints.}
 \usage{
-compute_footprint(l_inv, x_vec, y_mat, extensions, labels)
+compute_footprint(l_inv = NULL, x_vec, y_mat, extensions, labels, z_mat = NULL)
 }
 \arguments{
 \item{l_inv}{Leontief inverse matrix from
-\code{\link[=compute_leontief_inverse]{compute_leontief_inverse()}}.}
+\code{\link[=compute_leontief_inverse]{compute_leontief_inverse()}}. Ignored when \code{z_mat} is
+provided.}
 
 \item{x_vec}{Numeric vector of total output per sector.}
 
@@ -21,6 +22,10 @@ length as \code{x_vec}.}
 \item{labels}{Tibble with \code{area_code} and \code{item_cbs_code}
 mapping row/column indices to their meaning. From
 \code{\link[=build_io_model]{build_io_model()}}.}
+
+\item{z_mat}{Optional inter-industry flow matrix from
+\code{\link[=build_io_model]{build_io_model()}}. When provided, the Leontief system is
+solved directly (sparse), and \code{l_inv} is not needed.}
 }
 \value{
 A tibble with footprint results containing:
@@ -43,6 +48,13 @@ The multiplier matrix is computed as
 \eqn{MP_{ij} = (e_i / X_i) \cdot L_{ij}}, where \eqn{e_i}
 is the extension for sector \eqn{i}. The footprint is then
 \eqn{FP = MP \times Y}.
+
+For large systems, pass \code{z_mat} and \code{x_vec} instead of
+\code{l_inv}. This solves the system \eqn{(I - A)x = Y} directly
+using a sparse LU factorisation, avoiding the dense Leontief
+inverse entirely. This reduces memory from
+\eqn{O(n^2)} to \eqn{O(nnz)} and is dramatically faster for
+systems with >10 000 sectors.
 }
 \examples{
 z_mat <- matrix(c(0, 5, 10, 0), nrow = 2)
@@ -54,5 +66,14 @@ labels <- tibble::tibble(
   area_code = c(1L, 1L),
   item_cbs_code = c(1L, 2L)
 )
+
+# Small system: pass pre-computed L
 compute_footprint(l_inv, x_vec, y_mat, extensions, labels)
+
+# Large system: pass Z directly (avoids dense L)
+compute_footprint(
+  x_vec = x_vec, y_mat = y_mat,
+  extensions = extensions, labels = labels,
+  z_mat = z_mat
+)
 }
