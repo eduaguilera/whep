@@ -89,6 +89,14 @@ build_io_model <- function(supply_use, bilateral_trade, cbs) {
   )
   z_mat <- .build_z_matrix(su, dims, shares_mat, trans)
 
+  z_nnz <- Matrix::nnzero(z_mat)
+  z_pct <- round(
+    100 * z_nnz / (n_sectors * n_sectors), 1
+  )
+  cli::cli_inform(
+    "  Z sparsity: {z_nnz} non-zeros ({z_pct}% dense)."
+  )
+
   cli::cli_inform("  Building final demand matrix...")
   y_mat <- .build_mr_final_demand(
     cbs_yr, shares_mat, dims, fd_cols
@@ -199,7 +207,7 @@ build_io_model <- function(supply_use, bilateral_trade, cbs) {
       proc_rows = dims$procs,
       item_cols = dims$items
     ) |>
-      t()
+      Matrix::t()
   })
   do.call(cbind, blocks)
 }
@@ -209,13 +217,14 @@ build_io_model <- function(supply_use, bilateral_trade, cbs) {
 ) {
   n_items <- nrow(flat_mat)
   x_exp <- flat_mat[
-    rep(seq_len(n_items), n_areas), , drop = FALSE
+    rep(seq_len(n_items), n_areas), ,
+    drop = FALSE
   ]
   y_exp <- shares_mat[
     , rep(seq_len(n_areas), each = n_cols_per_area),
     drop = FALSE
   ]
-  y_exp * x_exp
+  methods::as(y_exp * x_exp, "CsparseMatrix")
 }
 
 # --- Trade shares ---
@@ -231,7 +240,9 @@ build_io_model <- function(supply_use, bilateral_trade, cbs) {
   n <- length(areas)
   btd_row <- dplyr::filter(btd, item_cbs_code == item)
 
-  if (nrow(btd_row) == 0) return(diag(n))
+  if (nrow(btd_row) == 0) {
+    return(diag(n))
+  }
 
   trade_mat <- .extract_trade_matrix(
     btd_row$bilateral_trade[[1]], areas
@@ -246,7 +257,8 @@ build_io_model <- function(supply_use, bilateral_trade, cbs) {
   n <- length(areas)
   if (!is.matrix(mat_or_val)) {
     mat_or_val <- matrix(
-      mat_or_val, nrow = 1, ncol = 1
+      mat_or_val,
+      nrow = 1, ncol = 1
     )
   }
   if (nrow(mat_or_val) == n && ncol(mat_or_val) == n) {
@@ -258,7 +270,8 @@ build_io_model <- function(supply_use, bilateral_trade, cbs) {
   if (length(available) > 0) {
     idx <- match(available, areas_chr)
     result[idx, idx] <- mat_or_val[
-      available, available, drop = FALSE
+      available, available,
+      drop = FALSE
     ]
   }
   result
@@ -267,7 +280,9 @@ build_io_model <- function(supply_use, bilateral_trade, cbs) {
 .domestic_own_use <- function(cbs_yr, item, areas) {
   cbs_item <- dplyr::filter(cbs_yr, item_cbs_code == item)
   result <- rep(0, length(areas))
-  if (nrow(cbs_item) == 0) return(result)
+  if (nrow(cbs_item) == 0) {
+    return(result)
+  }
 
   idx <- match(cbs_item$area_code, areas)
   valid <- !is.na(idx)
@@ -288,7 +303,7 @@ build_io_model <- function(supply_use, bilateral_trade, cbs) {
   ) |>
     do.call(rbind, args = _)
   row_order <- .interleave_index(n_areas, n_items)
-  big[row_order, , drop = FALSE]
+  methods::as(big[row_order, , drop = FALSE], "CsparseMatrix")
 }
 
 .interleave_index <- function(n_areas, n_items) {
@@ -321,41 +336,46 @@ build_io_model <- function(supply_use, bilateral_trade, cbs) {
     )
   merged <- template |>
     dplyr::left_join(
-      fd_data, by = c("area_code", "item_cbs_code")
+      fd_data,
+      by = c("area_code", "item_cbs_code")
     ) |>
     dplyr::mutate(dplyr::across(
       dplyr::all_of(fd_cols), ~ tidyr::replace_na(.x, 0)
     ))
-  purrr::map(dims$areas, function(area) {
+  blocks <- purrr::map(dims$areas, function(area) {
     merged |>
       dplyr::filter(area_code == area) |>
       dplyr::arrange(
         match(item_cbs_code, dims$items)
       ) |>
       dplyr::select(dplyr::all_of(fd_cols)) |>
-      as.matrix()
-  }) |>
-    do.call(cbind, args = _)
+      as.matrix() |>
+      methods::as("CsparseMatrix")
+  })
+  do.call(cbind, blocks)
 }
 
 # --- Output fixing ---
 
 .fix_negative_output <- function(z_mat, y_mat) {
-  x_vec <- rowSums(z_mat) + rowSums(y_mat)
+  x_vec <- Matrix::rowSums(z_mat) + Matrix::rowSums(y_mat)
   neg <- which(x_vec < 0)
   if (length(neg) == 0) {
-    return(list(X = x_vec, Y = y_mat))
+    return(list(X = as.numeric(x_vec), Y = y_mat))
   }
 
   for (i in neg) {
     deficit <- -x_vec[i]
-    y_neg <- which(y_mat[i, ] < 0)
+    y_row <- y_mat[i, ]
+    y_neg <- which(y_row < 0)
     if (length(y_neg) > 0) {
       y_mat[i, y_neg[1]] <- y_mat[i, y_neg[1]] + deficit
     }
   }
   list(
-    X = rowSums(z_mat) + rowSums(y_mat),
+    X = as.numeric(
+      Matrix::rowSums(z_mat) + Matrix::rowSums(y_mat)
+    ),
     Y = y_mat
   )
 }
@@ -365,8 +385,12 @@ build_io_model <- function(supply_use, bilateral_trade, cbs) {
 .tidy_to_matrix <- function(data, proc_rows, item_cols) {
   n_procs <- nrow(proc_rows)
   n_items <- length(item_cols)
-  m <- matrix(0, nrow = n_procs, ncol = n_items)
-  if (nrow(data) == 0) return(m)
+  if (nrow(data) == 0) {
+    return(Matrix::sparseMatrix(
+      i = integer(0), j = integer(0), x = numeric(0),
+      dims = c(n_procs, n_items)
+    ))
+  }
 
   agg <- data |>
     dplyr::inner_join(
@@ -381,8 +405,10 @@ build_io_model <- function(supply_use, bilateral_trade, cbs) {
     dplyr::summarise(
       value = sum(value), .by = c(proc_idx, item_idx)
     )
-  m[cbind(agg$proc_idx, agg$item_idx)] <- agg$value
-  m
+  Matrix::sparseMatrix(
+    i = agg$proc_idx, j = agg$item_idx, x = agg$value,
+    dims = c(n_procs, n_items)
+  )
 }
 
 .build_block_diag_matrix <- function(data, dims) {
@@ -397,35 +423,19 @@ build_io_model <- function(supply_use, bilateral_trade, cbs) {
 }
 
 .block_diag <- function(matrices) {
-  row_sizes <- vapply(matrices, nrow, integer(1))
-  col_sizes <- vapply(matrices, ncol, integer(1))
-  result <- matrix(
-    0, sum(row_sizes), sum(col_sizes)
-  )
-  r_off <- 0L
-  c_off <- 0L
-  for (m in matrices) {
-    nr <- nrow(m)
-    nc <- ncol(m)
-    result[
-      r_off + seq_len(nr), c_off + seq_len(nc)
-    ] <- m
-    r_off <- r_off + nr
-    c_off <- c_off + nc
-  }
-  result
+  Matrix::bdiag(matrices)
 }
 
 .row_normalize <- function(mat) {
-  rs <- rowSums(mat)
+  rs <- Matrix::rowSums(mat)
   rs[rs == 0] <- 1
-  mat / rs
+  Matrix::Diagonal(x = 1 / rs) %*% mat
 }
 
 .col_normalize <- function(mat) {
-  cs <- colSums(mat)
+  cs <- Matrix::colSums(mat)
   cs[cs == 0] <- 1
-  t(t(mat) / cs)
+  mat %*% Matrix::Diagonal(x = 1 / cs)
 }
 
 # --- Labels and output formatting ---

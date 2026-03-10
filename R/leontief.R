@@ -11,14 +11,21 @@
 #' sector \eqn{i} needed per unit of output from sector \eqn{j}.
 #' The Leontief inverse is then \eqn{L = (I - A)^{-1}}.
 #'
+#' For large systems (thousands of sectors), consider using
+#' [compute_footprint()] directly with `z_mat` and `x_vec`
+#' instead of pre-computing L, which avoids materialising the
+#' dense inverse matrix.
+#'
+#' Accepts both dense and sparse (Matrix package) inputs.
+#'
 #' @param z_mat Square numeric matrix of inter-industry flows.
 #'   Entry \eqn{Z_{ij}} is the flow from sector \eqn{i} to
-#'   sector \eqn{j}.
+#'   sector \eqn{j}. Can be dense or sparse.
 #' @param x_vec Numeric vector of total output per sector. Must
 #'   have the same length as `nrow(z_mat)`.
 #'
 #' @return The Leontief inverse matrix \eqn{L}. Negative
-#'   values are set to zero.
+#'   values are set to zero. Returns a dense matrix.
 #'
 #' @export
 #'
@@ -36,7 +43,8 @@ compute_leontief_inverse <- function(z_mat, x_vec) {
   a_mat <- .technical_coefficients(z_mat, x_vec)
 
   cli::cli_inform("  Inverting (I - A)...")
-  l_inv <- solve(diag(n) - a_mat)
+  i_minus_a <- Matrix::Diagonal(n) - a_mat
+  l_inv <- as.matrix(solve(i_minus_a))
 
   n_neg <- sum(l_inv < 0)
   if (n_neg > 0) {
@@ -52,11 +60,11 @@ compute_leontief_inverse <- function(z_mat, x_vec) {
 
 .technical_coefficients <- function(z_mat, x_vec) {
   x_inv <- ifelse(x_vec == 0, 0, 1 / x_vec)
-  t(t(z_mat) * x_inv)
+  z_mat %*% Matrix::Diagonal(x = x_inv)
 }
 
 .validate_leontief_inputs <- function(z_mat, x_vec) {
-  if (!is.matrix(z_mat)) {
+  if (!methods::is(z_mat, "Matrix") && !is.matrix(z_mat)) {
     cli::cli_abort("{.arg z_mat} must be a matrix.")
   }
   if (nrow(z_mat) != ncol(z_mat)) {
