@@ -4,7 +4,7 @@
 \alias{build_io_model}
 \title{Build multi-regional input-output model.}
 \usage{
-build_io_model(supply_use, bilateral_trade, cbs)
+build_io_model(supply_use, bilateral_trade, cbs, years = NULL)
 }
 \arguments{
 \item{supply_use}{Tibble from \code{\link[=build_supply_use]{build_supply_use()}}. Must have
@@ -19,6 +19,11 @@ Must have columns: \code{year}, \code{item_cbs_code},
 \code{year}, \code{area_code}, \code{item_cbs_code}, \code{production},
 \code{import}, \code{export}, \code{stock_retrieval}, plus final demand
 columns (\code{food}, \code{other_uses}, etc.).}
+
+\item{years}{Numeric vector of years to compute, or NULL.
+If NULL, computes all years in the intersection of
+available data across inputs. If specified, must be
+a subset of available years.}
 }
 \value{
 A tibble with one row per year and list-columns:
