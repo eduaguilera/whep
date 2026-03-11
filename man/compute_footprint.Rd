@@ -4,7 +4,15 @@
 \alias{compute_footprint}
 \title{Compute environmental footprints.}
 \usage{
-compute_footprint(l_inv = NULL, x_vec, y_mat, extensions, labels, z_mat = NULL)
+compute_footprint(
+  l_inv = NULL,
+  x_vec,
+  y_mat,
+  extensions,
+  labels,
+  z_mat = NULL,
+  y_labels = NULL
+)
 }
 \arguments{
 \item{l_inv}{Leontief inverse matrix from
@@ -26,6 +34,14 @@ mapping row/column indices to their meaning. From
 \item{z_mat}{Optional inter-industry flow matrix from
 \code{\link[=build_io_model]{build_io_model()}}. When provided, the Leontief system is
 solved directly (sparse), and \code{l_inv} is not needed.}
+
+\item{y_labels}{Optional tibble labelling Y columns. Pass
+\code{fd_labels[[i]]} from \code{\link[=build_io_model]{build_io_model()}} output. When
+provided, the result includes a \code{target_fd} column (the
+demand category, e.g. \code{"food"}) and \code{target_area} is
+populated from the consuming country. When omitted, both
+are inferred from \code{labels} (appropriate only when Y is
+square and columns represent sectors).}
 }
 \value{
 A tibble with footprint results containing:
@@ -33,7 +49,11 @@ A tibble with footprint results containing:
 \item \code{origin_area}: Country where the pressure occurs.
 \item \code{origin_item}: Item causing the pressure.
 \item \code{target_area}: Country consuming the product.
-\item \code{target_item}: Product consumed.
+\item \code{target_item}: Item consumed (NA when \code{y_labels} is
+provided, as Y columns represent demand categories, not
+specific items).
+\item \code{target_fd}: Demand category (e.g. \code{"food"}). Only
+present when \code{y_labels} is provided.
 \item \code{value}: Footprint value in extension units.
 }
 }

@@ -128,6 +128,27 @@ testthat::test_that("labels have correct dimensions", {
 })
 
 testthat::test_that(
+  "build_io_model returns fd_labels with correct shape",
+  {
+    f <- io_two_country_fixture()
+    result <- build_io_model(f$su, f$btd, f$cbs)
+    fd_labs <- result$fd_labels[[1]]
+
+    pointblank::expect_col_exists(
+      fd_labs, c("area_code", "fd_col")
+    )
+    # 2 areas * 2 fd_cols (food, other_uses) = 4 rows
+    testthat::expect_equal(nrow(fd_labs), 4L)
+    testthat::expect_equal(
+      ncol(result$Y[[1]]), nrow(fd_labs)
+    )
+    pointblank::expect_col_vals_in_set(
+      fd_labs, fd_col, set = c("food", "other_uses")
+    )
+  }
+)
+
+testthat::test_that(
   "build_io_model validates missing columns",
   {
     f <- io_two_country_fixture()
