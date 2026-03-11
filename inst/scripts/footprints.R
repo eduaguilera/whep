@@ -51,6 +51,4 @@ footprints |>
   add_item_cbs_name(
     name_column = "target_item_name",
     code_column = "target_item"
-  ) |>
-  dplyr::filter(origin_item != target_item) |>
-  print(n = 100)
+  )
