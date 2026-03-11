@@ -4,21 +4,30 @@
 \alias{build_io_model}
 \title{Build multi-regional input-output model.}
 \usage{
-build_io_model(supply_use, bilateral_trade, cbs, years = NULL)
+build_io_model(
+	supply_use = build_supply_use(),
+	bilateral_trade = get_bilateral_trade(),
+	cbs = get_wide_cbs(),
+	years = NULL
+)
 }
 \arguments{
-\item{supply_use}{Tibble from \code{\link[=build_supply_use]{build_supply_use()}}. Must have
+\item{supply_use}{Tibble from \code{\link[=build_supply_use]{build_supply_use()}}. By default,
+this function calls \code{\link[=build_supply_use]{build_supply_use()}} internally. Must have
 columns: \code{year}, \code{area_code}, \code{proc_group}, \code{proc_cbs_code},
 \code{item_cbs_code}, \code{type}, \code{value}.}
 
-\item{bilateral_trade}{Tibble from \code{\link[=get_bilateral_trade]{get_bilateral_trade()}}.
-Must have columns: \code{year}, \code{item_cbs_code},
-\code{bilateral_trade} (list-column of matrices).}
+\item{bilateral_trade}{Tibble from \code{\link[=get_bilateral_trade]{get_bilateral_trade()}}. By
+default, this function calls \code{\link[=get_bilateral_trade]{get_bilateral_trade()}}
+internally.
+Must have columns: \code{year}, \code{item_cbs_code}, \code{bilateral_trade}
+(list-column of matrices).}
 
-\item{cbs}{Tibble from \code{\link[=get_wide_cbs]{get_wide_cbs()}}. Must have columns:
-\code{year}, \code{area_code}, \code{item_cbs_code}, \code{production},
-\code{import}, \code{export}, \code{stock_retrieval}, plus final demand
-columns (\code{food}, \code{other_uses}, etc.).}
+\item{cbs}{Tibble from \code{\link[=get_wide_cbs]{get_wide_cbs()}}. By default, this
+function calls \code{\link[=get_wide_cbs]{get_wide_cbs()}} internally. Must have columns:
+\code{year}, \code{area_code}, \code{item_cbs_code}, \code{production}, \code{import},
+\code{export}, \code{stock_retrieval}, plus final demand columns
+(\code{food}, \code{other_uses}, etc.).}
 
 \item{years}{Numeric vector of years to compute, or NULL.
 If NULL, computes all years in the intersection of
@@ -36,7 +45,7 @@ A tibble with one row per year and list-columns:
 \item \code{fd_labels}: Tibble mapping each Y column to its
 \code{area_code} (consuming country) and \code{fd_col} (demand
 category, e.g. \code{"food"}) . Pass to
-\code{\link[=compute_footprint]{compute_footprint()}} as \code{y_labels} to get a
+\code{\link[=compute_footprint]{compute_footprint()}} as \code{fd_labels} to get a
 \code{target_fd} column in the footprint output.
 }
 }
@@ -55,5 +64,5 @@ intermediate flow from sector \code{i} to sector \code{j}.
 su <- build_supply_use(example = TRUE)
 btd <- get_bilateral_trade(example = TRUE)
 cbs <- get_wide_cbs(example = TRUE)
-# build_io_model(su, btd, cbs)
+build_io_model(su, btd, cbs)
 }

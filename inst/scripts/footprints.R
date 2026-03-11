@@ -1,39 +1,41 @@
-# Supply-use tables (who produces and uses what)
-supply_use <- build_supply_use()
+# Years to process
+years <- c(1986, 1987)
 
-# Bilateral trade matrices (who trades with whom)
-bilateral_trade <- get_bilateral_trade()
+# Build IO model for selected years.
+io <- build_io_model(years = years)
+land_use <- get_land_fp_production()
 
-# Commodity balance sheets (production, consumption, trade)
-cbs <- get_wide_cbs()
+# Compute footprints for all selected years.
+footprints <- purrr::pmap_dfr(
+  list(
+    io$year,
+    io$Z,
+    io$X,
+    io$Y,
+    io$labels,
+    io$fd_labels
+  ),
+  function(yr, z_mat, x_vec, y_mat, labels, fd_labels) {
+    extensions <- land_use |>
+      dplyr::filter(year == yr) |>
+      dplyr::right_join(labels, by = c("area_code", "item_cbs_code")) |>
+      tidyr::replace_na(list(impact_u = 0)) |>
+      dplyr::arrange(index) |>
+      dplyr::pull(impact_u)
 
-# Build IO model for all years
-io <- build_io_model(supply_use, bilateral_trade, cbs, years = c(1986))
-
-# Extract matrices for one year
-z_mat <- io$Z[[1]]
-y_mat <- io$Y[[1]]
-x_vec <- io$X[[1]]
-labels <- io$labels[[1]]
-fd_labels <- io$fd_labels[[1]]
-
-extensions <- get_land_fp_production() |>
-  dplyr::filter(year == 1986) |>
-  dplyr::right_join(labels, by = c("area_code", "item_cbs_code")) |>
-  tidyr::replace_na(list(impact_u = 0)) |>
-  dplyr::arrange(index) |>
-  dplyr::pull(impact_u)
-
-footprint <- compute_footprint(
-  z_mat = z_mat,
-  x_vec = x_vec,
-  y_mat = y_mat,
-  extensions = extensions,
-  labels = labels,
-  fd_labels = fd_labels
+    compute_footprint(
+      z_mat = z_mat,
+      x_vec = x_vec,
+      y_mat = y_mat,
+      extensions = extensions,
+      labels = labels,
+      fd_labels = fd_labels
+    ) |>
+      dplyr::mutate(year = yr)
+  }
 )
 
-footprint |>
+footprints |>
   add_area_name(
     name_column = "origin_area_name",
     code_column = "origin_area"

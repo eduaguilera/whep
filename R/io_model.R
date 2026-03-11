@@ -11,14 +11,17 @@
 #' (country, item) pairs. Each entry `Z[i,j]` gives the
 #' intermediate flow from sector `i` to sector `j`.
 #'
-#' @param supply_use Tibble from [build_supply_use()]. Must have
+#' @param supply_use Tibble from [build_supply_use()]. By default,
+#'   this function calls [build_supply_use()] internally. Must have
 #'   columns: `year`, `area_code`, `proc_group`, `proc_cbs_code`,
 #'   `item_cbs_code`, `type`, `value`.
-#' @param bilateral_trade Tibble from [get_bilateral_trade()].
-#'   Must have columns: `year`, `item_cbs_code`,
+#' @param bilateral_trade Tibble from [get_bilateral_trade()]. By
+#'   default, this function calls [get_bilateral_trade()]
+#'   internally. Must have columns: `year`, `item_cbs_code`,
 #'   `bilateral_trade` (list-column of matrices).
-#' @param cbs Tibble from [get_wide_cbs()]. Must have columns:
-#'   `year`, `area_code`, `item_cbs_code`, `production`,
+#' @param cbs Tibble from [get_wide_cbs()]. By default, this
+#'   function calls [get_wide_cbs()] internally. Must have
+#'   columns: `year`, `area_code`, `item_cbs_code`, `production`,
 #'   `import`, `export`, `stock_retrieval`, plus final demand
 #'   columns (`food`, `other_uses`, etc.).
 #' @param years Numeric vector of years to compute, or NULL.
@@ -35,7 +38,7 @@
 #'   - `fd_labels`: Tibble mapping each Y column to its
 #'     `area_code` (consuming country) and `fd_col` (demand
 #'     category, e.g. `"food"`) . Pass to
-#'     [compute_footprint()] as `y_labels` to get a
+#'     [compute_footprint()] as `fd_labels` to get a
 #'     `target_fd` column in the footprint output.
 #'
 #' @export
@@ -44,9 +47,12 @@
 #' su <- build_supply_use(example = TRUE)
 #' btd <- get_bilateral_trade(example = TRUE)
 #' cbs <- get_wide_cbs(example = TRUE)
-#' # build_io_model(su, btd, cbs)
+#' build_io_model(su, btd, cbs)
 build_io_model <- function(
-  supply_use, bilateral_trade, cbs, years = NULL
+  supply_use = build_supply_use(),
+  bilateral_trade = get_bilateral_trade(),
+  cbs = get_wide_cbs(),
+  years = NULL
 ) {
   .validate_io_inputs(supply_use, bilateral_trade, cbs)
   common_years <- .get_common_years(
