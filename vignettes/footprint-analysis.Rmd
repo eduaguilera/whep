@@ -238,6 +238,7 @@ You can inspect a single year:
 
 ```{r}
 # Extract matrices for one year
+selected_year <- io$year[[1]]
 z_mat <- io$Z[[1]]
 y_mat <- io$Y[[1]]
 x_vec <- io$X[[1]]
@@ -266,23 +267,20 @@ capped at 1 to prevent singularity.
 
 For systems larger than ~5000 sectors (187 countries × 125+ products),
 computing the explicit Leontief inverse requires too much memory
-(e.g. 4.8 GiB for 25,000 sectors). Instead, use the **sparse path** in
-Step 3 below, which solves $(I - A) x = Y$ without ever materialising
-the dense matrix $L$.
+(e.g. 4.8 GiB for 25,000 sectors). In those cases, pass `z_mat`
+directly to `compute_footprint()`, which computes $L$ internally.
 
 ### Step 3: Compute the footprint
 
 Now provide your environmental extension vector. This must have one
-value per sector, in the same order as the labels. For example, if you
-have land use data:
+value per sector, in the same order as the labels. You can use
+`get_land_fp_production()` to get cleaned land-use data from
+`land_fp`:
 
 ```{r}
-# Suppose you have a tibble with land use per country and product
-land_use_data <- tibble::tibble(
-  area_code = c(1L, 1L, 2L, 2L),
-  item_cbs_code = c(2511L, 2514L, 2511L, 2514L),
-  hectares = c(1e6, 5e5, 2e6, 3e5)
-)
+land_use_data <- get_land_fp_production() |>
+  dplyr::filter(year == selected_year) |>
+  dplyr::select(area_code, item_cbs_code, hectares = value)
 
 # Match it to the IO model's label order
 extensions <- labels |>

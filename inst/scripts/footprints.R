@@ -10,8 +10,6 @@ cbs <- get_wide_cbs()
 # Build IO model for all years
 io <- build_io_model(supply_use, bilateral_trade, cbs, years = c(1986))
 
-land_fp <- readr::read_csv("~/Downloads/Land_FP.csv")
-
 # Extract matrices for one year
 z_mat <- io$Z[[1]]
 y_mat <- io$Y[[1]]
@@ -19,33 +17,7 @@ x_vec <- io$X[[1]]
 labels <- io$labels[[1]]
 fd_labels <- io$fd_labels[[1]]
 
-land_fp |>
-  dplyr::filter(Element == "Production") |>
-  dplyr::filter(item == "Beer")
-dplyr::distinct(item) |>
-  print(n = 100)
-
-land_use <- land_fp |>
-  dplyr::filter(Impact == "Land", Origin == "Production") |>
-  add_area_code(name_column = "area", code_column = "code") |>
-  dplyr::rename_with(tolower) |>
-  dplyr::select(
-    year,
-    area_code = code,
-    item_cbs_code = item_code,
-    impact,
-    element,
-    origin,
-    group,
-    value,
-    impact_u,
-    u_ton,
-    exp_share,
-    export_u,
-    consumption_u
-  )
-
-extensions <- land_use |>
+extensions <- get_land_fp_production() |>
   dplyr::filter(year == 1986) |>
   dplyr::right_join(labels, by = c("area_code", "item_cbs_code")) |>
   tidyr::replace_na(list(impact_u = 0)) |>
@@ -60,7 +32,6 @@ footprint <- compute_footprint(
   labels = labels,
   fd_labels = fd_labels
 )
-footprint
 
 footprint |>
   add_area_name(
