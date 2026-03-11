@@ -92,6 +92,24 @@ testthat::test_that(
   }
 )
 
+testthat::test_that(
+  "build_io_model uses default input builders",
+  {
+    f <- io_two_country_fixture()
+    local_mocked_bindings(
+      build_supply_use = function(...) f$su,
+      get_bilateral_trade = function(...) f$btd,
+      get_wide_cbs = function(...) f$cbs
+    )
+
+    result <- build_io_model(years = 2000)
+
+    testthat::expect_s3_class(result, "tbl_df")
+    testthat::expect_equal(nrow(result), 1)
+    testthat::expect_equal(result$year[[1]], 2000)
+  }
+)
+
 testthat::test_that("x equals rowSums(z) + rowSums(y)", {
   f <- io_single_country_fixture()
   result <- build_io_model(f$su, f$btd, f$cbs)

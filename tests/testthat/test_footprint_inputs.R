@@ -15,10 +15,12 @@ testthat::test_that(
     testthat::expect_type(result$area_code, "integer")
     testthat::expect_type(result$item_cbs_code, "integer")
     pointblank::expect_col_vals_in_set(
-      result, impact, set = "Land"
+      result, impact,
+      set = "Land"
     )
     pointblank::expect_col_vals_in_set(
-      result, origin, set = "Production"
+      result, origin,
+      set = "Production"
     )
   }
 )
@@ -30,10 +32,14 @@ testthat::test_that(
     local_mocked_bindings(
       whep_read_file = function(...) {
         tibble::tribble(
-          ~year, ~area, ~item_code, ~Impact, ~element, ~Origin, ~group, ~impact_u,
-          2020, "Spain", 2511, "Land", "Cropland", "Production", "Crops", 10,
-          2020, "Spain", 2511, "Water", "Blue", "Production", "Crops", 2,
-          2020, "Spain", 2511, "Land", "Cropland", "Import", "Crops", 3
+          ~year, ~area, ~item_code, ~Impact,
+          ~element, ~Origin, ~group, ~impact_u,
+          2020, "Spain", 2511, "Land",
+          "Cropland", "Production", "Crops", 10,
+          2020, "Spain", 2511, "Water",
+          "Blue", "Production", "Crops", 2,
+          2020, "Spain", 2511, "Land",
+          "Cropland", "Import", "Crops", 3
         )
       },
       add_area_code = function(data, name_column, code_column) {
@@ -50,10 +56,12 @@ testthat::test_that(
 
     testthat::expect_equal(nrow(result), 1)
     pointblank::expect_col_vals_in_set(
-      result, impact, set = "Land"
+      result, impact,
+      set = "Land"
     )
     pointblank::expect_col_vals_in_set(
-      result, origin, set = "Production"
+      result, origin,
+      set = "Production"
     )
     testthat::expect_type(result$year, "integer")
     testthat::expect_type(result$area_code, "integer")
