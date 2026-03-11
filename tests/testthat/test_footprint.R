@@ -195,10 +195,12 @@ testthat::test_that(
       result, target_item
     )
     pointblank::expect_col_vals_in_set(
-      result, target_area, set = c(1L, 2L)
+      result, target_area,
+      set = c(1L, 2L)
     )
     pointblank::expect_col_vals_in_set(
-      result, target_item, set = c(10L, 20L)
+      result, target_item,
+      set = c(10L, 20L)
     )
   }
 )
