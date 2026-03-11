@@ -56,7 +56,9 @@ build_io_model <- function(
 ) {
   .validate_io_inputs(supply_use, bilateral_trade, cbs)
   common_years <- .get_common_years(
-    supply_use, bilateral_trade, cbs
+    supply_use,
+    bilateral_trade,
+    cbs
   )
   if (is.null(years)) {
     years <- common_years
@@ -101,7 +103,10 @@ build_io_model <- function(
   cli::cli_inform("  Computing trade shares...")
   trade_shares <- .build_trade_shares(btd, cbs_yr, dims)
   shares_mat <- .build_shares_matrix(
-    trade_shares, dims$items, dims$n_areas, dims$n_items
+    trade_shares,
+    dims$items,
+    dims$n_areas,
+    dims$n_items
   )
 
   cli::cli_inform("  Building supply matrix...")
@@ -115,7 +120,8 @@ build_io_model <- function(
 
   z_nnz <- Matrix::nnzero(z_mat)
   z_pct <- round(
-    100 * z_nnz / (n_sectors * n_sectors), 1
+    100 * z_nnz / (n_sectors * n_sectors),
+    1
   )
   cli::cli_inform(
     "  Z sparsity: {z_nnz} non-zeros ({z_pct}% dense)."
@@ -123,7 +129,10 @@ build_io_model <- function(
 
   cli::cli_inform("  Building final demand matrix...")
   y_mat <- .build_mr_final_demand(
-    cbs_yr, shares_mat, dims, fd_cols
+    cbs_yr,
+    shares_mat,
+    dims,
+    fd_cols
   )
 
   cli::cli_inform("  Fixing negative outputs...")
@@ -138,8 +147,11 @@ build_io_model <- function(
   labels <- .build_io_labels(dims)
   fd_labels <- .build_fd_labels(dims, fd_cols)
   list(
-    Z = z_mat, Y = fixed$Y, X = fixed$X,
-    labels = labels, fd_labels = fd_labels
+    Z = z_mat,
+    Y = fixed$Y,
+    X = fixed$X,
+    labels = labels,
+    fd_labels = fd_labels
   )
 }
 
@@ -147,15 +159,26 @@ build_io_model <- function(
 
 .validate_io_inputs <- function(su, btd, cbs) {
   required_su <- c(
-    "year", "area_code", "proc_group",
-    "proc_cbs_code", "item_cbs_code", "type", "value"
+    "year",
+    "area_code",
+    "proc_group",
+    "proc_cbs_code",
+    "item_cbs_code",
+    "type",
+    "value"
   )
   required_btd <- c(
-    "year", "item_cbs_code", "bilateral_trade"
+    "year",
+    "item_cbs_code",
+    "bilateral_trade"
   )
   required_cbs <- c(
-    "year", "area_code", "item_cbs_code",
-    "production", "export", "stock_retrieval"
+    "year",
+    "area_code",
+    "item_cbs_code",
+    "production",
+    "export",
+    "stock_retrieval"
   )
   .check_required_cols(su, required_su, "supply_use")
   .check_required_cols(btd, required_btd, "bilateral_trade")
@@ -175,10 +198,12 @@ build_io_model <- function(
 
 .get_io_dims <- function(su, cbs_yr) {
   areas <- sort(unique(c(
-    su$area_code, cbs_yr$area_code
+    su$area_code,
+    cbs_yr$area_code
   )))
   items <- sort(unique(c(
-    su$item_cbs_code, cbs_yr$item_cbs_code
+    su$item_cbs_code,
+    cbs_yr$item_cbs_code
   )))
   procs <- su |>
     dplyr::distinct(proc_group, proc_cbs_code) |>
@@ -234,7 +259,10 @@ build_io_model <- function(
 .build_z_matrix <- function(su, dims, shares_mat, trans) {
   use_flat <- .build_use_flat(su, dims)
   mr_use <- .expand_with_shares(
-    use_flat, shares_mat, dims$n_areas, dims$n_procs
+    use_flat,
+    shares_mat,
+    dims$n_areas,
+    dims$n_procs
   )
   mr_use %*% trans
 }
@@ -253,15 +281,19 @@ build_io_model <- function(
 }
 
 .expand_with_shares <- function(
-  flat_mat, shares_mat, n_areas, n_cols_per_area
+  flat_mat,
+  shares_mat,
+  n_areas,
+  n_cols_per_area
 ) {
   n_items <- nrow(flat_mat)
   x_exp <- flat_mat[
-    rep(seq_len(n_items), n_areas), ,
+    rep(seq_len(n_items), n_areas),
+    ,
     drop = FALSE
   ]
-  y_exp <- shares_mat[
-    , rep(seq_len(n_areas), each = n_cols_per_area),
+  y_exp <- shares_mat[,
+    rep(seq_len(n_areas), each = n_cols_per_area),
     drop = FALSE
   ]
   methods::as(y_exp * x_exp, "CsparseMatrix")
@@ -285,10 +317,13 @@ build_io_model <- function(
   }
 
   trade_mat <- .extract_trade_matrix(
-    btd_row$bilateral_trade[[1]], areas
+    btd_row$bilateral_trade[[1]],
+    areas
   )
   diag(trade_mat) <- .domestic_own_use(
-    cbs_yr, item, areas
+    cbs_yr,
+    item,
+    areas
   )
   .col_normalize(trade_mat)
 }
@@ -298,7 +333,8 @@ build_io_model <- function(
   if (!is.matrix(mat_or_val)) {
     mat_or_val <- matrix(
       mat_or_val,
-      nrow = 1, ncol = 1
+      nrow = 1,
+      ncol = 1
     )
   }
   if (nrow(mat_or_val) == n && ncol(mat_or_val) == n) {
@@ -310,7 +346,8 @@ build_io_model <- function(
   if (length(available) > 0) {
     idx <- match(available, areas_chr)
     result[idx, idx] <- mat_or_val[
-      available, available,
+      available,
+      available,
       drop = FALSE
     ]
   }
@@ -336,10 +373,14 @@ build_io_model <- function(
 # --- Shares matrix ---
 
 .build_shares_matrix <- function(
-  trade_shares, items, n_areas, n_items
+  trade_shares,
+  items,
+  n_areas,
+  n_items
 ) {
   big <- purrr::map(
-    as.character(items), ~ trade_shares[[.x]]
+    as.character(items),
+    ~ trade_shares[[.x]]
   ) |>
     do.call(rbind, args = _)
   row_order <- .interleave_index(n_areas, n_items)
@@ -357,11 +398,17 @@ build_io_model <- function(
 # --- Final demand ---
 
 .build_mr_final_demand <- function(
-  cbs_yr, shares_mat, dims, fd_cols
+  cbs_yr,
+  shares_mat,
+  dims,
+  fd_cols
 ) {
   fd_flat <- .build_fd_flat(cbs_yr, dims, fd_cols)
   .expand_with_shares(
-    fd_flat, shares_mat, dims$n_areas, length(fd_cols)
+    fd_flat,
+    shares_mat,
+    dims$n_areas,
+    length(fd_cols)
   )
 }
 
@@ -372,7 +419,9 @@ build_io_model <- function(
   )
   fd_data <- cbs_yr |>
     dplyr::select(
-      area_code, item_cbs_code, dplyr::all_of(fd_cols)
+      area_code,
+      item_cbs_code,
+      dplyr::all_of(fd_cols)
     )
   merged <- template |>
     dplyr::left_join(
@@ -380,7 +429,8 @@ build_io_model <- function(
       by = c("area_code", "item_cbs_code")
     ) |>
     dplyr::mutate(dplyr::across(
-      dplyr::all_of(fd_cols), ~ tidyr::replace_na(.x, 0)
+      dplyr::all_of(fd_cols),
+      ~ tidyr::replace_na(.x, 0)
     ))
   blocks <- purrr::map(dims$areas, function(area) {
     merged |>
@@ -427,7 +477,9 @@ build_io_model <- function(
   n_items <- length(item_cols)
   if (nrow(data) == 0) {
     return(Matrix::sparseMatrix(
-      i = integer(0), j = integer(0), x = numeric(0),
+      i = integer(0),
+      j = integer(0),
+      x = numeric(0),
       dims = c(n_procs, n_items)
     ))
   }
@@ -443,10 +495,13 @@ build_io_model <- function(
     ) |>
     dplyr::filter(!is.na(item_idx)) |>
     dplyr::summarise(
-      value = sum(value), .by = c(proc_idx, item_idx)
+      value = sum(value),
+      .by = c(proc_idx, item_idx)
     )
   Matrix::sparseMatrix(
-    i = agg$proc_idx, j = agg$item_idx, x = agg$value,
+    i = agg$proc_idx,
+    j = agg$item_idx,
+    x = agg$value,
     dims = c(n_procs, n_items)
   )
 }
@@ -491,7 +546,8 @@ build_io_model <- function(
 .build_fd_labels <- function(dims, fd_cols) {
   tibble::tibble(
     area_code = rep(
-      dims$areas, each = length(fd_cols)
+      dims$areas,
+      each = length(fd_cols)
     ),
     fd_col = rep(fd_cols, times = dims$n_areas)
   )

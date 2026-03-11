@@ -73,12 +73,22 @@
 #'   z_mat = z_mat
 #' )
 compute_footprint <- function(
-  l_inv = NULL, x_vec, y_mat, extensions, labels,
-  z_mat = NULL, fd_labels = NULL
+  l_inv = NULL,
+  x_vec,
+  y_mat,
+  extensions,
+  labels,
+  z_mat = NULL,
+  fd_labels = NULL
 ) {
   n <- length(x_vec)
   .validate_footprint_inputs(
-    l_inv, x_vec, y_mat, extensions, labels, z_mat
+    l_inv,
+    x_vec,
+    y_mat,
+    extensions,
+    labels,
+    z_mat
   )
   n_fd <- ncol(y_mat)
   n_ext <- sum(extensions != 0)
@@ -130,7 +140,10 @@ compute_footprint <- function(
 # --- FABIO-style per-item footprint ---
 
 .footprint_by_item <- function(
-  mp_mat, y_mat, labels, fd_labels
+  mp_mat,
+  y_mat,
+  labels,
+  fd_labels
 ) {
   items <- sort(unique(labels$item_cbs_code))
   g_mat <- .build_item_grouping(labels, items)
@@ -138,16 +151,26 @@ compute_footprint <- function(
 
   purrr::map(seq_len(n_y_cols), function(j) {
     .footprint_one_fd_col(
-      mp_mat, y_mat[, j], g_mat, labels, items,
-      fd_labels$area_code[j], fd_labels$fd_col[j]
+      mp_mat,
+      y_mat[, j],
+      g_mat,
+      labels,
+      items,
+      fd_labels$area_code[j],
+      fd_labels$fd_col[j]
     )
   }) |>
     dplyr::bind_rows()
 }
 
 .footprint_one_fd_col <- function(
-  mp_mat, y_vec, g_mat, labels, items,
-  consumer_area, fd_col
+  mp_mat,
+  y_vec,
+  g_mat,
+  labels,
+  items,
+  consumer_area,
+  fd_col
 ) {
   y_vec <- as.numeric(y_vec)
   if (all(y_vec == 0)) {
@@ -157,12 +180,20 @@ compute_footprint <- function(
   v_mat <- Matrix::Diagonal(x = y_vec) %*% g_mat
   fp_item <- mp_mat %*% v_mat
   .fp_grouped_to_tidy(
-    fp_item, labels, items, consumer_area, fd_col
+    fp_item,
+    labels,
+    items,
+    consumer_area,
+    fd_col
   )
 }
 
 .fp_grouped_to_tidy <- function(
-  fp_mat, labels, items, consumer_area, fd_col
+  fp_mat,
+  labels,
+  items,
+  consumer_area,
+  fd_col
 ) {
   fp_mat <- Matrix::drop0(
     methods::as(fp_mat, "CsparseMatrix")
@@ -189,7 +220,8 @@ compute_footprint <- function(
 .build_item_grouping <- function(labels, items) {
   item_idx <- match(labels$item_cbs_code, items)
   Matrix::sparseMatrix(
-    i = seq_len(nrow(labels)), j = item_idx,
+    i = seq_len(nrow(labels)),
+    j = item_idx,
     x = rep(1, nrow(labels)),
     dims = c(nrow(labels), length(items))
   )
@@ -204,7 +236,9 @@ compute_footprint <- function(
 }
 
 .fp_dense_to_tidy <- function(
-  fp_mat, labels, target_labs
+  fp_mat,
+  labels,
+  target_labs
 ) {
   fp_mat <- Matrix::drop0(
     methods::as(fp_mat, "CsparseMatrix")
@@ -263,7 +297,12 @@ compute_footprint <- function(
 # --- Input validation ---
 
 .validate_footprint_inputs <- function(
-  l_inv, x_vec, y_mat, extensions, labels, z_mat
+  l_inv,
+  x_vec,
+  y_mat,
+  extensions,
+  labels,
+  z_mat
 ) {
   n <- length(x_vec)
 
