@@ -32,6 +32,11 @@
 #'   - `X`: Total output vector.
 #'   - `labels`: Tibble mapping row/column indices to
 #'     `area_code` and `item_cbs_code`.
+#'   - `fd_labels`: Tibble mapping each Y column to its
+#'     `area_code` (consuming country) and `fd_col` (demand
+#'     category, e.g. `"food"`) . Pass to
+#'     [compute_footprint()] as `y_labels` to get a
+#'     `target_fd` column in the footprint output.
 #'
 #' @export
 #'
@@ -125,9 +130,10 @@ build_io_model <- function(
   }
 
   labels <- .build_io_labels(dims)
+  fd_labels <- .build_fd_labels(dims, fd_cols)
   list(
     Z = z_mat, Y = fixed$Y, X = fixed$X,
-    labels = labels
+    labels = labels, fd_labels = fd_labels
   )
 }
 
@@ -476,12 +482,22 @@ build_io_model <- function(
     dplyr::mutate(index = dplyr::row_number())
 }
 
+.build_fd_labels <- function(dims, fd_cols) {
+  tibble::tibble(
+    area_code = rep(
+      dims$areas, each = length(fd_cols)
+    ),
+    fd_col = rep(fd_cols, times = dims$n_areas)
+  )
+}
+
 .io_results_to_tibble <- function(results, years) {
   tibble::tibble(
     year = years,
     Z = purrr::map(results, "Z"),
     Y = purrr::map(results, "Y"),
     X = purrr::map(results, "X"),
-    labels = purrr::map(results, "labels")
+    labels = purrr::map(results, "labels"),
+    fd_labels = purrr::map(results, "fd_labels")
   )
 }

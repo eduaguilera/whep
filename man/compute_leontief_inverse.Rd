@@ -4,7 +4,7 @@
 \alias{compute_leontief_inverse}
 \title{Compute Leontief inverse.}
 \usage{
-compute_leontief_inverse(z_mat, x_vec)
+compute_leontief_inverse(z_mat, x_vec, max_n = 5000)
 }
 \arguments{
 \item{z_mat}{Square numeric matrix of inter-industry flows.
@@ -13,6 +13,9 @@ sector \eqn{j}. Can be dense or sparse.}
 
 \item{x_vec}{Numeric vector of total output per sector. Must
 have the same length as \code{nrow(z_mat)}.}
+
+\item{max_n}{Maximum system size before aborting. Defaults to
+5000. Set higher at your own risk of memory exhaustion.}
 }
 \value{
 The Leontief inverse matrix \eqn{L}. Negative
@@ -27,12 +30,16 @@ enabling footprint tracing.
 The technical coefficients matrix is computed as
 \eqn{A_{ij} = Z_{ij} / X_j}, representing the input of
 sector \eqn{i} needed per unit of output from sector \eqn{j}.
-The Leontief inverse is then \eqn{L = (I - A)^{-1}}.
+Column sums of A are capped at 1 (FABIO convention) to ensure
+\eqn{(I - A)} is invertible even when supply-use data are
+inconsistent. The Leontief inverse is then \eqn{L = (I - A)^{-1}}.
 
-For large systems (thousands of sectors), consider using
+For large systems (thousands of sectors) this function is not
+usable: the dense L matrix requires \eqn{n^2 \times 8} bytes
+of memory (e.g. ~4.8 GiB for n = 25 000). Use
 \code{\link[=compute_footprint]{compute_footprint()}} directly with \code{z_mat} and \code{x_vec}
-instead of pre-computing L, which avoids materialising the
-dense inverse matrix.
+instead, which solves \eqn{(I - A) x = Y} without ever
+materialising L.
 
 Accepts both dense and sparse (Matrix package) inputs.
 }

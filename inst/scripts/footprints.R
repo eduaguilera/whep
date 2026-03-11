@@ -8,40 +8,76 @@ bilateral_trade <- get_bilateral_trade()
 cbs <- get_wide_cbs()
 
 # Build IO model for all years
-io <- build_io_model(supply_use, bilateral_trade, cbs)
+io <- build_io_model(supply_use, bilateral_trade, cbs, years = c(1986))
 
+land_fp <- readr::read_csv("~/Downloads/Land_FP.csv")
 
-# --- Example: Build IO model for a single year ---
+# Extract matrices for one year
+z_mat <- io$Z[[1]]
+y_mat <- io$Y[[1]]
+x_vec <- io$X[[1]]
+labels <- io$labels[[1]]
+fd_labels <- io$fd_labels[[1]]
 
-# Find available years
-years <- sort(unique(supply_use$year))
-example_year <- 2021
+land_fp |>
+  dplyr::filter(Element == "Production") |>
+  dplyr::filter(item == "Beer")
+dplyr::distinct(item) |>
+  print(n = 100)
 
-# Filter data to one year
-su_yr <- dplyr::filter(supply_use, year == example_year)
-btd_yr <- dplyr::filter(bilateral_trade, year == example_year)
-cbs_yr <- dplyr::filter(cbs, year == example_year)
+land_use <- land_fp |>
+  dplyr::filter(Impact == "Land", Origin == "Production") |>
+  add_area_code(name_column = "area", code_column = "code") |>
+  dplyr::rename_with(tolower) |>
+  dplyr::select(
+    year,
+    area_code = code,
+    item_cbs_code = item_code,
+    impact,
+    element,
+    origin,
+    group,
+    value,
+    impact_u,
+    u_ton,
+    exp_share,
+    export_u,
+    consumption_u
+  )
 
-# Detect final demand columns
-fd_cols <- c("food", "other_uses", "feed")[
-  c("food", "other_uses", "feed") %in% names(cbs)
-]
+extensions <- land_use |>
+  dplyr::filter(year == 1986) |>
+  dplyr::right_join(labels, by = c("area_code", "item_cbs_code")) |>
+  tidyr::replace_na(list(impact_u = 0)) |>
+  dplyr::arrange(index) |>
+  dplyr::pull(impact_u)
 
-# Build IO for this one year (not exported, so need ::: to call private func)
-# This would require: whep:::.build_io_year(su_yr, btd_yr, cbs_yr, fd_cols)
-# But private functions aren't accessible; use build_io_model with subset instead:
-io_single <- build_io_model(su_yr, btd_yr, cbs_yr)
+footprint <- compute_footprint(
+  z_mat = z_mat,
+  x_vec = x_vec,
+  y_mat = y_mat,
+  extensions = extensions,
+  labels = labels,
+  fd_labels = fd_labels
+)
+footprint
 
-# Extract matrices and labels
-if (nrow(io_single) > 0) {
-  z_mat <- io_single$Z[[1]]
-  y_mat <- io_single$Y[[1]]
-  x_vec <- io_single$X[[1]]
-  labels <- io_single$labels[[1]]
-
-  cat("IO model for year", example_year, "\n")
-  cat("Dimensions: ", nrow(labels), "sectors\n")
-  cat("Z matrix:", nrow(z_mat), "x", ncol(z_mat), "\n")
-  cat("Y matrix:", nrow(y_mat), "x", ncol(y_mat), "\n")
-  cat("X vector: length", length(x_vec), "\n")
-}
+footprint |>
+  add_area_name(
+    name_column = "origin_area_name",
+    code_column = "origin_area"
+  ) |>
+  add_area_name(
+    name_column = "target_area_name",
+    code_column = "target_area"
+  ) |>
+  add_item_cbs_name(
+    name_column = "origin_item_name",
+    code_column = "origin_item"
+  ) |>
+  add_item_cbs_name(
+    name_column = "target_item_name",
+    code_column = "target_item"
+  ) |>
+  dplyr::filter(origin_item != target_item) |>
+  print(n = 100)

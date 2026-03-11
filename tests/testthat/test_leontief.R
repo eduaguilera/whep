@@ -4,7 +4,8 @@ testthat::test_that(
   "compute_leontief_inverse works for 2-sector model",
   {
     z <- matrix(
-      c(10, 20, 15, 5), nrow = 2, byrow = TRUE
+      c(10, 20, 15, 5),
+      nrow = 2, byrow = TRUE
     )
     x <- c(100, 200)
     l_inv <- compute_leontief_inverse(z, x)
@@ -17,7 +18,8 @@ testthat::test_that(
 
 testthat::test_that("Leontief inverse satisfies L(I-A) = I", {
   z <- matrix(
-    c(10, 20, 15, 5), nrow = 2, byrow = TRUE
+    c(10, 20, 15, 5),
+    nrow = 2, byrow = TRUE
   )
   x <- c(100, 200)
 
@@ -62,6 +64,39 @@ testthat::test_that("Leontief validates inputs", {
     "must match"
   )
 })
+
+testthat::test_that(
+  "compute_leontief_inverse aborts for large n",
+  {
+    z_big <- Matrix::sparseMatrix(
+      i = 1:10, j = 1:10, x = rep(1, 10), dims = c(10, 10)
+    )
+    x_big <- rep(100, 10)
+    testthat::expect_error(
+      compute_leontief_inverse(z_big, x_big, max_n = 5),
+      "System too large"
+    )
+  }
+)
+
+testthat::test_that(
+  "A column capping prevents singularity when inputs exceed output",
+  {
+    # z col 2 sums to 14 against x = 10, so A col 2 > 1
+    z <- matrix(c(5, 6, 3, 8), nrow = 2, byrow = TRUE)
+    x <- c(10, 10)
+    l_inv <- NULL
+    testthat::expect_warning(
+      {
+        l_inv <- compute_leontief_inverse(z, x)
+      },
+      "Capping"
+    )
+
+    testthat::expect_true(is.matrix(l_inv))
+    testthat::expect_true(all(l_inv >= 0))
+  }
+)
 
 testthat::test_that(
   "3-sector model y can be recovered from L",

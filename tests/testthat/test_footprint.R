@@ -159,3 +159,102 @@ testthat::test_that(
     testthat::expect_equal(nrow(sparse), nrow(dense))
   }
 )
+
+testthat::test_that(
+  "fd_labels populates target_area and target_item",
+  {
+    z <- matrix(
+      c(5, 2, 1, 0, 3, 1, 0, 2, 0, 1, 4, 0, 1, 0, 1, 3),
+      nrow = 4, byrow = TRUE
+    )
+    y <- matrix(
+      c(30, 20, 10, 5, 25, 15, 8, 3),
+      nrow = 4, ncol = 4
+    )
+    x <- rowSums(z) + rowSums(y)
+    l_inv <- compute_leontief_inverse(z, x)
+    extensions <- c(10, 5, 8, 3)
+    labels <- tibble::tibble(
+      area_code = c(1L, 1L, 2L, 2L),
+      item_cbs_code = c(10L, 20L, 10L, 20L)
+    )
+    fd_labels <- tibble::tibble(
+      area_code = c(1L, 1L, 2L, 2L),
+      fd_col = c("food", "other", "food", "other")
+    )
+
+    result <- compute_footprint(
+      l_inv, x, y, extensions, labels,
+      fd_labels = fd_labels
+    )
+
+    pointblank::expect_col_vals_not_null(
+      result, target_area
+    )
+    pointblank::expect_col_vals_not_null(
+      result, target_item
+    )
+    pointblank::expect_col_vals_in_set(
+      result, target_area, set = c(1L, 2L)
+    )
+    pointblank::expect_col_vals_in_set(
+      result, target_item, set = c(10L, 20L)
+    )
+  }
+)
+
+testthat::test_that(
+  "fd_labels yields target_fd and target_item columns",
+  {
+    su <- tibble::tribble(
+      ~year, ~area_code, ~proc_group, ~proc_cbs_code,
+      ~item_cbs_code, ~type, ~value,
+      2000, 1L, "crop", 10, 10, "supply", 100,
+      2000, 1L, "crop", 10, 10, "use", 10,
+      2000, 2L, "crop", 10, 10, "supply", 80,
+      2000, 2L, "crop", 10, 10, "use", 8,
+    )
+    btd <- tibble::tibble(
+      year = 2000L, item_cbs_code = 10,
+      bilateral_trade = list(matrix(c(0, 5, 3, 0), 2))
+    )
+    cbs <- tibble::tribble(
+      ~year, ~area_code, ~item_cbs_code,
+      ~production, ~import, ~export,
+      ~food, ~other_uses, ~stock_retrieval,
+      2000, 1L, 10, 100, 3, 5, 50, 20, 0,
+      2000, 2L, 10, 80, 5, 3, 40, 15, 0,
+    )
+
+    io <- build_io_model(su, btd, cbs)
+
+    # fd_labels is present in io output
+    pointblank::expect_col_exists(io, "fd_labels")
+    fd_labs <- io$fd_labels[[1]]
+    pointblank::expect_col_exists(
+      fd_labs, c("area_code", "fd_col")
+    )
+    pointblank::expect_col_vals_not_null(fd_labs, fd_col)
+
+    # compute_footprint with fd_labels adds target_fd
+    x <- io$X[[1]]
+    ext <- rep(1, length(x))
+    result <- compute_footprint(
+      x_vec = x, y_mat = io$Y[[1]],
+      extensions = ext, labels = io$labels[[1]],
+      z_mat = io$Z[[1]], fd_labels = fd_labs
+    )
+
+    pointblank::expect_col_exists(result, "target_fd")
+    pointblank::expect_col_vals_not_null(result, target_area)
+    pointblank::expect_col_vals_not_null(result, target_item)
+    pointblank::expect_col_vals_in_set(
+      result, target_fd,
+      set = c("food", "other_uses")
+    )
+    pointblank::expect_col_vals_in_set(
+      result, target_item,
+      set = io$labels[[1]]$item_cbs_code
+    )
+  }
+)
