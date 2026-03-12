@@ -22,8 +22,8 @@
 #' @param cbs Tibble from [get_wide_cbs()]. By default, this
 #'   function calls [get_wide_cbs()] internally. Must have
 #'   columns: `year`, `area_code`, `item_cbs_code`, `production`,
-#'   `import`, `export`, `stock_retrieval`, plus final demand
-#'   columns (`food`, `other_uses`, etc.).
+#'   `import`, `export`, `stock_withdrawal`, `stock_addition`,
+#'   plus final demand columns (`food`, `other_uses`).
 #' @param years Numeric vector of years to compute, or NULL.
 #'   If NULL, computes all years in the intersection of
 #'   available data across inputs. If specified, must be
@@ -100,6 +100,8 @@ build_io_model <- function(
     " " = "  {dims$n_procs} processes -> {n_sectors} sectors."
   ))
 
+  cbs_yr <- .adjust_food_for_leftovers(cbs_yr, su)
+
   cli::cli_inform("  Computing trade shares...")
   trade_shares <- .build_trade_shares(btd, cbs_yr, dims)
   shares_mat <- .build_shares_matrix(
@@ -129,6 +131,15 @@ build_io_model <- function(
 
   cli::cli_inform("  Building final demand matrix...")
   y_mat <- .build_mr_final_demand(
+    cbs_yr,
+    shares_mat,
+    dims,
+    fd_cols
+  )
+
+  cli::cli_inform("  Merging stock withdrawal into Y...")
+  y_mat <- .merge_stock_into_fd(
+    y_mat,
     cbs_yr,
     shares_mat,
     dims,
@@ -178,7 +189,8 @@ build_io_model <- function(
     "item_cbs_code",
     "production",
     "export",
-    "stock_retrieval"
+    "stock_withdrawal",
+    "stock_addition"
   )
   .check_required_cols(su, required_su, "supply_use")
   .check_required_cols(btd, required_btd, "bilateral_trade")
@@ -227,7 +239,7 @@ build_io_model <- function(
 }
 
 .detect_fd_columns <- function(cbs) {
-  possible <- c("food", "other_uses", "feed")
+  possible <- c("food", "other_uses", "stock_addition")
   intersect(possible, names(cbs))
 }
 
@@ -364,7 +376,7 @@ build_io_model <- function(
   idx <- match(cbs_item$area_code, areas)
   valid <- !is.na(idx)
   own <- cbs_item$production[valid] +
-    cbs_item$stock_retrieval[valid] -
+    cbs_item$stock_withdrawal[valid] -
     cbs_item$export[valid]
   result[idx[valid]] <- pmax(own, 0)
   result
@@ -443,6 +455,107 @@ build_io_model <- function(
       methods::as("CsparseMatrix")
   })
   do.call(cbind, blocks)
+}
+
+# --- Stock and leftover adjustments ---
+
+.adjust_food_for_leftovers <- function(cbs_yr, su) {
+  has_processing <- rlang::has_name(cbs_yr, "processing")
+  has_seed <- rlang::has_name(cbs_yr, "seed")
+  if (!has_processing && !has_seed) {
+    return(cbs_yr)
+  }
+  su_used <- .compute_su_used(su, has_processing, has_seed)
+  cbs_yr |>
+    dplyr::left_join(su_used, by = c("area_code", "item_cbs_code")) |>
+    .apply_leftovers(has_processing, has_seed)
+}
+
+.compute_su_used <- function(su, has_processing, has_seed) {
+  parts <- list()
+  if (has_processing) {
+    parts$proc <- su |>
+      dplyr::filter(
+        type == "use",
+        proc_group == "processing"
+      ) |>
+      dplyr::summarise(
+        processing_used = sum(value),
+        .by = c(area_code, item_cbs_code)
+      )
+  }
+  if (has_seed) {
+    parts$seed <- su |>
+      dplyr::filter(
+        type == "use",
+        proc_group == "crop_production"
+      ) |>
+      dplyr::summarise(
+        seed_used = sum(value),
+        .by = c(area_code, item_cbs_code)
+      )
+  }
+  if (length(parts) == 1L) {
+    return(parts[[1L]])
+  }
+  dplyr::full_join(
+    parts$proc,
+    parts$seed,
+    by = c("area_code", "item_cbs_code")
+  )
+}
+
+.apply_leftovers <- function(data, has_processing, has_seed) {
+  if (has_processing) {
+    data <- data |>
+      dplyr::mutate(
+        processing_used = tidyr::replace_na(
+          processing_used,
+          0
+        ),
+        food = food + pmax(processing - processing_used, 0)
+      ) |>
+      dplyr::select(-processing_used)
+  }
+  if (has_seed) {
+    data <- data |>
+      dplyr::mutate(
+        seed_used = tidyr::replace_na(seed_used, 0),
+        food = food + pmax(seed - seed_used, 0)
+      ) |>
+      dplyr::select(-seed_used)
+  }
+  data
+}
+
+.merge_stock_into_fd <- function(
+  y_mat,
+  cbs_yr,
+  shares_mat,
+  dims,
+  fd_cols
+) {
+  sa_idx <- match("stock_addition", fd_cols)
+  has_sw <- rlang::has_name(cbs_yr, "stock_withdrawal")
+  if (is.na(sa_idx) || !has_sw) {
+    return(y_mat)
+  }
+  sw_expanded <- .build_fd_flat(
+    cbs_yr,
+    dims,
+    "stock_withdrawal"
+  ) |>
+    .expand_with_shares(
+      shares_mat,
+      dims$n_areas,
+      1L
+    )
+  n_fd <- length(fd_cols)
+  for (a in seq_len(dims$n_areas)) {
+    y_col <- (a - 1L) * n_fd + sa_idx
+    y_mat[, y_col] <- y_mat[, y_col] - sw_expanded[, a]
+  }
+  y_mat
 }
 
 # --- Output fixing ---

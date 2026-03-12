@@ -2,8 +2,7 @@
 
 io_two_country_fixture <- function() {
   su <- tibble::tribble(
-    ~year, ~area_code, ~proc_group, ~proc_cbs_code,
-    ~item_cbs_code, ~type, ~value,
+    ~year, ~area_code, ~proc_group, ~proc_cbs_code, ~item_cbs_code, ~type, ~value,
     2000, 1, "crop_production", 10, 10, "supply", 100,
     2000, 1, "crop_production", 10, 10, "use", 5,
     2000, 1, "processing", 10, 20, "supply", 40,
@@ -24,13 +23,11 @@ io_two_country_fixture <- function() {
   )
 
   cbs <- tibble::tribble(
-    ~year, ~area_code, ~item_cbs_code,
-    ~production, ~import, ~export,
-    ~food, ~other_uses, ~stock_retrieval,
-    2000, 1, 10, 100, 5, 10, 20, 5, 0,
-    2000, 1, 20, 40, 3, 2, 30, 5, 0,
-    2000, 2, 10, 80, 10, 5, 15, 10, 0,
-    2000, 2, 20, 30, 2, 3, 20, 4, 0,
+    ~year, ~area_code, ~item_cbs_code, ~production, ~import, ~export, ~food, ~other_uses, ~stock_withdrawal, ~stock_addition,
+    2000, 1, 10, 100, 5, 10, 20, 5, 3, 0,
+    2000, 1, 20, 40, 3, 2, 30, 5, 0, 2,
+    2000, 2, 10, 80, 10, 5, 15, 10, 0, 4,
+    2000, 2, 20, 30, 2, 3, 20, 4, 1, 0,
   )
 
   list(su = su, btd = btd, cbs = cbs)
@@ -38,8 +35,7 @@ io_two_country_fixture <- function() {
 
 io_single_country_fixture <- function() {
   su <- tibble::tribble(
-    ~year, ~area_code, ~proc_group, ~proc_cbs_code,
-    ~item_cbs_code, ~type, ~value,
+    ~year, ~area_code, ~proc_group, ~proc_cbs_code, ~item_cbs_code, ~type, ~value,
     2000, 1, "crop_production", 10, 10, "supply", 100,
     2000, 1, "crop_production", 10, 10, "use", 5,
     2000, 1, "processing", 10, 20, "supply", 40,
@@ -56,11 +52,9 @@ io_single_country_fixture <- function() {
   )
 
   cbs <- tibble::tribble(
-    ~year, ~area_code, ~item_cbs_code,
-    ~production, ~import, ~export,
-    ~food, ~other_uses, ~stock_retrieval,
-    2000, 1, 10, 100, 0, 0, 30, 10, 0,
-    2000, 1, 20, 40, 0, 0, 25, 10, 0,
+    ~year, ~area_code, ~item_cbs_code, ~production, ~import, ~export, ~food, ~other_uses, ~stock_withdrawal, ~stock_addition,
+    2000, 1, 10, 100, 0, 0, 30, 10, 5, 0,
+    2000, 1, 20, 40, 0, 0, 25, 10, 0, 3,
   )
 
   list(su = su, btd = btd, cbs = cbs)
@@ -150,8 +144,8 @@ testthat::test_that("build_io_model returns fd_labels with correct shape", {
     fd_labs,
     c("area_code", "fd_col")
   )
-  # 2 areas * 2 fd_cols (food, other_uses) = 4 rows
-  testthat::expect_equal(nrow(fd_labs), 4L)
+  # 2 areas * 3 fd_cols (food, other_uses, stock_addition) = 6
+  testthat::expect_equal(nrow(fd_labs), 6L)
   testthat::expect_equal(
     ncol(result$Y[[1]]),
     nrow(fd_labs)
@@ -159,7 +153,7 @@ testthat::test_that("build_io_model returns fd_labels with correct shape", {
   pointblank::expect_col_vals_in_set(
     fd_labs,
     fd_col,
-    set = c("food", "other_uses")
+    set = c("food", "other_uses", "stock_addition")
   )
 })
 

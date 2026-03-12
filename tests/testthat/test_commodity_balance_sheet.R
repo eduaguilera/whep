@@ -18,8 +18,14 @@ testthat::test_that("get_wide_cbs gives consistent Commodity Balance Sheet", {
   cbs <- suppressWarnings(get_wide_cbs()) |>
     dplyr::filter(!(item_cbs_code %in% k_ignore_unbalanced)) |>
     dplyr::mutate(
-      value_in = production + import + stock_retrieval,
-      value_out = export + food + feed + seed + processing + other_uses,
+      value_in = production + import + stock_withdrawal,
+      value_out = export +
+        food +
+        feed +
+        seed +
+        processing +
+        other_uses +
+        stock_addition,
       my_domestic_supply = food + feed + seed + processing + other_uses
     )
 

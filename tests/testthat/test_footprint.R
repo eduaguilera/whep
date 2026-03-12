@@ -248,9 +248,9 @@ testthat::test_that("fd_labels yields target_fd and target_item columns", {
     bilateral_trade = list(matrix(c(0, 5, 3, 0), 2))
   )
   cbs <- tibble::tribble(
-    ~year, ~area_code, ~item_cbs_code, ~production, ~import, ~export, ~food, ~other_uses, ~stock_retrieval,
-    2000, 1L, 10, 100, 3, 5, 50, 20, 0,
-    2000, 2L, 10, 80, 5, 3, 40, 15, 0,
+    ~year, ~area_code, ~item_cbs_code, ~production, ~import, ~export, ~food, ~other_uses, ~stock_withdrawal, ~stock_addition,
+    2000, 1L, 10, 100, 3, 5, 50, 20, 0, 0,
+    2000, 2L, 10, 80, 5, 3, 40, 15, 0, 0,
   )
 
   io <- build_io_model(su, btd, cbs)
@@ -282,7 +282,7 @@ testthat::test_that("fd_labels yields target_fd and target_item columns", {
   pointblank::expect_col_vals_in_set(
     result,
     target_fd,
-    set = c("food", "other_uses")
+    set = c("food", "other_uses", "stock_addition")
   )
   pointblank::expect_col_vals_in_set(
     result,
