@@ -11,7 +11,7 @@ compute_footprint(
   extensions,
   labels,
   z_mat = NULL,
-  y_labels = NULL
+  fd_labels = NULL
 )
 }
 \arguments{
@@ -32,16 +32,15 @@ mapping row/column indices to their meaning. From
 \code{\link[=build_io_model]{build_io_model()}}.}
 
 \item{z_mat}{Optional inter-industry flow matrix from
-\code{\link[=build_io_model]{build_io_model()}}. When provided, the Leontief system is
-solved directly (sparse), and \code{l_inv} is not needed.}
+\code{\link[=build_io_model]{build_io_model()}}. When provided, the Leontief inverse is
+computed internally, and \code{l_inv} is not needed.}
 
-\item{y_labels}{Optional tibble labelling Y columns. Pass
+\item{fd_labels}{Optional tibble labelling Y columns. Pass
 \code{fd_labels[[i]]} from \code{\link[=build_io_model]{build_io_model()}} output. When
-provided, the result includes a \code{target_fd} column (the
-demand category, e.g. \code{"food"}) and \code{target_area} is
-populated from the consuming country. When omitted, both
-are inferred from \code{labels} (appropriate only when Y is
-square and columns represent sectors).}
+provided, footprints are decomposed per target item using
+the FABIO diagonal approach, and the result includes a
+\code{target_fd} column. When omitted, columns of Y are treated
+as sectors (appropriate only when Y is square).}
 }
 \value{
 A tibble with footprint results containing:
@@ -49,32 +48,31 @@ A tibble with footprint results containing:
 \item \code{origin_area}: Country where the pressure occurs.
 \item \code{origin_item}: Item causing the pressure.
 \item \code{target_area}: Country consuming the product.
-\item \code{target_item}: Item consumed (NA when \code{y_labels} is
-provided, as Y columns represent demand categories, not
-specific items).
+\item \code{target_item}: Item consumed.
 \item \code{target_fd}: Demand category (e.g. \code{"food"}). Only
-present when \code{y_labels} is provided.
+present when \code{fd_labels} is provided.
 \item \code{value}: Footprint value in extension units.
 }
 }
 \description{
 Trace environmental extensions through the supply chain using
-the Leontief inverse. The footprint shows how much of an
+the Leontief inverse, following the FABIO methodology
+(Bruckner et al., 2019). The footprint shows how much of an
 environmental pressure (e.g. land use, water, emissions) is
 embodied in the final consumption of each product in each
 country.
 
 The multiplier matrix is computed as
 \eqn{MP_{ij} = (e_i / X_i) \cdot L_{ij}}, where \eqn{e_i}
-is the extension for sector \eqn{i}. The footprint is then
-\eqn{FP = MP \times Y}.
+is the extension for sector \eqn{i}. For each demand
+category, the footprint is decomposed per target item using
+the FABIO diagonal approach:
+\eqn{FP = MP \cdot \text{diag}(y)}, aggregated by item.
 
-For large systems, pass \code{z_mat} and \code{x_vec} instead of
-\code{l_inv}. This solves the system \eqn{(I - A)x = Y} directly
-using a sparse LU factorisation, avoiding the dense Leontief
-inverse entirely. This reduces memory from
-\eqn{O(n^2)} to \eqn{O(nnz)} and is dramatically faster for
-systems with >10 000 sectors.
+Pass \code{z_mat} and \code{x_vec} instead of \code{l_inv} to compute the
+Leontief inverse internally. For large systems, pre-compute
+\code{l_inv} with \code{\link[=compute_leontief_inverse]{compute_leontief_inverse()}} and reuse across
+multiple extensions.
 }
 \examples{
 z_mat <- matrix(c(0, 5, 10, 0), nrow = 2)
@@ -90,7 +88,7 @@ labels <- tibble::tibble(
 # Small system: pass pre-computed L
 compute_footprint(l_inv, x_vec, y_mat, extensions, labels)
 
-# Large system: pass Z directly (avoids dense L)
+# Using Z directly (computes L internally)
 compute_footprint(
   x_vec = x_vec, y_mat = y_mat,
   extensions = extensions, labels = labels,

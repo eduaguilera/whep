@@ -35,15 +35,11 @@ testthat::test_that("get_land_fp_production filters and cleans land_fp", {
   local_mocked_bindings(
     whep_read_file = function(...) {
       tibble::tribble(
-          ~year, ~area, ~item_code, ~Impact,
-          ~element, ~Origin, ~group, ~impact_u,
-          2020, "Spain", 2511, "Land",
-          "Cropland", "Production", "Crops", 10,
-          2020, "Spain", 2511, "Water",
-          "Blue", "Production", "Crops", 2,
-          2020, "Spain", 2511, "Land",
-          "Cropland", "Import", "Crops", 3
-        )
+        ~year, ~area, ~item_code, ~Impact, ~element, ~Origin, ~group, ~impact_u,
+        2020, "Spain", 2511, "Land", "Cropland", "Production", "Crops", 10,
+        2020, "Spain", 2511, "Water", "Blue", "Production", "Crops", 2,
+        2020, "Spain", 2511, "Land", "Cropland", "Import", "Crops", 3
+      )
     },
     add_area_code = function(data, name_column, code_column) {
       data[[code_column]] <- dplyr::if_else(

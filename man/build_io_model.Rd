@@ -5,10 +5,10 @@
 \title{Build multi-regional input-output model.}
 \usage{
 build_io_model(
-	supply_use = build_supply_use(),
-	bilateral_trade = get_bilateral_trade(),
-	cbs = get_wide_cbs(),
-	years = NULL
+  supply_use = build_supply_use(),
+  bilateral_trade = get_bilateral_trade(),
+  cbs = get_wide_cbs(),
+  years = NULL
 )
 }
 \arguments{
@@ -19,15 +19,14 @@ columns: \code{year}, \code{area_code}, \code{proc_group}, \code{proc_cbs_code},
 
 \item{bilateral_trade}{Tibble from \code{\link[=get_bilateral_trade]{get_bilateral_trade()}}. By
 default, this function calls \code{\link[=get_bilateral_trade]{get_bilateral_trade()}}
-internally.
-Must have columns: \code{year}, \code{item_cbs_code}, \code{bilateral_trade}
-(list-column of matrices).}
+internally. Must have columns: \code{year}, \code{item_cbs_code},
+\code{bilateral_trade} (list-column of matrices).}
 
 \item{cbs}{Tibble from \code{\link[=get_wide_cbs]{get_wide_cbs()}}. By default, this
-function calls \code{\link[=get_wide_cbs]{get_wide_cbs()}} internally. Must have columns:
-\code{year}, \code{area_code}, \code{item_cbs_code}, \code{production}, \code{import},
-\code{export}, \code{stock_retrieval}, plus final demand columns
-(\code{food}, \code{other_uses}, etc.).}
+function calls \code{\link[=get_wide_cbs]{get_wide_cbs()}} internally. Must have
+columns: \code{year}, \code{area_code}, \code{item_cbs_code}, \code{production},
+\code{import}, \code{export}, \code{stock_retrieval}, plus final demand
+columns (\code{food}, \code{other_uses}, etc.).}
 
 \item{years}{Numeric vector of years to compute, or NULL.
 If NULL, computes all years in the intersection of
