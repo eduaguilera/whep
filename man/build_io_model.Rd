@@ -25,8 +25,8 @@ internally. Must have columns: \code{year}, \code{item_cbs_code},
 \item{cbs}{Tibble from \code{\link[=get_wide_cbs]{get_wide_cbs()}}. By default, this
 function calls \code{\link[=get_wide_cbs]{get_wide_cbs()}} internally. Must have
 columns: \code{year}, \code{area_code}, \code{item_cbs_code}, \code{production},
-\code{import}, \code{export}, \code{stock_retrieval}, plus final demand
-columns (\code{food}, \code{other_uses}, etc.).}
+\code{import}, \code{export}, \code{stock_withdrawal}, \code{stock_addition},
+plus final demand columns (\code{food}, \code{other_uses}).}
 
 \item{years}{Numeric vector of years to compute, or NULL.
 If NULL, computes all years in the intersection of
