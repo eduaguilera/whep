@@ -8,7 +8,7 @@ get_land_fp_production(example = FALSE)
 }
 \arguments{
 \item{example}{If \code{TRUE}, return a small example output without
-  downloading remote data. Default is \code{FALSE}.}
+downloading remote data. Default is \code{FALSE}.}
 }
 \value{
 A tibble with columns:
@@ -20,8 +20,7 @@ A tibble with columns:
 \item \code{element}: Source element.
 \item \code{origin}: Origin type.
 \item \code{group}: Group category.
-\item \code{value}: Land footprint value.
-\item \code{impact_u}: Unit of \code{value}.
+\item \code{impact_u}: Land footprint value (TODO: find which unit).
 }
 }
 \description{

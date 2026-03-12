@@ -236,25 +236,22 @@ testthat::test_that("fd_labels populates target_area and target_item", {
 
 testthat::test_that("fd_labels yields target_fd and target_item columns", {
   su <- tibble::tribble(
-      ~year, ~area_code, ~proc_group, ~proc_cbs_code,
-      ~item_cbs_code, ~type, ~value,
-      2000, 1L, "crop", 10, 10, "supply", 100,
-      2000, 1L, "crop", 10, 10, "use", 10,
-      2000, 2L, "crop", 10, 10, "supply", 80,
-      2000, 2L, "crop", 10, 10, "use", 8,
-    )
+    ~year, ~area_code, ~proc_group, ~proc_cbs_code, ~item_cbs_code, ~type, ~value,
+    2000, 1L, "crop", 10, 10, "supply", 100,
+    2000, 1L, "crop", 10, 10, "use", 10,
+    2000, 2L, "crop", 10, 10, "supply", 80,
+    2000, 2L, "crop", 10, 10, "use", 8,
+  )
   btd <- tibble::tibble(
     year = 2000L,
     item_cbs_code = 10,
     bilateral_trade = list(matrix(c(0, 5, 3, 0), 2))
   )
   cbs <- tibble::tribble(
-      ~year, ~area_code, ~item_cbs_code,
-      ~production, ~import, ~export,
-      ~food, ~other_uses, ~stock_retrieval,
-      2000, 1L, 10, 100, 3, 5, 50, 20, 0,
-      2000, 2L, 10, 80, 5, 3, 40, 15, 0,
-    )
+    ~year, ~area_code, ~item_cbs_code, ~production, ~import, ~export, ~food, ~other_uses, ~stock_retrieval,
+    2000, 1L, 10, 100, 3, 5, 50, 20, 0,
+    2000, 2L, 10, 80, 5, 3, 40, 15, 0,
+  )
 
   io <- build_io_model(su, btd, cbs)
 
