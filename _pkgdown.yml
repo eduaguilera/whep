@@ -24,6 +24,7 @@ reference:
     Production, supply/use, and processing datasets.
   contents:
   - build_supply_use
+  - get_land_fp_production
   - get_feed_intake
   - get_primary_production
   - get_primary_residues
