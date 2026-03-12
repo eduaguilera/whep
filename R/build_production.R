@@ -228,18 +228,8 @@ qc_production <- function(
     "faostat-cbs-old-crops", afse, version
   )
 
-  cbs_all <- dplyr::bind_rows(
-    fbs_new  |> dplyr::mutate(source = "FBS_New"),
-    fbs_old  |> dplyr::mutate(source = "FBS_Old"),
-    cbs_anim |> dplyr::mutate(source = "CBS_Old"),
-    cbs_crops |> dplyr::mutate(source = "CBS_Old")
-  ) |>
-    dplyr::filter(element == "production")
-
-  splice_ratios <- .compute_splice_ratios(cbs_all)
-  cbs_spliced <- .apply_splice(cbs_all, splice_ratios)
-
-  cbs_spliced |>
+  dplyr::bind_rows(fbs_new, fbs_old, cbs_anim, cbs_crops) |>
+    dplyr::filter(element == "production") |>
     dplyr::summarise(
       t_cbs = mean(value, na.rm = TRUE),
       .by = c(
