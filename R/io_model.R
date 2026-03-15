@@ -28,6 +28,11 @@
 #'   If NULL, computes all years in the intersection of
 #'   available data across inputs. If specified, must be
 #'   a subset of available years.
+#' @param endogenize_losses Logical. If `TRUE` and `cbs`
+#'   contains a `losses` column, losses are moved from final
+#'   demand to the diagonal of `Z` (self-use), following the
+#'   FABIO convention. The `losses` column is removed from Y
+#'   and `fd_labels`. Defaults to `FALSE`.
 #'
 #' @return A tibble with one row per year and list-columns:
 #'   - `Z`: Inter-industry flow matrix (product-by-product).
@@ -52,7 +57,8 @@ build_io_model <- function(
   supply_use = build_supply_use(),
   bilateral_trade = get_bilateral_trade(),
   cbs = get_wide_cbs(),
-  years = NULL
+  years = NULL,
+  endogenize_losses = FALSE
 ) {
   .validate_io_inputs(supply_use, bilateral_trade, cbs)
   common_years <- .get_common_years(
@@ -65,13 +71,15 @@ build_io_model <- function(
   } else {
     .validate_years(years, common_years)
   }
-  fd_cols <- .detect_fd_columns(cbs)
+  fd_cols <- .detect_fd_columns(cbs, endogenize_losses)
   n_years <- length(years)
 
   cli::cli_inform(c(
     "i" = "Building IO model for {n_years} year{?s}.",
     " " = "Year range: {min(years)}-{max(years)}.",
-    " " = "Final demand columns: {.field {fd_cols}}."
+    " " = "Final demand columns: {.field {fd_cols}}.",
+    if (endogenize_losses) " " else NULL,
+    if (endogenize_losses) "Losses will be endogenized into Z." else NULL
   ))
 
   results <- purrr::imap(years, function(yr, i) {
@@ -82,7 +90,8 @@ build_io_model <- function(
       su = dplyr::filter(supply_use, year == yr),
       btd = dplyr::filter(bilateral_trade, year == yr),
       cbs_yr = dplyr::filter(cbs, year == yr),
-      fd_cols = fd_cols
+      fd_cols = fd_cols,
+      endogenize_losses = endogenize_losses
     )
   })
 
@@ -92,7 +101,13 @@ build_io_model <- function(
 
 # --- Main per-year builder ---
 
-.build_io_year <- function(su, btd, cbs_yr, fd_cols) {
+.build_io_year <- function(
+  su,
+  btd,
+  cbs_yr,
+  fd_cols,
+  endogenize_losses = FALSE
+) {
   dims <- .get_io_dims(su, cbs_yr)
   n_sectors <- dims$n_areas * dims$n_items
   cli::cli_inform(c(
@@ -145,6 +160,19 @@ build_io_model <- function(
     dims,
     fd_cols
   )
+
+  if (endogenize_losses) {
+    cli::cli_inform("  Endogenizing losses into Z diagonal...")
+    endo <- .endogenize_losses(z_mat, y_mat, dims, fd_cols)
+    z_mat <- endo$Z
+    y_mat <- endo$Y
+    fd_cols <- endo$fd_cols
+  }
+
+  cli::cli_inform("  Rebalancing diagonal...")
+  rebal <- .rebalance_diagonal(z_mat, y_mat, dims, fd_cols)
+  z_mat <- rebal$Z
+  y_mat <- rebal$Y
 
   cli::cli_inform("  Fixing negative outputs...")
   fixed <- .fix_negative_output(z_mat, y_mat)
@@ -238,8 +266,11 @@ build_io_model <- function(
   ))
 }
 
-.detect_fd_columns <- function(cbs) {
+.detect_fd_columns <- function(cbs, endogenize_losses = FALSE) {
   possible <- c("food", "other_uses", "stock_addition")
+  if (endogenize_losses && "losses" %in% names(cbs)) {
+    possible <- c(possible, "losses")
+  }
   intersect(possible, names(cbs))
 }
 
@@ -540,22 +571,138 @@ build_io_model <- function(
   if (is.na(sa_idx) || !has_sw) {
     return(y_mat)
   }
-  sw_expanded <- .build_fd_flat(
-    cbs_yr,
-    dims,
-    "stock_withdrawal"
-  ) |>
-    .expand_with_shares(
-      shares_mat,
-      dims$n_areas,
-      1L
-    )
+  # Stock withdrawal is domestic-only: a country can only withdraw
+  # from its own stocks. Build a domestic-block vector (no trade
+  # share expansion) and subtract from the stock_addition column.
+  sw_domestic <- .build_sw_domestic(cbs_yr, dims)
   n_fd <- length(fd_cols)
   for (a in seq_len(dims$n_areas)) {
     y_col <- (a - 1L) * n_fd + sa_idx
-    y_mat[, y_col] <- y_mat[, y_col] - sw_expanded[, a]
+    rows <- ((a - 1L) * dims$n_items + 1L):(a * dims$n_items)
+    y_mat[rows, y_col] <- y_mat[rows, y_col] -
+      sw_domestic[
+        ((a - 1L) * dims$n_items + 1L):(a * dims$n_items)
+      ]
   }
   y_mat
+}
+
+.build_sw_domestic <- function(cbs_yr, dims) {
+  template <- tidyr::expand_grid(
+    area_code = dims$areas,
+    item_cbs_code = dims$items
+  )
+  merged <- template |>
+    dplyr::left_join(
+      cbs_yr |>
+        dplyr::select(area_code, item_cbs_code, stock_withdrawal),
+      by = c("area_code", "item_cbs_code")
+    ) |>
+    dplyr::mutate(
+      stock_withdrawal = tidyr::replace_na(stock_withdrawal, 0)
+    )
+  merged$stock_withdrawal
+}
+
+# --- Losses endogenization ---
+# Move losses from final demand (Y) to the diagonal of Z,
+# treating them as self-use within each country's sub-block.
+# This follows the FABIO convention where losses are considered
+# an input to the sector itself rather than a final demand.
+
+.endogenize_losses <- function(z_mat, y_mat, dims, fd_cols) {
+  losses_idx <- match("losses", fd_cols)
+  if (is.na(losses_idx)) {
+    return(list(Z = z_mat, Y = y_mat, fd_cols = fd_cols))
+  }
+
+  n_fd <- length(fd_cols)
+  n_items <- dims$n_items
+
+  # Extract losses columns from Y, aggregate by product within
+  # each country, and place on the domestic sub-block diagonal
+  for (a in seq_len(dims$n_areas)) {
+    y_col <- (a - 1L) * n_fd + losses_idx
+    rows <- ((a - 1L) * n_items + 1L):(a * n_items)
+    losses_vec <- as.numeric(y_mat[rows, y_col])
+
+    # Add losses to the diagonal of the country's sub-block
+    for (k in seq_along(losses_vec)) {
+      if (losses_vec[k] != 0) {
+        global_row <- (a - 1L) * n_items + k
+        z_mat[global_row, global_row] <-
+          z_mat[global_row, global_row] + losses_vec[k]
+      }
+    }
+  }
+
+  # Remove losses columns from Y
+  losses_col_indices <- seq(losses_idx, ncol(y_mat), by = n_fd)
+  y_mat <- y_mat[, -losses_col_indices, drop = FALSE]
+  fd_cols <- fd_cols[-losses_idx]
+
+  list(Z = z_mat, Y = y_mat, fd_cols = fd_cols)
+}
+
+# --- Diagonal rebalancing ---
+# When diag(Z)[i] >= X[i], the diagonal accounts for all output.
+# This is mainly due to reporting errors in FAOSTAT (e.g. seed =
+# production). Following the original FABIO methodology, we move
+# 80% of the diagonal value to final demand (spread proportionally
+# across fd categories for the sector's own country) and keep 20%
+# on the diagonal.
+
+.rebalance_diagonal <- function(z_mat, y_mat, dims, fd_cols) {
+  x_vec <- Matrix::rowSums(z_mat) + Matrix::rowSums(y_mat)
+  diag_z <- Matrix::diag(z_mat)
+  valid <- (x_vec != 0) & (diag_z >= x_vec)
+  n_fix <- sum(valid)
+  if (n_fix == 0) {
+    return(list(Z = z_mat, Y = y_mat))
+  }
+
+  cli::cli_inform(
+    "  Rebalancing {n_fix} sector{?s} with diag(Z) >= X."
+  )
+
+  # Pre-compute global Y totals per (item, fd_category) by
+  # summing across all countries for each commodity.
+  n_fd <- length(fd_cols)
+  n_items <- dims$n_items
+  n_areas <- dims$n_areas
+  y_global <- matrix(0, nrow = n_items, ncol = n_fd)
+  for (a in seq_len(n_areas)) {
+    y_cols_a <- ((a - 1L) * n_fd + 1L):(a * n_fd)
+    rows_a <- ((a - 1L) * n_items + 1L):(a * n_items)
+    block <- as.matrix(
+      y_mat[rows_a, y_cols_a, drop = FALSE]
+    )
+    y_global <- y_global + block
+  }
+
+  for (i in which(valid)) {
+    # Find which country and item this sector belongs to
+    area_idx <- ((i - 1) %/% n_items) + 1L
+    item_idx <- ((i - 1) %% n_items) + 1L
+    # Columns of Y belonging to this country
+    y_cols <- ((area_idx - 1L) * n_fd + 1L):(area_idx * n_fd)
+    y_row <- as.numeric(y_mat[i, y_cols])
+
+    # If this sector has no positive domestic final demand, use
+    # global average across all countries for this commodity
+    if (sum(y_row) <= 0) {
+      y_row <- y_global[item_idx, ]
+    }
+
+    if (sum(y_row) > 0) {
+      bal <- diag_z[i] * 0.8
+      share <- y_row / sum(y_row)
+      y_mat[i, y_cols] <- y_mat[i, y_cols] + bal * share
+      z_mat[i, i] <- diag_z[i] * 0.2
+    }
+  }
+
+  list(Z = z_mat, Y = y_mat)
 }
 
 # --- Output fixing ---
