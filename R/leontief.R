@@ -80,6 +80,25 @@ compute_leontief_inverse <- function(z_mat, x_vec, max_n = 5000) {
 .technical_coefficients <- function(z_mat, x_vec) {
   x_inv <- ifelse(x_vec == 0, 0, 1 / x_vec)
   a_mat <- z_mat %*% Matrix::Diagonal(x = x_inv)
+  # Zero negative entries in A (FABIO convention): these arise
+  # from data inconsistencies and would distort the inverse.
+  if (methods::is(a_mat, "sparseMatrix")) {
+    neg_count <- sum(a_mat@x < 0)
+    if (neg_count > 0) {
+      cli::cli_inform(
+        "  Zeroing {neg_count} negative entr{?y/ies} in A."
+      )
+      a_mat@x <- pmax(a_mat@x, 0)
+    }
+  } else {
+    neg_count <- sum(a_mat < 0)
+    if (neg_count > 0) {
+      cli::cli_inform(
+        "  Zeroing {neg_count} negative entr{?y/ies} in A."
+      )
+      a_mat[a_mat < 0] <- 0
+    }
+  }
   # Cap column sums at 1 (FABIO convention): prevents (I-A)
   # from becoming singular when input shares exceed output.
   col_sums <- Matrix::colSums(a_mat)

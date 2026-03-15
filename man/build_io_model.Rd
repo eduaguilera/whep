@@ -8,7 +8,8 @@ build_io_model(
   supply_use = build_supply_use(),
   bilateral_trade = get_bilateral_trade(),
   cbs = get_wide_cbs(),
-  years = NULL
+  years = NULL,
+  endogenize_losses = FALSE
 )
 }
 \arguments{
@@ -32,6 +33,12 @@ plus final demand columns (\code{food}, \code{other_uses}).}
 If NULL, computes all years in the intersection of
 available data across inputs. If specified, must be
 a subset of available years.}
+
+\item{endogenize_losses}{Logical. If \code{TRUE} and \code{cbs}
+contains a \code{losses} column, losses are moved from final
+demand to the diagonal of \code{Z} (self-use), following the
+FABIO convention. The \code{losses} column is removed from Y
+and \code{fd_labels}. Defaults to \code{FALSE}.}
 }
 \value{
 A tibble with one row per year and list-columns:
