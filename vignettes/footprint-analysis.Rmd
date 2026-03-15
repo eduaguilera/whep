@@ -1,0 +1,501 @@
+---
+title: "Environmental footprint analysis"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Environmental footprint analysis}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE
+)
+```
+
+## What is a footprint analysis?
+
+A **footprint analysis** answers the question: *"How much of an
+environmental pressure (land, water, emissions...) caused in country A
+is ultimately driven by consumption in country B?"*
+
+Modern supply chains are global. Spain might import soybeans from Brazil,
+feed them to pigs, and export ham to France. A footprint analysis traces
+these flows backwards through the entire supply chain, so that the
+environmental cost of growing those soybeans is attributed to the French
+consumer who ate the ham — not to the Brazilian farmer who grew the
+beans.
+
+This is done by building a **Multi-Regional Input-Output (MRIO) model**,
+a mathematical framework that captures all inter-industry and
+inter-country linkages in one system of equations.
+
+## The three-step pipeline
+
+The whep package implements this in three steps:
+
+1. **`build_io_model()`** — Assemble the MRIO tables from supply-use
+   data, bilateral trade, and commodity balance sheets.
+2. **`compute_leontief_inverse()`** — Compute the Leontief inverse,
+   which captures both direct and indirect supply chain linkages.
+3. **`compute_footprint()`** — Multiply the Leontief inverse by
+   environmental extension data to trace pressures through to final
+   consumption.
+
+The methodology follows the
+[FABIO model](https://doi.org/10.1021/acs.est.9b03554) (Bruckner et
+al., 2019), which builds physical MRIO tables for the global food
+system.
+
+## Concepts and terminology
+
+Before diving into the code, here are the key concepts:
+
+### Supply-use tables
+
+A **supply table** records how much of each product each process
+produces (e.g. wheat milling produces flour). A **use table** records
+how much of each product each process consumes (e.g. bakeries consume
+flour). Together they describe the technology of the economy: who
+produces what, and who uses what as inputs.
+
+### Bilateral trade
+
+A **bilateral trade matrix** records, for each product, how many tonnes
+flow from each exporting country to each importing country. This is what
+connects domestic economies into a global system.
+
+### Commodity balance sheets (CBS)
+
+A **commodity balance sheet** is an accounting identity for each product
+in each country:
+
+$$
+\text{Production} + \text{Imports} = \text{Exports}
+  + \text{Food} + \text{Feed} + \text{Other uses}
+  + \Delta\text{Stocks}
+$$
+
+The right-hand categories (food, feed, other uses) form the
+**final demand** — the end of the supply chain where products are
+consumed rather than being used as intermediate inputs.
+
+### The Z matrix (inter-industry flows)
+
+`Z` is the core of the MRIO model. It is a square matrix where each row
+and column represents a *(country, product)* pair. Entry $Z_{ij}$
+gives the physical flow from sector $i$ to sector $j$.
+
+For example, if row 5 is *(Spain, wheat)* and column 12 is *(Spain,
+flour)*, then $Z_{5,12}$ is the amount of Spanish wheat used by
+Spanish flour mills.
+
+The model constructs `Z` using the **industry technology assumption**:
+
+$$
+Z = U_{MR} \times T
+$$
+
+where $U_{MR}$ is the multi-regional use matrix (expanded with trade
+shares) and $T$ is the row-normalized supply matrix (the transformation
+matrix). This means: "the inputs each process uses are distributed
+across origin countries proportionally to trade shares, and then
+allocated to products proportionally to how each process distributes its
+output."
+
+### Trade shares
+
+For each product, trade shares tell us *where each country gets its
+supply from*. If Spain consumes 1000 tonnes of soybeans, and 600 come
+from domestic production while 400 come from Brazil, then the trade
+share from Brazil to Spain is 0.4 and the domestic share is 0.6.
+
+These shares are computed from the bilateral trade matrices combined
+with domestic production data from the CBS. They are used to expand the
+single-country use tables into a multi-regional system where each
+input can originate from any country.
+
+### The Y matrix (final demand)
+
+`Y` is the final demand matrix. Rows are *(country, product)* pairs
+(same as `Z`), and columns are *(country, demand category)* pairs.
+Entry $Y_{ij}$ tells us how much of product $i$ goes to final demand
+category $j$.
+
+Like `Z`, the final demand is expanded with trade shares so that, for
+example, food consumption of wheat in France can partly originate from
+French wheat and partly from imported wheat.
+
+### The X vector (total output)
+
+`X` is a vector where $X_i$ is the total output of sector $i$.
+By construction:
+
+$$
+X = Z \cdot \mathbf{1} + Y \cdot \mathbf{1}
+$$
+
+meaning total output equals intermediate deliveries plus final demand.
+
+### The Leontief inverse (L)
+
+The **Leontief inverse** $L = (I - A)^{-1}$ is the key analytical
+tool. The technical coefficients matrix $A$ is defined as
+$A_{ij} = Z_{ij} / X_j$, representing how much input from sector $i$
+is needed per unit of output from sector $j$.
+
+To ensure the system is invertible even when supply-use data contain
+inconsistencies (e.g. input flows exceed reported output), column sums
+of $A$ are capped at 1. This is the standard FABIO convention.
+
+The Leontief inverse captures the **total requirements** — both direct
+and indirect — needed to deliver one unit of final demand. Entry
+$L_{ij}$ tells us: *"To deliver one extra unit of product $j$ to final
+consumers, how much total output does sector $i$ need to produce
+(including all the intermediate steps)?"*
+
+This is what makes footprint tracing possible. A consumer buying bread
+in France triggers not just French bakeries, but also French mills,
+French wheat farmers, Brazilian soybean exporters (if feed is
+involved), and so on. The Leontief inverse encodes all of these ripple
+effects in a single matrix.
+
+### Environmental extensions
+
+An **environmental extension** is any pressure you want to trace through
+the supply chain. Common examples:
+
+- **Land use** (hectares): How many hectares of cropland does each
+  sector use?
+- **Water use** (cubic meters): How much blue water is consumed?
+- **Greenhouse gas emissions** (tonnes CO₂-eq): How much does each
+  sector emit?
+- **Nitrogen surplus** (tonnes N): How much excess nitrogen enters the
+  environment?
+
+You provide these as a vector $e$ with one value per *(country,
+product)* sector.
+
+### The footprint
+
+The footprint matrix is computed as:
+
+$$
+FP = \hat{f} \cdot L \times Y
+$$
+
+where $\hat{f}$ is a diagonal matrix of **extension intensities**
+$f_i = e_i / X_i$ (pressure per unit of output). Each entry $FP_{ij}$
+tells us: *"How much environmental pressure occurring in sector $i$ is
+driven by final demand category $j$?"*
+
+The resulting tidy tibble decomposes this by origin country/product and
+target country/product, giving you a full bilateral footprint map.
+
+## Running the analysis
+
+### Step 0: Prepare the input data
+
+You need three datasets, all of which can be built with whep functions:
+
+```{r}
+library(whep)
+
+# Supply-use tables (who produces and uses what)
+supply_use <- build_supply_use()
+
+# Bilateral trade matrices (who trades with whom)
+bilateral_trade <- get_bilateral_trade()
+
+# Commodity balance sheets (production, consumption, trade)
+cbs <- get_wide_cbs()
+```
+
+### Step 1: Build the IO model
+
+```{r}
+# For all years in common (default)
+io <- build_io_model(supply_use, bilateral_trade, cbs)
+
+# Or filter to specific years (useful for large timeseries)
+io <- build_io_model(
+  supply_use, bilateral_trade, cbs, years = c(2010, 2015, 2020)
+)
+io
+```
+
+This returns a tibble with one row per year. Each row contains:
+
+- `Z`: The inter-industry flow matrix.
+- `Y`: The final demand matrix.
+- `X`: The total output vector.
+- `labels`: A tibble mapping matrix indices to `area_code` and
+  `item_cbs_code`.
+
+You can inspect a single year:
+
+```{r}
+# Extract matrices for one year
+selected_year <- io$year[[1]]
+z_mat <- io$Z[[1]]
+y_mat <- io$Y[[1]]
+x_vec <- io$X[[1]]
+labels <- io$labels[[1]]
+
+# See dimensions: (n_countries * n_products) x (n_countries * n_products)
+dim(z_mat)
+
+# See label mapping
+labels
+```
+
+### Step 2: Compute the Leontief inverse
+
+For **small systems** (< 5000 sectors), you can pre-compute L:
+
+```{r}
+l_inv <- compute_leontief_inverse(z_mat, x_vec)
+dim(l_inv)
+```
+
+This inverts the $(I - A)$ matrix. Column sums of $A$ are internally
+capped at 1 to prevent singularity.
+
+#### For large systems
+
+For systems larger than ~5000 sectors (187 countries × 125+ products),
+computing the explicit Leontief inverse requires too much memory
+(e.g. 4.8 GiB for 25,000 sectors). In those cases, pass `z_mat`
+directly to `compute_footprint()`, which computes $L$ internally.
+
+### Step 3: Compute the footprint
+
+Now provide your environmental extension vector. This must have one
+value per sector, in the same order as the labels. You can use
+`get_land_fp_production()` to get cleaned land-use data from
+`land_fp`:
+
+```{r}
+land_use_data <- get_land_fp_production() |>
+  dplyr::filter(year == selected_year) |>
+  dplyr::select(area_code, item_cbs_code, hectares = value)
+
+# Match it to the IO model's label order
+extensions <- labels |>
+  dplyr::left_join(
+    land_use_data,
+    by = c("area_code", "item_cbs_code")
+  ) |>
+  dplyr::mutate(
+    hectares = tidyr::replace_na(hectares, 0)
+  ) |>
+  dplyr::pull(hectares)
+```
+
+#### Dense path (pre-computed L)
+
+If you pre-computed L:
+
+```{r}
+footprint <- compute_footprint(
+  l_inv, x_vec, y_mat, extensions, labels
+)
+footprint
+```
+
+#### Using Z directly (computes L internally)
+
+Alternatively, pass the Z matrix and `compute_footprint()` will
+derive the Leontief inverse for you:
+
+```{r}
+footprint <- compute_footprint(
+  z_mat = z_mat,
+  x_vec = x_vec,
+  y_mat = y_mat,
+  extensions = extensions,
+  labels = labels
+)
+footprint
+```
+
+#### Per-item decomposition with fd_labels
+
+Pass `fd_labels` from the IO model to decompose the footprint per
+target item and demand category, following the FABIO approach:
+
+```{r}
+footprint <- compute_footprint(
+  z_mat = z_mat,
+  x_vec = x_vec,
+  y_mat = y_mat,
+  extensions = extensions,
+  labels = labels,
+  fd_labels = fd_labels
+)
+footprint
+```
+
+When `fd_labels` is provided, the result includes `target_item`
+(the consumed product) and `target_fd` (the demand category like
+`"food"` or `"feed"`).
+
+The result is a tidy tibble with columns:
+
+| Column | Meaning |
+|--------|---------|
+| `origin_area` | Country where the pressure physically occurs |
+| `origin_item` | Product causing the pressure |
+| `target_area` | Country whose consumption drives the pressure |
+| `target_item` | Product being consumed |
+| `value` | Footprint in extension units (e.g. hectares) |
+
+### Analysing the results
+
+Because the output is a tidy tibble, you can use standard dplyr
+operations to answer questions:
+
+**Which country's consumption drives the most land use?**
+
+```{r}
+footprint |>
+  dplyr::summarise(
+    total_land = sum(value), .by = target_area
+  ) |>
+  dplyr::arrange(dplyr::desc(total_land))
+```
+
+**How much of Spain's land use is driven by foreign consumption?**
+
+```{r}
+spain_code <- 203L
+
+footprint |>
+  dplyr::filter(origin_area == spain_code) |>
+  dplyr::mutate(
+    destination = ifelse(
+      target_area == spain_code, "domestic", "exported"
+    )
+  ) |>
+  dplyr::summarise(
+    total_land = sum(value), .by = destination
+  )
+```
+
+**What are the top bilateral flows?**
+
+```{r}
+footprint |>
+  dplyr::summarise(
+    total = sum(value),
+    .by = c(origin_area, target_area)
+  ) |>
+  dplyr::arrange(dplyr::desc(total)) |>
+  head(20)
+```
+
+### A conservation check
+
+A useful sanity check: the total footprint should equal the total
+extensions. All pressure must be attributed somewhere.
+
+```{r}
+# These two numbers should be equal
+sum(footprint$value)
+sum(extensions)
+```
+
+## Processing multiple years
+
+Since `build_io_model()` returns one row per year, you can filter to
+specific years at the model level, or loop over them:
+
+#### Fast approach: filter years early
+
+```{r}
+# Only build the years you need
+io <- build_io_model(
+  supply_use, bilateral_trade, cbs, years = 2010:2020
+)
+
+all_footprints <- purrr::pmap_dfr(
+  list(
+    io$Z, io$X, io$Y, io$labels,
+    io$fd_labels, io$year
+  ),
+  function(z, x, y, lab, fdl, yr) {
+    ext <- rep(0, length(x))  # Replace with your extension data
+    compute_footprint(
+      z_mat = z, x_vec = x, y_mat = y,
+      extensions = ext, labels = lab,
+      fd_labels = fdl
+    ) |>
+      dplyr::mutate(year = yr)
+  }
+)
+```
+
+#### Dense path (if system is small)
+
+If your system has < 5000 sectors, you can pre-compute L:
+
+```{r}
+all_footprints <- purrr::pmap_dfr(
+  list(
+    io$Z, io$X, io$Y, io$labels,
+    io$fd_labels, io$year
+  ),
+  function(z, x, y, lab, fdl, yr) {
+    l_inv <- compute_leontief_inverse(z, x)
+    ext <- rep(0, length(x))  # Replace with your extension data
+    compute_footprint(
+      l_inv, x, y, ext, lab,
+      fd_labels = fdl
+    ) |>
+      dplyr::mutate(year = yr)
+  }
+)
+```
+
+#### Parallel execution (optional)
+
+Since each year is independent, you can parallelise using `furrr`:
+
+```{r}
+library(furrr)
+future::plan(multisession, workers = 4)
+
+all_footprints <- furrr::future_pmap_dfr(
+  list(
+    io$Z, io$X, io$Y, io$labels,
+    io$fd_labels, io$year
+  ),
+  function(z, x, y, lab, fdl, yr) {
+    ext <- rep(0, length(x))
+    compute_footprint(
+      z_mat = z, x_vec = x, y_mat = y,
+      extensions = ext, labels = lab,
+      fd_labels = fdl
+    ) |>
+      dplyr::mutate(year = yr)
+  }
+)
+```
+
+## Summary
+
+| Step | Function | Input | Output |
+|------|----------|-------|--------|
+| 1 | `build_io_model()` | Supply-use, trade, CBS | Z, Y, X matrices per year |
+| 2 | `compute_leontief_inverse()` | Z, X | Leontief inverse L |
+| 3 | `compute_footprint()` | L, X, Y, extensions, labels | Tidy bilateral footprint |
+
+## References
+
+Bruckner, M., Wood, R., Moran, D., Kuschnig, N., Wieland, H.,
+Maus, V., & Börner, J. (2019). FABIO — The Construction of the Food
+and Agriculture Biomass Input-Output Model. *Environmental Science &
+Technology*, 53(19), 11302–11312.
+https://doi.org/10.1021/acs.est.8b03704
