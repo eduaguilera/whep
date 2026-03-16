@@ -6,7 +6,7 @@ item_cbs_code,item_cbs_name,item_type
 2617,Apples and products,other
 2769,"Aquatic Animals, Others",other
 2775,Aquatic Plants,other
-1107,Asses,livestock
+1107,Asses,livestock_draft
 2615,Bananas,other
 2513,Barley and products,other
 2546,Beans,other
@@ -17,17 +17,17 @@ item_cbs_code,item_cbs_name,item_type
 2657,"Beverages, Fermented",other
 2731,Bovine Meat,slaughter_product
 2111,Brans,other
-946,Buffaloes,livestock
+946,Buffaloes,livestock_meat
 2740,"Butter, Ghee",other
-1157,"Camelids, other",livestock
-1126,Camels,livestock
+1157,"Camelids, other",livestock_draft
+1126,Camels,livestock_draft
 2532,Cassava and products,other
-960,"Cattle, dairy",livestock
-961,"Cattle, non-dairy",livestock
+960,"Cattle, dairy",livestock_meat
+961,"Cattle, non-dairy",livestock_meat
 2766,Cephalopods,other
 2520,"Cereals, Other",other
-1053,"Chickens, broilers",livestock
-1052,"Chickens, layers",livestock
+1053,"Chickens, broilers",livestock_meat
+1052,"Chickens, layers",livestock_meat
 2614,"Citrus, Other",other
 2642,Cloves,other
 2633,Cocoa Beans and products,other
@@ -45,7 +45,7 @@ item_cbs_code,item_cbs_name,item_type
 2102,DDGS Barley,other
 2619,Dates,other
 2762,Demersal Fish,other
-1068,Ducks,livestock
+1068,Ducks,livestock_meat
 2744,Eggs,other
 3003,Fallow,other
 2737,"Fats, Animals, Raw",slaughter_product
@@ -58,9 +58,9 @@ item_cbs_code,item_cbs_name,item_type
 2002,Fodder vegetables and roots,other
 2761,Freshwater Fish,other
 2625,"Fruits, Other",other
-1190,Game,livestock
-1072,Geese,livestock
-1016,Goats,livestock
+1190,Game,livestock_meat
+1072,Geese,livestock_meat
+1016,Goats,livestock_meat
 2613,Grapefruit and products,other
 2620,Grapes and products (excl wine),other
 3000,Grassland,other
@@ -72,7 +72,7 @@ item_cbs_code,item_cbs_name,item_type
 2748,Hides and skins,slaughter_product
 2745,Honey,other
 677,Hops,other
-1096,Horses,livestock
+1096,Horses,livestock_draft
 5002,Infant food,other
 2662,Jute,other
 2663,Jute-Like Fibres,other
@@ -91,7 +91,7 @@ item_cbs_code,item_cbs_name,item_type
 2899,Miscellaneous,other
 2544,Molasses,other
 2767,"Molluscs, Other",other
-1110,Mules,livestock
+1110,Mules,livestock_draft
 2732,Mutton & Goat Meat,slaughter_product
 2551,Nuts and products,other
 2516,Oats,other
@@ -115,20 +115,20 @@ item_cbs_code,item_cbs_name,item_type
 2763,Pelagic Fish,other
 2640,Pepper,other
 2733,Pigmeat,slaughter_product
-1049,Pigs,livestock
+1049,Pigs,livestock_meat
 2641,Pimento,other
 2618,Pineapples and products,other
 2616,Plantains,other
 2531,Potatoes and products,other
 2734,Poultry Meat,slaughter_product
 2549,"Pulses, Other and products",other
-1140,Rabbits and hares,livestock
+1140,Rabbits and hares,livestock_meat
 2593,Rape and Mustard Cake,other
 2574,Rape and Mustard Oil,other
 2558,Rape and Mustardseed,other
 2807,Rice and products,other
 2581,Ricebran Oil,other
-1150,"Rodents, other",livestock
+1150,"Rodents, other",livestock_meat
 2534,"Roots, Other",other
 2672,Rubber,other
 2515,Rye and products,other
@@ -137,7 +137,7 @@ item_cbs_code,item_cbs_name,item_type
 2561,Sesame seed,other
 2597,Sesameseed Cake,other
 2579,Sesameseed Oil,other
-976,Sheep,livestock
+976,Sheep,livestock_meat
 2747,Silk,other
 2665,Sisal,other
 2664,"Soft-Fibres, Other",other
@@ -162,7 +162,7 @@ item_cbs_code,item_cbs_name,item_type
 3002,Temporary grassland,other
 2671,Tobacco,other
 2601,Tomatoes and products,other
-1079,Turkeys,livestock
+1079,Turkeys,livestock_meat
 2605,"Vegetables, Other",other
 4027,Vitamins,other
 2511,Wheat and products,other

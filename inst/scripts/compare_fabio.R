@@ -246,21 +246,41 @@ if (nrow(only_our_items) > 0) {
 # --------------------------------------------------------------------------- #
 # 1. Compare X (total output vector)                                            #
 # --------------------------------------------------------------------------- #
+#
+# NOTE on live animal units:
+#   FABIO stores live animal X in HEADS (number of animals slaughtered per year
+#   for meat animals; stocks for draft animals).  WHEP stores them in TONNES
+#   (Livestock Units × 0.65 t/LU, representing herd stock, not annual flow).
+#   These are fundamentally different quantities and cannot be compared directly.
+#   Live animals are therefore excluded from the main summary statistics below
+#   and shown separately in section 1c.
+#
+# Live animal item_cbs_codes (both meat and draft):
+.livestock_items <- whep::items_cbs |>
+  dplyr::filter(startsWith(item_type, "livestock")) |>
+  dplyr::pull(item_cbs_code)
 
-message("\n=== 1. Total output (X) ===")
+message("\n=== 1. Total output (X) — non-livestock items only ===")
 
-x_cmp <- .compare_vectors(
+x_cmp_all <- .compare_vectors(
   fabio_x,
   fabio_labels[, c("area_code", "item_cbs_code")],
   our$X,
   our$labels[, c("area_code", "item_cbs_code")]
 )
 
-message(sprintf("  Matched %d sectors.", nrow(x_cmp)))
-.print_summary("X", x_cmp)
+x_cmp <- x_cmp_all |>
+  dplyr::filter(!(.data$item_cbs_code %in% .livestock_items))
+
+message(sprintf(
+  "  Matched %d sectors (%d livestock excluded from summary).",
+  nrow(x_cmp_all),
+  nrow(x_cmp_all) - nrow(x_cmp)
+))
+.print_summary("X (non-livestock)", x_cmp)
 .print_top_mismatches(x_cmp, n = 20, label = "X")
 
-x_cmp_full <- x_cmp |> add_area_name() |> add_item_cbs_name()
+x_cmp_full <- x_cmp_all |> add_area_name() |> add_item_cbs_name()
 
 # --------------------------------------------------------------------------- #
 # 1b. X — breakdown by item (detect systematic scale factors)                  #
@@ -297,6 +317,32 @@ print(head(x_by_item, 20))
 
 message("\nItems where WHEP is highest relative to FABIO:")
 print(tail(x_by_item, 20))
+
+# --------------------------------------------------------------------------- #
+# 1c. X — live animals (different units; informational only)                   #
+# --------------------------------------------------------------------------- #
+#
+# FABIO X for live animals = heads (slaughtered count or stock).
+# WHEP X for live animals  = tonnes from LU × 0.65 (herd stock, not flow).
+# Direct comparison is not meaningful; shown here for reference only.
+
+message("\n=== 1c. X — live animals (FABIO: heads; WHEP: tonnes from LU) ===")
+message("  (Not comparable — different units and quantity concepts)")
+
+x_live <- x_cmp_all |>
+  dplyr::filter(.data$item_cbs_code %in% .livestock_items) |>
+  dplyr::group_by(.data$item_cbs_code) |>
+  dplyr::summarise(
+    n_areas = dplyr::n(),
+    fabio_total = sum(.data$ref),
+    whep_total = sum(.data$our),
+    .groups = "drop"
+  ) |>
+  add_item_cbs_name() |>
+  dplyr::arrange(.data$item_cbs_name) |>
+  dplyr::select("item_cbs_name", "n_areas", "fabio_total", "whep_total")
+
+print(x_live)
 
 # --------------------------------------------------------------------------- #
 # 2. Compare Z row and column sums                                              #
