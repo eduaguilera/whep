@@ -59,8 +59,9 @@ testthat::test_that(".build_use_husbandry gives feed intake needs for animal hus
     .expect_equal_unordered(expected)
 })
 
-testthat::test_that(".build_supply_husbandry gives livestock and their products", {
+testthat::test_that(".build_supply_husbandry gives livestock and non-slaughter products", {
   husbandry_items <- tibble::tibble(live_anim_code = c(1, 2, 4))
+  slaughter_products <- tibble::tibble(item_cbs_code = integer(0))
 
   primary_prod <- tibble::tribble(
     ~year, ~area_code, ~item_prod_code, ~item_cbs_code, ~live_anim_code, ~unit, ~value,
@@ -85,7 +86,7 @@ testthat::test_that(".build_supply_husbandry gives livestock and their products"
   )
 
   husbandry_items |>
-    .build_supply_husbandry(primary_prod) |>
+    .build_supply_husbandry(primary_prod, slaughter_products) |>
     .expect_equal_unordered(expected)
 })
 
@@ -219,24 +220,30 @@ testthat::test_that(".build_livestock_supply filters LU and scales", {
   )
 })
 
-testthat::test_that(".build_livestock_prods_supply filters tonnes items", {
+testthat::test_that(".build_livestock_prods_supply excludes slaughter products", {
   husbandry_items <- tibble::tibble(
     live_anim_code = c(1, 2)
+  )
+  slaughter_products <- tibble::tibble(
+    item_cbs_code = c(50)
   )
   primary_prod <- tibble::tribble(
     ~year, ~area_code, ~item_prod_code, ~item_cbs_code, ~live_anim_code, ~unit, ~value,
     2000, 1, 10, 50, 1, "tonnes", 100,
     2000, 1, 11, 51, 3, "tonnes", 200,
-    2000, 1, 12, 1, NA, "LU", 300
+    2000, 1, 12, 1, NA, "LU", 300,
+    2000, 1, 13, 55, 1, "tonnes", 80
   )
 
   result <- .build_livestock_prods_supply(
     primary_prod,
-    husbandry_items
+    husbandry_items,
+    slaughter_products
   )
 
   testthat::expect_equal(nrow(result), 1)
-  testthat::expect_equal(result$value, 100)
+  testthat::expect_equal(result$value, 80)
+  testthat::expect_equal(result$item_cbs_code, 55)
   testthat::expect_equal(result$proc_cbs_code, 1)
 })
 
@@ -287,6 +294,9 @@ testthat::test_that(".build_husbandry combines feed use and livestock supply", {
   husbandry_items <- tibble::tibble(
     live_anim_code = c(1)
   )
+  slaughter_products <- tibble::tibble(
+    item_cbs_code = c(60)
+  )
   feed_intake <- tibble::tribble(
     ~year, ~area_code, ~live_anim_code, ~item_cbs_code, ~supply,
     2000, 1, 1, 50, 20
@@ -294,13 +304,15 @@ testthat::test_that(".build_husbandry combines feed use and livestock supply", {
   primary_prod <- tibble::tribble(
     ~year, ~area_code, ~item_prod_code, ~item_cbs_code, ~live_anim_code, ~unit, ~value,
     2000, 1, 10, 1, NA, "LU", 100,
-    2000, 1, 11, 60, 1, "tonnes", 40
+    2000, 1, 11, 60, 1, "tonnes", 40,
+    2000, 1, 12, 70, 1, "tonnes", 30
   )
 
   result <- .build_husbandry(
     husbandry_items,
     feed_intake,
-    primary_prod
+    primary_prod,
+    slaughter_products
   )
 
   pointblank::expect_col_vals_in_set(
@@ -313,5 +325,102 @@ testthat::test_that(".build_husbandry combines feed use and livestock supply", {
   supply_rows <- result |>
     dplyr::filter(type == "supply")
   testthat::expect_equal(nrow(use_rows), 1)
+  # livestock supply (LU) + non-slaughter product (70), but not slaughter product (60)
   testthat::expect_equal(nrow(supply_rows), 2)
+})
+
+testthat::test_that(".build_supply_slaughtering selects slaughter products", {
+  husbandry_items <- tibble::tibble(
+    live_anim_code = c(1, 2)
+  )
+  slaughter_products <- tibble::tibble(
+    item_cbs_code = c(60, 70)
+  )
+  primary_prod <- tibble::tribble(
+    ~year, ~area_code, ~item_prod_code, ~item_cbs_code, ~live_anim_code, ~unit, ~value,
+    2000, 1, 10, 60, 1, "tonnes", 100,
+    2000, 1, 11, 70, 1, "tonnes", 50,
+    2000, 1, 12, 80, 1, "tonnes", 30,
+    2000, 1, 13, 60, 2, "tonnes", 40,
+    2000, 1, 14, 1, NA, "LU", 200
+  )
+
+  result <- .build_supply_slaughtering(
+    primary_prod,
+    husbandry_items,
+    slaughter_products
+  )
+
+  testthat::expect_equal(nrow(result), 3)
+  testthat::expect_true(all(result$type == "supply"))
+  testthat::expect_true(all(result$item_cbs_code %in% c(60, 70)))
+  # item 80 (non-slaughter) should not be included
+  testthat::expect_false(80 %in% result$item_cbs_code)
+  # proc_cbs_code should be the live_anim_code
+  testthat::expect_equal(
+    sort(result$proc_cbs_code),
+    sort(c(1, 1, 2))
+  )
+})
+
+testthat::test_that(".build_use_slaughtering uses live animals for slaughter", {
+  husbandry_items <- tibble::tibble(
+    live_anim_code = c(1, 2)
+  )
+  supply <- tibble::tribble(
+    ~year, ~area_code, ~proc_cbs_code, ~item_cbs_code, ~value, ~type,
+    2000, 1, 1, 60, 100, "supply",
+    2000, 1, 1, 70, 50, "supply"
+  )
+  primary_prod <- tibble::tribble(
+    ~year, ~area_code, ~item_prod_code, ~item_cbs_code, ~live_anim_code, ~unit, ~value,
+    2000, 1, 10, 1, NA, "LU", 200,
+    2000, 1, 11, 2, NA, "LU", 300
+  )
+
+  result <- .build_use_slaughtering(primary_prod, husbandry_items, supply)
+
+  # Only animal 1 has slaughter supply, so only animal 1 should appear as use
+  testthat::expect_equal(nrow(result), 1)
+  testthat::expect_equal(result$type, "use")
+  testthat::expect_equal(result$proc_cbs_code, 1)
+  testthat::expect_equal(result$item_cbs_code, 1)
+  testthat::expect_equal(result$value, 200 * 0.65)
+})
+
+testthat::test_that(".build_slaughtering combines supply and use", {
+  husbandry_items <- tibble::tibble(
+    live_anim_code = c(1)
+  )
+  slaughter_products <- tibble::tibble(
+    item_cbs_code = c(60)
+  )
+  primary_prod <- tibble::tribble(
+    ~year, ~area_code, ~item_prod_code, ~item_cbs_code, ~live_anim_code, ~unit, ~value,
+    2000, 1, 10, 60, 1, "tonnes", 100,
+    2000, 1, 11, 1, NA, "LU", 200,
+    2000, 1, 12, 80, 1, "tonnes", 30
+  )
+
+  result <- .build_slaughtering(
+    husbandry_items,
+    primary_prod,
+    slaughter_products
+  )
+
+  pointblank::expect_col_vals_in_set(
+    result,
+    "proc_group",
+    set = "slaughtering"
+  )
+  use_rows <- result |>
+    dplyr::filter(type == "use")
+  supply_rows <- result |>
+    dplyr::filter(type == "supply")
+  testthat::expect_equal(nrow(use_rows), 1)
+  testthat::expect_equal(nrow(supply_rows), 1)
+  testthat::expect_equal(use_rows$item_cbs_code, 1)
+  testthat::expect_equal(use_rows$value, 200 * 0.65)
+  testthat::expect_equal(supply_rows$item_cbs_code, 60)
+  testthat::expect_equal(supply_rows$value, 100)
 })

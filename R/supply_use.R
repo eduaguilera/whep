@@ -21,7 +21,12 @@
 #'    - `crop_production`: Production of crops and their residues, e.g. rice
 #'    production, coconut production, etc.
 #'    - `husbandry`: Animal husbandry, e.g. dairy cattle husbandry, non-dairy
-#'    cattle husbandry, layers chickens farming, etc.
+#'    cattle husbandry, layers chickens farming, etc. Husbandry processes
+#'    take feed as input and produce live animals and non-slaughter livestock
+#'    products (milk, eggs, wool, honey, etc.) as output.
+#'    - `slaughtering`: Slaughtering of livestock. Each slaughtering process
+#'    takes a live animal as input and produces slaughter products (meat,
+#'    offals, fats, hides and skins) as output.
 #'    - `processing`: Derived subproducts obtained from processing other items.
 #'    The items used as inputs are those that have a non-zero processing use in
 #'    the commodity balance sheet. See `get_wide_cbs()` for more details.
@@ -93,13 +98,23 @@ build_supply_use <- function(example = FALSE) {
     dplyr::filter(item_type == "livestock") |>
     dplyr::select(live_anim_code = item_cbs_code)
 
+  slaughter_products <- items_cbs |>
+    dplyr::filter(item_type == "slaughter_product") |>
+    dplyr::select(item_cbs_code)
+
   crop_prod_items <- items_prod |>
     dplyr::filter(item_type == "crop_product") |>
     dplyr::select(item_prod_code)
 
   dplyr::bind_rows(
     .build_crop_production(crop_prod_items, cbs, primary_prod, crop_residues),
-    .build_husbandry(husbandry_items, feed_intake, primary_prod),
+    .build_husbandry(
+      husbandry_items,
+      feed_intake,
+      primary_prod,
+      slaughter_products
+    ),
+    .build_slaughtering(husbandry_items, primary_prod, slaughter_products),
     .build_processing(coeffs),
   ) |>
     dplyr::select(
@@ -190,10 +205,15 @@ build_supply_use <- function(example = FALSE) {
     )
 }
 
-.build_husbandry <- function(husbandry_items, feed_intake, primary_prod) {
+.build_husbandry <- function(
+  husbandry_items,
+  feed_intake,
+  primary_prod,
+  slaughter_products
+) {
   dplyr::bind_rows(
     .build_use_husbandry(feed_intake),
-    .build_supply_husbandry(husbandry_items, primary_prod),
+    .build_supply_husbandry(husbandry_items, primary_prod, slaughter_products),
   ) |>
     dplyr::mutate(proc_group = "husbandry")
 }
@@ -210,15 +230,81 @@ build_supply_use <- function(example = FALSE) {
     dplyr::mutate(type = "use")
 }
 
-.build_supply_husbandry <- function(husbandry_items, primary_prod) {
+.build_supply_husbandry <- function(
+  husbandry_items,
+  primary_prod,
+  slaughter_products
+) {
   dplyr::bind_rows(
-    # TODO: This is essentially double counting animals' mass both as livestock
-    # and their products. Go back to this when integrating input-output matrix
-    # with trade, to look for a satisfying fix.
     .build_livestock_supply(primary_prod, husbandry_items),
-    .build_livestock_prods_supply(primary_prod, husbandry_items),
+    .build_livestock_prods_supply(
+      primary_prod,
+      husbandry_items,
+      slaughter_products
+    ),
   ) |>
     dplyr::mutate(type = "supply")
+}
+
+.build_slaughtering <- function(
+  husbandry_items,
+  primary_prod,
+  slaughter_products
+) {
+  supply <- .build_supply_slaughtering(
+    primary_prod,
+    husbandry_items,
+    slaughter_products
+  )
+
+  use <- .build_use_slaughtering(primary_prod, husbandry_items, supply)
+
+  dplyr::bind_rows(supply, use) |>
+    dplyr::mutate(proc_group = "slaughtering")
+}
+
+.build_supply_slaughtering <- function(
+  primary_prod,
+  husbandry_items,
+  slaughter_products
+) {
+  primary_prod |>
+    dplyr::filter(unit == "tonnes") |>
+    dplyr::inner_join(husbandry_items, "live_anim_code") |>
+    dplyr::inner_join(slaughter_products, "item_cbs_code") |>
+    dplyr::select(
+      year,
+      area_code,
+      proc_cbs_code = live_anim_code,
+      item_cbs_code,
+      value
+    ) |>
+    dplyr::mutate(type = "supply")
+}
+
+.build_use_slaughtering <- function(primary_prod, husbandry_items, supply) {
+  slaughter_animals <- supply |>
+    dplyr::distinct(year, area_code, proc_cbs_code)
+
+  primary_prod |>
+    dplyr::filter(unit == "LU") |>
+    dplyr::inner_join(
+      husbandry_items,
+      dplyr::join_by(item_cbs_code == live_anim_code)
+    ) |>
+    dplyr::mutate(value = k_tonnes_per_livestock_unit * value) |>
+    dplyr::select(
+      year,
+      area_code,
+      proc_cbs_code = item_cbs_code,
+      item_cbs_code = item_cbs_code,
+      value
+    ) |>
+    dplyr::semi_join(
+      slaughter_animals,
+      by = c("year", "area_code", "proc_cbs_code")
+    ) |>
+    dplyr::mutate(type = "use")
 }
 
 .build_livestock_supply <- function(primary_prod, husbandry_items) {
@@ -238,10 +324,15 @@ build_supply_use <- function(example = FALSE) {
     )
 }
 
-.build_livestock_prods_supply <- function(primary_prod, husbandry_items) {
+.build_livestock_prods_supply <- function(
+  primary_prod,
+  husbandry_items,
+  slaughter_products
+) {
   primary_prod |>
     dplyr::filter(unit == "tonnes") |>
     dplyr::inner_join(husbandry_items, "live_anim_code") |>
+    dplyr::anti_join(slaughter_products, "item_cbs_code") |>
     dplyr::select(
       year,
       area_code,
