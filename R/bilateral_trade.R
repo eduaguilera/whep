@@ -245,7 +245,7 @@ get_bilateral_trade <- function(example = FALSE) {
     dplyr::mutate(area_code = factor(area_code, levels = codes))
 
   btd |>
-    dplyr::filter(unit == "tonnes") |>
+    dplyr::filter(unit %in% c("tonnes", "heads")) |>
     dplyr::select(-unit) |>
     dplyr::mutate(
       from_code = factor(from_code, levels = codes),

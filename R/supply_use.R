@@ -63,7 +63,8 @@
 #' - `type`: Can have two values:
 #'    - `use`: The given item is an input of the process.
 #'    - `supply`: The given item is an output of the process.
-#' - `value`: Quantity in tonnes.
+#' - `value`: Quantity in tonnes for most items, or heads for live
+#'    animals (see [items_cbs] `item_type`).
 #'
 #' @export
 #'
@@ -287,12 +288,11 @@ build_supply_use <- function(example = FALSE) {
     dplyr::distinct(year, area_code, proc_cbs_code)
 
   primary_prod |>
-    dplyr::filter(unit == "LU") |>
+    dplyr::filter(unit == "heads") |>
     dplyr::inner_join(
       husbandry_items,
       dplyr::join_by(item_cbs_code == live_anim_code)
     ) |>
-    dplyr::mutate(value = k_tonnes_per_livestock_unit * value) |>
     dplyr::select(
       year,
       area_code,
@@ -309,12 +309,11 @@ build_supply_use <- function(example = FALSE) {
 
 .build_livestock_supply <- function(primary_prod, husbandry_items) {
   primary_prod |>
-    dplyr::filter(unit == "LU") |>
+    dplyr::filter(unit == "heads") |>
     dplyr::inner_join(
       husbandry_items,
       dplyr::join_by(item_cbs_code == live_anim_code)
     ) |>
-    dplyr::mutate(value = k_tonnes_per_livestock_unit * value) |>
     dplyr::select(
       year,
       area_code,

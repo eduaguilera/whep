@@ -17,8 +17,9 @@
 #' - `item_cbs_code`: FAOSTAT internal code for each item. For
 #'   code details see e.g. `add_item_cbs_name()`.
 #'
-#' The other columns are quantities (measured in tonnes), where
-#' total supply and total use should be balanced.
+#' The other columns are quantities where total supply and total
+#' use should be balanced. Units are tonnes for most items,
+#' and heads for live animals (see [items_cbs] `item_type`).
 #'
 #' For supply:
 #'    - `production`: Produced locally.
@@ -73,17 +74,18 @@ get_wide_cbs <- function(example = FALSE) {
 #' Livestock commodity balance sheet entries
 #'
 #' @description
-#' Build CBS rows for live animals from primary production data.
-#' Live animals are not included in the FAO commodity balance sheet
-#' but are needed as explicit intermediates in the IO model.
+#' Build CBS rows for live animals from primary production data
+#' and bilateral trade. Live animals are not included in the FAO
+#' commodity balance sheet but are needed as explicit intermediates
+#' in the IO model.
 #'
-#' For meat animals (`livestock_meat` in `items_cbs`), all production
-#' flows to `processing` (i.e. enters the slaughtering process).
-#' For draft animals (`livestock_draft` in `items_cbs`), all
-#' production flows to `other_uses`.
+#' Following the FABIO methodology, production is estimated as
+#' `slaughtered + exported - imported` (animals raised in the
+#' country), and domestic supply (`processing` for meat animals,
+#' `other_uses` for draft animals) equals
+#' `production + import - export`.
 #'
-#' Production is estimated from Livestock Unit (LU) data using the
-#' standard conversion factor.
+#' Units are heads (number of animals).
 #'
 #' @param primary_prod Tibble from [get_primary_production()].
 #'
@@ -104,50 +106,60 @@ get_livestock_cbs <- function(primary_prod) {
     dplyr::mutate(draft_items, is_meat = FALSE)
   )
 
-  live_prod <- primary_prod |>
-    dplyr::filter(unit == "LU") |>
+  slaughtered <- primary_prod |>
+    dplyr::filter(unit == "heads") |>
     dplyr::inner_join(
       all_livestock,
       dplyr::join_by(item_cbs_code)
     ) |>
-    dplyr::mutate(value = k_tonnes_per_livestock_unit * value) |>
     dplyr::summarise(
-      production = sum(value, na.rm = TRUE),
+      slaughtered = sum(value, na.rm = TRUE),
       is_meat = dplyr::first(is_meat),
       .by = c(year, area_code, item_cbs_code)
+    )
+
+  live_trade <- .get_livestock_trade_totals(all_livestock$item_cbs_code)
+
+  live_prod <- slaughtered |>
+    dplyr::left_join(
+      live_trade,
+      by = c("year", "area_code", "item_cbs_code")
+    ) |>
+    dplyr::mutate(
+      import = tidyr::replace_na(import, 0),
+      export = tidyr::replace_na(export, 0),
+      # FABIO convention: production = animals raised in country
+      production = pmax(slaughtered + export - import, 0),
+      # Cap exports at total supply (production + imports)
+      supply = production + import,
+      export = pmin(export, supply),
+      domestic_supply = pmax(production + import - export, 0)
     )
 
   dplyr::bind_rows(
     live_prod |>
       dplyr::filter(is_meat) |>
       dplyr::mutate(
-        import = 0,
-        export = 0,
         food = 0,
         feed = 0,
         seed = 0,
-        processing = .data$production,
+        processing = domestic_supply,
         other_uses = 0,
         stock_withdrawal = 0,
-        stock_addition = 0,
-        domestic_supply = .data$production
+        stock_addition = 0
       ),
     live_prod |>
       dplyr::filter(!is_meat) |>
       dplyr::mutate(
-        import = 0,
-        export = 0,
         food = 0,
         feed = 0,
         seed = 0,
         processing = 0,
-        other_uses = .data$production,
+        other_uses = domestic_supply,
         stock_withdrawal = 0,
-        stock_addition = 0,
-        domestic_supply = .data$production
+        stock_addition = 0
       )
   ) |>
-    dplyr::select(-is_meat) |>
     dplyr::select(
       year,
       area_code,
@@ -164,6 +176,56 @@ get_livestock_cbs <- function(primary_prod) {
       stock_addition,
       domestic_supply
     )
+}
+
+# Extract per-country import and export totals for live animals
+# from the raw bilateral trade data.
+.get_livestock_trade_totals <- function(livestock_items) {
+  btd <- tryCatch(
+    "bilateral_trade" |>
+      whep_read_file() |>
+      .clean_bilateral_trade() |>
+      dplyr::filter(
+        unit == "heads",
+        item_cbs_code %in% livestock_items
+      ),
+    error = function(e) {
+      cli::cli_warn(
+        "Could not read bilateral trade for livestock: {e$message}"
+      )
+      return(NULL)
+    }
+  )
+
+  if (is.null(btd) || nrow(btd) == 0) {
+    tibble::tibble(
+      year = integer(),
+      area_code = integer(),
+      item_cbs_code = integer(),
+      import = numeric(),
+      export = numeric()
+    )
+  }
+
+  imports <- btd |>
+    dplyr::summarise(
+      import = sum(value, na.rm = TRUE),
+      .by = c(year, to_code, item_cbs_code)
+    ) |>
+    dplyr::rename(area_code = to_code)
+
+  exports <- btd |>
+    dplyr::summarise(
+      export = sum(value, na.rm = TRUE),
+      .by = c(year, from_code, item_cbs_code)
+    ) |>
+    dplyr::rename(area_code = from_code)
+
+  dplyr::full_join(
+    imports,
+    exports,
+    by = c("year", "area_code", "item_cbs_code")
+  )
 }
 
 #' Processed products share factors
