@@ -46,6 +46,7 @@
   value_col = "value",
   time_col = "year"
 ) {
+  cli::cli_progress_step("Flagging carry-forwards")
   df |>
     dplyr::arrange(dplyr::across(dplyr::all_of(c(by, time_col)))) |>
     dplyr::mutate(
@@ -96,6 +97,7 @@
   value_col = "value",
   time_col = "year"
 ) {
+  cli::cli_progress_step("Flagging spikes")
   df |>
     dplyr::arrange(dplyr::across(dplyr::all_of(c(by, time_col)))) |>
     dplyr::mutate(
@@ -131,6 +133,7 @@
   item_col = "item_prod",
   value_col = "value"
 ) {
+  cli::cli_progress_step("Flagging fodder break")
   df |>
     dplyr::mutate(
       qc_fodder_break = .data[[item_col]] %in%
@@ -149,6 +152,7 @@
 #' @keywords internal
 #' @noRd
 .collapse_qc_flags <- function(df) {
+  cli::cli_progress_step("Collapsing QC flags")
   flag_cols <- intersect(
     c("qc_carry_forward", "qc_spike", "qc_fodder_break"),
     names(df)

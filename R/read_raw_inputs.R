@@ -13,80 +13,18 @@
 .harmonize_element_names <- function(df) {
   df |>
     dplyr::mutate(
-      element = stringr::str_replace(
-        element,
-        "Domestic supply quantity",
-        "domestic_supply"
-      ),
-      element = stringr::str_replace(
-        element,
-        "Stock Variation",
-        "stock_variation"
-      ),
-      element = stringr::str_replace(
-        element,
-        "Other uses \\(non-food\\)",
-        "other_uses"
-      ),
-      element = stringr::str_replace(
-        element,
-        "Other uses",
-        "other_uses"
-      ),
-      element = stringr::str_replace(
-        element,
-        "Food supply quantity \\(tonnes\\)",
-        "food"
-      ),
-      element = stringr::str_replace(
-        element,
-        " Quantity",
-        ""
-      ),
-      element = stringr::str_replace(
-        element,
-        " quantity",
-        ""
-      ),
-      element = stringr::str_replace(
-        element,
-        " Value",
-        ""
-      ),
-      element = stringr::str_replace(
-        element,
-        "Production",
-        "production"
-      ),
-      element = stringr::str_replace(
-        element,
-        "Import",
-        "import"
-      ),
-      element = stringr::str_replace(
-        element,
-        "Export",
-        "export"
-      ),
-      element = stringr::str_replace(
-        element,
-        "Food",
-        "food"
-      ),
-      element = stringr::str_replace(
-        element,
-        "Feed",
-        "feed"
-      ),
-      element = stringr::str_replace(
-        element,
-        "Seed",
-        "seed"
-      ),
-      element = stringr::str_replace(
-        element,
-        "Processing",
-        "processing"
+      element = dplyr::case_when(
+        element == "Domestic supply quantity" ~ "domestic_supply",
+        element == "Stock Variation" ~ "stock_variation",
+        element %in% c("Other uses (non-food)", "Other uses") ~ "other_uses",
+        element %in% c("Food supply quantity (tonnes)", "Food") ~ "food",
+        element %in% c("Import Quantity", "Import quantity") ~ "import",
+        element %in% c("Export Quantity", "Export quantity") ~ "export",
+        element == "Feed" ~ "feed",
+        element == "Seed" ~ "seed",
+        element == "Processing" ~ "processing",
+        element == "Production" ~ "production",
+        .default = element
       )
     )
 }
@@ -158,9 +96,10 @@
 
   whep_read_file(pin_alias, version = version) |>
     dplyr::rename(
-      item_code_cbs = Item.Code,
+      item_code_cbs = `Item Code`,
       item_cbs = Item,
-      area_code = Area.Code,
+      area = Area,
+      area_code = `Area Code`,
       unit = Unit,
       element = Element,
       year = Year,

@@ -29,6 +29,7 @@ build_primary_production <- function(
   version = NULL,
   smooth_carry_forward = FALSE
 ) {
+  cli::cli_h1("Building primary production")
   read_production(max_year, version) |>
     fix_production() |>
     qc_production(smooth = smooth_carry_forward)
@@ -227,6 +228,7 @@ qc_production <- function(
 # -- Input reading helpers -----------------------------------------------------
 
 .read_cbs_production <- function(version) {
+  cli::cli_progress_step("Reading CBS production")
   fbs_new <- .extract_cb("faostat-fbs-new", version)
   fbs_old <- .extract_cb("faostat-fbs-old", version)
   cbs_anim <- .extract_cb(
@@ -261,16 +263,18 @@ qc_production <- function(
 }
 
 .read_fao_crop_liv <- function(version) {
+  cli::cli_progress_step("Reading FAO crops/livestock")
   whep_read_file("faostat-production", version = version) |>
     dplyr::rename(
-      item_code_prod = Item.Code,
+      item_code_prod = `Item Code`,
       item_prod = Item,
-      area_code = Area.Code,
+      area_code = `Area Code`,
       unit = Unit,
       element = Element,
       year = Year,
       value = Value
     ) |>
+    dplyr::mutate(item_code_prod = as.character(item_code_prod)) |>
     .aggregate_to_polities(
       item_code_prod,
       item_prod
@@ -287,6 +291,7 @@ qc_production <- function(
 }
 
 .read_land_areas <- function(version) {
+  cli::cli_progress_step("Reading land areas")
   regions <- whep::regions_full
 
   whep_read_file("luh2-areas", version = version) |>
@@ -300,6 +305,7 @@ qc_production <- function(
 }
 
 .read_int_yields <- function(version) {
+  cli::cli_progress_step("Reading international yields")
   regions <- whep::regions_full
 
   whep_read_file("international-yields", version = version) |>
@@ -330,6 +336,7 @@ qc_production <- function(
 # -- Fodder --------------------------------------------------------------------
 
 .build_fodder <- function(fao_crop_liv, max_year, version) {
+  cli::cli_progress_step("Building fodder dataset")
   items_prod <- whep::items_prod_full
   items <- whep::items_full
   crops_eu <- whep::crops_eurostat
@@ -372,7 +379,11 @@ qc_production <- function(
       year = Year,
       value = Value
     ) |>
-    dplyr::mutate(element = "production", unit = "t") |>
+    dplyr::mutate(
+      element = "production",
+      unit = "t",
+      item_code_prod = as.character(item_code_prod)
+    ) |>
     .aggregate_to_polities(
       item_code_prod,
       item_prod
@@ -393,7 +404,7 @@ qc_production <- function(
   regions <- whep::regions_full
 
   whep_read_file("eu-agridb-fodder", version = version) |>
-    dplyr::left_join(crops_eu, by = "crop") |>
+    dplyr::left_join(crops_eu, by = "Crop") |>
     dplyr::rename(adb_region = Region) |>
     dplyr::left_join(
       regions |>
@@ -655,6 +666,7 @@ qc_production <- function(
   fao_combined,
   version
 ) {
+  cli::cli_progress_step("Building livestock stocks")
   animals <- whep::animals_codes
   liv_lu <- whep::liv_lu_coefs
 
@@ -675,9 +687,9 @@ qc_production <- function(
     version = version
   ) |>
     dplyr::rename(
-      item_code_cbs = Item.Code,
+      item_code_cbs = `Item Code`,
       item_cbs = Item,
-      area_code = Area.Code,
+      area_code = `Area Code`,
       unit = Unit,
       element = Element,
       year = Year,
@@ -836,6 +848,7 @@ qc_production <- function(
 # -- Primary combination & yields ---------------------------------------------
 
 .combine_primary_raw <- function(fao_combined, fao_liv_all) {
+  cli::cli_progress_step("Combining primary raw dataset")
   dplyr::bind_rows(
     fao_combined |>
       dplyr::filter(unit %in% c("ha", "t")) |>
@@ -879,6 +892,7 @@ qc_production <- function(
 }
 
 .compute_yields <- function(primary_raw, cbs_prod_raw) {
+  cli::cli_progress_step("Computing yields")
   items_prod <- whep::items_prod_full
 
   yield_raw <- .calculate_raw_yields(primary_raw, items_prod)
@@ -1253,6 +1267,7 @@ qc_production <- function(
 # -- Assembly ------------------------------------------------------------------
 
 .assemble_production_raw <- function(yield_all) {
+  cli::cli_progress_step("Assembling production")
   items <- whep::items_full
 
   ha_df <- yield_all |>
@@ -1358,6 +1373,7 @@ qc_production <- function(
 }
 
 .filter_dissolved_countries <- function(df) {
+  cli::cli_progress_step("Filtering dissolved countries")
   df |>
     dplyr::filter(
       !(area == "Czechoslovakia" & year > 1992),
@@ -1391,6 +1407,7 @@ qc_production <- function(
 #' @keywords internal
 #' @noRd
 .correct_tea_final <- function(df) {
+  cli::cli_progress_step("Correcting tea weights")
   tea_units <- c("tonnes", "t_ha", "t_head", "t_LU")
   df |>
     dplyr::mutate(
@@ -1411,6 +1428,7 @@ qc_production <- function(
 #' @keywords internal
 #' @noRd
 .add_game_meat_final <- function(df) {
+  cli::cli_progress_step("Adding game meat stocks")
   game_tonnes <- df |>
     dplyr::filter(item_code_prod == 1163, unit == "tonnes")
 
@@ -1442,6 +1460,7 @@ qc_production <- function(
   years_df,
   land_areas
 ) {
+  cli::cli_progress_step("Extending historical series")
   varnames_cropland <- c(
     "c3ann",
     "c3per",
@@ -1551,6 +1570,7 @@ qc_production <- function(
 }
 
 .build_grassland <- function(land_areas) {
+  cli::cli_progress_step("Building grassland")
   varnames_pasture <- c("pastr", "range")
 
   land_areas |>
@@ -1585,6 +1605,7 @@ qc_production <- function(
 }
 
 .add_historical_yields <- function(df, int_yields) {
+  cli::cli_progress_step("Adding historical yields")
   # Capture source per key (take the source from tonnes/t rows as
   # the primary source indicator)
   src_lookup <- df |>
@@ -1658,6 +1679,7 @@ qc_production <- function(
 }
 
 .finalise_primary <- function(df) {
+  cli::cli_progress_step("Finalising primary production")
   df |>
     dplyr::select(
       year,
