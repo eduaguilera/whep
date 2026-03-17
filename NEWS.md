@@ -1,5 +1,11 @@
 # whep (development version)
 
+# whep 0.3.0
+
+* Add `fill_proxy_growth()` and `calculate_lmdi()` (@jinfama, #65).
+* Build datasets for GRAFS model in Spain (@AliceBeckmann, #18).
+* Add harmonization functions (@justin-morgan-csic, #66).
+
 # whep 0.2.0
 
 * Add gapfilling functions `fill_linear()`, `fill_sum()` (@eduaguilera, #11).
