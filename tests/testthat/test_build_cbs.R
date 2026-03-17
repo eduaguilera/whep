@@ -164,11 +164,9 @@ test_that(".select_best_source prioritises Primary source", {
 # -- .test_cbs -----------------------------------------------------------------
 
 test_that(".test_cbs adds balance check columns", {
-  afse <- .make_cbs_afse()
-
   cbs <- .make_cbs_raw()
 
-  result <- whep:::.test_cbs(cbs, afse)
+  result <- whep:::.test_cbs(cbs)
   expect_true("balance" %in% names(result))
   expect_true("check" %in% names(result))
   expect_true("domestic_supply" %in% names(result))
@@ -178,10 +176,9 @@ test_that(".test_cbs adds balance check columns", {
 # -- .untest_cbs ---------------------------------------------------------------
 
 test_that(".untest_cbs returns long format without check columns", {
-  afse <- .make_cbs_afse()
   cbs <- .make_cbs_raw()
 
-  wide <- whep:::.test_cbs(cbs, afse)
+  wide <- whep:::.test_cbs(cbs)
   result <- whep:::.untest_cbs(wide)
   expect_true(all(c("element", "value") %in% names(result)))
   expect_false("check" %in% names(result))
@@ -192,7 +189,6 @@ test_that(".untest_cbs returns long format without check columns", {
 # -- .processed_raw ------------------------------------------------------------
 
 test_that(".processed_raw creates value_proc column", {
-  afse <- .make_cbs_afse()
   cbs <- .make_cbs_raw() |>
     dplyr::filter(element == "processing")
 
@@ -205,132 +201,4 @@ test_that(".processed_raw creates value_proc column", {
   result <- whep:::.processed_raw(cbs, cb_proc)
   expect_true("value_proc" %in% names(result))
   expect_true("processed_item" %in% names(result))
-})
-
-
-# -- .compute_splice_ratios ---------------------------------------------------
-
-.make_overlap_data <- function() {
-  tibble::tribble(
-    ~area, ~area_code, ~item_cbs, ~item_code_cbs,
-    ~element, ~year, ~value, ~source, ~unit,
-    "Spain", 203L, "Wheat", 2511L,
-    "production", 2010L, 100, "FBS_Old", "tonnes",
-    "Spain", 203L, "Wheat", 2511L,
-    "production", 2010L, 120, "FBS_New", "tonnes",
-    "Spain", 203L, "Wheat", 2511L,
-    "production", 2011L, 200, "FBS_Old", "tonnes",
-    "Spain", 203L, "Wheat", 2511L,
-    "production", 2011L, 240, "FBS_New", "tonnes",
-    "Spain", 203L, "Wheat", 2511L,
-    "production", 2005L, 80, "FBS_Old", "tonnes",
-    "Spain", 203L, "Wheat", 2511L,
-    "production", 2015L, 300, "FBS_New", "tonnes"
-  )
-}
-
-test_that(".compute_splice_ratios returns correct median ratio", {
-  ratios <- .make_overlap_data() |>
-    whep:::.compute_splice_ratios()
-
-  expect_equal(nrow(ratios), 1L)
-  expect_equal(ratios$splice_ratio, 1.2)
-  expect_equal(ratios$n_overlap, 2L)
-})
-
-test_that(".compute_splice_ratios returns empty tibble when no overlap", {
-  no_overlap <- tibble::tribble(
-      ~area, ~area_code, ~item_cbs, ~item_code_cbs,
-      ~element, ~year, ~value, ~source, ~unit,
-      "Spain", 203L, "Wheat", 2511L,
-      "production", 2005L, 100, "FBS_Old", "tonnes",
-      "Spain", 203L, "Wheat", 2511L,
-      "production", 2015L, 300, "FBS_New", "tonnes"
-    )
-
-  ratios <- whep:::.compute_splice_ratios(no_overlap)
-  expect_equal(nrow(ratios), 0L)
-})
-
-
-# -- .apply_splice -------------------------------------------------------------
-
-test_that(".apply_splice rescales FBS_Old and leaves others", {
-  data <- .make_overlap_data()
-  ratios <- whep:::.compute_splice_ratios(data)
-  result <- whep:::.apply_splice(data, ratios)
-
-  old_rows <- result |>
-    dplyr::filter(source == "FBS_Old")
-  new_rows <- result |>
-    dplyr::filter(source == "FBS_New")
-
-  # FBS_Old values should be multiplied by 1.2
-  expect_equal(
-    old_rows |>
-      dplyr::filter(year == 2005L) |>
-      dplyr::pull(value),
-    96
-  )
-  expect_equal(
-    old_rows |>
-      dplyr::filter(year == 2010L) |>
-      dplyr::pull(value),
-    120
-  )
-
-  # FBS_New values should be unchanged
-  expect_equal(
-    new_rows |>
-      dplyr::filter(year == 2015L) |>
-      dplyr::pull(value),
-    300
-  )
-})
-
-test_that(".apply_splice uses fallback ratio 1 for no overlap", {
-  data <- tibble::tribble(
-    ~area, ~area_code, ~item_cbs, ~item_code_cbs,
-    ~element, ~year, ~value, ~source, ~unit,
-    "Spain", 203L, "Rice", 2805L,
-    "production", 2005L, 50, "FBS_Old", "tonnes",
-    "Spain", 203L, "Rice", 2805L,
-    "production", 2015L, 90, "FBS_New", "tonnes"
-  )
-
-  ratios <- whep:::.compute_splice_ratios(data)
-  result <- whep:::.apply_splice(data, ratios)
-
-  # With no overlap, FBS_Old should be unchanged (ratio = 1)
-  expect_equal(
-    result |>
-      dplyr::filter(source == "FBS_Old") |>
-      dplyr::pull(value),
-    50
-  )
-})
-
-test_that("splice + .select_best_source integration works", {
-  data <- tibble::tribble(
-    ~area, ~area_code, ~item_cbs, ~item_code_cbs,
-    ~element, ~year, ~value, ~source, ~unit,
-    "Spain", 203L, "Wheat", 2511L,
-    "production", 2010L, 100, "FBS_Old", "tonnes",
-    "Spain", 203L, "Wheat", 2511L,
-    "production", 2010L, 120, "FBS_New", "tonnes",
-    "Spain", 203L, "Wheat", 2511L,
-    "production", 2010L, 130, "Primary", "tonnes",
-    "Spain", 203L, "Wheat", 2511L,
-    "production", 2015L, 300, "FBS_New", "tonnes",
-    "Spain", 203L, "Wheat", 2511L,
-    "production", 2015L, 300, "Primary", "tonnes"
-  )
-
-  ratios <- whep:::.compute_splice_ratios(data)
-  spliced <- whep:::.apply_splice(data, ratios)
-  result <- whep:::.select_best_source(spliced)
-
-  expect_true(all(c("value", "element") %in% names(result)))
-  expect_true("source" %in% names(result))
-  expect_equal(nrow(result), 2L)
 })

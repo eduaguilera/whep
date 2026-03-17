@@ -1,0 +1,23 @@
+Item_Code,item_cbs,proc_code,proc,item_code_cbs,Farm_class,Item_product,Item_Code_product,Liv_prod_cat,Graniv_grazers,Livestock_name,Animal_class,Item_FAOmanure,Item_Code_FAOmanure,Cat_Labour,Cat_FAO1,item_bouwman
+1171,Animals live nes,p111,Other animals husbandry,1171,Cattle,,,Other animal products,Grazers,Animals_other,Cattle,,,Cattle,Animal,
+1107,Asses,p092,Asses husbandry,1107,Cattle,,,Other animal products,Grazers,Asses,Equines,,,Equines,Animal,
+946,Buffalo,p086,Buffaloes husbandry,946,Cattle,,,Other animal products,Grazers,Buffaloes,Cattle,,,Cattle,Animal,Beef cattle
+1157,"Camelids, other",p095,"Camelids husbandry, other",1157,Cattle,,,Other animal products,Grazers,Camelids_other,Equines,,,Equines,Animal,
+1126,Camels,p094,Camels husbandry,1126,Cattle,,,Other animal products,Grazers,Camels,Equines,,,Equines,Animal,
+866,"Cattle, non-dairy",p085,Non-dairy Cattle husbandry,961,Cattle,"Meat of cattle with the bone, fresh or chilled",867.0,Cattle meat,Grazers,Cattle,Cattle,"Cattle, non-dairy",961.0,Cattle,Animal,Beef cattle
+866,"Cattle, dairy",p099,Dairy cattle husbandry,960,Dairy_cows,Raw milk of cattle,882.0,Milk,Grazers,Dairy_cows,Dairy_cows,"Cattle, dairy",960.0,Dairy_cows,Animal,Dairy cattle
+1057,"Chickens, broilers",p109,Poultry farming,1053,Monogastric,"Meat of chickens, fresh or chilled",1058.0,Chicken meat,Granivores,Broilers,Broilers,"Chicken, broilers",1053.0,Birds,Animal,Poultry
+1057,"Chickens, layers",p109,Poultry farming,1052,Monogastric,"Hen eggs in shell, fres",1062.0,Eggs,Granivores,Hens,Hens,"Chicken, layers",1052.0,Birds,Animal,Poultry
+1068,Ducks,p110,Other birds farming,1068,Monogastric,"Meat of ducks, fresh or chilled",1069.0,Other animal products,Granivores,Ducks,Ducks,,,Birds,Animal,Poultry
+1016,Goats,p088,Goats husbandry,1016,Sheep_goats,"Meat of goat, fresh or chilled",1017.0,Sheep and goat meat,Grazers,Goats,Sheep_goats,,,Small_ruminants,Animal,Sheep and goats
+1096,Horses,p091,Horses husbandry,1096,Cattle,,,Other animal products,Grazers,Horses,Equines,,,Equines,Animal,
+1110,Mules,p093,Mules husbandry,1110,Cattle,,,Other animal products,Grazers,Mules,Equines,,,Equines,Animal,
+1034,Pigs,p089,Pigs farming,1049,Monogastric,"Meat of pig with the bone, fresh or chilled",1035.0,Pig meat,Granivores,Pigs,Pigs,"Swine, market",1049.0,Pigs,Animal,Pigs
+1034,Hogs,p089,Pigs farming,1051,Monogastric,"Meat of pig with the bone, fresh or chilled",1035.0,Pig meat,Granivores,Hogs,Hogs,"Swine, breeding",1051.0,Pigs,Animal,
+1140,Rabbits and hares,p096,Rabbits husbandry,1140,Monogastric,,,Other animal products,Grazers,Rabbits,Rabbits,,,Small_ruminants,Animal,
+1150,"Rodents, other",p097,"Rodents husbandry, other",1150,Monogastric,,,Other animal products,Grazers,Roddents_other,Rabbits,,,Small_ruminants,Animal,
+976,Sheep,p087,Sheep husbandry,976,Sheep_goats,Meat of sheep fresh or chilled,977.0,Sheep and goat meat,Grazers,Sheep,Sheep_goats,,,Small_ruminants,Animal,Sheep and goats
+1079,Turkeys,p110,Other birds farming,1079,Monogastric,,,Other animal products,Granivores,Turkeys,Turkeys,,,Birds,Animal,Poultry
+1072,Geese,p110,Other birds farming,1072,Monogastric,,,Other animal products,Granivores,Geese,Geese,,,Birds,Animal,Poultry
+1181,Bees,p118,Beekeeping,1181,Bees,,,Other animal products,Bees,Bees,Bees,,,Bees,Animal,
+1190,Game,p112,Hunting,1190,Game,,,Other animal products,Game,Game,Game,,,Cattle,Animal,

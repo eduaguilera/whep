@@ -75,8 +75,6 @@ test_that(".filter_dissolved_countries removes dissolved polities", {
 # -- combine_primary -----------------------------------------------------------
 
 test_that(".combine_primary_raw aggregates and keeps item_prod columns", {
-  afse <- .make_afse_stub()
-
   fao_combined <- tibble::tribble(
     ~year, ~area, ~area_code, ~item_prod, ~item_code_prod,
     ~unit, ~value,
@@ -98,8 +96,7 @@ test_that(".combine_primary_raw aggregates and keeps item_prod columns", {
 
   result <- whep:::.combine_primary_raw(
     fao_combined,
-    fao_liv_all,
-    afse
+    fao_liv_all
   )
   expect_true("item_prod" %in% names(result))
   expect_true("item_code_prod" %in% names(result))

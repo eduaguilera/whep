@@ -49,8 +49,8 @@ build_commodity_balances <- function(
 #' No processing calibration or balancing is applied at this stage.
 #' For the fully processed CBS, pipe into [fix_cbs()].
 #'
-#' The returned tibble carries `afse` and `years` as attributes so that
-#' [fix_cbs()] can reuse them without reloading.
+#' The returned tibble carries `years` as an attribute so that
+#' [fix_cbs()] can reuse it without reloading.
 #'
 #' @param primary_all A tibble of primary production, as returned by
 #'   [build_primary_production()].
@@ -79,30 +79,26 @@ read_cbs <- function(
   max_year = 2021,
   version = NULL
 ) {
-  afse <- .load_afse_tables()
   years <- 1850:max_year
 
   # 1. Read inputs
   inputs <- .cbs_read_inputs(
     primary_all,
-    afse,
     years,
     version
   )
 
   # 2. Build first raw CBS (combine sources, select best)
-  cbs_raw0 <- .cbs_combine_sources(inputs, afse)
+  cbs_raw0 <- .cbs_combine_sources(inputs)
 
   # 3. Historical extension
   cbs_raw <- .cbs_extend_historical(
     cbs_raw0,
     inputs,
-    afse,
     years
   )
 
   # Attach context for downstream pipeline steps
-  attr(cbs_raw, ".afse") <- afse
   attr(cbs_raw, ".years") <- years
   cbs_raw
 }
@@ -124,9 +120,8 @@ read_cbs <- function(
 #' * Reclassify processing → other_uses.
 #' * Final balance (clamp DS ≥ 0, fix exports, default destiny).
 #'
-#' @param df A tibble from [read_cbs()]. Expects `.afse` and `.years`
-#'   attributes (set automatically by `read_cbs()`). If missing, lookup
-#'   tables are reloaded.
+#' @param df A tibble from [read_cbs()]. Expects `.years`
+#'   attribute (set automatically by `read_cbs()`).
 #'
 #' @returns The same tibble with calibrated, imputed, and balanced values.
 #'
@@ -137,26 +132,19 @@ read_cbs <- function(
 #' read_cbs(primary) |> fix_cbs()
 #' }
 fix_cbs <- function(df) {
-  afse <- attr(df, ".afse") %||% .load_afse_tables()
   years <- attr(df, ".years") %||% 1850:2021
   cbs_raw <- df
 
   # Strip attributes to avoid carrying large objects downstream
-
-  attr(cbs_raw, ".afse") <- NULL
   attr(cbs_raw, ".years") <- NULL
 
   # 4. Processing coefficients (global calibration)
-  proc_result <- .cbs_calibrate_processing(
-    cbs_raw,
-    afse
-  )
+  proc_result <- .cbs_calibrate_processing(cbs_raw)
 
   # 5. Re-estimate processed products
   cbs_raw2 <- .cbs_add_processed(
     cbs_raw,
     proc_result,
-    afse,
     years
   )
 
@@ -167,27 +155,25 @@ fix_cbs <- function(df) {
   )
 
   # 7. Impute trade and domestic supply
-  cbs_raw4 <- .cbs_impute_trade(cbs_raw3, afse)
+  cbs_raw4 <- .cbs_impute_trade(cbs_raw3)
 
   # 8. Fill destiny gaps
-  cbs_raw5 <- .cbs_fill_destinies(cbs_raw4, afse)
+  cbs_raw5 <- .cbs_fill_destinies(cbs_raw4)
 
   # 9. Second round of processed products
   cbs_raw6 <- .cbs_second_processed_round(
     cbs_raw5,
-    proc_result,
-    afse
+    proc_result
   )
 
   # 10. Reclassify processing
   cbs_raw7 <- .cbs_reclassify_processing(
     cbs_raw6,
-    proc_result$cb_processing_glo,
-    afse
+    proc_result$cb_processing_glo
   )
 
   # 11. Final balancing
-  .cbs_final_balance(cbs_raw7, afse, years)
+  .cbs_final_balance(cbs_raw7, years)
 }
 
 
@@ -283,8 +269,7 @@ build_processing_coefs <- function(
   max_year = 2021,
   version = NULL
 ) {
-  afse <- .load_afse_tables()
-  cb_proc <- afse$CB_processing
+  cb_proc <- whep::cb_processing
 
   cbs_glob <- cbs |>
     dplyr::summarise(
@@ -296,8 +281,7 @@ build_processing_coefs <- function(
 
   processed_agg_glo <- .calibrate_global_scaling(
     processd_raw_glo,
-    cbs_glob,
-    afse
+    cbs_glob
   )
 
   cb_processing_glo <- .build_global_proc_coefs(
@@ -346,36 +330,28 @@ build_processing_coefs <- function(
 
 .cbs_read_inputs <- function(
   primary_all,
-  afse,
   years,
   version
 ) {
-  items <- afse$items_full
-
   # Commodity balances from FAOSTAT
   fbs_new <- .extract_cb(
     "faostat-fbs-new",
-    afse,
     version
   )
   fbs_old <- .extract_cb(
     "faostat-fbs-old",
-    afse,
     version
   )
   cbs_crops <- .extract_cb(
     "faostat-cbs-old-crops",
-    afse,
     version
   )
   cbs_animals <- .extract_cb(
     "faostat-cbs-old-animal",
-    afse,
     version
   )
   cbs_new <- .extract_fao(
     "faostat-cbs-new",
-    afse,
     version
   )
 
@@ -386,8 +362,8 @@ build_processing_coefs <- function(
   )
 
   # Trade
-  fao_trade <- .read_fao_trade(afse, version)
-  trade_hist <- .read_historical_trade(afse, version)
+  fao_trade <- .read_fao_trade(version)
+  trade_hist <- .read_historical_trade(version)
 
   # GDP / population
   gdp_pop <- whep_read_file(
@@ -396,14 +372,14 @@ build_processing_coefs <- function(
   )
 
   # Primary production as CBS
-  primary_cbs <- .primary_to_cbs(primary_all, afse)
+  primary_cbs <- .primary_to_cbs(primary_all)
   primary_cbs_area <- .primary_to_cbs_area(primary_all)
 
   # Crop residues
-  crop_residues <- .read_crop_residues(afse, version)
+  crop_residues <- .read_crop_residues(version)
 
   # Land areas
-  land_areas_wide <- .read_land_areas_wide(afse, version)
+  land_areas_wide <- .read_land_areas_wide(version)
 
   list(
     fbs_new = fbs_new,
@@ -421,18 +397,18 @@ build_processing_coefs <- function(
   )
 }
 
-.read_fao_trade <- function(afse, version) {
-  .extract_fao("faostat-trade", afse, version) |>
+.read_fao_trade <- function(version) {
+  .extract_fao("faostat-trade", version) |>
     dplyr::rename(
       item_trade = item_cbs,
       item_code_trade = item_code_cbs
     )
 }
 
-.read_historical_trade <- function(afse, version) {
-  items <- afse$items_full
-  regions <- afse$regions_full
-  cbs_trade <- afse$CBS_Trade_codes
+.read_historical_trade <- function(version) {
+  items <- whep::items_full
+  regions <- whep::regions_full
+  cbs_trade <- whep::cbs_trade_codes
 
   exports <- whep_read_file(
     "historical-trade-exports",
@@ -488,7 +464,7 @@ build_processing_coefs <- function(
     dplyr::filter(!is.na(area))
 }
 
-.primary_to_cbs <- function(primary_all, afse) {
+.primary_to_cbs <- function(primary_all) {
   primary_all |>
     dplyr::mutate(element = "production") |>
     dplyr::filter(!is.na(item_cbs)) |>
@@ -549,9 +525,9 @@ build_processing_coefs <- function(
     dplyr::select(-unit, -element)
 }
 
-.read_crop_residues <- function(afse, version) {
-  items_prod <- afse$items_prod_full
-  polities <- afse$polities_cats
+.read_crop_residues <- function(version) {
+  items_prod <- whep::items_prod_full
+  polities <- whep::polities_cats
 
   res <- get_primary_residues(version = version)
 
@@ -587,8 +563,8 @@ build_processing_coefs <- function(
     )
 }
 
-.read_land_areas_wide <- function(afse, version) {
-  land_areas <- .read_land_areas(afse, version)
+.read_land_areas_wide <- function(version) {
+  land_areas <- .read_land_areas(version)
   varnames_cropland <- c(
     "c3ann",
     "c3per",
@@ -621,12 +597,12 @@ build_processing_coefs <- function(
 
 # -- Source combination --------------------------------------------------------
 
-.cbs_combine_sources <- function(inputs, afse) {
-  items <- afse$items_full
-  cbs_trade <- afse$CBS_Trade_codes
+.cbs_combine_sources <- function(inputs) {
+  items <- whep::items_full
+  cbs_trade <- whep::cbs_trade_codes
 
   # Palm kernels fix
-  palm_kernels <- .fix_palm_kernels(inputs, afse)
+  palm_kernels <- .fix_palm_kernels(inputs)
 
   # Traded residues fix
   traded_residues <- .get_traded_residues(
@@ -655,7 +631,7 @@ build_processing_coefs <- function(
   .select_best_source(cbs_raw_all)
 }
 
-.fix_palm_kernels <- function(inputs, afse) {
+.fix_palm_kernels <- function(inputs) {
   dplyr::bind_rows(
     inputs$fbs_old |>
       dplyr::mutate(source = "FBS_Old"),
@@ -1014,10 +990,9 @@ build_processing_coefs <- function(
 .cbs_extend_historical <- function(
   cbs_raw0,
   inputs,
-  afse,
   years
 ) {
-  items <- afse$items_full
+  items <- whep::items_full
 
   cbs_hist <- cbs_raw0 |>
     dplyr::filter(year %in% years, year < 1962) |>
@@ -1243,9 +1218,9 @@ build_processing_coefs <- function(
 
 # -- Processing calibration ----------------------------------------------------
 
-.cbs_calibrate_processing <- function(cbs_raw, afse) {
-  cb_proc <- afse$CB_processing
-  items <- afse$items_full
+.cbs_calibrate_processing <- function(cbs_raw) {
+  cb_proc <- whep::cb_processing
+  items <- whep::items_full
 
   cbs_glob <- cbs_raw |>
     dplyr::summarise(
@@ -1257,8 +1232,7 @@ build_processing_coefs <- function(
 
   processed_agg_glo <- .calibrate_global_scaling(
     processd_raw_glo,
-    cbs_glob,
-    afse
+    cbs_glob
   )
 
   cb_processing_glo <- .build_global_proc_coefs(
@@ -1278,8 +1252,7 @@ build_processing_coefs <- function(
 
   processed_agg <- .correct_processed(
     processd_raw,
-    cbs_raw,
-    afse
+    cbs_raw
   ) |>
     dplyr::select(
       year,
@@ -1309,10 +1282,9 @@ build_processing_coefs <- function(
 
 .calibrate_global_scaling <- function(
   processd_raw_glo,
-  cbs_glob,
-  afse
+  cbs_glob
 ) {
-  items <- afse$items_full
+  items <- whep::items_full
 
   processd_raw_glo |>
     dplyr::summarise(
@@ -1378,10 +1350,9 @@ build_processing_coefs <- function(
 .cbs_add_processed <- function(
   cbs_raw,
   proc_result,
-  afse,
   years
 ) {
-  items <- afse$items_full
+  items <- whep::items_full
 
   dplyr::bind_rows(
     cbs_raw |>
@@ -1569,7 +1540,7 @@ build_processing_coefs <- function(
 
 # -- Impute trade + domestic supply --------------------------------------------
 
-.cbs_impute_trade <- function(cbs_raw3, afse) {
+.cbs_impute_trade <- function(cbs_raw3) {
   # Save source provenance before pivot cycle
   src_lookup <- cbs_raw3 |>
     dplyr::select(
@@ -1718,8 +1689,8 @@ build_processing_coefs <- function(
 
 # -- Fill destiny gaps ---------------------------------------------------------
 
-.cbs_fill_destinies <- function(cbs_raw4, afse) {
-  items <- afse$items_full
+.cbs_fill_destinies <- function(cbs_raw4) {
+  items <- whep::items_full
   destiny_list <- c(
     "food",
     "feed",
@@ -1874,8 +1845,7 @@ build_processing_coefs <- function(
 
 .cbs_second_processed_round <- function(
   cbs_raw5,
-  proc_result,
-  afse
+  proc_result
 ) {
   cb_proc_glo <- proc_result$cb_processing_glo
   cbs_glob <- proc_result$cbs_glob
@@ -1884,8 +1854,7 @@ build_processing_coefs <- function(
 
   processed_agg_raw2 <- .correct_processed(
     processd_raw2,
-    cbs_raw5,
-    afse
+    cbs_raw5
   ) |>
     dplyr::left_join(
       proc_result$processed_agg |>
@@ -1916,8 +1885,7 @@ build_processing_coefs <- function(
 
   processed_new_bal <- .build_new_processed_balance(
     processed_agg_raw2,
-    cbs_glob,
-    afse
+    cbs_glob
   )
 
   cbs_raw5 |>
@@ -1941,10 +1909,9 @@ build_processing_coefs <- function(
 
 .build_new_processed_balance <- function(
   processed_agg_raw2,
-  cbs_glob,
-  afse
+  cbs_glob
 ) {
-  items <- afse$items_full
+  items <- whep::items_full
 
   export_share <- cbs_glob |>
     dplyr::filter(
@@ -2034,8 +2001,7 @@ build_processing_coefs <- function(
 
 .cbs_reclassify_processing <- function(
   cbs_raw6,
-  cb_processing_glo,
-  afse
+  cb_processing_glo
 ) {
   # Save source provenance before pivot cycle
   src_lookup <- cbs_raw6 |>
@@ -2180,8 +2146,8 @@ build_processing_coefs <- function(
 
 # -- Final balance -------------------------------------------------------------
 
-.cbs_final_balance <- function(cbs_raw7, afse, years) {
-  items <- afse$items_full
+.cbs_final_balance <- function(cbs_raw7, years) {
+  items <- whep::items_full
 
   # Save source provenance before test_cbs pivot cycles
   src_lookup <- cbs_raw7 |>
@@ -2197,7 +2163,7 @@ build_processing_coefs <- function(
   cbs_raw8 <- cbs_raw7 |>
     dplyr::filter(year %in% years) |>
     dplyr::select(-dplyr::any_of("source")) |>
-    .test_cbs(afse) |>
+    .test_cbs() |>
     dplyr::left_join(
       items |> dplyr::select(item_cbs, default_destiny),
       by = "item_cbs"
@@ -2213,7 +2179,7 @@ build_processing_coefs <- function(
     .untest_cbs()
 
   cbs_raw8 |>
-    .test_cbs(afse) |>
+    .test_cbs() |>
     dplyr::left_join(
       items |> dplyr::select(item_cbs, default_destiny),
       by = "item_cbs"

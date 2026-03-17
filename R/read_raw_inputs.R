@@ -4,22 +4,6 @@
 
 # -- Reading helpers -----------------------------------------------------------
 
-.load_afse_tables <- function(tables = NULL) {
-  # load_general_data() assigns into parent.frame(), so we call it
-  # from a dedicated environment that inherits from globalenv() so
-  # that `::` and other base primitives are available.
-  env <- new.env(parent = globalenv())
-  evalq(
-    afsetools::load_general_data(load_vectors = TRUE),
-    envir = env
-  )
-  objs <- as.list(env)
-  if (!is.null(tables)) {
-    objs <- objs[intersect(names(objs), tables)]
-  }
-  objs
-}
-
 .read_faostat_csv <- function(path) {
   data.table::fread(path, check.names = TRUE) |>
     tibble::as_tibble()
@@ -135,9 +119,8 @@
     )
 }
 
-.aggregate_to_polities <- function(df, ..., afse = NULL) {
-  regions <- afse$regions_full %||%
-    .load_afse_tables("regions_full")$regions_full
+.aggregate_to_polities <- function(df, ...) {
+  regions <- whep::regions_full
 
   df |>
     dplyr::right_join(
@@ -160,7 +143,7 @@
     )
 }
 
-.extract_fao <- function(pin_alias, afse = NULL, version = NULL) {
+.extract_fao <- function(pin_alias, version = NULL) {
   cb_elements <- c(
     "production",
     "import",
@@ -200,18 +183,14 @@
     ) |>
     .aggregate_to_polities(
       item_cbs,
-      item_code_cbs,
-      afse = afse
+      item_code_cbs
     )
 }
 
-.extract_cb <- function(pin_alias, afse = NULL, version = NULL) {
-  items <- afse$items_full %||%
-    .load_afse_tables("items_full")$items_full
-
-  .extract_fao(pin_alias, afse = afse, version = version) |>
+.extract_cb <- function(pin_alias, version = NULL) {
+  .extract_fao(pin_alias, version = version) |>
     dplyr::inner_join(
-      items |>
+      whep::items_full |>
         dplyr::select(item_cbs, item_code_cbs),
       by = c("item_cbs", "item_code_cbs")
     )
@@ -236,9 +215,8 @@
     )
 }
 
-.correct_processed <- function(processed_df, cbs, afse = NULL) {
-  cb_proc <- afse$CB_processing %||%
-    .load_afse_tables("CB_processing")$CB_processing
+.correct_processed <- function(processed_df, cbs) {
+  cb_proc <- whep::cb_processing
 
   processed_df |>
     dplyr::summarise(
@@ -286,11 +264,9 @@
 
 # -- CBS testing helpers -------------------------------------------------------
 
-.test_cbs <- function(df, afse = NULL) {
-  items_prod <- afse$items_prod_full %||%
-    .load_afse_tables("items_prod_full")$items_prod_full
-  prim_double <- afse$Primary_double %||%
-    .load_afse_tables("Primary_double")$Primary_double
+.test_cbs <- function(df) {
+  items_prod <- whep::items_prod_full
+  prim_double <- whep::primary_double
 
   df |>
     tidyr::pivot_wider(

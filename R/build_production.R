@@ -72,17 +72,16 @@ build_primary_production <- function(
 #' raw <- read_production()
 #' }
 read_production <- function(max_year = 2021, version = NULL) {
-  afse <- .load_afse_tables()
   years_df <- tibble::tibble(year = 1850:max_year)
 
   # 1. Read commodity balances (for gap-filling)
-  cbs_prod_raw <- .read_cbs_production(afse, version)
+  cbs_prod_raw <- .read_cbs_production(version)
 
   # 2. Read and process FAOSTAT crop/livestock production
-  fao_crop_liv <- .read_fao_crop_liv(afse, version)
+  fao_crop_liv <- .read_fao_crop_liv(version)
 
   # 3. Fodder crops (year 2013 excluded — known bad data in old source)
-  fodder <- .build_fodder(fao_crop_liv, afse, max_year, version)
+  fodder <- .build_fodder(fao_crop_liv, max_year, version)
 
   # 4. Combine FAO + fodder (no tea correction — see fix_production)
   fao_combined <- dplyr::bind_rows(fao_crop_liv, fodder)
@@ -90,36 +89,33 @@ read_production <- function(max_year = 2021, version = NULL) {
   # 5. Livestock stocks
   fao_liv_all <- .build_livestock_stocks(
     fao_combined,
-    afse,
     version
   )
 
   # 6. Primary dataset (crops + livestock, no game meat — see fix_production)
-  primary_raw <- .combine_primary_raw(fao_combined, fao_liv_all, afse)
+  primary_raw <- .combine_primary_raw(fao_combined, fao_liv_all)
 
   # 7. Yield calculation + gap-filling
   yield_all <- .compute_yields(
     primary_raw,
-    cbs_prod_raw,
-    afse
+    cbs_prod_raw
   )
 
   # 8. Assemble to final format (no dissolved-country filter — see fix_production)
-  primary_raw2 <- .assemble_production_raw(yield_all, afse)
+  primary_raw2 <- .assemble_production_raw(yield_all)
 
   # 9. Historical extension
-  land_areas <- .read_land_areas(afse, version)
-  int_yields <- .read_int_yields(afse, version)
+  land_areas <- .read_land_areas(version)
+  int_yields <- .read_int_yields(version)
 
   primary_ext <- .extend_historical(
     primary_raw2,
     years_df,
-    land_areas,
-    afse
+    land_areas
   )
 
   # 10. Add grassland + historical yields
-  grassland <- .build_grassland(land_areas, afse)
+  grassland <- .build_grassland(land_areas)
 
   primary_ext |>
     dplyr::bind_rows(grassland) |>
@@ -230,17 +226,15 @@ qc_production <- function(
 
 # -- Input reading helpers -----------------------------------------------------
 
-.read_cbs_production <- function(afse, version) {
-  fbs_new <- .extract_cb("faostat-fbs-new", afse, version)
-  fbs_old <- .extract_cb("faostat-fbs-old", afse, version)
+.read_cbs_production <- function(version) {
+  fbs_new <- .extract_cb("faostat-fbs-new", version)
+  fbs_old <- .extract_cb("faostat-fbs-old", version)
   cbs_anim <- .extract_cb(
     "faostat-cbs-old-animal",
-    afse,
     version
   )
   cbs_crops <- .extract_cb(
     "faostat-cbs-old-crops",
-    afse,
     version
   )
 
@@ -266,7 +260,7 @@ qc_production <- function(
     )
 }
 
-.read_fao_crop_liv <- function(afse, version) {
+.read_fao_crop_liv <- function(version) {
   whep_read_file("faostat-production", version = version) |>
     dplyr::rename(
       item_code_prod = Item.Code,
@@ -279,8 +273,7 @@ qc_production <- function(
     ) |>
     .aggregate_to_polities(
       item_code_prod,
-      item_prod,
-      afse = afse
+      item_prod
     ) |>
     dplyr::arrange(
       year,
@@ -293,9 +286,8 @@ qc_production <- function(
     )
 }
 
-.read_land_areas <- function(afse, version) {
-  regions <- afse$regions_full %||%
-    .load_afse_tables("regions_full")$regions_full
+.read_land_areas <- function(version) {
+  regions <- whep::regions_full
 
   whep_read_file("luh2-areas", version = version) |>
     dplyr::rename(iso3c = ISO3) |>
@@ -307,9 +299,8 @@ qc_production <- function(
     dplyr::filter(Year > 1849)
 }
 
-.read_int_yields <- function(afse, version) {
-  regions <- afse$regions_full %||%
-    .load_afse_tables("regions_full")$regions_full
+.read_int_yields <- function(version) {
+  regions <- whep::regions_full
 
   whep_read_file("international-yields", version = version) |>
     dplyr::rename(
@@ -338,21 +329,18 @@ qc_production <- function(
 
 # -- Fodder --------------------------------------------------------------------
 
-.build_fodder <- function(fao_crop_liv, afse, max_year, version) {
-  items_prod <- afse$items_prod_full
-  items <- afse$items_full
-  crops_eu <- afse$Crops_Eurostat
-  biomass <- afse$Biomass_coefs
-  regions <- afse$regions_full
+.build_fodder <- function(fao_crop_liv, max_year, version) {
+  items_prod <- whep::items_prod_full
+  items <- whep::items_full
+  crops_eu <- whep::crops_eurostat
+  biomass <- whep::biomass_coefs
+  regions <- whep::regions_full
 
   # Old FAO fodder data
-  i_fodder <- .read_fodder_old(afse, version)
+  i_fodder <- .read_fodder_old(version)
 
   # EU AgriDB fodder
-  fodder_euadb <- .read_fodder_euadb(
-    afse,
-    version
-  )
+  fodder_euadb <- .read_fodder_euadb(version)
 
   # DM yields for imputing fodder areas
   dm_yield <- .compute_dm_yield(
@@ -372,9 +360,9 @@ qc_production <- function(
   )
 }
 
-.read_fodder_old <- function(afse, version) {
-  items_prod <- afse$items_prod_full
-  items <- afse$items_full
+.read_fodder_old <- function(version) {
+  items_prod <- whep::items_prod_full
+  items <- whep::items_full
 
   whep_read_file("faostat-production-old", version = version) |>
     dplyr::rename(
@@ -387,8 +375,7 @@ qc_production <- function(
     dplyr::mutate(element = "production", unit = "t") |>
     .aggregate_to_polities(
       item_code_prod,
-      item_prod,
-      afse = afse
+      item_prod
     ) |>
     dplyr::left_join(
       items_prod |> dplyr::select(item_code_prod, item_cbs),
@@ -401,9 +388,9 @@ qc_production <- function(
     dplyr::filter(Cat_1 == "Fodder_green")
 }
 
-.read_fodder_euadb <- function(afse, version) {
-  crops_eu <- afse$Crops_Eurostat
-  regions <- afse$regions_full
+.read_fodder_euadb <- function(version) {
+  crops_eu <- whep::crops_eurostat
+  regions <- whep::regions_full
 
   whep_read_file("eu-agridb-fodder", version = version) |>
     dplyr::left_join(crops_eu, by = "crop") |>
@@ -666,13 +653,12 @@ qc_production <- function(
 
 .build_livestock_stocks <- function(
   fao_combined,
-  afse,
   version
 ) {
-  animals <- afse$Animals_codes
-  liv_lu <- afse$Liv_LU_coefs
+  animals <- whep::animals_codes
+  liv_lu <- whep::liv_lu_coefs
 
-  fao_stocks <- .read_livestock_stocks(afse, version)
+  fao_stocks <- .read_livestock_stocks(version)
 
   fao_liv_raw <- .combine_livestock(
     fao_combined,
@@ -683,7 +669,7 @@ qc_production <- function(
   .finalise_livestock(fao_liv_raw, animals, liv_lu)
 }
 
-.read_livestock_stocks <- function(afse, version) {
+.read_livestock_stocks <- function(version) {
   whep_read_file(
     "faostat-emissions-livestock",
     version = version
@@ -703,8 +689,7 @@ qc_production <- function(
     ) |>
     .aggregate_to_polities(
       item_code_cbs,
-      item_cbs,
-      afse = afse
+      item_cbs
     )
 }
 
@@ -850,7 +835,7 @@ qc_production <- function(
 
 # -- Primary combination & yields ---------------------------------------------
 
-.combine_primary_raw <- function(fao_combined, fao_liv_all, afse) {
+.combine_primary_raw <- function(fao_combined, fao_liv_all) {
   dplyr::bind_rows(
     fao_combined |>
       dplyr::filter(unit %in% c("ha", "t")) |>
@@ -893,20 +878,19 @@ qc_production <- function(
   dplyr::bind_rows(df, game, game_heads)
 }
 
-.compute_yields <- function(primary_raw, cbs_prod_raw, afse) {
-  items_prod <- afse$items_prod_full
-  primary_double <- afse$Primary_double
+.compute_yields <- function(primary_raw, cbs_prod_raw) {
+  items_prod <- whep::items_prod_full
 
   yield_raw <- .calculate_raw_yields(primary_raw, items_prod)
   yield_double <- .handle_double_products(
     yield_raw,
-    primary_double
+    whep::primary_double
   )
 
   dplyr::bind_rows(
     yield_raw |>
       dplyr::filter(
-        !item_prod %in% primary_double$item_prod
+        !item_prod %in% whep::primary_double$item_prod
       ),
     yield_double
   ) |>
@@ -1268,10 +1252,8 @@ qc_production <- function(
 
 # -- Assembly ------------------------------------------------------------------
 
-.assemble_production_raw <- function(yield_all, afse) {
-  items_prim <- afse$items_prim %||%
-    .load_afse_tables("items_prim")$items_prim
-  items <- afse$items_full
+.assemble_production_raw <- function(yield_all) {
+  items <- whep::items_full
 
   ha_df <- yield_all |>
     dplyr::filter(unit == "t_ha") |>
@@ -1351,7 +1333,7 @@ qc_production <- function(
   dplyr::bind_rows(ha_df, tonnes_df, yield_df) |>
     dplyr::select(-item_prod) |>
     dplyr::left_join(
-      items_prim |>
+      whep::items_prim |>
         dplyr::select(
           item_prod,
           item_code_prod,
@@ -1456,8 +1438,7 @@ qc_production <- function(
 .extend_historical <- function(
   primary_raw2,
   years_df,
-  land_areas,
-  afse
+  land_areas
 ) {
   varnames_cropland <- c(
     "c3ann",
@@ -1567,7 +1548,7 @@ qc_production <- function(
   dplyr::bind_rows(pre, post)
 }
 
-.build_grassland <- function(land_areas, afse) {
+.build_grassland <- function(land_areas) {
   varnames_pasture <- c("pastr", "range")
 
   land_areas |>
