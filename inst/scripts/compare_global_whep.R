@@ -48,31 +48,31 @@ harmonise_global_primary <- function(df) {
     dplyr::rename(year = Year, value = Value) |>
     dplyr::mutate(
       area_code = as.character(area_code),
-      year      = as.integer(year)
+      year = as.integer(year)
     ) |>
     dplyr::as_tibble()
 }
 
 harmonise_global_cbs <- function(df) {
   elem_map <- c(
-    "Domestic_supply"    = "domestic_supply",
-    "Production"         = "production",
-    "Export"             = "export",
-    "Import"             = "import",
-    "Stock_variation"    = "stock_variation",
-    "Food"               = "food",
-    "Feed"               = "feed",
-    "Seed"               = "seed",
-    "Other_uses"         = "other_uses",
-    "Processing"         = "processing",
+    "Domestic_supply" = "domestic_supply",
+    "Production" = "production",
+    "Export" = "export",
+    "Import" = "import",
+    "Stock_variation" = "stock_variation",
+    "Food" = "food",
+    "Feed" = "feed",
+    "Seed" = "seed",
+    "Other_uses" = "other_uses",
+    "Processing" = "processing",
     "Processing_primary" = "processing_primary"
   )
   df |>
     dplyr::rename(year = Year, value = Value, element = Element) |>
     dplyr::mutate(
       area_code = as.character(area_code),
-      year      = as.integer(year),
-      element   = dplyr::recode(element, !!!elem_map)
+      year = as.integer(year),
+      element = dplyr::recode(element, !!!elem_map)
     ) |>
     dplyr::as_tibble()
 }
@@ -80,22 +80,27 @@ harmonise_global_cbs <- function(df) {
 harmonise_global_coefs <- function(df) {
   df |>
     dplyr::rename(
-      year = Year, value = Value, element = Element,
-      processed_item = ProcessedItem, scaling = Scaling
+      year = Year,
+      value = Value,
+      element = Element,
+      processed_item = ProcessedItem,
+      scaling = Scaling
     ) |>
     dplyr::mutate(
       area_code = as.character(area_code),
-      year      = as.integer(year),
-      element   = tolower(element)
+      year = as.integer(year),
+      element = tolower(element)
     ) |>
     dplyr::as_tibble()
 }
 
 #' Generic tolerance-based comparison of two tibbles
 compare_outputs <- function(
-    whep_df, global_df,
-    key_cols, value_cols,
-    label = "dataset"
+  whep_df,
+  global_df,
+  key_cols,
+  value_cols,
+  label = "dataset"
 ) {
   cli::cli_h1("Comparing {label}")
 
@@ -105,23 +110,33 @@ compare_outputs <- function(
 
   # --- Column check ---
   common_cols <- intersect(names(whep_df), names(global_df))
-  only_whep   <- setdiff(names(whep_df), names(global_df))
+  only_whep <- setdiff(names(whep_df), names(global_df))
   only_global <- setdiff(names(global_df), names(whep_df))
-  if (length(only_whep) > 0)
-    cli::cli_alert_info("Columns only in WHEP: {paste(only_whep, collapse=', ')}")
-  if (length(only_global) > 0)
-    cli::cli_alert_info("Columns only in Global: {paste(only_global, collapse=', ')}")
+  if (length(only_whep) > 0) {
+    cli::cli_alert_info(
+      "Columns only in WHEP: {paste(only_whep, collapse=', ')}"
+    )
+  }
+  if (length(only_global) > 0) {
+    cli::cli_alert_info(
+      "Columns only in Global: {paste(only_global, collapse=', ')}"
+    )
+  }
 
   # --- Restrict to shared columns ---
   shared <- intersect(common_cols, c(key_cols, value_cols))
-  whep_sub   <- whep_df   |> dplyr::select(dplyr::all_of(shared))
+  whep_sub <- whep_df |> dplyr::select(dplyr::all_of(shared))
   global_sub <- global_df |> dplyr::select(dplyr::all_of(shared))
 
   # --- Key coverage ---
-  whep_keys   <- whep_sub   |> dplyr::select(dplyr::all_of(key_cols)) |> dplyr::distinct()
-  global_keys <- global_sub |> dplyr::select(dplyr::all_of(key_cols)) |> dplyr::distinct()
+  whep_keys <- whep_sub |>
+    dplyr::select(dplyr::all_of(key_cols)) |>
+    dplyr::distinct()
+  global_keys <- global_sub |>
+    dplyr::select(dplyr::all_of(key_cols)) |>
+    dplyr::distinct()
 
-  only_in_whep   <- dplyr::anti_join(whep_keys, global_keys, by = key_cols)
+  only_in_whep <- dplyr::anti_join(whep_keys, global_keys, by = key_cols)
   only_in_global <- dplyr::anti_join(global_keys, whep_keys, by = key_cols)
 
   cli::cli_text("Keys only in WHEP:   {nrow(only_in_whep)}")
@@ -140,8 +155,16 @@ compare_outputs <- function(
   val_cols_present <- intersect(value_cols, shared)
 
   merged <- dplyr::inner_join(
-    whep_sub   |> dplyr::rename_with(~ paste0(.x, "_whep"),   dplyr::all_of(val_cols_present)),
-    global_sub |> dplyr::rename_with(~ paste0(.x, "_global"), dplyr::all_of(val_cols_present)),
+    whep_sub |>
+      dplyr::rename_with(
+        ~ paste0(.x, "_whep"),
+        dplyr::all_of(val_cols_present)
+      ),
+    global_sub |>
+      dplyr::rename_with(
+        ~ paste0(.x, "_global"),
+        dplyr::all_of(val_cols_present)
+      ),
     by = key_cols
   )
 
@@ -155,16 +178,24 @@ compare_outputs <- function(
     g <- merged[[g_col]]
 
     abs_diff <- abs(w - g)
-    denom    <- pmax(abs(g), abs_tol)
+    denom <- pmax(abs(g), abs_tol)
     rel_diff <- abs_diff / denom
 
-    n_exact    <- sum(w == g,               na.rm = TRUE)
-    n_close    <- sum(rel_diff <= rel_tol,  na.rm = TRUE)
-    n_differ   <- sum(rel_diff > rel_tol,   na.rm = TRUE)
-    n_na_whep  <- sum(is.na(w) & !is.na(g))
-    n_na_glob  <- sum(!is.na(w) & is.na(g))
-    max_rel    <- if (n_differ > 0) max(rel_diff[rel_diff > rel_tol], na.rm = TRUE) else 0
-    max_abs    <- if (n_differ > 0) max(abs_diff[rel_diff > rel_tol], na.rm = TRUE) else 0
+    n_exact <- sum(w == g, na.rm = TRUE)
+    n_close <- sum(rel_diff <= rel_tol, na.rm = TRUE)
+    n_differ <- sum(rel_diff > rel_tol, na.rm = TRUE)
+    n_na_whep <- sum(is.na(w) & !is.na(g))
+    n_na_glob <- sum(!is.na(w) & is.na(g))
+    max_rel <- if (n_differ > 0) {
+      max(rel_diff[rel_diff > rel_tol], na.rm = TRUE)
+    } else {
+      0
+    }
+    max_abs <- if (n_differ > 0) {
+      max(abs_diff[rel_diff > rel_tol], na.rm = TRUE)
+    } else {
+      0
+    }
 
     cli::cli_h2("Value column: {vc}")
     cli::cli_text("  Exact matches:      {n_exact}")
@@ -191,8 +222,8 @@ compare_outputs <- function(
   }
 
   invisible(list(
-    merged         = merged,
-    only_in_whep   = only_in_whep,
+    merged = merged,
+    only_in_whep = only_in_whep,
     only_in_global = only_in_global
   ))
 }
@@ -206,71 +237,98 @@ cli::cli_text("Reading Global CSVs from {global_output}...")
 
 global_primary <- data.table::fread(
   file.path(global_output, "Primary_all.csv")
-) |> harmonise_global_primary()
+) |>
+  harmonise_global_primary()
 
 global_cbs <- data.table::fread(
   file.path(global_output, "CBS.csv")
-) |> harmonise_global_cbs()
+) |>
+  harmonise_global_cbs()
 
 global_coefs <- data.table::fread(
   file.path(global_output, "Processing_coefs.csv")
-) |> harmonise_global_coefs()
+) |>
+  harmonise_global_coefs()
 
 cli::cli_alert_success("Global data loaded")
 
 # ---- WHEP outputs ----
 # Try loading from RDS cache first; fall back to running the pipeline live
 whep_primary_path <- file.path(whep_cache, "whep_primary.rds")
-whep_cbs_path     <- file.path(whep_cache, "whep_cbs.rds")
-whep_coefs_path   <- file.path(whep_cache, "whep_coefs.rds")
+whep_cbs_path <- file.path(whep_cache, "whep_cbs.rds")
+whep_coefs_path <- file.path(whep_cache, "whep_coefs.rds")
 
 if (all(file.exists(c(whep_primary_path, whep_cbs_path, whep_coefs_path)))) {
   cli::cli_text("Reading WHEP outputs from cached RDS files...")
   whep_primary <- readRDS(whep_primary_path)
-  whep_cbs     <- readRDS(whep_cbs_path)
-  whep_coefs   <- readRDS(whep_coefs_path)
+  whep_cbs <- readRDS(whep_cbs_path)
+  whep_coefs <- readRDS(whep_coefs_path)
   cli::cli_alert_success("WHEP data loaded from cache")
 } else {
   cli::cli_text("No cached RDS files found. Running WHEP pipeline live...")
   whep_primary <- whep::build_primary_production()
-  whep_cbs     <- whep::build_commodity_balances(whep_primary)
-  whep_coefs   <- whep::build_processing_coefs(whep_cbs)
+  whep_cbs <- whep::build_commodity_balances(whep_primary)
+  whep_coefs <- whep::build_processing_coefs(whep_cbs)
 
   # Cache for next time
   saveRDS(whep_primary, whep_primary_path)
-  saveRDS(whep_cbs,     whep_cbs_path)
-  saveRDS(whep_coefs,   whep_coefs_path)
+  saveRDS(whep_cbs, whep_cbs_path)
+  saveRDS(whep_coefs, whep_coefs_path)
   cli::cli_alert_success("WHEP pipeline complete; outputs cached")
 }
 
 # == 1. Tolerance-based comparison =============================================
 
 result_primary <- compare_outputs(
-  whep_df    = whep_primary,
-  global_df  = global_primary,
-  key_cols   = c("year", "area", "area_code", "item_prod",
-                 "item_code_prod", "unit"),
+  whep_df = whep_primary,
+  global_df = global_primary,
+  key_cols = c(
+    "year",
+    "area",
+    "area_code",
+    "item_prod",
+    "item_code_prod",
+    "unit"
+  ),
   value_cols = c("value"),
-  label      = "Primary Production"
+  label = "Primary Production"
 )
 
 result_cbs <- compare_outputs(
-  whep_df    = whep_cbs,
-  global_df  = global_cbs,
-  key_cols   = c("year", "area", "area_code", "item_cbs",
-                 "item_code_cbs", "element"),
+  whep_df = whep_cbs,
+  global_df = global_cbs,
+  key_cols = c(
+    "year",
+    "area",
+    "area_code",
+    "item_cbs",
+    "item_code_cbs",
+    "element"
+  ),
   value_cols = c("value"),
-  label      = "Commodity Balance Sheets"
+  label = "Commodity Balance Sheets"
 )
 
 result_coefs <- compare_outputs(
-  whep_df    = whep_coefs,
-  global_df  = global_coefs,
-  key_cols   = c("year", "area", "area_code", "processed_item",
-                 "item_code_cbs", "item_cbs"),
-  value_cols = c("value", "Product_fraction", "value_proc_raw",
-                 "scaling", "cf", "value_proc"),
-  label      = "Processing Coefficients"
+  whep_df = whep_coefs,
+  global_df = global_coefs,
+  key_cols = c(
+    "year",
+    "area",
+    "area_code",
+    "processed_item",
+    "item_code_cbs",
+    "item_cbs"
+  ),
+  value_cols = c(
+    "value",
+    "Product_fraction",
+    "value_proc_raw",
+    "scaling",
+    "cf",
+    "value_proc"
+  ),
+  label = "Processing Coefficients"
 )
 
 # == 2. Deep-dive diagnostics ==================================================
@@ -284,7 +342,7 @@ prim_merged <- result_primary$merged
 if ("value_whep" %in% names(prim_merged)) {
   prim_mis <- prim_merged |>
     dplyr::mutate(
-      ratio    = value_whep / value_global,
+      ratio = value_whep / value_global,
       abs_diff = abs(value_whep - value_global),
       rel_diff = dplyr::if_else(
         value_global != 0,
@@ -297,12 +355,14 @@ if ("value_whep" %in% names(prim_merged)) {
   if (nrow(prim_mis) > 0) {
     ratio_bins <- prim_mis |>
       dplyr::filter(is.finite(ratio), ratio != 0) |>
-      dplyr::mutate(ratio_bin = dplyr::case_when(
-        abs(ratio - 1000)  < 1      ~ "~1000x",
-        abs(ratio - 0.001) < 0.0001 ~ "~0.001x",
-        abs(ratio - 1)     < 0.01   ~ "~1x (small diff)",
-        TRUE                         ~ "other"
-      )) |>
+      dplyr::mutate(
+        ratio_bin = dplyr::case_when(
+          abs(ratio - 1000) < 1 ~ "~1000x",
+          abs(ratio - 0.001) < 0.0001 ~ "~0.001x",
+          abs(ratio - 1) < 0.01 ~ "~1x (small diff)",
+          TRUE ~ "other"
+        )
+      ) |>
       dplyr::count(ratio_bin) |>
       dplyr::arrange(dplyr::desc(n))
 
@@ -314,7 +374,7 @@ if ("value_whep" %in% names(prim_merged)) {
 
     livestock_mis <- prim_mis |>
       dplyr::filter(unit %in% livestock_units)
-    other_mis     <- prim_mis |>
+    other_mis <- prim_mis |>
       dplyr::filter(!unit %in% livestock_units)
 
     cli::cli_h2("Livestock mismatches ({nrow(livestock_mis)} rows)")
@@ -329,7 +389,10 @@ if ("value_whep" %in% names(prim_merged)) {
 
     cli::cli_h2("Non-livestock mismatches ({nrow(other_mis)} rows)")
     if (nrow(other_mis) > 0) {
-      other_mis |> dplyr::count(unit) |> dplyr::arrange(dplyr::desc(n)) |> print()
+      other_mis |>
+        dplyr::count(unit) |>
+        dplyr::arrange(dplyr::desc(n)) |>
+        print()
       cli::cli_text("Sample non-livestock mismatches:")
       other_mis |> utils::head(10) |> print()
     }
@@ -342,18 +405,20 @@ if ("value_whep" %in% names(prim_merged)) {
 cli::cli_h1("Deep-dive: Primary unmatched items")
 
 g_items <- global_primary |> dplyr::distinct(item_prod) |> dplyr::pull()
-w_items <- whep_primary   |> dplyr::distinct(item_prod) |> dplyr::pull()
+w_items <- whep_primary |> dplyr::distinct(item_prod) |> dplyr::pull()
 
 g_only_items <- setdiff(g_items, w_items)
 w_only_items <- setdiff(w_items, g_items)
 
 cli::cli_text("Global-only items: {length(g_only_items)}")
-if (length(g_only_items) > 0)
+if (length(g_only_items) > 0) {
   cli::cli_text("{paste(utils::head(g_only_items, 20), collapse = ', ')}")
+}
 
 cli::cli_text("WHEP-only items:   {length(w_only_items)}")
-if (length(w_only_items) > 0)
+if (length(w_only_items) > 0) {
   cli::cli_text("{paste(utils::head(w_only_items, 20), collapse = ', ')}")
+}
 
 # ---- 2d. CBS element overlap
 cli::cli_h1("Deep-dive: CBS names")
@@ -361,40 +426,70 @@ cli::cli_h1("Deep-dive: CBS names")
 g_elems <- sort(unique(global_cbs$element))
 w_elems <- sort(unique(whep_cbs$element))
 cli::cli_h2("Element overlap")
-cli::cli_text("Common:      {paste(intersect(g_elems, w_elems), collapse = ', ')}")
-cli::cli_text("Global-only: {paste(setdiff(g_elems, w_elems), collapse = ', ')}")
-cli::cli_text("WHEP-only:   {paste(setdiff(w_elems, g_elems), collapse = ', ')}")
+cli::cli_text(
+  "Common:      {paste(intersect(g_elems, w_elems), collapse = ', ')}"
+)
+cli::cli_text(
+  "Global-only: {paste(setdiff(g_elems, w_elems), collapse = ', ')}"
+)
+cli::cli_text(
+  "WHEP-only:   {paste(setdiff(w_elems, g_elems), collapse = ', ')}"
+)
 
 # ---- 2e. CBS area overlap
-g_areas <- global_cbs |> dplyr::filter(year >= 1961L) |>
-  dplyr::distinct(area) |> dplyr::pull()
+g_areas <- global_cbs |>
+  dplyr::filter(year >= 1961L) |>
+  dplyr::distinct(area) |>
+  dplyr::pull()
 w_areas <- whep_cbs |> dplyr::distinct(area) |> dplyr::pull()
 
 cli::cli_h2("Area overlap (CBS, year >= 1961)")
-cli::cli_text("Global areas: {length(g_areas)}   WHEP areas: {length(w_areas)}   Common: {length(intersect(g_areas, w_areas))}")
+cli::cli_text(
+  "Global areas: {length(g_areas)}   WHEP areas: {length(w_areas)}   Common: {length(intersect(g_areas, w_areas))}"
+)
 g_only_areas <- setdiff(g_areas, w_areas)
 w_only_areas <- setdiff(w_areas, g_areas)
-if (length(g_only_areas) > 0)
-  cli::cli_text("Global-only: {paste(utils::head(g_only_areas, 20), collapse = ', ')}")
-if (length(w_only_areas) > 0)
-  cli::cli_text("WHEP-only:   {paste(utils::head(w_only_areas, 20), collapse = ', ')}")
+if (length(g_only_areas) > 0) {
+  cli::cli_text(
+    "Global-only: {paste(utils::head(g_only_areas, 20), collapse = ', ')}"
+  )
+}
+if (length(w_only_areas) > 0) {
+  cli::cli_text(
+    "WHEP-only:   {paste(utils::head(w_only_areas, 20), collapse = ', ')}"
+  )
+}
 
 # == 3. Sanity checks =========================================================
 
 cli::cli_h1("Sanity checks")
 
 cli::cli_h2("Year ranges")
-cli::cli_text("Global Primary: {min(global_primary$year)}\u2013{max(global_primary$year)}")
-cli::cli_text("WHEP Primary:   {min(whep_primary$year)}\u2013{max(whep_primary$year)}")
-cli::cli_text("Global CBS:     {min(global_cbs$year)}\u2013{max(global_cbs$year)}")
+cli::cli_text(
+  "Global Primary: {min(global_primary$year)}\u2013{max(global_primary$year)}"
+)
+cli::cli_text(
+  "WHEP Primary:   {min(whep_primary$year)}\u2013{max(whep_primary$year)}"
+)
+cli::cli_text(
+  "Global CBS:     {min(global_cbs$year)}\u2013{max(global_cbs$year)}"
+)
 cli::cli_text("WHEP CBS:       {min(whep_cbs$year)}\u2013{max(whep_cbs$year)}")
 
 cli::cli_h2("CBS elements")
-cli::cli_text("Global: {paste(sort(unique(global_cbs$element)), collapse = ', ')}")
-cli::cli_text("WHEP:   {paste(sort(unique(whep_cbs$element)),   collapse = ', ')}")
+cli::cli_text(
+  "Global: {paste(sort(unique(global_cbs$element)), collapse = ', ')}"
+)
+cli::cli_text(
+  "WHEP:   {paste(sort(unique(whep_cbs$element)),   collapse = ', ')}"
+)
 
 cli::cli_h2("Production units")
-cli::cli_text("Global: {paste(sort(unique(global_primary$unit)), collapse = ', ')}")
-cli::cli_text("WHEP:   {paste(sort(unique(whep_primary$unit)),   collapse = ', ')}")
+cli::cli_text(
+  "Global: {paste(sort(unique(global_primary$unit)), collapse = ', ')}"
+)
+cli::cli_text(
+  "WHEP:   {paste(sort(unique(whep_primary$unit)),   collapse = ', ')}"
+)
 
 cli::cli_alert_success("Comparison complete")

@@ -86,15 +86,20 @@ test_that(".combine_primary_raw aggregates and keeps item_prod columns", {
     dplyr::mutate(source = NA_character_)
 
   fao_liv_all <- tibble::tibble(
-    year = integer(), area = character(),
+    year = integer(),
+    area = character(),
     area_code = integer(),
-    item_prod = character(), item_code_prod = integer(),
-    unit = character(), value = double(),
+    item_prod = character(),
+    item_code_prod = integer(),
+    unit = character(),
+    value = double(),
     source = character()
   )
 
   result <- whep:::.combine_primary_raw(
-    fao_combined, fao_liv_all, afse
+    fao_combined,
+    fao_liv_all,
+    afse
   )
   expect_true("item_prod" %in% names(result))
   expect_true("item_code_prod" %in% names(result))

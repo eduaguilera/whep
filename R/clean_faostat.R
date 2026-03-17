@@ -8,7 +8,6 @@
 
 # Items that are known fodder/forage, affected by the 1984-85 EU reclassification
 .fodder_items <- c(
-
   "Forage and silage, sorghum",
   "Forage and silage, rye grass",
   "Forage products",
@@ -40,10 +39,11 @@
 #'   (`TRUE` for flagged rows, `FALSE` otherwise).
 #' @keywords internal
 .flag_carry_forward <- function(
-    df, by,
-    min_run = 3L,
-    value_col = "value",
-    time_col = "year"
+  df,
+  by,
+  min_run = 3L,
+  value_col = "value",
+  time_col = "year"
 ) {
   df |>
     dplyr::arrange(dplyr::across(dplyr::all_of(c(by, time_col)))) |>
@@ -62,8 +62,12 @@
       .by = dplyr::all_of(by)
     ) |>
     dplyr::select(
-      -".val", -".time", -".max_time",
-      -".last_val", -".from_end", -".run_length"
+      -".val",
+      -".time",
+      -".max_time",
+      -".last_val",
+      -".from_end",
+      -".run_length"
     )
 }
 
@@ -83,11 +87,12 @@
 #' @returns The input tibble with a logical column `qc_spike`.
 #' @keywords internal
 .flag_spikes <- function(
-    df, by,
-    spike_ratio = 10,
-    min_value = 1000,
-    value_col = "value",
-    time_col = "year"
+  df,
+  by,
+  spike_ratio = 10,
+  min_value = 1000,
+  value_col = "value",
+  time_col = "year"
 ) {
   df |>
     dplyr::arrange(dplyr::across(dplyr::all_of(c(by, time_col)))) |>
@@ -119,13 +124,14 @@
 #' @returns The input tibble with a logical column `qc_fodder_break`.
 #' @keywords internal
 .flag_fodder_break <- function(
-    df,
-    item_col = "item_prod",
-    value_col = "value"
+  df,
+  item_col = "item_prod",
+  value_col = "value"
 ) {
   df |>
     dplyr::mutate(
-      qc_fodder_break = .data[[item_col]] %in% .fodder_items &
+      qc_fodder_break = .data[[item_col]] %in%
+        .fodder_items &
         year %in% c(1984L, 1985L)
     )
 }
@@ -150,8 +156,8 @@
   # Build the label map
   labels <- c(
     qc_carry_forward = "carry_forward",
-    qc_spike         = "spike",
-    qc_fodder_break  = "fodder_break"
+    qc_spike = "spike",
+    qc_fodder_break = "fodder_break"
   )
 
   df |>
@@ -161,8 +167,11 @@
         active <- flag_cols[
           vapply(flag_cols, \(fc) isTRUE(.data[[fc]]), logical(1))
         ]
-        if (length(active) == 0) NA_character_
-        else paste(labels[active], collapse = ";")
+        if (length(active) == 0) {
+          NA_character_
+        } else {
+          paste(labels[active], collapse = ";")
+        }
       }
     ) |>
     dplyr::ungroup() |>
@@ -186,10 +195,11 @@
 #' @returns The input tibble with carry-forward values replaced.
 #' @keywords internal
 .smooth_carry_forward <- function(
-    df, by,
-    anchor_years = 5L,
-    value_col = "value",
-    time_col = "year"
+  df,
+  by,
+  anchor_years = 5L,
+  value_col = "value",
+  time_col = "year"
 ) {
   df |>
     dplyr::mutate(
@@ -246,9 +256,9 @@
     cli::cli_alert_info("{label}: no qc_flag column found")
     return(invisible(NULL))
   }
-  n_total   <- nrow(df)
+  n_total <- nrow(df)
   n_flagged <- sum(!is.na(df$qc_flag))
-  pct       <- round(100 * n_flagged / n_total, 2)
+  pct <- round(100 * n_flagged / n_total, 2)
 
   cli::cli_h2("QC summary: {label}")
   cli::cli_text("Total rows: {n_total}")

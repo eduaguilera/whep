@@ -95,13 +95,20 @@ test_that(".harmonize_element_names converts FAOSTAT element names", {
     "Domestic supply quantity", 1490
   )
 
- result <- whep:::.harmonize_element_names(df)
+  result <- whep:::.harmonize_element_names(df)
   expect_setequal(
     result$element,
     c(
-      "production", "import", "export", "food",
-      "feed", "seed", "processing", "other_uses",
-      "stock_variation", "domestic_supply"
+      "production",
+      "import",
+      "export",
+      "food",
+      "feed",
+      "seed",
+      "processing",
+      "other_uses",
+      "stock_variation",
+      "domestic_supply"
     )
   )
 })
@@ -231,10 +238,8 @@ test_that(".compute_splice_ratios returns correct median ratio", {
   expect_equal(ratios$n_overlap, 2L)
 })
 
-test_that(
-  ".compute_splice_ratios returns empty tibble when no overlap",
-  {
-    no_overlap <- tibble::tribble(
+test_that(".compute_splice_ratios returns empty tibble when no overlap", {
+  no_overlap <- tibble::tribble(
       ~area, ~area_code, ~item_cbs, ~item_code_cbs,
       ~element, ~year, ~value, ~source, ~unit,
       "Spain", 203L, "Wheat", 2511L,
@@ -243,10 +248,9 @@ test_that(
       "production", 2015L, 300, "FBS_New", "tonnes"
     )
 
-    ratios <- whep:::.compute_splice_ratios(no_overlap)
-    expect_equal(nrow(ratios), 0L)
-  }
-)
+  ratios <- whep:::.compute_splice_ratios(no_overlap)
+  expect_equal(nrow(ratios), 0L)
+})
 
 
 # -- .apply_splice -------------------------------------------------------------

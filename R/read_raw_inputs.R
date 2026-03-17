@@ -31,16 +31,24 @@
   df |>
     dplyr::mutate(
       element = stringr::str_replace(
-        element, "Domestic supply quantity", "domestic_supply"
+        element,
+        "Domestic supply quantity",
+        "domestic_supply"
       ),
       element = stringr::str_replace(
-        element, "Stock Variation", "stock_variation"
+        element,
+        "Stock Variation",
+        "stock_variation"
       ),
       element = stringr::str_replace(
-        element, "Other uses \\(non-food\\)", "other_uses"
+        element,
+        "Other uses \\(non-food\\)",
+        "other_uses"
       ),
       element = stringr::str_replace(
-        element, "Other uses", "other_uses"
+        element,
+        "Other uses",
+        "other_uses"
       ),
       element = stringr::str_replace(
         element,
@@ -48,34 +56,54 @@
         "food"
       ),
       element = stringr::str_replace(
-        element, " Quantity", ""
+        element,
+        " Quantity",
+        ""
       ),
       element = stringr::str_replace(
-        element, " quantity", ""
+        element,
+        " quantity",
+        ""
       ),
       element = stringr::str_replace(
-        element, " Value", ""
+        element,
+        " Value",
+        ""
       ),
       element = stringr::str_replace(
-        element, "Production", "production"
+        element,
+        "Production",
+        "production"
       ),
       element = stringr::str_replace(
-        element, "Import", "import"
+        element,
+        "Import",
+        "import"
       ),
       element = stringr::str_replace(
-        element, "Export", "export"
+        element,
+        "Export",
+        "export"
       ),
       element = stringr::str_replace(
-        element, "Food", "food"
+        element,
+        "Food",
+        "food"
       ),
       element = stringr::str_replace(
-        element, "Feed", "feed"
+        element,
+        "Feed",
+        "feed"
       ),
       element = stringr::str_replace(
-        element, "Seed", "seed"
+        element,
+        "Seed",
+        "seed"
       ),
       element = stringr::str_replace(
-        element, "Processing", "processing"
+        element,
+        "Processing",
+        "processing"
       )
     )
 }
@@ -116,7 +144,9 @@
       regions |>
         dplyr::rename(area_code = code) |>
         dplyr::select(
-          area_code, polity_code, polity_name
+          area_code,
+          polity_code,
+          polity_name
         ),
       by = "area_code"
     ) |>
@@ -132,9 +162,15 @@
 
 .extract_fao <- function(pin_alias, afse = NULL, version = NULL) {
   cb_elements <- c(
-    "production", "import", "export",
-    "stock_variation", "domestic_supply",
-    "food", "feed", "seed", "processing",
+    "production",
+    "import",
+    "export",
+    "stock_variation",
+    "domestic_supply",
+    "food",
+    "feed",
+    "seed",
+    "processing",
     "other_uses"
   )
 
@@ -153,11 +189,18 @@
     .fix_item_codes() |>
     dplyr::filter(element %in% cb_elements) |>
     dplyr::select(
-      area, area_code, item_cbs, item_code_cbs,
-      element, unit, year, value
+      area,
+      area_code,
+      item_cbs,
+      item_code_cbs,
+      element,
+      unit,
+      year,
+      value
     ) |>
     .aggregate_to_polities(
-      item_cbs, item_code_cbs,
+      item_cbs,
+      item_code_cbs,
       afse = afse
     )
 }
@@ -211,23 +254,26 @@
         dplyr::filter(required > 0),
       by = "item_cbs"
     ) |>
-    dplyr::left_join(cbs, by = c("area", "area_code", "year",
-                                  "item_cbs")) |>
+    dplyr::left_join(cbs, by = c("area", "area_code", "year", "item_cbs")) |>
     dplyr::mutate(
       scaling_raw = value / value_proc,
       scaling_raw = dplyr::if_else(
-        scaling_raw == 0, NA_real_, scaling_raw
+        scaling_raw == 0,
+        NA_real_,
+        scaling_raw
       )
     ) |>
     fill_linear(
-      scaling_raw, time_col = year,
+      scaling_raw,
+      time_col = year,
       .by = c("area", "area_code", "item_cbs")
     ) |>
     dplyr::select(-item_code_cbs) |>
     dplyr::mutate(
       scaling = dplyr::case_when(
         is.na(scaling_raw) &
-          (!is.na(required) | item_cbs %in% no_data_products) ~ 1,
+          (!is.na(required) | item_cbs %in% no_data_products) ~
+          1,
         is.na(scaling_raw) ~ 0,
         source_scaling_raw == "Original" ~ scaling_raw,
         scaling_raw > 5 ~ 5,
@@ -255,19 +301,30 @@
     ) |>
     dplyr::mutate(
       ds_destinies = round(
-        domestic_supply - food - feed - seed -
-          processing - processing_primary - other_uses,
+        domestic_supply -
+          food -
+          feed -
+          seed -
+          processing -
+          processing_primary -
+          other_uses,
         4
       ),
       balance = round(
-        production + import - export - stock_variation -
-          food - feed - seed - processing -
-          processing_primary - other_uses,
+        production +
+          import -
+          export -
+          stock_variation -
+          food -
+          feed -
+          seed -
+          processing -
+          processing_primary -
+          other_uses,
         4
       ),
       balance2 = round(
-        production + import - export -
-          stock_variation - domestic_supply,
+        production + import - export - stock_variation - domestic_supply,
         4
       )
     ) |>
@@ -285,7 +342,8 @@
         "none",
         dplyr::if_else(
           ds_destinies == balance,
-          "default_prone", "none"
+          "default_prone",
+          "none"
         )
       ),
       check = dplyr::if_else(
@@ -300,10 +358,13 @@
 .untest_cbs <- function(df) {
   df |>
     dplyr::select(
-      -ds_destinies, -balance, -balance2,
+      -ds_destinies,
+      -balance,
+      -balance2,
       -multi_type,
       -dplyr::any_of("default_destiny"),
-      -destiny_replacement, -check
+      -destiny_replacement,
+      -check
     ) |>
     tidyr::pivot_longer(
       domestic_supply:stock_variation,
