@@ -130,10 +130,9 @@ get_livestock_cbs <- function(primary_prod) {
       export = tidyr::replace_na(export, 0),
       # FABIO convention: production = animals raised in country
       production = pmax(slaughtered + export - import, 0),
-      # Cap exports at total supply (production + imports)
-      supply = production + import,
-      export = pmin(export, supply),
-      domestic_supply = pmax(production + import - export, 0)
+      # NOTE: If import > slaughtered + export, we send the import excess to
+      # slaughter anyway. This is what FABIO does as well.
+      domestic_supply = production + import - export
     )
 
   dplyr::bind_rows(
