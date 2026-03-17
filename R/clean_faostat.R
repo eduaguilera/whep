@@ -38,6 +38,7 @@
 #' @returns The input tibble with a logical column `qc_carry_forward`
 #'   (`TRUE` for flagged rows, `FALSE` otherwise).
 #' @keywords internal
+#' @noRd
 .flag_carry_forward <- function(
   df,
   by,
@@ -86,6 +87,7 @@
 #'
 #' @returns The input tibble with a logical column `qc_spike`.
 #' @keywords internal
+#' @noRd
 .flag_spikes <- function(
   df,
   by,
@@ -123,6 +125,7 @@
 #'
 #' @returns The input tibble with a logical column `qc_fodder_break`.
 #' @keywords internal
+#' @noRd
 .flag_fodder_break <- function(
   df,
   item_col = "item_prod",
@@ -144,6 +147,7 @@
 #' @returns The input tibble with a character column `qc_flag` and the
 #'   individual boolean columns removed.
 #' @keywords internal
+#' @noRd
 .collapse_qc_flags <- function(df) {
   flag_cols <- intersect(
     c("qc_carry_forward", "qc_spike", "qc_fodder_break"),
@@ -194,6 +198,7 @@
 #'
 #' @returns The input tibble with carry-forward values replaced.
 #' @keywords internal
+#' @noRd
 .smooth_carry_forward <- function(
   df,
   by,
@@ -251,6 +256,7 @@
 #' @param df A tibble with a `qc_flag` column.
 #' @param label A label for the dataset (e.g. "Primary Production").
 #' @keywords internal
+#' @noRd
 .qc_summary <- function(df, label = "dataset") {
   if (!"qc_flag" %in% names(df)) {
     cli::cli_alert_info("{label}: no qc_flag column found")

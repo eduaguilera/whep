@@ -1389,6 +1389,7 @@ qc_production <- function(
 #'   fresh / 4.37. Applied to `tonnes` and yield units for "Tea leaves"
 #'   from 1991 onward.
 #' @keywords internal
+#' @noRd
 .correct_tea_final <- function(df) {
   tea_units <- c("tonnes", "t_ha", "t_head", "t_LU")
   df |>
@@ -1408,6 +1409,7 @@ qc_production <- function(
 #'   game-meat production tonnes (item 1163). Conversion:
 #'   LU = tonnes * 3, heads = tonnes * 3 / 10.
 #' @keywords internal
+#' @noRd
 .add_game_meat_final <- function(df) {
   game_tonnes <- df |>
     dplyr::filter(item_code_prod == 1163, unit == "tonnes")
