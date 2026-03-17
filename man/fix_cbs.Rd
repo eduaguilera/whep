@@ -7,9 +7,8 @@
 fix_cbs(df)
 }
 \arguments{
-\item{df}{A tibble from \code{\link[=read_cbs]{read_cbs()}}. Expects \code{.afse} and \code{.years}
-attributes (set automatically by \code{read_cbs()}). If missing, lookup
-tables are reloaded.}
+\item{df}{A tibble from \code{\link[=read_cbs]{read_cbs()}}. Expects \code{.years}
+attribute (set automatically by \code{read_cbs()}).}
 }
 \value{
 The same tibble with calibrated, imputed, and balanced values.

@@ -43,8 +43,6 @@ For use:
 \item \code{export}: Released as export for other countries.
 \item \code{seed}: Intended for new production.
 \item \code{processing}: The product will be used to obtain other subproducts.
-\item \code{processing_primary}: Processing allocated to primary processing
-items (e.g. oil palm fruit, seed cotton, coconuts).
 \item \code{other_uses}: Any other use not included in the above ones.
 }
 

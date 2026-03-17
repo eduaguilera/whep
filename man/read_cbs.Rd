@@ -36,8 +36,8 @@ extend the series back to 1850 using historical trade data.
 No processing calibration or balancing is applied at this stage.
 For the fully processed CBS, pipe into \code{\link[=fix_cbs]{fix_cbs()}}.
 
-The returned tibble carries \code{afse} and \code{years} as attributes so that
-\code{\link[=fix_cbs]{fix_cbs()}} can reuse them without reloading.
+The returned tibble carries \code{years} as an attribute so that
+\code{\link[=fix_cbs]{fix_cbs()}} can reuse it without reloading.
 }
 \examples{
 \dontrun{

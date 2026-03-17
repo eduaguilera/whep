@@ -42,10 +42,12 @@
 #' @export
 #'
 #' @examples
-#' # Note: These are smaller samples to show outputs, not the real data.
-#' # For all data, call the function with default version (i.e. no arguments).
-#' get_wide_cbs(version = "20250721T132006Z-8ea47")
-get_wide_cbs <- function(version = NULL) {
+#' get_wide_cbs(example = TRUE)
+get_wide_cbs <- function(example = FALSE) {
+  if (example) {
+    return(.example_get_wide_cbs())
+  }
+
   "commodity_balance_sheet" |>
     whep_read_file() |>
     tidyr::pivot_wider(
@@ -118,10 +120,12 @@ get_wide_cbs <- function(version = NULL) {
 #' @export
 #'
 #' @examples
-#' # Note: These are smaller samples to show outputs, not the real data.
-#' # For all data, call the function with default version (i.e. no arguments).
-#' get_processing_coefs(version = "20250721T143403Z-216d7")
-get_processing_coefs <- function(version = NULL) {
+#' get_processing_coefs(example = TRUE)
+get_processing_coefs <- function(example = FALSE) {
+  if (example) {
+    return(.example_get_processing_coefs())
+  }
+
   "processing_coefs" |>
     whep_read_file() |>
     dplyr::select(-Item, -Element) |>
