@@ -235,18 +235,21 @@ cli::cli_h1("Loading data")
 # ---- Global reference ----
 cli::cli_text("Reading Global CSVs from {global_output}...")
 
-global_primary <- data.table::fread(
-  file.path(global_output, "Primary_all.csv")
+global_primary <- readr::read_csv(
+  file.path(global_output, "Primary_all.csv"),
+  show_col_types = FALSE
 ) |>
   harmonise_global_primary()
 
-global_cbs <- data.table::fread(
-  file.path(global_output, "CBS.csv")
+global_cbs <- readr::read_csv(
+  file.path(global_output, "CBS.csv"),
+  show_col_types = FALSE
 ) |>
   harmonise_global_cbs()
 
-global_coefs <- data.table::fread(
-  file.path(global_output, "Processing_coefs.csv")
+global_coefs <- readr::read_csv(
+  file.path(global_output, "Processing_coefs.csv"),
+  show_col_types = FALSE
 ) |>
   harmonise_global_coefs()
 

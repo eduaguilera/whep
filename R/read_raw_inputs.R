@@ -5,8 +5,7 @@
 # -- Reading helpers -----------------------------------------------------------
 
 .read_faostat_csv <- function(path) {
-  data.table::fread(path, check.names = TRUE) |>
-    tibble::as_tibble()
+  readr::read_csv(path, show_col_types = FALSE, name_repair = "universal")
 }
 
 # -- FAOSTAT extraction --------------------------------------------------------
