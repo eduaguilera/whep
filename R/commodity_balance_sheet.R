@@ -3,7 +3,8 @@
 #' @description
 #' States supply and use parts for each commodity balance sheet (CBS) item.
 #'
-#' @param version File version to use as input. See [whep_inputs] for details.
+#' @param example If `TRUE`, return a small example output without downloading
+#'   remote data. Default is `FALSE`.
 #'
 #' @returns
 #' A tibble with the commodity balance sheet data in wide format.
@@ -46,7 +47,7 @@
 #' get_wide_cbs(version = "20250721T132006Z-8ea47")
 get_wide_cbs <- function(version = NULL) {
   "commodity_balance_sheet" |>
-    whep_read_file(version = version) |>
+    whep_read_file() |>
     tidyr::pivot_wider(
       names_from = Element,
       values_from = Value,
@@ -68,7 +69,8 @@ get_wide_cbs <- function(version = NULL) {
 #' Reports quantities of commodity balance sheet items used for `processing`
 #' and quantities of their corresponding processed output items.
 #'
-#' @param version File version to use as input. See [whep_inputs] for details.
+#' @param example If `TRUE`, return a small example output without downloading
+#'   remote data. Default is `FALSE`.
 #'
 #' @returns
 #' A tibble with the quantities for each processed product.
@@ -121,7 +123,7 @@ get_wide_cbs <- function(version = NULL) {
 #' get_processing_coefs(version = "20250721T143403Z-216d7")
 get_processing_coefs <- function(version = NULL) {
   "processing_coefs" |>
-    whep_read_file(version = version) |>
+    whep_read_file() |>
     dplyr::select(-Item, -Element) |>
     dplyr::rename_with(tolower) |>
     add_item_cbs_code(name_column = "item") |>

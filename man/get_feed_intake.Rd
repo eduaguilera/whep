@@ -4,10 +4,11 @@
 \alias{get_feed_intake}
 \title{Livestock feed intake}
 \usage{
-get_feed_intake(version = NULL)
+get_feed_intake(example = FALSE)
 }
 \arguments{
-\item{version}{File version to use as input. See \link{whep_inputs} for details.}
+\item{example}{If \code{TRUE}, return a small example output without downloading
+remote data. Default is \code{FALSE}.}
 }
 \value{
 A tibble with the feed intake data.
@@ -43,7 +44,5 @@ dry matter, so it should be less than \code{intake}.
 Get amount of items used for feeding livestock.
 }
 \examples{
-# Note: These are smaller samples to show outputs, not the real data.
-# For all data, call the function with default version (i.e. no arguments).
-get_feed_intake(version = "example")
+get_feed_intake(example = TRUE)
 }

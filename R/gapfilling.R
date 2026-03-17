@@ -135,9 +135,10 @@ fill_linear <- function(
 #' @param value_col The column containing gaps to be filled.
 #' @param change_col The column whose values will be used to fill the gaps.
 #' @param time_col The column containing time values. Default: `year`.
-#' @param start_with_zero Logical. If TRUE, assumes an invisible 0 value before
-#'   the first observation and fills with cumulative sum starting from the first
-#'   change_col value. If FALSE (default), starting NA values remain unfilled.
+#' @param start_with_zero Logical. If TRUE (default), assumes an invisible 0
+#'   value before the first observation and fills with cumulative sum starting
+#'   from the first change_col value. If FALSE, starting NA values remain
+#'   unfilled.
 #' @param .by A character vector with the grouping variables (optional).
 #'
 #' @return A tibble dataframe (ungrouped) where gaps in value_col have been
@@ -326,6 +327,7 @@ fill_proxy_growth <- function(
     value_col_name,
     .by,
     setup$inputs$proxy_smooth_window,
+    time_col_name,
     verbose
   )
 
@@ -417,12 +419,14 @@ fill_proxy_growth <- function(
   if (
     !is.null(value_smooth_window) &&
       (!rlang::is_scalar_integerish(value_smooth_window) ||
-        value_smooth_window < 1)
+        value_smooth_window < 1) # nolint: indentation_linter
   ) {
     cli::cli_abort("`value_smooth_window` must be a positive integer or NULL")
   }
-  if (!rlang::is_scalar_integerish(proxy_smooth_window) ||
-    proxy_smooth_window < 1) {
+  if (
+    !rlang::is_scalar_integerish(proxy_smooth_window) ||
+      proxy_smooth_window < 1
+  ) {
     cli::cli_abort("`proxy_smooth_window` must be a positive integer")
   }
   proxy_smooth_window <- as.integer(proxy_smooth_window)
@@ -593,6 +597,7 @@ fill_proxy_growth <- function(
   value_col,
   .by,
   smooth_window,
+  time_col,
   verbose
 ) {
   for (i in seq_along(proxy_col)) {
@@ -610,6 +615,7 @@ fill_proxy_growth <- function(
       i,
       smooth_window,
       .by,
+      time_col,
       verbose
     )
   }
@@ -622,6 +628,7 @@ fill_proxy_growth <- function(
   idx,
   smooth_window,
   .by,
+  time_col,
   verbose
 ) {
   growth_col <- paste0("growth_", idx, "_", spec$spec_name)
@@ -632,27 +639,33 @@ fill_proxy_growth <- function(
   }
 
   # 1. Prepare tibble with relevant columns
-  prep <- .fg_growth_prep(data, spec, .by)
+  prep <- .fg_growth_prep(data, spec, .by, time_col)
   if (nrow(prep) == 0) {
     return(.fg_add_empty_cols(data, growth_col, obs_col))
   }
 
   # 2. Compute Individual Row Growth (with Smoothing)
-  prep <- .fg_growth_calc_individual(prep, spec, smooth_window)
+  prep <- .fg_growth_calc_individual(prep, spec, smooth_window, time_col)
 
   # 3. Aggregate to Groups
-  summary_tbl <- .fg_growth_aggregate(prep, spec, growth_col, obs_col)
+  summary_tbl <- .fg_growth_aggregate(
+    prep,
+    spec,
+    growth_col,
+    obs_col,
+    time_col
+  )
 
   # 4. Join back
-  join_keys <- c("year", spec$present_group_vars)
+  join_keys <- c(time_col, spec$present_group_vars)
   if (length(spec$present_group_vars) == 0) {
-    join_keys <- "year"
+    join_keys <- time_col
   }
 
   dplyr::left_join(data, summary_tbl, by = join_keys)
 }
 
-.fg_growth_prep <- function(data, spec, .by) {
+.fg_growth_prep <- function(data, spec, .by, time_col) {
   if (!spec$source_var %in% names(data)) {
     return(tibble::tibble())
   }
@@ -660,15 +673,15 @@ fill_proxy_growth <- function(
   lag_vars <- unique(c(.by, spec$present_group_vars))
   lag_vars <- lag_vars[lag_vars %in% names(data)]
 
-  cols <- unique(c("year", lag_vars, spec$source_var, spec$weight_col))
+  cols <- unique(c(time_col, lag_vars, spec$source_var, spec$weight_col))
   cols <- cols[!is.na(cols)]
 
   data |>
     dplyr::select(dplyr::all_of(cols)) |>
-    dplyr::arrange(dplyr::across(dplyr::all_of(unique(c(lag_vars, "year")))))
+    dplyr::arrange(dplyr::across(dplyr::all_of(unique(c(lag_vars, time_col)))))
 }
 
-.fg_growth_calc_individual <- function(data, spec, window) {
+.fg_growth_calc_individual <- function(data, spec, window, time_col) {
   # Helper to manage lag vars
   by_vars <- if (length(spec$present_group_vars) > 0) {
     spec$present_group_vars
@@ -688,9 +701,9 @@ fill_proxy_growth <- function(
   data <- data |>
     dplyr::mutate(
       lag_src = dplyr::lag(.data[[val_col]]),
-      lag_yr = dplyr::lag(year),
+      lag_yr = dplyr::lag(.data[[time_col]]),
       ind_growth = dplyr::if_else(
-        year == lag_yr + 1 &
+        .data[[time_col]] == lag_yr + 1 &
           !is.na(.data[[val_col]]) &
           !is.na(lag_src) &
           lag_src > 0,
@@ -704,10 +717,16 @@ fill_proxy_growth <- function(
     dplyr::filter(!is.na(ind_growth))
 }
 
-.fg_growth_aggregate <- function(data, spec, growth_col, obs_col) {
-  by_vars <- c("year", spec$present_group_vars)
+.fg_growth_aggregate <- function(
+  data,
+  spec,
+  growth_col,
+  obs_col,
+  time_col
+) {
+  by_vars <- c(time_col, spec$present_group_vars)
   if (length(spec$present_group_vars) == 0) {
-    by_vars <- "year"
+    by_vars <- time_col
   }
 
   # Setup weights

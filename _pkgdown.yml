@@ -29,14 +29,32 @@ reference:
 - title: Tidy datasets
   desc: >
     Get cleaned dataframes with project related data.
+- subtitle: Production
+  desc: >
+    Production, supply/use, and processing datasets.
   contents:
   - build_supply_use
-  - get_bilateral_trade
   - get_feed_intake
   - get_primary_production
   - get_primary_residues
   - get_processing_coefs
   - get_wide_cbs
+- subtitle: Trade
+  desc: >
+    Bilateral trade datasets.
+  contents:
+  - get_bilateral_trade
+- subtitle: Nitrogen cycles
+  desc: >
+    Nitrogen inputs, outputs, production, and destinies for Spain.
+  contents:
+  - create_n_prov_destiny
+  - create_n_soil_inputs
+  - create_n_production
+  - calculate_nue_crops
+  - calculate_nue_livestock
+  - calculate_system_nue
+  - create_n_nat_destiny
 
 - title: Download large input datasets
   desc: >
@@ -76,6 +94,7 @@ reference:
     Get a tidy dataframe with the found sources for different data.
   contents:
   - expand_trade_sources
+  
 
 - title: Gap filling functions
   desc: >
@@ -90,3 +109,10 @@ reference:
     Functions for index decomposition analysis.
   contents:
   - calculate_lmdi
+
+- title: Harmonization
+  desc: >
+    Functions to harmonize time series items according to specified mapping.
+  contents:
+  - harmonize_simple
+  - harmonize_interpolate
