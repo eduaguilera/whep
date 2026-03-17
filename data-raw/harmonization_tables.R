@@ -1,47 +1,52 @@
 harmonization_dir <- here::here("inst", "extdata", "harmonization")
 
+# Excel exports use #N/A, #DIV/0!, and #REF! for missing/error cells
+excel_na <- c("", "NA", "#N/A", "#DIV/0!", "#REF!")
+
 # Direct reads ----------------------------------------------------------------
 
 regions_full <- file.path(harmonization_dir, "regions_full.csv") |>
-  readr::read_csv(show_col_types = FALSE)
+  readr::read_csv(show_col_types = FALSE, na = excel_na)
 
 items_full <- file.path(harmonization_dir, "items_full.csv") |>
-  readr::read_csv(show_col_types = FALSE)
+  readr::read_csv(show_col_types = FALSE, na = excel_na)
 
 cb_processing <- file.path(harmonization_dir, "cb_processing.csv") |>
-  readr::read_csv(show_col_types = FALSE)
+  readr::read_csv(show_col_types = FALSE, na = excel_na)
 
 primary_double <- file.path(harmonization_dir, "primary_double.csv") |>
-  readr::read_csv(show_col_types = FALSE)
+  readr::read_csv(show_col_types = FALSE, na = excel_na)
 
 cbs_trade_codes <- file.path(harmonization_dir, "cbs_trade_codes.csv") |>
-  readr::read_csv(show_col_types = FALSE)
+  readr::read_csv(show_col_types = FALSE, na = excel_na)
 
 polities_cats <- file.path(harmonization_dir, "polities_cats.csv") |>
-  readr::read_csv(show_col_types = FALSE)
+  readr::read_csv(show_col_types = FALSE, na = excel_na) |>
+  dplyr::select(!dplyr::starts_with("0..."))
 
 animals_codes <- file.path(harmonization_dir, "animals_codes.csv") |>
-  readr::read_csv(show_col_types = FALSE)
+  readr::read_csv(show_col_types = FALSE, na = excel_na)
 
 liv_lu_coefs <- file.path(harmonization_dir, "liv_lu_coefs.csv") |>
-  readr::read_csv(show_col_types = FALSE)
+  readr::read_csv(show_col_types = FALSE, na = excel_na)
 
 crops_eurostat <- file.path(harmonization_dir, "crops_eurostat.csv") |>
-  readr::read_csv(show_col_types = FALSE)
+  readr::read_csv(show_col_types = FALSE, na = excel_na)
 
 biomass_coefs <- file.path(harmonization_dir, "biomass_coefs.csv") |>
-  readr::read_csv(show_col_types = FALSE)
+  readr::read_csv(show_col_types = FALSE, na = excel_na) |>
+  dplyr::select(!dplyr::starts_with("..."))
 
 # Derived: items_prod_full ----------------------------------------------------
 
 names_cats_raw <- file.path(harmonization_dir, "names_cats.csv") |>
-  readr::read_csv(show_col_types = FALSE)
+  readr::read_csv(show_col_types = FALSE, na = excel_na)
 
 items_prod_full_raw <- file.path(
   harmonization_dir,
   "items_prod_full_raw.csv"
 ) |>
-  readr::read_csv(show_col_types = FALSE)
+  readr::read_csv(show_col_types = FALSE, na = excel_na)
 
 if (!"Fallow" %in% as.character(items_prod_full_raw$item_code_prod)) {
   items_prod_full_raw <- items_prod_full_raw |>
