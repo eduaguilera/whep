@@ -57,82 +57,152 @@ fill_linear <- function(
   value_smooth_window = NULL,
   .by = NULL
 ) {
-  # Convert time_col to string for internal use
+  value_col_name <- rlang::as_name(rlang::enquo(value_col))
   time_col_name <- rlang::as_name(rlang::enquo(time_col))
-
+  source_col_name <- paste0("source_", value_col_name)
   by_cols <- .by %||% character(0)
-  dups <- data |>
-    dplyr::summarise(
-      n = dplyr::n(),
-      .by = dplyr::all_of(c(by_cols, time_col_name))
-    ) |>
-    dplyr::filter(n > 1)
-  if (nrow(dups) > 0) {
-    cli::cli_warn(
-      "Duplicate {time_col_name} values found within groups. \\
-      {nrow(dups)} group/time combination(s) have more than one row."
-    )
+
+  # Fast duplicate check: anyDuplicated first, expensive summarise only if needed
+  dup_cols <- c(by_cols, time_col_name)
+  if (anyDuplicated(data[, dup_cols, drop = FALSE]) > 0L) {
+    dups <- data |>
+      dplyr::summarise(
+        n = dplyr::n(),
+        .by = dplyr::all_of(dup_cols)
+      ) |>
+      dplyr::filter(n > 1)
+    if (nrow(dups) > 0) {
+      cli::cli_warn(
+        "Duplicate {time_col_name} values found within groups. \\
+        {nrow(dups)} group/time combination(s) have more than one row."
+      )
+    }
   }
 
-  # Apply smoothing before main mutate to avoid tidy eval issues with if
-  use_smoothing <- !is.null(value_smooth_window)
+  n <- nrow(data)
+  orig_vals <- data[[value_col_name]]
+  times <- data[[time_col_name]]
 
-  # Create smoothed variable in separate step
+  # Smoothing
+  use_smoothing <- !is.null(value_smooth_window)
   if (use_smoothing) {
-    data <- data |>
-      dplyr::mutate(
-        .smooth_var = zoo::rollmean(
-          {{ value_col }},
+    smooth_vals <- rep(NA_real_, n)
+    if (length(by_cols) > 0L) {
+      grp <- interaction(data[by_cols], drop = TRUE)
+      grp_idx <- split(seq_len(n), grp)
+      for (idx in grp_idx) {
+        smooth_vals[idx] <- zoo::rollmean(
+          orig_vals[idx],
           k = value_smooth_window,
           fill = NA,
           align = "center"
-        ),
-        .by = dplyr::all_of(.by)
+        )
+      }
+    } else {
+      smooth_vals <- zoo::rollmean(
+        orig_vals,
+        k = value_smooth_window,
+        fill = NA,
+        align = "center"
       )
+    }
   } else {
-    data <- data |>
-      dplyr::mutate(
-        .smooth_var = {{ value_col }},
-        .by = dplyr::all_of(.by)
-      )
+    smooth_vals <- orig_vals
   }
 
-  data |>
-    dplyr::mutate(
-      # relative to first/last non-NA (use smoothed values for position)
-      place = dplyr::case_when(
-        !cummax(!is.na(.smooth_var)) ~ "left",
-        rev(!cummax(rev(!is.na(.smooth_var)))) ~ "right",
-        .default = "middle"
-      ),
-      fill_value = dplyr::case_when(
-        place == "left" & fill_backward ~
-          zoo::na.locf0(.smooth_var, fromLast = TRUE),
-        place == "right" & fill_forward ~
-          zoo::na.locf0(.smooth_var, fromLast = FALSE),
-        place == "middle" & interpolate ~
-          .safe_na_approx(
-            .smooth_var,
-            x = .data[[time_col_name]],
-            na.rm = FALSE
-          ),
-        .default = NA_real_
-      ),
-      # Use original values where available, fill otherwise
-      fill_value = dplyr::coalesce({{ value_col }}, fill_value),
-      "source_{{value_col}}" := dplyr::case_when(
-        !is.na({{ value_col }}) ~ "Original",
-        place == "left" & !is.na(fill_value) ~ "First value carried backwards",
-        place == "right" & !is.na(fill_value) ~ "Last value carried forward",
-        place == "middle" & !is.na(fill_value) ~ "Linear interpolation",
-        TRUE ~ "Gap not filled"
-      ),
-      "{{value_col}}" := fill_value,
-      place = NULL,
-      fill_value = NULL,
-      .smooth_var = NULL,
-      .by = dplyr::all_of(.by)
+  # Apply core fill logic per group
+  filled <- orig_vals
+  sources <- rep(NA_character_, n)
+
+  if (length(by_cols) > 0L) {
+    if (!use_smoothing) {
+      grp <- interaction(data[by_cols], drop = TRUE)
+      grp_idx <- split(seq_len(n), grp)
+    }
+    for (idx in grp_idx) {
+      res <- .fill_linear_vec(
+        orig_vals[idx], smooth_vals[idx], times[idx],
+        interpolate, fill_forward, fill_backward
+      )
+      filled[idx] <- res$value
+      sources[idx] <- res$source
+    }
+  } else {
+    res <- .fill_linear_vec(
+      orig_vals, smooth_vals, times,
+      interpolate, fill_forward, fill_backward
     )
+    filled <- res$value
+    sources <- res$source
+  }
+
+  data[[value_col_name]] <- filled
+  data[[source_col_name]] <- sources
+  data
+}
+
+# Base R vectorized core for fill_linear (no dplyr)
+.fill_linear_vec <- function(orig_vals, smooth_vals, times,
+                             interpolate, fill_forward, fill_backward) {
+  n <- length(orig_vals)
+  filled <- orig_vals
+  source <- rep("Gap not filled", n)
+  source[!is.na(orig_vals)] <- "Original"
+
+  if (n == 0L) {
+    return(list(value = filled, source = source))
+  }
+
+  valid <- which(!is.na(smooth_vals))
+  if (length(valid) == 0L) {
+    return(list(value = filled, source = source))
+  }
+
+  first_valid <- valid[1L]
+  last_valid <- valid[length(valid)]
+
+  # Carry backward (left region)
+  if (fill_backward && first_valid > 1L) {
+    left_idx <- seq_len(first_valid - 1L)
+    na_left <- left_idx[is.na(filled[left_idx])]
+    if (length(na_left) > 0L) {
+      filled[na_left] <- smooth_vals[first_valid]
+      source[na_left] <- "First value carried backwards"
+    }
+  }
+
+  # Carry forward (right region)
+  if (fill_forward && last_valid < n) {
+    right_idx <- (last_valid + 1L):n
+    na_right <- right_idx[is.na(filled[right_idx])]
+    if (length(na_right) > 0L) {
+      filled[na_right] <- smooth_vals[last_valid]
+      source[na_right] <- "Last value carried forward"
+    }
+  }
+
+  # Interpolate (middle region)
+  if (interpolate && length(valid) >= 2L) {
+    mid_idx <- (first_valid + 1L):(last_valid - 1L)
+    if (length(mid_idx) > 0L) {
+      na_mid <- mid_idx[is.na(filled[mid_idx])]
+      if (length(na_mid) > 0L) {
+        interp <- .safe_na_approx(smooth_vals, x = times, na.rm = FALSE)
+        if (length(interp) == n) {
+          fill_mask <- na_mid[!is.na(interp[na_mid])]
+          filled[fill_mask] <- interp[fill_mask]
+          source[fill_mask] <- "Linear interpolation"
+        }
+      }
+    }
+  }
+
+  # Preserve original values
+  has_orig <- !is.na(orig_vals)
+  filled[has_orig] <- orig_vals[has_orig]
+  source[has_orig] <- "Original"
+
+  list(value = filled, source = source)
 }
 
 #' Fill gaps summing the previous value of a variable to the value of
@@ -818,7 +888,7 @@ fill_proxy_growth <- function(
   })
 
   for (i in seq_along(proxy_cols)) {
-    if (sum(is.na(data[[value_col]])) == 0) {
+    if (!anyNA(data[[value_col]])) {
       break
     }
 
@@ -970,58 +1040,50 @@ fill_proxy_growth <- function(
   vals <- df[[v_col]]
   grw <- df[[g_col]]
   mets <- df[[m_col]]
-  indices <- if (direction == "forward") {
-    seq_along(vals)
-  } else {
-    rev(seq_along(vals))
+  n <- length(vals)
+
+  if (n < 2L) {
+    return(df)
   }
 
-  for (i in indices) {
-    if (!is.na(vals[i])) {
-      next
+  # Pre-compute valid fill indices from runs (avoid nested loop)
+  fill_idx <- integer(0L)
+  for (r in runs) {
+    skip <- (!is.null(max_gap) && r$len > max_gap) ||
+      (!is.null(max_lin) && r$internal && r$len > max_lin)
+    if (!skip) {
+      fill_idx <- c(fill_idx, r$start:r$end)
     }
+  }
 
-    # Check Constraints
-    is_valid_gap <- TRUE
-    for (r in runs) {
-      if (i >= r$start && i <= r$end) {
-        if (!is.null(max_gap) && r$len > max_gap) {
-          is_valid_gap <- FALSE
-        }
-        if (
-          !is.null(max_lin) &&
-            r$internal &&
-            r$len > max_lin
-        ) {
-          is_valid_gap <- FALSE
-        }
-      }
-    }
-    if (!is_valid_gap) {
-      next
-    }
+  if (length(fill_idx) == 0L) {
+    return(df)
+  }
 
-    # Calc Value
-    if (direction == "forward") {
-      if (i == 1) {
-        next
+  is_missing <- !is.na(mets) & mets == "missing"
+
+  if (direction == "forward") {
+    fill_idx <- sort(fill_idx[fill_idx > 1L])
+    for (i in fill_idx) {
+      if (!is.na(vals[i])) next
+      prev <- vals[i - 1L]
+      g <- grw[i]
+      if (!is.na(prev) && prev > 0 && !is.na(g)) {
+        vals[i] <- prev * (1 + g)
+        if (is_missing[i]) mets[i] <- m_name
       }
-      prev <- vals[i - 1]
-      if (!is.na(prev) && prev > 0 && !is.na(grw[i])) {
-        vals[i] <- prev * (1 + grw[i])
-        if (mets[i] == "missing") mets[i] <- m_name
-      }
-    } else {
-      if (i == length(vals)) {
-        next
-      }
-      nxt <- vals[i + 1]
-      nxt_g <- grw[i + 1]
+    }
+  } else {
+    fill_idx <- sort(fill_idx[fill_idx < n], decreasing = TRUE)
+    for (i in fill_idx) {
+      if (!is.na(vals[i])) next
+      nxt <- vals[i + 1L]
+      nxt_g <- grw[i + 1L]
       if (!is.na(nxt) && !is.na(nxt_g) && (1 + nxt_g) != 0) {
         res <- nxt / (1 + nxt_g)
         if (is.finite(res) && res > 0) {
           vals[i] <- res
-          if (mets[i] == "missing") mets[i] <- m_name
+          if (is_missing[i]) mets[i] <- m_name
         }
       }
     }

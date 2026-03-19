@@ -877,7 +877,7 @@ qc_production <- function(
   ) |>
     dplyr::summarise(
       value = sum(value),
-      source = dplyr::first(source),
+      source = source[1L],
       .by = c(
         year,
         area,
@@ -1345,7 +1345,7 @@ qc_production <- function(
     dplyr::filter(unit %in% c("t_LU", "t_head")) |>
     dplyr::summarise(
       value = mean(fu2, na.rm = TRUE),
-      source = dplyr::first(source),
+      source = source[1L],
       .by = c(
         year,
         area,
@@ -1734,7 +1734,7 @@ qc_production <- function(
     dplyr::distinct() |>
     dplyr::summarise(
       value = mean(value, na.rm = TRUE),
-      source = dplyr::first(source),
+      source = source[1L],
       .by = c(
         year,
         area,
