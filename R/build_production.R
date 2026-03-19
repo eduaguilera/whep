@@ -295,13 +295,13 @@ qc_production <- function(
   regions <- whep::regions_full
 
   whep_read_file("luh2-areas", version = version) |>
-    dplyr::rename(iso3c = ISO3) |>
+    dplyr::rename(iso3c = ISO3, year = Year) |>
     dplyr::left_join(
       regions |>
         dplyr::select(iso3c, area = polity_name, area_code = polity_code),
       by = "iso3c"
     ) |>
-    dplyr::filter(Year > 1849)
+    dplyr::filter(year > 1849)
 }
 
 .read_int_yields <- function(version) {
@@ -309,11 +309,12 @@ qc_production <- function(
   regions <- whep::regions_full
 
   whep_read_file("international-yields", version = version) |>
+    dplyr::mutate(item_code_prod = as.character(item_code)) |>
     dplyr::rename(
-      item_code_prod = item_code,
       code = area_code,
       year = year
     ) |>
+    dplyr::select(-item_code) |>
     dplyr::filter(
       year < 1962,
       !is.na(yield),
@@ -572,19 +573,26 @@ qc_production <- function(
   biomass
 ) {
   fodder |>
+    dplyr::filter(!is.na(area)) |>
     tidyr::complete(
       year,
-      tidyr::nesting(area, area_code, item_prod, item_code_prod)
+      tidyr::nesting(
+        area, area_code, item_prod, item_code_prod, Name_Eurostat
+      )
     ) |>
     fill_linear(
       ha_share,
       time_col = year,
-      .by = c("area", "area_code", "item_prod", "item_code_prod")
+      .by = c(
+        "area", "area_code", "item_prod", "item_code_prod", "Name_Eurostat"
+      )
     ) |>
     fill_linear(
       kgnha_euadb,
       time_col = year,
-      .by = c("area", "area_code", "item_prod", "item_code_prod")
+      .by = c(
+        "area", "area_code", "item_prod", "item_code_prod", "Name_Eurostat"
+      )
     ) |>
     dplyr::mutate(
       ha = dplyr::if_else(
@@ -592,12 +600,16 @@ qc_production <- function(
         ha,
         ha_euadb * ha_share
       ),
-      .by = c(area, area_code, item_prod, item_code_prod)
+      .by = c(
+        area, area_code, item_prod, item_code_prod, Name_Eurostat
+      )
     ) |>
     fill_linear(
       ha,
       time_col = year,
-      .by = c("area", "area_code", "item_prod", "item_code_prod")
+      .by = c(
+        "area", "area_code", "item_prod", "item_code_prod", "Name_Eurostat"
+      )
     ) |>
     dplyr::select(
       year,
@@ -734,7 +746,8 @@ qc_production <- function(
           Item_Code,
           Livestock_name
         ) |>
-        dplyr::rename(item_code_prod = Item_Code),
+        dplyr::mutate(item_code_prod = as.character(Item_Code)) |>
+        dplyr::select(-Item_Code),
       by = "item_code_prod"
     ) |>
     dplyr::full_join(
@@ -779,7 +792,7 @@ qc_production <- function(
     fill_linear(
       n,
       time_col = year,
-      .by = c("area", "item_cbs", "item_code_cbs")
+      .by = c("area", "area_code", "item_cbs", "item_code_cbs", "Livestock_name")
     ) |>
     dplyr::mutate(
       value = dplyr::if_else(
@@ -787,12 +800,12 @@ qc_production <- function(
         value_comb,
         dplyr::if_else(n > 40, NA_real_, 0)
       ),
-      .by = c(area, item_cbs, item_code_cbs)
+      .by = c(area, area_code, item_cbs, item_code_cbs, Livestock_name)
     ) |>
     fill_linear(
       value,
       time_col = year,
-      .by = c("area", "item_cbs", "item_code_cbs")
+      .by = c("area", "area_code", "item_cbs", "item_code_cbs", "Livestock_name")
     )
 }
 
@@ -811,7 +824,7 @@ qc_production <- function(
       animals |> dplyr::select(item_cbs, Animal_class),
       by = "item_cbs"
     ) |>
-    dplyr::left_join(liv_lu, by = c("item_cbs", "Animal_class")) |>
+    dplyr::left_join(liv_lu, by = "Animal_class") |>
     dplyr::mutate(value_lu = value * LU_head) |>
     (\(df) {
       dplyr::bind_rows(
@@ -826,6 +839,7 @@ qc_production <- function(
       item_prod = item_cbs,
       item_code_prod = item_code_cbs
     ) |>
+    dplyr::mutate(item_code_prod = as.character(item_code_prod)) |>
     dplyr::mutate(
       source = dplyr::if_else(
         source_value == "Original",
@@ -915,6 +929,7 @@ qc_production <- function(
   crop_yield <- primary_raw |>
     dplyr::filter(unit %in% c("ha", "t")) |>
     tidyr::pivot_wider(
+      id_cols = c(year, area, area_code, item_prod, item_code_prod),
       names_from = unit,
       values_from = value
     ) |>
@@ -931,7 +946,8 @@ qc_production <- function(
           Live_anim,
           Live_anim_code,
           item_code_prod
-        ),
+        ) |>
+        dplyr::mutate(Live_anim_code = as.character(Live_anim_code)),
       by = "item_code_prod"
     ) |>
     dplyr::rename(t = value) |>
@@ -946,7 +962,7 @@ qc_production <- function(
         Live_anim_code
       )
     ) |>
-    dplyr::full_join(
+    dplyr::left_join(
       dplyr::bind_rows(
         primary_raw |>
           dplyr::filter(unit == "LU") |>
@@ -970,13 +986,16 @@ qc_production <- function(
             unit,
             value
           )
-      ),
+      ) |>
+        dplyr::summarise(
+          value = sum(value, na.rm = TRUE),
+          .by = c(year, area, area_code, Live_anim_code, unit)
+        ),
       by = c(
         "year",
         "area",
         "area_code",
-        "Live_anim_code",
-        "unit"
+        "Live_anim_code"
       )
     ) |>
     dplyr::rename(fu = value) |>
@@ -1077,6 +1096,9 @@ qc_production <- function(
               item_code_prod,
               Multi_type
             ) |>
+            dplyr::mutate(
+              item_code_prod = as.character(item_code_prod)
+            ) |>
             dplyr::rename(Item_area = item_prod),
           by = "Item_area"
         ),
@@ -1139,14 +1161,15 @@ qc_production <- function(
         "area_code",
         "item_prod",
         "item_code_prod",
+        "Live_anim_code",
         "unit"
       )
     ) |>
     .add_global_yields() |>
     dplyr::left_join(
       items_prod |>
-        dplyr::select(item_code_prod, item_code_cbs, group),
-      by = "item_code_prod"
+        dplyr::select(item_prod, item_code_prod, item_code_cbs, group),
+      by = c("item_prod", "item_code_prod")
     ) |>
     dplyr::left_join(
       cbs_prod_raw,
@@ -1209,8 +1232,10 @@ qc_production <- function(
       time_col = year,
       .by = c(
         "area_code",
+        "item_prod",
         "item_code_prod",
         "Live_anim_code",
+        "unit",
         "group"
       )
     )
@@ -1340,7 +1365,7 @@ qc_production <- function(
     dplyr::left_join(
       items |>
         dplyr::select(item_cbs, item_code_cbs) |>
-        dplyr::mutate(item_code_prod = item_code_cbs),
+        dplyr::mutate(item_code_prod = as.character(item_code_cbs)),
       by = "item_code_prod"
     ) |>
     dplyr::mutate(item_prod = item_cbs)
@@ -1583,11 +1608,11 @@ qc_production <- function(
       ),
       item_code_prod = dplyr::if_else(
         Land_Use == "pastr",
-        3001,
-        3002
+        "3001",
+        "3002"
       ),
       item_cbs = "Grassland",
-      item_code_cbs = 3000
+      item_code_cbs = 3000L
     ) |>
     dplyr::summarise(
       value = sum(Area_Mha, na.rm = TRUE) * 1e6,

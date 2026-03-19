@@ -60,6 +60,20 @@ fill_linear <- function(
   # Convert time_col to string for internal use
   time_col_name <- rlang::as_name(rlang::enquo(time_col))
 
+  by_cols <- .by %||% character(0)
+  dups <- data |>
+    dplyr::summarise(
+      n = dplyr::n(),
+      .by = dplyr::all_of(c(by_cols, time_col_name))
+    ) |>
+    dplyr::filter(n > 1)
+  if (nrow(dups) > 0) {
+    cli::cli_warn(
+      "Duplicate {time_col_name} values found within groups. \\
+      {nrow(dups)} group/time combination(s) have more than one row."
+    )
+  }
+
   # Apply smoothing before main mutate to avoid tidy eval issues with if
   use_smoothing <- !is.null(value_smooth_window)
 
@@ -1235,11 +1249,12 @@ fill_proxy_growth <- function(
     )
 }
 
-.safe_na_approx <- function(object, ...) {
-  if (sum(!is.na(object)) < 2) {
+.safe_na_approx <- function(object, x, ...) {
+  valid <- !is.na(object)
+  if (length(unique(x[valid])) < 2) {
     return(NA_real_)
   }
-  zoo::na.approx(object, ...)
+  zoo::na.approx(object, x = x, ...)
 }
 
 .parse_proxy_spec <- function(spec, data, value_col, group_by, verbose) {

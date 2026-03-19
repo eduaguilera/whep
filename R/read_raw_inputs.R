@@ -60,7 +60,7 @@
   regions <- whep::regions_full
 
   df |>
-    dplyr::right_join(
+    dplyr::inner_join(
       regions |>
         dplyr::rename(area_code = code) |>
         dplyr::select(
