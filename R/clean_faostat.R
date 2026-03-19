@@ -46,6 +46,7 @@
   value_col = "value",
   time_col = "year"
 ) {
+  force(df)
   cli::cli_progress_step("Flagging carry-forwards")
   df |>
     dplyr::arrange(dplyr::across(dplyr::all_of(c(by, time_col)))) |>
@@ -97,6 +98,7 @@
   value_col = "value",
   time_col = "year"
 ) {
+  force(df)
   cli::cli_progress_step("Flagging spikes")
   df |>
     dplyr::arrange(dplyr::across(dplyr::all_of(c(by, time_col)))) |>
@@ -133,6 +135,7 @@
   item_col = "item_prod",
   value_col = "value"
 ) {
+  force(df)
   cli::cli_progress_step("Flagging fodder break")
   df |>
     dplyr::mutate(
@@ -152,6 +155,7 @@
 #' @keywords internal
 #' @noRd
 .collapse_qc_flags <- function(df) {
+  force(df)
   cli::cli_progress_step("Collapsing QC flags")
   flag_cols <- intersect(
     c("qc_carry_forward", "qc_spike", "qc_fodder_break"),
@@ -168,21 +172,18 @@
     qc_fodder_break = "fodder_break"
   )
 
+  flag_matrix <- vapply(flag_cols, \(col) {
+    dplyr::coalesce(df[[col]], FALSE)
+  }, logical(nrow(df)))
+  if (length(flag_cols) == 1) dim(flag_matrix) <- c(nrow(df), 1)
+
+  qc_flag <- apply(flag_matrix, 1, \(row) {
+    active <- flag_cols[row]
+    if (length(active) == 0) NA_character_ else paste(labels[active], collapse = ";")
+  })
+
   df |>
-    dplyr::rowwise() |>
-    dplyr::mutate(
-      qc_flag = {
-        active <- flag_cols[
-          vapply(flag_cols, \(fc) isTRUE(.data[[fc]]), logical(1))
-        ]
-        if (length(active) == 0) {
-          NA_character_
-        } else {
-          paste(labels[active], collapse = ";")
-        }
-      }
-    ) |>
-    dplyr::ungroup() |>
+    dplyr::mutate(qc_flag = qc_flag) |>
     dplyr::select(-dplyr::all_of(flag_cols))
 }
 

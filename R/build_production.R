@@ -1398,6 +1398,7 @@ qc_production <- function(
 }
 
 .filter_dissolved_countries <- function(df) {
+  force(df)
   cli::cli_progress_step("Filtering dissolved countries")
   df |>
     dplyr::filter(
@@ -1432,6 +1433,7 @@ qc_production <- function(
 #' @keywords internal
 #' @noRd
 .correct_tea_final <- function(df) {
+  force(df)
   cli::cli_progress_step("Correcting tea weights")
   tea_units <- c("tonnes", "t_ha", "t_head", "t_LU")
   df |>
@@ -1453,6 +1455,7 @@ qc_production <- function(
 #' @keywords internal
 #' @noRd
 .add_game_meat_final <- function(df) {
+  force(df)
   cli::cli_progress_step("Adding game meat stocks")
   game_tonnes <- df |>
     dplyr::filter(item_code_prod == 1163, unit == "tonnes")
