@@ -1723,127 +1723,90 @@ build_processing_coefs <- function(
 # -- Fill destiny gaps ---------------------------------------------------------
 
 .cbs_fill_destinies <- function(cbs_raw4) {
-  items <- whep::items_full
   destiny_list <- c(
-    "food",
-    "feed",
-    "seed",
-    "other_uses",
-    "processing",
-    "processing_primary"
+    "food", "feed", "seed", "other_uses", "processing", "processing_primary"
   )
 
-  cbs_tagged <- cbs_raw4 |>
-    dplyr::mutate(
-      elem_cat = dplyr::if_else(
-        element %in% destiny_list,
-        "destiny",
-        "balance"
-      )
-    ) |>
+  cli::cli_progress_step("Computing destiny shares")
+  balance <- dplyr::filter(cbs_raw4, !element %in% destiny_list) |>
+    dplyr::mutate(elem_cat = "balance")
+
+  destiny <- dplyr::filter(cbs_raw4, element %in% destiny_list) |>
+    dplyr::mutate(elem_cat = "destiny") |>
+    .compute_destiny_shares()
+
+  cli::cli_progress_step("Interpolating destiny shares")
+  destiny_filled <- .interpolate_destiny_shares(balance, destiny)
+
+  cli::cli_progress_step("Assembling destiny output")
+  .assemble_cbs_destinies(balance, destiny_filled)
+}
+
+# Compute each destiny element's share of total destinies per (year, area, item).
+# "Other processing residues" items are special-cased: feed = 1, all others = 0.
+.compute_destiny_shares <- function(destiny) {
+  items <- whep::items_full
+
+  destiny |>
     dplyr::left_join(
       items |> dplyr::select(item_cbs, comm_group),
       by = "item_cbs"
-    )
-
-  # Compute sum of destiny values per group — as separate summarise + join
-  # to avoid per-group mapply overhead of grouped mutate with if_else.
-  dest_sums <- cbs_tagged |>
-    dplyr::filter(elem_cat == "destiny") |>
-    dplyr::summarise(
-      sum_dests = sum(value, na.rm = TRUE),
+    ) |>
+    dplyr::mutate(
+      sum_dests = dplyr::na_if(sum(value, na.rm = TRUE), 0),
       .by = c(year, area, area_code, item_cbs, item_code_cbs)
     ) |>
     dplyr::mutate(
-      sum_dests = dplyr::if_else(sum_dests == 0, NA_real_, sum_dests)
-    )
-
-  cbs_tagged <- cbs_tagged |>
-    dplyr::left_join(
-      dest_sums,
-      by = c("year", "area", "area_code", "item_cbs", "item_code_cbs")
-    ) |>
-    dplyr::mutate(
-      dest_share = dplyr::if_else(
-        comm_group == "Other processing residues",
-        dplyr::if_else(element == "feed", 1, 0),
-        dplyr::if_else(
-          !is.na(sum_dests) & elem_cat == "destiny",
-          value / sum_dests,
-          NA_real_
-        )
+      dest_share = dplyr::case_when(
+        comm_group == "Other processing residues" ~ as.numeric(element == "feed"),
+        !is.na(sum_dests)                          ~ value / sum_dests
       )
-    )
+    ) |>
+    dplyr::select(-sum_dests, -comm_group)
+}
 
-  balance <- cbs_tagged |>
-    dplyr::filter(elem_cat == "balance")
+# Fill dest_share across time using a sparse skeleton:
+# interpolate/extrapolate shares at all years with domestic_supply data.
+.interpolate_destiny_shares <- function(balance, destiny) {
+  by_cols <- c("area", "area_code", "item_cbs", "item_code_cbs", "element", "elem_cat")
 
-  destiny <- cbs_tagged |>
-    dplyr::filter(elem_cat == "destiny")
-
-  # Build a sparse skeleton instead of complete() across all years.
-  # We only need dest_share at years where domestic_supply exists (targets),
-  # plus anchor years with known dest_share for interpolation.
-  # Rows created by complete() for years without domestic_supply always
-  # produce value2 = NA * dest_share = NA -> 0 -> filtered out.
+  # Target years: where domestic_supply exists (shares needed here)
   ds_keys <- balance |>
     dplyr::filter(element == "domestic_supply") |>
     dplyr::distinct(year, area, area_code, item_cbs, item_code_cbs)
 
-  dest_elem <- destiny |>
-    dplyr::distinct(area, area_code, item_cbs, item_code_cbs, element, elem_cat)
+  dest_elem <- dplyr::distinct(destiny, area, area_code, item_cbs, item_code_cbs, element, elem_cat)
 
-  # Target rows: domestic_supply years × destiny elements per (area, item)
-  target_rows <- ds_keys |>
-    dplyr::inner_join(
-      dest_elem,
-      by = c("area", "area_code", "item_cbs", "item_code_cbs"),
-      relationship = "many-to-many"
-    )
+  target_rows <- dplyr::inner_join(
+    ds_keys, dest_elem,
+    by = c("area", "area_code", "item_cbs", "item_code_cbs"),
+    relationship = "many-to-many"
+  )
 
-  # Anchor rows: years with known dest_share not already in targets
+  # Anchor years: known shares outside the target set (needed for interpolation)
   anchor_rows <- destiny |>
     dplyr::filter(!is.na(dest_share)) |>
-    dplyr::select(year, area, area_code, item_cbs, item_code_cbs, element, elem_cat) |>
+    dplyr::select(dplyr::all_of(c("year", by_cols))) |>
     dplyr::anti_join(
       target_rows,
       by = c("year", "area", "area_code", "item_cbs", "item_code_cbs", "element")
     )
 
-  # Combine skeleton and left-join existing destiny data (deduplicated)
-  destiny_join <- destiny |>
-    dplyr::summarise(
-      dest_share = mean(dest_share, na.rm = TRUE),
-      value = sum(value, na.rm = TRUE),
-      source = dplyr::first(source),
-      .by = c(year, area, area_code, item_cbs, item_code_cbs, element)
-    ) |>
-    dplyr::mutate(
-      dest_share = dplyr::if_else(is.nan(dest_share), NA_real_, dest_share)
-    )
-
-  destiny_filled <- dplyr::bind_rows(target_rows, anchor_rows) |>
+  dplyr::bind_rows(target_rows, anchor_rows) |>
     dplyr::left_join(
-      destiny_join,
+      destiny |> dplyr::select(year, area, area_code, item_cbs, item_code_cbs,
+                                element, dest_share, value, source),
       by = c("year", "area", "area_code", "item_cbs", "item_code_cbs", "element")
     ) |>
-    fill_linear(
-      dest_share,
-      time_col = year,
-      .by = c(
-        "area",
-        "area_code",
-        "item_cbs",
-        "item_code_cbs",
-        "element",
-        "elem_cat"
-      )
-    )
+    fill_linear(dest_share, time_col = year, .by = by_cols)
+}
 
-  cbs_all <- dplyr::bind_rows(balance, destiny_filled) |>
+# Apply filled destiny shares to domestic supply and return final CBS rows.
+.assemble_cbs_destinies <- function(balance, destiny_filled) {
+  dplyr::bind_rows(balance, destiny_filled) |>
     .add_global_destiny_shares() |>
     dplyr::mutate(
-      value2 = dplyr::if_else(
+      value = dplyr::if_else(
         elem_cat == "destiny",
         dplyr::coalesce(
           domestic_supply * dest_share,
@@ -1851,20 +1814,9 @@ build_processing_coefs <- function(
         ),
         tidyr::replace_na(value, 0)
       ),
-      value2 = tidyr::replace_na(value2, 0)
-    )
-
-  cbs_all |>
-    dplyr::select(
-      year,
-      area,
-      area_code,
-      item_cbs,
-      item_code_cbs,
-      element,
-      source,
-      value = value2
+      value = tidyr::replace_na(value, 0)
     ) |>
+    dplyr::select(year, area, area_code, item_cbs, item_code_cbs, element, source, value) |>
     dplyr::filter(value != 0, area != "")
 }
 
