@@ -62,7 +62,14 @@ fill_linear <- function(
   source_col_name <- paste0("source_", value_col_name)
   by_cols <- .by %||% character(0)
 
-  # Fast duplicate check: anyDuplicated first, expensive summarise only if needed
+  n <- nrow(data)
+  if (n == 0L) {
+    data[[source_col_name]] <- character(0)
+    return(data)
+  }
+
+  # Fast duplicate check: anyDuplicated first, expensive summarise only
+  # if needed
   dup_cols <- c(by_cols, time_col_name)
   if (anyDuplicated(data[, dup_cols, drop = FALSE]) > 0L) {
     dups <- data |>
@@ -79,66 +86,136 @@ fill_linear <- function(
     }
   }
 
-  n <- nrow(data)
-  orig_vals <- data[[value_col_name]]
-  times <- data[[time_col_name]]
-
-  # Smoothing
-  use_smoothing <- !is.null(value_smooth_window)
-  if (use_smoothing) {
-    smooth_vals <- rep(NA_real_, n)
-    if (length(by_cols) > 0L) {
-      grp <- interaction(data[by_cols], drop = TRUE)
-      grp_idx <- split(seq_len(n), grp)
-      for (idx in grp_idx) {
-        smooth_vals[idx] <- zoo::rollmean(
-          orig_vals[idx],
-          k = value_smooth_window,
-          fill = NA,
-          align = "center"
-        )
-      }
+  # No groups: simple path
+  if (length(by_cols) == 0L) {
+    orig_vals <- data[[value_col_name]]
+    times <- data[[time_col_name]]
+    smooth_vals <- if (!is.null(value_smooth_window)) {
+      zoo::rollmean(orig_vals, k = value_smooth_window,
+                    fill = NA, align = "center")
     } else {
-      smooth_vals <- zoo::rollmean(
-        orig_vals,
-        k = value_smooth_window,
-        fill = NA,
-        align = "center"
-      )
+      orig_vals
     }
-  } else {
-    smooth_vals <- orig_vals
-  }
-
-  # Apply core fill logic per group
-  filled <- orig_vals
-  sources <- rep(NA_character_, n)
-
-  if (length(by_cols) > 0L) {
-    if (!use_smoothing) {
-      grp <- interaction(data[by_cols], drop = TRUE)
-      grp_idx <- split(seq_len(n), grp)
-    }
-    for (idx in grp_idx) {
-      res <- .fill_linear_vec(
-        orig_vals[idx], smooth_vals[idx], times[idx],
-        interpolate, fill_forward, fill_backward
-      )
-      filled[idx] <- res$value
-      sources[idx] <- res$source
-    }
-  } else {
     res <- .fill_linear_vec(
       orig_vals, smooth_vals, times,
       interpolate, fill_forward, fill_backward
     )
-    filled <- res$value
-    sources <- res$source
+    data[[value_col_name]] <- res$value
+    data[[source_col_name]] <- res$source
+    return(data)
   }
 
-  data[[value_col_name]] <- filled
-  data[[source_col_name]] <- sources
+  # Grouped path: sort once, iterate over contiguous group ranges
+  # Use integer group IDs for fast sorting
+  grp_id <- vctrs::vec_group_id(data[by_cols])
+  times <- data[[time_col_name]]
+  ord <- order(grp_id, times)
+  inv_ord <- integer(n)
+  inv_ord[ord] <- seq_len(n)
+
+  orig_vals <- data[[value_col_name]][ord]
+  times_sorted <- times[ord]
+  grp_sorted <- grp_id[ord]
+
+  # Smoothing (on sorted data)
+  use_smoothing <- !is.null(value_smooth_window)
+  if (use_smoothing) {
+    smooth_vals <- .grouped_rollmean(
+      orig_vals, grp_sorted, value_smooth_window
+    )
+  } else {
+    smooth_vals <- orig_vals
+  }
+
+  # Find contiguous group boundaries
+  breaks <- which(diff(grp_sorted) != 0L)
+  starts <- c(1L, breaks + 1L)
+  ends <- c(breaks, n)
+  n_groups <- length(starts)
+
+  # Pre-allocate results
+  filled <- orig_vals
+  sources <- ifelse(is.na(orig_vals), "Gap not filled", "Original")
+
+  for (g in seq_len(n_groups)) {
+    i1 <- starts[g]
+    i2 <- ends[g]
+    rng <- i1:i2
+
+    ov <- orig_vals[rng]
+    sv <- smooth_vals[rng]
+    tv <- times_sorted[rng]
+    m <- length(rng)
+
+    valid <- which(!is.na(sv))
+    if (length(valid) == 0L) next
+
+    first_v <- valid[1L]
+    last_v <- valid[length(valid)]
+
+    # Carry backward
+    if (fill_backward && first_v > 1L) {
+      na_left <- which(is.na(ov[seq_len(first_v - 1L)]))
+      if (length(na_left) > 0L) {
+        filled[i1 - 1L + na_left] <- sv[first_v]
+        sources[i1 - 1L + na_left] <- "First value carried backwards"
+      }
+    }
+
+    # Carry forward
+    if (fill_forward && last_v < m) {
+      tail_idx <- (last_v + 1L):m
+      na_right <- tail_idx[is.na(ov[tail_idx])]
+      if (length(na_right) > 0L) {
+        filled[i1 - 1L + na_right] <- sv[last_v]
+        sources[i1 - 1L + na_right] <- "Last value carried forward"
+      }
+    }
+
+    # Interpolate
+    if (interpolate && length(valid) >= 2L) {
+      mid_idx <- (first_v + 1L):(last_v - 1L)
+      if (length(mid_idx) > 0L) {
+        na_mid <- mid_idx[is.na(ov[mid_idx])]
+        if (length(na_mid) > 0L) {
+          interp <- .safe_na_approx(sv, x = tv, na.rm = FALSE)
+          if (length(interp) == m) {
+            fill_mask <- na_mid[!is.na(interp[na_mid])]
+            if (length(fill_mask) > 0L) {
+              filled[i1 - 1L + fill_mask] <- interp[fill_mask]
+              sources[i1 - 1L + fill_mask] <- "Linear interpolation"
+            }
+          }
+        }
+      }
+    }
+
+    # Preserve originals
+    has_orig <- which(!is.na(ov))
+    filled[i1 - 1L + has_orig] <- ov[has_orig]
+    sources[i1 - 1L + has_orig] <- "Original"
+  }
+
+  # Unsort back to original order
+  data[[value_col_name]] <- filled[inv_ord]
+  data[[source_col_name]] <- sources[inv_ord]
   data
+}
+
+# Grouped rolling mean without split/interaction overhead
+.grouped_rollmean <- function(vals, grp_sorted, k) {
+  n <- length(vals)
+  result <- rep(NA_real_, n)
+  breaks <- which(diff(grp_sorted) != 0L)
+  starts <- c(1L, breaks + 1L)
+  ends <- c(breaks, n)
+  for (g in seq_along(starts)) {
+    rng <- starts[g]:ends[g]
+    result[rng] <- zoo::rollmean(
+      vals[rng], k = k, fill = NA, align = "center"
+    )
+  }
+  result
 }
 
 # Base R vectorized core for fill_linear (no dplyr)

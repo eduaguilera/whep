@@ -592,10 +592,9 @@ build_processing_coefs <- function(
 
   land_areas |>
     dplyr::mutate(
-      land_use = dplyr::case_when(
-        Land_Use %in% varnames_cropland ~ "Cropland",
-        Land_Use %in% varnames_pasture ~ "Pasture",
-        TRUE ~ "Other"
+      land_use = dplyr::if_else(
+        Land_Use %in% varnames_cropland, "Cropland",
+        dplyr::if_else(Land_Use %in% varnames_pasture, "Pasture", "Other")
       )
     ) |>
     dplyr::filter(land_use != "Other") |>
@@ -898,89 +897,52 @@ build_processing_coefs <- function(
 }
 
 .select_best_source <- function(cbs_raw_all) {
-  cbs_stat <- cbs_raw_all |>
-    dplyr::summarise(
-      n = dplyr::n(),
-      value = mean(value, na.rm = TRUE),
-      sd = dplyr::if_else(
-        dplyr::n() > 1,
-        stats::sd(value, na.rm = TRUE),
-        NA_real_
-      ),
-      .by = c(
-        area,
-        area_code,
-        year,
-        item_cbs,
-        item_code_cbs,
-        element
-      )
-    ) |>
+  # Pivot sources into columns — avoids grouped summarise + nth overhead.
+  key_cols <- c("area", "area_code", "year", "item_cbs", "item_code_cbs", "element")
+
+  wide <- cbs_raw_all |>
+    dplyr::filter(!is.na(area)) |>
+    dplyr::select(dplyr::all_of(key_cols), source, value) |>
+    tidyr::pivot_wider(names_from = source, values_from = value)
+
+  # Ensure expected columns exist even if a source is absent
+  for (col in c("Primary", "FBS_New", "FBS_Old")) {
+    if (!col %in% names(wide)) wide[[col]] <- NA_real_
+  }
+
+  # Vectorized row-wise stats across all source columns
+  src_cols <- setdiff(names(wide), key_cols)
+  src_mat <- as.matrix(wide[src_cols])
+  n <- rowSums(!is.na(src_mat))
+  s <- rowSums(src_mat, na.rm = TRUE)
+  ss <- rowSums(src_mat^2, na.rm = TRUE)
+
+  wide[["n"]] <- n
+  wide[["mean_val"]] <- ifelse(n > 0, s / n, NA_real_)
+  wide[["sd"]] <- ifelse(n > 1L, sqrt(pmax(0, ss - s^2 / n) / (n - 1)), NA_real_)
+
+  wide |>
     dplyr::mutate(
       cv = dplyr::if_else(
-        value != 0 & !is.na(value),
-        sd / value,
-        NA_real_
-      )
-    )
-
-  cbs_raw_all |>
-    dplyr::mutate(unit = "tonnes") |>
-    tidyr::pivot_wider(
-      names_from = source,
-      values_from = value,
-      values_fill = NA
-    ) |>
-    dplyr::left_join(
-      cbs_stat |>
-        dplyr::select(
-          area,
-          area_code,
-          item_cbs,
-          item_code_cbs,
-          element,
-          year,
-          value,
-          sd,
-          cv,
-          n
-        ),
-      by = c(
-        "area",
-        "area_code",
-        "item_cbs",
-        "item_code_cbs",
-        "element",
-        "year"
-      )
-    ) |>
-    dplyr::mutate(
-      fbs_comp = FBS_New / FBS_Old,
-      value_sel = dplyr::case_when(
-        !is.na(Primary) ~ Primary,
-        n == 1 | cv < 0.01 | value == 0 | is.na(fbs_comp) ~ value,
-        fbs_comp > 0.9 & fbs_comp < 1.1 ~ FBS_New,
-        TRUE ~ FBS_Old
+        mean_val != 0 & !is.na(mean_val), sd / mean_val, NA_real_
       ),
-      source = dplyr::case_when(
-        !is.na(Primary) ~ "Primary",
-        n == 1 | cv < 0.01 | value == 0 | is.na(fbs_comp) ~ "mean",
-        fbs_comp > 0.9 & fbs_comp < 1.1 ~ "FBS_New",
-        TRUE ~ "FBS_Old"
-      )
-    ) |>
-    dplyr::filter(!is.na(area)) |>
-    dplyr::select(
-      area,
-      area_code,
-      item_cbs,
-      item_code_cbs,
-      element,
-      year,
-      source,
-      value = value_sel
-    ) |>
-    dplyr::mutate(
+      fbs_comp = FBS_New / FBS_Old,
+      .use_mean = n == 1 | cv < 0.01 | mean_val == 0 | is.na(fbs_comp),
+      .use_fbs_new = fbs_comp > 0.9 & fbs_comp < 1.1,
+      value = dplyr::if_else(
+        !is.na(Primary), Primary,
+        dplyr::if_else(
+          .use_mean, mean_val,
+          dplyr::if_else(.use_fbs_new, FBS_New, FBS_Old)
+        )
+      ),
+      source = dplyr::if_else(
+        !is.na(Primary), "Primary",
+        dplyr::if_else(
+          .use_mean, "mean",
+          dplyr::if_else(.use_fbs_new, "FBS_New", "FBS_Old")
+        )
+      ),
       value = dplyr::if_else(
         element %in%
           c(
@@ -998,6 +960,16 @@ build_processing_coefs <- function(
         0,
         value
       )
+    ) |>
+    dplyr::select(
+      area,
+      area_code,
+      item_cbs,
+      item_code_cbs,
+      element,
+      year,
+      source,
+      value
     )
 }
 
@@ -1077,37 +1049,91 @@ build_processing_coefs <- function(
 }
 
 .fill_share_columns <- function(df) {
-  df |>
-    fill_linear(
-      food_share,
-      time_col = year,
-      .by = c("area", "item_cbs")
-    ) |>
-    fill_linear(
-      feed_share,
-      time_col = year,
-      .by = c("area", "item_cbs")
-    ) |>
-    fill_linear(
-      other_uses_share,
-      time_col = year,
-      .by = c("area", "item_cbs")
-    ) |>
-    fill_linear(
-      processing_share,
-      time_col = year,
-      .by = c("area", "item_cbs")
-    ) |>
-    fill_linear(
-      processing_primary_share,
-      time_col = year,
-      .by = c("area", "item_cbs")
-    ) |>
-    fill_linear(
-      seed_rate,
-      time_col = year,
-      .by = c("area", "item_cbs")
-    )
+  # Batch-fill all share columns in a single grouped pass.
+  # Avoids re-sorting and re-computing group boundaries 6 times.
+  cols <- c(
+    "food_share", "feed_share", "other_uses_share",
+    "processing_share", "processing_primary_share", "seed_rate"
+  )
+  by_cols <- c("area", "item_cbs")
+
+  # Sort once
+  grp_id <- vctrs::vec_group_id(df[by_cols])
+  times <- df[["year"]]
+  n <- nrow(df)
+  ord <- order(grp_id, times)
+  inv_ord <- integer(n)
+  inv_ord[ord] <- seq_len(n)
+  grp_sorted <- grp_id[ord]
+  times_sorted <- times[ord]
+
+  # Group boundaries
+  breaks <- which(diff(grp_sorted) != 0L)
+  starts <- c(1L, breaks + 1L)
+  ends <- c(breaks, n)
+
+  for (col in cols) {
+    orig_vals <- df[[col]][ord]
+    filled <- orig_vals
+    sources <- ifelse(is.na(orig_vals), "Gap not filled", "Original")
+
+    for (g in seq_along(starts)) {
+      i1 <- starts[g]
+      i2 <- ends[g]
+      rng <- i1:i2
+      ov <- orig_vals[rng]
+      tv <- times_sorted[rng]
+      m <- length(rng)
+
+      valid <- which(!is.na(ov))
+      if (length(valid) == 0L) next
+      first_v <- valid[1L]
+      last_v <- valid[length(valid)]
+
+      # Carry backward
+      if (first_v > 1L) {
+        na_left <- which(is.na(ov[seq_len(first_v - 1L)]))
+        if (length(na_left) > 0L) {
+          filled[i1 - 1L + na_left] <- ov[first_v]
+          sources[i1 - 1L + na_left] <- "First value carried backwards"
+        }
+      }
+      # Carry forward
+      if (last_v < m) {
+        tail_idx <- (last_v + 1L):m
+        na_right <- tail_idx[is.na(ov[tail_idx])]
+        if (length(na_right) > 0L) {
+          filled[i1 - 1L + na_right] <- ov[last_v]
+          sources[i1 - 1L + na_right] <- "Last value carried forward"
+        }
+      }
+      # Interpolate
+      if (length(valid) >= 2L) {
+        mid_idx <- (first_v + 1L):(last_v - 1L)
+        if (length(mid_idx) > 0L) {
+          na_mid <- mid_idx[is.na(ov[mid_idx])]
+          if (length(na_mid) > 0L) {
+            interp <- .safe_na_approx(ov, x = tv, na.rm = FALSE)
+            if (length(interp) == m) {
+              fill_mask <- na_mid[!is.na(interp[na_mid])]
+              if (length(fill_mask) > 0L) {
+                filled[i1 - 1L + fill_mask] <- interp[fill_mask]
+                sources[i1 - 1L + fill_mask] <- "Linear interpolation"
+              }
+            }
+          }
+        }
+      }
+      # Preserve originals
+      has_orig <- which(!is.na(ov))
+      filled[i1 - 1L + has_orig] <- ov[has_orig]
+      sources[i1 - 1L + has_orig] <- "Original"
+    }
+
+    df[[col]] <- filled[inv_ord]
+    df[[paste0("source_", col)]] <- sources[inv_ord]
+  }
+  df
 }
 
 .apply_filled_shares <- function(df) {
@@ -1385,7 +1411,11 @@ build_processing_coefs <- function(
     proc_result$processed_agg |>
       dplyr::mutate(source = "Processed")
   ) |>
-    dplyr::filter(year %in% years) |>
+    dplyr::filter(
+      year %in% years,
+      !is.na(area),
+      !is.na(element)
+    ) |>
     dplyr::select(
       year,
       area,
@@ -1395,19 +1425,6 @@ build_processing_coefs <- function(
       element,
       source,
       value
-    ) |>
-    dplyr::filter(!is.na(area), !is.na(element)) |>
-    dplyr::summarise(
-      value = mean(value, na.rm = TRUE),
-      source = dplyr::first(source),
-      .by = c(
-        year,
-        area,
-        area_code,
-        item_cbs,
-        item_code_cbs,
-        element
-      )
     )
 }
 
@@ -1671,14 +1688,16 @@ build_processing_coefs <- function(
       ),
       net_bal1 = production + import - export,
       net_bal2 = production + import - export - stock_variation,
-      ds3 = dplyr::case_when(
-        !is.na(domestic_supply) &
-          domestic_supply != 0 ~
-          domestic_supply,
-        !is.na(ds2) & ds2 != 0 ~ ds2,
-        net_bal1 > 0 ~ net_bal1,
-        net_bal2 > 0 ~ net_bal2,
-        TRUE ~ 0
+      ds3 = dplyr::if_else(
+        !is.na(domestic_supply) & domestic_supply != 0,
+        domestic_supply,
+        dplyr::if_else(
+          !is.na(ds2) & ds2 != 0, ds2,
+          dplyr::if_else(
+            net_bal1 > 0, net_bal1,
+            dplyr::if_else(net_bal2 > 0, net_bal2, 0)
+          )
+        )
       ),
       prod_calc = domestic_supply -
         import +
@@ -1717,7 +1736,7 @@ build_processing_coefs <- function(
     "processing_primary"
   )
 
-  cbs_all <- cbs_raw4 |>
+  cbs_tagged <- cbs_raw4 |>
     dplyr::mutate(
       elem_cat = dplyr::if_else(
         element %in% destiny_list,
@@ -1728,40 +1747,88 @@ build_processing_coefs <- function(
     dplyr::left_join(
       items |> dplyr::select(item_cbs, comm_group),
       by = "item_cbs"
+    )
+
+  # Compute sum of destiny values per group — as separate summarise + join
+  # to avoid per-group mapply overhead of grouped mutate with if_else.
+  dest_sums <- cbs_tagged |>
+    dplyr::filter(elem_cat == "destiny") |>
+    dplyr::summarise(
+      sum_dests = sum(value, na.rm = TRUE),
+      .by = c(year, area, area_code, item_cbs, item_code_cbs)
     ) |>
     dplyr::mutate(
-      sum_dests = dplyr::if_else(
-        sum(value, na.rm = TRUE) == 0,
-        NA_real_,
-        sum(value, na.rm = TRUE)
-      ),
-      dest_share = dplyr::case_when(
-        comm_group == "Other processing residues" &
-          element == "feed" ~
-          1,
-        comm_group == "Other processing residues" ~ 0,
-        !is.na(sum_dests) ~ value / sum_dests,
-        TRUE ~ NA_real_
-      ),
-      .by = c(
-        year,
-        area,
-        area_code,
-        item_cbs,
-        item_code_cbs,
-        elem_cat
-      )
+      sum_dests = dplyr::if_else(sum_dests == 0, NA_real_, sum_dests)
+    )
+
+  cbs_tagged <- cbs_tagged |>
+    dplyr::left_join(
+      dest_sums,
+      by = c("year", "area", "area_code", "item_cbs", "item_code_cbs")
     ) |>
-    tidyr::complete(
-      year,
-      tidyr::nesting(
-        area,
-        area_code,
-        item_cbs,
-        item_code_cbs,
-        element,
-        elem_cat
+    dplyr::mutate(
+      dest_share = dplyr::if_else(
+        comm_group == "Other processing residues",
+        dplyr::if_else(element == "feed", 1, 0),
+        dplyr::if_else(
+          !is.na(sum_dests) & elem_cat == "destiny",
+          value / sum_dests,
+          NA_real_
+        )
       )
+    )
+
+  balance <- cbs_tagged |>
+    dplyr::filter(elem_cat == "balance")
+
+  destiny <- cbs_tagged |>
+    dplyr::filter(elem_cat == "destiny")
+
+  # Build a sparse skeleton instead of complete() across all years.
+  # We only need dest_share at years where domestic_supply exists (targets),
+  # plus anchor years with known dest_share for interpolation.
+  # Rows created by complete() for years without domestic_supply always
+  # produce value2 = NA * dest_share = NA -> 0 -> filtered out.
+  ds_keys <- balance |>
+    dplyr::filter(element == "domestic_supply") |>
+    dplyr::distinct(year, area, area_code, item_cbs, item_code_cbs)
+
+  dest_elem <- destiny |>
+    dplyr::distinct(area, area_code, item_cbs, item_code_cbs, element, elem_cat)
+
+  # Target rows: domestic_supply years × destiny elements per (area, item)
+  target_rows <- ds_keys |>
+    dplyr::inner_join(
+      dest_elem,
+      by = c("area", "area_code", "item_cbs", "item_code_cbs"),
+      relationship = "many-to-many"
+    )
+
+  # Anchor rows: years with known dest_share not already in targets
+  anchor_rows <- destiny |>
+    dplyr::filter(!is.na(dest_share)) |>
+    dplyr::select(year, area, area_code, item_cbs, item_code_cbs, element, elem_cat) |>
+    dplyr::anti_join(
+      target_rows,
+      by = c("year", "area", "area_code", "item_cbs", "item_code_cbs", "element")
+    )
+
+  # Combine skeleton and left-join existing destiny data (deduplicated)
+  destiny_join <- destiny |>
+    dplyr::summarise(
+      dest_share = mean(dest_share, na.rm = TRUE),
+      value = sum(value, na.rm = TRUE),
+      source = dplyr::first(source),
+      .by = c(year, area, area_code, item_cbs, item_code_cbs, element)
+    ) |>
+    dplyr::mutate(
+      dest_share = dplyr::if_else(is.nan(dest_share), NA_real_, dest_share)
+    )
+
+  destiny_filled <- dplyr::bind_rows(target_rows, anchor_rows) |>
+    dplyr::left_join(
+      destiny_join,
+      by = c("year", "area", "area_code", "item_cbs", "item_code_cbs", "element")
     ) |>
     fill_linear(
       dest_share,
@@ -1774,7 +1841,9 @@ build_processing_coefs <- function(
         "element",
         "elem_cat"
       )
-    ) |>
+    )
+
+  cbs_all <- dplyr::bind_rows(balance, destiny_filled) |>
     .add_global_destiny_shares() |>
     dplyr::mutate(
       value2 = dplyr::if_else(
@@ -1891,12 +1960,15 @@ build_processing_coefs <- function(
       value_proc != 0
     ) |>
     dplyr::mutate(
-      scaling = dplyr::case_when(
-        is.na(scaling_raw) ~ 1,
-        source_scaling_raw == "Original" ~ scaling_raw,
-        scaling_raw > 5 ~ 5,
-        scaling_raw < 0.2 ~ 0.2,
-        TRUE ~ scaling_raw
+      scaling = dplyr::if_else(
+        is.na(scaling_raw), 1,
+        dplyr::if_else(
+          source_scaling_raw == "Original", scaling_raw,
+          dplyr::if_else(
+            scaling_raw > 5, 5,
+            dplyr::if_else(scaling_raw < 0.2, 0.2, scaling_raw)
+          )
+        )
       ),
       value_final = value_proc * scaling
     )
@@ -1906,23 +1978,25 @@ build_processing_coefs <- function(
     cbs_glob
   )
 
-  cbs_raw5 |>
-    dplyr::bind_rows(
-      processed_new_bal |>
-        dplyr::mutate(source = "Processed_round2")
-    ) |>
-    dplyr::summarise(
-      value = sum(value, na.rm = TRUE),
-      source = dplyr::first(source),
-      .by = c(
-        year,
-        area,
-        area_code,
-        item_cbs,
-        item_code_cbs,
-        element
-      )
-    )
+  join_keys <- c("year", "area", "area_code", "item_cbs", "item_code_cbs", "element")
+
+  # Add processed values to existing rows (keeps original source),
+  # then append genuinely new groups — avoids grouped summarise + first().
+  dplyr::bind_rows(
+    cbs_raw5 |>
+      dplyr::left_join(
+        processed_new_bal |>
+          dplyr::select(dplyr::all_of(join_keys), value_new = value),
+        by = join_keys
+      ) |>
+      dplyr::mutate(
+        value = value + dplyr::coalesce(value_new, 0)
+      ) |>
+      dplyr::select(-value_new),
+    processed_new_bal |>
+      dplyr::anti_join(cbs_raw5, by = join_keys) |>
+      dplyr::mutate(source = "Processed_round2")
+  )
 }
 
 .build_new_processed_balance <- function(
@@ -2105,26 +2179,41 @@ build_processing_coefs <- function(
       )
     )
 
-  cbs_raw6 |>
+  cbs_filtered <- cbs_raw6 |>
     dplyr::filter(!is.na(element)) |>
-    dplyr::select(-dplyr::any_of("source")) |>
-    tidyr::pivot_wider(
-      names_from = element,
-      values_from = value,
-      values_fill = 0,
-      names_sort = TRUE
-    ) |>
-    tidyr::pivot_longer(
-      domestic_supply:dplyr::last_col(),
-      names_to = "element",
-      values_to = "value"
-    ) |>
+    dplyr::select(-dplyr::any_of("source"))
+
+  # Ensure processing and other_uses rows exist for groups that need
+
+  # reclassification, without expensive pivot_wider/pivot_longer roundtrip.
+  reclass_agg <- reclassify_proc |>
+    dplyr::summarise(
+      reclassified_value = sum(reclassified_value, na.rm = TRUE),
+      .by = c(year, area_code, item_code_cbs)
+    )
+
+  needed_keys <- reclass_agg |>
+    dplyr::filter(reclassified_value != 0) |>
+    dplyr::select(year, area_code, item_code_cbs) |>
+    dplyr::inner_join(
+      cbs_filtered |>
+        dplyr::distinct(year, area, area_code, item_cbs, item_code_cbs),
+      by = c("year", "area_code", "item_code_cbs")
+    )
+
+  for (elem in c("processing", "other_uses")) {
+    missing <- needed_keys |>
+      dplyr::anti_join(
+        cbs_filtered |> dplyr::filter(element == elem),
+        by = c("year", "area_code", "item_code_cbs")
+      ) |>
+      dplyr::mutate(element = elem, value = 0)
+    cbs_filtered <- dplyr::bind_rows(cbs_filtered, missing)
+  }
+
+  cbs_filtered |>
     dplyr::left_join(
-      reclassify_proc |>
-        dplyr::summarise(
-          reclassified_value = sum(reclassified_value, na.rm = TRUE),
-          .by = c(year, area_code, item_code_cbs)
-        ),
+      reclass_agg,
       by = c("year", "area_code", "item_code_cbs")
     ) |>
     dplyr::mutate(
@@ -2132,10 +2221,11 @@ build_processing_coefs <- function(
         reclassified_value,
         0
       ),
-      value2 = dplyr::case_when(
-        element == "processing" ~ value - reclassified_value,
-        element == "other_uses" ~ value + reclassified_value,
-        TRUE ~ value
+      value2 = dplyr::if_else(
+        element == "processing", value - reclassified_value,
+        dplyr::if_else(
+          element == "other_uses", value + reclassified_value, value
+        )
       )
     ) |>
     dplyr::filter(value2 != 0, area != "") |>

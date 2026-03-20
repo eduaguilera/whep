@@ -11,20 +11,27 @@
 # -- FAOSTAT extraction --------------------------------------------------------
 
 .harmonize_element_names <- function(df) {
+  lookup <- c(
+    "Domestic supply quantity" = "domestic_supply",
+    "Stock Variation" = "stock_variation",
+    "Other uses (non-food)" = "other_uses",
+    "Other uses" = "other_uses",
+    "Food supply quantity (tonnes)" = "food",
+    "Food" = "food",
+    "Import Quantity" = "import",
+    "Import quantity" = "import",
+    "Export Quantity" = "export",
+    "Export quantity" = "export",
+    "Feed" = "feed",
+    "Seed" = "seed",
+    "Processing" = "processing",
+    "Production" = "production"
+  )
   df |>
     dplyr::mutate(
-      element = dplyr::case_when(
-        element == "Domestic supply quantity" ~ "domestic_supply",
-        element == "Stock Variation" ~ "stock_variation",
-        element %in% c("Other uses (non-food)", "Other uses") ~ "other_uses",
-        element %in% c("Food supply quantity (tonnes)", "Food") ~ "food",
-        element %in% c("Import Quantity", "Import quantity") ~ "import",
-        element %in% c("Export Quantity", "Export quantity") ~ "export",
-        element == "Feed" ~ "feed",
-        element == "Seed" ~ "seed",
-        element == "Processing" ~ "processing",
-        element == "Production" ~ "production",
-        .default = element
+      element = dplyr::coalesce(
+        unname(lookup[element]),
+        element
       )
     )
 }
@@ -37,10 +44,9 @@
         value * 1000,
         value
       ),
-      unit = dplyr::case_when(
-        unit %in% c("1000 tonnes", "1000 t") ~ "tonnes",
-        unit == "1000 US$" ~ "kdollars",
-        .default = as.character(unit)
+      unit = dplyr::if_else(
+        unit %in% c("1000 tonnes", "1000 t"), "tonnes",
+        dplyr::if_else(unit == "1000 US$", "kdollars", as.character(unit))
       )
     )
 }
@@ -48,10 +54,9 @@
 .fix_item_codes <- function(df) {
   df |>
     dplyr::mutate(
-      item_code_cbs = dplyr::case_when(
-        item_code_cbs == 2804 ~ 2807L,
-        item_code_cbs == 2820 ~ 2552L,
-        TRUE ~ item_code_cbs
+      item_code_cbs = dplyr::if_else(
+        item_code_cbs == 2804L, 2807L,
+        dplyr::if_else(item_code_cbs == 2820L, 2552L, item_code_cbs)
       )
     )
 }
@@ -197,15 +202,18 @@
     ) |>
     dplyr::select(-item_code_cbs) |>
     dplyr::mutate(
-      scaling = dplyr::case_when(
-        is.na(scaling_raw) &
-          (!is.na(required) | item_cbs %in% no_data_products) ~
-          1,
-        is.na(scaling_raw) ~ 0,
-        source_scaling_raw == "Original" ~ scaling_raw,
-        scaling_raw > 5 ~ 5,
-        scaling_raw < 0.2 ~ 0.2,
-        TRUE ~ scaling_raw
+      scaling = dplyr::if_else(
+        is.na(scaling_raw),
+        dplyr::if_else(
+          !is.na(required) | item_cbs %in% no_data_products, 1, 0
+        ),
+        dplyr::if_else(
+          source_scaling_raw == "Original", scaling_raw,
+          dplyr::if_else(
+            scaling_raw > 5, 5,
+            dplyr::if_else(scaling_raw < 0.2, 0.2, scaling_raw)
+          )
+        )
       ),
       value_final = value_proc * scaling
     )
