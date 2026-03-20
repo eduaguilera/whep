@@ -1574,14 +1574,9 @@ build_processing_coefs <- function(
 .cbs_impute_trade <- function(cbs_raw3) {
   # Save source provenance before pivot cycle
   src_lookup <- cbs_raw3 |>
-    dplyr::select(
-      year,
-      area_code,
-      item_code_cbs,
-      element,
-      source
-    ) |>
-    dplyr::distinct()
+    dplyr::distinct(year, area_code, item_code_cbs, element,
+                    .keep_all = TRUE) |>
+    dplyr::select(year, area_code, item_code_cbs, element, source)
 
   destiny_list <- c(
     "food",
@@ -2046,14 +2041,9 @@ build_processing_coefs <- function(
 ) {
   # Save source provenance before pivot cycle
   src_lookup <- cbs_raw6 |>
-    dplyr::select(
-      year,
-      area_code,
-      item_code_cbs,
-      element,
-      source
-    ) |>
-    dplyr::distinct()
+    dplyr::distinct(year, area_code, item_code_cbs, element,
+                    .keep_all = TRUE) |>
+    dplyr::select(year, area_code, item_code_cbs, element, source)
 
   proc_scaling <- cbs_raw6 |>
     .processed_raw(cb_processing_glo) |>
@@ -2206,14 +2196,9 @@ build_processing_coefs <- function(
 
   # Save source provenance before test_cbs pivot cycles
   src_lookup <- cbs_raw7 |>
-    dplyr::select(
-      year,
-      area_code,
-      item_code_cbs,
-      element,
-      source
-    ) |>
-    dplyr::distinct()
+    dplyr::distinct(year, area_code, item_code_cbs, element,
+                    .keep_all = TRUE) |>
+    dplyr::select(year, area_code, item_code_cbs, element, source)
 
   cbs_raw8 <- cbs_raw7 |>
     dplyr::filter(year %in% years) |>

@@ -79,9 +79,14 @@ fill_linear <- function(
       ) |>
       dplyr::filter(n > 1)
     if (nrow(dups) > 0) {
+      caller <- tryCatch(
+        deparse(sys.call(sys.parent(1L))),
+        error = function(e) "unknown"
+      )
       cli::cli_warn(
         "Duplicate {time_col_name} values found within groups. \\
-        {nrow(dups)} group/time combination(s) have more than one row."
+        {nrow(dups)} group/time combination(s) have more than one row. \\
+        [called from: {caller}]"
       )
     }
   }

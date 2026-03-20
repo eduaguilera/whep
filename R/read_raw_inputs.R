@@ -198,7 +198,7 @@
     fill_linear(
       scaling_raw,
       time_col = year,
-      .by = c("area", "area_code", "item_cbs")
+      .by = c("area", "area_code", "item_cbs", "element")
     ) |>
     dplyr::select(-item_code_cbs) |>
     dplyr::mutate(
