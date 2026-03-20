@@ -449,6 +449,7 @@ build_processing_coefs <- function(
     ) |>
     dplyr::left_join(
       regions |>
+        dplyr::distinct(iso3c, .keep_all = TRUE) |>
         dplyr::select(
           iso3c,
           area = polity_name,
@@ -1373,7 +1374,8 @@ build_processing_coefs <- function(
     dplyr::left_join(
       processed_agg_glo |>
         dplyr::select(year, item_cbs, scaling),
-      by = "item_cbs"
+      by = "item_cbs",
+      relationship = "many-to-many"
     ) |>
     dplyr::mutate(
       Product_fraction = Product_fraction * scaling
@@ -1436,14 +1438,9 @@ build_processing_coefs <- function(
 ) {
   # Save source provenance before internal processing
   src_lookup <- cbs_raw2 |>
-    dplyr::select(
-      year,
-      area_code,
-      item_code_cbs,
-      element,
-      source
-    ) |>
-    dplyr::distinct()
+    dplyr::distinct(year, area_code, item_code_cbs, element,
+                    .keep_all = TRUE) |>
+    dplyr::select(year, area_code, item_code_cbs, element, source)
   cbs_raw2 <- cbs_raw2 |>
     dplyr::select(-dplyr::any_of("source"))
 
