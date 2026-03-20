@@ -40,7 +40,7 @@
       unit = dplyr::case_when(
         unit %in% c("1000 tonnes", "1000 t") ~ "tonnes",
         unit == "1000 US$" ~ "kdollars",
-        TRUE ~ unit
+        .default = as.character(unit)
       )
     )
 }
@@ -137,23 +137,31 @@
 # -- Processing helpers (from comdat_global) -----------------------------------
 
 .processed_raw <- function(df, cb_processing_eq) {
+  rhs <- cb_processing_eq |>
+    dplyr::rename(processed_item = ProcessedItem) |>
+    dplyr::select(-Value_fraction) |>
+    dplyr::filter(!is.na(Product_fraction))
+
+  join_keys <- "processed_item"
+  if ("year" %in% names(rhs)) {
+    join_keys <- c(join_keys, "year")
+  }
+
   df |>
     dplyr::rename(processed_item = item_cbs) |>
     dplyr::filter(element == "processing") |>
-    dplyr::inner_join(
-      cb_processing_eq |>
-        dplyr::rename(processed_item = ProcessedItem) |>
-        dplyr::select(-Value_fraction) |>
-        dplyr::filter(!is.na(Product_fraction)),
-      by = c("processed_item", "year")
-    ) |>
+    dplyr::inner_join(rhs, by = join_keys) |>
     dplyr::mutate(
       value_proc = value * Product_fraction,
       element = "production"
     )
 }
 
-.correct_processed <- function(processed_df, cbs) {
+.correct_processed <- function(
+  processed_df,
+  cbs,
+  no_data_products = character()
+) {
   cb_proc <- whep::cb_processing
 
   processed_df |>
@@ -170,7 +178,10 @@
         dplyr::filter(required > 0),
       by = "item_cbs"
     ) |>
-    dplyr::left_join(cbs, by = c("area", "area_code", "year", "item_cbs")) |>
+    dplyr::left_join(
+      cbs,
+      by = c("area", "area_code", "year", "item_cbs", "element")
+    ) |>
     dplyr::mutate(
       scaling_raw = value / value_proc,
       scaling_raw = dplyr::if_else(

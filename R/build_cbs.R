@@ -82,6 +82,7 @@ read_cbs <- function(
   years <- 1850:max_year
 
   # 1. Read inputs
+  cli::cli_progress_step("Reading CBS inputs")
   inputs <- .cbs_read_inputs(
     primary_all,
     years,
@@ -89,9 +90,11 @@ read_cbs <- function(
   )
 
   # 2. Build first raw CBS (combine sources, select best)
+  cli::cli_progress_step("Combining CBS sources")
   cbs_raw0 <- .cbs_combine_sources(inputs)
 
   # 3. Historical extension
+  cli::cli_progress_step("Extending CBS historical series")
   cbs_raw <- .cbs_extend_historical(
     cbs_raw0,
     inputs,
@@ -139,9 +142,11 @@ fix_cbs <- function(df) {
   attr(cbs_raw, ".years") <- NULL
 
   # 4. Processing coefficients (global calibration)
+  cli::cli_progress_step("Calibrating processing coefficients")
   proc_result <- .cbs_calibrate_processing(cbs_raw)
 
   # 5. Re-estimate processed products
+  cli::cli_progress_step("Adding processed products")
   cbs_raw2 <- .cbs_add_processed(
     cbs_raw,
     proc_result,
@@ -149,30 +154,36 @@ fix_cbs <- function(df) {
   )
 
   # 6. Redistribute non-processed items
+  cli::cli_progress_step("Redistributing non-processed items")
   cbs_raw3 <- .cbs_redistribute_notprocessed(
     cbs_raw2,
     proc_result$processd_raw
   )
 
   # 7. Impute trade and domestic supply
+  cli::cli_progress_step("Imputing trade and domestic supply")
   cbs_raw4 <- .cbs_impute_trade(cbs_raw3)
 
   # 8. Fill destiny gaps
+  cli::cli_progress_step("Filling destiny gaps")
   cbs_raw5 <- .cbs_fill_destinies(cbs_raw4)
 
   # 9. Second round of processed products
+  cli::cli_progress_step("Second round of processed products")
   cbs_raw6 <- .cbs_second_processed_round(
     cbs_raw5,
     proc_result
   )
 
   # 10. Reclassify processing
+  cli::cli_progress_step("Reclassifying processing")
   cbs_raw7 <- .cbs_reclassify_processing(
     cbs_raw6,
     proc_result$cb_processing_glo
   )
 
   # 11. Final balancing
+  cli::cli_progress_step("Final balancing")
   .cbs_final_balance(cbs_raw7, years)
 }
 
@@ -369,7 +380,8 @@ build_processing_coefs <- function(
   gdp_pop <- whep_read_file(
     "gdp-population",
     version = version
-  )
+  ) |>
+    dplyr::rename(year = Year)
 
   # Primary production as CBS
   primary_cbs <- .primary_to_cbs(primary_all)
@@ -558,8 +570,12 @@ build_processing_coefs <- function(
     dplyr::filter(!is.na(item_cbs)) |>
     dplyr::left_join(
       items_prod |>
-        dplyr::select(item_cbs, item_code_cbs),
+        dplyr::distinct(item_cbs, item_code_cbs),
       by = "item_cbs"
+    ) |>
+    dplyr::summarise(
+      value = sum(value, na.rm = TRUE),
+      .by = c(year, area, area_code, item_cbs, item_code_cbs, element)
     )
 }
 
@@ -1252,7 +1268,8 @@ build_processing_coefs <- function(
 
   processed_agg <- .correct_processed(
     processd_raw,
-    cbs_raw
+    cbs_raw,
+    no_data_products = no_data_products
   ) |>
     dplyr::select(
       year,
@@ -1330,7 +1347,7 @@ build_processing_coefs <- function(
     dplyr::left_join(
       processed_agg_glo |>
         dplyr::select(year, item_cbs, scaling),
-      by = c("item_cbs", "year")
+      by = "item_cbs"
     ) |>
     dplyr::mutate(
       Product_fraction = Product_fraction * scaling
@@ -1518,7 +1535,7 @@ build_processing_coefs <- function(
     ok |> dplyr::select(-has_np),
     fixed
   ) |>
-    dplyr::select(-dplyr::any_of("has_np")) |>
+    dplyr::select(-dplyr::any_of(c("has_np", "item_code_cbs"))) |>
     dplyr::left_join(
       dplyr::distinct(
         cbs_raw2,
@@ -1854,7 +1871,8 @@ build_processing_coefs <- function(
 
   processed_agg_raw2 <- .correct_processed(
     processd_raw2,
-    cbs_raw5
+    cbs_raw5,
+    no_data_products = proc_result$no_data_products
   ) |>
     dplyr::left_join(
       proc_result$processed_agg |>
@@ -2103,11 +2121,9 @@ build_processing_coefs <- function(
     ) |>
     dplyr::left_join(
       reclassify_proc |>
-        dplyr::select(
-          year,
-          area_code,
-          item_code_cbs,
-          reclassified_value
+        dplyr::summarise(
+          reclassified_value = sum(reclassified_value, na.rm = TRUE),
+          .by = c(year, area_code, item_code_cbs)
         ),
       by = c("year", "area_code", "item_code_cbs")
     ) |>

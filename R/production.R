@@ -89,13 +89,13 @@ get_primary_production <- function(example = FALSE) {
 #'
 #' @examples
 #' get_primary_residues(example = TRUE)
-get_primary_residues <- function(example = FALSE) {
+get_primary_residues <- function(example = FALSE, version = NULL) {
   if (example) {
     return(.example_get_primary_residues())
   }
 
   "crop_residues" |>
-    whep_read_file() |>
+    whep_read_file(version = version) |>
     dplyr::rename_with(tolower) |>
     dplyr::filter(product_residue == "Residue") |>
     add_area_code(name_column = "area") |>
