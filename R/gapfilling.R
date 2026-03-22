@@ -947,7 +947,7 @@ fill_proxy_growth <- function(
 }
 
 
-# --- 3. Filling Logic ---
+# --- 3. Filling Logic (Vectorized) ---
 
 .fg_apply_hierarchical_filling <- function(
   data,
@@ -964,15 +964,29 @@ fill_proxy_growth <- function(
     message("Step 2: Applying hierarchical filling...")
   }
 
-  # Pre-calculate spec names for bridge fallback
+  by_cols <- .by %||% character(0)
   specs <- lapply(proxy_cols, function(p) {
     .parse_proxy_spec(p, data, value_col, .by, FALSE)$spec_name
   })
 
+  # Save original order, sort by group + time
+  data$.orig_order <- seq_len(nrow(data))
+  sort_cols <- unique(c(by_cols, time_col))
+  data <- data |>
+    dplyr::arrange(dplyr::across(dplyr::all_of(sort_cols)))
+
+  # Compute run structure from raw_missing (static across all levels)
+  data <- .fg_add_run_info(data, cols$raw_missing, by_cols)
+
+  # Gap eligibility (run length within max_gap)
+  if (is.null(max_gap) || is.infinite(max_gap)) {
+    gap_ok <- rep(TRUE, nrow(data))
+  } else {
+    gap_ok <- !data$.run_is_na | data$.run_len <= max_gap
+  }
+
   for (i in seq_along(proxy_cols)) {
-    if (!anyNA(data[[value_col]])) {
-      break
-    }
+    if (!anyNA(data[[value_col]])) break
 
     spec_name <- specs[[i]]
     g_col <- paste0("growth_", i, "_", spec_name)
@@ -982,331 +996,348 @@ fill_proxy_growth <- function(
       message("  Applying proxy level ", i, ": ", proxy_cols[i])
     }
 
-    # Define filling function wrapper
-    fill_fun <- function(df) {
-      .fg_fill_sequence(
-        df,
-        g_col,
-        m_name,
-        value_col,
-        cols$source,
-        cols$raw_missing,
-        max_gap,
-        max_gap_lin,
-        time_col,
-        i,
-        specs
-      )
-    }
+    # Direction fill: skip internal runs exceeding max_gap_lin
+    dir_ok <- gap_ok & data$.run_is_na &
+      !(data$.run_internal & data$.run_len > max_gap_lin)
 
-    if (!is.null(.by)) {
-      data <- data |>
-        dplyr::group_by(dplyr::across(dplyr::all_of(.by))) |>
-        dplyr::group_modify(~ fill_fun(.x)) |>
-        dplyr::ungroup()
-    } else {
-      data <- fill_fun(data)
-    }
+    data <- .fg_fill_forward_vec(
+      data, value_col, g_col, cols$source, m_name, dir_ok, by_cols
+    )
+    data <- .fg_fill_backward_vec(
+      data, value_col, g_col, cols$source, paste0(m_name, "_back"),
+      dir_ok, by_cols
+    )
+
+    # Bridge linear: internal, small gaps
+    lin_ok <- gap_ok & data$.run_is_na & data$.run_internal &
+      data$.run_len <= max_gap_lin
+    data <- .fg_fill_bridge_linear_vec(
+      data, value_col, cols$source, time_col, lin_ok, by_cols
+    )
+
+    # Bridge geometric: internal, larger gaps
+    geo_ok <- gap_ok & data$.run_is_na & data$.run_internal &
+      data$.run_len > max_gap_lin
+    data <- .fg_fill_bridge_geo_vec(
+      data, value_col, g_col, cols$source, i, specs, m_name,
+      geo_ok, by_cols
+    )
   }
+
+  # Clean up and restore original order
+  data <- data[order(data$.orig_order), , drop = FALSE]
+  data$.run_id <- NULL
+  data$.run_len <- NULL
+  data$.run_is_na <- NULL
+  data$.run_internal <- NULL
+  data$.orig_order <- NULL
   data
 }
 
-.fg_fill_sequence <- function(
-  df,
-  growth_col,
-  method_name,
-  val_col,
-  met_col,
-  miss_col,
-  max_gap,
-  max_lin,
-  time_col,
-  level,
-  all_specs
-) {
-  # Ensure Order
-  df <- df[order(df[[time_col]]), , drop = FALSE]
-
-  # 1. Identify Valid NA Runs (gaps that are allowed to be filled)
-  na_runs <- .fg_identify_na_runs(df[[miss_col]])
-
-  # 2. Forward Fill
-  df <- .fg_fill_direction(
-    df,
-    "forward",
-    val_col,
-    growth_col,
-    met_col,
-    method_name,
-    na_runs,
-    max_gap,
-    max_lin
-  )
-
-  # 3. Backward Fill
-  df <- .fg_fill_direction(
-    df,
-    "backward",
-    val_col,
-    growth_col,
-    met_col,
-    paste0(method_name, "_back"),
-    na_runs,
-    max_gap,
-    max_lin
-  )
-
-  # 4. Bridge Fill (Linear + Geometric)
-  df <- .fg_fill_bridge(
-    df,
-    val_col,
-    growth_col,
-    met_col,
-    miss_col,
-    time_col,
-    na_runs,
-    max_gap,
-    max_lin,
-    level,
-    all_specs,
-    method_name
-  )
-
-  df
-}
-
-.fg_identify_na_runs <- function(missing_vec) {
-  if (is.null(missing_vec)) {
-    return(list())
-  }
-
-  # Convert to boolean, treating existing NAs as missing
-  is_miss <- missing_vec
+.fg_add_run_info <- function(data, miss_col, by_cols) {
+  is_miss <- data[[miss_col]]
   is_miss[is.na(is_miss)] <- TRUE
+  data$.is_miss_tmp <- is_miss
 
-  rle_res <- rle(is_miss)
-  ends <- cumsum(rle_res$lengths)
-  starts <- c(1, ends[-length(ends)] + 1)
-
-  runs <- list()
-  for (i in seq_along(rle_res$values)) {
-    if (rle_res$values[i]) {
-      # Check if "internal" (surrounded by data, not at ends of series)
-      is_internal <- (starts[i] > 1) &&
-        (ends[i] < length(missing_vec)) &&
-        (!isTRUE(missing_vec[starts[i] - 1])) &&
-        (!isTRUE(missing_vec[ends[i] + 1]))
-
-      runs[[length(runs) + 1]] <- list(
-        start = starts[i],
-        end = ends[i],
-        len = rle_res$lengths[i],
-        internal = is_internal
+  if (length(by_cols) > 0) {
+    data <- data |>
+      dplyr::mutate(
+        .grp_pos = dplyr::row_number(),
+        .grp_n = dplyr::n(),
+        .run_change = .is_miss_tmp !=
+          dplyr::lag(.is_miss_tmp, default = !.is_miss_tmp[1]),
+        .by = dplyr::all_of(by_cols)
       )
-    }
+  } else {
+    n <- nrow(data)
+    data$.grp_pos <- seq_len(n)
+    data$.grp_n <- n
+    data$.run_change <- c(TRUE, diff(is_miss) != 0)
   }
-  runs
+
+  data$.run_id <- cumsum(data$.run_change)
+
+  run_meta <- data |>
+    dplyr::summarise(
+      .run_len = dplyr::n(),
+      .run_is_na = .is_miss_tmp[1],
+      .run_internal = .is_miss_tmp[1] &
+        .grp_pos[1] > 1L & .grp_pos[dplyr::n()] < .grp_n[1],
+      .by = dplyr::all_of(".run_id")
+    )
+
+  data <- dplyr::left_join(data, run_meta, by = ".run_id")
+
+  data$.is_miss_tmp <- NULL
+  data$.run_change <- NULL
+  data$.grp_pos <- NULL
+  data$.grp_n <- NULL
+  data
 }
 
-.fg_fill_direction <- function(
-  df,
-  direction,
-  v_col,
-  g_col,
-  m_col,
-  m_name,
-  runs,
-  max_gap,
-  max_lin
+.fg_fill_forward_vec <- function(
+  data, val_col, g_col, met_col, m_name, eligible, by_cols
 ) {
-  vals <- df[[v_col]]
-  grw <- df[[g_col]]
-  mets <- df[[m_col]]
-  n <- length(vals)
+  vals <- data[[val_col]]
+  growth <- data[[g_col]]
+  mets <- data[[met_col]]
 
-  if (n < 2L) {
-    return(df)
-  }
-
-  # Pre-compute valid fill indices from runs (avoid nested loop)
-  fill_idx <- integer(0L)
-  for (r in runs) {
-    skip <- (!is.null(max_gap) && r$len > max_gap) ||
-      (!is.null(max_lin) && r$internal && r$len > max_lin)
-    if (!skip) {
-      fill_idx <- c(fill_idx, r$start:r$end)
-    }
-  }
-
-  if (length(fill_idx) == 0L) {
-    return(df)
-  }
+  target <- is.na(vals) & eligible
+  if (!any(target)) return(data)
 
   is_missing <- !is.na(mets) & mets == "missing"
 
-  if (direction == "forward") {
-    fill_idx <- sort(fill_idx[fill_idx > 1L])
-    for (i in fill_idx) {
-      if (!is.na(vals[i])) next
-      prev <- vals[i - 1L]
-      g <- grw[i]
-      if (!is.na(prev) && prev > 0 && !is.na(g)) {
-        vals[i] <- prev * (1 + g)
-        if (is_missing[i]) mets[i] <- m_name
-      }
-    }
+  # Forward anchor: last non-NA value within group
+  anchor_raw <- ifelse(is.na(vals), NA_real_, vals)
+  if (length(by_cols) > 0) {
+    data$.anchor_tmp <- anchor_raw
+    data <- data |>
+      dplyr::mutate(
+        .anchor_tmp = zoo::na.locf(.anchor_tmp, na.rm = FALSE),
+        .by = dplyr::all_of(by_cols)
+      )
+    anchor <- data$.anchor_tmp
+    data$.anchor_tmp <- NULL
   } else {
-    fill_idx <- sort(fill_idx[fill_idx < n], decreasing = TRUE)
-    for (i in fill_idx) {
-      if (!is.na(vals[i])) next
-      nxt <- vals[i + 1L]
-      nxt_g <- grw[i + 1L]
-      if (!is.na(nxt) && !is.na(nxt_g) && (1 + nxt_g) != 0) {
-        res <- nxt / (1 + nxt_g)
-        if (is.finite(res) && res > 0) {
-          vals[i] <- res
-          if (is_missing[i]) mets[i] <- m_name
-        }
-      }
-    }
+    anchor <- zoo::na.locf(anchor_raw, na.rm = FALSE)
   }
-  df[[v_col]] <- vals
-  df[[m_col]] <- mets
-  df
+
+  # Segments: consecutive target positions, respecting run boundaries
+  seg_change <- c(TRUE, diff(target) != 0 | diff(data$.run_id) != 0)
+  seg_id <- cumsum(seg_change)
+
+  # Growth factor and cumulative product per segment
+  g_factor <- ifelse(is.na(growth), NA_real_, 1 + growth)
+  filled <- ave(g_factor, seg_id, FUN = cumprod) * anchor
+
+  # Validity: anchor > 0, result finite
+  valid <- target & !is.na(anchor) & anchor > 0 &
+    !is.na(filled) & is.finite(filled)
+  valid <- as.logical(ave(as.numeric(valid), seg_id, FUN = cummin)) & target
+
+  vals[valid] <- filled[valid]
+  mets[valid & is_missing] <- m_name
+
+  data[[val_col]] <- vals
+  data[[met_col]] <- mets
+  data
 }
 
-.fg_fill_bridge <- function(
-  df,
-  v_col,
-  g_col,
-  m_col,
-  miss_col,
-  t_col,
-  runs,
-  max_gap,
-  max_lin,
-  level,
-  specs,
-  base_method
+.fg_fill_backward_vec <- function(
+  data, val_col, g_col, met_col, m_name, eligible, by_cols
 ) {
-  # Only process internal gaps (bridges)
-  bridges <- Filter(function(x) x$internal, runs)
+  vals <- data[[val_col]]
+  growth <- data[[g_col]]
+  mets <- data[[met_col]]
 
-  for (run in bridges) {
-    if (!is.null(max_gap) && run$len > max_gap) {
-      next
-    }
+  target <- is.na(vals) & eligible
+  if (!any(target)) return(data)
 
-    # 1. Linear Interpolation (Small Gaps)
-    if (run$len <= max_lin) {
-      df <- .fg_bridge_linear(df, run, v_col, m_col, t_col)
-      next
-    }
+  is_missing <- !is.na(mets) & mets == "missing"
 
-    # 2. Geometric Bridge (Large Gaps with Lambda)
-    df <- .fg_bridge_geometric(
-      df,
-      run,
-      v_col,
-      g_col,
-      m_col,
-      level,
-      specs,
-      base_method
-    )
+  # Backward anchor: next non-NA value within group
+  anchor_raw <- ifelse(is.na(vals), NA_real_, vals)
+  if (length(by_cols) > 0) {
+    data$.anchor_tmp <- anchor_raw
+    data$.g_tmp <- growth
+    data <- data |>
+      dplyr::mutate(
+        .anchor_tmp = zoo::na.locf(.anchor_tmp, na.rm = FALSE, fromLast = TRUE),
+        .g_shifted = dplyr::lead(.g_tmp),
+        .by = dplyr::all_of(by_cols)
+      )
+    anchor <- data$.anchor_tmp
+    g_shifted <- data$.g_shifted
+    data$.anchor_tmp <- NULL
+    data$.g_tmp <- NULL
+    data$.g_shifted <- NULL
+  } else {
+    anchor <- zoo::na.locf(anchor_raw, na.rm = FALSE, fromLast = TRUE)
+    g_shifted <- c(growth[-1], NA_real_)
   }
-  df
+
+  # Segments: consecutive target positions, respecting run boundaries
+  seg_change <- c(TRUE, diff(target) != 0 | diff(data$.run_id) != 0)
+  seg_id <- cumsum(seg_change)
+
+  # Reverse cumprod within each segment
+  g_factor <- ifelse(is.na(g_shifted), NA_real_, 1 + g_shifted)
+  rev_cp <- ave(g_factor, seg_id, FUN = function(x) rev(cumprod(rev(x))))
+  filled <- anchor / rev_cp
+
+  # Validity: result must be finite and > 0
+  valid <- target & !is.na(filled) & is.finite(filled) & filled > 0
+  valid <- as.logical(
+    ave(as.numeric(valid), seg_id, FUN = function(x) rev(cummin(rev(x))))
+  ) & target
+
+  vals[valid] <- filled[valid]
+  mets[valid & is_missing] <- m_name
+
+  data[[val_col]] <- vals
+  data[[met_col]] <- mets
+  data
 }
 
-.fg_bridge_linear <- function(df, run, v_col, m_col, t_col) {
-  # Indices
-  idx_start <- run$start - 1
-  idx_end <- run$end + 1
-  idx_gap <- run$start:run$end
-
-  v0 <- df[[v_col]][idx_start]
-  v1 <- df[[v_col]][idx_end]
-
-  if (is.finite(v0) && is.finite(v1) && v0 > 0 && v1 > 0) {
-    approx_vals <- stats::approx(
-      x = c(df[[t_col]][idx_start], df[[t_col]][idx_end]),
-      y = c(v0, v1),
-      xout = df[[t_col]][idx_gap]
-    )$y
-
-    df[[v_col]][idx_gap] <- approx_vals
-    df[[m_col]][idx_gap] <- "linear_interp"
-  }
-  df
-}
-
-.fg_bridge_geometric <- function(
-  df,
-  run,
-  v_col,
-  g_col,
-  m_col,
-  level,
-  specs,
-  base_method
+.fg_fill_bridge_linear_vec <- function(
+  data, val_col, met_col, time_col, eligible, by_cols
 ) {
-  idx_start <- run$start - 1
-  idx_end <- run$end + 1
-  idx_seq <- (idx_start + 1):idx_end # Growth rates needed for these positions
+  vals <- data[[val_col]]
+  mets <- data[[met_col]]
+  if (!any(eligible)) return(data)
 
-  # Combine growth rates from hierarchy (Step 1-current)
-  combined <- .fg_combine_growth_hierarchy(df, idx_seq, level, specs)
-  rates <- combined$rates
-  sources <- combined$sources
-
-  # Lambda Adjustment
-  v_start <- df[[v_col]][idx_start]
-  v_end <- df[[v_col]][idx_end]
-
-  pred_end <- v_start * prod(1 + rates)
-
-  if (is.finite(pred_end) && pred_end > 0 && is.finite(v_end) && v_end > 0) {
-    lambda <- (v_end / pred_end)^(1 / length(rates))
-
-    curr_val <- v_start
-    # Iterate and fill
-    for (k in seq_along(rates)) {
-      target_idx <- idx_start + k
-      curr_val <- curr_val * (1 + rates[k]) * lambda
-
-      # Only overwrite if it's strictly inside the gap (not the end anchor)
-      if (target_idx < idx_end) {
-        df[[v_col]][target_idx] <- curr_val
-        src <- sources[k]
-        if (is.na(src)) {
-          src <- base_method
-        }
-        df[[m_col]][target_idx] <- paste0("growth_", src, "_bridge")
-      }
-    }
+  # Anchors: value and time before/after each position
+  if (length(by_cols) > 0) {
+    data <- data |>
+      dplyr::mutate(
+        .v_bef = dplyr::lag(.data[[val_col]]),
+        .v_aft = dplyr::lead(.data[[val_col]]),
+        .t_bef = dplyr::lag(.data[[time_col]]),
+        .t_aft = dplyr::lead(.data[[time_col]]),
+        .by = dplyr::all_of(by_cols)
+      )
+  } else {
+    n <- length(vals)
+    times <- data[[time_col]]
+    data$.v_bef <- c(NA_real_, vals[-n])
+    data$.v_aft <- c(vals[-1], NA_real_)
+    data$.t_bef <- c(NA_real_, times[-n])
+    data$.t_aft <- c(times[-1], NA_real_)
   }
-  df
+
+  # Run-level anchor summary
+  run_anchors <- data |>
+    dplyr::filter(eligible) |>
+    dplyr::summarise(
+      .v0 = dplyr::first(.v_bef),
+      .v1 = dplyr::last(.v_aft),
+      .t0 = dplyr::first(.t_bef),
+      .t1 = dplyr::last(.t_aft),
+      .by = dplyr::all_of(".run_id")
+    ) |>
+    dplyr::filter(is.finite(.v0) & .v0 > 0 & is.finite(.v1) & .v1 > 0)
+
+  if (nrow(run_anchors) > 0) {
+    data <- dplyr::left_join(data, run_anchors, by = ".run_id")
+    interp <- data$.v0 + (data$.v1 - data$.v0) *
+      (data[[time_col]] - data$.t0) / (data$.t1 - data$.t0)
+    fill_mask <- eligible & data$.run_id %in% run_anchors$.run_id &
+      !is.na(interp)
+    vals[fill_mask] <- interp[fill_mask]
+    mets[fill_mask] <- "linear_interp"
+    data$.v0 <- NULL
+    data$.v1 <- NULL
+    data$.t0 <- NULL
+    data$.t1 <- NULL
+  }
+
+  data$.v_bef <- NULL
+  data$.v_aft <- NULL
+  data$.t_bef <- NULL
+  data$.t_aft <- NULL
+  data[[val_col]] <- vals
+  data[[met_col]] <- mets
+  data
 }
 
-.fg_combine_growth_hierarchy <- function(df, indices, level, specs) {
-  # Default to current level
-  rates <- df[[paste0("growth_", level, "_", specs[[level]])]][indices]
-  sources <- rep(specs[[level]], length(indices))
+.fg_fill_bridge_geo_vec <- function(
+  data, val_col, g_col, met_col, level, specs, base_method,
+  eligible, by_cols
+) {
+  vals <- data[[val_col]]
+  mets <- data[[met_col]]
+  if (!any(eligible)) return(data)
 
-  # Overwrite with better (lower index) proxies if available
+  # Combine growth rates from hierarchy (best proxy first via coalesce)
+  combined <- data[[paste0("growth_", level, "_", specs[[level]])]]
+  combined_src <- rep(specs[[level]], nrow(data))
   if (level > 1) {
-    for (l in 1:(level - 1)) {
-      col <- paste0("growth_", l, "_", specs[[l]])
-      if (col %in% names(df)) {
-        better_rates <- df[[col]][indices]
-        # Take if available
-        mask <- !is.na(better_rates)
-        rates[mask] <- better_rates[mask]
-        sources[mask] <- specs[[l]]
+    for (l in seq_len(level - 1)) {
+      g_name <- paste0("growth_", l, "_", specs[[l]])
+      if (g_name %in% names(data)) {
+        better <- data[[g_name]]
+        mask <- !is.na(better)
+        combined[mask] <- better[mask]
+        combined_src[mask] <- specs[[l]]
       }
     }
   }
-  list(rates = rates, sources = sources)
+
+  # Anchors and lead growth
+  if (length(by_cols) > 0) {
+    data$.comb_g <- combined
+    data <- data |>
+      dplyr::mutate(
+        .v_bef = dplyr::lag(.data[[val_col]]),
+        .v_aft = dplyr::lead(.data[[val_col]]),
+        .g_lead = dplyr::lead(.comb_g),
+        .by = dplyr::all_of(by_cols)
+      )
+    g_lead <- data$.g_lead
+    data$.comb_g <- NULL
+    data$.g_lead <- NULL
+  } else {
+    n <- length(vals)
+    data$.v_bef <- c(NA_real_, vals[-n])
+    data$.v_aft <- c(vals[-1], NA_real_)
+    g_lead <- c(combined[-1], NA_real_)
+  }
+
+  # Run-level: compute v_start, v_end, product of growth rates, lambda
+  data$.comb_g_tmp <- combined
+  data$.g_lead_tmp <- g_lead
+  run_meta <- data |>
+    dplyr::filter(eligible) |>
+    dplyr::summarise(
+      .v_start = dplyr::first(.v_bef),
+      .v_end = dplyr::last(.v_aft),
+      .prod_inner = prod(1 + .comb_g_tmp, na.rm = FALSE),
+      .g_end = dplyr::last(.g_lead_tmp),
+      .rlen = dplyr::n(),
+      .by = dplyr::all_of(".run_id")
+    ) |>
+    dplyr::mutate(
+      .prod_total = .prod_inner * (1 + .g_end),
+      .n_rates = .rlen + 1L,
+      .pred_end = .v_start * .prod_total,
+      .lambda = dplyr::if_else(
+        is.finite(.pred_end) & .pred_end > 0 &
+          is.finite(.v_end) & .v_end > 0,
+        (.v_end / .pred_end)^(1 / .n_rates),
+        NA_real_
+      )
+    ) |>
+    dplyr::filter(!is.na(.lambda)) |>
+    dplyr::select(dplyr::all_of(".run_id"), .v_start, .lambda)
+  data$.comb_g_tmp <- NULL
+  data$.g_lead_tmp <- NULL
+
+  if (nrow(run_meta) > 0) {
+    data <- dplyr::left_join(data, run_meta, by = ".run_id")
+    geo_target <- eligible & !is.na(data$.lambda)
+
+    if (any(geo_target)) {
+      adj_factor <- (1 + combined) * data$.lambda
+      adj_factor[!geo_target] <- 1
+      filled <- ave(adj_factor, data$.run_id, FUN = cumprod) * data$.v_start
+
+      valid <- geo_target & !is.na(filled) & is.finite(filled) & filled > 0
+      vals[valid] <- filled[valid]
+
+      src <- combined_src
+      src[is.na(src)] <- base_method
+      mets[valid] <- paste0("growth_", src[valid], "_bridge")
+    }
+
+    data$.v_start <- NULL
+    data$.lambda <- NULL
+  }
+
+  data$.v_bef <- NULL
+  data$.v_aft <- NULL
+  data[[val_col]] <- vals
+  data[[met_col]] <- mets
+  data
 }
 
 .fg_finalize_output <- function(data, value_col, cols, mask, format) {
@@ -1367,30 +1398,34 @@ fill_proxy_growth <- function(
     return(data)
   }
 
-  compute_ma <- function(vals, w) {
-    ma <- rep(NA_real_, length(vals))
-    for (i in seq_along(vals)) {
-      if (i > 1) {
-        start_idx <- max(1, i - w)
-        window_vals <- vals[start_idx:(i - 1)]
-        window_vals <- window_vals[!is.na(window_vals)]
-        if (length(window_vals) > 0) {
-          ma[i] <- mean(
-            window_vals[
-              max(1, length(window_vals) - w + 1):length(window_vals)
-            ]
-          )
-        }
-      }
-    }
-    ma
-  }
-
   data |>
     dplyr::mutate(
-      ma_base = compute_ma(.data[[value_var]], window),
+      ma_base = .compute_ma_vec(.data[[value_var]], window),
       .by = dplyr::all_of(group_vars)
     )
+}
+
+# Vectorized backward-looking moving average using cumsum
+.compute_ma_vec <- function(vals, w) {
+  n <- length(vals)
+  if (n < 2L) return(rep(NA_real_, n))
+
+  not_na <- !is.na(vals)
+  vals_0 <- ifelse(not_na, vals, 0)
+  cs <- cumsum(vals_0)
+  cc <- cumsum(as.numeric(not_na))
+
+  # At position i (2:n), mean of non-NA vals in [max(1, i-w) : (i-1)]
+  i <- 2:n
+  end_idx <- i - 1L
+  start_idx <- pmax(1L, i - w)
+  s <- cs[end_idx] - ifelse(start_idx > 1L, cs[start_idx - 1L], 0)
+  cnt <- cc[end_idx] - ifelse(start_idx > 1L, cc[start_idx - 1L], 0)
+
+  result <- rep(NA_real_, n)
+  valid <- cnt > 0
+  result[i[valid]] <- s[valid] / cnt[valid]
+  result
 }
 
 .safe_na_approx <- function(object, x, ...) {
