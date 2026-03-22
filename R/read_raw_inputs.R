@@ -190,7 +190,12 @@
       by = "item_cbs"
     ) |>
     dplyr::left_join(
-      cbs,
+      cbs |>
+        dplyr::summarise(
+          value = sum(value, na.rm = TRUE),
+          item_code_cbs = dplyr::first(item_code_cbs),
+          .by = c(area, area_code, year, item_cbs, element)
+        ),
       by = c("area", "area_code", "year", "item_cbs", "element")
     ) |>
     dplyr::mutate(
