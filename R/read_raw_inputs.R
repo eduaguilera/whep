@@ -4,6 +4,11 @@
 
 # -- Reading helpers -----------------------------------------------------------
 
+.filter_years <- function(df, years) {
+  if (is.null(years)) return(df)
+  dplyr::filter(df, year %in% years)
+}
+
 .read_faostat_csv <- function(path) {
   readr::read_csv(path, show_col_types = FALSE, name_repair = "universal")
 }
@@ -85,7 +90,7 @@
     )
 }
 
-.extract_fao <- function(pin_alias, version = NULL) {
+.extract_fao <- function(pin_alias, years = NULL, version = NULL) {
   cb_elements <- c(
     "production",
     "import",
@@ -110,6 +115,7 @@
       year = Year,
       value = Value
     ) |>
+    .filter_years(years) |>
     .harmonize_element_names() |>
     .normalise_units() |>
     .fix_item_codes() |>
@@ -130,8 +136,8 @@
     )
 }
 
-.extract_cb <- function(pin_alias, version = NULL) {
-  .extract_fao(pin_alias, version = version) |>
+.extract_cb <- function(pin_alias, years = NULL, version = NULL) {
+  .extract_fao(pin_alias, years = years, version = version) |>
     dplyr::inner_join(
       whep::items_full |>
         dplyr::select(item_cbs, item_code_cbs),

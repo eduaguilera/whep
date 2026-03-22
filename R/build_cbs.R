@@ -28,11 +28,12 @@
 #' }
 build_commodity_balances <- function(
   primary_all,
-  max_year = 2021,
+  start_year = 1850,
+  end_year = 2021,
   version = NULL,
   smooth_carry_forward = FALSE
 ) {
-  read_cbs(primary_all, max_year, version) |>
+  read_cbs(primary_all, start_year, end_year, version) |>
     fix_cbs() |>
     qc_cbs(smooth = smooth_carry_forward)
 }
@@ -54,7 +55,8 @@ build_commodity_balances <- function(
 #'
 #' @param primary_all A tibble of primary production, as returned by
 #'   [build_primary_production()].
-#' @param max_year Integer. Latest year of FAOSTAT data. Default `2021`.
+#' @param start_year Integer. First year to include. Default `1850`.
+#' @param end_year Integer. Last year to include. Default `2021`.
 #' @param version File version for input pins. `NULL` (default) uses the
 #'   frozen version from [whep_inputs].
 #'
@@ -76,10 +78,21 @@ build_commodity_balances <- function(
 #' }
 read_cbs <- function(
   primary_all,
-  max_year = 2021,
+  start_year = 1850,
+  end_year = 2021,
   version = NULL
 ) {
-  years <- 1850:max_year
+  output_years <- start_year:end_year
+
+  # FAOSTAT CBS data begins at 1961. When historical extension is needed,
+  # we must also read the FAOSTAT anchor years for destiny-share estimation.
+  # The output is trimmed to output_years at the end.
+  needs_historical <- start_year < 1962L
+  years <- if (needs_historical) {
+    start_year:max(end_year, 1965L)
+  } else {
+    output_years
+  }
 
   # 1. Read inputs
   cli::cli_progress_step("Reading CBS inputs")
@@ -101,8 +114,9 @@ read_cbs <- function(
     years
   )
 
-  # Attach context for downstream pipeline steps
-  attr(cbs_raw, ".years") <- years
+  # Trim to requested years and attach context for downstream
+  cbs_raw <- .filter_years(cbs_raw, output_years)
+  attr(cbs_raw, ".years") <- output_years
   cbs_raw
 }
 
@@ -261,7 +275,8 @@ qc_cbs <- function(
 #'
 #' @param cbs A tibble of final CBS, as returned by
 #'   [build_commodity_balances()].
-#' @param max_year Integer. Latest year. Default `2021`.
+#' @param start_year Integer. First year to include. Default `1850`.
+#' @param end_year Integer. Last year to include. Default `2021`.
 #' @param version File version for input pins.
 #'
 #' @returns A tibble with processing coefficients per country, year and
@@ -277,10 +292,14 @@ qc_cbs <- function(
 #' }
 build_processing_coefs <- function(
   cbs,
-  max_year = 2021,
+  start_year = 1850,
+  end_year = 2021,
   version = NULL
 ) {
   cb_proc <- whep::cb_processing
+  years <- start_year:end_year
+
+  cbs <- .filter_years(cbs, years)
 
   cbs_glob <- cbs |>
     dplyr::summarise(
@@ -347,23 +366,23 @@ build_processing_coefs <- function(
   # Commodity balances from FAOSTAT
   fbs_new <- .extract_cb(
     "faostat-fbs-new",
-    version
+    years = years, version = version
   )
   fbs_old <- .extract_cb(
     "faostat-fbs-old",
-    version
+    years = years, version = version
   )
   cbs_crops <- .extract_cb(
     "faostat-cbs-old-crops",
-    version
+    years = years, version = version
   )
   cbs_animals <- .extract_cb(
     "faostat-cbs-old-animal",
-    version
+    years = years, version = version
   )
   cbs_new <- .extract_fao(
     "faostat-cbs-new",
-    version
+    years = years, version = version
   )
 
   # Processed production
@@ -373,25 +392,26 @@ build_processing_coefs <- function(
   )
 
   # Trade
-  fao_trade <- .read_fao_trade(version)
-  trade_hist <- .read_historical_trade(version)
+  fao_trade <- .read_fao_trade(years = years, version = version)
+  trade_hist <- .read_historical_trade(years = years, version = version)
 
   # GDP / population
   gdp_pop <- whep_read_file(
     "gdp-population",
     version = version
   ) |>
-    dplyr::rename(year = Year)
+    dplyr::rename(year = Year) |>
+    .filter_years(years)
 
   # Primary production as CBS
   primary_cbs <- .primary_to_cbs(primary_all)
   primary_cbs_area <- .primary_to_cbs_area(primary_all)
 
   # Crop residues
-  crop_residues <- .read_crop_residues(version)
+  crop_residues <- .read_crop_residues(years = years, version = version)
 
   # Land areas
-  land_areas_wide <- .read_land_areas_wide(version)
+  land_areas_wide <- .read_land_areas_wide(years = years, version = version)
 
   list(
     fbs_new = fbs_new,
@@ -409,15 +429,15 @@ build_processing_coefs <- function(
   )
 }
 
-.read_fao_trade <- function(version) {
-  .extract_fao("faostat-trade", version) |>
+.read_fao_trade <- function(years = NULL, version = NULL) {
+  .extract_fao("faostat-trade", years = years, version = version) |>
     dplyr::rename(
       item_trade = item_cbs,
       item_code_trade = item_code_cbs
     )
 }
 
-.read_historical_trade <- function(version) {
+.read_historical_trade <- function(years = NULL, version = NULL) {
   items <- whep::items_full
   regions <- whep::regions_full
   cbs_trade <- whep::cbs_trade_codes
@@ -435,6 +455,7 @@ build_processing_coefs <- function(
     dplyr::mutate(element = "export")
 
   dplyr::bind_rows(exports, imports) |>
+    .filter_years(years) |>
     dplyr::filter(
       !is.na(iso3),
       measurement %in% c("1000 MT", "1000 tons")
@@ -538,11 +559,12 @@ build_processing_coefs <- function(
     dplyr::select(-unit, -element)
 }
 
-.read_crop_residues <- function(version) {
+.read_crop_residues <- function(years = NULL, version = NULL) {
   items_prod <- whep::items_prod_full
   polities <- whep::polities_cats
 
-  res <- get_primary_residues(version = version)
+  res <- get_primary_residues(version = version) |>
+    .filter_years(years)
 
   # Map back to item_cbs names for CBS integration
   res |>
@@ -580,8 +602,8 @@ build_processing_coefs <- function(
     )
 }
 
-.read_land_areas_wide <- function(version) {
-  land_areas <- .read_land_areas(version)
+.read_land_areas_wide <- function(years = NULL, version = NULL) {
+  land_areas <- .read_land_areas(years = years, version = version)
   varnames_cropland <- c(
     "c3ann",
     "c3per",
@@ -1018,11 +1040,23 @@ build_processing_coefs <- function(
   land_wide,
   items
 ) {
+  expected_elements <- c(
+    "domestic_supply", "production", "import", "export",
+    "food", "feed", "other_uses", "processing",
+    "processing_primary", "seed", "stock_variation"
+  )
+
   df |>
     tidyr::pivot_wider(
       names_from = element,
       values_from = value
     ) |>
+    (\(d) {
+      for (col in setdiff(expected_elements, names(d))) {
+        d[[col]] <- NA_real_
+      }
+      d
+    })() |>
     dplyr::mutate(
       domestic_supply = dplyr::coalesce(
         domestic_supply,
