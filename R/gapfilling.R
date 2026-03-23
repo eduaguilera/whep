@@ -120,7 +120,7 @@ fill_linear <- function(
 
   # Grouped path: sort once, iterate over contiguous group ranges
   # Use integer group IDs for fast sorting
-  grp_id <- vctrs::vec_group_id(data[by_cols])
+  grp_id <- as.integer(interaction(data[by_cols], drop = TRUE))
   times <- data[[time_col_name]]
   ord <- order(grp_id, times)
   inv_ord <- integer(n)

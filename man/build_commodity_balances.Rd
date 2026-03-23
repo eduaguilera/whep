@@ -6,7 +6,8 @@
 \usage{
 build_commodity_balances(
   primary_all,
-  max_year = 2021,
+  start_year = 1850,
+  end_year = 2021,
   version = NULL,
   smooth_carry_forward = FALSE
 )
@@ -15,7 +16,9 @@ build_commodity_balances(
 \item{primary_all}{A tibble of primary production, as returned by
 \code{\link[=build_primary_production]{build_primary_production()}}.}
 
-\item{max_year}{Integer. Latest year of FAOSTAT data. Default \code{2021}.}
+\item{start_year}{Integer. First year to include. Default \code{1850}.}
+
+\item{end_year}{Integer. Last year to include. Default \code{2021}.}
 
 \item{version}{File version for input pins. \code{NULL} (default) uses the
 frozen version from \link{whep_inputs}.}
@@ -24,21 +27,19 @@ frozen version from \link{whep_inputs}.}
 are replaced with a linear trend. Default \code{FALSE}.}
 }
 \value{
-A tibble in long format (see \code{\link[=read_cbs]{read_cbs()}} for column
+A tibble in long format (see \code{.read_cbs()} for column
 descriptions), plus a character \code{qc_flag} column from
-\code{\link[=qc_cbs]{qc_cbs()}}.
+\code{.qc_cbs()}.
 }
 \description{
 Construct commodity balance sheets (CBS) from raw FAOSTAT data.
 This is a convenience wrapper that chains the three pipeline steps:
 \enumerate{
-\item \code{\link[=read_cbs]{read_cbs()}} — read & reformat FAOSTAT CBS data.
-\item \code{\link[=fix_cbs]{fix_cbs()}} — processing calibration, trade imputation,
+\item \code{.read_cbs()} — read & reformat FAOSTAT CBS data.
+\item \code{.fix_cbs()} — processing calibration, trade imputation,
 destiny filling, and final balancing.
-\item \code{\link[=qc_cbs]{qc_cbs()}} — flag data-quality anomalies.
+\item \code{.qc_cbs()} — flag data-quality anomalies.
 }
-
-Each step can also be called independently for inspection or debugging.
 }
 \examples{
 \dontrun{

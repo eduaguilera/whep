@@ -4,13 +4,15 @@
 \alias{build_processing_coefs}
 \title{Build processing coefficients}
 \usage{
-build_processing_coefs(cbs, max_year = 2021, version = NULL)
+build_processing_coefs(cbs, start_year = 1850, end_year = 2021, version = NULL)
 }
 \arguments{
 \item{cbs}{A tibble of final CBS, as returned by
 \code{\link[=build_commodity_balances]{build_commodity_balances()}}.}
 
-\item{max_year}{Integer. Latest year. Default \code{2021}.}
+\item{start_year}{Integer. First year to include. Default \code{1850}.}
+
+\item{end_year}{Integer. Last year to include. Default \code{2021}.}
 
 \item{version}{File version for input pins.}
 }

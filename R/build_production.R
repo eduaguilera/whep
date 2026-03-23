@@ -4,19 +4,20 @@
 #' Construct the full primary production dataset from raw FAOSTAT inputs.
 #' This is a convenience wrapper that chains the three pipeline steps:
 #'
-#' 1. [read_production()] — read & reformat FAOSTAT data.
-#' 2. [fix_production()] — apply Global-ported corrections.
-#' 3. [qc_production()] — flag data-quality anomalies.
+#' 1. `.read_production()` — read & reformat FAOSTAT data.
+#' 2. `.fix_production()` — apply Global-ported corrections.
+#' 3. `.qc_production()` — flag data-quality anomalies.
 #'
-#' Each step can also be called independently for inspection or debugging.
-#'
-#' @inheritParams read_production
+#' @param start_year Integer. First year to include. Default `1850`.
+#' @param end_year Integer. Last year to include. Default `2021`.
+#' @param version File version for input pins. `NULL` (default) uses the
+#'   frozen version from [whep_inputs].
 #' @param smooth_carry_forward Logical. If `TRUE`, carry-forward tails
 #'   are replaced with a linear trend. Default `FALSE`.
 #'
-#' @returns A tibble in long format (see [read_production()] for column
+#' @returns A tibble in long format (see `.read_production()` for column
 #'   descriptions), plus a character `qc_flag` column from
-#'   [qc_production()].
+#'   `.qc_production()`.
 #'
 #' @export
 #'
@@ -31,9 +32,9 @@ build_primary_production <- function(
   smooth_carry_forward = FALSE
 ) {
   cli::cli_h1("Building primary production")
-  read_production(start_year, end_year, version) |>
-    fix_production() |>
-    qc_production(smooth = smooth_carry_forward)
+  .read_production(start_year, end_year, version) |>
+    .fix_production() |>
+    .qc_production(smooth = smooth_carry_forward)
 }
 
 
@@ -47,7 +48,7 @@ build_primary_production <- function(
 #' No data corrections are applied at this stage. The output preserves
 #' FAOSTAT values as-is (including known issues such as un-corrected tea
 #' tonnages and the absence of game-meat stocks). For the corrected
-#' version, pipe into [fix_production()].
+#' version, pipe into `.fix_production()`.
 #'
 #' @param start_year Integer. First year to include. Default `1850`.
 #' @param end_year Integer. Last year to include. Default `2021`.
@@ -68,13 +69,9 @@ build_primary_production <- function(
 #'   `"fill_linear_historical"` (pre-1962 linear extrapolation),
 #'   `"LUH2"` (grassland), `"Estimated"` (double-product estimation).
 #'
-#' @export
-#'
-#' @examples
-#' \dontrun{
-#' raw <- read_production()
-#' }
-read_production <- function(
+#' @keywords internal
+#' @noRd
+.read_production <- function(
   start_year = 1850,
   end_year = 2021,
   version = NULL
@@ -102,7 +99,7 @@ read_production <- function(
   # 3. Fodder crops (year 2013 excluded — known bad data in old source)
   fodder <- .build_fodder(fao_crop_liv, years = years, version = version)
 
-  # 4. Combine FAO + fodder (no tea correction — see fix_production)
+  # 4. Combine FAO + fodder (no tea correction — see .fix_production)
   fao_combined <- dplyr::bind_rows(fao_crop_liv, fodder)
 
   # 5. Livestock stocks
@@ -112,7 +109,7 @@ read_production <- function(
     version = version
   )
 
-  # 6. Primary dataset (crops + livestock, no game meat — see fix_production)
+  # 6. Primary dataset (crops + livestock, no game meat — see .fix_production)
   primary_raw <- .combine_primary_raw(fao_combined, fao_liv_all)
 
   # 7. Yield calculation + gap-filling
@@ -121,7 +118,7 @@ read_production <- function(
     cbs_prod_raw
   )
 
-  # 8. Assemble to final format (no dissolved-country filter — see fix_production)
+  # 8. Assemble to final format (no dissolved-country filter — see .fix_production)
   primary_raw2 <- .assemble_production_raw(yield_all)
 
   # 9. Historical extension
@@ -161,17 +158,13 @@ read_production <- function(
 #' * **Dissolved countries** — removes overlapping country/year
 #'   observations (e.g. Czechoslovakia after 1992).
 #'
-#' @param df A tibble from [read_production()].
+#' @param df A tibble from `.read_production()`.
 #'
 #' @returns The same tibble with corrected values.
 #'
-#' @export
-#'
-#' @examples
-#' \dontrun{
-#' read_production() |> fix_production()
-#' }
-fix_production <- function(df) {
+#' @keywords internal
+#' @noRd
+.fix_production <- function(df) {
   df |>
     .correct_tea_final() |>
     .add_game_meat_final() |>
@@ -191,7 +184,7 @@ fix_production <- function(df) {
 #' * `spike` — year-on-year change exceeding `spike_ratio`.
 #' * `fodder_break` — the 1984/1985 EU fodder reporting discontinuity.
 #'
-#' @param df A tibble from [fix_production()] (or [read_production()]).
+#' @param df A tibble from `.fix_production()` (or `.read_production()`).
 #' @param smooth Logical. Replace carry-forward tails with a linear
 #'   trend? Default `FALSE`.
 #' @param anchor_years Integer. Years for trend anchor. Default `5`.
@@ -201,13 +194,9 @@ fix_production <- function(df) {
 #'
 #' @returns The input tibble plus a `qc_flag` column.
 #'
-#' @export
-#'
-#' @examples
-#' \dontrun{
-#' read_production() |> fix_production() |> qc_production()
-#' }
-qc_production <- function(
+#' @keywords internal
+#' @noRd
+.qc_production <- function(
   df,
   smooth = FALSE,
   anchor_years = 5L,
@@ -1482,7 +1471,7 @@ qc_production <- function(
     )
 }
 
-# -- Post-processing corrections (used by fix_production) ----------------------
+# -- Post-processing corrections (used by .fix_production) --------------------
 
 #' Correct tea fresh-leaf weight to made-tea weight (final format)
 #' @details FAOSTAT reports tea in fresh-leaf weight. Made-tea weight is

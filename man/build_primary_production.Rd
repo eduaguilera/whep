@@ -5,13 +5,16 @@
 \title{Build primary production dataset}
 \usage{
 build_primary_production(
-  max_year = 2021,
+  start_year = 1850,
+  end_year = 2021,
   version = NULL,
   smooth_carry_forward = FALSE
 )
 }
 \arguments{
-\item{max_year}{Integer. Latest year of FAOSTAT data. Default \code{2021}.}
+\item{start_year}{Integer. First year to include. Default \code{1850}.}
+
+\item{end_year}{Integer. Last year to include. Default \code{2021}.}
 
 \item{version}{File version for input pins. \code{NULL} (default) uses the
 frozen version from \link{whep_inputs}.}
@@ -20,20 +23,18 @@ frozen version from \link{whep_inputs}.}
 are replaced with a linear trend. Default \code{FALSE}.}
 }
 \value{
-A tibble in long format (see \code{\link[=read_production]{read_production()}} for column
+A tibble in long format (see \code{.read_production()} for column
 descriptions), plus a character \code{qc_flag} column from
-\code{\link[=qc_production]{qc_production()}}.
+\code{.qc_production()}.
 }
 \description{
 Construct the full primary production dataset from raw FAOSTAT inputs.
 This is a convenience wrapper that chains the three pipeline steps:
 \enumerate{
-\item \code{\link[=read_production]{read_production()}} — read & reformat FAOSTAT data.
-\item \code{\link[=fix_production]{fix_production()}} — apply Global-ported corrections.
-\item \code{\link[=qc_production]{qc_production()}} — flag data-quality anomalies.
+\item \code{.read_production()} — read & reformat FAOSTAT data.
+\item \code{.fix_production()} — apply Global-ported corrections.
+\item \code{.qc_production()} — flag data-quality anomalies.
 }
-
-Each step can also be called independently for inspection or debugging.
 }
 \examples{
 \dontrun{

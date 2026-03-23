@@ -4,20 +4,23 @@
 #' Construct commodity balance sheets (CBS) from raw FAOSTAT data.
 #' This is a convenience wrapper that chains the three pipeline steps:
 #'
-#' 1. [read_cbs()] — read & reformat FAOSTAT CBS data.
-#' 2. [fix_cbs()] — processing calibration, trade imputation,
+#' 1. `.read_cbs()` — read & reformat FAOSTAT CBS data.
+#' 2. `.fix_cbs()` — processing calibration, trade imputation,
 #'    destiny filling, and final balancing.
-#' 3. [qc_cbs()] — flag data-quality anomalies.
+#' 3. `.qc_cbs()` — flag data-quality anomalies.
 #'
-#' Each step can also be called independently for inspection or debugging.
-#'
-#' @inheritParams read_cbs
+#' @param primary_all A tibble of primary production, as returned by
+#'   [build_primary_production()].
+#' @param start_year Integer. First year to include. Default `1850`.
+#' @param end_year Integer. Last year to include. Default `2021`.
+#' @param version File version for input pins. `NULL` (default) uses the
+#'   frozen version from [whep_inputs].
 #' @param smooth_carry_forward Logical. If `TRUE`, carry-forward tails
 #'   are replaced with a linear trend. Default `FALSE`.
 #'
-#' @returns A tibble in long format (see [read_cbs()] for column
+#' @returns A tibble in long format (see `.read_cbs()` for column
 #'   descriptions), plus a character `qc_flag` column from
-#'   [qc_cbs()].
+#'   `.qc_cbs()`.
 #'
 #' @export
 #'
@@ -33,9 +36,9 @@ build_commodity_balances <- function(
   version = NULL,
   smooth_carry_forward = FALSE
 ) {
-  read_cbs(primary_all, start_year, end_year, version) |>
-    fix_cbs() |>
-    qc_cbs(smooth = smooth_carry_forward)
+  .read_cbs(primary_all, start_year, end_year, version) |>
+    .fix_cbs() |>
+    .qc_cbs(smooth = smooth_carry_forward)
 }
 
 
@@ -48,10 +51,10 @@ build_commodity_balances <- function(
 #' extend the series back to 1850 using historical trade data.
 #'
 #' No processing calibration or balancing is applied at this stage.
-#' For the fully processed CBS, pipe into [fix_cbs()].
+#' For the fully processed CBS, pipe into `.fix_cbs()`.
 #'
 #' The returned tibble carries `years` as an attribute so that
-#' [fix_cbs()] can reuse it without reloading.
+#' `.fix_cbs()` can reuse it without reloading.
 #'
 #' @param primary_all A tibble of primary production, as returned by
 #'   [build_primary_production()].
@@ -69,14 +72,9 @@ build_commodity_balances <- function(
 #'   * `"FBS_New"`, `"FBS_Old"`, `"mean"` — food balance sheet selection.
 #'   * `"historical_fill"` — pre-1961 historical extension.
 #'
-#' @export
-#'
-#' @examples
-#' \dontrun{
-#' primary <- build_primary_production()
-#' raw_cbs <- read_cbs(primary)
-#' }
-read_cbs <- function(
+#' @keywords internal
+#' @noRd
+.read_cbs <- function(
   primary_all,
   start_year = 1850,
   end_year = 2021,
@@ -137,18 +135,14 @@ read_cbs <- function(
 #' * Reclassify processing → other_uses.
 #' * Final balance (clamp DS ≥ 0, fix exports, default destiny).
 #'
-#' @param df A tibble from [read_cbs()]. Expects `.years`
-#'   attribute (set automatically by `read_cbs()`).
+#' @param df A tibble from `.read_cbs()`. Expects `.years`
+#'   attribute (set automatically by `.read_cbs()`).
 #'
 #' @returns The same tibble with calibrated, imputed, and balanced values.
 #'
-#' @export
-#'
-#' @examples
-#' \dontrun{
-#' read_cbs(primary) |> fix_cbs()
-#' }
-fix_cbs <- function(df) {
+#' @keywords internal
+#' @noRd
+.fix_cbs <- function(df) {
   years <- attr(df, ".years") %||% 1850:2021
   cbs_raw <- df
 
@@ -213,7 +207,7 @@ fix_cbs <- function(df) {
 #'   years). Likely FAOSTAT carry-forward imputation.
 #' * `spike` — year-on-year change exceeding `spike_ratio`.
 #'
-#' @param df A tibble from [fix_cbs()] (or [read_cbs()]).
+#' @param df A tibble from `.fix_cbs()` (or `.read_cbs()`).
 #' @param smooth Logical. Replace carry-forward tails with a linear
 #'   trend? Default `FALSE`.
 #' @param anchor_years Integer. Years for trend anchor. Default `5`.
@@ -223,13 +217,9 @@ fix_cbs <- function(df) {
 #'
 #' @returns The input tibble plus a `qc_flag` column.
 #'
-#' @export
-#'
-#' @examples
-#' \dontrun{
-#' read_cbs(primary) |> fix_cbs() |> qc_cbs()
-#' }
-qc_cbs <- function(
+#' @keywords internal
+#' @noRd
+.qc_cbs <- function(
   df,
   smooth = FALSE,
   anchor_years = 5L,
@@ -568,7 +558,7 @@ build_processing_coefs <- function(
   items_prod <- whep::items_prod_full
   polities <- whep::polities_cats
 
-  res <- get_primary_residues(version = version) |>
+  res <- get_primary_residues() |>
     .filter_years(years)
 
   # Map back to item_cbs names for CBS integration
@@ -1125,7 +1115,7 @@ build_processing_coefs <- function(
   by_cols <- c("area", "item_cbs")
 
   # Sort once
-  grp_id <- vctrs::vec_group_id(df[by_cols])
+  grp_id <- as.integer(interaction(df[by_cols], drop = TRUE))
   times <- df[["year"]]
   n <- nrow(df)
   ord <- order(grp_id, times)
