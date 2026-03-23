@@ -177,29 +177,28 @@
   cbs,
   no_data_products = character()
 ) {
-  cb_proc <- whep::cb_processing
+  cb_proc_required <- whep::cb_processing |>
+    dplyr::summarise(
+      required = sum(Required, na.rm = TRUE),
+      .by = item_cbs
+    ) |>
+    dplyr::filter(required > 0)
+
+  cbs_summary <- cbs |>
+    dplyr::summarise(
+      value = sum(value, na.rm = TRUE),
+      item_code_cbs = item_code_cbs[1L],
+      .by = c(area, area_code, year, item_cbs, element)
+    )
 
   processed_df |>
     dplyr::summarise(
       value_proc = sum(value_proc, na.rm = TRUE),
       .by = c(area, area_code, year, item_cbs, element)
     ) |>
+    dplyr::left_join(cb_proc_required, by = "item_cbs") |>
     dplyr::left_join(
-      cb_proc |>
-        dplyr::summarise(
-          required = sum(Required, na.rm = TRUE),
-          .by = item_cbs
-        ) |>
-        dplyr::filter(required > 0),
-      by = "item_cbs"
-    ) |>
-    dplyr::left_join(
-      cbs |>
-        dplyr::summarise(
-          value = sum(value, na.rm = TRUE),
-          item_code_cbs = dplyr::first(item_code_cbs),
-          .by = c(area, area_code, year, item_cbs, element)
-        ),
+      cbs_summary,
       by = c("area", "area_code", "year", "item_cbs", "element")
     ) |>
     dplyr::mutate(

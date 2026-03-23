@@ -676,11 +676,6 @@ build_processing_coefs <- function(
 }
 
 .fix_palm_kernels <- function(inputs) {
-  is_palm_kernels <-
-    item_cbs == "Palm kernels" & element == "processing" & source == "FBS_Old"
-  palm_filter <-
-    is_palm_kernels | (item_cbs == "Palmkernel Oil" & element == "production")
-
   dplyr::bind_rows(
     inputs$fbs_old |>
       dplyr::mutate(source = "FBS_Old"),
@@ -688,7 +683,12 @@ build_processing_coefs <- function(
       dplyr::mutate(source = "FBS_New") |>
       dplyr::filter(year > 2013)
   ) |>
-    dplyr::filter(palm_filter) |>
+    dplyr::filter(
+      (item_cbs == "Palm kernels" &
+        element == "processing" &
+        source == "FBS_Old") |
+        (item_cbs == "Palmkernel Oil" & element == "production")
+    ) |>
     dplyr::select(-item_code_cbs, -element) |>
     tidyr::pivot_wider(
       names_from = item_cbs,

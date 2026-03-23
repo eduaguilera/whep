@@ -55,7 +55,7 @@
       .time = .data[[time_col]],
       .max_time = max(.time, na.rm = TRUE),
       # Run-length from the end: count backwards while value == last value
-      .last_val = dplyr::last(.val),
+      .last_val = .val[dplyr::n()],
       .from_end = rev(cumsum(rev(.val != .last_val))),
       .run_length = sum(.from_end == 0),
       qc_carry_forward = .from_end == 0 &
@@ -183,14 +183,17 @@
     dim(flag_matrix) <- c(nrow(df), 1)
   }
 
-  qc_flag <- apply(flag_matrix, 1, \(row) {
-    active <- flag_cols[row]
-    if (length(active) == 0) {
-      NA_character_
-    } else {
-      paste(labels[active], collapse = ";")
-    }
-  })
+  any_flagged <- rowSums(flag_matrix) > 0L
+  qc_flag <- rep(NA_character_, nrow(df))
+  if (any(any_flagged)) {
+    qc_flag[any_flagged] <- apply(
+      flag_matrix[any_flagged, , drop = FALSE],
+      1,
+      \(row) {
+        paste(labels[flag_cols[row]], collapse = ";")
+      }
+    )
+  }
 
   df |>
     dplyr::mutate(qc_flag = qc_flag) |>

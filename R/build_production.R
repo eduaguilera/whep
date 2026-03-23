@@ -1794,7 +1794,6 @@ qc_production <- function(
       values_to = "value"
     ) |>
     dplyr::filter(value != 0, !is.na(value)) |>
-    dplyr::distinct() |>
     dplyr::summarise(
       value = mean(value, na.rm = TRUE),
       source = source[1L],
