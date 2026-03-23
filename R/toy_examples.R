@@ -231,3 +231,51 @@
     1997, "Barley and products", "Rainfed", "Cropland", "Cropland", "livestock_rum", 17549., "Spain"
   )
 }
+
+.example_build_primary_production <- function() {
+  tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_code_prod, ~item_cbs, ~item_code_cbs, ~Live_anim, ~Live_anim_code, ~unit, ~value, ~source, ~qc_flag,
+    2000L, "Nepal", "NPL", "Broad beans and horse beans, dry", 181L, "Pulses, Other and products", 2549L, NA, NA, "ha", 8000., "FAOSTAT", NA_character_,
+    1998L, "China, mainland", "CHN", "Melonseed", 299L, "Oilcrops, Other", 2570L, NA, NA, "t_ha", 1.412, "FAOSTAT", NA_character_,
+    2015L, "Mexico", "MEX", "Vetches", 205L, "Pulses, Other and products", 2549L, NA, NA, "ha", 8637., "FAOSTAT", NA_character_,
+    2007L, "Libya", "LBY", "Cattle, dairy", 960L, "Cattle, dairy", 960L, NA, NA, "heads", 135000., NA, NA_character_,
+    2003L, "Mongolia", "MNG", "Hen eggs in shell, fresh", 1062L, "Eggs", 2744L, "Chickens, layers", 1052L, "tonnes", 3002., "FAOSTAT", NA_character_,
+    2011L, "Poland", "POL", "Chicory roots", 459L, "Vegetables, Other", 2605L, NA, NA, "tonnes", 36998., "FAOSTAT", NA_character_,
+    1990L, "Latvia", "LVA", "Natural honey", 1182L, "Honey", 2745L, "Bees", 1181L, "tonnes", 676., "FAOSTAT", NA_character_,
+    2008L, "South Africa", "ZAF", "Sorghum", 83L, "Sorghum and products", 2518L, NA, NA, "ha", 86675., "FAOSTAT", NA_character_,
+    2005L, "Turkey", "TUR", "Butter of buffalo milk", 952L, "Butter, Ghee", 2740L, "Buffalo", 946L, "t_LU", 0.01450, "FAOSTAT", NA_character_,
+    2019L, "Greece", "GRC", "Raw milk of buffalo", 951L, "Milk - Excluding Butter", 2848L, "Buffalo", 946L, "t_LU", 0.07641, "FAOSTAT", NA_character_
+  )
+}
+
+.example_build_commodity_balances <- function() {
+  tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~item_code_cbs, ~element, ~value, ~source, ~qc_flag,
+    2005L, "Haiti", "HTI", "Firewood", 2107L, "domestic_supply", 921004., NA, NA_character_,
+    1999L, "Egypt", "EGY", "Coffee and products", 2630L, "export", 6000., "FBS_Old", NA_character_,
+    2014L, "Mali", "MLI", "Grapefruit and products", 2613L, "import", 15.5, "mean", NA_character_,
+    2008L, "Jamaica", "JAM", "Soyabeans", 2555L, "stock_variation", 0.333, "mean", NA_character_,
+    2002L, "Portugal", "PRT", "Cottonseed Cake", 2594L, "domestic_supply", 4983., "mean", NA_character_,
+    2017L, "Ethiopia", "ETH", "Sugar (Raw Equivalent)", NA, "stock_variation", 40372., NA, NA_character_,
+    1993L, "Papua New Guinea", "PNG", "Bananas", 2615L, "food", 913000., "mean", NA_character_,
+    2010L, "Malaysia", "MYS", "Rape and Mustard Oil", NA, "production", 11.67, "Processed", NA_character_,
+    2006L, "Saudi Arabia", "SAU", "Coconut Oil", 2578L, "domestic_supply", 2000., "FBS_New", NA_character_,
+    2011L, "Spain", "ESP", "Groundnut Oil", NA, "import", 1000., NA, NA_character_
+  )
+}
+
+.example_build_processing_coefs <- function() {
+  tibble::tribble(
+    ~year, ~area, ~area_code, ~processed_item, ~item_code_cbs, ~element, ~value, ~source, ~qc_flag, ~item_cbs, ~Product_fraction, ~value_proc_raw, ~scaling, ~cf, ~value_proc,
+    2007L, "Rwanda", "RWA", "Sugar cane", 2536L, "production", 106000., "FBS_New", NA_character_, "Beverages, Fermented", 0.02591, 2746.1, 7.736, 0.2004, 21243.,
+    2015L, "Croatia", "HRV", "Olives (including preserved)", 2563L, "production", 8000., "FBS_Old", NA_character_, "Olive Oil", 0.41297, 3303.7, 0.6054, 0.25, 2000.,
+    1999L, "Kenya", "KEN", "Sorghum and products", 2518L, "production", 27000., "FBS_New", NA_character_, "Beverages, Alcoholic", 0.03191, 861.4, 0.1802, 0.005750, 155.2,
+    2012L, "Russian Federation", "RUS", "Sugar beet", 2537L, "production", 20225000., "FBS_New", NA_character_, "Sugar (Raw Equivalent)", 0.22752, 4601597., 0.6046, 0.13755, 2782000.,
+    2004L, "New Zealand", "NZL", "Sesameseed Oil", NA, "production", -4030., NA, NA_character_, "Oilcrops Oil, Other", -0.14498, 584.3, -0.8440, 0.12237, -493.2,
+    2008L, "Paraguay", "PRY", "Sunflower seed", 2557L, "production", 130000., "FBS_Old", NA_character_, "Sunflowerseed Oil", 0.84693, 110101., 0.4632, 0.39231, 51000.,
+    1995L, "United States of America", "USA", "Sugar cane", 2536L, "production", 23172000., "FBS_Old", NA_character_, "Sweeteners, Other", 0.04247, 984169., 5.4961, 0.23343, 5409081.,
+    2018L, "Nigeria", "NGA", "Coconuts - Incl Copra", 2560L, "production", 135344., "mean", NA_character_, "Copra Cake", 0.15745, 21310., 0.2961, 0.04661, 6309.,
+    2003L, "Malaysia", "MYS", "Wheat and products", 2511L, "production", 49000., "FBS_New", NA_character_, "Alcohol, Non-Food", 0.07674, 3760.3, 0.4167, 0.03198, 1567.,
+    2010L, "Chile", "CHL", "Sunflowerseed Oil", NA, "production", -109887., NA, NA_character_, "Oilcrops Oil, Other", -0.14498, 15931., 0.02038, -0.002955, 324.7
+  )
+}

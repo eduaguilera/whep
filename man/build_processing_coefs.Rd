@@ -4,7 +4,12 @@
 \alias{build_processing_coefs}
 \title{Build processing coefficients}
 \usage{
-build_processing_coefs(cbs, start_year = 1850, end_year = 2021, version = NULL)
+build_processing_coefs(
+  cbs,
+  start_year = 1850,
+  end_year = 2021,
+  example = FALSE
+)
 }
 \arguments{
 \item{cbs}{A tibble of final CBS, as returned by
@@ -14,7 +19,8 @@ build_processing_coefs(cbs, start_year = 1850, end_year = 2021, version = NULL)
 
 \item{end_year}{Integer. Last year to include. Default \code{2021}.}
 
-\item{version}{File version for input pins.}
+\item{example}{Logical. If \code{TRUE}, return a small hardcoded dataset
+for illustration without downloading data. Default \code{FALSE}.}
 }
 \value{
 A tibble with processing coefficients per country, year and
@@ -26,9 +32,5 @@ building pipeline. These can be used independently for footprint
 calculations.
 }
 \examples{
-\dontrun{
-primary <- build_primary_production()
-cbs <- build_commodity_balances(primary)
-coefs <- build_processing_coefs(cbs)
-}
+build_processing_coefs(example = TRUE)
 }

@@ -10,10 +10,10 @@
 #'
 #' @param start_year Integer. First year to include. Default `1850`.
 #' @param end_year Integer. Last year to include. Default `2021`.
-#' @param version File version for input pins. `NULL` (default) uses the
-#'   frozen version from [whep_inputs].
 #' @param smooth_carry_forward Logical. If `TRUE`, carry-forward tails
 #'   are replaced with a linear trend. Default `FALSE`.
+#' @param example Logical. If `TRUE`, return a small hardcoded example
+#'   tibble instead of reading remote data. Default `FALSE`.
 #'
 #' @returns A tibble in long format (see `.read_production()` for column
 #'   descriptions), plus a character `qc_flag` column from
@@ -22,17 +22,18 @@
 #' @export
 #'
 #' @examples
-#' \dontrun{
-#' primary <- build_primary_production()
-#' }
+#' build_primary_production(example = TRUE)
 build_primary_production <- function(
   start_year = 1850,
   end_year = 2021,
-  version = NULL,
-  smooth_carry_forward = FALSE
+  smooth_carry_forward = FALSE,
+  example = FALSE
 ) {
+  if (example) {
+    return(.example_build_primary_production())
+  }
   cli::cli_h1("Building primary production")
-  .read_production(start_year, end_year, version) |>
+  .read_production(start_year, end_year) |>
     .fix_production() |>
     .qc_production(smooth = smooth_carry_forward)
 }
@@ -52,8 +53,6 @@ build_primary_production <- function(
 #'
 #' @param start_year Integer. First year to include. Default `1850`.
 #' @param end_year Integer. Last year to include. Default `2021`.
-#' @param version File version for input pins. `NULL` (default) uses the
-#'   frozen version from [whep_inputs].
 #'
 #' @returns A tibble in long format with columns:
 #'   `year`, `area`, `area_code`, `item_prod`, `item_code_prod`,
@@ -73,8 +72,7 @@ build_primary_production <- function(
 #' @noRd
 .read_production <- function(
   start_year = 1850,
-  end_year = 2021,
-  version = NULL
+  end_year = 2021
 ) {
   output_years <- start_year:end_year
   years_df <- tibble::tibble(year = output_years)
@@ -91,13 +89,13 @@ build_primary_production <- function(
   }
 
   # 1. Read commodity balances (for gap-filling)
-  cbs_prod_raw <- .read_cbs_production(years = years, version = version)
+  cbs_prod_raw <- .read_cbs_production(years = years)
 
   # 2. Read and process FAOSTAT crop/livestock production
-  fao_crop_liv <- .read_fao_crop_liv(years = years, version = version)
+  fao_crop_liv <- .read_fao_crop_liv(years = years)
 
   # 3. Fodder crops (year 2013 excluded — known bad data in old source)
-  fodder <- .build_fodder(fao_crop_liv, years = years, version = version)
+  fodder <- .build_fodder(fao_crop_liv, years = years)
 
   # 4. Combine FAO + fodder (no tea correction — see .fix_production)
   fao_combined <- dplyr::bind_rows(fao_crop_liv, fodder)
@@ -105,8 +103,7 @@ build_primary_production <- function(
   # 5. Livestock stocks
   fao_liv_all <- .build_livestock_stocks(
     fao_combined,
-    years = years,
-    version = version
+    years = years
   )
 
   # 6. Primary dataset (crops + livestock, no game meat — see .fix_production)
@@ -122,8 +119,8 @@ build_primary_production <- function(
   primary_raw2 <- .assemble_production_raw(yield_all)
 
   # 9. Historical extension
-  land_areas <- .read_land_areas(years = years, version = version)
-  int_yields <- .read_int_yields(years = years, version = version)
+  land_areas <- .read_land_areas(years = years)
+  int_yields <- .read_int_yields(years = years)
 
   primary_ext <- .extend_historical(
     primary_raw2,
@@ -236,19 +233,17 @@ build_primary_production <- function(
 
 # -- Input reading helpers -----------------------------------------------------
 
-.read_cbs_production <- function(years = NULL, version = NULL) {
+.read_cbs_production <- function(years = NULL) {
   cli::cli_progress_step("Reading CBS production")
-  fbs_new <- .extract_cb("faostat-fbs-new", years = years, version = version)
-  fbs_old <- .extract_cb("faostat-fbs-old", years = years, version = version)
+  fbs_new <- .extract_cb("faostat-fbs-new", years = years)
+  fbs_old <- .extract_cb("faostat-fbs-old", years = years)
   cbs_anim <- .extract_cb(
     "faostat-cbs-old-animal",
-    years = years,
-    version = version
+    years = years
   )
   cbs_crops <- .extract_cb(
     "faostat-cbs-old-crops",
-    years = years,
-    version = version
+    years = years
   )
 
   dplyr::bind_rows(fbs_new, fbs_old, cbs_anim, cbs_crops) |>
@@ -273,9 +268,9 @@ build_primary_production <- function(
     )
 }
 
-.read_fao_crop_liv <- function(years = NULL, version = NULL) {
+.read_fao_crop_liv <- function(years = NULL) {
   cli::cli_progress_step("Reading FAO crops/livestock")
-  whep_read_file("faostat-production", version = version) |>
+  whep_read_file("faostat-production") |>
     dplyr::rename(
       item_code_prod = `Item Code`,
       item_prod = Item,
@@ -302,11 +297,11 @@ build_primary_production <- function(
     )
 }
 
-.read_land_areas <- function(years = NULL, version = NULL) {
+.read_land_areas <- function(years = NULL) {
   cli::cli_progress_step("Reading land areas")
   regions <- whep::regions_full
 
-  whep_read_file("luh2-areas", version = version) |>
+  whep_read_file("luh2-areas") |>
     dplyr::rename(iso3c = ISO3, year = Year) |>
     .filter_years(years) |>
     dplyr::left_join(
@@ -317,11 +312,11 @@ build_primary_production <- function(
     dplyr::filter(year > 1849)
 }
 
-.read_int_yields <- function(years = NULL, version = NULL) {
+.read_int_yields <- function(years = NULL) {
   cli::cli_progress_step("Reading international yields")
   regions <- whep::regions_full
 
-  whep_read_file("international-yields", version = version) |>
+  whep_read_file("international-yields") |>
     .filter_years(years) |>
     dplyr::mutate(item_code_prod = as.character(item_code)) |>
     dplyr::rename(
@@ -350,7 +345,7 @@ build_primary_production <- function(
 
 # -- Fodder --------------------------------------------------------------------
 
-.build_fodder <- function(fao_crop_liv, years = NULL, version = NULL) {
+.build_fodder <- function(fao_crop_liv, years = NULL) {
   cli::cli_progress_step("Building fodder dataset")
   items_prod <- whep::items_prod_full
   items <- whep::items_full
@@ -359,10 +354,10 @@ build_primary_production <- function(
   regions <- whep::regions_full
 
   # Old FAO fodder data
-  i_fodder <- .read_fodder_old(years = years, version = version)
+  i_fodder <- .read_fodder_old(years = years)
 
   # EU AgriDB fodder
-  fodder_euadb <- .read_fodder_euadb(years = years, version = version)
+  fodder_euadb <- .read_fodder_euadb(years = years)
 
   # DM yields for imputing fodder areas
   dm_yield <- .compute_dm_yield(
@@ -381,11 +376,11 @@ build_primary_production <- function(
   )
 }
 
-.read_fodder_old <- function(years = NULL, version = NULL) {
+.read_fodder_old <- function(years = NULL) {
   items_prod <- whep::items_prod_full
   items <- whep::items_full
 
-  whep_read_file("faostat-production-old", version = version) |>
+  whep_read_file("faostat-production-old") |>
     dplyr::rename(
       area_code = AreaCode,
       item_code_prod = ItemCode,
@@ -414,11 +409,11 @@ build_primary_production <- function(
     dplyr::filter(Cat_1 == "Fodder_green")
 }
 
-.read_fodder_euadb <- function(years = NULL, version = NULL) {
+.read_fodder_euadb <- function(years = NULL) {
   crops_eu <- whep::crops_eurostat
   regions <- whep::regions_full
 
-  whep_read_file("eu-agridb-fodder", version = version) |>
+  whep_read_file("eu-agridb-fodder") |>
     dplyr::rename(year = Year) |>
     .filter_years(years) |>
     dplyr::left_join(crops_eu, by = "Crop") |>
@@ -710,14 +705,13 @@ build_primary_production <- function(
 
 .build_livestock_stocks <- function(
   fao_combined,
-  years = NULL,
-  version = NULL
+  years = NULL
 ) {
   cli::cli_progress_step("Building livestock stocks")
   animals <- whep::animals_codes
   liv_lu <- whep::liv_lu_coefs
 
-  fao_stocks <- .read_livestock_stocks(years = years, version = version)
+  fao_stocks <- .read_livestock_stocks(years = years)
 
   fao_liv_raw <- .combine_livestock(
     fao_combined,
@@ -728,10 +722,9 @@ build_primary_production <- function(
   .finalise_livestock(fao_liv_raw, animals, liv_lu)
 }
 
-.read_livestock_stocks <- function(years = NULL, version = NULL) {
+.read_livestock_stocks <- function(years = NULL) {
   whep_read_file(
-    "faostat-emissions-livestock",
-    version = version
+    "faostat-emissions-livestock"
   ) |>
     dplyr::rename(
       item_code_cbs = `Item Code`,

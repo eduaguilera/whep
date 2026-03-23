@@ -94,7 +94,7 @@
     )
 }
 
-.extract_fao <- function(pin_alias, years = NULL, version = NULL) {
+.extract_fao <- function(pin_alias, years = NULL) {
   cb_elements <- c(
     "production",
     "import",
@@ -108,7 +108,7 @@
     "other_uses"
   )
 
-  whep_read_file(pin_alias, version = version) |>
+  whep_read_file(pin_alias) |>
     dplyr::rename(
       item_code_cbs = `Item Code`,
       item_cbs = Item,
@@ -140,8 +140,8 @@
     )
 }
 
-.extract_cb <- function(pin_alias, years = NULL, version = NULL) {
-  .extract_fao(pin_alias, years = years, version = version) |>
+.extract_cb <- function(pin_alias, years = NULL) {
+  .extract_fao(pin_alias, years = years) |>
     dplyr::inner_join(
       whep::items_full |>
         dplyr::select(item_cbs, item_code_cbs),

@@ -13,10 +13,10 @@
 #'   [build_primary_production()].
 #' @param start_year Integer. First year to include. Default `1850`.
 #' @param end_year Integer. Last year to include. Default `2021`.
-#' @param version File version for input pins. `NULL` (default) uses the
-#'   frozen version from [whep_inputs].
 #' @param smooth_carry_forward Logical. If `TRUE`, carry-forward tails
 #'   are replaced with a linear trend. Default `FALSE`.
+#' @param example Logical. If `TRUE`, return a small hardcoded example
+#'   tibble instead of reading remote data. Default `FALSE`.
 #'
 #' @returns A tibble in long format (see `.read_cbs()` for column
 #'   descriptions), plus a character `qc_flag` column from
@@ -25,18 +25,18 @@
 #' @export
 #'
 #' @examples
-#' \dontrun{
-#' primary <- build_primary_production()
-#' cbs <- build_commodity_balances(primary)
-#' }
+#' build_commodity_balances(example = TRUE)
 build_commodity_balances <- function(
   primary_all,
   start_year = 1850,
   end_year = 2021,
-  version = NULL,
-  smooth_carry_forward = FALSE
+  smooth_carry_forward = FALSE,
+  example = FALSE
 ) {
-  .read_cbs(primary_all, start_year, end_year, version) |>
+  if (example) {
+    return(.example_build_commodity_balances())
+  }
+  .read_cbs(primary_all, start_year, end_year) |>
     .fix_cbs() |>
     .qc_cbs(smooth = smooth_carry_forward)
 }
@@ -60,8 +60,6 @@ build_commodity_balances <- function(
 #'   [build_primary_production()].
 #' @param start_year Integer. First year to include. Default `1850`.
 #' @param end_year Integer. Last year to include. Default `2021`.
-#' @param version File version for input pins. `NULL` (default) uses the
-#'   frozen version from [whep_inputs].
 #'
 #' @returns A tibble in long format with columns:
 #'   `year`, `area`, `area_code`, `item_cbs`, `item_code_cbs`,
@@ -77,8 +75,7 @@ build_commodity_balances <- function(
 .read_cbs <- function(
   primary_all,
   start_year = 1850,
-  end_year = 2021,
-  version = NULL
+  end_year = 2021
 ) {
   output_years <- start_year:end_year
 
@@ -96,8 +93,7 @@ build_commodity_balances <- function(
   cli::cli_progress_step("Reading CBS inputs")
   inputs <- .cbs_read_inputs(
     primary_all,
-    years,
-    version
+    years
   )
 
   # 2. Build first raw CBS (combine sources, select best)
@@ -267,7 +263,8 @@ build_commodity_balances <- function(
 #'   [build_commodity_balances()].
 #' @param start_year Integer. First year to include. Default `1850`.
 #' @param end_year Integer. Last year to include. Default `2021`.
-#' @param version File version for input pins.
+#' @param example Logical. If `TRUE`, return a small hardcoded dataset
+#'   for illustration without downloading data. Default `FALSE`.
 #'
 #' @returns A tibble with processing coefficients per country, year and
 #'   item.
@@ -275,17 +272,16 @@ build_commodity_balances <- function(
 #' @export
 #'
 #' @examples
-#' \dontrun{
-#' primary <- build_primary_production()
-#' cbs <- build_commodity_balances(primary)
-#' coefs <- build_processing_coefs(cbs)
-#' }
+#' build_processing_coefs(example = TRUE)
 build_processing_coefs <- function(
   cbs,
   start_year = 1850,
   end_year = 2021,
-  version = NULL
+  example = FALSE
 ) {
+  if (example) {
+    return(.example_build_processing_coefs())
+  }
   cb_proc <- whep::cb_processing
   years <- start_year:end_year
 
@@ -350,50 +346,42 @@ build_processing_coefs <- function(
 
 .cbs_read_inputs <- function(
   primary_all,
-  years,
-  version
+  years
 ) {
   # Commodity balances from FAOSTAT
   fbs_new <- .extract_cb(
     "faostat-fbs-new",
-    years = years,
-    version = version
+    years = years
   )
   fbs_old <- .extract_cb(
     "faostat-fbs-old",
-    years = years,
-    version = version
+    years = years
   )
   cbs_crops <- .extract_cb(
     "faostat-cbs-old-crops",
-    years = years,
-    version = version
+    years = years
   )
   cbs_animals <- .extract_cb(
     "faostat-cbs-old-animal",
-    years = years,
-    version = version
+    years = years
   )
   cbs_new <- .extract_fao(
     "faostat-cbs-new",
-    years = years,
-    version = version
+    years = years
   )
 
   # Processed production
   prod_processed <- whep_read_file(
-    "faostat-production-processed",
-    version = version
+    "faostat-production-processed"
   )
 
   # Trade
-  fao_trade <- .read_fao_trade(years = years, version = version)
-  trade_hist <- .read_historical_trade(years = years, version = version)
+  fao_trade <- .read_fao_trade(years = years)
+  trade_hist <- .read_historical_trade(years = years)
 
   # GDP over population
   gdp_pop <- whep_read_file(
-    "gdp-population",
-    version = version
+    "gdp-population"
   ) |>
     dplyr::rename(year = Year) |>
     .filter_years(years)
@@ -403,10 +391,10 @@ build_processing_coefs <- function(
   primary_cbs_area <- .primary_to_cbs_area(primary_all)
 
   # Crop residues
-  crop_residues <- .read_crop_residues(years = years, version = version)
+  crop_residues <- .read_crop_residues(years = years)
 
   # Land areas
-  land_areas_wide <- .read_land_areas_wide(years = years, version = version)
+  land_areas_wide <- .read_land_areas_wide(years = years)
 
   list(
     fbs_new = fbs_new,
@@ -424,28 +412,26 @@ build_processing_coefs <- function(
   )
 }
 
-.read_fao_trade <- function(years = NULL, version = NULL) {
-  .extract_fao("faostat-trade", years = years, version = version) |>
+.read_fao_trade <- function(years = NULL) {
+  .extract_fao("faostat-trade", years = years) |>
     dplyr::rename(
       item_trade = item_cbs,
       item_code_trade = item_code_cbs
     )
 }
 
-.read_historical_trade <- function(years = NULL, version = NULL) {
+.read_historical_trade <- function(years = NULL) {
   items <- whep::items_full
   regions <- whep::regions_full
   cbs_trade <- whep::cbs_trade_codes
 
   exports <- whep_read_file(
-    "historical-trade-exports",
-    version = version
+    "historical-trade-exports"
   ) |>
     dplyr::mutate(element = "import")
 
   imports <- whep_read_file(
-    "historical-trade-imports",
-    version = version
+    "historical-trade-imports"
   ) |>
     dplyr::mutate(element = "export")
 
@@ -554,9 +540,8 @@ build_processing_coefs <- function(
     dplyr::select(-unit, -element)
 }
 
-.read_crop_residues <- function(years = NULL, version = NULL) {
+.read_crop_residues <- function(years = NULL) {
   items_prod <- whep::items_prod_full
-  polities <- whep::polities_cats
 
   res <- get_primary_residues() |>
     .filter_years(years)
@@ -566,8 +551,6 @@ build_processing_coefs <- function(
     dplyr::mutate(element = "production") |>
     add_item_cbs_name(code_column = "item_cbs_code_residue") |>
     dplyr::rename(item_cbs = item_cbs_name) |>
-    add_area_name() |>
-    dplyr::rename(area = area_name) |>
     (\(df) {
       dplyr::bind_rows(
         df,
@@ -593,12 +576,22 @@ build_processing_coefs <- function(
     ) |>
     dplyr::summarise(
       value = sum(value, na.rm = TRUE),
-      .by = c(year, area, area_code, item_cbs, item_code_cbs, element)
-    )
+      .by = c(year, area_code, item_cbs, item_code_cbs, element)
+    ) |>
+    dplyr::inner_join(
+      whep::regions_full |>
+        dplyr::select(area_code = code, polity_code, polity_name),
+      by = "area_code"
+    ) |>
+    dplyr::summarise(
+      value = sum(value, na.rm = TRUE),
+      .by = c(year, polity_code, polity_name, item_cbs, item_code_cbs, element)
+    ) |>
+    dplyr::rename(area_code = polity_code, area = polity_name)
 }
 
-.read_land_areas_wide <- function(years = NULL, version = NULL) {
-  land_areas <- .read_land_areas(years = years, version = version)
+.read_land_areas_wide <- function(years = NULL) {
+  land_areas <- .read_land_areas(years = years)
   varnames_cropland <- c(
     "c3ann",
     "c3per",

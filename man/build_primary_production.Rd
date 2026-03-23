@@ -7,8 +7,8 @@
 build_primary_production(
   start_year = 1850,
   end_year = 2021,
-  version = NULL,
-  smooth_carry_forward = FALSE
+  smooth_carry_forward = FALSE,
+  example = FALSE
 )
 }
 \arguments{
@@ -16,11 +16,11 @@ build_primary_production(
 
 \item{end_year}{Integer. Last year to include. Default \code{2021}.}
 
-\item{version}{File version for input pins. \code{NULL} (default) uses the
-frozen version from \link{whep_inputs}.}
-
 \item{smooth_carry_forward}{Logical. If \code{TRUE}, carry-forward tails
 are replaced with a linear trend. Default \code{FALSE}.}
+
+\item{example}{Logical. If \code{TRUE}, return a small hardcoded example
+tibble instead of reading remote data. Default \code{FALSE}.}
 }
 \value{
 A tibble in long format (see \code{.read_production()} for column
@@ -37,7 +37,5 @@ This is a convenience wrapper that chains the three pipeline steps:
 }
 }
 \examples{
-\dontrun{
-primary <- build_primary_production()
-}
+build_primary_production(example = TRUE)
 }
