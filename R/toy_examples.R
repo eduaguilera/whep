@@ -232,7 +232,7 @@
   )
 }
 
-.example_build_primary_production <- function() {
+.example_build_primary_prod <- function() {
   tibble::tribble(
     ~year, ~area, ~area_code, ~item_prod, ~item_code_prod, ~item_cbs, ~item_code_cbs, ~Live_anim, ~Live_anim_code, ~unit, ~value, ~source, ~qc_flag,
     2000L, "Nepal", "NPL", "Broad beans and horse beans, dry", 181L, "Pulses, Other and products", 2549L, NA, NA, "ha", 8000., "FAOSTAT", NA_character_,
@@ -248,7 +248,7 @@
   )
 }
 
-.example_build_commodity_balances <- function() {
+.example_build_commodity_bal <- function() {
   tibble::tribble(
     ~year, ~area, ~area_code, ~item_cbs, ~item_code_cbs, ~element, ~value, ~source, ~qc_flag,
     2005L, "Haiti", "HTI", "Firewood", 2107L, "domestic_supply", 921004., NA, NA_character_,
@@ -264,7 +264,7 @@
   )
 }
 
-.example_build_processing_coefs <- function() {
+.example_build_proc_coefs <- function() {
   tibble::tribble(
     ~year, ~area, ~area_code, ~processed_item, ~item_code_cbs, ~element, ~value, ~source, ~qc_flag, ~item_cbs, ~Product_fraction, ~value_proc_raw, ~scaling, ~cf, ~value_proc,
     2007L, "Rwanda", "RWA", "Sugar cane", 2536L, "production", 106000., "FBS_New", NA_character_, "Beverages, Fermented", 0.02591, 2746.1, 7.736, 0.2004, 21243.,

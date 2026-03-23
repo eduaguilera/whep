@@ -30,7 +30,7 @@ build_primary_production <- function(
   example = FALSE
 ) {
   if (example) {
-    return(.example_build_primary_production())
+    return(.example_build_primary_prod())
   }
   cli::cli_h1("Building primary production")
   .read_production(start_year, end_year) |>

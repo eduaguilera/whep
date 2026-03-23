@@ -34,7 +34,7 @@ build_commodity_balances <- function(
   example = FALSE
 ) {
   if (example) {
-    return(.example_build_commodity_balances())
+    return(.example_build_commodity_bal())
   }
   .read_cbs(primary_all, start_year, end_year) |>
     .fix_cbs() |>
@@ -280,7 +280,7 @@ build_processing_coefs <- function(
   example = FALSE
 ) {
   if (example) {
-    return(.example_build_processing_coefs())
+    return(.example_build_proc_coefs())
   }
   cb_proc <- whep::cb_processing
   years <- start_year:end_year
