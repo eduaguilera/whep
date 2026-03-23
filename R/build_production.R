@@ -74,7 +74,11 @@ build_primary_production <- function(
 #' \dontrun{
 #' raw <- read_production()
 #' }
-read_production <- function(start_year = 1850, end_year = 2021, version = NULL) {
+read_production <- function(
+  start_year = 1850,
+  end_year = 2021,
+  version = NULL
+) {
   output_years <- start_year:end_year
   years_df <- tibble::tibble(year = output_years)
 
@@ -249,11 +253,13 @@ qc_production <- function(
   fbs_old <- .extract_cb("faostat-fbs-old", years = years, version = version)
   cbs_anim <- .extract_cb(
     "faostat-cbs-old-animal",
-    years = years, version = version
+    years = years,
+    version = version
   )
   cbs_crops <- .extract_cb(
     "faostat-cbs-old-crops",
-    years = years, version = version
+    years = years,
+    version = version
   )
 
   dplyr::bind_rows(fbs_new, fbs_old, cbs_anim, cbs_crops) |>
@@ -596,21 +602,33 @@ qc_production <- function(
     tidyr::complete(
       year,
       tidyr::nesting(
-        area, area_code, item_prod, item_code_prod, Name_Eurostat
+        area,
+        area_code,
+        item_prod,
+        item_code_prod,
+        Name_Eurostat
       )
     ) |>
     fill_linear(
       ha_share,
       time_col = year,
       .by = c(
-        "area", "area_code", "item_prod", "item_code_prod", "Name_Eurostat"
+        "area",
+        "area_code",
+        "item_prod",
+        "item_code_prod",
+        "Name_Eurostat"
       )
     ) |>
     fill_linear(
       kgnha_euadb,
       time_col = year,
       .by = c(
-        "area", "area_code", "item_prod", "item_code_prod", "Name_Eurostat"
+        "area",
+        "area_code",
+        "item_prod",
+        "item_code_prod",
+        "Name_Eurostat"
       )
     ) |>
     dplyr::mutate(
@@ -620,14 +638,22 @@ qc_production <- function(
         ha_euadb * ha_share
       ),
       .by = c(
-        area, area_code, item_prod, item_code_prod, Name_Eurostat
+        area,
+        area_code,
+        item_prod,
+        item_code_prod,
+        Name_Eurostat
       )
     ) |>
     fill_linear(
       ha,
       time_col = year,
       .by = c(
-        "area", "area_code", "item_prod", "item_code_prod", "Name_Eurostat"
+        "area",
+        "area_code",
+        "item_prod",
+        "item_code_prod",
+        "Name_Eurostat"
       )
     ) |>
     dplyr::select(
@@ -813,7 +839,13 @@ qc_production <- function(
     fill_linear(
       n,
       time_col = year,
-      .by = c("area", "area_code", "item_cbs", "item_code_cbs", "Livestock_name")
+      .by = c(
+        "area",
+        "area_code",
+        "item_cbs",
+        "item_code_cbs",
+        "Livestock_name"
+      )
     ) |>
     dplyr::mutate(
       value = dplyr::if_else(
@@ -826,7 +858,13 @@ qc_production <- function(
     fill_linear(
       value,
       time_col = year,
-      .by = c("area", "area_code", "item_cbs", "item_code_cbs", "Livestock_name")
+      .by = c(
+        "area",
+        "area_code",
+        "item_cbs",
+        "item_code_cbs",
+        "Livestock_name"
+      )
     )
 }
 
@@ -1299,8 +1337,7 @@ qc_production <- function(
     dplyr::mutate(
       remove = dplyr::if_else(
         (is.na(group) | group == "Crop products") |
-          (group == "Livestock products" &
-            unit == "t_ha") |
+          (group == "Livestock products" & unit == "t_ha") |
           is.na(t2) |
           t2 == 0,
         "remove",

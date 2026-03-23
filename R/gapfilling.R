@@ -96,14 +96,22 @@ fill_linear <- function(
     orig_vals <- data[[value_col_name]]
     times <- data[[time_col_name]]
     smooth_vals <- if (!is.null(value_smooth_window)) {
-      zoo::rollmean(orig_vals, k = value_smooth_window,
-                    fill = NA, align = "center")
+      zoo::rollmean(
+        orig_vals,
+        k = value_smooth_window,
+        fill = NA,
+        align = "center"
+      )
     } else {
       orig_vals
     }
     res <- .fill_linear_vec(
-      orig_vals, smooth_vals, times,
-      interpolate, fill_forward, fill_backward
+      orig_vals,
+      smooth_vals,
+      times,
+      interpolate,
+      fill_forward,
+      fill_backward
     )
     data[[value_col_name]] <- res$value
     data[[source_col_name]] <- res$source
@@ -126,7 +134,9 @@ fill_linear <- function(
   use_smoothing <- !is.null(value_smooth_window)
   if (use_smoothing) {
     smooth_vals <- .grouped_rollmean(
-      orig_vals, grp_sorted, value_smooth_window
+      orig_vals,
+      grp_sorted,
+      value_smooth_window
     )
   } else {
     smooth_vals <- orig_vals
@@ -153,7 +163,9 @@ fill_linear <- function(
     m <- length(rng)
 
     valid <- which(!is.na(sv))
-    if (length(valid) == 0L) next
+    if (length(valid) == 0L) {
+      next
+    }
 
     first_v <- valid[1L]
     last_v <- valid[length(valid)]
@@ -217,15 +229,24 @@ fill_linear <- function(
   for (g in seq_along(starts)) {
     rng <- starts[g]:ends[g]
     result[rng] <- zoo::rollmean(
-      vals[rng], k = k, fill = NA, align = "center"
+      vals[rng],
+      k = k,
+      fill = NA,
+      align = "center"
     )
   }
   result
 }
 
 # Base R vectorized core for fill_linear (no dplyr)
-.fill_linear_vec <- function(orig_vals, smooth_vals, times,
-                             interpolate, fill_forward, fill_backward) {
+.fill_linear_vec <- function(
+  orig_vals,
+  smooth_vals,
+  times,
+  interpolate,
+  fill_forward,
+  fill_backward
+) {
   n <- length(orig_vals)
   filled <- orig_vals
   source <- rep("Gap not filled", n)
@@ -986,7 +1007,9 @@ fill_proxy_growth <- function(
   }
 
   for (i in seq_along(proxy_cols)) {
-    if (!anyNA(data[[value_col]])) break
+    if (!anyNA(data[[value_col]])) {
+      break
+    }
 
     spec_name <- specs[[i]]
     g_col <- paste0("growth_", i, "_", spec_name)
@@ -997,30 +1020,58 @@ fill_proxy_growth <- function(
     }
 
     # Direction fill: skip internal runs exceeding max_gap_lin
-    dir_ok <- gap_ok & data$.run_is_na &
+    dir_ok <- gap_ok &
+      data$.run_is_na &
       !(data$.run_internal & data$.run_len > max_gap_lin)
 
     data <- .fg_fill_forward_vec(
-      data, value_col, g_col, cols$source, m_name, dir_ok, by_cols
+      data,
+      value_col,
+      g_col,
+      cols$source,
+      m_name,
+      dir_ok,
+      by_cols
     )
     data <- .fg_fill_backward_vec(
-      data, value_col, g_col, cols$source, paste0(m_name, "_back"),
-      dir_ok, by_cols
+      data,
+      value_col,
+      g_col,
+      cols$source,
+      paste0(m_name, "_back"),
+      dir_ok,
+      by_cols
     )
 
     # Bridge linear: internal, small gaps
-    lin_ok <- gap_ok & data$.run_is_na & data$.run_internal &
+    lin_ok <- gap_ok &
+      data$.run_is_na &
+      data$.run_internal &
       data$.run_len <= max_gap_lin
     data <- .fg_fill_bridge_linear_vec(
-      data, value_col, cols$source, time_col, lin_ok, by_cols
+      data,
+      value_col,
+      cols$source,
+      time_col,
+      lin_ok,
+      by_cols
     )
 
     # Bridge geometric: internal, larger gaps
-    geo_ok <- gap_ok & data$.run_is_na & data$.run_internal &
+    geo_ok <- gap_ok &
+      data$.run_is_na &
+      data$.run_internal &
       data$.run_len > max_gap_lin
     data <- .fg_fill_bridge_geo_vec(
-      data, value_col, g_col, cols$source, i, specs, m_name,
-      geo_ok, by_cols
+      data,
+      value_col,
+      g_col,
+      cols$source,
+      i,
+      specs,
+      m_name,
+      geo_ok,
+      by_cols
     )
   }
 
@@ -1062,7 +1113,8 @@ fill_proxy_growth <- function(
       .run_len = dplyr::n(),
       .run_is_na = .is_miss_tmp[1],
       .run_internal = .is_miss_tmp[1] &
-        .grp_pos[1] > 1L & .grp_pos[dplyr::n()] < .grp_n[1],
+        .grp_pos[1] > 1L &
+        .grp_pos[dplyr::n()] < .grp_n[1],
       .by = dplyr::all_of(".run_id")
     )
 
@@ -1076,14 +1128,22 @@ fill_proxy_growth <- function(
 }
 
 .fg_fill_forward_vec <- function(
-  data, val_col, g_col, met_col, m_name, eligible, by_cols
+  data,
+  val_col,
+  g_col,
+  met_col,
+  m_name,
+  eligible,
+  by_cols
 ) {
   vals <- data[[val_col]]
   growth <- data[[g_col]]
   mets <- data[[met_col]]
 
   target <- is.na(vals) & eligible
-  if (!any(target)) return(data)
+  if (!any(target)) {
+    return(data)
+  }
 
   is_missing <- !is.na(mets) & mets == "missing"
 
@@ -1111,8 +1171,11 @@ fill_proxy_growth <- function(
   filled <- ave(g_factor, seg_id, FUN = cumprod) * anchor
 
   # Validity: anchor > 0, result finite
-  valid <- target & !is.na(anchor) & anchor > 0 &
-    !is.na(filled) & is.finite(filled)
+  valid <- target &
+    !is.na(anchor) &
+    anchor > 0 &
+    !is.na(filled) &
+    is.finite(filled)
   valid <- as.logical(ave(as.numeric(valid), seg_id, FUN = cummin)) & target
 
   vals[valid] <- filled[valid]
@@ -1124,14 +1187,22 @@ fill_proxy_growth <- function(
 }
 
 .fg_fill_backward_vec <- function(
-  data, val_col, g_col, met_col, m_name, eligible, by_cols
+  data,
+  val_col,
+  g_col,
+  met_col,
+  m_name,
+  eligible,
+  by_cols
 ) {
   vals <- data[[val_col]]
   growth <- data[[g_col]]
   mets <- data[[met_col]]
 
   target <- is.na(vals) & eligible
-  if (!any(target)) return(data)
+  if (!any(target)) {
+    return(data)
+  }
 
   is_missing <- !is.na(mets) & mets == "missing"
 
@@ -1169,7 +1240,8 @@ fill_proxy_growth <- function(
   valid <- target & !is.na(filled) & is.finite(filled) & filled > 0
   valid <- as.logical(
     ave(as.numeric(valid), seg_id, FUN = function(x) rev(cummin(rev(x))))
-  ) & target
+  ) &
+    target
 
   vals[valid] <- filled[valid]
   mets[valid & is_missing] <- m_name
@@ -1180,11 +1252,18 @@ fill_proxy_growth <- function(
 }
 
 .fg_fill_bridge_linear_vec <- function(
-  data, val_col, met_col, time_col, eligible, by_cols
+  data,
+  val_col,
+  met_col,
+  time_col,
+  eligible,
+  by_cols
 ) {
   vals <- data[[val_col]]
   mets <- data[[met_col]]
-  if (!any(eligible)) return(data)
+  if (!any(eligible)) {
+    return(data)
+  }
 
   # Anchors: value and time before/after each position
   if (length(by_cols) > 0) {
@@ -1219,9 +1298,12 @@ fill_proxy_growth <- function(
 
   if (nrow(run_anchors) > 0) {
     data <- dplyr::left_join(data, run_anchors, by = ".run_id")
-    interp <- data$.v0 + (data$.v1 - data$.v0) *
-      (data[[time_col]] - data$.t0) / (data$.t1 - data$.t0)
-    fill_mask <- eligible & data$.run_id %in% run_anchors$.run_id &
+    interp <- data$.v0 +
+      (data$.v1 - data$.v0) *
+        (data[[time_col]] - data$.t0) /
+        (data$.t1 - data$.t0)
+    fill_mask <- eligible &
+      data$.run_id %in% run_anchors$.run_id &
       !is.na(interp)
     vals[fill_mask] <- interp[fill_mask]
     mets[fill_mask] <- "linear_interp"
@@ -1241,12 +1323,21 @@ fill_proxy_growth <- function(
 }
 
 .fg_fill_bridge_geo_vec <- function(
-  data, val_col, g_col, met_col, level, specs, base_method,
-  eligible, by_cols
+  data,
+  val_col,
+  g_col,
+  met_col,
+  level,
+  specs,
+  base_method,
+  eligible,
+  by_cols
 ) {
   vals <- data[[val_col]]
   mets <- data[[met_col]]
-  if (!any(eligible)) return(data)
+  if (!any(eligible)) {
+    return(data)
+  }
 
   # Combine growth rates from hierarchy (best proxy first via coalesce)
   combined <- data[[paste0("growth_", level, "_", specs[[level]])]]
@@ -1301,8 +1392,7 @@ fill_proxy_growth <- function(
       .n_rates = .rlen + 1L,
       .pred_end = .v_start * .prod_total,
       .lambda = dplyr::if_else(
-        is.finite(.pred_end) & .pred_end > 0 &
-          is.finite(.v_end) & .v_end > 0,
+        is.finite(.pred_end) & .pred_end > 0 & is.finite(.v_end) & .v_end > 0,
         (.v_end / .pred_end)^(1 / .n_rates),
         NA_real_
       )
@@ -1408,7 +1498,9 @@ fill_proxy_growth <- function(
 # Vectorized backward-looking moving average using cumsum
 .compute_ma_vec <- function(vals, w) {
   n <- length(vals)
-  if (n < 2L) return(rep(NA_real_, n))
+  if (n < 2L) {
+    return(rep(NA_real_, n))
+  }
 
   not_na <- !is.na(vals)
   vals_0 <- ifelse(not_na, vals, 0)

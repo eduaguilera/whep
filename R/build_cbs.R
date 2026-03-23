@@ -366,23 +366,28 @@ build_processing_coefs <- function(
   # Commodity balances from FAOSTAT
   fbs_new <- .extract_cb(
     "faostat-fbs-new",
-    years = years, version = version
+    years = years,
+    version = version
   )
   fbs_old <- .extract_cb(
     "faostat-fbs-old",
-    years = years, version = version
+    years = years,
+    version = version
   )
   cbs_crops <- .extract_cb(
     "faostat-cbs-old-crops",
-    years = years, version = version
+    years = years,
+    version = version
   )
   cbs_animals <- .extract_cb(
     "faostat-cbs-old-animal",
-    years = years, version = version
+    years = years,
+    version = version
   )
   cbs_new <- .extract_fao(
     "faostat-cbs-new",
-    years = years, version = version
+    years = years,
+    version = version
   )
 
   # Processed production
@@ -395,7 +400,7 @@ build_processing_coefs <- function(
   fao_trade <- .read_fao_trade(years = years, version = version)
   trade_hist <- .read_historical_trade(years = years, version = version)
 
-  # GDP / population
+  # GDP over population
   gdp_pop <- whep_read_file(
     "gdp-population",
     version = version
@@ -616,7 +621,8 @@ build_processing_coefs <- function(
   land_areas |>
     dplyr::mutate(
       land_use = dplyr::if_else(
-        Land_Use %in% varnames_cropland, "Cropland",
+        Land_Use %in% varnames_cropland,
+        "Cropland",
         dplyr::if_else(Land_Use %in% varnames_pasture, "Pasture", "Other")
       )
     ) |>
@@ -670,6 +676,11 @@ build_processing_coefs <- function(
 }
 
 .fix_palm_kernels <- function(inputs) {
+  is_palm_kernels <-
+    item_cbs == "Palm kernels" & element == "processing" & source == "FBS_Old"
+  palm_filter <-
+    is_palm_kernels | (item_cbs == "Palmkernel Oil" & element == "production")
+
   dplyr::bind_rows(
     inputs$fbs_old |>
       dplyr::mutate(source = "FBS_Old"),
@@ -677,22 +688,14 @@ build_processing_coefs <- function(
       dplyr::mutate(source = "FBS_New") |>
       dplyr::filter(year > 2013)
   ) |>
-    dplyr::filter(
-      (item_cbs == "Palm kernels" &
-        element == "processing" &
-        source == "FBS_Old") |
-        (item_cbs == "Palmkernel Oil" &
-          element == "production")
-    ) |>
+    dplyr::filter(palm_filter) |>
     dplyr::select(-item_code_cbs, -element) |>
     tidyr::pivot_wider(
       names_from = item_cbs,
       values_from = value,
       values_fill = NA
     ) |>
-    dplyr::rename_with(
-      ~ stringr::str_replace(., " ", "_")
-    ) |>
+    dplyr::rename_with(~ stringr::str_replace(., " ", "_")) |>
     fill_proxy_growth(
       value_col = Palm_kernels,
       proxy_col = "Palmkernel_Oil",
@@ -921,7 +924,14 @@ build_processing_coefs <- function(
 
 .select_best_source <- function(cbs_raw_all) {
   # Pivot sources into columns — avoids grouped summarise + nth overhead.
-  key_cols <- c("area", "area_code", "year", "item_cbs", "item_code_cbs", "element")
+  key_cols <- c(
+    "area",
+    "area_code",
+    "year",
+    "item_cbs",
+    "item_code_cbs",
+    "element"
+  )
 
   wide <- cbs_raw_all |>
     dplyr::filter(!is.na(area)) |>
@@ -942,27 +952,37 @@ build_processing_coefs <- function(
 
   wide[["n"]] <- n
   wide[["mean_val"]] <- ifelse(n > 0, s / n, NA_real_)
-  wide[["sd"]] <- ifelse(n > 1L, sqrt(pmax(0, ss - s^2 / n) / (n - 1)), NA_real_)
+  wide[["sd"]] <- ifelse(
+    n > 1L,
+    sqrt(pmax(0, ss - s^2 / n) / (n - 1)),
+    NA_real_
+  )
 
   wide |>
     dplyr::mutate(
       cv = dplyr::if_else(
-        mean_val != 0 & !is.na(mean_val), sd / mean_val, NA_real_
+        mean_val != 0 & !is.na(mean_val),
+        sd / mean_val,
+        NA_real_
       ),
       fbs_comp = FBS_New / FBS_Old,
       .use_mean = n == 1 | cv < 0.01 | mean_val == 0 | is.na(fbs_comp),
       .use_fbs_new = fbs_comp > 0.9 & fbs_comp < 1.1,
       value = dplyr::if_else(
-        !is.na(Primary), Primary,
+        !is.na(Primary),
+        Primary,
         dplyr::if_else(
-          .use_mean, mean_val,
+          .use_mean,
+          mean_val,
           dplyr::if_else(.use_fbs_new, FBS_New, FBS_Old)
         )
       ),
       source = dplyr::if_else(
-        !is.na(Primary), "Primary",
+        !is.na(Primary),
+        "Primary",
         dplyr::if_else(
-          .use_mean, "mean",
+          .use_mean,
+          "mean",
           dplyr::if_else(.use_fbs_new, "FBS_New", "FBS_Old")
         )
       ),
@@ -1041,9 +1061,17 @@ build_processing_coefs <- function(
   items
 ) {
   expected_elements <- c(
-    "domestic_supply", "production", "import", "export",
-    "food", "feed", "other_uses", "processing",
-    "processing_primary", "seed", "stock_variation"
+    "domestic_supply",
+    "production",
+    "import",
+    "export",
+    "food",
+    "feed",
+    "other_uses",
+    "processing",
+    "processing_primary",
+    "seed",
+    "stock_variation"
   )
 
   df |>
@@ -1087,8 +1115,12 @@ build_processing_coefs <- function(
   # Batch-fill all share columns in a single grouped pass.
   # Avoids re-sorting and re-computing group boundaries 6 times.
   cols <- c(
-    "food_share", "feed_share", "other_uses_share",
-    "processing_share", "processing_primary_share", "seed_rate"
+    "food_share",
+    "feed_share",
+    "other_uses_share",
+    "processing_share",
+    "processing_primary_share",
+    "seed_rate"
   )
   by_cols <- c("area", "item_cbs")
 
@@ -1121,7 +1153,9 @@ build_processing_coefs <- function(
       m <- length(rng)
 
       valid <- which(!is.na(ov))
-      if (length(valid) == 0L) next
+      if (length(valid) == 0L) {
+        next
+      }
       first_v <- valid[1L]
       last_v <- valid[length(valid)]
 
@@ -1440,10 +1474,7 @@ build_processing_coefs <- function(
           dplyr::select(item_cbs, item_code_cbs, group),
         by = c("item_cbs", "item_code_cbs")
       ) |>
-      dplyr::filter(
-        !(group == "Crop products" &
-          element == "production")
-      ),
+      dplyr::filter(!(group == "Crop products" & element == "production")),
     proc_result$processed_agg |>
       dplyr::mutate(source = "Processed")
   ) |>
@@ -1472,8 +1503,13 @@ build_processing_coefs <- function(
 ) {
   # Save source provenance before internal processing
   src_lookup <- cbs_raw2 |>
-    dplyr::distinct(year, area_code, item_code_cbs, element,
-                    .keep_all = TRUE) |>
+    dplyr::distinct(
+      year,
+      area_code,
+      item_code_cbs,
+      element,
+      .keep_all = TRUE
+    ) |>
     dplyr::select(year, area_code, item_code_cbs, element, source)
   cbs_raw2 <- cbs_raw2 |>
     dplyr::select(-dplyr::any_of("source"))
@@ -1608,8 +1644,13 @@ build_processing_coefs <- function(
 .cbs_impute_trade <- function(cbs_raw3) {
   # Save source provenance before pivot cycle
   src_lookup <- cbs_raw3 |>
-    dplyr::distinct(year, area_code, item_code_cbs, element,
-                    .keep_all = TRUE) |>
+    dplyr::distinct(
+      year,
+      area_code,
+      item_code_cbs,
+      element,
+      .keep_all = TRUE
+    ) |>
     dplyr::select(year, area_code, item_code_cbs, element, source)
 
   destiny_list <- c(
@@ -1718,9 +1759,11 @@ build_processing_coefs <- function(
         !is.na(domestic_supply) & domestic_supply != 0,
         domestic_supply,
         dplyr::if_else(
-          !is.na(ds2) & ds2 != 0, ds2,
+          !is.na(ds2) & ds2 != 0,
+          ds2,
           dplyr::if_else(
-            net_bal1 > 0, net_bal1,
+            net_bal1 > 0,
+            net_bal1,
             dplyr::if_else(net_bal2 > 0, net_bal2, 0)
           )
         )
@@ -1753,7 +1796,12 @@ build_processing_coefs <- function(
 
 .cbs_fill_destinies <- function(cbs_raw4) {
   destiny_list <- c(
-    "food", "feed", "seed", "other_uses", "processing", "processing_primary"
+    "food",
+    "feed",
+    "seed",
+    "other_uses",
+    "processing",
+    "processing_primary"
   )
 
   cli::cli_progress_step("Computing destiny shares")
@@ -1787,8 +1835,9 @@ build_processing_coefs <- function(
     ) |>
     dplyr::mutate(
       dest_share = dplyr::case_when(
-        comm_group == "Other processing residues" ~ as.numeric(element == "feed"),
-        !is.na(sum_dests)                          ~ value / sum_dests
+        comm_group == "Other processing residues" ~
+          as.numeric(element == "feed"),
+        !is.na(sum_dests) ~ value / sum_dests
       )
     ) |>
     dplyr::select(-sum_dests, -comm_group)
@@ -1797,17 +1846,33 @@ build_processing_coefs <- function(
 # Fill dest_share across time using a sparse skeleton:
 # interpolate/extrapolate shares at all years with domestic_supply data.
 .interpolate_destiny_shares <- function(balance, destiny) {
-  by_cols <- c("area", "area_code", "item_cbs", "item_code_cbs", "element", "elem_cat")
+  by_cols <- c(
+    "area",
+    "area_code",
+    "item_cbs",
+    "item_code_cbs",
+    "element",
+    "elem_cat"
+  )
 
   # Target years: where domestic_supply exists (shares needed here)
   ds_keys <- balance |>
     dplyr::filter(element == "domestic_supply") |>
     dplyr::distinct(year, area, area_code, item_cbs, item_code_cbs)
 
-  dest_elem <- dplyr::distinct(destiny, area, area_code, item_cbs, item_code_cbs, element, elem_cat)
+  dest_elem <- dplyr::distinct(
+    destiny,
+    area,
+    area_code,
+    item_cbs,
+    item_code_cbs,
+    element,
+    elem_cat
+  )
 
   target_rows <- dplyr::inner_join(
-    ds_keys, dest_elem,
+    ds_keys,
+    dest_elem,
     by = c("area", "area_code", "item_cbs", "item_code_cbs"),
     relationship = "many-to-many"
   )
@@ -1818,14 +1883,38 @@ build_processing_coefs <- function(
     dplyr::select(dplyr::all_of(c("year", by_cols))) |>
     dplyr::anti_join(
       target_rows,
-      by = c("year", "area", "area_code", "item_cbs", "item_code_cbs", "element")
+      by = c(
+        "year",
+        "area",
+        "area_code",
+        "item_cbs",
+        "item_code_cbs",
+        "element"
+      )
     )
 
   dplyr::bind_rows(target_rows, anchor_rows) |>
     dplyr::left_join(
-      destiny |> dplyr::select(year, area, area_code, item_cbs, item_code_cbs,
-                                element, dest_share, value, source),
-      by = c("year", "area", "area_code", "item_cbs", "item_code_cbs", "element")
+      destiny |>
+        dplyr::select(
+          year,
+          area,
+          area_code,
+          item_cbs,
+          item_code_cbs,
+          element,
+          dest_share,
+          value,
+          source
+        ),
+      by = c(
+        "year",
+        "area",
+        "area_code",
+        "item_cbs",
+        "item_code_cbs",
+        "element"
+      )
     ) |>
     fill_linear(dest_share, time_col = year, .by = by_cols)
 }
@@ -1845,7 +1934,16 @@ build_processing_coefs <- function(
       ),
       value = tidyr::replace_na(value, 0)
     ) |>
-    dplyr::select(year, area, area_code, item_cbs, item_code_cbs, element, source, value) |>
+    dplyr::select(
+      year,
+      area,
+      area_code,
+      item_cbs,
+      item_code_cbs,
+      element,
+      source,
+      value
+    ) |>
     dplyr::filter(value != 0, area != "")
 }
 
@@ -1939,11 +2037,14 @@ build_processing_coefs <- function(
     ) |>
     dplyr::mutate(
       scaling = dplyr::if_else(
-        is.na(scaling_raw), 1,
+        is.na(scaling_raw),
+        1,
         dplyr::if_else(
-          source_scaling_raw == "Original", scaling_raw,
+          source_scaling_raw == "Original",
+          scaling_raw,
           dplyr::if_else(
-            scaling_raw > 5, 5,
+            scaling_raw > 5,
+            5,
             dplyr::if_else(scaling_raw < 0.2, 0.2, scaling_raw)
           )
         )
@@ -1956,7 +2057,14 @@ build_processing_coefs <- function(
     cbs_glob
   )
 
-  join_keys <- c("year", "area", "area_code", "item_cbs", "item_code_cbs", "element")
+  join_keys <- c(
+    "year",
+    "area",
+    "area_code",
+    "item_cbs",
+    "item_code_cbs",
+    "element"
+  )
 
   # Add processed values to existing rows (keeps original source),
   # then append genuinely new groups — avoids grouped summarise + first().
@@ -2075,8 +2183,13 @@ build_processing_coefs <- function(
 ) {
   # Save source provenance before pivot cycle
   src_lookup <- cbs_raw6 |>
-    dplyr::distinct(year, area_code, item_code_cbs, element,
-                    .keep_all = TRUE) |>
+    dplyr::distinct(
+      year,
+      area_code,
+      item_code_cbs,
+      element,
+      .keep_all = TRUE
+    ) |>
     dplyr::select(year, area_code, item_code_cbs, element, source)
 
   proc_scaling <- cbs_raw6 |>
@@ -2195,9 +2308,12 @@ build_processing_coefs <- function(
         0
       ),
       value2 = dplyr::if_else(
-        element == "processing", value - reclassified_value,
+        element == "processing",
+        value - reclassified_value,
         dplyr::if_else(
-          element == "other_uses", value + reclassified_value, value
+          element == "other_uses",
+          value + reclassified_value,
+          value
         )
       )
     ) |>
@@ -2230,8 +2346,13 @@ build_processing_coefs <- function(
 
   # Save source provenance before test_cbs pivot cycles
   src_lookup <- cbs_raw7 |>
-    dplyr::distinct(year, area_code, item_code_cbs, element,
-                    .keep_all = TRUE) |>
+    dplyr::distinct(
+      year,
+      area_code,
+      item_code_cbs,
+      element,
+      .keep_all = TRUE
+    ) |>
     dplyr::select(year, area_code, item_code_cbs, element, source)
 
   cbs_raw8 <- cbs_raw7 |>

@@ -172,14 +172,24 @@
     qc_fodder_break = "fodder_break"
   )
 
-  flag_matrix <- vapply(flag_cols, \(col) {
-    dplyr::coalesce(df[[col]], FALSE)
-  }, logical(nrow(df)))
-  if (length(flag_cols) == 1) dim(flag_matrix) <- c(nrow(df), 1)
+  flag_matrix <- vapply(
+    flag_cols,
+    \(col) {
+      dplyr::coalesce(df[[col]], FALSE)
+    },
+    logical(nrow(df))
+  )
+  if (length(flag_cols) == 1) {
+    dim(flag_matrix) <- c(nrow(df), 1)
+  }
 
   qc_flag <- apply(flag_matrix, 1, \(row) {
     active <- flag_cols[row]
-    if (length(active) == 0) NA_character_ else paste(labels[active], collapse = ";")
+    if (length(active) == 0) {
+      NA_character_
+    } else {
+      paste(labels[active], collapse = ";")
+    }
   })
 
   df |>

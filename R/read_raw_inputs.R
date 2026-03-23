@@ -5,7 +5,9 @@
 # -- Reading helpers -----------------------------------------------------------
 
 .filter_years <- function(df, years) {
-  if (is.null(years)) return(df)
+  if (is.null(years)) {
+    return(df)
+  }
   dplyr::filter(df, year %in% years)
 }
 
@@ -50,7 +52,8 @@
         value
       ),
       unit = dplyr::if_else(
-        unit %in% c("1000 tonnes", "1000 t"), "tonnes",
+        unit %in% c("1000 tonnes", "1000 t"),
+        "tonnes",
         dplyr::if_else(unit == "1000 US$", "kdollars", as.character(unit))
       )
     )
@@ -60,7 +63,8 @@
   df |>
     dplyr::mutate(
       item_code_cbs = dplyr::if_else(
-        item_code_cbs == 2804L, 2807L,
+        item_code_cbs == 2804L,
+        2807L,
         dplyr::if_else(item_code_cbs == 2820L, 2552L, item_code_cbs)
       )
     )
@@ -216,12 +220,16 @@
       scaling = dplyr::if_else(
         is.na(scaling_raw),
         dplyr::if_else(
-          !is.na(required) | item_cbs %in% no_data_products, 1, 0
+          !is.na(required) | item_cbs %in% no_data_products,
+          1,
+          0
         ),
         dplyr::if_else(
-          source_scaling_raw == "Original", scaling_raw,
+          source_scaling_raw == "Original",
+          scaling_raw,
           dplyr::if_else(
-            scaling_raw > 5, 5,
+            scaling_raw > 5,
+            5,
             dplyr::if_else(scaling_raw < 0.2, 0.2, scaling_raw)
           )
         )

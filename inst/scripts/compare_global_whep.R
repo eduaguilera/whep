@@ -7,6 +7,7 @@
 #   2.  Deep-dive diagnostics            (ratio patterns, name diffs)
 #   3.  Sanity checks                    (year ranges, elements, units)
 #
+# nolint start: commented_code_linter
 # Usage:
 #   source("inst/scripts/compare_global_whep.R")
 #
@@ -21,6 +22,7 @@
 #   #
 #   # 2. Then run this comparison:
 #   #    source("inst/scripts/compare_global_whep.R")
+# nolint end
 # ─────────────────────────────────────────────────────────────
 
 library(dplyr)
