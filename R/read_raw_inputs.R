@@ -138,15 +138,67 @@
   readr::read_csv(path, show_col_types = FALSE, name_repair = "universal")
 }
 
+# Get local file paths for a pin alias (download if needed, don't read).
+.download_pin_paths <- function(file_alias) {
+  file_info <- .fetch_file_info(file_alias, whep::whep_inputs)
+  version <- .choose_version(file_info$version, NULL)
+
+  tryCatch(
+    .get_local_board() |>
+      pins::pin_download(file_alias, version = version),
+    error = function(e) {
+      tryCatch(
+        file_info |>
+          .get_remote_board() |>
+          pins::pin_download(file_alias, version = version),
+        error = function(e) {
+          .get_cache_paths(file_info, file_alias, version, e)
+        }
+      )
+    }
+  )
+}
+
+# Read a parquet file, optionally filtering by year range.
+# Reads the full file with nanoparquet (fast), filters to requested years,
+# then triggers gc() to return the temporary full-file memory to the OS.
+# This keeps peak RSS bounded to one large file at a time (~500 MB worst case)
+# rather than accumulating all files in memory (~1.5 GB).
+.read_parquet_filtered <- function(pin_alias, years = NULL, year_col = NULL) {
+  cli::cli_alert_info("Fetching files for {pin_alias}...")
+  paths <- .download_pin_paths(pin_alias)
+  parquet_path <- grep("\\.parquet$", paths, value = TRUE)
+
+  if (length(parquet_path) == 0L) {
+    dt <- whep_read_file(pin_alias)
+    data.table::setDT(dt)
+    return(dt)
+  }
+
+  dt <- nanoparquet::read_parquet(parquet_path)
+  data.table::setDT(dt)
+
+  if (!is.null(years) && !is.null(year_col) && year_col %in% names(dt)) {
+    y_min <- min(years, na.rm = TRUE)
+    y_max <- max(years, na.rm = TRUE)
+    dt <- dt[dt[[year_col]] >= y_min & dt[[year_col]] <= y_max]
+    # Free the full-file memory before reading the next file.
+    gc()
+  }
+
+  dt
+}
+
+# Read and cache filtered input data. Cache key includes year range so
+# different year requests get separate (small) cached copies.
 .read_input_cached <- local({
   cache <- new.env(parent = emptyenv())
 
-  function(pin_alias) {
-    key <- as.character(pin_alias)
+  function(pin_alias, years = NULL, year_col = NULL) {
+    key <- paste0(pin_alias, "::", .years_cache_key(years))
 
     if (!exists(key, envir = cache, inherits = FALSE)) {
-      dt <- whep_read_file(pin_alias)
-      data.table::setDT(dt)
+      dt <- .read_parquet_filtered(pin_alias, years, year_col)
       assign(key, dt, envir = cache)
     }
 
@@ -250,7 +302,7 @@
     "other_uses"
   )
 
-  dt <- .read_input_cached(pin_alias)
+  dt <- .read_input_cached(pin_alias, years = years, year_col = "Year")
   data.table::setnames(dt, c(
     "Item Code", "Item", "Area", "Area Code", "Unit", "Element", "Year",
     "Value"

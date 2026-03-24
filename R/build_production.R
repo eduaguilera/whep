@@ -272,13 +272,13 @@ build_primary_production <- function(
 
 .read_fao_crop_liv <- function(years = NULL) {
   cli::cli_progress_step("Reading FAO crops/livestock")
-  dt <- .read_input_cached("faostat-production")
+  dt <- .read_input_cached("faostat-production",
+                           years = years, year_col = "Year")
   data.table::setnames(
     dt,
     c("Item Code", "Item", "Area Code", "Unit", "Element", "Year", "Value"),
     c("item_prod_code", "item_prod", "area_code", "unit", "element", "year", "value")
   )
-  dt <- .filter_years(dt, years)
   dt[, item_prod_code := as.character(item_prod_code)]
   dt <- .aggregate_to_polities(dt, item_prod_code, item_prod)
   data.table::setorderv(
@@ -297,9 +297,8 @@ build_primary_production <- function(
     , .(iso3c, area_code)
   ]
 
-  dt <- .read_input_cached("luh2-areas")
+  dt <- .read_input_cached("luh2-areas", years = years, year_col = "Year")
   data.table::setnames(dt, c("ISO3", "Year"), c("iso3c", "year"))
-  dt <- .filter_years(dt, years)
   dt <- merge(dt, regions, by = "iso3c", all.x = TRUE)
   dt <- merge(dt, polities, by.x = "polity_code", by.y = "iso3c", all.x = TRUE)
   dt[, polity_code := NULL]
@@ -313,8 +312,8 @@ build_primary_production <- function(
     , .(code, polity_name)
   ]
 
-  dt <- .read_input_cached("international-yields")
-  dt <- .filter_years(dt, years)
+  dt <- .read_input_cached("international-yields",
+                           years = years, year_col = "year")
   dt[, item_prod_code := as.character(item_code)]
   data.table::setnames(dt, "area_code", "code")
   dt[, item_code := NULL]
@@ -369,13 +368,12 @@ build_primary_production <- function(
   items_prod <- data.table::as.data.table(whep::items_prod_full)
   items <- data.table::as.data.table(whep::items_full)
 
-  dt <- whep_read_file("faostat-production-old")
-  data.table::setDT(dt)
+  dt <- .read_parquet_filtered("faostat-production-old",
+                               years = years, year_col = "Year")
   data.table::setnames(dt,
     c("AreaCode", "ItemCode", "ItemName", "Year", "Value"),
     c("area_code", "item_prod_code", "item_prod", "year", "value")
   )
-  dt <- .filter_years(dt, years)
   dt[, `:=`(element = "production", unit = "t",
             item_prod_code = as.character(item_prod_code))]
   dt <- .aggregate_to_polities(dt, item_prod_code, item_prod)
@@ -392,9 +390,9 @@ build_primary_production <- function(
 
   polities <- whep::polities
 
-  whep_read_file("eu-agridb-fodder") |>
+  .read_parquet_filtered("eu-agridb-fodder",
+                         years = years, year_col = "Year") |>
     dplyr::rename(year = Year) |>
-    .filter_years(years) |>
     dplyr::left_join(crops_eu, by = "Crop") |>
     dplyr::rename(adb_region = Region) |>
     dplyr::left_join(
@@ -719,13 +717,12 @@ build_primary_production <- function(
 }
 
 .read_livestock_stocks <- function(years = NULL) {
-  dt <- whep_read_file("faostat-emissions-livestock")
-  data.table::setDT(dt)
+  dt <- .read_parquet_filtered("faostat-emissions-livestock",
+                               years = years, year_col = "Year")
   data.table::setnames(dt,
     c("Item Code", "Item", "Area Code", "Unit", "Element", "Year", "Value"),
     c("item_cbs_code", "item_cbs", "area_code", "unit", "element", "year", "value")
   )
-  dt <- .filter_years(dt, years)
   dt <- dt[element == "Stocks" & Source == "FAO TIER 1"]
   .aggregate_to_polities(dt, item_cbs_code, item_cbs)
 }

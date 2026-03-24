@@ -499,11 +499,12 @@ build_processing_coefs <- function(
 }
 
 .read_gdp_pop <- function(years = NULL) {
-  dt <- .read_input_cached("gdp-population")
+  dt <- .read_input_cached("gdp-population",
+                           years = years, year_col = "Year")
   if ("Year" %in% names(dt)) {
     data.table::setnames(dt, "Year", "year")
   }
-  .filter_years(dt, years)
+  dt
 }
 
 .read_fao_trade <- function(years = NULL) {
@@ -527,14 +528,15 @@ build_processing_coefs <- function(
     , .(iso3c, area_code)
   ]
 
-  exports <- .read_input_cached("historical-trade-exports")
+  exports <- .read_input_cached("historical-trade-exports",
+                                years = years, year_col = "year")
   exports[, element := "import"]
 
-  imports <- .read_input_cached("historical-trade-imports")
+  imports <- .read_input_cached("historical-trade-imports",
+                                years = years, year_col = "year")
   imports[, element := "export"]
 
   dt <- data.table::rbindlist(list(exports, imports), use.names = TRUE, fill = TRUE)
-  dt <- .filter_years(dt, years)
   dt <- dt[
     !is.na(iso3) & measurement %in% c("1000 MT", "1000 tons")
   ]
