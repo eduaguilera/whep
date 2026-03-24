@@ -1,0 +1,188 @@
+polity_name,polygon_source,source_code,details,effort
+Abu Dhabi,GADM,ARE,L1 Abu Dhabi emirate,LOW
+Aden,GADM_combine,YEM,L1 Aden+southern governorates,MEDIUM
+Ajman,GADM,ARE,L1 Ajman emirate,LOW
+American Samoa,GADM,ASM,L0,LOW
+Andorra,GADM,AND,L0,LOW
+Anguilla,GADM,AIA,L0,LOW
+Antarctica,NatEarth,ATA,L0,LOW
+Antigua and Barbuda,GADM,ATG,L0,LOW
+Aruba,GADM,ABW,L0,LOW
+Badakhshan,manual,-,NE Afghanistan historical region,HIGH
+Basutoland,GADM_combine,LSO,L0 = modern Lesotho,MEDIUM
+Bechuanaland Protectorate,GADM_combine,BWA,L0 = modern Botswana,MEDIUM
+Belgian Congo,GADM_combine,COD,L0 = modern DRC,MEDIUM
+Bermuda,GADM,BMU,L0,LOW
+"Bonaire, Sint Eustatius and Saba",GADM,BES,L0,LOW
+Bonin island,GADM,JPN,L2 Ogasawara subprefecture,LOW
+Bouvet Island,NatEarth,BVT,minor island,LOW
+British Bechuanaland,GADM,ZAF,L1 North West province subset,LOW
+British Cameroon,GADM_combine,NGA+CMR,border regions,MEDIUM
+British Columbia,GADM,CAN,L1 British Columbia,LOW
+British East Africa,GADM_combine,KEN+UGA,L0 combined,MEDIUM
+British Indian Ocean Territory,GADM,IOT,L0,LOW
+British Malaya,GADM_combine,MYS,L1 Peninsular states only,MEDIUM
+British New Guinea,GADM_combine,PNG,L1 southern provinces,MEDIUM
+British Protectorate (British Somaliland),GADM_combine,SOM,L1 NW regions,MEDIUM
+British Virgin Islands,GADM,VGB,L0,LOW
+British settlement Oceania,NatEarth,scattered,multiple Pacific islands,LOW
+Brunei (greater),GADM_combine,BRN+MYS,L0 Brunei + L1 parts of Sabah/Sarawak,MEDIUM
+Bukhara,Aourednik,1880,Emirate of Bukhara from 1880 snapshot,HIGH
+Cameroon (Kamerun),GADM_combine,CMR,L0 roughly = modern Cameroon,MEDIUM
+Canary Islands,GADM,ESP,L1 Canarias,LOW
+Canton and Enderbury Islands,NatEarth,KIR,subset of Kiribati,LOW
+Caroline Island,GADM,FSM+PLW,L0 combined,LOW
+Cayman Islands,GADM,CYM,L0,LOW
+Ceuta Y Melilla,GADM,ESP,L2 Ceuta+Melilla,LOW
+Channel Islands,GADM,GGY+JEY,L0 combined,LOW
+"China, mainland",GADM,CHN,L0 minus Taiwan,LOW
+Christmas Island,GADM,CXR,L0,LOW
+Cocos (Keeling) Islands,GADM,CCK,L0,LOW
+Cook Islands,GADM,COK,L0,LOW
+Crete,GADM,GRC,L1 Crete region,LOW
+Curaçao,GADM,CUW,L0,LOW
+Danish India,manual,-,"Tranquebar+Serampore, tiny enclaves",HIGH
+Danish Virgin Islands,GADM,VIR,L0 (now USVI),LOW
+Dodecanese Is.,GADM_combine,GRC,L2 South Aegean/Dodecanese,MEDIUM
+Dominica,GADM,DMA,L0,LOW
+Dronning Maud Land,NatEarth,ATA,Antarctic claim,LOW
+Duchy Modena,Aourednik,1850,Small polygon from 1850 snapshot,HIGH
+Duchy Parma,Aourednik,1850,Small polygon from 1850 snapshot,HIGH
+Dutch East Indies (Indonesia),GADM_combine,IDN,L0 = modern Indonesia,MEDIUM
+Dutch Guayana,GADM_combine,SUR,L0 = modern Suriname,MEDIUM
+Dutch West Indies (Netherland Antilles),GADM_combine,ABW+CUW+SXM+BES,L0 combined,MEDIUM
+Dutch new Guinea,GADM_combine,IDN,L1 Papua provinces,MEDIUM
+East Berlin,GADM,DEU,L2 Berlin eastern districts,LOW
+Egypt (to 1922),GADM,EGY,L0 modern Egypt,LOW
+Ethiopia (old),GADM,ETH+ERI,L0 combined,LOW
+Federated Malay States,GADM,MYS,L1 Perak+Selangor+Negeri Sembilan+Pahang,LOW
+French Guiana,GADM,GUF,L0,LOW
+French Polynesia,GADM,PYF,L0,LOW
+French Southern Territories,GADM,ATF,L0,LOW
+Fujairah,GADM,ARE,L1 Fujairah emirate,LOW
+Gambier Island,GADM,PYF,L2 Gambier subset,LOW
+Gaza Strip,NatEarth,PSX,Gaza subset,LOW
+German East Africa (Tanganyika),GADM_combine,TZA,L0 mainland Tanzania,MEDIUM
+German West Africa,GADM_combine,TGO,L0 = modern Togo (approximately),MEDIUM
+German colonies Oceania,NatEarth,scattered,Marshall Is+Carolines+Marianas+Nauru+parts of PNG,LOW
+Germany/Zollverein,GADM,DEU,L0 modern Germany,LOW
+Gibraltar,GADM,GIB,L0,LOW
+Gilbert and Ellice Island,GADM_combine,KIR+TUV,L0 combined,MEDIUM
+Gold Coast,GADM_combine,GHA,L0 = modern Ghana,MEDIUM
+Greenland,GADM,GRL,L0,LOW
+Grenada,GADM,GRD,L0,LOW
+Guadeloupe,GADM,GLP,L0,LOW
+Guam,GADM,GUM,L0,LOW
+Guernsey,GADM,GGY,L0,LOW
+Heard Island and McDonald Islands,NatEarth,HMD,minor island,LOW
+Herat,GADM,AFG,L1 Herat province,LOW
+Holy See,NatEarth,VAT,point/tiny polygon,LOW
+Hong Kong,GADM,HKG,L0,LOW
+India (to 1947),GADM,IND+PAK+BGD+MMR,L0 combined British India,LOW
+Ionian islands,GADM,GRC,L2 Ionian Islands region,LOW
+Isle of Man,GADM,IMN,L0,LOW
+Italian Libia Cyrenaica (Lybia),GADM_combine,LBY,L0 = modern Libya,MEDIUM
+Italian Somaliland,GADM_combine,SOM,L1 southern regions,MEDIUM
+Jersey,GADM,JEY,L0,LOW
+Johnston Island,NatEarth,UMI,subset,LOW
+Khiva,Aourednik,1850,Central Asian khanate from 1850 snapshot,HIGH
+Kiautchou,manual,-,"Qingdao area ~552 km2, need custom polygon",HIGH
+Kiribati,GADM,KIR,L0,LOW
+Kokand,Aourednik,1850,Central Asian khanate from 1850 snapshot,HIGH
+Kwang-Chou-Wan,manual,-,"Guangzhou Bay ~1300 km2, need custom polygon",HIGH
+Kwantung (Port Arthur),manual,-,"Liaodong tip ~3500 km2, need custom polygon",HIGH
+Liechtenstein,GADM,LIE,L0,LOW
+Lower Quebec,GADM,CAN,L1 Quebec,LOW
+Luxembourg (old),GADM,LUX,L0,LOW
+Macao,GADM,MAC,L0,LOW
+Manchukuo,GADM_combine,CHN,L1 Heilongjiang+Jilin+Liaoning,MEDIUM
+Mariana Island,GADM,MNP,L0,LOW
+Marquesas Island,GADM,PYF,L2 Marquesas subset,LOW
+Marshall Islands,GADM,MHL,L0,LOW
+Martinique,GADM,MTQ,L0,LOW
+Mayotte,GADM,MYT,L0,LOW
+Mayotte and Noissi-be,GADM,MYT+MDG,L0 Mayotte + L2 Nosy Be,LOW
+Midway Islands,NatEarth,UMI,subset,LOW
+Monaco,NatEarth,MCO,point/tiny polygon,LOW
+Montserrat,GADM,MSR,L0,LOW
+Nauru,GADM,NRU,L0,LOW
+Netherlands (old),GADM,NLD,L0,LOW
+Netherlands Antilles,GADM,CUW+SXM+BES,L0 combined minus Aruba,LOW
+Netherlands Antilles (original),GADM,ABW+CUW+SXM+BES,L0 combined,LOW
+Neutral Zone,manual,-,Saudi-Kuwait neutral zone dissolved 1969/1970,HIGH
+New Brunswick,GADM,CAN,L1 New Brunswick,LOW
+New Caledonia,GADM,NCL,L0,LOW
+New Guinea,GADM_combine,PNG,L1 northern provinces,MEDIUM
+New Hebrides,GADM_combine,VUT,L0 = modern Vanuatu,MEDIUM
+Newfoundland,GADM,CAN,L1 Newfoundland and Labrador,LOW
+Nigeria (old),GADM,NGA,L0,LOW
+Niue,GADM,NIU,L0,LOW
+Norfolk Island,GADM,NFK,L0,LOW
+Northern Mariana Islands,GADM,MNP,L0,LOW
+Nova Scotia  Cape Breton Isl.,GADM,CAN,L1 Nova Scotia,LOW
+Nyasaland Protectorate (Malawi),GADM_combine,MWI,L0 = modern Malawi,MEDIUM
+Ontario,GADM,CAN,L1 Ontario,LOW
+Palau,GADM,PLW,L0,LOW
+Palestine,NatEarth,PSX,L0,LOW
+Palestine/Jordan,GADM_combine,JOR+PSX,L0 combined,MEDIUM
+Palmyra Island,NatEarth,UMI,subset,LOW
+Panama (before Canal Zone),GADM,PAN,L0,LOW
+Papal States,Aourednik,1850,Central Italy polygon from 1850 snapshot,HIGH
+Pitcairn,GADM,PCN,L0,LOW
+Portuguese India,GADM,IND,L2 Goa+Daman+Diu,LOW
+Prince Edward Island,GADM,CAN,L1 Prince Edward Island,LOW
+Puerto Rico,GADM,PRI,L0,LOW
+Ras al Khaimah,GADM,ARE,L1 Ras al Khaimah emirate,LOW
+Rwanda and Burundi,GADM_combine,RWA+BDI,L0 combined,MEDIUM
+Ryukyu Islands,GADM,JPN,L1 Okinawa,LOW
+Réunion,GADM,REU,L0,LOW
+Sabah (British Borneo),GADM_combine,MYS,L1 Sabah state,MEDIUM
+Saint Barthélemy,GADM,BLM,L0,LOW
+"Saint Helena, Ascension and Tristan da Cunha",GADM,SHN,L0,LOW
+Saint Kitts and Nevis,GADM,KNA,L0,LOW
+Saint Kitts-Nevis-Anguilla,GADM,KNA+AIA,L0 combined,LOW
+Saint Lucia,GADM,LCA,L0,LOW
+Saint Martin (French part),GADM,MAF,L0,LOW
+Saint Pierre and Miquelon,GADM,SPM,L0,LOW
+Saint Vincent and the Grenadines,GADM,VCT,L0,LOW
+Samoa,GADM,WSM,L0,LOW
+San Marino,GADM,SMR,L0,LOW
+Sao Tome and Principe,GADM,STP,L0,LOW
+Sarawak,GADM_combine,MYS,L1 Sarawak state,MEDIUM
+Sardinia,Aourednik,1850,NW Italy + Sardinia island from 1850 snapshot,HIGH
+Saudi Arabia (1924-1932),Aourednik,1930,Hejaz+Nejd snapshot,HIGH
+Seychelles,GADM,SYC,L0,LOW
+Sharjah,GADM,ARE,L1 Sharjah emirate,LOW
+Sikkim,GADM,IND,L1 Sikkim,LOW
+Sint Maarten (Dutch part),GADM,SXM,L0,LOW
+Solomon Islands,GADM,SLB,L0,LOW
+South Georgia and the South Sandwich Islands,GADM,SGS,L0,LOW
+Spanish Guinea,GADM_combine,GNQ,L0 = modern Eq. Guinea,MEDIUM
+Spanish North Africa,GADM,ESP,L2 Ceuta+Melilla,LOW
+St Martin and St Barthélemy,GADM,MAF+BLM,L0 combined,LOW
+St. Helena,GADM,SHN,L0,LOW
+St. Lucía,GADM,LCA,L0,LOW
+St. Vincent,GADM,VCT,L0,LOW
+Straits Settlement,GADM_combine,SGP+MYS,L0 Singapore + L2 Penang+Malacca,MEDIUM
+Sudan (Anglo-Egyptian),GADM_combine,SDN+SSD,L0 combined,MEDIUM
+Svalbard and Jan Mayen,GADM,SJM,L0,LOW
+Syria and Lebanon,GADM_combine,SYR+LBN,L0 combined,MEDIUM
+Tibet (old),GADM,CHN,L1 Tibet/Xizang,LOW
+Tokelau,GADM,TKL,L0,LOW
+Tonga,GADM,TON,L0,LOW
+Turks and Caicos Islands,GADM,TCA,L0,LOW
+Tuscany,Aourednik,1850,Tuscany polygon from 1850 snapshot,HIGH
+Tuvalu,GADM,TUV,L0,LOW
+Two Sicilies,Aourednik,1850,S Italy + Sicily from 1850 snapshot,HIGH
+Umm al Qawain,GADM,ARE,L1 Umm al Quwain emirate,LOW
+United States Minor Outlying Islands,GADM,UMI,L0,LOW
+United States Virgin Islands,GADM,VIR,L0,LOW
+United States miscellaneous Pacific Islands,NatEarth,UMI,subset,LOW
+Vancouver's Island,GADM,CAN,L2 Vancouver Island subset of BC,LOW
+Vanuatu,GADM,VUT,L0,LOW
+Wake Island,NatEarth,UMI,Wake Island polygon,LOW
+Wallis and Futuna,GADM,WLF,L0,LOW
+West Berlin,GADM,DEU,L2 Berlin western districts,LOW
+Western Sahara,GADM,ESH,L0,LOW
+Yunnan,GADM,CHN,L1 Yunnan province,LOW
+Åland Islands,GADM,FIN,L1 Åland/Ahvenanmaa,LOW
