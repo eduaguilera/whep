@@ -387,6 +387,7 @@ Indonesia,m49,Indonesia
 Indonesia,faostat,Indonesia
 International Centres (FAO) (2.5.1.a),faostat,International Centres (FAO) (2.5.1.a)
 Ionian islands,federico_tena,Ionian islands
+Ionian islands,whep,Ionian islands
 Iran (Islamic Republic of),faostat,Iran
 "Iran, Islamic Republic of",m49,Iran
 Iraq,m49,Iraq
@@ -423,10 +424,11 @@ Kenya,m49,Kenya
 Kenya,faostat,Kenya
 Khiva,federico_tena,Khiva
 Kiautchou,federico_tena,Kiautchou
-Kingdom Two sicilies,federico_tena,Kingdom Two sicilies
+Kingdom Two sicilies,federico_tena,Two Sicilies
 Kiribati,m49,Kiribati
 Kiribati,faostat,Kiribati
 Kokand,federico_tena,Kokand
+Kokand,whep,Kokand
 Korea,federico_tena,Korea (to 1910)
 "Korea, Democratic People's Republic of",m49,North Korea
 "Korea, Republic of",m49,South Korea
@@ -485,6 +487,7 @@ Malta,m49,Malta
 Malta,faostat,Malta
 Malta,federico_tena,Malta
 Manchukuo,federico_tena,Manchukuo
+Manchukuo,whep,Manchukuo
 Mariana Island,federico_tena,Mariana Island
 Marquesas Island,federico_tena,Marquesas Island
 Marshall Island,federico_tena,Marshall Islands
@@ -595,7 +598,7 @@ Oman,m49,Oman
 Oman,faostat,Oman
 Oman,federico_tena,Oman
 Ontario,federico_tena,Ontario
-Orange Free State,federico_tena,Orange Free State
+Orange Free State,federico_tena,Orange Free State (to 1910)
 Ottoman Empire/Turkey,federico_tena,Türkiye (to 1912)
 Pacific Islands (Trust Territory),m49,Pacific Islands Trust Territory
 Pacific Islands Trust Territory,faostat,Pacific Islands Trust Territory
