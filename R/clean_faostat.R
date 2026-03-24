@@ -48,30 +48,20 @@
 ) {
   force(df)
   cli::cli_progress_step("Flagging carry-forwards")
-  df |>
-    dplyr::arrange(dplyr::across(dplyr::all_of(c(by, time_col)))) |>
-    dplyr::mutate(
-      .val = .data[[value_col]],
-      .time = .data[[time_col]],
-      .max_time = max(.time, na.rm = TRUE),
-      # Run-length from the end: count backwards while value == last value
-      .last_val = .val[dplyr::n()],
-      .from_end = rev(cumsum(rev(.val != .last_val))),
-      .run_length = sum(.from_end == 0),
-      qc_carry_forward = .from_end == 0 &
-        .run_length >= min_run &
-        .val != 0 &
-        !is.na(.val),
-      .by = dplyr::all_of(by)
-    ) |>
-    dplyr::select(
-      -".val",
-      -".time",
-      -".max_time",
-      -".last_val",
-      -".from_end",
-      -".run_length"
-    )
+  if (!data.table::is.data.table(df)) {
+    data.table::setDT(df)
+  } else {
+    data.table::setalloccol(df)
+  }
+  data.table::setorderv(df, c(by, time_col))
+  df[, qc_carry_forward := {
+    val <- get(value_col)
+    last_val <- val[.N]
+    from_end <- rev(cumsum(rev(val != last_val)))
+    run_length <- sum(from_end == 0)
+    from_end == 0 & run_length >= min_run & val != 0 & !is.na(val)
+  }, by = by]
+  df
 }
 
 #' Flag year-on-year spikes
@@ -100,20 +90,19 @@
 ) {
   force(df)
   cli::cli_progress_step("Flagging spikes")
-  df |>
-    dplyr::arrange(dplyr::across(dplyr::all_of(c(by, time_col)))) |>
-    dplyr::mutate(
-      .val = .data[[value_col]],
-      .prev = dplyr::lag(.val),
-      .ratio = .val / .prev,
-      qc_spike = !is.na(.ratio) &
-        is.finite(.ratio) &
-        (abs(.ratio) > spike_ratio | abs(.ratio) < 1 / spike_ratio) &
-        .val > min_value &
-        .prev > min_value,
-      .by = dplyr::all_of(by)
-    ) |>
-    dplyr::select(-".val", -".prev", -".ratio")
+  if (!data.table::is.data.table(df)) data.table::setDT(df)
+  data.table::setorderv(df, c(by, time_col))
+  df[, qc_spike := {
+    val <- get(value_col)
+    prev <- data.table::shift(val, 1L, type = "lag")
+    ratio <- val / prev
+    !is.na(ratio) &
+      is.finite(ratio) &
+      (abs(ratio) > spike_ratio | abs(ratio) < 1 / spike_ratio) &
+      val > min_value &
+      prev > min_value
+  }, by = by]
+  df
 }
 
 #' Flag the 1984-85 fodder reporting discontinuity
@@ -137,12 +126,10 @@
 ) {
   force(df)
   cli::cli_progress_step("Flagging fodder break")
-  df |>
-    dplyr::mutate(
-      qc_fodder_break = .data[[item_col]] %in%
-        .fodder_items &
-        year %in% c(1984L, 1985L)
-    )
+  if (!data.table::is.data.table(df)) data.table::setDT(df)
+  df[, qc_fodder_break := df[[item_col]] %in% .fodder_items &
+    year %in% c(1984L, 1985L)]
+  df
 }
 
 #' Combine individual QC flags into a single semi-colon-separated string
@@ -161,8 +148,13 @@
     c("qc_carry_forward", "qc_spike", "qc_fodder_break"),
     names(df)
   )
+
+  if (!data.table::is.data.table(df)) data.table::setDT(df)
+  dt <- df
+
   if (length(flag_cols) == 0) {
-    return(dplyr::mutate(df, qc_flag = NA_character_))
+    dt[, qc_flag := NA_character_]
+    return(dt)
   }
 
   # Build the label map
@@ -175,16 +167,17 @@
   flag_matrix <- vapply(
     flag_cols,
     \(col) {
-      dplyr::coalesce(df[[col]], FALSE)
+      x <- dt[[col]]
+      data.table::fifelse(is.na(x), FALSE, x)
     },
-    logical(nrow(df))
+    logical(nrow(dt))
   )
   if (length(flag_cols) == 1) {
-    dim(flag_matrix) <- c(nrow(df), 1)
+    dim(flag_matrix) <- c(nrow(dt), 1)
   }
 
   any_flagged <- rowSums(flag_matrix) > 0L
-  qc_flag <- rep(NA_character_, nrow(df))
+  qc_flag <- rep(NA_character_, nrow(dt))
   if (any(any_flagged)) {
     qc_flag[any_flagged] <- apply(
       flag_matrix[any_flagged, , drop = FALSE],
@@ -195,9 +188,9 @@
     )
   }
 
-  df |>
-    dplyr::mutate(qc_flag = qc_flag) |>
-    dplyr::select(-dplyr::all_of(flag_cols))
+  dt[, qc_flag := qc_flag]
+  data.table::set(dt, j = flag_cols, value = NULL)
+  dt
 }
 
 #' Smooth carry-forward tails with a simple linear trend
@@ -224,47 +217,47 @@
   value_col = "value",
   time_col = "year"
 ) {
-  df |>
-    dplyr::mutate(
-      .val = .data[[value_col]],
-      .time = .data[[time_col]],
-      .is_cf = !is.na(qc_carry_forward) & qc_carry_forward,
-      # anchor = last anchor_years worth of non-flagged data
-      .anchor = !.is_cf & !is.na(.val),
-      .n_anchor = cumsum(.anchor),
-      .anchor_start = max(0L, max(.n_anchor[.anchor]) - anchor_years + 1L),
-      .use_anchor = .anchor & .n_anchor > .anchor_start,
-      .by = dplyr::all_of(by)
-    ) |>
-    dplyr::mutate(
-      # Fit simple linear model on anchor points
-      .slope = {
-        ax <- .time[.use_anchor]
-        ay <- .val[.use_anchor]
-        if (length(ax) >= 2) {
-          stats::coef(stats::lm(ay ~ ax))[2]
-        } else {
-          0
-        }
-      },
-      .intercept = {
-        ax <- .time[.use_anchor]
-        ay <- .val[.use_anchor]
-        if (length(ax) >= 2) {
-          stats::coef(stats::lm(ay ~ ax))[1]
-        } else {
-          mean(ay, na.rm = TRUE)
-        }
-      },
-      .smoothed = .intercept + .slope * .time,
-      # Floor at zero — production can't be negative
-      .smoothed = pmax(.smoothed, 0),
-      .by = dplyr::all_of(by)
-    ) |>
-    dplyr::mutate(
-      !!value_col := dplyr::if_else(.is_cf, .smoothed, .val)
-    ) |>
-    dplyr::select(-dplyr::starts_with("."))
+  if (!data.table::is.data.table(df)) data.table::setDT(df)
+  dt <- df
+  data.table::setorderv(dt, c(by, time_col))
+
+  # Step 1: compute anchor flags
+  dt[, c(".val", ".time", ".is_cf", ".anchor", ".n_anchor",
+         ".anchor_start", ".use_anchor") := {
+    val <- get(value_col)
+    time <- get(time_col)
+    is_cf <- !is.na(qc_carry_forward) & qc_carry_forward
+    anchor <- !is_cf & !is.na(val)
+    n_anchor <- cumsum(anchor)
+    anchor_start <- max(0L, max(n_anchor[anchor]) - anchor_years + 1L)
+    use_anchor <- anchor & n_anchor > anchor_start
+    list(val, time, is_cf, anchor, n_anchor, anchor_start, use_anchor)
+  }, by = by]
+
+  # Step 2: fit linear model on anchor points and compute smoothed values
+  dt[, c(".slope", ".intercept", ".smoothed") := {
+    ax <- .time[.use_anchor]
+    ay <- .val[.use_anchor]
+    if (length(ax) >= 2) {
+      fit <- stats::coef(stats::lm(ay ~ ax))
+      slope <- fit[2]
+      intercept <- fit[1]
+    } else {
+      slope <- 0
+      intercept <- mean(ay, na.rm = TRUE)
+    }
+    smoothed <- pmax(intercept + slope * .time, 0)
+    list(slope, intercept, smoothed)
+  }, by = by]
+
+  # Step 3: replace carry-forward values with smoothed values
+  dt[, (value_col) := data.table::fifelse(.is_cf, .smoothed, .val)]
+
+  # Remove temporary columns
+  tmp_cols <- grep("^\\.", names(dt), value = TRUE)
+  data.table::set(dt, j = tmp_cols, value = NULL)
+
+  dt
 }
 
 # -- Print summary -------------------------------------------------------------

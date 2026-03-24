@@ -18,6 +18,7 @@ Description: A set of tools for processing and analyzing data developed in the
 License: MIT + file LICENSE
 Imports:
     cli,
+    data.table,
     dplyr,
     fs,
     FAOSTAT,

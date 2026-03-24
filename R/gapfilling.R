@@ -71,13 +71,10 @@ fill_linear <- function(
   # Fast duplicate check: anyDuplicated first, expensive summarise only
   # if needed
   dup_cols <- c(by_cols, time_col_name)
-  if (anyDuplicated(data[, dup_cols, drop = FALSE]) > 0L) {
-    dups <- data |>
-      dplyr::summarise(
-        n = dplyr::n(),
-        .by = dplyr::all_of(dup_cols)
-      ) |>
-      dplyr::filter(n > 1)
+  is_dt <- data.table::is.data.table(data)
+  dt_dup <- if (is_dt) data else data.table::as.data.table(data)
+  if (anyDuplicated(dt_dup[, ..dup_cols]) > 0L) {
+    dups <- dt_dup[, .(n = .N), by = dup_cols][n > 1]
     if (nrow(dups) > 0) {
       caller <- tryCatch(
         deparse(sys.call(sys.parent(1L))),
@@ -120,7 +117,7 @@ fill_linear <- function(
 
   # Grouped path: sort once, iterate over contiguous group ranges.
   # Use stable group IDs that preserve NA patterns across grouping keys.
-  grp_id <- vctrs::vec_group_id(data[by_cols])
+  grp_id <- vctrs::vec_group_id(dt_dup[, ..by_cols])
   times <- data[[time_col_name]]
   ord <- order(grp_id, times)
   inv_ord <- integer(n)
@@ -371,32 +368,52 @@ fill_sum <- function(
 ) {
   value_col_name <- rlang::as_name(rlang::enquo(value_col))
   time_col_name <- rlang::as_name(rlang::enquo(time_col))
+  change_col_name <- rlang::as_name(rlang::enquo(change_col))
   source_col_name <- paste0("source_", value_col_name)
 
-  data |>
-    dplyr::arrange(dplyr::across(dplyr::all_of(c(.by, time_col_name)))) |>
-    dplyr::mutate(
-      groups = cumsum(!is.na({{ value_col }})),
-      prefilled = dplyr::coalesce({{ value_col }}, {{ change_col }}),
-      .source_temp = ifelse(
-        is.na({{ value_col }}),
-        "Filled with sum",
-        "Original"
-      ),
-      "{{ value_col }}" := ave(prefilled, groups, FUN = cumsum),
-      "{{ value_col }}" := if (start_with_zero) {{ value_col }} else {
-        ifelse(groups == 0, NA, {{ value_col }})
-      },
-      .source_temp = ifelse(
-        is.na({{ value_col }}),
-        NA_character_,
-        .source_temp
-      ),
-      groups = NULL,
-      prefilled = NULL,
-      .by = dplyr::all_of(.by)
-    ) |>
-    dplyr::rename(!!source_col_name := .source_temp)
+  dt <- data.table::as.data.table(data)
+  sort_cols <- c(.by, time_col_name)
+  data.table::setorderv(dt, sort_cols)
+
+  by_cols <- .by
+
+  # Compute within groups (or globally if no groups)
+  val <- dt[[value_col_name]]
+  chg <- dt[[change_col_name]]
+
+  if (length(by_cols) > 0) {
+    # Grouped computation
+    dt[, c(
+      value_col_name,
+      source_col_name
+    ) := {
+      v <- get(value_col_name)
+      ch <- get(change_col_name)
+      groups <- cumsum(!is.na(v))
+      prefilled <- data.table::fifelse(is.na(v), ch, v)
+      src <- data.table::fifelse(is.na(v), "Filled with sum", "Original")
+      filled <- ave(prefilled, groups, FUN = cumsum)
+      if (!start_with_zero) {
+        filled <- data.table::fifelse(groups == 0L, NA_real_, filled)
+      }
+      src <- data.table::fifelse(is.na(filled), NA_character_, src)
+      list(filled, src)
+    }, by = by_cols]
+  } else {
+    # No grouping
+    groups <- cumsum(!is.na(val))
+    prefilled <- data.table::fifelse(is.na(val), chg, val)
+    src <- data.table::fifelse(is.na(val), "Filled with sum", "Original")
+    filled <- ave(prefilled, groups, FUN = cumsum)
+    if (!start_with_zero) {
+      filled <- data.table::fifelse(groups == 0L, NA_real_, filled)
+    }
+    src <- data.table::fifelse(is.na(filled), NA_character_, src)
+    data.table::set(dt, j = value_col_name, value = filled)
+    data.table::set(dt, j = source_col_name, value = src)
+  }
+
+  tibble::as_tibble(dt)
 }
 
 #' Fill gaps using growth rates from proxy variables
@@ -640,9 +657,8 @@ fill_proxy_growth <- function(
     return(rep(TRUE, nrow(data)))
   }
   fill_scope_expr <- rlang::enquo(fill_scope)
-  scope_mask <- data |>
-    dplyr::mutate(scope_mask = !!fill_scope_expr) |>
-    dplyr::pull()
+  dt <- data.table::as.data.table(data)
+  scope_mask <- dt[, eval(rlang::quo_get_expr(fill_scope_expr), .SD)]
   if (!is.logical(scope_mask) || length(scope_mask) != nrow(data)) {
     cli::cli_abort(
       "`fill_scope` must evaluate to a logical vector with length equal to nrow(data)"
@@ -691,51 +707,55 @@ fill_proxy_growth <- function(
 
   # Apply smoothing to value column if requested
   # Smoothed values are used for interpolation anchors, but original non-NA
-
   # values are always preserved (smoothing only affects gap-filling behavior)
   use_smoothing <- !is.null(value_smooth_window)
   if (use_smoothing) {
-    data <- data |>
-      dplyr::mutate(
-        .smooth_var = zoo::rollmean(
-          original_value_numeric,
-          k = value_smooth_window,
-          fill = NA,
-          align = "center"
-        ),
-        .by = dplyr::all_of(.by)
-      )
+    dt <- data.table::as.data.table(data)
+    if (length(.by) > 0) {
+      dt[, .smooth_var := zoo::rollmean(
+        original_value_numeric,
+        k = value_smooth_window,
+        fill = NA,
+        align = "center"
+      ), by = .by]
+    } else {
+      dt[, .smooth_var := zoo::rollmean(
+        original_value_numeric,
+        k = value_smooth_window,
+        fill = NA,
+        align = "center"
+      )]
+    }
+    data <- as.data.frame(dt)
   } else {
-    data <- data |>
-      dplyr::mutate(.smooth_var = original_value_numeric)
+    data$.smooth_var <- original_value_numeric
   }
 
   # Add working columns
   # raw_missing tracks what was ORIGINALLY missing (before smoothing)
   # value_col uses smoothed values for gap-filling, but coalesces with original
-  data_work <- data |>
-    dplyr::mutate(
-      !!raw_col := .data[[value_col]],
-      !!raw_numeric_col := .smooth_var,
-      !!raw_missing_col := is.na(original_value_numeric),
-      .smooth_var = NULL
-    ) |>
-    dplyr::mutate(
-      !!source_col := if (has_source_col) {
-        .data[[source_col]]
-      } else {
-        ifelse(.data[[raw_missing_col]], "missing", "original")
-      },
-      # Use original where available, smoothed otherwise (for anchor points)
-      !!value_col := dplyr::coalesce(
-        original_value_numeric,
-        .data[[raw_numeric_col]]
-      )
+  data[[raw_col]] <- data[[value_col]]
+  data[[raw_numeric_col]] <- data$.smooth_var
+  data[[raw_missing_col]] <- is.na(original_value_numeric)
+  data$.smooth_var <- NULL
+
+  if (has_source_col) {
+    # source_col already exists, keep it
+  } else {
+    data[[source_col]] <- ifelse(
+      data[[raw_missing_col]], "missing", "original"
     )
-  data_work[[source_col]][is.na(data_work[[value_col]])] <- "missing"
+  }
+  # Use original where available, smoothed otherwise (for anchor points)
+  data[[value_col]] <- data.table::fifelse(
+    !is.na(original_value_numeric),
+    original_value_numeric,
+    data[[raw_numeric_col]]
+  )
+  data[[source_col]][is.na(data[[value_col]])] <- "missing"
 
   list(
-    data_work = data_work,
+    data_work = data,
     source_col = source_col,
     raw_missing_col = raw_missing_col,
     raw_numeric_col = raw_numeric_col,
@@ -825,7 +845,7 @@ fill_proxy_growth <- function(
     message("Calculating growth rates for: ", spec$spec_name)
   }
 
-  # 1. Prepare tibble with relevant columns
+  # 1. Prepare data with relevant columns
   prep <- .fg_growth_prep(data, spec, .by, time_col)
   if (nrow(prep) == 0) {
     return(.fg_add_empty_cols(data, growth_col, obs_col))
@@ -835,7 +855,7 @@ fill_proxy_growth <- function(
   prep <- .fg_growth_calc_individual(prep, spec, smooth_window, time_col)
 
   # 3. Aggregate to Groups
-  summary_tbl <- .fg_growth_aggregate(
+  summary_dt <- .fg_growth_aggregate(
     prep,
     spec,
     growth_col,
@@ -849,12 +869,15 @@ fill_proxy_growth <- function(
     join_keys <- time_col
   }
 
-  dplyr::left_join(data, summary_tbl, by = join_keys)
+  dt_data <- data.table::as.data.table(data)
+  dt_summary <- data.table::as.data.table(summary_dt)
+  result <- merge(dt_data, dt_summary, by = join_keys, all.x = TRUE)
+  as.data.frame(result)
 }
 
 .fg_growth_prep <- function(data, spec, .by, time_col) {
   if (!spec$source_var %in% names(data)) {
-    return(tibble::tibble())
+    return(data.frame())
   }
 
   lag_vars <- unique(c(.by, spec$present_group_vars))
@@ -863,9 +886,14 @@ fill_proxy_growth <- function(
   cols <- unique(c(time_col, lag_vars, spec$source_var, spec$weight_col))
   cols <- cols[!is.na(cols)]
 
-  data |>
-    dplyr::select(dplyr::all_of(cols)) |>
-    dplyr::arrange(dplyr::across(dplyr::all_of(unique(c(lag_vars, time_col)))))
+  if (data.table::is.data.table(data)) {
+    dt <- data[, ..cols]
+  } else {
+    dt <- data.table::as.data.table(data[, cols, drop = FALSE])
+  }
+  sort_cols <- unique(c(lag_vars, time_col))
+  data.table::setorderv(dt, sort_cols)
+  as.data.frame(dt)
 }
 
 .fg_growth_calc_individual <- function(data, spec, window, time_col) {
@@ -878,30 +906,37 @@ fill_proxy_growth <- function(
 
   # Apply Smoothing (Moving Average)
   if (window > 1) {
-    data <- .compute_ma_base_dplyr(data, spec$source_var, window, by_vars)
+    data <- .compute_ma_base_dt(data, spec$source_var, window, by_vars)
     val_col <- "ma_base"
   } else {
     val_col <- spec$source_var
   }
 
   # Create Lags and Calculate Growth
-  data <- data |>
-    dplyr::mutate(
-      lag_src = dplyr::lag(.data[[val_col]]),
-      lag_yr = dplyr::lag(.data[[time_col]]),
-      ind_growth = dplyr::if_else(
-        .data[[time_col]] == lag_yr + 1 &
-          !is.na(.data[[val_col]]) &
-          !is.na(lag_src) &
-          lag_src > 0,
-        (.data[[val_col]] - lag_src) / lag_src,
-        NA_real_
-      ),
-      .by = dplyr::all_of(by_vars)
-    )
+  dt <- data.table::as.data.table(data)
+  if (length(by_vars) > 0) {
+    dt[, `:=`(
+      lag_src = data.table::shift(get(val_col), 1L, type = "lag"),
+      lag_yr = data.table::shift(get(time_col), 1L, type = "lag")
+    ), by = by_vars]
+  } else {
+    dt[, `:=`(
+      lag_src = data.table::shift(get(val_col), 1L, type = "lag"),
+      lag_yr = data.table::shift(get(time_col), 1L, type = "lag")
+    )]
+  }
+  dt[, ind_growth := data.table::fifelse(
+    get(time_col) == lag_yr + 1 &
+      !is.na(get(val_col)) &
+      !is.na(lag_src) &
+      lag_src > 0,
+    (get(val_col) - lag_src) / lag_src,
+    NA_real_
+  )]
 
-  data |>
-    dplyr::filter(!is.na(ind_growth))
+  # Filter to non-NA growth
+  dt <- dt[!is.na(ind_growth)]
+  as.data.frame(dt)
 }
 
 .fg_growth_aggregate <- function(
@@ -919,6 +954,8 @@ fill_proxy_growth <- function(
   # Setup weights
   has_w <- !is.null(spec$weight_col)
 
+  dt <- data.table::as.data.table(data)
+
   if (has_w) {
     # Shift weights to align with growth period (previous year weight)
     grp <- if (length(spec$present_group_vars) > 0) {
@@ -927,43 +964,41 @@ fill_proxy_growth <- function(
       NULL
     }
 
-    data <- data |>
-      dplyr::mutate(
-        w = dplyr::lag(.data[[spec$weight_col]]),
-        .by = dplyr::all_of(grp)
-      )
+    if (length(grp) > 0) {
+      dt[, w := data.table::shift(get(spec$weight_col), 1L, type = "lag"),
+        by = grp]
+    } else {
+      dt[, w := data.table::shift(get(spec$weight_col), 1L, type = "lag")]
+    }
 
     # Weighted aggregation
-    data |>
-      dplyr::summarise(
-        !!growth_col := {
-          valid_w <- !is.na(w) & is.finite(w) & w > 0
-          if (any(valid_w)) {
-            sum(ind_growth[valid_w] * w[valid_w]) / sum(w[valid_w])
-          } else {
-            mean(ind_growth)
-          }
-        },
-        !!obs_col := {
-          valid_w <- !is.na(w) & is.finite(w) & w > 0
-          if (any(valid_w)) sum(valid_w) else dplyr::n()
-        },
-        .by = dplyr::all_of(by_vars)
-      )
+    result <- dt[, {
+      valid_w <- !is.na(w) & is.finite(w) & w > 0
+      g_val <- if (any(valid_w)) {
+        sum(ind_growth[valid_w] * w[valid_w]) / sum(w[valid_w])
+      } else {
+        mean(ind_growth)
+      }
+      o_val <- if (any(valid_w)) sum(valid_w) else .N
+      list(g_val, o_val)
+    }, by = by_vars]
+    data.table::setnames(result, c("V1", "V2"), c(growth_col, obs_col))
   } else {
     # Unweighted aggregation
-    data |>
-      dplyr::summarise(
-        !!growth_col := mean(ind_growth),
-        !!obs_col := dplyr::n(),
-        .by = dplyr::all_of(by_vars)
-      )
+    result <- dt[, .(
+      g_val = mean(ind_growth),
+      o_val = .N
+    ), by = by_vars]
+    data.table::setnames(result, c("g_val", "o_val"), c(growth_col, obs_col))
   }
+
+  as.data.frame(result)
 }
 
 .fg_add_empty_cols <- function(data, g_col, o_col) {
-  data[[g_col]] <- NA_real_
-  data[[o_col]] <- 0L
+  n <- nrow(data)
+  data[[g_col]] <- rep(NA_real_, n)
+  data[[o_col]] <- rep(0L, n)
   data
 }
 
@@ -993,8 +1028,9 @@ fill_proxy_growth <- function(
   # Save original order, sort by group + time
   data$.orig_order <- seq_len(nrow(data))
   sort_cols <- unique(c(by_cols, time_col))
-  data <- data |>
-    dplyr::arrange(dplyr::across(dplyr::all_of(sort_cols)))
+  dt <- data.table::as.data.table(data)
+  data.table::setorderv(dt, sort_cols)
+  data <- as.data.frame(dt)
 
   # Compute run structure from raw_missing (static across all levels)
   data <- .fg_add_run_info(data, cols$raw_missing, by_cols)
@@ -1091,14 +1127,15 @@ fill_proxy_growth <- function(
   data$.is_miss_tmp <- is_miss
 
   if (length(by_cols) > 0) {
-    data <- data |>
-      dplyr::mutate(
-        .grp_pos = dplyr::row_number(),
-        .grp_n = dplyr::n(),
-        .run_change = .is_miss_tmp !=
-          dplyr::lag(.is_miss_tmp, default = !.is_miss_tmp[1]),
-        .by = dplyr::all_of(by_cols)
+    dt <- data.table::as.data.table(data)
+    dt[, `:=`(
+      .grp_pos = seq_len(.N),
+      .grp_n = .N,
+      .run_change = .is_miss_tmp != data.table::shift(
+        .is_miss_tmp, 1L, type = "lag", fill = !.is_miss_tmp[1L]
       )
+    ), by = by_cols]
+    data <- as.data.frame(dt)
   } else {
     n <- nrow(data)
     data$.grp_pos <- seq_len(n)
@@ -1108,17 +1145,18 @@ fill_proxy_growth <- function(
 
   data$.run_id <- cumsum(data$.run_change)
 
-  run_meta <- data |>
-    dplyr::summarise(
-      .run_len = dplyr::n(),
-      .run_is_na = .is_miss_tmp[1],
-      .run_internal = .is_miss_tmp[1] &
-        .grp_pos[1] > 1L &
-        .grp_pos[dplyr::n()] < .grp_n[1],
-      .by = dplyr::all_of(".run_id")
-    )
+  dt <- data.table::as.data.table(data)
+  run_meta <- dt[, .(
+    .run_len = .N,
+    .run_is_na = .is_miss_tmp[1L],
+    .run_internal = .is_miss_tmp[1L] &
+      .grp_pos[1L] > 1L &
+      .grp_pos[.N] < .grp_n[1L]
+  ), by = .run_id]
 
-  data <- dplyr::left_join(data, run_meta, by = ".run_id")
+  data <- as.data.frame(
+    merge(dt, run_meta, by = ".run_id", all.x = TRUE)
+  )
 
   data$.is_miss_tmp <- NULL
   data$.run_change <- NULL
@@ -1151,12 +1189,9 @@ fill_proxy_growth <- function(
   anchor_raw <- ifelse(is.na(vals), NA_real_, vals)
   if (length(by_cols) > 0) {
     data$.anchor_tmp <- anchor_raw
-    data <- data |>
-      dplyr::mutate(
-        .anchor_tmp = zoo::na.locf(.anchor_tmp, na.rm = FALSE),
-        .by = dplyr::all_of(by_cols)
-      )
-    anchor <- data$.anchor_tmp
+    dt <- data.table::as.data.table(data)
+    dt[, .anchor_tmp := zoo::na.locf(.anchor_tmp, na.rm = FALSE), by = by_cols]
+    anchor <- dt$.anchor_tmp
     data$.anchor_tmp <- NULL
   } else {
     anchor <- zoo::na.locf(anchor_raw, na.rm = FALSE)
@@ -1211,17 +1246,15 @@ fill_proxy_growth <- function(
   if (length(by_cols) > 0) {
     data$.anchor_tmp <- anchor_raw
     data$.g_tmp <- growth
-    data <- data |>
-      dplyr::mutate(
-        .anchor_tmp = zoo::na.locf(.anchor_tmp, na.rm = FALSE, fromLast = TRUE),
-        .g_shifted = dplyr::lead(.g_tmp),
-        .by = dplyr::all_of(by_cols)
-      )
-    anchor <- data$.anchor_tmp
-    g_shifted <- data$.g_shifted
+    dt <- data.table::as.data.table(data)
+    dt[, `:=`(
+      .anchor_tmp = zoo::na.locf(.anchor_tmp, na.rm = FALSE, fromLast = TRUE),
+      .g_shifted = data.table::shift(.g_tmp, 1L, type = "lead")
+    ), by = by_cols]
+    anchor <- dt$.anchor_tmp
+    g_shifted <- dt$.g_shifted
     data$.anchor_tmp <- NULL
     data$.g_tmp <- NULL
-    data$.g_shifted <- NULL
   } else {
     anchor <- zoo::na.locf(anchor_raw, na.rm = FALSE, fromLast = TRUE)
     g_shifted <- c(growth[-1], NA_real_)
@@ -1267,14 +1300,14 @@ fill_proxy_growth <- function(
 
   # Anchors: value and time before/after each position
   if (length(by_cols) > 0) {
-    data <- data |>
-      dplyr::mutate(
-        .v_bef = dplyr::lag(.data[[val_col]]),
-        .v_aft = dplyr::lead(.data[[val_col]]),
-        .t_bef = dplyr::lag(.data[[time_col]]),
-        .t_aft = dplyr::lead(.data[[time_col]]),
-        .by = dplyr::all_of(by_cols)
-      )
+    dt <- data.table::as.data.table(data)
+    dt[, `:=`(
+      .v_bef = data.table::shift(get(val_col), 1L, type = "lag"),
+      .v_aft = data.table::shift(get(val_col), 1L, type = "lead"),
+      .t_bef = data.table::shift(get(time_col), 1L, type = "lag"),
+      .t_aft = data.table::shift(get(time_col), 1L, type = "lead")
+    ), by = by_cols]
+    data <- as.data.frame(dt)
   } else {
     n <- length(vals)
     times <- data[[time_col]]
@@ -1285,19 +1318,21 @@ fill_proxy_growth <- function(
   }
 
   # Run-level anchor summary
-  run_anchors <- data |>
-    dplyr::filter(eligible) |>
-    dplyr::summarise(
-      .v0 = dplyr::first(.v_bef),
-      .v1 = dplyr::last(.v_aft),
-      .t0 = dplyr::first(.t_bef),
-      .t1 = dplyr::last(.t_aft),
-      .by = dplyr::all_of(".run_id")
-    ) |>
-    dplyr::filter(is.finite(.v0) & .v0 > 0 & is.finite(.v1) & .v1 > 0)
+  dt_elig <- data.table::as.data.table(data[eligible, , drop = FALSE])
+  run_anchors <- dt_elig[, .(
+    .v0 = .v_bef[1L],
+    .v1 = .v_aft[.N],
+    .t0 = .t_bef[1L],
+    .t1 = .t_aft[.N]
+  ), by = .run_id]
+  run_anchors <- run_anchors[
+    is.finite(.v0) & .v0 > 0 & is.finite(.v1) & .v1 > 0
+  ]
 
   if (nrow(run_anchors) > 0) {
-    data <- dplyr::left_join(data, run_anchors, by = ".run_id")
+    dt_all <- data.table::as.data.table(data)
+    dt_all <- merge(dt_all, run_anchors, by = ".run_id", all.x = TRUE)
+    data <- as.data.frame(dt_all)
     interp <- data$.v0 +
       (data$.v1 - data$.v0) *
         (data[[time_col]] - data$.t0) /
@@ -1357,13 +1392,13 @@ fill_proxy_growth <- function(
   # Anchors and lead growth
   if (length(by_cols) > 0) {
     data$.comb_g <- combined
-    data <- data |>
-      dplyr::mutate(
-        .v_bef = dplyr::lag(.data[[val_col]]),
-        .v_aft = dplyr::lead(.data[[val_col]]),
-        .g_lead = dplyr::lead(.comb_g),
-        .by = dplyr::all_of(by_cols)
-      )
+    dt <- data.table::as.data.table(data)
+    dt[, `:=`(
+      .v_bef = data.table::shift(get(val_col), 1L, type = "lag"),
+      .v_aft = data.table::shift(get(val_col), 1L, type = "lead"),
+      .g_lead = data.table::shift(.comb_g, 1L, type = "lead")
+    ), by = by_cols]
+    data <- as.data.frame(dt)
     g_lead <- data$.g_lead
     data$.comb_g <- NULL
     data$.g_lead <- NULL
@@ -1377,33 +1412,39 @@ fill_proxy_growth <- function(
   # Run-level: compute v_start, v_end, product of growth rates, lambda
   data$.comb_g_tmp <- combined
   data$.g_lead_tmp <- g_lead
-  run_meta <- data |>
-    dplyr::filter(eligible) |>
-    dplyr::summarise(
-      .v_start = dplyr::first(.v_bef),
-      .v_end = dplyr::last(.v_aft),
-      .prod_inner = prod(1 + .comb_g_tmp, na.rm = FALSE),
-      .g_end = dplyr::last(.g_lead_tmp),
-      .rlen = dplyr::n(),
-      .by = dplyr::all_of(".run_id")
-    ) |>
-    dplyr::mutate(
-      .prod_total = .prod_inner * (1 + .g_end),
-      .n_rates = .rlen + 1L,
-      .pred_end = .v_start * .prod_total,
-      .lambda = dplyr::if_else(
-        is.finite(.pred_end) & .pred_end > 0 & is.finite(.v_end) & .v_end > 0,
-        (.v_end / .pred_end)^(1 / .n_rates),
-        NA_real_
-      )
-    ) |>
-    dplyr::filter(!is.na(.lambda)) |>
-    dplyr::select(dplyr::all_of(".run_id"), .v_start, .lambda)
+  dt_elig <- data.table::as.data.table(data[eligible, , drop = FALSE])
+  run_meta <- dt_elig[, .(
+    .v_start = .v_bef[1L],
+    .v_end = .v_aft[.N],
+    .prod_inner = prod(1 + .comb_g_tmp, na.rm = FALSE),
+    .g_end = .g_lead_tmp[.N],
+    .rlen = .N
+  ), by = .run_id]
+  run_meta[, `:=`(
+    .prod_total = .prod_inner * (1 + .g_end),
+    .n_rates = .rlen + 1L
+  )]
+  run_meta[, .pred_end := .v_start * .prod_total]
+  run_meta[, .lambda := data.table::fifelse(
+    is.finite(.pred_end) & .pred_end > 0 &
+      is.finite(.v_end) & .v_end > 0,
+    (.v_end / .pred_end)^(1 / .n_rates),
+    NA_real_
+  )]
+  run_meta <- run_meta[!is.na(.lambda)]
+  run_meta <- run_meta[, .(.run_id, .v_start, .lambda)]
   data$.comb_g_tmp <- NULL
   data$.g_lead_tmp <- NULL
 
   if (nrow(run_meta) > 0) {
-    data <- dplyr::left_join(data, run_meta, by = ".run_id")
+    dt_all <- data.table::as.data.table(data)
+    dt_all <- merge(
+      dt_all,
+      run_meta,
+      by = ".run_id",
+      all.x = TRUE
+    )
+    data <- as.data.frame(dt_all)
     geo_target <- eligible & !is.na(data$.lambda)
 
     if (any(geo_target)) {
@@ -1440,11 +1481,19 @@ fill_proxy_growth <- function(
   if (format == "clean") {
     # Remove all temp columns (growth_, n_obs_, raw_)
     ptn <- "^(growth_|n_obs_|.*_raw_).*"
-    data <- data |> dplyr::select(-dplyr::matches(ptn))
+    drop_cols <- grep(ptn, names(data), value = TRUE)
+    if (length(drop_cols) > 0) {
+      data[drop_cols] <- NULL
+    }
   } else {
     # Detailed: keep debug cols but clean raw numeric
-    data <- data |>
-      dplyr::select(-dplyr::any_of(c(cols$raw_numeric, cols$raw_missing)))
+    drop_cols <- intersect(
+      c(cols$raw_numeric, cols$raw_missing),
+      names(data)
+    )
+    if (length(drop_cols) > 0) {
+      data[drop_cols] <- NULL
+    }
   }
   data
 }
@@ -1483,16 +1532,18 @@ fill_proxy_growth <- function(
   dt
 }
 
-.compute_ma_base_dplyr <- function(data, value_var, window, group_vars = NULL) {
+.compute_ma_base_dt <- function(data, value_var, window, group_vars = NULL) {
   if (window <= 1) {
     return(data)
   }
 
-  data |>
-    dplyr::mutate(
-      ma_base = .compute_ma_vec(.data[[value_var]], window),
-      .by = dplyr::all_of(group_vars)
-    )
+  dt <- data.table::as.data.table(data)
+  if (length(group_vars) > 0) {
+    dt[, ma_base := .compute_ma_vec(get(value_var), window), by = group_vars]
+  } else {
+    dt[, ma_base := .compute_ma_vec(get(value_var), window)]
+  }
+  as.data.frame(dt)
 }
 
 # Vectorized backward-looking moving average using cumsum
