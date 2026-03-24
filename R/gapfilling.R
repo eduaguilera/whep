@@ -118,9 +118,9 @@ fill_linear <- function(
     return(data)
   }
 
-  # Grouped path: sort once, iterate over contiguous group ranges
-  # Use integer group IDs for fast sorting
-  grp_id <- as.integer(interaction(data[by_cols], drop = TRUE))
+  # Grouped path: sort once, iterate over contiguous group ranges.
+  # Use stable group IDs that preserve NA patterns across grouping keys.
+  grp_id <- vctrs::vec_group_id(data[by_cols])
   times <- data[[time_col_name]]
   ord <- order(grp_id, times)
   inv_ord <- integer(n)

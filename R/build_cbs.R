@@ -1209,7 +1209,12 @@ build_processing_coefs <- function(
     "processing_primary_share",
     "seed_rate"
   )
-  by_cols <- c("area", "item_cbs")
+  by_cols <- c(
+    "area",
+    "area_code",
+    "item_cbs",
+    "item_cbs_code"
+  )
 
   # Sort once
   grp_id <- as.integer(interaction(df[by_cols], drop = TRUE))
@@ -1980,29 +1985,27 @@ build_processing_coefs <- function(
       )
     )
 
-  dplyr::bind_rows(target_rows, anchor_rows) |>
-    dplyr::left_join(
-      destiny |>
-        dplyr::select(
-          year,
-          area,
-          area_code,
-          item_cbs,
-          item_cbs_code,
-          element,
-          dest_share,
-          value,
-          source
-        ),
-      by = c(
-        "year",
-        "area",
-        "area_code",
-        "item_cbs",
-        "item_cbs_code",
-        "element"
-      )
+  # Deduplicate destiny: multiple rows per key can exist when
+  # different sources contribute the same (year, area, item, element).
+  join_keys <- c(
+    "year", "area", "area_code",
+    "item_cbs", "item_cbs_code", "element"
+  )
+  destiny_dedup <- destiny |>
+    dplyr::summarise(
+      dest_share = mean(dest_share, na.rm = TRUE),
+      value = sum(value, na.rm = TRUE),
+      source = dplyr::first(source),
+      .by = dplyr::all_of(join_keys)
     ) |>
+    dplyr::mutate(
+      dest_share = dplyr::if_else(
+        is.nan(dest_share), NA_real_, dest_share
+      )
+    )
+
+  dplyr::bind_rows(target_rows, anchor_rows) |>
+    dplyr::left_join(destiny_dedup, by = join_keys) |>
     fill_linear(dest_share, time_col = year, .by = by_cols)
 }
 
