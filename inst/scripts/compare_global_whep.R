@@ -292,7 +292,7 @@ result_primary <- compare_outputs(
     "area",
     "area_code",
     "item_prod",
-    "item_code_prod",
+    "item_prod_code",
     "unit"
   ),
   value_cols = c("value"),
@@ -307,7 +307,7 @@ result_cbs <- compare_outputs(
     "area",
     "area_code",
     "item_cbs",
-    "item_code_cbs",
+    "item_cbs_code",
     "element"
   ),
   value_cols = c("value"),
@@ -322,7 +322,7 @@ result_coefs <- compare_outputs(
     "area",
     "area_code",
     "processed_item",
-    "item_code_cbs",
+    "item_cbs_code",
     "item_cbs"
   ),
   value_cols = c(

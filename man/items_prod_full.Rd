@@ -9,15 +9,15 @@ A tibble where each row corresponds to one production item. It contains
 the following columns:
 \itemize{
 \item \code{item_prod}: Name of the production item.
-\item \code{item_code_prod}: FAOSTAT production item code (character).
+\item \code{item_prod_code}: FAOSTAT production item code (character).
 \item \code{item_cbs}: Name of the corresponding CBS item.
-\item \code{item_code_cbs}: Numeric CBS item code.
+\item \code{item_cbs_code}: Numeric CBS item code.
 \item \code{group}: Item group. One of \code{"Primary crops"}, \code{"Crop products"},
 \code{"Livestock products"}, \code{"Crop residues"}, \code{"Grassland"},
 \code{"Scavenging"}.
-\item \code{Live_anim}: Name of the parent live animal for livestock-derived items
+\item \code{live_anim}: Name of the parent live animal for livestock-derived items
 (\code{NA} for crop items).
-\item \code{Live_anim_code}: Numeric CBS code of the parent live animal (\code{NA} for
+\item \code{live_anim_code}: Numeric CBS code of the parent live animal (\code{NA} for
 crop items).
 \item \code{Cat_Krausmann}: Item category used in Krausmann et al. biomass flow
 accounting.

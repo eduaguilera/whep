@@ -23,9 +23,10 @@ are replaced with a linear trend. Default \code{FALSE}.}
 tibble instead of reading remote data. Default \code{FALSE}.}
 }
 \value{
-A tibble in long format (see \code{.read_production()} for column
-descriptions), plus a character \code{qc_flag} column from
-\code{.qc_production()}.
+A tibble with the same columns as \code{\link[=get_primary_production]{get_primary_production()}}:
+\code{year}, \code{area_code} (numeric FAOSTAT), \code{item_prod_code},
+\code{item_cbs_code}, \code{live_anim_code}, \code{unit}, \code{value}.
+Names can be recovered via \code{\link[=add_area_name]{add_area_name()}}, \code{\link[=add_item_prod_name]{add_item_prod_name()}}, etc.
 }
 \description{
 Construct the full primary production dataset from raw FAOSTAT inputs.

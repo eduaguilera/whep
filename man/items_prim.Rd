@@ -9,9 +9,9 @@ A tibble where each row corresponds to one production item. It contains
 the following columns:
 \itemize{
 \item \code{item_prod}: Name of the production item (e.g., \code{"Wheat"}, \code{"Rice"}).
-\item \code{item_code_prod}: FAOSTAT production item code (character).
+\item \code{item_prod_code}: FAOSTAT production item code (character).
 \item \code{item_cbs}: Name of the corresponding CBS item.
-\item \code{item_code_cbs}: Numeric CBS item code.
+\item \code{item_cbs_code}: Numeric CBS item code.
 \item \code{Farm_class}: Farm system classification. Crop items use codes such as
 \code{"COP"} (cereals, oilseeds, protein crops), \code{"Vegetables"},
 \code{"Fruits"}, \code{"Olive"}, \code{"Grapevine"}, \code{"Other_crops"}. Livestock

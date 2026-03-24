@@ -1,4 +1,4 @@
-item_prod,item_code_prod,item_cbs,item_code_cbs,group,Live_anim,Live_anim_code,Cat_Krausmann,Name_biomass,Name_Eurostat,Name,Cat_Labour,Cat_FAO1,Cat_Origin,Cat_Use,Order,Categ,Farm_class,c3_c4,ann_per_nfx
+item_prod,item_prod_code,item_cbs,item_cbs_code,group,live_anim,live_anim_code,Cat_Krausmann,Name_biomass,Name_Eurostat,Name,Cat_Labour,Cat_FAO1,Cat_Origin,Cat_Use,Order,Categ,Farm_class,c3_c4,ann_per_nfx
 Wheat,15,Wheat and products,2511.0,Primary crops,,,"Wheat, other cereals",Wheat,,Wheat,Cereals,Cereals,Cereals,Grains,1.0,Cereals,COP,c3,ann
 Rice,27,Rice and products,2807.0,Primary crops,,,"Rice, Paddy",Rice,,Rice,Rice,Cereals,Cereals,Grains,1.0,Cereals,COP,c3,ann
 Barley,44,Barley and products,2513.0,Primary crops,,,"Wheat, other cereals",Barley,,Barley,Cereals,Cereals,Cereals,Grains,1.0,Cereals,COP,c3,ann

@@ -12,7 +12,7 @@ double-counting relationship. It contains the following columns:
 (e.g., \code{"Seed cotton, unginned"}).
 \item \code{item_prod}: Name of the derived production item (e.g.,
 \code{"Cotton lint, ginned"}, \code{"Cotton seed"}).
-\item \code{item_code_prod}: Numeric FAOSTAT production code of the derived item.
+\item \code{item_prod_code}: Numeric FAOSTAT production code of the derived item.
 \item \code{Multi_type}: Classification of the double-counting type:
 \itemize{
 \item \code{"Primary"}: The area item is the primary crop; product is a direct

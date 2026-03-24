@@ -43,19 +43,7 @@ get_primary_production <- function(example = FALSE) {
   if (example) {
     return(.ex_get_primary_prod())
   }
-
-  "primary_prod" |>
-    whep_read_file() |>
-    dplyr::rename_with(tolower) |>
-    dplyr::select(
-      year,
-      area_code,
-      item_prod_code = item_code,
-      item_cbs_code = item_code_cbs,
-      live_anim_code,
-      unit,
-      value
-    )
+  whep_read_file("primary_prod")
 }
 
 #' Crop residue items

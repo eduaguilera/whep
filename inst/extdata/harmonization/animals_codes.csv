@@ -1,4 +1,4 @@
-Item_Code,item_cbs,proc_code,proc,item_code_cbs,Farm_class,Item_product,Item_Code_product,Liv_prod_cat,Graniv_grazers,Livestock_name,Animal_class,Item_FAOmanure,Item_Code_FAOmanure,Cat_Labour,Cat_FAO1,item_bouwman
+Item_Code,item_cbs,proc_code,proc,item_cbs_code,Farm_class,Item_product,Item_Code_product,Liv_prod_cat,Graniv_grazers,Livestock_name,Animal_class,Item_FAOmanure,Item_Code_FAOmanure,Cat_Labour,Cat_FAO1,item_bouwman
 1171,Animals live nes,p111,Other animals husbandry,1171,Cattle,,,Other animal products,Grazers,Animals_other,Cattle,,,Cattle,Animal,
 1107,Asses,p092,Asses husbandry,1107,Cattle,,,Other animal products,Grazers,Asses,Equines,,,Equines,Animal,
 946,Buffalo,p086,Buffaloes husbandry,946,Cattle,,,Other animal products,Grazers,Buffaloes,Cattle,,,Cattle,Animal,Beef cattle

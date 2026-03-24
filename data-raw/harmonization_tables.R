@@ -48,13 +48,13 @@ items_prod_full_raw <- file.path(
 ) |>
   readr::read_csv(show_col_types = FALSE, na = excel_na)
 
-if (!"Fallow" %in% as.character(items_prod_full_raw$item_code_prod)) {
+if (!"Fallow" %in% as.character(items_prod_full_raw$item_prod_code)) {
   items_prod_full_raw <- items_prod_full_raw |>
-    dplyr::mutate(item_code_prod = as.character(item_code_prod))
+    dplyr::mutate(item_prod_code = as.character(item_prod_code))
   fallow_row <- items_prod_full_raw[1, ]
   fallow_row[1, ] <- NA
   fallow_row$item_prod <- "Fallow"
-  fallow_row$item_code_prod <- "Fallow"
+  fallow_row$item_prod_code <- "Fallow"
   fallow_row$Name <- "Fallow"
   fallow_row$Name_biomass <- "Fallow"
   fallow_row$group <- "Primary crops"
@@ -73,9 +73,9 @@ items_prim <- dplyr::bind_rows(
   items_prod_full |>
     dplyr::select(
       item_prod,
-      item_code_prod,
+      item_prod_code,
       item_cbs,
-      item_code_cbs,
+      item_cbs_code,
       Farm_class,
       Cat_Labour,
       Cat_FAO1
@@ -83,21 +83,21 @@ items_prim <- dplyr::bind_rows(
     dplyr::filter(!is.na(item_cbs)),
   items_full |>
     dplyr::filter(comm_group == "Live animals") |>
-    dplyr::select(item_code_cbs, item_cbs)
+    dplyr::select(item_cbs_code, item_cbs)
 ) |>
   dplyr::left_join(
-    items_full |> dplyr::select(item_code_cbs, group),
-    by = "item_code_cbs"
+    items_full |> dplyr::select(item_cbs_code, group),
+    by = "item_cbs_code"
   ) |>
   dplyr::left_join(
     animals_codes |>
-      dplyr::select(item_code_cbs, Farm_class, Cat_Labour, Cat_FAO1) |>
+      dplyr::select(item_cbs_code, Farm_class, Cat_Labour, Cat_FAO1) |>
       dplyr::rename(
         Farm_class2 = Farm_class,
         Cat_Labour2 = Cat_Labour,
         Cat_FAO12 = Cat_FAO1
       ),
-    by = "item_code_cbs"
+    by = "item_cbs_code"
   ) |>
   dplyr::mutate(
     Farm_class = dplyr::coalesce(Farm_class, Farm_class2),

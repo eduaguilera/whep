@@ -5,15 +5,14 @@
 .make_cbs_afse <- function() {
   list(
     items_full = tibble::tribble(
-      ~item_cbs, ~item_code_cbs, ~comm_group, ~group,
-      ~default_destiny,
+      ~item_cbs, ~item_cbs_code, ~comm_group, ~group, ~default_destiny,
       "Wheat", 2511L, "Cereals", "Crop products", "Food",
       "Maize", 2514L, "Cereals", "Crop products", "Feed",
       "Rice", 2805L, "Cereals", "Crop products", "Food",
       "Flour", 2512L, "Flour", "Crop products", "Food"
     ),
     items_prod_full = tibble::tribble(
-      ~item_prod, ~item_code_prod, ~item_cbs, ~item_code_cbs,
+      ~item_prod, ~item_prod_code, ~item_cbs, ~item_cbs_code,
       "Wheat", 15L, "Wheat", 2511L,
       "Maize", 56L, "Maize", 2514L,
       "Rice", 27L, "Rice", 2805L
@@ -29,8 +28,7 @@
       "France", 68L, FALSE
     ),
     CB_processing = tibble::tribble(
-      ~year, ~ProcessedItem, ~item_cbs,
-      ~Product_fraction, ~Value_fraction,
+      ~year, ~ProcessedItem, ~item_cbs, ~Product_fraction, ~Value_fraction,
       2000L, "Flour", "Wheat", 0.8, 1.0,
       2001L, "Flour", "Wheat", 0.8, 1.0
     ),
@@ -50,30 +48,18 @@
 
 .make_cbs_raw <- function() {
   tibble::tribble(
-    ~year, ~area, ~area_code,
-    ~item_cbs, ~item_code_cbs, ~element, ~value,
-    2000L, "Spain", 203L, "Wheat", 2511L,
-    "production", 5000,
-    2000L, "Spain", 203L, "Wheat", 2511L,
-    "import", 1000,
-    2000L, "Spain", 203L, "Wheat", 2511L,
-    "export", 500,
-    2000L, "Spain", 203L, "Wheat", 2511L,
-    "food", 3000,
-    2000L, "Spain", 203L, "Wheat", 2511L,
-    "feed", 1500,
-    2000L, "Spain", 203L, "Wheat", 2511L,
-    "domestic_supply", 5500,
-    2000L, "Spain", 203L, "Wheat", 2511L,
-    "processing", 500,
-    2000L, "Spain", 203L, "Wheat", 2511L,
-    "seed", 200,
-    2000L, "Spain", 203L, "Wheat", 2511L,
-    "other_uses", 300,
-    2000L, "Spain", 203L, "Wheat", 2511L,
-    "processing_primary", 0,
-    2000L, "Spain", 203L, "Wheat", 2511L,
-    "stock_variation", 0
+    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~value,
+    2000L, "Spain", 203L, "Wheat", 2511L, "production", 5000,
+    2000L, "Spain", 203L, "Wheat", 2511L, "import", 1000,
+    2000L, "Spain", 203L, "Wheat", 2511L, "export", 500,
+    2000L, "Spain", 203L, "Wheat", 2511L, "food", 3000,
+    2000L, "Spain", 203L, "Wheat", 2511L, "feed", 1500,
+    2000L, "Spain", 203L, "Wheat", 2511L, "domestic_supply", 5500,
+    2000L, "Spain", 203L, "Wheat", 2511L, "processing", 500,
+    2000L, "Spain", 203L, "Wheat", 2511L, "seed", 200,
+    2000L, "Spain", 203L, "Wheat", 2511L, "other_uses", 300,
+    2000L, "Spain", 203L, "Wheat", 2511L, "processing_primary", 0,
+    2000L, "Spain", 203L, "Wheat", 2511L, "stock_variation", 0
   )
 }
 
@@ -118,24 +104,24 @@ test_that(".harmonize_element_names converts FAOSTAT element names", {
 
 test_that(".fix_item_codes remaps rice 2804 -> 2807", {
   df <- tibble::tribble(
-    ~item_code_cbs, ~item_cbs, ~value,
+    ~item_cbs_code, ~item_cbs, ~value,
     2804L, "Rice, paddy", 100,
     2511L, "Wheat", 200
   )
 
   result <- whep:::.fix_item_codes(df)
-  expect_false(2804L %in% result$item_code_cbs)
-  expect_true(2807L %in% result$item_code_cbs)
+  expect_false(2804L %in% result$item_cbs_code)
+  expect_true(2807L %in% result$item_cbs_code)
 })
 
 test_that(".fix_item_codes remaps groundnuts 2820 -> 2552", {
   df <- tibble::tribble(
-    ~item_code_cbs, ~item_cbs, ~value,
+    ~item_cbs_code, ~item_cbs, ~value,
     2820L, "Groundnuts (in Shell Eq)", 100
   )
 
   result <- whep:::.fix_item_codes(df)
-  expect_equal(result$item_code_cbs, 2552L)
+  expect_equal(result$item_cbs_code, 2552L)
 })
 
 
@@ -143,14 +129,10 @@ test_that(".fix_item_codes remaps groundnuts 2820 -> 2552", {
 
 test_that(".select_best_source prioritises Primary source", {
   cbs_raw_all <- tibble::tribble(
-    ~area, ~area_code, ~item_cbs, ~item_code_cbs,
-    ~element, ~year, ~value, ~source, ~unit,
-    "Spain", 203L, "Wheat", 2511L,
-    "production", 2000L, 5000, "Primary", "tonnes",
-    "Spain", 203L, "Wheat", 2511L,
-    "production", 2000L, 4000, "FBS_New", "tonnes",
-    "Spain", 203L, "Wheat", 2511L,
-    "production", 2000L, 3000, "FBS_Old", "tonnes"
+    ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~year, ~value, ~source, ~unit,
+    "Spain", 203L, "Wheat", 2511L, "production", 2000L, 5000, "Primary", "tonnes",
+    "Spain", 203L, "Wheat", 2511L, "production", 2000L, 4000, "FBS_New", "tonnes",
+    "Spain", 203L, "Wheat", 2511L, "production", 2000L, 3000, "FBS_Old", "tonnes"
   )
 
   result <- whep:::.select_best_source(cbs_raw_all)
@@ -193,8 +175,7 @@ test_that(".processed_raw creates value_proc column", {
     dplyr::filter(element == "processing")
 
   cb_proc <- tibble::tribble(
-    ~year, ~ProcessedItem, ~item_cbs,
-    ~Product_fraction, ~Value_fraction,
+    ~year, ~ProcessedItem, ~item_cbs, ~Product_fraction, ~Value_fraction,
     2000L, "Flour", "Wheat", 0.8, 1.0
   )
 

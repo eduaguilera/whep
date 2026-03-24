@@ -12,7 +12,7 @@ build_processing_coefs(
 )
 }
 \arguments{
-\item{cbs}{A tibble of final CBS, as returned by
+\item{cbs}{A tibble of final CBS in wide format, as returned by
 \code{\link[=build_commodity_balances]{build_commodity_balances()}}.}
 
 \item{start_year}{Integer. First year to include. Default \code{1850}.}
@@ -23,8 +23,11 @@ build_processing_coefs(
 for illustration without downloading data. Default \code{FALSE}.}
 }
 \value{
-A tibble with processing coefficients per country, year and
-item.
+A tibble with columns: \code{year}, \code{area_code},
+\code{item_cbs_code_to_process}, \code{value_to_process},
+\code{item_cbs_code_processed}, \code{initial_conversion_factor},
+\code{initial_value_processed}, \code{conversion_factor_scaling},
+\code{final_conversion_factor}, \code{final_value_processed}.
 }
 \description{
 Extract the final calibrated processing coefficients from the CBS

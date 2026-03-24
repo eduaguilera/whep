@@ -12,7 +12,7 @@ It contains the following columns:
 \item \code{item_cbs}: Name of the CBS item (e.g., \code{"Cattle"}, \code{"Asses"}).
 \item \code{proc_code}: Short process code used internally (e.g., \code{"p092"}).
 \item \code{proc}: Descriptive process name (e.g., \code{"Asses"}).
-\item \code{item_code_cbs}: Numeric CBS item code (often equal to \code{Item_Code}).
+\item \code{item_cbs_code}: Numeric CBS item code (often equal to \code{Item_Code}).
 \item \code{Farm_class}: Broad farm classification grouping the animal. One of
 \code{"Cattle"}, \code{"Dairy_cows"}, \code{"Monogastric"}, \code{"Sheep_goats"},
 \code{"Bees"}, \code{"Game"}.

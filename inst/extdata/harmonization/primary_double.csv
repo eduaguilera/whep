@@ -1,4 +1,4 @@
-Item_area,item_prod,item_code_prod,Multi_type
+Item_area,item_prod,item_prod_code,Multi_type
 "Seed cotton, unginned","Cotton lint, ginned",767,Primary
 "Seed cotton, unginned",Cotton seed,329,Primary
 ,"Seed cotton, unginned",328,Primary_area

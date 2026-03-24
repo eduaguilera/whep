@@ -9,7 +9,7 @@ A tibble where each row corresponds to one CBS item. It contains the
 following columns:
 \itemize{
 \item \code{item_cbs}: Name of the CBS item.
-\item \code{item_code_cbs}: Numeric CBS item code.
+\item \code{item_cbs_code}: Numeric CBS item code.
 \item \code{comm_code}: Commodity code used in process-based modelling (may contain
 \code{"#N/A"} when not applicable).
 \item \code{proc_code}: Process code (may contain \code{"#N/A"} when not applicable).

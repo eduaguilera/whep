@@ -2,6 +2,32 @@
 # These replace Global's ExtractFAO(), ExtractCB(), filter_areas()
 # and harmonize_countries() in whep conventions.
 
+# -- Area code conversion ------------------------------------------------------
+
+#' Convert ISO3 area_code to FAOSTAT numeric area_code
+#' @noRd
+.iso3_to_fao_area_code <- function(df) {
+  bridge <- whep::polities |>
+    dplyr::select(iso3c, area_code_fao = area_code)
+
+  df |>
+    dplyr::left_join(bridge, by = c("area_code" = "iso3c")) |>
+    dplyr::select(-area_code) |>
+    dplyr::rename(area_code = area_code_fao)
+}
+
+#' Convert FAOSTAT numeric area_code to ISO3 area_code and add area name
+#' @noRd
+.fao_to_iso3_area_code <- function(df) {
+  bridge <- whep::polities |>
+    dplyr::select(area_code_fao = area_code, iso3c, area = area_name)
+
+  df |>
+    dplyr::left_join(bridge, by = c("area_code" = "area_code_fao")) |>
+    dplyr::select(-area_code) |>
+    dplyr::rename(area_code = iso3c)
+}
+
 # -- Reading helpers -----------------------------------------------------------
 
 .filter_years <- function(df, years) {
@@ -62,34 +88,36 @@
 .fix_item_codes <- function(df) {
   df |>
     dplyr::mutate(
-      item_code_cbs = dplyr::if_else(
-        item_code_cbs == 2804L,
+      item_cbs_code = dplyr::if_else(
+        item_cbs_code == 2804L,
         2807L,
-        dplyr::if_else(item_code_cbs == 2820L, 2552L, item_code_cbs)
+        dplyr::if_else(item_cbs_code == 2820L, 2552L, item_cbs_code)
       )
     )
 }
 
 .aggregate_to_polities <- function(df, ...) {
   regions <- whep::regions_full
+  polities <- whep::polities
+
+  # Map raw FAOSTAT area codes to polity ISO3 codes
+  region_map <- regions |>
+    dplyr::rename(area_code = code) |>
+    dplyr::select(area_code, polity_code, polity_name) |>
+    # Get numeric FAOSTAT polity code from the polities table
+    dplyr::left_join(
+      polities |> dplyr::select(iso3c, polity_area_code = area_code),
+      by = c("polity_code" = "iso3c")
+    )
 
   df |>
-    dplyr::inner_join(
-      regions |>
-        dplyr::rename(area_code = code) |>
-        dplyr::select(
-          area_code,
-          polity_code,
-          polity_name
-        ),
-      by = "area_code"
-    ) |>
+    dplyr::inner_join(region_map, by = "area_code") |>
     dplyr::summarise(
       value = sum(value, na.rm = TRUE),
-      .by = c(year, polity_code, polity_name, unit, element, ...)
+      .by = c(year, polity_area_code, polity_name, unit, element, ...)
     ) |>
     dplyr::rename(
-      area_code = polity_code,
+      area_code = polity_area_code,
       area = polity_name
     )
 }
@@ -110,7 +138,7 @@
 
   whep_read_file(pin_alias) |>
     dplyr::rename(
-      item_code_cbs = `Item Code`,
+      item_cbs_code = `Item Code`,
       item_cbs = Item,
       area = Area,
       area_code = `Area Code`,
@@ -128,7 +156,7 @@
       area,
       area_code,
       item_cbs,
-      item_code_cbs,
+      item_cbs_code,
       element,
       unit,
       year,
@@ -136,7 +164,7 @@
     ) |>
     .aggregate_to_polities(
       item_cbs,
-      item_code_cbs
+      item_cbs_code
     )
 }
 
@@ -144,8 +172,8 @@
   .extract_fao(pin_alias, years = years) |>
     dplyr::inner_join(
       whep::items_full |>
-        dplyr::select(item_cbs, item_code_cbs),
-      by = c("item_cbs", "item_code_cbs")
+        dplyr::select(item_cbs, item_cbs_code),
+      by = c("item_cbs", "item_cbs_code")
     )
 }
 
@@ -187,7 +215,7 @@
   cbs_summary <- cbs |>
     dplyr::summarise(
       value = sum(value, na.rm = TRUE),
-      item_code_cbs = item_code_cbs[1L],
+      item_cbs_code = item_cbs_code[1L],
       .by = c(area, area_code, year, item_cbs, element)
     )
 
@@ -214,7 +242,7 @@
       time_col = year,
       .by = c("area", "area_code", "item_cbs", "element")
     ) |>
-    dplyr::select(-item_code_cbs) |>
+    dplyr::select(-item_cbs_code) |>
     dplyr::mutate(
       scaling = dplyr::if_else(
         is.na(scaling_raw),
@@ -283,8 +311,8 @@
       prim_double |>
         dplyr::filter(is.na(Item_area)) |>
         dplyr::left_join(items_prod, by = "item_prod") |>
-        dplyr::select(item_code_cbs, Multi_type),
-      by = "item_code_cbs"
+        dplyr::select(item_cbs_code, Multi_type),
+      by = "item_cbs_code"
     ) |>
     dplyr::mutate(
       multi_type = dplyr::coalesce(Multi_type, "Single"),

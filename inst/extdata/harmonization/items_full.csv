@@ -1,4 +1,4 @@
-item_cbs,item_code_cbs,comm_code,proc_code,proc,unit,group,feedtype_graniv,feedtype_grazers,comm_group,Cat_1,Name_biomass,dbMFA_items,FEDNA,default_destiny
+item_cbs,item_cbs_code,comm_code,proc_code,proc,unit,group,feedtype_graniv,feedtype_grazers,comm_group,Cat_1,Name_biomass,dbMFA_items,FEDNA,default_destiny
 Choline chloride,4007.0,#N/A,#N/A,#N/A,tonnes,Additives,additives,additives,Additives,Additives,Choline chloride,,CLORURO COLINA PROMEDIO,Feed
 Lysine,4010.0,#N/A,#N/A,#N/A,tonnes,Additives,additives,additives,Additives,Additives,Lysine,,L-LISINA 50,Feed
 MgO,4012.0,#N/A,#N/A,#N/A,tonnes,Additives,additives,additives,Additives,Additives,MgO,,OXIDO MAGNESIO (magnesita calcinada),Feed

@@ -10,7 +10,7 @@
 #' - `item_cbs`: Name of the CBS item (e.g., `"Cattle"`, `"Asses"`).
 #' - `proc_code`: Short process code used internally (e.g., `"p092"`).
 #' - `proc`: Descriptive process name (e.g., `"Asses"`).
-#' - `item_code_cbs`: Numeric CBS item code (often equal to `Item_Code`).
+#' - `item_cbs_code`: Numeric CBS item code (often equal to `Item_Code`).
 #' - `Farm_class`: Broad farm classification grouping the animal. One of
 #'   `"Cattle"`, `"Dairy_cows"`, `"Monogastric"`, `"Sheep_goats"`,
 #'   `"Bees"`, `"Game"`.
@@ -209,7 +209,7 @@
 #' A tibble where each row corresponds to one CBS item. It contains the
 #' following columns:
 #' - `item_cbs`: Name of the CBS item.
-#' - `item_code_cbs`: Numeric CBS item code.
+#' - `item_cbs_code`: Numeric CBS item code.
 #' - `comm_code`: Commodity code used in process-based modelling (may contain
 #'   `"#N/A"` when not applicable).
 #' - `proc_code`: Process code (may contain `"#N/A"` when not applicable).
@@ -245,9 +245,9 @@
 #' A tibble where each row corresponds to one production item. It contains
 #' the following columns:
 #' - `item_prod`: Name of the production item (e.g., `"Wheat"`, `"Rice"`).
-#' - `item_code_prod`: FAOSTAT production item code (character).
+#' - `item_prod_code`: FAOSTAT production item code (character).
 #' - `item_cbs`: Name of the corresponding CBS item.
-#' - `item_code_cbs`: Numeric CBS item code.
+#' - `item_cbs_code`: Numeric CBS item code.
 #' - `Farm_class`: Farm system classification. Crop items use codes such as
 #'   `"COP"` (cereals, oilseeds, protein crops), `"Vegetables"`,
 #'   `"Fruits"`, `"Olive"`, `"Grapevine"`, `"Other_crops"`. Livestock
@@ -271,15 +271,15 @@
 #' A tibble where each row corresponds to one production item. It contains
 #' the following columns:
 #' - `item_prod`: Name of the production item.
-#' - `item_code_prod`: FAOSTAT production item code (character).
+#' - `item_prod_code`: FAOSTAT production item code (character).
 #' - `item_cbs`: Name of the corresponding CBS item.
-#' - `item_code_cbs`: Numeric CBS item code.
+#' - `item_cbs_code`: Numeric CBS item code.
 #' - `group`: Item group. One of `"Primary crops"`, `"Crop products"`,
 #'   `"Livestock products"`, `"Crop residues"`, `"Grassland"`,
 #'   `"Scavenging"`.
-#' - `Live_anim`: Name of the parent live animal for livestock-derived items
+#' - `live_anim`: Name of the parent live animal for livestock-derived items
 #'   (`NA` for crop items).
-#' - `Live_anim_code`: Numeric CBS code of the parent live animal (`NA` for
+#' - `live_anim_code`: Numeric CBS code of the parent live animal (`NA` for
 #'   crop items).
 #' - `Cat_Krausmann`: Item category used in Krausmann et al. biomass flow
 #'   accounting.
@@ -407,7 +407,7 @@
 #'   (e.g., `"Seed cotton, unginned"`).
 #' - `item_prod`: Name of the derived production item (e.g.,
 #'   `"Cotton lint, ginned"`, `"Cotton seed"`).
-#' - `item_code_prod`: Numeric FAOSTAT production code of the derived item.
+#' - `item_prod_code`: Numeric FAOSTAT production code of the derived item.
 #' - `Multi_type`: Classification of the double-counting type:
 #'   - `"Primary"`: The area item is the primary crop; product is a direct
 #'     output.
