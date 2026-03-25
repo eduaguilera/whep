@@ -443,23 +443,19 @@ build_processing_coefs <- function(
   primary_all,
   years
 ) {
-  # Commodity balances from FAOSTAT
-  fbs_new <- .extract_cb(
-    "faostat-fbs-new",
-    years = years
-  )
-  fbs_old <- .extract_cb(
-    "faostat-fbs-old",
-    years = years
-  )
-  cbs_crops <- .extract_cb(
-    "faostat-cbs-old-crops",
-    years = years
-  )
-  cbs_animals <- .extract_cb(
-    "faostat-cbs-old-animal",
-    years = years
-  )
+  # Reuse CB extracts from production build if available
+  cb <- attr(primary_all, ".cb_extracts")
+  if (!is.null(cb)) {
+    fbs_new <- cb$fbs_new
+    fbs_old <- cb$fbs_old
+    cbs_crops <- cb$cbs_crops
+    cbs_animals <- cb$cbs_animals
+  } else {
+    fbs_new <- .extract_cb("faostat-fbs-new", years = years)
+    fbs_old <- .extract_cb("faostat-fbs-old", years = years)
+    cbs_crops <- .extract_cb("faostat-cbs-old-crops", years = years)
+    cbs_animals <- .extract_cb("faostat-cbs-old-animal", years = years)
+  }
   cbs_new <- .extract_fao(
     "faostat-cbs-new",
     years = years

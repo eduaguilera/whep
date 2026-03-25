@@ -34,13 +34,19 @@ build_primary_production <- function(
     return(.example_build_primary_prod())
   }
   cli::cli_h1("Building primary production")
-  .read_production(start_year, end_year) |>
+  raw <- .read_production(start_year, end_year)
+  cb_extracts <- attr(raw, ".cb_extracts")
+
+  result <- raw |>
     .fix_production() |>
     .qc_production(smooth = smooth_carry_forward) |>
     dplyr::select(
       year, area_code, item_prod_code, item_cbs_code,
       live_anim_code, unit, value
     )
+
+  attr(result, ".cb_extracts") <- cb_extracts
+  result
 }
 
 
@@ -136,11 +142,16 @@ build_primary_production <- function(
   # 10. Add grassland + historical yields
   grassland <- .build_grassland(land_areas)
 
-  primary_ext |>
+  cb_extracts <- attr(cbs_prod_raw, ".cb_extracts")
+
+  result <- primary_ext |>
     dplyr::bind_rows(grassland) |>
     .add_historical_yields(int_yields) |>
     .finalise_primary() |>
     .filter_years(output_years)
+
+  attr(result, ".cb_extracts") <- cb_extracts
+  result
 }
 
 
@@ -267,6 +278,12 @@ build_primary_production <- function(
     by = c("area", "area_code", "year", "item_cbs", "item_cbs_code", "element")
   ]
   dt <- dt[, .(year, area_code, item_cbs_code, item_cbs, t_cbs)]
+
+  # Attach CB extracts so CBS build can reuse them
+  attr(dt, ".cb_extracts") <- list(
+    fbs_new = fbs_new, fbs_old = fbs_old,
+    cbs_crops = cbs_crops, cbs_animals = cbs_anim
+  )
   dt
 }
 

@@ -203,21 +203,29 @@
   dt
 }
 
+.polity_bridge <- local({
+  bridge <- NULL
+
+  function() {
+    if (is.null(bridge)) {
+      regions <- data.table::as.data.table(whep::regions_full)
+      polities <- data.table::as.data.table(whep::polities)
+      data.table::setnames(regions, "code", "area_code")
+      region_map <- regions[, .(area_code, polity_code, polity_name)]
+      pol_bridge <- polities[, .(iso3c, polity_area_code = area_code)]
+      bridge <<- merge(region_map, pol_bridge,
+                       by.x = "polity_code", by.y = "iso3c", all.x = TRUE)
+    }
+    bridge
+  }
+})
+
 .aggregate_to_polities <- function(df, ...) {
   dots <- as.character(match.call(expand.dots = FALSE)$...)
 
   if (!data.table::is.data.table(df)) data.table::setDT(df)
   dt <- df
-  regions <- data.table::as.data.table(whep::regions_full)
-  polities <- data.table::as.data.table(whep::polities)
-
-  # Map raw FAOSTAT area codes to polity ISO3 codes
-  data.table::setnames(regions, "code", "area_code")
-  region_map <- regions[, .(area_code, polity_code, polity_name)]
-  # Get numeric FAOSTAT polity code from the polities table
-  pol_bridge <- polities[, .(iso3c, polity_area_code = area_code)]
-  region_map <- merge(region_map, pol_bridge,
-                      by.x = "polity_code", by.y = "iso3c", all.x = TRUE)
+  region_map <- .polity_bridge()
 
   dt <- merge(dt, region_map, by = "area_code")
   by_cols <- c("year", "polity_area_code", "polity_name", "unit", "element",
@@ -252,7 +260,6 @@
     "year", "value"
   ))
 
-  dt <- .filter_years(dt, years)
   dt <- .harmonize_element_names(dt)
   dt <- .normalise_units(dt)
   dt <- .fix_item_codes(dt)

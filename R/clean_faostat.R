@@ -53,7 +53,7 @@
   } else {
     data.table::setalloccol(df)
   }
-  data.table::setorderv(df, c(by, time_col))
+  data.table::setkeyv(df, c(by, time_col))
   df[, qc_carry_forward := {
     val <- get(value_col)
     last_val <- val[.N]
@@ -91,7 +91,10 @@
   force(df)
   cli::cli_progress_step("Flagging spikes")
   if (!data.table::is.data.table(df)) data.table::setDT(df)
-  data.table::setorderv(df, c(by, time_col))
+  sort_cols <- c(by, time_col)
+  if (!identical(data.table::key(df), sort_cols)) {
+    data.table::setorderv(df, sort_cols)
+  }
   df[, qc_spike := {
     val <- get(value_col)
     prev <- data.table::shift(val, 1L, type = "lag")
