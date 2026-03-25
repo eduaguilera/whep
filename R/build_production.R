@@ -1207,27 +1207,37 @@ build_primary_production <- function(
 
 .collapse_yield_rows <- function(df) {
   if (!data.table::is.data.table(df)) data.table::setDT(df)
-  out <- df[
-    ,
-    .(
-      t = .sum_if_any(t),
-      fu = .sum_if_any(fu),
-      yield_c = .mean_if_any(yield_c),
-      source = .first_non_missing(source),
-      Multi_type = .first_non_missing(Multi_type),
-      live_anim = .first_non_missing(live_anim)
-    ),
-    by = c(
-      "year",
-      "area",
-      "area_code",
-      "item_prod",
-      "item_prod_code",
-      "live_anim_code",
-      "unit"
-    )
-  ]
 
+  df[, `:=`(.t_ok = as.double(!is.na(t)), .fu_ok = as.double(!is.na(fu)))]
+
+  by_cols <- c(
+    "year", "area", "area_code", "item_prod", "item_prod_code",
+    "live_anim_code", "unit"
+  )
+
+  # GForce-optimized numeric aggregation
+  out <- df[, .(
+    t = sum(t, na.rm = TRUE),
+    .t_n = sum(.t_ok),
+    fu = sum(fu, na.rm = TRUE),
+    .fu_n = sum(.fu_ok),
+    yield_c = mean(yield_c, na.rm = TRUE)
+  ), keyby = by_cols]
+
+  out[.t_n == 0, t := NA_real_]
+  out[.fu_n == 0, fu := NA_real_]
+  out[is.nan(yield_c), yield_c := NA_real_]
+  out[, c(".t_n", ".fu_n") := NULL]
+
+  # Character columns (not GForce-eligible)
+  chars <- df[, .(
+    source = .first_non_missing(source),
+    Multi_type = .first_non_missing(Multi_type),
+    live_anim = .first_non_missing(live_anim)
+  ), keyby = by_cols]
+
+  out <- out[chars]
+  df[, c(".t_ok", ".fu_ok") := NULL]
   out
 }
 
@@ -1301,35 +1311,43 @@ build_primary_production <- function(
 
 .collapse_cbs_ratio_rows <- function(df) {
   if (!data.table::is.data.table(df)) data.table::setDT(df)
-  out <- df[
-    ,
-    .(
-      t = .sum_if_any(t),
-      fu = .sum_if_any(fu),
-      yield_c = .mean_if_any(yield_c),
-      yield_glo = .mean_if_any(yield_glo),
-      t_cbs = .sum_if_any(t_cbs),
-      prod_cbs_ratio = .mean_if_any(prod_cbs_ratio),
-      prod_cbs_count = .mean_if_any(prod_cbs_count),
-      sumprod_cbs_ratio = .mean_if_any(sumprod_cbs_ratio),
-      source = .first_non_missing(source),
-      Multi_type = .first_non_missing(Multi_type)
-    ),
-    by = c(
-      "year",
-      "area",
-      "area_code",
-      "item_prod",
-      "item_prod_code",
-      "item_cbs",
-      "item_cbs_code",
-      "live_anim",
-      "live_anim_code",
-      "unit",
-      "group"
-    )
-  ]
 
+  df[, .tcbs_ok := as.double(!is.na(t_cbs))]
+
+  by_cols <- c(
+    "year", "area", "area_code", "item_prod", "item_prod_code",
+    "item_cbs", "item_cbs_code", "live_anim", "live_anim_code",
+    "unit", "group"
+  )
+
+  # GForce-optimized numeric aggregation
+  out <- df[, .(
+    t = sum(t, na.rm = TRUE),
+    fu = sum(fu, na.rm = TRUE),
+    yield_c = mean(yield_c, na.rm = TRUE),
+    yield_glo = mean(yield_glo, na.rm = TRUE),
+    t_cbs = sum(t_cbs, na.rm = TRUE),
+    .tcbs_n = sum(.tcbs_ok),
+    prod_cbs_ratio = mean(prod_cbs_ratio, na.rm = TRUE),
+    prod_cbs_count = mean(prod_cbs_count, na.rm = TRUE),
+    sumprod_cbs_ratio = mean(sumprod_cbs_ratio, na.rm = TRUE)
+  ), keyby = by_cols]
+
+  out[.tcbs_n == 0, t_cbs := NA_real_]
+  out[is.nan(yield_c), yield_c := NA_real_]
+  out[is.nan(yield_glo), yield_glo := NA_real_]
+  out[is.nan(prod_cbs_ratio), prod_cbs_ratio := NA_real_]
+  out[is.nan(sumprod_cbs_ratio), sumprod_cbs_ratio := NA_real_]
+  out[, .tcbs_n := NULL]
+
+  # Character columns (not GForce-eligible)
+  chars <- df[, .(
+    source = .first_non_missing(source),
+    Multi_type = .first_non_missing(Multi_type)
+  ), keyby = by_cols]
+
+  out <- out[chars]
+  df[, .tcbs_ok := NULL]
   out
 }
 
@@ -1773,14 +1791,14 @@ build_primary_production <- function(
   src_lookup <- df[
     unit %in% c("tonnes", "t"),
     .(
-      source = .first_non_missing(source)
+      source = data.table::first(source)
     ),
     by = c("year", "area", "area_code", "item_prod", "item_prod_code")
   ]
 
   agg <- df[
     ,
-    .(value = .sum_if_any(value)),
+    .(value = sum(value, na.rm = TRUE)),
     by = c(
       "year",
       "area",
@@ -1835,29 +1853,16 @@ build_primary_production <- function(
 }
 
 .first_non_missing <- function(x) {
-  x_non_missing <- x[!is.na(x)]
-
-  if (length(x_non_missing) == 0L) {
-    return(NA_character_)
-  }
-
-  x_non_missing[[1L]]
+  idx <- which.min(is.na(x))
+  if (is.na(x[idx])) NA_character_ else x[idx]
 }
 
 .sum_if_any <- function(x) {
-  if (all(is.na(x))) {
-    return(NA_real_)
-  }
-
-  sum(x, na.rm = TRUE)
+  if (anyNA(x) && all(is.na(x))) NA_real_ else sum(x, na.rm = TRUE)
 }
 
 .mean_if_any <- function(x) {
-  if (all(is.na(x))) {
-    return(NA_real_)
-  }
-
-  mean(x, na.rm = TRUE)
+  if (anyNA(x) && all(is.na(x))) NA_real_ else mean(x, na.rm = TRUE)
 }
 
 .finalise_primary <- function(df) {
