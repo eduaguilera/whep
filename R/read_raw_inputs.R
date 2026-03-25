@@ -92,47 +92,6 @@
   }
 })
 
-.years_cache_key <- function(years) {
-  if (is.null(years)) {
-    return("ALL")
-  }
-
-  paste(years, collapse = ",")
-}
-
-.extract_fao_cache <- local({
-  cache <- new.env(parent = emptyenv())
-
-  function(key, value = NULL, set = FALSE) {
-    if (set) {
-      assign(key, value, envir = cache)
-      return(invisible(NULL))
-    }
-
-    if (!exists(key, envir = cache, inherits = FALSE)) {
-      return(NULL)
-    }
-
-    get(key, envir = cache)
-  }
-})
-
-.extract_cb_cache <- local({
-  cache <- new.env(parent = emptyenv())
-
-  function(key, value = NULL, set = FALSE) {
-    if (set) {
-      assign(key, value, envir = cache)
-      return(invisible(NULL))
-    }
-
-    if (!exists(key, envir = cache, inherits = FALSE)) {
-      return(NULL)
-    }
-
-    get(key, envir = cache)
-  }
-})
 
 .read_faostat_csv <- function(path) {
   readr::read_csv(path, show_col_types = FALSE, name_repair = "universal")
@@ -165,7 +124,7 @@
 # requested year range are read from disk, cutting both I/O time and
 # peak memory (e.g. 990 MB → 56 MB for faostat-fbs-old).
 # Falls back to nanoparquet for unfiltered reads (lighter dependency).
-.read_parquet_filtered <- function(pin_alias, years = NULL, year_col = NULL) {
+.read_input <- function(pin_alias, years = NULL, year_col = NULL) {
   cli::cli_alert_info("Fetching files for {pin_alias}...")
   paths <- .download_pin_paths(pin_alias)
   parquet_path <- grep("\\.parquet$", paths, value = TRUE)
@@ -193,23 +152,6 @@
 
   dt
 }
-
-# Read and cache filtered input data. Cache key includes year range so
-# different year requests get separate (small) cached copies.
-.read_input_cached <- local({
-  cache <- new.env(parent = emptyenv())
-
-  function(pin_alias, years = NULL, year_col = NULL) {
-    key <- paste0(pin_alias, "::", .years_cache_key(years))
-
-    if (!exists(key, envir = cache, inherits = FALSE)) {
-      dt <- .read_parquet_filtered(pin_alias, years, year_col)
-      assign(key, dt, envir = cache)
-    }
-
-    data.table::copy(get(key, envir = cache))
-  }
-})
 
 # -- FAOSTAT extraction --------------------------------------------------------
 
@@ -288,12 +230,6 @@
 }
 
 .extract_fao <- function(pin_alias, years = NULL) {
-  cache_key <- paste0(pin_alias, "::", .years_cache_key(years))
-  cached <- .extract_fao_cache(cache_key)
-  if (!is.null(cached)) {
-    return(cached)
-  }
-
   cb_elements <- c(
     "production",
     "import",
@@ -307,7 +243,7 @@
     "other_uses"
   )
 
-  dt <- .read_input_cached(pin_alias, years = years, year_col = "Year")
+  dt <- .read_input(pin_alias, years = years, year_col = "Year")
   data.table::setnames(dt, c(
     "Item Code", "Item", "Area", "Area Code", "Unit", "Element", "Year",
     "Value"
@@ -323,23 +259,13 @@
   dt <- dt[element %in% cb_elements]
   dt <- dt[, .(area, area_code, item_cbs, item_cbs_code, element, unit,
                year, value)]
-  out <- .aggregate_to_polities(dt, item_cbs, item_cbs_code)
-  .extract_fao_cache(cache_key, value = out, set = TRUE)
-  out
+  .aggregate_to_polities(dt, item_cbs, item_cbs_code)
 }
 
 .extract_cb <- function(pin_alias, years = NULL) {
-  cache_key <- paste0(pin_alias, "::", .years_cache_key(years))
-  cached <- .extract_cb_cache(cache_key)
-  if (!is.null(cached)) {
-    return(cached)
-  }
-
-  dt <- data.table::as.data.table(.extract_fao(pin_alias, years = years))
+  dt <- .extract_fao(pin_alias, years = years)
   items <- .items_cbs_bridge()
-  out <- merge(dt, items, by = c("item_cbs", "item_cbs_code"))
-  .extract_cb_cache(cache_key, value = out, set = TRUE)
-  out
+  merge(dt, items, by = c("item_cbs", "item_cbs_code"))
 }
 
 # -- Processing helpers (from comdat_global) -----------------------------------

@@ -272,7 +272,7 @@ build_primary_production <- function(
 
 .read_fao_crop_liv <- function(years = NULL) {
   cli::cli_progress_step("Reading FAO crops/livestock")
-  dt <- .read_input_cached("faostat-production",
+  dt <- .read_input("faostat-production",
                            years = years, year_col = "Year")
   data.table::setnames(
     dt,
@@ -300,7 +300,7 @@ build_primary_production <- function(
     , .(iso3c, area_code)
   ]
 
-  dt <- .read_input_cached("luh2-areas", years = years, year_col = "Year")
+  dt <- .read_input("luh2-areas", years = years, year_col = "Year")
   data.table::setnames(dt, c("ISO3", "Year"), c("iso3c", "year"))
   dt <- merge(dt, regions, by = "iso3c", all.x = TRUE)
   dt <- merge(dt, polities, by.x = "polity_code", by.y = "iso3c", all.x = TRUE)
@@ -315,7 +315,7 @@ build_primary_production <- function(
     , .(code, polity_name)
   ]
 
-  dt <- .read_input_cached("international-yields",
+  dt <- .read_input("international-yields",
                            years = years, year_col = "year")
   dt[, item_prod_code := as.character(item_code)]
   data.table::setnames(dt, "area_code", "code")
@@ -371,7 +371,7 @@ build_primary_production <- function(
   items_prod <- data.table::as.data.table(whep::items_prod_full)
   items <- data.table::as.data.table(whep::items_full)
 
-  dt <- .read_parquet_filtered("faostat-production-old",
+  dt <- .read_input("faostat-production-old",
                                years = years, year_col = "Year")
   data.table::setnames(dt,
     c("AreaCode", "ItemCode", "ItemName", "Year", "Value"),
@@ -393,7 +393,7 @@ build_primary_production <- function(
 
   polities <- whep::polities
 
-  .read_parquet_filtered("eu-agridb-fodder",
+  .read_input("eu-agridb-fodder",
                          years = years, year_col = "Year") |>
     dplyr::rename(year = Year) |>
     dplyr::left_join(crops_eu, by = "Crop") |>
@@ -720,7 +720,7 @@ build_primary_production <- function(
 }
 
 .read_livestock_stocks <- function(years = NULL) {
-  dt <- .read_parquet_filtered("faostat-emissions-livestock",
+  dt <- .read_input("faostat-emissions-livestock",
                                years = years, year_col = "Year")
   data.table::setnames(dt,
     c("Item Code", "Item", "Area Code", "Unit", "Element", "Year", "Value"),

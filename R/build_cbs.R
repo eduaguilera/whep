@@ -499,7 +499,7 @@ build_processing_coefs <- function(
 }
 
 .read_gdp_pop <- function(years = NULL) {
-  dt <- .read_input_cached("gdp-population",
+  dt <- .read_input("gdp-population",
                            years = years, year_col = "Year")
   if ("Year" %in% names(dt)) {
     data.table::setnames(dt, "Year", "year")
@@ -528,11 +528,11 @@ build_processing_coefs <- function(
     , .(iso3c, area_code)
   ]
 
-  exports <- .read_input_cached("historical-trade-exports",
+  exports <- .read_input("historical-trade-exports",
                                 years = years, year_col = "year")
   exports[, element := "import"]
 
-  imports <- .read_input_cached("historical-trade-imports",
+  imports <- .read_input("historical-trade-imports",
                                 years = years, year_col = "year")
   imports[, element := "export"]
 
