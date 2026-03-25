@@ -148,7 +148,12 @@ gadm_l1_filter <- function(iso3, name1_patterns) {
   }
 
   tryCatch({
-    matched |>
+    # Extract polygon parts in case st_make_valid produced GEOMETRYCOLLECTION
+    geom <- sf::st_geometry(matched)
+    if (any(sf::st_geometry_type(geom) == "GEOMETRYCOLLECTION")) {
+      geom <- sf::st_collection_extract(geom, "POLYGON")
+    }
+    geom |>
       sf::st_union() |>
       sf::st_cast("MULTIPOLYGON") |>
       sf::st_as_sf() |>
@@ -183,7 +188,11 @@ gadm_l2_filter <- function(iso3, name_patterns, field = "NAME_2") {
   }
 
   tryCatch({
-    matched |>
+    geom <- sf::st_geometry(matched)
+    if (any(sf::st_geometry_type(geom) == "GEOMETRYCOLLECTION")) {
+      geom <- sf::st_collection_extract(geom, "POLYGON")
+    }
+    geom |>
       sf::st_union() |>
       sf::st_cast("MULTIPOLYGON") |>
       sf::st_as_sf() |>
@@ -314,6 +323,10 @@ l0_mapping <- tibble::tribble(
   "Egypt (to 1922)",                                   "EGY",
   "Mariana Island",                                    "MNP",
   "New Caledonia",                                     "NCL",
+  # Additional L0 downloads
+  "Heard Island and McDonald Islands",                 "HMD",
+  "Bouvet Island",                                     "BVT",
+  "French Somalia",                                    "DJI",
 )
 
 l0_results <- list()
@@ -367,7 +380,7 @@ l1_mapping <- list(
   list("Lower Quebec",       "CAN", c("Qu\u00e9bec", "Quebec")),
   list("New Brunswick",      "CAN", c("New Brunswick")),
   list("Newfoundland",       "CAN", c("Newfoundland")),
-  list("Nova Scotia  Cape Breton Isl.", "CAN", c("Nova Scotia")),
+  # Nova Scotia moved to bottom of L1 list with better pattern matching
   list("Ontario",            "CAN", c("Ontario")),
   list("Prince Edward Island", "CAN", c("Prince Edward Island")),
   # Australia
@@ -390,7 +403,43 @@ l1_mapping <- list(
   list("New Guinea", "PNG",
        c("East Sepik", "West Sepik", "Madang", "Morobe", "Enga",
          "Western Highlands", "Eastern Highlands", "Southern Highlands",
-         "Chimbu", "Simbu"))
+         "Chimbu", "Simbu")),
+  # ---- Italian pre-unification states (ITA L1) ----
+  list("Tuscany",          "ITA", c("Toscana")),
+  list("Two Sicilies",     "ITA",
+       c("Sicily", "Campania", "Calabria", "Apulia", "Basilicata",
+         "Molise", "Abruzzo")),
+  list("Sardinia",         "ITA",
+       c("Sardegna", "Piemonte", "Liguria", "Valled'Aosta")),
+  list("Papal States",     "ITA", c("Lazio", "Umbria", "Marche")),
+  # ---- Central Asian khanates (UZB/TKM L1) ----
+  list("Bukhara",          "UZB",
+       c("Buxoro", "Samarqand", "Navoiy", "Qashqadaryo", "Surxondaryo")),
+  list("Kokand",           "UZB", c("Farg'ona", "Namangan", "Andijon")),
+  # ---- French Polynesia sub-territories (PYF L1) ----
+  list("Gambier Island",       "PYF", c("Tuamotu", "Gambier")),
+  list("Marquesas Island",     "PYF", c("Marquises")),
+  list("Society Islands  (Tahiti)", "PYF", c("Vent", "Sous-le-Vent")),
+  # ---- Gaza Strip (PSE L1) ----
+  list("Gaza Strip",       "PSE", c("Gaza")),
+  # ---- Berlin divisions (DEU L1, same proxy for both) ----
+  list("East Berlin",      "DEU", c("Berlin")),
+  list("West Berlin",      "DEU", c("Berlin")),
+  # ---- German pre-unification states (DEU L1) ----
+  list("Bavaria",              "DEU", c("Bayern")),
+  list("Saxony",               "DEU", c("Sachsen")),
+  list("Hanover",              "DEU", c("Niedersachsen")),
+  list("Hesse",                "DEU", c("Hessen")),
+  list("Mecklenburg",          "DEU", c("Mecklenburg-Vorpommern")),
+  list("Thuringia",            "DEU", c("Th\u00fcringen")),
+  list("Schleswig-Holstein",   "DEU", c("Schleswig-Holstein")),
+  list("Bremen (city-state)",  "DEU", c("Bremen")),
+  list("Oldenburg",            "DEU", c("Niedersachsen")),
+  list("W\u00fcrttemberg",     "DEU", c("Baden-W\u00fcrttemberg")),
+  list("Baden",                "DEU", c("Baden-W\u00fcrttemberg")),
+  # ---- Nova Scotia retry (CAN L1) ----
+  # Previous attempt failed; keep in list to retry
+  list("Nova Scotia  Cape Breton Isl.", "CAN", c("NovaScotia", "Nova Scotia"))
 )
 
 l1_results <- list()
@@ -445,6 +494,44 @@ if (is.null(bonin)) {
 r <- wrap_result("Bonin island", bonin)
 if (!is.null(r)) l2_results[[length(l2_results) + 1]] <- r
 
+# Duchy Modena (ITA L2: Modena + Reggio Emilia provinces)
+message("Processing L2: Duchy Modena (ITA)")
+modena <- gadm_l2_filter("ITA", c("Modena", "ReggioNell"), field = "NAME_2")
+r <- wrap_result("Duchy Modena", modena)
+if (!is.null(r)) l2_results[[length(l2_results) + 1]] <- r
+
+# Duchy Parma (ITA L2: Parma + Piacenza provinces)
+message("Processing L2: Duchy Parma (ITA)")
+parma <- gadm_l2_filter("ITA", c("Parma", "Piacenza"), field = "NAME_2")
+r <- wrap_result("Duchy Parma", parma)
+if (!is.null(r)) l2_results[[length(l2_results) + 1]] <- r
+
+# Kiautchou (German concession = CHN Shandong L2 Qingdao)
+message("Processing L2: Kiautchou (CHN Qingdao)")
+kiautchou <- gadm_l2_filter("CHN", c("Qingdao"), field = "NAME_2")
+r <- wrap_result("Kiautchou", kiautchou)
+if (!is.null(r)) l2_results[[length(l2_results) + 1]] <- r
+
+# Kwantung / Port Arthur (Russian/Japanese concession = CHN Liaoning L2 Dalian)
+message("Processing L2: Kwantung (CHN Dalian)")
+kwantung <- gadm_l2_filter("CHN", c("Dalian"), field = "NAME_2")
+r <- wrap_result("Kwantung (Port Arthur)", kwantung)
+if (!is.null(r)) l2_results[[length(l2_results) + 1]] <- r
+
+# Kwang-Chou-Wan (French concession = CHN Guangdong L2 Zhanjiang)
+message("Processing L2: Kwang-Chou-Wan (CHN Zhanjiang)")
+kwangchou <- gadm_l2_filter("CHN", c("Zhanjiang"), field = "NAME_2")
+r <- wrap_result("Kwang-Chou-Wan", kwangchou)
+if (!is.null(r)) l2_results[[length(l2_results) + 1]] <- r
+
+# Vancouver's Island (CAN BC L2 - island districts)
+message("Processing L2: Vancouver's Island (CAN BC)")
+vancouver <- gadm_l2_filter("CAN",
+  c("Alberni", "Capital", "Comox", "Cowichan", "MountWaddington", "Nanaimo"),
+  field = "NAME_2")
+r <- wrap_result("Vancouver's Island", vancouver)
+if (!is.null(r)) l2_results[[length(l2_results) + 1]] <- r
+
 
 # ============================================================
 # MULTI-COUNTRY COMBINES (L0 unions)
@@ -468,7 +555,15 @@ combine_mapping <- list(
   list("Sudan (Anglo-Egyptian)",      c("SDN", "SSD")),
   list("Syria and Lebanon",           c("SYR", "LBN")),
   list("British East Africa",         c("KEN", "UGA")),
-  list("Mayotte and Noissi-be",       c("MYT", "MDG"))
+  list("Mayotte and Noissi-be",       c("MYT", "MDG")),
+  # Ottoman Empire = Turkey + Arab provinces + Balkans (broad proxy)
+  list("Ottoman Empire",             c("TUR", "SYR", "IRQ", "JOR",
+                                       "PSE", "LBN", "SAU", "YEM",
+                                       "GRC", "BGR", "ROU", "SRB",
+                                       "BIH", "MNE", "ALB", "MKD",
+                                       "HRV", "LBY", "TUN", "EGY",
+                                       "SDN", "ERI", "DJI", "SOM",
+                                       "KWT", "BHR", "QAT", "CYP"))
 )
 
 combine_results <- list()
@@ -604,9 +699,11 @@ if (!is.null(sgp) && !is.null(penang_malacca)) {
   if (!is.null(r)) special_results[[length(special_results) + 1]] <- r
 }
 
-# Aden = Southern Yemen governorates
-message("Processing: Aden (YEM L1 southern)")
-aden <- gadm_l1_filter("YEM", c("Adan", "Aden"))
+# Aden = British Aden Protectorate territory (southern Yemen, not just city)
+# Includes: Adan, Lahij, Abyan, Shabwah, Hadramawt, Al Mahrah
+message("Processing: Aden (YEM L1 southern protectorate)")
+aden <- gadm_l1_filter("YEM",
+  c("Adan", "Aden", "Lahij", "Abyan", "Shabwah", "Hadramawt", "Mahrah"))
 r <- wrap_result("Aden", aden)
 if (!is.null(r)) special_results[[length(special_results) + 1]] <- r
 
@@ -614,6 +711,83 @@ if (!is.null(r)) special_results[[length(special_results) + 1]] <- r
 message("Processing: Portuguese India (IND L1)")
 port_india <- gadm_l1_filter("IND", c("Goa"))
 r <- wrap_result("Portuguese India", port_india)
+if (!is.null(r)) special_results[[length(special_results) + 1]] <- r
+
+# Khiva Khanate = UZB Xorazm + TKM Daşoguz
+message("Processing: Khiva (UZB Xorazm + TKM Daşoguz)")
+khiva_uzb <- gadm_l1_filter("UZB", c("Xorazm"))
+khiva_tkm <- gadm_l1_filter("TKM", c("Da\u015foguz", "Dashoguz"))
+khiva_parts <- Filter(\(x) !is.null(x), list(khiva_uzb, khiva_tkm))
+if (length(khiva_parts) > 0) {
+  khiva <- dplyr::bind_rows(khiva_parts) |>
+    sf::st_union() |>
+    sf::st_cast("MULTIPOLYGON") |>
+    sf::st_as_sf() |>
+    dplyr::rename(geometry = x)
+  r <- wrap_result("Khiva", khiva)
+  if (!is.null(r)) special_results[[length(special_results) + 1]] <- r
+}
+
+# ---- Backward-compatibility period proxies ----
+# CShapes 2.0 merged these time periods; use modern country as geometry proxy
+bc_proxy_mapping <- list(
+  list("Afghanistan (to 1888)",        "AFG"),
+  list("Cameroon (1960-1961)",         "CMR"),
+  list("Egypt (1922-1925)",            "EGY"),
+  list("Malaysia (1957-1963)",         "MYS"),
+  list("Mauritania (1960-1975)",       "MRT"),
+  list("Montenegro (1913-1915)",       "MNE"),
+  list("Nigeria (1960-1961)",          "NGA"),
+  list("Serbia (1913-1915)",           "SRB"),
+  list("Syrian Arab Republic (1946-1967)", "SYR"),
+  list("Tanzania (1961-1964)",         "TZA"),
+  list("Morocco (to 1958)",            "MAR"),
+  list("Saudi Arabia (1924-1932)",     "SAU"),
+  list("Korea (to 1910)",              "KOR"),
+  list("Serbia (1816-1913)",           "SRB")
+)
+
+for (entry in bc_proxy_mapping) {
+  polity_name <- entry[[1]]
+  iso3 <- entry[[2]]
+  message("Processing BC proxy: ", polity_name, " (", iso3, ")")
+  geom <- gadm_l0(iso3)
+  result <- wrap_result(polity_name, geom)
+  if (!is.null(result)) {
+    special_results[[length(special_results) + 1]] <- result
+  }
+}
+
+# Serbia and Montenegro combine
+message("Processing: Serbia and Montenegro (SRB+MNE)")
+srb_mne <- gadm_combine_l0(c("SRB", "MNE"))
+r <- wrap_result("Serbia and Montenegro", srb_mne)
+if (!is.null(r)) special_results[[length(special_results) + 1]] <- r
+
+# Sudan (1956-2011) = modern Sudan + South Sudan
+message("Processing: Sudan (1956-2011) (SDN+SSD)")
+sudan_old <- gadm_combine_l0(c("SDN", "SSD"))
+r <- wrap_result("Sudan (1956-2011)", sudan_old)
+if (!is.null(r)) special_results[[length(special_results) + 1]] <- r
+
+# Van Diemen's Land (Tasmania) = AUS L1 Tasmania
+message("Processing: Van Diemen's Land (AUS L1 Tasmania)")
+tasmania <- gadm_l1_filter("AUS", c("Tasmania"))
+r <- wrap_result("Van Diemen's Land (Tasmania)", tasmania)
+if (!is.null(r)) special_results[[length(special_results) + 1]] <- r
+
+# Zanzibar = TZA L1 Zanzibar islands
+message("Processing: Zanzibar (TZA L1)")
+zanzibar <- gadm_l1_filter("TZA", c("Zanzibar", "Pemba", "Unguja"))
+r <- wrap_result("Zanzibar", zanzibar)
+if (!is.null(r)) special_results[[length(special_results) + 1]] <- r
+
+# Leeward Islands = combine of Caribbean islands
+message("Processing: Leeward Islands (ATG+DMA+KNA+MSR+VGB)")
+leeward <- gadm_combine_l0(c("ATG", "DMA", "KNA", "MSR", "VGB"))
+r <- wrap_result(
+  "Leeward Islands (Antigua, Dominica, St.Christopher, Montserrat, Nevis, Virgin Island)",
+  leeward)
 if (!is.null(r)) special_results[[length(special_results) + 1]] <- r
 
 # Åland Islands - has its own ISO code ALA in GADM
