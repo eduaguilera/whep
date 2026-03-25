@@ -1,23 +1,23 @@
 polity_name,start_year,end_year,notes
 Brunei,1888,NA,Current Brunei territory
 Brunei (greater),1816,1888,"Brunei including parts of Sabah and Sarawak. Federico Tena polity for Brunei doesn't differentiate, but one note in Sabah (British Borneo) says that it was previously part of Brunei, so there is substantial territorial change."
-Niue,1900,NA,"Federico Tena stops Niue at 1901 but it appears until present day in FAOSTAT and United Nations as separate from New Zealand."
-Cook Islands,1893,NA,"Federico Tena stops Cook Islands at 1901 but it appears until present day in FAOSTAT and United Nations as separate from New Zealand."
+Niue,1900,NA,Federico Tena stops Niue at 1901 but it appears until present day in FAOSTAT and United Nations as separate from New Zealand.
+Cook Islands,1893,NA,Federico Tena stops Cook Islands at 1901 but it appears until present day in FAOSTAT and United Nations as separate from New Zealand.
 Montenegro (to 1913),1878,1913,"Federico Tena Montenegro polity said ended in 1918 but CShapes has more disaggregation for territory changes, so stop at 1913."
 Abu Dhabi,1800,1971,"Only in Federito Tena, no info past 1938, assume British protectorate until 1971 when it becomes part of UAE."
 Ajman,1800,1971,"Only in Federito Tena, no info past 1938, assume British protectorate until 1971 when it becomes part of UAE."
 Aden,1839,1967,"Only in Federico Tena, no info past 1938, assume British colony until 1967 when it becomes part of South Yemen."
-Yemen,2000,2025,"M49 source states from 1990 but CShapes states change of territory in 2000 so we create the present day Yemen polity from 2000 and have another one for 1990-2000 period."
+Yemen,2000,2025,M49 source states from 1990 but CShapes states change of territory in 2000 so we create the present day Yemen polity from 2000 and have another one for 1990-2000 period.
 Austria-Hungary (to 1908),1800,1908,"Federico Tena Austria-Hungary polity said ended in 1918 but CShapes has more disaggregation for territory changes, so stop at 1908."
 Egypt (to 1922),1800,1922,"Egypt only starts from 1922 in CShapes so the entry in Federico Tena must be linked to another one, but has no end year, so fix it at 1922 prior to CShapes."
 India (to 1947),1800,1947,"India only starts from 1947 in CShapes so the entry in Federico Tena must be linked to another one, but has no end year, so fix it at 1947 prior to CShapes."
 Saudi Arabia (1924-1932),1924,1932,"Saudi Arabia only starts from 1932 in CShapes so the entry in Federico Tena must be linked to another one, but has no end year, so fix it at 1932 prior to CShapes."
-Serbia,2008,2025,"CShapes starts present-day Serbia in 2008 because of last territorial change. FAOSTAT and M49 state 2006 because of not considering that. Force start in 2008."
-Russia,2014,2025,"CShapes starts present-day Russia in 2014 because of last territorial change. FAOSTAT and M49 state 1991 because of not considering that. Force start in 2014."
-Ukraine,2014,2025,"CShapes starts present-day Ukraine in 2014 because of last territorial change. FAOSTAT and M49 state 1992/91 because of not considering that. Force start in 2014."
+Serbia,2008,2025,CShapes starts present-day Serbia in 2008 because of last territorial change. FAOSTAT and M49 state 2006 because of not considering that. Force start in 2008.
+Russia,2014,2025,CShapes starts present-day Russia in 2014 because of last territorial change. FAOSTAT and M49 state 1991 because of not considering that. Force start in 2014.
+Ukraine,2014,2025,CShapes starts present-day Ukraine in 2014 because of last territorial change. FAOSTAT and M49 state 1992/91 because of not considering that. Force start in 2014.
 Manchukuo,1932,1945,"Manchukuo (Japanese puppet state in Manchuria) dissolved with Japanese surrender in August 1945. Federico Tena has NA end year defaulting to 2025, but the polity ceased to exist in 1945."
-Ionian islands,1815,1864,"Federico Tena has end_year=1862 but this is incorrect. The Treaty of London was signed November 14 1863 and the handover to Greece occurred May 28 1864. The year 1862 does not correspond to any known event. FT notes themselves say 1864-1938 Greece confirming the inconsistency."
-Kokand,NA,1876,"Federico Tena has end_year=1883 but the Khanate of Kokand was formally dissolved by the Russian Empire on February 19 1876 and incorporated into Russian Turkestan as Fergana Oblast. The 1883 date in FT is incorrect by 7 years."
+Ionian islands,1815,1864,Federico Tena has end_year=1862 but this is incorrect. The Treaty of London was signed November 14 1863 and the handover to Greece occurred May 28 1864. The year 1862 does not correspond to any known event. FT notes themselves say 1864-1938 Greece confirming the inconsistency.
+Kokand,NA,1876,Federico Tena has end_year=1883 but the Khanate of Kokand was formally dissolved by the Russian Empire on February 19 1876 and incorporated into Russian Turkestan as Fergana Oblast. The 1883 date in FT is incorrect by 7 years.
 Cameroon (1960-1961),1960,1961,Previously a distinct CShapes period. CShapes 2.0 with dependencies=TRUE merges this into the broader 1919-1961 period. Keeping as distinct WHEP polity for backward compatibility.
 Egypt (1922-1925),1922,1925,Previously a distinct CShapes period. CShapes 2.0 with dependencies=TRUE merges this into the broader 1899-1925 period. Keeping as distinct WHEP polity for backward compatibility.
 Indonesia (1945-1949),1945,1949,Previously a distinct CShapes period. CShapes 2.0 with dependencies=TRUE merges this into the broader 1889-1949 period. Keeping as distinct WHEP polity for backward compatibility.
@@ -29,61 +29,89 @@ Serbia (1913-1915),1913,1915,Previously a distinct CShapes period. CShapes 2.0 w
 Sudan (1956-2011),1956,2011,Previously a distinct CShapes period. CShapes 2.0 with dependencies=TRUE merges this into the broader 1934-2011 period. Keeping as distinct WHEP polity for backward compatibility.
 Syrian Arab Republic (1946-1967),1946,1967,Previously a distinct CShapes period. CShapes 2.0 with dependencies=TRUE merges this into the broader 1920-1967 period. Keeping as distinct WHEP polity for backward compatibility.
 Tanzania (1961-1964),1961,1964,Previously a distinct CShapes period. CShapes 2.0 with dependencies=TRUE merges this into the broader 1922-1964 period. Keeping as distinct WHEP polity for backward compatibility.
-Afghanistan,1919,NA,"CShapes dependencies=TRUE merges pre-independence period into modern territory. Fix start to match actual independence year."
-Afghanistan (to 1888),NA,1888,"Federico Tena entry has no end year. Fix to 1888 per CShapes boundary."
-Benin,1960,NA,"CShapes dependencies=TRUE merges colonial period (from 1898) with independence. Fix start to 1960."
-Botswana,1966,NA,"CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1966."
-Burkina Faso,1960,NA,"CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1960."
-Cambodia,1953,NA,"CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1953."
-Central African Republic,1960,NA,"CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1960."
-Chad,1960,NA,"CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1960."
-Comoros,1975,NA,"CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1975."
-Congo,1960,NA,"CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1960."
-Czechoslovakia (1947-1993),1947,1993,"CShapes dependencies=TRUE shifts start. Fix to 1947-1993."
-Côte d'Ivoire,1960,NA,"CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1960."
-Democratic Republic of the Congo,1960,NA,"CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1960."
-Djibouti,1977,NA,"CShapes dependencies=TRUE adds pre-independence territory. Fix start to 1977."
-East Germany,1949,1990,"CShapes has GDR from 1945 (occupation zone) but formal GDR established 1949. Fix start to 1949."
-Equatorial Guinea,1968,NA,"CShapes dependencies=TRUE adds pre-independence territory. Fix start to 1968."
-French Polynesia,NA,NA,"CShapes dependencies=TRUE starts from 1903. Fix start to default (1800) to match existing polity_code."
-Gabon,1960,NA,"CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1960."
-Ghana,1957,NA,"CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1957."
-Guinea,1958,NA,"CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1958."
-Iraq,1921,NA,"CShapes dependencies=TRUE merges mandate period with independence. Fix start to 1921."
-Kenya,1963,NA,"CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1963."
-Korea (to 1910),NA,1910,"Federico Tena entry has no end year. Fix to 1910 per historical boundary."
-Laos,1954,NA,"CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1954."
-Lebanon,1944,NA,"CShapes dependencies=TRUE merges mandate period with independence. Fix start to 1944."
-Lesotho,1966,NA,"CShapes dependencies=TRUE adds pre-independence territory. Fix start to 1966."
-Libya,1951,NA,"CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1951."
-Malawi,1964,NA,"CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1964."
-Morocco (to 1958),1911,1958,"CShapes dependencies=TRUE adds protectorate period. Fix end to 1958 per historical boundary."
-New Zealand,1907,NA,"CShapes dependencies=TRUE adds pre-dominion territory. Fix start to 1907."
-Niger,1960,NA,"CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1960."
-North Korea,1948,NA,"CShapes has DPRK from 1945 (occupation). Fix start to 1948 (formal establishment)."
-Papua New Guinea,1975,NA,"CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1975."
-Senegal,1960,NA,"CShapes dependencies=TRUE adds pre-independence territory. Fix start to 1960."
-Serbia (1816-1913),1816,1913,"Federico Tena entry has no end year. Fix to 1913 per CShapes territory change."
-Singapore,1965,NA,"CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1965."
-South Korea,1948,NA,"CShapes has ROK from 1945 (occupation). Fix start to 1948 (formal establishment)."
-Suriname,1975,NA,"CShapes dependencies=TRUE adds pre-independence territory. Fix start to 1975."
-Taiwan,1896,NA,"CShapes has Taiwan from 1895 (Treaty of Shimonoseki signed April). Fix start to 1896 (formal Japanese governance)."
-Togo,1960,NA,"CShapes dependencies=TRUE merges mandate/trusteeship period with independence. Fix start to 1960."
-Uganda,1962,NA,"CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1962."
-United Arab Emirates,1971,NA,"CShapes dependencies=TRUE adds pre-independence trucial states period. Fix start to 1971."
-West Germany,1949,1990,"CShapes has FRG from 1945 (occupation zone) but formal FRG established 1949. Fix start to 1949."
-Zambia,1964,NA,"CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1964."
-Zanzibar,NA,1964,"Federico Tena entry has no end year. Fix to 1964 (merger with Tanganyika to form Tanzania)."
-Bavaria,1800,1871,"German state before unification. Used GADM Bayern L1 as proxy. Joined German Empire in 1871."
-Saxony,1800,1871,"German state before unification. Used GADM Sachsen L1 as proxy. Joined German Empire in 1871."
-Hanover,1800,1866,"German state before unification. Used GADM Niedersachsen L1 as approximate proxy. Annexed by Prussia in 1866."
-Württemberg,1800,1871,"German state before unification. Used GADM Baden-Württemberg L1 as approximate proxy (shared with Baden). Joined German Empire in 1871."
-Baden,1800,1871,"German state before unification. Used GADM Baden-Württemberg L1 as approximate proxy (shared with Württemberg). Joined German Empire in 1871."
-Hesse,1800,1871,"German state before unification (combining Hesse-Kassel and Hesse-Darmstadt). Used GADM Hessen L1 as proxy. Joined German Empire in 1871."
-Mecklenburg,1800,1871,"German state before unification (combining Mecklenburg-Schwerin and Mecklenburg-Strelitz). Used GADM Mecklenburg-Vorpommern L1 as proxy. Joined German Empire in 1871."
+Afghanistan,1919,NA,CShapes dependencies=TRUE merges pre-independence period into modern territory. Fix start to match actual independence year.
+Afghanistan (to 1888),NA,1888,Federico Tena entry has no end year. Fix to 1888 per CShapes boundary.
+Benin,1960,NA,CShapes dependencies=TRUE merges colonial period (from 1898) with independence. Fix start to 1960.
+Botswana,1966,NA,CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1966.
+Burkina Faso,1960,NA,CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1960.
+Cambodia,1953,NA,CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1953.
+Central African Republic,1960,NA,CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1960.
+Chad,1960,NA,CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1960.
+Comoros,1975,NA,CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1975.
+Congo,1960,NA,CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1960.
+Czechoslovakia (1947-1993),1947,1993,CShapes dependencies=TRUE shifts start. Fix to 1947-1993.
+Côte d'Ivoire,1960,NA,CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1960.
+Democratic Republic of the Congo,1960,NA,CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1960.
+Djibouti,1977,NA,CShapes dependencies=TRUE adds pre-independence territory. Fix start to 1977.
+East Germany,1949,1990,CShapes has GDR from 1945 (occupation zone) but formal GDR established 1949. Fix start to 1949.
+Equatorial Guinea,1968,NA,CShapes dependencies=TRUE adds pre-independence territory. Fix start to 1968.
+French Polynesia,NA,NA,CShapes dependencies=TRUE starts from 1903. Fix start to default (1800) to match existing polity_code.
+Gabon,1960,NA,CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1960.
+Ghana,1957,NA,CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1957.
+Guinea,1958,NA,CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1958.
+Iraq,1921,NA,CShapes dependencies=TRUE merges mandate period with independence. Fix start to 1921.
+Kenya,1963,NA,CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1963.
+Korea (to 1910),NA,1910,Federico Tena entry has no end year. Fix to 1910 per historical boundary.
+Laos,1954,NA,CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1954.
+Lebanon,1944,NA,CShapes dependencies=TRUE merges mandate period with independence. Fix start to 1944.
+Lesotho,1966,NA,CShapes dependencies=TRUE adds pre-independence territory. Fix start to 1966.
+Libya,1951,NA,CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1951.
+Malawi,1964,NA,CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1964.
+Morocco (to 1958),1911,1958,CShapes dependencies=TRUE adds protectorate period. Fix end to 1958 per historical boundary.
+New Zealand,1907,NA,CShapes dependencies=TRUE adds pre-dominion territory. Fix start to 1907.
+Niger,1960,NA,CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1960.
+North Korea,1948,NA,CShapes has DPRK from 1945 (occupation). Fix start to 1948 (formal establishment).
+Papua New Guinea,1975,NA,CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1975.
+Senegal,1960,NA,CShapes dependencies=TRUE adds pre-independence territory. Fix start to 1960.
+Serbia (1816-1913),1816,1913,Federico Tena entry has no end year. Fix to 1913 per CShapes territory change.
+Singapore,1965,NA,CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1965.
+South Korea,1948,NA,CShapes has ROK from 1945 (occupation). Fix start to 1948 (formal establishment).
+Suriname,1975,NA,CShapes dependencies=TRUE adds pre-independence territory. Fix start to 1975.
+Taiwan,1896,NA,CShapes has Taiwan from 1895 (Treaty of Shimonoseki signed April). Fix start to 1896 (formal Japanese governance).
+Togo,1960,NA,CShapes dependencies=TRUE merges mandate/trusteeship period with independence. Fix start to 1960.
+Uganda,1962,NA,CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1962.
+United Arab Emirates,1971,NA,CShapes dependencies=TRUE adds pre-independence trucial states period. Fix start to 1971.
+West Germany,1949,1990,CShapes has FRG from 1945 (occupation zone) but formal FRG established 1949. Fix start to 1949.
+Zambia,1964,NA,CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1964.
+Zanzibar,NA,1964,Federico Tena entry has no end year. Fix to 1964 (merger with Tanganyika to form Tanzania).
+Bavaria,1800,1871,German state before unification. Used GADM Bayern L1 as proxy. Joined German Empire in 1871.
+Saxony,1800,1871,German state before unification. Used GADM Sachsen L1 as proxy. Joined German Empire in 1871.
+Hanover,1800,1866,German state before unification. Used GADM Niedersachsen L1 as approximate proxy. Annexed by Prussia in 1866.
+Württemberg,1800,1871,German state before unification. Used GADM Baden-Württemberg L1 as approximate proxy (shared with Baden). Joined German Empire in 1871.
+Baden,1800,1871,German state before unification. Used GADM Baden-Württemberg L1 as approximate proxy (shared with Württemberg). Joined German Empire in 1871.
+Hesse,1800,1871,German state before unification (combining Hesse-Kassel and Hesse-Darmstadt). Used GADM Hessen L1 as proxy. Joined German Empire in 1871.
+Mecklenburg,1800,1871,German state before unification (combining Mecklenburg-Schwerin and Mecklenburg-Strelitz). Used GADM Mecklenburg-Vorpommern L1 as proxy. Joined German Empire in 1871.
 Thuringia,1800,1871,"German state before unification (combining Thuringian duchies: Saxe-Weimar, Saxe-Altenburg, etc.). Used GADM Thüringen L1 as proxy. Joined German Empire in 1871."
 Schleswig-Holstein,1800,1866,"German duchy, disputed between Denmark and Prussia. Used GADM Schleswig-Holstein L1 as proxy. Annexed by Prussia in 1866."
-Bremen (city-state),1800,1871,"German free city before unification. Used GADM Bremen L1 as proxy. Joined German Empire in 1871."
-Oldenburg,1800,1871,"German state before unification. Used GADM Niedersachsen L1 as approximate proxy. Joined German Empire in 1871."
+Bremen (city-state),1800,1871,German free city before unification. Used GADM Bremen L1 as proxy. Joined German Empire in 1871.
+Oldenburg,1800,1871,German state before unification. Used GADM Niedersachsen L1 as approximate proxy. Joined German Empire in 1871.
 French Somalia,1884,1977,"French Somaliland / French Territory of the Afars and Issas. Colony from 1884, became independent Djibouti in 1977. Used GADM DJI L0 as proxy."
-Ottoman Empire,1800,1912,"Ottoman Empire at its broadest extent (pre-Balkan Wars). Used GADM combine of Turkey + former Ottoman territories as proxy."
+Ottoman Empire,1800,1912,Ottoman Empire at its broadest extent (pre-Balkan Wars). Used GADM combine of Turkey + former Ottoman territories as proxy.
+Anhalt,1864,1870,"Duchy of Anhalt, formed from merger of Anhalt-Bernburg and Anhalt-Dessau. Joined North German Confederation 1867, German Empire 1871."
+Anhalt-Bernburg,1816,1864,Duchy of Anhalt-Bernburg. Merged into united Anhalt in 1863 (effective 1864).
+Anhalt-Dessau,1816,1863,Duchy of Anhalt-Dessau. Merged with Anhalt-Bernburg to form united Anhalt in 1863.
+Chechnya,1816,1857,Chechen territories in the North Caucasus before Russian conquest during the Caucasian War.
+Circassia,1816,1861,Circassian territories in the Northwest Caucasus. Conquered by Russia; mass expulsion 1864.
+Cracow (Free City),1816,1846,"Free City of Cracow, created by Congress of Vienna. Annexed by Austria in 1846."
+Frankfurt (Free City),1816,1866,Free City of Frankfurt. Seat of the German Confederation. Annexed by Prussia in 1866.
+Hesse-Homburg,1816,1866,Landgraviate of Hesse-Homburg. Reverted to Hesse-Darmstadt upon extinction of ruling line in 1866.
+Hohengeroldseck,1816,1818,"County of Hohengeroldseck, briefly independent. Incorporated into Baden in 1819."
+Hohenzollern-Hechingen,1816,1850,Principality of Hohenzollern-Hechingen. Ceded sovereignty to Prussia in 1850.
+Hohenzollern-Sigmaringen,1816,1850,Principality of Hohenzollern-Sigmaringen. Ceded sovereignty to Prussia in 1850.
+Kingdom of Naples,1816,1861,"Kingdom of Naples (mainland Two Sicilies). Conquered by Garibaldi, absorbed into Kingdom of Italy 1861."
+Lippe-Detmold,1816,1870,"Principality of Lippe. Joined North German Confederation 1866, German Empire 1871."
+Lucca,1816,1847,Duchy of Lucca. United with Tuscany in 1847.
+Massa,1816,1829,Duchy of Massa and Carrara. Merged with Duchy of Modena in 1829.
+Nassau,1816,1866,Duchy of Nassau. Annexed by Prussia in 1866 after siding with Austria.
+Piedmont,1816,1861,Kingdom of Sardinia (Piedmont-Sardinia). Led Italian unification; became Kingdom of Italy in 1861.
+Reuss,1816,1870,"Principalities of Reuss (Elder and Younger lines). Joined North German Confederation 1866, German Empire 1871."
+Saxe-Altenburg,1827,1870,"Duchy of Saxe-Altenburg. Thuringian state, joined German Empire 1871."
+Saxe-Coburg-Gotha,1827,1870,"Duchy of Saxe-Coburg and Gotha. Thuringian state, joined German Empire 1871."
+Saxe-Coburg-Saalfeld,1816,1826,Duchy of Saxe-Coburg-Saalfeld. Reorganised into Saxe-Coburg-Gotha in 1826.
+Saxe-Gotha-Altenberg,1816,1826,"Duchy of Saxe-Gotha-Altenburg. Extinct 1825, territories redistributed among Thuringian duchies in 1826."
+Saxe-Hildburgchausen,1816,1826,Duchy of Saxe-Hildburghausen. Reorganised in 1826; became Saxe-Altenburg.
+Saxe-Meiningen,1816,1870,"Duchy of Saxe-Meiningen. Thuringian state, joined German Empire 1871."
+Saxe-Weimar,1816,1870,"Grand Duchy of Saxe-Weimar-Eisenach. Thuringian state, joined German Empire 1871."
+Schaumburg-Lippe,1816,1870,"Principality of Schaumburg-Lippe. Joined North German Confederation 1866, German Empire 1871."
+Waldeck,1816,1870,"Principality of Waldeck and Pyrmont. Joined North German Confederation 1867, German Empire 1871."
+Wolfenbüttel,1816,1870,"Duchy of Brunswick-Wolfenbüttel (Brunswick). Joined North German Confederation 1867, German Empire 1871."

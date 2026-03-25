@@ -173,9 +173,12 @@ get_polities <- function() {
 #'     one calculated automatically is not satisfying. Thus, it includes
 #'     no geometry or other data, but this could change in the future if
 #'     it becomes a necessity.
+#'   - `cshapes_europe`: [CShapes-Europe](https://icr.ethz.ch/data/cshapes/)
+#'     historical European boundaries 1806-2023. Provides geometry for
+#'     pre-1886 European polities not covered by CShapes 2.0.
 #'   - `gadm`: [GADM 4.1](https://gadm.org/) administrative boundaries for
-#'     territories not covered by CShapes. Provides only geometry, no other
-#'     data.
+#'     territories not covered by CShapes or CShapes-Europe. Provides only
+#'     geometry, no other data.
 #' - `common_name`: The given name that will be shared by entries across
 #'   sources if they represent the same polity. This will be `polity_name`
 #'   in the main tibble obtained from `get_polities()`.
@@ -226,6 +229,7 @@ get_polity_sources <- function(polity_codes = NULL) {
     .prepare_federico_tena(),
     .prepare_cshapes(),
     .prepare_whep_fixes(),
+    .prepare_cshapes_europe(),
     .prepare_gadm()
   )
 }
@@ -335,27 +339,58 @@ get_polity_sources <- function(polity_codes = NULL) {
     )
 }
 
+.prepare_cshapes_europe <- function() {
+  # Determine which polities already have CShapes 2.0 geometry
+  cshapes_common_names <- .cshapes_geometry_names()
+
+  k_cshapes_europe |>
+    sf::st_set_geometry("geom") |>
+    dplyr::rename(geometry = geom) |>
+    # Only provide geometry for polities NOT covered by CShapes 2.0
+    dplyr::filter(!polity_name %in% cshapes_common_names) |>
+    dplyr::mutate(source = k_source_cshapes_europe) |>
+    dplyr::select(
+      original_name = polity_name,
+      source,
+      geometry
+    )
+}
+
 .prepare_gadm <- function() {
-  # Determine which polities already have CShapes geometry
-  cshapes_common_names <- .prepare_cshapes() |>
-    dplyr::inner_join(
-      k_polity_common_names,
-      by = c("original_name", "source")
-    ) |>
-    dplyr::pull(common_name) |>
-    unique()
+  # Determine which polities already have CShapes or CShapes-Europe geometry
+  covered_names <- c(.cshapes_geometry_names(), .cshapes_europe_geometry_names())
 
   k_gadm |>
     sf::st_set_geometry("geom") |>
     dplyr::rename(geometry = geom) |>
-    # Only provide geometry for polities NOT covered by CShapes
-    dplyr::filter(!polity_name %in% cshapes_common_names) |>
+    # Only provide geometry for polities NOT covered by CShapes or CShapes-Europe
+    dplyr::filter(!polity_name %in% covered_names) |>
     dplyr::mutate(source = k_source_gadm) |>
     dplyr::select(
       original_name = polity_name,
       source,
       geometry
     )
+}
+
+.cshapes_geometry_names <- function() {
+  .prepare_cshapes() |>
+    dplyr::inner_join(
+      k_polity_common_names,
+      by = c("original_name", "source")
+    ) |>
+    dplyr::pull(common_name) |>
+    unique()
+}
+
+.cshapes_europe_geometry_names <- function() {
+  .prepare_cshapes_europe() |>
+    dplyr::inner_join(
+      k_polity_common_names,
+      by = c("original_name", "source")
+    ) |>
+    dplyr::pull(common_name) |>
+    unique()
 }
 
 # TODO: Think if worth to shorten, maybe another mapping table

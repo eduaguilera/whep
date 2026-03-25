@@ -34,9 +34,9 @@ American Samoa,federico_tena,American Samoa
 American Samoa,gadm,American Samoa
 American Samoa,m49,American Samoa
 Americas,faostat,Americas
+Andorra,cshapes_europe,Andorra
 Andorra,faostat,Andorra
 Andorra,federico_tena,Andorra
-Andorra,gadm,Andorra
 Andorra,m49,Andorra
 Angola,cshapes,Angola
 Angola,faostat,Angola
@@ -48,6 +48,12 @@ Angola (to 1890),cshapes,Angola (to 1890)
 Anguilla,faostat,Anguilla
 Anguilla,gadm,Anguilla
 Anguilla,m49,Anguilla
+Anhalt,cshapes_europe,Anhalt
+Anhalt,whep,Anhalt
+Anhalt-Bernburg,cshapes_europe,Anhalt-Bernburg
+Anhalt-Bernburg,whep,Anhalt-Bernburg
+Anhalt-Dessau,cshapes_europe,Anhalt-Dessau
+Anhalt-Dessau,whep,Anhalt-Dessau
 Annex I countries,faostat,Annex I countries
 Antarctic Region,faostat,Antarctic Region
 Antarctica,faostat,Antarctica
@@ -73,8 +79,8 @@ Asia,faostat,Asia
 Australia,cshapes,Australia
 Australia,faostat,Australia
 Australia,m49,Australia
-Australia and New Zealand,faostat,Australia and New Zealand
 Australia Commonwealth,federico_tena,Australia
+Australia and New Zealand,faostat,Australia and New Zealand
 Austria,cshapes,Austria
 Austria,faostat,Austria
 Austria,federico_tena,Austria
@@ -89,7 +95,7 @@ Azerbaijan,faostat,Azerbaijan
 Azerbaijan,m49,Azerbaijan
 Badakhshan,federico_tena,Badakhshan
 Badakhshan,gadm,Badakhshan
-Baden,gadm,Baden
+Baden,cshapes_europe,Baden
 Baden,whep,Baden
 Bahamas,cshapes,Bahamas
 Bahamas,faostat,Bahamas
@@ -108,7 +114,7 @@ Barbados,federico_tena,Barbados
 Barbados,m49,Barbados
 Basutoland,federico_tena,Basutoland
 Basutoland,gadm,Basutoland
-Bavaria,gadm,Bavaria
+Bavaria,cshapes_europe,Bavaria
 Bavaria,whep,Bavaria
 Bechuanaland Protectorate,federico_tena,Bechuanaland Protectorate
 Bechuanaland Protectorate,gadm,Bechuanaland Protectorate
@@ -170,7 +176,7 @@ Brazil,federico_tena,Brazil (to 1903)
 Brazil,m49,Brazil
 Brazil (1903-1909),cshapes,Brazil (1903-1909)
 Brazil (to 1903),cshapes,Brazil (to 1903)
-Bremen (city-state),gadm,Bremen (city-state)
+Bremen (city-state),cshapes_europe,Bremen (city-state)
 Bremen (city-state),whep,Bremen (city-state)
 British Bechuanaland,federico_tena,British Bechuanaland
 British Bechuanaland (to 1895),cshapes,British Bechuanaland (to 1895)
@@ -191,11 +197,11 @@ British New Guinea,federico_tena,British New Guinea
 British New Guinea,gadm,British New Guinea
 British Protectorate (British Somaliland),federico_tena,British Protectorate (British Somaliland)
 British Protectorate (British Somaliland),gadm,British Protectorate (British Somaliland)
-British settlement Oceania,federico_tena,British settlement Oceania
 British Somaliland (Somaliland Republic) (to 1960),cshapes,British Protectorate (British Somaliland) (to 1960)
 British Togoland (1922-1955),cshapes,British Togoland (1922-1955)
 British Virgin Islands,faostat,British Virgin Islands
 British Virgin Islands,gadm,British Virgin Islands
+British settlement Oceania,federico_tena,British settlement Oceania
 Brunei,cshapes,Brunei Darussalam
 Brunei,federico_tena,Brunei Darussalam
 Brunei,whep,Brunei Darussalam
@@ -279,6 +285,8 @@ Chagos Archipelago,faostat,British Indian Ocean Territory
 Channel Islands,faostat,Channel Islands
 Channel Islands,gadm,Channel Islands
 Channel Islands,m49,Channel Islands
+Chechnya,cshapes_europe,Chechnya
+Chechnya,whep,Chechnya
 Chile,cshapes,Chile
 Chile,faostat,Chile
 Chile,federico_tena,Chile (to 1899)
@@ -299,12 +307,14 @@ China (1949-1950),cshapes,China (1949-1950)
 China (to 1895),cshapes,China (to 1895)
 "China, Hong Kong SAR",faostat,Hong Kong
 "China, Macao SAR",faostat,Macao
+"China, Taiwan Province of",faostat,Taiwan
 "China, mainland",faostat,"China, mainland"
 "China, mainland",gadm,"China, mainland"
-"China, Taiwan Province of",faostat,Taiwan
 Christmas Island,faostat,Christmas Island
 Christmas Island,gadm,Christmas Island
 Christmas Island,m49,Christmas Island
+Circassia,cshapes_europe,Circassia
+Circassia,whep,Circassia
 Cocos (Keeling) Islands,faostat,Cocos (Keeling) Islands
 Cocos (Keeling) Islands,m49,Cocos (Keeling) Islands
 Colombia,cshapes,Colombia
@@ -343,6 +353,8 @@ Costa Rica,m49,Costa Rica
 Cote D'Ivoire,cshapes,Côte d'Ivoire
 Cote D'Ivoire (1889-1932),cshapes,Côte d'Ivoire (1889-1932)
 Cote D'Ivoire (1932-1947),cshapes,Côte d'Ivoire (1932-1947)
+Cracow (Free City),cshapes_europe,Cracow (Free City)
+Cracow (Free City),whep,Cracow (Free City)
 Crete,federico_tena,Crete
 Crete,gadm,Crete
 Croatia,cshapes,Croatia
@@ -402,17 +414,17 @@ Dominican Republic,faostat,Dominican Republic
 Dominican Republic,federico_tena,Dominican Republic
 Dominican Republic,m49,Dominican Republic
 Dronning Maud Land,m49,Dronning Maud Land
+Duchy Modena,cshapes_europe,Duchy Modena
 Duchy Modena,federico_tena,Duchy Modena
-Duchy Modena,gadm,Duchy Modena
+Duchy Parma,cshapes_europe,Duchy Parma
 Duchy Parma,federico_tena,Duchy Parma
-Duchy Parma,gadm,Duchy Parma
 Dutch East Indies (Indonesia),federico_tena,Dutch East Indies (Indonesia)
 Dutch Guayana,federico_tena,Dutch Guayana
 Dutch Guayana,gadm,Dutch Guayana
-Dutch new Guinea,federico_tena,Dutch new Guinea
-Dutch new Guinea,gadm,Dutch new Guinea
 Dutch West Indies (Netherland Antilles),federico_tena,Dutch West Indies (Netherland Antilles)
 Dutch West Indies (Netherland Antilles),gadm,Dutch West Indies (Netherland Antilles)
+Dutch new Guinea,federico_tena,Dutch new Guinea
+Dutch new Guinea,gadm,Dutch new Guinea
 East Aden Protectorate (1937-1962),cshapes,East Aden Protectorate (1937-1962)
 East Berlin,gadm,East Berlin
 East Germany,whep,East Germany
@@ -475,9 +487,6 @@ Ethiopia PDR,faostat,Ethiopia PDR
 Europe,faostat,Europe
 "Europe, Northern America, Australia and New Zealand",faostat,"Europe, Northern America, Australia and New Zealand"
 European Union (27),faostat,European Union (27)
-Falkland Islands,federico_tena,Falkland Islands
-Falkland Islands (Malvinas),faostat,Falkland Islands
-Falkland Islands (Malvinas),m49,Falkland Islands
 "FAO Major Fishing Area: Atlantic, Eastern Central (14.4.1)",faostat,"FAO Major Fishing Area: Atlantic, Eastern Central (14.4.1)"
 "FAO Major Fishing Area: Atlantic, Northeast (14.4.1)",faostat,"FAO Major Fishing Area: Atlantic, Northeast (14.4.1)"
 "FAO Major Fishing Area: Atlantic, Northwest (14.4.1)",faostat,"FAO Major Fishing Area: Atlantic, Northwest (14.4.1)"
@@ -493,6 +502,9 @@ FAO Major Fishing Area: Mediterranean and Black Sea (14.4.1),faostat,FAO Major F
 "FAO Major Fishing Area: Pacific, Southeast (14.4.1)",faostat,"FAO Major Fishing Area: Pacific, Southeast (14.4.1)"
 "FAO Major Fishing Area: Pacific, Southwest (14.4.1)",faostat,"FAO Major Fishing Area: Pacific, Southwest (14.4.1)"
 "FAO Major Fishing Area: Pacific, Western Central (14.4.1)",faostat,"FAO Major Fishing Area: Pacific, Western Central (14.4.1)"
+Falkland Islands,federico_tena,Falkland Islands
+Falkland Islands (Malvinas),faostat,Falkland Islands
+Falkland Islands (Malvinas),m49,Falkland Islands
 Faroe Is,federico_tena,Faroe Islands
 Faroe Islands,faostat,Faroe Islands
 Faroe Islands,m49,Faroe Islands
@@ -519,6 +531,8 @@ France,federico_tena,France (to 1919)
 France,m49,France
 France (to 1919),cshapes,France (to 1919)
 "France, Metropolitan",m49,"France, Metropolitan"
+Frankfurt (Free City),cshapes_europe,Frankfurt (Free City)
+Frankfurt (Free City),whep,Frankfurt (Free City)
 French Equatorial Africa,federico_tena,French Equatorial Africa
 French Guiana,faostat,French Guiana
 French Guiana,federico_tena,French Guiana
@@ -536,9 +550,9 @@ French Settlements in Oceania,federico_tena,French Settlements in Oceania
 French Somalia,gadm,French Somalia
 French Somalia,whep,French Somalia
 French Somaliland,federico_tena,French Somaliland
-French Southern and Antarctic Territories,m49,French Southern Territories
 French Southern Territories,faostat,French Southern Territories
 French Southern Territories,gadm,French Southern Territories
+French Southern and Antarctic Territories,m49,French Southern Territories
 French West Africa,federico_tena,French West Africa
 French West Africa (1895-1898),cshapes,French West Africa (1895-1898)
 French West Africa (1898-1902),cshapes,French West Africa (1898-1902)
@@ -563,7 +577,6 @@ Gaza Strip,m49,Gaza Strip
 Georgia,cshapes,Georgia
 Georgia,faostat,Georgia
 Georgia,m49,Georgia
-German colonies Oceania,federico_tena,German colonies Oceania
 German Democratic Republic,m49,East Germany
 German Democratic Republic (1945-1990),cshapes,East Germany
 "German Democratic Republic, Berlin",m49,East Berlin
@@ -579,6 +592,7 @@ German Togoland (1897-1919),cshapes,German Togoland (1897-1919)
 German Togoland (1919-1922),cshapes,German Togoland (1919-1922)
 German West Africa,federico_tena,German West Africa
 German West Africa,gadm,German West Africa
+German colonies Oceania,federico_tena,German colonies Oceania
 Germany,faostat,Germany
 Germany,m49,Germany
 Germany (Prussia) (1919-1920),cshapes,Germany (1919-1920)
@@ -646,7 +660,7 @@ Haiti,cshapes,Haiti
 Haiti,faostat,Haiti
 Haiti,federico_tena,Haiti
 Haiti,m49,Haiti
-Hanover,gadm,Hanover
+Hanover,cshapes_europe,Hanover
 Hanover,whep,Hanover
 Hawaii (1898-1959),cshapes,Hawaii (1898-1959)
 Heard Island and McDonald Islands,faostat,Heard Island and McDonald Islands
@@ -655,9 +669,17 @@ Heard Island and McDonald Islands,m49,Heard Island and McDonald Islands
 Herat,federico_tena,Herat
 Herat,gadm,Herat
 Herzegovina (to 1908),cshapes,Herzegovina (to 1908)
-Hesse,gadm,Hesse
+Hesse,cshapes_europe,Hesse
 Hesse,whep,Hesse
+Hesse-Homburg,cshapes_europe,Hesse-Homburg
+Hesse-Homburg,whep,Hesse-Homburg
 High-income economies,faostat,High-income economies
+Hohengeroldseck,cshapes_europe,Hohengeroldseck
+Hohengeroldseck,whep,Hohengeroldseck
+Hohenzollern-Hechingen,cshapes_europe,Hohenzollern-Hechingen
+Hohenzollern-Hechingen,whep,Hohenzollern-Hechingen
+Hohenzollern-Sigmaringen,cshapes_europe,Hohenzollern-Sigmaringen
+Hohenzollern-Sigmaringen,whep,Hohenzollern-Sigmaringen
 Holy See,faostat,Holy See
 Holy See,gadm,Holy See
 Holy See,m49,Holy See
@@ -776,6 +798,8 @@ Khiva (to 1920),cshapes,Khiva (to 1920)
 Kiautchou,federico_tena,Kiautchou
 Kiautchou,gadm,Kiautchou
 Kingdom Two sicilies,federico_tena,Two Sicilies
+Kingdom of Naples,cshapes_europe,Kingdom of Naples
+Kingdom of Naples,whep,Kingdom of Naples
 Kiribati,faostat,Kiribati
 Kiribati,gadm,Kiribati
 Kiribati,m49,Kiribati
@@ -837,9 +861,11 @@ Libya,whep,Libya
 Libya (1912-1919),cshapes,Libya (1912-1919)
 Libya (1919-1925),cshapes,Libya (1919-1925)
 Libya (1925-1934),cshapes,Libya (1925-1934)
+Liechtenstein,cshapes_europe,Liechtenstein
 Liechtenstein,faostat,Liechtenstein
-Liechtenstein,gadm,Liechtenstein
 Liechtenstein,m49,Liechtenstein
+Lippe-Detmold,cshapes_europe,Lippe-Detmold
+Lippe-Detmold,whep,Lippe-Detmold
 Lithuania,cshapes,Lithuania
 Lithuania,faostat,Lithuania
 Lithuania,federico_tena,Lithuania (1918-1920)
@@ -851,6 +877,8 @@ Low-income economies,faostat,Low-income economies
 Lower Quebec,federico_tena,Lower Quebec
 Lower Quebec,gadm,Lower Quebec
 Lower-middle-income economies,faostat,Lower-middle-income economies
+Lucca,cshapes_europe,Lucca
+Lucca,whep,Lucca
 Luxembourg,cshapes,Luxembourg
 Luxembourg,faostat,Luxembourg
 Luxembourg,federico_tena,Luxembourg (old)
@@ -908,6 +936,8 @@ Martinique,cshapes,Martinique
 Martinique,faostat,Martinique
 Martinique,federico_tena,Martinique
 Martinique,m49,Martinique
+Massa,cshapes_europe,Massa
+Massa,whep,Massa
 Mauritania,cshapes,Mauritania
 Mauritania,faostat,Mauritania
 Mauritania,m49,Mauritania
@@ -926,7 +956,7 @@ Mayotte,gadm,Mayotte
 Mayotte,m49,Mayotte
 Mayotte and Noissi-be,federico_tena,Mayotte and Noissi-be
 Mayotte and Noissi-be,gadm,Mayotte and Noissi-be
-Mecklenburg,gadm,Mecklenburg
+Mecklenburg,cshapes_europe,Mecklenburg
 Mecklenburg,whep,Mecklenburg
 Melanesia,faostat,Melanesia
 Mexico,cshapes,Mexico
@@ -941,9 +971,9 @@ Midway Island,faostat,Midway Islands
 Midway Island,federico_tena,Midway Islands
 Midway Islands,m49,Midway Islands
 Moldova,cshapes,Moldova
+Monaco,cshapes_europe,Monaco
 Monaco,faostat,Monaco
 Monaco,federico_tena,Monaco
-Monaco,gadm,Monaco
 Monaco,m49,Monaco
 Mongolia,cshapes,Mongolia
 Mongolia,faostat,Mongolia
@@ -983,6 +1013,8 @@ Myanmar (Burma),cshapes,Myanmar
 Namibia,cshapes,Namibia
 Namibia,faostat,Namibia
 Namibia,m49,Namibia
+Nassau,cshapes_europe,Nassau
+Nassau,whep,Nassau
 Natal (1895-1910),cshapes,Natal (1895-1910)
 Natal (to 1895),cshapes,Natal (to 1895)
 Nauru,faostat,Nauru
@@ -1053,11 +1085,11 @@ Norfolk Island,faostat,Norfolk Island
 Norfolk Island,federico_tena,Norfolk Island
 Norfolk Island,gadm,Norfolk Island
 Norfolk Island,m49,Norfolk Island
-North and Central America,faostat,North and Central America
 North Korea,whep,North Korea
 North Macedonia,faostat,North Macedonia
 North Macedonia,m49,North Macedonia
 North Yemen,federico_tena,North Yemen
+North and Central America,faostat,North and Central America
 Northeastern Rhodesia (1900-1911),cshapes,Northeastern Rhodesia (1900-1911)
 Northern Africa,faostat,Northern Africa
 Northern Africa (excluding Sudan),faostat,Northern Africa (excluding Sudan)
@@ -1079,11 +1111,11 @@ Nova Scotia  Cape Breton Isl.,federico_tena,Nova Scotia  Cape Breton Isl.
 Nova Scotia  Cape Breton Isl.,gadm,Nova Scotia  Cape Breton Isl.
 Nyasaland Protectorate (Malawi),federico_tena,Nyasaland Protectorate (Malawi)
 Nyasaland Protectorate (Malawi),gadm,Nyasaland Protectorate (Malawi)
+OECD,faostat,OECD
 Oceania,faostat,Oceania
 Oceania excluding Australia and New Zealand,faostat,Oceania excluding Australia and New Zealand
-OECD,faostat,OECD
 Oil Rivers Protectorate (to 1898),cshapes,Oil Rivers Protectorate (to 1898)
-Oldenburg,gadm,Oldenburg
+Oldenburg,cshapes_europe,Oldenburg
 Oldenburg,whep,Oldenburg
 Oman,cshapes,Oman
 Oman,faostat,Oman
@@ -1093,7 +1125,7 @@ Ontario,federico_tena,Ontario
 Ontario,gadm,Ontario
 Orange Free State,federico_tena,Orange Free State (to 1910)
 Orange Free State (to 1910),cshapes,Orange Free State (to 1910)
-Ottoman Empire,gadm,Ottoman Empire
+Ottoman Empire,cshapes_europe,Ottoman Empire
 Ottoman Empire,whep,Ottoman Empire
 Ottoman Empire/Turkey,federico_tena,Türkiye (to 1912)
 Pacific Islands (Trust Territory),m49,Pacific Islands Trust Territory
@@ -1120,8 +1152,8 @@ Panama,federico_tena,Panama
 Panama,m49,Panama
 Panama (before Canal Zone),gadm,Panama (before Canal Zone)
 Panama (before Canal Zone),m49,Panama (before Canal Zone)
+Papal States,cshapes_europe,Papal States
 Papal States,federico_tena,Papal States
-Papal States,gadm,Papal States
 Papua (to 1949),cshapes,Papua (to 1949)
 Papua New Guinea,cshapes,Papua New Guinea
 Papua New Guinea,faostat,Papua New Guinea
@@ -1145,6 +1177,8 @@ Philippines,cshapes,Philippines
 Philippines,faostat,Philippines
 Philippines,federico_tena,Philippines
 Philippines,m49,Philippines
+Piedmont,cshapes_europe,Piedmont
+Piedmont,whep,Piedmont
 Pitcairn,faostat,Pitcairn
 Pitcairn,gadm,Pitcairn
 Pitcairn,m49,Pitcairn
@@ -1185,6 +1219,8 @@ Republic of Moldova,faostat,Moldova
 Republic of Moldova,m49,Moldova
 Reunion,cshapes,Réunion
 Reunion,federico_tena,Réunion
+Reuss,cshapes_europe,Reuss
+Reuss,whep,Reuss
 Rhodesia,federico_tena,Zimbabwe
 Romania,faostat,Romania
 Romania,federico_tena,Romania (to 1913)
@@ -1248,8 +1284,8 @@ Saint Vincent and the Grenadines,m49,Saint Vincent and the Grenadines
 Samoa,faostat,Samoa
 Samoa,gadm,Samoa
 Samoa,m49,Samoa
+San Marino,cshapes_europe,San Marino
 San Marino,faostat,San Marino
-San Marino,gadm,San Marino
 San Marino,m49,San Marino
 Sao Tome and Principe,faostat,Sao Tome and Principe
 Sao Tome and Principe,federico_tena,Sao Tome and Principe
@@ -1269,8 +1305,24 @@ Saudi Arabia,m49,Saudi Arabia
 Saudi Arabia (1924-1932),gadm,Saudi Arabia (1924-1932)
 Saudi Arabia (1924-1932),whep,Saudi Arabia (1924-1932)
 Saudi Arabia (1932-2000),cshapes,Saudi Arabia (1932-2000)
-Saxony,gadm,Saxony
+Saxe-Altenburg,cshapes_europe,Saxe-Altenburg
+Saxe-Altenburg,whep,Saxe-Altenburg
+Saxe-Coburg-Gotha,cshapes_europe,Saxe-Coburg-Gotha
+Saxe-Coburg-Gotha,whep,Saxe-Coburg-Gotha
+Saxe-Coburg-Saalfeld,cshapes_europe,Saxe-Coburg-Saalfeld
+Saxe-Coburg-Saalfeld,whep,Saxe-Coburg-Saalfeld
+Saxe-Gotha-Altenberg,cshapes_europe,Saxe-Gotha-Altenberg
+Saxe-Gotha-Altenberg,whep,Saxe-Gotha-Altenberg
+Saxe-Hildburgchausen,cshapes_europe,Saxe-Hildburgchausen
+Saxe-Hildburgchausen,whep,Saxe-Hildburgchausen
+Saxe-Meiningen,cshapes_europe,Saxe-Meiningen
+Saxe-Meiningen,whep,Saxe-Meiningen
+Saxe-Weimar,cshapes_europe,Saxe-Weimar
+Saxe-Weimar,whep,Saxe-Weimar
+Saxony,cshapes_europe,Saxony
 Saxony,whep,Saxony
+Schaumburg-Lippe,cshapes_europe,Schaumburg-Lippe
+Schaumburg-Lippe,whep,Schaumburg-Lippe
 Schleswig-Holstein,gadm,Schleswig-Holstein
 Schleswig-Holstein,whep,Schleswig-Holstein
 Selangore (to 1896),cshapes,Selangore (to 1896)
@@ -1448,7 +1500,7 @@ Thailand (1893-1904),cshapes,Thailand (1893-1904)
 Thailand (1904-1907),cshapes,Thailand (1904-1907)
 Thailand (1907-1909),cshapes,Thailand (1907-1909)
 Thailand (to 1893),cshapes,Thailand (to 1893)
-Thuringia,gadm,Thuringia
+Thuringia,cshapes_europe,Thuringia
 Thuringia,whep,Thuringia
 Tibet,federico_tena,Tibet (old)
 Tibet (1913-1914),cshapes,Tibet (1913-1914)
@@ -1500,6 +1552,9 @@ Two Sicilies,federico_tena,Two Sicilies
 Two Sicilies,gadm,Two Sicilies
 Türkiye,faostat,Türkiye
 Türkiye,m49,Türkiye
+US settlement Oceania,federico_tena,US settlement Oceania
+USSR,faostat,USSR (1945-1991)
+USSR,m49,USSR (1945-1991)
 Uganda,cshapes,Uganda
 Uganda,faostat,Uganda
 Uganda,m49,Uganda
@@ -1529,21 +1584,18 @@ United Republic of Tanzania,faostat,Tanzania
 United States,federico_tena,United States of America (to 1959)
 United States Minor Outlying Islands,faostat,United States Minor Outlying Islands
 United States Minor Outlying Islands,m49,United States Minor Outlying Islands
+United States Virgin Islands,faostat,United States Virgin Islands
+United States Virgin Islands,gadm,United States Virgin Islands
 United States miscellaneous Pacific Islands,m49,United States miscellaneous Pacific Islands
 United States of America,cshapes,United States of America
 United States of America,faostat,United States of America
 United States of America,m49,United States of America
 United States of America (to 1959),cshapes,United States of America (to 1959)
-United States Virgin Islands,faostat,United States Virgin Islands
-United States Virgin Islands,gadm,United States Virgin Islands
 Upper-middle-income economies,faostat,Upper-middle-income economies
 Uruguay,cshapes,Uruguay
 Uruguay,faostat,Uruguay
 Uruguay,federico_tena,Uruguay
 Uruguay,m49,Uruguay
-US settlement Oceania,federico_tena,US settlement Oceania
-USSR,faostat,USSR (1945-1991)
-USSR,m49,USSR (1945-1991)
 Uzbekistan,cshapes,Uzbekistan
 Uzbekistan,faostat,Uzbekistan
 Uzbekistan,m49,Uzbekistan
@@ -1573,6 +1625,8 @@ Virgin Islands (U.S.),m49,United States Virgin Islands
 Wake Island,faostat,Wake Island
 Wake Island,federico_tena,Wake Island
 Wake Island,m49,Wake Island
+Waldeck,cshapes_europe,Waldeck
+Waldeck,whep,Waldeck
 Wallis and Futuna,gadm,Wallis and Futuna
 Wallis and Futuna,m49,Wallis and Futuna
 Wallis and Futuna Island,federico_tena,Wallis and Futuna
@@ -1593,8 +1647,10 @@ Western Sahara,faostat,Western Sahara
 Western Sahara,gadm,Western Sahara
 Western Sahara,m49,Western Sahara
 Western Samoa,federico_tena,Samoa
+Wolfenbüttel,cshapes_europe,Wolfenbüttel
+Wolfenbüttel,whep,Wolfenbüttel
 World,faostat,World
-Württemberg,gadm,Württemberg
+Württemberg,cshapes_europe,Württemberg
 Württemberg,whep,Württemberg
 Yemen,faostat,Yemen
 Yemen,m49,Yemen

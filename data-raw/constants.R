@@ -14,6 +14,7 @@ k_source_federico_tena <- "federico_tena"
 k_source_cshapes <- "cshapes"
 k_source_whep <- "whep"
 k_source_gadm <- "gadm"
+k_source_cshapes_europe <- "cshapes_europe"
 
 k_faostat_regions <- .clean_faostat_regions()
 k_faostat_regions |>
@@ -54,6 +55,19 @@ k_gadm <- if (file.exists(gadm_path)) {
   tibble::tibble(polity_name = character(), geometry = sf::st_sfc())
 }
 
+cshapes_europe_path <- fs::path(
+  polities_inputs_path, "cshapes_europe_geometries.gpkg"
+)
+k_cshapes_europe <- if (file.exists(cshapes_europe_path)) {
+  sf::sf_use_s2(FALSE)
+  sf::st_read(cshapes_europe_path, quiet = TRUE) |>
+    sf::st_make_valid() |>
+    sf::st_transform(crs = 4326) |>
+    sf::st_simplify(dTolerance = 0.01, preserveTopology = TRUE)
+} else {
+  tibble::tibble(polity_name = character(), geometry = sf::st_sfc())
+}
+
 k_whep_polity_fixes <- polities_inputs_path |>
   fs::path("whep_fixes.csv") |>
   readr::read_csv()
@@ -76,6 +90,7 @@ usethis::use_data(
   k_historical_m49,
   k_federico_tena_polities,
   k_cshapes,
+  k_cshapes_europe,
   k_gadm,
   k_whep_polity_fixes,
   k_polity_common_names,
@@ -88,6 +103,7 @@ usethis::use_data(
   k_source_cshapes,
   k_source_whep,
   k_source_gadm,
+  k_source_cshapes_europe,
   internal = TRUE,
   overwrite = TRUE
 )

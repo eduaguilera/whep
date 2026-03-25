@@ -20,6 +20,9 @@ Angola (1890-1891),ANG-1890-1891
 Angola (1891-1905),ANG-1891-1905
 Angola (to 1890),ANG-1800-1890
 Anguilla,AIA-1800-2025
+Anhalt,ANH-1864-1870
+Anhalt-Bernburg,ANB-1816-1864
+Anhalt-Dessau,AND-1816-1863
 Annex I countries,F5848-1800-2025
 Antarctic Region,F5600-1800-2025
 Antarctica,ATA-1800-2025
@@ -38,11 +41,13 @@ Austria-Hungary (1908-1918),AUH-1908-1918
 Austria-Hungary (to 1908),AUH-1800-1908
 Azerbaijan,AZE-1991-2025
 Badakhshan,BAD-1800-1873
+Baden,BAD-1800-1871
 Bahamas,BHS-1800-2025
 Bahrain,BHR-1800-2025
 Bangladesh,BGD-1971-2025
 Barbados,BRB-1800-2025
 Basutoland,BAS-1884-2025
+Bavaria,BAV-1800-1871
 Bechuanaland Protectorate,BEC-1885-2025
 Belarus,BLR-1991-2025
 Belgian Congo,BEL-1885-2025
@@ -68,6 +73,7 @@ Bouvet Island,BVT-1800-2025
 Brazil,BRA-1909-2025
 Brazil (1903-1909),BRA-1903-1909
 Brazil (to 1903),BRA-1800-1903
+Bremen (city-state),BRE-1800-1871
 British Bechuanaland,BBE-1885-1895
 British Bechuanaland (to 1895),BRI-1800-1895
 British Cameroon,BCA-1914-2025
@@ -123,6 +129,7 @@ Chad,TCD-1960-2025
 Chad (1900-1912),CHA-1900-1912
 Chad (1912-1919),CHA-1912-1919
 Channel Islands,CHA-1800-2023
+Chechnya,CHE-1816-1857
 Chile,CHL-1902-2025
 Chile (1899-1902),CHL-1899-1902
 Chile (to 1899),CHL-1810-1899
@@ -137,6 +144,7 @@ China (1949-1950),CHN-1949-1950
 China (to 1895),CHN-1800-1895
 "China, mainland",CHN-1800-2025
 Christmas Island,CXR-1800-2025
+Circassia,CIR-1816-1861
 Cocos (Keeling) Islands,CCK-1800-2025
 Colombia,COL-1922-2025
 Colombia (1903-1922),COL-1903-1922
@@ -150,6 +158,7 @@ Congo (1912-1919),CON-1912-1919
 Congo (to 1898),CON-1800-1898
 Cook Islands,COK-1893-2025
 Costa Rica,CRI-1800-2025
+Cracow (Free City),CRA-1816-1846
 Crete,CRE-1898-1913
 Croatia,HRV-1992-2025
 Cuba,CUB-1800-2025
@@ -251,6 +260,7 @@ Finland (1917-1940),FIN-1917-1940
 France,FRA-1919-2025
 France (to 1919),FRA-1800-1919
 "France, Metropolitan",FRA-1800-1982
+Frankfurt (Free City),FRA-1816-1866
 French Equatorial Africa,FEA-1910-2025
 French Guiana,GUF-1800-2025
 French Guiana (1930-1946),FRE-1930-1946
@@ -259,6 +269,7 @@ French India,FRI-1800-2025
 French Indochina,FID-1887-2025
 French Polynesia,PYF-1800-2025
 French Settlements in Oceania,FSO-1844-2025
+French Somalia,FSO-1884-1977
 French Somaliland,FSM-1887-2025
 French Southern Territories,ATF-1800-2025
 French West Africa,FWA-1895-2025
@@ -308,11 +319,17 @@ Guinea,GIN-1958-2025
 Guinea-Bissau,GNB-1879-2025
 Guyana,GUY-1800-2025
 Haiti,HTI-1800-2025
+Hanover,HAN-1800-1866
 Hawaii (1898-1959),HAW-1898-1959
 Heard Island and McDonald Islands,HMD-1800-2025
 Herat,HER-1800-1862
 Herzegovina (to 1908),HER-1800-1908
+Hesse,HES-1800-1871
+Hesse-Homburg,HHO-1816-1866
 High-income economies,F9010-1800-2025
+Hohengeroldseck,HOG-1816-1818
+Hohenzollern-Hechingen,HHE-1816-1850
+Hohenzollern-Sigmaringen,HSI-1816-1850
 Holy See,VAT-1800-2025
 Honduras,HND-1800-2025
 Hong Kong,HKG-1841-2025
@@ -371,6 +388,7 @@ Kenya (1924-1926),KEN-1924-1926
 Khiva,KHI-1800-1873
 Khiva (to 1920),KHI-1800-1920
 Kiautchou,KIA-1898-1922
+Kingdom of Naples,NAP-1816-1861
 Kiribati,KIR-1800-2025
 Kokand,KOK-1800-1876
 Korea (old) (to 1945),KOR-1800-1945
@@ -397,6 +415,7 @@ Libya (1912-1919),LIB-1912-1919
 Libya (1919-1925),LIB-1919-1925
 Libya (1925-1934),LIB-1925-1934
 Liechtenstein,LIE-1800-2025
+Lippe-Detmold,LIP-1816-1870
 Lithuania,LTU-1991-2025
 Lithuania (1918-1920),LTU-1918-1920
 Lithuania (1920-1940),LTU-1920-1940
@@ -404,6 +423,7 @@ Low Income Food Deficit Countries (LIFDCs),F5815-1800-2025
 Low-income economies,F5858-1800-2025
 Lower Quebec,LOW-1800-1866
 Lower-middle-income economies,F5859-1800-2025
+Lucca,LUC-1816-1847
 Luxembourg,LUX-2000-2025
 Luxembourg (old),LUO-1800-2025
 Macao,MAC-1800-2025
@@ -429,6 +449,7 @@ Mariana Island,MRI-1800-2025
 Marquesas Island,MRQ-1844-1903
 Marshall Islands,MHL-1874-2025
 Martinique,MTQ-1800-2025
+Massa,MAS-1816-1829
 Mauritania,MRT-1979-2025
 Mauritania (1904-1912),MAU-1904-1912
 Mauritania (1912-1944),MAU-1912-1944
@@ -438,6 +459,7 @@ Mauritania (1975-1979),MRT-1975-1979
 Mauritius,MUS-1800-2025
 Mayotte,MYT-2002-2025
 Mayotte and Noissi-be,MYT-1843-1914
+Mecklenburg,MEK-1800-1871
 Melanesia,F5502-1800-2025
 Mexico,MEX-1800-2025
 Micronesia,FSM-1991-2025
@@ -463,6 +485,7 @@ Mozambique,MOZ-1816-2025
 Mozambique (to 1891),MOZ-1800-1891
 Myanmar,MMR-1800-2025
 Namibia,NAM-1884-2025
+Nassau,NAS-1816-1866
 Natal (1895-1910),NAT-1895-1910
 Natal (to 1895),NAT-1800-1895
 Nauru,NRU-1888-2025
@@ -517,9 +540,11 @@ OECD,F5873-1800-2025
 Oceania,F5500-1800-2025
 Oceania excluding Australia and New Zealand,F5807-1800-2025
 Oil Rivers Protectorate (to 1898),OIL-1800-1898
+Oldenburg,OLD-1800-1871
 Oman,OMN-1800-2025
 Ontario,ONT-1800-1866
 Orange Free State (to 1910),ORA-1848-1910
+Ottoman Empire,OTT-1800-1912
 Pacific Islands Trust Territory,F164-1800-1990
 Pahang (1888-1896),PAH-1888-1896
 Pakistan,PAK-1971-2025
@@ -543,6 +568,7 @@ Peru (1909-1922),PER-1909-1922
 Peru (1922-1942),PER-1922-1942
 Peru (to 1909),PER-1825-1909
 Philippines,PHL-1800-2025
+Piedmont,PIE-1816-1861
 Pitcairn,PCN-1839-2025
 Poland,POL-1945-2025
 Poland (1918-1919),POL-1918-1919
@@ -559,6 +585,7 @@ Queensland,QUE-1859-1900
 Queensland (to 1900),QUE-1800-1900
 Ras al Khaimah,RAS-1919-2025
 Regional Centres (FAO) (2.5.1.a),F5822-1800-2025
+Reuss,REU-1816-1870
 Romania,ROU-1940-2025
 Romania (1913-1918),ROU-1913-1918
 Romania (1918-1919),ROU-1918-1919
@@ -592,6 +619,16 @@ Sark,F285-2011-2023
 Saudi Arabia,SAU-2000-2025
 Saudi Arabia (1924-1932),SAU-1924-1932
 Saudi Arabia (1932-2000),SAU-1932-2000
+Saxe-Altenburg,SAL-1827-1870
+Saxe-Coburg-Gotha,SCG-1827-1870
+Saxe-Coburg-Saalfeld,SCS-1816-1826
+Saxe-Gotha-Altenberg,SGA-1816-1826
+Saxe-Hildburgchausen,SHI-1816-1826
+Saxe-Meiningen,SME-1816-1870
+Saxe-Weimar,SWE-1816-1870
+Saxony,SAX-1800-1871
+Schaumburg-Lippe,SCL-1816-1870
+Schleswig-Holstein,SHL-1800-1866
 Selangore (to 1896),SEL-1800-1896
 Senegal,SEN-1960-2025
 Serbia,SRB-2008-2025
@@ -678,6 +715,7 @@ Thailand (1893-1904),THA-1893-1904
 Thailand (1904-1907),THA-1904-1907
 Thailand (1907-1909),THA-1907-1909
 Thailand (to 1893),THA-1800-1893
+Thuringia,THU-1800-1871
 Tibet (1913-1914),TIB-1913-1914
 Tibet (1914-1950),TIB-1914-1950
 Tibet (old),TIB-1800-2025
@@ -739,6 +777,7 @@ Vietnam,VNM-1975-2025
 Vietnam (1893-1954),VIE-1893-1954
 Vietnam (to 1893),VNM-1800-1893
 Wake Island,WAK-1898-1982
+Waldeck,WAL-1816-1870
 Wallis and Futuna,WLF-1842-2025
 West Bank (1948-1967),WES-1948-1967
 West Berlin,GWB-1800-1982
@@ -752,7 +791,9 @@ Western Australia (to 1900),WES-1800-1900
 Western Europe,F5404-1800-2025
 Western Sahara,ESH-1800-2025
 Western Sahara (1958-1975),SPA-1958-1975
+Wolfenbüttel,WOL-1816-1870
 World,X01-1800-2025
+Württemberg,WUR-1800-1871
 Yemen,YEM-2000-2025
 Yemen (1990-2000),YEM-1990-2000
 Yugoslavia (1918-1919),F248-1918-1919
@@ -767,17 +808,4 @@ Zanzibar (1890-1964),ZAN-1890-1964
 Zimbabwe,ZWE-1890-2025
 Zimbabwe (1889-1891),ZIM-1889-1891
 Zimbabwe (1891-1900),ZIM-1891-1900
-Baden,BAD-1800-1871
-Bavaria,BAV-1800-1871
-Bremen (city-state),BRE-1800-1871
-French Somalia,FSO-1884-1977
-Hanover,HAN-1800-1866
-Hesse,HES-1800-1871
-Mecklenburg,MEK-1800-1871
-Oldenburg,OLD-1800-1871
-Ottoman Empire,OTT-1800-1912
-Saxony,SAX-1800-1871
-Schleswig-Holstein,SHL-1800-1866
-Thuringia,THU-1800-1871
-Württemberg,WUR-1800-1871
 Åland Islands,ALA-2003-2025

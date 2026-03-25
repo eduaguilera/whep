@@ -13,5 +13,6 @@ docs
 /Meta/
 data-raw/gadm_cache/
 data-raw/polities_inputs/gadm_geometries.gpkg
+data-raw/polities_inputs/cshapes_europe_geometries.gpkg
 data-raw/polities_inputs/cshapes_new_entries.csv
 data-raw/polities_inputs/cshapes_dependencies_inventory.csv
