@@ -160,10 +160,11 @@
 }
 
 # Read a parquet file, optionally filtering by year range.
-# Reads the full file with nanoparquet (fast), filters to requested years,
-# then triggers gc() to return the temporary full-file memory to the OS.
-# This keeps peak RSS bounded to one large file at a time (~500 MB worst case)
-# rather than accumulating all files in memory (~1.5 GB).
+# When years and year_col are provided, uses arrow to leverage row-group
+# statistics for predicate pushdown — only row groups overlapping the
+# requested year range are read from disk, cutting both I/O time and
+# peak memory (e.g. 990 MB → 56 MB for faostat-fbs-old).
+# Falls back to nanoparquet for unfiltered reads (lighter dependency).
 .read_parquet_filtered <- function(pin_alias, years = NULL, year_col = NULL) {
   cli::cli_alert_info("Fetching files for {pin_alias}...")
   paths <- .download_pin_paths(pin_alias)
@@ -175,15 +176,19 @@
     return(dt)
   }
 
-  dt <- nanoparquet::read_parquet(parquet_path)
-  data.table::setDT(dt)
-
-  if (!is.null(years) && !is.null(year_col) && year_col %in% names(dt)) {
+  if (!is.null(years) && !is.null(year_col)) {
     y_min <- min(years, na.rm = TRUE)
     y_max <- max(years, na.rm = TRUE)
-    dt <- dt[dt[[year_col]] >= y_min & dt[[year_col]] <= y_max]
-    # Free the full-file memory before reading the next file.
-    gc()
+    dt <- arrow::open_dataset(parquet_path, format = "parquet") |>
+      dplyr::filter(
+        .data[[year_col]] >= y_min,
+        .data[[year_col]] <= y_max
+      ) |>
+      dplyr::collect() |>
+      data.table::as.data.table()
+  } else {
+    dt <- nanoparquet::read_parquet(parquet_path)
+    data.table::setDT(dt)
   }
 
   dt
