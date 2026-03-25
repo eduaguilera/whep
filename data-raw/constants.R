@@ -50,7 +50,9 @@ k_gadm <- if (file.exists(gadm_path)) {
     sf::st_transform(crs = 4326) |>
     # Simplify to ~1 km tolerance to keep sysdata.rda manageable
     # (full-detail geometries are in the GPKG for scripts that need them)
-    sf::st_simplify(dTolerance = 0.01, preserveTopology = TRUE)
+    sf::st_simplify(dTolerance = 0.01, preserveTopology = TRUE) |>
+    sf::st_make_valid() |>
+    sf::st_cast("MULTIPOLYGON")
 } else {
   tibble::tibble(polity_name = character(), geometry = sf::st_sfc())
 }
@@ -63,7 +65,9 @@ k_cshapes_europe <- if (file.exists(cshapes_europe_path)) {
   sf::st_read(cshapes_europe_path, quiet = TRUE) |>
     sf::st_make_valid() |>
     sf::st_transform(crs = 4326) |>
-    sf::st_simplify(dTolerance = 0.01, preserveTopology = TRUE)
+    sf::st_simplify(dTolerance = 0.01, preserveTopology = TRUE) |>
+    sf::st_make_valid() |>
+    sf::st_cast("MULTIPOLYGON")
 } else {
   tibble::tibble(polity_name = character(), geometry = sf::st_sfc())
 }

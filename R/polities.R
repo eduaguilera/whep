@@ -119,6 +119,7 @@ get_polities <- function() {
     .set_column_types() |>
     dplyr::arrange(polity_name) |>
     sf::st_as_sf() |>
+    .fix_geometries() |>
     dplyr::select(
       polity_name,
       polity_code,
@@ -391,6 +392,24 @@ get_polity_sources <- function(polity_codes = NULL) {
     ) |>
     dplyr::pull(common_name) |>
     unique()
+}
+
+.fix_geometries <- function(polities) {
+  geom <- sf::st_geometry(polities)
+  fixed <- lapply(seq_along(geom), function(i) {
+    g <- geom[[i]]
+    if (sf::st_is_empty(g)) return(g)
+    g <- sf::st_make_valid(g)
+    if (sf::st_geometry_type(g) == "GEOMETRYCOLLECTION") {
+      g <- sf::st_collection_extract(g, "POLYGON")
+    }
+    if (sf::st_geometry_type(g) == "POLYGON") {
+      g <- sf::st_cast(g, "MULTIPOLYGON")
+    }
+    g
+  })
+  sf::st_geometry(polities) <- sf::st_sfc(fixed, crs = sf::st_crs(geom))
+  polities
 }
 
 # TODO: Think if worth to shorten, maybe another mapping table
