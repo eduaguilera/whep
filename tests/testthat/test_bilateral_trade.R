@@ -563,8 +563,11 @@ testthat::test_that(".balance_matrix handles single active country", {
   trade_matrix <- matrix(1, nrow = 3, ncol = 3)
   result <- .balance_matrix(trade_matrix, total_trade)
 
-  testthat::expect_equal(sum(result), sum(total_trade$balanced_export),
-                         tolerance = 0.1)
+  testthat::expect_equal(
+    sum(result),
+    sum(total_trade$balanced_export),
+    tolerance = 0.1
+  )
 })
 
 testthat::test_that(".estimate_bilateral_trade uses tcrossprod correctly", {

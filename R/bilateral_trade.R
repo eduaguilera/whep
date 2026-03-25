@@ -215,7 +215,8 @@ get_bilateral_trade <- function(example = FALSE) {
   estimate <- .estimate_bilateral_trade(exports, imports)
   estimate[!na_mask] <- 0
 
-  balances <- balanced_exports - .rowSums(trade_matrix, nrow(trade_matrix), ncol(trade_matrix), na.rm = TRUE)
+  balances <- balanced_exports -
+    .rowSums(trade_matrix, nrow(trade_matrix), ncol(trade_matrix), na.rm = TRUE)
   balances <- pmax(balances, 0)
 
   estimate <- .downscale_estimate_matrix(estimate, balances)
