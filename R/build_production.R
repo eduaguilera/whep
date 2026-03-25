@@ -290,9 +290,12 @@ build_primary_production <- function(
 
 .read_land_areas <- function(years = NULL) {
   cli::cli_progress_step("Reading land areas")
-  regions <- data.table::as.data.table(whep::regions_full)[
-    , .(iso3c, area = polity_name, polity_code)
-  ]
+  regions <- unique(
+    data.table::as.data.table(whep::regions_full)[
+      , .(iso3c, area = polity_name, polity_code)
+    ],
+    by = "iso3c"
+  )
   polities <- data.table::as.data.table(whep::polities)[
     , .(iso3c, area_code)
   ]

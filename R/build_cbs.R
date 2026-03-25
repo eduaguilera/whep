@@ -642,7 +642,8 @@ build_processing_coefs <- function(
   ]
 
   regions <- data.table::as.data.table(whep::regions_full)[
-    , .(area_code = code, polity_code, polity_name)
+    !is.na(code),
+    .(area_code = code, polity_code, polity_name)
   ]
   polities <- data.table::as.data.table(whep::polities)[
     , .(iso3c, polity_area_code = area_code)
