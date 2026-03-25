@@ -43,9 +43,13 @@ k_cshapes |>
 
 gadm_path <- fs::path(polities_inputs_path, "gadm_geometries.gpkg")
 k_gadm <- if (file.exists(gadm_path)) {
+  sf::sf_use_s2(FALSE)
   sf::st_read(gadm_path, quiet = TRUE) |>
     sf::st_make_valid() |>
-    sf::st_transform(crs = 4326)
+    sf::st_transform(crs = 4326) |>
+    # Simplify to ~1 km tolerance to keep sysdata.rda manageable
+    # (full-detail geometries are in the GPKG for scripts that need them)
+    sf::st_simplify(dTolerance = 0.01, preserveTopology = TRUE)
 } else {
   tibble::tibble(polity_name = character(), geometry = sf::st_sfc())
 }

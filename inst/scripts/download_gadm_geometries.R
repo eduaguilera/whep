@@ -872,23 +872,23 @@ message("\nSaving to: ", output_path)
 sf::st_write(gadm_all, output_path, delete_dsn = TRUE, quiet = TRUE)
 message("Done! Saved ", nrow(gadm_all), " polity geometries.")
 
-# Summary of what's missing
-all_mapping <- readr::read_csv(
-  here::here("inst", "extdata", "output", "polities_research",
-             "16_polygon_source_mapping.csv"),
-  show_col_types = FALSE
-)
-covered <- all_mapping |>
-  dplyr::filter(polity_name %in% gadm_all$polity_name)
-not_covered <- all_mapping |>
-  dplyr::filter(!polity_name %in% gadm_all$polity_name)
+# Optional coverage summary (requires polygon source mapping file)
+mapping_path <- here::here("inst", "extdata", "output", "polities_research",
+                           "16_polygon_source_mapping.csv")
+if (file.exists(mapping_path)) {
+  all_mapping <- readr::read_csv(mapping_path, show_col_types = FALSE)
+  covered <- all_mapping |>
+    dplyr::filter(polity_name %in% gadm_all$polity_name)
+  not_covered <- all_mapping |>
+    dplyr::filter(!polity_name %in% gadm_all$polity_name)
 
-message("\n=== Coverage Summary ===")
-message("Mapped polities in source mapping: ", nrow(all_mapping))
-message("Successfully downloaded: ", nrow(covered))
-message("Still missing: ", nrow(not_covered))
-if (nrow(not_covered) > 0) {
-  message("Missing polities:")
-  message(paste("  -", not_covered$polity_name,
-                " (", not_covered$polygon_source, ")", collapse = "\n"))
+  message("\n=== Coverage Summary ===")
+  message("Mapped polities in source mapping: ", nrow(all_mapping))
+  message("Successfully downloaded: ", nrow(covered))
+  message("Still missing: ", nrow(not_covered))
+  if (nrow(not_covered) > 0) {
+    message("Missing polities:")
+    message(paste("  -", not_covered$polity_name,
+                  " (", not_covered$polygon_source, ")", collapse = "\n"))
+  }
 }
