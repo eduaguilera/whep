@@ -1195,8 +1195,7 @@ build_processing_coefs <- function(
 }
 
 .fill_share_columns <- function(df) {
-  # Batch-fill all share columns in a single grouped pass.
-  # Avoids re-sorting and re-computing group boundaries 6 times.
+  # Batch-fill all share columns using fully vectorized nafill approach.
   cols <- c(
     "food_share",
     "feed_share",
@@ -1212,83 +1211,64 @@ build_processing_coefs <- function(
     "item_cbs_code"
   )
 
-  # Sort once
-  grp_id <- as.integer(interaction(df[by_cols], drop = TRUE))
-  times <- df[["year"]]
-  n <- nrow(df)
-  ord <- order(grp_id, times)
-  inv_ord <- integer(n)
-  inv_ord[ord] <- seq_len(n)
-  grp_sorted <- grp_id[ord]
-  times_sorted <- times[ord]
+  if (!data.table::is.data.table(df)) data.table::setDT(df)
+  data.table::setorderv(df, c(by_cols, "year"))
 
-  # Group boundaries
-  breaks <- which(diff(grp_sorted) != 0L)
-  starts <- c(1L, breaks + 1L)
-  ends <- c(breaks, n)
+  grp <- data.table::rleidv(df, cols = by_cols)
+  tm <- df[["year"]]
+  nn <- length(tm)
 
   for (col in cols) {
-    orig_vals <- df[[col]][ord]
-    filled <- orig_vals
-    sources <- ifelse(is.na(orig_vals), "Gap not filled", "Original")
-
-    for (g in seq_along(starts)) {
-      i1 <- starts[g]
-      i2 <- ends[g]
-      rng <- i1:i2
-      ov <- orig_vals[rng]
-      tv <- times_sorted[rng]
-      m <- length(rng)
-
-      valid <- which(!is.na(ov))
-      if (length(valid) == 0L) {
-        next
-      }
-      first_v <- valid[1L]
-      last_v <- valid[length(valid)]
-
-      # Carry backward
-      if (first_v > 1L) {
-        na_left <- which(is.na(ov[seq_len(first_v - 1L)]))
-        if (length(na_left) > 0L) {
-          filled[i1 - 1L + na_left] <- ov[first_v]
-          sources[i1 - 1L + na_left] <- "First value carried backwards"
-        }
-      }
-      # Carry forward
-      if (last_v < m) {
-        tail_idx <- (last_v + 1L):m
-        na_right <- tail_idx[is.na(ov[tail_idx])]
-        if (length(na_right) > 0L) {
-          filled[i1 - 1L + na_right] <- ov[last_v]
-          sources[i1 - 1L + na_right] <- "Last value carried forward"
-        }
-      }
-      # Interpolate
-      if (length(valid) >= 2L) {
-        mid_idx <- (first_v + 1L):(last_v - 1L)
-        if (length(mid_idx) > 0L) {
-          na_mid <- mid_idx[is.na(ov[mid_idx])]
-          if (length(na_mid) > 0L) {
-            interp <- .safe_na_approx(ov, x = tv, na.rm = FALSE)
-            if (length(interp) == m) {
-              fill_mask <- na_mid[!is.na(interp[na_mid])]
-              if (length(fill_mask) > 0L) {
-                filled[i1 - 1L + fill_mask] <- interp[fill_mask]
-                sources[i1 - 1L + fill_mask] <- "Linear interpolation"
-              }
-            }
-          }
-        }
-      }
-      # Preserve originals
-      has_orig <- which(!is.na(ov))
-      filled[i1 - 1L + has_orig] <- ov[has_orig]
-      sources[i1 - 1L + has_orig] <- "Original"
+    val <- df[[col]]
+    is_na <- is.na(val)
+    if (!any(is_na)) {
+      data.table::set(df, j = paste0("source_", col),
+                      value = rep("Original", nn))
+      next
     }
 
-    df[[col]] <- filled[inv_ord]
-    df[[paste0("source_", col)]] <- sources[inv_ord]
+    locf_raw <- data.table::nafill(val, "locf")
+    nocb_raw <- data.table::nafill(val, "nocb")
+
+    valid_idx <- ifelse(!is_na, seq_len(nn), NA_integer_)
+    locf_idx <- data.table::nafill(valid_idx, "locf")
+    nocb_idx <- data.table::nafill(valid_idx, "nocb")
+
+    locf_ok <- !is.na(locf_idx) & grp[locf_idx] == grp
+    nocb_ok <- !is.na(nocb_idx) & grp[nocb_idx] == grp
+
+    locf <- data.table::fifelse(locf_ok, locf_raw, NA_real_)
+    nocb <- data.table::fifelse(nocb_ok, nocb_raw, NA_real_)
+
+    filled <- val
+    source <- data.table::fifelse(is_na, "Gap not filled", "Original")
+
+    # Interpolation
+    time_valid <- data.table::fifelse(!is_na, tm, NA_real_)
+    tl <- data.table::fifelse(locf_ok,
+      data.table::nafill(time_valid, "locf"), NA_real_)
+    tn <- data.table::fifelse(nocb_ok,
+      data.table::nafill(time_valid, "nocb"), NA_real_)
+    denom <- tn - tl
+    frac <- data.table::fifelse(
+      !is.na(denom) & denom != 0, (tm - tl) / denom, NA_real_)
+    interp <- locf + (nocb - locf) * frac
+    mask <- is_na & !is.na(interp) & locf_ok & nocb_ok
+    filled[mask] <- interp[mask]
+    source[mask] <- "Linear interpolation"
+
+    # Carry backward
+    mask <- is_na & !locf_ok & nocb_ok
+    filled[mask] <- nocb[mask]
+    source[mask] <- "First value carried backwards"
+
+    # Carry forward
+    mask <- is_na & locf_ok & !nocb_ok
+    filled[mask] <- locf[mask]
+    source[mask] <- "Last value carried forward"
+
+    data.table::set(df, j = col, value = filled)
+    data.table::set(df, j = paste0("source_", col), value = source)
   }
   df
 }
