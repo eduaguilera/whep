@@ -311,20 +311,16 @@ testthat::test_that(".balance_matrix makes rows and columns have target sum", {
 })
 
 testthat::test_that(".build_trade_matrix completes missing countries", {
-  codes <- factor(c(1, 2, 4, 5, 999))
-  code_levels <- as.character(sort(codes))
-  n <- length(codes)
+  code_int <- c(1L, 2L, 4L, 5L, 999L)
+  code_levels <- as.character(code_int)
+  n <- length(code_int)
   btd <- tibble::tribble(
     ~from_code, ~to_code, ~value,
-    1, 2, 1,
-    1, 4, 2,
-    4, 2, 1,
-    5, 4, 2
-  ) |>
-    dplyr::mutate(
-      from_code = factor(from_code, levels = codes),
-      to_code = factor(to_code, levels = codes),
-    )
+    1L, 2L, 1,
+    1L, 4L, 2,
+    4L, 2L, 1,
+    5L, 4L, 2
+  )
   expected <- matrix(
     # fmt: skip
     c(
@@ -340,7 +336,7 @@ testthat::test_that(".build_trade_matrix completes missing countries", {
   )
 
   btd |>
-    .build_trade_matrix(n, code_levels) |>
+    .build_trade_matrix(n, code_int) |>
     testthat::expect_equal(expected)
 })
 

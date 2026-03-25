@@ -117,7 +117,7 @@ get_bilateral_trade <- function(example = FALSE) {
 
 .process_bilateral_trade <- function(btd, codes) {
   n <- length(codes)
-  code_levels <- as.character(codes)
+  code_int <- as.integer(levels(codes))
   ngroups <- nrow(btd)
   n_cores <- max(1L, parallel::detectCores() %/% 2L)
 
@@ -125,7 +125,7 @@ get_bilateral_trade <- function(example = FALSE) {
     seq_len(ngroups),
     function(i) {
       btd$bilateral_trade[[i]] |>
-        .build_trade_matrix(n, code_levels) |>
+        .build_trade_matrix(n, code_int) |>
         .fill_missing_trade(btd$total_trade[[i]]) |>
         .balance_matrix(btd$total_trade[[i]])
     },
@@ -245,10 +245,6 @@ get_bilateral_trade <- function(example = FALSE) {
   btd |>
     dplyr::filter(unit == "tonnes") |>
     dplyr::select(-unit) |>
-    dplyr::mutate(
-      from_code = factor(from_code, levels = codes),
-      to_code = factor(to_code, levels = codes),
-    ) |>
     .filter_only_items_in_cbs(cbs) |>
     tidyr::nest(
       bilateral_trade = c(from_code, to_code, value),
@@ -315,15 +311,16 @@ get_bilateral_trade <- function(example = FALSE) {
     as.factor()
 }
 
-.build_trade_matrix <- function(btd, n, code_levels) {
+.build_trade_matrix <- function(btd, n, code_int) {
+  code_levels <- as.character(code_int)
   m <- matrix(
     NA_real_,
     nrow = n,
     ncol = n,
     dimnames = list(code_levels, code_levels)
   )
-  rows <- as.integer(btd$from_code)
-  cols <- as.integer(btd$to_code)
+  rows <- match(btd$from_code, code_int)
+  cols <- match(btd$to_code, code_int)
   m[cbind(rows, cols)] <- btd$value
   m
 }
