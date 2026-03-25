@@ -173,6 +173,9 @@ get_polities <- function() {
 #'     one calculated automatically is not satisfying. Thus, it includes
 #'     no geometry or other data, but this could change in the future if
 #'     it becomes a necessity.
+#'   - `gadm`: [GADM 4.1](https://gadm.org/) administrative boundaries for
+#'     territories not covered by CShapes. Provides only geometry, no other
+#'     data.
 #' - `common_name`: The given name that will be shared by entries across
 #'   sources if they represent the same polity. This will be `polity_name`
 #'   in the main tibble obtained from `get_polities()`.
@@ -222,7 +225,8 @@ get_polity_sources <- function(polity_codes = NULL) {
     .prepare_faostat(),
     .prepare_federico_tena(),
     .prepare_cshapes(),
-    .prepare_whep_fixes()
+    .prepare_whep_fixes(),
+    .prepare_gadm()
   )
 }
 
@@ -328,6 +332,29 @@ get_polity_sources <- function(polity_codes = NULL) {
       start_year,
       end_year,
       notes
+    )
+}
+
+.prepare_gadm <- function() {
+  # Determine which polities already have CShapes geometry
+  cshapes_common_names <- .prepare_cshapes() |>
+    dplyr::inner_join(
+      k_polity_common_names,
+      by = c("original_name", "source")
+    ) |>
+    dplyr::pull(common_name) |>
+    unique()
+
+  k_gadm |>
+    sf::st_set_geometry("geom") |>
+    dplyr::rename(geometry = geom) |>
+    # Only provide geometry for polities NOT covered by CShapes
+    dplyr::filter(!polity_name %in% cshapes_common_names) |>
+    dplyr::mutate(source = k_source_gadm) |>
+    dplyr::select(
+      original_name = polity_name,
+      source,
+      geometry
     )
 }
 
@@ -494,7 +521,7 @@ get_polity_sources <- function(polity_codes = NULL) {
 }
 
 .load_cshapes <- function() {
-  countries <- cshapes::cshp() |>
+  countries <- cshapes::cshp(dependencies = TRUE) |>
     sf::st_make_valid()
 
   countries |>
