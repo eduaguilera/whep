@@ -1,7 +1,7 @@
 library(whep)
 
-start_year <- 1958
-end_year <- 1965
+start_year <- 1850
+end_year <- 2021
 
 # ── Profiling with Rprof ──────────────────────────────────────────────────────
 
