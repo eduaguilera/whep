@@ -1,0 +1,346 @@
+country_name,start_year,end_year,status,owner,gwcode
+Aden,1937,1962,colony,200,681
+Afghanistan,1888,1893,protectorate,200,700
+Afghanistan,1893,1919,protectorate,200,700
+Alaska,1886,1959,colony,2,3
+Algeria,1886,1901,colony,220,615
+Algeria,1901,1902,colony,220,615
+Algeria,1902,1919,colony,220,615
+Algeria,1919,1962,colony,220,615
+Angola,1886,1890,colony,235,540
+Angola,1890,1891,colony,235,540
+Angola,1891,1905,colony,235,540
+Angola,1905,1975,colony,235,540
+Bahamas,1886,1973,colony,200,31
+Barbados,1886,1966,colony,200,53
+Belize,1886,1970,colony,200,80
+Belize,1970,1981,colony,200,80
+Benin,1895,1897,colony,220,434
+Benin,1897,1898,colony,220,434
+Benin,1898,1960,colony,220,434
+Bhutan,1886,1947,protectorate,200,760
+Bhutan,1947,1948,protectorate,750,760
+Bokhara,1886,1920,protectorate,365,7020
+Bosnia,1886,1908,occupied,300,3461
+Botswana,1886,1890,protectorate,200,571
+Botswana,1890,1895,protectorate,200,571
+Botswana,1895,1966,protectorate,200,571
+British Bechuanaland,1886,1890,colony,200,5612
+British Bechuanaland,1890,1895,colony,200,5612
+British Cameroons,1919,1922,occupied,200,472
+British Cameroons,1922,1961,mandate,200,472
+British Somaliland (Somaliland Republic),1886,1897,colony,200,521
+British Somaliland (Somaliland Republic),1897,1960,colony,200,521
+British Togoland,1922,1955,mandate,200,462
+Brunei,1888,1983,protectorate,200,835
+Burkina Faso (Upper Volta),1919,1932,colony,220,439
+Burkina Faso (Upper Volta),1947,1960,colony,220,439
+Cambodia (Kampuchea),1886,1893,colony,220,811
+Cambodia (Kampuchea),1893,1904,colony,220,811
+Cambodia (Kampuchea),1904,1907,colony,220,811
+Cambodia (Kampuchea),1907,1953,colony,220,811
+Cameroon,1919,1922,occupied,220,471
+Cameroon,1922,1959,mandate,220,471
+Cape Colony,1886,1895,colony,200,561
+Cape Colony,1895,1910,colony,200,561
+Cape Verde,1886,1975,colony,235,402
+Central African Republic,1906,1912,colony,220,482
+Central African Republic,1912,1919,colony,220,482
+Central African Republic,1919,1960,colony,220,482
+Chad,1900,1912,occupied,220,483
+Chad,1912,1919,occupied,220,483
+Chad,1919,1920,occupied,220,483
+Chad,1920,1960,colony,220,483
+Comoros,1946,1975,colony,220,581
+Congo,1886,1898,colony,220,484
+Congo,1898,1900,colony,220,484
+Congo,1900,1906,colony,220,484
+Congo,1906,1912,colony,220,484
+Congo,1912,1919,colony,220,484
+Congo,1919,1960,colony,220,484
+"Congo, Democratic Republic of (Zaire)",1886,1891,colony,211,490
+"Congo, Democratic Republic of (Zaire)",1891,1891,colony,211,490
+"Congo, Democratic Republic of (Zaire)",1891,1894,colony,211,490
+"Congo, Democratic Republic of (Zaire)",1894,1908,colony,211,490
+"Congo, Democratic Republic of (Zaire)",1908,1910,colony,211,490
+"Congo, Democratic Republic of (Zaire)",1910,1960,colony,211,490
+Cote D'Ivoire,1889,1893,protectorate,220,437
+Cote D'Ivoire,1893,1900,colony,220,437
+Cote D'Ivoire,1900,1902,colony,220,437
+Cote D'Ivoire,1902,1932,colony,220,437
+Cote D'Ivoire,1932,1933,colony,220,437
+Cote D'Ivoire,1933,1947,colony,220,437
+Cote D'Ivoire,1947,1960,colony,220,437
+Cuba,1886,1898,colony,230,40
+Cuba,1898,1902,occupied,2,40
+Cyprus,1914,1960,colony,200,352
+Danzig,1919,1938,mandate,0,291
+Djibouti,1886,1900,colony,220,522
+Djibouti,1900,1977,colony,220,522
+East Aden Protectorate,1937,1962,protectorate,200,6812
+East Timor,1886,1976,colony,235,860
+Egypt,1886,1899,colony,200,651
+Egypt,1899,1914,colony,200,651
+Egypt,1914,1922,protectorate,200,651
+Equatorial Guinea,1886,1900,colony,230,411
+Equatorial Guinea,1900,1968,colony,230,411
+Eritrea,1886,1889,colony,325,531
+Eritrea,1889,1900,colony,325,531
+Eritrea,1900,1941,colony,325,531
+Eritrea,1941,1952,occupied,200,531
+Federated Malay States,1896,1909,colony,200,821
+Federated Malay States,1909,1946,colony,200,821
+Federation of Rhodesia and Nyasaland,1953,1964,colony,200,550
+Federation of South Arabia,1962,1967,colony,200,6801
+Fiji,1886,1970,colony,200,950
+French Guyana,1886,1930,colony,220,120
+French Guyana,1930,1946,colony,220,120
+French Guyana,1946,2019,colony,220,120
+French Polynesia,1903,2019,colony,220,960
+French West Africa,1895,1898,colony,220,430
+French West Africa,1898,1902,colony,220,430
+French West Africa,1902,1904,colony,220,430
+Gabon,1886,1903,protectorate,220,481
+Gabon,1903,1906,colony,220,481
+Gabon,1906,1912,colony,220,481
+Gabon,1912,1919,colony,220,481
+Gabon,1919,1960,colony,220,481
+Gambia,1889,1965,colony,200,420
+Gaza,1948,1967,occupied,651,6511
+German Democratic Republic,1945,1949,occupied,365,265
+German Federal Republic,1945,1949,occupied,2,260
+German Solomon Islands,1886,1899,protectorate,255,9401
+German Togoland,1886,1886,colony,255,460
+German Togoland,1887,1888,colony,255,460
+German Togoland,1888,1896,colony,255,460
+German Togoland,1897,1897,colony,255,460
+German Togoland,1897,1897,colony,255,460
+German Togoland,1897,1914,colony,255,460
+German Togoland,1914,1919,occupied,200,460
+German Togoland,1919,1922,occupied,200,460
+Ghana,1886,1888,colony,200,452
+Ghana,1888,1898,colony,200,452
+Ghana,1898,1956,colony,200,452
+Ghana,1956,1957,colony,200,452
+Guadeloupe,1886,2019,colony,220,65
+Guinea,1894,1958,colony,220,438
+Guinea-Bissau,1886,1886,colony,235,404
+Guinea-Bissau,1886,1942,colony,235,404
+Guinea-Bissau,1942,1974,colony,235,404
+Guyana,1886,1966,colony,200,110
+Haiti,1915,1934,occupied,2,41
+Hawaii,1898,1959,colony,2,4
+Herzegovina,1886,1908,occupied,300,3462
+Iceland,1886,1918,colony,390,395
+Iceland,1918,1942,colony,390,395
+Iceland,1942,1944,occupied,2,395
+India,1886,1893,colony,200,750
+India,1893,1898,colony,200,750
+India,1899,1914,colony,200,750
+India,1914,1931,colony,200,750
+India,1931,1937,colony,200,750
+India,1937,1947,colony,200,750
+Indonesia,1886,1889,colony,210,850
+Indonesia,1889,1945,colony,210,850
+Inini,1930,1946,colony,220,1201
+Iraq,1920,1922,mandate,200,645
+Iraq,1920,1920,occupied,200,645
+Iraq,1922,1932,mandate,200,645
+Iraq,1932,1932,mandate,200,645
+Italian Somaliland,1889,1897,colony,325,5200
+Italian Somaliland,1897,1908,colony,325,5200
+Italian Somaliland,1908,1924,colony,325,5200
+Italian Somaliland,1924,1941,colony,325,5200
+Italian Somaliland,1941,1950,occupied,200,5200
+Italian Somaliland,1950,1960,mandate,325,5200
+Jamaica,1886,1962,colony,200,51
+Jammu and Kashmir,1947,1949,occupied,750,7506
+Jordan,1920,1923,mandate,200,663
+Jordan,1920,1920,occupied,200,663
+Jordan,1923,1925,mandate,200,663
+Jordan,1925,1946,mandate,200,663
+Kamerun,1886,1894,colony,255,470
+Kamerun,1894,1900,colony,255,470
+Kamerun,1901,1912,colony,255,470
+Kamerun,1912,1916,colony,255,470
+Kamerun,1916,1919,occupied,200,470
+"Kashmir (North, Azad)",1947,1949,occupied,770,7708
+Kenya,1888,1891,protectorate,200,501
+Kenya,1891,1894,protectorate,200,501
+Kenya,1894,1902,protectorate,200,501
+Kenya,1902,1906,protectorate,200,501
+Kenya,1907,1907,protectorate,200,501
+Kenya,1907,1914,protectorate,200,501
+Kenya,1914,1920,protectorate,200,501
+Kenya,1920,1924,colony,200,501
+Kenya,1924,1926,colony,200,501
+Kenya,1926,1963,colony,200,501
+Khiva,1886,1920,protectorate,365,7030
+Korea,1910,1945,colony,740,730
+"Korea, People's Republic of",1945,1948,occupied,365,731
+"Korea, Republic of",1945,1948,occupied,2,732
+Lagos,1886,1906,colony,200,4781
+Laos,1893,1896,colony,220,812
+Laos,1896,1954,colony,220,812
+Lebanon,1920,1944,mandate,220,660
+Lebanon,1920,1920,occupied,220,660
+Lesotho,1886,1966,colony,200,570
+Libya,1912,1919,colony,325,620
+Libya,1919,1925,colony,325,620
+Libya,1925,1934,colony,325,620
+Libya,1934,1943,colony,325,620
+Libya,1943,1949,occupied,200,620
+Libya,1949,1951,mandate,200,620
+Madagascar (Malagasy),1896,1912,colony,220,580
+Madagascar (Malagasy),1912,1946,colony,220,580
+Madagascar (Malagasy),1946,1960,colony,220,580
+Malawi,1891,1953,protectorate,200,553
+Malawi,1964,1964,protectorate,200,553
+Malaysia,1946,1957,colony,200,820
+Maldives,1887,1965,protectorate,200,781
+Mali,1905,1913,colony,220,432
+Mali,1913,1919,colony,220,432
+Mali,1919,1932,colony,220,432
+Mali,1932,1944,colony,220,432
+Mali,1944,1947,colony,220,432
+Mali,1947,1959,colony,220,432
+Mali,1959,1960,colony,220,432
+Mali,1960,1960,colony,220,432
+Malta,1886,1964,colony,200,338
+Martinique,1886,2019,colony,220,66
+Mauritania,1904,1904,protectorate,220,435
+Mauritania,1904,1912,protectorate,220,435
+Mauritania,1912,1913,protectorate,220,435
+Mauritania,1913,1920,protectorate,220,435
+Mauritania,1920,1944,colony,220,435
+Mauritania,1944,1960,colony,220,435
+Mauritius,1886,1968,colony,200,590
+Montenegro,1915,1918,occupied,300,341
+Morocco,1904,1904,N/A,600,600
+Morocco,1904,1912,N/A,600,600
+Morocco,1912,1956,protectorate,220,600
+Mozambique,1886,1891,colony,235,541
+Mozambique,1891,1975,colony,235,541
+Myanmar (Burma),1937,1948,colony,200,775
+Namibia,1886,1886,colony,255,565
+Namibia,1886,1915,colony,255,565
+Namibia,1915,1920,occupied,560,565
+Namibia,1920,1966,mandate,560,565
+Namibia,1966,1990,colony,560,565
+Natal,1886,1895,colony,200,562
+Natal,1895,1910,colony,200,562
+New Caledonia and Dependencies,1886,2019,colony,220,930
+New Guinea (German New Guinea) (Kaiser Wilhelmsland),1886,1890,colony,255,912
+New Guinea (German New Guinea) (Kaiser Wilhelmsland),1891,1899,colony,255,912
+New Guinea (German New Guinea) (Kaiser Wilhelmsland),1900,1909,colony,255,912
+New Guinea (German New Guinea) (Kaiser Wilhelmsland),1910,1914,colony,255,912
+New Guinea (German New Guinea) (Kaiser Wilhelmsland),1914,1920,occupied,900,912
+New Guinea (German New Guinea) (Kaiser Wilhelmsland),1920,1949,mandate,900,912
+New South Wales,1886,1900,colony,200,901
+New Zealand,1886,1907,colony,200,920
+Newfoundland,1886,1948,colony,200,21
+Niger,1905,1926,colony,220,436
+Niger,1926,1932,colony,220,436
+Niger,1932,1947,colony,220,436
+Niger,1947,1960,colony,220,436
+Nigeria,1914,1960,colony,200,475
+Northeastern Rhodesia,1900,1911,colony,200,5518
+Northern Nigeria,1899,1902,protectorate,200,4784
+Northern Nigeria,1903,1904,protectorate,200,4784
+Northern Nigeria,1904,1913,protectorate,200,4784
+Northwestern Rhodesia,1900,1905,colony,200,5519
+Northwestern Rhodesia,1905,1911,colony,200,5519
+Oil Rivers Protectorate,1886,1898,protectorate,200,4782
+Pahang,1888,1896,colony,200,8203
+Palestine,1920,1920,occupied,200,665
+Palestine,1920,1923,occupied,200,665
+Palestine,1923,1948,mandate,200,665
+Papua,1886,1887,protectorate,200,911
+Papua,1888,1905,colony,200,911
+Papua,1905,1920,colony,200,911
+Papua,1920,1949,colony,900,911
+Papua New Guinea,1949,1975,mandate,900,910
+Perak,1886,1896,colony,200,8201
+Philippines,1886,1898,colony,230,840
+Philippines,1898,1946,colony,2,840
+Puerto Rico,1886,1898,colony,230,6
+Puerto Rico,1898,2019,colony,2,6
+Qatar,1916,1971,protectorate,200,694
+Queensland,1886,1900,colony,200,905
+Reunion,1886,2019,colony,220,585
+Rwanda-Urundi,1920,1922,mandate,211,515
+Rwanda-Urundi,1922,1962,mandate,211,515
+Sabah (North Borneo),1888,1889,protectorate,200,823
+Sabah (North Borneo),1889,1946,protectorate,200,823
+Sabah (North Borneo),1946,1963,colony,200,823
+Sarawak,1888,1889,protectorate,200,824
+Sarawak,1889,1946,protectorate,200,824
+Sarawak,1946,1963,colony,200,824
+Selangore,1886,1896,colony,200,8202
+Senegal,1886,1959,colony,220,433
+Serbia,1915,1918,occupied,300,340
+Sierra Leone,1886,1889,colony,200,451
+Sierra Leone,1889,1895,colony,200,451
+Sierra Leone,1895,1961,colony,200,451
+Singapore,1946,1962,colony,200,830
+Solomon Islands,1893,1899,protectorate,200,940
+Solomon Islands,1899,1951,protectorate,200,940
+Solomon Islands,1952,1978,protectorate,200,940
+South Australia,1886,1900,colony,200,903
+Southern Nigeria,1899,1906,protectorate,200,4783
+Southern Nigeria,1906,1913,protectorate,200,4783
+Southern Sakhalin Island,1905,1945,colony,740,7351
+Southern zone of Spanish Morocco,1956,1958,protectorate,230,6021
+Spanish Morocco,1912,1956,protectorate,230,602
+Spanish Sahara,1958,1975,colony,230,609
+Spanish West Africa,1886,1900,protectorate,230,610
+Spanish West Africa,1900,1912,protectorate,230,610
+Spanish West Africa,1912,1958,protectorate,230,610
+Sri Lanka (Ceylon),1886,1948,colony,200,780
+Straits Settlements,1886,1946,colony,200,827
+Sudan,1899,1902,colony,200,625
+Sudan,1902,1910,colony,200,625
+Sudan,1910,1914,colony,200,625
+Sudan,1914,1934,colony,200,625
+Sudan,1934,1955,colony,200,625
+Surinam,1886,1954,colony,210,115
+Surinam,1954,1975,colony,210,115
+Swaziland (Eswatini),1895,1902,colony,563,572
+Swaziland (Eswatini),1902,1968,colony,200,572
+Syria,1920,1922,mandate,220,652
+Syria,1920,1920,occupied,220,652
+Syria,1922,1945,mandate,220,652
+Taiwan,1895,1945,colony,740,713
+Tanzania (Tanganyika),1891,1916,colony,255,510
+Tanzania (Tanganyika),1916,1919,occupied,200,510
+Tanzania (Tanganyika),1919,1920,occupied,200,510
+Tanzania (Tanganyika),1920,1922,occupied,200,510
+Tanzania (Tanganyika),1922,1961,mandate,200,510
+Tasmania,1886,1900,colony,200,906
+Togo,1922,1960,mandate,220,461
+Trinidad and Tobago,1886,1962,colony,200,52
+Tunisia,1886,1955,protectorate,220,616
+Uganda,1894,1902,protectorate,200,500
+Uganda,1902,1910,protectorate,200,500
+Uganda,1910,1914,protectorate,200,500
+Uganda,1914,1926,protectorate,200,500
+Uganda,1926,1962,protectorate,200,500
+Unfederated Malay States,1886,1909,protectorate,200,822
+Unfederated Malay States,1909,1946,protectorate,200,822
+United Arab Emirates,1892,1913,protectorate,200,696
+United Arab Emirates,1913,1971,protectorate,200,696
+Victoria,1886,1900,colony,200,904
+Vietnam (Annam/Cochin China/Tonkin),1893,1893,colony,220,815
+Vietnam (Annam/Cochin China/Tonkin),1893,1954,colony,220,815
+West Bank,1948,1967,occupied,663,6631
+West Irian (Dutch New Guinea),1949,1962,colony,210,851
+West Irian (Dutch New Guinea),1962,1963,protectorate,1,851
+West Irian (Dutch New Guinea),1963,1969,occupied,850,851
+Western Australia,1886,1900,colony,200,902
+Zambia,1911,1953,colony,200,551
+Zanzibar,1890,1895,occupied,200,511
+Zanzibar,1895,1963,protectorate,200,511
+Zimbabwe (Rhodesia),1889,1891,colony,200,552
+Zimbabwe (Rhodesia),1891,1900,colony,200,552
+Zimbabwe (Rhodesia),1900,1953,colony,200,552
+Zimbabwe (Rhodesia),1964,1965,colony,200,552

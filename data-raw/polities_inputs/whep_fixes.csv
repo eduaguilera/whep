@@ -18,3 +18,59 @@ Ukraine,2014,2025,"CShapes starts present-day Ukraine in 2014 because of last te
 Manchukuo,1932,1945,"Manchukuo (Japanese puppet state in Manchuria) dissolved with Japanese surrender in August 1945. Federico Tena has NA end year defaulting to 2025, but the polity ceased to exist in 1945."
 Ionian islands,1815,1864,"Federico Tena has end_year=1862 but this is incorrect. The Treaty of London was signed November 14 1863 and the handover to Greece occurred May 28 1864. The year 1862 does not correspond to any known event. FT notes themselves say 1864-1938 Greece confirming the inconsistency."
 Kokand,NA,1876,"Federico Tena has end_year=1883 but the Khanate of Kokand was formally dissolved by the Russian Empire on February 19 1876 and incorporated into Russian Turkestan as Fergana Oblast. The 1883 date in FT is incorrect by 7 years."
+Cameroon (1960-1961),1960,1961,Previously a distinct CShapes period. CShapes 2.0 with dependencies=TRUE merges this into the broader 1919-1961 period. Keeping as distinct WHEP polity for backward compatibility.
+Egypt (1922-1925),1922,1925,Previously a distinct CShapes period. CShapes 2.0 with dependencies=TRUE merges this into the broader 1899-1925 period. Keeping as distinct WHEP polity for backward compatibility.
+Indonesia (1945-1949),1945,1949,Previously a distinct CShapes period. CShapes 2.0 with dependencies=TRUE merges this into the broader 1889-1949 period. Keeping as distinct WHEP polity for backward compatibility.
+Malaysia (1957-1963),1957,1963,Previously a distinct CShapes period. CShapes 2.0 with dependencies=TRUE merges this into the broader 1946-1963 period. Keeping as distinct WHEP polity for backward compatibility.
+Mauritania (1960-1975),1960,1975,Previously a distinct CShapes period. CShapes 2.0 with dependencies=TRUE merges this into the broader 1944-1975 period. Keeping as distinct WHEP polity for backward compatibility.
+Montenegro (1913-1915),1913,1915,Previously a distinct CShapes period. CShapes 2.0 with dependencies=TRUE merges this into the broader 1913-1918 period. Keeping as distinct WHEP polity for backward compatibility.
+Nigeria (1960-1961),1960,1961,Previously a distinct CShapes period. CShapes 2.0 with dependencies=TRUE merges this into the broader 1914-1961 period. Keeping as distinct WHEP polity for backward compatibility.
+Serbia (1913-1915),1913,1915,Previously a distinct CShapes period. CShapes 2.0 with dependencies=TRUE merges this into the broader 1913-1918 period. Keeping as distinct WHEP polity for backward compatibility.
+Sudan (1956-2011),1956,2011,Previously a distinct CShapes period. CShapes 2.0 with dependencies=TRUE merges this into the broader 1934-2011 period. Keeping as distinct WHEP polity for backward compatibility.
+Syrian Arab Republic (1946-1967),1946,1967,Previously a distinct CShapes period. CShapes 2.0 with dependencies=TRUE merges this into the broader 1920-1967 period. Keeping as distinct WHEP polity for backward compatibility.
+Tanzania (1961-1964),1961,1964,Previously a distinct CShapes period. CShapes 2.0 with dependencies=TRUE merges this into the broader 1922-1964 period. Keeping as distinct WHEP polity for backward compatibility.
+Afghanistan,1919,NA,"CShapes dependencies=TRUE merges pre-independence period into modern territory. Fix start to match actual independence year."
+Afghanistan (to 1888),NA,1888,"Federico Tena entry has no end year. Fix to 1888 per CShapes boundary."
+Benin,1960,NA,"CShapes dependencies=TRUE merges colonial period (from 1898) with independence. Fix start to 1960."
+Botswana,1966,NA,"CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1966."
+Burkina Faso,1960,NA,"CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1960."
+Cambodia,1953,NA,"CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1953."
+Central African Republic,1960,NA,"CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1960."
+Chad,1960,NA,"CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1960."
+Comoros,1975,NA,"CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1975."
+Congo,1960,NA,"CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1960."
+Czechoslovakia (1947-1993),1947,1993,"CShapes dependencies=TRUE shifts start. Fix to 1947-1993."
+Côte d'Ivoire,1960,NA,"CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1960."
+Democratic Republic of the Congo,1960,NA,"CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1960."
+Djibouti,1977,NA,"CShapes dependencies=TRUE adds pre-independence territory. Fix start to 1977."
+East Germany,1949,1990,"CShapes has GDR from 1945 (occupation zone) but formal GDR established 1949. Fix start to 1949."
+Equatorial Guinea,1968,NA,"CShapes dependencies=TRUE adds pre-independence territory. Fix start to 1968."
+French Polynesia,NA,NA,"CShapes dependencies=TRUE starts from 1903. Fix start to default (1800) to match existing polity_code."
+Gabon,1960,NA,"CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1960."
+Ghana,1957,NA,"CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1957."
+Guinea,1958,NA,"CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1958."
+Iraq,1921,NA,"CShapes dependencies=TRUE merges mandate period with independence. Fix start to 1921."
+Kenya,1963,NA,"CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1963."
+Korea (to 1910),NA,1910,"Federico Tena entry has no end year. Fix to 1910 per historical boundary."
+Laos,1954,NA,"CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1954."
+Lebanon,1944,NA,"CShapes dependencies=TRUE merges mandate period with independence. Fix start to 1944."
+Lesotho,1966,NA,"CShapes dependencies=TRUE adds pre-independence territory. Fix start to 1966."
+Libya,1951,NA,"CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1951."
+Malawi,1964,NA,"CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1964."
+Morocco (to 1958),1911,1958,"CShapes dependencies=TRUE adds protectorate period. Fix end to 1958 per historical boundary."
+New Zealand,1907,NA,"CShapes dependencies=TRUE adds pre-dominion territory. Fix start to 1907."
+Niger,1960,NA,"CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1960."
+North Korea,1948,NA,"CShapes has DPRK from 1945 (occupation). Fix start to 1948 (formal establishment)."
+Papua New Guinea,1975,NA,"CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1975."
+Senegal,1960,NA,"CShapes dependencies=TRUE adds pre-independence territory. Fix start to 1960."
+Serbia (1816-1913),1816,1913,"Federico Tena entry has no end year. Fix to 1913 per CShapes territory change."
+Singapore,1965,NA,"CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1965."
+South Korea,1948,NA,"CShapes has ROK from 1945 (occupation). Fix start to 1948 (formal establishment)."
+Suriname,1975,NA,"CShapes dependencies=TRUE adds pre-independence territory. Fix start to 1975."
+Taiwan,1896,NA,"CShapes has Taiwan from 1895 (Treaty of Shimonoseki signed April). Fix start to 1896 (formal Japanese governance)."
+Togo,1960,NA,"CShapes dependencies=TRUE merges mandate/trusteeship period with independence. Fix start to 1960."
+Uganda,1962,NA,"CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1962."
+United Arab Emirates,1971,NA,"CShapes dependencies=TRUE adds pre-independence trucial states period. Fix start to 1971."
+West Germany,1949,1990,"CShapes has FRG from 1945 (occupation zone) but formal FRG established 1949. Fix start to 1949."
+Zambia,1964,NA,"CShapes dependencies=TRUE merges colonial period with independence. Fix start to 1964."
+Zanzibar,NA,1964,"Federico Tena entry has no end year. Fix to 1964 (merger with Tanganyika to form Tanzania)."
