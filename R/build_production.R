@@ -41,8 +41,13 @@ build_primary_production <- function(
     .fix_production() |>
     .qc_production(smooth = smooth_carry_forward) |>
     dplyr::select(
-      year, area_code, item_prod_code, item_cbs_code,
-      live_anim_code, unit, value
+      year,
+      area_code,
+      item_prod_code,
+      item_cbs_code,
+      live_anim_code,
+      unit,
+      value
     )
 
   attr(result, ".cb_extracts") <- cb_extracts
@@ -273,34 +278,51 @@ build_primary_production <- function(
     fill = TRUE
   )
   dt <- dt[element == "production"]
-  dt <- dt[
-    , .(t_cbs = mean(value, na.rm = TRUE)),
+  dt <- dt[,
+    .(t_cbs = mean(value, na.rm = TRUE)),
     by = c("area", "area_code", "year", "item_cbs", "item_cbs_code", "element")
   ]
   dt <- dt[, .(year, area_code, item_cbs_code, item_cbs, t_cbs)]
 
   # Attach CB extracts so CBS build can reuse them
   attr(dt, ".cb_extracts") <- list(
-    fbs_new = fbs_new, fbs_old = fbs_old,
-    cbs_crops = cbs_crops, cbs_animals = cbs_anim
+    fbs_new = fbs_new,
+    fbs_old = fbs_old,
+    cbs_crops = cbs_crops,
+    cbs_animals = cbs_anim
   )
   dt
 }
 
 .read_fao_crop_liv <- function(years = NULL) {
   cli::cli_progress_step("Reading FAO crops/livestock")
-  dt <- .read_input("faostat-production",
-                           years = years, year_col = "Year")
+  dt <- .read_input("faostat-production", years = years, year_col = "Year")
   data.table::setnames(
     dt,
     c("Item Code", "Item", "Area Code", "Unit", "Element", "Year", "Value"),
-    c("item_prod_code", "item_prod", "area_code", "unit", "element", "year", "value")
+    c(
+      "item_prod_code",
+      "item_prod",
+      "area_code",
+      "unit",
+      "element",
+      "year",
+      "value"
+    )
   )
   dt[, item_prod_code := as.character(item_prod_code)]
   dt <- .aggregate_to_polities(dt, item_prod_code, item_prod)
   data.table::setorderv(
     dt,
-    c("year", "area", "area_code", "item_prod_code", "item_prod", "element", "unit")
+    c(
+      "year",
+      "area",
+      "area_code",
+      "item_prod_code",
+      "item_prod",
+      "element",
+      "unit"
+    )
   )
   dt
 }
@@ -308,13 +330,13 @@ build_primary_production <- function(
 .read_land_areas <- function(years = NULL) {
   cli::cli_progress_step("Reading land areas")
   regions <- unique(
-    data.table::as.data.table(whep::regions_full)[
-      , .(iso3c, area = polity_name, polity_code)
+    data.table::as.data.table(whep::regions_full)[,
+      .(iso3c, area = polity_name, polity_code)
     ],
     by = "iso3c"
   )
-  polities <- data.table::as.data.table(whep::polities)[
-    , .(iso3c, area_code)
+  polities <- data.table::as.data.table(whep::polities)[,
+    .(iso3c, area_code)
   ]
 
   dt <- .read_input("luh2-areas", years = years, year_col = "Year")
@@ -328,12 +350,11 @@ build_primary_production <- function(
 
 .read_int_yields <- function(years = NULL) {
   cli::cli_progress_step("Reading international yields")
-  regions <- data.table::as.data.table(whep::regions_full)[
-    , .(code, polity_name)
+  regions <- data.table::as.data.table(whep::regions_full)[,
+    .(code, polity_name)
   ]
 
-  dt <- .read_input("international-yields",
-                           years = years, year_col = "year")
+  dt <- .read_input("international-yields", years = years, year_col = "year")
   dt[, item_prod_code := as.character(item_code)]
   data.table::setnames(dt, "area_code", "code")
   dt[, item_code := NULL]
@@ -343,8 +364,8 @@ build_primary_production <- function(
   ]
   dt <- merge(dt, regions, by = "code", all.x = TRUE)
   data.table::setnames(dt, "polity_name", "area")
-  dt <- dt[
-    , .(yield = mean(yield, na.rm = TRUE)),
+  dt <- dt[,
+    .(yield = mean(yield, na.rm = TRUE)),
     by = c("year", "area", "item_prod_code")
   ]
   dt <- dt[!is.nan(yield)]
@@ -388,19 +409,30 @@ build_primary_production <- function(
   items_prod <- data.table::as.data.table(whep::items_prod_full)
   items <- data.table::as.data.table(whep::items_full)
 
-  dt <- .read_input("faostat-production-old",
-                               years = years, year_col = "Year")
-  data.table::setnames(dt,
+  dt <- .read_input("faostat-production-old", years = years, year_col = "Year")
+  data.table::setnames(
+    dt,
     c("AreaCode", "ItemCode", "ItemName", "Year", "Value"),
     c("area_code", "item_prod_code", "item_prod", "year", "value")
   )
-  dt[, `:=`(element = "production", unit = "t",
-            item_prod_code = as.character(item_prod_code))]
+  dt[, `:=`(
+    element = "production",
+    unit = "t",
+    item_prod_code = as.character(item_prod_code)
+  )]
   dt <- .aggregate_to_polities(dt, item_prod_code, item_prod)
-  dt <- merge(dt, items_prod[, .(item_prod_code, item_cbs)],
-              by = "item_prod_code", all.x = TRUE)
-  dt <- merge(dt, unique(items[, .(item_cbs, Cat_1)]),
-              by = "item_cbs", all.x = TRUE)
+  dt <- merge(
+    dt,
+    items_prod[, .(item_prod_code, item_cbs)],
+    by = "item_prod_code",
+    all.x = TRUE
+  )
+  dt <- merge(
+    dt,
+    unique(items[, .(item_cbs, Cat_1)]),
+    by = "item_cbs",
+    all.x = TRUE
+  )
   dt[Cat_1 == "Fodder_green"]
 }
 
@@ -410,8 +442,7 @@ build_primary_production <- function(
 
   polities <- whep::polities
 
-  .read_input("eu-agridb-fodder",
-                         years = years, year_col = "Year") |>
+  .read_input("eu-agridb-fodder", years = years, year_col = "Year") |>
     dplyr::rename(year = Year) |>
     dplyr::left_join(crops_eu, by = "Crop") |>
     dplyr::rename(adb_region = Region) |>
@@ -737,11 +768,23 @@ build_primary_production <- function(
 }
 
 .read_livestock_stocks <- function(years = NULL) {
-  dt <- .read_input("faostat-emissions-livestock",
-                               years = years, year_col = "Year")
-  data.table::setnames(dt,
+  dt <- .read_input(
+    "faostat-emissions-livestock",
+    years = years,
+    year_col = "Year"
+  )
+  data.table::setnames(
+    dt,
     c("Item Code", "Item", "Area Code", "Unit", "Element", "Year", "Value"),
-    c("item_cbs_code", "item_cbs", "area_code", "unit", "element", "year", "value")
+    c(
+      "item_cbs_code",
+      "item_cbs",
+      "area_code",
+      "unit",
+      "element",
+      "year",
+      "value"
+    )
   )
   dt <- dt[element == "Stocks" & Source == "FAO TIER 1"]
   .aggregate_to_polities(dt, item_cbs_code, item_cbs)
@@ -1223,23 +1266,33 @@ build_primary_production <- function(
 }
 
 .collapse_yield_rows <- function(df) {
-  if (!data.table::is.data.table(df)) data.table::setDT(df)
+  if (!data.table::is.data.table(df)) {
+    data.table::setDT(df)
+  }
 
   df[, `:=`(.t_ok = as.double(!is.na(t)), .fu_ok = as.double(!is.na(fu)))]
 
   by_cols <- c(
-    "year", "area", "area_code", "item_prod", "item_prod_code",
-    "live_anim_code", "unit"
+    "year",
+    "area",
+    "area_code",
+    "item_prod",
+    "item_prod_code",
+    "live_anim_code",
+    "unit"
   )
 
   # GForce-optimized numeric aggregation
-  out <- df[, .(
-    t = sum(t, na.rm = TRUE),
-    .t_n = sum(.t_ok),
-    fu = sum(fu, na.rm = TRUE),
-    .fu_n = sum(.fu_ok),
-    yield_c = mean(yield_c, na.rm = TRUE)
-  ), keyby = by_cols]
+  out <- df[,
+    .(
+      t = sum(t, na.rm = TRUE),
+      .t_n = sum(.t_ok),
+      fu = sum(fu, na.rm = TRUE),
+      .fu_n = sum(.fu_ok),
+      yield_c = mean(yield_c, na.rm = TRUE)
+    ),
+    keyby = by_cols
+  ]
 
   out[.t_n == 0, t := NA_real_]
   out[.fu_n == 0, fu := NA_real_]
@@ -1248,9 +1301,15 @@ build_primary_production <- function(
 
   # Character columns: vectorised first-non-NA via unique()
   # (avoids per-group R expression evaluation)
-  chars <- .first_non_na_chars(df, by_cols, c(
-    "source", "Multi_type", "live_anim"
-  ))
+  chars <- .first_non_na_chars(
+    df,
+    by_cols,
+    c(
+      "source",
+      "Multi_type",
+      "live_anim"
+    )
+  )
 
   out <- out[chars]
   df[, c(".t_ok", ".fu_ok") := NULL]
@@ -1258,11 +1317,12 @@ build_primary_production <- function(
 }
 
 .add_global_yields <- function(df) {
-  if (!data.table::is.data.table(df)) data.table::setDT(df)
+  if (!data.table::is.data.table(df)) {
+    data.table::setDT(df)
+  }
   dt <- df
 
-  global <- dt[
-    ,
+  global <- dt[,
     .(
       t = sum(t, na.rm = TRUE),
       fu = sum(fu, na.rm = TRUE)
@@ -1282,7 +1342,9 @@ build_primary_production <- function(
     time_col = year,
     .by = c("item_prod_code", "live_anim_code", "unit")
   )
-  if (!data.table::is.data.table(global)) data.table::setDT(global)
+  if (!data.table::is.data.table(global)) {
+    data.table::setDT(global)
+  }
   global <- global[, .(year, item_prod_code, live_anim_code, unit, yield_glo)]
 
   merge(
@@ -1299,11 +1361,14 @@ build_primary_production <- function(
   } else {
     data.table::setalloccol(df)
   }
-  df[, `:=`(
-    prod_cbs_ratio = t / t_cbs,
-    prod_cbs_count = .N,
-    sumprod_cbs_ratio = sum(t, na.rm = TRUE) / t_cbs[1L]
-  ), by = c("year", "area", "area_code", "item_cbs_code")]
+  df[,
+    `:=`(
+      prod_cbs_ratio = t / t_cbs,
+      prod_cbs_count = .N,
+      sumprod_cbs_ratio = sum(t, na.rm = TRUE) / t_cbs[1L]
+    ),
+    by = c("year", "area", "area_code", "item_cbs_code")
+  ]
 
   df |>
     .collapse_cbs_ratio_rows() |>
@@ -1326,28 +1391,41 @@ build_primary_production <- function(
 }
 
 .collapse_cbs_ratio_rows <- function(df) {
-  if (!data.table::is.data.table(df)) data.table::setDT(df)
+  if (!data.table::is.data.table(df)) {
+    data.table::setDT(df)
+  }
 
   df[, .tcbs_ok := as.double(!is.na(t_cbs))]
 
   by_cols <- c(
-    "year", "area", "area_code", "item_prod", "item_prod_code",
-    "item_cbs", "item_cbs_code", "live_anim", "live_anim_code",
-    "unit", "group"
+    "year",
+    "area",
+    "area_code",
+    "item_prod",
+    "item_prod_code",
+    "item_cbs",
+    "item_cbs_code",
+    "live_anim",
+    "live_anim_code",
+    "unit",
+    "group"
   )
 
   # GForce-optimized numeric aggregation
-  out <- df[, .(
-    t = sum(t, na.rm = TRUE),
-    fu = sum(fu, na.rm = TRUE),
-    yield_c = mean(yield_c, na.rm = TRUE),
-    yield_glo = mean(yield_glo, na.rm = TRUE),
-    t_cbs = sum(t_cbs, na.rm = TRUE),
-    .tcbs_n = sum(.tcbs_ok),
-    prod_cbs_ratio = mean(prod_cbs_ratio, na.rm = TRUE),
-    prod_cbs_count = mean(prod_cbs_count, na.rm = TRUE),
-    sumprod_cbs_ratio = mean(sumprod_cbs_ratio, na.rm = TRUE)
-  ), keyby = by_cols]
+  out <- df[,
+    .(
+      t = sum(t, na.rm = TRUE),
+      fu = sum(fu, na.rm = TRUE),
+      yield_c = mean(yield_c, na.rm = TRUE),
+      yield_glo = mean(yield_glo, na.rm = TRUE),
+      t_cbs = sum(t_cbs, na.rm = TRUE),
+      .tcbs_n = sum(.tcbs_ok),
+      prod_cbs_ratio = mean(prod_cbs_ratio, na.rm = TRUE),
+      prod_cbs_count = mean(prod_cbs_count, na.rm = TRUE),
+      sumprod_cbs_ratio = mean(sumprod_cbs_ratio, na.rm = TRUE)
+    ),
+    keyby = by_cols
+  ]
 
   out[.tcbs_n == 0, t_cbs := NA_real_]
   out[is.nan(yield_c), yield_c := NA_real_]
@@ -1357,9 +1435,14 @@ build_primary_production <- function(
   out[, .tcbs_n := NULL]
 
   # Character columns: vectorised first-non-NA via unique()
-  chars <- .first_non_na_chars(df, by_cols, c(
-    "source", "Multi_type"
-  ))
+  chars <- .first_non_na_chars(
+    df,
+    by_cols,
+    c(
+      "source",
+      "Multi_type"
+    )
+  )
 
   out <- out[chars]
   df[, .tcbs_ok := NULL]
@@ -1750,7 +1833,12 @@ build_primary_production <- function(
   keys_dt <- unique(dt[, id_cols, with = FALSE])
   years_dt[, .cross_key := 1L]
   keys_dt[, .cross_key := 1L]
-  skeleton <- merge(years_dt, keys_dt, by = ".cross_key", allow.cartesian = TRUE)
+  skeleton <- merge(
+    years_dt,
+    keys_dt,
+    by = ".cross_key",
+    allow.cartesian = TRUE
+  )
   skeleton[, .cross_key := NULL]
 
   merge(
@@ -1801,7 +1889,9 @@ build_primary_production <- function(
   cli::cli_progress_step("Adding historical yields")
   # Capture source per key (take the source from tonnes/t rows as
   # the primary source indicator)
-  if (!data.table::is.data.table(df)) data.table::setDT(df)
+  if (!data.table::is.data.table(df)) {
+    data.table::setDT(df)
+  }
 
   src_lookup <- df[
     unit %in% c("tonnes", "t"),
@@ -1811,8 +1901,7 @@ build_primary_production <- function(
     by = c("year", "area", "area_code", "item_prod", "item_prod_code")
   ]
 
-  agg <- df[
-    ,
+  agg <- df[,
     .(value = sum(value, na.rm = TRUE)),
     by = c(
       "year",
@@ -1831,8 +1920,17 @@ build_primary_production <- function(
 
   wide <- data.table::dcast(
     agg,
-    year + area + area_code + item_prod + item_prod_code + item_cbs +
-      item_cbs_code + land_use + live_anim + live_anim_code ~ unit,
+    year +
+      area +
+      area_code +
+      item_prod +
+      item_prod_code +
+      item_cbs +
+      item_cbs_code +
+      land_use +
+      live_anim +
+      live_anim_code ~
+      unit,
     value.var = "value"
   )
 
@@ -1844,8 +1942,11 @@ build_primary_production <- function(
   )
   wide <- merge(
     wide,
-    if (data.table::is.data.table(int_yields)) int_yields
-    else data.table::as.data.table(int_yields),
+    if (data.table::is.data.table(int_yields)) {
+      int_yields
+    } else {
+      data.table::as.data.table(int_yields)
+    },
     by = c("year", "area", "item_prod_code"),
     all.x = TRUE
   )
@@ -1861,7 +1962,9 @@ build_primary_production <- function(
     .by = c("area", "item_prod"),
     verbose = FALSE
   )
-  if (!data.table::is.data.table(wide)) data.table::setDT(wide)
+  if (!data.table::is.data.table(wide)) {
+    data.table::setDT(wide)
+  }
   wide[, t_ha := data.table::fifelse(!is.na(t_ha), t_ha, t_ha_raw)]
   wide[, tonnes := data.table::fifelse(!is.na(ha), ha * t_ha, tonnes)]
   wide
@@ -1900,9 +2003,11 @@ build_primary_production <- function(
 .finalise_primary <- function(df) {
   force(df)
   cli::cli_progress_step("Finalising primary production")
-  if (!data.table::is.data.table(df)) data.table::setDT(df)
-  dt <- df[
-    , .(
+  if (!data.table::is.data.table(df)) {
+    data.table::setDT(df)
+  }
+  dt <- df[,
+    .(
       year,
       area,
       area_code,
@@ -1932,8 +2037,7 @@ build_primary_production <- function(
 
   long <- long[value != 0 & !is.na(value)]
 
-  out <- long[
-    ,
+  out <- long[,
     .(
       value = mean(value, na.rm = TRUE),
       source = source[1L]

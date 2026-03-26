@@ -123,9 +123,16 @@ fill_linear <- function(
   if (use_smoothing) {
     # Smoothing requires per-group evaluation; fall back to by= path.
     return(.fill_linear_by_group(
-      data, value_col_name, time_col_name, source_col_name,
-      by_cols, interpolate, fill_forward, fill_backward,
-      value_smooth_window, is_dt
+      data,
+      value_col_name,
+      time_col_name,
+      source_col_name,
+      by_cols,
+      interpolate,
+      fill_forward,
+      fill_backward,
+      value_smooth_window,
+      is_dt
     ))
   }
 
@@ -166,10 +173,16 @@ fill_linear <- function(
   # Interpolation (NAs with valid values both before and after in group)
   if (interpolate) {
     time_valid <- data.table::fifelse(!is_na, tm, NA_real_)
-    tl <- data.table::fifelse(locf_ok,
-      data.table::nafill(time_valid, "locf"), NA_real_)
-    tn <- data.table::fifelse(nocb_ok,
-      data.table::nafill(time_valid, "nocb"), NA_real_)
+    tl <- data.table::fifelse(
+      locf_ok,
+      data.table::nafill(time_valid, "locf"),
+      NA_real_
+    )
+    tn <- data.table::fifelse(
+      nocb_ok,
+      data.table::nafill(time_valid, "nocb"),
+      NA_real_
+    )
     denom <- tn - tl
     frac <- data.table::fifelse(
       !is.na(denom) & denom != 0,
@@ -199,15 +212,24 @@ fill_linear <- function(
   data.table::set(dt, j = value_col_name, value = filled)
   data.table::set(dt, j = source_col_name, value = source)
   data.table::setcolorder(dt, names(data))
-  if (!is_dt) dt <- tibble::as_tibble(dt)
+  if (!is_dt) {
+    dt <- tibble::as_tibble(dt)
+  }
   dt
 }
 
 # Fallback grouped path for smoothing case (rare).
 .fill_linear_by_group <- function(
-  data, value_col_name, time_col_name, source_col_name,
-  by_cols, interpolate, fill_forward, fill_backward,
-  value_smooth_window, is_dt
+  data,
+  value_col_name,
+  time_col_name,
+  source_col_name,
+  by_cols,
+  interpolate,
+  fill_forward,
+  fill_backward,
+  value_smooth_window,
+  is_dt
 ) {
   dt <- if (is_dt) data.table::copy(data) else data.table::as.data.table(data)
   sort_cols <- c(by_cols, time_col_name)
@@ -215,48 +237,61 @@ fill_linear <- function(
     data.table::setkeyv(dt, sort_cols)
   }
 
-  dt[, c(value_col_name, source_col_name) := {
-    v <- .SD[[1L]]
-    tm <- .SD[[2L]]
-    m <- .N
-    src <- rep("Original", m)
-    filled <- v
-    nna <- is.na(v)
+  dt[,
+    c(value_col_name, source_col_name) := {
+      v <- .SD[[1L]]
+      tm <- .SD[[2L]]
+      m <- .N
+      src <- rep("Original", m)
+      filled <- v
+      nna <- is.na(v)
 
-    if (any(nna) && !all(nna)) {
-      sv <- zoo::rollmean(v, k = value_smooth_window, fill = NA, align = "center")
-      valid <- which(!is.na(sv))
-      first_v <- valid[1L]
-      last_v <- valid[length(valid)]
+      if (any(nna) && !all(nna)) {
+        sv <- zoo::rollmean(
+          v,
+          k = value_smooth_window,
+          fill = NA,
+          align = "center"
+        )
+        valid <- which(!is.na(sv))
+        first_v <- valid[1L]
+        last_v <- valid[length(valid)]
 
-      if (interpolate && length(valid) >= 2L && first_v < last_v) {
-        interp <- .safe_na_approx(sv, x = tm, na.rm = FALSE)
-        if (length(interp) == m) {
-          mask <- nna & !is.na(interp) &
-            seq_len(m) > first_v & seq_len(m) < last_v
-          filled[mask] <- interp[mask]
-          src[mask] <- "Linear interpolation"
+        if (interpolate && length(valid) >= 2L && first_v < last_v) {
+          interp <- .safe_na_approx(sv, x = tm, na.rm = FALSE)
+          if (length(interp) == m) {
+            mask <- nna &
+              !is.na(interp) &
+              seq_len(m) > first_v &
+              seq_len(m) < last_v
+            filled[mask] <- interp[mask]
+            src[mask] <- "Linear interpolation"
+          }
         }
+        if (fill_backward && first_v > 1L) {
+          mask <- nna & seq_len(m) < first_v
+          filled[mask] <- sv[first_v]
+          src[mask] <- "First value carried backwards"
+        }
+        if (fill_forward && last_v < m) {
+          mask <- nna & seq_len(m) > last_v
+          filled[mask] <- sv[last_v]
+          src[mask] <- "Last value carried forward"
+        }
+        src[is.na(filled)] <- "Gap not filled"
+      } else if (all(nna)) {
+        src[] <- "Gap not filled"
       }
-      if (fill_backward && first_v > 1L) {
-        mask <- nna & seq_len(m) < first_v
-        filled[mask] <- sv[first_v]
-        src[mask] <- "First value carried backwards"
-      }
-      if (fill_forward && last_v < m) {
-        mask <- nna & seq_len(m) > last_v
-        filled[mask] <- sv[last_v]
-        src[mask] <- "Last value carried forward"
-      }
-      src[is.na(filled)] <- "Gap not filled"
-    } else if (all(nna)) {
-      src[] <- "Gap not filled"
-    }
-    list(filled, src)
-  }, by = by_cols, .SDcols = c(value_col_name, time_col_name)]
+      list(filled, src)
+    },
+    by = by_cols,
+    .SDcols = c(value_col_name, time_col_name)
+  ]
 
   data.table::setcolorder(dt, names(data))
-  if (!is_dt) dt <- tibble::as_tibble(dt)
+  if (!is_dt) {
+    dt <- tibble::as_tibble(dt)
+  }
   dt
 }
 
@@ -427,22 +462,25 @@ fill_sum <- function(
 
   if (length(by_cols) > 0) {
     # Grouped computation
-    dt[, c(
-      value_col_name,
-      source_col_name
-    ) := {
-      v <- get(value_col_name)
-      ch <- get(change_col_name)
-      groups <- cumsum(!is.na(v))
-      prefilled <- data.table::fifelse(is.na(v), ch, v)
-      src <- data.table::fifelse(is.na(v), "Filled with sum", "Original")
-      filled <- ave(prefilled, groups, FUN = cumsum)
-      if (!start_with_zero) {
-        filled <- data.table::fifelse(groups == 0L, NA_real_, filled)
-      }
-      src <- data.table::fifelse(is.na(filled), NA_character_, src)
-      list(filled, src)
-    }, by = by_cols]
+    dt[,
+      c(
+        value_col_name,
+        source_col_name
+      ) := {
+        v <- get(value_col_name)
+        ch <- get(change_col_name)
+        groups <- cumsum(!is.na(v))
+        prefilled <- data.table::fifelse(is.na(v), ch, v)
+        src <- data.table::fifelse(is.na(v), "Filled with sum", "Original")
+        filled <- ave(prefilled, groups, FUN = cumsum)
+        if (!start_with_zero) {
+          filled <- data.table::fifelse(groups == 0L, NA_real_, filled)
+        }
+        src <- data.table::fifelse(is.na(filled), NA_character_, src)
+        list(filled, src)
+      },
+      by = by_cols
+    ]
   } else {
     # No grouping
     groups <- cumsum(!is.na(val))
@@ -756,19 +794,24 @@ fill_proxy_growth <- function(
   if (use_smoothing) {
     dt <- data.table::as.data.table(data)
     if (length(.by) > 0) {
-      dt[, .smooth_var := zoo::rollmean(
-        original_value_numeric,
-        k = value_smooth_window,
-        fill = NA,
-        align = "center"
-      ), by = .by]
+      dt[,
+        .smooth_var := zoo::rollmean(
+          original_value_numeric,
+          k = value_smooth_window,
+          fill = NA,
+          align = "center"
+        ),
+        by = .by
+      ]
     } else {
-      dt[, .smooth_var := zoo::rollmean(
-        original_value_numeric,
-        k = value_smooth_window,
-        fill = NA,
-        align = "center"
-      )]
+      dt[,
+        .smooth_var := zoo::rollmean(
+          original_value_numeric,
+          k = value_smooth_window,
+          fill = NA,
+          align = "center"
+        )
+      ]
     }
     data <- as.data.frame(dt)
   } else {
@@ -787,7 +830,9 @@ fill_proxy_growth <- function(
     # source_col already exists, keep it
   } else {
     data[[source_col]] <- ifelse(
-      data[[raw_missing_col]], "missing", "original"
+      data[[raw_missing_col]],
+      "missing",
+      "original"
     )
   }
   # Use original where available, smoothed otherwise (for anchor points)
@@ -959,24 +1004,29 @@ fill_proxy_growth <- function(
   # Create Lags and Calculate Growth
   dt <- data.table::as.data.table(data)
   if (length(by_vars) > 0) {
-    dt[, `:=`(
-      lag_src = data.table::shift(get(val_col), 1L, type = "lag"),
-      lag_yr = data.table::shift(get(time_col), 1L, type = "lag")
-    ), by = by_vars]
+    dt[,
+      `:=`(
+        lag_src = data.table::shift(get(val_col), 1L, type = "lag"),
+        lag_yr = data.table::shift(get(time_col), 1L, type = "lag")
+      ),
+      by = by_vars
+    ]
   } else {
     dt[, `:=`(
       lag_src = data.table::shift(get(val_col), 1L, type = "lag"),
       lag_yr = data.table::shift(get(time_col), 1L, type = "lag")
     )]
   }
-  dt[, ind_growth := data.table::fifelse(
-    get(time_col) == lag_yr + 1 &
-      !is.na(get(val_col)) &
-      !is.na(lag_src) &
-      lag_src > 0,
-    (get(val_col) - lag_src) / lag_src,
-    NA_real_
-  )]
+  dt[,
+    ind_growth := data.table::fifelse(
+      get(time_col) == lag_yr + 1 &
+        !is.na(get(val_col)) &
+        !is.na(lag_src) &
+        lag_src > 0,
+      (get(val_col) - lag_src) / lag_src,
+      NA_real_
+    )
+  ]
 
   # Filter to non-NA growth
   dt <- dt[!is.na(ind_growth)]
@@ -1009,30 +1059,38 @@ fill_proxy_growth <- function(
     }
 
     if (length(grp) > 0) {
-      dt[, w := data.table::shift(get(spec$weight_col), 1L, type = "lag"),
-        by = grp]
+      dt[,
+        w := data.table::shift(get(spec$weight_col), 1L, type = "lag"),
+        by = grp
+      ]
     } else {
       dt[, w := data.table::shift(get(spec$weight_col), 1L, type = "lag")]
     }
 
     # Weighted aggregation
-    result <- dt[, {
-      valid_w <- !is.na(w) & is.finite(w) & w > 0
-      g_val <- if (any(valid_w)) {
-        sum(ind_growth[valid_w] * w[valid_w]) / sum(w[valid_w])
-      } else {
-        mean(ind_growth)
-      }
-      o_val <- if (any(valid_w)) sum(valid_w) else .N
-      list(g_val, o_val)
-    }, by = by_vars]
+    result <- dt[,
+      {
+        valid_w <- !is.na(w) & is.finite(w) & w > 0
+        g_val <- if (any(valid_w)) {
+          sum(ind_growth[valid_w] * w[valid_w]) / sum(w[valid_w])
+        } else {
+          mean(ind_growth)
+        }
+        o_val <- if (any(valid_w)) sum(valid_w) else .N
+        list(g_val, o_val)
+      },
+      by = by_vars
+    ]
     data.table::setnames(result, c("V1", "V2"), c(growth_col, obs_col))
   } else {
     # Unweighted aggregation
-    result <- dt[, .(
-      g_val = mean(ind_growth),
-      o_val = .N
-    ), by = by_vars]
+    result <- dt[,
+      .(
+        g_val = mean(ind_growth),
+        o_val = .N
+      ),
+      by = by_vars
+    ]
     data.table::setnames(result, c("g_val", "o_val"), c(growth_col, obs_col))
   }
 
@@ -1172,13 +1230,20 @@ fill_proxy_growth <- function(
 
   if (length(by_cols) > 0) {
     dt <- data.table::as.data.table(data)
-    dt[, `:=`(
-      .grp_pos = seq_len(.N),
-      .grp_n = .N,
-      .run_change = .is_miss_tmp != data.table::shift(
-        .is_miss_tmp, 1L, type = "lag", fill = !.is_miss_tmp[1L]
-      )
-    ), by = by_cols]
+    dt[,
+      `:=`(
+        .grp_pos = seq_len(.N),
+        .grp_n = .N,
+        .run_change = .is_miss_tmp !=
+          data.table::shift(
+            .is_miss_tmp,
+            1L,
+            type = "lag",
+            fill = !.is_miss_tmp[1L]
+          )
+      ),
+      by = by_cols
+    ]
     data <- as.data.frame(dt)
   } else {
     n <- nrow(data)
@@ -1190,13 +1255,16 @@ fill_proxy_growth <- function(
   data$.run_id <- cumsum(data$.run_change)
 
   dt <- data.table::as.data.table(data)
-  run_meta <- dt[, .(
-    .run_len = .N,
-    .run_is_na = .is_miss_tmp[1L],
-    .run_internal = .is_miss_tmp[1L] &
-      .grp_pos[1L] > 1L &
-      .grp_pos[.N] < .grp_n[1L]
-  ), by = .run_id]
+  run_meta <- dt[,
+    .(
+      .run_len = .N,
+      .run_is_na = .is_miss_tmp[1L],
+      .run_internal = .is_miss_tmp[1L] &
+        .grp_pos[1L] > 1L &
+        .grp_pos[.N] < .grp_n[1L]
+    ),
+    by = .run_id
+  ]
 
   data <- as.data.frame(
     merge(dt, run_meta, by = ".run_id", all.x = TRUE)
@@ -1291,10 +1359,13 @@ fill_proxy_growth <- function(
     data$.anchor_tmp <- anchor_raw
     data$.g_tmp <- growth
     dt <- data.table::as.data.table(data)
-    dt[, `:=`(
-      .anchor_tmp = zoo::na.locf(.anchor_tmp, na.rm = FALSE, fromLast = TRUE),
-      .g_shifted = data.table::shift(.g_tmp, 1L, type = "lead")
-    ), by = by_cols]
+    dt[,
+      `:=`(
+        .anchor_tmp = zoo::na.locf(.anchor_tmp, na.rm = FALSE, fromLast = TRUE),
+        .g_shifted = data.table::shift(.g_tmp, 1L, type = "lead")
+      ),
+      by = by_cols
+    ]
     anchor <- dt$.anchor_tmp
     g_shifted <- dt$.g_shifted
     data$.anchor_tmp <- NULL
@@ -1345,12 +1416,15 @@ fill_proxy_growth <- function(
   # Anchors: value and time before/after each position
   if (length(by_cols) > 0) {
     dt <- data.table::as.data.table(data)
-    dt[, `:=`(
-      .v_bef = data.table::shift(get(val_col), 1L, type = "lag"),
-      .v_aft = data.table::shift(get(val_col), 1L, type = "lead"),
-      .t_bef = data.table::shift(get(time_col), 1L, type = "lag"),
-      .t_aft = data.table::shift(get(time_col), 1L, type = "lead")
-    ), by = by_cols]
+    dt[,
+      `:=`(
+        .v_bef = data.table::shift(get(val_col), 1L, type = "lag"),
+        .v_aft = data.table::shift(get(val_col), 1L, type = "lead"),
+        .t_bef = data.table::shift(get(time_col), 1L, type = "lag"),
+        .t_aft = data.table::shift(get(time_col), 1L, type = "lead")
+      ),
+      by = by_cols
+    ]
     data <- as.data.frame(dt)
   } else {
     n <- length(vals)
@@ -1363,12 +1437,15 @@ fill_proxy_growth <- function(
 
   # Run-level anchor summary
   dt_elig <- data.table::as.data.table(data[eligible, , drop = FALSE])
-  run_anchors <- dt_elig[, .(
-    .v0 = .v_bef[1L],
-    .v1 = .v_aft[.N],
-    .t0 = .t_bef[1L],
-    .t1 = .t_aft[.N]
-  ), by = .run_id]
+  run_anchors <- dt_elig[,
+    .(
+      .v0 = .v_bef[1L],
+      .v1 = .v_aft[.N],
+      .t0 = .t_bef[1L],
+      .t1 = .t_aft[.N]
+    ),
+    by = .run_id
+  ]
   run_anchors <- run_anchors[
     is.finite(.v0) & .v0 > 0 & is.finite(.v1) & .v1 > 0
   ]
@@ -1437,11 +1514,14 @@ fill_proxy_growth <- function(
   if (length(by_cols) > 0) {
     data$.comb_g <- combined
     dt <- data.table::as.data.table(data)
-    dt[, `:=`(
-      .v_bef = data.table::shift(get(val_col), 1L, type = "lag"),
-      .v_aft = data.table::shift(get(val_col), 1L, type = "lead"),
-      .g_lead = data.table::shift(.comb_g, 1L, type = "lead")
-    ), by = by_cols]
+    dt[,
+      `:=`(
+        .v_bef = data.table::shift(get(val_col), 1L, type = "lag"),
+        .v_aft = data.table::shift(get(val_col), 1L, type = "lead"),
+        .g_lead = data.table::shift(.comb_g, 1L, type = "lead")
+      ),
+      by = by_cols
+    ]
     data <- as.data.frame(dt)
     g_lead <- data$.g_lead
     data$.comb_g <- NULL
@@ -1457,24 +1537,28 @@ fill_proxy_growth <- function(
   data$.comb_g_tmp <- combined
   data$.g_lead_tmp <- g_lead
   dt_elig <- data.table::as.data.table(data[eligible, , drop = FALSE])
-  run_meta <- dt_elig[, .(
-    .v_start = .v_bef[1L],
-    .v_end = .v_aft[.N],
-    .prod_inner = prod(1 + .comb_g_tmp, na.rm = FALSE),
-    .g_end = .g_lead_tmp[.N],
-    .rlen = .N
-  ), by = .run_id]
+  run_meta <- dt_elig[,
+    .(
+      .v_start = .v_bef[1L],
+      .v_end = .v_aft[.N],
+      .prod_inner = prod(1 + .comb_g_tmp, na.rm = FALSE),
+      .g_end = .g_lead_tmp[.N],
+      .rlen = .N
+    ),
+    by = .run_id
+  ]
   run_meta[, `:=`(
     .prod_total = .prod_inner * (1 + .g_end),
     .n_rates = .rlen + 1L
   )]
   run_meta[, .pred_end := .v_start * .prod_total]
-  run_meta[, .lambda := data.table::fifelse(
-    is.finite(.pred_end) & .pred_end > 0 &
-      is.finite(.v_end) & .v_end > 0,
-    (.v_end / .pred_end)^(1 / .n_rates),
-    NA_real_
-  )]
+  run_meta[,
+    .lambda := data.table::fifelse(
+      is.finite(.pred_end) & .pred_end > 0 & is.finite(.v_end) & .v_end > 0,
+      (.v_end / .pred_end)^(1 / .n_rates),
+      NA_real_
+    )
+  ]
   run_meta <- run_meta[!is.na(.lambda)]
   run_meta <- run_meta[, .(.run_id, .v_start, .lambda)]
   data$.comb_g_tmp <- NULL

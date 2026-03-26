@@ -46,8 +46,16 @@ build_commodity_balances <- function(
   df <- tibble::as_tibble(df)
 
   cbs_elements <- c(
-    "domestic_supply", "production", "import", "export",
-    "stock_variation", "food", "feed", "seed", "other_uses", "processing"
+    "domestic_supply",
+    "production",
+    "import",
+    "export",
+    "stock_variation",
+    "food",
+    "feed",
+    "seed",
+    "other_uses",
+    "processing"
   )
 
   df |>
@@ -495,8 +503,7 @@ build_processing_coefs <- function(
 }
 
 .read_gdp_pop <- function(years = NULL) {
-  dt <- .read_input("gdp-population",
-                           years = years, year_col = "Year")
+  dt <- .read_input("gdp-population", years = years, year_col = "Year")
   if ("Year" %in% names(dt)) {
     data.table::setnames(dt, "Year", "year")
   }
@@ -505,7 +512,9 @@ build_processing_coefs <- function(
 
 .read_fao_trade <- function(years = NULL) {
   dt <- .extract_fao("faostat-trade", years = years)
-  if (!data.table::is.data.table(dt)) data.table::setDT(dt)
+  if (!data.table::is.data.table(dt)) {
+    data.table::setDT(dt)
+  }
   data.table::setnames(
     dt,
     c("item_cbs", "item_cbs_code"),
@@ -515,32 +524,46 @@ build_processing_coefs <- function(
 }
 
 .read_historical_trade <- function(years = NULL) {
-  items <- data.table::as.data.table(whep::items_full)[
-    , .(item_cbs, item_cbs_code)
+  items <- data.table::as.data.table(whep::items_full)[,
+    .(item_cbs, item_cbs_code)
   ]
   cbs_trade <- data.table::as.data.table(whep::cbs_trade_codes)
   regions <- data.table::as.data.table(whep::regions_full)
-  polities <- data.table::as.data.table(whep::polities)[
-    , .(iso3c, area_code)
+  polities <- data.table::as.data.table(whep::polities)[,
+    .(iso3c, area_code)
   ]
 
-  exports <- .read_input("historical-trade-exports",
-                                years = years, year_col = "year")
+  exports <- .read_input(
+    "historical-trade-exports",
+    years = years,
+    year_col = "year"
+  )
   exports[, element := "import"]
 
-  imports <- .read_input("historical-trade-imports",
-                                years = years, year_col = "year")
+  imports <- .read_input(
+    "historical-trade-imports",
+    years = years,
+    year_col = "year"
+  )
   imports[, element := "export"]
 
-  dt <- data.table::rbindlist(list(exports, imports), use.names = TRUE, fill = TRUE)
+  dt <- data.table::rbindlist(
+    list(exports, imports),
+    use.names = TRUE,
+    fill = TRUE
+  )
   dt <- dt[
     !is.na(iso3) & measurement %in% c("1000 MT", "1000 tons")
   ]
-  dt <- dt[
-    , .(value = sum(value, na.rm = TRUE) * 1000),
+  dt <- dt[,
+    .(value = sum(value, na.rm = TRUE) * 1000),
     by = c("year", "iso3", "item_code", "element")
   ]
-  data.table::setnames(dt, c("iso3", "item_code"), c("iso3c", "item_code_trade"))
+  data.table::setnames(
+    dt,
+    c("iso3", "item_code"),
+    c("iso3c", "item_code_trade")
+  )
 
   region_bridge <- unique(
     regions[, .(iso3c, area = polity_name, polity_code)],
@@ -552,8 +575,8 @@ build_processing_coefs <- function(
   dt <- merge(dt, cbs_trade, by = "item_code_trade", all.x = TRUE)
   dt <- merge(dt, items, by = "item_cbs", all.x = TRUE)
 
-  dt <- dt[
-    , .(value = sum(value, na.rm = TRUE)),
+  dt <- dt[,
+    .(value = sum(value, na.rm = TRUE)),
     by = c("year", "area", "area_code", "item_cbs", "item_cbs_code", "element")
   ]
   dt[, unit := "tonnes"]
@@ -573,11 +596,20 @@ build_processing_coefs <- function(
   fodder_codes <- c(2000L, 2001L, 2002L, 2003L, 3002L)
 
   dt <- .enrich_primary_with_names(primary_all)
-  if (!data.table::is.data.table(dt)) data.table::setDT(dt)
+  if (!data.table::is.data.table(dt)) {
+    data.table::setDT(dt)
+  }
   dt[, element := "production"]
   dt <- dt[!is.na(item_cbs_code)]
-  by_cols <- c("year", "area", "area_code", "item_cbs", "item_cbs_code",
-               "unit", "element")
+  by_cols <- c(
+    "year",
+    "area",
+    "area_code",
+    "item_cbs",
+    "item_cbs_code",
+    "unit",
+    "element"
+  )
   dt <- dt[, .(value = sum(value, na.rm = TRUE)), by = by_cols]
   dt <- dt[!is.na(area)]
 
@@ -591,11 +623,20 @@ build_processing_coefs <- function(
 
 .primary_to_cbs_area <- function(primary_all) {
   dt <- .enrich_primary_with_names(primary_all)
-  if (!data.table::is.data.table(dt)) data.table::setDT(dt)
+  if (!data.table::is.data.table(dt)) {
+    data.table::setDT(dt)
+  }
   dt[, element := "production"]
   dt <- dt[!is.na(item_cbs_code)]
-  by_cols <- c("year", "area", "area_code", "item_cbs", "item_cbs_code",
-               "unit", "element")
+  by_cols <- c(
+    "year",
+    "area",
+    "area_code",
+    "item_cbs",
+    "item_cbs_code",
+    "unit",
+    "element"
+  )
   dt <- dt[, .(value = sum(value, na.rm = TRUE)), by = by_cols]
   dt <- dt[unit == "ha" & element == "production"]
   data.table::setnames(dt, "value", "area_ha")
@@ -617,22 +658,23 @@ build_processing_coefs <- function(
 
   dt <- data.table::as.data.table(res)
   dt_extra <- data.table::copy(dt)
-  dt_extra[, element := data.table::fifelse(
-    item_cbs %in% c("Straw", "Other crop residues"),
-    "feed",
-    "other_uses"
-  )]
+  dt_extra[,
+    element := data.table::fifelse(
+      item_cbs %in% c("Straw", "Other crop residues"),
+      "feed",
+      "other_uses"
+    )
+  ]
   dt <- data.table::rbindlist(list(dt, dt_extra), use.names = TRUE, fill = TRUE)
   dt <- dt[!is.na(item_cbs)]
 
-  items_bridge <- data.table::as.data.table(items_prod)[
-    , .(item_cbs, item_cbs_code)
+  items_bridge <- data.table::as.data.table(items_prod)[,
+    .(item_cbs, item_cbs_code)
   ]
   items_bridge <- unique(items_bridge, by = c("item_cbs", "item_cbs_code"))
   dt <- merge(dt, items_bridge, by = "item_cbs", all.x = TRUE)
 
-  dt <- dt[
-    ,
+  dt <- dt[,
     .(value = sum(value, na.rm = TRUE)),
     by = c("year", "area_code", "item_cbs", "item_cbs_code", "element")
   ]
@@ -641,19 +683,29 @@ build_processing_coefs <- function(
     !is.na(code),
     .(area_code = code, polity_code, polity_name)
   ]
-  polities <- data.table::as.data.table(whep::polities)[
-    , .(iso3c, polity_area_code = area_code)
+  polities <- data.table::as.data.table(whep::polities)[,
+    .(iso3c, polity_area_code = area_code)
   ]
 
   dt <- merge(dt, regions, by = "area_code", all = FALSE)
   dt <- merge(dt, polities, by.x = "polity_code", by.y = "iso3c", all.x = TRUE)
 
-  dt <- dt[
-    ,
+  dt <- dt[,
     .(value = sum(value, na.rm = TRUE)),
-    by = c("year", "polity_area_code", "polity_name", "item_cbs", "item_cbs_code", "element")
+    by = c(
+      "year",
+      "polity_area_code",
+      "polity_name",
+      "item_cbs",
+      "item_cbs_code",
+      "element"
+    )
   ]
-  data.table::setnames(dt, c("polity_area_code", "polity_name"), c("area_code", "area"))
+  data.table::setnames(
+    dt,
+    c("polity_area_code", "polity_name"),
+    c("area_code", "area")
+  )
   dt
 }
 
@@ -912,18 +964,21 @@ build_processing_coefs <- function(
     data.table::as.data.table(inputs$fbs_new)
   }
   fbs_new <- fbs_new[
-    !(element %in% c("processing", "domestic_supply", "stock_variation") &
+    !(element %in%
+      c("processing", "domestic_supply", "stock_variation") &
       item_cbs_code == 2635)
   ]
   fbs_new <- fbs_new[
-    !(element %in% c(
-      "production",
-      "domestic_supply",
-      "processing",
-      "stock_variation",
-      "other_uses",
-      "food"
-    ) & item_cbs == "Palm kernels")
+    !(element %in%
+      c(
+        "production",
+        "domestic_supply",
+        "processing",
+        "stock_variation",
+        "other_uses",
+        "food"
+      ) &
+      item_cbs == "Palm kernels")
   ]
   if (!data.table::is.data.table(palm_kernels)) {
     data.table::setDT(palm_kernels)
@@ -963,7 +1018,9 @@ build_processing_coefs <- function(
   )
   primary[, source := "Primary"]
 
-  if (!data.table::is.data.table(traded_res)) data.table::setDT(traded_res)
+  if (!data.table::is.data.table(traded_res)) {
+    data.table::setDT(traded_res)
+  }
   trade <- traded_res
   trade[, source := "Trade"]
 
@@ -1121,7 +1178,12 @@ build_processing_coefs <- function(
   keys_dt <- unique(dt[, id_cols, with = FALSE])
   years_dt[, .cross_key := 1L]
   keys_dt[, .cross_key := 1L]
-  skeleton <- merge(years_dt, keys_dt, by = ".cross_key", allow.cartesian = TRUE)
+  skeleton <- merge(
+    years_dt,
+    keys_dt,
+    by = ".cross_key",
+    allow.cartesian = TRUE
+  )
   skeleton[, .cross_key := NULL]
 
   merge(
@@ -1207,7 +1269,9 @@ build_processing_coefs <- function(
     "item_cbs_code"
   )
 
-  if (!data.table::is.data.table(df)) data.table::setDT(df)
+  if (!data.table::is.data.table(df)) {
+    data.table::setDT(df)
+  }
   data.table::setorderv(df, c(by_cols, "year"))
 
   grp <- data.table::rleidv(df, cols = by_cols)
@@ -1218,8 +1282,11 @@ build_processing_coefs <- function(
     val <- df[[col]]
     is_na <- is.na(val)
     if (!any(is_na)) {
-      data.table::set(df, j = paste0("source_", col),
-                      value = rep("Original", nn))
+      data.table::set(
+        df,
+        j = paste0("source_", col),
+        value = rep("Original", nn)
+      )
       next
     }
 
@@ -1241,13 +1308,22 @@ build_processing_coefs <- function(
 
     # Interpolation
     time_valid <- data.table::fifelse(!is_na, tm, NA_real_)
-    tl <- data.table::fifelse(locf_ok,
-      data.table::nafill(time_valid, "locf"), NA_real_)
-    tn <- data.table::fifelse(nocb_ok,
-      data.table::nafill(time_valid, "nocb"), NA_real_)
+    tl <- data.table::fifelse(
+      locf_ok,
+      data.table::nafill(time_valid, "locf"),
+      NA_real_
+    )
+    tn <- data.table::fifelse(
+      nocb_ok,
+      data.table::nafill(time_valid, "nocb"),
+      NA_real_
+    )
     denom <- tn - tl
     frac <- data.table::fifelse(
-      !is.na(denom) & denom != 0, (tm - tl) / denom, NA_real_)
+      !is.na(denom) & denom != 0,
+      (tm - tl) / denom,
+      NA_real_
+    )
     interp <- locf + (nocb - locf) * frac
     mask <- is_na & !is.na(interp) & locf_ok & nocb_ok
     filled[mask] <- interp[mask]
@@ -1886,8 +1962,8 @@ build_processing_coefs <- function(
 # Compute each destiny element's share of total destinies per (year, area, item).
 # "Other processing residues" items are special-cased: feed = 1, all others = 0.
 .compute_destiny_shares <- function(destiny) {
-  items <- data.table::as.data.table(whep::items_full)[
-    , .(item_cbs, comm_group)
+  items <- data.table::as.data.table(whep::items_full)[,
+    .(item_cbs, comm_group)
   ]
   items <- unique(items, by = "item_cbs")
 
@@ -1898,11 +1974,13 @@ build_processing_coefs <- function(
   dt[, sum_dests := sum(value, na.rm = TRUE), by = grp]
   dt[sum_dests == 0, sum_dests := NA_real_]
 
-  dt[, dest_share := data.table::fifelse(
-    comm_group == "Other processing residues",
-    as.numeric(element == "feed"),
-    value / sum_dests
-  )]
+  dt[,
+    dest_share := data.table::fifelse(
+      comm_group == "Other processing residues",
+      as.numeric(element == "feed"),
+      value / sum_dests
+    )
+  ]
 
   dt[, c("sum_dests", "comm_group") := NULL]
   dt
@@ -1920,8 +1998,12 @@ build_processing_coefs <- function(
     "elem_cat"
   )
 
-  if (!data.table::is.data.table(balance)) data.table::setDT(balance)
-  if (!data.table::is.data.table(destiny)) data.table::setDT(destiny)
+  if (!data.table::is.data.table(balance)) {
+    data.table::setDT(balance)
+  }
+  if (!data.table::is.data.table(destiny)) {
+    data.table::setDT(destiny)
+  }
   dt_bal <- balance
   dt_dest <- destiny
 
@@ -1931,8 +2013,8 @@ build_processing_coefs <- function(
     .(year, area, area_code, item_cbs, item_cbs_code)
   ])
 
-  dest_elem <- unique(dt_dest[
-    , .(area, area_code, item_cbs, item_cbs_code, element, elem_cat)
+  dest_elem <- unique(dt_dest[,
+    .(area, area_code, item_cbs, item_cbs_code, element, elem_cat)
   ])
 
   target_rows <- ds_keys[
@@ -1962,12 +2044,16 @@ build_processing_coefs <- function(
   # Deduplicate destiny: multiple rows per key can exist when
   # different sources contribute to one key.
   join_keys <- c(
-    "year", "area", "area_code",
-    "item_cbs", "item_cbs_code", "element"
+    "year",
+    "area",
+    "area_code",
+    "item_cbs",
+    "item_cbs_code",
+    "element"
   )
 
-  destiny_dedup <- dt_dest[
-    , .(
+  destiny_dedup <- dt_dest[,
+    .(
       dest_share = mean(dest_share, na.rm = TRUE),
       value = sum(value, na.rm = TRUE),
       source = source[1L]
@@ -1991,7 +2077,9 @@ build_processing_coefs <- function(
 
 # Apply filled destiny shares to domestic supply and return final CBS rows.
 .assemble_cbs_destinies <- function(balance, destiny_filled) {
-  if (!data.table::is.data.table(balance)) data.table::setDT(balance)
+  if (!data.table::is.data.table(balance)) {
+    data.table::setDT(balance)
+  }
   if (!data.table::is.data.table(destiny_filled)) {
     data.table::setDT(destiny_filled)
   }
@@ -2003,14 +2091,16 @@ build_processing_coefs <- function(
 
   dt <- .add_global_destiny_shares(dt)
 
-  dt[, value := data.table::fifelse(
-    elem_cat == "destiny",
-    data.table::fcoalesce(
-      domestic_supply * dest_share,
-      domestic_supply * dest_share_global
-    ),
-    data.table::fcoalesce(value, 0)
-  )]
+  dt[,
+    value := data.table::fifelse(
+      elem_cat == "destiny",
+      data.table::fcoalesce(
+        domestic_supply * dest_share,
+        domestic_supply * dest_share_global
+      ),
+      data.table::fcoalesce(value, 0)
+    )
+  ]
   dt[, value := data.table::fcoalesce(value, 0)]
 
   dt <- dt[
@@ -2022,15 +2112,19 @@ build_processing_coefs <- function(
 }
 
 .add_global_destiny_shares <- function(df) {
-  if (!data.table::is.data.table(df)) data.table::setDT(df)
+  if (!data.table::is.data.table(df)) {
+    data.table::setDT(df)
+  }
   dt <- df
 
-  global_shares <- dt[
-    , .(value = sum(value, na.rm = TRUE)),
+  global_shares <- dt[,
+    .(value = sum(value, na.rm = TRUE)),
     by = c("year", "item_cbs", "item_cbs_code", "element", "elem_cat")
   ]
-  global_shares[, dest_share_global := value / sum(value, na.rm = TRUE),
-    by = c("year", "item_cbs", "item_cbs_code", "elem_cat")]
+  global_shares[,
+    dest_share_global := value / sum(value, na.rm = TRUE),
+    by = c("year", "item_cbs", "item_cbs_code", "elem_cat")
+  ]
   global_shares[, value := NULL]
 
   ds <- dt[

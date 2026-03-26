@@ -9,10 +9,12 @@
 #' Convert ISO3 area_code to FAOSTAT numeric area_code
 #' @noRd
 .iso3_to_fao_area_code <- function(df) {
-  if (!data.table::is.data.table(df)) data.table::setDT(df)
+  if (!data.table::is.data.table(df)) {
+    data.table::setDT(df)
+  }
   dt <- df
-  bridge <- data.table::as.data.table(whep::polities)[
-    , .(iso3c, area_code_fao = area_code)
+  bridge <- data.table::as.data.table(whep::polities)[,
+    .(iso3c, area_code_fao = area_code)
   ]
 
   dt <- merge(dt, bridge, by.x = "area_code", by.y = "iso3c", all.x = TRUE)
@@ -24,14 +26,21 @@
 #' Convert FAOSTAT numeric area_code to ISO3 area_code and add area name
 #' @noRd
 .fao_to_iso3_area_code <- function(df) {
-  if (!data.table::is.data.table(df)) data.table::setDT(df)
+  if (!data.table::is.data.table(df)) {
+    data.table::setDT(df)
+  }
   dt <- df
-  bridge <- data.table::as.data.table(whep::polities)[
-    , .(area_code_fao = area_code, iso3c, area = area_name)
+  bridge <- data.table::as.data.table(whep::polities)[,
+    .(area_code_fao = area_code, iso3c, area = area_name)
   ]
 
-  dt <- merge(dt, bridge, by.x = "area_code", by.y = "area_code_fao",
-              all.x = TRUE)
+  dt <- merge(
+    dt,
+    bridge,
+    by.x = "area_code",
+    by.y = "area_code_fao",
+    all.x = TRUE
+  )
   dt[, area_code := NULL]
   data.table::setnames(dt, "iso3c", "area_code")
   dt
@@ -83,8 +92,8 @@
 
   function() {
     if (is.null(cache)) {
-      cache <<- data.table::as.data.table(whep::items_full)[
-        , .(item_cbs, item_cbs_code)
+      cache <<- data.table::as.data.table(whep::items_full)[,
+        .(item_cbs, item_cbs_code)
       ]
       cache <<- unique(cache, by = c("item_cbs", "item_cbs_code"))
     }
@@ -172,34 +181,46 @@
     "Processing" = "processing",
     "Production" = "production"
   )
-  if (!data.table::is.data.table(dt)) data.table::setDT(dt)
+  if (!data.table::is.data.table(dt)) {
+    data.table::setDT(dt)
+  }
   mapped <- unname(lookup[dt$element])
   dt[, element := data.table::fifelse(is.na(mapped), element, mapped)]
   dt
 }
 
 .normalise_units <- function(dt) {
-  if (!data.table::is.data.table(dt)) data.table::setDT(dt)
-  dt[, value := data.table::fifelse(
-    unit %in% c("1000 tonnes", "1000 t"),
-    value * 1000,
-    value
-  )]
-  dt[, unit := data.table::fifelse(
-    unit %in% c("1000 tonnes", "1000 t"),
-    "tonnes",
-    data.table::fifelse(unit == "1000 US$", "kdollars", as.character(unit))
-  )]
+  if (!data.table::is.data.table(dt)) {
+    data.table::setDT(dt)
+  }
+  dt[,
+    value := data.table::fifelse(
+      unit %in% c("1000 tonnes", "1000 t"),
+      value * 1000,
+      value
+    )
+  ]
+  dt[,
+    unit := data.table::fifelse(
+      unit %in% c("1000 tonnes", "1000 t"),
+      "tonnes",
+      data.table::fifelse(unit == "1000 US$", "kdollars", as.character(unit))
+    )
+  ]
   dt
 }
 
 .fix_item_codes <- function(dt) {
-  if (!data.table::is.data.table(dt)) data.table::setDT(dt)
-  dt[, item_cbs_code := data.table::fifelse(
-    item_cbs_code == 2804L,
-    2807L,
-    data.table::fifelse(item_cbs_code == 2820L, 2552L, item_cbs_code)
-  )]
+  if (!data.table::is.data.table(dt)) {
+    data.table::setDT(dt)
+  }
+  dt[,
+    item_cbs_code := data.table::fifelse(
+      item_cbs_code == 2804L,
+      2807L,
+      data.table::fifelse(item_cbs_code == 2820L, 2552L, item_cbs_code)
+    )
+  ]
   dt
 }
 
@@ -213,8 +234,13 @@
       data.table::setnames(regions, "code", "area_code")
       region_map <- regions[, .(area_code, polity_code, polity_name)]
       pol_bridge <- polities[, .(iso3c, polity_area_code = area_code)]
-      bridge <<- merge(region_map, pol_bridge,
-                       by.x = "polity_code", by.y = "iso3c", all.x = TRUE)
+      bridge <<- merge(
+        region_map,
+        pol_bridge,
+        by.x = "polity_code",
+        by.y = "iso3c",
+        all.x = TRUE
+      )
     }
     bridge
   }
@@ -223,17 +249,27 @@
 .aggregate_to_polities <- function(df, ...) {
   dots <- as.character(match.call(expand.dots = FALSE)$...)
 
-  if (!data.table::is.data.table(df)) data.table::setDT(df)
+  if (!data.table::is.data.table(df)) {
+    data.table::setDT(df)
+  }
   dt <- df
   region_map <- .polity_bridge()
 
   dt <- merge(dt, region_map, by = "area_code")
-  by_cols <- c("year", "polity_area_code", "polity_name", "unit", "element",
-               dots)
+  by_cols <- c(
+    "year",
+    "polity_area_code",
+    "polity_name",
+    "unit",
+    "element",
+    dots
+  )
   dt <- dt[, .(value = sum(value, na.rm = TRUE)), by = by_cols]
-  data.table::setnames(dt,
-                       c("polity_area_code", "polity_name"),
-                       c("area_code", "area"))
+  data.table::setnames(
+    dt,
+    c("polity_area_code", "polity_name"),
+    c("area_code", "area")
+  )
   dt
 }
 
@@ -252,20 +288,44 @@
   )
 
   dt <- .read_input(pin_alias, years = years, year_col = "Year")
-  data.table::setnames(dt, c(
-    "Item Code", "Item", "Area", "Area Code", "Unit", "Element", "Year",
-    "Value"
-  ), c(
-    "item_cbs_code", "item_cbs", "area", "area_code", "unit", "element",
-    "year", "value"
-  ))
+  data.table::setnames(
+    dt,
+    c(
+      "Item Code",
+      "Item",
+      "Area",
+      "Area Code",
+      "Unit",
+      "Element",
+      "Year",
+      "Value"
+    ),
+    c(
+      "item_cbs_code",
+      "item_cbs",
+      "area",
+      "area_code",
+      "unit",
+      "element",
+      "year",
+      "value"
+    )
+  )
 
   dt <- .harmonize_element_names(dt)
   dt <- .normalise_units(dt)
   dt <- .fix_item_codes(dt)
   dt <- dt[element %in% cb_elements]
-  dt <- dt[, .(area, area_code, item_cbs, item_cbs_code, element, unit,
-               year, value)]
+  dt <- dt[, .(
+    area,
+    area_code,
+    item_cbs,
+    item_cbs_code,
+    element,
+    unit,
+    year,
+    value
+  )]
   .aggregate_to_polities(dt, item_cbs, item_cbs_code)
 }
 
@@ -278,7 +338,9 @@
 # -- Processing helpers (from comdat_global) -----------------------------------
 
 .processed_raw <- function(df, cb_processing_eq) {
-  if (!data.table::is.data.table(df)) data.table::setDT(df)
+  if (!data.table::is.data.table(df)) {
+    data.table::setDT(df)
+  }
   dt <- data.table::copy(df)
   if (!data.table::is.data.table(cb_processing_eq)) {
     cb_processing_eq <- data.table::as.data.table(cb_processing_eq)
@@ -314,30 +376,35 @@
   no_data_products = character()
 ) {
   cb_proc_required <- data.table::as.data.table(whep::cb_processing)
-  cb_proc_required <- cb_proc_required[
-    , .(required = sum(Required, na.rm = TRUE)), by = "item_cbs"
+  cb_proc_required <- cb_proc_required[,
+    .(required = sum(Required, na.rm = TRUE)),
+    by = "item_cbs"
   ]
   cb_proc_required <- cb_proc_required[required > 0]
 
-  if (!data.table::is.data.table(cbs)) data.table::setDT(cbs)
+  if (!data.table::is.data.table(cbs)) {
+    data.table::setDT(cbs)
+  }
   cbs_dt <- cbs
-  cbs_summary <- cbs_dt[
-    , .(value = sum(value, na.rm = TRUE),
-        item_cbs_code = item_cbs_code[1L]),
+  cbs_summary <- cbs_dt[,
+    .(value = sum(value, na.rm = TRUE), item_cbs_code = item_cbs_code[1L]),
     by = c("area", "area_code", "year", "item_cbs", "element")
   ]
 
   if (!data.table::is.data.table(processed_df)) {
     data.table::setDT(processed_df)
   }
-  dt <- processed_df[
-    , .(value_proc = sum(value_proc, na.rm = TRUE)),
+  dt <- processed_df[,
+    .(value_proc = sum(value_proc, na.rm = TRUE)),
     by = c("area", "area_code", "year", "item_cbs", "element")
   ]
   dt <- merge(dt, cb_proc_required, by = "item_cbs", all.x = TRUE)
-  dt <- merge(dt, cbs_summary,
-              by = c("area", "area_code", "year", "item_cbs", "element"),
-              all.x = TRUE)
+  dt <- merge(
+    dt,
+    cbs_summary,
+    by = c("area", "area_code", "year", "item_cbs", "element"),
+    all.x = TRUE
+  )
   dt[, scaling_raw := value / value_proc]
   dt[scaling_raw == 0, scaling_raw := NA_real_]
 
@@ -354,23 +421,25 @@
   }
 
   dt[, item_cbs_code := NULL]
-  dt[, scaling := data.table::fifelse(
-    is.na(scaling_raw),
-    data.table::fifelse(
-      !is.na(required) | item_cbs %in% no_data_products,
-      1,
-      0
-    ),
-    data.table::fifelse(
-      source_scaling_raw == "Original",
-      scaling_raw,
+  dt[,
+    scaling := data.table::fifelse(
+      is.na(scaling_raw),
       data.table::fifelse(
-        scaling_raw > 5,
-        5,
-        data.table::fifelse(scaling_raw < 0.2, 0.2, scaling_raw)
+        !is.na(required) | item_cbs %in% no_data_products,
+        1,
+        0
+      ),
+      data.table::fifelse(
+        source_scaling_raw == "Original",
+        scaling_raw,
+        data.table::fifelse(
+          scaling_raw > 5,
+          5,
+          data.table::fifelse(scaling_raw < 0.2, 0.2, scaling_raw)
+        )
       )
     )
-  )]
+  ]
   dt[, value_final := value_proc * scaling]
   dt
 }
@@ -381,7 +450,9 @@
   items_prod <- data.table::as.data.table(whep::items_prod_full)
   prim_double <- data.table::as.data.table(whep::primary_double)
 
-  if (!data.table::is.data.table(df)) data.table::setDT(df)
+  if (!data.table::is.data.table(df)) {
+    data.table::setDT(df)
+  }
   dt <- df
 
   # pivot_wider: element -> columns, value -> values, fill with 0
@@ -427,35 +498,52 @@
   pd_sub <- pd_sub[, .(item_cbs_code, Multi_type)]
   dt <- merge(dt, pd_sub, by = "item_cbs_code", all.x = TRUE)
 
-  dt[, multi_type := data.table::fifelse(
-    is.na(Multi_type), "Single", Multi_type
-  )]
-  dt[, destiny_replacement := data.table::fifelse(
-    multi_type != "Single",
-    "none",
-    data.table::fifelse(
-      ds_destinies == balance,
-      "default_prone",
-      "none"
+  dt[,
+    multi_type := data.table::fifelse(
+      is.na(Multi_type),
+      "Single",
+      Multi_type
     )
-  )]
-  dt[, check := data.table::fifelse(
-    multi_type != "Single",
-    ds_destinies == balance,
-    balance == 0
-  )]
+  ]
+  dt[,
+    destiny_replacement := data.table::fifelse(
+      multi_type != "Single",
+      "none",
+      data.table::fifelse(
+        ds_destinies == balance,
+        "default_prone",
+        "none"
+      )
+    )
+  ]
+  dt[,
+    check := data.table::fifelse(
+      multi_type != "Single",
+      ds_destinies == balance,
+      balance == 0
+    )
+  ]
   dt[, Multi_type := NULL]
   dt
 }
 
 .untest_cbs <- function(df) {
-  if (!data.table::is.data.table(df)) data.table::setDT(df)
+  if (!data.table::is.data.table(df)) {
+    data.table::setDT(df)
+  }
   dt <- df
 
   # Remove test columns
   drop_cols <- intersect(
-    c("ds_destinies", "balance", "balance2", "multi_type",
-      "default_destiny", "destiny_replacement", "check"),
+    c(
+      "ds_destinies",
+      "balance",
+      "balance2",
+      "multi_type",
+      "default_destiny",
+      "destiny_replacement",
+      "check"
+    ),
     names(dt)
   )
   if (length(drop_cols) > 0L) {
@@ -464,9 +552,17 @@
 
   # Identify element columns to melt (those that were pivoted wider)
   element_cols <- c(
-    "domestic_supply", "export", "feed", "food", "import",
-    "other_uses", "processing", "processing_primary", "production",
-    "seed", "stock_variation"
+    "domestic_supply",
+    "export",
+    "feed",
+    "food",
+    "import",
+    "other_uses",
+    "processing",
+    "processing_primary",
+    "production",
+    "seed",
+    "stock_variation"
   )
   measure_cols <- intersect(element_cols, names(dt))
   data.table::melt(

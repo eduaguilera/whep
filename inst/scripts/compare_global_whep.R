@@ -6,9 +6,6 @@
 #   1.  Tolerance-based value comparison  (Primary, CBS, Coefs)
 #   2.  Deep-dive diagnostics            (ratio patterns, name diffs)
 #   3.  Sanity checks                    (year ranges, elements, units)
-#
-# Usage:
-#   source("inst/scripts/compare_global_whep.R")
 # ─────────────────────────────────────────────────────────────
 
 library(dplyr)
@@ -16,12 +13,6 @@ library(tidyr)
 library(cli)
 
 # -- Configuration ------------------------------------------------------------
-
-# Versions of the Global reference data to compare against.
-# Find available versions with:
-#   whep::whep_list_file_versions("primary_prod")
-#   whep::whep_list_file_versions("commodity_balance_sheet")
-#   whep::whep_list_file_versions("processing_coefs")
 global_primary_version <- "20250714T123350Z-74e7f"
 global_cbs_version <- "20250714T123343Z-114b5"
 global_coefs_version <- "20250714T123348Z-06c63"
@@ -282,9 +273,11 @@ compare_outputs <- function(
   }
 
   # --- Summary verdict ---
-  if (nrow(only_in_whep) == 0 &&
-        nrow(only_in_global) == 0 &&
-        n_differ == 0) {
+  if (
+    nrow(only_in_whep) == 0 &&
+      nrow(only_in_global) == 0 &&
+      n_differ == 0
+  ) {
     cli::cli_alert_success("{label}: IDENTICAL (within tolerance)")
   } else {
     cli::cli_alert_warning("{label}: DIFFERENCES FOUND")
@@ -395,7 +388,8 @@ cli::cli_h1("Deep-dive: Primary mismatch patterns")
     whep::animals_codes |>
       dplyr::select(item_prod_code = item_cbs_code, name = item_cbs) |>
       dplyr::distinct()
-  ) |> dplyr::distinct(item_prod_code, .keep_all = TRUE)
+  ) |>
+    dplyr::distinct(item_prod_code, .keep_all = TRUE)
   out <- nms$name[match(code, nms$item_prod_code)]
   dplyr::if_else(is.na(out), paste0("code_", code), out)
 }
@@ -583,7 +577,8 @@ if ("value_whep" %in% names(result_cbs$merged)) {
         n_mismatch = dplyr::n(),
         median_ratio = median(ratio[is.finite(ratio)], na.rm = TRUE),
         pct_near_1 = round(
-          100 * mean(abs(ratio - 1) < 0.05, na.rm = TRUE), 1
+          100 * mean(abs(ratio - 1) < 0.05, na.rm = TRUE),
+          1
         ),
         .groups = "drop"
       ) |>
