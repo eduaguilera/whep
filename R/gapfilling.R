@@ -130,7 +130,10 @@ fill_linear <- function(
   }
 
   dt <- if (is_dt) data.table::copy(data) else data.table::as.data.table(data)
-  data.table::setorderv(dt, c(by_cols, time_col_name))
+  sort_cols <- c(by_cols, time_col_name)
+  if (!identical(data.table::key(dt), sort_cols)) {
+    data.table::setkeyv(dt, sort_cols)
+  }
 
   val <- dt[[value_col_name]]
   tm <- dt[[time_col_name]]
@@ -207,7 +210,10 @@ fill_linear <- function(
   value_smooth_window, is_dt
 ) {
   dt <- if (is_dt) data.table::copy(data) else data.table::as.data.table(data)
-  data.table::setorderv(dt, c(by_cols, time_col_name))
+  sort_cols <- c(by_cols, time_col_name)
+  if (!identical(data.table::key(dt), sort_cols)) {
+    data.table::setkeyv(dt, sort_cols)
+  }
 
   dt[, c(value_col_name, source_col_name) := {
     v <- .SD[[1L]]

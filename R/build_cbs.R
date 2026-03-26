@@ -277,11 +277,11 @@ build_commodity_balances <- function(
   )
 
   df <- df |>
-    .flag_carry_forward(by = by_cols, min_run = min_run) |>
-    .flag_spikes(
+    .flag_cf_and_spikes(
       by = by_cols,
+      min_run = min_run,
       spike_ratio = spike_ratio,
-      min_value = spike_min
+      spike_min = spike_min
     )
 
   if (smooth) {

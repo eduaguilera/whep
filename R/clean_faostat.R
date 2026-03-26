@@ -108,6 +108,56 @@
   df
 }
 
+#' Flag carry-forwards and spikes in a single grouped pass
+#'
+#' Combines the logic of `.flag_carry_forward` and `.flag_spikes`
+#' into one `by=` expression, halving the grouped-dispatch overhead
+#' (one sort + one pass instead of two).
+#'
+#' @inheritParams .flag_carry_forward
+#' @inheritParams .flag_spikes
+#' @noRd
+.flag_cf_and_spikes <- function(
+  df,
+  by,
+  min_run = 3L,
+  spike_ratio = 10,
+  spike_min = 1000,
+  value_col = "value",
+  time_col = "year"
+) {
+  force(df)
+  cli::cli_progress_step("Flagging carry-forwards and spikes")
+  if (!data.table::is.data.table(df)) {
+    data.table::setDT(df)
+  } else {
+    data.table::setalloccol(df)
+  }
+  data.table::setkeyv(df, c(by, time_col))
+  df[, c("qc_carry_forward", "qc_spike") := {
+    val <- get(value_col)
+    # carry-forward: constant tail of length >= min_run
+    last_val <- val[.N]
+    from_end <- rev(cumsum(rev(val != last_val)))
+    run_len <- sum(from_end == 0)
+    cf <- from_end == 0 &
+      run_len >= min_run &
+      val != 0 &
+      !is.na(val)
+    # spike: year-on-year ratio beyond threshold
+    prev <- data.table::shift(val, 1L, type = "lag")
+    ratio <- val / prev
+    sp <- !is.na(ratio) &
+      is.finite(ratio) &
+      (abs(ratio) > spike_ratio |
+         abs(ratio) < 1 / spike_ratio) &
+      val > spike_min &
+      prev > spike_min
+    list(cf, sp)
+  }, by = by]
+  df
+}
+
 #' Flag the 1984-85 fodder reporting discontinuity
 #'
 #' Several European countries changed fodder/forage reporting around 1985,

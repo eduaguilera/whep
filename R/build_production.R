@@ -226,11 +226,11 @@ build_primary_production <- function(
   )
 
   df <- df |>
-    .flag_carry_forward(by = by_cols, min_run = min_run) |>
-    .flag_spikes(
+    .flag_cf_and_spikes(
       by = by_cols,
+      min_run = min_run,
       spike_ratio = spike_ratio,
-      min_value = spike_min
+      spike_min = spike_min
     ) |>
     .flag_fodder_break(item_col = "item_prod")
 
@@ -1246,12 +1246,11 @@ build_primary_production <- function(
   out[is.nan(yield_c), yield_c := NA_real_]
   out[, c(".t_n", ".fu_n") := NULL]
 
-  # Character columns (not GForce-eligible)
-  chars <- df[, .(
-    source = .first_non_missing(source),
-    Multi_type = .first_non_missing(Multi_type),
-    live_anim = .first_non_missing(live_anim)
-  ), keyby = by_cols]
+  # Character columns: vectorised first-non-NA via unique()
+  # (avoids per-group R expression evaluation)
+  chars <- .first_non_na_chars(df, by_cols, c(
+    "source", "Multi_type", "live_anim"
+  ))
 
   out <- out[chars]
   df[, c(".t_ok", ".fu_ok") := NULL]
@@ -1357,11 +1356,10 @@ build_primary_production <- function(
   out[is.nan(sumprod_cbs_ratio), sumprod_cbs_ratio := NA_real_]
   out[, .tcbs_n := NULL]
 
-  # Character columns (not GForce-eligible)
-  chars <- df[, .(
-    source = .first_non_missing(source),
-    Multi_type = .first_non_missing(Multi_type)
-  ), keyby = by_cols]
+  # Character columns: vectorised first-non-NA via unique()
+  chars <- .first_non_na_chars(df, by_cols, c(
+    "source", "Multi_type"
+  ))
 
   out <- out[chars]
   df[, .tcbs_ok := NULL]
@@ -1872,6 +1870,23 @@ build_primary_production <- function(
 .first_non_missing <- function(x) {
   idx <- which.min(is.na(x))
   if (is.na(x[idx])) NA_character_ else x[idx]
+}
+
+# Vectorised first-non-NA for character columns.
+# Uses unique() (C-level) instead of per-group R evaluation.
+.first_non_na_chars <- function(df, by_cols, char_cols) {
+  data.table::setkeyv(df, by_cols)
+  # Start from full set of group keys
+  result <- unique(df[, by_cols, with = FALSE], by = by_cols)
+  for (col in char_cols) {
+    cols <- c(by_cols, col)
+    part <- unique(
+      df[!is.na(df[[col]]), cols, with = FALSE],
+      by = by_cols
+    )
+    result <- merge(result, part, by = by_cols, all.x = TRUE)
+  }
+  result
 }
 
 .sum_if_any <- function(x) {
