@@ -143,7 +143,7 @@ fill_linear <- function(
   }
 
   val <- dt[[value_col_name]]
-  tm <- dt[[time_col_name]]
+  tm <- as.numeric(dt[[time_col_name]])
   nn <- length(val)
   is_na <- is.na(val)
 
@@ -457,8 +457,8 @@ fill_sum <- function(
   by_cols <- .by
 
   # Compute within groups (or globally if no groups)
-  val <- dt[[value_col_name]]
-  chg <- dt[[change_col_name]]
+  val <- as.double(dt[[value_col_name]])
+  chg <- as.double(dt[[change_col_name]])
 
   if (length(by_cols) > 0) {
     # Grouped computation
@@ -467,8 +467,8 @@ fill_sum <- function(
         value_col_name,
         source_col_name
       ) := {
-        v <- get(value_col_name)
-        ch <- get(change_col_name)
+        v <- as.double(get(value_col_name))
+        ch <- as.double(get(change_col_name))
         groups <- cumsum(!is.na(v))
         prefilled <- data.table::fifelse(is.na(v), ch, v)
         src <- data.table::fifelse(is.na(v), "Filled with sum", "Original")

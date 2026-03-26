@@ -1,7 +1,23 @@
-# Suppress R CMD check warnings for dplyr NSE (Non Standard Evaluation)
+# Suppress R CMD check warnings for NSE (Non Standard Evaluation)
+# data.table symbols (.N, .SD, ., ..) and package-internal dt variables
 
 utils::globalVariables(
   c(
+    ".",
+    ".N",
+    ".SD",
+    "..cols",
+    "..dup_cols",
+    ".cross_key",
+    ".fu_n",
+    ".fu_ok",
+    ".run_id",
+    ".t_n",
+    ".t_ok",
+    ".tcbs_n",
+    ".tcbs_ok",
+    "qc_fodder_break",
+    "qc_spike",
     ":=",
     ".anchor_tmp",
     ".comb_g",
