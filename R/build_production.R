@@ -40,6 +40,10 @@ build_primary_production <- function(
   result <- raw |>
     .fix_production() |>
     .qc_production(smooth = smooth_carry_forward) |>
+    dplyr::mutate(
+      item_prod_code = as.numeric(item_prod_code),
+      live_anim_code = as.numeric(live_anim_code)
+    ) |>
     dplyr::select(
       year,
       area_code,

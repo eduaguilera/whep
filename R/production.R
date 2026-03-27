@@ -43,7 +43,7 @@ get_primary_production <- function(example = FALSE) {
   if (example) {
     return(.ex_get_primary_prod())
   }
-  whep_read_file("primary_prod")
+  .cache_get("primary_prod", build_primary_production())
 }
 
 #' Crop residue items
