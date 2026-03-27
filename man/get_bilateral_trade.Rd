@@ -4,7 +4,7 @@
 \alias{get_bilateral_trade}
 \title{Bilateral trade data}
 \usage{
-get_bilateral_trade(example = FALSE)
+get_bilateral_trade(example = FALSE, cbs = NULL)
 }
 \arguments{
 \item{example}{If \code{TRUE}, return a small example output without

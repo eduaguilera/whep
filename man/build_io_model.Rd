@@ -5,9 +5,9 @@
 \title{Build multi-regional input-output model.}
 \usage{
 build_io_model(
-  supply_use = build_supply_use(),
-  bilateral_trade = get_bilateral_trade(),
-  cbs = get_wide_cbs(),
+  supply_use = NULL,
+  bilateral_trade = NULL,
+  cbs = NULL,
   years = NULL,
   endogenize_losses = FALSE
 )

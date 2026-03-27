@@ -21,8 +21,9 @@ For code details see e.g. \code{add_area_name()}.
 code details see e.g. \code{add_item_cbs_name()}.
 }
 
-The other columns are quantities (measured in tonnes), where
-total supply and total use should be balanced.
+The other columns are quantities where total supply and total
+use should be balanced. Units are tonnes for most items,
+and heads for live animals (see \link{items_cbs} \code{item_type}).
 
 For supply:
 \itemize{
