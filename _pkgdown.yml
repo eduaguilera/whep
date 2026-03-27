@@ -16,6 +16,16 @@ authors:
     href: "https://erc.europa.eu/homepage"
 
 reference:
+- title: Build datasets
+  desc: >
+    Build full datasets from raw FAOSTAT inputs. These functions
+    orchestrate reading, gap-filling, historical extension,
+    and balance validation.
+  contents:
+  - build_primary_production
+  - build_commodity_balances
+  - build_processing_coefs
+
 - title: Tidy datasets
   desc: >
     Get cleaned dataframes with project related data.
@@ -61,18 +71,35 @@ reference:
 - subtitle: Polities
   contents:
   - polities
+  - polities_cats
+  - regions_full
   - add_area_code
   - add_area_name
 - subtitle: Commodity balance sheet items
   contents:
   - items_cbs
+  - items_full
+  - cbs_trade_codes
   - add_item_cbs_code
   - add_item_cbs_name
 - subtitle: Primary production items
   contents:
   - items_prod
+  - items_prim
+  - items_prod_full
   - add_item_prod_code
   - add_item_prod_name
+
+- title: Reference tables
+  desc: >
+    Lookup and coefficient tables used internally across the pipeline.
+  contents:
+  - animals_codes
+  - biomass_coefs
+  - cb_processing
+  - crops_eurostat
+  - liv_lu_coefs
+  - primary_double
 
 - title: FAOSTAT raw data
   desc: >
