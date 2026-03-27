@@ -54,12 +54,69 @@
 #' cbs <- get_wide_cbs(example = TRUE)
 #' build_io_model(su, btd, cbs)
 build_io_model <- function(
-  supply_use = build_supply_use(),
-  bilateral_trade = get_bilateral_trade(),
-  cbs = get_wide_cbs(),
+  supply_use = NULL,
+  bilateral_trade = NULL,
+  cbs = NULL,
   years = NULL,
   endogenize_losses = FALSE
 ) {
+  # Build shared pipeline once when using defaults.
+  # Intermediate results are session-cached (see ?whep_clear_cache).
+  if (is.null(cbs) || is.null(supply_use)) {
+    primary_prod <- .cache_get("primary_prod", build_primary_production())
+
+    cbs_built <- .cache_get("cbs_built", {
+      cli::cli_h1("Building commodity balance sheets")
+      build_commodity_balances(primary_prod)
+    })
+
+    if (is.null(cbs)) {
+      cbs <- .cache_get("cbs_wide", {
+        cli::cli_progress_step("Adding livestock CBS rows")
+        wide <- cbs_built |>
+          dplyr::mutate(
+            stock_withdrawal = -stock_retrieval,
+            stock_addition = stock_retrieval,
+            .keep = "unused"
+          )
+        livestock_cbs <- get_livestock_cbs(primary_prod)
+        dplyr::bind_rows(wide, livestock_cbs)
+      })
+    }
+
+    if (is.null(supply_use)) {
+      coeffs <- .cache_get("proc_coefs", {
+        cli::cli_h1("Building processing coefficients")
+        build_processing_coefs(cbs_built)
+      })
+
+      supply_use <- .cache_get("supply_use", {
+        cli::cli_h1("Building supply-use tables")
+        cli::cli_progress_step("Reading crop residues")
+        crop_residues <- get_primary_residues()
+        cli::cli_progress_step("Reading feed intake")
+        feed_intake <- get_feed_intake()
+
+        cli::cli_progress_step("Assembling supply-use tables")
+        .build_supply_use_from_inputs(
+          items_prod = whep::items_prod,
+          items_cbs = whep::items_cbs,
+          coeffs = coeffs,
+          cbs = cbs,
+          crop_residues = crop_residues,
+          primary_prod = primary_prod,
+          feed_intake = feed_intake
+        )
+      })
+    }
+  }
+
+  if (is.null(bilateral_trade)) {
+    bilateral_trade <- .cache_get("bilateral_trade", {
+      cli::cli_h1("Building bilateral trade matrices")
+      get_bilateral_trade(cbs = cbs)
+    })
+  }
   .validate_io_inputs(supply_use, bilateral_trade, cbs)
   common_years <- .get_common_years(
     supply_use,

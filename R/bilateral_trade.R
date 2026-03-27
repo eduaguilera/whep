@@ -95,20 +95,27 @@
 #'
 #' @examples
 #' get_bilateral_trade(example = TRUE)
-get_bilateral_trade <- function(example = FALSE) {
+get_bilateral_trade <- function(example = FALSE, cbs = NULL) {
   if (example) {
     return(.example_get_bilateral_trade())
   }
 
-  cbs <- get_wide_cbs() |>
+  if (is.null(cbs)) {
+    cbs <- get_wide_cbs()
+  }
+  cbs <- cbs |>
     dplyr::select(year, item_cbs_code, area_code, export, import)
 
+  cli::cli_progress_step("Reading raw bilateral trade data")
   btd <- "bilateral_trade" |>
     whep_read_file() |>
     .clean_bilateral_trade()
 
   codes <- .get_all_country_codes(btd, cbs)
 
+  cli::cli_progress_step(
+    "Balancing trade matrices ({nrow(btd)} year-item groups)"
+  )
   btd |>
     .nest_by_year_item_code(cbs, codes) |>
     .process_bilateral_trade(codes) |>
