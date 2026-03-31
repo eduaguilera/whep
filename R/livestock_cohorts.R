@@ -94,12 +94,11 @@ calculate_cohorts_systems <- function(data,
 #' @noRd
 .get_cohort_fractions <- function(categories) {
   categories |>
-    dplyr::group_by(species, production_system) |>
     dplyr::mutate(
       n_cohorts = dplyr::n(),
-      cohort_share = 1 / n_cohorts
+      cohort_share = 1 / n_cohorts,
+      .by = c(species, production_system)
     ) |>
-    dplyr::ungroup() |>
     dplyr::select(
       species, production_system, cohort, cohort_share
     )

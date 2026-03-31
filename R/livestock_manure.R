@@ -68,7 +68,7 @@ calc_manure_ch4_tier1 <- function(data) {
 #'     calc_manure_ch4_tier2()
 #' }
 calc_manure_ch4_tier2 <- function(data) {
-  if (!"GE" %in% names(data)) {
+  if (!rlang::has_name(data, "GE")) {
     cli::cli_abort(
       "{.fun calc_manure_ch4_tier2} requires {.var GE}. \\
        Run {.fun estimate_energy_demand} first."
@@ -133,7 +133,7 @@ calc_manure_ch4_tier2 <- function(data) {
 #'     calc_manure_n2o()
 #' }
 calc_manure_n2o <- function(data) {
-  if (!"GE" %in% names(data)) {
+  if (!rlang::has_name(data, "GE")) {
     cli::cli_abort(
       "{.fun calc_manure_n2o} requires {.var GE}. \\
        Run {.fun estimate_energy_demand} first."
@@ -179,7 +179,7 @@ calc_manure_n2o <- function(data) {
   data <- data |>
     dplyr::mutate(
       manure_category = dplyr::case_when(
-        grepl("Dairy", species, ignore.case = TRUE) &
+        stringr::str_detect(species, "(?i)Dairy") &
           species_gen == "Cattle" ~ "Dairy Cattle",
         species_gen == "Cattle" ~ "Other Cattle",
         species %in% all_categories ~ species,
@@ -188,7 +188,7 @@ calc_manure_n2o <- function(data) {
     )
 
   # Try regional match first
-  if ("region" %in% names(data)) {
+  if (rlang::has_name(data, "region")) {
     cattle_ef <- ipcc_2019_manure_ch4_ef_cattle |>
       dplyr::select(region, category, ef_kg_head_yr)
     other_ef <- ipcc_2019_manure_ch4_ef_other |>
@@ -284,15 +284,15 @@ calc_manure_n2o <- function(data) {
 #' @noRd
 .get_bo_category <- function(species, species_gen) {
   dplyr::case_when(
-    grepl("Dairy", species, ignore.case = TRUE) &
+    stringr::str_detect(species, "(?i)Dairy") &
       species_gen == "Cattle" ~ "Dairy Cattle",
     species_gen == "Cattle" ~ "Other Cattle",
     species_gen == "Swine" &
-      grepl("Breed", species, ignore.case = TRUE) ~
+      stringr::str_detect(species, "(?i)Breed") ~
       "Swine - Breeding",
     species_gen == "Swine" ~ "Swine - Market",
     species_gen == "Poultry" &
-      grepl("Layer|Hen", species, ignore.case = TRUE) ~
+      stringr::str_detect(species, "(?i)Layer|Hen") ~
       "Poultry - Layers",
     species_gen == "Poultry" ~ "Poultry - Broilers",
     TRUE ~ species_gen
@@ -302,7 +302,7 @@ calc_manure_n2o <- function(data) {
 #' Calculate weighted MCF across MMS types.
 #' @noRd
 .calc_weighted_mcf <- function(data) {
-  if (!"climate_zone" %in% names(data)) {
+  if (!rlang::has_name(data, "climate_zone")) {
     data <- data |>
       dplyr::mutate(
         climate_zone = "Temperate",
@@ -312,7 +312,7 @@ calc_manure_n2o <- function(data) {
       )
   }
 
-  region_col <- if ("region" %in% names(data)) {
+  region_col <- if (rlang::has_name(data, "region")) {
     "region"
   } else {
     NULL
@@ -390,8 +390,8 @@ calc_manure_n2o <- function(data) {
   ge_content <- livestock_constants$vs_energy_content_mj_kg
 
   # Get CP% from feed_characteristics (not hardcoded)
-  if (!"cp_percent" %in% names(data)) {
-    if ("diet_quality" %in% names(data)) {
+  if (!rlang::has_name(data, "cp_percent")) {
+    if (rlang::has_name(data, "diet_quality")) {
       data <- data |>
         dplyr::left_join(
           feed_characteristics |>
@@ -437,14 +437,14 @@ calc_manure_n2o <- function(data) {
 
   n2o_to_n <- livestock_constants$n_to_n2o
 
-  if ("region" %in% names(data)) {
+  if (rlang::has_name(data, "region")) {
     data <- .calc_weighted_direct_n2o(
       data, ef3_tbl, n2o_to_n
     )
   } else {
     pasture_ef <- ef3_tbl |>
       dplyr::filter(
-        grepl("Pasture", mms_type, ignore.case = TRUE)
+        stringr::str_detect(mms_type, "(?i)Pasture")
       ) |>
       dplyr::pull(ef3) |>
       mean(na.rm = TRUE)

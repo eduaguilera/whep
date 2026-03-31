@@ -577,6 +577,7 @@ utils::globalVariables(
     "energy_content_gain_mj_kg", "enteric_ch4_per_head",
     "enteric_ef_kgch4", "fat_percent", "fat_percent_default",
     "fraction", "GE", "gleam_region", "grazing_distance_km",
+    "heads", "iso3",
     "lactose_percent", "lactose_percent_default",
     "manure_category", "manure_ch4_per_head", "manure_ef_kgch4",
     "manure_n2o_direct", "manure_n2o_indirect", "mcf_percent",

@@ -38,21 +38,16 @@ calculate_uncertainty_bounds <- function(data) {
     return(data)
   }
 
-  for (col_info in emis_cols) {
-    col <- col_info$col
-    param <- col_info$param
-    bounds <- .get_uncertainty_bounds(unc, param)
-
-    data <- data |>
+  purrr::reduce(emis_cols, \(data, col_info) {
+    bounds <- .get_uncertainty_bounds(unc, col_info$param)
+    data |>
       dplyr::mutate(
-        !!paste0(col, "_lower") :=
-          .data[[col]] * bounds$lower,
-        !!paste0(col, "_upper") :=
-          .data[[col]] * bounds$upper
+        !!paste0(col_info$col, "_lower") :=
+          .data[[col_info$col]] * bounds$lower,
+        !!paste0(col_info$col, "_upper") :=
+          .data[[col_info$col]] * bounds$upper
       )
-  }
-
-  data
+  }, .init = data)
 }
 
 # Private helpers ----

@@ -248,17 +248,17 @@ estimate_gross_energy <- function(data) {
 #' @noRd
 .get_general_species <- function(s) {
   dplyr::case_when(
-    grepl("Cattle", s, ignore.case = TRUE)    ~ "Cattle",
-    grepl("Buffalo", s, ignore.case = TRUE)   ~ "Buffalo",
-    grepl("Sheep", s, ignore.case = TRUE)     ~ "Sheep",
-    grepl("Goat", s, ignore.case = TRUE)      ~ "Goats",
-    grepl("Pig|Swine", s, ignore.case = TRUE) ~ "Swine",
-    grepl("Poultry|Chicken|Hen", s,
-          ignore.case = TRUE)                 ~ "Poultry",
-    grepl("Horse", s, ignore.case = TRUE)     ~ "Horses",
-    grepl("Camel", s, ignore.case = TRUE)     ~ "Camels",
-    grepl("Mule|Ass|Donkey", s,
-          ignore.case = TRUE)                 ~ "Mules and Asses",
+    stringr::str_detect(s, "(?i)Cattle")          ~ "Cattle",
+    stringr::str_detect(s, "(?i)Buffalo")         ~ "Buffalo",
+    stringr::str_detect(s, "(?i)Sheep")           ~ "Sheep",
+    stringr::str_detect(s, "(?i)Goat")            ~ "Goats",
+    stringr::str_detect(s, "(?i)Pig|Swine")       ~ "Swine",
+    stringr::str_detect(s, "(?i)Poultry|Chicken|Hen") ~
+      "Poultry",
+    stringr::str_detect(s, "(?i)Horse")           ~ "Horses",
+    stringr::str_detect(s, "(?i)Camel")           ~ "Camels",
+    stringr::str_detect(s, "(?i)Mule|Ass|Donkey") ~
+      "Mules and Asses",
     TRUE ~ s
   )
 }
@@ -267,9 +267,8 @@ estimate_gross_energy <- function(data) {
 #' @noRd
 .get_subcategory <- function(s) {
   dplyr::case_when(
-    grepl("Dairy", s, ignore.case = TRUE) ~ "Dairy",
-    grepl("Cattle|Buffalo", s,
-          ignore.case = TRUE)             ~ "Non-Dairy",
+    stringr::str_detect(s, "(?i)Dairy")          ~ "Dairy",
+    stringr::str_detect(s, "(?i)Cattle|Buffalo") ~ "Non-Dairy",
     TRUE ~ "All"
   )
 }
@@ -283,13 +282,12 @@ estimate_gross_energy <- function(data) {
 
   global_wts <- gleam_animal_weights |>
     dplyr::filter(region == "Global") |>
-    dplyr::group_by(species, cohort) |>
     dplyr::summarise(
       weight_kg_global = mean(weight_kg, na.rm = TRUE),
-      .groups = "drop"
+      .by = c(species, cohort)
     )
 
-  if ("iso3" %in% names(data)) {
+  if (rlang::has_name(data, "iso3")) {
     data <- data |>
       dplyr::left_join(
         gleam_geographic_hierarchy |>
@@ -298,10 +296,9 @@ estimate_gross_energy <- function(data) {
       ) |>
       dplyr::left_join(
         gleam_animal_weights |>
-          dplyr::group_by(region, species, cohort) |>
           dplyr::summarise(
             weight_kg = mean(weight_kg, na.rm = TRUE),
-            .groups = "drop"
+            .by = c(region, species, cohort)
           ),
         by = c(
           "gleam_region" = "region",
@@ -353,11 +350,8 @@ estimate_gross_energy <- function(data) {
     "lactose_percent", "weight_gain_kg_day", "work_hours_day",
     "pregnant_fraction", "wool_production_kg_yr"
   )
-  for (col in optional) {
-    if (!col %in% names(data)) {
-      data[[col]] <- NA_real_
-    }
-  }
+  missing <- setdiff(optional, names(data))
+  data[missing] <- NA_real_
   data
 }
 
@@ -371,7 +365,7 @@ estimate_gross_energy <- function(data) {
   data <- data |>
     dplyr::mutate(
       defaults_key = dplyr::case_when(
-        grepl("Dairy", species, ignore.case = TRUE) &
+        stringr::str_detect(species, "(?i)Dairy") &
           species_gen == "Cattle" ~ "Dairy Cattle",
         species_gen == "Cattle" ~ "Other Cattle",
         TRUE ~ species_gen
@@ -414,7 +408,7 @@ estimate_gross_energy <- function(data) {
 #' Set activity coefficient based on production system.
 #' @noRd
 .set_activity_coef <- function(data) {
-  if (!"system" %in% names(data)) {
+  if (!rlang::has_name(data, "system")) {
     data <- data |> dplyr::mutate(Ca = ca_pasture)
   } else {
     data <- data |>
@@ -424,7 +418,7 @@ estimate_gross_energy <- function(data) {
         )
       )
   }
-  if (!"grazing_distance_km" %in% names(data)) {
+  if (!rlang::has_name(data, "grazing_distance_km")) {
     data <- data |> dplyr::mutate(grazing_distance_km = 0)
   }
   data
@@ -433,7 +427,7 @@ estimate_gross_energy <- function(data) {
 #' Join feed characteristics by diet quality.
 #' @noRd
 .join_feed_characteristics <- function(data) {
-  if (!"diet_quality" %in% names(data)) {
+  if (!rlang::has_name(data, "diet_quality")) {
     cli::cli_warn(
       "{.arg diet_quality} not provided. Using default DE%."
     )
@@ -473,7 +467,7 @@ estimate_gross_energy <- function(data) {
 #' Join temperature adjustment factors.
 #' @noRd
 .join_temperature_adjustment <- function(data) {
-  if (!"temperature_c" %in% names(data)) {
+  if (!rlang::has_name(data, "temperature_c")) {
     data <- data |>
       dplyr::mutate(
         temperature_c = 15,
@@ -491,13 +485,6 @@ estimate_gross_energy <- function(data) {
     dplyr::filter(
       temperature_c >= temp_min & temperature_c < temp_max
     ) |>
-    dplyr::group_by(
-      dplyr::across(
-        -c(temp_min, temp_max, adjustment_factor)
-      )
-    ) |>
-    dplyr::slice(1) |>
-    dplyr::ungroup() |>
     dplyr::rename(temp_adjustment = adjustment_factor) |>
     dplyr::select(-temp_min, -temp_max)
 }

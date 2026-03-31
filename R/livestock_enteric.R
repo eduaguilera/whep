@@ -74,7 +74,7 @@ calc_enteric_ch4_tier1 <- function(data) {
 #'     calc_enteric_ch4_tier2()
 #' }
 calc_enteric_ch4_tier2 <- function(data) {
-  if (!"GE" %in% names(data)) {
+  if (!rlang::has_name(data, "GE")) {
     cli::cli_abort(
       "{.fun calc_enteric_ch4_tier2} requires {.var GE}. \\
        Run {.fun estimate_energy_demand} first."
@@ -131,14 +131,14 @@ calc_enteric_ch4_tier2 <- function(data) {
 #' @noRd
 .join_cattle_ef <- function(cattle_rows, cattle_ef) {
   cattle_category <- dplyr::case_when(
-    grepl("Dairy", cattle_rows$species, ignore.case = TRUE) ~
+    stringr::str_detect(cattle_rows$species, "(?i)Dairy") ~
       "Dairy Cattle",
     TRUE ~ "Other Cattle"
   )
   cattle_rows <- cattle_rows |>
     dplyr::mutate(cattle_category = cattle_category)
 
-  if ("region" %in% names(cattle_rows)) {
+  if (rlang::has_name(cattle_rows, "region")) {
     cattle_rows <- cattle_rows |>
       dplyr::left_join(
         cattle_ef,
@@ -220,13 +220,13 @@ calc_enteric_ch4_tier2 <- function(data) {
 .join_ym <- function(data) {
   ym_tbl <- ipcc_tier2_ym_values
 
-  if (!"diet_quality" %in% names(data)) {
+  if (!rlang::has_name(data, "diet_quality")) {
     data <- data |>
       dplyr::mutate(diet_quality = "Medium")
   }
 
   # Ensure system column exists
-  if (!"system" %in% names(data)) {
+  if (!rlang::has_name(data, "system")) {
     data <- data |> dplyr::mutate(system = NA_character_)
   }
 
