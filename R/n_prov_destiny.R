@@ -83,6 +83,13 @@ create_n_prov_destiny <- function() {
       Origin,
       Destiny,
       MgN
+    ) |>
+    dplyr::mutate(
+      Item = dplyr::recode(
+        Item,
+        "Firewood" = "Average wood",
+        "Acorns" = "Holm oak"
+      )
     )
 }
 
