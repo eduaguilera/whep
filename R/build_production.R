@@ -40,6 +40,7 @@ build_primary_production <- function(
   result <- raw |>
     .fix_production() |>
     .qc_production(smooth = smooth_carry_forward) |>
+    tibble::as_tibble() |>
     dplyr::select(
       year,
       area_code,
@@ -348,6 +349,13 @@ build_primary_production <- function(
   dt <- .read_input("luh2-areas", years = years, year_col = "Year")
   data.table::setnames(dt, c("ISO3", "Year"), c("iso3c", "year"))
   dt <- merge(dt, regions, by = "iso3c", all.x = TRUE)
+  unmatched <- unique(dt[is.na(area), iso3c])
+  if (length(unmatched) > 0) {
+    cli::cli_warn(
+      "LUH2 ISO3 codes not found in regions_full, dropping: {unmatched}"
+    )
+  }
+  dt <- dt[!is.na(area)]
   dt <- merge(dt, polities, by.x = "polity_code", by.y = "iso3c", all.x = TRUE)
   dt[, polity_code := NULL]
   dt <- dt[year > 1849]
