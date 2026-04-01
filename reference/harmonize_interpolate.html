@@ -122,10 +122,10 @@ duplicates automatically.</p>
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="co"># Simple-only data (no 1:n rows)</span></span></span>
 <span class="r-in"><span><span class="va">df_simple</span> <span class="op">&lt;-</span> <span class="fu">tibble</span><span class="fu">::</span><span class="fu"><a href="https://tibble.tidyverse.org/reference/tribble.html" class="external-link">tribble</a></span><span class="op">(</span></span></span>
-<span class="r-in"><span>  <span class="op">~</span><span class="va">item</span>,      <span class="op">~</span><span class="va">item_code_harm</span>, <span class="op">~</span><span class="va">year</span>, <span class="op">~</span><span class="va">value</span>, <span class="op">~</span><span class="va">type</span>,</span></span>
-<span class="r-in"><span>  <span class="st">"wheat"</span>,    <span class="fl">1</span>,               <span class="fl">2000</span>,   <span class="fl">5</span>,     <span class="st">"simple"</span>,</span></span>
-<span class="r-in"><span>  <span class="st">"barley"</span>,   <span class="fl">2</span>,               <span class="fl">2000</span>,   <span class="fl">3</span>,     <span class="st">"simple"</span>,</span></span>
-<span class="r-in"><span>  <span class="st">"oats"</span>,     <span class="fl">2</span>,               <span class="fl">2000</span>,   <span class="fl">2</span>,     <span class="st">"simple"</span></span></span>
+<span class="r-in"><span>  <span class="op">~</span><span class="va">item</span>, <span class="op">~</span><span class="va">item_code_harm</span>, <span class="op">~</span><span class="va">year</span>, <span class="op">~</span><span class="va">value</span>, <span class="op">~</span><span class="va">type</span>,</span></span>
+<span class="r-in"><span>  <span class="st">"wheat"</span>, <span class="fl">1</span>, <span class="fl">2000</span>, <span class="fl">5</span>, <span class="st">"simple"</span>,</span></span>
+<span class="r-in"><span>  <span class="st">"barley"</span>, <span class="fl">2</span>, <span class="fl">2000</span>, <span class="fl">3</span>, <span class="st">"simple"</span>,</span></span>
+<span class="r-in"><span>  <span class="st">"oats"</span>, <span class="fl">2</span>, <span class="fl">2000</span>, <span class="fl">2</span>, <span class="st">"simple"</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">harmonize_interpolate</span><span class="op">(</span><span class="va">df_simple</span><span class="op">)</span></span></span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BBBB;">ℹ</span> Only simple harmonization detected, returning simple harmonizations only.</span>
@@ -137,11 +137,11 @@ duplicates automatically.</p>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># Mixed simple + 1:n data</span></span></span>
 <span class="r-in"><span><span class="va">df_mixed</span> <span class="op">&lt;-</span> <span class="fu">tibble</span><span class="fu">::</span><span class="fu"><a href="https://tibble.tidyverse.org/reference/tribble.html" class="external-link">tribble</a></span><span class="op">(</span></span></span>
-<span class="r-in"><span>  <span class="op">~</span><span class="va">item</span>,       <span class="op">~</span><span class="va">item_code_harm</span>, <span class="op">~</span><span class="va">year</span>, <span class="op">~</span><span class="va">value</span>, <span class="op">~</span><span class="va">type</span>,</span></span>
-<span class="r-in"><span>  <span class="st">"wheatrice"</span>, <span class="fl">1</span>,               <span class="fl">2000</span>,  <span class="fl">20</span>,     <span class="st">"1:n"</span>,</span></span>
-<span class="r-in"><span>  <span class="st">"wheatrice"</span>, <span class="fl">2</span>,               <span class="fl">2000</span>,  <span class="fl">20</span>,     <span class="st">"1:n"</span>,</span></span>
-<span class="r-in"><span>  <span class="st">"wheat"</span>,     <span class="fl">1</span>,               <span class="fl">2000</span>,   <span class="fl">8</span>,     <span class="st">"simple"</span>,</span></span>
-<span class="r-in"><span>  <span class="st">"rice"</span>,      <span class="fl">2</span>,               <span class="fl">2000</span>,  <span class="fl">12</span>,     <span class="st">"simple"</span></span></span>
+<span class="r-in"><span>  <span class="op">~</span><span class="va">item</span>, <span class="op">~</span><span class="va">item_code_harm</span>, <span class="op">~</span><span class="va">year</span>, <span class="op">~</span><span class="va">value</span>, <span class="op">~</span><span class="va">type</span>,</span></span>
+<span class="r-in"><span>  <span class="st">"wheatrice"</span>, <span class="fl">1</span>, <span class="fl">2000</span>, <span class="fl">20</span>, <span class="st">"1:n"</span>,</span></span>
+<span class="r-in"><span>  <span class="st">"wheatrice"</span>, <span class="fl">2</span>, <span class="fl">2000</span>, <span class="fl">20</span>, <span class="st">"1:n"</span>,</span></span>
+<span class="r-in"><span>  <span class="st">"wheat"</span>, <span class="fl">1</span>, <span class="fl">2000</span>, <span class="fl">8</span>, <span class="st">"simple"</span>,</span></span>
+<span class="r-in"><span>  <span class="st">"rice"</span>, <span class="fl">2</span>, <span class="fl">2000</span>, <span class="fl">12</span>, <span class="st">"simple"</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">harmonize_interpolate</span><span class="op">(</span><span class="va">df_mixed</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 2 × 3</span></span>
@@ -153,13 +153,13 @@ duplicates automatically.</p>
 <span class="r-in"><span><span class="co"># Multiple years with share interpolation</span></span></span>
 <span class="r-in"><span><span class="co"># Shares are known in 2000 and 2002; 2001 is interpolated.</span></span></span>
 <span class="r-in"><span><span class="va">df_years</span> <span class="op">&lt;-</span> <span class="fu">tibble</span><span class="fu">::</span><span class="fu"><a href="https://tibble.tidyverse.org/reference/tribble.html" class="external-link">tribble</a></span><span class="op">(</span></span></span>
-<span class="r-in"><span>  <span class="op">~</span><span class="va">item</span>,       <span class="op">~</span><span class="va">item_code_harm</span>, <span class="op">~</span><span class="va">year</span>, <span class="op">~</span><span class="va">value</span>, <span class="op">~</span><span class="va">type</span>,</span></span>
-<span class="r-in"><span>  <span class="st">"wheat"</span>,     <span class="fl">1</span>,               <span class="fl">2000</span>,   <span class="fl">6</span>,     <span class="st">"simple"</span>,</span></span>
-<span class="r-in"><span>  <span class="st">"rice"</span>,      <span class="fl">2</span>,               <span class="fl">2000</span>,   <span class="fl">4</span>,     <span class="st">"simple"</span>,</span></span>
-<span class="r-in"><span>  <span class="st">"wheatrice"</span>, <span class="fl">1</span>,               <span class="fl">2001</span>,  <span class="fl">10</span>,     <span class="st">"1:n"</span>,</span></span>
-<span class="r-in"><span>  <span class="st">"wheatrice"</span>, <span class="fl">2</span>,               <span class="fl">2001</span>,  <span class="fl">10</span>,     <span class="st">"1:n"</span>,</span></span>
-<span class="r-in"><span>  <span class="st">"wheat"</span>,     <span class="fl">1</span>,               <span class="fl">2002</span>,   <span class="fl">8</span>,     <span class="st">"simple"</span>,</span></span>
-<span class="r-in"><span>  <span class="st">"rice"</span>,      <span class="fl">2</span>,               <span class="fl">2002</span>,   <span class="fl">2</span>,     <span class="st">"simple"</span></span></span>
+<span class="r-in"><span>  <span class="op">~</span><span class="va">item</span>, <span class="op">~</span><span class="va">item_code_harm</span>, <span class="op">~</span><span class="va">year</span>, <span class="op">~</span><span class="va">value</span>, <span class="op">~</span><span class="va">type</span>,</span></span>
+<span class="r-in"><span>  <span class="st">"wheat"</span>, <span class="fl">1</span>, <span class="fl">2000</span>, <span class="fl">6</span>, <span class="st">"simple"</span>,</span></span>
+<span class="r-in"><span>  <span class="st">"rice"</span>, <span class="fl">2</span>, <span class="fl">2000</span>, <span class="fl">4</span>, <span class="st">"simple"</span>,</span></span>
+<span class="r-in"><span>  <span class="st">"wheatrice"</span>, <span class="fl">1</span>, <span class="fl">2001</span>, <span class="fl">10</span>, <span class="st">"1:n"</span>,</span></span>
+<span class="r-in"><span>  <span class="st">"wheatrice"</span>, <span class="fl">2</span>, <span class="fl">2001</span>, <span class="fl">10</span>, <span class="st">"1:n"</span>,</span></span>
+<span class="r-in"><span>  <span class="st">"wheat"</span>, <span class="fl">1</span>, <span class="fl">2002</span>, <span class="fl">8</span>, <span class="st">"simple"</span>,</span></span>
+<span class="r-in"><span>  <span class="st">"rice"</span>, <span class="fl">2</span>, <span class="fl">2002</span>, <span class="fl">2</span>, <span class="st">"simple"</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">harmonize_interpolate</span><span class="op">(</span><span class="va">df_years</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 6 × 3</span></span>
@@ -174,14 +174,14 @@ duplicates automatically.</p>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># With extra grouping columns</span></span></span>
 <span class="r-in"><span><span class="va">df_grouped</span> <span class="op">&lt;-</span> <span class="fu">tibble</span><span class="fu">::</span><span class="fu"><a href="https://tibble.tidyverse.org/reference/tribble.html" class="external-link">tribble</a></span><span class="op">(</span></span></span>
-<span class="r-in"><span>  <span class="op">~</span><span class="va">item</span>,       <span class="op">~</span><span class="va">item_code_harm</span>, <span class="op">~</span><span class="va">year</span>, <span class="op">~</span><span class="va">value</span>, <span class="op">~</span><span class="va">type</span>,    <span class="op">~</span><span class="va">country</span>,</span></span>
-<span class="r-in"><span>  <span class="st">"wheat"</span>,     <span class="fl">1</span>,               <span class="fl">2000</span>,   <span class="fl">6</span>,     <span class="st">"simple"</span>, <span class="st">"usa"</span>,</span></span>
-<span class="r-in"><span>  <span class="st">"rice"</span>,      <span class="fl">2</span>,               <span class="fl">2000</span>,   <span class="fl">4</span>,     <span class="st">"simple"</span>, <span class="st">"usa"</span>,</span></span>
-<span class="r-in"><span>  <span class="st">"wheatrice"</span>, <span class="fl">1</span>,               <span class="fl">2001</span>,  <span class="fl">10</span>,     <span class="st">"1:n"</span>,    <span class="st">"usa"</span>,</span></span>
-<span class="r-in"><span>  <span class="st">"wheatrice"</span>, <span class="fl">2</span>,               <span class="fl">2001</span>,  <span class="fl">10</span>,     <span class="st">"1:n"</span>,    <span class="st">"usa"</span>,</span></span>
-<span class="r-in"><span>  <span class="st">"wheat"</span>,     <span class="fl">1</span>,               <span class="fl">2002</span>,   <span class="fl">8</span>,     <span class="st">"simple"</span>, <span class="st">"usa"</span>,</span></span>
-<span class="r-in"><span>  <span class="st">"rice"</span>,      <span class="fl">2</span>,               <span class="fl">2002</span>,   <span class="fl">2</span>,     <span class="st">"simple"</span>, <span class="st">"usa"</span>,</span></span>
-<span class="r-in"><span>  <span class="st">"wheat"</span>,     <span class="fl">1</span>,               <span class="fl">2002</span>,   <span class="fl">8</span>,     <span class="st">"simple"</span>, <span class="st">"germany"</span></span></span>
+<span class="r-in"><span>  <span class="op">~</span><span class="va">item</span>, <span class="op">~</span><span class="va">item_code_harm</span>, <span class="op">~</span><span class="va">year</span>, <span class="op">~</span><span class="va">value</span>, <span class="op">~</span><span class="va">type</span>, <span class="op">~</span><span class="va">country</span>,</span></span>
+<span class="r-in"><span>  <span class="st">"wheat"</span>, <span class="fl">1</span>, <span class="fl">2000</span>, <span class="fl">6</span>, <span class="st">"simple"</span>, <span class="st">"usa"</span>,</span></span>
+<span class="r-in"><span>  <span class="st">"rice"</span>, <span class="fl">2</span>, <span class="fl">2000</span>, <span class="fl">4</span>, <span class="st">"simple"</span>, <span class="st">"usa"</span>,</span></span>
+<span class="r-in"><span>  <span class="st">"wheatrice"</span>, <span class="fl">1</span>, <span class="fl">2001</span>, <span class="fl">10</span>, <span class="st">"1:n"</span>, <span class="st">"usa"</span>,</span></span>
+<span class="r-in"><span>  <span class="st">"wheatrice"</span>, <span class="fl">2</span>, <span class="fl">2001</span>, <span class="fl">10</span>, <span class="st">"1:n"</span>, <span class="st">"usa"</span>,</span></span>
+<span class="r-in"><span>  <span class="st">"wheat"</span>, <span class="fl">1</span>, <span class="fl">2002</span>, <span class="fl">8</span>, <span class="st">"simple"</span>, <span class="st">"usa"</span>,</span></span>
+<span class="r-in"><span>  <span class="st">"rice"</span>, <span class="fl">2</span>, <span class="fl">2002</span>, <span class="fl">2</span>, <span class="st">"simple"</span>, <span class="st">"usa"</span>,</span></span>
+<span class="r-in"><span>  <span class="st">"wheat"</span>, <span class="fl">1</span>, <span class="fl">2002</span>, <span class="fl">8</span>, <span class="st">"simple"</span>, <span class="st">"germany"</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">harmonize_interpolate</span><span class="op">(</span><span class="va">df_grouped</span>, <span class="va">country</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 7 × 4</span></span>

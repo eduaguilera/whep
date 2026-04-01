@@ -110,6 +110,18 @@ to become familiar with the workflow if you are still not used to it.
 
 # Package index
 
+## Build datasets
+
+Build full datasets from raw FAOSTAT inputs. These functions orchestrate
+reading, gap-filling, historical extension, and balance validation.
+
+- [`build_primary_production()`](https://eduaguilera.github.io/whep/reference/build_primary_production.md)
+  : Build primary production dataset
+- [`build_commodity_balances()`](https://eduaguilera.github.io/whep/reference/build_commodity_balances.md)
+  : Build commodity balance sheets
+- [`build_processing_coefs()`](https://eduaguilera.github.io/whep/reference/build_processing_coefs.md)
+  : Build processing coefficients
+
 ## Tidy datasets
 
 Get cleaned dataframes with project related data.
@@ -176,6 +188,10 @@ Add name columns in dataframes from their codes or viceversa.
 
 - [`polities`](https://eduaguilera.github.io/whep/reference/polities.md)
   : Polities
+- [`polities_cats`](https://eduaguilera.github.io/whep/reference/polities_cats.md)
+  : Polity categories and regional classifications
+- [`regions_full`](https://eduaguilera.github.io/whep/reference/regions_full.md)
+  : Full polity and region reference table
 - [`add_area_code()`](https://eduaguilera.github.io/whep/reference/add_area_code.md)
   : Get area codes from area names
 - [`add_area_name()`](https://eduaguilera.github.io/whep/reference/add_area_name.md)
@@ -185,6 +201,10 @@ Add name columns in dataframes from their codes or viceversa.
 
 - [`items_cbs`](https://eduaguilera.github.io/whep/reference/items_cbs.md)
   : Commodity balance sheet items
+- [`items_full`](https://eduaguilera.github.io/whep/reference/items_full.md)
+  : Full CBS item table
+- [`cbs_trade_codes`](https://eduaguilera.github.io/whep/reference/cbs_trade_codes.md)
+  : CBS to trade item code mapping
 - [`add_item_cbs_code()`](https://eduaguilera.github.io/whep/reference/add_item_cbs_code.md)
   : Get commodity balance sheet item codes from item names
 - [`add_item_cbs_name()`](https://eduaguilera.github.io/whep/reference/add_item_cbs_name.md)
@@ -194,10 +214,31 @@ Add name columns in dataframes from their codes or viceversa.
 
 - [`items_prod`](https://eduaguilera.github.io/whep/reference/items_prod.md)
   : Primary production items
+- [`items_prim`](https://eduaguilera.github.io/whep/reference/items_prim.md)
+  : Primary production items linked to CBS
+- [`items_prod_full`](https://eduaguilera.github.io/whep/reference/items_prod_full.md)
+  : Full production item table
 - [`add_item_prod_code()`](https://eduaguilera.github.io/whep/reference/add_item_prod_code.md)
   : Get production item codes from item names
 - [`add_item_prod_name()`](https://eduaguilera.github.io/whep/reference/add_item_prod_name.md)
   : Get production item names from item codes
+
+## Reference tables
+
+Lookup and coefficient tables used internally across the pipeline.
+
+- [`animals_codes`](https://eduaguilera.github.io/whep/reference/animals_codes.md)
+  : Animal codes and classifications
+- [`biomass_coefs`](https://eduaguilera.github.io/whep/reference/biomass_coefs.md)
+  : Biomass coefficients for crops and livestock products
+- [`cb_processing`](https://eduaguilera.github.io/whep/reference/cb_processing.md)
+  : Commodity balance sheet processing fractions
+- [`crops_eurostat`](https://eduaguilera.github.io/whep/reference/crops_eurostat.md)
+  : Eurostat crop classification codes
+- [`liv_lu_coefs`](https://eduaguilera.github.io/whep/reference/liv_lu_coefs.md)
+  : Livestock unit coefficients
+- [`primary_double`](https://eduaguilera.github.io/whep/reference/primary_double.md)
+  : Items with double-counting in production statistics
 
 ## FAOSTAT raw data
 

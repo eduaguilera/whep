@@ -147,11 +147,9 @@ fill_proxy_growth(
 #> Step 2: Applying hierarchical filling...
 #>   Applying proxy level 1: population
 #> Total filled: 2 out of 2 missing values
-#> # A tibble: 4 × 5
-#>   country  year   gdp population source_gdp   
-#>   <chr>   <int> <dbl>      <dbl> <chr>        
-#> 1 ESP      2010 1000        46   original     
-#> 2 ESP      2011 1067.       46.5 linear_interp
-#> 3 ESP      2012 1133.       47   linear_interp
-#> 4 ESP      2013 1200        47.5 original     
+#>   year country      gdp population    source_gdp
+#> 1 2010     ESP 1000.000       46.0      original
+#> 2 2011     ESP 1066.667       46.5 linear_interp
+#> 3 2012     ESP 1133.333       47.0 linear_interp
+#> 4 2013     ESP 1200.000       47.5      original
 ```

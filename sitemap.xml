@@ -1,5 +1,6 @@
 <urlset xmlns = 'http://www.sitemaps.org/schemas/sitemap/0.9'>
 <url><loc>https://eduaguilera.github.io/whep/404.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/CLAUDE.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/LICENSE-text.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/LICENSE.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/articles/index.html</loc></url>
@@ -14,15 +15,23 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/add_item_cbs_name.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/add_item_prod_code.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/add_item_prod_name.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/animals_codes.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/biomass_coefs.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/build_commodity_balances.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/build_primary_production.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/build_processing_coefs.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_supply_use.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/calculate_lmdi.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/calculate_nue_crops.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/calculate_nue_livestock.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/calculate_system_nue.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/cb_processing.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/cbs_trade_codes.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/create_n_nat_destiny.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/create_n_production.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/create_n_prov_destiny.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/create_n_soil_inputs.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/crops_eurostat.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/expand_trade_sources.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/fill_linear.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/fill_proxy_growth.html</loc></url>
@@ -38,8 +47,15 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/harmonize_simple.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/index.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/items_cbs.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/items_full.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/items_prim.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/items_prod.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/items_prod_full.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/liv_lu_coefs.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/polities.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/polities_cats.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/primary_double.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/regions_full.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/whep-package.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/whep_inputs.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/whep_list_file_versions.html</loc></url>

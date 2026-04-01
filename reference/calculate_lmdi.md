@@ -346,11 +346,11 @@ calculate_lmdi(
 # [] sums the bracketed variable across sector before forming ratios,
 # enabling proper structural decomposition.
 data_sectors <- tibble::tribble(
-  ~year, ~sector,      ~activity, ~emissions,
-  2010, "industry",   600,        60,
-  2010, "transport",  400,        40,
-  2011, "industry",   700,        63,
-  2011, "transport",  500,        55
+  ~year, ~sector, ~activity, ~emissions,
+  2010, "industry", 600, 60,
+  2010, "transport", 400, 40,
+  2011, "industry", 700, 63,
+  2011, "transport", 500, 55
 ) |>
   dplyr::group_by(year) |>
   dplyr::mutate(total_activity = sum(activity)) |>
