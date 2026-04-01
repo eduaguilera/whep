@@ -17,3 +17,5 @@
 ^Meta$
 ^.vscode$
 ^\.agent$
+^\.claude$
+^CLAUDE\.md$
