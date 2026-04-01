@@ -231,3 +231,46 @@
     1997, "Barley and products", "Rainfed", "Cropland", "Cropland", "livestock_rum", 17549., "Spain"
   )
 }
+
+.example_build_primary_prod <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~item_prod_code, ~item_cbs_code, ~live_anim_code, ~unit, ~value,
+    2000L, 149L, 181L, 2549L, NA, "ha", 8000.,
+    1998L, 41L, 299L, 2570L, NA, "t_ha", 1.412,
+    2015L, 138L, 205L, 2549L, NA, "ha", 8637.,
+    2007L, 124L, 960L, 960L, NA, "heads", 135000.,
+    2003L, 141L, 1062L, 2744L, 1052L, "tonnes", 3002.,
+    2011L, 173L, 459L, 2605L, NA, "tonnes", 36998.,
+    1990L, 119L, 1182L, 2745L, 1181L, "tonnes", 676.,
+    2008L, 202L, 83L, 2518L, NA, "ha", 86675.,
+    2005L, 223L, 952L, 2740L, 946L, "t_LU", 0.01450,
+    2019L, 84L, 951L, 2848L, 946L, "t_LU", 0.07641
+  )
+}
+
+.example_build_commodity_bal <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~domestic_supply, ~production, ~import, ~export, ~food, ~feed, ~seed, ~other_uses, ~processing, ~stock_retrieval,
+    2005L, 93L, 2107L, 921004., 921004., 0., 0., 0., 0., 0., 921004., 0., 0.,
+    1999L, 59L, 2630L, 18000., 0., 24000., 6000., 18000., 0., 0., 0., 0., 0.,
+    2014L, 133L, 2613L, 15.5, 0., 15.5, 0., 15.5, 0., 0., 0., 0., 0.,
+    2008L, 109L, 2555L, 3000., 0., 3000., 0., 0., 3000., 0., 0., 0., 0.333,
+    2002L, 174L, 2594L, 4983., 4983., 0., 0., 0., 4983., 0., 0., 0., 0.,
+    1993L, 168L, 2615L, 913000., 913000., 0., 0., 913000., 0., 0., 0., 0., 0.,
+    2006L, 194L, 2578L, 2000., 0., 2000., 0., 2000., 0., 0., 0., 0., 0.
+  )
+}
+
+.example_build_proc_coefs <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code_to_process, ~value_to_process, ~item_cbs_code_processed, ~initial_conversion_factor, ~initial_value_processed, ~conversion_factor_scaling, ~final_conversion_factor, ~final_value_processed,
+    2007L, 184L, 2536L, 106000., 2657L, 0.02591, 2746.1, 7.736, 0.2004, 21243.,
+    2015L, 98L, 2563L, 8000., 2580L, 0.41297, 3303.7, 0.6054, 0.25, 2000.,
+    1999L, 114L, 2518L, 27000., 2658L, 0.03191, 861.4, 0.1802, 0.005750, 155.2,
+    2012L, 185L, 2537L, 20225000., 2542L, 0.22752, 4601597., 0.6046, 0.13755, 2782000.,
+    2008L, 169L, 2557L, 130000., 2573L, 0.84693, 110101., 0.4632, 0.39231, 51000.,
+    1995L, 231L, 2536L, 23172000., 2543L, 0.04247, 984169., 5.4961, 0.23343, 5409081.,
+    2018L, 159L, 2560L, 135344., 2596L, 0.15745, 21310., 0.2961, 0.04661, 6309.,
+    2003L, 131L, 2511L, 49000., 2659L, 0.07674, 3760.3, 0.4167, 0.03198, 1567.
+  )
+}

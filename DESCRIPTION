@@ -17,7 +17,9 @@ Description: A set of tools for processing and analyzing data developed in the
     Bruckner et al. (2019) <doi:10.1021/acs.est.9b03554>.
 License: MIT + file LICENSE
 Imports:
+    arrow,
     cli,
+    data.table,
     dplyr,
     fs,
     FAOSTAT,
@@ -36,7 +38,7 @@ Imports:
     zoo
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.3.2
+RoxygenNote: 7.3.3
 Suggests: 
     ggplot2,
     googlesheets4,

@@ -43,19 +43,7 @@ get_primary_production <- function(example = FALSE) {
   if (example) {
     return(.ex_get_primary_prod())
   }
-
-  "primary_prod" |>
-    whep_read_file() |>
-    dplyr::rename_with(tolower) |>
-    dplyr::select(
-      year,
-      area_code,
-      item_prod_code = item_code,
-      item_cbs_code = item_code_cbs,
-      live_anim_code,
-      unit,
-      value
-    )
+  whep_read_file("primary_prod")
 }
 
 #' Crop residue items
@@ -127,14 +115,13 @@ get_primary_residues <- function(example = FALSE) {
 .use_seed_cbs_item <- function(crop_residues) {
   crop_residues |>
     dplyr::mutate(
-      item_cbs_code_crop = dplyr::case_match(
-        item_cbs_code_crop,
+      item_cbs_code_crop = dplyr::case_when(
         # "Seed cotton" changes to "Cottonseed",
-        328 ~ 2559,
+        item_cbs_code_crop == 328 ~ 2559,
         # "Coconuts" changes to "Coconuts - Incl Copra",
-        248 ~ 2560,
+        item_cbs_code_crop == 248 ~ 2560,
         # "Oil, palm fruit" changes to "Palm kernels"
-        254 ~ 2562,
+        item_cbs_code_crop == 254 ~ 2562,
         # Leave others unchanged
         .default = item_cbs_code_crop
       )

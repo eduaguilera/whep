@@ -47,22 +47,7 @@ get_wide_cbs <- function(example = FALSE) {
   if (example) {
     return(.example_get_wide_cbs())
   }
-
-  "commodity_balance_sheet" |>
-    whep_read_file() |>
-    tidyr::pivot_wider(
-      names_from = Element,
-      values_from = Value,
-      values_fill = 0
-    ) |>
-    dplyr::rename_with(tolower) |>
-    dplyr::mutate(
-      stock_retrieval = -stock_variation,
-      dplyr::across(c(year, area_code), as.integer),
-      .keep = "unused"
-    ) |>
-    dplyr::select(-area, -item) |>
-    dplyr::rename(item_cbs_code = item_code)
+  whep_read_file("commodity_balance_sheet")
 }
 
 #' Processed products share factors
@@ -125,22 +110,5 @@ get_processing_coefs <- function(example = FALSE) {
   if (example) {
     return(.example_get_processing_coefs())
   }
-
-  "processing_coefs" |>
-    whep_read_file() |>
-    dplyr::select(-Item, -Element) |>
-    dplyr::rename_with(tolower) |>
-    add_item_cbs_code(name_column = "item") |>
-    dplyr::select(
-      year,
-      area_code,
-      item_cbs_code_to_process = item_code,
-      value_to_process = value,
-      item_cbs_code_processed = item_cbs_code,
-      initial_conversion_factor = product_fraction,
-      initial_value_processed = value_proc_raw,
-      conversion_factor_scaling = scaling,
-      final_conversion_factor = cf,
-      final_value_processed = value_proc
-    )
+  whep_read_file("processing_coefs")
 }

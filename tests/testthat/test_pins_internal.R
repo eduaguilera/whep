@@ -86,6 +86,10 @@ testthat::test_that(".pins_update_cache writes and returns value", {
 })
 
 testthat::test_that(".pins_show_progress returns FALSE in non-interactive", {
+  testthat::local_mocked_bindings(
+    interactive = function() FALSE,
+    .package = "base"
+  )
   testthat::expect_false(.pins_show_progress())
   testthat::expect_false(.pins_show_progress(size = 10^8))
 })
