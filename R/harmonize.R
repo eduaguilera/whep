@@ -22,38 +22,38 @@
 #' # 1:1 mapping: one original item -> one harmonized code
 #' df_one_to_one <- tibble::tribble(
 #'   ~item_code_harm, ~year, ~value, ~type,
-#'   1,               2000,  10,     "simple",
-#'   2,               2000,   3,     "simple",
-#'   1,               2001,  12,     "simple",
-#'   2,               2001,   5,     "simple"
+#'   1, 2000, 10, "simple",
+#'   2, 2000, 3, "simple",
+#'   1, 2001, 12, "simple",
+#'   2, 2001, 5, "simple"
 #' )
 #' harmonize_simple(df_one_to_one)
 #'
 #' # N:1 mapping: multiple items map to the same code
 #' df_many_to_one <- tibble::tribble(
 #'   ~item_code_harm, ~year, ~value, ~type,
-#'   1,               2000,   4,     "simple",
-#'   1,               2000,   6,     "simple",
-#'   2,               2000,   3,     "simple"
+#'   1, 2000, 4, "simple",
+#'   1, 2000, 6, "simple",
+#'   2, 2000, 3, "simple"
 #' )
 #' harmonize_simple(df_many_to_one)
 #'
 #' # With an extra grouping column (e.g. country)
 #' df_grouped <- tibble::tribble(
-#'   ~item_code_harm, ~year, ~value, ~type,    ~country,
-#'   1,               2000,   4,     "simple", "usa",
-#'   1,               2000,   6,     "simple", "usa",
-#'   1,               2000,   9,     "simple", "germany",
-#'   2,               2000,   3,     "simple", "usa"
+#'   ~item_code_harm, ~year, ~value, ~type, ~country,
+#'   1, 2000, 4, "simple", "usa",
+#'   1, 2000, 6, "simple", "usa",
+#'   1, 2000, 9, "simple", "germany",
+#'   2, 2000, 3, "simple", "usa"
 #' )
 #' harmonize_simple(df_grouped, country)
 #'
 #' # Rows with type != "simple" are ignored
 #' df_mixed <- tibble::tribble(
 #'   ~item_code_harm, ~year, ~value, ~type,
-#'   1,               2000,  10,     "simple",
-#'   1,               2000,  99,     "1:n",
-#'   2,               2000,   3,     "simple"
+#'   1, 2000, 10, "simple",
+#'   1, 2000, 99, "1:n",
+#'   2, 2000, 3, "simple"
 #' )
 #' harmonize_simple(df_mixed)
 harmonize_simple <- function(data, ...) {
@@ -101,46 +101,46 @@ harmonize_simple <- function(data, ...) {
 #' @examples
 #' # Simple-only data (no 1:n rows)
 #' df_simple <- tibble::tribble(
-#'   ~item,      ~item_code_harm, ~year, ~value, ~type,
-#'   "wheat",    1,               2000,   5,     "simple",
-#'   "barley",   2,               2000,   3,     "simple",
-#'   "oats",     2,               2000,   2,     "simple"
+#'   ~item, ~item_code_harm, ~year, ~value, ~type,
+#'   "wheat", 1, 2000, 5, "simple",
+#'   "barley", 2, 2000, 3, "simple",
+#'   "oats", 2, 2000, 2, "simple"
 #' )
 #' harmonize_interpolate(df_simple)
 #'
 #' # Mixed simple + 1:n data
 #' df_mixed <- tibble::tribble(
-#'   ~item,       ~item_code_harm, ~year, ~value, ~type,
-#'   "wheatrice", 1,               2000,  20,     "1:n",
-#'   "wheatrice", 2,               2000,  20,     "1:n",
-#'   "wheat",     1,               2000,   8,     "simple",
-#'   "rice",      2,               2000,  12,     "simple"
+#'   ~item, ~item_code_harm, ~year, ~value, ~type,
+#'   "wheatrice", 1, 2000, 20, "1:n",
+#'   "wheatrice", 2, 2000, 20, "1:n",
+#'   "wheat", 1, 2000, 8, "simple",
+#'   "rice", 2, 2000, 12, "simple"
 #' )
 #' harmonize_interpolate(df_mixed)
 #'
 #' # Multiple years with share interpolation
 #' # Shares are known in 2000 and 2002; 2001 is interpolated.
 #' df_years <- tibble::tribble(
-#'   ~item,       ~item_code_harm, ~year, ~value, ~type,
-#'   "wheat",     1,               2000,   6,     "simple",
-#'   "rice",      2,               2000,   4,     "simple",
-#'   "wheatrice", 1,               2001,  10,     "1:n",
-#'   "wheatrice", 2,               2001,  10,     "1:n",
-#'   "wheat",     1,               2002,   8,     "simple",
-#'   "rice",      2,               2002,   2,     "simple"
+#'   ~item, ~item_code_harm, ~year, ~value, ~type,
+#'   "wheat", 1, 2000, 6, "simple",
+#'   "rice", 2, 2000, 4, "simple",
+#'   "wheatrice", 1, 2001, 10, "1:n",
+#'   "wheatrice", 2, 2001, 10, "1:n",
+#'   "wheat", 1, 2002, 8, "simple",
+#'   "rice", 2, 2002, 2, "simple"
 #' )
 #' harmonize_interpolate(df_years)
 #'
 #' # With extra grouping columns
 #' df_grouped <- tibble::tribble(
-#'   ~item,       ~item_code_harm, ~year, ~value, ~type,    ~country,
-#'   "wheat",     1,               2000,   6,     "simple", "usa",
-#'   "rice",      2,               2000,   4,     "simple", "usa",
-#'   "wheatrice", 1,               2001,  10,     "1:n",    "usa",
-#'   "wheatrice", 2,               2001,  10,     "1:n",    "usa",
-#'   "wheat",     1,               2002,   8,     "simple", "usa",
-#'   "rice",      2,               2002,   2,     "simple", "usa",
-#'   "wheat",     1,               2002,   8,     "simple", "germany"
+#'   ~item, ~item_code_harm, ~year, ~value, ~type, ~country,
+#'   "wheat", 1, 2000, 6, "simple", "usa",
+#'   "rice", 2, 2000, 4, "simple", "usa",
+#'   "wheatrice", 1, 2001, 10, "1:n", "usa",
+#'   "wheatrice", 2, 2001, 10, "1:n", "usa",
+#'   "wheat", 1, 2002, 8, "simple", "usa",
+#'   "rice", 2, 2002, 2, "simple", "usa",
+#'   "wheat", 1, 2002, 8, "simple", "germany"
 #' )
 #' harmonize_interpolate(df_grouped, country)
 harmonize_interpolate <- function(data, ...) {

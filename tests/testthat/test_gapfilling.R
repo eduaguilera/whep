@@ -318,6 +318,22 @@ testthat::test_that("fill_linear handles single non-NA value without error", {
     )
 })
 
+testthat::test_that("fill_linear warns on duplicate years within a group", {
+  # Duplicate years are malformed time-series input and must be flagged
+  # rather than silently passed to approx() which crashes in obscure ways.
+  testthat::expect_warning(
+    tibble::tribble(
+      ~year, ~value,
+      2015, 10,
+      2015, 20,
+      2016, NA,
+      2017, NA
+    ) |>
+      fill_linear(value),
+    "Duplicate year"
+  )
+})
+
 testthat::test_that("fill_linear handles all-NA group without error", {
   tibble::tribble(
     ~year, ~value,

@@ -34,7 +34,7 @@ add_area_name <- function(
   code_column = "area_code",
   name_column = "area_name"
 ) {
-  polities <- .get_polities(name_column, code_column)
+  polities <- .get_polities(name_column, code_column, table)
 
   table |>
     dplyr::left_join(polities, {{ code_column }})
@@ -232,9 +232,40 @@ add_item_prod_code <- function(
     dplyr::left_join(items, {{ name_column }})
 }
 
-.get_polities <- function(name_column, code_column) {
+.get_polities <- function(name_column, code_column, table = NULL) {
+  key_column <- .resolve_polity_key(table, code_column)
+
   whep::polities |>
-    dplyr::select(!!name_column := area_name, !!code_column := area_code)
+    dplyr::select(
+      !!name_column := area_name,
+      !!code_column := dplyr::all_of(key_column)
+    )
+}
+
+.resolve_polity_key <- function(table, code_column) {
+  if (is.null(table) || !rlang::has_name(table, code_column)) {
+    return("area_code")
+  }
+
+  codes <- table[[code_column]]
+
+  if (!is.character(codes)) {
+    return("area_code")
+  }
+
+  codes <- unique(stats::na.omit(codes))
+
+  if (length(codes) == 0L) {
+    return("area_code")
+  }
+
+  looks_numeric <- stringr::str_detect(codes, "^[0-9]+$")
+
+  if (all(looks_numeric)) {
+    return("area_code")
+  }
+
+  "iso3c"
 }
 
 .get_cbs_items <- function(name_column, code_column) {
