@@ -464,7 +464,7 @@ build_processing_coefs <- function(
 .format_proc_output <- function(df) {
   items <- whep::items_full
 
-  df |>
+  tibble::as_tibble(df) |>
     dplyr::left_join(
       items |>
         dplyr::select(
@@ -1751,6 +1751,10 @@ build_processing_coefs <- function(
       ) |>
       dplyr::filter(!(group == "Crop products" & element == "production")),
     proc_result$processed_agg |>
+      dplyr::left_join(
+        items |> dplyr::select(item_cbs, item_cbs_code),
+        by = "item_cbs"
+      ) |>
       dplyr::mutate(source = "Processed")
   ) |>
     dplyr::filter(
