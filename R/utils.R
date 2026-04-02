@@ -596,6 +596,9 @@ utils::globalVariables(
     "weight_kg_global", "weighted_ef3", "weighted_mcf",
     "wool_production_kg_yr", "work_hours_day",
     "work_hours_day_default", "Ym", "ym_percent",
-    "all_categories", "cohort_fraction", "system_share"
+    "all_categories", "cohort_fraction", "system_share",
+    # livestock bridge
+    "Item_Code_product", "Liv_prod_cat",
+    "meat_yield_t_head", "iso3c"
   )
 )

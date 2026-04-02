@@ -252,9 +252,10 @@ estimate_gross_energy <- function(data) {
     stringr::str_detect(s, "(?i)Buffalo")         ~ "Buffalo",
     stringr::str_detect(s, "(?i)Sheep")           ~ "Sheep",
     stringr::str_detect(s, "(?i)Goat")            ~ "Goats",
-    stringr::str_detect(s, "(?i)Pig|Swine")       ~ "Swine",
-    stringr::str_detect(s, "(?i)Poultry|Chicken|Hen") ~
-      "Poultry",
+    stringr::str_detect(s, "(?i)Pig|Swine|Hog")    ~ "Swine",
+    stringr::str_detect(
+      s, "(?i)Poultry|Chicken|Hen|Duck|Geese|Goose|Turkey"
+    ) ~ "Poultry",
     stringr::str_detect(s, "(?i)Horse")           ~ "Horses",
     stringr::str_detect(s, "(?i)Camel")           ~ "Camels",
     stringr::str_detect(s, "(?i)Mule|Ass|Donkey") ~
