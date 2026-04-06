@@ -279,3 +279,69 @@
     1984, 171, 2513,  104400.,     2659, 0.0240,  2501.,     0.0575,  0.00138,  144.
   )
 }
+
+.example_build_detailed_trade <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~area_code_partner, ~element,
+    ~item_cbs_code, ~unit, ~value, ~country_share,
+    2010L, 4L, 100L, "import", 2511L, "tonnes", 125000., 0.35,
+    2010L, 4L, 79L, "import", 2511L, "tonnes", 89000., 0.25,
+    2015L, 100L, 4L, "export", 2536L, "tonnes", 45000., 0.18,
+    2015L, 100L, 79L, "export", 2536L, "tonnes", 72000., 0.29,
+    2018L, 79L, 4L, "import", 2807L, "tonnes", 310000., 0.42,
+    2018L, 79L, 100L, "import", 2807L, "tonnes", 150000., 0.20,
+    2005L, 4L, 79L, "export", 2555L, "tonnes", 63000., 0.55,
+    2005L, 4L, 100L, "export", 2555L, "tonnes", 28000., 0.24,
+    2012L, 100L, 4L, "import", 2570L, "tonnes", 98000., 0.31,
+    2012L, 100L, 79L, "import", 2570L, "tonnes", 54000., 0.17
+  )
+}
+
+.example_build_trade_prices <- function() {
+  tibble::tribble(
+    ~year, ~item_trade, ~item_code_trade, ~element,
+    ~kdollars, ~tonnes, ~price,
+    2010L, "Wheat", 15L, "export", 3.5e7, 1.2e8, 0.292,
+    2010L, "Wheat", 15L, "import", 3.8e7, 1.3e8, 0.292,
+    2015L, "Rice", 31L, "export", 1.9e7, 4.5e7, 0.422,
+    2015L, "Rice", 31L, "import", 2.0e7, 4.7e7, 0.426,
+    2010L, "Maize", 56L, "export", 2.8e7, 1.1e8, 0.255,
+    2010L, "Maize", 56L, "import", 3.0e7, 1.2e8, 0.250,
+    2018L, "Soybeans", 236L, "export", 5.2e7, 1.5e8, 0.347,
+    2018L, "Soybeans", 236L, "import", 5.5e7, 1.6e8, 0.344,
+    2015L, "Sugar", 162L, "export", 1.1e7, 5.5e7, 0.200,
+    2015L, "Sugar", 162L, "import", 1.2e7, 5.8e7, 0.207
+  )
+}
+
+.example_build_primary_prices <- function() {
+  tibble::tribble(
+    ~year, ~item_prod_code, ~price,
+    2010L, 15L, 0.292,
+    2015L, 15L, 0.210,
+    2010L, 56L, 0.255,
+    2015L, 56L, 0.185,
+    2010L, 236L, 0.410,
+    2015L, 236L, 0.347,
+    2010L, 31L, 0.395,
+    2015L, 31L, 0.422,
+    2018L, 406L, 0.330,
+    2018L, 486L, 0.180
+  )
+}
+
+.example_build_cbs_prices <- function() {
+  tibble::tribble(
+    ~year, ~element, ~item_cbs_code, ~price,
+    2010L, "export", 2511L, 0.292,
+    2010L, "import", 2511L, 0.295,
+    2015L, "export", 2807L, 0.422,
+    2015L, "import", 2807L, 0.426,
+    2010L, "export", 2536L, 0.255,
+    2010L, "import", 2536L, 0.250,
+    2018L, "export", 2555L, 0.347,
+    2018L, "import", 2555L, 0.344,
+    2015L, "export", 2105L, 0.029,
+    2015L, "import", 2105L, 0.030
+  )
+}
