@@ -275,6 +275,7 @@ create_typologies_timeseries_plot <- function(
   block_width <- 0.002
   block_height <- 0.002
   block_gap <- 0.0006
+  title_y <- 0.505
 
   n <- length(typology_levels)
 
@@ -306,12 +307,11 @@ create_typologies_timeseries_plot <- function(
   )
 
   legend_plot <- ggplot2::ggplot(legend_df) +
-    ggplot2::geom_text(
-      ggplot2::aes(
-        x = 0,
-        y = max(y_top) + block_height + 0.08,
-        label = "Typologies"
-      ),
+    ggplot2::annotate(
+      "text",
+      x = 0,
+      y = title_y,
+      label = "Typologies",
       hjust = 0,
       vjust = 0,
       size = 5

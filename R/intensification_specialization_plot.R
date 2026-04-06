@@ -1790,3 +1790,143 @@ system_shares_plot <- function() {
 
   return(list(plot = p, data = df_ts))
 }
+
+
+external_dependency_plot_national <- function() {
+  # ---- Load national data ----
+  flows <- create_n_nat_destiny()
+
+  inputs <- flows |>
+    dplyr::filter(
+      # ---- Soil inputs ----
+      (Destiny %in%
+        c("Cropland", "semi_natural_agroecosystems") &
+        Origin %in%
+          c("Synthetic", "Fixation", "Deposition", "Livestock", "People")) |
+
+        # ---- Livestock feed ----
+        (Destiny %in%
+          c("livestock_mono", "livestock_rum") &
+          Origin %in% c("Cropland", "semi_natural_agroecosystems", "Outside"))
+    ) |>
+
+    # ---- Classify inputs ----
+    dplyr::mutate(
+      input_type = dplyr::case_when(
+        # External
+        Origin %in%
+          c("Synthetic", "Fixation", "Deposition") &
+          Destiny %in%
+            c("Cropland", "semi_natural_agroecosystems") ~ "external",
+
+        Origin == "Outside" &
+          Destiny %in% c("livestock_mono", "livestock_rum") ~ "external",
+
+        # Internal
+        Origin %in%
+          c("Livestock", "People") &
+          Destiny %in%
+            c("Cropland", "semi_natural_agroecosystems") ~ "internal",
+
+        Origin %in%
+          c("Cropland", "semi_natural_agroecosystems") &
+          Destiny %in% c("livestock_mono", "livestock_rum") ~ "internal",
+
+        TRUE ~ NA_character_
+      )
+    ) |>
+    dplyr::filter(!is.na(input_type))
+
+  # ---- Aggregate ----
+  df <- inputs |>
+    dplyr::group_by(Year, input_type) |>
+    dplyr::summarise(
+      value_MgN = sum(MgN, na.rm = TRUE),
+      .groups = "drop"
+    ) |>
+    tidyr::pivot_wider(
+      names_from = input_type,
+      values_from = value_MgN,
+      values_fill = 0
+    ) |>
+    dplyr::mutate(
+      # ---- Convert to GgN ----
+      external_GgN = external / 1000,
+      internal_GgN = internal / 1000,
+      total_GgN = external_GgN + internal_GgN,
+
+      # ---- Indicator ----
+      external_dependency = external_GgN / total_GgN
+    )
+
+  # ---- Plot 1: Dependency ----
+  p1 <- ggplot2::ggplot(
+    df,
+    ggplot2::aes(x = Year, y = external_dependency)
+  ) +
+    ggplot2::geom_line(
+      linewidth = 1.4,
+      color = "#d95f02"
+    ) +
+    ggplot2::scale_y_continuous(
+      labels = scales::percent_format(),
+      limits = c(0, 1)
+    ) +
+    ggplot2::labs(
+      x = "Year",
+      y = "External N dependency (%)",
+      title = "Dependence on external nitrogen inputs in Spain (1860–2021)"
+    ) +
+    ggplot2::theme_minimal() +
+    ggplot2::theme(
+      plot.title = ggplot2::element_text(face = "bold")
+    )
+
+  print(p1)
+
+  # ---- Plot 2: Composition ----
+  df_long <- df |>
+    dplyr::select(Year, external_GgN, internal_GgN) |>
+    tidyr::pivot_longer(
+      cols = c(external_GgN, internal_GgN),
+      names_to = "type",
+      values_to = "value"
+    ) |>
+    dplyr::mutate(
+      type = dplyr::recode(
+        type,
+        external_GgN = "External inputs",
+        internal_GgN = "Internal recycling"
+      )
+    )
+
+  p2 <- ggplot2::ggplot(
+    df_long,
+    ggplot2::aes(x = Year, y = value, fill = type)
+  ) +
+    ggplot2::geom_area(alpha = 0.9) +
+    ggplot2::scale_fill_manual(
+      values = c(
+        "External inputs" = "#d95f02",
+        "Internal recycling" = "#1b9e77"
+      )
+    ) +
+    ggplot2::labs(
+      x = "Year",
+      y = "Nitrogen inputs (Gg N)",
+      fill = "Input type",
+      title = "Composition of nitrogen inputs in Spain"
+    ) +
+    ggplot2::theme_minimal() +
+    ggplot2::theme(
+      plot.title = ggplot2::element_text(face = "bold")
+    )
+
+  print(p2)
+
+  return(list(
+    dependency_plot = p1,
+    composition_plot = p2,
+    data = df
+  ))
+}
