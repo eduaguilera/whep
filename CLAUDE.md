@@ -5,7 +5,7 @@
 - Follow the workflow: <https://lbm364dl.github.io/follow-the-workflow/>
 - Follow tidyverse style guide: <https://style.tidyverse.org/>
 - Maximum line width is 80 characters.
-- For code formatting, use `air format` if available.
+- For code formatting, **always** run `air format .` before committing. Install the binary if not on PATH. Do not try to format manually.
 - Extract complex logic into private/helper functions (prefixed with `.`) early. These helpers should be stateless and receive all necessary context via arguments.
 - Functions should be short. Ideally no more than 25 lines. Split large functions into smaller ones with meaningful names.
 - Main exported functions should come first in the file. Private helpers come at the end.
@@ -60,21 +60,27 @@ The PR must pass these GitHub Actions checks:
    - Run locally: `Rscript -e "lintr::lint_package(linters=lintr::linters_with_defaults(object_usage_linter=NULL, line_length_linter=NULL, indentation_linter=NULL))"`
 
 3. **format-suggest** (`air`): Code must be formatted with `air format .`
+   - **This is mandatory, not optional.** Do not attempt to manually match air style -- always run the binary.
+   - If `air` is not on PATH, install it: download from `https://github.com/posit-dev/air/releases/latest/download/air-x86_64-pc-windows-msvc.zip` (Windows) or use `posit-dev/setup-air` (CI). Then run `air format .` on the repo root.
    - After running air, also run `devtools::document()` to update `man/` files.
+   - Air formats **all** `.R` files: `R/`, `tests/`, `data-raw/`, etc. Not just the files you edited.
 
 4. **pkgdown**: The documentation site must build without errors.
-   - Every exported function must appear in `_pkgdown.yml` under the `reference:` section.
-   - When adding new exported functions, add them to the appropriate section in `_pkgdown.yml` (or create a new section).
+   - **Every documented topic** (functions AND datasets with roxygen docs) must appear in `_pkgdown.yml` under the `reference:` section. This includes all `.Rd` files in `man/`.
+   - When adding new exported functions or documented datasets, add them to the appropriate section in `_pkgdown.yml` (or create a new section).
+   - To verify: compare `ls man/*.Rd` topics against `_pkgdown.yml` contents. Every `.Rd` file (except `whep-package.Rd`) must have a matching entry.
    - Run locally: `Rscript -e "pkgdown::build_reference_index()"`
 
 5. **Tests**: `devtools::test()` — 2 pre-existing failures in `test_commodity_balance_sheet.R` are expected (pin format, `skip_on_ci`).
 
 ## Before committing
 
-```r
-# 1. Format
-# air format .  (if air is installed)
+```bash
+# 1. Format (MANDATORY — do not skip, do not do manually)
+air format .
+```
 
+```r
 # 2. Document
 devtools::document()
 
@@ -87,10 +93,14 @@ rcmdcheck::rcmdcheck(
 
 # 4. Test
 devtools::test()
+```
 
-# 5. Verify pkgdown (if new exports were added)
-# Ensure all exported functions are listed in _pkgdown.yml
-pkgdown::build_reference_index()
+```bash
+# 5. Verify pkgdown — every man/*.Rd must be in _pkgdown.yml
+# (compare outputs; empty = OK)
+comm -23 \
+  <(ls man/*.Rd | sed 's|man/||;s|\.Rd||' | grep -v whep-package | sort) \
+  <(grep '^  - ' _pkgdown.yml | sed 's/^  - //' | sort)
 ```
 
 ## Data pipeline

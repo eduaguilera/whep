@@ -30,8 +30,7 @@
 #'   ) |>
 #'     calculate_livestock_emissions()
 #' }
-calculate_livestock_emissions <- function(data,
-                                          tier = NULL) {
+calculate_livestock_emissions <- function(data, tier = NULL) {
   tier <- .resolve_tier(data, tier)
 
   if (tier == 2) {

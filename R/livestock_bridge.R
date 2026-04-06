@@ -32,9 +32,10 @@
 #'     calculate_livestock_emissions(tier = 1)
 #' }
 prepare_livestock_emissions <- function(
-    data,
-    expand_cohorts = FALSE,
-    system_shares = NULL) {
+  data,
+  expand_cohorts = FALSE,
+  system_shares = NULL
+) {
   .validate_production_input(data)
 
   animals <- animals_codes
@@ -106,8 +107,7 @@ prepare_livestock_emissions <- function(
 }
 
 #' @noRd
-.exclude_non_ipcc_species <- function(data, excluded,
-                                      animals) {
+.exclude_non_ipcc_species <- function(data, excluded, animals) {
   excluded_rows <- data |>
     dplyr::filter(item_cbs_code %in% excluded)
 
@@ -131,12 +131,16 @@ prepare_livestock_emissions <- function(
 
 #' @noRd
 .extract_production_yields <- function(data, animals) {
-  if (!rlang::has_name(data, "unit")) return(NULL)
+  if (!rlang::has_name(data, "unit")) {
+    return(NULL)
+  }
 
   yield_rows <- data |>
     dplyr::filter(unit == "t_head")
 
-  if (nrow(yield_rows) == 0) return(NULL)
+  if (nrow(yield_rows) == 0) {
+    return(NULL)
+  }
 
   # Get product-to-animal mapping from animals_codes
   product_map <- animals |>
@@ -162,7 +166,9 @@ prepare_livestock_emissions <- function(
   tagged <- yield_rows |>
     dplyr::inner_join(anim_lookup, by = "live_anim_code")
 
-  if (nrow(tagged) == 0) return(NULL)
+  if (nrow(tagged) == 0) {
+    return(NULL)
+  }
 
   # Milk yields
   milk_yields <- tagged |>
@@ -202,7 +208,9 @@ prepare_livestock_emissions <- function(
     yields <- meat_yields
   }
 
-  if (nrow(yields) == 0) return(NULL)
+  if (nrow(yields) == 0) {
+    return(NULL)
+  }
   yields
 }
 

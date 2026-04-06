@@ -80,8 +80,7 @@ test_that("extracts milk yield and converts to kg/day", {
   result <- prepare_livestock_emissions(data)
   expect_true(rlang::has_name(result, "milk_yield_kg_day"))
   expected_milk <- 5.0 * 1000 / 365
-  expect_equal(result$milk_yield_kg_day, expected_milk,
-               tolerance = 0.01)
+  expect_equal(result$milk_yield_kg_day, expected_milk, tolerance = 0.01)
 })
 
 test_that("extracts meat yield as raw t_head", {
@@ -114,7 +113,8 @@ test_that("cohort expansion works", {
     946L,           "heads", 1000
   )
   result <- prepare_livestock_emissions(
-    data, expand_cohorts = TRUE
+    data,
+    expand_cohorts = TRUE
   )
   expect_true(rlang::has_name(result, "cohort"))
   expect_true(rlang::has_name(result, "system"))

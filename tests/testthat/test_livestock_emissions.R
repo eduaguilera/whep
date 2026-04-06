@@ -53,7 +53,8 @@ testthat::test_that("full pipeline returns enteric + manure", {
     calculate_livestock_emissions()
 
   testthat::expect_true(
-    "enteric_ch4_tier2" %in% names(result) ||
+    "enteric_ch4_tier2" %in%
+      names(result) ||
       "enteric_ch4_tier1" %in% names(result)
   )
 })

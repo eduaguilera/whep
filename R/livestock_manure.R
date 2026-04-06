@@ -46,8 +46,7 @@
 
   data |>
     dplyr::mutate(
-      manure_ch4_per_head = VS * 365 * Bo * ch4_density *
-        weighted_mcf,
+      manure_ch4_per_head = VS * 365 * Bo * ch4_density * weighted_mcf,
       manure_ch4_tier2 = heads * manure_ch4_per_head
     )
 }
@@ -91,7 +90,8 @@
 #' Join Tier 1 manure CH4 emission factors.
 #' @noRd
 .join_manure_ch4_ef_tier1 <- function(data) {
-  all_categories <- c( # nolint: object_usage_linter.
+  all_categories <- c(
+    # nolint: object_usage_linter.
     ipcc_2019_manure_ch4_ef_cattle$category,
     ipcc_2019_manure_ch4_ef_other$category
   ) |>
@@ -125,14 +125,17 @@
       dplyr::left_join(
         cattle_ef,
         by = c(
-          "region", "manure_category" = "category"
+          "region",
+          "manure_category" = "category"
         )
       )
 
     other_rows <- data |>
       dplyr::filter(!is_cattle) |>
       .join_ef_with_subcategories(
-        other_ef, "manure_category", "ef_kg_head_yr"
+        other_ef,
+        "manure_category",
+        "ef_kg_head_yr"
       )
 
     data <- dplyr::bind_rows(cattle_rows, other_rows) |>
@@ -149,7 +152,9 @@
 
     data <- data |>
       .join_ef_with_subcategories(
-        all_ef, "manure_category", "ef_kg_head_yr"
+        all_ef,
+        "manure_category",
+        "ef_kg_head_yr"
       ) |>
       dplyr::rename(manure_ef_kgch4 = ef_kg_head_yr)
   }
@@ -352,9 +357,9 @@
         0.07
       ),
       N_intake = (GE / ge_content) *
-        (cp_percent / 100) / 6.25,
-      Nex = N_intake * (1 - n_retention_frac) *
-        livestock_constants$days_in_year
+        (cp_percent / 100) /
+        6.25,
+      Nex = N_intake * (1 - n_retention_frac) * livestock_constants$days_in_year
     ) |>
     dplyr::select(-n_ret_category)
 }
@@ -370,7 +375,9 @@
 
   if (rlang::has_name(data, "region")) {
     data <- .calc_weighted_direct_n2o(
-      data, ef3_tbl, n2o_to_n
+      data,
+      ef3_tbl,
+      n2o_to_n
     )
   } else {
     pasture_ef <- ef3_tbl |>
@@ -383,8 +390,7 @@
 
     data <- data |>
       dplyr::mutate(
-        manure_n2o_direct = heads * Nex * pasture_ef *
-          n2o_to_n
+        manure_n2o_direct = heads * Nex * pasture_ef * n2o_to_n
       )
   }
 
@@ -393,8 +399,7 @@
 
 #' Weighted direct N2O when region is available.
 #' @noRd
-.calc_weighted_direct_n2o <- function(data, ef3_tbl,
-                                      n2o_to_n) {
+.calc_weighted_direct_n2o <- function(data, ef3_tbl, n2o_to_n) {
   mms_tbl <- regional_mms_distribution |>
     dplyr::select(region, species, mms_type, fraction)
 
@@ -403,7 +408,10 @@
 
   n2o_weighted <- data |>
     dplyr::select(
-      row_id_n2o, species_gen, Nex, heads,
+      row_id_n2o,
+      species_gen,
+      Nex,
+      heads,
       dplyr::any_of("region")
     ) |>
     dplyr::left_join(
@@ -424,8 +432,10 @@
   data |>
     dplyr::left_join(n2o_weighted, by = "row_id_n2o") |>
     dplyr::mutate(
-      manure_n2o_direct = heads * Nex *
-        dplyr::coalesce(weighted_ef3, 0.005) * n2o_to_n
+      manure_n2o_direct = heads *
+        Nex *
+        dplyr::coalesce(weighted_ef3, 0.005) *
+        n2o_to_n
     ) |>
     dplyr::select(-row_id_n2o, -weighted_ef3)
 }
@@ -444,10 +454,8 @@
 
   data |>
     dplyr::mutate(
-      n2o_volatilization = heads * Nex * frac_gas *
-        ef4 * n2o_to_n,
-      n2o_leaching = heads * Nex * frac_leach *
-        ef5 * n2o_to_n,
+      n2o_volatilization = heads * Nex * frac_gas * ef4 * n2o_to_n,
+      n2o_leaching = heads * Nex * frac_leach * ef5 * n2o_to_n,
       manure_n2o_indirect = n2o_volatilization +
         n2o_leaching
     ) |>
@@ -469,7 +477,11 @@
 #' match on the join column is not found.
 #' @noRd
 .join_ef_with_subcategories <- function(
-    data, ef_tbl, join_col, ef_col) {
+  data,
+  ef_tbl,
+  join_col,
+  ef_col
+) {
   ef_agg <- ef_tbl |>
     dplyr::mutate(
       species_base = stringr::str_extract(
@@ -485,7 +497,8 @@
 
   data |>
     dplyr::left_join(
-      ef_tbl, by = stats::setNames("category", join_col)
+      ef_tbl,
+      by = stats::setNames("category", join_col)
     ) |>
     dplyr::left_join(
       ef_agg,
@@ -493,7 +506,8 @@
     ) |>
     dplyr::mutate(
       !!rlang::sym(ef_col) := dplyr::coalesce(
-        .data[[ef_col]], ef_agg
+        .data[[ef_col]],
+        ef_agg
       )
     ) |>
     dplyr::select(-ef_agg)

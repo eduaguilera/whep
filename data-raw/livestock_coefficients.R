@@ -14,7 +14,9 @@
 # - IPCC 2006: 2006 IPCC Guidelines for National GHG Inventories
 #   Volume 4, Chapter 10
 
-if (file.exists("renv/activate.R")) source("renv/activate.R")
+if (file.exists("renv/activate.R")) {
+  source("renv/activate.R")
+}
 library(openxlsx)
 library(dplyr)
 library(tidyr)
@@ -45,11 +47,12 @@ extract_gleam_tables <- function(path) {
       tables <- list()
 
       for (sheet in sheets) {
-        if (sheet == "Table of contents") next
+        if (sheet == "Table of contents") {
+          next
+        }
         tryCatch(
           {
-            df <- openxlsx::read.xlsx(temp_file, sheet = sheet,
-                                      colNames = TRUE)
+            df <- openxlsx::read.xlsx(temp_file, sheet = sheet, colNames = TRUE)
             names(df) <- clean_names(names(df))
             clean_sheet <- clean_names(sheet)
             tables[[clean_sheet]] <- df
@@ -946,15 +949,15 @@ main <- function() {
   ipcc_raw <- generate_ipcc_2019_tables()
   ipcc_2019 <- list(
     ipcc_2019_enteric_ef_cattle = ipcc_raw$table_10_10,
-    ipcc_2019_enteric_ef_other  = ipcc_raw$table_10_11,
+    ipcc_2019_enteric_ef_other = ipcc_raw$table_10_11,
     ipcc_2019_manure_ch4_ef_cattle = ipcc_raw$table_10_14_cattle,
-    ipcc_2019_manure_ch4_ef_other  = ipcc_raw$table_10_14_other,
-    ipcc_2019_mcf_manure        = ipcc_raw$table_10_17,
-    ipcc_2019_n_excretion       = ipcc_raw$table_10_19,
-    ipcc_2019_n2o_ef_direct     = ipcc_raw$table_10_21,
-    ipcc_2019_ym                = ipcc_raw$table_10_12,
-    ipcc_2019_bo                = ipcc_raw$table_10_16,
-    ipcc_2019_cfi               = ipcc_raw$table_10_4
+    ipcc_2019_manure_ch4_ef_other = ipcc_raw$table_10_14_other,
+    ipcc_2019_mcf_manure = ipcc_raw$table_10_17,
+    ipcc_2019_n_excretion = ipcc_raw$table_10_19,
+    ipcc_2019_n2o_ef_direct = ipcc_raw$table_10_21,
+    ipcc_2019_ym = ipcc_raw$table_10_12,
+    ipcc_2019_bo = ipcc_raw$table_10_16,
+    ipcc_2019_cfi = ipcc_raw$table_10_4
   )
 
   # IPCC 2006 tables
@@ -965,19 +968,19 @@ main <- function() {
   message("\nGenerating IPCC Tier 2 parameters...")
   ipcc_t2_raw <- generate_ipcc_tier2_params()
   ipcc_tier2 <- list(
-    ipcc_tier2_energy_coefs     = ipcc_t2_raw$energy_coefs,
-    ipcc_tier2_ym_values        = ipcc_t2_raw$ym_values,
-    ipcc_tier2_bo_values        = ipcc_t2_raw$bo_values,
-    ipcc_tier2_manure_ash       = ipcc_t2_raw$ash_content,
-    ipcc_tier2_n_retention      = ipcc_t2_raw$n_retention_frac,
+    ipcc_tier2_energy_coefs = ipcc_t2_raw$energy_coefs,
+    ipcc_tier2_ym_values = ipcc_t2_raw$ym_values,
+    ipcc_tier2_bo_values = ipcc_t2_raw$bo_values,
+    ipcc_tier2_manure_ash = ipcc_t2_raw$ash_content,
+    ipcc_tier2_n_retention = ipcc_t2_raw$n_retention_frac,
     livestock_production_defaults = ipcc_t2_raw$production_defaults,
-    feed_characteristics        = ipcc_t2_raw$feed_characteristics,
-    climate_mcf                 = ipcc_t2_raw$climate_mcf,
-    regional_mms_distribution   = ipcc_t2_raw$regional_mms_distribution,
-    temperature_adjustment      = ipcc_t2_raw$temperature_adjustment,
-    indirect_n2o_ef             = ipcc_t2_raw$indirect_n2o_ef,
-    uncertainty_ranges          = ipcc_t2_raw$uncertainty_ranges,
-    grazing_energy_coefs        = ipcc_t2_raw$grazing_energy_coefs
+    feed_characteristics = ipcc_t2_raw$feed_characteristics,
+    climate_mcf = ipcc_t2_raw$climate_mcf,
+    regional_mms_distribution = ipcc_t2_raw$regional_mms_distribution,
+    temperature_adjustment = ipcc_t2_raw$temperature_adjustment,
+    indirect_n2o_ef = ipcc_t2_raw$indirect_n2o_ef,
+    uncertainty_ranges = ipcc_t2_raw$uncertainty_ranges,
+    grazing_energy_coefs = ipcc_t2_raw$grazing_energy_coefs
   )
 
   # Combine all objects
@@ -991,7 +994,8 @@ main <- function() {
   )
 
   message(
-    "\nSaving ", length(all_objects),
+    "\nSaving ",
+    length(all_objects),
     " objects to data/livestock_coefs.rda..."
   )
   save(

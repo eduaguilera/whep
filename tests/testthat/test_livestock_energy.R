@@ -9,8 +9,17 @@ testthat::test_that("estimate_energy_demand returns expected columns", {
   result |>
     pointblank::expect_col_exists(
       c(
-        "NEm", "NEa", "NEl", "NEwork", "NEp", "NEg",
-        "NE_maintenance", "NE_growth", "REM", "REG", "GE"
+        "NEm",
+        "NEa",
+        "NEl",
+        "NEwork",
+        "NEp",
+        "NEg",
+        "NE_maintenance",
+        "NE_growth",
+        "REM",
+        "REG",
+        "GE"
       )
     )
 })

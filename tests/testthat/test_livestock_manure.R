@@ -37,7 +37,8 @@ testthat::test_that("Manure Tier 1 Swine subcategory aggregation", {
 
 testthat::test_that("Manure Tier 1 Poultry exact subcategory match", {
   result <- single_tier1_fixture(
-    "Poultry - Broilers", 1
+    "Poultry - Broilers",
+    1
   ) |>
     whep:::.calc_manure_ch4_tier1()
 
@@ -49,9 +50,15 @@ testthat::test_that("Manure Tier 1 Poultry exact subcategory match", {
 testthat::test_that("Manure Tier 1 all species non-NA", {
   all_species <- tibble::tibble(
     species = c(
-      "Dairy Cattle", "Beef Cattle", "Buffalo",
-      "Sheep", "Goats", "Swine", "Horses",
-      "Camels", "Mules and Asses"
+      "Dairy Cattle",
+      "Beef Cattle",
+      "Buffalo",
+      "Sheep",
+      "Goats",
+      "Swine",
+      "Horses",
+      "Camels",
+      "Mules and Asses"
     ),
     heads = rep(1, 9)
   )
@@ -72,8 +79,11 @@ testthat::test_that("Manure Tier 2 returns expected columns", {
   result |>
     pointblank::expect_col_exists(
       c(
-        "VS", "Bo", "weighted_mcf",
-        "manure_ch4_per_head", "manure_ch4_tier2"
+        "VS",
+        "Bo",
+        "weighted_mcf",
+        "manure_ch4_per_head",
+        "manure_ch4_tier2"
       )
     )
 })
@@ -108,8 +118,10 @@ testthat::test_that("N2O calculation returns expected columns", {
   result |>
     pointblank::expect_col_exists(
       c(
-        "Nex", "manure_n2o_direct",
-        "manure_n2o_indirect", "manure_n2o_total"
+        "Nex",
+        "manure_n2o_direct",
+        "manure_n2o_indirect",
+        "manure_n2o_total"
       )
     )
 })

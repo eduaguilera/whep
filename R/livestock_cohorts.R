@@ -24,8 +24,7 @@
 #'   ) |>
 #'     calculate_cohorts_systems()
 #' }
-calculate_cohorts_systems <- function(data,
-                                      system_shares = NULL) {
+calculate_cohorts_systems <- function(data, system_shares = NULL) {
   categories <- gleam_livestock_categories
 
   data <- data |>
@@ -105,6 +104,9 @@ calculate_cohorts_systems <- function(data,
       .by = c(species, production_system)
     ) |>
     dplyr::select(
-      species, production_system, cohort, cohort_share
+      species,
+      production_system,
+      cohort,
+      cohort_share
     )
 }

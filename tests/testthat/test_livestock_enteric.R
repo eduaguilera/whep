@@ -48,9 +48,16 @@ testthat::test_that("Tier 1 total equals heads * EF", {
 testthat::test_that("Tier 1 all 10 species have non-NA EFs", {
   all_species <- tibble::tibble(
     species = c(
-      "Dairy Cattle", "Beef Cattle", "Buffalo",
-      "Sheep", "Goats", "Swine", "Poultry",
-      "Horses", "Camels", "Mules and Asses"
+      "Dairy Cattle",
+      "Beef Cattle",
+      "Buffalo",
+      "Sheep",
+      "Goats",
+      "Swine",
+      "Poultry",
+      "Horses",
+      "Camels",
+      "Mules and Asses"
     ),
     heads = rep(1, 10)
   )
