@@ -83,13 +83,6 @@ create_n_prov_destiny <- function() {
       Origin,
       Destiny,
       MgN
-    ) |>
-    dplyr::mutate(
-      Item = dplyr::recode(
-        Item,
-        "Firewood" = "Average wood",
-        "Acorns" = "Holm oak"
-      )
     )
 }
 
@@ -1094,7 +1087,6 @@ create_n_nat_destiny <- function() {
     ) |>
     dplyr::mutate(
       group = dplyr::recode(group, "Additives" = "Agro-industry"),
-
       Box = dplyr::case_when(
         Item == "Acorns" ~ "semi_natural_agroecosystems",
         is.na(Box) & Item == "Fallow" ~ "Cropland",
