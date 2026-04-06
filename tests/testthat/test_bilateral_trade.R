@@ -599,6 +599,7 @@ testthat::test_that(".fill_missing_trade handles all-NA matrix", {
   testthat::expect_true(all(result >= 0))
 })
 
+
 testthat::test_that(".balance_total_trade rescales larger side", {
   total_trade <- tibble::tribble(
     ~area_code, ~export, ~import,
