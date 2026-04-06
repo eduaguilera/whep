@@ -62,7 +62,12 @@ The PR must pass these GitHub Actions checks:
 3. **format-suggest** (`air`): Code must be formatted with `air format .`
    - After running air, also run `devtools::document()` to update `man/` files.
 
-4. **Tests**: `devtools::test()` — 2 pre-existing failures in `test_commodity_balance_sheet.R` are expected (pin format, `skip_on_ci`).
+4. **pkgdown**: The documentation site must build without errors.
+   - Every exported function must appear in `_pkgdown.yml` under the `reference:` section.
+   - When adding new exported functions, add them to the appropriate section in `_pkgdown.yml` (or create a new section).
+   - Run locally: `Rscript -e "pkgdown::build_reference_index()"`
+
+5. **Tests**: `devtools::test()` — 2 pre-existing failures in `test_commodity_balance_sheet.R` are expected (pin format, `skip_on_ci`).
 
 ## Before committing
 
@@ -82,6 +87,10 @@ rcmdcheck::rcmdcheck(
 
 # 4. Test
 devtools::test()
+
+# 5. Verify pkgdown (if new exports were added)
+# Ensure all exported functions are listed in _pkgdown.yml
+pkgdown::build_reference_index()
 ```
 
 ## Data pipeline

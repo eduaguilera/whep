@@ -28,10 +28,12 @@
   data <- data |>
     dplyr::mutate(
       species_gen = dplyr::coalesce(
-        species_gen, .get_general_species(species)
+        species_gen,
+        .get_general_species(species)
       ),
       subcategory = dplyr::coalesce(
-        subcategory, .get_subcategory(species)
+        subcategory,
+        .get_subcategory(species)
       ),
       Method_Manure_CH4 = "IPCC_2019_Tier2"
     )
@@ -63,10 +65,12 @@
   data <- data |>
     dplyr::mutate(
       species_gen = dplyr::coalesce(
-        species_gen, .get_general_species(species)
+        species_gen,
+        .get_general_species(species)
       ),
       subcategory = dplyr::coalesce(
-        subcategory, .get_subcategory(species)
+        subcategory,
+        .get_subcategory(species)
       ),
       Method_Manure_N2O = "IPCC_2019_Tier2"
     )
@@ -171,9 +175,10 @@
     ) |>
     dplyr::mutate(
       ash_percent = dplyr::coalesce(ash_percent, 8.0),
-      VS = GE * (1 - DE_percent / 100 +
-                   ue_factor * DE_percent / 100) *
-        (1 - ash_percent / 100) / ge_content
+      VS = GE *
+        (1 - DE_percent / 100 + ue_factor * DE_percent / 100) *
+        (1 - ash_percent / 100) /
+        ge_content
     )
 }
 
@@ -227,7 +232,8 @@
       dplyr::mutate(
         climate_zone = "Temperate",
         Method_Manure_CH4 = paste0(
-          Method_Manure_CH4, "; climate_assumed_temperate"
+          Method_Manure_CH4,
+          "; climate_assumed_temperate"
         )
       )
   }
@@ -263,8 +269,12 @@
   }
 
   mms_joined <- data |>
-    dplyr::select(row_id, species_gen, climate_zone,
-                  dplyr::any_of("region")) |>
+    dplyr::select(
+      row_id,
+      species_gen,
+      climate_zone,
+      dplyr::any_of("region")
+    ) |>
     dplyr::left_join(
       mms_tbl,
       by = join_keys,
@@ -338,7 +348,8 @@
     ) |>
     dplyr::mutate(
       n_retention_frac = dplyr::coalesce(
-        n_retention_frac, 0.07
+        n_retention_frac,
+        0.07
       ),
       N_intake = (GE / ge_content) *
         (cp_percent / 100) / 6.25,
@@ -462,7 +473,8 @@
   ef_agg <- ef_tbl |>
     dplyr::mutate(
       species_base = stringr::str_extract(
-        category, "^[^-]+"
+        category,
+        "^[^-]+"
       ) |>
         stringr::str_trim()
     ) |>

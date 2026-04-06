@@ -39,7 +39,8 @@
   data <- data |>
     dplyr::mutate(
       species_gen = dplyr::coalesce(
-        species_gen, .get_general_species(species)
+        species_gen,
+        .get_general_species(species)
       )
     )
 
@@ -49,8 +50,7 @@
 
   data |>
     dplyr::mutate(
-      enteric_ch4_per_head = GE * (Ym / 100) * 365 /
-        energy_conversion,
+      enteric_ch4_per_head = GE * (Ym / 100) * 365 / energy_conversion,
       enteric_ch4_tier2 = heads * enteric_ch4_per_head,
       Method_Enteric = "IPCC_2019_Tier2"
     )
@@ -77,9 +77,11 @@
   }
 
   dplyr::bind_rows(cattle_rows, other_rows) |>
-    dplyr::rename(enteric_ef_kgch4 = dplyr::any_of(
-      c("ef_cattle", "ef_other", "enteric_ef_kgch4")
-    ))
+    dplyr::rename(
+      enteric_ef_kgch4 = dplyr::any_of(
+        c("ef_cattle", "ef_other", "enteric_ef_kgch4")
+      )
+    )
 }
 
 #' Join cattle-specific enteric EFs with regional fallback.
@@ -146,7 +148,8 @@
   ef_agg <- ef_tbl |>
     dplyr::mutate(
       species_base = stringr::str_extract(
-        category, "^[^-]+"
+        category,
+        "^[^-]+"
       ) |>
         stringr::str_trim()
     ) |>
@@ -198,10 +201,8 @@
   data <- data |>
     dplyr::mutate(
       feed_situation = dplyr::case_when(
-        species_gen == "Sheep" & !is.na(weight) &
-          weight < 75 ~ "Low",
-        species_gen == "Sheep" & !is.na(weight) &
-          weight >= 75 ~ "High",
+        species_gen == "Sheep" & !is.na(weight) & weight < 75 ~ "Low",
+        species_gen == "Sheep" & !is.na(weight) & weight >= 75 ~ "High",
         TRUE ~ feed_situation
       )
     )
@@ -217,7 +218,10 @@
     dplyr::mutate(
       Ym = dplyr::coalesce(ym_percent, 6.5)
     ) |>
-    dplyr::select(-dplyr::any_of(c(
-      "ym_percent", "feed_situation"
-    )))
+    dplyr::select(
+      -dplyr::any_of(c(
+        "ym_percent",
+        "feed_situation"
+      ))
+    )
 }

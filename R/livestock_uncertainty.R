@@ -56,13 +56,13 @@ calculate_uncertainty_bounds <- function(data) {
 #' @noRd
 .get_emission_columns <- function(data) {
   col_map <- list(
-    list(col = "enteric_ch4_tier1",  param = "Ym"),
-    list(col = "enteric_ch4_tier2",  param = "Ym"),
-    list(col = "manure_ch4_tier1",   param = "MCF"),
-    list(col = "manure_ch4_tier2",   param = "MCF"),
-    list(col = "manure_n2o_direct",  param = "EF_N2O"),
+    list(col = "enteric_ch4_tier1", param = "Ym"),
+    list(col = "enteric_ch4_tier2", param = "Ym"),
+    list(col = "manure_ch4_tier1", param = "MCF"),
+    list(col = "manure_ch4_tier2", param = "MCF"),
+    list(col = "manure_n2o_direct", param = "EF_N2O"),
     list(col = "manure_n2o_indirect", param = "EF_N2O"),
-    list(col = "manure_n2o_total",   param = "EF_N2O")
+    list(col = "manure_n2o_total", param = "EF_N2O")
   )
 
   purrr::keep(col_map, ~ .x$col %in% names(data))

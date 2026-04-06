@@ -54,8 +54,10 @@ calculate_cohorts_systems <- function(data,
   data |>
     dplyr::left_join(
       cohort_fracs,
-      by = c("species_gen" = "species",
-             "system" = "production_system"),
+      by = c(
+        "species_gen" = "species",
+        "system" = "production_system"
+      ),
       relationship = "many-to-many"
     ) |>
     dplyr::mutate(
@@ -63,8 +65,11 @@ calculate_cohorts_systems <- function(data,
       cohort_heads = heads * cohort_fraction
     ) |>
     dplyr::select(
-      -dplyr::any_of(c("system_heads", "system_share",
-                       "cohort_share"))
+      -dplyr::any_of(c(
+        "system_heads",
+        "system_share",
+        "cohort_share"
+      ))
     )
 }
 
@@ -74,19 +79,19 @@ calculate_cohorts_systems <- function(data,
 #' @noRd
 .default_system_shares <- function() {
   tibble::tribble(
-    ~species_gen,  ~system,  ~system_share,
-    "Cattle",      "Dairy",   0.30,
-    "Cattle",      "Beef",    0.70,
-    "Buffalo",     "Dairy",   0.60,
-    "Buffalo",     "Other",   0.40,
-    "Sheep",       "Dairy",   0.20,
-    "Sheep",       "Meat",    0.80,
-    "Goats",       "Dairy",   0.30,
-    "Goats",       "Meat",    0.70,
-    "Swine",       "Breeding", 0.15,
-    "Swine",       "Fattening", 0.85,
-    "Poultry",     "Layers",  0.50,
-    "Poultry",     "Broilers", 0.50
+    ~species_gen, ~system, ~system_share,
+    "Cattle", "Dairy", 0.30,
+    "Cattle", "Beef", 0.70,
+    "Buffalo", "Dairy", 0.60,
+    "Buffalo", "Other", 0.40,
+    "Sheep", "Dairy", 0.20,
+    "Sheep", "Meat", 0.80,
+    "Goats", "Dairy", 0.30,
+    "Goats", "Meat", 0.70,
+    "Swine", "Breeding", 0.15,
+    "Swine", "Fattening", 0.85,
+    "Poultry", "Layers", 0.50,
+    "Poultry", "Broilers", 0.50
   )
 }
 

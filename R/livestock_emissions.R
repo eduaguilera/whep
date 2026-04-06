@@ -101,7 +101,7 @@ calculate_manure_emissions <- function(data, tier = NULL) {
 
   has_tier2 <- rlang::has_name(data, "cohort") &&
     (rlang::has_name(data, "weight") ||
-       rlang::has_name(data, "iso3"))
+      rlang::has_name(data, "iso3"))
 
   if (has_tier2) 2L else 1L
 }

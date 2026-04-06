@@ -62,3 +62,33 @@ result <- data |>
 - Use pointblank functions to test behaviour as much as possible (e.g. `expect_col_exists()`, `expect_col_vals_in_set()`, `expect_col_vals_not_null()`, `expect_col_vals_equal()`)
 - Take `test_gapfilling.R` as example to make tests
 - Make helper fixtures if they contribute to reduce the amount of code in the tests files
+
+## CI Checks
+
+The PR must pass ALL these GitHub Actions checks. Before committing, verify locally:
+
+1. **R-CMD-check**: `rcmdcheck::rcmdcheck(build_args='--no-build-vignettes', args=c('--no-tests','--ignore-vignettes'), error_on='error')`
+   - All NSE variables must be declared in `utils::globalVariables()` in `R/utils.R`.
+   - All `stats::` functions must use explicit prefix (e.g., `stats::median()`).
+
+2. **lint** (`lintr`): `lintr::lint_package(linters=lintr::linters_with_defaults(object_usage_linter=NULL, line_length_linter=NULL, indentation_linter=NULL))`
+
+3. **format-suggest** (`air`): Code must be formatted with `air format .`
+   - After running air, also run `devtools::document()` to update `man/` files.
+   - If `air` is not available locally, ensure code follows air formatting conventions: one argument per line in multi-line function calls, no alignment padding with extra spaces, no unnecessary line breaks in short expressions.
+
+4. **pkgdown**: The documentation site must build without errors.
+   - Every exported function must appear in `_pkgdown.yml` under the `reference:` section.
+   - When adding new exported functions, add them to the appropriate section in `_pkgdown.yml` (or create a new section).
+
+5. **Tests**: `devtools::test()` — all tests must pass.
+
+### Before committing checklist
+
+```r
+# 1. Format: air format .  (if air is installed)
+# 2. Document: devtools::document()
+# 3. Check: rcmdcheck::rcmdcheck(...)
+# 4. Test: devtools::test()
+# 5. Verify pkgdown (if new exports added): ensure _pkgdown.yml is updated
+```
