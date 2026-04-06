@@ -52,7 +52,7 @@ testthat::test_that("default weight is used when not provided", {
     pointblank::expect_col_vals_not_null("weight")
 })
 
-# calc_energy_maintenance ------------------------------------------------------
+# .calc_energy_maintenance ------------------------------------------------------
 
 testthat::test_that("NEm scales with body weight", {
   light <- dairy_tier2_fixture() |>
@@ -68,7 +68,7 @@ testthat::test_that("NEm scales with body weight", {
   testthat::expect_gt(heavy, light)
 })
 
-# calc_energy_lactation --------------------------------------------------------
+# .calc_energy_lactation --------------------------------------------------------
 
 testthat::test_that("NEl is zero for non-lactating animals", {
   result <- beef_tier2_fixture() |>
@@ -92,7 +92,7 @@ testthat::test_that("NEl increases with milk yield", {
   testthat::expect_gt(high_milk, low_milk)
 })
 
-# calc_energy_growth -----------------------------------------------------------
+# .calc_energy_growth -----------------------------------------------------------
 
 testthat::test_that("NEg is zero when weight_gain is zero", {
   result <- dairy_tier2_fixture() |>
@@ -110,7 +110,7 @@ testthat::test_that("NEg is positive for growing animals", {
   testthat::expect_gt(neg, 0)
 })
 
-# calc_energy_wool -------------------------------------------------------------
+# .calc_energy_wool -------------------------------------------------------------
 
 testthat::test_that("NEwool is zero for non-sheep", {
   result <- dairy_tier2_fixture() |>
@@ -120,7 +120,7 @@ testthat::test_that("NEwool is zero for non-sheep", {
   testthat::expect_equal(newool, 0)
 })
 
-# estimate_gross_energy --------------------------------------------------------
+# .estimate_gross_energy --------------------------------------------------------
 
 testthat::test_that("REM and REG are between 0 and 1", {
   result <- dairy_tier2_fixture() |>

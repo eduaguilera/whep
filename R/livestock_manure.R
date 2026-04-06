@@ -1,26 +1,6 @@
-#' Calculate manure methane emissions - Tier 1.
-#'
-#' @description
-#' IPCC 2019 Tier 1: applies regional emission factors from
-#' Tables 10.14 to animal populations.
-#' CH4 (kg/yr) = heads * EF (kg CH4/head/yr).
-#'
-#' @param data Dataframe with `species`, `heads`, and optionally
-#'   `region`.
-#'
-#' @return Dataframe with `manure_ch4_tier1` (kg/yr) and
-#'   `Method_Manure_CH4` column.
-#' @export
-#'
-#' @examples
-#' \dontrun{
-#'   tibble::tibble(
-#'     species = "Dairy Cattle", heads = 100,
-#'     region = "Western Europe"
-#'   ) |>
-#'     calc_manure_ch4_tier1()
-#' }
-calc_manure_ch4_tier1 <- function(data) {
+#' IPCC 2019 Tier 1 manure CH4.
+#' @noRd
+.calc_manure_ch4_tier1 <- function(data) {
   data <- data |>
     dplyr::mutate(
       species_gen = .get_general_species(species),
@@ -35,42 +15,12 @@ calc_manure_ch4_tier1 <- function(data) {
     )
 }
 
-#' Calculate manure methane emissions - Tier 2.
-#'
-#' @description
-#' IPCC 2019 Tier 2 (Eq 10.23):
-#' CH4 (kg/head/yr) = VS * 365 * Bo * 0.67 *
-#'   sum(MCF_S * MS_S).
-#'
-#' VS from Eq 10.24:
-#' VS = GE * (1 - DE%/100 + UE*DE%/100) *
-#'   (1 - Ash/100) / 18.45.
-#'
-#' Bo differentiated by dairy/other cattle per Table 10.16.
-#' MCF from climate zones (Table 10.17). MMS shares from
-#' `regional_mms_distribution`.
-#'
-#' @param data Dataframe with `GE`, `DE_percent`, `species`,
-#'   `heads`, and optionally `region`, `climate_zone`.
-#'
-#' @return Dataframe with `manure_ch4_tier2` (kg/yr), `VS`,
-#'   and `Method_Manure_CH4` column.
-#' @export
-#'
-#' @examples
-#' \dontrun{
-#'   tibble::tibble(
-#'     species = "Dairy Cattle", cohort = "Adult Female",
-#'     heads = 100, weight = 600, diet_quality = "High",
-#'     milk_yield_kg_day = 20
-#'   ) |>
-#'     estimate_energy_demand() |>
-#'     calc_manure_ch4_tier2()
-#' }
-calc_manure_ch4_tier2 <- function(data) {
+#' IPCC 2019 Tier 2 manure CH4.
+#' @noRd
+.calc_manure_ch4_tier2 <- function(data) {
   if (!rlang::has_name(data, "GE")) {
     cli::cli_abort(
-      "{.fun calc_manure_ch4_tier2} requires {.var GE}. \\
+      "{.fun .calc_manure_ch4_tier2} requires {.var GE}. \\
        Run {.fun estimate_energy_demand} first."
     )
   }
@@ -100,42 +50,12 @@ calc_manure_ch4_tier2 <- function(data) {
     )
 }
 
-#' Calculate manure N2O emissions (direct + indirect).
-#'
-#' @description
-#' IPCC 2019, Vol 4, Ch 10:
-#' - Nex = N intake * (1 - N_retention).
-#' - N intake = GE / 18.45 * CP% / 6.25.
-#' - Direct N2O = Nex * EF3 (Table 10.21) * 44/28.
-#' - Indirect N2O = volatilization + leaching components
-#'   from `indirect_n2o_ef` table.
-#'
-#' CP% sourced from `feed_characteristics` table (not hardcoded).
-#' N retention differentiated by dairy/other cattle from
-#' `ipcc_tier2_n_retention`.
-#'
-#' @param data Dataframe with `GE`, `species`, `heads`,
-#'   optionally `diet_quality`, `climate_zone`.
-#'
-#' @return Dataframe with `manure_n2o_direct`, `manure_n2o_indirect`,
-#'   `manure_n2o_total` (all kg N2O/yr), `Nex`, and
-#'   `Method_Manure_N2O` column.
-#' @export
-#'
-#' @examples
-#' \dontrun{
-#'   tibble::tibble(
-#'     species = "Dairy Cattle", cohort = "Adult Female",
-#'     heads = 100, weight = 600, diet_quality = "High",
-#'     milk_yield_kg_day = 20
-#'   ) |>
-#'     estimate_energy_demand() |>
-#'     calc_manure_n2o()
-#' }
-calc_manure_n2o <- function(data) {
+#' IPCC 2019 manure N2O (direct + indirect).
+#' @noRd
+.calc_manure_n2o <- function(data) {
   if (!rlang::has_name(data, "GE")) {
     cli::cli_abort(
-      "{.fun calc_manure_n2o} requires {.var GE}. \\
+      "{.fun .calc_manure_n2o} requires {.var GE}. \\
        Run {.fun estimate_energy_demand} first."
     )
   }

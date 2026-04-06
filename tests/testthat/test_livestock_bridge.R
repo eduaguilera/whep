@@ -121,7 +121,7 @@ test_that("cohort expansion works", {
   expect_true(nrow(result) > 1)
 })
 
-test_that("result pipes to calc_enteric_ch4_tier1", {
+test_that("result pipes to .calc_enteric_ch4_tier1", {
   data <- tibble::tribble(
     ~item_cbs_code, ~unit,   ~value,
     960L,           "heads", 1000,
@@ -129,7 +129,7 @@ test_that("result pipes to calc_enteric_ch4_tier1", {
   )
   result <- data |>
     prepare_livestock_emissions() |>
-    calc_enteric_ch4_tier1()
+    whep:::.calc_enteric_ch4_tier1()
   expect_true(rlang::has_name(result, "enteric_ch4_tier1"))
   expect_true(all(result$enteric_ch4_tier1 > 0))
 })

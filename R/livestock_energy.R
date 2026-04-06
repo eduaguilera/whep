@@ -47,13 +47,13 @@ estimate_energy_demand <- function(data, method = "ipcc2019") {
   data <- .join_temperature_adjustment(data)
 
   data <- data |>
-    calc_energy_maintenance() |>
-    calc_energy_activity() |>
-    calc_energy_lactation() |>
-    calc_energy_wool() |>
-    calc_energy_work() |>
-    calc_energy_pregnancy() |>
-    calc_energy_growth()
+    .calc_energy_maintenance() |>
+    .calc_energy_activity() |>
+    .calc_energy_lactation() |>
+    .calc_energy_wool() |>
+    .calc_energy_work() |>
+    .calc_energy_pregnancy() |>
+    .calc_energy_growth()
 
   data <- data |>
     dplyr::mutate(
@@ -61,20 +61,12 @@ estimate_energy_demand <- function(data, method = "ipcc2019") {
       NE_growth = NEg + NEwool
     )
 
-  estimate_gross_energy(data)
+  .estimate_gross_energy(data)
 }
 
-#' Calculate net energy for maintenance.
-#'
-#' @description
-#' IPCC Eq 10.3: NEm = Cfi * Weight^0.75 * (1 + temp_adjustment).
-#'
-#' @param data Dataframe with `cfi_mj_day_kg075`, `weight`,
-#'   `temp_adjustment`.
-#'
-#' @return Dataframe with added `NEm` column.
-#' @export
-calc_energy_maintenance <- function(data) {
+#' NEm: IPCC Eq 10.3.
+#' @noRd
+.calc_energy_maintenance <- function(data) {
   data |>
     dplyr::mutate(
       NEm = cfi_mj_day_kg075 * weight^0.75 *
@@ -82,18 +74,9 @@ calc_energy_maintenance <- function(data) {
     )
 }
 
-#' Calculate net energy for activity.
-#'
-#' @description
-#' IPCC Eq 10.4: NEa = Ca * NEm. Walking energy added per
-#' NRC 2001.
-#'
-#' @param data Dataframe with `Ca`, `NEm`, `weight`,
-#'   `grazing_distance_km`.
-#'
-#' @return Dataframe with added `NEa` column.
-#' @export
-calc_energy_activity <- function(data) {
+#' NEa: IPCC Eq 10.4.
+#' @noRd
+.calc_energy_activity <- function(data) {
   walking_cost <- grazing_energy_coefs$value_mj_kg_km[
     grazing_energy_coefs$parameter == "walking_energy_cost"
   ]
@@ -104,22 +87,9 @@ calc_energy_activity <- function(data) {
     )
 }
 
-#' Calculate net energy for lactation.
-#'
-#' @description
-#' IPCC Eq 10.8 (cattle/buffalo):
-#' NEl = Milk * (1.47 + 0.40 * Fat%).
-#' IPCC Eq 10.9 (sheep/goats): NEl = Milk * 4.6.
-#' If protein and lactose data are available, uses the enhanced
-#' NRC equation:
-#' NEl = Milk * (0.389*Fat + 0.229*Prot + 0.165*Lact).
-#'
-#' @param data Dataframe with `milk_yield_kg_day`, `fat_percent`,
-#'   `protein_percent`, `lactose_percent`, `species_gen`.
-#'
-#' @return Dataframe with added `NEl` column.
-#' @export
-calc_energy_lactation <- function(data) {
+#' NEl: IPCC Eq 10.8/10.9.
+#' @noRd
+.calc_energy_lactation <- function(data) {
   data |>
     dplyr::mutate(
       NEl = dplyr::case_when(
@@ -140,18 +110,9 @@ calc_energy_lactation <- function(data) {
     )
 }
 
-#' Calculate net energy for wool production.
-#'
-#' @description
-#' IPCC Eq 10.12: NEwool = EVwool * wool_production / 365.
-#' EVwool = 24 MJ/kg clean wool. Only applies to sheep.
-#'
-#' @param data Dataframe with `wool_production_kg_yr`,
-#'   `species_gen`.
-#'
-#' @return Dataframe with added `NEwool` column.
-#' @export
-calc_energy_wool <- function(data) {
+#' NEwool: IPCC Eq 10.12.
+#' @noRd
+.calc_energy_wool <- function(data) {
   ev_wool <- livestock_constants$ev_wool_mj_kg
   data |>
     dplyr::mutate(
@@ -164,67 +125,32 @@ calc_energy_wool <- function(data) {
     )
 }
 
-#' Calculate net energy for work.
-#'
-#' @description
-#' IPCC Eq 10.11: NEwork = Cw * NEm * hours_per_day.
-#'
-#' @param data Dataframe with `cw`, `NEm`, `work_hours_day`.
-#'
-#' @return Dataframe with added `NEwork` column.
-#' @export
-calc_energy_work <- function(data) {
+#' NEwork: IPCC Eq 10.11.
+#' @noRd
+.calc_energy_work <- function(data) {
   data |>
     dplyr::mutate(NEwork = cw * NEm * work_hours_day)
 }
 
-#' Calculate net energy for pregnancy.
-#'
-#' @description
-#' IPCC Eq 10.13: NEp = Cp * NEm * pregnant_fraction.
-#'
-#' @param data Dataframe with `cp`, `NEm`, `pregnant_fraction`.
-#'
-#' @return Dataframe with added `NEp` column.
-#' @export
-calc_energy_pregnancy <- function(data) {
+#' NEp: IPCC Eq 10.13.
+#' @noRd
+.calc_energy_pregnancy <- function(data) {
   data |>
     dplyr::mutate(NEp = cp * NEm * pregnant_fraction)
 }
 
-#' Calculate net energy for growth.
-#'
-#' @description
-#' Simplified IPCC Eq 10.6:
-#' NEg = weight_gain_kg_day * energy_content_gain_mj_kg.
-#' Species-specific energy content from `ipcc_tier2_energy_coefs`.
-#'
-#' @param data Dataframe with `weight_gain_kg_day`,
-#'   `energy_content_gain_mj_kg`.
-#'
-#' @return Dataframe with added `NEg` column.
-#' @export
-calc_energy_growth <- function(data) {
+#' NEg: IPCC Eq 10.6.
+#' @noRd
+.calc_energy_growth <- function(data) {
   data |>
     dplyr::mutate(
       NEg = weight_gain_kg_day * energy_content_gain_mj_kg
     )
 }
 
-#' Estimate Gross Energy from Net Energy components.
-#'
-#' @description
-#' IPCC Eq 10.16:
-#' GE = (NE_maintenance/REM + NE_growth/REG) / (DE%/100).
-#'
-#' REM from IPCC Eq 10.14. REG from IPCC Eq 10.15.
-#'
-#' @param data Dataframe with `NE_maintenance`, `NE_growth`,
-#'   optionally `de_percent`.
-#'
-#' @return Dataframe with added `GE`, `REM`, `REG`, `DE_percent`.
-#' @export
-estimate_gross_energy <- function(data) {
+#' GE from NE components: IPCC Eq 10.16.
+#' @noRd
+.estimate_gross_energy <- function(data) {
   if (!rlang::has_name(data, "de_percent")) {
     data <- data |>
       dplyr::mutate(

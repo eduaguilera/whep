@@ -57,9 +57,9 @@ calculate_enteric_ch4 <- function(data, tier = NULL) {
   if (tier == 2) {
     data |>
       estimate_energy_demand() |>
-      calc_enteric_ch4_tier2()
+      .calc_enteric_ch4_tier2()
   } else {
-    calc_enteric_ch4_tier1(data)
+    .calc_enteric_ch4_tier1(data)
   }
 }
 
@@ -79,10 +79,10 @@ calculate_manure_emissions <- function(data, tier = NULL) {
   if (tier == 2) {
     data <- data |>
       estimate_energy_demand() |>
-      calc_manure_ch4_tier2() |>
-      calc_manure_n2o()
+      .calc_manure_ch4_tier2() |>
+      .calc_manure_n2o()
   } else {
-    data <- calc_manure_ch4_tier1(data)
+    data <- .calc_manure_ch4_tier1(data)
   }
   data
 }
@@ -111,15 +111,15 @@ calculate_manure_emissions <- function(data, tier = NULL) {
 .run_tier2 <- function(data) {
   data |>
     estimate_energy_demand() |>
-    calc_enteric_ch4_tier2() |>
-    calc_manure_ch4_tier2() |>
-    calc_manure_n2o()
+    .calc_enteric_ch4_tier2() |>
+    .calc_manure_ch4_tier2() |>
+    .calc_manure_n2o()
 }
 
 #' Run full Tier 1 pipeline.
 #' @noRd
 .run_tier1 <- function(data) {
   data |>
-    calc_enteric_ch4_tier1() |>
-    calc_manure_ch4_tier1()
+    .calc_enteric_ch4_tier1() |>
+    .calc_manure_ch4_tier1()
 }

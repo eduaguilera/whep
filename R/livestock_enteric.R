@@ -1,26 +1,6 @@
-#' Calculate enteric methane emissions - Tier 1.
-#'
-#' @description
-#' IPCC 2019 Tier 1 approach: applies regional emission factors
-#' from Tables 10.10/10.11 to animal populations.
-#' CH4 (kg/yr) = heads * EF (kg CH4/head/yr).
-#'
-#' @param data Dataframe with `species`, `heads`, and optionally
-#'   `region`.
-#'
-#' @return Dataframe with `enteric_ch4_tier1` (kg/yr) and
-#'   `Method_Enteric` column.
-#' @export
-#'
-#' @examples
-#' \dontrun{
-#'   tibble::tibble(
-#'     species = "Dairy Cattle", heads = 100,
-#'     region = "Western Europe"
-#'   ) |>
-#'     calc_enteric_ch4_tier1()
-#' }
-calc_enteric_ch4_tier1 <- function(data) {
+#' IPCC 2019 Tier 1 enteric CH4.
+#' @noRd
+.calc_enteric_ch4_tier1 <- function(data) {
   data <- data |>
     dplyr::mutate(
       species_gen = .get_general_species(species),
@@ -46,37 +26,12 @@ calc_enteric_ch4_tier1 <- function(data) {
     dplyr::select(-dplyr::any_of(c("ef_cattle", "ef_other")))
 }
 
-#' Calculate enteric methane emissions - Tier 2.
-#'
-#' @description
-#' IPCC 2019 Tier 2 approach:
-#' CH4 (kg/head/yr) = GE * (Ym/100) * 365 / 55.65.
-#' Ym sourced from `ipcc_tier2_ym_values` (Table 10.12).
-#'
-#' Requires a prior call to `estimate_energy_demand()` so that
-#' `GE` is available. If `GE` is missing, falls back to Tier 1.
-#'
-#' @param data Dataframe with `GE`, `species`, `heads`,
-#'   optionally `diet_quality`, `system`, and `weight`.
-#'
-#' @return Dataframe with `enteric_ch4_tier2` (kg/yr) and
-#'   `Method_Enteric` column.
-#' @export
-#'
-#' @examples
-#' \dontrun{
-#'   tibble::tibble(
-#'     species = "Dairy Cattle", cohort = "Adult Female",
-#'     heads = 100, weight = 600, diet_quality = "High",
-#'     milk_yield_kg_day = 20
-#'   ) |>
-#'     estimate_energy_demand() |>
-#'     calc_enteric_ch4_tier2()
-#' }
-calc_enteric_ch4_tier2 <- function(data) {
+#' IPCC 2019 Tier 2 enteric CH4.
+#' @noRd
+.calc_enteric_ch4_tier2 <- function(data) {
   if (!rlang::has_name(data, "GE")) {
     cli::cli_abort(
-      "{.fun calc_enteric_ch4_tier2} requires {.var GE}. \\
+      "{.fun .calc_enteric_ch4_tier2} requires {.var GE}. \\
        Run {.fun estimate_energy_demand} first."
     )
   }

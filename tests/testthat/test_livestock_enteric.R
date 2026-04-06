@@ -1,10 +1,10 @@
 # test_livestock_enteric.R ----------------------------------------------------
 
-# calc_enteric_ch4_tier1 -------------------------------------------------------
+# .calc_enteric_ch4_tier1 -------------------------------------------------------
 
 testthat::test_that("Tier 1 returns expected columns", {
   result <- tier1_fixture() |>
-    calc_enteric_ch4_tier1()
+    whep:::.calc_enteric_ch4_tier1()
 
   result |>
     pointblank::expect_col_exists(
@@ -19,7 +19,7 @@ testthat::test_that("Tier 1 EF matches IPCC Table 10.10/10.11", {
     "Sheep",          1,
     "Horses",         1
   ) |>
-    calc_enteric_ch4_tier1()
+    whep:::.calc_enteric_ch4_tier1()
 
   efs <- result |> dplyr::pull(enteric_ef_kgch4)
 
@@ -29,7 +29,7 @@ testthat::test_that("Tier 1 EF matches IPCC Table 10.10/10.11", {
 
 testthat::test_that("Tier 1 handles Swine subcategory aggregation", {
   result <- single_tier1_fixture("Swine", 1) |>
-    calc_enteric_ch4_tier1()
+    whep:::.calc_enteric_ch4_tier1()
 
   ef <- result |> dplyr::pull(enteric_ef_kgch4)
   # Average of Swine-Market (1.5) and Swine-Breeding (1.5)
@@ -38,7 +38,7 @@ testthat::test_that("Tier 1 handles Swine subcategory aggregation", {
 
 testthat::test_that("Tier 1 total equals heads * EF", {
   result <- single_tier1_fixture("Sheep", 5000) |>
-    calc_enteric_ch4_tier1()
+    whep:::.calc_enteric_ch4_tier1()
 
   ef <- result |> dplyr::pull(enteric_ef_kgch4)
   total <- result |> dplyr::pull(enteric_ch4_tier1)
@@ -55,7 +55,7 @@ testthat::test_that("Tier 1 all 10 species have non-NA EFs", {
     heads = rep(1, 10)
   )
   result <- all_species |>
-    calc_enteric_ch4_tier1()
+    whep:::.calc_enteric_ch4_tier1()
 
   result |>
     pointblank::expect_col_vals_not_null("enteric_ef_kgch4")
@@ -63,19 +63,19 @@ testthat::test_that("Tier 1 all 10 species have non-NA EFs", {
 
 testthat::test_that("Tier 1 Buffalo uses Table 10.11 EF", {
   result <- single_tier1_fixture("Buffalo", 1) |>
-    calc_enteric_ch4_tier1()
+    whep:::.calc_enteric_ch4_tier1()
 
   ef <- result |> dplyr::pull(enteric_ef_kgch4)
   # IPCC Table 10.11: Buffalo = 55
   testthat::expect_equal(ef, 55)
 })
 
-# calc_enteric_ch4_tier2 -------------------------------------------------------
+# .calc_enteric_ch4_tier2 -------------------------------------------------------
 
 testthat::test_that("Tier 2 enteric is in IPCC range for dairy", {
   result <- dairy_tier2_fixture() |>
     estimate_energy_demand() |>
-    calc_enteric_ch4_tier2()
+    whep:::.calc_enteric_ch4_tier2()
 
   per_head <- result |> dplyr::pull(enteric_ch4_per_head)
   # IPCC Table 10.10 reference: ~117-128 kg CH4/head/yr
@@ -86,7 +86,7 @@ testthat::test_that("Tier 2 enteric is in IPCC range for dairy", {
 testthat::test_that("Tier 2 total equals heads * per_head", {
   result <- dairy_tier2_fixture() |>
     estimate_energy_demand() |>
-    calc_enteric_ch4_tier2()
+    whep:::.calc_enteric_ch4_tier2()
 
   per_head <- result |> dplyr::pull(enteric_ch4_per_head)
   total <- result |> dplyr::pull(enteric_ch4_tier2)
@@ -97,7 +97,7 @@ testthat::test_that("Tier 2 total equals heads * per_head", {
 testthat::test_that("Tier 2 adds Method_Enteric column", {
   result <- dairy_tier2_fixture() |>
     estimate_energy_demand() |>
-    calc_enteric_ch4_tier2()
+    whep:::.calc_enteric_ch4_tier2()
 
   result |>
     pointblank::expect_col_exists("Method_Enteric") |>
