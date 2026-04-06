@@ -9,7 +9,7 @@ plot_input_output <- function(
   system = c("Cropland", "semi_natural_agroecosystems")
 ) {
   system <- match.arg(system)
-  data <- create_n_prov_destiny()
+  data <- create_n_nat_destiny()
 
   df_system <- data |>
     dplyr::filter(
@@ -128,7 +128,7 @@ plot_input_output <- function(
 #' @return A ggplot object.
 #' @export
 plot_input_output_livestock <- function() {
-  data <- create_n_prov_destiny()
+  data <- create_n_nat_destiny()
 
   df <- data |>
     dplyr::filter(Province_name != "Sea")
@@ -227,7 +227,7 @@ plot_input_output_livestock <- function() {
 #' @return A ggplot object.
 #' @export
 plot_input_output_system <- function() {
-  data <- create_n_prov_destiny()
+  data <- create_n_nat_destiny()
 
   df <- data |>
     dplyr::filter(Province_name != "Sea")
