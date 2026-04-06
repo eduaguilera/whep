@@ -311,20 +311,16 @@ testthat::test_that(".balance_matrix makes rows and columns have target sum", {
 })
 
 testthat::test_that(".build_trade_matrix completes missing countries", {
-  codes <- factor(c(1, 2, 4, 5, 999))
-  code_levels <- as.character(sort(codes))
-  n <- length(codes)
+  code_int <- c(1L, 2L, 4L, 5L, 999L)
+  code_levels <- as.character(code_int)
+  n <- length(code_int)
   btd <- tibble::tribble(
     ~from_code, ~to_code, ~value,
-    1, 2, 1,
-    1, 4, 2,
-    4, 2, 1,
-    5, 4, 2
-  ) |>
-    dplyr::mutate(
-      from_code = factor(from_code, levels = codes),
-      to_code = factor(to_code, levels = codes),
-    )
+    1L, 2L, 1,
+    1L, 4L, 2,
+    4L, 2L, 1,
+    5L, 4L, 2
+  )
   expected <- matrix(
     # fmt: skip
     c(
@@ -340,7 +336,7 @@ testthat::test_that(".build_trade_matrix completes missing countries", {
   )
 
   btd |>
-    .build_trade_matrix(n, code_levels) |>
+    .build_trade_matrix(n, code_int) |>
     testthat::expect_equal(expected)
 })
 
@@ -499,6 +495,110 @@ testthat::test_that(".downscale_estimate_matrix leaves small rows unchanged", {
 
   testthat::expect_equal(result, estimates)
 })
+
+testthat::test_that(".prefer_flow_direction numeric key handles large codes", {
+  bilateral_trade <- tibble::tribble(
+    ~from_code, ~to_code, ~year, ~item_cbs_code, ~element, ~value,
+    999, 998, 2025, 2999, "Import", 10,
+    999, 998, 2025, 2999, "Export", 20,
+    1,   2,   1961, 2500, "Import", 5,
+  )
+
+  result <- .prefer_flow_direction(bilateral_trade, "Export") |>
+    dplyr::arrange(from_code, to_code, year, item_cbs_code)
+
+  testthat::expect_equal(nrow(result), 2)
+  testthat::expect_equal(result$value, c(5, 20))
+})
+
+testthat::test_that(".prefer_flow_direction keeps all when no conflict", {
+  bilateral_trade <- tibble::tribble(
+    ~from_code, ~to_code, ~year, ~item_cbs_code, ~element, ~value,
+    1, 2, 2000, 1, "Export", 10,
+    3, 4, 2000, 1, "Import", 20,
+    5, 6, 2001, 2, "Export", 30,
+  )
+
+  result <- .prefer_flow_direction(bilateral_trade, "Export")
+  testthat::expect_equal(nrow(result), 3)
+})
+
+testthat::test_that(".ipf_2d converges on larger matrix", {
+  set.seed(42)
+  n <- 50
+  seed <- matrix(abs(rnorm(n * n)), nrow = n, ncol = n)
+  target_rows <- abs(rnorm(n, 100, 30))
+  target_cols <- target_rows * sum(target_rows) / sum(target_rows)
+  # Rescale so sums match
+  target_cols <- target_cols * sum(target_rows) / sum(target_cols)
+
+  result <- .ipf_2d(seed, target_rows, target_cols)
+
+  testthat::expect_equal(rowSums(result), target_rows, tolerance = 0.1)
+  testthat::expect_equal(colSums(result), target_cols, tolerance = 0.1)
+})
+
+testthat::test_that(".balance_matrix returns zero matrix when all trade is zero", {
+  total_trade <- tibble::tibble(
+    area_code = c(1, 2, 3),
+    export = c(0, 0, 0),
+    import = c(0, 0, 0)
+  ) |>
+    .balance_total_trade()
+
+  trade_matrix <- matrix(0, nrow = 3, ncol = 3)
+  result <- .balance_matrix(trade_matrix, total_trade)
+
+  testthat::expect_equal(result, matrix(0, nrow = 3, ncol = 3))
+})
+
+testthat::test_that(".balance_matrix handles single active country", {
+  total_trade <- tibble::tibble(
+    area_code = c(1, 2, 3),
+    export = c(10, 0, 0),
+    import = c(0, 10, 0)
+  ) |>
+    .balance_total_trade()
+
+  trade_matrix <- matrix(1, nrow = 3, ncol = 3)
+  result <- .balance_matrix(trade_matrix, total_trade)
+
+  testthat::expect_equal(
+    sum(result),
+    sum(total_trade$balanced_export),
+    tolerance = 0.1
+  )
+})
+
+testthat::test_that(".estimate_bilateral_trade uses tcrossprod correctly", {
+  exports <- c(10, 20)
+  imports <- c(5, 15)
+  result <- .estimate_bilateral_trade(exports, imports)
+
+  sum_exp <- sum(exports)
+  sum_imp <- sum(imports)
+  scale <- (1 / sum_imp + 1 / sum_exp) / 2
+  expected <- outer(exports, imports) * scale
+
+  testthat::expect_equal(result, expected, tolerance = 1e-10)
+})
+
+testthat::test_that(".fill_missing_trade handles all-NA matrix", {
+  original <- matrix(NA_real_, nrow = 3, ncol = 3)
+  total_trade <- tibble::tribble(
+    ~area_code, ~export, ~import,
+    1, 100, 80,
+    2, 50, 120,
+    3, 50, 0
+  ) |>
+    .balance_total_trade()
+
+  result <- .fill_missing_trade(original, total_trade)
+
+  testthat::expect_true(all(!is.na(result)))
+  testthat::expect_true(all(result >= 0))
+})
+
 
 testthat::test_that(".balance_total_trade rescales larger side", {
   total_trade <- tibble::tribble(
