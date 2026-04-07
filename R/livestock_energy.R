@@ -105,10 +105,10 @@ estimate_energy_demand <- function(data, method = "ipcc2019") {
           !is.na(lactose_percent) &
           lactose_percent > 0 ~
           milk_yield_kg_day *
-            (0.389 *
-              fat_percent +
-              0.229 * protein_percent +
-              0.165 * lactose_percent),
+          (0.389 *
+            fat_percent +
+            0.229 * protein_percent +
+            0.165 * lactose_percent),
         species_gen %in% c("Sheep", "Goats") ~ milk_yield_kg_day * 4.6,
         TRUE ~ milk_yield_kg_day * (1.47 + 0.40 * fat_percent)
       )
