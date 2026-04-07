@@ -18,4 +18,7 @@ Maximum CH4 producing capacity of manure
 (m3 CH4/kg VS). Dairy cattle (0.24) differs from
 other cattle (0.18).
 }
+\examples{
+head(ipcc_2019_bo)
+}
 \keyword{datasets}

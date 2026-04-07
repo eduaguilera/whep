@@ -18,4 +18,7 @@ ipcc_2019_enteric_ef_other
 Table 10.11: Tier 1 enteric fermentation emission factors
 for non-cattle species (kg CH4/head/yr).
 }
+\examples{
+head(ipcc_2019_enteric_ef_other)
+}
 \keyword{datasets}

@@ -20,4 +20,7 @@ Parameters for indirect N2O emissions from manure
 management: EF4 (volatilization), EF5 (leaching),
 FracGasMS, FracLeach.
 }
+\examples{
+head(indirect_n2o_ef)
+}
 \keyword{datasets}

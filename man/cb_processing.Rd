@@ -29,4 +29,7 @@ cb_processing
 Specifies the product fractions obtained when CBS items are processed,
 linking processed items to their output CBS categories.
 }
+\examples{
+head(cb_processing)
+}
 \keyword{datasets}

@@ -17,4 +17,7 @@ gleam_feed_digestibility
 \description{
 Digestibility coefficients by feed type.
 }
+\examples{
+head(gleam_feed_digestibility)
+}
 \keyword{datasets}

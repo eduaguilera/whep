@@ -23,4 +23,7 @@ situation. The 2019 Refinement differentiates:
 \item Sheep < 75 kg body weight: 4.7\%.
 }
 }
+\examples{
+head(ipcc_2019_ym)
+}
 \keyword{datasets}

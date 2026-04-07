@@ -17,4 +17,7 @@ gleam_manure_system_params
 \description{
 Manure management system parameters by species and region.
 }
+\examples{
+head(gleam_manure_system_params)
+}
 \keyword{datasets}

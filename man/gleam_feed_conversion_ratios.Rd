@@ -17,4 +17,7 @@ gleam_feed_conversion_ratios
 \description{
 Feed conversion ratios by species and production system.
 }
+\examples{
+head(gleam_feed_conversion_ratios)
+}
 \keyword{datasets}

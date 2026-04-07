@@ -19,4 +19,7 @@ Methane conversion rate by species and feed situation
 for Tier 2 enteric CH4. Includes feedlot distinction
 and sheep body weight differentiation.
 }
+\examples{
+head(ipcc_tier2_ym_values)
+}
 \keyword{datasets}

@@ -17,4 +17,7 @@ gleam_crop_residue_params
 \description{
 Parameters for crop residues and dry matter content.
 }
+\examples{
+head(gleam_crop_residue_params)
+}
 \keyword{datasets}

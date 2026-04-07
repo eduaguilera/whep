@@ -18,4 +18,7 @@ gleam_dressing_percentages
 Carcass weight as percentage of live weight by species
 and region.
 }
+\examples{
+head(gleam_dressing_percentages)
+}
 \keyword{datasets}

@@ -18,4 +18,7 @@ ipcc_2019_manure_ch4_ef_cattle
 Table 10.14: Tier 1 manure management CH4 emission factors
 for cattle by region (kg CH4/head/yr).
 }
+\examples{
+head(ipcc_2019_manure_ch4_ef_cattle)
+}
 \keyword{datasets}

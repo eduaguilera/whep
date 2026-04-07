@@ -19,4 +19,7 @@ Adjustment multipliers for net energy maintenance
 under cold stress, thermoneutral, and heat stress
 conditions.
 }
+\examples{
+head(temperature_adjustment)
+}
 \keyword{datasets}

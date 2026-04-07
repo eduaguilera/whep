@@ -17,4 +17,7 @@ gleam_feed_composition
 \description{
 Nutritional composition of feed items (DM, CP, ME, etc.).
 }
+\examples{
+head(gleam_feed_composition)
+}
 \keyword{datasets}

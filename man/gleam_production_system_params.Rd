@@ -18,4 +18,7 @@ gleam_production_system_params
 Species-specific production system parameters
 (herd structure, productivity, etc.).
 }
+\examples{
+head(gleam_production_system_params)
+}
 \keyword{datasets}

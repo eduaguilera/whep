@@ -18,4 +18,7 @@ ipcc_2019_cfi
 Net energy maintenance coefficients (MJ/day/kg^0.75).
 Dairy (lactating) cattle use 0.386; non-dairy 0.322.
 }
+\examples{
+head(ipcc_2019_cfi)
+}
 \keyword{datasets}

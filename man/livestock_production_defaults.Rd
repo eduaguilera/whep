@@ -17,4 +17,7 @@ livestock_production_defaults
 Default values for fat\%, protein\%, lactose\%, weight gain,
 work hours, and pregnancy fraction by species.
 }
+\examples{
+head(livestock_production_defaults)
+}
 \keyword{datasets}

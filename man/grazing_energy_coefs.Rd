@@ -18,4 +18,7 @@ grazing_energy_coefs
 Walking energy cost for grazing animals
 (MJ/kg body weight/km).
 }
+\examples{
+head(grazing_energy_coefs)
+}
 \keyword{datasets}

@@ -18,4 +18,7 @@ gleam_enteric_params
 Ym (\% GE) values by species and production system.
 Feedlot cattle use 3.0\% per IPCC 2019 Table 10.12.
 }
+\examples{
+head(gleam_enteric_params)
+}
 \keyword{datasets}

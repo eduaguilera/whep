@@ -17,4 +17,7 @@ gleam_feed_categories
 \description{
 Feed classification used in GLEAM 3.0.
 }
+\examples{
+head(gleam_feed_categories)
+}
 \keyword{datasets}

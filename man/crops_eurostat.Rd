@@ -24,4 +24,7 @@ crops_eurostat
 Maps Eurostat crop codes to their full crop category names, used when
 integrating Eurostat agricultural statistics.
 }
+\examples{
+head(crops_eurostat)
+}
 \keyword{datasets}

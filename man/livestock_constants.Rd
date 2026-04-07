@@ -25,4 +25,7 @@ emission calculations:
 \item \code{ev_wool_mj_kg}: 24.0 MJ/kg clean wool.
 }
 }
+\examples{
+str(livestock_constants)
+}
 \keyword{datasets}
