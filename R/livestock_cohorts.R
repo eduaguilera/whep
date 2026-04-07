@@ -17,13 +17,11 @@
 #' @export
 #'
 #' @examples
-#' \dontrun{
-#'   tibble::tibble(
-#'     species = "Cattle", heads = 10000,
-#'     iso3 = "DEU"
-#'   ) |>
-#'     calculate_cohorts_systems()
-#' }
+#' tibble::tibble(
+#'   species = "Cattle", heads = 10000,
+#'   iso3 = "DEU"
+#' ) |>
+#'   calculate_cohorts_systems()
 calculate_cohorts_systems <- function(data, system_shares = NULL) {
   categories <- gleam_livestock_categories
 

@@ -9,17 +9,17 @@ testthat::test_that("estimate_energy_demand returns expected columns", {
   result |>
     pointblank::expect_col_exists(
       c(
-        "NEm",
-        "NEa",
-        "NEl",
-        "NEwork",
-        "NEp",
-        "NEg",
-        "NE_maintenance",
-        "NE_growth",
-        "REM",
-        "REG",
-        "GE"
+        "ne_maintenance",
+        "ne_activity",
+        "ne_lactation",
+        "ne_work",
+        "ne_pregnancy",
+        "ne_growth",
+        "ne_total_maintenance",
+        "ne_total_growth",
+        "rem",
+        "reg",
+        "gross_energy"
       )
     )
 })
@@ -28,7 +28,7 @@ testthat::test_that("GE for dairy cattle is in IPCC expected range", {
   result <- dairy_tier2_fixture() |>
     estimate_energy_demand()
 
-  ge <- result |> dplyr::pull(GE)
+  ge <- result |> dplyr::pull(gross_energy)
   # IPCC Table 10.10 reference range for dairy: ~250-350 MJ/day
 
   testthat::expect_gt(ge, 200)
@@ -38,11 +38,11 @@ testthat::test_that("GE for dairy cattle is in IPCC expected range", {
 testthat::test_that("GE for beef is lower than dairy", {
   dairy <- dairy_tier2_fixture() |>
     estimate_energy_demand() |>
-    dplyr::pull(GE)
+    dplyr::pull(gross_energy)
 
   beef <- beef_tier2_fixture() |>
     estimate_energy_demand() |>
-    dplyr::pull(GE)
+    dplyr::pull(gross_energy)
 
   testthat::expect_gt(dairy, beef)
 })
@@ -67,12 +67,12 @@ testthat::test_that("NEm scales with body weight", {
   light <- dairy_tier2_fixture() |>
     dplyr::mutate(weight = 400) |>
     estimate_energy_demand() |>
-    dplyr::pull(NEm)
+    dplyr::pull(ne_maintenance)
 
   heavy <- dairy_tier2_fixture() |>
     dplyr::mutate(weight = 700) |>
     estimate_energy_demand() |>
-    dplyr::pull(NEm)
+    dplyr::pull(ne_maintenance)
 
   testthat::expect_gt(heavy, light)
 })
@@ -83,7 +83,7 @@ testthat::test_that("NEl is zero for non-lactating animals", {
   result <- beef_tier2_fixture() |>
     estimate_energy_demand()
 
-  nel <- result |> dplyr::pull(NEl)
+  nel <- result |> dplyr::pull(ne_lactation)
   testthat::expect_equal(nel, 0)
 })
 
@@ -91,12 +91,12 @@ testthat::test_that("NEl increases with milk yield", {
   low_milk <- dairy_tier2_fixture() |>
     dplyr::mutate(milk_yield_kg_day = 10) |>
     estimate_energy_demand() |>
-    dplyr::pull(NEl)
+    dplyr::pull(ne_lactation)
 
   high_milk <- dairy_tier2_fixture() |>
     dplyr::mutate(milk_yield_kg_day = 30) |>
     estimate_energy_demand() |>
-    dplyr::pull(NEl)
+    dplyr::pull(ne_lactation)
 
   testthat::expect_gt(high_milk, low_milk)
 })
@@ -107,7 +107,7 @@ testthat::test_that("NEg is zero when weight_gain is zero", {
   result <- dairy_tier2_fixture() |>
     estimate_energy_demand()
 
-  neg <- result |> dplyr::pull(NEg)
+  neg <- result |> dplyr::pull(ne_growth)
   testthat::expect_equal(neg, 0)
 })
 
@@ -115,7 +115,7 @@ testthat::test_that("NEg is positive for growing animals", {
   result <- beef_tier2_fixture() |>
     estimate_energy_demand()
 
-  neg <- result |> dplyr::pull(NEg)
+  neg <- result |> dplyr::pull(ne_growth)
   testthat::expect_gt(neg, 0)
 })
 
@@ -125,7 +125,7 @@ testthat::test_that("NEwool is zero for non-sheep", {
   result <- dairy_tier2_fixture() |>
     estimate_energy_demand()
 
-  newool <- result |> dplyr::pull(NEwool)
+  newool <- result |> dplyr::pull(ne_wool)
   testthat::expect_equal(newool, 0)
 })
 
@@ -135,8 +135,8 @@ testthat::test_that("REM and REG are between 0 and 1", {
   result <- dairy_tier2_fixture() |>
     estimate_energy_demand()
 
-  rem <- result |> dplyr::pull(REM)
-  reg <- result |> dplyr::pull(REG)
+  rem <- result |> dplyr::pull(rem)
+  reg <- result |> dplyr::pull(reg)
 
   testthat::expect_gt(rem, 0)
   testthat::expect_lt(rem, 1)
@@ -147,12 +147,12 @@ testthat::test_that("REM and REG are between 0 and 1", {
 testthat::test_that("custom de_percent overrides default", {
   default <- dairy_tier2_fixture() |>
     estimate_energy_demand() |>
-    dplyr::pull(GE)
+    dplyr::pull(gross_energy)
 
   custom <- dairy_tier2_fixture() |>
     dplyr::mutate(de_percent = 80) |>
     estimate_energy_demand() |>
-    dplyr::pull(GE)
+    dplyr::pull(gross_energy)
 
   # Higher DE% means less GE needed for same NE
   testthat::expect_lt(custom, default)
@@ -169,7 +169,7 @@ testthat::test_that("Beef cattle gets default weight gain", {
     estimate_energy_demand()
 
   wg <- result |> dplyr::pull(weight_gain_kg_day)
-  neg <- result |> dplyr::pull(NEg)
+  neg <- result |> dplyr::pull(ne_growth)
   # Should receive default 0.5 kg/day from production defaults.
   testthat::expect_equal(wg, 0.5)
   testthat::expect_gt(neg, 0)

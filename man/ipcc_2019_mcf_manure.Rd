@@ -18,4 +18,7 @@ ipcc_2019_mcf_manure
 Table 10.17: Methane Conversion Factors by manure management
 system and annual average temperature.
 }
+\examples{
+head(ipcc_2019_mcf_manure)
+}
 \keyword{datasets}

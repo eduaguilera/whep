@@ -79,8 +79,8 @@ testthat::test_that("Manure Tier 2 returns expected columns", {
   result |>
     pointblank::expect_col_exists(
       c(
-        "VS",
-        "Bo",
+        "volatile_solids",
+        "methane_potential",
         "weighted_mcf",
         "manure_ch4_per_head",
         "manure_ch4_tier2"
@@ -104,7 +104,7 @@ testthat::test_that("VS is positive", {
     estimate_energy_demand() |>
     whep:::.calc_manure_ch4_tier2()
 
-  vs <- result |> dplyr::pull(VS)
+  vs <- result |> dplyr::pull(volatile_solids)
   testthat::expect_gt(vs, 0)
 })
 
@@ -118,7 +118,7 @@ testthat::test_that("N2O calculation returns expected columns", {
   result |>
     pointblank::expect_col_exists(
       c(
-        "Nex",
+        "n_excretion",
         "manure_n2o_direct",
         "manure_n2o_indirect",
         "manure_n2o_total"
@@ -143,7 +143,7 @@ testthat::test_that("Nex is positive for dairy cattle", {
     estimate_energy_demand() |>
     whep:::.calc_manure_n2o()
 
-  nex <- result |> dplyr::pull(Nex)
+  nex <- result |> dplyr::pull(n_excretion)
   testthat::expect_gt(nex, 0)
 })
 
@@ -152,7 +152,7 @@ testthat::test_that("Nex is annualized (kgN/head/yr)", {
     estimate_energy_demand() |>
     whep:::.calc_manure_n2o()
 
-  nex <- result |> dplyr::pull(Nex)
+  nex <- result |> dplyr::pull(n_excretion)
   # IPCC Table 10.19: N. America dairy ~100-140 kgN/head/yr.
   testthat::expect_gt(nex, 50)
   testthat::expect_lt(nex, 200)

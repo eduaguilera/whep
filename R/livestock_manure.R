@@ -4,7 +4,7 @@
   data <- data |>
     dplyr::mutate(
       species_gen = .get_general_species(species),
-      Method_Manure_CH4 = "IPCC_2019_Tier1"
+      method_manure_ch4 = "IPCC_2019_Tier1"
     )
 
   data <- .join_manure_ch4_ef_tier1(data)
@@ -18,9 +18,9 @@
 #' IPCC 2019 Tier 2 manure CH4.
 #' @noRd
 .calc_manure_ch4_tier2 <- function(data) {
-  if (!rlang::has_name(data, "GE")) {
+  if (!rlang::has_name(data, "gross_energy")) {
     cli::cli_abort(
-      "{.fun .calc_manure_ch4_tier2} requires {.var GE}. \\
+      "{.fun .calc_manure_ch4_tier2} requires {.var gross_energy}. \\
        Run {.fun estimate_energy_demand} first."
     )
   }
@@ -35,7 +35,7 @@
         subcategory,
         .get_subcategory(species)
       ),
-      Method_Manure_CH4 = "IPCC_2019_Tier2"
+      method_manure_ch4 = "IPCC_2019_Tier2"
     )
 
   data <- .calc_volatile_solids(data)
@@ -46,7 +46,11 @@
 
   data |>
     dplyr::mutate(
-      manure_ch4_per_head = VS * 365 * Bo * ch4_density * weighted_mcf,
+      manure_ch4_per_head = volatile_solids *
+        365 *
+        methane_potential *
+        ch4_density *
+        weighted_mcf,
       manure_ch4_tier2 = heads * manure_ch4_per_head
     )
 }
@@ -54,9 +58,9 @@
 #' IPCC 2019 manure N2O (direct + indirect).
 #' @noRd
 .calc_manure_n2o <- function(data) {
-  if (!rlang::has_name(data, "GE")) {
+  if (!rlang::has_name(data, "gross_energy")) {
     cli::cli_abort(
-      "{.fun .calc_manure_n2o} requires {.var GE}. \\
+      "{.fun .calc_manure_n2o} requires {.var gross_energy}. \\
        Run {.fun estimate_energy_demand} first."
     )
   }
@@ -71,7 +75,7 @@
         subcategory,
         .get_subcategory(species)
       ),
-      Method_Manure_N2O = "IPCC_2019_Tier2"
+      method_manure_n2o = "IPCC_2019_Tier2"
     )
 
   data <- .calc_n_excretion(data)
@@ -104,7 +108,8 @@
     dplyr::mutate(
       manure_category = dplyr::case_when(
         stringr::str_detect(species, "(?i)Dairy") &
-          species_gen == "Cattle" ~ "Dairy Cattle",
+          species_gen == "Cattle" ~
+          "Dairy Cattle",
         species_gen == "Cattle" ~ "Other Cattle",
         species %in% all_categories ~ species,
         TRUE ~ species_gen
@@ -180,8 +185,8 @@
     ) |>
     dplyr::mutate(
       ash_percent = dplyr::coalesce(ash_percent, 8.0),
-      VS = GE *
-        (1 - DE_percent / 100 + ue_factor * DE_percent / 100) *
+      volatile_solids = gross_energy *
+        (1 - de_percent / 100 + ue_factor * de_percent / 100) *
         (1 - ash_percent / 100) /
         ge_content
     )
@@ -203,9 +208,9 @@
       bo_tbl,
       by = c("bo_category" = "category")
     ) |>
-    dplyr::rename(Bo = bo_m3_kg_vs) |>
+    dplyr::rename(methane_potential = bo_m3_kg_vs) |>
     dplyr::mutate(
-      Bo = dplyr::coalesce(Bo, 0.18)
+      methane_potential = dplyr::coalesce(methane_potential, 0.18)
     ) |>
     dplyr::select(-bo_category)
 }
@@ -215,7 +220,8 @@
 .get_bo_category <- function(species, species_gen) {
   dplyr::case_when(
     stringr::str_detect(species, "(?i)Dairy") &
-      species_gen == "Cattle" ~ "Dairy Cattle",
+      species_gen == "Cattle" ~
+      "Dairy Cattle",
     species_gen == "Cattle" ~ "Other Cattle",
     species_gen == "Swine" &
       stringr::str_detect(species, "(?i)Breed") ~
@@ -236,8 +242,8 @@
     data <- data |>
       dplyr::mutate(
         climate_zone = "Temperate",
-        Method_Manure_CH4 = paste0(
-          Method_Manure_CH4,
+        method_manure_ch4 = paste0(
+          method_manure_ch4,
           "; climate_assumed_temperate"
         )
       )
@@ -319,7 +325,7 @@
   keys
 }
 
-#' Calculate nitrogen excretion (Nex).
+#' Calculate nitrogen excretion (n_excretion).
 #' @noRd
 .calc_n_excretion <- function(data) {
   ge_content <- livestock_constants$vs_energy_content_mj_kg
@@ -356,10 +362,12 @@
         n_retention_frac,
         0.07
       ),
-      N_intake = (GE / ge_content) *
+      n_intake = (gross_energy / ge_content) *
         (cp_percent / 100) /
         6.25,
-      Nex = N_intake * (1 - n_retention_frac) * livestock_constants$days_in_year
+      n_excretion = n_intake *
+        (1 - n_retention_frac) *
+        livestock_constants$days_in_year
     ) |>
     dplyr::select(-n_ret_category)
 }
@@ -390,7 +398,7 @@
 
     data <- data |>
       dplyr::mutate(
-        manure_n2o_direct = heads * Nex * pasture_ef * n2o_to_n
+        manure_n2o_direct = heads * n_excretion * pasture_ef * n2o_to_n
       )
   }
 
@@ -410,7 +418,7 @@
     dplyr::select(
       row_id_n2o,
       species_gen,
-      Nex,
+      n_excretion,
       heads,
       dplyr::any_of("region")
     ) |>
@@ -433,7 +441,7 @@
     dplyr::left_join(n2o_weighted, by = "row_id_n2o") |>
     dplyr::mutate(
       manure_n2o_direct = heads *
-        Nex *
+        n_excretion *
         dplyr::coalesce(weighted_ef3, 0.005) *
         n2o_to_n
     ) |>
@@ -454,8 +462,8 @@
 
   data |>
     dplyr::mutate(
-      n2o_volatilization = heads * Nex * frac_gas * ef4 * n2o_to_n,
-      n2o_leaching = heads * Nex * frac_leach * ef5 * n2o_to_n,
+      n2o_volatilization = heads * n_excretion * frac_gas * ef4 * n2o_to_n,
+      n2o_leaching = heads * n_excretion * frac_leach * ef5 * n2o_to_n,
       manure_n2o_indirect = n2o_volatilization +
         n2o_leaching
     ) |>

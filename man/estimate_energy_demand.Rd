@@ -16,25 +16,25 @@ and optionally \code{iso3}. Optional production columns: \code{weight},
 \item{method}{Method for calculation (default \code{"ipcc2019"}).}
 }
 \value{
-Dataframe with added \code{GE} (MJ/day), intermediate NE
-components, and \code{Method_Energy} tracking column.
+Dataframe with added \code{gross_energy} (MJ/day), intermediate
+net energy components, and \code{method_energy} tracking column.
 }
 \description{
-Calculate Gross Energy (GE) intake per IPCC 2019 Tier 2 equations
-(Vol 4, Ch 10). Estimates Net Energy for Maintenance (NEm),
-Activity (NEa), Lactation (NEl), Work (NEwork), Pregnancy (NEp),
-Growth (NEg), and Wool (NEwool), then derives total GE using the
-REM/REG ratio approach from IPCC Eq 10.16.
+Calculate gross energy (GE) intake per IPCC 2019 Tier 2 equations
+(Vol 4, Ch 10). Estimates net energy components for maintenance,
+activity, lactation, work, pregnancy, growth, and wool, then
+derives total gross energy using the REM/REG ratio approach from
+IPCC Eq 10.16.
 
 All coefficients come from internal package data.
 }
 \examples{
-\dontrun{
-  data <- tibble::tibble(
-    species = "Dairy Cattle", cohort = "Adult Female",
-    heads = 100, weight = 600, diet_quality = "High",
-    milk_yield_kg_day = 20
-  )
-  estimate_energy_demand(data)
-}
+tibble::tibble(
+  species = "Dairy Cattle", cohort = "Adult Female",
+  heads = 100, weight = 600, diet_quality = "High",
+  milk_yield_kg_day = 20
+) |>
+  estimate_energy_demand() |>
+  dplyr::select(species, cohort, heads, ne_maintenance,
+    ne_activity, ne_lactation, ne_growth, gross_energy)
 }

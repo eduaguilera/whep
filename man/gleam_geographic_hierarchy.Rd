@@ -5,7 +5,7 @@
 \alias{gleam_geographic_hierarchy}
 \title{GLEAM geographic hierarchy.}
 \format{
-A dataframe with columns:
+A tibble with columns:
 \describe{
 \item{iso3}{ISO3 country code.}
 \item{country}{Country name.}
@@ -24,5 +24,8 @@ gleam_geographic_hierarchy
 \description{
 Maps countries (ISO3) to GLEAM regions, FAOSTAT regions,
 and classification indicators.
+}
+\examples{
+head(gleam_geographic_hierarchy)
 }
 \keyword{datasets}

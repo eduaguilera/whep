@@ -9,7 +9,7 @@
 - Extract complex logic into private/helper functions (prefixed with `.`) early. These helpers should be stateless and receive all necessary context via arguments.
 - Functions should be short. Ideally no more than 25 lines. Split large functions into smaller ones with meaningful names.
 - Main exported functions should come first in the file. Private helpers come at the end.
-- Use `snake_case` for column names in tibbles.
+- Use `snake_case` for column names in tibbles. Names must be readable and self-explanatory — no cryptic abbreviations like `NEm`, `Bo`, `VS`, `GE`. Prefer descriptive names like `ne_maintenance`, `methane_potential`, `volatile_solids`, `gross_energy`.
 - Always make sure all rules in this document and all linters have passed after a change in the code.
 - Don't use imported functions without namespace prefix (e.g. use `dplyr::filter()` instead of just `filter()`). Do not use `@importFrom` in roxygen2 documentation.
 - This is a tidy data project. Don't use `data.frame` or `data.table`. Always use `tibble` from tidyverse.
@@ -33,6 +33,7 @@
 - Then `@description`, `@param` for each parameter, `@return`, `@export`, `@examples`.
 - One space after `#'`. Indent continuation lines by two spaces.
 - Variable and function names must not exceed 30 characters.
+- **Never** use `\dontrun{}` or `\donttest{}` in examples. All examples must run during `R CMD check`. For functions that depend on external/remote data or take too long to run live, use the `example = FALSE` parameter pattern: add an `example` argument that, when `TRUE`, returns a small hardcoded `tibble::tribble()` from a private helper in `R/toy_examples.R` (run the real function first, then sample ~10 rows for the fixture). The `@examples` block then just calls `my_function(example = TRUE)`. See `build_primary_production()` and `R/toy_examples.R` for reference. For functions that run fast on small input, just provide a self-contained inline example directly.
 
 ## Tests
 

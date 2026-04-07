@@ -18,4 +18,7 @@ feed_characteristics
 DE\%, NDF\%, GE content, and crude protein percentage
 for High/Medium/Low diet quality levels.
 }
+\examples{
+head(feed_characteristics)
+}
 \keyword{datasets}

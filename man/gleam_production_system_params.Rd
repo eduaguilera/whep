@@ -5,7 +5,7 @@
 \alias{gleam_production_system_params}
 \title{GLEAM production system parameters.}
 \format{
-A dataframe with system-level parameters.
+A tibble with system-level parameters.
 }
 \source{
 MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
@@ -17,5 +17,8 @@ gleam_production_system_params
 \description{
 Species-specific production system parameters
 (herd structure, productivity, etc.).
+}
+\examples{
+head(gleam_production_system_params)
 }
 \keyword{datasets}

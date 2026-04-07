@@ -107,9 +107,9 @@ testthat::test_that("Tier 2 adds Method_Enteric column", {
     whep:::.calc_enteric_ch4_tier2()
 
   result |>
-    pointblank::expect_col_exists("Method_Enteric") |>
+    pointblank::expect_col_exists("method_enteric") |>
     pointblank::expect_col_vals_in_set(
-      "Method_Enteric",
+      "method_enteric",
       c("IPCC_2019_Tier2")
     )
 })

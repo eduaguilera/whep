@@ -18,4 +18,7 @@ ipcc_2006_enteric_ef
 Table 10.11 (2006): Tier 1 regional EFs for enteric
 fermentation.
 }
+\examples{
+head(ipcc_2006_enteric_ef)
+}
 \keyword{datasets}

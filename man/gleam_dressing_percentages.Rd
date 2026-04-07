@@ -5,7 +5,7 @@
 \alias{gleam_dressing_percentages}
 \title{GLEAM dressing percentages.}
 \format{
-A dataframe with dressing percentages.
+A tibble with dressing percentages.
 }
 \source{
 MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
@@ -17,5 +17,8 @@ gleam_dressing_percentages
 \description{
 Carcass weight as percentage of live weight by species
 and region.
+}
+\examples{
+head(gleam_dressing_percentages)
 }
 \keyword{datasets}

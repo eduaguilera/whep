@@ -20,22 +20,23 @@ and original data columns preserved.
 }
 \description{
 Main dispatcher that runs the full IPCC 2019 livestock
-emissions pipeline: energy demand (Tier 2 GE), enteric CH4,
+emissions pipeline: energy demand (Tier 2), enteric CH4,
 manure CH4, and manure N2O.
 
 Selects tier automatically: Tier 2 when cohort-level data
 (weight, diet) are available; Tier 1 otherwise.
 }
 \examples{
-\dontrun{
-  tibble::tibble(
-    species = "Dairy Cattle",
-    cohort = "Adult Female",
-    heads = 1000,
-    weight = 600,
-    diet_quality = "High",
-    milk_yield_kg_day = 20
-  ) |>
-    calculate_livestock_emissions()
-}
+tibble::tibble(
+  species = "Dairy Cattle",
+  cohort = "Adult Female",
+  heads = 1000,
+  weight = 600,
+  diet_quality = "High",
+  milk_yield_kg_day = 20
+) |>
+  calculate_livestock_emissions() |>
+  dplyr::select(species, cohort, heads,
+    enteric_ch4_tier2, manure_ch4_tier2,
+    manure_n2o_total)
 }

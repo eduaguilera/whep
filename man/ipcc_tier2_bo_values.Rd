@@ -17,4 +17,7 @@ ipcc_tier2_bo_values
 Maximum CH4 producing capacity by detailed category.
 Dairy cattle 0.24 vs other cattle 0.18.
 }
+\examples{
+head(ipcc_tier2_bo_values)
+}
 \keyword{datasets}

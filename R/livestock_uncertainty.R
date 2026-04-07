@@ -13,18 +13,20 @@
 #' @export
 #'
 #' @examples
-#' \dontrun{
-#'   tibble::tibble(
-#'     species = "Dairy Cattle",
-#'     cohort = "Adult Female",
-#'     heads = 1000,
-#'     weight = 600,
-#'     diet_quality = "High",
-#'     milk_yield_kg_day = 20
-#'   ) |>
-#'     calculate_livestock_emissions() |>
-#'     calculate_uncertainty_bounds()
-#' }
+#' tibble::tibble(
+#'   species = "Dairy Cattle",
+#'   cohort = "Adult Female",
+#'   heads = 1000,
+#'   weight = 600,
+#'   diet_quality = "High",
+#'   milk_yield_kg_day = 20
+#' ) |>
+#'   calculate_livestock_emissions() |>
+#'   calculate_uncertainty_bounds() |>
+#'   dplyr::select(species, cohort, heads,
+#'     enteric_ch4_tier2, enteric_ch4_tier2_lower,
+#'     enteric_ch4_tier2_upper, manure_ch4_tier2,
+#'     manure_ch4_tier2_lower, manure_ch4_tier2_upper)
 calculate_uncertainty_bounds <- function(data) {
   unc <- uncertainty_ranges
 

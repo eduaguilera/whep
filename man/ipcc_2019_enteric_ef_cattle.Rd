@@ -18,4 +18,7 @@ ipcc_2019_enteric_ef_cattle
 Table 10.10: Tier 1 enteric fermentation emission factors
 for cattle by region (kg CH4/head/yr).
 }
+\examples{
+head(ipcc_2019_enteric_ef_cattle)
+}
 \keyword{datasets}

@@ -5,7 +5,7 @@
 \alias{gleam_feed_conversion_ratios}
 \title{GLEAM feed conversion ratios.}
 \format{
-A dataframe with FCR values.
+A tibble with FCR values.
 }
 \source{
 MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
@@ -16,5 +16,8 @@ gleam_feed_conversion_ratios
 }
 \description{
 Feed conversion ratios by species and production system.
+}
+\examples{
+head(gleam_feed_conversion_ratios)
 }
 \keyword{datasets}
