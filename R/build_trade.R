@@ -67,6 +67,36 @@ build_detailed_trade <- function(
   }
   data.table::setnames(dt, tolower)
 
+  # Rename FAOSTAT columns to internal names
+  fao_cols <- c(
+    "reporter country code",
+    "partner country code",
+    "item code",
+    "element",
+    "year",
+    "unit",
+    "value"
+  )
+  internal_cols <- c(
+    "area_code",
+    "area_code_p",
+    "item_code_trade",
+    "element",
+    "year",
+    "unit",
+    "value"
+  )
+  present <- fao_cols %in% names(dt)
+  data.table::setnames(dt, fao_cols[present], internal_cols[present])
+
+  # Keep only needed columns
+  keep <- intersect(
+    c("area_code", "area_code_p", "item_code_trade", "item",
+      "element", "year", "unit", "value"),
+    names(dt)
+  )
+  dt <- dt[, ..keep]
+
   # Standardise element names
   dt[,
     element := data.table::fifelse(
@@ -203,9 +233,7 @@ build_detailed_trade <- function(
 .extend_dtm_time <- function(dt, cbs, min_share) {
   cli::cli_progress_step("Extending time series")
 
-  if (!data.table::is.data.table(cbs)) {
-    data.table::setDT(cbs)
-  }
+  cbs_ie <- .extract_cbs_ie_for_dtm(cbs)
 
   # Drop small partners to reduce dataset size
   dt[country_share < min_share, value := NA_real_]
@@ -244,12 +272,6 @@ build_detailed_trade <- function(
   ]
 
   # Join CBS import/export years to extend range
-  cbs_ie <- cbs[
-    element %in% c("import", "export"),
-    .(year, area_code, item_cbs_code, element)
-  ]
-  cbs_ie <- unique(cbs_ie)
-
   dt <- merge(
     dt,
     cbs_ie,
@@ -282,4 +304,45 @@ build_detailed_trade <- function(
 
   dt <- dt[!is.na(country_share) & country_share != 0]
   dt
+}
+
+# Extract unique (year, area_code, item_cbs_code, element) rows from CBS.
+# Accepts wide format (import/export as columns) or long format (element col).
+.extract_cbs_ie_for_dtm <- function(cbs) {
+  if (!data.table::is.data.table(cbs)) {
+    data.table::setDT(cbs)
+  }
+  data.table::setnames(cbs, tolower)
+  nms <- names(cbs)
+
+  # Wide format: import / export are value columns
+  if ("import" %in% nms || "export" %in% nms) {
+    parts <- list()
+    if ("import" %in% nms) {
+      parts[["import"]] <- cbs[
+        !is.na(import),
+        .(year, area_code, item_cbs_code, element = "import")
+      ]
+    }
+    if ("export" %in% nms) {
+      parts[["export"]] <- cbs[
+        !is.na(export),
+        .(year, area_code, item_cbs_code, element = "export")
+      ]
+    }
+    return(unique(data.table::rbindlist(parts)))
+  }
+
+  # Long format: element column present
+  if ("element" %in% nms) {
+    return(unique(cbs[
+      element %in% c("import", "export"),
+      .(year, area_code, item_cbs_code, element)
+    ]))
+  }
+
+  cli::cli_abort(
+    "CBS must have either {.field import}/{.field export} columns (wide format)
+     or an {.field element} column (long format)."
+  )
 }
