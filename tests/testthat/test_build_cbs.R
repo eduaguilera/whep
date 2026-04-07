@@ -327,3 +327,26 @@ test_that("build_commodity_balances defaults to end_year 2023", {
   formals_cbs <- formals(whep::build_commodity_balances)
   expect_equal(formals_cbs$end_year, 2023)
 })
+
+
+# -- deduplication --------------------------------------------------------------
+
+test_that(".format_cbs_output removes duplicate rows", {
+  df <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~element, ~value, ~source,
+    2000L, 203L, 2511L, "production", 100, "FAOSTAT_prod",
+    2000L, 203L, 2511L, "production", 100, "FAOSTAT_prod",
+    2000L, 203L, 2511L, "import", 50, "FAOSTAT_FBS_New"
+  )
+
+  result <- whep:::.format_cbs_output(df)
+  prod_rows <- result |>
+    dplyr::filter(
+      year == 2000L,
+      area_code == 203L,
+      item_cbs_code == 2511L,
+      element == "production"
+    )
+  expect_equal(nrow(prod_rows), 1L)
+  expect_equal(prod_rows$value, 100)
+})

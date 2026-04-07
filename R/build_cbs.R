@@ -72,6 +72,7 @@ build_commodity_balances <- function(
       dplyr::any_of("fao_flag")
     ) |>
     .normalise_cbs_values() |>
+    dplyr::distinct() |>
     dplyr::summarise(
       value = .sum_if_any_cbs(value),
       source = dplyr::first(source),

@@ -41,6 +41,7 @@ build_primary_production <- function(
     .fix_production() |>
     .qc_production(smooth = smooth_carry_forward) |>
     tibble::as_tibble() |>
+    .dedup_production() |>
     dplyr::select(
       year,
       area_code,
@@ -2078,4 +2079,33 @@ build_primary_production <- function(
   ]
 
   out
+}
+
+.prod_source_rank <- function(source) {
+  dplyr::case_when(
+    source == "FAOSTAT_prod" ~ 1L,
+    source == "EuropeAgriDB" ~ 2L,
+    stringr::str_starts(source, "imputed_yield") ~ 3L,
+    source == "imputed_cbs_ratio" ~ 4L,
+    source == "DM_yield_estimate" ~ 5L,
+    source == "fill_linear" ~ 6L,
+    source == "fill_linear_historical" ~ 7L,
+    source == "LUH2_cropland" ~ 8L,
+    source == "LUH2_agriland" ~ 9L,
+    source == "LUH2_grassland" ~ 10L,
+    source == "Estimated" ~ 11L,
+    TRUE ~ 12L
+  )
+}
+
+.dedup_production <- function(df) {
+  df |>
+    dplyr::mutate(.src_rank = .prod_source_rank(source)) |>
+    dplyr::slice_min(
+      .src_rank,
+      n = 1L,
+      with_ties = FALSE,
+      by = c(year, area_code, item_prod_code, unit)
+    ) |>
+    dplyr::select(!.src_rank)
 }
