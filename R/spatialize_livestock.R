@@ -22,6 +22,21 @@
 #' hectares times optional reference-pattern intensity) and \eqn{T} is
 #' the country total (heads or emissions).
 #'
+#' ## Methodology
+#'
+#' Livestock spatialization is not covered by LandInG (Ostberg et al.
+#' 2023), which focuses on crops only. The approach here extends the
+#' LandInG framework by using the same LUH2-based spatial proxies
+#' (pasture, rangeland, cropland) for livestock distribution.
+#'
+#' Country-level data comes from [build_primary_production()] (stocks)
+#' and the `faostat-emissions-livestock` pin (CH4/N2O emissions), with
+#' predecessor redistribution and pre-1961 backfill already applied.
+#'
+#' The Zenodo livestock density input (Heinke 2025,
+#' doi:10.5281/zenodo.14946695) provides an alternative calibrated
+#' LSU/ha reference for use with the `glw_density` parameter.
+#'
 #' ## Data sources and references
 #'
 #' | Source | Use |
@@ -31,6 +46,7 @@
 #' | LUH2 v2h (Hurtt et al. 2020) | Time-varying pasture + cropland |
 #' | West et al. (2014) | Static manure-N intensity reference |
 #' | GLW3 (Gilbert et al. 2018) | Species-specific density (optional) |
+#' | Heinke (2025) | Calibrated LSU/ha density (optional) |
 #' | IPCC 2006/2019 | N-excretion rates, emission factors |
 #'
 #' @param livestock_data A tibble with country-level livestock data.
