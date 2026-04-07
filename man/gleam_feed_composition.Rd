@@ -5,7 +5,7 @@
 \alias{gleam_feed_composition}
 \title{GLEAM feed composition.}
 \format{
-A dataframe with feed-level nutrient parameters.
+A tibble with feed-level nutrient parameters.
 }
 \source{
 MacLeod et al. (2018) GLEAM 3.0 Supplement S1,

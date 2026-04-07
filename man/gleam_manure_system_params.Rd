@@ -5,7 +5,7 @@
 \alias{gleam_manure_system_params}
 \title{GLEAM manure system parameters.}
 \format{
-A dataframe with MMS parameters.
+A tibble with MMS parameters.
 }
 \source{
 MacLeod et al. (2018) GLEAM 3.0 Supplement S1,

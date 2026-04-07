@@ -5,7 +5,7 @@
 \alias{gleam_geographic_hierarchy}
 \title{GLEAM geographic hierarchy.}
 \format{
-A dataframe with columns:
+A tibble with columns:
 \describe{
 \item{iso3}{ISO3 country code.}
 \item{country}{Country name.}

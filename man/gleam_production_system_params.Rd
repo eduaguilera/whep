@@ -5,7 +5,7 @@
 \alias{gleam_production_system_params}
 \title{GLEAM production system parameters.}
 \format{
-A dataframe with system-level parameters.
+A tibble with system-level parameters.
 }
 \source{
 MacLeod et al. (2018) GLEAM 3.0 Supplement S1,

@@ -10,7 +10,7 @@
 #' @description
 #' Parameters for crop residues and dry matter content.
 #'
-#' @format A dataframe with crop-specific residue parameters.
+#' @format A tibble with crop-specific residue parameters.
 #'
 #' @source MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
 #'   Table S.3.1. \doi{10.1088/1748-9326/aad4d8}
@@ -25,7 +25,7 @@
 #' Maps countries (ISO3) to GLEAM regions, FAOSTAT regions,
 #' and classification indicators.
 #'
-#' @format A dataframe with columns:
+#' @format A tibble with columns:
 #' \describe{
 #'   \item{iso3}{ISO3 country code.}
 #'   \item{country}{Country name.}
@@ -46,7 +46,7 @@
 #' @description
 #' Nutritional composition of feed items (DM, CP, ME, etc.).
 #'
-#' @format A dataframe with feed-level nutrient parameters.
+#' @format A tibble with feed-level nutrient parameters.
 #'
 #' @source MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
 #'   Table S.3.2.
@@ -60,7 +60,7 @@
 #' @description
 #' Digestibility coefficients by feed type.
 #'
-#' @format A dataframe with digestibility parameters.
+#' @format A tibble with digestibility parameters.
 #'
 #' @source MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
 #'   Table S.3.3.
@@ -74,7 +74,7 @@
 #' @description
 #' Feed conversion ratios by species and production system.
 #'
-#' @format A dataframe with FCR values.
+#' @format A tibble with FCR values.
 #'
 #' @source MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
 #'   Table S.3.4.
@@ -89,7 +89,7 @@
 #' Species-specific production system parameters
 #' (herd structure, productivity, etc.).
 #'
-#' @format A dataframe with system-level parameters.
+#' @format A tibble with system-level parameters.
 #'
 #' @source MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
 #'   Tables S.6.x.
@@ -103,7 +103,7 @@
 #' @description
 #' Manure management system parameters by species and region.
 #'
-#' @format A dataframe with MMS parameters.
+#' @format A tibble with MMS parameters.
 #'
 #' @source MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
 #'   Tables S.7.x.
@@ -118,7 +118,7 @@
 #' Carcass weight as percentage of live weight by species
 #' and region.
 #'
-#' @format A dataframe with dressing percentages.
+#' @format A tibble with dressing percentages.
 #'
 #' @source MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
 #'   Table S.9.1.

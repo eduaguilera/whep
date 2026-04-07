@@ -5,7 +5,7 @@
 \alias{gleam_feed_digestibility}
 \title{GLEAM feed digestibility.}
 \format{
-A dataframe with digestibility parameters.
+A tibble with digestibility parameters.
 }
 \source{
 MacLeod et al. (2018) GLEAM 3.0 Supplement S1,

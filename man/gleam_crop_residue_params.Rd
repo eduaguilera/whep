@@ -5,7 +5,7 @@
 \alias{gleam_crop_residue_params}
 \title{GLEAM crop residue parameters.}
 \format{
-A dataframe with crop-specific residue parameters.
+A tibble with crop-specific residue parameters.
 }
 \source{
 MacLeod et al. (2018) GLEAM 3.0 Supplement S1,

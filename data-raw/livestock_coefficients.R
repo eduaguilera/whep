@@ -993,6 +993,11 @@ main <- function() {
     list(livestock_constants = livestock_constants)
   )
 
+  # Ensure all data.frames are tibbles
+  all_objects <- lapply(all_objects, function(x) {
+    if (is.data.frame(x)) tibble::as_tibble(x) else x
+  })
+
   message(
     "\nSaving ",
     length(all_objects),
