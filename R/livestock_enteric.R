@@ -4,7 +4,7 @@
   data <- data |>
     dplyr::mutate(
       species_gen = .get_general_species(species),
-      Method_Enteric = "IPCC_2019_Tier1"
+      method_enteric = "IPCC_2019_Tier1"
     )
 
   # Determine best EF table
@@ -29,9 +29,9 @@
 #' IPCC 2019 Tier 2 enteric CH4.
 #' @noRd
 .calc_enteric_ch4_tier2 <- function(data) {
-  if (!rlang::has_name(data, "GE")) {
+  if (!rlang::has_name(data, "gross_energy")) {
     cli::cli_abort(
-      "{.fun .calc_enteric_ch4_tier2} requires {.var GE}. \\
+      "{.fun .calc_enteric_ch4_tier2} requires {.var gross_energy}. \\
        Run {.fun estimate_energy_demand} first."
     )
   }
@@ -50,9 +50,12 @@
 
   data |>
     dplyr::mutate(
-      enteric_ch4_per_head = GE * (Ym / 100) * 365 / energy_conversion,
+      enteric_ch4_per_head = gross_energy *
+        (ym_factor / 100) *
+        365 /
+        energy_conversion,
       enteric_ch4_tier2 = heads * enteric_ch4_per_head,
-      Method_Enteric = "IPCC_2019_Tier2"
+      method_enteric = "IPCC_2019_Tier2"
     )
 }
 
@@ -88,8 +91,7 @@
 #' @noRd
 .join_cattle_ef <- function(cattle_rows, cattle_ef) {
   cattle_category <- dplyr::case_when(
-    stringr::str_detect(cattle_rows$species, "(?i)Dairy") ~
-      "Dairy Cattle",
+    stringr::str_detect(cattle_rows$species, "(?i)Dairy") ~ "Dairy Cattle",
     TRUE ~ "Other Cattle"
   )
   cattle_rows <- cattle_rows |>
@@ -216,7 +218,7 @@
       )
     ) |>
     dplyr::mutate(
-      Ym = dplyr::coalesce(ym_percent, 6.5)
+      ym_factor = dplyr::coalesce(ym_percent, 6.5)
     ) |>
     dplyr::select(
       -dplyr::any_of(c(

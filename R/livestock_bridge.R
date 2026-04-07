@@ -26,11 +26,13 @@
 #' @export
 #'
 #' @examples
-#' \dontrun{
-#'   build_primary_production() |>
-#'     prepare_livestock_emissions() |>
-#'     calculate_livestock_emissions(tier = 1)
-#' }
+#' tibble::tibble(
+#'   item_cbs_code = 961,
+#'   unit = "heads",
+#'   value = 5000,
+#'   area_code = 79L
+#' ) |>
+#'   prepare_livestock_emissions()
 prepare_livestock_emissions <- function(
   data,
   expand_cohorts = FALSE,

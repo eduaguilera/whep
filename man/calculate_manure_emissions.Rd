@@ -18,3 +18,9 @@ Dataframe with manure CH4 and N2O results.
 Wrapper that selects Tier 1 or 2 for manure CH4 and
 computes N2O (Tier 2 only; skipped for Tier 1).
 }
+\examples{
+tibble::tibble(
+  species = "Cattle", heads = 1000, iso3 = "DEU"
+) |>
+  calculate_manure_emissions(tier = 1)
+}

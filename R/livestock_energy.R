@@ -1,11 +1,11 @@
 #' Estimate energy demand (Gross Energy) - Tier 2
 #'
 #' @description
-#' Calculate Gross Energy (GE) intake per IPCC 2019 Tier 2 equations
-#' (Vol 4, Ch 10). Estimates Net Energy for Maintenance (NEm),
-#' Activity (NEa), Lactation (NEl), Work (NEwork), Pregnancy (NEp),
-#' Growth (NEg), and Wool (NEwool), then derives total GE using the
-#' REM/REG ratio approach from IPCC Eq 10.16.
+#' Calculate gross energy (GE) intake per IPCC 2019 Tier 2 equations
+#' (Vol 4, Ch 10). Estimates net energy components for maintenance,
+#' activity, lactation, work, pregnancy, growth, and wool, then
+#' derives total gross energy using the REM/REG ratio approach from
+#' IPCC Eq 10.16.
 #'
 #' All coefficients come from internal package data.
 #'
@@ -16,25 +16,25 @@
 #'   `diet_quality`, `grazing_distance_km`, `system`.
 #' @param method Method for calculation (default `"ipcc2019"`).
 #'
-#' @return Dataframe with added `GE` (MJ/day), intermediate NE
-#'   components, and `Method_Energy` tracking column.
+#' @return Dataframe with added `gross_energy` (MJ/day), intermediate
+#'   net energy components, and `method_energy` tracking column.
 #' @export
 #'
 #' @examples
-#' \dontrun{
-#'   data <- tibble::tibble(
-#'     species = "Dairy Cattle", cohort = "Adult Female",
-#'     heads = 100, weight = 600, diet_quality = "High",
-#'     milk_yield_kg_day = 20
-#'   )
-#'   estimate_energy_demand(data)
-#' }
+#' tibble::tibble(
+#'   species = "Dairy Cattle", cohort = "Adult Female",
+#'   heads = 100, weight = 600, diet_quality = "High",
+#'   milk_yield_kg_day = 20
+#' ) |>
+#'   estimate_energy_demand() |>
+#'   dplyr::select(species, cohort, heads, ne_maintenance,
+#'     ne_activity, ne_lactation, ne_growth, gross_energy)
 estimate_energy_demand <- function(data, method = "ipcc2019") {
   data <- data |>
     dplyr::mutate(
       species_gen = .get_general_species(species),
       subcategory = .get_subcategory(species),
-      Method_Energy = "IPCC_2019_Tier2"
+      method_energy = "IPCC_2019_Tier2"
     )
 
   data <- .join_weights(data)
@@ -57,8 +57,12 @@ estimate_energy_demand <- function(data, method = "ipcc2019") {
 
   data <- data |>
     dplyr::mutate(
-      NE_maintenance = NEm + NEa + NEl + NEwork + NEp,
-      NE_growth = NEg + NEwool
+      ne_total_maintenance = ne_maintenance +
+        ne_activity +
+        ne_lactation +
+        ne_work +
+        ne_pregnancy,
+      ne_total_growth = ne_growth + ne_wool
     )
 
   .estimate_gross_energy(data)
@@ -69,7 +73,7 @@ estimate_energy_demand <- function(data, method = "ipcc2019") {
 .calc_energy_maintenance <- function(data) {
   data |>
     dplyr::mutate(
-      NEm = cfi_mj_day_kg075 * weight^0.75 * (1 + temp_adjustment)
+      ne_maintenance = cfi_mj_day_kg075 * weight^0.75 * (1 + temp_adjustment)
     )
 }
 
@@ -81,7 +85,9 @@ estimate_energy_demand <- function(data, method = "ipcc2019") {
   ]
   data |>
     dplyr::mutate(
-      NEa = Ca * NEm + walking_cost * weight * grazing_distance_km
+      ne_activity = activity_coef *
+        ne_maintenance +
+        walking_cost * weight * grazing_distance_km
     )
 }
 
@@ -90,22 +96,21 @@ estimate_energy_demand <- function(data, method = "ipcc2019") {
 .calc_energy_lactation <- function(data) {
   data |>
     dplyr::mutate(
-      NEl = dplyr::case_when(
+      ne_lactation = dplyr::case_when(
         is.na(milk_yield_kg_day) |
-          milk_yield_kg_day == 0 ~ 0,
+          milk_yield_kg_day == 0 ~
+          0,
         !is.na(protein_percent) &
           protein_percent > 0 &
           !is.na(lactose_percent) &
           lactose_percent > 0 ~
           milk_yield_kg_day *
-          (0.389 *
-            fat_percent +
-            0.229 * protein_percent +
-            0.165 * lactose_percent),
-        species_gen %in% c("Sheep", "Goats") ~
-          milk_yield_kg_day * 4.6,
-        TRUE ~
-          milk_yield_kg_day * (1.47 + 0.40 * fat_percent)
+            (0.389 *
+              fat_percent +
+              0.229 * protein_percent +
+              0.165 * lactose_percent),
+        species_gen %in% c("Sheep", "Goats") ~ milk_yield_kg_day * 4.6,
+        TRUE ~ milk_yield_kg_day * (1.47 + 0.40 * fat_percent)
       )
     )
 }
@@ -116,7 +121,7 @@ estimate_energy_demand <- function(data, method = "ipcc2019") {
   ev_wool <- livestock_constants$ev_wool_mj_kg
   data |>
     dplyr::mutate(
-      NEwool = dplyr::if_else(
+      ne_wool = dplyr::if_else(
         species_gen == "Sheep",
         dplyr::coalesce(wool_production_kg_yr, 0) /
           365 *
@@ -130,14 +135,14 @@ estimate_energy_demand <- function(data, method = "ipcc2019") {
 #' @noRd
 .calc_energy_work <- function(data) {
   data |>
-    dplyr::mutate(NEwork = cw * NEm * work_hours_day)
+    dplyr::mutate(ne_work = cw * ne_maintenance * work_hours_day)
 }
 
 #' NEp: IPCC Eq 10.13.
 #' @noRd
 .calc_energy_pregnancy <- function(data) {
   data |>
-    dplyr::mutate(NEp = cp * NEm * pregnant_fraction)
+    dplyr::mutate(ne_pregnancy = cp * ne_maintenance * pregnant_fraction)
 }
 
 #' NEg: IPCC Eq 10.6.
@@ -145,7 +150,7 @@ estimate_energy_demand <- function(data, method = "ipcc2019") {
 .calc_energy_growth <- function(data) {
   data |>
     dplyr::mutate(
-      NEg = weight_gain_kg_day * energy_content_gain_mj_kg
+      ne_growth = weight_gain_kg_day * energy_content_gain_mj_kg
     )
 }
 
@@ -161,11 +166,10 @@ estimate_energy_demand <- function(data, method = "ipcc2019") {
 
   data |>
     dplyr::mutate(
-      DE_percent = de_percent,
-      REM = .calc_rem(DE_percent),
-      REG = .calc_reg(DE_percent),
-      GE = (NE_maintenance / REM + NE_growth / REG) /
-        (DE_percent / 100)
+      rem = .calc_rem(de_percent),
+      reg = .calc_reg(de_percent),
+      gross_energy = (ne_total_maintenance / rem + ne_total_growth / reg) /
+        (de_percent / 100)
     )
 }
 
@@ -183,11 +187,11 @@ estimate_energy_demand <- function(data, method = "ipcc2019") {
     stringr::str_detect(
       s,
       "(?i)Poultry|Chicken|Hen|Duck|Geese|Goose|Turkey"
-    ) ~ "Poultry",
+    ) ~
+      "Poultry",
     stringr::str_detect(s, "(?i)Horse") ~ "Horses",
     stringr::str_detect(s, "(?i)Camel") ~ "Camels",
-    stringr::str_detect(s, "(?i)Mule|Ass|Donkey") ~
-      "Mules and Asses",
+    stringr::str_detect(s, "(?i)Mule|Ass|Donkey") ~ "Mules and Asses",
     TRUE ~ s
   )
 }
@@ -302,7 +306,8 @@ estimate_energy_demand <- function(data, method = "ipcc2019") {
     dplyr::mutate(
       defaults_key = dplyr::case_when(
         stringr::str_detect(species, "(?i)Dairy") &
-          species_gen == "Cattle" ~ "Dairy Cattle",
+          species_gen == "Cattle" ~
+          "Dairy Cattle",
         species_gen == "Cattle" ~ "Other Cattle",
         TRUE ~ species_gen
       )
@@ -355,11 +360,11 @@ estimate_energy_demand <- function(data, method = "ipcc2019") {
 #' @noRd
 .set_activity_coef <- function(data) {
   if (!rlang::has_name(data, "system")) {
-    data <- data |> dplyr::mutate(Ca = ca_pasture)
+    data <- data |> dplyr::mutate(activity_coef = ca_pasture)
   } else {
     data <- data |>
       dplyr::mutate(
-        Ca = dplyr::if_else(
+        activity_coef = dplyr::if_else(
           system == "Feedlot",
           ca_feedlot,
           ca_pasture
@@ -382,8 +387,8 @@ estimate_energy_demand <- function(data, method = "ipcc2019") {
     data <- data |>
       dplyr::mutate(
         diet_quality = NA_character_,
-        Method_Energy = paste0(
-          Method_Energy,
+        method_energy = paste0(
+          method_energy,
           "; diet_quality_MISSING"
         )
       )
@@ -423,8 +428,8 @@ estimate_energy_demand <- function(data, method = "ipcc2019") {
     data <- data |>
       dplyr::mutate(
         temperature_c = 15,
-        Method_Energy = paste0(
-          Method_Energy,
+        method_energy = paste0(
+          method_energy,
           "; temp_assumed_15C"
         )
       )

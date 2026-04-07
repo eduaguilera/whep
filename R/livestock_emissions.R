@@ -2,7 +2,7 @@
 #'
 #' @description
 #' Main dispatcher that runs the full IPCC 2019 livestock
-#' emissions pipeline: energy demand (Tier 2 GE), enteric CH4,
+#' emissions pipeline: energy demand (Tier 2), enteric CH4,
 #' manure CH4, and manure N2O.
 #'
 #' Selects tier automatically: Tier 2 when cohort-level data
@@ -19,17 +19,18 @@
 #' @export
 #'
 #' @examples
-#' \dontrun{
-#'   tibble::tibble(
-#'     species = "Dairy Cattle",
-#'     cohort = "Adult Female",
-#'     heads = 1000,
-#'     weight = 600,
-#'     diet_quality = "High",
-#'     milk_yield_kg_day = 20
-#'   ) |>
-#'     calculate_livestock_emissions()
-#' }
+#' tibble::tibble(
+#'   species = "Dairy Cattle",
+#'   cohort = "Adult Female",
+#'   heads = 1000,
+#'   weight = 600,
+#'   diet_quality = "High",
+#'   milk_yield_kg_day = 20
+#' ) |>
+#'   calculate_livestock_emissions() |>
+#'   dplyr::select(species, cohort, heads,
+#'     enteric_ch4_tier2, manure_ch4_tier2,
+#'     manure_n2o_total)
 calculate_livestock_emissions <- function(data, tier = NULL) {
   tier <- .resolve_tier(data, tier)
 
@@ -51,6 +52,12 @@ calculate_livestock_emissions <- function(data, tier = NULL) {
 #'
 #' @return Dataframe with enteric CH4 results.
 #' @export
+#'
+#' @examples
+#' tibble::tibble(
+#'   species = "Cattle", heads = 1000, iso3 = "DEU"
+#' ) |>
+#'   calculate_enteric_ch4(tier = 1)
 calculate_enteric_ch4 <- function(data, tier = NULL) {
   tier <- .resolve_tier(data, tier)
   if (tier == 2) {
@@ -73,6 +80,12 @@ calculate_enteric_ch4 <- function(data, tier = NULL) {
 #'
 #' @return Dataframe with manure CH4 and N2O results.
 #' @export
+#'
+#' @examples
+#' tibble::tibble(
+#'   species = "Cattle", heads = 1000, iso3 = "DEU"
+#' ) |>
+#'   calculate_manure_emissions(tier = 1)
 calculate_manure_emissions <- function(data, tier = NULL) {
   tier <- .resolve_tier(data, tier)
   if (tier == 2) {

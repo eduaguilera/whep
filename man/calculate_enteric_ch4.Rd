@@ -18,3 +18,9 @@ Dataframe with enteric CH4 results.
 Wrapper that selects Tier 1 or 2 for enteric CH4
 based on data availability.
 }
+\examples{
+tibble::tibble(
+  species = "Cattle", heads = 1000, iso3 = "DEU"
+) |>
+  calculate_enteric_ch4(tier = 1)
+}
