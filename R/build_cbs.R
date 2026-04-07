@@ -611,7 +611,7 @@ build_processing_coefs <- function(
 }
 
 .read_fao_trade <- function(years = NULL) {
-  dt <- .extract_fao("faostat-trade", years = years)
+  dt <- .extract_fao("faostat-trade-totals", years = years)
   if (!data.table::is.data.table(dt)) {
     data.table::setDT(dt)
   }

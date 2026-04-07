@@ -61,7 +61,7 @@ build_detailed_trade <- function(
 
 .read_and_clean_dtm <- function() {
   cli::cli_progress_step("Reading bilateral trade data")
-  dt <- whep_read_file("bilateral_trade")
+  dt <- whep_read_file("faostat-trade-bilateral")
   if (!data.table::is.data.table(dt)) {
     data.table::setDT(dt)
   }
