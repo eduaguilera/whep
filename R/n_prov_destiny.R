@@ -1,4 +1,4 @@
-#' @title GRAFS Nitrogen (N) flows
+F #' @title GRAFS Nitrogen (N) flows
 #'
 #' @description
 #' Provides N flows of the spanish agro-food system on a provincial level
@@ -115,8 +115,8 @@ create_n_nat_destiny <- function() {
     "livestock_rum",
     "livestock_mono"
   )
-
   nat_shares <- prov |>
+    dplyr::filter(Origin != "Outside", Destiny != "export") |>
     dplyr::filter(Destiny %in% consumption_destinies) |>
     dplyr::summarise(
       MgN = sum(MgN, na.rm = TRUE),
@@ -129,29 +129,28 @@ create_n_nat_destiny <- function() {
 
   nat_core <- prov |>
     dplyr::filter(Origin != "Outside", Destiny != "export") |>
-    dplyr::group_by(
-      Year,
-      Item,
-      Irrig_cat,
-      Box,
-      Origin,
-      Destiny
-    ) |>
-    dplyr::summarise(
-      MgN = sum(MgN, na.rm = TRUE),
-      .groups = "drop"
-    ) |>
+    dplyr::group_by(Year, Item, Irrig_cat, Box, Origin, Destiny) |>
+    dplyr::summarise(MgN = sum(MgN, na.rm = TRUE), .groups = "drop") |>
     dplyr::mutate(Province_name = "Spain")
 
+  nat_production <- prov |>
+    dplyr::filter(Origin == Box) |>
+    dplyr::group_by(Year, Item, Box, Irrig_cat) |>
+    dplyr::summarise(production = sum(MgN, na.rm = TRUE), .groups = "drop")
+
   nat_balance <- prov |>
-    dplyr::filter(Origin == Box | Destiny %in% consumption_destinies) |>
+    dplyr::filter(Destiny %in% consumption_destinies) |>
     dplyr::group_by(Year, Item, Box, Irrig_cat) |>
     dplyr::summarise(
-      production = sum(MgN[Origin == Box], na.rm = TRUE),
-      consumption = sum(MgN[Destiny %in% consumption_destinies], na.rm = TRUE),
+      consumption = sum(MgN, na.rm = TRUE),
       .groups = "drop"
     ) |>
+    dplyr::left_join(
+      nat_production,
+      by = c("Year", "Item", "Box", "Irrig_cat")
+    ) |>
     dplyr::mutate(
+      production = dplyr::coalesce(production, 0),
       export = pmax(production - consumption, 0),
       import = pmax(consumption - production, 0),
       Province_name = "Spain"
@@ -174,7 +173,12 @@ create_n_nat_destiny <- function() {
     dplyr::filter(import > 0) |>
     dplyr::left_join(nat_shares, by = c("Year", "Item")) |>
     dplyr::mutate(
-      MgN = pmin(import, consumption) * share,
+      share = dplyr::coalesce(share, 0),
+      MgN = dplyr::case_when(
+        Destiny %in% c("population_food", "population_other_uses") ~
+          pmin(import, consumption) * share,
+        TRUE ~ import * share
+      ),
       Origin = "Outside",
       Irrig_cat = NA_character_
     ) |>
@@ -189,12 +193,7 @@ create_n_nat_destiny <- function() {
       Destiny,
       MgN
     )
-
-  dplyr::bind_rows(
-    nat_core,
-    exports,
-    imports
-  ) |>
+  dplyr::bind_rows(nat_core, exports, imports) |>
     dplyr::arrange(Year, Item, Origin, Destiny)
 }
 
