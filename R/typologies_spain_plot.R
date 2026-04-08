@@ -138,8 +138,14 @@ create_typologies_timeseries_plot <- function(
     ))
 
   indicators <- indicators |>
-    dplyr::left_join(livestock_density_df, by = c("year" = "Year", "province_name" = "Province_name")) |>
-    dplyr::left_join(productivity_df, by = c("year" = "Year", "province_name" = "Province_name")) |>
+    dplyr::left_join(
+      livestock_density_df,
+      by = c("year" = "Year", "province_name" = "Province_name")
+    ) |>
+    dplyr::left_join(
+      productivity_df,
+      by = c("year" = "Year", "province_name" = "Province_name")
+    ) |>
     dplyr::mutate(dplyr::across(
       dplyr::where(is.numeric),
       ~ tidyr::replace_na(., 0)

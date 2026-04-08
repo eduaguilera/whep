@@ -201,8 +201,14 @@ create_typologies_spain <- function(
     )
 
   indicators <- indicators |>
-    dplyr::left_join(livestock_density_df, by = c("year" = "Year", "province_name" = "Province_name")) |>
-    dplyr::left_join(productivity_df, by = c("year" = "Year", "province_name" = "Province_name")) |>
+    dplyr::left_join(
+      livestock_density_df,
+      by = c("year" = "Year", "province_name" = "Province_name")
+    ) |>
+    dplyr::left_join(
+      productivity_df,
+      by = c("year" = "Year", "province_name" = "Province_name")
+    ) |>
     dplyr::mutate(
       Livestock_density = tidyr::replace_na(Livestock_density, 0),
       synthetic_share = tidyr::replace_na(synthetic_share, 0),

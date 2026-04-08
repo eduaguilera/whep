@@ -1127,7 +1127,10 @@ create_grafs_plot_df <- function() {
     )
 
   df_animal_losses <- n_excretion |>
-    dplyr::left_join(an_oth, by = c("Province_name" = "province_name", "Year" = "year")) |>
+    dplyr::left_join(
+      an_oth,
+      by = c("Province_name" = "province_name", "Year" = "year")
+    ) |>
     dplyr::mutate(
       `{AN_OTH}` = ifelse(is.na(`{AN_OTH}`), 0, `{AN_OTH}`),
       `{AN_LS_OTH}` = `{AN_LS}` + `{AN_OTH}`

@@ -71,7 +71,6 @@ prepare_lmdi_dataset <- function() {
 }
 
 prepare_lmdi_production_area <- function() {
-
   n_data <- create_n_nat_destiny()
 
   surplus <- n_data |>
@@ -84,13 +83,14 @@ prepare_lmdi_production_area <- function() {
   production <- n_data |>
     dplyr::filter(
       origin %in% c("Cropland", "semi_natural_agroecosystems"),
-      destiny %in% c(
-        "livestock_mono",
-        "livestock_rum",
-        "population_food",
-        "population_other_uses",
-        "export"
-      )
+      destiny %in%
+        c(
+          "livestock_mono",
+          "livestock_rum",
+          "population_food",
+          "population_other_uses",
+          "export"
+        )
     ) |>
     dplyr::group_by(year) |>
     dplyr::summarise(

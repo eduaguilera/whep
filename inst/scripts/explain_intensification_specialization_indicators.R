@@ -386,7 +386,8 @@ run_indicator_explainer <- function(
   }
 
   message(
-    "Plotting ", nrow(indicator_df),
+    "Plotting ",
+    nrow(indicator_df),
     " rows across years ",
     min(indicator_df$Year, na.rm = TRUE),
     "-",

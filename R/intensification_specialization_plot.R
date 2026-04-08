@@ -887,14 +887,14 @@ intensification_trajectory_plot <- function() {
   df <- cropland_area |>
     dplyr::rename(year_dup = year) |
     dplyr::left_join(crop_production, by = "year") |>
-    dplyr::left_join(fertilizer_input, by = "year") |>
-    dplyr::mutate(
-      # Land productivity (kg N / ha)
-      land_productivity = (crop_N * 1000) / cropland_area,
+      dplyr::left_join(fertilizer_input, by = "year") |>
+      dplyr::mutate(
+        # Land productivity (kg N / ha)
+        land_productivity = (crop_N * 1000) / cropland_area,
 
-      # Nitrogen intensity (kg N / ha)
-      nitrogen_intensity = (fertilizer_N * 1000) / cropland_area
-    )
+        # Nitrogen intensity (kg N / ha)
+        nitrogen_intensity = (fertilizer_N * 1000) / cropland_area
+      )
 
   # ---- Plot ----
   p <- ggplot2::ggplot(
@@ -980,11 +980,11 @@ intensification_timeseries_plot <- function() {
   df <- cropland_area |>
     dplyr::rename(year_dup = year) |
     dplyr::left_join(crop_production, by = "year") |>
-    dplyr::left_join(fertilizer_input, by = "year") |>
-    dplyr::mutate(
-      land_productivity = (crop_N * 1000) / cropland_area,
-      nitrogen_intensity = (fertilizer_N * 1000) / cropland_area
-    )
+      dplyr::left_join(fertilizer_input, by = "year") |>
+      dplyr::mutate(
+        land_productivity = (crop_N * 1000) / cropland_area,
+        nitrogen_intensity = (fertilizer_N * 1000) / cropland_area
+      )
 
   # ---- Convert to long format ----
   df_long <- df |>

@@ -51,7 +51,10 @@ typology_kgha_lines <- function() {
   build_kgha <- function(area_df, soil_df) {
     soil_df |>
       dplyr::left_join(area_df, by = c("Year", "Province_name")) |>
-      dplyr::left_join(typologies_df, by = c("Year" = "year", "Province_name" = "province_name")) |>
+      dplyr::left_join(
+        typologies_df,
+        by = c("Year" = "year", "Province_name" = "province_name")
+      ) |>
       dplyr::mutate(
         kgN_ha = (Total_N_Mg * 1000) / Area_ha,
 

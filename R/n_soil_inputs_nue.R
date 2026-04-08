@@ -371,8 +371,10 @@ calculate_nue_livestock <- function(example = FALSE) {
 #'
 #' @examples
 #' calculate_system_nue(example = TRUE)
-calculate_system_nue <- function(n_soil_inputs = create_n_soil_inputs(),
-                                 example = FALSE) {
+calculate_system_nue <- function(
+  n_soil_inputs = create_n_soil_inputs(),
+  example = FALSE
+) {
   if (example) {
     return(.example_calculate_system_nue())
   }
