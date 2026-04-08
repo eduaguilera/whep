@@ -132,6 +132,58 @@ testthat::test_that("build_trade_prices returns empty when no monetary data", {
   testthat::expect_equal(nrow(result), 0)
 })
 
+testthat::test_that("build_trade_prices handles 1000 USD unit variant", {
+  raw <- data.table::data.table(
+    year = rep(2020L, 2),
+    item_trade = rep("Wheat", 2),
+    item_code_trade = rep(15, 2),
+    unit = c("1000 USD", "tonnes"),
+    element = rep("export", 2),
+    value = c(300, 600)
+  )
+
+  result <- build_trade_prices(raw_trade = raw)
+
+  testthat::expect_equal(result$kdollars, 300)
+  testthat::expect_equal(result$price, 0.5)
+})
+
+testthat::test_that("build_trade_prices keeps multiple items separate", {
+  raw <- data.table::data.table(
+    year = rep(2020L, 4),
+    item_trade = c("Wheat", "Wheat", "Rice", "Rice"),
+    item_code_trade = c(15, 15, 27, 27),
+    unit = c("kdollars", "tonnes", "kdollars", "tonnes"),
+    element = rep("export", 4),
+    value = c(500, 1000, 200, 100)
+  )
+
+  result <- build_trade_prices(raw_trade = raw)
+
+  testthat::expect_equal(nrow(result), 2)
+  wheat <- result[item_code_trade == 15]
+  rice <- result[item_code_trade == 27]
+  testthat::expect_equal(wheat$price, 0.5)
+  testthat::expect_equal(rice$price, 2.0)
+})
+
+testthat::test_that("build_trade_prices drops infinite prices", {
+  raw <- data.table::data.table(
+    year = rep(2020L, 2),
+    item_trade = rep("Wheat", 2),
+    item_code_trade = rep(15, 2),
+    unit = c("kdollars", "tonnes"),
+    element = rep("export", 2),
+    value = c(500, 0)
+  )
+
+  # 0 tonnes rows are dropped as zero values, leaving no tonnes →
+  # no price row after dcast
+  result <- build_trade_prices(raw_trade = raw)
+
+  testthat::expect_equal(nrow(result), 0)
+})
+
 # build_primary_prices tests ---------------------------------------------------
 
 testthat::test_that("build_primary_prices uses export trade prices", {
@@ -390,6 +442,134 @@ testthat::test_that("build_cbs_prices adds proxy prices for missing items", {
 
   brans <- result[result$item_cbs_code == brans_code, ]
   testthat::expect_true(nrow(brans) > 0)
+})
+
+testthat::test_that("build_cbs_prices handles Fibres category without duplication", {
+  # Fibres has both Woody and Herbaceous in items_prod_full.
+  # This caused a cartesian join before the fix.
+  # Cotton lint (item_code_trade 767) maps to CBS code 2661
+  trade_prices <- data.table::data.table(
+    year = c(2020L, 2020L),
+    item_trade = c("Cotton lint", "Cotton lint"),
+    item_code_trade = c(767, 767),
+    element = c("import", "export"),
+    kdollars = c(1000, 800),
+    tonnes = c(500, 400),
+    price = c(2.0, 2.0)
+  )
+
+  cbs <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code,
+    2020L, 2, 2661
+  )
+
+  # Should not error from cartesian join
+  result <- build_cbs_prices(
+    cbs = cbs,
+    trade_prices = trade_prices
+  )
+
+  # Cotton lint (2661) should appear without duplicate rows per element
+  cotton <- result |>
+    dplyr::filter(item_cbs_code == 2661)
+  cotton_per_elem <- cotton |>
+    dplyr::count(year, element)
+  testthat::expect_true(all(cotton_per_elem$n == 1))
+})
+
+testthat::test_that("build_cbs_prices multiple trade items aggregate to CBS", {
+  # Trade codes 15 (Wheat) and 16 (Flour, wheat) both map to
+  # CBS "Wheat and products" (2511)
+  trade_prices <- data.table::data.table(
+    year = c(2020L, 2020L),
+    item_trade = c("Wheat", "Flour, wheat"),
+    item_code_trade = c(15, 16),
+    element = c("export", "export"),
+    kdollars = c(500, 300),
+    tonnes = c(1000, 600),
+    price = c(0.5, 0.5)
+  )
+
+  cbs <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code,
+    2020L, 2, 2511
+  )
+
+  result <- build_cbs_prices(
+    cbs = cbs,
+    trade_prices = trade_prices
+  )
+
+  wheat <- result |>
+    dplyr::filter(item_cbs_code == 2511, element == "export")
+  # Should have one row with aggregated price = (500+300)/(1000+600) = 0.5
+  testthat::expect_equal(nrow(wheat), 1)
+  testthat::expect_equal(wheat$price, 0.5)
+})
+
+testthat::test_that("build_cbs_prices proxy prefers original over estimated", {
+  # Provide both Wheat (source for Brans proxy) AND direct Brans trade data
+  trade_prices <- data.table::data.table(
+    year = c(2020L, 2020L),
+    item_trade = c("Wheat", "Bran, wheat"),
+    item_code_trade = c(15, 17),
+    element = c("export", "export"),
+    kdollars = c(500, 100),
+    tonnes = c(1000, 200),
+    price = c(0.5, 0.5)
+  )
+
+  brans_code <- 2111L
+  cbs <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code,
+    2020L, 2, 2511,
+    2020L, 2, brans_code
+  )
+
+  result <- build_cbs_prices(
+    cbs = cbs,
+    trade_prices = trade_prices
+  )
+
+  brans <- result |>
+    dplyr::filter(item_cbs_code == brans_code, element == "export")
+
+  # Bran, wheat maps to "Wheat and products" via cbs_trade_codes,
+  # not directly to Brans. So proxy (from Wheat @ 0.2x) should be used.
+  # The key point: no duplication from both original + estimated existing.
+  testthat::expect_equal(nrow(brans), 1)
+})
+
+testthat::test_that("build_cbs_prices gap-fills prices across years", {
+  trade_prices <- data.table::data.table(
+    year = c(2018L, 2020L),
+    item_trade = c("Wheat", "Wheat"),
+    item_code_trade = c(15, 15),
+    element = c("export", "export"),
+    kdollars = c(500, 1000),
+    tonnes = c(1000, 1000),
+    price = c(0.5, 1.0)
+  )
+
+  cbs <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code,
+    2018L, 2, 2511,
+    2019L, 2, 2511,
+    2020L, 2, 2511
+  )
+
+  result <- build_cbs_prices(
+    cbs = cbs,
+    trade_prices = trade_prices
+  )
+
+  wheat <- result |>
+    dplyr::filter(item_cbs_code == 2511, element == "export") |>
+    dplyr::arrange(year)
+
+  testthat::expect_equal(nrow(wheat), 3)
+  # 2019 should be interpolated: 0.75
+  testthat::expect_equal(wheat$price, c(0.5, 0.75, 1.0))
 })
 
 # Integration tests (example mode) --------------------------------------------
