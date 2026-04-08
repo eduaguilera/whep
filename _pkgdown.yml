@@ -138,9 +138,6 @@ reference:
   - fill_linear
   - fill_sum
   - fill_proxy_growth
-  - linear_fill
-  - proxy_fill
-  - sum_fill
 
 - title: Decomposition analysis
   desc: >
