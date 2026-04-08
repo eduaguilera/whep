@@ -4,9 +4,15 @@
 \alias{build_trade_prices}
 \title{Build global trade prices}
 \usage{
-build_trade_prices(example = FALSE)
+build_trade_prices(raw_trade = NULL, example = FALSE)
 }
 \arguments{
+\item{raw_trade}{A data.table or tibble of FAOSTAT bilateral trade
+data with columns \code{year}, \code{item_trade}, \code{item_code_trade},
+\code{unit}, \code{element}, and \code{value}. Must include both quantity
+(\code{"tonnes"}) and value (\code{"1000 US$"}) rows. If \code{NULL} (default),
+the data is read from the \code{"faostat-trade-bilateral"} pin.}
+
 \item{example}{Logical. If \code{TRUE}, return a small example tibble.
 Default \code{FALSE}.}
 }

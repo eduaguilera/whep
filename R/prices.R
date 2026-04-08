@@ -14,6 +14,11 @@
 #' For each item and element (import/export), the price is
 #' `KDollars / tonnes` aggregated across all countries.
 #'
+#' @param raw_trade A data.table or tibble of FAOSTAT bilateral trade
+#'   data with columns `year`, `item_trade`, `item_code_trade`,
+#'   `unit`, `element`, and `value`. Must include both quantity
+#'   (`"tonnes"`) and value (`"1000 US$"`) rows. If `NULL` (default),
+#'   the data is read from the `"faostat-trade-bilateral"` pin.
 #' @param example Logical. If `TRUE`, return a small example tibble.
 #'   Default `FALSE`.
 #'
@@ -30,12 +35,12 @@
 #'
 #' @examples
 #' build_trade_prices(example = TRUE)
-build_trade_prices <- function(example = FALSE) {
+build_trade_prices <- function(raw_trade = NULL, example = FALSE) {
   if (example) {
     return(.example_build_trade_prices())
   }
   cli::cli_h1("Building trade prices")
-  .compute_trade_prices()
+  .compute_trade_prices(raw_trade)
 }
 
 # -- Primary prices ------------------------------------------------------------
@@ -143,9 +148,9 @@ build_cbs_prices <- function(
 
 # -- Internal: trade prices ----------------------------------------------------
 
-.compute_trade_prices <- function() {
+.compute_trade_prices <- function(raw_trade = NULL) {
   cli::cli_progress_step("Reading FAOSTAT trade data")
-  dt <- .read_fao_trade()
+  dt <- raw_trade %||% .read_bilateral_trade_for_prices()
 
   # Keep only non-zero values
   dt <- dt[!is.na(value) & value != 0]
@@ -170,9 +175,38 @@ build_cbs_prices <- function(
     value.var = "value"
   )
 
+  if (!all(c("kdollars", "tonnes") %in% names(dt))) {
+    return(dt[0])
+  }
+
   dt[, price := kdollars / tonnes]
   dt <- dt[!is.na(price) & !is.infinite(price)]
   dt
+}
+
+.read_bilateral_trade_for_prices <- function() {
+  dt <- whep_read_file("faostat-trade-bilateral")
+  if (!data.table::is.data.table(dt)) {
+    data.table::setDT(dt)
+  }
+  data.table::setnames(dt, tolower)
+
+  # Rename FAOSTAT columns to internal names
+  fao_cols <- c("item code", "item", "element", "year", "unit", "value")
+  int_cols <- c(
+    "item_code_trade", "item_trade", "element", "year", "unit", "value"
+  )
+  present <- fao_cols %in% names(dt)
+  data.table::setnames(dt, fao_cols[present], int_cols[present])
+
+  # Standardise element names
+  dt[, element := data.table::fcase(
+    grepl("Import", element), "import",
+    grepl("Export", element), "export",
+    default = tolower(element)
+  )]
+
+  dt[, .(year, item_trade, item_code_trade, unit, element, value)]
 }
 
 # -- Internal: primary prices --------------------------------------------------
