@@ -5,13 +5,18 @@
 \title{Build detailed bilateral trade matrix}
 \usage{
 build_detailed_trade(
-  cbs,
+  raw_trade = NULL,
+  cbs = NULL,
   min_share = 1e-04,
   extend_time = FALSE,
   example = FALSE
 )
 }
 \arguments{
+\item{raw_trade}{A data.table or tibble of raw FAOSTAT bilateral
+trade data. If \code{NULL} (default), the data is read from the
+\code{"faostat-trade-bilateral"} pin.}
+
 \item{cbs}{A tibble of commodity balance sheets in wide format, as
 returned by \code{\link[=build_commodity_balances]{build_commodity_balances()}} or \code{\link[=get_wide_cbs]{get_wide_cbs()}}.
 Required when \code{extend_time = TRUE}.}

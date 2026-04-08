@@ -9,6 +9,9 @@
 #' Optionally extends the time series by joining with commodity balance
 #' sheet years and gap-filling country shares via linear interpolation.
 #'
+#' @param raw_trade A data.table or tibble of raw FAOSTAT bilateral
+#'   trade data. If `NULL` (default), the data is read from the
+#'   `"faostat-trade-bilateral"` pin.
 #' @param cbs A tibble of commodity balance sheets in wide format, as
 #'   returned by [build_commodity_balances()] or [get_wide_cbs()].
 #'   Required when `extend_time = TRUE`.
@@ -35,7 +38,8 @@
 #' @examples
 #' build_detailed_trade(example = TRUE)
 build_detailed_trade <- function(
-  cbs,
+  raw_trade = NULL,
+  cbs = NULL,
   min_share = 1e-4,
   extend_time = FALSE,
   example = FALSE
@@ -45,7 +49,7 @@ build_detailed_trade <- function(
   }
   cli::cli_h1("Building detailed trade matrix")
 
-  dtm <- .read_and_clean_dtm()
+  dtm <- .read_and_clean_dtm(raw_trade)
   dtm <- .map_dtm_to_cbs_items(dtm)
   dtm <- .aggregate_dtm_to_polities(dtm)
   dtm <- .compute_country_shares(dtm)
@@ -59,9 +63,9 @@ build_detailed_trade <- function(
 
 # -- Helpers -------------------------------------------------------------------
 
-.read_and_clean_dtm <- function() {
+.read_and_clean_dtm <- function(raw_trade = NULL) {
   cli::cli_progress_step("Reading bilateral trade data")
-  dt <- whep_read_file("faostat-trade-bilateral")
+  dt <- raw_trade %||% whep_read_file("faostat-trade-bilateral")
   if (!data.table::is.data.table(dt)) {
     data.table::setDT(dt)
   }
@@ -144,6 +148,7 @@ build_detailed_trade <- function(
     dt <- merge(dt, bridge, by = "item_code_trade", all.x = TRUE)
   }
 
+  .warn_unmapped_items(dt)
   dt <- dt[!is.na(item_cbs)]
   dt <- merge(dt, items_bridge, by = "item_cbs", all.x = TRUE)
   dt <- dt[!is.na(item_cbs_code)]
@@ -183,6 +188,7 @@ build_detailed_trade <- function(
     by.y = "fao_code",
     all.x = TRUE
   )
+  .warn_unmapped_codes(dt, "polity_area_code", "area_code", "reporter")
   dt[, area_code := NULL]
   data.table::setnames(dt, "polity_area_code", "area_code")
 
@@ -194,10 +200,11 @@ build_detailed_trade <- function(
     by.y = "fao_code",
     all.x = TRUE
   )
+  .warn_unmapped_codes(dt, "partner_polity", "area_code_p", "partner")
   dt[, area_code_p := NULL]
   data.table::setnames(dt, "partner_polity", "area_code_partner")
 
-  # Drop unmatched and remove temp columns
+  # Drop unmatched
   dt <- dt[!is.na(area_code) & !is.na(area_code_partner)]
   dt[, polity_code := NULL]
 
@@ -345,4 +352,32 @@ build_detailed_trade <- function(
     "CBS must have either {.field import}/{.field export} columns (wide format)
      or an {.field element} column (long format)."
   )
+}
+
+.warn_unmapped_items <- function(dt) {
+  if ("item_code_trade" %in% names(dt)) {
+    codes <- unique(dt[is.na(item_cbs), item_code_trade])
+    if (length(codes) > 0) {
+      cli::cli_warn(
+        "Trade item codes not found in CBS mapping, dropping: {codes}"
+      )
+    }
+  } else if ("item" %in% names(dt)) {
+    items <- unique(dt[is.na(item_cbs), item])
+    if (length(items) > 0) {
+      cli::cli_warn(
+        "Trade items not found in CBS mapping, dropping: {items}"
+      )
+    }
+  }
+}
+
+.warn_unmapped_codes <- function(dt, mapped_col, original_col, role) {
+  codes <- unique(dt[is.na(get(mapped_col)), get(original_col)])
+  if (length(codes) > 0) {
+    cli::cli_warn(
+      "{stringr::str_to_sentence(role)} area codes not mapped to
+       a polity, dropping: {codes}"
+    )
+  }
 }
