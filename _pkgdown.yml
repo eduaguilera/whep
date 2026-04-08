@@ -95,6 +95,13 @@ reference:
   - create_alfredos_typologies
   - create_typologies_whep
   - create_grafs_plot_df
+  - create_n_prov_destiny
+  - create_n_soil_inputs
+  - create_n_production
+  - calculate_nue_crops
+  - calculate_nue_livestock
+  - calculate_system_nue
+  - create_n_nat_destiny
 
 - title: Gap filling functions
   desc: >

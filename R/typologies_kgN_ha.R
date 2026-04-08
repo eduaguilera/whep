@@ -3,7 +3,8 @@ typology_kgha_lines <- function() {
   npp_ygpit <- whep_read_file("npp_ygpit")
 
   typologies_df <- indicators |>
-    dplyr::select(Year, Province_name, Typology)
+    dplyr::select(Year, Province_name, Typology_base) |>
+    dplyr::rename(Typology = Typology_base)
 
   n_balance <- whep_read_file("n_balance_ygpit_all")
 
@@ -52,7 +53,9 @@ typology_kgha_lines <- function() {
       dplyr::left_join(area_df, by = c("Year", "Province_name")) |>
       dplyr::left_join(typologies_df, by = c("Year", "Province_name")) |>
       dplyr::mutate(
-        kgN_ha = (Total_N_Mg * 1000) / Area_ha
+        kgN_ha = (Total_N_Mg * 1000) / Area_ha,
+
+        Typology = gsub(" \\(intensive\\)| \\(extensive\\)", "", Typology)
       ) |>
       dplyr::filter(!is.na(kgN_ha), Area_ha > 0) |>
       dplyr::group_by(Year, Typology) |>
@@ -68,15 +71,10 @@ typology_kgha_lines <- function() {
 
   typology_colors <- c(
     "Semi-natural agroecosystems" = "#66a61e",
-    "Specialized cropping systems (intensive)" = "#F7DD5A",
-    "Specialized cropping systems (extensive)" = "#FFF7C2",
-    "Specialized livestock systems (intensive)" = "#b3001b",
-    "Specialized livestock systems (extensive)" = "#C94F6B",
-    "Connected crop-livestock systems (intensive)" = "#7A4F20",
-    "Connected crop-livestock systems (extensive)" = "#AF814B",
-    "Disconnected crop-livestock systems (intensive)" = "#E67E00",
-    "Disconnected crop-livestock systems (extensive)" = "#F6A640",
-    "Urban systems" = "#6A5ACD"
+    "Specialized cropping systems" = "#F7DD5A",
+    "Specialized livestock systems" = "#b3001b",
+    "Connected crop-livestock systems" = "#7A4F20",
+    "Disconnected crop-livestock systems" = "#E67E00"
   )
 
   df_agri$Typology <- factor(df_agri$Typology, levels = names(typology_colors))
@@ -101,8 +99,8 @@ typology_kgha_lines <- function() {
         colour = NA
       ) +
       ggplot2::geom_line(linewidth = 1.2) +
-      ggplot2::scale_color_manual(values = typology_colors) +
-      ggplot2::scale_fill_manual(values = typology_colors) +
+      ggplot2::scale_color_manual(values = typology_colors, drop = TRUE) +
+      ggplot2::scale_fill_manual(values = typology_colors, drop = TRUE) +
       ggplot2::labs(
         title = title_text,
         x = "Year",

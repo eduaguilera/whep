@@ -50,7 +50,8 @@ Suggests:
     patchwork,
     pointblank,
     rmarkdown,
-    testthat (>= 3.0.0)
+    testthat (>= 3.0.0),
+    tibble
 Config/testthat/edition: 3
 VignetteBuilder: knitr
 URL: https://eduaguilera.github.io/whep/, https://github.com/eduaguilera/whep
