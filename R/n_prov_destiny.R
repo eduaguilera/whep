@@ -1,4 +1,4 @@
-F #' @title GRAFS Nitrogen (N) flows
+#' @title GRAFS Nitrogen (N) flows
 #'
 #' @description
 #' Provides N flows of the spanish agro-food system on a provincial level
@@ -102,7 +102,7 @@ create_n_prov_destiny <- function(example = FALSE) {
     )
 }
 
-#' @title GRAFS Nitrogen (N) flows – National Spain
+#' @title GRAFS Nitrogen (N) flows at Spain national level
 #'
 #' @description
 #' Provides N flows of the Spanish agro-food system on a national level
@@ -117,6 +117,20 @@ create_n_prov_destiny <- function(example = FALSE) {
 #'
 #' @return
 #' A final tibble containing national N flow data by origin and destiny.
+#' It includes the following columns:
+#'   - `year`: The year in which the recorded event occurred.
+#'   - `item`: The item which was produced, defined in `names_biomass_cb`.
+#'   - `irrig_cat`: Irrigation form (irrigated or rainfed)
+#'   - `box`: One of the GRAFS model systems: cropland,
+#'   Semi-natural agroecosystems, Livestock, Fish, or Agro-industry.
+#'   - `origin`: The origin category of N: Cropland,
+#'   Semi-natural agroecosystems, Livestock, Fish, Agro-industry, Deposition,
+#'   Fixation, Synthetic, People (waste water), Livestock (manure).
+#'   - `destiny`: The destiny category of N: population_food,
+#'   population_other_uses, livestock_mono, livestock_rum (feed), export,
+#'   Cropland (for N soil inputs).
+#'   - `mg_n`: Nitrogen amount in megagrams (Mg).
+#'   - `province_name`: Set to "Spain" for all national-level rows.
 #'
 #' @export
 #'

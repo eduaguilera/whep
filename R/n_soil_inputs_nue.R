@@ -1,4 +1,4 @@
-#' @title Nitrogen (N) soil inputs for Spain ----------------------------------
+#' @title Nitrogen (N) soil inputs for Spain
 #'
 #' @description
 #' Calculates total nitrogen inputs to soils in Spain at the provincial level.
@@ -6,7 +6,7 @@
 #' - Atmospheric deposition (`deposition`)
 #' - Biological nitrogen fixation (`fixation`)
 #' - Synthetic fertilizers (`synthetic`)
-#' - Manure (solid, liquid) (`manure`)
+#' - Manure (excreta, solid, liquid) (`manure`)
 #' - Urban sources (`urban`)
 #'
 #' Special land use categories and items are aggregated:
@@ -14,10 +14,11 @@
 #' - Firewood biomass (e.g., Conifers, Holm oak)
 #'
 #' @return A tibble containing:
-#'   - `Year`: Year
-#'   - `Province_name`: Spanish province
-#'   - `Item`: Crop, land use, or biomass item
-#'   - `Box`: Land use or ecosystem box for aggregation
+#'   - `year`: Year
+#'   - `province_name`: Spanish province
+#'   - `item`: Crop, land use, or biomass item
+#'   - `irrig_cat`: Irrigation form (irrigated or rainfed)
+#'   - `box`: Land use or ecosystem box for aggregation
 #'   - `deposition`: N input from atmospheric deposition (Mg)
 #'   - `fixation`: N input from biological N fixation (Mg)
 #'   - `synthetic`: N input from synthetic fertilizers (Mg)
@@ -119,7 +120,7 @@ create_n_soil_inputs <- function(example = FALSE) {
   n_soil_inputs
 }
 
-#' @title N production for Spain -----------------------------------------------
+#' @title N production for Spain
 #'
 #' @description Calculates N production at the provincial level in Spain.
 #' Production is derived from consumption, export, import, and other uses.
@@ -175,7 +176,7 @@ create_n_production <- function(example = FALSE) {
 }
 
 
-#' @title N soil inputs and Nitrogen Use Efficiency (NUE) for crop -------------
+#' @title N soil inputs and Nitrogen Use Efficiency (NUE) for crop
 #'
 #' @description
 #' N inputs (deposition, fixation, synthetic fertilizers, urban sources, manure)
@@ -189,10 +190,10 @@ create_n_production <- function(example = FALSE) {
 #' @returns
 #' A tibble containing nitrogen input, production, and NUE data.
 #'   It includes the following columns:
-#'   - `Year`: Year.
-#'   - `Province_name`: The Spanish province.
-#'   - `Item`: The item which was produced, defined in `names_biomass_cb`.
-#'   - `Box`: One of the two systems of the GRAFS model: cropland or
+#'   - `year`: Year.
+#'   - `province_name`: The Spanish province.
+#'   - `item`: The item which was produced, defined in `names_biomass_cb`.
+#'   - `box`: One of the two systems of the GRAFS model: cropland or
 #'            semi-natural agroecosystems.
 #'   - `deposition`: Atmospheric nitrogen deposition in megagrams (Mg).
 #'   - `fixation`: Nitrogen fixation in megagrams (Mg).
@@ -251,7 +252,7 @@ calculate_nue_crops <- function(example = FALSE) {
 }
 
 
-#' @title NUE for Livestock ----------------------------------------------------
+#' @title NUE for Livestock
 #'
 #' @description
 #' Calculates Nitrogen Use Efficiency (NUE) for livestock categories
@@ -266,10 +267,10 @@ calculate_nue_crops <- function(example = FALSE) {
 #' mass_balance = (prod_n + excretion_n) / feed_n
 #'
 #' @return A tibble containing:
-#'   - `Year`: Year
-#'   - `Province_name`: Spanish province
-#'   - `Livestock_cat`: Livestock category
-#'   - `Item`: Produced item
+#'   - `year`: Year
+#'   - `province_name`: Spanish province
+#'   - `livestock_cat`: Livestock category
+#'   - `item`: Produced item
 #'   - `prod_n`: Nitrogen in livestock products (Mg)
 #'   - `feed_n`: Nitrogen in feed intake (Mg)
 #'   - `excretion_n`: Nitrogen excreted (Mg)
@@ -343,7 +344,7 @@ calculate_nue_livestock <- function(example = FALSE) {
   nue_livestock
 }
 
-#' @title System NUE -----------------------------------------------------------
+#' @title System NUE
 #'
 #' @description
 #' Calculates the NUE for Spain at the provincial level.

@@ -2,7 +2,7 @@
 % Please edit documentation in R/n_soil_inputs_nue.R
 \name{create_n_soil_inputs}
 \alias{create_n_soil_inputs}
-\title{Nitrogen (N) soil inputs for Spain ----------------------------------}
+\title{Nitrogen (N) soil inputs for Spain}
 \usage{
 create_n_soil_inputs(example = FALSE)
 }
@@ -13,10 +13,11 @@ remote data. Default is \code{FALSE}.}
 \value{
 A tibble containing:
 \itemize{
-\item \code{Year}: Year
-\item \code{Province_name}: Spanish province
-\item \code{Item}: Crop, land use, or biomass item
-\item \code{Box}: Land use or ecosystem box for aggregation
+\item \code{year}: Year
+\item \code{province_name}: Spanish province
+\item \code{item}: Crop, land use, or biomass item
+\item \code{irrig_cat}: Irrigation form (irrigated or rainfed)
+\item \code{box}: Land use or ecosystem box for aggregation
 \item \code{deposition}: N input from atmospheric deposition (Mg)
 \item \code{fixation}: N input from biological N fixation (Mg)
 \item \code{synthetic}: N input from synthetic fertilizers (Mg)
@@ -31,7 +32,7 @@ This includes contributions from:
 \item Atmospheric deposition (\code{deposition})
 \item Biological nitrogen fixation (\code{fixation})
 \item Synthetic fertilizers (\code{synthetic})
-\item Manure (solid, liquid) (\code{manure})
+\item Manure (excreta, solid, liquid) (\code{manure})
 \item Urban sources (\code{urban})
 }
 

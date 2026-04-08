@@ -2,7 +2,7 @@
 % Please edit documentation in R/n_soil_inputs_nue.R
 \name{calculate_nue_crops}
 \alias{calculate_nue_crops}
-\title{N soil inputs and Nitrogen Use Efficiency (NUE) for crop -------------}
+\title{N soil inputs and Nitrogen Use Efficiency (NUE) for crop}
 \usage{
 calculate_nue_crops(example = FALSE)
 }
@@ -14,10 +14,10 @@ remote data. Default is \code{FALSE}.}
 A tibble containing nitrogen input, production, and NUE data.
 It includes the following columns:
 \itemize{
-\item \code{Year}: Year.
-\item \code{Province_name}: The Spanish province.
-\item \code{Item}: The item which was produced, defined in \code{names_biomass_cb}.
-\item \code{Box}: One of the two systems of the GRAFS model: cropland or
+\item \code{year}: Year.
+\item \code{province_name}: The Spanish province.
+\item \code{item}: The item which was produced, defined in \code{names_biomass_cb}.
+\item \code{box}: One of the two systems of the GRAFS model: cropland or
 semi-natural agroecosystems.
 \item \code{deposition}: Atmospheric nitrogen deposition in megagrams (Mg).
 \item \code{fixation}: Nitrogen fixation in megagrams (Mg).
