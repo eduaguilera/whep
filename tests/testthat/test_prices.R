@@ -308,6 +308,71 @@ testthat::test_that("build_primary_prices handles space-separated VoP columns", 
   testthat::expect_equal(wheat$price, 0.5)
 })
 
+testthat::test_that("build_primary_prices does not mutate caller's VoP", {
+  primary_prod <- tibble::tribble(
+    ~year, ~area_code, ~item_prod_code, ~unit, ~value,
+    2020L, 2, "15", "tonnes", 5000
+  )
+
+  trade_prices <- data.table::data.table(
+    year = integer(), item_trade = character(),
+    item_code_trade = numeric(), element = character(),
+    kdollars = numeric(), tonnes = numeric(), price = numeric()
+  )
+
+  vop <- tibble::tribble(
+    ~`Item Code`, ~`Area Code`, ~Element, ~Unit, ~Year, ~Value,
+    15L, 2L,
+    "Gross Production Value (constant 2014-2016 thousand US$)",
+    "1000 US$", 2020L, 2500
+  )
+
+  original_names <- names(vop)
+
+  build_primary_prices(
+    primary_prod = primary_prod,
+    value_of_production = vop,
+    trade_prices = trade_prices
+  )
+
+  # Caller's tibble should be unchanged
+  testthat::expect_equal(names(vop), original_names)
+})
+
+testthat::test_that("build_primary_prices VoP works on second call", {
+  primary_prod <- tibble::tribble(
+    ~year, ~area_code, ~item_prod_code, ~unit, ~value,
+    2020L, 2, "15", "tonnes", 5000
+  )
+
+  trade_prices <- data.table::data.table(
+    year = integer(), item_trade = character(),
+    item_code_trade = numeric(), element = character(),
+    kdollars = numeric(), tonnes = numeric(), price = numeric()
+  )
+
+  vop <- tibble::tribble(
+    ~`Item Code`, ~`Area Code`, ~Element, ~Unit, ~Year, ~Value,
+    15L, 2L,
+    "Gross Production Value (constant 2014-2016 thousand US$)",
+    "1000 US$", 2020L, 2500
+  )
+
+  # Call twice with same vop — second call should not fail
+  r1 <- build_primary_prices(
+    primary_prod = primary_prod,
+    value_of_production = vop,
+    trade_prices = trade_prices
+  )
+  r2 <- build_primary_prices(
+    primary_prod = primary_prod,
+    value_of_production = vop,
+    trade_prices = trade_prices
+  )
+
+  testthat::expect_equal(r1, r2)
+})
+
 testthat::test_that("build_primary_prices gap-fills missing years", {
   primary_prod <- tibble::tribble(
     ~year, ~area_code, ~item_prod_code, ~unit, ~value,
