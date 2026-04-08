@@ -297,7 +297,8 @@ build_detailed_trade <- function(
       "item_cbs",
       "item_cbs_code",
       "area_code_partner",
-      "element"
+      "element",
+      "unit"
     )
   )
   data.table::setDT(dt)
