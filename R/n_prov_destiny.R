@@ -83,16 +83,6 @@ create_n_prov_destiny <- function(example = FALSE) {
       add_feed_output$feed_share_rum_mono
     ) |>
     .add_n_soil_inputs(n_soil_inputs) |>
-    dplyr::select(
-      Year,
-      Province_name,
-      Item,
-      Irrig_cat,
-      Box,
-      Origin,
-      Destiny,
-      MgN
-    ) |>
     dplyr::mutate(
       Item = dplyr::recode(
         Item,
@@ -101,7 +91,17 @@ create_n_prov_destiny <- function(example = FALSE) {
       )
     ) |>
     dplyr::rename_with(tolower) |>
-    dplyr::rename(mg_n = mgn)
+    dplyr::rename(mg_n = mgn) |>
+    dplyr::select(
+      year,
+      province_name,
+      item,
+      irrig_cat,
+      box,
+      origin,
+      destiny,
+      mg_n
+    )
 }
 
 #' @title GRAFS Nitrogen (N) flows at Spain national level
