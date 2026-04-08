@@ -11,7 +11,7 @@ calculate_nue_crops(example = FALSE)
 remote data. Default is \code{FALSE}.}
 }
 \value{
-A tibble containing nitrogen input, production, and NUE data.
+A tibble containing nitrogen use efficiency (NUE) for crops.
 It includes the following columns:
 \itemize{
 \item \code{year}: Year.
@@ -19,14 +19,7 @@ It includes the following columns:
 \item \code{item}: The item which was produced, defined in \code{names_biomass_cb}.
 \item \code{box}: One of the two systems of the GRAFS model: cropland or
 semi-natural agroecosystems.
-\item \code{deposition}: Atmospheric nitrogen deposition in megagrams (Mg).
-\item \code{fixation}: Nitrogen fixation in megagrams (Mg).
-\item \code{synthetic}: Synthetic nitrogen fertilizer applied to the land in
-megagrams (Mg).
-\item \code{manure}: Nitrogen in manure applied to the land in megagrams (Mg).
-\item \code{urban}: Nitrogen in wastewater from human sources in megagrams (Mg).
-\item \code{prod}: Produced nitrogen in megagrams (Mg).
-\item \code{inputs}: Total nitrogen inputs in megagrams (Mg).
+\item \code{nue}: Nitrogen Use Efficiency as a percentage (\%).
 }
 }
 \description{

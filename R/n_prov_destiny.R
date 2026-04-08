@@ -99,7 +99,9 @@ create_n_prov_destiny <- function(example = FALSE) {
         "Firewood" = "Average wood",
         "Acorns" = "Holm oak"
       )
-    )
+    ) |>
+    dplyr::rename_with(tolower) |>
+    dplyr::rename(mg_n = mgn)
 }
 
 #' @title GRAFS Nitrogen (N) flows at Spain national level
@@ -1367,7 +1369,5 @@ create_n_nat_destiny <- function(example = FALSE) {
     soil_inputs_long
   ) |>
     dplyr::filter(MgN != 0) |>
-    dplyr::arrange(Year, Province_name, Item, Irrig_cat, Origin, Destiny) |>
-    dplyr::rename_with(tolower) |>
-    dplyr::rename(mg_n = mgn)
+    dplyr::arrange(Year, Province_name, Item, Irrig_cat, Origin, Destiny)
 }
