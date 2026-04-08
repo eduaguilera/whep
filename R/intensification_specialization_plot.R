@@ -78,16 +78,16 @@ intensification_specialization_plot <- function() {
   df <- df |>
     dplyr::mutate(
       Period = dplyr::case_when(
-        year < 1900 ~ "1860–1900",
-        year < 1950 ~ "1900–1950",
-        year < 1990 ~ "1950–1990",
-        TRUE ~ "1990–2021"
+        year < 1900 ~ "1860-1900",
+        year < 1950 ~ "1900-1950",
+        year < 1990 ~ "1950-1990",
+        TRUE ~ "1990-2021"
       )
     )
 
   df$Period <- factor(
     df$Period,
-    levels = c("1860–1900", "1900–1950", "1950–1990", "1990–2021")
+    levels = c("1860-1900", "1900-1950", "1950-1990", "1990-2021")
   )
 
   # ---- Plot ----
@@ -119,7 +119,7 @@ intensification_specialization_plot <- function() {
       x = "Intensification (kg N / ha)",
       y = "Specialization (max synthetic and feed import share)",
       color = "Typology",
-      title = "Provincial intensification and specialization in Spain (1860–2021)"
+      title = "Provincial intensification and specialization in Spain (1860-2021)"
     ) +
     ggplot2::theme_minimal()
 
@@ -227,16 +227,16 @@ circularity_intensification_plot <- function() {
   df <- df |>
     dplyr::mutate(
       Period = dplyr::case_when(
-        year < 1900 ~ "1860–1900",
-        year < 1950 ~ "1900–1950",
-        year < 1990 ~ "1950–1990",
-        TRUE ~ "1990–2021"
+        year < 1900 ~ "1860-1900",
+        year < 1950 ~ "1900-1950",
+        year < 1990 ~ "1950-1990",
+        TRUE ~ "1990-2021"
       )
     )
 
   df$Period <- factor(
     df$Period,
-    levels = c("1860–1900", "1900–1950", "1950–1990", "1990–2021")
+    levels = c("1860-1900", "1900-1950", "1950-1990", "1990-2021")
   )
 
   # ---- Typology colors ----
@@ -267,7 +267,7 @@ circularity_intensification_plot <- function() {
       x = "Intensification (kg N / ha)",
       y = "Circularity index",
       color = "Typology",
-      title = "Circularity and intensification in Spanish agro-food systems (1860–2021)"
+      title = "Circularity and intensification in Spanish agro-food systems (1860-2021)"
     ) +
     ggplot2::theme_minimal()
 
@@ -415,7 +415,7 @@ circularity_nue_trajectory_plot <- function() {
       x = "NUE (%)",
       y = "Circularity index",
       color = "Year",
-      title = "Circularity and NUE in Spain (1860–2021)"
+      title = "Circularity and NUE in Spain (1860-2021)"
     ) +
     ggplot2::theme_minimal() +
     ggplot2::theme(
@@ -576,7 +576,7 @@ circularity_nue_cropland_timeseries_plot <- function() {
       x = "Year",
       y = "Percent (%)",
       color = "Indicator",
-      title = "Crop nitrogen use efficiency and circularity in Spain (1860–2021)"
+      title = "Crop nitrogen use efficiency and circularity in Spain (1860-2021)"
     ) +
     ggplot2::theme_minimal() +
     ggplot2::theme(
@@ -716,7 +716,7 @@ intensification_specialization_timeseries <- function() {
       x = "Year",
       y = "Index (1860 = 100)",
       color = "Indicator",
-      title = "Intensification and specialization in Spain (1860–2020)"
+      title = "Intensification and specialization in Spain (1860-2020)"
     ) +
     ggplot2::theme_minimal() +
     ggplot2::theme(
@@ -817,7 +817,7 @@ yield_nue_trajectory_plot <- function() {
       x = "NUE (%)",
       y = "Crop productivity (kgN/ha)",
       color = "Year",
-      title = "Crop productivity (intensification) and crop NUE in Spain (1860–2020)"
+      title = "Crop productivity (intensification) and crop NUE in Spain (1860-2020)"
     ) +
     ggplot2::theme_minimal() +
     ggplot2::theme(
@@ -911,7 +911,7 @@ intensification_trajectory_plot <- function() {
       x = "Nitrogen input intensity (kg N / ha)",
       y = "Land productivity (kg N / ha)",
       color = "Year",
-      title = "Agricultural intensification in Spain (1860–2020)"
+      title = "Agricultural intensification in Spain (1860-2020)"
     ) +
     ggplot2::theme_minimal() +
     ggplot2::theme(
@@ -1018,7 +1018,7 @@ intensification_timeseries_plot <- function() {
       x = "Year",
       y = "kg N / ha",
       color = "Indicator",
-      title = "N inputs and crop productivity in Spain (1860–2020)"
+      title = "N inputs and crop productivity in Spain (1860-2020)"
     ) +
     ggplot2::theme_minimal() +
     ggplot2::theme(
@@ -1154,7 +1154,7 @@ nue_fertilizer_timeseries_plot <- function() {
       x = "Year",
       y = "Percent (%)",
       color = "Indicator",
-      title = "NUE and fertilizer dependency in Spanish cropland (1860–2021)"
+      title = "NUE and fertilizer dependency in Spanish cropland (1860-2021)"
     ) +
     ggplot2::theme_minimal() +
     ggplot2::theme(
@@ -1247,7 +1247,7 @@ nue_fertilizer_trajectory_plot <- function() {
       x = "Nitrogen use efficiency (%)",
       y = "Fertilizer dependency (%)",
       color = "Year",
-      title = "NUE and fertilizer dependency trajectory in Spanish cropland (1860–2021)"
+      title = "NUE and fertilizer dependency trajectory in Spanish cropland (1860-2021)"
     ) +
     ggplot2::theme_minimal() +
     ggplot2::theme(
@@ -1350,7 +1350,7 @@ nrr_cropland_timeseries_plot <- function() {
     ggplot2::labs(
       x = "Year",
       y = "Nitrogen recycling rate (%)",
-      title = "Nitrogen recycling rate (NRR) in Spanish cropland (1860–2021)"
+      title = "Nitrogen recycling rate (NRR) in Spanish cropland (1860-2021)"
     ) +
     ggplot2::theme_minimal() +
     ggplot2::theme(
@@ -1444,7 +1444,7 @@ production_diversity_plot <- function() {
     ggplot2::labs(
       x = "Year",
       y = "Shannon index",
-      title = "Production diversity (Shannon index) in Spain (1860–2021)"
+      title = "Production diversity (Shannon index) in Spain (1860-2021)"
     ) +
     ggplot2::theme_minimal()
 
@@ -1566,7 +1566,7 @@ intensification_specialization_secondary_axis <- function() {
     ggplot2::labs(
       x = "Year",
       color = "Indicator",
-      title = "Intensification and production specialization in Spain (1860–2021)"
+      title = "Intensification and production specialization in Spain (1860-2021)"
     ) +
     ggplot2::theme_minimal() +
     ggplot2::theme(
@@ -1713,7 +1713,7 @@ specialization_hhi_production_plot <- function() {
     ggplot2::labs(
       x = "Year",
       y = "HHI index (Specialization)",
-      title = "Specialization of agricultural production systems (cropland, livestock, semi-natural agroecosystems) in Spain (1860–2021)"
+      title = "Specialization of agricultural production systems (cropland, livestock, semi-natural agroecosystems) in Spain (1860-2021)"
     ) +
     ggplot2::theme_minimal() +
     ggplot2::theme(
@@ -1784,7 +1784,7 @@ system_shares_plot <- function() {
       x = "Year",
       y = "Share of production",
       fill = "System",
-      title = "Relative contribution of production in cropland, livestock and semi-natural agroecosystems in Spain (1860–2021)"
+      title = "Relative contribution of production in cropland, livestock and semi-natural agroecosystems in Spain (1860-2021)"
     ) +
     ggplot2::theme_minimal()
 
@@ -1877,7 +1877,7 @@ external_dependency_plot_national <- function() {
     ggplot2::labs(
       x = "Year",
       y = "External N dependency (%)",
-      title = "Dependence on external nitrogen inputs in Spain (1860–2021)"
+      title = "Dependence on external nitrogen inputs in Spain (1860-2021)"
     ) +
     ggplot2::theme_minimal() +
     ggplot2::theme(

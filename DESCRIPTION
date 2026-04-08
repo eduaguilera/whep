@@ -30,6 +30,7 @@ Imports:
     rappdirs,
     readr,
     rlang,
+    scales,
     stringr,
     tibble,
     tidyr,

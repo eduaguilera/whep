@@ -142,14 +142,14 @@ province_landuse_n_inputs_plot <- function(year_plot = 1980) {
       ggplot2::scale_fill_manual(values = input_colors) +
       ggplot2::labs(
         title = paste(
-          "N inputs per hectare by province –",
+          "N inputs per hectare by province -",
           t,
           "(",
           year_plot,
           ")"
         ),
         x = "Land_use",
-        y = "kg N ha⁻¹"
+        y = "kg N ha^-1"
       ) +
       ggplot2::theme_minimal() +
       ggplot2::theme(
@@ -327,14 +327,14 @@ province_all_landuse_n_inputs_plot <- function(year_plot = 1980) {
       ggplot2::scale_fill_manual(values = input_colors) +
       ggplot2::labs(
         title = paste(
-          "N inputs per hectare by province –",
+          "N inputs per hectare by province -",
           t,
           "(",
           year_plot,
           ")"
         ),
         x = "Land use",
-        y = "kg N ha⁻¹"
+        y = "kg N ha^-1"
       ) +
       ggplot2::theme_minimal() +
       ggplot2::theme(
