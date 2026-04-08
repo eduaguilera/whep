@@ -56,8 +56,8 @@ The PR must pass these GitHub Actions checks:
    - All `stats::` functions must use explicit prefix (e.g., `stats::median()`).
    - Run locally: `Rscript -e "rcmdcheck::rcmdcheck(build_args='--no-build-vignettes', args=c('--no-tests','--ignore-vignettes'), error_on='error')"`
 
-2. **lint** (`lintr`): Must pass with these linters disabled: `object_usage_linter`, `line_length_linter`, `indentation_linter`.
-   - Run locally: `Rscript -e "lintr::lint_package(linters=lintr::linters_with_defaults(object_usage_linter=NULL, line_length_linter=NULL, indentation_linter=NULL))"`
+2. **lint** (`lintr`): Must pass with these linters disabled: `object_usage_linter`, `line_length_linter`, `indentation_linter`, `commas_linter` (conflicts with `air` formatting).
+   - Run locally: `Rscript -e "lintr::lint_package(linters=lintr::linters_with_defaults(object_usage_linter=NULL, line_length_linter=NULL, indentation_linter=NULL, commas_linter=NULL))"`
 
 3. **format-suggest** (`air`): Code must be formatted with `air format .`
    - After running air, also run `devtools::document()` to update `man/` files.

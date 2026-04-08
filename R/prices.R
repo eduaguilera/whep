@@ -196,17 +196,24 @@ build_cbs_prices <- function(
   # Rename FAOSTAT columns to internal names
   fao_cols <- c("item code", "item", "element", "year", "unit", "value")
   int_cols <- c(
-    "item_code_trade", "item_trade", "element", "year", "unit", "value"
+    "item_code_trade",
+    "item_trade",
+    "element",
+    "year",
+    "unit",
+    "value"
   )
   present <- fao_cols %in% names(dt)
   data.table::setnames(dt, fao_cols[present], int_cols[present])
 
   # Standardise element names
-  dt[, element := data.table::fcase(
-    grepl("Import", element), "import",
-    grepl("Export", element), "export",
-    default = tolower(element)
-  )]
+  dt[,
+    element := data.table::fcase(
+      grepl("Import", element) , "import" ,
+      grepl("Export", element) , "export" ,
+      default = tolower(element)
+    )
+  ]
 
   dt[, .(year, item_trade, item_code_trade, unit, element, value)]
 }
@@ -311,18 +318,30 @@ build_cbs_prices <- function(
   # Handle raw FAOSTAT columns (spaced or dotted) and pre-cleaned names
   data.table::setnames(vop, tolower)
   fao_cols <- c(
-    "item code", "item.code",
-    "area code", "area.code",
-    "unit", "element", "year", "value"
+    "item code",
+    "item.code",
+    "area code",
+    "area.code",
+    "unit",
+    "element",
+    "year",
+    "value"
   )
   int_cols <- c(
-    "item_prod_code", "item_prod_code",
-    "area_code", "area_code",
-    "unit", "element", "year", "value"
+    "item_prod_code",
+    "item_prod_code",
+    "area_code",
+    "area_code",
+    "unit",
+    "element",
+    "year",
+    "value"
   )
   present <- fao_cols %in% names(vop)
   data.table::setnames(
-    vop, fao_cols[present], int_cols[present]
+    vop,
+    fao_cols[present],
+    int_cols[present]
   )
 
   # Ensure item_prod_code is character (matches items_prod_full)
@@ -488,8 +507,10 @@ build_cbs_prices <- function(
   # Add category info
   items_cats <- unique(items[, .(item_cbs, item_cbs_code, Cat_1)])
   dt <- merge(
-    dt, items_cats,
-    by = c("item_cbs", "item_cbs_code"), all.x = TRUE
+    dt,
+    items_cats,
+    by = c("item_cbs", "item_cbs_code"),
+    all.x = TRUE
   )
   dt <- merge(dt, herb_woody, by = "item_cbs_code", all.x = TRUE)
 

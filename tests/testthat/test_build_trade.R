@@ -474,8 +474,7 @@ testthat::test_that("extend_time produces no duplicate year+group rows", {
 
   # No duplicate rows per year+group
   dupes <- result |>
-    dplyr::count(year, area_code, area_code_partner, element,
-                 item_cbs_code) |>
+    dplyr::count(year, area_code, area_code_partner, element, item_cbs_code) |>
     dplyr::filter(n > 1)
   testthat::expect_equal(nrow(dupes), 0)
 

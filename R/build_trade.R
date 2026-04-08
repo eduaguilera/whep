@@ -95,8 +95,16 @@ build_detailed_trade <- function(
 
   # Keep only needed columns
   keep <- intersect(
-    c("area_code", "area_code_p", "item_code_trade", "item",
-      "element", "year", "unit", "value"),
+    c(
+      "area_code",
+      "area_code_p",
+      "item_code_trade",
+      "item",
+      "element",
+      "year",
+      "unit",
+      "value"
+    ),
     names(dt)
   )
   dt <- dt[, ..keep]

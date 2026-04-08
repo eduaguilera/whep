@@ -35,8 +35,16 @@ testthat::test_that("build_trade_prices computes price from raw data", {
 
   testthat::expect_s3_class(result, "tbl_df")
   testthat::expect_true(all(
-    c("year", "item_trade", "item_code_trade", "element",
-      "kdollars", "tonnes", "price") %in% names(result)
+    c(
+      "year",
+      "item_trade",
+      "item_code_trade",
+      "element",
+      "kdollars",
+      "tonnes",
+      "price"
+    ) %in%
+      names(result)
   ))
 
   import_row <- result |> dplyr::filter(element == "import")
@@ -51,8 +59,7 @@ testthat::test_that("build_trade_prices drops zero and NA values", {
     year = rep(2020L, 6),
     item_trade = rep("Wheat", 6),
     item_code_trade = rep(15, 6),
-    unit = c("kdollars", "tonnes", "kdollars", "tonnes",
-             "kdollars", "tonnes"),
+    unit = c("kdollars", "tonnes", "kdollars", "tonnes", "kdollars", "tonnes"),
     element = rep("import", 6),
     value = c(500, 1000, 0, 0, NA, NA)
   )
@@ -201,8 +208,10 @@ testthat::test_that("build_primary_prices uses export trade prices", {
   )
 
   testthat::expect_s3_class(result, "tbl_df")
-  testthat::expect_true(all(c("year", "item_prod_code", "price") %in%
-    names(result)))
+  testthat::expect_true(all(
+    c("year", "item_prod_code", "price") %in%
+      names(result)
+  ))
 
   # Should use export price (0.5)
   wheat <- result |> dplyr::filter(item_prod_code == "15")
@@ -283,9 +292,13 @@ testthat::test_that("build_primary_prices handles space-separated VoP columns", 
   )
 
   trade_prices <- data.table::data.table(
-    year = integer(), item_trade = character(),
-    item_code_trade = numeric(), element = character(),
-    kdollars = numeric(), tonnes = numeric(), price = numeric()
+    year = integer(),
+    item_trade = character(),
+    item_code_trade = numeric(),
+    element = character(),
+    kdollars = numeric(),
+    tonnes = numeric(),
+    price = numeric()
   )
 
   vop <- data.table::data.table(
@@ -314,9 +327,13 @@ testthat::test_that("build_primary_prices does not mutate caller's VoP", {
   )
 
   trade_prices <- data.table::data.table(
-    year = integer(), item_trade = character(),
-    item_code_trade = numeric(), element = character(),
-    kdollars = numeric(), tonnes = numeric(), price = numeric()
+    year = integer(),
+    item_trade = character(),
+    item_code_trade = numeric(),
+    element = character(),
+    kdollars = numeric(),
+    tonnes = numeric(),
+    price = numeric()
   )
 
   vop <- tibble::tribble(
@@ -345,9 +362,13 @@ testthat::test_that("build_primary_prices VoP works on second call", {
   )
 
   trade_prices <- data.table::data.table(
-    year = integer(), item_trade = character(),
-    item_code_trade = numeric(), element = character(),
-    kdollars = numeric(), tonnes = numeric(), price = numeric()
+    year = integer(),
+    item_trade = character(),
+    item_code_trade = numeric(),
+    element = character(),
+    kdollars = numeric(),
+    tonnes = numeric(),
+    price = numeric()
   )
 
   vop <- tibble::tribble(
