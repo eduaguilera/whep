@@ -461,16 +461,24 @@ build_cbs_prices <- function(
   items_prod <- data.table::as.data.table(whep::items_prod_full)
   items <- data.table::as.data.table(whep::items_full)
 
-  # Get Cat_1 and Herb_Woody from items_prod_full
-  cats <- unique(
-    items_prod[!is.na(Cat_1), .(Cat_1, Herb_Woody)]
+  # Build per-item Cat_1 + Herb_Woody bridge
+  herb_woody <- unique(
+    items_prod[
+      !is.na(Herb_Woody) & !is.na(item_cbs_code),
+      .(item_cbs_code, Herb_Woody)
+    ]
   )
-  cats <- cats[!is.na(Herb_Woody)]
+  herb_woody <- herb_woody[
+    !duplicated(item_cbs_code),
+  ]
 
   # Add category info
   items_cats <- unique(items[, .(item_cbs, item_cbs_code, Cat_1)])
-  dt <- merge(dt, items_cats, by = c("item_cbs", "item_cbs_code"), all.x = TRUE)
-  dt <- merge(dt, cats, by = "Cat_1", all.x = TRUE)
+  dt <- merge(
+    dt, items_cats,
+    by = c("item_cbs", "item_cbs_code"), all.x = TRUE
+  )
+  dt <- merge(dt, herb_woody, by = "item_cbs_code", all.x = TRUE)
 
   # Ensure tonnes and kdollars are filled for proxy items
   dt[is.na(tonnes), tonnes := 1000]
