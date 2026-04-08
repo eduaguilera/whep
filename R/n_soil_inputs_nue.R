@@ -25,7 +25,10 @@
 #'   - `urban`: N input from urban sources (Mg)
 #'
 #' @export
-create_n_soil_inputs <- function() {
+create_n_soil_inputs <- function(example = FALSE) {
+  if (example) {
+    return(.example_create_n_soil_inputs())
+  }
   .calculate_n_soil_inputs(
     whep_read_file("n_balance_ygpit_all"),
     whep_read_file("codes_coefs")
@@ -122,7 +125,10 @@ create_n_soil_inputs <- function() {
 #'   - `prod`: Produced N (Mg)
 #'
 #' @export
-create_n_production <- function() {
+create_n_production <- function(example = FALSE) {
+  if (example) {
+    return(.example_create_n_production())
+  }
   create_n_prov_destiny() |>
     .calculate_n_production()
 }
@@ -186,7 +192,10 @@ create_n_production <- function() {
 #'
 #'
 #' @export
-calculate_nue_crops <- function() {
+calculate_nue_crops <- function(example = FALSE) {
+  if (example) {
+    return(.example_calculate_nue_crops())
+  }
   n_soil_inputs <- create_n_soil_inputs() |>
     dplyr::group_by(Year, Province_name, Item, Box) |>
     dplyr::summarise(
@@ -250,7 +259,10 @@ calculate_nue_crops <- function() {
 #'   - `mass_balance`: Mass balance ratio (%)
 #'
 #' @export
-calculate_nue_livestock <- function() {
+calculate_nue_livestock <- function(example = FALSE) {
+  if (example) {
+    return(.ex_calc_nue_livestock())
+  }
   intake_n <- whep_read_file("intake_ygiac") |>
     dplyr::filter(Livestock_cat != "Pets") |>
     dplyr::group_by(Year, Province_name, Livestock_cat) |>
@@ -321,7 +333,11 @@ calculate_nue_livestock <- function() {
 #'   - `nue_system`: System-level Nitrogen Use Efficiency (%)
 #'
 #' @export
-calculate_system_nue <- function(n_soil_inputs = create_n_soil_inputs()) {
+calculate_system_nue <- function(n_soil_inputs = create_n_soil_inputs(),
+                                 example = FALSE) {
+  if (example) {
+    return(.example_calculate_system_nue())
+  }
   n_soil_inputs <- n_soil_inputs |>
     dplyr::group_by(Year, Province_name) |>
     dplyr::summarise(

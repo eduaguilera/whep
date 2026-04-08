@@ -12,6 +12,7 @@ A tibble containing:
 \item \code{Year}: Year
 \item \code{Province_name}: Spanish province
 \item \code{Item}: Crop, land use, or biomass item
+\item \code{Irrig_cat}: Irrigation form (irrigated or rainfed)
 \item \code{Box}: Land use or ecosystem box for aggregation
 \item \code{deposition}: N input from atmospheric deposition (Mg)
 \item \code{fixation}: N input from biological N fixation (Mg)
@@ -27,7 +28,7 @@ This includes contributions from:
 \item Atmospheric deposition (\code{deposition})
 \item Biological nitrogen fixation (\code{fixation})
 \item Synthetic fertilizers (\code{synthetic})
-\item Manure (solid, liquid) (\code{manure})
+\item Manure (excreta, solid, liquid) (\code{manure})
 \item Urban sources (\code{urban})
 }
 

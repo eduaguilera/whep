@@ -28,7 +28,10 @@
 #'   - `MgN`: Nitrogen amount in megagrams (Mg).
 #'
 #' @export
-create_n_prov_destiny <- function() {
+create_n_prov_destiny <- function(example = FALSE) {
+  if (example) {
+    return(.example_create_n_prov_destiny())
+  }
   codes_coefs_items_full <- whep_read_file("codes_coefs_items_full")
   biomass_coefs <- whep_read_file("biomass_coefs")
   pie_full_destinies_fm <- whep_read_file("pie_full_destinies_fm")
@@ -100,7 +103,10 @@ create_n_prov_destiny <- function() {
 #' A final tibble containing national N flow data by origin and destiny.
 #'
 #' @export
-create_n_nat_destiny <- function() {
+create_n_nat_destiny <- function(example = FALSE) {
+  if (example) {
+    return(.example_create_n_nat_destiny())
+  }
   prov <- create_n_prov_destiny()
 
   nat_shares <- prov |>

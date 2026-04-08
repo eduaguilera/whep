@@ -8,6 +8,22 @@ create_n_nat_destiny()
 }
 \value{
 A final tibble containing national N flow data by origin and destiny.
+It includes the following columns:
+\itemize{
+\item \code{Year}: The year in which the recorded event occurred.
+\item \code{Item}: The item which was produced, defined in \code{names_biomass_cb}.
+\item \code{Irrig_cat}: Irrigation form (irrigated or rainfed)
+\item \code{Box}: One of the GRAFS model systems: cropland,
+Semi-natural agroecosystems, Livestock, Fish, or Agro-industry.
+\item \code{Origin}: The origin category of N: Cropland,
+Semi-natural agroecosystems, Livestock, Fish, Agro-industry, Deposition,
+Fixation, Synthetic, People (waste water), Livestock (manure).
+\item \code{Destiny}: The destiny category of N: population_food,
+population_other_uses, livestock_mono, livestock_rum (feed), export,
+Cropland (for N soil inputs).
+\item \code{MgN}: Nitrogen amount in megagrams (Mg).
+\item \code{Province_name}: Set to "Spain" for all national-level rows.
+}
 }
 \description{
 Provides N flows of the Spanish agro-food system on a national level
