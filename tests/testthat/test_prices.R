@@ -276,6 +276,38 @@ testthat::test_that("build_primary_prices prefers export over production", {
   testthat::expect_equal(wheat$price, 0.5)
 })
 
+testthat::test_that("build_primary_prices handles space-separated VoP columns", {
+  # Pin data has "Item Code" not "Item.Code"
+  primary_prod <- tibble::tribble(
+    ~year, ~area_code, ~item_prod_code, ~unit, ~value,
+    2020L, 2, "15", "tonnes", 5000
+  )
+
+  trade_prices <- data.table::data.table(
+    year = integer(), item_trade = character(),
+    item_code_trade = numeric(), element = character(),
+    kdollars = numeric(), tonnes = numeric(), price = numeric()
+  )
+
+  vop <- data.table::data.table(
+    `Item Code` = 15L,
+    `Area Code` = 2L,
+    Element = "Gross Production Value (constant 2014-2016 thousand US$)",
+    Unit = "1000 US$",
+    Year = 2020L,
+    Value = 2500
+  )
+
+  result <- build_primary_prices(
+    primary_prod = primary_prod,
+    value_of_production = vop,
+    trade_prices = trade_prices
+  )
+
+  wheat <- result[item_prod_code == "15"]
+  testthat::expect_equal(wheat$price, 0.5)
+})
+
 testthat::test_that("build_primary_prices gap-fills missing years", {
   primary_prod <- tibble::tribble(
     ~year, ~area_code, ~item_prod_code, ~unit, ~value,

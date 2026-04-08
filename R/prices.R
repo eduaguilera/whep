@@ -308,19 +308,32 @@ build_cbs_prices <- function(
     data.table::setDT(vop)
   }
 
-  # Handle both raw FAOSTAT and pre-cleaned column names
-  if ("Item.Code" %in% names(vop)) {
-    data.table::setnames(
-      vop,
-      c("Item.Code", "Area.Code", "Unit", "Element", "Year", "Value"),
-      c("item_prod_code", "area_code", "unit", "element", "year", "value"),
-      skip_absent = TRUE
-    )
-  }
+  # Handle raw FAOSTAT columns (spaced or dotted) and pre-cleaned names
   data.table::setnames(vop, tolower)
+  fao_cols <- c(
+    "item code", "item.code",
+    "area code", "area.code",
+    "unit", "element", "year", "value"
+  )
+  int_cols <- c(
+    "item_prod_code", "item_prod_code",
+    "area_code", "area_code",
+    "unit", "element", "year", "value"
+  )
+  present <- fao_cols %in% names(vop)
+  data.table::setnames(
+    vop, fao_cols[present], int_cols[present]
+  )
+
+  # Ensure item_prod_code is character (matches items_prod_full)
+  vop[, item_prod_code := as.character(item_prod_code)]
 
   vop <- vop[
-    grepl("Gross Production Value.*constant", element, ignore.case = TRUE)
+    grepl(
+      "Gross Production Value.*constant.*US\\$",
+      element,
+      ignore.case = TRUE
+    )
   ]
   vop[, `:=`(unit = "kdollars", element = "production")]
 
