@@ -13,6 +13,9 @@
 #' - Semi-natural agroecosystems (e.g., Dehesa, Pasture_Shrubland)
 #' - Firewood biomass (e.g., Conifers, Holm oak)
 #'
+#' @param example If `TRUE`, return a small example output without downloading
+#'   remote data. Default is `FALSE`.
+#'
 #' @return A tibble containing:
 #'   - `year`: Year
 #'   - `province_name`: Spanish province
@@ -24,9 +27,6 @@
 #'   - `synthetic`: N input from synthetic fertilizers (Mg)
 #'   - `manure`: N input from livestock manure (Mg)
 #'   - `urban`: N input from urban sources (Mg)
-#'
-#' @param example If `TRUE`, return a small example output without downloading
-#'   remote data. Default is `FALSE`.
 #'
 #' @export
 #'
@@ -43,7 +43,7 @@ create_n_soil_inputs <- function(example = FALSE) {
     dplyr::rename_with(tolower)
 }
 
-#' @title Assign some special items to Boxes -----------------------------------
+#' @title Assign some special items to Boxes
 #' @return A named list with assigned items.
 #' @keywords internal
 #' @noRd
@@ -65,7 +65,7 @@ create_n_soil_inputs <- function(example = FALSE) {
   )
 }
 
-#' @title Calculate N Inputs ---------------------------------------------------
+#' @title Calculate N Inputs
 #' @description Merges N balance data with items and aggregates deposition,
 #' fixation, synthetic, urban, and manure inputs for each combination of year,
 #' province, item, and box.
@@ -125,15 +125,15 @@ create_n_soil_inputs <- function(example = FALSE) {
 #' @description Calculates N production at the provincial level in Spain.
 #' Production is derived from consumption, export, import, and other uses.
 #'
+#' @param example If `TRUE`, return a small example output without downloading
+#'   remote data. Default is `FALSE`.
+#'
 #' @return A tibble containing:
 #'   - `year`: Year
 #'   - `province_name`: Spanish province
 #'   - `item`: Product item
 #'   - `box`: Ecosystem box
 #'   - `prod`: Produced N (Mg)
-#'
-#' @param example If `TRUE`, return a small example output without downloading
-#'   remote data. Default is `FALSE`.
 #'
 #' @export
 #'
@@ -187,6 +187,9 @@ create_n_production <- function(example = FALSE) {
 #' Total soil inputs are calculated as:
 #' inputs = deposition + fixation + synthetic + manure + urban
 #'
+#' @param example If `TRUE`, return a small example output without downloading
+#'   remote data. Default is `FALSE`.
+#'
 #' @returns
 #' A tibble containing nitrogen input, production, and NUE data.
 #'   It includes the following columns:
@@ -203,9 +206,6 @@ create_n_production <- function(example = FALSE) {
 #'   - `urban`: Nitrogen in wastewater from human sources in megagrams (Mg).
 #'   - `prod`: Produced nitrogen in megagrams (Mg).
 #'   - `inputs`: Total nitrogen inputs in megagrams (Mg).
-#'
-#' @param example If `TRUE`, return a small example output without downloading
-#'   remote data. Default is `FALSE`.
 #'
 #' @export
 #'
@@ -266,6 +266,9 @@ calculate_nue_crops <- function(example = FALSE) {
 #' products and excretion relative to feed intake:
 #' mass_balance = (prod_n + excretion_n) / feed_n
 #'
+#' @param example If `TRUE`, return a small example output without downloading
+#'   remote data. Default is `FALSE`.
+#'
 #' @return A tibble containing:
 #'   - `year`: Year
 #'   - `province_name`: Spanish province
@@ -276,9 +279,6 @@ calculate_nue_crops <- function(example = FALSE) {
 #'   - `excretion_n`: Nitrogen excreted (Mg)
 #'   - `nue`: Nitrogen Use Efficiency (%)
 #'   - `mass_balance`: Mass balance ratio (%)
-#'
-#' @param example If `TRUE`, return a small example output without downloading
-#'   remote data. Default is `FALSE`.
 #'
 #' @export
 #'
@@ -353,7 +353,10 @@ calculate_nue_livestock <- function(example = FALSE) {
 #' soil system.
 #'
 #' @param n_soil_inputs A tibble of nitrogen soil input (deposition, fixation,
-#' synthetic, manure, urban)
+#'   synthetic, manure, urban). If not provided and `example = FALSE`, it will
+#'   be computed from `create_n_soil_inputs()`.
+#' @param example If `TRUE`, return a small example output without downloading
+#'   remote data. Default is `FALSE`.
 #'
 #' @return A tibble with the following columns:
 #'   - `year`: Year
@@ -361,12 +364,6 @@ calculate_nue_livestock <- function(example = FALSE) {
 #'   - `total_prod`: Total nitrogen production (Mg)
 #'   - `inputs`: Total nitrogen inputs (Mg)
 #'   - `nue_system`: System-level Nitrogen Use Efficiency (%)
-#'
-#' @param n_soil_inputs A tibble of nitrogen soil input (deposition, fixation,
-#'   synthetic, manure, urban). If not provided and `example = FALSE`, it will
-#'   be computed from `create_n_soil_inputs()`.
-#' @param example If `TRUE`, return a small example output without downloading
-#'   remote data. Default is `FALSE`.
 #'
 #' @export
 #'
