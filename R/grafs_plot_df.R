@@ -166,7 +166,7 @@ create_grafs_plot_df <- function() {
 #' @return
 #' A tibble with columns `province`, `year`, `label`, `data`, and `align`.
 #'
-#' @keywords internal
+#' @noRd
 .create_n_import_df <- function(prov_destiny_df = NULL) {
   if (is.null(prov_destiny_df)) {
     prov_destiny_df <- create_n_prov_destiny()
@@ -300,7 +300,7 @@ create_grafs_plot_df <- function() {
 #' @return
 #' A tibble with columns `province`, `year`, `label`, `data`, and `align`.
 #'
-#' @keywords internal
+#' @noRd
 .create_livestock_lu_df <- function() {
   livestock_lu <- whep_read_file("livestock_prod_ygps")
 
@@ -376,7 +376,7 @@ create_grafs_plot_df <- function() {
 #' @return
 #' A tibble with columns `province`, `year`, `label`, `data`, and `align`.
 #'
-#' @keywords internal
+#' @noRd
 .create_land_df <- function() {
   n_balance <- whep_read_file("n_balance_ygpit_all")
 
@@ -655,7 +655,7 @@ create_grafs_plot_df <- function() {
 #' @return
 #' A tibble with columns `province`, `year`, `label`, `data`, and `align`.
 #'
-#' @keywords internal
+#' @noRd
 .create_n_input_df <- function(n_balance, df_land) {
   df_n_soil_inputs <- n_balance |>
     dplyr::group_by(Province_name, Year) |>
@@ -838,7 +838,7 @@ create_grafs_plot_df <- function() {
 #' @return A tibble with columns `province`, `year`, `label`, `data`, and
 #' `align`.
 #'
-#' @keywords internal
+#' @noRd
 
 #'
 #' @param prov_destiny_df A data frame containing production and destiny
@@ -846,7 +846,7 @@ create_grafs_plot_df <- function() {
 #'
 #' @return A tibble with columns `province`, `year`, `label`, `data`, `align`.
 #'
-#' @keywords internal
+#' @noRd
 .create_n_flow_df <- function(prov_destiny_df = NULL) {
   if (is.null(prov_destiny_df)) {
     prov_destiny_df <- create_n_prov_destiny()
@@ -906,7 +906,7 @@ create_grafs_plot_df <- function() {
 #'
 #' @return A tibble with columns `province`, `year`, `label`, `data`, `align`.
 #'
-#' @keywords internal
+#' @noRd
 .create_livestock_df <- function(prov_destiny_df) {
   df_livestock <- prov_destiny_df |>
     dplyr::filter(
@@ -950,7 +950,7 @@ create_grafs_plot_df <- function() {
 #'
 #' @return A tibble with columns `province`, `year`, `label`, `data`, `align`.
 #'
-#' @keywords internal
+#' @noRd
 .create_milk_df <- function(prov_destiny_df) {
   df_milk <- prov_destiny_df |>
     dplyr::filter(
@@ -986,7 +986,7 @@ create_grafs_plot_df <- function() {
 #'
 #' @return A tibble with columns `province`, `year`, `label`, `data`, `align`.
 #'
-#' @keywords internal
+#' @noRd
 .create_livestock_export_df <- function(prov_destiny_df) {
   df_livestock_export <- prov_destiny_df |>
     dplyr::filter(
@@ -1017,7 +1017,7 @@ create_grafs_plot_df <- function() {
 #'
 #' @return A tibble with columns `province`, `year`, `label`, `data`, `align`.
 #'
-#' @keywords internal
+#' @noRd
 .create_feed_df <- function(prov_destiny_df) {
   df_feed <- prov_destiny_df |>
     dplyr::filter(
@@ -1052,7 +1052,7 @@ create_grafs_plot_df <- function() {
 #'
 #' @return A tibble with columns `province`, `year`, `label`, `data`, `align`.
 #'
-#' @keywords internal
+#' @noRd
 .create_crop_losses_df <- function(n_balance, prov_destiny_df) {
   all_provinces <- unique(prov_destiny_df$Province_name)
   all_years <- unique(prov_destiny_df$Year)
@@ -1098,7 +1098,7 @@ create_grafs_plot_df <- function() {
 #'
 #' @return A tibble with columns `province`, `year`, `label`, `data`, `align`.
 #'
-#' @keywords internal
+#' @noRd
 .create_animal_losses_df <- function(prov_destiny_df) {
   n_excretion <- whep_read_file("n_excretion_ygs") |>
     dplyr::select(
@@ -1163,7 +1163,7 @@ create_grafs_plot_df <- function() {
 #'
 #' @return A tibble with columns `province`, `year`, `label`, `data`, `align`.
 #'
-#' @keywords internal
+#' @noRd
 .create_livestock_total_df <- function(
   crop_livestock_flows,
   df_livestock_export,
@@ -1196,7 +1196,7 @@ create_grafs_plot_df <- function() {
 #'
 #' @return A tibble with columns `province`, `year`, `label`, `data`, `align`.
 #'
-#' @keywords internal
+#' @noRd
 .create_livestock_gas_loss_df <- function() {
   df_livestock_gas_loss <- whep_read_file("n_excretion_ygs") |>
     dplyr::group_by(Province_name, Year) |>
@@ -1224,7 +1224,7 @@ create_grafs_plot_df <- function() {
 #' @return
 #' A tibble with columns `province`, `year`, `label`, `data`, `align`.
 #'
-#' @keywords internal
+#' @noRd
 .create_population_df <- function() {
   population <- whep_read_file("population_yg")
 
@@ -1264,7 +1264,7 @@ create_grafs_plot_df <- function() {
 #' @return A tibble with standardized columns `province`, `year`, `label`,
 #' `data`, and `align`.
 #'
-#' @keywords internal
+#' @noRd
 .combine_and_finalize_df <- function(
   crop_livestock_flows,
   df_livestock,

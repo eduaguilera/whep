@@ -4,7 +4,7 @@
 \alias{calculate_nue_livestock}
 \title{NUE for Livestock ----------------------------------------------------}
 \usage{
-calculate_nue_livestock()
+calculate_nue_livestock(example = FALSE)
 }
 \value{
 A tibble containing:

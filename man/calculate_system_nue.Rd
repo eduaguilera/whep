@@ -4,7 +4,7 @@
 \alias{calculate_system_nue}
 \title{System NUE -----------------------------------------------------------}
 \usage{
-calculate_system_nue(n_soil_inputs = create_n_soil_inputs())
+calculate_system_nue(n_soil_inputs = create_n_soil_inputs(), example = FALSE)
 }
 \arguments{
 \item{n_soil_inputs}{A tibble of nitrogen soil input (deposition, fixation,

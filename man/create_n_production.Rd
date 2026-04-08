@@ -4,7 +4,7 @@
 \alias{create_n_production}
 \title{N production for Spain -----------------------------------------------}
 \usage{
-create_n_production()
+create_n_production(example = FALSE)
 }
 \value{
 A tibble containing:

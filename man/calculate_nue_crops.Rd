@@ -4,7 +4,7 @@
 \alias{calculate_nue_crops}
 \title{N soil inputs and Nitrogen Use Efficiency (NUE) for crop -------------}
 \usage{
-calculate_nue_crops()
+calculate_nue_crops(example = FALSE)
 }
 \value{
 A tibble containing nitrogen input, production, and NUE data.
@@ -23,7 +23,6 @@ megagrams (Mg).
 \item \code{urban}: Nitrogen in wastewater from human sources in megagrams (Mg).
 \item \code{prod}: Produced nitrogen in megagrams (Mg).
 \item \code{inputs}: Total nitrogen inputs in megagrams (Mg).
-\item \code{nue}: Nitrogen Use Efficiency as a percentage (\%).
 }
 }
 \description{

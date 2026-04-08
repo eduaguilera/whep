@@ -4,22 +4,22 @@
 \alias{create_n_prov_destiny}
 \title{GRAFS Nitrogen (N) flows}
 \usage{
-create_n_prov_destiny()
+create_n_prov_destiny(example = FALSE)
 }
 \value{
 A final tibble containing N flow data by origin and destiny.
 It includes the following columns:
 \itemize{
-\item \code{Year}: The year in which the recorded event occurred.
-\item \code{Province_name}: The Spanish province where the data is from.
-\item \code{Item}: The item which was produced, defined in \code{names_biomass_cb}.
-\item \code{Irrig_cat}: Irrigation form (irrigated or rainfed)
-\item \code{Box}: One of the GRAFS model systems: cropland,
+\item \code{year}: The year in which the recorded event occurred.
+\item \code{province_name}: The Spanish province where the data is from.
+\item \code{item}: The item which was produced, defined in \code{names_biomass_cb}.
+\item \code{irrig_cat}: Irrigation form (irrigated or rainfed)
+\item \code{box}: One of the GRAFS model systems: cropland,
 Semi-natural agroecosystems, Livestock, Fish, or Agro-industry.
-\item \code{Origin}: The origin category of N: Cropland,
+\item \code{origin}: The origin category of N: Cropland,
 Semi-natural agroecosystems, Livestock, Fish, Agro-industry, Deposition,
 Fixation, Synthetic, People (waste water), Livestock (manure).
-\item \code{Destiny}: The destiny category of N: population_food,
+\item \code{destiny}: The destiny category of N: population_food,
 population_other_uses, livestock_mono, livestock_rum (feed), export,
 Cropland (for N soil inputs).
 \item \code{MgN}: Nitrogen amount in megagrams (Mg).
