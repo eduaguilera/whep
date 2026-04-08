@@ -38,6 +38,7 @@ utils::globalVariables(
     ".rlen",
     ".smooth_var",
     ".source_temp",
+    ".n",
     ".src_rank",
     ".t_aft",
     ".t_bef",
