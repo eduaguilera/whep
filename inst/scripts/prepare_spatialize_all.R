@@ -117,7 +117,7 @@ if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE)
     "rice",        27L,
     "rye",         71L,
     "sorghum",     83L,
-    "soybean",    216L,
+    "soybean",    236L,
     "sugarbeet",  157L,
     "sugarcane",  780L,
     "sunflower",  222L,
@@ -553,6 +553,8 @@ prepare_country_areas <- function(l_files_dir, year_range, country_grid,
   luh2_totals <- .luh2_country_totals(
     luh2_dir, year_range, country_grid, target_res
   )
+
+  crop_areas <- .redistribute_predecessors(crop_areas, luh2_totals)
 
   type_map <- dplyr::select(cft_mapping, "item_prod_code", "cft_name") |>
     dplyr::left_join(
@@ -1299,7 +1301,7 @@ prepare_nitrogen_inputs <- function(l_files_dir, output_dir, year_range,
       "groundnut",  242L, "maize",       56L, "millet",      79L,
       "oilpalm",    217L, "potato",     328L, "rapeseed",   223L,
       "rice",        27L, "rye",         71L, "sorghum",     83L,
-      "soybean",    216L, "sugarbeet",  157L, "sugarcane",  780L,
+      "soybean",    236L, "sugarbeet",  157L, "sugarcane",  780L,
       "sunflower",  222L, "wheat",       15L
     )
 

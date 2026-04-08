@@ -136,6 +136,32 @@ redistributed using a logit-based transformation.
 \item Individual crops are aggregated into crop functional types (CFTs).
 }
 }
+\section{Methodology}{
+
+This function reimplements the spatial crop allocation from the LandInG
+toolbox (Ostberg et al. 2023, doi:10.5194/gmd-16-3375-2023) with the
+following extensions:
+\itemize{
+\item LUH2 crop-functional-type constraints (\code{type_cropland} +
+\code{type_mapping} parameters) restrict each crop to cells
+containing its LUH2 type (c3ann, c4ann, c3per, c3nfx). LandInG
+allocates to total cropland without type constraints.
+\item MIRCA2000 crop-specific irrigated fractions (Portmann et al.
+2010) for irrigation distribution, falling back to
+LUH2-proportional allocation.
+}
+}
+
+\section{Data sources}{
+
+\itemize{
+\item Country areas: FAOSTAT QCL via \code{\link{build_primary_production}}
+\item Crop patterns: EarthStat / Monfreda et al. (2008)
+\item Gridded cropland: LUH2 v2h (Hurtt et al. 2020)
+\item Irrigation: MIRCA2000 (Portmann et al. 2010) + LUH2
+}
+}
+
 \examples{
 # Minimal example with toy data
 country_areas <- tibble::tribble(

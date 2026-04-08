@@ -73,7 +73,7 @@ hop,677,Hops
 jute,289,Jute and jute-like fibres
 jutelikefiber,289,Jute and jute-like fibres
 kapokfiber,297,Kapok fibre
-kapokseed,236,Oil seeds n.e.c.
+kapokseed,339,"Other oil seeds, n.e.c."
 karite,254,Karite nuts (sheanuts)
 kiwi,591,Kiwi fruit
 kolanut,266,Kola nuts
@@ -99,7 +99,7 @@ nutnes,271,Other nuts (excluding wild edible nuts and groundnuts)
 oats,75,Oats
 oilpalm,217,Oil palm fruit
 oilseedfor,NA,NA
-oilseednes,236,Oil seeds n.e.c.
+oilseednes,339,"Other oil seeds, n.e.c."
 okra,430,Okra
 olive,249,Olives
 onion,403,Onions and shallots dry
@@ -138,7 +138,7 @@ sisal,291,Sisal
 sorghum,83,Sorghum
 sorghumfor,NA,NA
 sourcherry,530,Sour cherries
-soybean,216,Soybeans
+soybean,236,Soya beans
 spicenes,723,Other stimulant spice and aromatic crops n.e.c.
 spinach,373,Spinach
 stonefruitnes,541,Other stone fruits

@@ -25,7 +25,7 @@ item_prod_code,item_prod_name,cft_name,luh2_type
 205,Vetches,pulses,c3nfx
 210,Lupins,pulses,c3nfx
 211,Pulses n.e.c.,pulses,c3nfx
-216,Soybeans,oil_crops_soybean,c3nfx
+236,Soya beans,oil_crops_soybean,c3nfx
 217,Oil palm fruit,others_perennial,c3per
 220,Coconuts in shell,others_perennial,c3per
 221,Castor oil seed,oil_crops_other,c3ann
@@ -41,7 +41,7 @@ item_prod_code,item_prod_name,cft_name,luh2_type
 232,Tallowtree seed,oil_crops_other,c3ann
 233,Linseed,oil_crops_other,c3ann
 234,Hempseed,oil_crops_other,c3ann
-236,Oil seeds n.e.c.,oil_crops_other,c3ann
+339,"Other oil seeds, n.e.c.",oil_crops_other,c3ann
 242,Groundnuts excluding shelled,oil_crops_groundnut,c3nfx
 249,Olives,others_perennial,c3per
 254,Karite nuts (sheanuts),others_perennial,c3per
@@ -68,7 +68,7 @@ item_prod_code,item_prod_name,cft_name,luh2_type
 333,Sweet potatoes,tropical_roots,c3ann
 336,Yams,tropical_roots,c3ann
 337,Taro,tropical_roots,c3ann
-339,Yautia,tropical_roots,c3ann
+135,Yautia,tropical_roots,c3ann
 340,Cassava fresh,tropical_roots,c3ann
 358,Cabbages,others_annual,c3ann
 366,Artichokes,others_annual,c3ann
