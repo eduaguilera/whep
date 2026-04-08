@@ -3,7 +3,7 @@ typology_stacked_bars <- function() {
   n_prov_destiny <- create_n_prov_destiny()
 
   typologies_df <- indicators |>
-    dplyr::group_by(Year, Province_name) |>
+    dplyr::group_by(year, province_name) |>
     dplyr::summarise(
       Typology = dplyr::first(Typology_base),
       .groups = "drop"
@@ -11,15 +11,15 @@ typology_stacked_bars <- function() {
 
   soil_inputs <- n_prov_destiny |>
     dplyr::filter(
-      Origin %in%
+      origin %in%
         c("Deposition", "Fixation", "Synthetic", "Livestock", "People"),
-      Destiny %in% c("Cropland", "semi_natural_agroecosystems")
+      destiny %in% c("Cropland", "semi_natural_agroecosystems")
     )
 
   import_inputs <- n_prov_destiny |>
     dplyr::filter(
-      Origin == "Outside",
-      Destiny %in%
+      origin == "Outside",
+      destiny %in%
         c(
           "livestock_mono",
           "livestock_rum",
@@ -29,15 +29,15 @@ typology_stacked_bars <- function() {
     )
 
   n_inputs <- dplyr::bind_rows(soil_inputs, import_inputs) |>
-    dplyr::group_by(Year, Province_name) |>
+    dplyr::group_by(year, province_name) |>
     dplyr::summarise(
-      Total_N_input = sum(MgN, na.rm = TRUE),
+      Total_N_input = sum(mg_n, na.rm = TRUE),
       .groups = "drop"
     )
 
   df_total <- n_inputs |>
-    dplyr::left_join(typologies_df, by = c("Year", "Province_name")) |>
-    dplyr::group_by(Year, Typology) |>
+    dplyr::left_join(typologies_df, by = c("year", "province_name")) |>
+    dplyr::group_by(year, Typology) |>
     dplyr::summarise(
       Total_N_input = sum(Total_N_input, na.rm = TRUE) / 1000,
       .groups = "drop"
@@ -60,7 +60,7 @@ typology_stacked_bars <- function() {
     levels = names(typology_colors)
   )
 
-  year_breaks <- df_total$Year |>
+  year_breaks <- df_total$year |>
     unique() |>
     sort()
   year_breaks <- year_breaks[year_breaks %% 20 == 0]
@@ -68,7 +68,7 @@ typology_stacked_bars <- function() {
   p_total <- ggplot2::ggplot(
     df_total,
     ggplot2::aes(
-      x = factor(Year),
+      x = factor(year),
       y = Total_N_input,
       fill = Typology
     )
@@ -86,13 +86,13 @@ typology_stacked_bars <- function() {
     ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 45, hjust = 1))
 
   df_pct <- n_inputs |>
-    dplyr::left_join(typologies_df, by = c("Year", "Province_name")) |>
-    dplyr::group_by(Year, Typology) |>
+    dplyr::left_join(typologies_df, by = c("year", "province_name")) |>
+    dplyr::group_by(year, Typology) |>
     dplyr::summarise(
       Total_N_input = sum(Total_N_input, na.rm = TRUE),
       .groups = "drop"
     ) |>
-    dplyr::group_by(Year) |>
+    dplyr::group_by(year) |>
     dplyr::mutate(
       Total_all = sum(Total_N_input, na.rm = TRUE),
       Percent_N_input = Total_N_input / Total_all * 100
@@ -104,7 +104,7 @@ typology_stacked_bars <- function() {
     levels = names(typology_colors)
   )
 
-  year_breaks_pct <- df_pct$Year |>
+  year_breaks_pct <- df_pct$year |>
     unique() |>
     sort()
   year_breaks_pct <- year_breaks_pct[year_breaks_pct %% 20 == 0]
@@ -112,7 +112,7 @@ typology_stacked_bars <- function() {
   p_pct <- ggplot2::ggplot(
     df_pct,
     ggplot2::aes(
-      x = factor(Year),
+      x = factor(year),
       y = Percent_N_input,
       fill = Typology
     )

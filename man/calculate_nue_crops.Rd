@@ -6,6 +6,10 @@
 \usage{
 calculate_nue_crops(example = FALSE)
 }
+\arguments{
+\item{example}{If \code{TRUE}, return a small example output without downloading
+remote data. Default is \code{FALSE}.}
+}
 \value{
 A tibble containing nitrogen input, production, and NUE data.
 It includes the following columns:
@@ -33,4 +37,7 @@ The crop NUE is defined as the percentage of produced nitrogen relative to
 the total nitrogen inputs to the soil.
 Total soil inputs are calculated as:
 inputs = deposition + fixation + synthetic + manure + urban
+}
+\examples{
+calculate_nue_crops(example = TRUE)
 }

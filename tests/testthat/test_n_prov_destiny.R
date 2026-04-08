@@ -132,9 +132,9 @@ testthat::test_that(".add_n_soil_inputs pivots soil inputs and preserves totals"
   out <- .add_n_soil_inputs(base, soil_inputs)
 
   sums <- out |>
-    dplyr::filter(Item == "Wheat") |>
-    dplyr::group_by(Origin) |>
-    dplyr::summarise(MgN = sum(MgN), .groups = "drop") |>
+    dplyr::filter(item == "Wheat") |>
+    dplyr::group_by(origin) |>
+    dplyr::summarise(mg_n = sum(mg_n), .groups = "drop") |>
     tibble::deframe()
 
   testthat::expect_setequal(
@@ -169,6 +169,6 @@ test_that("add_n_soil_inputs does not create duplicate flows", {
   out <- .add_n_soil_inputs(base, soil_inputs)
 
   expect_false(any(duplicated(
-    out |> dplyr::select(Year, Province_name, Item, Origin, Destiny)
+    out |> dplyr::select(year, province_name, item, origin, destiny)
   )))
 })

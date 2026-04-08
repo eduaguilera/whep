@@ -6,6 +6,10 @@
 \usage{
 create_n_prov_destiny(example = FALSE)
 }
+\arguments{
+\item{example}{If \code{TRUE}, return a small example output without downloading
+remote data. Default is \code{FALSE}.}
+}
 \value{
 A final tibble containing N flow data by origin and destiny.
 It includes the following columns:
@@ -22,7 +26,7 @@ Fixation, Synthetic, People (waste water), Livestock (manure).
 \item \code{destiny}: The destiny category of N: population_food,
 population_other_uses, livestock_mono, livestock_rum (feed), export,
 Cropland (for N soil inputs).
-\item \code{MgN}: Nitrogen amount in megagrams (Mg).
+\item \code{mg_n}: Nitrogen amount in megagrams (Mg).
 }
 }
 \description{
@@ -34,4 +38,7 @@ includes N soil inputs, imports and production. The destiny column shows
 where N goes to, which includes export, population food, population other
 uses and feed or cropland (in case of N soil inputs).
 Processed items, residues, woody crops, grazed weeds are taken into account.
+}
+\examples{
+create_n_prov_destiny(example = TRUE)
 }

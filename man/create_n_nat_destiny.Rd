@@ -6,6 +6,10 @@
 \usage{
 create_n_nat_destiny(example = FALSE)
 }
+\arguments{
+\item{example}{If \code{TRUE}, return a small example output without downloading
+remote data. Default is \code{FALSE}.}
+}
 \value{
 A final tibble containing national N flow data by origin and destiny.
 }
@@ -16,4 +20,7 @@ provincial GRAFS model and represents Spain as a single system without
 internal trade between provinces. All production, consumption and soil
 inputs are aggregated nationally before calculating trade with the
 outside.
+}
+\examples{
+create_n_nat_destiny(example = TRUE)
 }

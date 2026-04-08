@@ -25,24 +25,24 @@ create_alfredos_typologies <- function(
   }
 
   prod_destiny_mean <- prod_destiny |>
-    dplyr::filter(Year %in% years) |>
-    dplyr::group_by(Year, Province_name, Box, Item, Box_destiny, Destiny) |>
-    dplyr::summarise(MgN = mean(MgN, na.rm = TRUE), .groups = "drop")
+    dplyr::filter(year %in% years) |>
+    dplyr::group_by(year, province_name, box, item, box_destiny, destiny) |>
+    dplyr::summarise(mg_n = mean(mg_n, na.rm = TRUE), .groups = "drop")
 
   # Grassland N
   grassland <- prod_destiny_mean |>
     dplyr::filter(
-      Box == "Semi_natural_agroecosystems",
-      Item == "Grassland",
-      Box_destiny %in% c("semi_natural_to_livestock", "semi_natural_export")
+      box == "Semi_natural_agroecosystems",
+      item == "Grassland",
+      box_destiny %in% c("semi_natural_to_livestock", "semi_natural_export")
     ) |>
-    dplyr::group_by(Year, Province_name) |>
-    dplyr::summarise(grass_N = sum(MgN, na.rm = TRUE), .groups = "drop")
+    dplyr::group_by(year, province_name) |>
+    dplyr::summarise(grass_N = sum(mg_n, na.rm = TRUE), .groups = "drop")
 
   # Fertiliser N
   fertiliser <- soil_inputs |>
-    dplyr::filter(Year %in% years) |>
-    dplyr::group_by(Year, Province_name) |>
+    dplyr::filter(year %in% years) |>
+    dplyr::group_by(year, province_name) |>
     dplyr::summarise(
       fertiliser_N = sum(synthetic, na.rm = TRUE),
       .groups = "drop"
@@ -50,29 +50,29 @@ create_alfredos_typologies <- function(
 
   # Feed and Food + Other_uses share
   destiny_shares <- prod_destiny_mean |>
-    dplyr::filter(Destiny %in% c("feed", "food", "other_uses")) |>
-    dplyr::group_by(Year, Province_name, Item) |>
+    dplyr::filter(destiny %in% c("feed", "food", "other_uses")) |>
+    dplyr::group_by(year, province_name, item) |>
     dplyr::summarise(
-      total = sum(MgN, na.rm = TRUE),
-      feed_share = sum(MgN[Destiny == "feed"], na.rm = TRUE) /
-        sum(MgN, na.rm = TRUE),
+      total = sum(mg_n, na.rm = TRUE),
+      feed_share = sum(mg_n[destiny == "feed"], na.rm = TRUE) /
+        sum(mg_n, na.rm = TRUE),
       human_share = sum(
-        MgN[Destiny %in% c("food", "other_uses")],
+        mg_n[destiny %in% c("food", "other_uses")],
         na.rm = TRUE
       ) /
-        sum(MgN, na.rm = TRUE),
+        sum(mg_n, na.rm = TRUE),
       .groups = "drop"
     )
 
   # Feed-import
   feed_imports <- prod_destiny_mean |>
     dplyr::filter(
-      Destiny == "import",
-      Box %in% c("Cropland", "Semi_natural_agroecosystems")
+      destiny == "import",
+      box %in% c("Cropland", "Semi_natural_agroecosystems")
     ) |>
-    dplyr::left_join(destiny_shares, by = c("Year", "Province_name", "Item")) |>
-    dplyr::mutate(feed_import_N = MgN * feed_share) |>
-    dplyr::group_by(Year, Province_name) |>
+    dplyr::left_join(destiny_shares, by = c("year", "province_name", "item")) |>
+    dplyr::mutate(feed_import_N = mg_n * feed_share) |>
+    dplyr::group_by(year, province_name) |>
     dplyr::summarise(
       feed_import_N = sum(feed_import_N, na.rm = TRUE),
       .groups = "drop"
@@ -81,30 +81,30 @@ create_alfredos_typologies <- function(
   # Synthetic woody
   woody_share <- prod_destiny_mean |>
     dplyr::filter(
-      Box %in% c("Cropland", "Semi_natural_agroecosystems"),
-      Item %in% c("Firewood", "Acorns", "Grassland")
+      box %in% c("Cropland", "Semi_natural_agroecosystems"),
+      item %in% c("Firewood", "Acorns", "Grassland")
     ) |>
     dplyr::left_join(
       prod_destiny_mean |>
-        dplyr::filter(Destiny == "import") |>
-        dplyr::group_by(Year, Province_name, Item) |>
+        dplyr::filter(destiny == "import") |>
+        dplyr::group_by(year, province_name, item) |>
         dplyr::summarise(
-          imported_MgN = sum(MgN, na.rm = TRUE),
+          imported_mg_n = sum(mg_n, na.rm = TRUE),
           .groups = "drop"
         ),
-      by = c("Year", "Province_name", "Item")
+      by = c("year", "province_name", "item")
     ) |>
     dplyr::mutate(
-      local_MgN = MgN - dplyr::coalesce(imported_MgN, 0),
-      local_MgN = ifelse(local_MgN < 0, 0, local_MgN),
-      woody = ifelse(Item %in% c("Firewood", "Acorns"), local_MgN, 0),
+      local_mg_n = mg_n - dplyr::coalesce(imported_mg_n, 0),
+      local_mg_n = ifelse(local_mg_n < 0, 0, local_mg_n),
+      woody = ifelse(item %in% c("Firewood", "Acorns"), local_mg_n, 0),
       herbaceous = ifelse(
-        Item == "Grassland" & Box == "Semi_natural_agroecosystems",
-        local_MgN,
+        item == "Grassland" & box == "Semi_natural_agroecosystems",
+        local_mg_n,
         0
       )
     ) |>
-    dplyr::group_by(Year, Province_name) |>
+    dplyr::group_by(year, province_name) |>
     dplyr::summarise(
       woody = sum(woody, na.rm = TRUE),
       herbaceous = sum(herbaceous, na.rm = TRUE),
@@ -119,9 +119,9 @@ create_alfredos_typologies <- function(
     )
 
   alfredos_typologies <- grassland |>
-    dplyr::left_join(fertiliser, by = c("Year", "Province_name")) |>
-    dplyr::left_join(feed_imports, by = c("Year", "Province_name")) |>
-    dplyr::left_join(woody_share, by = c("Year", "Province_name")) |>
+    dplyr::left_join(fertiliser, by = c("year", "province_name")) |>
+    dplyr::left_join(feed_imports, by = c("year", "province_name")) |>
+    dplyr::left_join(woody_share, by = c("year", "province_name")) |>
     dplyr::mutate(
       Category = dplyr::case_when(
         grass_N > fertiliser_N & grass_N > feed_import_N ~ "Grassland",
@@ -153,9 +153,9 @@ create_alfredos_typologies <- function(
       fertiliser_N = tidyr::replace_na(fertiliser_N, 0),
       feed_import_N = tidyr::replace_na(feed_import_N, 0),
       woody_share = tidyr::replace_na(woody_share, 0),
-      Province_name = factor(
-        Province_name,
-        levels = sort(unique(Province_name), decreasing = TRUE)
+      province_name = factor(
+        province_name,
+        levels = sort(unique(province_name), decreasing = TRUE)
       )
     )
 
@@ -168,13 +168,13 @@ create_alfredos_typologies <- function(
 
   ggplot2::ggplot(
     alfredos_typologies,
-    ggplot2::aes(x = Year, y = Province_name, fill = Category)
+    ggplot2::aes(x = year, y = province_name, fill = Category)
   ) +
     ggplot2::geom_tile() +
     ggplot2::scale_x_continuous(
       breaks = seq(
-        min(alfredos_typologies$Year),
-        max(alfredos_typologies$Year),
+        min(alfredos_typologies$year),
+        max(alfredos_typologies$year),
         by = 20
       ),
       expand = c(0, 0)

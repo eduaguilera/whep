@@ -92,22 +92,22 @@ create_typologies_spain <- function(
     )
 
   n_agg <- n_prov_destiny |>
-    dplyr::group_by(Year, Province_name, Origin, Destiny, Box) |>
-    dplyr::summarise(MgN = sum(MgN, na.rm = TRUE), .groups = "drop")
+    dplyr::group_by(year, province_name, origin, destiny, box) |>
+    dplyr::summarise(mg_n = sum(mg_n, na.rm = TRUE), .groups = "drop")
 
   indicators <- n_agg |>
-    dplyr::group_by(Year, Province_name) |>
+    dplyr::group_by(year, province_name) |>
     dplyr::summarise(
-      production_crops = sum(MgN[Origin == "Cropland"], na.rm = TRUE),
+      production_crops = sum(mg_n[origin == "Cropland"], na.rm = TRUE),
       production_seminatural = sum(
-        MgN[Origin == "semi_natural_agroecosystems"],
+        mg_n[origin == "semi_natural_agroecosystems"],
         na.rm = TRUE
       ),
       production_total = sum(
-        MgN[
-          Origin %in%
+        mg_n[
+          origin %in%
             c("Cropland", "Livestock", "semi_natural_agroecosystems") &
-            Destiny %in%
+            destiny %in%
               c(
                 "population_food",
                 "population_other_uses",
@@ -119,96 +119,96 @@ create_typologies_spain <- function(
         na.rm = TRUE
       ),
       pop_consumption = sum(
-        MgN[Destiny == "population_food" & Origin != "Fish"],
+        mg_n[destiny == "population_food" & origin != "Fish"],
         na.rm = TRUE
       ),
 
       animal_ingestion = sum(
-        MgN[Destiny %in% c("livestock_mono", "livestock_rum")],
+        mg_n[destiny %in% c("livestock_mono", "livestock_rum")],
         na.rm = TRUE
       ),
       imported_feed_share = sum(
-        MgN[
-          Origin == "Outside" &
-            Destiny %in% c("livestock_mono", "livestock_rum")
+        mg_n[
+          origin == "Outside" &
+            destiny %in% c("livestock_mono", "livestock_rum")
         ],
         na.rm = TRUE
       ) /
         sum(
-          MgN[
-            Origin %in%
+          mg_n[
+            origin %in%
               c("Cropland", "semi_natural_agroecosystems", "Outside") &
-              Destiny %in% c("livestock_mono", "livestock_rum")
+              destiny %in% c("livestock_mono", "livestock_rum")
           ]
         ),
       local_feed_share = sum(
-        MgN[
-          Origin %in%
+        mg_n[
+          origin %in%
             c("Cropland", "semi_natural_agroecosystems") &
-            Destiny %in% c("livestock_mono", "livestock_rum")
+            destiny %in% c("livestock_mono", "livestock_rum")
         ],
         na.rm = TRUE
       ) /
         sum(
-          MgN[
-            Origin %in%
+          mg_n[
+            origin %in%
               c("Cropland", "semi_natural_agroecosystems", "Outside") &
-              Destiny %in% c("livestock_mono", "livestock_rum")
+              destiny %in% c("livestock_mono", "livestock_rum")
           ],
           na.rm = TRUE
         ),
       feed_from_seminatural_share = sum(
-        MgN[
-          Origin == "semi_natural_agroecosystems" &
-            Destiny %in% c("livestock_mono", "livestock_rum")
+        mg_n[
+          origin == "semi_natural_agroecosystems" &
+            destiny %in% c("livestock_mono", "livestock_rum")
         ],
         na.rm = TRUE
       ) /
         sum(
-          MgN[
-            Origin %in%
+          mg_n[
+            origin %in%
               c("Cropland", "semi_natural_agroecosystems", "Outside") &
-              Destiny %in% c("livestock_mono", "livestock_rum")
+              destiny %in% c("livestock_mono", "livestock_rum")
           ]
         ),
       Manure_share = sum(
-        MgN[
-          Origin == "Livestock" &
-            Destiny %in% c("Cropland", "semi_natural_agroecosystems")
+        mg_n[
+          origin == "Livestock" &
+            destiny %in% c("Cropland", "semi_natural_agroecosystems")
         ],
         na.rm = TRUE
       ) /
         sum(
-          MgN[
-            Origin %in%
+          mg_n[
+            origin %in%
               c("Livestock", "Synthetic", "Fixation", "Deposition") &
-              Destiny %in% c("Cropland", "semi_natural_agroecosystems")
+              destiny %in% c("Cropland", "semi_natural_agroecosystems")
           ],
           na.rm = TRUE
         ),
       synthetic_share = sum(
-        MgN[Origin == "Synthetic" & Destiny == "Cropland"],
+        mg_n[origin == "Synthetic" & destiny == "Cropland"],
         na.rm = TRUE
       ) /
         sum(
-          MgN[
-            Origin %in%
+          mg_n[
+            origin %in%
               c("Synthetic", "Livestock", "Fixation", "Deposition", "People") &
-              Destiny == "Cropland"
+              destiny == "Cropland"
           ],
           na.rm = TRUE
         )
     )
 
   indicators <- indicators |>
-    dplyr::left_join(livestock_density_df, by = c("Year", "Province_name")) |>
-    dplyr::left_join(productivity_df, by = c("Year", "Province_name")) |>
+    dplyr::left_join(livestock_density_df, by = c("year" = "Year", "province_name" = "Province_name")) |>
+    dplyr::left_join(productivity_df, by = c("year" = "Year", "province_name" = "Province_name")) |>
     dplyr::mutate(
       Livestock_density = tidyr::replace_na(Livestock_density, 0),
       synthetic_share = tidyr::replace_na(synthetic_share, 0),
       crop_productivity = tidyr::replace_na(crop_productivity, 0),
       dplyr::across(dplyr::where(is.numeric), ~ tidyr::replace_na(., 0)),
-      Year = as.numeric(Year)
+      year = as.numeric(year)
     )
 
   indicators <- indicators |>
@@ -294,8 +294,8 @@ create_typologies_spain <- function(
     ]
 
     filtered_indicators <- indicators |>
-      dplyr::filter(Year == map_year) |>
-      dplyr::select(Province_name, Typology, Typology_base) |>
+      dplyr::filter(year == map_year) |>
+      dplyr::select(province_name, Typology, Typology_base) |>
       dplyr::mutate(
         pattern_type = ifelse(Typology == "Urban systems", "stripe", "none"),
         pattern_fill = "Urban systems"
@@ -304,7 +304,7 @@ create_typologies_spain <- function(
     typologies_map <- sf_provinces |>
       dplyr::inner_join(
         filtered_indicators,
-        by = c("name_clean" = "Province_name")
+        by = c("name_clean" = "province_name")
       )
 
     typology_colors <- c(

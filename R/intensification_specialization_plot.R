@@ -1,60 +1,60 @@
 intensification_specialization_plot <- function() {
   # ---- Load data ----
   flows <- create_n_prov_destiny()
-  npp_ygpit <- whep_read_file("npp_ygpit")
+  npp_ygpit <- whep_read_file("npp_ygpit") |> dplyr::rename_with(tolower)
 
   # ---- Area per province ----
   area_df <- npp_ygpit |>
-    dplyr::group_by(Year, Province_name) |>
+    dplyr::group_by(year, province_name) |>
     dplyr::summarise(
-      area_ha = sum(Area_ygpit_ha, na.rm = TRUE),
+      area_ha = sum(area_ygpit_ha, na.rm = TRUE),
       .groups = "drop"
     )
 
-  # ---- New N soil inputs (MgN) ----
+  # ---- New N soil inputs (mg_n) ----
   n_inputs <- flows |>
     dplyr::filter(
-      Origin %in% c("Synthetic", "Deposition", "Fixation"),
-      Destiny %in% c("Cropland", "semi_natural_agroecosystems")
+      origin %in% c("Synthetic", "Deposition", "Fixation"),
+      destiny %in% c("Cropland", "semi_natural_agroecosystems")
     ) |>
-    dplyr::group_by(Year, Province_name) |>
+    dplyr::group_by(year, province_name) |>
     dplyr::summarise(
-      total_input_mg = sum(MgN, na.rm = TRUE),
+      total_input_mg = sum(mg_n, na.rm = TRUE),
       .groups = "drop"
     )
 
   # ---- Synthetic share ----
   synthetic_share <- flows |>
     dplyr::filter(
-      Destiny %in% c("Cropland", "semi_natural_agroecosystems"),
-      Origin %in%
+      destiny %in% c("Cropland", "semi_natural_agroecosystems"),
+      origin %in%
         c("Synthetic", "Livestock", "Fixation", "Deposition", "People")
     ) |>
-    dplyr::group_by(Year, Province_name) |>
+    dplyr::group_by(year, province_name) |>
     dplyr::summarise(
-      synthetic_share = sum(MgN[Origin == "Synthetic"], na.rm = TRUE) /
-        sum(MgN, na.rm = TRUE),
+      synthetic_share = sum(mg_n[origin == "Synthetic"], na.rm = TRUE) /
+        sum(mg_n, na.rm = TRUE),
       .groups = "drop"
     )
 
   # ---- Feed import share ----
   feed_import_share <- flows |>
     dplyr::filter(
-      Destiny %in% c("livestock_mono", "livestock_rum"),
-      Origin %in% c("Cropland", "semi_natural_agroecosystems", "Outside")
+      destiny %in% c("livestock_mono", "livestock_rum"),
+      origin %in% c("Cropland", "semi_natural_agroecosystems", "Outside")
     ) |>
-    dplyr::group_by(Year, Province_name) |>
+    dplyr::group_by(year, province_name) |>
     dplyr::summarise(
-      feed_import_share = sum(MgN[Origin == "Outside"], na.rm = TRUE) /
-        sum(MgN, na.rm = TRUE),
+      feed_import_share = sum(mg_n[origin == "Outside"], na.rm = TRUE) /
+        sum(mg_n, na.rm = TRUE),
       .groups = "drop"
     )
 
   # ---- Combine indicators ----
   df <- n_inputs |>
-    dplyr::left_join(area_df, by = c("Year", "Province_name")) |>
-    dplyr::left_join(synthetic_share, by = c("Year", "Province_name")) |>
-    dplyr::left_join(feed_import_share, by = c("Year", "Province_name")) |>
+    dplyr::left_join(area_df, by = c("year", "province_name")) |>
+    dplyr::left_join(synthetic_share, by = c("year", "province_name")) |>
+    dplyr::left_join(feed_import_share, by = c("year", "province_name")) |>
     dplyr::mutate(
       intensification = (total_input_mg * 1000) / area_ha,
       specialization = pmax(synthetic_share, feed_import_share)
@@ -65,9 +65,9 @@ intensification_specialization_plot <- function() {
   df <- df |>
     dplyr::left_join(
       create_typologies_timeseries_plot() |>
-        dplyr::select(Year, Province_name, Typology_base) |>
+        dplyr::select(year, province_name, Typology_base) |>
         dplyr::rename(Typology = Typology_base),
-      by = c("Year", "Province_name")
+      by = c("year", "province_name")
     ) |>
     dplyr::mutate(
       Typology = gsub(" \\(intensive\\)| \\(extensive\\)", "", Typology)
@@ -78,9 +78,9 @@ intensification_specialization_plot <- function() {
   df <- df |>
     dplyr::mutate(
       Period = dplyr::case_when(
-        Year < 1900 ~ "1860–1900",
-        Year < 1950 ~ "1900–1950",
-        Year < 1990 ~ "1950–1990",
+        year < 1900 ~ "1860–1900",
+        year < 1950 ~ "1900–1950",
+        year < 1990 ~ "1950–1990",
         TRUE ~ "1990–2021"
       )
     )
@@ -132,78 +132,78 @@ intensification_specialization_plot <- function() {
 circularity_intensification_plot <- function() {
   # ---- Load data ----
   flows <- create_n_prov_destiny()
-  npp_ygpit <- whep_read_file("npp_ygpit")
+  npp_ygpit <- whep_read_file("npp_ygpit") |> dplyr::rename_with(tolower)
 
   # ---- Area per province ----
   area_df <- npp_ygpit |>
-    dplyr::group_by(Year, Province_name) |>
+    dplyr::group_by(year, province_name) |>
     dplyr::summarise(
-      area_ha = sum(Area_ygpit_ha, na.rm = TRUE),
+      area_ha = sum(area_ygpit_ha, na.rm = TRUE),
       .groups = "drop"
     )
 
   # ---- New N soil inputs ----
   n_inputs <- flows |>
     dplyr::filter(
-      Origin %in% c("Synthetic", "Deposition", "Fixation"),
-      Destiny %in% c("Cropland", "semi_natural_agroecosystems")
+      origin %in% c("Synthetic", "Deposition", "Fixation"),
+      destiny %in% c("Cropland", "semi_natural_agroecosystems")
     ) |>
-    dplyr::group_by(Year, Province_name) |>
+    dplyr::group_by(year, province_name) |>
     dplyr::summarise(
-      total_input_mg = sum(MgN, na.rm = TRUE),
+      total_input_mg = sum(mg_n, na.rm = TRUE),
       .groups = "drop"
     )
 
   # ---- Manure recycling share ----
   manure_share <- flows |>
     dplyr::filter(
-      Destiny %in% c("Cropland", "semi_natural_agroecosystems"),
-      Origin %in%
+      destiny %in% c("Cropland", "semi_natural_agroecosystems"),
+      origin %in%
         c("Livestock", "Synthetic", "Fixation", "Deposition", "People")
     ) |>
-    dplyr::group_by(Year, Province_name) |>
+    dplyr::group_by(year, province_name) |>
     dplyr::summarise(
-      manure_share = sum(MgN[Origin == "Livestock"], na.rm = TRUE) /
-        sum(MgN, na.rm = TRUE),
+      manure_share = sum(mg_n[origin == "Livestock"], na.rm = TRUE) /
+        sum(mg_n, na.rm = TRUE),
       .groups = "drop"
     )
 
   # ---- Urban recycling share ----
   urban_share <- flows |>
     dplyr::filter(
-      Destiny %in% c("Cropland", "semi_natural_agroecosystems"),
-      Origin %in%
+      destiny %in% c("Cropland", "semi_natural_agroecosystems"),
+      origin %in%
         c("Livestock", "Synthetic", "Fixation", "Deposition", "People")
     ) |>
-    dplyr::group_by(Year, Province_name) |>
+    dplyr::group_by(year, province_name) |>
     dplyr::summarise(
-      urban_share = sum(MgN[Origin == "People"], na.rm = TRUE) /
-        sum(MgN, na.rm = TRUE),
+      urban_share = sum(mg_n[origin == "People"], na.rm = TRUE) /
+        sum(mg_n, na.rm = TRUE),
       .groups = "drop"
     )
 
   # ---- Local feed share ----
   local_feed_share <- flows |>
     dplyr::filter(
-      Destiny %in% c("livestock_mono", "livestock_rum"),
-      Origin %in% c("Cropland", "semi_natural_agroecosystems", "Outside")
+      destiny %in% c("livestock_mono", "livestock_rum"),
+      origin %in% c("Cropland", "semi_natural_agroecosystems", "Outside")
     ) |>
-    dplyr::group_by(Year, Province_name) |>
+    dplyr::group_by(year, province_name) |>
     dplyr::summarise(
       local_feed_share = sum(
-        MgN[Origin %in% c("Cropland", "semi_natural_agroecosystems")],
+        mg_n[origin %in% c("Cropland", "semi_natural_agroecosystems")],
         na.rm = TRUE
       ) /
-        sum(MgN, na.rm = TRUE),
+        sum(mg_n, na.rm = TRUE),
       .groups = "drop"
     )
 
   # ---- Combine indicators ----
   df <- n_inputs |>
-    dplyr::left_join(area_df, by = c("Year", "Province_name")) |>
-    dplyr::left_join(manure_share, by = c("Year", "Province_name")) |>
-    dplyr::left_join(urban_share, by = c("Year", "Province_name")) |>
-    dplyr::left_join(local_feed_share, by = c("Year", "Province_name")) |>
+    dplyr::left_join(area_df, by = c("year", "province_name")) |>
+    dplyr::left_join(manure_share, by = c("year", "province_name")) |>
+    dplyr::left_join(urban_share, by = c("year", "province_name")) |>
+    dplyr::left_join(local_feed_share, by = c("year", "province_name")) |>
     dplyr::mutate(
       intensification = (total_input_mg * 1000) / area_ha,
       circularity = (manure_share + urban_share + local_feed_share) / 3
@@ -214,9 +214,9 @@ circularity_intensification_plot <- function() {
   df <- df |>
     dplyr::left_join(
       create_typologies_timeseries_plot() |>
-        dplyr::select(Year, Province_name, Typology_base) |>
+        dplyr::select(year, province_name, Typology_base) |>
         dplyr::rename(Typology = Typology_base),
-      by = c("Year", "Province_name")
+      by = c("year", "province_name")
     ) |>
     dplyr::mutate(
       Typology = gsub(" \\(intensive\\)| \\(extensive\\)", "", Typology)
@@ -227,9 +227,9 @@ circularity_intensification_plot <- function() {
   df <- df |>
     dplyr::mutate(
       Period = dplyr::case_when(
-        Year < 1900 ~ "1860–1900",
-        Year < 1950 ~ "1900–1950",
-        Year < 1990 ~ "1950–1990",
+        year < 1900 ~ "1860–1900",
+        year < 1950 ~ "1900–1950",
+        year < 1990 ~ "1950–1990",
         TRUE ~ "1990–2021"
       )
     )
@@ -279,7 +279,7 @@ circularity_intensification_plot <- function() {
 circularity_nue_trajectory_plot <- function() {
   # ---- Load data ----
   flows <- create_n_prov_destiny()
-  npp_ygpit <- whep_read_file("npp_ygpit")
+  npp_ygpit <- whep_read_file("npp_ygpit") |> dplyr::rename_with(tolower)
 
   # ---- Cropland area ----
   cropland_area <- npp_ygpit |>
@@ -290,21 +290,21 @@ circularity_nue_trajectory_plot <- function() {
           "semi_natural_agroecosystems"
         )
     ) |>
-    dplyr::group_by(Year) |>
+    dplyr::group_by(year) |>
     dplyr::summarise(
-      cropland_area = sum(Area_ygpit_ha, na.rm = TRUE),
+      cropland_area = sum(area_ygpit_ha, na.rm = TRUE),
       .groups = "drop"
     )
 
   # ---- Crop production ----
   crop_production <- flows |>
     dplyr::filter(
-      Origin %in%
+      origin %in%
         c(
           "Cropland",
           "semi_natural_agroecosystems"
         ),
-      Destiny %in%
+      destiny %in%
         c(
           "population_food",
           "livestock_rum",
@@ -312,16 +312,16 @@ circularity_nue_trajectory_plot <- function() {
           "export"
         )
     ) |>
-    dplyr::group_by(Year) |>
+    dplyr::group_by(year) |>
     dplyr::summarise(
-      crop_N = sum(MgN, na.rm = TRUE),
+      crop_N = sum(mg_n, na.rm = TRUE),
       .groups = "drop"
     )
 
   # ---- Total N inputs ----
   n_inputs <- flows |>
     dplyr::filter(
-      Origin %in%
+      origin %in%
         c(
           "Synthetic",
           "Fixation",
@@ -329,69 +329,69 @@ circularity_nue_trajectory_plot <- function() {
           "Livestock",
           "People"
         ),
-      Destiny %in%
+      destiny %in%
         c(
           "Cropland",
           "semi_natural_agroecosystems"
         )
     ) |>
-    dplyr::group_by(Year) |>
+    dplyr::group_by(year) |>
     dplyr::summarise(
-      total_inputs = sum(MgN, na.rm = TRUE),
+      total_inputs = sum(mg_n, na.rm = TRUE),
       .groups = "drop"
     )
 
   # ---- Manure recycling share ----
   manure_share <- flows |>
     dplyr::filter(
-      Destiny %in% c("Cropland", "semi_natural_agroecosystems"),
-      Origin %in%
+      destiny %in% c("Cropland", "semi_natural_agroecosystems"),
+      origin %in%
         c("Livestock", "Synthetic", "Fixation", "Deposition", "People")
     ) |>
-    dplyr::group_by(Year) |>
+    dplyr::group_by(year) |>
     dplyr::summarise(
-      manure_share = sum(MgN[Origin == "Livestock"], na.rm = TRUE) /
-        sum(MgN, na.rm = TRUE),
+      manure_share = sum(mg_n[origin == "Livestock"], na.rm = TRUE) /
+        sum(mg_n, na.rm = TRUE),
       .groups = "drop"
     )
 
   # ---- Urban recycling share ----
   urban_share <- flows |>
     dplyr::filter(
-      Destiny %in% c("Cropland", "semi_natural_agroecosystems"),
-      Origin %in%
+      destiny %in% c("Cropland", "semi_natural_agroecosystems"),
+      origin %in%
         c("Livestock", "Synthetic", "Fixation", "Deposition", "People")
     ) |>
-    dplyr::group_by(Year) |>
+    dplyr::group_by(year) |>
     dplyr::summarise(
-      urban_share = sum(MgN[Origin == "People"], na.rm = TRUE) /
-        sum(MgN, na.rm = TRUE),
+      urban_share = sum(mg_n[origin == "People"], na.rm = TRUE) /
+        sum(mg_n, na.rm = TRUE),
       .groups = "drop"
     )
 
   # ---- Local feed share ----
   local_feed_share <- flows |>
     dplyr::filter(
-      Destiny %in% c("livestock_mono", "livestock_rum"),
-      Origin %in% c("Cropland", "semi_natural_agroecosystems", "Outside")
+      destiny %in% c("livestock_mono", "livestock_rum"),
+      origin %in% c("Cropland", "semi_natural_agroecosystems", "Outside")
     ) |>
-    dplyr::group_by(Year) |>
+    dplyr::group_by(year) |>
     dplyr::summarise(
       local_feed_share = sum(
-        MgN[Origin %in% c("Cropland", "semi_natural_agroecosystems")],
+        mg_n[origin %in% c("Cropland", "semi_natural_agroecosystems")],
         na.rm = TRUE
       ) /
-        sum(MgN, na.rm = TRUE),
+        sum(mg_n, na.rm = TRUE),
       .groups = "drop"
     )
 
   # ---- Combine indicators ----
   df <- cropland_area |>
-    dplyr::left_join(crop_production, by = "Year") |>
-    dplyr::left_join(n_inputs, by = "Year") |>
-    dplyr::left_join(manure_share, by = "Year") |>
-    dplyr::left_join(urban_share, by = "Year") |>
-    dplyr::left_join(local_feed_share, by = "Year") |>
+    dplyr::left_join(crop_production, by = "year") |>
+    dplyr::left_join(n_inputs, by = "year") |>
+    dplyr::left_join(manure_share, by = "year") |>
+    dplyr::left_join(urban_share, by = "year") |>
+    dplyr::left_join(local_feed_share, by = "year") |>
     dplyr::mutate(
       # NUE
       NUE = (crop_N / total_inputs) * 100,
@@ -406,7 +406,7 @@ circularity_nue_trajectory_plot <- function() {
     ggplot2::aes(
       x = NUE,
       y = circularity,
-      color = Year
+      color = year
     )
   ) +
     ggplot2::geom_point(size = 3) +
@@ -434,8 +434,8 @@ circularity_nue_cropland_timeseries_plot <- function() {
   # ---- Crop production ----
   crop_production <- flows |>
     dplyr::filter(
-      Origin == "Cropland",
-      Destiny %in%
+      origin == "Cropland",
+      destiny %in%
         c(
           "population_food",
           "livestock_rum",
@@ -443,16 +443,16 @@ circularity_nue_cropland_timeseries_plot <- function() {
           "export"
         )
     ) |>
-    dplyr::group_by(Year) |>
+    dplyr::group_by(year) |>
     dplyr::summarise(
-      crop_N = sum(MgN, na.rm = TRUE),
+      crop_N = sum(mg_n, na.rm = TRUE),
       .groups = "drop"
     )
 
   # ---- Total N inputs to cropland ----
   n_inputs <- flows |>
     dplyr::filter(
-      Origin %in%
+      origin %in%
         c(
           "Synthetic",
           "Fixation",
@@ -460,19 +460,19 @@ circularity_nue_cropland_timeseries_plot <- function() {
           "Livestock",
           "People"
         ),
-      Destiny == "Cropland"
+      destiny == "Cropland"
     ) |>
-    dplyr::group_by(Year) |>
+    dplyr::group_by(year) |>
     dplyr::summarise(
-      total_inputs = sum(MgN, na.rm = TRUE),
+      total_inputs = sum(mg_n, na.rm = TRUE),
       .groups = "drop"
     )
 
   # ---- Manure recycling share ----
   manure_share <- flows |>
     dplyr::filter(
-      Destiny == "Cropland",
-      Origin %in%
+      destiny == "Cropland",
+      origin %in%
         c(
           "Livestock",
           "Synthetic",
@@ -481,18 +481,18 @@ circularity_nue_cropland_timeseries_plot <- function() {
           "People"
         )
     ) |>
-    dplyr::group_by(Year) |>
+    dplyr::group_by(year) |>
     dplyr::summarise(
-      manure_share = sum(MgN[Origin == "Livestock"], na.rm = TRUE) /
-        sum(MgN, na.rm = TRUE),
+      manure_share = sum(mg_n[origin == "Livestock"], na.rm = TRUE) /
+        sum(mg_n, na.rm = TRUE),
       .groups = "drop"
     )
 
   # ---- Urban recycling share ----
   urban_share <- flows |>
     dplyr::filter(
-      Destiny == "Cropland",
-      Origin %in%
+      destiny == "Cropland",
+      origin %in%
         c(
           "Livestock",
           "Synthetic",
@@ -501,41 +501,41 @@ circularity_nue_cropland_timeseries_plot <- function() {
           "People"
         )
     ) |>
-    dplyr::group_by(Year) |>
+    dplyr::group_by(year) |>
     dplyr::summarise(
-      urban_share = sum(MgN[Origin == "People"], na.rm = TRUE) /
-        sum(MgN, na.rm = TRUE),
+      urban_share = sum(mg_n[origin == "People"], na.rm = TRUE) /
+        sum(mg_n, na.rm = TRUE),
       .groups = "drop"
     )
 
   # ---- Local feed share ----
   local_feed_share <- flows |>
     dplyr::filter(
-      Box == "Cropland",
-      Destiny %in%
+      box == "Cropland",
+      destiny %in%
         c(
           "livestock_mono",
           "livestock_rum"
         ),
-      Origin %in%
+      origin %in%
         c(
           "Cropland",
           "Outside"
         )
     ) |>
-    dplyr::group_by(Year) |>
+    dplyr::group_by(year) |>
     dplyr::summarise(
-      local_feed_share = sum(MgN[Origin == "Cropland"], na.rm = TRUE) /
-        sum(MgN, na.rm = TRUE),
+      local_feed_share = sum(mg_n[origin == "Cropland"], na.rm = TRUE) /
+        sum(mg_n, na.rm = TRUE),
       .groups = "drop"
     )
 
   # ---- Combine indicators ----
   df <- crop_production |>
-    dplyr::left_join(n_inputs, by = "Year") |>
-    dplyr::left_join(manure_share, by = "Year") |>
-    dplyr::left_join(urban_share, by = "Year") |>
-    dplyr::left_join(local_feed_share, by = "Year") |>
+    dplyr::left_join(n_inputs, by = "year") |>
+    dplyr::left_join(manure_share, by = "year") |>
+    dplyr::left_join(urban_share, by = "year") |>
+    dplyr::left_join(local_feed_share, by = "year") |>
     dplyr::mutate(
       # Crop NUE
       NUE = (crop_N / total_inputs) * 100,
@@ -556,7 +556,7 @@ circularity_nue_cropland_timeseries_plot <- function() {
   p <- ggplot2::ggplot(
     df_long,
     ggplot2::aes(
-      x = Year,
+      x = year,
       y = value,
       color = indicator
     )
@@ -600,60 +600,60 @@ circularity_nue_cropland_timeseries_plot <- function() {
 intensification_specialization_timeseries <- function() {
   # ---- Load data ----
   flows <- create_n_prov_destiny()
-  npp_ygpit <- whep_read_file("npp_ygpit")
+  npp_ygpit <- whep_read_file("npp_ygpit") |> dplyr::rename_with(tolower)
 
   # ---- Area per province ----
   area_df <- npp_ygpit |>
-    dplyr::group_by(Year, Province_name) |>
+    dplyr::group_by(year, province_name) |>
     dplyr::summarise(
-      area_ha = sum(Area_ygpit_ha, na.rm = TRUE),
+      area_ha = sum(area_ygpit_ha, na.rm = TRUE),
       .groups = "drop"
     )
 
   # ---- New N soil inputs ----
   n_inputs <- flows |>
     dplyr::filter(
-      Origin %in% c("Synthetic", "Deposition", "Fixation"),
-      Destiny %in% c("Cropland", "semi_natural_agroecosystems")
+      origin %in% c("Synthetic", "Deposition", "Fixation"),
+      destiny %in% c("Cropland", "semi_natural_agroecosystems")
     ) |>
-    dplyr::group_by(Year, Province_name) |>
+    dplyr::group_by(year, province_name) |>
     dplyr::summarise(
-      total_input_mg = sum(MgN, na.rm = TRUE),
+      total_input_mg = sum(mg_n, na.rm = TRUE),
       .groups = "drop"
     )
 
   # ---- Synthetic fertilizer share ----
   synthetic_share <- flows |>
     dplyr::filter(
-      Destiny %in% c("Cropland", "semi_natural_agroecosystems"),
-      Origin %in%
+      destiny %in% c("Cropland", "semi_natural_agroecosystems"),
+      origin %in%
         c("Synthetic", "Livestock", "Fixation", "Deposition", "People")
     ) |>
-    dplyr::group_by(Year, Province_name) |>
+    dplyr::group_by(year, province_name) |>
     dplyr::summarise(
-      synthetic_share = sum(MgN[Origin == "Synthetic"], na.rm = TRUE) /
-        sum(MgN, na.rm = TRUE),
+      synthetic_share = sum(mg_n[origin == "Synthetic"], na.rm = TRUE) /
+        sum(mg_n, na.rm = TRUE),
       .groups = "drop"
     )
 
   # ---- Feed import share ----
   feed_import_share <- flows |>
     dplyr::filter(
-      Destiny %in% c("livestock_mono", "livestock_rum"),
-      Origin %in% c("Cropland", "semi_natural_agroecosystems", "Outside")
+      destiny %in% c("livestock_mono", "livestock_rum"),
+      origin %in% c("Cropland", "semi_natural_agroecosystems", "Outside")
     ) |>
-    dplyr::group_by(Year, Province_name) |>
+    dplyr::group_by(year, province_name) |>
     dplyr::summarise(
-      feed_import_share = sum(MgN[Origin == "Outside"], na.rm = TRUE) /
-        sum(MgN, na.rm = TRUE),
+      feed_import_share = sum(mg_n[origin == "Outside"], na.rm = TRUE) /
+        sum(mg_n, na.rm = TRUE),
       .groups = "drop"
     )
 
   # ---- Combine indicators ----
   df <- n_inputs |>
-    dplyr::left_join(area_df, by = c("Year", "Province_name")) |>
-    dplyr::left_join(synthetic_share, by = c("Year", "Province_name")) |>
-    dplyr::left_join(feed_import_share, by = c("Year", "Province_name")) |>
+    dplyr::left_join(area_df, by = c("year", "province_name")) |>
+    dplyr::left_join(synthetic_share, by = c("year", "province_name")) |>
+    dplyr::left_join(feed_import_share, by = c("year", "province_name")) |>
     dplyr::mutate(
       # Intensification (kg N per ha)
       intensification = (total_input_mg * 1000) / area_ha,
@@ -664,7 +664,7 @@ intensification_specialization_timeseries <- function() {
 
   # ---- National yearly averages ----
   df_ts <- df |>
-    dplyr::group_by(Year) |>
+    dplyr::group_by(year) |>
     dplyr::summarise(
       intensification = mean(intensification, na.rm = TRUE),
       specialization = mean(specialization, na.rm = TRUE),
@@ -672,7 +672,7 @@ intensification_specialization_timeseries <- function() {
     )
 
   # ---- Index (1860 = 100) ----
-  base <- df_ts |> dplyr::filter(Year == min(Year))
+  base <- df_ts |> dplyr::filter(year == min(year))
 
   df_ts <- df_ts |>
     dplyr::mutate(
@@ -696,7 +696,7 @@ intensification_specialization_timeseries <- function() {
   p <- ggplot2::ggplot(
     df_long,
     ggplot2::aes(
-      x = Year,
+      x = year,
       y = value,
       color = indicator
     )
@@ -742,22 +742,22 @@ intensification_specialization_timeseries <- function() {
 yield_nue_trajectory_plot <- function() {
   # ---- Load data ----
   flows <- create_n_prov_destiny()
-  npp_ygpit <- whep_read_file("npp_ygpit")
+  npp_ygpit <- whep_read_file("npp_ygpit") |> dplyr::rename_with(tolower)
 
   # ---- Cropland area ----
   cropland_area <- npp_ygpit |>
-    dplyr::filter(LandUse == "Cropland") |>
-    dplyr::group_by(Year) |>
+    dplyr::filter(landuse == "Cropland") |>
+    dplyr::group_by(year) |>
     dplyr::summarise(
-      cropland_area = sum(Area_ygpit_ha, na.rm = TRUE),
+      cropland_area = sum(area_ygpit_ha, na.rm = TRUE),
       .groups = "drop"
     )
 
   # ---- Crop production ----
   crop_production <- flows |>
     dplyr::filter(
-      Origin == "Cropland",
-      Destiny %in%
+      origin == "Cropland",
+      destiny %in%
         c(
           "population_food",
           "livestock_rum",
@@ -765,16 +765,16 @@ yield_nue_trajectory_plot <- function() {
           "export"
         )
     ) |>
-    dplyr::group_by(Year) |>
+    dplyr::group_by(year) |>
     dplyr::summarise(
-      crop_N = sum(MgN, na.rm = TRUE),
+      crop_N = sum(mg_n, na.rm = TRUE),
       .groups = "drop"
     )
 
   # ---- Total N inputs ----
   n_inputs <- flows |>
     dplyr::filter(
-      Origin %in%
+      origin %in%
         c(
           "Synthetic",
           "Fixation",
@@ -782,18 +782,18 @@ yield_nue_trajectory_plot <- function() {
           "Livestock",
           "People"
         ),
-      Destiny == "Cropland"
+      destiny == "Cropland"
     ) |>
-    dplyr::group_by(Year) |>
+    dplyr::group_by(year) |>
     dplyr::summarise(
-      total_inputs = sum(MgN, na.rm = TRUE),
+      total_inputs = sum(mg_n, na.rm = TRUE),
       .groups = "drop"
     )
 
   # ---- Combine ----
   df <- cropland_area |>
-    dplyr::left_join(crop_production, by = "Year") |>
-    dplyr::left_join(n_inputs, by = "Year") |>
+    dplyr::left_join(crop_production, by = "year") |>
+    dplyr::left_join(n_inputs, by = "year") |>
     dplyr::mutate(
       # Crop productivity (kg N / ha)
       yield = (crop_N * 1000) / cropland_area,
@@ -808,7 +808,7 @@ yield_nue_trajectory_plot <- function() {
     ggplot2::aes(
       x = NUE,
       y = yield,
-      color = Year
+      color = year
     )
   ) +
     ggplot2::geom_point(size = 3) +
@@ -842,22 +842,22 @@ yield_nue_trajectory_plot <- function() {
 intensification_trajectory_plot <- function() {
   # ---- Load data ----
   flows <- create_n_prov_destiny()
-  npp_ygpit <- whep_read_file("npp_ygpit")
+  npp_ygpit <- whep_read_file("npp_ygpit") |> dplyr::rename_with(tolower)
 
   # ---- Cropland area ----
   cropland_area <- npp_ygpit |>
-    dplyr::filter(LandUse == "Cropland") |>
-    dplyr::group_by(Year) |>
+    dplyr::filter(landuse == "Cropland") |>
+    dplyr::group_by(year) |>
     dplyr::summarise(
-      cropland_area = sum(Area_ygpit_ha, na.rm = TRUE),
+      cropland_area = sum(area_ygpit_ha, na.rm = TRUE),
       .groups = "drop"
     )
 
   # ---- Crop production (N) ----
   crop_production <- flows |>
     dplyr::filter(
-      Origin == "Cropland",
-      Destiny %in%
+      origin == "Cropland",
+      destiny %in%
         c(
           "population_food",
           "livestock_rum",
@@ -865,28 +865,29 @@ intensification_trajectory_plot <- function() {
           "export"
         )
     ) |>
-    dplyr::group_by(Year) |>
+    dplyr::group_by(year) |>
     dplyr::summarise(
-      crop_N = sum(MgN, na.rm = TRUE),
+      crop_N = sum(mg_n, na.rm = TRUE),
       .groups = "drop"
     )
 
   # ---- Synthetic fertilizer ----
   fertilizer_input <- flows |>
     dplyr::filter(
-      Origin == "Synthetic",
-      Destiny == "Cropland"
+      origin == "Synthetic",
+      destiny == "Cropland"
     ) |>
-    dplyr::group_by(Year) |>
+    dplyr::group_by(year) |>
     dplyr::summarise(
-      fertilizer_N = sum(MgN, na.rm = TRUE),
+      fertilizer_N = sum(mg_n, na.rm = TRUE),
       .groups = "drop"
     )
 
   # ---- Combine ----
   df <- cropland_area |>
-    dplyr::left_join(crop_production, by = "Year") |>
-    dplyr::left_join(fertilizer_input, by = "Year") |>
+    dplyr::rename(year_dup = year) |
+    dplyr::left_join(crop_production, by = "year") |>
+    dplyr::left_join(fertilizer_input, by = "year") |>
     dplyr::mutate(
       # Land productivity (kg N / ha)
       land_productivity = (crop_N * 1000) / cropland_area,
@@ -901,7 +902,7 @@ intensification_trajectory_plot <- function() {
     ggplot2::aes(
       x = nitrogen_intensity,
       y = land_productivity,
-      color = Year
+      color = year
     )
   ) +
     ggplot2::geom_point(size = 3) +
@@ -934,22 +935,22 @@ intensification_trajectory_plot <- function() {
 intensification_timeseries_plot <- function() {
   # ---- Load data ----
   flows <- create_n_prov_destiny()
-  npp_ygpit <- whep_read_file("npp_ygpit")
+  npp_ygpit <- whep_read_file("npp_ygpit") |> dplyr::rename_with(tolower)
 
   # ---- Cropland area ----
   cropland_area <- npp_ygpit |>
-    dplyr::filter(LandUse == "Cropland") |>
-    dplyr::group_by(Year) |>
+    dplyr::filter(landuse == "Cropland") |>
+    dplyr::group_by(year) |>
     dplyr::summarise(
-      cropland_area = sum(Area_ygpit_ha, na.rm = TRUE),
+      cropland_area = sum(area_ygpit_ha, na.rm = TRUE),
       .groups = "drop"
     )
 
   # ---- Crop production ----
   crop_production <- flows |>
     dplyr::filter(
-      Origin == "Cropland",
-      Destiny %in%
+      origin == "Cropland",
+      destiny %in%
         c(
           "population_food",
           "livestock_rum",
@@ -957,28 +958,29 @@ intensification_timeseries_plot <- function() {
           "export"
         )
     ) |>
-    dplyr::group_by(Year) |>
+    dplyr::group_by(year) |>
     dplyr::summarise(
-      crop_N = sum(MgN, na.rm = TRUE),
+      crop_N = sum(mg_n, na.rm = TRUE),
       .groups = "drop"
     )
 
   # ---- Synthetic fertilizer ----
   fertilizer_input <- flows |>
     dplyr::filter(
-      Origin == "Synthetic",
-      Destiny == "Cropland"
+      origin == "Synthetic",
+      destiny == "Cropland"
     ) |>
-    dplyr::group_by(Year) |>
+    dplyr::group_by(year) |>
     dplyr::summarise(
-      fertilizer_N = sum(MgN, na.rm = TRUE),
+      fertilizer_N = sum(mg_n, na.rm = TRUE),
       .groups = "drop"
     )
 
   # ---- Combine ----
   df <- cropland_area |>
-    dplyr::left_join(crop_production, by = "Year") |>
-    dplyr::left_join(fertilizer_input, by = "Year") |>
+    dplyr::rename(year_dup = year) |
+    dplyr::left_join(crop_production, by = "year") |>
+    dplyr::left_join(fertilizer_input, by = "year") |>
     dplyr::mutate(
       land_productivity = (crop_N * 1000) / cropland_area,
       nitrogen_intensity = (fertilizer_N * 1000) / cropland_area
@@ -996,7 +998,7 @@ intensification_timeseries_plot <- function() {
   p <- ggplot2::ggplot(
     df_long,
     ggplot2::aes(
-      x = Year,
+      x = year,
       y = value,
       color = indicator
     )
@@ -1044,8 +1046,8 @@ nue_fertilizer_timeseries_plot <- function() {
   # ---- Crop production ----
   crop_production <- flows |>
     dplyr::filter(
-      Origin == "Cropland",
-      Destiny %in%
+      origin == "Cropland",
+      destiny %in%
         c(
           "population_food",
           "livestock_rum",
@@ -1053,16 +1055,16 @@ nue_fertilizer_timeseries_plot <- function() {
           "export"
         )
     ) |>
-    dplyr::group_by(Year) |>
+    dplyr::group_by(year) |>
     dplyr::summarise(
-      crop_N = sum(MgN, na.rm = TRUE),
+      crop_N = sum(mg_n, na.rm = TRUE),
       .groups = "drop"
     )
 
   # ---- Soil inputs ----
   inputs <- flows |>
     dplyr::filter(
-      Origin %in%
+      origin %in%
         c(
           "Synthetic",
           "Livestock",
@@ -1070,21 +1072,21 @@ nue_fertilizer_timeseries_plot <- function() {
           "Fixation",
           "Deposition"
         ),
-      Destiny == "Cropland"
+      destiny == "Cropland"
     ) |>
-    dplyr::group_by(Year) |>
+    dplyr::group_by(year) |>
     dplyr::summarise(
-      total_inputs = sum(MgN, na.rm = TRUE),
+      total_inputs = sum(mg_n, na.rm = TRUE),
 
-      synthetic = sum(MgN[Origin == "Synthetic"], na.rm = TRUE),
+      synthetic = sum(mg_n[origin == "Synthetic"], na.rm = TRUE),
 
       organic = sum(
-        MgN[Origin %in% c("Livestock", "People")],
+        mg_n[origin %in% c("Livestock", "People")],
         na.rm = TRUE
       ),
 
       fixation_dep = sum(
-        MgN[Origin %in% c("Fixation", "Deposition")],
+        mg_n[origin %in% c("Fixation", "Deposition")],
         na.rm = TRUE
       ),
 
@@ -1093,7 +1095,7 @@ nue_fertilizer_timeseries_plot <- function() {
 
   # ---- Combine indicators ----
   df <- crop_production |>
-    dplyr::left_join(inputs, by = "Year") |>
+    dplyr::left_join(inputs, by = "year") |>
     dplyr::mutate(
       NUE = (crop_N / total_inputs) * 100,
 
@@ -1131,7 +1133,7 @@ nue_fertilizer_timeseries_plot <- function() {
   # ---- Plot ----
   p <- ggplot2::ggplot(
     df_long,
-    ggplot2::aes(x = Year, y = value, color = indicator)
+    ggplot2::aes(x = year, y = value, color = indicator)
   ) +
     ggplot2::geom_line(size = 1.3) +
     ggplot2::scale_color_manual(
@@ -1179,8 +1181,8 @@ nue_fertilizer_trajectory_plot <- function() {
   # ---- Crop production (N output) ----
   crop_production <- flows |>
     dplyr::filter(
-      Origin == "Cropland",
-      Destiny %in%
+      origin == "Cropland",
+      destiny %in%
         c(
           "population_food",
           "livestock_rum",
@@ -1188,16 +1190,16 @@ nue_fertilizer_trajectory_plot <- function() {
           "export"
         )
     ) |>
-    dplyr::group_by(Year) |>
+    dplyr::group_by(year) |>
     dplyr::summarise(
-      crop_N = sum(MgN, na.rm = TRUE),
+      crop_N = sum(mg_n, na.rm = TRUE),
       .groups = "drop"
     )
 
   # ---- Soil N inputs ----
   inputs <- flows |>
     dplyr::filter(
-      Origin %in%
+      origin %in%
         c(
           "Synthetic",
           "Livestock",
@@ -1205,14 +1207,14 @@ nue_fertilizer_trajectory_plot <- function() {
           "Fixation",
           "Deposition"
         ),
-      Destiny == "Cropland"
+      destiny == "Cropland"
     ) |>
-    dplyr::group_by(Year) |>
+    dplyr::group_by(year) |>
     dplyr::summarise(
-      total_inputs = sum(MgN, na.rm = TRUE),
+      total_inputs = sum(mg_n, na.rm = TRUE),
 
       fertilizer = sum(
-        MgN[Origin %in% c("Synthetic", "Livestock", "People")],
+        mg_n[origin %in% c("Synthetic", "Livestock", "People")],
         na.rm = TRUE
       ),
 
@@ -1221,7 +1223,7 @@ nue_fertilizer_trajectory_plot <- function() {
 
   # ---- Combine indicators ----
   df <- crop_production |>
-    dplyr::left_join(inputs, by = "Year") |>
+    dplyr::left_join(inputs, by = "year") |>
     dplyr::mutate(
       # Nitrogen use efficiency
       NUE = (crop_N / total_inputs) * 100,
@@ -1236,7 +1238,7 @@ nue_fertilizer_trajectory_plot <- function() {
     ggplot2::aes(
       x = NUE,
       y = fertilizer_dependency,
-      color = Year
+      color = year
     )
   ) +
     ggplot2::geom_point(size = 3) +
@@ -1274,8 +1276,8 @@ nrr_cropland_timeseries_plot <- function() {
   # ---- Crop production (N output) ----
   crop_outputs <- flows |>
     dplyr::filter(
-      Origin == "Cropland",
-      Destiny %in%
+      origin == "Cropland",
+      destiny %in%
         c(
           "population_food",
           "livestock_rum",
@@ -1283,16 +1285,16 @@ nrr_cropland_timeseries_plot <- function() {
           "export"
         )
     ) |>
-    dplyr::group_by(Year) |>
+    dplyr::group_by(year) |>
     dplyr::summarise(
-      crop_output = sum(MgN, na.rm = TRUE),
+      crop_output = sum(mg_n, na.rm = TRUE),
       .groups = "drop"
     )
 
   # ---- N soil inputs ----
   crop_inputs <- flows |>
     dplyr::filter(
-      Origin %in%
+      origin %in%
         c(
           "Synthetic",
           "Livestock",
@@ -1300,30 +1302,30 @@ nrr_cropland_timeseries_plot <- function() {
           "Fixation",
           "Deposition"
         ),
-      Destiny == "Cropland"
+      destiny == "Cropland"
     ) |>
-    dplyr::group_by(Year) |>
+    dplyr::group_by(year) |>
     dplyr::summarise(
-      crop_input = sum(MgN, na.rm = TRUE),
+      crop_input = sum(mg_n, na.rm = TRUE),
       .groups = "drop"
     )
 
   # ---- Recycled N (manure + urban) ----
   recycled_N <- flows |>
     dplyr::filter(
-      Origin %in% c("Livestock", "People"),
-      Destiny == "Cropland"
+      origin %in% c("Livestock", "People"),
+      destiny == "Cropland"
     ) |>
-    dplyr::group_by(Year) |>
+    dplyr::group_by(year) |>
     dplyr::summarise(
-      recycled = sum(MgN, na.rm = TRUE),
+      recycled = sum(mg_n, na.rm = TRUE),
       .groups = "drop"
     )
 
   # ---- Combine ----
   df <- crop_inputs |>
-    dplyr::left_join(crop_outputs, by = "Year") |>
-    dplyr::left_join(recycled_N, by = "Year") |>
+    dplyr::left_join(crop_outputs, by = "year") |>
+    dplyr::left_join(recycled_N, by = "year") |>
     dplyr::mutate(
       crop_output = dplyr::coalesce(crop_output, 0),
       recycled = dplyr::coalesce(recycled, 0),
@@ -1337,7 +1339,7 @@ nrr_cropland_timeseries_plot <- function() {
   p <- ggplot2::ggplot(
     df,
     ggplot2::aes(
-      x = Year,
+      x = year,
       y = NRR
     )
   ) +
@@ -1382,12 +1384,12 @@ production_diversity_plot <- function() {
   df <- dplyr::left_join(
     flows,
     items,
-    by = c("Item" = "Name_biomass")
+    by = c("item" = "Name_biomass")
   )
 
   df <- df |>
     dplyr::filter(
-      Destiny %in%
+      destiny %in%
         c(
           "population_food",
           "population_other_uses",
@@ -1395,14 +1397,14 @@ production_diversity_plot <- function() {
           "livestock_mono",
           "export"
         ),
-      Origin != "Outside",
+      origin != "Outside",
       !is.na(Cat_1)
     )
 
   prod_group <- df |>
-    dplyr::group_by(Year, Province_name, Cat_1) |>
+    dplyr::group_by(year, province_name, Cat_1) |>
     dplyr::summarise(
-      value = sum(MgN, na.rm = TRUE),
+      value = sum(mg_n, na.rm = TRUE),
       .groups = "drop"
     ) |>
     dplyr::filter(value > 0)
@@ -1415,7 +1417,7 @@ production_diversity_plot <- function() {
   }
 
   diversity <- prod_group |>
-    dplyr::group_by(Year, Province_name) |>
+    dplyr::group_by(year, province_name) |>
     dplyr::summarise(
       H = shannon_index(value),
       n_groups = dplyr::n(),
@@ -1424,7 +1426,7 @@ production_diversity_plot <- function() {
     )
 
   diversity_ts <- diversity |>
-    dplyr::group_by(Year) |>
+    dplyr::group_by(year) |>
     dplyr::summarise(
       diversity = mean(H_norm, na.rm = TRUE),
       .groups = "drop"
@@ -1433,7 +1435,7 @@ production_diversity_plot <- function() {
   # ---- Plot ----
   p <- ggplot2::ggplot(
     diversity_ts,
-    ggplot2::aes(x = Year, y = diversity)
+    ggplot2::aes(x = year, y = diversity)
   ) +
     ggplot2::geom_line(
       color = "#1b9e77",
@@ -1453,7 +1455,7 @@ production_diversity_plot <- function() {
 
 intensification_specialization_secondary_axis <- function() {
   flows <- create_n_prov_destiny()
-  npp_ygpit <- whep_read_file("npp_ygpit")
+  npp_ygpit <- whep_read_file("npp_ygpit") |> dplyr::rename_with(tolower)
 
   items <- readxl::read_excel(
     "C:/PhD/GRAFS/Inputs_SACO/Codes_coefs.xlsx",
@@ -1461,9 +1463,9 @@ intensification_specialization_secondary_axis <- function() {
   )
 
   df_prod <- flows |>
-    dplyr::left_join(items, by = c("Item" = "Name_biomass")) |>
+    dplyr::left_join(items, by = c("item" = "Name_biomass")) |>
     dplyr::filter(
-      Destiny %in%
+      destiny %in%
         c(
           "population_food",
           "population_other_uses",
@@ -1471,14 +1473,14 @@ intensification_specialization_secondary_axis <- function() {
           "livestock_mono",
           "export"
         ),
-      Origin != "Outside",
+      origin != "Outside",
       !is.na(Cat_1)
     )
 
   prod_group <- df_prod |>
-    dplyr::group_by(Year, Province_name, Cat_1) |>
+    dplyr::group_by(year, province_name, Cat_1) |>
     dplyr::summarise(
-      value = sum(MgN, na.rm = TRUE),
+      value = sum(mg_n, na.rm = TRUE),
       .groups = "drop"
     ) |>
     dplyr::filter(value > 0)
@@ -1490,7 +1492,7 @@ intensification_specialization_secondary_axis <- function() {
   }
 
   specialization_ts <- prod_group |>
-    dplyr::group_by(Year, Province_name) |>
+    dplyr::group_by(year, province_name) |>
     dplyr::summarise(
       H = shannon_index(value),
       n_groups = dplyr::n(),
@@ -1500,46 +1502,46 @@ intensification_specialization_secondary_axis <- function() {
     dplyr::mutate(
       specialization = 1 - H_norm
     ) |>
-    dplyr::group_by(Year) |>
+    dplyr::group_by(year) |>
     dplyr::summarise(
       specialization = mean(specialization, na.rm = TRUE),
       .groups = "drop"
     )
 
   area_df <- npp_ygpit |>
-    dplyr::group_by(Year, Province_name) |>
+    dplyr::group_by(year, province_name) |>
     dplyr::summarise(
-      area_ha = sum(Area_ygpit_ha, na.rm = TRUE),
+      area_ha = sum(area_ygpit_ha, na.rm = TRUE),
       .groups = "drop"
     )
 
   intensification_ts <- flows |>
     dplyr::filter(
-      Origin %in% c("Synthetic", "Deposition", "Fixation"),
-      Destiny %in% c("Cropland", "semi_natural_agroecosystems")
+      origin %in% c("Synthetic", "Deposition", "Fixation"),
+      destiny %in% c("Cropland", "semi_natural_agroecosystems")
     ) |>
-    dplyr::group_by(Year, Province_name) |>
+    dplyr::group_by(year, province_name) |>
     dplyr::summarise(
-      total_input_mg = sum(MgN, na.rm = TRUE),
+      total_input_mg = sum(mg_n, na.rm = TRUE),
       .groups = "drop"
     ) |>
-    dplyr::left_join(area_df, by = c("Year", "Province_name")) |>
+    dplyr::left_join(area_df, by = c("year", "province_name")) |>
     dplyr::mutate(
       intensification = (total_input_mg * 1000) / area_ha
     ) |>
-    dplyr::group_by(Year) |>
+    dplyr::group_by(year) |>
     dplyr::summarise(
       intensification = mean(intensification, na.rm = TRUE),
       .groups = "drop"
     )
 
   df <- intensification_ts |>
-    dplyr::left_join(specialization_ts, by = "Year")
+    dplyr::left_join(specialization_ts, by = "year")
 
   scale_factor <- max(df$intensification, na.rm = TRUE) /
     max(df$specialization, na.rm = TRUE)
 
-  p <- ggplot2::ggplot(df, ggplot2::aes(x = Year)) +
+  p <- ggplot2::ggplot(df, ggplot2::aes(x = year)) +
     ggplot2::geom_line(
       ggplot2::aes(y = intensification, color = "Intensification"),
       size = 1.3
@@ -1593,9 +1595,9 @@ spatial_diversity <- function() {
   )
 
   df <- flows |>
-    dplyr::left_join(items, by = c("Item" = "Name_biomass")) |>
+    dplyr::left_join(items, by = c("item" = "Name_biomass")) |>
     dplyr::filter(
-      Destiny %in%
+      destiny %in%
         c(
           "population_food",
           "population_other_uses",
@@ -1603,14 +1605,14 @@ spatial_diversity <- function() {
           "livestock_mono",
           "export"
         ),
-      Origin != "Outside",
+      origin != "Outside",
       !is.na(Cat_1)
     )
 
   df_sum <- df |>
-    dplyr::group_by(Year, Province_name, Cat_1) |>
+    dplyr::group_by(year, province_name, Cat_1) |>
     dplyr::summarise(
-      value = sum(MgN, na.rm = TRUE),
+      value = sum(mg_n, na.rm = TRUE),
       .groups = "drop"
     )
 
@@ -1621,7 +1623,7 @@ spatial_diversity <- function() {
   }
 
   diversity <- df_sum |>
-    dplyr::group_by(Year) |>
+    dplyr::group_by(year) |>
     dplyr::summarise(
       H = shannon_index(value),
       n = dplyr::n(),
@@ -1631,7 +1633,7 @@ spatial_diversity <- function() {
 
   p <- ggplot2::ggplot(
     diversity,
-    ggplot2::aes(x = Year, y = H_norm)
+    ggplot2::aes(x = year, y = H_norm)
   ) +
     ggplot2::geom_line(color = "#1b9e77", size = 1.3) +
     ggplot2::labs(
@@ -1654,7 +1656,7 @@ specialization_hhi_production_plot <- function() {
   # ---- Select production-related flows ----
   spec_df <- flows |>
     dplyr::filter(
-      Destiny %in%
+      destiny %in%
         c(
           "population_food",
           "population_other_uses",
@@ -1662,30 +1664,30 @@ specialization_hhi_production_plot <- function() {
           "livestock_mono",
           "export"
         ),
-      Box %in%
+      box %in%
         c(
           "Cropland",
           "Livestock",
           "semi_natural_agroecosystems"
         )
     ) |>
-    dplyr::group_by(Year, Province_name, Box) |>
+    dplyr::group_by(year, province_name, box) |>
     dplyr::summarise(
-      value = sum(MgN, na.rm = TRUE),
+      value = sum(mg_n, na.rm = TRUE),
       .groups = "drop"
     ) |>
     dplyr::filter(value > 0)
 
   # ---- Calculate shares ----
   spec_df <- spec_df |>
-    dplyr::group_by(Year, Province_name) |>
+    dplyr::group_by(year, province_name) |>
     dplyr::mutate(
       share = value / sum(value, na.rm = TRUE)
     )
 
   # ---- Calculate HHI ----
   spec_index <- spec_df |>
-    dplyr::group_by(Year, Province_name) |>
+    dplyr::group_by(year, province_name) |>
     dplyr::summarise(
       HHI = sum(share^2, na.rm = TRUE),
       .groups = "drop"
@@ -1693,7 +1695,7 @@ specialization_hhi_production_plot <- function() {
 
   # ---- National average ----
   spec_ts <- spec_index |>
-    dplyr::group_by(Year) |>
+    dplyr::group_by(year) |>
     dplyr::summarise(
       HHI = mean(HHI, na.rm = TRUE),
       .groups = "drop"
@@ -1702,7 +1704,7 @@ specialization_hhi_production_plot <- function() {
   # ---- Plot ----
   p <- ggplot2::ggplot(
     spec_ts,
-    ggplot2::aes(x = Year, y = HHI)
+    ggplot2::aes(x = year, y = HHI)
   ) +
     ggplot2::geom_line(
       color = "#377eb8",
@@ -1728,7 +1730,7 @@ system_shares_plot <- function() {
 
   df <- flows |>
     dplyr::filter(
-      Destiny %in%
+      destiny %in%
         c(
           "population_food",
           "population_other_uses",
@@ -1736,26 +1738,26 @@ system_shares_plot <- function() {
           "livestock_mono",
           "export"
         ),
-      Box %in%
+      box %in%
         c(
           "Cropland",
           "Livestock",
           "semi_natural_agroecosystems"
         )
     ) |>
-    dplyr::group_by(Year, Province_name, Box) |>
+    dplyr::group_by(year, province_name, box) |>
     dplyr::summarise(
-      value = sum(MgN, na.rm = TRUE),
+      value = sum(mg_n, na.rm = TRUE),
       .groups = "drop"
     ) |>
-    dplyr::group_by(Year, Province_name) |>
+    dplyr::group_by(year, province_name) |>
     dplyr::mutate(
       share = value / sum(value, na.rm = TRUE)
     )
 
   # ---- National average ----
   df_ts <- df |>
-    dplyr::group_by(Year, Box) |>
+    dplyr::group_by(year, box) |>
     dplyr::summarise(
       share = mean(share, na.rm = TRUE),
       .groups = "drop"
@@ -1765,9 +1767,9 @@ system_shares_plot <- function() {
   p <- ggplot2::ggplot(
     df_ts,
     ggplot2::aes(
-      x = Year,
+      x = year,
       y = share,
-      fill = Box
+      fill = box
     )
   ) +
     ggplot2::geom_area() +
@@ -1799,38 +1801,38 @@ external_dependency_plot_national <- function() {
   inputs <- flows |>
     dplyr::filter(
       # ---- Soil inputs ----
-      (Destiny %in%
+      (destiny %in%
         c("Cropland", "semi_natural_agroecosystems") &
-        Origin %in%
+        origin %in%
           c("Synthetic", "Fixation", "Deposition", "Livestock", "People")) |
 
         # ---- Livestock feed ----
-        (Destiny %in%
+        (destiny %in%
           c("livestock_mono", "livestock_rum") &
-          Origin %in% c("Cropland", "semi_natural_agroecosystems", "Outside"))
+          origin %in% c("Cropland", "semi_natural_agroecosystems", "Outside"))
     ) |>
 
     # ---- Classify inputs ----
     dplyr::mutate(
       input_type = dplyr::case_when(
         # External
-        Origin %in%
+        origin %in%
           c("Synthetic", "Fixation", "Deposition") &
-          Destiny %in%
+          destiny %in%
             c("Cropland", "semi_natural_agroecosystems") ~ "external",
 
-        Origin == "Outside" &
-          Destiny %in% c("livestock_mono", "livestock_rum") ~ "external",
+        origin == "Outside" &
+          destiny %in% c("livestock_mono", "livestock_rum") ~ "external",
 
         # Internal
-        Origin %in%
+        origin %in%
           c("Livestock", "People") &
-          Destiny %in%
+          destiny %in%
             c("Cropland", "semi_natural_agroecosystems") ~ "internal",
 
-        Origin %in%
+        origin %in%
           c("Cropland", "semi_natural_agroecosystems") &
-          Destiny %in% c("livestock_mono", "livestock_rum") ~ "internal",
+          destiny %in% c("livestock_mono", "livestock_rum") ~ "internal",
 
         TRUE ~ NA_character_
       )
@@ -1839,9 +1841,9 @@ external_dependency_plot_national <- function() {
 
   # ---- Aggregate ----
   df <- inputs |>
-    dplyr::group_by(Year, input_type) |>
+    dplyr::group_by(year, input_type) |>
     dplyr::summarise(
-      value_MgN = sum(MgN, na.rm = TRUE),
+      value_MgN = sum(mg_n, na.rm = TRUE),
       .groups = "drop"
     ) |>
     tidyr::pivot_wider(
@@ -1862,7 +1864,7 @@ external_dependency_plot_national <- function() {
   # ---- Plot 1: Dependency ----
   p1 <- ggplot2::ggplot(
     df,
-    ggplot2::aes(x = Year, y = external_dependency)
+    ggplot2::aes(x = year, y = external_dependency)
   ) +
     ggplot2::geom_line(
       linewidth = 1.4,
@@ -1886,7 +1888,7 @@ external_dependency_plot_national <- function() {
 
   # ---- Plot 2: Composition ----
   df_long <- df |>
-    dplyr::select(Year, external_GgN, internal_GgN) |>
+    dplyr::select(year, external_GgN, internal_GgN) |>
     tidyr::pivot_longer(
       cols = c(external_GgN, internal_GgN),
       names_to = "type",
@@ -1902,7 +1904,7 @@ external_dependency_plot_national <- function() {
 
   p2 <- ggplot2::ggplot(
     df_long,
-    ggplot2::aes(x = Year, y = value, fill = type)
+    ggplot2::aes(x = year, y = value, fill = type)
   ) +
     ggplot2::geom_area(alpha = 0.9) +
     ggplot2::scale_fill_manual(
