@@ -23,6 +23,7 @@ megagrams (Mg).
 \item \code{urban}: Nitrogen in wastewater from human sources in megagrams (Mg).
 \item \code{prod}: Produced nitrogen in megagrams (Mg).
 \item \code{inputs}: Total nitrogen inputs in megagrams (Mg).
+\item \code{nue}: Nitrogen Use Efficiency as a percentage (\%).
 }
 }
 \description{

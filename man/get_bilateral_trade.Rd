@@ -4,13 +4,11 @@
 \alias{get_bilateral_trade}
 \title{Bilateral trade data}
 \usage{
-get_bilateral_trade(trade_version = NULL, cbs_version = NULL)
+get_bilateral_trade(example = FALSE)
 }
 \arguments{
-\item{trade_version}{File version used for bilateral trade input.
-See \link{whep_inputs} for version details.}
-
-\item{cbs_version}{File version passed to \code{get_wide_cbs()} call.}
+\item{example}{If \code{TRUE}, return a small example output without
+downloading remote data. Default is \code{FALSE}.}
 }
 \value{
 A tibble with the reported trade between countries. For efficient
@@ -106,18 +104,12 @@ matrix.
 }
 \item The matrix is balanced, as mentioned before, using the
 \href{https://en.wikipedia.org/wiki/Iterative_proportional_fitting}{iterative proportional fitting algorithm}. The target sums for rows and columns are respectively the balanced
-exports and imports computed from the commodity balance sheet. The
-algorithm is performed directly using the \href{https://CRAN.R-project.org/package=mipfp}{mipfp R package}.
+exports and imports computed from the commodity balance sheet.
 }
 }
 \description{
 Reports trade between pairs of countries in given years.
 }
 \examples{
-# Note: These are smaller samples to show outputs, not the real data.
-# For all data, call the function with default versions (i.e. no arguments).
-get_bilateral_trade(
-  trade_version = "example",
-  cbs_version = "example"
-)
+get_bilateral_trade(example = TRUE)
 }

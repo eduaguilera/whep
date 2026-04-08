@@ -1,3 +1,7 @@
+---
+trigger: always_on
+---
+
 ## Workflow and Style
 
 - Follow the workflow: https://lbm364dl.github.io/follow-the-workflow/

@@ -11,7 +11,7 @@ home:
     href: https://lbm364dl.github.io/follow-the-workflow
 
 authors:
-  European Research Council: 
+  European Research Council:
     html: "<img src='https://erc.europa.eu/themes/custom/erc_theme/ERC_FAVICON.png' width=55 alt='European Research Council'>"
     href: "https://erc.europa.eu/homepage"
 
@@ -19,14 +19,32 @@ reference:
 - title: Tidy datasets
   desc: >
     Get cleaned dataframes with project related data.
+- subtitle: Production
+  desc: >
+    Production, supply/use, and processing datasets.
   contents:
   - build_supply_use
-  - get_bilateral_trade
   - get_feed_intake
   - get_primary_production
   - get_primary_residues
   - get_processing_coefs
   - get_wide_cbs
+- subtitle: Trade
+  desc: >
+    Bilateral trade datasets.
+  contents:
+  - get_bilateral_trade
+- subtitle: Nitrogen cycles
+  desc: >
+    Nitrogen inputs, outputs, production, and destinies for Spain.
+  contents:
+  - create_n_prov_destiny
+  - create_n_soil_inputs
+  - create_n_production
+  - calculate_nue_crops
+  - calculate_nue_livestock
+  - calculate_system_nue
+  - create_n_nat_destiny
 
 - title: Download large input datasets
   desc: >
@@ -66,8 +84,8 @@ reference:
     Get a tidy dataframe with the found sources for different data.
   contents:
   - expand_trade_sources
-  
-- title: Nitrogen cycles Spain
+
+- title: Nitrogen typologies Spain
   desc: >
     Functions to generate data for N inputs, outputs, production, destinies,
     typologies, etc.
@@ -76,18 +94,28 @@ reference:
   - create_typologies_grafs_spain
   - create_alfredos_typologies
   - create_typologies_whep
-  - create_n_prov_destiny
-  - create_n_soil_inputs
-  - create_n_production
-  - calculate_nue_crops
-  - calculate_nue_livestock
-  - calculate_system_nue
-  - create_n_nat_destiny
+  - create_grafs_plot_df
 
 - title: Gap filling functions
   desc: >
     Functions to fill gaps (NA values) in time-dependent variables using different methods.
   contents:
+  - fill_linear
+  - fill_sum
+  - fill_proxy_growth
   - linear_fill
   - proxy_fill
   - sum_fill
+
+- title: Decomposition analysis
+  desc: >
+    Functions for index decomposition analysis.
+  contents:
+  - calculate_lmdi
+
+- title: Harmonization
+  desc: >
+    Functions to harmonize time series items according to specified mapping.
+  contents:
+  - harmonize_simple
+  - harmonize_interpolate
