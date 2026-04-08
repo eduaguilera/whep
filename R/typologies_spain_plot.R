@@ -1,4 +1,4 @@
-create_typologies_timeseries_plot <- function(
+create_typo_ts_plot <- function(
   n_prov_destiny = NULL,
   shapefile_path = "C:/PhD/GRAFS/Production Boxes/Final Files/Inputs/ne_10m_admin_1_states_provinces.shp",
   benchmark_years = seq(1860, 2020, by = 20)
@@ -12,25 +12,25 @@ create_typologies_timeseries_plot <- function(
 
   lu_mapping <- tibble::tribble(
     ~Animal_class,   ~LU_head,
-    "Dairy_cows",1, "Cattle",0.8, "Sheep_goats",0.1, "Equines",0.8,
-    "Pigs",0.3, "Hogs",0.5, "Broilers",0.007, "Hens",0.014,
-    "Other_birds",0.03, "Turkeys",0.03, "Ducks",0.01, "Geese",0.02,
-    "Ostriches",0.35, "Small_birds",0.001, "Rabbits",0.02, "Bees",0.01
+    "Dairy_cows", 1, "Cattle", 0.8, "Sheep_goats", 0.1, "Equines", 0.8,
+    "Pigs", 0.3, "Hogs", 0.5, "Broilers", 0.007, "Hens", 0.014,
+    "Other_birds", 0.03, "Turkeys", 0.03, "Ducks", 0.01, "Geese", 0.02,
+    "Ostriches", 0.35, "Small_birds", 0.001, "Rabbits", 0.02, "Bees", 0.01
   )
 
   livestockcat_to_class <- tibble::tribble(
     ~Livestock_cat, ~Animal_class,
-    "Cattle_milk","Dairy_cows",
-    "Cattle_meat","Cattle",
-    "Sheep","Sheep_goats",
-    "Goats","Sheep_goats",
-    "Donkeys_mules","Equines",
-    "Horses","Equines",
-    "Pigs","Pigs",
-    "Hogs","Hogs",
-    "Poultry","Hens",
-    "Rabbits","Rabbits",
-    "Bees","Bees"
+    "Cattle_milk", "Dairy_cows",
+    "Cattle_meat", "Cattle",
+    "Sheep", "Sheep_goats",
+    "Goats", "Sheep_goats",
+    "Donkeys_mules", "Equines",
+    "Horses", "Equines",
+    "Pigs", "Pigs",
+    "Hogs", "Hogs",
+    "Poultry", "Hens",
+    "Rabbits", "Rabbits",
+    "Bees", "Bees"
   )
 
   lu_df <- livestock_prod_ygps |>
@@ -301,7 +301,7 @@ create_typologies_timeseries_plot <- function(
 
   stripe_lines <- do.call(
     rbind,
-    lapply(1:nrow(stripe_df), function(i) {
+    lapply(seq_len(nrow(stripe_df)), function(i) {
       xs <- seq(0, block_width, length.out = n_stripes)
       data.frame(
         x = xs,

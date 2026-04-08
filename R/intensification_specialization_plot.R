@@ -1,4 +1,4 @@
-intensification_specialization_plot <- function() {
+intens_spec_plot <- function() {
   # ---- Load data ----
   flows <- create_n_prov_destiny()
   npp_ygpit <- whep_read_file("npp_ygpit") |> dplyr::rename_with(tolower)
@@ -64,7 +64,7 @@ intensification_specialization_plot <- function() {
   # ---- Add typology ----
   df <- df |>
     dplyr::left_join(
-      create_typologies_timeseries_plot() |>
+      create_typo_ts_plot() |>
         dplyr::select(year, province_name, Typology_base) |>
         dplyr::rename(Typology = Typology_base),
       by = c("year", "province_name")
@@ -125,11 +125,11 @@ intensification_specialization_plot <- function() {
 
   print(p)
 
-  return(list(plot = p, data = df))
+  list(plot = p, data = df)
 }
 
 
-circularity_intensification_plot <- function() {
+circ_intens_plot <- function() {
   # ---- Load data ----
   flows <- create_n_prov_destiny()
   npp_ygpit <- whep_read_file("npp_ygpit") |> dplyr::rename_with(tolower)
@@ -213,7 +213,7 @@ circularity_intensification_plot <- function() {
   # ---- Add typology ----
   df <- df |>
     dplyr::left_join(
-      create_typologies_timeseries_plot() |>
+      create_typo_ts_plot() |>
         dplyr::select(year, province_name, Typology_base) |>
         dplyr::rename(Typology = Typology_base),
       by = c("year", "province_name")
@@ -273,10 +273,10 @@ circularity_intensification_plot <- function() {
 
   print(p)
 
-  return(list(plot = p, data = df))
+  list(plot = p, data = df)
 }
 
-circularity_nue_trajectory_plot <- function() {
+circ_nue_traj_plot <- function() {
   # ---- Load data ----
   flows <- create_n_prov_destiny()
   npp_ygpit <- whep_read_file("npp_ygpit") |> dplyr::rename_with(tolower)
@@ -424,10 +424,10 @@ circularity_nue_trajectory_plot <- function() {
 
   print(p)
 
-  return(list(plot = p, data = df))
+  list(plot = p, data = df)
 }
 
-circularity_nue_cropland_timeseries_plot <- function() {
+circ_nue_crop_ts_plot <- function() {
   # ---- Load data ----
   flows <- create_n_prov_destiny()
 
@@ -594,10 +594,10 @@ circularity_nue_cropland_timeseries_plot <- function() {
     dpi = 300
   )
 
-  return(list(plot = p, data = df))
+  list(plot = p, data = df)
 }
 
-intensification_specialization_timeseries <- function() {
+intens_spec_ts <- function() {
   # ---- Load data ----
   flows <- create_n_prov_destiny()
   npp_ygpit <- whep_read_file("npp_ygpit") |> dplyr::rename_with(tolower)
@@ -735,7 +735,7 @@ intensification_specialization_timeseries <- function() {
     dpi = 300
   )
 
-  return(list(plot = p, data = df_ts))
+  list(plot = p, data = df_ts)
 }
 
 
@@ -835,11 +835,11 @@ yield_nue_trajectory_plot <- function() {
     dpi = 300
   )
 
-  return(list(plot = p, data = df))
+  list(plot = p, data = df)
 }
 
 
-intensification_trajectory_plot <- function() {
+intens_traj_plot <- function() {
   # ---- Load data ----
   flows <- create_n_prov_destiny()
   npp_ygpit <- whep_read_file("npp_ygpit") |> dplyr::rename_with(tolower)
@@ -929,10 +929,10 @@ intensification_trajectory_plot <- function() {
     dpi = 300
   )
 
-  return(list(plot = p, data = df))
+  list(plot = p, data = df)
 }
 
-intensification_timeseries_plot <- function() {
+intens_ts_plot <- function() {
   # ---- Load data ----
   flows <- create_n_prov_destiny()
   npp_ygpit <- whep_read_file("npp_ygpit") |> dplyr::rename_with(tolower)
@@ -1037,7 +1037,7 @@ intensification_timeseries_plot <- function() {
     dpi = 300
   )
 
-  return(list(plot = p, data = df))
+  list(plot = p, data = df)
 }
 
 nue_fertilizer_timeseries_plot <- function() {
@@ -1171,7 +1171,7 @@ nue_fertilizer_timeseries_plot <- function() {
     dpi = 300
   )
 
-  return(list(plot = p, data = df))
+  list(plot = p, data = df)
 }
 
 nue_fertilizer_trajectory_plot <- function() {
@@ -1265,7 +1265,7 @@ nue_fertilizer_trajectory_plot <- function() {
     dpi = 300
   )
 
-  return(list(plot = p, data = df))
+  list(plot = p, data = df)
 }
 
 
@@ -1311,7 +1311,7 @@ nrr_cropland_timeseries_plot <- function() {
     )
 
   # ---- Recycled N (manure + urban) ----
-  recycled_N <- flows |>
+  recycled_n <- flows |>
     dplyr::filter(
       origin %in% c("Livestock", "People"),
       destiny == "Cropland"
@@ -1325,7 +1325,7 @@ nrr_cropland_timeseries_plot <- function() {
   # ---- Combine ----
   df <- crop_inputs |>
     dplyr::left_join(crop_outputs, by = "year") |>
-    dplyr::left_join(recycled_N, by = "year") |>
+    dplyr::left_join(recycled_n, by = "year") |>
     dplyr::mutate(
       crop_output = dplyr::coalesce(crop_output, 0),
       recycled = dplyr::coalesce(recycled, 0),
@@ -1368,7 +1368,7 @@ nrr_cropland_timeseries_plot <- function() {
     dpi = 300
   )
 
-  return(list(plot = p, data = df))
+  list(plot = p, data = df)
 }
 
 
@@ -1450,10 +1450,10 @@ production_diversity_plot <- function() {
 
   print(p)
 
-  return(list(plot = p, data = diversity_ts))
+  list(plot = p, data = diversity_ts)
 }
 
-intensification_specialization_secondary_axis <- function() {
+intens_spec_sec_axis <- function() {
   flows <- create_n_prov_destiny()
   npp_ygpit <- whep_read_file("npp_ygpit") |> dplyr::rename_with(tolower)
 
@@ -1583,7 +1583,7 @@ intensification_specialization_secondary_axis <- function() {
     dpi = 300
   )
 
-  return(list(plot = p, data = df))
+  list(plot = p, data = df)
 }
 
 spatial_diversity <- function() {
@@ -1645,11 +1645,11 @@ spatial_diversity <- function() {
 
   print(p)
 
-  return(list(plot = p, data = diversity))
+  list(plot = p, data = diversity)
 }
 
 
-specialization_hhi_production_plot <- function() {
+spec_hhi_prod_plot <- function() {
   # ---- Load data ----
   flows <- create_n_prov_destiny()
 
@@ -1722,7 +1722,7 @@ specialization_hhi_production_plot <- function() {
 
   print(p)
 
-  return(list(plot = p, data = spec_ts))
+  list(plot = p, data = spec_ts)
 }
 
 system_shares_plot <- function() {
@@ -1790,11 +1790,11 @@ system_shares_plot <- function() {
 
   print(p)
 
-  return(list(plot = p, data = df_ts))
+  list(plot = p, data = df_ts)
 }
 
 
-external_dependency_plot_national <- function() {
+ext_dep_plot_national <- function() {
   # ---- Load national data ----
   flows <- create_n_nat_destiny()
 
@@ -1926,9 +1926,9 @@ external_dependency_plot_national <- function() {
 
   print(p2)
 
-  return(list(
+  list(
     dependency_plot = p1,
     composition_plot = p2,
     data = df
-  ))
+  )
 }

@@ -1080,7 +1080,7 @@ create_grafs_plot_df <- function() {
     ) |>
     dplyr::select(province, year, label, data, align)
 
-  return(df_crop_losses)
+  df_crop_losses
 }
 
 

@@ -1,5 +1,5 @@
 typology_kgha_lines <- function() {
-  indicators <- create_typologies_timeseries_plot()
+  indicators <- create_typo_ts_plot()
   npp_ygpit <- whep_read_file("npp_ygpit")
 
   typologies_df <- indicators |>
@@ -120,10 +120,10 @@ typology_kgha_lines <- function() {
   print(p1)
   print(p2)
 
-  return(list(
+  list(
     p1 = p1,
     p2 = p2,
     agricultural_land = df_agri,
     total_land = df_all
-  ))
+  )
 }

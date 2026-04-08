@@ -1,5 +1,5 @@
 typology_stacked_bars <- function() {
-  indicators <- create_typologies_timeseries_plot()
+  indicators <- create_typo_ts_plot()
   n_prov_destiny <- create_n_prov_destiny()
 
   typologies_df <- indicators |>

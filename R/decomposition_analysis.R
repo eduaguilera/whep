@@ -64,9 +64,9 @@ prepare_lmdi_dataset <- function() {
       food = dplyr::coalesce(food, 0),
       population = dplyr::coalesce(population, 0),
       A = dplyr::if_else(population > 0, food / population, NA_real_),
-      T = dplyr::if_else(food > 0, surplus / food, NA_real_)
+      t_ratio = dplyr::if_else(food > 0, surplus / food, NA_real_)
     ) |>
-    dplyr::select(year, surplus, population, food, A, T) |>
+    dplyr::select(year, surplus, population, food, A, t_ratio) |>
     dplyr::arrange(year)
 }
 
@@ -121,5 +121,5 @@ prepare_lmdi_production_area <- function() {
       intensity
     )
 
-  return(df)
+  df
 }

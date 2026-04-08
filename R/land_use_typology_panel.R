@@ -171,7 +171,7 @@ province_landuse_n_inputs_plot <- function(year_plot = 1980) {
 }
 
 
-province_all_landuse_n_inputs_plot <- function(year_plot = 1980) {
+prov_all_lu_n_inputs_plot <- function(year_plot = 1980) {
   n_balance <- whep_read_file("n_balance_ygpit_all") |>
     dplyr::rename_with(tolower)
   area <- whep_read_file("npp_ygpit") |> dplyr::rename_with(tolower)
