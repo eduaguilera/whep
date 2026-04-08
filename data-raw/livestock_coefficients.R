@@ -32,6 +32,376 @@ clean_names <- function(names) {
     make.unique(sep = "_")
 }
 
+# GLEAM Table Parsers ----
+
+# Region abbreviation mapping used in GLEAM S.9.1
+gleam_region_abbrevs <- c(
+  "NA" = "North America",
+  "RUS" = "Russia",
+  "WE" = "Western Europe",
+  "EE" = "Eastern Europe",
+  "NENA" = "Near East and North Africa",
+  "ESEA" = "East and Southeast Asia",
+  "OCE" = "Oceania",
+  "SA" = "South Asia",
+  "LAC" = "Latin America and Caribbean",
+  "SSA" = "Sub-Saharan Africa"
+)
+
+parse_dressing_percentages <- function(raw) {
+  # Row 1 contains region abbreviations in cols x2:x11
+  # The first region "NA" (North America) must not become R's NA
+  regions <- as.character(raw[1, 2:11])
+  regions[is.na(regions)] <- "NA"
+
+  # --- Section 1: Regional dressing percentages (rows 2-24) ---
+  data_rows <- raw[2:24, ]
+  col1 <- data_rows[[1]]
+
+  # Build species/production_system/cohort mapping by parsing
+  # the indentation-based hierarchy
+  rows <- list()
+  current_species <- NA_character_
+  current_system <- NA_character_
+
+  for (i in seq_len(nrow(data_rows))) {
+    label <- col1[i]
+    if (is.na(label)) {
+      next
+    }
+    vals <- as.character(data_rows[i, 2:11])
+    all_na <- all(is.na(vals) | vals == "")
+    is_indented <- stringr::str_detect(label, "^\\s{2,}")
+    clean_label <- stringr::str_trim(label)
+
+    if (!is_indented && all_na) {
+      # Species header (e.g. "Dairy cattle", "Pigs", "Chicken")
+      parsed <- .parse_species_header(clean_label)
+      current_species <- parsed$species
+      current_system <- parsed$system
+      next
+    }
+
+    if (!is_indented && !all_na) {
+      # Single-row species with no sub-cohorts (Sheep, Goats)
+      for (j in seq_along(regions)) {
+        v <- .parse_dressing_value(vals[j])
+        rows <- c(
+          rows,
+          list(tibble::tibble(
+            species = clean_label,
+            production_system = NA_character_,
+            cohort = NA_character_,
+            gleam_region = regions[j],
+            dressing_percent = v
+          ))
+        )
+      }
+      next
+    }
+
+    if (is_indented) {
+      # Sub-row: could be a cohort or a production system
+      parsed <- .parse_dressing_subrow(
+        clean_label,
+        vals,
+        regions,
+        current_species,
+        current_system
+      )
+      if (!is.null(parsed)) {
+        rows <- c(rows, list(parsed))
+      }
+    }
+  }
+
+  regional <- dplyr::bind_rows(rows) |>
+    dplyr::mutate(
+      production_system = stringr::str_remove(
+        production_system,
+        "\\s+systems?$"
+      )
+    )
+
+  # --- Section 2: Country-specific pig industrial values ---
+  # Rows 28-60 (indices in raw): header at row 27, data from 28
+  country_start <- which(
+    raw[[1]] == "COUNTRY" |
+      (!is.na(raw[[1]]) & raw[[1]] == "COUNTRY")
+  )
+  if (length(country_start) > 0) {
+    country_data <- raw[(country_start + 1):nrow(raw), 1:3]
+    names(country_data) <- c("country", "gleam_region", "dressing_percent")
+    country_data <- country_data |>
+      dplyr::filter(!is.na(country)) |>
+      dplyr::mutate(
+        dressing_percent = as.numeric(dressing_percent),
+        species = "Pigs",
+        production_system = "Industrial",
+        cohort = NA_character_
+      ) |>
+      dplyr::select(
+        species,
+        production_system,
+        cohort,
+        country,
+        gleam_region,
+        dressing_percent
+      )
+  } else {
+    country_data <- tibble::tibble(
+      species = character(),
+      production_system = character(),
+      cohort = character(),
+      country = character(),
+      gleam_region = character(),
+      dressing_percent = numeric()
+    )
+  }
+
+  # Add country column to regional (NA for all)
+  regional <- regional |>
+    dplyr::mutate(country = NA_character_) |>
+    dplyr::select(
+      species,
+      production_system,
+      cohort,
+      country,
+      gleam_region,
+      dressing_percent
+    )
+
+  dplyr::bind_rows(regional, country_data)
+}
+
+.parse_species_header <- function(label) {
+  if (stringr::str_detect(label, "(?i)dairy cattle")) {
+    list(species = "Cattle", system = "Dairy")
+  } else if (stringr::str_detect(label, "(?i)beef cattle")) {
+    list(species = "Cattle", system = "Beef")
+  } else {
+    # Buffaloes, Pigs, Chicken — no system in header
+    list(species = label, system = NA_character_)
+  }
+}
+
+.parse_dressing_value <- function(x) {
+  if (is.na(x) || x == "" || stringr::str_detect(x, "^-")) {
+    return(NA_real_)
+  }
+  suppressWarnings(as.numeric(x))
+}
+
+.parse_dressing_subrow <- function(
+  label,
+  vals,
+  regions,
+  species,
+  system
+) {
+  # Determine if this is a cohort row or a production system row
+  is_cohort <- stringr::str_detect(
+    label,
+    "(?i)(adult|replacement|surplus)"
+  )
+  is_system <- stringr::str_detect(
+    label,
+    "(?i)(backyard|intermediate|industrial|layers|broilers)"
+  )
+
+  # Skip header-only sub-rows (e.g. "Backyard systems" for chicken
+  # that has no numeric values)
+  all_na <- all(
+    is.na(vals) | vals == "" | stringr::str_detect(vals, "^[A-Za-z]")
+  )
+  if (all_na) {
+    return(NULL)
+  }
+
+  rows <- list()
+  for (j in seq_along(regions)) {
+    v <- .parse_dressing_value(vals[j])
+    if (is_cohort) {
+      rows <- c(
+        rows,
+        list(tibble::tibble(
+          species = species,
+          production_system = system,
+          cohort = label,
+          gleam_region = regions[j],
+          dressing_percent = v
+        ))
+      )
+    } else if (is_system) {
+      rows <- c(
+        rows,
+        list(tibble::tibble(
+          species = species,
+          production_system = label,
+          cohort = NA_character_,
+          gleam_region = regions[j],
+          dressing_percent = v
+        ))
+      )
+    }
+  }
+  if (length(rows) > 0) dplyr::bind_rows(rows) else NULL
+}
+
+parse_crop_residue_params <- function(raw) {
+  # Row 1 contains real column headers
+  headers <- as.character(raw[1, ])
+  data <- raw[-1, ]
+  names(data) <- c("crop", "dry_matter_pct", "slope", "intercept")
+  data |>
+    dplyr::mutate(
+      dry_matter_pct = as.numeric(dry_matter_pct),
+      slope = as.numeric(slope),
+      intercept = as.numeric(intercept)
+    )
+}
+
+parse_feed_digestibility <- function(raw) {
+  # Row 1 = headers: Number, Material, GE (MJ/kg DM), N content
+  # (g/kg DM), DI (%)
+  # Rows with only col1 populated are category headers
+  # (Roughages, Cereals, By-products)
+  # Last row is a footnote
+  headers <- as.character(raw[1, ])
+  data <- raw[-1, ]
+  names(data) <- c(
+    "number",
+    "material",
+    "gross_energy_mj_kg",
+    "n_content_g_kg",
+    "digestibility_pct"
+  )
+
+  # Remove category headers and footnotes
+  data |>
+    dplyr::filter(
+      !is.na(number),
+      !stringr::str_detect(number, "(?i)(roughage|cereal|by-product|\\*)")
+    ) |>
+    dplyr::mutate(
+      # Assign feed category based on position
+      feed_category = dplyr::case_when(
+        as.numeric(number) <= 15 ~ dplyr::case_when(
+          as.numeric(number) <= 6 ~ "Roughages",
+          as.numeric(number) <= 15 ~ "Roughages",
+          .default = NA_character_
+        ),
+        .default = NA_character_
+      )
+    ) |>
+    # Reassign categories properly using original row position
+    dplyr::select(-feed_category) |>
+    dplyr::mutate(
+      number = as.integer(number),
+      # Remove asterisks from values before converting
+      gross_energy_mj_kg = as.numeric(
+        stringr::str_remove(gross_energy_mj_kg, "\\*")
+      ),
+      n_content_g_kg = as.numeric(
+        stringr::str_remove(n_content_g_kg, "\\*")
+      ),
+      digestibility_pct = as.numeric(
+        stringr::str_remove(digestibility_pct, "\\*")
+      )
+    )
+}
+
+parse_feed_composition <- function(raw) {
+  # Structure: Two sub-sections with feed group headers and
+  # regional rows
+  # Row 1: "FUE" header
+  # Row 2: feed group description + column headers
+  # Rows 3-9: regions for feed groups 1-6
+  # Row 10: second feed group description
+  # Rows 11-17: regions for feed groups 9-15
+
+  data <- raw[-1, ] # skip "FUE" header row
+  names(data) <- c("description", "col2", "col3")
+
+  rows <- list()
+
+  # Section 1: feed groups 1-6 (mixed grasses, crop residues)
+  sec1_header <- as.character(data[1, ])
+  sec1_feeds <- stringr::str_trim(c(sec1_header[2], sec1_header[3]))
+  sec1_data <- data[2:8, ]
+  for (i in seq_len(nrow(sec1_data))) {
+    region <- as.character(sec1_data[i, 1])
+    for (j in seq_along(sec1_feeds)) {
+      feed <- sec1_feeds[j]
+      if (is.na(feed) || feed == "") {
+        next
+      }
+      val <- as.numeric(as.character(sec1_data[i, j + 1]))
+      rows <- c(
+        rows,
+        list(tibble::tibble(
+          feed_group = "Feed materials 1-6",
+          feed_type = feed,
+          gleam_region = region,
+          feed_use_efficiency = val
+        ))
+      )
+    }
+  }
+
+  # Section 2: feed groups 9-15
+  sec2_header <- as.character(data[9, ])
+  sec2_feeds <- stringr::str_trim(sec2_header[2])
+  sec2_data <- data[10:16, ]
+  for (i in seq_len(nrow(sec2_data))) {
+    region <- as.character(sec2_data[i, 1])
+    val <- as.numeric(as.character(sec2_data[i, 2]))
+    rows <- c(
+      rows,
+      list(tibble::tibble(
+        feed_group = "Feed materials 9-15",
+        feed_type = sec2_feeds,
+        gleam_region = region,
+        feed_use_efficiency = val
+      ))
+    )
+  }
+
+  dplyr::bind_rows(rows)
+}
+
+parse_feed_conversion_ratios <- function(raw) {
+  # Row 1: Number, Material, GE, N content, ME (chicken), ME (pigs),
+  #   DI (%)
+  # Row 2: sub-headers (ALL SPECIES, CHICKEN, PIGS for ME cols)
+  # Then data rows with category headers interspersed
+  data <- raw[-(1:2), ] # skip both header rows
+  names(data) <- c(
+    "number",
+    "material",
+    "gross_energy_j_kg",
+    "n_content_g_kg",
+    "me_chicken_j_kg",
+    "me_pigs_j_kg",
+    "digestibility_pct"
+  )
+
+  # Remove category header rows (no number) and footnotes
+  data |>
+    dplyr::filter(
+      !is.na(number),
+      stringr::str_detect(number, "^\\d+$")
+    ) |>
+    dplyr::mutate(
+      number = as.integer(number),
+      gross_energy_j_kg = as.numeric(gross_energy_j_kg),
+      n_content_g_kg = as.numeric(n_content_g_kg),
+      me_chicken_j_kg = as.numeric(me_chicken_j_kg),
+      me_pigs_j_kg = as.numeric(me_pigs_j_kg),
+      digestibility_pct = as.numeric(digestibility_pct)
+    )
+}
+
 # GLEAM Data Extraction ----
 
 extract_gleam_tables <- function(path) {
@@ -881,23 +1251,23 @@ main <- function() {
 
     if (!is.null(gleam_raw$tab_s31)) {
       gleam_excel_tables$gleam_crop_residue_params <-
-        gleam_raw$tab_s31
+        parse_crop_residue_params(gleam_raw$tab_s31)
     }
     if (!is.null(gleam_raw$tab_s32)) {
       gleam_excel_tables$gleam_feed_composition <-
-        gleam_raw$tab_s32
+        parse_feed_composition(gleam_raw$tab_s32)
     }
     if (!is.null(gleam_raw$tab_s33)) {
       gleam_excel_tables$gleam_feed_digestibility <-
-        gleam_raw$tab_s33
+        parse_feed_digestibility(gleam_raw$tab_s33)
     }
     if (!is.null(gleam_raw$tab_s34)) {
       gleam_excel_tables$gleam_feed_conversion_ratios <-
-        gleam_raw$tab_s34
+        parse_feed_conversion_ratios(gleam_raw$tab_s34)
     }
     if (!is.null(gleam_raw$tab_s91)) {
       gleam_excel_tables$gleam_dressing_percentages <-
-        gleam_raw$tab_s91
+        parse_dressing_percentages(gleam_raw$tab_s91)
     }
 
     if (!is.null(gleam_raw$tab_sa1sa2)) {

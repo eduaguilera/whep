@@ -3,9 +3,16 @@
 \docType{data}
 \name{gleam_feed_digestibility}
 \alias{gleam_feed_digestibility}
-\title{GLEAM feed digestibility.}
+\title{GLEAM feed digestibility for ruminants.}
 \format{
-A tibble with digestibility parameters.
+A tibble with columns:
+\describe{
+\item{number}{Feed material number.}
+\item{material}{Feed material code.}
+\item{gross_energy_mj_kg}{Gross energy (MJ per kg DM).}
+\item{n_content_g_kg}{Nitrogen content (g per kg DM).}
+\item{digestibility_pct}{Digestibility (percent).}
+}
 }
 \source{
 MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
@@ -15,7 +22,8 @@ Table S.3.3.
 gleam_feed_digestibility
 }
 \description{
-Digestibility coefficients by feed type.
+Nutritional values for feed materials of ruminant species,
+including gross energy, nitrogen content, and digestibility.
 }
 \examples{
 head(gleam_feed_digestibility)

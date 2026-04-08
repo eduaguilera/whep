@@ -8,9 +8,16 @@
 #' GLEAM crop residue parameters.
 #'
 #' @description
-#' Parameters for crop residues and dry matter content.
+#' Dry matter content and parameters for calculating crop
+#' residue yield by crop type.
 #'
-#' @format A tibble with crop-specific residue parameters.
+#' @format A tibble with columns:
+#' \describe{
+#'   \item{crop}{Crop name.}
+#'   \item{dry_matter_pct}{Dry matter content (percent).}
+#'   \item{slope}{Slope for residue yield calculation.}
+#'   \item{intercept}{Intercept for residue yield calculation.}
+#' }
 #'
 #' @source MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
 #'   Table S.3.1. \doi{10.1088/1748-9326/aad4d8}
@@ -41,12 +48,19 @@
 #' head(gleam_geographic_hierarchy)
 "gleam_geographic_hierarchy"
 
-#' GLEAM feed composition.
+#' GLEAM feed use efficiency.
 #'
 #' @description
-#' Nutritional composition of feed items (DM, CP, ME, etc.).
+#' Regional feed use efficiency (FUE) values for forages and
+#' crop residues of ruminant species.
 #'
-#' @format A tibble with feed-level nutrient parameters.
+#' @format A tibble with columns:
+#' \describe{
+#'   \item{feed_group}{Feed material group (1-6 or 9-15).}
+#'   \item{feed_type}{Feed type (mixed, grassland, or all).}
+#'   \item{gleam_region}{GLEAM geographic region.}
+#'   \item{feed_use_efficiency}{FUE value (0-1 fraction).}
+#' }
 #'
 #' @source MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
 #'   Table S.3.2.
@@ -55,12 +69,20 @@
 #' head(gleam_feed_composition)
 "gleam_feed_composition"
 
-#' GLEAM feed digestibility.
+#' GLEAM feed digestibility for ruminants.
 #'
 #' @description
-#' Digestibility coefficients by feed type.
+#' Nutritional values for feed materials of ruminant species,
+#' including gross energy, nitrogen content, and digestibility.
 #'
-#' @format A tibble with digestibility parameters.
+#' @format A tibble with columns:
+#' \describe{
+#'   \item{number}{Feed material number.}
+#'   \item{material}{Feed material code.}
+#'   \item{gross_energy_mj_kg}{Gross energy (MJ per kg DM).}
+#'   \item{n_content_g_kg}{Nitrogen content (g per kg DM).}
+#'   \item{digestibility_pct}{Digestibility (percent).}
+#' }
 #'
 #' @source MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
 #'   Table S.3.3.
@@ -69,12 +91,24 @@
 #' head(gleam_feed_digestibility)
 "gleam_feed_digestibility"
 
-#' GLEAM feed conversion ratios.
+#' GLEAM feed conversion ratios for monogastrics.
 #'
 #' @description
-#' Feed conversion ratios by species and production system.
+#' Nutritional values for feed materials of monogastric
+#' species (chicken and pigs).
 #'
-#' @format A tibble with FCR values.
+#' @format A tibble with columns:
+#' \describe{
+#'   \item{number}{Feed material number.}
+#'   \item{material}{Feed material code.}
+#'   \item{gross_energy_j_kg}{Gross energy (J per kg).}
+#'   \item{n_content_g_kg}{Nitrogen content (g per kg DM).}
+#'   \item{me_chicken_j_kg}{Metabolisable energy for chicken
+#'     (J per kg).}
+#'   \item{me_pigs_j_kg}{Metabolisable energy for pigs
+#'     (J per kg).}
+#'   \item{digestibility_pct}{Digestibility (percent).}
+#' }
 #'
 #' @source MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
 #'   Table S.3.4.
@@ -115,13 +149,29 @@
 #' GLEAM dressing percentages.
 #'
 #' @description
-#' Carcass weight as percentage of live weight by species
-#' and region.
+#' Carcass weight as percentage of live weight by species,
+#' production system, cohort, and GLEAM region. Includes
+#' country-specific overrides for industrial pig systems in
+#' Western Europe.
 #'
-#' @format A tibble with dressing percentages.
+#' @format A tibble with columns:
+#' \describe{
+#'   \item{species}{Animal species (Cattle, Buffaloes, Sheep,
+#'     Goats, Pigs, Chicken).}
+#'   \item{production_system}{Production system (Dairy, Beef,
+#'     Backyard, Intermediate, Industrial, Layers, Broilers).
+#'     NA for species without system breakdown.}
+#'   \item{cohort}{Cohort (e.g. Adult and replacement female).
+#'     NA for species without cohort breakdown.}
+#'   \item{country}{Country name for country-specific values.
+#'     NA for regional values.}
+#'   \item{gleam_region}{GLEAM region abbreviation (NA, RUS,
+#'     WE, EE, NENA, ESEA, OCE, SA, LAC, SSA).}
+#'   \item{dressing_percent}{Dressing percentage.}
+#' }
 #'
 #' @source MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
-#'   Table S.9.1.
+#'   Table S.9.1. \doi{10.1088/1748-9326/aad4d8}
 #'
 #' @examples
 #' head(gleam_dressing_percentages)

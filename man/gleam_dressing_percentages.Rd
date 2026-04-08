@@ -5,18 +5,34 @@
 \alias{gleam_dressing_percentages}
 \title{GLEAM dressing percentages.}
 \format{
-A tibble with dressing percentages.
+A tibble with columns:
+\describe{
+\item{species}{Animal species (Cattle, Buffaloes, Sheep,
+Goats, Pigs, Chicken).}
+\item{production_system}{Production system (Dairy, Beef,
+Backyard, Intermediate, Industrial, Layers, Broilers).
+NA for species without system breakdown.}
+\item{cohort}{Cohort (e.g. Adult and replacement female).
+NA for species without cohort breakdown.}
+\item{country}{Country name for country-specific values.
+NA for regional values.}
+\item{gleam_region}{GLEAM region abbreviation (NA, RUS,
+WE, EE, NENA, ESEA, OCE, SA, LAC, SSA).}
+\item{dressing_percent}{Dressing percentage.}
+}
 }
 \source{
 MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
-Table S.9.1.
+Table S.9.1. \doi{10.1088/1748-9326/aad4d8}
 }
 \usage{
 gleam_dressing_percentages
 }
 \description{
-Carcass weight as percentage of live weight by species
-and region.
+Carcass weight as percentage of live weight by species,
+production system, cohort, and GLEAM region. Includes
+country-specific overrides for industrial pig systems in
+Western Europe.
 }
 \examples{
 head(gleam_dressing_percentages)

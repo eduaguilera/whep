@@ -3,9 +3,15 @@
 \docType{data}
 \name{gleam_feed_composition}
 \alias{gleam_feed_composition}
-\title{GLEAM feed composition.}
+\title{GLEAM feed use efficiency.}
 \format{
-A tibble with feed-level nutrient parameters.
+A tibble with columns:
+\describe{
+\item{feed_group}{Feed material group (1-6 or 9-15).}
+\item{feed_type}{Feed type (mixed, grassland, or all).}
+\item{gleam_region}{GLEAM geographic region.}
+\item{feed_use_efficiency}{FUE value (0-1 fraction).}
+}
 }
 \source{
 MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
@@ -15,7 +21,8 @@ Table S.3.2.
 gleam_feed_composition
 }
 \description{
-Nutritional composition of feed items (DM, CP, ME, etc.).
+Regional feed use efficiency (FUE) values for forages and
+crop residues of ruminant species.
 }
 \examples{
 head(gleam_feed_composition)

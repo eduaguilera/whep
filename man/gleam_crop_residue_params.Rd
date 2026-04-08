@@ -5,7 +5,13 @@
 \alias{gleam_crop_residue_params}
 \title{GLEAM crop residue parameters.}
 \format{
-A tibble with crop-specific residue parameters.
+A tibble with columns:
+\describe{
+\item{crop}{Crop name.}
+\item{dry_matter_pct}{Dry matter content (percent).}
+\item{slope}{Slope for residue yield calculation.}
+\item{intercept}{Intercept for residue yield calculation.}
+}
 }
 \source{
 MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
@@ -15,7 +21,8 @@ Table S.3.1. \doi{10.1088/1748-9326/aad4d8}
 gleam_crop_residue_params
 }
 \description{
-Parameters for crop residues and dry matter content.
+Dry matter content and parameters for calculating crop
+residue yield by crop type.
 }
 \examples{
 head(gleam_crop_residue_params)

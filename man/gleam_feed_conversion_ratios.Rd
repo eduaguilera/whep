@@ -3,9 +3,20 @@
 \docType{data}
 \name{gleam_feed_conversion_ratios}
 \alias{gleam_feed_conversion_ratios}
-\title{GLEAM feed conversion ratios.}
+\title{GLEAM feed conversion ratios for monogastrics.}
 \format{
-A tibble with FCR values.
+A tibble with columns:
+\describe{
+\item{number}{Feed material number.}
+\item{material}{Feed material code.}
+\item{gross_energy_j_kg}{Gross energy (J per kg).}
+\item{n_content_g_kg}{Nitrogen content (g per kg DM).}
+\item{me_chicken_j_kg}{Metabolisable energy for chicken
+(J per kg).}
+\item{me_pigs_j_kg}{Metabolisable energy for pigs
+(J per kg).}
+\item{digestibility_pct}{Digestibility (percent).}
+}
 }
 \source{
 MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
@@ -15,7 +26,8 @@ Table S.3.4.
 gleam_feed_conversion_ratios
 }
 \description{
-Feed conversion ratios by species and production system.
+Nutritional values for feed materials of monogastric
+species (chicken and pigs).
 }
 \examples{
 head(gleam_feed_conversion_ratios)
