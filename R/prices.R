@@ -304,9 +304,7 @@ build_cbs_prices <- function(
 }
 
 .clean_value_of_production <- function(vop) {
-  if (!data.table::is.data.table(vop)) {
-    data.table::setDT(vop)
-  }
+  vop <- data.table::as.data.table(vop)
 
   # Handle raw FAOSTAT columns (spaced or dotted) and pre-cleaned names
   data.table::setnames(vop, tolower)
