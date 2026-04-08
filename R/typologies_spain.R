@@ -382,5 +382,5 @@ create_typologies_spain <- function(
       ggplot2::labs(title = paste("Typologies in Spain for", map_year)) +
       ggplot2::theme_minimal()
   }
-  return(indicators)
+  indicators
 }

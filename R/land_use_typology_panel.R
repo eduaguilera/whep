@@ -167,7 +167,7 @@ province_landuse_n_inputs_plot <- function(year_plot = 1980) {
 
   names(plots) <- typology_list
 
-  return(plots)
+  plots
 }
 
 
@@ -346,5 +346,5 @@ prov_all_lu_n_inputs_plot <- function(year_plot = 1980) {
 
   names(plots) <- typology_list
 
-  return(plots)
+  plots
 }

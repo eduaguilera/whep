@@ -86,12 +86,12 @@ create_typologies_of_josette <- function(
     imported_feed_share_df = feed_domestic_df
   )
 
-  return(list(
+  list(
     typologies_df = typologies_df,
     n_input_df = data$n_input_df,
     imported_feed_share_df = intensive_list$imported_feed_share_df,
     df_inputs_plots = df_inputs_plots
-  ))
+  )
 }
 
 #' @title Load input datasets -------------------------------------------------

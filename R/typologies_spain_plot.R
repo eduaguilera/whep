@@ -393,5 +393,5 @@ create_typo_ts_plot <- function(
     dpi = 300
   )
 
-  return(indicators)
+  indicators
 }
