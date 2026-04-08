@@ -150,8 +150,7 @@ create_n_production <- function(example = FALSE) {
 #' @title Calculate N Production
 #' @description Internal function to calculate nitrogen production.
 #' @param grafs_prod_destiny A data frame with consumption, export, import data.
-#' @return A tibble with production values per year, province, item,
-#' and box.
+#' @return A tibble with production and import values.
 #' @keywords internal
 #' @noRd
 .calculate_n_production <- function(grafs_prod_destiny) {
@@ -191,14 +190,22 @@ create_n_production <- function(example = FALSE) {
 #' @param example If `TRUE`, return a small example output without downloading
 #'   remote data. Default is `FALSE`.
 #'
-#' @return A tibble containing nitrogen use efficiency (NUE) for crops.
+#' @returns
+#' A tibble containing nitrogen input, production, and NUE data.
 #'   It includes the following columns:
 #'   - `year`: Year.
 #'   - `province_name`: The Spanish province.
 #'   - `item`: The item which was produced, defined in `names_biomass_cb`.
 #'   - `box`: One of the two systems of the GRAFS model: cropland or
-#'       semi-natural agroecosystems.
-#'   - `nue`: Nitrogen Use Efficiency as a percentage (%).
+#'            semi-natural agroecosystems.
+#'   - `deposition`: Atmospheric nitrogen deposition in megagrams (Mg).
+#'   - `fixation`: Nitrogen fixation in megagrams (Mg).
+#'   - `synthetic`: Synthetic nitrogen fertilizer applied to the land in
+#'                  megagrams (Mg).
+#'   - `manure`: Nitrogen in manure applied to the land in megagrams (Mg).
+#'   - `urban`: Nitrogen in wastewater from human sources in megagrams (Mg).
+#'   - `prod`: Produced nitrogen in megagrams (Mg).
+#'   - `inputs`: Total nitrogen inputs in megagrams (Mg).
 #'
 #' @export
 #'
@@ -282,30 +289,32 @@ calculate_nue_livestock <- function(example = FALSE) {
     return(.ex_calc_nue_livestock())
   }
   intake_n <- whep_read_file("intake_ygiac") |>
-    dplyr::filter(Livestock_cat != "Pets") |>
-    dplyr::group_by(Year, Province_name, Livestock_cat) |>
+    dplyr::rename_with(tolower) |>
+    dplyr::rename(n_mg_n = n_mgn) |>
+    dplyr::filter(livestock_cat != "Pets") |>
+    dplyr::group_by(year, province_name, livestock_cat) |>
     dplyr::summarise(
-      feed_n = sum(N_MgN, na.rm = TRUE),
+      feed_n = sum(n_mg_n, na.rm = TRUE),
       .groups = "drop"
-    ) |>
-    dplyr::rename_with(tolower)
+    )
 
   prod_n <- whep_read_file("livestock_prod_ygps") |>
-    dplyr::filter(!is.na(Prod_MgN)) |>
-    dplyr::group_by(Year, Province_name, Livestock_cat, Item) |>
+    dplyr::rename_with(tolower) |>
+    dplyr::filter(!is.na(prod_mgn)) |>
+    dplyr::group_by(year, province_name, livestock_cat, item) |>
     dplyr::summarise(
-      prod_n = sum(Prod_MgN, na.rm = TRUE),
+      prod_n = sum(prod_mgn, na.rm = TRUE),
       .groups = "drop"
-    ) |>
-    dplyr::rename_with(tolower)
+    )
 
   excretion_n <- whep_read_file("n_excretion_ygs") |>
-    dplyr::group_by(Year, Province_name, Livestock_cat) |>
+    dplyr::rename_with(tolower) |>
+    dplyr::filter(livestock_cat != "Pets") |>
+    dplyr::group_by(year, province_name, livestock_cat) |>
     dplyr::summarise(
-      excretion_n = sum(Excr_MgN, na.rm = TRUE),
+      excretion_n = sum(excr_mgn, na.rm = TRUE),
       .groups = "drop"
-    ) |>
-    dplyr::rename_with(tolower)
+    )
 
   nue_livestock <- intake_n |>
     dplyr::inner_join(
@@ -382,12 +391,12 @@ calculate_system_nue <- function(
     whep_read_file("n_balance_ygpit_all"),
     whep_read_file("livestock_prod_ygps")
   ) |>
-    dplyr::group_by(Year, Province_name) |>
+    dplyr::rename_with(tolower) |>
+    dplyr::group_by(year, province_name) |>
     dplyr::summarise(
-      total_prod = sum(Prod_MgN, na.rm = TRUE),
+      total_prod = sum(prod_mgn, na.rm = TRUE),
       .groups = "drop"
-    ) |>
-    dplyr::rename_with(tolower)
+    )
 
   system_nue <- total_outputs |>
     dplyr::left_join(n_soil_inputs, by = c("year", "province_name")) |>

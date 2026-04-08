@@ -1,0 +1,30 @@
+Intensification and specialization indicators: interpretation guide
+
+1) Intensification
+   Formula: intensification = new N inputs / area
+   In code: (Synthetic + Deposition + Fixation) in Mg N, converted to kg
+   and divided by area (ha).
+
+2) Specialization components
+   synthetic_share = Synthetic / total soil N inputs
+   feed_import_share = Outside feed N / total feed N to livestock
+
+3) Specialization in current plot code
+   specialization_max = max(synthetic_share, feed_import_share)
+   Interpretation: a province is classified as specialized when either
+   synthetic dependency OR imported feed dependency is high.
+
+4) Why confusion happens
+   The repository currently uses multiple specialization formulas in
+   different functions (max, average, and diversity-based metrics).
+   These are not numerically equivalent and can show different trends.
+
+5) Suggested rule
+   Keep one primary definition for reporting (e.g. specialization_max)
+   and show alternatives only in sensitivity checks.
+
+Generated files:
+  01_intensification_vs_specialization.png
+  02_specialization_components.png
+  03_specialization_definitions.png
+  indicator_summary_timeseries.csv

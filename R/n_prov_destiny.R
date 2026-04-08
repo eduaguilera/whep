@@ -10,9 +10,6 @@
 #' uses and feed or cropland (in case of N soil inputs).
 #' Processed items, residues, woody crops, grazed weeds are taken into account.
 #'
-#' @param example If `TRUE`, return a small example output without downloading
-#'   remote data. Default is `FALSE`.
-#'
 #' @return
 #' A final tibble containing N flow data by origin and destiny.
 #' It includes the following columns:
@@ -29,6 +26,9 @@
 #'   population_other_uses, livestock_mono, livestock_rum (feed), export,
 #'   Cropland (for N soil inputs).
 #'   - `mg_n`: Nitrogen amount in megagrams (Mg).
+#'
+#' @param example If `TRUE`, return a small example output without downloading
+#'   remote data. Default is `FALSE`.
 #'
 #' @export
 #'
@@ -66,7 +66,7 @@ create_n_prov_destiny <- function(example = FALSE) {
     .calculate_population_share() |>
     .calculate_food_and_other_uses(pie_full_destinies_fm)
 
-  biomass_item_merged |>
+  grafs_prod_item_trade <- biomass_item_merged |>
     .remove_seeds_from_system(pie_full_destinies_fm, prod_combined_boxes) |>
     .add_grass_wood() |>
     .prepare_prod_data(
@@ -83,6 +83,13 @@ create_n_prov_destiny <- function(example = FALSE) {
       add_feed_output$feed_share_rum_mono
     ) |>
     .add_n_soil_inputs(n_soil_inputs) |>
+    dplyr::mutate(
+      Item = dplyr::recode(
+        Item,
+        "Firewood" = "Average wood",
+        "Acorns" = "Holm oak"
+      )
+    ) |>
     dplyr::rename_with(tolower) |>
     dplyr::rename(mg_n = mgn) |>
     dplyr::select(
@@ -136,19 +143,19 @@ create_n_nat_destiny <- function(example = FALSE) {
     return(.example_create_n_nat_destiny())
   }
   prov <- create_n_prov_destiny()
-
+  consumption_destinies <- c(
+    "population_food",
+    "population_other_uses",
+    "livestock_rum",
+    "livestock_mono"
+  )
   nat_shares <- prov |>
-    dplyr::filter(
-      destiny %in%
-        c(
-          "population_food",
-          "population_other_uses",
-          "livestock_rum",
-          "livestock_mono"
-        )
+    dplyr::filter(origin != "Outside", destiny != "export") |>
+    dplyr::filter(destiny %in% consumption_destinies) |>
+    dplyr::summarise(
+      mg_n = sum(mg_n, na.rm = TRUE),
+      .by = c("year", "item", "destiny")
     ) |>
-    dplyr::group_by(year, item, destiny) |>
-    dplyr::summarise(mg_n = sum(mg_n, na.rm = TRUE), .groups = "drop") |>
     dplyr::group_by(year, item) |>
     dplyr::mutate(share = mg_n / sum(mg_n, na.rm = TRUE)) |>
     dplyr::ungroup() |>
@@ -156,39 +163,28 @@ create_n_nat_destiny <- function(example = FALSE) {
 
   nat_core <- prov |>
     dplyr::filter(origin != "Outside", destiny != "export") |>
-    dplyr::group_by(
-      year,
-      item,
-      irrig_cat,
-      box,
-      origin,
-      destiny
-    ) |>
-    dplyr::summarise(
-      mg_n = sum(mg_n, na.rm = TRUE),
-      .groups = "drop"
-    ) |>
+    dplyr::group_by(year, item, irrig_cat, box, origin, destiny) |>
+    dplyr::summarise(mg_n = sum(mg_n, na.rm = TRUE), .groups = "drop") |>
     dplyr::mutate(province_name = "Spain")
 
+  nat_production <- prov |>
+    dplyr::filter(origin == box) |>
+    dplyr::group_by(year, item, box, irrig_cat) |>
+    dplyr::summarise(production = sum(mg_n, na.rm = TRUE), .groups = "drop")
+
   nat_balance <- prov |>
+    dplyr::filter(destiny %in% consumption_destinies) |>
     dplyr::group_by(year, item, box, irrig_cat) |>
     dplyr::summarise(
-      production = sum(mg_n[origin == box], na.rm = TRUE),
-      consumption = sum(
-        mg_n[
-          destiny %in%
-            c(
-              "population_food",
-              "population_other_uses",
-              "livestock_rum",
-              "livestock_mono"
-            )
-        ],
-        na.rm = TRUE
-      ),
+      consumption = sum(mg_n, na.rm = TRUE),
       .groups = "drop"
     ) |>
+    dplyr::left_join(
+      nat_production,
+      by = c("year", "item", "box", "irrig_cat")
+    ) |>
     dplyr::mutate(
+      production = dplyr::coalesce(production, 0),
       export = pmax(production - consumption, 0),
       import = pmax(consumption - production, 0),
       province_name = "Spain"
@@ -211,7 +207,12 @@ create_n_nat_destiny <- function(example = FALSE) {
     dplyr::filter(import > 0) |>
     dplyr::left_join(nat_shares, by = c("year", "item")) |>
     dplyr::mutate(
-      mg_n = pmin(import, consumption) * share,
+      share = dplyr::coalesce(share, 0),
+      mg_n = dplyr::case_when(
+        destiny %in% c("population_food", "population_other_uses") ~
+          pmin(import, consumption) * share,
+        TRUE ~ import * share
+      ),
       origin = "Outside",
       irrig_cat = NA_character_
     ) |>
@@ -226,12 +227,7 @@ create_n_nat_destiny <- function(example = FALSE) {
       destiny,
       mg_n
     )
-
-  dplyr::bind_rows(
-    nat_core,
-    exports,
-    imports
-  ) |>
+  dplyr::bind_rows(nat_core, exports, imports) |>
     dplyr::arrange(year, item, origin, destiny)
 }
 
@@ -242,8 +238,8 @@ create_n_nat_destiny <- function(example = FALSE) {
 #' @param names_biomass_cb Dataframe with biomass names and associated item
 #' names.
 #'
-#' @return A tibble with npp data merged with item names from the
-#' biomass codes.
+#' @return A list with two merged dataframes: 'crop_area_npp_merged' and
+#' 'npp_ygpit_merged'.
 #' @keywords internal
 #' @noRd
 .merge_items_biomass <- function(
@@ -291,8 +287,6 @@ create_n_nat_destiny <- function(example = FALSE) {
 #' and grazed grass) ----------------------------------------------------------
 #'
 #' @param npp_ygpit_merged NPP merged data including all biomasses and items.
-#' @param crop_area_npp_prod_residue Dataframe with crop production and
-#' residues summarised per province and year.
 #'
 #' @return A dataframe combining products, residues, and grazed biomass.
 #' @keywords internal
@@ -324,44 +318,33 @@ create_n_nat_destiny <- function(example = FALSE) {
       Box = "Cropland"
     )
 
-  semi_natural <- dplyr::bind_rows(
-    npp_ygpit_merged |>
-      dplyr::filter(LandUse != "Cropland") |>
-      dplyr::select(
-        Year,
-        Province_name,
-        Name_biomass,
-        Item,
-        LandUse,
-        Irrig_cat,
-        production_fm = GrazedWeeds_MgDM
-      ) |>
-      dplyr::mutate(prod_type = "Grass"),
-    npp_ygpit_merged |>
-      dplyr::filter(LandUse != "Cropland") |>
-      dplyr::select(
-        Year,
-        Province_name,
-        Name_biomass,
-        Item,
-        LandUse,
-        Irrig_cat,
-        production_fm = Prod_ygpit_Mg
-      ) |>
-      dplyr::mutate(prod_type = "Product"),
-    npp_ygpit_merged |>
-      dplyr::filter(LandUse != "Cropland") |>
-      dplyr::select(
-        Year,
-        Province_name,
-        Name_biomass,
-        Item,
-        LandUse,
-        Irrig_cat,
-        production_fm = Used_Residue_MgFM
-      ) |>
-      dplyr::mutate(prod_type = "Residue")
-  ) |>
+  semi_natural <- npp_ygpit_merged |>
+    dplyr::filter(LandUse != "Cropland") |>
+    dplyr::select(
+      Year,
+      Province_name,
+      Name_biomass,
+      Item,
+      LandUse,
+      Irrig_cat,
+      GrazedWeeds_MgDM,
+      Prod_ygpit_Mg,
+      Used_Residue_MgFM
+    ) |>
+    tidyr::pivot_longer(
+      cols = c(GrazedWeeds_MgDM, Prod_ygpit_Mg, Used_Residue_MgFM),
+      names_to = "prod_source",
+      values_to = "production_fm"
+    ) |>
+    dplyr::mutate(
+      prod_type = dplyr::recode(
+        prod_source,
+        GrazedWeeds_MgDM = "Grass",
+        Prod_ygpit_Mg = "Product",
+        Used_Residue_MgFM = "Residue"
+      )
+    ) |>
+    dplyr::select(-prod_source) |>
     dplyr::mutate(Box = "semi_natural_agroecosystems")
 
   combined_biomasses <- dplyr::bind_rows(
@@ -399,7 +382,9 @@ create_n_nat_destiny <- function(example = FALSE) {
 
 #' @title Combine Cropland, Semi_natural_agroecosystems and Livestock ----------
 #'
-#' @param combined_biomasses Dataframe of crop and semi-natural production.
+#' @param combined_biomasses Dataframe of crop production.
+#' @param semi_natural_agroecosystems Dataframe of production from semi-natural
+#' agroecosystems.
 #' @param livestock Dataframe of livestock production.
 #'
 #' @return Combined dataframe of all production systems.
@@ -424,7 +409,7 @@ create_n_nat_destiny <- function(example = FALSE) {
 #' COMMENT: in a few cases, seeds are higher then production, so that we get
 #' negative values. When the share is over 50%, it is therefore set back to 50%.
 #'
-#' @param npp_ygpit_merged Dataframe containing crop area by province.
+#' @param npp_ygpit_csv Dataframe containing crop area by province.
 #' @param pie_full_destinies_fm Dataframe containing domestic supply by
 #' destiny, including seed usage.
 #' @param grafs_prod_combined Dataframe with total production values.
@@ -437,37 +422,41 @@ create_n_nat_destiny <- function(example = FALSE) {
   pie_full_destinies_fm,
   grafs_prod_combined
 ) {
-  seed_rates <- npp_ygpit_merged |>
+  cropland_area <- npp_ygpit_merged |>
     dplyr::filter(LandUse == "Cropland") |>
-    dplyr::group_by(Year, Province_name, Item) |>
     dplyr::summarise(
       Area_ha = sum(Area_ygpit_ha, na.rm = TRUE),
-      .groups = "drop"
+      .by = c("Year", "Province_name", "Item")
+    )
+
+  seed_reference <- pie_full_destinies_fm |>
+    dplyr::filter(Element == "Domestic_supply", Destiny == "Seed") |>
+    dplyr::summarise(
+      Seed_total = sum(Value_destiny, na.rm = TRUE),
+      .by = c("Year", "Item")
     ) |>
     dplyr::left_join(
-      pie_full_destinies_fm |>
-        dplyr::filter(Element == "Domestic_supply", Destiny == "Seed") |>
-        dplyr::group_by(Year, Item) |>
+      cropland_area |>
         dplyr::summarise(
-          Seed_total = sum(Value_destiny, na.rm = TRUE),
-          .groups = "drop"
-        ) |>
-        dplyr::left_join(
-          npp_ygpit_merged |>
-            dplyr::filter(LandUse == "Cropland") |>
-            dplyr::group_by(Year, Item) |>
-            dplyr::summarise(
-              National_area = sum(Area_ygpit_ha, na.rm = TRUE),
-              .groups = "drop"
-            ),
-          by = c("Year", "Item")
-        ) |>
-        dplyr::mutate(Seed_rate_per_ha = Seed_total / National_area) |>
-        dplyr::select(Year, Item, Seed_rate_per_ha),
+          National_area = sum(Area_ha, na.rm = TRUE),
+          .by = c("Year", "Item")
+        ),
       by = c("Year", "Item")
     ) |>
-    dplyr::mutate(Seeds_used_MgFM = Area_ha * Seed_rate_per_ha) |>
-    tidyr::drop_na()
+    dplyr::mutate(
+      Seed_rate_per_ha = dplyr::if_else(
+        National_area > 0,
+        Seed_total / National_area,
+        0
+      )
+    ) |>
+    dplyr::select(Year, Item, Seed_rate_per_ha)
+
+  seed_rates <- cropland_area |>
+    dplyr::left_join(seed_reference, by = c("Year", "Item")) |>
+    dplyr::mutate(
+      Seeds_used_MgFM = Area_ha * dplyr::coalesce(Seed_rate_per_ha, 0)
+    )
 
   # Substracting the Seed data from Production in grafs_prod_combined
   grafs_prod_combined_no_seeds <- grafs_prod_combined |>
@@ -668,13 +657,15 @@ create_n_nat_destiny <- function(example = FALSE) {
       )
     )
 
-  prod_grazed_no_seeds_dm <- grazed_no_seeds_primary |>
+  prod_grazed_no_seeds_n <- grazed_no_seeds_primary |>
     dplyr::left_join(
       biomass_coefs |>
         dplyr::select(
           Name_biomass,
           Product_kgDM_kgFM,
-          Residue_kgDM_kgFM
+          Product_kgN_kgDM,
+          Residue_kgDM_kgFM,
+          Residue_kgN_kgDM
         ),
       by = c("Biomass_match" = "Name_biomass")
     ) |>
@@ -688,17 +679,7 @@ create_n_nat_destiny <- function(example = FALSE) {
         Residue_kgDM_kgFM,
         Product_kgDM_kgFM
       ),
-      production_dm = production_fm * conversion_dm
-    )
-
-  prod_grazed_no_seeds_n <- prod_grazed_no_seeds_dm |>
-    dplyr::left_join(
-      biomass_coefs |>
-        dplyr::select(Name_biomass, Product_kgN_kgDM, Residue_kgN_kgDM),
-      by = c("Biomass_match" = "Name_biomass")
-    ) |>
-    dplyr::mutate(
-      conversion_n = dplyr::if_else(
+      conversion_n_dm = dplyr::if_else(
         prod_type %in%
           c(
             "Residue",
@@ -707,7 +688,7 @@ create_n_nat_destiny <- function(example = FALSE) {
         Residue_kgN_kgDM,
         Product_kgN_kgDM
       ),
-      production_n = production_dm * conversion_n
+      production_n = production_fm * conversion_dm * conversion_n_dm
     ) |>
     dplyr::select(-Name_biomass) |>
     dplyr::select(
@@ -761,10 +742,7 @@ create_n_nat_destiny <- function(example = FALSE) {
 #'
 #' @param feed_intake A dataframe with feed intake data in FM.
 #'
-#' @return A list with two elements: `feed_intake` (a tibble with total
-#' feed and pet food per year, province, and item) and
-#' `feed_share_rum_mono` (a tibble with ruminant and monogastric feed
-#' shares).
+#' @return A dataframe with the total FM_Mg per year, province, and item.
 #' @keywords internal
 #' @noRd
 .add_feed <- function(feed_intake) {
@@ -912,6 +890,7 @@ create_n_nat_destiny <- function(example = FALSE) {
 #' @return A combined dataframe with food, feed, and other uses.
 #' @keywords internal
 #' @noRd
+#'
 .combine_destinies <- function(
   grafs_prod_item,
   feed_intake,
@@ -1008,7 +987,7 @@ create_n_nat_destiny <- function(example = FALSE) {
 #' @keywords internal
 #' @noRd
 .convert_to_items_n <- function(
-  grafs_prod_item_combined,
+  grafs_prod_item_combined = whep_read_file(""),
   codes_coefs_items_full = whep_read_file("codes_coefs_items_full"),
   biomass_coefs = whep_read_file("biomass_coefs")
 ) {
@@ -1076,6 +1055,9 @@ create_n_nat_destiny <- function(example = FALSE) {
 #' Spain. It should be deactivated for provincial analysis
 #'
 #' @param grafs_prod_item_n A dataframe with N values (MgN) by destiny.
+#' @param pie_full_destinies_fm A data frame with destiny data.
+#' @param biomass_coefs A data frame with biomass coefficients.
+#' @param codes_coefs_items_full A lookup table with coefficients.
 #'
 #' @return A dataframe with consumption, exports, and imports in MgN.
 #' @keywords internal
@@ -1120,6 +1102,7 @@ create_n_nat_destiny <- function(example = FALSE) {
     ) |>
     dplyr::mutate(
       group = dplyr::recode(group, "Additives" = "Agro-industry"),
+
       Box = dplyr::case_when(
         Item == "Acorns" ~ "semi_natural_agroecosystems",
         is.na(Box) & Item == "Fallow" ~ "Cropland",
@@ -1352,7 +1335,7 @@ create_n_nat_destiny <- function(example = FALSE) {
 #'
 #' @param grafs_prod_destiny_final A tibble from `.finalize_prod_destiny()`
 #'   containing destinies.
-#' @param soil_inputs A dataframe with soil inputs.
+#' @param n_soil_inputs A dataframe with soil inputs.
 #'
 #' @return The input dataframe extended with soil N input flows.
 #' @keywords internal

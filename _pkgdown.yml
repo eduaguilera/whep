@@ -11,7 +11,7 @@ home:
     href: https://lbm364dl.github.io/follow-the-workflow
 
 authors:
-  European Research Council: 
+  European Research Council:
     html: "<img src='https://erc.europa.eu/themes/custom/erc_theme/ERC_FAVICON.png' width=55 alt='European Research Council'>"
     href: "https://erc.europa.eu/homepage"
 
@@ -111,7 +111,25 @@ reference:
     Get a tidy dataframe with the found sources for different data.
   contents:
   - expand_trade_sources
-  
+
+
+- title: Nitrogen typologies Spain
+  desc: >
+    Functions to generate data for N inputs, outputs, production, destinies,
+    typologies, etc.
+  contents:
+  - create_typologies_of_josette
+  - create_typologies_grafs_spain
+  - create_alfredos_typologies
+  - create_typologies_whep
+  - create_grafs_plot_df
+  - create_n_prov_destiny
+  - create_n_soil_inputs
+  - create_n_production
+  - calculate_nue_crops
+  - calculate_nue_livestock
+  - calculate_system_nue
+  - create_n_nat_destiny
 
 - title: Gap filling functions
   desc: >
