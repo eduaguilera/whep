@@ -6,7 +6,7 @@ prod <- build_primary_production(start_year = 1961)
 cbs <- build_commodity_balances(prod, start_year = 1961)
 
 # 2. Trade
-trade <- build_detailed_trade(cbs = cbs, extend_time = FALSE)
+trade <- build_detailed_trade(cbs = cbs, extend_time = TRUE)
 
 # 3. Prices
 trade_prices <- build_trade_prices()
