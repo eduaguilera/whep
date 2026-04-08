@@ -443,6 +443,46 @@ testthat::test_that("extend_time accepts long-format CBS", {
   testthat::expect_true(all(c(2019L, 2020L) %in% result$year))
 })
 
+testthat::test_that("extend_time produces no duplicate year+group rows", {
+  # CBS has extra years (2017, 2021) not in DTM (2018-2020).
+  # Before fix, the CBS merge created NA-keyed rows that duplicated
+  # after tidyr::complete.
+  raw <- data.table::data.table(
+    `Reporter Country Code` = c(2L, 2L, 2L, 2L, 2L, 2L),
+    `Partner Country Code` = c(9L, 7L, 9L, 7L, 9L, 7L),
+    `Item Code` = rep(15L, 6),
+    Element = rep("Import Quantity", 6),
+    Year = c(2018L, 2018L, 2019L, 2019L, 2020L, 2020L),
+    Unit = rep("tonnes", 6),
+    Value = c(600, 400, 500, 500, 400, 600)
+  )
+
+  cbs <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~import, ~export,
+    2017L, 2, 2511, 800, NA,
+    2018L, 2, 2511, 1000, NA,
+    2019L, 2, 2511, 1000, NA,
+    2020L, 2, 2511, 1000, NA,
+    2021L, 2, 2511, 1200, NA
+  )
+
+  result <- build_detailed_trade(
+    raw_trade = raw,
+    cbs = cbs,
+    extend_time = TRUE
+  )
+
+  # No duplicate rows per year+group
+  dupes <- result |>
+    dplyr::count(year, area_code, area_code_partner, element,
+                 item_cbs_code) |>
+    dplyr::filter(n > 1)
+  testthat::expect_equal(nrow(dupes), 0)
+
+  # Should cover the full CBS year range
+  testthat::expect_true(all(2017:2021 %in% result$year))
+})
+
 testthat::test_that("extend_time errors on invalid CBS format", {
   raw <- .fake_bilateral_trade()
 

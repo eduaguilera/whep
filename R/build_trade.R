@@ -278,18 +278,11 @@ build_detailed_trade <- function(
     by = c("year", "area_code", "element", "item_cbs_code", "unit")
   ]
 
-  # Join CBS import/export years to extend range
-  dt <- merge(
-    dt,
-    cbs_ie,
-    by = c("year", "area_code", "item_cbs_code", "element"),
-    all = TRUE
-  )
-
-  # Re-complete after CBS join for full time range
+  # Extend year range to cover CBS years, then re-complete
+  all_years <- sort(unique(c(dt$year, cbs_ie$year)))
   dt <- tidyr::complete(
     tibble::as_tibble(dt),
-    year,
+    year = all_years,
     tidyr::nesting(!!!rlang::syms(nesting_cols))
   )
   data.table::setDT(dt)
