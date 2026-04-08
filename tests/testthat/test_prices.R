@@ -243,7 +243,6 @@ testthat::test_that("build_primary_prices falls back to production value", {
   )
 
   wheat <- result |> dplyr::filter(item_prod_code == "15")
-  # price_prod = 2500 / 5000 = 0.5
   testthat::expect_equal(wheat$price, 0.5)
 })
 

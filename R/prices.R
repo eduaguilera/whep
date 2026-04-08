@@ -152,7 +152,7 @@ build_cbs_prices <- function(
 
 .compute_trade_prices <- function(raw_trade = NULL) {
   cli::cli_progress_step("Reading FAOSTAT trade data")
-  dt <- raw_trade %||% .read_bilateral_trade_for_prices()
+  dt <- raw_trade %||% .read_bilateral_for_prices()
 
   # Keep only non-zero values
   dt <- dt[!is.na(value) & value != 0]
@@ -186,7 +186,7 @@ build_cbs_prices <- function(
   dt
 }
 
-.read_bilateral_trade_for_prices <- function() {
+.read_bilateral_for_prices <- function() {
   dt <- whep_read_file("faostat-trade-bilateral")
   if (!data.table::is.data.table(dt)) {
     data.table::setDT(dt)

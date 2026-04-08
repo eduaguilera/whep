@@ -8,6 +8,7 @@ utils::globalVariables(
     ".SD",
     "..cols",
     "..dup_cols",
+    "..keep",
     ".cross_key",
     ".fu_n",
     ".fu_ok",
