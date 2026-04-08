@@ -33,16 +33,16 @@
 testthat::test_that("build_trade_prices computes price from raw data", {
   result <- build_trade_prices(raw_trade = .fake_trade_totals())
 
-  testthat::expect_s3_class(result, "data.table")
+  testthat::expect_s3_class(result, "tbl_df")
   testthat::expect_true(all(
     c("year", "item_trade", "item_code_trade", "element",
       "kdollars", "tonnes", "price") %in% names(result)
   ))
 
-  import_row <- result[element == "import"]
+  import_row <- result |> dplyr::filter(element == "import")
   testthat::expect_equal(import_row$price, 0.5)
 
-  export_row <- result[element == "export"]
+  export_row <- result |> dplyr::filter(element == "export")
   testthat::expect_equal(export_row$price, 0.5)
 })
 
@@ -161,8 +161,8 @@ testthat::test_that("build_trade_prices keeps multiple items separate", {
   result <- build_trade_prices(raw_trade = raw)
 
   testthat::expect_equal(nrow(result), 2)
-  wheat <- result[item_code_trade == 15]
-  rice <- result[item_code_trade == 27]
+  wheat <- result |> dplyr::filter(item_code_trade == 15)
+  rice <- result |> dplyr::filter(item_code_trade == 27)
   testthat::expect_equal(wheat$price, 0.5)
   testthat::expect_equal(rice$price, 2.0)
 })
@@ -200,12 +200,12 @@ testthat::test_that("build_primary_prices uses export trade prices", {
     trade_prices = trade_prices
   )
 
-  testthat::expect_s3_class(result, "data.table")
+  testthat::expect_s3_class(result, "tbl_df")
   testthat::expect_true(all(c("year", "item_prod_code", "price") %in%
     names(result)))
 
   # Should use export price (0.5)
-  wheat <- result[item_prod_code == "15"]
+  wheat <- result |> dplyr::filter(item_prod_code == "15")
   testthat::expect_equal(wheat$price, 0.5)
 })
 
@@ -242,7 +242,7 @@ testthat::test_that("build_primary_prices falls back to production value", {
     trade_prices = trade_prices
   )
 
-  wheat <- result[item_prod_code == "15"]
+  wheat <- result |> dplyr::filter(item_prod_code == "15")
   # price_prod = 2500 / 5000 = 0.5
   testthat::expect_equal(wheat$price, 0.5)
 })
@@ -270,7 +270,7 @@ testthat::test_that("build_primary_prices prefers export over production", {
     trade_prices = trade_prices
   )
 
-  wheat <- result[item_prod_code == "15"]
+  wheat <- result |> dplyr::filter(item_prod_code == "15")
   # Export price is 0.5, production price would be 10000/5000=2.0
   # Should prefer export
   testthat::expect_equal(wheat$price, 0.5)
@@ -304,7 +304,7 @@ testthat::test_that("build_primary_prices handles space-separated VoP columns", 
     trade_prices = trade_prices
   )
 
-  wheat <- result[item_prod_code == "15"]
+  wheat <- result |> dplyr::filter(item_prod_code == "15")
   testthat::expect_equal(wheat$price, 0.5)
 })
 
@@ -396,7 +396,7 @@ testthat::test_that("build_primary_prices gap-fills missing years", {
     trade_prices = trade_prices
   )
 
-  prices <- result[order(year)]$price
+  prices <- result |> dplyr::arrange(year) |> dplyr::pull(price)
   # 2018=0.5, 2020=1.0 → 2019 interpolated to 0.75
   testthat::expect_equal(prices, c(0.5, 0.75, 1.0))
 })

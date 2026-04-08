@@ -40,7 +40,7 @@ build_trade_prices <- function(raw_trade = NULL, example = FALSE) {
     return(.example_build_trade_prices())
   }
   cli::cli_h1("Building trade prices")
-  .compute_trade_prices(raw_trade)
+  tibble::as_tibble(.compute_trade_prices(raw_trade))
 }
 
 # -- Primary prices ------------------------------------------------------------
@@ -89,7 +89,9 @@ build_primary_prices <- function(
     trade_prices <- .compute_trade_prices()
   }
 
-  .compute_primary_prices(primary_prod, value_of_production, trade_prices)
+  tibble::as_tibble(
+    .compute_primary_prices(primary_prod, value_of_production, trade_prices)
+  )
 }
 
 # -- CBS prices ----------------------------------------------------------------
