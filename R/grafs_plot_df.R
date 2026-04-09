@@ -11,6 +11,15 @@
 #' @export
 create_grafs_plot_df <- function() {
   prov_destiny_df <- create_n_prov_destiny()
+  nat_destiny_df <- create_n_nat_destiny()
+
+  nat_destiny_df <- nat_destiny_df |>
+    dplyr::mutate(Province_name = "Spain")
+
+  prov_destiny_df <- prov_destiny_df |>
+    dplyr::filter(Province_name != "Spain") |>
+    dplyr::bind_rows(nat_destiny_df)
+
   n_balance <- whep_read_file("n_balance_ygpit_all")
 
   df_land <- .create_land_df()
@@ -19,6 +28,7 @@ create_grafs_plot_df <- function() {
   df_lu <- .create_livestock_lu_df()
   df_population <- .create_population_df()
   df_n_input <- .create_n_input_df(n_balance, df_land)
+  df_land_surplus <- .create_land_surplus_df(prov_destiny_df)
   df_livestock <- .create_livestock_df(prov_destiny_df)
   df_lv_r_m <- .create_feed_df(prov_destiny_df)
   df_crop_losses <- .create_crop_losses_df(n_balance, prov_destiny_df)
@@ -30,7 +40,19 @@ create_grafs_plot_df <- function() {
     df_livestock_export,
     df_animal_losses
   )
-  df_livestock_gas_loss <- .create_livestock_gas_loss_df()
+
+  df_all_flows <- dplyr::bind_rows(
+    df_flow,
+    df_import,
+    df_livestock,
+    df_milk,
+    df_livestock_export,
+    df_lv_r_m,
+    df_crop_losses,
+    df_animal_losses
+  )
+
+  df_livestock_surplus <- .create_livestock_surplus_df(df_all_flows)
 
   df_combined <- .combine_and_finalize_df(
     crop_livestock_flows = df_flow,
@@ -39,7 +61,8 @@ create_grafs_plot_df <- function() {
     df_crop_losses = df_crop_losses,
     df_animal_losses = df_animal_losses,
     df_livestock_total = df_livestock_total,
-    df_livestock_gas_loss = df_livestock_gas_loss
+    df_livestock_surplus = df_livestock_surplus,
+    df_land_surplus = df_land_surplus
   )
 
   df_final <- dplyr::bind_rows(
@@ -53,8 +76,7 @@ create_grafs_plot_df <- function() {
     dplyr::arrange(province, year, label) |>
     dplyr::filter(!is.na(province) & !is.na(year)) |>
     dplyr::mutate(arrowColor = "") |>
-    dplyr::select(province, year, label, data, align, arrowColor) |>
-    dplyr::distinct(province, year, label, .keep_all = TRUE)
+    dplyr::select(province, year, label, data, align, arrowColor)
 
   n_labels <- c(
     "{IMANOT}",
@@ -98,6 +120,7 @@ create_grafs_plot_df <- function() {
     "{FIX_DEP_CR}",
     "{CROP_SURPLUS}",
     "{GRASS_SURPLUS}",
+    "{LIVGASLOSS}",
     "{WASTEWATER}",
     "{CRPLNDTOTN}",
     "{GREHN}",
@@ -124,30 +147,73 @@ create_grafs_plot_df <- function() {
       data = as.character(data)
     )
 
-  df_spain <- df_final |>
-    dplyr::group_by(year, label, align, arrowColor) |>
-    dplyr::summarise(
-      data = sum(as.numeric(data), na.rm = TRUE),
-      .groups = "drop"
-    ) |>
-    dplyr::mutate(
-      province = "Spain",
-      data = as.character(data)
-    ) |>
-    dplyr::select(province, year, label, data, align, arrowColor)
-
-  df_final <- dplyr::bind_rows(df_final, df_spain)
-
   df_final <- df_final |>
     dplyr::mutate(
       data_num = suppressWarnings(as.numeric(data))
     ) |>
     dplyr::group_by(province, year, label) |>
-    dplyr::filter(
-      !(dplyr::n() > 1 & (is.na(data_num) | data_num == 0))
-    ) |>
     dplyr::select(-data_num) |>
     dplyr::ungroup()
+
+  missing_labels <- c(
+    "{FORha}",
+    "{FORMha}",
+    "{FORN}",
+    "{HAGRASS}",
+    "{HACULT}",
+    "{PERiN}",
+    "{PERrN}",
+    "{NPEiN}",
+    "{NPErN}",
+    "{GREHN}",
+    "{GREHMha}",
+    "{POPULATIONM}",
+    "{PERiMha}",
+    "{PERrMha}",
+    "{NPEiMha}",
+    "{NPErMha}",
+    "{RUMIANTSMLU}",
+    "{MONOGMLU}",
+    "{GRASSMha}",
+    "{HORiN}",
+    "{HORrN}",
+    "{ARAiN}",
+    "{ARArN}",
+    "{KM2_PROVINCE}",
+    "{AN_LS}",
+    "{AN_OTH}",
+    "{AN_LS_OTH}"
+  )
+
+  df_missing_spain <- df_final |>
+    dplyr::filter(province != "Spain") |>
+    dplyr::filter(label %in% missing_labels) |>
+    dplyr::mutate(data = as.numeric(data)) |>
+    dplyr::group_by(year, label) |>
+    dplyr::summarise(data = sum(data, na.rm = TRUE), .groups = "drop") |>
+    dplyr::mutate(
+      province = "Spain",
+      align = "R",
+      data = as.character(data)
+    )
+
+  df_final <- dplyr::bind_rows(
+    df_final,
+    df_missing_spain
+  )
+
+  df_final <- df_final |>
+    dplyr::group_by(province, year, label) |>
+    dplyr::summarise(
+      data = ifelse(
+        all(is.na(suppressWarnings(as.numeric(data)))),
+        first(data),
+        as.character(max(as.numeric(data), na.rm = TRUE))
+      ),
+      align = first(align),
+      arrowColor = "",
+      .groups = "drop"
+    )
 
   #Path needs to be adjusted by user, until the final version can be uploaded
   #to SACO
@@ -221,10 +287,6 @@ create_grafs_plot_df <- function() {
           Origin == "Outside" &
           Destiny %in% c("population_food", "population_other_uses") ~
           "{IMPHUMFISH}",
-        Box == "Livestock" &
-          Origin == "Outside" &
-          Destiny %in% c("population_food", "population_other_uses") ~
-          "{IMPHMANA}",
         Box == "Cropland" &
           Origin == "Outside" &
           Destiny == "livestock_rum" ~
@@ -335,6 +397,27 @@ create_grafs_plot_df <- function() {
       )
     )
 
+  df_imphmana <- prov_destiny_df |>
+    dplyr::filter(
+      Box %in% c("Livestock", "Fish"),
+      Origin == "Outside",
+      Destiny %in% c("population_food", "population_other_uses")
+    ) |>
+    dplyr::group_by(Province_name, Year) |>
+    dplyr::summarise(data = sum(MgN, na.rm = TRUE), .groups = "drop") |>
+    dplyr::mutate(
+      label = "{IMPHMANA}",
+      province = Province_name,
+      year = Year,
+      align = "L"
+    ) |>
+    dplyr::select(province, year, label, data, align)
+
+  df_n_flows <- dplyr::bind_rows(
+    df_n_flows,
+    df_imphmana
+  )
+
   df_n_flows
 }
 
@@ -399,7 +482,6 @@ create_grafs_plot_df <- function() {
 
   df_lu
 }
-
 
 #' @title Create land dataset by province
 #'
@@ -659,23 +741,6 @@ create_grafs_plot_df <- function() {
       `{GRASSMha}` = `{HAGRASS}` / 1e6,
       `{HACULT}` = sum(Area_ygpit_ha[LandUse == "Cropland"], na.rm = TRUE),
       `{KM2_PROVINCE}` = sum(Area_ygpit_ha, na.rm = TRUE) / 100,
-      # So far crop and semi-natural surpluses were used from the n_balance dataset.
-      # I am not sure if this approach is better or calculating these surpluses by the inputs
-      # and outputs of this dataset?
-      `{CROP_SURPLUS}` = sum(Surplus[LandUse == "Cropland"], na.rm = TRUE),
-      `{GRASS_SURPLUS}` = sum(
-        Surplus[
-          LandUse %in%
-            c(
-              "Dehesa",
-              "Forest_high",
-              "Forest_low",
-              "Other",
-              "Pasture_Shrubland"
-            )
-        ],
-        na.rm = TRUE
-      ),
       .groups = "drop"
     ) |>
     tidyr::pivot_longer(
@@ -696,6 +761,93 @@ create_grafs_plot_df <- function() {
 
   df_all
 }
+
+
+#' @title Create land nitrogen surplus dataset (cropland & semi-natural systems)
+#'
+#' @description
+#' Calculates nitrogen surplus for cropland and semi-natural agroecosystems
+#' (grassland) by province and year. The surplus is calculated as the difference
+#' between total nitrogen inputs and outputs.
+#' Inputs include nitrogen from synthetic fertilizers, biological fixation,
+#' atmospheric deposition, and livestock manure.
+#' Outputs include nitrogen flows from cropland to population, livestock,
+#' exports, and other uses.
+#'
+#' @param prov_destiny_df A data frame containing nitrogen flows with columns
+#' such as `Origin`, `Destiny`, `Province_name`, `Year`, and `MgN`.
+#'
+#' @return
+#' A tibble with columns: Province name, year, label (`{CROP_SURPLUS}` or `{GRASS_SURPLUS}`), nitrogen
+#' surplus (MgN), and text alignment.
+#'
+#' @keywords internal
+.create_land_surplus_df <- function(prov_destiny_df) {
+  inputs <- prov_destiny_df |>
+    dplyr::filter(
+      (Origin %in%
+        c("Synthetic", "Fixation", "Deposition", "Livestock") &
+        Destiny %in% c("Cropland", "semi_natural_agroecosystems"))
+    ) |>
+    dplyr::mutate(
+      system = dplyr::case_when(
+        Destiny == "Cropland" ~ "crop",
+        Destiny == "semi_natural_agroecosystems" ~ "grass"
+      )
+    ) |>
+    dplyr::group_by(Province_name, Year, system) |>
+    dplyr::summarise(input = sum(MgN, na.rm = TRUE), .groups = "drop")
+
+  outputs <- prov_destiny_df |>
+    dplyr::filter(
+      (Origin == "Cropland" &
+        Destiny %in%
+          c(
+            "population_food",
+            "population_other_uses",
+            "livestock_rum",
+            "livestock_mono",
+            "export"
+          )) |
+        (Origin == "semi_natural_agroecosystems" &
+          Destiny %in%
+            c(
+              "population_food",
+              "population_other_uses",
+              "livestock_rum",
+              "livestock_mono",
+              "export"
+            ))
+    ) |>
+    dplyr::mutate(
+      system = dplyr::case_when(
+        Origin == "Cropland" ~ "crop",
+        Origin == "semi_natural_agroecosystems" ~ "grass"
+      )
+    ) |>
+    dplyr::group_by(Province_name, Year, system) |>
+    dplyr::summarise(output = sum(MgN, na.rm = TRUE), .groups = "drop")
+
+  dplyr::full_join(
+    inputs,
+    outputs,
+    by = c("Province_name", "Year", "system")
+  ) |>
+    dplyr::mutate(
+      input = dplyr::coalesce(input, 0),
+      output = dplyr::coalesce(output, 0),
+      surplus = input - output,
+      label = dplyr::case_when(
+        system == "crop" ~ "{CROP_SURPLUS}",
+        system == "grass" ~ "{GRASS_SURPLUS}"
+      ),
+      province = Province_name,
+      year = Year,
+      align = "R"
+    ) |>
+    dplyr::select(province, year, label, data = surplus, align)
+}
+
 
 #' @title Create nitrogen flow dataset by province
 #'
@@ -979,7 +1131,6 @@ create_grafs_plot_df <- function() {
       .groups = "drop"
     )
 
-  #COMMENT: other uses is also part of human consumption
   an_oth <- prov_destiny_df |>
     dplyr::filter(
       Origin == "Livestock",
@@ -1050,32 +1201,59 @@ create_grafs_plot_df <- function() {
   df_livestock_total
 }
 
-#' @title Create livestock gaseous loss dataset
+#' @title Create livestock loss dataset
 #'
 #' @description
-#' Calculates gaseous nitrogen losses from livestock excretion based on
+#' Calculates nitrogen losses from livestock excretion based on
 #' excretion and loss share data.
 #'
 #' @return A tibble with columns `province`, `year`, `label`, `data`, `align`.
 #'
 #' @keywords internal
-.create_livestock_gas_loss_df <- function() {
-  whep_read_file("n_excretion_ygs") |>
-    dplyr::filter(Loss_share > 0) |>
-    dplyr::group_by(Province_name, Year) |>
+.create_livestock_surplus_df <- function(df_all_flows) {
+  input_labels <- c(
+    "{CROPS_TO_LIVESTOCK}",
+    "{GRASS_TO_LIVESTOCK}",
+    "{IMANOTR}",
+    "{IMANOTM}",
+    "{IMPORT_ANIMALCR_RUM}",
+    "{IMPORT_ANIMALCR_MONOG}"
+  )
+
+  output_labels <- c(
+    "{LIVESTOCK_TO_HUMAN}",
+    "{LIVESTOCK_EXPORTED}",
+    "{LIVESTOCK_TO_CROPS}",
+    "{LIVESTOCK_TO_GRASS}",
+    "{AN_OTH}"
+  )
+
+  df_inputs <- df_all_flows |>
+    dplyr::filter(label %in% input_labels) |>
+    dplyr::group_by(province, year) |>
     dplyr::summarise(
-      data = sum(Excr_MgN * Loss_share, na.rm = TRUE) / 1000,
+      input = sum(as.numeric(data), na.rm = TRUE),
       .groups = "drop"
-    ) |>
+    )
+
+  df_outputs <- df_all_flows |>
+    dplyr::filter(label %in% output_labels) |>
+    dplyr::group_by(province, year) |>
+    dplyr::summarise(
+      output = sum(as.numeric(data), na.rm = TRUE),
+      .groups = "drop"
+    )
+
+  dplyr::full_join(df_inputs, df_outputs, by = c("province", "year")) |>
     dplyr::mutate(
-      province = Province_name,
-      year = Year,
+      input = dplyr::coalesce(input, 0),
+      output = dplyr::coalesce(output, 0),
+      data = input - output,
       label = "{LIVGASLOSS}",
       align = "R"
     ) |>
     dplyr::select(province, year, label, data, align)
 }
-
 
 #' @title Create population dataset
 #'
@@ -1121,7 +1299,7 @@ create_grafs_plot_df <- function() {
 #' @param df_crop_losses Data frame of crop nitrogen losses.
 #' @param df_animal_losses Data frame of animal nitrogen losses.
 #' @param df_livestock_total Data frame of total livestock nitrogen.
-#' @param df_livestock_gas_loss Data frame of livestock gaseous nitrogen losses.
+#' @param df_livestock_surplus Data frame of livestock surplus nitrogen.
 #'
 #' @return A tibble with standardized columns `province`, `year`, `label`,
 #' `data`, and `align`.
@@ -1134,7 +1312,8 @@ create_grafs_plot_df <- function() {
   df_crop_losses,
   df_animal_losses,
   df_livestock_total,
-  df_livestock_gas_loss
+  df_livestock_surplus,
+  df_land_surplus
 ) {
   df_combi <- dplyr::bind_rows(
     crop_livestock_flows |> dplyr::select(province, year, label, data, align),
@@ -1143,7 +1322,8 @@ create_grafs_plot_df <- function() {
     df_crop_losses |> dplyr::select(province, year, label, data, align),
     df_animal_losses |> dplyr::select(province, year, label, data, align),
     df_livestock_total |> dplyr::select(province, year, label, data, align),
-    df_livestock_gas_loss |> dplyr::select(province, year, label, data, align)
+    df_livestock_surplus |> dplyr::select(province, year, label, data, align),
+    df_land_surplus |> dplyr::select(province, year, label, data, align)
   ) |>
     dplyr::arrange(province, year, label) |>
     dplyr::mutate(

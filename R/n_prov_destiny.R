@@ -109,75 +109,110 @@ create_n_prov_destiny <- function() {
 #' @export
 create_n_nat_destiny <- function() {
   prov <- create_n_prov_destiny()
+  pie_full_destinies_fm <- whep_read_file("pie_full_destinies_fm")
+
   consumption_destinies <- c(
     "population_food",
     "population_other_uses",
     "livestock_rum",
     "livestock_mono"
   )
-  nat_shares <- prov |>
-    dplyr::filter(Origin != "Outside", Destiny != "export") |>
-    dplyr::filter(Destiny %in% consumption_destinies) |>
-    dplyr::summarise(
-      MgN = sum(MgN, na.rm = TRUE),
-      .by = c("Year", "Item", "Destiny")
-    ) |>
-    dplyr::group_by(Year, Item) |>
-    dplyr::mutate(share = MgN / sum(MgN, na.rm = TRUE)) |>
-    dplyr::ungroup() |>
-    dplyr::select(Year, Item, Destiny, share)
-
-  nat_core <- prov |>
-    dplyr::filter(Origin != "Outside", Destiny != "export") |>
-    dplyr::group_by(Year, Item, Irrig_cat, Box, Origin, Destiny) |>
-    dplyr::summarise(MgN = sum(MgN, na.rm = TRUE), .groups = "drop") |>
-    dplyr::mutate(Province_name = "Spain")
 
   nat_production <- prov |>
     dplyr::filter(Origin == Box) |>
     dplyr::group_by(Year, Item, Box, Irrig_cat) |>
-    dplyr::summarise(production = sum(MgN, na.rm = TRUE), .groups = "drop")
-
-  nat_balance <- prov |>
-    dplyr::filter(Destiny %in% consumption_destinies) |>
-    dplyr::group_by(Year, Item, Box, Irrig_cat) |>
     dplyr::summarise(
-      consumption = sum(MgN, na.rm = TRUE),
+      production = sum(MgN, na.rm = TRUE),
       .groups = "drop"
-    ) |>
-    dplyr::left_join(
-      nat_production,
-      by = c("Year", "Item", "Box", "Irrig_cat")
+    )
+
+  nat_consumption <- pie_full_destinies_fm |>
+    dplyr::filter(
+      Element == "Domestic_supply",
+      Destiny %in% c("Food", "Other_uses", "Feed")
     ) |>
     dplyr::mutate(
+      Destiny = dplyr::recode(
+        Destiny,
+        "Food" = "population_food",
+        "Other_uses" = "population_other_uses",
+        "Feed" = "livestock_total"
+      )
+    ) |>
+    dplyr::group_by(Year, Item, Destiny) |>
+    dplyr::summarise(
+      consumption = sum(Value_destiny, na.rm = TRUE),
+      .groups = "drop"
+    )
+
+  nat_total_consumption <- nat_consumption |>
+    dplyr::group_by(Year, Item) |>
+    dplyr::summarise(
+      consumption = sum(consumption, na.rm = TRUE),
+      .groups = "drop"
+    )
+
+  nat_balance <- nat_production |>
+    dplyr::left_join(nat_total_consumption, by = c("Year", "Item")) |>
+    dplyr::mutate(
+      consumption = dplyr::coalesce(consumption, 0),
       production = dplyr::coalesce(production, 0),
       export = pmax(production - consumption, 0),
       import = pmax(consumption - production, 0),
       Province_name = "Spain"
     )
 
-  exports <- nat_balance |>
-    dplyr::filter(export > 0) |>
-    dplyr::transmute(
-      Year,
-      Province_name,
-      Item,
-      Irrig_cat,
-      Box,
-      Origin = Box,
-      Destiny = "export",
-      MgN = export
-    )
+  nat_shares <- nat_consumption |>
+    dplyr::group_by(Year, Item) |>
+    dplyr::mutate(
+      share = consumption / sum(consumption, na.rm = TRUE)
+    ) |>
+    dplyr::ungroup()
+
+  feed_split <- prov |>
+    dplyr::filter(Destiny %in% c("livestock_rum", "livestock_mono")) |>
+    dplyr::group_by(Year, Item, Destiny) |>
+    dplyr::summarise(MgN = sum(MgN, na.rm = TRUE), .groups = "drop") |>
+    dplyr::group_by(Year, Item) |>
+    dplyr::mutate(
+      share_feed = MgN / sum(MgN, na.rm = TRUE)
+    ) |>
+    dplyr::ungroup()
 
   imports <- nat_balance |>
     dplyr::filter(import > 0) |>
     dplyr::left_join(nat_shares, by = c("Year", "Item")) |>
     dplyr::mutate(
-      share = dplyr::coalesce(share, 0),
-      MgN = dplyr::case_when(
-        Destiny %in% c("population_food", "population_other_uses") ~
-          pmin(import, consumption) * share,
-        TRUE ~ import * share
+      base_amount = dplyr::if_else(
+        Destiny %in% c("population_food", "population_other_uses"),
+        pmin(import, consumption),
+        import
+      )
+    ) |>
+    dplyr::mutate(
+      MgN = base_amount * share
+    ) |>
+    dplyr::mutate(
+      Destiny = dplyr::if_else(
+        Destiny == "livestock_total",
+        "livestock_split",
+        Destiny
+      )
+    ) |>
+    dplyr::left_join(
+      feed_split,
+      by = c("Year", "Item")
+    ) |>
+    dplyr::mutate(
+      MgN = dplyr::if_else(
+        Destiny == "livestock_split",
+        MgN * share_feed,
+        MgN
+      ),
+      Destiny = dplyr::if_else(
+        Destiny == "livestock_split",
+        Destiny.y,
+        Destiny
       ),
       Origin = "Outside",
       Irrig_cat = NA_character_
@@ -193,6 +228,29 @@ create_n_nat_destiny <- function() {
       Destiny,
       MgN
     )
+
+  exports <- nat_balance |>
+    dplyr::filter(export > 0) |>
+    dplyr::transmute(
+      Year,
+      Province_name,
+      Item,
+      Irrig_cat,
+      Box,
+      Origin = Box,
+      Destiny = "export",
+      MgN = export
+    )
+
+  nat_core <- prov |>
+    dplyr::filter(Origin != "Outside", Destiny != "export") |>
+    dplyr::group_by(Year, Item, Irrig_cat, Box, Origin, Destiny) |>
+    dplyr::summarise(
+      MgN = sum(MgN, na.rm = TRUE),
+      .groups = "drop"
+    ) |>
+    dplyr::mutate(Province_name = "Spain")
+
   dplyr::bind_rows(nat_core, exports, imports) |>
     dplyr::arrange(Year, Item, Origin, Destiny)
 }
@@ -922,7 +980,7 @@ create_n_nat_destiny <- function() {
   grafs_prod_item_combined <- grafs_prod_item_combined |>
     dplyr::mutate(
       production_share = dplyr::if_else(
-        production_total > 0,
+        production_total > 0 & Box == "Cropland",
         production_n / production_total,
         1
       ),
@@ -930,10 +988,7 @@ create_n_nat_destiny <- function() {
       feed = feed * production_share,
       other_uses = other_uses * production_share
     ) |>
-    dplyr::select(
-      -production_total,
-      -production_share
-    )
+    dplyr::select(-production_total, -production_share)
 
   grafs_prod_item_combined
 }
