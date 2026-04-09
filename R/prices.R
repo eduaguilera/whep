@@ -229,6 +229,9 @@ build_cbs_prices <- function(
   if (!data.table::is.data.table(primary_prod)) {
     data.table::setDT(primary_prod)
   }
+  if (!data.table::is.data.table(trade_prices)) {
+    trade_prices <- data.table::as.data.table(trade_prices)
+  }
 
   items_prod <- data.table::as.data.table(whep::items_prod_full)
   prod_bridge <- unique(
@@ -364,6 +367,9 @@ build_cbs_prices <- function(
 
 .compute_cbs_prices_raw <- function(trade_prices) {
   cli::cli_progress_step("Computing raw CBS item prices")
+  if (!data.table::is.data.table(trade_prices)) {
+    trade_prices <- data.table::as.data.table(trade_prices)
+  }
   cbs_trade <- data.table::as.data.table(whep::cbs_trade_codes)
   items <- data.table::as.data.table(whep::items_full)
   items_bridge <- unique(items[, .(item_cbs, item_cbs_code)])
