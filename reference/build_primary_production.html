@@ -61,7 +61,8 @@ This is a convenience wrapper that chains the three pipeline steps:</p><ol><li><
 <span>  start_year <span class="op">=</span> <span class="fl">1850</span>,</span>
 <span>  end_year <span class="op">=</span> <span class="fl">2023</span>,</span>
 <span>  smooth_carry_forward <span class="op">=</span> <span class="cn">FALSE</span>,</span>
-<span>  example <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span>  example <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  show_duplicates <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -86,13 +87,21 @@ are replaced with a linear trend. Default <code>FALSE</code>.</p></dd>
 <dd><p>Logical. If <code>TRUE</code>, return a small hardcoded example
 tibble instead of reading remote data. Default <code>FALSE</code>.</p></dd>
 
+
+<dt id="arg-show-duplicates">show_duplicates<a class="anchor" aria-label="anchor" href="#arg-show-duplicates"></a></dt>
+<dd><p>Logical. If <code>TRUE</code>, return only the rows that
+have competing sources in wide format (one column per source) for
+diagnostic comparison. Default <code>FALSE</code>.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>A tibble with the same columns as <code><a href="get_primary_production.html">get_primary_production()</a></code>:
 <code>year</code>, <code>area_code</code> (numeric FAOSTAT), <code>item_prod_code</code>,
 <code>item_cbs_code</code>, <code>live_anim_code</code>, <code>unit</code>, <code>value</code>.
-Names can be recovered via <code><a href="add_area_name.html">add_area_name()</a></code>, <code><a href="add_item_prod_name.html">add_item_prod_name()</a></code>, etc.</p>
+Names can be recovered via <code><a href="add_area_name.html">add_area_name()</a></code>, <code><a href="add_item_prod_name.html">add_item_prod_name()</a></code>, etc.
+When <code>show_duplicates = TRUE</code>, returns a wide tibble with one
+column per source showing the competing values.</p>
     </div>
 
     <div class="section level2">

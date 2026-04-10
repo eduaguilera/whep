@@ -103,6 +103,27 @@ ILO, IEA, and other international statistical sources.</p>
     <div class="dont-index"><p><a href="polities_cats.html">polities_cats</a> for the subset restricted to sovereign countries.</p></div>
     </div>
 
+    <div class="section level2">
+    <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">regions_full</span><span class="op">)</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 6 × 35</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   polity_code polity_name    V1  code iso3c FAOSTAT_name EU27  name  eia   iea  </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>        <span style="color: #949494; font-style: italic;">&lt;lgl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span> <span style="color: #BB0000;">NA</span>          <span style="color: #BB0000;">NA</span>             30    30 ATA   <span style="color: #BB0000;">NA</span>           FALSE Anta… Anta… <span style="color: #BB0000;">NA</span>   </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span> <span style="color: #BB0000;">NA</span>          <span style="color: #BB0000;">NA</span>            259   351 <span style="color: #BB0000;">NA</span>    China        FALSE China <span style="color: #BB0000;">NA</span>    <span style="color: #BB0000;">NA</span>   </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">3</span> <span style="color: #BB0000;">NA</span>          <span style="color: #BB0000;">NA</span>            149   152 NTZ   <span style="color: #BB0000;">NA</span>           FALSE Neut… <span style="color: #BB0000;">NA</span>    <span style="color: #BB0000;">NA</span>   </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">4</span> <span style="color: #BB0000;">NA</span>          <span style="color: #BB0000;">NA</span>            245   254 OXY   <span style="color: #BB0000;">NA</span>           FALSE Othe… <span style="color: #BB0000;">NA</span>    <span style="color: #BB0000;">NA</span>   </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">5</span> <span style="color: #BB0000;">NA</span>          <span style="color: #BB0000;">NA</span>            260   999 ROW   <span style="color: #BB0000;">NA</span>           FALSE RoW   <span style="color: #BB0000;">NA</span>    <span style="color: #BB0000;">NA</span>   </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">6</span> <span style="color: #BB0000;">NA</span>          <span style="color: #BB0000;">NA</span>            244   252 UXY   <span style="color: #BB0000;">NA</span>           FALSE Unsp… <span style="color: #BB0000;">NA</span>    <span style="color: #BB0000;">NA</span>   </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 25 more variables: water_code &lt;dbl&gt;, water_area &lt;chr&gt;, baci &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   fish &lt;dbl&gt;, region_code &lt;dbl&gt;, cbs &lt;lgl&gt;, fabio_code &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   ADB_Region &lt;chr&gt;, region &lt;chr&gt;, uISO3c &lt;dbl&gt;, Lassaletta &lt;chr&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   region_krausmann &lt;chr&gt;, region_HANPP &lt;chr&gt;, region_krausmann2 &lt;chr&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   region_UN_sub &lt;chr&gt;, region_UN &lt;chr&gt;, region_ILO1 &lt;chr&gt;, region_ILO2 &lt;chr&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   region_ILO3 &lt;chr&gt;, region_IEA &lt;chr&gt;, region_IPCC &lt;chr&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   region_labour &lt;chr&gt;, region_labour_agg &lt;chr&gt;, region_labour_mech &lt;chr&gt;, …</span></span>
+</code></pre></div>
+    </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside></div>
 

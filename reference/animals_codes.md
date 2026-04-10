@@ -63,3 +63,22 @@ contains the following columns:
 
 Derived from [FAOSTAT data](https://www.fao.org/faostat/en/#data/QA) and
 internal livestock classification work.
+
+## Examples
+
+``` r
+head(animals_codes)
+#> # A tibble: 6 × 17
+#>   Item_Code item_cbs       proc_code proc  item_cbs_code Farm_class Item_product
+#>       <dbl> <chr>          <chr>     <chr>         <dbl> <chr>      <chr>       
+#> 1      1171 Animals live … p111      Othe…          1171 Cattle     NA          
+#> 2      1107 Asses          p092      Asse…          1107 Cattle     NA          
+#> 3       946 Buffalo        p086      Buff…           946 Cattle     NA          
+#> 4      1157 Camelids, oth… p095      Came…          1157 Cattle     NA          
+#> 5      1126 Camels         p094      Came…          1126 Cattle     NA          
+#> 6       866 Cattle, non-d… p085      Non-…           961 Cattle     Meat of cat…
+#> # ℹ 10 more variables: Item_Code_product <dbl>, Liv_prod_cat <chr>,
+#> #   Graniv_grazers <chr>, Livestock_name <chr>, Animal_class <chr>,
+#> #   Item_FAOmanure <chr>, Item_Code_FAOmanure <dbl>, Cat_Labour <chr>,
+#> #   Cat_FAO1 <chr>, item_bouwman <chr>
+```

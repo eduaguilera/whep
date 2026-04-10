@@ -26,3 +26,18 @@ following columns:
 
 Based on standard livestock unit definitions from FAO and European
 agricultural statistics.
+
+## Examples
+
+``` r
+head(liv_lu_coefs)
+#> # A tibble: 6 × 2
+#>   Animal_class LU_head
+#>   <chr>          <dbl>
+#> 1 Dairy_cows       1  
+#> 2 Cattle           0.8
+#> 3 Sheep_goats      0.1
+#> 4 Equines          0.8
+#> 5 Pigs             0.3
+#> 6 Hogs             0.5
+```

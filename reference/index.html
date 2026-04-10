@@ -491,6 +491,429 @@
         </dt>
         <dd>Calculate LMDI decomposition.</dd>
       </dl></div><div class="section level2">
+      <h2 id="livestock-emissions">Livestock emissions<a class="anchor" aria-label="anchor" href="#livestock-emissions"></a></h2>
+
+      <div class="section-desc"><p>Calculate livestock GHG emissions using IPCC 2019 Tier 1 and Tier 2 methods for enteric methane, manure methane, and manure nitrous oxide.</p></div>
+
+      <dl></dl></div><div class="section level2">
+
+
+
+
+      <dl><dt>
+
+          <code><a href="prepare_livestock_emissions.html">prepare_livestock_emissions()</a></code>
+
+        </dt>
+        <dd>Prepare production data for livestock emission calculations.</dd>
+
+        <dt>
+
+          <code><a href="calculate_livestock_emissions.html">calculate_livestock_emissions()</a></code>
+
+        </dt>
+        <dd>Calculate all livestock emissions.</dd>
+
+        <dt>
+
+          <code><a href="calculate_enteric_ch4.html">calculate_enteric_ch4()</a></code>
+
+        </dt>
+        <dd>Calculate enteric methane emissions.</dd>
+
+        <dt>
+
+          <code><a href="calculate_manure_emissions.html">calculate_manure_emissions()</a></code>
+
+        </dt>
+        <dd>Calculate manure emissions (CH4 + N2O).</dd>
+
+        <dt>
+
+          <code><a href="estimate_energy_demand.html">estimate_energy_demand()</a></code>
+
+        </dt>
+        <dd>Estimate energy demand (Gross Energy) - Tier 2</dd>
+
+        <dt>
+
+          <code><a href="calculate_cohorts_systems.html">calculate_cohorts_systems()</a></code>
+
+        </dt>
+        <dd>Calculate cohort and production system distribution.</dd>
+
+        <dt>
+
+          <code><a href="calculate_uncertainty_bounds.html">calculate_uncertainty_bounds()</a></code>
+
+        </dt>
+        <dd>Calculate uncertainty bounds for livestock emissions.</dd>
+      </dl></div><div class="section level2">
+      <h2 id="livestock-coefficient-tables">Livestock coefficient tables<a class="anchor" aria-label="anchor" href="#livestock-coefficient-tables"></a></h2>
+
+      <div class="section-desc"><p>IPCC and GLEAM coefficient tables for livestock emission calculations.</p></div>
+
+      <dl></dl></div><div class="section level2">
+
+      <h3 id="gleam-supplement-tables">GLEAM supplement tables<a class="anchor" aria-label="anchor" href="#gleam-supplement-tables"></a></h3>
+      <div class="section-desc"><p>Data from MacLeod et al. (2018) GLEAM 3.0 Supplement S1.</p></div>
+
+      <dl></dl></div><div class="section level2">
+
+
+
+
+      <dl><dt>
+
+          <code><a href="gleam_animal_weights.html">gleam_animal_weights</a></code>
+
+        </dt>
+        <dd>GLEAM animal weights.</dd>
+
+        <dt>
+
+          <code><a href="gleam_crop_residue_params.html">gleam_crop_residue_params</a></code>
+
+        </dt>
+        <dd>GLEAM crop residue parameters.</dd>
+
+        <dt>
+
+          <code><a href="gleam_dressing_percentages.html">gleam_dressing_percentages</a></code>
+
+        </dt>
+        <dd>GLEAM dressing percentages.</dd>
+
+        <dt>
+
+          <code><a href="gleam_enteric_params.html">gleam_enteric_params</a></code>
+
+        </dt>
+        <dd>GLEAM enteric fermentation parameters.</dd>
+
+        <dt>
+
+          <code><a href="gleam_feed_categories.html">gleam_feed_categories</a></code>
+
+        </dt>
+        <dd>GLEAM feed categories.</dd>
+
+        <dt>
+
+          <code><a href="gleam_feed_composition.html">gleam_feed_composition</a></code>
+
+        </dt>
+        <dd>GLEAM feed use efficiency.</dd>
+
+        <dt>
+
+          <code><a href="gleam_feed_conversion_ratios.html">gleam_feed_conversion_ratios</a></code>
+
+        </dt>
+        <dd>GLEAM feed conversion ratios for monogastrics.</dd>
+
+        <dt>
+
+          <code><a href="gleam_feed_digestibility.html">gleam_feed_digestibility</a></code>
+
+        </dt>
+        <dd>GLEAM feed digestibility for ruminants.</dd>
+
+        <dt>
+
+          <code><a href="gleam_geographic_hierarchy.html">gleam_geographic_hierarchy</a></code>
+
+        </dt>
+        <dd>GLEAM geographic hierarchy.</dd>
+
+        <dt>
+
+          <code><a href="gleam_livestock_categories.html">gleam_livestock_categories</a></code>
+
+        </dt>
+        <dd>GLEAM livestock categories.</dd>
+
+        <dt>
+
+          <code><a href="gleam_milk_production.html">gleam_milk_production</a></code>
+
+        </dt>
+        <dd>GLEAM milk production.</dd>
+
+        <dt>
+
+          <code><a href="gleam_mms_shares.html">gleam_mms_shares</a></code>
+
+        </dt>
+        <dd>GLEAM manure management system shares.</dd>
+
+        <dt>
+
+          <code><a href="gleam_field_operation_ef.html">gleam_field_operation_ef</a></code>
+
+        </dt>
+        <dd>Emission factors for field operations on feed materials.</dd>
+
+        <dt>
+
+          <code><a href="gleam_mechanization_levels.html">gleam_mechanization_levels</a></code>
+
+        </dt>
+        <dd>Country-level mechanization levels for feed materials.</dd>
+
+        <dt>
+
+          <code><a href="gleam_processing_transport_ef.html">gleam_processing_transport_ef</a></code>
+
+        </dt>
+        <dd>Processing and transport emission factors for feeds.</dd>
+
+        <dt>
+
+          <code><a href="gleam_crop_residue_nitrogen.html">gleam_crop_residue_nitrogen</a></code>
+
+        </dt>
+        <dd>Nitrogen parameters for crop residues of feed materials.</dd>
+
+        <dt>
+
+          <code><a href="gleam_fracremove.html">gleam_fracremove</a></code>
+
+        </dt>
+        <dd>Country-level fraction of crop residues removed.</dd>
+
+        <dt>
+
+          <code><a href="gleam_energy_use_ef.html">gleam_energy_use_ef</a></code>
+
+        </dt>
+        <dd>Energy use emission factors by species and system.</dd>
+      </dl></div><div class="section level2">
+
+      <h3 id="ipcc-refinement-tables">IPCC 2019 Refinement tables<a class="anchor" aria-label="anchor" href="#ipcc-refinement-tables"></a></h3>
+      <div class="section-desc"><p>Emission factors and parameters from IPCC 2019, Vol 4, Ch 10.</p></div>
+
+      <dl></dl></div><div class="section level2">
+
+
+
+
+      <dl><dt>
+
+          <code><a href="ipcc_2019_enteric_ef_cattle.html">ipcc_2019_enteric_ef_cattle</a></code>
+
+        </dt>
+        <dd>IPCC 2019 enteric EF for cattle.</dd>
+
+        <dt>
+
+          <code><a href="ipcc_2019_enteric_ef_other.html">ipcc_2019_enteric_ef_other</a></code>
+
+        </dt>
+        <dd>IPCC 2019 enteric EF for non-cattle.</dd>
+
+        <dt>
+
+          <code><a href="ipcc_2019_manure_ch4_ef_cattle.html">ipcc_2019_manure_ch4_ef_cattle</a></code>
+
+        </dt>
+        <dd>IPCC 2019 manure CH4 EF for cattle.</dd>
+
+        <dt>
+
+          <code><a href="ipcc_2019_manure_ch4_ef_other.html">ipcc_2019_manure_ch4_ef_other</a></code>
+
+        </dt>
+        <dd>IPCC 2019 manure CH4 EF for non-cattle.</dd>
+
+        <dt>
+
+          <code><a href="ipcc_2019_mcf_manure.html">ipcc_2019_mcf_manure</a></code>
+
+        </dt>
+        <dd>IPCC 2019 MCF for manure management.</dd>
+
+        <dt>
+
+          <code><a href="ipcc_2019_n_excretion.html">ipcc_2019_n_excretion</a></code>
+
+        </dt>
+        <dd>IPCC 2019 nitrogen excretion rates.</dd>
+
+        <dt>
+
+          <code><a href="ipcc_2019_n2o_ef_direct.html">ipcc_2019_n2o_ef_direct</a></code>
+
+        </dt>
+        <dd>IPCC 2019 direct N2O emission factors.</dd>
+
+        <dt>
+
+          <code><a href="ipcc_2019_ym.html">ipcc_2019_ym</a></code>
+
+        </dt>
+        <dd>IPCC 2019 Ym values (Table 10.12).</dd>
+
+        <dt>
+
+          <code><a href="ipcc_2019_bo.html">ipcc_2019_bo</a></code>
+
+        </dt>
+        <dd>IPCC 2019 Bo values (Table 10.16).</dd>
+
+        <dt>
+
+          <code><a href="ipcc_2019_cfi.html">ipcc_2019_cfi</a></code>
+
+        </dt>
+        <dd>IPCC 2019 Cfi values (Table 10.4).</dd>
+      </dl></div><div class="section level2">
+
+      <h3 id="ipcc-tables">IPCC 2006 tables<a class="anchor" aria-label="anchor" href="#ipcc-tables"></a></h3>
+      <div class="section-desc"><p>Emission factors from IPCC 2006 Guidelines, Vol 4, Ch 10.</p></div>
+
+      <dl></dl></div><div class="section level2">
+
+
+
+
+      <dl><dt>
+
+          <code><a href="ipcc_2006_enteric_ef.html">ipcc_2006_enteric_ef</a></code>
+
+        </dt>
+        <dd>IPCC 2006 Tier 1 enteric emission factors.</dd>
+
+        <dt>
+
+          <code><a href="ipcc_2006_manure_ef.html">ipcc_2006_manure_ef</a></code>
+
+        </dt>
+        <dd>IPCC 2006 Tier 1 manure emission factors.</dd>
+
+        <dt>
+
+          <code><a href="ipcc_2006_mcf_temp.html">ipcc_2006_mcf_temp</a></code>
+
+        </dt>
+        <dd>IPCC 2006 MCF by temperature.</dd>
+      </dl></div><div class="section level2">
+
+      <h3 id="tier-parameters">Tier 2 parameters<a class="anchor" aria-label="anchor" href="#tier-parameters"></a></h3>
+      <div class="section-desc"><p>Detailed parameters for IPCC Tier 2 calculations.</p></div>
+
+      <dl></dl></div><div class="section level2">
+
+
+
+
+      <dl><dt>
+
+          <code><a href="ipcc_tier2_energy_coefs.html">ipcc_tier2_energy_coefs</a></code>
+
+        </dt>
+        <dd>Tier 2 energy coefficients.</dd>
+
+        <dt>
+
+          <code><a href="ipcc_tier2_ym_values.html">ipcc_tier2_ym_values</a></code>
+
+        </dt>
+        <dd>Tier 2 Ym values.</dd>
+
+        <dt>
+
+          <code><a href="ipcc_tier2_bo_values.html">ipcc_tier2_bo_values</a></code>
+
+        </dt>
+        <dd>Tier 2 Bo values.</dd>
+
+        <dt>
+
+          <code><a href="ipcc_tier2_manure_ash.html">ipcc_tier2_manure_ash</a></code>
+
+        </dt>
+        <dd>Tier 2 manure ash content.</dd>
+
+        <dt>
+
+          <code><a href="ipcc_tier2_n_retention.html">ipcc_tier2_n_retention</a></code>
+
+        </dt>
+        <dd>Tier 2 nitrogen retention fractions.</dd>
+
+        <dt>
+
+          <code><a href="livestock_production_defaults.html">livestock_production_defaults</a></code>
+
+        </dt>
+        <dd>Default production parameters.</dd>
+
+        <dt>
+
+          <code><a href="feed_characteristics.html">feed_characteristics</a></code>
+
+        </dt>
+        <dd>Feed characteristics by diet quality.</dd>
+
+        <dt>
+
+          <code><a href="livestock_constants.html">livestock_constants</a></code>
+
+        </dt>
+        <dd>Livestock physical constants.</dd>
+      </dl></div><div class="section level2">
+
+      <h3 id="other-livestock-tables">Other livestock tables<a class="anchor" aria-label="anchor" href="#other-livestock-tables"></a></h3>
+      <div class="section-desc"><p>Climate, manure management, and uncertainty tables.</p></div>
+
+      <dl></dl></div><div class="section level2">
+
+
+
+
+      <dl><dt>
+
+          <code><a href="climate_mcf.html">climate_mcf</a></code>
+
+        </dt>
+        <dd>Climate-zone MCF values.</dd>
+
+        <dt>
+
+          <code><a href="regional_mms_distribution.html">regional_mms_distribution</a></code>
+
+        </dt>
+        <dd>Regional MMS distribution.</dd>
+
+        <dt>
+
+          <code><a href="temperature_adjustment.html">temperature_adjustment</a></code>
+
+        </dt>
+        <dd>Temperature adjustment factors for NEm.</dd>
+
+        <dt>
+
+          <code><a href="grazing_energy_coefs.html">grazing_energy_coefs</a></code>
+
+        </dt>
+        <dd>Grazing energy coefficients.</dd>
+
+        <dt>
+
+          <code><a href="indirect_n2o_ef.html">indirect_n2o_ef</a></code>
+
+        </dt>
+        <dd>Indirect N2O emission factors.</dd>
+
+        <dt>
+
+          <code><a href="uncertainty_ranges.html">uncertainty_ranges</a></code>
+
+        </dt>
+        <dd>Uncertainty ranges for emission parameters.</dd>
+      </dl></div><div class="section level2">
       <h2 id="harmonization">Harmonization<a class="anchor" aria-label="anchor" href="#harmonization"></a></h2>
 
       <div class="section-desc"><p>Functions to harmonize time series items according to specified mapping.</p></div>

@@ -38,3 +38,18 @@ double-counting relationship. It contains the following columns:
 ## Source
 
 Derived from FAOSTAT production methodology documentation.
+
+## Examples
+
+``` r
+head(primary_double)
+#> # A tibble: 6 × 4
+#>   Item_area             item_prod             item_prod_code Multi_type  
+#>   <chr>                 <chr>                          <dbl> <chr>       
+#> 1 Seed cotton, unginned Cotton lint, ginned              767 Primary     
+#> 2 Seed cotton, unginned Cotton seed                      329 Primary     
+#> 3 NA                    Seed cotton, unginned            328 Primary_area
+#> 4 Oil palm fruit        Palm oil                         257 Primary     
+#> 5 Oil palm fruit        Palm kernels                     256 Primary     
+#> 6 NA                    Oil palm fruit                   254 Primary_area
+```

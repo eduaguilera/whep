@@ -49,8 +49,9 @@ build_commodity_balances(
 
 ## Value
 
-A tibble in long format (see `.read_cbs()` for column descriptions),
-plus a character `qc_flag` column from `.qc_cbs()`.
+A tibble in long format with columns: `year`, `area_code`,
+`item_cbs_code`, `element` (e.g. `"production"`, `"import"`, `"food"`),
+`value`, `source`, `fao_flag`.
 
 ## Examples
 

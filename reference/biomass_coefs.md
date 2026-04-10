@@ -194,3 +194,25 @@ A tibble where each row corresponds to one product or item. It contains
 
 Compiled from multiple sources including FAO food composition data, crop
 physiology literature, and IPCC Tier 1 coefficients.
+
+## Examples
+
+``` r
+head(biomass_coefs)
+#> # A tibble: 6 × 68
+#>   Code  Name_biomass Equiv Category       BG_Biomass_kgDM_ha Root_Shoot_ratio
+#>   <chr> <chr>        <chr> <chr>                       <dbl>            <dbl>
+#> 1 75    Oats         Wheat Cereals, other              3393.           0.402 
+#> 2 44    Barley       Wheat Barley                      1544.           0.210 
+#> 3 27    Rice         NA    Rice                          NA            0.22  
+#> 4 79    Millet       Maize Cereals, other                NA            0.25  
+#> 5 71    Rye          NA    Cereals, other                NA            0.14  
+#> 6 83    Sorghum      Maize Cereals, other                NA            0.0862
+#> # ℹ 62 more variables: Product_kgDM_kgFM <dbl>, Residue_kgDM_kgFM <dbl>,
+#> #   Conventional_kgDM_ha <dbl>, Organic_kgDM_ha <dbl>,
+#> #   GE_product_edible_portion_MJ_kgFM <dbl>, GE_product_residue_MJ_kgFM <dbl>,
+#> #   GE_product_MJ_kgFM <dbl>, GE_residue_MJ_kg <dbl>,
+#> #   kg_product_kg_aerial_biomass <dbl>, kg_residue_kg_aerial_biomass_FM <dbl>,
+#> #   kg_residue_kg_product_FM <dbl>, Carcass_to_LW <lgl>, Edible_portion <dbl>,
+#> #   N_kgN_kgFM <dbl>, Lipids_g_kgFM <dbl>, Carbohydrates_g_kgFM <dbl>, …
+```

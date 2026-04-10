@@ -44,11 +44,11 @@
 <li>Follow tidyverse style guide: <a href="https://style.tidyverse.org/" class="external-link uri">https://style.tidyverse.org/</a>
 </li>
 <li>Maximum line width is 80 characters.</li>
-<li>For code formatting, use <code>air format</code> if available.</li>
+<li>For code formatting, <strong>always</strong> run <code>air format .</code> before committing. Install the binary if not on PATH. Do not try to format manually.</li>
 <li>Extract complex logic into private/helper functions (prefixed with <code>.</code>) early. These helpers should be stateless and receive all necessary context via arguments.</li>
 <li>Functions should be short. Ideally no more than 25 lines. Split large functions into smaller ones with meaningful names.</li>
 <li>Main exported functions should come first in the file. Private helpers come at the end.</li>
-<li>Use <code>snake_case</code> for column names in tibbles.</li>
+<li>Use <code>snake_case</code> for column names in tibbles. Names must be readable and self-explanatory — no cryptic abbreviations like <code>NEm</code>, <code>Bo</code>, <code>VS</code>, <code>GE</code>. Prefer descriptive names like <code>ne_maintenance</code>, <code>methane_potential</code>, <code>volatile_solids</code>, <code>gross_energy</code>.</li>
 <li>Always make sure all rules in this document and all linters have passed after a change in the code.</li>
 <li>Don’t use imported functions without namespace prefix (e.g. use <code><a href="https://dplyr.tidyverse.org/reference/filter.html" class="external-link">dplyr::filter()</a></code> instead of just <code><a href="https://rdrr.io/r/stats/filter.html" class="external-link">filter()</a></code>). Do not use <code>@importFrom</code> in roxygen2 documentation.</li>
 <li>This is a tidy data project. Don’t use <code>data.frame</code> or <code>data.table</code>. Always use <code>tibble</code> from tidyverse.</li>
@@ -72,11 +72,14 @@
 <li>Then <code>@description</code>, <code>@param</code> for each parameter, <code>@return</code>, <code>@export</code>, <code>@examples</code>.</li>
 <li>One space after <code>#'</code>. Indent continuation lines by two spaces.</li>
 <li>Variable and function names must not exceed 30 characters.</li>
+<li>
+<strong>Never</strong> use <code>\dontrun{}</code> or <code>\donttest{}</code> in examples. All examples must run during <code>R CMD check</code>. For functions that depend on external/remote data or take too long to run live, use the <code>example = FALSE</code> parameter pattern: add an <code>example</code> argument that, when <code>TRUE</code>, returns a small hardcoded <code><a href="https://tibble.tidyverse.org/reference/tribble.html" class="external-link">tibble::tribble()</a></code> from a private helper in <code>R/toy_examples.R</code> (run the real function first, then sample ~10 rows for the fixture). The <code>@examples</code> block then just calls <code>my_function(example = TRUE)</code>. See <code><a href="reference/build_primary_production.html">build_primary_production()</a></code> and <code>R/toy_examples.R</code> for reference. For functions that run fast on small input, just provide a self-contained inline example directly.</li>
 </ul></div>
 <div class="section level2">
 <h2 id="tests">Tests<a class="anchor" aria-label="anchor" href="#tests"></a></h2>
 <ul><li>All functions should have tests with <code>testthat</code>.</li>
 <li>One test file per R script: <code>tests/testthat/test_scriptname.R</code>.</li>
+<li>Access exported objects (functions and datasets) via <code><a href="https://rdrr.io/r/base/name.html" class="external-link">whep::name</a></code> in tests, not bare names. For dynamic access in loops, use <code>getExportedValue("whep", nm)</code>. Never use <code>:::</code> or <code><a href="https://rdrr.io/r/utils/getFromNamespace.html" class="external-link">getFromNamespace()</a></code> for exported objects.</li>
 <li>Use <code><a href="https://tibble.tidyverse.org/reference/tribble.html" class="external-link">tibble::tribble()</a></code>, pipes, <code><a href="https://dplyr.tidyverse.org/reference/pull.html" class="external-link">dplyr::pull()</a></code>, pointblank assertions.</li>
 <li>Take <code>test_gapfilling.R</code> as example.</li>
 <li>Make helper fixtures to reduce code repetition.</li>
@@ -91,7 +94,7 @@
 <h2 id="ci-checks">CI Checks<a class="anchor" aria-label="anchor" href="#ci-checks"></a></h2>
 <p>The PR must pass these GitHub Actions checks:</p>
 <ol style="list-style-type: decimal"><li>
-<strong>R-CMD-check</strong> (5 platforms): <code>rcmdcheck::rcmdcheck()</code> with no errors, warnings, or notes.
+<strong>R-CMD-check</strong> (5 platforms): <code><a href="http://r-lib.github.io/rcmdcheck/reference/rcmdcheck.html" class="external-link">rcmdcheck::rcmdcheck()</a></code> with no errors, warnings, or notes.
 <ul><li>All NSE variables must be declared in <code><a href="https://rdrr.io/r/utils/globalVariables.html" class="external-link">utils::globalVariables()</a></code> in <code>R/utils.R</code>.</li>
 <li>All <code>stats::</code> functions must use explicit prefix (e.g., <code><a href="https://rdrr.io/r/stats/median.html" class="external-link">stats::median()</a></code>).</li>
 <li>Run locally: <code>Rscript -e "rcmdcheck::rcmdcheck(build_args='--no-build-vignettes', args=c('--no-tests','--ignore-vignettes'), error_on='error')"</code>
@@ -104,22 +107,34 @@
 </ul></li>
 <li>
 <strong>format-suggest</strong> (<code>air</code>): Code must be formatted with <code>air format .</code>
-<ul><li>After running air, also run <code>devtools::document()</code> to update <code>man/</code> files.</li>
+<ul><li>
+<strong>This is mandatory, not optional.</strong> Do not attempt to manually match air style – always run the binary.</li>
+<li>If <code>air</code> is not on PATH, install it: download from <code>https://github.com/posit-dev/air/releases/latest/download/air-x86_64-pc-windows-msvc.zip</code> (Windows) or use <code>posit-dev/setup-air</code> (CI). Then run <code>air format .</code> on the repo root.</li>
+<li>After running air, also run <code>devtools::document()</code> to update <code>man/</code> files.</li>
+<li>Air formats <strong>all</strong> <code>.R</code> files: <code>R/</code>, <code>tests/</code>, <code>data-raw/</code>, etc. Not just the files you edited.</li>
+</ul></li>
+<li>
+<strong>pkgdown</strong>: The documentation site must build without errors.
+<ul><li>
+<strong>Every documented topic</strong> (functions AND datasets with roxygen docs) must appear in <code>_pkgdown.yml</code> under the <code>reference:</code> section. This includes all <code>.Rd</code> files in <code>man/</code>.</li>
+<li>When adding new exported functions or documented datasets, add them to the appropriate section in <code>_pkgdown.yml</code> (or create a new section).</li>
+<li>To verify: compare <code>ls man/*.Rd</code> topics against <code>_pkgdown.yml</code> contents. Every <code>.Rd</code> file (except <code>whep-package.Rd</code>) must have a matching entry.</li>
+<li>Run locally: <code>Rscript -e "pkgdown::build_reference_index()"</code>
+</li>
 </ul></li>
 <li>
 <strong>Tests</strong>: <code>devtools::test()</code> — 2 pre-existing failures in <code>test_commodity_balance_sheet.R</code> are expected (pin format, <code>skip_on_ci</code>).</li>
 </ol></div>
 <div class="section level2">
 <h2 id="before-committing">Before committing<a class="anchor" aria-label="anchor" href="#before-committing"></a></h2>
-<div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># 1. Format</span></span>
-<span><span class="co"># air format .  (if air is installed)</span></span>
-<span></span>
-<span><span class="co"># 2. Document</span></span>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="co"># 1. Format (MANDATORY — do not skip, do not do manually)</span></span>
+<span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a><span class="ex">air</span> format .</span></code></pre></div>
+<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># 2. Document</span></span>
 <span><span class="fu">devtools</span><span class="fu">::</span><span class="fu">document</span><span class="op">(</span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># 3. Check</span></span>
-<span><span class="fu">rcmdcheck</span><span class="fu">::</span><span class="fu">rcmdcheck</span><span class="op">(</span></span>
+<span><span class="fu">rcmdcheck</span><span class="fu">::</span><span class="fu"><a href="http://r-lib.github.io/rcmdcheck/reference/rcmdcheck.html" class="external-link">rcmdcheck</a></span><span class="op">(</span></span>
 <span>  build_args <span class="op">=</span> <span class="st">"--no-build-vignettes"</span>,</span>
 <span>  args <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"--no-tests"</span>, <span class="st">"--ignore-vignettes"</span><span class="op">)</span>,</span>
 <span>  error_on <span class="op">=</span> <span class="st">"error"</span></span>
@@ -127,6 +142,11 @@
 <span></span>
 <span><span class="co"># 4. Test</span></span>
 <span><span class="fu">devtools</span><span class="fu">::</span><span class="fu">test</span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
+<div class="sourceCode" id="cb3"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a><span class="co"># 5. Verify pkgdown — every man/*.Rd must be in _pkgdown.yml</span></span>
+<span id="cb3-2"><a href="#cb3-2" tabindex="-1"></a><span class="co"># (compare outputs; empty = OK)</span></span>
+<span id="cb3-3"><a href="#cb3-3" tabindex="-1"></a><span class="fu">comm</span> <span class="at">-23</span> <span class="dt">\</span></span>
+<span id="cb3-4"><a href="#cb3-4" tabindex="-1"></a>  <span class="op">&lt;(</span><span class="fu">ls</span> man/<span class="pp">*</span>.Rd <span class="kw">|</span> <span class="fu">sed</span> <span class="st">'s|man/||;s|\.Rd||'</span> <span class="kw">|</span> <span class="fu">grep</span> <span class="at">-v</span> whep-package <span class="kw">|</span> <span class="fu">sort</span><span class="op">)</span> <span class="dt">\</span></span>
+<span id="cb3-5"><a href="#cb3-5" tabindex="-1"></a>  <span class="op">&lt;(</span><span class="fu">grep</span> <span class="st">'^  - '</span> _pkgdown.yml <span class="kw">|</span> <span class="fu">sed</span> <span class="st">'s/^  - //'</span> <span class="kw">|</span> <span class="fu">sort</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="data-pipeline">Data pipeline<a class="anchor" aria-label="anchor" href="#data-pipeline"></a></h2>

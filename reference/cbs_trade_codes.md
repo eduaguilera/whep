@@ -32,3 +32,18 @@ following columns:
 Derived from [FAOSTAT Detailed Trade
 Matrix](https://www.fao.org/faostat/en/#data/TM) and commodity balance
 sheet correspondence tables.
+
+## Examples
+
+``` r
+head(cbs_trade_codes)
+#> # A tibble: 6 × 4
+#>   item_code_trade item_trade   item_cbs           item_check        
+#>             <dbl> <chr>        <chr>              <chr>             
+#> 1              15 Wheat        Wheat and products Wheat and products
+#> 2              16 Flour, wheat Wheat and products Wheat and products
+#> 3              17 Bran, wheat  Wheat and products Wheat and products
+#> 4              18 Macaroni     Wheat and products Wheat and products
+#> 5              19 Germ, wheat  Wheat and products Wheat and products
+#> 6              20 Bread        Wheat and products Wheat and products
+```

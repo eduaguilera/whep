@@ -16,7 +16,8 @@ build_primary_production(
   start_year = 1850,
   end_year = 2023,
   smooth_carry_forward = FALSE,
-  example = FALSE
+  example = FALSE,
+  show_duplicates = FALSE
 )
 ```
 
@@ -40,6 +41,12 @@ build_primary_production(
   Logical. If `TRUE`, return a small hardcoded example tibble instead of
   reading remote data. Default `FALSE`.
 
+- show_duplicates:
+
+  Logical. If `TRUE`, return only the rows that have competing sources
+  in wide format (one column per source) for diagnostic comparison.
+  Default `FALSE`.
+
 ## Value
 
 A tibble with the same columns as
@@ -49,7 +56,8 @@ A tibble with the same columns as
 recovered via
 [`add_area_name()`](https://eduaguilera.github.io/whep/reference/add_area_name.md),
 [`add_item_prod_name()`](https://eduaguilera.github.io/whep/reference/add_item_prod_name.md),
-etc.
+etc. When `show_duplicates = TRUE`, returns a wide tibble with one
+column per source showing the competing values.
 
 ## Examples
 

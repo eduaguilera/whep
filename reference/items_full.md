@@ -58,3 +58,20 @@ following columns:
 
 Derived from [FAOSTAT data](https://www.fao.org/faostat/en/#data/FBS)
 and internal commodity classification work.
+
+## Examples
+
+``` r
+head(items_full)
+#> # A tibble: 6 × 15
+#>   item_cbs   item_cbs_code comm_code proc_code proc  unit  group feedtype_graniv
+#>   <chr>              <dbl> <chr>     <chr>     <chr> <chr> <chr> <chr>          
+#> 1 Choline c…          4007 NA        NA        NA    tonn… Addi… additives      
+#> 2 Lysine              4010 NA        NA        NA    tonn… Addi… additives      
+#> 3 MgO                 4012 NA        NA        NA    tonn… Addi… additives      
+#> 4 Minerals            4013 NA        NA        NA    tonn… Addi… additives      
+#> 5 Pesticides          4015 NA        NA        NA    tonn… Addi… additives      
+#> 6 SSP                 4021 NA        NA        NA    tonn… Addi… additives      
+#> # ℹ 7 more variables: feedtype_grazers <chr>, comm_group <chr>, Cat_1 <chr>,
+#> #   Name_biomass <chr>, dbMFA_items <chr>, FEDNA <chr>, default_destiny <chr>
+```

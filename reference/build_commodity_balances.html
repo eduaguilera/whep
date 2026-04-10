@@ -98,9 +98,10 @@ tibble instead of reading remote data. Default <code>FALSE</code>.</p></dd>
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    <p>A tibble in long format (see <code>.read_cbs()</code> for column
-descriptions), plus a character <code>qc_flag</code> column from
-<code>.qc_cbs()</code>.</p>
+    <p>A tibble in long format with columns: <code>year</code>,
+<code>area_code</code>, <code>item_cbs_code</code>, <code>element</code> (e.g.
+<code>"production"</code>, <code>"import"</code>, <code>"food"</code>), <code>value</code>,
+<code>source</code>, <code>fao_flag</code>.</p>
     </div>
 
     <div class="section level2">

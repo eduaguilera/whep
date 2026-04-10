@@ -31,3 +31,18 @@ output-category combination. It contains the following columns:
 ## Source
 
 Derived from FAOSTAT commodity balance sheet processing assumptions.
+
+## Examples
+
+``` r
+head(cb_processing)
+#> # A tibble: 6 × 5
+#>   ProcessedItem                item_cbs Product_fraction Value_fraction Required
+#>   <chr>                        <chr>               <dbl>          <dbl>    <dbl>
+#> 1 Apples and products          Alcohol…            0.199           0.05       NA
+#> 2 Barley and products          Alcohol…            0.204           0.05       NA
+#> 3 Cassava and products         Alcohol…            0.09           NA          NA
+#> 4 Cereals, Other               Alcohol…            0.275           0.9        NA
+#> 5 Fruits, Other                Alcohol…            0.199          NA          NA
+#> 6 Grapes and products (excl w… Alcohol…            0.199          NA          NA
+```

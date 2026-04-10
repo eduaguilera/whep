@@ -95,3 +95,24 @@ the following columns:
 Derived from [FAOSTAT Production
 data](https://www.fao.org/faostat/en/#data/QCL) and multiple
 classification schemes from the literature.
+
+## Examples
+
+``` r
+head(items_prod_full)
+#> # A tibble: 6 × 29
+#>   item_prod item_prod_code item_cbs item_cbs_code group live_anim live_anim_code
+#>   <chr>     <chr>          <chr>            <dbl> <chr> <chr>              <dbl>
+#> 1 Wheat     15             Wheat a…          2511 Prim… NA                    NA
+#> 2 Rice      27             Rice an…          2807 Prim… NA                    NA
+#> 3 Barley    44             Barley …          2513 Prim… NA                    NA
+#> 4 Beer of … 51             Beer              2656 Crop… NA                    NA
+#> 5 Maize (c… 56             Maize a…          2514 Prim… NA                    NA
+#> 6 Oil of m… 60             Maize G…          2582 Crop… NA                    NA
+#> # ℹ 22 more variables: Cat_Krausmann <chr>, Name_biomass <chr>,
+#> #   Name_Eurostat <chr>, Name <chr>, Cat_Labour <chr>, Cat_FAO1 <chr>,
+#> #   Cat_Origin <chr>, Cat_Use <chr>, Order <dbl>, Categ <chr>,
+#> #   Farm_class <chr>, c3_c4 <chr>, ann_per_nfx <chr>, Cat_1 <chr>, Cat_2 <chr>,
+#> #   Cat_3 <chr>, Cat_4 <chr>, Herb_Woody <chr>, Crop_irrig <chr>,
+#> #   Cat_Org <chr>, Cat_Ymax <chr>, Cat_Ymax_leg <chr>
+```

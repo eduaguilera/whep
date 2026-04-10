@@ -40,3 +40,19 @@ the following columns:
 
 Derived from [FAOSTAT Production
 data](https://www.fao.org/faostat/en/#data/QCL).
+
+## Examples
+
+``` r
+head(items_prim)
+#> # A tibble: 6 × 8
+#>   item_prod item_prod_code item_cbs item_cbs_code Farm_class Cat_Labour Cat_FAO1
+#>   <chr>     <chr>          <chr>            <dbl> <chr>      <chr>      <chr>   
+#> 1 Wheat     15             Wheat a…          2511 COP        Cereals    Cereals 
+#> 2 Rice      27             Rice an…          2807 COP        Rice       Cereals 
+#> 3 Barley    44             Barley …          2513 COP        Cereals    Cereals 
+#> 4 Beer of … 51             Beer              2656 NA         NA         NA      
+#> 5 Maize (c… 56             Maize a…          2514 COP        Cereals    Cereals 
+#> 6 Oil of m… 60             Maize G…          2582 NA         NA         NA      
+#> # ℹ 1 more variable: group <chr>
+```

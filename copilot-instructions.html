@@ -43,7 +43,7 @@
 <li>Follow tidyverse style guide: <a href="https://style.tidyverse.org/" class="external-link uri">https://style.tidyverse.org/</a>
 </li>
 <li>Maximum line width is 80 characters</li>
-<li>For code formatting, use <code>air format</code> if this is available in the user’s computer</li>
+<li>For code formatting, <strong>always</strong> run <code>air format .</code> before committing. Install the binary if not on PATH. Do not try to format manually — air’s rules are too specific to replicate by hand</li>
 <li>Extract complex logic into private/helper functions (prefixed with .) early. These helpers should be stateless and receive all necessary context via arguments.</li>
 <li>Functions should be short. Ideally no more than 25 lines. There might be exceptions if the code is easy to follow, but try to keep functions short and modular. If necessary, split large functions into smaller ones, with meaningful names.</li>
 <li>Main exported functions should come first in the file. The private helpers should come at the end, after all exported functions.</li>
@@ -105,6 +105,42 @@
 <li>Take <code>test_gapfilling.R</code> as example to make tests</li>
 <li>Make helper fixtures if they contribute to reduce the amount of code in the tests files</li>
 </ul></div>
+<div class="section level2">
+<h2 id="ci-checks">CI Checks<a class="anchor" aria-label="anchor" href="#ci-checks"></a></h2>
+<p>The PR must pass ALL these GitHub Actions checks. Before committing, verify locally:</p>
+<ol style="list-style-type: decimal"><li>
+<p><strong>R-CMD-check</strong>: <code>rcmdcheck::rcmdcheck(build_args='--no-build-vignettes', args=c('--no-tests','--ignore-vignettes'), error_on='error')</code></p>
+<ul><li>All NSE variables must be declared in <code><a href="https://rdrr.io/r/utils/globalVariables.html" class="external-link">utils::globalVariables()</a></code> in <code>R/utils.R</code>.</li>
+<li>All <code>stats::</code> functions must use explicit prefix (e.g., <code><a href="https://rdrr.io/r/stats/median.html" class="external-link">stats::median()</a></code>).</li>
+</ul></li>
+<li><p><strong>lint</strong> (<code>lintr</code>): <code>lintr::lint_package(linters=lintr::linters_with_defaults(object_usage_linter=NULL, line_length_linter=NULL, indentation_linter=NULL))</code></p></li>
+<li>
+<p><strong>format-suggest</strong> (<code>air</code>): Code must be formatted with <code>air format .</code></p>
+<ul><li>
+<strong>This is mandatory, not optional.</strong> Do not attempt to manually match air style — always run the binary. Manual formatting will miss things.</li>
+<li>If <code>air</code> is not on PATH, install it from <code>https://github.com/posit-dev/air/releases</code>. Then run <code>air format .</code> on the repo root.</li>
+<li>Air formats <strong>all</strong> <code>.R</code> files in the repo (<code>R/</code>, <code>tests/</code>, <code>data-raw/</code>, etc.), not just the files you edited.</li>
+<li>After running air, run <code>devtools::document()</code> to update <code>man/</code> files.</li>
+</ul></li>
+<li>
+<p><strong>pkgdown</strong>: The documentation site must build without errors.</p>
+<ul><li>
+<strong>Every documented topic</strong> (exported functions AND documented datasets) must appear in <code>_pkgdown.yml</code> under the <code>reference:</code> section. This means every <code>.Rd</code> file in <code>man/</code> (except <code>whep-package.Rd</code>) must have a matching entry.</li>
+<li>When adding new exported functions or new documented datasets (roxygen-documented data objects), add them to the appropriate section in <code>_pkgdown.yml</code> (or create a new section).</li>
+<li>To verify completeness, compare <code>man/*.Rd</code> filenames against <code>_pkgdown.yml</code> contents entries. Any mismatch will cause the CI to fail.</li>
+</ul></li>
+<li><p><strong>Tests</strong>: <code>devtools::test()</code> — all tests must pass.</p></li>
+</ol><div class="section level3">
+<h3 id="before-committing-checklist">Before committing checklist<a class="anchor" aria-label="anchor" href="#before-committing-checklist"></a></h3>
+<div class="sourceCode" id="cb2"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a><span class="co"># 1. Format (MANDATORY — do not skip, do not do manually)</span></span>
+<span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a><span class="ex">air</span> format .</span></code></pre></div>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># 2. Document: devtools::document()</span></span>
+<span><span class="co"># 3. Check: rcmdcheck::rcmdcheck(build_args='--no-build-vignettes', args=c('--no-tests','--ignore-vignettes'), error_on='error')</span></span>
+<span><span class="co"># 4. Test: devtools::test()</span></span>
+<span><span class="co"># 5. Verify pkgdown: every man/*.Rd (except whep-package.Rd) must be listed in _pkgdown.yml</span></span></code></pre></div>
+</div>
+</div>
 
 
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

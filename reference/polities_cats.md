@@ -104,3 +104,25 @@ and other international statistical sources.
 
 Five trailing columns containing only Excel `#REF!` errors in the source
 CSV are dropped at load time and are not part of this dataset.
+
+## Examples
+
+``` r
+head(polities_cats)
+#> # A tibble: 6 × 35
+#>   polity_code polity_name    V1  code iso3c FAOSTAT_name EU27  name  eia   iea  
+#>   <chr>       <chr>       <dbl> <dbl> <chr> <chr>        <lgl> <chr> <chr> <chr>
+#> 1 AFG         Afghanistan     2     2 AFG   Afghanistan  FALSE Afgh… Afgh… 0    
+#> 2 ALB         Albania         3     3 ALB   Albania      FALSE Alba… Alba… Alba…
+#> 3 DZA         Algeria         4     4 DZA   Algeria      FALSE Alge… Alge… Alge…
+#> 4 AGO         Angola          7     7 AGO   Angola       FALSE Ango… Ango… Ango…
+#> 5 ATG         Antigua an…     8     8 ATG   Antigua and… FALSE Anti… Anti… 0    
+#> 6 ARG         Argentina       9     9 ARG   Argentina    FALSE Arge… Arge… Arge…
+#> # ℹ 25 more variables: water_code <dbl>, water_area <chr>, baci <dbl>,
+#> #   fish <dbl>, region_code <dbl>, cbs <lgl>, fabio_code <dbl>,
+#> #   ADB_Region <chr>, region <chr>, uISO3c <dbl>, Lassaletta <chr>,
+#> #   region_krausmann <chr>, region_HANPP <chr>, region_krausmann2 <chr>,
+#> #   region_UN_sub <chr>, region_UN <chr>, region_ILO1 <chr>, region_ILO2 <chr>,
+#> #   region_ILO3 <chr>, region_IEA <chr>, region_IPCC <chr>,
+#> #   region_labour <chr>, region_labour_agg <chr>, region_labour_mech <chr>, …
+```
