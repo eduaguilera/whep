@@ -49,13 +49,13 @@ gleam_region_abbrevs <- c(
 )
 
 parse_dressing_percentages <- function(raw) {
-  # Row 1 contains region abbreviations in cols x2:x11
+  # Row 1 = title, Row 2 = region abbreviations in cols 2:11
   # The first region "NA" (North America) must not become R's NA
-  regions <- as.character(raw[1, 2:11])
+  regions <- as.character(raw[2, 2:11])
   regions[is.na(regions)] <- "NA"
 
-  # --- Section 1: Regional dressing percentages (rows 2-24) ---
-  data_rows <- raw[2:24, ]
+  # --- Section 1: Regional dressing percentages (rows 3-25) ---
+  data_rows <- raw[3:25, ]
   col1 <- data_rows[[1]]
 
   # Build species/production_system/cohort mapping by parsing
@@ -249,9 +249,8 @@ parse_dressing_percentages <- function(raw) {
 }
 
 parse_crop_residue_params <- function(raw) {
-  # Row 1 contains real column headers
-  headers <- as.character(raw[1, ])
-  data <- raw[-1, ]
+  # Row 1 = title, Row 2 = column headers, Row 3+ = data
+  data <- raw[-(1:2), , drop = FALSE]
   names(data) <- c("crop", "dry_matter_pct", "slope", "intercept")
   data |>
     dplyr::mutate(
@@ -262,13 +261,11 @@ parse_crop_residue_params <- function(raw) {
 }
 
 parse_feed_digestibility <- function(raw) {
-  # Row 1 = headers: Number, Material, GE (MJ/kg DM), N content
-  # (g/kg DM), DI (%)
+  # Row 1 = title, Row 2 = headers, Row 3+ = data
   # Rows with only col1 populated are category headers
   # (Roughages, Cereals, By-products)
   # Last row is a footnote
-  headers <- as.character(raw[1, ])
-  data <- raw[-1, ]
+  data <- raw[-(1:2), , drop = FALSE]
   names(data) <- c(
     "number",
     "material",
@@ -312,15 +309,13 @@ parse_feed_digestibility <- function(raw) {
 }
 
 parse_feed_composition <- function(raw) {
-  # Structure: Two sub-sections with feed group headers and
-  # regional rows
-  # Row 1: "FUE" header
-  # Row 2: feed group description + column headers
-  # Rows 3-9: regions for feed groups 1-6
-  # Row 10: second feed group description
-  # Rows 11-17: regions for feed groups 9-15
+  # Row 1 = title, Row 2 = "FUE" header
+  # Row 3: feed group description + column headers
+  # Rows 4-10: regions for feed groups 1-6
+  # Row 11: second feed group description
+  # Rows 12-18: regions for feed groups 9-15
 
-  data <- raw[-1, ] # skip "FUE" header row
+  data <- raw[-(1:2), , drop = FALSE] # skip title + "FUE"
   names(data) <- c("description", "col2", "col3")
 
   rows <- list()
@@ -371,11 +366,9 @@ parse_feed_composition <- function(raw) {
 }
 
 parse_feed_conversion_ratios <- function(raw) {
-  # Row 1: Number, Material, GE, N content, ME (chicken), ME (pigs),
-  #   DI (%)
-  # Row 2: sub-headers (ALL SPECIES, CHICKEN, PIGS for ME cols)
-  # Then data rows with category headers interspersed
-  data <- raw[-(1:2), ] # skip both header rows
+  # Row 1 = title, Row 2 = headers, Row 3 = sub-headers
+  # Row 4+ = data with category headers interspersed
+  data <- raw[-(1:3), , drop = FALSE] # skip title + both headers
   names(data) <- c(
     "number",
     "material",
@@ -422,8 +415,13 @@ extract_gleam_tables <- function(path) {
         }
         tryCatch(
           {
-            df <- openxlsx::read.xlsx(temp_file, sheet = sheet, colNames = TRUE)
-            names(df) <- clean_names(names(df))
+            # Read raw without headers — row 1 is the title,
+            # row 2 is headers, row 3+ is data.
+            df <- openxlsx::read.xlsx(
+              temp_file,
+              sheet = sheet,
+              colNames = FALSE
+            )
             clean_sheet <- clean_names(sheet)
             tables[[clean_sheet]] <- df
             message("  Extracted: ", sheet)
@@ -440,6 +438,395 @@ extract_gleam_tables <- function(path) {
       list()
     }
   )
+}
+
+# Strip the title row, use row 2 as headers, return data
+# from row 3 onward. Removes footnote rows where all value
+# columns are NA.
+.gleam_skip_title <- function(raw, col_names = NULL) {
+  if (is.null(col_names)) {
+    col_names <- clean_names(as.character(raw[2, ]))
+  }
+  data <- raw[-(1:2), , drop = FALSE]
+  names(data) <- col_names
+  data
+}
+
+# S.6.1 + S.6.2: field operation emission factors
+parse_field_operation_ef <- function(raw_ruminant, raw_monogastric) {
+  .parse_one <- function(raw, species_group) {
+    df <- .gleam_skip_title(
+      raw,
+      c("material_number", "material", "emission_factor_kg_co2eq_ha")
+    )
+    # Remove category header rows (material col is NA)
+    # and footnote rows
+    df <- df[!is.na(df$material), ]
+    df$species_group <- species_group
+    df |>
+      dplyr::mutate(
+        material_number = as.integer(material_number),
+        emission_factor_kg_co2eq_ha = as.numeric(
+          emission_factor_kg_co2eq_ha
+        )
+      )
+  }
+  dplyr::bind_rows(
+    .parse_one(raw_ruminant, "ruminant"),
+    .parse_one(raw_monogastric, "monogastric")
+  )
+}
+
+# S.6.3 + S.6.4: mechanization levels by country and feed
+parse_mechanization_levels <- function(raw_ruminant, raw_monogastric) {
+  .parse_one <- function(raw, species_group) {
+    headers <- clean_names(as.character(raw[2, ]))
+    df <- raw[-(1:2), , drop = FALSE]
+    names(df) <- headers
+    # Pivot feed material columns to long format
+    key_cols <- c("country", "continent", "region")
+    feed_cols <- setdiff(names(df), key_cols)
+    df |>
+      tidyr::pivot_longer(
+        cols = dplyr::all_of(feed_cols),
+        names_to = "feed_material",
+        values_to = "mechanization_level"
+      ) |>
+      dplyr::mutate(
+        mechanization_level = as.numeric(mechanization_level),
+        species_group = species_group
+      )
+  }
+  dplyr::bind_rows(
+    .parse_one(raw_ruminant, "ruminant"),
+    .parse_one(raw_monogastric, "monogastric")
+  )
+}
+
+# S.6.5 + S.6.6: processing and transport emission factors
+parse_processing_transport_ef <- function(raw_ruminant, raw_monogastric) {
+  .parse_one <- function(raw, species_group) {
+    df <- .gleam_skip_title(
+      raw,
+      c(
+        "material_number",
+        "material",
+        "processing_g_co2eq_kg_dm",
+        "transport_g_co2eq_kg_dm"
+      )
+    )
+    # Remove category headers, footnotes, and blank rows
+    df <- df[!is.na(df$material), ]
+    df <- df[!grepl("^\\*", df$material_number), ]
+    df$species_group <- species_group
+    # Strip asterisks from footnoted values before parsing
+    df |>
+      dplyr::mutate(
+        material_number = as.integer(material_number),
+        processing_g_co2eq_kg_dm = as.numeric(
+          stringr::str_remove(processing_g_co2eq_kg_dm, "\\*")
+        ),
+        transport_g_co2eq_kg_dm = as.numeric(
+          stringr::str_remove(transport_g_co2eq_kg_dm, "\\*")
+        )
+      )
+  }
+  dplyr::bind_rows(
+    .parse_one(raw_ruminant, "ruminant"),
+    .parse_one(raw_monogastric, "monogastric")
+  )
+}
+
+# S.6.7 + S.6.8: nitrogen from crop residues
+parse_crop_residue_nitrogen <- function(raw_ruminant, raw_monogastric) {
+  .parse_one <- function(raw, species_group) {
+    df <- .gleam_skip_title(
+      raw,
+      c("material_number", "material", "n_ag", "rbg_bio", "n_bg")
+    )
+    df <- df[!is.na(df$material), ]
+    df$species_group <- species_group
+    df |>
+      dplyr::mutate(
+        material_number = as.integer(material_number),
+        n_ag = as.numeric(n_ag),
+        rbg_bio = as.numeric(rbg_bio),
+        n_bg = as.numeric(n_bg)
+      )
+  }
+  dplyr::bind_rows(
+    .parse_one(raw_ruminant, "ruminant"),
+    .parse_one(raw_monogastric, "monogastric")
+  )
+}
+
+# S.6.9: FracReMove by country
+parse_fracremove <- function(raw) {
+  df <- .gleam_skip_title(
+    raw,
+    c("country", "continent", "region", "fracremove")
+  )
+  df |>
+    dplyr::filter(!is.na(country)) |>
+    dplyr::mutate(fracremove = as.numeric(fracremove))
+}
+
+# Convert GLEAM middle-dot scientific notation
+# (e.g. "4.75·10-2") to standard form.
+.parse_gleam_numeric <- function(x) {
+  # Replace middle-dot notation: "X·10-Y" -> "Xe-Y"
+  x <- stringr::str_replace(
+    x,
+    "\u00b710(-?\\d+)",
+    "e\\1"
+  )
+  as.numeric(x)
+}
+
+# Remove footnote rows (start with "a " or "Note")
+.drop_footnotes <- function(df, col = 1L) {
+  vals <- df[[col]]
+  keep <- !is.na(vals) & !grepl("^a\\s|^Note", vals)
+  df[keep, , drop = FALSE]
+}
+
+# S.7.1–S.7.7: energy use emission factors
+parse_energy_use_ef <- function(gleam_raw) {
+  rows <- list()
+
+  # S.7.1: embedded energy, dairy cattle (grouping, system,
+  # arid, humid, temperate)
+  if (!is.null(gleam_raw$tab_s71)) {
+    raw <- gleam_raw$tab_s71
+    df <- .gleam_skip_title(
+      raw,
+      c("grouping", "system", "arid", "humid", "temperate")
+    )
+    df <- df[!is.na(df$grouping) | !is.na(df$system), ]
+    df$grouping <- zoo::na.locf(df$grouping, na.rm = FALSE)
+    df <- .drop_footnotes(df, "grouping")
+    rows[[1]] <- df |>
+      tidyr::pivot_longer(
+        cols = c("arid", "humid", "temperate"),
+        names_to = "climate",
+        values_to = "emission_factor"
+      ) |>
+      dplyr::mutate(
+        species = "dairy_cattle",
+        energy_type = "embedded",
+        emission_factor = .parse_gleam_numeric(emission_factor)
+      )
+  }
+
+  # S.7.2: embedded energy, small ruminants
+  if (!is.null(gleam_raw$tab_s72)) {
+    raw <- gleam_raw$tab_s72
+    df <- .gleam_skip_title(
+      raw,
+      c("grouping", "arid", "humid", "temperate")
+    )
+    df <- .drop_footnotes(df, "grouping")
+    rows[[2]] <- df |>
+      tidyr::pivot_longer(
+        cols = c("arid", "humid", "temperate"),
+        names_to = "climate",
+        values_to = "emission_factor"
+      ) |>
+      dplyr::mutate(
+        species = "small_ruminants",
+        system = NA_character_,
+        energy_type = "embedded",
+        emission_factor = .parse_gleam_numeric(emission_factor)
+      )
+  }
+
+  # S.7.3: embedded energy, pigs (middle-dot notation)
+  if (!is.null(gleam_raw$tab_s73)) {
+    raw <- gleam_raw$tab_s73
+    df <- .gleam_skip_title(
+      raw,
+      c("grouping", "industrial", "intermediate", "backyard")
+    )
+    df <- .drop_footnotes(df, "grouping")
+    rows[[3]] <- df |>
+      tidyr::pivot_longer(
+        cols = c("industrial", "intermediate", "backyard"),
+        names_to = "system",
+        values_to = "emission_factor"
+      ) |>
+      dplyr::mutate(
+        species = "pigs",
+        climate = NA_character_,
+        energy_type = "embedded",
+        emission_factor = .parse_gleam_numeric(emission_factor)
+      )
+  }
+
+  # S.7.4: embedded energy, chickens (middle-dot notation)
+  if (!is.null(gleam_raw$tab_s74)) {
+    raw <- gleam_raw$tab_s74
+    df <- .gleam_skip_title(
+      raw,
+      c("grouping", "broilers", "layers")
+    )
+    df <- .drop_footnotes(df, "grouping")
+    rows[[4]] <- df |>
+      tidyr::pivot_longer(
+        cols = c("broilers", "layers"),
+        names_to = "system",
+        values_to = "emission_factor"
+      ) |>
+      dplyr::mutate(
+        species = "chickens",
+        climate = NA_character_,
+        energy_type = "embedded",
+        emission_factor = .parse_gleam_numeric(emission_factor)
+      )
+  }
+
+  # S.7.5: direct energy, dairy cattle & buffalo
+  # (2-row header: system x climate)
+  if (!is.null(gleam_raw$tab_s75)) {
+    raw <- gleam_raw$tab_s75
+    # Two-row header: row 2 has systems, row 3 has climates.
+    col_names <- c(
+      "grouping",
+      "grassland_based_arid",
+      "grassland_based_humid",
+      "grassland_based_temperate",
+      "mixed_farming_arid",
+      "mixed_farming_humid",
+      "mixed_farming_temperate"
+    )
+    df <- raw[-(1:3), , drop = FALSE]
+    names(df) <- col_names
+    df <- df[!is.na(df$grouping), ]
+    df <- df[!grepl("^a\\s|^Note", df$grouping), ]
+    s75_long <- list()
+    for (sys in c("grassland_based", "mixed_farming")) {
+      for (clim in c("arid", "humid", "temperate")) {
+        col <- paste0(sys, "_", clim)
+        s75_long <- c(
+          s75_long,
+          list(tibble::tibble(
+            grouping = df$grouping,
+            system = sys,
+            climate = clim,
+            emission_factor = .parse_gleam_numeric(df[[col]])
+          ))
+        )
+      }
+    }
+    rows[[5]] <- dplyr::bind_rows(s75_long) |>
+      dplyr::mutate(
+        species = "dairy_cattle_buffalo",
+        energy_type = "direct"
+      )
+  }
+
+  # S.7.6: direct energy, non-dairy ruminants
+  if (!is.null(gleam_raw$tab_s76)) {
+    raw <- gleam_raw$tab_s76
+    df <- .gleam_skip_title(raw, NULL)
+    names(df) <- c(
+      "grouping",
+      "large_ruminants_grassland",
+      "large_ruminants_mixed",
+      "small_ruminants"
+    )
+    df <- .drop_footnotes(df, "grouping")
+    rows[[6]] <- df |>
+      tidyr::pivot_longer(
+        cols = -"grouping",
+        names_to = "system",
+        values_to = "emission_factor"
+      ) |>
+      dplyr::mutate(
+        species = dplyr::case_when(
+          grepl("small", system) ~ "small_ruminants",
+          .default = "large_ruminants"
+        ),
+        system = stringr::str_remove(
+          system,
+          "large_ruminants_|small_ruminants"
+        ),
+        system = dplyr::na_if(system, ""),
+        climate = NA_character_,
+        energy_type = "direct",
+        emission_factor = .parse_gleam_numeric(emission_factor)
+      )
+  }
+
+  # S.7.7: direct energy, monogastrics (2-row header)
+  if (!is.null(gleam_raw$tab_s77)) {
+    raw <- gleam_raw$tab_s77
+    col_names <- c(
+      "grouping",
+      "pigs_intermediate",
+      "pigs_industrial",
+      "layers",
+      "broilers"
+    )
+    df <- raw[-(1:3), , drop = FALSE]
+    names(df) <- col_names
+    df <- .drop_footnotes(df, "grouping")
+    rows[[7]] <- df |>
+      tidyr::pivot_longer(
+        cols = -"grouping",
+        names_to = "species_system",
+        values_to = "emission_factor"
+      ) |>
+      dplyr::mutate(
+        species = dplyr::case_when(
+          grepl("pigs", species_system) ~ "pigs",
+          species_system == "layers" ~ "chickens",
+          species_system == "broilers" ~ "chickens"
+        ),
+        system = dplyr::case_when(
+          species_system == "pigs_intermediate" ~ "intermediate",
+          species_system == "pigs_industrial" ~ "industrial",
+          species_system == "layers" ~ "layers",
+          species_system == "broilers" ~ "broilers"
+        ),
+        climate = NA_character_,
+        energy_type = "direct",
+        emission_factor = .parse_gleam_numeric(emission_factor)
+      ) |>
+      dplyr::select(-species_system)
+  }
+
+  result <- dplyr::bind_rows(rows)
+  result |>
+    dplyr::select(
+      "grouping",
+      "species",
+      "system",
+      "climate",
+      "energy_type",
+      "emission_factor"
+    )
+}
+
+# S.A1–S.A2: geographic hierarchy
+parse_geographic_hierarchy <- function(raw) {
+  df <- .gleam_skip_title(
+    raw,
+    c(
+      "iso3",
+      "country",
+      "continent",
+      "faostat_region",
+      "gleam_region",
+      "eu27",
+      "oecd"
+    )
+  )
+  df |>
+    dplyr::filter(!is.na(country)) |>
+    dplyr::mutate(
+      eu27 = as.integer(eu27),
+      oecd = as.integer(oecd)
+    )
 }
 
 # GLEAM PDF Tables ----
@@ -1271,41 +1658,59 @@ main <- function() {
     }
 
     if (!is.null(gleam_raw$tab_sa1sa2)) {
-      geo_raw <- gleam_raw$tab_sa1sa2
-      if (nrow(geo_raw) > 1) {
-        col_names <- clean_names(as.character(geo_raw[1, ]))
-        geo_data <- geo_raw[-1, ]
-        names(geo_data) <- col_names
-        gleam_excel_tables$gleam_geographic_hierarchy <- geo_data
-      } else {
-        gleam_excel_tables$gleam_geographic_hierarchy <-
-          gleam_raw$tab_sa1sa2
-      }
+      gleam_excel_tables$gleam_geographic_hierarchy <-
+        parse_geographic_hierarchy(gleam_raw$tab_sa1sa2)
     }
 
-    s6_tables <- grep("tab_s6", names(gleam_raw), value = TRUE)
-    if (length(s6_tables) > 0) {
-      gleam_excel_tables$gleam_production_system_params <-
-        dplyr::bind_rows(
-          lapply(s6_tables, function(t) {
-            df <- gleam_raw[[t]]
-            df$source_table <- t
-            df
-          })
+    # S.6 tables: feed production system parameters
+    if (
+      !is.null(gleam_raw$tab_s61) &&
+        !is.null(gleam_raw$tab_s62)
+    ) {
+      gleam_excel_tables$gleam_field_operation_ef <-
+        parse_field_operation_ef(
+          gleam_raw$tab_s61,
+          gleam_raw$tab_s62
         )
+    }
+    if (
+      !is.null(gleam_raw$tab_s63) &&
+        !is.null(gleam_raw$tab_s64)
+    ) {
+      gleam_excel_tables$gleam_mechanization_levels <-
+        parse_mechanization_levels(
+          gleam_raw$tab_s63,
+          gleam_raw$tab_s64
+        )
+    }
+    if (
+      !is.null(gleam_raw$tab_s65) &&
+        !is.null(gleam_raw$tab_s66)
+    ) {
+      gleam_excel_tables$gleam_processing_transport_ef <-
+        parse_processing_transport_ef(
+          gleam_raw$tab_s65,
+          gleam_raw$tab_s66
+        )
+    }
+    if (
+      !is.null(gleam_raw$tab_s67) &&
+        !is.null(gleam_raw$tab_s68)
+    ) {
+      gleam_excel_tables$gleam_crop_residue_nitrogen <-
+        parse_crop_residue_nitrogen(
+          gleam_raw$tab_s67,
+          gleam_raw$tab_s68
+        )
+    }
+    if (!is.null(gleam_raw$tab_s69)) {
+      gleam_excel_tables$gleam_fracremove <-
+        parse_fracremove(gleam_raw$tab_s69)
     }
 
-    s7_tables <- grep("tab_s7", names(gleam_raw), value = TRUE)
-    if (length(s7_tables) > 0) {
-      gleam_excel_tables$gleam_manure_system_params <-
-        dplyr::bind_rows(
-          lapply(s7_tables, function(t) {
-            df <- gleam_raw[[t]]
-            df$source_table <- t
-            df
-          })
-        )
-    }
+    # S.7 tables: energy use emission factors
+    gleam_excel_tables$gleam_energy_use_ef <-
+      parse_energy_use_ef(gleam_raw)
   } else {
     warning("GLEAM Excel file not found: ", gleam_file)
   }
