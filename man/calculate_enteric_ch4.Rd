@@ -7,12 +7,25 @@
 calculate_enteric_ch4(data, tier = NULL)
 }
 \arguments{
-\item{data}{Dataframe with \code{species}, \code{heads}.}
+\item{data}{Dataframe with \code{species}, \code{heads}.
+For Tier 2, also needs \code{cohort}, \code{weight}, and
+\code{diet_quality}. For Tier 1, \code{iso3} is used to
+select regional emission factors.}
 
-\item{tier}{Integer 1 or 2.}
+\item{tier}{Integer 1 or 2. If \code{NULL} (default),
+auto-selects based on data completeness.}
 }
 \value{
-Dataframe with enteric CH4 results.
+Dataframe with all input columns preserved, plus:
+\itemize{
+\item \code{method_enteric}: tracking label
+(\code{"IPCC_2019_Tier1"} or \code{"IPCC_2019_Tier2"}).
+\item Tier 1: \code{enteric_ef_kgch4} (emission factor),
+\code{enteric_ch4_tier1} (total kg CH4).
+\item Tier 2: \code{gross_energy}, \code{ym_factor},
+\code{enteric_ch4_per_head} (kg CH4/head/yr),
+\code{enteric_ch4_tier2} (total kg CH4).
+}
 }
 \description{
 Wrapper that selects Tier 1 or 2 for enteric CH4

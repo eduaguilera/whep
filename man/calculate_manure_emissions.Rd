@@ -7,12 +7,26 @@
 calculate_manure_emissions(data, tier = NULL)
 }
 \arguments{
-\item{data}{Dataframe with \code{species}, \code{heads}.}
+\item{data}{Dataframe with \code{species}, \code{heads}.
+For Tier 2, also needs \code{cohort}, \code{weight}, and
+\code{diet_quality}. For Tier 1, \code{iso3} is used to
+select regional emission factors.}
 
-\item{tier}{Integer 1 or 2.}
+\item{tier}{Integer 1 or 2. If \code{NULL} (default),
+auto-selects based on data completeness.}
 }
 \value{
-Dataframe with manure CH4 and N2O results.
+Dataframe with all input columns preserved, plus:
+\itemize{
+\item \code{method_manure_ch4}: tracking label.
+\item Tier 1: \code{manure_ef_kgch4}, \code{manure_ch4_tier1}.
+\item Tier 2: \code{volatile_solids}, \code{methane_potential},
+\code{weighted_mcf}, \code{manure_ch4_per_head},
+\code{manure_ch4_tier2}.
+\item N2O (Tier 2 only): \code{method_manure_n2o},
+\code{n_excretion}, \code{manure_n2o_direct},
+\code{manure_n2o_indirect}, \code{manure_n2o_total}.
+}
 }
 \description{
 Wrapper that selects Tier 1 or 2 for manure CH4 and

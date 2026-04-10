@@ -18,9 +18,10 @@
 #' @param example Logical. If `TRUE`, return a small hardcoded example
 #'   tibble instead of reading remote data. Default `FALSE`.
 #'
-#' @returns A tibble in long format (see `.read_cbs()` for column
-#'   descriptions), plus a character `qc_flag` column from
-#'   `.qc_cbs()`.
+#' @returns A tibble in long format with columns: `year`,
+#'   `area_code`, `item_cbs_code`, `element` (e.g.
+#'   `"production"`, `"import"`, `"food"`), `value`,
+#'   `source`, `fao_flag`.
 #'
 #' @export
 #'

@@ -48,9 +48,20 @@ calculate_livestock_emissions <- function(data, tier = NULL) {
 #' based on data availability.
 #'
 #' @param data Dataframe with `species`, `heads`.
-#' @param tier Integer 1 or 2.
+#'   For Tier 2, also needs `cohort`, `weight`, and
+#'   `diet_quality`. For Tier 1, `iso3` is used to
+#'   select regional emission factors.
+#' @param tier Integer 1 or 2. If `NULL` (default),
+#'   auto-selects based on data completeness.
 #'
-#' @return Dataframe with enteric CH4 results.
+#' @return Dataframe with all input columns preserved, plus:
+#'   - `method_enteric`: tracking label
+#'     (`"IPCC_2019_Tier1"` or `"IPCC_2019_Tier2"`).
+#'   - Tier 1: `enteric_ef_kgch4` (emission factor),
+#'     `enteric_ch4_tier1` (total kg CH4).
+#'   - Tier 2: `gross_energy`, `ym_factor`,
+#'     `enteric_ch4_per_head` (kg CH4/head/yr),
+#'     `enteric_ch4_tier2` (total kg CH4).
 #' @export
 #'
 #' @examples
@@ -76,9 +87,21 @@ calculate_enteric_ch4 <- function(data, tier = NULL) {
 #' computes N2O (Tier 2 only; skipped for Tier 1).
 #'
 #' @param data Dataframe with `species`, `heads`.
-#' @param tier Integer 1 or 2.
+#'   For Tier 2, also needs `cohort`, `weight`, and
+#'   `diet_quality`. For Tier 1, `iso3` is used to
+#'   select regional emission factors.
+#' @param tier Integer 1 or 2. If `NULL` (default),
+#'   auto-selects based on data completeness.
 #'
-#' @return Dataframe with manure CH4 and N2O results.
+#' @return Dataframe with all input columns preserved, plus:
+#'   - `method_manure_ch4`: tracking label.
+#'   - Tier 1: `manure_ef_kgch4`, `manure_ch4_tier1`.
+#'   - Tier 2: `volatile_solids`, `methane_potential`,
+#'     `weighted_mcf`, `manure_ch4_per_head`,
+#'     `manure_ch4_tier2`.
+#'   - N2O (Tier 2 only): `method_manure_n2o`,
+#'     `n_excretion`, `manure_n2o_direct`,
+#'     `manure_n2o_indirect`, `manure_n2o_total`.
 #' @export
 #'
 #' @examples
