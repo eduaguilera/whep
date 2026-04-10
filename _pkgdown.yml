@@ -127,6 +127,88 @@ reference:
   contents:
   - calculate_lmdi
 
+- title: Livestock emissions
+  desc: >
+    Calculate livestock GHG emissions using IPCC 2019 Tier 1 and Tier 2
+    methods for enteric methane, manure methane, and manure nitrous oxide.
+  contents:
+  - prepare_livestock_emissions
+  - calculate_livestock_emissions
+  - calculate_enteric_ch4
+  - calculate_manure_emissions
+  - estimate_energy_demand
+  - calculate_cohorts_systems
+  - calculate_uncertainty_bounds
+
+- title: Livestock coefficient tables
+  desc: >
+    IPCC and GLEAM coefficient tables for livestock emission calculations.
+- subtitle: GLEAM supplement tables
+  desc: >
+    Data from MacLeod et al. (2018) GLEAM 3.0 Supplement S1.
+  contents:
+  - gleam_animal_weights
+  - gleam_crop_residue_params
+  - gleam_dressing_percentages
+  - gleam_enteric_params
+  - gleam_feed_categories
+  - gleam_feed_composition
+  - gleam_feed_conversion_ratios
+  - gleam_feed_digestibility
+  - gleam_geographic_hierarchy
+  - gleam_livestock_categories
+  - gleam_milk_production
+  - gleam_mms_shares
+  - gleam_field_operation_ef
+  - gleam_mechanization_levels
+  - gleam_processing_transport_ef
+  - gleam_crop_residue_nitrogen
+  - gleam_fracremove
+  - gleam_energy_use_ef
+- subtitle: IPCC 2019 Refinement tables
+  desc: >
+    Emission factors and parameters from IPCC 2019, Vol 4, Ch 10.
+  contents:
+  - ipcc_2019_enteric_ef_cattle
+  - ipcc_2019_enteric_ef_other
+  - ipcc_2019_manure_ch4_ef_cattle
+  - ipcc_2019_manure_ch4_ef_other
+  - ipcc_2019_mcf_manure
+  - ipcc_2019_n_excretion
+  - ipcc_2019_n2o_ef_direct
+  - ipcc_2019_ym
+  - ipcc_2019_bo
+  - ipcc_2019_cfi
+- subtitle: IPCC 2006 tables
+  desc: >
+    Emission factors from IPCC 2006 Guidelines, Vol 4, Ch 10.
+  contents:
+  - ipcc_2006_enteric_ef
+  - ipcc_2006_manure_ef
+  - ipcc_2006_mcf_temp
+- subtitle: Tier 2 parameters
+  desc: >
+    Detailed parameters for IPCC Tier 2 calculations.
+  contents:
+  - ipcc_tier2_energy_coefs
+  - ipcc_tier2_ym_values
+  - ipcc_tier2_bo_values
+  - ipcc_tier2_manure_ash
+  - ipcc_tier2_n_retention
+  - livestock_production_defaults
+  - feed_characteristics
+  - livestock_constants
+- subtitle: Other livestock tables
+  desc: >
+    Climate, manure management, and uncertainty tables.
+  contents:
+  - climate_mcf
+  - regional_mms_distribution
+  - temperature_adjustment
+  - grazing_energy_coefs
+  - indirect_n2o_ef
+  - uncertainty_ranges
+
 - title: Harmonization
   desc: >
     Functions to harmonize time series items according to specified mapping.

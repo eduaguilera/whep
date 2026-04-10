@@ -14,11 +14,16 @@
 #'   are replaced with a linear trend. Default `FALSE`.
 #' @param example Logical. If `TRUE`, return a small hardcoded example
 #'   tibble instead of reading remote data. Default `FALSE`.
+#' @param show_duplicates Logical. If `TRUE`, return only the rows that
+#'   have competing sources in wide format (one column per source) for
+#'   diagnostic comparison. Default `FALSE`.
 #'
 #' @returns A tibble with the same columns as [get_primary_production()]:
 #'   `year`, `area_code` (numeric FAOSTAT), `item_prod_code`,
 #'   `item_cbs_code`, `live_anim_code`, `unit`, `value`.
 #'   Names can be recovered via [add_area_name()], [add_item_prod_name()], etc.
+#'   When `show_duplicates = TRUE`, returns a wide tibble with one
+#'   column per source showing the competing values.
 #'
 #' @export
 #'
@@ -28,7 +33,8 @@ build_primary_production <- function(
   start_year = 1850,
   end_year = 2023,
   smooth_carry_forward = FALSE,
-  example = FALSE
+  example = FALSE,
+  show_duplicates = FALSE
 ) {
   if (example) {
     return(.example_build_primary_prod())
@@ -37,10 +43,17 @@ build_primary_production <- function(
   raw <- .read_production(start_year, end_year)
   cb_extracts <- attr(raw, ".cb_extracts")
 
-  result <- raw |>
+  clean <- raw |>
     .fix_production() |>
     .qc_production(smooth = smooth_carry_forward) |>
-    tibble::as_tibble() |>
+    tibble::as_tibble()
+
+  if (show_duplicates) {
+    return(.show_prod_duplicates(clean))
+  }
+
+  result <- clean |>
+    .dedup_production() |>
     dplyr::select(
       year,
       area_code,
@@ -2078,4 +2091,73 @@ build_primary_production <- function(
   ]
 
   out
+}
+
+.prod_source_rank <- function(source) {
+  dplyr::case_when(
+    source == "FAOSTAT_prod" ~ 1L,
+    source == "EuropeAgriDB" ~ 2L,
+    stringr::str_starts(source, "imputed_yield") ~ 3L,
+    source == "imputed_cbs_ratio" ~ 4L,
+    source == "DM_yield_estimate" ~ 5L,
+    source == "fill_linear" ~ 6L,
+    source == "fill_linear_historical" ~ 7L,
+    source == "LUH2_cropland" ~ 8L,
+    source == "LUH2_agriland" ~ 9L,
+    source == "LUH2_grassland" ~ 10L,
+    source == "Estimated" ~ 11L,
+    TRUE ~ 12L
+  )
+}
+
+.dedup_production <- function(df) {
+  df |>
+    dplyr::mutate(.src_rank = .prod_source_rank(source)) |>
+    dplyr::slice_min(
+      .src_rank,
+      n = 1L,
+      with_ties = FALSE,
+      by = c(year, area_code, item_prod_code, unit)
+    ) |>
+    dplyr::select(!.src_rank)
+}
+
+.show_prod_duplicates <- function(df) {
+  key_cols <- c("year", "area_code", "item_prod_code", "unit")
+  dupes <- df |>
+    dplyr::add_count(
+      dplyr::across(dplyr::all_of(key_cols)),
+      name = ".n"
+    ) |>
+    dplyr::filter(.n > 1L) |>
+    dplyr::select(!.n)
+
+  n_keys <- dplyr::n_distinct(
+    dupes$year,
+    dupes$area_code,
+    dupes$item_prod_code,
+    dupes$unit
+  )
+  cli::cli_alert_info(
+    "{n_keys} key{?s} with competing sources found."
+  )
+
+  dupes |>
+    dplyr::select(
+      dplyr::all_of(key_cols),
+      source,
+      value
+    ) |>
+    dplyr::mutate(
+      .src_rank = .prod_source_rank(source)
+    ) |>
+    dplyr::arrange(
+      dplyr::across(dplyr::all_of(key_cols)),
+      .src_rank
+    ) |>
+    dplyr::select(!.src_rank) |>
+    tidyr::pivot_wider(
+      names_from = source,
+      values_from = value
+    )
 }

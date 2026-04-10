@@ -3,7 +3,7 @@
 - Follow the workflow: https://lbm364dl.github.io/follow-the-workflow/
 - Follow tidyverse style guide: https://style.tidyverse.org/
 - Maximum line width is 80 characters
-- For code formatting, use `air format` if this is available in the user's computer
+- For code formatting, **always** run `air format .` before committing. Install the binary if not on PATH. Do not try to format manually — air's rules are too specific to replicate by hand
 - Extract complex logic into private/helper functions (prefixed with .) early. These helpers should be stateless and receive all necessary context via arguments.
 - Functions should be short. Ideally no more than 25 lines. There might be exceptions if the code is easy to follow, but try to keep functions short and modular. If necessary, split large functions into smaller ones, with meaningful names. 
 - Main exported functions should come first in the file. The private helpers should come at the end, after all exported functions.
@@ -62,3 +62,40 @@ result <- data |>
 - Use pointblank functions to test behaviour as much as possible (e.g. `expect_col_exists()`, `expect_col_vals_in_set()`, `expect_col_vals_not_null()`, `expect_col_vals_equal()`)
 - Take `test_gapfilling.R` as example to make tests
 - Make helper fixtures if they contribute to reduce the amount of code in the tests files
+
+## CI Checks
+
+The PR must pass ALL these GitHub Actions checks. Before committing, verify locally:
+
+1. **R-CMD-check**: `rcmdcheck::rcmdcheck(build_args='--no-build-vignettes', args=c('--no-tests','--ignore-vignettes'), error_on='error')`
+   - All NSE variables must be declared in `utils::globalVariables()` in `R/utils.R`.
+   - All `stats::` functions must use explicit prefix (e.g., `stats::median()`).
+
+2. **lint** (`lintr`): `lintr::lint_package(linters=lintr::linters_with_defaults(object_usage_linter=NULL, line_length_linter=NULL, indentation_linter=NULL))`
+
+3. **format-suggest** (`air`): Code must be formatted with `air format .`
+   - **This is mandatory, not optional.** Do not attempt to manually match air style — always run the binary. Manual formatting will miss things.
+   - If `air` is not on PATH, install it from `https://github.com/posit-dev/air/releases`. Then run `air format .` on the repo root.
+   - Air formats **all** `.R` files in the repo (`R/`, `tests/`, `data-raw/`, etc.), not just the files you edited.
+   - After running air, run `devtools::document()` to update `man/` files.
+
+4. **pkgdown**: The documentation site must build without errors.
+   - **Every documented topic** (exported functions AND documented datasets) must appear in `_pkgdown.yml` under the `reference:` section. This means every `.Rd` file in `man/` (except `whep-package.Rd`) must have a matching entry.
+   - When adding new exported functions or new documented datasets (roxygen-documented data objects), add them to the appropriate section in `_pkgdown.yml` (or create a new section).
+   - To verify completeness, compare `man/*.Rd` filenames against `_pkgdown.yml` contents entries. Any mismatch will cause the CI to fail.
+
+5. **Tests**: `devtools::test()` — all tests must pass.
+
+### Before committing checklist
+
+```bash
+# 1. Format (MANDATORY — do not skip, do not do manually)
+air format .
+```
+
+```r
+# 2. Document: devtools::document()
+# 3. Check: rcmdcheck::rcmdcheck(build_args='--no-build-vignettes', args=c('--no-tests','--ignore-vignettes'), error_on='error')
+# 4. Test: devtools::test()
+# 5. Verify pkgdown: every man/*.Rd (except whep-package.Rd) must be listed in _pkgdown.yml
+```

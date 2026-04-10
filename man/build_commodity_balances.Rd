@@ -27,9 +27,10 @@ are replaced with a linear trend. Default \code{FALSE}.}
 tibble instead of reading remote data. Default \code{FALSE}.}
 }
 \value{
-A tibble in long format (see \code{.read_cbs()} for column
-descriptions), plus a character \code{qc_flag} column from
-\code{.qc_cbs()}.
+A tibble in long format with columns: \code{year},
+\code{area_code}, \code{item_cbs_code}, \code{element} (e.g.
+\code{"production"}, \code{"import"}, \code{"food"}), \code{value},
+\code{source}, \code{fao_flag}.
 }
 \description{
 Construct commodity balance sheets (CBS) from raw FAOSTAT data.
