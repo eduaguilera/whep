@@ -19,6 +19,6 @@ Table 10.19: Daily N excretion rates by species and region
 (kg N/1000 kg animal mass/day).
 }
 \examples{
-head(ipcc_2019_n_excretion)
+ipcc_2019_n_excretion
 }
 \keyword{datasets}

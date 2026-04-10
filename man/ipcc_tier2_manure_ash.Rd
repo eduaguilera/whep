@@ -18,6 +18,6 @@ Ash content of manure as percent of dry matter,
 used in VS calculation (Eq 10.24).
 }
 \examples{
-head(ipcc_tier2_manure_ash)
+ipcc_tier2_manure_ash
 }
 \keyword{datasets}

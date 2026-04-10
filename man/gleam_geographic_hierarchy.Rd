@@ -26,6 +26,6 @@ Maps countries (ISO3) to GLEAM regions, FAOSTAT regions,
 and classification indicators.
 }
 \examples{
-head(gleam_geographic_hierarchy)
+gleam_geographic_hierarchy
 }
 \keyword{datasets}

@@ -24,6 +24,6 @@ situation. The 2019 Refinement differentiates:
 }
 }
 \examples{
-head(ipcc_2019_ym)
+ipcc_2019_ym
 }
 \keyword{datasets}

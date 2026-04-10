@@ -273,7 +273,7 @@ column AND either `weight` or `iso3`. Otherwise defaults to Tier 1.
 `calculate_cohorts_systems()` distributes a total herd across GLEAM
 cohorts and production systems using:
 - `gleam_livestock_categories`: cohort fractions by species
-- `gleam_production_system_params`: system shares by species + region
+- GLEAM S.6 tables (e.g. `gleam_field_operation_ef`, `gleam_mechanization_levels`): system shares by species + region
 
 ---
 

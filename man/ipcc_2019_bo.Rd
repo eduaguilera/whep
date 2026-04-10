@@ -19,6 +19,6 @@ Maximum CH4 producing capacity of manure
 other cattle (0.18).
 }
 \examples{
-head(ipcc_2019_bo)
+ipcc_2019_bo
 }
 \keyword{datasets}

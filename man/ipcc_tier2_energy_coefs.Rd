@@ -32,6 +32,6 @@ includes \code{subcategory} column to differentiate dairy
 (lactating) vs non-dairy cattle.
 }
 \examples{
-head(ipcc_tier2_energy_coefs)
+ipcc_tier2_energy_coefs
 }
 \keyword{datasets}

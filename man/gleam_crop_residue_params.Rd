@@ -25,6 +25,6 @@ Dry matter content and parameters for calculating crop
 residue yield by crop type.
 }
 \examples{
-head(gleam_crop_residue_params)
+gleam_crop_residue_params
 }
 \keyword{datasets}

@@ -18,6 +18,6 @@ ipcc_2006_manure_ef
 Table 10.14 (2006): Tier 1 regional EFs for manure CH4.
 }
 \examples{
-head(ipcc_2006_manure_ef)
+ipcc_2006_manure_ef
 }
 \keyword{datasets}

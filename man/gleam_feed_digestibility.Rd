@@ -26,6 +26,6 @@ Nutritional values for feed materials of ruminant species,
 including gross energy, nitrogen content, and digestibility.
 }
 \examples{
-head(gleam_feed_digestibility)
+gleam_feed_digestibility
 }
 \keyword{datasets}

@@ -24,6 +24,6 @@ Species, production systems, and cohort definitions from
 GLEAM 3.0.
 }
 \examples{
-head(gleam_livestock_categories)
+gleam_livestock_categories
 }
 \keyword{datasets}

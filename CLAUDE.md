@@ -39,6 +39,7 @@
 
 - All functions should have tests with `testthat`.
 - One test file per R script: `tests/testthat/test_scriptname.R`.
+- Access exported objects (functions and datasets) via `whep::name` in tests, not bare names. For dynamic access in loops, use `getExportedValue("whep", nm)`. Never use `:::` or `getFromNamespace()` for exported objects.
 - Use `tibble::tribble()`, pipes, `dplyr::pull()`, pointblank assertions.
 - Take `test_gapfilling.R` as example.
 - Make helper fixtures to reduce code repetition.

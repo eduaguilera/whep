@@ -18,6 +18,6 @@ Fraction of N intake retained in animal products.
 Dairy cattle 0.20 vs other cattle 0.07.
 }
 \examples{
-head(ipcc_tier2_n_retention)
+ipcc_tier2_n_retention
 }
 \keyword{datasets}

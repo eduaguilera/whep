@@ -18,6 +18,6 @@ Table 10.17 (2006): MCF values by MMS type and
 annual temperature.
 }
 \examples{
-head(ipcc_2006_mcf_temp)
+ipcc_2006_mcf_temp
 }
 \keyword{datasets}

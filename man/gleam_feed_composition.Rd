@@ -25,6 +25,6 @@ Regional feed use efficiency (FUE) values for forages and
 crop residues of ruminant species.
 }
 \examples{
-head(gleam_feed_composition)
+gleam_feed_composition
 }
 \keyword{datasets}

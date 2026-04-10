@@ -19,6 +19,6 @@ Lower and upper multipliers for key emission
 parameters (Ym, MCF, Bo, EF_N2O, Nex).
 }
 \examples{
-head(uncertainty_ranges)
+uncertainty_ranges
 }
 \keyword{datasets}

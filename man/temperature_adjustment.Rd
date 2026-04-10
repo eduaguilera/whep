@@ -20,6 +20,6 @@ under cold stress, thermoneutral, and heat stress
 conditions.
 }
 \examples{
-head(temperature_adjustment)
+temperature_adjustment
 }
 \keyword{datasets}

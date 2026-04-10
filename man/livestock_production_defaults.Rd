@@ -5,7 +5,17 @@
 \alias{livestock_production_defaults}
 \title{Default production parameters.}
 \format{
-A tibble with production defaults per species.
+A tibble with columns:
+\describe{
+\item{category}{Species or animal class.}
+\item{fat_percent}{Milk fat content (percent).}
+\item{protein_percent}{Milk protein content (percent).}
+\item{lactose_percent}{Milk lactose content (percent).}
+\item{weight_gain_kg_day}{Average daily weight gain
+(kg/day).}
+\item{work_hours_day}{Hours of draft work per day.}
+\item{pregnant_fraction}{Fraction of females pregnant.}
+}
 }
 \source{
 NRC 2001; IPCC 2019, Vol 4, Ch 10.
@@ -18,6 +28,6 @@ Default values for fat\%, protein\%, lactose\%, weight gain,
 work hours, and pregnancy fraction by species.
 }
 \examples{
-head(livestock_production_defaults)
+livestock_production_defaults
 }
 \keyword{datasets}

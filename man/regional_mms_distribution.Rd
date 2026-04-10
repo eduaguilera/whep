@@ -19,6 +19,6 @@ Fraction of manure managed in each MMS type by region
 and species.
 }
 \examples{
-head(regional_mms_distribution)
+regional_mms_distribution
 }
 \keyword{datasets}

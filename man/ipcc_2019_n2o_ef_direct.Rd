@@ -19,6 +19,6 @@ Table 10.21: EF3 values (kg N2O-N/kg N) by manure
 management system.
 }
 \examples{
-head(ipcc_2019_n2o_ef_direct)
+ipcc_2019_n2o_ef_direct
 }
 \keyword{datasets}

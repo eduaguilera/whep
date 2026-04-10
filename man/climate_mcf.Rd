@@ -19,6 +19,6 @@ Methane Conversion Factors by MMS type and climate zone
 (Cool/Temperate/Warm).
 }
 \examples{
-head(climate_mcf)
+climate_mcf
 }
 \keyword{datasets}

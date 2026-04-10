@@ -18,6 +18,6 @@ gleam_animal_weights
 Typical live weights by region, species, system, and cohort.
 }
 \examples{
-head(gleam_animal_weights)
+gleam_animal_weights
 }
 \keyword{datasets}

@@ -18,6 +18,6 @@ gleam_milk_production
 Average annual milk yields and lactation lengths by region.
 }
 \examples{
-head(gleam_milk_production)
+gleam_milk_production
 }
 \keyword{datasets}

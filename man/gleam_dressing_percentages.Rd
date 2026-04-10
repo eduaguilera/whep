@@ -35,6 +35,6 @@ country-specific overrides for industrial pig systems in
 Western Europe.
 }
 \examples{
-head(gleam_dressing_percentages)
+gleam_dressing_percentages
 }
 \keyword{datasets}

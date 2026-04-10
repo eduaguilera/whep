@@ -18,6 +18,6 @@ gleam_mms_shares
 Regional MMS allocation by species and system.
 }
 \examples{
-head(gleam_mms_shares)
+gleam_mms_shares
 }
 \keyword{datasets}

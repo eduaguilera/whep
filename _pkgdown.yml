@@ -157,10 +157,14 @@ reference:
   - gleam_feed_digestibility
   - gleam_geographic_hierarchy
   - gleam_livestock_categories
-  - gleam_manure_system_params
   - gleam_milk_production
   - gleam_mms_shares
-  - gleam_production_system_params
+  - gleam_field_operation_ef
+  - gleam_mechanization_levels
+  - gleam_processing_transport_ef
+  - gleam_crop_residue_nitrogen
+  - gleam_fracremove
+  - gleam_energy_use_ef
 - subtitle: IPCC 2019 Refinement tables
   desc: >
     Emission factors and parameters from IPCC 2019, Vol 4, Ch 10.

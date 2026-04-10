@@ -30,6 +30,6 @@ Nutritional values for feed materials of monogastric
 species (chicken and pigs).
 }
 \examples{
-head(gleam_feed_conversion_ratios)
+gleam_feed_conversion_ratios
 }
 \keyword{datasets}
