@@ -7,7 +7,7 @@
 build_processing_coefs(
   cbs,
   start_year = 1850,
-  end_year = 2021,
+  end_year = 2023,
   example = FALSE
 )
 }
@@ -17,7 +17,7 @@ build_processing_coefs(
 
 \item{start_year}{Integer. First year to include. Default \code{1850}.}
 
-\item{end_year}{Integer. Last year to include. Default \code{2021}.}
+\item{end_year}{Integer. Last year to include. Default \code{2023}.}
 
 \item{example}{Logical. If \code{TRUE}, return a small hardcoded dataset
 for illustration without downloading data. Default \code{FALSE}.}

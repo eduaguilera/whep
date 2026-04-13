@@ -235,11 +235,10 @@
       region_map <- regions[, .(area_code, polity_code, polity_name)]
       pol_bridge <- polities[, .(iso3c, polity_area_code = area_code)]
       bridge <<- merge(
-        region_map,
+        region_map[!is.na(polity_code)],
         pol_bridge,
         by.x = "polity_code",
-        by.y = "iso3c",
-        all.x = TRUE
+        by.y = "iso3c"
       )
     }
     bridge
@@ -264,7 +263,17 @@
     "element",
     dots
   )
-  dt <- dt[, .(value = sum(value, na.rm = TRUE)), by = by_cols]
+
+  has_flag <- "fao_flag" %in% names(dt)
+  if (has_flag) {
+    dt <- dt[,
+      .(value = sum(value, na.rm = TRUE), fao_flag = fao_flag[1L]),
+      by = by_cols
+    ]
+  } else {
+    dt <- dt[, .(value = sum(value, na.rm = TRUE)), by = by_cols]
+  }
+
   data.table::setnames(
     dt,
     c("polity_area_code", "polity_name"),
@@ -312,20 +321,28 @@
     )
   )
 
+  # Rename FAOSTAT flag if present
+  if ("Flag" %in% names(dt)) {
+    data.table::setnames(dt, "Flag", "fao_flag")
+  }
   dt <- .harmonize_element_names(dt)
   dt <- .normalise_units(dt)
   dt <- .fix_item_codes(dt)
   dt <- dt[element %in% cb_elements]
-  dt <- dt[, .(
-    area,
-    area_code,
-    item_cbs,
-    item_cbs_code,
-    element,
-    unit,
-    year,
-    value
-  )]
+  cols <- c(
+    "area",
+    "area_code",
+    "item_cbs",
+    "item_cbs_code",
+    "element",
+    "unit",
+    "year",
+    "value"
+  )
+  if ("fao_flag" %in% names(dt)) {
+    cols <- c(cols, "fao_flag")
+  }
+  dt <- dt[, cols, with = FALSE]
   .aggregate_to_polities(dt, item_cbs, item_cbs_code)
 }
 

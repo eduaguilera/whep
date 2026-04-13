@@ -127,12 +127,12 @@ test_that(".fix_item_codes remaps groundnuts 2820 -> 2552", {
 
 # -- .select_best_source -------------------------------------------------------
 
-test_that(".select_best_source prioritises Primary source", {
+test_that(".select_best_source prioritises FAOSTAT_prod source", {
   cbs_raw_all <- tibble::tribble(
     ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~year, ~value, ~source, ~unit,
-    "Spain", 203L, "Wheat", 2511L, "production", 2000L, 5000, "Primary", "tonnes",
-    "Spain", 203L, "Wheat", 2511L, "production", 2000L, 4000, "FBS_New", "tonnes",
-    "Spain", 203L, "Wheat", 2511L, "production", 2000L, 3000, "FBS_Old", "tonnes"
+    "Spain", 203L, "Wheat", 2511L, "production", 2000L, 5000, "FAOSTAT_prod", "tonnes",
+    "Spain", 203L, "Wheat", 2511L, "production", 2000L, 4000, "FAOSTAT_FBS_New", "tonnes",
+    "Spain", 203L, "Wheat", 2511L, "production", 2000L, 3000, "FAOSTAT_FBS_Old", "tonnes"
   )
 
   result <- whep:::.select_best_source(cbs_raw_all)
@@ -182,4 +182,171 @@ test_that(".processed_raw creates value_proc column", {
   result <- whep:::.processed_raw(cbs, cb_proc)
   expect_true("value_proc" %in% names(result))
   expect_true("processed_item" %in% names(result))
+})
+
+
+# -- .select_best_source FBS harmonization ------------------------------------
+
+.make_select_best_source_input <- function() {
+  tibble::tribble(
+    ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~year,
+    ~value, ~source, ~unit,
+    "Spain", 203L, "Wheat", 2511L, "food", 2010L,
+    1000, "FAOSTAT_FBS_Old", "tonnes",
+    "Spain", 203L, "Wheat", 2511L, "food", 2010L,
+    1050, "FAOSTAT_FBS_New", "tonnes",
+    "Spain", 203L, "Wheat", 2511L, "food", 2011L,
+    1020, "FAOSTAT_FBS_Old", "tonnes",
+    "Spain", 203L, "Wheat", 2511L, "food", 2011L,
+    1071, "FAOSTAT_FBS_New", "tonnes",
+    "Spain", 203L, "Wheat", 2511L, "food", 2005L,
+    900, "FAOSTAT_FBS_Old", "tonnes",
+    "Spain", 203L, "Wheat", 2511L, "food", 2015L,
+    1200, "FAOSTAT_FBS_New", "tonnes"
+  )
+}
+
+test_that(".select_best_source scales FBS_Old to FBS_New level", {
+  input <- .make_select_best_source_input()
+  result <- whep:::.select_best_source(input)
+
+  val_2005 <- result |>
+    dplyr::filter(year == 2005) |>
+    dplyr::pull(value)
+  expect_true(val_2005 > 900)
+  expect_true(val_2005 < 1000)
+
+  val_2015 <- result |>
+    dplyr::filter(year == 2015) |>
+    dplyr::pull(value)
+  expect_equal(val_2015, 1200)
+
+  src_2005 <- result |>
+    dplyr::filter(year == 2005) |>
+    dplyr::pull(source)
+  expect_equal(src_2005, "FAOSTAT_FBS_Old_scaled")
+
+  src_2015 <- result |>
+    dplyr::filter(year == 2015) |>
+    dplyr::pull(source)
+  expect_equal(src_2015, "FAOSTAT_FBS_New")
+})
+
+test_that(".select_best_source uses dataset-specific source names", {
+  input <- tibble::tribble(
+    ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~year,
+    ~value, ~source, ~unit,
+    "Spain", 203L, "Wheat", 2511L, "production", 2010L,
+    5000, "FAOSTAT_prod", "tonnes",
+    "Spain", 203L, "Wheat", 2511L, "food", 2010L,
+    3000, "FAOSTAT_FBS_New", "tonnes"
+  )
+
+  result <- whep:::.select_best_source(input)
+
+  valid_sources <- c(
+    "FAOSTAT_prod",
+    "FAOSTAT_FBS_New",
+    "FAOSTAT_FBS_Old",
+    "FAOSTAT_FBS_Old_scaled",
+    "FAOSTAT_CBS",
+    "FAOSTAT_trade",
+    "mean"
+  )
+  expect_true(all(result$source %in% valid_sources))
+  expect_false(any(result$source %in% c("Primary", "FBS_New", "FBS_Old")))
+})
+
+
+# -- .format_cbs_output -------------------------------------------------------
+
+test_that(".format_cbs_output returns long format with source column", {
+  cbs <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element,
+    ~value, ~source,
+    2000L, "Spain", 203L, "Wheat", 2511L, "production", 5000, "FAOSTAT_prod",
+    2000L, "Spain", 203L, "Wheat", 2511L, "food", 3000, "FAOSTAT_FBS_New",
+    2000L, "Spain", 203L, "Wheat", 2511L, "feed", 1000, "FAOSTAT_FBS_New",
+    2000L, "Spain", 203L, "Wheat", 2511L, "import", 500, "FAOSTAT_trade",
+    2000L, "Spain", 203L, "Wheat", 2511L, "export", 200, "FAOSTAT_trade",
+    2000L, "Spain", 203L, "Wheat", 2511L, "seed", 100, "FAOSTAT_FBS_Old",
+    2000L, "Spain", 203L, "Wheat", 2511L, "other_uses", 50, "mean",
+    2000L, "Spain", 203L, "Wheat", 2511L, "processing", 150, "Processed",
+    2000L, "Spain", 203L, "Wheat", 2511L, "domestic_supply", 4300, "FAOSTAT_FBS_New",
+    2000L, "Spain", 203L, "Wheat", 2511L, "stock_variation", 0, "mean"
+  )
+
+  result <- whep:::.format_cbs_output(cbs)
+
+  expect_true("element" %in% names(result))
+  expect_true("source" %in% names(result))
+  expect_false("production" %in% names(result))
+
+  prod_src <- result |>
+    dplyr::filter(element == "production") |>
+    dplyr::pull(source)
+  expect_equal(prod_src, "FAOSTAT_prod")
+})
+
+
+# -- .wide_cbs_to_long ---------------------------------------------------------
+
+test_that(".wide_cbs_to_long handles long format input", {
+  long_input <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~element, ~value, ~source,
+    2000L, 203L, 2511L, "production", 5000, "FAOSTAT_prod",
+    2000L, 203L, 2511L, "food", 3000, "FAOSTAT_FBS_New"
+  )
+
+  result <- whep:::.wide_cbs_to_long(long_input)
+  expect_true("item_cbs" %in% names(result))
+  expect_equal(nrow(result), 2L)
+})
+
+
+# -- trade imputation exclusions -----------------------------------------------
+
+test_that("trade imputation excludes ethanol, sugar cane, sugar beet", {
+  no_residual <- c(2659L, 2536L, 2537L)
+  tradeable_items <- c(2511L, 2659L, 2536L, 2537L)
+
+  is_tradeable <- tradeable_items %in%
+    tradeable_items &
+    !tradeable_items %in% no_residual
+
+  expect_true(is_tradeable[1])
+  expect_false(is_tradeable[2])
+  expect_false(is_tradeable[3])
+  expect_false(is_tradeable[4])
+})
+
+
+# -- year range defaults -------------------------------------------------------
+
+test_that("build_commodity_balances defaults to end_year 2023", {
+  formals_cbs <- formals(whep::build_commodity_balances)
+  expect_equal(formals_cbs$end_year, 2023)
+})
+
+
+# -- deduplication --------------------------------------------------------------
+
+test_that(".format_cbs_output removes duplicate rows", {
+  df <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~element, ~value, ~source,
+    2000L, 203L, 2511L, "production", 100, "FAOSTAT_prod",
+    2000L, 203L, 2511L, "production", 100, "FAOSTAT_prod",
+    2000L, 203L, 2511L, "import", 50, "FAOSTAT_FBS_New"
+  )
+
+  result <- whep:::.format_cbs_output(df)
+  prod_rows <- result |>
+    dplyr::filter(
+      year == 2000L,
+      area_code == 203L,
+      item_cbs_code == 2511L,
+      element == "production"
+    )
+  expect_equal(nrow(prod_rows), 1L)
+  expect_equal(prod_rows$value, 100)
 })

@@ -45,7 +45,6 @@
 #' @examples
 #' get_wide_cbs(example = TRUE)
 get_wide_cbs <- function(example = FALSE) {
-
   if (example) {
     return(.example_get_wide_cbs())
   }

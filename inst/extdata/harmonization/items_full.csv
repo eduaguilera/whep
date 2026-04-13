@@ -31,8 +31,8 @@ Wine,2655.0,p2655,p080,Wine production,tonnes,Crop products,crops,crops,Alcohol,
 Beer,2656.0,p2656,p081,Beer production,tonnes,Crop products,crops,crops,Alcohol,Alcohol,Beer,Beer,,Food
 "Beverages, Alcoholic",2658.0,p2658,p083,"Beverages production, Alcoholic",tonnes,Crop products,crops,crops,Alcohol,Alcohol,"Beverages, alcoholic","Beverages, others",,Food
 "Beverages, Fermented",2657.0,p2657,p082,"Beverages production, Fermented",tonnes,Crop products,crops,crops,Alcohol,Alcohol,"Beverages, fermented","Beverages, others",,Food
-"Alcohol, Non-Food",2659.0,p2659,p084,"Alcohol production, Non-Food",tonnes,Crop products,crops,crops,Ethanol,Alcohol,"Alcohol, non-food","Beverages, others",,Food
-Ethanol,,#N/A,#N/A,#N/A,tonnes,Crop products,crops,crops,Ethanol,Alcohol,Ethanol,"Beverages, others",,Feed
+"Alcohol, Non-Food",2659.0,p2659,p084,"Alcohol production, Non-Food",tonnes,Crop products,crops,crops,Ethanol,Alcohol,"Alcohol, non-food","Beverages, others",,Other_uses
+Ethanol,,#N/A,#N/A,#N/A,tonnes,Crop products,crops,crops,Ethanol,Alcohol,Ethanol,"Beverages, others",,Other_uses
 Groundnut Cake,2591.0,p2591,p068,Groundnut Oil extraction,tonnes,Crop products,crops,crops,Oil cakes,Cakes,Peanut cake,Cakes,HNA.CACAHUETE 52,Food
 Sunflowerseed Cake,2592.0,p2592,p069,Sunflowerseed Oil extraction,tonnes,Crop products,crops,crops,Oil cakes,Cakes,Sunflowerseed cake,Cakes,HNA.GIRASOL 32,Food
 Copra Cake,2596.0,p2596,p074,Coconut Oil extraction,tonnes,Crop products,crops,crops,Oil cakes,Cakes,Copra cake,Cakes,HNA. COPRA SOLVENTE,Food
@@ -107,9 +107,9 @@ Animals live nes,1171.0,p1171,p112,Other animals husbandry,1000 Head,Livestock,,
 Geese,1072.0,p1072,p111,Other birds farming,1000 Head,Livestock,,,Live animals,Live animals,,Live animals,,Food
 "Fats, Animals, Raw",2737.0,p2737,p086,Buffaloes husbandry,tonnes,Livestock products,animals,animals,Animal fats,Animal fats,"Fats, animals, raw",Animal Fats,GRASA MEZCLA 5/9,Food
 Eggs,2744.0,p2744,p110,Layers chickens farming,tonnes,Livestock products,animals,animals,Eggs,Eggs,Eggs,Eggs,HARINA HUEVO,Food
-Wool (Clean Eq.),2746.0,p2746,p087,Sheep husbandry,tonnes,Livestock products,animals,animals,"Hides, skins, wool",Other animal products,Wool,Wool,0,Food
+Wool (Clean Eq.),2746.0,p2746,p087,Sheep husbandry,tonnes,Livestock products,animals,animals,"Hides, skins, wool",Other animal products,Wool,Wool,0,Other_uses
 Hides and skins,2748.0,p2748,p086,Buffaloes husbandry,tonnes,Livestock products,animals,animals,"Hides, skins, wool",Other animal products,Hides and skins,Skins,0,Food
-Silk,2747.0,p2747,p115,Silkworm breeding,tonnes,Livestock products,animals,animals,"Hides, skins, wool",Other animal products,Silk,Wool,0,Feed
+Silk,2747.0,p2747,p115,Silkworm breeding,tonnes,Livestock products,animals,animals,"Hides, skins, wool",Other animal products,Silk,Wool,0,Other_uses
 Honey,2745.0,p2745,p114,Beekeeping,tonnes,Livestock products,animals,animals,Honey,Other animal products,Honey,Processed Food,0,Food
 Mutton & Goat Meat,2732.0,p2732,p088,Goats husbandry,tonnes,Livestock products,animals,animals,Meat,Meat,Goat meat,Meat,CARNE PROMEDIO,Feed
 "Offals, Edible",2736.0,p2736,p092,Asses husbandry,tonnes,Livestock products,animals,animals,Meat,Other animal products,"Offals, edible",Meat,CARNE PROMEDIO,Feed
@@ -136,22 +136,22 @@ Cocoa Beans and products,2633.0,p2633,p046,Cocoa Beans production,tonnes,Primary
 Coffee and products,2630.0,p2630,p045,Coffee production,tonnes,Primary crops,crops,crops,"Coffee, tea, cocoa",Spices,Coffee,Coffee,0,
 "Soft-Fibres, Other",2664.0,p2664,p055,"Soft-Fibres production, Other",tonnes,Primary crops,crops,crops,Fibre crops,Fibres,Flax fibre and tow,"Fibres, other",0,Processing
 Cottonseed,2559.0,p2559,p025,Cotton production,tonnes,Primary crops,crops,crops,Fibre crops,Oilseeds,Cottonseed,Animal Feed Processed,SEMILLA ALGODON,Feed
-Jute,2662.0,p2662,p053,Jute production,tonnes,Primary crops,crops,crops,Fibre crops,Fibres,"Fibres, other","Fibres, other",0,Feed
-Jute-Like Fibres,2663.0,p2663,p054,Jute-Like Fibres production,tonnes,Primary crops,crops,crops,Fibre crops,Fibres,"Fibres, other","Fibres, other",0,Feed
-Abaca,2666.0,p2666,p057,Abaca production,tonnes,Primary crops,crops,crops,Fibre crops,Fibres,"Fibres, other","Fibres, other",0,Feed
+Jute,2662.0,p2662,p053,Jute production,tonnes,Primary crops,crops,crops,Fibre crops,Fibres,"Fibres, other","Fibres, other",0,Other_uses
+Jute-Like Fibres,2663.0,p2663,p054,Jute-Like Fibres production,tonnes,Primary crops,crops,crops,Fibre crops,Fibres,"Fibres, other","Fibres, other",0,Other_uses
+Abaca,2666.0,p2666,p057,Abaca production,tonnes,Primary crops,crops,crops,Fibre crops,Fibres,"Fibres, other","Fibres, other",0,Other_uses
 "Hard Fibres, Other",2667.0,p2667,p058,"Hard Fibres production, Other",tonnes,Primary crops,crops,crops,Fibre crops,Fibres,"Bastfibres, other","Fibres, other",0,Feed
-Sisal,2665.0,p2665,p056,Sisal production,tonnes,Primary crops,crops,crops,Fibre crops,Fibres,"Fibres, other","Fibres, other",0,Feed
-Cotton lint,2661.0,p2661,p025,Cotton production,tonnes,Primary crops,crops,crops,Fibre crops,Fibres,Cotton fiber,Cotton lint,0,Food
-Fodder cereal and grasses,2000.0,p2000,p061,Fodder cereals and grasses production,tonnes,Primary crops,,residues,Fodder crops,Fodder_green,Brome,Foragge,CEBADA SILO PROMEDIO,Food
-Fodder legumes,2001.0,p2001,p118,Fodder legumes production,tonnes,Primary crops,,residues,Fodder crops,Fodder_green,Alfalfa,Foragge,VEZA HENO PROMEDIO,Food
-Fodder vegetables and roots,2002.0,p2002,p120,Fodder vegetables and roots production,tonnes,Primary crops,residues,residues,Fodder crops,Fodder_green,"Carrot, for fodder",Foragge,Ray-grass verde TERCERA,Food
-Fodder mix,2003.0,p2003,p119,Fodder mix production,tonnes,Primary crops,,residues,Fodder crops,Fodder_green,Mixed swards,Foragge,Ray-grass verde TERCERA,Food
+Sisal,2665.0,p2665,p056,Sisal production,tonnes,Primary crops,crops,crops,Fibre crops,Fibres,"Fibres, other","Fibres, other",0,Other_uses
+Cotton lint,2661.0,p2661,p025,Cotton production,tonnes,Primary crops,crops,crops,Fibre crops,Fibres,Cotton fiber,Cotton lint,0,Other_uses
+Fodder cereal and grasses,2000.0,p2000,p061,Fodder cereals and grasses production,tonnes,Primary crops,,residues,Fodder crops,Fodder_green,Brome,Foragge,CEBADA SILO PROMEDIO,Feed
+Fodder legumes,2001.0,p2001,p118,Fodder legumes production,tonnes,Primary crops,,residues,Fodder crops,Fodder_green,Alfalfa,Foragge,VEZA HENO PROMEDIO,Feed
+Fodder vegetables and roots,2002.0,p2002,p120,Fodder vegetables and roots production,tonnes,Primary crops,residues,residues,Fodder crops,Fodder_green,"Carrot, for fodder",Foragge,Ray-grass verde TERCERA,Feed
+Fodder mix,2003.0,p2003,p119,Fodder mix production,tonnes,Primary crops,,residues,Fodder crops,Fodder_green,Mixed swards,Foragge,Ray-grass verde TERCERA,Feed
 Groundnuts,2552.0,p2552,p022,Groundnuts production,tonnes,Primary crops,crops,crops,Oil crops,Oilseeds,"Groundnuts, with shell",Groundnuts and other small nuts,HNA.GIRASOL 32,Processing
 Palm kernels,2562.0,p2562,p028,Oil Palm production,tonnes,Primary crops,crops,crops,Oil crops,Oilseeds,Oil palm,Animal Feed Processed,HNA.GIRASOL 33,Processing
 Seed cotton,328.0,p328,p025,Cotton production,tonnes,Primary crops,crops,crops,Oil crops,Fibres,Seed cotton,Animal Feed Processed,0,Feed
-Hemp,776.0,p776,p122,Hemp production,tonnes,Primary crops,crops,crops,Oil crops,Fibres,"Fibres, other","Fibres, other",0,Food
+Hemp,776.0,p776,p122,Hemp production,tonnes,Primary crops,crops,crops,Oil crops,Fibres,"Fibres, other","Fibres, other",0,Other_uses
 Kapok fruit,310.0,p310,p123,Kapok production,tonnes,Primary crops,crops,crops,Oil crops,Fibres,"Fibres, other","Fibres, other",0,Food
-Linum,772.0,p772,p124,Linum production,tonnes,Primary crops,crops,crops,Oil crops,Fibres,"Fibres, other","Fibres, other",0,Food
+Linum,772.0,p772,p124,Linum production,tonnes,Primary crops,crops,crops,Oil crops,Fibres,"Fibres, other","Fibres, other",0,Other_uses
 Soyabeans,2555.0,p2555,p021,Soyabeans production,tonnes,Primary crops,crops,crops,Oil crops,Oilseeds,Soyabeans,Processed Food,HABA SOJA TOSTADA,Feed
 Coconuts - Incl Copra,2560.0,p2560,p026,Coconuts production,tonnes,Primary crops,crops,crops,Oil crops,Oilseeds,Coconut,Processed Food,0,Other_uses
 Sesame seed,2561.0,p2561,p027,Sesame seed production,tonnes,Primary crops,crops,crops,Oil crops,Oilseeds,"Oilcrops, other",Processed Food,SEMILLA LINO,Other_uses
@@ -168,8 +168,8 @@ Potatoes and products,2531.0,p2531,p010,Potatoes production,tonnes,Primary crops
 Sweet potatoes,2533.0,p2533,p012,Sweet potatoes production,tonnes,Primary crops,crops,crops,Roots and tubers,Roots_tubers,Sweet potato,Tuber and roots,BATATA,Food
 Sugar beet,2537.0,p2537,p016,Sugar beet production,tonnes,Primary crops,crops,crops,Sugar crops,Sugar_crops,Sugar beet,Sugar,PULPA REMOLACHA PROMEDIO,Food
 Sugar cane,2536.0,p2536,p015,Sugar cane production,tonnes,Primary crops,crops,crops,Sugar crops,Sugar_crops,Sugarcane,Sugar,0,Food
-Rubber,2672.0,p2672,p060,Rubber production,tonnes,Primary crops,crops,crops,"Tobacco, rubber",Fibres,Rubber,Rubber,0,Food
-Tobacco,2671.0,p2671,p059,Tobacco production,tonnes,Primary crops,crops,crops,"Tobacco, rubber",Spices,Tobacco,Tobacco,0,Food
+Rubber,2672.0,p2672,p060,Rubber production,tonnes,Primary crops,crops,crops,"Tobacco, rubber",Fibres,Rubber,Rubber,0,Other_uses
+Tobacco,2671.0,p2671,p059,Tobacco production,tonnes,Primary crops,crops,crops,"Tobacco, rubber",Spices,Tobacco,Tobacco,0,Other_uses
 Palm Oil,2577.0,p2577,p028,Oil Palm production,tonnes,Primary crops,crops,crops,Vegetable oils,Oil,Palm oil,Oils,AC. PALMISTE,Food
 Plantains,2616.0,p2616,p039,Plantains production,tonnes,Primary crops,crops,crops,"Vegetables, fruit, nuts, pulses, spices",Fruits,"Bananas, platains",Bananas and tropical,PULPA MANZANA,Food
 Cloves,2642.0,p2642,p051,Cloves production,tonnes,Primary crops,crops,crops,"Vegetables, fruit, nuts, pulses, spices",Spices,"Spices, Other",Species,PULPA MANZANA,Food

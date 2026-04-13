@@ -5,6 +5,8 @@
 #'
 #' @param example If `TRUE`, return a small example output without
 #'   downloading remote data. Default is `FALSE`.
+#' @param cbs Optional pre-computed wide CBS tibble from
+#'   [get_wide_cbs()]. If `NULL` (default), it is built internally.
 #'
 #' @returns
 #' A tibble with the reported trade between countries. For efficient
@@ -124,30 +126,31 @@ get_bilateral_trade <- function(example = FALSE, cbs = NULL) {
 
 .process_bilateral_trade <- function(btd, codes) {
   n <- length(codes)
-  code_levels <- as.character(codes)
-  btd |>
-    dplyr::mutate(
-      bilateral_trade = purrr::map2(
-        bilateral_trade,
-        total_trade,
-        ~ .x |>
-          .build_trade_matrix(n, code_levels) |>
-          .fill_missing_trade(.y) |>
-          .balance_matrix(.y)
-      )
-    )
+  code_int <- as.integer(levels(codes))
+  ngroups <- nrow(btd)
+  n_cores <- max(1L, parallel::detectCores() %/% 2L)
+
+  btd$bilateral_trade <- parallel::mclapply(
+    seq_len(ngroups),
+    function(i) {
+      btd$bilateral_trade[[i]] |>
+        .build_trade_matrix(n, code_int) |>
+        .fill_missing_trade(btd$total_trade[[i]]) |>
+        .balance_matrix(btd$total_trade[[i]])
+    },
+    mc.cores = n_cores
+  )
+  btd
 }
 
 .balance_matrix <- function(trade_matrix, total_trade) {
   exports <- total_trade$balanced_export
   imports <- total_trade$balanced_import
+  n <- length(exports)
 
   if (sum(exports) == 0 && sum(imports) == 0) {
-    return(trade_matrix * 0)
+    return(matrix(0, nrow = n, ncol = n))
   }
-
-  stopifnot(abs(sum(exports) - sum(imports)) < 1e-4)
-  stopifnot(length(exports) == length(imports))
 
   # Only run IPF on active countries to reduce matrix size.
   # Inactive countries (0 export and 0 import) would be
@@ -158,7 +161,7 @@ get_bilateral_trade <- function(example = FALSE, cbs = NULL) {
   sub[sub == 0] <- 1
   sub <- .ipf_2d(sub, exports[active], imports[active])
 
-  result <- trade_matrix * 0
+  result <- matrix(0, nrow = n, ncol = n)
   result[active, active] <- sub
   result
 }
@@ -182,31 +185,34 @@ get_bilateral_trade <- function(example = FALSE, cbs = NULL) {
 }
 
 .clean_bilateral_trade <- function(btd) {
-  btd |>
-    dplyr::rename_with(tolower) |>
-    dplyr::mutate(
-      unit = ifelse(unit == "Head", "heads", unit),
-      from_code = ifelse(element == "Export", area_code, area_code_p),
-      to_code = ifelse(element == "Export", area_code_p, area_code),
-      dplyr::across(c(year, from_code, to_code), as.integer)
-    ) |>
-    add_item_cbs_code(name_column = "item") |>
-    .prefer_flow_direction("Export") |>
-    dplyr::select(year, from_code, to_code, item_cbs_code, unit, value)
+  btd <- dplyr::rename_with(btd, tolower)
+  btd$unit[btd$unit == "Head"] <- "heads"
+  is_export <- btd$element == "Export"
+  from <- btd$area_code_p
+  from[is_export] <- btd$area_code[is_export]
+  to <- btd$area_code
+  to[is_export] <- btd$area_code_p[is_export]
+  btd$from_code <- as.integer(from)
+  btd$to_code <- as.integer(to)
+  btd$year <- as.integer(btd$year)
+
+  items <- .get_cbs_items("item", "item_cbs_code")
+  btd$item_cbs_code <- items$item_cbs_code[match(btd$item, items$item)]
+
+  btd <- .prefer_flow_direction(btd, "Export")
+  btd[c("year", "from_code", "to_code", "item_cbs_code", "unit", "value")]
 }
 
 # Keep all rows with preferred direction (Import, Export)
 # when both of them exist. Otherwise use the one present.
 .prefer_flow_direction <- function(bilateral_trade, direction) {
-  preferred_direction <- bilateral_trade |>
-    dplyr::filter(element == direction)
-
-  bilateral_trade |>
-    dplyr::anti_join(
-      preferred_direction,
-      by = c("from_code", "to_code", "year", "item_cbs_code")
-    ) |>
-    dplyr::bind_rows(preferred_direction)
+  is_preferred <- bilateral_trade$element == direction
+  key <- bilateral_trade$from_code +
+    bilateral_trade$to_code * 1e3 +
+    bilateral_trade$year * 1e6 +
+    bilateral_trade$item_cbs_code * 1e10
+  has_preferred <- key %in% key[is_preferred]
+  bilateral_trade[is_preferred | !has_preferred, ]
 }
 
 .fill_missing_trade <- function(trade_matrix, total_trade) {
@@ -214,36 +220,31 @@ get_bilateral_trade <- function(example = FALSE, cbs = NULL) {
   imports <- total_trade$import
   balanced_exports <- total_trade$balanced_export
 
-  estimate <- .estimate_bilateral_trade(exports, imports)
   na_mask <- is.na(trade_matrix)
-  needed_estimates <- estimate * na_mask
-  balances <- balanced_exports - rowSums(trade_matrix, na.rm = TRUE)
+  estimate <- .estimate_bilateral_trade(exports, imports)
+  estimate[!na_mask] <- 0
+
+  balances <- balanced_exports -
+    .rowSums(trade_matrix, nrow(trade_matrix), ncol(trade_matrix), na.rm = TRUE)
   balances <- pmax(balances, 0)
 
-  estimate <- .downscale_estimate_matrix(
-    needed_estimates,
-    balances
-  )
-
-  stopifnot(dim(trade_matrix) == dim(estimate))
-  stopifnot(all(!is.na(estimate)))
+  estimate <- .downscale_estimate_matrix(estimate, balances)
 
   # According to FABIO, missing data may be because it's truly zero,
   # so only use a small ratio of the estimate just in case.
   # TODO: Adapt this to our needs
   k_trust_factor <- 0.1
-  result <- trade_matrix
-  result[na_mask] <- estimate[na_mask] * k_trust_factor
-  result
+  trade_matrix[na_mask] <- estimate[na_mask] * k_trust_factor
+  trade_matrix
 }
 
 .downscale_estimate_matrix <- function(needed_estimates, balances) {
-  row_sums <- rowSums(needed_estimates, na.rm = TRUE)
-  scale <- ifelse(
-    row_sums > 0 & row_sums > balances,
-    balances / row_sums,
-    1
-  )
+  nr <- nrow(needed_estimates)
+  nc <- ncol(needed_estimates)
+  row_sums <- .rowSums(needed_estimates, nr, nc, na.rm = TRUE)
+  scale <- rep.int(1, nr)
+  needs_scale <- row_sums > 0 & row_sums > balances
+  scale[needs_scale] <- balances[needs_scale] / row_sums[needs_scale]
   needed_estimates * scale
 }
 
@@ -254,10 +255,6 @@ get_bilateral_trade <- function(example = FALSE, cbs = NULL) {
   btd |>
     dplyr::filter(unit %in% c("tonnes", "heads")) |>
     dplyr::select(-unit) |>
-    dplyr::mutate(
-      from_code = factor(from_code, levels = codes),
-      to_code = factor(to_code, levels = codes),
-    ) |>
     .filter_only_items_in_cbs(cbs) |>
     tidyr::nest(
       bilateral_trade = c(from_code, to_code, value),
@@ -324,15 +321,16 @@ get_bilateral_trade <- function(example = FALSE, cbs = NULL) {
     as.factor()
 }
 
-.build_trade_matrix <- function(btd, n, code_levels) {
+.build_trade_matrix <- function(btd, n, code_int) {
+  code_levels <- as.character(code_int)
   m <- matrix(
     NA_real_,
     nrow = n,
     ncol = n,
     dimnames = list(code_levels, code_levels)
   )
-  rows <- as.character(btd$from_code)
-  cols <- as.character(btd$to_code)
+  rows <- match(btd$from_code, code_int)
+  cols <- match(btd$to_code, code_int)
   m[cbind(rows, cols)] <- btd$value
   m
 }
@@ -343,9 +341,8 @@ get_bilateral_trade <- function(example = FALSE, cbs = NULL) {
   if (sum_exp == 0 || sum_imp == 0) {
     return(matrix(0, nrow = length(exports), ncol = length(imports)))
   }
-  outer(exports, imports) *
-    (1 / sum_imp + 1 / sum_exp) /
-    2
+  scale <- (1 / sum_imp + 1 / sum_exp) / 2
+  tcrossprod(exports, imports * scale)
 }
 
 .ipf_2d <- function(
@@ -358,6 +355,7 @@ get_bilateral_trade <- function(example = FALSE, cbs = NULL) {
   m <- seed
   nr <- nrow(m)
   nc <- ncol(m)
+  ones <- rep.int(1, nr)
   check_every <- 5L
   for (i in seq_len(max_iter)) {
     rs <- .rowSums(m, nr, nc)
@@ -366,7 +364,7 @@ get_bilateral_trade <- function(example = FALSE, cbs = NULL) {
 
     cs <- .colSums(m, nr, nc)
     cs[cs == 0] <- 1
-    m <- t(t(m) * (target_cols / cs))
+    m <- m * tcrossprod(ones, target_cols / cs)
 
     if (i %% check_every == 0L) {
       row_err <- max(abs(

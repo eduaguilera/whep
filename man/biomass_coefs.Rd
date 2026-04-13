@@ -117,4 +117,7 @@ Provides dry-matter, nutrient, and energy conversion coefficients for
 agricultural products and residues. Used to convert fresh-matter production
 quantities into biomass flows, nutrient budgets, and energy content.
 }
+\examples{
+head(biomass_coefs)
+}
 \keyword{datasets}

@@ -134,7 +134,19 @@ harmonise_whep_cbs <- function(df) {
   polities <- whep::polities |>
     dplyr::select(area_code, area = area_name)
 
+  # CBS output is now long format with element column
+  if ("element" %in% names(df)) {
+    return(
+      df |>
+        dplyr::left_join(items, by = "item_cbs_code") |>
+        dplyr::left_join(polities, by = "area_code") |>
+        dplyr::as_tibble()
+    )
+  }
+
+  # Legacy wide format support
   df |>
+    dplyr::select(-dplyr::any_of(grep("^source", names(df), value = TRUE))) |>
     dplyr::mutate(
       stock_variation = -stock_retrieval,
       .keep = "unused"

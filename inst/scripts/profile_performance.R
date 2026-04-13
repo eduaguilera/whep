@@ -5,8 +5,8 @@ library(whep)
 # (~165 MB per year).
 ranges <- list(
   small = c(2000, 2001), # 2 years  — quick smoke test
-  medium = c(2000, 2004), # 5 years  — moderate workload
-  large = c(1961, 2021) # 61 years — full FAOSTAT era
+  medium = c(1955, 1965), # 10 years  — moderate workload
+  large = c(1950, 2021) # full FAOSTAT era + few estimated
 )
 
 # Parse optional CLI argument: Rscript profile_performance.R small

@@ -26,4 +26,7 @@ Provides livestock unit (LU) conversion factors per head for each animal
 class, used to express heterogeneous livestock populations in comparable
 units.
 }
+\examples{
+head(liv_lu_coefs)
+}
 \keyword{datasets}

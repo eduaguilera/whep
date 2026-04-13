@@ -12,15 +12,16 @@
 #' @param primary_all A tibble of primary production, as returned by
 #'   [build_primary_production()].
 #' @param start_year Integer. First year to include. Default `1850`.
-#' @param end_year Integer. Last year to include. Default `2021`.
+#' @param end_year Integer. Last year to include. Default `2023`.
 #' @param smooth_carry_forward Logical. If `TRUE`, carry-forward tails
 #'   are replaced with a linear trend. Default `FALSE`.
 #' @param example Logical. If `TRUE`, return a small hardcoded example
 #'   tibble instead of reading remote data. Default `FALSE`.
 #'
-#' @returns A tibble in long format (see `.read_cbs()` for column
-#'   descriptions), plus a character `qc_flag` column from
-#'   `.qc_cbs()`.
+#' @returns A tibble in long format with columns: `year`,
+#'   `area_code`, `item_cbs_code`, `element` (e.g.
+#'   `"production"`, `"import"`, `"food"`), `value`,
+#'   `source`, `fao_flag`.
 #'
 #' @export
 #'
@@ -29,7 +30,7 @@
 build_commodity_balances <- function(
   primary_all,
   start_year = 1850,
-  end_year = 2021,
+  end_year = 2023,
   smooth_carry_forward = FALSE,
   example = FALSE
 ) {
@@ -58,22 +59,26 @@ build_commodity_balances <- function(
     "processing"
   )
 
+  has_flag <- "fao_flag" %in% names(df)
+
   df |>
     dplyr::filter(element %in% cbs_elements) |>
-    dplyr::select(year, area_code, item_cbs_code, element, value) |>
+    dplyr::select(
+      year,
+      area_code,
+      item_cbs_code,
+      element,
+      value,
+      source,
+      dplyr::any_of("fao_flag")
+    ) |>
     .normalise_cbs_values() |>
+    dplyr::distinct() |>
     dplyr::summarise(
       value = .sum_if_any_cbs(value),
+      source = dplyr::first(source),
+      fao_flag = if (has_flag) dplyr::first(fao_flag) else NA_character_,
       .by = c(year, area_code, item_cbs_code, element)
-    ) |>
-    tidyr::pivot_wider(
-      names_from = element,
-      values_from = value,
-      values_fill = 0
-    ) |>
-    dplyr::mutate(
-      stock_retrieval = -stock_variation,
-      .keep = "unused"
     )
 }
 
@@ -112,7 +117,7 @@ build_commodity_balances <- function(
 #' @param primary_all A tibble of primary production, as returned by
 #'   [build_primary_production()].
 #' @param start_year Integer. First year to include. Default `1850`.
-#' @param end_year Integer. Last year to include. Default `2021`.
+#' @param end_year Integer. Last year to include. Default `2023`.
 #'
 #' @returns A tibble in long format with columns:
 #'   `year`, `area`, `area_code`, `item_cbs`, `item_cbs_code`,
@@ -128,7 +133,7 @@ build_commodity_balances <- function(
 .read_cbs <- function(
   primary_all,
   start_year = 1850,
-  end_year = 2021
+  end_year = 2023
 ) {
   output_years <- start_year:end_year
 
@@ -164,6 +169,29 @@ build_commodity_balances <- function(
   # Trim to requested years and attach context for downstream
   cbs_raw <- .filter_years(cbs_raw, output_years)
   attr(cbs_raw, ".years") <- output_years
+
+  # Aggregate FAOSTAT + FishStat trade to CBS item level for imputation
+  fao_trade_agg <- .aggregate_fao_trade_to_cbs(inputs$fao_trade)
+  fishstat_agg <- inputs$fishstat_trade # already aggregated to CBS level
+  if (!is.null(fishstat_agg) && nrow(fishstat_agg) > 0L) {
+    # Keep only the columns common with fao_trade_agg
+    common_cols <- c("year", "area_code", "item_cbs_code", "element", "value")
+    all_trade <- data.table::rbindlist(
+      list(
+        fao_trade_agg[, common_cols, with = FALSE],
+        fishstat_agg[, common_cols, with = FALSE]
+      ),
+      use.names = TRUE
+    )
+    # Sum in case of overlaps (shouldn't happen: different item ranges)
+    all_trade <- all_trade[,
+      .(value = sum(value, na.rm = TRUE)),
+      by = .(year, area_code, item_cbs_code, element)
+    ]
+  } else {
+    all_trade <- fao_trade_agg
+  }
+  attr(cbs_raw, ".fao_trade") <- all_trade
   cbs_raw
 }
 
@@ -192,11 +220,13 @@ build_commodity_balances <- function(
 #' @keywords internal
 #' @noRd
 .fix_cbs <- function(df) {
-  years <- attr(df, ".years") %||% 1850:2021
+  years <- attr(df, ".years") %||% 1850:2023
+  fao_trade_cbs <- attr(df, ".fao_trade")
   cbs_raw <- df
 
   # Strip attributes to avoid carrying large objects downstream
   attr(cbs_raw, ".years") <- NULL
+  attr(cbs_raw, ".fao_trade") <- NULL
 
   # 4. Processing coefficients (global calibration)
   cli::cli_progress_step("Calibrating processing coefficients")
@@ -219,7 +249,7 @@ build_commodity_balances <- function(
 
   # 7. Impute trade and domestic supply
   cli::cli_progress_step("Imputing trade and domestic supply")
-  cbs_raw4 <- .cbs_impute_trade(cbs_raw3)
+  cbs_raw4 <- .cbs_impute_trade(cbs_raw3, fao_trade_cbs)
 
   # 8. Fill destiny gaps
   cli::cli_progress_step("Filling destiny gaps")
@@ -315,7 +345,7 @@ build_commodity_balances <- function(
 #' @param cbs A tibble of final CBS in wide format, as returned by
 #'   [build_commodity_balances()].
 #' @param start_year Integer. First year to include. Default `1850`.
-#' @param end_year Integer. Last year to include. Default `2021`.
+#' @param end_year Integer. Last year to include. Default `2023`.
 #' @param example Logical. If `TRUE`, return a small hardcoded dataset
 #'   for illustration without downloading data. Default `FALSE`.
 #'
@@ -332,7 +362,7 @@ build_commodity_balances <- function(
 build_processing_coefs <- function(
   cbs,
   start_year = 1850,
-  end_year = 2021,
+  end_year = 2023,
   example = FALSE
 ) {
   if (example) {
@@ -403,7 +433,21 @@ build_processing_coefs <- function(
 .wide_cbs_to_long <- function(df) {
   items <- whep::items_full
 
+  # CBS output is now long format — just add item_cbs name
+  if ("element" %in% names(df)) {
+    return(
+      df |>
+        dplyr::left_join(
+          items |> dplyr::select(item_cbs_code, item_cbs),
+          by = "item_cbs_code"
+        )
+    )
+  }
+
+  # Legacy wide format support
+  src_cols <- grep("^source", names(df), value = TRUE)
   df |>
+    dplyr::select(-dplyr::any_of(src_cols)) |>
     dplyr::mutate(
       stock_variation = -stock_retrieval,
       .keep = "unused"
@@ -422,7 +466,7 @@ build_processing_coefs <- function(
 .format_proc_output <- function(df) {
   items <- whep::items_full
 
-  df |>
+  tibble::as_tibble(df) |>
     dplyr::left_join(
       items |>
         dplyr::select(
@@ -471,6 +515,7 @@ build_processing_coefs <- function(
 
   # Trade
   fao_trade <- .read_fao_trade(years = years)
+  fishstat_trade <- .read_fishstat_trade(years = years)
   trade_hist <- .read_historical_trade(years = years)
 
   # GDP over population
@@ -493,6 +538,7 @@ build_processing_coefs <- function(
     cbs_animals = cbs_animals,
     cbs_new = cbs_new,
     fao_trade = fao_trade,
+    fishstat_trade = fishstat_trade,
     trade_hist = trade_hist,
     gdp_pop = gdp_pop,
     primary_cbs = primary_cbs,
@@ -508,6 +554,62 @@ build_processing_coefs <- function(
     data.table::setnames(dt, "Year", "year")
   }
   dt
+}
+
+# Aggregate fao_trade (which uses item_code_trade) to CBS item codes.
+# Returns a data.table with: year, area_code, item_cbs_code, element, value.
+.aggregate_fao_trade_to_cbs <- function(fao_trade) {
+  cbs_tc <- data.table::as.data.table(whep::cbs_trade_codes)
+  items <- data.table::as.data.table(whep::items_full)[,
+    .(item_cbs, item_cbs_code)
+  ]
+  items <- unique(items, by = "item_cbs")
+
+  trade_bridge <- merge(
+    cbs_tc[, .(item_code_trade, item_cbs)],
+    items,
+    by = "item_cbs",
+    all.x = TRUE
+  )
+  trade_bridge <- unique(
+    trade_bridge[!is.na(item_cbs_code), .(item_code_trade, item_cbs_code)]
+  )
+
+  dt <- data.table::copy(fao_trade)
+  dt <- merge(dt, trade_bridge, by = "item_code_trade", all.x = TRUE)
+  dt <- dt[!is.na(item_cbs_code) & element %in% c("import", "export")]
+  dt[,
+    .(value = sum(value, na.rm = TRUE)),
+    by = .(year, area_code, item_cbs_code, element)
+  ]
+}
+
+# Read FishStat trade data (pre-aggregated to CBS items) from pins.
+# Returns a data.table: year, area_code, item_cbs_code, element, value.
+# Returns NULL if the pin is not registered yet.
+.read_fishstat_trade <- function(years = NULL) {
+  # Check if fishstat-trade is registered in whep_inputs
+  if (!"fishstat-trade" %in% whep::whep_inputs$alias) {
+    cli::cli_alert_info("fishstat-trade pin not registered, skipping")
+    return(NULL)
+  }
+
+  dt <- .read_input("fishstat-trade", years = years, year_col = "Year")
+  data.table::setnames(
+    dt,
+    c("Area Code", "Item Code", "Element", "Year", "Value", "Unit"),
+    c("area_code", "item_cbs_code", "element", "year", "value", "unit")
+  )
+  dt[,
+    element := data.table::fifelse(
+      element == "Import quantity",
+      "import",
+      "export"
+    )
+  ]
+  dt <- dt[element %in% c("import", "export")]
+
+  .aggregate_to_polities(dt, item_cbs_code)
 }
 
 .read_fao_trade <- function(years = NULL) {
@@ -780,15 +882,15 @@ build_processing_coefs <- function(
 .fix_palm_kernels <- function(inputs) {
   dplyr::bind_rows(
     inputs$fbs_old |>
-      dplyr::mutate(source = "FBS_Old"),
+      dplyr::mutate(source = "FAOSTAT_FBS_Old"),
     inputs$fbs_new |>
-      dplyr::mutate(source = "FBS_New") |>
+      dplyr::mutate(source = "FAOSTAT_FBS_New") |>
       dplyr::filter(year > 2013)
   ) |>
     dplyr::filter(
       (item_cbs == "Palm kernels" &
         element == "processing" &
-        source == "FBS_Old") |
+        source == "FAOSTAT_FBS_Old") |
         (item_cbs == "Palmkernel Oil" & element == "production")
     ) |>
     dplyr::select(-item_cbs_code, -element) |>
@@ -988,14 +1090,14 @@ build_processing_coefs <- function(
     use.names = TRUE,
     fill = TRUE
   )
-  fbs_new[, source := "FBS_New"]
+  fbs_new[, source := "FAOSTAT_FBS_New"]
 
   fbs_old <- if (data.table::is.data.table(inputs$fbs_old)) {
     data.table::copy(inputs$fbs_old)
   } else {
     data.table::as.data.table(inputs$fbs_old)
   }
-  fbs_old[, source := "FBS_Old"]
+  fbs_old[, source := "FAOSTAT_FBS_Old"]
 
   cbs <- data.table::rbindlist(
     list(
@@ -1006,7 +1108,7 @@ build_processing_coefs <- function(
     use.names = TRUE,
     fill = TRUE
   )
-  cbs[, source := "CBS"]
+  cbs[, source := "FAOSTAT_CBS"]
 
   primary <- data.table::rbindlist(
     list(
@@ -1016,13 +1118,13 @@ build_processing_coefs <- function(
     use.names = TRUE,
     fill = TRUE
   )
-  primary[, source := "Primary"]
+  primary[, source := "FAOSTAT_prod"]
 
   if (!data.table::is.data.table(traded_res)) {
     data.table::setDT(traded_res)
   }
   trade <- traded_res
-  trade[, source := "Trade"]
+  trade[, source := "FAOSTAT_trade"]
 
   dt <- data.table::rbindlist(
     list(fbs_new, fbs_old, cbs, primary, trade),
@@ -1056,6 +1158,13 @@ build_processing_coefs <- function(
     "item_cbs_code",
     "element"
   )
+  group_cols <- c(
+    "area",
+    "area_code",
+    "item_cbs",
+    "item_cbs_code",
+    "element"
+  )
 
   wide <- cbs_raw_all |>
     dplyr::filter(!is.na(area)) |>
@@ -1063,52 +1172,80 @@ build_processing_coefs <- function(
     tidyr::pivot_wider(names_from = source, values_from = value)
 
   # Ensure expected columns exist even if a source is absent
-  for (col in c("Primary", "FBS_New", "FBS_Old")) {
+  for (col in c("FAOSTAT_prod", "FAOSTAT_FBS_New", "FAOSTAT_FBS_Old")) {
     if (!col %in% names(wide)) wide[[col]] <- NA_real_
   }
 
-  # Vectorized row-wise stats across all source columns
-  src_cols <- setdiff(names(wide), key_cols)
-  src_mat <- as.matrix(wide[src_cols])
-  n <- rowSums(!is.na(src_mat))
-  s <- rowSums(src_mat, na.rm = TRUE)
-  ss <- rowSums(src_mat^2, na.rm = TRUE)
+  # --- Harmonize old and new FBS ---
+  # Trust FBS_New as the reference. In the overlap period (2010-2013),
+  # compute a scaling ratio to align FBS_Old to FBS_New level, then
+  # apply it to all FBS_Old years for a smooth transition.
+  overlap_ratio <- wide |>
+    dplyr::filter(
+      year >= 2010L,
+      year <= 2013L,
+      !is.na(FAOSTAT_FBS_New),
+      !is.na(FAOSTAT_FBS_Old),
+      FAOSTAT_FBS_Old != 0
+    ) |>
+    dplyr::summarise(
+      scale_new_old = stats::median(
+        FAOSTAT_FBS_New / FAOSTAT_FBS_Old,
+        na.rm = TRUE
+      ),
+      .by = dplyr::all_of(group_cols)
+    ) |>
+    dplyr::filter(is.finite(scale_new_old))
 
-  wide[["n"]] <- n
-  wide[["mean_val"]] <- ifelse(n > 0, s / n, NA_real_)
-  wide[["sd"]] <- ifelse(
-    n > 1L,
-    sqrt(pmax(0, ss - s^2 / n) / (n - 1)),
-    NA_real_
+  wide <- dplyr::left_join(
+    wide,
+    overlap_ratio,
+    by = group_cols
   )
 
-  wide |>
+  # Compute fallback from other sources (CBS, Trade, etc.)
+  other_src_cols <- setdiff(
+    names(wide),
+    c(
+      key_cols,
+      "FAOSTAT_prod",
+      "FAOSTAT_FBS_New",
+      "FAOSTAT_FBS_Old",
+      "scale_new_old"
+    )
+  )
+  if (length(other_src_cols) > 0L) {
+    other_mat <- as.matrix(wide[other_src_cols])
+    other_n <- rowSums(!is.na(other_mat))
+    other_s <- rowSums(other_mat, na.rm = TRUE)
+    wide[["other_mean"]] <- ifelse(other_n > 0, other_s / other_n, NA_real_)
+  } else {
+    wide[["other_mean"]] <- NA_real_
+  }
+
+  wide <- wide |>
     dplyr::mutate(
-      cv = dplyr::if_else(
-        mean_val != 0 & !is.na(mean_val),
-        sd / mean_val,
-        NA_real_
+      # Scale FBS_Old to match FBS_New level where a ratio exists
+      FBS_Old_scaled = dplyr::if_else(
+        !is.na(scale_new_old) & !is.na(FAOSTAT_FBS_Old),
+        FAOSTAT_FBS_Old * scale_new_old,
+        FAOSTAT_FBS_Old
       ),
-      fbs_comp = FBS_New / FBS_Old,
-      .use_mean = n == 1 | cv < 0.01 | mean_val == 0 | is.na(fbs_comp),
-      .use_fbs_new = fbs_comp > 0.9 & fbs_comp < 1.1,
-      value = dplyr::if_else(
-        !is.na(Primary),
-        Primary,
-        dplyr::if_else(
-          .use_mean,
-          mean_val,
-          dplyr::if_else(.use_fbs_new, FBS_New, FBS_Old)
-        )
+      # Source selection: Primary > FBS_New > scaled FBS_Old > other
+      value = dplyr::case_when(
+        !is.na(FAOSTAT_prod) ~ FAOSTAT_prod,
+        !is.na(FAOSTAT_FBS_New) ~ FAOSTAT_FBS_New,
+        !is.na(FBS_Old_scaled) ~ FBS_Old_scaled,
+        !is.na(other_mean) ~ other_mean,
+        TRUE ~ NA_real_
       ),
-      source = dplyr::if_else(
-        !is.na(Primary),
-        "Primary",
-        dplyr::if_else(
-          .use_mean,
-          "mean",
-          dplyr::if_else(.use_fbs_new, "FBS_New", "FBS_Old")
-        )
+      source = dplyr::case_when(
+        !is.na(FAOSTAT_prod) ~ "FAOSTAT_prod",
+        !is.na(FAOSTAT_FBS_New) ~ "FAOSTAT_FBS_New",
+        !is.na(FBS_Old_scaled) & !is.na(scale_new_old) & scale_new_old != 1 ~
+          "FAOSTAT_FBS_Old_scaled",
+        !is.na(FAOSTAT_FBS_Old) ~ "FAOSTAT_FBS_Old",
+        TRUE ~ "mean"
       ),
       value = dplyr::if_else(
         element %in%
@@ -1616,6 +1753,10 @@ build_processing_coefs <- function(
       ) |>
       dplyr::filter(!(group == "Crop products" & element == "production")),
     proc_result$processed_agg |>
+      dplyr::left_join(
+        items |> dplyr::select(item_cbs, item_cbs_code),
+        by = "item_cbs"
+      ) |>
       dplyr::mutate(source = "Processed")
   ) |>
     dplyr::filter(
@@ -1781,7 +1922,7 @@ build_processing_coefs <- function(
 
 # -- Impute trade + domestic supply --------------------------------------------
 
-.cbs_impute_trade <- function(cbs_raw3) {
+.cbs_impute_trade <- function(cbs_raw3, fao_trade_cbs = NULL) {
   # Save source provenance before pivot cycle
   src_lookup <- cbs_raw3 |>
     dplyr::distinct(
@@ -1802,7 +1943,36 @@ build_processing_coefs <- function(
     "processing_primary"
   )
 
-  cbs_raw3 |>
+  # --- Tier 1: FAOSTAT trade dataset (aggregated to CBS items) ---
+  # Prepare import/export lookup from standalone FAOSTAT trade data.
+  if (!is.null(fao_trade_cbs) && nrow(fao_trade_cbs) > 0L) {
+    fao_imp <- fao_trade_cbs[fao_trade_cbs$element == "import", ]
+    fao_exp <- fao_trade_cbs[fao_trade_cbs$element == "export", ]
+
+    fao_imp_lookup <- fao_imp |>
+      dplyr::select(
+        year,
+        area_code,
+        item_cbs_code,
+        fao_trade_import = value
+      )
+    fao_exp_lookup <- fao_exp |>
+      dplyr::select(
+        year,
+        area_code,
+        item_cbs_code,
+        fao_trade_export = value
+      )
+
+    # Items that exist anywhere in FAOSTAT trade (for tier 2 eligibility)
+    tradeable_items <- unique(fao_trade_cbs$item_cbs_code)
+  } else {
+    fao_imp_lookup <- NULL
+    fao_exp_lookup <- NULL
+    tradeable_items <- integer(0)
+  }
+
+  wide <- cbs_raw3 |>
     dplyr::select(-dplyr::any_of("source")) |>
     tidyr::pivot_wider(
       names_from = element,
@@ -1814,25 +1984,75 @@ build_processing_coefs <- function(
         dplyr::any_of(destiny_list),
         ~ tidyr::replace_na(., 0)
       ),
+      # Domestic supply from destiny sums
       domestic_supply = food +
         other_uses +
         feed +
         processing +
         processing_primary +
-        seed,
+        seed
+    )
+
+  # Join FAOSTAT trade lookups
+  if (!is.null(fao_imp_lookup)) {
+    wide <- wide |>
+      dplyr::left_join(
+        fao_imp_lookup,
+        by = c("year", "area_code", "item_cbs_code")
+      ) |>
+      dplyr::left_join(
+        fao_exp_lookup,
+        by = c("year", "area_code", "item_cbs_code")
+      )
+  } else {
+    wide <- wide |>
+      dplyr::mutate(
+        fao_trade_import = NA_real_,
+        fao_trade_export = NA_real_
+      )
+  }
+
+  wide <- wide |>
+    dplyr::mutate(
+      # Tier 1: use FAOSTAT trade when CBS has no value
+      import = dplyr::coalesce(import, fao_trade_import),
+      export = dplyr::coalesce(export, fao_trade_export),
+      # Tier 2: DS-production residual, only for tradeable items
+      # (items that appear somewhere in FAOSTAT trade)
+      # Items eligible for tier 2 residual imputation: must appear in
+      # FAOSTAT/FishStat trade, and must not be ethanol (2659, use
+      # BACI/Comtrade instead) or raw sugar cane/beet (2536/2537, rarely
+      # traded -- FAOSTAT trade only).
+      is_tradeable = item_cbs_code %in%
+        tradeable_items &
+        !item_cbs_code %in% c(2659L, 2536L, 2537L),
+      has_reliable_anchor = !is.na(production) &
+        production > 0 &
+        domestic_supply > 0,
       net_trade = domestic_supply -
         dplyr::coalesce(production, 0),
-      net_export = pmax(-net_trade, 0),
-      net_import = pmax(net_trade, 0),
-      import = dplyr::coalesce(import, net_import),
-      export = dplyr::coalesce(export, net_export),
+      import = dplyr::case_when(
+        !is.na(import) ~ import,
+        is_tradeable & has_reliable_anchor & net_trade > 0 ~ net_trade,
+        TRUE ~ 0
+      ),
+      export = dplyr::case_when(
+        !is.na(export) ~ export,
+        is_tradeable & has_reliable_anchor & net_trade < 0 ~ -net_trade,
+        TRUE ~ 0
+      ),
       production = tidyr::replace_na(production, 0),
-      export = tidyr::replace_na(export, 0),
-      import = tidyr::replace_na(import, 0),
       stock_variation = tidyr::replace_na(
         stock_variation,
         0
       )
+    ) |>
+    dplyr::select(
+      -fao_trade_import,
+      -fao_trade_export,
+      -is_tradeable,
+      -has_reliable_anchor,
+      -net_trade
     ) |>
     .reestimate_domestic_supply() |>
     dplyr::mutate(
@@ -1859,9 +2079,6 @@ build_processing_coefs <- function(
       other_uses,
       processing,
       processing_primary
-    ) |>
-    dplyr::rename(
-      stock_variation = stock_variation
     ) |>
     tidyr::pivot_longer(
       domestic_supply:processing_primary,
@@ -1924,9 +2141,6 @@ build_processing_coefs <- function(
       -ds2,
       -net_bal1,
       -net_bal2,
-      -net_trade,
-      -net_export,
-      -net_import,
       -prod_calc,
       -ds3
     )

@@ -9,16 +9,21 @@
 #' 3. `.qc_production()` — flag data-quality anomalies.
 #'
 #' @param start_year Integer. First year to include. Default `1850`.
-#' @param end_year Integer. Last year to include. Default `2021`.
+#' @param end_year Integer. Last year to include. Default `2023`.
 #' @param smooth_carry_forward Logical. If `TRUE`, carry-forward tails
 #'   are replaced with a linear trend. Default `FALSE`.
 #' @param example Logical. If `TRUE`, return a small hardcoded example
 #'   tibble instead of reading remote data. Default `FALSE`.
+#' @param show_duplicates Logical. If `TRUE`, return only the rows that
+#'   have competing sources in wide format (one column per source) for
+#'   diagnostic comparison. Default `FALSE`.
 #'
 #' @returns A tibble with the same columns as [get_primary_production()]:
 #'   `year`, `area_code` (numeric FAOSTAT), `item_prod_code`,
 #'   `item_cbs_code`, `live_anim_code`, `unit`, `value`.
 #'   Names can be recovered via [add_area_name()], [add_item_prod_name()], etc.
+#'   When `show_duplicates = TRUE`, returns a wide tibble with one
+#'   column per source showing the competing values.
 #'
 #' @export
 #'
@@ -26,9 +31,10 @@
 #' build_primary_production(example = TRUE)
 build_primary_production <- function(
   start_year = 1850,
-  end_year = 2021,
+  end_year = 2023,
   smooth_carry_forward = FALSE,
-  example = FALSE
+  example = FALSE,
+  show_duplicates = FALSE
 ) {
   if (example) {
     return(.example_build_primary_prod())
@@ -37,9 +43,17 @@ build_primary_production <- function(
   raw <- .read_production(start_year, end_year)
   cb_extracts <- attr(raw, ".cb_extracts")
 
-  result <- raw |>
+  clean <- raw |>
     .fix_production() |>
     .qc_production(smooth = smooth_carry_forward) |>
+    tibble::as_tibble()
+
+  if (show_duplicates) {
+    return(.show_prod_duplicates(clean))
+  }
+
+  result <- clean |>
+    .dedup_production() |>
     dplyr::mutate(
       item_prod_code = as.numeric(item_prod_code),
       live_anim_code = as.numeric(live_anim_code)
@@ -51,7 +65,9 @@ build_primary_production <- function(
       item_cbs_code,
       live_anim_code,
       unit,
-      value
+      value,
+      source,
+      dplyr::any_of("fao_flag")
     )
 
   attr(result, ".cb_extracts") <- cb_extracts
@@ -72,7 +88,7 @@ build_primary_production <- function(
 #' version, pipe into `.fix_production()`.
 #'
 #' @param start_year Integer. First year to include. Default `1850`.
-#' @param end_year Integer. Last year to include. Default `2021`.
+#' @param end_year Integer. Last year to include. Default `2023`.
 #'
 #' @returns A tibble in long format with columns:
 #'   `year`, `area`, `area_code`, `item_prod`, `item_prod_code`,
@@ -80,7 +96,7 @@ build_primary_production <- function(
 #'   `unit`, `value`, `source`.
 #'
 #'   The `source` column indicates data provenance:
-#'   `"FAOSTAT"` (original), `"EU_AgriDB"` (European AgriDB fodder),
+#'   `"FAOSTAT_prod"` (original FAOSTAT production), `"EuropeAgriDB"` (European AgriDB fodder),
 #'   `"DM_yield_estimate"` (dry-matter yield imputation),
 #'   `"fill_linear"` (interpolation), `"imputed_yield"` (yield × area),
 #'   `"imputed_cbs_ratio"` (CBS ratio imputation),
@@ -92,7 +108,7 @@ build_primary_production <- function(
 #' @noRd
 .read_production <- function(
   start_year = 1850,
-  end_year = 2021
+  end_year = 2023
 ) {
   output_years <- start_year:end_year
   years_df <- tibble::tibble(year = output_years)
@@ -314,6 +330,10 @@ build_primary_production <- function(
       "value"
     )
   )
+  # Rename FAOSTAT flag so .aggregate_to_polities carries it through
+  if ("Flag" %in% names(dt)) {
+    data.table::setnames(dt, "Flag", "fao_flag")
+  }
   dt[, item_prod_code := as.character(item_prod_code)]
   dt <- .aggregate_to_polities(dt, item_prod_code, item_prod)
   data.table::setorderv(
@@ -346,6 +366,13 @@ build_primary_production <- function(
   dt <- .read_input("luh2-areas", years = years, year_col = "Year")
   data.table::setnames(dt, c("ISO3", "Year"), c("iso3c", "year"))
   dt <- merge(dt, regions, by = "iso3c", all.x = TRUE)
+  unmatched <- unique(dt[is.na(area), iso3c])
+  if (length(unmatched) > 0) {
+    cli::cli_warn(
+      "LUH2 ISO3 codes not found in regions_full, dropping: {unmatched}"
+    )
+  }
+  dt <- dt[!is.na(area)]
   dt <- merge(dt, polities, by.x = "polity_code", by.y = "iso3c", all.x = TRUE)
   dt[, polity_code := NULL]
   dt <- dt[year > 1849]
@@ -729,8 +756,8 @@ build_primary_production <- function(
         t_dmbased
       ),
       source = dplyr::case_when(
-        !is.na(t) ~ "FAOSTAT",
-        !is.na(t_euadb) ~ "EU_AgriDB",
+        !is.na(t) ~ "FAOSTAT_prod",
+        !is.na(t_euadb) ~ "EuropeAgriDB",
         TRUE ~ "DM_yield_estimate"
       )
     ) |>
@@ -932,7 +959,7 @@ build_primary_production <- function(
     dplyr::mutate(
       source = dplyr::if_else(
         source_value == "Original",
-        "FAOSTAT",
+        "FAOSTAT_prod",
         "fill_linear"
       )
     ) |>
@@ -958,7 +985,7 @@ build_primary_production <- function(
       dplyr::mutate(
         source = dplyr::if_else(
           is.na(source),
-          "FAOSTAT",
+          "FAOSTAT_prod",
           source
         )
       ),
@@ -1258,8 +1285,9 @@ build_primary_production <- function(
     .add_global_yields() |>
     dplyr::left_join(
       items_prod |>
-        dplyr::select(item_prod, item_prod_code, item_cbs_code, group),
-      by = c("item_prod", "item_prod_code")
+        dplyr::select(item_prod_code, item_cbs_code, group) |>
+        dplyr::distinct(item_prod_code, .keep_all = TRUE),
+      by = "item_prod_code"
     ) |>
     dplyr::left_join(
       cbs_prod_raw,
@@ -1444,7 +1472,8 @@ build_primary_production <- function(
     by_cols,
     c(
       "source",
-      "Multi_type"
+      "Multi_type",
+      "source_yield_c"
     )
   )
 
@@ -1479,7 +1508,11 @@ build_primary_production <- function(
       ),
       source = dplyr::case_when(
         !is.na(source) ~ source,
-        !is.na(t) ~ "FAOSTAT",
+        !is.na(t) ~ "FAOSTAT_prod",
+        !is.na(fu * yield) &
+          !is.na(source_yield_c) &
+          source_yield_c != "Original" ~
+          paste0("imputed_yield:", source_yield_c),
         !is.na(fu * yield) ~ "imputed_yield",
         sumprod_cbs_ratio < 0.9 &
           is.na(Multi_type) ~
@@ -1885,7 +1918,7 @@ build_primary_production <- function(
         item_cbs_code
       )
     ) |>
-    dplyr::mutate(unit = "ha", source = "LUH2")
+    dplyr::mutate(unit = "ha", source = "LUH2_grassland")
 }
 
 .add_historical_yields <- function(df, int_yields) {
@@ -1983,9 +2016,10 @@ build_primary_production <- function(
 # Uses unique() (C-level) instead of per-group R evaluation.
 .first_non_na_chars <- function(df, by_cols, char_cols) {
   data.table::setkeyv(df, by_cols)
+  present_cols <- intersect(char_cols, names(df))
   # Start from full set of group keys
   result <- unique(df[, by_cols, with = FALSE], by = by_cols)
-  for (col in char_cols) {
+  for (col in present_cols) {
     cols <- c(by_cols, col)
     part <- unique(
       df[!is.na(df[[col]]), cols, with = FALSE],
@@ -2061,4 +2095,73 @@ build_primary_production <- function(
   ]
 
   out
+}
+
+.prod_source_rank <- function(source) {
+  dplyr::case_when(
+    source == "FAOSTAT_prod" ~ 1L,
+    source == "EuropeAgriDB" ~ 2L,
+    stringr::str_starts(source, "imputed_yield") ~ 3L,
+    source == "imputed_cbs_ratio" ~ 4L,
+    source == "DM_yield_estimate" ~ 5L,
+    source == "fill_linear" ~ 6L,
+    source == "fill_linear_historical" ~ 7L,
+    source == "LUH2_cropland" ~ 8L,
+    source == "LUH2_agriland" ~ 9L,
+    source == "LUH2_grassland" ~ 10L,
+    source == "Estimated" ~ 11L,
+    TRUE ~ 12L
+  )
+}
+
+.dedup_production <- function(df) {
+  df |>
+    dplyr::mutate(.src_rank = .prod_source_rank(source)) |>
+    dplyr::slice_min(
+      .src_rank,
+      n = 1L,
+      with_ties = FALSE,
+      by = c(year, area_code, item_prod_code, unit)
+    ) |>
+    dplyr::select(!.src_rank)
+}
+
+.show_prod_duplicates <- function(df) {
+  key_cols <- c("year", "area_code", "item_prod_code", "unit")
+  dupes <- df |>
+    dplyr::add_count(
+      dplyr::across(dplyr::all_of(key_cols)),
+      name = ".n"
+    ) |>
+    dplyr::filter(.n > 1L) |>
+    dplyr::select(!.n)
+
+  n_keys <- dplyr::n_distinct(
+    dupes$year,
+    dupes$area_code,
+    dupes$item_prod_code,
+    dupes$unit
+  )
+  cli::cli_alert_info(
+    "{n_keys} key{?s} with competing sources found."
+  )
+
+  dupes |>
+    dplyr::select(
+      dplyr::all_of(key_cols),
+      source,
+      value
+    ) |>
+    dplyr::mutate(
+      .src_rank = .prod_source_rank(source)
+    ) |>
+    dplyr::arrange(
+      dplyr::across(dplyr::all_of(key_cols)),
+      .src_rank
+    ) |>
+    dplyr::select(!.src_rank) |>
+    tidyr::pivot_wider(
+      names_from = source,
+      values_from = value
+    )
 }

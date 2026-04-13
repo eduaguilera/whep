@@ -11,3 +11,10 @@ inst/doc
 docs
 /doc/
 /Meta/
+inst/scripts/diagnostic_*.png
+inst/scripts/pin_upload/
+vignettes/methods_production_cbs.qmd
+vignettes/methods_production_cbs.html
+vignettes/methods_production_cbs_files/
+vignettes/methods_references.bib
+inst/analysis/
