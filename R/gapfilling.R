@@ -165,7 +165,7 @@ fill_linear <- function(
   nocb_raw <- data.table::nafill(val, "nocb")
 
   # Track which non-NA each fill came from via index-nafill
-  valid_idx <- ifelse(!is_na, seq_len(nn), NA_integer_)
+  valid_idx <- data.table::fifelse(!is_na, seq_len(nn), NA_integer_)
   locf_idx <- data.table::nafill(valid_idx, "locf")
   nocb_idx <- data.table::nafill(valid_idx, "nocb")
 
@@ -1310,7 +1310,7 @@ fill_proxy_growth <- function(
   is_missing <- !is.na(mets) & mets == "missing"
 
   # Forward anchor: last non-NA value within group (vectorized LOCF)
-  anchor_raw <- ifelse(is.na(vals), NA_real_, vals)
+  anchor_raw <- data.table::fifelse(is.na(vals), NA_real_, vals)
   locf_raw <- data.table::nafill(anchor_raw, "locf")
   if (length(by_cols) > 0) {
     nn <- length(anchor_raw)
@@ -1318,7 +1318,11 @@ fill_proxy_growth <- function(
       data.table::as.data.table(data),
       cols = by_cols
     )
-    valid_idx <- ifelse(!is.na(anchor_raw), seq_len(nn), NA_integer_)
+    valid_idx <- data.table::fifelse(
+      !is.na(anchor_raw),
+      seq_len(nn),
+      NA_integer_
+    )
     locf_idx <- data.table::nafill(valid_idx, "locf")
     locf_ok <- !is.na(locf_idx) & grp[locf_idx] == grp
     anchor <- data.table::fifelse(locf_ok, locf_raw, NA_real_)
@@ -1331,7 +1335,7 @@ fill_proxy_growth <- function(
   seg_id <- cumsum(seg_change)
 
   # Growth factor and cumulative product per segment
-  g_factor <- ifelse(is.na(growth), NA_real_, 1 + growth)
+  g_factor <- data.table::fifelse(is.na(growth), NA_real_, 1 + growth)
   filled <- .seg_cumprod(g_factor, seg_id) * anchor
 
   # Validity: anchor > 0, result finite
@@ -1371,7 +1375,7 @@ fill_proxy_growth <- function(
   is_missing <- !is.na(mets) & mets == "missing"
 
   # Backward anchor: next non-NA value within group (vectorized NOCB)
-  anchor_raw <- ifelse(is.na(vals), NA_real_, vals)
+  anchor_raw <- data.table::fifelse(is.na(vals), NA_real_, vals)
   nocb_raw <- data.table::nafill(anchor_raw, "nocb")
   nn <- length(anchor_raw)
   if (length(by_cols) > 0) {
@@ -1379,7 +1383,11 @@ fill_proxy_growth <- function(
       data.table::as.data.table(data),
       cols = by_cols
     )
-    valid_idx <- ifelse(!is.na(anchor_raw), seq_len(nn), NA_integer_)
+    valid_idx <- data.table::fifelse(
+      !is.na(anchor_raw),
+      seq_len(nn),
+      NA_integer_
+    )
     nocb_idx <- data.table::nafill(valid_idx, "nocb")
     nocb_ok <- !is.na(nocb_idx) & grp[nocb_idx] == grp
     anchor <- data.table::fifelse(nocb_ok, nocb_raw, NA_real_)
@@ -1399,7 +1407,7 @@ fill_proxy_growth <- function(
   seg_id <- cumsum(seg_change)
 
   # Reverse cumprod within each segment
-  g_factor <- ifelse(is.na(g_shifted), NA_real_, 1 + g_shifted)
+  g_factor <- data.table::fifelse(is.na(g_shifted), NA_real_, 1 + g_shifted)
   rev_cp <- .seg_rev_cumprod(g_factor, seg_id)
   filled <- anchor / rev_cp
 
@@ -1419,7 +1427,7 @@ fill_proxy_growth <- function(
 # Segmented cumprod using data.table by= (avoids ave() overhead).
 .seg_cumprod <- function(x, seg_id) {
   dt <- data.table::data.table(x = x, seg = seg_id)
-  dt[, cp := cumprod(ifelse(is.na(x), 1, x)), by = seg]
+  dt[, cp := cumprod(data.table::fifelse(is.na(x), 1, x)), by = seg]
   dt[is.na(x), cp := NA_real_]
   dt$cp
 }
@@ -1437,7 +1445,7 @@ fill_proxy_growth <- function(
   seg_start <- c(TRUE, diff(seg_id) != 0L)
   bad <- 1 - x
   global_cs <- cumsum(bad)
-  base <- ifelse(seg_start, global_cs - bad, NA_real_)
+  base <- data.table::fifelse(seg_start, global_cs - bad, NA_real_)
   base <- data.table::nafill(base, "locf")
   as.numeric((global_cs - base) == 0)
 }
