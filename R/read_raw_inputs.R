@@ -429,7 +429,8 @@
     dt,
     scaling_raw,
     time_col = year,
-    .by = c("area", "area_code", "item_cbs", "element")
+    .by = c("area", "area_code", "item_cbs", "element"),
+    .copy = FALSE
   )
   if (!data.table::is.data.table(dt)) {
     data.table::setDT(dt)

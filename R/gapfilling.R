@@ -23,6 +23,9 @@
 #'   for variables with high inter-annual variability. If `NULL` (default), no
 #'   smoothing is applied.
 #' @param .by A character vector with the grouping variables (optional).
+#' @param .copy Logical. If `TRUE` (default), data.table inputs are
+#'   defensively copied before mutation. Set to `FALSE` when the caller
+#'   owns the data and does not need the original preserved.
 #'
 #' @return A tibble data frame (ungrouped) where gaps in value_col have been
 #'   filled, and a new "source" variable has been created indicating if the
@@ -55,7 +58,8 @@ fill_linear <- function(
   fill_forward = TRUE,
   fill_backward = TRUE,
   value_smooth_window = NULL,
-  .by = NULL
+  .by = NULL,
+  .copy = TRUE
 ) {
   value_col_name <- rlang::as_name(rlang::enquo(value_col))
   time_col_name <- rlang::as_name(rlang::enquo(time_col))
@@ -70,8 +74,11 @@ fill_linear <- function(
 
   # Convert once and reuse for both duplicate check and main work
   is_dt <- data.table::is.data.table(data)
-  dt_work <- if (is_dt) {
+  dt_work <- if (is_dt && .copy) {
     data.table::copy(data)
+  } else if (is_dt) {
+    data.table::setalloccol(data)
+    data
   } else {
     data.table::as.data.table(data)
   }

@@ -647,7 +647,7 @@ build_processing_coefs <- function(
 }
 
 .read_fao_trade <- function(years = NULL) {
-  dt <- .extract_fao("faostat-trade", years = years)
+  dt <- .extract_fao("faostat-trade-totals", years = years)
   if (!data.table::is.data.table(dt)) {
     data.table::setDT(dt)
   }
@@ -2317,7 +2317,7 @@ build_processing_coefs <- function(
   )
 
   out <- merge(skeleton, destiny_dedup, by = join_keys, all.x = TRUE)
-  fill_linear(out, dest_share, time_col = year, .by = by_cols)
+  fill_linear(out, dest_share, time_col = year, .by = by_cols, .copy = FALSE)
 }
 
 # Apply filled destiny shares to domestic supply and return final CBS rows.

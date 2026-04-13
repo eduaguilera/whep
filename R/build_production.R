@@ -1380,7 +1380,8 @@ build_primary_production <- function(
     global,
     yield_glo,
     time_col = year,
-    .by = c("item_prod_code", "live_anim_code", "unit")
+    .by = c("item_prod_code", "live_anim_code", "unit"),
+    .copy = FALSE
   )
   if (!data.table::is.data.table(global)) {
     data.table::setDT(global)
