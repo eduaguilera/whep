@@ -8,7 +8,8 @@ build_primary_production(
   start_year = 1850,
   end_year = 2023,
   smooth_carry_forward = FALSE,
-  example = FALSE
+  example = FALSE,
+  show_duplicates = FALSE
 )
 }
 \arguments{
@@ -21,12 +22,18 @@ are replaced with a linear trend. Default \code{FALSE}.}
 
 \item{example}{Logical. If \code{TRUE}, return a small hardcoded example
 tibble instead of reading remote data. Default \code{FALSE}.}
+
+\item{show_duplicates}{Logical. If \code{TRUE}, return only the rows that
+have competing sources in wide format (one column per source) for
+diagnostic comparison. Default \code{FALSE}.}
 }
 \value{
 A tibble with the same columns as \code{\link[=get_primary_production]{get_primary_production()}}:
 \code{year}, \code{area_code} (numeric FAOSTAT), \code{item_prod_code},
 \code{item_cbs_code}, \code{live_anim_code}, \code{unit}, \code{value}.
 Names can be recovered via \code{\link[=add_area_name]{add_area_name()}}, \code{\link[=add_item_prod_name]{add_item_prod_name()}}, etc.
+When \code{show_duplicates = TRUE}, returns a wide tibble with one
+column per source showing the competing values.
 }
 \description{
 Construct the full primary production dataset from raw FAOSTAT inputs.

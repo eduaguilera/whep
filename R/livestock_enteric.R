@@ -1,0 +1,229 @@
+#' IPCC 2019 Tier 1 enteric CH4.
+#' @noRd
+.calc_enteric_ch4_tier1 <- function(data) {
+  data <- data |>
+    dplyr::mutate(
+      species_gen = .get_general_species(species),
+      method_enteric = "IPCC_2019_Tier1"
+    )
+
+  # Determine best EF table
+  cattle_ef <- ipcc_2019_enteric_ef_cattle |>
+    dplyr::rename(
+      ef_cattle = ef_kg_head_yr
+    )
+  other_ef <- ipcc_2019_enteric_ef_other |>
+    dplyr::rename(
+      ef_other = ef_kg_head_yr
+    )
+
+  data <- .join_enteric_ef_tier1(data, cattle_ef, other_ef)
+
+  data |>
+    dplyr::mutate(
+      enteric_ch4_tier1 = heads * enteric_ef_kgch4
+    ) |>
+    dplyr::select(-dplyr::any_of(c("ef_cattle", "ef_other")))
+}
+
+#' IPCC 2019 Tier 2 enteric CH4.
+#' @noRd
+.calc_enteric_ch4_tier2 <- function(data) {
+  if (!rlang::has_name(data, "gross_energy")) {
+    cli::cli_abort(
+      "{.fun .calc_enteric_ch4_tier2} requires {.var gross_energy}. \\
+       Run {.fun estimate_energy_demand} first."
+    )
+  }
+
+  data <- data |>
+    dplyr::mutate(
+      species_gen = dplyr::coalesce(
+        species_gen,
+        .get_general_species(species)
+      )
+    )
+
+  data <- .join_ym(data)
+
+  energy_conversion <- livestock_constants$energy_content_ch4_mj_kg
+
+  data |>
+    dplyr::mutate(
+      enteric_ch4_per_head = gross_energy *
+        (ym_factor / 100) *
+        365 /
+        energy_conversion,
+      enteric_ch4_tier2 = heads * enteric_ch4_per_head,
+      method_enteric = "IPCC_2019_Tier2"
+    )
+}
+
+# Private helpers ----
+
+#' Join Tier 1 enteric EF (cattle tables have regional detail).
+#' @noRd
+.join_enteric_ef_tier1 <- function(data, cattle_ef, other_ef) {
+  # Buffalo uses Table 10.11 (other), not Table 10.10 (cattle)
+  cattle_rows <- data |>
+    dplyr::filter(species_gen == "Cattle")
+
+  other_rows <- data |>
+    dplyr::filter(species_gen != "Cattle")
+
+  if (nrow(cattle_rows) > 0) {
+    cattle_rows <- .join_cattle_ef(cattle_rows, cattle_ef)
+  }
+
+  if (nrow(other_rows) > 0) {
+    other_rows <- .join_other_ef(other_rows, other_ef)
+  }
+
+  dplyr::bind_rows(cattle_rows, other_rows) |>
+    dplyr::rename(
+      enteric_ef_kgch4 = dplyr::any_of(
+        c("ef_cattle", "ef_other", "enteric_ef_kgch4")
+      )
+    )
+}
+
+#' Join cattle-specific enteric EFs with regional fallback.
+#' @noRd
+.join_cattle_ef <- function(cattle_rows, cattle_ef) {
+  cattle_category <- dplyr::case_when(
+    stringr::str_detect(cattle_rows$species, "(?i)Dairy") ~ "Dairy Cattle",
+    TRUE ~ "Other Cattle"
+  )
+  cattle_rows <- cattle_rows |>
+    dplyr::mutate(cattle_category = cattle_category)
+
+  if (rlang::has_name(cattle_rows, "region")) {
+    cattle_rows <- cattle_rows |>
+      dplyr::left_join(
+        cattle_ef,
+        by = c(
+          "region" = "region",
+          "cattle_category" = "category"
+        )
+      )
+    # Global fallback for missing regions
+    missing <- is.na(cattle_rows$ef_cattle)
+    if (any(missing)) {
+      global_ef <- cattle_ef |>
+        dplyr::filter(region == "Global") |>
+        dplyr::select(category, ef_global = ef_cattle)
+      cattle_rows <- cattle_rows |>
+        dplyr::left_join(
+          global_ef,
+          by = c("cattle_category" = "category")
+        ) |>
+        dplyr::mutate(
+          ef_cattle = dplyr::coalesce(ef_cattle, ef_global)
+        ) |>
+        dplyr::select(-ef_global)
+    }
+  } else {
+    global_ef <- cattle_ef |>
+      dplyr::filter(region == "Global") |>
+      dplyr::select(category, ef_cattle)
+    cattle_rows <- cattle_rows |>
+      dplyr::left_join(
+        global_ef,
+        by = c("cattle_category" = "category")
+      )
+  }
+
+  cattle_rows |>
+    dplyr::rename(enteric_ef_kgch4 = ef_cattle) |>
+    dplyr::select(-cattle_category)
+}
+
+#' Join non-cattle enteric EFs.
+#' Handles subcategories (e.g. "Swine - Market") by
+#' matching on prefix when exact match fails.
+#' @noRd
+.join_other_ef <- function(other_rows, other_ef) {
+  ef_tbl <- other_ef |>
+    dplyr::select(category, ef_other)
+
+  # Create aggregated EF for species with subcategories
+  ef_agg <- ef_tbl |>
+    dplyr::mutate(
+      species_base = stringr::str_extract(
+        category,
+        "^[^-]+"
+      ) |>
+        stringr::str_trim()
+    ) |>
+    dplyr::summarise(
+      ef_agg = mean(ef_other, na.rm = TRUE),
+      .by = species_base
+    )
+
+  other_rows |>
+    dplyr::left_join(
+      ef_tbl,
+      by = c("species_gen" = "category")
+    ) |>
+    dplyr::left_join(
+      ef_agg,
+      by = c("species_gen" = "species_base")
+    ) |>
+    dplyr::mutate(
+      enteric_ef_kgch4 = dplyr::coalesce(ef_other, ef_agg)
+    ) |>
+    dplyr::select(-ef_other, -ef_agg)
+}
+
+#' Join Ym values from Table 10.12 with feed situation mapping.
+#' @noRd
+.join_ym <- function(data) {
+  ym_tbl <- ipcc_tier2_ym_values
+
+  if (!rlang::has_name(data, "diet_quality")) {
+    data <- data |>
+      dplyr::mutate(diet_quality = "Medium")
+  }
+
+  # Ensure system column exists
+  if (!rlang::has_name(data, "system")) {
+    data <- data |> dplyr::mutate(system = NA_character_)
+  }
+
+  # Map diet_quality to feed_situation
+  data <- data |>
+    dplyr::mutate(
+      feed_situation = dplyr::case_when(
+        !is.na(system) & system == "Feedlot" ~ "Feedlot",
+        TRUE ~ diet_quality
+      )
+    )
+
+  # Map sheep by body weight per Table 10.12 footnote
+  data <- data |>
+    dplyr::mutate(
+      feed_situation = dplyr::case_when(
+        species_gen == "Sheep" & !is.na(weight) & weight < 75 ~ "Low",
+        species_gen == "Sheep" & !is.na(weight) & weight >= 75 ~ "High",
+        TRUE ~ feed_situation
+      )
+    )
+
+  data |>
+    dplyr::left_join(
+      ym_tbl,
+      by = c(
+        "species_gen" = "category",
+        "feed_situation"
+      )
+    ) |>
+    dplyr::mutate(
+      ym_factor = dplyr::coalesce(ym_percent, 6.5)
+    ) |>
+    dplyr::select(
+      -dplyr::any_of(c(
+        "ym_percent",
+        "feed_situation"
+      ))
+    )
+}

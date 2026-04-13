@@ -33,6 +33,9 @@
 #' - `item_bouwman`: Item name used in Bouwman et al. livestock datasets.
 #' @source Derived from [FAOSTAT data](https://www.fao.org/faostat/en/#data/QA)
 #'   and internal livestock classification work.
+#'
+#' @examples
+#' head(animals_codes)
 "animals_codes"
 
 #' Biomass coefficients for crops and livestock products
@@ -141,6 +144,9 @@
 #' - `Carotenoids_mg_kgFM`: Carotenoid content in mg per kg fresh matter.
 #' @source Compiled from multiple sources including FAO food composition data,
 #'   crop physiology literature, and IPCC Tier 1 coefficients.
+#'
+#' @examples
+#' head(biomass_coefs)
 "biomass_coefs"
 
 #' Commodity balance sheet processing fractions
@@ -161,6 +167,9 @@
 #'   product (numeric; largely `NA` in current data).
 #' - `Required`: Reserved column, currently all `NA`.
 #' @source Derived from FAOSTAT commodity balance sheet processing assumptions.
+#'
+#' @examples
+#' head(cb_processing)
 "cb_processing"
 
 #' CBS to trade item code mapping
@@ -182,6 +191,9 @@
 #'   used to flag mapping inconsistencies during data processing.
 #' @source Derived from [FAOSTAT Detailed Trade Matrix](https://www.fao.org/faostat/en/#data/TM)
 #'   and commodity balance sheet correspondence tables.
+#'
+#' @examples
+#' head(cbs_trade_codes)
 "cbs_trade_codes"
 
 #' Eurostat crop classification codes
@@ -197,6 +209,9 @@
 #'   (e.g., `"Plants harvested green from arable land"`,
 #'   `"Temporary grasses and grazings"`).
 #' @source [Eurostat Agricultural Statistics](https://ec.europa.eu/eurostat/statistics-explained/index.php/Agricultural_statistics).
+#'
+#' @examples
+#' head(crops_eurostat)
 "crops_eurostat"
 
 #' Full CBS item table
@@ -234,6 +249,9 @@
 #'   `"Feed"`, `"Food"`, `"Other_uses"`, `"Processing"`, or `NA`.
 #' @source Derived from [FAOSTAT data](https://www.fao.org/faostat/en/#data/FBS)
 #'   and internal commodity classification work.
+#'
+#' @examples
+#' head(items_full)
 "items_full"
 
 #' Primary production items linked to CBS
@@ -259,6 +277,9 @@
 #'   `"Crop products"`, `"Livestock products"`, `"Grass"`,
 #'   `"Crop residues"`, `"Scavenging"`, `"Livestock"`.
 #' @source Derived from [FAOSTAT Production data](https://www.fao.org/faostat/en/#data/QCL).
+#'
+#' @examples
+#' head(items_prim)
 "items_prim"
 
 #' Full production item table
@@ -317,6 +338,9 @@
 #' - `Cat_Ymax_leg`: Legend label for the `Cat_Ymax` category.
 #' @source Derived from [FAOSTAT Production data](https://www.fao.org/faostat/en/#data/QCL)
 #'   and multiple classification schemes from the literature.
+#'
+#' @examples
+#' head(items_prod_full)
 "items_prod_full"
 
 #' Livestock unit coefficients
@@ -334,6 +358,9 @@
 #'   of 1.0 by convention; smaller animals have proportionally lower values.
 #' @source Based on standard livestock unit definitions from FAO and
 #'   European agricultural statistics.
+#'
+#' @examples
+#' head(liv_lu_coefs)
 "liv_lu_coefs"
 
 #' Polity categories and regional classifications
@@ -392,6 +419,9 @@
 #'   ILO, IEA, and other international statistical sources.
 #' @note Five trailing columns containing only Excel `#REF!` errors in the
 #'   source CSV are dropped at load time and are not part of this dataset.
+#'
+#' @examples
+#' head(polities_cats)
 "polities_cats"
 
 #' Items with double-counting in production statistics
@@ -416,6 +446,9 @@
 #'   - `"Multi"`: Multiple products share the same harvested area.
 #'   - `"Multi_area"`: Multiple products share a recorded area aggregate.
 #' @source Derived from FAOSTAT production methodology documentation.
+#'
+#' @examples
+#' head(primary_double)
 "primary_double"
 
 #' Full polity and region reference table
@@ -468,4 +501,7 @@
 #' @seealso [polities_cats] for the subset restricted to sovereign countries.
 #' @source Compiled from [FAOSTAT](https://www.fao.org/faostat/), UN M49,
 #'   ILO, IEA, and other international statistical sources.
+#'
+#' @examples
+#' head(regions_full)
 "regions_full"
