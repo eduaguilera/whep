@@ -68,13 +68,18 @@ fill_linear <- function(
     return(data)
   }
 
-  # Fast duplicate check: anyDuplicated first, expensive summarise only
-  # if needed
-  dup_cols <- c(by_cols, time_col_name)
+  # Convert once and reuse for both duplicate check and main work
   is_dt <- data.table::is.data.table(data)
-  dt_dup <- if (is_dt) data else data.table::as.data.table(data)
-  if (anyDuplicated(dt_dup[, ..dup_cols]) > 0L) {
-    dups <- dt_dup[, .(n = .N), by = dup_cols][n > 1]
+  dt_work <- if (is_dt) {
+    data.table::copy(data)
+  } else {
+    data.table::as.data.table(data)
+  }
+
+  # Fast duplicate check
+  dup_cols <- c(by_cols, time_col_name)
+  if (anyDuplicated(dt_work[, ..dup_cols]) > 0L) {
+    dups <- dt_work[, .(n = .N), by = dup_cols][n > 1]
     if (nrow(dups) > 0) {
       caller <- tryCatch(
         deparse(sys.call(sys.parent(1L))),
@@ -123,7 +128,7 @@ fill_linear <- function(
   if (use_smoothing) {
     # Smoothing requires per-group evaluation; fall back to by= path.
     return(.fill_linear_by_group(
-      data,
+      dt_work,
       value_col_name,
       time_col_name,
       source_col_name,
@@ -136,7 +141,7 @@ fill_linear <- function(
     ))
   }
 
-  dt <- if (is_dt) data.table::copy(data) else data.table::as.data.table(data)
+  dt <- dt_work
   sort_cols <- c(by_cols, time_col_name)
   if (!identical(data.table::key(dt), sort_cols)) {
     data.table::setkeyv(dt, sort_cols)
@@ -231,7 +236,7 @@ fill_linear <- function(
   value_smooth_window,
   is_dt
 ) {
-  dt <- if (is_dt) data.table::copy(data) else data.table::as.data.table(data)
+  dt <- data
   sort_cols <- c(by_cols, time_col_name)
   if (!identical(data.table::key(dt), sort_cols)) {
     data.table::setkeyv(dt, sort_cols)
