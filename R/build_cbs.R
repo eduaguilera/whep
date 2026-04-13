@@ -1238,11 +1238,13 @@ build_processing_coefs <- function(
     ) |>
     dplyr::filter(is.finite(scale_new_old))
 
-  wide <- dplyr::left_join(
-    wide,
-    overlap_ratio,
-    by = group_cols
-  )
+  if (!data.table::is.data.table(wide)) {
+    data.table::setDT(wide)
+  }
+  if (!data.table::is.data.table(overlap_ratio)) {
+    data.table::setDT(overlap_ratio)
+  }
+  wide <- merge(wide, overlap_ratio, by = group_cols, all.x = TRUE)
 
   # Compute fallback from other sources (CBS, Trade, etc.)
   other_src_cols <- setdiff(
@@ -1256,56 +1258,67 @@ build_processing_coefs <- function(
     )
   )
   if (length(other_src_cols) > 0L) {
-    other_mat <- as.matrix(wide[other_src_cols])
+    other_mat <- as.matrix(wide[, other_src_cols, with = FALSE])
     other_n <- rowSums(!is.na(other_mat))
     other_s <- rowSums(other_mat, na.rm = TRUE)
-    wide[["other_mean"]] <- ifelse(other_n > 0, other_s / other_n, NA_real_)
+    wide[,
+      other_mean := data.table::fifelse(
+        other_n > 0,
+        other_s / other_n,
+        NA_real_
+      )
+    ]
   } else {
-    wide[["other_mean"]] <- NA_real_
+    wide[, other_mean := NA_real_]
   }
 
+  # Scale FBS_Old to match FBS_New level
+  wide[,
+    FBS_Old_scaled := data.table::fifelse(
+      !is.na(scale_new_old) & !is.na(FAOSTAT_FBS_Old),
+      FAOSTAT_FBS_Old * scale_new_old,
+      FAOSTAT_FBS_Old
+    )
+  ]
+
+  # Source selection: Primary > FBS_New > scaled FBS_Old > other
+  wide[,
+    value := data.table::fcoalesce(
+      FAOSTAT_prod,
+      FAOSTAT_FBS_New,
+      FBS_Old_scaled,
+      other_mean
+    )
+  ]
+  wide[,
+    source := data.table::fcase(
+      !is.na(FAOSTAT_prod)                                                , "FAOSTAT_prod"    ,
+      !is.na(FAOSTAT_FBS_New)                                             , "FAOSTAT_FBS_New" ,
+      !is.na(FBS_Old_scaled) & !is.na(scale_new_old) & scale_new_old != 1 ,
+      "FAOSTAT_FBS_Old_scaled"                                            ,
+      !is.na(FAOSTAT_FBS_Old)                                             , "FAOSTAT_FBS_Old" ,
+      default = "mean"
+    )
+  ]
+
+  # Clamp negative/infinite values for key elements
+  clamp_elems <- c(
+    "production",
+    "import",
+    "export",
+    "domestic_supply",
+    "food",
+    "feed",
+    "seed",
+    "processing",
+    "other_uses"
+  )
+  wide[
+    element %in% clamp_elems & (value < 0 | is.infinite(value)),
+    value := 0
+  ]
+
   wide <- wide |>
-    dplyr::mutate(
-      # Scale FBS_Old to match FBS_New level where a ratio exists
-      FBS_Old_scaled = dplyr::if_else(
-        !is.na(scale_new_old) & !is.na(FAOSTAT_FBS_Old),
-        FAOSTAT_FBS_Old * scale_new_old,
-        FAOSTAT_FBS_Old
-      ),
-      # Source selection: Primary > FBS_New > scaled FBS_Old > other
-      value = dplyr::case_when(
-        !is.na(FAOSTAT_prod) ~ FAOSTAT_prod,
-        !is.na(FAOSTAT_FBS_New) ~ FAOSTAT_FBS_New,
-        !is.na(FBS_Old_scaled) ~ FBS_Old_scaled,
-        !is.na(other_mean) ~ other_mean,
-        TRUE ~ NA_real_
-      ),
-      source = dplyr::case_when(
-        !is.na(FAOSTAT_prod) ~ "FAOSTAT_prod",
-        !is.na(FAOSTAT_FBS_New) ~ "FAOSTAT_FBS_New",
-        !is.na(FBS_Old_scaled) & !is.na(scale_new_old) & scale_new_old != 1 ~
-          "FAOSTAT_FBS_Old_scaled",
-        !is.na(FAOSTAT_FBS_Old) ~ "FAOSTAT_FBS_Old",
-        TRUE ~ "mean"
-      ),
-      value = dplyr::if_else(
-        element %in%
-          c(
-            "production",
-            "import",
-            "export",
-            "domestic_supply",
-            "food",
-            "feed",
-            "seed",
-            "processing",
-            "other_uses"
-          ) &
-          (value < 0 | is.infinite(value)),
-        0,
-        value
-      )
-    ) |>
     dplyr::select(
       area,
       area_code,
