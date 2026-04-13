@@ -32,8 +32,8 @@ mapping row/column indices to their meaning. From
 \code{\link[=build_io_model]{build_io_model()}}.}
 
 \item{z_mat}{Optional inter-industry flow matrix from
-\code{\link[=build_io_model]{build_io_model()}}. When provided, the Leontief inverse is
-computed internally, and \code{l_inv} is not needed.}
+\code{\link[=build_io_model]{build_io_model()}}. When provided, the system is solved
+directly (sparse LU), and \code{l_inv} is not needed.}
 
 \item{fd_labels}{Optional tibble labelling Y columns. Pass
 \code{fd_labels[[i]]} from \code{\link[=build_io_model]{build_io_model()}} output. When
@@ -69,10 +69,11 @@ category, the footprint is decomposed per target item using
 the FABIO diagonal approach:
 \eqn{FP = MP \cdot \text{diag}(y)}, aggregated by item.
 
-Pass \code{z_mat} and \code{x_vec} instead of \code{l_inv} to compute the
-Leontief inverse internally. For large systems, pre-compute
-\code{l_inv} with \code{\link[=compute_leontief_inverse]{compute_leontief_inverse()}} and reuse across
-multiple extensions.
+For large systems, pass \code{z_mat} and \code{x_vec} instead of
+\code{l_inv}. This solves \eqn{(I - A) x = Y} directly using a
+sparse LU factorisation, avoiding the dense Leontief inverse
+entirely and reducing memory from \eqn{O(n^2)} to
+\eqn{O(nnz)}.
 }
 \examples{
 z_mat <- matrix(c(0, 5, 10, 0), nrow = 2)

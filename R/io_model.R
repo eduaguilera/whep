@@ -73,12 +73,7 @@ build_io_model <- function(
     if (is.null(cbs)) {
       cbs <- .cache_get("cbs_wide", {
         cli::cli_progress_step("Adding livestock CBS rows")
-        wide <- cbs_built |>
-          dplyr::mutate(
-            stock_withdrawal = -stock_retrieval,
-            stock_addition = stock_retrieval,
-            .keep = "unused"
-          )
+        wide <- .pivot_cbs_wide(cbs_built)
         livestock_cbs <- get_livestock_cbs(primary_prod)
         dplyr::bind_rows(wide, livestock_cbs)
       })

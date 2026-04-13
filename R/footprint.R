@@ -15,10 +15,11 @@
 #' the FABIO diagonal approach:
 #' \eqn{FP = MP \cdot \text{diag}(y)}, aggregated by item.
 #'
-#' Pass `z_mat` and `x_vec` instead of `l_inv` to compute the
-#' Leontief inverse internally. For large systems, pre-compute
-#' `l_inv` with [compute_leontief_inverse()] and reuse across
-#' multiple extensions.
+#' For large systems, pass `z_mat` and `x_vec` instead of
+#' `l_inv`. This solves \eqn{(I - A) x = Y} directly using a
+#' sparse LU factorisation, avoiding the dense Leontief inverse
+#' entirely and reducing memory from \eqn{O(n^2)} to
+#' \eqn{O(nnz)}.
 #'
 #' @param l_inv Leontief inverse matrix from
 #'   [compute_leontief_inverse()]. Ignored when `z_mat` is
@@ -32,8 +33,8 @@
 #'   mapping row/column indices to their meaning. From
 #'   [build_io_model()].
 #' @param z_mat Optional inter-industry flow matrix from
-#'   [build_io_model()]. When provided, the Leontief inverse is
-#'   computed internally, and `l_inv` is not needed.
+#'   [build_io_model()]. When provided, the system is solved
+#'   directly (sparse LU), and `l_inv` is not needed.
 #' @param fd_labels Optional tibble labelling Y columns. Pass
 #'   `fd_labels[[i]]` from [build_io_model()] output. When
 #'   provided, footprints are decomposed per target item using
@@ -99,36 +100,34 @@ compute_footprint <- function(
     " " = "Final demand: {n_fd} column{?s}."
   ))
 
-  if (is.null(l_inv)) {
-    cli::cli_inform("  Computing Leontief inverse...")
-    l_inv <- .leontief_from_z(z_mat, x_vec, n)
-  }
-
-  cli::cli_inform("  Computing multiplier matrix...")
   intensity <- .extension_intensity(extensions, x_vec)
-  mp_mat <- Matrix::Diagonal(x = intensity) %*% l_inv
+  f_diag <- Matrix::Diagonal(x = intensity)
+
+  if (!is.null(z_mat)) {
+    cli::cli_inform(
+      "  Sparse solve path (no dense Leontief inverse)."
+    )
+    a_mat <- .technical_coefficients(z_mat, x_vec)
+    ia <- Matrix::Diagonal(n) - a_mat
+    lu_fact <- .factor_ia(ia)
+    multiply_fn <- function(rhs) f_diag %*% Matrix::solve(lu_fact, rhs)
+  } else {
+    cli::cli_inform("  Computing multiplier matrix...")
+    mp_mat <- f_diag %*% l_inv
+    multiply_fn <- function(rhs) mp_mat %*% rhs
+  }
 
   cli::cli_inform("  Computing footprints...")
   result <- if (!is.null(fd_labels)) {
-    .footprint_by_item(mp_mat, y_mat, labels, fd_labels)
+    .footprint_by_item(multiply_fn, y_mat, labels, fd_labels)
   } else {
-    .footprint_direct(mp_mat, y_mat, labels)
+    .footprint_direct(multiply_fn, y_mat, labels)
   }
 
   cli::cli_alert_success(
     "Footprint complete: {nrow(result)} non-zero flows."
   )
   result
-}
-
-# --- Leontief inverse from Z ---
-
-.leontief_from_z <- function(z_mat, x_vec, n) {
-  a_mat <- .technical_coefficients(z_mat, x_vec)
-  i_minus_a <- Matrix::Diagonal(n) - a_mat
-  l_inv <- Matrix::solve(i_minus_a)
-  l_inv[l_inv < 0] <- 0
-  l_inv
 }
 
 # --- Extension intensity ---
@@ -140,7 +139,7 @@ compute_footprint <- function(
 # --- FABIO-style per-item footprint ---
 
 .footprint_by_item <- function(
-  mp_mat,
+  multiply_fn,
   y_mat,
   labels,
   fd_labels
@@ -151,7 +150,7 @@ compute_footprint <- function(
 
   purrr::map(seq_len(n_y_cols), function(j) {
     .footprint_one_fd_col(
-      mp_mat,
+      multiply_fn,
       y_mat[, j],
       g_mat,
       labels,
@@ -164,7 +163,7 @@ compute_footprint <- function(
 }
 
 .footprint_one_fd_col <- function(
-  mp_mat,
+  multiply_fn,
   y_vec,
   g_mat,
   labels,
@@ -178,7 +177,7 @@ compute_footprint <- function(
   }
 
   v_mat <- Matrix::Diagonal(x = y_vec) %*% g_mat
-  fp_item <- mp_mat %*% v_mat
+  fp_item <- multiply_fn(v_mat)
   .fp_grouped_to_tidy(
     fp_item,
     labels,
@@ -229,8 +228,8 @@ compute_footprint <- function(
 
 # --- Direct footprint (no fd_labels) ---
 
-.footprint_direct <- function(mp_mat, y_mat, labels) {
-  fp_mat <- mp_mat %*% y_mat
+.footprint_direct <- function(multiply_fn, y_mat, labels) {
+  fp_mat <- multiply_fn(y_mat)
   target_labs <- .infer_target_labels(fp_mat, labels)
   .fp_dense_to_tidy(fp_mat, labels, target_labs)
 }
@@ -292,6 +291,17 @@ compute_footprint <- function(
     target_item = integer(0),
     value = numeric(0)
   )
+}
+
+# --- Sparse LU factorisation with regularisation ---
+
+# Factor (I - A) with diagonal regularisation. Sectors where
+# column sums of A were capped at 1 make (I - A) near-singular.
+# Adding a small epsilon to the diagonal is equivalent to
+# assuming a tiny value-added leakage per sector.
+.factor_ia <- function(ia, eps = 1e-10) {
+  Matrix::diag(ia) <- Matrix::diag(ia) + eps
+  Matrix::lu(ia)
 }
 
 # --- Input validation ---

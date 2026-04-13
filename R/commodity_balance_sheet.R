@@ -58,15 +58,7 @@ get_wide_cbs <- function(example = FALSE) {
 
   .cache_get("cbs_wide", {
     cli::cli_progress_step("Adding livestock CBS rows")
-    cbs <- cbs_built |>
-      dplyr::mutate(
-        # FABIO convention: stock_withdrawal = stock_variation (raw),
-        # stock_addition = -stock_variation. Since build outputs
-        # stock_retrieval = -stock_variation, we reverse.
-        stock_withdrawal = -stock_retrieval,
-        stock_addition = stock_retrieval,
-        .keep = "unused"
-      )
+    cbs <- .pivot_cbs_wide(cbs_built)
     livestock_cbs <- get_livestock_cbs(primary_prod)
     dplyr::bind_rows(cbs, livestock_cbs)
   })
@@ -297,4 +289,35 @@ get_processing_coefs <- function(example = FALSE) {
     cli::cli_h1("Building processing coefficients")
     build_processing_coefs(cbs_built)
   })
+}
+
+# Pivot long-format CBS to wide and split stock_variation into
+# stock_withdrawal (positive) and stock_addition (negative).
+.pivot_cbs_wide <- function(cbs_long) {
+  cbs_long |>
+    dplyr::select(
+      year,
+      area_code,
+      item_cbs_code,
+      element,
+      value
+    ) |>
+    tidyr::pivot_wider(
+      names_from = element,
+      values_from = value,
+      values_fill = 0
+    ) |>
+    dplyr::mutate(
+      stock_withdrawal = dplyr::if_else(
+        stock_variation > 0,
+        stock_variation,
+        0
+      ),
+      stock_addition = dplyr::if_else(
+        stock_variation < 0,
+        -stock_variation,
+        0
+      )
+    ) |>
+    dplyr::select(-stock_variation)
 }
