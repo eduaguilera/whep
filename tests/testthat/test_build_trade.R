@@ -128,6 +128,26 @@ testthat::test_that("unmapped trade items warn and are dropped", {
   testthat::expect_equal(result$item_cbs_code, 2511)
 })
 
+testthat::test_that("unmapped item names warn and are dropped", {
+  raw <- data.table::data.table(
+    `Reporter Country Code` = c(2L, 2L),
+    `Partner Country Code` = c(9L, 9L),
+    Item = c("Wheat", "Nonexistent Item XYZ"),
+    Element = c("Import Quantity", "Import Quantity"),
+    Year = c(2020L, 2020L),
+    Unit = c("tonnes", "tonnes"),
+    Value = c(100, 200)
+  )
+
+  testthat::expect_warning(
+    result <- build_detailed_trade(raw_trade = raw),
+    "not found in CBS mapping"
+  )
+
+  testthat::expect_equal(nrow(result), 1)
+  testthat::expect_equal(result$item_cbs, "Wheat and products")
+})
+
 testthat::test_that("unmapped reporter codes warn and are dropped", {
   # Code 999 has no polity mapping in regions_full
   raw <- data.table::data.table(

@@ -689,6 +689,169 @@ testthat::test_that("build_cbs_prices gap-fills prices across years", {
   testthat::expect_equal(wheat$price, c(0.5, 0.75, 1.0))
 })
 
+# Palm kernel price estimation -------------------------------------------------
+
+testthat::test_that("build_cbs_prices estimates palm kernel from palm oil ratio", {
+  # Palm Oil (CBS 2577, trade code 257) has prices for 2018-2020.
+
+  # Palm kernels (CBS 2562, trade code 256) only for 2019-2020.
+  # The 2018 palm kernel price should be estimated via the ratio.
+  trade_prices <- data.table::data.table(
+    year = c(2018L, 2019L, 2020L, 2018L, 2019L, 2020L, 2019L, 2020L),
+    item_trade = c(
+      rep("Oil, palm", 3),
+      rep("Oil, palm", 3),
+      rep("Palm kernels", 2)
+    ),
+    item_code_trade = c(rep(257, 3), rep(257, 3), rep(256, 2)),
+    element = c(
+      rep("export", 3),
+      rep("export", 3),
+      rep("export", 2)
+    ),
+    kdollars = c(1000, 1200, 1100, 1000, 1200, 1100, 300, 350),
+    tonnes = c(2000, 2000, 2000, 2000, 2000, 2000, 600, 700),
+    price = c(0.5, 0.6, 0.55, 0.5, 0.6, 0.55, 0.5, 0.5)
+  )
+
+  cbs <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code,
+    2018L, 2, 2577,
+    2019L, 2, 2577,
+    2020L, 2, 2577,
+    2018L, 2, 2562,
+    2019L, 2, 2562,
+    2020L, 2, 2562
+  )
+
+  result <- build_cbs_prices(cbs = cbs, trade_prices = trade_prices)
+
+  pk <- result |> dplyr::filter(item_cbs_code == 2562)
+  # Palm kernels should have prices for all 3 years (2018 estimated)
+  testthat::expect_true(nrow(pk) >= 3)
+  testthat::expect_true(all(pk$price > 0))
+})
+
+# Proxy price tests ------------------------------------------------------------
+
+testthat::test_that("build_cbs_prices creates soy hulls proxy from soyabean cake", {
+  # Trade code 238 (Cake, soybeans) maps to CBS "Soyabean Cake" (2590)
+  # Proxy: Soyabean Cake -> Soy hulls (2103) at factor 0.1
+  trade_prices <- data.table::data.table(
+    year = c(2020L),
+    item_trade = c("Cake, soybeans"),
+    item_code_trade = c(238),
+    element = c("export"),
+    kdollars = c(5000),
+    tonnes = c(10000),
+    price = c(0.5)
+  )
+
+  cbs <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code,
+    2020L, 2, 2590,
+    2020L, 2, 2103
+  )
+
+  result <- build_cbs_prices(cbs = cbs, trade_prices = trade_prices)
+
+  soy_hulls <- result |>
+    dplyr::filter(item_cbs_code == 2103, element == "export")
+  testthat::expect_true(nrow(soy_hulls) > 0)
+})
+
+testthat::test_that("build_cbs_prices creates alcohol proxy from sugar", {
+  # Trade code 162 (Sugar Raw Centrifugal) maps to
+  # CBS "Sugar (Raw Equivalent)" (2542)
+  # Proxy: Sugar -> Alcohol, Non-Food (2659) at factor 1.0
+  trade_prices <- data.table::data.table(
+    year = c(2020L),
+    item_trade = c("Sugar Raw Centrifugal"),
+    item_code_trade = c(162),
+    element = c("export"),
+    kdollars = c(2000),
+    tonnes = c(5000),
+    price = c(0.4)
+  )
+
+  cbs <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code,
+    2020L, 2, 2542,
+    2020L, 2, 2659
+  )
+
+  result <- build_cbs_prices(cbs = cbs, trade_prices = trade_prices)
+
+  alcohol <- result |>
+    dplyr::filter(item_cbs_code == 2659, element == "export")
+  testthat::expect_true(nrow(alcohol) > 0)
+})
+
+testthat::test_that("build_cbs_prices creates DDGS proxies", {
+  # Trade code 654 (Dregs from brewing, distillation) maps to
+  # CBS "DDGS" (2101)
+  # Proxies: DDGS -> DDGS Barley (2102) and Cake, maize (2109)
+  trade_prices <- data.table::data.table(
+    year = c(2020L),
+    item_trade = c("Dregs from brewing, distillation"),
+    item_code_trade = c(654),
+    element = c("export"),
+    kdollars = c(1000),
+    tonnes = c(2000),
+    price = c(0.5)
+  )
+
+  cbs <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code,
+    2020L, 2, 2101,
+    2020L, 2, 2102,
+    2020L, 2, 2109
+  )
+
+  result <- build_cbs_prices(cbs = cbs, trade_prices = trade_prices)
+
+  ddgs_barley <- result |>
+    dplyr::filter(item_cbs_code == 2102, element == "export")
+  cake_maize <- result |>
+    dplyr::filter(item_cbs_code == 2109, element == "export")
+
+  testthat::expect_true(nrow(ddgs_barley) > 0)
+  testthat::expect_true(nrow(cake_maize) > 0)
+})
+
+testthat::test_that("build_cbs_prices adds sugar non-centrifugal proxy", {
+  # Wheat -> Brans (0.2x), Sugar -> Sugar non-centrifugal (1.0x),
+  # Rice -> Ricebran Oil (1.0x) via .add_proxy_prices
+  trade_prices <- data.table::data.table(
+    year = c(2020L, 2020L, 2020L),
+    item_trade = c("Wheat", "Sugar Raw Centrifugal", "Rice"),
+    item_code_trade = c(15, 162, 27),
+    element = c("export", "export", "export"),
+    kdollars = c(500, 2000, 300),
+    tonnes = c(1000, 5000, 600),
+    price = c(0.5, 0.4, 0.5)
+  )
+
+  cbs <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code,
+    2020L, 2, 2511,
+    2020L, 2, 2542,
+    2020L, 2, 2807,
+    2020L, 2, 2541,
+    2020L, 2, 2581
+  )
+
+  result <- build_cbs_prices(cbs = cbs, trade_prices = trade_prices)
+
+  sugar_nc <- result |>
+    dplyr::filter(item_cbs_code == 2541, element == "export")
+  ricebran <- result |>
+    dplyr::filter(item_cbs_code == 2581, element == "export")
+
+  testthat::expect_true(nrow(sugar_nc) > 0)
+  testthat::expect_true(nrow(ricebran) > 0)
+})
+
 # Integration tests (example mode) --------------------------------------------
 
 testthat::test_that("build_trade_prices example returns expected structure", {
