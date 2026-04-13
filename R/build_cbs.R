@@ -17,6 +17,10 @@
 #'   are replaced with a linear trend. Default `FALSE`.
 #' @param example Logical. If `TRUE`, return a small hardcoded example
 #'   tibble instead of reading remote data. Default `FALSE`.
+#' @param .fixed_data Optional tibble with the same structure as the
+#'   output of the internal `.read_cbs() |> .fix_cbs()` steps. When
+#'   supplied, `primary_all` is ignored and the pipeline skips directly
+#'   to `.qc_cbs()`. Default `NULL`.
 #'
 #' @returns A tibble in long format with columns: `year`,
 #'   `area_code`, `item_cbs_code`, `element` (e.g.
@@ -32,13 +36,19 @@ build_commodity_balances <- function(
   start_year = 1850,
   end_year = 2023,
   smooth_carry_forward = FALSE,
-  example = FALSE
+  example = FALSE,
+  .fixed_data = NULL
 ) {
   if (example) {
     return(.example_build_commodity_bal())
   }
-  .read_cbs(primary_all, start_year, end_year) |>
-    .fix_cbs() |>
+  if (is.null(.fixed_data)) {
+    fixed <- .read_cbs(primary_all, start_year, end_year) |>
+      .fix_cbs()
+  } else {
+    fixed <- .fixed_data
+  }
+  fixed |>
     .qc_cbs(smooth = smooth_carry_forward) |>
     .format_cbs_output()
 }
