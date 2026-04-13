@@ -2727,79 +2727,65 @@ build_processing_coefs <- function(
   items <- whep::items_full
 
   # Save source provenance before test_cbs pivot cycles
-  src_lookup <- cbs_raw7 |>
-    dplyr::distinct(
-      year,
-      area_code,
-      item_cbs_code,
-      element,
-      .keep_all = TRUE
-    ) |>
-    dplyr::select(year, area_code, item_cbs_code, element, source)
+  src_lookup <- .extract_source_lookup(cbs_raw7)
+
+  items_dd <- data.table::as.data.table(items)[,
+    .(item_cbs, default_destiny)
+  ]
+  items_dd <- unique(items_dd, by = "item_cbs")
 
   cbs_raw8 <- cbs_raw7 |>
     dplyr::filter(year %in% years) |>
     dplyr::select(-dplyr::any_of("source")) |>
-    .test_cbs() |>
-    dplyr::left_join(
-      items |> dplyr::select(item_cbs, default_destiny),
-      by = "item_cbs"
-    ) |>
-    dplyr::mutate(
+    .test_cbs()
+  cbs_raw8 <- merge(cbs_raw8, items_dd, by = "item_cbs", all.x = TRUE)
+  cbs_raw8[,
+    `:=`(
       domestic_supply = pmax(domestic_supply, 0),
-      export = dplyr::if_else(
+      export = data.table::fifelse(
         balance < 0,
         production + import - stock_variation - domestic_supply,
         export
       )
-    ) |>
-    .untest_cbs()
-
-  cbs_raw8 |>
-    .test_cbs() |>
-    dplyr::left_join(
-      items |> dplyr::select(item_cbs, default_destiny),
-      by = "item_cbs"
-    ) |>
-    dplyr::mutate(
-      feed = dplyr::if_else(
-        check == FALSE &
-          destiny_replacement == "default_prone" &
-          default_destiny == "Feed",
-        domestic_supply,
-        feed
-      ),
-      food = dplyr::if_else(
-        check == FALSE &
-          destiny_replacement == "default_prone" &
-          default_destiny == "Food",
-        domestic_supply,
-        food
-      ),
-      other_uses = dplyr::if_else(
-        check == FALSE &
-          destiny_replacement == "default_prone" &
-          default_destiny == "Other_uses",
-        domestic_supply,
-        other_uses
-      ),
-      processing = dplyr::if_else(
-        check == FALSE &
-          destiny_replacement == "default_prone" &
-          default_destiny == "Processing",
-        domestic_supply,
-        processing
-      )
-    ) |>
-    .untest_cbs() |>
-    dplyr::filter(value != 0) |>
-    dplyr::left_join(
-      src_lookup,
-      by = c(
-        "year",
-        "area_code",
-        "item_cbs_code",
-        "element"
-      )
     )
+  ]
+  cbs_raw8[, default_destiny := NULL]
+  cbs_raw8 <- .untest_cbs(cbs_raw8)
+
+  cbs_out <- .test_cbs(cbs_raw8)
+  cbs_out <- merge(cbs_out, items_dd, by = "item_cbs", all.x = TRUE)
+  dp_mask <- cbs_out$check == FALSE &
+    cbs_out$destiny_replacement == "default_prone"
+  cbs_out[
+    dp_mask & default_destiny == "Feed",
+    feed := domestic_supply
+  ]
+  cbs_out[
+    dp_mask & default_destiny == "Food",
+    food := domestic_supply
+  ]
+  cbs_out[
+    dp_mask & default_destiny == "Other_uses",
+    other_uses := domestic_supply
+  ]
+  cbs_out[
+    dp_mask & default_destiny == "Processing",
+    processing := domestic_supply
+  ]
+  cbs_out[, default_destiny := NULL]
+  cbs_out <- .untest_cbs(cbs_out)
+
+  if (!data.table::is.data.table(cbs_out)) {
+    data.table::setDT(cbs_out)
+  }
+  cbs_out <- cbs_out[value != 0]
+  if (!data.table::is.data.table(src_lookup)) {
+    data.table::setDT(src_lookup)
+  }
+  merge(
+    cbs_out,
+    src_lookup,
+    by = c("year", "area_code", "item_cbs_code", "element"),
+    all.x = TRUE
+  )
 }
