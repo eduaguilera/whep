@@ -1786,6 +1786,12 @@ build_processing_coefs <- function(
     )
 }
 
+.extract_source_lookup <- function(df) {
+  dt <- if (data.table::is.data.table(df)) df else data.table::as.data.table(df)
+  by_cols <- c("year", "area_code", "item_cbs_code", "element")
+  dt[, .(source = source[1L]), by = by_cols]
+}
+
 # -- Redistribute non-processed ------------------------------------------------
 
 .cbs_redistribute_notprocessed <- function(
@@ -1793,15 +1799,7 @@ build_processing_coefs <- function(
   processd_raw
 ) {
   # Save source provenance before internal processing
-  src_lookup <- cbs_raw2 |>
-    dplyr::distinct(
-      year,
-      area_code,
-      item_cbs_code,
-      element,
-      .keep_all = TRUE
-    ) |>
-    dplyr::select(year, area_code, item_cbs_code, element, source)
+  src_lookup <- .extract_source_lookup(cbs_raw2)
   cbs_raw2 <- cbs_raw2 |>
     dplyr::select(-dplyr::any_of("source"))
 
@@ -1934,15 +1932,7 @@ build_processing_coefs <- function(
 
 .cbs_impute_trade <- function(cbs_raw3, fao_trade_cbs = NULL) {
   # Save source provenance before pivot cycle
-  src_lookup <- cbs_raw3 |>
-    dplyr::distinct(
-      year,
-      area_code,
-      item_cbs_code,
-      element,
-      .keep_all = TRUE
-    ) |>
-    dplyr::select(year, area_code, item_cbs_code, element, source)
+  src_lookup <- .extract_source_lookup(cbs_raw3)
 
   destiny_list <- c(
     "food",
@@ -2550,15 +2540,7 @@ build_processing_coefs <- function(
   cb_processing_glo
 ) {
   # Save source provenance before pivot cycle
-  src_lookup <- cbs_raw6 |>
-    dplyr::distinct(
-      year,
-      area_code,
-      item_cbs_code,
-      element,
-      .keep_all = TRUE
-    ) |>
-    dplyr::select(year, area_code, item_cbs_code, element, source)
+  src_lookup <- .extract_source_lookup(cbs_raw6)
 
   proc_base <- cbs_raw6 |>
     .processed_raw(cb_processing_glo)
