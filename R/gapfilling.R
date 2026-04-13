@@ -143,8 +143,13 @@ fill_linear <- function(
 
   dt <- dt_work
   sort_cols <- c(by_cols, time_col_name)
-  if (!identical(data.table::key(dt), sort_cols)) {
+  prev_sorted <- attr(data, ".whep_sorted_by")
+  already_sorted <- identical(data.table::key(dt), sort_cols) ||
+    identical(prev_sorted, sort_cols)
+  if (!already_sorted) {
     data.table::setkeyv(dt, sort_cols)
+  } else if (is.null(data.table::key(dt))) {
+    data.table::setattr(dt, "sorted", sort_cols)
   }
 
   val <- dt[[value_col_name]]
@@ -220,6 +225,7 @@ fill_linear <- function(
   if (!is_dt) {
     dt <- tibble::as_tibble(dt)
   }
+  attr(dt, ".whep_sorted_by") <- sort_cols
   dt
 }
 
@@ -297,6 +303,7 @@ fill_linear <- function(
   if (!is_dt) {
     dt <- tibble::as_tibble(dt)
   }
+  attr(dt, ".whep_sorted_by") <- c(by_cols, time_col_name)
   dt
 }
 
