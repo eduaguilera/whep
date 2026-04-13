@@ -10,6 +10,7 @@ utils::globalVariables(
     "..cols",
     "..dup_cols",
     ".cross_key",
+    ".has_np",
     ".fu_n",
     ".fu_ok",
     ".run_id",

@@ -1829,134 +1829,120 @@ build_processing_coefs <- function(
   cbs_raw2,
   processd_raw
 ) {
-  # Save source provenance before internal processing
   src_lookup <- .extract_source_lookup(cbs_raw2)
-  cbs_raw2 <- cbs_raw2 |>
-    dplyr::select(-dplyr::any_of("source"))
 
-  not_processed <- cbs_raw2 |>
-    dplyr::filter(element == "processing", value > 0) |>
-    dplyr::select(-element) |>
-    dplyr::anti_join(
-      processd_raw |>
-        dplyr::summarise(
-          value = sum(value),
-          .by = c(year, area, area_code, processed_item)
-        ) |>
-        dplyr::select(-value) |>
-        dplyr::rename(item_cbs = processed_item),
-      by = c("year", "area", "area_code", "item_cbs")
-    ) |>
-    dplyr::left_join(
-      cbs_raw2 |>
-        dplyr::filter(
-          element %in%
-            c(
-              "food",
-              "feed",
-              "other_uses",
-              "export"
-            )
-        ) |>
-        dplyr::mutate(
-          share = value / sum(value),
-          .by = c(year, area, area_code, item_cbs)
-        ) |>
-        dplyr::select(-value),
-      by = c(
-        "year",
-        "area",
-        "area_code",
-        "item_cbs",
-        "item_cbs_code"
-      )
-    ) |>
-    dplyr::mutate(value = value * share) |>
-    dplyr::select(-share)
+  dt <- data.table::as.data.table(cbs_raw2)
+  dt[, source := NULL]
 
-  items <- cbs_raw2 |>
-    dplyr::left_join(
-      not_processed |>
-        dplyr::summarise(
-          value = sum(value),
-          .by = c(year, area, area_code, item_cbs)
-        ) |>
-        dplyr::select(-value) |>
-        dplyr::mutate(has_np = TRUE),
-      by = c("year", "area", "area_code", "item_cbs")
-    )
+  # Items with processing but no matching processed products
+  proc_keys <- data.table::as.data.table(processd_raw)[,
+    .(processed_item = unique(processed_item)),
+    by = .(year, area, area_code)
+  ]
+  data.table::setnames(proc_keys, "processed_item", "item_cbs")
 
-  ok <- items |> dplyr::filter(is.na(has_np))
+  np <- dt[element == "processing" & value > 0]
+  np[, element := NULL]
+  np <- np[!proc_keys, on = c("year", "area", "area_code", "item_cbs")]
 
-  fixed <- items |>
-    dplyr::filter(!is.na(has_np)) |>
-    dplyr::select(-has_np) |>
-    dplyr::bind_rows(not_processed) |>
-    dplyr::summarise(
-      value = sum(value, na.rm = TRUE),
-      .by = c(
-        year,
-        area,
-        area_code,
-        item_cbs,
-        item_cbs_code,
-        element
-      )
-    ) |>
-    dplyr::filter(
-      !is.na(element),
-      element != "processing"
-    ) |>
-    tidyr::pivot_wider(
-      names_from = element,
-      values_from = value,
-      values_fill = 0
-    ) |>
-    dplyr::mutate(
-      domestic_supply = feed + food + seed + other_uses
-    ) |>
-    tidyr::pivot_longer(
-      dplyr::any_of(c(
-        "domestic_supply",
-        "production",
-        "export",
-        "import",
-        "stock_variation",
-        "food",
-        "feed",
-        "seed",
-        "other_uses"
-      )),
-      names_to = "element",
-      values_to = "value"
-    ) |>
-    dplyr::summarise(
-      value = sum(value, na.rm = TRUE),
-      .by = c(year, area, area_code, item_cbs, element)
-    )
+  # Compute destination shares from existing elements
+  shares <- dt[
+    element %in% c("food", "feed", "other_uses", "export")
+  ]
+  shares[,
+    share := value / sum(value),
+    by = .(year, area, area_code, item_cbs)
+  ]
+  shares[, value := NULL]
 
-  dplyr::bind_rows(
-    ok |> dplyr::select(-has_np),
-    fixed
-  ) |>
-    dplyr::select(-dplyr::any_of(c("has_np", "item_cbs_code"))) |>
-    dplyr::left_join(
-      dplyr::distinct(
-        cbs_raw2,
-        item_cbs,
-        item_cbs_code
-      ),
-      by = "item_cbs"
-    ) |>
-    dplyr::left_join(
-      src_lookup,
-      by = c(
-        "year",
-        "area_code",
-        "item_cbs_code",
-        "element"
-      )
-    )
+  np <- merge(
+    np,
+    shares,
+    by = c("year", "area", "area_code", "item_cbs", "item_cbs_code"),
+    all.x = TRUE
+  )
+  np[, value := value * share]
+  np[, share := NULL]
+
+  # Mark items that have non-processed redistribution
+  np_keys <- unique(np[, .(year, area, area_code, item_cbs)])
+  np_keys[, .has_np := TRUE]
+  tagged <- merge(
+    dt,
+    np_keys,
+    by = c("year", "area", "area_code", "item_cbs"),
+    all.x = TRUE
+  )
+
+  ok <- tagged[is.na(.has_np)]
+  ok[, .has_np := NULL]
+
+  affected <- tagged[!is.na(.has_np)]
+  affected[, .has_np := NULL]
+
+  # Combine affected + redistributed, aggregate
+  combined <- data.table::rbindlist(
+    list(affected, np),
+    use.names = TRUE,
+    fill = TRUE
+  )
+  fixed <- combined[
+    !is.na(element) & element != "processing",
+    .(value = sum(value, na.rm = TRUE)),
+    by = .(year, area, area_code, item_cbs, item_cbs_code, element)
+  ]
+
+  # Pivot wide to recompute domestic_supply, then back to long
+  elem_cols <- c(
+    "domestic_supply",
+    "production",
+    "export",
+    "import",
+    "stock_variation",
+    "food",
+    "feed",
+    "seed",
+    "other_uses"
+  )
+  id_cols <- c("year", "area", "area_code", "item_cbs", "item_cbs_code")
+  wide <- data.table::dcast(
+    fixed,
+    year + area + area_code + item_cbs + item_cbs_code ~ element,
+    value.var = "value",
+    fill = 0
+  )
+  for (col in setdiff(elem_cols, names(wide))) {
+    data.table::set(wide, j = col, value = 0)
+  }
+  wide[, domestic_supply := feed + food + seed + other_uses]
+  fixed <- data.table::melt(
+    wide,
+    id.vars = id_cols,
+    measure.vars = intersect(elem_cols, names(wide)),
+    variable.name = "element",
+    value.name = "value"
+  )
+  fixed <- fixed[,
+    .(value = sum(value, na.rm = TRUE)),
+    by = .(year, area, area_code, item_cbs, element)
+  ]
+
+  # Recombine — add item_cbs_code to fixed before binding
+  items_bridge <- unique(dt[, .(item_cbs, item_cbs_code)])
+  fixed <- merge(fixed, items_bridge, by = "item_cbs", all.x = TRUE)
+  out <- data.table::rbindlist(
+    list(
+      ok[, .(year, area, area_code, item_cbs, item_cbs_code, element, value)],
+      fixed
+    ),
+    use.names = TRUE
+  )
+  merge(
+    out,
+    src_lookup,
+    by = c("year", "area_code", "item_cbs_code", "element"),
+    all.x = TRUE
+  )
 }
 
 # -- Impute trade + domestic supply --------------------------------------------
