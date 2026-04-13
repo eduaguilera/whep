@@ -1325,7 +1325,7 @@ fill_proxy_growth <- function(
 
   # Growth factor and cumulative product per segment
   g_factor <- ifelse(is.na(growth), NA_real_, 1 + growth)
-  filled <- ave(g_factor, seg_id, FUN = cumprod) * anchor
+  filled <- .seg_cumprod(g_factor, seg_id) * anchor
 
   # Validity: anchor > 0, result finite
   valid <- target &
@@ -1333,7 +1333,7 @@ fill_proxy_growth <- function(
     anchor > 0 &
     !is.na(filled) &
     is.finite(filled)
-  valid <- as.logical(ave(as.numeric(valid), seg_id, FUN = cummin)) & target
+  valid <- as.logical(.seg_cummin(as.numeric(valid), seg_id)) & target
 
   vals[valid] <- filled[valid]
   mets[valid & is_missing] <- m_name
@@ -1393,14 +1393,12 @@ fill_proxy_growth <- function(
 
   # Reverse cumprod within each segment
   g_factor <- ifelse(is.na(g_shifted), NA_real_, 1 + g_shifted)
-  rev_cp <- ave(g_factor, seg_id, FUN = function(x) rev(cumprod(rev(x))))
+  rev_cp <- .seg_rev_cumprod(g_factor, seg_id)
   filled <- anchor / rev_cp
 
   # Validity: result must be finite and > 0
   valid <- target & !is.na(filled) & is.finite(filled) & filled > 0
-  valid <- as.logical(
-    ave(as.numeric(valid), seg_id, FUN = function(x) rev(cummin(rev(x))))
-  ) &
+  valid <- as.logical(.seg_rev_cummin(as.numeric(valid), seg_id)) &
     target
 
   vals[valid] <- filled[valid]
@@ -1409,6 +1407,39 @@ fill_proxy_growth <- function(
   data[[val_col]] <- vals
   data[[met_col]] <- mets
   data
+}
+
+# Segmented cumprod using data.table by= (avoids ave() overhead).
+.seg_cumprod <- function(x, seg_id) {
+  dt <- data.table::data.table(x = x, seg = seg_id)
+  dt[, cp := cumprod(ifelse(is.na(x), 1, x)), by = seg]
+  dt[is.na(x), cp := NA_real_]
+  dt$cp
+}
+
+# Reverse segmented cumprod.
+.seg_rev_cumprod <- function(x, seg_id) {
+  nn <- length(x)
+  rev_idx <- nn:1L
+  .seg_cumprod(x[rev_idx], seg_id[rev_idx])[rev_idx]
+}
+
+# Segmented cummin using cumsum-with-resets (fully vectorized).
+# For binary 0/1 input: 1 until first 0 in segment, then 0.
+.seg_cummin <- function(x, seg_id) {
+  seg_start <- c(TRUE, diff(seg_id) != 0L)
+  bad <- 1 - x
+  global_cs <- cumsum(bad)
+  base <- ifelse(seg_start, global_cs - bad, NA_real_)
+  base <- data.table::nafill(base, "locf")
+  as.numeric((global_cs - base) == 0)
+}
+
+# Reverse segmented cummin.
+.seg_rev_cummin <- function(x, seg_id) {
+  nn <- length(x)
+  rev_idx <- nn:1L
+  .seg_cummin(x[rev_idx], seg_id[rev_idx])[rev_idx]
 }
 
 .fg_fill_bridge_linear_vec <- function(
