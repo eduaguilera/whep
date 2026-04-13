@@ -1302,16 +1302,21 @@ fill_proxy_growth <- function(
 
   is_missing <- !is.na(mets) & mets == "missing"
 
-  # Forward anchor: last non-NA value within group
+  # Forward anchor: last non-NA value within group (vectorized LOCF)
   anchor_raw <- ifelse(is.na(vals), NA_real_, vals)
+  locf_raw <- data.table::nafill(anchor_raw, "locf")
   if (length(by_cols) > 0) {
-    data$.anchor_tmp <- anchor_raw
-    dt <- data.table::as.data.table(data)
-    dt[, .anchor_tmp := zoo::na.locf(.anchor_tmp, na.rm = FALSE), by = by_cols]
-    anchor <- dt$.anchor_tmp
-    data$.anchor_tmp <- NULL
+    nn <- length(anchor_raw)
+    grp <- data.table::rleidv(
+      data.table::as.data.table(data),
+      cols = by_cols
+    )
+    valid_idx <- ifelse(!is.na(anchor_raw), seq_len(nn), NA_integer_)
+    locf_idx <- data.table::nafill(valid_idx, "locf")
+    locf_ok <- !is.na(locf_idx) & grp[locf_idx] == grp
+    anchor <- data.table::fifelse(locf_ok, locf_raw, NA_real_)
   } else {
-    anchor <- zoo::na.locf(anchor_raw, na.rm = FALSE)
+    anchor <- locf_raw
   }
 
   # Segments: consecutive target positions, respecting run boundaries
@@ -1358,26 +1363,28 @@ fill_proxy_growth <- function(
 
   is_missing <- !is.na(mets) & mets == "missing"
 
-  # Backward anchor: next non-NA value within group
+  # Backward anchor: next non-NA value within group (vectorized NOCB)
   anchor_raw <- ifelse(is.na(vals), NA_real_, vals)
+  nocb_raw <- data.table::nafill(anchor_raw, "nocb")
+  nn <- length(anchor_raw)
   if (length(by_cols) > 0) {
-    data$.anchor_tmp <- anchor_raw
-    data$.g_tmp <- growth
-    dt <- data.table::as.data.table(data)
-    dt[,
-      `:=`(
-        .anchor_tmp = zoo::na.locf(.anchor_tmp, na.rm = FALSE, fromLast = TRUE),
-        .g_shifted = data.table::shift(.g_tmp, 1L, type = "lead")
-      ),
-      by = by_cols
-    ]
-    anchor <- dt$.anchor_tmp
-    g_shifted <- dt$.g_shifted
-    data$.anchor_tmp <- NULL
-    data$.g_tmp <- NULL
+    grp <- data.table::rleidv(
+      data.table::as.data.table(data),
+      cols = by_cols
+    )
+    valid_idx <- ifelse(!is.na(anchor_raw), seq_len(nn), NA_integer_)
+    nocb_idx <- data.table::nafill(valid_idx, "nocb")
+    nocb_ok <- !is.na(nocb_idx) & grp[nocb_idx] == grp
+    anchor <- data.table::fifelse(nocb_ok, nocb_raw, NA_real_)
+    # Shift growth forward within groups
+    g_shifted <- c(growth[-1L], NA_real_)
+    first_of_grp <- c(FALSE, diff(grp) != 0L)
+    # Last element of each group has no successor
+    last_of_grp <- c(diff(grp) != 0L, TRUE)
+    g_shifted[last_of_grp] <- NA_real_
   } else {
-    anchor <- zoo::na.locf(anchor_raw, na.rm = FALSE, fromLast = TRUE)
-    g_shifted <- c(growth[-1], NA_real_)
+    anchor <- nocb_raw
+    g_shifted <- c(growth[-1L], NA_real_)
   }
 
   # Segments: consecutive target positions, respecting run boundaries
