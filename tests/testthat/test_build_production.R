@@ -304,7 +304,9 @@ test_that("build_primary_production output has no duplicate keys", {
     "ha", 150, "FAOSTAT_prod"
   )
   result <- whep::build_primary_production(
-    start_year = 2000, end_year = 2001, raw_data = raw
+    start_year = 2000,
+    end_year = 2001,
+    raw_data = raw
   )
   keys <- dplyr::select(
     result,
