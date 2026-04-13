@@ -1050,15 +1050,15 @@ build_primary_production <- function(
 }
 
 .calculate_raw_yields <- function(primary_raw, items_prod) {
-  crop_yield <- primary_raw |>
-    dplyr::filter(unit %in% c("ha", "t")) |>
-    tidyr::pivot_wider(
-      id_cols = c(year, area, area_code, item_prod, item_prod_code),
-      names_from = unit,
-      values_from = value
-    ) |>
-    dplyr::mutate(yield_c = t / ha, unit = "t_ha") |>
-    dplyr::rename(fu = ha)
+  crop_dt <- data.table::as.data.table(primary_raw)[unit %in% c("ha", "t")]
+  crop_yield <- data.table::dcast(
+    crop_dt,
+    year + area + area_code + item_prod + item_prod_code ~ unit,
+    value.var = "value"
+  )
+  crop_yield[, `:=`(yield_c = t / ha, unit = "t_ha")]
+  data.table::setnames(crop_yield, "ha", "fu")
+  crop_yield <- tibble::as_tibble(crop_yield)
 
   liv_yield <- primary_raw |>
     dplyr::filter(unit == "t") |>

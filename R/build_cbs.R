@@ -1176,10 +1176,17 @@ build_processing_coefs <- function(
     "element"
   )
 
-  wide <- cbs_raw_all |>
-    dplyr::filter(!is.na(area)) |>
-    dplyr::select(dplyr::all_of(key_cols), source, value) |>
-    tidyr::pivot_wider(names_from = source, values_from = value)
+  dt_raw <- data.table::as.data.table(cbs_raw_all)
+  dt_raw <- dt_raw[!is.na(area), c(key_cols, "source", "value"), with = FALSE]
+  wide <- data.table::dcast(
+    dt_raw,
+    stats::as.formula(paste(
+      paste(key_cols, collapse = " + "),
+      "~ source"
+    )),
+    value.var = "value"
+  )
+  wide <- tibble::as_tibble(wide)
 
   # Ensure expected columns exist even if a source is absent
   for (col in c("FAOSTAT_prod", "FAOSTAT_FBS_New", "FAOSTAT_FBS_Old")) {
