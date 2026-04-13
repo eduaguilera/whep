@@ -4,6 +4,7 @@
 utils::globalVariables(
   c(
     ".",
+    ".I",
     ".N",
     ".SD",
     "..cols",

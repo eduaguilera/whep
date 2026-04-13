@@ -2123,15 +2123,17 @@ build_primary_production <- function(
 }
 
 .dedup_production <- function(df) {
-  df |>
-    dplyr::mutate(.src_rank = .prod_source_rank(source)) |>
-    dplyr::slice_min(
-      .src_rank,
-      n = 1L,
-      with_ties = FALSE,
-      by = c(year, area_code, item_prod_code, unit)
-    ) |>
-    dplyr::select(!.src_rank)
+  dt <- data.table::as.data.table(df)
+  dt[, `:=`(
+    .src_rank = .prod_source_rank(source),
+    .orig_row = .I
+  )]
+  by_cols <- c("year", "area_code", "item_prod_code", "unit")
+  data.table::setorderv(dt, c(by_cols, ".src_rank"))
+  dt <- dt[dt[, .I[1L], by = by_cols]$V1]
+  data.table::setorderv(dt, ".orig_row")
+  dt[, c(".src_rank", ".orig_row") := NULL]
+  tibble::as_tibble(dt)
 }
 
 .show_prod_duplicates <- function(df) {
