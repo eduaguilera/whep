@@ -2560,8 +2560,10 @@ build_processing_coefs <- function(
     ) |>
     dplyr::select(year, area_code, item_cbs_code, element, source)
 
-  proc_scaling <- cbs_raw6 |>
-    .processed_raw(cb_processing_glo) |>
+  proc_base <- cbs_raw6 |>
+    .processed_raw(cb_processing_glo)
+
+  proc_scaling <- proc_base |>
     dplyr::summarise(
       value_proc = sum(value_proc, na.rm = TRUE),
       .by = c(
@@ -2584,8 +2586,7 @@ build_processing_coefs <- function(
     ) |>
     dplyr::mutate(scaling = value / value_proc)
 
-  proc_coefs_raw <- cbs_raw6 |>
-    .processed_raw(cb_processing_glo) |>
+  proc_coefs_raw <- proc_base |>
     dplyr::rename(value_proc_raw = value_proc) |>
     dplyr::left_join(
       proc_scaling |>
