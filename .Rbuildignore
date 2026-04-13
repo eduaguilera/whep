@@ -19,3 +19,4 @@
 ^\.agent$
 ^\.claude$
 ^CLAUDE\.md$
+^inst/autoresearch$
