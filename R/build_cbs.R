@@ -71,25 +71,49 @@ build_commodity_balances <- function(
 
   has_flag <- "fao_flag" %in% names(df)
 
-  df |>
+  sel_cols <- c(
+    "year",
+    "area_code",
+    "item_cbs_code",
+    "element",
+    "value",
+    "source"
+  )
+  if (has_flag) {
+    sel_cols <- c(sel_cols, "fao_flag")
+  }
+
+  dt <- df |>
     dplyr::filter(element %in% cbs_elements) |>
-    dplyr::select(
-      year,
-      area_code,
-      item_cbs_code,
-      element,
-      value,
-      source,
-      dplyr::any_of("fao_flag")
-    ) |>
-    .normalise_cbs_values() |>
-    dplyr::distinct() |>
-    dplyr::summarise(
-      value = .sum_if_any_cbs(value),
-      source = dplyr::first(source),
-      fao_flag = if (has_flag) dplyr::first(fao_flag) else NA_character_,
-      .by = c(year, area_code, item_cbs_code, element)
-    )
+    dplyr::select(dplyr::all_of(sel_cols)) |>
+    .normalise_cbs_values()
+
+  if (!data.table::is.data.table(dt)) {
+    data.table::setDT(dt)
+  }
+  dt <- unique(dt)
+
+  by_cols <- c("year", "area_code", "item_cbs_code", "element")
+  if (has_flag) {
+    dt <- dt[,
+      .(
+        value = .sum_if_any_cbs(value),
+        source = source[1L],
+        fao_flag = fao_flag[1L]
+      ),
+      by = by_cols
+    ]
+  } else {
+    dt <- dt[,
+      .(
+        value = .sum_if_any_cbs(value),
+        source = source[1L],
+        fao_flag = NA_character_
+      ),
+      by = by_cols
+    ]
+  }
+  tibble::as_tibble(as.data.frame(dt))
 }
 
 .normalise_cbs_values <- function(df) {
