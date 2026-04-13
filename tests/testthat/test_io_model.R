@@ -83,15 +83,10 @@ testthat::test_that("build_io_model handles 2-country 2-item example", {
   testthat::expect_equal(length(x), n)
 })
 
-testthat::test_that("build_io_model uses default input builders", {
+testthat::test_that("build_io_model works with explicit inputs", {
   f <- io_two_country_fixture()
-  local_mocked_bindings(
-    build_supply_use = function(...) f$su,
-    get_bilateral_trade = function(...) f$btd,
-    get_wide_cbs = function(...) f$cbs
-  )
 
-  result <- build_io_model(years = 2000)
+  result <- whep::build_io_model(f$su, f$btd, f$cbs, years = 2000)
 
   testthat::expect_s3_class(result, "tbl_df")
   testthat::expect_equal(nrow(result), 1)

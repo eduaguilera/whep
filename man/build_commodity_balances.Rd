@@ -9,7 +9,8 @@ build_commodity_balances(
   start_year = 1850,
   end_year = 2023,
   smooth_carry_forward = FALSE,
-  example = FALSE
+  example = FALSE,
+  raw_data = NULL
 )
 }
 \arguments{
@@ -25,6 +26,10 @@ are replaced with a linear trend. Default \code{FALSE}.}
 
 \item{example}{Logical. If \code{TRUE}, return a small hardcoded example
 tibble instead of reading remote data. Default \code{FALSE}.}
+
+\item{raw_data}{Optional tibble with the same structure as the output
+of \code{.read_cbs()}. When provided, this replaces the remote data
+read, allowing tests to inject small fixtures.}
 }
 \value{
 A tibble in long format with columns: \code{year},

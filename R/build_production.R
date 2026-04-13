@@ -17,6 +17,9 @@
 #' @param show_duplicates Logical. If `TRUE`, return only the rows that
 #'   have competing sources in wide format (one column per source) for
 #'   diagnostic comparison. Default `FALSE`.
+#' @param raw_data Optional tibble with the same structure as the output
+#'   of `.read_production()`. When provided, this replaces the remote
+#'   data read, allowing tests to inject small fixtures.
 #'
 #' @returns A tibble with the same columns as [get_primary_production()]:
 #'   `year`, `area_code` (numeric FAOSTAT), `item_prod_code`,
@@ -34,13 +37,14 @@ build_primary_production <- function(
   end_year = 2023,
   smooth_carry_forward = FALSE,
   example = FALSE,
-  show_duplicates = FALSE
+  show_duplicates = FALSE,
+  raw_data = NULL
 ) {
   if (example) {
     return(.example_build_primary_prod())
   }
   cli::cli_h1("Building primary production")
-  raw <- .read_production(start_year, end_year)
+  raw <- raw_data %||% .read_production(start_year, end_year)
   cb_extracts <- attr(raw, ".cb_extracts")
 
   clean <- raw |>

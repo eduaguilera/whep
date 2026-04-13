@@ -9,7 +9,8 @@ build_primary_production(
   end_year = 2023,
   smooth_carry_forward = FALSE,
   example = FALSE,
-  show_duplicates = FALSE
+  show_duplicates = FALSE,
+  raw_data = NULL
 )
 }
 \arguments{
@@ -26,6 +27,10 @@ tibble instead of reading remote data. Default \code{FALSE}.}
 \item{show_duplicates}{Logical. If \code{TRUE}, return only the rows that
 have competing sources in wide format (one column per source) for
 diagnostic comparison. Default \code{FALSE}.}
+
+\item{raw_data}{Optional tibble with the same structure as the output
+of \code{.read_production()}. When provided, this replaces the remote
+data read, allowing tests to inject small fixtures.}
 }
 \value{
 A tibble with the same columns as \code{\link[=get_primary_production]{get_primary_production()}}:
