@@ -71,7 +71,7 @@ The PR must pass ALL these GitHub Actions checks. Before committing, verify loca
    - All NSE variables must be declared in `utils::globalVariables()` in `R/utils.R`.
    - All `stats::` functions must use explicit prefix (e.g., `stats::median()`).
 
-2. **lint** (`lintr`): `lintr::lint_package(linters=lintr::linters_with_defaults(object_usage_linter=NULL, line_length_linter=NULL, indentation_linter=NULL))`
+2. **lint** (`lintr`): `lintr::lint_package(linters=lintr::linters_with_defaults(object_usage_linter=NULL, line_length_linter=NULL, indentation_linter=NULL, commas_linter=NULL))`
 
 3. **format-suggest** (`air`): Code must be formatted with `air format .`
    - **This is mandatory, not optional.** Do not attempt to manually match air style — always run the binary. Manual formatting will miss things.

@@ -229,11 +229,12 @@ fill_linear <- function(
   data.table::set(dt, j = value_col_name, value = filled)
   data.table::set(dt, j = source_col_name, value = source)
   data.table::setcolorder(dt, names(data))
-  if (!is_dt) {
-    dt <- tibble::as_tibble(dt)
+  if (is_dt) {
+    attr(dt, ".whep_sorted_by") <- sort_cols
+    dt
+  } else {
+    .dt_to_tibble(dt)
   }
-  attr(dt, ".whep_sorted_by") <- sort_cols
-  dt
 }
 
 # Fallback grouped path for smoothing case (rare).
@@ -307,11 +308,12 @@ fill_linear <- function(
   ]
 
   data.table::setcolorder(dt, names(data))
-  if (!is_dt) {
-    dt <- tibble::as_tibble(dt)
+  if (is_dt) {
+    attr(dt, ".whep_sorted_by") <- c(by_cols, time_col_name)
+    dt
+  } else {
+    .dt_to_tibble(dt)
   }
-  attr(dt, ".whep_sorted_by") <- c(by_cols, time_col_name)
-  dt
 }
 
 # Grouped rolling mean without split/interaction overhead
@@ -331,6 +333,11 @@ fill_linear <- function(
     )
   }
   result
+}
+
+# Convert a data.table to tibble, stripping all data.table attributes.
+.dt_to_tibble <- function(dt) {
+  tibble::as_tibble(as.data.frame(dt))
 }
 
 # Base R vectorized core for fill_linear (no dplyr)

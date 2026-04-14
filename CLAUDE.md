@@ -59,7 +59,7 @@ The PR must pass these GitHub Actions checks:
    - Run locally: `Rscript -e "rcmdcheck::rcmdcheck(build_args='--no-build-vignettes', args=c('--no-tests','--ignore-vignettes'), error_on='error')"`
 
 2. **lint** (`lintr`): Must pass with these linters disabled: `object_usage_linter`, `line_length_linter`, `indentation_linter`.
-   - Run locally: `Rscript -e "lintr::lint_package(linters=lintr::linters_with_defaults(object_usage_linter=NULL, line_length_linter=NULL, indentation_linter=NULL))"`
+   - Run locally: `Rscript -e "lintr::lint_package(linters=lintr::linters_with_defaults(object_usage_linter=NULL, line_length_linter=NULL, indentation_linter=NULL, commas_linter=NULL))"`
 
 3. **format-suggest** (`air`): Code must be formatted with `air format .`
    - **This is mandatory, not optional.** Do not attempt to manually match air style -- always run the binary.

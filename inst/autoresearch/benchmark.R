@@ -1,4 +1,3 @@
-# inst/autoresearch/benchmark.R
 #
 # Autoresearch benchmark harness. Profiles the full pipeline
 # (production + CBS) as a single unit under Rprof.
@@ -18,8 +17,8 @@ devtools::load_all(".")
 
 # ── Config ──────────────────────────────────────────────────────────────────
 # Use a small year range for fast iteration (~25s per run).
-START_YEAR <- 1958L
-END_YEAR <- 1965L
+start_year <- 1958L
+end_year <- 1965L
 
 # ── Run ─────────────────────────────────────────────────────────────────────
 
@@ -30,13 +29,13 @@ Rprof(prof_file, interval = 0.02)
 t0 <- proc.time()
 
 prod <- build_primary_production(
-  start_year = START_YEAR,
-  end_year = END_YEAR
+  start_year = start_year,
+  end_year = end_year
 )
 cbs <- build_commodity_balances(
   prod,
-  start_year = START_YEAR,
-  end_year = END_YEAR
+  start_year = start_year,
+  end_year = end_year
 )
 
 elapsed <- (proc.time() - t0)[["elapsed"]]

@@ -280,12 +280,7 @@ test_that(".show_prod_duplicates returns wide format of competing sources", {
 })
 
 test_that("build_primary_production output has no duplicate keys", {
-  skip_on_ci()
-  skip_if_not(
-    nzchar(Sys.getenv("WHEP_BOARD_URL")),
-    "pin board not configured"
-  )
-  result <- whep::build_primary_production()
+  result <- whep::build_primary_production(example = TRUE)
   keys <- dplyr::select(
     result,
     year,
