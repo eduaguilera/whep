@@ -1021,3 +1021,97 @@ test_that("fill_proxy_growth works with capitalized time column", {
   expect_false(any(is.na(result$gdp)))
   expect_equal(nrow(result), 4)
 })
+
+# Sort reuse tests ---------------------------------------------------------
+
+test_that(".is_sorted_by detects sorted and unsorted data", {
+  sorted <- data.frame(a = c(1, 1, 2, 2), b = c(1, 2, 1, 2))
+  unsorted <- data.frame(a = c(2, 1, 1, 2), b = c(1, 2, 1, 2))
+  ties <- data.frame(a = c(1, 1, 1), b = c(3, 2, 1))
+
+  expect_true(whep:::.is_sorted_by(sorted, c("a", "b")))
+  expect_false(whep:::.is_sorted_by(unsorted, c("a", "b")))
+  expect_false(whep:::.is_sorted_by(ties, c("a", "b")))
+  expect_true(whep:::.is_sorted_by(ties, "a"))
+})
+
+test_that("fill_proxy_growth gives identical results regardless of input order", {
+  # Same data, two row orders.
+  df_sorted <- tibble::tribble(
+    ~area, ~year, ~food, ~feed, ~proxy,
+    "A",   2000,   10,    5,    100,
+    "A",   2001,   NA,   NA,    110,
+    "A",   2002,   12,    6,    120,
+    "B",   2000,   20,   10,    200,
+    "B",   2001,   NA,   NA,    210,
+    "B",   2002,   22,   11,    220,
+  )
+  df_unsorted <- df_sorted[c(4:6, 1:3), ]
+
+  run_chain <- function(df) {
+    r <- whep::fill_proxy_growth(
+      df,
+      food,
+      proxy_col = "proxy",
+      time_col = year,
+      .by = "area",
+      verbose = FALSE
+    )
+    whep::fill_proxy_growth(
+      r,
+      feed,
+      proxy_col = "proxy",
+      time_col = year,
+      .by = "area",
+      verbose = FALSE
+    )
+  }
+
+  res_sorted <- run_chain(df_sorted)
+  res_unsorted <- run_chain(df_unsorted)
+
+  # Align row order for comparison — results should match by key.
+  key <- c("area", "year")
+  compare <- function(x) {
+    x <- x[do.call(order, x[key]), ]
+    rownames(x) <- NULL
+    x
+  }
+
+  expect_equal(compare(res_sorted), compare(res_unsorted))
+})
+
+test_that("fill_proxy_growth preserves sort order through chained calls", {
+  df <- tibble::tribble(
+    ~area, ~year, ~food, ~feed, ~proxy,
+    "A",   2000,   10,    5,    100,
+    "A",   2001,   NA,   NA,    110,
+    "A",   2002,   12,    6,    120,
+    "B",   2000,   20,   10,    200,
+    "B",   2001,   NA,   NA,    210,
+    "B",   2002,   22,   11,    220,
+  )
+
+  sort_cols <- c("area", "year")
+  expect_true(whep:::.is_sorted_by(df, sort_cols))
+
+  r1 <- whep::fill_proxy_growth(
+    df,
+    food,
+    proxy_col = "proxy",
+    time_col = year,
+    .by = "area",
+    verbose = FALSE
+  )
+  expect_true(whep:::.is_sorted_by(r1, sort_cols))
+
+  r2 <- whep::fill_proxy_growth(
+    r1,
+    feed,
+    proxy_col = "proxy",
+    time_col = year,
+    .by = "area",
+    verbose = FALSE
+  )
+  expect_true(whep:::.is_sorted_by(r2, sort_cols))
+})

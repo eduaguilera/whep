@@ -142,30 +142,63 @@
     data.table::setalloccol(df)
   }
   data.table::setkeyv(df, c(by, time_col))
-  df[,
-    c("qc_carry_forward", "qc_spike") := {
-      val <- get(value_col)
-      # carry-forward: constant tail of length >= min_run
-      last_val <- val[.N]
-      from_end <- rev(cumsum(rev(val != last_val)))
-      run_len <- sum(from_end == 0)
-      cf <- from_end == 0 &
-        run_len >= min_run &
-        val != 0 &
-        !is.na(val)
-      # spike: year-on-year ratio beyond threshold
-      prev <- data.table::shift(val, 1L, type = "lag")
-      ratio <- val / prev
-      sp <- !is.na(ratio) &
-        is.finite(ratio) &
-        (abs(ratio) > spike_ratio |
-          abs(ratio) < 1 / spike_ratio) &
-        val > spike_min &
-        prev > spike_min
-      list(cf, sp)
-    },
-    by = by
-  ]
+
+  nn <- nrow(df)
+  val <- df[[value_col]]
+  grp <- data.table::rleidv(df, cols = by)
+
+  # -- Carry-forward: detect constant tails >= min_run --
+  # Get last value per group
+  grp_boundary <- c(diff(grp) != 0L, TRUE)
+  grp_end_idx <- which(grp_boundary)
+  last_val <- val[grp_end_idx][grp]
+
+  # differs[i] = 1 if val[i] != last_val (or NA), 0 otherwise
+  differs <- as.integer(is.na(val) | is.na(last_val) | val != last_val)
+
+  # Reverse cumsum within groups: count mismatches from i to end
+  # Using nafill trick: set group starts to 0, reverse-cumsum
+  rev_idx <- nn:1L
+  rev_differs <- differs[rev_idx]
+  rev_grp <- grp[rev_idx]
+  # Reset cumsum at group boundaries (in reversed order)
+  rev_cs <- cumsum(rev_differs)
+  # Subtract cumsum at each group start to get within-group cumsum
+  rev_grp_start <- c(TRUE, diff(rev_grp) != 0L)
+  # Offset per group: cumsum just before each group started
+  offset <- rev_cs - rev_differs
+  offset[rev_grp_start] <- rev_cs[rev_grp_start] - rev_differs[rev_grp_start]
+  grp_offset <- integer(nn)
+  grp_offset[rev_grp_start] <- offset[rev_grp_start]
+  grp_offset <- cummax(grp_offset)
+  from_end_rev <- rev_cs - grp_offset
+  from_end <- integer(nn)
+  from_end[rev_idx] <- from_end_rev
+
+  # Tail length per group: count of rows where from_end == 0
+  is_tail <- from_end == 0L
+  # Count tail per group using group-end sums
+  tail_counts <- tabulate(grp[is_tail], nbins = length(grp_end_idx))
+  run_len <- tail_counts[grp]
+
+  cf <- is_tail &
+    run_len >= min_run &
+    val != 0 &
+    !is.na(val)
+  data.table::set(df, j = "qc_carry_forward", value = cf)
+
+  # -- Spike: year-on-year ratio beyond threshold --
+  prev <- c(NA_real_, val[-nn])
+  first_of_grp <- c(TRUE, diff(grp) != 0L)
+  prev[first_of_grp] <- NA_real_
+  ratio <- val / prev
+  sp <- !is.na(ratio) &
+    is.finite(ratio) &
+    (abs(ratio) > spike_ratio |
+      abs(ratio) < 1 / spike_ratio) &
+    val > spike_min &
+    prev > spike_min
+  data.table::set(df, j = "qc_spike", value = sp)
   df
 }
 
