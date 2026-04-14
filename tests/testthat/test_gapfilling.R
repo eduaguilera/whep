@@ -1050,14 +1050,16 @@ test_that("fill_proxy_growth gives identical results regardless of input order",
 
   run_chain <- function(df) {
     r <- whep::fill_proxy_growth(
-      df, food,
+      df,
+      food,
       proxy_col = "proxy",
       time_col = year,
       .by = "area",
       verbose = FALSE
     )
     whep::fill_proxy_growth(
-      r, feed,
+      r,
+      feed,
       proxy_col = "proxy",
       time_col = year,
       .by = "area",
@@ -1094,7 +1096,8 @@ test_that("fill_proxy_growth preserves sort order through chained calls", {
   expect_true(whep:::.is_sorted_by(df, sort_cols))
 
   r1 <- whep::fill_proxy_growth(
-    df, food,
+    df,
+    food,
     proxy_col = "proxy",
     time_col = year,
     .by = "area",
@@ -1103,7 +1106,8 @@ test_that("fill_proxy_growth preserves sort order through chained calls", {
   expect_true(whep:::.is_sorted_by(r1, sort_cols))
 
   r2 <- whep::fill_proxy_growth(
-    r1, feed,
+    r1,
+    feed,
     proxy_col = "proxy",
     time_col = year,
     .by = "area",
