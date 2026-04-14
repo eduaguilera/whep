@@ -1911,22 +1911,21 @@ build_processing_coefs <- function(
   np[, value := value * share]
   np[, share := NULL]
 
-  # Mark items that have non-processed redistribution
+  # Mark items that have non-processed redistribution (update-join)
   np_keys <- unique(np[, .(year, area, area_code, item_cbs)])
   np_keys[, .has_np := TRUE]
-  tagged <- merge(
-    dt,
+  dt[
     np_keys,
-    by = c("year", "area", "area_code", "item_cbs"),
-    all.x = TRUE,
-    sort = FALSE
-  )
+    .has_np := i..has_np,
+    on = c("year", "area", "area_code", "item_cbs")
+  ]
 
-  ok <- tagged[is.na(.has_np)]
+  ok <- dt[is.na(.has_np)]
   ok[, .has_np := NULL]
 
-  affected <- tagged[!is.na(.has_np)]
+  affected <- dt[!is.na(.has_np)]
   affected[, .has_np := NULL]
+  dt[, .has_np := NULL]
 
   # Combine affected + redistributed, aggregate
   combined <- data.table::rbindlist(
@@ -2424,21 +2423,18 @@ build_processing_coefs <- function(
     .(year, area, area_code, item_cbs, item_cbs_code, domestic_supply = value)
   ]
 
-  out <- merge(
-    dt,
+  # Update-join: add columns in-place instead of merge+copy
+  dt[
     global_shares,
-    by = c("year", "item_cbs", "item_cbs_code", "element", "elem_cat"),
-    all.x = TRUE,
-    sort = FALSE
-  )
-
-  merge(
-    out,
+    dest_share_global := i.dest_share_global,
+    on = c("year", "item_cbs", "item_cbs_code", "element", "elem_cat")
+  ]
+  dt[
     ds,
-    by = c("year", "area", "area_code", "item_cbs", "item_cbs_code"),
-    all.x = TRUE,
-    sort = FALSE
-  )
+    domestic_supply := i.domestic_supply,
+    on = c("year", "area", "area_code", "item_cbs", "item_cbs_code")
+  ]
+  dt
 }
 
 # -- Second round of processed products ---------------------------------------
