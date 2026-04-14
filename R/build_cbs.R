@@ -1236,81 +1236,75 @@ build_processing_coefs <- function(
 
   dt_raw <- data.table::as.data.table(cbs_raw_all)
   dt_raw <- dt_raw[!is.na(area), c(key_cols, "source", "value"), with = FALSE]
+
+  # Pivot only primary sources (3 cols) instead of all sources.
+  # Avoids expensive frankv over many source columns.
+  primary_sources <- c("FAOSTAT_prod", "FAOSTAT_FBS_New", "FAOSTAT_FBS_Old")
+  src_pivot <- dt_raw[source %in% primary_sources]
   wide <- data.table::dcast(
-    dt_raw,
+    src_pivot,
     stats::as.formula(paste(
       paste(key_cols, collapse = " + "),
       "~ source"
     )),
-    value.var = "value"
+    value.var = "value",
+    fill = NA
   )
-  wide <- tibble::as_tibble(wide)
+  for (col in setdiff(primary_sources, names(wide))) {
+    wide[, (col) := NA_real_]
+  }
 
-  # Ensure expected columns exist even if a source is absent
-  for (col in c("FAOSTAT_prod", "FAOSTAT_FBS_New", "FAOSTAT_FBS_Old")) {
-    if (!col %in% names(wide)) wide[[col]] <- NA_real_
+  # Mean of non-primary sources (computed separately)
+  other_dt <- dt_raw[
+    !source %in% primary_sources & !is.na(value),
+    .(other_mean = mean(value, na.rm = TRUE)),
+    by = key_cols
+  ]
+  wide[other_dt, other_mean := i.other_mean, on = key_cols]
+
+  # Ensure all keys are present (some may only have non-primary sources)
+  other_only <- dt_raw[
+    !source %in% primary_sources,
+    key_cols,
+    with = FALSE
+  ]
+  other_only <- other_only[!wide, on = key_cols]
+  if (nrow(other_only) > 0L) {
+    other_only <- unique(other_only)
+    other_only[other_dt, other_mean := i.other_mean, on = key_cols]
+    wide <- data.table::rbindlist(
+      list(wide, other_only),
+      use.names = TRUE,
+      fill = TRUE
+    )
   }
 
   # --- Harmonize old and new FBS ---
   # Trust FBS_New as the reference. In the overlap period (2010-2013),
   # compute a scaling ratio to align FBS_Old to FBS_New level, then
   # apply it to all FBS_Old years for a smooth transition.
-  overlap_ratio <- wide |>
-    dplyr::filter(
-      year >= 2010L,
-      year <= 2013L,
-      !is.na(FAOSTAT_FBS_New),
-      !is.na(FAOSTAT_FBS_Old),
+  overlap <- wide[
+    year >= 2010L &
+      year <= 2013L &
+      !is.na(FAOSTAT_FBS_New) &
+      !is.na(FAOSTAT_FBS_Old) &
       FAOSTAT_FBS_Old != 0
-    ) |>
-    dplyr::summarise(
+  ]
+  overlap_ratio <- overlap[,
+    .(
       scale_new_old = stats::median(
         FAOSTAT_FBS_New / FAOSTAT_FBS_Old,
         na.rm = TRUE
-      ),
-      .by = dplyr::all_of(group_cols)
-    ) |>
-    dplyr::filter(is.finite(scale_new_old))
-
-  if (!data.table::is.data.table(wide)) {
-    data.table::setDT(wide)
-  }
-  if (!data.table::is.data.table(overlap_ratio)) {
-    data.table::setDT(overlap_ratio)
-  }
-  wide <- merge(
-    wide,
-    overlap_ratio,
-    by = group_cols,
-    all.x = TRUE,
-    sort = FALSE
-  )
-
-  # Compute fallback from other sources (CBS, Trade, etc.)
-  other_src_cols <- setdiff(
-    names(wide),
-    c(
-      key_cols,
-      "FAOSTAT_prod",
-      "FAOSTAT_FBS_New",
-      "FAOSTAT_FBS_Old",
-      "scale_new_old"
-    )
-  )
-  if (length(other_src_cols) > 0L) {
-    other_mat <- as.matrix(wide[, other_src_cols, with = FALSE])
-    other_n <- rowSums(!is.na(other_mat))
-    other_s <- rowSums(other_mat, na.rm = TRUE)
-    wide[,
-      other_mean := data.table::fifelse(
-        other_n > 0,
-        other_s / other_n,
-        NA_real_
       )
-    ]
-  } else {
-    wide[, other_mean := NA_real_]
-  }
+    ),
+    by = group_cols
+  ][is.finite(scale_new_old)]
+
+  wide[
+    overlap_ratio,
+    scale_new_old := i.scale_new_old,
+    on = group_cols
+  ]
 
   # Scale FBS_Old to match FBS_New level
   wide[,
