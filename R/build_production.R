@@ -373,7 +373,7 @@ build_primary_production <- function(
 
   dt <- .read_input("luh2-areas", years = years, year_col = "Year")
   data.table::setnames(dt, c("ISO3", "Year"), c("iso3c", "year"))
-  dt <- merge(dt, regions, by = "iso3c", all.x = TRUE)
+  dt <- merge(dt, regions, by = "iso3c", all.x = TRUE, sort = FALSE)
   unmatched <- unique(dt[is.na(area), iso3c])
   if (length(unmatched) > 0) {
     cli::cli_warn(
@@ -381,7 +381,14 @@ build_primary_production <- function(
     )
   }
   dt <- dt[!is.na(area)]
-  dt <- merge(dt, polities, by.x = "polity_code", by.y = "iso3c", all.x = TRUE)
+  dt <- merge(
+    dt,
+    polities,
+    by.x = "polity_code",
+    by.y = "iso3c",
+    all.x = TRUE,
+    sort = FALSE
+  )
   dt[, polity_code := NULL]
   dt <- dt[year > 1849]
   dt
@@ -401,7 +408,7 @@ build_primary_production <- function(
   dt <- dt[
     year < 1962 & !is.na(yield) & yield != 0 & yield < 100
   ]
-  dt <- merge(dt, regions, by = "code", all.x = TRUE)
+  dt <- merge(dt, regions, by = "code", all.x = TRUE, sort = FALSE)
   data.table::setnames(dt, "polity_name", "area")
   dt <- dt[,
     .(yield = mean(yield, na.rm = TRUE)),
@@ -464,13 +471,15 @@ build_primary_production <- function(
     dt,
     items_prod[, .(item_prod_code, item_cbs)],
     by = "item_prod_code",
-    all.x = TRUE
+    all.x = TRUE,
+    sort = FALSE
   )
   dt <- merge(
     dt,
     unique(items[, .(item_cbs, Cat_1)]),
     by = "item_cbs",
-    all.x = TRUE
+    all.x = TRUE,
+    sort = FALSE
   )
   dt[Cat_1 == "Fodder_green"]
 }
@@ -679,7 +688,8 @@ build_primary_production <- function(
     ),
     dt,
     by = c("year", grp_cols),
-    all.x = TRUE
+    all.x = TRUE,
+    sort = FALSE
   )
 
   # Three fill_linear calls sharing one sort — first call sets key,
@@ -725,9 +735,15 @@ build_primary_production <- function(
     .(Name_biomass, Product_kgDM_kgFM, Product_kgN_kgDM)
   ]
 
-  dt <- merge(dt, dm_dt, by = c("year", "area_code"), all.x = TRUE)
-  dt <- merge(dt, items_dt, by = "item_prod", all.x = TRUE)
-  dt <- merge(dt, bio_dt, by = "Name_biomass", all.x = TRUE)
+  dt <- merge(
+    dt,
+    dm_dt,
+    by = c("year", "area_code"),
+    all.x = TRUE,
+    sort = FALSE
+  )
+  dt <- merge(dt, items_dt, by = "item_prod", all.x = TRUE, sort = FALSE)
+  dt <- merge(dt, bio_dt, by = "Name_biomass", all.x = TRUE, sort = FALSE)
 
   dt[, `:=`(
     t_euadb = ha * kgnha_euadb / (Product_kgN_kgDM * Product_kgDM_kgFM * 1000),
@@ -1365,7 +1381,8 @@ build_primary_production <- function(
     dt,
     global,
     by = c("year", "item_prod_code", "live_anim_code", "unit"),
-    all.x = TRUE
+    all.x = TRUE,
+    sort = FALSE
   )
 }
 
@@ -1786,7 +1803,8 @@ build_primary_production <- function(
     data.table::as.data.table(pre),
     data.table::as.data.table(land_wide),
     by = c("year", "area"),
-    all.x = TRUE
+    all.x = TRUE,
+    sort = FALSE
   )
   pre[, `:=`(
     value_cropland = value,
@@ -1856,7 +1874,8 @@ build_primary_production <- function(
     years_dt,
     keys_dt,
     by = ".cross_key",
-    allow.cartesian = TRUE
+    allow.cartesian = TRUE,
+    sort = FALSE
   )
   skeleton[, .cross_key := NULL]
 
@@ -1864,7 +1883,8 @@ build_primary_production <- function(
     skeleton,
     dt,
     by = c("year", id_cols),
-    all.x = TRUE
+    all.x = TRUE,
+    sort = FALSE
   )
 }
 
@@ -1957,7 +1977,8 @@ build_primary_production <- function(
     wide,
     src_lookup,
     by = c("year", "area", "area_code", "item_prod", "item_prod_code"),
-    all.x = TRUE
+    all.x = TRUE,
+    sort = FALSE
   )
   wide <- merge(
     wide,
@@ -1967,7 +1988,8 @@ build_primary_production <- function(
       data.table::as.data.table(int_yields)
     },
     by = c("year", "area", "item_prod_code"),
-    all.x = TRUE
+    all.x = TRUE,
+    sort = FALSE
   )
 
   wide[, t_ha_raw := tonnes / ha]
@@ -2007,7 +2029,7 @@ build_primary_production <- function(
       df[!is.na(df[[col]]), cols, with = FALSE],
       by = by_cols
     )
-    result <- merge(result, part, by = by_cols, all.x = TRUE)
+    result <- merge(result, part, by = by_cols, all.x = TRUE, sort = FALSE)
   }
   result
 }
@@ -2024,7 +2046,7 @@ build_primary_production <- function(
 .cross_join <- function(x, y) {
   x[, .cross := 1L]
   y[, .cross := 1L]
-  out <- merge(x, y, by = ".cross", allow.cartesian = TRUE)
+  out <- merge(x, y, by = ".cross", allow.cartesian = TRUE, sort = FALSE)
   out[, .cross := NULL]
   out
 }

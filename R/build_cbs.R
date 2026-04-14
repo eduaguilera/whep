@@ -603,14 +603,21 @@ build_processing_coefs <- function(
     cbs_tc[, .(item_code_trade, item_cbs)],
     items,
     by = "item_cbs",
-    all.x = TRUE
+    all.x = TRUE,
+    sort = FALSE
   )
   trade_bridge <- unique(
     trade_bridge[!is.na(item_cbs_code), .(item_code_trade, item_cbs_code)]
   )
 
   dt <- data.table::copy(fao_trade)
-  dt <- merge(dt, trade_bridge, by = "item_code_trade", all.x = TRUE)
+  dt <- merge(
+    dt,
+    trade_bridge,
+    by = "item_code_trade",
+    all.x = TRUE,
+    sort = FALSE
+  )
   dt <- dt[!is.na(item_cbs_code) & element %in% c("import", "export")]
   dt[,
     .(value = sum(value, na.rm = TRUE)),
@@ -705,11 +712,18 @@ build_processing_coefs <- function(
     regions[, .(iso3c, area = polity_name, polity_code)],
     by = "iso3c"
   )
-  dt <- merge(dt, region_bridge, by = "iso3c", all.x = TRUE)
-  dt <- merge(dt, polities, by.x = "polity_code", by.y = "iso3c", all.x = TRUE)
+  dt <- merge(dt, region_bridge, by = "iso3c", all.x = TRUE, sort = FALSE)
+  dt <- merge(
+    dt,
+    polities,
+    by.x = "polity_code",
+    by.y = "iso3c",
+    all.x = TRUE,
+    sort = FALSE
+  )
   dt[, polity_code := NULL]
-  dt <- merge(dt, cbs_trade, by = "item_code_trade", all.x = TRUE)
-  dt <- merge(dt, items, by = "item_cbs", all.x = TRUE)
+  dt <- merge(dt, cbs_trade, by = "item_code_trade", all.x = TRUE, sort = FALSE)
+  dt <- merge(dt, items, by = "item_cbs", all.x = TRUE, sort = FALSE)
 
   dt <- dt[,
     .(value = sum(value, na.rm = TRUE)),
@@ -808,7 +822,7 @@ build_processing_coefs <- function(
     .(item_cbs, item_cbs_code)
   ]
   items_bridge <- unique(items_bridge, by = c("item_cbs", "item_cbs_code"))
-  dt <- merge(dt, items_bridge, by = "item_cbs", all.x = TRUE)
+  dt <- merge(dt, items_bridge, by = "item_cbs", all.x = TRUE, sort = FALSE)
 
   dt <- dt[,
     .(value = sum(value, na.rm = TRUE)),
@@ -823,8 +837,15 @@ build_processing_coefs <- function(
     .(iso3c, polity_area_code = area_code)
   ]
 
-  dt <- merge(dt, regions, by = "area_code", all = FALSE)
-  dt <- merge(dt, polities, by.x = "polity_code", by.y = "iso3c", all.x = TRUE)
+  dt <- merge(dt, regions, by = "area_code", all = FALSE, sort = FALSE)
+  dt <- merge(
+    dt,
+    polities,
+    by.x = "polity_code",
+    by.y = "iso3c",
+    all.x = TRUE,
+    sort = FALSE
+  )
 
   dt <- dt[,
     .(value = sum(value, na.rm = TRUE)),
@@ -1244,7 +1265,13 @@ build_processing_coefs <- function(
   if (!data.table::is.data.table(overlap_ratio)) {
     data.table::setDT(overlap_ratio)
   }
-  wide <- merge(wide, overlap_ratio, by = group_cols, all.x = TRUE)
+  wide <- merge(
+    wide,
+    overlap_ratio,
+    by = group_cols,
+    all.x = TRUE,
+    sort = FALSE
+  )
 
   # Compute fallback from other sources (CBS, Trade, etc.)
   other_src_cols <- setdiff(
@@ -1373,7 +1400,8 @@ build_processing_coefs <- function(
     years_dt,
     keys_dt,
     by = ".cross_key",
-    allow.cartesian = TRUE
+    allow.cartesian = TRUE,
+    sort = FALSE
   )
   skeleton[, .cross_key := NULL]
 
@@ -1381,7 +1409,8 @@ build_processing_coefs <- function(
     skeleton,
     dt,
     by = c("year", id_cols),
-    all.x = TRUE
+    all.x = TRUE,
+    sort = FALSE
   )
 }
 
@@ -1876,7 +1905,8 @@ build_processing_coefs <- function(
     np,
     shares,
     by = c("year", "area", "area_code", "item_cbs", "item_cbs_code"),
-    all.x = TRUE
+    all.x = TRUE,
+    sort = FALSE
   )
   np[, value := value * share]
   np[, share := NULL]
@@ -1888,7 +1918,8 @@ build_processing_coefs <- function(
     dt,
     np_keys,
     by = c("year", "area", "area_code", "item_cbs"),
-    all.x = TRUE
+    all.x = TRUE,
+    sort = FALSE
   )
 
   ok <- tagged[is.na(.has_np)]
@@ -1946,7 +1977,13 @@ build_processing_coefs <- function(
 
   # Recombine — add item_cbs_code to fixed before binding
   items_bridge <- unique(dt[, .(item_cbs, item_cbs_code)])
-  fixed <- merge(fixed, items_bridge, by = "item_cbs", all.x = TRUE)
+  fixed <- merge(
+    fixed,
+    items_bridge,
+    by = "item_cbs",
+    all.x = TRUE,
+    sort = FALSE
+  )
   out <- data.table::rbindlist(
     list(
       ok[, .(year, area, area_code, item_cbs, item_cbs_code, element, value)],
@@ -1958,7 +1995,8 @@ build_processing_coefs <- function(
     out,
     src_lookup,
     by = c("year", "area_code", "item_cbs_code", "element"),
-    all.x = TRUE
+    all.x = TRUE,
+    sort = FALSE
   )
 }
 
@@ -2216,7 +2254,7 @@ build_processing_coefs <- function(
   items <- unique(items, by = "item_cbs")
 
   dt <- data.table::as.data.table(destiny)
-  dt <- merge(dt, items, by = "item_cbs", all.x = TRUE)
+  dt <- merge(dt, items, by = "item_cbs", all.x = TRUE, sort = FALSE)
 
   grp <- c("year", "area", "area_code", "item_cbs", "item_cbs_code")
   dt[, sum_dests := sum(value, na.rm = TRUE), by = grp]
@@ -2319,7 +2357,13 @@ build_processing_coefs <- function(
     fill = TRUE
   )
 
-  out <- merge(skeleton, destiny_dedup, by = join_keys, all.x = TRUE)
+  out <- merge(
+    skeleton,
+    destiny_dedup,
+    by = join_keys,
+    all.x = TRUE,
+    sort = FALSE
+  )
   fill_linear(out, dest_share, time_col = year, .by = by_cols, .copy = FALSE)
 }
 
@@ -2384,14 +2428,16 @@ build_processing_coefs <- function(
     dt,
     global_shares,
     by = c("year", "item_cbs", "item_cbs_code", "element", "elem_cat"),
-    all.x = TRUE
+    all.x = TRUE,
+    sort = FALSE
   )
 
   merge(
     out,
     ds,
     by = c("year", "area", "area_code", "item_cbs", "item_cbs_code"),
-    all.x = TRUE
+    all.x = TRUE,
+    sort = FALSE
   )
 }
 
@@ -2741,7 +2787,13 @@ build_processing_coefs <- function(
     dplyr::filter(year %in% years) |>
     dplyr::select(-dplyr::any_of("source")) |>
     .test_cbs()
-  cbs_raw8 <- merge(cbs_raw8, items_dd, by = "item_cbs", all.x = TRUE)
+  cbs_raw8 <- merge(
+    cbs_raw8,
+    items_dd,
+    by = "item_cbs",
+    all.x = TRUE,
+    sort = FALSE
+  )
   cbs_raw8[,
     `:=`(
       domestic_supply = pmax(domestic_supply, 0),
@@ -2756,7 +2808,13 @@ build_processing_coefs <- function(
   cbs_raw8 <- .untest_cbs(cbs_raw8)
 
   cbs_out <- .test_cbs(cbs_raw8)
-  cbs_out <- merge(cbs_out, items_dd, by = "item_cbs", all.x = TRUE)
+  cbs_out <- merge(
+    cbs_out,
+    items_dd,
+    by = "item_cbs",
+    all.x = TRUE,
+    sort = FALSE
+  )
   dp_mask <- cbs_out$check == FALSE &
     cbs_out$destiny_replacement == "default_prone"
   cbs_out[
@@ -2789,6 +2847,7 @@ build_processing_coefs <- function(
     cbs_out,
     src_lookup,
     by = c("year", "area_code", "item_cbs_code", "element"),
-    all.x = TRUE
+    all.x = TRUE,
+    sort = FALSE
   )
 }
