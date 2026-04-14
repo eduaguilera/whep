@@ -1567,15 +1567,19 @@ build_processing_coefs <- function(
 }
 
 .fill_with_proxies <- function(df, gdp_pop, land_wide) {
-  df |>
-    dplyr::left_join(
-      gdp_pop |> dplyr::select(year, area, pop),
-      by = c("year", "area")
-    ) |>
-    dplyr::left_join(
-      land_wide,
-      by = c("year", "area")
-    ) |>
+  sort_cols <- c("area", "item_cbs", "year")
+
+  # Join auxiliary columns first, then sort once for all four fills.
+  dt <- data.table::as.data.table(df)
+  pop_dt <- data.table::as.data.table(gdp_pop)[, .(year, area, pop)]
+  land_dt <- data.table::as.data.table(land_wide)
+  dt <- merge(dt, pop_dt, by = c("year", "area"), all.x = TRUE, sort = FALSE)
+  dt <- merge(dt, land_dt, by = c("year", "area"), all.x = TRUE, sort = FALSE)
+  data.table::setorderv(dt, sort_cols)
+
+  # Four consecutive fills sharing the sort established above.
+  # .is_sorted_by detects sorted state; merge(sort=FALSE) preserves it.
+  as.data.frame(dt) |>
     fill_proxy_growth(
       value_col = food,
       proxy_col = "pop",
@@ -1833,7 +1837,7 @@ build_processing_coefs <- function(
 .extract_source_lookup <- function(df) {
   dt <- if (data.table::is.data.table(df)) df else data.table::as.data.table(df)
   by_cols <- c("year", "area_code", "item_cbs_code", "element")
-  dt[, .(source = source[1L]), by = by_cols]
+  unique(dt[, c(by_cols, "source"), with = FALSE], by = by_cols)
 }
 
 # -- Redistribute non-processed ------------------------------------------------

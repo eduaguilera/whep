@@ -60,11 +60,7 @@ Look at the profile output. Common bottlenecks in this codebase:
 
 - `forderv` — data.table sorting. Reduce by ensuring data stays sorted
   across operations, combining grouped passes, using `setkeyv` wisely.
-- `copy` — defensive `data.table::copy()` calls. Eliminate where the
-  caller owns the data and mutation is safe.
-- `Table__from_ExecPlanReader` — Arrow parquet reads. Reduce columns
-  selected, filter earlier, avoid redundant reads.
-- `bmerge` / `vctrs::vec_locate_matches` — joins. Pre-sort keys,
+- `bmerge`— joins. Pre-sort keys,
   replace dplyr joins with data.table joins where overhead is high.
 - Redundant operations — steps that compute the same thing twice,
   unnecessary intermediate tibbles, etc.

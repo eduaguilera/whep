@@ -340,6 +340,29 @@ fill_linear <- function(
   tibble::as_tibble(as.data.frame(dt))
 }
 
+# Check if a data.frame is already sorted by the given columns.
+# Vectorized O(n × k) lexicographic check — no sorting required.
+.is_sorted_by <- function(data, cols) {
+  n <- nrow(data)
+  if (n <= 1L) {
+    return(TRUE)
+  }
+  ties <- rep(TRUE, n - 1L)
+  for (col in cols) {
+    if (!any(ties)) {
+      return(TRUE)
+    }
+    x <- data[[col]]
+    prev <- x[-n]
+    curr <- x[-1L]
+    if (any(ties & (curr < prev), na.rm = TRUE)) {
+      return(FALSE)
+    }
+    ties <- ties & (curr == prev)
+  }
+  TRUE
+}
+
 # Base R vectorized core for fill_linear (no dplyr)
 .fill_linear_vec <- function(
   orig_vals,
@@ -986,7 +1009,13 @@ fill_proxy_growth <- function(
 
   dt_data <- data.table::as.data.table(data)
   dt_summary <- data.table::as.data.table(summary_dt)
-  result <- merge(dt_data, dt_summary, by = join_keys, all.x = TRUE)
+  result <- merge(
+    dt_data,
+    dt_summary,
+    by = join_keys,
+    all.x = TRUE,
+    sort = FALSE
+  )
   as.data.frame(result)
 }
 
@@ -1153,12 +1182,14 @@ fill_proxy_growth <- function(
     .parse_proxy_spec(p, data, value_col, .by, FALSE)$spec_name
   })
 
-  # Save original order, sort by group + time
+  # Save original order, sort by group + time (skip if already sorted)
   data$.orig_order <- seq_len(nrow(data))
   sort_cols <- unique(c(by_cols, time_col))
-  dt <- data.table::as.data.table(data)
-  data.table::setorderv(dt, sort_cols)
-  data <- as.data.frame(dt)
+  if (!.is_sorted_by(data, sort_cols)) {
+    dt <- data.table::as.data.table(data)
+    data.table::setorderv(dt, sort_cols)
+    data <- as.data.frame(dt)
+  }
 
   # Compute run structure from raw_missing (static across all levels)
   data <- .fg_add_run_info(data, cols$raw_missing, by_cols)
@@ -1293,7 +1324,7 @@ fill_proxy_growth <- function(
   ]
 
   data <- as.data.frame(
-    merge(dt, run_meta, by = ".run_id", all.x = TRUE)
+    merge(dt, run_meta, by = ".run_id", all.x = TRUE, sort = FALSE)
   )
 
   data$.is_miss_tmp <- NULL
@@ -1524,7 +1555,13 @@ fill_proxy_growth <- function(
 
   if (nrow(run_anchors) > 0) {
     dt_all <- data.table::as.data.table(data)
-    dt_all <- merge(dt_all, run_anchors, by = ".run_id", all.x = TRUE)
+    dt_all <- merge(
+      dt_all,
+      run_anchors,
+      by = ".run_id",
+      all.x = TRUE,
+      sort = FALSE
+    )
     data <- as.data.frame(dt_all)
     interp <- data$.v0 +
       (data$.v1 - data$.v0) *
@@ -1642,7 +1679,8 @@ fill_proxy_growth <- function(
       dt_all,
       run_meta,
       by = ".run_id",
-      all.x = TRUE
+      all.x = TRUE,
+      sort = FALSE
     )
     data <- as.data.frame(dt_all)
     geo_target <- eligible & !is.na(data$.lambda)

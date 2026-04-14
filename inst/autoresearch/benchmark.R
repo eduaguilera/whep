@@ -17,7 +17,7 @@ devtools::load_all(".")
 
 # ── Config ──────────────────────────────────────────────────────────────────
 # Use a small year range for fast iteration (~25s per run).
-start_year <- 1958L
+start_year <- 1900L
 end_year <- 1965L
 
 # ── Run ─────────────────────────────────────────────────────────────────────

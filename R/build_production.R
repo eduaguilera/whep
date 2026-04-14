@@ -649,82 +649,60 @@ build_primary_production <- function(
   items_prod,
   biomass
 ) {
-  fodder |>
-    dplyr::filter(!is.na(area)) |>
-    dplyr::summarise(
+  grp_cols <- c(
+    "area",
+    "area_code",
+    "item_prod",
+    "item_prod_code",
+    "Name_Eurostat"
+  )
+
+  dt <- data.table::as.data.table(fodder)
+  dt <- dt[!is.na(area)]
+  dt <- dt[,
+    .(
       t = .sum_if_any(t),
       t_dm = .sum_if_any(t_dm),
       ha = .sum_if_any(ha),
       ha_euadb = .sum_if_any(ha_euadb),
       ha_share = .mean_if_any(ha_share),
-      kgnha_euadb = .mean_if_any(kgnha_euadb),
-      .by = c(
-        year,
-        area,
-        area_code,
-        item_prod,
-        item_prod_code,
-        Name_Eurostat
-      )
-    ) |>
-    tidyr::complete(
-      year,
-      tidyr::nesting(
-        area,
-        area_code,
-        item_prod,
-        item_prod_code,
-        Name_Eurostat
-      )
-    ) |>
-    fill_linear(
-      ha_share,
-      time_col = year,
-      .by = c(
-        "area",
-        "area_code",
-        "item_prod",
-        "item_prod_code",
-        "Name_Eurostat"
-      )
-    ) |>
-    fill_linear(
-      kgnha_euadb,
-      time_col = year,
-      .by = c(
-        "area",
-        "area_code",
-        "item_prod",
-        "item_prod_code",
-        "Name_Eurostat"
-      )
-    ) |>
-    dplyr::mutate(
-      ha = dplyr::if_else(
-        is.na(ha_euadb),
-        ha,
-        ha_euadb * ha_share
-      ),
-      .by = c(
-        area,
-        area_code,
-        item_prod,
-        item_prod_code,
-        Name_Eurostat
-      )
-    ) |>
-    fill_linear(
-      ha,
-      time_col = year,
-      .by = c(
-        "area",
-        "area_code",
-        "item_prod",
-        "item_prod_code",
-        "Name_Eurostat"
-      )
-    ) |>
-    dplyr::select(
+      kgnha_euadb = .mean_if_any(kgnha_euadb)
+    ),
+    by = c("year", grp_cols)
+  ]
+
+  # tidyr::complete equivalent: cross join all years x all group combos
+  dt <- merge(
+    .cross_join(
+      dt[, .(year = unique(year))],
+      unique(dt[, ..grp_cols])
+    ),
+    dt,
+    by = c("year", grp_cols),
+    all.x = TRUE
+  )
+
+  # Three fill_linear calls sharing one sort — first call sets key,
+  # subsequent calls see key already set and skip setkeyv.
+  dt <- fill_linear(
+    dt,
+    ha_share,
+    time_col = year,
+    .by = grp_cols,
+    .copy = FALSE
+  )
+  dt <- fill_linear(
+    dt,
+    kgnha_euadb,
+    time_col = year,
+    .by = grp_cols,
+    .copy = FALSE
+  )
+  dt[, ha := data.table::fifelse(is.na(ha_euadb), ha, ha_euadb * ha_share)]
+  dt <- fill_linear(dt, ha, time_col = year, .by = grp_cols, .copy = FALSE)
+
+  dt <- dt[,
+    .(
       year,
       area,
       area_code,
@@ -735,41 +713,36 @@ build_primary_production <- function(
       ha_share,
       ha,
       kgnha_euadb
-    ) |>
-    dplyr::left_join(
-      dm_yield |> dplyr::select(year, area_code, yield_dm),
-      by = c("year", "area_code")
-    ) |>
-    dplyr::left_join(
-      items_prod |> dplyr::select(item_prod, Name_biomass),
-      by = "item_prod"
-    ) |>
-    dplyr::left_join(
-      biomass |>
-        dplyr::select(
-          Name_biomass,
-          Product_kgDM_kgFM,
-          Product_kgN_kgDM
-        ),
-      by = "Name_biomass"
-    ) |>
-    dplyr::mutate(
-      t_euadb = ha *
-        kgnha_euadb /
-        (Product_kgN_kgDM * Product_kgDM_kgFM * 1000),
-      t_dmbased = ha * yield_dm / Product_kgDM_kgFM,
-      t_2 = dplyr::if_else(
-        !is.na(t_euadb),
-        t_euadb,
-        t_dmbased
-      ),
-      source = dplyr::case_when(
-        !is.na(t) ~ "FAOSTAT_prod",
-        !is.na(t_euadb) ~ "EuropeAgriDB",
-        TRUE ~ "DM_yield_estimate"
-      )
-    ) |>
-    dplyr::filter(!is.na(item_prod), !is.na(t_2))
+    )
+  ]
+
+  dm_dt <- data.table::as.data.table(dm_yield)[, .(year, area_code, yield_dm)]
+  items_dt <- data.table::as.data.table(items_prod)[, .(
+    item_prod,
+    Name_biomass
+  )]
+  bio_dt <- data.table::as.data.table(biomass)[,
+    .(Name_biomass, Product_kgDM_kgFM, Product_kgN_kgDM)
+  ]
+
+  dt <- merge(dt, dm_dt, by = c("year", "area_code"), all.x = TRUE)
+  dt <- merge(dt, items_dt, by = "item_prod", all.x = TRUE)
+  dt <- merge(dt, bio_dt, by = "Name_biomass", all.x = TRUE)
+
+  dt[, `:=`(
+    t_euadb = ha * kgnha_euadb / (Product_kgN_kgDM * Product_kgDM_kgFM * 1000),
+    t_dmbased = ha * yield_dm / Product_kgDM_kgFM
+  )]
+  dt[, t_2 := data.table::fifelse(!is.na(t_euadb), t_euadb, t_dmbased)]
+  dt[,
+    source := data.table::fcase(
+      !is.na(t)       , "FAOSTAT_prod" ,
+      !is.na(t_euadb) , "EuropeAgriDB" ,
+      default = "DM_yield_estimate"
+    )
+  ]
+
+  tibble::as_tibble(dt[!is.na(item_prod) & !is.na(t_2)])
 }
 
 .correct_tea <- function(df) {
@@ -2045,6 +2018,15 @@ build_primary_production <- function(
 
 .mean_if_any <- function(x) {
   if (anyNA(x) && all(is.na(x))) NA_real_ else mean(x, na.rm = TRUE)
+}
+
+# Cross join two data.tables (cartesian product of all rows).
+.cross_join <- function(x, y) {
+  x[, .cross := 1L]
+  y[, .cross := 1L]
+  out <- merge(x, y, by = ".cross", allow.cartesian = TRUE)
+  out[, .cross := NULL]
+  out
 }
 
 .finalise_primary <- function(df) {
