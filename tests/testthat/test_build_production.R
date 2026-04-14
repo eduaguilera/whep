@@ -280,34 +280,7 @@ test_that(".show_prod_duplicates returns wide format of competing sources", {
 })
 
 test_that("build_primary_production output has no duplicate keys", {
-  raw <- tibble::tribble(
-    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code,
-    ~item_cbs, ~item_cbs_code, ~live_anim, ~live_anim_code,
-    ~unit, ~value, ~source,
-    2000L, "Spain", 203L, "Wheat", "15",
-    "Wheat", 2511L, NA_character_, NA_character_,
-    "tonnes", 5000, "FAOSTAT_prod",
-    2000L, "Spain", 203L, "Wheat", "15",
-    "Wheat", 2511L, NA_character_, NA_character_,
-    "ha", 200, "FAOSTAT_prod",
-    2001L, "Spain", 203L, "Wheat", "15",
-    "Wheat", 2511L, NA_character_, NA_character_,
-    "tonnes", 5500, "FAOSTAT_prod",
-    2001L, "Spain", 203L, "Wheat", "15",
-    "Wheat", 2511L, NA_character_, NA_character_,
-    "ha", 210, "FAOSTAT_prod",
-    2000L, "France", 68L, "Maize", "56",
-    "Maize", 2514L, NA_character_, NA_character_,
-    "tonnes", 3000, "FAOSTAT_prod",
-    2000L, "France", 68L, "Maize", "56",
-    "Maize", 2514L, NA_character_, NA_character_,
-    "ha", 150, "FAOSTAT_prod"
-  )
-  result <- whep::build_primary_production(
-    start_year = 2000,
-    end_year = 2001,
-    raw_data = raw
-  )
+  result <- whep::build_primary_production(example = TRUE)
   keys <- dplyr::select(
     result,
     year,

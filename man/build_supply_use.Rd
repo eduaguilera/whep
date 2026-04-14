@@ -22,12 +22,7 @@ details see e.g. \code{add_area_name()}.
 \item \code{crop_production}: Production of crops and their residues, e.g. rice
 production, coconut production, etc.
 \item \code{husbandry}: Animal husbandry, e.g. dairy cattle husbandry, non-dairy
-cattle husbandry, layers chickens farming, etc. Husbandry processes
-take feed as input and produce live animals and non-slaughter livestock
-products (milk, eggs, wool, honey, etc.) as output.
-\item \code{slaughtering}: Slaughtering of livestock. Each slaughtering process
-takes a live animal as input and produces slaughter products (meat,
-offals, fats, hides and skins) as output.
+cattle husbandry, layers chickens farming, etc.
 \item \code{processing}: Derived subproducts obtained from processing other items.
 The items used as inputs are those that have a non-zero processing use in
 the commodity balance sheet. See \code{get_wide_cbs()} for more details.
@@ -69,8 +64,7 @@ production. For code details see e.g. \code{add_item_cbs_name()}.
 \item \code{use}: The given item is an input of the process.
 \item \code{supply}: The given item is an output of the process.
 }
-\item \code{value}: Quantity in tonnes for most items, or heads for live
-animals (see \link{items_cbs} \code{item_type}).
+\item \code{value}: Quantity in tonnes.
 }
 }
 \description{

@@ -10,7 +10,7 @@ build_primary_production(
   smooth_carry_forward = FALSE,
   example = FALSE,
   show_duplicates = FALSE,
-  raw_data = NULL
+  .raw_data = NULL
 )
 }
 \arguments{
@@ -28,9 +28,13 @@ tibble instead of reading remote data. Default \code{FALSE}.}
 have competing sources in wide format (one column per source) for
 diagnostic comparison. Default \code{FALSE}.}
 
-\item{raw_data}{Optional tibble with the same structure as the output
-of \code{.read_production()}. When provided, this replaces the remote
-data read, allowing tests to inject small fixtures.}
+\item{.raw_data}{Optional tibble with the same structure as the output
+of the internal \code{.read_production()} step. When supplied, the
+remote-data read is skipped entirely and the pipeline starts from
+\code{.fix_production()}. Columns required: \code{year}, \code{area}, \code{area_code},
+\code{item_prod}, \code{item_prod_code}, \code{item_cbs}, \code{item_cbs_code},
+\code{live_anim}, \code{live_anim_code}, \code{unit}, \code{value}, \code{source}.
+Default \code{NULL}.}
 }
 \value{
 A tibble with the same columns as \code{\link[=get_primary_production]{get_primary_production()}}:
