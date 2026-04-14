@@ -277,16 +277,25 @@ build_commodity_balances <- function(
     years
   )
 
+  # Extract source provenance once for all remaining steps.
+  # Each step re-joins the same lookup at its end.
+  src_lookup <- .extract_source_lookup(cbs_raw2)
+
   # 6. Redistribute non-processed items
   cli::cli_progress_step("Redistributing non-processed items")
   cbs_raw3 <- .cbs_redistribute_notprocessed(
     cbs_raw2,
-    proc_result$processd_raw
+    proc_result$processd_raw,
+    src_lookup = src_lookup
   )
 
   # 7. Impute trade and domestic supply
   cli::cli_progress_step("Imputing trade and domestic supply")
-  cbs_raw4 <- .cbs_impute_trade(cbs_raw3, fao_trade_cbs)
+  cbs_raw4 <- .cbs_impute_trade(
+    cbs_raw3,
+    fao_trade_cbs,
+    src_lookup = src_lookup
+  )
 
   # 8. Fill destiny gaps
   cli::cli_progress_step("Filling destiny gaps")
@@ -303,12 +312,13 @@ build_commodity_balances <- function(
   cli::cli_progress_step("Reclassifying processing")
   cbs_raw7 <- .cbs_reclassify_processing(
     cbs_raw6,
-    proc_result$cb_processing_glo
+    proc_result$cb_processing_glo,
+    src_lookup = src_lookup
   )
 
   # 11. Final balancing
   cli::cli_progress_step("Final balancing")
-  .cbs_final_balance(cbs_raw7, years)
+  .cbs_final_balance(cbs_raw7, years, src_lookup = src_lookup)
 }
 
 
@@ -1876,9 +1886,12 @@ build_processing_coefs <- function(
 
 .cbs_redistribute_notprocessed <- function(
   cbs_raw2,
-  processd_raw
+  processd_raw,
+  src_lookup = NULL
 ) {
-  src_lookup <- .extract_source_lookup(cbs_raw2)
+  if (is.null(src_lookup)) {
+    src_lookup <- .extract_source_lookup(cbs_raw2)
+  }
 
   dt <- data.table::as.data.table(cbs_raw2)
   dt[, source := NULL]
@@ -1998,9 +2011,15 @@ build_processing_coefs <- function(
 
 # -- Impute trade + domestic supply --------------------------------------------
 
-.cbs_impute_trade <- function(cbs_raw3, fao_trade_cbs = NULL) {
+.cbs_impute_trade <- function(
+  cbs_raw3,
+  fao_trade_cbs = NULL,
+  src_lookup = NULL
+) {
   # Save source provenance before pivot cycle
-  src_lookup <- .extract_source_lookup(cbs_raw3)
+  if (is.null(src_lookup)) {
+    src_lookup <- .extract_source_lookup(cbs_raw3)
+  }
 
   destiny_list <- c(
     "food",
@@ -2610,10 +2629,13 @@ build_processing_coefs <- function(
 
 .cbs_reclassify_processing <- function(
   cbs_raw6,
-  cb_processing_glo
+  cb_processing_glo,
+  src_lookup = NULL
 ) {
   # Save source provenance before pivot cycle
-  src_lookup <- .extract_source_lookup(cbs_raw6)
+  if (is.null(src_lookup)) {
+    src_lookup <- .extract_source_lookup(cbs_raw6)
+  }
 
   proc_base <- cbs_raw6 |>
     .processed_raw(cb_processing_glo)
@@ -2765,11 +2787,13 @@ build_processing_coefs <- function(
 
 # -- Final balance -------------------------------------------------------------
 
-.cbs_final_balance <- function(cbs_raw7, years) {
+.cbs_final_balance <- function(cbs_raw7, years, src_lookup = NULL) {
   items <- whep::items_full
 
   # Save source provenance before test_cbs pivot cycles
-  src_lookup <- .extract_source_lookup(cbs_raw7)
+  if (is.null(src_lookup)) {
+    src_lookup <- .extract_source_lookup(cbs_raw7)
+  }
 
   items_dd <- data.table::as.data.table(items)[,
     .(item_cbs, default_destiny)
