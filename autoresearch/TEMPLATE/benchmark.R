@@ -1,45 +1,40 @@
 #
-# Autoresearch benchmark harness. Profiles the full pipeline
-# (production + CBS) as a single unit under Rprof.
+# Autoresearch benchmark harness template.
+#
+# Profiles <FEATURE> under Rprof and reports:
+#   - METRIC total_s=<seconds>                  (the optimization score)
+#   - PROFILE_START/END                         (top 15 self-time entries)
+#   - CALLERS_START/END                         (top callers of hotspots)
 #
 # Usage:
-#   Rscript inst/autoresearch/benchmark.R
+#   Rscript autoresearch/<FOLDER>/benchmark.R
 #
-# Output format (grep-friendly):
-#   METRIC total_s=<seconds>
-#   PROFILE_START
-#   ... top 15 self-time entries ...
-#   PROFILE_END
-#   CALLERS_START
-#   ... top callers of forderv, bmerge, copy ...
-#   CALLERS_END
+# Customize:
+#   1. The "Config" block — inputs/year range/size that keeps runs fast
+#      enough to iterate (~20-60s) but representative of real workloads.
+#   2. The "Run" block — call the function(s) under optimization.
+#   3. The `targets` vector — which functions to drill into for caller
+#      analysis (defaults assume a tidyverse/data.table pipeline).
 
 # Load the package in dev mode. If running inside renv with all deps
-# installed, `library(whep)` also works.
+# installed, `library(<PACKAGE>)` also works.
 devtools::load_all(".")
 
 # ── Config ──────────────────────────────────────────────────────────────────
-# Use a small year range for fast iteration (~25s per run).
-start_year <- 1900L
-end_year <- 1965L
+# TODO: set inputs that exercise the hot path without taking too long.
+# start_year <- 1900L
+# end_year <- 1965L
 
 # ── Run ─────────────────────────────────────────────────────────────────────
 
 gc(reset = TRUE)
-prof_file <- tempfile("prof_pipeline_", fileext = ".out")
+prof_file <- tempfile("prof_", fileext = ".out")
 
 Rprof(prof_file, interval = 0.02)
 t0 <- proc.time()
 
-prod <- build_primary_production(
-  start_year = start_year,
-  end_year = end_year
-)
-cbs <- build_commodity_balances(
-  prod,
-  start_year = start_year,
-  end_year = end_year
-)
+# TODO: call the function(s) you are optimizing.
+# result <- my_function(...)
 
 elapsed <- (proc.time() - t0)[["elapsed"]]
 Rprof(NULL)
@@ -63,15 +58,15 @@ for (i in seq_len(nrow(top))) {
 cat("PROFILE_END\n")
 
 # ── Caller analysis ────────────────────────────────────────────────────────
-# Parse the raw Rprof output to find what calls forderv, bmerge, copy.
+# Parse the raw Rprof output to find what calls the hotspot functions.
+# Adjust `targets` to match whatever dominates the PROFILE output.
 
 cat("CALLERS_START\n")
 
 lines <- readLines(prof_file)
-# Skip header line
+# Skip header line (contains the sample interval)
 lines <- lines[-1]
 
-# For each target function, find its callers (the function that called it)
 targets <- c("forderv", "bmerge", "copy")
 
 for (target in targets) {
