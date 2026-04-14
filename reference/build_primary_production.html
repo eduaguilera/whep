@@ -62,7 +62,8 @@ This is a convenience wrapper that chains the three pipeline steps:</p><ol><li><
 <span>  end_year <span class="op">=</span> <span class="fl">2023</span>,</span>
 <span>  smooth_carry_forward <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  example <span class="op">=</span> <span class="cn">FALSE</span>,</span>
-<span>  show_duplicates <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span>  show_duplicates <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  .raw_data <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -92,6 +93,16 @@ tibble instead of reading remote data. Default <code>FALSE</code>.</p></dd>
 <dd><p>Logical. If <code>TRUE</code>, return only the rows that
 have competing sources in wide format (one column per source) for
 diagnostic comparison. Default <code>FALSE</code>.</p></dd>
+
+
+<dt id="arg--raw-data">.raw_data<a class="anchor" aria-label="anchor" href="#arg--raw-data"></a></dt>
+<dd><p>Optional tibble with the same structure as the output
+of the internal <code>.read_production()</code> step. When supplied, the
+remote-data read is skipped entirely and the pipeline starts from
+<code>.fix_production()</code>. Columns required: <code>year</code>, <code>area</code>, <code>area_code</code>,
+<code>item_prod</code>, <code>item_prod_code</code>, <code>item_cbs</code>, <code>item_cbs_code</code>,
+<code>live_anim</code>, <code>live_anim_code</code>, <code>unit</code>, <code>value</code>, <code>source</code>.
+Default <code>NULL</code>.</p></dd>
 
 </dl></div>
     <div class="section level2">

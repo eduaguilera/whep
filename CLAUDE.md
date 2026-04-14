@@ -18,14 +18,22 @@
   and self-explanatory — no cryptic abbreviations like `NEm`, `Bo`,
   `VS`, `GE`. Prefer descriptive names like `ne_maintenance`,
   `methane_potential`, `volatile_solids`, `gross_energy`.
+- Avoid carrying redundant name+code column pairs (e.g. `area` +
+  `area_code`, `item_prod` + `item_prod_code`) through intermediate
+  computations. Integer codes are sufficient as join/group keys inside
+  functions. Human-readable name columns should only be added at the
+  final output stage via a dedicated lookup join. Do not add name
+  columns to new functions until the lookup helpers exist.
 - Always make sure all rules in this document and all linters have
   passed after a change in the code.
 - Don’t use imported functions without namespace prefix (e.g. use
   [`dplyr::filter()`](https://dplyr.tidyverse.org/reference/filter.html)
   instead of just [`filter()`](https://rdrr.io/r/stats/filter.html)). Do
   not use `@importFrom` in roxygen2 documentation.
-- This is a tidy data project. Don’t use `data.frame` or `data.table`.
-  Always use `tibble` from tidyverse.
+- This is a tidy data project. Exported functions must accept and return
+  `tibble` from tidyverse. Private helpers (`.` prefix) may use
+  `data.table` internally for performance, but must convert back to
+  tibble before returning. Never use bare `data.frame`.
 - For argument validation use `rlang` functions
   (e.g. [`rlang::has_name()`](https://rlang.r-lib.org/reference/has_name.html)
   instead of `%in% names()`).
@@ -44,7 +52,8 @@
 - Always use native R pipes (`|>`). Make functions look like piped
   expressions.
 - Avoid for loops. Use vectorised operations, `purrr`, or
-  `dplyr`/`tidyr`.
+  `dplyr`/`tidyr`. Exception: data.table private helpers may use for
+  loops when iterating over a small fixed set (e.g. column names).
 - Avoid function signatures with \> 5 arguments. Group related arguments
   into named lists.
 - Use
@@ -119,7 +128,7 @@ The PR must pass these GitHub Actions checks:
 2.  **lint** (`lintr`): Must pass with these linters disabled:
     `object_usage_linter`, `line_length_linter`, `indentation_linter`.
     - Run locally:
-      `Rscript -e "lintr::lint_package(linters=lintr::linters_with_defaults(object_usage_linter=NULL, line_length_linter=NULL, indentation_linter=NULL))"`
+      `Rscript -e "lintr::lint_package(linters=lintr::linters_with_defaults(object_usage_linter=NULL, line_length_linter=NULL, indentation_linter=NULL, commas_linter=NULL))"`
 3.  **format-suggest** (`air`): Code must be formatted with
     `air format .`
     - **This is mandatory, not optional.** Do not attempt to manually

@@ -59,7 +59,8 @@ indicating the source of the filled values.</p>
 <span>  fill_forward <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>  fill_backward <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>  value_smooth_window <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  .by <span class="op">=</span> <span class="cn">NULL</span></span>
+<span>  .by <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  .copy <span class="op">=</span> <span class="cn">TRUE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -103,6 +104,12 @@ smoothing is applied.</p></dd>
 
 <dt id="arg--by">.by<a class="anchor" aria-label="anchor" href="#arg--by"></a></dt>
 <dd><p>A character vector with the grouping variables (optional).</p></dd>
+
+
+<dt id="arg--copy">.copy<a class="anchor" aria-label="anchor" href="#arg--copy"></a></dt>
+<dd><p>Logical. If <code>TRUE</code> (default), data.table inputs are
+defensively copied before mutation. Set to <code>FALSE</code> when the caller
+owns the data and does not need the original preserved.</p></dd>
 
 </dl></div>
     <div class="section level2">

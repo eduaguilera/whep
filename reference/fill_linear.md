@@ -16,7 +16,8 @@ fill_linear(
   fill_forward = TRUE,
   fill_backward = TRUE,
   value_smooth_window = NULL,
-  .by = NULL
+  .by = NULL,
+  .copy = TRUE
 )
 ```
 
@@ -56,6 +57,12 @@ fill_linear(
 - .by:
 
   A character vector with the grouping variables (optional).
+
+- .copy:
+
+  Logical. If `TRUE` (default), data.table inputs are defensively copied
+  before mutation. Set to `FALSE` when the caller owns the data and does
+  not need the original preserved.
 
 ## Value
 

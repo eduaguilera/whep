@@ -156,7 +156,7 @@ verify locally:
       [`stats::median()`](https://rdrr.io/r/stats/median.html)).
 
 2.  **lint** (`lintr`):
-    `lintr::lint_package(linters=lintr::linters_with_defaults(object_usage_linter=NULL, line_length_linter=NULL, indentation_linter=NULL))`
+    `lintr::lint_package(linters=lintr::linters_with_defaults(object_usage_linter=NULL, line_length_linter=NULL, indentation_linter=NULL, commas_linter=NULL))`
 
 3.  **format-suggest** (`air`): Code must be formatted with
     `air format .`

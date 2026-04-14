@@ -49,16 +49,17 @@
 <li>Functions should be short. Ideally no more than 25 lines. Split large functions into smaller ones with meaningful names.</li>
 <li>Main exported functions should come first in the file. Private helpers come at the end.</li>
 <li>Use <code>snake_case</code> for column names in tibbles. Names must be readable and self-explanatory — no cryptic abbreviations like <code>NEm</code>, <code>Bo</code>, <code>VS</code>, <code>GE</code>. Prefer descriptive names like <code>ne_maintenance</code>, <code>methane_potential</code>, <code>volatile_solids</code>, <code>gross_energy</code>.</li>
+<li>Avoid carrying redundant name+code column pairs (e.g. <code>area</code> + <code>area_code</code>, <code>item_prod</code> + <code>item_prod_code</code>) through intermediate computations. Integer codes are sufficient as join/group keys inside functions. Human-readable name columns should only be added at the final output stage via a dedicated lookup join. Do not add name columns to new functions until the lookup helpers exist.</li>
 <li>Always make sure all rules in this document and all linters have passed after a change in the code.</li>
 <li>Don’t use imported functions without namespace prefix (e.g. use <code><a href="https://dplyr.tidyverse.org/reference/filter.html" class="external-link">dplyr::filter()</a></code> instead of just <code><a href="https://rdrr.io/r/stats/filter.html" class="external-link">filter()</a></code>). Do not use <code>@importFrom</code> in roxygen2 documentation.</li>
-<li>This is a tidy data project. Don’t use <code>data.frame</code> or <code>data.table</code>. Always use <code>tibble</code> from tidyverse.</li>
+<li>This is a tidy data project. Exported functions must accept and return <code>tibble</code> from tidyverse. Private helpers (<code>.</code> prefix) may use <code>data.table</code> internally for performance, but must convert back to tibble before returning. Never use bare <code>data.frame</code>.</li>
 <li>For argument validation use <code>rlang</code> functions (e.g. <code><a href="https://rlang.r-lib.org/reference/has_name.html" class="external-link">rlang::has_name()</a></code> instead of <code>%in% names()</code>).</li>
 <li>For error messages use <code><a href="https://cli.r-lib.org/reference/cli_abort.html" class="external-link">cli::cli_abort()</a></code> instead of <code><a href="https://rdrr.io/r/base/stop.html" class="external-link">stop()</a></code>. Same for warnings (<code><a href="https://cli.r-lib.org/reference/cli_abort.html" class="external-link">cli::cli_warn()</a></code>) and info.</li>
 <li>Escaped characters in regex must be double-escaped in R strings (e.g. <code>\\.</code> not <code>\.</code>).</li>
 <li>When defining functions that expect column names as arguments, expect symbolic names (unquoted) and use <code>{{ }}</code> (curly-curly) inside.</li>
 <li>There must not be functions inside functions. All functions at top level; helpers as private <code>.</code> functions.</li>
 <li>Always use native R pipes (<code>|&gt;</code>). Make functions look like piped expressions.</li>
-<li>Avoid for loops. Use vectorised operations, <code>purrr</code>, or <code>dplyr</code>/<code>tidyr</code>.</li>
+<li>Avoid for loops. Use vectorised operations, <code>purrr</code>, or <code>dplyr</code>/<code>tidyr</code>. Exception: data.table private helpers may use for loops when iterating over a small fixed set (e.g. column names).</li>
 <li>Avoid function signatures with &gt; 5 arguments. Group related arguments into named lists.</li>
 <li>Use <code><a href="https://tibble.tidyverse.org/reference/tribble.html" class="external-link">tibble::tribble()</a></code> for small inline tibbles.</li>
 <li>Use <code>stringr</code> functions instead of base R for strings.</li>
@@ -102,7 +103,7 @@
 </ul></li>
 <li>
 <strong>lint</strong> (<code>lintr</code>): Must pass with these linters disabled: <code>object_usage_linter</code>, <code>line_length_linter</code>, <code>indentation_linter</code>.
-<ul><li>Run locally: <code>Rscript -e "lintr::lint_package(linters=lintr::linters_with_defaults(object_usage_linter=NULL, line_length_linter=NULL, indentation_linter=NULL))"</code>
+<ul><li>Run locally: <code>Rscript -e "lintr::lint_package(linters=lintr::linters_with_defaults(object_usage_linter=NULL, line_length_linter=NULL, indentation_linter=NULL, commas_linter=NULL))"</code>
 </li>
 </ul></li>
 <li>

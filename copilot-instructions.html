@@ -113,7 +113,7 @@
 <ul><li>All NSE variables must be declared in <code><a href="https://rdrr.io/r/utils/globalVariables.html" class="external-link">utils::globalVariables()</a></code> in <code>R/utils.R</code>.</li>
 <li>All <code>stats::</code> functions must use explicit prefix (e.g., <code><a href="https://rdrr.io/r/stats/median.html" class="external-link">stats::median()</a></code>).</li>
 </ul></li>
-<li><p><strong>lint</strong> (<code>lintr</code>): <code>lintr::lint_package(linters=lintr::linters_with_defaults(object_usage_linter=NULL, line_length_linter=NULL, indentation_linter=NULL))</code></p></li>
+<li><p><strong>lint</strong> (<code>lintr</code>): <code>lintr::lint_package(linters=lintr::linters_with_defaults(object_usage_linter=NULL, line_length_linter=NULL, indentation_linter=NULL, commas_linter=NULL))</code></p></li>
 <li>
 <p><strong>format-suggest</strong> (<code>air</code>): Code must be formatted with <code>air format .</code></p>
 <ul><li>

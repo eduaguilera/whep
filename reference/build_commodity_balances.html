@@ -65,7 +65,8 @@ destiny filling, and final balancing.</p></li>
 <span>  start_year <span class="op">=</span> <span class="fl">1850</span>,</span>
 <span>  end_year <span class="op">=</span> <span class="fl">2023</span>,</span>
 <span>  smooth_carry_forward <span class="op">=</span> <span class="cn">FALSE</span>,</span>
-<span>  example <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span>  example <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  .fixed_data <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -94,6 +95,13 @@ are replaced with a linear trend. Default <code>FALSE</code>.</p></dd>
 <dt id="arg-example">example<a class="anchor" aria-label="anchor" href="#arg-example"></a></dt>
 <dd><p>Logical. If <code>TRUE</code>, return a small hardcoded example
 tibble instead of reading remote data. Default <code>FALSE</code>.</p></dd>
+
+
+<dt id="arg--fixed-data">.fixed_data<a class="anchor" aria-label="anchor" href="#arg--fixed-data"></a></dt>
+<dd><p>Optional tibble with the same structure as the
+output of the internal <code>.read_cbs() |&gt; .fix_cbs()</code> steps. When
+supplied, <code>primary_all</code> is ignored and the pipeline skips directly
+to <code>.qc_cbs()</code>. Default <code>NULL</code>.</p></dd>
 
 </dl></div>
     <div class="section level2">

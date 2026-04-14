@@ -18,7 +18,8 @@ build_commodity_balances(
   start_year = 1850,
   end_year = 2023,
   smooth_carry_forward = FALSE,
-  example = FALSE
+  example = FALSE,
+  .fixed_data = NULL
 )
 ```
 
@@ -46,6 +47,13 @@ build_commodity_balances(
 
   Logical. If `TRUE`, return a small hardcoded example tibble instead of
   reading remote data. Default `FALSE`.
+
+- .fixed_data:
+
+  Optional tibble with the same structure as the output of the internal
+  `.read_cbs() |> .fix_cbs()` steps. When supplied, `primary_all` is
+  ignored and the pipeline skips directly to `.qc_cbs()`. Default
+  `NULL`.
 
 ## Value
 
