@@ -91,9 +91,12 @@ build_commodity_balances <- function(
   if (!data.table::is.data.table(dt)) {
     data.table::setDT(dt)
   }
-  dt <- unique(dt)
 
   by_cols <- c("year", "area_code", "item_cbs_code", "element")
+  # Dedup by key + value only (not source/flag). Fewer sort columns
+  # than unique(dt) on all columns. source[1L] in the aggregation
+  # below handles differing sources for the same key+value.
+  dt <- unique(dt, by = c(by_cols, "value"))
   if (has_flag) {
     dt <- dt[,
       .(
@@ -1940,6 +1943,7 @@ build_processing_coefs <- function(
   ]
 
   # Pivot wide to recompute domestic_supply, then back to long
+  # Recompute domestic_supply in long format (avoids dcast+melt overhead)
   elem_cols <- c(
     "domestic_supply",
     "production",
@@ -1951,23 +1955,16 @@ build_processing_coefs <- function(
     "seed",
     "other_uses"
   )
-  id_cols <- c("year", "area", "area_code", "item_cbs", "item_cbs_code")
-  wide <- data.table::dcast(
-    fixed,
-    year + area + area_code + item_cbs + item_cbs_code ~ element,
-    value.var = "value",
-    fill = 0
-  )
-  for (col in setdiff(elem_cols, names(wide))) {
-    data.table::set(wide, j = col, value = 0)
-  }
-  wide[, domestic_supply := feed + food + seed + other_uses]
-  fixed <- data.table::melt(
-    wide,
-    id.vars = id_cols,
-    measure.vars = intersect(elem_cols, names(wide)),
-    variable.name = "element",
-    value.name = "value"
+  fixed <- fixed[element %in% elem_cols]
+  fixed <- fixed[element != "domestic_supply"]
+  ds_new <- fixed[
+    element %in% c("feed", "food", "seed", "other_uses"),
+    .(element = "domestic_supply", value = sum(value, na.rm = TRUE)),
+    by = .(year, area, area_code, item_cbs, item_cbs_code)
+  ]
+  fixed <- data.table::rbindlist(
+    list(fixed, ds_new),
+    use.names = TRUE
   )
   fixed <- fixed[,
     .(value = sum(value, na.rm = TRUE)),
