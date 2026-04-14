@@ -61,22 +61,18 @@ Each iteration you must:
 Look at the profile output. Common bottlenecks in tidyverse/data.table
 pipelines:
 
-- `forderv` — data.table sorting. Triggered by `by=` grouping,
-  `setkeyv`/`setorderv`, `unique()`, `merge()`, `dcast()`. Reduce by
-  pre-sorting, caching lookups, combining grouped passes, narrowing
-  the columns being sorted.
-- `bmerge` — data.table joins. Use `sort = FALSE` on merges whose
-  output doesn't need to be sorted. Replace merge+assign patterns with
-  in-place update-joins (`dt[lookup, col := i.col, on = ...]`).
-- `vctrs::vec_locate_matches` — dplyr joins. Convert hot-path dplyr
-  joins to data.table merges or update-joins.
-- `dcast` + `frankv` — wide pivots. If only a few named columns are
-  needed, pivot a filtered subset instead of all values.
-- Format conversions (`as.data.table`/`setDF`) — reduce tibble↔data.table
-  round-trips in hot paths.
-- Redundant operations — steps that compute the same thing twice,
-  unnecessary intermediate tibbles, repeated lookups across pipeline
-  stages that could be cached once and threaded through.
+Look at the top entries in the `PROFILE` block, then use the `CALLERS`
+block to find which call sites trigger them. From there:
+
+- Read the actual source. The hotspot is a name; the *opportunity* is
+  whatever the surrounding code is doing with it.
+- Prefer changes that remove work outright (cache a repeated lookup,
+  skip a sort that's already done, drop an unused conversion) over
+  changes that just swap one implementation for another.
+- Watch for redundant work across pipeline stages — the same join,
+  dedup, or pivot done multiple times is often easy to thread through.
+- Note which calls dominate so future iterations can skip them. The
+  log is your memory across runs.
 
 ## Running the benchmark
 
