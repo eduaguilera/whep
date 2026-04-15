@@ -9,7 +9,8 @@ build_commodity_balances(
   start_year = 1850,
   end_year = 2023,
   smooth_carry_forward = FALSE,
-  example = FALSE
+  example = FALSE,
+  .fixed_data = NULL
 )
 }
 \arguments{
@@ -25,11 +26,17 @@ are replaced with a linear trend. Default \code{FALSE}.}
 
 \item{example}{Logical. If \code{TRUE}, return a small hardcoded example
 tibble instead of reading remote data. Default \code{FALSE}.}
+
+\item{.fixed_data}{Optional tibble with the same structure as the
+output of the internal \code{.read_cbs() |> .fix_cbs()} steps. When
+supplied, \code{primary_all} is ignored and the pipeline skips directly
+to \code{.qc_cbs()}. Default \code{NULL}.}
 }
 \value{
-A tibble in long format (see \code{.read_cbs()} for column
-descriptions), plus a character \code{qc_flag} column from
-\code{.qc_cbs()}.
+A tibble in long format with columns: \code{year},
+\code{area_code}, \code{item_cbs_code}, \code{element} (e.g.
+\code{"production"}, \code{"import"}, \code{"food"}), \code{value},
+\code{source}, \code{fao_flag}.
 }
 \description{
 Construct commodity balance sheets (CBS) from raw FAOSTAT data.

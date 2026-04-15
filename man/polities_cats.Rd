@@ -69,4 +69,7 @@ groupings used in the literature and international databases.
 Five trailing columns containing only Excel \verb{#REF!} errors in the
 source CSV are dropped at load time and are not part of this dataset.
 }
+\examples{
+head(polities_cats)
+}
 \keyword{datasets}

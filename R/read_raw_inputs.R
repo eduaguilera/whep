@@ -17,7 +17,14 @@
     .(iso3c, area_code_fao = area_code)
   ]
 
-  dt <- merge(dt, bridge, by.x = "area_code", by.y = "iso3c", all.x = TRUE)
+  dt <- merge(
+    dt,
+    bridge,
+    by.x = "area_code",
+    by.y = "iso3c",
+    all.x = TRUE,
+    sort = FALSE
+  )
   dt[, area_code := NULL]
   data.table::setnames(dt, "area_code_fao", "area_code")
   dt
@@ -39,7 +46,8 @@
     bridge,
     by.x = "area_code",
     by.y = "area_code_fao",
-    all.x = TRUE
+    all.x = TRUE,
+    sort = FALSE
   )
   dt[, area_code := NULL]
   data.table::setnames(dt, "iso3c", "area_code")
@@ -238,7 +246,8 @@
         region_map[!is.na(polity_code)],
         pol_bridge,
         by.x = "polity_code",
-        by.y = "iso3c"
+        by.y = "iso3c",
+        sort = FALSE
       )
     }
     bridge
@@ -254,7 +263,7 @@
   dt <- df
   region_map <- .polity_bridge()
 
-  dt <- merge(dt, region_map, by = "area_code")
+  dt <- merge(dt, region_map, by = "area_code", sort = FALSE)
   by_cols <- c(
     "year",
     "polity_area_code",
@@ -349,7 +358,7 @@
 .extract_cb <- function(pin_alias, years = NULL) {
   dt <- .extract_fao(pin_alias, years = years)
   items <- .items_cbs_bridge()
-  merge(dt, items, by = c("item_cbs", "item_cbs_code"))
+  merge(dt, items, by = c("item_cbs", "item_cbs_code"), sort = FALSE)
 }
 
 # -- Processing helpers (from comdat_global) -----------------------------------
@@ -378,7 +387,8 @@
     dt,
     rhs,
     by = join_keys,
-    allow.cartesian = TRUE
+    allow.cartesian = TRUE,
+    sort = FALSE
   )
   dt[, `:=`(
     value_proc = value * Product_fraction,
@@ -415,12 +425,13 @@
     .(value_proc = sum(value_proc, na.rm = TRUE)),
     by = c("area", "area_code", "year", "item_cbs", "element")
   ]
-  dt <- merge(dt, cb_proc_required, by = "item_cbs", all.x = TRUE)
+  dt <- merge(dt, cb_proc_required, by = "item_cbs", all.x = TRUE, sort = FALSE)
   dt <- merge(
     dt,
     cbs_summary,
     by = c("area", "area_code", "year", "item_cbs", "element"),
-    all.x = TRUE
+    all.x = TRUE,
+    sort = FALSE
   )
   dt[, scaling_raw := value / value_proc]
   dt[scaling_raw == 0, scaling_raw := NA_real_]
@@ -429,7 +440,8 @@
     dt,
     scaling_raw,
     time_col = year,
-    .by = c("area", "area_code", "item_cbs", "element")
+    .by = c("area", "area_code", "item_cbs", "element"),
+    .copy = FALSE
   )
   if (!data.table::is.data.table(dt)) {
     data.table::setDT(dt)
@@ -511,9 +523,15 @@
 
   # Join with prim_double to get Multi_type
   pd_sub <- prim_double[is.na(Item_area)]
-  pd_sub <- merge(pd_sub, items_prod, by = "item_prod", all.x = TRUE)
+  pd_sub <- merge(
+    pd_sub,
+    items_prod,
+    by = "item_prod",
+    all.x = TRUE,
+    sort = FALSE
+  )
   pd_sub <- pd_sub[, .(item_cbs_code, Multi_type)]
-  dt <- merge(dt, pd_sub, by = "item_cbs_code", all.x = TRUE)
+  dt <- merge(dt, pd_sub, by = "item_cbs_code", all.x = TRUE, sort = FALSE)
 
   dt[,
     multi_type := data.table::fifelse(

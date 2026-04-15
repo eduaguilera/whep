@@ -23,6 +23,9 @@
 #'   for variables with high inter-annual variability. If `NULL` (default), no
 #'   smoothing is applied.
 #' @param .by A character vector with the grouping variables (optional).
+#' @param .copy Logical. If `TRUE` (default), data.table inputs are
+#'   defensively copied before mutation. Set to `FALSE` when the caller
+#'   owns the data and does not need the original preserved.
 #'
 #' @return A tibble data frame (ungrouped) where gaps in value_col have been
 #'   filled, and a new "source" variable has been created indicating if the
@@ -55,7 +58,8 @@ fill_linear <- function(
   fill_forward = TRUE,
   fill_backward = TRUE,
   value_smooth_window = NULL,
-  .by = NULL
+  .by = NULL,
+  .copy = TRUE
 ) {
   value_col_name <- rlang::as_name(rlang::enquo(value_col))
   time_col_name <- rlang::as_name(rlang::enquo(time_col))
@@ -68,13 +72,21 @@ fill_linear <- function(
     return(data)
   }
 
-  # Fast duplicate check: anyDuplicated first, expensive summarise only
-  # if needed
-  dup_cols <- c(by_cols, time_col_name)
+  # Convert once and reuse for both duplicate check and main work
   is_dt <- data.table::is.data.table(data)
-  dt_dup <- if (is_dt) data else data.table::as.data.table(data)
-  if (anyDuplicated(dt_dup[, ..dup_cols]) > 0L) {
-    dups <- dt_dup[, .(n = .N), by = dup_cols][n > 1]
+  dt_work <- if (is_dt && .copy) {
+    data.table::copy(data)
+  } else if (is_dt) {
+    data.table::setalloccol(data)
+    data
+  } else {
+    data.table::as.data.table(data)
+  }
+
+  # Fast duplicate check
+  dup_cols <- c(by_cols, time_col_name)
+  if (anyDuplicated(dt_work[, ..dup_cols]) > 0L) {
+    dups <- dt_work[, .(n = .N), by = dup_cols][n > 1]
     if (nrow(dups) > 0) {
       caller <- tryCatch(
         deparse(sys.call(sys.parent(1L))),
@@ -123,7 +135,7 @@ fill_linear <- function(
   if (use_smoothing) {
     # Smoothing requires per-group evaluation; fall back to by= path.
     return(.fill_linear_by_group(
-      data,
+      dt_work,
       value_col_name,
       time_col_name,
       source_col_name,
@@ -136,10 +148,15 @@ fill_linear <- function(
     ))
   }
 
-  dt <- if (is_dt) data.table::copy(data) else data.table::as.data.table(data)
+  dt <- dt_work
   sort_cols <- c(by_cols, time_col_name)
-  if (!identical(data.table::key(dt), sort_cols)) {
+  prev_sorted <- attr(data, ".whep_sorted_by")
+  already_sorted <- identical(data.table::key(dt), sort_cols) ||
+    identical(prev_sorted, sort_cols)
+  if (!already_sorted) {
     data.table::setkeyv(dt, sort_cols)
+  } else if (is.null(data.table::key(dt))) {
+    data.table::setattr(dt, "sorted", sort_cols)
   }
 
   val <- dt[[value_col_name]]
@@ -155,7 +172,7 @@ fill_linear <- function(
   nocb_raw <- data.table::nafill(val, "nocb")
 
   # Track which non-NA each fill came from via index-nafill
-  valid_idx <- ifelse(!is_na, seq_len(nn), NA_integer_)
+  valid_idx <- data.table::fifelse(!is_na, seq_len(nn), NA_integer_)
   locf_idx <- data.table::nafill(valid_idx, "locf")
   nocb_idx <- data.table::nafill(valid_idx, "nocb")
 
@@ -212,10 +229,12 @@ fill_linear <- function(
   data.table::set(dt, j = value_col_name, value = filled)
   data.table::set(dt, j = source_col_name, value = source)
   data.table::setcolorder(dt, names(data))
-  if (!is_dt) {
-    dt <- tibble::as_tibble(dt)
+  if (is_dt) {
+    attr(dt, ".whep_sorted_by") <- sort_cols
+    dt
+  } else {
+    .dt_to_tibble(dt)
   }
-  dt
 }
 
 # Fallback grouped path for smoothing case (rare).
@@ -231,7 +250,7 @@ fill_linear <- function(
   value_smooth_window,
   is_dt
 ) {
-  dt <- if (is_dt) data.table::copy(data) else data.table::as.data.table(data)
+  dt <- data
   sort_cols <- c(by_cols, time_col_name)
   if (!identical(data.table::key(dt), sort_cols)) {
     data.table::setkeyv(dt, sort_cols)
@@ -289,10 +308,12 @@ fill_linear <- function(
   ]
 
   data.table::setcolorder(dt, names(data))
-  if (!is_dt) {
-    dt <- tibble::as_tibble(dt)
+  if (is_dt) {
+    attr(dt, ".whep_sorted_by") <- c(by_cols, time_col_name)
+    dt
+  } else {
+    .dt_to_tibble(dt)
   }
-  dt
 }
 
 # Grouped rolling mean without split/interaction overhead
@@ -312,6 +333,34 @@ fill_linear <- function(
     )
   }
   result
+}
+
+# Convert a data.table to tibble, stripping all data.table attributes.
+.dt_to_tibble <- function(dt) {
+  tibble::as_tibble(as.data.frame(dt))
+}
+
+# Check if a data.frame is already sorted by the given columns.
+# Vectorized O(n × k) lexicographic check — no sorting required.
+.is_sorted_by <- function(data, cols) {
+  n <- nrow(data)
+  if (n <= 1L) {
+    return(TRUE)
+  }
+  ties <- rep(TRUE, n - 1L)
+  for (col in cols) {
+    if (!any(ties)) {
+      return(TRUE)
+    }
+    x <- data[[col]]
+    prev <- x[-n]
+    curr <- x[-1L]
+    if (any(ties & (curr < prev), na.rm = TRUE)) {
+      return(FALSE)
+    }
+    ties <- ties & (curr == prev)
+  }
+  TRUE
 }
 
 # Base R vectorized core for fill_linear (no dplyr)
@@ -960,7 +1009,13 @@ fill_proxy_growth <- function(
 
   dt_data <- data.table::as.data.table(data)
   dt_summary <- data.table::as.data.table(summary_dt)
-  result <- merge(dt_data, dt_summary, by = join_keys, all.x = TRUE)
+  result <- merge(
+    dt_data,
+    dt_summary,
+    by = join_keys,
+    all.x = TRUE,
+    sort = FALSE
+  )
   as.data.frame(result)
 }
 
@@ -1127,12 +1182,14 @@ fill_proxy_growth <- function(
     .parse_proxy_spec(p, data, value_col, .by, FALSE)$spec_name
   })
 
-  # Save original order, sort by group + time
+  # Save original order, sort by group + time (skip if already sorted)
   data$.orig_order <- seq_len(nrow(data))
   sort_cols <- unique(c(by_cols, time_col))
-  dt <- data.table::as.data.table(data)
-  data.table::setorderv(dt, sort_cols)
-  data <- as.data.frame(dt)
+  if (!.is_sorted_by(data, sort_cols)) {
+    dt <- data.table::as.data.table(data)
+    data.table::setorderv(dt, sort_cols)
+    data <- as.data.frame(dt)
+  }
 
   # Compute run structure from raw_missing (static across all levels)
   data <- .fg_add_run_info(data, cols$raw_missing, by_cols)
@@ -1267,7 +1324,7 @@ fill_proxy_growth <- function(
   ]
 
   data <- as.data.frame(
-    merge(dt, run_meta, by = ".run_id", all.x = TRUE)
+    merge(dt, run_meta, by = ".run_id", all.x = TRUE, sort = FALSE)
   )
 
   data$.is_miss_tmp <- NULL
@@ -1297,16 +1354,25 @@ fill_proxy_growth <- function(
 
   is_missing <- !is.na(mets) & mets == "missing"
 
-  # Forward anchor: last non-NA value within group
-  anchor_raw <- ifelse(is.na(vals), NA_real_, vals)
+  # Forward anchor: last non-NA value within group (vectorized LOCF)
+  anchor_raw <- data.table::fifelse(is.na(vals), NA_real_, vals)
+  locf_raw <- data.table::nafill(anchor_raw, "locf")
   if (length(by_cols) > 0) {
-    data$.anchor_tmp <- anchor_raw
-    dt <- data.table::as.data.table(data)
-    dt[, .anchor_tmp := zoo::na.locf(.anchor_tmp, na.rm = FALSE), by = by_cols]
-    anchor <- dt$.anchor_tmp
-    data$.anchor_tmp <- NULL
+    nn <- length(anchor_raw)
+    grp <- data.table::rleidv(
+      data.table::as.data.table(data),
+      cols = by_cols
+    )
+    valid_idx <- data.table::fifelse(
+      !is.na(anchor_raw),
+      seq_len(nn),
+      NA_integer_
+    )
+    locf_idx <- data.table::nafill(valid_idx, "locf")
+    locf_ok <- !is.na(locf_idx) & grp[locf_idx] == grp
+    anchor <- data.table::fifelse(locf_ok, locf_raw, NA_real_)
   } else {
-    anchor <- zoo::na.locf(anchor_raw, na.rm = FALSE)
+    anchor <- locf_raw
   }
 
   # Segments: consecutive target positions, respecting run boundaries
@@ -1314,8 +1380,8 @@ fill_proxy_growth <- function(
   seg_id <- cumsum(seg_change)
 
   # Growth factor and cumulative product per segment
-  g_factor <- ifelse(is.na(growth), NA_real_, 1 + growth)
-  filled <- ave(g_factor, seg_id, FUN = cumprod) * anchor
+  g_factor <- data.table::fifelse(is.na(growth), NA_real_, 1 + growth)
+  filled <- .seg_cumprod(g_factor, seg_id) * anchor
 
   # Validity: anchor > 0, result finite
   valid <- target &
@@ -1323,7 +1389,7 @@ fill_proxy_growth <- function(
     anchor > 0 &
     !is.na(filled) &
     is.finite(filled)
-  valid <- as.logical(ave(as.numeric(valid), seg_id, FUN = cummin)) & target
+  valid <- as.logical(.seg_cummin(as.numeric(valid), seg_id)) & target
 
   vals[valid] <- filled[valid]
   mets[valid & is_missing] <- m_name
@@ -1353,26 +1419,32 @@ fill_proxy_growth <- function(
 
   is_missing <- !is.na(mets) & mets == "missing"
 
-  # Backward anchor: next non-NA value within group
-  anchor_raw <- ifelse(is.na(vals), NA_real_, vals)
+  # Backward anchor: next non-NA value within group (vectorized NOCB)
+  anchor_raw <- data.table::fifelse(is.na(vals), NA_real_, vals)
+  nocb_raw <- data.table::nafill(anchor_raw, "nocb")
+  nn <- length(anchor_raw)
   if (length(by_cols) > 0) {
-    data$.anchor_tmp <- anchor_raw
-    data$.g_tmp <- growth
-    dt <- data.table::as.data.table(data)
-    dt[,
-      `:=`(
-        .anchor_tmp = zoo::na.locf(.anchor_tmp, na.rm = FALSE, fromLast = TRUE),
-        .g_shifted = data.table::shift(.g_tmp, 1L, type = "lead")
-      ),
-      by = by_cols
-    ]
-    anchor <- dt$.anchor_tmp
-    g_shifted <- dt$.g_shifted
-    data$.anchor_tmp <- NULL
-    data$.g_tmp <- NULL
+    grp <- data.table::rleidv(
+      data.table::as.data.table(data),
+      cols = by_cols
+    )
+    valid_idx <- data.table::fifelse(
+      !is.na(anchor_raw),
+      seq_len(nn),
+      NA_integer_
+    )
+    nocb_idx <- data.table::nafill(valid_idx, "nocb")
+    nocb_ok <- !is.na(nocb_idx) & grp[nocb_idx] == grp
+    anchor <- data.table::fifelse(nocb_ok, nocb_raw, NA_real_)
+    # Shift growth forward within groups
+    g_shifted <- c(growth[-1L], NA_real_)
+    first_of_grp <- c(FALSE, diff(grp) != 0L)
+    # Last element of each group has no successor
+    last_of_grp <- c(diff(grp) != 0L, TRUE)
+    g_shifted[last_of_grp] <- NA_real_
   } else {
-    anchor <- zoo::na.locf(anchor_raw, na.rm = FALSE, fromLast = TRUE)
-    g_shifted <- c(growth[-1], NA_real_)
+    anchor <- nocb_raw
+    g_shifted <- c(growth[-1L], NA_real_)
   }
 
   # Segments: consecutive target positions, respecting run boundaries
@@ -1380,15 +1452,13 @@ fill_proxy_growth <- function(
   seg_id <- cumsum(seg_change)
 
   # Reverse cumprod within each segment
-  g_factor <- ifelse(is.na(g_shifted), NA_real_, 1 + g_shifted)
-  rev_cp <- ave(g_factor, seg_id, FUN = function(x) rev(cumprod(rev(x))))
+  g_factor <- data.table::fifelse(is.na(g_shifted), NA_real_, 1 + g_shifted)
+  rev_cp <- .seg_rev_cumprod(g_factor, seg_id)
   filled <- anchor / rev_cp
 
   # Validity: result must be finite and > 0
   valid <- target & !is.na(filled) & is.finite(filled) & filled > 0
-  valid <- as.logical(
-    ave(as.numeric(valid), seg_id, FUN = function(x) rev(cummin(rev(x))))
-  ) &
+  valid <- as.logical(.seg_rev_cummin(as.numeric(valid), seg_id)) &
     target
 
   vals[valid] <- filled[valid]
@@ -1397,6 +1467,39 @@ fill_proxy_growth <- function(
   data[[val_col]] <- vals
   data[[met_col]] <- mets
   data
+}
+
+# Segmented cumprod using data.table by= (avoids ave() overhead).
+.seg_cumprod <- function(x, seg_id) {
+  dt <- data.table::data.table(x = x, seg = seg_id)
+  dt[, cp := cumprod(data.table::fifelse(is.na(x), 1, x)), by = seg]
+  dt[is.na(x), cp := NA_real_]
+  dt$cp
+}
+
+# Reverse segmented cumprod.
+.seg_rev_cumprod <- function(x, seg_id) {
+  nn <- length(x)
+  rev_idx <- nn:1L
+  .seg_cumprod(x[rev_idx], seg_id[rev_idx])[rev_idx]
+}
+
+# Segmented cummin using cumsum-with-resets (fully vectorized).
+# For binary 0/1 input: 1 until first 0 in segment, then 0.
+.seg_cummin <- function(x, seg_id) {
+  seg_start <- c(TRUE, diff(seg_id) != 0L)
+  bad <- 1 - x
+  global_cs <- cumsum(bad)
+  base <- data.table::fifelse(seg_start, global_cs - bad, NA_real_)
+  base <- data.table::nafill(base, "locf")
+  as.numeric((global_cs - base) == 0)
+}
+
+# Reverse segmented cummin.
+.seg_rev_cummin <- function(x, seg_id) {
+  nn <- length(x)
+  rev_idx <- nn:1L
+  .seg_cummin(x[rev_idx], seg_id[rev_idx])[rev_idx]
 }
 
 .fg_fill_bridge_linear_vec <- function(
@@ -1452,7 +1555,13 @@ fill_proxy_growth <- function(
 
   if (nrow(run_anchors) > 0) {
     dt_all <- data.table::as.data.table(data)
-    dt_all <- merge(dt_all, run_anchors, by = ".run_id", all.x = TRUE)
+    dt_all <- merge(
+      dt_all,
+      run_anchors,
+      by = ".run_id",
+      all.x = TRUE,
+      sort = FALSE
+    )
     data <- as.data.frame(dt_all)
     interp <- data$.v0 +
       (data$.v1 - data$.v0) *
@@ -1570,7 +1679,8 @@ fill_proxy_growth <- function(
       dt_all,
       run_meta,
       by = ".run_id",
-      all.x = TRUE
+      all.x = TRUE,
+      sort = FALSE
     )
     data <- as.data.frame(dt_all)
     geo_target <- eligible & !is.na(data$.lambda)

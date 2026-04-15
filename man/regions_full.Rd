@@ -60,6 +60,9 @@ Extended reference table covering all polities and aggregate regions,
 including countries, territories, and statistical composites that appear
 in international databases but may lack standard ISO codes.
 }
+\examples{
+head(regions_full)
+}
 \seealso{
 \link{polities_cats} for the subset restricted to sovereign countries.
 }
