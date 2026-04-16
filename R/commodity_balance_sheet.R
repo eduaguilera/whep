@@ -100,10 +100,13 @@ get_livestock_cbs <- function(primary_prod) {
   )
 
   slaughtered <- primary_prod |>
-    dplyr::filter(unit == "heads") |>
     dplyr::inner_join(
       all_livestock,
       dplyr::join_by(item_cbs_code)
+    ) |>
+    dplyr::filter(
+      (is_meat & unit == "slaughtered_heads") |
+        (!is_meat & unit == "heads")
     ) |>
     dplyr::summarise(
       slaughtered = sum(value, na.rm = TRUE),

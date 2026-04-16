@@ -328,6 +328,7 @@ utils::globalVariables(
     "Manure_share",
     "mass_balance",
     "mean_val",
+    "meat_prod_code",
     "measurement",
     "mg_n",
     "mgn",
