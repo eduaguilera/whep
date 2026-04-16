@@ -34,11 +34,13 @@ reference:
     Production, supply/use, and processing datasets.
   contents:
   - build_supply_use
+  - get_land_fp_production
   - get_feed_intake
   - get_primary_production
   - get_primary_residues
   - get_processing_coefs
   - get_wide_cbs
+  - get_livestock_cbs
 - subtitle: Trade
   desc: >
     Bilateral trade datasets.
@@ -63,6 +65,7 @@ reference:
   - whep_read_file
   - whep_inputs
   - whep_list_file_versions
+  - whep_clear_cache
 
 - title: Code namings
   desc: >
@@ -126,6 +129,14 @@ reference:
     Functions for index decomposition analysis.
   contents:
   - calculate_lmdi
+
+- title: Multi-regional input-output model
+  desc: >
+    Build and analyze multi-regional input-output (MRIO) models following the FABIO framework.
+  contents:
+  - build_io_model
+  - compute_leontief_inverse
+  - compute_footprint
 
 - title: Livestock emissions
   desc: >

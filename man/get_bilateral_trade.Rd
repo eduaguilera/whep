@@ -4,11 +4,14 @@
 \alias{get_bilateral_trade}
 \title{Bilateral trade data}
 \usage{
-get_bilateral_trade(example = FALSE)
+get_bilateral_trade(example = FALSE, cbs = NULL)
 }
 \arguments{
 \item{example}{If \code{TRUE}, return a small example output without
 downloading remote data. Default is \code{FALSE}.}
+
+\item{cbs}{Optional pre-computed wide CBS tibble from
+\code{\link[=get_wide_cbs]{get_wide_cbs()}}. If \code{NULL} (default), it is built internally.}
 }
 \value{
 A tibble with the reported trade between countries. For efficient

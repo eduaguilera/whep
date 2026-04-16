@@ -66,6 +66,10 @@ build_primary_production <- function(
 
   result <- clean |>
     .dedup_production() |>
+    dplyr::mutate(
+      item_prod_code = as.numeric(item_prod_code),
+      live_anim_code = as.numeric(live_anim_code)
+    ) |>
     dplyr::select(
       year,
       area_code,
@@ -150,6 +154,12 @@ build_primary_production <- function(
     years = years
   )
 
+  # 5b. Livestock slaughter counts
+  fao_slaughter <- .build_livestock_slaughter(
+    fao_combined,
+    years = years
+  )
+
   # 6. Primary dataset (crops + livestock, no game meat — see .fix_production)
   primary_raw <- .combine_primary_raw(fao_combined, fao_liv_all)
 
@@ -181,6 +191,7 @@ build_primary_production <- function(
     dplyr::bind_rows(grassland) |>
     .add_historical_yields(int_yields) |>
     .finalise_primary() |>
+    dplyr::bind_rows(fao_slaughter) |>
     .filter_years(output_years)
 
   attr(result, ".cb_extracts") <- cb_extracts
@@ -966,6 +977,152 @@ build_primary_production <- function(
       area_code,
       item_prod_code,
       item_prod,
+      unit,
+      value,
+      source
+    )
+}
+
+# -- Livestock slaughter -------------------------------------------------------
+
+.build_slaughter_map <- function() {
+  ac <- whep::animals_codes
+  from_ac <- ac |>
+    dplyr::filter(
+      !is.na(Item_Code_product),
+      Liv_prod_cat %in%
+        c(
+          "Cattle meat",
+          "Chicken meat",
+          "Pig meat",
+          "Sheep and goat meat",
+          "Other animal meat"
+        )
+    ) |>
+    dplyr::select(
+      meat_prod_code = Item_Code_product,
+      item_cbs_code
+    )
+  supplement <- tibble::tribble(
+    ~meat_prod_code, ~item_cbs_code,
+    947, 946,
+    1073, 1072,
+    1080, 1079,
+    1141, 1140,
+    1151, 1150,
+    1097, 1096,
+    1108, 1107,
+    1111, 1110,
+    1127, 1126,
+    1158, 1157,
+    1163, 1190
+  )
+  dplyr::bind_rows(from_ac, supplement) |>
+    dplyr::distinct()
+}
+
+.read_slaughter_raw <- function(fao_combined, smap) {
+  fao_combined |>
+    dplyr::filter(element == "Producing Animals/Slaughtered") |>
+    dplyr::mutate(
+      value = dplyr::if_else(
+        unit == "1000 An",
+        value * 1000,
+        value
+      ),
+      item_prod_code = as.numeric(item_prod_code)
+    ) |>
+    dplyr::inner_join(
+      smap,
+      by = c("item_prod_code" = "meat_prod_code")
+    ) |>
+    dplyr::summarise(
+      value = sum(value, na.rm = TRUE),
+      .by = c(year, area, area_code, item_cbs_code)
+    ) |>
+    dplyr::filter(value > 0)
+}
+
+.split_slaughter_by_shares <- function(slaughter_raw, years) {
+  split_parents <- whep::animals_codes |>
+    dplyr::count(Item_Code) |>
+    dplyr::filter(n > 1) |>
+    dplyr::pull(Item_Code)
+  split_cbs <- whep::animals_codes |>
+    dplyr::filter(Item_Code %in% split_parents) |>
+    dplyr::select(Item_Code, item_cbs_code)
+
+  needs_split <- slaughter_raw |>
+    dplyr::inner_join(split_cbs, by = "item_cbs_code")
+  no_split <- slaughter_raw |>
+    dplyr::anti_join(split_cbs, by = "item_cbs_code")
+
+  if (nrow(needs_split) == 0L) {
+    return(no_split)
+  }
+  shares <- .compute_stock_shares(years)
+  split_result <- needs_split |>
+    dplyr::select(-item_cbs_code) |>
+    dplyr::distinct() |>
+    dplyr::inner_join(shares, by = c("year", "area_code", "Item_Code")) |>
+    dplyr::mutate(value = value * share) |>
+    dplyr::select(year, area, area_code, item_cbs_code, value)
+
+  dplyr::bind_rows(no_split, split_result)
+}
+
+.compute_stock_shares <- function(years) {
+  fao_stocks <- .read_livestock_stocks(years = years)
+  split_parents <- whep::animals_codes |>
+    dplyr::count(Item_Code) |>
+    dplyr::filter(n > 1) |>
+    dplyr::pull(Item_Code)
+  split_cbs <- whep::animals_codes |>
+    dplyr::filter(Item_Code %in% split_parents) |>
+    dplyr::select(Item_Code, item_cbs_code)
+
+  fao_stocks |>
+    dplyr::inner_join(split_cbs, by = "item_cbs_code") |>
+    dplyr::mutate(
+      share = value / sum(value, na.rm = TRUE),
+      .by = c(year, area_code, Item_Code)
+    ) |>
+    dplyr::filter(!is.na(share)) |>
+    dplyr::select(year, area_code, Item_Code, item_cbs_code, share)
+}
+
+.build_livestock_slaughter <- function(fao_combined, years = NULL) {
+  cli::cli_progress_step("Building livestock slaughter counts")
+  items <- whep::items_cbs
+  smap <- .build_slaughter_map()
+  raw <- .read_slaughter_raw(fao_combined, smap)
+  result <- .split_slaughter_by_shares(raw, years)
+
+  result |>
+    dplyr::left_join(
+      items |>
+        dplyr::select(item_cbs_code, item_cbs_name),
+      by = "item_cbs_code"
+    ) |>
+    dplyr::mutate(
+      item_prod = item_cbs_name,
+      item_prod_code = as.character(item_cbs_code),
+      item_cbs = item_cbs_name,
+      live_anim = NA_character_,
+      live_anim_code = NA_character_,
+      unit = "slaughtered_heads",
+      source = "FAOSTAT_prod"
+    ) |>
+    dplyr::select(
+      year,
+      area,
+      area_code,
+      item_prod,
+      item_prod_code,
+      item_cbs,
+      item_cbs_code,
+      live_anim,
+      live_anim_code,
       unit,
       value,
       source

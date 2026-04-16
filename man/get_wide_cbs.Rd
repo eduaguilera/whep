@@ -2,38 +2,35 @@
 % Please edit documentation in R/commodity_balance_sheet.R
 \name{get_wide_cbs}
 \alias{get_wide_cbs}
-\title{Commodity balance sheet data}
+\title{Commodity balance sheet data.}
 \usage{
 get_wide_cbs(example = FALSE)
 }
 \arguments{
-\item{example}{If \code{TRUE}, return a small example output without downloading
-remote data. Default is \code{FALSE}.}
+\item{example}{If \code{TRUE}, return a small example output without
+downloading remote data. Default is \code{FALSE}.}
 }
 \value{
 A tibble with the commodity balance sheet data in wide format.
 It contains the following columns:
 \itemize{
 \item \code{year}: The year in which the recorded event occurred.
-\item \code{area_code}: The code of the country where the data is from. For code
-details see e.g. \code{add_area_name()}.
-\item \code{item_cbs_code}: FAOSTAT internal code for each item. For code details
-see e.g. \code{add_item_cbs_name()}.
+\item \code{area_code}: The code of the country where the data is from.
+For code details see e.g. \code{add_area_name()}.
+\item \code{item_cbs_code}: FAOSTAT internal code for each item. For
+code details see e.g. \code{add_item_cbs_name()}.
 }
 
-The other columns are quantities (measured in tonnes), where total supply
-and total use should be balanced.
+The other columns are quantities where total supply and total
+use should be balanced. Units are tonnes for most items,
+and heads for live animals (see \link{items_cbs} \code{item_type}).
 
 For supply:
 \itemize{
 \item \code{production}: Produced locally.
 \item \code{import}: Obtained from importing from other countries.
-\item \code{stock_retrieval}: Available as net stock from previous years. For ease,
-only one stock column is included here as supply. If the value is
-positive, there is a stock quantity available as supply. Otherwise, it
-means a larger quantity was stored for later years and cannot be used as
-supply, having to deduce it from total supply. Since in this case it is
-negative, the total supply is still computed as the sum of all of these.
+\item \code{stock_withdrawal}: Biomass taken out of storage
+(non-negative). Positive when stocks decrease.
 }
 
 For use:
@@ -42,15 +39,19 @@ For use:
 \item \code{feed}: Food for animals.
 \item \code{export}: Released as export for other countries.
 \item \code{seed}: Intended for new production.
-\item \code{processing}: The product will be used to obtain other subproducts.
-\item \code{other_uses}: Any other use not included in the above ones.
+\item \code{processing}: Used to obtain other subproducts.
+\item \code{other_uses}: Any other use not included above.
+\item \code{stock_addition}: Biomass placed into storage
+(non-negative). Positive when stocks increase.
 }
 
-There is an additional column \code{domestic_supply} which is computed as the
-total use excluding \code{export}.
+There is an additional column \code{domestic_supply} which is
+computed as total use excluding \code{export}.
 }
 \description{
-States supply and use parts for each commodity balance sheet (CBS) item.
+Retrieve supply and use parts for each commodity balance sheet
+(CBS) item. Stock variations are split into two non-negative
+columns following the FABIO methodology.
 }
 \examples{
 get_wide_cbs(example = TRUE)

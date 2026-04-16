@@ -36,7 +36,9 @@ items: crops (e.g. \verb{Apples and products}, \code{Beans}...), livestock (e.g.
 \item \code{tonnes}: Available for crops and livestock products.
 \item \code{ha}: Hectares, available for crops.
 \item \code{t_ha}: Tonnes per hectare, available for crops.
-\item \code{heads}: Number of animals, available for livestock.
+\item \code{heads}: Number of animals (stocks), available for livestock.
+\item \code{slaughtered_heads}: Number of animals slaughtered, available
+for livestock.
 \item \code{LU}: Standard Livestock Unit measure, available for livestock.
 \item \code{t_head}: tonnes per head, available for livestock products.
 \item \code{t_LU}: tonnes per Livestock Unit, available for livestock products.
