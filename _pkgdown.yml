@@ -26,6 +26,17 @@ reference:
   - build_commodity_balances
   - build_processing_coefs
 
+- title: Spatialization
+  desc: >
+    Disaggregate country-level agricultural data to a 0.5-degree
+    grid. `run_spatialize()` wraps `build_gridded_landuse()` with
+    named presets (LPJmL-faithful vs full WHEP) for direct
+    cross-model comparison.
+  contents:
+  - run_spatialize
+  - build_gridded_landuse
+  - build_gridded_livestock
+
 - title: Tidy datasets
   desc: >
     Get cleaned dataframes with project related data.

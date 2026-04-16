@@ -43,19 +43,57 @@ country_grid <- tibble::tribble(
 
 # -- Tests -------------------------------------------------------------
 
+test_that("years argument filters livestock inputs", {
+  result <- whep::build_gridded_livestock(
+    livestock_data,
+    gridded_pasture,
+    gridded_cropland,
+    country_grid,
+    years = 2001L
+  )
+  expect_setequal(unique(result$year), 2001L)
+})
+
+test_that("years warns for missing years in livestock_data", {
+  expect_warning(
+    whep::build_gridded_livestock(
+      livestock_data,
+      gridded_pasture,
+      gridded_cropland,
+      country_grid,
+      years = c(2001L, 1999L)
+    ),
+    "1999"
+  )
+})
+
 test_that("build_gridded_livestock returns expected columns", {
   result <- build_gridded_livestock(
-    livestock_data, gridded_pasture, gridded_cropland, country_grid
+    livestock_data,
+    gridded_pasture,
+    gridded_cropland,
+    country_grid
   )
-  expect_true(all(c(
-    "year", "species_group", "lon", "lat",
-    "heads", "enteric_ch4_kt", "manure_n_mg"
-  ) %in% names(result)))
+  expect_true(all(
+    c(
+      "year",
+      "species_group",
+      "lon",
+      "lat",
+      "heads",
+      "enteric_ch4_kt",
+      "manure_n_mg"
+    ) %in%
+      names(result)
+  ))
 })
 
 test_that("heads conservation is exact", {
   result <- build_gridded_livestock(
-    livestock_data, gridded_pasture, gridded_cropland, country_grid
+    livestock_data,
+    gridded_pasture,
+    gridded_cropland,
+    country_grid
   )
   # Per year, total gridded heads == total input heads
   for (yr in unique(livestock_data$year)) {
@@ -71,7 +109,10 @@ test_that("heads conservation is exact", {
 
 test_that("enteric_ch4_kt conservation is exact", {
   result <- build_gridded_livestock(
-    livestock_data, gridded_pasture, gridded_cropland, country_grid
+    livestock_data,
+    gridded_pasture,
+    gridded_cropland,
+    country_grid
   )
   for (yr in unique(livestock_data$year)) {
     input_ch4 <- sum(
@@ -86,7 +127,10 @@ test_that("enteric_ch4_kt conservation is exact", {
 
 test_that("cattle uses pasture proxy (not cropland)", {
   result <- build_gridded_livestock(
-    livestock_data, gridded_pasture, gridded_cropland, country_grid
+    livestock_data,
+    gridded_pasture,
+    gridded_cropland,
+    country_grid
   )
   cattle_2000 <- result[
     result$year == 2000L &
@@ -104,7 +148,10 @@ test_that("cattle uses pasture proxy (not cropland)", {
 
 test_that("pigs uses cropland proxy", {
   result <- build_gridded_livestock(
-    livestock_data, gridded_pasture, gridded_cropland, country_grid
+    livestock_data,
+    gridded_pasture,
+    gridded_cropland,
+    country_grid
   )
   pigs <- result[
     result$year == 2000L & result$species_group == "pigs",
@@ -117,7 +164,10 @@ test_that("pigs uses cropland proxy", {
 
 test_that("sheep_goats uses pasture proxy for country 2", {
   result <- build_gridded_livestock(
-    livestock_data, gridded_pasture, gridded_cropland, country_grid
+    livestock_data,
+    gridded_pasture,
+    gridded_cropland,
+    country_grid
   )
   sg <- result[
     result$year == 2000L & result$species_group == "sheep_goats",
@@ -129,7 +179,10 @@ test_that("sheep_goats uses pasture proxy for country 2", {
 
 test_that("multi-year output has correct year structure", {
   result <- build_gridded_livestock(
-    livestock_data, gridded_pasture, gridded_cropland, country_grid
+    livestock_data,
+    gridded_pasture,
+    gridded_cropland,
+    country_grid
   )
   expect_true(all(c(2000L, 2001L) %in% result$year))
 })
@@ -143,10 +196,16 @@ test_that("manure_pattern modulates weights", {
   )
 
   result_plain <- build_gridded_livestock(
-    livestock_data, gridded_pasture, gridded_cropland, country_grid
+    livestock_data,
+    gridded_pasture,
+    gridded_cropland,
+    country_grid
   )
   result_manure <- build_gridded_livestock(
-    livestock_data, gridded_pasture, gridded_cropland, country_grid,
+    livestock_data,
+    gridded_pasture,
+    gridded_cropland,
+    country_grid,
     manure_pattern = manure_pat
   )
 
@@ -178,7 +237,10 @@ test_that("custom species_proxy is respected", {
   )
 
   result <- build_gridded_livestock(
-    livestock_data, gridded_pasture, gridded_cropland, country_grid,
+    livestock_data,
+    gridded_pasture,
+    gridded_cropland,
+    country_grid,
     species_proxy = custom_proxy
   )
 
@@ -200,7 +262,10 @@ test_that("missing species_group falls back to pasture", {
   )
 
   result <- build_gridded_livestock(
-    ld, gridded_pasture, gridded_cropland, country_grid
+    ld,
+    gridded_pasture,
+    gridded_cropland,
+    country_grid
   )
   # Should still produce output (falls back to pasture proxy)
   expect_gt(nrow(result), 0L)
@@ -212,7 +277,10 @@ test_that("validation rejects missing columns", {
 
   expect_error(
     build_gridded_livestock(
-      bad_data, gridded_pasture, gridded_cropland, country_grid
+      bad_data,
+      gridded_pasture,
+      gridded_cropland,
+      country_grid
     ),
     "species_group"
   )
@@ -224,7 +292,10 @@ test_that("all numeric columns are distributed", {
     2000L, 1L, "cattle", 4000, 100.0
   )
   result <- build_gridded_livestock(
-    ld, gridded_pasture, gridded_cropland, country_grid
+    ld,
+    gridded_pasture,
+    gridded_cropland,
+    country_grid
   )
   expect_true("extra_val" %in% names(result))
   expect_equal(sum(result$extra_val), 100.0, tolerance = 1e-6)
@@ -236,7 +307,10 @@ test_that("zero-heads country is handled gracefully", {
     2000L, 1L, "cattle", 0
   )
   result <- build_gridded_livestock(
-    ld, gridded_pasture, gridded_cropland, country_grid
+    ld,
+    gridded_pasture,
+    gridded_cropland,
+    country_grid
   )
   # Zero heads should distribute to zero everywhere
   expect_equal(sum(result$heads), 0)

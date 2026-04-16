@@ -74,6 +74,10 @@
 #'   - `mc_rainfed`: Rainfed suitability factor (default 1).
 #'   - `mc_irrigated`: Irrigated suitability factor (default 1).
 #'   If `NULL`, no capacity constraint is applied.
+#' @param years Integer vector of years to spatialize. If `NULL`
+#'   (default), all years present in `country_areas` are processed.
+#'   When supplied, `country_areas`, `gridded_cropland`, and
+#'   `type_cropland` are filtered to this set before processing.
 #' @param max_iterations Maximum iterations for the redistribution
 #'   loop. Default: `1000L`.
 #' @param expansion_threshold Iteration number after which crops are
@@ -145,22 +149,40 @@ build_gridded_landuse <- function(
   type_cropland = NULL,
   type_mapping = NULL,
   multicropping = NULL,
+  years = NULL,
   max_iterations = 1000L,
   expansion_threshold = 100L
 ) {
   .validate_landuse_inputs(
-    country_areas, crop_patterns,
-    gridded_cropland, country_grid
+    country_areas,
+    crop_patterns,
+    gridded_cropland,
+    country_grid
   )
 
   country_areas <- .ensure_irrigation_cols(country_areas)
   gridded_cropland <- .ensure_gridded_irrigation(gridded_cropland)
 
+  if (!is.null(years)) {
+    years <- sort(unique(as.integer(years)))
+    filtered <- .filter_landuse_years(
+      years,
+      country_areas,
+      gridded_cropland,
+      type_cropland
+    )
+    country_areas <- filtered$country_areas
+    gridded_cropland <- filtered$gridded_cropland
+    type_cropland <- filtered$type_cropland
+  }
+
   # Build type lookup: item_prod_code -> luh2_type
   type_lookup <- NULL
   if (!is.null(type_cropland) && !is.null(type_mapping)) {
     type_lookup <- dplyr::select(
-      type_mapping, item_prod_code, luh2_type
+      type_mapping,
+      item_prod_code,
+      luh2_type
     ) |>
       dplyr::distinct()
     cli::cli_alert_info(
@@ -223,7 +245,8 @@ build_gridded_landuse <- function(
       ]
       if (length(crop_type) == 1L) {
         crop_type_cl <- dplyr::filter(
-          type_cropland_yr, luh2_type == crop_type
+          type_cropland_yr,
+          luh2_type == crop_type
         )
       } else {
         crop_type <- NULL
@@ -234,10 +257,12 @@ build_gridded_landuse <- function(
       yr = yr,
       crop_code = crop_code,
       country_areas = dplyr::filter(
-        country_areas, item_prod_code == crop_code
+        country_areas,
+        item_prod_code == crop_code
       ),
       crop_pattern = dplyr::filter(
-        crop_patterns, item_prod_code == crop_code
+        crop_patterns,
+        item_prod_code == crop_code
       ),
       cropland = cropland,
       country_grid = country_grid,
@@ -246,8 +271,11 @@ build_gridded_landuse <- function(
   }) |>
     dplyr::bind_rows() |>
     .apply_capacity_constraint(
-      cropland, country_grid, multicropping,
-      max_iterations, expansion_threshold
+      cropland,
+      country_grid,
+      multicropping,
+      max_iterations,
+      expansion_threshold
     ) |>
     dplyr::mutate(year = yr, .before = 1L)
 }
@@ -271,7 +299,10 @@ build_gridded_landuse <- function(
       dplyr::inner_join(
         dplyr::select(
           type_cropland,
-          lon, lat, type_ha, type_irrig_ha
+          lon,
+          lat,
+          type_ha,
+          type_irrig_ha
         ),
         by = c("lon", "lat")
       ) |>
@@ -281,7 +312,9 @@ build_gridded_landuse <- function(
       ) |>
       dplyr::mutate(
         harvest_fraction = dplyr::if_else(
-          is.na(harvest_fraction), 0, harvest_fraction
+          is.na(harvest_fraction),
+          0,
+          harvest_fraction
         ),
         cropland_ha = type_ha,
         irrigated_ha = type_irrig_ha,
@@ -313,7 +346,9 @@ build_gridded_landuse <- function(
       ) |>
       dplyr::mutate(
         harvest_fraction = dplyr::if_else(
-          is.na(harvest_fraction), 0, harvest_fraction
+          is.na(harvest_fraction),
+          0,
+          harvest_fraction
         ),
         rainfed_ha = cropland_ha - irrigated_ha
       )
@@ -323,14 +358,18 @@ build_gridded_landuse <- function(
     dplyr::inner_join(
       dplyr::select(
         country_areas,
-        area_code, harvested_area_ha, irrigated_area_ha
+        area_code,
+        harvested_area_ha,
+        irrigated_area_ha
       ),
       by = "area_code"
     ) |>
     .allocate_country_area() |>
     dplyr::mutate(item_prod_code = crop_code) |>
     dplyr::select(
-      lon, lat, item_prod_code,
+      lon,
+      lat,
+      item_prod_code,
       rainfed_ha = allocated_rf,
       irrigated_ha = allocated_ir
     )
@@ -357,10 +396,14 @@ build_gridded_landuse <- function(
       ir_uniform = irrigated_ha / sum(irrigated_ha),
       # Replace NaN from 0/0
       rf_uniform = dplyr::if_else(
-        is.nan(rf_uniform), 0, rf_uniform
+        is.nan(rf_uniform),
+        0,
+        rf_uniform
       ),
       ir_uniform = dplyr::if_else(
-        is.nan(ir_uniform), 0, ir_uniform
+        is.nan(ir_uniform),
+        0,
+        ir_uniform
       ),
       .by = area_code
     ) |>
@@ -382,8 +425,10 @@ build_gridded_landuse <- function(
 #' Validate that required columns exist.
 #' @noRd
 .validate_landuse_inputs <- function(
-  country_areas, crop_patterns,
-  gridded_cropland, country_grid
+  country_areas,
+  crop_patterns,
+  gridded_cropland,
+  country_grid
 ) {
   .check_columns(
     country_areas,
@@ -507,12 +552,15 @@ build_gridded_landuse <- function(
   stable <- dplyr::filter(
     allocated,
     !(.get_area_code_from_grid(allocated, country_grid) %in%
-        countries_to_fix)
+      countries_to_fix)
   )
 
   fixed <- .redistribute_countries(
-    to_fix, capacity, country_grid,
-    max_iterations, expansion_threshold
+    to_fix,
+    capacity,
+    country_grid,
+    max_iterations,
+    expansion_threshold
   )
 
   dplyr::bind_rows(stable, fixed)
@@ -556,13 +604,18 @@ build_gridded_landuse <- function(
   purrr::map(countries, \(ctry) {
     ctry_data <- dplyr::filter(work, area_code == ctry)
     .redistribute_single_country(
-      ctry_data, max_iterations, expansion_threshold
+      ctry_data,
+      max_iterations,
+      expansion_threshold
     )
   }) |>
     dplyr::bind_rows() |>
     dplyr::select(
-      lon, lat, item_prod_code,
-      rainfed_ha, irrigated_ha
+      lon,
+      lat,
+      item_prod_code,
+      rainfed_ha,
+      irrigated_ha
     )
 }
 
@@ -593,17 +646,27 @@ build_gridded_landuse <- function(
       max(cell_check$ir_excess)
     )
 
-    if (max_excess <= tolerance) break
+    if (max_excess <= tolerance) {
+      break
+    }
 
     # Apply logit redistribution for irrigated
     data <- .logit_redistribute(
-      data, cell_check, "irrigated_ha", "ir_capacity",
-      "total_ir", "ir_excess"
+      data,
+      cell_check,
+      "irrigated_ha",
+      "ir_capacity",
+      "total_ir",
+      "ir_excess"
     )
     # Apply logit redistribution for rainfed
     data <- .logit_redistribute(
-      data, cell_check, "rainfed_ha", "rf_capacity",
-      "total_rf", "rf_excess"
+      data,
+      cell_check,
+      "rainfed_ha",
+      "rf_capacity",
+      "total_rf",
+      "rf_excess"
     )
   }
 
@@ -692,7 +755,8 @@ build_gridded_landuse <- function(
         is_under & increment != 0,
         .logistic(
           .logit(frac) + increment
-        ) * .data[[cap_col]],
+        ) *
+          .data[[cap_col]],
         .data[[ha_col]]
       )
     ) |>
@@ -709,6 +773,39 @@ build_gridded_landuse <- function(
 #' @noRd
 .logistic <- function(x) {
   1 / (1 + exp(-x))
+}
+
+#' Filter year-keyed inputs to the requested years.
+#'
+#' Warns if any requested year is absent from `country_areas` and
+#' filters all three year-keyed inputs accordingly. Returns a list
+#' with the filtered tibbles.
+#' @noRd
+.filter_landuse_years <- function(
+  years,
+  country_areas,
+  gridded_cropland,
+  type_cropland
+) {
+  available <- unique(as.integer(country_areas$year))
+  missing_years <- setdiff(years, available)
+  if (length(missing_years) > 0L) {
+    cli::cli_warn(c(
+      "{length(missing_years)} requested year{?s} not found in \\
+       {.arg country_areas}:",
+      "x" = "{.val {missing_years}}."
+    ))
+  }
+  country_areas <- dplyr::filter(country_areas, year %in% years)
+  gridded_cropland <- dplyr::filter(gridded_cropland, year %in% years)
+  if (!is.null(type_cropland)) {
+    type_cropland <- dplyr::filter(type_cropland, year %in% years)
+  }
+  list(
+    country_areas = country_areas,
+    gridded_cropland = gridded_cropland,
+    type_cropland = type_cropland
+  )
 }
 
 #' Aggregate crop-level results to CFT level.

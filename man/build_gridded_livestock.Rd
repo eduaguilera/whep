@@ -11,7 +11,8 @@ build_gridded_livestock(
   country_grid,
   species_proxy = NULL,
   manure_pattern = NULL,
-  glw_density = NULL
+  glw_density = NULL,
+  years = NULL
 )
 }
 \arguments{
@@ -86,6 +87,11 @@ If provided, this \strong{replaces} the LUH2-based proxy for the
 matching groups, while still being scaled by LUH2 time trends.
 If \code{NULL}, LUH2 proxies are used for all groups.
 }}
+
+\item{years}{Integer vector of years to spatialize. If \code{NULL}
+(default), all years present in \code{livestock_data} are processed.
+When supplied, \code{livestock_data}, \code{gridded_pasture}, and
+\code{gridded_cropland} are filtered to this set before processing.}
 }
 \value{
 A tibble with gridded livestock data. Columns:

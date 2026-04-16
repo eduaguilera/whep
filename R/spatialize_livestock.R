@@ -100,6 +100,10 @@
 #'   If provided, this **replaces** the LUH2-based proxy for the
 #'   matching groups, while still being scaled by LUH2 time trends.
 #'   If `NULL`, LUH2 proxies are used for all groups.
+#' @param years Integer vector of years to spatialize. If `NULL`
+#'   (default), all years present in `livestock_data` are processed.
+#'   When supplied, `livestock_data`, `gridded_pasture`, and
+#'   `gridded_cropland` are filtered to this set before processing.
 #'
 #' @return A tibble with gridded livestock data. Columns:
 #'   - `lon`, `lat`: Cell centre coordinates.
@@ -142,11 +146,28 @@ build_gridded_livestock <- function(
   country_grid,
   species_proxy = NULL,
   manure_pattern = NULL,
-  glw_density = NULL
+  glw_density = NULL,
+  years = NULL
 ) {
   .validate_livestock_inputs(
-    livestock_data, gridded_pasture, gridded_cropland, country_grid
+    livestock_data,
+    gridded_pasture,
+    gridded_cropland,
+    country_grid
   )
+
+  if (!is.null(years)) {
+    years <- sort(unique(as.integer(years)))
+    filtered <- .filter_livestock_years(
+      years,
+      livestock_data,
+      gridded_pasture,
+      gridded_cropland
+    )
+    livestock_data <- filtered$livestock_data
+    gridded_pasture <- filtered$gridded_pasture
+    gridded_cropland <- filtered$gridded_cropland
+  }
 
   if (is.null(species_proxy)) {
     species_proxy <- .default_species_proxy()
@@ -171,19 +192,23 @@ build_gridded_livestock <- function(
     "Spatializing {length(groups)} groups over {length(years)} years"
   )
 
-  result <- purrr::map(years, \(yr) {
-    .spatialize_livestock_year(
-      yr = yr,
-      livestock_yr = dplyr::filter(livestock_data, year == yr),
-      pasture_yr = dplyr::filter(gridded_pasture, year == yr),
-      cropland_yr = dplyr::filter(gridded_cropland, year == yr),
-      country_grid = country_grid,
-      species_proxy = species_proxy,
-      manure_pattern = manure_pattern,
-      glw_density = glw_density,
-      numeric_cols = numeric_cols
-    )
-  }, .progress = length(years) > 5L) |>
+  result <- purrr::map(
+    years,
+    \(yr) {
+      .spatialize_livestock_year(
+        yr = yr,
+        livestock_yr = dplyr::filter(livestock_data, year == yr),
+        pasture_yr = dplyr::filter(gridded_pasture, year == yr),
+        cropland_yr = dplyr::filter(gridded_cropland, year == yr),
+        country_grid = country_grid,
+        species_proxy = species_proxy,
+        manure_pattern = manure_pattern,
+        glw_density = glw_density,
+        numeric_cols = numeric_cols
+      )
+    },
+    .progress = length(years) > 5L
+  ) |>
     dplyr::bind_rows()
 
   result
@@ -226,21 +251,24 @@ build_gridded_livestock <- function(
     pasture = {
       pasture_yr |>
         dplyr::transmute(
-          lon, lat,
+          lon,
+          lat,
           weight = pasture_ha + rangeland_ha
         )
     },
     rangeland = {
       pasture_yr |>
         dplyr::transmute(
-          lon, lat,
+          lon,
+          lat,
           weight = rangeland_ha
         )
     },
     cropland = {
       cropland_yr |>
         dplyr::transmute(
-          lon, lat,
+          lon,
+          lat,
           weight = cropland_ha
         )
     },
@@ -276,11 +304,13 @@ build_gridded_livestock <- function(
       ) |>
       dplyr::mutate(
         manure_intensity = dplyr::if_else(
-          is.na(manure_intensity), 0, manure_intensity
+          is.na(manure_intensity),
+          0,
+          manure_intensity
         ),
         # Blend: 70% land-use, 30% manure-reference (avoid zero-out)
-        weight = weight * (0.7 + 0.3 * manure_intensity /
-          max(manure_intensity, na.rm = TRUE))
+        weight = weight *
+          (0.7 + 0.3 * manure_intensity / max(manure_intensity, na.rm = TRUE))
       )
   }
 
@@ -311,7 +341,8 @@ build_gridded_livestock <- function(
     rangeland = {
       pasture_yr |>
         dplyr::transmute(
-          lon, lat,
+          lon,
+          lat,
           lu_now = pasture_ha + rangeland_ha
         )
     },
@@ -370,23 +401,30 @@ build_gridded_livestock <- function(
     proxy_type <- if (nrow(proxy_row) > 0) {
       proxy_row$spatial_proxy[1]
     } else {
-      "pasture"  # fallback
+      "pasture" # fallback
     }
 
     # Try GLW3 first if available
     proxy_grid <- NULL
     if (!is.null(glw_density)) {
       proxy_grid <- .build_glw_proxy_grid(
-        grp, glw_density, pasture_yr, cropland_yr,
-        country_grid, proxy_type
+        grp,
+        glw_density,
+        pasture_yr,
+        cropland_yr,
+        country_grid,
+        proxy_type
       )
     }
 
     # Fall back to LUH2-based proxy
     if (is.null(proxy_grid) || nrow(proxy_grid) == 0L) {
       proxy_grid <- .build_proxy_grid(
-        proxy_type, pasture_yr, cropland_yr,
-        country_grid, manure_pattern
+        proxy_type,
+        pasture_yr,
+        cropland_yr,
+        country_grid,
+        manure_pattern
       )
     }
 
@@ -395,7 +433,9 @@ build_gridded_livestock <- function(
     }
 
     .allocate_livestock_to_grid(
-      grp_data, proxy_grid, numeric_cols
+      grp_data,
+      proxy_grid,
+      numeric_cols
     ) |>
       dplyr::mutate(
         year = yr,
@@ -426,7 +466,9 @@ build_gridded_livestock <- function(
     dplyr::mutate(
       weight_sum = sum(weight),
       share = dplyr::if_else(
-        weight_sum > 0, weight / weight_sum, 0
+        weight_sum > 0,
+        weight / weight_sum,
+        0
       ),
       .by = area_code
     )
@@ -434,7 +476,8 @@ build_gridded_livestock <- function(
   # Join country totals
   join_cols <- dplyr::select(
     country_data,
-    area_code, dplyr::all_of(numeric_cols)
+    area_code,
+    dplyr::all_of(numeric_cols)
   )
 
   grid <- grid |>
@@ -450,7 +493,8 @@ build_gridded_livestock <- function(
 
   grid |>
     dplyr::select(
-      lon, lat,
+      lon,
+      lat,
       dplyr::all_of(numeric_cols)
     )
 }
@@ -483,5 +527,32 @@ build_gridded_livestock <- function(
     country_grid,
     c("lon", "lat", "area_code"),
     "country_grid"
+  )
+}
+
+#' Filter year-keyed livestock inputs to the requested years.
+#'
+#' Warns if any requested year is absent from `livestock_data` and
+#' filters all three year-keyed inputs accordingly.
+#' @noRd
+.filter_livestock_years <- function(
+  years,
+  livestock_data,
+  gridded_pasture,
+  gridded_cropland
+) {
+  available <- unique(as.integer(livestock_data$year))
+  missing_years <- setdiff(years, available)
+  if (length(missing_years) > 0L) {
+    cli::cli_warn(c(
+      "{length(missing_years)} requested year{?s} not found in \\
+       {.arg livestock_data}:",
+      "x" = "{.val {missing_years}}."
+    ))
+  }
+  list(
+    livestock_data = dplyr::filter(livestock_data, year %in% years),
+    gridded_pasture = dplyr::filter(gridded_pasture, year %in% years),
+    gridded_cropland = dplyr::filter(gridded_cropland, year %in% years)
   )
 }

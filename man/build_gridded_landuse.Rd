@@ -13,6 +13,7 @@ build_gridded_landuse(
   type_cropland = NULL,
   type_mapping = NULL,
   multicropping = NULL,
+  years = NULL,
   max_iterations = 1000L,
   expansion_threshold = 100L
 )
@@ -100,6 +101,11 @@ suitability factors. Expected columns:
 \item \code{mc_irrigated}: Irrigated suitability factor (default 1).
 If \code{NULL}, no capacity constraint is applied.
 }}
+
+\item{years}{Integer vector of years to spatialize. If \code{NULL}
+(default), all years present in \code{country_areas} are processed.
+When supplied, \code{country_areas}, \code{gridded_cropland}, and
+\code{type_cropland} are filtered to this set before processing.}
 
 \item{max_iterations}{Maximum iterations for the redistribution
 loop. Default: \code{1000L}.}

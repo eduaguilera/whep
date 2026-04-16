@@ -716,6 +716,8 @@ utils::globalVariables(
     "species",
     "species_base",
     "species_gen",
+    "species_group",
+    "spatial_proxy",
     "subcategory",
     "temp_adjustment",
     "temp_max",
