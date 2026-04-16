@@ -1,7 +1,7 @@
 # -----------------------------------------------------------------------
 # run_benchmark_comparisons.R
 #
-# Multi-comparison spatialize runs at 25-year benchmark years.
+# Multi-comparison spatialize runs at 10-year benchmark years.
 #
 # Runs three configurations so cell-level maps can be diffed:
 #   1. lpjml              — LandInG-faithful (no LUH2 type constraint)
@@ -9,7 +9,7 @@
 #   3. lpjml_typeaware    — LPJmL base + type-aware override
 #                           (isolates the effect of the constraint alone)
 #
-# Benchmark years: seq(1850, 2000, 25) intersected with availability.
+# Benchmark years: seq(1850, 2020, 10) intersected with availability.
 # Each run writes to its own directory under
 # <WHEP_L_FILES_DIR>/whep/spatialize/benchmark/, with a
 # run_metadata.yaml alongside.
@@ -31,7 +31,7 @@ if (!nzchar(l_files) || !dir.exists(l_files)) {
   )
 }
 
-benchmarks <- c(1850L, 1875L, 1900L, 1925L, 1950L, 1975L, 2000L)
+benchmarks <- as.integer(seq(1850L, 2020L, by = 10L))
 base_out <- file.path(l_files, "whep", "spatialize", "benchmark")
 
 cli::cli_h1("Multi-comparison benchmark runs")

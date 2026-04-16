@@ -16,8 +16,8 @@
 #' @param preset One of `"lpjml"` or `"whep"`. Selects a default
 #'   bundle of engine flags and input choices. See *Presets*.
 #' @param years Integer vector of years to spatialize. If `NULL`,
-#'   the preset default is used: for `"lpjml"` a 25-year benchmark
-#'   sequence (`seq(1850L, 2000L, by = 25L)`), intersected with the
+#'   the preset default is used: for `"lpjml"` a 10-year benchmark
+#'   sequence (`seq(1850L, 2020L, by = 10L)`), intersected with the
 #'   years available in `country_areas`; for `"whep"` all years
 #'   present in `country_areas`.
 #' @param components Character vector selecting which engines to run.
@@ -327,7 +327,7 @@ run_spatialize <- function(
 }
 
 .benchmark_years <- function() {
-  as.integer(seq(1850L, 2000L, by = 25L))
+  as.integer(seq(1850L, 2020L, by = 10L))
 }
 
 .default_spatialize_out_dir <- function(l_files_dir, preset, overrides) {

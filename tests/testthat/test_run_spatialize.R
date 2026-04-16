@@ -53,21 +53,21 @@ testthat::test_that("lpjml default years intersect benchmark years with availabi
     preset = "lpjml",
     country_areas = country_areas
   )
-  testthat::expect_setequal(picked, 2000L)
+  testthat::expect_setequal(picked, c(2000L, 2010L))
 })
 
 testthat::test_that("lpjml falls back to all available years if none of the samples match", {
   country_areas <- tibble::tribble(
       ~year, ~area_code, ~item_prod_code, ~harvested_area_ha,
-      2015L,         1L,             15L,               500,
-      2020L,         1L,             15L,               510
+      2021L,         1L,             15L,               500,
+      2022L,         1L,             15L,               510
     )
   picked <- getFromNamespace(".resolve_years", "whep")(
     years = NULL,
     preset = "lpjml",
     country_areas = country_areas
   )
-  testthat::expect_setequal(picked, c(2015L, 2020L))
+  testthat::expect_setequal(picked, c(2021L, 2022L))
 })
 
 testthat::test_that("whep default years use all available years", {
@@ -93,11 +93,11 @@ testthat::test_that("custom overrides produce a distinct default output director
   testthat::expect_match(custom, "_custom$")
 })
 
-testthat::test_that("lpjml default years are the 25y benchmark sequence", {
+testthat::test_that("lpjml default years are the 10y benchmark sequence", {
   benchmarks <- getFromNamespace(".benchmark_years", "whep")()
   testthat::expect_setequal(
     benchmarks,
-    c(1850L, 1875L, 1900L, 1925L, 1950L, 1975L, 2000L)
+    seq(1850L, 2020L, by = 10L)
   )
 
   country_areas <- tibble::tibble(year = 1850L:2020L)

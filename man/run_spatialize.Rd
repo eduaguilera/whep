@@ -19,8 +19,8 @@ run_spatialize(
 bundle of engine flags and input choices. See \emph{Presets}.}
 
 \item{years}{Integer vector of years to spatialize. If \code{NULL},
-the preset default is used: for \code{"lpjml"} a 25-year benchmark
-sequence (\code{seq(1850L, 2000L, by = 25L)}), intersected with the
+the preset default is used: for \code{"lpjml"} a 10-year benchmark
+sequence (\code{seq(1850L, 2020L, by = 10L)}), intersected with the
 years available in \code{country_areas}; for \code{"whep"} all years
 present in \code{country_areas}.}
 
