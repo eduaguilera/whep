@@ -52,12 +52,14 @@ library(dplyr, warn.conflicts = FALSE)
 # ==== Configuration ====================================================
 
 l_files_dir <- whep:::.get_l_files_dir()
-output_dir  <- file.path(l_files_dir, "whep", "inputs")
-run_dir     <- file.path(l_files_dir, "whep")
-year_range  <- 1850L:2022L
-target_res  <- 0.5
+output_dir <- file.path(l_files_dir, "whep", "inputs")
+run_dir <- file.path(l_files_dir, "whep")
+year_range <- 1850L:2022L
+target_res <- 0.5
 
-if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE)
+if (!dir.exists(output_dir)) {
+  dir.create(output_dir, recursive = TRUE)
+}
 
 
 # ==== Shared helpers ====================================================
@@ -65,9 +67,13 @@ if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE)
 # ---- Find extdata file (inst/ or installed package) --------------------
 .find_extdata_file <- function(filename) {
   local_path <- file.path("inst", "extdata", filename)
-  if (file.exists(local_path)) return(local_path)
+  if (file.exists(local_path)) {
+    return(local_path)
+  }
   pkg_path <- system.file("extdata", filename, package = "whep")
-  if (nchar(pkg_path) > 0) return(pkg_path)
+  if (nchar(pkg_path) > 0) {
+    return(pkg_path)
+  }
   cli::cli_abort("Cannot find {.file {filename}} in inst/extdata.")
 }
 
@@ -126,10 +132,15 @@ if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE)
 }
 
 # ---- Read one EarthStat HarvestedAreaFraction crop ----------------------
-.read_one_earthstat_crop <- function(earthstat_dir, crop_name,
-                                     item_prod_code, target_res) {
+.read_one_earthstat_crop <- function(
+  earthstat_dir,
+  crop_name,
+  item_prod_code,
+  target_res
+) {
   tif_path <- file.path(
-    earthstat_dir, crop_name,
+    earthstat_dir,
+    crop_name,
     paste0(crop_name, "_HarvestedAreaFraction.tif")
   )
   if (!file.exists(tif_path)) {
@@ -145,12 +156,18 @@ if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE)
 }
 
 # ---- Read one EarthStat fertilizer raster (N, P, or K) ------------------
-.read_one_earthstat_fertilizer <- function(fert_dir, crop_name,
-                                           item_prod_code, nutrient,
-                                           target_res) {
+.read_one_earthstat_fertilizer <- function(
+  fert_dir,
+  crop_name,
+  item_prod_code,
+  nutrient,
+  target_res
+) {
   tif_name <- paste0(crop_name, "_", nutrient, "Application_Rate.tif")
   tif_path <- file.path(fert_dir, paste0("Fertilizer_", crop_name), tif_name)
-  if (!file.exists(tif_path)) return(tibble::tibble())
+  if (!file.exists(tif_path)) {
+    return(tibble::tibble())
+  }
   r <- terra::rast(tif_path)
   src_res <- terra::res(r)[1]
   agg_factor <- max(1L, as.integer(round(target_res / src_res)))
@@ -166,13 +183,20 @@ if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE)
 }
 
 # ---- Read one EarthStat YieldPerHectare raster ---------------------------
-.read_one_earthstat_yield <- function(earthstat_dir, crop_name,
-                                      item_prod_code, target_res) {
+.read_one_earthstat_yield <- function(
+  earthstat_dir,
+  crop_name,
+  item_prod_code,
+  target_res
+) {
   tif_path <- file.path(
-    earthstat_dir, crop_name,
+    earthstat_dir,
+    crop_name,
     paste0(crop_name, "_YieldPerHectare.tif")
   )
-  if (!file.exists(tif_path)) return(tibble::tibble())
+  if (!file.exists(tif_path)) {
+    return(tibble::tibble())
+  }
   r <- terra::rast(tif_path)
   agg_factor <- as.integer(target_res / (5 / 60))
   r_agg <- terra::aggregate(r, fact = agg_factor, fun = "mean", na.rm = TRUE)
@@ -205,8 +229,10 @@ if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE)
   on.exit(ncdf4::nc_close(nc))
   lat <- ncdf4::ncvar_get(nc, "lat")
   vals <- ncdf4::ncvar_get(
-    nc, varname,
-    start = c(1, 1, time_idx), count = c(-1, -1, 1)
+    nc,
+    varname,
+    start = c(1, 1, time_idx),
+    count = c(-1, -1, 1)
   )
   vals[is.na(vals)] <- 0
   r <- terra::rast(t(vals), extent = terra::ext(-180, 180, -90, 90))
@@ -227,11 +253,15 @@ if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE)
   lat_desc <- lat[1] > lat[length(lat)]
   purrr::map(var_names, \(vname) {
     vals <- ncdf4::ncvar_get(
-      nc, vname,
-      start = c(1, 1, time_idx), count = c(n_lon, n_lat, 1)
+      nc,
+      vname,
+      start = c(1, 1, time_idx),
+      count = c(n_lon, n_lat, 1)
     )
     r <- terra::rast(t(vals), extent = terra::ext(-180, 180, -90, 90))
-    if (!lat_desc) r <- terra::flip(r, direction = "vertical")
+    if (!lat_desc) {
+      r <- terra::flip(r, direction = "vertical")
+    }
     r[is.nan(terra::values(r))] <- 0
     r[is.na(terra::values(r))] <- 0
     r
@@ -239,31 +269,8 @@ if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE)
     rlang::set_names(var_names)
 }
 
-# ---- CFT-to-LUH2 crop functional type mapping ---------------------------
-.cft_to_luh2_mapping <- function() {
-  tibble::tribble(
-    ~cft_name,             ~luh2_type,
-    "temperate_cereals",   "c3ann",
-    "rice",                "c3ann",
-    "oil_crops_rapeseed",  "c3ann",
-    "oil_crops_sunflower", "c3ann",
-    "oil_crops_other",     "c3ann",
-    "others_annual",       "c3ann",
-    "temperate_roots",     "c3ann",
-    "tropical_roots",      "c3ann",
-    "maize",               "c4ann",
-    "tropical_cereals",    "c4ann",
-    "sugarcane",           "c4ann",
-    "others_perennial",    "c3per",
-    "oil_crops_soybean",   "c3nfx",
-    "oil_crops_groundnut", "c3nfx",
-    "pulses",              "c3nfx"
-  )
-}
-
 # ---- Read LUH2 cropland for one year (per-type + total) ------------------
-.read_luh2_year <- function(luh2_dir, yr, crop_vars,
-                            carea_rast, target_res) {
+.read_luh2_year <- function(luh2_dir, yr, crop_vars, carea_rast, target_res) {
   time_idx <- yr - 850L + 1L
   states_path <- file.path(luh2_dir, "states.nc")
   mgmt_path <- file.path(luh2_dir, "management.nc")
@@ -280,10 +287,16 @@ if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE)
     type_ha_r <- crop_rasters[[cv]] * carea_ha
     type_ir_r <- irrig_rasters[[iv]] * crop_rasters[[cv]] * carea_ha
     type_ha_r <- terra::aggregate(
-      type_ha_r, fact = agg_factor, fun = "sum", na.rm = TRUE
+      type_ha_r,
+      fact = agg_factor,
+      fun = "sum",
+      na.rm = TRUE
     )
     type_ir_r <- terra::aggregate(
-      type_ir_r, fact = agg_factor, fun = "sum", na.rm = TRUE
+      type_ir_r,
+      fact = agg_factor,
+      fun = "sum",
+      na.rm = TRUE
     )
     ha_tbl <- .raster_to_tibble(type_ha_r, "type_ha")
     ir_tbl <- .raster_to_tibble(type_ir_r, "type_irrig_ha")
@@ -316,8 +329,12 @@ if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE)
 }
 
 # ---- LUH2 country-level cropland + irrigation totals ---------------------
-.luh2_country_totals <- function(luh2_dir, year_range,
-                                 country_grid, target_res) {
+.luh2_country_totals <- function(
+  luh2_dir,
+  year_range,
+  country_grid,
+  target_res
+) {
   cli::cli_alert_info("Computing country-level cropland & irrigation from LUH2")
 
   crop_vars <- c("c3ann", "c4ann", "c3per", "c4per", "c3nfx")
@@ -328,7 +345,9 @@ if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE)
   agg_factor <- as.integer(target_res / 0.25)
 
   purrr::map(year_range, \(yr) {
-    if (yr %% 10 == 0) cli::cli_alert("LUH2 country totals: year {yr}")
+    if (yr %% 10 == 0) {
+      cli::cli_alert("LUH2 country totals: year {yr}")
+    }
     time_idx <- yr - 850L + 1L
     crop_r <- .read_luh2_variables(states_path, crop_vars, time_idx)
     irrig_r <- .read_luh2_variables(mgmt_path, irrig_vars, time_idx)
@@ -337,10 +356,16 @@ if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE)
       crop_ha_r <- crop_r[[cv]] * carea_ha_r
       irrig_ha_r <- irrig_r[[iv]] * crop_r[[cv]] * carea_ha_r
       crop_agg <- terra::aggregate(
-        crop_ha_r, fact = agg_factor, fun = "sum", na.rm = TRUE
+        crop_ha_r,
+        fact = agg_factor,
+        fun = "sum",
+        na.rm = TRUE
       )
       irrig_agg <- terra::aggregate(
-        irrig_ha_r, fact = agg_factor, fun = "sum", na.rm = TRUE
+        irrig_ha_r,
+        fact = agg_factor,
+        fun = "sum",
+        na.rm = TRUE
       )
       crop_tbl <- .raster_to_tibble(crop_agg, "crop_ha")
       irrig_tbl <- .raster_to_tibble(irrig_agg, "irrig_ha")
@@ -363,7 +388,9 @@ if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE)
     dplyr::bind_rows() |>
     dplyr::mutate(
       luh2_type = dplyr::if_else(
-        .data$luh2_type == "c4per", "c3per", .data$luh2_type
+        .data$luh2_type == "c4per",
+        "c3per",
+        .data$luh2_type
       )
     ) |>
     dplyr::summarise(
@@ -397,7 +424,9 @@ if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE)
   pred_codes <- unique(pred_map$predecessor_code)
   pred_rows <- crop_areas |>
     dplyr::filter(.data$area_code %in% pred_codes)
-  if (nrow(pred_rows) == 0) return(crop_areas)
+  if (nrow(pred_rows) == 0) {
+    return(crop_areas)
+  }
 
   other_rows <- crop_areas |>
     dplyr::filter(!.data$area_code %in% pred_codes)
@@ -407,11 +436,13 @@ if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE)
 
   redistributed <- pred_rows |>
     dplyr::inner_join(
-      pred_map, by = c("area_code" = "predecessor_code"),
+      pred_map,
+      by = c("area_code" = "predecessor_code"),
       relationship = "many-to-many"
     ) |>
     dplyr::left_join(
-      luh2_ctry, by = c("year", "successor_code" = "area_code")
+      luh2_ctry,
+      by = c("year", "successor_code" = "area_code")
     ) |>
     dplyr::mutate(
       crop_ha = dplyr::if_else(is.na(.data$crop_ha), 0, .data$crop_ha)
@@ -475,7 +506,9 @@ prepare_country_grid <- function(l_files_dir, target_res) {
   cli::cli_h2("Section 1: Country grid")
 
   shp_path <- file.path(
-    l_files_dir, "NaturalEarth", "Countries_shape",
+    l_files_dir,
+    "NaturalEarth",
+    "Countries_shape",
     "ne_10m_admin_0_countries.shp"
   )
   countries <- terra::vect(shp_path)
@@ -485,7 +518,8 @@ prepare_country_grid <- function(l_files_dir, target_res) {
   iso_eh <- as.character(countries$ISO_A3_EH)
   iso_adm <- as.character(countries$ADM0_A3)
   iso3c <- dplyr::if_else(
-    iso_raw != "-99", iso_raw,
+    iso_raw != "-99",
+    iso_raw,
     dplyr::if_else(iso_eh != "-99", iso_eh, iso_adm)
   )
 
@@ -498,7 +532,10 @@ prepare_country_grid <- function(l_files_dir, target_res) {
 
   ref <- terra::rast(
     resolution = target_res,
-    xmin = -180, xmax = 180, ymin = -90, ymax = 90
+    xmin = -180,
+    xmax = 180,
+    ymin = -90,
+    ymax = 90
   )
 
   cli::cli_alert_info("Rasterizing shapefile to {target_res}-degree grid")
@@ -517,12 +554,16 @@ prepare_country_grid <- function(l_files_dir, target_res) {
 #
 # FAOSTAT harvested area + LUH2/MIRCA irrigation allocation.
 
-prepare_country_areas <- function(l_files_dir, year_range, country_grid,
-                                  target_res, prod = NULL) {
+prepare_country_areas <- function(
+  l_files_dir,
+  year_range,
+  country_grid,
+  target_res,
+  prod = NULL
+) {
   cli::cli_h2("Section 2: Country areas")
 
   cft_mapping <- .read_cft_mapping()
-  cft_luh2 <- .cft_to_luh2_mapping()
 
   if (is.null(prod)) {
     prod <- whep::build_primary_production(
@@ -551,26 +592,27 @@ prepare_country_areas <- function(l_files_dir, year_range, country_grid,
 
   luh2_dir <- file.path(l_files_dir, "LUH2", "LUH2 v2h")
   luh2_totals <- .luh2_country_totals(
-    luh2_dir, year_range, country_grid, target_res
+    luh2_dir,
+    year_range,
+    country_grid,
+    target_res
   )
 
   crop_areas <- .redistribute_predecessors(crop_areas, luh2_totals)
 
-  type_map <- dplyr::select(cft_mapping, "item_prod_code", "cft_name") |>
-    dplyr::left_join(
-      dplyr::select(cft_luh2, "cft_name", "luh2_type"),
-      by = "cft_name"
-    ) |>
-    dplyr::select("item_prod_code", "luh2_type")
-
+  type_map <- dplyr::select(cft_mapping, "item_prod_code", "luh2_type")
   crop_areas <- crop_areas |>
     dplyr::left_join(type_map, by = "item_prod_code")
 
   luh2_irrig <- luh2_totals |>
     dplyr::select("year", "area_code", "luh2_type", "irrig_ha")
 
-  mirca_file <- file.path(l_files_dir, "whep", "inputs",
-                          "mirca_irrigation_country.parquet")
+  mirca_file <- file.path(
+    l_files_dir,
+    "whep",
+    "inputs",
+    "mirca_irrigation_country.parquet"
+  )
   has_mirca <- file.exists(mirca_file)
 
   if (has_mirca) {
@@ -600,11 +642,14 @@ prepare_country_areas <- function(l_files_dir, year_range, country_grid,
       ) |>
       dplyr::mutate(
         total_irrig_ha = dplyr::if_else(
-          is.na(.data$total_irrig_ha), 0, .data$total_irrig_ha
+          is.na(.data$total_irrig_ha),
+          0,
+          .data$total_irrig_ha
         ),
         mirca_scale = dplyr::if_else(
           .data$mirca_total > 0,
-          .data$total_irrig_ha / .data$mirca_total, 1
+          .data$total_irrig_ha / .data$mirca_total,
+          1
         ),
         irrigated_area_ha = dplyr::case_when(
           !is.na(.data$mirca_irrig_raw) ~
@@ -617,8 +662,10 @@ prepare_country_areas <- function(l_files_dir, year_range, country_grid,
     if (any(needs_fallback)) {
       fallback <- crop_areas |>
         dplyr::filter(is.na(.data$irrigated_area_ha)) |>
-        dplyr::left_join(luh2_irrig,
-                         by = c("year", "area_code", "luh2_type")) |>
+        dplyr::left_join(
+          luh2_irrig,
+          by = c("year", "area_code", "luh2_type")
+        ) |>
         dplyr::mutate(
           irrig_ha = dplyr::if_else(is.na(.data$irrig_ha), 0, .data$irrig_ha),
           cft_total = sum(.data$harvested_area_ha),
@@ -649,15 +696,21 @@ prepare_country_areas <- function(l_files_dir, year_range, country_grid,
   crop_areas |>
     dplyr::mutate(
       irrigated_area_ha = dplyr::if_else(
-        is.na(.data$irrigated_area_ha), 0, .data$irrigated_area_ha
+        is.na(.data$irrigated_area_ha),
+        0,
+        .data$irrigated_area_ha
       ),
       irrigated_area_ha = pmin(
-        .data$irrigated_area_ha, .data$harvested_area_ha
+        .data$irrigated_area_ha,
+        .data$harvested_area_ha
       )
     ) |>
     dplyr::select(
-      "year", "area_code", "item_prod_code",
-      "harvested_area_ha", "irrigated_area_ha"
+      "year",
+      "area_code",
+      "item_prod_code",
+      "harvested_area_ha",
+      "irrigated_area_ha"
     )
 }
 
@@ -668,7 +721,9 @@ prepare_crop_patterns <- function(l_files_dir, target_res) {
   cli::cli_h2("Section 3: EarthStat crop patterns")
 
   earthstat_dir <- file.path(
-    l_files_dir, "HarvestedAreaYield175Crops_Geotiff", "GeoTiff"
+    l_files_dir,
+    "HarvestedAreaYield175Crops_Geotiff",
+    "GeoTiff"
   )
   xwalk <- .read_earthstat_mapping() |>
     dplyr::filter(!is.na(item_prod_code))
@@ -713,7 +768,11 @@ prepare_crop_fertilizer_patterns <- function(l_files_dir, target_res) {
       fert_map$item_prod_code,
       \(crop_name, code) {
         .read_one_earthstat_fertilizer(
-          fert_dir, crop_name, code, nutrient, target_res
+          fert_dir,
+          crop_name,
+          code,
+          nutrient,
+          target_res
         )
       }
     ) |>
@@ -725,8 +784,9 @@ prepare_crop_fertilizer_patterns <- function(l_files_dir, target_res) {
     dplyr::full_join(results$p, by = c("lon", "lat", "item_prod_code")) |>
     dplyr::full_join(results$k, by = c("lon", "lat", "item_prod_code")) |>
     dplyr::mutate(
-      dplyr::across(dplyr::starts_with("kg_"),
-                    \(x) dplyr::if_else(is.na(x), 0, x))
+      dplyr::across(dplyr::starts_with("kg_"), \(x) {
+        dplyr::if_else(is.na(x), 0, x)
+      })
     )
 
   n_crops <- dplyr::n_distinct(combined$item_prod_code)
@@ -742,8 +802,12 @@ prepare_crop_fertilizer_patterns <- function(l_files_dir, target_res) {
 #
 # Includes type_cropland.parquet generation (from _gen_type_cropland.R).
 
-prepare_gridded_cropland <- function(l_files_dir, year_range,
-                                     target_res, output_dir = NULL) {
+prepare_gridded_cropland <- function(
+  l_files_dir,
+  year_range,
+  target_res,
+  output_dir = NULL
+) {
   cli::cli_h2("Section 4: LUH2 gridded cropland + type_cropland")
 
   luh2_dir <- file.path(l_files_dir, "LUH2", "LUH2 v2h")
@@ -753,7 +817,9 @@ prepare_gridded_cropland <- function(l_files_dir, year_range,
   cli::cli_alert_info("Processing {length(year_range)} years of LUH2 data")
 
   all_years <- purrr::map(year_range, \(yr) {
-    if (yr %% 10 == 0) cli::cli_alert("Processing year {yr}")
+    if (yr %% 10 == 0) {
+      cli::cli_alert("Processing year {yr}")
+    }
     .read_luh2_year(luh2_dir, yr, crop_vars, carea_rast, target_res)
   })
 
@@ -777,8 +843,12 @@ prepare_gridded_cropland <- function(l_files_dir, year_range,
 # irrigation fractions.  Merges logic from prepare_mirca_inputs.R and
 # prepare_mirca_irrigation.R.
 
-prepare_mirca_irrigation <- function(l_files_dir, output_dir,
-                                     country_grid, target_res) {
+prepare_mirca_irrigation <- function(
+  l_files_dir,
+  output_dir,
+  country_grid,
+  target_res
+) {
   cli::cli_h2("Section 5: MIRCA2000 irrigation")
 
   mirca_dir <- file.path(l_files_dir, "Irrigation maps_CIRCA-2000")
@@ -813,8 +883,12 @@ prepare_mirca_irrigation <- function(l_files_dir, output_dir,
     }
     rm(raw_vals)
     r <- terra::rast(
-      nrows = NROWS, ncols = NCOLS,
-      xmin = -180, xmax = 180, ymin = -90, ymax = 90
+      nrows = NROWS,
+      ncols = NCOLS,
+      xmin = -180,
+      xmax = 180,
+      ymin = -90,
+      ymax = 90
     )
     terra::values(r) <- annual
     rm(annual)
@@ -824,18 +898,28 @@ prepare_mirca_irrigation <- function(l_files_dir, output_dir,
   .find_mirca_file_local <- function(mirca_dir, crop_num, type) {
     fname <- sprintf("crop_%02d_%s_12", crop_num, type)
     gz_path <- file.path(mirca_dir, paste0(fname, ".flt.gz"))
-    if (file.exists(gz_path)) return(gz_path)
+    if (file.exists(gz_path)) {
+      return(gz_path)
+    }
     sub_dir <- file.path(mirca_dir, type, paste0(fname, ".flt"))
     sub_file <- file.path(sub_dir, paste0(fname, ".flt"))
-    if (file.exists(sub_file)) return(sub_file)
+    if (file.exists(sub_file)) {
+      return(sub_file)
+    }
     sub_dir_tilde <- file.path(mirca_dir, type, paste0(fname, ".flt~"))
     sub_file_tilde <- file.path(sub_dir_tilde, paste0(fname, ".flt"))
-    if (file.exists(sub_file_tilde)) return(sub_file_tilde)
+    if (file.exists(sub_file_tilde)) {
+      return(sub_file_tilde)
+    }
     standalone <- file.path(mirca_dir, type, paste0(fname, ".flt"))
-    if (file.exists(standalone)) return(standalone)
+    if (file.exists(standalone)) {
+      return(standalone)
+    }
     alt_dir <- file.path(mirca_dir, type, fname)
     alt_file <- file.path(alt_dir, paste0(fname, ".flt"))
-    if (file.exists(alt_file)) return(alt_file)
+    if (file.exists(alt_file)) {
+      return(alt_file)
+    }
     NULL
   }
 
@@ -846,10 +930,12 @@ prepare_mirca_irrigation <- function(l_files_dir, output_dir,
 
   # Read MIRCA mapping
   mirca_map <- readr::read_csv(
-    .find_extdata_file("mirca_mapping.csv"), show_col_types = FALSE
+    .find_extdata_file("mirca_mapping.csv"),
+    show_col_types = FALSE
   )
   cft_map <- readr::read_csv(
-    .find_extdata_file("cft_mapping.csv"), show_col_types = FALSE
+    .find_extdata_file("cft_mapping.csv"),
+    show_col_types = FALSE
   )
 
   # Build MIRCA -> FAOSTAT expansion
@@ -866,23 +952,38 @@ prepare_mirca_irrigation <- function(l_files_dir, output_dir,
     item_prod_code = citrus_codes
   )
 
-  group_to_cft <- tibble::tribble(
-    ~mirca_group,       ~cft_name,
-    "pulses",           "pulses",
-    "others_perennial", "others_perennial",
-    "others_annual",    "others_annual"
+  # MIRCA "pulses", "others_perennial", "others_annual" are catch-alls
+  # that must expand to every item_prod_code not already assigned to
+  # a specific MIRCA class. We derive the buckets from the cft_map's
+  # luh2_type so the expansion stays consistent with the WHEP
+  # taxonomy (whose cft_name is now granular).
+  direct_codes <- direct$item_prod_code
+  pulses_ipc <- cft_map$item_prod_code[cft_map$cft_name == "pulses"]
+  perennial_ipc <- cft_map$item_prod_code[
+    cft_map$luh2_type == "c3per" &
+      !cft_map$item_prod_code %in% c(direct_codes, citrus_codes)
+  ]
+  annual_ipc <- cft_map$item_prod_code[
+    cft_map$luh2_type %in%
+      c("c3ann", "c4ann", "c3nfx") &
+      !cft_map$item_prod_code %in% c(direct_codes, pulses_ipc)
+  ]
+  group_lookup <- list(
+    pulses = pulses_ipc,
+    others_perennial = perennial_ipc,
+    others_annual = annual_ipc
   )
 
   group_rows <- mirca_map |>
     dplyr::filter(is.na(item_prod_code), !is.na(mirca_group)) |>
-    dplyr::filter(mirca_group %in% group_to_cft$mirca_group) |>
-    dplyr::select(mirca_class, mirca_group) |>
-    dplyr::inner_join(group_to_cft, by = "mirca_group") |>
-    dplyr::inner_join(
-      dplyr::select(cft_map, item_prod_code, cft_name),
-      by = "cft_name", relationship = "many-to-many"
-    ) |>
-    dplyr::select(mirca_class, item_prod_code)
+    dplyr::filter(mirca_group %in% names(group_lookup)) |>
+    dplyr::select(mirca_class, mirca_group)
+  group_rows <- purrr::pmap_dfr(group_rows, function(mirca_class, mirca_group) {
+    tibble::tibble(
+      mirca_class = mirca_class,
+      item_prod_code = group_lookup[[mirca_group]]
+    )
+  })
 
   mirca_to_fao <- dplyr::bind_rows(direct, citrus_expanded, group_rows)
   cli::cli_alert_info(
@@ -967,8 +1068,13 @@ prepare_mirca_irrigation <- function(l_files_dir, output_dir,
 #
 # Country-level yields from FAOSTAT + EarthStat spatial yield index.
 
-prepare_yield_inputs <- function(l_files_dir, output_dir, target_res,
-                                 year_range = 1961L:2022L, prod = NULL) {
+prepare_yield_inputs <- function(
+  l_files_dir,
+  output_dir,
+  target_res,
+  year_range = 1961L:2022L,
+  prod = NULL
+) {
   cli::cli_h2("Section 6: Yield inputs")
 
   cft_mapping <- .read_cft_mapping()
@@ -1008,8 +1114,10 @@ prepare_yield_inputs <- function(l_files_dir, output_dir, target_res,
     dplyr::filter(harvested_area_ha > 0)
 
   country_yields <- production |>
-    dplyr::inner_join(area_harvested,
-                      by = c("year", "area_code", "item_prod_code")) |>
+    dplyr::inner_join(
+      area_harvested,
+      by = c("year", "area_code", "item_prod_code")
+    ) |>
     dplyr::mutate(yield_t_ha = production_t / harvested_area_ha) |>
     dplyr::filter(is.finite(yield_t_ha), yield_t_ha > 0) |>
     dplyr::select(year, area_code, item_prod_code, yield_t_ha)
@@ -1018,15 +1126,27 @@ prepare_yield_inputs <- function(l_files_dir, output_dir, target_res,
 
   # Spatial yield index from EarthStat
   earthstat_dir <- file.path(
-    l_files_dir, "HarvestedAreaYield175Crops_Geotiff", "GeoTiff"
+    l_files_dir,
+    "HarvestedAreaYield175Crops_Geotiff",
+    "GeoTiff"
   )
   xwalk <- .read_earthstat_mapping() |> dplyr::filter(!is.na(item_prod_code))
 
-  cli::cli_alert_info("Reading yield rasters for {nrow(xwalk)} EarthStat crops...")
+  cli::cli_alert_info(
+    "Reading yield rasters for {nrow(xwalk)} EarthStat crops..."
+  )
   raw_yields <- purrr::pmap(
-    list(crop_name = xwalk$earthstat_name, item_prod_code = xwalk$item_prod_code),
+    list(
+      crop_name = xwalk$earthstat_name,
+      item_prod_code = xwalk$item_prod_code
+    ),
     \(crop_name, item_prod_code) {
-      .read_one_earthstat_yield(earthstat_dir, crop_name, item_prod_code, target_res)
+      .read_one_earthstat_yield(
+        earthstat_dir,
+        crop_name,
+        item_prod_code,
+        target_res
+      )
     },
     .progress = TRUE
   ) |>
@@ -1061,8 +1181,10 @@ prepare_yield_inputs <- function(l_files_dir, output_dir, target_res,
     dplyr::filter(country_mean > 0)
 
   spatial_yield_index <- yields_with_country |>
-    dplyr::inner_join(country_mean_yields,
-                      by = c("area_code", "item_prod_code")) |>
+    dplyr::inner_join(
+      country_mean_yields,
+      by = c("area_code", "item_prod_code")
+    ) |>
     dplyr::mutate(
       spatial_yield_index = yield_t_ha / country_mean
     ) |>
@@ -1086,8 +1208,12 @@ prepare_yield_inputs <- function(l_files_dir, output_dir, target_res,
 # N/P/K inputs from FAOSTAT + spatial distribution.
 # Requires WHEP_GLOBAL_DIR for some data sources.
 
-prepare_nitrogen_inputs <- function(l_files_dir, output_dir, year_range,
-                                    prod = NULL) {
+prepare_nitrogen_inputs <- function(
+  l_files_dir,
+  output_dir,
+  year_range,
+  prod = NULL
+) {
   cli::cli_h2("Section 7: Nitrogen / fertilizer inputs")
 
   global_dir <- Sys.getenv("WHEP_GLOBAL_DIR", unset = "")
@@ -1123,29 +1249,41 @@ prepare_nitrogen_inputs <- function(l_files_dir, output_dir, year_range,
 
     fert_raw <- data.table::fread(fert_file) |>
       tibble::as_tibble() |>
-      filter(Element == "Agricultural Use",
-             Item == "Nutrient nitrogen N (total)") |>
+      filter(
+        Element == "Agricultural Use",
+        Item == "Nutrient nitrogen N (total)"
+      ) |>
       transmute(
-        area_code = `Area Code`, year = as.integer(Year),
-        fert_type = "Synthetic", mg_n = Value
+        area_code = `Area Code`,
+        year = as.integer(Year),
+        fert_type = "Synthetic",
+        mg_n = Value
       )
 
     manure_raw <- data.table::fread(manure_file) |> tibble::as_tibble()
 
     manure_applied <- manure_raw |>
-      filter(Element == "Manure applied to soils (N content)",
-             Item == "All Animals") |>
+      filter(
+        Element == "Manure applied to soils (N content)",
+        Item == "All Animals"
+      ) |>
       transmute(
-        area_code = `Area Code`, year = as.integer(Year),
-        fert_type = "Manure", mg_n = Value / 1000
+        area_code = `Area Code`,
+        year = as.integer(Year),
+        fert_type = "Manure",
+        mg_n = Value / 1000
       )
 
     manure_pasture <- manure_raw |>
-      filter(Element == "Manure left on pasture (N content)",
-             Item == "All Animals") |>
+      filter(
+        Element == "Manure left on pasture (N content)",
+        Item == "All Animals"
+      ) |>
       transmute(
-        area_code = `Area Code`, year = as.integer(Year),
-        fert_type = "Grassland_excretion", mg_n = Value / 1000
+        area_code = `Area Code`,
+        year = as.integer(Year),
+        fert_type = "Grassland_excretion",
+        mg_n = Value / 1000
       )
 
     bind_rows(fert_raw, manure_applied, manure_pasture) |>
@@ -1159,21 +1297,25 @@ prepare_nitrogen_inputs <- function(l_files_dir, output_dir, year_range,
       l_files_dir,
       "FAOSTAT/Inputs_FertilizersNutrient_E_All_Data_(Normalized).csv"
     )
-    if (!file.exists(fert_file)) return(NULL)
+    if (!file.exists(fert_file)) {
+      return(NULL)
+    }
     data.table::fread(fert_file) |>
       tibble::as_tibble() |>
       dplyr::filter(
         Element == "Agricultural Use",
-        Item %in% c("Nutrient phosphate P2O5 (total)",
-                     "Nutrient potash K2O (total)")
+        Item %in%
+          c("Nutrient phosphate P2O5 (total)", "Nutrient potash K2O (total)")
       ) |>
       dplyr::transmute(
-        area_code = `Area Code`, year = as.integer(Year),
+        area_code = `Area Code`,
+        year = as.integer(Year),
         nutrient = dplyr::if_else(grepl("phosphate", Item), "P", "K"),
         mg_nutrient = Value
       ) |>
       dplyr::inner_join(
-        regions |> dplyr::select(area_code, area_name), by = "area_code"
+        regions |> dplyr::select(area_code, area_name),
+        by = "area_code"
       ) |>
       dplyr::filter(!is.na(mg_nutrient), mg_nutrient >= 0)
   }
@@ -1181,13 +1323,15 @@ prepare_nitrogen_inputs <- function(l_files_dir, output_dir, year_range,
   # ---- 7c. Cropland/Grassland split ----
   .read_cropland_grassland_split_local <- function(l_files_dir, regions) {
     euadb_dir <- file.path(
-      l_files_dir, "EuropeAgriDB-v1.0-results/main_results/tables"
+      l_files_dir,
+      "EuropeAgriDB-v1.0-results/main_results/tables"
     )
     euadb <- NULL
     if (dir.exists(euadb_dir)) {
       synth_eu <- data.table::fread(
         file.path(euadb_dir, "synthetic_fertilizer.csv")
-      ) |> tibble::as_tibble() |>
+      ) |>
+        tibble::as_tibble() |>
         filter(Symbol %in% c("Q_C", "Q_PG")) |>
         mutate(
           land_use = if_else(Symbol == "Q_C", "Cropland", "Grassland"),
@@ -1195,7 +1339,8 @@ prepare_nitrogen_inputs <- function(l_files_dir, output_dir, year_range,
         )
       manure_eu <- data.table::fread(
         file.path(euadb_dir, "manure_flows.csv")
-      ) |> tibble::as_tibble() |>
+      ) |>
+        tibble::as_tibble() |>
         filter(Symbol %in% c("A_C", "A_PG")) |>
         mutate(
           land_use = if_else(Symbol == "A_C", "Cropland", "Grassland"),
@@ -1205,28 +1350,42 @@ prepare_nitrogen_inputs <- function(l_files_dir, output_dir, year_range,
         rename(iso2c = Region) |>
         mutate(mg_n_lu = Value * 1000) |>
         left_join(
-          regions |> select(iso3c, area_code, area_name) |>
+          regions |>
+            select(iso3c, area_code, area_name) |>
             mutate(iso2c = substr(iso3c, 1, 2)),
           by = "iso2c"
         ) |>
         filter(!is.na(area_code)) |>
-        select(year = Year, area_code, area_name, land_use, fert_type,
-               mg_n_lu) |>
+        select(
+          year = Year,
+          area_code,
+          area_name,
+          land_use,
+          fert_type,
+          mg_n_lu
+        ) |>
         mutate(
           lu_share_eu = mg_n_lu / sum(mg_n_lu),
           .by = c(year, area_code, fert_type)
         )
     }
 
-    lass_file <- file.path(global_dir, "input", "Synthetic_N_Grassland_share.csv")
+    lass_file <- file.path(
+      global_dir,
+      "input",
+      "Synthetic_N_Grassland_share.csv"
+    )
     lass <- NULL
     if (file.exists(lass_file)) {
       lass_raw <- data.table::fread(lass_file, header = TRUE) |>
         tibble::as_tibble()
       year_cols <- grep("^(X?\\d{4})$", names(lass_raw), value = TRUE)
       lass <- lass_raw |>
-        tidyr::pivot_longer(all_of(year_cols),
-                            names_to = "year", values_to = "grass_share_pct") |>
+        tidyr::pivot_longer(
+          all_of(year_cols),
+          names_to = "year",
+          values_to = "grass_share_pct"
+        ) |>
         mutate(
           year = as.integer(gsub("X", "", year)),
           grass_share = grass_share_pct / 100
@@ -1257,7 +1416,9 @@ prepare_nitrogen_inputs <- function(l_files_dir, output_dir, year_range,
     }
 
     synth_file <- file.path(
-      global_dir, "input", "Nfertilizationmatrix_filled_nodup.xlsx"
+      global_dir,
+      "input",
+      "Nfertilizationmatrix_filled_nodup.xlsx"
     )
     crop_synthetic <- NULL
     if (file.exists(synth_file)) {
@@ -1265,23 +1426,39 @@ prepare_nitrogen_inputs <- function(l_files_dir, output_dir, year_range,
         install.packages("openxlsx", quiet = TRUE)
       }
       synth_raw <- openxlsx::read.xlsx(
-        synth_file, sheet = "N fertilization",
-        cols = c(1, 2, 5:197), rows = c(2:64),
-        na.strings = "NaN", check.names = TRUE
+        synth_file,
+        sheet = "N fertilization",
+        cols = c(1, 2, 5:197),
+        rows = c(2:64),
+        na.strings = "NaN",
+        check.names = TRUE
       )
       crop_synthetic <- synth_raw |>
         tidyr::pivot_longer(
           -c(Proc.Code, Process),
-          names_to = "iso3c", values_to = "kg_n_ha_synth"
+          names_to = "iso3c",
+          values_to = "kg_n_ha_synth"
         ) |>
         rename(proc_code = Proc.Code, crop_name = Process) |>
-        mutate(iso3c = recode(iso3c,
-          "SRM" = "SCG", "GUA" = "GTM", "BZE" = "BLZ",
-          "COS" = "CRI", "ELS" = "SLV", "HAI" = "HTI",
-          "HON" = "HND", "ROM" = "ROU", "TRI" = "TTO",
-          "ZAR" = "COD", "BHA" = "BHS", "BAR" = "BRB",
-          "DMI" = "DMA", "STL" = "LCA"
-        )) |>
+        mutate(
+          iso3c = recode(
+            iso3c,
+            "SRM" = "SCG",
+            "GUA" = "GTM",
+            "BZE" = "BLZ",
+            "COS" = "CRI",
+            "ELS" = "SLV",
+            "HAI" = "HTI",
+            "HON" = "HND",
+            "ROM" = "ROU",
+            "TRI" = "TTO",
+            "ZAR" = "COD",
+            "BHA" = "BHS",
+            "BAR" = "BRB",
+            "DMI" = "DMA",
+            "STL" = "LCA"
+          )
+        ) |>
         left_join(regions |> select(iso3c, area_code), by = "iso3c") |>
         filter(!is.na(area_code), !is.na(kg_n_ha_synth))
     }
@@ -1289,11 +1466,17 @@ prepare_nitrogen_inputs <- function(l_files_dir, output_dir, year_range,
   }
 
   # ---- 7e. West gridded manure ----
-  .read_west_gridded_manure_local <- function(l_files_dir, country_grid,
-                                              items_prod, target_res,
-                                              output_dir) {
+  .read_west_gridded_manure_local <- function(
+    l_files_dir,
+    country_grid,
+    items_prod,
+    target_res,
+    output_dir
+  ) {
     west_dir <- file.path(l_files_dir, "Manure_Westetal2014", "N")
-    if (!dir.exists(west_dir)) return(NULL)
+    if (!dir.exists(west_dir)) {
+      return(NULL)
+    }
 
     crop_map <- tibble::tribble(
       ~west_crop,    ~item_prod_code,
@@ -1308,38 +1491,58 @@ prepare_nitrogen_inputs <- function(l_files_dir, output_dir, year_range,
     results <- purrr::map(seq_len(nrow(crop_map)), \(i) {
       crop <- crop_map$west_crop[i]
       code <- crop_map$item_prod_code[i]
-      nc_path <- file.path(west_dir,
-                           paste0("NappliedperHA", crop, "Westetal.nc"))
-      if (!file.exists(nc_path)) return(tibble::tibble())
-      tryCatch({
-        r <- terra::rast(nc_path)
-        src_res <- terra::res(r)[1]
-        agg_factor <- max(1L, as.integer(round(target_res / src_res)))
-        if (agg_factor > 1) {
-          r_agg <- terra::aggregate(r, fact = agg_factor, fun = "mean",
-                                    na.rm = TRUE)
-        } else {
-          r_agg <- r
-        }
-        coords <- terra::xyFromCell(r_agg, seq_len(terra::ncell(r_agg)))
-        tibble::tibble(
-          lon = round(coords[, 1], 2),
-          lat = round(coords[, 2], 2),
-          kg_n_ha_manure = terra::values(r_agg)[, 1]
-        ) |>
-          dplyr::filter(!is.na(kg_n_ha_manure), kg_n_ha_manure > 0) |>
-          dplyr::mutate(item_prod_code = code)
-      }, error = \(e) tibble::tibble())
-    }) |> dplyr::bind_rows()
+      nc_path <- file.path(
+        west_dir,
+        paste0("NappliedperHA", crop, "Westetal.nc")
+      )
+      if (!file.exists(nc_path)) {
+        return(tibble::tibble())
+      }
+      tryCatch(
+        {
+          r <- terra::rast(nc_path)
+          src_res <- terra::res(r)[1]
+          agg_factor <- max(1L, as.integer(round(target_res / src_res)))
+          if (agg_factor > 1) {
+            r_agg <- terra::aggregate(
+              r,
+              fact = agg_factor,
+              fun = "mean",
+              na.rm = TRUE
+            )
+          } else {
+            r_agg <- r
+          }
+          coords <- terra::xyFromCell(r_agg, seq_len(terra::ncell(r_agg)))
+          tibble::tibble(
+            lon = round(coords[, 1], 2),
+            lat = round(coords[, 2], 2),
+            kg_n_ha_manure = terra::values(r_agg)[, 1]
+          ) |>
+            dplyr::filter(!is.na(kg_n_ha_manure), kg_n_ha_manure > 0) |>
+            dplyr::mutate(item_prod_code = code)
+        },
+        error = \(e) tibble::tibble()
+      )
+    }) |>
+      dplyr::bind_rows()
 
-    if (nrow(results) == 0) return(NULL)
+    if (nrow(results) == 0) {
+      return(NULL)
+    }
 
     results_geo <- results |>
       dplyr::inner_join(country_grid, by = c("lon", "lat"))
 
     nanoparquet::write_parquet(
-      dplyr::select(results_geo, lon, lat, area_code, item_prod_code,
-                    kg_n_ha_manure),
+      dplyr::select(
+        results_geo,
+        lon,
+        lat,
+        area_code,
+        item_prod_code,
+        kg_n_ha_manure
+      ),
       file.path(output_dir, "gridded_west_manure.parquet")
     )
 
@@ -1357,11 +1560,17 @@ prepare_nitrogen_inputs <- function(l_files_dir, output_dir, year_range,
   }
 
   # ---- 7f. EarthStat country N rates ----
-  .read_earthstat_country_rates_local <- function(l_files_dir, country_grid,
-                                                  items_prod, target_res,
-                                                  output_dir) {
+  .read_earthstat_country_rates_local <- function(
+    l_files_dir,
+    country_grid,
+    items_prod,
+    target_res,
+    output_dir
+  ) {
     fert_dir <- file.path(l_files_dir, "EarthStat - Crop Specific Fertilizers")
-    if (!dir.exists(fert_dir)) return(NULL)
+    if (!dir.exists(fert_dir)) {
+      return(NULL)
+    }
 
     crop_map <- .earthstat_fertilizer_mapping()
 
@@ -1369,39 +1578,58 @@ prepare_nitrogen_inputs <- function(l_files_dir, output_dir, year_range,
       crop <- crop_map$earthstat_fert_name[i]
       code <- crop_map$item_prod_code[i]
       tif_path <- file.path(
-        fert_dir, paste0("Fertilizer_", crop),
+        fert_dir,
+        paste0("Fertilizer_", crop),
         paste0(crop, "_NitrogenApplication_Rate.tif")
       )
-      if (!file.exists(tif_path)) return(tibble::tibble())
-      tryCatch({
-        r <- terra::rast(tif_path)
-        src_res <- terra::res(r)[1]
-        agg_factor <- max(1L, as.integer(round(target_res / src_res)))
-        if (agg_factor > 1) {
-          r_agg <- terra::aggregate(r, fact = agg_factor, fun = "mean",
-                                    na.rm = TRUE)
-        } else {
-          r_agg <- r
-        }
-        coords <- terra::xyFromCell(r_agg, seq_len(terra::ncell(r_agg)))
-        tibble::tibble(
-          lon = round(coords[, 1], 2),
-          lat = round(coords[, 2], 2),
-          kg_n_ha_synth_es = terra::values(r_agg)[, 1]
-        ) |>
-          dplyr::filter(!is.na(kg_n_ha_synth_es), kg_n_ha_synth_es > 0) |>
-          dplyr::mutate(item_prod_code = code)
-      }, error = \(e) tibble::tibble())
-    }) |> dplyr::bind_rows()
+      if (!file.exists(tif_path)) {
+        return(tibble::tibble())
+      }
+      tryCatch(
+        {
+          r <- terra::rast(tif_path)
+          src_res <- terra::res(r)[1]
+          agg_factor <- max(1L, as.integer(round(target_res / src_res)))
+          if (agg_factor > 1) {
+            r_agg <- terra::aggregate(
+              r,
+              fact = agg_factor,
+              fun = "mean",
+              na.rm = TRUE
+            )
+          } else {
+            r_agg <- r
+          }
+          coords <- terra::xyFromCell(r_agg, seq_len(terra::ncell(r_agg)))
+          tibble::tibble(
+            lon = round(coords[, 1], 2),
+            lat = round(coords[, 2], 2),
+            kg_n_ha_synth_es = terra::values(r_agg)[, 1]
+          ) |>
+            dplyr::filter(!is.na(kg_n_ha_synth_es), kg_n_ha_synth_es > 0) |>
+            dplyr::mutate(item_prod_code = code)
+        },
+        error = \(e) tibble::tibble()
+      )
+    }) |>
+      dplyr::bind_rows()
 
-    if (nrow(results) == 0) return(NULL)
+    if (nrow(results) == 0) {
+      return(NULL)
+    }
 
     results_geo <- results |>
       dplyr::inner_join(country_grid, by = c("lon", "lat"))
 
     nanoparquet::write_parquet(
-      dplyr::select(results_geo, lon, lat, area_code, item_prod_code,
-                    kg_n_ha_synth_es),
+      dplyr::select(
+        results_geo,
+        lon,
+        lat,
+        area_code,
+        item_prod_code,
+        kg_n_ha_synth_es
+      ),
       file.path(output_dir, "gridded_earthstat_synth.parquet")
     )
 
@@ -1427,13 +1655,17 @@ prepare_nitrogen_inputs <- function(l_files_dir, output_dir, year_range,
     if (file.exists(west_path)) {
       west <- nanoparquet::read_parquet(west_path)
       west_means <- west |>
-        dplyr::summarize(country_mean = mean(kg_n_ha_manure, na.rm = TRUE),
-                         .by = c("area_code", "item_prod_code")) |>
+        dplyr::summarize(
+          country_mean = mean(kg_n_ha_manure, na.rm = TRUE),
+          .by = c("area_code", "item_prod_code")
+        ) |>
         dplyr::filter(country_mean > 0)
       west_idx <- west |>
         dplyr::inner_join(west_means, by = c("area_code", "item_prod_code")) |>
-        dplyr::mutate(spatial_n_index = kg_n_ha_manure / country_mean,
-                      fert_type = "Manure") |>
+        dplyr::mutate(
+          spatial_n_index = kg_n_ha_manure / country_mean,
+          fert_type = "Manure"
+        ) |>
         dplyr::select(lon, lat, item_prod_code, fert_type, spatial_n_index)
       parts <- c(parts, list(west_idx))
     }
@@ -1441,18 +1673,24 @@ prepare_nitrogen_inputs <- function(l_files_dir, output_dir, year_range,
     if (file.exists(es_path)) {
       es <- nanoparquet::read_parquet(es_path)
       es_means <- es |>
-        dplyr::summarize(country_mean = mean(kg_n_ha_synth_es, na.rm = TRUE),
-                         .by = c("area_code", "item_prod_code")) |>
+        dplyr::summarize(
+          country_mean = mean(kg_n_ha_synth_es, na.rm = TRUE),
+          .by = c("area_code", "item_prod_code")
+        ) |>
         dplyr::filter(country_mean > 0)
       es_idx <- es |>
         dplyr::inner_join(es_means, by = c("area_code", "item_prod_code")) |>
-        dplyr::mutate(spatial_n_index = kg_n_ha_synth_es / country_mean,
-                      fert_type = "Synthetic") |>
+        dplyr::mutate(
+          spatial_n_index = kg_n_ha_synth_es / country_mean,
+          fert_type = "Synthetic"
+        ) |>
         dplyr::select(lon, lat, item_prod_code, fert_type, spatial_n_index)
       parts <- c(parts, list(es_idx))
     }
 
-    if (length(parts) == 0) return(NULL)
+    if (length(parts) == 0) {
+      return(NULL)
+    }
     spatial_idx <- dplyr::bind_rows(parts) |>
       dplyr::mutate(spatial_n_index = pmax(0.1, pmin(10, spatial_n_index)))
     .save_parquet(spatial_idx, output_dir, "spatial_n_index")
@@ -1467,7 +1705,9 @@ prepare_nitrogen_inputs <- function(l_files_dir, output_dir, year_range,
     }
     coello_dir <- file.path(l_files_dir, "Coello2025")
     csv_file <- file.path(coello_dir, "Prediction_corrected.csv")
-    if (!file.exists(csv_file)) return(NULL)
+    if (!file.exists(csv_file)) {
+      return(NULL)
+    }
 
     raw <- data.table::fread(csv_file) |> tibble::as_tibble()
     coello <- raw |>
@@ -1482,7 +1722,9 @@ prepare_nitrogen_inputs <- function(l_files_dir, output_dir, year_range,
       filter(!is.na(area_code), !is.na(year))
 
     mapping_file <- .find_extdata_file("coello_mapping.csv")
-    if (!file.exists(mapping_file)) return(coello)
+    if (!file.exists(mapping_file)) {
+      return(coello)
+    }
 
     coello_map <- readr::read_csv(mapping_file, show_col_types = FALSE) |>
       select(item_prod_code, coello_crop_code, coello_crop_name)
@@ -1490,11 +1732,15 @@ prepare_nitrogen_inputs <- function(l_files_dir, output_dir, year_range,
     items_ref <- readr::read_csv(
       system.file("extdata", "items_prod.csv", package = "whep"),
       show_col_types = FALSE
-    ) |> select(item_prod_code, item_prod_name)
+    ) |>
+      select(item_prod_code, item_prod_name)
 
     coello_items <- coello |>
-      inner_join(coello_map, by = "coello_crop_code",
-                 relationship = "many-to-many") |>
+      inner_join(
+        coello_map,
+        by = "coello_crop_code",
+        relationship = "many-to-many"
+      ) |>
       left_join(regions |> select(area_code, area_name), by = "area_code") |>
       filter(!is.na(area_name)) |>
       mutate(
@@ -1504,10 +1750,16 @@ prepare_nitrogen_inputs <- function(l_files_dir, output_dir, year_range,
       ) |>
       left_join(items_ref, by = "item_prod_code") |>
       select(
-        year, area_code, area_name,
-        item_prod_code, crop_name = item_prod_name,
-        coello_crop_code, coello_crop_name,
-        kg_n_ha_coello, kg_p2o5_ha_coello, kg_k2o_ha_coello
+        year,
+        area_code,
+        area_name,
+        item_prod_code,
+        crop_name = item_prod_name,
+        coello_crop_code,
+        coello_crop_name,
+        kg_n_ha_coello,
+        kg_p2o5_ha_coello,
+        kg_k2o_ha_coello
       )
 
     .save_parquet(coello_items, output_dir, "coello_crop_rates")
@@ -1520,14 +1772,15 @@ prepare_nitrogen_inputs <- function(l_files_dir, output_dir, year_range,
     if (file.exists(dep_file)) {
       return(nanoparquet::read_parquet(dep_file))
     }
-    global_dep <- file.path(l_files_dir,
-                            "Global/output/Global_N_deposition.csv")
+    global_dep <- file.path(
+      l_files_dir,
+      "Global/output/Global_N_deposition.csv"
+    )
     if (file.exists(global_dep)) {
       dep_raw <- data.table::fread(global_dep) |> tibble::as_tibble()
       if ("Deposit_kgNha" %in% names(dep_raw)) {
         dep <- dep_raw |>
-          select(year = Year, iso3c = ISO3,
-                 deposit_kg_n_ha = Deposit_kgNha) |>
+          select(year = Year, iso3c = ISO3, deposit_kg_n_ha = Deposit_kgNha) |>
           left_join(regions |> select(iso3c, area_code), by = "iso3c") |>
           filter(!is.na(area_code), !is.na(deposit_kg_n_ha)) |>
           select(year, area_code, deposit_kg_n_ha)
@@ -1549,10 +1802,14 @@ prepare_nitrogen_inputs <- function(l_files_dir, output_dir, year_range,
     crop_areas_raw <- nanoparquet::read_parquet(crop_areas_file)
     crop_areas <- crop_areas_raw |>
       left_join(regions |> select(area_code, area_name), by = "area_code") |>
-      left_join(items_prod |> select(item_prod_code, item_prod_name),
-                by = "item_prod_code") |>
+      left_join(
+        items_prod |> select(item_prod_code, item_prod_name),
+        by = "item_prod_code"
+      ) |>
       transmute(
-        year, area_code, area_name,
+        year,
+        area_code,
+        area_name,
         crop_name = item_prod_name,
         area_ha = harvested_area_ha
       ) |>
@@ -1569,16 +1826,26 @@ prepare_nitrogen_inputs <- function(l_files_dir, output_dir, year_range,
   if (file.exists(country_grid_file)) {
     country_grid <- nanoparquet::read_parquet(country_grid_file)
     base_rates$west_manure_rates <- .read_west_gridded_manure_local(
-      l_files_dir, country_grid, items_prod, 0.5, output_dir
+      l_files_dir,
+      country_grid,
+      items_prod,
+      0.5,
+      output_dir
     )
     base_rates$earthstat_synth_rates <- .read_earthstat_country_rates_local(
-      l_files_dir, country_grid, items_prod, 0.5, output_dir
+      l_files_dir,
+      country_grid,
+      items_prod,
+      0.5,
+      output_dir
     )
     .compute_spatial_n_index_local(output_dir)
   }
 
   coello_rates <- .prepare_coello_inputs_local(l_files_dir, regions, output_dir)
-  if (!is.null(coello_rates)) base_rates$coello_rates <- coello_rates
+  if (!is.null(coello_rates)) {
+    base_rates$coello_rates <- coello_rates
+  }
 
   n_deposition <- .prepare_n_deposition_local(l_files_dir, regions, output_dir)
 
@@ -1591,37 +1858,69 @@ prepare_nitrogen_inputs <- function(l_files_dir, output_dir, year_range,
   if (!is.null(crop_areas) && nrow(crop_areas) > 0) {
     # Distribute N to crops using the three-layer approach
     n_crops <- .distribute_n_to_crops(
-      n_totals, lu_split, base_rates, crop_areas, regions
+      n_totals,
+      lu_split,
+      base_rates,
+      crop_areas,
+      regions
     )
     # NSBNF
     nsbnf_rate <- 13
     nsbnf <- crop_areas |>
       filter(!is.na(area_ha), area_ha > 0) |>
       mutate(
-        fert_type = "NSBNF", kg_n_ha = nsbnf_rate,
-        mg_n = kg_n_ha * area_ha / 1000, land_use = "Cropland"
+        fert_type = "NSBNF",
+        kg_n_ha = nsbnf_rate,
+        mg_n = kg_n_ha * area_ha / 1000,
+        land_use = "Cropland"
       ) |>
-      select(year, area_code, area_name, crop_name, land_use, fert_type,
-             area_ha, mg_n, kg_n_ha)
+      select(
+        year,
+        area_code,
+        area_name,
+        crop_name,
+        land_use,
+        fert_type,
+        area_ha,
+        mg_n,
+        kg_n_ha
+      )
     # Deposition
     if (!is.null(n_deposition)) {
       n_dep_crop <- crop_areas |>
         left_join(n_deposition, by = c("year", "area_code")) |>
         filter(!is.na(deposit_kg_n_ha)) |>
         mutate(
-          fert_type = "Deposition", kg_n_ha = deposit_kg_n_ha,
-          mg_n = kg_n_ha * area_ha / 1000, land_use = "Cropland"
+          fert_type = "Deposition",
+          kg_n_ha = deposit_kg_n_ha,
+          mg_n = kg_n_ha * area_ha / 1000,
+          land_use = "Cropland"
         ) |>
-        select(year, area_code, area_name, crop_name, land_use, fert_type,
-               area_ha, mg_n, kg_n_ha)
+        select(
+          year,
+          area_code,
+          area_name,
+          crop_name,
+          land_use,
+          fert_type,
+          area_ha,
+          mg_n,
+          kg_n_ha
+        )
     }
     # P/K via Coello
     if (!is.null(coello_rates) && !is.null(pk_totals)) {
       pk_crop_raw <- crop_areas |>
         filter(!is.na(area_ha), area_ha > 0) |>
         left_join(
-          coello_rates |> select(year, area_code, crop_name,
-                                 kg_p2o5_ha_coello, kg_k2o_ha_coello),
+          coello_rates |>
+            select(
+              year,
+              area_code,
+              crop_name,
+              kg_p2o5_ha_coello,
+              kg_k2o_ha_coello
+            ),
           by = c("year", "area_code", "crop_name")
         ) |>
         filter(!is.na(kg_p2o5_ha_coello) | !is.na(kg_k2o_ha_coello))
@@ -1629,34 +1928,68 @@ prepare_nitrogen_inputs <- function(l_files_dir, output_dir, year_range,
         pk_ref <- pk_totals |> filter(!is.na(mg_nutrient), mg_nutrient > 0)
         pk_p <- pk_crop_raw |>
           filter(!is.na(kg_p2o5_ha_coello)) |>
-          mutate(mg_raw = kg_p2o5_ha_coello * area_ha / 1000,
-                 mg_raw_total = sum(mg_raw, na.rm = TRUE),
-                 .by = c("year", "area_code")) |>
-          left_join(pk_ref |> filter(nutrient == "P") |>
-                      select(year, area_code, mg_total = mg_nutrient),
-                    by = c("year", "area_code")) |>
+          mutate(
+            mg_raw = kg_p2o5_ha_coello * area_ha / 1000,
+            mg_raw_total = sum(mg_raw, na.rm = TRUE),
+            .by = c("year", "area_code")
+          ) |>
+          left_join(
+            pk_ref |>
+              filter(nutrient == "P") |>
+              select(year, area_code, mg_total = mg_nutrient),
+            by = c("year", "area_code")
+          ) |>
           filter(!is.na(mg_total), mg_raw_total > 0) |>
-          mutate(scaling = mg_total / mg_raw_total,
-                 kg_ha = kg_p2o5_ha_coello * scaling,
-                 mg = kg_ha * area_ha / 1000,
-                 fert_type = "Synthetic_P2O5", land_use = "Cropland") |>
-          select(year, area_code, area_name, crop_name, land_use,
-                 fert_type, area_ha, mg_n = mg, kg_n_ha = kg_ha)
+          mutate(
+            scaling = mg_total / mg_raw_total,
+            kg_ha = kg_p2o5_ha_coello * scaling,
+            mg = kg_ha * area_ha / 1000,
+            fert_type = "Synthetic_P2O5",
+            land_use = "Cropland"
+          ) |>
+          select(
+            year,
+            area_code,
+            area_name,
+            crop_name,
+            land_use,
+            fert_type,
+            area_ha,
+            mg_n = mg,
+            kg_n_ha = kg_ha
+          )
         pk_k <- pk_crop_raw |>
           filter(!is.na(kg_k2o_ha_coello)) |>
-          mutate(mg_raw = kg_k2o_ha_coello * area_ha / 1000,
-                 mg_raw_total = sum(mg_raw, na.rm = TRUE),
-                 .by = c("year", "area_code")) |>
-          left_join(pk_ref |> filter(nutrient == "K") |>
-                      select(year, area_code, mg_total = mg_nutrient),
-                    by = c("year", "area_code")) |>
+          mutate(
+            mg_raw = kg_k2o_ha_coello * area_ha / 1000,
+            mg_raw_total = sum(mg_raw, na.rm = TRUE),
+            .by = c("year", "area_code")
+          ) |>
+          left_join(
+            pk_ref |>
+              filter(nutrient == "K") |>
+              select(year, area_code, mg_total = mg_nutrient),
+            by = c("year", "area_code")
+          ) |>
           filter(!is.na(mg_total), mg_raw_total > 0) |>
-          mutate(scaling = mg_total / mg_raw_total,
-                 kg_ha = kg_k2o_ha_coello * scaling,
-                 mg = kg_ha * area_ha / 1000,
-                 fert_type = "Synthetic_K2O", land_use = "Cropland") |>
-          select(year, area_code, area_name, crop_name, land_use,
-                 fert_type, area_ha, mg_n = mg, kg_n_ha = kg_ha)
+          mutate(
+            scaling = mg_total / mg_raw_total,
+            kg_ha = kg_k2o_ha_coello * scaling,
+            mg = kg_ha * area_ha / 1000,
+            fert_type = "Synthetic_K2O",
+            land_use = "Cropland"
+          ) |>
+          select(
+            year,
+            area_code,
+            area_name,
+            crop_name,
+            land_use,
+            fert_type,
+            area_ha,
+            mg_n = mg,
+            kg_n_ha = kg_ha
+          )
         pk_crop <- bind_rows(pk_p, pk_k)
       }
     }
@@ -1682,8 +2015,13 @@ prepare_nitrogen_inputs <- function(l_files_dir, output_dir, year_range,
 }
 
 # ---- N distribution helper (from prepare_nitrogen_inputs.R section 5) ----
-.distribute_n_to_crops <- function(n_totals, lu_split, base_rates,
-                                   crop_areas, regions) {
+.distribute_n_to_crops <- function(
+  n_totals,
+  lu_split,
+  base_rates,
+  crop_areas,
+  regions
+) {
   euadb <- lu_split$euadb
   lass <- lu_split$lassaletta
   crop_manure <- base_rates$crop_manure
@@ -1714,7 +2052,9 @@ prepare_nitrogen_inputs <- function(l_files_dir, output_dir, year_range,
     ) |>
     select(year, area_code, area_name, fert_type, land_use, mg_n, mg_n_lu)
 
-  if (is.null(crop_areas) || nrow(crop_areas) == 0) return(n_by_lu)
+  if (is.null(crop_areas) || nrow(crop_areas) == 0) {
+    return(n_by_lu)
+  }
 
   cropland_n <- n_by_lu |>
     filter(land_use == "Cropland", fert_type %in% c("Synthetic", "Manure"))
@@ -1728,10 +2068,11 @@ prepare_nitrogen_inputs <- function(l_files_dir, output_dir, year_range,
   if (!is.null(crop_synthetic)) {
     base_tbl <- base_tbl |>
       left_join(
-        crop_synthetic |> summarize(
-          kg_n_ha_synth = mean(kg_n_ha_synth, na.rm = TRUE),
-          .by = c(area_code, crop_name)
-        ),
+        crop_synthetic |>
+          summarize(
+            kg_n_ha_synth = mean(kg_n_ha_synth, na.rm = TRUE),
+            .by = c(area_code, crop_name)
+          ),
         by = c("area_code", "crop_name")
       )
   } else {
@@ -1767,8 +2108,12 @@ prepare_nitrogen_inputs <- function(l_files_dir, output_dir, year_range,
 
   base_year <- 2000L
   base_area <- crop_areas |>
-    filter(year >= base_year - 2L, year <= base_year + 2L,
-           !is.na(area_ha), area_ha > 0) |>
+    filter(
+      year >= base_year - 2L,
+      year <= base_year + 2L,
+      !is.na(area_ha),
+      area_ha > 0
+    ) |>
     summarize(area_ha_base = median(area_ha), .by = c(area_code, crop_name))
 
   base_tbl <- base_tbl |>
@@ -1794,8 +2139,10 @@ prepare_nitrogen_inputs <- function(l_files_dir, output_dir, year_range,
       kg_n_ha_country_med = median(kg_n_ha_base, na.rm = TRUE),
       .by = c("area_code", "fert_type")
     ) |>
-    mutate(kg_n_ha_global = median(kg_n_ha_base, na.rm = TRUE),
-           .by = "fert_type") |>
+    mutate(
+      kg_n_ha_global = median(kg_n_ha_base, na.rm = TRUE),
+      .by = "fert_type"
+    ) |>
     mutate(
       kg_n_ha_capped = case_when(
         is.na(kg_n_ha_base) ~ NA_real_,
@@ -1805,8 +2152,10 @@ prepare_nitrogen_inputs <- function(l_files_dir, output_dir, year_range,
         TRUE ~ kg_n_ha_base
       ),
       kg_n_ha_ref = coalesce(
-        kg_n_ha_capped, kg_n_ha_country_med,
-        kg_n_ha_global_crop, kg_n_ha_global
+        kg_n_ha_capped,
+        kg_n_ha_country_med,
+        kg_n_ha_global_crop,
+        kg_n_ha_global
       )
     )
 
@@ -1836,7 +2185,8 @@ prepare_nitrogen_inputs <- function(l_files_dir, output_dir, year_range,
       items_ref <- readr::read_csv(
         system.file("extdata", "items_prod.csv", package = "whep"),
         show_col_types = FALSE
-      ) |> select(item_prod_code, item_prod_name)
+      ) |>
+        select(item_prod_code, item_prod_name)
       item_group <- coello_map |>
         left_join(items_ref, by = "item_prod_code") |>
         select(crop_name = item_prod_name, coello_crop_code)
@@ -1848,7 +2198,8 @@ prepare_nitrogen_inputs <- function(l_files_dir, output_dir, year_range,
     filter(!is.na(area_ha), area_ha > 0) |>
     left_join(
       cropland_n |> select(year, area_code, fert_type, land_use, mg_n_lu),
-      by = c("year", "area_code"), relationship = "many-to-many"
+      by = c("year", "area_code"),
+      relationship = "many-to-many"
     ) |>
     filter(!is.na(mg_n_lu)) |>
     left_join(base_ref, by = c("area_code", "crop_name", "fert_type"))
@@ -1856,8 +2207,7 @@ prepare_nitrogen_inputs <- function(l_files_dir, output_dir, year_range,
   if (!is.null(coello_idx)) {
     n_crop <- n_crop |>
       left_join(item_group, by = "crop_name") |>
-      left_join(coello_idx,
-                by = c("year", "area_code", "coello_crop_code")) |>
+      left_join(coello_idx, by = c("year", "area_code", "coello_crop_code")) |>
       mutate(
         kg_n_ha_trended = kg_n_ha_ref * coalesce(coello_temporal_idx, 1.0)
       ) |>
@@ -1880,8 +2230,15 @@ prepare_nitrogen_inputs <- function(l_files_dir, output_dir, year_range,
 
   n_crop |>
     select(
-      year, area_code, area_name, crop_name, land_use, fert_type,
-      area_ha, mg_n = mg_n_crop, kg_n_ha
+      year,
+      area_code,
+      area_name,
+      crop_name,
+      land_use,
+      fert_type,
+      area_ha,
+      mg_n = mg_n_crop,
+      kg_n_ha
     )
 }
 
@@ -1890,8 +2247,13 @@ prepare_nitrogen_inputs <- function(l_files_dir, output_dir, year_range,
 #
 # Livestock stocks, emissions, gridded pasture, manure pattern.
 
-prepare_livestock_inputs <- function(l_files_dir, output_dir, year_range,
-                                     target_res, prod = NULL) {
+prepare_livestock_inputs <- function(
+  l_files_dir,
+  output_dir,
+  year_range,
+  target_res,
+  prod = NULL
+) {
   cli::cli_h2("Section 8: Livestock inputs")
 
   mapping_path <- .find_extdata_file("livestock_mapping.csv")
@@ -1903,8 +2265,10 @@ prepare_livestock_inputs <- function(l_files_dir, output_dir, year_range,
   }
 
   stocks <- prod |>
-    filter(.data$unit == "heads",
-           as.integer(.data$item_prod_code) %in% livestock_mapping$item_code) |>
+    filter(
+      .data$unit == "heads",
+      as.integer(.data$item_prod_code) %in% livestock_mapping$item_code
+    ) |>
     transmute(
       area_code = as.integer(.data$area_code),
       item_code = as.integer(.data$item_prod_code),
@@ -1925,10 +2289,13 @@ prepare_livestock_inputs <- function(l_files_dir, output_dir, year_range,
     )
 
   # --- Emissions from pin ---
-  emi_raw <- tryCatch({
-    dt <- whep:::.read_input("faostat-emissions-livestock")
-    tibble::as_tibble(dt)
-  }, error = function(e) NULL)
+  emi_raw <- tryCatch(
+    {
+      dt <- whep:::.read_input("faostat-emissions-livestock")
+      tibble::as_tibble(dt)
+    },
+    error = function(e) NULL
+  )
 
   emissions <- NULL
   if (!is.null(emi_raw)) {
@@ -1956,35 +2323,47 @@ prepare_livestock_inputs <- function(l_files_dir, output_dir, year_range,
     enteric_ch4 <- emi_raw |>
       filter(Element == "Enteric fermentation (Emissions CH4)") |>
       transmute(
-        area_code = as.integer(`Area Code`), year = as.integer(Year),
-        emi_item = Item, enteric_ch4_kt = Value
+        area_code = as.integer(`Area Code`),
+        year = as.integer(Year),
+        emi_item = Item,
+        enteric_ch4_kt = Value
       ) |>
       filter(!is.na(area_code), area_code < 5000L) |>
       inner_join(emi_species_map, by = "emi_item") |>
-      summarise(enteric_ch4_kt = sum(enteric_ch4_kt, na.rm = TRUE),
-                .by = c(year, area_code, species_group))
+      summarise(
+        enteric_ch4_kt = sum(enteric_ch4_kt, na.rm = TRUE),
+        .by = c(year, area_code, species_group)
+      )
 
     manure_ch4 <- emi_raw |>
       filter(Element == "Manure management (Emissions CH4)") |>
       transmute(
-        area_code = as.integer(`Area Code`), year = as.integer(Year),
-        emi_item = Item, manure_ch4_kt = Value
+        area_code = as.integer(`Area Code`),
+        year = as.integer(Year),
+        emi_item = Item,
+        manure_ch4_kt = Value
       ) |>
       filter(!is.na(area_code), area_code < 5000L) |>
       inner_join(emi_species_map, by = "emi_item") |>
-      summarise(manure_ch4_kt = sum(manure_ch4_kt, na.rm = TRUE),
-                .by = c(year, area_code, species_group))
+      summarise(
+        manure_ch4_kt = sum(manure_ch4_kt, na.rm = TRUE),
+        .by = c(year, area_code, species_group)
+      )
 
     manure_n2o <- emi_raw |>
       filter(Element == "Manure management (Emissions N2O)") |>
       transmute(
-        area_code = as.integer(`Area Code`), year = as.integer(Year),
-        emi_item = Item, manure_n2o_kt = Value
+        area_code = as.integer(`Area Code`),
+        year = as.integer(Year),
+        emi_item = Item,
+        manure_n2o_kt = Value
       ) |>
       filter(!is.na(area_code), area_code < 5000L) |>
       inner_join(emi_species_map, by = "emi_item") |>
-      summarise(manure_n2o_kt = sum(manure_n2o_kt, na.rm = TRUE),
-                .by = c(year, area_code, species_group))
+      summarise(
+        manure_n2o_kt = sum(manure_n2o_kt, na.rm = TRUE),
+        .by = c(year, area_code, species_group)
+      )
 
     emissions <- enteric_ch4 |>
       full_join(manure_ch4, by = c("year", "area_code", "species_group")) |>
@@ -2014,8 +2393,16 @@ prepare_livestock_inputs <- function(l_files_dir, output_dir, year_range,
   }
 
   livestock_out <- livestock_country |>
-    select(year, area_code, species_group, heads,
-           enteric_ch4_kt, manure_ch4_kt, manure_n2o_kt, manure_n_mg)
+    select(
+      year,
+      area_code,
+      species_group,
+      heads,
+      enteric_ch4_kt,
+      manure_ch4_kt,
+      manure_n2o_kt,
+      manure_n_mg
+    )
   .save_parquet(livestock_out, output_dir, "livestock_country_data")
 
   # --- Gridded pasture from LUH2 ---
@@ -2037,10 +2424,18 @@ prepare_livestock_inputs <- function(l_files_dir, output_dir, year_range,
     range_r <- .read_luh2_variable(states_path, "range", time_idx)
     pastr_ha <- pastr_r * carea_ha
     range_ha <- range_r * carea_ha
-    pastr_ha <- terra::aggregate(pastr_ha, fact = agg_factor,
-                                 fun = "sum", na.rm = TRUE)
-    range_ha <- terra::aggregate(range_ha, fact = agg_factor,
-                                 fun = "sum", na.rm = TRUE)
+    pastr_ha <- terra::aggregate(
+      pastr_ha,
+      fact = agg_factor,
+      fun = "sum",
+      na.rm = TRUE
+    )
+    range_ha <- terra::aggregate(
+      range_ha,
+      fact = agg_factor,
+      fun = "sum",
+      na.rm = TRUE
+    )
     p_tbl <- .raster_to_tibble(pastr_ha, "pasture_ha")
     r_tbl <- .raster_to_tibble(range_ha, "rangeland_ha")
     yr_tbl <- left_join(p_tbl, r_tbl, by = c("lon", "lat")) |>
@@ -2107,7 +2502,7 @@ prepare_hydrology_inputs <- function(l_files_dir, output_dir) {
     file.path(output_dir, "country_grid.parquet")
   )
   grand_dir <- file.path(l_files_dir, "GIS", "Global dams")
-  glwd_dir  <- file.path(l_files_dir, "GLWD")
+  glwd_dir <- file.path(l_files_dir, "GLWD")
   drainage_paths <- c(
     file.path(l_files_dir, "DRT", "DRT_half_FDR_globe.asc"),
     file.path(l_files_dir, "DDM30", "ddm30.asc")
@@ -2120,10 +2515,15 @@ prepare_hydrology_inputs <- function(l_files_dir, output_dir) {
       install.packages("geodata", quiet = TRUE)
     }
     elev_10m <- geodata::elevation_global(
-      res = 10, path = file.path(output_dir, ".cache")
+      res = 10,
+      path = file.path(output_dir, ".cache")
     )
-    elev_30m <- terra::aggregate(elev_10m, fact = 3, fun = "median",
-                                 na.rm = TRUE)
+    elev_30m <- terra::aggregate(
+      elev_10m,
+      fact = 3,
+      fun = "median",
+      na.rm = TRUE
+    )
     grid_coords <- as.matrix(country_grid[, c("lon", "lat")])
     cell_ids <- terra::cellFromXY(elev_30m, grid_coords)
     elev_vals <- terra::values(elev_30m)[cell_ids]
@@ -2168,11 +2568,18 @@ prepare_hydrology_inputs <- function(l_files_dir, output_dir) {
       return(invisible(NULL))
     }
     dams_v <- terra::vect(shp_path)
-    dams <- as.data.frame(dams_v) |> tibble::as_tibble() |>
+    dams <- as.data.frame(dams_v) |>
+      tibble::as_tibble() |>
       select(
-        grand_id = GRAND_ID, dam_name = DAM_NAME, year = YEAR,
-        cap_mcm = CAP_MCM, area_skm = AREA_SKM, catch_skm = CATCH_SKM,
-        main_use = MAIN_USE, lon_dam = LONG_DD, lat_dam = LAT_DD
+        grand_id = GRAND_ID,
+        dam_name = DAM_NAME,
+        year = YEAR,
+        cap_mcm = CAP_MCM,
+        area_skm = AREA_SKM,
+        catch_skm = CATCH_SKM,
+        main_use = MAIN_USE,
+        lon_dam = LONG_DD,
+        lat_dam = LAT_DD
       ) |>
       mutate(
         year = if_else(year < 0, NA_integer_, as.integer(year)),
@@ -2186,7 +2593,8 @@ prepare_hydrology_inputs <- function(l_files_dir, output_dir) {
     cell_reservoirs <- dams |>
       filter(!is.na(cap_mcm), cap_mcm > 0) |>
       summarise(
-        n_dams = n(), total_cap_mcm = sum(cap_mcm, na.rm = TRUE),
+        n_dams = n(),
+        total_cap_mcm = sum(cap_mcm, na.rm = TRUE),
         total_area_skm = sum(area_skm, na.rm = TRUE),
         min_year = min(year, na.rm = TRUE),
         mean_catch_skm = mean(catch_skm, na.rm = TRUE),
@@ -2198,9 +2606,17 @@ prepare_hydrology_inputs <- function(l_files_dir, output_dir) {
       select(lon, lat) |>
       left_join(cell_reservoirs, by = c("lon", "lat")) |>
       mutate(
-        across(c(n_dams, total_cap_mcm, total_area_skm, min_year,
-                 mean_catch_skm, purpose_code),
-               ~ replace(.x, is.na(.x), 0)),
+        across(
+          c(
+            n_dams,
+            total_cap_mcm,
+            total_area_skm,
+            min_year,
+            mean_catch_skm,
+            purpose_code
+          ),
+          ~ replace(.x, is.na(.x), 0)
+        ),
         n_dams = as.integer(n_dams),
         purpose_code = as.integer(purpose_code)
       )
@@ -2213,14 +2629,23 @@ prepare_hydrology_inputs <- function(l_files_dir, output_dir) {
     glwd_path <- NULL
     glwd_version <- NULL
     v2_dir <- file.path(glwd_dir, "GLWD_v2")
-    v2_tifs <- list.files(v2_dir, pattern = "dominant.*\\.tif$",
-                          recursive = TRUE, full.names = TRUE)
+    v2_tifs <- list.files(
+      v2_dir,
+      pattern = "dominant.*\\.tif$",
+      recursive = TRUE,
+      full.names = TRUE
+    )
     if (length(v2_tifs) == 0) {
-      v2_tifs <- list.files(v2_dir, pattern = "combined.*\\.tif$",
-                            recursive = TRUE, full.names = TRUE)
+      v2_tifs <- list.files(
+        v2_dir,
+        pattern = "combined.*\\.tif$",
+        recursive = TRUE,
+        full.names = TRUE
+      )
     }
     if (length(v2_tifs) > 0) {
-      glwd_path <- v2_tifs[1]; glwd_version <- "v2"
+      glwd_path <- v2_tifs[1]
+      glwd_version <- "v2"
     }
     if (is.null(glwd_path)) {
       glwd3_path <- file.path(glwd_dir, "glwd_3", "hdr.adf")
@@ -2228,7 +2653,8 @@ prepare_hydrology_inputs <- function(l_files_dir, output_dir) {
         glwd3_path <- file.path(glwd_dir, "glwd_3.tif")
       }
       if (file.exists(glwd3_path)) {
-        glwd_path <- glwd3_path; glwd_version <- "v1"
+        glwd_path <- glwd3_path
+        glwd_version <- "v1"
       }
     }
     if (is.null(glwd_path)) {
@@ -2239,18 +2665,28 @@ prepare_hydrology_inputs <- function(l_files_dir, output_dir) {
     src_res <- terra::res(glwd)
     agg_factor <- round(0.5 / src_res[1])
     if (glwd_version == "v2") {
-      lake_classes <- c(1, 2, 3); river_classes <- 7
+      lake_classes <- c(1, 2, 3)
+      river_classes <- 7
     } else {
-      lake_classes <- 1; river_classes <- 3
+      lake_classes <- 1
+      river_classes <- 3
     }
     lake_rcl <- cbind(lake_classes, rep(1, length(lake_classes)))
     lake_mask <- terra::classify(glwd, lake_rcl, othersNA = TRUE)
-    lake_frac <- terra::aggregate(lake_mask, fact = agg_factor,
-                                  fun = "mean", na.rm = TRUE)
+    lake_frac <- terra::aggregate(
+      lake_mask,
+      fact = agg_factor,
+      fun = "mean",
+      na.rm = TRUE
+    )
     river_rcl <- cbind(river_classes, rep(1, length(river_classes)))
     river_mask <- terra::classify(glwd, river_rcl, othersNA = TRUE)
-    river_frac <- terra::aggregate(river_mask, fact = agg_factor,
-                                   fun = "mean", na.rm = TRUE)
+    river_frac <- terra::aggregate(
+      river_mask,
+      fact = agg_factor,
+      fun = "mean",
+      na.rm = TRUE
+    )
     grid_coords <- as.matrix(country_grid[, c("lon", "lat")])
     lake_vals <- terra::values(lake_frac)[
       terra::cellFromXY(lake_frac, grid_coords)
@@ -2270,11 +2706,16 @@ prepare_hydrology_inputs <- function(l_files_dir, output_dir) {
   # ---- Drainage ----
   .prepare_drainage <- function(country_grid, drainage_paths, output_dir) {
     cli::cli_alert_info("Drainage Routing")
-    drainage_path <- NULL; drainage_type <- NULL
+    drainage_path <- NULL
+    drainage_type <- NULL
     for (p in drainage_paths) {
       if (file.exists(p)) {
         drainage_path <- p
-        drainage_type <- if (grepl("DRT|drt", p, ignore.case = TRUE)) "DRT" else "DDM30"
+        drainage_type <- if (grepl("DRT|drt", p, ignore.case = TRUE)) {
+          "DRT"
+        } else {
+          "DDM30"
+        }
         break
       }
     }
@@ -2288,17 +2729,25 @@ prepare_hydrology_inputs <- function(l_files_dir, output_dir) {
     flow_dir_vals <- terra::values(ddm)[cell_ids]
     if (drainage_type == "DRT") {
       esri_to_ddm <- c(
-        `1` = 1L, `2` = 2L, `4` = 3L, `8` = 4L,
-        `16` = 5L, `32` = 6L, `64` = 7L, `128` = 8L
+        `1` = 1L,
+        `2` = 2L,
+        `4` = 3L,
+        `8` = 4L,
+        `16` = 5L,
+        `32` = 6L,
+        `64` = 7L,
+        `128` = 8L
       )
       flow_dir_vals <- esri_to_ddm[as.character(as.integer(flow_dir_vals))]
       flow_dir_vals[is.na(flow_dir_vals)] <- 0L
     }
     result <- country_grid |>
       select(lon, lat) |>
-      mutate(flow_direction = as.integer(
-        replace(flow_dir_vals, is.na(flow_dir_vals), 0L)
-      ))
+      mutate(
+        flow_direction = as.integer(
+          replace(flow_dir_vals, is.na(flow_dir_vals), 0L)
+        )
+      )
     .save_parquet(result, output_dir, "drainage")
   }
 
@@ -2322,24 +2771,32 @@ prepare_soil_inputs <- function(l_files_dir, output_dir, target_res = 0.5) {
     }
     db <- DBI::dbConnect(RSQLite::SQLite(), db_path)
     on.exit(DBI::dbDisconnect(db), add = TRUE)
-    DBI::dbGetQuery(db, "
+    DBI::dbGetQuery(
+      db,
+      "
       SELECT mu_global, issoil, share,
              t_sand, t_silt, t_clay,
              t_usda_tex_class, t_ph_h2o, su_sym90
       FROM hwsd_data
-    ") |> tibble::as_tibble()
+    "
+    ) |>
+      tibble::as_tibble()
   }
 
   .derive_dominant_soil <- function(hwsd_attr) {
     hwsd_attr <- hwsd_attr |>
-      mutate(t_usda_tex_class = case_when(
-        su_sym90 == "DS" & is.na(t_usda_tex_class) ~ 13L,
-        TRUE ~ as.integer(t_usda_tex_class)
-      ))
+      mutate(
+        t_usda_tex_class = case_when(
+          su_sym90 == "DS" & is.na(t_usda_tex_class) ~ 13L,
+          TRUE ~ as.integer(t_usda_tex_class)
+        )
+      )
     soils <- hwsd_attr |> filter(!is.na(t_usda_tex_class))
     dom_tex <- soils |>
-      summarise(tex_share = sum(share, na.rm = TRUE),
-                .by = c(mu_global, t_usda_tex_class)) |>
+      summarise(
+        tex_share = sum(share, na.rm = TRUE),
+        .by = c(mu_global, t_usda_tex_class)
+      ) |>
       slice_max(tex_share, n = 1, with_ties = FALSE, by = mu_global) |>
       select(mu_global, t_usda_tex_class)
     ph_data <- soils |>
@@ -2359,7 +2816,10 @@ prepare_soil_inputs <- function(l_files_dir, output_dir, target_res = 0.5) {
     hwsd_rast <- terra::rast(hwsd_path)
     target_rast <- terra::rast(
       resolution = target_res,
-      xmin = -180, xmax = 180, ymin = -90, ymax = 90
+      xmin = -180,
+      xmax = 180,
+      ymin = -90,
+      ymax = 90
     )
     agg_factor <- as.integer(target_res / terra::res(hwsd_rast)[1])
     n_target_rows <- terra::nrow(target_rast)
@@ -2368,8 +2828,11 @@ prepare_soil_inputs <- function(l_files_dir, output_dir, target_res = 0.5) {
 
     for (row_i in seq_len(n_target_rows)) {
       src_row_start <- (row_i - 1L) * agg_factor + 1L
-      strip <- terra::values(hwsd_rast, row = src_row_start,
-                             nrows = agg_factor)[, 1]
+      strip <- terra::values(
+        hwsd_rast,
+        row = src_row_start,
+        nrows = agg_factor
+      )[, 1]
       strip_mat <- matrix(strip, nrow = agg_factor, byrow = TRUE)
       lat <- 90.0 - (row_i - 0.5) * target_res
       row_results <- vector("list", n_target_cols)
@@ -2380,24 +2843,29 @@ prepare_soil_inputs <- function(l_files_dir, output_dir, target_res = 0.5) {
         block <- strip_mat[, src_col_start:src_col_end]
         mu_ids <- as.integer(block)
         mu_ids <- mu_ids[mu_ids > 0L & !is.na(mu_ids)]
-        if (length(mu_ids) == 0L) next
+        if (length(mu_ids) == 0L) {
+          next
+        }
         lon <- -180.0 + (col_j - 0.5) * target_res
         mu_counts <- tibble::tibble(mu_global = mu_ids) |>
           count(mu_global, name = "n_cells")
         mu_soil <- mu_counts |>
           inner_join(mu_soils, by = "mu_global")
-        if (nrow(mu_soil) == 0L) next
+        if (nrow(mu_soil) == 0L) {
+          next
+        }
         dom <- mu_soil |>
-          summarise(total_cells = sum(n_cells),
-                    .by = t_usda_tex_class) |>
+          summarise(total_cells = sum(n_cells), .by = t_usda_tex_class) |>
           slice_max(total_cells, n = 1, with_ties = FALSE)
         ph_val <- mu_soil |>
           filter(t_usda_tex_class == dom$t_usda_tex_class[1]) |>
-          summarise(ph = stats::weighted.mean(t_ph_h2o, w = n_cells,
-                                              na.rm = TRUE)) |>
+          summarise(
+            ph = stats::weighted.mean(t_ph_h2o, w = n_cells, na.rm = TRUE)
+          ) |>
           pull(ph)
         row_results[[col_j]] <- tibble::tibble(
-          lon = lon, lat = lat,
+          lon = lon,
+          lat = lat,
           soil_texture_code = dom$t_usda_tex_class[1],
           soil_ph = round(ph_val, 2)
         )
@@ -2413,22 +2881,30 @@ prepare_soil_inputs <- function(l_files_dir, output_dir, target_res = 0.5) {
   .gapfill_soil <- function(soil_grid, country_grid, max_search = 100L) {
     missing <- country_grid |>
       anti_join(soil_grid, by = c("lon", "lat"))
-    if (nrow(missing) == 0) return(soil_grid)
+    if (nrow(missing) == 0) {
+      return(soil_grid)
+    }
     cli::cli_alert_info("Gap-filling {nrow(missing)} soil cells...")
     soil_lookup <- soil_grid |>
       select(lon, lat, soil_texture_code, soil_ph)
     filled <- vector("list", nrow(missing))
     for (i in seq_len(nrow(missing))) {
-      m_lon <- missing$lon[i]; m_lat <- missing$lat[i]
+      m_lon <- missing$lon[i]
+      m_lat <- missing$lat[i]
       found <- FALSE
       for (radius in seq_len(max_search)) {
         neighbours <- soil_lookup |>
-          filter(abs(lon - m_lon) <= radius * 0.5,
-                 abs(lat - m_lat) <= radius * 0.5)
+          filter(
+            abs(lon - m_lon) <= radius * 0.5,
+            abs(lat - m_lat) <= radius * 0.5
+          )
         if (nrow(neighbours) > 0) {
           neighbours <- neighbours |>
-            mutate(dist = sqrt((lon - m_lon)^2 + (lat - m_lat)^2),
-                   dist = pmax(dist, 0.01), w = 1.0 / dist^2)
+            mutate(
+              dist = sqrt((lon - m_lon)^2 + (lat - m_lat)^2),
+              dist = pmax(dist, 0.01),
+              w = 1.0 / dist^2
+            )
           dom_tex <- neighbours |>
             summarise(total_w = sum(w), .by = soil_texture_code) |>
             slice_max(total_w, n = 1, with_ties = FALSE)
@@ -2437,17 +2913,21 @@ prepare_soil_inputs <- function(l_files_dir, output_dir, target_res = 0.5) {
             summarise(ph = stats::weighted.mean(soil_ph, w = w)) |>
             pull(ph)
           filled[[i]] <- tibble::tibble(
-            lon = m_lon, lat = m_lat,
+            lon = m_lon,
+            lat = m_lat,
             soil_texture_code = dom_tex$soil_texture_code[1],
             soil_ph = round(ph_val, 2)
           )
-          found <- TRUE; break
+          found <- TRUE
+          break
         }
       }
       if (!found) {
         filled[[i]] <- tibble::tibble(
-          lon = m_lon, lat = m_lat,
-          soil_texture_code = 0L, soil_ph = 7.0
+          lon = m_lon,
+          lat = m_lat,
+          soil_texture_code = 0L,
+          soil_ph = 7.0
         )
       }
     }
@@ -2484,14 +2964,16 @@ run_crop_spatialize <- function(run_dir, input_dir) {
   )
   country_areas <- nanoparquet::read_parquet(
     file.path(input_dir, "country_areas.parquet")
-  ) |> dplyr::filter(year %in% year_range)
+  ) |>
+    dplyr::filter(year %in% year_range)
 
   crop_patterns <- nanoparquet::read_parquet(
     file.path(input_dir, "crop_patterns.parquet")
   )
   gridded_cropland <- nanoparquet::read_parquet(
     file.path(input_dir, "gridded_cropland.parquet")
-  ) |> dplyr::filter(year %in% year_range)
+  ) |>
+    dplyr::filter(year %in% year_range)
 
   type_cl_path <- file.path(input_dir, "type_cropland.parquet")
   type_cropland <- NULL
@@ -2502,10 +2984,14 @@ run_crop_spatialize <- function(run_dir, input_dir) {
 
   cft_mapping <- .read_cft_mapping()
   mapped_items <- cft_mapping$item_prod_code
-  country_areas <- dplyr::filter(country_areas,
-                                 item_prod_code %in% mapped_items)
-  crop_patterns <- dplyr::filter(crop_patterns,
-                                 item_prod_code %in% mapped_items)
+  country_areas <- dplyr::filter(
+    country_areas,
+    item_prod_code %in% mapped_items
+  )
+  crop_patterns <- dplyr::filter(
+    crop_patterns,
+    item_prod_code %in% mapped_items
+  )
 
   cli::cli_alert_info(
     "Years: {min(year_range)}-{max(year_range)}"
@@ -2596,13 +3082,17 @@ run_crop_spatialize <- function(run_dir, input_dir) {
 
     gridded_y <- result_crops |>
       dplyr::inner_join(country_grid, by = c("lon", "lat")) |>
-      dplyr::inner_join(country_yields,
-                        by = c("year", "area_code", "item_prod_code"))
+      dplyr::inner_join(
+        country_yields,
+        by = c("year", "area_code", "item_prod_code")
+      )
 
     if (!is.null(spatial_yield_idx)) {
       gridded_y <- gridded_y |>
-        dplyr::left_join(spatial_yield_idx,
-                         by = c("lon", "lat", "item_prod_code")) |>
+        dplyr::left_join(
+          spatial_yield_idx,
+          by = c("lon", "lat", "item_prod_code")
+        ) |>
         dplyr::mutate(
           spatial_yield_index = dplyr::coalesce(spatial_yield_index, 1.0)
         ) |>
@@ -2611,13 +3101,19 @@ run_crop_spatialize <- function(run_dir, input_dir) {
           weighted_sum = sum(spatial_yield_index * total_ha, na.rm = TRUE),
           ha_sum = sum(total_ha, na.rm = TRUE),
           renorm = dplyr::if_else(
-            weighted_sum > 0, ha_sum / weighted_sum, 1.0
+            weighted_sum > 0,
+            ha_sum / weighted_sum,
+            1.0
           ),
           yield_t_ha = yield_t_ha * spatial_yield_index * renorm,
           .by = c("year", "area_code", "item_prod_code")
         ) |>
         dplyr::select(
-          -spatial_yield_index, -total_ha, -weighted_sum, -ha_sum, -renorm
+          -spatial_yield_index,
+          -total_ha,
+          -weighted_sum,
+          -ha_sum,
+          -renorm
         )
     }
 
@@ -2631,21 +3127,31 @@ run_crop_spatialize <- function(run_dir, input_dir) {
         total_ha = rainfed_ha + irrigated_ha,
         denom = rainfed_ha + yield_ratio * irrigated_ha,
         yield_rainfed = dplyr::if_else(
-          denom > 0, yield_t_ha * total_ha / denom, yield_t_ha
+          denom > 0,
+          yield_t_ha * total_ha / denom,
+          yield_t_ha
         ),
         yield_irrigated = yield_ratio * yield_rainfed,
         rainfed_prod_t = yield_rainfed * rainfed_ha,
         irrigated_prod_t = yield_irrigated * irrigated_ha
       ) |>
       dplyr::select(
-        lon, lat, year, area_code, item_prod_code,
-        rainfed_ha, irrigated_ha,
-        yield_rainfed, yield_irrigated,
-        rainfed_prod_t, irrigated_prod_t
+        lon,
+        lat,
+        year,
+        area_code,
+        item_prod_code,
+        rainfed_ha,
+        irrigated_ha,
+        yield_rainfed,
+        yield_irrigated,
+        rainfed_prod_t,
+        irrigated_prod_t
       )
 
     nanoparquet::write_parquet(
-      gridded_y, file.path(run_dir, "gridded_yields.parquet")
+      gridded_y,
+      file.path(run_dir, "gridded_yields.parquet")
     )
     cli::cli_alert_success("Gridded yields: {nrow(gridded_y)} rows")
   }
@@ -2679,13 +3185,14 @@ run_crop_spatialize <- function(run_dir, input_dir) {
 
     gridded_n <- result_crops |>
       dplyr::inner_join(country_grid, by = c("lon", "lat")) |>
-      dplyr::inner_join(n_rates,
-                        by = c("year", "area_code", "item_prod_code"))
+      dplyr::inner_join(n_rates, by = c("year", "area_code", "item_prod_code"))
 
     if (!is.null(spatial_n_idx)) {
       gridded_n <- gridded_n |>
-        dplyr::left_join(spatial_n_idx,
-                         by = c("lon", "lat", "item_prod_code", "fert_type")) |>
+        dplyr::left_join(
+          spatial_n_idx,
+          by = c("lon", "lat", "item_prod_code", "fert_type")
+        ) |>
         dplyr::mutate(
           spatial_n_index = dplyr::coalesce(spatial_n_index, 1.0)
         ) |>
@@ -2694,13 +3201,19 @@ run_crop_spatialize <- function(run_dir, input_dir) {
           weighted_sum = sum(spatial_n_index * total_ha, na.rm = TRUE),
           ha_sum = sum(total_ha, na.rm = TRUE),
           renorm = dplyr::if_else(
-            weighted_sum > 0, ha_sum / weighted_sum, 1.0
+            weighted_sum > 0,
+            ha_sum / weighted_sum,
+            1.0
           ),
           kg_n_ha = kg_n_ha * spatial_n_index * renorm,
           .by = c("year", "area_code", "item_prod_code", "fert_type")
         ) |>
         dplyr::select(
-          -spatial_n_index, -total_ha, -weighted_sum, -ha_sum, -renorm
+          -spatial_n_index,
+          -total_ha,
+          -weighted_sum,
+          -ha_sum,
+          -renorm
         )
     }
 
@@ -2714,20 +3227,33 @@ run_crop_spatialize <- function(run_dir, input_dir) {
         total_ha = rainfed_ha + irrigated_ha,
         denom = rainfed_ha + n_rate_ratio * irrigated_ha,
         kg_n_ha_rainfed = dplyr::if_else(
-          denom > 0, kg_n_ha * total_ha / denom, kg_n_ha
+          denom > 0,
+          kg_n_ha * total_ha / denom,
+          kg_n_ha
         ),
         kg_n_ha_irrigated = n_rate_ratio * kg_n_ha_rainfed,
         rainfed_n_mg = rainfed_ha * kg_n_ha_rainfed / 1000,
         irrigated_n_mg = irrigated_ha * kg_n_ha_irrigated / 1000
       ) |>
       dplyr::select(
-        lon, lat, year, area_code, item_prod_code,
-        fert_type, kg_n_ha, kg_n_ha_rainfed, kg_n_ha_irrigated,
-        rainfed_ha, irrigated_ha, rainfed_n_mg, irrigated_n_mg
+        lon,
+        lat,
+        year,
+        area_code,
+        item_prod_code,
+        fert_type,
+        kg_n_ha,
+        kg_n_ha_rainfed,
+        kg_n_ha_irrigated,
+        rainfed_ha,
+        irrigated_ha,
+        rainfed_n_mg,
+        irrigated_n_mg
       )
 
     nanoparquet::write_parquet(
-      gridded_n, file.path(run_dir, "gridded_nitrogen.parquet")
+      gridded_n,
+      file.path(run_dir, "gridded_nitrogen.parquet")
     )
     cli::cli_alert_success("Gridded nitrogen: {nrow(gridded_n)} rows")
   }
@@ -2844,7 +3370,11 @@ main <- function() {
 
   # Section 2: Country areas
   country_areas <- prepare_country_areas(
-    l_files_dir, year_range, country_grid, target_res, prod
+    l_files_dir,
+    year_range,
+    country_grid,
+    target_res,
+    prod
   )
   .save_parquet(country_areas, output_dir, "country_areas")
 
@@ -2860,7 +3390,10 @@ main <- function() {
 
   # Section 4: Gridded cropland + type_cropland
   gridded_cropland <- prepare_gridded_cropland(
-    l_files_dir, year_range, target_res, output_dir = output_dir
+    l_files_dir,
+    year_range,
+    target_res,
+    output_dir = output_dir
   )
   .save_parquet(gridded_cropland, output_dir, "gridded_cropland")
 
@@ -2872,21 +3405,34 @@ main <- function() {
   if (file.exists(mirca_path)) {
     cli::cli_alert_info("Re-generating country_areas with MIRCA irrigation")
     country_areas <- prepare_country_areas(
-      l_files_dir, year_range, country_grid, target_res, prod
+      l_files_dir,
+      year_range,
+      country_grid,
+      target_res,
+      prod
     )
     .save_parquet(country_areas, output_dir, "country_areas")
   }
 
   # Section 6: Yield inputs
-  prepare_yield_inputs(l_files_dir, output_dir, target_res,
-                       year_range = 1961L:2022L, prod = prod)
+  prepare_yield_inputs(
+    l_files_dir,
+    output_dir,
+    target_res,
+    year_range = 1961L:2022L,
+    prod = prod
+  )
 
   # Section 7: Nitrogen inputs
   prepare_nitrogen_inputs(l_files_dir, output_dir, year_range, prod = prod)
 
   # Section 8: Livestock inputs
   prepare_livestock_inputs(
-    l_files_dir, output_dir, year_range, target_res, prod = prod
+    l_files_dir,
+    output_dir,
+    year_range,
+    target_res,
+    prod = prod
   )
 
   # Section 9: Hydrology + Soil
@@ -2903,4 +3449,6 @@ main <- function() {
 }
 
 # Run if executed directly (not just sourced)
-if (sys.nframe() == 0L) main()
+if (sys.nframe() == 0L) {
+  main()
+}

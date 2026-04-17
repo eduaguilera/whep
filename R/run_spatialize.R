@@ -31,6 +31,12 @@
 #'     CFT-aggregated parquet alongside the crop-level output.
 #'   - `max_iterations`, `expansion_threshold`: forwarded to the
 #'     landuse engine.
+#' @param cft_target One of `"whep"` (default for `preset = "whep"`)
+#'   or `"lpjml"` (default for `preset = "lpjml"`). Selects which
+#'   column of `cft_mapping.csv` to use for CFT-level aggregation:
+#'   `cft_name` (granular 33-class WHEP taxonomy) or `cft_lpjml`
+#'   (12 LPJmL crop CFTs + single `others` bucket, matching LPJmL
+#'   v6 band layout).
 #' @param input_dir Directory holding the prepared input parquets.
 #'   If `NULL`, defaults to `<l_files_dir>/whep/inputs`.
 #' @param out_dir Output directory. If `NULL`, defaults to
@@ -124,12 +130,14 @@ run_spatialize <- function(
   years = NULL,
   components = c("landuse", "livestock"),
   overrides = list(),
+  cft_target = NULL,
   input_dir = NULL,
   out_dir = NULL,
   l_files_dir = NULL
 ) {
   preset <- match.arg(preset)
   components <- .validate_components(components)
+  cft_target <- .resolve_cft_target(cft_target, preset)
   .validate_overrides(overrides)
   config <- .resolve_spatialize_config(preset, overrides)
 
@@ -184,7 +192,8 @@ run_spatialize <- function(
         result_crops,
         lu_inputs$cft_mapping,
         out_dir,
-        config
+        config,
+        cft_target = cft_target
       )
     )
   }
@@ -223,6 +232,7 @@ run_spatialize <- function(
     preset,
     resolved_years,
     components,
+    cft_target,
     config,
     overrides,
     input_dir
@@ -234,6 +244,7 @@ run_spatialize <- function(
   invisible(list(
     preset = preset,
     components = components,
+    cft_target = cft_target,
     config = config,
     years = resolved_years,
     out_dir = out_dir,
@@ -328,6 +339,14 @@ run_spatialize <- function(
 
 .benchmark_years <- function() {
   as.integer(seq(1850L, 2020L, by = 10L))
+}
+
+.resolve_cft_target <- function(cft_target, preset) {
+  if (is.null(cft_target)) {
+    cft_target <- if (preset == "lpjml") "lpjml" else "whep"
+  }
+  cft_target <- match.arg(cft_target, c("whep", "lpjml"))
+  cft_target
 }
 
 .default_spatialize_out_dir <- function(l_files_dir, preset, overrides) {
@@ -475,7 +494,8 @@ run_spatialize <- function(
   result_crops,
   cft_mapping,
   out_dir,
-  config
+  config,
+  cft_target = "whep"
 ) {
   paths <- list()
   crop_path <- file.path(out_dir, "gridded_landuse_crops.parquet")
@@ -483,9 +503,21 @@ run_spatialize <- function(
   paths$landuse_crops <- crop_path
 
   if (isTRUE(config$aggregate_to_cft)) {
+    # Pick the aggregation column: cft_name (granular WHEP) or
+    # cft_lpjml (LPJmL-compatible 12 crops + 'others').
+    agg_col <- if (cft_target == "lpjml") "cft_lpjml" else "cft_name"
+    if (!rlang::has_name(cft_mapping, agg_col)) {
+      cli::cli_abort(
+        "cft_mapping is missing the {.field {agg_col}} column."
+      )
+    }
     cft_result <- result_crops |>
       dplyr::inner_join(
-        dplyr::select(cft_mapping, item_prod_code, cft_name),
+        dplyr::select(
+          cft_mapping,
+          item_prod_code,
+          cft_name = dplyr::all_of(agg_col)
+        ),
         by = "item_prod_code"
       ) |>
       dplyr::summarise(
@@ -512,6 +544,7 @@ run_spatialize <- function(
   preset,
   years,
   components,
+  cft_target,
   config,
   overrides,
   input_dir
@@ -519,6 +552,7 @@ run_spatialize <- function(
   meta <- list(
     preset = preset,
     components = components,
+    cft_target = cft_target,
     timestamp = format(
       Sys.time(),
       "%Y-%m-%dT%H:%M:%S%z",

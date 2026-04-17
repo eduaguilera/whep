@@ -9,6 +9,7 @@ run_spatialize(
   years = NULL,
   components = c("landuse", "livestock"),
   overrides = list(),
+  cft_target = NULL,
   input_dir = NULL,
   out_dir = NULL,
   l_files_dir = NULL
@@ -38,6 +39,13 @@ CFT-aggregated parquet alongside the crop-level output.
 \item \code{max_iterations}, \code{expansion_threshold}: forwarded to the
 landuse engine.
 }}
+
+\item{cft_target}{One of \code{"whep"} (default for \code{preset = "whep"})
+or \code{"lpjml"} (default for \code{preset = "lpjml"}). Selects which
+column of \code{cft_mapping.csv} to use for CFT-level aggregation:
+\code{cft_name} (granular 33-class WHEP taxonomy) or \code{cft_lpjml}
+(12 LPJmL crop CFTs + single \code{others} bucket, matching LPJmL
+v6 band layout).}
 
 \item{input_dir}{Directory holding the prepared input parquets.
 If \code{NULL}, defaults to \verb{<l_files_dir>/whep/inputs}.}
