@@ -40,7 +40,7 @@ create_n_prov_destiny <- function(example = FALSE) {
   }
   codes_coefs_items_full <- whep_read_file("codes_coefs_items_full")
   biomass_coefs <- whep_read_file("biomass_coefs")
-  pie_full_destinies_fm <- whep_read_file("pie-full-destinies-fm")
+  pie_full_destinies_fm <- whep_read_file("pie-full-destinies-fm-old")
   processed_prov_fixed <- whep_read_file("processed_prov_fixed")
   livestock_prod_ygps <- whep_read_file("livestock-prod-ygps")
   crop_area_npp_no_fallow <- whep_read_file("crop-area-npp-ygpitr-no-fallow")
