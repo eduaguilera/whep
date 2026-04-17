@@ -459,7 +459,7 @@ run_spatialize <- function(
     file.path(input_dir, "country_grid.parquet")
   )
 
-  species_proxy <- .read_packaged_livestock_mapping()
+  species_proxy <- .read_livestock_mapping()
 
   manure_pattern <- NULL
   manure_path <- file.path(input_dir, "manure_pattern.parquet")
@@ -477,7 +477,7 @@ run_spatialize <- function(
   )
 }
 
-.read_packaged_livestock_mapping <- function() {
+.read_livestock_mapping <- function() {
   path <- system.file(
     "extdata",
     "livestock_mapping.csv",

@@ -594,12 +594,11 @@ test_that("fill_proxy_growth extrapolates per group, not across groups", {
     verbose = FALSE
   )
 
-  # Expected per-group backfill (backward from 2002 anchor using local
-  # proxy growth):
-  #   slow: value[2001] = 100 * (11/12) ~= 91.67
-  #         value[2000] = 91.67 * (10/11) ~= 83.33
-  #   fast: value[2001] = 1000 * (50/100) = 500
-  #         value[2000] = 500 * (10/50) = 100
+  # Expected per-group backfill, walking back from the 2002 anchor
+  # using the local proxy growth. The slow group's 2000 value is
+  # anchor times (proxy_2000 / proxy_2002); the fast group uses its
+  # own proxy series. A bug that averaged growth rates across groups
+  # would pull both values toward the same (wrong) intermediate.
   slow_2000 <- result |>
     dplyr::filter(country == "slow", year == 2000L) |>
     dplyr::pull(value)

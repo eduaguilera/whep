@@ -768,7 +768,20 @@ utils::globalVariables(
     "polities",
     "regional_mms_distribution",
     "temperature_adjustment",
-    "uncertainty_ranges"
+    "uncertainty_ranges",
+    # spatialize internals
+    "c_wt",
+    "density",
+    "lu_now",
+    "luh2_type",
+    "manure_intensity",
+    "p_wt",
+    "pasture_ha",
+    "rangeland_ha",
+    "total_pot",
+    "type_ha",
+    "type_irrig_ha",
+    "weight_sum"
   )
 )
 

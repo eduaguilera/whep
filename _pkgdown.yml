@@ -107,6 +107,7 @@ reference:
   - animals_codes
   - biomass_coefs
   - cb_processing
+  - cft_mapping
   - crops_eurostat
   - liv_lu_coefs
   - primary_double

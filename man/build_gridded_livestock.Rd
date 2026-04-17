@@ -145,7 +145,7 @@ LSU/ha reference for use with the \code{glw_density} parameter.
 \subsection{Data sources and references}{\tabular{ll}{
    Source \tab Use \cr
    FAOSTAT Production_Livestock (FAO 2024) \tab Country-level heads \cr
-   FAOSTAT Emissions_livestock (FAO 2024) \tab Enteric CH\u2084, manure CH\u2084/N\u2082O \cr
+   FAOSTAT Emissions_livestock (FAO 2024) \tab Enteric CH4, manure CH4/N2O \cr
    LUH2 v2h (Hurtt et al. 2020) \tab Time-varying pasture + cropland \cr
    West et al. (2014) \tab Static manure-N intensity reference \cr
    GLW3 (Gilbert et al. 2018) \tab Species-specific density (optional) \cr

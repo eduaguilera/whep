@@ -42,9 +42,9 @@
 #   gridded_nitrogen, gridded_livestock_emissions
 #
 # Usage:
-#   Rscript inst/scripts/prepare_spatialize_all.R          # run all
-#   source("inst/scripts/prepare_spatialize_all.R")        # load functions
-#   prepare_country_grid(l_files_dir, target_res)          # run one section
+#   - Rscript this file to run every section in order.
+#   - Source the file to make the section functions available in an
+#     interactive R session, then call them one by one.
 # -----------------------------------------------------------------------
 
 library(dplyr, warn.conflicts = FALSE)
@@ -747,7 +747,7 @@ prepare_crop_patterns <- function(l_files_dir, target_res) {
 
 # ==== Section 3b: Crop fertilizer patterns ================================
 
-prepare_crop_fertilizer_patterns <- function(l_files_dir, target_res) {
+prepare_crop_fert_patterns <- function(l_files_dir, target_res) {
   cli::cli_h2("Section 3b: EarthStat fertilizer rates")
 
   fert_dir <- file.path(l_files_dir, "EarthStat - Crop Specific Fertilizers")
@@ -857,34 +857,34 @@ prepare_mirca_irrigation <- function(
     return(NULL)
   }
 
-  NCOLS <- 4320L
-  NROWS <- 2160L
-  NMONTHS <- 12L
-  NCELLS <- NCOLS * NROWS
+  ncols <- 4320L
+  nrows <- 2160L
+  nmonths <- 12L
+  ncells <- ncols * nrows
 
   .read_mirca_binary_local <- function(fpath) {
     is_gz <- grepl("\\.gz$", fpath)
     if (is_gz) {
       con <- gzfile(fpath, "rb")
       on.exit(close(con))
-      raw_vals <- readBin(con, "double", n = NCELLS * NMONTHS, size = 4L)
+      raw_vals <- readBin(con, "double", n = ncells * nmonths, size = 4L)
     } else {
-      raw_vals <- readBin(fpath, "double", n = NCELLS * NMONTHS, size = 4L)
+      raw_vals <- readBin(fpath, "double", n = ncells * nmonths, size = 4L)
     }
-    if (length(raw_vals) != NCELLS * NMONTHS) {
+    if (length(raw_vals) != ncells * nmonths) {
       cli::cli_abort(
-        "Expected {NCELLS * NMONTHS} values, got {length(raw_vals)} from {fpath}"
+        "Expected {ncells * nmonths} values, got {length(raw_vals)} from {fpath}"
       )
     }
-    annual <- raw_vals[seq_len(NCELLS)]
-    for (m in 2:NMONTHS) {
-      idx <- ((m - 1L) * NCELLS + 1L):(m * NCELLS)
+    annual <- raw_vals[seq_len(ncells)]
+    for (m in 2:nmonths) {
+      idx <- ((m - 1L) * ncells + 1L):(m * ncells)
       annual <- pmax(annual, raw_vals[idx])
     }
     rm(raw_vals)
     r <- terra::rast(
-      nrows = NROWS,
-      ncols = NCOLS,
+      nrows = nrows,
+      ncols = ncols,
       xmin = -180,
       xmax = 180,
       ymin = -90,
@@ -1287,7 +1287,7 @@ prepare_nitrogen_inputs <- function(
       )
 
     bind_rows(fert_raw, manure_applied, manure_pasture) |>
-      inner_join(regions |> select(area_code, area_name), by = "area_code") |>
+      inner_join(select(regions, area_code, area_name), by = "area_code") |>
       filter(!is.na(mg_n), mg_n >= 0)
   }
 
@@ -1321,7 +1321,7 @@ prepare_nitrogen_inputs <- function(
   }
 
   # ---- 7c. Cropland/Grassland split ----
-  .read_cropland_grassland_split_local <- function(l_files_dir, regions) {
+  .read_crop_grass_split_local <- function(l_files_dir, regions) {
     euadb_dir <- file.path(
       l_files_dir,
       "EuropeAgriDB-v1.0-results/main_results/tables"
@@ -1392,7 +1392,7 @@ prepare_nitrogen_inputs <- function(
         ) |>
         rename(lassaletta_name = Country) |>
         left_join(
-          regions |> select(iso3c, area_code, area_name),
+          select(regions, iso3c, area_code, area_name),
           by = c("lassaletta_name" = "area_name")
         ) |>
         filter(!is.na(area_code)) |>
@@ -1410,7 +1410,7 @@ prepare_nitrogen_inputs <- function(
       crop_manure <- data.table::fread(manure_file) |>
         tibble::as_tibble() |>
         rename(crop_name = Crop_name, iso3c = ISO, manure_mg_n = Manure_N_Mg) |>
-        left_join(regions |> select(iso3c, area_code), by = "iso3c") |>
+        left_join(select(regions, iso3c, area_code), by = "iso3c") |>
         filter(!is.na(area_code)) |>
         summarize(manure_mg_n = sum(manure_mg_n), .by = c(area_code, crop_name))
     }
@@ -1459,14 +1459,14 @@ prepare_nitrogen_inputs <- function(
             "STL" = "LCA"
           )
         ) |>
-        left_join(regions |> select(iso3c, area_code), by = "iso3c") |>
+        left_join(select(regions, iso3c, area_code), by = "iso3c") |>
         filter(!is.na(area_code), !is.na(kg_n_ha_synth))
     }
     list(crop_manure = crop_manure, crop_synthetic = crop_synthetic)
   }
 
   # ---- 7e. West gridded manure ----
-  .read_west_gridded_manure_local <- function(
+  .read_west_manure_local <- function(
     l_files_dir,
     country_grid,
     items_prod,
@@ -1560,7 +1560,7 @@ prepare_nitrogen_inputs <- function(
   }
 
   # ---- 7f. EarthStat country N rates ----
-  .read_earthstat_country_rates_local <- function(
+  .read_earthstat_rates_local <- function(
     l_files_dir,
     country_grid,
     items_prod,
@@ -1741,7 +1741,7 @@ prepare_nitrogen_inputs <- function(
         by = "coello_crop_code",
         relationship = "many-to-many"
       ) |>
-      left_join(regions |> select(area_code, area_name), by = "area_code") |>
+      left_join(select(regions, area_code, area_name), by = "area_code") |>
       filter(!is.na(area_name)) |>
       mutate(
         kg_n_ha_coello = pmax(kg_n_ha_coello, 0),
@@ -1781,7 +1781,7 @@ prepare_nitrogen_inputs <- function(
       if ("Deposit_kgNha" %in% names(dep_raw)) {
         dep <- dep_raw |>
           select(year = Year, iso3c = ISO3, deposit_kg_n_ha = Deposit_kgNha) |>
-          left_join(regions |> select(iso3c, area_code), by = "iso3c") |>
+          left_join(select(regions, iso3c, area_code), by = "iso3c") |>
           filter(!is.na(area_code), !is.na(deposit_kg_n_ha)) |>
           select(year, area_code, deposit_kg_n_ha)
         .save_parquet(dep, output_dir, "n_deposition")
@@ -1801,7 +1801,7 @@ prepare_nitrogen_inputs <- function(
   if (file.exists(crop_areas_file)) {
     crop_areas_raw <- nanoparquet::read_parquet(crop_areas_file)
     crop_areas <- crop_areas_raw |>
-      left_join(regions |> select(area_code, area_name), by = "area_code") |>
+      left_join(select(regions, area_code, area_name), by = "area_code") |>
       left_join(
         items_prod |> select(item_prod_code, item_prod_name),
         by = "item_prod_code"
@@ -1818,21 +1818,21 @@ prepare_nitrogen_inputs <- function(
 
   n_totals <- .read_faostat_totals_local(l_files_dir, regions)
   pk_totals <- .read_faostat_pk_totals_local(l_files_dir, regions)
-  lu_split <- .read_cropland_grassland_split_local(l_files_dir, regions)
+  lu_split <- .read_crop_grass_split_local(l_files_dir, regions)
   base_rates <- .read_crop_base_rates_local(l_files_dir, global_dir, regions)
 
   # Spatial rate enhancements
   country_grid_file <- file.path(output_dir, "country_grid.parquet")
   if (file.exists(country_grid_file)) {
     country_grid <- nanoparquet::read_parquet(country_grid_file)
-    base_rates$west_manure_rates <- .read_west_gridded_manure_local(
+    base_rates$west_manure_rates <- .read_west_manure_local(
       l_files_dir,
       country_grid,
       items_prod,
       0.5,
       output_dir
     )
-    base_rates$earthstat_synth_rates <- .read_earthstat_country_rates_local(
+    base_rates$earthstat_synth_rates <- .read_earthstat_rates_local(
       l_files_dir,
       country_grid,
       items_prod,
@@ -3383,7 +3383,7 @@ main <- function() {
   .save_parquet(crop_patterns, output_dir, "crop_patterns")
 
   # Section 3b: Crop fertilizer patterns
-  crop_fert <- prepare_crop_fertilizer_patterns(l_files_dir, target_res)
+  crop_fert <- prepare_crop_fert_patterns(l_files_dir, target_res)
   if (!is.null(crop_fert)) {
     .save_parquet(crop_fert, output_dir, "crop_fertilizer_patterns")
   }

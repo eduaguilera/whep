@@ -149,6 +149,32 @@
 #' head(biomass_coefs)
 "biomass_coefs"
 
+#' FAOSTAT crop to LPJmL crop functional type (CFT) mapping
+#'
+#' Maps FAOSTAT primary-production item codes to WHEP's granular
+#' 33-class crop functional type taxonomy and the coarser
+#' LPJmL-compatible parent class. Used by
+#' [build_gridded_landuse()] and [run_spatialize()] to aggregate
+#' spatialized crop-level output into named crop functional types.
+#'
+#' @format
+#' A tibble with one row per mapped FAOSTAT item. Columns:
+#' - `item_prod_code`: Integer FAOSTAT item code.
+#' - `item_prod_name`: Human-readable FAOSTAT item name.
+#' - `cft_name`: Granular WHEP CFT name (33 classes, e.g.
+#'   `"temperate_cereals"`, `"coffee"`, `"oil_crops_oilpalm"`).
+#' - `cft_lpjml`: LPJmL-compatible parent class; one of the 12
+#'   LPJmL v6 named crop CFTs or `"others"`.
+#' - `luh2_type`: LUH2 crop functional type (`c3ann`, `c4ann`,
+#'   `c3per`, or `c3nfx`).
+#' @source Adapted from LandInG's
+#'   `crop_types_FAOSTAT_LPJmL_default.csv` (Ostberg et al. 2023)
+#'   with WHEP granular extensions.
+#'
+#' @examples
+#' head(cft_mapping)
+"cft_mapping"
+
 #' Commodity balance sheet processing fractions
 #'
 #' Specifies the product fractions obtained when CBS items are processed,

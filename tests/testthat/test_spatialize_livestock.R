@@ -1,5 +1,3 @@
-# tests/testthat/test_spatialize_livestock.R
-
 # -- Fixtures ----------------------------------------------------------
 
 livestock_data <- tibble::tribble(

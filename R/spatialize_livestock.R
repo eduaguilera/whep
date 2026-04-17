@@ -42,7 +42,7 @@
 #' | Source | Use |
 #' |--------|-----|
 #' | FAOSTAT Production_Livestock (FAO 2024) | Country-level heads |
-#' | FAOSTAT Emissions_livestock (FAO 2024) | Enteric CH\u2084, manure CH\u2084/N\u2082O |
+#' | FAOSTAT Emissions_livestock (FAO 2024) | Enteric CH4, manure CH4/N2O |
 #' | LUH2 v2h (Hurtt et al. 2020) | Time-varying pasture + cropland |
 #' | West et al. (2014) | Static manure-N intensity reference |
 #' | GLW3 (Gilbert et al. 2018) | Species-specific density (optional) |
