@@ -10,8 +10,8 @@ create_typologies_spain <- function(
     n_prov_destiny <- create_n_prov_destiny()
   }
 
-  livestock_prod_ygps <- whep_read_file("livestock_prod_ygps")
-  npp_ygpit <- whep_read_file("npp_ygpit")
+  livestock_prod_ygps <- whep_read_file("livestock-prod-ygps")
+  npp_ygpit <- whep_read_file("npp-ygpit")
 
   lu_mapping <- tibble::tribble(
     ~Animal_class,   ~LU_head,

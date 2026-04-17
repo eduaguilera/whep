@@ -40,15 +40,15 @@ create_n_prov_destiny <- function(example = FALSE) {
   }
   codes_coefs_items_full <- whep_read_file("codes_coefs_items_full")
   biomass_coefs <- whep_read_file("biomass_coefs")
-  pie_full_destinies_fm <- whep_read_file("pie_full_destinies_fm")
+  pie_full_destinies_fm <- whep_read_file("pie-full-destinies-fm")
   processed_prov_fixed <- whep_read_file("processed_prov_fixed")
-  livestock_prod_ygps <- whep_read_file("livestock_prod_ygps")
-  crop_area_npp_no_fallow <- whep_read_file("crop_area_npp_ygpitr_no_fallow")
-  npp_ygpit <- whep_read_file("npp_ygpit")
+  livestock_prod_ygps <- whep_read_file("livestock-prod-ygps")
+  crop_area_npp_no_fallow <- whep_read_file("crop-area-npp-ygpitr-no-fallow")
+  npp_ygpit <- whep_read_file("npp-ygpit")
   codes_coefs <- whep_read_file("codes_coefs")
-  intake_ygiac <- whep_read_file("intake_ygiac")
+  intake_ygiac <- whep_read_file("intake-ygiac")
   population_yg <- whep_read_file("population_yg")
-  n_balance_ygpit_all <- whep_read_file("n_balance_ygpit_all")
+  n_balance_ygpit_all <- whep_read_file("n-balance-ygpit-all")
 
   biomass_item_merged <- .merge_items_biomass(npp_ygpit, codes_coefs)
   n_soil_inputs <- .calculate_n_soil_inputs(n_balance_ygpit_all, codes_coefs)
@@ -747,6 +747,7 @@ create_n_nat_destiny <- function(example = FALSE) {
 #' @noRd
 .add_feed <- function(feed_intake) {
   feed_wide <- feed_intake |>
+    dplyr::rename(Item = item_cbs, FM_Mg = intake_MgFM) |>
     dplyr::mutate(
       Livestock_type = dplyr::case_when(
         Livestock_cat %in%

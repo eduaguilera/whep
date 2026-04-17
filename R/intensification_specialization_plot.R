@@ -1,7 +1,7 @@
 intens_spec_plot <- function() {
   # ---- Load data ----
   flows <- create_n_prov_destiny()
-  npp_ygpit <- whep_read_file("npp_ygpit") |> dplyr::rename_with(tolower)
+  npp_ygpit <- whep_read_file("npp-ygpit") |> dplyr::rename_with(tolower)
 
   # ---- Area per province ----
   area_df <- npp_ygpit |>
@@ -132,7 +132,7 @@ intens_spec_plot <- function() {
 circ_intens_plot <- function() {
   # ---- Load data ----
   flows <- create_n_prov_destiny()
-  npp_ygpit <- whep_read_file("npp_ygpit") |> dplyr::rename_with(tolower)
+  npp_ygpit <- whep_read_file("npp-ygpit") |> dplyr::rename_with(tolower)
 
   # ---- Area per province ----
   area_df <- npp_ygpit |>
@@ -279,7 +279,7 @@ circ_intens_plot <- function() {
 circ_nue_traj_plot <- function() {
   # ---- Load data ----
   flows <- create_n_prov_destiny()
-  npp_ygpit <- whep_read_file("npp_ygpit") |> dplyr::rename_with(tolower)
+  npp_ygpit <- whep_read_file("npp-ygpit") |> dplyr::rename_with(tolower)
 
   # ---- Cropland area ----
   cropland_area <- npp_ygpit |>
@@ -600,7 +600,7 @@ circ_nue_crop_ts_plot <- function() {
 intens_spec_ts <- function() {
   # ---- Load data ----
   flows <- create_n_prov_destiny()
-  npp_ygpit <- whep_read_file("npp_ygpit") |> dplyr::rename_with(tolower)
+  npp_ygpit <- whep_read_file("npp-ygpit") |> dplyr::rename_with(tolower)
 
   # ---- Area per province ----
   area_df <- npp_ygpit |>
@@ -742,7 +742,7 @@ intens_spec_ts <- function() {
 yield_nue_trajectory_plot <- function() {
   # ---- Load data ----
   flows <- create_n_prov_destiny()
-  npp_ygpit <- whep_read_file("npp_ygpit") |> dplyr::rename_with(tolower)
+  npp_ygpit <- whep_read_file("npp-ygpit") |> dplyr::rename_with(tolower)
 
   # ---- Cropland area ----
   cropland_area <- npp_ygpit |>
@@ -842,7 +842,7 @@ yield_nue_trajectory_plot <- function() {
 intens_traj_plot <- function() {
   # ---- Load data ----
   flows <- create_n_prov_destiny()
-  npp_ygpit <- whep_read_file("npp_ygpit") |> dplyr::rename_with(tolower)
+  npp_ygpit <- whep_read_file("npp-ygpit") |> dplyr::rename_with(tolower)
 
   # ---- Cropland area ----
   cropland_area <- npp_ygpit |>
@@ -935,7 +935,7 @@ intens_traj_plot <- function() {
 intens_ts_plot <- function() {
   # ---- Load data ----
   flows <- create_n_prov_destiny()
-  npp_ygpit <- whep_read_file("npp_ygpit") |> dplyr::rename_with(tolower)
+  npp_ygpit <- whep_read_file("npp-ygpit") |> dplyr::rename_with(tolower)
 
   # ---- Cropland area ----
   cropland_area <- npp_ygpit |>
@@ -1455,7 +1455,7 @@ production_diversity_plot <- function() {
 
 intens_spec_sec_axis <- function() {
   flows <- create_n_prov_destiny()
-  npp_ygpit <- whep_read_file("npp_ygpit") |> dplyr::rename_with(tolower)
+  npp_ygpit <- whep_read_file("npp-ygpit") |> dplyr::rename_with(tolower)
 
   items <- readxl::read_excel(
     "C:/PhD/GRAFS/Inputs_SACO/Codes_coefs.xlsx",
@@ -1819,20 +1819,24 @@ ext_dep_plot_national <- function() {
         origin %in%
           c("Synthetic", "Fixation", "Deposition") &
           destiny %in%
-            c("Cropland", "semi_natural_agroecosystems") ~ "external",
+            c("Cropland", "semi_natural_agroecosystems") ~
+          "external",
 
         origin == "Outside" &
-          destiny %in% c("livestock_mono", "livestock_rum") ~ "external",
+          destiny %in% c("livestock_mono", "livestock_rum") ~
+          "external",
 
         # Internal
         origin %in%
           c("Livestock", "People") &
           destiny %in%
-            c("Cropland", "semi_natural_agroecosystems") ~ "internal",
+            c("Cropland", "semi_natural_agroecosystems") ~
+          "internal",
 
         origin %in%
           c("Cropland", "semi_natural_agroecosystems") &
-          destiny %in% c("livestock_mono", "livestock_rum") ~ "internal",
+          destiny %in% c("livestock_mono", "livestock_rum") ~
+          "internal",
 
         TRUE ~ NA_character_
       )

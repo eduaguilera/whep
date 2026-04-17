@@ -98,7 +98,7 @@ prepare_lmdi_production_area <- function() {
       .groups = "drop"
     )
 
-  area <- whep_read_file("crop_area_npp_ygpitr_no_fallow") |>
+  area <- whep_read_file("crop-area-npp-ygpitr-no-fallow") |>
     dplyr::rename_with(tolower) |>
     dplyr::group_by(year) |>
     dplyr::summarise(

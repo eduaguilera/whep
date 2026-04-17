@@ -1,12 +1,12 @@
 typology_kgha_lines <- function() {
   indicators <- create_typo_ts_plot()
-  npp_ygpit <- whep_read_file("npp_ygpit")
+  npp_ygpit <- whep_read_file("npp-ygpit")
 
   typologies_df <- indicators |>
     dplyr::select(year, province_name, Typology_base) |>
     dplyr::rename(Typology = Typology_base)
 
-  n_balance <- whep_read_file("n_balance_ygpit_all")
+  n_balance <- whep_read_file("n-balance-ygpit-all")
 
   soil_agri <- n_balance |>
     dplyr::filter(

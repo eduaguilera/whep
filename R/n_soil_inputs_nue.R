@@ -37,7 +37,7 @@ create_n_soil_inputs <- function(example = FALSE) {
     return(.example_create_n_soil_inputs())
   }
   .calculate_n_soil_inputs(
-    whep_read_file("n_balance_ygpit_all"),
+    whep_read_file("n-balance-ygpit-all"),
     whep_read_file("codes_coefs")
   ) |>
     dplyr::rename_with(tolower)
@@ -288,7 +288,7 @@ calculate_nue_livestock <- function(example = FALSE) {
   if (example) {
     return(.ex_calc_nue_livestock())
   }
-  intake_n <- whep_read_file("intake_ygiac") |>
+  intake_n <- whep_read_file("intake-ygiac") |>
     dplyr::rename_with(tolower) |>
     dplyr::rename(n_mg_n = n_mgn) |>
     dplyr::filter(livestock_cat != "Pets") |>
@@ -298,7 +298,7 @@ calculate_nue_livestock <- function(example = FALSE) {
       .groups = "drop"
     )
 
-  prod_n <- whep_read_file("livestock_prod_ygps") |>
+  prod_n <- whep_read_file("livestock-prod-ygps") |>
     dplyr::rename_with(tolower) |>
     dplyr::filter(!is.na(prod_mgn)) |>
     dplyr::group_by(year, province_name, livestock_cat, item) |>
@@ -307,7 +307,7 @@ calculate_nue_livestock <- function(example = FALSE) {
       .groups = "drop"
     )
 
-  excretion_n <- whep_read_file("n_excretion_ygs") |>
+  excretion_n <- whep_read_file("n-excretion-ygs") |>
     dplyr::rename_with(tolower) |>
     dplyr::filter(livestock_cat != "Pets") |>
     dplyr::group_by(year, province_name, livestock_cat) |>
@@ -388,8 +388,8 @@ calculate_system_nue <- function(
     )
 
   total_outputs <- dplyr::bind_rows(
-    whep_read_file("n_balance_ygpit_all"),
-    whep_read_file("livestock_prod_ygps")
+    whep_read_file("n-balance-ygpit-all"),
+    whep_read_file("livestock-prod-ygps")
   ) |>
     dplyr::rename_with(tolower) |>
     dplyr::group_by(year, province_name) |>

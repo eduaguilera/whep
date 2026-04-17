@@ -17,7 +17,7 @@ devtools::load_all(".")
 
 build_indicator_data <- function() {
   flows <- create_n_prov_destiny()
-  npp_ygpit <- whep_read_file("npp_ygpit")
+  npp_ygpit <- whep_read_file("npp-ygpit")
 
   area_df <- npp_ygpit |>
     dplyr::group_by(Year, Province_name) |>
