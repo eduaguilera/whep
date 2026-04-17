@@ -1,170 +1,170 @@
-earthstat_name,item_prod_code,item_prod_name
-abaca,310,Other fibre crops raw n.e.c.
-agave,292,Agave fibres n.e.c.
-alfalfa,NA,NA
-almond,263,Almonds in shell
-aniseetc,711,Anise badian coriander cumin caraway fennel and juniper berries raw
-apple,515,Apples
-apricot,526,Apricots
-areca,268,Areca nuts
-artichoke,366,Artichokes
-asparagus,367,Asparagus
-avocado,572,Avocados
-bambara,203,Bambara beans
-banana,486,Bananas
-bean,176,Beans dry
-beetfor,NA,NA
-berrynes,558,Other berries and fruits of the genus Vaccinium n.e.c.
-blueberry,552,Blueberries
-brazil,270,Brazil nuts in shell
-broadbean,181,Broad beans and horse beans dry
-buckwheat,89,Buckwheat
-cabbage,358,Cabbages
-cabbagefor,NA,NA
-canaryseed,101,Canary seed
-carob,461,Carobs
-carrot,426,Carrots and turnips
-carrotfor,NA,NA
-cashew,260,Cashew nuts in shell
-cashewapple,NA,NA
-cassava,340,Cassava fresh
-castor,221,Castor oil seed
-cauliflower,393,Cauliflowers and broccoli
-cerealnes,108,Cereals n.e.c.
-cherry,531,Cherries
-chestnut,261,Chestnuts in shell
-chickpea,191,Chick peas
-chicory,372,Lettuce and chicory
-chilleetc,401,Chillies and peppers green
-cinnamon,693,Cinnamon and cinnamon-tree flowers
-citrusnes,512,Other citrus fruit n.e.c.
-clove,698,Cloves (whole stems)
-clover,NA,NA
-cocoa,661,Cocoa beans
-coconut,220,Coconuts in shell
-coffee,656,Coffee green
-cotton,274,Seed cotton unginned
-cowpea,195,Cow peas dry
-cranberry,554,Cranberries
-cucumberetc,397,Cucumbers and gherkins
-currant,550,Currants
-date,577,Dates
-eggplant,399,Eggplants (aubergines)
-fibrenes,310,Other fibre crops raw n.e.c.
-fig,569,Figs
-flax,280,Flax raw or retted
-fonio,94,Fonio
-fornes,NA,NA
-fruitnes,603,Other fruits n.e.c.
-garlic,406,Garlic
-ginger,720,Ginger
-gooseberry,549,Gooseberries
-grape,560,Grapes
-grapefruitetc,507,Grapefruits and pomelos
-grassnes,NA,NA
-greenbean,414,Other beans green
-greenbroadbean,181,Broad beans and horse beans dry
-greenonion,402,Onions and shallots green
-greenpea,417,Peas green
-groundnut,242,Groundnuts excluding shelled
-hazelnut,267,Hazelnuts in shell
-hemp,296,Hemp fibre and tow
-hop,677,Hops
-jute,289,Jute and jute-like fibres
-jutelikefiber,289,Jute and jute-like fibres
-kapokfiber,297,Kapok fibre
-kapokseed,339,"Other oil seeds, n.e.c."
-karite,254,Karite nuts (sheanuts)
-kiwi,591,Kiwi fruit
-kolanut,266,Kola nuts
-legumenes,459,Other vegetables fresh n.e.c.
-lemonlime,497,Lemons and limes
-lentil,201,Lentils
-lettuce,372,Lettuce and chicory
-linseed,233,Linseed
-lupin,210,Lupins
-maize,56,Maize (corn)
-maizefor,NA,NA
-mango,571,Mangoes guavas and mangosteens
-mate,671,Mate leaves
-melonetc,568,Other melons (including cantaloupes)
-melonseed,231,Melonseed
-millet,79,Millet
-mixedgrain,103,Mixed grain
-mixedgrass,NA,NA
-mushroom,449,Mushrooms and truffles
-mustard,229,Mustard seed
-nutmeg,702,Nutmeg mace cardamoms raw
-nutnes,271,Other nuts (excluding wild edible nuts and groundnuts)
-oats,75,Oats
-oilpalm,217,Oil palm fruit
-oilseedfor,NA,NA
-oilseednes,339,"Other oil seeds, n.e.c."
-okra,430,Okra
-olive,249,Olives
-onion,403,Onions and shallots dry
-orange,490,Oranges
-papaya,592,Papayas
-pea,187,Peas dry
-peachetc,534,Peaches and nectarines
-pear,521,Pears
-pepper,687,Pepper (Piper spp.)
-peppermint,748,Peppermint
-persimmon,587,Persimmons
-pigeonpea,197,Pigeon peas
-pimento,723,Other stimulant spice and aromatic crops n.e.c.
-pineapple,574,Pineapples
-pistachio,265,Pistachios in shell
-plantain,489,Plantains and cooking bananas
-plum,536,Plums and sloes
-poppy,230,Poppy seed
-potato,328,Potatoes
-pulsenes,211,Pulses n.e.c.
-pumpkinetc,394,Pumpkins squash and gourds
-pyrethrum,753,Pyrethrum dried flowers
-quince,523,Quinces
-quinoa,92,Quinoa
-ramie,305,Ramie
-rapeseed,223,Rapeseed or canola
-rasberry,547,Raspberries
-rice,27,Rice paddy
-rootnes,NA,NA
-rubber,754,Natural rubber in primary forms
-rye,71,Rye
-ryefor,NA,NA
-safflower,226,Safflower seed
-sesame,227,Sesame seed
-sisal,291,Sisal
-sorghum,83,Sorghum
-sorghumfor,NA,NA
-sourcherry,530,Sour cherries
-soybean,236,Soya beans
-spicenes,723,Other stimulant spice and aromatic crops n.e.c.
-spinach,373,Spinach
-stonefruitnes,541,Other stone fruits
-strawberry,544,Strawberries
-stringbean,423,String beans
-sugarbeet,157,Sugar beet
-sugarcane,780,Sugar cane
-sugarnes,NA,NA
-sunflower,222,Sunflower seed
-swedefor,NA,NA
-sweetpotato,333,Sweet potatoes
-tangetc,495,Tangerines mandarins clementines
-taro,337,Taro
-tea,667,Tea leaves
-tobacco,773,Tobacco unmanufactured
-tomato,388,Tomatoes
-triticale,97,Triticale
-tropicalnes,600,Other tropical fruits n.e.c.
-tung,224,Tung nuts
-turnipfor,NA,NA
-vanilla,692,Vanilla
-vegetablenes,459,Other vegetables fresh n.e.c.
-vegfor,NA,NA
-vetch,205,Vetches
-walnut,264,Walnuts in shell
-watermelon,567,Watermelons
-wheat,15,Wheat
-yam,336,Yams
-yautia,339,Yautia
+"earthstat_name","item_prod_code","item_prod_name"
+"abaca",821,"Other fibre crops, raw, n.e.c."
+"agave",800,"Agave fibres, raw, n.e.c."
+"alfalfa",,
+"almond",221,"Almonds, in shell"
+"aniseetc",711,"Anise, badian, coriander, cumin, caraway, fennel and juniper berries, raw"
+"apple",515,"Apples"
+"apricot",526,"Apricots"
+"areca",226,"Areca nuts"
+"artichoke",366,"Artichokes"
+"asparagus",367,"Asparagus"
+"avocado",572,"Avocados"
+"bambara",203,"Bambara beans, dry"
+"banana",486,"Bananas"
+"bean",176,"Beans, dry"
+"beetfor",,
+"berrynes",558,"Other berries and fruits of the genus vaccinium n.e.c."
+"blueberry",552,"Blueberries"
+"brazil",216,"Brazil nuts, in shell"
+"broadbean",181,"Broad beans and horse beans, dry"
+"buckwheat",89,"Buckwheat"
+"cabbage",358,"Cabbages"
+"cabbagefor",,
+"canaryseed",101,"Canary seed"
+"carob",461,"Locust beans (carobs)"
+"carrot",426,"Carrots and turnips"
+"carrotfor",,
+"cashew",217,"Cashew nuts, in shell"
+"cashewapple",,
+"cassava",125,"Cassava, fresh"
+"castor",265,"Castor oil seeds"
+"cauliflower",393,"Cauliflowers and broccoli"
+"cerealnes",108,"Cereals n.e.c."
+"cherry",531,"Cherries"
+"chestnut",220,"Chestnuts, in shell"
+"chickpea",191,"Chick peas, dry"
+"chicory",372,"Lettuce and chicory"
+"chilleetc",401,"Chillies and peppers, green (Capsicum spp. and Pimenta spp.)"
+"cinnamon",693,"Cinnamon and cinnamon-tree flowers, raw"
+"citrusnes",512,"Other citrus fruit, n.e.c."
+"clove",698,"Cloves (whole stems), raw"
+"clover",,
+"cocoa",661,"Cocoa beans"
+"coconut",249,"Coconuts, in shell"
+"coffee",656,"Coffee, green"
+"cotton",328,"Seed cotton, unginned"
+"cowpea",195,"Cow peas, dry"
+"cranberry",554,"Cranberries"
+"cucumberetc",397,"Cucumbers and gherkins"
+"currant",550,"Currants"
+"date",577,"Dates"
+"eggplant",399,"Eggplants (aubergines)"
+"fibrenes",821,"Other fibre crops, raw, n.e.c."
+"fig",569,"Figs"
+"flax",773,"Flax, processed but not spun"
+"fonio",94,"Fonio"
+"fornes",,
+"fruitnes",619,"Other fruits, n.e.c."
+"garlic",406,"Green garlic"
+"ginger",720,"Ginger, raw"
+"gooseberry",549,"Gooseberries"
+"grape",560,"Grapes"
+"grapefruitetc",507,"Pomelos and grapefruits"
+"grassnes",,
+"greenbean",414,"Other beans, green"
+"greenbroadbean",181,"Broad beans and horse beans, dry"
+"greenonion",402,"Onions and shallots, green"
+"greenpea",417,"Peas, green"
+"groundnut",242,"Groundnuts, excluding shelled"
+"hazelnut",225,"Hazelnuts, in shell"
+"hemp",777,"True hemp, raw or retted"
+"hop",677,"Hop cones"
+"jute",780,"Jute, raw or retted"
+"jutelikefiber",780,"Jute, raw or retted"
+"kapokfiber",778,"Kapok fibre, raw"
+"kapokseed",339,"Other oil seeds, n.e.c."
+"karite",263,"Karite nuts (sheanuts)"
+"kiwi",592,"Kiwi fruit"
+"kolanut",224,"Kola nuts"
+"legumenes",463,"Other vegetables, fresh n.e.c."
+"lemonlime",497,"Lemons and limes"
+"lentil",201,"Lentils, dry"
+"lettuce",372,"Lettuce and chicory"
+"linseed",333,"Linseed"
+"lupin",210,"Lupins"
+"maize",56,"Maize (corn)"
+"maizefor",,
+"mango",571,"Mangoes, guavas and mangosteens"
+"mate",671,"Mate leaves"
+"melonetc",568,"Cantaloupes and other melons"
+"melonseed",299,"Melonseed"
+"millet",79,"Millet"
+"mixedgrain",103,"Mixed grain"
+"mixedgrass",,
+"mushroom",449,"Mushrooms and truffles"
+"mustard",292,"Mustard seed"
+"nutmeg",702,"Nutmeg, mace, cardamoms, raw"
+"nutnes",234,"Other nuts (excluding wild edible nuts and groundnuts), in shell, n.e.c."
+"oats",75,"Oats"
+"oilpalm",254,"Oil palm fruit"
+"oilseedfor",,
+"oilseednes",339,"Other oil seeds, n.e.c."
+"okra",430,"Okra"
+"olive",260,"Olives"
+"onion",403,"Onions and shallots, dry (excluding dehydrated)"
+"orange",490,"Oranges"
+"papaya",600,"Papayas"
+"pea",187,"Peas, dry"
+"peachetc",534,"Peaches and nectarines"
+"pear",521,"Pears"
+"pepper",687,"Pepper (Piper spp.), raw"
+"peppermint",748,"Peppermint, spearmint"
+"persimmon",587,"Persimmons"
+"pigeonpea",197,"Pigeon peas, dry"
+"pimento",723,"Other stimulant, spice and aromatic crops, n.e.c."
+"pineapple",574,"Pineapples"
+"pistachio",223,"Pistachios, in shell"
+"plantain",489,"Plantains and cooking bananas"
+"plum",536,"Plums and sloes"
+"poppy",296,"Poppy seed"
+"potato",116,"Potatoes"
+"pulsenes",211,"Other pulses n.e.c."
+"pumpkinetc",394,"Pumpkins, squash and gourds"
+"pyrethrum",754,"Pyrethrum, dried flowers"
+"quince",523,"Quinces"
+"quinoa",92,"Quinoa"
+"ramie",788,"Ramie, raw or retted"
+"rapeseed",270,"Rape or colza seed"
+"rasberry",547,"Raspberries"
+"rice",27,"Rice"
+"rootnes",,
+"rubber",836,"Natural rubber in primary forms"
+"rye",71,"Rye"
+"ryefor",,
+"safflower",280,"Safflower seed"
+"sesame",289,"Sesame seed"
+"sisal",789,"Sisal, raw"
+"sorghum",83,"Sorghum"
+"sorghumfor",,
+"sourcherry",530,"Sour cherries"
+"soybean",236,"Soya beans"
+"spicenes",723,"Other stimulant, spice and aromatic crops, n.e.c."
+"spinach",373,"Spinach"
+"stonefruitnes",541,"Other stone fruits"
+"strawberry",544,"Strawberries"
+"stringbean",423,"String beans"
+"sugarbeet",157,"Sugar beet"
+"sugarcane",156,"Sugar cane"
+"sugarnes",,
+"sunflower",267,"Sunflower seed"
+"swedefor",,
+"sweetpotato",122,"Sweet potatoes"
+"tangetc",495,"Tangerines, mandarins, clementines"
+"taro",136,"Taro"
+"tea",667,"Tea leaves"
+"tobacco",826,"Unmanufactured tobacco"
+"tomato",388,"Tomatoes"
+"triticale",97,"Triticale"
+"tropicalnes",603,"Other tropical fruits, n.e.c."
+"tung",275,"Tung nuts"
+"turnipfor",,
+"vanilla",692,"Vanilla, raw"
+"vegetablenes",463,"Other vegetables, fresh n.e.c."
+"vegfor",,
+"vetch",205,"Vetches"
+"walnut",222,"Walnuts, in shell"
+"watermelon",567,"Watermelons"
+"wheat",15,"Wheat"
+"yam",137,"Yams"
+"yautia",135,"Yautia"
