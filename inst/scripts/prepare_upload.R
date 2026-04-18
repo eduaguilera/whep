@@ -69,6 +69,6 @@ prepare_for_upload <- function(input_path, data_name, ...) {
 }
 
 prepare_for_upload(
-  "C:/PhD/GRAFS/Inputs_SACO/N_fix_ygpit_all.csv",
-  "n_fix_ygpit_all"
+  "C:\\PhD\\GRAFS\\Inputs_SACO\\inputs_saco_new\\pie_full_destinies_fm.csv",
+  "pie_full_destinies_fm"
 )

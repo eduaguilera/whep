@@ -314,7 +314,7 @@ plot_input_output_system <- function() {
     dplyr::left_join(use_sum, by = "Year") |>
     dplyr::mutate(
       Use_Total = dplyr::coalesce(Use_Total, 0),
-      MgN = Input_Total - Use_Total,
+      MgN = pmax(Input_Total - Use_Total, 0),
       Type = "Surplus"
     ) |>
     dplyr::select(Year, Type, MgN)

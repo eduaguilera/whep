@@ -39,11 +39,20 @@ create_n_prov_destiny <- function() {
   codes_coefs <- whep_read_file("codes_coefs")
   intake_ygiac <- whep_read_file("intake_ygiac")
   population_yg <- whep_read_file("population_yg")
-  n_balance_ygpit_all <- whep_read_file("n_balance_ygpit_all")
+  n_balance_ygpit_all <- whep_read_file("n_balance_ygpit_all") |>
+    dplyr::filter(Year <= 2021)
 
   biomass_item_merged <- .merge_items_biomass(npp_ygpit, codes_coefs)
   n_soil_inputs <- .calculate_n_soil_inputs(n_balance_ygpit_all, codes_coefs)
-  add_feed_output <- .add_feed(intake_ygiac)
+
+  livestock_product_items <- codes_coefs_items_full |>
+    dplyr::filter(group %in% c("Livestock products", "Livestock")) |>
+    dplyr::pull(item)
+
+  add_feed_output <- .add_feed(
+    intake_ygiac |>
+      dplyr::filter(!Item %in% livestock_product_items)
+  )
 
   prod_combined_boxes <- biomass_item_merged |>
     .aggregate_crop_seminatural(
@@ -52,7 +61,8 @@ create_n_prov_destiny <- function() {
     .combine_production_boxes(
       .prepare_livestock_production(livestock_prod_ygps)
     )
-
+  
+  
   food_and_other_uses <- population_yg |>
     .calculate_population_share() |>
     .calculate_food_and_other_uses(pie_full_destinies_fm)
@@ -83,13 +93,6 @@ create_n_prov_destiny <- function() {
       Origin,
       Destiny,
       MgN
-    ) |>
-    dplyr::mutate(
-      Item = dplyr::recode(
-        Item,
-        "Firewood" = "Average wood",
-        "Acorns" = "Holm oak"
-      )
     )
 }
 
@@ -145,6 +148,13 @@ create_n_nat_destiny <- function() {
       .groups = "drop"
     )
 
+  nat_cons_wide <- nat_consumption |>
+    tidyr::pivot_wider(
+      names_from = Destiny,
+      values_from = consumption,
+      values_fill = 0
+    )
+
   nat_total_consumption <- nat_consumption |>
     dplyr::group_by(Year, Item) |>
     dplyr::summarise(
@@ -161,15 +171,68 @@ create_n_nat_destiny <- function() {
       import = pmax(consumption - production, 0)
     )
 
-  nat_shares <- nat_consumption |>
-    dplyr::group_by(Year, Item) |>
+  nat_shares <- nat_cons_wide |>
+    dplyr::left_join(nat_production, by = c("Year", "Item")) |>
     dplyr::mutate(
-      total = sum(consumption, na.rm = TRUE),
-      share = dplyr::if_else(total > 0, consumption / total, 0)
+      production = dplyr::coalesce(production, 0),
+
+      food = dplyr::coalesce(population_food, 0),
+      other = dplyr::coalesce(population_other_uses, 0),
+      feed_rum = dplyr::coalesce(livestock_rum, 0),
+      feed_mono = dplyr::coalesce(livestock_mono, 0),
+      feed = feed_rum + feed_mono,
+
+      demand = food + other + feed,
+      local = pmin(production, demand),
+
+      food_local = dplyr::if_else(demand > 0, local * (food / demand), 0),
+      other_local = dplyr::if_else(demand > 0, local * (other / demand), 0),
+      feed_local = dplyr::if_else(demand > 0, local * (feed / demand), 0),
+
+      food_gap = pmax(food - food_local, 0),
+      other_gap = pmax(other - other_local, 0),
+      feed_gap = pmax(feed - feed_local, 0),
+
+      total_gap = food_gap + other_gap + feed_gap,
+
+      share_food = dplyr::if_else(total_gap > 0, food_gap / total_gap, 0),
+      share_other = dplyr::if_else(total_gap > 0, other_gap / total_gap, 0),
+      share_feed = dplyr::if_else(total_gap > 0, feed_gap / total_gap, 0),
+
+      share_rum = dplyr::if_else(feed > 0, feed_rum / feed, 0),
+      share_mono = dplyr::if_else(feed > 0, feed_mono / feed, 0),
+
+      share_feed_rum = share_feed * share_rum,
+      share_feed_mono = share_feed * share_mono
     ) |>
-    dplyr::ungroup() |>
-    dplyr::rename(consumption_dest = consumption) |>
-    dplyr::select(-total)
+    dplyr::select(
+      Year,
+      Item,
+      share_food,
+      share_other,
+      share_feed_rum,
+      share_feed_mono
+    ) |>
+    tidyr::pivot_longer(
+      cols = c(
+        share_food,
+        share_other,
+        share_feed_rum,
+        share_feed_mono
+      ),
+      names_to = "Destiny",
+      values_to = "share"
+    ) |>
+    dplyr::mutate(
+      Destiny = dplyr::recode(
+        Destiny,
+        share_food = "population_food",
+        share_other = "population_other_uses",
+        share_feed_rum = "livestock_rum",
+        share_feed_mono = "livestock_mono"
+      )
+    ) |>
+    dplyr::ungroup()
 
   imports <- nat_balance |>
     dplyr::filter(import > 0) |>
@@ -194,7 +257,7 @@ create_n_nat_destiny <- function() {
     )
 
   export_shares <- nat_production_detail |>
-    dplyr::group_by(Year, Item, Box, Irrig_cat) |>
+    dplyr::group_by(Year, Item) |>
     dplyr::mutate(
       total_production = sum(production, na.rm = TRUE),
       share = dplyr::if_else(
@@ -227,16 +290,42 @@ create_n_nat_destiny <- function() {
       MgN
     )
 
-  nat_core <- prov |>
+  nat_soil_inputs <- prov |>
     dplyr::filter(
-      Origin != "Outside",
-      Destiny != "export"
+      Origin %in% c("Deposition", "Fixation", "Synthetic", "Livestock", "People"),
+      Destiny %in% c("Cropland", "semi_natural_agroecosystems")
     ) |>
     dplyr::group_by(Year, Item, Irrig_cat, Box, Origin, Destiny) |>
     dplyr::summarise(MgN = sum(MgN, na.rm = TRUE), .groups = "drop") |>
     dplyr::mutate(Province_name = "Spain")
 
-  dplyr::bind_rows(nat_core, exports, imports) |>
+  nat_local_total <- nat_balance |>
+    dplyr::mutate(local = pmin(production, consumption)) |>
+    dplyr::select(Year, Item, local)
+
+  nat_destiny_shares <- nat_consumption |>
+    dplyr::left_join(
+      nat_total_consumption |> dplyr::rename(total = consumption),
+      by = c("Year", "Item")
+    ) |>
+    dplyr::mutate(
+      destiny_share = dplyr::if_else(total > 0, consumption / total, 0)
+    ) |>
+    dplyr::select(Year, Item, Destiny, destiny_share)
+
+  nat_local_detail <- nat_local_total |>
+    dplyr::left_join(nat_destiny_shares, by = c("Year", "Item")) |>
+    dplyr::mutate(MgN_local = local * destiny_share) |>
+    dplyr::left_join(export_shares, by = c("Year", "Item")) |>
+    dplyr::mutate(
+      MgN = MgN_local * share,
+      Origin = Box,
+      Province_name = "Spain"
+    ) |>
+    dplyr::filter(!is.na(Box), MgN > 0) |>
+    dplyr::select(Year, Province_name, Item, Irrig_cat, Box, Origin, Destiny, MgN)
+
+  dplyr::bind_rows(nat_local_detail, nat_soil_inputs, exports, imports) |>
     dplyr::arrange(Year, Item, Origin, Destiny)
 }
 
@@ -468,7 +557,7 @@ create_n_nat_destiny <- function() {
       Seeds_used_MgFM = Area_ha * dplyr::coalesce(Seed_rate_per_ha, 0)
     )
 
-  # Substracting the Seed data from Production in grafs_prod_combined
+  # Substracting the Seed data from Production in grafs_prod_combined.
   grafs_prod_combined_no_seeds <- grafs_prod_combined |>
     dplyr::left_join(
       seed_rates |>
@@ -476,10 +565,11 @@ create_n_nat_destiny <- function() {
       by = c("Year", "Province_name", "Item")
     ) |>
     dplyr::mutate(
+      Seeds_used_MgFM = dplyr::coalesce(Seeds_used_MgFM, 0),
       Seeds_used_capped = dplyr::if_else(
-        dplyr::coalesce(Seeds_used_MgFM, 0) > 0.5 * production_fm,
+        Seeds_used_MgFM > 0.5 * production_fm,
         0.5 * production_fm,
-        dplyr::coalesce(Seeds_used_MgFM, 0)
+        Seeds_used_MgFM
       ),
       production_fm = production_fm - Seeds_used_capped
     ) |>
@@ -784,8 +874,7 @@ create_n_nat_destiny <- function() {
           c("Pigs", "Poultry", "Rabbits", "Fur animals", "Other") ~
           "monogastric",
         Livestock_cat == "Pets" ~ "pets",
-        Livestock_cat == "Aquaculture" ~ "aquaculture",
-        TRUE ~ "other"
+        TRUE ~ NA_character_
       )
     ) |>
     dplyr::summarise(
@@ -797,10 +886,11 @@ create_n_nat_destiny <- function() {
       values_from = feed_amount,
       values_fill = 0
     ) |>
-    dplyr::mutate(
-      # TODO: check if aquaculture belongs here
-      # aquaculture was already in feed before these changes, but "magically"
-      feed = ruminant + monogastric + aquaculture,
+      dplyr::mutate(
+      ruminant = dplyr::coalesce(ruminant, 0),
+      monogastric = dplyr::coalesce(monogastric, 0),
+      pets = dplyr::coalesce(pets, 0),
+      feed = ruminant + monogastric,
       food_pets = pets
     )
 
@@ -809,7 +899,6 @@ create_n_nat_destiny <- function() {
       feed_total = feed,
       share_rum = dplyr::if_else(feed_total > 0, ruminant / feed_total, 0),
       share_mono = dplyr::if_else(feed_total > 0, monogastric / feed_total, 0)
-      # Note: Aquaculture share is implicit (1 - rum - mono)
     )
 
   list(
@@ -972,12 +1061,17 @@ create_n_nat_destiny <- function() {
 
     dplyr::select(-food_pets)
 
-  # Keep the simple historical split: only cropland is split by
-  # production share across irrigated/rainfed rows.
+  # Split consumption proportionally across all Box/Irrig_cat rows by their
+  # share of total item production. This handles both the irrigated/rainfed
+  # split within Cropland AND items that span multiple boxes (e.g. Cropland +
+  # semi_natural). Without this, the non-Cropland rows would each receive the
+  # full consumption value, causing overcounting that grows with production.
+  # When production_total = 0 (pure import items), there is only one row so
+  # production_share = 1 is correct.
   grafs_prod_item_combined <- grafs_prod_item_combined |>
     dplyr::mutate(
       production_share = dplyr::if_else(
-        production_total > 0 & Box == "Cropland",
+        production_total > 0,
         production_n / production_total,
         1
       ),
@@ -1089,9 +1183,7 @@ create_n_nat_destiny <- function() {
       demand_total = food + other_uses + feed,
 
       import = pmax(demand_total - production_n, 0),
-      export = pmax(production_n - demand_total, 0),
-
-      local_consumption = demand_total
+      export = pmax(production_n - demand_total, 0)
     ) |>
     dplyr::select(
       Year,
@@ -1103,7 +1195,6 @@ create_n_nat_destiny <- function() {
       food,
       other_uses,
       feed,
-      local_consumption,
       export,
       import
     )
@@ -1135,7 +1226,7 @@ create_n_nat_destiny <- function() {
           "Cropland",
         is.na(Box) & group %in% c("Livestock products", "Livestock") ~
           "Livestock",
-        group %in% c("Agro-industry", "Fish") ~ group,
+        is.na(Box) & group %in% c("Agro-industry", "Fish") ~ group,
         TRUE ~ Box
       ),
       Irrig_cat = dplyr::if_else(Box == "Cropland", Irrig_cat, NA_character_)
@@ -1152,30 +1243,36 @@ create_n_nat_destiny <- function() {
 #' other uses, and feed.
 #' @keywords internal
 #' @noRd
-.calculate_consumption_shares <- function(grafs_prod_destiny_final) {
-  grafs_prod_destiny_final |>
+.calculate_consumption_shares <- function(df) {
+  df |>
     dplyr::mutate(
-      food = dplyr::coalesce(food, 0),
-      other_uses = dplyr::coalesce(other_uses, 0),
-      feed = dplyr::coalesce(feed, 0),
+      demand_total = food + other_uses + feed,
 
-      consumption_total = food + other_uses + feed,
+      local_total = pmin(production_n, demand_total),
 
-      food_share = dplyr::if_else(
-        consumption_total > 0,
-        food / consumption_total,
+      food_local = dplyr::if_else(
+        demand_total > 0,
+        local_total * (food / demand_total),
         0
       ),
+      other_local = dplyr::if_else(
+        demand_total > 0,
+        local_total * (other_uses / demand_total),
+        0
+      ),
+      feed_local = dplyr::if_else(
+        demand_total > 0,
+        local_total * (feed / demand_total),
+        0
+      ),
+
+      food_share = dplyr::if_else(local_total > 0, food_local / local_total, 0),
       other_uses_share = dplyr::if_else(
-        consumption_total > 0,
-        other_uses / consumption_total,
+        local_total > 0,
+        other_local / local_total,
         0
       ),
-      feed_share = dplyr::if_else(
-        consumption_total > 0,
-        feed / consumption_total,
-        0
-      )
+      feed_share = dplyr::if_else(local_total > 0, feed_local / local_total, 0)
     ) |>
     dplyr::select(
       Year,
@@ -1183,7 +1280,7 @@ create_n_nat_destiny <- function() {
       Item,
       Box,
       Irrig_cat,
-      consumption_total,
+      local_total,
       food_share,
       other_uses_share,
       feed_share
@@ -1211,12 +1308,8 @@ create_n_nat_destiny <- function() {
       share_rum = dplyr::coalesce(share_rum, 0),
       share_mono = dplyr::coalesce(share_mono, 0),
       share_total = share_rum + share_mono,
-      share_rum = dplyr::if_else(share_total > 0, share_rum / share_total, 0.5),
-      share_mono = dplyr::if_else(
-        share_total > 0,
-        share_mono / share_total,
-        0.5
-      ),
+      share_rum = dplyr::if_else(is.na(share_rum), 0, share_rum),
+      share_mono = dplyr::if_else(is.na(share_mono), 0, share_mono),
 
       local_food_raw = local_consumption * food_share,
       local_other_raw = local_consumption * other_uses_share,
@@ -1287,44 +1380,27 @@ create_n_nat_destiny <- function() {
       feed_share_rum_mono,
       by = c("Year", "Province_name", "Item")
     ) |>
-    dplyr::left_join(
-      shares_import_wide,
-      by = c("Year", "Item")
-    ) |>
-    dplyr::mutate(
-      share_rum = dplyr::coalesce(share_rum, 0),
-      share_mono = dplyr::coalesce(share_mono, 0),
-      share_total = share_rum + share_mono,
-      share_rum = dplyr::if_else(share_total > 0, share_rum / share_total, 0.5),
-      share_mono = dplyr::if_else(
-        share_total > 0,
-        share_mono / share_total,
-        0.5
-      ),
+     dplyr::mutate(
+  share_rum = dplyr::coalesce(share_rum, 0),
+  share_mono = dplyr::coalesce(share_mono, 0),
 
-      share_Food = dplyr::coalesce(share_Food, 0),
-      share_Other_uses = dplyr::coalesce(share_Other_uses, 0),
-      share_Feed = dplyr::coalesce(share_Feed, 0),
+      food_local = local_consumption * food_share,
+      other_local = local_consumption * other_uses_share,
+      feed_local = local_consumption * feed_share,
 
-      total_share = share_Food + share_Other_uses + share_Feed,
+      food_gap = pmax(food - food_local, 0),
+      other_gap = pmax(other_uses - other_local, 0),
+      feed_gap = pmax(feed - feed_local, 0),
 
-      population_food = dplyr::if_else(
-        total_share > 0,
-        import_consumption * share_Food,
-        import_consumption * food_share
-      ),
+      total_gap = food_gap + other_gap + feed_gap,
 
-      population_other_uses = dplyr::if_else(
-        total_share > 0,
-        import_consumption * share_Other_uses,
-        import_consumption * other_uses_share
-      ),
+      share_food = dplyr::if_else(total_gap > 0, food_gap / total_gap, 0),
+      share_other = dplyr::if_else(total_gap > 0, other_gap / total_gap, 0),
+      share_feed = dplyr::if_else(total_gap > 0, feed_gap / total_gap, 0),
 
-      import_feed = dplyr::if_else(
-        total_share > 0,
-        import_consumption * share_Feed,
-        import_consumption * feed_share
-      ),
+      population_food = import_consumption * share_food,
+      population_other_uses = import_consumption * share_other,
+      import_feed = import_consumption * share_feed,
 
       livestock_rum = import_feed * share_rum,
       livestock_mono = import_feed * share_mono,
@@ -1333,8 +1409,16 @@ create_n_nat_destiny <- function() {
       Irrig_cat = NA_character_
     ) |>
     dplyr::select(
-      -share_total,
-      -total_share,
+      -food_local,
+      -other_local,
+      -feed_local,
+      -food_gap,
+      -other_gap,
+      -feed_gap,
+      -total_gap,
+      -share_food,
+      -share_other,
+      -share_feed,
       -import_feed
     ) |>
     dplyr::summarise(

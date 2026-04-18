@@ -35,31 +35,19 @@ create_grafs_plot_df <- function() {
   df_animal_losses <- .create_animal_losses_df(prov_destiny_df)
   df_livestock_export <- .create_livestock_export_df(prov_destiny_df)
   df_milk <- .create_milk_df(prov_destiny_df)
-  df_livestock_total <- .create_livestock_total_df(
-    df_flow,
-    df_livestock_export,
-    df_animal_losses
-  )
+  df_livestock_total <- .create_livestock_total_df(prov_destiny_df)
 
-  df_crplndtot <- dplyr::bind_rows(df_land, df_n_input) |>
+  df_crplndtot <- df_flow |>
     dplyr::filter(
+      province != "Spain",
       label %in%
         c(
-          "{PERiN}",
-          "{PERrN}",
-          "{HORiN}",
-          "{HORrN}",
-          "{NPEiN}",
-          "{NPErN}",
-          "{GREHN}"
+          "{CROP_EXPORT}",
+          "{CROPS_TO_POP}",
+          "{CROPS_TO_LIVESTOCK}"
         )
     ) |>
-    dplyr::transmute(
-      province,
-      year,
-      data = suppressWarnings(as.numeric(data))
-    ) |>
-    dplyr::filter(!is.na(data)) |>
+    dplyr::mutate(data = suppressWarnings(as.numeric(data))) |>
     dplyr::group_by(province, year) |>
     dplyr::summarise(
       data = sum(data, na.rm = TRUE),
@@ -68,21 +56,16 @@ create_grafs_plot_df <- function() {
     dplyr::mutate(
       label = "{CRPLNDTOTN}",
       align = "R"
-    ) |>
-    dplyr::select(province, year, label, data, align)
-
-  df_crplndtot_spain <- df_crplndtot |>
-    dplyr::filter(province != "Spain") |>
-    dplyr::group_by(year) |>
-    dplyr::summarise(
-      data = sum(data, na.rm = TRUE),
-      .groups = "drop"
-    ) |>
-    dplyr::mutate(
-      province = "Spain",
-      label = "{CRPLNDTOTN}",
-      align = "R"
     )
+
+  df_crplndtot_spain <- df_flow |>
+    dplyr::filter(
+      province == "Spain",
+      label %in% c("{CROP_EXPORT}", "{CROPS_TO_POP}", "{CROPS_TO_LIVESTOCK}")
+    ) |>
+    dplyr::group_by(year) |>
+    dplyr::summarise(data = sum(data, na.rm = TRUE), .groups = "drop") |>
+    dplyr::mutate(province = "Spain", label = "{CRPLNDTOTN}", align = "R")
 
   df_crplndtot <- dplyr::bind_rows(
     df_crplndtot,
@@ -362,10 +345,6 @@ create_grafs_plot_df <- function() {
           Origin == "Outside" &
           Destiny %in% c("population_food", "population_other_uses") ~
           "{IMPHUMMILK}",
-        Box_filled == "Cropland" &
-          Origin == "Outside" &
-          Destiny %in% c("population_food", "population_other_uses") ~
-          "{CROP_POPIMPORT}",
         Item %in%
           c(
             "Bovine Meat",
@@ -386,13 +365,11 @@ create_grafs_plot_df <- function() {
           Origin == "Outside" &
           Destiny %in% c("population_food", "population_other_uses") ~
           "{IMPHUMFISH}",
-        Box_filled %in%
-          c("Cropland", "semi_natural_agroecosystems") &
+        Box_filled != "Agro-industry" &
           Origin == "Outside" &
           Destiny == "livestock_rum" ~
           "{IMPORT_ANIMALCR_RUM}",
-        Box_filled %in%
-          c("Cropland", "semi_natural_agroecosystems") &
+        Box_filled != "Agro-industry" &
           Origin == "Outside" &
           Destiny == "livestock_mono" ~
           "{IMPORT_ANIMALCR_MONOG}",
@@ -427,6 +404,22 @@ create_grafs_plot_df <- function() {
     dplyr::filter(!is.na(label)) |>
     dplyr::group_by(Province_name, Year, label) |>
     dplyr::summarise(data = sum(MgN, na.rm = TRUE), .groups = "drop")
+
+  df_crop_popimport <- prov_destiny_df |>
+    dplyr::filter(
+      Box == "Cropland",
+      Origin == "Outside",
+      Destiny %in% c("population_food", "population_other_uses")
+    ) |>
+    dplyr::group_by(Province_name, Year) |>
+    dplyr::summarise(data = sum(MgN, na.rm = TRUE), .groups = "drop") |>
+    dplyr::mutate(
+      label = "{CROP_POPIMPORT}",
+      province = Province_name,
+      year = Year,
+      align = "R"
+    ) |>
+    dplyr::select(province, year, label, data, align)
 
   df_fix_dep_cr <- df_n_flows |>
     dplyr::filter(label %in% c("{OXDEPCROPS}", "{FIXCR}")) |>
@@ -483,38 +476,11 @@ create_grafs_plot_df <- function() {
     "{IMANOT}"
   )
 
-  df_n_flows <- df_n_flows |>
-    tidyr::complete(
-      province,
-      year,
-      label,
-      fill = list(data = 0, align = "L")
-    ) |>
-    dplyr::mutate(
-      align = dplyr::case_when(
-        label %in% right_labels ~ "R",
-        TRUE ~ "L"
-      )
-    )
-
   df_imphmana <- prov_destiny_df |>
-    dplyr::left_join(item_box_lookup, by = c("Item" = "item")) |>
-    dplyr::mutate(
-      Box_filled = dplyr::case_when(
-        !is.na(Box) ~ Box,
-        Item == "Acorns" ~ "semi_natural_agroecosystems",
-        Item == "Fallow" ~ "Cropland",
-        group %in% c("Crop products", "Primary crops", "crop residue") ~
-          "Cropland",
-        group %in% c("Livestock products", "Livestock") ~ "Livestock",
-        group %in% c("Agro-industry", "Fish") ~ group,
-        TRUE ~ NA_character_
-      )
-    ) |>
     dplyr::filter(
-      Box_filled %in% c("Livestock", "Fish"),
       Origin == "Outside",
-      Destiny %in% c("population_food", "population_other_uses")
+      Destiny %in% c("population_food", "population_other_uses"),
+      Box %in% c("Livestock", "Fish")
     ) |>
     dplyr::group_by(Province_name, Year) |>
     dplyr::summarise(data = sum(MgN, na.rm = TRUE), .groups = "drop") |>
@@ -528,8 +494,23 @@ create_grafs_plot_df <- function() {
 
   df_n_flows <- dplyr::bind_rows(
     df_n_flows,
-    df_imphmana
+    df_imphmana,
+    df_crop_popimport
   )
+
+  df_n_flows <- df_n_flows |>
+    tidyr::complete(
+      province,
+      year,
+      label,
+      fill = list(data = 0, align = "L")
+    ) |>
+    dplyr::mutate(
+      align = dplyr::case_when(
+        label %in% right_labels ~ "R",
+        TRUE ~ "L"
+      )
+    )
 
   df_n_flows
 }
@@ -557,6 +538,7 @@ create_grafs_plot_df <- function() {
       Livestock_cat,
       Stock_Number
     ) |>
+    dplyr::distinct() |>
     dplyr::left_join(
       lu_lookup,
       by = "Livestock_cat"
@@ -938,13 +920,13 @@ create_grafs_plot_df <- function() {
       label = dplyr::case_when(
         Origin == "Cropland" & Destiny == "export" ~ "{CROP_EXPORT}",
         Origin == "Cropland" &
-          Destiny == "population_food" ~
+          Destiny %in% c("population_food", "population_other_uses") ~
           "{CROPS_TO_POP}",
         Origin == "Cropland" &
           Destiny %in% c("livestock_rum", "livestock_mono") ~
           "{CROPS_TO_LIVESTOCK}",
         Origin == "Livestock" &
-          Destiny == "population_food" ~
+          Destiny %in% c("population_food", "population_other_uses") ~
           "{LIVESTOCK_TO_HUMAN}",
         Origin == "semi_natural_agroecosystems" &
           Destiny %in% c("livestock_rum", "livestock_mono") ~
@@ -1223,40 +1205,36 @@ create_grafs_plot_df <- function() {
 #' Combines nitrogen data from livestock destined for humans, exports, and
 #' losses to generate combined nitrogen output from livestock.
 #'
-#' @param crop_livestock_flows Data frame with livestock-to-human nitrogen data.
-#' @param df_livestock_export Data frame with livestock export nitrogen data.
-#' @param df_animal_losses Data frame with livestock loss nitrogen data.
+#' @param prov_destiny_df A data frame containing production and destiny
+#' information.
 #'
 #' @return A tibble with columns `province`, `year`, `label`, `data`, `align`.
 #'
 #' @keywords internal
-.create_livestock_total_df <- function(
-  crop_livestock_flows,
-  df_livestock_export,
-  df_animal_losses
-) {
-  df_livestock_total <- dplyr::bind_rows(
-    crop_livestock_flows,
-    df_livestock_export,
-    df_animal_losses
-  ) |>
+.create_livestock_total_df <- function(prov_destiny_df) {
+  prov_destiny_df |>
     dplyr::filter(
-      label %in%
+      Origin == "Livestock",
+      Destiny %in%
         c(
-          "{LIVESTOCK_TO_HUMAN}",
-          "{LIVESTOCK_EXPORTED}",
-          "{AN_OTH}",
-          "{LVSTCK_NOEDIBLE}"
+          "population_food",
+          "population_other_uses",
+          "export"
         )
     ) |>
-    dplyr::group_by(province, year) |>
-    dplyr::summarise(data = sum(data, na.rm = TRUE), .groups = "drop") |>
+    dplyr::group_by(Province_name, Year) |>
+    dplyr::summarise(data = sum(MgN, na.rm = TRUE), .groups = "drop") |>
     dplyr::mutate(
       label = "{LVSTCKTOTN}",
       align = "L"
+    ) |>
+    dplyr::select(
+      province = Province_name,
+      year = Year,
+      label,
+      data,
+      align
     )
-
-  df_livestock_total
 }
 
 #' @title Create livestock loss dataset
