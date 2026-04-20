@@ -25,6 +25,10 @@ reference:
   - build_primary_production
   - build_commodity_balances
   - build_processing_coefs
+  - build_detailed_trade
+  - build_trade_prices
+  - build_primary_prices
+  - build_cbs_prices
 
 - title: Tidy datasets
   desc: >
