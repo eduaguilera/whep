@@ -254,6 +254,15 @@ testthat::test_that(".write_run_metadata writes a round-trippable YAML", {
   )
 }
 
+testthat::test_that(".warn_if_out_dir_occupied fires when parquet files exist", {
+  tmp <- withr::local_tempdir()
+  file.create(file.path(tmp, "gridded_landuse.parquet"))
+  fn <- getFromNamespace(".warn_if_out_dir_occupied", "whep")
+  testthat::expect_warning(fn(tmp), "already contains")
+  tmp2 <- withr::local_tempdir()
+  testthat::expect_silent(fn(tmp2))
+})
+
 testthat::test_that("run_spatialize(components = 'livestock') writes only livestock outputs", {
   tmp_in <- withr::local_tempdir()
   .write_livestock_fixture(tmp_in)

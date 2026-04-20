@@ -153,6 +153,7 @@ run_spatialize <- function(
     )
   }
   dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+  .warn_if_out_dir_occupied(out_dir)
 
   output_paths <- list()
   resolved_years <- if (!is.null(years)) {
@@ -339,6 +340,23 @@ run_spatialize <- function(
 
 .benchmark_years <- function() {
   as.integer(seq(1850L, 2020L, by = 10L))
+}
+
+.warn_if_out_dir_occupied <- function(out_dir) {
+  existing <- list.files(
+    out_dir,
+    pattern = "\\.parquet$",
+    full.names = FALSE
+  )
+  if (length(existing) > 0L) {
+    cli::cli_warn(c(
+      "Output directory {.path {out_dir}} already contains \\
+      {length(existing)} parquet file{?s}; they will be overwritten.",
+      "i" = "Existing: {.file {head(existing, 4)}}\\
+      {if (length(existing) > 4L) ' (...)' else ''}"
+    ))
+  }
+  invisible(NULL)
 }
 
 .resolve_cft_target <- function(cft_target, preset) {
