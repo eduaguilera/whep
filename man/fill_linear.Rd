@@ -12,7 +12,8 @@ fill_linear(
   fill_forward = TRUE,
   fill_backward = TRUE,
   value_smooth_window = NULL,
-  .by = NULL
+  .by = NULL,
+  .copy = TRUE
 )
 }
 \arguments{
@@ -37,6 +38,10 @@ for variables with high inter-annual variability. If \code{NULL} (default), no
 smoothing is applied.}
 
 \item{.by}{A character vector with the grouping variables (optional).}
+
+\item{.copy}{Logical. If \code{TRUE} (default), data.table inputs are
+defensively copied before mutation. Set to \code{FALSE} when the caller
+owns the data and does not need the original preserved.}
 }
 \value{
 A tibble data frame (ungrouped) where gaps in value_col have been
