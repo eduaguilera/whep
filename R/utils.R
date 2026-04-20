@@ -601,6 +601,38 @@ utils::globalVariables(
     "other_mean",
     "qc_carry_forward",
     "scale_new_old",
+    # spatialize.R
+    "allocated_ir",
+    "allocated_rf",
+    "cft_name",
+    "cropland_ha",
+    "current_sum",
+    "deficit",
+    "frac",
+    "harvest_fraction",
+    "harvested_area_ha",
+    "increment",
+    "ir_capacity",
+    "ir_pot_sum",
+    "ir_potential",
+    "ir_uniform",
+    "irrigated_area_ha",
+    "irrigated_ha",
+    "is_under",
+    "lat",
+    "lon",
+    "mc_irrigated",
+    "mc_rainfed",
+    "rainfed_ha",
+    "rainfed_target",
+    "rf_capacity",
+    "rf_pot_sum",
+    "rf_potential",
+    "rf_uniform",
+    "scale_factor",
+    "target",
+    "total_ir",
+    "total_rf",
     # livestock emission functions
     "adjustment_factor",
     "ash_percent",
@@ -684,6 +716,8 @@ utils::globalVariables(
     "species",
     "species_base",
     "species_gen",
+    "species_group",
+    "spatial_proxy",
     "subcategory",
     "temp_adjustment",
     "temp_max",
@@ -734,6 +768,47 @@ utils::globalVariables(
     "polities",
     "regional_mms_distribution",
     "temperature_adjustment",
-    "uncertainty_ranges"
+    "uncertainty_ranges",
+    # spatialize internals
+    "c_wt",
+    "density",
+    "lu_now",
+    "luh2_type",
+    "manure_intensity",
+    "p_wt",
+    "pasture_ha",
+    "rangeland_ha",
+    "total_pot",
+    "type_ha",
+    "type_irrig_ha",
+    "weight_sum"
   )
 )
+
+
+# -- Helpers for spatialize scripts -------------------------------------------
+
+#' Resolve the path to the L_files data directory
+#'
+#' Checks, in order: the explicit argument, then the `WHEP_L_FILES_DIR`
+#' environment variable.
+#'
+#' @param l_files_dir Optional character path. If `NULL`, falls back to
+#'   the environment variable.
+#' @return A single character path (validated to exist).
+#' @keywords internal
+#' @noRd
+.get_l_files_dir <- function(l_files_dir = NULL) {
+  if (!is.null(l_files_dir)) {
+    stopifnot(dir.exists(l_files_dir))
+    return(l_files_dir)
+  }
+  env <- Sys.getenv("WHEP_L_FILES_DIR", unset = "")
+  if (nchar(env) > 0 && dir.exists(env)) {
+    return(env)
+  }
+  cli::cli_abort(c(
+    "L_files directory not specified.",
+    "i" = "Set the {.envvar WHEP_L_FILES_DIR} environment variable or pass {.arg l_files_dir}."
+  ))
+}

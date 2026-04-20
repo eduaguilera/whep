@@ -1834,6 +1834,8 @@ fill_proxy_growth <- function(
 
   col_name <- trimws(col_name)
 
+  present <- function(g) intersect(g, names(data))
+
   if (col_name %in% c("global", "all", "total")) {
     if (verbose) {
       message("Using global aggregation (no grouping)")
@@ -1841,6 +1843,7 @@ fill_proxy_growth <- function(
     return(list(
       source_var = value_col,
       group_vars = NULL,
+      present_group_vars = character(),
       weight_col = weight_col,
       spec_name = paste0("global", if (!is.null(weight_col)) "_w" else "")
     ))
@@ -1863,6 +1866,7 @@ fill_proxy_growth <- function(
       return(list(
         source_var = col_name,
         group_vars = group_by,
+        present_group_vars = present(group_by),
         weight_col = weight_col,
         spec_name = paste0(
           col_name,
@@ -1881,6 +1885,7 @@ fill_proxy_growth <- function(
       return(list(
         source_var = value_col,
         group_vars = col_name,
+        present_group_vars = present(col_name),
         weight_col = weight_col,
         spec_name = paste0(
           value_col,
@@ -1895,6 +1900,7 @@ fill_proxy_growth <- function(
     return(list(
       source_var = value_col,
       group_vars = col_name,
+      present_group_vars = present(col_name),
       weight_col = weight_col,
       spec_name = paste0(
         value_col,
@@ -1940,6 +1946,7 @@ fill_proxy_growth <- function(
   list(
     source_var = source_var,
     group_vars = group_vars,
+    present_group_vars = present(group_vars),
     weight_col = weight_col,
     spec_name = spec_name
   )
