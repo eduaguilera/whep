@@ -1,0 +1,45 @@
+isscaap_group,isscaap_description,item_cbs_code,item_cbs
+11,Carps barbels and other cyprinids,2761,Freshwater Fish
+12,Tilapias and other cichlids,2761,Freshwater Fish
+13,Miscellaneous freshwater fishes,2761,Freshwater Fish
+21,Sturgeons paddlefishes,2762,Demersal Fish
+22,River eels,2762,Demersal Fish
+23,Salmons trouts smelts,2762,Demersal Fish
+24,Shads,2762,Demersal Fish
+25,Miscellaneous diadromous fishes,2762,Demersal Fish
+31,Flounders halibuts soles,2763,Pelagic Fish
+32,Cods hakes haddocks,2763,Pelagic Fish
+33,Miscellaneous coastal fishes,2764,Marine Fish Other
+34,Miscellaneous demersal fishes,2762,Demersal Fish
+35,Herrings sardines anchovies,2763,Pelagic Fish
+36,Tunas bonitos billfishes,2763,Pelagic Fish
+37,Miscellaneous pelagic fishes,2763,Pelagic Fish
+38,Sharks rays chimaeras,2764,Marine Fish Other
+39,Marine fishes not identified,2764,Marine Fish Other
+41,Freshwater crustaceans,2765,Crustaceans
+42,Crabs sea-spiders,2765,Crustaceans
+43,Lobsters spiny-rock lobsters,2765,Crustaceans
+44,King crabs squat-lobsters,2765,Crustaceans
+45,Shrimps prawns,2765,Crustaceans
+46,Krill planktonic crustaceans,2765,Crustaceans
+47,Miscellaneous marine crustaceans,2765,Crustaceans
+52,Abalones winkles conchs,2767,Molluscs Other
+53,Oysters,2767,Molluscs Other
+54,Mussels,2767,Molluscs Other
+55,Scallops pectens,2767,Molluscs Other
+56,Clams cockles arkshells,2767,Molluscs Other
+57,Squids cuttlefishes octopuses,2766,Cephalopods
+58,Miscellaneous marine molluscs,2767,Molluscs Other
+61,Sea-urchins and other echinoderms,2769,Aquatic Animals Others
+62,Horseshoe crabs and other arachnoids,2769,Aquatic Animals Others
+63,Sea-cucumbers and other echinoderms,2769,Aquatic Animals Others
+64,Sea-squirts and other tunicates,2769,Aquatic Animals Others
+76,Seaweeds and other algae,2775,Aquatic Plants
+77,Miscellaneous aquatic plants,2775,Aquatic Plants
+81,Fish body oils,2781,Fish Body Oil
+82,Fish liver oils,2782,Fish Liver Oil
+83,Other aquatic animal oils and fats,2781,Fish Body Oil
+91,Meals from aquatic organisms,2764,Marine Fish Other
+92,Solubles from aquatic organisms,2764,Marine Fish Other
+93,Flours from aquatic organisms,2764,Marine Fish Other
+94,Other products from aquatic organisms,2764,Marine Fish Other

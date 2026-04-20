@@ -1,12 +1,12 @@
 typology_kgha_lines <- function() {
-  indicators <- create_typologies_timeseries_plot()
-  npp_ygpit <- whep_read_file("npp_ygpit")
+  indicators <- create_typo_ts_plot()
+  npp_ygpit <- whep_read_file("npp-ygpit")
 
   typologies_df <- indicators |>
-    dplyr::select(Year, Province_name, Typology_base) |>
+    dplyr::select(year, province_name, Typology_base) |>
     dplyr::rename(Typology = Typology_base)
 
-  n_balance <- whep_read_file("n_balance_ygpit_all")
+  n_balance <- whep_read_file("n-balance-ygpit-all")
 
   soil_agri <- n_balance |>
     dplyr::filter(
@@ -51,7 +51,10 @@ typology_kgha_lines <- function() {
   build_kgha <- function(area_df, soil_df) {
     soil_df |>
       dplyr::left_join(area_df, by = c("Year", "Province_name")) |>
-      dplyr::left_join(typologies_df, by = c("Year", "Province_name")) |>
+      dplyr::left_join(
+        typologies_df,
+        by = c("Year" = "year", "Province_name" = "province_name")
+      ) |>
       dplyr::mutate(
         kgN_ha = (Total_N_Mg * 1000) / Area_ha,
 
@@ -117,10 +120,10 @@ typology_kgha_lines <- function() {
   print(p1)
   print(p2)
 
-  return(list(
+  list(
     p1 = p1,
     p2 = p2,
     agricultural_land = df_agri,
     total_land = df_all
-  ))
+  )
 }

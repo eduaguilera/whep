@@ -17,7 +17,7 @@ devtools::load_all(".")
 
 build_indicator_data <- function() {
   flows <- create_n_prov_destiny()
-  npp_ygpit <- whep_read_file("npp_ygpit")
+  npp_ygpit <- whep_read_file("npp-ygpit")
 
   area_df <- npp_ygpit |>
     dplyr::group_by(Year, Province_name) |>
@@ -76,7 +76,7 @@ build_indicator_data <- function() {
       .groups = "drop"
     )
 
-  typology_df <- create_typologies_timeseries_plot() |>
+  typology_df <- create_typo_ts_plot() |>
     dplyr::select(Year, Province_name, Typology_base) |>
     dplyr::rename(Typology = Typology_base) |>
     dplyr::mutate(
@@ -168,7 +168,7 @@ build_toy_indicator_data <- function() {
     )
 }
 
-plot_intensification_vs_specialization <- function(df, out_dir) {
+plot_intens_vs_spec <- function(df, out_dir) {
   p <- ggplot2::ggplot(
     df,
     ggplot2::aes(
@@ -256,7 +256,7 @@ plot_component_shares <- function(df, out_dir) {
   )
 }
 
-plot_specialization_definitions <- function(df, out_dir) {
+plot_spec_definitions <- function(df, out_dir) {
   compare_df <- df |>
     dplyr::group_by(Year) |>
     dplyr::summarise(
@@ -386,7 +386,8 @@ run_indicator_explainer <- function(
   }
 
   message(
-    "Plotting ", nrow(indicator_df),
+    "Plotting ",
+    nrow(indicator_df),
     " rows across years ",
     min(indicator_df$Year, na.rm = TRUE),
     "-",
@@ -394,9 +395,9 @@ run_indicator_explainer <- function(
     "."
   )
 
-  plot_intensification_vs_specialization(indicator_df, out_dir)
+  plot_intens_vs_spec(indicator_df, out_dir)
   plot_component_shares(indicator_df, out_dir)
-  plot_specialization_definitions(indicator_df, out_dir)
+  plot_spec_definitions(indicator_df, out_dir)
   write_explanation(indicator_df, out_dir)
 
   message("Created indicator explainer outputs in: ", out_dir)

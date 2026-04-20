@@ -1,4 +1,4 @@
-create_typologies_timeseries_plot <- function(
+create_typo_ts_plot <- function(
   n_prov_destiny = NULL,
   shapefile_path = "C:/PhD/GRAFS/Production Boxes/Final Files/Inputs/ne_10m_admin_1_states_provinces.shp",
   benchmark_years = seq(1860, 2020, by = 20)
@@ -7,30 +7,30 @@ create_typologies_timeseries_plot <- function(
     n_prov_destiny <- create_n_prov_destiny()
   }
 
-  livestock_prod_ygps <- whep_read_file("livestock_prod_ygps")
-  npp_ygpit <- whep_read_file("npp_ygpit")
+  livestock_prod_ygps <- whep_read_file("livestock-prod-ygps")
+  npp_ygpit <- whep_read_file("npp-ygpit")
 
   lu_mapping <- tibble::tribble(
     ~Animal_class,   ~LU_head,
-    "Dairy_cows",1, "Cattle",0.8, "Sheep_goats",0.1, "Equines",0.8,
-    "Pigs",0.3, "Hogs",0.5, "Broilers",0.007, "Hens",0.014,
-    "Other_birds",0.03, "Turkeys",0.03, "Ducks",0.01, "Geese",0.02,
-    "Ostriches",0.35, "Small_birds",0.001, "Rabbits",0.02, "Bees",0.01
+    "Dairy_cows", 1, "Cattle", 0.8, "Sheep_goats", 0.1, "Equines", 0.8,
+    "Pigs", 0.3, "Hogs", 0.5, "Broilers", 0.007, "Hens", 0.014,
+    "Other_birds", 0.03, "Turkeys", 0.03, "Ducks", 0.01, "Geese", 0.02,
+    "Ostriches", 0.35, "Small_birds", 0.001, "Rabbits", 0.02, "Bees", 0.01
   )
 
   livestockcat_to_class <- tibble::tribble(
     ~Livestock_cat, ~Animal_class,
-    "Cattle_milk","Dairy_cows",
-    "Cattle_meat","Cattle",
-    "Sheep","Sheep_goats",
-    "Goats","Sheep_goats",
-    "Donkeys_mules","Equines",
-    "Horses","Equines",
-    "Pigs","Pigs",
-    "Hogs","Hogs",
-    "Poultry","Hens",
-    "Rabbits","Rabbits",
-    "Bees","Bees"
+    "Cattle_milk", "Dairy_cows",
+    "Cattle_meat", "Cattle",
+    "Sheep", "Sheep_goats",
+    "Goats", "Sheep_goats",
+    "Donkeys_mules", "Equines",
+    "Horses", "Equines",
+    "Pigs", "Pigs",
+    "Hogs", "Hogs",
+    "Poultry", "Hens",
+    "Rabbits", "Rabbits",
+    "Bees", "Bees"
   )
 
   lu_df <- livestock_prod_ygps |>
@@ -65,24 +65,24 @@ create_typologies_timeseries_plot <- function(
     dplyr::mutate(crop_productivity = Prod_MgN_total / Area_ha_crops * 1000)
 
   n_agg <- n_prov_destiny |>
-    dplyr::group_by(Year, Province_name, Origin, Destiny, Box) |>
-    dplyr::summarise(MgN = sum(MgN), .groups = "drop")
+    dplyr::group_by(year, province_name, origin, destiny, box) |>
+    dplyr::summarise(mg_n = sum(mg_n), .groups = "drop")
 
   indicators <- n_agg |>
-    dplyr::group_by(Year, Province_name) |>
+    dplyr::group_by(year, province_name) |>
     dplyr::summarise(
-      production_crops = sum(MgN[Origin == "Cropland"]),
-      production_seminatural = sum(MgN[
-        Origin == "semi_natural_agroecosystems"
+      production_crops = sum(mg_n[origin == "Cropland"]),
+      production_seminatural = sum(mg_n[
+        origin == "semi_natural_agroecosystems"
       ]),
-      animal_ingestion = sum(MgN[
-        Destiny %in% c("livestock_mono", "livestock_rum")
+      animal_ingestion = sum(mg_n[
+        destiny %in% c("livestock_mono", "livestock_rum")
       ]),
-      pop_consumption = sum(MgN[Destiny == "population_food"]),
-      production_total = sum(MgN[
-        Origin %in%
+      pop_consumption = sum(mg_n[destiny == "population_food"]),
+      production_total = sum(mg_n[
+        origin %in%
           c("Cropland", "Livestock", "semi_natural_agroecosystems") &
-          Destiny %in%
+          destiny %in%
             c(
               "population_food",
               "population_other_uses",
@@ -91,41 +91,41 @@ create_typologies_timeseries_plot <- function(
               "export"
             )
       ]),
-      imported_feed_share = sum(MgN[
-        Origin == "Outside" &
-          Destiny %in% c("livestock_mono", "livestock_rum")
+      imported_feed_share = sum(mg_n[
+        origin == "Outside" &
+          destiny %in% c("livestock_mono", "livestock_rum")
       ]) /
-        sum(MgN[
-          Origin %in%
+        sum(mg_n[
+          origin %in%
             c("Cropland", "semi_natural_agroecosystems", "Outside") &
-            Destiny %in% c("livestock_mono", "livestock_rum")
+            destiny %in% c("livestock_mono", "livestock_rum")
         ]),
-      local_feed_share = sum(MgN[
-        Origin %in%
+      local_feed_share = sum(mg_n[
+        origin %in%
           c("Cropland", "semi_natural_agroecosystems") &
-          Destiny %in% c("livestock_mono", "livestock_rum")
+          destiny %in% c("livestock_mono", "livestock_rum")
       ]) /
-        sum(MgN[
-          Origin %in%
+        sum(mg_n[
+          origin %in%
             c("Cropland", "semi_natural_agroecosystems", "Outside") &
-            Destiny %in% c("livestock_mono", "livestock_rum")
+            destiny %in% c("livestock_mono", "livestock_rum")
         ]),
-      feed_from_seminatural_share = sum(MgN[
-        Origin == "semi_natural_agroecosystems" &
-          Destiny %in% c("livestock_mono", "livestock_rum")
+      feed_from_seminatural_share = sum(mg_n[
+        origin == "semi_natural_agroecosystems" &
+          destiny %in% c("livestock_mono", "livestock_rum")
       ]) /
-        sum(MgN[
-          Origin %in%
+        sum(mg_n[
+          origin %in%
             c("Cropland", "semi_natural_agroecosystems", "Outside") &
-            Destiny %in% c("livestock_mono", "livestock_rum")
+            destiny %in% c("livestock_mono", "livestock_rum")
         ]),
-      Manure_share = sum(MgN[Origin == "Livestock"]) /
-        sum(MgN[
-          Origin %in% c("Livestock", "Synthetic", "Fixation", "Deposition")
+      Manure_share = sum(mg_n[origin == "Livestock"]) /
+        sum(mg_n[
+          origin %in% c("Livestock", "Synthetic", "Fixation", "Deposition")
         ]),
-      synthetic_share = sum(MgN[Origin == "Synthetic"]) /
-        sum(MgN[
-          Origin %in% c("Synthetic", "Livestock", "Fixation", "Deposition")
+      synthetic_share = sum(mg_n[origin == "Synthetic"]) /
+        sum(mg_n[
+          origin %in% c("Synthetic", "Livestock", "Fixation", "Deposition")
         ]),
       .groups = "drop"
     ) |>
@@ -138,8 +138,14 @@ create_typologies_timeseries_plot <- function(
     ))
 
   indicators <- indicators |>
-    dplyr::left_join(livestock_density_df, by = c("Year", "Province_name")) |>
-    dplyr::left_join(productivity_df, by = c("Year", "Province_name")) |>
+    dplyr::left_join(
+      livestock_density_df,
+      by = c("year" = "Year", "province_name" = "Province_name")
+    ) |>
+    dplyr::left_join(
+      productivity_df,
+      by = c("year" = "Year", "province_name" = "Province_name")
+    ) |>
     dplyr::mutate(dplyr::across(
       dplyr::where(is.numeric),
       ~ tidyr::replace_na(., 0)
@@ -233,14 +239,14 @@ create_typologies_timeseries_plot <- function(
 
   for (yr in benchmark_years) {
     df_yr <- indicators |>
-      dplyr::filter(Year == yr) |>
+      dplyr::filter(year == yr) |>
       dplyr::mutate(
         pattern_type = ifelse(Typology == "Urban systems", "stripe", "none"),
         pattern_fill = "Urban systems"
       )
 
     typology_map <- sf_provinces |>
-      dplyr::inner_join(df_yr, by = c("name_clean" = "Province_name"))
+      dplyr::inner_join(df_yr, by = c("name_clean" = "province_name"))
 
     p <- ggplot2::ggplot(typology_map) +
       ggpattern::geom_sf_pattern(
@@ -295,7 +301,7 @@ create_typologies_timeseries_plot <- function(
 
   stripe_lines <- do.call(
     rbind,
-    lapply(1:nrow(stripe_df), function(i) {
+    lapply(seq_len(nrow(stripe_df)), function(i) {
       xs <- seq(0, block_width, length.out = n_stripes)
       data.frame(
         x = xs,
@@ -387,5 +393,5 @@ create_typologies_timeseries_plot <- function(
     dpi = 300
   )
 
-  return(indicators)
+  indicators
 }

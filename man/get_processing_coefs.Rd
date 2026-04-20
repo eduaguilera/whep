@@ -4,10 +4,11 @@
 \alias{get_processing_coefs}
 \title{Processed products share factors}
 \usage{
-get_processing_coefs(version = NULL)
+get_processing_coefs(example = FALSE)
 }
 \arguments{
-\item{version}{File version to use as input. See \link{whep_inputs} for details.}
+\item{example}{If \code{TRUE}, return a small example output without downloading
+remote data. Default is \code{FALSE}.}
 }
 \value{
 A tibble with the quantities for each processed product.
@@ -59,7 +60,5 @@ Reports quantities of commodity balance sheet items used for \code{processing}
 and quantities of their corresponding processed output items.
 }
 \examples{
-# Note: These are smaller samples to show outputs, not the real data.
-# For all data, call the function with default version (i.e. no arguments).
-get_processing_coefs(version = "example")
+get_processing_coefs(example = TRUE)
 }

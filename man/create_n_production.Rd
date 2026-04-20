@@ -2,21 +2,28 @@
 % Please edit documentation in R/n_soil_inputs_nue.R
 \name{create_n_production}
 \alias{create_n_production}
-\title{N production for Spain -----------------------------------------------}
+\title{N production for Spain}
 \usage{
-create_n_production()
+create_n_production(example = FALSE)
+}
+\arguments{
+\item{example}{If \code{TRUE}, return a small example output without downloading
+remote data. Default is \code{FALSE}.}
 }
 \value{
 A tibble containing:
 \itemize{
-\item \code{Year}: Year
-\item \code{Province_name}: Spanish province
-\item \code{Item}: Product item
-\item \code{Box}: Ecosystem box
+\item \code{year}: Year
+\item \code{province_name}: Spanish province
+\item \code{item}: Product item
+\item \code{box}: Ecosystem box
 \item \code{prod}: Produced N (Mg)
 }
 }
 \description{
 Calculates N production at the provincial level in Spain.
 Production is derived from consumption, export, import, and other uses.
+}
+\examples{
+create_n_production(example = TRUE)
 }

@@ -13,8 +13,7 @@ test_that(".assign_items returns expected item groups", {
 # .calculate_n_soil_inputs
 test_that(".calculate_n_soil_inputs aggregates soil inputs correctly", {
   n_balance <- tibble::tribble(
-    ~Year, ~Province_name, ~Name_biomass, ~LandUse, ~Irrig_cat,
-    ~Deposition, ~BNF, ~Synthetic, ~Solid, ~Liquid, ~Urban,
+    ~Year, ~Province_name, ~Name_biomass, ~LandUse, ~Irrig_cat, ~Deposition, ~BNF, ~Synthetic, ~Solid, ~Liquid, ~Urban,
     2000, "A", "Wheat", "Cropland", "irrig", 1, 2, 3, 1, 1, 2
   )
 
@@ -34,8 +33,7 @@ test_that(".calculate_n_soil_inputs aggregates soil inputs correctly", {
 
 test_that(".calculate_n_soil_inputs assigns Firewood correctly", {
   n_balance <- tibble::tribble(
-    ~Year, ~Province_name, ~Name_biomass, ~LandUse, ~Irrig_cat,
-    ~Deposition, ~BNF, ~Synthetic, ~Solid, ~Liquid, ~Urban,
+    ~Year, ~Province_name, ~Name_biomass, ~LandUse, ~Irrig_cat, ~Deposition, ~BNF, ~Synthetic, ~Solid, ~Liquid, ~Urban,
     2000, "A", "Holm oak", "Forest_low", NA, 1, 0, 0, 0, 0, 0
   )
 
@@ -52,7 +50,7 @@ test_that(".calculate_n_soil_inputs assigns Firewood correctly", {
 
 test_that(".calculate_n_production sums production correctly", {
   grafs <- tibble::tribble(
-    ~Year, ~Province_name, ~Item, ~Box, ~Destiny, ~MgN,
+    ~year, ~province_name, ~item, ~box, ~destiny, ~mg_n,
     2000, "A", "Wheat", "Cropland", "population_food", 5,
     2000, "A", "Wheat", "Cropland", "population_other_uses", 0,
     2000, "A", "Wheat", "Cropland", "livestock_rum", 2,
@@ -60,18 +58,18 @@ test_that(".calculate_n_production sums production correctly", {
     2000, "A", "Wheat", "Cropland", "export", 3
   ) |>
     tidyr::complete(
-      Year,
-      Province_name,
-      Item,
-      Box,
-      Destiny = c(
+      year,
+      province_name,
+      item,
+      box,
+      destiny = c(
         "population_food",
         "population_other_uses",
         "livestock_rum",
         "livestock_mono",
         "export"
       ),
-      fill = list(MgN = 0)
+      fill = list(mg_n = 0)
     )
 
   out <- .calculate_n_production(grafs)
@@ -83,8 +81,7 @@ test_that(".calculate_n_production sums production correctly", {
 # calculate_nue_crops
 test_that("calculate_nue_crops computes NUE correctly", {
   n_soil_inputs <- tibble::tribble(
-    ~Year, ~Province_name, ~Item, ~Box,
-    ~deposition, ~fixation, ~synthetic, ~manure, ~urban,
+    ~Year, ~Province_name, ~Item, ~Box, ~deposition, ~fixation, ~synthetic, ~manure, ~urban,
     2000, "A", "Wheat", "Cropland", 1, 1, 2, 1, 0
   )
 
@@ -109,8 +106,7 @@ test_that("calculate_nue_crops computes NUE correctly", {
 # calculate_system_nue
 test_that("calculate_system_nue computes system NUE correctly", {
   soil_inputs <- tibble::tribble(
-    ~Year, ~Province_name,
-    ~deposition, ~fixation, ~synthetic, ~manure, ~urban,
+    ~Year, ~Province_name, ~deposition, ~fixation, ~synthetic, ~manure, ~urban,
     2000, "A", 1, 1, 2, 1, 0
   )
 

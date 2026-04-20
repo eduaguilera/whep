@@ -3,7 +3,8 @@
 #' @description
 #' States supply and use parts for each commodity balance sheet (CBS) item.
 #'
-#' @param version File version to use as input. See [whep_inputs] for details.
+#' @param example If `TRUE`, return a small example output without downloading
+#'   remote data. Default is `FALSE`.
 #'
 #' @returns
 #' A tibble with the commodity balance sheet data in wide format.
@@ -41,25 +42,12 @@
 #' @export
 #'
 #' @examples
-#' # Note: These are smaller samples to show outputs, not the real data.
-#' # For all data, call the function with default version (i.e. no arguments).
-#' get_wide_cbs(version = "example")
-get_wide_cbs <- function(version = NULL) {
-  "commodity_balance_sheet" |>
-    whep_read_file(version = version) |>
-    tidyr::pivot_wider(
-      names_from = Element,
-      values_from = Value,
-      values_fill = 0
-    ) |>
-    dplyr::rename_with(tolower) |>
-    dplyr::mutate(
-      stock_retrieval = -stock_variation,
-      dplyr::across(c(year, area_code), as.integer),
-      .keep = "unused"
-    ) |>
-    dplyr::select(-area, -item) |>
-    dplyr::rename(item_cbs_code = item_code)
+#' get_wide_cbs(example = TRUE)
+get_wide_cbs <- function(example = FALSE) {
+  if (example) {
+    return(.example_get_wide_cbs())
+  }
+  whep_read_file("commodity_balance_sheet")
 }
 
 #' Processed products share factors
@@ -68,7 +56,8 @@ get_wide_cbs <- function(version = NULL) {
 #' Reports quantities of commodity balance sheet items used for `processing`
 #' and quantities of their corresponding processed output items.
 #'
-#' @param version File version to use as input. See [whep_inputs] for details.
+#' @param example If `TRUE`, return a small example output without downloading
+#'   remote data. Default is `FALSE`.
 #'
 #' @returns
 #' A tibble with the quantities for each processed product.
@@ -116,25 +105,10 @@ get_wide_cbs <- function(version = NULL) {
 #' @export
 #'
 #' @examples
-#' # Note: These are smaller samples to show outputs, not the real data.
-#' # For all data, call the function with default version (i.e. no arguments).
-#' get_processing_coefs(version = "example")
-get_processing_coefs <- function(version = NULL) {
-  "processing_coefs" |>
-    whep_read_file(version = version) |>
-    dplyr::select(-Item, -Element) |>
-    dplyr::rename_with(tolower) |>
-    add_item_cbs_code(name_column = "item") |>
-    dplyr::select(
-      year,
-      area_code,
-      item_cbs_code_to_process = item_code,
-      value_to_process = value,
-      item_cbs_code_processed = item_cbs_code,
-      initial_conversion_factor = product_fraction,
-      initial_value_processed = value_proc_raw,
-      conversion_factor_scaling = scaling,
-      final_conversion_factor = cf,
-      final_value_processed = value_proc
-    )
+#' get_processing_coefs(example = TRUE)
+get_processing_coefs <- function(example = FALSE) {
+  if (example) {
+    return(.example_get_processing_coefs())
+  }
+  whep_read_file("processing_coefs")
 }

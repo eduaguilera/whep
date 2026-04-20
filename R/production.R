@@ -3,7 +3,8 @@
 #' @description
 #' Get amount of crops, livestock and livestock products.
 #'
-#' @param version File version to use as input. See [whep_inputs] for details.
+#' @param example If `TRUE`, return a small example output without downloading
+#'   remote data. Default is `FALSE`.
 #'
 #' @returns
 #' A tibble with the item production data.
@@ -37,22 +38,12 @@
 #' @export
 #'
 #' @examples
-#' # Note: These are smaller samples to show outputs, not the real data.
-#' # For all data, call the function with default version (i.e. no arguments).
-#' get_primary_production(version = "example")
-get_primary_production <- function(version = NULL) {
-  "primary_prod" |>
-    whep_read_file(version = version) |>
-    dplyr::rename_with(tolower) |>
-    dplyr::select(
-      year,
-      area_code,
-      item_prod_code = item_code,
-      item_cbs_code = item_code_cbs,
-      live_anim_code,
-      unit,
-      value
-    )
+#' get_primary_production(example = TRUE)
+get_primary_production <- function(example = FALSE) {
+  if (example) {
+    return(.ex_get_primary_prod())
+  }
+  whep_read_file("primary_prod")
 }
 
 #' Crop residue items
@@ -60,7 +51,8 @@ get_primary_production <- function(version = NULL) {
 #' @description
 #' Get type and amount of residue produced for each crop production item.
 #'
-#' @param version File version to use as input. See [whep_inputs] for details.
+#' @param example If `TRUE`, return a small example output without downloading
+#'   remote data. Default is `FALSE`.
 #'
 #' @returns
 #' A tibble with the crop residue data.
@@ -84,12 +76,14 @@ get_primary_production <- function(version = NULL) {
 #' @export
 #'
 #' @examples
-#' # Note: These are smaller samples to show outputs, not the real data.
-#' # For all data, call the function with default version (i.e. no arguments).
-#' get_primary_residues(version = "example")
-get_primary_residues <- function(version = NULL) {
+#' get_primary_residues(example = TRUE)
+get_primary_residues <- function(example = FALSE) {
+  if (example) {
+    return(.example_get_primary_residues())
+  }
+
   "crop_residues" |>
-    whep_read_file(version = version) |>
+    whep_read_file() |>
     dplyr::rename_with(tolower) |>
     dplyr::filter(product_residue == "Residue") |>
     add_area_code(name_column = "area") |>
@@ -121,14 +115,13 @@ get_primary_residues <- function(version = NULL) {
 .use_seed_cbs_item <- function(crop_residues) {
   crop_residues |>
     dplyr::mutate(
-      item_cbs_code_crop = dplyr::case_match(
-        item_cbs_code_crop,
+      item_cbs_code_crop = dplyr::case_when(
         # "Seed cotton" changes to "Cottonseed",
-        328 ~ 2559,
+        item_cbs_code_crop == 328 ~ 2559,
         # "Coconuts" changes to "Coconuts - Incl Copra",
-        248 ~ 2560,
+        item_cbs_code_crop == 248 ~ 2560,
         # "Oil, palm fruit" changes to "Palm kernels"
-        254 ~ 2562,
+        item_cbs_code_crop == 254 ~ 2562,
         # Leave others unchanged
         .default = item_cbs_code_crop
       )

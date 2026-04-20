@@ -19,34 +19,34 @@ create_typologies_whep <- function(
 ) {
   prod_destiny <- prod_destiny |>
     dplyr::filter(
-      Year %in% years,
-      Province_name != "Sea",
-      Box != "Fish",
-      Box != "Agro-industry"
+      year %in% years,
+      province_name != "Sea",
+      box != "Fish",
+      box != "Agro-industry"
     )
 
   prod_n <- prod_n |>
-    dplyr::filter(Year %in% years, Province_name != "Sea")
+    dplyr::filter(year %in% years, province_name != "Sea")
 
   # --- Feed-Import ------------------------------------------------
   destiny_shares <- prod_destiny |>
-    dplyr::filter(Destiny %in% c("food", "feed", "other_uses")) |>
-    dplyr::group_by(Year, Province_name, Item) |>
+    dplyr::filter(destiny %in% c("food", "feed", "other_uses")) |>
+    dplyr::group_by(year, province_name, item) |>
     dplyr::summarise(
-      total_consumption = sum(MgN, na.rm = TRUE),
-      feed_share = sum(MgN[Destiny == "feed"], na.rm = TRUE) /
-        sum(MgN, na.rm = TRUE),
+      total_consumption = sum(mg_n, na.rm = TRUE),
+      feed_share = sum(mg_n[destiny == "feed"], na.rm = TRUE) /
+        sum(mg_n, na.rm = TRUE),
       .groups = "drop"
     )
 
   import_feed_df <- prod_destiny |>
-    dplyr::filter(Destiny == "import") |>
-    dplyr::left_join(destiny_shares, by = c("Year", "Province_name", "Item")) |>
+    dplyr::filter(destiny == "import") |>
+    dplyr::left_join(destiny_shares, by = c("year", "province_name", "item")) |>
     dplyr::mutate(
-      import_feed = MgN * feed_share
+      import_feed = mg_n * feed_share
     ) |>
-    dplyr::select(Year, Province_name, Item, Box, import_feed) |>
-    dplyr::group_by(Year, Province_name) |>
+    dplyr::select(year, province_name, item, box, import_feed) |>
+    dplyr::group_by(year, province_name) |>
     dplyr::summarise(
       feed_import = sum(import_feed, na.rm = TRUE),
       .groups = "drop"
@@ -54,36 +54,36 @@ create_typologies_whep <- function(
 
   # --- 1. Human share ------------------------------------------------------
   food_consumption <- prod_destiny |>
-    dplyr::filter(Destiny %in% c("food", "other_uses")) |>
-    dplyr::group_by(Year, Province_name) |>
+    dplyr::filter(destiny %in% c("food", "other_uses")) |>
+    dplyr::group_by(year, province_name) |>
     dplyr::summarise(
-      food_consumption = sum(MgN, na.rm = TRUE),
+      food_consumption = sum(mg_n, na.rm = TRUE),
       .groups = "drop"
     )
 
   production <- prod_n |>
-    dplyr::group_by(Year, Province_name) |>
+    dplyr::group_by(year, province_name) |>
     dplyr::summarise(
       production = sum(production_n, na.rm = TRUE),
       .groups = "drop"
     )
 
   human_share <- food_consumption |>
-    dplyr::left_join(production, by = c("Year", "Province_name")) |>
+    dplyr::left_join(production, by = c("year", "province_name")) |>
     dplyr::mutate(
       human_share = ifelse(production > 0, food_consumption / production, NA)
     )
 
   # --- 2. Woody share --------------------------------------------------------
   woody_share <- prod_destiny |>
-    dplyr::filter(Box %in% c("Cropland", "Semi_natural_agroecosystems")) |>
+    dplyr::filter(box %in% c("Cropland", "Semi_natural_agroecosystems")) |>
     dplyr::mutate(
-      woody = ifelse(Item %in% c("Firewood", "Acorns"), MgN, 0)
+      woody = ifelse(item %in% c("Firewood", "Acorns"), mg_n, 0)
     ) |>
-    dplyr::group_by(Year, Province_name) |>
+    dplyr::group_by(year, province_name) |>
     dplyr::summarise(
       woody_prod = sum(woody, na.rm = TRUE),
-      total_prod = sum(MgN, na.rm = TRUE),
+      total_prod = sum(mg_n, na.rm = TRUE),
       .groups = "drop"
     ) |>
     dplyr::mutate(
@@ -92,8 +92,8 @@ create_typologies_whep <- function(
 
   # --- 3. Cropland production ------------------------------------------------
   crop_feed_list <- prod_n |>
-    dplyr::filter(Box == "Cropland") |>
-    dplyr::group_by(Year, Province_name) |>
+    dplyr::filter(box == "Cropland") |>
+    dplyr::group_by(year, province_name) |>
     dplyr::summarise(
       crop_prod = sum(production_n, na.rm = TRUE),
       .groups = "drop"
@@ -101,42 +101,42 @@ create_typologies_whep <- function(
 
   # --- 4. Animal ingestion / livestock feed --------------------------------
   animal_ingestion <- prod_destiny |>
-    dplyr::filter(Destiny == "feed") |>
-    dplyr::group_by(Year, Province_name) |>
+    dplyr::filter(destiny == "feed") |>
+    dplyr::group_by(year, province_name) |>
     dplyr::summarise(
-      animal_ingestion = sum(MgN, na.rm = TRUE),
+      animal_ingestion = sum(mg_n, na.rm = TRUE),
       .groups = "drop"
     )
 
   # --- 5. Grass vs crop feed -------------------------------------------------
   grass_feed <- prod_destiny |>
     dplyr::filter(
-      Box == "Semi_natural_agroecosystems",
-      Item == "Grassland",
-      Destiny == "feed"
+      box == "Semi_natural_agroecosystems",
+      item == "Grassland",
+      destiny == "feed"
     ) |>
-    dplyr::group_by(Year, Province_name) |>
+    dplyr::group_by(year, province_name) |>
     dplyr::summarise(
-      grass_feed_N = sum(MgN, na.rm = TRUE),
+      grass_feed_N = sum(mg_n, na.rm = TRUE),
       .groups = "drop"
     )
 
   crop_feed <- prod_destiny |>
-    dplyr::filter(Box == "Cropland", Destiny == "feed") |>
-    dplyr::group_by(Year, Province_name) |>
+    dplyr::filter(box == "Cropland", destiny == "feed") |>
+    dplyr::group_by(year, province_name) |>
     dplyr::summarise(
-      crop_feed_N = sum(MgN, na.rm = TRUE),
+      crop_feed_N = sum(mg_n, na.rm = TRUE),
       .groups = "drop"
     )
 
   # --- Combine all decision variables ---------------------------------------
   whep_typologies <- human_share |>
-    dplyr::left_join(woody_share, by = c("Year", "Province_name")) |>
-    dplyr::left_join(crop_feed_list, by = c("Year", "Province_name")) |>
-    dplyr::left_join(animal_ingestion, by = c("Year", "Province_name")) |>
-    dplyr::left_join(import_feed_df, by = c("Year", "Province_name")) |>
-    dplyr::left_join(grass_feed, by = c("Year", "Province_name")) |>
-    dplyr::left_join(crop_feed, by = c("Year", "Province_name"))
+    dplyr::left_join(woody_share, by = c("year", "province_name")) |>
+    dplyr::left_join(crop_feed_list, by = c("year", "province_name")) |>
+    dplyr::left_join(animal_ingestion, by = c("year", "province_name")) |>
+    dplyr::left_join(import_feed_df, by = c("year", "province_name")) |>
+    dplyr::left_join(grass_feed, by = c("year", "province_name")) |>
+    dplyr::left_join(crop_feed, by = c("year", "province_name"))
 
   # --- Assign WHEP Typologies ------------------------------------------------
   whep_typologies <- whep_typologies |>
@@ -164,19 +164,19 @@ create_typologies_whep <- function(
 #' @param whep_typologies A data frame returned by `create_typologies_whep()`.
 #'
 #' @return A plot showing province typology evolution from 1860 to 2020.
-#' @keywords internal
+#' @noRd
 .plot_whep_typologies <- function(whep_typologies = NULL) {
   if (is.null(whep_typologies)) {
     whep_typologies <- create_typologies_whep()
   }
   whep_typologies <- whep_typologies |>
-    dplyr::filter(Province_name != "Sea") |>
+    dplyr::filter(province_name != "Sea") |>
     dplyr::mutate(
       human_share = tidyr::replace_na(human_share, 0),
       woody_share = tidyr::replace_na(woody_share, 0),
-      Province_name = factor(
-        Province_name,
-        levels = sort(unique(Province_name), decreasing = TRUE)
+      province_name = factor(
+        province_name,
+        levels = sort(unique(province_name), decreasing = TRUE)
       )
     )
 
@@ -191,13 +191,13 @@ create_typologies_whep <- function(
 
   ggplot2::ggplot(
     whep_typologies,
-    ggplot2::aes(x = Year, y = Province_name, fill = Category)
+    ggplot2::aes(x = year, y = province_name, fill = Category)
   ) +
     ggplot2::geom_tile() +
     ggplot2::scale_x_continuous(
       breaks = seq(
-        min(whep_typologies$Year),
-        max(whep_typologies$Year),
+        min(whep_typologies$year),
+        max(whep_typologies$year),
         by = 20
       ),
       expand = c(0, 0)

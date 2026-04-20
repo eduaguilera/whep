@@ -1,12 +1,12 @@
 province_landuse_n_inputs_plot <- function(year_plot = 1980) {
   n_flows <- create_n_prov_destiny()
-  area <- whep_read_file("npp_ygpit")
+  area <- whep_read_file("npp-ygpit") |> dplyr::rename_with(tolower)
   indicators <- create_typologies_spain(make_map = FALSE)
 
   inputs <- n_flows |>
     dplyr::filter(
-      Year == year_plot,
-      Origin %in%
+      year == year_plot,
+      origin %in%
         c(
           "Deposition",
           "Fixation",
@@ -14,7 +14,7 @@ province_landuse_n_inputs_plot <- function(year_plot = 1980) {
           "Livestock",
           "People"
         ),
-      Destiny %in%
+      destiny %in%
         c(
           "Cropland",
           "semi_natural_agroecosystems"
@@ -22,47 +22,47 @@ province_landuse_n_inputs_plot <- function(year_plot = 1980) {
     ) |>
     dplyr::mutate(
       Input = dplyr::case_when(
-        Origin == "Synthetic" ~ "Synthetic_fertilizer",
-        Origin == "Livestock" ~ "Manure",
-        Origin == "People" ~ "Urban",
-        TRUE ~ Origin
+        origin == "Synthetic" ~ "Synthetic_fertilizer",
+        origin == "Livestock" ~ "Manure",
+        origin == "People" ~ "Urban",
+        TRUE ~ origin
       ),
       LandUse = dplyr::if_else(
-        Destiny == "Cropland",
+        destiny == "Cropland",
         "Cropland",
         "Semi_natural"
       )
     ) |>
     dplyr::group_by(
-      Province_name,
+      province_name,
       LandUse,
       Input
     ) |>
     dplyr::summarise(
-      MgN = sum(MgN, na.rm = TRUE),
+      MgN = sum(mg_n, na.rm = TRUE),
       .groups = "drop"
     )
 
   areas <- area |>
-    dplyr::filter(Year == year_plot) |>
+    dplyr::filter(year == year_plot) |>
     dplyr::mutate(
       LandUse = dplyr::if_else(
-        LandUse == "Cropland",
+        landuse == "Cropland",
         "Cropland",
         "Semi_natural"
       )
     ) |>
-    dplyr::group_by(Province_name, LandUse) |>
+    dplyr::group_by(province_name, LandUse) |>
     dplyr::summarise(
-      Area_ha = sum(Area_ygpit_ha, na.rm = TRUE),
+      Area_ha = sum(area_ygpit_ha, na.rm = TRUE),
       .groups = "drop"
     )
 
   df <- inputs |>
-    dplyr::left_join(areas, by = c("Province_name", "LandUse"))
+    dplyr::left_join(areas, by = c("province_name", "LandUse"))
 
   df_grouped <- df |>
-    dplyr::group_by(Province_name, LandUse, Input) |>
+    dplyr::group_by(province_name, LandUse, Input) |>
     dplyr::summarise(
       MgN = sum(MgN),
       Area_ha = sum(Area_ha),
@@ -73,19 +73,19 @@ province_landuse_n_inputs_plot <- function(year_plot = 1980) {
     )
 
   df_total <- df |>
-    dplyr::group_by(Province_name, Input) |>
+    dplyr::group_by(province_name, Input) |>
     dplyr::summarise(
       MgN = sum(MgN),
       .groups = "drop"
     ) |>
     dplyr::left_join(
       areas |>
-        dplyr::group_by(Province_name) |>
+        dplyr::group_by(province_name) |>
         dplyr::summarise(
           Area_ha = sum(Area_ha),
           .groups = "drop"
         ),
-      by = "Province_name"
+      by = "province_name"
     ) |>
     dplyr::mutate(
       LandUse = "Total",
@@ -95,8 +95,8 @@ province_landuse_n_inputs_plot <- function(year_plot = 1980) {
   plot_data <- dplyr::bind_rows(df_grouped, df_total)
 
   typologies <- indicators |>
-    dplyr::filter(Year == year_plot) |>
-    dplyr::select(Province_name, Typology) |>
+    dplyr::filter(year == year_plot) |>
+    dplyr::select(province_name, Typology) |>
     dplyr::mutate(
       Typology = stringr::str_remove(
         Typology,
@@ -105,11 +105,11 @@ province_landuse_n_inputs_plot <- function(year_plot = 1980) {
     )
 
   plot_data <- plot_data |>
-    dplyr::left_join(typologies, by = "Province_name")
+    dplyr::left_join(typologies, by = "province_name")
 
-  plot_data$Province_name <- factor(
-    plot_data$Province_name,
-    levels = sort(unique(plot_data$Province_name))
+  plot_data$province_name <- factor(
+    plot_data$province_name,
+    levels = sort(unique(plot_data$province_name))
   )
 
   plot_data$LandUse <- factor(
@@ -142,14 +142,14 @@ province_landuse_n_inputs_plot <- function(year_plot = 1980) {
       ggplot2::scale_fill_manual(values = input_colors) +
       ggplot2::labs(
         title = paste(
-          "N inputs per hectare by province –",
+          "N inputs per hectare by province -",
           t,
           "(",
           year_plot,
           ")"
         ),
         x = "Land_use",
-        y = "kg N ha⁻¹"
+        y = "kg N ha^-1"
       ) +
       ggplot2::theme_minimal() +
       ggplot2::theme(
@@ -167,30 +167,31 @@ province_landuse_n_inputs_plot <- function(year_plot = 1980) {
 
   names(plots) <- typology_list
 
-  return(plots)
+  plots
 }
 
 
-province_all_landuse_n_inputs_plot <- function(year_plot = 1980) {
-  n_balance <- whep_read_file("n_balance_ygpit_all")
-  area <- whep_read_file("npp_ygpit")
+prov_all_lu_n_inputs_plot <- function(year_plot = 1980) {
+  n_balance <- whep_read_file("n-balance-ygpit-all") |>
+    dplyr::rename_with(tolower)
+  area <- whep_read_file("npp-ygpit") |> dplyr::rename_with(tolower)
   indicators <- create_typologies_spain(make_map = FALSE)
 
   inputs <- n_balance |>
-    dplyr::filter(Year == year_plot) |>
+    dplyr::filter(year == year_plot) |>
     dplyr::mutate(
       LandUse = dplyr::case_when(
-        LandUse %in% c("Forest_high", "Forest_low") ~ "Forest",
-        TRUE ~ LandUse
+        landuse %in% c("Forest_high", "Forest_low") ~ "Forest",
+        TRUE ~ landuse
       )
     ) |>
-    dplyr::group_by(Province_name, LandUse) |>
+    dplyr::group_by(province_name, LandUse) |>
     dplyr::summarise(
-      Deposition = sum(Deposition, na.rm = TRUE),
-      Fixation = sum(BNF, na.rm = TRUE),
-      Synthetic_fertilizer = sum(Synthetic, na.rm = TRUE),
-      Manure = sum(Solid + Liquid, na.rm = TRUE),
-      Urban = sum(Urban, na.rm = TRUE),
+      Deposition = sum(deposition, na.rm = TRUE),
+      Fixation = sum(bnf, na.rm = TRUE),
+      Synthetic_fertilizer = sum(synthetic, na.rm = TRUE),
+      Manure = sum(solid + liquid, na.rm = TRUE),
+      Urban = sum(urban, na.rm = TRUE),
       .groups = "drop"
     ) |>
     tidyr::pivot_longer(
@@ -206,23 +207,23 @@ province_all_landuse_n_inputs_plot <- function(year_plot = 1980) {
     )
 
   areas <- area |>
-    dplyr::filter(Year == year_plot) |>
+    dplyr::filter(year == year_plot) |>
     dplyr::mutate(
       LandUse = dplyr::case_when(
-        LandUse %in% c("Forest_high", "Forest_low") ~ "Forest",
-        TRUE ~ LandUse
+        landuse %in% c("Forest_high", "Forest_low") ~ "Forest",
+        TRUE ~ landuse
       )
     ) |>
-    dplyr::group_by(Province_name, LandUse) |>
+    dplyr::group_by(province_name, LandUse) |>
     dplyr::summarise(
-      Area_ha = sum(Area_ygpit_ha, na.rm = TRUE),
+      Area_ha = sum(area_ygpit_ha, na.rm = TRUE),
       .groups = "drop"
     )
 
   df <- inputs |>
     dplyr::left_join(
       areas,
-      by = c("Province_name", "LandUse")
+      by = c("province_name", "LandUse")
     )
 
   df_grouped <- df |>
@@ -251,12 +252,12 @@ province_all_landuse_n_inputs_plot <- function(year_plot = 1980) {
     ) |>
     dplyr::left_join(
       areas |>
-        dplyr::group_by(Province_name) |>
+        dplyr::group_by(province_name) |>
         dplyr::summarise(
           Area_ha = sum(Area_ha, na.rm = TRUE),
           .groups = "drop"
         ),
-      by = "Province_name"
+      by = "province_name"
     ) |>
     dplyr::mutate(
       LandUse = "Total",
@@ -269,8 +270,8 @@ province_all_landuse_n_inputs_plot <- function(year_plot = 1980) {
   )
 
   typologies <- indicators |>
-    dplyr::filter(Year == year_plot) |>
-    dplyr::select(Province_name, Typology) |>
+    dplyr::filter(year == year_plot) |>
+    dplyr::select(province_name, Typology) |>
     dplyr::mutate(
       Typology = stringr::str_remove(
         Typology,
@@ -281,12 +282,12 @@ province_all_landuse_n_inputs_plot <- function(year_plot = 1980) {
   plot_data <- plot_data |>
     dplyr::left_join(
       typologies,
-      by = "Province_name"
+      by = "province_name"
     )
 
-  plot_data$Province_name <- factor(
-    plot_data$Province_name,
-    levels = sort(unique(plot_data$Province_name))
+  plot_data$province_name <- factor(
+    plot_data$province_name,
+    levels = sort(unique(plot_data$province_name))
   )
 
   plot_data$LandUse <- factor(
@@ -326,14 +327,14 @@ province_all_landuse_n_inputs_plot <- function(year_plot = 1980) {
       ggplot2::scale_fill_manual(values = input_colors) +
       ggplot2::labs(
         title = paste(
-          "N inputs per hectare by province –",
+          "N inputs per hectare by province -",
           t,
           "(",
           year_plot,
           ")"
         ),
         x = "Land use",
-        y = "kg N ha⁻¹"
+        y = "kg N ha^-1"
       ) +
       ggplot2::theme_minimal() +
       ggplot2::theme(
@@ -345,5 +346,5 @@ province_all_landuse_n_inputs_plot <- function(year_plot = 1980) {
 
   names(plots) <- typology_list
 
-  return(plots)
+  plots
 }
