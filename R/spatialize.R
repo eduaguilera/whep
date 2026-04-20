@@ -73,7 +73,11 @@
 #'   - `lon`, `lat`: Cell coordinates.
 #'   - `mc_rainfed`: Rainfed suitability factor (default 1).
 #'   - `mc_irrigated`: Irrigated suitability factor (default 1).
-#'   If `NULL`, no capacity constraint is applied.
+#'   If `NULL`, no capacity constraint is applied. The capacity
+#'   constraint path is exercised by the test suite but not yet
+#'   wired into the package pipeline; a future PR (P1 in
+#'   `docs/SPATIALIZE_UPGRADE_PLAN.md`) will plug in GAEZ-derived
+#'   multi-cropping suitability.
 #' @param years Integer vector of years to spatialize. If `NULL`
 #'   (default), all years present in `country_areas` are processed.
 #'   When supplied, `country_areas`, `gridded_cropland`, and

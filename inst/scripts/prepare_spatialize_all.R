@@ -95,6 +95,10 @@ if (!dir.exists(output_dir)) {
 }
 
 # ---- Read EarthStat mapping ---------------------------------------------
+# Rows whose `item_prod_code` is NA correspond to EarthStat raster
+# layers (fodder grasses, alfalfa, clover, etc.) that have no direct
+# FAOSTAT QCL item. Downstream consumers usually filter with
+# `dplyr::filter(!is.na(item_prod_code))`.
 .read_earthstat_mapping <- function() {
   .find_extdata_file("earthstat_mapping.csv") |>
     readr::read_csv(

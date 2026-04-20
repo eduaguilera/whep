@@ -99,7 +99,11 @@ suitability factors. Expected columns:
 \item \code{lon}, \code{lat}: Cell coordinates.
 \item \code{mc_rainfed}: Rainfed suitability factor (default 1).
 \item \code{mc_irrigated}: Irrigated suitability factor (default 1).
-If \code{NULL}, no capacity constraint is applied.
+If \code{NULL}, no capacity constraint is applied. The capacity
+constraint path is exercised by the test suite but not yet
+wired into the package pipeline; a future PR (P1 in
+\code{docs/SPATIALIZE_UPGRADE_PLAN.md}) will plug in GAEZ-derived
+multi-cropping suitability.
 }}
 
 \item{years}{Integer vector of years to spatialize. If \code{NULL}
