@@ -86,6 +86,20 @@ each row accounts for one year.</p>
 <span>  <span class="va">sheet_url</span> <span class="op">|&gt;</span></span>
 <span>  <span class="fu">googlesheets4</span><span class="fu">::</span><span class="fu"><a href="https://googlesheets4.tidyverse.org/reference/range_read.html" class="external-link">read_sheet</a></span><span class="op">(</span>sheet <span class="op">=</span> <span class="st">"Final_Sources_Trade"</span><span class="op">)</span> <span class="op">|&gt;</span></span>
 <span>  <span class="fu"><a href="../reference/expand_trade_sources.html">expand_trade_sources</a></span><span class="op">(</span><span class="op">)</span></span>
+<span><span class="co">#&gt; <span style="color: #BB0000;">✖</span> Request 1 failed [429: RESOURCE_EXHAUSTED].</span></span>
+<span><span class="co">#&gt; <span style="color: #00BBBB;">ℹ</span> Will retry in 1.8s.</span></span>
+<span><span class="co">#&gt; <span style="color: #BB0000;">✖</span> Request 2 failed [429: RESOURCE_EXHAUSTED].</span></span>
+<span><span class="co">#&gt; <span style="color: #00BBBB;">ℹ</span> Will retry in 8s.</span></span>
+<span><span class="co">#&gt; ⠙ Retry happens in  7s</span></span>
+<span><span class="co">#&gt; ⠹ Retry happens in  6s</span></span>
+<span><span class="co">#&gt; ⠸ Retry happens in  3s</span></span>
+<span><span class="co">#&gt; <span style="color: #BB0000;">✖</span> Request 3 failed [429: RESOURCE_EXHAUSTED].</span></span>
+<span><span class="co">#&gt; ⠸ Retry happens in  3s<span style="color: #00BBBB;">ℹ</span> Will retry in 4.2s.</span></span>
+<span><span class="co">#&gt; ⠸ Retry happens in  3s⠸ Retry happens in  0s</span></span>
+<span><span class="co">#&gt; ⠙ Retry happens in  3s</span></span>
+<span><span class="co">#&gt; ⠹ Retry happens in  1s</span></span>
+<span><span class="co">#&gt; <span style="color: #00BB00;">✔</span> Request 4 successful!</span></span>
+<span><span class="co">#&gt; ⠹ Retry happens in  1s⠹ Retry happens in  0s</span></span>
 <span><span class="co">#&gt; <span style="color: #00BB00;">✔</span> Reading from <span style="color: #00BBBB;">WHEP Source identification</span>.</span></span>
 <span><span class="co">#&gt; <span style="color: #00BB00;">✔</span> Range '<span style="color: #BBBB00;">'Final_Sources_Trade'</span>'.</span></span></code></pre></div>
 <p>Now we build some plots.</p>

@@ -20,6 +20,20 @@ expanded_trade_sources <-
   sheet_url |>
   googlesheets4::read_sheet(sheet = "Final_Sources_Trade") |>
   expand_trade_sources()
+#> ✖ Request 1 failed [429: RESOURCE_EXHAUSTED].
+#> ℹ Will retry in 1.8s.
+#> ✖ Request 2 failed [429: RESOURCE_EXHAUSTED].
+#> ℹ Will retry in 8s.
+#> ⠙ Retry happens in  7s
+#> ⠹ Retry happens in  6s
+#> ⠸ Retry happens in  3s
+#> ✖ Request 3 failed [429: RESOURCE_EXHAUSTED].
+#> ⠸ Retry happens in  3sℹ Will retry in 4.2s.
+#> ⠸ Retry happens in  3s⠸ Retry happens in  0s
+#> ⠙ Retry happens in  3s
+#> ⠹ Retry happens in  1s
+#> ✔ Request 4 successful!
+#> ⠹ Retry happens in  1s⠹ Retry happens in  0s
 #> ✔ Reading from WHEP Source identification.
 #> ✔ Range ''Final_Sources_Trade''.
 ```

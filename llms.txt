@@ -121,6 +121,14 @@ reading, gap-filling, historical extension, and balance validation.
   : Build commodity balance sheets
 - [`build_processing_coefs()`](https://eduaguilera.github.io/whep/reference/build_processing_coefs.md)
   : Build processing coefficients
+- [`build_detailed_trade()`](https://eduaguilera.github.io/whep/reference/build_detailed_trade.md)
+  : Build detailed bilateral trade matrix
+- [`build_trade_prices()`](https://eduaguilera.github.io/whep/reference/build_trade_prices.md)
+  : Build global trade prices
+- [`build_primary_prices()`](https://eduaguilera.github.io/whep/reference/build_primary_prices.md)
+  : Build primary item prices
+- [`build_cbs_prices()`](https://eduaguilera.github.io/whep/reference/build_cbs_prices.md)
+  : Build CBS item prices
 
 ## Tidy datasets
 
