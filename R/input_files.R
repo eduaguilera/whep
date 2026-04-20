@@ -55,6 +55,7 @@ whep_read_file <- function(file_alias, type = "parquet", version = NULL) {
 
   file_info <- .fetch_file_info(file_alias, whep::whep_inputs)
   version <- .choose_version(file_info$version, version)
+  pin_name <- if (!is.na(file_info$pin_name)) file_info$pin_name else file_alias
 
   tryCatch(
     .get_local_board() |>
@@ -62,7 +63,7 @@ whep_read_file <- function(file_alias, type = "parquet", version = NULL) {
     error = function(e) {
       file_info |>
         .get_remote_board() |>
-        .download_and_read(file_alias, type, version)
+        .download_and_read(pin_name, type, version)
     }
   )
 }
