@@ -3008,9 +3008,10 @@ run_crop_spatialize <- function(run_dir, input_dir) {
     crop_patterns = crop_patterns,
     gridded_cropland = gridded_cropland,
     country_grid = country_grid,
-    cft_mapping = NULL,
-    type_cropland = type_cropland,
-    type_mapping = cft_mapping
+    config = list(
+      type_cropland = type_cropland,
+      type_mapping = cft_mapping
+    )
   )
 
   elapsed <- (proc.time() - t_start)[["elapsed"]]

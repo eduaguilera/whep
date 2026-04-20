@@ -151,7 +151,7 @@ country_grid <- tibble::tribble(
 )
 build_gridded_landuse(
   country_areas, crop_patterns, gridded_cropland, country_grid,
-  years = 2000L
+  config = list(years = 2000L)
 )
 }
 \seealso{

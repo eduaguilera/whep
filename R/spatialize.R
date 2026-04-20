@@ -43,50 +43,33 @@
 #'   - `lon`: Longitude of cell centre.
 #'   - `lat`: Latitude of cell centre.
 #'   - `area_code`: Country code.
-#' @param cft_mapping A tibble mapping FAOSTAT items to CFT names.
-#'   Expected columns:
-#'   - `item_prod_code`: FAOSTAT item code.
-#'   - `cft_name`: Target crop functional type name.
-#'   If `NULL`, no CFT aggregation is performed and individual crop
-#'   results are returned.
-#' @param type_cropland A tibble with per-cell, per-year, per-type
-#'   cropland. When provided alongside `type_mapping`, each crop is
-#'   allocated only into cells that contain its LUH2
-#'   crop-functional type, giving time-varying, type-constrained
-#'   allocation.
-#'   Expected columns:
-#'   - `lon`, `lat`: Cell centre coordinates.
-#'   - `year`: Integer year.
-#'   - `luh2_type`: LUH2 crop type (`c3ann`, `c4ann`, `c3per`,
-#'     or `c3nfx`).
-#'   - `type_ha`: Cropland hectares for this type.
-#'   - `type_irrig_ha`: Irrigated hectares for this type.
-#'   If `NULL`, falls back to total cropland (original behaviour).
-#' @param type_mapping A tibble mapping each crop to its LUH2 type.
-#'   Expected columns:
-#'   - `item_prod_code`: FAOSTAT item code.
-#'   - `luh2_type`: LUH2 crop type.
-#'   If `NULL`, type-aware allocation is disabled even when
-#'   `type_cropland` is provided.
-#' @param multicropping A tibble with per-cell multi-cropping
-#'   suitability factors. Expected columns:
-#'   - `lon`, `lat`: Cell coordinates.
-#'   - `mc_rainfed`: Rainfed suitability factor (default 1).
-#'   - `mc_irrigated`: Irrigated suitability factor (default 1).
-#'   If `NULL`, no capacity constraint is applied. The capacity
-#'   constraint path is exercised by the test suite but not yet
-#'   wired into the package pipeline; a future PR (P1 in
-#'   `docs/SPATIALIZE_UPGRADE_PLAN.md`) will plug in GAEZ-derived
-#'   multi-cropping suitability.
-#' @param years Integer vector of years to spatialize. If `NULL`
-#'   (default), all years present in `country_areas` are processed.
-#'   When supplied, `country_areas`, `gridded_cropland`, and
-#'   `type_cropland` are filtered to this set before processing.
-#' @param max_iterations Maximum iterations for the redistribution
-#'   loop. Default: `1000L`.
-#' @param expansion_threshold Iteration number after which crops are
-#'   allowed to expand into cells without an existing pattern.
-#'   Default: `100L`.
+#' @param config Named list of optional extras. Unknown keys raise
+#'   an error. Recognised keys:
+#'   - `years`: Integer vector of years to spatialize. If `NULL`
+#'     (default), all years present in `country_areas` are processed.
+#'     When supplied, `country_areas`, `gridded_cropland`, and
+#'     `type_cropland` are filtered to this set before processing.
+#'   - `cft_mapping`: A tibble mapping FAOSTAT items to CFT names
+#'     (`item_prod_code`, `cft_name`). If `NULL`, no CFT aggregation
+#'     is performed and individual crop results are returned.
+#'   - `type_cropland`: A tibble with per-cell, per-year, per-type
+#'     cropland (`lon`, `lat`, `year`, `luh2_type`, `type_ha`,
+#'     `type_irrig_ha`). When provided alongside `type_mapping`,
+#'     each crop is allocated only into cells containing its LUH2
+#'     type. If `NULL`, falls back to total cropland.
+#'   - `type_mapping`: A tibble (`item_prod_code`, `luh2_type`) that
+#'     maps each crop to its LUH2 type. If `NULL`, type-aware
+#'     allocation is disabled even when `type_cropland` is provided.
+#'   - `multicropping`: A tibble (`lon`, `lat`, `mc_rainfed`,
+#'     `mc_irrigated`) with per-cell multi-cropping suitability
+#'     factors. The capacity-constraint path is exercised by the
+#'     test suite but not yet wired into the package pipeline (P1
+#'     in `docs/SPATIALIZE_UPGRADE_PLAN.md`).
+#'   - `max_iterations`: Maximum iterations for the redistribution
+#'     loop. Default: `1000L`.
+#'   - `expansion_threshold`: Iteration number after which crops are
+#'     allowed to expand into cells without an existing pattern.
+#'     Default: `100L`.
 #'
 #' @return A tibble with gridded crop (or CFT) harvested areas.
 #'   Columns:
@@ -142,20 +125,15 @@
 #'    0.75, 50.25,         1L
 #' )
 #' build_gridded_landuse(
-#'   country_areas, crop_patterns, gridded_cropland, country_grid
+#'   country_areas, crop_patterns, gridded_cropland, country_grid,
+#'   config = list(years = 2000L)
 #' )
 build_gridded_landuse <- function(
   country_areas,
   crop_patterns,
   gridded_cropland,
   country_grid,
-  cft_mapping = NULL,
-  type_cropland = NULL,
-  type_mapping = NULL,
-  multicropping = NULL,
-  years = NULL,
-  max_iterations = 1000L,
-  expansion_threshold = 100L
+  config = list()
 ) {
   .validate_landuse_inputs(
     country_areas,
@@ -163,6 +141,14 @@ build_gridded_landuse <- function(
     gridded_cropland,
     country_grid
   )
+  config <- .resolve_landuse_config(config)
+  years <- config$years
+  cft_mapping <- config$cft_mapping
+  type_cropland <- config$type_cropland
+  type_mapping <- config$type_mapping
+  multicropping <- config$multicropping
+  max_iterations <- config$max_iterations
+  expansion_threshold <- config$expansion_threshold
 
   country_areas <- .ensure_irrigation_cols(country_areas)
   gridded_cropland <- .ensure_gridded_irrigation(gridded_cropland)
@@ -424,6 +410,38 @@ build_gridded_landuse <- function(
         ir_uniform * irrigated_area_ha
       )
     )
+}
+
+.landuse_config_defaults <- function() {
+  list(
+    years = NULL,
+    cft_mapping = NULL,
+    type_cropland = NULL,
+    type_mapping = NULL,
+    multicropping = NULL,
+    max_iterations = 1000L,
+    expansion_threshold = 100L
+  )
+}
+
+.resolve_landuse_config <- function(config) {
+  defaults <- .landuse_config_defaults()
+  if (
+    !is.list(config) ||
+      (length(config) > 0L && is.null(names(config)))
+  ) {
+    cli::cli_abort("{.arg config} must be a named list.")
+  }
+  unknown <- setdiff(names(config), names(defaults))
+  if (length(unknown) > 0L) {
+    cli::cli_abort(c(
+      "{length(unknown)} unknown {.arg config} entr{?y/ies} for \\
+      {.fn build_gridded_landuse}:",
+      "x" = "{.val {unknown}}.",
+      "i" = "Known: {.val {names(defaults)}}."
+    ))
+  }
+  utils::modifyList(defaults, config)
 }
 
 #' Validate that required columns exist.

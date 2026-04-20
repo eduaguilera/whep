@@ -220,7 +220,7 @@ testthat::test_that("build_gridded_landuse aggregates to CFTs when mapping provi
     fix$crop_patterns,
     fix$gridded_cropland,
     fix$country_grid,
-    cft_mapping = cft_map
+    config = list(cft_mapping = cft_map)
   )
 
   # Should collapse 2 crops into 1 CFT per cell
@@ -393,7 +393,7 @@ testthat::test_that("build_gridded_landuse filters year-keyed inputs when years 
     crop_patterns,
     gridded_cropland,
     country_grid,
-    years = c(2000L, 2002L)
+    config = list(years = c(2000L, 2002L))
   )
 
   testthat::expect_setequal(unique(result$year), c(2000L, 2002L))
@@ -408,7 +408,7 @@ testthat::test_that("build_gridded_landuse warns for requested years missing in 
       fix$crop_patterns,
       fix$gridded_cropland,
       fix$country_grid,
-      years = c(2000L, 1999L)
+      config = list(years = c(2000L, 1999L))
     ),
     "1999"
   )

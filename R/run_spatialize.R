@@ -123,7 +123,7 @@
 #' )
 #' build_gridded_landuse(
 #'   country_areas, crop_patterns, gridded_cropland, country_grid,
-#'   years = 2000L
+#'   config = list(years = 2000L)
 #' )
 run_spatialize <- function(
   preset = c("lpjml", "whep"),
@@ -237,12 +237,13 @@ run_spatialize <- function(
     crop_patterns = lu_inputs$crop_patterns,
     gridded_cropland = lu_inputs$gridded_cropland,
     country_grid = lu_inputs$country_grid,
-    cft_mapping = NULL,
-    type_cropland = lu_inputs$type_cropland,
-    type_mapping = lu_inputs$type_mapping,
-    years = resolved_years,
-    max_iterations = config$max_iterations,
-    expansion_threshold = config$expansion_threshold
+    config = list(
+      type_cropland = lu_inputs$type_cropland,
+      type_mapping = lu_inputs$type_mapping,
+      years = resolved_years,
+      max_iterations = config$max_iterations,
+      expansion_threshold = config$expansion_threshold
+    )
   )
   list(
     years = resolved_years,

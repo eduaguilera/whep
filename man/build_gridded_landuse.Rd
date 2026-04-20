@@ -9,13 +9,7 @@ build_gridded_landuse(
   crop_patterns,
   gridded_cropland,
   country_grid,
-  cft_mapping = NULL,
-  type_cropland = NULL,
-  type_mapping = NULL,
-  multicropping = NULL,
-  years = NULL,
-  max_iterations = 1000L,
-  expansion_threshold = 100L
+  config = list()
 )
 }
 \arguments{
@@ -59,64 +53,35 @@ Expected columns:
 \item \code{area_code}: Country code.
 }}
 
-\item{cft_mapping}{A tibble mapping FAOSTAT items to CFT names.
-Expected columns:
+\item{config}{Named list of optional extras. Unknown keys raise
+an error. Recognised keys:
 \itemize{
-\item \code{item_prod_code}: FAOSTAT item code.
-\item \code{cft_name}: Target crop functional type name.
-If \code{NULL}, no CFT aggregation is performed and individual crop
-results are returned.
-}}
-
-\item{type_cropland}{A tibble with per-cell, per-year, per-type
-cropland. When provided alongside \code{type_mapping}, each crop is
-allocated only into cells that contain its LUH2
-crop-functional type, giving time-varying, type-constrained
-allocation.
-Expected columns:
-\itemize{
-\item \code{lon}, \code{lat}: Cell centre coordinates.
-\item \code{year}: Integer year.
-\item \code{luh2_type}: LUH2 crop type (\code{c3ann}, \code{c4ann}, \code{c3per},
-or \code{c3nfx}).
-\item \code{type_ha}: Cropland hectares for this type.
-\item \code{type_irrig_ha}: Irrigated hectares for this type.
-If \code{NULL}, falls back to total cropland (original behaviour).
-}}
-
-\item{type_mapping}{A tibble mapping each crop to its LUH2 type.
-Expected columns:
-\itemize{
-\item \code{item_prod_code}: FAOSTAT item code.
-\item \code{luh2_type}: LUH2 crop type.
-If \code{NULL}, type-aware allocation is disabled even when
-\code{type_cropland} is provided.
-}}
-
-\item{multicropping}{A tibble with per-cell multi-cropping
-suitability factors. Expected columns:
-\itemize{
-\item \code{lon}, \code{lat}: Cell coordinates.
-\item \code{mc_rainfed}: Rainfed suitability factor (default 1).
-\item \code{mc_irrigated}: Irrigated suitability factor (default 1).
-If \code{NULL}, no capacity constraint is applied. The capacity
-constraint path is exercised by the test suite but not yet
-wired into the package pipeline; a future PR (P1 in
-\code{docs/SPATIALIZE_UPGRADE_PLAN.md}) will plug in GAEZ-derived
-multi-cropping suitability.
-}}
-
-\item{years}{Integer vector of years to spatialize. If \code{NULL}
+\item \code{years}: Integer vector of years to spatialize. If \code{NULL}
 (default), all years present in \code{country_areas} are processed.
 When supplied, \code{country_areas}, \code{gridded_cropland}, and
-\code{type_cropland} are filtered to this set before processing.}
-
-\item{max_iterations}{Maximum iterations for the redistribution
-loop. Default: \code{1000L}.}
-
-\item{expansion_threshold}{Iteration number after which crops are
+\code{type_cropland} are filtered to this set before processing.
+\item \code{cft_mapping}: A tibble mapping FAOSTAT items to CFT names
+(\code{item_prod_code}, \code{cft_name}). If \code{NULL}, no CFT aggregation
+is performed and individual crop results are returned.
+\item \code{type_cropland}: A tibble with per-cell, per-year, per-type
+cropland (\code{lon}, \code{lat}, \code{year}, \code{luh2_type}, \code{type_ha},
+\code{type_irrig_ha}). When provided alongside \code{type_mapping},
+each crop is allocated only into cells containing its LUH2
+type. If \code{NULL}, falls back to total cropland.
+\item \code{type_mapping}: A tibble (\code{item_prod_code}, \code{luh2_type}) that
+maps each crop to its LUH2 type. If \code{NULL}, type-aware
+allocation is disabled even when \code{type_cropland} is provided.
+\item \code{multicropping}: A tibble (\code{lon}, \code{lat}, \code{mc_rainfed},
+\code{mc_irrigated}) with per-cell multi-cropping suitability
+factors. The capacity-constraint path is exercised by the
+test suite but not yet wired into the package pipeline (P1
+in \code{docs/SPATIALIZE_UPGRADE_PLAN.md}).
+\item \code{max_iterations}: Maximum iterations for the redistribution
+loop. Default: \code{1000L}.
+\item \code{expansion_threshold}: Iteration number after which crops are
 allowed to expand into cells without an existing pattern.
-Default: \code{100L}.}
+Default: \code{100L}.
+}}
 }
 \value{
 A tibble with gridded crop (or CFT) harvested areas.
@@ -194,6 +159,7 @@ country_grid <- tibble::tribble(
    0.75, 50.25,         1L
 )
 build_gridded_landuse(
-  country_areas, crop_patterns, gridded_cropland, country_grid
+  country_areas, crop_patterns, gridded_cropland, country_grid,
+  config = list(years = 2000L)
 )
 }
