@@ -43,20 +43,20 @@ t0 <- proc.time()
 whep::run_spatialize(
   preset = "lpjml",
   years = benchmarks,
-  out_dir = file.path(base_out, "lpjml")
+  paths = list(out_dir = file.path(base_out, "lpjml"))
 )
 
 whep::run_spatialize(
   preset = "whep",
   years = benchmarks,
-  out_dir = file.path(base_out, "whep")
+  paths = list(out_dir = file.path(base_out, "whep"))
 )
 
 whep::run_spatialize(
   preset = "lpjml",
   years = benchmarks,
   overrides = list(use_type_constraint = TRUE),
-  out_dir = file.path(base_out, "lpjml_typeaware")
+  paths = list(out_dir = file.path(base_out, "lpjml_typeaware"))
 )
 
 elapsed <- (proc.time() - t0)[["elapsed"]]

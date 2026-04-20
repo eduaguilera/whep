@@ -9,10 +9,7 @@ run_spatialize(
   years = NULL,
   components = c("landuse", "livestock"),
   overrides = list(),
-  cft_target = NULL,
-  input_dir = NULL,
-  out_dir = NULL,
-  l_files_dir = NULL
+  paths = list()
 )
 }
 \arguments{
@@ -30,7 +27,7 @@ Defaults to \code{c("landuse", "livestock")}. Pass a subset to run
 only one (e.g. \code{"landuse"}). Unknown entries raise an error.}
 
 \item{overrides}{Named list of flags that override the preset.
-Recognised entries:
+Unknown keys raise an error. Recognised entries:
 \itemize{
 \item \code{use_type_constraint} (logical): enable/disable LUH2
 type-aware allocation.
@@ -38,25 +35,26 @@ type-aware allocation.
 CFT-aggregated parquet alongside the crop-level output.
 \item \code{max_iterations}, \code{expansion_threshold}: forwarded to the
 landuse engine.
+\item \code{cft_target}: one of \code{"whep"} (default for
+\code{preset = "whep"}) or \code{"lpjml"} (default for
+\code{preset = "lpjml"}). Selects which column of
+\code{cft_mapping.csv} drives CFT aggregation: \code{cft_name}
+(granular 33-class WHEP taxonomy) or \code{cft_lpjml}
+(12 LPJmL crop CFTs + single \code{others} bucket).
 }}
 
-\item{cft_target}{One of \code{"whep"} (default for \code{preset = "whep"})
-or \code{"lpjml"} (default for \code{preset = "lpjml"}). Selects which
-column of \code{cft_mapping.csv} to use for CFT-level aggregation:
-\code{cft_name} (granular 33-class WHEP taxonomy) or \code{cft_lpjml}
-(12 LPJmL crop CFTs + single \code{others} bucket, matching LPJmL
-v6 band layout).}
-
-\item{input_dir}{Directory holding the prepared input parquets.
-If \code{NULL}, defaults to \verb{<l_files_dir>/whep/inputs}.}
-
-\item{out_dir}{Output directory. If \code{NULL}, defaults to
+\item{paths}{Named list of filesystem paths. Recognised entries
+(all optional):
+\itemize{
+\item \code{input_dir}: directory holding the prepared input parquets.
+If \code{NULL}, defaults to \verb{<l_files_dir>/whep/inputs}.
+\item \code{out_dir}: output directory. If \code{NULL}, defaults to
 \verb{<l_files_dir>/whep/spatialize/<preset>} (suffixed with
-\verb{_custom} when \code{overrides} is non-empty). Created if missing.}
-
-\item{l_files_dir}{Optional path to the \code{L_files} directory.
-If \code{NULL}, falls back to the \code{WHEP_L_FILES_DIR} environment
-variable.}
+\verb{_custom} when \code{overrides} is non-empty). Created if missing.
+\item \code{l_files_dir}: optional path to the \code{L_files} root. If
+\code{NULL}, falls back to the \code{WHEP_L_FILES_DIR} environment
+variable.
+}}
 }
 \value{
 Invisibly, a named list with \code{preset}, resolved \code{config},

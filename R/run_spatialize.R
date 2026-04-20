@@ -24,27 +24,29 @@
 #'   Defaults to `c("landuse", "livestock")`. Pass a subset to run
 #'   only one (e.g. `"landuse"`). Unknown entries raise an error.
 #' @param overrides Named list of flags that override the preset.
-#'   Recognised entries:
+#'   Unknown keys raise an error. Recognised entries:
 #'   - `use_type_constraint` (logical): enable/disable LUH2
 #'     type-aware allocation.
 #'   - `aggregate_to_cft` (logical, default `TRUE`): write a
 #'     CFT-aggregated parquet alongside the crop-level output.
 #'   - `max_iterations`, `expansion_threshold`: forwarded to the
 #'     landuse engine.
-#' @param cft_target One of `"whep"` (default for `preset = "whep"`)
-#'   or `"lpjml"` (default for `preset = "lpjml"`). Selects which
-#'   column of `cft_mapping.csv` to use for CFT-level aggregation:
-#'   `cft_name` (granular 33-class WHEP taxonomy) or `cft_lpjml`
-#'   (12 LPJmL crop CFTs + single `others` bucket, matching LPJmL
-#'   v6 band layout).
-#' @param input_dir Directory holding the prepared input parquets.
-#'   If `NULL`, defaults to `<l_files_dir>/whep/inputs`.
-#' @param out_dir Output directory. If `NULL`, defaults to
-#'   `<l_files_dir>/whep/spatialize/<preset>` (suffixed with
-#'   `_custom` when `overrides` is non-empty). Created if missing.
-#' @param l_files_dir Optional path to the `L_files` directory.
-#'   If `NULL`, falls back to the `WHEP_L_FILES_DIR` environment
-#'   variable.
+#'   - `cft_target`: one of `"whep"` (default for
+#'     `preset = "whep"`) or `"lpjml"` (default for
+#'     `preset = "lpjml"`). Selects which column of
+#'     `cft_mapping.csv` drives CFT aggregation: `cft_name`
+#'     (granular 33-class WHEP taxonomy) or `cft_lpjml`
+#'     (12 LPJmL crop CFTs + single `others` bucket).
+#' @param paths Named list of filesystem paths. Recognised entries
+#'   (all optional):
+#'   - `input_dir`: directory holding the prepared input parquets.
+#'     If `NULL`, defaults to `<l_files_dir>/whep/inputs`.
+#'   - `out_dir`: output directory. If `NULL`, defaults to
+#'     `<l_files_dir>/whep/spatialize/<preset>` (suffixed with
+#'     `_custom` when `overrides` is non-empty). Created if missing.
+#'   - `l_files_dir`: optional path to the `L_files` root. If
+#'     `NULL`, falls back to the `WHEP_L_FILES_DIR` environment
+#'     variable.
 #'
 #' @return Invisibly, a named list with `preset`, resolved `config`,
 #'   `years`, `out_dir`, and `output_paths`.
@@ -130,28 +132,21 @@ run_spatialize <- function(
   years = NULL,
   components = c("landuse", "livestock"),
   overrides = list(),
-  cft_target = NULL,
-  input_dir = NULL,
-  out_dir = NULL,
-  l_files_dir = NULL
+  paths = list()
 ) {
   preset <- match.arg(preset)
   components <- .validate_components(components)
-  cft_target <- .resolve_cft_target(cft_target, preset)
   .validate_overrides(overrides)
-  config <- .resolve_spatialize_config(preset, overrides)
+  .validate_paths(paths)
+  cft_target <- .resolve_cft_target(overrides$cft_target, preset)
+  # Engine overrides = overrides minus cft_target (which affects
+  # aggregation target, not engine flags).
+  engine_overrides <- overrides[setdiff(names(overrides), "cft_target")]
+  config <- .resolve_spatialize_config(preset, engine_overrides)
 
-  l_files_dir <- .get_l_files_dir(l_files_dir)
-  if (is.null(input_dir)) {
-    input_dir <- file.path(l_files_dir, "whep", "inputs")
-  }
-  if (is.null(out_dir)) {
-    out_dir <- .default_spatialize_out_dir(
-      l_files_dir,
-      preset,
-      overrides
-    )
-  }
+  resolved <- .resolve_paths(paths, preset, overrides)
+  input_dir <- resolved$input_dir
+  out_dir <- resolved$out_dir
   dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
   .warn_if_out_dir_occupied(out_dir)
 
@@ -314,7 +309,49 @@ run_spatialize <- function(
     "use_type_constraint",
     "aggregate_to_cft",
     "max_iterations",
-    "expansion_threshold"
+    "expansion_threshold",
+    "cft_target"
+  )
+}
+
+.known_path_keys <- function() {
+  c("input_dir", "out_dir", "l_files_dir")
+}
+
+.validate_paths <- function(paths) {
+  if (length(paths) == 0L) {
+    return(invisible(NULL))
+  }
+  if (is.null(names(paths)) || any(names(paths) == "")) {
+    cli::cli_abort("{.arg paths} must be a fully named list.")
+  }
+  unknown <- setdiff(names(paths), .known_path_keys())
+  if (length(unknown) > 0L) {
+    cli::cli_abort(c(
+      "{length(unknown)} unknown {.arg paths} entr{?y/ies}:",
+      "x" = "{.val {unknown}}.",
+      "i" = "Known: {.val {(.known_path_keys())}}."
+    ))
+  }
+  invisible(NULL)
+}
+
+.resolve_paths <- function(paths, preset, overrides) {
+  l_files_dir <- .get_l_files_dir(paths$l_files_dir)
+  input_dir <- if (is.null(paths$input_dir)) {
+    file.path(l_files_dir, "whep", "inputs")
+  } else {
+    paths$input_dir
+  }
+  out_dir <- if (is.null(paths$out_dir)) {
+    .default_spatialize_out_dir(l_files_dir, preset, overrides)
+  } else {
+    paths$out_dir
+  }
+  list(
+    l_files_dir = l_files_dir,
+    input_dir = input_dir,
+    out_dir = out_dir
   )
 }
 

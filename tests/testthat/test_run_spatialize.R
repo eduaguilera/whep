@@ -272,9 +272,11 @@ testthat::test_that("run_spatialize(components = 'livestock') writes only livest
     preset = "whep",
     years = 2000L,
     components = "livestock",
-    input_dir = tmp_in,
-    out_dir = tmp_out,
-    l_files_dir = tmp_in
+    paths = list(
+      input_dir = tmp_in,
+      out_dir = tmp_out,
+      l_files_dir = tmp_in
+    )
   )
 
   testthat::expect_equal(result$components, "livestock")
