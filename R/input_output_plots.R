@@ -35,6 +35,8 @@ plot_input_output <- function(
       )
     )
 
+  residue_items <- c("Straw", "Other crop residues")
+
   production <- df_system |>
     dplyr::filter(
       Origin == system,
@@ -47,22 +49,25 @@ plot_input_output <- function(
           "export"
         )
     ) |>
-    dplyr::group_by(Year) |>
-    dplyr::summarise(MgN = sum(MgN, na.rm = TRUE), .groups = "drop") |>
-    dplyr::mutate(Type = "Production")
+    dplyr::mutate(
+      Type = dplyr::if_else(Item %in% residue_items, "Residues", "Production")
+    ) |>
+    dplyr::group_by(Year, Type) |>
+    dplyr::summarise(MgN = sum(MgN, na.rm = TRUE), .groups = "drop")
 
   input_sum <- inputs |>
     dplyr::group_by(Year) |>
     dplyr::summarise(Input_Total = sum(MgN), .groups = "drop")
 
   prod_sum <- production |>
-    dplyr::select(Year, Production = MgN)
+    dplyr::group_by(Year) |>
+    dplyr::summarise(Production = sum(MgN), .groups = "drop")
 
   surplus <- input_sum |>
     dplyr::left_join(prod_sum, by = "Year") |>
     dplyr::mutate(
       Production = dplyr::coalesce(Production, 0),
-      Surplus = Input_Total - Production
+      Surplus = pmax(Input_Total - Production, 0)
     ) |>
     dplyr::select(Year, Surplus) |>
     dplyr::mutate(Type = "Surplus")
@@ -94,7 +99,8 @@ plot_input_output <- function(
           "Deposition",
           "Urban",
           "Surplus",
-          "Production"
+          "Production",
+          "Residues"
         )
       )
     )
@@ -116,6 +122,7 @@ plot_input_output <- function(
         "Fixation" = "olivedrab4",
         "Deposition" = "gray40",
         "Surplus" = "slategray",
+        "Residues" = "goldenrod3",
         "Production" = "orange3"
       )
     ) +
@@ -286,9 +293,11 @@ plot_input_output_system <- function() {
       Destiny %in% c("population_food", "population_other_uses"),
       Origin %in% c("Cropland", "semi_natural_agroecosystems", "Livestock")
     ) |>
-    dplyr::group_by(Year) |>
-    dplyr::summarise(MgN = sum(MgN), .groups = "drop") |>
-    dplyr::mutate(Type = "Food")
+    dplyr::mutate(
+      Type = dplyr::if_else(Destiny == "population_food", "Food", "Other_uses")
+    ) |>
+    dplyr::group_by(Year, Type) |>
+    dplyr::summarise(MgN = sum(MgN), .groups = "drop")
 
   exports <- df |>
     dplyr::filter(Destiny == "export") |>
@@ -348,6 +357,7 @@ plot_input_output_system <- function() {
           "Surplus",
           "Feed",
           "Food",
+          "Other_uses",
           "Export"
         )
       )
@@ -371,6 +381,7 @@ plot_input_output_system <- function() {
         "Food_import" = "darkolivegreen3",
         "Feed" = "darkorange3",
         "Food" = "darkorange4",
+        "Other_uses" = "sandybrown",
         "Export" = "orange3",
         "Surplus" = "slategray"
       )
