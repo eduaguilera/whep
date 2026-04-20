@@ -155,77 +155,35 @@ run_spatialize <- function(
   dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
   .warn_if_out_dir_occupied(out_dir)
 
-  output_paths <- list()
   resolved_years <- if (!is.null(years)) {
     sort(unique(as.integer(years)))
   }
+  output_paths <- list()
 
   if ("landuse" %in% components) {
-    lu_inputs <- .load_landuse_inputs(input_dir, config)
-    if (is.null(resolved_years)) {
-      resolved_years <- .resolve_years(
-        years,
-        preset,
-        lu_inputs$country_areas
-      )
-    }
-    cli::cli_h2("Running spatialize: landuse")
-    cli::cli_alert_info(
-      "Preset: {.val {preset}} | years: {length(resolved_years)} \\
-      ({min(resolved_years)}-{max(resolved_years)}) | \\
-      type-aware: {.val {config$use_type_constraint}}"
+    step <- .run_landuse_step(
+      preset,
+      years,
+      resolved_years,
+      config,
+      cft_target,
+      input_dir,
+      out_dir
     )
-    result_crops <- build_gridded_landuse(
-      country_areas = lu_inputs$country_areas,
-      crop_patterns = lu_inputs$crop_patterns,
-      gridded_cropland = lu_inputs$gridded_cropland,
-      country_grid = lu_inputs$country_grid,
-      cft_mapping = NULL,
-      type_cropland = lu_inputs$type_cropland,
-      type_mapping = lu_inputs$type_mapping,
-      years = resolved_years,
-      max_iterations = config$max_iterations,
-      expansion_threshold = config$expansion_threshold
-    )
-    output_paths <- c(
-      output_paths,
-      .write_landuse_outputs(
-        result_crops,
-        lu_inputs$cft_mapping,
-        out_dir,
-        config,
-        cft_target = cft_target
-      )
-    )
+    resolved_years <- step$years
+    output_paths <- c(output_paths, step$paths)
   }
 
   if ("livestock" %in% components) {
-    ls_inputs <- .load_livestock_inputs(input_dir)
-    if (is.null(resolved_years)) {
-      resolved_years <- .resolve_years(
-        years,
-        preset,
-        dplyr::select(ls_inputs$livestock_data, year)
-      )
-    }
-    cli::cli_h2("Running spatialize: livestock")
-    cli::cli_alert_info(
-      "Preset: {.val {preset}} | years: {length(resolved_years)} \\
-      ({min(resolved_years)}-{max(resolved_years)})"
+    step <- .run_livestock_step(
+      preset,
+      years,
+      resolved_years,
+      input_dir,
+      out_dir
     )
-    gridded_livestock <- build_gridded_livestock(
-      livestock_data = ls_inputs$livestock_data,
-      gridded_pasture = ls_inputs$gridded_pasture,
-      gridded_cropland = ls_inputs$gridded_cropland,
-      country_grid = ls_inputs$country_grid,
-      species_proxy = ls_inputs$species_proxy,
-      manure_pattern = ls_inputs$manure_pattern,
-      years = resolved_years
-    )
-    output_paths <- c(
-      output_paths,
-      .write_livestock_outputs(gridded_livestock, out_dir)
-    )
+    resolved_years <- step$years
+    output_paths <- c(output_paths, step$paths)
   }
 
   .write_run_metadata(
@@ -254,6 +212,84 @@ run_spatialize <- function(
 }
 
 # --- Private helpers --------------------------------------------------------
+
+.run_landuse_step <- function(
+  preset,
+  years,
+  resolved_years,
+  config,
+  cft_target,
+  input_dir,
+  out_dir
+) {
+  lu_inputs <- .load_landuse_inputs(input_dir, config)
+  if (is.null(resolved_years)) {
+    resolved_years <- .resolve_years(years, preset, lu_inputs$country_areas)
+  }
+  cli::cli_h2("Running spatialize: landuse")
+  cli::cli_alert_info(
+    "Preset: {.val {preset}} | years: {length(resolved_years)} \\
+    ({min(resolved_years)}-{max(resolved_years)}) | \\
+    type-aware: {.val {config$use_type_constraint}}"
+  )
+  result_crops <- build_gridded_landuse(
+    country_areas = lu_inputs$country_areas,
+    crop_patterns = lu_inputs$crop_patterns,
+    gridded_cropland = lu_inputs$gridded_cropland,
+    country_grid = lu_inputs$country_grid,
+    cft_mapping = NULL,
+    type_cropland = lu_inputs$type_cropland,
+    type_mapping = lu_inputs$type_mapping,
+    years = resolved_years,
+    max_iterations = config$max_iterations,
+    expansion_threshold = config$expansion_threshold
+  )
+  list(
+    years = resolved_years,
+    paths = .write_landuse_outputs(
+      result_crops,
+      lu_inputs$cft_mapping,
+      out_dir,
+      config,
+      cft_target = cft_target
+    )
+  )
+}
+
+.run_livestock_step <- function(
+  preset,
+  years,
+  resolved_years,
+  input_dir,
+  out_dir
+) {
+  ls_inputs <- .load_livestock_inputs(input_dir)
+  if (is.null(resolved_years)) {
+    resolved_years <- .resolve_years(
+      years,
+      preset,
+      dplyr::select(ls_inputs$livestock_data, year)
+    )
+  }
+  cli::cli_h2("Running spatialize: livestock")
+  cli::cli_alert_info(
+    "Preset: {.val {preset}} | years: {length(resolved_years)} \\
+    ({min(resolved_years)}-{max(resolved_years)})"
+  )
+  gridded_livestock <- build_gridded_livestock(
+    livestock_data = ls_inputs$livestock_data,
+    gridded_pasture = ls_inputs$gridded_pasture,
+    gridded_cropland = ls_inputs$gridded_cropland,
+    country_grid = ls_inputs$country_grid,
+    species_proxy = ls_inputs$species_proxy,
+    manure_pattern = ls_inputs$manure_pattern,
+    years = resolved_years
+  )
+  list(
+    years = resolved_years,
+    paths = .write_livestock_outputs(gridded_livestock, out_dir)
+  )
+}
 
 .spatialize_presets <- function() {
   list(
