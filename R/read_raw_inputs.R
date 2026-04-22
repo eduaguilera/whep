@@ -110,17 +110,18 @@
 .download_pin_paths <- function(file_alias) {
   file_info <- .fetch_file_info(file_alias, whep::whep_inputs)
   version <- .choose_version(file_info$version, NULL)
+  pin_name <- if (!is.na(file_info$pin_name)) file_info$pin_name else file_alias
 
   tryCatch(
     .get_local_board() |>
-      pins::pin_download(file_alias, version = version),
+      pins::pin_download(pin_name, version = version),
     error = function(e) {
       tryCatch(
         file_info |>
           .get_remote_board() |>
-          pins::pin_download(file_alias, version = version),
+          pins::pin_download(pin_name, version = version),
         error = function(e) {
-          .get_cache_paths(file_info, file_alias, version, e)
+          .get_cache_paths(file_info, pin_name, version, e)
         }
       )
     }

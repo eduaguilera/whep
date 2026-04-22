@@ -1,6 +1,6 @@
 typology_kgha_lines <- function() {
   indicators <- create_typo_ts_plot()
-  npp_ygpit <- whep_read_file("npp-ygpit")
+  npp_ygpit <- whep_read_file("npp_ygpit")
 
   typologies_df <- indicators |>
     dplyr::select(year, province_name, Typology_base) |>

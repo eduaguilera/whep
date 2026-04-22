@@ -59,14 +59,14 @@ whep_read_file <- function(file_alias, type = "parquet", version = NULL) {
 
   paths <- tryCatch(
     .get_local_board() |>
-      pins::pin_download(file_alias, version = version),
+      pins::pin_download(pin_name, version = version),
     error = function(e) {
       tryCatch(
         file_info |>
           .get_remote_board() |>
-          pins::pin_download(file_alias, version = version),
+          pins::pin_download(pin_name, version = version),
         error = function(e) {
-          .get_cache_paths(file_info, file_alias, version, e)
+          .get_cache_paths(file_info, pin_name, version, e)
         }
       )
     }
@@ -92,16 +92,16 @@ whep_read_file <- function(file_alias, type = "parquet", version = NULL) {
 #' @examples
 #' whep_list_file_versions("read_example")
 whep_list_file_versions <- function(file_alias) {
-  board <- if (file_alias == "read_example") {
-    .get_local_board()
-  } else {
-    file_alias |>
-      .fetch_file_info(whep::whep_inputs) |>
-      .get_remote_board()
+  if (file_alias == "read_example") {
+    return(.get_local_board() |> pins::pin_versions(file_alias))
   }
 
-  board |>
-    pins::pin_versions(file_alias)
+  file_info <- .fetch_file_info(file_alias, whep::whep_inputs)
+  pin_name <- if (!is.na(file_info$pin_name)) file_info$pin_name else file_alias
+
+  file_info |>
+    .get_remote_board() |>
+    pins::pin_versions(pin_name)
 }
 
 .read_file <- function(paths, extension) {

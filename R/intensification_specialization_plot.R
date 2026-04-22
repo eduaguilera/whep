@@ -1,7 +1,7 @@
 intens_spec_plot <- function() {
   # ---- Load data ----
   flows <- create_n_prov_destiny()
-  npp_ygpit <- whep_read_file("npp-ygpit") |> dplyr::rename_with(tolower)
+  npp_ygpit <- whep_read_file("npp_ygpit") |> dplyr::rename_with(tolower)
 
   # ---- Area per province ----
   area_df <- npp_ygpit |>
@@ -132,7 +132,7 @@ intens_spec_plot <- function() {
 circ_intens_plot <- function() {
   # ---- Load data ----
   flows <- create_n_prov_destiny()
-  npp_ygpit <- whep_read_file("npp-ygpit") |> dplyr::rename_with(tolower)
+  npp_ygpit <- whep_read_file("npp_ygpit") |> dplyr::rename_with(tolower)
 
   # ---- Area per province ----
   area_df <- npp_ygpit |>
@@ -279,7 +279,7 @@ circ_intens_plot <- function() {
 circ_nue_traj_plot <- function() {
   # ---- Load data ----
   flows <- create_n_prov_destiny()
-  npp_ygpit <- whep_read_file("npp-ygpit") |> dplyr::rename_with(tolower)
+  npp_ygpit <- whep_read_file("npp_ygpit") |> dplyr::rename_with(tolower)
 
   # ---- Cropland area ----
   cropland_area <- npp_ygpit |>
@@ -573,10 +573,14 @@ circ_nue_crop_ts_plot <- function() {
       )
     ) +
     ggplot2::labs(
-      x = "Year",
-      y = "Percent (%)",
+      x = NULL,
+      y = "",
       color = "Indicator",
-      title = "Crop nitrogen use efficiency and circularity in Spain (1860-2021)"
+      title = "Crop N use efficiency and circularity in Spain (1860-2021)"
+    ) +
+    ggplot2::scale_y_continuous(
+      labels = scales::label_percent(scale = 1),
+      limits = c(0, 100)
     ) +
     ggplot2::theme_minimal() +
     ggplot2::theme(
@@ -600,7 +604,7 @@ circ_nue_crop_ts_plot <- function() {
 intens_spec_ts <- function() {
   # ---- Load data ----
   flows <- create_n_prov_destiny()
-  npp_ygpit <- whep_read_file("npp-ygpit") |> dplyr::rename_with(tolower)
+  npp_ygpit <- whep_read_file("npp_ygpit") |> dplyr::rename_with(tolower)
 
   # ---- Area per province ----
   area_df <- npp_ygpit |>
@@ -713,7 +717,7 @@ intens_spec_ts <- function() {
       )
     ) +
     ggplot2::labs(
-      x = "Year",
+      x = NULL,
       y = "Index (1860 = 100)",
       color = "Indicator",
       title = "Intensification and specialization in Spain (1860-2020)"
@@ -742,7 +746,7 @@ intens_spec_ts <- function() {
 yield_nue_trajectory_plot <- function() {
   # ---- Load data ----
   flows <- create_n_prov_destiny()
-  npp_ygpit <- whep_read_file("npp-ygpit") |> dplyr::rename_with(tolower)
+  npp_ygpit <- whep_read_file("npp_ygpit") |> dplyr::rename_with(tolower)
 
   # ---- Cropland area ----
   cropland_area <- npp_ygpit |>
@@ -842,7 +846,7 @@ yield_nue_trajectory_plot <- function() {
 intens_traj_plot <- function() {
   # ---- Load data ----
   flows <- create_n_prov_destiny()
-  npp_ygpit <- whep_read_file("npp-ygpit") |> dplyr::rename_with(tolower)
+  npp_ygpit <- whep_read_file("npp_ygpit") |> dplyr::rename_with(tolower)
 
   # ---- Cropland area ----
   cropland_area <- npp_ygpit |>
@@ -935,7 +939,7 @@ intens_traj_plot <- function() {
 intens_ts_plot <- function() {
   # ---- Load data ----
   flows <- create_n_prov_destiny()
-  npp_ygpit <- whep_read_file("npp-ygpit") |> dplyr::rename_with(tolower)
+  npp_ygpit <- whep_read_file("npp_ygpit") |> dplyr::rename_with(tolower)
 
   # ---- Cropland area ----
   cropland_area <- npp_ygpit |>
@@ -1015,7 +1019,7 @@ intens_ts_plot <- function() {
       )
     ) +
     ggplot2::labs(
-      x = "Year",
+      x = NULL,
       y = "kg N / ha",
       color = "Indicator",
       title = "N inputs and crop productivity in Spain (1860-2020)"
@@ -1110,7 +1114,6 @@ nue_fertilizer_timeseries_plot <- function() {
   df_long <- df |>
     tidyr::pivot_longer(
       cols = c(
-        NUE,
         synthetic_share,
         organic_share,
         fertilizer_dependency
@@ -1123,7 +1126,6 @@ nue_fertilizer_timeseries_plot <- function() {
   df_long$indicator <- factor(
     df_long$indicator,
     levels = c(
-      "NUE",
       "fertilizer_dependency",
       "synthetic_share",
       "organic_share"
@@ -1138,23 +1140,25 @@ nue_fertilizer_timeseries_plot <- function() {
     ggplot2::geom_line(size = 1.3) +
     ggplot2::scale_color_manual(
       values = c(
-        NUE = "#7570b3",
         fertilizer_dependency = "#e7298a",
         synthetic_share = "#d95f02",
         organic_share = "#1b9e77"
       ),
       labels = c(
-        NUE = "Nitrogen use efficiency (NUE)",
         fertilizer_dependency = "Fertilizer dependency",
         synthetic_share = "Mineral fertilizer share",
         organic_share = "Organic fertilizer share"
       )
     ) +
     ggplot2::labs(
-      x = "Year",
-      y = "Percent (%)",
+      x = NULL,
+      y = "",
       color = "Indicator",
-      title = "NUE and fertilizer dependency in Spanish cropland (1860-2021)"
+      title = "Fertilizer N dependency in Spanish cropland (1860-2021)"
+    ) +
+    ggplot2::scale_y_continuous(
+      labels = scales::label_percent(scale = 1),
+      limits = c(0, 100)
     ) +
     ggplot2::theme_minimal() +
     ggplot2::theme(
@@ -1244,8 +1248,8 @@ nue_fertilizer_trajectory_plot <- function() {
     ggplot2::geom_point(size = 3) +
     ggplot2::scale_color_viridis_c(option = "plasma") +
     ggplot2::labs(
-      x = "Nitrogen use efficiency (%)",
-      y = "Fertilizer dependency (%)",
+      x = "N use efficiency",
+      y = "Fertilizer dependency",
       color = "Year",
       title = "NUE and fertilizer dependency trajectory in Spanish cropland (1860-2021)"
     ) +
@@ -1348,9 +1352,13 @@ nrr_cropland_timeseries_plot <- function() {
       size = 1.3
     ) +
     ggplot2::labs(
-      x = "Year",
-      y = "Nitrogen recycling rate (%)",
-      title = "Nitrogen recycling rate (NRR) in Spanish cropland (1860-2021)"
+      x = NULL,
+      y = "",
+      title = "N recycling rate (NRR) in Spanish cropland (1860-2021)"
+    ) +
+    ggplot2::scale_y_continuous(
+      labels = scales::label_percent(scale = 1),
+      limits = c(0, 100)
     ) +
     ggplot2::theme_minimal() +
     ggplot2::theme(
@@ -1442,10 +1450,11 @@ production_diversity_plot <- function() {
       size = 1.3
     ) +
     ggplot2::labs(
-      x = "Year",
+      x = NULL,
       y = "Shannon index",
       title = "Production diversity (Shannon index) in Spain (1860-2021)"
     ) +
+    ggplot2::scale_y_continuous(limits = c(0, 1)) +
     ggplot2::theme_minimal()
 
   print(p)
@@ -1455,7 +1464,7 @@ production_diversity_plot <- function() {
 
 intens_spec_sec_axis <- function() {
   flows <- create_n_prov_destiny()
-  npp_ygpit <- whep_read_file("npp-ygpit") |> dplyr::rename_with(tolower)
+  npp_ygpit <- whep_read_file("npp_ygpit") |> dplyr::rename_with(tolower)
 
   items <- readxl::read_excel(
     "C:/PhD/GRAFS/Inputs_SACO/Codes_coefs.xlsx",
@@ -1564,7 +1573,7 @@ intens_spec_sec_axis <- function() {
       )
     ) +
     ggplot2::labs(
-      x = "Year",
+      x = NULL,
       color = "Indicator",
       title = "Intensification and production specialization in Spain (1860-2021)"
     ) +
@@ -1637,7 +1646,7 @@ spatial_diversity <- function() {
   ) +
     ggplot2::geom_line(color = "#1b9e77", size = 1.3) +
     ggplot2::labs(
-      x = "Year",
+      x = NULL,
       y = "Spatial diversity (Shannon index)",
       title = "Spatial diversity of agricultural production in Spain"
     ) +
@@ -1710,10 +1719,11 @@ spec_hhi_prod_plot <- function() {
       color = "#377eb8",
       size = 1.3
     ) +
+    ggplot2::scale_y_continuous(limits = c(0, 1)) +
     ggplot2::labs(
-      x = "Year",
-      y = "HHI index (Specialization)",
-      title = "Specialization of agricultural production systems (cropland, livestock, semi-natural agroecosystems) in Spain (1860-2021)"
+      x = NULL,
+      y = "HHI index",
+      title = "HHI index of N production in cropland, livestock, semi-natural agroecosystems in Spain (1860-2021)"
     ) +
     ggplot2::theme_minimal() +
     ggplot2::theme(
@@ -1781,10 +1791,14 @@ system_shares_plot <- function() {
       )
     ) +
     ggplot2::labs(
-      x = "Year",
-      y = "Share of production",
+      x = NULL,
+      y = "",
       fill = "System",
       title = "Relative contribution of production in cropland, livestock and semi-natural agroecosystems in Spain (1860-2021)"
+    ) +
+    ggplot2::scale_y_continuous(
+      labels = scales::percent_format(),
+      limits = c(0, 1)
     ) +
     ggplot2::theme_minimal()
 
@@ -1854,14 +1868,13 @@ ext_dep_plot_national <- function() {
       names_from = input_type,
       values_from = value_MgN,
       values_fill = 0
-    ) |>
+    )
+
+  df <- df |>
     dplyr::mutate(
-      # ---- Convert to GgN ----
       external_GgN = external / 1000,
       internal_GgN = internal / 1000,
       total_GgN = external_GgN + internal_GgN,
-
-      # ---- Indicator ----
       external_dependency = external_GgN / total_GgN
     )
 
@@ -1879,8 +1892,8 @@ ext_dep_plot_national <- function() {
       limits = c(0, 1)
     ) +
     ggplot2::labs(
-      x = "Year",
-      y = "External N dependency (%)",
+      x = NULL,
+      y = "External N dependency",
       title = "Dependence on external nitrogen inputs in Spain (1860-2021)"
     ) +
     ggplot2::theme_minimal() +
@@ -1893,16 +1906,22 @@ ext_dep_plot_national <- function() {
   # ---- Plot 2: Composition ----
   df_long <- df |>
     dplyr::select(year, external_GgN, internal_GgN) |>
+    dplyr::mutate(
+      total = external_GgN + internal_GgN,
+      external_share = external_GgN / total * 100,
+      internal_share = internal_GgN / total * 100
+    ) |>
+    dplyr::select(year, external_share, internal_share) |>
     tidyr::pivot_longer(
-      cols = c(external_GgN, internal_GgN),
+      cols = c(external_share, internal_share),
       names_to = "type",
       values_to = "value"
     ) |>
     dplyr::mutate(
       type = dplyr::recode(
         type,
-        external_GgN = "External inputs",
-        internal_GgN = "Internal recycling"
+        external_share = "External inputs",
+        internal_share = "Internal recycling"
       )
     )
 
@@ -1917,9 +1936,13 @@ ext_dep_plot_national <- function() {
         "Internal recycling" = "#1b9e77"
       )
     ) +
+    ggplot2::scale_y_continuous(
+      labels = scales::label_percent(scale = 1),
+      limits = c(0, 100)
+    ) +
     ggplot2::labs(
-      x = "Year",
-      y = "Nitrogen inputs (Gg N)",
+      x = NULL,
+      y = "Share of N inputs",
       fill = "Input type",
       title = "Composition of nitrogen inputs in Spain"
     ) +

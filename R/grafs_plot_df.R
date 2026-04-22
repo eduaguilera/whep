@@ -301,7 +301,7 @@ create_grafs_plot_df <- function() {
 #'
 #' @noRd
 .create_livestock_lu_df <- function() {
-  livestock_lu <- whep_read_file("livestock-prod-ygps")
+  livestock_lu <- whep_read_file("livestock_prod_ygps")
 
   lu_factors <- c(
     Cattle_meat = 0.8,
@@ -1097,7 +1097,7 @@ create_grafs_plot_df <- function() {
 #'
 #' @noRd
 .create_animal_losses_df <- function(prov_destiny_df) {
-  n_excretion <- whep_read_file("n-excretion-ygs") |>
+  n_excretion <- whep_read_file("n_excretion_ygs") |>
     dplyr::select(
       Year,
       Province_name,
@@ -1198,7 +1198,7 @@ create_grafs_plot_df <- function() {
 #'
 #' @noRd
 .create_livestock_gas_loss_df <- function() {
-  df_livestock_gas_loss <- whep_read_file("n-excretion-ygs") |>
+  df_livestock_gas_loss <- whep_read_file("n_excretion_ygs") |>
     dplyr::group_by(Province_name, Year) |>
     dplyr::summarise(
       data = sum(N_excr_MgN * Loss_share, na.rm = TRUE),

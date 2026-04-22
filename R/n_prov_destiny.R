@@ -1,5 +1,4 @@
 #' @title GRAFS Nitrogen (N) flows
-#' @title GRAFS Nitrogen (N) flows
 #'
 #' @description
 #' Provides N flows of the spanish agro-food system on a provincial level
@@ -26,28 +25,19 @@
 #'   - `destiny`: The destiny category of N: population_food,
 #'   population_other_uses, livestock_mono, livestock_rum (feed), export,
 #'   Cropland (for N soil inputs).
-#'   - `mg_n`: Nitrogen amount in megagrams (Mg).
-#'
-#' @param example If `TRUE`, return a small example output without downloading
-#'   remote data. Default is `FALSE`.
+#'   - `MgN`: Nitrogen amount in megagrams (Mg).
 #'
 #' @export
-#'
-#' @examples
-#' create_n_prov_destiny(example = TRUE)
-create_n_prov_destiny <- function(example = FALSE) {
-  if (example) {
-    return(.example_create_n_prov_destiny())
-  }
+create_n_prov_destiny <- function() {
   codes_coefs_items_full <- whep_read_file("codes_coefs_items_full")
   biomass_coefs <- whep_read_file("biomass_coefs")
-  pie_full_destinies_fm <- whep_read_file("pie-full-destinies-fm-old")
+  pie_full_destinies_fm <- whep_read_file("pie_full_destinies_fm")
   processed_prov_fixed <- whep_read_file("processed_prov_fixed")
-  livestock_prod_ygps <- whep_read_file("livestock-prod-ygps")
-  crop_area_npp_no_fallow <- whep_read_file("crop-area-npp-ygpitr-no-fallow")
-  npp_ygpit <- whep_read_file("npp-ygpit")
+  livestock_prod_ygps <- whep_read_file("livestock_prod_ygps")
+  crop_area_npp_no_fallow <- whep_read_file("crop_area_npp_ygpitr_no_fallow")
+  npp_ygpit <- whep_read_file("npp_ygpit")
   codes_coefs <- whep_read_file("codes_coefs")
-  intake_ygiac <- whep_read_file("intake-ygiac")
+  intake_ygiac <- whep_read_file("intake_ygiac")
   population_yg <- whep_read_file("population_yg")
   n_balance_ygpit_all <- whep_read_file("n_balance_ygpit_all") |>
     dplyr::filter(Year <= 2021)
@@ -94,18 +84,18 @@ create_n_prov_destiny <- function(example = FALSE) {
     ) |>
     .add_n_soil_inputs(n_soil_inputs) |>
     dplyr::select(
-      Year,
-      Province_name,
-      Item,
-      Irrig_cat,
-      Box,
-      Origin,
-      Destiny,
-      MgN
+      year = Year,
+      province_name = Province_name,
+      item = Item,
+      irrig_cat = Irrig_cat,
+      box = Box,
+      origin = Origin,
+      destiny = Destiny,
+      mg_n = MgN
     )
 }
 
-#' @title GRAFS Nitrogen (N) flows at Spain national level
+#' @title GRAFS Nitrogen (N) flows – National Spain
 #'
 #' @description
 #' Provides N flows of the Spanish agro-food system on a national level
@@ -115,35 +105,22 @@ create_n_prov_destiny <- function(example = FALSE) {
 #' inputs are aggregated nationally before calculating trade with the
 #' outside.
 #'
-#' @param example If `TRUE`, return a small example output without downloading
-#'   remote data. Default is `FALSE`.
-#'
 #' @return
 #' A final tibble containing national N flow data by origin and destiny.
-#' It includes the following columns:
-#'   - `year`: The year in which the recorded event occurred.
-#'   - `item`: The item which was produced, defined in `names_biomass_cb`.
-#'   - `irrig_cat`: Irrigation form (irrigated or rainfed)
-#'   - `box`: One of the GRAFS model systems: cropland,
-#'   Semi-natural agroecosystems, Livestock, Fish, or Agro-industry.
-#'   - `origin`: The origin category of N: Cropland,
-#'   Semi-natural agroecosystems, Livestock, Fish, Agro-industry, Deposition,
-#'   Fixation, Synthetic, People (waste water), Livestock (manure).
-#'   - `destiny`: The destiny category of N: population_food,
-#'   population_other_uses, livestock_mono, livestock_rum (feed), export,
-#'   Cropland (for N soil inputs).
-#'   - `mg_n`: Nitrogen amount in megagrams (Mg).
-#'   - `province_name`: Set to "Spain" for all national-level rows.
 #'
 #' @export
-#'
-#' @examples
-#' create_n_nat_destiny(example = TRUE)
-create_n_nat_destiny <- function(example = FALSE) {
-  if (example) {
-    return(.example_create_n_nat_destiny())
-  }
-  prov <- create_n_prov_destiny()
+create_n_nat_destiny <- function() {
+  prov <- create_n_prov_destiny() |>
+    dplyr::rename(
+      Year = year,
+      Province_name = province_name,
+      Item = item,
+      Irrig_cat = irrig_cat,
+      Box = box,
+      Origin = origin,
+      Destiny = destiny,
+      MgN = mg_n
+    )
 
   prov_lookup <- prov |>
     dplyr::group_by(Item, Box, Irrig_cat) |>
@@ -268,7 +245,7 @@ create_n_nat_destiny <- function(example = FALSE) {
 
   imports <- nat_balance |>
     dplyr::filter(import > 0) |>
-    dplyr::left_join(nat_shares, by = c("year", "item")) |>
+    dplyr::left_join(nat_shares, by = c("Year", "Item")) |>
     dplyr::mutate(
       share = dplyr::coalesce(share, 0),
       MgN = import * share,
@@ -278,14 +255,14 @@ create_n_nat_destiny <- function(example = FALSE) {
     dplyr::left_join(prov_lookup, by = "Item") |>
     dplyr::filter(MgN > 0) |>
     dplyr::select(
-      year,
-      province_name,
-      item,
-      irrig_cat,
-      box,
-      origin,
-      destiny,
-      mg_n
+      Year,
+      Province_name,
+      Item,
+      Irrig_cat,
+      Box,
+      Origin,
+      Destiny,
+      MgN
     )
 
   export_shares <- nat_production_detail |>
@@ -368,7 +345,17 @@ create_n_nat_destiny <- function(example = FALSE) {
     )
 
   dplyr::bind_rows(nat_local_detail, nat_soil_inputs, exports, imports) |>
-    dplyr::arrange(Year, Item, Origin, Destiny)
+    dplyr::arrange(Year, Item, Origin, Destiny) |>
+    dplyr::rename(
+      year = Year,
+      province_name = Province_name,
+      item = Item,
+      irrig_cat = Irrig_cat,
+      box = Box,
+      origin = Origin,
+      destiny = Destiny,
+      mg_n = MgN
+    )
 }
 
 
@@ -900,7 +887,6 @@ create_n_nat_destiny <- function(example = FALSE) {
 #' @noRd
 .add_feed <- function(feed_intake) {
   feed_wide <- feed_intake |>
-    dplyr::rename(Item = item_cbs, FM_Mg = intake_MgFM) |>
     dplyr::mutate(
       Livestock_type = dplyr::case_when(
         Livestock_cat %in%

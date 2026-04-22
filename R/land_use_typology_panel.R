@@ -1,6 +1,6 @@
 province_landuse_n_inputs_plot <- function(year_plot = 1980) {
   n_flows <- create_n_prov_destiny()
-  area <- whep_read_file("npp-ygpit") |> dplyr::rename_with(tolower)
+  area <- whep_read_file("npp_ygpit") |> dplyr::rename_with(tolower)
   indicators <- create_typologies_spain(make_map = FALSE)
 
   inputs <- n_flows |>
@@ -174,7 +174,7 @@ province_landuse_n_inputs_plot <- function(year_plot = 1980) {
 prov_all_lu_n_inputs_plot <- function(year_plot = 1980) {
   n_balance <- whep_read_file("n-balance-ygpit-all") |>
     dplyr::rename_with(tolower)
-  area <- whep_read_file("npp-ygpit") |> dplyr::rename_with(tolower)
+  area <- whep_read_file("npp_ygpit") |> dplyr::rename_with(tolower)
   indicators <- create_typologies_spain(make_map = FALSE)
 
   inputs <- n_balance |>

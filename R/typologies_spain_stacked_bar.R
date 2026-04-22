@@ -132,5 +132,5 @@ typology_stacked_bars <- function() {
   print(p_total)
   print(p_pct)
 
-  list(total = df_total, pct = df_pct)
+  list(total = df_total, pct = df_pct, p_total = p_total, p_pct = p_pct)
 }

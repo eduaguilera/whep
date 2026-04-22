@@ -97,6 +97,23 @@ create_n_soil_inputs <- function(example = FALSE) {
     Box_semi_natural_agroecosystems = "semi_natural_agroecosystems"
   )
 
+  n_balance_old <- whep_read_file("n_balance_ygpit_all_old")
+
+  excreta_old <- n_balance_old |>
+    dplyr::group_by(Year, Province_name, Name_biomass, LandUse, Irrig_cat) |>
+    dplyr::summarise(
+      Excreta_old = sum(Excreta, na.rm = TRUE),
+      .groups = "drop"
+    )
+
+  n_balance_ygpit_all <- n_balance_ygpit_all |>
+    dplyr::left_join(
+      excreta_old,
+      by = c("Year", "Province_name", "Name_biomass", "LandUse", "Irrig_cat")
+    ) |>
+    dplyr::mutate(Excreta = dplyr::coalesce(Excreta_old, 0)) |>
+    dplyr::select(-Excreta_old)
+
   # Combine all necessary n Inputs
   n_soil_inputs <- n_balance_ygpit_all |>
     dplyr::left_join(items, by = "Name_biomass") |>
@@ -111,7 +128,7 @@ create_n_soil_inputs <- function(example = FALSE) {
       deposition = sum(Deposition, na.rm = TRUE),
       fixation = sum(BNF, na.rm = TRUE),
       synthetic = sum(Synthetic, na.rm = TRUE),
-      manure = sum(Solid + Liquid, na.rm = TRUE),
+      manure = sum(Excreta + Solid + Liquid, na.rm = TRUE),
       urban = sum(Urban, na.rm = TRUE),
       .by = c(Year, Province_name, Item, Irrig_cat, Box)
     ) |>
@@ -288,7 +305,7 @@ calculate_nue_livestock <- function(example = FALSE) {
   if (example) {
     return(.ex_calc_nue_livestock())
   }
-  intake_n <- whep_read_file("intake-ygiac") |>
+  intake_n <- whep_read_file("intake_ygiac") |>
     dplyr::rename_with(tolower) |>
     dplyr::rename(n_mg_n = n_mgn) |>
     dplyr::filter(livestock_cat != "Pets") |>
@@ -298,7 +315,7 @@ calculate_nue_livestock <- function(example = FALSE) {
       .groups = "drop"
     )
 
-  prod_n <- whep_read_file("livestock-prod-ygps") |>
+  prod_n <- whep_read_file("livestock_prod_ygps") |>
     dplyr::rename_with(tolower) |>
     dplyr::filter(!is.na(prod_mgn)) |>
     dplyr::group_by(year, province_name, livestock_cat, item) |>
@@ -307,7 +324,7 @@ calculate_nue_livestock <- function(example = FALSE) {
       .groups = "drop"
     )
 
-  excretion_n <- whep_read_file("n-excretion-ygs") |>
+  excretion_n <- whep_read_file("n_excretion_ygs") |>
     dplyr::rename_with(tolower) |>
     dplyr::filter(livestock_cat != "Pets") |>
     dplyr::group_by(year, province_name, livestock_cat) |>
@@ -389,7 +406,7 @@ calculate_system_nue <- function(
 
   total_outputs <- dplyr::bind_rows(
     whep_read_file("n-balance-ygpit-all"),
-    whep_read_file("livestock-prod-ygps")
+    whep_read_file("livestock_prod_ygps")
   ) |>
     dplyr::rename_with(tolower) |>
     dplyr::group_by(year, province_name) |>

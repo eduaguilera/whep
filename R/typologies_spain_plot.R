@@ -7,8 +7,8 @@ create_typo_ts_plot <- function(
     n_prov_destiny <- create_n_prov_destiny()
   }
 
-  livestock_prod_ygps <- whep_read_file("livestock-prod-ygps")
-  npp_ygpit <- whep_read_file("npp-ygpit")
+  livestock_prod_ygps <- whep_read_file("livestock_prod_ygps")
+  npp_ygpit <- whep_read_file("npp_ygpit")
 
   lu_mapping <- tibble::tribble(
     ~Animal_class,   ~LU_head,
@@ -157,12 +157,12 @@ create_typo_ts_plot <- function(
         production_seminatural > production_crops ~
           "Semi-natural agroecosystems",
         production_crops > animal_ingestion &
-          synthetic_share > 0.2 &
-          crop_productivity >= 15 ~
+          synthetic_share > 0.3 &
+          crop_productivity >= 20 ~
           "Specialized cropping systems (intensive)",
         production_crops > animal_ingestion &
-          synthetic_share <= 0.2 &
-          crop_productivity < 15 ~
+          synthetic_share <= 0.3 &
+          crop_productivity < 20 ~
           "Specialized cropping systems (extensive)",
         Livestock_density > 1.3 &
           imported_feed_share > 0.6 &
@@ -173,11 +173,11 @@ create_typo_ts_plot <- function(
           imported_feed_share > 0.6 &
           feed_from_seminatural_share < 0.4 ~
           "Specialized livestock systems (extensive)",
-        local_feed_share > 0.3 & Manure_share > 0.13 & crop_productivity >= 40 ~
+        local_feed_share > 0.3 & Manure_share > 0.3 & crop_productivity >= 40 ~
           "Connected crop-livestock systems (intensive)",
-        local_feed_share > 0.3 & Manure_share > 0.13 & crop_productivity < 40 ~
+        local_feed_share > 0.3 & Manure_share > 0.3 & crop_productivity < 40 ~
           "Connected crop-livestock systems (extensive)",
-        local_feed_share < 0.2 & Manure_share < 0.13 & synthetic_share > 0.4 ~
+        local_feed_share < 0.3 & Manure_share < 0.2 & synthetic_share > 0.4 ~
           "Disconnected crop-livestock systems (intensive)",
         TRUE ~ "Disconnected crop-livestock systems (extensive)"
       ),
