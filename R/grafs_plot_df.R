@@ -160,6 +160,7 @@ create_grafs_plot_df <- function() {
     "{GRASS_SURPLUS}",
     "{LIVGASLOSS}",
     "{WASTEWATER}",
+    "{ORGOT}",
     "{CRPLNDTOTN}",
     "{GREHN}",
     "{FORN}",
@@ -940,13 +941,16 @@ create_grafs_plot_df <- function() {
         origin == "semi_natural_agroecosystems" &
           destiny %in% c("livestock_rum", "livestock_mono") ~
           "{GRASS_TO_LIVESTOCK}",
+        origin == "People" & destiny == "Cropland" ~ "{ORGOT}",
         TRUE ~ NA_character_
       )
     ) |>
     dplyr::filter(!is.na(label)) |>
     dplyr::group_by(province_name, year, label) |>
     dplyr::summarise(data = sum(mg_n, na.rm = TRUE), .groups = "drop") |>
-    dplyr::mutate(align = "L") |>
+    dplyr::mutate(
+      align = dplyr::if_else(label == "{ORGOT}", "R", "L")
+    ) |>
     dplyr::rename(province = province_name, year = year) |>
     tidyr::complete(
       province = unique(prov_destiny_df$province_name),
@@ -956,7 +960,8 @@ create_grafs_plot_df <- function() {
         "{CROPS_TO_POP}",
         "{CROPS_TO_LIVESTOCK}",
         "{LIVESTOCK_TO_HUMAN}",
-        "{GRASS_TO_LIVESTOCK}"
+        "{GRASS_TO_LIVESTOCK}",
+        "{ORGOT}"
       ),
       fill = list(data = 0, align = "L")
     )
@@ -1163,12 +1168,11 @@ create_grafs_plot_df <- function() {
       year,
       province_name,
       livestock_cat,
-      gross_prod_ggn,
-      net_prod_ggn
+      n_excr_mgn
     ) |>
     dplyr::distinct() |>
     dplyr::mutate(
-      `{AN_LS}` = (gross_prod_ggn - net_prod_ggn) * 1e3
+      `{AN_LS}` = n_excr_mgn
     ) |>
     dplyr::group_by(province_name, year) |>
     dplyr::summarise(

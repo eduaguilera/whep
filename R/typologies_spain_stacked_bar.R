@@ -12,7 +12,7 @@ typology_stacked_bars <- function() {
   soil_inputs <- n_prov_destiny |>
     dplyr::filter(
       origin %in%
-        c("Deposition", "Fixation", "Synthetic", "Livestock", "People"),
+        c("Deposition", "Fixation", "Synthetic"),
       destiny %in% c("Cropland", "semi_natural_agroecosystems")
     )
 

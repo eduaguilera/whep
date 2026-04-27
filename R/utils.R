@@ -620,7 +620,7 @@ utils::globalVariables(
     "crop_input",
     "crop_output",
     "crop_productivity",
-    "excr_mgn",
+    "n_excr_mgn",
     "external",
     "external_GgN",
     "external_dependency",

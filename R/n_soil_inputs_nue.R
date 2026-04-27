@@ -329,7 +329,7 @@ calculate_nue_livestock <- function(example = FALSE) {
     dplyr::filter(livestock_cat != "Pets") |>
     dplyr::group_by(year, province_name, livestock_cat) |>
     dplyr::summarise(
-      excretion_n = sum(excr_mgn, na.rm = TRUE),
+      excretion_n = sum(n_excr_mgn, na.rm = TRUE),
       .groups = "drop"
     )
 

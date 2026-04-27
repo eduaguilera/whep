@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(\"C:/Users/Usuario/AppData/Local/Programs/R/R-4.4.3/bin/Rscript.exe\" -e \"devtools::load_all\\('.', quiet=TRUE\\); df <- whep_read_file\\('n_excretion_ygs'\\); cat\\('Columns:', paste\\(names\\(df\\), collapse=', '\\), '\\\\n'\\); print\\(head\\(df, 2\\)\\)\")",
+      "Read(//c/Users/Usuario/AppData/Local/Programs/**)",
+      "Read(//c/Program Files/R//**)",
+      "Bash(ls /c/R*)",
+      "Bash('/c/Program Files/R/R-4.5.0/bin/Rscript.exe' -e ' *)",
+      "Bash('/c/Program Files/R/R-4.5.0/bin/Rscript.exe' -e 'suppressMessages\\(devtools::load_all\\('\\\\''.'\\\\''\\)\\); df <- whep_read_file\\('\\\\''livestock_prod_ygps'\\\\''\\); cat\\(sum\\(df[df$Year==2000,'\\\\''Prod_Mg'\\\\''], na.rm=TRUE\\), '\\\\''\\\\n'\\\\''\\); cat\\(sum\\(df[df$Year==2000,'\\\\''Prod_MgN'\\\\''], na.rm=TRUE\\), '\\\\''\\\\n'\\\\''\\)')",
+      "Bash('/c/Program Files/R/R-4.5.0/bin/Rscript.exe' --vanilla -e 'library\\(whep\\); df <- whep_read_file\\('\\\\''livestock_prod_ygps'\\\\''\\); sub <- df[df$Year==2000 & df$Province_name=='\\\\''Madrid'\\\\'' & df$Livestock_cat=='\\\\''Cattle_meat'\\\\'', c\\('\\\\''item_prod'\\\\'','\\\\''item_cbs'\\\\'','\\\\''Prod_Mg'\\\\'','\\\\''Prod_MgN'\\\\''\\)]; write.csv\\(sub, stderr\\(\\)\\)')",
+      "Bash('/c/Program Files/R/R-4.5.0/bin/Rscript.exe' --vanilla -e ' *)"
+    ]
+  }
+}

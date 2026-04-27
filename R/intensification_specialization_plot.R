@@ -1405,12 +1405,11 @@ production_diversity_plot <- function() {
           "livestock_mono",
           "export"
         ),
-      origin != "Outside",
-      !is.na(Cat_1)
+      origin != "Outside"
     )
 
   prod_group <- df |>
-    dplyr::group_by(year, province_name, Cat_1) |>
+    dplyr::group_by(year, province_name, item) |>
     dplyr::summarise(
       value = sum(mg_n, na.rm = TRUE),
       .groups = "drop"
@@ -1472,7 +1471,6 @@ intens_spec_sec_axis <- function() {
   )
 
   df_prod <- flows |>
-    dplyr::left_join(items, by = c("item" = "Name_biomass")) |>
     dplyr::filter(
       destiny %in%
         c(
@@ -1482,12 +1480,11 @@ intens_spec_sec_axis <- function() {
           "livestock_mono",
           "export"
         ),
-      origin != "Outside",
-      !is.na(Cat_1)
+      origin != "Outside"
     )
 
   prod_group <- df_prod |>
-    dplyr::group_by(year, province_name, Cat_1) |>
+    dplyr::group_by(year, province_name, item) |>
     dplyr::summarise(
       value = sum(mg_n, na.rm = TRUE),
       .groups = "drop"
@@ -1820,9 +1817,14 @@ ext_dep_plot_national <- function() {
         origin %in%
           c("Synthetic", "Fixation", "Deposition", "Livestock", "People")) |
 
-        # ---- Livestock feed ----
+        # ---- Livestock feed and population food ----
         (destiny %in%
-          c("livestock_mono", "livestock_rum") &
+          c(
+            "livestock_mono",
+            "livestock_rum",
+            "population_food",
+            "population_other_uses"
+          ) &
           origin %in% c("Cropland", "semi_natural_agroecosystems", "Outside"))
     ) |>
 
@@ -1837,7 +1839,13 @@ ext_dep_plot_national <- function() {
           "external",
 
         origin == "Outside" &
-          destiny %in% c("livestock_mono", "livestock_rum") ~
+          destiny %in%
+            c(
+              "livestock_mono",
+              "livestock_rum",
+              "population_food",
+              "population_other_uses"
+            ) ~
           "external",
 
         # Internal
@@ -1849,7 +1857,13 @@ ext_dep_plot_national <- function() {
 
         origin %in%
           c("Cropland", "semi_natural_agroecosystems") &
-          destiny %in% c("livestock_mono", "livestock_rum") ~
+          destiny %in%
+            c(
+              "livestock_mono",
+              "livestock_rum",
+              "population_food",
+              "population_other_uses"
+            ) ~
           "internal",
 
         TRUE ~ NA_character_
@@ -1911,6 +1925,7 @@ ext_dep_plot_national <- function() {
       external_share = external_GgN / total * 100,
       internal_share = internal_GgN / total * 100
     ) |>
+    dplyr::filter(is.finite(external_share), is.finite(internal_share)) |>
     dplyr::select(year, external_share, internal_share) |>
     tidyr::pivot_longer(
       cols = c(external_share, internal_share),
@@ -1929,7 +1944,7 @@ ext_dep_plot_national <- function() {
     df_long,
     ggplot2::aes(x = year, y = value, fill = type)
   ) +
-    ggplot2::geom_area(alpha = 0.9) +
+    ggplot2::geom_area(alpha = 0.9, na.rm = TRUE) +
     ggplot2::scale_fill_manual(
       values = c(
         "External inputs" = "#d95f02",

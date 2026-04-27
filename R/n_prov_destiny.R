@@ -51,7 +51,7 @@ create_n_prov_destiny <- function() {
 
   add_feed_output <- .add_feed(
     intake_ygiac |>
-      dplyr::filter(!Item %in% livestock_product_items)
+      dplyr::filter(!item_cbs %in% livestock_product_items)
   )
 
   prod_combined_boxes <- biomass_item_merged |>
@@ -391,6 +391,7 @@ create_n_nat_destiny <- function() {
 #' @noRd
 .summarise_crops_residues <- function(crop_area_npp_ygpitr_no_fallow) {
   crop_area_npp_prod_residue <- crop_area_npp_ygpitr_no_fallow |>
+    dplyr::rename(Item = item_cbs) |>
     dplyr::mutate(LandUse = "Cropland") |>
     dplyr::rename(prod_type = Product_residue) |>
     dplyr::group_by(
@@ -493,6 +494,7 @@ create_n_nat_destiny <- function() {
 #' @noRd
 .prepare_livestock_production <- function(livestock_prod_ygps) {
   livestock <- livestock_prod_ygps |>
+    dplyr::rename(Item = item_cbs) |>
     dplyr::select(
       Year,
       Province_name,
@@ -907,14 +909,15 @@ create_n_nat_destiny <- function() {
       )
     ) |>
     dplyr::summarise(
-      feed_amount = sum(FM_Mg, na.rm = TRUE),
-      .by = c("Year", "Province_name", "Item", "Livestock_type")
+      feed_amount = sum(intake_MgFM, na.rm = TRUE),
+      .by = c("Year", "Province_name", "item_cbs", "Livestock_type")
     ) |>
     tidyr::pivot_wider(
       names_from = Livestock_type,
       values_from = feed_amount,
       values_fill = 0
     ) |>
+    .ensure_livestock_cols() |>
     dplyr::mutate(
       ruminant = dplyr::coalesce(ruminant, 0),
       monogastric = dplyr::coalesce(monogastric, 0),
@@ -932,8 +935,10 @@ create_n_nat_destiny <- function() {
 
   list(
     feed_intake = feed_wide |>
+      dplyr::rename(Item = item_cbs) |>
       dplyr::select(Year, Province_name, Item, feed, food_pets),
     feed_share_rum_mono = feed_share_rum_mono |>
+      dplyr::rename(Item = item_cbs) |>
       dplyr::select(Year, Province_name, Item, share_rum, share_mono)
   )
 }
@@ -1664,4 +1669,9 @@ create_n_nat_destiny <- function() {
   ) |>
     dplyr::filter(MgN != 0) |>
     dplyr::arrange(Year, Province_name, Item, Irrig_cat, Origin, Destiny)
+}
+
+.ensure_livestock_cols <- function(df) {
+  missing <- setdiff(c("ruminant", "monogastric", "pets"), names(df))
+  dplyr::mutate(df, !!!purrr::map(rlang::set_names(missing), ~0))
 }
