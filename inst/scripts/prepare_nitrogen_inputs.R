@@ -1059,7 +1059,7 @@ grassland_items <- c("Pasture", "range")
     rename(iso3c = ISO3) |>
     left_join(regions |> select(iso3c, area_code), by = "iso3c") |>
     filter(!is.na(area_code)) |>
-    select(year, area_code, deposit_kg_n_ha)
+    select(year, area_code, deposit_kg_n_ha, nhx, noy)
 
   nanoparquet::write_parquet(dep, dep_file)
   cli::cli_alert_success(

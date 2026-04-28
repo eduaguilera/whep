@@ -13,13 +13,14 @@ devtools::load_all(".")
 
 # ---- Configuration ---------------------------------------------------
 
-l_files_dir <- "WHEP_LFILES_DIR"
+l_files_dir <- Sys.getenv("WHEP_LFILES_DIR")
 input_dir <- file.path(l_files_dir, "whep", "inputs")
 output_dir <- file.path(l_files_dir, "whep")
 
 # Subset of years to process (must be within the range used
 # in prepare_spatialize_inputs.R)
 year_range <- 1850L:2022L
+year_range <- 2000L:2001L
 
 # ---- Load inputs -----------------------------------------------------
 
@@ -356,14 +357,20 @@ if (file.exists(n_inputs_file)) {
       dplyr::select(items_prod, item_prod_code, item_prod_name),
       by = c("crop_name" = "item_prod_name")
     ) |>
-    dplyr::filter(!is.na(item_prod_code))
+    dplyr::filter(!is.na(item_prod_code)) |>
+    dplyr::summarize(
+      kg_n_ha = sum(kg_n_ha, na.rm = TRUE),
+      .by = c(year, area_code, item_prod_code, fert_type)
+    )
 
   # Join with gridded areas to get N application per cell
   gridded_n <- result_crops |>
     dplyr::inner_join(country_grid, by = c("lon", "lat")) |>
     dplyr::inner_join(
       n_rates,
-      by = c("year", "area_code", "item_prod_code")
+      by = c("year", "area_code", "item_prod_code"),
+      # Expected: each cell-year-crop joins multiple fertilizer types.
+      relationship = "many-to-many"
     )
 
   # Apply sub-national spatial variation (West/EarthStat pixel index)
