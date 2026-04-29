@@ -534,7 +534,7 @@ create_grafs_plot_df <- function() {
 #'
 #' @keywords internal
 .create_livestock_lu_df <- function() {
-  livestock_lu <- whep_read_file("livestock_prod_ygps") |>
+  livestock_lu <- whep_read_file("stock_prod_ygps") |>
     dplyr::rename_with(tolower)
   lu_lookup <- whep_read_file("livestock_units") |>
     dplyr::rename_with(tolower)

@@ -315,7 +315,7 @@ calculate_nue_livestock <- function(example = FALSE) {
       .groups = "drop"
     )
 
-  prod_n <- whep_read_file("livestock_prod_ygps") |>
+  prod_n <- whep_read_file("stock_prod_ygps") |>
     dplyr::rename_with(tolower) |>
     dplyr::filter(!is.na(prod_mgn)) |>
     dplyr::group_by(year, province_name, livestock_cat, item) |>
@@ -406,7 +406,7 @@ calculate_system_nue <- function(
 
   total_outputs <- dplyr::bind_rows(
     whep_read_file("n-balance-ygpit-all"),
-    whep_read_file("livestock_prod_ygps")
+    whep_read_file("stock_prod_ygps")
   ) |>
     dplyr::rename_with(tolower) |>
     dplyr::group_by(year, province_name) |>

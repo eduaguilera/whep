@@ -175,7 +175,7 @@ plot_input_output <- function(
 #' @export
 plot_input_output_livestock <- function(per_ha = FALSE) {
   data <- create_n_nat_destiny()
-  livestock_prod <- whep_read_file("livestock_prod_ygps")
+  livestock_prod <- whep_read_file("stock_prod_ygps")
   lu_area <- if (per_ha) {
     .get_area_national(whep_read_file("n_balance_ygpit_all"))
   } else {

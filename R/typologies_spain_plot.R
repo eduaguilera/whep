@@ -7,7 +7,7 @@ create_typo_ts_plot <- function(
     n_prov_destiny <- create_n_prov_destiny()
   }
 
-  livestock_prod_ygps <- whep_read_file("livestock_prod_ygps")
+  livestock_prod_ygps <- whep_read_file("stock_prod_ygps")
   npp_ygpit <- whep_read_file("npp_ygpit")
 
   lu_mapping <- tibble::tribble(
@@ -154,15 +154,15 @@ create_typo_ts_plot <- function(
   indicators <- indicators |>
     dplyr::mutate(
       Typology_base = dplyr::case_when(
-        production_seminatural > production_crops ~
+        production_seminatural > production_crops * 0.6 ~
           "Semi-natural agroecosystems",
         production_crops > animal_ingestion &
-          synthetic_share > 0.3 &
-          crop_productivity >= 20 ~
+          synthetic_share > 0.4 &
+          crop_productivity >= 10 ~
           "Specialized cropping systems (intensive)",
         production_crops > animal_ingestion &
-          synthetic_share <= 0.3 &
-          crop_productivity < 20 ~
+          synthetic_share <= 0.1 &
+          crop_productivity < 7 ~
           "Specialized cropping systems (extensive)",
         Livestock_density > 1.3 &
           imported_feed_share > 0.6 &
@@ -173,11 +173,11 @@ create_typo_ts_plot <- function(
           imported_feed_share > 0.6 &
           feed_from_seminatural_share < 0.4 ~
           "Specialized livestock systems (extensive)",
-        local_feed_share > 0.3 & Manure_share > 0.3 & crop_productivity >= 40 ~
+        local_feed_share > 0.3 & Manure_share > 0.3 & crop_productivity >= 30 ~
           "Connected crop-livestock systems (intensive)",
-        local_feed_share > 0.3 & Manure_share > 0.3 & crop_productivity < 40 ~
+        local_feed_share > 0.3 & Manure_share > 0.3 & crop_productivity < 30 ~
           "Connected crop-livestock systems (extensive)",
-        local_feed_share < 0.3 & Manure_share < 0.2 & synthetic_share > 0.4 ~
+        local_feed_share < 0.5 & Manure_share < 0.5 & synthetic_share > 0.1 ~
           "Disconnected crop-livestock systems (intensive)",
         TRUE ~ "Disconnected crop-livestock systems (extensive)"
       ),

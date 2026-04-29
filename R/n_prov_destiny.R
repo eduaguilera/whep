@@ -33,7 +33,7 @@ create_n_prov_destiny <- function() {
   biomass_coefs <- whep_read_file("biomass_coefs")
   pie_full_destinies_fm <- whep_read_file("pie_full_destinies_fm")
   processed_prov_fixed <- whep_read_file("processed_prov_fixed")
-  livestock_prod_ygps <- whep_read_file("livestock_prod_ygps")
+  livestock_prod_ygps <- whep_read_file("stock_prod_ygps")
   crop_area_npp_no_fallow <- whep_read_file("crop_area_npp_ygpitr_no_fallow")
   npp_ygpit <- whep_read_file("npp_ygpit")
   codes_coefs <- whep_read_file("codes_coefs")
@@ -902,7 +902,14 @@ create_n_nat_destiny <- function() {
           ) ~
           "ruminant",
         Livestock_cat %in%
-          c("Pigs", "Poultry", "Rabbits", "Fur animals", "Other") ~
+          c(
+            "Pigs",
+            "Poultry",
+            "Rabbits",
+            "Fur animals",
+            "Other",
+            "Other_birds"
+          ) ~
           "monogastric",
         Livestock_cat == "Pets" ~ "pets",
         TRUE ~ NA_character_
