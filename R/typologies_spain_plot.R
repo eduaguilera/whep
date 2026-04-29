@@ -395,3 +395,57 @@ create_typo_ts_plot <- function(
 
   indicators
 }
+
+create_typology_decision_tree <- function() {
+  DiagrammeR::grViz('
+  digraph decision_tree {
+    graph [rankdir=TB, fontname="Arial", nodesep=0.05, ranksep=0.5]
+    node [shape=rectangle, style=filled, fillcolor=white,
+          fontname="Arial", fontsize=10, margin="0.1,0.08"]
+    edge [fontname="Arial", fontsize=9]
+
+    q_urban    [label="Human consumption > Total agricultural production"]
+    q_semi     [label="Semi-natural production > Crop production x 0.6"]
+    q_crop     [label="Crop production > Animal ingestion"]
+    q_crop_int [label="Synthetic share > 40% & Crop productivity > 10 kg N/ha"]
+    q_ls_cond  [label="Livestock density > 1 LU/ha & Imported feed share > 60%\n& Feed from semi-natural share < 40%"]
+    q_ls_dens  [label="Livestock density > 1.3 LU/ha"]
+    q_conn     [label="Local feed share > 30% & Manure share > 30%"]
+    q_conn_pr  [label="Crop productivity > 30 kg N/ha"]
+    q_disc     [label="Local feed share < 50% & Manure share < 50%\n& Synthetic share > 10%"]
+
+    r_urban  [label="Urban system", fillcolor=white, fontcolor="#6A5ACD", color="#6A5ACD", style="dashed,filled", penwidth=2]
+    r_semi   [label="Semi-natural\nagroecosystem",             fillcolor="#66a61e",  fontcolor=white]
+    r_cr_int [label="Specialized cropping\n(intensive)",       fillcolor="#F7DD5A",  fontcolor=black]
+    r_cr_ext [label="Specialized cropping\n(extensive)",       fillcolor="#FFF7C2",  fontcolor=black]
+    r_ls_int [label="Specialized livestock\n(intensive)",      fillcolor="#b3001b",  fontcolor=white]
+    r_ls_ext [label="Specialized livestock\n(extensive)",      fillcolor="#C94F6B",  fontcolor=white]
+    r_co_int [label="Connected crop-livestock\n(intensive)",   fillcolor="#7A4F20",  fontcolor=white]
+    r_co_ext [label="Connected crop-livestock\n(extensive)",   fillcolor="#AF814B",  fontcolor=white]
+    r_di_int [label="Disconnected crop-livestock\n(intensive)",fillcolor="#E67E00",  fontcolor=white]
+    r_di_ext [label="Disconnected crop-livestock\n(extensive)",fillcolor="#F6A640",  fontcolor=black]
+
+    {rank=same; r_semi; r_cr_int; r_cr_ext; r_ls_int; r_ls_ext; r_co_int; r_co_ext; r_di_int; r_di_ext; r_urban}
+    r_semi -> r_cr_int -> r_cr_ext -> r_ls_int -> r_ls_ext -> r_co_int -> r_co_ext -> r_di_int -> r_di_ext -> r_urban [style=invis]
+
+    q_urban    -> r_urban    [label="Yes"]
+    q_urban    -> q_semi     [label="No"]
+    q_semi     -> r_semi     [label="Yes"]
+    q_semi     -> q_crop     [label="No"]
+    q_crop     -> q_crop_int [label="Yes"]
+    q_crop     -> q_ls_cond  [label="No"]
+    q_crop_int -> r_cr_int   [label="Yes"]
+    q_crop_int -> r_cr_ext   [label="No"]
+    q_ls_cond  -> q_ls_dens  [label="Yes"]
+    q_ls_dens  -> r_ls_int   [label="Yes"]
+    q_ls_dens  -> r_ls_ext   [label="No"]
+    q_ls_cond  -> q_conn     [label="No"]
+    q_conn     -> q_conn_pr  [label="Yes"]
+    q_conn_pr  -> r_co_int   [label="Yes"]
+    q_conn_pr  -> r_co_ext   [label="No"]
+    q_conn     -> q_disc     [label="No"]
+    q_disc     -> r_di_int   [label="Yes"]
+    q_disc     -> r_di_ext   [label="No"]
+  }
+  ')
+}
