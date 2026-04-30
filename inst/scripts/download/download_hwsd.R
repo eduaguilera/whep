@@ -12,16 +12,20 @@ download_hwsd <- function(dest_dir) {
   if (!dir.exists(hwsd_dir)) dir.create(hwsd_dir, recursive = TRUE)
   base_url <- "https://s3.eu-west-1.amazonaws.com/data.gaezdev.aws.fao.org/HWSD"
 
-  # Raster
+  # Raster (HWSD2 zip extracts as HWSD2.bil, rename to hwsd.bil)
   bil_path <- file.path(hwsd_dir, "hwsd.bil")
   if (!file.exists(bil_path)) {
     zip_path <- file.path(hwsd_dir, "HWSD2_RASTER.zip")
-    if (!file.exists(zip_path)) {
+    if (!file.exists(zip_path) || file.size(zip_path) == 0) {
       cli::cli_alert("Downloading HWSD2 raster (~22 MB)...")
       download.file(paste0(base_url, "/HWSD2_RASTER.zip"), zip_path, mode = "wb")
     }
     utils::unzip(zip_path, exdir = hwsd_dir)
     file.remove(zip_path)
+    # Rename HWSD2.* to hwsd.*
+    for (f in list.files(hwsd_dir, pattern = "^HWSD2\\.", full.names = TRUE)) {
+      file.rename(f, file.path(hwsd_dir, sub("^HWSD2", "hwsd", basename(f))))
+    }
     cli::cli_alert_success("HWSD raster: saved")
   } else {
     cli::cli_alert_info("HWSD raster: already exists")
