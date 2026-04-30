@@ -67,10 +67,7 @@ if (!dir.exists(output_dir)) {
 }
 
 # WHEP reference tables
-regions <- readr::read_csv(
-  system.file("extdata", "regions.csv", package = "whep"),
-  show_col_types = FALSE
-)
+regions <- whep::polities
 
 items_prod <- readr::read_csv(
   system.file("extdata", "items_prod.csv", package = "whep"),
@@ -240,8 +237,7 @@ grassland_items <- c("Pasture", "range")
       mutate(mg_n_lu = Value * 1000) |>  # kt → Mg
       left_join(
         regions |>
-          select(iso3c, area_code, area_name) |>
-          mutate(iso2c = substr(iso3c, 1, 2)),
+          select(iso2c, area_code, area_name),
         by = "iso2c"
       ) |>
       filter(!is.na(area_code)) |>
