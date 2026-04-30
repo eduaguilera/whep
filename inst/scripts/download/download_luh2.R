@@ -24,7 +24,8 @@ download_luh2 <- function(dest_dir) {
     }
     cli::cli_alert("Downloading LUH2 {fname}...")
     if (fname != "staticData_quarterdeg.nc") cli::cli_alert_info("Large file, may take 1-4 hours")
-    download.file(paste0(base_url, "/", fname), fpath, mode = "wb", quiet = FALSE)
+    download.file(paste0(base_url, "/", fname), fpath, mode = "wb",
+                  method = "curl", extra = "-k")
     cli::cli_alert_success("LUH2 {fname}: saved")
   }
   invisible()
