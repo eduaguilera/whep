@@ -46,15 +46,18 @@ download_hwsd <- function(dest_dir) {
 
   sqlite_path <- file.path(hwsd_dir, "HWSD2.sqlite")
   if (!file.exists(sqlite_path) || file.size(sqlite_path) == 0) {
-    cli::cli_alert("Downloading HWSD2 SQLite database (~1.3 GB)...")
+    cli::cli_alert("Downloading HWSD2 SQLite database (~64 MB)...")
     download.file(
       "https://www.isric.org/sites/default/files/HWSD2.sqlite",
-      sqlite_path, mode = "wb"
+      sqlite_path,
+      mode = "wb"
     )
   }
 
   cli::cli_alert("Extracting topsoil attributes from SQLite...")
-  if (!requireNamespace("RSQLite", quietly = TRUE)) install.packages("RSQLite")
+  if (!requireNamespace("RSQLite", quietly = TRUE)) {
+    install.packages("RSQLite")
+  }
   db <- DBI::dbConnect(RSQLite::SQLite(), sqlite_path)
   on.exit(DBI::dbDisconnect(db), add = TRUE)
 
