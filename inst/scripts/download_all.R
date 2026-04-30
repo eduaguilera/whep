@@ -23,6 +23,10 @@ download_all <- function(dest_dir, datasets = NULL) {
   if (!dir.exists(dest_dir)) dir.create(dest_dir, recursive = TRUE)
   dest_dir <- normalizePath(dest_dir)
 
+  old_timeout <- getOption("timeout")
+  on.exit(options(timeout = old_timeout), add = TRUE)
+  options(timeout = 3600)
+
   all_datasets <- c(
     "naturalearth", "faostat", "luh2", "monfreda", "earthstat_fertilizer",
     "mirca", "hydrology", "coello", "nitrogen", "west_manure",

@@ -23,7 +23,7 @@ download_nitrogen <- function(dest_dir) {
         next
       }
       cli::cli_alert("Downloading {fname}...")
-      download.file(paste0(base_url, "/", fname), out_path, mode = "wb")
+      download.file(paste0(base_url, "/", fname), out_path, mode = "wb", method = "curl")
       cli::cli_alert_success("HaNi {fname}: saved")
     }
     invisible()

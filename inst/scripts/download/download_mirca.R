@@ -27,7 +27,7 @@ download_mirca <- function(dest_dir) {
 
       url <- paste0(base_url, "/", fname)
       tryCatch({
-        download.file(url, fpath, mode = "wb", quiet = TRUE)
+        download.file(url, fpath, mode = "wb", method = "curl", quiet = TRUE)
         total <- total + 1L
       }, error = function(e) {
         cli::cli_alert_danger("MIRCA {fname}: {conditionMessage(e)}")

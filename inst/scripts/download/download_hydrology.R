@@ -36,7 +36,8 @@ download_hydrology <- function(dest_dir) {
     zip_path <- file.path(glwd_dir, "GLWD_v2_0_combined_classes_tif.zip")
     if (!file.exists(zip_path)) {
       cli::cli_alert("Downloading GLWD v2 (~925 MB)...")
-      download.file("https://ndownloader.figshare.com/files/54001814", zip_path, mode = "wb")
+      download.file("https://ndownloader.figshare.com/files/54001814", zip_path,
+                    mode = "wb", method = "curl")
     }
     if (!dir.exists(extracted_dir)) dir.create(extracted_dir, recursive = TRUE)
     cli::cli_alert("Extracting GLWD v2...")
