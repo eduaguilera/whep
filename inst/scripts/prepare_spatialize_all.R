@@ -2763,31 +2763,40 @@ prepare_soil_inputs <- function(l_files_dir, output_dir, target_res = 0.5) {
   hwsd_dir <- file.path(l_files_dir, "HWSD")
 
   .read_hwsd_attributes_local <- function(hwsd_dir) {
-    db_path <- file.path(hwsd_dir, "HWSD.SQLite")
-    if (!file.exists(db_path)) {
-      cli::cli_abort("HWSD SQLite database not found at {db_path}")
+    csv_path <- file.path(hwsd_dir, "hwsd_data.csv")
+    if (!file.exists(csv_path)) {
+      cli::cli_abort("HWSD CSV not found at {csv_path}")
     }
-    db <- DBI::dbConnect(RSQLite::SQLite(), db_path)
-    on.exit(DBI::dbDisconnect(db), add = TRUE)
-    DBI::dbGetQuery(
-      db,
-      "
-      SELECT mu_global, issoil, share,
-             t_sand, t_silt, t_clay,
-             t_usda_tex_class, t_ph_h2o, su_sym90
-      FROM hwsd_data
-    "
-    ) |>
-      tibble::as_tibble()
+    readr::read_csv(csv_path, show_col_types = FALSE)
   }
+
+  # HWSD v2 USDA texture codes → LPJmL soil type codes (1-13)
+  # HWSD2: 1=Clay(heavy), 2=Silty clay, 3=Clay(light), 4=Silty clay loam,
+  #   5=Clay loam, 6=Silt, 7=Silt loam, 8=Sandy clay, 9=Loam,
+  #   10=Sandy clay loam, 11=Sandy loam, 12=Loamy sand, 13=Sand
+  # LPJmL: 1=clay, 2=silty clay, 3=sandy clay, 4=clay loam,
+  #   5=silty clay loam, 6=sandy clay loam, 7=loam, 8=silt loam,
+  #   9=sandy loam, 10=silt, 11=loamy sand, 12=sand, 13=rock and ice
+  .hwsd2_to_lpjml_tex <- c(
+    "1" = 1L,   # Clay(heavy) → clay
+    "2" = 2L,   # Silty clay
+    "3" = 1L,   # Clay(light) → clay
+    "4" = 5L,   # Silty clay loam
+    "5" = 4L,   # Clay loam
+    "6" = 10L,  # Silt
+    "7" = 8L,   # Silt loam
+    "8" = 3L,   # Sandy clay
+    "9" = 7L,   # Loam
+    "10" = 6L,  # Sandy clay loam
+    "11" = 9L,  # Sandy loam
+    "12" = 11L, # Loamy sand
+    "13" = 12L  # Sand
+  )
 
   .derive_dominant_soil <- function(hwsd_attr) {
     hwsd_attr <- hwsd_attr |>
       mutate(
-        t_usda_tex_class = case_when(
-          su_sym90 == "DS" & is.na(t_usda_tex_class) ~ 13L,
-          TRUE ~ as.integer(t_usda_tex_class)
-        )
+        t_usda_tex_class = .hwsd2_to_lpjml_tex[as.character(t_usda_tex)]
       )
     soils <- hwsd_attr |> filter(!is.na(t_usda_tex_class))
     dom_tex <- soils |>
