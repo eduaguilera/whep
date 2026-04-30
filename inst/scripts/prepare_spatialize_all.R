@@ -10,7 +10,7 @@
 # (to load functions without auto-running) or executed directly.
 #
 # Requires: WHEP_L_FILES_DIR environment variable pointing to L_files.
-# Optional: WHEP_GLOBAL_DIR for Global repo (nitrogen inputs only).
+# Reference N datasets are bundled as package data or fetched via pins.
 #
 # Data sources (see individual section headers for full citations):
 #   - FAOSTAT Production/Emissions/Fertilizers (FAO, 2024)
@@ -1210,7 +1210,7 @@ prepare_yield_inputs <- function(
 # ==== Section 7: Nitrogen inputs ==========================================
 #
 # N/P/K inputs from FAOSTAT + spatial distribution.
-# Requires WHEP_GLOBAL_DIR for some data sources.
+# Reference datasets are bundled as package data or fetched via pins.
 
 prepare_nitrogen_inputs <- function(
   l_files_dir,
@@ -1219,14 +1219,6 @@ prepare_nitrogen_inputs <- function(
   prod = NULL
 ) {
   cli::cli_h2("Section 7: Nitrogen / fertilizer inputs")
-
-  global_dir <- Sys.getenv("WHEP_GLOBAL_DIR", unset = "")
-  if (!nchar(global_dir) || !dir.exists(global_dir)) {
-    cli::cli_alert_warning(
-      "WHEP_GLOBAL_DIR not set or not found -- skipping nitrogen inputs"
-    )
-    return(invisible(NULL))
-  }
 
   regions <- readr::read_csv(
     system.file("extdata", "regions.csv", package = "whep"),
@@ -1360,98 +1352,64 @@ prepare_nitrogen_inputs <- function(
         .by = c(year, area_code, fert_type)
       )
 
-    lass_file <- file.path(
-      global_dir,
-      "input",
-      "Synthetic_N_Grassland_share.csv"
-    )
-    lass <- NULL
-    if (file.exists(lass_file)) {
-      lass_raw <- data.table::fread(lass_file, header = TRUE) |>
-        tibble::as_tibble()
-      year_cols <- grep("^(X?\\d{4})$", names(lass_raw), value = TRUE)
-      lass <- lass_raw |>
-        tidyr::pivot_longer(
-          all_of(year_cols),
-          names_to = "year",
-          values_to = "grass_share_pct"
-        ) |>
-        mutate(
-          year = as.integer(gsub("X", "", year)),
-          grass_share = grass_share_pct / 100
-        ) |>
-        rename(lassaletta_name = Country) |>
-        left_join(
-          select(regions, iso3c, area_code, area_name),
-          by = c("lassaletta_name" = "area_name")
-        ) |>
-        filter(!is.na(area_code)) |>
-        select(year, area_code, grass_share)
-    }
+    lass_raw <- whep::lassaletta_grassland_share
+    year_cols <- grep("^(X?\\d{4})$", names(lass_raw), value = TRUE)
+    lass <- lass_raw |>
+      tidyr::pivot_longer(
+        all_of(year_cols),
+        names_to = "year",
+        values_to = "grass_share_pct"
+      ) |>
+      mutate(
+        year = as.integer(gsub("X", "", year)),
+        grass_share = grass_share_pct / 100
+      ) |>
+      rename(lassaletta_name = Country) |>
+      left_join(
+        select(regions, iso3c, area_code, area_name),
+        by = c("lassaletta_name" = "area_name")
+      ) |>
+      filter(!is.na(area_code)) |>
+      select(year, area_code, grass_share)
 
     list(euadb = euadb, lassaletta = lass)
   }
 
-  # ---- 7d. Crop-specific base-year rates ----
-  .read_crop_base_rates_local <- function(l_files_dir, global_dir, regions) {
-    manure_file <- file.path(global_dir, "input", "Crops_manure_N.csv")
-    crop_manure <- NULL
-    if (file.exists(manure_file)) {
-      crop_manure <- data.table::fread(manure_file) |>
-        tibble::as_tibble() |>
-        rename(crop_name = Crop_name, iso3c = ISO, manure_mg_n = Manure_N_Mg) |>
-        left_join(select(regions, iso3c, area_code), by = "iso3c") |>
-        filter(!is.na(area_code)) |>
-        summarize(manure_mg_n = sum(manure_mg_n), .by = c(area_code, crop_name))
-    }
+  # ---- 7d. Crop-specific base-year rates (from package data) ----
+  .read_crop_base_rates_local <- function(regions) {
+    crop_manure <- whep::crops_manure_n |>
+      rename(crop_name = Crop_name, iso3c = ISO, manure_mg_n = Manure_N_Mg) |>
+      left_join(select(regions, iso3c, area_code), by = "iso3c") |>
+      filter(!is.na(area_code)) |>
+      summarize(manure_mg_n = sum(manure_mg_n), .by = c(area_code, crop_name))
 
-    synth_file <- file.path(
-      global_dir,
-      "input",
-      "Nfertilizationmatrix_filled_nodup.xlsx"
-    )
-    crop_synthetic <- NULL
-    if (file.exists(synth_file)) {
-      if (!requireNamespace("openxlsx", quietly = TRUE)) {
-        install.packages("openxlsx", quiet = TRUE)
-      }
-      synth_raw <- openxlsx::read.xlsx(
-        synth_file,
-        sheet = "N fertilization",
-        cols = c(1, 2, 5:197),
-        rows = c(2:64),
-        na.strings = "NaN",
-        check.names = TRUE
+    crop_synthetic <- whep::mueller_synthetic_n |>
+      rename(crop_name = crop_process) |>
+      mutate(
+        iso3c = recode(
+          iso3c,
+          "SRM" = "SCG",
+          "GUA" = "GTM",
+          "BZE" = "BLZ",
+          "COS" = "CRI",
+          "ELS" = "SLV",
+          "HAI" = "HTI",
+          "HON" = "HND",
+          "ROM" = "ROU",
+          "TRI" = "TTO",
+          "ZAR" = "COD",
+          "BHA" = "BHS",
+          "BAR" = "BRB",
+          "DMI" = "DMA",
+          "STL" = "LCA"
+        )
+      ) |>
+      left_join(select(regions, iso3c, area_code), by = "iso3c") |>
+      filter(!is.na(area_code), !is.na(rate_value)) |>
+      summarize(
+        kg_n_ha_synth = mean(rate_value, na.rm = TRUE),
+        .by = c(area_code, crop_name)
       )
-      crop_synthetic <- synth_raw |>
-        tidyr::pivot_longer(
-          -c(Proc.Code, Process),
-          names_to = "iso3c",
-          values_to = "kg_n_ha_synth"
-        ) |>
-        rename(proc_code = Proc.Code, crop_name = Process) |>
-        mutate(
-          iso3c = recode(
-            iso3c,
-            "SRM" = "SCG",
-            "GUA" = "GTM",
-            "BZE" = "BLZ",
-            "COS" = "CRI",
-            "ELS" = "SLV",
-            "HAI" = "HTI",
-            "HON" = "HND",
-            "ROM" = "ROU",
-            "TRI" = "TTO",
-            "ZAR" = "COD",
-            "BHA" = "BHS",
-            "BAR" = "BRB",
-            "DMI" = "DMA",
-            "STL" = "LCA"
-          )
-        ) |>
-        left_join(select(regions, iso3c, area_code), by = "iso3c") |>
-        filter(!is.na(area_code), !is.na(kg_n_ha_synth))
-    }
     list(crop_manure = crop_manure, crop_synthetic = crop_synthetic)
   }
 
@@ -1898,7 +1856,7 @@ prepare_nitrogen_inputs <- function(
   n_totals <- .read_faostat_totals_local(l_files_dir, regions)
   pk_totals <- .read_faostat_pk_totals_local(l_files_dir, regions)
   lu_split <- .read_crop_grass_split_local(regions)
-  base_rates <- .read_crop_base_rates_local(l_files_dir, global_dir, regions)
+  base_rates <- .read_crop_base_rates_local(regions)
 
   # Spatial rate enhancements
   country_grid_file <- file.path(output_dir, "country_grid.parquet")
