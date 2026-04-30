@@ -27,6 +27,7 @@ download_earthstat_fertilizer <- function(dest_dir) {
   cli::cli_alert("Extracting...")
   utils::unzip(zip_path, exdir = dest_dir)
   file.remove(zip_path)
+  unlink(file.path(dest_dir, "__MACOSX"), recursive = TRUE)
 
   n_crops <- length(list.dirs(target_dir, recursive = FALSE))
   n_tifs <- length(list.files(target_dir, pattern = "\\.tif$", recursive = TRUE))

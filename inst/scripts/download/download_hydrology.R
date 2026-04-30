@@ -42,6 +42,7 @@ download_hydrology <- function(dest_dir) {
     if (!dir.exists(extracted_dir)) dir.create(extracted_dir, recursive = TRUE)
     cli::cli_alert("Extracting GLWD v2...")
     utils::unzip(zip_path, exdir = extracted_dir)
+    unlink(file.path(extracted_dir, "__MACOSX"), recursive = TRUE)
     n_tif <- length(list.files(extracted_dir, pattern = "\\.tif$", recursive = TRUE))
     cli::cli_alert_success("GLWD v2: {n_tif} GeoTIFFs")
     invisible()
