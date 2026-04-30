@@ -1739,15 +1739,15 @@ prepare_nitrogen_inputs <- function(
     if (!dir.exists(hani_dir)) return(NULL)
     zip_files <- list.files(hani_dir, pattern = "\\.zip$", full.names = TRUE)
     if (length(zip_files) == 0) return(NULL)
-    cli::cli_alert("Extracting N deposition from HaNi rasters...")
+    cli::cli_alert("Extracting N deposition from HaNi rasters to 0.5-degree grid...")
     if (!requireNamespace("terra", quietly = TRUE)) {
       install.packages("terra", quiet = TRUE)
     }
-    if (!requireNamespace("rnaturalearth", quietly = TRUE)) {
-      install.packages("rnaturalearth", quiet = TRUE)
-    }
-    countries <- rnaturalearth::ne_countries(scale = "medium", returnclass = "sf") |>
-      dplyr::select(ISO3 = adm0_a3)
+
+    # 0.5-degree target grid matching WHEP
+    target <- terra::rast(resolution = 0.5, xmin = -180, xmax = 180,
+                          ymin = -90, ymax = 90)
+    agg_factor <- 6L  # 5 arcmin -> 30 arcmin
 
     .extract_one_hani <- function(zip_path) {
       tmpd <- tempfile(); dir.create(tmpd)
@@ -1756,11 +1756,11 @@ prepare_nitrogen_inputs <- function(
       nc_files <- list.files(tmpd, pattern = "\\.nc$", full.names = TRUE)
       if (length(nc_files) == 0) return(tibble::tibble())
       r <- terra::rast(nc_files)
-      vals <- terra::extract(r, terra::vect(countries), fun = mean, na.rm = TRUE)
-      vals <- tibble::as_tibble(vals)
-      vals$ISO3 <- countries$ISO3
+      # Aggregate to 0.5° by averaging 5-arcmin cells
+      r_05 <- terra::aggregate(r, fact = agg_factor, fun = "mean", na.rm = TRUE)
+      vals <- terra::as.data.frame(r_05, xy = TRUE)
       vals$file <- basename(zip_path)
-      vals
+      tibble::as_tibble(vals)
     }
 
     dep_raw <- lapply(zip_files, .extract_one_hani) |> dplyr::bind_rows()
@@ -1780,16 +1780,18 @@ prepare_nitrogen_inputs <- function(
         value = value / 10000000
       ) |>
       dplyr::filter(!is.na(value), !is.na(year)) |>
-      dplyr::select(year, ISO3, parameter, value) |>
+      dplyr::select(x, y, year, parameter, value) |>
       tidyr::pivot_wider(names_from = parameter, values_from = value) |>
-      dplyr::mutate(deposit_kg_n_ha = nhx + noy) |>
-      dplyr::rename(iso3c = ISO3) |>
-      dplyr::left_join(dplyr::select(regions, iso3c, area_code), by = "iso3c") |>
-      dplyr::filter(!is.na(area_code)) |>
-      dplyr::select(year, area_code, deposit_kg_n_ha, nhx, noy)
+      dplyr::mutate(
+        deposit_kg_n_ha = nhx + noy,
+        lon = round(x, 2),
+        lat = round(y, 2)
+      ) |>
+      dplyr::filter(!is.na(nhx) | !is.na(noy)) |>
+      dplyr::select(lon, lat, year, deposit_kg_n_ha, nhx, noy)
 
     cli::cli_alert_success(
-      "HaNi deposition: {dplyr::n_distinct(dep$area_code)} countries, ",
+      "HaNi deposition: {dplyr::n_distinct(paste(dep$lon, dep$lat))} cells, ",
       "{min(dep$year)}–{max(dep$year)}"
     )
     dep

@@ -846,17 +846,24 @@ if (file.exists(nitro_grid_file)) {
 # Time dimension is annual (years since 0000-1-1); LPJmL accepts both
 # monthly and annual deposition inputs.
 dep_file <- file.path(src_inputs, "n_deposition.parquet")
-if (file.exists(dep_file) && file.exists(country_grid_file)) {
+if (file.exists(dep_file)) {
     dep <- filter_years(as.data.table(read_parquet(dep_file)))
-    cg <- as.data.table(read_parquet(country_grid_file))
-    cg <- coord_to_rowcol(cg, grid)
 
-    dep_cells <- merge(
-        dep,
-        cg[, .(area_code, row, col)],
-        by = "area_code",
-        allow.cartesian = TRUE
-    )
+    # Support both country-level (area_code) and per-cell (lon, lat) formats
+    if (!"lon" %in% names(dep)) {
+        # Old format: country-level, broadcast to all cells
+        cg <- as.data.table(read_parquet(country_grid_file))
+        cg <- coord_to_rowcol(cg, grid)
+        dep_cells <- merge(
+            dep,
+            cg[, .(area_code, row, col)],
+            by = "area_code",
+            allow.cartesian = TRUE
+        )
+    } else {
+        # New format: per-cell data
+        dep_cells <- coord_to_rowcol(dep, grid)
+    }
 
     # Determine NHx/NOy split -----------------------------------------
     has_split <- all(c("nhx", "noy") %in% names(dep_cells))
