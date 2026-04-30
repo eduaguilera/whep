@@ -25,7 +25,9 @@ library(ggplot2)
 
 l_files_dir <- "WHEP_LFILES_DIR"
 output_dir <- file.path(l_files_dir, "whep", "figures")
-if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE)
+if (!dir.exists(output_dir)) {
+  dir.create(output_dir, recursive = TRUE)
+}
 
 # Plot config
 map_width <- 14
@@ -69,7 +71,8 @@ country_grid <- nanoparquet::read_parquet(
 
 # Load world basemap
 world <- rnaturalearth::ne_countries(
-  scale = "medium", returnclass = "sf"
+  scale = "medium",
+  returnclass = "sf"
 )
 
 # ==== Helper function ===================================================
@@ -89,7 +92,9 @@ robinson_theme <- function() {
 cli::cli_h2("Figure 1: Total heads density maps")
 
 for (yr in c(1900L, 1960L, 2020L)) {
-  if (!yr %in% unique(gridded$year)) next
+  if (!yr %in% unique(gridded$year)) {
+    next
+  }
 
   map_data <- gridded |>
     filter(year == yr) |>
@@ -103,12 +108,16 @@ for (yr in c(1900L, 1960L, 2020L)) {
 
   p <- ggplot() +
     geom_sf(
-      data = world, fill = "grey92", color = "grey70", linewidth = 0.2
+      data = world,
+      fill = "grey92",
+      color = "grey70",
+      linewidth = 0.2
     ) +
     geom_point(
       data = map_data,
       aes(x = lon, y = lat, color = log_heads),
-      size = 0.15, shape = 15
+      size = 0.15,
+      shape = 15
     ) +
     scale_color_viridis_c(
       name = expression(log[10] ~ "(heads)"),
@@ -117,14 +126,17 @@ for (yr in c(1900L, 1960L, 2020L)) {
       na.value = "transparent"
     ) +
     coord_sf(
-      crs = "+proj=robin", expand = FALSE,
-      xlim = c(-170, 180), ylim = c(-60, 85)
+      crs = "+proj=robin",
+      expand = FALSE,
+      xlim = c(-170, 180),
+      ylim = c(-60, 85)
     ) +
     labs(title = paste("Total livestock heads", yr)) +
     robinson_theme()
 
   fname <- file.path(
-    output_dir, paste0("map_livestock_heads_", yr, ".png")
+    output_dir,
+    paste0("map_livestock_heads_", yr, ".png")
   )
   ggsave(fname, p, width = map_width, height = map_height, dpi = 200)
   cli::cli_alert_success("Saved {basename(fname)}")
@@ -155,12 +167,16 @@ if (yr %in% unique(gridded$year)) {
 
   p <- ggplot() +
     geom_sf(
-      data = world, fill = "grey92", color = "grey70", linewidth = 0.1
+      data = world,
+      fill = "grey92",
+      color = "grey70",
+      linewidth = 0.1
     ) +
     geom_point(
       data = panel_data,
       aes(x = lon, y = lat, color = log_heads),
-      size = 0.08, shape = 15
+      size = 0.08,
+      shape = 15
     ) +
     facet_wrap(~species_group, ncol = 4) +
     scale_color_viridis_c(
@@ -170,8 +186,10 @@ if (yr %in% unique(gridded$year)) {
       na.value = "transparent"
     ) +
     coord_sf(
-      crs = "+proj=robin", expand = FALSE,
-      xlim = c(-170, 180), ylim = c(-60, 85)
+      crs = "+proj=robin",
+      expand = FALSE,
+      xlim = c(-170, 180),
+      ylim = c(-60, 85)
     ) +
     labs(title = paste("Livestock distribution by species", yr)) +
     robinson_theme() +
@@ -180,11 +198,14 @@ if (yr %in% unique(gridded$year)) {
     )
 
   fname <- file.path(
-    output_dir, paste0("map_species_panel_", yr, ".png")
+    output_dir,
+    paste0("map_species_panel_", yr, ".png")
   )
   ggsave(
-    fname, p,
-    width = map_width * 1.2, height = map_height * 1.0,
+    fname,
+    p,
+    width = map_width * 1.2,
+    height = map_height * 1.0,
     dpi = 200
   )
   cli::cli_alert_success("Saved {basename(fname)}")
@@ -195,7 +216,9 @@ if (yr %in% unique(gridded$year)) {
 cli::cli_h2("Figure 3: Enteric CH4 density maps")
 
 for (yr in c(1960L, 2000L, 2020L)) {
-  if (!yr %in% unique(gridded$year)) next
+  if (!yr %in% unique(gridded$year)) {
+    next
+  }
 
   map_data <- gridded |>
     filter(year == yr) |>
@@ -210,12 +233,16 @@ for (yr in c(1960L, 2000L, 2020L)) {
 
   p <- ggplot() +
     geom_sf(
-      data = world, fill = "grey92", color = "grey70", linewidth = 0.2
+      data = world,
+      fill = "grey92",
+      color = "grey70",
+      linewidth = 0.2
     ) +
     geom_point(
       data = map_data,
       aes(x = lon, y = lat, color = log_ch4),
-      size = 0.15, shape = 15
+      size = 0.15,
+      shape = 15
     ) +
     scale_color_viridis_c(
       name = expression(log[10] ~ "(kt CH"[4] * ")"),
@@ -223,14 +250,17 @@ for (yr in c(1960L, 2000L, 2020L)) {
       na.value = "transparent"
     ) +
     coord_sf(
-      crs = "+proj=robin", expand = FALSE,
-      xlim = c(-170, 180), ylim = c(-60, 85)
+      crs = "+proj=robin",
+      expand = FALSE,
+      xlim = c(-170, 180),
+      ylim = c(-60, 85)
     ) +
     labs(title = paste("Enteric methane emissions", yr)) +
     robinson_theme()
 
   fname <- file.path(
-    output_dir, paste0("map_enteric_ch4_", yr, ".png")
+    output_dir,
+    paste0("map_enteric_ch4_", yr, ".png")
   )
   ggsave(fname, p, width = map_width, height = map_height, dpi = 200)
   cli::cli_alert_success("Saved {basename(fname)}")
@@ -287,7 +317,9 @@ p <- ggplot(
   geom_line(linewidth = 0.9) +
   scale_color_manual(values = species_colors, name = "Species") +
   facet_wrap(
-    ~species_group, scales = "free_y", ncol = 4
+    ~species_group,
+    scales = "free_y",
+    ncol = 4
   ) +
   scale_x_continuous(breaks = seq(1850, 2020, 40)) +
   labs(
@@ -300,8 +332,10 @@ p <- ggplot(
 
 fname <- file.path(output_dir, "trend_species_heads.png")
 ggsave(
-  fname, p,
-  width = trend_width * 1.1, height = trend_height * 0.8,
+  fname,
+  p,
+  width = trend_width * 1.1,
+  height = trend_height * 0.8,
   dpi = 200
 )
 cli::cli_alert_success("Saved {basename(fname)}")
@@ -349,7 +383,10 @@ p <- ggplot(
   labs(
     title = paste0(
       "Top 10 countries by livestock population (",
-      yr_range[1], "\u2013", latest_yr, ")"
+      yr_range[1],
+      "\u2013",
+      latest_yr,
+      ")"
     ),
     x = "Year",
     y = "Heads (millions)",
@@ -437,8 +474,10 @@ p2 <- ggplot(
 p_combined <- patchwork::wrap_plots(p1, p2, ncol = 2)
 fname <- file.path(output_dir, "trend_livestock_emissions.png")
 ggsave(
-  fname, p_combined,
-  width = trend_width * 1.2, height = trend_height * 0.7,
+  fname,
+  p_combined,
+  width = trend_width * 1.2,
+  height = trend_height * 0.7,
   dpi = 200
 )
 cli::cli_alert_success("Saved {basename(fname)}")

@@ -168,12 +168,17 @@ p1 <- ggplot(comp_global, aes(x = year, y = value, colour = source)) +
   labs(
     title = "Validation: global totals — FAOSTAT input vs gridded output",
     subtitle = "Lines should overlap if area conservation holds",
-    x = "Year", y = "Area (million ha)", colour = NULL
+    x = "Year",
+    y = "Area (million ha)",
+    colour = NULL
   )
 
 ggsave(
   file.path(fig_dir, "val_global_totals.png"),
-  p1, width = 12, height = 5, dpi = val_dpi
+  p1,
+  width = 12,
+  height = 5,
+  dpi = val_dpi
 )
 cli::cli_alert_success("Saved val_global_totals.png")
 
@@ -193,7 +198,9 @@ comp_cft_long <- comp_cft |>
   ) |>
   dplyr::mutate(
     source = dplyr::if_else(
-      grepl("ref", source), "FAOSTAT input", "Gridded output"
+      grepl("ref", source),
+      "FAOSTAT input",
+      "Gridded output"
     )
   )
 
@@ -212,12 +219,17 @@ p2 <- ggplot(comp_cft_long, aes(x = year, y = area_mha, colour = source)) +
   ) +
   labs(
     title = "Validation by crop functional type: FAOSTAT vs gridded",
-    x = "Year", y = "Area (million ha)", colour = NULL
+    x = "Year",
+    y = "Area (million ha)",
+    colour = NULL
   )
 
 ggsave(
   file.path(fig_dir, "val_cft_totals.png"),
-  p2, width = 14, height = 10, dpi = val_dpi
+  p2,
+  width = 14,
+  height = 10,
+  dpi = val_dpi
 )
 cli::cli_alert_success("Saved val_cft_totals.png")
 
@@ -247,7 +259,9 @@ comp_country <- ref_country |>
 scatter_years <- c(1960L, 1980L, 2000L, 2020L)
 
 for (yr in scatter_years) {
-  if (!yr %in% comp_country$year) next
+  if (!yr %in% comp_country$year) {
+    next
+  }
 
   df <- dplyr::filter(comp_country, year == yr, ref_mha > 0)
 
@@ -255,15 +269,18 @@ for (yr in scatter_years) {
 
   p <- ggplot(df, aes(x = ref_mha, y = grid_mha)) +
     geom_abline(
-      slope = 1, intercept = 0,
-      linetype = "dashed", colour = "grey50"
+      slope = 1,
+      intercept = 0,
+      linetype = "dashed",
+      colour = "grey50"
     ) +
     geom_point(aes(colour = continent), alpha = 0.7, size = 2) +
     # Label outliers
     ggrepel::geom_text_repel(
       data = dplyr::slice_max(df, abs(grid_mha - ref_mha), n = 8),
       aes(label = area_name),
-      size = 2.5, max.overlaps = 15
+      size = 2.5,
+      max.overlaps = 15
     ) +
     scale_colour_brewer(palette = "Set2") +
     coord_fixed(xlim = c(0, max_val), ylim = c(0, max_val)) +
@@ -274,7 +291,8 @@ for (yr in scatter_years) {
     ) +
     labs(
       title = paste0(
-        "Country harvested area: FAOSTAT vs gridded — ", yr
+        "Country harvested area: FAOSTAT vs gridded — ",
+        yr
       ),
       subtitle = "Points on the dashed 1:1 line indicate perfect conservation",
       x = "FAOSTAT input (million ha)",
@@ -283,7 +301,8 @@ for (yr in scatter_years) {
     )
 
   fpath <- file.path(
-    fig_dir, paste0("val_scatter_country_", yr, ".png")
+    fig_dir,
+    paste0("val_scatter_country_", yr, ".png")
   )
   ggsave(fpath, p, width = 8, height = 8, dpi = val_dpi)
   cli::cli_alert_success("Saved {fpath}")
@@ -334,7 +353,10 @@ errors_plot <- errors |>
 
 p4 <- ggplot(errors_plot, aes(x = rel_error_clipped)) +
   geom_histogram(
-    bins = 100, fill = "#2c7bb6", colour = "white", linewidth = 0.1
+    bins = 100,
+    fill = "#2c7bb6",
+    colour = "white",
+    linewidth = 0.1
   ) +
   geom_vline(xintercept = 0, linetype = "dashed", colour = "red") +
   scale_x_continuous(
@@ -346,7 +368,9 @@ p4 <- ggplot(errors_plot, aes(x = rel_error_clipped)) +
   labs(
     title = "Distribution of relative error (gridded vs FAOSTAT, per country-year)",
     subtitle = paste0(
-      "Median = ", round(error_stats$median_pct, 3), "% | ",
+      "Median = ",
+      round(error_stats$median_pct, 3),
+      "% | ",
       round(error_stats$frac_below_1pct * 100, 1),
       "% of observations within \u00b11%"
     ),
@@ -356,7 +380,10 @@ p4 <- ggplot(errors_plot, aes(x = rel_error_clipped)) +
 
 ggsave(
   file.path(fig_dir, "val_relative_error_distribution.png"),
-  p4, width = 10, height = 5, dpi = val_dpi
+  p4,
+  width = 10,
+  height = 5,
+  dpi = val_dpi
 )
 cli::cli_alert_success("Saved val_relative_error_distribution.png")
 
@@ -387,7 +414,9 @@ worst_long <- worst_ts |>
   ) |>
   dplyr::mutate(
     source = dplyr::if_else(
-      source == "ref_mha", "FAOSTAT input", "Gridded output"
+      source == "ref_mha",
+      "FAOSTAT input",
+      "Gridded output"
     )
   )
 
@@ -408,12 +437,17 @@ p5 <- ggplot(
   ) +
   labs(
     title = "Countries with largest mean deviations (>0.5 Mha average area)",
-    x = "Year", y = "Harvested area (million ha)", colour = NULL
+    x = "Year",
+    y = "Harvested area (million ha)",
+    colour = NULL
   )
 
 ggsave(
   file.path(fig_dir, "val_timeseries_top_deviations.png"),
-  p5, width = 14, height = 10, dpi = val_dpi
+  p5,
+  width = 14,
+  height = 10,
+  dpi = val_dpi
 )
 cli::cli_alert_success("Saved val_timeseries_top_deviations.png")
 
@@ -431,7 +465,9 @@ comp_irr <- ref_global |>
   ) |>
   dplyr::mutate(
     source = dplyr::if_else(
-      grepl("ref", source), "FAOSTAT input", "Gridded output"
+      grepl("ref", source),
+      "FAOSTAT input",
+      "Gridded output"
     )
   )
 
@@ -450,12 +486,17 @@ p6 <- ggplot(comp_irr, aes(x = year, y = irrigated_mha, colour = source)) +
   labs(
     title = "Validation: global irrigated area",
     subtitle = "FAOSTAT country totals vs sum of gridded irrigated cells",
-    x = "Year", y = "Irrigated area (million ha)", colour = NULL
+    x = "Year",
+    y = "Irrigated area (million ha)",
+    colour = NULL
   )
 
 ggsave(
   file.path(fig_dir, "val_irrigated_totals.png"),
-  p6, width = 10, height = 5, dpi = val_dpi
+  p6,
+  width = 10,
+  height = 5,
+  dpi = val_dpi
 )
 cli::cli_alert_success("Saved val_irrigated_totals.png")
 
@@ -479,7 +520,9 @@ panel_data <- comp_country |>
   ) |>
   dplyr::mutate(
     source = dplyr::if_else(
-      source == "ref_mha", "FAOSTAT input", "Gridded output"
+      source == "ref_mha",
+      "FAOSTAT input",
+      "Gridded output"
     ),
     area_name = factor(area_name, levels = top12)
   )
@@ -500,12 +543,17 @@ p7 <- ggplot(panel_data, aes(x = year, y = area_mha, colour = source)) +
   labs(
     title = "Validation: top 12 countries by harvested area",
     subtitle = "Blue = FAOSTAT input, Red = gridded output (overlap = perfect match)",
-    x = "Year", y = "Area (million ha)", colour = NULL
+    x = "Year",
+    y = "Area (million ha)",
+    colour = NULL
   )
 
 ggsave(
   file.path(fig_dir, "val_country_panel.png"),
-  p7, width = 14, height = 10, dpi = val_dpi
+  p7,
+  width = 14,
+  height = 10,
+  dpi = val_dpi
 )
 cli::cli_alert_success("Saved val_country_panel.png")
 
@@ -527,9 +575,18 @@ val_detail <- comp_country |>
     )
   ) |>
   dplyr::select(
-    year, area_code, area_name, continent,
-    ref_mha, grid_mha, abs_diff_mha, rel_error_pct,
-    ref_irr_mha, grid_irr_mha, irr_diff_mha, irr_rel_error_pct
+    year,
+    area_code,
+    area_name,
+    continent,
+    ref_mha,
+    grid_mha,
+    abs_diff_mha,
+    rel_error_pct,
+    ref_irr_mha,
+    grid_irr_mha,
+    irr_diff_mha,
+    irr_rel_error_pct
   ) |>
   dplyr::arrange(year, desc(abs(abs_diff_mha)))
 

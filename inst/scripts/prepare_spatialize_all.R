@@ -1709,41 +1709,61 @@ prepare_nitrogen_inputs <- function(
     if (file.exists(dep_file)) {
       dep <- nanoparquet::read_parquet(dep_file)
       if (all(c("nhx", "noy") %in% names(dep))) {
-        cli::cli_alert_info("Reading pre-computed deposition with NHx/NOy split")
+        cli::cli_alert_info(
+          "Reading pre-computed deposition with NHx/NOy split"
+        )
         return(dep)
       }
-      cli::cli_alert_info("Cached deposition lacks NHx/NOy split; re-extracting...")
+      cli::cli_alert_info(
+        "Cached deposition lacks NHx/NOy split; re-extracting..."
+      )
     }
     dep <- .extract_hani_deposition(l_files_dir, regions)
     if (!is.null(dep)) {
       .save_parquet(dep, output_dir, "n_deposition")
       return(dep)
     }
-    cli::cli_alert_warning("N deposition data not available (run download_nitrogen.R)")
+    cli::cli_alert_warning(
+      "N deposition data not available (run download_nitrogen.R)"
+    )
     NULL
   }
 
   .extract_hani_deposition <- function(l_files_dir, regions) {
     hani_dir <- file.path(l_files_dir, "HaNi")
-    if (!dir.exists(hani_dir)) return(NULL)
+    if (!dir.exists(hani_dir)) {
+      return(NULL)
+    }
     zip_files <- list.files(hani_dir, pattern = "\\.zip$", full.names = TRUE)
-    if (length(zip_files) == 0) return(NULL)
-    cli::cli_alert("Extracting N deposition from HaNi rasters to 0.5-degree grid...")
+    if (length(zip_files) == 0) {
+      return(NULL)
+    }
+    cli::cli_alert(
+      "Extracting N deposition from HaNi rasters to 0.5-degree grid..."
+    )
     if (!requireNamespace("terra", quietly = TRUE)) {
       install.packages("terra", quiet = TRUE)
     }
 
     # 0.5-degree target grid matching WHEP
-    target <- terra::rast(resolution = 0.5, xmin = -180, xmax = 180,
-                          ymin = -90, ymax = 90)
-    agg_factor <- 6L  # 5 arcmin -> 30 arcmin
+    target <- terra::rast(
+      resolution = 0.5,
+      xmin = -180,
+      xmax = 180,
+      ymin = -90,
+      ymax = 90
+    )
+    agg_factor <- 6L # 5 arcmin -> 30 arcmin
 
     .extract_one_hani <- function(zip_path) {
-      tmpd <- tempfile(); dir.create(tmpd)
+      tmpd <- tempfile()
+      dir.create(tmpd)
       on.exit(unlink(tmpd, recursive = TRUE), add = TRUE)
       utils::unzip(zip_path, exdir = tmpd)
       nc_files <- list.files(tmpd, pattern = "\\.nc$", full.names = TRUE)
-      if (length(nc_files) == 0) return(tibble::tibble())
+      if (length(nc_files) == 0) {
+        return(tibble::tibble())
+      }
       r <- terra::rast(nc_files)
       # Aggregate to 0.5° by averaging 5-arcmin cells
       r_05 <- terra::aggregate(r, fact = agg_factor, fun = "mean", na.rm = TRUE)
@@ -1754,7 +1774,9 @@ prepare_nitrogen_inputs <- function(
 
     dep_raw <- lapply(zip_files, .extract_one_hani) |> dplyr::bind_rows()
 
-    if (nrow(dep_raw) == 0) return(NULL)
+    if (nrow(dep_raw) == 0) {
+      return(NULL)
+    }
 
     dep <- dep_raw |>
       tidyr::pivot_longer(
@@ -2778,19 +2800,19 @@ prepare_soil_inputs <- function(l_files_dir, output_dir, target_res = 0.5) {
   #   5=silty clay loam, 6=sandy clay loam, 7=loam, 8=silt loam,
   #   9=sandy loam, 10=silt, 11=loamy sand, 12=sand, 13=rock and ice
   .hwsd2_to_lpjml_tex <- c(
-    "1" = 1L,   # Clay(heavy) → clay
-    "2" = 2L,   # Silty clay
-    "3" = 1L,   # Clay(light) → clay
-    "4" = 5L,   # Silty clay loam
-    "5" = 4L,   # Clay loam
-    "6" = 10L,  # Silt
-    "7" = 8L,   # Silt loam
-    "8" = 3L,   # Sandy clay
-    "9" = 7L,   # Loam
-    "10" = 6L,  # Sandy clay loam
-    "11" = 9L,  # Sandy loam
+    "1" = 1L, # Clay(heavy) → clay
+    "2" = 2L, # Silty clay
+    "3" = 1L, # Clay(light) → clay
+    "4" = 5L, # Silty clay loam
+    "5" = 4L, # Clay loam
+    "6" = 10L, # Silt
+    "7" = 8L, # Silt loam
+    "8" = 3L, # Sandy clay
+    "9" = 7L, # Loam
+    "10" = 6L, # Sandy clay loam
+    "11" = 9L, # Sandy loam
     "12" = 11L, # Loamy sand
-    "13" = 12L  # Sand
+    "13" = 12L # Sand
   )
 
   .derive_dominant_soil <- function(hwsd_attr) {

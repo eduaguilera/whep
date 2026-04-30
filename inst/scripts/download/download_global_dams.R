@@ -29,8 +29,10 @@ target_dir <- file.path(l_files_dir, "GIS", "Global dams")
 
 cli::cli_h1("Downloading GRanD v1.1 dam database")
 
-if (dir.exists(target_dir) &&
-    length(list.files(target_dir, pattern = "GRanD_dams.*\\.shp$")) > 0) {
+if (
+  dir.exists(target_dir) &&
+    length(list.files(target_dir, pattern = "GRanD_dams.*\\.shp$")) > 0
+) {
   cli::cli_alert_success("Already exists: {target_dir}")
   quit(status = 0)
 }
@@ -52,7 +54,11 @@ src_root <- dirname(shp_files[1])
 # Copy all shapefile components (multiple extensions per .shp)
 shp_bases <- unique(tools::file_path_sans_ext(shp_files))
 for (base in shp_bases) {
-  components <- grep(paste0("^", basename(base), "\\."), extracted, value = TRUE)
+  components <- grep(
+    paste0("^", basename(base), "\\."),
+    extracted,
+    value = TRUE
+  )
   for (f in components) {
     dst <- file.path(target_dir, basename(f))
     if (!file.exists(dst)) {
@@ -63,5 +69,7 @@ for (base in shp_bases) {
 
 n_shp <- length(list.files(target_dir, pattern = "\\.shp$"))
 n_total <- length(list.files(target_dir))
-cli::cli_alert_success("Done! {n_shp} shapefiles ({n_total} files) in {target_dir}")
+cli::cli_alert_success(
+  "Done! {n_shp} shapefiles ({n_total} files) in {target_dir}"
+)
 cli::cli_alert_success("Ready for prepare_spatialize_all.R")

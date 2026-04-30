@@ -34,14 +34,21 @@ target_res <- 0.5
   n_lat <- length(lat)
   lat_desc <- lat[1] > lat[length(lat)]
   purrr::map(var_names, \(vname) {
-    vals <- ncdf4::ncvar_get(nc, vname,
-      start = c(1, 1, time_idx), count = c(n_lon, n_lat, 1))
+    vals <- ncdf4::ncvar_get(
+      nc,
+      vname,
+      start = c(1, 1, time_idx),
+      count = c(n_lon, n_lat, 1)
+    )
     r <- terra::rast(t(vals), extent = terra::ext(-180, 180, -90, 90))
-    if (!lat_desc) r <- terra::flip(r, direction = "vertical")
+    if (!lat_desc) {
+      r <- terra::flip(r, direction = "vertical")
+    }
     r[is.nan(terra::values(r))] <- 0
     r[is.na(terra::values(r))] <- 0
     r
-  }) |> rlang::set_names(var_names)
+  }) |>
+    rlang::set_names(var_names)
 }
 
 cli::cli_h1("Generating type_cropland.parquet")
@@ -66,29 +73,46 @@ agg_factor <- as.integer(target_res / 0.25)
 cli::cli_alert_info("Processing {length(year_range)} years")
 
 by_type <- purrr::map(year_range, \(yr) {
-  if (yr %% 10 == 0) cli::cli_alert("Year {yr}")
+  if (yr %% 10 == 0) {
+    cli::cli_alert("Year {yr}")
+  }
   time_idx <- yr - 850L + 1L
   crop_r <- .read_luh2_variables(states_path, crop_vars, time_idx)
-  irrig_r <- .read_luh2_variables(mgmt_path,
-    paste0("irrig_", crop_vars), time_idx)
+  irrig_r <- .read_luh2_variables(
+    mgmt_path,
+    paste0("irrig_", crop_vars),
+    time_idx
+  )
 
   purrr::map(crop_vars, \(cv) {
     iv <- paste0("irrig_", cv)
     type_ha_r <- terra::aggregate(
-      crop_r[[cv]] * carea_ha, fact = agg_factor,
-      fun = "sum", na.rm = TRUE)
+      crop_r[[cv]] * carea_ha,
+      fact = agg_factor,
+      fun = "sum",
+      na.rm = TRUE
+    )
     type_ir_r <- terra::aggregate(
-      irrig_r[[iv]] * crop_r[[cv]] * carea_ha, fact = agg_factor,
-      fun = "sum", na.rm = TRUE)
+      irrig_r[[iv]] * crop_r[[cv]] * carea_ha,
+      fact = agg_factor,
+      fun = "sum",
+      na.rm = TRUE
+    )
     ha_tbl <- .raster_to_tibble(type_ha_r, "type_ha")
     ir_tbl <- .raster_to_tibble(type_ir_r, "type_irrig_ha")
     dplyr::left_join(ha_tbl, ir_tbl, by = c("lon", "lat")) |>
       dplyr::filter(!is.na(type_ha), type_ha > 0) |>
       dplyr::mutate(
         type_irrig_ha = dplyr::if_else(
-          is.na(type_irrig_ha), 0, type_irrig_ha),
-        luh2_type = cv, year = yr)
-  }) |> dplyr::bind_rows()
+          is.na(type_irrig_ha),
+          0,
+          type_irrig_ha
+        ),
+        luh2_type = cv,
+        year = yr
+      )
+  }) |>
+    dplyr::bind_rows()
 }) |>
   dplyr::bind_rows() |>
   # Merge c4per into c3per (no CFT maps to c4per)

@@ -44,7 +44,7 @@ if (!nzchar(l_files_dir)) {
   )
 
   for (nm in names(files)) {
-    fname    <- files[[nm]]
+    fname <- files[[nm]]
     out_path <- file.path(hani_dir, fname)
 
     if (file.exists(out_path)) {
@@ -77,12 +77,17 @@ if (!nzchar(l_files_dir)) {
 .download_coello <- function() {
   cli::cli_h2("Coello et al. 2025 N/P/K crop rates")
   coello_script <- system.file(
-    "scripts", "download", "download_coello.R",
+    "scripts",
+    "download",
+    "download_coello.R",
     package = "whep"
   )
   if (!nzchar(coello_script)) {
     coello_script <- file.path(
-      "inst", "scripts", "download", "download_coello.R"
+      "inst",
+      "scripts",
+      "download",
+      "download_coello.R"
     )
   }
   if (file.exists(coello_script)) {

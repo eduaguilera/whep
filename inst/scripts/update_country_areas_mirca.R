@@ -48,13 +48,18 @@ cli::cli_alert_info("country_grid: {nrow(country_grid)} cells")
 # Check MIRCA is available
 mirca_path <- file.path(output_dir, "mirca_irrigation_country.parquet")
 if (!file.exists(mirca_path)) {
-  cli::cli_abort("mirca_irrigation_country.parquet not found. Run prepare_mirca_inputs.R first.")
+  cli::cli_abort(
+    "mirca_irrigation_country.parquet not found. Run prepare_mirca_inputs.R first."
+  )
 }
 cli::cli_alert_success("MIRCA irrigation fractions available")
 
 # Re-generate country_areas with MIRCA
 country_areas <- prepare_country_areas(
-  l_files_dir, year_range, country_grid, target_res
+  l_files_dir,
+  year_range,
+  country_grid,
+  target_res
 )
 
 nanoparquet::write_parquet(

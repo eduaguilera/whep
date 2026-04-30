@@ -33,9 +33,14 @@ target_dir <- file.path(l_files_dir, "EarthStat - Crop Specific Fertilizers")
 
 cli::cli_h1("Downloading EarthStat Crop Specific Fertilizer data")
 
-if (dir.exists(target_dir) && length(list.dirs(target_dir, recursive = FALSE)) >= 15) {
+if (
+  dir.exists(target_dir) &&
+    length(list.dirs(target_dir, recursive = FALSE)) >= 15
+) {
   n_crops <- length(list.dirs(target_dir, recursive = FALSE))
-  cli::cli_alert_success("Already extracted: {target_dir} ({n_crops} crop directories)")
+  cli::cli_alert_success(
+    "Already extracted: {target_dir} ({n_crops} crop directories)"
+  )
   quit(status = 0)
 }
 
@@ -65,7 +70,9 @@ if (!dir.exists(target_dir)) {
 
 n_crops <- length(list.dirs(target_dir, recursive = FALSE))
 n_tifs <- length(list.files(target_dir, pattern = "\\.tif$", recursive = TRUE))
-cli::cli_alert_success("Extracted: {n_crops} crop directories, {n_tifs} GeoTIFFs")
+cli::cli_alert_success(
+  "Extracted: {n_crops} crop directories, {n_tifs} GeoTIFFs"
+)
 
 file.remove(zip_path)
 cli::cli_alert_success("Done! Ready for prepare_spatialize_all.R")

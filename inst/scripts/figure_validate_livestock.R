@@ -29,7 +29,9 @@ devtools::load_all(".")
 l_files_dir <- "WHEP_LFILES_DIR"
 input_dir <- file.path(l_files_dir, "whep", "inputs")
 output_dir <- file.path(l_files_dir, "whep", "figures")
-if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE)
+if (!dir.exists(output_dir)) {
+  dir.create(output_dir, recursive = TRUE)
+}
 
 map_width <- 14
 map_height <- 7
@@ -228,8 +230,10 @@ p <- ggplot(
 
 fname <- file.path(output_dir, "val_livestock_species_totals.png")
 ggsave(
-  fname, p,
-  width = trend_width * 1.1, height = trend_height,
+  fname,
+  p,
+  width = trend_width * 1.1,
+  height = trend_height,
   dpi = 200
 )
 cli::cli_alert_success("Saved {basename(fname)}")
@@ -249,7 +253,9 @@ country_scatter <- comparison |>
   )
 
 for (yr in scatter_years) {
-  if (!yr %in% unique(country_scatter$year)) next
+  if (!yr %in% unique(country_scatter$year)) {
+    next
+  }
 
   yr_data <- country_scatter |>
     filter(year == yr, fao_M > 0)
@@ -260,22 +266,27 @@ for (yr in scatter_years) {
       rel_err = abs(grid_M - fao_M) / fao_M * 100,
       label = if_else(
         rank(-rel_err) <= 8 | rank(-fao_M) <= 5,
-        area_name, NA_character_
+        area_name,
+        NA_character_
       )
     )
 
   p <- ggplot(yr_data, aes(x = fao_M, y = grid_M)) +
     geom_abline(
-      slope = 1, intercept = 0,
-      linetype = "dashed", color = "grey50"
+      slope = 1,
+      intercept = 0,
+      linetype = "dashed",
+      color = "grey50"
     ) +
     geom_point(
       aes(size = fao_M),
-      alpha = 0.6, color = "#2ca02c"
+      alpha = 0.6,
+      color = "#2ca02c"
     ) +
     ggrepel::geom_text_repel(
       aes(label = label),
-      size = 3, max.overlaps = 15,
+      size = 3,
+      max.overlaps = 15,
       segment.color = "grey60"
     ) +
     scale_x_log10() +
@@ -289,7 +300,8 @@ for (yr in scatter_years) {
     theme(legend.position = "none")
 
   fname <- file.path(
-    output_dir, paste0("val_livestock_scatter_country_", yr, ".png")
+    output_dir,
+    paste0("val_livestock_scatter_country_", yr, ".png")
   )
   ggsave(fname, p, width = 9, height = 8, dpi = 200)
   cli::cli_alert_success("Saved {basename(fname)}")
@@ -311,14 +323,18 @@ error_data <- comparison |>
 
 p <- ggplot(error_data, aes(x = rel_error)) +
   geom_histogram(
-    bins = 100, fill = "#1f77b4", alpha = 0.7, color = "white"
+    bins = 100,
+    fill = "#1f77b4",
+    alpha = 0.7,
+    color = "white"
   ) +
   geom_vline(xintercept = 0, linetype = "dashed", color = "red") +
   coord_cartesian(xlim = c(-5, 5)) +
   labs(
     title = "Distribution of relative errors (gridded vs country input)",
     subtitle = paste0(
-      nrow(error_data), " country-year observations, ",
+      nrow(error_data),
+      " country-year observations, ",
       round(100 * mean(abs(error_data$rel_error) < 0.01), 1),
       "% within \u00b10.01%"
     ),
@@ -328,7 +344,8 @@ p <- ggplot(error_data, aes(x = rel_error)) +
   theme_minimal(base_size = 14)
 
 fname <- file.path(
-  output_dir, "val_livestock_error_distribution.png"
+  output_dir,
+  "val_livestock_error_distribution.png"
 )
 ggsave(fname, p, width = trend_width, height = trend_height * 0.8, dpi = 200)
 cli::cli_alert_success("Saved {basename(fname)}")
@@ -393,11 +410,14 @@ if (nrow(worst) > 0) {
     theme(legend.position = "bottom")
 
   fname <- file.path(
-    output_dir, "val_livestock_top_deviations.png"
+    output_dir,
+    "val_livestock_top_deviations.png"
   )
   ggsave(
-    fname, p,
-    width = trend_width * 1.1, height = trend_height * 1.0,
+    fname,
+    p,
+    width = trend_width * 1.1,
+    height = trend_height * 1.0,
     dpi = 200
   )
   cli::cli_alert_success("Saved {basename(fname)}")
@@ -489,8 +509,10 @@ p2 <- ggplot(
 p_combined <- patchwork::wrap_plots(p1, p2, ncol = 2)
 fname <- file.path(output_dir, "val_livestock_emissions_totals.png")
 ggsave(
-  fname, p_combined,
-  width = trend_width * 1.2, height = trend_height * 0.7,
+  fname,
+  p_combined,
+  width = trend_width * 1.2,
+  height = trend_height * 0.7,
   dpi = 200
 )
 cli::cli_alert_success("Saved {basename(fname)}")
@@ -556,8 +578,10 @@ p <- ggplot(
 
 fname <- file.path(output_dir, "val_livestock_country_panel.png")
 ggsave(
-  fname, p,
-  width = trend_width * 1.1, height = trend_height * 1.0,
+  fname,
+  p,
+  width = trend_width * 1.1,
+  height = trend_height * 1.0,
   dpi = 200
 )
 cli::cli_alert_success("Saved {basename(fname)}")

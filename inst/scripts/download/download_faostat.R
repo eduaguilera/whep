@@ -66,7 +66,9 @@ for (fname in files) {
     sz <- round(file.size(csv_path) / 1024 / 1024, 1)
     cli::cli_alert_success("Saved: {csv_name} ({sz} MB)")
   } else {
-    cli::cli_alert_warning("CSV not found after extraction; check zip contents.")
+    cli::cli_alert_warning(
+      "CSV not found after extraction; check zip contents."
+    )
   }
 }
 

@@ -863,7 +863,7 @@ build_gridded_landuse <- function(
       .by = c(lon, lat, year)
     ) |>
     dplyr::mutate(
-      rainfed_ha   = rainfed_ha   * scale,
+      rainfed_ha = rainfed_ha * scale,
       irrigated_ha = irrigated_ha * scale
     ) |>
     dplyr::select(-total_ha, -scale, -cropland_ha)

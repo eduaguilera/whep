@@ -26,7 +26,6 @@ l_files_dir <- Sys.getenv("WHEP_LFILES_DIR")
 .download_drt <- function(l_files_dir) {
   cli::cli_h2("DRT 0.5-degree flow direction")
 
-
   drt_dir <- file.path(l_files_dir, "DRT")
   drt_path <- file.path(drt_dir, "DRT_half_FDR_globe.asc")
 
@@ -66,11 +65,15 @@ l_files_dir <- Sys.getenv("WHEP_LFILES_DIR")
   extracted_dir <- file.path(glwd_dir, "GLWD_v2")
 
   # Check if already extracted
-  if (dir.exists(extracted_dir) &&
-    length(list.files(extracted_dir, pattern = "\\.tif$")) > 0
+  if (
+    dir.exists(extracted_dir) &&
+      length(list.files(extracted_dir, pattern = "\\.tif$")) > 0
   ) {
-    n_tif <- length(list.files(extracted_dir, pattern = "\\.tif$",
-                               recursive = TRUE))
+    n_tif <- length(list.files(
+      extracted_dir,
+      pattern = "\\.tif$",
+      recursive = TRUE
+    ))
     cli::cli_alert_success(
       "Already extracted: {extracted_dir} ({n_tif} GeoTIFF files)"
     )
@@ -110,8 +113,11 @@ l_files_dir <- Sys.getenv("WHEP_LFILES_DIR")
     dir.create(extracted_dir, recursive = TRUE)
   }
   utils::unzip(zip_path, exdir = extracted_dir)
-  n_tif <- length(list.files(extracted_dir, pattern = "\\.tif$",
-                             recursive = TRUE))
+  n_tif <- length(list.files(
+    extracted_dir,
+    pattern = "\\.tif$",
+    recursive = TRUE
+  ))
   cli::cli_alert_success("Extracted {n_tif} GeoTIFF files")
 
   invisible(extracted_dir)

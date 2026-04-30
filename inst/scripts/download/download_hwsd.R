@@ -68,7 +68,8 @@ if (!file.exists(db_zip)) {
   download.file(paste0(base_url, "/HWSD2_DB.zip"), db_zip, mode = "wb")
 }
 
-tmpd <- tempfile(); dir.create(tmpd)
+tmpd <- tempfile()
+dir.create(tmpd)
 on.exit(unlink(tmpd, recursive = TRUE), add = TRUE)
 
 cli::cli_alert("Extracting database...")
@@ -85,10 +86,16 @@ cli::cli_alert("Exporting topsoil (D1) attributes to CSV via mdb-export...")
 # Extract HWSD2_SMU header and HWSD2_LAYERS header separately,
 # then join them. Or use a single mdb-export with a query.
 # Simpler: export both tables and merge in R.
-system2("mdb-export", c(mdb_file, "HWSD2_SMU"),
-        stdout = file.path(tmpd, "smu.csv"))
-system2("mdb-export", c(mdb_file, "HWSD2_LAYERS"),
-        stdout = file.path(tmpd, "layers.csv"))
+system2(
+  "mdb-export",
+  c(mdb_file, "HWSD2_SMU"),
+  stdout = file.path(tmpd, "smu.csv")
+)
+system2(
+  "mdb-export",
+  c(mdb_file, "HWSD2_LAYERS"),
+  stdout = file.path(tmpd, "layers.csv")
+)
 
 smu <- readr::read_csv(
   file.path(tmpd, "smu.csv"),
@@ -109,14 +116,14 @@ hwsd <- layers |>
     by = "HWSD2_SMU_ID"
   ) |>
   dplyr::transmute(
-    mu_global     = as.integer(HWSD2_SMU_ID),
-    share         = as.numeric(SMU_SHARE),
-    t_sand        = as.numeric(SAND),
-    t_silt        = as.numeric(SILT),
-    t_clay        = as.numeric(CLAY),
-    t_usda_tex    = as.integer(TEXTURE_USDA),
-    t_ph_h2o      = as.numeric(PH_WATER),
-    wrb2          = WRB2
+    mu_global = as.integer(HWSD2_SMU_ID),
+    share = as.numeric(SMU_SHARE),
+    t_sand = as.numeric(SAND),
+    t_silt = as.numeric(SILT),
+    t_clay = as.numeric(CLAY),
+    t_usda_tex = as.integer(TEXTURE_USDA),
+    t_ph_h2o = as.numeric(PH_WATER),
+    wrb2 = WRB2
   ) |>
   dplyr::filter(!is.na(t_usda_tex))
 

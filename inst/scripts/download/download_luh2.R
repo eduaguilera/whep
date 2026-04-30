@@ -47,7 +47,8 @@ cli::cli_h1("Downloading LUH2 v2h data")
 for (fname in files) {
   fpath <- file.path(target_dir, fname)
   if (file.exists(fpath)) {
-    sz <- switch(fname,
+    sz <- switch(
+      fname,
       "staticData_quarterdeg.nc" = round(file.size(fpath) / 1024),
       round(file.size(fpath) / 1024 / 1024 / 1024, 1)
     )
@@ -68,7 +69,8 @@ for (fname in files) {
     cli::cli_abort("Download failed: {url}")
   }
 
-  sz <- switch(fname,
+  sz <- switch(
+    fname,
     "staticData_quarterdeg.nc" = round(file.size(fpath) / 1024),
     round(file.size(fpath) / 1024 / 1024 / 1024, 1)
   )

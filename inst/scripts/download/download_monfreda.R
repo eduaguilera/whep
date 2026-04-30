@@ -34,7 +34,7 @@
 
 gcs_base <- "https://storage.googleapis.com/earthstat"
 zip_name <- "HarvestedAreaYield175Crops_Geotiff.zip"
-gcs_url  <- paste0(gcs_base, "/", zip_name)
+gcs_url <- paste0(gcs_base, "/", zip_name)
 
 l_files_dir <- Sys.getenv("WHEP_LFILES_DIR")
 if (!nzchar(l_files_dir)) {
@@ -52,8 +52,10 @@ target_dir <- file.path(
 
 cli::cli_h1("Downloading Monfreda et al. 2008 harvested area and yield data")
 
-if (dir.exists(target_dir) &&
-    length(list.dirs(target_dir, recursive = FALSE)) >= 170) {
+if (
+  dir.exists(target_dir) &&
+    length(list.dirs(target_dir, recursive = FALSE)) >= 170
+) {
   n_crops <- length(list.dirs(target_dir, recursive = FALSE))
   cli::cli_alert_success(
     "Already extracted: {target_dir} ({n_crops} crop directories)"
@@ -106,4 +108,6 @@ cli::cli_alert_success(
 # Remove zip to free space
 cli::cli_alert("Removing zip file to free space...")
 file.remove(zip_path)
-cli::cli_alert_success("Done! Ready for prepare_spatialize_inputs.R and prepare_yield_inputs.R.")
+cli::cli_alert_success(
+  "Done! Ready for prepare_spatialize_inputs.R and prepare_yield_inputs.R."
+)

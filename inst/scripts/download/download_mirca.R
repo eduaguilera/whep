@@ -82,18 +82,21 @@ for (crop_num in names(crop_names)) {
     url <- sprintf("%s/%s", base_url, fname)
     cli::cli_alert("Downloading {fname} ({crop_names[crop_num]}, {wtype})...")
 
-    tryCatch({
-      download.file(url, fpath, mode = "wb", quiet = TRUE)
-      if (file.exists(fpath)) {
-        sz <- round(file.size(fpath) / 1024 / 1024, 1)
-        total <- total + 1L
-        cli::cli_alert_success("  {fname} ({sz} MB)")
-      } else {
-        cli::cli_alert_warning("  {fname} failed")
+    tryCatch(
+      {
+        download.file(url, fpath, mode = "wb", quiet = TRUE)
+        if (file.exists(fpath)) {
+          sz <- round(file.size(fpath) / 1024 / 1024, 1)
+          total <- total + 1L
+          cli::cli_alert_success("  {fname} ({sz} MB)")
+        } else {
+          cli::cli_alert_warning("  {fname} failed")
+        }
+      },
+      error = function(e) {
+        cli::cli_alert_danger("  {fname}: {conditionMessage(e)}")
       }
-    }, error = function(e) {
-      cli::cli_alert_danger("  {fname}: {conditionMessage(e)}")
-    })
+    )
   }
 }
 

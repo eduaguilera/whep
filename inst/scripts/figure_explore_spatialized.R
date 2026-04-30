@@ -68,7 +68,8 @@ country_grid <- nanoparquet::read_parquet(
 
 # World basemap
 world <- rnaturalearth::ne_countries(
-  scale = "medium", returnclass = "sf"
+  scale = "medium",
+  returnclass = "sf"
 ) |>
   sf::st_transform("+proj=robin")
 
@@ -95,10 +96,17 @@ world <- rnaturalearth::ne_countries(
     sf::st_transform("+proj=robin")
 
   p <- ggplot() +
-    geom_sf(data = world, fill = "grey92", colour = "grey70", linewidth = 0.15) +
     geom_sf(
-      data = pts, aes(colour = value),
-      size = 0.15, alpha = 0.7
+      data = world,
+      fill = "grey92",
+      colour = "grey70",
+      linewidth = 0.15
+    ) +
+    geom_sf(
+      data = pts,
+      aes(colour = value),
+      size = 0.15,
+      alpha = 0.7
     ) +
     theme_minimal(base_size = 11) +
     theme(
@@ -110,17 +118,20 @@ world <- rnaturalearth::ne_countries(
     labs(title = title, colour = fill_label)
 
   if (log_scale) {
-    p <- p + scale_colour_viridis_c(
-      option = palette, trans = "log10",
-      labels = scales::label_comma(),
-      na.value = "transparent"
-    )
+    p <- p +
+      scale_colour_viridis_c(
+        option = palette,
+        trans = "log10",
+        labels = scales::label_comma(),
+        na.value = "transparent"
+      )
   } else {
-    p <- p + scale_colour_viridis_c(
-      option = palette,
-      labels = scales::label_comma(),
-      na.value = "transparent"
-    )
+    p <- p +
+      scale_colour_viridis_c(
+        option = palette,
+        labels = scales::label_comma(),
+        na.value = "transparent"
+      )
   }
 
   p
@@ -160,11 +171,14 @@ for (yr in map_years) {
 cli::cli_h2("Figure 2: CFT panel map")
 
 world_ll <- rnaturalearth::ne_countries(
-  scale = "medium", returnclass = "sf"
+  scale = "medium",
+  returnclass = "sf"
 )
 
 for (yr in c(2000L, 2020L)) {
-  if (!yr %in% gridded$year) next
+  if (!yr %in% gridded$year) {
+    next
+  }
 
   df_cft <- gridded |>
     dplyr::filter(year == yr, (rainfed_ha + irrigated_ha) > 0) |>
@@ -172,15 +186,21 @@ for (yr in c(2000L, 2020L)) {
 
   p <- ggplot() +
     geom_sf(
-      data = world_ll, fill = "grey92", colour = "grey70", linewidth = 0.1
+      data = world_ll,
+      fill = "grey92",
+      colour = "grey70",
+      linewidth = 0.1
     ) +
     geom_point(
-      data = df_cft, aes(x = lon, y = lat, colour = total_ha),
-      size = 0.05, alpha = 0.6
+      data = df_cft,
+      aes(x = lon, y = lat, colour = total_ha),
+      size = 0.05,
+      alpha = 0.6
     ) +
     facet_wrap(~cft_name, ncol = 3) +
     scale_colour_viridis_c(
-      option = "mako", trans = "log10",
+      option = "mako",
+      trans = "log10",
       labels = scales::label_comma()
     ) +
     coord_sf(expand = FALSE) +
@@ -206,7 +226,9 @@ for (yr in c(2000L, 2020L)) {
 cli::cli_h2("Figure 3: Irrigated share map")
 
 for (yr in c(1960L, 2000L, 2020L)) {
-  if (!yr %in% gridded$year) next
+  if (!yr %in% gridded$year) {
+    next
+  }
 
   df_irr <- gridded |>
     dplyr::filter(year == yr) |>
@@ -223,11 +245,16 @@ for (yr in c(1960L, 2000L, 2020L)) {
 
   p <- ggplot() +
     geom_sf(
-      data = world, fill = "grey92", colour = "grey70", linewidth = 0.15
+      data = world,
+      fill = "grey92",
+      colour = "grey70",
+      linewidth = 0.15
     ) +
     geom_sf(
-      data = pts, aes(colour = value),
-      size = 0.15, alpha = 0.7
+      data = pts,
+      aes(colour = value),
+      size = 0.15,
+      alpha = 0.7
     ) +
     scale_colour_viridis_c(
       option = "inferno",
@@ -290,12 +317,17 @@ p_global <- ggplot(global_trend, aes(x = year, y = area_mha, fill = type)) +
   ) +
   labs(
     title = "Global harvested area (1850–2022)",
-    x = "Year", y = "Area (million ha)", fill = NULL
+    x = "Year",
+    y = "Area (million ha)",
+    fill = NULL
   )
 
 ggsave(
   file.path(fig_dir, "trend_global_area.png"),
-  p_global, width = 10, height = 5, dpi = map_dpi
+  p_global,
+  width = 10,
+  height = 5,
+  dpi = map_dpi
 )
 cli::cli_alert_success("Saved trend_global_area.png")
 
@@ -321,12 +353,16 @@ p_cft <- ggplot(cft_trend, aes(x = year, y = total_mha, colour = cft_name)) +
   ) +
   labs(
     title = "Harvested area by crop functional type (1850–2022)",
-    x = "Year", y = "Area (million ha)"
+    x = "Year",
+    y = "Area (million ha)"
   )
 
 ggsave(
   file.path(fig_dir, "trend_cft_area.png"),
-  p_cft, width = 14, height = 10, dpi = map_dpi
+  p_cft,
+  width = 14,
+  height = 10,
+  dpi = map_dpi
 )
 cli::cli_alert_success("Saved trend_cft_area.png")
 
@@ -371,13 +407,17 @@ p_countries <- country_totals |>
   ) +
   labs(
     title = paste0("Top 10 countries by harvested area (1961–", latest_yr, ")"),
-    x = "Year", y = "Total harvested area (million ha)",
+    x = "Year",
+    y = "Total harvested area (million ha)",
     colour = "Country"
   )
 
 ggsave(
   file.path(fig_dir, "trend_top_countries.png"),
-  p_countries, width = 12, height = 6, dpi = map_dpi
+  p_countries,
+  width = 12,
+  height = 6,
+  dpi = map_dpi
 )
 cli::cli_alert_success("Saved trend_top_countries.png")
 
@@ -397,7 +437,8 @@ p_irr <- ggplot(irr_share, aes(x = year, y = share)) +
   geom_line(colour = "#d7191c", linewidth = 0.8) +
   geom_point(
     data = dplyr::filter(irr_share, year %% 20 == 0),
-    colour = "#d7191c", size = 2
+    colour = "#d7191c",
+    size = 2
   ) +
   scale_y_continuous(
     labels = scales::label_percent(),
@@ -409,12 +450,16 @@ p_irr <- ggplot(irr_share, aes(x = year, y = share)) +
   theme(plot.title = element_text(face = "bold")) +
   labs(
     title = "Global irrigated share of harvested area (1850–2022)",
-    x = "Year", y = "Irrigated share"
+    x = "Year",
+    y = "Irrigated share"
   )
 
 ggsave(
   file.path(fig_dir, "trend_irrigated_share.png"),
-  p_irr, width = 10, height = 5, dpi = map_dpi
+  p_irr,
+  width = 10,
+  height = 5,
+  dpi = map_dpi
 )
 cli::cli_alert_success("Saved trend_irrigated_share.png")
 
@@ -452,12 +497,17 @@ p_cont <- ggplot(
   ) +
   labs(
     title = "Global harvested area by continent (1850–2022)",
-    x = "Year", y = "Area (million ha)", fill = NULL
+    x = "Year",
+    y = "Area (million ha)",
+    fill = NULL
   )
 
 ggsave(
   file.path(fig_dir, "trend_continental_area.png"),
-  p_cont, width = 10, height = 5, dpi = map_dpi
+  p_cont,
+  width = 10,
+  height = 5,
+  dpi = map_dpi
 )
 cli::cli_alert_success("Saved trend_continental_area.png")
 
