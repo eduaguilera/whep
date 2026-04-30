@@ -16,3 +16,7 @@
 ^doc$
 ^Meta$
 ^.vscode$
+^\.agent$
+^\.claude$
+^CLAUDE\.md$
+^autoresearch$

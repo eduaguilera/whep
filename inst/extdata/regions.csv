@@ -13,6 +13,7 @@ BHR,13,Bahrain,ASI,Middle East,FALSE,BH
 BRB,14,Barbados,LAM,Central America,FALSE,BB
 BLX,15,Belgium-Luxembourg,EU,OECD Europe,TRUE,BE_LU
 BGD,16,Bangladesh,ASI,South Asia,FALSE,BD
+BTN,18,Bhutan,ASI,South Asia,FALSE,BT
 BOL,19,Bolivia (Plurinational State of),LAM,South America,FALSE,BO
 BWA,20,Botswana,AFR,Southern Africa,FALSE,BW
 BRA,21,Brazil,LAM,South America,FALSE,BR
@@ -31,6 +32,7 @@ TCD,39,Chad,AFR,Western Africa,FALSE,TD
 CHL,40,Chile,LAM,South America,FALSE,CL
 CHN,41,"China, mainland",ASI,East Asia,FALSE,CN
 COL,44,Colombia,LAM,South America,FALSE,CO
+COM,45,Comoros,AFR,Eastern Africa,FALSE,KM
 COG,46,Congo,AFR,Western Africa,FALSE,CG
 CRI,48,Costa Rica,LAM,Central America,FALSE,CR
 CUB,49,Cuba,LAM,Central America,FALSE,CU
@@ -94,6 +96,7 @@ LSO,122,Lesotho,AFR,Southern Africa,FALSE,LS
 LBR,123,Liberia,AFR,Western Africa,FALSE,LR
 LBY,124,Libya,AFR,Northern Africa,FALSE,LY
 LTU,126,Lithuania,EU,Former USSR,TRUE,LT
+MHL,127,Marshall Islands,OCE,Oceania,FALSE,MH
 MAC,128,"China, Macao SAR",ASI,East Asia,FALSE,MO
 MDG,129,Madagascar,AFR,Eastern Africa,FALSE,MG
 MWI,130,Malawi,AFR,Southern Africa,FALSE,MW
@@ -107,8 +110,10 @@ MEX,138,Mexico,LAM,Central America,FALSE,MX
 MNG,141,Mongolia,ASI,East Asia,FALSE,MN
 MAR,143,Morocco,AFR,Northern Africa,FALSE,MA
 MOZ,144,Mozambique,AFR,Southern Africa,FALSE,MZ
+FSM,145,Micronesia (Federated States of),OCE,Oceania,FALSE,FM
 MDA,146,Republic of Moldova,EUR,Former USSR,FALSE,MD
 NAM,147,Namibia,AFR,Southern Africa,FALSE,NA
+NRU,148,Nauru,OCE,Oceania,FALSE,NR
 NPL,149,Nepal,ASI,South Asia,FALSE,NP
 NLD,150,Netherlands,EU,OECD Europe,TRUE,NL
 ANT,151,Netherlands Antilles,LAM,Central America,FALSE,AN
@@ -145,6 +150,7 @@ VCT,191,Saint Vincent and the Grenadines,LAM,Central America,FALSE,VC
 STP,193,Sao Tome and Principe,AFR,Western Africa,FALSE,ST
 SAU,194,Saudi Arabia,ASI,Middle East,FALSE,SA
 SEN,195,Senegal,AFR,Western Africa,FALSE,SN
+SYC,196,Seychelles,AFR,Eastern Africa,FALSE,SC
 SLE,197,Sierra Leone,AFR,Western Africa,FALSE,SL
 SVN,198,Slovenia,EU,Eastern Europe,TRUE,SI
 SVK,199,Slovakia,EU,Eastern Europe,TRUE,SK
@@ -163,12 +169,14 @@ TWN,214,"China, Taiwan Province of",ASI,East Asia,FALSE,TW
 TZA,215,United Republic of Tanzania,AFR,Southern Africa,FALSE,TZ
 THA,216,Thailand,ASI,South East Asia,FALSE,TH
 TGO,217,Togo,AFR,Western Africa,FALSE,TG
+TON,219,Tonga,OCE,Oceania,FALSE,TO
 TTO,220,Trinidad and Tobago,LAM,Central America,FALSE,TT
 OMN,221,Oman,ASI,Middle East,FALSE,OM
 TUN,222,Tunisia,AFR,Northern Africa,FALSE,TN
 TUR,223,Turkey,EUR,Middle East,FALSE,TR
 ARE,225,United Arab Emirates,ASI,Middle East,FALSE,AE
 UGA,226,Uganda,AFR,Eastern Africa,FALSE,UG
+TUV,227,Tuvalu,OCE,Oceania,FALSE,TV
 SUN,228,USSR,EUR,Former USSR,FALSE,
 GBR,229,United Kingdom,EU,OECD Europe,FALSE,GB
 UKR,230,Ukraine,EUR,Former USSR,FALSE,UA
@@ -190,4 +198,13 @@ SRB,272,Serbia,EUR,OECD Europe,FALSE,RS
 MNE,273,Montenegro,EUR,OECD Europe,FALSE,ME
 SDN,276,Sudan,AFR,Eastern Africa,FALSE,SD
 SSD,277,South Sudan,AFR,Eastern Africa,FALSE,SS
+GNQ,61,Equatorial Guinea,AFR,Western Africa,FALSE,GQ
+GUF,69,French Guiana,LAM,South America,FALSE,GF
+PSE,299,Palestine,ASI,Middle East,FALSE,PS
+RAFR,901,Africa Other,AFR,,FALSE,
+RASI,902,Asia Other,ASI,,FALSE,
+REUR,903,Europe Other,EUR,,FALSE,
+RLAM,904,Latin America Other,LAM,,FALSE,
+RNAM,905,North America Other,NAM,,FALSE,
+ROCE,906,Oceania Other,OCE,Oceania,FALSE,
 ROW,999,RoW,ROW,,FALSE,

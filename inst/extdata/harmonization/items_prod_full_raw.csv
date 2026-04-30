@@ -1,0 +1,329 @@
+item_prod,item_prod_code,item_cbs,item_cbs_code,group,live_anim,live_anim_code,Cat_Krausmann,Name_biomass,Name_Eurostat,Name,Cat_Labour,Cat_FAO1,Cat_Origin,Cat_Use,Order,Categ,Farm_class,c3_c4,ann_per_nfx
+Wheat,15,Wheat and products,2511.0,Primary crops,,,"Wheat, other cereals",Wheat,,Wheat,Cereals,Cereals,Cereals,Grains,1.0,Cereals,COP,c3,ann
+Rice,27,Rice and products,2807.0,Primary crops,,,"Rice, Paddy",Rice,,Rice,Rice,Cereals,Cereals,Grains,1.0,Cereals,COP,c3,ann
+Barley,44,Barley and products,2513.0,Primary crops,,,"Wheat, other cereals",Barley,,Barley,Cereals,Cereals,Cereals,Grains,1.0,Cereals,COP,c3,ann
+"Beer of barley, malted",51,Beer,2656.0,Crop products,,,,Beer,,,,,,,,,,,
+Maize (corn),56,Maize and products,2514.0,Primary crops,,,Maize,Maize,,Maize,Cereals,Cereals,Cereals,Grains,1.0,Cereals,COP,c4,ann
+Oil of maize,60,Maize Germ Oil,2582.0,Crop products,,,,Maize germ oil,,,,,,,,,,,
+Rye,71,Rye and products,2515.0,Primary crops,,,"Wheat, other cereals",Rye,,Rye,Cereals,Cereals,Cereals,Grains,1.0,Cereals,COP,c3,ann
+Oats,75,Oats,2516.0,Primary crops,,,"Wheat, other cereals",Oats,,Oats,Cereals,Cereals,Cereals,Grains,1.0,Cereals,COP,c3,ann
+Millet,79,Millet and products,2517.0,Primary crops,,,Millet,Millet,,Millet,Cereals,Cereals,Cereals,Grains,1.0,Cereals,COP,c3,ann
+Sorghum,83,Sorghum and products,2518.0,Primary crops,,,Sorghum,Sorghum,,Sorghum,Cereals,Cereals,Cereals,Grains,1.0,Cereals,COP,c3,ann
+Buckwheat,89,"Cereals, Other",2520.0,Primary crops,,,"Wheat, other cereals",Cereals nes,,Cereals_nes,Cereals,Cereals,Cereals,Grains,1.0,Cereals,COP,c3,ann
+Quinoa,92,"Cereals, Other",2520.0,Primary crops,,,"Wheat, other cereals",Cereals nes,,Cereals_nes,Cereals,Cereals,Cereals,Grains,1.0,Cereals,COP,c3,ann
+Fonio,94,"Cereals, Other",2520.0,Primary crops,,,"Wheat, other cereals","Roots, other",,Roots_nes,Cereals,Cereals,Cereals,Grains,1.0,Cereals,Vegetables,c3,ann
+Triticale,97,"Cereals, Other",2520.0,Primary crops,,,"Wheat, other cereals",Triticale,,Cereals_nes,Cereals,Cereals,Cereals,Grains,1.0,Cereals,COP,c3,ann
+Canary seed,101,"Cereals, Other",2520.0,Primary crops,,,"Wheat, other cereals",Canary grass,,Cereals_nes,Cereals,Cereals,Cereals,Grains,1.0,Cereals,COP,c3,ann
+Mixed grain,103,"Cereals, Other",2520.0,Primary crops,,,"Wheat, other cereals",Cereals nes,,Cereals_nes,Cereals,Cereals,Cereals,Grains,1.0,Cereals,COP,c3,ann
+Cereals n.e.c.,108,"Cereals, Other",2520.0,Primary crops,,,"Wheat, other cereals",Cereals nes,,Cereals_nes,Cereals,Cereals,Cereals,Grains,1.0,Cereals,COP,c3,ann
+Potatoes,116,Potatoes and products,2531.0,Primary crops,,,Roots and Tubers,Potato,,Potatoes,Roots and Tubers,Roots and Tubers,Vegetables and Fruits,Vegetables and Fruits,1.0,Roots and tubers,Other_crops,c3,ann
+Sweet potatoes,122,Sweet potatoes,2533.0,Primary crops,,,Roots and Tubers,Sweet potato,,Roots_nes,Roots and Tubers,Roots and Tubers,Vegetables and Fruits,Vegetables and Fruits,1.0,Roots and tubers,Other_crops,c3,ann
+"Cassava, fresh",125,Cassava and products,2532.0,Primary crops,,,Cassava,Cassava,,Roots_nes,Roots and Tubers,Roots and Tubers,Vegetables and Fruits,Vegetables and Fruits,1.0,Roots and tubers,Other_crops,c3,ann
+Yautia,135,"Roots, Other",2534.0,Primary crops,,,Roots and Tubers,"Roots, other",,Roots_nes,Roots and Tubers,Roots and Tubers,Vegetables and Fruits,Vegetables and Fruits,1.0,Roots and tubers,Other_crops,c3,ann
+Taro,136,"Roots, Other",2534.0,Primary crops,,,Roots and Tubers,"Roots, other",,Roots_nes,Roots and Tubers,Roots and Tubers,Vegetables and Fruits,Vegetables and Fruits,1.0,Roots and tubers,Other_crops,c3,ann
+Yams,137,Yams,2535.0,Primary crops,,,Roots and Tubers,"Roots, other",,Roots_nes,Roots and Tubers,Roots and Tubers,Vegetables and Fruits,Vegetables and Fruits,1.0,Roots and tubers,Other_crops,c3,ann
+"Edible roots and tubers with high starch or inulin content, n.e.c., fresh",149,"Roots, Other",2534.0,Primary crops,,,Roots and Tubers,"Roots, other",,Roots_nes,Roots and Tubers,Roots and Tubers,Vegetables and Fruits,Vegetables and Fruits,1.0,Roots and tubers,Other_crops,c3,ann
+Sugar cane,156,Sugar cane,2536.0,Primary crops,,,Sugar Cane,Sugarcane,,Sugar_cane,Sugar Crops Primary,Sugar Crops Primary,Sugar and Stimulants,"Beverages, sugar and stimulants",1.0,Sugar crops,Other_crops,c4,per
+Sugar beet,157,Sugar beet,2537.0,Primary crops,,,Sugar Beets,Sugar beet,,Sugar_beet,Sugar Crops Primary,Sugar Crops Primary,Sugar and Stimulants,"Beverages, sugar and stimulants",1.0,Sugar crops,Other_crops,c3,ann
+Other sugar crops n.e.c.,161,Sugar beet,2537.0,Primary crops,,,Sugar Beets,Sugar beet,,Sugar_beet,Sugar Crops Primary,Sugar Crops Primary,Sugar and Stimulants,"Beverages, sugar and stimulants",1.0,Sugar crops,Other_crops,c3,ann
+Raw cane or beet sugar (centrifugal only),162,Sugar (Raw Equivalent),2542.0,Crop products,,,,White sugar,,,,,,,,,,,
+Molasses,165,Molasses,2544.0,Crop products,,,,Sugarcane molasses,,,,,,,,,,,
+"Beans, dry",176,Beans,2546.0,Primary crops,,,"Beans, Dry",Beans,,Beans_dry,Pulses,Pulses,Cereals,Grains,1.0,Pulses,COP,c3,nfx
+"Broad beans and horse beans, dry",181,"Pulses, Other and products",2549.0,Primary crops,,,Pulses,Fava bean,,Fava_beans,Pulses,Pulses,Cereals,Grains,1.0,Pulses,COP,c3,nfx
+"Peas, dry",187,Peas,2547.0,Primary crops,,,Pulses,Pea,,Peas,Pulses,Pulses,Cereals,Grains,1.0,Pulses,COP,c3,nfx
+"Chick peas, dry",191,"Pulses, Other and products",2549.0,Primary crops,,,Pulses,Chickpea,,Chickpeas,Pulses,Pulses,Cereals,Grains,1.0,Pulses,COP,c3,nfx
+"Cow peas, dry",195,"Pulses, Other and products",2549.0,Primary crops,,,Pulses,Pulses nes,,Pulses_nes,Pulses,Pulses,Cereals,Grains,1.0,Pulses,COP,c3,nfx
+"Pigeon peas, dry",197,"Pulses, Other and products",2549.0,Primary crops,,,Pulses,Pulses nes,,Pulses_nes,Pulses,Pulses,Cereals,Grains,1.0,Pulses,COP,c3,nfx
+"Lentils, dry",201,"Pulses, Other and products",2549.0,Primary crops,,,Pulses,Lentils,,Lentils,Pulses,Pulses,Cereals,Grains,1.0,Pulses,COP,c3,nfx
+"Bambara beans, dry",203,"Pulses, Other and products",2549.0,Primary crops,,,Pulses,Pulses nes,,Pulses_nes,Pulses,Pulses,Cereals,Grains,1.0,Pulses,COP,c3,nfx
+Vetches,205,"Pulses, Other and products",2549.0,Primary crops,,,Pulses,Vetch,,Vetches,Pulses,Pulses,Cereals,Grains,1.0,Pulses,COP,c3,nfx
+Lupins,210,"Pulses, Other and products",2549.0,Primary crops,,,Pulses,Lupin,,Lupins,Pulses,Pulses,Cereals,Grains,1.0,Pulses,COP,c3,nfx
+Other pulses n.e.c.,211,"Pulses, Other and products",2549.0,Primary crops,,,Pulses,Pulses nes,,Pulses_nes,Pulses,Pulses,Cereals,Grains,1.0,Pulses,COP,c3,nfx
+"Brazil nuts, in shell",216,Nuts and products,2551.0,Primary crops,,,Permanent crops,Nuts nes,,Nuts_nes,Treenuts,Treenuts,Vegetables and Fruits,Vegetables and Fruits,1.0,Treenuts,Fruits,c3,per
+"Cashew nuts, in shell",217,Nuts and products,2551.0,Primary crops,,,Permanent crops,Nuts nes,,Nuts_nes,Treenuts,Treenuts,Vegetables and Fruits,Vegetables and Fruits,1.0,Treenuts,Fruits,c3,per
+"Chestnuts, in shell",220,Nuts and products,2551.0,Primary crops,,,Permanent crops,Chestnut,,Chestnut,Treenuts,Treenuts,Vegetables and Fruits,Vegetables and Fruits,1.0,Treenuts,Fruits,c3,per
+"Almonds, in shell",221,Nuts and products,2551.0,Primary crops,,,Permanent crops,Almonds,,Almonds,Treenuts,Treenuts,Vegetables and Fruits,Vegetables and Fruits,1.0,Treenuts,Olive,c3,per
+"Walnuts, in shell",222,Nuts and products,2551.0,Primary crops,,,Permanent crops,Walnut,,Walnuts,Treenuts,Treenuts,Vegetables and Fruits,Vegetables and Fruits,1.0,Treenuts,Fruits,c3,per
+"Pistachios, in shell",223,Nuts and products,2551.0,Primary crops,,,Permanent crops,Pistachios,,Pistachios,Treenuts,Treenuts,Vegetables and Fruits,Vegetables and Fruits,1.0,Treenuts,Fruits,c3,per
+Kola nuts,224,Nuts and products,2551.0,Primary crops,,,Permanent crops,Nuts nes,,Nuts_nes,Treenuts,Treenuts,Vegetables and Fruits,Vegetables and Fruits,1.0,Treenuts,Fruits,c3,per
+"Hazelnuts, in shell",225,Nuts and products,2551.0,Primary crops,,,Permanent crops,Hazelnut,,Hazelnuts,Treenuts,Treenuts,Vegetables and Fruits,Vegetables and Fruits,1.0,Treenuts,Fruits,c3,per
+Areca nuts,226,Nuts and products,2551.0,Primary crops,,,Permanent crops,Nuts nes,,Nuts_nes,Treenuts,Treenuts,Vegetables and Fruits,Vegetables and Fruits,1.0,Treenuts,Fruits,c3,per
+"Other nuts (excluding wild edible nuts and groundnuts), in shell, n.e.c.",234,Nuts and products,2551.0,Primary crops,,,Permanent crops,Nuts nes,,Nuts_nes,Treenuts,Treenuts,Vegetables and Fruits,Vegetables and Fruits,1.0,Treenuts,Fruits,c3,per
+Soya beans,236,Soyabeans,2555.0,Primary crops,,,Soybeans,Soyabeans,,Soybeans,Oil_Crops_extensive,Oil Crops,Oil Crops,Oils and Fats,1.0,Oil crops,COP,c3,per
+Soya bean oil,237,Soyabean Oil,2571.0,Crop products,,,,Soyabean oil,,,,,,,,,,c3,per
+"Groundnuts, excluding shelled",242,Groundnuts,2552.0,Primary crops,,,Groundnuts in Shell,"Groundnuts, with shell",,Groundnuts,Oil_Crops_extensive,Oil Crops,Oil Crops,Oils and Fats,1.0,Oil crops,COP,c3,per
+Groundnut oil,244,Groundnut Oil,2572.0,Crop products,,,,Peanut oil,,,,,,,,,,c3,per
+Coconuts,248,Coconuts,248.0,Primary crops,,,Permanent crops,Coconut,,Woody_other,Oil_Crops_fruits,Oil Crops,Oil Crops,Oils and Fats,1.0,Oil crops,Fruits,c3,per
+"Coconuts, in shell",249,Coconuts - Incl Copra,2560.0,Primary crops,,,Permanent crops,Coconut,,Woody_other,Oil_Crops_fruits,Oil Crops,Oil Crops,Oils and Fats,1.0,Oil crops,Fruits,c3,per
+Coconut oil,252,Coconut Oil,2578.0,Crop products,,,,Coconut oil,,,,,,,,,,c3,per
+Oil palm fruit,254,"Oil, palm fruit",254.0,Primary crops,,,Permanent crops,Oil palm,,Woody_other,Oil_Crops_palm,Oil Crops,Oil Crops,Oils and Fats,1.0,Oil crops,Fruits,c3,per
+Palm kernels,256,Palm kernels,2562.0,Primary crops,,,Permanent crops,Oil palm,,,Oil_Crops_palm,Oil Crops,Oil Crops,Oils and Fats,1.0,Oil crops,,c3,per
+Palm oil,257,Palm Oil,2577.0,Primary crops,,,Permanent crops,Palm oil,,,,,,,,,,,
+Oil of palm kernel,258,Palmkernel Oil,2576.0,Crop products,,,,Palm oil,,,,,,,,,,,
+Olives,260,Olives (including preserved),2563.0,Primary crops,,,Permanent crops,Olive,,Olives,Oil_Crops_olives,Oil Crops,Oil Crops,Oils and Fats,1.0,Oil crops,Olive,c3,per
+Olive oil,261,Olive Oil,2580.0,Crop products,,,,Olive oil,,,,,,,,,,c3,per
+Karite nuts (sheanuts),263,"Oilcrops, Other",2570.0,Primary crops,,,"Rapeseed, oil crops",Nuts nes,,Nuts_nes,Oil_Crops_fruits,Oil Crops,Oil Crops,Oils and Fats,1.0,Oil crops,Fruits,c3,per
+Castor oil seeds,265,"Oilcrops, Other",2570.0,Primary crops,,,Castor Beans,"Oilcrops, other",,Sunflowerseed,Oil_Crops_extensive,Oil Crops,Oil Crops,Oils and Fats,1.0,Oil crops,COP,c3,per
+Sunflower seed,267,Sunflower seed,2557.0,Primary crops,,,Sunflower Seed,Sunflower seed,,Sunflowerseed,Oil_Crops_extensive,Oil Crops,Oil Crops,Oils and Fats,1.0,Oil crops,COP,c3,per
+"Sunflower-seed oil, crude",268,Sunflowerseed Oil,2573.0,Crop products,,,,Sunflowerseed oil,,,,,,,,,,c3,per
+Rape or colza seed,270,Rape and Mustardseed,2558.0,Primary crops,,,"Rapeseed, oil crops",Rape,,Rapeseed,Oil_Crops_extensive,Oil Crops,Oil Crops,Oils and Fats,1.0,Oil crops,COP,c3,per
+"Rapeseed or canola oil, crude",271,Rape and Mustard Oil,2574.0,Crop products,,,,"Oilcrops oil, other",,,,,,,,,,c3,per
+Tung nuts,275,"Oilcrops, Other",2570.0,Primary crops,,,"Rapeseed, oil crops",Nuts nes,,Nuts_nes,Oil_Crops_fruits,Oil Crops,Oil Crops,Oils and Fats,1.0,Oil crops,Fruits,c3,per
+Jojoba seeds,277,"Oilcrops, Other",2570.0,Primary crops,,,"Rapeseed, oil crops","Oilcrops, other",,Sunflowerseed,Oil_Crops_extensive,Oil Crops,Oil Crops,Oils and Fats,1.0,Oil crops,Other_crops,c3,per
+Safflower seed,280,"Oilcrops, Other",2570.0,Primary crops,,,"Rapeseed, oil crops",Safflower,,Safflowerseed,Oil_Crops_extensive,Oil Crops,Oil Crops,Oils and Fats,1.0,Oil crops,COP,c3,per
+"Safflower-seed oil, crude",281,"Oilcrops Oil, Other",2586.0,Crop products,,,,"Oilcrops oil, other",,,,,,,,,,c3,per
+Sesame seed,289,Sesame seed,2561.0,Primary crops,,,"Rapeseed, oil crops","Oilcrops, other",,Sunflowerseed,Oil_Crops_extensive,Oil Crops,Oil Crops,Oils and Fats,1.0,Oil crops,COP,c3,per
+Oil of sesame seed,290,Sesameseed Oil,2579.0,Crop products,,,,"Oilcrops oil, other",,,,,,,,,,c3,per
+Mustard seed,292,Rape and Mustardseed,2558.0,Primary crops,,,"Rapeseed, oil crops",Mustard,,Sunflowerseed,Oil_Crops_extensive,Oil Crops,Oil Crops,Oils and Fats,1.0,Oil crops,COP,c3,per
+Poppy seed,296,"Oilcrops, Other",2570.0,Primary crops,,,"Rapeseed, oil crops",Poppy seeds,,Other,Oil_Crops_extensive,Oil Crops,Oil Crops,Oils and Fats,1.0,Oil crops,COP,c3,per
+Melonseed,299,"Oilcrops, Other",2570.0,Primary crops,,,"Rapeseed, oil crops","Oilcrops, other",,Sunflowerseed,Oil_Crops_extensive,Oil Crops,Oil Crops,Oils and Fats,1.0,Oil crops,Vegetables,c3,per
+Tallowtree seed,305,"Oilcrops, Other",2570.0,Primary crops,,,"Rapeseed, oil crops","Oilcrops, other",,Woody_other,Other,Other food nes,Sugar and Stimulants,"Beverages, sugar and stimulants",1.0,"Stimulants, spices",Fruits,c3,per
+Kapok fruit,310,Kapok fruit,310.0,Primary crops,,,Permanent crops,Fruits,,Fruits_nes,Oil_Crops_fruits,Oil Crops,Oil Crops,Oils and Fats,1.0,Oil crops,Fruits,c3,per
+Kapokseed in shell,311,"Oilcrops, Other",2570.0,Primary crops,,,"Rapeseed, oil crops","Oilcrops, other",,Sunflowerseed,,,,,,,,,
+"Seed cotton, unginned",328,Seed cotton,328.0,Primary crops,,,Permanent crops,Seed cotton,,Seed_cotton,Oil_Crops_extensive,Oil Crops,Oil Crops,Oils and Fats,1.0,Oil crops,COP,c3,per
+Cotton seed,329,Cottonseed,2559.0,Primary crops,,,Permanent crops,Cottonseed,,,,,,,,,,,
+Cottonseed oil,331,Cottonseed Oil,2575.0,Crop products,,,,"Oilcrops oil, other",,,,,,,,,,,
+Linseed,333,"Oilcrops, Other",2570.0,Primary crops,,,"Rapeseed, oil crops",Linseed,,Linseed,Oil_Crops_extensive,Oil Crops,Oil Crops,Oils and Fats,1.0,Oil crops,Other_crops,c3,per
+Oil of linseed,334,"Oilcrops Oil, Other",2586.0,Crop products,,,,"Oilcrops oil, other",,,,,,,,,,c3,per
+Hempseed,336,"Oilcrops, Other",2570.0,Primary crops,,,"Rapeseed, oil crops",Hemp seed,,Hempseed,Oil_Crops_extensive,Oil Crops,Oil Crops,Oils and Fats,1.0,Oil crops,Other_crops,c3,per
+"Other oil seeds, n.e.c.",339,"Oilcrops, Other",2570.0,Primary crops,,,"Rapeseed, oil crops","Oilcrops, other",,Sunflowerseed,Oil_Crops_extensive,Oil Crops,Oil Crops,Oils and Fats,1.0,Oil crops,COP,c3,per
+Cabbages,358,"Vegetables, Other",2605.0,Primary crops,,,Permanent crops,"Cabbage, Broccoli",,Cabbages,Vegetables,Vegetables Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Vegetables,Vegetables,c3,ann
+Artichokes,366,"Vegetables, Other",2605.0,Primary crops,,,Permanent crops,Artichoke,,Artichokes,Vegetables,Vegetables Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Vegetables,Vegetables,c3,ann
+Asparagus,367,"Vegetables, Other",2605.0,Primary crops,,,Permanent crops,Asparagus,,Asparagus,Vegetables,Vegetables Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Vegetables,Vegetables,c3,ann
+Lettuce and chicory,372,"Vegetables, Other",2605.0,Primary crops,,,Permanent crops,Lettuce,,Lettuce_chicory,Vegetables,Vegetables Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Vegetables,Vegetables,c3,ann
+Spinach,373,"Vegetables, Other",2605.0,Primary crops,,,Permanent crops,Spinach,,Spinach,Vegetables,Vegetables Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Vegetables,Vegetables,c3,ann
+Cassava leaves,378,"Vegetables, Other",2605.0,Primary crops,,,Permanent crops,"Vegetables, other",,Vegetables_nes,Vegetables,Fodder crops,Fodder crops,Fodder crops,1.0,Fodder crops,COP,c3,ann
+Tomatoes,388,Tomatoes and products,2601.0,Primary crops,,,Permanent crops,Tomato,,Tomatoes,Vegetables,Vegetables Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Vegetables,Vegetables,c3,ann
+Cauliflowers and broccoli,393,"Vegetables, Other",2605.0,Primary crops,,,Permanent crops,Cauliflower,,Caulifowers_broccoli,Vegetables,Vegetables Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Vegetables,Vegetables,c3,ann
+"Pumpkins, squash and gourds",394,"Vegetables, Other",2605.0,Primary crops,,,Permanent crops,"Squash, pumpkin",,Pumpkins,Vegetables,Vegetables Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Vegetables,Vegetables,c3,ann
+Cucumbers and gherkins,397,"Vegetables, Other",2605.0,Primary crops,,,Permanent crops,Cucumber,,Cucumbers,Vegetables,Vegetables Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Vegetables,Vegetables,c3,ann
+Eggplants (aubergines),399,"Vegetables, Other",2605.0,Primary crops,,,Permanent crops,Aubergine,,Aubergines,Vegetables,Vegetables Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Vegetables,Vegetables,c3,ann
+"Chillies and peppers, green (Capsicum spp. and Pimenta spp.)",401,"Vegetables, Other",2605.0,Primary crops,,,Permanent crops,Pepper,,Peppers_green,Vegetables,Vegetables Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Vegetables,Vegetables,c3,ann
+"Onions and shallots, green",402,"Vegetables, Other",2605.0,Primary crops,,,Permanent crops,Onion,,Onions,Vegetables,Vegetables Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Vegetables,Vegetables,c3,ann
+"Onions and shallots, dry (excluding dehydrated)",403,Onions,2602.0,Primary crops,,,Permanent crops,Onion,,Onions,Vegetables,Vegetables Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Vegetables,Vegetables,c3,ann
+Green garlic,406,"Vegetables, Other",2605.0,Primary crops,,,Permanent crops,Garlic,,Garlic,Vegetables,Vegetables Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Vegetables,Vegetables,c3,ann
+Leeks and other alliaceous vegetables,407,"Vegetables, Other",2605.0,Primary crops,,,Permanent crops,Leek,,Leeks,Vegetables,Vegetables Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Vegetables,Vegetables,c3,ann
+"Other beans, green",414,"Vegetables, Other",2605.0,Primary crops,,,Permanent crops,"Beans, green",,Beans_green,Vegetables,Vegetables Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Vegetables Primary,Vegetables,c3,ann
+"Peas, green",417,"Vegetables, Other",2605.0,Primary crops,,,Permanent crops,"Pea, green, with pod",,Peas_green,Vegetables,Vegetables Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Vegetables Primary,Vegetables,c3,ann
+"Broad beans and horse beans, green",420,"Vegetables, Other",2605.0,Primary crops,,,Permanent crops,"Pea, green, with pod",,Peas_green,Vegetables,Vegetables Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Vegetables,Vegetables,c3,ann
+String beans,423,"Vegetables, Other",2605.0,Primary crops,,,Permanent crops,Pulses nes,,Pulses_nes,Pulses,Pulses,Vegetables and Fruits,Vegetables and Fruits,1.0,Pulses,COP,c3,ann
+Carrots and turnips,426,"Vegetables, Other",2605.0,Primary crops,,,Permanent crops,Carrot,,Carrots_turnips,Vegetables,Vegetables Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Vegetables,Vegetables,c3,ann
+Okra,430,"Vegetables, Other",2605.0,Primary crops,,,Permanent crops,"Vegetables, other",,Vegetables_nes,Vegetables,Vegetables Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Vegetables,Vegetables,c3,ann
+Green corn (maize),446,"Vegetables, Other",2605.0,Primary crops,,,Permanent crops,"Vegetables, other",,Vegetables_nes,Vegetables,Vegetables Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Vegetables,Other_crops,c3,ann
+Mushrooms and truffles,449,"Vegetables, Other",2605.0,Primary crops,,,Permanent crops,Mushrooms,,Mushrooms,Vegetables,Vegetables Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Vegetables,Vegetables,c3,ann
+Chicory roots,459,"Vegetables, Other",2605.0,Primary crops,,,Permanent crops,Chicory roots,,Vegetables_nes,Roots and Tubers,Roots and Tubers,Vegetables and Fruits,Vegetables and Fruits,1.0,Roots and tubers,Other_crops,c3,ann
+Locust beans (carobs),461,"Vegetables, Other",2605.0,Primary crops,,,Permanent crops,Carob,,Carobs,Berries,Fruit Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Fruits,Fruits,c3,nfx
+"Other vegetables, fresh n.e.c.",463,"Vegetables, Other",2605.0,Primary crops,,,Permanent crops,"Vegetables, other",,Vegetables_nes,Vegetables,Vegetables Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Vegetables,Vegetables,c3,ann
+Bananas,486,Bananas,2615.0,Primary crops,,,Permanent crops,"Bananas, platains",,Bananas,Fruit_tree,Fruit Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Fruits,Fruits,c3,per
+Plantains and cooking bananas,489,Plantains,2616.0,Primary crops,,,Permanent crops,"Bananas, platains",,Bananas,Berries,Fruit Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Fruits,Fruits,c3,per
+Oranges,490,"Oranges, Mandarines",2611.0,Primary crops,,,Permanent crops,Orange,,Oranges,Fruit_tree,Fruit Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Fruits,Fruits,c3,per
+"Tangerines, mandarins, clementines",495,"Oranges, Mandarines",2611.0,Primary crops,,,Permanent crops,Mandarin,,Tangerines,Fruit_tree,Fruit Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Fruits,Fruits,c3,per
+Lemons and limes,497,"Lemons, Limes and products",2612.0,Primary crops,,,Permanent crops,Lemon,,Lemons_limes,Fruit_tree,Fruit Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Fruits,Fruits,c3,per
+Pomelos and grapefruits,507,Grapefruit and products,2613.0,Primary crops,,,Permanent crops,Grapefruit,,Citrus_nes,Fruit_tree,Fruit Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Fruits,Fruits,c3,per
+"Other citrus fruit, n.e.c.",512,"Citrus, Other",2614.0,Primary crops,,,Permanent crops,Citrus,,Citrus_nes,Fruit_tree,Fruit Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Fruits,Fruits,c3,per
+Apples,515,Apples and products,2617.0,Primary crops,,,Permanent crops,Apple,,Apples,Fruit_tree,Fruit Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Fruits,Fruits,c3,per
+Pears,521,"Fruits, Other",2625.0,Primary crops,,,Permanent crops,Pear,,Pears,Fruit_tree,Fruit Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Fruits,Fruits,c3,per
+Quinces,523,"Fruits, Other",2625.0,Primary crops,,,Permanent crops,Quince,,Quinces,Fruit_tree,Fruit Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Fruits,Fruits,c3,per
+Apricots,526,"Fruits, Other",2625.0,Primary crops,,,Permanent crops,Apricot,,Apricots,Fruit_tree,Fruit Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Fruits,Fruits,c3,per
+Sour cherries,530,"Fruits, Other",2625.0,Primary crops,,,Permanent crops,Berries nes,,Berries,Berries,Fruit Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Fruits,Fruits,c3,per
+Cherries,531,"Fruits, Other",2625.0,Primary crops,,,Permanent crops,Cherries,,Cherry,Berries,Fruit Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Fruits,Fruits,c3,per
+Peaches and nectarines,534,"Fruits, Other",2625.0,Primary crops,,,Permanent crops,Peach,,Peaches_nectarines,Fruit_tree,Fruit Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Fruits,Fruits,c3,per
+Plums and sloes,536,"Fruits, Other",2625.0,Primary crops,,,Permanent crops,Plum,,Plums,Fruit_tree,Fruit Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Fruits,Fruits,c3,per
+Other stone fruits,541,"Fruits, Other",2625.0,Primary crops,,,Permanent crops,Fruits,,Fruits_nes,Fruit_tree,Fruit Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Fruits,Fruits,c3,per
+Other pome fruits,542,"Fruits, Other",2625.0,Primary crops,,,Permanent crops,Fruits,,Fruits_nes,Fruit_tree,Fruit Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Fruits,Fruits,c3,per
+Strawberries,544,"Fruits, Other",2625.0,Primary crops,,,Permanent crops,Strawberry,,Strawberry,Berries,Fruit Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Fruits,Fruits,c3,per
+Raspberries,547,"Fruits, Other",2625.0,Primary crops,,,Permanent crops,Raspberries,,Berries,Berries,Fruit Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Fruits,Fruits,c3,per
+Gooseberries,549,"Fruits, Other",2625.0,Primary crops,,,Permanent crops,Berries nes,,Berries,Berries,Fruit Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Fruits,Fruits,c3,per
+Currants,550,"Fruits, Other",2625.0,Primary crops,,,Permanent crops,Berries nes,,Berries,Berries,Fruit Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Fruits,Fruits,c3,per
+Blueberries,552,"Fruits, Other",2625.0,Primary crops,,,Permanent crops,Blueberries,,Berries,Berries,Fruit Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Fruits,Fruits,c3,per
+Cranberries,554,"Fruits, Other",2625.0,Primary crops,,,Permanent crops,Berries nes,,Berries,Berries,Fruit Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Fruits,Fruits,c3,per
+Other berries and fruits of the genus vaccinium n.e.c.,558,"Fruits, Other",2625.0,Primary crops,,,Permanent crops,Berries nes,,Berries,Berries,Fruit Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Fruits,Fruits,c3,per
+Grapes,560,Grapes and products (excl wine),2620.0,Primary crops,,,Permanent crops,Grapevine,,Grapes,Grapes,Fruit Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Fruits,Grapevine,c3,per
+Wine,564,Wine,2655.0,Crop products,,,,Wine,,,,,,,,,,,
+Watermelons,567,"Vegetables, Other",2605.0,Primary crops,,,Permanent crops,Watermelon,,Watermelons,Vegetables,Fruit Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Fruits,Vegetables,c3,ann
+Cantaloupes and other melons,568,"Vegetables, Other",2605.0,Primary crops,,,Permanent crops,Melon,,Melons,Berries,Fruit Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Fruits,Vegetables,c3,ann
+Figs,569,"Fruits, Other",2625.0,Primary crops,,,Permanent crops,Figs,,Figs,Fruit_tree,Fruit Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Fruits,Fruits,c3,per
+"Mangoes, guavas and mangosteens",571,"Fruits, Other",2625.0,Primary crops,,,Permanent crops,Fruits,,Fruits_nes,Fruit_tree,Fruit Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Fruits,Fruits,c3,per
+Avocados,572,"Fruits, Other",2625.0,Primary crops,,,Permanent crops,Avocado,,Avocados,Fruit_tree,Fruit Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Fruits,Fruits,c3,per
+Pineapples,574,Pineapples and products,2618.0,Primary crops,,,Permanent crops,Pineapple,,Fruits_nes,Berries,Fruit Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Fruits,Fruits,c3,per
+Dates,577,Dates,2619.0,Primary crops,,,Permanent crops,Dates,,Fruits_nes,Fruit_tree,Fruit Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Fruits,Fruits,c3,per
+Persimmons,587,"Fruits, Other",2625.0,Primary crops,,,Permanent crops,Persimmon,,Persimmons,Berries,Fruit Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Fruits,Fruits,c3,per
+Cashewapple,591,"Fruits, Other",2625.0,Primary crops,,,Permanent crops,Fruits,,Fruits_nes,Berries,Fruit Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Fruits,Fruits,c3,per
+Kiwi fruit,592,"Fruits, Other",2625.0,Primary crops,,,Permanent crops,Kiwifruit,,Kiwifruit,Fruit_tree,Fruit Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Fruits,Fruits,c3,per
+Papayas,600,"Fruits, Other",2625.0,Primary crops,,,Permanent crops,Papaya,,Fruits_nes,Fruit_tree,Fruit Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Fruits,Fruits,c3,per
+"Other tropical fruits, n.e.c.",603,"Fruits, Other",2625.0,Primary crops,,,Permanent crops,Fruits,,Fruits_nes,Fruit_tree,Fruit Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Fruits,Fruits,c3,per
+"Other fruits, n.e.c.",619,"Fruits, Other",2625.0,Primary crops,,,Permanent crops,Fruits,,Fruits_nes,Fruit_tree,Fruit Primary,Vegetables and Fruits,Vegetables and Fruits,1.0,Fruits,Fruits,c3,per
+"Forage and silage, maize",636,Fodder cereal and grasses,2000.0,Primary crops,,,Fodder crops,"Maize, green",Green maize,Maize_green,Cereals,Fodder crops,Fodder crops,Fodder crops,1.0,Fodder crops,COP,c4,ann
+"Forage and silage, sorghum",637,Fodder cereal and grasses,2000.0,Primary crops,,,Fodder crops,"Sorghum, green",Other plants harvested green from arable land,Sorghum_green,Cereals,Fodder crops,Fodder crops,Fodder crops,1.0,Fodder crops,COP,c3,per
+"Forage and silage, rye grass",638,Fodder cereal and grasses,2000.0,Primary crops,,,Fodder crops,Ryegrass,Other plants harvested green from arable land,Grasses_fodder,Cereals,Fodder crops,Fodder crops,Fodder crops,1.0,Fodder crops,COP,c3,per
+"Forage and silage, grasses nes",639,Fodder cereal and grasses,2000.0,Primary crops,,,Fodder crops,Other true grasses for fodder,Other plants harvested green from arable land,Grasses_fodder,Cereals,Fodder crops,Fodder crops,Fodder crops,1.0,Fodder crops,COP,c3,per
+"Forage and silage, clover",640,Fodder legumes,2001.0,Primary crops,,,Fodder crops,Clover,Other leguminous plants harvested green n.e.c.,Clover,Cereals,Fodder crops,Fodder crops,Fodder crops,1.0,Fodder crops,COP,c3,per
+"Forage and silage, alfalfa",641,Fodder legumes,2001.0,Primary crops,,,Fodder crops,Alfalfa,Alfalfa,Alfalfa,Cereals,Fodder crops,Fodder crops,Fodder crops,1.0,Fodder crops,COP,c3,per
+"Forage and silage, green oilseeds",642,Fodder vegetables and roots,2002.0,Primary crops,,,Fodder crops,"Fodder, other",Other plants harvested green from arable land,Fodder_other,Cereals,Fodder crops,Fodder crops,Fodder crops,1.0,Fodder crops,COP,c3,per
+"Forage and silage, legumes",643,Fodder legumes,2001.0,Primary crops,,,Fodder crops,Other legumes for green fodder,Other leguminous plants harvested green n.e.c.,Legumes_fodder,Cereals,Fodder crops,Fodder crops,Fodder crops,1.0,Fodder crops,COP,c3,per
+Cabbage for fodder,644,Fodder vegetables and roots,2002.0,Primary crops,,,Fodder crops,Fodder cabbage,Other plants harvested green from arable land,Cabbage_fodder,Cereals,Fodder crops,Fodder crops,Fodder crops,1.0,Fodder crops,COP,c3,per
+Mixed Grasses and Legumes,645,Fodder mix,2003.0,Primary crops,,,Fodder crops,Cereal-legume mixture,Other plants harvested green from arable land,Mixed_swards,Cereals,Fodder crops,Fodder crops,Fodder crops,1.0,Fodder crops,COP,c3,per
+Turnips for fodder,646,Fodder vegetables and roots,2002.0,Primary crops,,,Fodder crops,"Turnip, for fodder",Other root crops n.e.c.,Turnip_fodder,Cereals,Fodder crops,Fodder crops,Fodder crops,1.0,Fodder crops,COP,c3,per
+Beets for fodder,647,Fodder vegetables and roots,2002.0,Primary crops,,,Fodder crops,Fodder beet,Other root crops n.e.c.,Beet_fodder,Cereals,Fodder crops,Fodder crops,Fodder crops,1.0,Fodder crops,COP,c3,per
+Carrots for fodder,648,Fodder vegetables and roots,2002.0,Primary crops,,,Fodder crops,"Carrot, for fodder",Other root crops n.e.c.,Carrot_fodder,Cereals,Fodder crops,Fodder crops,Fodder crops,1.0,Fodder crops,COP,c3,per
+Swedes for fodder,649,Fodder vegetables and roots,2002.0,Primary crops,,,Fodder crops,Other roots and tubers for fodder,Other root crops n.e.c.,Turnip_fodder,Cereals,Fodder crops,Fodder crops,Fodder crops,1.0,Fodder crops,COP,c3,per
+Forage products,651,Fodder vegetables and roots,2002.0,Primary crops,,,Fodder crops,"Fodder, other",Other plants harvested green from arable land,Fodder_other,Cereals,Fodder crops,Fodder crops,Fodder crops,1.0,Fodder crops,COP,c3,per
+Vegetables and roots fodder,655,Fodder vegetables and roots,2002.0,Primary crops,,,Fodder crops,"Fodder, other",Other plants harvested green from arable land,Fodder_other,Cereals,Fodder crops,Fodder crops,Fodder crops,1.0,Fodder crops,COP,c3,per
+"Coffee, green",656,Coffee and products,2630.0,Primary crops,,,Permanent crops,Coffee,,Woody_other,Coffee_Cocoa_Tea,Coffee & Cocoa,Sugar and Stimulants,"Beverages, sugar and stimulants",1.0,"Stimulants, spices",Fruits,c3,per
+Cocoa beans,661,Cocoa Beans and products,2633.0,Primary crops,,,Permanent crops,Cocoa beans,,Woody_other,Coffee_Cocoa_Tea,Coffee & Cocoa,Sugar and Stimulants,"Beverages, sugar and stimulants",1.0,"Stimulants, spices",Fruits,c3,per
+Tea leaves,667,Tea (including mate),2635.0,Primary crops,,,Permanent crops,Tea,,Woody_other,Coffee_Cocoa_Tea,Other food nes,Sugar and Stimulants,"Beverages, sugar and stimulants",1.0,"Stimulants, spices",Fruits,c3,per
+Mate leaves,671,Tea (including mate),2635.0,Primary crops,,,Permanent crops,Tea,,Woody_other,Other,Other food nes,Sugar and Stimulants,"Beverages, sugar and stimulants",1.0,"Stimulants, spices",Other_crops,c3,per
+Tea nes,674,Tea (including mate),2635.0,Primary crops,,,Permanent crops,Tea,,Woody_other,,,,,,,,c3,per
+Hop cones,677,Hops,677.0,Primary crops,,,Permanent crops,Hop,,Hops,Other,Other food nes,Sugar and Stimulants,"Beverages, sugar and stimulants",1.0,"Stimulants, spices",Other_crops,c3,per
+"Pepper (Piper spp.), raw",687,Pepper,2640.0,Primary crops,,,Permanent crops,"Spices, Other",,Spices,Other,Other food nes,Sugar and Stimulants,"Beverages, sugar and stimulants",1.0,"Stimulants, spices",Vegetables,c3,per
+"Chillies and peppers, dry (Capsicum spp., Pimenta spp.), raw",689,Pimento,2641.0,Primary crops,,,Permanent crops,"Chili pepper and peppers, dry",,Peppers_dry,Other,Other food nes,Sugar and Stimulants,"Beverages, sugar and stimulants",1.0,"Stimulants, spices",Vegetables,c3,per
+"Vanilla, raw",692,"Spices, Other",2645.0,Primary crops,,,Permanent crops,"Spices, Other",,Spices,Other,Other food nes,Sugar and Stimulants,"Beverages, sugar and stimulants",1.0,"Stimulants, spices",Vegetables,c3,per
+"Cinnamon and cinnamon-tree flowers, raw",693,"Spices, Other",2645.0,Primary crops,,,Permanent crops,"Spices, Other",,Spices,Other,Other food nes,Sugar and Stimulants,"Beverages, sugar and stimulants",1.0,"Stimulants, spices",Other_crops,c3,per
+"Cloves (whole stems), raw",698,Cloves,2642.0,Primary crops,,,Permanent crops,"Spices, Other",,Spices,Other,Other food nes,Sugar and Stimulants,"Beverages, sugar and stimulants",1.0,"Stimulants, spices",Other_crops,c3,per
+"Nutmeg, mace, cardamoms, raw",702,"Spices, Other",2645.0,Primary crops,,,Permanent crops,"Spices, Other",,Spices,Other,Other food nes,Sugar and Stimulants,"Beverages, sugar and stimulants",1.0,"Stimulants, spices",Other_crops,c3,per
+"Anise, badian, coriander, cumin, caraway, fennel and juniper berries, raw",711,"Spices, Other",2645.0,Primary crops,,,Permanent crops,"Spices, Other",,Spices,Other,Other food nes,Sugar and Stimulants,"Beverages, sugar and stimulants",1.0,"Stimulants, spices",Vegetables,c3,per
+"Ginger, raw",720,"Spices, Other",2645.0,Primary crops,,,Permanent crops,"Spices, Other",,Spices,Other,Other food nes,Sugar and Stimulants,"Beverages, sugar and stimulants",1.0,"Stimulants, spices",Vegetables,c3,per
+"Other stimulant, spice and aromatic crops, n.e.c.",723,"Spices, Other",2645.0,Primary crops,,,Permanent crops,"Spices, Other",,Spices,Other,Other food nes,Sugar and Stimulants,"Beverages, sugar and stimulants",1.0,"Stimulants, spices",Vegetables,c3,per
+"Peppermint, spearmint",748,"Spices, Other",2645.0,Primary crops,,,Permanent crops,Peppermint,,Peppermint,Other,Other food nes,Sugar and Stimulants,"Beverages, sugar and stimulants",1.0,"Stimulants, spices",Vegetables,c3,per
+"Pyrethrum, dried flowers",754,"Spices, Other",2645.0,Primary crops,,,Permanent crops,"Spices, Other",,Spices,Other,Other food nes,Sugar and Stimulants,"Beverages, sugar and stimulants",1.0,"Stimulants, spices",Vegetables,c3,per
+"Cotton lint, ginned",767,Cotton lint,2661.0,Primary crops,,,,Cotton fiber,,Cotton_lint,Fibre Crops Primary,Textile fibres,Fibres and Crude Materials,Fibres and crude materials,1.0,Fibres,0,c3,per
+Linum,772,Linum,772.0,Primary crops,,,Permanent crops,"Fibres, other",,Fibres_nes,Fibre Crops Primary,Textile fibres,Fibres and Crude Materials,Fibres and crude materials,1.0,Fibres,COP,c3,per
+"Flax, processed but not spun",773,"Soft-Fibres, Other",2664.0,Primary crops,,,Permanent crops,Flax fibre and tow,,Fibres_nes,Fibre Crops Primary,Fibre Crops Primary,Fibres and Crude Materials,Fibres and crude materials,1.0,Fibres,Other_crops,c3,per
+Hemp,776,Hemp,776.0,Primary crops,,,Permanent crops,"Fibres, other",,Fibres_nes,Fibre Crops Primary,Textile fibres,Fibres and Crude Materials,Fibres and crude materials,1.0,Fibres,COP,c3,per
+"True hemp, raw or retted",777,"Soft-Fibres, Other",2664.0,Primary crops,,,Permanent crops,"Fibres, other",,Fibres_nes,Fibre Crops Primary,Fibre Crops Primary,Fibres and Crude Materials,Fibres and crude materials,2.0,Fibres,Other_crops,c3,per
+"Kapok fibre, raw",778,"Soft-Fibres, Other",2664.0,Primary crops,,,Permanent crops,"Fibres, other",,Fibres_nes,,,,,,,,c3,per
+"Jute, raw or retted",780,Jute,2662.0,Primary crops,,,Permanent crops,"Fibres, other",,Fibres_nes,Fibre Crops Primary,Fibre Crops Primary,Fibres and Crude Materials,Fibres and crude materials,2.0,Fibres,Other_crops,c3,per
+"Kenaf, and other textile bast fibres, raw or retted",782,Jute-Like Fibres,2663.0,Primary crops,,,Permanent crops,"Fibres, other",,Fibres_nes,Fibre Crops Primary,Fibre Crops Primary,Fibres and Crude Materials,Fibres and crude materials,2.0,Fibres,Other_crops,c3,per
+"Ramie, raw or retted",788,"Soft-Fibres, Other",2664.0,Primary crops,,,Permanent crops,"Fibres, other",,Fibres_nes,Fibre Crops Primary,Fibre Crops Primary,Fibres and Crude Materials,Fibres and crude materials,2.0,Fibres,Vegetables,c3,per
+"Sisal, raw",789,Sisal,2665.0,Primary crops,,,Permanent crops,"Fibres, other",,Fibres_nes,Fibre Crops Primary,Fibre Crops Primary,Fibres and Crude Materials,Fibres and crude materials,2.0,Fibres,Other_crops,c3,per
+"Agave fibres, raw, n.e.c.",800,"Hard Fibres, Other",2667.0,Primary crops,,,Permanent crops,"Fibres, other",,Fibres_nes,Fibre Crops Primary,Fibre Crops Primary,Fibres and Crude Materials,Fibres and crude materials,2.0,Fibres,Other_crops,c3,per
+"Abaca, manila hemp, raw",809,Abaca,2666.0,Primary crops,,,Permanent crops,"Fibres, other",,Fibres_nes,Fibre Crops Primary,Fibre Crops Primary,Fibres and Crude Materials,Fibres and crude materials,2.0,Fibres,Other_crops,c3,per
+"Coir, raw",813,"Hard Fibres, Other",2667.0,Primary crops,,,Permanent crops,"Fibres, other",,Fibres_nes,Fibre Crops Primary,Fibre Crops Primary,Fibres and crude materials,Fibres and crude materials,2.0,Fibres,Fruits,c3,per
+"Other fibre crops, raw, n.e.c.",821,"Hard Fibres, Other",2667.0,Primary crops,,,Permanent crops,"Fibres, other",,Fibres_nes,Fibre Crops Primary,Fibre Crops Primary,Fibres and Crude Materials,Fibres and crude materials,2.0,Fibres,Other_crops,c3,per
+Unmanufactured tobacco,826,Tobacco,2671.0,Primary crops,,,Permanent crops,Tobacco,,Tobacco,Tobacco,Sugar Crops Primary,Sugar and Stimulants,"Beverages, sugar and stimulants",2.0,Sugar crops,Vegetables,c3,per
+Natural rubber in primary forms,836,Rubber,2672.0,Primary crops,,,Permanent crops,Rubber,,Woody_other,Rubber,Textile fibres,Fibres and Crude Materials,Fibres and crude materials,2.0,Fibres,Other_crops,c3,per
+"Balata, gutta-percha, guayule, chicle and similar natural gums in primary forms or in plates, sheets or strip",839,Rubber,2672.0,Primary crops,,,Permanent crops,Rubber,,Woody_other,Rubber,Textile fibres,Fibres and Crude Materials,Fibres and crude materials,2.0,Fibres,Other_crops,c3,per
+"Meat of cattle with the bone, fresh or chilled",867,Bovine Meat,2731.0,Livestock products,"Cattle, non-dairy",961.0,,Beef meat,,,,,,,,,,,
+"Edible offal of cattle, fresh, chilled or frozen",868,"Offals, Edible",2736.0,Livestock products,"Cattle, non-dairy",961.0,,"Offals, edible",,,,,,,,,,,
+"Cattle fat, unrendered",869,"Fats, Animals, Raw",2737.0,Livestock products,"Cattle, non-dairy",961.0,,"Fats, animals, raw",,,,,,,,,,,
+Raw milk of cattle,882,Milk - Excluding Butter,2848.0,Livestock products,"Cattle, dairy",960.0,,Cow milk,,,,,,,,,,,
+"Cream, fresh",885,,,,,,,,,,,,,,,,,,
+Butter of cow milk,886,"Butter, Ghee",2740.0,Livestock products,"Cattle, dairy",960.0,,"Butter, Ghee",,,,,,,,,,,
+Ghee from cow milk,887,"Butter, Ghee",2740.0,Livestock products,"Cattle, dairy",960.0,,"Butter, Ghee",,,,,,,,,,,
+Skim milk of cows,888,,,Livestock products,,,,,,,,,,,,,,,
+"Whole milk, condensed",889,,,Livestock products,,,,,,,,,,,,,,,
+"Whey, condensed",890,,,Livestock products,,,,Whey,,,,,,,,,,,
+Yoghurt,891,,,Livestock products,,,,,,,,,,,,,,,
+"Whole milk, evaporated",894,,,Livestock products,,,,,,,,,,,,,,,
+"Skim milk, evaporated",895,,,Livestock products,,,,,,,,,,,,,,,
+"Skim milk, condensed",896,,,Livestock products,,,,,,,,,,,,,,,
+Whole milk powder,897,,,Livestock products,,,,,,,,,,,,,,,
+Skim milk and whey powder,898,,,Livestock products,,,,,,,,,,,,,,,
+"Buttermilk, dry",899,,,Livestock products,,,,,,,,,,,,,,,
+"Whey, dry",900,,,Livestock products,,,,,,,,,,,,,,,
+Cheese from whole cow milk,901,,,Livestock products,,,,,,,,,,,,,,,
+Cheese from skimmed cow milk,904,,,Livestock products,,,,,,,,,,,,,,,
+Raw hides and skins of cattle,919,Hides and skins,2748.0,Livestock products,"Cattle, non-dairy",961.0,,Hides and skins,,,,,,,,,,,
+"Meat of buffalo, fresh or chilled",947,Bovine Meat,2731.0,Livestock products,Buffalo,946.0,,Beef meat,,,,,,,,,,,
+"Edible offal of buffalo, fresh, chilled or frozen",948,"Offals, Edible",2736.0,Livestock products,Buffalo,946.0,,"Offals, edible",,,,,,,,,,,
+"Buffalo fat, unrendered",949,"Fats, Animals, Raw",2737.0,Livestock products,Buffalo,946.0,,"Fats, animals, raw",,,,,,,,,,,
+Raw milk of buffalo,951,Milk - Excluding Butter,2848.0,Livestock products,Buffalo,946.0,,Cow milk,,,,,,,,,,,
+Butter of buffalo milk,952,"Butter, Ghee",2740.0,Livestock products,Buffalo,946.0,,"Butter, Ghee",,,,,,,,,,,
+Ghee from buffalo milk,953,"Butter, Ghee",2740.0,Livestock products,Buffalo,946.0,,"Butter, Ghee",,,,,,,,,,,
+"Cheese from milk of buffalo, fresh or processed",955,,,Livestock products,,,,,,,,,,,,,,,
+Raw hides and skins of buffaloes,957,Hides and skins,2748.0,Livestock products,Buffalo,946.0,,Hides and skins,,,,,,,,,,,
+"Meat of sheep, fresh or chilled",977,Mutton & Goat Meat,2732.0,Livestock products,Sheep,976.0,,Goat meat,,,,,,,,,,,
+"Edible offal of sheep, fresh, chilled or frozen",978,"Offals, Edible",2736.0,Livestock products,Sheep,976.0,,"Offals, edible",,,,,,,,,,,
+"Sheep fat, unrendered",979,"Fats, Animals, Raw",2737.0,Livestock products,Sheep,976.0,,"Fats, animals, raw",,,,,,,,,,,
+Raw milk of sheep,982,Milk - Excluding Butter,2848.0,Livestock products,Sheep,976.0,,Sheep milk,,,,,,,,,,,
+Butter and ghee of sheep milk,983,"Butter, Ghee",2740.0,Livestock products,Sheep,976.0,,"Butter, Ghee",,,,,,,,,,,
+"Cheese from milk of sheep, fresh or processed",984,,,Livestock products,,,,,,,,,,,,,,,
+"Shorn wool, greasy, including fleece-washed shorn wool",987,Wool (Clean Eq.),2746.0,Livestock products,Sheep,976.0,,Wool,,,,,,,,,,,
+Raw hides and skins of sheep or lambs,995,Hides and skins,2748.0,Livestock products,Sheep,976.0,,Hides and skins,,,,,,,,,,,
+Temporary grassland,996,Temporary grassland,3002.0,Primary crops,,,Fodder crops,Grass,Temporary grasses and grazings,Temporary_grassland,Cereals,Fodder crops,Fodder crops,Fodder crops,1.0,Fodder crops,COP,,
+"Meat of goat, fresh or chilled",1017,Mutton & Goat Meat,2732.0,Livestock products,Goats,1016.0,,Goat meat,,,,,,,,,,,
+"Edible offal of goat, fresh, chilled or frozen",1018,"Offals, Edible",2736.0,Livestock products,Goats,1016.0,,"Offals, edible",,,,,,,,,,,
+"Goat fat, unrendered",1019,"Fats, Animals, Raw",2737.0,Livestock products,Goats,1016.0,,"Fats, animals, raw",,,,,,,,,,,
+Raw milk of goats,1020,Milk - Excluding Butter,2848.0,Livestock products,Goats,1016.0,,Goat milk,,,,,,,,,,,
+"Cheese from milk of goats, fresh or processed",1021,,,Livestock products,,,,,,,,,,,,,,,
+Butter of goat milk,1022,"Butter, Ghee",2740.0,Livestock products,Goats,1016.0,,"Butter, Ghee",,,,,,,,,,,
+Raw hides and skins of goats or kids,1025,Hides and skins,2748.0,Livestock products,Goats,1016.0,,Hides and skins,,,,,,,,,,,
+"Meat of pig with the bone, fresh or chilled",1035,Pigmeat,2733.0,Livestock products,Pigs,1049.0,,Pork meat,,,,,,,,,,,
+"Edible offal of pigs, fresh, chilled or frozen",1036,"Offals, Edible",2736.0,Livestock products,Pigs,1049.0,,"Offals, edible",,,,,,,,,,,
+Fat of pigs,1037,"Fats, Animals, Raw",2737.0,Livestock products,Pigs,1049.0,,"Fats, animals, raw",,,,,,,,,,,
+"Pig fat, rendered",1043,"Fats, Animals, Raw",2737.0,Livestock products,Pigs,1049.0,,Pork lard,,,,,,,,,,,
+"Meat of chickens, fresh or chilled",1058,Poultry Meat,2734.0,Livestock products,"Chickens, broilers",1053.0,,Chicken,,,,,,,,,,,
+"Hen eggs in shell, fresh",1062,Eggs,2744.0,Livestock products,"Chickens, layers",1052.0,,Eggs,,,,,,,,,,,
+"Meat of ducks, fresh or chilled",1069,Poultry Meat,2734.0,Livestock products,Ducks,1068.0,,Chicken,,,,,,,,,,,
+"Meat of geese, fresh or chilled",1073,Poultry Meat,2734.0,Livestock products,Geese,1072.0,,Chicken,,,,,,,,,,,
+"Meat of turkeys, fresh or chilled",1080,Poultry Meat,2734.0,Livestock products,Turkeys,1079.0,,"Turkey, boneless, skinless",,,,,,,,,,,
+"Meat of pigeons and other birds n.e.c., fresh, chilled or frozen",1089,"Meat, Other",2735.0,Livestock products,Ducks,1068.0,,Duck,,,,,,,,,,,
+"Eggs from other birds in shell, fresh, n.e.c.",1091,Eggs,2744.0,Livestock products,Ducks,1068.0,,Eggs,,,,,,,,,,,
+"Horse meat, fresh or chilled",1097,"Meat, Other",2735.0,Livestock products,Horses,1096.0,,Horse meat,,,,,,,,,,,
+"Edible offals of horses and other equines,  fresh, chilled or frozen",1098,"Offals, Edible",2736.0,Livestock products,Horses,1096.0,,"Offals, edible",,,,,,,,,,,
+"Meat of asses, fresh or chilled",1108,"Meat, Other",2735.0,Livestock products,Asses,1107.0,,Horse meat,,,,,,,,,,,
+"Meat of mules, fresh or chilled",1111,"Meat, Other",2735.0,Livestock products,Mules,1110.0,,Horse meat,,,,,,,,,,,
+"Meat of camels, fresh or chilled",1127,"Meat, Other",2735.0,Livestock products,Camels,1126.0,,"Meat, other",,,,,,,,,,,
+"Edible offals of camels and other camelids, fresh, chilled or frozen",1128,"Offals, Edible",2736.0,Livestock products,Camels,1126.0,,"Offals, edible",,,,,,,,,,,
+Fat of camels,1129,"Fats, Animals, Raw",2737.0,Livestock products,Camels,1126.0,,"Fats, animals, raw",,,,,,,,,,,
+Raw milk of camel,1130,Milk - Excluding Butter,2848.0,Livestock products,Camels,1126.0,,Sheep milk,,,,,,,,,,,
+"Meat of rabbits and hares, fresh or chilled",1141,"Meat, Other",2735.0,Livestock products,Rabbits and hares,1140.0,,Rabbit and Hare,,,,,,,,,,,
+"Meat of other domestic rodents, fresh or chilled",1151,"Meat, Other",2735.0,Livestock products,"Rodents, other",1150.0,,Rabbit and Hare,,,,,,,,,,,
+"Meat of other domestic camelids, fresh or chilled",1158,"Meat, Other",2735.0,Livestock products,"Camelids, other",1157.0,,"Meat, other",,,,,,,,,,,
+"Game meat, fresh, chilled or frozen",1163,"Meat, Other",2735.0,Livestock products,Game,1190.0,,"Meat, other",,,,,,,,,,,
+"Other meat n.e.c. (excluding mammals), fresh, chilled or frozen",1166,"Meat, Other",2735.0,Livestock products,Animals live nes,1171.0,,"Meat, other",,,,,,,,,,,
+"Snails, fresh, chilled, frozen, dried, salted or in brine, except sea snails",1176,"Meat, Other",2735.0,Livestock products,Animals live nes,1171.0,,"Meat, other",,,,,,,,,,,
+Natural honey,1182,Honey,2745.0,Livestock products,Bees,1181.0,,Honey,,,,,,,,,,,
+Beeswax,1183,,,,Bees,1181.0,,Beeswax,,,,,,,,,,,
+Silk-worm cocoons suitable for reeling,1185,Silk,2747.0,Livestock products,,,,Silk,,,,,,,,,,,
+Raw silk (not thrown),1186,Silk,2747.0,Livestock products,,,,Silk,,,,,,,,,,,
+Tallow,1225,"Fats, Animals, Raw",2737.0,Livestock products,"Cattle, non-dairy",961.0,,"Fats, animals, raw",,,,,,,,,,,
+Margarine and shortening,1242,"Oilcrops Oil, Other",2586.0,Crop products,,,,"Oilcrops oil, other",,,,,,,,,,,
+"Cereals, primary",1717,,,,,,,,,,,,,,,,,,
+"Roots and Tubers, Total",1720,,,,,,,,,,,,,,,,,,
+Sugar Crops Primary,1723,,,,,,,,,,,,,,,,,,
+"Pulses, Total",1726,,,,,,,,,,,,,,,,,,
+"Treenuts, Total",1729,,,,,,,,,,,,,,,,,,
+"Oilcrops, Oil Equivalent",1732,,,,,,,,,,,,,,,,,,
+Vegetables Primary,1735,,,,,,,,,,,,,,,,,,
+Fruit Primary,1738,,,,,,,,,,,,,,,,,,
+Cheese (All Kinds),1745,,,,,,,,,,,,,,,,,,
+"Meat, Total",1765,,,,,,,,,,,,,,,,,,
+"Milk, Total",1780,,,,,,,,,,,,,,,,,,
+Eggs Primary,1783,,,,,,,,,,,,,,,,,,
+"Beef and Buffalo Meat, primary",1806,,,,,,,,,,,,,,,,,,
+"Citrus Fruit, Total",1807,,,,,,,,,,,,,,,,,,
+Sheep and Goat Meat,1807,,,,,,,,,,,,,,,,,,
+"Meat, Poultry",1808,,,,,,,,,,,,,,,,,,
+"Skim Milk & Buttermilk, Dry",1809,,,,,,,,,,,,,,,,,,
+Butter and Ghee,1811,,,,,,,,,,,,,,,,,,
+Evaporated & Condensed Milk,1816,,,,,,,,,,,,,,,,,,
+"Oilcrops, Cake Equivalent",1841,,,,,,,,,,,,,,,,,,
+,2105,Straw,2105.0,Crop residues,,,,,,,,,,,,,,,
+,2106,Other crop residues,2106.0,Crop residues,,,,,,,,,,,,,,,
+,2107,Firewood,2107.0,Crop residues,,,,,,,,,,,,,,,
+Flowers,2108,Flowers,,Primary crops,,,,Flowers,,Flowers,,,,,,,,,
+Pasture,3001,Grassland,3000.0,Grassland,,,Fodder crops,Grass,,Grass,,,,,,,,,
+range,3002,Grassland,3000.0,Grassland,,,Fodder crops,Grass,,Grass,Cereals,Fodder crops,Fodder crops,Fodder crops,1.0,Fodder crops,COP,,
+"Fibre Crops, Fibre Equivalent",1753,,,,,,,,,,,,,,,,,,
+,,Scavenging,3500.0,Scavenging,,,,,,,,,,,,,,,
+Fallow,3003,Fallow,3003.0,Primary crops,,,,Fallow,,Fallow,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,

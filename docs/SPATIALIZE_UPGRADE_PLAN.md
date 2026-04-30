@@ -1,7 +1,7 @@
 # Spatialization Pipeline — Next Major Upgrade Plan
 
-**Date:** 2025-01 (updated 2025-02)  
-**Branch:** `edu/build-production-cbs`  
+**Date:** 2025-01 (updated 2025-04)  
+**Branch:** `edu/spatialize`  
 **Status:** Active — Phase 1 complete, Phase 2 in progress  
 
 ## Current state summary
@@ -9,7 +9,7 @@
 The spatialization pipeline is functional end-to-end:
 
 - **Crop land use**: 154 crops → 15 CFTs, 0.5° global, 1850–2022, type-aware
-  LUH2 allocation, 100% area conservation verified.
+  LUH2 allocation, predecessor redistribution, MIRCA2000 irrigation.
 - **Yields & production**: Country yields spatialized with optional
   sub-national index, irrigated/rainfed split.
 - **Nitrogen & fertilizer**: 6 data sources, crop-specific N/P/K rates,
@@ -17,6 +17,48 @@ The spatialization pipeline is functional end-to-end:
 - **Livestock**: 8 species groups, pasture/rangeland proxy weighting, enteric
   CH₄ + manure emissions spatialized.
 - **Diagnostics**: 15 exploratory figures, 7 validation figures + CSV.
+- **LPJmL compatibility**: validation script + report generator; 8/8
+  conversion steps ready for Parquet → CLM binary.
+
+### Quality status (2025-04-08)
+
+LPJmL compatibility validation (`inst/analysis/spatialize/validate_lpjml_compat.R`):
+**10 PASS / 5 FAIL** across 15 automated checks.
+
+| Category | Check | Status |
+|----------|-------|--------|
+| Structure | Grid alignment (0.5°), temporal completeness, 15/15 CFTs, no NA/Inf/negatives | All PASS |
+| Conservation | Global totals: 0.035% max annual error | PASS (threshold 0.01%) |
+| Conservation | Country-level: 29,037/29,248 (99.3%) within 0.01% | PASS (211 minor) |
+| Plausibility | Irrigated ≤ LUH2 irrigated: 250K cell-years exceed | Expected (MIRCA) |
+| Plausibility | Cell capacity: 56K cell-years, worst 8× in Nigeria | Needs P1 |
+| Plausibility | Fraction range: p99 = 2.73 (below 3.0 limit) | Needs P1 |
+| LPJmL | CFT→band mapping, cell count, year range, grassland | All PASS |
+
+**Key metrics:**
+
+| Metric | Value |
+|--------|-------|
+| Grid cells | 42,600 (vs 67,420 LPJmL; 37% gap from NaturalEarth mask) |
+| Years | 1850–2022 (173 years, no gaps) |
+| CFTs | 15 (maps to LPJmL bands 0–12; bands 13–15 from separate data) |
+| Soybean (band 8) | 5,197 cumulative Mha (131 Mha in 2022) |
+| Global area conservation | 0.035% max annual error |
+| Predecessor codes in output | 0 (5 entities redistributed to 25 successors) |
+| Conversion readiness | 8/8 steps for Parquet → CLM binary |
+
+**Recent fixes (2025-04-08):**
+
+- Fixed soybean item code (216→236) in `cft_mapping.csv`,
+  `earthstat_mapping.csv`, `mirca_mapping.csv`, and hardcoded values in
+  `prepare_spatialize_all.R`. Code 216 is Brazil nuts in FAOSTAT, not
+  soybeans.
+- Fixed "Oil seeds n.e.c." code (236→339) and Yautia code (339→135).
+- Enabled predecessor redistribution in `prepare_country_areas()` —
+  `.redistribute_predecessors()` was defined but never called.
+- Added LPJmL compatibility validation script and `.md` report generator
+  (`inst/analysis/spatialize/validate_lpjml_compat.R`,
+  `LPJML_COMPATIBILITY.md`).
 
 ### Known limitations
 
@@ -28,7 +70,10 @@ The spatialization pipeline is functional end-to-end:
 | Yields | ~~Spatially uniform within countries~~ → EarthStat sub-national index | **✅ Resolved (P2)** |
 | Livestock density | GLW3 `density_grid` parameter exists but not integrated | Open (needs GLW3 data) |
 | Livestock validation | ~~No validation figures~~ → 8 explore + 7 validation figures | **✅ Resolved (P6)** |
-| Performance | Full run ~40 min; 113M-row output; no parallel processing | Open |
+| Item code mapping | ~~Soybean/oil seeds/yautia wrong codes~~ → corrected to FAOSTAT | **✅ Resolved** |
+| Predecessor redistribution | ~~Function defined but never called~~ → enabled | **✅ Resolved** |
+| LPJmL compatibility | ~~No validation~~ → 15 checks, report generator | **✅ Resolved** |
+| Performance | Full run ~27 min; 305M-row crop output; no parallel processing | Open |
 | Forward projections | LUH2 SSP scenario support not implemented | Open |
 
 ---

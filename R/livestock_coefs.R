@@ -1,0 +1,831 @@
+# Livestock Coefficient Tables Documentation
+#
+# Roxygen2 documentation for all livestock coefficient data
+# objects stored in data/livestock_coefs.rda.
+
+# GLEAM Excel Supplement Tables ----
+
+#' GLEAM crop residue parameters.
+#'
+#' @description
+#' Dry matter content and parameters for calculating crop
+#' residue yield by crop type.
+#'
+#' @format A tibble with columns:
+#' \describe{
+#'   \item{crop}{Crop name.}
+#'   \item{dry_matter_pct}{Dry matter content (percent).}
+#'   \item{slope}{Slope for residue yield calculation.}
+#'   \item{intercept}{Intercept for residue yield calculation.}
+#' }
+#'
+#' @source MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
+#'   Table S.3.1. \doi{10.1088/1748-9326/aad4d8}
+#'
+#' @examples
+#' gleam_crop_residue_params
+"gleam_crop_residue_params"
+
+#' GLEAM geographic hierarchy.
+#'
+#' @description
+#' Maps countries (ISO3) to GLEAM regions, FAOSTAT regions,
+#' and classification indicators.
+#'
+#' @format A tibble with columns:
+#' \describe{
+#'   \item{iso3}{ISO3 country code.}
+#'   \item{country}{Country name.}
+#'   \item{continent}{Continent.}
+#'   \item{faostat_region}{FAOSTAT regional grouping.}
+#'   \item{gleam_region}{GLEAM regional grouping.}
+#' }
+#'
+#' @source MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
+#'   Tables S.A1-S.A2. \doi{10.1088/1748-9326/aad4d8}
+#'
+#' @examples
+#' gleam_geographic_hierarchy
+"gleam_geographic_hierarchy"
+
+#' GLEAM feed use efficiency.
+#'
+#' @description
+#' Regional feed use efficiency (FUE) values for forages and
+#' crop residues of ruminant species.
+#'
+#' @format A tibble with columns:
+#' \describe{
+#'   \item{feed_group}{Feed material group (1-6 or 9-15).}
+#'   \item{feed_type}{Feed type (mixed, grassland, or all).}
+#'   \item{gleam_region}{GLEAM geographic region.}
+#'   \item{feed_use_efficiency}{FUE value (0-1 fraction).}
+#' }
+#'
+#' @source MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
+#'   Table S.3.2.
+#'
+#' @examples
+#' gleam_feed_composition
+"gleam_feed_composition"
+
+#' GLEAM feed digestibility for ruminants.
+#'
+#' @description
+#' Nutritional values for feed materials of ruminant species,
+#' including gross energy, nitrogen content, and digestibility.
+#'
+#' @format A tibble with columns:
+#' \describe{
+#'   \item{number}{Feed material number.}
+#'   \item{material}{Feed material code.}
+#'   \item{gross_energy_mj_kg}{Gross energy (MJ per kg DM).}
+#'   \item{n_content_g_kg}{Nitrogen content (g per kg DM).}
+#'   \item{digestibility_pct}{Digestibility (percent).}
+#' }
+#'
+#' @source MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
+#'   Table S.3.3.
+#'
+#' @examples
+#' gleam_feed_digestibility
+"gleam_feed_digestibility"
+
+#' GLEAM feed conversion ratios for monogastrics.
+#'
+#' @description
+#' Nutritional values for feed materials of monogastric
+#' species (chicken and pigs).
+#'
+#' @format A tibble with columns:
+#' \describe{
+#'   \item{number}{Feed material number.}
+#'   \item{material}{Feed material code.}
+#'   \item{gross_energy_j_kg}{Gross energy (J per kg).}
+#'   \item{n_content_g_kg}{Nitrogen content (g per kg DM).}
+#'   \item{me_chicken_j_kg}{Metabolisable energy for chicken
+#'     (J per kg).}
+#'   \item{me_pigs_j_kg}{Metabolisable energy for pigs
+#'     (J per kg).}
+#'   \item{digestibility_pct}{Digestibility (percent).}
+#' }
+#'
+#' @source MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
+#'   Table S.3.4.
+#'
+#' @examples
+#' gleam_feed_conversion_ratios
+"gleam_feed_conversion_ratios"
+
+#' Emission factors for field operations on feed materials.
+#'
+#' @description
+#' CO2-equivalent emissions per hectare from field operations
+#' for ruminant and monogastric feed materials.
+#'
+#' @format A tibble with columns:
+#' \describe{
+#'   \item{material_number}{Sequential material identifier.}
+#'   \item{material}{Feed material code
+#'     (e.g. \code{"GRASSF"}, \code{"WHEAT"}).}
+#'   \item{emission_factor_kg_co2eq_ha}{Emission factor in
+#'     kg CO2-eq per hectare.}
+#'   \item{species_group}{\code{"ruminant"} or
+#'     \code{"monogastric"}.}
+#' }
+#'
+#' @source MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
+#'   Tables S.6.1 and S.6.2.
+#'
+#' @examples
+#' gleam_field_operation_ef
+"gleam_field_operation_ef"
+
+#' Country-level mechanization levels for feed materials.
+#'
+#' @description
+#' Mechanization level by country for each feed material,
+#' for ruminant and monogastric species.
+#'
+#' @format A tibble in long format with columns:
+#' \describe{
+#'   \item{country}{Country name.}
+#'   \item{continent}{Continent.}
+#'   \item{region}{GLEAM region.}
+#'   \item{feed_material}{Feed material code in lowercase.}
+#'   \item{mechanization_level}{Numeric mechanization level.}
+#'   \item{species_group}{\code{"ruminant"} or
+#'     \code{"monogastric"}.}
+#' }
+#'
+#' @source MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
+#'   Tables S.6.3 and S.6.4.
+#'
+#' @examples
+#' gleam_mechanization_levels
+"gleam_mechanization_levels"
+
+#' Processing and transport emission factors for feeds.
+#'
+#' @description
+#' Emission factors for processing and transport of feed
+#' materials, for ruminant and monogastric species.
+#'
+#' @format A tibble with columns:
+#' \describe{
+#'   \item{material_number}{Sequential material identifier.}
+#'   \item{material}{Feed material code.}
+#'   \item{processing_g_co2eq_kg_dm}{Processing emission
+#'     factor in g CO2-eq per kg dry matter.}
+#'   \item{transport_g_co2eq_kg_dm}{Transport emission factor
+#'     in g CO2-eq per kg dry matter.}
+#'   \item{species_group}{\code{"ruminant"} or
+#'     \code{"monogastric"}.}
+#' }
+#'
+#' @source MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
+#'   Tables S.6.5 and S.6.6.
+#'
+#' @examples
+#' gleam_processing_transport_ef
+"gleam_processing_transport_ef"
+
+#' Nitrogen parameters for crop residues of feed materials.
+#'
+#' @description
+#' Nitrogen content of above- and below-ground residues and
+#' root-to-shoot ratios for feed materials.
+#'
+#' @format A tibble with columns:
+#' \describe{
+#'   \item{material_number}{Sequential material identifier.}
+#'   \item{material}{Feed material code.}
+#'   \item{n_ag}{Nitrogen content of above-ground residues.}
+#'   \item{rbg_bio}{Ratio of below-ground residues to
+#'     above-ground biomass.}
+#'   \item{n_bg}{Nitrogen content of below-ground residues.}
+#'   \item{species_group}{\code{"ruminant"} or
+#'     \code{"monogastric"}.}
+#' }
+#'
+#' @source MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
+#'   Tables S.6.7 and S.6.8.
+#'
+#' @examples
+#' gleam_crop_residue_nitrogen
+"gleam_crop_residue_nitrogen"
+
+#' Country-level fraction of crop residues removed.
+#'
+#' @description
+#' Countries whose FracReMove value differs from the GLEAM
+#' default.
+#'
+#' @format A tibble with columns:
+#' \describe{
+#'   \item{country}{Country name.}
+#'   \item{continent}{Continent.}
+#'   \item{region}{GLEAM region.}
+#'   \item{fracremove}{Fraction of crop residues removed
+#'     (0 to 1).}
+#' }
+#'
+#' @source MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
+#'   Table S.6.9.
+#'
+#' @examples
+#' gleam_fracremove
+"gleam_fracremove"
+
+#' Energy use emission factors by species and system.
+#'
+#' @description
+#' Emission factors for embedded and direct energy use in
+#' livestock production, by species, production system, and
+#' climate zone.
+#'
+#' @format A tibble in long format with columns:
+#' \describe{
+#'   \item{grouping}{Country or country group
+#'     (e.g. \code{"OECD"}, \code{"EU 27"}).}
+#'   \item{species}{Animal species or group
+#'     (e.g. \code{"dairy_cattle"}, \code{"pigs"}).}
+#'   \item{system}{Production system (e.g.
+#'     \code{"Grassland based"}, \code{"industrial"}).
+#'     \code{NA} when not applicable.}
+#'   \item{climate}{Climate zone (\code{"arid"},
+#'     \code{"humid"}, \code{"temperate"}). \code{NA} when
+#'     not applicable.}
+#'   \item{energy_type}{\code{"embedded"} or
+#'     \code{"direct"}.}
+#'   \item{emission_factor}{Emission factor in kg CO2-eq
+#'     per unit product.}
+#' }
+#'
+#' @source MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
+#'   Tables S.7.1 through S.7.7.
+#'
+#' @examples
+#' gleam_energy_use_ef
+"gleam_energy_use_ef"
+
+#' GLEAM dressing percentages.
+#'
+#' @description
+#' Carcass weight as percentage of live weight by species,
+#' production system, cohort, and GLEAM region. Includes
+#' country-specific overrides for industrial pig systems in
+#' Western Europe.
+#'
+#' @format A tibble with columns:
+#' \describe{
+#'   \item{species}{Animal species (Cattle, Buffaloes, Sheep,
+#'     Goats, Pigs, Chicken).}
+#'   \item{production_system}{Production system (Dairy, Beef,
+#'     Backyard, Intermediate, Industrial, Layers, Broilers).
+#'     NA for species without system breakdown.}
+#'   \item{cohort}{Cohort (e.g. Adult and replacement female).
+#'     NA for species without cohort breakdown.}
+#'   \item{country}{Country name for country-specific values.
+#'     NA for regional values.}
+#'   \item{gleam_region}{GLEAM region abbreviation (NA, RUS,
+#'     WE, EE, NENA, ESEA, OCE, SA, LAC, SSA).}
+#'   \item{dressing_percent}{Dressing percentage.}
+#' }
+#'
+#' @source MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
+#'   Table S.9.1. \doi{10.1088/1748-9326/aad4d8}
+#'
+#' @examples
+#' gleam_dressing_percentages
+"gleam_dressing_percentages"
+
+#' GLEAM livestock categories.
+#'
+#' @description
+#' Species, production systems, and cohort definitions from
+#' GLEAM 3.0.
+#'
+#' @format A tibble with columns:
+#' \describe{
+#'   \item{species}{Animal species.}
+#'   \item{production_system}{Dairy, Beef, Meat, etc.}
+#'   \item{cohort}{Age/sex cohort.}
+#'   \item{description}{Cohort description.}
+#' }
+#'
+#' @source MacLeod et al. (2018) GLEAM 3.0 Model Description.
+#'
+#' @examples
+#' gleam_livestock_categories
+"gleam_livestock_categories"
+
+#' GLEAM feed categories.
+#'
+#' @description
+#' Feed classification used in GLEAM 3.0.
+#'
+#' @format A tibble with `feed_category`, `feed_type`,
+#'   `description`.
+#'
+#' @source MacLeod et al. (2018) GLEAM 3.0.
+#'
+#' @examples
+#' gleam_feed_categories
+"gleam_feed_categories"
+
+#' GLEAM enteric fermentation parameters.
+#'
+#' @description
+#' Ym (% GE) values by species and production system.
+#' Feedlot cattle use 3.0% per IPCC 2019 Table 10.12.
+#'
+#' @format A tibble with `species`, `system`, `ym_percent`,
+#'   `notes`.
+#'
+#' @source IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.12.
+#'
+#' @examples
+#' gleam_enteric_params
+"gleam_enteric_params"
+
+#' GLEAM manure management system shares.
+#'
+#' @description
+#' Regional MMS allocation by species and system.
+#'
+#' @format A tibble with `region`, `species`, `system`, `mms`,
+#'   `share_percent`.
+#'
+#' @source MacLeod et al. (2018) GLEAM 3.0.
+#'
+#' @examples
+#' gleam_mms_shares
+"gleam_mms_shares"
+
+#' GLEAM animal weights.
+#'
+#' @description
+#' Typical live weights by region, species, system, and cohort.
+#'
+#' @format A tibble with `region`, `species`, `system`,
+#'   `cohort`, `weight_kg`.
+#'
+#' @source MacLeod et al. (2018) GLEAM 3.0.
+#'
+#' @examples
+#' gleam_animal_weights
+"gleam_animal_weights"
+
+#' GLEAM milk production.
+#'
+#' @description
+#' Average annual milk yields and lactation lengths by region.
+#'
+#' @format A tibble with `region`, `species`, `system`,
+#'   `milk_kg_head_yr`, `lactation_days`.
+#'
+#' @source MacLeod et al. (2018) GLEAM 3.0.
+#'
+#' @examples
+#' gleam_milk_production
+"gleam_milk_production"
+
+# IPCC 2019 Refinement Tables ----
+
+#' IPCC 2019 enteric EF for cattle.
+#'
+#' @description
+#' Table 10.10: Tier 1 enteric fermentation emission factors
+#' for cattle by region (kg CH4/head/yr).
+#'
+#' @format A tibble with `region`, `category`,
+#'   `ef_kg_head_yr`, `source`.
+#'
+#' @source IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.10.
+#'
+#' @examples
+#' ipcc_2019_enteric_ef_cattle
+"ipcc_2019_enteric_ef_cattle"
+
+#' IPCC 2019 enteric EF for non-cattle.
+#'
+#' @description
+#' Table 10.11: Tier 1 enteric fermentation emission factors
+#' for non-cattle species (kg CH4/head/yr).
+#'
+#' @format A tibble with `category`, `ef_kg_head_yr`,
+#'   `source`.
+#'
+#' @source IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.11.
+#'
+#' @examples
+#' ipcc_2019_enteric_ef_other
+"ipcc_2019_enteric_ef_other"
+
+#' IPCC 2019 manure CH4 EF for cattle.
+#'
+#' @description
+#' Table 10.14: Tier 1 manure management CH4 emission factors
+#' for cattle by region (kg CH4/head/yr).
+#'
+#' @format A tibble with `region`, `category`,
+#'   `ef_kg_head_yr`.
+#'
+#' @source IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.14.
+#'
+#' @examples
+#' ipcc_2019_manure_ch4_ef_cattle
+"ipcc_2019_manure_ch4_ef_cattle"
+
+#' IPCC 2019 manure CH4 EF for non-cattle.
+#'
+#' @description
+#' Table 10.14: Tier 1 manure management CH4 emission factors
+#' for non-cattle species (kg CH4/head/yr).
+#'
+#' @format A tibble with `category`, `ef_kg_head_yr`.
+#'
+#' @source IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.14.
+#'
+#' @examples
+#' ipcc_2019_manure_ch4_ef_other
+"ipcc_2019_manure_ch4_ef_other"
+
+#' IPCC 2019 MCF for manure management.
+#'
+#' @description
+#' Table 10.17: Methane Conversion Factors by manure management
+#' system and annual average temperature.
+#'
+#' @format A tibble with `system`, `annual_temp_c`,
+#'   `mcf_percent`.
+#'
+#' @source IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.17.
+#'
+#' @examples
+#' ipcc_2019_mcf_manure
+"ipcc_2019_mcf_manure"
+
+#' IPCC 2019 nitrogen excretion rates.
+#'
+#' @description
+#' Table 10.19: Daily N excretion rates by species and region
+#' (kg N/1000 kg animal mass/day).
+#'
+#' @format A tibble with `region`, `category`,
+#'   `nex_kg_per_1000kg_day`.
+#'
+#' @source IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.19.
+#'
+#' @examples
+#' ipcc_2019_n_excretion
+"ipcc_2019_n_excretion"
+
+#' IPCC 2019 direct N2O emission factors.
+#'
+#' @description
+#' Table 10.21: EF3 values (kg N2O-N/kg N) by manure
+#' management system.
+#'
+#' @format A tibble with `mms_type`, `ef3_kg_n2on_kg_n`,
+#'   `source`.
+#'
+#' @source IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.21.
+#'
+#' @examples
+#' ipcc_2019_n2o_ef_direct
+"ipcc_2019_n2o_ef_direct"
+
+#' IPCC 2019 Ym values (Table 10.12).
+#'
+#' @description
+#' Methane conversion rate (% GE) by species and feed
+#' situation. The 2019 Refinement differentiates:
+#' - Cattle feedlot (>90% concentrate): 3.0%.
+#' - Sheep >= 75 kg body weight: 6.7%.
+#' - Sheep < 75 kg body weight: 4.7%.
+#'
+#' @format A tibble with `category`, `feed_situation`,
+#'   `ym_percent`.
+#'
+#' @source IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.12.
+#'
+#' @examples
+#' ipcc_2019_ym
+"ipcc_2019_ym"
+
+#' IPCC 2019 Bo values (Table 10.16).
+#'
+#' @description
+#' Maximum CH4 producing capacity of manure
+#' (m3 CH4/kg VS). Dairy cattle (0.24) differs from
+#' other cattle (0.18).
+#'
+#' @format A tibble with `category`, `bo_m3_kg_vs`.
+#'
+#' @source IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.16.
+#'
+#' @examples
+#' ipcc_2019_bo
+"ipcc_2019_bo"
+
+#' IPCC 2019 Cfi values (Table 10.4).
+#'
+#' @description
+#' Net energy maintenance coefficients (MJ/day/kg^0.75).
+#' Dairy (lactating) cattle use 0.386; non-dairy 0.322.
+#'
+#' @format A tibble with `category`, `subcategory`,
+#'   `cfi_mj_day_kg075`.
+#'
+#' @source IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.4.
+#'
+#' @examples
+#' ipcc_2019_cfi
+"ipcc_2019_cfi"
+
+# IPCC 2006 Tables ----
+
+#' IPCC 2006 Tier 1 enteric emission factors.
+#'
+#' @description
+#' Table 10.11 (2006): Tier 1 regional EFs for enteric
+#' fermentation.
+#'
+#' @format A tibble with `region`, `category`,
+#'   `ef_kg_head_yr`.
+#'
+#' @source IPCC 2006, Vol 4, Ch 10, Table 10.11.
+#'
+#' @examples
+#' ipcc_2006_enteric_ef
+"ipcc_2006_enteric_ef"
+
+#' IPCC 2006 Tier 1 manure emission factors.
+#'
+#' @description
+#' Table 10.14 (2006): Tier 1 regional EFs for manure CH4.
+#'
+#' @format A tibble with `region`, `category`,
+#'   `ef_kg_head_yr`, `temp_zone`.
+#'
+#' @source IPCC 2006, Vol 4, Ch 10, Table 10.14.
+#'
+#' @examples
+#' ipcc_2006_manure_ef
+"ipcc_2006_manure_ef"
+
+#' IPCC 2006 MCF by temperature.
+#'
+#' @description
+#' Table 10.17 (2006): MCF values by MMS type and
+#' annual temperature.
+#'
+#' @format A tibble with `system`, `temp_c`, `mcf_percent`.
+#'
+#' @source IPCC 2006, Vol 4, Ch 10, Table 10.17.
+#'
+#' @examples
+#' ipcc_2006_mcf_temp
+"ipcc_2006_mcf_temp"
+
+# IPCC Tier 2 Parameters ----
+
+#' Tier 2 energy coefficients.
+#'
+#' @description
+#' Coefficients for IPCC Tier 2 GE calculation including
+#' Cfi (maintenance), Ca (activity), Cp (pregnancy),
+#' Cw (work), and energy content of weight gain. Now
+#' includes `subcategory` column to differentiate dairy
+#' (lactating) vs non-dairy cattle.
+#'
+#' @format A tibble with columns:
+#' \describe{
+#'   \item{category}{Species (Cattle, Buffalo, Sheep, etc.).}
+#'   \item{subcategory}{Dairy, Non-Dairy, or All.}
+#'   \item{cfi_mj_day_kg075}{NEm coefficient (MJ/day/kg^0.75).}
+#'   \item{ca_pasture}{Activity coefficient for grazing.}
+#'   \item{ca_feedlot}{Activity coefficient for confined.}
+#'   \item{cp}{Pregnancy coefficient.}
+#'   \item{cw}{Work coefficient.}
+#'   \item{energy_content_gain_mj_kg}{Energy per kg gain.}
+#' }
+#'
+#' @source IPCC 2019 Refinement, Vol 4, Ch 10,
+#'   Eq 10.3-10.16; Tables 10.4-10.5.
+#'
+#' @examples
+#' ipcc_tier2_energy_coefs
+"ipcc_tier2_energy_coefs"
+
+#' Tier 2 Ym values.
+#'
+#' @description
+#' Methane conversion rate by species and feed situation
+#' for Tier 2 enteric CH4. Includes feedlot distinction
+#' and sheep body weight differentiation.
+#'
+#' @format A tibble with `category`, `feed_situation`,
+#'   `ym_percent`.
+#'
+#' @source IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.12.
+#'
+#' @examples
+#' ipcc_tier2_ym_values
+"ipcc_tier2_ym_values"
+
+#' Tier 2 Bo values.
+#'
+#' @description
+#' Maximum CH4 producing capacity by detailed category.
+#' Dairy cattle 0.24 vs other cattle 0.18.
+#'
+#' @format A tibble with `category`, `bo_m3_kg_vs`.
+#'
+#' @source IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.16.
+#'
+#' @examples
+#' ipcc_tier2_bo_values
+"ipcc_tier2_bo_values"
+
+#' Tier 2 manure ash content.
+#'
+#' @description
+#' Ash content of manure as percent of dry matter,
+#' used in VS calculation (Eq 10.24).
+#'
+#' @format A tibble with `category`, `ash_percent`.
+#'
+#' @source IPCC 2019 Refinement, Vol 4, Ch 10.
+#'
+#' @examples
+#' ipcc_tier2_manure_ash
+"ipcc_tier2_manure_ash"
+
+#' Tier 2 nitrogen retention fractions.
+#'
+#' @description
+#' Fraction of N intake retained in animal products.
+#' Dairy cattle 0.20 vs other cattle 0.07.
+#'
+#' @format A tibble with `category`, `n_retention_frac`.
+#'
+#' @source IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.20.
+#'
+#' @examples
+#' ipcc_tier2_n_retention
+"ipcc_tier2_n_retention"
+
+#' Default production parameters.
+#'
+#' @description
+#' Default values for fat%, protein%, lactose%, weight gain,
+#' work hours, and pregnancy fraction by species.
+#'
+#' @format A tibble with columns:
+#' \describe{
+#'   \item{category}{Species or animal class.}
+#'   \item{fat_percent}{Milk fat content (percent).}
+#'   \item{protein_percent}{Milk protein content (percent).}
+#'   \item{lactose_percent}{Milk lactose content (percent).}
+#'   \item{weight_gain_kg_day}{Average daily weight gain
+#'     (kg/day).}
+#'   \item{work_hours_day}{Hours of draft work per day.}
+#'   \item{pregnant_fraction}{Fraction of females pregnant.}
+#' }
+#'
+#' @source NRC 2001; IPCC 2019, Vol 4, Ch 10.
+#'
+#' @examples
+#' livestock_production_defaults
+"livestock_production_defaults"
+
+#' Feed characteristics by diet quality.
+#'
+#' @description
+#' DE%, NDF%, GE content, and crude protein percentage
+#' for High/Medium/Low diet quality levels.
+#'
+#' @format A tibble with `diet_quality`, `de_percent`,
+#'   `ndf_percent`, `ge_content_mj_kg_dm`, `cp_percent`.
+#'
+#' @source IPCC 2019, Vol 4, Ch 10.
+#'
+#' @examples
+#' feed_characteristics
+"feed_characteristics"
+
+#' Climate-zone MCF values.
+#'
+#' @description
+#' Methane Conversion Factors by MMS type and climate zone
+#' (Cool/Temperate/Warm).
+#'
+#' @format A tibble with `mms_type`, `climate_zone`,
+#'   `mcf_percent`.
+#'
+#' @source IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.17.
+#'
+#' @examples
+#' climate_mcf
+"climate_mcf"
+
+#' Regional MMS distribution.
+#'
+#' @description
+#' Fraction of manure managed in each MMS type by region
+#' and species.
+#'
+#' @format A tibble with `region`, `species`, `mms_type`,
+#'   `fraction`.
+#'
+#' @source GLEAM 3.0 / FAO statistics.
+#'
+#' @examples
+#' regional_mms_distribution
+"regional_mms_distribution"
+
+#' Temperature adjustment factors for NEm.
+#'
+#' @description
+#' Adjustment multipliers for net energy maintenance
+#' under cold stress, thermoneutral, and heat stress
+#' conditions.
+#'
+#' @format A tibble with `temp_range`, `temp_min`,
+#'   `temp_max`, `adjustment_factor`.
+#'
+#' @source NRC 2001; IPCC 2019.
+#'
+#' @examples
+#' temperature_adjustment
+"temperature_adjustment"
+
+#' Indirect N2O emission factors.
+#'
+#' @description
+#' Parameters for indirect N2O emissions from manure
+#' management: EF4 (volatilization), EF5 (leaching),
+#' FracGasMS, FracLeach.
+#'
+#' @format A tibble with `parameter`, `value`,
+#'   `description`.
+#'
+#' @source IPCC 2019, Vol 4, Ch 10, Table 10.22;
+#'   Vol 4, Ch 11, Table 11.3.
+#'
+#' @examples
+#' indirect_n2o_ef
+"indirect_n2o_ef"
+
+#' Uncertainty ranges for emission parameters.
+#'
+#' @description
+#' Lower and upper multipliers for key emission
+#' parameters (Ym, MCF, Bo, EF_N2O, Nex).
+#'
+#' @format A tibble with `parameter`, `lower_mult`,
+#'   `upper_mult`, `distribution`.
+#'
+#' @source IPCC 2019 Refinement, Vol 4, Ch 10.
+#'
+#' @examples
+#' uncertainty_ranges
+"uncertainty_ranges"
+
+#' Grazing energy coefficients.
+#'
+#' @description
+#' Walking energy cost for grazing animals
+#' (MJ/kg body weight/km).
+#'
+#' @format A tibble with `parameter`, `value_mj_kg_km`,
+#'   `source`.
+#'
+#' @source NRC 2001 (0.00045 Mcal/kg/km converted to MJ).
+#'
+#' @examples
+#' grazing_energy_coefs
+"grazing_energy_coefs"
+
+#' Livestock physical constants.
+#'
+#' @description
+#' Named list of physical constants used in livestock
+#' emission calculations:
+#' - `energy_ch4_mj_kg`: 55.65 MJ/kg CH4.
+#' - `ge_content_mj_kg_dm`: 18.45 MJ/kg DM.
+#' - `ue_factor`: 0.04 (urinary energy as fraction of GE).
+#' - `n_to_protein`: 6.25 (N to protein conversion).
+#' - `default_de_percent`: 65%.
+#' - `ev_wool_mj_kg`: 24.0 MJ/kg clean wool.
+#'
+#' @format A named list.
+#'
+#' @source IPCC 2019 Refinement, Vol 4, Ch 10.
+#'
+#' @examples
+#' str(livestock_constants)
+"livestock_constants"

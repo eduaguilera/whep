@@ -1,0 +1,19 @@
+Item_area,item_prod,item_prod_code,Multi_type
+"Seed cotton, unginned","Cotton lint, ginned",767,Primary
+"Seed cotton, unginned",Cotton seed,329,Primary
+,"Seed cotton, unginned",328,Primary_area
+Oil palm fruit,Palm oil,257,Primary
+Oil palm fruit,Palm kernels,256,Primary
+,Oil palm fruit,254,Primary_area
+Coconuts,"Coconuts, in shell",249,Multi
+Coconuts,"Coir, raw",813,Multi
+,Coconuts,248,Multi_area
+Hemp,Hempseed,336,Multi
+Hemp,"True hemp, raw or retted",777,Multi
+,Hemp,776,Multi_area
+Kapok fruit,Kapokseed in shell,311,Primary
+Kapok fruit,"Kapok fibre, raw",778,Primary
+,Kapok fruit,310,Primary_area
+Linum,Linseed,333,Multi
+Linum,"Flax, processed but not spun",773,Multi
+,Linum,772,Multi_area

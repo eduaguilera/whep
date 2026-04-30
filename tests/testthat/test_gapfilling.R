@@ -1,6 +1,6 @@
 # Helper fixtures --------------------------------------------------------------
 
-linear_fill_fixture <- function() {
+fill_linear_fixture <- function() {
   tibble::tribble(
     ~category, ~year, ~value,
     "a", 2015, NA,
@@ -38,25 +38,7 @@ single_anchor_series <- function(anchor = 42) {
   )
 }
 
-proxy_fill_fixture <- function() {
-  tibble::tribble(
-    ~category, ~year, ~value, ~proxy_variable,
-    "a", 2015, NA, 1,
-    "a", 2016, 3, 2,
-    "a", 2017, NA, 2,
-    "a", 2018, NA, 2,
-    "a", 2019, 0, 2,
-    "a", 2020, NA, 2,
-    "b", 2015, 1, 1,
-    "b", 2016, NA, 2,
-    "b", 2017, NA, 3,
-    "b", 2018, NA, 4,
-    "b", 2019, 5, 5,
-    "b", 2020, NA, 6
-  )
-}
-
-sum_fill_fixture <- function() {
+fill_sum_fixture <- function() {
   tibble::tribble(
     ~category, ~year, ~value, ~change_variable,
     "a", 2014, NA, 2,
@@ -75,11 +57,11 @@ sum_fill_fixture <- function() {
   )
 }
 
-# linear_fill ------------------------------------------------------------------
+# fill_linear ------------------------------------------------------------------
 
-testthat::test_that("linear_fill fills gaps and preserves originals", {
-  result <- linear_fill_fixture() |>
-    linear_fill(value, year, .by = "category")
+testthat::test_that("fill_linear fills gaps and preserves originals", {
+  result <- fill_linear_fixture() |>
+    fill_linear(value, .by = "category")
 
   result |>
     pointblank::expect_col_exists("source_value") |>
@@ -103,18 +85,15 @@ testthat::test_that("linear_fill fills gaps and preserves originals", {
     testthat::expect_false()
 })
 
-testthat::test_that("linear_fill interpolates and carries flags", {
-  only_interp <- linear_fill_fixture() |>
-    linear_fill(
+testthat::test_that("fill_linear interpolates between anchor points, and adds flags", {
+  fill_linear_fixture() |>
+    fill_linear(
       value,
-      year,
       interpolate = TRUE,
       fill_forward = FALSE,
       fill_backward = FALSE,
       .by = "category"
-    )
-
-  only_interp |>
+    ) |>
     testthat::expect_equal(
       tibble::tribble(
         ~category, ~year, ~value, ~source_value,
@@ -132,47 +111,67 @@ testthat::test_that("linear_fill interpolates and carries flags", {
         "b", 2020, NA, "Gap not filled"
       )
     )
+})
 
-  backward_only <- linear_fill_fixture() |>
-    linear_fill(
+testthat::test_that("fill_linear carries values backward from first anchor, and adds flags", {
+  fill_linear_fixture() |>
+    fill_linear(
       value,
-      year,
       interpolate = FALSE,
       fill_forward = FALSE,
       fill_backward = TRUE,
       .by = "category"
+    ) |>
+    testthat::expect_equal(
+      tibble::tribble(
+        ~category, ~year, ~value, ~source_value,
+        "a", 2015, 3, "First value carried backwards",
+        "a", 2016, 3, "Original",
+        "a", 2017, NA, "Gap not filled",
+        "a", 2018, NA, "Gap not filled",
+        "a", 2019, 0, "Original",
+        "a", 2020, NA, "Gap not filled",
+        "b", 2015, 1, "Original",
+        "b", 2016, NA, "Gap not filled",
+        "b", 2017, NA, "Gap not filled",
+        "b", 2018, NA, "Gap not filled",
+        "b", 2019, 5, "Original",
+        "b", 2020, NA, "Gap not filled"
+      )
     )
+})
 
-  backward_only |>
-    pointblank::expect_col_vals_equal(
-      source_value,
-      "First value carried backwards",
-      preconditions = \(df) df |> dplyr::filter(category == "a", year == 2015)
-    )
-
-  forward_only <- linear_fill_fixture() |>
-    linear_fill(
+testthat::test_that("fill_linear carries values forward from last anchor, and adds flags", {
+  fill_linear_fixture() |>
+    fill_linear(
       value,
-      year,
       interpolate = FALSE,
       fill_forward = TRUE,
       fill_backward = FALSE,
       .by = "category"
-    )
-
-  forward_only |>
-    pointblank::expect_col_vals_equal(
-      source_value,
-      rep("Last value carried forward", 3),
-      preconditions = \(df) {
-        df |> dplyr::filter(category == "b", year %in% 2016:2018)
-      }
+    ) |>
+    testthat::expect_equal(
+      tibble::tribble(
+        ~category, ~year, ~value, ~source_value,
+        "a", 2015, NA, "Gap not filled",
+        "a", 2016, 3, "Original",
+        "a", 2017, NA, "Gap not filled",
+        "a", 2018, NA, "Gap not filled",
+        "a", 2019, 0, "Original",
+        "a", 2020, 0, "Last value carried forward",
+        "b", 2015, 1, "Original",
+        "b", 2016, NA, "Gap not filled",
+        "b", 2017, NA, "Gap not filled",
+        "b", 2018, NA, "Gap not filled",
+        "b", 2019, 5, "Original",
+        "b", 2020, 5, "Last value carried forward"
+      )
     )
 })
 
-testthat::test_that("linear_fill interpolates grouped series", {
-  linear_fill_fixture() |>
-    linear_fill(value, year, .by = "category") |>
+testthat::test_that("fill_linear interpolates grouped series", {
+  fill_linear_fixture() |>
+    fill_linear(value, .by = "category") |>
     pointblank::expect_col_vals_equal(
       value,
       c(3, 3, 2, 1, 0, 0),
@@ -185,17 +184,14 @@ testthat::test_that("linear_fill interpolates grouped series", {
     )
 })
 
-testthat::test_that("linear_fill propagates a single anchor value", {
-  result <- single_anchor_series() |>
-    linear_fill(
+testthat::test_that("fill_linear propagates a single anchor value", {
+  single_anchor_series() |>
+    fill_linear(
       value,
-      year,
       interpolate = FALSE,
       fill_forward = TRUE,
       fill_backward = TRUE
-    )
-
-  result |>
+    ) |>
     pointblank::expect_col_vals_equal(value, c(42, 42, 42)) |>
     pointblank::expect_col_vals_in_set(
       source_value,
@@ -207,81 +203,205 @@ testthat::test_that("linear_fill propagates a single anchor value", {
     )
 })
 
-# proxy_fill ------------------------------------------------------------------
+testthat::test_that("fill_linear with value_smooth_window uses smoothed values for filling", {
+  # Create data with high variability
+  noisy_data <- tibble::tribble(
+    ~year, ~value,
+    2010, 100,
+    2011, 120,
+    2012, 80,
+    2013, NA,
+    2014, NA,
+    2015, 110,
+    2016, 90,
+    2017, 130
+  )
 
-testthat::test_that("proxy_fill scales gaps from proxy ratios", {
-  result <- proxy_fill_fixture() |>
-    proxy_fill(
+  # Without smoothing: interpolation uses raw anchor values (80 and 110)
+  result_no_smooth <- noisy_data |>
+    fill_linear(value, fill_forward = FALSE, fill_backward = FALSE)
+
+  # With smoothing (window = 3): uses moving average of anchors
+  result_smooth <- noisy_data |>
+    fill_linear(
       value,
-      proxy_variable,
-      year,
-      .by = "category"
+      fill_forward = FALSE,
+      fill_backward = FALSE,
+      value_smooth_window = 3
     )
 
-  result |>
-    pointblank::expect_col_exists("proxy_ratio") |>
-    pointblank::expect_col_exists("source_value") |>
+  # Both should fill the gaps
+  testthat::expect_false(any(is.na(result_no_smooth$value[4:5])))
+  testthat::expect_false(any(is.na(result_smooth$value[4:5])))
+
+  # Smoothed result should differ from non-smoothed due to moving average
+  testthat::expect_false(
+    all(result_no_smooth$value[4:5] == result_smooth$value[4:5])
+  )
+
+  # Original values should be preserved in both cases
+  testthat::expect_equal(result_no_smooth$value[1], 100)
+  testthat::expect_equal(result_smooth$value[1], 100)
+  testthat::expect_equal(result_no_smooth$value[6], 110)
+  testthat::expect_equal(result_smooth$value[6], 110)
+})
+
+testthat::test_that("fill_linear value_smooth_window NULL behaves as default", {
+  result_default <- simple_linear_series() |>
+    fill_linear(value)
+
+  result_null <- simple_linear_series() |>
+    fill_linear(value, value_smooth_window = NULL)
+
+  testthat::expect_equal(result_default, result_null)
+})
+
+testthat::test_that("fill_linear value_smooth_window works with carry forward/backward", {
+  # Data where smoothing affects the carried value
+  edge_data <- tibble::tribble(
+    ~year, ~value,
+    2010, 100,
+    2011, 120,
+    2012, 80,
+    2013, NA,
+    2014, NA
+  )
+
+  # Without smoothing: carries 80 forward
+  result_no_smooth <- edge_data |>
+    fill_linear(
+      value,
+      interpolate = FALSE,
+      fill_forward = TRUE,
+      fill_backward = FALSE
+    )
+
+  # With smoothing (window = 3): carries smoothed value forward
+  # MA of (100, 120, 80) = 100 for 2011, MA of (120, 80, NA) won't work
+  # But 2012 has neighbours so its smoothed value = mean(120, 80, NA) = NA
+  # This tests edge behaviour
+  result_smooth <- edge_data |>
+    fill_linear(
+      value,
+      interpolate = FALSE,
+      fill_forward = TRUE,
+      fill_backward = FALSE,
+      value_smooth_window = 3
+    )
+
+  # Without smoothing, should carry 80
+  testthat::expect_equal(result_no_smooth$value[4], 80)
+  testthat::expect_equal(result_no_smooth$value[5], 80)
+
+  # Original values preserved
+  testthat::expect_equal(result_smooth$value[1], 100)
+  testthat::expect_equal(result_smooth$value[3], 80)
+})
+
+testthat::test_that("fill_linear handles single non-NA value without error", {
+  # Only 1 non-NA value: zoo::na.approx needs >= 2, should not error
+  tibble::tribble(
+    ~year, ~value,
+    2015, NA,
+    2016, 5,
+    2017, NA
+  ) |>
+    fill_linear(value) |>
+    pointblank::expect_col_vals_equal(value, c(5, 5, 5)) |>
     pointblank::expect_col_vals_in_set(
       source_value,
       c(
         "Original",
-        "Proxy interpolated",
-        "Proxy carried forward",
-        "Proxy carried backwards"
+        "First value carried backwards",
+        "Last value carried forward"
       )
     )
+})
 
-  result |>
+testthat::test_that("fill_linear warns on duplicate years within a group", {
+  # Duplicate years are malformed time-series input and must be flagged
+  # rather than silently passed to approx() which crashes in obscure ways.
+  testthat::expect_warning(
+    tibble::tribble(
+      ~year, ~value,
+      2015, 10,
+      2015, 20,
+      2016, NA,
+      2017, NA
+    ) |>
+      fill_linear(value),
+    "Duplicate year"
+  )
+})
+
+testthat::test_that("fill_linear handles all-NA group without error", {
+  tibble::tribble(
+    ~year, ~value,
+    2015, NA,
+    2016, NA,
+    2017, NA
+  ) |>
+    fill_linear(value) |>
+    pointblank::expect_col_vals_null(value) |>
+    pointblank::expect_col_vals_equal(
+      source_value,
+      "Gap not filled"
+    )
+})
+
+testthat::test_that("fill_linear handles mixed groups with single non-NA", {
+  # One group has 1 non-NA, another has 2+
+  tibble::tribble(
+    ~category, ~year, ~value,
+    "a", 2015, NA,
+    "a", 2016, 10,
+    "a", 2017, NA,
+    "b", 2015, 1,
+    "b", 2016, NA,
+    "b", 2017, 3
+  ) |>
+    fill_linear(value, .by = "category") |>
+    pointblank::expect_col_vals_not_null(value) |>
     pointblank::expect_col_vals_equal(
       value,
-      c(3, 0, 1, 5),
-      preconditions = \(df) df |> dplyr::filter(source_value == "Original")
+      c(10, 10, 10),
+      preconditions = \(df) df |> dplyr::filter(category == "a")
+    ) |>
+    pointblank::expect_col_vals_equal(
+      value,
+      c(1, 2, 3),
+      preconditions = \(df) df |> dplyr::filter(category == "b")
     )
-
-  result |>
-    pointblank::expect_col_vals_expr(
-      ~ dplyr::near(proxy_ratio, value / proxy_variable, tol = 1e-6),
-      preconditions = \(df) df |> dplyr::filter(!is.na(value))
-    )
-
-  dplyr::is_grouped_df(result) |>
-    testthat::expect_false()
 })
 
-testthat::test_that("proxy_fill works without grouping variables", {
-  simple_proxy <- tibble::tribble(
-    ~year, ~value, ~proxy_variable,
-    2015, 10, 5,
-    2016, NA, 10,
-    2017, 30, 15
-  )
-
-  simple_proxy |>
-    proxy_fill(value, proxy_variable, year) |>
-    pointblank::expect_col_exists("proxy_ratio") |>
-    pointblank::expect_col_vals_not_null(proxy_ratio)
+testthat::test_that("fill_linear handles no NAs without error", {
+  tibble::tribble(
+    ~year, ~value,
+    2015, 1,
+    2016, 2,
+    2017, 3
+  ) |>
+    fill_linear(value) |>
+    pointblank::expect_col_vals_equal(value, c(1, 2, 3)) |>
+    pointblank::expect_col_vals_equal(source_value, "Original")
 })
 
-# sum_fill ---------------------------------------------------------------------
+# fill_sum --------------------------------------------------------------------
 
-testthat::test_that("sum_fill accumulates changes while keeping originals", {
-  result <- sum_fill_fixture() |>
-    sum_fill(
+testthat::test_that("fill_sum accumulates changes while keeping originals", {
+  fill_sum_fixture() |>
+    fill_sum(
       value,
       change_variable,
       start_with_zero = TRUE,
       .by = "category"
-    )
-
-  result |>
+    ) |>
     pointblank::expect_col_exists("source_value") |>
     pointblank::expect_col_vals_in_set(
       source_value,
-      c("Original", "Filled with sum")
+      c("Original", "Filled with sum", NA)
     ) |>
-    pointblank::expect_col_vals_not_null(value)
-
-  result |>
+    pointblank::expect_col_vals_not_null(value) |>
     pointblank::expect_col_vals_equal(
       value,
       c(2, 5, 3, 6, 10, 0, 1),
@@ -294,60 +414,52 @@ testthat::test_that("sum_fill accumulates changes while keeping originals", {
     )
 })
 
-testthat::test_that("sum_fill handles accumulation without explicit groups", {
-  simple_series <- tibble::tribble(
+testthat::test_that("fill_sum handles accumulation without explicit groups", {
+  tibble::tribble(
     ~year, ~value, ~change_variable,
     2015, 10, 0,
     2016, NA, 2,
     2017, NA, 3,
     2018, NA, 1
-  )
-  simple_series |>
-    sum_fill(value, change_variable) |>
+  ) |>
+    fill_sum(value, change_variable) |>
     pointblank::expect_col_vals_equal(value, c(10, 12, 15, 16)) |>
     pointblank::expect_col_vals_in_set(
       source_value,
-      c("Original", "Filled with sum")
+      c("Original", "Filled with sum", NA)
     )
 })
 
-testthat::test_that("sum_fill start_with_zero toggles behaviour", {
+testthat::test_that("fill_sum start_with_zero toggles behaviour", {
   contiguous_gaps <- tibble::tribble(
-    ~value, ~change_variable,
-    NA, 1,
-    NA, 2,
-    NA, 3,
-    NA, 4
+    ~year, ~value, ~change_variable,
+    2015, NA, 1,
+    2016, NA, 2,
+    2017, NA, 3,
+    2018, NA, 4
   )
 
-  default_result <- contiguous_gaps |>
-    sum_fill(value, change_variable)
-
-  default_result |>
-    pointblank::expect_col_vals_null(value)
-
-  zero_start <- contiguous_gaps |>
-    sum_fill(
-      value,
-      change_variable,
-      start_with_zero = TRUE
-    )
-
-  zero_start |>
+  contiguous_gaps |>
+    fill_sum(value, change_variable) |>
     pointblank::expect_col_vals_equal(value, c(1, 3, 6, 10)) |>
     pointblank::expect_col_vals_equal(source_value, "Filled with sum")
-})
 
-testthat::test_that("sum_fill respects grouping keys", {
-  result <- sum_fill_fixture() |>
-    sum_fill(
+  contiguous_gaps |>
+    fill_sum(
       value,
       change_variable,
-      start_with_zero = TRUE,
-      .by = "category"
-    )
+      start_with_zero = FALSE
+    ) |>
+    pointblank::expect_col_vals_null(value)
+})
 
-  result |>
+testthat::test_that("fill_sum respects grouping keys", {
+  fill_sum_fixture() |>
+    fill_sum(
+      value,
+      change_variable,
+      .by = "category"
+    ) |>
     pointblank::expect_col_vals_equal(
       value,
       c(2, 5, 3, 6, 10, 0, 1),
@@ -358,4 +470,687 @@ testthat::test_that("sum_fill respects grouping keys", {
       c(1, 1, 1, 1, 5, 6),
       preconditions = \(df) df |> dplyr::filter(category == "b")
     )
+})
+
+testthat::test_that("fill_sum creates source column with dynamic name based on value_col", {
+  data <- tibble::tribble(
+    ~year, ~my_variable, ~change_variable,
+    2015, 10, 0,
+    2016, NA, 2,
+    2017, 20, 3
+  )
+
+  result <- data |>
+    fill_sum(my_variable, change_variable)
+
+  # Should create source_my_variable, not source_value
+  testthat::expect_true("source_my_variable" %in% names(result))
+  testthat::expect_false("source_value" %in% names(result))
+
+  result |>
+    pointblank::expect_col_vals_in_set(
+      source_my_variable,
+      c("Original", "Filled with sum")
+    )
+})
+
+# fill_proxy_growth ------------------------------------------------------------------
+
+test_that("fill_proxy_growth fills missing values using proxy growth rates", {
+  data <- tibble::tribble(
+    ~country, ~year, ~gdp, ~population,
+    "ESP", 2010, 100, 46,
+    "ESP", 2011, NA, 47,
+    "ESP", 2012, 120, 48,
+    "ESP", 2013, NA, 49
+  )
+
+  result <- fill_proxy_growth(
+    data,
+    value_col = gdp,
+    proxy_col = "population",
+    .by = "country",
+    verbose = FALSE
+  )
+
+  # Should have filled the NA values
+  expect_false(any(is.na(result$gdp)))
+})
+
+test_that("fill_proxy_growth respects max_gap parameter", {
+  data <- tibble::tribble(
+    ~year, ~value, ~proxy,
+    2010, 100, 1000,
+    2011, NA, 1100,
+    2012, NA, 1200,
+    2013, NA, 1300,
+    2014, 150, 1400
+  )
+
+  result <- fill_proxy_growth(
+    data,
+    value_col = value,
+    proxy_col = "proxy",
+    max_gap = 2,
+    verbose = FALSE
+  )
+
+  # With max_gap = 2, should not fill 3 consecutive NAs
+  expect_true(is.na(result$value[3]))
+})
+
+test_that("fill_proxy_growth works with grouping", {
+  data <- tibble::tribble(
+    ~country, ~year, ~emissions, ~gdp,
+    "ESP", 2010, 100, 1000,
+    "ESP", 2011, NA, 1100,
+    "ESP", 2012, 130, 1200,
+    "FRA", 2010, 200, 2000,
+    "FRA", 2011, NA, 2200,
+    "FRA", 2012, 250, 2400
+  )
+
+  result <- fill_proxy_growth(
+    data,
+    value_col = emissions,
+    proxy_col = "gdp",
+    .by = "country",
+    verbose = FALSE
+  )
+
+  # Check both groups have filled values
+  esp_filled <- result |>
+    dplyr::filter(country == "ESP", year == 2011) |>
+    dplyr::pull(emissions)
+
+  fra_filled <- result |>
+    dplyr::filter(country == "FRA", year == 2011) |>
+    dplyr::pull(emissions)
+
+  expect_false(is.na(esp_filled))
+  expect_false(is.na(fra_filled))
+})
+
+test_that("fill_proxy_growth extrapolates per group, not across groups", {
+  # Regression: .parse_proxy_spec used to return `group_vars` while
+  # downstream code read `present_group_vars` (unset), collapsing all
+  # groups into one. Under the bug, a group with a slow-growing proxy
+  # would be pulled towards a neighbour's fast-growing proxy.
+  data <- tibble::tribble(
+    ~country, ~year, ~value, ~proxy,
+    "slow",   2000,    NA,    10,
+    "slow",   2001,    NA,    11,
+    "slow",   2002,   100,    12,
+    "fast",   2000,    NA,    10,
+    "fast",   2001,    NA,    50,
+    "fast",   2002,  1000,   100
+  )
+
+  result <- fill_proxy_growth(
+    data,
+    value_col = value,
+    proxy_col = "proxy",
+    .by = "country",
+    verbose = FALSE
+  )
+
+  # Expected per-group backfill, walking back from the 2002 anchor
+  # using the local proxy growth. The slow group's 2000 value is
+  # anchor times (proxy_2000 / proxy_2002); the fast group uses its
+  # own proxy series. A bug that averaged growth rates across groups
+  # would pull both values toward the same (wrong) intermediate.
+  slow_2000 <- result |>
+    dplyr::filter(country == "slow", year == 2000L) |>
+    dplyr::pull(value)
+  fast_2000 <- result |>
+    dplyr::filter(country == "fast", year == 2000L) |>
+    dplyr::pull(value)
+
+  expect_equal(slow_2000, 100 * (10 / 12), tolerance = 1e-6)
+  expect_equal(fast_2000, 1000 * (10 / 100), tolerance = 1e-6)
+})
+
+test_that("fill_proxy_growth returns same number of rows", {
+  data <- tibble::tribble(
+    ~year, ~value, ~proxy,
+    2010, 100, 1000,
+    2011, NA, 1100,
+    2012, 120, 1200
+  )
+
+  result <- fill_proxy_growth(
+    data,
+    value_col = value,
+    proxy_col = "proxy",
+    verbose = FALSE
+  )
+
+  expect_equal(nrow(result), nrow(data))
+})
+
+# Hierarchical Segmented Interpolation -----------------------------------------
+
+test_that("fill_proxy_growth uses hierarchical segmentation with intermediate proxy data", {
+  # Spain wages example: household_ppp has gap 2008-2019
+  # formal_ppp has data 2010-2018 (should be used for middle segment)
+  # gdp_pc_constant has complete data (fallback for edges)
+
+  data_wages <- tibble::tribble(
+    ~country, ~year, ~household_ppp, ~formal_ppp, ~gdp_pc_constant,
+    "ESP", 2008, 100, NA, 50,
+    "ESP", 2009, NA, NA, 51,
+    "ESP", 2010, NA, 105, 52,
+    "ESP", 2011, NA, 108, 53,
+    "ESP", 2012, NA, 112, 54,
+    "ESP", 2013, NA, 115, 55,
+    "ESP", 2014, NA, 118, 56,
+    "ESP", 2015, NA, 122, 57,
+    "ESP", 2016, NA, 125, 58,
+    "ESP", 2017, NA, 130, 59,
+    "ESP", 2018, NA, 135, 60,
+    "ESP", 2019, 150, NA, 61
+  )
+
+  result <- fill_proxy_growth(
+    data_wages,
+    value_col = household_ppp,
+    proxy_col = c("formal_ppp", "gdp_pc_constant"),
+    .by = "country",
+    output_format = "detailed",
+    verbose = FALSE
+  )
+
+  # All gaps should be filled
+  expect_false(any(is.na(result$household_ppp)))
+
+  # Original values should be preserved
+  expect_equal(result$household_ppp[result$year == 2008], 100)
+  expect_equal(result$household_ppp[result$year == 2019], 150)
+
+  # Check that source column indicates bridge interpolation was used
+  middle_sources <- result |>
+    dplyr::filter(year >= 2009, year <= 2018) |>
+    dplyr::pull(source_household_ppp)
+
+  expect_true(any(grepl("bridge", middle_sources)))
+})
+
+test_that("fill_proxy_growth maintains continuity without jumps between segments", {
+  # Test that segmented interpolation produces smooth transitions with bridge
+  data_test <- tibble::tribble(
+    ~year, ~primary, ~proxy1, ~proxy2,
+    2000, 100, 100, 100,
+    2001, NA, 105, 102,
+    2002, NA, 110, 104,
+    2003, NA, 115, 106,
+    2004, NA, 120, 108,
+    2005, 200, 125, 110
+  )
+
+  result <- fill_proxy_growth(
+    data_test,
+    value_col = primary,
+    proxy_col = c("proxy1", "proxy2"),
+    verbose = FALSE
+  )
+
+  # Check for continuity: bridge should connect smoothly
+  values <- result$primary
+
+  # First and last values should match original anchors
+  expect_equal(values[1], 100)
+  expect_equal(values[6], 200)
+
+  # Check that bridge source was used (not simple forward/backfill)
+  expect_true(any(grepl("bridge", result$source_primary)))
+
+  # Values should increase (since both proxies increase monotonically)
+  expect_true(all(diff(values) >= 0))
+
+  # Growth rates should be reasonable (smooth with bridge adjustment)
+  growth_rates <- diff(values) / values[-length(values)]
+  expect_true(all(abs(growth_rates) < 1.0))
+})
+
+test_that("fill_proxy_growth respects proxy hierarchy in segmentation", {
+  # Better proxy (proxy1) should be used when available
+  data_hierarchy <- tibble::tribble(
+    ~year, ~value, ~proxy1, ~proxy2,
+    2010, 100, NA, 50,
+    2011, NA, NA, 52,
+    2012, NA, 120, 54,
+    2013, NA, 125, 56,
+    2014, NA, NA, 58,
+    2015, 180, NA, 60
+  )
+
+  result <- fill_proxy_growth(
+    data_hierarchy,
+    value_col = value,
+    proxy_col = c("proxy1", "proxy2"),
+    output_format = "detailed",
+    verbose = FALSE
+  )
+
+  # Should have used better proxy for middle segment
+  expect_false(any(is.na(result$value)))
+  expect_equal(nrow(result), 6)
+})
+
+test_that("fill_proxy_growth backward compatible: single proxy behaves as before", {
+  # Without intermediate data, should work exactly as old version
+  data_simple <- tibble::tribble(
+    ~year, ~value, ~proxy,
+    2010, 100, 1000,
+    2011, NA, 1100,
+    2012, NA, 1200,
+    2013, NA, 1300,
+    2014, 150, 1400
+  )
+
+  result <- fill_proxy_growth(
+    data_simple,
+    value_col = value,
+    proxy_col = "proxy",
+    verbose = FALSE
+  )
+
+  # Should fill all gaps
+  expect_false(any(is.na(result$value)))
+
+  # Should maintain anchors
+  expect_equal(result$value[result$year == 2010], 100)
+  expect_equal(result$value[result$year == 2014], 150)
+
+  # Interpolated values should be between anchors
+  expect_true(all(result$value[2:4] > 100))
+  expect_true(all(result$value[2:4] < 150))
+})
+
+test_that("fill_proxy_growth handles case with no intermediate data gracefully", {
+  # Hierarchical proxies but none have intermediate data
+  data_no_intermediate <- tibble::tribble(
+    ~year, ~value, ~proxy1, ~proxy2,
+    2010, 100, NA, 50,
+    2011, NA, NA, 52,
+    2012, NA, NA, 54,
+    2013, 150, NA, 56
+  )
+
+  result <- fill_proxy_growth(
+    data_no_intermediate,
+    value_col = value,
+    proxy_col = c("proxy1", "proxy2"),
+    verbose = FALSE
+  )
+
+  # Should fall back to proxy2 for entire gap
+  expect_false(any(is.na(result$value)))
+  expect_equal(result$value[result$year == 2010], 100)
+  expect_equal(result$value[result$year == 2013], 150)
+})
+
+test_that("fill_proxy_growth preserves original data points when they exist", {
+  data_mixed <- tibble::tribble(
+    ~year, ~value, ~proxy,
+    2010, 100, 1000,
+    2011, NA, 1100,
+    2012, 120, 1200,
+    2013, NA, 1300,
+    2014, 150, 1400
+  )
+
+  result <- fill_proxy_growth(
+    data_mixed,
+    value_col = value,
+    proxy_col = "proxy",
+    verbose = FALSE
+  )
+
+  # Original data points should be exactly preserved
+  expect_equal(result$value[result$year == 2010], 100)
+  expect_equal(result$value[result$year == 2012], 120)
+  expect_equal(result$value[result$year == 2014], 150)
+
+  # Gaps should be filled
+  expect_false(is.na(result$value[result$year == 2011]))
+  expect_false(is.na(result$value[result$year == 2013]))
+})
+
+test_that("fill_proxy_growth preserves non-NA values", {
+  data <- tibble::tribble(
+    ~year, ~value, ~proxy,
+    2010, 100, 1000,
+    2011, NA, 1100,
+    2012, 120, 1200
+  )
+
+  result <- fill_proxy_growth(
+    data,
+    value_col = value,
+    proxy_col = "proxy",
+    verbose = FALSE
+  )
+
+  # Original non-NA values should be unchanged
+  expect_equal(result$value[1], 100)
+  expect_equal(result$value[3], 120)
+})
+
+test_that("fill_proxy_growth extrapolates at ends with hierarchical growth", {
+  data <- tibble::tribble(
+    ~year, ~value, ~proxy1, ~proxy2,
+    2010, NA, 100, 50,
+    2011, NA, 103, 51,
+    2012, 120, 106, 52,
+    2013, NA, 109, 53,
+    2014, NA, 112, 54
+  )
+
+  res <- fill_proxy_growth(
+    data,
+    value_col = value,
+    proxy_col = c("proxy1", "proxy2"),
+    max_gap_linear = 1,
+    output_format = "detailed",
+    verbose = FALSE
+  )
+
+  # Start and end should be filled (edge extrapolation)
+  expect_false(any(is.na(res$value)))
+  # Sources at ends should be growth_* (not *_bridge)
+  expect_true(any(grepl("^growth_", res$source_value)))
+})
+
+test_that("fill_proxy_growth proxy_smooth_window smooths proxy before growth calc", {
+  # Noisy proxy data - smoothing should reduce volatility in growth rates
+
+  data_noisy <- tibble::tribble(
+    ~year, ~value, ~proxy,
+    2010, 100, 1000,
+    2011, NA, 1200,
+    2012, NA, 900,
+    2013, NA, 1300,
+    2014, 150, 1100
+  )
+
+  result_no_smooth <- fill_proxy_growth(
+    data_noisy,
+    value_col = value,
+    proxy_col = "proxy",
+    proxy_smooth_window = 1,
+    verbose = FALSE
+  )
+
+  result_smooth <- fill_proxy_growth(
+    data_noisy,
+    value_col = value,
+    proxy_col = "proxy",
+    proxy_smooth_window = 3,
+    verbose = FALSE
+  )
+
+  # Both should fill gaps
+  expect_false(any(is.na(result_no_smooth$value)))
+  expect_false(any(is.na(result_smooth$value)))
+
+  # Original values preserved in both
+
+  expect_equal(result_no_smooth$value[1], 100)
+  expect_equal(result_smooth$value[1], 100)
+  expect_equal(result_no_smooth$value[5], 150)
+  expect_equal(result_smooth$value[5], 150)
+})
+
+test_that("fill_proxy_growth value_smooth_window smooths value before filling", {
+  # Data with high variability in value column
+  data_noisy_value <- tibble::tribble(
+    ~year, ~value, ~proxy,
+    2010, 100, 1000,
+    2011, 130, 1050,
+    2012, 90, 1100,
+    2013, NA, 1150,
+    2014, NA, 1200,
+    2015, 110, 1250,
+    2016, 140, 1300,
+    2017, 95, 1350
+  )
+
+  result_no_smooth <- fill_proxy_growth(
+    data_noisy_value,
+    value_col = value,
+    proxy_col = "proxy",
+    value_smooth_window = NULL,
+    verbose = FALSE
+  )
+
+  result_smooth <- fill_proxy_growth(
+    data_noisy_value,
+    value_col = value,
+    proxy_col = "proxy",
+    value_smooth_window = 3,
+    verbose = FALSE
+  )
+
+  # Both should fill gaps
+  expect_false(any(is.na(result_no_smooth$value)))
+  expect_false(any(is.na(result_smooth$value)))
+
+  # Original non-NA values must be preserved exactly
+  expect_equal(result_no_smooth$value[1], 100)
+  expect_equal(result_smooth$value[1], 100)
+  expect_equal(result_no_smooth$value[2], 130)
+  expect_equal(result_smooth$value[2], 130)
+  expect_equal(result_no_smooth$value[6], 110)
+  expect_equal(result_smooth$value[6], 110)
+})
+
+test_that("fill_proxy_growth value_smooth_window NULL is default behavior", {
+  data <- tibble::tribble(
+    ~year, ~value, ~proxy,
+    2010, 100, 1000,
+    2011, NA, 1100,
+    2012, 120, 1200
+  )
+
+  result_default <- fill_proxy_growth(
+    data,
+    value_col = value,
+    proxy_col = "proxy",
+    verbose = FALSE
+  )
+
+  result_null <- fill_proxy_growth(
+    data,
+    value_col = value,
+    proxy_col = "proxy",
+    value_smooth_window = NULL,
+    verbose = FALSE
+  )
+
+  expect_equal(result_default$value, result_null$value)
+})
+
+test_that("fill_proxy_growth both smooth windows can be used together", {
+  data <- tibble::tribble(
+    ~year, ~value, ~proxy,
+    2010, 100, 1000,
+    2011, 120, 1200,
+    2012, 80, 900,
+    2013, NA, 1300,
+    2014, NA, 1100,
+    2015, 110, 1250,
+    2016, 90, 950,
+    2017, 130, 1350
+  )
+
+  result <- fill_proxy_growth(
+    data,
+    value_col = value,
+    proxy_col = "proxy",
+    value_smooth_window = 3,
+    proxy_smooth_window = 2,
+    verbose = FALSE
+  )
+
+  # Gaps should be filled
+  expect_false(any(is.na(result$value)))
+
+  # Original values preserved
+  expect_equal(result$value[1], 100)
+  expect_equal(result$value[2], 120)
+  expect_equal(result$value[3], 80)
+  expect_equal(result$value[6], 110)
+})
+
+test_that("fill_proxy_growth value_smooth_window preserves original non-NA values", {
+  # Critical test: smoothing should NOT turn original values into NA
+  # even when smoothing window extends into gaps
+  data <- tibble::tribble(
+    ~year, ~value, ~proxy,
+    2010, 100, 1000,
+    2011, NA, 1100,
+    2012, NA, 1200,
+    2013, 150, 1300,
+    2014, NA, 1400,
+    2015, NA, 1500,
+    2016, 200, 1600
+  )
+
+  result <- fill_proxy_growth(
+    data,
+    value_col = value,
+    proxy_col = "proxy",
+    value_smooth_window = 3,
+    verbose = FALSE
+  )
+
+  # Original values at 2010, 2013, 2016 MUST be preserved exactly
+  expect_equal(result$value[result$year == 2010], 100)
+  expect_equal(result$value[result$year == 2013], 150)
+  expect_equal(result$value[result$year == 2016], 200)
+
+  # All gaps should be filled
+  expect_false(any(is.na(result$value)))
+
+  # Source should indicate original for non-NA inputs
+  expect_equal(result$source_value[result$year == 2010], "original")
+  expect_equal(result$source_value[result$year == 2013], "original")
+  expect_equal(result$source_value[result$year == 2016], "original")
+})
+
+test_that("fill_proxy_growth works with capitalized time column", {
+  data <- tibble::tribble(
+    ~country, ~Year, ~gdp, ~population,
+    "ESP", 2010, 100, 46,
+    "ESP", 2011, NA, 47,
+    "ESP", 2012, 120, 48,
+    "ESP", 2013, NA, 49
+  )
+
+  result <- fill_proxy_growth(
+    data,
+    value_col = gdp,
+    proxy_col = "population",
+    time_col = Year,
+    .by = "country",
+    verbose = FALSE
+  )
+
+  expect_false(any(is.na(result$gdp)))
+  expect_equal(nrow(result), 4)
+})
+
+# Sort reuse tests ---------------------------------------------------------
+
+test_that(".is_sorted_by detects sorted and unsorted data", {
+  sorted <- data.frame(a = c(1, 1, 2, 2), b = c(1, 2, 1, 2))
+  unsorted <- data.frame(a = c(2, 1, 1, 2), b = c(1, 2, 1, 2))
+  ties <- data.frame(a = c(1, 1, 1), b = c(3, 2, 1))
+
+  expect_true(whep:::.is_sorted_by(sorted, c("a", "b")))
+  expect_false(whep:::.is_sorted_by(unsorted, c("a", "b")))
+  expect_false(whep:::.is_sorted_by(ties, c("a", "b")))
+  expect_true(whep:::.is_sorted_by(ties, "a"))
+})
+
+test_that("fill_proxy_growth gives identical results regardless of input order", {
+  # Same data, two row orders.
+  df_sorted <- tibble::tribble(
+    ~area, ~year, ~food, ~feed, ~proxy,
+    "A",   2000,   10,    5,    100,
+    "A",   2001,   NA,   NA,    110,
+    "A",   2002,   12,    6,    120,
+    "B",   2000,   20,   10,    200,
+    "B",   2001,   NA,   NA,    210,
+    "B",   2002,   22,   11,    220,
+  )
+  df_unsorted <- df_sorted[c(4:6, 1:3), ]
+
+  run_chain <- function(df) {
+    r <- whep::fill_proxy_growth(
+      df,
+      food,
+      proxy_col = "proxy",
+      time_col = year,
+      .by = "area",
+      verbose = FALSE
+    )
+    whep::fill_proxy_growth(
+      r,
+      feed,
+      proxy_col = "proxy",
+      time_col = year,
+      .by = "area",
+      verbose = FALSE
+    )
+  }
+
+  res_sorted <- run_chain(df_sorted)
+  res_unsorted <- run_chain(df_unsorted)
+
+  # Align row order for comparison — results should match by key.
+  key <- c("area", "year")
+  compare <- function(x) {
+    x <- x[do.call(order, x[key]), ]
+    rownames(x) <- NULL
+    x
+  }
+
+  expect_equal(compare(res_sorted), compare(res_unsorted))
+})
+
+test_that("fill_proxy_growth preserves sort order through chained calls", {
+  df <- tibble::tribble(
+    ~area, ~year, ~food, ~feed, ~proxy,
+    "A",   2000,   10,    5,    100,
+    "A",   2001,   NA,   NA,    110,
+    "A",   2002,   12,    6,    120,
+    "B",   2000,   20,   10,    200,
+    "B",   2001,   NA,   NA,    210,
+    "B",   2002,   22,   11,    220,
+  )
+
+  sort_cols <- c("area", "year")
+  expect_true(whep:::.is_sorted_by(df, sort_cols))
+
+  r1 <- whep::fill_proxy_growth(
+    df,
+    food,
+    proxy_col = "proxy",
+    time_col = year,
+    .by = "area",
+    verbose = FALSE
+  )
+  expect_true(whep:::.is_sorted_by(r1, sort_cols))
+
+  r2 <- whep::fill_proxy_growth(
+    r1,
+    feed,
+    proxy_col = "proxy",
+    time_col = year,
+    .by = "area",
+    verbose = FALSE
+  )
+  expect_true(whep:::.is_sorted_by(r2, sort_cols))
 })

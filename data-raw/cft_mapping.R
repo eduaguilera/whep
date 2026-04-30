@@ -7,7 +7,9 @@ cft_mapping <- here::here("inst", "extdata", "cft_mapping.csv") |>
     col_types = readr::cols(
       item_prod_code = readr::col_integer(),
       item_prod_name = readr::col_character(),
-      cft_name = readr::col_character()
+      cft_name = readr::col_character(),
+      cft_lpjml = readr::col_character(),
+      luh2_type = readr::col_character()
     )
   )
 

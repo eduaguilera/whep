@@ -1,0 +1,134 @@
+ProcessedItem,item_cbs,Product_fraction,Value_fraction,Required
+Apples and products,"Alcohol, Non-Food",0.19934,0.05,
+Barley and products,"Alcohol, Non-Food",0.2044,0.05,
+Cassava and products,"Alcohol, Non-Food",0.09,,
+"Cereals, Other","Alcohol, Non-Food",0.275,0.9,
+"Fruits, Other","Alcohol, Non-Food",0.19934,,
+Grapes and products (excl wine),"Alcohol, Non-Food",0.19934,,
+Maize and products,"Alcohol, Non-Food",0.35,,
+Millet and products,"Alcohol, Non-Food",0.2044,,
+Molasses,"Alcohol, Non-Food",0.2,1.0,
+Oats,"Alcohol, Non-Food",0.2044,,
+Potatoes and products,"Alcohol, Non-Food",0.09,,
+Rice and products,"Alcohol, Non-Food",0.19899,,
+Rye and products,"Alcohol, Non-Food",0.27,,
+Sorghum and products,"Alcohol, Non-Food",0.294,,
+Sugar beet,"Alcohol, Non-Food",0.065,,
+Sugar cane,"Alcohol, Non-Food",0.075,,
+Wheat and products,"Alcohol, Non-Food",0.28,,
+Wine,"Alcohol, Non-Food",0.2,,
+Barley and products,Beer,6.55,0.9,
+Hops,Beer,0.28,,
+Wheat and products,Beer,6.55,0.9,
+Maize and products,Beer,6.55,,
+Rye and products,Beer,6.55,,
+Millet and products,Beer,6.55,,
+Sorghum and products,Beer,6.55,,
+"Cereals, Other",Beer,6.55,,
+Rice and products,Beer,6.55,,
+Wheat and products,"Beverages, Alcoholic",0.2,,
+Barley and products,"Beverages, Alcoholic",0.2,,
+Maize and products,"Beverages, Alcoholic",0.2,,
+Rye and products,"Beverages, Alcoholic",0.2,,
+Oats,"Beverages, Alcoholic",0.2,,
+Sorghum and products,"Beverages, Alcoholic",0.2,,
+"Cereals, Other","Beverages, Alcoholic",0.2,,
+Potatoes and products,"Beverages, Alcoholic",0.2,,
+Sweet potatoes,"Beverages, Alcoholic",0.2,,
+Sugar non-centrifugal,"Beverages, Alcoholic",0.2,,
+"Sweeteners, Other","Beverages, Alcoholic",0.2,,
+Dates,"Beverages, Alcoholic",0.2,,
+Grapes and products (excl wine),"Beverages, Alcoholic",0.2,,
+Rice and products,"Beverages, Alcoholic",0.2,,
+Apples and products,"Beverages, Alcoholic",0.19934,,
+Bananas,"Beverages, Alcoholic",0.19934,,
+"Fruits, Other","Beverages, Alcoholic",0.19934,,
+"Lemons, Limes and products","Beverages, Alcoholic",0.19934,,
+"Oranges, Mandarines","Beverages, Alcoholic",0.19934,,
+Plantains,"Beverages, Alcoholic",0.19934,,
+Sugar beet,"Beverages, Alcoholic",0.19934,,
+Sugar cane,"Beverages, Alcoholic",0.19934,,
+Wine,"Beverages, Alcoholic",0.19934,1.0,
+Wheat and products,"Beverages, Fermented",6.55,,
+Maize and products,"Beverages, Fermented",6.55,,
+Rye and products,"Beverages, Fermented",6.55,,
+Millet and products,"Beverages, Fermented",6.55,,
+Sorghum and products,"Beverages, Fermented",6.55,,
+"Cereals, Other","Beverages, Fermented",6.55,,
+Grapes and products (excl wine),"Beverages, Fermented",6.55,,
+Rice and products,"Beverages, Fermented",6.55,,
+Apples and products,"Beverages, Fermented",0.7,0.95,
+Bananas,"Beverages, Fermented",0.7,,
+"Fruits, Other","Beverages, Fermented",0.7,,
+"Lemons, Limes and products","Beverages, Fermented",0.7,,
+"Oranges, Mandarines","Beverages, Fermented",0.7,0.5,
+Plantains,"Beverages, Fermented",0.7,,
+Sugar beet,"Beverages, Fermented",0.7,,
+Sugar cane,"Beverages, Fermented",0.7,,
+Wheat and products,Brans,0.21,0.2006079441812475,1.0
+Coconuts - Incl Copra,Coconut Oil,0.36,0.76,1.0
+Coconuts - Incl Copra,Copra Cake,0.61,0.24,1.0
+Cottonseed,Cottonseed Cake,0.51,0.32937551139078125,1.0
+Cottonseed,Cottonseed Oil,0.18,0.76,1.0
+"Cereals, Other",DDGS,0.28,0.05,1.0
+Maize and products,DDGS,0.11,0.09723484962138565,1.0
+Millet and products,DDGS,0.28,0.05,1.0
+Oats,DDGS,0.28,0.05,1.0
+Rice and products,DDGS,0.28,0.05,1.0
+Rye and products,DDGS,0.28,0.05,1.0
+Sorghum and products,DDGS,0.28,0.05,1.0
+Wheat and products,DDGS,0.28,0.05,1.0
+Barley and products,DDGS Barley,0.28,0.05,1.0
+Wheat and products,Flour,,0.7993920558187525,
+Groundnuts,Groundnut Cake,0.54,0.2016392364851002,1.0
+Groundnuts,Groundnut Oil,0.43,0.7983607635148998,1.0
+Maize and products,Maize Germ Oil,0.05,0.05,
+Sugar beet,Molasses,0.05,0.08,1.0
+Sugar cane,Molasses,0.05,0.08,1.0
+Groundnut Oil,"Oilcrops Oil, Other",1.25,,
+Maize Germ Oil,"Oilcrops Oil, Other",1.25,,
+"Oilcrops, Other","Oilcrops Oil, Other",0.36,0.76,
+Palm Oil,"Oilcrops Oil, Other",1.25,,
+Palmkernel Oil,"Oilcrops Oil, Other",1.25,,
+Rape and Mustard Oil,"Oilcrops Oil, Other",1.25,,
+Sesameseed Oil,"Oilcrops Oil, Other",1.25,,
+Soyabean Oil,"Oilcrops Oil, Other",1.25,,
+Sunflowerseed Oil,"Oilcrops Oil, Other",1.25,,
+"Oilcrops, Other","Oilseed Cakes, Other",0.63,0.3750720990127574,1.0
+Rice and products,"Oilseed Cakes, Other",0.63,,
+Maize and products,"Oilseed Cakes, Other",0.63,,
+Olives (including preserved),Olive Oil,0.2,0.9574149629253823,1.0
+Palm kernels,Palmkernel Cake,0.52,0.15097806180408466,1.0
+Palm kernels,Palmkernel Oil,0.46,0.85,1.0
+Rape and Mustardseed,Rape and Mustard Cake,0.6,0.2946994756581821,1.0
+Rape and Mustardseed,Rape and Mustard Oil,0.38,0.705300524341818,1.0
+Rice and products,Ricebran Oil,0.01,,
+Sesame seed,Sesameseed Cake,0.63,0.3750720990127574,1.0
+Sesame seed,Sesameseed Oil,0.36,0.76,1.0
+Soyabeans,Soy hulls,0.05,0.03,1.0
+Soyabeans,Soyabean Cake,0.79,0.6553552672614548,1.0
+Soyabeans,Soyabean Oil,0.18,0.34464473273854535,1.0
+Sugar beet,Sugar (Raw Equivalent),0.11,0.874361297751707,1.0
+Sugar cane,Sugar (Raw Equivalent),0.11,0.874361297751707,1.0
+Sugar beet,Sugar non-centrifugal,0.05,,
+Sugar cane,Sugar non-centrifugal,0.05,,
+Sugar beet,Sugarbeet pulp,0.84,0.04563870224829299,1.0
+Sunflower seed,Sunflowerseed Cake,0.47,0.18927461746994348,1.0
+Sunflower seed,Sunflowerseed Oil,0.41,0.8107253825300564,1.0
+Wheat and products,"Sweeteners, Other",0.3,,
+Barley and products,"Sweeteners, Other",0.3,,
+Maize and products,"Sweeteners, Other",0.3,,
+Potatoes and products,"Sweeteners, Other",0.3,,
+Cassava and products,"Sweeteners, Other",0.3,,
+Sweet potatoes,"Sweeteners, Other",0.3,,
+Rice and products,"Sweeteners, Other",0.3,,
+Apples and products,"Sweeteners, Other",0.3,,
+Bananas,"Sweeteners, Other",0.3,,
+"Fruits, Other","Sweeteners, Other",0.3,,
+"Lemons, Limes and products","Sweeteners, Other",0.3,,
+Molasses,"Sweeteners, Other",1.0,,
+"Oranges, Mandarines","Sweeteners, Other",0.3,0.5,
+Plantains,"Sweeteners, Other",0.3,,
+Sugar beet,"Sweeteners, Other",0.3,,
+Sugar cane,"Sweeteners, Other",0.3,,
+Grapes and products (excl wine),Wine,0.86,1.0,

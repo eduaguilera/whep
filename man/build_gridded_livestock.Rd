@@ -11,7 +11,8 @@ build_gridded_livestock(
   country_grid,
   species_proxy = NULL,
   manure_pattern = NULL,
-  glw_density = NULL
+  glw_density = NULL,
+  years = NULL
 )
 }
 \arguments{
@@ -86,6 +87,11 @@ If provided, this \strong{replaces} the LUH2-based proxy for the
 matching groups, while still being scaled by LUH2 time trends.
 If \code{NULL}, LUH2 proxies are used for all groups.
 }}
+
+\item{years}{Integer vector of years to spatialize. If \code{NULL}
+(default), all years present in \code{livestock_data} are processed.
+When supplied, \code{livestock_data}, \code{gridded_pasture}, and
+\code{gridded_cropland} are filtered to this set before processing.}
 }
 \value{
 A tibble with gridded livestock data. Columns:
@@ -120,13 +126,30 @@ national total proportionally to cell-level proxy weights:
 where \eqn{w_i} is the proxy weight in cell \eqn{i} (land-use
 hectares times optional reference-pattern intensity) and \eqn{T} is
 the country total (heads or emissions).
+\subsection{Methodology}{
+
+Livestock spatialization is not covered by LandInG (Ostberg et al.
+2023), which focuses on crops only. The approach here extends the
+LandInG framework by using the same LUH2-based spatial proxies
+(pasture, rangeland, cropland) for livestock distribution.
+
+Country-level data comes from \code{\link[=build_primary_production]{build_primary_production()}} (stocks)
+and the \code{faostat-emissions-livestock} pin (CH4/N2O emissions), with
+predecessor redistribution and pre-1961 backfill already applied.
+
+The Zenodo livestock density input (Heinke 2025,
+doi:10.5281/zenodo.14946695) provides an alternative calibrated
+LSU/ha reference for use with the \code{glw_density} parameter.
+}
+
 \subsection{Data sources and references}{\tabular{ll}{
    Source \tab Use \cr
    FAOSTAT Production_Livestock (FAO 2024) \tab Country-level heads \cr
-   FAOSTAT Emissions_livestock (FAO 2024) \tab Enteric CH\u2084, manure CH\u2084/N\u2082O \cr
+   FAOSTAT Emissions_livestock (FAO 2024) \tab Enteric CH4, manure CH4/N2O \cr
    LUH2 v2h (Hurtt et al. 2020) \tab Time-varying pasture + cropland \cr
    West et al. (2014) \tab Static manure-N intensity reference \cr
    GLW3 (Gilbert et al. 2018) \tab Species-specific density (optional) \cr
+   Heinke (2025) \tab Calibrated LSU/ha density (optional) \cr
    IPCC 2006/2019 \tab N-excretion rates, emission factors \cr
 }
 

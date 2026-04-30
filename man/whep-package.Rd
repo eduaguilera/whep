@@ -25,6 +25,9 @@ Useful links:
 Authors:
 \itemize{
   \item Eduardo Aguilera \email{eduardo.aguilera@csic.es} (\href{https://orcid.org/0000-0003-4382-124X}{ORCID}) [copyright holder]
+  \item Alice Beckmann \email{alice.beckmann@cchs.csic.es} (\href{https://orcid.org/0009-0009-6840-0258}{ORCID})
+  \item Juan Infante \email{jinfama@ugr.es} (\href{https://orcid.org/0000-0003-1446-7181}{ORCID})
+  \item Justin Morgan \email{justin.morgan@cchs.csic.es} (\href{https://orcid.org/0009-0003-7022-4288}{ORCID})
 }
 
 Other contributors:

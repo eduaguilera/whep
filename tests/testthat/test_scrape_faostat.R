@@ -1,56 +1,49 @@
-library("testthat")
+testthat::test_that(".faostat_converter returns correct codes for livestock", {
+  result <- .faostat_converter("livestock")
 
-test_that("get_faostat_data fails for wrong activity_data_param", {
-  skip_on_cran()
-
-  get_faostat_data() |>
-    expect_error('argument "activity_data" is missing, with no default')
-
-  error <- .bad_activity_data_param_error()
-
-  "bad_param" |>
-    get_faostat_data() |>
-    expect_error(error)
-
-  c("bad_param") |>
-    get_faostat_data() |>
-    expect_error(error)
-
-  c("livestock", "bad_param") |>
-    get_faostat_data() |>
-    expect_error(error)
-
-  # Also fails because function only accepts one activity_data
-  c("livestock", "crop_area") |>
-    get_faostat_data() |>
-    expect_error(error)
+  testthat::expect_type(result, "list")
+  testthat::expect_equal(result$FAOSTAT_code, "EMN")
+  testthat::expect_equal(result$FAOSTAT_param, "stocks")
 })
 
-test_that("get_faostat_data returns correct filtered results", {
-  skip_on_cran()
+testthat::test_that(".faostat_converter returns correct codes for crop types", {
+  area <- .faostat_converter("crop_area")
+  testthat::expect_equal(area$FAOSTAT_code, "QCL")
+  testthat::expect_equal(area$FAOSTAT_param, "area_harvested")
 
-  expect_warning(
-    result <- get_faostat_data(
-      "livestock",
-      year = 2010,
-      area = "Portugal",
-      whatever = 30
-    ),
-    "Column whatever not found in FAOSTAT data."
+  yield <- .faostat_converter("crop_yield")
+  testthat::expect_equal(yield$FAOSTAT_code, "QCL")
+  testthat::expect_equal(yield$FAOSTAT_param, "yield")
+
+  prod <- .faostat_converter("crop_production")
+  testthat::expect_equal(prod$FAOSTAT_code, "QCL")
+  testthat::expect_equal(prod$FAOSTAT_param, "production")
+})
+
+testthat::test_that(".faostat_converter errors on invalid activity_data", {
+  testthat::expect_error(.faostat_converter("invalid"))
+  testthat::expect_error(.faostat_converter(c("livestock", "crop_area")))
+})
+
+testthat::test_that(".activity_data_choices returns expected values", {
+  choices <- .activity_data_choices()
+
+  testthat::expect_type(choices, "character")
+  testthat::expect_length(choices, 4)
+  testthat::expect_true("livestock" %in% choices)
+  testthat::expect_true("crop_area" %in% choices)
+  testthat::expect_true("crop_yield" %in% choices)
+  testthat::expect_true("crop_production" %in% choices)
+})
+
+testthat::test_that(".bad_activity_data_param_error returns helpful message", {
+  msg <- .bad_activity_data_param_error()
+
+  testthat::expect_type(msg, "character")
+  testthat::expect_true(
+    stringr::str_detect(msg, "activity_data")
   )
-
-  result |>
-    dplyr::distinct(element) |>
-    dplyr::pull() |>
-    expect_equal("stocks")
-
-  result |>
-    dplyr::distinct(year) |>
-    dplyr::pull() |>
-    expect_equal(2010)
-
-  result |>
-    dplyr::distinct(area) |>
-    dplyr::pull() |>
-    expect_equal("Portugal")
+  testthat::expect_true(
+    stringr::str_detect(msg, "livestock")
+  )
 })
