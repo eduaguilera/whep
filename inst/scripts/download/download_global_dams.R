@@ -25,7 +25,7 @@ download_global_dams <- function(dest_dir) {
 
   shp_bases <- unique(tools::file_path_sans_ext(shp_files))
   for (base in shp_bases) {
-    components <- grep(paste0("^", basename(base), "\\."), extracted, value = TRUE)
+    components <- extracted[grepl(paste0(basename(base), "."), extracted, fixed = TRUE)]
     for (f in components) {
       dst <- file.path(target_dir, basename(f))
       if (!file.exists(dst)) file.copy(f, dst)
