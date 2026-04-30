@@ -1734,11 +1734,11 @@ prepare_nitrogen_inputs <- function(
       dep_raw <- data.table::fread(global_dep) |> tibble::as_tibble()
       if ("Deposit_kgNha" %in% names(dep_raw)) {
         dep <- dep_raw |>
-          select(year = Year, iso3c = ISO3, deposit_kg_n_ha = Deposit_kgNha) |>
+          select(year = Year, iso3c = ISO3,
+                 deposit_kg_n_ha = Deposit_kgNha,
+                 nhx = nhx, noy = noy) |>
           left_join(select(regions, iso3c, area_code), by = "iso3c") |>
           filter(!is.na(area_code), !is.na(deposit_kg_n_ha))
-        # Try to add NHx/NOy from HaNi
-        dep <- .add_hani_split(dep, l_files_dir, regions)
         .save_parquet(dep, output_dir, "n_deposition")
         return(dep)
       }
