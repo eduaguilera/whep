@@ -217,7 +217,7 @@ library(dplyr, warn.conflicts = FALSE)
       n_dams          = n(),
       total_cap_mcm   = sum(cap_mcm, na.rm = TRUE),
       total_area_skm  = sum(area_skm, na.rm = TRUE),
-      min_year        = min(year, na.rm = TRUE),
+      min_year        = suppressWarnings(min(year, na.rm = TRUE)),
       mean_catch_skm  = mean(catch_skm, na.rm = TRUE),
       # Dominant purpose: pick the purpose of the dam with largest capacity
       purpose_code    = purpose_code[which.max(cap_mcm)],
@@ -286,18 +286,25 @@ library(dplyr, warn.conflicts = FALSE)
   glwd_version <- NULL
   glwd_path <- NULL
 
-  # GLWD v2: combined classes GeoTIFF
+  # GLWD v2: dominant/main-class GeoTIFF (per-pixel dominant water body type).
+  # Search order covers naming variants across GLWD v2 releases:
+  #   - GLWD_v2_0_main_class.tif  (v2.0 Figshare release, Lehner et al. 2025)
+  #   - dominant*.tif             (older/alternative naming)
+  #   - combined*.tif             (combined-classes variant)
+  # The 50pct variant is excluded — it uses a stricter 50% threshold and
+  # gives sparser coverage than the plain main_class raster.
   v2_dir <- file.path(glwd_dir, "GLWD_v2")
-  v2_tifs <- list.files(
-    v2_dir, pattern = "dominant.*\\.tif$",
-    recursive = TRUE, full.names = TRUE
-  )
-  if (length(v2_tifs) == 0) {
-    v2_tifs <- list.files(
-      v2_dir, pattern = "combined.*\\.tif$",
-      recursive = TRUE, full.names = TRUE
-    )
+  .find_v2_tif <- function(pattern) {
+    list.files(v2_dir, pattern = pattern, recursive = TRUE, full.names = TRUE)
   }
+  v2_tifs <- Filter(
+    Negate(function(p) grepl("50pct", p)),
+    c(
+      .find_v2_tif("main_class.*\\.tif$"),
+      .find_v2_tif("dominant.*\\.tif$"),
+      .find_v2_tif("combined.*\\.tif$")
+    )
+  )
   if (length(v2_tifs) > 0) {
     glwd_path <- v2_tifs[1]
     glwd_version <- "v2"
@@ -354,17 +361,23 @@ library(dplyr, warn.conflicts = FALSE)
     river_classes <- 3
   }
 
-  # -- Create binary masks ---
+  # -- Create binary masks and aggregate to 0.5-degree ---
   cli::cli_alert("Computing lake fraction...")
-  lake_rcl <- cbind(lake_classes, rep(1, length(lake_classes)))
-  lake_mask <- terra::classify(glwd, lake_rcl, othersNA = TRUE)
+  lake_mask <- terra::classify(
+    glwd,
+    cbind(lake_classes, rep(1, length(lake_classes))),
+    others = NA
+  )
   lake_frac <- terra::aggregate(
     lake_mask, fact = agg_factor, fun = "mean", na.rm = TRUE
   )
 
   cli::cli_alert("Computing river fraction...")
-  river_rcl <- cbind(river_classes, rep(1, length(river_classes)))
-  river_mask <- terra::classify(glwd, river_rcl, othersNA = TRUE)
+  river_mask <- terra::classify(
+    glwd,
+    cbind(river_classes, rep(1, length(river_classes))),
+    others = NA
+  )
   river_frac <- terra::aggregate(
     river_mask, fact = agg_factor, fun = "mean", na.rm = TRUE
   )
@@ -489,7 +502,7 @@ library(dplyr, warn.conflicts = FALSE)
 
 # ==== Main execution ==================================================
 
-l_files_dir <- "WHEP_LFILES_DIR"
+l_files_dir <- Sys.getenv("WHEP_LFILES_DIR")
 output_dir  <- file.path(l_files_dir, "whep", "inputs")
 grand_dir   <- file.path(l_files_dir, "GIS", "Global dams")
 glwd_dir    <- file.path(l_files_dir, "GLWD")
