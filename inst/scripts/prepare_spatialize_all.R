@@ -1355,8 +1355,7 @@ prepare_nitrogen_inputs <- function(
         mutate(mg_n_lu = Value * 1000) |>
         left_join(
           regions |>
-            select(iso3c, area_code, area_name) |>
-            mutate(iso2c = substr(iso3c, 1, 2)),
+            select(iso2c, area_code, area_name),
           by = "iso2c"
         ) |>
         filter(!is.na(area_code)) |>
@@ -2040,8 +2039,15 @@ prepare_nitrogen_inputs <- function(
     left_join(
       euadb |> select(year, area_code, land_use, fert_type, lu_share_eu),
       by = c("year", "area_code", "land_use", "fert_type")
-    ) |>
-    left_join(lass, by = c("year", "area_code")) |>
+    )
+
+  if (!is.null(lass)) {
+    n_by_lu <- n_by_lu |> left_join(lass, by = c("year", "area_code"))
+  } else {
+    n_by_lu <- n_by_lu |> mutate(grass_share = NA_real_)
+  }
+
+  n_by_lu <- n_by_lu |>
     mutate(
       lu_share = case_when(
         fert_type == "Grassland_excretion" & land_use == "Grassland" ~ 1.0,
@@ -2600,7 +2606,7 @@ prepare_hydrology_inputs <- function(l_files_dir, output_dir) {
         n_dams = n(),
         total_cap_mcm = sum(cap_mcm, na.rm = TRUE),
         total_area_skm = sum(area_skm, na.rm = TRUE),
-        min_year = min(year, na.rm = TRUE),
+        min_year = suppressWarnings(min(year, na.rm = TRUE)),
         mean_catch_skm = mean(catch_skm, na.rm = TRUE),
         purpose_code = purpose_code[which.max(cap_mcm)],
         .by = c(lon, lat)
@@ -2633,20 +2639,17 @@ prepare_hydrology_inputs <- function(l_files_dir, output_dir) {
     glwd_path <- NULL
     glwd_version <- NULL
     v2_dir <- file.path(glwd_dir, "GLWD_v2")
-    v2_tifs <- list.files(
-      v2_dir,
-      pattern = "dominant.*\\.tif$",
-      recursive = TRUE,
-      full.names = TRUE
-    )
-    if (length(v2_tifs) == 0) {
-      v2_tifs <- list.files(
-        v2_dir,
-        pattern = "combined.*\\.tif$",
-        recursive = TRUE,
-        full.names = TRUE
-      )
+    .find_v2_tif <- function(pattern) {
+      list.files(v2_dir, pattern = pattern, recursive = TRUE, full.names = TRUE)
     }
+    v2_tifs <- Filter(
+      Negate(function(p) grepl("50pct", p)),
+      c(
+        .find_v2_tif("main_class.*\\.tif$"),
+        .find_v2_tif("dominant.*\\.tif$"),
+        .find_v2_tif("combined.*\\.tif$")
+      )
+    )
     if (length(v2_tifs) > 0) {
       glwd_path <- v2_tifs[1]
       glwd_version <- "v2"
@@ -2676,7 +2679,7 @@ prepare_hydrology_inputs <- function(l_files_dir, output_dir) {
       river_classes <- 3
     }
     lake_rcl <- cbind(lake_classes, rep(1, length(lake_classes)))
-    lake_mask <- terra::classify(glwd, lake_rcl, othersNA = TRUE)
+    lake_mask <- terra::classify(glwd, lake_rcl, others = NA)
     lake_frac <- terra::aggregate(
       lake_mask,
       fact = agg_factor,
@@ -2684,7 +2687,7 @@ prepare_hydrology_inputs <- function(l_files_dir, output_dir) {
       na.rm = TRUE
     )
     river_rcl <- cbind(river_classes, rep(1, length(river_classes)))
-    river_mask <- terra::classify(glwd, river_rcl, othersNA = TRUE)
+    river_mask <- terra::classify(glwd, river_rcl, others = NA)
     river_frac <- terra::aggregate(
       river_mask,
       fact = agg_factor,
