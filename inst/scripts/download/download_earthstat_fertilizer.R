@@ -29,6 +29,12 @@ download_earthstat_fertilizer <- function(dest_dir) {
   file.remove(zip_path)
   unlink(file.path(dest_dir, "__MACOSX"), recursive = TRUE)
 
+  # Zip extracts to FertilizerCropSpecific_Geotiff/, rename to target
+  actual_dir <- file.path(dest_dir, "FertilizerCropSpecific_Geotiff")
+  if (dir.exists(actual_dir) && !dir.exists(target_dir)) {
+    file.rename(actual_dir, target_dir)
+  }
+
   n_crops <- length(list.dirs(target_dir, recursive = FALSE))
   n_tifs <- length(list.files(target_dir, pattern = "\\.tif$", recursive = TRUE))
   cli::cli_alert_success("EarthStat fertilizer: {n_crops} crops, {n_tifs} GeoTIFFs")
