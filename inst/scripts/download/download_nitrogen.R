@@ -77,12 +77,12 @@ if (!nzchar(l_files_dir)) {
 .download_coello <- function() {
   cli::cli_h2("Coello et al. 2025 N/P/K crop rates")
   coello_script <- system.file(
-    "scripts", "download_coello_data.R",
+    "scripts", "download", "download_coello.R",
     package = "whep"
   )
   if (!nzchar(coello_script)) {
     coello_script <- file.path(
-      "inst", "scripts", "download_coello_data.R"
+      "inst", "scripts", "download", "download_coello.R"
     )
   }
   if (file.exists(coello_script)) {
