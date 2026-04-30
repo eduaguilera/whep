@@ -30,7 +30,7 @@ download_earthstat_fertilizer <- function(dest_dir) {
   zip_path <- file.path(dest_dir, "FertilizerCropSpecific_Geotiff.zip")
   if (!file.exists(zip_path)) {
     cli::cli_alert("Downloading EarthStat fertilizer (~585 MB)...")
-    download.file(gcs_url, zip_path, mode = "wb", method = "curl")
+    download.file(gcs_url, zip_path, mode = "wb")
   }
 
   cli::cli_alert("Extracting...")

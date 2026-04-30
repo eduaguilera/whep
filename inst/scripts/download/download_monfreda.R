@@ -27,7 +27,7 @@ download_monfreda <- function(dest_dir) {
   zip_path <- file.path(dest_dir, "HarvestedAreaYield175Crops_Geotiff.zip")
   if (!file.exists(zip_path)) {
     cli::cli_alert("Downloading Monfreda yields (~902 MB)...")
-    download.file(gcs_url, zip_path, mode = "wb", method = "curl")
+    download.file(gcs_url, zip_path, mode = "wb")
   }
 
   cli::cli_alert("Extracting...")

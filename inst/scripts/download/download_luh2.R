@@ -31,13 +31,12 @@ download_luh2 <- function(dest_dir) {
     if (fname != "staticData_quarterdeg.nc") {
       cli::cli_alert_info("Large file, may take 1-4 hours")
     }
-    download.file(
-      paste0(base_url, "/", fname),
-      fpath,
-      mode = "wb",
-      method = "curl",
-      extra = "-k"
-    )
+    # luh.umd.edu has an expired SSL cert; try curl -k, fall back to default
+    dl_result <- download.file(paste0(base_url, "/", fname), fpath,
+                               mode = "wb", method = "curl", extra = "-k")
+    if (dl_result != 0) {
+      download.file(paste0(base_url, "/", fname), fpath, mode = "wb")
+    }
     cli::cli_alert_success("LUH2 {fname}: saved")
   }
   invisible()
