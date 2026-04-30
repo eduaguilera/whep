@@ -111,8 +111,16 @@ whep_list_file_versions <- function(file_alias) {
   } else if (extension == "parquet") {
     path |>
       nanoparquet::read_parquet() |>
-      # Make sure it has `tbl_df` subclass, not present by default
       tibble::as_tibble()
+  } else if (extension %in% c("tar.gz", "tgz")) {
+    # Decompress archive and return paths to extracted files
+    tmpdir <- file.path(tempdir(), basename(tempfile()))
+    dir.create(tmpdir, recursive = TRUE)
+    utils::untar(path, exdir = tmpdir)
+    list.files(tmpdir, full.names = TRUE, recursive = TRUE)
+  } else if (extension == "raw") {
+    # Return the raw file path without processing
+    path
   } else {
     extensions <- purrr::map(paths, fs::path_ext)
     cli::cli_abort(
