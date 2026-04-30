@@ -19,7 +19,7 @@
 # new formats.
 # -----------------------------------------------------------------------
 
-l_files_dir <- "WHEP_LFILES_DIR"
+l_files_dir <- Sys.getenv("WHEP_LFILES_DIR")
 
 # ==== 1. DRT 0.5-degree flow direction ================================
 

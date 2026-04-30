@@ -27,7 +27,7 @@
 #   Rscript inst/scripts/download_coello_data.R
 # -----------------------------------------------------------------------
 
-l_files_dir <- "WHEP_LFILES_DIR"
+l_files_dir <- Sys.getenv("WHEP_LFILES_DIR")
 coello_dir <- file.path(l_files_dir, "Coello2025")
 
 if (!dir.exists(coello_dir)) {

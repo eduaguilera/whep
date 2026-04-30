@@ -87,7 +87,7 @@ library(dplyr, warn.conflicts = FALSE)
 
 # ==== Configuration =====================================================
 
-l_files_dir <- "WHEP_LFILES_DIR"
+l_files_dir <- Sys.getenv("WHEP_LFILES_DIR")
 input_dir <- file.path(l_files_dir, "whep", "inputs")
 target_res <- 0.5
 

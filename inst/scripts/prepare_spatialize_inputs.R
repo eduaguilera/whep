@@ -984,7 +984,7 @@ prepare_gridded_cropland <- function(l_files_dir, year_range,
 
 # ==== Main execution ==================================================
 
-l_files_dir <- "WHEP_LFILES_DIR"
+l_files_dir <- Sys.getenv("WHEP_LFILES_DIR")
 output_dir <- file.path(l_files_dir, "whep", "inputs")
 year_range <- 1850L:2022L
 target_res <- 0.5

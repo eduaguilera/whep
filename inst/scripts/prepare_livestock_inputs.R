@@ -45,7 +45,7 @@ library(dplyr, warn.conflicts = FALSE)
 
 # ==== Configuration ====================================================
 
-l_files_dir <- "WHEP_LFILES_DIR"
+l_files_dir <- Sys.getenv("WHEP_LFILES_DIR")
 output_dir  <- file.path(l_files_dir, "whep", "inputs")
 
 if (!dir.exists(output_dir)) {
