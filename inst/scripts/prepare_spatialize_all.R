@@ -1326,50 +1326,39 @@ prepare_nitrogen_inputs <- function(
 
   # ---- 7c. Cropland/Grassland split (EuroAgriDB via pins) ----
   .read_crop_grass_split_local <- function(regions) {
-    euadb <- NULL
-    synth_eu <- tryCatch(
-      whep::whep_read_file("eu-agridb-synthetic-fertilizer", type = "csv"),
-      error = function(e) NULL
-    )
-    manure_eu <- tryCatch(
-      whep::whep_read_file("eu-agridb-manure-flows", type = "csv"),
-      error = function(e) NULL
-    )
-    if (!is.null(synth_eu) && !is.null(manure_eu)) {
-      synth_eu <- synth_eu |>
-        filter(Symbol %in% c("Q_C", "Q_PG")) |>
-        mutate(
-          land_use = if_else(Symbol == "Q_C", "Cropland", "Grassland"),
-          fert_type = "Synthetic"
-        )
-      manure_eu <- manure_eu |>
-        filter(Symbol %in% c("A_C", "A_PG")) |>
-        mutate(
-          land_use = if_else(Symbol == "A_C", "Cropland", "Grassland"),
-          fert_type = "Manure"
-        )
-      euadb <- bind_rows(synth_eu, manure_eu) |>
-        rename(iso2c = Region) |>
-        mutate(mg_n_lu = Value * 1000) |>
-        left_join(
-          regions |>
-            select(iso2c, area_code, area_name),
-          by = "iso2c"
-        ) |>
-        filter(!is.na(area_code)) |>
-        select(
-          year = Year,
-          area_code,
-          area_name,
-          land_use,
-          fert_type,
-          mg_n_lu
-        ) |>
-        mutate(
-          lu_share_eu = mg_n_lu / sum(mg_n_lu),
-          .by = c(year, area_code, fert_type)
-        )
-    }
+    synth_eu <- whep::whep_read_file("eu-agridb-synthetic-fertilizer") |>
+      filter(Symbol %in% c("Q_C", "Q_PG")) |>
+      mutate(
+        land_use = if_else(Symbol == "Q_C", "Cropland", "Grassland"),
+        fert_type = "Synthetic"
+      )
+    manure_eu <- whep::whep_read_file("eu-agridb-manure-flows") |>
+      filter(Symbol %in% c("A_C", "A_PG")) |>
+      mutate(
+        land_use = if_else(Symbol == "A_C", "Cropland", "Grassland"),
+        fert_type = "Manure"
+      )
+    euadb <- bind_rows(synth_eu, manure_eu) |>
+      rename(iso2c = Region) |>
+      mutate(mg_n_lu = Value * 1000) |>
+      left_join(
+        regions |>
+          select(iso2c, area_code, area_name),
+        by = "iso2c"
+      ) |>
+      filter(!is.na(area_code)) |>
+      select(
+        year = Year,
+        area_code,
+        area_name,
+        land_use,
+        fert_type,
+        mg_n_lu
+      ) |>
+      mutate(
+        lu_share_eu = mg_n_lu / sum(mg_n_lu),
+        .by = c(year, area_code, fert_type)
+      )
 
     lass_file <- file.path(
       global_dir,
