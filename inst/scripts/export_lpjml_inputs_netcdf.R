@@ -304,6 +304,27 @@ add_status <- function(input_name, source, output_file, status_txt, note = "") {
     )
 }
 
+# Shared grid helpers used by sections 3 (drainage) and 4 (neighbour_irrig)
+nlon_g <- length(grid$lon)
+nlat_g <- length(grid$lat)
+
+lat_idx_of <- function(lat) as.integer(round((83.75 - lat) / 0.5))
+lon_idx_of <- function(lon) as.integer(round((lon + 179.75) / 0.5))
+flat_of    <- function(lon, lat) lat_idx_of(lat) * nlon_g + lon_idx_of(lon)
+
+ddm_dlon <- c(0, 0.5, 0.5,  0, -0.5, -0.5, -0.5, 0,  0.5)
+ddm_dlat <- c(0, 0,  -0.5, -0.5, -0.5,  0,  0.5, 0.5, 0.5)
+
+haver_m <- function(lo1, la1, lo2, la2) {
+    r  <- 6371000
+    p1 <- la1 * pi / 180; p2 <- la2 * pi / 180
+    dp <- (la2 - la1) * pi / 180; dl <- (lo2 - lo1) * pi / 180
+    a  <- sin(dp / 2)^2 + cos(p1) * cos(p2) * sin(dl / 2)^2
+    2 * r * asin(pmin(sqrt(a), 1))
+}
+
+search_radius_m <- 75000
+
 # ------------------------------------------------------------------
 # 1) GADM-like static grids from country_grid.parquet
 # ------------------------------------------------------------------
@@ -442,30 +463,9 @@ drainage_file <- file.path(src_inputs, "drainage.parquet")
 if (file.exists(drainage_file)) {
     dr <- as.data.table(read_parquet(drainage_file))
 
-    nlon_g <- length(grid$lon)
-    nlat_g <- length(grid$lat)
-
-    # Flat index helpers (lat stored north-to-south: row 0 = northernmost)
-    lat_idx_of <- function(lat) as.integer(round((83.75 - lat) / 0.5))
-    lon_idx_of <- function(lon) as.integer(round((lon + 179.75) / 0.5))
-    flat_of    <- function(lon, lat) lat_idx_of(lat) * nlon_g + lon_idx_of(lon)
-
     # Build lookup: flat_idx -> is land cell
     dr[, flat_idx := flat_of(lon, lat)]
     land_flat <- dr$flat_idx
-
-    # DDM30 offsets [direction + 1]
-    ddm_dlon <- c(0, 0.5, 0.5,  0, -0.5, -0.5, -0.5, 0,  0.5)
-    ddm_dlat <- c(0, 0,  -0.5, -0.5, -0.5,  0,  0.5, 0.5, 0.5)
-
-    # Haversine (vectorised, metres)
-    haver_m <- function(lo1, la1, lo2, la2) {
-        r  <- 6371000
-        p1 <- la1 * pi / 180; p2 <- la2 * pi / 180
-        dp <- (la2 - la1) * pi / 180; dl <- (lo2 - lo1) * pi / 180
-        a  <- sin(dp / 2)^2 + cos(p1) * cos(p2) * sin(dl / 2)^2
-        2 * r * asin(pmin(sqrt(a), 1))
-    }
 
     valid <- !is.na(dr$flow_direction) & dr$flow_direction > 0L
     dr[, nx_lon := lon]
@@ -519,7 +519,130 @@ if (file.exists(drainage_file)) {
 }
 
 # ------------------------------------------------------------------
-# 4) Lakes and rivers fraction from optional lakes_rivers.parquet
+# 4) Irrigation neighbour index from neighbour_irrig logic
+# ------------------------------------------------------------------
+# For each land cell, find the best irrigation neighbour within a
+# 75 km search radius, excluding upstream and downstream cells.
+# Candidate scoring: upstream_area / distance^2 (IDW weighting).
+# Cells with no valid neighbour default to self (their own flat index).
+neighbour_file <- file.path(src_inputs, "country_grid.parquet")
+if (file.exists(drainage_file) && file.exists(neighbour_file)) {
+    dr_n <- as.data.table(read_parquet(drainage_file))
+    cgi <- as.data.table(read_parquet(neighbour_file))
+    cgi <- dr_n[cgi, on = c("lon", "lat")]
+    cgi[, cell := .I]
+    N <- nrow(cgi)
+
+    cgi[, flat_idx := flat_of(lon, lat)]
+    lon_all  <- cgi$lon
+    lat_all  <- cgi$lat
+    flat_all <- cgi$flat_idx
+
+    # Grid lookup matrix
+    grid_lookup <- matrix(-1L, nrow = nlon_g, ncol = nlat_g)
+    grid_lookup[cbind(lon_idx_of(lon_all) + 1L, lat_idx_of(lat_all) + 1L)] <- cgi$cell
+
+    # Build flow network from already-loaded drainage data
+    nextcell <- integer(N)
+    ddir    <- cgi[!is.na(flow_direction) & flow_direction > 0L]
+    nx_lon  <- round((ddir$lon + ddm_dlon[ddir$flow_direction + 1L]) * 2) / 2
+    nx_lat  <- round((ddir$lat + ddm_dlat[ddir$flow_direction + 1L]) * 2) / 2
+    nx_loi  <- lon_idx_of(nx_lon) + 1L; nx_li <- lat_idx_of(nx_lat) + 1L
+    in_bounds <- nx_loi >= 1L & nx_loi <= nlon_g & nx_li >= 1L & nx_li <= nlat_g
+    nx_cell <- integer(nrow(ddir))
+    nx_cell[in_bounds] <- grid_lookup[cbind(nx_loi[in_bounds], nx_li[in_bounds])]
+    nextcell[ddir$cell] <- pmax(nx_cell, 0L)
+
+    # Upstream area (topological sort)
+    in_deg         <- tabulate(nextcell[nextcell > 0L], nbins = N)
+    upstream_count <- rep(1L, N)
+    queue <- which(in_deg == 0L); qi <- 1L
+    while (qi <= length(queue)) {
+        ci <- queue[qi]; qi <- qi + 1L
+        parent <- nextcell[ci]
+        if (parent > 0L) {
+            upstream_count[parent] <- upstream_count[parent] + upstream_count[ci]
+            in_deg[parent] <- in_deg[parent] - 1L
+            if (in_deg[parent] == 0L) queue <- c(queue, parent)
+        }
+    }
+
+    # Reverse adjacency
+    parents_list <- vector("list", N)
+    valid_nc <- which(nextcell > 0L)
+    tmp <- split(valid_nc, nextcell[valid_nc])
+    for (nm in names(tmp)) parents_list[[as.integer(nm)]] <- tmp[[nm]]
+
+    downstream_vec <- function(start, max_steps = 60L) {
+        out <- integer(max_steps); n <- 0L; cur <- nextcell[start]
+        while (cur > 0L && n < max_steps) { n <- n + 1L; out[n] <- cur; cur <- nextcell[cur] }
+        out[seq_len(n)]
+    }
+    upstream_vec <- function(start, max_steps = 60L) {
+        out <- integer(max_steps); n <- 0L; q <- parents_list[[start]]
+        while (length(q) > 0L && n < max_steps) {
+            cur <- q[1L]; q <- q[-1L]
+            n <- n + 1L; out[n] <- cur
+            q <- c(q, parents_list[[cur]])
+        }
+        out[seq_len(n)]
+    }
+
+    # Main neighbour search
+    search_cells  <- ceiling(search_radius_m / (111111 * 0.5)) + 1L
+    neighbour_flat <- flat_all  # default: self
+
+    for (i in seq_len(N)) {
+        if (i %% 10000L == 0L) .msg("  neighbour_irrig: %d/%d", i, N)
+
+        loi0 <- lon_idx_of(lon_all[i]) + 1L
+        li0  <- lat_idx_of(lat_all[i]) + 1L
+        loi_r <- seq(max(1L, loi0 - search_cells), min(nlon_g, loi0 + search_cells))
+        li_r  <- seq(max(1L, li0  - search_cells), min(nlat_g, li0  + search_cells))
+        cands <- as.integer(grid_lookup[loi_r, li_r])
+        cands <- cands[cands > 0L & cands != i]
+        if (length(cands) == 0L) next
+
+        dist_m <- haver_m(lon_all[i], lat_all[i], lon_all[cands], lat_all[cands])
+        keep   <- dist_m <= search_radius_m
+        cands  <- cands[keep]; dist_m <- dist_m[keep]
+        if (length(cands) == 0L) next
+
+        excl  <- c(downstream_vec(i), upstream_vec(i))
+        cands <- cands[!cands %in% excl]
+        if (length(cands) == 0L) next
+
+        dist_m <- haver_m(lon_all[i], lat_all[i], lon_all[cands], lat_all[cands])
+        best   <- cands[which.max(upstream_count[cands] / dist_m^2)]
+        neighbour_flat[i] <- flat_all[best]
+    }
+
+    m_neighbour <- matrix(-9999L, nrow = nlon_g, ncol = nlat_g)
+    m_neighbour[cbind(lon_idx_of(lon_all) + 1L, lat_idx_of(lat_all) + 1L)] <- neighbour_flat
+
+    out_neighbour <- file.path(out_root, "river_routing",
+        "neighbour_irrig_30arcmin_75000m_radius_exclude_downstream_exclude_upstream_idw.nc")
+    v_neigh <- ncvar_def("neighbour", "index", list(dlon_dim, dlat_dim),
+                         missval = -9999L,
+                         longname = "Flat 2D index of irrigation neighbour cell",
+                         prec = "integer", compression = 4)
+    nc_neigh <- nc_create(out_neighbour, vars = list(v_neigh), force_v4 = TRUE)
+    ncvar_put(nc_neigh, v_neigh, m_neighbour)
+    ncatt_put(nc_neigh, 0, "Conventions", "CF-1.8")
+    ncatt_put(nc_neigh, 0, "search_radius_m", search_radius_m)
+    ncatt_put(nc_neigh, 0, "created_by", "WHEP export_lpjml_inputs_netcdf.R")
+    ncatt_put(nc_neigh, 0, "created_date", as.character(Sys.time()))
+    nc_close(nc_neigh)
+
+    .msg("  neighbour_irrig.nc: %d land cells, %d self-assigned",
+         sum(neighbour_flat != flat_all), sum(neighbour_flat == flat_all))
+    add_status("neighbour_irrig", neighbour_file, out_neighbour, "generated")
+} else {
+    add_status("neighbour_irrig", neighbour_file, "", "missing_source")
+}
+
+# ------------------------------------------------------------------
+# 5) Lakes and rivers fraction from optional lakes_rivers.parquet
 # ------------------------------------------------------------------
 lakes_file <- file.path(src_inputs, "lakes_rivers.parquet")
 if (file.exists(lakes_file)) {
@@ -557,7 +680,7 @@ if (file.exists(lakes_file)) {
 }
 
 # ------------------------------------------------------------------
-# 5) Land-use fractions (time x pft x lat x lon)
+# 6) Land-use fractions (time x pft x lat x lon)
 # ------------------------------------------------------------------
 landuse_file <- file.path(whep_dir, "gridded_landuse.parquet")
 if (file.exists(landuse_file)) {
