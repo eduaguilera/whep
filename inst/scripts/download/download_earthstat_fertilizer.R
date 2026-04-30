@@ -11,6 +11,11 @@ download_earthstat_fertilizer <- function(dest_dir) {
   gcs_url <- "https://storage.googleapis.com/earthstat/FertilizerCropSpecific_Geotiff.zip"
   target_dir <- file.path(dest_dir, "EarthStat - Crop Specific Fertilizers")
 
+  actual_dir <- file.path(dest_dir, "FertilizerCropSpecific_Geotiff")
+  # Handle previous incomplete extraction
+  if (dir.exists(actual_dir) && !dir.exists(target_dir)) {
+    file.rename(actual_dir, target_dir)
+  }
   if (dir.exists(target_dir) &&
       length(list.dirs(target_dir, recursive = FALSE)) >= 15) {
     n_crops <- length(list.dirs(target_dir, recursive = FALSE))
@@ -29,8 +34,6 @@ download_earthstat_fertilizer <- function(dest_dir) {
   file.remove(zip_path)
   unlink(file.path(dest_dir, "__MACOSX"), recursive = TRUE)
 
-  # Zip extracts to FertilizerCropSpecific_Geotiff/, rename to target
-  actual_dir <- file.path(dest_dir, "FertilizerCropSpecific_Geotiff")
   if (dir.exists(actual_dir) && !dir.exists(target_dir)) {
     file.rename(actual_dir, target_dir)
   }
