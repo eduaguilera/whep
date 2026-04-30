@@ -1723,49 +1723,15 @@ prepare_nitrogen_inputs <- function(
         cli::cli_alert_info("Reading pre-computed deposition with NHx/NOy split")
         return(dep)
       }
-      cli::cli_alert_info("Cached deposition lacks NHx/NOy split; attempting HaNi...")
+      cli::cli_alert_info("Cached deposition lacks NHx/NOy split; re-extracting...")
     }
-    # Try Global CSV
-    global_dep <- file.path(
-      l_files_dir,
-      "Global/output/Global_N_deposition.csv"
-    )
-    if (file.exists(global_dep)) {
-      dep_raw <- data.table::fread(global_dep) |> tibble::as_tibble()
-      if ("Deposit_kgNha" %in% names(dep_raw)) {
-        dep <- dep_raw |>
-          select(year = Year, iso3c = ISO3,
-                 deposit_kg_n_ha = Deposit_kgNha,
-                 nhx = nhx, noy = noy) |>
-          left_join(select(regions, iso3c, area_code), by = "iso3c") |>
-          filter(!is.na(area_code), !is.na(deposit_kg_n_ha))
-        .save_parquet(dep, output_dir, "n_deposition")
-        return(dep)
-      }
-    }
-    # Try HaNi zips directly
     dep <- .extract_hani_deposition(l_files_dir, regions)
     if (!is.null(dep)) {
       .save_parquet(dep, output_dir, "n_deposition")
       return(dep)
     }
-    cli::cli_alert_warning("N deposition data not available")
+    cli::cli_alert_warning("N deposition data not available (run download_nitrogen.R)")
     NULL
-  }
-
-  .add_hani_split <- function(dep, l_files_dir, regions) {
-    hani_dir <- file.path(l_files_dir, "HaNi")
-    if (!dir.exists(hani_dir)) return(dep |> mutate(nhx = NA_real_, noy = NA_real_))
-    zip_files <- list.files(hani_dir, pattern = "\\.zip$", full.names = TRUE)
-    if (length(zip_files) == 0) return(dep |> mutate(nhx = NA_real_, noy = NA_real_))
-    hani_dep <- .extract_hani_deposition(l_files_dir, regions)
-    if (is.null(hani_dep)) return(dep |> mutate(nhx = NA_real_, noy = NA_real_))
-    dep |>
-      left_join(select(hani_dep, year, area_code, nhx, noy),
-                by = c("year", "area_code")) |>
-      mutate(
-        deposit_kg_n_ha = if_else(is.na(nhx), deposit_kg_n_ha, nhx + noy)
-      )
   }
 
   .extract_hani_deposition <- function(l_files_dir, regions) {
