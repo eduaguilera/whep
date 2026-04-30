@@ -58,8 +58,8 @@ library(dplyr, warn.conflicts = FALSE)
 
 # ==== Configuration ====================================================
 
-l_files_dir <- "WHEP_LFILES_DIR"
-global_dir <- "WHEP_GLOBAL_DIR"
+l_files_dir <- Sys.getenv("WHEP_LFILES_DIR")
+global_dir <- Sys.getenv("WHEP_GLOBAL_DIR")
 output_dir <- file.path(l_files_dir, "whep", "inputs")
 
 if (!dir.exists(output_dir)) {
@@ -1097,8 +1097,15 @@ grassland_items <- c("Pasture", "range")
       euadb |>
         select(year, area_code, land_use, fert_type, lu_share_eu),
       by = c("year", "area_code", "land_use", "fert_type")
-    ) |>
-    left_join(lass, by = c("year", "area_code")) |>
+    )
+
+  if (!is.null(lass)) {
+    n_by_lu <- n_by_lu |> left_join(lass, by = c("year", "area_code"))
+  } else {
+    n_by_lu <- n_by_lu |> mutate(grass_share = NA_real_)
+  }
+
+  n_by_lu <- n_by_lu |>
     mutate(
       # Grassland excretion → 100% grassland
       lu_share = case_when(
