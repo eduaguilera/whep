@@ -21,11 +21,9 @@ library(cli)
 # ---- Configuration --------------------------------------------------------
 search_radius_m <- 75000
 res             <- 0.5
-input_dir  <- file.path(Sys.getenv("HOME"), "OneDrive/L_files/whep/inputs")
-output_dir <- file.path(
-  Sys.getenv("HOME"),
-  "OneDrive/L_files/whep/lpjml_inputs/river_routing"
-)
+l_files_dir <- Sys.getenv("WHEP_LFILES_DIR")
+input_dir   <- file.path(l_files_dir, "whep", "inputs")
+output_dir  <- file.path(l_files_dir, "whep", "lpjml_inputs", "river_routing")
 out_file <- file.path(
   output_dir,
   "neighbour_irrig_30arcmin_75000m_radius_exclude_downstream_exclude_upstream_idw.nc"
