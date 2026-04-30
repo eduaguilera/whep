@@ -121,6 +121,7 @@ cli::cli_alert_warning(paste(
   "  - EuropeAgriDB-v1.0-results/ (optional, EU countries only)",
   "  - Manure_Westetal2014/N/ (optional gridded manure)",
   "  - EarthStat - Crop Specific Fertilizers/ (optional spatial rates)",
-  "  - HarvestedAreaYield175Crops_Geotiff/GeoTiff/ (optional yields)",
+  "  - HarvestedAreaYield175Crops_Geotiff/GeoTiff/ (optional yields —",
+  "      run download_monfreda_data.R to fetch automatically)",
   sep = "\n"
 ))
