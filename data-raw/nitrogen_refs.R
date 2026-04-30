@@ -1,7 +1,7 @@
 lassaletta_grassland_share <- here::here(
   "inst", "extdata", "Synthetic_N_Grassland_share.csv"
 ) |>
-  readr::read_csv2(show_col_types = FALSE)
+  readr::read_csv(show_col_types = FALSE)
 
 crops_manure_n <- here::here(
   "inst", "extdata", "Crops_manure_N.csv"

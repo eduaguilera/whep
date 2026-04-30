@@ -1352,18 +1352,7 @@ prepare_nitrogen_inputs <- function(
         .by = c(year, area_code, fert_type)
       )
 
-    lass_raw <- whep::lassaletta_grassland_share
-    year_cols <- grep("^(X?\\d{4})$", names(lass_raw), value = TRUE)
-    lass <- lass_raw |>
-      tidyr::pivot_longer(
-        all_of(year_cols),
-        names_to = "year",
-        values_to = "grass_share_pct"
-      ) |>
-      mutate(
-        year = as.integer(gsub("X", "", year)),
-        grass_share = grass_share_pct / 100
-      ) |>
+    lass <- whep::lassaletta_grassland_share |>
       rename(lassaletta_name = Country) |>
       left_join(
         select(regions, iso3c, area_code, area_name),
