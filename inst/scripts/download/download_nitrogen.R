@@ -11,7 +11,9 @@
 download_nitrogen <- function(dest_dir) {
   .download_hani <- function(dest_dir) {
     hani_dir <- file.path(dest_dir, "HaNi")
-    if (!dir.exists(hani_dir)) dir.create(hani_dir, recursive = TRUE)
+    if (!dir.exists(hani_dir)) {
+      dir.create(hani_dir, recursive = TRUE)
+    }
     base_url <- "https://download.pangaea.de/dataset/942069/files"
     files <- c(ndep_nhx = "ndep_nhx.zip", ndep_noy = "ndep_noy.zip")
 
@@ -23,7 +25,12 @@ download_nitrogen <- function(dest_dir) {
         next
       }
       cli::cli_alert("Downloading {fname}...")
-      download.file(paste0(base_url, "/", fname), out_path, mode = "wb", method = "curl")
+      download.file(
+        paste0(base_url, "/", fname),
+        out_path,
+        mode = "wb",
+        method = "curl"
+      )
       cli::cli_alert_success("HaNi {fname}: saved")
     }
     invisible()

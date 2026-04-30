@@ -8,7 +8,9 @@
 
 download_luh2 <- function(dest_dir) {
   target_dir <- file.path(dest_dir, "LUH2", "LUH2 v2h")
-  if (!dir.exists(target_dir)) dir.create(target_dir, recursive = TRUE)
+  if (!dir.exists(target_dir)) {
+    dir.create(target_dir, recursive = TRUE)
+  }
 
   base_url <- "https://luh.umd.edu/LUH2/LUH2_v2h"
   files <- c("staticData_quarterdeg.nc", "states.nc", "management.nc")
@@ -17,15 +19,25 @@ download_luh2 <- function(dest_dir) {
     fpath <- file.path(target_dir, fname)
     if (file.exists(fpath)) {
       unit <- if (fname == "staticData_quarterdeg.nc") "KB" else "GB"
-      sz <- if (fname == "staticData_quarterdeg.nc") round(file.size(fpath) / 1024)
-            else round(file.size(fpath) / 1024 / 1024 / 1024, 1)
+      sz <- if (fname == "staticData_quarterdeg.nc") {
+        round(file.size(fpath) / 1024)
+      } else {
+        round(file.size(fpath) / 1024 / 1024 / 1024, 1)
+      }
       cli::cli_alert_info("LUH2 {fname}: already exists ({sz} {unit})")
       next
     }
     cli::cli_alert("Downloading LUH2 {fname}...")
-    if (fname != "staticData_quarterdeg.nc") cli::cli_alert_info("Large file, may take 1-4 hours")
-    download.file(paste0(base_url, "/", fname), fpath, mode = "wb",
-                  method = "curl", extra = "-k")
+    if (fname != "staticData_quarterdeg.nc") {
+      cli::cli_alert_info("Large file, may take 1-4 hours")
+    }
+    download.file(
+      paste0(base_url, "/", fname),
+      fpath,
+      mode = "wb",
+      method = "curl",
+      extra = "-k"
+    )
     cli::cli_alert_success("LUH2 {fname}: saved")
   }
   invisible()

@@ -20,7 +20,9 @@
 library(cli)
 
 download_all <- function(dest_dir, datasets = NULL) {
-  if (!dir.exists(dest_dir)) dir.create(dest_dir, recursive = TRUE)
+  if (!dir.exists(dest_dir)) {
+    dir.create(dest_dir, recursive = TRUE)
+  }
   dest_dir <- normalizePath(dest_dir)
 
   old_timeout <- getOption("timeout")
@@ -28,12 +30,22 @@ download_all <- function(dest_dir, datasets = NULL) {
   options(timeout = 3600)
 
   all_datasets <- c(
-    "naturalearth", "luh2", "monfreda", "earthstat_fertilizer",
-    "mirca", "hydrology", "coello", "nitrogen", "west_manure",
-    "global_dams", "hwsd"
+    "naturalearth",
+    "luh2",
+    "monfreda",
+    "earthstat_fertilizer",
+    "mirca",
+    "hydrology",
+    "coello",
+    "nitrogen",
+    "west_manure",
+    "global_dams",
+    "hwsd"
   )
 
-  if (is.null(datasets)) datasets <- all_datasets
+  if (is.null(datasets)) {
+    datasets <- all_datasets
+  }
   datasets <- match.arg(datasets, all_datasets, several.ok = TRUE)
 
   # Source all download functions
@@ -50,18 +62,19 @@ download_all <- function(dest_dir, datasets = NULL) {
 
   for (ds in datasets) {
     cli::cli_h2("Downloading {ds}")
-    switch(ds,
-      naturalearth        = download_naturalearth(dest_dir),
-      luh2                = download_luh2(dest_dir),
-      monfreda            = download_monfreda(dest_dir),
+    switch(
+      ds,
+      naturalearth = download_naturalearth(dest_dir),
+      luh2 = download_luh2(dest_dir),
+      monfreda = download_monfreda(dest_dir),
       earthstat_fertilizer = download_earthstat_fertilizer(dest_dir),
-      mirca               = download_mirca(dest_dir),
-      hydrology           = download_hydrology(dest_dir),
-      coello              = download_coello(dest_dir),
-      nitrogen            = download_nitrogen(dest_dir),
-      west_manure         = download_west_manure(dest_dir),
-      global_dams         = download_global_dams(dest_dir),
-      hwsd                = download_hwsd(dest_dir)
+      mirca = download_mirca(dest_dir),
+      hydrology = download_hydrology(dest_dir),
+      coello = download_coello(dest_dir),
+      nitrogen = download_nitrogen(dest_dir),
+      west_manure = download_west_manure(dest_dir),
+      global_dams = download_global_dams(dest_dir),
+      hwsd = download_hwsd(dest_dir)
     )
   }
 

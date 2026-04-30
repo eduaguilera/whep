@@ -14,7 +14,9 @@ download_naturalearth <- function(dest_dir) {
     return(invisible())
   }
 
-  if (!dir.exists(ne_dir)) dir.create(ne_dir, recursive = TRUE)
+  if (!dir.exists(ne_dir)) {
+    dir.create(ne_dir, recursive = TRUE)
+  }
   url <- "https://naciscdn.org/naturalearth/10m/cultural/ne_10m_admin_0_countries.zip"
   zip_path <- file.path(ne_dir, "ne_10m_admin_0_countries.zip")
 

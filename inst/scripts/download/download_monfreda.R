@@ -9,10 +9,16 @@
 
 download_monfreda <- function(dest_dir) {
   gcs_url <- "https://storage.googleapis.com/earthstat/HarvestedAreaYield175Crops_Geotiff.zip"
-  target_dir <- file.path(dest_dir, "HarvestedAreaYield175Crops_Geotiff", "GeoTiff")
+  target_dir <- file.path(
+    dest_dir,
+    "HarvestedAreaYield175Crops_Geotiff",
+    "GeoTiff"
+  )
 
-  if (dir.exists(target_dir) &&
-      length(list.dirs(target_dir, recursive = FALSE)) >= 170) {
+  if (
+    dir.exists(target_dir) &&
+      length(list.dirs(target_dir, recursive = FALSE)) >= 170
+  ) {
     n_crops <- length(list.dirs(target_dir, recursive = FALSE))
     cli::cli_alert_info("Monfreda: already extracted ({n_crops} crops)")
     return(invisible())
@@ -30,10 +36,16 @@ download_monfreda <- function(dest_dir) {
 
   # Remove macOS metadata folder
   macosx_dir <- file.path(dest_dir, "__MACOSX")
-  if (dir.exists(macosx_dir)) unlink(macosx_dir, recursive = TRUE)
+  if (dir.exists(macosx_dir)) {
+    unlink(macosx_dir, recursive = TRUE)
+  }
 
   n_crops <- length(list.dirs(target_dir, recursive = FALSE))
-  n_tifs <- length(list.files(target_dir, pattern = "\\.tif$", recursive = TRUE))
+  n_tifs <- length(list.files(
+    target_dir,
+    pattern = "\\.tif$",
+    recursive = TRUE
+  ))
   cli::cli_alert_success("Monfreda: {n_crops} crops, {n_tifs} GeoTIFFs")
   invisible()
 }

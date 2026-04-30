@@ -16,10 +16,14 @@ download_earthstat_fertilizer <- function(dest_dir) {
   if (dir.exists(actual_dir) && !dir.exists(target_dir)) {
     file.rename(actual_dir, target_dir)
   }
-  if (dir.exists(target_dir) &&
-      length(list.dirs(target_dir, recursive = FALSE)) >= 15) {
+  if (
+    dir.exists(target_dir) &&
+      length(list.dirs(target_dir, recursive = FALSE)) >= 15
+  ) {
     n_crops <- length(list.dirs(target_dir, recursive = FALSE))
-    cli::cli_alert_info("EarthStat fertilizer: already extracted ({n_crops} crops)")
+    cli::cli_alert_info(
+      "EarthStat fertilizer: already extracted ({n_crops} crops)"
+    )
     return(invisible())
   }
 
@@ -39,7 +43,13 @@ download_earthstat_fertilizer <- function(dest_dir) {
   }
 
   n_crops <- length(list.dirs(target_dir, recursive = FALSE))
-  n_tifs <- length(list.files(target_dir, pattern = "\\.tif$", recursive = TRUE))
-  cli::cli_alert_success("EarthStat fertilizer: {n_crops} crops, {n_tifs} GeoTIFFs")
+  n_tifs <- length(list.files(
+    target_dir,
+    pattern = "\\.tif$",
+    recursive = TRUE
+  ))
+  cli::cli_alert_success(
+    "EarthStat fertilizer: {n_crops} crops, {n_tifs} GeoTIFFs"
+  )
   invisible()
 }
