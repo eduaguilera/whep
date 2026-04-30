@@ -1,8 +1,8 @@
 # -----------------------------------------------------------------------
 # download_hwsd.R
 #
-# Downloads HWSD v2 raster and attribute database from FAO S3,
-# converting the MS Access .mdb to CSV.
+# Downloads HWSD v2 raster from FAO S3 and SQLite database from ISRIC,
+# extracting topsoil attributes to CSV.
 #
 # Reference:
 #   FAO/IIASA/ISRIC/ISSCAS/JRC (2012) "Harmonized World Soil Database"
@@ -37,52 +37,29 @@ download_hwsd <- function(dest_dir) {
     cli::cli_alert_info("HWSD raster: already exists")
   }
 
-  # Database → CSV
+  # Database → CSV (from SQLite, no mdb-export needed)
   csv_path <- file.path(hwsd_dir, "hwsd_data.csv")
   if (file.exists(csv_path)) {
     cli::cli_alert_info("HWSD CSV: already exists")
     return(invisible())
   }
 
-  db_zip <- file.path(hwsd_dir, "HWSD2_DB.zip")
-  if (!file.exists(db_zip)) {
-    cli::cli_alert("Downloading HWSD2 database (~9 MB)...")
-    download.file(paste0(base_url, "/HWSD2_DB.zip"), db_zip, mode = "wb")
+  sqlite_path <- file.path(hwsd_dir, "HWSD2.sqlite")
+  if (!file.exists(sqlite_path) || file.size(sqlite_path) == 0) {
+    cli::cli_alert("Downloading HWSD2 SQLite database (~1.3 GB)...")
+    download.file(
+      "https://www.isric.org/sites/default/files/HWSD2.sqlite",
+      sqlite_path, mode = "wb"
+    )
   }
 
-  tmpd <- tempfile()
-  dir.create(tmpd)
-  on.exit(unlink(tmpd, recursive = TRUE), add = TRUE)
-  utils::unzip(db_zip, exdir = tmpd)
-  file.remove(db_zip)
+  cli::cli_alert("Extracting topsoil attributes from SQLite...")
+  if (!requireNamespace("RSQLite", quietly = TRUE)) install.packages("RSQLite")
+  db <- DBI::dbConnect(RSQLite::SQLite(), sqlite_path)
+  on.exit(DBI::dbDisconnect(db), add = TRUE)
 
-  mdb_file <- list.files(tmpd, pattern = "\\.mdb$", full.names = TRUE)
-  if (length(mdb_file) == 0) {
-    stop("No .mdb file found")
-  }
-
-  cli::cli_alert("Converting HWSD2 .mdb to CSV...")
-  system2(
-    "mdb-export",
-    c(mdb_file, "HWSD2_SMU"),
-    stdout = file.path(tmpd, "smu.csv")
-  )
-  system2(
-    "mdb-export",
-    c(mdb_file, "HWSD2_LAYERS"),
-    stdout = file.path(tmpd, "layers.csv")
-  )
-
-  smu <- readr::read_csv(
-    file.path(tmpd, "smu.csv"),
-    col_types = readr::cols(.default = readr::col_character()),
-    name_repair = "unique_quiet"
-  )
-  layers <- readr::read_csv(
-    file.path(tmpd, "layers.csv"),
-    col_types = readr::cols(.default = readr::col_character()),
-    name_repair = "unique_quiet"
-  )
+  smu <- DBI::dbReadTable(db, "HWSD2_SMU") |> tibble::as_tibble()
+  layers <- DBI::dbReadTable(db, "HWSD2_LAYERS") |> tibble::as_tibble()
 
   hwsd <- layers |>
     dplyr::filter(LAYER == "D1") |>
