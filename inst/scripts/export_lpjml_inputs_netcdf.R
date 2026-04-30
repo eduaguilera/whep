@@ -430,27 +430,89 @@ if (file.exists(soil_file)) {
 
 # ------------------------------------------------------------------
 # 3) Drainage routing from drainage.parquet
+#
+# LPJmL CDF format requires:
+#   index    – flat 2D index (lat_idx_north * nlon + lon_idx) of the
+#              downstream cell; -1 for sinks / ocean cells
+#   riverlen – haversine distance (metres) to that downstream cell; 0
+#              for sinks
+# DDM30 direction codes: 0=sink, 1=E, 2=SE, 3=S, 4=SW, 5=W, 6=NW, 7=N, 8=NE
 # ------------------------------------------------------------------
 drainage_file <- file.path(src_inputs, "drainage.parquet")
 if (file.exists(drainage_file)) {
     dr <- as.data.table(read_parquet(drainage_file))
-    dr <- coord_to_rowcol(dr, grid)
 
-    m_drain <- new_slice(grid$nlon, grid$nlat, fill = 0)
-    m_drain[cbind(dr$col, dr$row)] <- as.numeric(dr$flow_direction)
+    nlon_g <- length(grid$lon)
+    nlat_g <- length(grid$lat)
+
+    # Flat index helpers (lat stored north-to-south: row 0 = northernmost)
+    lat_idx_of <- function(lat) as.integer(round((83.75 - lat) / 0.5))
+    lon_idx_of <- function(lon) as.integer(round((lon + 179.75) / 0.5))
+    flat_of    <- function(lon, lat) lat_idx_of(lat) * nlon_g + lon_idx_of(lon)
+
+    # Build lookup: flat_idx -> is land cell
+    dr[, flat_idx := flat_of(lon, lat)]
+    land_flat <- dr$flat_idx
+
+    # DDM30 offsets [direction + 1]
+    ddm_dlon <- c(0, 0.5, 0.5,  0, -0.5, -0.5, -0.5, 0,  0.5)
+    ddm_dlat <- c(0, 0,  -0.5, -0.5, -0.5,  0,  0.5, 0.5, 0.5)
+
+    # Haversine (vectorised, metres)
+    haver_m <- function(lo1, la1, lo2, la2) {
+        r  <- 6371000
+        p1 <- la1 * pi / 180; p2 <- la2 * pi / 180
+        dp <- (la2 - la1) * pi / 180; dl <- (lo2 - lo1) * pi / 180
+        a  <- sin(dp / 2)^2 + cos(p1) * cos(p2) * sin(dl / 2)^2
+        2 * r * asin(pmin(sqrt(a), 1))
+    }
+
+    valid <- !is.na(dr$flow_direction) & dr$flow_direction > 0L
+    dr[, nx_lon := lon]
+    dr[, nx_lat := lat]
+    dr[valid, nx_lon := round((lon + ddm_dlon[flow_direction + 1L]) * 2) / 2]
+    dr[valid, nx_lat := round((lat + ddm_dlat[flow_direction + 1L]) * 2) / 2]
+
+    # Downstream flat index: -1 if sink or destination not a land cell
+    dr[, nx_flat := -1L]
+    dr[valid, nx_flat := flat_of(nx_lon, nx_lat)]
+    dr[valid & !(nx_flat %in% land_flat), nx_flat := -1L]
+
+    # River length: haversine to downstream; 0 for sinks
+    dr[, riverlen := 0]
+    dr[nx_flat != -1L, riverlen := haver_m(lon, lat, nx_lon, nx_lat)]
+
+    # Write to 2D matrices.
+    # Ocean/no-data cells use missval=-9999; land sinks use -1; routed use flat index.
+    # missval must NOT equal -1 or ncdf4 would mask valid sink cells on read.
+    m_index    <- matrix(-9999L, nrow = nlon_g, ncol = nlat_g)
+    m_riverlen <- matrix(0,      nrow = nlon_g, ncol = nlat_g)
+
+    dr_rc <- coord_to_rowcol(dr, grid)
+    m_index  [cbind(dr_rc$col, dr_rc$row)] <- dr_rc$nx_flat
+    m_riverlen[cbind(dr_rc$col, dr_rc$row)] <- dr_rc$riverlen
 
     out_drain <- file.path(out_root, "river_routing", "river_routing.nc")
-    write_nc_2d(
-        path = out_drain,
-        var_name = "drainage",
-        long_name = "Flow direction (DDM30-like code)",
-        units = "index",
-        values_lon_lat = m_drain,
-        lon = grid$lon,
-        lat = grid$lat,
-        prec = "integer",
-        missval = -9999
-    )
+
+    dlon_dim   <- ncdim_def("longitude", "degrees_east",  grid$lon)
+    dlat_dim   <- ncdim_def("latitude",  "degrees_north", grid$lat)
+    v_index    <- ncvar_def("index",    "1", list(dlon_dim, dlat_dim),
+                            missval = -9999L, longname = "Flat 2D index of downstream cell",
+                            prec = "integer", compression = 4)
+    v_riverlen <- ncvar_def("riverlen", "m", list(dlon_dim, dlat_dim),
+                            missval = -9999,  longname = "River length to downstream cell (m)",
+                            prec = "float",   compression = 4)
+
+    nc <- nc_create(out_drain, vars = list(v_index, v_riverlen), force_v4 = TRUE)
+    ncvar_put(nc, v_index,    m_index)
+    ncvar_put(nc, v_riverlen, m_riverlen)
+    ncatt_put(nc, 0, "Conventions", "CF-1.8")
+    ncatt_put(nc, 0, "created_by",  "WHEP export_lpjml_inputs_netcdf.R")
+    ncatt_put(nc, 0, "created_date", as.character(Sys.time()))
+    nc_close(nc)
+
+    .msg("  river_routing.nc: %d routed cells, %d sinks/ocean",
+         sum(dr$nx_flat != -1L), sum(dr$nx_flat == -1L))
     add_status("drainage", drainage_file, out_drain, "generated")
 } else {
     add_status("drainage", drainage_file, "", "missing_source")
@@ -675,34 +737,44 @@ if (file.exists(dep_file) && file.exists(country_grid_file)) {
 
     # Determine NHx/NOy split -----------------------------------------
     has_split <- all(c("nhx", "noy") %in% names(dep_cells))
+    # LPJmL expects g/m2/day (initclimate.c opens deposition with that unit).
+    # Convert kgN/ha/yr -> g/m2/day: x * 1000g/kg / 10000m2/ha / 365d/yr
+    # = x * 0.1 / 365
     if (has_split) {
-        # Convert kgN/ha/yr -> gN/m2/yr  (1 kgN/ha = 0.1 gN/m2)
-        dep_cells[, value_nhx := nhx * 0.1]
-        dep_cells[, value_noy := noy * 0.1]
+        dep_cells[, value_nhx := nhx * 0.1 / 365]
+        dep_cells[, value_noy := noy * 0.1 / 365]
         split_note <- "True NHx/NOy split from HaNi via n_deposition.parquet."
     } else {
-        dep_cells[, value_nhx := deposit_kg_n_ha * 0.1 * 0.5]
-        dep_cells[, value_noy := deposit_kg_n_ha * 0.1 * 0.5]
+        dep_cells[, value_nhx := deposit_kg_n_ha * 0.1 / 365 * 0.5]
+        dep_cells[, value_noy := deposit_kg_n_ha * 0.1 / 365 * 0.5]
         split_note <- "nhx/noy columns absent; fell back to 50/50 of total deposit_kg_n_ha."
         .msg("WARNING: nhx/noy columns not found in parquet – using 50/50 fallback.")
     }
 
-    # Annual time axis ------------------------------------------------
+    # Monthly time axis -----------------------------------------------
+    # LPJmL rejects yearly timestep (ERROR438 in openclimate.c).
+    # We have annual data so we replicate each year value uniformly
+    # across 12 months. Time units "months since 0000-1-1" give
+    # MONTH timestep (openclimate_netcdf.c strstr "months" branch).
     years_d <- sort(unique(dep_cells$year))
-    ntime <- length(years_d)
-    # "years since 0000-1-1 0:0:0" is the standard LPJmL annual axis
-    time_vals <- as.numeric(years_d)
+    # One row per (year, month) — value is the same for all 12 months
+    month_grid <- CJ(year = years_d, month = 1L:12L)
+    dep_monthly <- merge(month_grid, dep_cells, by = "year", allow.cartesian = TRUE)
+    # Month index: months since 0000-1-1 (0-based: Jan year 1 = month 12)
+    dep_monthly[, time_idx := (year * 12L) + (month - 1L)]
+    time_vals <- sort(unique(dep_monthly$time_idx))
+    ntime <- length(time_vals)
 
-    write_dep_annual <- function(out_path, var_name, value_col) {
-        dlon <- ncdim_def("longitude", "degrees_east", vals = grid$lon)
-        dlat <- ncdim_def("latitude", "degrees_north", vals = grid$lat)
-        dtime <- ncdim_def("time", "years since 0000-1-1 0:0:0",
+    write_dep_monthly <- function(out_path, var_name, value_col) {
+        dlon  <- ncdim_def("longitude", "degrees_east",  vals = grid$lon)
+        dlat  <- ncdim_def("latitude",  "degrees_north", vals = grid$lat)
+        dtime <- ncdim_def("time", "months since 0000-1-1 0:0:0",
             vals = time_vals, unlim = FALSE
         )
 
         v <- ncvar_def(
             name = var_name,
-            units = "gN m-2 yr-1",
+            units = "g/m2/day",
             dim = list(dlon, dlat, dtime),
             missval = -1.175494e+38,
             longname = sprintf("%s deposition (WHEP/HaNi)", var_name),
@@ -714,8 +786,7 @@ if (file.exists(dep_file) && file.exists(country_grid_file)) {
         on.exit(nc_close(nc), add = TRUE)
 
         for (ti in seq_len(ntime)) {
-            yr <- years_d[ti]
-            sub <- dep_cells[year == yr]
+            sub <- dep_monthly[time_idx == time_vals[ti]]
             m <- new_slice(grid$nlon, grid$nlat, fill = 0)
             if (nrow(sub) > 0) {
                 m[cbind(sub$col, sub$row)] <- sub[[value_col]]
@@ -740,10 +811,10 @@ if (file.exists(dep_file) && file.exists(country_grid_file)) {
         sprintf("ndep_noy_whep_annual_%d_%d.nc4", min(years_d), max(years_d))
     )
 
-    .msg("Writing NHx deposition NetCDF (%d years): %s", ntime, out_nhx)
-    write_dep_annual(out_nhx, "nhx", "value_nhx")
-    .msg("Writing NOy deposition NetCDF (%d years): %s", ntime, out_noy)
-    write_dep_annual(out_noy, "noy", "value_noy")
+    .msg("Writing NHx deposition NetCDF (%d months): %s", ntime, out_nhx)
+    write_dep_monthly(out_nhx, "nhx", "value_nhx")
+    .msg("Writing NOy deposition NetCDF (%d months): %s", ntime, out_noy)
+    write_dep_monthly(out_noy, "noy", "value_noy")
 
     status_txt <- if (has_split) "generated" else "generated_with_assumption"
     add_status("nh4deposition", dep_file, out_nhx, status_txt, split_note)
