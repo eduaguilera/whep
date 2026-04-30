@@ -1229,22 +1229,9 @@ prepare_nitrogen_inputs <- function(
     show_col_types = FALSE
   )
 
-  # ---- 7a. FAOSTAT N totals ----
-  .read_faostat_totals_local <- function(l_files_dir, regions) {
-    fert_file <- file.path(
-      l_files_dir,
-      "FAOSTAT/Inputs_FertilizersNutrient_E_All_Data_(Normalized).csv"
-    )
-    manure_file <- file.path(
-      l_files_dir,
-      "FAOSTAT/Environment_LivestockManure_E_All_Data_(Normalized).csv"
-    )
-    if (!file.exists(fert_file) || !file.exists(manure_file)) {
-      cli::cli_abort("FAOSTAT N files not found in {l_files_dir}/FAOSTAT/")
-    }
-
-    fert_raw <- data.table::fread(fert_file) |>
-      tibble::as_tibble() |>
+  # ---- 7a. FAOSTAT N totals (via pins) ----
+  .read_faostat_totals_local <- function(regions) {
+    fert_raw <- whep::whep_read_file("faostat-fertilizer-nutrients") |>
       filter(
         Element == "Agricultural Use",
         Item == "Nutrient nitrogen N (total)"
@@ -1256,7 +1243,7 @@ prepare_nitrogen_inputs <- function(
         mg_n = Value
       )
 
-    manure_raw <- data.table::fread(manure_file) |> tibble::as_tibble()
+    manure_raw <- whep::whep_read_file("faostat-emissions-livestock")
 
     manure_applied <- manure_raw |>
       filter(
@@ -1287,17 +1274,9 @@ prepare_nitrogen_inputs <- function(
       filter(!is.na(mg_n), mg_n >= 0)
   }
 
-  # ---- 7b. P/K totals ----
-  .read_faostat_pk_totals_local <- function(l_files_dir, regions) {
-    fert_file <- file.path(
-      l_files_dir,
-      "FAOSTAT/Inputs_FertilizersNutrient_E_All_Data_(Normalized).csv"
-    )
-    if (!file.exists(fert_file)) {
-      return(NULL)
-    }
-    data.table::fread(fert_file) |>
-      tibble::as_tibble() |>
+  # ---- 7b. P/K totals (via pin) ----
+  .read_faostat_pk_totals_local <- function(regions) {
+    whep::whep_read_file("faostat-fertilizer-nutrients") |>
       dplyr::filter(
         Element == "Agricultural Use",
         Item %in%
@@ -1832,8 +1811,8 @@ prepare_nitrogen_inputs <- function(
       filter(!is.na(area_ha), area_ha > 0)
   }
 
-  n_totals <- .read_faostat_totals_local(l_files_dir, regions)
-  pk_totals <- .read_faostat_pk_totals_local(l_files_dir, regions)
+  n_totals <- .read_faostat_totals_local(regions)
+  pk_totals <- .read_faostat_pk_totals_local(regions)
   lu_split <- .read_crop_grass_split_local(regions)
   base_rates <- .read_crop_base_rates_local(regions)
 

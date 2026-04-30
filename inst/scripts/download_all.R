@@ -28,7 +28,7 @@ download_all <- function(dest_dir, datasets = NULL) {
   options(timeout = 3600)
 
   all_datasets <- c(
-    "naturalearth", "faostat", "luh2", "monfreda", "earthstat_fertilizer",
+    "naturalearth", "luh2", "monfreda", "earthstat_fertilizer",
     "mirca", "hydrology", "coello", "nitrogen", "west_manure",
     "global_dams", "hwsd"
   )
@@ -52,7 +52,6 @@ download_all <- function(dest_dir, datasets = NULL) {
     cli::cli_h2("Downloading {ds}")
     switch(ds,
       naturalearth        = download_naturalearth(dest_dir),
-      faostat             = download_faostat(dest_dir),
       luh2                = download_luh2(dest_dir),
       monfreda            = download_monfreda(dest_dir),
       earthstat_fertilizer = download_earthstat_fertilizer(dest_dir),
