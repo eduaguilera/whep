@@ -28,6 +28,10 @@ download_monfreda <- function(dest_dir) {
   utils::unzip(zip_path, exdir = dest_dir)
   file.remove(zip_path)
 
+  # Remove macOS metadata folder
+  macosx_dir <- file.path(dest_dir, "__MACOSX")
+  if (dir.exists(macosx_dir)) unlink(macosx_dir, recursive = TRUE)
+
   n_crops <- length(list.dirs(target_dir, recursive = FALSE))
   n_tifs <- length(list.files(target_dir, pattern = "\\.tif$", recursive = TRUE))
   cli::cli_alert_success("Monfreda: {n_crops} crops, {n_tifs} GeoTIFFs")
