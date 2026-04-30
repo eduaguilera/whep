@@ -54,7 +54,7 @@ library(dplyr, warn.conflicts = FALSE)
 l_files_dir <- whep:::.get_l_files_dir()
 output_dir <- file.path(l_files_dir, "whep", "inputs")
 run_dir <- file.path(l_files_dir, "whep")
-year_range <- 1850L:2022L
+year_range <- 2000L:2001L
 target_res <- 0.5
 
 if (!dir.exists(output_dir)) {
@@ -1773,8 +1773,14 @@ prepare_nitrogen_inputs <- function(
   .prepare_n_deposition_local <- function(l_files_dir, regions, output_dir) {
     dep_file <- file.path(output_dir, "n_deposition.parquet")
     if (file.exists(dep_file)) {
-      return(nanoparquet::read_parquet(dep_file))
+      dep <- nanoparquet::read_parquet(dep_file)
+      if (all(c("nhx", "noy") %in% names(dep))) {
+        cli::cli_alert_info("Reading pre-computed deposition with NHx/NOy split")
+        return(dep)
+      }
+      cli::cli_alert_info("Cached deposition lacks NHx/NOy split; attempting HaNi...")
     }
+    # Try Global CSV
     global_dep <- file.path(
       l_files_dir,
       "Global/output/Global_N_deposition.csv"
@@ -1785,14 +1791,97 @@ prepare_nitrogen_inputs <- function(
         dep <- dep_raw |>
           select(year = Year, iso3c = ISO3, deposit_kg_n_ha = Deposit_kgNha) |>
           left_join(select(regions, iso3c, area_code), by = "iso3c") |>
-          filter(!is.na(area_code), !is.na(deposit_kg_n_ha)) |>
-          select(year, area_code, deposit_kg_n_ha)
+          filter(!is.na(area_code), !is.na(deposit_kg_n_ha))
+        # Try to add NHx/NOy from HaNi
+        dep <- .add_hani_split(dep, l_files_dir, regions)
         .save_parquet(dep, output_dir, "n_deposition")
         return(dep)
       }
     }
+    # Try HaNi zips directly
+    dep <- .extract_hani_deposition(l_files_dir, regions)
+    if (!is.null(dep)) {
+      .save_parquet(dep, output_dir, "n_deposition")
+      return(dep)
+    }
     cli::cli_alert_warning("N deposition data not available")
     NULL
+  }
+
+  .add_hani_split <- function(dep, l_files_dir, regions) {
+    hani_dir <- file.path(l_files_dir, "HaNi")
+    if (!dir.exists(hani_dir)) return(dep |> mutate(nhx = NA_real_, noy = NA_real_))
+    zip_files <- list.files(hani_dir, pattern = "\\.zip$", full.names = TRUE)
+    if (length(zip_files) == 0) return(dep |> mutate(nhx = NA_real_, noy = NA_real_))
+    hani_dep <- .extract_hani_deposition(l_files_dir, regions)
+    if (is.null(hani_dep)) return(dep |> mutate(nhx = NA_real_, noy = NA_real_))
+    dep |>
+      left_join(select(hani_dep, year, area_code, nhx, noy),
+                by = c("year", "area_code")) |>
+      mutate(
+        deposit_kg_n_ha = if_else(is.na(nhx), deposit_kg_n_ha, nhx + noy)
+      )
+  }
+
+  .extract_hani_deposition <- function(l_files_dir, regions) {
+    hani_dir <- file.path(l_files_dir, "HaNi")
+    if (!dir.exists(hani_dir)) return(NULL)
+    zip_files <- list.files(hani_dir, pattern = "\\.zip$", full.names = TRUE)
+    if (length(zip_files) == 0) return(NULL)
+    cli::cli_alert("Extracting N deposition from HaNi rasters...")
+    if (!requireNamespace("terra", quietly = TRUE)) {
+      install.packages("terra", quiet = TRUE)
+    }
+    if (!requireNamespace("rnaturalearth", quietly = TRUE)) {
+      install.packages("rnaturalearth", quiet = TRUE)
+    }
+    countries <- rnaturalearth::ne_countries(scale = "medium", returnclass = "sf") |>
+      dplyr::select(ISO3 = adm0_a3)
+
+    .extract_one_hani <- function(zip_path) {
+      tmpd <- tempfile(); dir.create(tmpd)
+      on.exit(unlink(tmpd, recursive = TRUE), add = TRUE)
+      utils::unzip(zip_path, exdir = tmpd)
+      nc_files <- list.files(tmpd, pattern = "\\.nc$", full.names = TRUE)
+      if (length(nc_files) == 0) return(tibble::tibble())
+      r <- terra::rast(nc_files)
+      vals <- terra::extract(r, terra::vect(countries), fun = mean, na.rm = TRUE)
+      vals <- tibble::as_tibble(vals)
+      vals$ISO3 <- countries$ISO3
+      vals$file <- basename(zip_path)
+      vals
+    }
+
+    dep_raw <- lapply(zip_files, .extract_one_hani) |> dplyr::bind_rows()
+
+    if (nrow(dep_raw) == 0) return(NULL)
+
+    dep <- dep_raw |>
+      tidyr::pivot_longer(
+        dplyr::starts_with("ndep_"),
+        names_to = "layer",
+        values_to = "value"
+      ) |>
+      dplyr::mutate(
+        parameter = gsub(".*ndep_(\\w+)\\.zip", "\\1", file),
+        layer_num = as.integer(gsub("ndep_.*_(\\d+).*", "\\1", layer)),
+        year = 1850L + layer_num,
+        value = value / 10000000
+      ) |>
+      dplyr::filter(!is.na(value), !is.na(year)) |>
+      dplyr::select(year, ISO3, parameter, value) |>
+      tidyr::pivot_wider(names_from = parameter, values_from = value) |>
+      dplyr::mutate(deposit_kg_n_ha = nhx + noy) |>
+      dplyr::rename(iso3c = ISO3) |>
+      dplyr::left_join(dplyr::select(regions, iso3c, area_code), by = "iso3c") |>
+      dplyr::filter(!is.na(area_code)) |>
+      dplyr::select(year, area_code, deposit_kg_n_ha, nhx, noy)
+
+    cli::cli_alert_success(
+      "HaNi deposition: {dplyr::n_distinct(dep$area_code)} countries, ",
+      "{min(dep$year)}–{max(dep$year)}"
+    )
+    dep
   }
 
   # ---- Execute nitrogen pipeline ----
