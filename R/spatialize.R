@@ -170,6 +170,8 @@ build_gridded_landuse <- function(
     result <- .aggregate_to_cft(result, cft_mapping)
   }
 
+  result <- .normalize_to_cropland(result, gridded_cropland)
+
   result
 }
 
@@ -702,4 +704,28 @@ build_gridded_landuse <- function(
       irrigated_ha = sum(irrigated_ha),
       .by = c(lon, lat, year, cft_name)
     )
+}
+
+#' Scale allocated hectares down so total per cell never exceeds physical cropland.
+#' @noRd
+.normalize_to_cropland <- function(data, gridded_cropland) {
+  data |>
+    dplyr::left_join(
+      dplyr::select(gridded_cropland, lon, lat, year, cropland_ha),
+      by = c("lon", "lat", "year")
+    ) |>
+    dplyr::mutate(
+      total_ha = sum(rainfed_ha + irrigated_ha, na.rm = TRUE),
+      scale = dplyr::if_else(
+        !is.na(cropland_ha) & total_ha > cropland_ha & total_ha > 0,
+        cropland_ha / total_ha,
+        1
+      ),
+      .by = c(lon, lat, year)
+    ) |>
+    dplyr::mutate(
+      rainfed_ha   = rainfed_ha   * scale,
+      irrigated_ha = irrigated_ha * scale
+    ) |>
+    dplyr::select(-total_ha, -scale, -cropland_ha)
 }
