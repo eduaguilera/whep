@@ -1324,27 +1324,25 @@ prepare_nitrogen_inputs <- function(
       dplyr::filter(!is.na(mg_nutrient), mg_nutrient >= 0)
   }
 
-  # ---- 7c. Cropland/Grassland split ----
-  .read_crop_grass_split_local <- function(l_files_dir, regions) {
-    euadb_dir <- file.path(
-      l_files_dir,
-      "EuropeAgriDB-v1.0-results/main_results/tables"
-    )
+  # ---- 7c. Cropland/Grassland split (EuroAgriDB via pins) ----
+  .read_crop_grass_split_local <- function(regions) {
     euadb <- NULL
-    if (dir.exists(euadb_dir)) {
-      synth_eu <- data.table::fread(
-        file.path(euadb_dir, "synthetic_fertilizer.csv")
-      ) |>
-        tibble::as_tibble() |>
+    synth_eu <- tryCatch(
+      whep::whep_read_file("eu-agridb-synthetic-fertilizer", type = "csv"),
+      error = function(e) NULL
+    )
+    manure_eu <- tryCatch(
+      whep::whep_read_file("eu-agridb-manure-flows", type = "csv"),
+      error = function(e) NULL
+    )
+    if (!is.null(synth_eu) && !is.null(manure_eu)) {
+      synth_eu <- synth_eu |>
         filter(Symbol %in% c("Q_C", "Q_PG")) |>
         mutate(
           land_use = if_else(Symbol == "Q_C", "Cropland", "Grassland"),
           fert_type = "Synthetic"
         )
-      manure_eu <- data.table::fread(
-        file.path(euadb_dir, "manure_flows.csv")
-      ) |>
-        tibble::as_tibble() |>
+      manure_eu <- manure_eu |>
         filter(Symbol %in% c("A_C", "A_PG")) |>
         mutate(
           land_use = if_else(Symbol == "A_C", "Cropland", "Grassland"),
@@ -1910,7 +1908,7 @@ prepare_nitrogen_inputs <- function(
 
   n_totals <- .read_faostat_totals_local(l_files_dir, regions)
   pk_totals <- .read_faostat_pk_totals_local(l_files_dir, regions)
-  lu_split <- .read_crop_grass_split_local(l_files_dir, regions)
+  lu_split <- .read_crop_grass_split_local(regions)
   base_rates <- .read_crop_base_rates_local(l_files_dir, global_dir, regions)
 
   # Spatial rate enhancements
