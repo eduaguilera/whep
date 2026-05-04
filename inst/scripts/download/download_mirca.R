@@ -1,7 +1,9 @@
 # -----------------------------------------------------------------------
 # download_mirca.R
 #
-# Downloads MIRCA2000 monthly crop area grids from Goethe University Frankfurt.
+# Downloads MIRCA2000 monthly crop area grids from Zenodo.
+# The data was originally hosted at Goethe University Frankfurt but has
+# been moved to Zenodo (record 7422506).
 #
 # Reference:
 #   Portmann, F. T. et al. (2010) doi:10.1029/2008GB003435
@@ -12,62 +14,60 @@ download_mirca <- function(dest_dir) {
     dir.create(mirca_dir, recursive = TRUE)
   }
 
-  base_url <- "https://www.geo.uni-frankfurt.de/45218031"
-  crop_names <- c(
-    "01" = "Wheat",
-    "02" = "Maize",
-    "03" = "Rice",
-    "04" = "Barley",
-    "05" = "Rye",
-    "06" = "Millet",
-    "07" = "Sorghum",
-    "08" = "Soybean",
-    "09" = "Sunflower",
-    "10" = "Potato",
-    "11" = "Cassava",
-    "12" = "Sugar cane",
-    "13" = "Sugar beet",
-    "14" = "Oil palm",
-    "15" = "Rapeseed",
-    "16" = "Groundnut",
-    "17" = "Pulses",
-    "18" = "Citrus",
-    "19" = "Date palm",
-    "20" = "Grape",
-    "21" = "Cotton",
-    "22" = "Cocoa",
-    "23" = "Coffee",
-    "24" = "Others perennial",
-    "25" = "Fodder grasses",
-    "26" = "Others annual"
+  # Check if files already exist
+  expected_files <- sprintf(
+    "crop_%02d_%s_12.flt.gz",
+    rep(1:26, each = 2),
+    rep(c("irrigated", "rainfed"), 26)
+  )
+  existing <- file.exists(file.path(mirca_dir, expected_files))
+  if (all(existing)) {
+    cli::cli_alert_info("MIRCA: all files already exist")
+    return(invisible())
+  }
+
+  # Download from Zenodo
+  zip_url <- "https://zenodo.org/records/7422506/files/monthly_growing_area_grids.zip?download=1"
+  zip_path <- file.path(dest_dir, "mirca_monthly_growing_area_grids.zip")
+
+  if (!file.exists(zip_path)) {
+    cli::cli_alert("Downloading MIRCA2000 from Zenodo (~210 MB)...")
+    download.file(zip_url, zip_path, mode = "wb", quiet = FALSE)
+  }
+
+  # Extract to temporary directory
+  tmp_dir <- file.path(dest_dir, "mirca_tmp")
+  if (dir.exists(tmp_dir)) {
+    unlink(tmp_dir, recursive = TRUE)
+  }
+  dir.create(tmp_dir, recursive = TRUE)
+  cli::cli_alert_info("Extracting MIRCA2000 files...")
+  utils::unzip(zip_path, exdir = tmp_dir)
+
+  # Find and move .flt.gz files to target directory
+  flt_files <- list.files(
+    tmp_dir,
+    pattern = "crop_\\d{2}_(irrigated|rainfed)_12\\.flt\\.gz$",
+    recursive = TRUE,
+    full.names = TRUE
   )
 
-  total <- 0L
-  skipped <- 0L
-  for (crop_num in names(crop_names)) {
-    for (wtype in c("rainfed", "irrigated")) {
-      fname <- sprintf("crop_%s_%s_12.flt.gz", crop_num, wtype)
-      fpath <- file.path(mirca_dir, fname)
-      if (file.exists(fpath)) {
-        skipped <- skipped + 1L
-        next
-      }
+  if (length(flt_files) == 0) {
+    cli::cli_abort("No MIRCA .flt.gz files found in downloaded archive")
+  }
 
-      url <- paste0(base_url, "/", fname)
-      tryCatch(
-        {
-          download.file(url, fpath, mode = "wb", quiet = TRUE)
-          total <- total + 1L
-        },
-        error = function(e) {
-          cli::cli_alert_danger("MIRCA {fname}: {conditionMessage(e)}")
-        }
-      )
+  for (src in flt_files) {
+    fname <- basename(src)
+    dst <- file.path(mirca_dir, fname)
+    if (!file.exists(dst)) {
+      file.copy(src, dst)
     }
   }
-  if (skipped > 0) {
-    cli::cli_alert_info("MIRCA: {skipped} already existed (skipped)")
-  }
-  cli::cli_alert_success("MIRCA: downloaded {total} files")
+
+  # Clean up
+  unlink(tmp_dir, recursive = TRUE)
+  file.remove(zip_path)
+
+  cli::cli_alert_success("MIRCA: {length(flt_files)} files extracted")
   invisible()
 }

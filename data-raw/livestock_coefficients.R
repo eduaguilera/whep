@@ -1,5 +1,4 @@
 # Livestock Coefficients Data Extraction
-#
 # This script extracts and documents all coefficient tables needed for
 # livestock emissions calculations following GLEAM 3.0 and IPCC 2019/2006
 # methodologies.

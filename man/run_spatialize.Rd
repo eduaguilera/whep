@@ -43,17 +43,14 @@ landuse engine.
 (12 LPJmL crop CFTs + single \code{others} bucket).
 }}
 
-\item{paths}{Named list of filesystem paths. Recognised entries
-(all optional):
+\item{paths}{Named list of filesystem paths. Recognised entries:
 \itemize{
+\item \code{l_files_dir} (required): path to the \code{L_files} root.
 \item \code{input_dir}: directory holding the prepared input parquets.
 If \code{NULL}, defaults to \verb{<l_files_dir>/whep/inputs}.
 \item \code{out_dir}: output directory. If \code{NULL}, defaults to
 \verb{<l_files_dir>/whep/spatialize/<preset>} (suffixed with
 \verb{_custom} when \code{overrides} is non-empty). Created if missing.
-\item \code{l_files_dir}: optional path to the \code{L_files} root. If
-\code{NULL}, falls back to the \code{WHEP_L_FILES_DIR} environment
-variable.
 }}
 }
 \value{

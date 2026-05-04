@@ -6,7 +6,7 @@
 # Source: https://www.naturalearthdata.com (public domain)
 
 download_naturalearth <- function(dest_dir) {
-  ne_dir <- file.path(dest_dir, "NaturalEarth")
+  ne_dir <- file.path(dest_dir, "NaturalEarth", "Countries_shape")
   shp_path <- file.path(ne_dir, "ne_10m_admin_0_countries.shp")
 
   if (file.exists(shp_path)) {

@@ -15,13 +15,12 @@ library(tibble)
 
 # ---- Configuration ----------------------------------------------------
 
+# Set this to your L_files directory path
+l_files_dir <- "LPJmL_inputs" # <-- CHANGE THIS
+
 model_path <- "/home/usuario/LPJmL"
 sim_path <- "/home/usuario/LPJmL/simulation"
 
-l_files_dir <- Sys.getenv("WHEP_L_FILES_DIR")
-if (!nzchar(l_files_dir)) {
-  stop("WHEP_L_FILES_DIR is not set.")
-}
 input_path <- file.path(l_files_dir, "whep", "lpjml_inputs")
 
 # Must match the export_years used in export_lpjml_inputs_netcdf.R

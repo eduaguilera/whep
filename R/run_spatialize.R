@@ -37,16 +37,13 @@
 #'     `cft_mapping.csv` drives CFT aggregation: `cft_name`
 #'     (granular 33-class WHEP taxonomy) or `cft_lpjml`
 #'     (12 LPJmL crop CFTs + single `others` bucket).
-#' @param paths Named list of filesystem paths. Recognised entries
-#'   (all optional):
+#' @param paths Named list of filesystem paths. Recognised entries:
+#'   - `l_files_dir` (required): path to the `L_files` root.
 #'   - `input_dir`: directory holding the prepared input parquets.
 #'     If `NULL`, defaults to `<l_files_dir>/whep/inputs`.
 #'   - `out_dir`: output directory. If `NULL`, defaults to
 #'     `<l_files_dir>/whep/spatialize/<preset>` (suffixed with
 #'     `_custom` when `overrides` is non-empty). Created if missing.
-#'   - `l_files_dir`: optional path to the `L_files` root. If
-#'     `NULL`, falls back to the `WHEP_L_FILES_DIR` environment
-#'     variable.
 #'
 #' @return Invisibly, a named list with `preset`, resolved `config`,
 #'   `years`, `out_dir`, and `output_paths`.
@@ -337,7 +334,14 @@ run_spatialize <- function(
 }
 
 .resolve_paths <- function(paths, preset, overrides) {
-  l_files_dir <- .get_l_files_dir(paths$l_files_dir)
+  if (is.null(paths$l_files_dir)) {
+    cli::cli_abort(c(
+      "{.arg paths$l_files_dir} is required.",
+      "i" = "Pass it as part of the {.arg paths} list."
+    ))
+  }
+  stopifnot(dir.exists(paths$l_files_dir))
+  l_files_dir <- paths$l_files_dir
   input_dir <- if (is.null(paths$input_dir)) {
     file.path(l_files_dir, "whep", "inputs")
   } else {

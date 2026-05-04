@@ -785,30 +785,4 @@ utils::globalVariables(
   )
 )
 
-
 # -- Helpers for spatialize scripts -------------------------------------------
-
-#' Resolve the path to the L_files data directory
-#'
-#' Checks, in order: the explicit argument, then the `WHEP_L_FILES_DIR`
-#' environment variable.
-#'
-#' @param l_files_dir Optional character path. If `NULL`, falls back to
-#'   the environment variable.
-#' @return A single character path (validated to exist).
-#' @keywords internal
-#' @noRd
-.get_l_files_dir <- function(l_files_dir = NULL) {
-  if (!is.null(l_files_dir)) {
-    stopifnot(dir.exists(l_files_dir))
-    return(l_files_dir)
-  }
-  env <- Sys.getenv("WHEP_L_FILES_DIR", unset = "")
-  if (nchar(env) > 0 && dir.exists(env)) {
-    return(env)
-  }
-  cli::cli_abort(c(
-    "L_files directory not specified.",
-    "i" = "Set the {.envvar WHEP_L_FILES_DIR} environment variable or pass {.arg l_files_dir}."
-  ))
-}

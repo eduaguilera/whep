@@ -9,7 +9,7 @@
 # 11 sections, each wrapped as a callable function.  Can be sourced
 # (to load functions without auto-running) or executed directly.
 #
-# Requires: WHEP_L_FILES_DIR environment variable pointing to L_files.
+# Requires: pass the L_files directory path to main() when calling it.
 # Reference N datasets are bundled as package data or fetched via pins.
 #
 # Data sources (see individual section headers for full citations):
@@ -51,15 +51,8 @@ library(dplyr, warn.conflicts = FALSE)
 
 # ==== Configuration ====================================================
 
-l_files_dir <- whep:::.get_l_files_dir()
-output_dir <- file.path(l_files_dir, "whep", "inputs")
-run_dir <- file.path(l_files_dir, "whep")
 year_range <- 2000L:2001L
 target_res <- 0.5
-
-if (!dir.exists(output_dir)) {
-  dir.create(output_dir, recursive = TRUE)
-}
 
 
 # ==== Shared helpers ====================================================
@@ -1847,7 +1840,6 @@ prepare_nitrogen_inputs <- function(
   # Distribute N among crops (full algorithm from prepare_nitrogen_inputs.R)
   n_crops <- NULL
   nsbnf <- NULL
-  n_dep_crop <- NULL
   pk_crop <- NULL
 
   if (!is.null(crop_areas) && nrow(crop_areas) > 0) {
@@ -1880,29 +1872,6 @@ prepare_nitrogen_inputs <- function(
         mg_n,
         kg_n_ha
       )
-    # Deposition
-    if (!is.null(n_deposition)) {
-      n_dep_crop <- crop_areas |>
-        left_join(n_deposition, by = c("year", "area_code")) |>
-        filter(!is.na(deposit_kg_n_ha)) |>
-        mutate(
-          fert_type = "Deposition",
-          kg_n_ha = deposit_kg_n_ha,
-          mg_n = kg_n_ha * area_ha / 1000,
-          land_use = "Cropland"
-        ) |>
-        select(
-          year,
-          area_code,
-          area_name,
-          crop_name,
-          land_use,
-          fert_type,
-          area_ha,
-          mg_n,
-          kg_n_ha
-        )
-    }
     # P/K via Coello
     if (!is.null(coello_rates) && !is.null(pk_totals)) {
       pk_crop_raw <- crop_areas |>
@@ -1991,7 +1960,7 @@ prepare_nitrogen_inputs <- function(
   }
 
   # Combine and save
-  all_parts <- list(n_crops, nsbnf, n_dep_crop, pk_crop)
+  all_parts <- list(n_crops, nsbnf, pk_crop)
   all_parts <- all_parts[!sapply(all_parts, is.null)]
   if (length(all_parts) > 0) {
     nitrogen_inputs <- bind_rows(all_parts) |>
@@ -2511,15 +2480,20 @@ prepare_hydrology_inputs <- function(l_files_dir, output_dir) {
   )
 
   # ---- Elevation ----
-  .prepare_elevation <- function(country_grid, output_dir) {
+  .prepare_elevation <- function(country_grid, l_files_dir, output_dir) {
     cli::cli_alert_info("Elevation")
-    if (!requireNamespace("geodata", quietly = TRUE)) {
-      install.packages("geodata", quiet = TRUE)
-    }
-    elev_10m <- geodata::elevation_global(
-      res = 10,
-      path = file.path(output_dir, ".cache")
+    elev_path <- file.path(
+      l_files_dir,
+      "WorldClim",
+      "elevation",
+      "wc2.1_10m_elev.tif"
     )
+    if (!file.exists(elev_path)) {
+      cli::cli_abort(
+        "Elevation raster not found at {elev_path}. Run download_all() first."
+      )
+    }
+    elev_10m <- terra::rast(elev_path)
     elev_30m <- terra::aggregate(
       elev_10m,
       fact = 3,
@@ -2750,7 +2724,7 @@ prepare_hydrology_inputs <- function(l_files_dir, output_dir) {
     .save_parquet(result, output_dir, "drainage")
   }
 
-  .prepare_elevation(country_grid, output_dir)
+  .prepare_elevation(country_grid, l_files_dir, output_dir)
   .prepare_reservoirs(country_grid, grand_dir, output_dir)
   .prepare_lakes_rivers(country_grid, glwd_dir, output_dir)
   .prepare_drainage(country_grid, drainage_paths, output_dir)
@@ -2822,68 +2796,45 @@ prepare_soil_inputs <- function(l_files_dir, output_dir, target_res = 0.5) {
       cli::cli_abort("HWSD raster not found at {hwsd_path}")
     }
     hwsd_rast <- terra::rast(hwsd_path)
-    target_rast <- terra::rast(
-      resolution = target_res,
-      xmin = -180,
-      xmax = 180,
-      ymin = -90,
-      ymax = 90
-    )
     agg_factor <- as.integer(target_res / terra::res(hwsd_rast)[1])
-    n_target_rows <- terra::nrow(target_rast)
-    n_target_cols <- terra::ncol(target_rast)
-    results <- vector("list", n_target_rows)
 
-    for (row_i in seq_len(n_target_rows)) {
-      src_row_start <- (row_i - 1L) * agg_factor + 1L
-      strip <- terra::values(
-        hwsd_rast,
-        row = src_row_start,
-        nrows = agg_factor
-      )[, 1]
-      strip_mat <- matrix(strip, nrow = agg_factor, byrow = TRUE)
-      lat <- 90.0 - (row_i - 0.5) * target_res
-      row_results <- vector("list", n_target_cols)
+    # Reclassify mu_global IDs -> texture code and pH directly on the raster,
+    # then aggregate spatially. Both ops run in terra's C++ layer.
+    rcl_tex <- as.matrix(mu_soils[, c("mu_global", "t_usda_tex_class")])
+    rcl_ph <- as.matrix(mu_soils[, c("mu_global", "t_ph_h2o")])
 
-      for (col_j in seq_len(n_target_cols)) {
-        src_col_start <- (col_j - 1L) * agg_factor + 1L
-        src_col_end <- col_j * agg_factor
-        block <- strip_mat[, src_col_start:src_col_end]
-        mu_ids <- as.integer(block)
-        mu_ids <- mu_ids[mu_ids > 0L & !is.na(mu_ids)]
-        if (length(mu_ids) == 0L) {
-          next
-        }
-        lon <- -180.0 + (col_j - 0.5) * target_res
-        mu_counts <- tibble::tibble(mu_global = mu_ids) |>
-          count(mu_global, name = "n_cells")
-        mu_soil <- mu_counts |>
-          inner_join(mu_soils, by = "mu_global")
-        if (nrow(mu_soil) == 0L) {
-          next
-        }
-        dom <- mu_soil |>
-          summarise(total_cells = sum(n_cells), .by = t_usda_tex_class) |>
-          slice_max(total_cells, n = 1, with_ties = FALSE)
-        ph_val <- mu_soil |>
-          filter(t_usda_tex_class == dom$t_usda_tex_class[1]) |>
-          summarise(
-            ph = stats::weighted.mean(t_ph_h2o, w = n_cells, na.rm = TRUE)
-          ) |>
-          pull(ph)
-        row_results[[col_j]] <- tibble::tibble(
-          lon = lon,
-          lat = lat,
-          soil_texture_code = dom$t_usda_tex_class[1],
-          soil_ph = round(ph_val, 2)
-        )
-      }
-      results[[row_i]] <- bind_rows(row_results)
-      if (row_i %% 36 == 0) {
-        cli::cli_alert("  Row {row_i}/{n_target_rows} ({lat} lat)")
-      }
-    }
-    bind_rows(results)
+    tex_rast <- terra::classify(hwsd_rast, rcl_tex, others = NA)
+    ph_rast <- terra::classify(hwsd_rast, rcl_ph, others = NA)
+
+    tex_coarse <- terra::aggregate(
+      tex_rast,
+      fact = agg_factor,
+      fun = "modal",
+      na.rm = TRUE
+    )
+    ph_coarse <- terra::aggregate(
+      ph_rast,
+      fact = agg_factor,
+      fun = "mean",
+      na.rm = TRUE
+    )
+
+    tex_df <- terra::as.data.frame(tex_coarse, xy = TRUE, na.rm = TRUE)
+    ph_df <- terra::as.data.frame(ph_coarse, xy = TRUE, na.rm = TRUE)
+    names(tex_df) <- c("lon", "lat", "soil_texture_code")
+    names(ph_df) <- c("lon", "lat", "soil_ph")
+
+    dplyr::inner_join(
+      tibble::as_tibble(tex_df),
+      tibble::as_tibble(ph_df),
+      by = c("lon", "lat")
+    ) |>
+      dplyr::mutate(
+        lon = round(lon, 2),
+        lat = round(lat, 2),
+        soil_texture_code = as.integer(soil_texture_code),
+        soil_ph = round(soil_ph, 2)
+      )
   }
 
   .gapfill_soil <- function(soil_grid, country_grid, max_search = 100L) {
@@ -2962,10 +2913,8 @@ prepare_soil_inputs <- function(l_files_dir, output_dir, target_res = 0.5) {
 
 # ==== Section 10: Run crop spatialization ==================================
 
-run_crop_spatialize <- function(run_dir, input_dir) {
+run_crop_spatialize <- function(run_dir, input_dir, year_range) {
   cli::cli_h2("Section 10: Crop spatialization")
-
-  year_range <- 1850L:2022L
 
   country_grid <- nanoparquet::read_parquet(
     file.path(input_dir, "country_grid.parquet")
@@ -3194,7 +3143,11 @@ run_crop_spatialize <- function(run_dir, input_dir) {
 
     gridded_n <- result_crops |>
       dplyr::inner_join(country_grid, by = c("lon", "lat")) |>
-      dplyr::inner_join(n_rates, by = c("year", "area_code", "item_prod_code"))
+      dplyr::inner_join(
+        n_rates,
+        by = c("year", "area_code", "item_prod_code"),
+        relationship = "many-to-many"
+      )
 
     if (!is.null(spatial_n_idx)) {
       gridded_n <- gridded_n |>
@@ -3367,8 +3320,19 @@ run_livestock_spatialize <- function(run_dir, input_dir) {
 
 # ==== Main execution ===================================================
 
-main <- function() {
+main <- function(l_files_dir) {
   cli::cli_h1("WHEP Spatialization Pipeline")
+
+  if (!dir.exists(l_files_dir)) {
+    cli::cli_abort("Directory does not exist: {.path {l_files_dir}}")
+  }
+  l_files_dir <- normalizePath(l_files_dir, mustWork = FALSE)
+  output_dir <- file.path(l_files_dir, "whep", "inputs")
+  run_dir <- file.path(l_files_dir, "whep")
+
+  if (!dir.exists(output_dir)) {
+    dir.create(output_dir, recursive = TRUE)
+  }
 
   # Cache production data (shared by crops + livestock)
   prod <- .load_or_cache_production(output_dir, year_range)
@@ -3376,6 +3340,10 @@ main <- function() {
   # Section 1: Country grid
   country_grid <- prepare_country_grid(l_files_dir, target_res)
   .save_parquet(country_grid, output_dir, "country_grid")
+
+  # Section 5: MIRCA irrigation (run before country_areas so MIRCA
+  # is available on the first pass)
+  prepare_mirca_irrigation(l_files_dir, output_dir, country_grid, target_res)
 
   # Section 2: Country areas
   country_areas <- prepare_country_areas(
@@ -3406,29 +3374,12 @@ main <- function() {
   )
   .save_parquet(gridded_cropland, output_dir, "gridded_cropland")
 
-  # Section 5: MIRCA irrigation
-  prepare_mirca_irrigation(l_files_dir, output_dir, country_grid, target_res)
-
-  # Re-run country_areas with MIRCA if it was just generated
-  mirca_path <- file.path(output_dir, "mirca_irrigation_country.parquet")
-  if (file.exists(mirca_path)) {
-    cli::cli_alert_info("Re-generating country_areas with MIRCA irrigation")
-    country_areas <- prepare_country_areas(
-      l_files_dir,
-      year_range,
-      country_grid,
-      target_res,
-      prod
-    )
-    .save_parquet(country_areas, output_dir, "country_areas")
-  }
-
   # Section 6: Yield inputs
   prepare_yield_inputs(
     l_files_dir,
     output_dir,
     target_res,
-    year_range = 1961L:2022L,
+    year_range = year_range,
     prod = prod
   )
 
@@ -3449,7 +3400,7 @@ main <- function() {
   prepare_soil_inputs(l_files_dir, output_dir, target_res)
 
   # Section 10: Run crop spatialization
-  run_crop_spatialize(run_dir, output_dir)
+  run_crop_spatialize(run_dir, output_dir, year_range)
 
   # Section 11: Run livestock spatialization
   run_livestock_spatialize(run_dir, output_dir)
@@ -3459,5 +3410,5 @@ main <- function() {
 
 # Run if executed directly (not just sourced)
 if (sys.nframe() == 0L) {
-  main()
+  main("LPJmL_inputs")
 }
