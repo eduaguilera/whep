@@ -449,6 +449,11 @@ create_n_nat_destiny <- function() {
 
   semi_natural <- npp_ygpit_merged |>
     dplyr::filter(LandUse != "Cropland") |>
+    dplyr::mutate(
+      GrazedWeeds_MgDM = GrazedWeeds_MgDM +
+        GrazedAcorns_MgDM +
+        GrazedFodder_MgDM
+    ) |>
     dplyr::select(
       Year,
       Province_name,

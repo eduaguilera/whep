@@ -272,9 +272,9 @@ create_grafs_plot_df <- function() {
     dplyr::group_by(province, year, label) |>
     dplyr::summarise(
       data = dplyr::case_when(
-        label %in% non_additive_labels & any(!is.na(data_num)) ~
+        label[1] %in% non_additive_labels & any(!is.na(data_num)) ~
           as.character(dplyr::first(data_num[!is.na(data_num)])),
-        label %in% non_additive_labels ~ dplyr::first(data),
+        label[1] %in% non_additive_labels ~ dplyr::first(data),
         all(is.na(data_num)) ~ dplyr::first(data),
         TRUE ~ as.character(sum(data_num, na.rm = TRUE))
       ),

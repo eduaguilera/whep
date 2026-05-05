@@ -1592,6 +1592,118 @@ intens_spec_sec_axis <- function() {
   list(plot = p, data = df)
 }
 
+#' indicators by Josettes and Gilles paper
+n_indicators_ts_plot <- function() {
+  flows <- create_n_nat_destiny()
+
+  soil_inputs <- flows |>
+    dplyr::filter(
+      origin %in%
+        c("Deposition", "Fixation", "Synthetic", "Livestock", "People"),
+      destiny %in% c("Cropland", "semi_natural_agroecosystems")
+    ) |>
+    dplyr::group_by(year) |>
+    dplyr::summarise(
+      total_inputs = sum(mg_n, na.rm = TRUE),
+      synthetic    = sum(mg_n[origin == "Synthetic"], na.rm = TRUE),
+      recycled     = sum(
+        mg_n[origin %in% c("Livestock", "People")],
+        na.rm = TRUE
+      ),
+      .groups = "drop"
+    )
+
+  land_production <- flows |>
+    dplyr::filter(
+      origin %in% c("Cropland", "semi_natural_agroecosystems"),
+      destiny %in% c(
+        "population_food", "population_other_uses",
+        "livestock_rum", "livestock_mono", "export"
+      )
+    ) |>
+    dplyr::group_by(year) |>
+    dplyr::summarise(
+      land_prod = sum(mg_n, na.rm = TRUE),
+      .groups = "drop"
+    )
+
+  food_ss <- flows |>
+    dplyr::filter(
+      destiny %in% c(
+        "population_food", "population_other_uses",
+        "livestock_rum", "livestock_mono"
+      )
+    ) |>
+    dplyr::group_by(year) |>
+    dplyr::summarise(
+      local_consumed = sum(mg_n[origin != "Outside"], na.rm = TRUE),
+      total_consumed = sum(mg_n, na.rm = TRUE),
+      .groups = "drop"
+    )
+
+  df <- soil_inputs |>
+    dplyr::left_join(land_production, by = "year") |>
+    dplyr::left_join(food_ss, by = "year") |>
+    dplyr::mutate(
+      nue           = land_prod / total_inputs * 100,
+      circularity   = recycled / total_inputs * 100,
+      synth_share   = synthetic / total_inputs * 100,
+      food_self_suf = local_consumed / total_consumed * 100
+    ) |>
+    dplyr::select(year, nue, circularity, synth_share, food_self_suf)
+
+  indicator_labels <- c(
+    nue           = "System NUE",
+    circularity   = "N-Circularity (recycled share)",
+    synth_share   = "Synthetic fertilizer share",
+    food_self_suf = "Food Self-Sufficiency"
+  )
+
+  indicator_colors <- c(
+    "System NUE"                     = "#1b9e77",
+    "N-Circularity (recycled share)" = "#7570b3",
+    "Synthetic fertilizer share"     = "#d95f02",
+    "Food Self-Sufficiency"          = "#e7298a"
+  )
+
+  df_long <- df |>
+    tidyr::pivot_longer(
+      cols      = -year,
+      names_to  = "indicator",
+      values_to = "value"
+    ) |>
+    dplyr::mutate(
+      indicator = dplyr::recode(indicator, !!!indicator_labels),
+      indicator = factor(indicator, levels = indicator_labels)
+    )
+
+  p <- ggplot2::ggplot(
+    df_long,
+    ggplot2::aes(x = year, y = value, color = indicator)
+  ) +
+    ggplot2::geom_line(linewidth = 1.3) +
+    ggplot2::scale_color_manual(values = indicator_colors) +
+    ggplot2::scale_y_continuous(
+      labels = scales::label_percent(scale = 1),
+      limits = c(0, 100)
+    ) +
+    ggplot2::labs(
+      x     = NULL,
+      y     = NULL,
+      color = "Indicator",
+      title = "Nitrogen system indicators for Spain (1860–2021)"
+    ) +
+    ggplot2::theme_minimal() +
+    ggplot2::theme(
+      plot.title      = ggplot2::element_text(face = "bold"),
+      legend.position = "right"
+    )
+
+  print(p)
+
+  list(plot = p, data = df)
+}
+
 spatial_diversity <- function() {
   flows <- create_n_prov_destiny()
 
@@ -1974,3 +2086,5 @@ ext_dep_plot_national <- function() {
     data = df
   )
 }
+
+

@@ -37,7 +37,7 @@ create_n_soil_inputs <- function(example = FALSE) {
     return(.example_create_n_soil_inputs())
   }
   .calculate_n_soil_inputs(
-    whep_read_file("n-balance-ygpit-all"),
+    whep_read_file("n_balance_ygpit_all"),
     whep_read_file("codes_coefs")
   ) |>
     dplyr::rename_with(tolower)
@@ -405,7 +405,7 @@ calculate_system_nue <- function(
     )
 
   total_outputs <- dplyr::bind_rows(
-    whep_read_file("n-balance-ygpit-all"),
+    whep_read_file("n_balance_ygpit_all"),
     whep_read_file("stock_prod_ygps")
   ) |>
     dplyr::rename_with(tolower) |>
