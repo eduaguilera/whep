@@ -834,6 +834,133 @@ prepare_gridded_cropland <- function(
 }
 
 
+# ---- MIRCA post-processing: expand to FAO codes and aggregate --------------
+.mirca_expand_aggregate <- function(gridded_mirca, mirca_to_fao) {
+  dt <- data.table::as.data.table(gridded_mirca)
+  map_dt <- data.table::as.data.table(mirca_to_fao)
+  expanded <- map_dt[dt, on = "mirca_class", allow.cartesian = TRUE, nomatch = NULL]
+
+  country <- expanded[,
+    .(
+      total_irrig_ha = sum(irrig_ha),
+      total_rainfed_ha = sum(rainfed_ha)
+    ),
+    by = .(area_code, item_prod_code)
+  ]
+  country[, total_ha := total_irrig_ha + total_rainfed_ha]
+  country[,
+    irrig_frac := data.table::fifelse(total_ha > 0, total_irrig_ha / total_ha, 0)
+  ]
+  country[, c("total_irrig_ha", "total_rainfed_ha", "total_ha") := NULL]
+
+  patterns <- expanded[,
+    .(irrig_ha = sum(irrig_ha), rainfed_ha = sum(rainfed_ha)),
+    by = .(lon, lat, item_prod_code)
+  ]
+
+  list(
+    country = tibble::as_tibble(country),
+    patterns = tibble::as_tibble(patterns)
+  )
+}
+
+# ---- MIRCA binary reader ---------------------------------------------------
+.mirca_read_binary <- function(fpath, ncols, nrows, nmonths) {
+  ncells <- ncols * nrows
+  is_gz <- grepl("\\.gz$", fpath)
+  if (is_gz) {
+    con <- gzfile(fpath, "rb")
+    on.exit(close(con))
+    raw_vals <- readBin(con, "double", n = ncells * nmonths, size = 4L)
+  } else {
+    raw_vals <- readBin(fpath, "double", n = ncells * nmonths, size = 4L)
+  }
+  if (length(raw_vals) != ncells * nmonths) {
+    cli::cli_abort(
+      "Expected {ncells * nmonths} values, got {length(raw_vals)} from {fpath}"
+    )
+  }
+  annual <- raw_vals[seq_len(ncells)]
+  for (m in 2:nmonths) {
+    idx <- ((m - 1L) * ncells + 1L):(m * ncells)
+    annual <- pmax(annual, raw_vals[idx])
+  }
+  r <- terra::rast(
+    nrows = nrows,
+    ncols = ncols,
+    xmin = -180,
+    xmax = 180,
+    ymin = -90,
+    ymax = 90
+  )
+  terra::values(r) <- annual
+  r
+}
+
+# ---- MIRCA file finder -----------------------------------------------------
+.mirca_find_file <- function(mirca_dir, crop_num, type) {
+  fname <- sprintf("crop_%02d_%s_12", crop_num, type)
+  gz_path <- file.path(mirca_dir, paste0(fname, ".flt.gz"))
+  if (file.exists(gz_path)) {
+    return(gz_path)
+  }
+  sub_dir <- file.path(mirca_dir, type, paste0(fname, ".flt"))
+  sub_file <- file.path(sub_dir, paste0(fname, ".flt"))
+  if (file.exists(sub_file)) {
+    return(sub_file)
+  }
+  sub_dir_tilde <- file.path(mirca_dir, type, paste0(fname, ".flt~"))
+  sub_file_tilde <- file.path(sub_dir_tilde, paste0(fname, ".flt"))
+  if (file.exists(sub_file_tilde)) {
+    return(sub_file_tilde)
+  }
+  standalone <- file.path(mirca_dir, type, paste0(fname, ".flt"))
+  if (file.exists(standalone)) {
+    return(standalone)
+  }
+  alt_dir <- file.path(mirca_dir, type, fname)
+  alt_file <- file.path(alt_dir, paste0(fname, ".flt"))
+  if (file.exists(alt_file)) {
+    return(alt_file)
+  }
+  NULL
+}
+
+# ---- MIRCA raster aggregator -----------------------------------------------
+.mirca_aggregate <- function(r, target_res) {
+  agg_factor <- as.integer(target_res / (5 / 60))
+  terra::aggregate(r, fact = agg_factor, fun = "sum", na.rm = TRUE)
+}
+
+# ---- Process one MIRCA crop class ------------------------------------------
+.mirca_process_crop <- function(crop_num, mirca_dir, target_res, dims) {
+  irrig_path <- .mirca_find_file(mirca_dir, crop_num, "irrigated")
+  rain_path <- .mirca_find_file(mirca_dir, crop_num, "rainfed")
+  if (is.null(irrig_path) || is.null(rain_path)) {
+    cli::cli_alert_warning("Crop {crop_num}: missing files")
+    return(NULL)
+  }
+  irrig_r <- .mirca_read_binary(
+    irrig_path, dims$ncols, dims$nrows, dims$nmonths
+  ) |>
+    .mirca_aggregate(target_res)
+  rain_r <- .mirca_read_binary(
+    rain_path, dims$ncols, dims$nrows, dims$nmonths
+  ) |>
+    .mirca_aggregate(target_res)
+  irrig_tbl <- .raster_to_tibble(irrig_r, "irrig_ha") |>
+    dplyr::filter(!is.na(irrig_ha), irrig_ha > 0)
+  rain_tbl <- .raster_to_tibble(rain_r, "rainfed_ha") |>
+    dplyr::filter(!is.na(rainfed_ha), rainfed_ha > 0)
+  dplyr::full_join(irrig_tbl, rain_tbl, by = c("lon", "lat")) |>
+    dplyr::mutate(
+      irrig_ha = dplyr::if_else(is.na(irrig_ha), 0, irrig_ha),
+      rainfed_ha = dplyr::if_else(is.na(rainfed_ha), 0, rainfed_ha),
+      mirca_class = crop_num
+    ) |>
+    dplyr::filter(irrig_ha > 0 | rainfed_ha > 0)
+}
+
 # ==== Section 5: MIRCA irrigation =========================================
 #
 # Processes MIRCA2000 binary grids to produce country-level and gridded
@@ -854,76 +981,7 @@ prepare_mirca_irrigation <- function(
     return(NULL)
   }
 
-  ncols <- 4320L
-  nrows <- 2160L
-  nmonths <- 12L
-  ncells <- ncols * nrows
-
-  .read_mirca_binary_local <- function(fpath) {
-    is_gz <- grepl("\\.gz$", fpath)
-    if (is_gz) {
-      con <- gzfile(fpath, "rb")
-      on.exit(close(con))
-      raw_vals <- readBin(con, "double", n = ncells * nmonths, size = 4L)
-    } else {
-      raw_vals <- readBin(fpath, "double", n = ncells * nmonths, size = 4L)
-    }
-    if (length(raw_vals) != ncells * nmonths) {
-      cli::cli_abort(
-        "Expected {ncells * nmonths} values, got {length(raw_vals)} from {fpath}"
-      )
-    }
-    annual <- raw_vals[seq_len(ncells)]
-    for (m in 2:nmonths) {
-      idx <- ((m - 1L) * ncells + 1L):(m * ncells)
-      annual <- pmax(annual, raw_vals[idx])
-    }
-    rm(raw_vals)
-    r <- terra::rast(
-      nrows = nrows,
-      ncols = ncols,
-      xmin = -180,
-      xmax = 180,
-      ymin = -90,
-      ymax = 90
-    )
-    terra::values(r) <- annual
-    rm(annual)
-    r
-  }
-
-  .find_mirca_file_local <- function(mirca_dir, crop_num, type) {
-    fname <- sprintf("crop_%02d_%s_12", crop_num, type)
-    gz_path <- file.path(mirca_dir, paste0(fname, ".flt.gz"))
-    if (file.exists(gz_path)) {
-      return(gz_path)
-    }
-    sub_dir <- file.path(mirca_dir, type, paste0(fname, ".flt"))
-    sub_file <- file.path(sub_dir, paste0(fname, ".flt"))
-    if (file.exists(sub_file)) {
-      return(sub_file)
-    }
-    sub_dir_tilde <- file.path(mirca_dir, type, paste0(fname, ".flt~"))
-    sub_file_tilde <- file.path(sub_dir_tilde, paste0(fname, ".flt"))
-    if (file.exists(sub_file_tilde)) {
-      return(sub_file_tilde)
-    }
-    standalone <- file.path(mirca_dir, type, paste0(fname, ".flt"))
-    if (file.exists(standalone)) {
-      return(standalone)
-    }
-    alt_dir <- file.path(mirca_dir, type, fname)
-    alt_file <- file.path(alt_dir, paste0(fname, ".flt"))
-    if (file.exists(alt_file)) {
-      return(alt_file)
-    }
-    NULL
-  }
-
-  .aggregate_mirca_local <- function(r, target_res) {
-    agg_factor <- as.integer(target_res / (5 / 60))
-    terra::aggregate(r, fact = agg_factor, fun = "sum", na.rm = TRUE)
-  }
+  dims <- list(ncols = 4320L, nrows = 2160L, nmonths = 12L)
 
   # Read MIRCA mapping
   mirca_map <- readr::read_csv(
@@ -987,76 +1045,32 @@ prepare_mirca_irrigation <- function(
     "MIRCA mapping: {n_distinct(mirca_to_fao$mirca_class)} classes -> {nrow(mirca_to_fao)} codes"
   )
 
-  # Process each MIRCA crop class
-  all_crops <- list()
-  for (crop_num in 1:26) {
-    irrig_path <- .find_mirca_file_local(mirca_dir, crop_num, "irrigated")
-    rain_path <- .find_mirca_file_local(mirca_dir, crop_num, "rainfed")
-    if (is.null(irrig_path) || is.null(rain_path)) {
-      cli::cli_alert_warning(
-        "Crop {crop_num}: missing files"
-      )
-      next
-    }
-    cli::cli_alert_info("Crop {sprintf('%02d', crop_num)}: reading...")
-    irrig_r <- .read_mirca_binary_local(irrig_path) |>
-      .aggregate_mirca_local(target_res)
-    rain_r <- .read_mirca_binary_local(rain_path) |>
-      .aggregate_mirca_local(target_res)
+  # Process all 26 MIRCA crop classes in parallel
+  Sys.setenv(R_PROFILE_USER = "/dev/null")
+  on.exit(Sys.unsetenv("R_PROFILE_USER"), add = TRUE)
+  old_plan <- suppressMessages(future::plan(future::multisession))
+  on.exit(future::plan(old_plan), add = TRUE)
 
-    irrig_tbl <- .raster_to_tibble(irrig_r, "irrig_ha") |>
-      filter(!is.na(irrig_ha), irrig_ha > 0)
-    rm(irrig_r)
-    rain_tbl <- .raster_to_tibble(rain_r, "rainfed_ha") |>
-      filter(!is.na(rainfed_ha), rainfed_ha > 0)
-    rm(rain_r)
-    gc(verbose = FALSE)
+  cli::cli_alert_info("Processing 26 MIRCA crops in parallel...")
+  all_crops <- suppressMessages(furrr::future_map(
+    1:26,
+    \(crop_num) .mirca_process_crop(crop_num, mirca_dir, target_res, dims),
+    .options = furrr::furrr_options(seed = NULL)
+  )) |>
+    purrr::compact()
 
-    crop_tbl <- full_join(irrig_tbl, rain_tbl, by = c("lon", "lat")) |>
-      mutate(
-        irrig_ha = if_else(is.na(irrig_ha), 0, irrig_ha),
-        rainfed_ha = if_else(is.na(rainfed_ha), 0, rainfed_ha),
-        mirca_class = crop_num
-      ) |>
-      filter(irrig_ha > 0 | rainfed_ha > 0)
-    all_crops[[crop_num]] <- crop_tbl
-  }
+  gridded_mirca <- dplyr::bind_rows(all_crops) |>
+    dplyr::inner_join(country_grid, by = c("lon", "lat"))
 
-  gridded_mirca <- bind_rows(all_crops) |>
-    inner_join(country_grid, by = c("lon", "lat"))
+  agg <- .mirca_expand_aggregate(gridded_mirca, mirca_to_fao)
 
-  gridded_fao <- gridded_mirca |>
-    inner_join(mirca_to_fao, by = "mirca_class", relationship = "many-to-many")
-
-  # Output 1: Country-level irrigation fractions
-  country_irrig <- gridded_fao |>
-    summarize(
-      total_irrig_ha = sum(irrig_ha),
-      total_rainfed_ha = sum(rainfed_ha),
-      .by = c(area_code, item_prod_code)
-    ) |>
-    mutate(
-      total_ha = total_irrig_ha + total_rainfed_ha,
-      irrig_frac = if_else(total_ha > 0, total_irrig_ha / total_ha, 0)
-    ) |>
-    select(area_code, item_prod_code, irrig_frac)
-
-  .save_parquet(country_irrig, output_dir, "mirca_irrigation_country")
-
-  # Output 2: Gridded irrigation patterns
-  gridded_patterns <- gridded_fao |>
-    summarize(
-      irrig_ha = sum(irrig_ha),
-      rainfed_ha = sum(rainfed_ha),
-      .by = c(lon, lat, item_prod_code)
-    )
-
-  .save_parquet(gridded_patterns, output_dir, "mirca_irrigation_patterns")
+  .save_parquet(agg$country, output_dir, "mirca_irrigation_country")
+  .save_parquet(agg$patterns, output_dir, "mirca_irrigation_patterns")
 
   cli::cli_alert_success("MIRCA2000 preparation complete")
   invisible(list(
-    country = country_irrig,
-    patterns = gridded_patterns
+    country = agg$country,
+    patterns = agg$patterns
   ))
 }
 
