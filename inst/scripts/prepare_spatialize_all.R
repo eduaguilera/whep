@@ -2927,6 +2927,169 @@ prepare_soil_inputs <- function(l_files_dir, output_dir, target_res = 0.5) {
 
 # ==== Section 10: Run crop spatialization ==================================
 
+# ---- Per-year yield spatialization ----------------------------------------
+.spatialize_yields_year <- function(yr, crops_with_country, shared) {
+  cy_yr <- dplyr::filter(shared$country_yields, year == yr)
+  gridded_y <- data.table::as.data.table(crops_with_country)[
+    data.table::as.data.table(cy_yr),
+    on = .(year, area_code, item_prod_code),
+    nomatch = NULL
+  ] |>
+    tibble::as_tibble()
+
+  if (!is.null(shared$spatial_yield_idx)) {
+    gridded_y <- gridded_y |>
+      dplyr::left_join(
+        shared$spatial_yield_idx,
+        by = c("lon", "lat", "item_prod_code")
+      ) |>
+      dplyr::mutate(
+        spatial_yield_index = dplyr::coalesce(spatial_yield_index, 1.0)
+      ) |>
+      dplyr::mutate(
+        total_ha = rainfed_ha + irrigated_ha,
+        weighted_sum = sum(spatial_yield_index * total_ha, na.rm = TRUE),
+        ha_sum = sum(total_ha, na.rm = TRUE),
+        renorm = dplyr::if_else(
+          weighted_sum > 0, ha_sum / weighted_sum, 1.0
+        ),
+        yield_t_ha = yield_t_ha * spatial_yield_index * renorm,
+        .by = c("year", "area_code", "item_prod_code")
+      ) |>
+      dplyr::select(
+        -spatial_yield_index, -total_ha, -weighted_sum, -ha_sum, -renorm
+      )
+  }
+
+  gridded_y |>
+    dplyr::left_join(
+      dplyr::select(shared$item_ratios, item_prod_code, yield_ratio),
+      by = "item_prod_code"
+    ) |>
+    dplyr::mutate(
+      yield_ratio = dplyr::coalesce(yield_ratio, 1.0),
+      total_ha = rainfed_ha + irrigated_ha,
+      denom = rainfed_ha + yield_ratio * irrigated_ha,
+      yield_rainfed = dplyr::if_else(
+        denom > 0, yield_t_ha * total_ha / denom, yield_t_ha
+      ),
+      yield_irrigated = yield_ratio * yield_rainfed,
+      rainfed_prod_t = yield_rainfed * rainfed_ha,
+      irrigated_prod_t = yield_irrigated * irrigated_ha
+    ) |>
+    dplyr::select(
+      lon, lat, year, area_code, item_prod_code,
+      rainfed_ha, irrigated_ha, yield_rainfed, yield_irrigated,
+      rainfed_prod_t, irrigated_prod_t
+    )
+}
+
+# ---- Per-year nitrogen spatialization -------------------------------------
+.spatialize_nitrogen_year <- function(yr, crops_with_country, shared) {
+  nr_yr <- dplyr::filter(shared$n_rates, year == yr)
+  gridded_n <- data.table::as.data.table(nr_yr)[
+    data.table::as.data.table(crops_with_country),
+    on = .(year, area_code, item_prod_code),
+    allow.cartesian = TRUE,
+    nomatch = NULL
+  ] |>
+    tibble::as_tibble()
+
+  if (!is.null(shared$spatial_n_idx)) {
+    gridded_n <- gridded_n |>
+      dplyr::left_join(
+        shared$spatial_n_idx,
+        by = c("lon", "lat", "item_prod_code", "fert_type")
+      ) |>
+      dplyr::mutate(
+        spatial_n_index = dplyr::coalesce(spatial_n_index, 1.0)
+      ) |>
+      dplyr::mutate(
+        total_ha = rainfed_ha + irrigated_ha,
+        weighted_sum = sum(spatial_n_index * total_ha, na.rm = TRUE),
+        ha_sum = sum(total_ha, na.rm = TRUE),
+        renorm = dplyr::if_else(
+          weighted_sum > 0, ha_sum / weighted_sum, 1.0
+        ),
+        kg_n_ha = kg_n_ha * spatial_n_index * renorm,
+        .by = c("year", "area_code", "item_prod_code", "fert_type")
+      ) |>
+      dplyr::select(
+        -spatial_n_index, -total_ha, -weighted_sum, -ha_sum, -renorm
+      )
+  }
+
+  gridded_n |>
+    dplyr::left_join(
+      dplyr::select(shared$item_ratios, item_prod_code, n_rate_ratio),
+      by = "item_prod_code"
+    ) |>
+    dplyr::mutate(
+      n_rate_ratio = dplyr::coalesce(n_rate_ratio, 1.0),
+      total_ha = rainfed_ha + irrigated_ha,
+      denom = rainfed_ha + n_rate_ratio * irrigated_ha,
+      kg_n_ha_rainfed = dplyr::if_else(
+        denom > 0, kg_n_ha * total_ha / denom, kg_n_ha
+      ),
+      kg_n_ha_irrigated = n_rate_ratio * kg_n_ha_rainfed,
+      rainfed_n_mg = rainfed_ha * kg_n_ha_rainfed / 1000,
+      irrigated_n_mg = irrigated_ha * kg_n_ha_irrigated / 1000
+    ) |>
+    dplyr::select(
+      lon, lat, year, area_code, item_prod_code, fert_type,
+      kg_n_ha, kg_n_ha_rainfed, kg_n_ha_irrigated,
+      rainfed_ha, irrigated_ha, rainfed_n_mg, irrigated_n_mg
+    )
+}
+
+# ---- Per-year land-use + spatialization -----------------------------------
+.run_spatialize_year <- function(yr, shared) {
+  areas_yr <- dplyr::filter(shared$country_areas, year == yr)
+  cropland_yr <- dplyr::filter(shared$gridded_cropland, year == yr)
+  type_yr <- if (!is.null(shared$type_cropland)) {
+    dplyr::filter(shared$type_cropland, year == yr)
+  }
+  crops_yr <- whep::build_gridded_landuse(
+    country_areas = areas_yr,
+    crop_patterns = shared$crop_patterns,
+    gridded_cropland = cropland_yr,
+    country_grid = shared$country_grid,
+    config = list(
+      type_cropland = type_yr,
+      type_mapping = shared$cft_mapping
+    )
+  )
+  crops_with_country <- dplyr::inner_join(
+    crops_yr, shared$country_grid, by = c("lon", "lat")
+  )
+  cft_mapping_dt <- data.table::as.data.table(
+    dplyr::select(shared$cft_mapping, item_prod_code, cft_name)
+  )
+  cft_yr <- data.table::as.data.table(crops_yr)[
+    cft_mapping_dt,
+    on = "item_prod_code",
+    nomatch = NULL
+  ][, .(
+    rainfed_ha = sum(rainfed_ha),
+    irrigated_ha = sum(irrigated_ha)
+  ), by = .(lon, lat, year, cft_name)]
+  if (shared$has_yields) {
+    yields_yr <- .spatialize_yields_year(yr, crops_with_country, shared)
+    arrow::write_parquet(
+      yields_yr,
+      file.path(shared$chunk_dir, sprintf("yields_%d.parquet", yr))
+    )
+  }
+  if (shared$has_nitrogen) {
+    n_yr <- .spatialize_nitrogen_year(yr, crops_with_country, shared)
+    arrow::write_parquet(
+      n_yr,
+      file.path(shared$chunk_dir, sprintf("nitrogen_%d.parquet", yr))
+    )
+  }
+  list(cft = data.table::setDF(cft_yr))
+}
+
 run_crop_spatialize <- function(run_dir, input_dir, year_range) {
   cli::cli_h2("Section 10: Crop spatialization")
 
@@ -2968,55 +3131,6 @@ run_crop_spatialize <- function(run_dir, input_dir, year_range) {
     "Years: {min(year_range)}-{max(year_range)}"
   )
 
-  t_start <- proc.time()
-
-  result_crops <- whep::build_gridded_landuse(
-    country_areas = country_areas,
-    crop_patterns = crop_patterns,
-    gridded_cropland = gridded_cropland,
-    country_grid = country_grid,
-    config = list(
-      type_cropland = type_cropland,
-      type_mapping = cft_mapping
-    )
-  )
-
-  elapsed <- (proc.time() - t_start)[["elapsed"]]
-  cli::cli_alert_success(
-    "Individual crops done in {round(elapsed / 60, 1)} minutes"
-  )
-
-  # Save individual crop output
-  crop_path <- file.path(run_dir, "gridded_landuse_crops.parquet")
-  nanoparquet::write_parquet(result_crops, crop_path)
-
-  # CFT aggregation
-  result <- result_crops |>
-    dplyr::inner_join(
-      dplyr::select(cft_mapping, item_prod_code, cft_name),
-      by = "item_prod_code"
-    ) |>
-    dplyr::summarise(
-      rainfed_ha = sum(rainfed_ha, na.rm = TRUE),
-      irrigated_ha = sum(irrigated_ha, na.rm = TRUE),
-      .by = c(lon, lat, year, cft_name)
-    )
-
-  out_path <- file.path(run_dir, "gridded_landuse.parquet")
-  nanoparquet::write_parquet(result, out_path)
-
-  # Summary CSV
-  summary_tbl <- result |>
-    dplyr::summarise(
-      total_rainfed_ha = sum(rainfed_ha, na.rm = TRUE),
-      total_irrigated_ha = sum(irrigated_ha, na.rm = TRUE),
-      n_cells = dplyr::n_distinct(paste(lon, lat)),
-      .by = c(year, cft_name)
-    ) |>
-    dplyr::arrange(year, cft_name)
-  readr::write_csv(summary_tbl, file.path(run_dir, "landuse_summary.csv"))
-
-  # Irrigated/rainfed ratio tables
   irrig_rf_ratios <- tibble::tribble(
     ~cft_name,              ~yield_ratio, ~n_rate_ratio,
     "temperate_cereals",    1.3,          1.3,
@@ -3040,105 +3154,24 @@ run_crop_spatialize <- function(run_dir, input_dir, year_range) {
     dplyr::select(item_prod_code, cft_name) |>
     dplyr::inner_join(irrig_rf_ratios, by = "cft_name")
 
-  # Yield spatialization
   yields_file <- file.path(input_dir, "country_yields.parquet")
   yield_idx_file <- file.path(input_dir, "spatial_yield_index.parquet")
-
-  if (file.exists(yields_file)) {
-    cli::cli_alert_info("Spatializing crop yields")
-    country_yields <- nanoparquet::read_parquet(yields_file)
-    spatial_yield_idx <- NULL
-    if (file.exists(yield_idx_file)) {
-      spatial_yield_idx <- nanoparquet::read_parquet(yield_idx_file)
-    }
-
-    gridded_y <- result_crops |>
-      dplyr::inner_join(country_grid, by = c("lon", "lat")) |>
-      dplyr::inner_join(
-        country_yields,
-        by = c("year", "area_code", "item_prod_code")
-      )
-
-    if (!is.null(spatial_yield_idx)) {
-      gridded_y <- gridded_y |>
-        dplyr::left_join(
-          spatial_yield_idx,
-          by = c("lon", "lat", "item_prod_code")
-        ) |>
-        dplyr::mutate(
-          spatial_yield_index = dplyr::coalesce(spatial_yield_index, 1.0)
-        ) |>
-        dplyr::mutate(
-          total_ha = rainfed_ha + irrigated_ha,
-          weighted_sum = sum(spatial_yield_index * total_ha, na.rm = TRUE),
-          ha_sum = sum(total_ha, na.rm = TRUE),
-          renorm = dplyr::if_else(
-            weighted_sum > 0,
-            ha_sum / weighted_sum,
-            1.0
-          ),
-          yield_t_ha = yield_t_ha * spatial_yield_index * renorm,
-          .by = c("year", "area_code", "item_prod_code")
-        ) |>
-        dplyr::select(
-          -spatial_yield_index,
-          -total_ha,
-          -weighted_sum,
-          -ha_sum,
-          -renorm
-        )
-    }
-
-    gridded_y <- gridded_y |>
-      dplyr::left_join(
-        dplyr::select(item_ratios, item_prod_code, yield_ratio),
-        by = "item_prod_code"
-      ) |>
-      dplyr::mutate(
-        yield_ratio = dplyr::coalesce(yield_ratio, 1.0),
-        total_ha = rainfed_ha + irrigated_ha,
-        denom = rainfed_ha + yield_ratio * irrigated_ha,
-        yield_rainfed = dplyr::if_else(
-          denom > 0,
-          yield_t_ha * total_ha / denom,
-          yield_t_ha
-        ),
-        yield_irrigated = yield_ratio * yield_rainfed,
-        rainfed_prod_t = yield_rainfed * rainfed_ha,
-        irrigated_prod_t = yield_irrigated * irrigated_ha
-      ) |>
-      dplyr::select(
-        lon,
-        lat,
-        year,
-        area_code,
-        item_prod_code,
-        rainfed_ha,
-        irrigated_ha,
-        yield_rainfed,
-        yield_irrigated,
-        rainfed_prod_t,
-        irrigated_prod_t
-      )
-
-    nanoparquet::write_parquet(
-      gridded_y,
-      file.path(run_dir, "gridded_yields.parquet")
-    )
-    cli::cli_alert_success("Gridded yields: {nrow(gridded_y)} rows")
+  has_yields <- file.exists(yields_file)
+  country_yields <- if (has_yields) {
+    nanoparquet::read_parquet(yields_file)
+  }
+  spatial_yield_idx <- if (has_yields && file.exists(yield_idx_file)) {
+    nanoparquet::read_parquet(yield_idx_file)
+  } else {
+    NULL
   }
 
-  # Nitrogen spatialization
   n_inputs_file <- file.path(input_dir, "nitrogen_inputs.parquet")
-  if (file.exists(n_inputs_file)) {
-    cli::cli_alert_info("Spatializing nitrogen inputs")
+  has_nitrogen <- file.exists(n_inputs_file)
+  n_rates <- NULL
+  spatial_n_idx <- NULL
+  if (has_nitrogen) {
     n_inputs <- nanoparquet::read_parquet(n_inputs_file)
-    spatial_idx_file <- file.path(input_dir, "spatial_n_index.parquet")
-    spatial_n_idx <- NULL
-    if (file.exists(spatial_idx_file)) {
-      spatial_n_idx <- nanoparquet::read_parquet(spatial_idx_file)
-    }
-
     items_prod <- readr::read_csv(
       system.file("extdata", "items_prod.csv", package = "whep"),
       show_col_types = FALSE
@@ -3154,88 +3187,141 @@ run_crop_spatialize <- function(run_dir, input_dir, year_range) {
         by = c("crop_name" = "item_prod_name")
       ) |>
       dplyr::filter(!is.na(item_prod_code))
-
-    gridded_n <- result_crops |>
-      dplyr::inner_join(country_grid, by = c("lon", "lat")) |>
-      dplyr::inner_join(
-        n_rates,
-        by = c("year", "area_code", "item_prod_code"),
-        relationship = "many-to-many"
-      )
-
-    if (!is.null(spatial_n_idx)) {
-      gridded_n <- gridded_n |>
-        dplyr::left_join(
-          spatial_n_idx,
-          by = c("lon", "lat", "item_prod_code", "fert_type")
-        ) |>
-        dplyr::mutate(
-          spatial_n_index = dplyr::coalesce(spatial_n_index, 1.0)
-        ) |>
-        dplyr::mutate(
-          total_ha = rainfed_ha + irrigated_ha,
-          weighted_sum = sum(spatial_n_index * total_ha, na.rm = TRUE),
-          ha_sum = sum(total_ha, na.rm = TRUE),
-          renorm = dplyr::if_else(
-            weighted_sum > 0,
-            ha_sum / weighted_sum,
-            1.0
-          ),
-          kg_n_ha = kg_n_ha * spatial_n_index * renorm,
-          .by = c("year", "area_code", "item_prod_code", "fert_type")
-        ) |>
-        dplyr::select(
-          -spatial_n_index,
-          -total_ha,
-          -weighted_sum,
-          -ha_sum,
-          -renorm
-        )
+    spatial_idx_file <- file.path(input_dir, "spatial_n_index.parquet")
+    if (file.exists(spatial_idx_file)) {
+      spatial_n_idx <- nanoparquet::read_parquet(spatial_idx_file)
     }
+  }
 
-    gridded_n <- gridded_n |>
-      dplyr::left_join(
-        dplyr::select(item_ratios, item_prod_code, n_rate_ratio),
-        by = "item_prod_code"
-      ) |>
-      dplyr::mutate(
-        n_rate_ratio = dplyr::coalesce(n_rate_ratio, 1.0),
-        total_ha = rainfed_ha + irrigated_ha,
-        denom = rainfed_ha + n_rate_ratio * irrigated_ha,
-        kg_n_ha_rainfed = dplyr::if_else(
-          denom > 0,
-          kg_n_ha * total_ha / denom,
-          kg_n_ha
-        ),
-        kg_n_ha_irrigated = n_rate_ratio * kg_n_ha_rainfed,
-        rainfed_n_mg = rainfed_ha * kg_n_ha_rainfed / 1000,
-        irrigated_n_mg = irrigated_ha * kg_n_ha_irrigated / 1000
-      ) |>
-      dplyr::select(
-        lon,
-        lat,
-        year,
-        area_code,
-        item_prod_code,
-        fert_type,
-        kg_n_ha,
-        kg_n_ha_rainfed,
-        kg_n_ha_irrigated,
-        rainfed_ha,
-        irrigated_ha,
-        rainfed_n_mg,
-        irrigated_n_mg
-      )
+  years <- sort(unique(country_areas$year))
+  years <- years[years %in% year_range]
+  chunk_size <- 30L
+  n_chunks <- ceiling(length(years) / chunk_size)
+  year_chunks <- split(
+    years,
+    ceiling(seq_along(years) / chunk_size)
+  )
 
-    nanoparquet::write_parquet(
-      gridded_n,
-      file.path(run_dir, "gridded_nitrogen.parquet")
+  t_start <- proc.time()
+
+  chunk_dir <- file.path(run_dir, "temp_crop_chunks")
+  if (!dir.exists(chunk_dir)) {
+    dir.create(chunk_dir, recursive = TRUE)
+  }
+  on.exit(unlink(chunk_dir, recursive = TRUE), add = TRUE)
+
+  for (i in seq_along(year_chunks)) {
+    chunk_years <- year_chunks[[i]]
+    cli::cli_alert(
+      "Chunk {i}/{n_chunks}: years {min(chunk_years)}-{max(chunk_years)}"
     )
-    cli::cli_alert_success("Gridded nitrogen: {nrow(gridded_n)} rows")
+    shared_chunk <- list(
+      country_areas     = dplyr::filter(
+        country_areas, year %in% chunk_years
+      ),
+      gridded_cropland  = dplyr::filter(
+        gridded_cropland, year %in% chunk_years
+      ),
+      type_cropland     = if (!is.null(type_cropland)) {
+        dplyr::filter(type_cropland, year %in% chunk_years)
+      },
+      country_grid      = country_grid,
+      crop_patterns     = crop_patterns,
+      cft_mapping       = cft_mapping,
+      item_ratios       = item_ratios,
+      has_yields        = has_yields,
+      country_yields    = if (has_yields) {
+        dplyr::filter(country_yields, year %in% chunk_years)
+      },
+      spatial_yield_idx = spatial_yield_idx,
+      has_nitrogen      = has_nitrogen,
+      n_rates           = if (has_nitrogen) {
+        dplyr::filter(n_rates, year %in% chunk_years)
+      },
+      spatial_n_idx     = spatial_n_idx,
+      chunk_dir         = chunk_dir
+    )
+    n_workers <- min(2L, max(1L, parallel::detectCores() - 1L))
+    per_year <- parallel::mclapply(
+      chunk_years,
+      \(yr) .run_spatialize_year(yr, shared_chunk),
+      mc.cores = n_workers
+    )
+    rm(shared_chunk)
+    cft_chunk <- purrr::map(per_year, "cft") |> dplyr::bind_rows()
+    n_cft_chunk <- nrow(cft_chunk)
+    nanoparquet::write_parquet(
+      cft_chunk,
+      file.path(chunk_dir, sprintf("cft_%03d.parquet", i))
+    )
+    rm(cft_chunk, per_year)
+    gc()
+    mem_mb <- round(sum(gc()[, 2]), 0)
+    cli::cli_alert_success(
+      "Chunk {i} saved: cft={n_cft_chunk} rows, mem={mem_mb} MB"
+    )
+  }
+
+  elapsed <- (proc.time() - t_start)[["elapsed"]]
+  cli::cli_alert_success(
+    "Individual crops done in {round(elapsed / 60, 1)} minutes"
+  )
+
+  cli::cli_alert_info("Combining chunk files...")
+
+  t_combine <- proc.time()
+  cft_files <- list.files(
+    chunk_dir,
+    pattern = "^cft_",
+    full.names = TRUE
+  )
+  cft_combined <- purrr::map(cft_files, nanoparquet::read_parquet) |>
+    dplyr::bind_rows()
+  arrow::write_parquet(
+    cft_combined,
+    file.path(run_dir, "gridded_landuse.parquet")
+  )
+  cli::cli_alert_success(
+    "gridded_landuse.parquet written ({round((proc.time() - t_combine)[[\"elapsed\"]], 1)}s)"
+  )
+
+  summary_tbl <- cft_combined |>
+    dplyr::summarise(
+      total_rainfed_ha = sum(rainfed_ha, na.rm = TRUE),
+      total_irrigated_ha = sum(irrigated_ha, na.rm = TRUE),
+      n_cells = dplyr::n(),
+      .by = c(year, cft_name)
+    ) |>
+    dplyr::arrange(year, cft_name)
+  readr::write_csv(summary_tbl, file.path(run_dir, "landuse_summary.csv"))
+  rm(cft_combined)
+
+  if (has_yields) {
+    cli::cli_alert_info("Spatializing crop yields")
+    yield_files <- list.files(
+      chunk_dir,
+      pattern = "^yields_",
+      full.names = TRUE
+    )
+    arrow::open_dataset(yield_files) |>
+      arrow::write_parquet(file.path(run_dir, "gridded_yields.parquet"))
+    cli::cli_alert_success("Gridded yields written")
+  }
+
+  if (has_nitrogen) {
+    cli::cli_alert_info("Spatializing nitrogen inputs")
+    n_files <- list.files(
+      chunk_dir,
+      pattern = "^nitrogen_",
+      full.names = TRUE
+    )
+    arrow::open_dataset(n_files) |>
+      arrow::write_parquet(file.path(run_dir, "gridded_nitrogen.parquet"))
+    cli::cli_alert_success("Gridded nitrogen written")
   }
 
   cli::cli_alert_success("Crop spatialization complete")
-  invisible(result_crops)
+  invisible(NULL)
 }
 
 

@@ -175,9 +175,9 @@ build_gridded_landuse <- function(
       luh2_type
     ) |>
       dplyr::distinct()
-    cli::cli_alert_info(
-      "Type-aware allocation: {dplyr::n_distinct(type_lookup$luh2_type)} LUH2 types"
-    )
+    # nolint: object_usage_linter
+    type_count <- dplyr::n_distinct(type_lookup$luh2_type)
+    # message printed once per build_gridded_landuse call; caller logs progress
   }
 
   years <- sort(unique(country_areas$year))
@@ -209,7 +209,7 @@ build_gridded_landuse <- function(
 
 # --- Private helpers ----------------------------------------------------------
 
-#' Spatialize a single year.
+#' Spatialize a single year using data.table for all crops at once.
 #' @noRd
 .spatialize_year <- function(
   yr,
@@ -223,193 +223,114 @@ build_gridded_landuse <- function(
   max_iterations,
   expansion_threshold
 ) {
-  crops <- unique(country_areas$item_prod_code)
+  t_alloc0 <- proc.time()[["elapsed"]]
 
-  purrr::map(crops, \(crop_code) {
-    # Determine this crop's LUH2 type (if type-aware)
-    crop_type <- NULL
-    crop_type_cl <- NULL
-    if (!is.null(type_lookup) && !is.null(type_cropland_yr)) {
-      crop_type <- type_lookup$luh2_type[
-        type_lookup$item_prod_code == crop_code
-      ]
-      if (length(crop_type) == 1L) {
-        crop_type_cl <- dplyr::filter(
-          type_cropland_yr,
-          luh2_type == crop_type
-        )
-      } else {
-        crop_type <- NULL
-      }
-    }
+  # Convert to data.table (by reference where possible)
+  cg <- data.table::as.data.table(country_grid)
+  cl <- data.table::as.data.table(cropland)
+  cp <- data.table::as.data.table(crop_patterns)
+  ca <- data.table::as.data.table(country_areas)
 
-    .spatialize_crop(
-      yr = yr,
-      crop_code = crop_code,
-      country_areas = dplyr::filter(
-        country_areas,
-        item_prod_code == crop_code
-      ),
-      crop_pattern = dplyr::filter(
-        crop_patterns,
-        item_prod_code == crop_code
-      ),
-      cropland = cropland,
-      country_grid = country_grid,
-      type_cropland = crop_type_cl
+  # Single join: grid + cropland
+  grid <- cg[cl, on = .(lon, lat), nomatch = NULL]
+  grid[, rainfed_ha := cropland_ha - irrigated_ha]
+
+  # Type-aware cropland (if available)
+  use_type_aware <- !is.null(type_cropland_yr) && !is.null(type_lookup)
+  if (use_type_aware) {
+    tc <- data.table::as.data.table(type_cropland_yr)
+    tlu <- data.table::as.data.table(type_lookup)
+    ca[tlu, luh2_type := i.luh2_type, on = .(item_prod_code)]
+  }
+
+  # Single cartesian join: grid × all crop patterns
+  grid_cp <- grid[cp, on = .(lon, lat), allow.cartesian = TRUE]
+  grid_cp[, harvest_fraction := data.table::fifelse(
+    is.na(harvest_fraction), 0, harvest_fraction
+  )]
+
+  # Type-aware: replace cropland with type-specific where applicable
+  if (use_type_aware) {
+    # Join type-cropland on (lon, lat, luh2_type)
+    grid_cp[ca, luh2_type := i.luh2_type, on = .(item_prod_code)]
+    grid_cp_tc <- tc[grid_cp, on = .(lon, lat, luh2_type), nomatch = NA]
+
+    # Compute potential for type-aware crops
+    grid_cp_tc[!is.na(type_ha), `:=`(
+      cropland_ha = type_ha,
+      irrigated_ha = type_irrig_ha,
+      rainfed_ha = type_ha - type_irrig_ha
+    )]
+
+    # Check which (country, crop) have type potential; fallback where zero
+    grid_cp_tc[, type_pot := sum(harvest_fraction * cropland_ha),
+      by = .(area_code, item_prod_code)]
+    grid_cp_tc[type_pot <= 0, `:=`(
+      cropland_ha = i.cropland_ha,
+      irrigated_ha = i.irrigated_ha,
+      rainfed_ha = i.rainfed_ha
+    )]
+
+    grid_cp <- grid_cp_tc
+    grid_cp[, `:=`(type_pot = NULL, luh2_type = NULL)]
+  }
+
+  # Join country_areas (cartesian: each country-crop gets its cells)
+  dat <- grid_cp[ca, on = .(area_code, item_prod_code), nomatch = NA]
+  dat <- dat[!is.na(harvested_area_ha)]
+
+  # Compute allocation for ALL (country, crop) pairs in one pass
+  dat[, `:=`(
+    rf_potential = harvest_fraction * rainfed_ha,
+    ir_potential = harvest_fraction * irrigated_ha
+  )]
+  dat[, `:=`(
+    rf_pot_sum = sum(rf_potential),
+    ir_pot_sum = sum(ir_potential),
+    rainfed_sum = sum(rainfed_ha),
+    irrigated_sum = sum(irrigated_ha)
+  ), by = .(area_code, item_prod_code)]
+  dat[, `:=`(
+    rf_uniform = data.table::fifelse(
+      rainfed_sum > 0, rainfed_ha / rainfed_sum, 0
+    ),
+    ir_uniform = data.table::fifelse(
+      irrigated_sum > 0, irrigated_ha / irrigated_sum, 0
     )
-  }) |>
-    dplyr::bind_rows() |>
+  )]
+  dat[, rainfed_target := harvested_area_ha - irrigated_area_ha]
+  dat[, `:=`(
+    allocated_rf = data.table::fifelse(
+      rf_pot_sum > 0,
+      rf_potential / rf_pot_sum * rainfed_target,
+      rf_uniform * rainfed_target
+    ),
+    allocated_ir = data.table::fifelse(
+      ir_pot_sum > 0,
+      ir_potential / ir_pot_sum * irrigated_area_ha,
+      ir_uniform * irrigated_area_ha
+    )
+  )]
+
+  result <- dat[, .(
+    lon, lat, item_prod_code,
+    rainfed_ha = allocated_rf, irrigated_ha = allocated_ir
+  )]
+
+  t_alloc <- round(proc.time()[["elapsed"]] - t_alloc0, 2)
+
+  # Capacity constraint (keep dplyr version for now; can be dt-optimised later)
+  result <- result |>
     .apply_capacity_constraint(
-      cropland,
-      country_grid,
-      multicropping,
-      max_iterations,
-      expansion_threshold
+      cropland, country_grid, multicropping,
+      max_iterations, expansion_threshold
     ) |>
     dplyr::mutate(year = yr, .before = 1L)
-}
 
-#' Spatialize one crop across all countries for a given year.
-#' @noRd
-.spatialize_crop <- function(
-  yr,
-  crop_code,
-  country_areas,
-  crop_pattern,
-  cropland,
-  country_grid,
-  type_cropland = NULL
-) {
-  use_type <- !is.null(type_cropland) && nrow(type_cropland) > 0L
+  t_cap <- round(proc.time()[["elapsed"]] - t_alloc0 - t_alloc, 2)
+  cli::cli_alert("  Year {yr}: {nrow(result)} rows (alloc {t_alloc}s, cap {t_cap}s)")
 
-  if (use_type) {
-    # Type-aware: use type-specific cropland
-    grid <- country_grid |>
-      dplyr::inner_join(
-        dplyr::select(
-          type_cropland,
-          lon,
-          lat,
-          type_ha,
-          type_irrig_ha
-        ),
-        by = c("lon", "lat")
-      ) |>
-      dplyr::left_join(
-        dplyr::select(crop_pattern, lon, lat, harvest_fraction),
-        by = c("lon", "lat")
-      ) |>
-      dplyr::mutate(
-        harvest_fraction = dplyr::if_else(
-          is.na(harvest_fraction),
-          0,
-          harvest_fraction
-        ),
-        cropland_ha = type_ha,
-        irrigated_ha = type_irrig_ha,
-        rainfed_ha = type_ha - type_irrig_ha
-      )
-
-    # Check if this type has any potential in the needed countries
-    needed <- unique(country_areas$area_code)
-    grid_has <- grid |>
-      dplyr::filter(area_code %in% needed) |>
-      dplyr::summarise(
-        total_pot = sum(harvest_fraction * cropland_ha)
-      ) |>
-      dplyr::pull(total_pot)
-
-    if (length(grid_has) == 0L || grid_has <= 0) {
-      # Fall back to total cropland for this crop
-      use_type <- FALSE
-    }
-  }
-
-  if (!use_type) {
-    # Original behaviour: total cropland
-    grid <- country_grid |>
-      dplyr::inner_join(cropland, by = c("lon", "lat")) |>
-      dplyr::left_join(
-        dplyr::select(crop_pattern, lon, lat, harvest_fraction),
-        by = c("lon", "lat")
-      ) |>
-      dplyr::mutate(
-        harvest_fraction = dplyr::if_else(
-          is.na(harvest_fraction),
-          0,
-          harvest_fraction
-        ),
-        rainfed_ha = cropland_ha - irrigated_ha
-      )
-  }
-
-  grid |>
-    dplyr::inner_join(
-      dplyr::select(
-        country_areas,
-        area_code,
-        harvested_area_ha,
-        irrigated_area_ha
-      ),
-      by = "area_code"
-    ) |>
-    .allocate_country_area() |>
-    dplyr::mutate(item_prod_code = crop_code) |>
-    dplyr::select(
-      lon,
-      lat,
-      item_prod_code,
-      rainfed_ha = allocated_rf,
-      irrigated_ha = allocated_ir
-    )
-}
-
-#' Proportionally allocate country total to grid cells.
-#'
-#' For each country, distributes the total harvested area to cells
-#' using: `cell_ha = pattern * cropland * (total / sum(pattern *
-#' cropland))`. Falls back to uniform distribution over cropland if
-#' no pattern exists.
-#' @noRd
-.allocate_country_area <- function(grid) {
-  grid |>
-    dplyr::mutate(
-      # Weighted potential: pattern x cropland
-      rf_potential = harvest_fraction * rainfed_ha,
-      ir_potential = harvest_fraction * irrigated_ha,
-      # Country sums of potential
-      rf_pot_sum = sum(rf_potential),
-      ir_pot_sum = sum(ir_potential),
-      # Fallback: uniform over cropland
-      rf_uniform = rainfed_ha / sum(rainfed_ha),
-      ir_uniform = irrigated_ha / sum(irrigated_ha),
-      # Replace NaN from 0/0
-      rf_uniform = dplyr::if_else(
-        is.nan(rf_uniform),
-        0,
-        rf_uniform
-      ),
-      ir_uniform = dplyr::if_else(
-        is.nan(ir_uniform),
-        0,
-        ir_uniform
-      ),
-      .by = area_code
-    ) |>
-    dplyr::mutate(
-      rainfed_target = harvested_area_ha - irrigated_area_ha,
-      allocated_rf = dplyr::if_else(
-        rf_pot_sum > 0,
-        rf_potential / rf_pot_sum * rainfed_target,
-        rf_uniform * rainfed_target
-      ),
-      allocated_ir = dplyr::if_else(
-        ir_pot_sum > 0,
-        ir_potential / ir_pot_sum * irrigated_area_ha,
-        ir_uniform * irrigated_area_ha
-      )
-    )
+  result
 }
 
 .landuse_config_defaults <- function() {
