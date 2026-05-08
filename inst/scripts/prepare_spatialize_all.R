@@ -51,7 +51,7 @@ library(dplyr, warn.conflicts = FALSE)
 
 # ==== Configuration ====================================================
 
-year_range <- 2000L:2001L
+year_range <- 1850:2020
 target_res <- 0.5
 
 
@@ -341,7 +341,8 @@ target_res <- 0.5
   carea_ha_r <- .read_luh2_carea(luh2_dir) * 100
   agg_factor <- as.integer(target_res / 0.25)
 
-  purrr::map(year_range, \(yr) {
+  n_workers <- min(16L, max(1L, parallel::detectCores() - 1L))
+  per_year_fn <- \(yr) {
     if (yr %% 10 == 0) {
       cli::cli_alert("LUH2 country totals: year {yr}")
     }
@@ -381,7 +382,13 @@ target_res <- 0.5
         .by = c("area_code", "luh2_type")
       ) |>
       dplyr::mutate(year = yr)
-  }) |>
+  }
+  per_year_results <- if (.Platform$OS.type == "windows") {
+    lapply(year_range, per_year_fn)
+  } else {
+    parallel::mclapply(year_range, per_year_fn, mc.cores = n_workers)
+  }
+  per_year_results |>
     dplyr::bind_rows() |>
     dplyr::mutate(
       luh2_type = dplyr::if_else(
@@ -482,8 +489,19 @@ target_res <- 0.5
 .load_or_cache_production <- function(output_dir, year_range) {
   prod_cache <- file.path(output_dir, ".prod_cache.parquet")
   if (file.exists(prod_cache)) {
-    cli::cli_alert_info("Reading cached production data")
-    return(nanoparquet::read_parquet(prod_cache))
+    cached <- nanoparquet::read_parquet(prod_cache)
+    cached_years <- sort(unique(as.integer(cached$year)))
+    if (
+      min(year_range) >= min(cached_years) &&
+        max(year_range) <= max(cached_years)
+    ) {
+      cli::cli_alert_info("Reading cached production data")
+      return(cached)
+    }
+    cli::cli_alert_info(
+      "Cache covers {min(cached_years)}-{max(cached_years)}, \\
+      rebuilding for {min(year_range)}-{max(year_range)}"
+    )
   }
   prod <- whep::build_primary_production(
     start_year = min(year_range),
@@ -813,12 +831,18 @@ prepare_gridded_cropland <- function(
 
   cli::cli_alert_info("Processing {length(year_range)} years of LUH2 data")
 
-  all_years <- purrr::map(year_range, \(yr) {
+  n_workers <- min(16L, max(1L, parallel::detectCores() - 1L))
+  per_year_fn <- \(yr) {
     if (yr %% 10 == 0) {
       cli::cli_alert("Processing year {yr}")
     }
     .read_luh2_year(luh2_dir, yr, crop_vars, carea_rast, target_res)
-  })
+  }
+  all_years <- if (.Platform$OS.type == "windows") {
+    lapply(year_range, per_year_fn)
+  } else {
+    parallel::mclapply(year_range, per_year_fn, mc.cores = n_workers)
+  }
 
   total <- purrr::map(all_years, "total") |> dplyr::bind_rows()
   by_type <- purrr::map(all_years, "by_type") |> dplyr::bind_rows()
@@ -1046,7 +1070,7 @@ prepare_mirca_irrigation <- function(
   )
 
   # Process all 26 MIRCA crop classes in parallel
-  Sys.setenv(R_PROFILE_USER = "/dev/null")
+  Sys.setenv(R_PROFILE_USER = nullfile())
   on.exit(Sys.unsetenv("R_PROFILE_USER"), add = TRUE)
   old_plan <- suppressMessages(future::plan(future::multisession))
   on.exit(future::plan(old_plan), add = TRUE)
@@ -3242,11 +3266,15 @@ run_crop_spatialize <- function(run_dir, input_dir, year_range) {
       chunk_dir         = chunk_dir
     )
     n_workers <- min(2L, max(1L, parallel::detectCores() - 1L))
-    per_year <- parallel::mclapply(
-      chunk_years,
-      \(yr) .run_spatialize_year(yr, shared_chunk),
-      mc.cores = n_workers
-    )
+    per_year <- if (.Platform$OS.type == "windows") {
+      lapply(chunk_years, \(yr) .run_spatialize_year(yr, shared_chunk))
+    } else {
+      parallel::mclapply(
+        chunk_years,
+        \(yr) .run_spatialize_year(yr, shared_chunk),
+        mc.cores = n_workers
+      )
+    }
     rm(shared_chunk)
     cft_chunk <- purrr::map(per_year, "cft") |> dplyr::bind_rows()
     n_cft_chunk <- nrow(cft_chunk)
@@ -3510,5 +3538,8 @@ main <- function(l_files_dir) {
 
 # Run if executed directly (not just sourced)
 if (sys.nframe() == 0L) {
-  main("LPJmL_inputs")
+  stop(
+    "Call main() with the path to your L_files directory, e.g.:\n",
+    "  main(\"/path/to/L_files\")"
+  )
 }
