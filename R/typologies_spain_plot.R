@@ -154,15 +154,15 @@ create_typo_ts_plot <- function(
   indicators <- indicators |>
     dplyr::mutate(
       Typology_base = dplyr::case_when(
-        production_seminatural > production_crops * 0.6 ~
+        production_seminatural > production_crops ~
           "Semi-natural agroecosystems",
         production_crops > animal_ingestion &
           synthetic_share > 0.4 &
           crop_productivity >= 10 ~
           "Specialized cropping systems (intensive)",
         production_crops > animal_ingestion &
-          synthetic_share <= 0.1 &
-          crop_productivity < 7 ~
+          synthetic_share <= 0.4 &
+          crop_productivity < 8 ~
           "Specialized cropping systems (extensive)",
         Livestock_density > 1.3 &
           imported_feed_share > 0.6 &
@@ -177,7 +177,7 @@ create_typo_ts_plot <- function(
           "Connected crop-livestock systems (intensive)",
         local_feed_share > 0.3 & Manure_share > 0.3 & crop_productivity < 30 ~
           "Connected crop-livestock systems (extensive)",
-        local_feed_share < 0.5 & Manure_share < 0.5 & synthetic_share > 0.1 ~
+        local_feed_share < 0.6 & Manure_share < 0.6 ~
           "Disconnected crop-livestock systems (intensive)",
         TRUE ~ "Disconnected crop-livestock systems (extensive)"
       ),
@@ -397,7 +397,8 @@ create_typo_ts_plot <- function(
 }
 
 create_typology_decision_tree <- function() {
-  DiagrammeR::grViz('
+  DiagrammeR::grViz(
+    '
   digraph decision_tree {
     graph [rankdir=TB, fontname="Arial", nodesep=0.05, ranksep=0.5]
     node [shape=rectangle, style=filled, fillcolor=white,
@@ -447,5 +448,6 @@ create_typology_decision_tree <- function() {
     q_disc     -> r_di_int   [label="Yes"]
     q_disc     -> r_di_ext   [label="No"]
   }
-  ')
+  '
+  )
 }
