@@ -17,10 +17,7 @@ library(tibble)
 main <- function() {
   # Set this to your L_files directory path (absolute or relative to this
   # script; normalizePath converts it to absolute so LPJmL can find files)
-  l_files_dir <- normalizePath(
-    Sys.getenv("WHEP_LFILES_DIR", unset = "LPJmL_inputs"),
-    mustWork = TRUE
-  )
+  l_files_dir <- normalizePath("LPJmL_inputs", mustWork = TRUE)
 
   model_path <- "/home/usuario/LPJmL"
   sim_path <- "/home/usuario/LPJmL/simulation"
