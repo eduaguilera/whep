@@ -7,103 +7,114 @@
 # needs manual edits between runs.
 #
 # Requires: lpjmlkit, stringr, tibble
-# Run after: export_lpjml_inputs_netcdf.R (and optionally
-#            prepare_neighbour_irrig.R for a fresh grid)
+# Run after: prepare_spatialize_all.R (which writes all LPJmL inputs)
 # -----------------------------------------------------------------------
 
 library(tibble)
 
 # ---- Configuration ----------------------------------------------------
 
-# Set this to your L_files directory path
-l_files_dir <- "LPJmL_inputs" # <-- CHANGE THIS
+main <- function() {
+  # Set this to your L_files directory path (absolute or relative to this
+  # script; normalizePath converts it to absolute so LPJmL can find files)
+  l_files_dir <- normalizePath("LPJmL_inputs", mustWork = TRUE)
 
-model_path <- "/home/usuario/LPJmL"
-sim_path <- "/home/usuario/LPJmL/simulation"
+  model_path <- "/home/usuario/LPJmL"
+  sim_path <- "/home/usuario/LPJmL/simulation"
 
-input_path <- file.path(l_files_dir, "whep", "lpjml_inputs")
+  input_path <- file.path(l_files_dir, "whep", "lpjml_inputs")
 
-# Must match the export_years used in export_lpjml_inputs_netcdf.R
-export_start <- 2000
-export_end <- 2001
+  # Must match the year_range used in prepare_spatialize_all.R
+  export_start <- 2000
+  export_end   <- 2001
 
-simulation_start_year <- export_start
-simulation_end_year <- export_end
-nspinup <- 2
+  # HaNi deposition starts at 1851; these may differ from export_start/export_end
+  dep_start <- 2000
+  dep_end   <- 2001
 
-use_cores <- 24
+  simulation_start_year <- 2000
+  simulation_end_year   <- 2001
+  nspinup               <- 2
 
-# ---- Derive year-dependent input paths --------------------------------
+  use_cores <- 24
 
-lu_name <- sprintf(
-  "landuse/cft_default_cft_aggregation_30min_%d-%d.nc",
-  export_start,
-  export_end
-)
-fert_name <- sprintf(
-  "landuse/fert_N_default_cft_aggregation_30min_%d-%d.nc",
-  export_start,
-  export_end
-)
-manure_name <- sprintf(
-  "landuse/manure_N_default_cft_aggregation_30min_%d-%d.nc",
-  export_start,
-  export_end
-)
-nhx_name <- sprintf(
-  "nitrogen/ndep_nhx_whep_annual_%d_%d.nc4",
-  export_start,
-  export_end
-)
-noy_name <- sprintf(
-  "nitrogen/ndep_noy_whep_annual_%d_%d.nc4",
-  export_start,
-  export_end
-)
+  # ---- Verify inputs --------------------------------------------------
 
-# Verify all required WHEP-generated files exist before writing config
-year_dep_files <- c(lu_name, fert_name, manure_name, nhx_name, noy_name)
-missing <- year_dep_files[
-  !file.exists(file.path(input_path, year_dep_files))
-]
-if (length(missing) > 0) {
-  stop(
-    "Missing WHEP input files — re-run export_lpjml_inputs_netcdf.R:\n",
-    paste0("  ", missing, collapse = "\n")
+  lu_name     <- .input_name("landuse/cft_default_cft_aggregation_30min_%d-%d.nc",
+                              export_start, export_end)
+  fert_name   <- .input_name("landuse/fert_N_default_cft_aggregation_30min_%d-%d.nc",
+                              export_start, export_end)
+  manure_name <- .input_name("landuse/manure_N_default_cft_aggregation_30min_%d-%d.nc",
+                              export_start, export_end)
+  nhx_name    <- .input_name("nitrogen/ndep_nhx_whep_annual_%d_%d.nc4",
+                              dep_start, dep_end)
+  noy_name    <- .input_name("nitrogen/ndep_noy_whep_annual_%d_%d.nc4",
+                              dep_start, dep_end)
+  lakes_name  <- "lakes_rivers/glwd_lakes_and_rivers_30arcmin.nc"
+
+  .check_inputs(input_path,
+                lu_name, fert_name, manure_name, nhx_name, noy_name, lakes_name)
+
+  # ---- Build config params tibble -------------------------------------
+
+  simulation_params <- tibble(
+    sim_name  = "scenario_1",
+    inpath    = input_path,
+    firstyear = simulation_start_year,
+    lastyear  = simulation_end_year,
+    nspinup   = nspinup,
+    river_routing = TRUE,
+    landuse   = "yes",
+
+    # Year-dependent WHEP inputs — override input.cjson names
+    `input.landuse.name`       = lu_name,
+    `input.fertilizer_nr.name` = fert_name,
+    `input.manure_nr.name`     = manure_name,
+    `input.nh4deposition.name` = nhx_name,
+    `input.no3deposition.name` = noy_name,
+
+    # Lakes — WHEP writes NC; input.cjson updated to cdf/var="lakes"
+    `input.lakes.name` = lakes_name,
+    `input.lakes.fmt`  = "cdf"
   )
+
+  # ---- Write config and run LPJmL ------------------------------------
+
+  cfg <- lpjmlkit::write_config(
+    x          = simulation_params,
+    model_path = model_path,
+    sim_path   = sim_path,
+    debug      = TRUE
+  )
+
+  lpjmlkit::run_lpjml(
+    cfg,
+    model_path,
+    sim_path,
+    run_cmd = stringr::str_glue("mpirun -np {use_cores} ")
+  )
+
+  invisible(NULL)
 }
 
-# ---- Build config params tibble ---------------------------------------
+# ---- Private helpers --------------------------------------------------
 
-simulation_params <- tibble(
-  sim_name = "scenario_1",
-  inpath = input_path,
-  firstyear = simulation_start_year,
-  lastyear = simulation_end_year,
-  nspinup = nspinup,
-  river_routing = TRUE,
-  landuse = "yes",
+.input_name <- function(template, start, end) {
+  sprintf(template, start, end)
+}
 
-  # Year-dependent inputs — override input.cjson names
-  `input.landuse.name` = lu_name,
-  `input.fertilizer_nr.name` = fert_name,
-  `input.manure_nr.name` = manure_name,
-  `input.nh4deposition.name` = nhx_name,
-  `input.no3deposition.name` = noy_name
-)
+.check_inputs <- function(input_path, ...) {
+  names <- c(...)
+  missing <- names[!file.exists(file.path(input_path, names))]
+  if (length(missing) > 0L) {
+    stop(
+      "Missing WHEP input files — re-run prepare_spatialize_all.R:\n",
+      paste0("  ", missing, collapse = "\n")
+    )
+  }
+}
 
-# ---- Write config and run LPJmL ---------------------------------------
 
-simulation_config_details <- lpjmlkit::write_config(
-  x = simulation_params,
-  model_path = model_path,
-  sim_path = sim_path,
-  debug = TRUE
-)
+# ---- Entry point ------------------------------------------------------
 
-simulation_run_details <- lpjmlkit::run_lpjml(
-  simulation_config_details,
-  model_path,
-  sim_path,
-  run_cmd = stringr::str_glue("mpirun -np {use_cores} ")
-)
+if (sys.nframe() == 0L) main()

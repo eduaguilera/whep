@@ -302,16 +302,15 @@ build_gridded_livestock <- function(
         dplyr::select(manure_pattern, lon, lat, manure_intensity),
         by = c("lon", "lat")
       ) |>
-      dplyr::mutate(
-        manure_intensity = dplyr::if_else(
-          is.na(manure_intensity),
-          0,
-          manure_intensity
-        ),
-        # Blend: 70% land-use, 30% manure-reference (avoid zero-out)
-        weight = weight *
-          (0.7 + 0.3 * manure_intensity / max(manure_intensity, na.rm = TRUE))
-      )
+      dplyr::mutate(manure_intensity = dplyr::coalesce(manure_intensity, 0))
+    max_intensity <- if (nrow(grid) > 0L) max(grid$manure_intensity) else 0
+    if (max_intensity > 0) {
+      grid <- grid |>
+        dplyr::mutate(
+          # Blend: 70% land-use, 30% manure-reference (avoid zero-out)
+          weight = weight * (0.7 + 0.3 * manure_intensity / max_intensity)
+        )
+    }
   }
 
   grid
