@@ -13,7 +13,7 @@ devtools::load_all(".")
 
 # ---- Configuration ---------------------------------------------------
 
-l_files_dir <- Sys.getenv("WHEP_LFILES_DIR")
+l_files_dir <- Sys.getenv("WHEP_LFILES_DIR", unset = "LPJmL_inputs")
 input_dir <- file.path(l_files_dir, "whep", "inputs")
 output_dir <- file.path(l_files_dir, "whep")
 

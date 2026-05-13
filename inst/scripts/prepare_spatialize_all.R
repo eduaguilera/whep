@@ -4108,7 +4108,7 @@ run_livestock_spatialize <- function(run_dir, input_dir, lpjml_out_dir) {
 
 # ==== Main execution ===================================================
 
-main <- function(l_files_dir) {
+main <- function(l_files_dir = "LPJmL_inputs") {
   cli::cli_h1("WHEP Spatialization Pipeline")
 
   if (!dir.exists(l_files_dir)) {
