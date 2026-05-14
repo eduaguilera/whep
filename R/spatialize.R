@@ -341,13 +341,16 @@ build_gridded_landuse <- function(
     )
   )]
 
-  result <- dat[, .(
-    lon,
-    lat,
-    item_prod_code,
-    rainfed_ha = allocated_rf,
-    irrigated_ha = allocated_ir
-  )]
+  result <- dat[
+    allocated_rf > 0 | allocated_ir > 0,
+    .(
+      lon,
+      lat,
+      item_prod_code,
+      rainfed_ha = allocated_rf,
+      irrigated_ha = allocated_ir
+    )
+  ]
 
   t_alloc <- round(proc.time()[["elapsed"]] - t_alloc0, 2)
 
