@@ -4137,9 +4137,8 @@ run_crop_spatialize <- function(
       out
     }
 
-    crops_chunk <- .step(
-      "build_gridded_landuse",
-      whep::build_gridded_landuse(
+    crops_chunk <- .step("build_gridded_landuse", {
+      cc <- whep::build_gridded_landuse(
         country_areas = dplyr::filter(country_areas, year %in% chunk_years),
         crop_patterns = crop_patterns,
         gridded_cropland = dplyr::filter(
@@ -4155,7 +4154,9 @@ run_crop_spatialize <- function(
           n_workers = n_workers
         )
       )
-    )
+      cc <- data.table::as.data.table(cc)
+      cc[(rainfed_ha + irrigated_ha) > 0]
+    })
     cli::cli_alert_info("    → {nrow(crops_chunk)} crop-cell rows")
 
     cft_chunk <- .step(
@@ -4198,7 +4199,7 @@ run_crop_spatialize <- function(
       cg_keys <- data.table::as.data.table(
         dplyr::select(country_grid, lon, lat, area_code)
       )
-      cwc <- data.table::as.data.table(crops_chunk)
+      cwc <- data.table::copy(crops_chunk)
       cwc[cg_keys, area_code := i.area_code, on = .(lon, lat)]
       cwc[!is.na(area_code)]
     })
