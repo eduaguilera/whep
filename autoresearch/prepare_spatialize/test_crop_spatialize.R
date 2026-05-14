@@ -13,13 +13,17 @@ l_files_dir <- "LPJmL_inputs"
 # -----------------------------------------------------------------------
 source("inst/scripts/prepare_spatialize_all.R")
 
-year_range  <- 2000:2010  # change to whatever you want to test
+year_range <- 2000:2010 # change to whatever you want to test
 
-run_dir    <- file.path(l_files_dir, "whep")
-input_dir  <- file.path(l_files_dir, "whep", "inputs")
+run_dir <- file.path(l_files_dir, "whep")
+input_dir <- file.path(l_files_dir, "whep", "inputs")
 
-if (!dir.exists(run_dir))   dir.create(run_dir, recursive = TRUE)
-if (!dir.exists(input_dir)) stop("input_dir not found: ", input_dir)
+if (!dir.exists(run_dir)) {
+  dir.create(run_dir, recursive = TRUE)
+}
+if (!dir.exists(input_dir)) {
+  stop("input_dir not found: ", input_dir)
+}
 
 # -----------------------------------------------------------------------
 # Run only Section 10

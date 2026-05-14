@@ -34,8 +34,11 @@ download_luh2 <- function(dest_dir) {
     # luh.umd.edu has an expired SSL cert; use libcurl -k, fall back to default
     dl_result <- tryCatch(
       download.file(
-        paste0(base_url, "/", fname), fpath,
-        mode = "wb", method = "libcurl", extra = "-k"
+        paste0(base_url, "/", fname),
+        fpath,
+        mode = "wb",
+        method = "libcurl",
+        extra = "-k"
       ),
       error = function(e) 1L
     )

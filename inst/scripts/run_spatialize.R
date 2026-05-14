@@ -78,7 +78,8 @@ if (file.exists(type_cl_path)) {
 cft_path <- file.path("inst", "extdata", "cft_mapping.csv")
 if (!file.exists(cft_path)) {
   cft_path <- system.file(
-    "extdata", "cft_mapping.csv",
+    "extdata",
+    "cft_mapping.csv",
     package = "whep"
   )
 }
@@ -92,10 +93,12 @@ cli::cli_alert_success(
 
 mapped_items <- cft_mapping$item_prod_code
 country_areas <- dplyr::filter(
-  country_areas, item_prod_code %in% mapped_items
+  country_areas,
+  item_prod_code %in% mapped_items
 )
 crop_patterns <- dplyr::filter(
-  crop_patterns, item_prod_code %in% mapped_items
+  crop_patterns,
+  item_prod_code %in% mapped_items
 )
 
 # ---- Run spatialization -----------------------------------------------
@@ -266,14 +269,19 @@ if (file.exists(yields_file)) {
         ),
         ha_sum = sum(total_ha, na.rm = TRUE),
         renorm = dplyr::if_else(
-          weighted_sum > 0, ha_sum / weighted_sum, 1.0
+          weighted_sum > 0,
+          ha_sum / weighted_sum,
+          1.0
         ),
         yield_t_ha = yield_t_ha * spatial_yield_index * renorm,
         .by = c("year", "area_code", "item_prod_code")
       ) |>
       dplyr::select(
-        -spatial_yield_index, -total_ha, -weighted_sum,
-        -ha_sum, -renorm
+        -spatial_yield_index,
+        -total_ha,
+        -weighted_sum,
+        -ha_sum,
+        -renorm
       )
 
     cli::cli_alert_success("Applied sub-national yield spatial index")
@@ -293,17 +301,26 @@ if (file.exists(yields_file)) {
       total_ha = rainfed_ha + irrigated_ha,
       denom = rainfed_ha + yield_ratio * irrigated_ha,
       yield_rainfed = dplyr::if_else(
-        denom > 0, yield_t_ha * total_ha / denom, yield_t_ha
+        denom > 0,
+        yield_t_ha * total_ha / denom,
+        yield_t_ha
       ),
       yield_irrigated = yield_ratio * yield_rainfed,
       rainfed_prod_t = yield_rainfed * rainfed_ha,
       irrigated_prod_t = yield_irrigated * irrigated_ha
     ) |>
     dplyr::select(
-      lon, lat, year, area_code, item_prod_code,
-      rainfed_ha, irrigated_ha,
-      yield_rainfed, yield_irrigated,
-      rainfed_prod_t, irrigated_prod_t
+      lon,
+      lat,
+      year,
+      area_code,
+      item_prod_code,
+      rainfed_ha,
+      irrigated_ha,
+      yield_rainfed,
+      yield_irrigated,
+      rainfed_prod_t,
+      irrigated_prod_t
     )
 
   y_path <- file.path(output_dir, "gridded_yields.parquet")
@@ -391,13 +408,19 @@ if (file.exists(n_inputs_file)) {
         weighted_sum = sum(spatial_n_index * total_ha, na.rm = TRUE),
         ha_sum = sum(total_ha, na.rm = TRUE),
         renorm = dplyr::if_else(
-          weighted_sum > 0, ha_sum / weighted_sum, 1.0
+          weighted_sum > 0,
+          ha_sum / weighted_sum,
+          1.0
         ),
         kg_n_ha = kg_n_ha * spatial_n_index * renorm,
         .by = c("year", "area_code", "item_prod_code", "fert_type")
       ) |>
       dplyr::select(
-        -spatial_n_index, -total_ha, -weighted_sum, -ha_sum, -renorm
+        -spatial_n_index,
+        -total_ha,
+        -weighted_sum,
+        -ha_sum,
+        -renorm
       )
 
     cli::cli_alert_success("Applied sub-national N rate spatial index")
@@ -417,17 +440,28 @@ if (file.exists(n_inputs_file)) {
       total_ha = rainfed_ha + irrigated_ha,
       denom = rainfed_ha + n_rate_ratio * irrigated_ha,
       kg_n_ha_rainfed = dplyr::if_else(
-        denom > 0, kg_n_ha * total_ha / denom, kg_n_ha
+        denom > 0,
+        kg_n_ha * total_ha / denom,
+        kg_n_ha
       ),
       kg_n_ha_irrigated = n_rate_ratio * kg_n_ha_rainfed,
       rainfed_n_mg = rainfed_ha * kg_n_ha_rainfed / 1000,
       irrigated_n_mg = irrigated_ha * kg_n_ha_irrigated / 1000
     ) |>
     dplyr::select(
-      lon, lat, year, area_code, item_prod_code,
-      fert_type, kg_n_ha, kg_n_ha_rainfed, kg_n_ha_irrigated,
-      rainfed_ha, irrigated_ha,
-      rainfed_n_mg, irrigated_n_mg
+      lon,
+      lat,
+      year,
+      area_code,
+      item_prod_code,
+      fert_type,
+      kg_n_ha,
+      kg_n_ha_rainfed,
+      kg_n_ha_irrigated,
+      rainfed_ha,
+      irrigated_ha,
+      rainfed_n_mg,
+      irrigated_n_mg
     )
 
   n_grid_path <- file.path(output_dir, "gridded_nitrogen.parquet")
@@ -453,13 +487,18 @@ if (file.exists(n_inputs_file)) {
       total_ha = rainfed_ha + irrigated_ha,
       kg_n_ha = dplyr::if_else(
         total_ha > 0,
-        (rainfed_n_mg + irrigated_n_mg) * 1000 / total_ha, 0
+        (rainfed_n_mg + irrigated_n_mg) * 1000 / total_ha,
+        0
       ),
       kg_n_ha_rainfed = dplyr::if_else(
-        rainfed_ha > 0, rainfed_n_mg * 1000 / rainfed_ha, 0
+        rainfed_ha > 0,
+        rainfed_n_mg * 1000 / rainfed_ha,
+        0
       ),
       kg_n_ha_irrigated = dplyr::if_else(
-        irrigated_ha > 0, irrigated_n_mg * 1000 / irrigated_ha, 0
+        irrigated_ha > 0,
+        irrigated_n_mg * 1000 / irrigated_ha,
+        0
       )
     )
 

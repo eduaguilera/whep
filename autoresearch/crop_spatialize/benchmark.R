@@ -26,7 +26,7 @@ l_files_dir <- "LPJmL_inputs"
 
 source("inst/scripts/prepare_spatialize_all.R")
 
-year_range <- 2000:2010L # METRIC pass: full range
+year_range <- 1850:2020L # METRIC pass: full range
 profile_years <- 2000:2002L # PROFILE pass: short slice, serial
 
 # ── Setup ───────────────────────────────────────────────────────────────────

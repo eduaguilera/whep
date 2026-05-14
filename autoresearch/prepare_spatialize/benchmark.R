@@ -74,15 +74,22 @@ time_section("s5_mirca_irrigation", {
 
 time_section("s4_gridded_cropland", {
   s4_result <- prepare_gridded_cropland(
-    l_files_dir, year_range, target_res,
-    output_dir = output_dir, country_grid = country_grid
+    l_files_dir,
+    year_range,
+    target_res,
+    output_dir = output_dir,
+    country_grid = country_grid
   )
   .save_parquet(s4_result$gridded, output_dir, "gridded_cropland")
 })
 
 time_section("s2_country_areas", {
   country_areas <- prepare_country_areas(
-    l_files_dir, year_range, country_grid, target_res, prod,
+    l_files_dir,
+    year_range,
+    country_grid,
+    target_res,
+    prod,
     luh2_totals = s4_result$luh2_totals
   )
   .save_parquet(country_areas, output_dir, "country_areas")
@@ -102,7 +109,11 @@ time_section("s3b_crop_fert_patterns", {
 
 time_section("s6_yield_inputs", {
   prepare_yield_inputs(
-    l_files_dir, output_dir, target_res, year_range = year_range, prod = prod
+    l_files_dir,
+    output_dir,
+    target_res,
+    year_range = year_range,
+    prod = prod
   )
 })
 
@@ -112,7 +123,11 @@ time_section("s7_nitrogen_inputs", {
 
 time_section("s8_livestock_inputs", {
   prepare_livestock_inputs(
-    l_files_dir, output_dir, year_range, target_res, prod = prod
+    l_files_dir,
+    output_dir,
+    year_range,
+    target_res,
+    prod = prod
   )
 })
 
@@ -173,7 +188,9 @@ for (target in targets) {
   for (line in lines) {
     fns <- strsplit(line, " ")[[1]]
     idx <- which(fns == paste0('"', target, '"'))
-    if (length(idx) == 0) next
+    if (length(idx) == 0) {
+      next
+    }
     for (j in idx) {
       if (j < length(fns)) {
         caller <- fns[j + 1]
@@ -189,7 +206,9 @@ for (target in targets) {
       caller_counts[[key]] <- (caller_counts[[key]] %||% 0L) + 1L
     }
   }
-  if (length(caller_counts) == 0) next
+  if (length(caller_counts) == 0) {
+    next
+  }
 
   counts <- unlist(caller_counts)
   counts <- sort(counts, decreasing = TRUE)

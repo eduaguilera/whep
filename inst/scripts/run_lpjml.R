@@ -25,66 +25,88 @@ main <- function() {
   input_path <- file.path(l_files_dir, "whep", "lpjml_inputs")
 
   # Must match the year_range used in prepare_spatialize_all.R
-  export_start <- 2000
-  export_end   <- 2001
+  export_start <- 1851
+  export_end <- 2021
 
   # HaNi deposition starts at 1851; these may differ from export_start/export_end
-  dep_start <- 2000
-  dep_end   <- 2001
+  dep_start <- 1851
+  dep_end <- 2021
 
-  simulation_start_year <- 2000
-  simulation_end_year   <- 2001
-  nspinup               <- 2
+  simulation_start_year <- 1901
+  simulation_end_year <- 2018
+  nspinup <- 200
 
   use_cores <- 24
 
   # ---- Verify inputs --------------------------------------------------
 
-  lu_name     <- .input_name("landuse/cft_default_cft_aggregation_30min_%d-%d.nc",
-                              export_start, export_end)
-  fert_name   <- .input_name("landuse/fert_N_default_cft_aggregation_30min_%d-%d.nc",
-                              export_start, export_end)
-  manure_name <- .input_name("landuse/manure_N_default_cft_aggregation_30min_%d-%d.nc",
-                              export_start, export_end)
-  nhx_name    <- .input_name("nitrogen/ndep_nhx_whep_annual_%d_%d.nc4",
-                              dep_start, dep_end)
-  noy_name    <- .input_name("nitrogen/ndep_noy_whep_annual_%d_%d.nc4",
-                              dep_start, dep_end)
-  lakes_name  <- "lakes_rivers/glwd_lakes_and_rivers_30arcmin.nc"
+  lu_name <- .input_name(
+    "landuse/cft_default_cft_aggregation_30min_%d-%d.nc",
+    export_start,
+    export_end
+  )
+  fert_name <- .input_name(
+    "landuse/fert_N_default_cft_aggregation_30min_%d-%d.nc",
+    export_start,
+    export_end
+  )
+  manure_name <- .input_name(
+    "landuse/manure_N_default_cft_aggregation_30min_%d-%d.nc",
+    export_start,
+    export_end
+  )
+  nhx_name <- .input_name(
+    "nitrogen/ndep_nhx_whep_annual_%d_%d.nc4",
+    dep_start,
+    dep_end
+  )
+  noy_name <- .input_name(
+    "nitrogen/ndep_noy_whep_annual_%d_%d.nc4",
+    dep_start,
+    dep_end
+  )
+  lakes_name <- "lakes_rivers/glwd_lakes_and_rivers_30arcmin.nc"
 
-  .check_inputs(input_path,
-                lu_name, fert_name, manure_name, nhx_name, noy_name, lakes_name)
+  .check_inputs(
+    input_path,
+    lu_name,
+    fert_name,
+    manure_name,
+    nhx_name,
+    noy_name,
+    lakes_name
+  )
 
   # ---- Build config params tibble -------------------------------------
 
   simulation_params <- tibble(
-    sim_name  = "scenario_1",
-    inpath    = input_path,
+    sim_name = "scenario_1",
+    inpath = input_path,
     firstyear = simulation_start_year,
-    lastyear  = simulation_end_year,
-    nspinup   = nspinup,
+    lastyear = simulation_end_year,
+    nspinup = nspinup,
     river_routing = TRUE,
-    landuse   = "yes",
+    landuse = "yes",
 
     # Year-dependent WHEP inputs — override input.cjson names
-    `input.landuse.name`       = lu_name,
+    `input.landuse.name` = lu_name,
     `input.fertilizer_nr.name` = fert_name,
-    `input.manure_nr.name`     = manure_name,
+    `input.manure_nr.name` = manure_name,
     `input.nh4deposition.name` = nhx_name,
     `input.no3deposition.name` = noy_name,
 
     # Lakes — WHEP writes NC; input.cjson updated to cdf/var="lakes"
     `input.lakes.name` = lakes_name,
-    `input.lakes.fmt`  = "cdf"
+    `input.lakes.fmt` = "cdf"
   )
 
   # ---- Write config and run LPJmL ------------------------------------
 
   cfg <- lpjmlkit::write_config(
-    x          = simulation_params,
+    x = simulation_params,
     model_path = model_path,
-    sim_path   = sim_path,
-    debug      = TRUE
+    sim_path = sim_path,
+    debug = TRUE
   )
 
   lpjmlkit::run_lpjml(
@@ -117,4 +139,6 @@ main <- function() {
 
 # ---- Entry point ------------------------------------------------------
 
-if (sys.nframe() == 0L) main()
+if (sys.nframe() == 0L) {
+  main()
+}
