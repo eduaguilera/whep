@@ -73,10 +73,12 @@ make_target_grid <- function() {
   lon <- seq(-179.75, 179.75, by = 0.5)
   lat <- seq(83.75, -59.25, by = -0.5)
   list(
-    lon = lon, lat = lat,
+    lon = lon,
+    lat = lat,
     lon_key = sprintf("%.2f", lon),
     lat_key = sprintf("%.2f", lat),
-    nlon = length(lon), nlat = length(lat)
+    nlon = length(lon),
+    nlat = length(lat)
   )
 }
 
@@ -96,42 +98,66 @@ coord_to_rowcol <- function(dt, grid) {
   dt[row >= 1L & row <= nlat & col >= 1L & col <= nlon]
 }
 
-.pft_nc_create <- function(path, var_name, long_name, units, grid, pft_vals,
-                            years) {
-  npft  <- length(pft_vals)
-  dlon  <- ncdim_def("longitude", "degrees_east",  vals = grid$lon)
-  dlat  <- ncdim_def("latitude",  "degrees_north", vals = grid$lat)
-  dpft  <- ncdim_def("pft", "plant functional types", vals = pft_vals)
+.pft_nc_create <- function(
+  path,
+  var_name,
+  long_name,
+  units,
+  grid,
+  pft_vals,
+  years
+) {
+  npft <- length(pft_vals)
+  dlon <- ncdim_def("longitude", "degrees_east", vals = grid$lon)
+  dlat <- ncdim_def("latitude", "degrees_north", vals = grid$lat)
+  dpft <- ncdim_def("pft", "plant functional types", vals = pft_vals)
   dtime <- ncdim_def("time", "years since 0000-1-1 0:0:0", vals = years)
   v <- ncvar_def(
-    var_name, units, list(dlon, dlat, dpft, dtime),
-    missval = -1.175494e+38, longname = long_name,
-    prec = "float", compression = 4,
+    var_name,
+    units,
+    list(dlon, dlat, dpft, dtime),
+    missval = -1.175494e+38,
+    longname = long_name,
+    prec = "float",
+    compression = 4,
     chunksizes = c(grid$nlon, grid$nlat, npft, 1L)
   )
   nc <- nc_create(path, vars = list(v), force_v4 = TRUE)
   list(nc = nc, var = v)
 }
 
-.pft_nc_write_chunk <- function(nc_info, data_dt, yr_chunk, all_years, grid,
-                                 npft) {
+.pft_nc_write_chunk <- function(
+  nc_info,
+  data_dt,
+  yr_chunk,
+  all_years,
+  grid,
+  npft
+) {
   m4 <- array(0, dim = c(grid$nlon, grid$nlat, npft, length(yr_chunk)))
   if (nrow(data_dt) > 0L) {
-    ti   <- match(data_dt$year, yr_chunk)
-    pi   <- data_dt$pft
-    flat <- (ti - 1L) * grid$nlon * grid$nlat * npft +
-            (pi - 1L) * grid$nlon * grid$nlat +
-            (data_dt$row - 1L) * grid$nlon + data_dt$col
+    ti <- match(data_dt$year, yr_chunk)
+    pi <- data_dt$pft
+    flat <- (ti - 1L) *
+      grid$nlon *
+      grid$nlat *
+      npft +
+      (pi - 1L) * grid$nlon * grid$nlat +
+      (data_dt$row - 1L) * grid$nlon +
+      data_dt$col
     m4[flat] <- data_dt$value
   }
   t_start <- match(yr_chunk[1L], all_years)
-  ncvar_put(nc_info$nc, nc_info$var, m4,
-            start = c(1L, 1L, 1L, t_start),
-            count = c(grid$nlon, grid$nlat, npft, length(yr_chunk)))
+  ncvar_put(
+    nc_info$nc,
+    nc_info$var,
+    m4,
+    start = c(1L, 1L, 1L, t_start),
+    count = c(grid$nlon, grid$nlat, npft, length(yr_chunk))
+  )
 }
 
-.nc_finalise <- function(nc_info,
-                          creator = "WHEP prepare_spatialize_all.R") {
+.nc_finalise <- function(nc_info, creator = "WHEP prepare_spatialize_all.R") {
   ncatt_put(nc_info$nc, 0, "Conventions", "CF-1.8")
   ncatt_put(nc_info$nc, 0, "created_by", creator)
   ncatt_put(nc_info$nc, 0, "created_date", as.character(Sys.time()))
@@ -140,63 +166,95 @@ coord_to_rowcol <- function(dt, grid) {
 
 `%||%` <- function(x, y) if (is.null(x) || length(x) == 0L) y else x
 
-new_slice <- function(nlon, nlat, fill = 0) matrix(fill, nrow = nlon, ncol = nlat)
+new_slice <- function(nlon, nlat, fill = 0) {
+  matrix(fill, nrow = nlon, ncol = nlat)
+}
 
 lat_idx_of <- function(lat) as.integer(round((83.75 - lat) / 0.5))
 lon_idx_of <- function(lon) as.integer(round((lon + 179.75) / 0.5))
-flat_of    <- function(lon, lat, nlon_g) lat_idx_of(lat) * nlon_g + lon_idx_of(lon)
+flat_of <- function(lon, lat, nlon_g) lat_idx_of(lat) * nlon_g + lon_idx_of(lon)
 
 haver_m <- function(lo1, la1, lo2, la2) {
   r <- 6371000
-  p1 <- la1 * pi / 180; p2 <- la2 * pi / 180
-  dp <- (la2 - la1) * pi / 180; dl <- (lo2 - lo1) * pi / 180
-  a  <- sin(dp / 2)^2 + cos(p1) * cos(p2) * sin(dl / 2)^2
+  p1 <- la1 * pi / 180
+  p2 <- la2 * pi / 180
+  dp <- (la2 - la1) * pi / 180
+  dl <- (lo2 - lo1) * pi / 180
+  a <- sin(dp / 2)^2 + cos(p1) * cos(p2) * sin(dl / 2)^2
   2 * r * asin(pmin(sqrt(a), 1))
 }
 
 write_nc_2d <- function(
-  path, var_name, long_name, units, values_lon_lat, lon, lat,
-  prec = "float", missval = -1.175494e+38
+  path,
+  var_name,
+  long_name,
+  units,
+  values_lon_lat,
+  lon,
+  lat,
+  prec = "float",
+  missval = -1.175494e+38
 ) {
-  dlon <- ncdim_def("longitude", "degrees_east",  vals = lon)
-  dlat <- ncdim_def("latitude",  "degrees_north", vals = lat)
+  dlon <- ncdim_def("longitude", "degrees_east", vals = lon)
+  dlat <- ncdim_def("latitude", "degrees_north", vals = lat)
   v <- ncvar_def(
-    name = var_name, units = units, dim = list(dlon, dlat),
-    missval = missval, longname = long_name, prec = prec, compression = 4
+    name = var_name,
+    units = units,
+    dim = list(dlon, dlat),
+    missval = missval,
+    longname = long_name,
+    prec = prec,
+    compression = 4
   )
   nc <- nc_create(path, vars = list(v), force_v4 = TRUE)
   on.exit(nc_close(nc), add = TRUE)
-  ncvar_put(nc, v, values_lon_lat,
-            start = c(1, 1), count = c(length(lon), length(lat)))
+  ncvar_put(
+    nc,
+    v,
+    values_lon_lat,
+    start = c(1, 1),
+    count = c(length(lon), length(lat))
+  )
   ncatt_put(nc, 0, "Conventions", "CF-1.8")
   ncatt_put(nc, 0, "created_by", "WHEP prepare_spatialize_all.R")
   ncatt_put(nc, 0, "created_date", as.character(Sys.time()))
 }
 
-.write_dep_monthly <- function(out_path, var_name, value_col, grid,
-                                dep_monthly, time_vals) {
+.write_dep_monthly <- function(
+  out_path,
+  var_name,
+  value_col,
+  grid,
+  dep_monthly,
+  time_vals
+) {
   ntime <- length(time_vals)
-  nlon  <- grid$nlon
-  nlat  <- grid$nlat
-  dlon  <- ncdim_def("longitude", "degrees_east",  vals = grid$lon)
-  dlat  <- ncdim_def("latitude",  "degrees_north", vals = grid$lat)
+  nlon <- grid$nlon
+  nlat <- grid$nlat
+  dlon <- ncdim_def("longitude", "degrees_east", vals = grid$lon)
+  dlat <- ncdim_def("latitude", "degrees_north", vals = grid$lat)
   dtime <- ncdim_def(
-    "time", "months since 0000-1-1 0:0:0", vals = time_vals, unlim = FALSE
+    "time",
+    "months since 0000-1-1 0:0:0",
+    vals = time_vals,
+    unlim = FALSE
   )
   v <- ncvar_def(
-    name = var_name, units = "g/m2/day", dim = list(dlon, dlat, dtime),
+    name = var_name,
+    units = "g/m2/day",
+    dim = list(dlon, dlat, dtime),
     missval = -1.175494e+38,
     longname = sprintf("%s deposition (WHEP/HaNi)", var_name),
-    prec = "float", compression = 4
+    prec = "float",
+    compression = 4
   )
   cli::cli_alert_info("Building {var_name} array ({ntime} months)...")
-  m3     <- array(0, dim = c(nlon, nlat, ntime))
+  m3 <- array(0, dim = c(nlon, nlat, ntime))
   ti_idx <- match(dep_monthly$time_idx, time_vals)
-  valid  <- !is.na(ti_idx)
+  valid <- !is.na(ti_idx)
   if (any(valid)) {
-    sub  <- dep_monthly[valid, ]
-    flat <- (ti_idx[valid] - 1L) * nlon * nlat +
-            (sub$row - 1L) * nlon + sub$col
+    sub <- dep_monthly[valid, ]
+    flat <- (ti_idx[valid] - 1L) * nlon * nlat + (sub$row - 1L) * nlon + sub$col
     m3[flat] <- sub[[value_col]]
   }
   cli::cli_alert_info("Writing {var_name} NetCDF...")
@@ -217,31 +275,46 @@ write_nc_2d <- function(
 
 .downstream_vec <- function(start, nextcell, max_steps = 60L) {
   out <- integer(max_steps)
-  n   <- 0L
+  n <- 0L
   cur <- nextcell[start]
   while (cur > 0L && n < max_steps) {
-    n <- n + 1L; out[n] <- cur; cur <- nextcell[cur]
+    n <- n + 1L
+    out[n] <- cur
+    cur <- nextcell[cur]
   }
   out[seq_len(n)]
 }
 
 .upstream_vec <- function(start, parents_list, max_steps = 60L) {
   out <- integer(max_steps)
-  n   <- 0L
-  q   <- parents_list[[start]]
+  n <- 0L
+  q <- parents_list[[start]]
   while (length(q) > 0L && n < max_steps) {
-    cur <- q[1L]; q <- q[-1L]; n <- n + 1L; out[n] <- cur
+    cur <- q[1L]
+    q <- q[-1L]
+    n <- n + 1L
+    out[n] <- cur
     q <- c(q, parents_list[[cur]])
   }
   out[seq_len(n)]
 }
 
 cft_to_pft <- c(
-  temperate_cereals = 1L, rice = 2L, maize = 3L, tropical_cereals = 4L,
-  pulses = 5L, temperate_roots = 6L, tropical_roots = 7L,
-  oil_crops_sunflower = 8L, oil_crops_soybean = 9L,
-  oil_crops_groundnut = 10L, oil_crops_rapeseed = 11L, sugarcane = 12L,
-  others_annual = 13L, others_perennial = 13L, oil_crops_other = 13L
+  temperate_cereals = 1L,
+  rice = 2L,
+  maize = 3L,
+  tropical_cereals = 4L,
+  pulses = 5L,
+  temperate_roots = 6L,
+  tropical_roots = 7L,
+  oil_crops_sunflower = 8L,
+  oil_crops_soybean = 9L,
+  oil_crops_groundnut = 10L,
+  oil_crops_rapeseed = 11L,
+  sugarcane = 12L,
+  others_annual = 13L,
+  others_perennial = 13L,
+  oil_crops_other = 13L
 )
 
 # ---- Find extdata file (inst/ or installed package) --------------------
@@ -1049,7 +1122,12 @@ prepare_gridded_cropland <- function(
 .mirca_expand_aggregate <- function(gridded_mirca, mirca_to_fao) {
   dt <- data.table::as.data.table(gridded_mirca)
   map_dt <- data.table::as.data.table(mirca_to_fao)
-  expanded <- map_dt[dt, on = "mirca_class", allow.cartesian = TRUE, nomatch = NULL]
+  expanded <- map_dt[
+    dt,
+    on = "mirca_class",
+    allow.cartesian = TRUE,
+    nomatch = NULL
+  ]
 
   country <- expanded[,
     .(
@@ -1060,7 +1138,11 @@ prepare_gridded_cropland <- function(
   ]
   country[, total_ha := total_irrig_ha + total_rainfed_ha]
   country[,
-    irrig_frac := data.table::fifelse(total_ha > 0, total_irrig_ha / total_ha, 0)
+    irrig_frac := data.table::fifelse(
+      total_ha > 0,
+      total_irrig_ha / total_ha,
+      0
+    )
   ]
   country[, c("total_irrig_ha", "total_rainfed_ha", "total_ha") := NULL]
 
@@ -1152,11 +1234,17 @@ prepare_gridded_cropland <- function(
     return(NULL)
   }
   irrig_r <- .mirca_read_binary(
-    irrig_path, dims$ncols, dims$nrows, dims$nmonths
+    irrig_path,
+    dims$ncols,
+    dims$nrows,
+    dims$nmonths
   ) |>
     .mirca_aggregate(target_res)
   rain_r <- .mirca_read_binary(
-    rain_path, dims$ncols, dims$nrows, dims$nmonths
+    rain_path,
+    dims$ncols,
+    dims$nrows,
+    dims$nmonths
   ) |>
     .mirca_aggregate(target_res)
   irrig_tbl <- .raster_to_tibble(irrig_r, "irrig_ha") |>
@@ -2697,9 +2785,9 @@ prepare_hydrology_inputs <- function(l_files_dir, output_dir, lpjml_out_dir) {
   country_grid <- nanoparquet::read_parquet(
     file.path(output_dir, "country_grid.parquet")
   )
-  grid          <- make_target_grid()
-  grand_dir     <- file.path(l_files_dir, "GIS", "Global dams")
-  glwd_dir      <- file.path(l_files_dir, "GLWD")
+  grid <- make_target_grid()
+  grand_dir <- file.path(l_files_dir, "GIS", "Global dams")
+  glwd_dir <- file.path(l_files_dir, "GLWD")
   drainage_paths <- c(
     file.path(l_files_dir, "DRT", "DRT_half_FDR_globe.asc"),
     file.path(l_files_dir, "DDM30", "ddm30.asc")
@@ -2826,8 +2914,12 @@ prepare_hydrology_inputs <- function(l_files_dir, output_dir, lpjml_out_dir) {
   }
 
   # ---- Lakes & Rivers ----
-  .prepare_lakes_rivers <- function(country_grid, glwd_dir, lpjml_out_dir,
-                                    grid) {
+  .prepare_lakes_rivers <- function(
+    country_grid,
+    glwd_dir,
+    lpjml_out_dir,
+    grid
+  ) {
     cli::cli_alert_info("Lakes & Rivers (GLWD)")
     glwd_path <- NULL
     glwd_version <- NULL
@@ -2897,23 +2989,33 @@ prepare_hydrology_inputs <- function(l_files_dir, output_dir, lpjml_out_dir) {
     lr_tbl <- country_grid |>
       select(lon, lat) |>
       mutate(
-        lake_fraction  = round(replace(lake_vals, is.na(lake_vals), 0), 6),
+        lake_fraction = round(replace(lake_vals, is.na(lake_vals), 0), 6),
         river_fraction = round(replace(river_vals, is.na(river_vals), 0), 6)
       )
     lr_dt <- coord_to_rowcol(data.table::as.data.table(lr_tbl), grid)
     m_lakes <- new_slice(grid$nlon, grid$nlat, fill = 0)
     m_lakes[cbind(lr_dt$col, lr_dt$row)] <- pmin(
-      1, pmax(0, lr_dt$lake_fraction + lr_dt$river_fraction)
+      1,
+      pmax(0, lr_dt$lake_fraction + lr_dt$river_fraction)
     )
     dir.create(
-      file.path(lpjml_out_dir, "lakes_rivers"), recursive = TRUE,
+      file.path(lpjml_out_dir, "lakes_rivers"),
+      recursive = TRUE,
       showWarnings = FALSE
     )
     write_nc_2d(
-      file.path(lpjml_out_dir, "lakes_rivers",
-                "glwd_lakes_and_rivers_30arcmin.nc"),
-      "lakes", "Lake and river fraction", "1",
-      m_lakes, grid$lon, grid$lat, prec = "float"
+      file.path(
+        lpjml_out_dir,
+        "lakes_rivers",
+        "glwd_lakes_and_rivers_30arcmin.nc"
+      ),
+      "lakes",
+      "Lake and river fraction",
+      "1",
+      m_lakes,
+      grid$lon,
+      grid$lat,
+      prec = "float"
     )
   }
 
@@ -2974,8 +3076,12 @@ prepare_hydrology_inputs <- function(l_files_dir, output_dir, lpjml_out_dir) {
   invisible(drainage_dt)
 }
 
-prepare_soil_inputs <- function(l_files_dir, output_dir, lpjml_out_dir,
-                               target_res = 0.5) {
+prepare_soil_inputs <- function(
+  l_files_dir,
+  output_dir,
+  lpjml_out_dir,
+  target_res = 0.5
+) {
   cli::cli_h2("Section 9b: Soil inputs (HWSD)")
 
   hwsd_dir <- file.path(l_files_dir, "HWSD")
@@ -3148,26 +3254,40 @@ prepare_soil_inputs <- function(l_files_dir, output_dir, lpjml_out_dir,
   soil_grid <- soil_grid |>
     inner_join(country_grid |> select(lon, lat), by = c("lon", "lat"))
 
-  grid    <- make_target_grid()
+  grid <- make_target_grid()
   soil_dt <- coord_to_rowcol(data.table::as.data.table(soil_grid), grid)
   dir.create(
-    file.path(lpjml_out_dir, "soil"), recursive = TRUE, showWarnings = FALSE
+    file.path(lpjml_out_dir, "soil"),
+    recursive = TRUE,
+    showWarnings = FALSE
   )
 
   m_soil_type <- new_slice(grid$nlon, grid$nlat, fill = NA_real_)
-  m_soil_type[cbind(soil_dt$col, soil_dt$row)] <- as.numeric(soil_dt$soil_texture_code)
+  m_soil_type[cbind(soil_dt$col, soil_dt$row)] <- as.numeric(
+    soil_dt$soil_texture_code
+  )
   write_nc_2d(
     file.path(lpjml_out_dir, "soil", "soil_30arcmin_13_types.nc"),
-    "soil_type", "USDA soil texture class (1-13)", "index",
-    m_soil_type, grid$lon, grid$lat, prec = "float"
+    "soil_type",
+    "USDA soil texture class (1-13)",
+    "index",
+    m_soil_type,
+    grid$lon,
+    grid$lat,
+    prec = "float"
   )
 
   m_soil_ph <- new_slice(grid$nlon, grid$nlat, fill = NA_real_)
   m_soil_ph[cbind(soil_dt$col, soil_dt$row)] <- as.numeric(soil_dt$soil_ph)
   write_nc_2d(
     file.path(lpjml_out_dir, "soil", "soil_pH_30arcmin.nc"),
-    "soil_pH", "Top-soil pH", "pH",
-    m_soil_ph, grid$lon, grid$lat, prec = "float"
+    "soil_pH",
+    "Top-soil pH",
+    "pH",
+    m_soil_ph,
+    grid$lon,
+    grid$lat,
+    prec = "float"
   )
 
   cli::cli_alert_success("Soil inputs complete")
@@ -3179,27 +3299,35 @@ prepare_soil_inputs <- function(l_files_dir, output_dir, lpjml_out_dir,
 write_lpjml_static_inputs <- function(
   input_dir,
   lpjml_out_dir,
-  drainage_dt  = NULL,
+  drainage_dt = NULL,
   export_years = NULL,
-  climate_dir  = NULL
+  climate_dir = NULL
 ) {
   cli::cli_h2("Section 10a: Write static LPJmL inputs to NetCDF")
 
   lpjml_dirs <- c(
-    "climate", "gadm", "lakes_rivers", "landuse", "nitrogen",
-    "river_routing", "soil"
+    "climate",
+    "gadm",
+    "lakes_rivers",
+    "landuse",
+    "nitrogen",
+    "river_routing",
+    "soil"
   )
   for (d in lpjml_dirs) {
-    dir.create(file.path(lpjml_out_dir, d), recursive = TRUE,
-               showWarnings = FALSE)
+    dir.create(
+      file.path(lpjml_out_dir, d),
+      recursive = TRUE,
+      showWarnings = FALSE
+    )
   }
 
-  grid   <- make_target_grid()
+  grid <- make_target_grid()
   nlon_g <- grid$nlon
   nlat_g <- grid$nlat
 
-  ddm_dlon       <- c(0, 0.5, 0.5, 0, -0.5, -0.5, -0.5, 0, 0.5)
-  ddm_dlat       <- c(0, 0, -0.5, -0.5, -0.5, 0, 0.5, 0.5, 0.5)
+  ddm_dlon <- c(0, 0.5, 0.5, 0, -0.5, -0.5, -0.5, 0, 0.5)
+  ddm_dlat <- c(0, 0, -0.5, -0.5, -0.5, 0, 0.5, 0.5, 0.5)
   search_radius_m <- 75000
 
   # ---- 1) GADM-like static grids ------------------------------------------
@@ -3227,8 +3355,13 @@ write_lpjml_static_inputs <- function(
     write_nc_2d(
       file.path(lpjml_out_dir, "gadm", "cow_gadm_30arcmin.nc"),
       "countrycode",
-      "LPJmL country index (per managepar.h) mapped to grid", "index",
-      m_country, grid$lon, grid$lat, prec = "integer", missval = -9999L
+      "LPJmL country index (per managepar.h) mapped to grid",
+      "index",
+      m_country,
+      grid$lon,
+      grid$lat,
+      prec = "integer",
+      missval = -9999L
     )
 
     m_coord <- new_slice(grid$nlon, grid$nlat, fill = 0L)
@@ -3236,16 +3369,27 @@ write_lpjml_static_inputs <- function(
     m_coord[cbind(cg$col[ord], cg$row[ord])] <- seq_len(nrow(cg))
     write_nc_2d(
       file.path(lpjml_out_dir, "gadm", "grid_gadm_30arcmin.nc"),
-      "coord", "Land-cell index on LPJmL grid", "index",
-      m_coord, grid$lon, grid$lat, prec = "integer", missval = -9999L
+      "coord",
+      "Land-cell index on LPJmL grid",
+      "index",
+      m_coord,
+      grid$lon,
+      grid$lat,
+      prec = "integer",
+      missval = -9999L
     )
 
     m_landfrac <- new_slice(grid$nlon, grid$nlat, fill = 0)
     m_landfrac[cbind(cg$col, cg$row)] <- 1
     write_nc_2d(
       file.path(lpjml_out_dir, "gadm", "landfrac_gadm_30arcmin.nc"),
-      "landfrac", "Land fraction (binary from country grid)", "1",
-      m_landfrac, grid$lon, grid$lat, prec = "float"
+      "landfrac",
+      "Land fraction (binary from country grid)",
+      "1",
+      m_landfrac,
+      grid$lon,
+      grid$lat,
+      prec = "float"
     )
     cli::cli_alert_success("GADM: done")
   } else {
@@ -3269,25 +3413,39 @@ write_lpjml_static_inputs <- function(
     dr[, riverlen := 0]
     dr[nx_flat != -1L, riverlen := haver_m(lon, lat, nx_lon, nx_lat)]
 
-    m_index    <- matrix(-9999L, nrow = nlon_g, ncol = nlat_g)
-    m_riverlen <- matrix(0,      nrow = nlon_g, ncol = nlat_g)
+    m_index <- matrix(-9999L, nrow = nlon_g, ncol = nlat_g)
+    m_riverlen <- matrix(0, nrow = nlon_g, ncol = nlat_g)
     dr_rc <- coord_to_rowcol(dr, grid)
-    m_index[cbind(dr_rc$col,    dr_rc$row)] <- dr_rc$nx_flat
+    m_index[cbind(dr_rc$col, dr_rc$row)] <- dr_rc$nx_flat
     m_riverlen[cbind(dr_rc$col, dr_rc$row)] <- dr_rc$riverlen
 
     out_drain <- file.path(lpjml_out_dir, "river_routing", "river_routing.nc")
-    dlon_dim   <- ncdim_def("longitude", "degrees_east",  grid$lon)
-    dlat_dim   <- ncdim_def("latitude",  "degrees_north", grid$lat)
-    v_index    <- ncvar_def("index", "1", list(dlon_dim, dlat_dim),
-                            missval = -9999L,
-                            longname = "Flat 2D index of downstream cell",
-                            prec = "integer", compression = 4)
-    v_riverlen <- ncvar_def("riverlen", "m", list(dlon_dim, dlat_dim),
-                            missval = -9999,
-                            longname = "River length to downstream cell (m)",
-                            prec = "float", compression = 4)
-    nc <- nc_create(out_drain, vars = list(v_index, v_riverlen), force_v4 = TRUE)
-    ncvar_put(nc, v_index,    m_index)
+    dlon_dim <- ncdim_def("longitude", "degrees_east", grid$lon)
+    dlat_dim <- ncdim_def("latitude", "degrees_north", grid$lat)
+    v_index <- ncvar_def(
+      "index",
+      "1",
+      list(dlon_dim, dlat_dim),
+      missval = -9999L,
+      longname = "Flat 2D index of downstream cell",
+      prec = "integer",
+      compression = 4
+    )
+    v_riverlen <- ncvar_def(
+      "riverlen",
+      "m",
+      list(dlon_dim, dlat_dim),
+      missval = -9999,
+      longname = "River length to downstream cell (m)",
+      prec = "float",
+      compression = 4
+    )
+    nc <- nc_create(
+      out_drain,
+      vars = list(v_index, v_riverlen),
+      force_v4 = TRUE
+    )
+    ncvar_put(nc, v_index, m_index)
     ncvar_put(nc, v_riverlen, m_riverlen)
     ncatt_put(nc, 0, "Conventions", "CF-1.8")
     ncatt_put(nc, 0, "created_by", "WHEP prepare_spatialize_all.R")
@@ -3302,9 +3460,11 @@ write_lpjml_static_inputs <- function(
 
   # ---- 4) Irrigation neighbour index --------------------------------------
   if (!is.null(drainage_dt) && file.exists(country_grid_file)) {
-    cli::cli_alert_info("Neighbour irrig: parallel search (radius {search_radius_m} m)...")
+    cli::cli_alert_info(
+      "Neighbour irrig: parallel search (radius {search_radius_m} m)..."
+    )
     dr_n <- data.table::as.data.table(drainage_dt)
-    cgi  <- data.table::as.data.table(
+    cgi <- data.table::as.data.table(
       nanoparquet::read_parquet(country_grid_file)
     )
     cgi <- dr_n[cgi, on = c("lon", "lat")]
@@ -3312,75 +3472,119 @@ write_lpjml_static_inputs <- function(
     N <- nrow(cgi)
 
     cgi[, flat_idx := flat_of(lon, lat, nlon_g)]
-    lon_all  <- cgi$lon; lat_all <- cgi$lat; flat_all <- cgi$flat_idx
+    lon_all <- cgi$lon
+    lat_all <- cgi$lat
+    flat_all <- cgi$flat_idx
 
     grid_lookup <- matrix(-1L, nrow = nlon_g, ncol = nlat_g)
     grid_lookup[cbind(lon_idx_of(lon_all) + 1L, lat_idx_of(lat_all) + 1L)] <-
       cgi$cell
 
     nextcell <- integer(N)
-    ddir     <- cgi[!is.na(flow_direction) & flow_direction > 0L]
-    nx_lon   <- round((ddir$lon + ddm_dlon[ddir$flow_direction + 1L]) * 2) / 2
-    nx_lat   <- round((ddir$lat + ddm_dlat[ddir$flow_direction + 1L]) * 2) / 2
-    nx_loi   <- lon_idx_of(nx_lon) + 1L
-    nx_li    <- lat_idx_of(nx_lat) + 1L
+    ddir <- cgi[!is.na(flow_direction) & flow_direction > 0L]
+    nx_lon <- round((ddir$lon + ddm_dlon[ddir$flow_direction + 1L]) * 2) / 2
+    nx_lat <- round((ddir$lat + ddm_dlat[ddir$flow_direction + 1L]) * 2) / 2
+    nx_loi <- lon_idx_of(nx_lon) + 1L
+    nx_li <- lat_idx_of(nx_lat) + 1L
     in_bounds <- nx_loi >= 1L & nx_loi <= nlon_g & nx_li >= 1L & nx_li <= nlat_g
-    nx_cell  <- integer(nrow(ddir))
-    nx_cell[in_bounds] <- grid_lookup[cbind(nx_loi[in_bounds], nx_li[in_bounds])]
+    nx_cell <- integer(nrow(ddir))
+    nx_cell[in_bounds] <- grid_lookup[cbind(
+      nx_loi[in_bounds],
+      nx_li[in_bounds]
+    )]
     nextcell[ddir$cell] <- pmax(nx_cell, 0L)
 
-    in_deg         <- tabulate(nextcell[nextcell > 0L], nbins = N)
+    in_deg <- tabulate(nextcell[nextcell > 0L], nbins = N)
     upstream_count <- rep(1L, N)
     queue <- which(in_deg == 0L)
-    qi    <- 1L
+    qi <- 1L
     while (qi <= length(queue)) {
-      ci     <- queue[qi]; qi <- qi + 1L
+      ci <- queue[qi]
+      qi <- qi + 1L
       parent <- nextcell[ci]
       if (parent > 0L) {
         upstream_count[parent] <- upstream_count[parent] + upstream_count[ci]
-        in_deg[parent]         <- in_deg[parent] - 1L
+        in_deg[parent] <- in_deg[parent] - 1L
         if (in_deg[parent] == 0L) queue <- c(queue, parent)
       }
     }
 
     parents_list <- vector("list", N)
-    valid_nc     <- which(nextcell > 0L)
-    tmp          <- split(valid_nc, nextcell[valid_nc])
+    valid_nc <- which(nextcell > 0L)
+    tmp <- split(valid_nc, nextcell[valid_nc])
     parents_list[as.integer(names(tmp))] <- tmp
 
-    search_cells   <- ceiling(search_radius_m / (111111 * 0.5)) + 1L
-    ncores         <- parallel::detectCores(logical = FALSE) %||% 1L
-    neighbour_flat <- unlist(parallel::mclapply(seq_len(N), function(i) {
-      loi0  <- lon_idx_of(lon_all[i]) + 1L
-      li0   <- lat_idx_of(lat_all[i]) + 1L
-      loi_r <- seq(max(1L, loi0 - search_cells), min(nlon_g, loi0 + search_cells))
-      li_r  <- seq(max(1L, li0  - search_cells), min(nlat_g, li0  + search_cells))
-      cands <- as.integer(grid_lookup[loi_r, li_r])
-      cands <- cands[cands > 0L & cands != i]
-      if (length(cands) == 0L) return(flat_all[i])
-      dist_m <- haver_m(lon_all[i], lat_all[i], lon_all[cands], lat_all[cands])
-      keep   <- dist_m <= search_radius_m
-      cands  <- cands[keep]; dist_m <- dist_m[keep]
-      if (length(cands) == 0L) return(flat_all[i])
-      excl  <- c(.downstream_vec(i, nextcell), .upstream_vec(i, parents_list))
-      cands <- cands[!cands %in% excl]
-      if (length(cands) == 0L) return(flat_all[i])
-      dist_m <- haver_m(lon_all[i], lat_all[i], lon_all[cands], lat_all[cands])
-      best   <- cands[which.max(upstream_count[cands] / dist_m^2)]
-      flat_all[best]
-    }, mc.cores = ncores), use.names = FALSE)
+    search_cells <- ceiling(search_radius_m / (111111 * 0.5)) + 1L
+    ncores <- parallel::detectCores(logical = FALSE) %||% 1L
+    neighbour_flat <- unlist(
+      parallel::mclapply(
+        seq_len(N),
+        function(i) {
+          loi0 <- lon_idx_of(lon_all[i]) + 1L
+          li0 <- lat_idx_of(lat_all[i]) + 1L
+          loi_r <- seq(
+            max(1L, loi0 - search_cells),
+            min(nlon_g, loi0 + search_cells)
+          )
+          li_r <- seq(
+            max(1L, li0 - search_cells),
+            min(nlat_g, li0 + search_cells)
+          )
+          cands <- as.integer(grid_lookup[loi_r, li_r])
+          cands <- cands[cands > 0L & cands != i]
+          if (length(cands) == 0L) {
+            return(flat_all[i])
+          }
+          dist_m <- haver_m(
+            lon_all[i],
+            lat_all[i],
+            lon_all[cands],
+            lat_all[cands]
+          )
+          keep <- dist_m <= search_radius_m
+          cands <- cands[keep]
+          dist_m <- dist_m[keep]
+          if (length(cands) == 0L) {
+            return(flat_all[i])
+          }
+          excl <- c(
+            .downstream_vec(i, nextcell),
+            .upstream_vec(i, parents_list)
+          )
+          cands <- cands[!cands %in% excl]
+          if (length(cands) == 0L) {
+            return(flat_all[i])
+          }
+          dist_m <- haver_m(
+            lon_all[i],
+            lat_all[i],
+            lon_all[cands],
+            lat_all[cands]
+          )
+          best <- cands[which.max(upstream_count[cands] / dist_m^2)]
+          flat_all[best]
+        },
+        mc.cores = ncores
+      ),
+      use.names = FALSE
+    )
 
     m_neighbour <- matrix(-9999L, nrow = nlon_g, ncol = nlat_g)
     m_neighbour[cbind(lon_idx_of(lon_all) + 1L, lat_idx_of(lat_all) + 1L)] <-
       neighbour_flat
     out_neighbour <- file.path(
-      lpjml_out_dir, "river_routing",
+      lpjml_out_dir,
+      "river_routing",
       "neighbour_irrig_30arcmin_75000m_radius_exclude_downstream_exclude_upstream_idw.nc"
     )
     v_neigh <- ncvar_def(
-      "neighbour", "index", list(dlon_dim, dlat_dim), missval = -9999L,
+      "neighbour",
+      "index",
+      list(dlon_dim, dlat_dim),
+      missval = -9999L,
       longname = "Flat 2D index of irrigation neighbour cell",
-      prec = "integer", compression = 4
+      prec = "integer",
+      compression = 4
     )
     nc_neigh <- nc_create(out_neighbour, vars = list(v_neigh), force_v4 = TRUE)
     ncvar_put(nc_neigh, v_neigh, m_neighbour)
@@ -3393,14 +3597,16 @@ write_lpjml_static_inputs <- function(
       "Neighbour irrig: {sum(neighbour_flat != flat_all)} non-self assignments"
     )
   } else {
-    cli::cli_warn("Neighbour irrig: missing drainage or country_grid — skipping")
+    cli::cli_warn(
+      "Neighbour irrig: missing drainage or country_grid — skipping"
+    )
   }
 
   # ---- 8) NHx / NOy deposition --------------------------------------------
   dep_file <- file.path(input_dir, "n_deposition.parquet")
   if (file.exists(dep_file)) {
     cli::cli_alert_info("Deposition: reading {.path {dep_file}}")
-    dep        <- .filter_years(
+    dep <- .filter_years(
       data.table::as.data.table(nanoparquet::read_parquet(dep_file)),
       export_years
     )
@@ -3411,10 +3617,12 @@ write_lpjml_static_inputs <- function(
       cg_dep <- data.table::as.data.table(
         nanoparquet::read_parquet(country_grid_file)
       )
-      cg_dep    <- coord_to_rowcol(cg_dep, grid)
+      cg_dep <- coord_to_rowcol(cg_dep, grid)
       dep_cells <- merge(
-        dep, cg_dep[, .(area_code, row, col)],
-        by = "area_code", allow.cartesian = TRUE
+        dep,
+        cg_dep[, .(area_code, row, col)],
+        by = "area_code",
+        allow.cartesian = TRUE
       )
     }
     has_split <- all(c("nhx", "noy") %in% names(dep_cells))
@@ -3424,24 +3632,57 @@ write_lpjml_static_inputs <- function(
     } else {
       dep_cells[, value_nhx := deposit_kg_n_ha * 0.1 / 365 * 0.5]
       dep_cells[, value_noy := deposit_kg_n_ha * 0.1 / 365 * 0.5]
-      cli::cli_warn("nhx/noy columns absent in deposition — using 50/50 fallback")
+      cli::cli_warn(
+        "nhx/noy columns absent in deposition — using 50/50 fallback"
+      )
     }
-    years_d     <- sort(unique(dep_cells$year))
-    month_grid  <- data.table::CJ(year = years_d, month = 1L:12L)
-    dep_monthly <- merge(month_grid, dep_cells, by = "year", allow.cartesian = TRUE)
+    years_d <- sort(unique(dep_cells$year))
+    month_grid <- data.table::CJ(year = years_d, month = 1L:12L)
+    dep_monthly <- merge(
+      month_grid,
+      dep_cells,
+      by = "year",
+      allow.cartesian = TRUE
+    )
     dep_monthly[, time_idx := (year * 12L) + (month - 1L)]
-    time_vals   <- sort(unique(dep_monthly$time_idx))
+    time_vals <- sort(unique(dep_monthly$time_idx))
 
-    out_nhx <- file.path(lpjml_out_dir, "nitrogen", sprintf(
-      "ndep_nhx_whep_annual_%d_%d.nc4", min(years_d), max(years_d)
-    ))
-    out_noy <- file.path(lpjml_out_dir, "nitrogen", sprintf(
-      "ndep_noy_whep_annual_%d_%d.nc4", min(years_d), max(years_d)
-    ))
+    out_nhx <- file.path(
+      lpjml_out_dir,
+      "nitrogen",
+      sprintf(
+        "ndep_nhx_whep_annual_%d_%d.nc4",
+        min(years_d),
+        max(years_d)
+      )
+    )
+    out_noy <- file.path(
+      lpjml_out_dir,
+      "nitrogen",
+      sprintf(
+        "ndep_noy_whep_annual_%d_%d.nc4",
+        min(years_d),
+        max(years_d)
+      )
+    )
     cli::cli_alert_info("Deposition: writing NHx -> {.path {out_nhx}}")
-    .write_dep_monthly(out_nhx, "nhx", "value_nhx", grid, dep_monthly, time_vals)
+    .write_dep_monthly(
+      out_nhx,
+      "nhx",
+      "value_nhx",
+      grid,
+      dep_monthly,
+      time_vals
+    )
     cli::cli_alert_info("Deposition: writing NOy -> {.path {out_noy}}")
-    .write_dep_monthly(out_noy, "noy", "value_noy", grid, dep_monthly, time_vals)
+    .write_dep_monthly(
+      out_noy,
+      "noy",
+      "value_noy",
+      grid,
+      dep_monthly,
+      time_vals
+    )
     cli::cli_alert_success("Deposition: done")
   } else {
     cli::cli_warn("Deposition: {.path {dep_file}} not found — skipping")
@@ -3449,11 +3690,11 @@ write_lpjml_static_inputs <- function(
 
   # ---- 9) Climate (symlinks) ----------------------------------------------
   climate_mapping <- list(
-    temp    = "cru_ts_3_10.1901.2009.tmp.dat.nc",
-    prec    = "cru_ts_3_10_01.1901.2009.pre.dat.nc",
-    cloud   = "cru_ts_3_10.1901.2009.cld.dat.nc",
-    wind    = "wind_gswp3-w5e5_1901_2016_monthly.nc",
-    co2     = "historical_CO2_annual_1765_2018.txt",
+    temp = "cru_ts_3_10.1901.2009.tmp.dat.nc",
+    prec = "cru_ts_3_10_01.1901.2009.pre.dat.nc",
+    cloud = "cru_ts_3_10.1901.2009.cld.dat.nc",
+    wind = "wind_gswp3-w5e5_1901_2016_monthly.nc",
+    co2 = "historical_CO2_annual_1765_2018.txt",
     wetdays = "cru_ts3.20.1901.2011.wet.dat.nc"
   )
   if (!is.null(climate_dir) && dir.exists(climate_dir)) {
@@ -3461,7 +3702,9 @@ write_lpjml_static_inputs <- function(
       src_path <- file.path(climate_dir, climate_mapping[[nm]])
       dst_path <- file.path(lpjml_out_dir, "climate", climate_mapping[[nm]])
       if (file.exists(src_path)) {
-        if (!file.exists(dst_path)) file.symlink(src_path, dst_path)
+        if (!file.exists(dst_path)) {
+          file.symlink(src_path, dst_path)
+        }
         cli::cli_alert_success("Climate: symlinked {nm}")
       } else {
         cli::cli_warn("Climate: {nm} not found in {.path {climate_dir}}")
@@ -3479,19 +3722,23 @@ write_lpjml_static_inputs <- function(
 # ==== Section 10: Run crop spatialization ==================================
 
 # ---- Per-year yield spatialization ----------------------------------------
-.spatialize_yields_year <- function(yr, crops_with_country, shared) {
-  cy_yr <- dplyr::filter(shared$country_yields, year == yr)
+.spatialize_yields_chunk <- function(
+  crops_with_country,
+  country_yields,
+  spatial_yield_idx,
+  item_ratios
+) {
   gridded_y <- data.table::as.data.table(crops_with_country)[
-    data.table::as.data.table(cy_yr),
+    data.table::as.data.table(country_yields),
     on = .(year, area_code, item_prod_code),
     nomatch = NULL
   ] |>
     tibble::as_tibble()
 
-  if (!is.null(shared$spatial_yield_idx)) {
+  if (!is.null(spatial_yield_idx)) {
     gridded_y <- gridded_y |>
       dplyr::left_join(
-        shared$spatial_yield_idx,
+        spatial_yield_idx,
         by = c("lon", "lat", "item_prod_code")
       ) |>
       dplyr::mutate(
@@ -3502,19 +3749,25 @@ write_lpjml_static_inputs <- function(
         weighted_sum = sum(spatial_yield_index * total_ha, na.rm = TRUE),
         ha_sum = sum(total_ha, na.rm = TRUE),
         renorm = dplyr::if_else(
-          weighted_sum > 0, ha_sum / weighted_sum, 1.0
+          weighted_sum > 0,
+          ha_sum / weighted_sum,
+          1.0
         ),
         yield_t_ha = yield_t_ha * spatial_yield_index * renorm,
         .by = c("year", "area_code", "item_prod_code")
       ) |>
       dplyr::select(
-        -spatial_yield_index, -total_ha, -weighted_sum, -ha_sum, -renorm
+        -spatial_yield_index,
+        -total_ha,
+        -weighted_sum,
+        -ha_sum,
+        -renorm
       )
   }
 
   gridded_y |>
     dplyr::left_join(
-      dplyr::select(shared$item_ratios, item_prod_code, yield_ratio),
+      dplyr::select(item_ratios, item_prod_code, yield_ratio),
       by = "item_prod_code"
     ) |>
     dplyr::mutate(
@@ -3522,23 +3775,37 @@ write_lpjml_static_inputs <- function(
       total_ha = rainfed_ha + irrigated_ha,
       denom = rainfed_ha + yield_ratio * irrigated_ha,
       yield_rainfed = dplyr::if_else(
-        denom > 0, yield_t_ha * total_ha / denom, yield_t_ha
+        denom > 0,
+        yield_t_ha * total_ha / denom,
+        yield_t_ha
       ),
       yield_irrigated = yield_ratio * yield_rainfed,
       rainfed_prod_t = yield_rainfed * rainfed_ha,
       irrigated_prod_t = yield_irrigated * irrigated_ha
     ) |>
     dplyr::select(
-      lon, lat, year, area_code, item_prod_code,
-      rainfed_ha, irrigated_ha, yield_rainfed, yield_irrigated,
-      rainfed_prod_t, irrigated_prod_t
+      lon,
+      lat,
+      year,
+      area_code,
+      item_prod_code,
+      rainfed_ha,
+      irrigated_ha,
+      yield_rainfed,
+      yield_irrigated,
+      rainfed_prod_t,
+      irrigated_prod_t
     )
 }
 
-# ---- Per-year nitrogen spatialization -------------------------------------
-.spatialize_nitrogen_year <- function(yr, crops_with_country, shared) {
-  nr_yr <- dplyr::filter(shared$n_rates, year == yr)
-  gridded_n <- data.table::as.data.table(nr_yr)[
+# ---- Chunk-level nitrogen spatialization ----------------------------------
+.spatialize_nitrogen_chunk <- function(
+  crops_with_country,
+  n_rates,
+  spatial_n_idx,
+  item_ratios
+) {
+  gridded_n <- data.table::as.data.table(n_rates)[
     data.table::as.data.table(crops_with_country),
     on = .(year, area_code, item_prod_code),
     allow.cartesian = TRUE,
@@ -3546,10 +3813,10 @@ write_lpjml_static_inputs <- function(
   ] |>
     tibble::as_tibble()
 
-  if (!is.null(shared$spatial_n_idx)) {
+  if (!is.null(spatial_n_idx)) {
     gridded_n <- gridded_n |>
       dplyr::left_join(
-        shared$spatial_n_idx,
+        spatial_n_idx,
         by = c("lon", "lat", "item_prod_code", "fert_type")
       ) |>
       dplyr::mutate(
@@ -3560,19 +3827,25 @@ write_lpjml_static_inputs <- function(
         weighted_sum = sum(spatial_n_index * total_ha, na.rm = TRUE),
         ha_sum = sum(total_ha, na.rm = TRUE),
         renorm = dplyr::if_else(
-          weighted_sum > 0, ha_sum / weighted_sum, 1.0
+          weighted_sum > 0,
+          ha_sum / weighted_sum,
+          1.0
         ),
         kg_n_ha = kg_n_ha * spatial_n_index * renorm,
         .by = c("year", "area_code", "item_prod_code", "fert_type")
       ) |>
       dplyr::select(
-        -spatial_n_index, -total_ha, -weighted_sum, -ha_sum, -renorm
+        -spatial_n_index,
+        -total_ha,
+        -weighted_sum,
+        -ha_sum,
+        -renorm
       )
   }
 
   gridded_n |>
     dplyr::left_join(
-      dplyr::select(shared$item_ratios, item_prod_code, n_rate_ratio),
+      dplyr::select(item_ratios, item_prod_code, n_rate_ratio),
       by = "item_prod_code"
     ) |>
     dplyr::mutate(
@@ -3580,121 +3853,103 @@ write_lpjml_static_inputs <- function(
       total_ha = rainfed_ha + irrigated_ha,
       denom = rainfed_ha + n_rate_ratio * irrigated_ha,
       kg_n_ha_rainfed = dplyr::if_else(
-        denom > 0, kg_n_ha * total_ha / denom, kg_n_ha
+        denom > 0,
+        kg_n_ha * total_ha / denom,
+        kg_n_ha
       ),
       kg_n_ha_irrigated = n_rate_ratio * kg_n_ha_rainfed,
       rainfed_n_mg = rainfed_ha * kg_n_ha_rainfed / 1000,
       irrigated_n_mg = irrigated_ha * kg_n_ha_irrigated / 1000
     ) |>
     dplyr::select(
-      lon, lat, year, area_code, item_prod_code, fert_type,
-      kg_n_ha, kg_n_ha_rainfed, kg_n_ha_irrigated,
-      rainfed_ha, irrigated_ha, rainfed_n_mg, irrigated_n_mg
+      lon,
+      lat,
+      year,
+      area_code,
+      item_prod_code,
+      fert_type,
+      kg_n_ha,
+      kg_n_ha_rainfed,
+      kg_n_ha_irrigated,
+      rainfed_ha,
+      irrigated_ha,
+      rainfed_n_mg,
+      irrigated_n_mg
     )
 }
 
-# ---- Per-year land-use + spatialization -----------------------------------
-.run_spatialize_year <- function(yr, shared) {
-  areas_yr <- dplyr::filter(shared$country_areas, year == yr)
-  cropland_yr <- dplyr::filter(shared$gridded_cropland, year == yr)
-  type_yr <- if (!is.null(shared$type_cropland)) {
-    dplyr::filter(shared$type_cropland, year == yr)
-  }
-  crops_yr <- whep::build_gridded_landuse(
-    country_areas = areas_yr,
-    crop_patterns = shared$crop_patterns,
-    gridded_cropland = cropland_yr,
-    country_grid = shared$country_grid,
-    config = list(
-      type_cropland = type_yr,
-      type_mapping = shared$cft_mapping
-    )
-  )
-  crops_with_country <- dplyr::inner_join(
-    crops_yr, shared$country_grid, by = c("lon", "lat")
-  )
-  cft_mapping_dt <- data.table::as.data.table(
-    dplyr::select(shared$cft_mapping, item_prod_code, cft_name)
-  )
-  cft_yr <- data.table::as.data.table(crops_yr)[
-    cft_mapping_dt,
-    on = "item_prod_code",
-    nomatch = NULL
-  ][, .(
-    rainfed_ha = sum(rainfed_ha),
-    irrigated_ha = sum(irrigated_ha)
-  ), by = .(lon, lat, year, cft_name)]
-  if (shared$has_yields) {
-    yields_yr <- .spatialize_yields_year(yr, crops_with_country, shared)
-    arrow::write_parquet(
-      yields_yr,
-      file.path(shared$chunk_dir, sprintf("yields_%d.parquet", yr))
-    )
-  }
-  if (shared$has_nitrogen) {
-    n_yr <- .spatialize_nitrogen_year(yr, crops_with_country, shared)
-    arrow::write_parquet(
-      n_yr,
-      file.path(shared$chunk_dir, sprintf("nitrogen_%d.parquet", yr))
-    )
-  }
-  list(cft = data.table::setDF(cft_yr))
-}
-
-.write_lu_nc_chunk <- function(nc_lu, cft_chunk, chunk_years, all_years, grid,
-                               row_area_ha) {
+.write_lu_nc_chunk <- function(
+  nc_lu,
+  cft_chunk,
+  chunk_years,
+  all_years,
+  grid,
+  row_area_ha
+) {
   lu <- data.table::as.data.table(cft_chunk)
   lu[, base_pft := as.integer(cft_to_pft[cft_name])]
   lu <- lu[!is.na(base_pft)]
   lu <- coord_to_rowcol(lu, grid)
   lu[, cell_area_ha := row_area_ha[row]]
-  lu[, rainfed_frac   := pmin(1, pmax(0, rainfed_ha   / cell_area_ha))]
+  lu[, rainfed_frac := pmin(1, pmax(0, rainfed_ha / cell_area_ha))]
   lu[, irrigated_frac := pmin(1, pmax(0, irrigated_ha / cell_area_ha))]
-  rf <- lu[, .(value = sum(rainfed_frac,   na.rm = TRUE)),
-           by = .(year, pft = base_pft,        row, col)]
-  ir <- lu[, .(value = sum(irrigated_frac, na.rm = TRUE)),
-           by = .(year, pft = base_pft + 16L,  row, col)]
+  rf <- lu[,
+    .(value = sum(rainfed_frac, na.rm = TRUE)),
+    by = .(year, pft = base_pft, row, col)
+  ]
+  ir <- lu[,
+    .(value = sum(irrigated_frac, na.rm = TRUE)),
+    by = .(year, pft = base_pft + 16L, row, col)
+  ]
   out <- rbind(rf, ir)
   out[, value := pmin(1, pmax(0, value))]
   .pft_nc_write_chunk(nc_lu, out, chunk_years, all_years, grid, 32L)
 }
 
-.write_nitrogen_nc_chunks <- function(nc_syn, nc_man, chunk_years, all_years,
-                                      grid, chunk_dir, cft_map_dt) {
-  n_files <- file.path(
-    chunk_dir, sprintf("nitrogen_%d.parquet", chunk_years)
-  )
-  n_files <- n_files[file.exists(n_files)]
-  if (length(n_files) == 0L) return(invisible(NULL))
-  ng <- purrr::map(n_files, nanoparquet::read_parquet) |>
-    dplyr::bind_rows() |>
-    dplyr::filter(fert_type %in% c("Synthetic", "Manure")) |>
-    data.table::as.data.table()
+.write_nitrogen_nc_chunks <- function(
+  nc_syn,
+  nc_man,
+  chunk_years,
+  all_years,
+  grid,
+  n_dt,
+  cft_map_dt
+) {
+  ng <- data.table::as.data.table(n_dt)
+  ng <- ng[fert_type %in% c("Synthetic", "Manure")]
+  if (nrow(ng) == 0L) {
+    return(invisible(NULL))
+  }
   ng <- cft_map_dt[ng, on = "item_prod_code", nomatch = NULL]
   ng[, base_pft := as.integer(cft_to_pft[cft_name])]
   ng <- ng[!is.na(base_pft)]
   ng <- coord_to_rowcol(ng, grid)
-  syn <- ng[fert_type == "Synthetic",
-            .(value = mean(kg_n_ha, na.rm = TRUE)),
-            by = .(year, pft = base_pft, row, col)]
-  man <- ng[fert_type == "Manure",
-            .(value = mean(kg_n_ha, na.rm = TRUE)),
-            by = .(year, pft = base_pft, row, col)]
+  syn <- ng[
+    fert_type == "Synthetic",
+    .(value = mean(kg_n_ha, na.rm = TRUE)),
+    by = .(year, pft = base_pft, row, col)
+  ]
+  man <- ng[
+    fert_type == "Manure",
+    .(value = mean(kg_n_ha, na.rm = TRUE)),
+    by = .(year, pft = base_pft, row, col)
+  ]
   .pft_nc_write_chunk(nc_syn, syn, chunk_years, all_years, grid, 16L)
   .pft_nc_write_chunk(nc_man, man, chunk_years, all_years, grid, 16L)
-  unlink(n_files)
 }
 
-.write_yields_nc_chunk <- function(nc_yld, chunk_years, all_years, grid,
-                                   chunk_dir, cft_map_dt) {
-  y_files <- file.path(
-    chunk_dir, sprintf("yields_%d.parquet", chunk_years)
-  )
-  y_files <- y_files[file.exists(y_files)]
-  if (length(y_files) == 0L) return(invisible(NULL))
-  yld <- purrr::map(y_files, nanoparquet::read_parquet) |>
-    dplyr::bind_rows() |>
-    data.table::as.data.table()
+.write_yields_nc_chunk <- function(
+  nc_yld,
+  chunk_years,
+  all_years,
+  grid,
+  yld_dt,
+  cft_map_dt
+) {
+  yld <- data.table::as.data.table(yld_dt)
+  if (nrow(yld) == 0L) {
+    return(invisible(NULL))
+  }
   yld <- cft_map_dt[yld, on = "item_prod_code", nomatch = NULL]
   yld[, base_pft := as.integer(cft_to_pft[cft_name])]
   yld <- yld[!is.na(base_pft)]
@@ -3702,7 +3957,7 @@ write_lpjml_static_inputs <- function(
   yld[, w := rainfed_ha + irrigated_ha]
   rf <- yld[
     w > 0,
-    .(value = sum(yield_rainfed  * w, na.rm = TRUE) / sum(w, na.rm = TRUE)),
+    .(value = sum(yield_rainfed * w, na.rm = TRUE) / sum(w, na.rm = TRUE)),
     by = .(year, pft = base_pft, row, col)
   ]
   ir <- yld[
@@ -3713,7 +3968,6 @@ write_lpjml_static_inputs <- function(
   rf[is.nan(value), value := 0]
   ir[is.nan(value), value := 0]
   .pft_nc_write_chunk(nc_yld, rbind(rf, ir), chunk_years, all_years, grid, 32L)
-  unlink(y_files)
 }
 
 run_crop_spatialize <- function(run_dir, input_dir, year_range, lpjml_out_dir) {
@@ -3822,12 +4076,12 @@ run_crop_spatialize <- function(run_dir, input_dir, year_range, lpjml_out_dir) {
   years <- sort(unique(country_areas$year))
   years <- years[years %in% year_range]
 
-  grid        <- make_target_grid()
+  grid <- make_target_grid()
   row_area_ha <- cell_area_ha_by_lat(grid$lat)
-  cft_map_dt  <- data.table::as.data.table(
+  cft_map_dt <- data.table::as.data.table(
     dplyr::select(cft_mapping, item_prod_code, cft_name)
   )
-  lu_dir   <- file.path(lpjml_out_dir, "landuse")
+  lu_dir <- file.path(lpjml_out_dir, "landuse")
   dir.create(lu_dir, recursive = TRUE, showWarnings = FALSE)
   yr_label <- sprintf("%d-%d", min(years), max(years))
 
@@ -3836,46 +4090,59 @@ run_crop_spatialize <- function(run_dir, input_dir, year_range, lpjml_out_dir) {
       lu_dir,
       paste0("cft_default_cft_aggregation_30min_", yr_label, ".nc")
     ),
-    "landuse", "Land use fraction", "1", grid, 1:32, years
+    "landuse",
+    "Land use fraction",
+    "1",
+    grid,
+    1:32,
+    years
   )
-  nc_syn <- if (has_nitrogen) .pft_nc_create(
-    file.path(
-      lu_dir,
-      paste0("fert_N_default_cft_aggregation_30min_", yr_label, ".nc")
-    ),
-    "fertilizer_nr", "Synthetic fertilizer nitrogen rate",
-    "kgN ha-1 yr-1", grid, 1:16, years
-  )
-  nc_man <- if (has_nitrogen) .pft_nc_create(
-    file.path(
-      lu_dir,
-      paste0("manure_N_default_cft_aggregation_30min_", yr_label, ".nc")
-    ),
-    "manure_nr", "Manure nitrogen rate",
-    "kgN ha-1 yr-1", grid, 1:16, years
-  )
-  nc_yld <- if (has_yields) .pft_nc_create(
-    file.path(lu_dir, paste0("yields_cft_30min_", yr_label, ".nc")),
-    "yield_t_ha",
-    "Crop yield (rainfed PFTs 1-16, irrigated 17-32)",
-    "t ha-1 yr-1", grid, 1:32, years
-  )
+  nc_syn <- if (has_nitrogen) {
+    .pft_nc_create(
+      file.path(
+        lu_dir,
+        paste0("fert_N_default_cft_aggregation_30min_", yr_label, ".nc")
+      ),
+      "fertilizer_nr",
+      "Synthetic fertilizer nitrogen rate",
+      "kgN ha-1 yr-1",
+      grid,
+      1:16,
+      years
+    )
+  }
+  nc_man <- if (has_nitrogen) {
+    .pft_nc_create(
+      file.path(
+        lu_dir,
+        paste0("manure_N_default_cft_aggregation_30min_", yr_label, ".nc")
+      ),
+      "manure_nr",
+      "Manure nitrogen rate",
+      "kgN ha-1 yr-1",
+      grid,
+      1:16,
+      years
+    )
+  }
+  nc_yld <- if (has_yields) {
+    .pft_nc_create(
+      file.path(lu_dir, paste0("yields_cft_30min_", yr_label, ".nc")),
+      "yield_t_ha",
+      "Crop yield (rainfed PFTs 1-16, irrigated 17-32)",
+      "t ha-1 yr-1",
+      grid,
+      1:32,
+      years
+    )
+  }
 
   chunk_size <- 30L
   n_chunks <- ceiling(length(years) / chunk_size)
-  year_chunks <- split(
-    years,
-    ceiling(seq_along(years) / chunk_size)
-  )
+  year_chunks <- split(years, ceiling(seq_along(years) / chunk_size))
+  n_workers <- max(1L, parallel::detectCores() - 1L)
 
   t_start <- proc.time()
-
-  chunk_dir <- file.path(run_dir, "temp_crop_chunks")
-  if (!dir.exists(chunk_dir)) {
-    dir.create(chunk_dir, recursive = TRUE)
-  }
-  on.exit(unlink(chunk_dir, recursive = TRUE), add = TRUE)
-
   summary_rows <- vector("list", n_chunks)
 
   for (i in seq_along(year_chunks)) {
@@ -3883,66 +4150,88 @@ run_crop_spatialize <- function(run_dir, input_dir, year_range, lpjml_out_dir) {
     cli::cli_alert(
       "Chunk {i}/{n_chunks}: years {min(chunk_years)}-{max(chunk_years)}"
     )
-    shared_chunk <- list(
-      country_areas     = dplyr::filter(
-        country_areas, year %in% chunk_years
-      ),
-      gridded_cropland  = dplyr::filter(
-        gridded_cropland, year %in% chunk_years
-      ),
-      type_cropland     = if (!is.null(type_cropland)) {
-        dplyr::filter(type_cropland, year %in% chunk_years)
-      },
-      country_grid      = country_grid,
-      crop_patterns     = crop_patterns,
-      cft_mapping       = cft_mapping,
-      item_ratios       = item_ratios,
-      has_yields        = has_yields,
-      country_yields    = if (has_yields) {
-        dplyr::filter(country_yields, year %in% chunk_years)
-      },
-      spatial_yield_idx = spatial_yield_idx,
-      has_nitrogen      = has_nitrogen,
-      n_rates           = if (has_nitrogen) {
-        dplyr::filter(n_rates, year %in% chunk_years)
-      },
-      spatial_n_idx     = spatial_n_idx,
-      chunk_dir         = chunk_dir
-    )
-    n_workers <- min(2L, max(1L, parallel::detectCores() - 1L))
-    per_year <- if (.Platform$OS.type == "windows") {
-      lapply(chunk_years, \(yr) .run_spatialize_year(yr, shared_chunk))
-    } else {
-      parallel::mclapply(
-        chunk_years,
-        \(yr) .run_spatialize_year(yr, shared_chunk),
-        mc.cores = n_workers
+
+    crops_chunk <- whep::build_gridded_landuse(
+      country_areas = dplyr::filter(country_areas, year %in% chunk_years),
+      crop_patterns = crop_patterns,
+      gridded_cropland = dplyr::filter(gridded_cropland, year %in% chunk_years),
+      country_grid = country_grid,
+      config = list(
+        type_cropland = if (!is.null(type_cropland)) {
+          dplyr::filter(type_cropland, year %in% chunk_years)
+        },
+        type_mapping = cft_mapping,
+        n_workers = n_workers
       )
-    }
-    rm(shared_chunk)
-    cft_chunk   <- purrr::map(per_year, "cft") |> dplyr::bind_rows()
+    )
+
+    cft_chunk <- data.table::as.data.table(crops_chunk)[
+      cft_map_dt,
+      on = "item_prod_code",
+      nomatch = NULL
+    ][,
+      .(
+        rainfed_ha = sum(rainfed_ha),
+        irrigated_ha = sum(irrigated_ha)
+      ),
+      by = .(lon, lat, year, cft_name)
+    ]
+
     n_cft_chunk <- nrow(cft_chunk)
     .write_lu_nc_chunk(nc_lu, cft_chunk, chunk_years, years, grid, row_area_ha)
     summary_rows[[i]] <- dplyr::summarise(
-      cft_chunk,
-      total_rainfed_ha   = sum(rainfed_ha,   na.rm = TRUE),
+      data.table::setDF(cft_chunk),
+      total_rainfed_ha = sum(rainfed_ha, na.rm = TRUE),
       total_irrigated_ha = sum(irrigated_ha, na.rm = TRUE),
       n_cells = dplyr::n(),
       .by = c(year, cft_name)
     )
-    rm(cft_chunk, per_year); gc()
+    rm(cft_chunk)
+
+    crops_with_country <- dplyr::inner_join(
+      crops_chunk,
+      country_grid,
+      by = c("lon", "lat")
+    )
+    rm(crops_chunk)
 
     if (has_nitrogen) {
-      .write_nitrogen_nc_chunks(
-        nc_syn, nc_man, chunk_years, years, grid, chunk_dir, cft_map_dt
+      n_chunk <- .spatialize_nitrogen_chunk(
+        crops_with_country,
+        n_rates = dplyr::filter(n_rates, year %in% chunk_years),
+        spatial_n_idx = spatial_n_idx,
+        item_ratios = item_ratios
       )
+      .write_nitrogen_nc_chunks(
+        nc_syn,
+        nc_man,
+        chunk_years,
+        years,
+        grid,
+        n_chunk,
+        cft_map_dt
+      )
+      rm(n_chunk)
     }
     if (has_yields) {
-      .write_yields_nc_chunk(
-        nc_yld, chunk_years, years, grid, chunk_dir, cft_map_dt
+      yields_chunk <- .spatialize_yields_chunk(
+        crops_with_country,
+        country_yields = dplyr::filter(country_yields, year %in% chunk_years),
+        spatial_yield_idx = spatial_yield_idx,
+        item_ratios = item_ratios
       )
+      .write_yields_nc_chunk(
+        nc_yld,
+        chunk_years,
+        years,
+        grid,
+        yields_chunk,
+        cft_map_dt
+      )
+      rm(yields_chunk)
     }
 
+    rm(crops_with_country)
     mem_mb <- round(sum(gc()[, 2]), 0)
     cli::cli_alert_success(
       "Chunk {i} saved: cft={n_cft_chunk} rows, mem={mem_mb} MB"
@@ -3954,12 +4243,19 @@ run_crop_spatialize <- function(run_dir, input_dir, year_range, lpjml_out_dir) {
     "Individual crops done in {round(elapsed / 60, 1)} minutes"
   )
 
-  tryCatch({
-    .nc_finalise(nc_lu)
-    if (has_nitrogen) .nc_finalise(nc_syn)
-    if (has_nitrogen) .nc_finalise(nc_man)
-    if (has_yields)   .nc_finalise(nc_yld)
-  }, error = function(e) cli::cli_warn("NC finalise error: {e$message}"))
+  tryCatch(
+    {
+      .nc_finalise(nc_lu)
+      if (has_nitrogen) {
+        .nc_finalise(nc_syn)
+      }
+      if (has_nitrogen) {
+        .nc_finalise(nc_man)
+      }
+      if (has_yields) .nc_finalise(nc_yld)
+    },
+    error = function(e) cli::cli_warn("NC finalise error: {e$message}")
+  )
 
   summary_tbl <- dplyr::bind_rows(summary_rows) |>
     dplyr::arrange(year, cft_name)
@@ -3999,34 +4295,50 @@ run_livestock_spatialize <- function(run_dir, input_dir, lpjml_out_dir) {
     manure_pattern <- nanoparquet::read_parquet(manure_pattern_path)
   }
 
-  years          <- sort(unique(gridded_pasture$year))
+  years <- sort(unique(gridded_pasture$year))
   livestock_data <- dplyr::filter(livestock_data, year %in% years)
 
-  grid           <- make_target_grid()
+  grid <- make_target_grid()
   species_groups <- sort(unique(livestock_data$species_group))
-  n_species      <- length(species_groups)
-  species_idx    <- stats::setNames(seq_len(n_species), species_groups)
+  n_species <- length(species_groups)
+  species_idx <- stats::setNames(seq_len(n_species), species_groups)
 
-  ls_dir   <- file.path(lpjml_out_dir, "livestock")
+  ls_dir <- file.path(lpjml_out_dir, "livestock")
   dir.create(ls_dir, recursive = TRUE, showWarnings = FALSE)
   yr_label <- sprintf("%d-%d", min(years), max(years))
 
-  ls_vars  <- c(
-    "heads", "enteric_ch4_kt", "manure_ch4_kt", "manure_n2o_kt", "manure_n_mg"
+  ls_vars <- c(
+    "heads",
+    "enteric_ch4_kt",
+    "manure_ch4_kt",
+    "manure_n2o_kt",
+    "manure_n_mg"
   )
   ls_units <- c(
-    "1000 heads", "kt CH4 yr-1", "kt CH4 yr-1", "kt N2O yr-1", "Mg N yr-1"
+    "1000 heads",
+    "kt CH4 yr-1",
+    "kt CH4 yr-1",
+    "kt N2O yr-1",
+    "Mg N yr-1"
   )
   nc_ls <- stats::setNames(
-    purrr::map2(ls_vars, ls_units, \(v, u) .pft_nc_create(
-      file.path(ls_dir, paste0("livestock_", v, "_", yr_label, ".nc")),
-      v, paste("Gridded livestock", v), u, grid, seq_len(n_species), years
-    )),
+    purrr::map2(ls_vars, ls_units, \(v, u) {
+      .pft_nc_create(
+        file.path(ls_dir, paste0("livestock_", v, "_", yr_label, ".nc")),
+        v,
+        paste("Gridded livestock", v),
+        u,
+        grid,
+        seq_len(n_species),
+        years
+      )
+    }),
     ls_vars
   )
   readr::write_csv(
     tibble::tibble(
-      index = seq_len(n_species), species_group = species_groups
+      index = seq_len(n_species),
+      species_group = species_groups
     ),
     file.path(ls_dir, "livestock_species_index.csv")
   )
@@ -4038,7 +4350,7 @@ run_livestock_spatialize <- function(run_dir, input_dir, lpjml_out_dir) {
     "Processing {length(years)} years in {length(year_chunks)} chunks"
   )
 
-  summary_rows    <- vector("list", length(year_chunks))
+  summary_rows <- vector("list", length(year_chunks))
   grid_heads_rows <- vector("list", length(year_chunks))
 
   for (i in seq_along(year_chunks)) {
@@ -4047,13 +4359,13 @@ run_livestock_spatialize <- function(run_dir, input_dir, lpjml_out_dir) {
       "  Chunk {i}/{length(year_chunks)}: {min(chunk_years)}-{max(chunk_years)}"
     )
     chunk_result <- whep::build_gridded_livestock(
-      livestock_data   = dplyr::filter(livestock_data,   year %in% chunk_years),
-      gridded_pasture  = dplyr::filter(gridded_pasture,  year %in% chunk_years),
+      livestock_data = dplyr::filter(livestock_data, year %in% chunk_years),
+      gridded_pasture = dplyr::filter(gridded_pasture, year %in% chunk_years),
       gridded_cropland = dplyr::filter(gridded_cropland, year %in% chunk_years),
-      country_grid     = country_grid,
-      species_proxy    = species_proxy,
-      manure_pattern   = manure_pattern,
-      glw_density      = NULL
+      country_grid = country_grid,
+      species_proxy = species_proxy,
+      manure_pattern = manure_pattern,
+      glw_density = NULL
     )
     ls_dt <- coord_to_rowcol(data.table::as.data.table(chunk_result), grid)
     ls_dt[, species_pft := as.integer(species_idx[species_group])]
@@ -4061,24 +4373,32 @@ run_livestock_spatialize <- function(run_dir, input_dir, lpjml_out_dir) {
     for (v in ls_vars) {
       d <- ls_dt[, .(year, pft = species_pft, row, col, value = get(v))]
       .pft_nc_write_chunk(
-        nc_ls[[v]], d, chunk_years, years, grid, n_species
+        nc_ls[[v]],
+        d,
+        chunk_years,
+        years,
+        grid,
+        n_species
       )
     }
 
     summary_rows[[i]] <- dplyr::summarise(
       chunk_result,
-      total_heads     = round(sum(heads,          na.rm = TRUE)),
-      enteric_ch4_kt  = round(sum(enteric_ch4_kt, na.rm = TRUE), 2),
-      manure_ch4_kt   = round(sum(manure_ch4_kt,  na.rm = TRUE), 2),
-      manure_n2o_kt   = round(sum(manure_n2o_kt,  na.rm = TRUE), 2),
-      manure_n_mg     = round(sum(manure_n_mg,     na.rm = TRUE), 1),
+      total_heads = round(sum(heads, na.rm = TRUE)),
+      enteric_ch4_kt = round(sum(enteric_ch4_kt, na.rm = TRUE), 2),
+      manure_ch4_kt = round(sum(manure_ch4_kt, na.rm = TRUE), 2),
+      manure_n2o_kt = round(sum(manure_n2o_kt, na.rm = TRUE), 2),
+      manure_n_mg = round(sum(manure_n_mg, na.rm = TRUE), 1),
       n_cells = dplyr::n_distinct(paste(lon, lat)),
       .by = c(year, species_group)
     )
     grid_heads_rows[[i]] <- dplyr::summarise(
-      chunk_result, grid_heads = sum(heads, na.rm = TRUE), .by = year
+      chunk_result,
+      grid_heads = sum(heads, na.rm = TRUE),
+      .by = year
     )
-    rm(chunk_result, ls_dt); gc()
+    rm(chunk_result, ls_dt)
+    gc()
   }
 
   tryCatch(
@@ -4087,7 +4407,9 @@ run_livestock_spatialize <- function(run_dir, input_dir, lpjml_out_dir) {
   )
 
   country_totals <- dplyr::summarise(
-    livestock_data, total_heads = sum(heads, na.rm = TRUE), .by = year
+    livestock_data,
+    total_heads = sum(heads, na.rm = TRUE),
+    .by = year
   )
   grid_totals <- dplyr::bind_rows(grid_heads_rows)
   check <- dplyr::inner_join(country_totals, grid_totals, by = "year") |>
@@ -4115,8 +4437,8 @@ main <- function(l_files_dir = "LPJmL_inputs") {
     cli::cli_abort("Directory does not exist: {.path {l_files_dir}}")
   }
   l_files_dir <- normalizePath(l_files_dir, mustWork = FALSE)
-  output_dir    <- file.path(l_files_dir, "whep", "inputs")
-  run_dir       <- file.path(l_files_dir, "whep")
+  output_dir <- file.path(l_files_dir, "whep", "inputs")
+  run_dir <- file.path(l_files_dir, "whep")
   lpjml_out_dir <- file.path(run_dir, "lpjml_inputs")
 
   if (!dir.exists(output_dir)) {
@@ -4185,13 +4507,21 @@ main <- function(l_files_dir = "LPJmL_inputs") {
   )
 
   # Section 9: Hydrology + Soil — write NC directly, no intermediary parquets
-  drainage_dt <- prepare_hydrology_inputs(l_files_dir, output_dir, lpjml_out_dir)
+  drainage_dt <- prepare_hydrology_inputs(
+    l_files_dir,
+    output_dir,
+    lpjml_out_dir
+  )
   prepare_soil_inputs(l_files_dir, output_dir, lpjml_out_dir, target_res)
 
   # Section 10a: Write static LPJmL inputs (GADM, routing, deposition, climate)
-  write_lpjml_static_inputs(output_dir, lpjml_out_dir, drainage_dt,
-                             export_years = year_range,
-                             climate_dir  = climate_dir)
+  write_lpjml_static_inputs(
+    output_dir,
+    lpjml_out_dir,
+    drainage_dt,
+    export_years = year_range,
+    climate_dir = climate_dir
+  )
 
   # Section 10: Run crop spatialization
   run_crop_spatialize(run_dir, output_dir, year_range, lpjml_out_dir)

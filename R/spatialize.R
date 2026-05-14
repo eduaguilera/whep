@@ -181,8 +181,9 @@ build_gridded_landuse <- function(
   }
 
   years <- sort(unique(country_areas$year))
+  n_workers <- config$n_workers
 
-  result <- purrr::map(years, \(yr) {
+  .spatialize_one <- function(yr) {
     .spatialize_year(
       yr,
       country_areas = dplyr::filter(country_areas, year == yr),
@@ -197,8 +198,15 @@ build_gridded_landuse <- function(
       max_iterations = max_iterations,
       expansion_threshold = expansion_threshold
     )
-  }) |>
-    dplyr::bind_rows()
+  }
+
+  result <- if (n_workers > 1L && .Platform$OS.type != "windows") {
+    parallel::mclapply(years, .spatialize_one, mc.cores = n_workers) |>
+      dplyr::bind_rows()
+  } else {
+    purrr::map(years, .spatialize_one) |>
+      dplyr::bind_rows()
+  }
 
   if (!is.null(cft_mapping)) {
     result <- .aggregate_to_cft(result, cft_mapping)
@@ -245,9 +253,13 @@ build_gridded_landuse <- function(
 
   # Single cartesian join: grid × all crop patterns
   grid_cp <- grid[cp, on = .(lon, lat), allow.cartesian = TRUE]
-  grid_cp[, harvest_fraction := data.table::fifelse(
-    is.na(harvest_fraction), 0, harvest_fraction
-  )]
+  grid_cp[,
+    harvest_fraction := data.table::fifelse(
+      is.na(harvest_fraction),
+      0,
+      harvest_fraction
+    )
+  ]
 
   # Type-aware: replace cropland with type-specific where applicable
   if (use_type_aware) {
@@ -256,20 +268,28 @@ build_gridded_landuse <- function(
     grid_cp_tc <- tc[grid_cp, on = .(lon, lat, luh2_type), nomatch = NA]
 
     # Compute potential for type-aware crops
-    grid_cp_tc[!is.na(type_ha), `:=`(
-      cropland_ha = type_ha,
-      irrigated_ha = type_irrig_ha,
-      rainfed_ha = type_ha - type_irrig_ha
-    )]
+    grid_cp_tc[
+      !is.na(type_ha),
+      `:=`(
+        cropland_ha = type_ha,
+        irrigated_ha = type_irrig_ha,
+        rainfed_ha = type_ha - type_irrig_ha
+      )
+    ]
 
     # Check which (country, crop) have type potential; fallback where zero
-    grid_cp_tc[, type_pot := sum(harvest_fraction * cropland_ha),
-      by = .(area_code, item_prod_code)]
-    grid_cp_tc[type_pot <= 0, `:=`(
-      cropland_ha = i.cropland_ha,
-      irrigated_ha = i.irrigated_ha,
-      rainfed_ha = i.rainfed_ha
-    )]
+    grid_cp_tc[,
+      type_pot := sum(harvest_fraction * cropland_ha),
+      by = .(area_code, item_prod_code)
+    ]
+    grid_cp_tc[
+      type_pot <= 0,
+      `:=`(
+        cropland_ha = i.cropland_ha,
+        irrigated_ha = i.irrigated_ha,
+        rainfed_ha = i.rainfed_ha
+      )
+    ]
 
     grid_cp <- grid_cp_tc
     grid_cp[, `:=`(type_pot = NULL, luh2_type = NULL)]
@@ -284,18 +304,25 @@ build_gridded_landuse <- function(
     rf_potential = harvest_fraction * rainfed_ha,
     ir_potential = harvest_fraction * irrigated_ha
   )]
-  dat[, `:=`(
-    rf_pot_sum = sum(rf_potential),
-    ir_pot_sum = sum(ir_potential),
-    rainfed_sum = sum(rainfed_ha),
-    irrigated_sum = sum(irrigated_ha)
-  ), by = .(area_code, item_prod_code)]
+  dat[,
+    `:=`(
+      rf_pot_sum = sum(rf_potential),
+      ir_pot_sum = sum(ir_potential),
+      rainfed_sum = sum(rainfed_ha),
+      irrigated_sum = sum(irrigated_ha)
+    ),
+    by = .(area_code, item_prod_code)
+  ]
   dat[, `:=`(
     rf_uniform = data.table::fifelse(
-      rainfed_sum > 0, rainfed_ha / rainfed_sum, 0
+      rainfed_sum > 0,
+      rainfed_ha / rainfed_sum,
+      0
     ),
     ir_uniform = data.table::fifelse(
-      irrigated_sum > 0, irrigated_ha / irrigated_sum, 0
+      irrigated_sum > 0,
+      irrigated_ha / irrigated_sum,
+      0
     )
   )]
   dat[, rainfed_target := harvested_area_ha - irrigated_area_ha]
@@ -313,8 +340,11 @@ build_gridded_landuse <- function(
   )]
 
   result <- dat[, .(
-    lon, lat, item_prod_code,
-    rainfed_ha = allocated_rf, irrigated_ha = allocated_ir
+    lon,
+    lat,
+    item_prod_code,
+    rainfed_ha = allocated_rf,
+    irrigated_ha = allocated_ir
   )]
 
   t_alloc <- round(proc.time()[["elapsed"]] - t_alloc0, 2)
@@ -322,13 +352,18 @@ build_gridded_landuse <- function(
   # Capacity constraint (keep dplyr version for now; can be dt-optimised later)
   result <- result |>
     .apply_capacity_constraint(
-      cropland, country_grid, multicropping,
-      max_iterations, expansion_threshold
+      cropland,
+      country_grid,
+      multicropping,
+      max_iterations,
+      expansion_threshold
     ) |>
     dplyr::mutate(year = yr, .before = 1L)
 
   t_cap <- round(proc.time()[["elapsed"]] - t_alloc0 - t_alloc, 2)
-  cli::cli_alert("  Year {yr}: {nrow(result)} rows (alloc {t_alloc}s, cap {t_cap}s)")
+  cli::cli_alert(
+    "  Year {yr}: {nrow(result)} rows (alloc {t_alloc}s, cap {t_cap}s)"
+  )
 
   result
 }
@@ -341,7 +376,8 @@ build_gridded_landuse <- function(
     type_mapping = NULL,
     multicropping = NULL,
     max_iterations = 1000L,
-    expansion_threshold = 100L
+    expansion_threshold = 100L,
+    n_workers = 1L
   )
 }
 
