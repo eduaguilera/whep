@@ -3728,77 +3728,69 @@ write_lpjml_static_inputs <- function(
   spatial_yield_idx,
   item_ratios
 ) {
-  gridded_y <- data.table::as.data.table(crops_with_country)[
-    data.table::as.data.table(country_yields),
+  gridded_y <- data.table::as.data.table(country_yields)[
+    data.table::as.data.table(crops_with_country),
     on = .(year, area_code, item_prod_code),
     nomatch = NULL
-  ] |>
-    tibble::as_tibble()
+  ]
 
   if (!is.null(spatial_yield_idx)) {
-    gridded_y <- gridded_y |>
-      dplyr::left_join(
-        spatial_yield_idx,
-        by = c("lon", "lat", "item_prod_code")
-      ) |>
-      dplyr::mutate(
-        spatial_yield_index = dplyr::coalesce(spatial_yield_index, 1.0)
-      ) |>
-      dplyr::mutate(
-        total_ha = rainfed_ha + irrigated_ha,
+    sy <- data.table::as.data.table(spatial_yield_idx)
+    gridded_y[
+      sy,
+      spatial_yield_index := i.spatial_yield_index,
+      on = .(lon, lat, item_prod_code)
+    ]
+    gridded_y[is.na(spatial_yield_index), spatial_yield_index := 1]
+    gridded_y[, total_ha := rainfed_ha + irrigated_ha]
+    gridded_y[,
+      `:=`(
         weighted_sum = sum(spatial_yield_index * total_ha, na.rm = TRUE),
-        ha_sum = sum(total_ha, na.rm = TRUE),
-        renorm = dplyr::if_else(
-          weighted_sum > 0,
-          ha_sum / weighted_sum,
-          1.0
-        ),
-        yield_t_ha = yield_t_ha * spatial_yield_index * renorm,
-        .by = c("year", "area_code", "item_prod_code")
-      ) |>
-      dplyr::select(
-        -spatial_yield_index,
-        -total_ha,
-        -weighted_sum,
-        -ha_sum,
-        -renorm
-      )
+        ha_sum = sum(total_ha, na.rm = TRUE)
+      ),
+      by = .(year, area_code, item_prod_code)
+    ]
+    gridded_y[,
+      renorm := data.table::fifelse(weighted_sum > 0, ha_sum / weighted_sum, 1)
+    ]
+    gridded_y[, yield_t_ha := yield_t_ha * spatial_yield_index * renorm]
+    gridded_y[,
+      c(
+        "spatial_yield_index",
+        "total_ha",
+        "weighted_sum",
+        "ha_sum",
+        "renorm"
+      ) := NULL
+    ]
   }
 
-  gridded_y |>
-    dplyr::left_join(
-      dplyr::select(item_ratios, item_prod_code, yield_ratio),
-      by = "item_prod_code"
-    ) |>
-    dplyr::mutate(
-      yield_ratio = dplyr::coalesce(yield_ratio, 1.0),
-      total_ha = rainfed_ha + irrigated_ha,
-      denom = rainfed_ha + yield_ratio * irrigated_ha,
-      yield_rainfed = dplyr::if_else(
-        denom > 0,
-        yield_t_ha * total_ha / denom,
-        yield_t_ha
-      ),
-      yield_irrigated = yield_ratio * yield_rainfed,
-      rainfed_prod_t = yield_rainfed * rainfed_ha,
-      irrigated_prod_t = yield_irrigated * irrigated_ha
-    ) |>
-    dplyr::select(
-      lon,
-      lat,
-      year,
-      area_code,
-      item_prod_code,
-      rainfed_ha,
-      irrigated_ha,
-      yield_rainfed,
-      yield_irrigated,
-      rainfed_prod_t,
-      irrigated_prod_t
+  ir <- data.table::as.data.table(
+    dplyr::select(item_ratios, item_prod_code, yield_ratio)
+  )
+  gridded_y[ir, yield_ratio := i.yield_ratio, on = "item_prod_code"]
+  gridded_y[is.na(yield_ratio), yield_ratio := 1]
+  gridded_y[, `:=`(
+    total_ha = rainfed_ha + irrigated_ha,
+    denom = rainfed_ha + yield_ratio * irrigated_ha
+  )]
+  gridded_y[,
+    yield_rainfed := data.table::fifelse(
+      denom > 0,
+      yield_t_ha * total_ha / denom,
+      yield_t_ha
     )
+  ]
+  gridded_y[, yield_irrigated := yield_ratio * yield_rainfed]
+  gridded_y[,
+    c("yield_t_ha", "yield_ratio", "total_ha", "denom") := NULL
+  ]
+  gridded_y
 }
 
 # ---- Chunk-level nitrogen spatialization ----------------------------------
+# Downstream .write_nitrogen_nc_chunks only consumes kg_n_ha (mean per cell),
+# so we skip the rainfed/irrigated split computed in earlier versions.
 .spatialize_nitrogen_chunk <- function(
   crops_with_country,
   n_rates,
@@ -3810,72 +3802,40 @@ write_lpjml_static_inputs <- function(
     on = .(year, area_code, item_prod_code),
     allow.cartesian = TRUE,
     nomatch = NULL
-  ] |>
-    tibble::as_tibble()
+  ]
 
   if (!is.null(spatial_n_idx)) {
-    gridded_n <- gridded_n |>
-      dplyr::left_join(
-        spatial_n_idx,
-        by = c("lon", "lat", "item_prod_code", "fert_type")
-      ) |>
-      dplyr::mutate(
-        spatial_n_index = dplyr::coalesce(spatial_n_index, 1.0)
-      ) |>
-      dplyr::mutate(
-        total_ha = rainfed_ha + irrigated_ha,
+    sni <- data.table::as.data.table(spatial_n_idx)
+    gridded_n[
+      sni,
+      spatial_n_index := i.spatial_n_index,
+      on = .(lon, lat, item_prod_code, fert_type)
+    ]
+    gridded_n[is.na(spatial_n_index), spatial_n_index := 1]
+    gridded_n[, total_ha := rainfed_ha + irrigated_ha]
+    gridded_n[,
+      `:=`(
         weighted_sum = sum(spatial_n_index * total_ha, na.rm = TRUE),
-        ha_sum = sum(total_ha, na.rm = TRUE),
-        renorm = dplyr::if_else(
-          weighted_sum > 0,
-          ha_sum / weighted_sum,
-          1.0
-        ),
-        kg_n_ha = kg_n_ha * spatial_n_index * renorm,
-        .by = c("year", "area_code", "item_prod_code", "fert_type")
-      ) |>
-      dplyr::select(
-        -spatial_n_index,
-        -total_ha,
-        -weighted_sum,
-        -ha_sum,
-        -renorm
-      )
+        ha_sum = sum(total_ha, na.rm = TRUE)
+      ),
+      by = .(year, area_code, item_prod_code, fert_type)
+    ]
+    gridded_n[,
+      renorm := data.table::fifelse(weighted_sum > 0, ha_sum / weighted_sum, 1)
+    ]
+    gridded_n[, kg_n_ha := kg_n_ha * spatial_n_index * renorm]
+    gridded_n[,
+      c(
+        "spatial_n_index",
+        "total_ha",
+        "weighted_sum",
+        "ha_sum",
+        "renorm"
+      ) := NULL
+    ]
   }
 
-  gridded_n |>
-    dplyr::left_join(
-      dplyr::select(item_ratios, item_prod_code, n_rate_ratio),
-      by = "item_prod_code"
-    ) |>
-    dplyr::mutate(
-      n_rate_ratio = dplyr::coalesce(n_rate_ratio, 1.0),
-      total_ha = rainfed_ha + irrigated_ha,
-      denom = rainfed_ha + n_rate_ratio * irrigated_ha,
-      kg_n_ha_rainfed = dplyr::if_else(
-        denom > 0,
-        kg_n_ha * total_ha / denom,
-        kg_n_ha
-      ),
-      kg_n_ha_irrigated = n_rate_ratio * kg_n_ha_rainfed,
-      rainfed_n_mg = rainfed_ha * kg_n_ha_rainfed / 1000,
-      irrigated_n_mg = irrigated_ha * kg_n_ha_irrigated / 1000
-    ) |>
-    dplyr::select(
-      lon,
-      lat,
-      year,
-      area_code,
-      item_prod_code,
-      fert_type,
-      kg_n_ha,
-      kg_n_ha_rainfed,
-      kg_n_ha_irrigated,
-      rainfed_ha,
-      irrigated_ha,
-      rainfed_n_mg,
-      irrigated_n_mg
-    )
+  gridded_n
 }
 
 .write_lu_nc_chunk <- function(
@@ -4198,12 +4158,17 @@ run_crop_spatialize <- function(
     rm(cft_chunk)
 
     cli::cli_alert_info("  Joining with country grid...")
-    crops_with_country <- dplyr::inner_join(
-      crops_chunk,
-      country_grid,
-      by = c("lon", "lat")
+    cg_keys <- data.table::as.data.table(
+      dplyr::select(country_grid, lon, lat, area_code)
     )
-    rm(crops_chunk)
+    crops_with_country <- data.table::as.data.table(crops_chunk)
+    crops_with_country[
+      cg_keys,
+      area_code := i.area_code,
+      on = .(lon, lat)
+    ]
+    crops_with_country <- crops_with_country[!is.na(area_code)]
+    rm(crops_chunk, cg_keys)
 
     if (has_nitrogen) {
       cli::cli_alert_info("  Spatializing nitrogen...")
