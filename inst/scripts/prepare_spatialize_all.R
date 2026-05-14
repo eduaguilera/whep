@@ -1037,23 +1037,38 @@ prepare_crop_fert_patterns <- function(l_files_dir, target_res) {
     "Processing {nrow(fert_map)} crops x {length(nutrients)} nutrients"
   )
 
-  results <- purrr::map(nutrients, \(nutrient) {
-    purrr::map2(
-      fert_map$earthstat_fert_name,
-      fert_map$item_prod_code,
-      \(crop_name, code) {
-        .read_one_earthstat_fertilizer(
-          fert_dir,
-          crop_name,
-          code,
-          nutrient,
-          target_res
-        )
-      }
-    ) |>
-      dplyr::bind_rows()
-  }) |>
-    rlang::set_names(c("n", "p", "k"))
+  tasks <- tidyr::expand_grid(
+    nutrient = nutrients,
+    crop_idx = seq_len(nrow(fert_map))
+  )
+  n_workers <- min(
+    nrow(tasks),
+    max(1L, parallel::detectCores() - 1L)
+  )
+  read_one <- function(k) {
+    .read_one_earthstat_fertilizer(
+      fert_dir,
+      fert_map$earthstat_fert_name[tasks$crop_idx[k]],
+      fert_map$item_prod_code[tasks$crop_idx[k]],
+      tasks$nutrient[k],
+      target_res
+    )
+  }
+  all_results <- if (.Platform$OS.type == "windows") {
+    lapply(seq_len(nrow(tasks)), read_one)
+  } else {
+    parallel::mclapply(
+      seq_len(nrow(tasks)),
+      read_one,
+      mc.cores = n_workers
+    )
+  }
+  results <- split(all_results, tasks$nutrient)
+  results <- purrr::map(results, dplyr::bind_rows)
+  results <- rlang::set_names(
+    results[nutrients],
+    c("n", "p", "k")
+  )
 
   combined <- results$n |>
     dplyr::full_join(results$p, by = c("lon", "lat", "item_prod_code")) |>
@@ -1710,7 +1725,7 @@ prepare_nitrogen_inputs <- function(
       "sunflower",  222L, "wheat",       15L
     )
 
-    results <- purrr::map(seq_len(nrow(crop_map)), \(i) {
+    .read_one_west <- function(i) {
       crop <- crop_map$west_crop[i]
       code <- crop_map$item_prod_code[i]
       nc_path <- file.path(
@@ -1746,8 +1761,21 @@ prepare_nitrogen_inputs <- function(
         },
         error = \(e) tibble::tibble()
       )
-    }) |>
-      dplyr::bind_rows()
+    }
+    n_workers <- min(
+      nrow(crop_map),
+      max(1L, parallel::detectCores() - 1L)
+    )
+    raw_results <- if (.Platform$OS.type == "windows") {
+      lapply(seq_len(nrow(crop_map)), .read_one_west)
+    } else {
+      parallel::mclapply(
+        seq_len(nrow(crop_map)),
+        .read_one_west,
+        mc.cores = n_workers
+      )
+    }
+    results <- dplyr::bind_rows(raw_results)
 
     if (nrow(results) == 0) {
       return(NULL)
@@ -1796,7 +1824,7 @@ prepare_nitrogen_inputs <- function(
 
     crop_map <- .earthstat_fertilizer_mapping()
 
-    results <- purrr::map(seq_len(nrow(crop_map)), \(i) {
+    .read_one_es <- function(i) {
       crop <- crop_map$earthstat_fert_name[i]
       code <- crop_map$item_prod_code[i]
       tif_path <- file.path(
@@ -1833,8 +1861,21 @@ prepare_nitrogen_inputs <- function(
         },
         error = \(e) tibble::tibble()
       )
-    }) |>
-      dplyr::bind_rows()
+    }
+    n_workers <- min(
+      nrow(crop_map),
+      max(1L, parallel::detectCores() - 1L)
+    )
+    raw_results <- if (.Platform$OS.type == "windows") {
+      lapply(seq_len(nrow(crop_map)), .read_one_es)
+    } else {
+      parallel::mclapply(
+        seq_len(nrow(crop_map)),
+        .read_one_es,
+        mc.cores = n_workers
+      )
+    }
+    results <- dplyr::bind_rows(raw_results)
 
     if (nrow(results) == 0) {
       return(NULL)
@@ -2697,39 +2738,37 @@ prepare_livestock_inputs <- function(
   agg_factor <- as.integer(target_res / 0.25)
 
   pasture_years <- sort(intersect(unique(livestock_country$year), year_range))
-  pasture_list <- list()
-  for (i in seq_along(pasture_years)) {
-    yr <- pasture_years[i]
-    if (yr %% 50 == 0 || yr == min(pasture_years)) {
-      cli::cli_alert("  Year {yr} ({i}/{length(pasture_years)})")
-    }
+  n_workers <- min(16L, max(1L, parallel::detectCores() - 1L))
+  per_year_pasture <- function(yr) {
     time_idx <- yr - 850L + 1L
     pastr_r <- .read_luh2_variable(states_path, "pastr", time_idx)
     range_r <- .read_luh2_variable(states_path, "range", time_idx)
-    pastr_ha <- pastr_r * carea_ha
-    range_ha <- range_r * carea_ha
     pastr_ha <- terra::aggregate(
-      pastr_ha,
+      pastr_r * carea_ha,
       fact = agg_factor,
       fun = "sum",
       na.rm = TRUE
     )
     range_ha <- terra::aggregate(
-      range_ha,
+      range_r * carea_ha,
       fact = agg_factor,
       fun = "sum",
       na.rm = TRUE
     )
     p_tbl <- .raster_to_tibble(pastr_ha, "pasture_ha")
     r_tbl <- .raster_to_tibble(range_ha, "rangeland_ha")
-    yr_tbl <- left_join(p_tbl, r_tbl, by = c("lon", "lat")) |>
+    left_join(p_tbl, r_tbl, by = c("lon", "lat")) |>
       mutate(
         pasture_ha = if_else(is.na(pasture_ha), 0, pasture_ha),
         rangeland_ha = if_else(is.na(rangeland_ha), 0, rangeland_ha)
       ) |>
       filter(pasture_ha > 0 | rangeland_ha > 0) |>
       mutate(year = yr)
-    pasture_list[[i]] <- yr_tbl
+  }
+  pasture_list <- if (.Platform$OS.type == "windows") {
+    lapply(pasture_years, per_year_pasture)
+  } else {
+    parallel::mclapply(pasture_years, per_year_pasture, mc.cores = n_workers)
   }
 
   gridded_pasture <- bind_rows(pasture_list)
