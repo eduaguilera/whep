@@ -3880,13 +3880,9 @@ write_lpjml_static_inputs <- function(
   cft_map_dt
 ) {
   ng <- data.table::as.data.table(n_dt)
-  ng <- ng[fert_type %in% c("Synthetic", "Manure")]
   if (nrow(ng) == 0L) {
     return(invisible(NULL))
   }
-  ng <- cft_map_dt[ng, on = "item_prod_code", nomatch = NULL]
-  ng[, pft := as.integer(cft_to_pft[cft_name])]
-  ng <- ng[!is.na(pft)]
   ng <- coord_to_rowcol(ng, grid)
   agg <- ng[,
     .(value = mean(kg_n_ha, na.rm = TRUE)),
@@ -3922,9 +3918,6 @@ write_lpjml_static_inputs <- function(
   if (nrow(yld) == 0L) {
     return(invisible(NULL))
   }
-  yld <- cft_map_dt[yld, on = "item_prod_code", nomatch = NULL]
-  yld[, base_pft := as.integer(cft_to_pft[cft_name])]
-  yld <- yld[!is.na(base_pft)]
   yld <- coord_to_rowcol(yld, grid)
   yld[, w := rainfed_ha + irrigated_ha]
   agg <- yld[
@@ -3934,10 +3927,10 @@ write_lpjml_static_inputs <- function(
       ir_num = sum(yield_irrigated * w, na.rm = TRUE),
       w_sum = sum(w, na.rm = TRUE)
     ),
-    by = .(year, base_pft, row, col)
+    by = .(year, pft, row, col)
   ]
-  rf <- agg[, .(year, pft = base_pft, row, col, value = rf_num / w_sum)]
-  ir <- agg[, .(year, pft = base_pft + 16L, row, col, value = ir_num / w_sum)]
+  rf <- agg[, .(year, pft, row, col, value = rf_num / w_sum)]
+  ir <- agg[, .(year, pft = pft + 16L, row, col, value = ir_num / w_sum)]
   rf[is.nan(value), value := 0]
   ir[is.nan(value), value := 0]
   .pft_nc_write_chunk(nc_yld, rbind(rf, ir), chunk_years, all_years, grid, 32L)
@@ -4158,13 +4151,18 @@ run_crop_spatialize <- function(
     )
     cli::cli_alert_info("    → {nrow(crops_chunk)} crop-cell rows")
 
+    # Attach cft_name and pft once on crops_chunk; both the landuse CFT
+    # aggregation and the nitrogen/yields helpers reuse it downstream.
+    crops_chunk <- .step("attach cft_name + pft", {
+      cc <- data.table::as.data.table(crops_chunk)
+      cc[cft_map_dt, cft_name := i.cft_name, on = "item_prod_code"]
+      cc[, pft := cft_to_pft[cft_name]]
+      cc[!is.na(pft)]
+    })
+
     cft_chunk <- .step(
       "aggregate to CFT",
-      data.table::as.data.table(crops_chunk)[
-        cft_map_dt,
-        on = "item_prod_code",
-        nomatch = NULL
-      ][,
+      crops_chunk[,
         .(
           rainfed_ha = sum(rainfed_ha),
           irrigated_ha = sum(irrigated_ha)
