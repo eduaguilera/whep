@@ -3934,7 +3934,8 @@ run_crop_spatialize <- function(
   run_dir,
   input_dir,
   year_range,
-  lpjml_out_dir = file.path(run_dir, "lpjml_inputs")
+  lpjml_out_dir = file.path(run_dir, "lpjml_inputs"),
+  n_workers = max(1L, parallel::detectCores() - 1L)
 ) {
   cli::cli_h2("Section 10: Crop spatialization")
 
@@ -4105,7 +4106,6 @@ run_crop_spatialize <- function(
   chunk_size <- 30L
   n_chunks <- ceiling(length(years) / chunk_size)
   year_chunks <- split(years, ceiling(seq_along(years) / chunk_size))
-  n_workers <- max(1L, parallel::detectCores() - 1L)
 
   t_start <- proc.time()
   summary_rows <- vector("list", n_chunks)
@@ -4116,38 +4116,62 @@ run_crop_spatialize <- function(
       "Chunk {i}/{n_chunks}: years {min(chunk_years)}-{max(chunk_years)}"
     )
 
-    cli::cli_alert_info("  Binding rows from parallel workers...")
-    crops_chunk <- whep::build_gridded_landuse(
-      country_areas = dplyr::filter(country_areas, year %in% chunk_years),
-      crop_patterns = crop_patterns,
-      gridded_cropland = dplyr::filter(gridded_cropland, year %in% chunk_years),
-      country_grid = country_grid,
-      config = list(
-        type_cropland = if (!is.null(type_cropland)) {
-          dplyr::filter(type_cropland, year %in% chunk_years)
-        },
-        type_mapping = cft_mapping,
-        n_workers = n_workers
+    .step <- function(label, expr) {
+      t0 <- proc.time()[["elapsed"]]
+      out <- eval.parent(substitute(expr))
+      dt <- round(proc.time()[["elapsed"]] - t0, 2)
+      cli::cli_alert_info("  [{dt}s] {label}")
+      out
+    }
+
+    crops_chunk <- .step(
+      "build_gridded_landuse",
+      whep::build_gridded_landuse(
+        country_areas = dplyr::filter(country_areas, year %in% chunk_years),
+        crop_patterns = crop_patterns,
+        gridded_cropland = dplyr::filter(
+          gridded_cropland,
+          year %in% chunk_years
+        ),
+        country_grid = country_grid,
+        config = list(
+          type_cropland = if (!is.null(type_cropland)) {
+            dplyr::filter(type_cropland, year %in% chunk_years)
+          },
+          type_mapping = cft_mapping,
+          n_workers = n_workers
+        )
       )
     )
-    cli::cli_alert_info("  Spatialized: {nrow(crops_chunk)} crop-cell rows")
+    cli::cli_alert_info("    → {nrow(crops_chunk)} crop-cell rows")
 
-    cli::cli_alert_info("  Aggregating to CFT...")
-    cft_chunk <- data.table::as.data.table(crops_chunk)[
-      cft_map_dt,
-      on = "item_prod_code",
-      nomatch = NULL
-    ][,
-      .(
-        rainfed_ha = sum(rainfed_ha),
-        irrigated_ha = sum(irrigated_ha)
-      ),
-      by = .(lon, lat, year, cft_name)
-    ]
+    cft_chunk <- .step(
+      "aggregate to CFT",
+      data.table::as.data.table(crops_chunk)[
+        cft_map_dt,
+        on = "item_prod_code",
+        nomatch = NULL
+      ][,
+        .(
+          rainfed_ha = sum(rainfed_ha),
+          irrigated_ha = sum(irrigated_ha)
+        ),
+        by = .(lon, lat, year, cft_name)
+      ]
+    )
 
     n_cft_chunk <- nrow(cft_chunk)
-    cli::cli_alert_info("  Writing landuse NC ({n_cft_chunk} CFT rows)...")
-    .write_lu_nc_chunk(nc_lu, cft_chunk, chunk_years, years, grid, row_area_ha)
+    .step(
+      paste0("write landuse NC (", n_cft_chunk, " CFT rows)"),
+      .write_lu_nc_chunk(
+        nc_lu,
+        cft_chunk,
+        chunk_years,
+        years,
+        grid,
+        row_area_ha
+      )
+    )
     summary_rows[[i]] <- dplyr::summarise(
       data.table::setDF(cft_chunk),
       total_rainfed_ha = sum(rainfed_ha, na.rm = TRUE),
@@ -4157,61 +4181,66 @@ run_crop_spatialize <- function(
     )
     rm(cft_chunk)
 
-    cli::cli_alert_info("  Joining with country grid...")
-    cg_keys <- data.table::as.data.table(
-      dplyr::select(country_grid, lon, lat, area_code)
-    )
-    crops_with_country <- data.table::as.data.table(crops_chunk)
-    crops_with_country[
-      cg_keys,
-      area_code := i.area_code,
-      on = .(lon, lat)
-    ]
-    crops_with_country <- crops_with_country[!is.na(area_code)]
-    rm(crops_chunk, cg_keys)
+    crops_with_country <- .step("attach area_code", {
+      cg_keys <- data.table::as.data.table(
+        dplyr::select(country_grid, lon, lat, area_code)
+      )
+      cwc <- data.table::as.data.table(crops_chunk)
+      cwc[cg_keys, area_code := i.area_code, on = .(lon, lat)]
+      cwc[!is.na(area_code)]
+    })
+    rm(crops_chunk)
 
     if (has_nitrogen) {
-      cli::cli_alert_info("  Spatializing nitrogen...")
-      n_chunk <- .spatialize_nitrogen_chunk(
-        crops_with_country,
-        n_rates = dplyr::filter(n_rates, year %in% chunk_years),
-        spatial_n_idx = spatial_n_idx,
-        item_ratios = item_ratios
+      n_chunk <- .step(
+        "spatialize nitrogen",
+        .spatialize_nitrogen_chunk(
+          crops_with_country,
+          n_rates = dplyr::filter(n_rates, year %in% chunk_years),
+          spatial_n_idx = spatial_n_idx,
+          item_ratios = item_ratios
+        )
       )
-      cli::cli_alert_info("  Writing nitrogen NC...")
-      .write_nitrogen_nc_chunks(
-        nc_syn,
-        nc_man,
-        chunk_years,
-        years,
-        grid,
-        n_chunk,
-        cft_map_dt
+      .step(
+        "write nitrogen NC",
+        .write_nitrogen_nc_chunks(
+          nc_syn,
+          nc_man,
+          chunk_years,
+          years,
+          grid,
+          n_chunk,
+          cft_map_dt
+        )
       )
       rm(n_chunk)
     }
     if (has_yields) {
-      cli::cli_alert_info("  Spatializing yields...")
-      yields_chunk <- .spatialize_yields_chunk(
-        crops_with_country,
-        country_yields = dplyr::filter(country_yields, year %in% chunk_years),
-        spatial_yield_idx = spatial_yield_idx,
-        item_ratios = item_ratios
+      yields_chunk <- .step(
+        "spatialize yields",
+        .spatialize_yields_chunk(
+          crops_with_country,
+          country_yields = dplyr::filter(country_yields, year %in% chunk_years),
+          spatial_yield_idx = spatial_yield_idx,
+          item_ratios = item_ratios
+        )
       )
-      .write_yields_nc_chunk(
-        nc_yld,
-        chunk_years,
-        years,
-        grid,
-        yields_chunk,
-        cft_map_dt
+      .step(
+        "write yields NC",
+        .write_yields_nc_chunk(
+          nc_yld,
+          chunk_years,
+          years,
+          grid,
+          yields_chunk,
+          cft_map_dt
+        )
       )
       rm(yields_chunk)
     }
 
     rm(crops_with_country)
     mem_mb <- round(sum(gc()[, 2]), 0)
-    cli::cli_alert_info("  GC done")
     cli::cli_alert_success(
       "Chunk {i} saved: cft={n_cft_chunk} rows, mem={mem_mb} MB"
     )
