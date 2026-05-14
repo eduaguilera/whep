@@ -1003,16 +1003,29 @@ prepare_crop_patterns <- function(l_files_dir, target_res) {
   xwalk <- .read_earthstat_mapping() |>
     dplyr::filter(!is.na(item_prod_code))
 
-  cli::cli_alert_info("Processing {nrow(xwalk)} crops from EarthStat")
+  cli::cli_alert_info(
+    "Processing {nrow(xwalk)} crops from EarthStat in parallel"
+  )
 
-  purrr::imap(
-    rlang::set_names(xwalk$earthstat_name, xwalk$earthstat_name),
-    \(crop_name, idx) {
-      code <- xwalk$item_prod_code[xwalk$earthstat_name == crop_name]
-      .read_one_earthstat_crop(earthstat_dir, crop_name, code, target_res)
-    }
-  ) |>
-    dplyr::bind_rows() |>
+  read_one_pattern <- function(i) {
+    .read_one_earthstat_crop(
+      earthstat_dir,
+      xwalk$earthstat_name[i],
+      xwalk$item_prod_code[i],
+      target_res
+    )
+  }
+  n_workers <- min(nrow(xwalk), max(1L, parallel::detectCores() - 1L))
+  parts <- if (.Platform$OS.type == "windows") {
+    lapply(seq_len(nrow(xwalk)), read_one_pattern)
+  } else {
+    parallel::mclapply(
+      seq_len(nrow(xwalk)),
+      read_one_pattern,
+      mc.cores = n_workers
+    )
+  }
+  dplyr::bind_rows(parts) |>
     dplyr::summarise(
       harvest_fraction = sum(harvest_fraction),
       .by = c(lon, lat, item_prod_code)
@@ -1458,24 +1471,27 @@ prepare_yield_inputs <- function(
   xwalk <- .read_earthstat_mapping() |> dplyr::filter(!is.na(item_prod_code))
 
   cli::cli_alert_info(
-    "Reading yield rasters for {nrow(xwalk)} EarthStat crops..."
+    "Reading yield rasters for {nrow(xwalk)} EarthStat crops in parallel..."
   )
-  raw_yields <- purrr::pmap(
-    list(
-      crop_name = xwalk$earthstat_name,
-      item_prod_code = xwalk$item_prod_code
-    ),
-    \(crop_name, item_prod_code) {
-      .read_one_earthstat_yield(
-        earthstat_dir,
-        crop_name,
-        item_prod_code,
-        target_res
-      )
-    },
-    .progress = TRUE
-  ) |>
-    dplyr::bind_rows()
+  read_one_yield <- function(i) {
+    .read_one_earthstat_yield(
+      earthstat_dir,
+      xwalk$earthstat_name[i],
+      xwalk$item_prod_code[i],
+      target_res
+    )
+  }
+  n_workers <- min(nrow(xwalk), max(1L, parallel::detectCores() - 1L))
+  raw_yields <- if (.Platform$OS.type == "windows") {
+    lapply(seq_len(nrow(xwalk)), read_one_yield)
+  } else {
+    parallel::mclapply(
+      seq_len(nrow(xwalk)),
+      read_one_yield,
+      mc.cores = n_workers
+    )
+  }
+  raw_yields <- dplyr::bind_rows(raw_yields)
 
   raw_yields <- raw_yields |>
     dplyr::summarise(
