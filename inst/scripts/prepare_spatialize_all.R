@@ -119,7 +119,7 @@ coord_to_rowcol <- function(dt, grid) {
     missval = -1.175494e+38,
     longname = long_name,
     prec = "float",
-    compression = 4,
+    compression = 1,
     chunksizes = c(grid$nlon, grid$nlat, npft, 1L)
   )
   nc <- nc_create(path, vars = list(v), force_v4 = TRUE)
@@ -204,7 +204,7 @@ write_nc_2d <- function(
     missval = missval,
     longname = long_name,
     prec = prec,
-    compression = 4
+    compression = 1
   )
   nc <- nc_create(path, vars = list(v), force_v4 = TRUE)
   on.exit(nc_close(nc), add = TRUE)
@@ -246,7 +246,7 @@ write_nc_2d <- function(
     missval = -1.175494e+38,
     longname = sprintf("%s deposition (WHEP/HaNi)", var_name),
     prec = "float",
-    compression = 4
+    compression = 1
   )
   cli::cli_alert_info("Building {var_name} array ({ntime} months)...")
   m3 <- array(0, dim = c(nlon, nlat, ntime))
@@ -3429,7 +3429,7 @@ write_lpjml_static_inputs <- function(
       missval = -9999L,
       longname = "Flat 2D index of downstream cell",
       prec = "integer",
-      compression = 4
+      compression = 1
     )
     v_riverlen <- ncvar_def(
       "riverlen",
@@ -3438,7 +3438,7 @@ write_lpjml_static_inputs <- function(
       missval = -9999,
       longname = "River length to downstream cell (m)",
       prec = "float",
-      compression = 4
+      compression = 1
     )
     nc <- nc_create(
       out_drain,
@@ -3584,7 +3584,7 @@ write_lpjml_static_inputs <- function(
       missval = -9999L,
       longname = "Flat 2D index of irrigation neighbour cell",
       prec = "integer",
-      compression = 4
+      compression = 1
     )
     nc_neigh <- nc_create(out_neighbour, vars = list(v_neigh), force_v4 = TRUE)
     ncvar_put(nc_neigh, v_neigh, m_neighbour)
@@ -3797,7 +3797,11 @@ write_lpjml_static_inputs <- function(
   spatial_n_idx,
   item_ratios
 ) {
-  gridded_n <- data.table::as.data.table(n_rates)[
+  # Downstream only uses Synthetic and Manure; filter before the cartesian
+  # to avoid carrying ~2-3× extra rows through the join and groupbys.
+  nr <- data.table::as.data.table(n_rates)
+  nr <- nr[fert_type %in% c("Synthetic", "Manure")]
+  gridded_n <- nr[
     data.table::as.data.table(crops_with_country),
     on = .(year, area_code, item_prod_code),
     allow.cartesian = TRUE,
@@ -3881,21 +3885,29 @@ write_lpjml_static_inputs <- function(
     return(invisible(NULL))
   }
   ng <- cft_map_dt[ng, on = "item_prod_code", nomatch = NULL]
-  ng[, base_pft := as.integer(cft_to_pft[cft_name])]
-  ng <- ng[!is.na(base_pft)]
+  ng[, pft := as.integer(cft_to_pft[cft_name])]
+  ng <- ng[!is.na(pft)]
   ng <- coord_to_rowcol(ng, grid)
-  syn <- ng[
-    fert_type == "Synthetic",
+  agg <- ng[,
     .(value = mean(kg_n_ha, na.rm = TRUE)),
-    by = .(year, pft = base_pft, row, col)
+    by = .(year, pft, fert_type, row, col)
   ]
-  man <- ng[
-    fert_type == "Manure",
-    .(value = mean(kg_n_ha, na.rm = TRUE)),
-    by = .(year, pft = base_pft, row, col)
-  ]
-  .pft_nc_write_chunk(nc_syn, syn, chunk_years, all_years, grid, 16L)
-  .pft_nc_write_chunk(nc_man, man, chunk_years, all_years, grid, 16L)
+  .pft_nc_write_chunk(
+    nc_syn,
+    agg[fert_type == "Synthetic"],
+    chunk_years,
+    all_years,
+    grid,
+    16L
+  )
+  .pft_nc_write_chunk(
+    nc_man,
+    agg[fert_type == "Manure"],
+    chunk_years,
+    all_years,
+    grid,
+    16L
+  )
 }
 
 .write_yields_nc_chunk <- function(
@@ -3915,16 +3927,17 @@ write_lpjml_static_inputs <- function(
   yld <- yld[!is.na(base_pft)]
   yld <- coord_to_rowcol(yld, grid)
   yld[, w := rainfed_ha + irrigated_ha]
-  rf <- yld[
+  agg <- yld[
     w > 0,
-    .(value = sum(yield_rainfed * w, na.rm = TRUE) / sum(w, na.rm = TRUE)),
-    by = .(year, pft = base_pft, row, col)
+    .(
+      rf_num = sum(yield_rainfed * w, na.rm = TRUE),
+      ir_num = sum(yield_irrigated * w, na.rm = TRUE),
+      w_sum = sum(w, na.rm = TRUE)
+    ),
+    by = .(year, base_pft, row, col)
   ]
-  ir <- yld[
-    w > 0,
-    .(value = sum(yield_irrigated * w, na.rm = TRUE) / sum(w, na.rm = TRUE)),
-    by = .(year, pft = base_pft + 16L, row, col)
-  ]
+  rf <- agg[, .(year, pft = base_pft, row, col, value = rf_num / w_sum)]
+  ir <- agg[, .(year, pft = base_pft + 16L, row, col, value = ir_num / w_sum)]
   rf[is.nan(value), value := 0]
   ir[is.nan(value), value := 0]
   .pft_nc_write_chunk(nc_yld, rbind(rf, ir), chunk_years, all_years, grid, 32L)

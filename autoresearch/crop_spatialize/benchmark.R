@@ -70,6 +70,10 @@ local({
   gc(reset = TRUE)
   prof_file <- tempfile("prof_crop_spatialize_", fileext = ".out")
 
+  Rprof(prof_file, interval = 0.02)
+  run_crop_spatialize(run_dir, input_dir, profile_years, n_workers = 1L)
+  Rprof(NULL)
+
   # ── Profile report ─────────────────────────────────────────────────────────
 
   cat("\nPROFILE_START\n")
