@@ -183,30 +183,47 @@ build_gridded_landuse <- function(
   years <- sort(unique(country_areas$year))
   n_workers <- config$n_workers
 
+  # Year-invariant work — done once, shared across the year loop.
+  # Cartesian: cells × crops. Per-year work just joins cropland_ha onto this.
+  cg_dt <- data.table::as.data.table(country_grid)
+  cp_dt <- data.table::as.data.table(crop_patterns)
+  base_grid_cp <- cg_dt[cp_dt, on = .(lon, lat), allow.cartesian = TRUE]
+  base_grid_cp[,
+    harvest_fraction := data.table::fifelse(
+      is.na(harvest_fraction),
+      0,
+      harvest_fraction
+    )
+  ]
+  if (!is.null(type_lookup)) {
+    tlu_dt <- data.table::as.data.table(type_lookup)
+    base_grid_cp[tlu_dt, luh2_type := i.luh2_type, on = .(item_prod_code)]
+  }
+  data.table::setkey(base_grid_cp, lon, lat)
+
   .spatialize_one <- function(yr) {
     .spatialize_year(
       yr,
       country_areas = dplyr::filter(country_areas, year == yr),
-      crop_patterns = crop_patterns,
+      base_grid_cp = base_grid_cp,
       cropland = dplyr::filter(gridded_cropland, year == yr),
       country_grid = country_grid,
       type_cropland_yr = if (!is.null(type_cropland)) {
         dplyr::filter(type_cropland, year == yr)
       },
-      type_lookup = type_lookup,
       multicropping = multicropping,
       max_iterations = max_iterations,
       expansion_threshold = expansion_threshold
     )
   }
 
-  result <- if (n_workers > 1L && .Platform$OS.type != "windows") {
-    parallel::mclapply(years, .spatialize_one, mc.cores = n_workers) |>
-      dplyr::bind_rows()
+  parts <- if (n_workers > 1L && .Platform$OS.type != "windows") {
+    parallel::mclapply(years, .spatialize_one, mc.cores = n_workers)
   } else {
-    purrr::map(years, .spatialize_one) |>
-      dplyr::bind_rows()
+    purrr::map(years, .spatialize_one)
   }
+  result <- data.table::rbindlist(parts, fill = TRUE)
+  rm(parts)
 
   if (!is.null(cft_mapping)) {
     result <- .aggregate_to_cft(result, cft_mapping)
@@ -222,49 +239,34 @@ build_gridded_landuse <- function(
 .spatialize_year <- function(
   yr,
   country_areas,
-  crop_patterns,
+  base_grid_cp,
   cropland,
   country_grid,
   type_cropland_yr = NULL,
-  type_lookup = NULL,
   multicropping,
   max_iterations,
   expansion_threshold
 ) {
   t_alloc0 <- proc.time()[["elapsed"]]
 
-  # Convert to data.table (by reference where possible)
-  cg <- data.table::as.data.table(country_grid)
   cl <- data.table::as.data.table(cropland)
-  cp <- data.table::as.data.table(crop_patterns)
   ca <- data.table::as.data.table(country_areas)
 
-  # Single join: grid + cropland
-  grid <- cg[cl, on = .(lon, lat), nomatch = NULL]
-  grid[, rainfed_ha := cropland_ha - irrigated_ha]
-
-  # Type-aware cropland (if available)
-  use_type_aware <- !is.null(type_cropland_yr) && !is.null(type_lookup)
-  if (use_type_aware) {
-    tc <- data.table::as.data.table(type_cropland_yr)
-    tlu <- data.table::as.data.table(type_lookup)
-    ca[tlu, luh2_type := i.luh2_type, on = .(item_prod_code)]
-  }
-
-  # Single cartesian join: grid × all crop patterns
-  grid_cp <- grid[cp, on = .(lon, lat), allow.cartesian = TRUE]
-  grid_cp[,
-    harvest_fraction := data.table::fifelse(
-      is.na(harvest_fraction),
-      0,
-      harvest_fraction
-    )
+  # Per-year: copy the static base (cells × crops) and attach cropland.
+  grid_cp <- data.table::copy(base_grid_cp)
+  grid_cp[
+    cl,
+    `:=`(cropland_ha = i.cropland_ha, irrigated_ha = i.irrigated_ha),
+    on = .(lon, lat)
   ]
+  grid_cp[, rainfed_ha := cropland_ha - irrigated_ha]
+
+  use_type_aware <- !is.null(type_cropland_yr) &&
+    "luh2_type" %in% names(grid_cp)
 
   # Type-aware: replace cropland with type-specific where applicable
   if (use_type_aware) {
-    # Join type-cropland on (lon, lat, luh2_type)
-    grid_cp[ca, luh2_type := i.luh2_type, on = .(item_prod_code)]
+    tc <- data.table::as.data.table(type_cropland_yr)
     grid_cp_tc <- tc[grid_cp, on = .(lon, lat, luh2_type), nomatch = NA]
 
     # Compute potential for type-aware crops
@@ -805,23 +807,26 @@ build_gridded_landuse <- function(
 #' Scale allocated hectares down so total per cell never exceeds physical cropland.
 #' @noRd
 .normalize_to_cropland <- function(data, gridded_cropland) {
-  data |>
-    dplyr::left_join(
-      dplyr::select(gridded_cropland, lon, lat, year, cropland_ha),
-      by = c("lon", "lat", "year")
-    ) |>
-    dplyr::mutate(
-      total_ha = sum(rainfed_ha + irrigated_ha, na.rm = TRUE),
-      scale = dplyr::if_else(
-        !is.na(cropland_ha) & total_ha > cropland_ha & total_ha > 0,
-        cropland_ha / total_ha,
-        1
-      ),
-      .by = c(lon, lat, year)
-    ) |>
-    dplyr::mutate(
-      rainfed_ha = rainfed_ha * scale,
-      irrigated_ha = irrigated_ha * scale
-    ) |>
-    dplyr::select(-total_ha, -scale, -cropland_ha)
+  dt <- data.table::as.data.table(data)
+  gc <- data.table::as.data.table(
+    dplyr::select(gridded_cropland, lon, lat, year, cropland_ha)
+  )
+  dt[gc, cropland_ha := i.cropland_ha, on = .(lon, lat, year)]
+  dt[,
+    total_ha := sum(rainfed_ha + irrigated_ha, na.rm = TRUE),
+    by = .(lon, lat, year)
+  ]
+  dt[,
+    scale := data.table::fifelse(
+      !is.na(cropland_ha) & total_ha > cropland_ha & total_ha > 0,
+      cropland_ha / total_ha,
+      1
+    )
+  ]
+  dt[, `:=`(
+    rainfed_ha = rainfed_ha * scale,
+    irrigated_ha = irrigated_ha * scale
+  )]
+  dt[, `:=`(total_ha = NULL, scale = NULL, cropland_ha = NULL)]
+  tibble::as_tibble(dt)
 }
