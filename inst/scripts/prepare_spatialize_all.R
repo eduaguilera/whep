@@ -3970,7 +3970,12 @@ write_lpjml_static_inputs <- function(
   .pft_nc_write_chunk(nc_yld, rbind(rf, ir), chunk_years, all_years, grid, 32L)
 }
 
-run_crop_spatialize <- function(run_dir, input_dir, year_range, lpjml_out_dir) {
+run_crop_spatialize <- function(
+  run_dir,
+  input_dir,
+  year_range,
+  lpjml_out_dir = file.path(run_dir, "lpjml_inputs")
+) {
   cli::cli_h2("Section 10: Crop spatialization")
 
   country_grid <- nanoparquet::read_parquet(
@@ -4268,7 +4273,11 @@ run_crop_spatialize <- function(run_dir, input_dir, year_range, lpjml_out_dir) {
 
 # ==== Section 11: Run livestock spatialization ==============================
 
-run_livestock_spatialize <- function(run_dir, input_dir, lpjml_out_dir) {
+run_livestock_spatialize <- function(
+  run_dir,
+  input_dir,
+  lpjml_out_dir = file.path(run_dir, "lpjml_inputs")
+) {
   cli::cli_h2("Section 11: Livestock spatialization")
 
   livestock_data <- nanoparquet::read_parquet(
