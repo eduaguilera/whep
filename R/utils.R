@@ -615,7 +615,17 @@ utils::globalVariables(
     "other_mean",
     "qc_carry_forward",
     "scale_new_old",
-    # spatialize.R
+    # spatialize.R — data.table i.* and computed cols
+    ".cross",
+    "i.cropland_ha",
+    "i.irrigated_ha",
+    "i.luh2_type",
+    "i.rainfed_ha",
+    "irrigated_sum",
+    "rainfed_sum",
+    "total_ha",
+    "type_pot",
+    # spatialize.R — dplyr NSE cols
     "allocated_ir",
     "allocated_rf",
     "cft_name",

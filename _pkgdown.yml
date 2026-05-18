@@ -113,7 +113,10 @@ reference:
   - cb_processing
   - cft_mapping
   - crops_eurostat
+  - crops_manure_n
+  - lassaletta_grassland_share
   - liv_lu_coefs
+  - mueller_synthetic_n
   - primary_double
 
 - title: FAOSTAT raw data

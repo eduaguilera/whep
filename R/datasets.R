@@ -1,3 +1,69 @@
+#' Manure nitrogen application by crop and country
+#'
+#' @description
+#' Country- and crop-level estimates of manure nitrogen applied to cropland,
+#' from West et al. (2014). Used as a reference for spatializing manure N
+#' inputs in the WHEP pipeline.
+#'
+#' @format
+#' A tibble with one row per crop-country combination containing:
+#' - `Crop_name`: Crop name (character).
+#' - `ISO`: ISO 3166-1 alpha-3 country code.
+#' - `Continent`: Three-letter continent code (e.g. `"AFR"`, `"ASI"`).
+#' - `Manure_N_Mg`: Manure nitrogen applied in megagrams (Mg).
+#'
+#' @source West, P. C. et al. (2014). Leverage points for improving global
+#'   food security and the environment. *Science*, 345(6194), 325–328.
+#'   \doi{10.1126/science.1246067}
+#'
+#' @examples
+#' head(crops_manure_n)
+"crops_manure_n"
+
+#' Grassland share of synthetic nitrogen by country and year
+#'
+#' @description
+#' Country-level time series of the share of synthetic nitrogen applied to
+#' grassland (versus cropland). Used to split national N totals between land
+#' use types in the WHEP nitrogen pipeline.
+#'
+#' @format
+#' A tibble with one row per country-year combination containing:
+#' - `Country`: Country name.
+#' - `year`: Year (numeric).
+#' - `grass_share`: Share of synthetic N applied to grassland (0–1).
+#'
+#' @source Lassaletta et al. nitrogen flow dataset. See pipeline
+#'   documentation for full citation.
+#'
+#' @examples
+#' head(lassaletta_grassland_share)
+"lassaletta_grassland_share"
+
+#' Synthetic nitrogen application rates by crop and country
+#'
+#' @description
+#' Country- and crop-process-level synthetic nitrogen application rates
+#' (kg N ha\eqn{^{-1}}), derived from Mueller et al. (2012). Used as
+#' reference crop-specific N rates in the WHEP nitrogen pipeline.
+#'
+#' @format
+#' A tibble with one row per crop-process-country combination containing:
+#' - `proc_code`: Internal process code (e.g. `"p001"`).
+#' - `crop_process`: Descriptive crop process name (e.g. `"Rice production"`).
+#' - `crop_original`: Crop name as in the source dataset.
+#' - `unit`: Unit of the rate value (always `"kgN/ha"`).
+#' - `iso3c`: ISO 3166-1 alpha-3 country code.
+#' - `rate_value`: Nitrogen application rate (kg N ha\eqn{^{-1}}).
+#'
+#' @source Mueller, N. D. et al. (2012). Closing yield gaps through nutrient
+#'   and water management. *Nature*, 490(7419), 254–257.
+#'   \doi{10.1038/nature11420}
+#'
+#' @examples
+#' head(mueller_synthetic_n)
+"mueller_synthetic_n"
+
 #' Animal codes and classifications
 #'
 #' Maps live animal CBS items to their livestock classifications, process codes,
