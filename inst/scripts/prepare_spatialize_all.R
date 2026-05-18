@@ -3513,7 +3513,7 @@ write_lpjml_static_inputs <- function(
     )
     cgi <- dr_n[cgi, on = c("lon", "lat")]
     cgi[, cell := .I]
-    N <- nrow(cgi)
+    n_cells <- nrow(cgi)
 
     cgi[, flat_idx := flat_of(lon, lat, nlon_g)]
     lon_all <- cgi$lon
@@ -3524,7 +3524,7 @@ write_lpjml_static_inputs <- function(
     grid_lookup[cbind(lon_idx_of(lon_all) + 1L, lat_idx_of(lat_all) + 1L)] <-
       cgi$cell
 
-    nextcell <- integer(N)
+    nextcell <- integer(n_cells)
     ddir <- cgi[!is.na(flow_direction) & flow_direction > 0L]
     nx_lon <- round((ddir$lon + ddm_dlon[ddir$flow_direction + 1L]) * 2) / 2
     nx_lat <- round((ddir$lat + ddm_dlat[ddir$flow_direction + 1L]) * 2) / 2
@@ -3538,8 +3538,8 @@ write_lpjml_static_inputs <- function(
     )]
     nextcell[ddir$cell] <- pmax(nx_cell, 0L)
 
-    in_deg <- tabulate(nextcell[nextcell > 0L], nbins = N)
-    upstream_count <- rep(1L, N)
+    in_deg <- tabulate(nextcell[nextcell > 0L], nbins = n_cells)
+    upstream_count <- rep(1L, n_cells)
     queue <- which(in_deg == 0L)
     qi <- 1L
     while (qi <= length(queue)) {
@@ -3553,7 +3553,7 @@ write_lpjml_static_inputs <- function(
       }
     }
 
-    parents_list <- vector("list", N)
+    parents_list <- vector("list", n_cells)
     valid_nc <- which(nextcell > 0L)
     tmp <- split(valid_nc, nextcell[valid_nc])
     parents_list[as.integer(names(tmp))] <- tmp
@@ -3562,7 +3562,7 @@ write_lpjml_static_inputs <- function(
     ncores <- parallel::detectCores(logical = FALSE) %||% 1L
     neighbour_flat <- unlist(
       parallel::mclapply(
-        seq_len(N),
+        seq_len(n_cells),
         function(i) {
           loi0 <- lon_idx_of(lon_all[i]) + 1L
           li0 <- lat_idx_of(lat_all[i]) + 1L
