@@ -12,31 +12,21 @@
 
 library(tibble)
 
-# ---- Configuration ----------------------------------------------------
-
-main <- function() {
-  # Set this to your L_files directory path (absolute or relative to this
-  # script; normalizePath converts it to absolute so LPJmL can find files)
-  l_files_dir <- normalizePath("LPJmL_inputs", mustWork = TRUE)
-
-  model_path <- "/home/usuario/LPJmL"
-  sim_path <- "/home/usuario/LPJmL/simulation"
-
+run_lpjml <- function(
+  model_path,
+  l_files_dir = "LPJmL_inputs",
+  sim_path = file.path(model_path, "simulation"),
+  export_start = 1851,
+  export_end = 2021,
+  dep_start = export_start,
+  dep_end = export_end,
+  simulation_start_year = 1901,
+  simulation_end_year = 2018,
+  nspinup = 200,
+  use_cores = 24
+) {
+  l_files_dir <- normalizePath(l_files_dir, mustWork = TRUE)
   input_path <- file.path(l_files_dir, "whep", "lpjml_inputs")
-
-  # Must match the year_range used in prepare_spatialize_all.R
-  export_start <- 1851
-  export_end <- 2021
-
-  # HaNi deposition starts at 1851; these may differ from export_start/export_end
-  dep_start <- 1851
-  dep_end <- 2021
-
-  simulation_start_year <- 1901
-  simulation_end_year <- 2018
-  nspinup <- 200
-
-  use_cores <- 24
 
   # ---- Verify inputs --------------------------------------------------
 
@@ -140,5 +130,8 @@ main <- function() {
 # ---- Entry point ------------------------------------------------------
 
 if (sys.nframe() == 0L) {
-  main()
+  stop(
+    "Call run_lpjml() with required arguments, e.g.:\n",
+    "  run_lpjml(model_path = \"/path/to/LPJmL\")"
+  )
 }

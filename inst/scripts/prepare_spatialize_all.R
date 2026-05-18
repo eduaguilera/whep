@@ -54,17 +54,6 @@
 library(dplyr, warn.conflicts = FALSE)
 library(ncdf4)
 
-# ==== Configuration ====================================================
-
-year_range <- 1851:2021
-# year_range <- 2000:2001  # test run
-target_res <- 0.5
-
-# Directory containing LPJmL climate NC/txt files to symlink into lpjml_inputs/
-# Set to NULL to skip symlink creation (climate must be supplied separately)
-climate_dir <- "/home/usuario/LPJmL/inputs/climate"
-
-
 # ==== Shared helpers ====================================================
 
 # ---- Grid and NetCDF helpers -------------------------------------------
@@ -4508,7 +4497,13 @@ run_livestock_spatialize <- function(
 
 # ==== Main execution ===================================================
 
-main <- function(l_files_dir = "LPJmL_inputs") {
+prepare_spatialize_all <- function(
+  l_files_dir = "LPJmL_inputs",
+  year_range = 1851:2021,
+  target_res = 0.5,
+  climate_dir = NULL
+) {
+  # For a quick test run use: year_range = 2000:2001
   cli::cli_h1("WHEP Spatialization Pipeline")
 
   if (!dir.exists(l_files_dir)) {
@@ -4613,7 +4608,7 @@ main <- function(l_files_dir = "LPJmL_inputs") {
 # Run if executed directly (not just sourced)
 if (sys.nframe() == 0L) {
   stop(
-    "Call main() with the path to your L_files directory, e.g.:\n",
-    "  main(\"/path/to/L_files\")"
+    "Call prepare_spatialize_all() with the path to your L_files directory, e.g.:\n",
+    "  prepare_spatialize_all(\"/path/to/L_files\")"
   )
 }
