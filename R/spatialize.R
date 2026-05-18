@@ -229,7 +229,7 @@ build_gridded_landuse <- function(
     result <- .aggregate_to_cft(result, cft_mapping)
   }
 
-  .normalize_to_cropland(result, gridded_cropland)
+  tibble::as_tibble(result)
 }
 
 # --- Private helpers ----------------------------------------------------------
