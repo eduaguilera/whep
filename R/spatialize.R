@@ -43,6 +43,14 @@
 #'   - `lon`: Longitude of cell centre.
 #'   - `lat`: Latitude of cell centre.
 #'   - `area_code`: Country code.
+#'   Optional columns:
+#'   - `cell_area_frac` (or `area_frac`): Fraction of the physical cell
+#'     belonging to this polity compartment. Defaults to 1.
+#'   - `polycell_id`, `cell_id`: Stable compartment/cell identifiers
+#'     preserved in outputs when present.
+#'   - `year` or validity intervals (`valid_from`/`valid_to`,
+#'     `start_year`/`end_year`, `from_year`/`to_year`) for historical,
+#'     time-varying polity overlays.
 #' @param config Named list of optional extras. Unknown keys raise
 #'   an error. Recognised keys:
 #'   - `years`: Integer vector of years to spatialize. If `NULL`
@@ -77,6 +85,9 @@
 #'   Columns:
 #'   - `lon`, `lat`: Cell centre coordinates.
 #'   - `year`: Integer year.
+#'   - `area_code`: WHEP polity code for this cell compartment.
+#'   - `polycell_id`, `cell_id`: Preserved when supplied in
+#'     `country_grid`.
 #'   - `crop_name` or `cft_name`: Crop or CFT identifier.
 #'   - `rainfed_ha`: Rainfed harvested area in the cell.
 #'   - `irrigated_ha`: Irrigated harvested area in the cell.
@@ -143,6 +154,7 @@ build_gridded_landuse <- function(
     gridded_cropland,
     country_grid
   )
+  country_grid <- .spatialize_prepare_country_grid(country_grid)
   config <- .resolve_landuse_config(config)
   years <- config$years
   cft_mapping <- config$cft_mapping
@@ -187,29 +199,34 @@ build_gridded_landuse <- function(
 
   # Year-invariant work — done once, shared across the year loop.
   # Cartesian: cells × crops. Per-year work just joins cropland_ha onto this.
-  cg_dt <- data.table::as.data.table(country_grid)
-  cp_dt <- data.table::as.data.table(crop_patterns)
-  base_grid_cp <- cg_dt[cp_dt, on = .(lon, lat), allow.cartesian = TRUE]
-  base_grid_cp[,
-    harvest_fraction := data.table::fifelse(
-      is.na(harvest_fraction),
-      0,
-      harvest_fraction
-    )
-  ]
-  if (!is.null(type_lookup)) {
-    tlu_dt <- data.table::as.data.table(type_lookup)
-    base_grid_cp[tlu_dt, luh2_type := i.luh2_type, on = .(item_prod_code)]
+  country_grid_is_dynamic <- .spatialize_country_grid_is_time_varying(
+    country_grid
+  )
+  base_grid_cp <- if (country_grid_is_dynamic) {
+    NULL
+  } else {
+    .spatialize_build_base_grid_cp(country_grid, crop_patterns, type_lookup)
   }
-  data.table::setkey(base_grid_cp, lon, lat)
 
   .spatialize_one <- function(yr) {
+    country_grid_yr <- .spatialize_filter_country_grid_year(country_grid, yr)
+    if (nrow(country_grid_yr) == 0L) {
+      cli::cli_abort("No {.arg country_grid} rows valid for year {yr}.")
+    }
     .spatialize_year(
       yr,
       country_areas = dplyr::filter(country_areas, year == yr),
-      base_grid_cp = base_grid_cp,
+      base_grid_cp = if (country_grid_is_dynamic) {
+        .spatialize_build_base_grid_cp(
+          country_grid_yr,
+          crop_patterns,
+          type_lookup
+        )
+      } else {
+        base_grid_cp
+      },
       cropland = dplyr::filter(gridded_cropland, year == yr),
-      country_grid = country_grid,
+      country_grid = country_grid_yr,
       type_cropland_yr = if (!is.null(type_cropland)) {
         dplyr::filter(type_cropland, year == yr)
       },
@@ -256,9 +273,19 @@ build_gridded_landuse <- function(
 
   # Per-year: copy the static base (cells × crops) and attach cropland.
   grid_cp <- data.table::copy(base_grid_cp)
+  grid_cp[,
+    cell_area_frac := data.table::fifelse(
+      is.na(cell_area_frac),
+      1,
+      cell_area_frac
+    )
+  ]
   grid_cp[
     cl,
-    `:=`(cropland_ha = i.cropland_ha, irrigated_ha = i.irrigated_ha),
+    `:=`(
+      cropland_ha = i.cropland_ha * cell_area_frac,
+      irrigated_ha = i.irrigated_ha * cell_area_frac
+    ),
     on = .(lon, lat)
   ]
   grid_cp[, rainfed_ha := cropland_ha - irrigated_ha]
@@ -282,9 +309,9 @@ build_gridded_landuse <- function(
     grid_cp_tc[
       !is.na(type_ha),
       `:=`(
-        cropland_ha = type_ha,
-        irrigated_ha = type_irrig_ha,
-        rainfed_ha = type_ha - type_irrig_ha
+        cropland_ha = type_ha * cell_area_frac,
+        irrigated_ha = type_irrig_ha * cell_area_frac,
+        rainfed_ha = (type_ha - type_irrig_ha) * cell_area_frac
       )
     ]
 
@@ -358,14 +385,21 @@ build_gridded_landuse <- function(
 
   result <- dat[
     allocated_rf > 0 | allocated_ir > 0,
-    .(
-      lon,
-      lat,
-      item_prod_code,
-      rainfed_ha = allocated_rf,
-      irrigated_ha = allocated_ir
-    )
+    c(
+      .spatialize_compartment_id_cols(dat),
+      "lon",
+      "lat",
+      "item_prod_code",
+      "allocated_rf",
+      "allocated_ir"
+    ),
+    with = FALSE
   ]
+  data.table::setnames(
+    result,
+    c("allocated_rf", "allocated_ir"),
+    c("rainfed_ha", "irrigated_ha")
+  )
 
   t_alloc <- round(proc.time()[["elapsed"]] - t_alloc0, 2)
 
@@ -511,26 +545,46 @@ build_gridded_landuse <- function(
     return(allocated)
   }
 
-  # Build per-cell capacity
+  country_cols <- .spatialize_compartment_id_cols(country_grid)
+  country_lookup <- country_grid |>
+    dplyr::select(
+      dplyr::any_of(country_cols),
+      lon,
+      lat,
+      cell_area_frac
+    )
+
+  # Build per-compartment capacity. The physical cropland layer is shared
+  # by all polity compartments in a cell, then clipped to each compartment's
+  # geographic envelope via cell_area_frac.
   capacity <- cropland |>
+    dplyr::inner_join(country_lookup, by = c("lon", "lat")) |>
     dplyr::inner_join(multicropping, by = c("lon", "lat")) |>
     dplyr::mutate(
-      rainfed_ha = cropland_ha - irrigated_ha,
+      rainfed_ha = (cropland_ha - irrigated_ha) * cell_area_frac,
+      irrigated_ha = irrigated_ha * cell_area_frac,
       rf_capacity = rainfed_ha * mc_rainfed,
       ir_capacity = irrigated_ha * mc_irrigated
     ) |>
-    dplyr::select(lon, lat, rf_capacity, ir_capacity)
+    dplyr::select(
+      dplyr::all_of(.spatialize_compartment_cell_cols(country_lookup)),
+      rf_capacity,
+      ir_capacity
+    )
+
+  cell_cols <- .spatialize_compartment_cell_cols(allocated)
+  capacity_join_cols <- intersect(cell_cols, names(capacity))
 
   # Compute per-cell sums
   cell_sums <- allocated |>
     dplyr::summarise(
       total_rf = sum(rainfed_ha, na.rm = TRUE),
       total_ir = sum(irrigated_ha, na.rm = TRUE),
-      .by = c(lon, lat)
+      .by = dplyr::all_of(cell_cols)
     )
 
   overloaded <- cell_sums |>
-    dplyr::inner_join(capacity, by = c("lon", "lat")) |>
+    dplyr::inner_join(capacity, by = capacity_join_cols) |>
     dplyr::filter(
       total_rf > rf_capacity + 1e-4 |
         total_ir > ir_capacity + 1e-4
@@ -542,7 +596,6 @@ build_gridded_landuse <- function(
 
   # Find which countries need redistribution
   countries_to_fix <- overloaded |>
-    dplyr::inner_join(country_grid, by = c("lon", "lat")) |>
     dplyr::pull(area_code) |>
     unique()
 
@@ -550,13 +603,11 @@ build_gridded_landuse <- function(
 
   to_fix <- dplyr::filter(
     allocated,
-    .get_area_code_from_grid(allocated, country_grid) %in%
-      countries_to_fix
+    .data$area_code %in% countries_to_fix
   )
   stable <- dplyr::filter(
     allocated,
-    !(.get_area_code_from_grid(allocated, country_grid) %in%
-      countries_to_fix)
+    !(.data$area_code %in% countries_to_fix)
   )
 
   fixed <- .redistribute_countries(
@@ -595,13 +646,14 @@ build_gridded_landuse <- function(
   max_iterations,
   expansion_threshold
 ) {
-  # Add area_code and capacity info
+  join_cols <- intersect(
+    .spatialize_compartment_cell_cols(allocated),
+    names(capacity)
+  )
+
+  # Add capacity info
   work <- allocated |>
-    dplyr::left_join(
-      dplyr::select(country_grid, lon, lat, area_code),
-      by = c("lon", "lat")
-    ) |>
-    dplyr::left_join(capacity, by = c("lon", "lat"))
+    dplyr::left_join(capacity, by = join_cols)
 
   countries <- unique(work$area_code)
 
@@ -615,6 +667,7 @@ build_gridded_landuse <- function(
   }) |>
     dplyr::bind_rows() |>
     dplyr::select(
+      dplyr::any_of(.spatialize_compartment_id_cols(work)),
       lon,
       lat,
       item_prod_code,
@@ -631,6 +684,21 @@ build_gridded_landuse <- function(
   expansion_threshold
 ) {
   tolerance <- 1e-4
+  cell_cols <- .spatialize_compartment_cell_cols(data)
+
+  # Capture per-crop targets BEFORE the logit loop. The loop's exit
+  # criterion ("no cell over cap") says nothing about whether per-crop
+  # country totals are preserved -- the scale-down + logit-growth
+  # iteration is approximate, so totals can drift well below target.
+  # The final renormalisation step (below) restores per-crop country
+  # totals exactly. Without it, runs lose ~20% of FAOSTAT area
+  # uniformly across countries.
+  per_crop_target <- data |>
+    dplyr::summarise(
+      target_rf = sum(rainfed_ha, na.rm = TRUE),
+      target_ir = sum(irrigated_ha, na.rm = TRUE),
+      .by = item_prod_code
+    )
 
   for (iter in seq_len(max_iterations)) {
     # Check convergence: per-cell sums vs capacity
@@ -638,7 +706,7 @@ build_gridded_landuse <- function(
       dplyr::summarise(
         total_rf = sum(rainfed_ha, na.rm = TRUE),
         total_ir = sum(irrigated_ha, na.rm = TRUE),
-        .by = c(lon, lat, rf_capacity, ir_capacity)
+        .by = dplyr::all_of(c(cell_cols, "rf_capacity", "ir_capacity"))
       ) |>
       dplyr::mutate(
         rf_excess = pmax(total_rf - rf_capacity, 0),
@@ -661,7 +729,8 @@ build_gridded_landuse <- function(
       "irrigated_ha",
       "ir_capacity",
       "total_ir",
-      "ir_excess"
+      "ir_excess",
+      cell_cols
     )
     # Apply logit redistribution for rainfed
     data <- .logit_redistribute(
@@ -670,11 +739,46 @@ build_gridded_landuse <- function(
       "rainfed_ha",
       "rf_capacity",
       "total_rf",
-      "rf_excess"
+      "rf_excess",
+      cell_cols
     )
   }
 
-  data
+  # Final per-crop renormalisation: per-crop country totals must equal
+  # the pre-loop target (which is the FAOSTAT harvested area for that
+  # country-crop pair, by construction of the upstream allocation).
+  # This may push a few cells slightly above their physical-area cap;
+  # the trade-off is intentional because FAOSTAT country totals are
+  # authoritative.
+  data |>
+    dplyr::left_join(per_crop_target, by = "item_prod_code") |>
+    dplyr::mutate(
+      current_rf = sum(rainfed_ha, na.rm = TRUE),
+      current_ir = sum(irrigated_ha, na.rm = TRUE),
+      .by = item_prod_code
+    ) |>
+    dplyr::mutate(
+      rf_scale = dplyr::if_else(
+        current_rf > 0 & target_rf > 0,
+        target_rf / current_rf,
+        1
+      ),
+      ir_scale = dplyr::if_else(
+        current_ir > 0 & target_ir > 0,
+        target_ir / current_ir,
+        1
+      ),
+      rainfed_ha = rainfed_ha * rf_scale,
+      irrigated_ha = irrigated_ha * ir_scale
+    ) |>
+    dplyr::select(
+      -target_rf,
+      -target_ir,
+      -current_rf,
+      -current_ir,
+      -rf_scale,
+      -ir_scale
+    )
 }
 
 #' One pass of logit-based redistribution.
@@ -689,7 +793,8 @@ build_gridded_landuse <- function(
   ha_col,
   cap_col,
   total_col,
-  excess_col
+  excess_col,
+  cell_cols
 ) {
   # Compute per-crop target sums
   targets <- data |>
@@ -704,11 +809,11 @@ build_gridded_landuse <- function(
     dplyr::mutate(
       scale_factor = .data[[cap_col]] / .data[[total_col]]
     ) |>
-    dplyr::select(lon, lat, scale_factor)
+    dplyr::select(dplyr::all_of(cell_cols), scale_factor)
 
   if (nrow(over) > 0L) {
     data <- data |>
-      dplyr::left_join(over, by = c("lon", "lat")) |>
+      dplyr::left_join(over, by = cell_cols) |>
       dplyr::mutate(
         !!ha_col := dplyr::if_else(
           !is.na(scale_factor),
@@ -742,12 +847,14 @@ build_gridded_landuse <- function(
   # Apply logit-increment to non-overloaded cells
   under <- cell_check |>
     dplyr::filter(.data[[excess_col]] <= 0) |>
-    dplyr::select(lon, lat)
+    dplyr::select(dplyr::all_of(cell_cols)) |>
+    dplyr::mutate(.is_under = TRUE)
 
   data |>
     dplyr::left_join(increments, by = "item_prod_code") |>
+    dplyr::left_join(under, by = cell_cols) |>
     dplyr::mutate(
-      is_under = paste(lon, lat) %in% paste(under$lon, under$lat),
+      is_under = dplyr::coalesce(.data$.is_under, FALSE),
       frac = dplyr::if_else(
         .data[[cap_col]] > 0,
         .data[[ha_col]] / .data[[cap_col]],
@@ -764,7 +871,7 @@ build_gridded_landuse <- function(
         .data[[ha_col]]
       )
     ) |>
-    dplyr::select(-increment, -is_under, -frac)
+    dplyr::select(-increment, -is_under, -frac, -.is_under)
 }
 
 #' Logit transformation.
@@ -815,6 +922,13 @@ build_gridded_landuse <- function(
 #' Aggregate crop-level results to CFT level.
 #' @noRd
 .aggregate_to_cft <- function(data, cft_mapping) {
+  group_cols <- unique(c(
+    .spatialize_compartment_id_cols(data),
+    "lon",
+    "lat",
+    "year",
+    "cft_name"
+  ))
   data |>
     dplyr::inner_join(
       dplyr::select(cft_mapping, item_prod_code, cft_name),
@@ -823,7 +937,7 @@ build_gridded_landuse <- function(
     dplyr::summarise(
       rainfed_ha = sum(rainfed_ha, na.rm = TRUE),
       irrigated_ha = sum(irrigated_ha, na.rm = TRUE),
-      .by = c(lon, lat, year, cft_name)
+      .by = dplyr::all_of(group_cols)
     )
 }
 

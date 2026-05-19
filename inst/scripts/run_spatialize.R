@@ -143,6 +143,17 @@ cli::cli_alert_success("Individual crops saved to {crop_path}")
 
 cli::cli_h2("CFT aggregation")
 
+compartment_cols <- intersect(
+  c("polycell_id", "cell_id", "area_code"),
+  names(result_crops)
+)
+cft_group_cols <- unique(c(
+  compartment_cols,
+  "lon",
+  "lat",
+  "year",
+  "cft_name"
+))
 result <- result_crops |>
   dplyr::inner_join(
     dplyr::select(cft_mapping, item_prod_code, cft_name),
@@ -151,7 +162,7 @@ result <- result_crops |>
   dplyr::summarise(
     rainfed_ha = sum(rainfed_ha, na.rm = TRUE),
     irrigated_ha = sum(irrigated_ha, na.rm = TRUE),
-    .by = c(lon, lat, year, cft_name)
+    .by = dplyr::all_of(cft_group_cols)
   )
 
 cli::cli_alert_info(
@@ -241,8 +252,11 @@ if (file.exists(yields_file)) {
   }
 
   # Join gridded areas with country-level yields
-  gridded_y <- result_crops |>
-    dplyr::inner_join(country_grid, by = c("lon", "lat")) |>
+  gridded_y <- (if ("area_code" %in% names(result_crops)) {
+    result_crops
+  } else {
+    dplyr::inner_join(result_crops, country_grid, by = c("lon", "lat"))
+  }) |>
     dplyr::inner_join(
       country_yields,
       by = c("year", "area_code", "item_prod_code")
@@ -371,7 +385,6 @@ if (file.exists(n_inputs_file)) {
     show_col_types = FALSE
   )
 
-  browser()
   n_rates <- n_rates |>
     dplyr::left_join(
       dplyr::select(items_prod, item_prod_code, item_prod_name),
@@ -380,8 +393,11 @@ if (file.exists(n_inputs_file)) {
     dplyr::filter(!is.na(item_prod_code))
 
   # Join with gridded areas to get N application per cell
-  gridded_n <- result_crops |>
-    dplyr::inner_join(country_grid, by = c("lon", "lat")) |>
+  gridded_n <- (if ("area_code" %in% names(result_crops)) {
+    result_crops
+  } else {
+    dplyr::inner_join(result_crops, country_grid, by = c("lon", "lat"))
+  }) |>
     dplyr::inner_join(
       n_rates,
       by = c("year", "area_code", "item_prod_code"),
@@ -471,6 +487,14 @@ if (file.exists(n_inputs_file)) {
   )
 
   # Also aggregate to CFT level
+  n_cft_group_cols <- unique(c(
+    intersect(c("polycell_id", "cell_id", "area_code"), names(gridded_n)),
+    "lon",
+    "lat",
+    "year",
+    "cft_name",
+    "fert_type"
+  ))
   gridded_n_cft <- gridded_n |>
     dplyr::inner_join(
       dplyr::select(cft_mapping, item_prod_code, cft_name),
@@ -481,7 +505,7 @@ if (file.exists(n_inputs_file)) {
       irrigated_n_mg = sum(irrigated_n_mg, na.rm = TRUE),
       rainfed_ha = sum(rainfed_ha, na.rm = TRUE),
       irrigated_ha = sum(irrigated_ha, na.rm = TRUE),
-      .by = c(lon, lat, year, cft_name, fert_type)
+      .by = dplyr::all_of(n_cft_group_cols)
     ) |>
     dplyr::mutate(
       total_ha = rainfed_ha + irrigated_ha,

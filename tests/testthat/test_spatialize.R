@@ -413,3 +413,93 @@ testthat::test_that("build_gridded_landuse warns for requested years missing in 
     "1999"
   )
 })
+
+testthat::test_that("shared cells keep independent polity landuse compartments", {
+  country_areas <- tibble::tribble(
+    ~year, ~area_code, ~item_prod_code, ~harvested_area_ha,
+    2000L,         1L,             15L,                100,
+    2000L,         2L,             15L,                200
+  )
+  crop_patterns <- tibble::tribble(
+    ~lon,  ~lat, ~item_prod_code, ~harvest_fraction,
+    0.25, 50.25,             15L,               1.0
+  )
+  gridded_cropland <- tibble::tribble(
+    ~lon,  ~lat,  ~year, ~cropland_ha,
+    0.25, 50.25, 2000L,         1000
+  )
+  country_grid <- tibble::tribble(
+    ~polycell_id, ~lon,  ~lat, ~area_code, ~cell_area_frac,
+    "a",         0.25, 50.25,         1L,            0.25,
+    "b",         0.25, 50.25,         2L,            0.75
+  )
+
+  result <- whep::build_gridded_landuse(
+    country_areas,
+    crop_patterns,
+    gridded_cropland,
+    country_grid
+  )
+
+  totals <- result |>
+    dplyr::summarise(
+      total = sum(rainfed_ha + irrigated_ha),
+      .by = area_code
+    ) |>
+    dplyr::arrange(area_code)
+
+  testthat::expect_equal(result$polycell_id, c("a", "b"))
+  testthat::expect_equal(totals$total, c(100, 200), tolerance = 1e-6)
+
+  cft_map <- tibble::tibble(
+    item_prod_code = 15L,
+    cft_name = "temperate_cereals"
+  )
+  cft_result <- whep::build_gridded_landuse(
+    country_areas,
+    crop_patterns,
+    gridded_cropland,
+    country_grid,
+    config = list(cft_mapping = cft_map)
+  )
+
+  testthat::expect_equal(nrow(cft_result), 2L)
+  testthat::expect_setequal(cft_result$area_code, c(1L, 2L))
+})
+
+testthat::test_that("time-varying country grids select the valid polity year", {
+  country_areas <- tibble::tribble(
+    ~year, ~area_code, ~item_prod_code, ~harvested_area_ha,
+    1990L,         1L,             15L,                100,
+    2000L,         2L,             15L,                200
+  )
+  crop_patterns <- tibble::tribble(
+    ~lon,  ~lat, ~item_prod_code, ~harvest_fraction,
+    0.25, 50.25,             15L,               1.0
+  )
+  gridded_cropland <- tibble::tribble(
+    ~lon,  ~lat,  ~year, ~cropland_ha,
+    0.25, 50.25, 1990L,         1000,
+    0.25, 50.25, 2000L,         1000
+  )
+  country_grid <- tibble::tribble(
+    ~lon,  ~lat, ~area_code, ~year,
+    0.25, 50.25,         1L, 1990L,
+    0.25, 50.25,         2L, 2000L
+  )
+
+  result <- whep::build_gridded_landuse(
+    country_areas,
+    crop_patterns,
+    gridded_cropland,
+    country_grid
+  )
+
+  actual <- result |>
+    dplyr::arrange(year) |>
+    dplyr::select(year, area_code, rainfed_ha)
+
+  testthat::expect_equal(actual$year, c(1990L, 2000L))
+  testthat::expect_equal(actual$area_code, c(1L, 2L))
+  testthat::expect_equal(actual$rainfed_ha, c(100, 200), tolerance = 1e-6)
+})

@@ -75,6 +75,14 @@
 #'   Required columns:
 #'   - `lon`, `lat`: Cell centre coordinates.
 #'   - `area_code`: Country code.
+#'   Optional columns:
+#'   - `cell_area_frac` (or `area_frac`): Fraction of the physical cell
+#'     belonging to this polity compartment. Defaults to 1.
+#'   - `polycell_id`, `cell_id`: Stable compartment/cell identifiers
+#'     preserved in outputs when present.
+#'   - `year` or validity intervals (`valid_from`/`valid_to`,
+#'     `start_year`/`end_year`, `from_year`/`to_year`) for historical,
+#'     time-varying polity overlays.
 #' @param species_proxy A tibble mapping each `species_group` to its
 #'   spatial proxy type: `"pasture"`, `"cropland"`, `"rangeland"`, or
 #'   `"mixed"`.
@@ -107,6 +115,9 @@
 #'
 #' @return A tibble with gridded livestock data. Columns:
 #'   - `lon`, `lat`: Cell centre coordinates.
+#'   - `area_code`: WHEP polity code for this cell compartment.
+#'   - `polycell_id`, `cell_id`: Preserved when supplied in
+#'     `country_grid`.
 #'   - `year`: Integer year.
 #'   - `species_group`: Livestock functional type.
 #'   - `heads`: Allocated live animal count.
@@ -155,6 +166,7 @@ build_gridded_livestock <- function(
     gridded_cropland,
     country_grid
   )
+  country_grid <- .spatialize_prepare_country_grid(country_grid)
 
   if (!is.null(years)) {
     years <- sort(unique(as.integer(years)))
@@ -195,12 +207,19 @@ build_gridded_livestock <- function(
   result <- purrr::map(
     years,
     \(yr) {
+      country_grid_yr <- .spatialize_filter_country_grid_year(
+        country_grid,
+        yr
+      )
+      if (nrow(country_grid_yr) == 0L) {
+        cli::cli_abort("No {.arg country_grid} rows valid for year {yr}.")
+      }
       .spatialize_livestock_year(
         yr = yr,
         livestock_yr = dplyr::filter(livestock_data, year == yr),
         pasture_yr = dplyr::filter(gridded_pasture, year == yr),
         cropland_yr = dplyr::filter(gridded_cropland, year == yr),
-        country_grid = country_grid,
+        country_grid = country_grid_yr,
         species_proxy = species_proxy,
         manure_pattern = manure_pattern,
         glw_density = glw_density,
@@ -293,6 +312,7 @@ build_gridded_livestock <- function(
 
   grid <- grid |>
     dplyr::inner_join(country_grid, by = c("lon", "lat")) |>
+    dplyr::mutate(weight = weight * cell_area_frac) |>
     dplyr::filter(weight > 0)
 
   # Optionally multiply by manure-intensity reference pattern
@@ -370,10 +390,15 @@ build_gridded_livestock <- function(
     dplyr::inner_join(country_grid, by = c("lon", "lat")) |>
     dplyr::mutate(
       # Where LU is zero now, the cell gets zero even if GLW has density
-      weight = density * dplyr::if_else(lu_now > 0, 1, 0)
+      weight = density * dplyr::if_else(lu_now > 0, 1, 0) * cell_area_frac
     ) |>
     dplyr::filter(weight > 0) |>
-    dplyr::select(lon, lat, area_code, weight)
+    dplyr::select(
+      dplyr::any_of(.spatialize_compartment_id_cols(country_grid)),
+      lon,
+      lat,
+      weight
+    )
 }
 
 
@@ -492,6 +517,7 @@ build_gridded_livestock <- function(
 
   grid |>
     dplyr::select(
+      dplyr::any_of(.spatialize_compartment_id_cols(grid)),
       lon,
       lat,
       dplyr::all_of(numeric_cols)

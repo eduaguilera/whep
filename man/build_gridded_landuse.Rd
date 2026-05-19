@@ -51,6 +51,14 @@ Expected columns:
 \item \code{lon}: Longitude of cell centre.
 \item \code{lat}: Latitude of cell centre.
 \item \code{area_code}: Country code.
+Optional columns:
+\item \code{cell_area_frac} (or \code{area_frac}): Fraction of the physical cell
+belonging to this polity compartment. Defaults to 1.
+\item \code{polycell_id}, \code{cell_id}: Stable compartment/cell identifiers
+preserved in outputs when present.
+\item \code{year} or validity intervals (\code{valid_from}/\code{valid_to},
+\code{start_year}/\code{end_year}, \code{from_year}/\code{to_year}) for historical,
+time-varying polity overlays.
 }}
 
 \item{config}{Named list of optional extras. Unknown keys raise
@@ -91,6 +99,9 @@ Columns:
 \itemize{
 \item \code{lon}, \code{lat}: Cell centre coordinates.
 \item \code{year}: Integer year.
+\item \code{area_code}: WHEP polity code for this cell compartment.
+\item \code{polycell_id}, \code{cell_id}: Preserved when supplied in
+\code{country_grid}.
 \item \code{crop_name} or \code{cft_name}: Crop or CFT identifier.
 \item \code{rainfed_ha}: Rainfed harvested area in the cell.
 \item \code{irrigated_ha}: Irrigated harvested area in the cell.

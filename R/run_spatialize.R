@@ -618,6 +618,13 @@ run_spatialize <- function(
         "cft_mapping is missing the {.field {agg_col}} column."
       )
     }
+    group_cols <- unique(c(
+      .spatialize_compartment_id_cols(result_crops),
+      "lon",
+      "lat",
+      "year",
+      "cft_name"
+    ))
     cft_result <- result_crops |>
       dplyr::inner_join(
         dplyr::select(
@@ -630,7 +637,7 @@ run_spatialize <- function(
       dplyr::summarise(
         rainfed_ha = sum(rainfed_ha, na.rm = TRUE),
         irrigated_ha = sum(irrigated_ha, na.rm = TRUE),
-        .by = c(lon, lat, year, cft_name)
+        .by = dplyr::all_of(group_cols)
       )
     cft_path <- file.path(out_dir, "gridded_landuse.parquet")
     nanoparquet::write_parquet(cft_result, cft_path)

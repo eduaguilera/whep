@@ -4572,11 +4572,13 @@ run_crop_spatialize <- function(
     rm(cft_chunk)
 
     crops_with_country <- .step("attach area_code", {
-      cg_keys <- data.table::as.data.table(
-        dplyr::select(country_grid, lon, lat, area_code)
-      )
       cwc <- data.table::as.data.table(crops_chunk)
-      cwc[cg_keys, area_code := i.area_code, on = .(lon, lat)]
+      if (!"area_code" %in% names(cwc)) {
+        cg_keys <- data.table::as.data.table(
+          dplyr::select(country_grid, lon, lat, area_code)
+        )
+        cwc[cg_keys, area_code := i.area_code, on = .(lon, lat)]
+      }
       cwc[!is.na(area_code)]
     })
     rm(crops_chunk)

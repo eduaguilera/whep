@@ -313,3 +313,43 @@ test_that("zero-heads country is handled gracefully", {
   # Zero heads should distribute to zero everywhere
   expect_equal(sum(result$heads), 0)
 })
+
+test_that("shared cells keep independent livestock polity compartments", {
+  ld <- tibble::tribble(
+    ~year, ~area_code, ~species_group, ~heads, ~manure_n_mg,
+    2000L,         1L,        "pigs",    100,         10,
+    2000L,         2L,        "pigs",      0,          0
+  )
+  pasture <- tibble::tribble(
+    ~lon,  ~lat,  ~year, ~pasture_ha, ~rangeland_ha,
+    0.25, 50.25, 2000L,           0,             0
+  )
+  cropland <- tibble::tribble(
+    ~lon,  ~lat,  ~year, ~cropland_ha,
+    0.25, 50.25, 2000L,         1000
+  )
+  cg <- tibble::tribble(
+    ~polycell_id, ~lon,  ~lat, ~area_code, ~cell_area_frac,
+    "a",         0.25, 50.25,         1L,             0.4,
+    "b",         0.25, 50.25,         2L,             0.6
+  )
+
+  result <- whep::build_gridded_livestock(
+    ld,
+    pasture,
+    cropland,
+    cg
+  )
+
+  totals <- result |>
+    dplyr::summarise(
+      heads = sum(heads),
+      manure_n_mg = sum(manure_n_mg),
+      .by = area_code
+    ) |>
+    dplyr::arrange(area_code)
+
+  expect_equal(totals$heads, c(100, 0), tolerance = 1e-6)
+  expect_equal(totals$manure_n_mg, c(10, 0), tolerance = 1e-6)
+  expect_setequal(result$polycell_id, c("a", "b"))
+})
