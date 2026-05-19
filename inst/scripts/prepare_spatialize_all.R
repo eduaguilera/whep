@@ -2590,22 +2590,51 @@ prepare_nitrogen_inputs <- function(
 #
 # Method
 # ------
-# The country-year multi-cropping factor is
+# The per-hectare budget combines two distinct phenomena:
+#
+#   budget_per_ha(country, year) =
+#       (1 - fallow_share)         # share of cropland actually cropped this year
+#     * cropping_intensity         # cycles per cropped hectare, always >= 1
+#
+# We currently do not have an independent fallow_share series we trust
+# for the full 1850-2022 range, so the two phenomena stay fused in a
+# single country-year factor equal to their product:
 #
 #   mc_factor(country, year) =
 #     sum_{herbaceous items} harvested_area_ha       (from country_areas)
 #     ---------------------------------------------
 #     sum_{herbaceous LUH2 types} physical_ha       (from type_cropland)
 #
+# When mc_factor > 1, multi-cropping dominates (e.g. monsoon Asia
+# rice double-cropping). When mc_factor < 1, fallow dominates
+# (e.g. Sahel rotational fallow, US set-aside, dryland biennial wheat).
+# When mc_factor = 1, either nothing is happening or the two cancel.
+# Pre-FAOSTAT extension years (1850-1960) give mc ~ 1.0 because the
+# LUH2-driven country_areas extension encodes neither phenomenon.
+#
 # "Herbaceous" = LUH2 types c3ann + c4ann + c3nfx (annuals + N-fixing
 # annuals). Woody / perennial cropland (c3per, c4per) is excluded from
 # both numerator and denominator because multi-cropping is an
 # annual-crop phenomenon; perennials occupy land continuously.
 #
-# Bounds: mc_factor is clamped to [1.0, 3.0]. Floor 1 because the
-# spatializer must always be able to fit at least one harvest per
-# cropland hectare regardless of fallow patterns; ceiling 3 because
-# triple cropping is the documented maximum in MIRCA2000 and GAEZ.
+# Bounds: capped at 3.0 (the documented maximum cropping intensity in
+# MIRCA2000 and GAEZ -- triple cropping). No lower bound: fallow
+# countries legitimately have mc < 1, and the spatializer's logit
+# redistribution handles the resulting tighter per-cell cap correctly.
+#
+# Upgrade path
+# ------------
+# When a defensible fallow_share(country, year) series becomes
+# available, prepare_multicropping should be split into two outputs:
+# fallow_share and cropping_intensity. The product remains
+# mc_factor, so the spatializer's cap math does not change; the
+# value is that the two phenomena become individually inspectable
+# (visualisation, separate spatial fallow modelling, sensitivity
+# analysis). Plumbing such an input through this function would mean
+# adding a fallow_share argument; the function would compute
+# cropping_intensity = harvested / (physical * (1 - fallow_share))
+# and the parquet would gain explicit fallow_share + cropping_intensity
+# columns alongside mc_rainfed and mc_irrigated.
 #
 # Spatial expansion
 # -----------------
@@ -2674,7 +2703,7 @@ prepare_multicropping <- function(l_files_dir, output_dir) {
     dplyr::mutate(
       mc_factor = dplyr::case_when(
         physical_ha < 1 ~ 1.0,
-        TRUE ~ pmin(pmax(harvested_ha / physical_ha, 1.0), 3.0)
+        TRUE ~ pmin(harvested_ha / physical_ha, 3.0)
       )
     )
 
