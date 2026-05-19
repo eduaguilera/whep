@@ -2573,6 +2573,136 @@ prepare_nitrogen_inputs <- function(
 }
 
 
+# ==== Section 4b: Multi-cropping factor ====================================
+#
+# Purpose
+# -------
+# Disaggregating FAOSTAT country-level harvested area to a 0.5 degree
+# grid runs into the multi-cropping problem: in regions where land is
+# cropped more than once a year (rice double-cropping, cereal-pulse
+# rotations, etc.), country harvested area exceeds country physical
+# cropland. The spatializer's capacity-constraint path
+# (.apply_capacity_constraint() in R/spatialize.R) re-allocates excess
+# area between cells within a country, but it needs an explicit budget
+# per cell: how much harvested area each cell can hold, expressed as
+# a multiple of its physical cropland area. This function builds that
+# budget for every cell and every year of the 1850-2022 series.
+#
+# Method
+# ------
+# The country-year multi-cropping factor is
+#
+#   mc_factor(country, year) =
+#     sum_{herbaceous items} harvested_area_ha       (from country_areas)
+#     ---------------------------------------------
+#     sum_{herbaceous LUH2 types} physical_ha       (from type_cropland)
+#
+# "Herbaceous" = LUH2 types c3ann + c4ann + c3nfx (annuals + N-fixing
+# annuals). Woody / perennial cropland (c3per, c4per) is excluded from
+# both numerator and denominator because multi-cropping is an
+# annual-crop phenomenon; perennials occupy land continuously.
+#
+# Bounds: mc_factor is clamped to [1.0, 3.0]. Floor 1 because the
+# spatializer must always be able to fit at least one harvest per
+# cropland hectare regardless of fallow patterns; ceiling 3 because
+# triple cropping is the documented maximum in MIRCA2000 and GAEZ.
+#
+# Spatial expansion
+# -----------------
+# The country-year factor is broadcast uniformly to every cell of the
+# country for that year (mc_rainfed = mc_irrigated = mc_factor). The
+# spatializer's logit redistribution (.apply_capacity_constraint and
+# its .redistribute_* helpers) then handles within-country reallocation
+# when the crop-pattern-derived initial allocation puts more harvested
+# area in a cell than the country budget allows.
+#
+# Inputs and outputs
+# ------------------
+# Reads country_areas.parquet, type_cropland.parquet, country_grid.parquet,
+# and gridded_cropland.parquet from output_dir (all produced by earlier
+# sections of this pipeline). Writes inputs/multicropping.parquet with
+# columns lon, lat, year, mc_rainfed, mc_irrigated.
+
+prepare_multicropping <- function(l_files_dir, output_dir) {
+  cli::cli_h2("Section 4b: Multi-cropping factor")
+
+  cft_mapping <- readr::read_csv(
+    .find_extdata_file("cft_mapping.csv"),
+    show_col_types = FALSE
+  )
+  herb_types <- c("c3ann", "c4ann", "c3nfx")
+  herb_items <- cft_mapping |>
+    dplyr::filter(luh2_type %in% herb_types) |>
+    dplyr::pull(item_prod_code)
+  cli::cli_alert_info(
+    "{length(herb_items)} herbaceous items \\
+    ({length(herb_types)} LUH2 types)"
+  )
+
+  ca <- nanoparquet::read_parquet(
+    file.path(output_dir, "country_areas.parquet")
+  ) |>
+    tibble::as_tibble() |>
+    dplyr::filter(item_prod_code %in% herb_items)
+
+  num <- ca |>
+    dplyr::summarise(
+      harvested_ha = sum(harvested_area_ha, na.rm = TRUE),
+      .by = c(year, area_code)
+    )
+
+  tc <- nanoparquet::read_parquet(
+    file.path(output_dir, "type_cropland.parquet")
+  ) |>
+    tibble::as_tibble() |>
+    dplyr::filter(luh2_type %in% herb_types)
+
+  cg <- nanoparquet::read_parquet(
+    file.path(output_dir, "country_grid.parquet")
+  ) |>
+    tibble::as_tibble()
+
+  den <- tc |>
+    dplyr::inner_join(cg, by = c("lon", "lat")) |>
+    dplyr::summarise(
+      physical_ha = sum(type_ha, na.rm = TRUE),
+      .by = c(year, area_code)
+    )
+
+  mc_country <- num |>
+    dplyr::inner_join(den, by = c("year", "area_code")) |>
+    dplyr::mutate(
+      mc_factor = dplyr::case_when(
+        physical_ha < 1 ~ 1.0,
+        TRUE ~ pmin(pmax(harvested_ha / physical_ha, 1.0), 3.0)
+      )
+    )
+
+  gc <- nanoparquet::read_parquet(
+    file.path(output_dir, "gridded_cropland.parquet")
+  ) |>
+    tibble::as_tibble() |>
+    dplyr::filter(cropland_ha > 0) |>
+    dplyr::select(lon, lat, year, cropland_ha)
+
+  mc_cell <- gc |>
+    dplyr::inner_join(cg, by = c("lon", "lat")) |>
+    dplyr::inner_join(
+      dplyr::select(mc_country, year, area_code, mc_factor),
+      by = c("year", "area_code")
+    ) |>
+    dplyr::mutate(
+      mc_rainfed = mc_factor,
+      mc_irrigated = mc_factor
+    ) |>
+    dplyr::select(lon, lat, year, mc_rainfed, mc_irrigated)
+
+  .save_parquet(mc_cell, output_dir, "multicropping")
+
+  invisible(mc_cell)
+}
+
+
 # ==== Section 8: Livestock inputs ==========================================
 #
 # Livestock stocks, emissions, gridded pasture, manure pattern.
@@ -4557,6 +4687,9 @@ prepare_spatialize_all <- function(
     output_dir = output_dir
   )
   .save_parquet(gridded_cropland, output_dir, "gridded_cropland")
+
+  # Section 4b: Multi-cropping factor (needs country_areas + type_cropland)
+  prepare_multicropping(l_files_dir, output_dir)
 
   # Section 6: Yield inputs
   prepare_yield_inputs(
