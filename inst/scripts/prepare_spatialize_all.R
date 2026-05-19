@@ -489,6 +489,12 @@ cft_to_pft <- c(
 }
 
 # ---- LUH2 multi-variable reader (for cropland types) --------------------
+.luh2_time_len <- function(nc_path) {
+  nc <- ncdf4::nc_open(nc_path)
+  on.exit(ncdf4::nc_close(nc))
+  nc$dim$time$len
+}
+
 .read_luh2_variables <- function(nc_path, var_names, time_idx) {
   nc <- ncdf4::nc_open(nc_path)
   on.exit(ncdf4::nc_close(nc))
@@ -517,10 +523,24 @@ cft_to_pft <- c(
 
 # ---- Read LUH2 cropland for one year (per-type + total) ------------------
 .read_luh2_year <- function(luh2_dir, yr, crop_vars, carea_rast, target_res) {
-  time_idx <- yr - 850L + 1L
   states_path <- file.path(luh2_dir, "states.nc")
   mgmt_path <- file.path(luh2_dir, "management.nc")
   irrig_vars <- paste0("irrig_", crop_vars)
+
+  # LUH2 v2h time axis: index 1 = year 850 CE. The historical record
+  # currently ends at 2022 (1173 time steps). For requested years past
+  # the LUH2 record (e.g. 2023+ in releases where FAOSTAT extends further
+  # than LUH2), reuse the most recent LUH2 slice so the prep does not
+  # abort. .read_luh2_variables is given the clamped index.
+  time_idx_raw <- yr - 850L + 1L
+  luh2_time_len <- .luh2_time_len(states_path)
+  time_idx <- min(time_idx_raw, luh2_time_len)
+  if (time_idx_raw > luh2_time_len) {
+    cli::cli_warn(c(
+      "LUH2 v2h covers up to year {850L + luh2_time_len - 1L}.",
+      "i" = "Year {yr} requested; reusing the {850L + luh2_time_len - 1L} slice."
+    ))
+  }
 
   crop_rasters <- .read_luh2_variables(states_path, crop_vars, time_idx)
   irrig_rasters <- .read_luh2_variables(mgmt_path, irrig_vars, time_idx)
@@ -4814,11 +4834,16 @@ run_livestock_spatialize <- function(
 
 prepare_spatialize_all <- function(
   l_files_dir = "LPJmL_inputs",
-  year_range = 1851:2021,
+  year_range = 1851:2023,
   target_res = 0.5,
   climate_dir = NULL
 ) {
   # For a quick test run use: year_range = 2000:2001
+  #
+  # Note on year_range upper bound: FAOSTAT QCL (faostat-production pin)
+  # currently carries data through 2024; LUH2 v2h states.nc + management.nc
+  # cover 850-2022, so years > 2022 reuse the 2022 LUH2 slice (handled by
+  # the LUH2 reader). FAOSTAT-side data dominates the 2023+ values.
   cli::cli_h1("WHEP Spatialization Pipeline")
 
   if (!dir.exists(l_files_dir)) {
