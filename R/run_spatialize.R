@@ -232,6 +232,7 @@ run_spatialize <- function(
     config = list(
       type_cropland = lu_inputs$type_cropland,
       type_mapping = lu_inputs$type_mapping,
+      multicropping = lu_inputs$multicropping,
       years = resolved_years,
       max_iterations = config$max_iterations,
       expansion_threshold = config$expansion_threshold
@@ -503,6 +504,15 @@ run_spatialize <- function(
     type_mapping <- cft_mapping
   }
 
+  multicropping <- NULL
+  mc_path <- file.path(input_dir, "multicropping.parquet")
+  if (file.exists(mc_path)) {
+    multicropping <- nanoparquet::read_parquet(mc_path)
+    cli::cli_alert_info(
+      "multicropping: {nrow(multicropping)} rows loaded"
+    )
+  }
+
   list(
     country_areas = country_areas,
     crop_patterns = crop_patterns,
@@ -510,6 +520,7 @@ run_spatialize <- function(
     country_grid = country_grid,
     type_cropland = type_cropland,
     type_mapping = type_mapping,
+    multicropping = multicropping,
     cft_mapping = cft_mapping
   )
 }
