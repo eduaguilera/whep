@@ -60,11 +60,13 @@
 #'   - `type_mapping`: A tibble (`item_prod_code`, `luh2_type`) that
 #'     maps each crop to its LUH2 type. If `NULL`, type-aware
 #'     allocation is disabled even when `type_cropland` is provided.
-#'   - `multicropping`: A tibble (`lon`, `lat`, `mc_rainfed`,
-#'     `mc_irrigated`) with per-cell multi-cropping suitability
-#'     factors. The capacity-constraint path is exercised by the
-#'     test suite but not yet wired into the package pipeline (P1
-#'     in `docs/SPATIALIZE_UPGRADE_PLAN.md`).
+#'   - `multicropping`: A tibble with per-cell multi-cropping
+#'     suitability factors. Required columns: `lon`, `lat`,
+#'     `mc_rainfed`, `mc_irrigated`. An optional `year` column
+#'     keys factors to year (one row per cell per year); when
+#'     present, the table is filtered to the current year before
+#'     the capacity constraint is applied. When absent, the table
+#'     is treated as a static spatial layer applied to every year.
 #'   - `max_iterations`: Maximum iterations for the redistribution
 #'     loop. Default: `1000L`.
 #'   - `expansion_threshold`: Iteration number after which crops are
@@ -355,11 +357,16 @@ build_gridded_landuse <- function(
   t_alloc <- round(proc.time()[["elapsed"]] - t_alloc0, 2)
 
   # Capacity constraint (keep dplyr version for now; can be dt-optimised later)
+  multicropping_yr <- multicropping
+  if (!is.null(multicropping_yr) && "year" %in% names(multicropping_yr)) {
+    multicropping_yr <- dplyr::filter(multicropping_yr, year == yr) |>
+      dplyr::select(-year)
+  }
   result <- result |>
     .apply_capacity_constraint(
       cropland,
       country_grid,
-      multicropping,
+      multicropping_yr,
       max_iterations,
       expansion_threshold
     ) |>

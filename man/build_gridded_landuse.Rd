@@ -71,11 +71,13 @@ type. If \code{NULL}, falls back to total cropland.
 \item \code{type_mapping}: A tibble (\code{item_prod_code}, \code{luh2_type}) that
 maps each crop to its LUH2 type. If \code{NULL}, type-aware
 allocation is disabled even when \code{type_cropland} is provided.
-\item \code{multicropping}: A tibble (\code{lon}, \code{lat}, \code{mc_rainfed},
-\code{mc_irrigated}) with per-cell multi-cropping suitability
-factors. The capacity-constraint path is exercised by the
-test suite but not yet wired into the package pipeline (P1
-in \code{docs/SPATIALIZE_UPGRADE_PLAN.md}).
+\item \code{multicropping}: A tibble with per-cell multi-cropping
+suitability factors. Required columns: \code{lon}, \code{lat},
+\code{mc_rainfed}, \code{mc_irrigated}. An optional \code{year} column
+keys factors to year (one row per cell per year); when
+present, the table is filtered to the current year before
+the capacity constraint is applied. When absent, the table
+is treated as a static spatial layer applied to every year.
 \item \code{max_iterations}: Maximum iterations for the redistribution
 loop. Default: \code{1000L}.
 \item \code{expansion_threshold}: Iteration number after which crops are
