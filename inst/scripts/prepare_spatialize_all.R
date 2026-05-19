@@ -2734,16 +2734,160 @@ prepare_multicropping <- function(l_files_dir, output_dir) {
 
 # ==== Section 8: Livestock inputs ==========================================
 #
-# Livestock stocks, emissions, gridded pasture, manure pattern.
+# Livestock stocks, emissions, gridded pasture, manure pattern. The
+# per-animal nitrogen-excretion rate (nex_kg_n_head) used to derive
+# country-level manure-N (manure_n_mg) is a separate WHEP output, see
+# .compute_default_n_excretion() below.
+
+# --- N excretion (default = IPCC 2019 Tier 1, regional for cattle) --------
+#
+# Purpose
+# -------
+# Country x year x species_group N excretion rate (kg N per head per year)
+# used to translate livestock heads into manure-N flows. This is the
+# Tier 1 default; downstream modules (notably .calc_n_excretion() in
+# R/livestock_manure.R, which derives N excretion from gross energy
+# and dietary crude protein) can provide a more sophisticated Tier 2
+# series. To override the default, pass a tibble with columns
+# (year, area_code, species_group, nex_kg_n_head) as the nex_source
+# argument of prepare_livestock_inputs().
+#
+# Method
+# ------
+# Looks up each species_group in the IPCC 2019 Refinement Vol 4 Ch 10
+# Table 10.19 (whep::ipcc_2019_n_excretion):
+#   - cattle_dairy   uses regional 'Dairy Cattle' values via the
+#     country -> region_krausmann -> IPCC NEx region mapping below.
+#   - cattle_non_dairy uses regional 'Other Cattle' values via the
+#     same mapping.
+#   - All other species_groups use Global values from the same table
+#     because the IPCC table itself only provides regional values for
+#     the two cattle categories.
+#   - species_group 'other' (rabbits, rodents, animals nes) has no
+#     IPCC entry and falls back to a small constant 2 kg N/head/year.
+#
+# The Krausmann -> IPCC region table below covers all 11 Krausmann
+# regions; countries with no Krausmann classification fall back to
+# Global. Output is materialised to L_files/whep/outputs/n_excretion.parquet
+# so it can be inspected and reused outside this prep step.
+
+.species_to_ipcc_2019_category <- function() {
+  tibble::tribble(
+    ~species_group,      ~ipcc_category,        ~use_regional,
+    "cattle_dairy",      "Dairy Cattle",        TRUE,
+    "cattle_non_dairy",  "Other Cattle",        TRUE,
+    "buffalo",           "Buffalo",             FALSE,
+    "sheep_goats",       "Sheep",               FALSE,
+    "pigs",              "Swine - Market",      FALSE,
+    "chickens_layers",   "Poultry - Layers",    FALSE,
+    "chickens_broilers", "Poultry - Broilers",  FALSE,
+    "poultry",           "Poultry - Broilers",  FALSE,
+    "equines",           "Horses",              FALSE,
+    "camels",            "Camels",              FALSE,
+    "other",             NA_character_,         FALSE
+  )
+}
+
+.krausmann_to_ipcc_nex_region <- function() {
+  tibble::tribble(
+    ~region_krausmann,                       ~ipcc_region,
+    "Australia and Oceania",                 "Oceania",
+    "Central Asia and Russian Federation",   "Eastern Europe",
+    "Eastern and South Eastern Europe",      "Eastern Europe",
+    "Eastern Asia",                          "Asia",
+    "Latin America and the Caribbean",       "Latin America",
+    "Northern Africa and Western Asia",      "Middle East",
+    "Northern America",                      "North America",
+    "Southeastern Asia",                     "Asia",
+    "Southern Asia",                         "Indian Subcontinent",
+    "Subsaharan Africa",                     "Africa",
+    "Western Europe",                        "Western Europe"
+  )
+}
+
+.compute_default_n_excretion <- function(keys) {
+  species_to_ipcc <- .species_to_ipcc_2019_category()
+  krausmann_to_ipcc <- .krausmann_to_ipcc_nex_region()
+
+  area_to_region <- whep::regions_full |>
+    dplyr::select(area_code = code, region_krausmann) |>
+    dplyr::distinct() |>
+    dplyr::left_join(krausmann_to_ipcc, by = "region_krausmann") |>
+    dplyr::mutate(
+      ipcc_region = dplyr::coalesce(ipcc_region, "Global")
+    ) |>
+    dplyr::select(area_code, ipcc_region)
+
+  nex_lookup <- whep::ipcc_2019_n_excretion |>
+    dplyr::rename(
+      ipcc_region_lkp = region,
+      ipcc_category = category,
+      nex_lookup = nex_kg_n_head_yr
+    )
+
+  result <- keys |>
+    dplyr::left_join(species_to_ipcc, by = "species_group") |>
+    dplyr::left_join(area_to_region, by = "area_code") |>
+    dplyr::mutate(
+      ipcc_region_lkp = dplyr::if_else(
+        use_regional & !is.na(ipcc_region),
+        ipcc_region,
+        "Global"
+      )
+    ) |>
+    dplyr::left_join(
+      nex_lookup,
+      by = c("ipcc_region_lkp", "ipcc_category")
+    ) |>
+    dplyr::mutate(
+      source = dplyr::case_when(
+        !is.na(nex_lookup) & use_regional ~
+          "ipcc_2019_tier1_regional",
+        !is.na(nex_lookup) ~ "ipcc_2019_tier1_global",
+        TRUE ~ "fallback_other_2kg"
+      ),
+      nex_kg_n_head = dplyr::coalesce(nex_lookup, 2.0)
+    ) |>
+    dplyr::select(year, area_code, species_group, nex_kg_n_head, source)
+
+  result
+}
+
+.resolve_n_excretion <- function(nex_source, keys) {
+  if (is.null(nex_source)) {
+    return(.compute_default_n_excretion(keys))
+  }
+  required <- c("year", "area_code", "species_group", "nex_kg_n_head")
+  missing <- setdiff(required, names(nex_source))
+  if (length(missing) > 0L) {
+    cli::cli_abort(c(
+      "{.arg nex_source} is missing required column{?s}:",
+      "x" = "{.val {missing}}."
+    ))
+  }
+  out <- nex_source
+  if (!"source" %in% names(out)) {
+    out <- dplyr::mutate(out, source = "user_supplied")
+  }
+  out |>
+    dplyr::select(year, area_code, species_group, nex_kg_n_head, source)
+}
+
 
 prepare_livestock_inputs <- function(
   l_files_dir,
   output_dir,
   year_range,
   target_res,
-  prod = NULL
+  prod = NULL,
+  nex_source = NULL
 ) {
   cli::cli_h2("Section 8: Livestock inputs")
+
+  outputs_dir <- file.path(l_files_dir, "whep", "outputs")
+  if (!dir.exists(outputs_dir)) {
+    dir.create(outputs_dir, recursive = TRUE)
+  }
 
   mapping_path <- .find_extdata_file("livestock_mapping.csv")
   livestock_mapping <- readr::read_csv(mapping_path, show_col_types = FALSE)
@@ -2766,15 +2910,27 @@ prepare_livestock_inputs <- function(
     ) |>
     filter(!is.na(.data$area_code), .data$heads > 0) |>
     inner_join(
-      select(livestock_mapping, item_code, species_group, nex_kg_n_head),
+      select(livestock_mapping, item_code, species_group),
       by = "item_code"
     )
 
   stocks_grouped <- stocks |>
     summarise(
       heads = sum(heads, na.rm = TRUE),
-      nex_kg_n_head = sum(heads * nex_kg_n_head) / sum(heads),
       .by = c(year, area_code, species_group)
+    )
+
+  # --- N excretion (separate WHEP output, materialised to outputs/) ---
+  nex_tbl <- .resolve_n_excretion(
+    nex_source = nex_source,
+    keys = dplyr::distinct(stocks_grouped, year, area_code, species_group)
+  )
+  .save_parquet(nex_tbl, outputs_dir, "n_excretion")
+
+  stocks_grouped <- stocks_grouped |>
+    dplyr::left_join(
+      dplyr::select(nex_tbl, year, area_code, species_group, nex_kg_n_head),
+      by = c("year", "area_code", "species_group")
     )
 
   # --- Emissions from pin ---
@@ -2790,15 +2946,15 @@ prepare_livestock_inputs <- function(
   if (!is.null(emi_raw)) {
     emi_species_map <- tribble(
       ~emi_item, ~species_group,
-      "Cattle, dairy", "cattle",
-      "Cattle, non-dairy", "cattle",
+      "Cattle, dairy", "cattle_dairy",
+      "Cattle, non-dairy", "cattle_non_dairy",
       "Buffalo", "buffalo",
       "Sheep", "sheep_goats",
       "Goats", "sheep_goats",
       "Swine, market", "pigs",
       "Swine, breeding", "pigs",
-      "Chickens, layers", "poultry",
-      "Chickens, broilers", "poultry",
+      "Chickens, layers", "chickens_layers",
+      "Chickens, broilers", "chickens_broilers",
       "Ducks", "poultry",
       "Turkeys", "poultry",
       "Horses", "equines",
