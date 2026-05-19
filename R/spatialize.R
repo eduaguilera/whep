@@ -268,6 +268,13 @@ build_gridded_landuse <- function(
 
   # Type-aware: replace cropland with type-specific where applicable
   if (use_type_aware) {
+    # Preserve original LUH2 total cropland so the fallback path below
+    # can restore it for (country, crop) groups with no type potential.
+    grid_cp[, `:=`(
+      .orig_cropland_ha = cropland_ha,
+      .orig_irrigated_ha = irrigated_ha,
+      .orig_rainfed_ha = rainfed_ha
+    )]
     tc <- data.table::as.data.table(type_cropland_yr)
     grid_cp_tc <- tc[grid_cp, on = .(lon, lat, luh2_type), nomatch = NA]
 
@@ -283,20 +290,26 @@ build_gridded_landuse <- function(
 
     # Check which (country, crop) have type potential; fallback where zero
     grid_cp_tc[,
-      type_pot := sum(harvest_fraction * cropland_ha),
+      type_pot := sum(harvest_fraction * cropland_ha, na.rm = TRUE),
       by = .(area_code, item_prod_code)
     ]
     grid_cp_tc[
       type_pot <= 0,
       `:=`(
-        cropland_ha = i.cropland_ha,
-        irrigated_ha = i.irrigated_ha,
-        rainfed_ha = i.rainfed_ha
+        cropland_ha = .orig_cropland_ha,
+        irrigated_ha = .orig_irrigated_ha,
+        rainfed_ha = .orig_rainfed_ha
       )
     ]
 
     grid_cp <- grid_cp_tc
-    grid_cp[, `:=`(type_pot = NULL, luh2_type = NULL)]
+    grid_cp[, `:=`(
+      type_pot = NULL,
+      luh2_type = NULL,
+      .orig_cropland_ha = NULL,
+      .orig_irrigated_ha = NULL,
+      .orig_rainfed_ha = NULL
+    )]
   }
 
   # Join country_areas (cartesian: each country-crop gets its cells)
@@ -310,10 +323,10 @@ build_gridded_landuse <- function(
   )]
   dat[,
     `:=`(
-      rf_pot_sum = sum(rf_potential),
-      ir_pot_sum = sum(ir_potential),
-      rainfed_sum = sum(rainfed_ha),
-      irrigated_sum = sum(irrigated_ha)
+      rf_pot_sum = sum(rf_potential, na.rm = TRUE),
+      ir_pot_sum = sum(ir_potential, na.rm = TRUE),
+      rainfed_sum = sum(rainfed_ha, na.rm = TRUE),
+      irrigated_sum = sum(irrigated_ha, na.rm = TRUE)
     ),
     by = .(area_code, item_prod_code)
   ]
@@ -511,8 +524,8 @@ build_gridded_landuse <- function(
   # Compute per-cell sums
   cell_sums <- allocated |>
     dplyr::summarise(
-      total_rf = sum(rainfed_ha),
-      total_ir = sum(irrigated_ha),
+      total_rf = sum(rainfed_ha, na.rm = TRUE),
+      total_ir = sum(irrigated_ha, na.rm = TRUE),
       .by = c(lon, lat)
     )
 
@@ -623,8 +636,8 @@ build_gridded_landuse <- function(
     # Check convergence: per-cell sums vs capacity
     cell_check <- data |>
       dplyr::summarise(
-        total_rf = sum(rainfed_ha),
-        total_ir = sum(irrigated_ha),
+        total_rf = sum(rainfed_ha, na.rm = TRUE),
+        total_ir = sum(irrigated_ha, na.rm = TRUE),
         .by = c(lon, lat, rf_capacity, ir_capacity)
       ) |>
       dplyr::mutate(
@@ -681,7 +694,7 @@ build_gridded_landuse <- function(
   # Compute per-crop target sums
   targets <- data |>
     dplyr::summarise(
-      target = sum(.data[[ha_col]]),
+      target = sum(.data[[ha_col]], na.rm = TRUE),
       .by = item_prod_code
     )
 
@@ -709,7 +722,7 @@ build_gridded_landuse <- function(
   # Compute current sums after scaling
   current <- data |>
     dplyr::summarise(
-      current_sum = sum(.data[[ha_col]]),
+      current_sum = sum(.data[[ha_col]], na.rm = TRUE),
       .by = item_prod_code
     )
 
@@ -808,8 +821,8 @@ build_gridded_landuse <- function(
       by = "item_prod_code"
     ) |>
     dplyr::summarise(
-      rainfed_ha = sum(rainfed_ha),
-      irrigated_ha = sum(irrigated_ha),
+      rainfed_ha = sum(rainfed_ha, na.rm = TRUE),
+      irrigated_ha = sum(irrigated_ha, na.rm = TRUE),
       .by = c(lon, lat, year, cft_name)
     )
 }
