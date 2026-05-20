@@ -877,10 +877,11 @@ build_primary_production <- function(
     # Item_Code 866, Swine market + breeding from 1034, Chickens layers
     # + broilers from 1057) all receive the unsplit total, which
     # multiplies the country head count by the number of sub-rows.
-    dplyr::arrange(area, item_cbs_code, year) |>
-    dplyr::group_by(area, item_cbs_code) |>
-    tidyr::fill(value_st, .direction = "downup") |>
-    dplyr::ungroup() |>
+    fill_linear(
+      value_st,
+      time_col = year,
+      .by = c("area", "item_cbs_code")
+    ) |>
     dplyr::mutate(
       share = value_st / sum(value_st),
       value_comb = dplyr::if_else(
