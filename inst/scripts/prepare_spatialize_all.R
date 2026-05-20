@@ -474,6 +474,7 @@ cft_to_pft <- c(
   nc <- ncdf4::nc_open(nc_path)
   on.exit(ncdf4::nc_close(nc))
   lat <- ncdf4::ncvar_get(nc, "lat")
+  time_idx <- min(time_idx, nc$dim$time$len)
   vals <- ncdf4::ncvar_get(
     nc,
     varname,
@@ -503,6 +504,7 @@ cft_to_pft <- c(
   n_lon <- length(lon)
   n_lat <- length(lat)
   lat_desc <- lat[1] > lat[length(lat)]
+  time_idx <- min(time_idx, nc$dim$time$len)
   purrr::map(var_names, \(vname) {
     vals <- ncdf4::ncvar_get(
       nc,
