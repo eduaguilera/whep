@@ -866,6 +866,21 @@ build_primary_production <- function(
         ),
       by = c("year", "area", "item_cbs_code")
     ) |>
+    # Carry value_st forward (and back) in time per (area, item_cbs_code)
+    # so years that fall outside the faostat-emissions-livestock pin's
+    # coverage (typically the last 1-2 years; FAO emissions data lags
+    # QCL) inherit the latest known sub-item stock. Without this, the
+    # share = value_st / sum(value_st) below evaluates to NA for every
+    # row in those years, the value_comb branch falls back to the full
+    # QCL value, and all item_prod_code sub-rows that derive from the
+    # same QCL Item_Code (e.g. Cattle dairy + non-dairy from
+    # Item_Code 866, Swine market + breeding from 1034, Chickens layers
+    # + broilers from 1057) all receive the unsplit total, which
+    # multiplies the country head count by the number of sub-rows.
+    dplyr::arrange(area, item_cbs_code, year) |>
+    dplyr::group_by(area, item_cbs_code) |>
+    tidyr::fill(value_st, .direction = "downup") |>
+    dplyr::ungroup() |>
     dplyr::mutate(
       share = value_st / sum(value_st),
       value_comb = dplyr::if_else(
