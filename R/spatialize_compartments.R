@@ -1,6 +1,6 @@
 #' Normalise a country grid for polity-compartment spatialization.
 #' @noRd
-.spatialize_prepare_country_grid <- function(country_grid) {
+.normalize_country_grid <- function(country_grid) {
   .check_columns(country_grid, c("lon", "lat", "area_code"), "country_grid")
 
   country_grid <- tibble::as_tibble(country_grid)
@@ -29,19 +29,19 @@
 
 #' Columns that identify a polity compartment within a physical cell.
 #' @noRd
-.spatialize_compartment_id_cols <- function(data) {
+.compartment_id_cols <- function(data) {
   intersect(c("polycell_id", "cell_id", "area_code"), names(data))
 }
 
 #' Join/grouping columns for a compartment-resolved cell.
 #' @noRd
-.spatialize_compartment_cell_cols <- function(data) {
-  unique(c(.spatialize_compartment_id_cols(data), "lon", "lat"))
+.compartment_cell_cols <- function(data) {
+  unique(c(.compartment_id_cols(data), "lon", "lat"))
 }
 
 #' Detect whether a country grid changes through time.
 #' @noRd
-.spatialize_country_grid_is_time_varying <- function(country_grid) {
+.country_grid_is_dynamic <- function(country_grid) {
   any(
     c(
       "year",
@@ -58,7 +58,7 @@
 
 #' Select the polity-cell rows valid for one simulation year.
 #' @noRd
-.spatialize_filter_country_grid_year <- function(country_grid, yr) {
+.filter_country_grid_year <- function(country_grid, yr) {
   if ("year" %in% names(country_grid)) {
     return(dplyr::filter(country_grid, .data$year == yr))
   }
@@ -93,7 +93,7 @@
 
 #' Build the static crop-pattern by country-compartment table.
 #' @noRd
-.spatialize_build_base_grid_cp <- function(
+.build_base_grid_cp <- function(
   country_grid,
   crop_patterns,
   type_lookup = NULL

@@ -619,7 +619,7 @@ run_spatialize <- function(
       )
     }
     group_cols <- unique(c(
-      .spatialize_compartment_id_cols(result_crops),
+      .compartment_id_cols(result_crops),
       "lon",
       "lat",
       "year",

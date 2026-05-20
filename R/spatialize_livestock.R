@@ -166,7 +166,7 @@ build_gridded_livestock <- function(
     gridded_cropland,
     country_grid
   )
-  country_grid <- .spatialize_prepare_country_grid(country_grid)
+  country_grid <- .normalize_country_grid(country_grid)
 
   if (!is.null(years)) {
     years <- sort(unique(as.integer(years)))
@@ -207,7 +207,7 @@ build_gridded_livestock <- function(
   result <- purrr::map(
     years,
     \(yr) {
-      country_grid_yr <- .spatialize_filter_country_grid_year(
+      country_grid_yr <- .filter_country_grid_year(
         country_grid,
         yr
       )
@@ -394,7 +394,7 @@ build_gridded_livestock <- function(
     ) |>
     dplyr::filter(weight > 0) |>
     dplyr::select(
-      dplyr::any_of(.spatialize_compartment_id_cols(country_grid)),
+      dplyr::any_of(.compartment_id_cols(country_grid)),
       lon,
       lat,
       weight
@@ -517,7 +517,7 @@ build_gridded_livestock <- function(
 
   grid |>
     dplyr::select(
-      dplyr::any_of(.spatialize_compartment_id_cols(grid)),
+      dplyr::any_of(.compartment_id_cols(grid)),
       lon,
       lat,
       dplyr::all_of(numeric_cols)

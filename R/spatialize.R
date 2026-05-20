@@ -154,7 +154,7 @@ build_gridded_landuse <- function(
     gridded_cropland,
     country_grid
   )
-  country_grid <- .spatialize_prepare_country_grid(country_grid)
+  country_grid <- .normalize_country_grid(country_grid)
   config <- .resolve_landuse_config(config)
   years <- config$years
   cft_mapping <- config$cft_mapping
@@ -199,17 +199,17 @@ build_gridded_landuse <- function(
 
   # Year-invariant work — done once, shared across the year loop.
   # Cartesian: cells × crops. Per-year work just joins cropland_ha onto this.
-  country_grid_is_dynamic <- .spatialize_country_grid_is_time_varying(
+  country_grid_is_dynamic <- .country_grid_is_dynamic(
     country_grid
   )
   base_grid_cp <- if (country_grid_is_dynamic) {
     NULL
   } else {
-    .spatialize_build_base_grid_cp(country_grid, crop_patterns, type_lookup)
+    .build_base_grid_cp(country_grid, crop_patterns, type_lookup)
   }
 
   .spatialize_one <- function(yr) {
-    country_grid_yr <- .spatialize_filter_country_grid_year(country_grid, yr)
+    country_grid_yr <- .filter_country_grid_year(country_grid, yr)
     if (nrow(country_grid_yr) == 0L) {
       cli::cli_abort("No {.arg country_grid} rows valid for year {yr}.")
     }
@@ -217,7 +217,7 @@ build_gridded_landuse <- function(
       yr,
       country_areas = dplyr::filter(country_areas, year == yr),
       base_grid_cp = if (country_grid_is_dynamic) {
-        .spatialize_build_base_grid_cp(
+        .build_base_grid_cp(
           country_grid_yr,
           crop_patterns,
           type_lookup
@@ -386,7 +386,7 @@ build_gridded_landuse <- function(
   result <- dat[
     allocated_rf > 0 | allocated_ir > 0,
     c(
-      .spatialize_compartment_id_cols(dat),
+      .compartment_id_cols(dat),
       "lon",
       "lat",
       "item_prod_code",
@@ -545,7 +545,7 @@ build_gridded_landuse <- function(
     return(allocated)
   }
 
-  country_cols <- .spatialize_compartment_id_cols(country_grid)
+  country_cols <- .compartment_id_cols(country_grid)
   country_lookup <- country_grid |>
     dplyr::select(
       dplyr::any_of(country_cols),
@@ -567,12 +567,12 @@ build_gridded_landuse <- function(
       ir_capacity = irrigated_ha * mc_irrigated
     ) |>
     dplyr::select(
-      dplyr::all_of(.spatialize_compartment_cell_cols(country_lookup)),
+      dplyr::all_of(.compartment_cell_cols(country_lookup)),
       rf_capacity,
       ir_capacity
     )
 
-  cell_cols <- .spatialize_compartment_cell_cols(allocated)
+  cell_cols <- .compartment_cell_cols(allocated)
   capacity_join_cols <- intersect(cell_cols, names(capacity))
 
   # Compute per-cell sums
@@ -647,7 +647,7 @@ build_gridded_landuse <- function(
   expansion_threshold
 ) {
   join_cols <- intersect(
-    .spatialize_compartment_cell_cols(allocated),
+    .compartment_cell_cols(allocated),
     names(capacity)
   )
 
@@ -667,7 +667,7 @@ build_gridded_landuse <- function(
   }) |>
     dplyr::bind_rows() |>
     dplyr::select(
-      dplyr::any_of(.spatialize_compartment_id_cols(work)),
+      dplyr::any_of(.compartment_id_cols(work)),
       lon,
       lat,
       item_prod_code,
@@ -684,7 +684,7 @@ build_gridded_landuse <- function(
   expansion_threshold
 ) {
   tolerance <- 1e-4
-  cell_cols <- .spatialize_compartment_cell_cols(data)
+  cell_cols <- .compartment_cell_cols(data)
 
   # Capture per-crop targets BEFORE the logit loop. The loop's exit
   # criterion ("no cell over cap") says nothing about whether per-crop
@@ -923,7 +923,7 @@ build_gridded_landuse <- function(
 #' @noRd
 .aggregate_to_cft <- function(data, cft_mapping) {
   group_cols <- unique(c(
-    .spatialize_compartment_id_cols(data),
+    .compartment_id_cols(data),
     "lon",
     "lat",
     "year",
