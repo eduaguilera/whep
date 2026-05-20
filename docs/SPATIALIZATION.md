@@ -188,25 +188,25 @@ polities. A future historical-polity module should therefore provide:
 Earlier spatialization commits established the gridded WHEP pipeline that
 this PR extends:
 
-1. Country-level crop, livestock, nitrogen, yield, and land-use outputs can
+- [x] Country-level crop, livestock, nitrogen, yield, and land-use outputs can
    be spatialized to the LPJmL grid through `run_spatialize()`.
-2. Historical country handling, Natural Earth ISO fixes, and COW-to-LPJmL
+- [x] Historical country handling, Natural Earth ISO fixes, and COW-to-LPJmL
    country-code exports were added so WHEP outputs can be linked to LPJmL
    country conventions.
-3. MIRCA, LUH2, yield-gap, nitrogen-ratio, sub-national nitrogen, and
+- [x] MIRCA, LUH2, yield-gap, nitrogen-ratio, sub-national nitrogen, and
    livestock proxy layers were wired into the allocation workflow.
-4. Type-aware allocation and LUH2 constraints were added to preserve
+- [x] Type-aware allocation and LUH2 constraints were added to preserve
    country totals across crop groups and land-use types.
-5. Multicropping capacity was prepared as a per-cell/year budget and then
+- [x] Multicropping capacity was prepared as a per-cell/year budget and then
    applied inside the spatialization year loop, including support for
    multicropping factors below 1 to represent fallow.
-6. Livestock nitrogen excretion was separated into a swappable WHEP output,
+- [x] Livestock nitrogen excretion was separated into a swappable WHEP output,
    with corrected FAOSTAT live-animal codes and IPCC nitrogen-excretion
    defaults.
-7. Pipeline entry points and NetCDF exports were made more composable and
+- [x] Pipeline entry points and NetCDF exports were made more composable and
    efficient through vectorisation, chunking, parallelization, and merged
    export helpers.
-8. The default preparation horizon was extended to 1851-2023, with graceful
+- [x] The default preparation horizon was extended to 1851-2023, with graceful
    handling of LUH2 end-of-record years.
 
 #### Done in this PR
@@ -214,20 +214,20 @@ this PR extends:
 This PR adds the first implementation layer for preserving polity identity
 inside shared grid cells:
 
-1. `country_grid` may now be either the old one-row-per-cell country mask or
+- [x] `country_grid` may now be either the old one-row-per-cell country mask or
    a long polity-cell compartment table with `cell_id`, `area_code`,
    `polycell_id`, and optional `cell_area_frac` or validity dates.
-2. Crop and livestock spatialization now preserve `area_code` and
+- [x] Crop and livestock spatialization now preserve `area_code` and
    compartment identifiers instead of collapsing shared cells to a dominant
    country.
-3. Physical proxy layers are scaled by each compartment's cell-area fraction
+- [x] Physical proxy layers are scaled by each compartment's cell-area fraction
    before allocation, so a shared boundary cell can carry independent country
    allocations without leaking totals across polities.
-4. Yield and nitrogen spatialization avoid reattaching a dominant country
+- [x] Yield and nitrogen spatialization avoid reattaching a dominant country
    mask when the incoming data already carries polity identity.
-5. Tests cover shared-cell crop allocation, livestock/manure leakage
+- [x] Tests cover shared-cell crop allocation, livestock/manure leakage
    prevention, and time-varying country-grid validity.
-6. Package documentation was regenerated for the new compartment-aware
+- [x] Package documentation was regenerated for the new compartment-aware
    arguments and outputs.
 
 #### Remaining plan
@@ -235,23 +235,23 @@ inside shared grid cells:
 The next steps are to make the polity-compartment design operational across
 the whole modelling chain:
 
-1. Build the production `polity_cell` overlay from historical polity
+- [ ] Build the production `polity_cell` overlay from historical polity
    polygons and the LPJmL grid, producing stable `cell_id`, `area_code`,
    `polity_id`, `polycell_id`, `cell_area_frac`, and validity dates.
-2. Treat polity changes as input data, not modelling assumptions. When the
+- [ ] Treat polity changes as input data, not modelling assumptions. When the
    USSR, Yugoslavia, Sudan, or any other polity changes through time, the
    overlay should add or retire compartments by validity date while keeping
    the spatialization code grouped by `year`, `cell_id`, and polity identity.
-3. Keep country-specific source data attached to polity compartments before
+- [ ] Keep country-specific source data attached to polity compartments before
    aggregation. Crop areas, livestock, manure, fertilizer, land use,
    management, and nitrogen inputs should be allocated independently for
    every `cell_id`/polity compartment.
-4. Add explicit validation that national totals are preserved after
+- [ ] Add explicit validation that national totals are preserved after
    compartment allocation, and that polity-incompatible variables do not
    appear in neighbouring compartments sharing the same physical cell.
-5. Extend NetCDF/export formats so compartment-level outputs can either
+- [ ] Extend NetCDF/export formats so compartment-level outputs can either
    remain explicit or be intentionally aggregated with documented rules.
-6. Decide and prototype the LPJmL implementation path described below, using
+- [ ] Decide and prototype the LPJmL implementation path described below, using
    the virtual-cell path only as a short-term bridge and the native
    compartment path as the long-term target.
 
@@ -426,23 +426,23 @@ expand into cells that have cropland but no initial pattern for that crop.
 Individual crop results are aggregated into 15 crop functional types (CFTs)
 using the mapping in `inst/extdata/cft_mapping.csv`:
 
-| CFT name | LUH2 type | Example crops |
-|----------|-----------|---------------|
-| `temperate_cereals` | c3ann | Wheat, barley, rye, oats |
-| `rice` | c3ann | Rice, paddy |
-| `maize` | c4ann | Maize |
-| `tropical_cereals` | c4ann | Sorghum, millet |
-| `pulses` | c3nfx | Beans, lentils, peas |
-| `oil_crops_soybean` | c3nfx | Soybeans |
-| `oil_crops_groundnut` | c3nfx | Groundnuts |
-| `oil_crops_rapeseed` | c3ann | Rapeseed |
-| `oil_crops_sunflower` | c3ann | Sunflower seed |
-| `oil_crops_other` | c3ann | Sesame, castor, linseed |
-| `sugarcane` | c4ann | Sugar cane |
-| `temperate_roots` | c3ann | Potatoes, sugar beet |
-| `tropical_roots` | c3ann | Cassava, yams, sweet potatoes |
-| `others_perennial` | c3per | Coffee, cocoa, fruits, vegetables (perennial) |
-| `others_annual` | c3ann | Vegetables, tobacco, fibre crops |
+| Status | CFT name | LUH2 type | Example crops |
+|--------|----------|-----------|---------------|
+| [x] | `temperate_cereals` | c3ann | Wheat, barley, rye, oats |
+| [x] | `rice` | c3ann | Rice, paddy |
+| [x] | `maize` | c4ann | Maize |
+| [x] | `tropical_cereals` | c4ann | Sorghum, millet |
+| [x] | `pulses` | c3nfx | Beans, lentils, peas |
+| [x] | `oil_crops_soybean` | c3nfx | Soybeans |
+| [x] | `oil_crops_groundnut` | c3nfx | Groundnuts |
+| [x] | `oil_crops_rapeseed` | c3ann | Rapeseed |
+| [x] | `oil_crops_sunflower` | c3ann | Sunflower seed |
+| [x] | `oil_crops_other` | c3ann | Sesame, castor, linseed |
+| [x] | `sugarcane` | c4ann | Sugar cane |
+| [x] | `temperate_roots` | c3ann | Potatoes, sugar beet |
+| [x] | `tropical_roots` | c3ann | Cassava, yams, sweet potatoes |
+| [x] | `others_perennial` | c3per | Coffee, cocoa, fruits, vegetables (perennial) |
+| [x] | `others_annual` | c3ann | Vegetables, tobacco, fibre crops |
 
 ### Step 4 — Yield spatialization (optional)
 
@@ -519,23 +519,23 @@ $$
 Literature-based ratios used to split country-level values between
 irrigated and rainfed systems:
 
-| CFT | Yield ratio | N rate ratio |
-|-----|-------------|--------------|
-| temperate_cereals | 1.3 | 1.3 |
-| rice | 1.6 | 1.4 |
-| maize | 1.5 | 1.4 |
-| tropical_cereals | 1.3 | 1.3 |
-| pulses | 1.3 | 1.2 |
-| oil_crops_soybean | 1.3 | 1.2 |
-| oil_crops_groundnut | 1.3 | 1.3 |
-| oil_crops_sunflower | 1.3 | 1.3 |
-| oil_crops_rapeseed | 1.3 | 1.3 |
-| oil_crops_other | 1.3 | 1.3 |
-| sugarcane | 1.2 | 1.3 |
-| temperate_roots | 1.3 | 1.3 |
-| tropical_roots | 1.2 | 1.2 |
-| others_annual | 1.3 | 1.3 |
-| others_perennial | 1.2 | 1.2 |
+| Status | CFT | Yield ratio | N rate ratio |
+|--------|-----|-------------|--------------|
+| [x] | temperate_cereals | 1.3 | 1.3 |
+| [x] | rice | 1.6 | 1.4 |
+| [x] | maize | 1.5 | 1.4 |
+| [x] | tropical_cereals | 1.3 | 1.3 |
+| [x] | pulses | 1.3 | 1.2 |
+| [x] | oil_crops_soybean | 1.3 | 1.2 |
+| [x] | oil_crops_groundnut | 1.3 | 1.3 |
+| [x] | oil_crops_sunflower | 1.3 | 1.3 |
+| [x] | oil_crops_rapeseed | 1.3 | 1.3 |
+| [x] | oil_crops_other | 1.3 | 1.3 |
+| [x] | sugarcane | 1.2 | 1.3 |
+| [x] | temperate_roots | 1.3 | 1.3 |
+| [x] | tropical_roots | 1.2 | 1.2 |
+| [x] | others_annual | 1.3 | 1.3 |
+| [x] | others_perennial | 1.2 | 1.2 |
 
 Sources: Siebert & Döll (2010), Mueller et al. (2012), Lassaletta et al.
 (2014), AQUASTAT yield tables, Zhang et al. (2015).
