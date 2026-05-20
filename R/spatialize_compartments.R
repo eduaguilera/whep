@@ -42,12 +42,18 @@
 #' Detect whether a country grid changes through time.
 #' @noRd
 .spatialize_country_grid_is_time_varying <- function(country_grid) {
-  any(c(
-    "year",
-    "valid_from", "valid_to",
-    "start_year", "end_year",
-    "from_year", "to_year"
-  ) %in% names(country_grid))
+  any(
+    c(
+      "year",
+      "valid_from",
+      "valid_to",
+      "start_year",
+      "end_year",
+      "from_year",
+      "to_year"
+    ) %in%
+      names(country_grid)
+  )
 }
 
 #' Select the polity-cell rows valid for one simulation year.
