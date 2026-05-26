@@ -753,6 +753,23 @@ test_that("feed_characteristics is a clean tibble", {
   )
 })
 
+test_that("smil_2001_synthetic_n_global covers 1913-2000", {
+  obj <- whep::smil_2001_synthetic_n_global
+  assert_clean_tibble(
+    obj,
+    "smil_2001_synthetic_n_global",
+    expected_cols = c("year", "global_kt_n"),
+    min_rows = 10L
+  )
+  expect_equal(min(obj$year), 1913L)
+  expect_equal(max(obj$year), 2000L)
+  # Monotone growth between WWII recovery (1945) and 2000.
+  recovery <- obj |> dplyr::filter(year >= 1945, year <= 2000)
+  expect_true(all(diff(recovery$global_kt_n) > 0))
+  # Haber-Bosch first commercial year (1913) is the smallest anchor.
+  expect_equal(obj$global_kt_n[obj$year == 1913L], min(obj$global_kt_n))
+})
+
 test_that("livestock_constants is a named list", {
   obj <- whep::livestock_constants
   expect_true(is.list(obj))
