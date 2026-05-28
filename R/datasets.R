@@ -40,6 +40,33 @@
 #' head(lassaletta_grassland_share)
 "lassaletta_grassland_share"
 
+#' Smil (2001) global synthetic nitrogen production, 1913-2000
+#'
+#' @description
+#' Global synthetic-nitrogen production anchors from Smil (2001)
+#' "Enriching the Earth", Tables 5.2 and 5.3, cross-checked with
+#' Smil (2002) Ambio 31:126-131. Anchor years span 1913 (first
+#' commercial Haber-Bosch plant at BASF Oppau) to 2000. Used by
+#' `prepare_nitrogen_inputs()` to backcast country-level synthetic N
+#' for the pre-FAOSTAT period (years before 1961): the temporal shape
+#' is taken from this global series and downscaled to each country
+#' using its 1961-1965 share of global FAOSTAT synthetic N.
+#'
+#' Pre-1913 values are treated as zero by the consumer and are not
+#' stored here.
+#'
+#' @format A tibble with one row per anchor year:
+#' - `year`: Integer anchor year (1913, 1920, 1925, ..., 2000).
+#' - `global_kt_n`: Global synthetic-N production in kt N.
+#'
+#' @source Smil, V. (2001) *Enriching the Earth: Fritz Haber, Carl
+#'   Bosch, and the Transformation of World Food Production*, MIT
+#'   Press. Tables 5.2 and 5.3.
+#'
+#' @examples
+#' head(smil_2001_synthetic_n_global)
+"smil_2001_synthetic_n_global"
+
 #' Synthetic nitrogen application rates by crop and country
 #'
 #' @description

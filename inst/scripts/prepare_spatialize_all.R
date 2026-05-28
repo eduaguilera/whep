@@ -1588,10 +1588,192 @@ prepare_yield_inputs <- function(
 }
 
 
+# ==== Section 7 helpers ===================================================
+#
+# Country-year totals for Synthetic / Manure / Grassland_excretion N
+# consumed by prepare_nitrogen_inputs(). Defined at file scope so they
+# stay testable in isolation. Manure-applied and grassland-excretion are
+# derived from WHEP's own livestock pipeline (heads x IPCC NEx) split
+# by constant per-country shares calibrated against FAOSTAT 1961-1965;
+# FAOSTAT manure-applied is no longer consumed directly. Synthetic N is
+# FAOSTAT for 1961+ and Smil (2001) for 1913-1960.
+
+.faostat_synth_country_total <- function(regions) {
+  whep::whep_read_file("faostat-fertilizer-nutrients") |>
+    dplyr::filter(
+      Element == "Agricultural Use",
+      Item == "Nutrient nitrogen N (total)"
+    ) |>
+    dplyr::transmute(
+      area_code = as.integer(`Area Code`),
+      year = as.integer(Year),
+      mg_n = Value
+    ) |>
+    dplyr::inner_join(
+      dplyr::select(regions, area_code, area_name),
+      by = "area_code"
+    ) |>
+    dplyr::filter(!is.na(mg_n), mg_n >= 0)
+}
+
+.faostat_manure_country_long <- function(regions) {
+  elements <- c(
+    applied = "Manure applied to soils (N content)",
+    pasture = "Manure left on pasture (N content)",
+    mms = "Manure management (manure treated, N content)",
+    excreted = "Amount excreted in manure (N content)"
+  )
+  whep::whep_read_file("faostat-emissions-livestock") |>
+    dplyr::filter(Item == "All Animals", Element %in% elements) |>
+    dplyr::transmute(
+      area_code = as.integer(`Area Code`),
+      year = as.integer(Year),
+      element = names(elements)[match(Element, elements)],
+      mg_n = Value / 1000
+    ) |>
+    dplyr::inner_join(
+      dplyr::select(regions, area_code, area_name),
+      by = "area_code"
+    ) |>
+    dplyr::filter(!is.na(mg_n), mg_n >= 0)
+}
+
+.faostat_manure_shares_const <- function(
+  manure_long,
+  share_window = 1961L:1965L
+) {
+  manure_long |>
+    dplyr::filter(year %in% share_window) |>
+    tidyr::pivot_wider(names_from = element, values_from = mg_n) |>
+    dplyr::filter(!is.na(excreted), excreted > 0) |>
+    dplyr::mutate(
+      applied_share = dplyr::coalesce(applied, 0) / excreted,
+      pasture_share = dplyr::coalesce(pasture, 0) / excreted
+    ) |>
+    dplyr::summarise(
+      applied_share = mean(applied_share, na.rm = TRUE),
+      pasture_share = mean(pasture_share, na.rm = TRUE),
+      .by = c(area_code, area_name)
+    )
+}
+
+.livestock_manure_n_country <- function(prod, regions) {
+  livestock_mapping <- readr::read_csv(
+    .find_extdata_file("livestock_mapping.csv"),
+    show_col_types = FALSE
+  )
+  stocks <- prod |>
+    dplyr::filter(
+      unit == "heads",
+      as.integer(item_prod_code) %in% livestock_mapping$item_code
+    ) |>
+    dplyr::transmute(
+      area_code = as.integer(area_code),
+      item_code = as.integer(item_prod_code),
+      year = as.integer(year),
+      heads = value
+    ) |>
+    dplyr::filter(!is.na(area_code), heads > 0) |>
+    dplyr::inner_join(
+      dplyr::select(livestock_mapping, item_code, species_group),
+      by = "item_code"
+    ) |>
+    dplyr::summarise(
+      heads = sum(heads, na.rm = TRUE),
+      .by = c(year, area_code, species_group)
+    )
+  nex <- .compute_default_n_excretion(
+    dplyr::distinct(stocks, year, area_code, species_group)
+  )
+  stocks |>
+    dplyr::inner_join(
+      dplyr::select(nex, year, area_code, species_group, nex_kg_n_head),
+      by = c("year", "area_code", "species_group")
+    ) |>
+    dplyr::mutate(manure_n_mg = heads * nex_kg_n_head / 1000) |>
+    dplyr::summarise(
+      mg_n_excreted = sum(manure_n_mg, na.rm = TRUE),
+      .by = c(year, area_code)
+    ) |>
+    dplyr::inner_join(
+      dplyr::select(regions, area_code, area_name),
+      by = "area_code"
+    )
+}
+
+.livestock_manure_split <- function(excreted_country, shares_const) {
+  excreted_country |>
+    dplyr::inner_join(
+      dplyr::select(shares_const, area_code, applied_share, pasture_share),
+      by = "area_code"
+    ) |>
+    dplyr::transmute(
+      year,
+      area_code,
+      area_name,
+      Manure = mg_n_excreted * applied_share,
+      Grassland_excretion = mg_n_excreted * pasture_share
+    ) |>
+    tidyr::pivot_longer(
+      c("Manure", "Grassland_excretion"),
+      names_to = "fert_type",
+      values_to = "mg_n"
+    ) |>
+    dplyr::filter(!is.na(mg_n), mg_n >= 0)
+}
+
+.smil_global_yearly <- function(first_year = 1913L, last_year = 1960L) {
+  anchors <- whep::smil_2001_synthetic_n_global |>
+    dplyr::transmute(
+      year = as.integer(year),
+      global_mg_n = global_kt_n * 1000
+    )
+  tibble::tibble(year = seq.int(first_year, last_year)) |>
+    dplyr::left_join(anchors, by = "year") |>
+    whep::fill_linear(global_mg_n, time_col = year)
+}
+
+.smil_country_share <- function(
+  synth_country_faostat,
+  share_window = 1961L:1965L
+) {
+  smil_anchor <- .smil_global_yearly(
+    first_year = min(share_window),
+    last_year = max(share_window)
+  )
+  smil_window_avg <- mean(smil_anchor$global_mg_n, na.rm = TRUE)
+  synth_country_faostat |>
+    dplyr::filter(year %in% share_window, mg_n > 0) |>
+    dplyr::summarise(
+      country_avg_mg_n = mean(mg_n, na.rm = TRUE),
+      .by = c(area_code, area_name)
+    ) |>
+    dplyr::mutate(country_share = country_avg_mg_n / smil_window_avg) |>
+    dplyr::select(area_code, area_name, country_share)
+}
+
+.smil_synth_pre_1961 <- function(
+  synth_country_faostat,
+  share_window = 1961L:1965L,
+  first_year = 1913L
+) {
+  smil_yearly <- .smil_global_yearly(first_year, 1960L)
+  country_share <- .smil_country_share(synth_country_faostat, share_window)
+  tidyr::expand_grid(smil_yearly, country_share) |>
+    dplyr::mutate(mg_n = global_mg_n * country_share) |>
+    dplyr::transmute(year, area_code, area_name, mg_n) |>
+    dplyr::filter(!is.na(mg_n), mg_n > 0)
+}
+
+
 # ==== Section 7: Nitrogen inputs ==========================================
 #
 # N/P/K inputs from FAOSTAT + spatial distribution.
 # Reference datasets are bundled as package data or fetched via pins.
+# Pre-FAOSTAT (pre-1961) synthetic N: Smil (2001) global anchors scaled by
+# 1961-1965 country shares. Manure (applied + pasture): livestock heads x
+# IPCC NEx, split by constant per-country shares calibrated to FAOSTAT
+# 1961-1965.
 
 prepare_nitrogen_inputs <- function(
   l_files_dir,
@@ -1610,49 +1792,23 @@ prepare_nitrogen_inputs <- function(
     show_col_types = FALSE
   )
 
-  # ---- 7a. FAOSTAT N totals (via pins) ----
-  .read_faostat_totals_local <- function(regions) {
-    fert_raw <- whep::whep_read_file("faostat-fertilizer-nutrients") |>
-      filter(
-        Element == "Agricultural Use",
-        Item == "Nutrient nitrogen N (total)"
-      ) |>
-      transmute(
-        area_code = `Area Code`,
-        year = as.integer(Year),
-        fert_type = "Synthetic",
-        mg_n = Value
-      )
+  # ---- 7a. N totals: synth (FAOSTAT 1961+ + Smil 1913-1960) and
+  #          manure (livestock heads x NEx, split by constant shares) ----
+  .read_n_totals_local <- function(regions, prod) {
+    synth_faostat <- .faostat_synth_country_total(regions)
+    synth_smil <- .smil_synth_pre_1961(synth_faostat)
+    synth <- dplyr::bind_rows(synth_faostat, synth_smil) |>
+      dplyr::mutate(fert_type = "Synthetic") |>
+      dplyr::select(year, area_code, area_name, fert_type, mg_n)
 
-    manure_raw <- whep::whep_read_file("faostat-emissions-livestock")
+    manure_long <- .faostat_manure_country_long(regions)
+    shares_const <- .faostat_manure_shares_const(manure_long)
+    excreted_country <- .livestock_manure_n_country(prod, regions)
+    manure_lu <- .livestock_manure_split(excreted_country, shares_const) |>
+      dplyr::select(year, area_code, area_name, fert_type, mg_n)
 
-    manure_applied <- manure_raw |>
-      filter(
-        Element == "Manure applied to soils (N content)",
-        Item == "All Animals"
-      ) |>
-      transmute(
-        area_code = `Area Code`,
-        year = as.integer(Year),
-        fert_type = "Manure",
-        mg_n = Value / 1000
-      )
-
-    manure_pasture <- manure_raw |>
-      filter(
-        Element == "Manure left on pasture (N content)",
-        Item == "All Animals"
-      ) |>
-      transmute(
-        area_code = `Area Code`,
-        year = as.integer(Year),
-        fert_type = "Grassland_excretion",
-        mg_n = Value / 1000
-      )
-
-    bind_rows(fert_raw, manure_applied, manure_pasture) |>
-      inner_join(select(regions, area_code, area_name), by = "area_code") |>
-      filter(!is.na(mg_n), mg_n >= 0)
+    dplyr::bind_rows(synth, manure_lu) |>
+      dplyr::filter(!is.na(mg_n), mg_n >= 0)
   }
 
   # ---- 7b. P/K totals (via pin) ----
@@ -2197,6 +2353,10 @@ prepare_nitrogen_inputs <- function(
   # ---- Execute nitrogen pipeline ----
   cli::cli_alert_info("Running nitrogen input pipeline")
 
+  if (is.null(prod)) {
+    prod <- .load_or_cache_production(output_dir, year_range)
+  }
+
   # Load crop areas
   crop_areas_file <- file.path(output_dir, "country_areas.parquet")
   crop_areas <- NULL
@@ -2218,7 +2378,7 @@ prepare_nitrogen_inputs <- function(
       filter(!is.na(area_ha), area_ha > 0)
   }
 
-  n_totals <- .read_faostat_totals_local(regions)
+  n_totals <- .read_n_totals_local(regions, prod)
   pk_totals <- .read_faostat_pk_totals_local(regions)
   lu_split <- .read_crop_grass_split_local(regions)
   base_rates <- .read_crop_base_rates_local(regions)
@@ -2377,7 +2537,9 @@ prepare_nitrogen_inputs <- function(
   all_parts <- list(n_crops, nsbnf, pk_crop)
   all_parts <- all_parts[!sapply(all_parts, is.null)]
   if (length(all_parts) > 0) {
+    target_year <- max(as.integer(year_range))
     nitrogen_inputs <- bind_rows(all_parts) |>
+      .fill_n_inputs_to_target_year(target_year) |>
       arrange(year, area_code, crop_name, fert_type)
     .save_parquet(nitrogen_inputs, output_dir, "nitrogen_inputs")
     cli::cli_alert_success(
@@ -2422,11 +2584,18 @@ prepare_nitrogen_inputs <- function(
     n_by_lu <- n_by_lu |> mutate(grass_share = NA_real_)
   }
 
+  # Manure is already livestock-applied-to-soil only (.read_n_totals_local
+  # routes the pasture share into Grassland_excretion) so it must not be
+  # re-split here. Synthetic still uses EuroAgriDB/Lassaletta where
+  # available; pre-1961 Smil synth falls through to the 100% cropland
+  # default (no Lassaletta coverage that far back).
   n_by_lu <- n_by_lu |>
     mutate(
       lu_share = case_when(
         fert_type == "Grassland_excretion" & land_use == "Grassland" ~ 1.0,
         fert_type == "Grassland_excretion" & land_use == "Cropland" ~ 0.0,
+        fert_type == "Manure" & land_use == "Cropland" ~ 1.0,
+        fert_type == "Manure" & land_use == "Grassland" ~ 0.0,
         !is.na(lu_share_eu) ~ lu_share_eu,
         !is.na(grass_share) & land_use == "Grassland" ~ grass_share,
         !is.na(grass_share) & land_use == "Cropland" ~ 1 - grass_share,
@@ -2623,6 +2792,54 @@ prepare_nitrogen_inputs <- function(
       fert_type,
       area_ha,
       mg_n = mg_n_crop,
+      kg_n_ha
+    )
+}
+
+# Forward-fill the combined nitrogen_inputs table to a target year so
+# the downstream LPJmL NetCDF writer never sees terminal gaps. Currently
+# Synthetic / P / K trail behind FAOSTAT's last observed year; this
+# extrapolates per (area_code, crop_name, fert_type, land_use) using
+# whep::fill_linear on MgN and area_ha. kg_n_ha is re-derived from the
+# filled MgN / area pair.
+.fill_n_inputs_to_target_year <- function(nitrogen_inputs, target_year) {
+  if (nrow(nitrogen_inputs) == 0L) {
+    return(nitrogen_inputs)
+  }
+  key_cols <- c("area_code", "area_name", "crop_name", "land_use", "fert_type")
+  year_seq <- seq.int(min(nitrogen_inputs$year), target_year)
+  # Carry-forward only: linear extrapolation past the last observed
+  # year quickly produces implausible fertilizer levels, and carrying
+  # the first observation backward would propagate a much later level
+  # into the pre-Haber-Bosch / pre-FAOSTAT period.
+  nitrogen_inputs |>
+    tidyr::complete(
+      year = year_seq,
+      tidyr::nesting(!!!rlang::syms(key_cols))
+    ) |>
+    whep::fill_linear(
+      mg_n,
+      time_col = year,
+      .by = key_cols,
+      fill_backward = FALSE
+    ) |>
+    whep::fill_linear(
+      area_ha,
+      time_col = year,
+      .by = key_cols,
+      fill_backward = FALSE
+    ) |>
+    dplyr::filter(!is.na(mg_n), !is.na(area_ha), area_ha > 0) |>
+    dplyr::mutate(kg_n_ha = mg_n * 1000 / area_ha) |>
+    dplyr::select(
+      year,
+      area_code,
+      area_name,
+      crop_name,
+      land_use,
+      fert_type,
+      area_ha,
+      mg_n,
       kg_n_ha
     )
 }

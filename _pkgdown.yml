@@ -118,6 +118,7 @@ reference:
   - liv_lu_coefs
   - mueller_synthetic_n
   - primary_double
+  - smil_2001_synthetic_n_global
 
 - title: FAOSTAT raw data
   desc: >
