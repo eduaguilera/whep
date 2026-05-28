@@ -86,6 +86,9 @@ keys factors to year (one row per cell per year); when
 present, the table is filtered to the current year before
 the capacity constraint is applied. When absent, the table
 is treated as a static spatial layer applied to every year.
+If \code{NULL} (default), the capacity constraint still runs with
+\code{mc_rainfed = mc_irrigated = 1} (harvested area capped at
+physical cropland).
 \item \code{max_iterations}: Maximum iterations for the redistribution
 loop. Default: \code{1000L}.
 \item \code{expansion_threshold}: Iteration number after which crops are
@@ -154,22 +157,22 @@ LUH2-proportional allocation.
 # Minimal example with toy data
 country_areas <- tibble::tribble(
   ~year, ~area_code, ~item_prod_code, ~harvested_area_ha,
-  2000L,         1L,             15L,            1000
+  2000L, 1L, 15L, 1000
 )
 crop_patterns <- tibble::tribble(
-  ~lon,  ~lat, ~item_prod_code, ~harvest_fraction,
-   0.25, 50.25,             15L,               0.6,
-   0.75, 50.25,             15L,               0.4
+  ~lon, ~lat, ~item_prod_code, ~harvest_fraction,
+  0.25, 50.25, 15L, 0.6,
+  0.75, 50.25, 15L, 0.4
 )
 gridded_cropland <- tibble::tribble(
-  ~lon,  ~lat,  ~year, ~cropland_ha,
-   0.25, 50.25, 2000L,          800,
-   0.75, 50.25, 2000L,          500
+  ~lon, ~lat, ~year, ~cropland_ha,
+  0.25, 50.25, 2000L, 800,
+  0.75, 50.25, 2000L, 500
 )
 country_grid <- tibble::tribble(
-  ~lon,  ~lat, ~area_code,
-   0.25, 50.25,         1L,
-   0.75, 50.25,         1L
+  ~lon, ~lat, ~area_code,
+  0.25, 50.25, 1L,
+  0.75, 50.25, 1L
 )
 build_gridded_landuse(
   country_areas, crop_patterns, gridded_cropland, country_grid,

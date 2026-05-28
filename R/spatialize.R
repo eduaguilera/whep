@@ -276,8 +276,7 @@ build_gridded_landuse <- function(
 
   # Per-year: copy the static base (cells × crops) and attach cropland.
   grid_cp <- data.table::copy(base_grid_cp)
-  grid_cp[
-    ,
+  grid_cp[,
     cell_area_frac := data.table::fifelse(
       is.na(cell_area_frac),
       1,
@@ -546,8 +545,7 @@ build_gridded_landuse <- function(
   expansion_threshold
 ) {
   country_cols <- .compartment_id_cols(country_grid)
-  country_lookup <- data.table::as.data.table(country_grid)[
-    ,
+  country_lookup <- data.table::as.data.table(country_grid)[,
     unique(c(country_cols, "lon", "lat", "cell_area_frac")),
     with = FALSE
   ]
@@ -568,8 +566,7 @@ build_gridded_landuse <- function(
     rf_capacity = (cropland_ha - irrigated_ha) * cell_area_frac * mc_rainfed,
     ir_capacity = irrigated_ha * cell_area_frac * mc_irrigated
   )]
-  capacity_dt <- capacity_dt[
-    ,
+  capacity_dt <- capacity_dt[,
     c(.compartment_cell_cols(country_lookup), "rf_capacity", "ir_capacity"),
     with = FALSE
   ]
@@ -578,8 +575,7 @@ build_gridded_landuse <- function(
   capacity_join_cols <- intersect(cell_cols, names(capacity_dt))
 
   # Compute per-cell sums
-  cell_sums <- allocated_dt[
-    ,
+  cell_sums <- allocated_dt[,
     .(
       total_rf = sum(rainfed_ha, na.rm = TRUE),
       total_ir = sum(irrigated_ha, na.rm = TRUE)
@@ -656,8 +652,11 @@ build_gridded_landuse <- function(
 
   out_cols <- unique(c(
     .compartment_id_cols(allocated),
-    "lon", "lat", "item_prod_code",
-    "rainfed_ha", "irrigated_ha"
+    "lon",
+    "lat",
+    "item_prod_code",
+    "rainfed_ha",
+    "irrigated_ha"
   ))
 
   data.table::setindexv(allocated, "area_code")
@@ -670,10 +669,14 @@ build_gridded_landuse <- function(
     work <- allocated[.(country), on = "area_code", nomatch = 0L]
     work <- data.table::copy(work)
     capacity_country <- capacity[.(country), on = "area_code", nomatch = 0L]
-    work[capacity_country, `:=`(
-      rf_capacity = i.rf_capacity,
-      ir_capacity = i.ir_capacity
-    ), on = join_cols]
+    work[
+      capacity_country,
+      `:=`(
+        rf_capacity = i.rf_capacity,
+        ir_capacity = i.ir_capacity
+      ),
+      on = join_cols
+    ]
 
     fixed[[idx]] <- .redistribute_country_dt(
       work,
@@ -687,23 +690,25 @@ build_gridded_landuse <- function(
 
 #' Redistribute for one country using vectorized logit updates.
 #' @noRd
-.redistribute_country_dt <- function(work, max_iterations, expansion_threshold) {
+.redistribute_country_dt <- function(
+  work,
+  max_iterations,
+  expansion_threshold
+) {
   tolerance <- 1e-4
   cell_cols <- .compartment_cell_cols(work)
 
   work[, .cell_group := .GRP, by = cell_cols]
   work[, .crop_group := .GRP, by = item_prod_code]
 
-  cell_capacity <- work[
-    ,
+  cell_capacity <- work[,
     .(
       rf_capacity = data.table::first(rf_capacity),
       ir_capacity = data.table::first(ir_capacity)
     ),
     keyby = .cell_group
   ]
-  per_crop_target <- work[
-    ,
+  per_crop_target <- work[,
     .(
       target_rf = sum(rainfed_ha, na.rm = TRUE),
       target_ir = sum(irrigated_ha, na.rm = TRUE)
@@ -773,7 +778,8 @@ build_gridded_landuse <- function(
       )
       irrigated_vec[ir_idx] <- .logistic(
         .logit(frac) + increment_ir[crop_group[ir_idx]]
-      ) * ir_capacity[cell_group[ir_idx]]
+      ) *
+        ir_capacity[cell_group[ir_idx]]
     }
 
     pass_target_rf <- .sum_by_group(crop_group, rainfed_vec, n_crops)
@@ -806,7 +812,8 @@ build_gridded_landuse <- function(
       )
       rainfed_vec[rf_idx] <- .logistic(
         .logit(frac) + increment_rf[crop_group[rf_idx]]
-      ) * rf_capacity[cell_group[rf_idx]]
+      ) *
+        rf_capacity[cell_group[rf_idx]]
     }
   }
 
@@ -920,8 +927,7 @@ build_gridded_landuse <- function(
     total_ha := sum(rainfed_ha + irrigated_ha, na.rm = TRUE),
     by = .(lon, lat, year)
   ]
-  dt[
-    ,
+  dt[,
     scale := data.table::fifelse(
       !is.na(cropland_ha) & total_ha > cropland_ha & total_ha > 0,
       cropland_ha / total_ha,

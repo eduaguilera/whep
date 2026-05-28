@@ -4,6 +4,7 @@
 ^LICENSE\.md$
 ^docs$
 ^\.github$
+^\.lintr$
 ^_pkgdown\.yml$
 ^pkgdown$
 ^.*\.Rproj$
@@ -20,3 +21,6 @@
 ^\.claude$
 ^CLAUDE\.md$
 ^autoresearch$
+^LPJmL_inputs$
+^WHEP_LFILES_DIR$
+^plans$

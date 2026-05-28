@@ -4531,7 +4531,14 @@ write_lpjml_static_inputs <- function(
   # Duplicate PFTs 1-16 into 17-32 for irrigated bands (LPJmL expects 32 bands)
   # Convert kgN/ha -> g/m2 (LPJmL expects g/m2)
   rf <- agg[, .(year, pft, row, col, value = value * 0.1, fert_type)]
-  ir <- agg[, .(year, pft = pft + 16L, row, col, value = value * 0.1, fert_type)]
+  ir <- agg[, .(
+    year,
+    pft = pft + 16L,
+    row,
+    col,
+    value = value * 0.1,
+    fert_type
+  )]
   both <- rbind(rf, ir)
   .pft_nc_write_chunk(
     nc_syn,
