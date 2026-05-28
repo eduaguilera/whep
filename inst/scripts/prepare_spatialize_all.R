@@ -168,7 +168,7 @@ coord_to_rowcol <- function(dt, grid) {
   as.numeric(gsub("[^0-9]", "", available[[1L]])) / 1024
 }
 
-.auto_spatialize_workers <- function(max_years) {
+.auto_spatialize_workers <- function(max_years, worker_mb_default = 4500) {
   cores <- parallel::detectCores(logical = TRUE) %||% 1L
   mem_mb <- .mem_available_mb()
   mem_fraction <- as.numeric(Sys.getenv(
@@ -177,7 +177,7 @@ coord_to_rowcol <- function(dt, grid) {
   ))
   worker_mb <- as.numeric(Sys.getenv(
     "WHEP_SPATIALIZE_WORKER_MB",
-    unset = "4500"
+    unset = as.character(worker_mb_default)
   ))
   core_limit <- max(1L, cores - 1L)
   mem_limit <- if (is.finite(mem_mb)) {
@@ -645,7 +645,11 @@ cft_to_pft <- c(
   carea_ha_r <- .read_luh2_carea(luh2_dir) * 100
   agg_factor <- as.integer(target_res / 0.25)
 
-  n_workers <- min(16L, max(1L, parallel::detectCores() - 1L))
+  n_workers <- .auto_spatialize_workers(
+    length(year_range),
+    worker_mb_default = 9000
+  )
+  cli::cli_alert_info("LUH2 country-total workers: {n_workers}")
   per_year_fn <- \(yr) {
     if (yr %% 10 == 0) {
       cli::cli_alert("LUH2 country totals: year {yr}")
@@ -1163,7 +1167,11 @@ prepare_gridded_cropland <- function(
 
   cli::cli_alert_info("Processing {length(year_range)} years of LUH2 data")
 
-  n_workers <- min(16L, max(1L, parallel::detectCores() - 1L))
+  n_workers <- .auto_spatialize_workers(
+    length(year_range),
+    worker_mb_default = 9000
+  )
+  cli::cli_alert_info("LUH2 gridded-cropland workers: {n_workers}")
   per_year_fn <- \(yr) {
     if (yr %% 10 == 0) {
       cli::cli_alert("Processing year {yr}")
@@ -3330,7 +3338,11 @@ prepare_livestock_inputs <- function(
   agg_factor <- as.integer(target_res / 0.25)
 
   pasture_years <- sort(intersect(unique(livestock_country$year), year_range))
-  n_workers <- min(16L, max(1L, parallel::detectCores() - 1L))
+  n_workers <- .auto_spatialize_workers(
+    length(pasture_years),
+    worker_mb_default = 9000
+  )
+  cli::cli_alert_info("LUH2 pasture workers: {n_workers}")
   per_year_pasture <- function(yr) {
     time_idx <- yr - 850L + 1L
     pastr_r <- .read_luh2_variable(states_path, "pastr", time_idx)
@@ -4691,7 +4703,10 @@ run_crop_spatialize <- function(
   years <- sort(unique(country_areas$year))
   years <- years[years %in% year_range]
   if (is.null(n_workers)) {
-    n_workers <- .auto_spatialize_workers(length(years))
+    n_workers <- .auto_spatialize_workers(
+      length(years),
+      worker_mb_default = 15000
+    )
   }
 
   grid <- make_target_grid()

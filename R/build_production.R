@@ -814,7 +814,10 @@ build_primary_production <- function(
       "value"
     )
   )
-  dt <- dt[element == "Stocks" & Source == "FAO TIER 1"]
+  dt <- dt[element == "Stocks"]
+  if ("Source" %in% names(dt)) {
+    dt <- dt[Source == "FAO TIER 1"]
+  }
   .aggregate_to_polities(dt, item_cbs_code, item_cbs)
 }
 
