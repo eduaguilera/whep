@@ -155,6 +155,39 @@ coord_to_rowcol <- function(dt, grid) {
 
 `%||%` <- function(x, y) if (is.null(x) || length(x) == 0L) y else x
 
+.mem_available_mb <- function() {
+  meminfo <- "/proc/meminfo"
+  if (!file.exists(meminfo)) {
+    return(NA_real_)
+  }
+  lines <- readLines(meminfo, warn = FALSE)
+  available <- grep("^MemAvailable:", lines, value = TRUE)
+  if (length(available) == 0L) {
+    return(NA_real_)
+  }
+  as.numeric(gsub("[^0-9]", "", available[[1L]])) / 1024
+}
+
+.auto_spatialize_workers <- function(max_years) {
+  cores <- parallel::detectCores(logical = TRUE) %||% 1L
+  mem_mb <- .mem_available_mb()
+  mem_fraction <- as.numeric(Sys.getenv(
+    "WHEP_SPATIALIZE_MEM_FRACTION",
+    unset = "0.70"
+  ))
+  worker_mb <- as.numeric(Sys.getenv(
+    "WHEP_SPATIALIZE_WORKER_MB",
+    unset = "4500"
+  ))
+  core_limit <- max(1L, cores - 1L)
+  mem_limit <- if (is.finite(mem_mb)) {
+    max(1L, floor((mem_mb * mem_fraction) / worker_mb))
+  } else {
+    1L
+  }
+  max(1L, min(max_years, core_limit, mem_limit))
+}
+
 new_slice <- function(nlon, nlat, fill = 0) {
   matrix(fill, nrow = nlon, ncol = nlat)
 }
@@ -4261,29 +4294,31 @@ write_lpjml_static_inputs <- function(
   cft_map_dt
 ) {
   ng <- data.table::as.data.table(n_dt)
-  if (nrow(ng) == 0L) {
-    return(invisible(NULL))
-  }
   ng <- coord_to_rowcol(ng, grid)
   agg <- ng[,
     .(value = mean(kg_n_ha, na.rm = TRUE)),
     by = .(year, pft, fert_type, row, col)
   ]
+  # Duplicate PFTs 1-16 into 17-32 for irrigated bands (LPJmL expects 32 bands)
+  # Convert kgN/ha -> g/m2 (LPJmL expects g/m2)
+  rf <- agg[, .(year, pft, row, col, value = value * 0.1, fert_type)]
+  ir <- agg[, .(year, pft = pft + 16L, row, col, value = value * 0.1, fert_type)]
+  both <- rbind(rf, ir)
   .pft_nc_write_chunk(
     nc_syn,
-    agg[fert_type == "Synthetic"],
+    both[fert_type == "Synthetic", !"fert_type"],
     chunk_years,
     all_years,
     grid,
-    16L
+    32L
   )
   .pft_nc_write_chunk(
     nc_man,
-    agg[fert_type == "Manure"],
+    both[fert_type == "Manure", !"fert_type"],
     chunk_years,
     all_years,
     grid,
-    16L
+    32L
   )
 }
 
@@ -4322,7 +4357,7 @@ run_crop_spatialize <- function(
   input_dir,
   year_range,
   lpjml_out_dir = file.path(run_dir, "lpjml_inputs"),
-  n_workers = max(1L, parallel::detectCores() - 1L)
+  n_workers = NULL
 ) {
   cli::cli_h2("Section 10: Crop spatialization")
 
@@ -4347,6 +4382,16 @@ run_crop_spatialize <- function(
   if (file.exists(type_cl_path)) {
     type_cropland <- nanoparquet::read_parquet(type_cl_path) |>
       dplyr::filter(year %in% year_range)
+  }
+
+  mc_path <- file.path(input_dir, "multicropping.parquet")
+  multicropping <- NULL
+  if (file.exists(mc_path)) {
+    multicropping <- nanoparquet::read_parquet(mc_path) |>
+      dplyr::filter(year %in% year_range)
+    cli::cli_alert_info(
+      "multicropping: {nrow(multicropping)} rows loaded"
+    )
   }
 
   cft_mapping <- .read_cft_mapping()
@@ -4428,6 +4473,9 @@ run_crop_spatialize <- function(
 
   years <- sort(unique(country_areas$year))
   years <- years[years %in% year_range]
+  if (is.null(n_workers)) {
+    n_workers <- .auto_spatialize_workers(length(years))
+  }
 
   grid <- make_target_grid()
   row_area_ha <- cell_area_ha_by_lat(grid$lat)
@@ -4458,9 +4506,9 @@ run_crop_spatialize <- function(
       ),
       "fertilizer_nr",
       "Synthetic fertilizer nitrogen rate",
-      "kgN ha-1 yr-1",
+      "g/m2",
       grid,
-      1:16,
+      1:32,
       years
     )
   }
@@ -4472,9 +4520,9 @@ run_crop_spatialize <- function(
       ),
       "manure_nr",
       "Manure nitrogen rate",
-      "kgN ha-1 yr-1",
+      "g/m2",
       grid,
-      1:16,
+      1:32,
       years
     )
   }
@@ -4490,7 +4538,14 @@ run_crop_spatialize <- function(
     )
   }
 
-  chunk_size <- 30L
+  chunk_size <- as.integer(Sys.getenv(
+    "WHEP_SPATIALIZE_CHUNK_SIZE",
+    unset = as.character(max(1L, min(30L, n_workers * 2L)))
+  ))
+  chunk_size <- max(1L, chunk_size)
+  cli::cli_alert_info(
+    "Crop spatialization workers: {n_workers}; chunk size: {chunk_size}"
+  )
   n_chunks <- ceiling(length(years) / chunk_size)
   year_chunks <- split(years, ceiling(seq_along(years) / chunk_size))
 
@@ -4526,7 +4581,10 @@ run_crop_spatialize <- function(
             dplyr::filter(type_cropland, year %in% chunk_years)
           },
           type_mapping = cft_mapping,
-          n_workers = n_workers
+          multicropping = if (!is.null(multicropping)) {
+            dplyr::filter(multicropping, year %in% chunk_years)
+          },
+          n_workers = min(n_workers, length(chunk_years))
         )
       )
     )
@@ -4552,12 +4610,44 @@ run_crop_spatialize <- function(
       ]
     )
 
-    n_cft_chunk <- nrow(cft_chunk)
+    # Normalize to physical cropland before writing LPJmL landuse.
+    # The spatializer may have allocated harvested area > cropland
+    # (multicropping). LPJmL expects physical managed-area fractions,
+    # so we scale each cell proportionally. Relative crop shares are
+    # preserved; only the absolute hectares are clipped to cropland.
+    cft_chunk_norm <- .step("normalize to cropland", {
+      gc_chunk <- data.table::as.data.table(
+        dplyr::filter(gridded_cropland, year %in% chunk_years)
+      )
+      dt <- data.table::as.data.table(cft_chunk)
+      dt[gc_chunk, cropland_ha := i.cropland_ha, on = .(lon, lat, year)]
+      dt[,
+        total_ha := sum(rainfed_ha + irrigated_ha, na.rm = TRUE),
+        by = .(lon, lat, year)
+      ]
+      dt[,
+        scale := data.table::fifelse(
+          !is.na(cropland_ha) & total_ha > cropland_ha & total_ha > 0,
+          cropland_ha / total_ha,
+          1
+        )
+      ]
+      dt[, `:=`(
+        rainfed_ha = rainfed_ha * scale,
+        irrigated_ha = irrigated_ha * scale,
+        total_ha = NULL,
+        scale = NULL,
+        cropland_ha = NULL
+      )]
+      dt
+    })
+
+    n_cft_chunk <- nrow(cft_chunk_norm)
     .step(
       paste0("write landuse NC (", n_cft_chunk, " CFT rows)"),
       .write_lu_nc_chunk(
         nc_lu,
-        cft_chunk,
+        cft_chunk_norm,
         chunk_years,
         years,
         grid,
@@ -4565,13 +4655,13 @@ run_crop_spatialize <- function(
       )
     )
     summary_rows[[i]] <- dplyr::summarise(
-      data.table::setDF(cft_chunk),
+      data.table::setDF(cft_chunk_norm),
       total_rainfed_ha = sum(rainfed_ha, na.rm = TRUE),
       total_irrigated_ha = sum(irrigated_ha, na.rm = TRUE),
       n_cells = dplyr::n(),
       .by = c(year, cft_name)
     )
-    rm(cft_chunk)
+    rm(cft_chunk, cft_chunk_norm)
 
     crops_with_country <- .step("attach area_code", {
       cwc <- data.table::as.data.table(crops_chunk)

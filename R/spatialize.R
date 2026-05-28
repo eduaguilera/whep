@@ -75,6 +75,9 @@
 #'     present, the table is filtered to the current year before
 #'     the capacity constraint is applied. When absent, the table
 #'     is treated as a static spatial layer applied to every year.
+#'     If `NULL` (default), the capacity constraint still runs with
+#'     `mc_rainfed = mc_irrigated = 1` (harvested area capped at
+#'     physical cropland).
 #'   - `max_iterations`: Maximum iterations for the redistribution
 #'     loop. Default: `1000L`.
 #'   - `expansion_threshold`: Iteration number after which crops are
@@ -120,22 +123,22 @@
 #' # Minimal example with toy data
 #' country_areas <- tibble::tribble(
 #'   ~year, ~area_code, ~item_prod_code, ~harvested_area_ha,
-#'   2000L,         1L,             15L,            1000
+#'   2000L, 1L, 15L, 1000
 #' )
 #' crop_patterns <- tibble::tribble(
-#'   ~lon,  ~lat, ~item_prod_code, ~harvest_fraction,
-#'    0.25, 50.25,             15L,               0.6,
-#'    0.75, 50.25,             15L,               0.4
+#'   ~lon, ~lat, ~item_prod_code, ~harvest_fraction,
+#'   0.25, 50.25, 15L, 0.6,
+#'   0.75, 50.25, 15L, 0.4
 #' )
 #' gridded_cropland <- tibble::tribble(
-#'   ~lon,  ~lat,  ~year, ~cropland_ha,
-#'    0.25, 50.25, 2000L,          800,
-#'    0.75, 50.25, 2000L,          500
+#'   ~lon, ~lat, ~year, ~cropland_ha,
+#'   0.25, 50.25, 2000L, 800,
+#'   0.75, 50.25, 2000L, 500
 #' )
 #' country_grid <- tibble::tribble(
-#'   ~lon,  ~lat, ~area_code,
-#'    0.25, 50.25,         1L,
-#'    0.75, 50.25,         1L
+#'   ~lon, ~lat, ~area_code,
+#'   0.25, 50.25, 1L,
+#'   0.75, 50.25, 1L
 #' )
 #' build_gridded_landuse(
 #'   country_areas, crop_patterns, gridded_cropland, country_grid,
@@ -273,7 +276,8 @@ build_gridded_landuse <- function(
 
   # Per-year: copy the static base (cells × crops) and attach cropland.
   grid_cp <- data.table::copy(base_grid_cp)
-  grid_cp[,
+  grid_cp[
+    ,
     cell_area_frac := data.table::fifelse(
       is.na(cell_area_frac),
       1,
@@ -541,84 +545,87 @@ build_gridded_landuse <- function(
   max_iterations,
   expansion_threshold
 ) {
-  if (is.null(multicropping)) {
-    return(allocated)
-  }
-
   country_cols <- .compartment_id_cols(country_grid)
-  country_lookup <- country_grid |>
-    dplyr::select(
-      dplyr::any_of(country_cols),
-      lon,
-      lat,
-      cell_area_frac
-    )
+  country_lookup <- data.table::as.data.table(country_grid)[
+    ,
+    unique(c(country_cols, "lon", "lat", "cell_area_frac")),
+    with = FALSE
+  ]
 
   # Build per-compartment capacity. The physical cropland layer is shared
   # by all polity compartments in a cell, then clipped to each compartment's
   # geographic envelope via cell_area_frac.
-  capacity <- cropland |>
-    dplyr::inner_join(country_lookup, by = c("lon", "lat")) |>
-    dplyr::inner_join(multicropping, by = c("lon", "lat")) |>
-    dplyr::mutate(
-      rainfed_ha = (cropland_ha - irrigated_ha) * cell_area_frac,
-      irrigated_ha = irrigated_ha * cell_area_frac,
-      rf_capacity = rainfed_ha * mc_rainfed,
-      ir_capacity = irrigated_ha * mc_irrigated
-    ) |>
-    dplyr::select(
-      dplyr::all_of(.compartment_cell_cols(country_lookup)),
-      rf_capacity,
-      ir_capacity
-    )
+  allocated_dt <- data.table::as.data.table(allocated)
+  cropland_dt <- data.table::as.data.table(cropland)
+  capacity_dt <- cropland_dt[country_lookup, on = .(lon, lat), nomatch = 0L]
+  if (is.null(multicropping)) {
+    capacity_dt[, `:=`(mc_rainfed = 1, mc_irrigated = 1)]
+  } else {
+    mc_dt <- data.table::as.data.table(multicropping)
+    capacity_dt <- mc_dt[capacity_dt, on = .(lon, lat), nomatch = 0L]
+  }
+  capacity_dt[, `:=`(
+    rf_capacity = (cropland_ha - irrigated_ha) * cell_area_frac * mc_rainfed,
+    ir_capacity = irrigated_ha * cell_area_frac * mc_irrigated
+  )]
+  capacity_dt <- capacity_dt[
+    ,
+    c(.compartment_cell_cols(country_lookup), "rf_capacity", "ir_capacity"),
+    with = FALSE
+  ]
 
-  cell_cols <- .compartment_cell_cols(allocated)
-  capacity_join_cols <- intersect(cell_cols, names(capacity))
+  cell_cols <- .compartment_cell_cols(allocated_dt)
+  capacity_join_cols <- intersect(cell_cols, names(capacity_dt))
 
   # Compute per-cell sums
-  cell_sums <- allocated |>
-    dplyr::summarise(
+  cell_sums <- allocated_dt[
+    ,
+    .(
       total_rf = sum(rainfed_ha, na.rm = TRUE),
-      total_ir = sum(irrigated_ha, na.rm = TRUE),
-      .by = dplyr::all_of(cell_cols)
-    )
+      total_ir = sum(irrigated_ha, na.rm = TRUE)
+    ),
+    by = cell_cols
+  ]
 
-  overloaded <- cell_sums |>
-    dplyr::inner_join(capacity, by = capacity_join_cols) |>
-    dplyr::filter(
-      total_rf > rf_capacity + 1e-4 |
-        total_ir > ir_capacity + 1e-4
-    )
+  overloaded <- capacity_dt[cell_sums, on = capacity_join_cols, nomatch = 0L]
+  overloaded <- overloaded[
+    total_rf > rf_capacity + 1e-4 |
+      total_ir > ir_capacity + 1e-4
+  ]
 
   if (nrow(overloaded) == 0L) {
     return(allocated)
   }
 
   # Find which countries need redistribution
-  countries_to_fix <- overloaded |>
-    dplyr::pull(area_code) |>
-    unique()
+  countries_to_fix <- unique(overloaded$area_code)
 
-  # Split into fixable vs stable
-
-  to_fix <- dplyr::filter(
-    allocated,
-    .data$area_code %in% countries_to_fix
-  )
-  stable <- dplyr::filter(
-    allocated,
-    !(.data$area_code %in% countries_to_fix)
-  )
-
-  fixed <- .redistribute_countries(
-    to_fix,
-    capacity,
-    country_grid,
+  fixed <- .redistribute_countries_dt(
+    allocated_dt,
+    capacity_dt,
+    countries_to_fix,
     max_iterations,
     expansion_threshold
   )
 
-  dplyr::bind_rows(stable, fixed)
+  out_cols <- unique(c(
+    .compartment_id_cols(allocated_dt),
+    "lon",
+    "lat",
+    "item_prod_code",
+    "rainfed_ha",
+    "irrigated_ha"
+  ))
+  stable <- allocated_dt[
+    !(area_code %in% countries_to_fix),
+    ..out_cols
+  ]
+
+  tibble::as_tibble(data.table::rbindlist(
+    list(stable, fixed),
+    use.names = TRUE,
+    fill = TRUE
+  ))
 }
 
 #' Get area_code for allocated cells via country_grid lookup.
@@ -632,17 +639,13 @@ build_gridded_landuse <- function(
 
 #' Redistribute excess harvested area for overloaded countries.
 #'
-#' Uses the logit-increment-logistic approach from LandInG:
-#' 1. Express cell allocation as fraction of capacity.
-#' 2. Apply logit transform.
-#' 3. Add an increment proportional to the country deficit.
-#' 4. Inverse logit to get new fraction.
-#' 5. Repeat until convergence or max iterations.
+#' data.table rewrite: processes one country at a time so temporary
+#' redistribution columns stay bounded by one country's crop-cell rows.
 #' @noRd
-.redistribute_countries <- function(
+.redistribute_countries_dt <- function(
   allocated,
   capacity,
-  country_grid,
+  countries,
   max_iterations,
   expansion_threshold
 ) {
@@ -651,227 +654,191 @@ build_gridded_landuse <- function(
     names(capacity)
   )
 
-  # Add capacity info
-  work <- allocated |>
-    dplyr::left_join(capacity, by = join_cols)
+  out_cols <- unique(c(
+    .compartment_id_cols(allocated),
+    "lon", "lat", "item_prod_code",
+    "rainfed_ha", "irrigated_ha"
+  ))
 
-  countries <- unique(work$area_code)
+  data.table::setindexv(allocated, "area_code")
+  data.table::setindexv(capacity, "area_code")
+  data.table::setindexv(capacity, join_cols)
 
-  purrr::map(countries, \(ctry) {
-    ctry_data <- dplyr::filter(work, area_code == ctry)
-    .redistribute_single_country(
-      ctry_data,
+  fixed <- vector("list", length(countries))
+  for (idx in seq_along(countries)) {
+    country <- countries[[idx]]
+    work <- allocated[.(country), on = "area_code", nomatch = 0L]
+    work <- data.table::copy(work)
+    capacity_country <- capacity[.(country), on = "area_code", nomatch = 0L]
+    work[capacity_country, `:=`(
+      rf_capacity = i.rf_capacity,
+      ir_capacity = i.ir_capacity
+    ), on = join_cols]
+
+    fixed[[idx]] <- .redistribute_country_dt(
+      work,
       max_iterations,
       expansion_threshold
-    )
-  }) |>
-    dplyr::bind_rows() |>
-    dplyr::select(
-      dplyr::any_of(.compartment_id_cols(work)),
-      lon,
-      lat,
-      item_prod_code,
-      rainfed_ha,
-      irrigated_ha
-    )
+    )[, ..out_cols]
+  }
+
+  data.table::rbindlist(fixed, use.names = TRUE, fill = TRUE)
 }
 
-#' Redistribute for one country using logit transformation.
+#' Redistribute for one country using vectorized logit updates.
 #' @noRd
-.redistribute_single_country <- function(
-  data,
-  max_iterations,
-  expansion_threshold
-) {
+.redistribute_country_dt <- function(work, max_iterations, expansion_threshold) {
   tolerance <- 1e-4
-  cell_cols <- .compartment_cell_cols(data)
+  cell_cols <- .compartment_cell_cols(work)
 
-  # Capture per-crop targets BEFORE the logit loop. The loop's exit
-  # criterion ("no cell over cap") says nothing about whether per-crop
-  # country totals are preserved -- the scale-down + logit-growth
-  # iteration is approximate, so totals can drift well below target.
-  # The final renormalisation step (below) restores per-crop country
-  # totals exactly. Without it, runs lose ~20% of FAOSTAT area
-  # uniformly across countries.
-  per_crop_target <- data |>
-    dplyr::summarise(
+  work[, .cell_group := .GRP, by = cell_cols]
+  work[, .crop_group := .GRP, by = item_prod_code]
+
+  cell_capacity <- work[
+    ,
+    .(
+      rf_capacity = data.table::first(rf_capacity),
+      ir_capacity = data.table::first(ir_capacity)
+    ),
+    keyby = .cell_group
+  ]
+  per_crop_target <- work[
+    ,
+    .(
       target_rf = sum(rainfed_ha, na.rm = TRUE),
-      target_ir = sum(irrigated_ha, na.rm = TRUE),
-      .by = item_prod_code
-    )
+      target_ir = sum(irrigated_ha, na.rm = TRUE)
+    ),
+    keyby = .crop_group
+  ]
+
+  cell_group <- work$.cell_group
+  crop_group <- work$.crop_group
+  rf_capacity <- cell_capacity$rf_capacity
+  ir_capacity <- cell_capacity$ir_capacity
+  rf_capacity[is.na(rf_capacity)] <- Inf
+  ir_capacity[is.na(ir_capacity)] <- Inf
+  target_rf <- per_crop_target$target_rf
+  target_ir <- per_crop_target$target_ir
+  rainfed_vec <- work$rainfed_ha
+  irrigated_vec <- work$irrigated_ha
+  n_cells <- length(rf_capacity)
+  n_crops <- length(target_rf)
 
   for (iter in seq_len(max_iterations)) {
-    # Check convergence: per-cell sums vs capacity
-    cell_check <- data |>
-      dplyr::summarise(
-        total_rf = sum(rainfed_ha, na.rm = TRUE),
-        total_ir = sum(irrigated_ha, na.rm = TRUE),
-        .by = dplyr::all_of(c(cell_cols, "rf_capacity", "ir_capacity"))
-      ) |>
-      dplyr::mutate(
-        rf_excess = pmax(total_rf - rf_capacity, 0),
-        ir_excess = pmax(total_ir - ir_capacity, 0)
-      )
+    total_rf <- .sum_by_group(cell_group, rainfed_vec, n_cells)
+    total_ir <- .sum_by_group(cell_group, irrigated_vec, n_cells)
+    rf_excess <- pmax(total_rf - rf_capacity, 0)
+    ir_excess <- pmax(total_ir - ir_capacity, 0)
 
     max_excess <- max(
-      max(cell_check$rf_excess),
-      max(cell_check$ir_excess)
+      max(rf_excess, na.rm = TRUE),
+      max(ir_excess, na.rm = TRUE),
+      na.rm = TRUE
     )
+    if (!is.finite(max_excess)) {
+      max_excess <- 0
+    }
 
     if (max_excess <= tolerance) {
       break
     }
 
-    # Apply logit redistribution for irrigated
-    data <- .logit_redistribute(
-      data,
-      cell_check,
-      "irrigated_ha",
-      "ir_capacity",
-      "total_ir",
-      "ir_excess",
-      cell_cols
+    pass_target_ir <- .sum_by_group(crop_group, irrigated_vec, n_crops)
+    over_ir <- ir_excess > 0 & total_ir > 0
+    if (any(over_ir, na.rm = TRUE)) {
+      ir_scale <- rep(1, n_cells)
+      ir_scale[over_ir] <- ir_capacity[over_ir] / total_ir[over_ir]
+      irrigated_vec <- irrigated_vec * ir_scale[cell_group]
+    }
+
+    current_ir <- .sum_by_group(
+      crop_group,
+      irrigated_vec,
+      n_crops
     )
-    # Apply logit redistribution for rainfed
-    data <- .logit_redistribute(
-      data,
-      cell_check,
-      "rainfed_ha",
-      "rf_capacity",
-      "total_rf",
-      "rf_excess",
-      cell_cols
+    increment_ir <- numeric(n_crops)
+    grow_ir <- current_ir > 0 & pass_target_ir > 0
+    increment_ir[grow_ir] <- (pass_target_ir[grow_ir] - current_ir[grow_ir]) /
+      current_ir[grow_ir]
+    ir_idx <- which(
+      !over_ir[cell_group] &
+        increment_ir[crop_group] != 0 &
+        ir_capacity[cell_group] > 0 &
+        is.finite(ir_capacity[cell_group])
     )
+    if (length(ir_idx) > 0L) {
+      frac <- pmax(
+        pmin(irrigated_vec[ir_idx] / ir_capacity[cell_group[ir_idx]], 1 - 1e-6),
+        1e-6
+      )
+      irrigated_vec[ir_idx] <- .logistic(
+        .logit(frac) + increment_ir[crop_group[ir_idx]]
+      ) * ir_capacity[cell_group[ir_idx]]
+    }
+
+    pass_target_rf <- .sum_by_group(crop_group, rainfed_vec, n_crops)
+    over_rf <- rf_excess > 0 & total_rf > 0
+    if (any(over_rf, na.rm = TRUE)) {
+      rf_scale <- rep(1, n_cells)
+      rf_scale[over_rf] <- rf_capacity[over_rf] / total_rf[over_rf]
+      rainfed_vec <- rainfed_vec * rf_scale[cell_group]
+    }
+
+    current_rf <- .sum_by_group(
+      crop_group,
+      rainfed_vec,
+      n_crops
+    )
+    increment_rf <- numeric(n_crops)
+    grow_rf <- current_rf > 0 & pass_target_rf > 0
+    increment_rf[grow_rf] <- (pass_target_rf[grow_rf] - current_rf[grow_rf]) /
+      current_rf[grow_rf]
+    rf_idx <- which(
+      !over_rf[cell_group] &
+        increment_rf[crop_group] != 0 &
+        rf_capacity[cell_group] > 0 &
+        is.finite(rf_capacity[cell_group])
+    )
+    if (length(rf_idx) > 0L) {
+      frac <- pmax(
+        pmin(rainfed_vec[rf_idx] / rf_capacity[cell_group[rf_idx]], 1 - 1e-6),
+        1e-6
+      )
+      rainfed_vec[rf_idx] <- .logistic(
+        .logit(frac) + increment_rf[crop_group[rf_idx]]
+      ) * rf_capacity[cell_group[rf_idx]]
+    }
   }
 
-  # Final per-crop renormalisation: per-crop country totals must equal
-  # the pre-loop target (which is the FAOSTAT harvested area for that
-  # country-crop pair, by construction of the upstream allocation).
-  # This may push a few cells slightly above their physical-area cap;
-  # the trade-off is intentional because FAOSTAT country totals are
-  # authoritative.
-  data |>
-    dplyr::left_join(per_crop_target, by = "item_prod_code") |>
-    dplyr::mutate(
-      current_rf = sum(rainfed_ha, na.rm = TRUE),
-      current_ir = sum(irrigated_ha, na.rm = TRUE),
-      .by = item_prod_code
-    ) |>
-    dplyr::mutate(
-      rf_scale = dplyr::if_else(
-        current_rf > 0 & target_rf > 0,
-        target_rf / current_rf,
-        1
-      ),
-      ir_scale = dplyr::if_else(
-        current_ir > 0 & target_ir > 0,
-        target_ir / current_ir,
-        1
-      ),
-      rainfed_ha = rainfed_ha * rf_scale,
-      irrigated_ha = irrigated_ha * ir_scale
-    ) |>
-    dplyr::select(
-      -target_rf,
-      -target_ir,
-      -current_rf,
-      -current_ir,
-      -rf_scale,
-      -ir_scale
-    )
+  current_rf <- .sum_by_group(crop_group, rainfed_vec, n_crops)
+  current_ir <- .sum_by_group(crop_group, irrigated_vec, n_crops)
+  rf_scale <- rep(1, n_crops)
+  ir_scale <- rep(1, n_crops)
+  scale_rf <- current_rf > 0 & target_rf > 0
+  scale_ir <- current_ir > 0 & target_ir > 0
+  rf_scale[scale_rf] <- target_rf[scale_rf] / current_rf[scale_rf]
+  ir_scale[scale_ir] <- target_ir[scale_ir] / current_ir[scale_ir]
+
+  work[, `:=`(
+    rainfed_ha = rainfed_vec * rf_scale[crop_group],
+    irrigated_ha = irrigated_vec * ir_scale[crop_group],
+    .cell_group = NULL,
+    .crop_group = NULL
+  )]
+
+  work
 }
 
-#' One pass of logit-based redistribution.
-#'
-#' For cells over capacity, scale down proportionally. For cells
-#' under capacity, increase via logit transform with an increment
-#' proportional to the country-wide shortfall.
+#' Sum numeric values by precomputed positive integer group.
 #' @noRd
-.logit_redistribute <- function(
-  data,
-  cell_check,
-  ha_col,
-  cap_col,
-  total_col,
-  excess_col,
-  cell_cols
-) {
-  # Compute per-crop target sums
-  targets <- data |>
-    dplyr::summarise(
-      target = sum(.data[[ha_col]], na.rm = TRUE),
-      .by = item_prod_code
-    )
-
-  # Scale down overloaded cells
-  over <- cell_check |>
-    dplyr::filter(.data[[excess_col]] > 0) |>
-    dplyr::mutate(
-      scale_factor = .data[[cap_col]] / .data[[total_col]]
-    ) |>
-    dplyr::select(dplyr::all_of(cell_cols), scale_factor)
-
-  if (nrow(over) > 0L) {
-    data <- data |>
-      dplyr::left_join(over, by = cell_cols) |>
-      dplyr::mutate(
-        !!ha_col := dplyr::if_else(
-          !is.na(scale_factor),
-          .data[[ha_col]] * scale_factor,
-          .data[[ha_col]]
-        )
-      ) |>
-      dplyr::select(-scale_factor)
+.sum_by_group <- function(group, weights, n_groups) {
+  if (anyNA(weights)) {
+    weights[is.na(weights)] <- 0
   }
-
-  # Compute current sums after scaling
-  current <- data |>
-    dplyr::summarise(
-      current_sum = sum(.data[[ha_col]], na.rm = TRUE),
-      .by = item_prod_code
-    )
-
-  # Compute increment per crop
-  increments <- targets |>
-    dplyr::inner_join(current, by = "item_prod_code") |>
-    dplyr::mutate(
-      deficit = target - current_sum,
-      increment = dplyr::if_else(
-        current_sum > 0,
-        deficit / current_sum,
-        0
-      )
-    ) |>
-    dplyr::select(item_prod_code, increment)
-
-  # Apply logit-increment to non-overloaded cells
-  under <- cell_check |>
-    dplyr::filter(.data[[excess_col]] <= 0) |>
-    dplyr::select(dplyr::all_of(cell_cols)) |>
-    dplyr::mutate(.is_under = TRUE)
-
-  data |>
-    dplyr::left_join(increments, by = "item_prod_code") |>
-    dplyr::left_join(under, by = cell_cols) |>
-    dplyr::mutate(
-      is_under = dplyr::coalesce(.data$.is_under, FALSE),
-      frac = dplyr::if_else(
-        .data[[cap_col]] > 0,
-        .data[[ha_col]] / .data[[cap_col]],
-        0
-      ),
-      # Clamp fraction to (epsilon, 1 - epsilon)
-      frac = pmax(pmin(frac, 1 - 1e-6), 1e-6),
-      !!ha_col := dplyr::if_else(
-        is_under & increment != 0,
-        .logistic(
-          .logit(frac) + increment
-        ) *
-          .data[[cap_col]],
-        .data[[ha_col]]
-      )
-    ) |>
-    dplyr::select(-increment, -is_under, -frac, -.is_under)
+  summed <- rowsum(weights, group, reorder = FALSE)
+  out <- numeric(n_groups)
+  out[as.integer(rownames(summed))] <- as.numeric(summed[, 1L])
+  out
 }
 
 #' Logit transformation.
@@ -953,7 +920,8 @@ build_gridded_landuse <- function(
     total_ha := sum(rainfed_ha + irrigated_ha, na.rm = TRUE),
     by = .(lon, lat, year)
   ]
-  dt[,
+  dt[
+    ,
     scale := data.table::fifelse(
       !is.na(cropland_ha) & total_ha > cropland_ha & total_ha > 0,
       cropland_ha / total_ha,

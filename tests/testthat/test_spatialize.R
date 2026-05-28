@@ -8,27 +8,27 @@ two_country_fixture <- function() {
   )
 
   crop_patterns <- tibble::tribble(
-    ~lon,  ~lat, ~item_prod_code, ~harvest_fraction,
-     0.25, 50.25,             15L,               0.8,
-     0.75, 50.25,             15L,               0.2,
-     1.25, 50.25,             15L,               0.5,
-     1.75, 50.25,             15L,               0.5
+    ~lon, ~lat, ~item_prod_code, ~harvest_fraction,
+    0.25, 50.25, 15L, 0.8,
+    0.75, 50.25, 15L, 0.2,
+    1.25, 50.25, 15L, 0.5,
+    1.75, 50.25, 15L, 0.5
   )
 
   gridded_cropland <- tibble::tribble(
-    ~lon,  ~lat,  ~year, ~cropland_ha,
-     0.25, 50.25, 2000L,          600,
-     0.75, 50.25, 2000L,          400,
-     1.25, 50.25, 2000L,          300,
-     1.75, 50.25, 2000L,          200
+    ~lon, ~lat, ~year, ~cropland_ha,
+    0.25, 50.25, 2000L, 600,
+    0.75, 50.25, 2000L, 400,
+    1.25, 50.25, 2000L, 300,
+    1.75, 50.25, 2000L, 200
   )
 
   country_grid <- tibble::tribble(
-    ~lon,  ~lat, ~area_code,
-     0.25, 50.25,         1L,
-     0.75, 50.25,         1L,
-     1.25, 50.25,         2L,
-     1.75, 50.25,         2L
+    ~lon, ~lat, ~area_code,
+    0.25, 50.25, 1L,
+    0.75, 50.25, 1L,
+    1.25, 50.25, 2L,
+    1.75, 50.25, 2L
   )
 
   list(
@@ -42,28 +42,28 @@ two_country_fixture <- function() {
 multi_crop_fixture <- function() {
   country_areas <- tibble::tribble(
     ~year, ~area_code, ~item_prod_code, ~harvested_area_ha,
-    2000L,         1L,             15L,               600,
-    2000L,         1L,             44L,               400
+    2000L, 1L, 15L, 600,
+    2000L, 1L, 44L, 400
   )
 
   crop_patterns <- tibble::tribble(
-    ~lon,  ~lat, ~item_prod_code, ~harvest_fraction,
-     0.25, 50.25,             15L,               0.6,
-     0.75, 50.25,             15L,               0.4,
-     0.25, 50.25,             44L,               0.3,
-     0.75, 50.25,             44L,               0.7
+    ~lon, ~lat, ~item_prod_code, ~harvest_fraction,
+    0.25, 50.25, 15L, 0.6,
+    0.75, 50.25, 15L, 0.4,
+    0.25, 50.25, 44L, 0.3,
+    0.75, 50.25, 44L, 0.7
   )
 
   gridded_cropland <- tibble::tribble(
-    ~lon,  ~lat,  ~year, ~cropland_ha,
-     0.25, 50.25, 2000L,          500,
-     0.75, 50.25, 2000L,          500
+    ~lon, ~lat, ~year, ~cropland_ha,
+    0.25, 50.25, 2000L, 500,
+    0.75, 50.25, 2000L, 500
   )
 
   country_grid <- tibble::tribble(
-    ~lon,  ~lat, ~area_code,
-     0.25, 50.25,         1L,
-     0.75, 50.25,         1L
+    ~lon, ~lat, ~area_code,
+    0.25, 50.25, 1L,
+    0.75, 50.25, 1L
   )
 
   list(
@@ -117,7 +117,7 @@ testthat::test_that("build_gridded_landuse conserves country totals", {
   testthat::expect_equal(country2, 500, tolerance = 1e-6)
 })
 
-testthat::test_that("build_gridded_landuse distributes proportionally to pattern", {
+testthat::test_that("build_gridded_landuse applies capacity constraint by default", {
   fix <- two_country_fixture()
   result <- build_gridded_landuse(
     fix$country_areas,
@@ -127,7 +127,42 @@ testthat::test_that("build_gridded_landuse distributes proportionally to pattern
   )
 
   # Country 1: patterns = 0.8, 0.2; cropland = 600, 400
-  # potentials = 0.8*600=480, 0.2*400=80 → fracs = 480/560, 80/560
+  # Proportional unconstrained would be 857 / 143.
+  # The default capacity constraint (mc = 1) redistributes excess.
+  cell1 <- result |>
+    dplyr::filter(lon == 0.25) |>
+    dplyr::pull(rainfed_ha)
+  cell2 <- result |>
+    dplyr::filter(lon == 0.75) |>
+    dplyr::pull(rainfed_ha)
+
+  # Country total must still be conserved
+  testthat::expect_equal(cell1 + cell2, 1000, tolerance = 1e-4)
+
+  # Higher-pattern cell should still get more than lower-pattern cell
+  testthat::expect_gt(cell1, cell2)
+
+  # The capacity constraint should have shifted area from the overloaded
+  # high-pattern cell to the underloaded low-pattern cell relative to
+  # pure proportional allocation (857 / 143).
+  testthat::expect_lt(cell1, 857)
+  testthat::expect_gt(cell2, 143)
+})
+
+testthat::test_that("build_gridded_landuse keeps proportional allocation when multicropping permits it", {
+  fix <- two_country_fixture()
+  multicropping <- fix$gridded_cropland |>
+    dplyr::select(lon, lat, year) |>
+    dplyr::mutate(mc_rainfed = 2, mc_irrigated = 2)
+
+  result <- build_gridded_landuse(
+    fix$country_areas,
+    fix$crop_patterns,
+    fix$gridded_cropland,
+    fix$country_grid,
+    config = list(multicropping = multicropping)
+  )
+
   cell1 <- result |>
     dplyr::filter(lon == 0.25) |>
     dplyr::pull(rainfed_ha)
@@ -140,6 +175,35 @@ testthat::test_that("build_gridded_landuse distributes proportionally to pattern
   expected_c2 <- 80 / 560 * expected_total
   testthat::expect_equal(cell1, expected_c1, tolerance = 1e-6)
   testthat::expect_equal(cell2, expected_c2, tolerance = 1e-6)
+})
+
+testthat::test_that("build_gridded_landuse distributes proportionally when within capacity", {
+  # Single cell with plenty of cropland — no capacity pressure
+  country_areas <- tibble::tribble(
+    ~year, ~area_code, ~item_prod_code, ~harvested_area_ha,
+    2000L, 1L, 15L, 500
+  )
+  crop_patterns <- tibble::tribble(
+    ~lon, ~lat, ~item_prod_code, ~harvest_fraction,
+    0.25, 50.25, 15L, 1.0
+  )
+  gridded_cropland <- tibble::tribble(
+    ~lon, ~lat, ~year, ~cropland_ha,
+    0.25, 50.25, 2000L, 1000
+  )
+  country_grid <- tibble::tribble(
+    ~lon, ~lat, ~area_code,
+    0.25, 50.25, 1L
+  )
+
+  result <- build_gridded_landuse(
+    country_areas,
+    crop_patterns,
+    gridded_cropland,
+    country_grid
+  )
+
+  testthat::expect_equal(result$rainfed_ha, 500, tolerance = 1e-6)
 })
 
 testthat::test_that("build_gridded_landuse handles multiple crops", {
@@ -163,29 +227,29 @@ testthat::test_that("build_gridded_landuse handles multiple crops", {
 
 testthat::test_that("build_gridded_landuse handles irrigation split", {
   country_areas <- tibble::tribble(
-      ~year, ~area_code, ~item_prod_code,
-        ~harvested_area_ha, ~irrigated_area_ha,
-      2000L,         1L,             15L,
-                      1000,                400
-    )
+    ~year, ~area_code, ~item_prod_code,
+    ~harvested_area_ha, ~irrigated_area_ha,
+    2000L, 1L, 15L,
+    1000, 400
+  )
 
   crop_patterns <- tibble::tribble(
-      ~lon,  ~lat, ~item_prod_code, ~harvest_fraction,
-       0.25, 50.25,             15L,               0.5,
-       0.75, 50.25,             15L,               0.5
-    )
+    ~lon, ~lat, ~item_prod_code, ~harvest_fraction,
+    0.25, 50.25, 15L, 0.5,
+    0.75, 50.25, 15L, 0.5
+  )
 
   gridded_cropland <- tibble::tribble(
-      ~lon,  ~lat,  ~year, ~cropland_ha, ~irrigated_ha,
-       0.25, 50.25, 2000L,          500,           200,
-       0.75, 50.25, 2000L,          500,           200
-    )
+    ~lon, ~lat, ~year, ~cropland_ha, ~irrigated_ha,
+    0.25, 50.25, 2000L, 500, 200,
+    0.75, 50.25, 2000L, 500, 200
+  )
 
   country_grid <- tibble::tribble(
-      ~lon,  ~lat, ~area_code,
-       0.25, 50.25,         1L,
-       0.75, 50.25,         1L
-    )
+    ~lon, ~lat, ~area_code,
+    0.25, 50.25, 1L,
+    0.75, 50.25, 1L
+  )
 
   result <- build_gridded_landuse(
     country_areas,
@@ -210,10 +274,10 @@ testthat::test_that("build_gridded_landuse handles irrigation split", {
 testthat::test_that("build_gridded_landuse aggregates to CFTs when mapping provided", {
   fix <- multi_crop_fixture()
   cft_map <- tibble::tribble(
-      ~item_prod_code, ~cft_name,
-                  15L, "temperate_cereals",
-                  44L, "temperate_cereals"
-    )
+    ~item_prod_code, ~cft_name,
+    15L, "temperate_cereals",
+    44L, "temperate_cereals"
+  )
 
   result <- build_gridded_landuse(
     fix$country_areas,
@@ -244,17 +308,17 @@ testthat::test_that("build_gridded_landuse aggregates to CFTs when mapping provi
 testthat::test_that("build_gridded_landuse errors on missing columns", {
   bad_areas <- tibble::tibble(year = 2000L, area_code = 1L)
   good_patterns <- tibble::tribble(
-      ~lon, ~lat, ~item_prod_code, ~harvest_fraction,
-      0.25, 50.25, 15L, 0.5
-    )
+    ~lon, ~lat, ~item_prod_code, ~harvest_fraction,
+    0.25, 50.25, 15L, 0.5
+  )
   good_cropland <- tibble::tribble(
-      ~lon, ~lat, ~year, ~cropland_ha,
-      0.25, 50.25, 2000L, 500
-    )
+    ~lon, ~lat, ~year, ~cropland_ha,
+    0.25, 50.25, 2000L, 500
+  )
   good_grid <- tibble::tribble(
-      ~lon, ~lat, ~area_code,
-      0.25, 50.25, 1L
-    )
+    ~lon, ~lat, ~area_code,
+    0.25, 50.25, 1L
+  )
 
   testthat::expect_error(
     build_gridded_landuse(
@@ -269,27 +333,27 @@ testthat::test_that("build_gridded_landuse errors on missing columns", {
 
 testthat::test_that("build_gridded_landuse handles cells with no pattern gracefully", {
   country_areas <- tibble::tribble(
-      ~year, ~area_code, ~item_prod_code, ~harvested_area_ha,
-      2000L,         1L,             15L,                100
-    )
+    ~year, ~area_code, ~item_prod_code, ~harvested_area_ha,
+    2000L,         1L,             15L,                100
+  )
 
   # Pattern only for one cell, but two cells in the grid
   crop_patterns <- tibble::tribble(
-      ~lon,  ~lat, ~item_prod_code, ~harvest_fraction,
-       0.25, 50.25,             15L,               1.0
-    )
+    ~lon, ~lat, ~item_prod_code, ~harvest_fraction,
+    0.25, 50.25, 15L, 1.0
+  )
 
   gridded_cropland <- tibble::tribble(
-      ~lon,  ~lat,  ~year, ~cropland_ha,
-       0.25, 50.25, 2000L,          500,
-       0.75, 50.25, 2000L,          500
-    )
+    ~lon, ~lat, ~year, ~cropland_ha,
+    0.25, 50.25, 2000L, 500,
+    0.75, 50.25, 2000L, 500
+  )
 
   country_grid <- tibble::tribble(
-      ~lon,  ~lat, ~area_code,
-       0.25, 50.25,         1L,
-       0.75, 50.25,         1L
-    )
+    ~lon, ~lat, ~area_code,
+    0.25, 50.25, 1L,
+    0.75, 50.25, 1L
+  )
 
   result <- build_gridded_landuse(
     country_areas,
@@ -309,30 +373,30 @@ testthat::test_that("build_gridded_landuse handles cells with no pattern gracefu
 
 testthat::test_that("build_gridded_landuse handles multiple years", {
   country_areas <- tibble::tribble(
-      ~year, ~area_code, ~item_prod_code, ~harvested_area_ha,
-      2000L,         1L,             15L,               1000,
-      2001L,         1L,             15L,               1200
-    )
+    ~year, ~area_code, ~item_prod_code, ~harvested_area_ha,
+    2000L,         1L,             15L,               1000,
+    2001L,         1L,             15L,               1200
+  )
 
   crop_patterns <- tibble::tribble(
-      ~lon,  ~lat, ~item_prod_code, ~harvest_fraction,
-       0.25, 50.25,             15L,               0.5,
-       0.75, 50.25,             15L,               0.5
-    )
+    ~lon, ~lat, ~item_prod_code, ~harvest_fraction,
+    0.25, 50.25, 15L, 0.5,
+    0.75, 50.25, 15L, 0.5
+  )
 
   gridded_cropland <- tibble::tribble(
-      ~lon,  ~lat,  ~year, ~cropland_ha,
-       0.25, 50.25, 2000L,          500,
-       0.75, 50.25, 2000L,          500,
-       0.25, 50.25, 2001L,          600,
-       0.75, 50.25, 2001L,          600
-    )
+    ~lon, ~lat, ~year, ~cropland_ha,
+    0.25, 50.25, 2000L, 500,
+    0.75, 50.25, 2000L, 500,
+    0.25, 50.25, 2001L, 600,
+    0.75, 50.25, 2001L, 600
+  )
 
   country_grid <- tibble::tribble(
-      ~lon,  ~lat, ~area_code,
-       0.25, 50.25,         1L,
-       0.75, 50.25,         1L
-    )
+    ~lon, ~lat, ~area_code,
+    0.25, 50.25, 1L,
+    0.75, 50.25, 1L
+  )
 
   result <- build_gridded_landuse(
     country_areas,
@@ -360,33 +424,33 @@ testthat::test_that("build_gridded_landuse handles multiple years", {
 
 testthat::test_that("build_gridded_landuse filters year-keyed inputs when years is set", {
   country_areas <- tibble::tribble(
-      ~year, ~area_code, ~item_prod_code, ~harvested_area_ha,
-      2000L,         1L,             15L,               1000,
-      2001L,         1L,             15L,               1200,
-      2002L,         1L,             15L,               1400
-    )
+    ~year, ~area_code, ~item_prod_code, ~harvested_area_ha,
+    2000L,         1L,             15L,               1000,
+    2001L,         1L,             15L,               1200,
+    2002L,         1L,             15L,               1400
+  )
 
   crop_patterns <- tibble::tribble(
-      ~lon,  ~lat, ~item_prod_code, ~harvest_fraction,
-       0.25, 50.25,             15L,               0.5,
-       0.75, 50.25,             15L,               0.5
-    )
+    ~lon, ~lat, ~item_prod_code, ~harvest_fraction,
+    0.25, 50.25, 15L, 0.5,
+    0.75, 50.25, 15L, 0.5
+  )
 
   gridded_cropland <- tibble::tribble(
-      ~lon,  ~lat,  ~year, ~cropland_ha,
-       0.25, 50.25, 2000L,          500,
-       0.75, 50.25, 2000L,          500,
-       0.25, 50.25, 2001L,          600,
-       0.75, 50.25, 2001L,          600,
-       0.25, 50.25, 2002L,          700,
-       0.75, 50.25, 2002L,          700
-    )
+    ~lon, ~lat, ~year, ~cropland_ha,
+    0.25, 50.25, 2000L, 500,
+    0.75, 50.25, 2000L, 500,
+    0.25, 50.25, 2001L, 600,
+    0.75, 50.25, 2001L, 600,
+    0.25, 50.25, 2002L, 700,
+    0.75, 50.25, 2002L, 700
+  )
 
   country_grid <- tibble::tribble(
-      ~lon,  ~lat, ~area_code,
-       0.25, 50.25,         1L,
-       0.75, 50.25,         1L
-    )
+    ~lon, ~lat, ~area_code,
+    0.25, 50.25, 1L,
+    0.75, 50.25, 1L
+  )
 
   result <- whep::build_gridded_landuse(
     country_areas,
@@ -425,13 +489,13 @@ testthat::test_that("shared cells keep independent polity landuse compartments",
     0.25, 50.25,             15L,               1.0
   )
   gridded_cropland <- tibble::tribble(
-    ~lon,  ~lat,  ~year, ~cropland_ha,
-    0.25, 50.25, 2000L,         1000
+    ~lon, ~lat, ~year, ~cropland_ha,
+    0.25, 50.25, 2000L, 1000
   )
   country_grid <- tibble::tribble(
-    ~polycell_id, ~lon,  ~lat, ~area_code, ~cell_area_frac,
-    "a",         0.25, 50.25,         1L,            0.25,
-    "b",         0.25, 50.25,         2L,            0.75
+    ~polycell_id, ~lon, ~lat, ~area_code, ~cell_area_frac,
+    "a", 0.25, 50.25, 1L, 0.25,
+    "b", 0.25, 50.25, 2L, 0.75
   )
 
   result <- whep::build_gridded_landuse(
@@ -478,9 +542,9 @@ testthat::test_that("time-varying country grids select the valid polity year", {
     0.25, 50.25,             15L,               1.0
   )
   gridded_cropland <- tibble::tribble(
-    ~lon,  ~lat,  ~year, ~cropland_ha,
-    0.25, 50.25, 1990L,         1000,
-    0.25, 50.25, 2000L,         1000
+    ~lon, ~lat, ~year, ~cropland_ha,
+    0.25, 50.25, 1990L, 1000,
+    0.25, 50.25, 2000L, 1000
   )
   country_grid <- tibble::tribble(
     ~lon,  ~lat, ~area_code, ~year,

@@ -78,6 +78,10 @@ run_lpjml <- function(
     river_routing = TRUE,
     landuse = "yes",
 
+    # Use spatially explicit WHEP fertilizer/manure inputs instead of
+    # global constant rates (fix_fertilization=true ignores the NC files)
+    fix_fertilization = FALSE,
+
     # Year-dependent WHEP inputs — override input.cjson names
     `input.landuse.name` = lu_name,
     `input.fertilizer_nr.name` = fert_name,
