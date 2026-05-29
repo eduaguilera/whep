@@ -60,3 +60,12 @@ Rscript autoresearch/<FOLDER>/benchmark.R
   `build_primary_production()` and `build_commodity_balances()`. Focuses
   on tidyverse/data.table pipeline bottlenecks (forderv, bmerge, format
   conversions).
+- [`prepare_spatialize/`](prepare_spatialize/) — runtime optimization of
+  the full `inst/scripts/prepare_spatialize_all.R` pipeline (11 sections,
+  country grid through crop/livestock spatialization). Section 5 (MIRCA
+  irrigation) already optimized from 260s→25s via furrr parallelism.
+  Section 9a (GLWD hydrology, ~140s) is irreducible without pre-caching.
+- [`crop_spatialize/`](crop_spatialize/) — focused optimization of
+  `run_crop_spatialize()` (Section 10, ~54s / 16% of total). Requires
+  Section 1–9 outputs already in `LPJmL_inputs/whep/inputs/`. First
+  hypothesis: increase `n_workers` beyond 2 in `mclapply`.

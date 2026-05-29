@@ -571,6 +571,45 @@ test_that("fill_proxy_growth works with grouping", {
   expect_false(is.na(fra_filled))
 })
 
+test_that("fill_proxy_growth extrapolates per group, not across groups", {
+  # Regression: .parse_proxy_spec used to return `group_vars` while
+  # downstream code read `present_group_vars` (unset), collapsing all
+  # groups into one. Under the bug, a group with a slow-growing proxy
+  # would be pulled towards a neighbour's fast-growing proxy.
+  data <- tibble::tribble(
+    ~country, ~year, ~value, ~proxy,
+    "slow",   2000,    NA,    10,
+    "slow",   2001,    NA,    11,
+    "slow",   2002,   100,    12,
+    "fast",   2000,    NA,    10,
+    "fast",   2001,    NA,    50,
+    "fast",   2002,  1000,   100
+  )
+
+  result <- fill_proxy_growth(
+    data,
+    value_col = value,
+    proxy_col = "proxy",
+    .by = "country",
+    verbose = FALSE
+  )
+
+  # Expected per-group backfill, walking back from the 2002 anchor
+  # using the local proxy growth. The slow group's 2000 value is
+  # anchor times (proxy_2000 / proxy_2002); the fast group uses its
+  # own proxy series. A bug that averaged growth rates across groups
+  # would pull both values toward the same (wrong) intermediate.
+  slow_2000 <- result |>
+    dplyr::filter(country == "slow", year == 2000L) |>
+    dplyr::pull(value)
+  fast_2000 <- result |>
+    dplyr::filter(country == "fast", year == 2000L) |>
+    dplyr::pull(value)
+
+  expect_equal(slow_2000, 100 * (10 / 12), tolerance = 1e-6)
+  expect_equal(fast_2000, 1000 * (10 / 100), tolerance = 1e-6)
+})
+
 test_that("fill_proxy_growth returns same number of rows", {
   data <- tibble::tribble(
     ~year, ~value, ~proxy,
