@@ -814,7 +814,10 @@ build_primary_production <- function(
       "value"
     )
   )
-  dt <- dt[element == "Stocks" & Source == "FAO TIER 1"]
+  dt <- dt[element == "Stocks"]
+  if ("Source" %in% names(dt)) {
+    dt <- dt[Source == "FAO TIER 1"]
+  }
   .aggregate_to_polities(dt, item_cbs_code, item_cbs)
 }
 
@@ -865,6 +868,22 @@ build_primary_production <- function(
           value_st
         ),
       by = c("year", "area", "item_cbs_code")
+    ) |>
+    # Carry value_st forward (and back) in time per (area, item_cbs_code)
+    # so years that fall outside the faostat-emissions-livestock pin's
+    # coverage (typically the last 1-2 years; FAO emissions data lags
+    # QCL) inherit the latest known sub-item stock. Without this, the
+    # share = value_st / sum(value_st) below evaluates to NA for every
+    # row in those years, the value_comb branch falls back to the full
+    # QCL value, and all item_prod_code sub-rows that derive from the
+    # same QCL Item_Code (e.g. Cattle dairy + non-dairy from
+    # Item_Code 866, Swine market + breeding from 1034, Chickens layers
+    # + broilers from 1057) all receive the unsplit total, which
+    # multiplies the country head count by the number of sub-rows.
+    fill_linear(
+      value_st,
+      time_col = year,
+      .by = c("area", "item_cbs_code")
     ) |>
     dplyr::mutate(
       share = value_st / sum(value_st),

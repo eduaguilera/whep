@@ -1,3 +1,96 @@
+#' Manure nitrogen application by crop and country
+#'
+#' @description
+#' Country- and crop-level estimates of manure nitrogen applied to cropland,
+#' from West et al. (2014). Used as a reference for spatializing manure N
+#' inputs in the WHEP pipeline.
+#'
+#' @format
+#' A tibble with one row per crop-country combination containing:
+#' - `Crop_name`: Crop name (character).
+#' - `ISO`: ISO 3166-1 alpha-3 country code.
+#' - `Continent`: Three-letter continent code (e.g. `"AFR"`, `"ASI"`).
+#' - `Manure_N_Mg`: Manure nitrogen applied in megagrams (Mg).
+#'
+#' @source West, P. C. et al. (2014). Leverage points for improving global
+#'   food security and the environment. *Science*, 345(6194), 325–328.
+#'   \doi{10.1126/science.1246067}
+#'
+#' @examples
+#' head(crops_manure_n)
+"crops_manure_n"
+
+#' Grassland share of synthetic nitrogen by country and year
+#'
+#' @description
+#' Country-level time series of the share of synthetic nitrogen applied to
+#' grassland (versus cropland). Used to split national N totals between land
+#' use types in the WHEP nitrogen pipeline.
+#'
+#' @format
+#' A tibble with one row per country-year combination containing:
+#' - `Country`: Country name.
+#' - `year`: Year (numeric).
+#' - `grass_share`: Share of synthetic N applied to grassland (0–1).
+#'
+#' @source Lassaletta et al. nitrogen flow dataset. See pipeline
+#'   documentation for full citation.
+#'
+#' @examples
+#' head(lassaletta_grassland_share)
+"lassaletta_grassland_share"
+
+#' Smil (2001) global synthetic nitrogen production, 1913-2000
+#'
+#' @description
+#' Global synthetic-nitrogen production anchors from Smil (2001)
+#' "Enriching the Earth", Tables 5.2 and 5.3, cross-checked with
+#' Smil (2002) Ambio 31:126-131. Anchor years span 1913 (first
+#' commercial Haber-Bosch plant at BASF Oppau) to 2000. Used by
+#' `prepare_nitrogen_inputs()` to backcast country-level synthetic N
+#' for the pre-FAOSTAT period (years before 1961): the temporal shape
+#' is taken from this global series and downscaled to each country
+#' using its 1961-1965 share of global FAOSTAT synthetic N.
+#'
+#' Pre-1913 values are treated as zero by the consumer and are not
+#' stored here.
+#'
+#' @format A tibble with one row per anchor year:
+#' - `year`: Integer anchor year (1913, 1920, 1925, ..., 2000).
+#' - `global_kt_n`: Global synthetic-N production in kt N.
+#'
+#' @source Smil, V. (2001) *Enriching the Earth: Fritz Haber, Carl
+#'   Bosch, and the Transformation of World Food Production*, MIT
+#'   Press. Tables 5.2 and 5.3.
+#'
+#' @examples
+#' head(smil_2001_synthetic_n_global)
+"smil_2001_synthetic_n_global"
+
+#' Synthetic nitrogen application rates by crop and country
+#'
+#' @description
+#' Country- and crop-process-level synthetic nitrogen application rates
+#' (kg N ha\eqn{^{-1}}), derived from Mueller et al. (2012). Used as
+#' reference crop-specific N rates in the WHEP nitrogen pipeline.
+#'
+#' @format
+#' A tibble with one row per crop-process-country combination containing:
+#' - `proc_code`: Internal process code (e.g. `"p001"`).
+#' - `crop_process`: Descriptive crop process name (e.g. `"Rice production"`).
+#' - `crop_original`: Crop name as in the source dataset.
+#' - `unit`: Unit of the rate value (always `"kgN/ha"`).
+#' - `iso3c`: ISO 3166-1 alpha-3 country code.
+#' - `rate_value`: Nitrogen application rate (kg N ha\eqn{^{-1}}).
+#'
+#' @source Mueller, N. D. et al. (2012). Closing yield gaps through nutrient
+#'   and water management. *Nature*, 490(7419), 254–257.
+#'   \doi{10.1038/nature11420}
+#'
+#' @examples
+#' head(mueller_synthetic_n)
+"mueller_synthetic_n"
+
 #' Animal codes and classifications
 #'
 #' Maps live animal CBS items to their livestock classifications, process codes,
@@ -148,6 +241,32 @@
 #' @examples
 #' head(biomass_coefs)
 "biomass_coefs"
+
+#' FAOSTAT crop to LPJmL crop functional type (CFT) mapping
+#'
+#' Maps FAOSTAT primary-production item codes to WHEP's granular
+#' 33-class crop functional type taxonomy and the coarser
+#' LPJmL-compatible parent class. Used by
+#' [build_gridded_landuse()] and [run_spatialize()] to aggregate
+#' spatialized crop-level output into named crop functional types.
+#'
+#' @format
+#' A tibble with one row per mapped FAOSTAT item. Columns:
+#' - `item_prod_code`: Integer FAOSTAT item code.
+#' - `item_prod_name`: Human-readable FAOSTAT item name.
+#' - `cft_name`: Granular WHEP CFT name (33 classes, e.g.
+#'   `"temperate_cereals"`, `"coffee"`, `"oil_crops_oilpalm"`).
+#' - `cft_lpjml`: LPJmL-compatible parent class; one of the 12
+#'   LPJmL v6 named crop CFTs or `"others"`.
+#' - `luh2_type`: LUH2 crop functional type (`c3ann`, `c4ann`,
+#'   `c3per`, or `c3nfx`).
+#' @source Adapted from LandInG's
+#'   `crop_types_FAOSTAT_LPJmL_default.csv` (Ostberg et al. 2023)
+#'   with WHEP granular extensions.
+#'
+#' @examples
+#' head(cft_mapping)
+"cft_mapping"
 
 #' Commodity balance sheet processing fractions
 #'

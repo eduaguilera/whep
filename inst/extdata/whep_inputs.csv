@@ -10,7 +10,10 @@ luh2_v2h_states,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%
 faostat-production,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260325T111448Z-4fffe
 faostat-production-old,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260325T113330Z-572c9
 eu-agridb-fodder,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260325T113350Z-145f3
-faostat-emissions-livestock,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260325T113403Z-23bf8
+eu-agridb-manure-flows,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260430T143339Z-0bf20
+eu-agridb-synthetic-fertilizer,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260430T143406Z-9c3df
+faostat-emissions-livestock,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260526T151303Z-bac9d
+faostat-fertilizer-nutrients,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260526T151256Z-161c2
 faostat-trade-totals,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260325T120525Z-7b85f
 faostat-trade-bilateral,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260407T095142Z-b3f81
 luh2-areas,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260325T112205Z-4d7cb
@@ -44,3 +47,5 @@ intake_ygiac,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20i
 grafs_crop_categories,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/nitrogen_spain/_pins.yaml,20260127T114257Z-afabb
 livestock_units,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/nitrogen_spain/_pins.yaml,20260128T120326Z-40647
 n_fix_ygpit_all,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/nitrogen_spain/_pins.yaml,20260202T110154Z-2383a
+manure-west-et-al-2014,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260430T141153Z-82eff
+global-dams,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260430T152540Z-9c64c
