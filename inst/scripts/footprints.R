@@ -1,3 +1,7 @@
+suppressPackageStartupMessages({
+  devtools::load_all(".")
+})
+
 # Years to process
 years <- c(1986, 1987)
 
