@@ -195,6 +195,7 @@ air format .
 ```
 
 ``` r
+
 # 2. Document: devtools::document()
 # 3. Check: rcmdcheck::rcmdcheck(build_args='--no-build-vignettes', args=c('--no-tests','--ignore-vignettes'), error_on='error')
 # 4. Test: devtools::test()

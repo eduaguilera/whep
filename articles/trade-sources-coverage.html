@@ -12,8 +12,8 @@
 <link rel="icon" sizes="any" href="../favicon.ico">
 <link rel="manifest" href="../site.webmanifest">
 <script src="../deps/jquery-3.6.0/jquery-3.6.0.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-<link href="../deps/bootstrap-5.3.1/bootstrap.min.css" rel="stylesheet">
-<script src="../deps/bootstrap-5.3.1/bootstrap.bundle.min.js"></script><link href="../deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
+<link href="../deps/bootstrap-5.3.8/bootstrap.min.css" rel="stylesheet">
+<script src="../deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="../deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
 <link href="../deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
 <script src="../deps/headroom-0.11.0/headroom.min.js"></script><script src="../deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="../deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="../deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="../deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="../deps/search-1.0.0/fuse.min.js"></script><script src="../deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="../pkgdown.js"></script><meta property="og:title" content="Trade sources year coverage">
 </head>
@@ -86,20 +86,6 @@ each row accounts for one year.</p>
 <span>  <span class="va">sheet_url</span> <span class="op">|&gt;</span></span>
 <span>  <span class="fu">googlesheets4</span><span class="fu">::</span><span class="fu"><a href="https://googlesheets4.tidyverse.org/reference/range_read.html" class="external-link">read_sheet</a></span><span class="op">(</span>sheet <span class="op">=</span> <span class="st">"Final_Sources_Trade"</span><span class="op">)</span> <span class="op">|&gt;</span></span>
 <span>  <span class="fu"><a href="../reference/expand_trade_sources.html">expand_trade_sources</a></span><span class="op">(</span><span class="op">)</span></span>
-<span><span class="co">#&gt; <span style="color: #BB0000;">✖</span> Request 1 failed [429: RESOURCE_EXHAUSTED].</span></span>
-<span><span class="co">#&gt; <span style="color: #00BBBB;">ℹ</span> Will retry in 1.8s.</span></span>
-<span><span class="co">#&gt; <span style="color: #BB0000;">✖</span> Request 2 failed [429: RESOURCE_EXHAUSTED].</span></span>
-<span><span class="co">#&gt; <span style="color: #00BBBB;">ℹ</span> Will retry in 8s.</span></span>
-<span><span class="co">#&gt; ⠙ Retry happens in  7s</span></span>
-<span><span class="co">#&gt; ⠹ Retry happens in  6s</span></span>
-<span><span class="co">#&gt; ⠸ Retry happens in  3s</span></span>
-<span><span class="co">#&gt; <span style="color: #BB0000;">✖</span> Request 3 failed [429: RESOURCE_EXHAUSTED].</span></span>
-<span><span class="co">#&gt; ⠸ Retry happens in  3s<span style="color: #00BBBB;">ℹ</span> Will retry in 4.2s.</span></span>
-<span><span class="co">#&gt; ⠸ Retry happens in  3s⠸ Retry happens in  0s</span></span>
-<span><span class="co">#&gt; ⠙ Retry happens in  3s</span></span>
-<span><span class="co">#&gt; ⠹ Retry happens in  1s</span></span>
-<span><span class="co">#&gt; <span style="color: #00BB00;">✔</span> Request 4 successful!</span></span>
-<span><span class="co">#&gt; ⠹ Retry happens in  1s⠹ Retry happens in  0s</span></span>
 <span><span class="co">#&gt; <span style="color: #00BB00;">✔</span> Reading from <span style="color: #00BBBB;">WHEP Source identification</span>.</span></span>
 <span><span class="co">#&gt; <span style="color: #00BB00;">✔</span> Range '<span style="color: #BBBB00;">'Final_Sources_Trade'</span>'.</span></span></code></pre></div>
 <p>Now we build some plots.</p>

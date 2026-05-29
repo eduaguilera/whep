@@ -20,6 +20,22 @@ reading, gap-filling, historical extension, and balance validation.
 - [`build_cbs_prices()`](https://eduaguilera.github.io/whep/reference/build_cbs_prices.md)
   : Build CBS item prices
 
+## Spatialization
+
+Disaggregate country-level agricultural data to a 0.5-degree grid.
+[`run_spatialize()`](https://eduaguilera.github.io/whep/reference/run_spatialize.md)
+wraps
+[`build_gridded_landuse()`](https://eduaguilera.github.io/whep/reference/build_gridded_landuse.md)
+with named presets (LPJmL-faithful vs full WHEP) for direct cross-model
+comparison.
+
+- [`run_spatialize()`](https://eduaguilera.github.io/whep/reference/run_spatialize.md)
+  : Run the gridded land-use spatialization pipeline
+- [`build_gridded_landuse()`](https://eduaguilera.github.io/whep/reference/build_gridded_landuse.md)
+  : Build gridded landuse dataset
+- [`build_gridded_livestock()`](https://eduaguilera.github.io/whep/reference/build_gridded_livestock.md)
+  : Build gridded livestock dataset
+
 ## Tidy datasets
 
 Get cleaned dataframes with project related data.
@@ -131,12 +147,22 @@ Lookup and coefficient tables used internally across the pipeline.
   : Biomass coefficients for crops and livestock products
 - [`cb_processing`](https://eduaguilera.github.io/whep/reference/cb_processing.md)
   : Commodity balance sheet processing fractions
+- [`cft_mapping`](https://eduaguilera.github.io/whep/reference/cft_mapping.md)
+  : FAOSTAT crop to LPJmL crop functional type (CFT) mapping
 - [`crops_eurostat`](https://eduaguilera.github.io/whep/reference/crops_eurostat.md)
   : Eurostat crop classification codes
+- [`crops_manure_n`](https://eduaguilera.github.io/whep/reference/crops_manure_n.md)
+  : Manure nitrogen application by crop and country
+- [`lassaletta_grassland_share`](https://eduaguilera.github.io/whep/reference/lassaletta_grassland_share.md)
+  : Grassland share of synthetic nitrogen by country and year
 - [`liv_lu_coefs`](https://eduaguilera.github.io/whep/reference/liv_lu_coefs.md)
   : Livestock unit coefficients
+- [`mueller_synthetic_n`](https://eduaguilera.github.io/whep/reference/mueller_synthetic_n.md)
+  : Synthetic nitrogen application rates by crop and country
 - [`primary_double`](https://eduaguilera.github.io/whep/reference/primary_double.md)
   : Items with double-counting in production statistics
+- [`smil_2001_synthetic_n_global`](https://eduaguilera.github.io/whep/reference/smil_2001_synthetic_n_global.md)
+  : Smil (2001) global synthetic nitrogen production, 1913-2000
 
 ## FAOSTAT raw data
 

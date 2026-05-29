@@ -63,12 +63,14 @@ available from both CRAN and
 You can install the stable version on CRAN:
 
 ``` r
+
 install.packages('whep')
 ```
 
 If you want the development version of `whep`, you can:
 
 ``` r
+
 # Install from GitHub
 pak::pak("eduaguilera/whep")
 

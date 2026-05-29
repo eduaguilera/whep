@@ -1,6 +1,7 @@
 # Trade sources year coverage
 
 ``` r
+
 library(whep)
 # Don't ask for credentials (read public files)
 googlesheets4::gs4_deauth()
@@ -10,6 +11,7 @@ First we read the trade sources sheet and build a dataframe where each
 row accounts for one year.
 
 ``` r
+
 # Step 1: Authentication
 sheet_url <- "1UdwgS87x5OsLjNuKaY3JA01GoI5nwsenz62JXCeq0GQ"
 
@@ -20,20 +22,6 @@ expanded_trade_sources <-
   sheet_url |>
   googlesheets4::read_sheet(sheet = "Final_Sources_Trade") |>
   expand_trade_sources()
-#> ✖ Request 1 failed [429: RESOURCE_EXHAUSTED].
-#> ℹ Will retry in 1.8s.
-#> ✖ Request 2 failed [429: RESOURCE_EXHAUSTED].
-#> ℹ Will retry in 8s.
-#> ⠙ Retry happens in  7s
-#> ⠹ Retry happens in  6s
-#> ⠸ Retry happens in  3s
-#> ✖ Request 3 failed [429: RESOURCE_EXHAUSTED].
-#> ⠸ Retry happens in  3sℹ Will retry in 4.2s.
-#> ⠸ Retry happens in  3s⠸ Retry happens in  0s
-#> ⠙ Retry happens in  3s
-#> ⠹ Retry happens in  1s
-#> ✔ Request 4 successful!
-#> ⠹ Retry happens in  1s⠹ Retry happens in  0s
 #> ✔ Reading from WHEP Source identification.
 #> ✔ Range ''Final_Sources_Trade''.
 ```
@@ -43,6 +31,7 @@ Now we build some plots.
 Plot showing years covered by `expanded_trade_sources`:
 
 ``` r
+
 ggplot2::ggplot(
   expanded_trade_sources,
   ggplot2::aes(y = Trade, x = Year, fill = "lightblue")
@@ -60,6 +49,7 @@ expanded_trade_sources](trade-sources-coverage_files/figure-html/unnamed-chunk-3
 Plot showing by years, colored by `expanded_trade_sources`:
 
 ``` r
+
 ggplot2::ggplot(
   expanded_trade_sources,
   ggplot2::aes(y = Trade, x = Year, fill = Name, alpha = .8)
@@ -78,6 +68,7 @@ Plot showing years covered by `expanded_trade_sources`, colored by
 quality:
 
 ``` r
+
 ggplot2::ggplot(
   expanded_trade_sources, ggplot2::aes(y = Trade, x = Year, alpha = .8)
 ) +
@@ -98,6 +89,7 @@ Plot showing years covered by `expanded_trade_sources`, colored by
 scanned/not scanned:
 
 ``` r
+
 ggplot2::ggplot(expanded_trade_sources, ggplot2::aes(y = Trade, x = Year)) +
   ggplot2::geom_tile(ggplot2::aes(fill = factor(Scanned), alpha = .8)) +
   ggplot2::theme_dark() +
@@ -117,6 +109,7 @@ Plot showing years covered by `expanded_trade_sources`, colored by
 whether or not in SACO:
 
 ``` r
+
 ggplot2::ggplot(
   expanded_trade_sources,
   ggplot2::aes(y = Trade, x = Year, alpha = .8)
