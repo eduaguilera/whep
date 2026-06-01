@@ -5,6 +5,8 @@
 #'
 #' @param example If `TRUE`, return a small example output without
 #'   downloading remote data. Default is `FALSE`.
+#' @param cbs Optional pre-computed wide CBS tibble from
+#'   [get_wide_cbs()]. If `NULL` (default), it is built internally.
 #'
 #' @returns
 #' A tibble with the reported trade between countries. For efficient
@@ -95,20 +97,27 @@
 #'
 #' @examples
 #' get_bilateral_trade(example = TRUE)
-get_bilateral_trade <- function(example = FALSE) {
+get_bilateral_trade <- function(example = FALSE, cbs = NULL) {
   if (example) {
     return(.example_get_bilateral_trade())
   }
 
-  cbs <- get_wide_cbs() |>
+  if (is.null(cbs)) {
+    cbs <- get_wide_cbs()
+  }
+  cbs <- cbs |>
     dplyr::select(year, item_cbs_code, area_code, export, import)
 
+  cli::cli_progress_step("Reading raw bilateral trade data")
   btd <- "bilateral_trade" |>
     whep_read_file() |>
     .clean_bilateral_trade()
 
   codes <- .get_all_country_codes(btd, cbs)
 
+  cli::cli_progress_step(
+    "Balancing trade matrices ({nrow(btd)} year-item groups)"
+  )
   btd |>
     .nest_by_year_item_code(cbs, codes) |>
     .process_bilateral_trade(codes) |>
@@ -244,7 +253,7 @@ get_bilateral_trade <- function(example = FALSE) {
     dplyr::mutate(area_code = factor(area_code, levels = codes))
 
   btd |>
-    dplyr::filter(unit == "tonnes") |>
+    dplyr::filter(unit %in% c("tonnes", "heads")) |>
     dplyr::select(-unit) |>
     .filter_only_items_in_cbs(cbs) |>
     tidyr::nest(

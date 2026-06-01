@@ -112,7 +112,7 @@ test_that("build_primary_production spot-check USA wheat", {
   spot <- result |>
     dplyr::filter(
       area_code == 231,
-      item_prod_code == "15",
+      item_prod_code == 15,
       unit == "tonnes",
       year == 2000
     ) |>

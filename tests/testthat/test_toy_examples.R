@@ -154,7 +154,8 @@ testthat::test_that("get_wide_cbs example returns valid tibble", {
       "export",
       "other_uses",
       "processing",
-      "stock_retrieval"
+      "stock_withdrawal",
+      "stock_addition"
     )
   )
   pointblank::expect_col_vals_not_null(result, "year")

@@ -29,7 +29,9 @@
 #'    - `tonnes`: Available for crops and livestock products.
 #'    - `ha`: Hectares, available for crops.
 #'    - `t_ha`: Tonnes per hectare, available for crops.
-#'    - `heads`: Number of animals, available for livestock.
+#'    - `heads`: Number of animals (stocks), available for livestock.
+#'    - `slaughtered_heads`: Number of animals slaughtered, available
+#'      for livestock.
 #'    - `LU`: Standard Livestock Unit measure, available for livestock.
 #'    - `t_head`: tonnes per head, available for livestock products.
 #'    - `t_LU`: tonnes per Livestock Unit, available for livestock products.
@@ -43,7 +45,7 @@ get_primary_production <- function(example = FALSE) {
   if (example) {
     return(.ex_get_primary_prod())
   }
-  whep_read_file("primary_prod")
+  .cache_get("primary_prod", build_primary_production())
 }
 
 #' Crop residue items
