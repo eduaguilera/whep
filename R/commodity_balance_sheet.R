@@ -186,7 +186,7 @@ get_livestock_cbs <- function(primary_prod) {
       cli::cli_warn(
         "Could not read bilateral trade for livestock: {e$message}"
       )
-      return(NULL)
+      NULL
     }
   )
 

@@ -1,7 +1,8 @@
 # Small crafted wide CBS fixture with consistent accounting.
-# supply = production + import + stock_withdrawal
-# use    = export + food + feed + seed + processing + other_uses + stock_addition
-# domestic_supply = food + feed + seed + processing + other_uses
+# Supply is production plus import plus stock withdrawal.
+# Use is export plus food, feed, seed, processing, other uses,
+# and stock addition.
+# Domestic supply is food, feed, seed, processing, and other uses.
 .make_cbs_fixture <- function() {
   tibble::tribble(
     ~year, ~area_code, ~item_cbs_code,
