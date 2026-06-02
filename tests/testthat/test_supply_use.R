@@ -315,3 +315,79 @@ testthat::test_that(".build_husbandry combines feed use and livestock supply", {
   testthat::expect_equal(nrow(use_rows), 1)
   testthat::expect_equal(nrow(supply_rows), 2)
 })
+
+testthat::test_that(
+  ".build_supply_use_from_inputs includes all livestock item types",
+  {
+    items_cbs <- tibble::tribble(
+      ~item_cbs_code, ~item_type,
+      1, "livestock",
+      2, "livestock_meat",
+      3, "livestock_draft",
+      4, "other"
+    )
+    items_prod <- tibble::tibble(
+      item_prod_code = integer(),
+      item_type = character()
+    )
+    coeffs <- tibble::tibble(
+      year = integer(),
+      area_code = integer(),
+      item_cbs_code_to_process = integer(),
+      value_to_process = double(),
+      item_cbs_code_processed = integer(),
+      final_value_processed = double()
+    )
+    cbs <- tibble::tibble(
+      year = integer(),
+      area_code = integer(),
+      item_cbs_code = integer(),
+      seed = double()
+    )
+    crop_residues <- tibble::tibble(
+      year = integer(),
+      area_code = integer(),
+      item_cbs_code_crop = integer(),
+      item_cbs_code_residue = integer(),
+      value = double()
+    )
+    primary_prod <- tibble::tribble(
+      ~year, ~area_code, ~item_prod_code, ~item_cbs_code,
+      ~live_anim_code, ~unit, ~value,
+      2000, 1, 10, 1, NA, "LU", 10,
+      2000, 1, 11, 2, NA, "LU", 20,
+      2000, 1, 12, 3, NA, "LU", 30,
+      2000, 1, 13, 4, NA, "LU", 40
+    )
+    feed_intake <- tibble::tribble(
+      ~year, ~area_code, ~live_anim_code, ~item_cbs_code, ~supply,
+      2000, 1, 1, 50, 10,
+      2000, 1, 2, 50, 20,
+      2000, 1, 3, 50, 30
+    )
+
+    result <- .build_supply_use_from_inputs(
+      items_prod,
+      items_cbs,
+      coeffs,
+      cbs,
+      crop_residues,
+      primary_prod,
+      feed_intake
+    )
+
+    husbandry_use <- result |>
+      dplyr::filter(proc_group == "husbandry", type == "use")
+    husbandry_supply <- result |>
+      dplyr::filter(proc_group == "husbandry", type == "supply")
+
+    testthat::expect_equal(
+      sort(unique(husbandry_use$proc_cbs_code)),
+      c(1, 2, 3)
+    )
+    testthat::expect_equal(
+      sort(unique(husbandry_supply$proc_cbs_code)),
+      c(1, 2, 3)
+    )
+  }
+)

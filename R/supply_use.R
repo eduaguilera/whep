@@ -90,7 +90,9 @@ build_supply_use <- function(example = FALSE) {
   feed_intake
 ) {
   husbandry_items <- items_cbs |>
-    dplyr::filter(item_type == "livestock") |>
+    dplyr::filter(
+      item_type %in% c("livestock", "livestock_meat", "livestock_draft")
+    ) |>
     dplyr::select(live_anim_code = item_cbs_code)
 
   crop_prod_items <- items_prod |>

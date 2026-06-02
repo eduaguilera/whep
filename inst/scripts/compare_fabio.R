@@ -51,6 +51,43 @@ FABIO_Y_PATH <- NULL # e.g. paste0("~/Downloads/", YEAR, "_Y.rds")
 # Helpers                                                                       #
 # --------------------------------------------------------------------------- #
 
+# WHEP deliberately splits or renames some commodities that FABIO keeps as one
+# row. Compare after rolling WHEP sectors up to FABIO commodity definitions.
+.build_whep_fabio_bridge <- function() {
+  tibble::tribble(
+    ~item_cbs_code, ~fabio_item_code,
+    960L, 866L,   # Cattle, dairy -> Cattle
+    961L, 866L,   # Cattle, non-dairy -> Cattle
+    1049L, 1034L, # Pigs -> Pigs
+    1052L, 2029L, # Chickens, layers -> Poultry Birds
+    1053L, 2029L, # Chickens, broilers -> Poultry Birds
+    1068L, 2029L, # Ducks -> Poultry Birds
+    1072L, 2029L, # Geese -> Poultry Birds
+    1079L, 2029L, # Turkeys -> Poultry Birds
+    2001L, 2000L, # Fodder legumes -> Fodder crops
+    2002L, 2000L, # Fodder vegetables and roots -> Fodder crops
+    2003L, 2000L, # Fodder mix -> Fodder crops
+    5003L, 2000L, # Other fodder -> Fodder crops
+    248L, 2560L,  # Coconuts -> Coconuts - Incl Copra
+    2112L, 2749L, # Meat Meal -> Meat Meal
+    2542L, 2818L, # Sugar (Raw Equivalent) -> Sugar, Refined Equiv
+    2552L, 2556L, # Groundnuts -> Groundnuts (Shelled Eq)
+    2761L, 2960L, # Freshwater Fish -> Fish, Seafood
+    2762L, 2960L, # Demersal Fish -> Fish, Seafood
+    2763L, 2960L, # Pelagic Fish -> Fish, Seafood
+    2764L, 2960L, # Marine Fish, Other -> Fish, Seafood
+    2765L, 2960L, # Crustaceans -> Fish, Seafood
+    2766L, 2960L, # Cephalopods -> Fish, Seafood
+    2767L, 2960L, # Molluscs, Other -> Fish, Seafood
+    2769L, 2960L, # Aquatic Animals, Others -> Fish, Seafood
+    2775L, 2960L, # Aquatic Plants -> Fish, Seafood
+    2781L, 2960L, # Fish, Body Oil -> Fish, Seafood
+    2782L, 2960L, # Fish, Liver Oil -> Fish, Seafood
+    2790L, 2960L, # Fish meal -> Fish, Seafood
+    2807L, 2805L  # Rice and products -> Rice (Milled Equivalent)
+  )
+}
+
 # Extract the single-year slice from the WHEP io tibble.
 .slice_year <- function(io, year) {
   row <- io[io$year == year, ]
@@ -67,31 +104,236 @@ FABIO_Y_PATH <- NULL # e.g. paste0("~/Downloads/", YEAR, "_Y.rds")
 
 # Build the FABIO sector label table from io_codes.csv.
 # Returns a data frame with one row per FABIO matrix row:
-#   area_code, item_cbs_code (= item_code in FABIO), comm_code
+#   area_code, fabio_item_code, fabio_item_name, comm_code
 .build_fabio_labels <- function(io_codes_path) {
   io <- read.csv(io_codes_path, stringsAsFactors = FALSE)
   # io_codes rows are in the same order as the X matrix rows.
-  # item_code in io_codes corresponds to item_cbs_code in WHEP.
+  # item_code in io_codes is the official FABIO comparison code.
   data.frame(
     area_code = as.integer(io$area_code),
-    item_cbs_code = as.integer(io$item_code),
+    fabio_item_code = as.integer(io$item_code),
+    fabio_item_name = io$item,
     comm_code = io$comm_code,
     stringsAsFactors = FALSE
   )
 }
 
-# Join two vectors by (area_code, item_cbs_code).
-# Returns: area_code, item_cbs_code, ref, our, abs_err, rel_err.
-.compare_vectors <- function(ref_vec, ref_labels, our_vec, our_labels) {
-  ref_df <- ref_labels |> mutate(ref = ref_vec)
-  our_df <- our_labels |> mutate(our = our_vec)
+.map_whep_labels_to_fabio <- function(labels, bridge, fabio_items) {
+  labels |>
+    left_join(bridge, by = "item_cbs_code") |>
+    mutate(
+      fabio_item_code = coalesce(
+        .data$fabio_item_code,
+        as.integer(.data$item_cbs_code)
+      )
+    ) |>
+    left_join(fabio_items, by = "fabio_item_code")
+}
 
-  inner_join(ref_df, our_df, by = c("area_code", "item_cbs_code")) |>
+.build_primary_double_systems <- function(fabio_items) {
+  item_lookup <- whep::items_prod_full |>
+    transmute(
+      item_prod_code_chr = as.character(.data$item_prod_code),
+      item_cbs_code = as.integer(.data$item_cbs_code),
+      item_cbs_name = .data$item_cbs
+    )
+
+  primary_double <- whep::primary_double |>
+    mutate(
+      item_prod_code_chr = as.character(.data$item_prod_code),
+      primary_double_family = coalesce(.data$Item_area, .data$item_prod),
+      primary_double_role = if_else(
+        grepl("_area$", .data$Multi_type),
+        "area",
+        "product"
+      )
+    ) |>
+    left_join(item_lookup, by = "item_prod_code_chr")
+
+  parents <- primary_double |>
+    filter(.data$primary_double_role == "area") |>
+    transmute(
+      primary_double_family = .data$primary_double_family,
+      parent_item_code = .data$item_cbs_code,
+      parent_item_name = .data$item_cbs_name,
+      parent_multi_type = .data$Multi_type
+    )
+
+  products <- primary_double |>
+    filter(.data$primary_double_role == "product") |>
+    transmute(
+      primary_double_family = .data$primary_double_family,
+      product_item_code = .data$item_cbs_code,
+      product_item_name = .data$item_cbs_name,
+      product_multi_type = .data$Multi_type
+    )
+
+  systems <- inner_join(products, parents, by = "primary_double_family")
+  fabio_codes <- fabio_items$fabio_item_code
+
+  systems |>
+    group_by(
+      .data$primary_double_family,
+      .data$parent_item_code,
+      .data$parent_item_name,
+      .data$parent_multi_type
+    ) |>
+    filter(
+      .data$parent_multi_type == "Primary_area",
+      .data$parent_item_code %in% fabio_codes,
+      all(.data$product_item_code %in% fabio_codes)
+    ) |>
+    ungroup()
+}
+
+.mark_primary_double_boundary_items <- function(labels, primary_double_systems) {
+  parent_codes <- primary_double_systems |>
+    distinct(.data$parent_item_code) |>
+    pull(.data$parent_item_code)
+
+  if (length(parent_codes) == 0L) {
+    labels$compare_include <- TRUE
+    return(labels)
+  }
+
+  labels |>
+    mutate(
+      compare_include = !.data$fabio_item_code %in% parent_codes
+    )
+}
+
+.print_primary_double_audit <- function(
+  ref_vec,
+  ref_labels,
+  our_vec,
+  our_labels,
+  primary_double_systems
+) {
+  if (nrow(primary_double_systems) == 0L) {
+    return(invisible(NULL))
+  }
+
+  item_totals <- function(values, labels, value_name) {
+    labels |>
+      mutate(value = as.numeric(values)) |>
+      summarise(
+        value = sum(.data$value, na.rm = TRUE),
+        .by = "fabio_item_code"
+      ) |>
+      rename(!!value_name := "value")
+  }
+
+  ref_totals <- item_totals(ref_vec, ref_labels, "fabio_x")
+  our_totals <- item_totals(our_vec, our_labels, "whep_x")
+
+  parents <- primary_double_systems |>
+    distinct(
+      .data$primary_double_family,
+      .data$parent_item_code,
+      .data$parent_item_name
+    ) |>
+    left_join(ref_totals, by = c("parent_item_code" = "fabio_item_code")) |>
+    rename(fabio_parent_x = "fabio_x")
+
+  product_names <- primary_double_systems |>
+    distinct(
+      .data$primary_double_family,
+      .data$product_item_code,
+      .data$product_item_name
+    ) |>
+    summarise(
+      product_items = paste(
+        paste(.data$product_item_code, .data$product_item_name),
+        collapse = " + "
+      ),
+      .by = "primary_double_family"
+    )
+
+  fabio_products <- primary_double_systems |>
+    distinct(.data$primary_double_family, .data$product_item_code) |>
+    left_join(ref_totals, by = c("product_item_code" = "fabio_item_code")) |>
+    summarise(
+      fabio_products_x = sum(coalesce(.data$fabio_x, 0), na.rm = TRUE),
+      .by = "primary_double_family"
+    )
+
+  whep_products <- primary_double_systems |>
+    distinct(.data$primary_double_family, .data$product_item_code) |>
+    left_join(our_totals, by = c("product_item_code" = "fabio_item_code")) |>
+    summarise(
+      whep_products_x = sum(coalesce(.data$whep_x, 0), na.rm = TRUE),
+      .by = "primary_double_family"
+    )
+
+  audit <- parents |>
+    left_join(product_names, by = "primary_double_family") |>
+    left_join(fabio_products, by = "primary_double_family") |>
+    left_join(whep_products, by = "primary_double_family") |>
+    mutate(
+      product_ratio = .data$whep_products_x /
+        pmax(.data$fabio_products_x, 1)
+    ) |>
+    select(
+      "primary_double_family",
+      "parent_item_code",
+      "parent_item_name",
+      "product_items",
+      "fabio_parent_x",
+      "fabio_products_x",
+      "whep_products_x",
+      "product_ratio"
+    )
+
+  message(
+    "Primary-double boundary audit: parent X is excluded from the adjusted ",
+    "comparison; product X remains compared directly."
+  )
+  print(audit, width = Inf)
+
+  invisible(audit)
+}
+
+.aggregate_compare_vector <- function(values, labels, value_name) {
+  stopifnot(length(values) == nrow(labels))
+  if (!"compare_include" %in% names(labels)) {
+    labels$compare_include <- TRUE
+  }
+  labels |>
+    mutate(value = as.numeric(values)) |>
+    filter(.data$compare_include) |>
+    summarise(
+      value = sum(.data$value, na.rm = TRUE),
+      fabio_item_name = dplyr::first(.data$fabio_item_name),
+      .by = c(area_code, fabio_item_code)
+    ) |>
+    rename(!!value_name := "value")
+}
+
+# Join two vectors by (area_code, fabio_item_code), after WHEP rollups.
+# Returns: area_code, fabio_item_code, fabio_item_name, ref, our, and errors.
+.compare_vectors <- function(ref_vec, ref_labels, our_vec, our_labels) {
+  ref_df <- .aggregate_compare_vector(ref_vec, ref_labels, "ref")
+  our_df <- .aggregate_compare_vector(our_vec, our_labels, "our")
+
+  inner_join(
+    ref_df,
+    our_df,
+    by = c("area_code", "fabio_item_code"),
+    suffix = c("", "_our")
+  ) |>
     mutate(
       abs_err = our - ref,
       rel_err = abs_err / pmax(abs(ref), 1)
     ) |>
-    select("area_code", "item_cbs_code", "ref", "our", "abs_err", "rel_err")
+    select(
+      "area_code",
+      "fabio_item_code",
+      "fabio_item_name",
+      "ref",
+      "our",
+      "abs_err",
+      "rel_err"
+    )
 }
 
 # Print summary statistics for a comparison data frame.
@@ -134,8 +376,14 @@ FABIO_Y_PATH <- NULL # e.g. paste0("~/Downloads/", YEAR, "_Y.rds")
     arrange(desc(abs(.data$rel_err))) |>
     slice_head(n = n) |>
     add_area_name() |>
-    add_item_cbs_name() |>
-    select("area_name", "item_cbs_name", "ref", "our", "rel_err")
+    select(
+      "area_name",
+      "fabio_item_code",
+      "fabio_item_name",
+      "ref",
+      "our",
+      "rel_err"
+    )
   message(sprintf("\nTop %d %s mismatches (by |rel_err|):", n, label))
   print(top)
 }
@@ -165,9 +413,9 @@ FABIO_Y_PATH <- NULL # e.g. paste0("~/Downloads/", YEAR, "_Y.rds")
 
   rs_cmp <- .compare_vectors(
     rowSums(mat),
-    fabio_labels[, c("area_code", "item_cbs_code")],
+    fabio_labels,
     rowSums(our_mat),
-    our_labels[, c("area_code", "item_cbs_code")]
+    our_labels
   )
   .print_summary(paste(label, "row sums"), rs_cmp)
   .print_top_mismatches(rs_cmp, n = 20, label = paste(label, "row-sum"))
@@ -175,9 +423,9 @@ FABIO_Y_PATH <- NULL # e.g. paste0("~/Downloads/", YEAR, "_Y.rds")
   if (col_sums) {
     cs_cmp <- .compare_vectors(
       colSums(mat),
-      fabio_labels[, c("area_code", "item_cbs_code")],
+      fabio_labels,
       colSums(our_mat),
-      our_labels[, c("area_code", "item_cbs_code")]
+      our_labels
     )
     .print_summary(paste(label, "col sums"), cs_cmp)
   }
@@ -191,6 +439,11 @@ FABIO_Y_PATH <- NULL # e.g. paste0("~/Downloads/", YEAR, "_Y.rds")
 
 message("Building FABIO sector label table from io_codes.csv ...")
 fabio_labels <- .build_fabio_labels(IO_CODES_PATH)
+fabio_items <- distinct(
+  fabio_labels,
+  .data$fabio_item_code,
+  .data$fabio_item_name
+)
 message(sprintf(
   "  %d FABIO sectors (%d unique comm_codes, %d unique areas)",
   nrow(fabio_labels),
@@ -209,6 +462,17 @@ fabio_x <- X[, yr_col]
 # io must be in scope — built with: io <- build_io_model(years = YEAR)
 stopifnot(exists("io"))
 our <- .slice_year(io, YEAR)
+bridge <- .build_whep_fabio_bridge()
+our$labels <- .map_whep_labels_to_fabio(our$labels, bridge, fabio_items)
+primary_double_systems <- .build_primary_double_systems(fabio_items)
+fabio_labels_pd <- .mark_primary_double_boundary_items(
+  fabio_labels,
+  primary_double_systems
+)
+our_labels_pd <- .mark_primary_double_boundary_items(
+  our$labels,
+  primary_double_systems
+)
 message(sprintf("  %d WHEP sectors", length(our$X)))
 
 # --------------------------------------------------------------------------- #
@@ -217,15 +481,43 @@ message(sprintf("  %d WHEP sectors", length(our$X)))
 
 message("\n=== Coverage ===")
 
-fabio_items <- distinct(fabio_labels, .data$item_cbs_code)
-our_items <- distinct(our$labels, .data$item_cbs_code)
-
-only_fabio_items <- anti_join(fabio_items, our_items, by = "item_cbs_code") |>
+rollups <- our$labels |>
+  distinct(
+    .data$item_cbs_code,
+    .data$fabio_item_code,
+    .data$fabio_item_name
+  ) |>
+  filter(.data$item_cbs_code != .data$fabio_item_code) |>
   add_item_cbs_name()
+if (nrow(rollups) > 0) {
+  message(sprintf(
+    "  %d WHEP item code(s) roll up to a different FABIO code:",
+    nrow(rollups)
+  ))
+  print(arrange(rollups, .data$fabio_item_code, .data$item_cbs_code))
+}
+
+if (nrow(primary_double_systems) > 0) {
+  boundary_items <- primary_double_systems |>
+    distinct(
+      .data$primary_double_family,
+      .data$parent_item_code,
+      .data$parent_item_name
+    )
+  message(
+    "  Primary-double parent item(s) treated as collapsed process ",
+    "boundaries in the adjusted comparison:"
+  )
+  print(boundary_items, width = Inf)
+}
+
+our_items <- distinct(our$labels, .data$fabio_item_code, .data$fabio_item_name)
+
+only_fabio_items <- anti_join(fabio_items, our_items, by = "fabio_item_code")
 if (nrow(only_fabio_items) > 0) {
   message(
     sprintf(
-      "  %d commodity code(s) in FABIO with no CBS match in WHEP",
+      "  %d FABIO commodity code(s) with no mapped WHEP equivalent",
       nrow(only_fabio_items)
     ),
     " (dropped from comparison):"
@@ -233,11 +525,13 @@ if (nrow(only_fabio_items) > 0) {
   print(only_fabio_items)
 }
 
-only_our_items <- anti_join(our_items, fabio_items, by = "item_cbs_code") |>
+only_our_items <- our$labels |>
+  distinct(.data$item_cbs_code, .data$fabio_item_code) |>
+  anti_join(fabio_items, by = "fabio_item_code") |>
   add_item_cbs_name()
 if (nrow(only_our_items) > 0) {
   message(sprintf(
-    "  %d item(s) in WHEP with no FABIO equivalent:",
+    "  %d WHEP item(s) with no mapped FABIO equivalent:",
     nrow(only_our_items)
   ))
   print(only_our_items)
@@ -257,16 +551,44 @@ message("\n=== 1. Total output (X) ===")
 
 x_cmp <- .compare_vectors(
   fabio_x,
-  fabio_labels[, c("area_code", "item_cbs_code")],
+  fabio_labels,
   our$X,
-  our$labels[, c("area_code", "item_cbs_code")]
+  our$labels
 )
 
 message(sprintf("  Matched %d sectors.", nrow(x_cmp)))
 .print_summary("X", x_cmp)
 .print_top_mismatches(x_cmp, n = 20, label = "X")
 
-x_cmp_full <- x_cmp |> add_area_name() |> add_item_cbs_name()
+x_cmp_full <- x_cmp |> add_area_name()
+
+# --------------------------------------------------------------------------- #
+# 1a. X with primary-double boundary items removed                             #
+# --------------------------------------------------------------------------- #
+
+if (nrow(primary_double_systems) > 0) {
+  message("\n=== 1a. Total output (X), primary-double adjusted ===")
+  .print_primary_double_audit(
+    fabio_x,
+    fabio_labels,
+    our$X,
+    our$labels,
+    primary_double_systems
+  )
+
+  x_cmp_pd <- .compare_vectors(
+    fabio_x,
+    fabio_labels_pd,
+    our$X,
+    our_labels_pd
+  )
+
+  message(sprintf("  Matched %d sectors.", nrow(x_cmp_pd)))
+  .print_summary("X, primary-double adjusted", x_cmp_pd)
+  .print_top_mismatches(x_cmp_pd, n = 20, label = "X, primary-double adjusted")
+} else {
+  x_cmp_pd <- x_cmp
+}
 
 # --------------------------------------------------------------------------- #
 # 1b. X — breakdown by item (detect systematic scale factors)                  #
@@ -277,8 +599,8 @@ message("\n=== 1b. X breakdown by item ===")
 # For each item: total FABIO output, total WHEP output, their ratio, and the
 # median sector-level relative error.  A ratio near 0.001 would indicate a
 # 1000-tonne vs tonne unit mismatch for that item group.
-x_by_item <- x_cmp |>
-  group_by(.data$item_cbs_code) |>
+x_by_item <- x_cmp_pd |>
+  group_by(.data$fabio_item_code, .data$fabio_item_name) |>
   summarise(
     n_areas = n(),
     fabio_total = sum(.data$ref),
@@ -287,10 +609,10 @@ x_by_item <- x_cmp |>
     median_rel_err = median(.data$rel_err),
     .groups = "drop"
   ) |>
-  add_item_cbs_name() |>
   arrange(.data$ratio) |>
   select(
-    "item_cbs_name",
+    "fabio_item_code",
+    "fabio_item_name",
     "n_areas",
     "fabio_total",
     "whep_total",
@@ -312,8 +634,8 @@ print(tail(x_by_item, 20))
   FABIO_Z_PATH,
   "Z — inter-industry flows",
   our$Z,
-  fabio_labels,
-  our$labels,
+  fabio_labels_pd,
+  our_labels_pd,
   yr_col,
   col_sums = TRUE
 )
@@ -338,8 +660,8 @@ message(sprintf(
   FABIO_Y_PATH,
   "Y — final demand",
   our$Y,
-  fabio_labels,
-  our$labels,
+  fabio_labels_pd,
+  our_labels_pd,
   yr_col
 )
 
@@ -347,7 +669,7 @@ message(sprintf(
 # 5. Scatter plot (optional — requires ggplot2)                                 #
 # --------------------------------------------------------------------------- #
 
-if (requireNamespace("ggplot2", quietly = TRUE)) {
+if (interactive() && requireNamespace("ggplot2", quietly = TRUE)) {
   library(ggplot2)
 
   p_x <- ggplot(
