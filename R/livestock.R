@@ -44,6 +44,7 @@ get_feed_intake <- function(example = FALSE) {
   "feed_intake" |>
     whep_read_file() |>
     dplyr::rename_with(tolower) |>
+    .fix_feed_live_anim_names() |>
     add_area_code(name_column = "area") |>
     add_item_cbs_code(
       name_column = "live_anim",
@@ -61,5 +62,15 @@ get_feed_intake <- function(example = FALSE) {
       intake_dry_matter = intake_dm,
       loss,
       loss_share
+    )
+}
+
+.fix_feed_live_anim_names <- function(feed_intake) {
+  feed_intake |>
+    dplyr::mutate(
+      live_anim = dplyr::recode(
+        .data$live_anim,
+        "Buffalo" = "Buffaloes"
+      )
     )
 }

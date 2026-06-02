@@ -68,6 +68,8 @@ FABIO_Y_PATH <- NULL # e.g. paste0("~/Downloads/", YEAR, "_Y.rds")
     2002L, 2000L, # Fodder vegetables and roots -> Fodder crops
     2003L, 2000L, # Fodder mix -> Fodder crops
     5003L, 2000L, # Other fodder -> Fodder crops
+    3000L, 2001L, # Grassland -> Grazing
+    3002L, 2001L, # Temporary grassland -> Grazing
     248L, 2560L,  # Coconuts -> Coconuts - Incl Copra
     2112L, 2749L, # Meat Meal -> Meat Meal
     2542L, 2818L, # Sugar (Raw Equivalent) -> Sugar, Refined Equiv
