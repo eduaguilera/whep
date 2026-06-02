@@ -266,6 +266,30 @@ testthat::test_that(".build_shares_matrix produces correct shares", {
   )
 })
 
+testthat::test_that(".extract_trade_matrix preserves off-diagonal named trade", {
+  trade <- matrix(
+    c(
+      0, 10, 2,
+      5, 0, 3,
+      7, 4, 0
+    ),
+    nrow = 3,
+    byrow = TRUE,
+    dimnames = list(c("1", "2", "3"), c("1", "2", "3"))
+  )
+
+  result <- .extract_trade_matrix(trade, areas = c(2L, 1L))
+
+  testthat::expect_equal(
+    result,
+    matrix(
+      c(0, 5, 10, 0),
+      nrow = 2,
+      byrow = TRUE
+    )
+  )
+})
+
 testthat::test_that(".fix_negative_output returns both X and Y", {
   z <- matrix(c(5, 0, 0, 3), nrow = 2)
   y <- matrix(c(10, 20), ncol = 1)

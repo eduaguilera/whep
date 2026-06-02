@@ -41,6 +41,21 @@
 #'   the FABIO diagonal approach, and the result includes a
 #'   `target_fd` column. When omitted, columns of Y are treated
 #'   as sectors (appropriate only when Y is square).
+#' @param output_tol Minimum output considered valid when computing
+#'   extension intensities. Sectors with `x_vec <= output_tol` get
+#'   zero intensity to avoid infinite or numerically explosive
+#'   footprints from zero-output residuals.
+#' @param value_added_floor Minimum share of each sector's output that
+#'   is treated as non-intermediate leakage when constructing A from
+#'   `z_mat`. Column sums larger than `1 - value_added_floor` are
+#'   rescaled to that maximum. Ignored when a precomputed `l_inv` is
+#'   supplied without `z_mat`.
+#' @param conserve_extensions If `TRUE`, rescale positive footprint
+#'   flows within each origin area/item so their sum does not exceed
+#'   the corresponding positive extension total. This keeps footprint
+#'   outputs conservative when capped coefficients or negative final
+#'   demand columns would otherwise make positive-only paths larger
+#'   than the source extension.
 #'
 #' @return A tibble with footprint results containing:
 #'   - `origin_area`: Country where the pressure occurs.
@@ -80,7 +95,10 @@ compute_footprint <- function(
   extensions,
   labels,
   z_mat = NULL,
-  fd_labels = NULL
+  fd_labels = NULL,
+  output_tol = 1e-8,
+  value_added_floor = 1e-3,
+  conserve_extensions = TRUE
 ) {
   n <- length(x_vec)
   .validate_footprint_inputs(
@@ -89,7 +107,10 @@ compute_footprint <- function(
     y_mat,
     extensions,
     labels,
-    z_mat
+    z_mat,
+    output_tol,
+    value_added_floor,
+    conserve_extensions
   )
   n_fd <- ncol(y_mat)
   n_ext <- sum(extensions != 0)
@@ -100,14 +121,26 @@ compute_footprint <- function(
     " " = "Final demand: {n_fd} column{?s}."
   ))
 
-  intensity <- .extension_intensity(extensions, x_vec)
+  n_tiny_ext <- sum(extensions != 0 & x_vec <= output_tol)
+  if (n_tiny_ext > 0) {
+    cli::cli_warn(c(
+      "!" = "Ignoring extensions in {n_tiny_ext} sector{?s} with output <= {.arg output_tol}.",
+      "i" = "This avoids unstable footprint intensities from near-zero output residuals."
+    ))
+  }
+
+  intensity <- .extension_intensity(extensions, x_vec, output_tol)
   f_diag <- Matrix::Diagonal(x = intensity)
 
   if (!is.null(z_mat)) {
     cli::cli_inform(
       "  Sparse solve path (no dense Leontief inverse)."
     )
-    a_mat <- .technical_coefficients(z_mat, x_vec)
+    a_mat <- .technical_coefficients(
+      z_mat,
+      x_vec,
+      value_added_floor = value_added_floor
+    )
     ia <- Matrix::Diagonal(n) - a_mat
     lu_fact <- .factor_ia(ia)
     multiply_fn <- function(rhs) f_diag %*% Matrix::solve(lu_fact, rhs)
@@ -123,6 +156,15 @@ compute_footprint <- function(
   } else {
     .footprint_direct(multiply_fn, y_mat, labels)
   }
+  if (isTRUE(conserve_extensions)) {
+    result <- .conserve_footprint_extensions(
+      result,
+      labels,
+      extensions,
+      x_vec,
+      output_tol
+    )
+  }
 
   cli::cli_alert_success(
     "Footprint complete: {nrow(result)} non-zero flows."
@@ -132,8 +174,8 @@ compute_footprint <- function(
 
 # --- Extension intensity ---
 
-.extension_intensity <- function(extensions, x_vec) {
-  ifelse(x_vec == 0, 0, extensions / x_vec)
+.extension_intensity <- function(extensions, x_vec, output_tol = 1e-8) {
+  ifelse(x_vec <= output_tol, 0, extensions / x_vec)
 }
 
 # --- FABIO-style per-item footprint ---
@@ -283,6 +325,63 @@ compute_footprint <- function(
   )
 }
 
+.conserve_footprint_extensions <- function(
+  result,
+  labels,
+  extensions,
+  x_vec,
+  output_tol
+) {
+  if (nrow(result) == 0 || !"value" %in% names(result)) {
+    return(result)
+  }
+
+  source_totals <- tibble::tibble(
+    origin_area = as.integer(labels$area_code),
+    origin_item = as.integer(labels$item_cbs_code),
+    source_value = ifelse(x_vec <= output_tol, 0, pmax(extensions, 0))
+  ) |>
+    dplyr::group_by(.data$origin_area, .data$origin_item) |>
+    dplyr::summarise(
+      source_value = sum(.data$source_value, na.rm = TRUE),
+      .groups = "drop"
+    )
+
+  result_totals <- result |>
+    dplyr::group_by(.data$origin_area, .data$origin_item) |>
+    dplyr::summarise(
+      result_value = sum(.data$value, na.rm = TRUE),
+      .groups = "drop"
+    )
+
+  scales <- result_totals |>
+    dplyr::left_join(
+      source_totals,
+      by = c("origin_area", "origin_item")
+    ) |>
+    dplyr::mutate(
+      source_value = tidyr::replace_na(.data$source_value, 0),
+      scale = dplyr::if_else(
+        .data$result_value > 0,
+        .data$source_value / .data$result_value,
+        0
+      )
+    ) |>
+    dplyr::select("origin_area", "origin_item", "scale")
+
+  result |>
+    dplyr::left_join(
+      scales,
+      by = c("origin_area", "origin_item")
+    ) |>
+    dplyr::mutate(
+      scale = tidyr::replace_na(.data$scale, 0),
+      value = .data$value * .data$scale
+    ) |>
+    dplyr::select(-dplyr::all_of("scale")) |>
+    dplyr::filter(.data$value > 0)
+}
+
 .empty_footprint <- function() {
   tibble::tibble(
     origin_area = integer(0),
@@ -295,10 +394,9 @@ compute_footprint <- function(
 
 # --- Sparse LU factorisation with regularisation ---
 
-# Factor (I - A) with diagonal regularisation. Sectors where
-# column sums of A were capped at 1 make (I - A) near-singular.
-# Adding a small epsilon to the diagonal is equivalent to
-# assuming a tiny value-added leakage per sector.
+# Factor (I - A) with a very small diagonal regularisation as a
+# numerical fallback. The substantive leakage floor is applied when
+# A is constructed in .technical_coefficients().
 .factor_ia <- function(ia, eps = 1e-10) {
   Matrix::diag(ia) <- Matrix::diag(ia) + eps
   Matrix::lu(ia)
@@ -312,7 +410,10 @@ compute_footprint <- function(
   y_mat,
   extensions,
   labels,
-  z_mat
+  z_mat,
+  output_tol,
+  value_added_floor,
+  conserve_extensions
 ) {
   n <- length(x_vec)
 
@@ -344,6 +445,20 @@ compute_footprint <- function(
       "{.arg labels} must have {n} rows to match
       {.arg x_vec}."
     )
+  }
+  if (!is.numeric(output_tol) || length(output_tol) != 1 ||
+    is.na(output_tol) || output_tol < 0) {
+    cli::cli_abort(
+      "{.arg output_tol} must be one non-negative number."
+    )
+  }
+  .validate_value_added_floor(value_added_floor)
+  if (
+    !is.logical(conserve_extensions) ||
+      length(conserve_extensions) != 1 ||
+      is.na(conserve_extensions)
+  ) {
+    cli::cli_abort("{.arg conserve_extensions} must be `TRUE` or `FALSE`.")
   }
 }
 

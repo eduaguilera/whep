@@ -292,22 +292,48 @@ testthat::test_that(".balance_matrix makes rows and columns have target sum", {
     byrow = TRUE,
     ncol = 6
   )
+  dimnames(trade_matrix) <- list(
+    as.character(total_trade$area_code),
+    as.character(total_trade$area_code)
+  )
 
   # Rescaling exports to match total sum of 890 imports
   balanced_total_exports <- c(494.44, 296.67, 98.89, 0, 0, 0)
   balanced_total_imports <- c(200, 150, 120, 200, 190, 30)
 
   result <- .balance_matrix(trade_matrix, total_trade)
+  testthat::expect_equal(dimnames(result), dimnames(trade_matrix))
   testthat::expect_equal(
-    rowSums(result),
+    as.numeric(rowSums(result)),
     balanced_total_exports,
     tolerance = 1e-2
   )
   testthat::expect_equal(
-    colSums(result),
+    as.numeric(colSums(result)),
     balanced_total_imports,
     tolerance = 1e-2
   )
+})
+
+testthat::test_that(".balance_matrix aligns targets by country code", {
+  total_trade <- tibble::tibble(
+    area_code = factor(c(2, 3, 1)),
+    export = c(0, 0, 10),
+    import = c(10, 0, 0)
+  ) |>
+    .balance_total_trade()
+
+  trade_matrix <- matrix(
+    1,
+    nrow = 3,
+    ncol = 3,
+    dimnames = list(c("1", "2", "3"), c("1", "2", "3"))
+  )
+
+  result <- .balance_matrix(trade_matrix, total_trade)
+
+  testthat::expect_equal(as.numeric(rowSums(result)), c(10, 0, 0))
+  testthat::expect_equal(as.numeric(colSums(result)), c(0, 10, 0))
 })
 
 testthat::test_that(".build_trade_matrix completes missing countries", {

@@ -432,21 +432,29 @@ build_io_model <- function(
       ncol = 1
     )
   }
+  areas_chr <- as.character(areas)
+  has_names <- !is.null(rownames(mat_or_val)) &&
+    !is.null(colnames(mat_or_val))
+  if (has_names) {
+    result <- matrix(0, nrow = n, ncol = n)
+    available_rows <- intersect(areas_chr, rownames(mat_or_val))
+    available_cols <- intersect(areas_chr, colnames(mat_or_val))
+    if (length(available_rows) > 0 && length(available_cols) > 0) {
+      result[
+        match(available_rows, areas_chr),
+        match(available_cols, areas_chr)
+      ] <- mat_or_val[
+        available_rows,
+        available_cols,
+        drop = FALSE
+      ]
+    }
+    return(result)
+  }
   if (nrow(mat_or_val) == n && ncol(mat_or_val) == n) {
     return(mat_or_val)
   }
-  areas_chr <- as.character(areas)
-  available <- intersect(areas_chr, rownames(mat_or_val))
-  result <- matrix(0, nrow = n, ncol = n)
-  if (length(available) > 0) {
-    idx <- match(available, areas_chr)
-    result[idx, idx] <- mat_or_val[
-      available,
-      available,
-      drop = FALSE
-    ]
-  }
-  result
+  matrix(0, nrow = n, ncol = n)
 }
 
 .domestic_own_use <- function(cbs_yr, item, areas) {

@@ -415,7 +415,7 @@ build_processing_coefs <- function(
   if (example) {
     return(.example_build_proc_coefs())
   }
-  cb_proc <- whep::cb_processing
+  cb_proc <- .prepare_cb_processing_for_cbs(whep::cb_processing)
   years <- start_year:end_year
 
   # Convert wide CBS (from build_commodity_balances()) back to long with names
@@ -533,6 +533,18 @@ build_processing_coefs <- function(
       conversion_factor_scaling = scaling,
       final_conversion_factor = cf,
       final_value_processed = value_proc
+    )
+}
+
+.prepare_cb_processing_for_cbs <- function(cb_processing) {
+  # FABIO allocates substitutable beverage feedstocks with a separate
+  # optimisation step. In this CBS-only pathway, using every candidate grain as
+  # an unconditional beer process over-allocates beer to high-volume processing
+  # items such as maize.
+  cb_processing |>
+    dplyr::filter(
+      .data$item_cbs != "Beer" |
+        .data$ProcessedItem %in% c("Barley and products", "Hops")
     )
 }
 
@@ -1701,7 +1713,7 @@ build_processing_coefs <- function(
 # -- Processing calibration ----------------------------------------------------
 
 .cbs_calibrate_processing <- function(cbs_raw) {
-  cb_proc <- whep::cb_processing
+  cb_proc <- .prepare_cb_processing_for_cbs(whep::cb_processing)
   items <- whep::items_full
 
   cbs_glob <- cbs_raw |>

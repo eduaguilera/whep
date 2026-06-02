@@ -45,6 +45,8 @@ Suggests:
     ggplot2,
     googlesheets4,
     here,
+    htmltools,
+    jsonlite,
     knitr,
     pointblank,
     rmarkdown,

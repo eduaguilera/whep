@@ -94,6 +94,30 @@ testthat::test_that("A column capping prevents singularity when inputs exceed ou
   testthat::expect_true(all(l_inv >= 0))
 })
 
+testthat::test_that("A column capping leaves explicit value-added leakage", {
+  z <- matrix(c(6, 0, 4, 0), nrow = 2, byrow = TRUE)
+  x <- c(10, 10)
+  value_added_floor <- 1e-3
+
+  testthat::expect_warning(
+    {
+      a <- .technical_coefficients(
+        z,
+        x,
+        value_added_floor = value_added_floor
+      )
+    },
+    "Capping"
+  )
+
+  testthat::expect_equal(
+    Matrix::colSums(a)[1],
+    1 - value_added_floor,
+    tolerance = 1e-12
+  )
+  testthat::expect_lt(Matrix::colSums(a)[1], 1)
+})
+
 testthat::test_that("3-sector model y can be recovered from L", {
   z <- matrix(
     c(5, 10, 0, 3, 2, 8, 1, 4, 6),
@@ -110,5 +134,16 @@ testthat::test_that("3-sector model y can be recovered from L", {
     as.vector(x_recovered),
     x,
     tolerance = 1e-8
+  )
+})
+
+testthat::test_that("Leontief validates value_added_floor", {
+  testthat::expect_error(
+    compute_leontief_inverse(
+      matrix(0, 2, 2),
+      c(1, 2),
+      value_added_floor = 1
+    ),
+    "value_added_floor"
   )
 })

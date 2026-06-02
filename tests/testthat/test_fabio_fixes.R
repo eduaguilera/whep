@@ -547,22 +547,29 @@ testthat::test_that(".technical_coefficients zeroes negatives and caps cols", {
   # Column 2 has negative entry and sum > 1
   z <- matrix(c(5, -2, 8, 12), nrow = 2, byrow = TRUE)
   x <- c(10, 10)
+  value_added_floor <- 1e-3
 
   # After zeroing negatives: col1 = c(5, 8)/10 = c(0.5, 0.8), sum = 1.3 > 1
-  # After capping: col1 scaled by 1/1.3
+  # After capping: col1 scaled to 1 - value_added_floor
   # col2 = c(0, 12)/10 = c(0, 1.2), sum = 1.2 > 1
-  # After capping: col2 scaled by 1/1.2
+  # After capping: col2 scaled to 1 - value_added_floor
   testthat::expect_warning(
     {
-      a <- .technical_coefficients(z, x)
+      a <- .technical_coefficients(
+        z,
+        x,
+        value_added_floor = value_added_floor
+      )
     },
     "Capping"
   )
 
   # All entries should be non-negative
   testthat::expect_true(all(as.matrix(a) >= 0))
-  # All column sums should be <= 1
-  testthat::expect_true(all(Matrix::colSums(a) <= 1 + 1e-10))
+  # All column sums should leave explicit value-added leakage
+  testthat::expect_true(
+    all(Matrix::colSums(a) <= 1 - value_added_floor + 1e-10)
+  )
 })
 
 testthat::test_that("negative zeroing + capping combined give valid inverse", {

@@ -9,7 +9,8 @@
 #' The technical coefficients matrix is computed as
 #' \eqn{A_{ij} = Z_{ij} / X_j}, representing the input of
 #' sector \eqn{i} needed per unit of output from sector \eqn{j}.
-#' Column sums of A are capped at 1 (FABIO convention) to ensure
+#' Column sums of A are capped below 1 using `value_added_floor`
+#' (FABIO convention plus an explicit leakage floor) to ensure
 #' \eqn{(I - A)} is invertible even when supply-use data are
 #' inconsistent. The Leontief inverse is then \eqn{L = (I - A)^{-1}}.
 #'
@@ -29,6 +30,11 @@
 #'   have the same length as `nrow(z_mat)`.
 #' @param max_n Maximum system size before aborting. Defaults to
 #'   5000. Set higher at your own risk of memory exhaustion.
+#' @param value_added_floor Minimum share of each sector's output that
+#'   is treated as non-intermediate leakage when constructing A.
+#'   Column sums larger than `1 - value_added_floor` are rescaled
+#'   to that maximum. Use `0` to recover the previous cap-at-one
+#'   behavior, though this can leave singular systems.
 #'
 #' @return The Leontief inverse matrix \eqn{L}. Negative
 #'   values are set to zero. Returns a dense matrix.
@@ -39,8 +45,13 @@
 #' z_mat <- matrix(c(0, 5, 10, 0), nrow = 2)
 #' x_vec <- c(100, 200)
 #' compute_leontief_inverse(z_mat, x_vec)
-compute_leontief_inverse <- function(z_mat, x_vec, max_n = 5000) {
-  .validate_leontief_inputs(z_mat, x_vec)
+compute_leontief_inverse <- function(
+  z_mat,
+  x_vec,
+  max_n = 5000,
+  value_added_floor = 1e-3
+) {
+  .validate_leontief_inputs(z_mat, x_vec, value_added_floor)
   n <- nrow(z_mat)
 
   if (n > max_n) {
@@ -59,7 +70,11 @@ compute_leontief_inverse <- function(z_mat, x_vec, max_n = 5000) {
   cli::cli_inform(
     "Computing Leontief inverse ({n}x{n} matrix)..."
   )
-  a_mat <- .technical_coefficients(z_mat, x_vec)
+  a_mat <- .technical_coefficients(
+    z_mat,
+    x_vec,
+    value_added_floor = value_added_floor
+  )
 
   cli::cli_inform("  Inverting (I - A)...")
   i_minus_a <- Matrix::Diagonal(n) - a_mat
@@ -77,7 +92,12 @@ compute_leontief_inverse <- function(z_mat, x_vec, max_n = 5000) {
   l_inv
 }
 
-.technical_coefficients <- function(z_mat, x_vec) {
+.technical_coefficients <- function(
+  z_mat,
+  x_vec,
+  value_added_floor = 1e-3
+) {
+  .validate_value_added_floor(value_added_floor)
   x_inv <- ifelse(x_vec == 0, 0, 1 / x_vec)
   a_mat <- z_mat %*% Matrix::Diagonal(x = x_inv)
   # Zero negative entries in A (FABIO convention): these arise
@@ -99,22 +119,23 @@ compute_leontief_inverse <- function(z_mat, x_vec, max_n = 5000) {
       a_mat[a_mat < 0] <- 0
     }
   }
-  # Cap column sums at 1 (FABIO convention): prevents (I-A)
-  # from becoming singular when input shares exceed output.
+  # Cap column sums below 1. A column sum of exactly 1 can still
+  # make (I-A) singular, so keep an explicit value-added leakage.
   col_sums <- Matrix::colSums(a_mat)
-  over <- col_sums > 1
+  max_col_sum <- 1 - value_added_floor
+  over <- col_sums > max_col_sum
   if (any(over)) {
     n_over <- sum(over)
     cli::cli_warn(
-      "  Capping {n_over} column{?s} of A with sum > 1."
+      "  Capping {n_over} column{?s} of A with sum > {signif(max_col_sum, 6)}."
     )
-    scale <- ifelse(over, 1 / col_sums, 1)
+    scale <- ifelse(over & col_sums > 0, max_col_sum / col_sums, 1)
     a_mat <- a_mat %*% Matrix::Diagonal(x = scale)
   }
   a_mat
 }
 
-.validate_leontief_inputs <- function(z_mat, x_vec) {
+.validate_leontief_inputs <- function(z_mat, x_vec, value_added_floor) {
   if (!methods::is(z_mat, "Matrix") && !is.matrix(z_mat)) {
     cli::cli_abort("{.arg z_mat} must be a matrix.")
   }
@@ -127,6 +148,22 @@ compute_leontief_inverse <- function(z_mat, x_vec, max_n = 5000) {
     cli::cli_abort(
       "{.arg x_vec} length ({length(x_vec)}) must match
       {.arg z_mat} dimensions ({nrow(z_mat)})."
+    )
+  }
+  .validate_value_added_floor(value_added_floor)
+}
+
+.validate_value_added_floor <- function(value_added_floor) {
+  if (
+    !is.numeric(value_added_floor) ||
+      length(value_added_floor) != 1 ||
+      is.na(value_added_floor) ||
+      !is.finite(value_added_floor) ||
+      value_added_floor < 0 ||
+      value_added_floor >= 1
+  ) {
+    cli::cli_abort(
+      "{.arg value_added_floor} must be one finite number in [0, 1)."
     )
   }
 }

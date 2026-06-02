@@ -4,7 +4,7 @@
 \alias{compute_leontief_inverse}
 \title{Compute Leontief inverse.}
 \usage{
-compute_leontief_inverse(z_mat, x_vec, max_n = 5000)
+compute_leontief_inverse(z_mat, x_vec, max_n = 5000, value_added_floor = 0.001)
 }
 \arguments{
 \item{z_mat}{Square numeric matrix of inter-industry flows.
@@ -16,6 +16,12 @@ have the same length as \code{nrow(z_mat)}.}
 
 \item{max_n}{Maximum system size before aborting. Defaults to
 5000. Set higher at your own risk of memory exhaustion.}
+
+\item{value_added_floor}{Minimum share of each sector's output that
+is treated as non-intermediate leakage when constructing A.
+Column sums larger than \code{1 - value_added_floor} are rescaled
+to that maximum. Use \code{0} to recover the previous cap-at-one
+behavior, though this can leave singular systems.}
 }
 \value{
 The Leontief inverse matrix \eqn{L}. Negative
@@ -30,7 +36,8 @@ enabling footprint tracing.
 The technical coefficients matrix is computed as
 \eqn{A_{ij} = Z_{ij} / X_j}, representing the input of
 sector \eqn{i} needed per unit of output from sector \eqn{j}.
-Column sums of A are capped at 1 (FABIO convention) to ensure
+Column sums of A are capped below 1 using \code{value_added_floor}
+(FABIO convention plus an explicit leakage floor) to ensure
 \eqn{(I - A)} is invertible even when supply-use data are
 inconsistent. The Leontief inverse is then \eqn{L = (I - A)^{-1}}.
 

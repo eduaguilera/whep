@@ -101,6 +101,31 @@ testthat::test_that("footprint zeros yield no rows", {
   testthat::expect_equal(nrow(result), 0)
 })
 
+testthat::test_that("near-zero output sectors have zero intensity", {
+  l_inv <- diag(2)
+  x <- c(1e-10, 100)
+  y <- matrix(c(1, 100), ncol = 1)
+  extensions <- c(50, 20)
+  labels <- tibble::tibble(
+    area_code = c(1L, 1L),
+    item_cbs_code = c(10L, 20L)
+  )
+
+  testthat::expect_warning(
+    result <- compute_footprint(
+      l_inv,
+      x,
+      y,
+      extensions,
+      labels
+    ),
+    "Ignoring extensions"
+  )
+
+  testthat::expect_equal(result$origin_item, 20L)
+  testthat::expect_equal(sum(result$value), 20)
+})
+
 testthat::test_that("compute_footprint validates inputs", {
   l_inv <- matrix(1, 2, 2)
   x <- c(1, 2)
@@ -123,6 +148,20 @@ testthat::test_that("compute_footprint validates inputs", {
       labels = labels
     ),
     "Provide either"
+  )
+  testthat::expect_error(
+    compute_footprint(
+      l_inv,
+      x,
+      y,
+      ext,
+      tibble::tibble(
+        area_code = c(1L, 1L),
+        item_cbs_code = c(10L, 20L)
+      ),
+      conserve_extensions = NA
+    ),
+    "conserve_extensions"
   )
 })
 
@@ -180,6 +219,52 @@ testthat::test_that("sparse path (z_mat) matches dense path (l_inv)", {
     tolerance = 1e-6
   )
   testthat::expect_equal(nrow(sparse), nrow(dense))
+})
+
+testthat::test_that("sparse path caps closed sectors with value_added_floor", {
+  z <- Matrix::sparseMatrix(
+    i = 1,
+    j = 1,
+    x = 10,
+    dims = c(2, 2)
+  )
+  x <- c(10, 100)
+  y <- matrix(c(1, 0), ncol = 1)
+  extensions <- c(10, 0)
+  labels <- tibble::tibble(
+    area_code = c(1L, 1L),
+    item_cbs_code = c(10L, 20L)
+  )
+
+  testthat::expect_warning(
+    result <- compute_footprint(
+      x_vec = x,
+      y_mat = y,
+      extensions = extensions,
+      labels = labels,
+      z_mat = z,
+      value_added_floor = 0.01
+    ),
+    "Capping"
+  )
+
+  testthat::expect_true(all(is.finite(result$value)))
+  testthat::expect_lt(max(result$value), 101)
+  testthat::expect_equal(sum(result$value), 10, tolerance = 1e-8)
+
+  testthat::expect_warning(
+    raw <- compute_footprint(
+      x_vec = x,
+      y_mat = y,
+      extensions = extensions,
+      labels = labels,
+      z_mat = z,
+      value_added_floor = 0.01,
+      conserve_extensions = FALSE
+    ),
+    "Capping"
+  )
+  testthat::expect_gt(sum(raw$value), sum(result$value))
 })
 
 testthat::test_that("fd_labels populates target_area and target_item", {

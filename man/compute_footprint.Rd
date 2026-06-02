@@ -11,7 +11,10 @@ compute_footprint(
   extensions,
   labels,
   z_mat = NULL,
-  fd_labels = NULL
+  fd_labels = NULL,
+  output_tol = 1e-08,
+  value_added_floor = 0.001,
+  conserve_extensions = TRUE
 )
 }
 \arguments{
@@ -41,6 +44,24 @@ provided, footprints are decomposed per target item using
 the FABIO diagonal approach, and the result includes a
 \code{target_fd} column. When omitted, columns of Y are treated
 as sectors (appropriate only when Y is square).}
+
+\item{output_tol}{Minimum output considered valid when computing
+extension intensities. Sectors with \code{x_vec <= output_tol} get
+zero intensity to avoid infinite or numerically explosive
+footprints from zero-output residuals.}
+
+\item{value_added_floor}{Minimum share of each sector's output that
+is treated as non-intermediate leakage when constructing A from
+\code{z_mat}. Column sums larger than \code{1 - value_added_floor} are
+rescaled to that maximum. Ignored when a precomputed \code{l_inv} is
+supplied without \code{z_mat}.}
+
+\item{conserve_extensions}{If \code{TRUE}, rescale positive footprint
+flows within each origin area/item so their sum does not exceed
+the corresponding positive extension total. This keeps footprint
+outputs conservative when capped coefficients or negative final
+demand columns would otherwise make positive-only paths larger
+than the source extension.}
 }
 \value{
 A tibble with footprint results containing:

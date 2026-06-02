@@ -144,8 +144,9 @@ get_bilateral_trade <- function(example = FALSE, cbs = NULL) {
 }
 
 .balance_matrix <- function(trade_matrix, total_trade) {
-  exports <- total_trade$balanced_export
-  imports <- total_trade$balanced_import
+  targets <- .trade_targets(total_trade, trade_matrix)
+  exports <- targets$balanced_export
+  imports <- targets$balanced_import
   n <- length(exports)
 
   if (sum(exports) == 0 && sum(imports) == 0) {
@@ -161,7 +162,12 @@ get_bilateral_trade <- function(example = FALSE, cbs = NULL) {
   sub[sub == 0] <- 1
   sub <- .ipf_2d(sub, exports[active], imports[active])
 
-  result <- matrix(0, nrow = n, ncol = n)
+  result <- matrix(
+    0,
+    nrow = n,
+    ncol = n,
+    dimnames = dimnames(trade_matrix)
+  )
   result[active, active] <- sub
   result
 }
@@ -216,9 +222,10 @@ get_bilateral_trade <- function(example = FALSE, cbs = NULL) {
 }
 
 .fill_missing_trade <- function(trade_matrix, total_trade) {
-  exports <- total_trade$export
-  imports <- total_trade$import
-  balanced_exports <- total_trade$balanced_export
+  targets <- .trade_targets(total_trade, trade_matrix)
+  exports <- targets$export
+  imports <- targets$import
+  balanced_exports <- targets$balanced_export
 
   na_mask <- is.na(trade_matrix)
   estimate <- .estimate_bilateral_trade(exports, imports)
@@ -236,6 +243,46 @@ get_bilateral_trade <- function(example = FALSE, cbs = NULL) {
   k_trust_factor <- 0.1
   trade_matrix[na_mask] <- estimate[na_mask] * k_trust_factor
   trade_matrix
+}
+
+.trade_targets <- function(total_trade, trade_matrix) {
+  use_names <- rlang::has_name(total_trade, "area_code") &&
+    !is.null(rownames(trade_matrix)) &&
+    !is.null(colnames(trade_matrix))
+
+  if (!use_names) {
+    return(list(
+      export = total_trade$export,
+      import = total_trade$import,
+      balanced_export = total_trade$balanced_export,
+      balanced_import = total_trade$balanced_import
+    ))
+  }
+
+  area_codes <- as.character(total_trade$area_code)
+  row_idx <- match(rownames(trade_matrix), area_codes)
+  col_idx <- match(colnames(trade_matrix), area_codes)
+
+  list(
+    export = .target_by_index(total_trade$export, row_idx),
+    import = .target_by_index(total_trade$import, col_idx),
+    balanced_export = .target_by_index(
+      total_trade$balanced_export,
+      row_idx
+    ),
+    balanced_import = .target_by_index(
+      total_trade$balanced_import,
+      col_idx
+    )
+  )
+}
+
+.target_by_index <- function(values, idx) {
+  result <- rep(0, length(idx))
+  valid <- !is.na(idx)
+  result[valid] <- values[idx[valid]]
+  result[is.na(result)] <- 0
+  result
 }
 
 .downscale_estimate_matrix <- function(needed_estimates, balances) {
