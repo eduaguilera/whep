@@ -523,6 +523,7 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
 
 .run_allocation_levels <- function(state, demand, avail, mode) {
   state <- .run_primary_levels(state, demand, avail)
+  state <- .run_secondary_levels(state, demand, avail, mode)
   if (mode %in% c("fixed", "mixed")) {
     state <- .allocate_grassland_sink(
       state,
@@ -530,7 +531,41 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
       only_fixed = mode == "mixed"
     )
   }
+  if (mode %in% c("variable", "mixed")) {
+    state <- .distribute_surplus(
+      state,
+      demand,
+      avail,
+      only_variable = mode == "mixed"
+    )
+  }
   state
+}
+
+.run_secondary_levels <- function(state, demand, avail, mode) {
+  pool_level <- if (mode == "variable") {
+    "4_all_substitute"
+  } else {
+    "5_all_substitute"
+  }
+  if (mode %in% c("fixed", "mixed")) {
+    state <- .allocate_trade(state, demand, avail)
+  }
+  state <- .allocate_priority_pool(
+    state,
+    demand,
+    avail,
+    pool_level,
+    list(scope = "non_grass")
+  )
+  state <- .allocate_priority_pool(
+    state,
+    demand,
+    avail,
+    pool_level,
+    list(scope = "grass")
+  )
+  .run_release_pass(state, demand, avail, pool_level)
 }
 
 .run_primary_levels <- function(state, demand, avail) {
@@ -562,6 +597,387 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
   state <- .add_alloc(state, alloc)
   alloc <- .allocate_grouped(state, demand, nat, nat_cols, level)
   .add_alloc(state, alloc)
+}
+
+# ---- Level 4: inter-provincial trade ----------------------------------------
+
+.allocate_trade <- function(state, demand, avail) {
+  trade_avail <- .trade_avail(state, avail)
+  ds <- .live_demand(state, demand)
+  ds <- ds[!is.na(ds$sub_territory), , drop = FALSE]
+  if (nrow(trade_avail) == 0 || nrow(ds) == 0) {
+    return(state)
+  }
+  group_cols <- c("year", "territory", "item_cbs_code")
+  alloc <- .allocate_cartesian(
+    state,
+    ds,
+    trade_avail,
+    group_cols,
+    "4_inter_prov_trade"
+  )
+  alloc <- .finalise_trade_alloc(alloc, trade_avail)
+  .add_alloc(state, alloc)
+}
+
+.trade_avail <- function(state, avail) {
+  live <- .live_avail(state, avail)
+  live <- live[
+    live$feed_scale == "provincial" &
+      live$feed_quality != "grass" &
+      !is.na(live$sub_territory),
+    ,
+    drop = FALSE
+  ]
+  if (nrow(live) == 0) {
+    return(live)
+  }
+  live$trade_origin <- live$sub_territory
+  live$sub_territory <- NA_character_
+  live
+}
+
+.finalise_trade_alloc <- function(alloc, trade_avail) {
+  if (nrow(alloc) == 0) {
+    return(alloc)
+  }
+  origin <- stats::setNames(trade_avail$trade_origin, trade_avail$avail_id)
+  alloc$source_compartment <- unname(origin[as.character(alloc$avail_id)])
+  alloc[
+    !is.na(alloc$source_compartment) &
+      (is.na(alloc$sub_territory) |
+        alloc$source_compartment != alloc$sub_territory),
+    ,
+    drop = FALSE
+  ]
+}
+
+# ---- Level 5: priority pool (order-preserving cumulative allocation) ---------
+
+.allocate_priority_pool <- function(
+  state,
+  demand,
+  avail,
+  label,
+  options = list()
+) {
+  opts <- utils::modifyList(
+    list(scope = "all", allow_trade = FALSE),
+    options
+  )
+  pool <- .pool_avail(state, avail, opts)
+  if (nrow(pool) == 0) {
+    return(state)
+  }
+  groups <- unique(pool[, c("year", "territory"), drop = FALSE])
+  for (gi in seq_len(nrow(groups))) {
+    ctx <- list(
+      yr = groups$year[gi],
+      terr = groups$territory[gi],
+      label = label,
+      opts = opts
+    )
+    state <- .priority_pool_group(state, demand, pool, ctx)
+  }
+  state
+}
+
+.pool_avail <- function(state, avail, opts) {
+  live <- .live_avail(state, avail)
+  live <- live[live$feed_quality != "zoot_fixed", , drop = FALSE]
+  if (opts$allow_trade) {
+    live <- live[live$feed_group != "grass", , drop = FALSE]
+  }
+  if (opts$scope == "non_grass") {
+    live <- live[live$feed_quality != "grass", , drop = FALSE]
+  } else if (opts$scope == "grass") {
+    live <- live[live$feed_quality == "grass", , drop = FALSE]
+  }
+  live
+}
+
+.priority_pool_group <- function(state, demand, pool, ctx) {
+  supply <- pool[
+    pool$year == ctx$yr & pool$territory == ctx$terr,
+    ,
+    drop = FALSE
+  ]
+  ds <- .scope_live_demand(state, demand, ctx)
+  if (nrow(supply) == 0 || nrow(ds) == 0) {
+    return(state)
+  }
+  prov <- supply[supply$feed_scale == "provincial", , drop = FALSE]
+  nat <- supply[supply$feed_scale == "national", , drop = FALSE]
+  if (!ctx$opts$allow_trade && nrow(prov) > 0) {
+    state <- .priority_pool_scope(state, ds, prov, ctx, "provincial")
+    ds <- .scope_live_demand(state, demand, ctx)
+  } else {
+    nat <- supply
+  }
+  if (nrow(nat) > 0 && nrow(ds) > 0) {
+    state <- .priority_pool_scope(state, ds, nat, ctx, "territory")
+  }
+  state
+}
+
+.scope_live_demand <- function(state, demand, ctx) {
+  ds <- .live_demand(state, demand)
+  ds[ds$year == ctx$yr & ds$territory == ctx$terr, , drop = FALSE]
+}
+
+.priority_pool_scope <- function(state, ds, supply, ctx, scope) {
+  if (scope == "provincial") {
+    out <- purrr::map(
+      unique(supply$sub_territory),
+      function(p) {
+        .pool_match_one(
+          ds[!is.na(ds$sub_territory) & ds$sub_territory == p, , drop = FALSE],
+          supply[supply$sub_territory == p, , drop = FALSE],
+          ctx$label,
+          p
+        )
+      }
+    )
+    alloc <- dplyr::bind_rows(out)
+  } else {
+    alloc <- .pool_match_one(ds, supply, ctx$label, NA_character_)
+  }
+  .add_alloc(state, .filter_positive_intake(alloc), respect_cap = TRUE)
+}
+
+# Order-preserving cumulative allocator. Availability is swept in priority
+# order (feed_rank asc, then descending supply); demand is filled by priority
+# buckets (rank 1 first). A non-equi interval overlap on the cumulative supply
+# and cumulative demand-bucket axes assigns each availability slice to the
+# bucket it covers; the per-bucket fill is then split across rows in proportion
+# to remaining demand. Replaces the sequential row-loop in the afsetools origin
+# while preserving its result (cumsum within priority order via `:=`).
+.pool_match_one <- function(prov_demand, supply, label, source_prov) {
+  if (nrow(prov_demand) == 0 || nrow(supply) == 0) {
+    return(.empty_alloc())
+  }
+  supply_dt <- .pool_supply_axis(supply)
+  bucket_dt <- .pool_bucket_axis(prov_demand)
+  total_supply <- sum(supply$avail_remaining, na.rm = TRUE)
+  bucket_dt <- bucket_dt[
+    bucket_dt$bucket_lo < total_supply - 1e-12,
+    ,
+    drop = FALSE
+  ]
+  if (nrow(bucket_dt) == 0) {
+    return(.empty_alloc())
+  }
+  bucket_dt$bucket_hi <- pmin(bucket_dt$bucket_hi, total_supply)
+  contrib <- .pool_overlap(supply_dt, bucket_dt)
+  if (nrow(contrib) == 0) {
+    return(.empty_alloc())
+  }
+  .pool_expand_rows(contrib, prov_demand, label, source_prov)
+}
+
+.pool_supply_axis <- function(supply) {
+  rank <- .feed_quality_rank(supply$feed_quality)
+  ord <- order(rank, -supply$avail_remaining)
+  s <- supply[ord, , drop = FALSE]
+  hi <- cumsum(s$avail_remaining)
+  tibble::tibble(
+    avail_id = s$avail_id,
+    item_cbs_code = s$item_cbs_code,
+    feed_group = s$feed_group,
+    feed_quality = s$feed_quality,
+    supply_lo = hi - s$avail_remaining,
+    supply_hi = hi
+  )
+}
+
+.pool_bucket_axis <- function(prov_demand) {
+  rank <- .feed_quality_rank(prov_demand$feed_quality)
+  bucket <- tibble::tibble(
+    priority = rank,
+    remaining = prov_demand$remaining
+  ) |>
+    dplyr::summarise(
+      bucket_total = sum(remaining, na.rm = TRUE),
+      .by = priority
+    ) |>
+    dplyr::arrange(priority)
+  hi <- cumsum(bucket$bucket_total)
+  bucket$bucket_lo <- hi - bucket$bucket_total
+  bucket$bucket_hi <- hi
+  bucket
+}
+
+.pool_overlap <- function(supply_dt, bucket_dt) {
+  s <- data.table::as.data.table(supply_dt)
+  b <- data.table::as.data.table(bucket_dt)
+  data.table::setkey(s, supply_lo, supply_hi)
+  joined <- data.table::foverlaps(
+    b,
+    s,
+    by.x = c("bucket_lo", "bucket_hi"),
+    by.y = c("supply_lo", "supply_hi"),
+    type = "any",
+    nomatch = NULL
+  )
+  joined[,
+    contribution := pmin(supply_hi, bucket_hi) - pmax(supply_lo, bucket_lo)
+  ]
+  joined <- joined[contribution > 1e-9]
+  tibble::as_tibble(joined)
+}
+
+.pool_expand_rows <- function(contrib, prov_demand, label, source_prov) {
+  prov_demand$priority <- .feed_quality_rank(prov_demand$feed_quality)
+  bucket_total <- prov_demand |>
+    dplyr::summarise(
+      bucket_total = sum(remaining, na.rm = TRUE),
+      .by = priority
+    )
+  rows <- prov_demand |>
+    dplyr::left_join(bucket_total, by = "priority") |>
+    dplyr::inner_join(
+      contrib |>
+        dplyr::select(
+          priority,
+          avail_id,
+          sub_item = item_cbs_code,
+          sub_group = feed_group,
+          sub_quality = feed_quality,
+          contribution
+        ),
+      by = "priority",
+      relationship = "many-to-many"
+    ) |>
+    dplyr::mutate(
+      intake_dm_t = contribution * remaining / bucket_total
+    )
+  .pool_assemble(rows, label, source_prov)
+}
+
+.pool_assemble <- function(rows, label, source_prov) {
+  rows <- rows[rows$intake_dm_t > 1e-9, , drop = FALSE]
+  if (nrow(rows) == 0) {
+    return(.empty_alloc())
+  }
+  tibble::tibble(
+    demand_id = rows$demand_id,
+    year = rows$year,
+    territory = rows$territory,
+    sub_territory = rows$sub_territory,
+    livestock_category = rows$livestock_category,
+    item_cbs_code = rows$sub_item,
+    feed_group = rows$sub_group,
+    feed_quality = rows$sub_quality,
+    intake_dm_t = rows$intake_dm_t,
+    hierarchy_level = label,
+    requested_item = rows$requested_item,
+    source_compartment = source_prov,
+    avail_id = rows$avail_id
+  )
+}
+
+# ---- Release pass: trade leftover non-grass supply across provinces ----------
+
+.run_release_pass <- function(state, demand, avail, label) {
+  ds <- .live_demand(state, demand)
+  releasable <- .live_avail(state, avail)
+  releasable <- releasable[
+    releasable$feed_quality != "grass" &
+      releasable$feed_quality != "zoot_fixed",
+    ,
+    drop = FALSE
+  ]
+  if (nrow(ds) == 0 || nrow(releasable) == 0) {
+    return(state)
+  }
+  .allocate_priority_pool(
+    state,
+    demand,
+    avail,
+    label,
+    list(scope = "all", allow_trade = TRUE)
+  )
+}
+
+# ---- Surplus distribution (variable mode): intake may exceed demand ----------
+
+.distribute_surplus <- function(state, demand, avail, only_variable = FALSE) {
+  surplus <- .live_avail(state, avail)
+  surplus <- surplus[surplus$feed_quality != "zoot_fixed", , drop = FALSE]
+  if (nrow(surplus) == 0) {
+    return(state)
+  }
+  groups <- unique(surplus[, c("year", "territory"), drop = FALSE])
+  for (gi in seq_len(nrow(groups))) {
+    grp <- list(
+      yr = groups$year[gi],
+      terr = groups$territory[gi],
+      only_variable = only_variable
+    )
+    state <- .surplus_group(state, demand, surplus, grp)
+  }
+  state
+}
+
+.surplus_group <- function(state, demand, surplus, grp) {
+  items <- surplus[
+    surplus$year == grp$yr & surplus$territory == grp$terr,
+    ,
+    drop = FALSE
+  ]
+  ds <- demand[
+    demand$year == grp$yr & demand$territory == grp$terr,
+    ,
+    drop = FALSE
+  ]
+  ds <- ds[ds$demand_dm_t > 0 & ds$feed_quality != "zoot_fixed", , drop = FALSE]
+  if (grp$only_variable) {
+    ds <- ds[!ds$fixed_demand, , drop = FALSE]
+  }
+  if (nrow(items) == 0 || nrow(ds) == 0) {
+    return(state)
+  }
+  alloc <- .surplus_alloc(items, ds)
+  .add_alloc(state, .filter_positive_intake(alloc), respect_cap = FALSE)
+}
+
+.surplus_alloc <- function(items, ds) {
+  out <- purrr::map(
+    seq_len(nrow(items)),
+    function(i) .surplus_one_item(items[i, , drop = FALSE], ds)
+  )
+  dplyr::bind_rows(out)
+}
+
+.surplus_one_item <- function(item, ds) {
+  eligible <- if (item$feed_scale == "provincial") {
+    ds[
+      !is.na(ds$sub_territory) & ds$sub_territory == item$sub_territory,
+      ,
+      drop = FALSE
+    ]
+  } else {
+    ds
+  }
+  total_weight <- sum(eligible$demand_dm_t, na.rm = TRUE)
+  if (nrow(eligible) == 0 || total_weight <= 1e-9) {
+    return(.empty_alloc())
+  }
+  tibble::tibble(
+    demand_id = eligible$demand_id,
+    year = eligible$year,
+    territory = eligible$territory,
+    sub_territory = eligible$sub_territory,
+    livestock_category = eligible$livestock_category,
+    item_cbs_code = item$item_cbs_code,
+    feed_group = item$feed_group,
+    feed_quality = item$feed_quality,
+    intake_dm_t = item$avail_remaining * eligible$demand_dm_t / total_weight,
+    hierarchy_level = "5_surplus_distribution",
+    requested_item = eligible$requested_item,
+    source_compartment = item$sub_territory,
+    avail_id = item$avail_id
+  )
 }
 
 .allocate_grassland_sink <- function(state, demand, only_fixed = FALSE) {

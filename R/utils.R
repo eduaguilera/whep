@@ -852,7 +852,16 @@ utils::globalVariables(
     "avail_id",
     "intake_dm_t",
     "hierarchy_level",
-    "scaling_factor"
+    "scaling_factor",
+    "scale_factor",
+    "share",
+    "priority",
+    "bucket_lo",
+    "bucket_hi",
+    "bucket_total",
+    "contribution",
+    "supply_lo",
+    "supply_hi"
   )
 )
 
