@@ -545,9 +545,8 @@ if (nrow(only_our_items) > 0) {
 #
 # NOTE on live animal units:
 #   Both FABIO and WHEP store live animal X in HEADS (number of animals
-#   slaughtered per year for meat animals; stocks for draft animals).
-#   However, the production estimates may differ due to different data
-#   adjustments (FABIO adjusts production = slaughtered + exported - imported).
+#   slaughtered per year, adjusted by live-animal trade). Stock heads remain
+#   in primary production for herd/feed calculations.
 
 message("\n=== 1. Total output (X) ===")
 

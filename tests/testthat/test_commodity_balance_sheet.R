@@ -103,3 +103,39 @@ testthat::test_that("processing coefficients are internally consistent", {
     )
   )
 })
+
+testthat::test_that("livestock CBS uses slaughtered heads for draft animals", {
+  local_mocked_bindings(
+    .get_livestock_trade_totals = function(livestock_items) {
+      tibble::tibble(
+        year = integer(),
+        area_code = integer(),
+        item_cbs_code = integer(),
+        import = numeric(),
+        export = numeric()
+      )
+    }
+  )
+
+  primary <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~unit, ~value,
+    2000L, 1L, 1096L, "heads", 100,
+    2000L, 1L, 1096L, "slaughtered_heads", 10,
+    2000L, 1L, 946L, "heads", 200,
+    2000L, 1L, 946L, "slaughtered_heads", 20
+  )
+
+  result <- get_livestock_cbs(primary)
+  horse <- dplyr::filter(result, item_cbs_code == 1096L)
+  buffalo <- dplyr::filter(result, item_cbs_code == 946L)
+
+  testthat::expect_equal(horse$production, 10)
+  testthat::expect_equal(horse$domestic_supply, 10)
+  testthat::expect_equal(horse$other_uses, 10)
+  testthat::expect_equal(horse$processing, 0)
+
+  testthat::expect_equal(buffalo$production, 20)
+  testthat::expect_equal(buffalo$domestic_supply, 20)
+  testthat::expect_equal(buffalo$processing, 20)
+  testthat::expect_equal(buffalo$other_uses, 0)
+})

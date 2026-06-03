@@ -72,10 +72,10 @@ get_wide_cbs <- function(example = FALSE) {
 #' commodity balance sheet but are needed as explicit intermediates
 #' in the IO model.
 #'
-#' Following the FABIO methodology, production is estimated as
-#' `slaughtered + exported - imported` (animals raised in the
-#' country), and domestic supply (`processing` for meat animals,
-#' `other_uses` for draft animals) equals
+#' Following the FABIO methodology, live-animal production is estimated
+#' from slaughter counts as `slaughtered + exported - imported`
+#' (animals raised in the country), and domestic supply (`processing`
+#' for meat animals, `other_uses` for draft animals) equals
 #' `production + import - export`.
 #'
 #' Units are heads (number of animals).
@@ -104,10 +104,7 @@ get_livestock_cbs <- function(primary_prod) {
       all_livestock,
       dplyr::join_by(item_cbs_code)
     ) |>
-    dplyr::filter(
-      (is_meat & unit == "slaughtered_heads") |
-        (!is_meat & unit == "heads")
-    ) |>
+    dplyr::filter(unit == "slaughtered_heads") |>
     dplyr::summarise(
       slaughtered = sum(value, na.rm = TRUE),
       is_meat = dplyr::first(is_meat),
