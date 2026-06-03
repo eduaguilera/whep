@@ -366,3 +366,7 @@
     2000L, "prov_b", 2555L, "grass", "grass", 60, "provincial"
   )
 }
+
+# afsetools parity fixtures were removed: afsetools::load_general_data() reads
+# Codes_coefs.xlsx via openxlsx (segfaults intermittently on R 4.5.x) and is not
+# a CI dependency, so the live parity test is not run. See test_redistribute_feed.R.

@@ -1468,21 +1468,25 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
   result
 }
 
-.freed_excess <- function(item_viol, qual_viol) {
-  capped <- function(v) {
-    if (nrow(v) == 0) {
-      return(NULL)
-    }
-    v |>
-      dplyr::transmute(
-        year,
-        territory,
-        sub_territory,
-        livestock_category,
-        capped_excess = pmin(excess, group_dm)
-      )
+.cap_excess_rows <- function(v) {
+  if (nrow(v) == 0) {
+    return(NULL)
   }
-  dplyr::bind_rows(capped(item_viol), capped(qual_viol)) |>
+  v |>
+    dplyr::transmute(
+      year,
+      territory,
+      sub_territory,
+      livestock_category,
+      capped_excess = pmin(excess, group_dm)
+    )
+}
+
+.freed_excess <- function(item_viol, qual_viol) {
+  dplyr::bind_rows(
+    .cap_excess_rows(item_viol),
+    .cap_excess_rows(qual_viol)
+  ) |>
     dplyr::summarise(
       total_excess = sum(capped_excess, na.rm = TRUE),
       .by = c(year, territory, sub_territory, livestock_category)

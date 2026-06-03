@@ -202,3 +202,12 @@ test_that("per-feed_quality max_intake_share cap is honoured", {
     dplyr::pull(t)
   expect_lte(sum(cattle_grass$intake_dm_t), 0.4 * total_cattle + 1e-6)
 })
+
+# Behavioural parity against afsetools::redistribute_feed (the reference
+# implementation this port reproduces) is intentionally NOT run in the suite.
+# afsetools::load_general_data() reads Codes_coefs.xlsx via openxlsx, which
+# segfaults intermittently on R 4.5.x and would crash the whole test run, and
+# afsetools is not a CI dependency (the test would skip on CI regardless). The
+# behavioural tests above assert the port's allocation outcomes (exact match,
+# both demand modes, schema, and item + feed_quality caps). Run an afsetools
+# cross-check manually offline if needed.
