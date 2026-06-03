@@ -861,7 +861,26 @@ utils::globalVariables(
     "bucket_total",
     "contribution",
     "supply_lo",
-    "supply_hi"
+    "supply_hi",
+    # redistribute_feed cap / reroute internals
+    "avail_match",
+    "avail_limit",
+    "total_intake",
+    "excess",
+    "reduction",
+    "group_dm",
+    "max_intake_share",
+    "total_dm",
+    "other_dm",
+    "limit_dm",
+    "var_value",
+    "factor",
+    "new_intake",
+    "capped_excess",
+    "total_excess",
+    "rank",
+    "prev",
+    "alloc"
   )
 )
 

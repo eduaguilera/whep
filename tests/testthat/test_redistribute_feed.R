@@ -113,3 +113,92 @@ test_that("inter-provincial trade moves provincial feed across compartments", {
   expect_gt(sum(traded$intake_dm_t), 1e-6)
   expect_true(all(traded$source_compartment == "prov_b"))
 })
+
+test_that("output has the locked column schema and non-negative scaling", {
+  out <- whep::redistribute_feed(
+    whep:::.example_feed_demand(),
+    whep:::.example_feed_avail()
+  )
+  expect_named(
+    out,
+    c(
+      "year",
+      "territory",
+      "sub_territory",
+      "livestock_category",
+      "item_cbs_code",
+      "feed_group",
+      "feed_quality",
+      "demand_dm_t",
+      "intake_dm_t",
+      "scaling_factor",
+      "hierarchy_level",
+      "requested_item",
+      "source_compartment",
+      "fixed_demand"
+    ),
+    ignore.order = TRUE
+  )
+  # NA marks demand=0 & intake>0 (documented); use na.rm to allow that case.
+  expect_true(all(out$scaling_factor >= 0, na.rm = TRUE))
+})
+
+test_that("per-item max_intake_share cap reroutes excess", {
+  # Demand and availability share `territory` so the national cereal is
+  # actually allocated (the shared `.example_feed_avail()` carries no
+  # `territory` column and routes everything to the grassland sink, which
+  # would never exercise an item cap). Cereal is abundant, so absent a cap
+  # the pig diet is ~75% cereal; the 0.5 cap on item 2514 must reroute the
+  # excess to grass, dropping the cereal share to <= 0.5 of total intake.
+  d <- tibble::tribble(
+    ~year, ~territory, ~sub_territory, ~livestock_category, ~item_cbs_code,
+    ~feed_group, ~feed_quality, ~demand_dm_t, ~fixed_demand,
+    2000L, "ESP", "prov_a", "pigs", 2514L, "cereals", "high_quality", 100, FALSE
+  )
+  a <- tibble::tribble(
+    ~year, ~territory, ~sub_territory, ~item_cbs_code, ~feed_group,
+    ~feed_quality, ~avail_dm_t, ~feed_scale,
+    2000L, "ESP", "prov_a", 2514L, "cereals", "high_quality", 300, "national",
+    2000L, "ESP", "prov_a", 2555L, "grass", "grass", 100, "provincial"
+  )
+  caps <- tibble::tribble(
+    ~livestock_category, ~var, ~var_value, ~max_intake_share,
+    "pigs", "item_cbs_code", "2514", 0.5
+  )
+  out <- whep::redistribute_feed(d, a, options = list(max_intake_share = caps))
+  pig_cereal <- out |>
+    dplyr::filter(livestock_category == "pigs", item_cbs_code == 2514L)
+  total_pig <- out |>
+    dplyr::filter(livestock_category == "pigs") |>
+    dplyr::summarise(t = sum(intake_dm_t)) |>
+    dplyr::pull(t)
+  expect_lte(sum(pig_cereal$intake_dm_t), 0.5 * total_pig + 1e-6)
+})
+
+test_that("per-feed_quality max_intake_share cap is honoured", {
+  # Matched-territory variable-mode scenario where grass would otherwise be
+  # 50% of the cattle diet; the 0.4 cap on feed_quality == "grass" must hold.
+  d <- tibble::tribble(
+    ~year, ~territory, ~sub_territory, ~livestock_category, ~item_cbs_code,
+    ~feed_group, ~feed_quality, ~demand_dm_t, ~fixed_demand,
+    2000L, "ESP", "prov_a", "cattle", 2555L, "grass", "grass", 100, FALSE
+  )
+  a <- tibble::tribble(
+    ~year, ~territory, ~sub_territory, ~item_cbs_code, ~feed_group,
+    ~feed_quality, ~avail_dm_t, ~feed_scale,
+    2000L, "ESP", "prov_a", 2555L, "grass", "grass", 200, "provincial",
+    2000L, "ESP", "prov_a", 2514L, "cereals", "high_quality", 200, "national"
+  )
+  caps <- tibble::tribble(
+    ~livestock_category, ~var, ~var_value, ~max_intake_share,
+    "cattle", "feed_quality", "grass", 0.4
+  )
+  out <- whep::redistribute_feed(d, a, options = list(max_intake_share = caps))
+  cattle_grass <- out |>
+    dplyr::filter(livestock_category == "cattle", feed_quality == "grass")
+  total_cattle <- out |>
+    dplyr::filter(livestock_category == "cattle") |>
+    dplyr::summarise(t = sum(intake_dm_t)) |>
+    dplyr::pull(t)
+  expect_lte(sum(cattle_grass$intake_dm_t), 0.4 * total_cattle + 1e-6)
+})

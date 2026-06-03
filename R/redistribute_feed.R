@@ -32,8 +32,10 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
 
   mode <- .allocation_mode(demand)
   state <- .init_state(demand, avail)
+  state <- .apply_zoot_fixed(state, demand, avail, options)
   state <- .run_allocation_levels(state, demand, avail, mode)
-  .assemble_result(state, demand)
+  caps <- .resolve_max_intake_caps(options$max_intake_share)
+  .assemble_result(state, demand, avail, mode, caps)
 }
 
 .redistribute_feed_options <- function(options = list()) {
@@ -316,6 +318,75 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
   )
   out <- unname(ranks[feed_quality])
   dplyr::coalesce(out, 999)
+}
+
+# ---- Zoot-fixed processing --------------------------------------------------
+
+# Zoot-fixed items keep their requested intake (intake == demand) instead of
+# being reallocated, but each row is capped at
+# `zoot_fixed_max_multiplier * availability` to prevent extreme violations.
+# When availability is zero or NA, no cap is applied. After allocation the
+# zoot demand is fully consumed, so its `remaining` is zeroed in the state.
+.apply_zoot_fixed <- function(state, demand, avail, options) {
+  zoot <- demand[demand$feed_quality == "zoot_fixed", , drop = FALSE]
+  if (nrow(zoot) == 0) {
+    return(state)
+  }
+  zoot <- .zoot_match_avail(zoot, avail)
+  rows <- .zoot_intake(zoot, options$zoot_fixed_max_multiplier)
+  state <- .add_alloc(state, rows, respect_cap = FALSE)
+  state$demand_remaining[as.character(zoot$demand_id)] <- 0
+  state
+}
+
+.zoot_match_avail <- function(zoot, avail) {
+  prov <- avail[
+    avail$feed_quality == "zoot_fixed" & avail$feed_scale == "provincial",
+    c(
+      "year",
+      "territory",
+      "sub_territory",
+      "item_cbs_code",
+      "avail_dm_t",
+      "avail_id"
+    ),
+    drop = FALSE
+  ]
+  names(prov)[names(prov) %in% c("avail_dm_t", "avail_id")] <-
+    c("avail_match", "avail_id")
+  zoot |>
+    dplyr::left_join(
+      prov,
+      by = c("year", "territory", "sub_territory", "item_cbs_code")
+    )
+}
+
+.zoot_intake <- function(zoot, multiplier) {
+  cap <- dplyr::if_else(
+    is.na(zoot$avail_match) | zoot$avail_match <= 0,
+    NA_real_,
+    multiplier * zoot$avail_match
+  )
+  intake <- dplyr::if_else(
+    is.na(cap) | zoot$demand_dm_t <= 0,
+    zoot$demand_dm_t,
+    pmin(zoot$demand_dm_t, cap)
+  )
+  tibble::tibble(
+    demand_id = zoot$demand_id,
+    year = zoot$year,
+    territory = zoot$territory,
+    sub_territory = zoot$sub_territory,
+    livestock_category = zoot$livestock_category,
+    item_cbs_code = zoot$item_cbs_code,
+    feed_group = zoot$feed_group,
+    feed_quality = zoot$feed_quality,
+    intake_dm_t = intake,
+    hierarchy_level = "1_item_exact",
+    requested_item = zoot$requested_item,
+    source_compartment = zoot$source_compartment,
+    avail_id = zoot$avail_id
+  )
 }
 
 # ---- Cartesian allocator (provincial, proportional share) -------------------
@@ -1017,12 +1088,15 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
 
 # ---- Assembly ---------------------------------------------------------------
 
-.assemble_result <- function(state, demand) {
+.assemble_result <- function(state, demand, avail, mode, caps) {
   if (length(state$allocations) == 0) {
     return(.empty_redistribute_result())
   }
   result <- dplyr::bind_rows(state$allocations)
   result <- .add_zero_rows(result, demand)
+  result <- .reroute_excess_to_grass(result, avail, mode)
+  live_avail <- .avail_with_remaining(state, avail)
+  result <- .apply_max_intake_caps(result, live_avail, caps)
   result$demand_dm_t <- demand$demand_dm_t[result$demand_id]
   result$fixed_demand <- demand$fixed_demand[result$demand_id]
   result$scaling_factor <- .compute_scaling(result, demand)
@@ -1076,6 +1150,477 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
       source_compartment
     )
   dplyr::bind_rows(result, zero)
+}
+
+# ---- Reroute grass intake exceeding availability to the unlimited sink ------
+
+# In fixed/mixed modes the primary levels can over-allocate a finite grass
+# item (the priority pool fills demand buckets and may exceed an item's
+# availability). Any grass-item intake above its availability is moved to the
+# unlimited grassland sink (item_cbs_code = NA), preserving conservation.
+.reroute_excess_to_grass <- function(result, avail, mode) {
+  if (mode == "variable") {
+    return(result)
+  }
+  limits <- .grass_avail_limits(avail)
+  if (nrow(limits) == 0) {
+    return(result)
+  }
+  viol <- .grass_violations(result, limits)
+  if (nrow(viol) == 0) {
+    return(result)
+  }
+  .split_grass_excess(result, viol)
+}
+
+.grass_avail_limits <- function(avail) {
+  grass <- avail[
+    avail$feed_quality == "grass" & !is.na(avail$item_cbs_code),
+    ,
+    drop = FALSE
+  ]
+  if (nrow(grass) == 0) {
+    return(grass[, c("year", "territory", "item_cbs_code"), drop = FALSE])
+  }
+  grass |>
+    dplyr::summarise(
+      avail_limit = sum(avail_dm_t, na.rm = TRUE),
+      .by = c(year, territory, item_cbs_code)
+    )
+}
+
+.grass_violations <- function(result, limits) {
+  intake <- result[
+    result$feed_quality == "grass" & !is.na(result$item_cbs_code),
+    ,
+    drop = FALSE
+  ] |>
+    dplyr::summarise(
+      total_intake = sum(intake_dm_t, na.rm = TRUE),
+      .by = c(year, territory, item_cbs_code)
+    )
+  intake |>
+    dplyr::left_join(limits, by = c("year", "territory", "item_cbs_code")) |>
+    dplyr::mutate(
+      avail_limit = dplyr::coalesce(avail_limit, 0),
+      excess = total_intake - avail_limit
+    ) |>
+    dplyr::filter(excess > 1e-6)
+}
+
+.split_grass_excess <- function(result, viol) {
+  result$row_id <- seq_len(nrow(result))
+  grass_rows <- result[
+    result$feed_quality == "grass" & !is.na(result$item_cbs_code),
+    ,
+    drop = FALSE
+  ] |>
+    dplyr::inner_join(
+      viol[, c("year", "territory", "item_cbs_code", "total_intake", "excess")],
+      by = c("year", "territory", "item_cbs_code")
+    ) |>
+    dplyr::mutate(
+      reduction = pmax(
+        0,
+        pmin(
+          intake_dm_t,
+          intake_dm_t / total_intake * pmin(excess, total_intake)
+        )
+      )
+    )
+  result$intake_dm_t[grass_rows$row_id] <-
+    pmax(0, result$intake_dm_t[grass_rows$row_id] - grass_rows$reduction)
+  additions <- .grass_sink_rows(
+    result[grass_rows$row_id, ],
+    grass_rows$reduction
+  )
+  result$row_id <- NULL
+  dplyr::bind_rows(result, additions)
+}
+
+.grass_sink_rows <- function(rows, reduction) {
+  rows$intake_dm_t <- reduction
+  rows$item_cbs_code <- NA_integer_
+  rows$feed_group <- "grass"
+  rows$feed_quality <- "grass"
+  rows$hierarchy_level <- "6_grassland_unlimited"
+  rows$source_compartment <- rows$sub_territory
+  rows$row_id <- NULL
+  if ("avail_id" %in% names(rows)) {
+    rows$avail_id <- NA_integer_
+  }
+  rows[rows$intake_dm_t > 1e-9, , drop = FALSE]
+}
+
+# ---- Max-intake caps (per item_cbs_code and per feed_quality) ---------------
+
+.resolve_max_intake_caps <- function(max_intake_share) {
+  if (is.null(max_intake_share)) {
+    return(.empty_caps())
+  }
+  caps <- tibble::as_tibble(max_intake_share)
+  if (nrow(caps) == 0) {
+    return(.empty_caps())
+  }
+  caps |>
+    dplyr::transmute(
+      livestock_category = as.character(livestock_category),
+      var = as.character(var),
+      var_value = as.character(var_value),
+      max_intake_share = pmin(pmax(max_intake_share, 0), 1)
+    ) |>
+    dplyr::filter(is.finite(max_intake_share)) |>
+    dplyr::summarise(
+      max_intake_share = max(max_intake_share, na.rm = TRUE),
+      .by = c(livestock_category, var, var_value)
+    )
+}
+
+.empty_caps <- function() {
+  tibble::tibble(
+    livestock_category = character(),
+    var = character(),
+    var_value = character(),
+    max_intake_share = numeric()
+  )
+}
+
+# Reduce any (livestock_category, item or feed_quality) intake that exceeds
+# its allowed share of the livestock's diet, then reroute the freed DM to the
+# unlimited grassland sink so conservation per demand row is preserved. The
+# strict-share limit keeps the post-reduction share at or below the cap.
+.apply_max_intake_caps <- function(result, live_avail, caps) {
+  if (nrow(caps) == 0) {
+    return(result)
+  }
+  totals <- result |>
+    dplyr::summarise(
+      total_dm = sum(intake_dm_t, na.rm = TRUE),
+      .by = c(year, territory, sub_territory, livestock_category)
+    )
+  item_viol <- .item_cap_violations(result, caps, totals)
+  qual_viol <- .quality_cap_violations(result, caps, totals)
+  if (nrow(item_viol) == 0 && nrow(qual_viol) == 0) {
+    return(result)
+  }
+  result <- .reduce_item_caps(result, item_viol)
+  result <- .reduce_quality_caps(result, qual_viol)
+  freed <- .freed_excess(item_viol, qual_viol)
+  result <- .reroute_freed_excess(result, freed, live_avail, caps)
+  result[result$intake_dm_t > 1e-9, , drop = FALSE]
+}
+
+.avail_with_remaining <- function(state, avail) {
+  avail$avail_remaining <- unname(state$avail_remaining[as.character(
+    avail$avail_id
+  )])
+  avail
+}
+
+# Freed DM goes to the unlimited grassland sink unless grass itself is capped
+# for the livestock; in that case it draws from remaining non-grass
+# availability (priority order) and any leftover is dropped (the strict cap
+# wins over conservation, matching the afsetools Phase-3 behaviour).
+.reroute_freed_excess <- function(result, freed, live_avail, caps) {
+  if (nrow(freed) == 0) {
+    return(result)
+  }
+  grass_capped_lc <- caps$livestock_category[
+    caps$var == "feed_quality" & caps$var_value == "grass"
+  ]
+  to_grass <- freed[
+    !freed$livestock_category %in% grass_capped_lc,
+    ,
+    drop = FALSE
+  ]
+  to_other <- freed[
+    freed$livestock_category %in% grass_capped_lc,
+    ,
+    drop = FALSE
+  ]
+  result <- dplyr::bind_rows(result, .cap_grass_rows(result, to_grass))
+  dplyr::bind_rows(result, .cap_nongrass_rows(result, to_other, live_avail))
+}
+
+.strict_limit <- function(other_dm, max_share) {
+  dplyr::if_else(
+    max_share >= 1 - 1e-9,
+    Inf,
+    other_dm * max_share / pmax(1 - max_share, 1e-9)
+  )
+}
+
+.item_cap_violations <- function(result, caps, totals) {
+  item_caps <- caps[caps$var == "item_cbs_code", , drop = FALSE]
+  if (nrow(item_caps) == 0) {
+    return(.empty_viol("item_cbs_code"))
+  }
+  item_caps$item_cbs_code <- suppressWarnings(as.integer(item_caps$var_value))
+  result |>
+    dplyr::summarise(
+      group_dm = sum(intake_dm_t, na.rm = TRUE),
+      .by = c(year, territory, sub_territory, livestock_category, item_cbs_code)
+    ) |>
+    dplyr::inner_join(
+      item_caps[, c("livestock_category", "item_cbs_code", "max_intake_share")],
+      by = c("livestock_category", "item_cbs_code")
+    ) |>
+    .finalise_violation(totals)
+}
+
+.quality_cap_violations <- function(result, caps, totals) {
+  qual_caps <- caps[caps$var == "feed_quality", , drop = FALSE]
+  if (nrow(qual_caps) == 0) {
+    return(.empty_viol("feed_quality"))
+  }
+  qual_caps$feed_quality <- qual_caps$var_value
+  result |>
+    dplyr::summarise(
+      group_dm = sum(intake_dm_t, na.rm = TRUE),
+      .by = c(year, territory, sub_territory, livestock_category, feed_quality)
+    ) |>
+    dplyr::inner_join(
+      qual_caps[, c("livestock_category", "feed_quality", "max_intake_share")],
+      by = c("livestock_category", "feed_quality")
+    ) |>
+    .finalise_violation(totals)
+}
+
+.finalise_violation <- function(grouped, totals) {
+  grouped |>
+    dplyr::left_join(
+      totals,
+      by = c("year", "territory", "sub_territory", "livestock_category")
+    ) |>
+    dplyr::mutate(
+      total_dm = dplyr::coalesce(total_dm, 0),
+      other_dm = total_dm - group_dm,
+      limit_dm = .strict_limit(other_dm, max_intake_share),
+      excess = group_dm - limit_dm
+    ) |>
+    dplyr::filter(is.finite(excess), excess > 1e-6)
+}
+
+.empty_viol <- function(key) {
+  base <- tibble::tibble(
+    year = integer(),
+    territory = character(),
+    sub_territory = character(),
+    livestock_category = character(),
+    group_dm = numeric(),
+    max_intake_share = numeric(),
+    total_dm = numeric(),
+    other_dm = numeric(),
+    limit_dm = numeric(),
+    excess = numeric()
+  )
+  base[[key]] <- if (key == "item_cbs_code") integer() else character()
+  base
+}
+
+.reduce_item_caps <- function(result, viol) {
+  if (nrow(viol) == 0) {
+    return(result)
+  }
+  .reduce_by_key(
+    result,
+    viol,
+    c(
+      "year",
+      "territory",
+      "sub_territory",
+      "livestock_category",
+      "item_cbs_code"
+    )
+  )
+}
+
+.reduce_quality_caps <- function(result, viol) {
+  if (nrow(viol) == 0) {
+    return(result)
+  }
+  .reduce_by_key(
+    result,
+    viol,
+    c(
+      "year",
+      "territory",
+      "sub_territory",
+      "livestock_category",
+      "feed_quality"
+    )
+  )
+}
+
+.reduce_by_key <- function(result, viol, keys) {
+  result$row_id <- seq_len(nrow(result))
+  matches <- result |>
+    dplyr::inner_join(
+      viol[, c(keys, "group_dm", "excess")],
+      by = keys
+    ) |>
+    dplyr::mutate(
+      factor = pmax(0, (group_dm - excess) / group_dm),
+      new_intake = intake_dm_t * factor
+    )
+  result$intake_dm_t[matches$row_id] <- matches$new_intake
+  result$row_id <- NULL
+  result
+}
+
+.freed_excess <- function(item_viol, qual_viol) {
+  capped <- function(v) {
+    if (nrow(v) == 0) {
+      return(NULL)
+    }
+    v |>
+      dplyr::transmute(
+        year,
+        territory,
+        sub_territory,
+        livestock_category,
+        capped_excess = pmin(excess, group_dm)
+      )
+  }
+  dplyr::bind_rows(capped(item_viol), capped(qual_viol)) |>
+    dplyr::summarise(
+      total_excess = sum(capped_excess, na.rm = TRUE),
+      .by = c(year, territory, sub_territory, livestock_category)
+    ) |>
+    dplyr::filter(total_excess > 1e-9)
+}
+
+.cap_grass_rows <- function(result, freed) {
+  if (nrow(freed) == 0) {
+    return(.empty_alloc())
+  }
+  donors <- result |>
+    dplyr::slice_head(
+      n = 1L,
+      by = c(
+        year,
+        territory,
+        sub_territory,
+        livestock_category
+      )
+    )
+  donors |>
+    dplyr::inner_join(
+      freed,
+      by = c("year", "territory", "sub_territory", "livestock_category")
+    ) |>
+    dplyr::transmute(
+      demand_id,
+      year,
+      territory,
+      sub_territory,
+      livestock_category,
+      item_cbs_code = NA_integer_,
+      feed_group = "grass",
+      feed_quality = "grass",
+      intake_dm_t = total_excess,
+      hierarchy_level = "6_grassland_unlimited",
+      requested_item,
+      source_compartment = sub_territory,
+      avail_id = NA_integer_
+    )
+}
+
+# Route freed DM to remaining non-grass availability within the same
+# compartment, priority order, capped by what is left; leftover is dropped.
+.cap_nongrass_rows <- function(result, freed, live_avail) {
+  if (nrow(freed) == 0) {
+    return(.empty_alloc())
+  }
+  supply <- live_avail[
+    live_avail$feed_quality != "grass" &
+      live_avail$feed_quality != "zoot_fixed" &
+      !is.na(live_avail$avail_remaining) &
+      live_avail$avail_remaining > 1e-9,
+    ,
+    drop = FALSE
+  ]
+  if (nrow(supply) == 0) {
+    return(.empty_alloc())
+  }
+  donors <- result |>
+    dplyr::slice_head(
+      n = 1L,
+      by = c(
+        year,
+        territory,
+        sub_territory,
+        livestock_category
+      )
+    )
+  matched <- .match_nongrass_supply(freed, supply)
+  .nongrass_alloc_rows(matched, donors)
+}
+
+.match_nongrass_supply <- function(freed, supply) {
+  supply$rank <- .feed_quality_rank(supply$feed_quality)
+  freed |>
+    dplyr::inner_join(
+      supply[, c(
+        "year",
+        "territory",
+        "avail_id",
+        "item_cbs_code",
+        "feed_group",
+        "feed_quality",
+        "avail_remaining",
+        "rank"
+      )],
+      by = c("year", "territory"),
+      relationship = "many-to-many"
+    ) |>
+    dplyr::arrange(
+      year,
+      territory,
+      sub_territory,
+      livestock_category,
+      rank,
+      avail_id
+    ) |>
+    dplyr::mutate(
+      prev = cumsum(avail_remaining) - avail_remaining,
+      alloc = pmax(0, pmin(avail_remaining, total_excess - prev)),
+      .by = c(year, territory, sub_territory, livestock_category)
+    ) |>
+    dplyr::filter(alloc > 1e-9)
+}
+
+.nongrass_alloc_rows <- function(matched, donors) {
+  if (nrow(matched) == 0) {
+    return(.empty_alloc())
+  }
+  matched |>
+    dplyr::inner_join(
+      donors[, c(
+        "year",
+        "territory",
+        "sub_territory",
+        "livestock_category",
+        "demand_id",
+        "requested_item"
+      )],
+      by = c("year", "territory", "sub_territory", "livestock_category")
+    ) |>
+    dplyr::transmute(
+      demand_id,
+      year,
+      territory,
+      sub_territory,
+      livestock_category,
+      item_cbs_code,
+      feed_group,
+      feed_quality,
+      intake_dm_t = alloc,
+      hierarchy_level = "6_grassland_unlimited",
+      requested_item,
+      source_compartment = sub_territory,
+      avail_id = NA_integer_
+    )
 }
 
 .compute_scaling <- function(result, demand) {
