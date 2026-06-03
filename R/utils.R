@@ -826,7 +826,33 @@ utils::globalVariables(
     "total_pot",
     "type_ha",
     "type_irrig_ha",
-    "weight_sum"
+    "weight_sum",
+    # redistribute_feed internals
+    "territory",
+    "sub_territory",
+    "livestock_category",
+    "feed_group",
+    "feed_quality",
+    "demand_dm_t",
+    "avail_dm_t",
+    "feed_scale",
+    "fixed_demand",
+    "demand_id",
+    "remaining",
+    "requested_item",
+    "source_compartment",
+    "source_prov",
+    "total_demand",
+    "remaining_cap",
+    "demand_group",
+    "avail_group",
+    "demand_share",
+    "avail_share",
+    "avail_remaining",
+    "avail_id",
+    "intake_dm_t",
+    "hierarchy_level",
+    "scaling_factor"
   )
 )
 

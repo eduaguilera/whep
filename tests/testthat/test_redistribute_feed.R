@@ -13,3 +13,12 @@ test_that("redistribute_feed rejects non-logical fixed_demand", {
     "fixed_demand"
   )
 })
+
+test_that("exact provincial item match allocates without exceeding availability", {
+  out <- whep::redistribute_feed(
+    whep:::.example_feed_demand() |> dplyr::filter(item_cbs_code == 2555L),
+    whep:::.example_feed_avail() |> dplyr::filter(item_cbs_code == 2555L)
+  )
+  expect_equal(sum(out$intake_dm_t), 50, tolerance = 1e-6)
+  expect_true(all(out$intake_dm_t >= 0))
+})
