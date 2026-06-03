@@ -586,6 +586,11 @@ add_footprint_product_stage <- function(
       )
     ) |>
     dplyr::mutate(
+      product_area = dplyr::if_else(
+        is.na(.data$product_area),
+        .data$target_area,
+        .data$product_area
+      ),
       product_area_name = dplyr::if_else(
         is.na(.data$product_area_name),
         .data$target_area_name,
@@ -763,7 +768,7 @@ add_footprint_product_stage <- function(
     )
   }
   if (!is.character(other_area_name) || length(other_area_name) != 1 ||
-    !nzchar(other_area_name)) {
+    is.na(other_area_name) || !nzchar(other_area_name)) {
     cli::cli_abort(
       "{.arg other_area_name} must be one non-empty string."
     )

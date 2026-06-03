@@ -145,3 +145,68 @@ testthat::test_that("add_footprint_product_stage splits by supplier shares", {
   )
   testthat::expect_equal(unique(result$product_item), 20L)
 })
+
+testthat::test_that("add_footprint_product_stage fills fallback product area code", {
+  footprints <- tibble::tibble(
+    origin_area = 1L,
+    origin_item = 10L,
+    target_area = 2L,
+    target_area_name = "Target",
+    target_item = 20L,
+    target_fd = "food",
+    value = 100
+  )
+  y_mat <- Matrix::Matrix(100, nrow = 1, sparse = TRUE)
+  labels <- tibble::tibble(
+    area_code = 1L,
+    item_cbs_code = 99L
+  )
+  fd_labels <- tibble::tibble(
+    area_code = 2L,
+    fd_col = "food"
+  )
+
+  result <- add_footprint_product_stage(
+    footprints,
+    y_mat,
+    labels,
+    fd_labels
+  )
+
+  testthat::expect_equal(result$product_area, 2L)
+  testthat::expect_equal(result$product_area_name, "Target")
+  testthat::expect_equal(result$product_item, 20L)
+  testthat::expect_equal(result$value, 100)
+})
+
+testthat::test_that("add_footprint_product_stage rejects invalid area labels", {
+  footprints <- tibble::tibble(
+    origin_area = 1L,
+    origin_item = 10L,
+    target_area = 1L,
+    target_area_name = "Target",
+    target_item = 20L,
+    target_fd = "food",
+    value = 100
+  )
+  y_mat <- Matrix::Matrix(100, nrow = 1, sparse = TRUE)
+  labels <- tibble::tibble(
+    area_code = 1L,
+    item_cbs_code = 20L
+  )
+  fd_labels <- tibble::tibble(
+    area_code = 1L,
+    fd_col = "food"
+  )
+
+  testthat::expect_error(
+    add_footprint_product_stage(
+      footprints,
+      y_mat,
+      labels,
+      fd_labels,
+      other_area_name = NA_character_
+    ),
+    "other_area_name"
+  )
+})

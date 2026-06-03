@@ -366,6 +366,22 @@ testthat::test_that(".build_trade_matrix completes missing countries", {
     testthat::expect_equal(expected)
 })
 
+testthat::test_that(".build_trade_matrix sums duplicate country pairs", {
+  code_int <- c(1L, 2L, 3L)
+  n <- length(code_int)
+  btd <- tibble::tribble(
+    ~from_code, ~to_code, ~value,
+    1L, 2L, 3,
+    1L, 2L, 4,
+    2L, 3L, 5
+  )
+
+  result <- .build_trade_matrix(btd, n, code_int)
+
+  testthat::expect_equal(result["1", "2"], 7)
+  testthat::expect_equal(result["2", "3"], 5)
+})
+
 testthat::test_that(".ipf_2d converges to target margins", {
   seed <- matrix(1, nrow = 3, ncol = 3)
   target_rows <- c(10, 20, 30)

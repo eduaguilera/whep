@@ -101,6 +101,27 @@ testthat::test_that("footprint zeros yield no rows", {
   testthat::expect_equal(nrow(result), 0)
 })
 
+testthat::test_that("extension conservation does not inflate partial demand", {
+  l_inv <- diag(1)
+  x <- 100
+  y <- matrix(50, ncol = 1)
+  extensions <- 100
+  labels <- tibble::tibble(
+    area_code = 1L,
+    item_cbs_code = 10L
+  )
+
+  result <- compute_footprint(
+    l_inv,
+    x,
+    y,
+    extensions,
+    labels
+  )
+
+  testthat::expect_equal(sum(result$value), 50)
+})
+
 testthat::test_that("near-zero output sectors have zero intensity", {
   l_inv <- diag(2)
   x <- c(1e-10, 100)

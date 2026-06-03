@@ -376,6 +376,11 @@ get_bilateral_trade <- function(example = FALSE, cbs = NULL) {
     ncol = n,
     dimnames = list(code_levels, code_levels)
   )
+  btd <- btd |>
+    dplyr::summarise(
+      value = sum(.data$value, na.rm = TRUE),
+      .by = c("from_code", "to_code")
+    )
   rows <- match(btd$from_code, code_int)
   cols <- match(btd$to_code, code_int)
   m[cbind(rows, cols)] <- btd$value

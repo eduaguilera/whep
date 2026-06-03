@@ -361,10 +361,12 @@ compute_footprint <- function(
     ) |>
     dplyr::mutate(
       source_value = tidyr::replace_na(.data$source_value, 0),
-      scale = dplyr::if_else(
-        .data$result_value > 0,
+      scale = dplyr::case_when(
+        .data$result_value <= 0 ~ 0,
+        .data$source_value <= 0 ~ 0,
+        .data$result_value > .data$source_value ~
         .data$source_value / .data$result_value,
-        0
+        TRUE ~ 1
       )
     ) |>
     dplyr::select("origin_area", "origin_item", "scale")

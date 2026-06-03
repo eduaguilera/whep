@@ -78,3 +78,33 @@ testthat::test_that("plot_footprint_sankey supports stage-specific grouping", {
   testthat::expect_match(html, "Other products", fixed = TRUE)
   testthat::expect_match(html, "\"max_nodes\":1", fixed = TRUE)
 })
+
+testthat::test_that("plot_footprint_sankey rejects invalid NA options", {
+  testthat::skip_if_not_installed("htmltools")
+  testthat::skip_if_not_installed("jsonlite")
+
+  footprints <- tibble::tribble(
+    ~origin_area, ~origin_item, ~target_item, ~target_area, ~value,
+    "Brazil", "Soybeans", "Pigmeat", "China", 10
+  )
+
+  testthat::expect_error(
+    plot_footprint_sankey(footprints, max_nodes = NA_real_),
+    "max_nodes"
+  )
+  testthat::expect_error(
+    plot_footprint_sankey(footprints, min_share = NA_real_),
+    "min_share"
+  )
+  testthat::expect_error(
+    plot_footprint_sankey(
+      footprints,
+      stage_other_labels = c(origin_area = NA_character_)
+    ),
+    "stage_other_labels"
+  )
+  testthat::expect_error(
+    plot_footprint_sankey(footprints, file = NA_character_),
+    "file"
+  )
+})

@@ -190,7 +190,8 @@ plot_footprint_sankey <- function(
   if (!is.data.frame(footprints)) {
     cli::cli_abort("{.arg footprints} must be a data frame.")
   }
-  if (!is.character(stages) || length(stages) < 2) {
+  if (!is.character(stages) || length(stages) < 2 ||
+    any(is.na(stages)) || any(!nzchar(stages))) {
     cli::cli_abort("{.arg stages} must contain at least two column names.")
   }
   missing_stages <- setdiff(stages, names(footprints))
@@ -211,7 +212,14 @@ plot_footprint_sankey <- function(
     cli::cli_abort("{.arg value_col} must identify a numeric column.")
   }
   if (!is.null(label_cols)) {
-    if (!is.character(label_cols) || is.null(names(label_cols))) {
+    if (
+      !is.character(label_cols) ||
+        is.null(names(label_cols)) ||
+        any(is.na(names(label_cols))) ||
+        any(!nzchar(names(label_cols))) ||
+        any(is.na(label_cols)) ||
+        any(!nzchar(label_cols))
+    ) {
       cli::cli_abort(
         "{.arg label_cols} must be a named character vector."
       )
@@ -223,21 +231,26 @@ plot_footprint_sankey <- function(
       )
     }
   }
-  if (!is.numeric(max_nodes) || length(max_nodes) != 1 || max_nodes < 1) {
+  if (!is.numeric(max_nodes) || length(max_nodes) != 1 ||
+    is.na(max_nodes) || max_nodes < 1) {
     cli::cli_abort("{.arg max_nodes} must be a positive number or Inf.")
   }
   .validate_sankey_stage_max_nodes(stage_max_nodes, stages)
   .validate_sankey_stage_other_labels(stage_other_labels, stages)
-  if (!is.numeric(min_share) || length(min_share) != 1 || min_share < 0) {
+  if (!is.numeric(min_share) || length(min_share) != 1 ||
+    is.na(min_share) || !is.finite(min_share) || min_share < 0) {
     cli::cli_abort("{.arg min_share} must be a non-negative number.")
   }
-  if (!is.character(width) || length(width) != 1 || !nzchar(width)) {
+  if (!is.character(width) || length(width) != 1 ||
+    is.na(width) || !nzchar(width)) {
     cli::cli_abort("{.arg width} must be a non-empty CSS width value.")
   }
-  if (!is.numeric(height) || length(height) != 1 || height < 240) {
+  if (!is.numeric(height) || length(height) != 1 ||
+    is.na(height) || !is.finite(height) || height < 240) {
     cli::cli_abort("{.arg height} must be at least 240 pixels.")
   }
-  if (!is.null(file) && (!is.character(file) || length(file) != 1)) {
+  if (!is.null(file) && (!is.character(file) || length(file) != 1 ||
+    is.na(file) || !nzchar(file))) {
     cli::cli_abort("{.arg file} must be one file path.")
   }
   if (!is.logical(open) || length(open) != 1 || is.na(open)) {
@@ -252,6 +265,7 @@ plot_footprint_sankey <- function(
   if (
     !is.numeric(stage_max_nodes) ||
       is.null(names(stage_max_nodes)) ||
+      any(is.na(names(stage_max_nodes))) ||
       any(!nzchar(names(stage_max_nodes))) ||
       any(is.na(stage_max_nodes)) ||
       any(stage_max_nodes < 1)
@@ -274,9 +288,11 @@ plot_footprint_sankey <- function(
     return(invisible(NULL))
   }
   if (
-    !is.character(stage_other_labels) ||
+      !is.character(stage_other_labels) ||
       is.null(names(stage_other_labels)) ||
+      any(is.na(names(stage_other_labels))) ||
       any(!nzchar(names(stage_other_labels))) ||
+      any(is.na(stage_other_labels)) ||
       any(!nzchar(stage_other_labels))
   ) {
     cli::cli_abort(
