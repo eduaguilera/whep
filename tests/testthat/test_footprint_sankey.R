@@ -79,6 +79,34 @@ testthat::test_that("plot_footprint_sankey supports stage-specific grouping", {
   testthat::expect_match(html, "\"max_nodes\":1", fixed = TRUE)
 })
 
+testthat::test_that("plot_footprint_sankey hard-limits embedded nodes", {
+  testthat::skip_if_not_installed("htmltools")
+  testthat::skip_if_not_installed("jsonlite")
+
+  footprints <- tibble::tribble(
+    ~origin_area, ~origin_item, ~target_item, ~target_area, ~value,
+    "Alpha", "Soybeans", "Pigmeat", "China", 10,
+    "Beta", "Soybeans", "Pigmeat", "China", 8,
+    "Gamma", "Soybeans", "Pigmeat", "China", 1
+  )
+  file <- tempfile(fileext = ".html")
+
+  plot_footprint_sankey(
+    footprints,
+    max_nodes = 1,
+    embed_max_nodes = 2,
+    stage_other_labels = c(origin_area = "Other origins"),
+    file = file
+  )
+
+  html <- paste(readLines(file, warn = FALSE), collapse = "\n")
+  testthat::expect_match(html, "Other origins", fixed = TRUE)
+  testthat::expect_no_match(html, "Gamma", fixed = TRUE)
+  testthat::expect_match(html, "\"max_nodes\":1", fixed = TRUE)
+  testthat::expect_match(html, "\"embed_max_nodes\":2", fixed = TRUE)
+  testthat::expect_match(html, "input.max = String(hard)", fixed = TRUE)
+})
+
 testthat::test_that("plot_footprint_sankey rejects invalid NA options", {
   testthat::skip_if_not_installed("htmltools")
   testthat::skip_if_not_installed("jsonlite")
@@ -95,6 +123,17 @@ testthat::test_that("plot_footprint_sankey rejects invalid NA options", {
   testthat::expect_error(
     plot_footprint_sankey(footprints, min_share = NA_real_),
     "min_share"
+  )
+  testthat::expect_error(
+    plot_footprint_sankey(footprints, embed_max_nodes = NA_real_),
+    "embed_max_nodes"
+  )
+  testthat::expect_error(
+    plot_footprint_sankey(
+      footprints,
+      stage_embed_max_nodes = c(origin_area = NA_real_)
+    ),
+    "stage_embed_max_nodes"
   )
   testthat::expect_error(
     plot_footprint_sankey(

@@ -24,8 +24,8 @@
 #'   to display-label columns, for example
 #'   `c(origin_area = "origin_area_name")`. When omitted, `{stage}_name`
 #'   columns are used where available.
-#' @param max_nodes Maximum number of nodes to show per stage in the current
-#'   filtered browser view. Less important nodes are grouped into
+#' @param max_nodes Maximum number of individual nodes to show per stage in
+#'   the current filtered browser view. Less important nodes are grouped into
 #'   `other_label`. Use `Inf` to show all nodes.
 #' @param other_label Label used for grouped nodes when `max_nodes` is
 #'   finite.
@@ -35,6 +35,12 @@
 #' @param stage_other_labels Optional named character vector overriding
 #'   `other_label` for selected stages, for example
 #'   `c(product = "Other products")`.
+#' @param embed_max_nodes Maximum number of individual nodes to embed per
+#'   stage before writing the viewer. Less important nodes are permanently
+#'   grouped before serialization, reducing file size. Use `Inf` to keep all
+#'   nodes available to the browser.
+#' @param stage_embed_max_nodes Optional named numeric vector overriding
+#'   `embed_max_nodes` for selected stages.
 #' @param min_share Minimum visible path size as a percentage of the current
 #'   filtered total. Set to 0 to keep diffuse trade links visible. Users can
 #'   change this in the browser.
@@ -76,6 +82,8 @@ plot_footprint_sankey <- function(
   other_label = "Other",
   stage_max_nodes = NULL,
   stage_other_labels = NULL,
+  embed_max_nodes = Inf,
+  stage_embed_max_nodes = NULL,
   min_share = 0,
   title = "Footprint Sankey Viewer",
   subtitle = NULL,
@@ -96,6 +104,8 @@ plot_footprint_sankey <- function(
     max_nodes,
     stage_max_nodes,
     stage_other_labels,
+    embed_max_nodes,
+    stage_embed_max_nodes,
     min_share,
     width,
     height,
@@ -111,6 +121,20 @@ plot_footprint_sankey <- function(
     max_nodes,
     other_label
   )
+  paths <- .sankey_group_small_nodes(
+    paths,
+    .sankey_stage_cols(stages),
+    .sankey_stage_max_nodes(
+      stages,
+      embed_max_nodes,
+      stage_embed_max_nodes
+    ),
+    .sankey_stage_other_labels(
+      stages,
+      other_label,
+      stage_other_labels
+    )
+  )
   if (nrow(paths) == 0) {
     cli::cli_abort("No positive footprint flows to plot.")
   }
@@ -122,6 +146,8 @@ plot_footprint_sankey <- function(
     other_label,
     stage_max_nodes,
     stage_other_labels,
+    embed_max_nodes,
+    stage_embed_max_nodes,
     min_share,
     title,
     subtitle,
@@ -181,6 +207,8 @@ plot_footprint_sankey <- function(
   max_nodes,
   stage_max_nodes,
   stage_other_labels,
+  embed_max_nodes,
+  stage_embed_max_nodes,
   min_share,
   width,
   height,
@@ -231,12 +259,15 @@ plot_footprint_sankey <- function(
       )
     }
   }
-  if (!is.numeric(max_nodes) || length(max_nodes) != 1 ||
-    is.na(max_nodes) || max_nodes < 1) {
-    cli::cli_abort("{.arg max_nodes} must be a positive number or Inf.")
-  }
+  .validate_sankey_max_nodes(max_nodes, "max_nodes")
   .validate_sankey_stage_max_nodes(stage_max_nodes, stages)
   .validate_sankey_stage_other_labels(stage_other_labels, stages)
+  .validate_sankey_max_nodes(embed_max_nodes, "embed_max_nodes")
+  .validate_sankey_stage_max_nodes(
+    stage_embed_max_nodes,
+    stages,
+    "stage_embed_max_nodes"
+  )
   if (!is.numeric(min_share) || length(min_share) != 1 ||
     is.na(min_share) || !is.finite(min_share) || min_share < 0) {
     cli::cli_abort("{.arg min_share} must be a non-negative number.")
@@ -258,7 +289,18 @@ plot_footprint_sankey <- function(
   }
 }
 
-.validate_sankey_stage_max_nodes <- function(stage_max_nodes, stages) {
+.validate_sankey_max_nodes <- function(value, arg) {
+  if (!is.numeric(value) || length(value) != 1 ||
+    is.na(value) || value < 1) {
+    cli::cli_abort("{.arg {arg}} must be a positive number or Inf.")
+  }
+}
+
+.validate_sankey_stage_max_nodes <- function(
+  stage_max_nodes,
+  stages,
+  arg = "stage_max_nodes"
+) {
   if (is.null(stage_max_nodes)) {
     return(invisible(NULL))
   }
@@ -271,13 +313,13 @@ plot_footprint_sankey <- function(
       any(stage_max_nodes < 1)
   ) {
     cli::cli_abort(
-      "{.arg stage_max_nodes} must be a named numeric vector of positive values."
+      "{.arg {arg}} must be a named numeric vector of positive values."
     )
   }
   unknown <- setdiff(names(stage_max_nodes), stages)
   if (length(unknown) > 0) {
     cli::cli_abort(
-      "{.arg stage_max_nodes} has unknown stage name{?s}: {.field {unknown}}."
+      "{.arg {arg}} has unknown stage name{?s}: {.field {unknown}}."
     )
   }
   invisible(NULL)
@@ -368,27 +410,37 @@ plot_footprint_sankey <- function(
   max_nodes,
   other_label
 ) {
-  if (is.infinite(max_nodes)) {
+  if (all(is.na(max_nodes) | is.infinite(max_nodes))) {
     return(paths)
   }
 
-  max_nodes <- as.integer(max_nodes)
-  for (stage_col in stage_cols) {
+  for (i in seq_along(stage_cols)) {
+    stage_col <- stage_cols[i]
+    limit <- max_nodes[i]
+    if (is.na(limit) || is.infinite(limit)) {
+      next
+    }
+    limit <- as.integer(limit)
+    other <- other_label[i]
     keep <- paths |>
       dplyr::group_by(.data[[stage_col]]) |>
       dplyr::summarise(total = sum(.data$value), .groups = "drop") |>
+      dplyr::filter(.data[[stage_col]] != other) |>
       dplyr::arrange(dplyr::desc(.data$total), .data[[stage_col]]) |>
-      dplyr::slice_head(n = max_nodes) |>
+      dplyr::slice_head(n = limit) |>
       dplyr::pull(.data[[stage_col]])
 
     paths[[stage_col]] <- ifelse(
       paths[[stage_col]] %in% keep,
       paths[[stage_col]],
-      other_label
+      other
     )
   }
 
-  paths
+  paths |>
+    dplyr::group_by(dplyr::across(dplyr::all_of(stage_cols))) |>
+    dplyr::summarise(value = sum(.data$value), .groups = "drop") |>
+    dplyr::arrange(dplyr::desc(.data$value))
 }
 
 .sankey_stage_cols <- function(stages) {
@@ -424,6 +476,8 @@ plot_footprint_sankey <- function(
   other_label,
   stage_max_nodes,
   stage_other_labels,
+  embed_max_nodes,
+  stage_embed_max_nodes,
   min_share,
   title,
   subtitle,
@@ -439,6 +493,11 @@ plot_footprint_sankey <- function(
       stages,
       max_nodes,
       stage_max_nodes
+    ),
+    embed_max_nodes = .sankey_stage_max_nodes(
+      stages,
+      embed_max_nodes,
+      stage_embed_max_nodes
     ),
     other_label = .sankey_stage_other_labels(
       stages,
@@ -586,13 +645,15 @@ plot_footprint_sankey <- function(
       "function pct(value,total){return total > 0 ? (100 * value / total).toLocaleString(undefined,{maximumFractionDigits:1}) + '%' : '0%';}",
       "function truncate(value,n){value = String(value); return value.length > n ? value.slice(0,n - 3) + '...' : value;}",
       "function colorFor(value){let h = 0; for (let i = 0; i < value.length; i++) h = ((h << 5) - h + value.charCodeAt(i)) | 0; return palette[Math.abs(h) % palette.length];}",
-      "function defaultMaxNodes(stage){return stage.max_nodes == null ? null : Math.max(1, Math.floor(Number(stage.max_nodes)));}",
+      "function hardMaxNodes(stage){return stage.embed_max_nodes == null ? null : Math.max(1, Math.floor(Number(stage.embed_max_nodes)));}",
+      "function defaultMaxNodes(stage){const value = stage.max_nodes == null ? null : Math.max(1, Math.floor(Number(stage.max_nodes))); const hard = hardMaxNodes(stage); return value == null || hard == null ? value : Math.min(value, hard);}",
+      "function parseMaxNodes(raw, stage){if (raw === '') return null; const parsed = Number(raw); if (!Number.isFinite(parsed)) return null; let value = Math.max(1, Math.floor(parsed)); const hard = hardMaxNodes(stage); if (hard != null) value = Math.min(value, hard); return value;}",
       "model.stages.forEach(stage => { state.maxNodes[stage.key] = defaultMaxNodes(stage); });",
       "function stageTotals(stage){const totals = new Map(); model.paths.forEach(p => totals.set(p[stage.key], (totals.get(p[stage.key]) || 0) + Number(p.value || 0))); return [...totals.entries()].sort((a,b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0])));}",
-      "function buildControls(){controls.innerHTML = ''; model.stages.forEach(stage => { const label = document.createElement('label'); label.className = 'whep-sankey__control'; label.innerHTML = '<span>' + esc(stage.label) + '</span>'; const select = document.createElement('select'); select.dataset.stage = stage.key; select.innerHTML = '<option value=\"\">All</option>' + stageTotals(stage).map(([name,total]) => '<option value=\"' + esc(name) + '\">' + esc(name) + ' (' + pct(total, model.options.total) + ')</option>').join(''); select.addEventListener('change', () => { state.filters[stage.key] = select.value; state.active = null; render(); }); label.appendChild(select); controls.appendChild(label); const limit = document.createElement('label'); limit.className = 'whep-sankey__control whep-sankey__control--max-nodes'; limit.innerHTML = '<span>Max ' + esc(stage.label) + ' nodes</span>'; const input = document.createElement('input'); input.type = 'number'; input.min = '1'; input.step = '1'; input.placeholder = 'All'; input.dataset.maxStage = stage.key; const current = state.maxNodes[stage.key]; input.value = current == null ? '' : String(current); input.addEventListener('input', event => { const raw = event.target.value.trim(); const parsed = Number(raw); state.maxNodes[stage.key] = raw === '' || !Number.isFinite(parsed) ? null : Math.max(1, Math.floor(parsed)); state.active = null; render(); }); limit.appendChild(input); controls.appendChild(limit); }); const threshold = document.createElement('label'); threshold.className = 'whep-sankey__control'; threshold.innerHTML = '<span>Hide paths smaller than (%)</span><input type=\"number\" min=\"0\" step=\"0.1\" value=\"' + esc(state.minShare) + '\" data-threshold=\"true\">'; threshold.querySelector('input').addEventListener('input', event => { state.minShare = Math.max(0, Number(event.target.value || 0)); state.active = null; render(); }); controls.appendChild(threshold); }",
+      "function buildControls(){controls.innerHTML = ''; model.stages.forEach(stage => { const label = document.createElement('label'); label.className = 'whep-sankey__control'; label.innerHTML = '<span>' + esc(stage.label) + '</span>'; const select = document.createElement('select'); select.dataset.stage = stage.key; select.innerHTML = '<option value=\"\">All</option>' + stageTotals(stage).map(([name,total]) => '<option value=\"' + esc(name) + '\">' + esc(name) + ' (' + pct(total, model.options.total) + ')</option>').join(''); select.addEventListener('change', () => { state.filters[stage.key] = select.value; state.active = null; render(); }); label.appendChild(select); controls.appendChild(label); const limit = document.createElement('label'); limit.className = 'whep-sankey__control whep-sankey__control--max-nodes'; limit.innerHTML = '<span>Max ' + esc(stage.label) + ' nodes</span>'; const input = document.createElement('input'); input.type = 'number'; input.min = '1'; input.step = '1'; input.placeholder = 'All'; input.dataset.maxStage = stage.key; const hard = hardMaxNodes(stage); if (hard != null) input.max = String(hard); const current = state.maxNodes[stage.key]; input.value = current == null ? '' : String(current); input.addEventListener('input', event => { const value = parseMaxNodes(event.target.value.trim(), stage); state.maxNodes[stage.key] = value; event.target.value = value == null ? '' : String(value); state.active = null; render(); }); limit.appendChild(input); controls.appendChild(limit); }); const threshold = document.createElement('label'); threshold.className = 'whep-sankey__control'; threshold.innerHTML = '<span>Hide paths smaller than (%)</span><input type=\"number\" min=\"0\" step=\"0.1\" value=\"' + esc(state.minShare) + '\" data-threshold=\"true\">'; threshold.querySelector('input').addEventListener('input', event => { state.minShare = Math.max(0, Number(event.target.value || 0)); state.active = null; render(); }); controls.appendChild(threshold); }",
       "function filteredPaths(){return model.paths.filter(p => model.stages.every(stage => !state.filters[stage.key] || p[stage.key] === state.filters[stage.key]));}",
       "function aggregatePaths(paths){const keys = model.stages.map(s => s.key); const grouped = new Map(); paths.forEach(p => { const id = keys.map(k => p[k]).join('\\u001f'); const old = grouped.get(id) || { value: 0 }; keys.forEach(k => old[k] = p[k]); old.value += Number(p.value || 0); grouped.set(id, old); }); return [...grouped.values()].sort((a,b) => Number(b.value || 0) - Number(a.value || 0));}",
-      "function groupVisiblePaths(paths){let grouped = paths.map(p => ({ ...p })); model.stages.forEach(stage => { const rawMax = state.maxNodes[stage.key]; const maxNodes = rawMax == null ? Infinity : Number(rawMax); if (!Number.isFinite(maxNodes)) return; const n = Math.max(1, Math.floor(maxNodes)); const other = stage.other_label || model.options.other_label || 'Other'; const totals = new Map(); grouped.forEach(p => totals.set(p[stage.key], (totals.get(p[stage.key]) || 0) + Number(p.value || 0))); const keep = new Set([...totals.entries()].sort((a,b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0]))).slice(0, n).map(([name]) => name)); grouped.forEach(p => { if (!keep.has(p[stage.key])) p[stage.key] = other; }); }); return aggregatePaths(grouped);}",
+      "function groupVisiblePaths(paths){let grouped = paths.map(p => ({ ...p })); model.stages.forEach(stage => { const rawMax = state.maxNodes[stage.key]; const maxNodes = rawMax == null ? Infinity : Number(rawMax); if (!Number.isFinite(maxNodes)) return; const n = Math.max(1, Math.floor(maxNodes)); const other = stage.other_label || model.options.other_label || 'Other'; const totals = new Map(); grouped.forEach(p => totals.set(p[stage.key], (totals.get(p[stage.key]) || 0) + Number(p.value || 0))); const keep = new Set([...totals.entries()].filter(([name]) => name !== other).sort((a,b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0]))).slice(0, n).map(([name]) => name)); grouped.forEach(p => { if (p[stage.key] !== other && !keep.has(p[stage.key])) p[stage.key] = other; }); }); return aggregatePaths(grouped);}",
       "function visiblePaths(){let paths = groupVisiblePaths(filteredPaths()); const selectedTotal = paths.reduce((sum,p) => sum + Number(p.value || 0), 0); state.selectedTotal = selectedTotal; state.hiddenTotal = 0; state.hiddenCount = 0; if (state.minShare > 0 && selectedTotal > 0) { const before = paths; paths = before.filter(p => (100 * Number(p.value || 0) / selectedTotal) >= state.minShare); const visibleTotal = paths.reduce((sum,p) => sum + Number(p.value || 0), 0); state.hiddenTotal = Math.max(0, selectedTotal - visibleTotal); state.hiddenCount = before.length - paths.length; } return paths;}",
       "function summaryText(visibleTotal,pathCount){const label = model.options.value_label; const base = number(visibleTotal) + ' visible ' + label + ' across ' + pathCount.toLocaleString() + ' path' + (pathCount === 1 ? '' : 's') + '.'; if ((state.hiddenCount || 0) > 0) return base + ' Hidden by threshold: ' + number(state.hiddenTotal) + ' ' + label + ' (' + pct(state.hiddenTotal, state.selectedTotal) + ' of selected total) across ' + state.hiddenCount.toLocaleString() + ' path' + (state.hiddenCount === 1 ? '' : 's') + '.'; return base;}",
       "function aggregate(paths, key){const totals = new Map(); paths.forEach(p => totals.set(p[key], (totals.get(p[key]) || 0) + Number(p.value || 0))); return [...totals.entries()].map(([label,value]) => ({ label, value }));}",

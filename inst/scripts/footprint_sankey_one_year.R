@@ -21,6 +21,8 @@ suppressPackageStartupMessages({
 #                                  Supplier/product areas kept separately.
 #   WHEP_FOOTPRINT_SANKEY_PATH_MIN_SHARE
 #                                  Drop embedded paths below this total share.
+#   WHEP_FOOTPRINT_SANKEY_EMBED_MAX_NODES
+#                                  Hard per-stage node cap embedded in HTML.
 
 args <- commandArgs(trailingOnly = TRUE)
 
@@ -64,6 +66,9 @@ product_areas <- as.numeric(Sys.getenv("WHEP_FOOTPRINT_PRODUCT_AREAS", "5"))
 path_min_share <- as.numeric(
   Sys.getenv("WHEP_FOOTPRINT_SANKEY_PATH_MIN_SHARE", "1e-5")
 )
+embed_max_nodes <- as.numeric(
+  Sys.getenv("WHEP_FOOTPRINT_SANKEY_EMBED_MAX_NODES", "20")
+)
 
 if (is.na(output_tol) || output_tol < 0) {
   stop("`WHEP_FOOTPRINT_OUTPUT_TOL` must be non-negative.", call. = FALSE)
@@ -103,6 +108,12 @@ if (is.na(product_areas) || product_areas < 1 || !is.finite(product_areas)) {
 if (is.na(path_min_share) || path_min_share < 0) {
   stop(
     "`WHEP_FOOTPRINT_SANKEY_PATH_MIN_SHARE` must be non-negative.",
+    call. = FALSE
+  )
+}
+if (is.na(embed_max_nodes) || embed_max_nodes < 1) {
+  stop(
+    "`WHEP_FOOTPRINT_SANKEY_EMBED_MAX_NODES` must be a positive number or Inf.",
     call. = FALSE
   )
 }
@@ -240,6 +251,7 @@ plot_footprint_sankey(
   max_nodes = 8,
   stage_max_nodes = stage_max_nodes,
   stage_other_labels = stage_other_labels,
+  embed_max_nodes = embed_max_nodes,
   min_share = sankey_min_share,
   title = paste("Land Footprint Sankey", year),
   subtitle = subtitle,

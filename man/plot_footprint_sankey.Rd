@@ -13,6 +13,8 @@ plot_footprint_sankey(
   other_label = "Other",
   stage_max_nodes = NULL,
   stage_other_labels = NULL,
+  embed_max_nodes = Inf,
+  stage_embed_max_nodes = NULL,
   min_share = 0,
   title = "Footprint Sankey Viewer",
   subtitle = NULL,
@@ -37,8 +39,8 @@ to display-label columns, for example
 \code{c(origin_area = "origin_area_name")}. When omitted, \verb{\{stage\}_name}
 columns are used where available.}
 
-\item{max_nodes}{Maximum number of nodes to show per stage in the current
-filtered browser view. Less important nodes are grouped into
+\item{max_nodes}{Maximum number of individual nodes to show per stage in
+the current filtered browser view. Less important nodes are grouped into
 \code{other_label}. Use \code{Inf} to show all nodes.}
 
 \item{other_label}{Label used for grouped nodes when \code{max_nodes} is
@@ -51,6 +53,14 @@ finite.}
 \item{stage_other_labels}{Optional named character vector overriding
 \code{other_label} for selected stages, for example
 \code{c(product = "Other products")}.}
+
+\item{embed_max_nodes}{Maximum number of individual nodes to embed per
+stage before writing the viewer. Less important nodes are permanently
+grouped before serialization, reducing file size. Use \code{Inf} to keep all
+nodes available to the browser.}
+
+\item{stage_embed_max_nodes}{Optional named numeric vector overriding
+\code{embed_max_nodes} for selected stages.}
 
 \item{min_share}{Minimum visible path size as a percentage of the current
 filtered total. Set to 0 to keep diffuse trade links visible. Users can
