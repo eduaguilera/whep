@@ -182,7 +182,7 @@ extensions <- land_use |>
   dplyr::arrange(index) |>
   dplyr::pull(impact_u)
 
-paths <- compute_footprint_product_paths(
+paths <- compute_fp_product_paths(
   z_mat = io$Z[[1]],
   x_vec = io$X[[1]],
   y_mat = io$Y[[1]],

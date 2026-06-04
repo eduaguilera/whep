@@ -158,7 +158,7 @@ reference:
   - compute_leontief_inverse
   - compute_footprint
   - compute_footprint_paths
-  - compute_footprint_product_paths
+  - compute_fp_product_paths
   - add_footprint_product_stage
   - plot_footprint_sankey
 

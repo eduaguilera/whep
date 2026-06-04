@@ -68,7 +68,7 @@ testthat::test_that("compute_footprint_paths returns empty output for absent ori
   )
 })
 
-testthat::test_that("compute_footprint_product_paths keeps supplied product area and item", {
+testthat::test_that("compute_fp_product_paths keeps supplied product area and item", {
   z_mat <- matrix(c(0, 50, 0, 0), nrow = 2, byrow = TRUE)
   x_vec <- c(100, 200)
   y_mat <- matrix(c(10, 100), nrow = 2)
@@ -82,7 +82,7 @@ testthat::test_that("compute_footprint_product_paths keeps supplied product area
     fd_col = "food"
   )
 
-  paths <- compute_footprint_product_paths(
+  paths <- compute_fp_product_paths(
     z_mat = z_mat,
     x_vec = x_vec,
     y_mat = y_mat,

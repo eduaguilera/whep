@@ -94,10 +94,10 @@ plot_footprint_sankey <- function(
   file = NULL,
   open = FALSE
 ) {
-  .require_footprint_sankey_packages()
+  .require_sankey_pkgs()
 
   stages <- .sankey_default_stages(footprints, stages)
-  .validate_footprint_sankey_inputs(
+  .validate_sankey_inputs(
     footprints,
     stages,
     value_col,
@@ -171,7 +171,7 @@ plot_footprint_sankey <- function(
   htmltools::browsable(viewer)
 }
 
-.require_footprint_sankey_packages <- function() {
+.require_sankey_pkgs <- function() {
   missing <- c(
     if (!requireNamespace("htmltools", quietly = TRUE)) "htmltools",
     if (!requireNamespace("jsonlite", quietly = TRUE)) "jsonlite"
@@ -200,7 +200,7 @@ plot_footprint_sankey <- function(
   defaults
 }
 
-.validate_footprint_sankey_inputs <- function(
+.validate_sankey_inputs <- function(
   footprints,
   stages,
   value_col,
@@ -265,10 +265,10 @@ plot_footprint_sankey <- function(
     }
   }
   .validate_sankey_max_nodes(max_nodes, "max_nodes")
-  .validate_sankey_stage_max_nodes(stage_max_nodes, stages)
-  .validate_sankey_stage_other_labels(stage_other_labels, stages)
+  .validate_stage_max_nodes(stage_max_nodes, stages)
+  .validate_stage_other_labels(stage_other_labels, stages)
   .validate_sankey_max_nodes(embed_max_nodes, "embed_max_nodes")
-  .validate_sankey_stage_max_nodes(
+  .validate_stage_max_nodes(
     stage_embed_max_nodes,
     stages,
     "stage_embed_max_nodes"
@@ -313,7 +313,7 @@ plot_footprint_sankey <- function(
   }
 }
 
-.validate_sankey_stage_max_nodes <- function(
+.validate_stage_max_nodes <- function(
   stage_max_nodes,
   stages,
   arg = "stage_max_nodes"
@@ -342,7 +342,7 @@ plot_footprint_sankey <- function(
   invisible(NULL)
 }
 
-.validate_sankey_stage_other_labels <- function(stage_other_labels, stages) {
+.validate_stage_other_labels <- function(stage_other_labels, stages) {
   if (is.null(stage_other_labels)) {
     return(invisible(NULL))
   }

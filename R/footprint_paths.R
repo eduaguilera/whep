@@ -48,7 +48,7 @@ compute_footprint_paths <- function(
   conserve_extensions = TRUE,
   min_value = 0
 ) {
-  .validate_footprint_path_inputs(
+  .validate_fp_path_inputs(
     z_mat,
     x_vec,
     y_mat,
@@ -289,7 +289,7 @@ compute_footprint_paths <- function(
   )
 }
 
-.validate_footprint_path_inputs <- function(
+.validate_fp_path_inputs <- function(
   z_mat,
   x_vec,
   y_mat,
@@ -366,7 +366,7 @@ compute_footprint_paths <- function(
 #'   `product_item`, `target_area`, `target_fd`, and `value`.
 #'
 #' @export
-compute_footprint_product_paths <- function(
+compute_fp_product_paths <- function(
   z_mat,
   x_vec,
   y_mat,
@@ -380,7 +380,7 @@ compute_footprint_product_paths <- function(
   conserve_extensions = TRUE,
   min_value = 0
 ) {
-  .validate_footprint_path_inputs(
+  .validate_fp_path_inputs(
     z_mat,
     x_vec,
     y_mat,
@@ -423,7 +423,7 @@ compute_footprint_product_paths <- function(
 
   cli::cli_inform("  Decomposing final-product paths...")
   paths <- purrr::map(origin_idx, function(i) {
-    .footprint_product_paths_one_origin(
+    .fp_paths_one_origin(
       i,
       intensity[i],
       lu_fact,
@@ -458,7 +458,7 @@ compute_footprint_product_paths <- function(
   paths
 }
 
-.footprint_product_paths_one_origin <- function(
+.fp_paths_one_origin <- function(
   origin_idx,
   intensity,
   lu_fact,
@@ -560,7 +560,7 @@ add_footprint_product_stage <- function(
   other_area_name = "Other",
   min_share = 0
 ) {
-  .validate_add_product_stage_inputs(
+  .validate_add_stage_inputs(
     footprints,
     y_mat,
     labels,
@@ -572,7 +572,7 @@ add_footprint_product_stage <- function(
 
   total <- sum(footprints$value, na.rm = TRUE)
   min_value <- total * min_share / 100
-  shares <- .final_demand_product_area_shares(
+  shares <- .fd_product_area_shares(
     y_mat,
     labels,
     fd_labels,
@@ -617,7 +617,7 @@ add_footprint_product_stage <- function(
     dplyr::arrange(dplyr::desc(.data$value))
 }
 
-.final_demand_product_area_shares <- function(
+.fd_product_area_shares <- function(
   y_mat,
   labels,
   fd_labels,
@@ -713,7 +713,7 @@ add_footprint_product_stage <- function(
     )
 }
 
-.validate_add_product_stage_inputs <- function(
+.validate_add_stage_inputs <- function(
   footprints,
   y_mat,
   labels,
