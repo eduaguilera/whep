@@ -110,7 +110,8 @@ footprints <- tibble::tribble(
 )
 
 if (
-  requireNamespace("htmltools", quietly = TRUE) &&
+  interactive() &&
+    requireNamespace("htmltools", quietly = TRUE) &&
     requireNamespace("jsonlite", quietly = TRUE)
 ) {
   plot_footprint_sankey(footprints)
