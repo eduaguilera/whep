@@ -160,6 +160,7 @@ reference:
   - compute_footprint_paths
   - compute_footprint_product_paths
   - add_footprint_product_stage
+  - plot_footprint_sankey
 
 - title: Livestock emissions
   desc: >
