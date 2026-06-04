@@ -365,7 +365,7 @@ compute_footprint <- function(
         .data$result_value <= 0 ~ 0,
         .data$source_value <= 0 ~ 0,
         .data$result_value > .data$source_value ~
-        .data$source_value / .data$result_value,
+          .data$source_value / .data$result_value,
         TRUE ~ 1
       )
     ) |>
@@ -448,8 +448,12 @@ compute_footprint <- function(
       {.arg x_vec}."
     )
   }
-  if (!is.numeric(output_tol) || length(output_tol) != 1 ||
-    is.na(output_tol) || output_tol < 0) {
+  if (
+    !is.numeric(output_tol) ||
+      length(output_tol) != 1 ||
+      is.na(output_tol) ||
+      output_tol < 0
+  ) {
     cli::cli_abort(
       "{.arg output_tol} must be one non-negative number."
     )

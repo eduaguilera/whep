@@ -24,7 +24,11 @@ testthat::test_that("plot_footprint_sankey writes browser viewer", {
   testthat::expect_match(html, "whep-sankey", fixed = TRUE)
   testthat::expect_match(html, "Test Sankey", fixed = TRUE)
   testthat::expect_match(html, "Hide paths smaller than", fixed = TRUE)
-  testthat::expect_match(html, "Max ' + esc(stage.label) + ' nodes", fixed = TRUE)
+  testthat::expect_match(
+    html,
+    "Max ' + esc(stage.label) + ' nodes",
+    fixed = TRUE
+  )
   testthat::expect_match(html, "data-max-stage", fixed = TRUE)
   testthat::expect_match(html, "Hidden by threshold", fixed = TRUE)
   testthat::expect_match(html, "Soybeans", fixed = TRUE)

@@ -118,7 +118,8 @@ if (!dir.exists(output_dir)) {
 open_viewer <- identical(
   tolower(Sys.getenv("WHEP_FOOTPRINT_SANKEY_OPEN", "false")),
   "true"
-) || interactive()
+) ||
+  interactive()
 output_tol <- as.numeric(Sys.getenv("WHEP_FOOTPRINT_OUTPUT_TOL", "1e-8"))
 value_added_floor <- as.numeric(
   Sys.getenv("WHEP_FOOTPRINT_VALUE_ADDED_FLOOR", "1e-2")
@@ -217,7 +218,12 @@ paths <- compute_footprint_product_paths(
   dplyr::mutate(
     origin = paste0(.data$origin_item_name, " (", .data$origin_area_name, ")"),
     product_area_label = .data$product_area_name,
-    product = paste0(.data$product_item_name, " (", .data$product_area_name, ")"),
+    product = paste0(
+      .data$product_item_name,
+      " (",
+      .data$product_area_name,
+      ")"
+    ),
     final_demand_area = .data$target_area_name
   )
 

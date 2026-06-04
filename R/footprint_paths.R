@@ -323,8 +323,12 @@ compute_footprint_paths <- function(
       "{.arg fd_labels} is missing column{?s}: {.field {missing_fd}}."
     )
   }
-  if (!is.numeric(min_value) || length(min_value) != 1 ||
-    is.na(min_value) || min_value < 0) {
+  if (
+    !is.numeric(min_value) ||
+      length(min_value) != 1 ||
+      is.na(min_value) ||
+      min_value < 0
+  ) {
     cli::cli_abort("{.arg min_value} must be one non-negative number.")
   }
   .validate_value_added_floor(value_added_floor)
@@ -761,20 +765,32 @@ add_footprint_product_stage <- function(
       "{.arg fd_labels} is missing column{?s}: {.field {missing_fd}}."
     )
   }
-  if (!is.numeric(max_product_areas) || length(max_product_areas) != 1 ||
-    is.na(max_product_areas) || max_product_areas < 1) {
+  if (
+    !is.numeric(max_product_areas) ||
+      length(max_product_areas) != 1 ||
+      is.na(max_product_areas) ||
+      max_product_areas < 1
+  ) {
     cli::cli_abort(
       "{.arg max_product_areas} must be one positive number."
     )
   }
-  if (!is.character(other_area_name) || length(other_area_name) != 1 ||
-    is.na(other_area_name) || !nzchar(other_area_name)) {
+  if (
+    !is.character(other_area_name) ||
+      length(other_area_name) != 1 ||
+      is.na(other_area_name) ||
+      !nzchar(other_area_name)
+  ) {
     cli::cli_abort(
       "{.arg other_area_name} must be one non-empty string."
     )
   }
-  if (!is.numeric(min_share) || length(min_share) != 1 ||
-    is.na(min_share) || min_share < 0) {
+  if (
+    !is.numeric(min_share) ||
+      length(min_share) != 1 ||
+      is.na(min_share) ||
+      min_share < 0
+  ) {
     cli::cli_abort("{.arg min_share} must be one non-negative number.")
   }
 }

@@ -269,9 +269,15 @@ testthat::test_that(".build_shares_matrix produces correct shares", {
 testthat::test_that(".extract_trade_matrix preserves off-diagonal named trade", {
   trade <- matrix(
     c(
-      0, 10, 2,
-      5, 0, 3,
-      7, 4, 0
+      0,
+      10,
+      2,
+      5,
+      0,
+      3,
+      7,
+      4,
+      0
     ),
     nrow = 3,
     byrow = TRUE,

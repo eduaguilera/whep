@@ -188,7 +188,10 @@ FABIO_Y_PATH <- NULL # e.g. paste0("~/Downloads/", YEAR, "_Y.rds")
     ungroup()
 }
 
-.mark_primary_double_boundary_items <- function(labels, primary_double_systems) {
+.mark_primary_double_boundary_items <- function(
+  labels,
+  primary_double_systems
+) {
   parent_codes <- primary_double_systems |>
     distinct(.data$parent_item_code) |>
     pull(.data$parent_item_code)

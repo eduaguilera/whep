@@ -52,7 +52,8 @@ if (!dir.exists(output_dir)) {
 open_viewer <- identical(
   tolower(Sys.getenv("WHEP_FOOTPRINT_SANKEY_OPEN", "false")),
   "true"
-) || interactive()
+) ||
+  interactive()
 output_tol <- as.numeric(Sys.getenv("WHEP_FOOTPRINT_OUTPUT_TOL", "1e-8"))
 value_added_floor <- as.numeric(
   Sys.getenv("WHEP_FOOTPRINT_VALUE_ADDED_FLOOR", "1e-2")
