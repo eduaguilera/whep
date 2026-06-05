@@ -18,10 +18,10 @@ and bilateral trade. Live animals are not included in the FAO
 commodity balance sheet but are needed as explicit intermediates
 in the IO model.
 
-Following the FABIO methodology, production is estimated as
-\code{slaughtered + exported - imported} (animals raised in the
-country), and domestic supply (\code{processing} for meat animals,
-\code{other_uses} for draft animals) equals
+Following the FABIO methodology, live-animal production is estimated
+from slaughter counts as \code{slaughtered + exported - imported}
+(animals raised in the country), and domestic supply (\code{processing}
+for meat animals, \code{other_uses} for draft animals) equals
 \code{production + import - export}.
 
 Units are heads (number of animals).

@@ -69,3 +69,29 @@ testthat::test_that("get_land_fp_production filters and cleans land_fp", {
   testthat::expect_type(result$item_cbs_code, "integer")
   testthat::expect_equal(result$area_code[[1]], 203L)
 })
+
+testthat::test_that("get_land_fp_production resolves regions_full area aliases", {
+  local_mocked_bindings(
+    whep_read_file = function(...) {
+      tibble::tribble(
+        ~year, ~area, ~item_code, ~Impact, ~element, ~Origin, ~group, ~impact_u,
+        2020, "Iran", 2511, "Land", "Cropland", "Production", "Crops", 10,
+        2020, "Bolivia", 2511, "Land", "Cropland", "Production", "Crops", 20,
+        2020, "DR Congo", 2511, "Land", "Cropland", "Production", "Crops", 30,
+        2020, "Syria", 2511, "Land", "Cropland", "Production", "Crops", 40,
+        2020, "China, Taiwan", 2511, "Land", "Cropland", "Production", "Crops", 50,
+        2020, "Ethiopia", 2511, "Land", "Cropland", "Production", "Crops", 60,
+        2020, "Sudan", 2511, "Land", "Cropland", "Production", "Crops", 70,
+        2020, "Asia Other", 2511, "Land", "Cropland", "Production", "Crops", 80
+      )
+    }
+  )
+
+  result <- get_land_fp_production()
+
+  testthat::expect_equal(
+    result$area_code,
+    c(102L, 19L, 250L, 212L, 214L, 238L, 276L, 902L)
+  )
+  testthat::expect_false(anyNA(result$area_code))
+})

@@ -89,6 +89,33 @@ testthat::test_that(".build_supply_husbandry gives livestock and their products"
     .expect_equal_unordered(expected)
 })
 
+testthat::test_that(".build_animal_draught_supply estimates annual work energy", {
+  draft_items <- tibble::tibble(live_anim_code = c(1096, 1107))
+
+  primary_prod <- tibble::tribble(
+    ~year, ~area_code, ~item_prod_code, ~item_cbs_code, ~live_anim_code, ~unit, ~value,
+    2000, 1, 1, 1096, NA, "LU", 30,
+    2000, 1, 2, 1107, NA, "LU", 40,
+    2000, 1, 3, 1, NA, "LU", 50,
+    2000, 1, 4, 6, 1, "tonnes", 70
+  )
+
+  result <- .build_animal_draught_supply(
+    primary_prod,
+    draft_items,
+    4000L
+  )
+
+  expected <- tibble::tribble(
+    ~year, ~area_code, ~proc_cbs_code, ~item_cbs_code, ~value,
+    2000, 1, 1096, 4000, 30 * 4 * .animal_draught_tj_per_lu_hour() * 365,
+    2000, 1, 1107, 4000, 40 * 6 * .animal_draught_tj_per_lu_hour() * 365
+  )
+
+  result |>
+    .expect_equal_unordered(expected)
+})
+
 testthat::test_that(".build_use_crop_production gives seed use for crop production", {
   cbs_items <- tibble::tibble(item_cbs_code = c(1, 3, 8))
 
@@ -109,6 +136,33 @@ testthat::test_that(".build_use_crop_production gives seed use for crop producti
 
   cbs_items |>
     .build_use_crop_production(cbs) |>
+    .expect_equal_unordered(expected)
+})
+
+testthat::test_that(".build_use_crop_draught allocates draught to crops by area", {
+  crop_prod_items <- tibble::tibble(item_prod_code = c(1, 2))
+  draft_items <- tibble::tibble(live_anim_code = c(10), work_hours_day = 5)
+
+  primary_prod <- tibble::tribble(
+    ~year, ~area_code, ~item_prod_code, ~item_cbs_code, ~live_anim_code, ~unit, ~value,
+    2000, 1, 1, 100, NA, "ha", 40,
+    2000, 1, 2, 200, NA, "ha", 60,
+    2000, 1, 3, 300, NA, "ha", 80,
+    2000, 1, 4, 10, NA, "LU", 20
+  )
+
+  expected <- tibble::tribble(
+    ~year, ~area_code, ~proc_cbs_code, ~item_cbs_code, ~value,
+    2000, 1, 100, 4000, 20 * 5 * .animal_draught_tj_per_lu_hour() * 365 * 0.4,
+    2000, 1, 200, 4000, 20 * 5 * .animal_draught_tj_per_lu_hour() * 365 * 0.6
+  )
+
+  .build_use_crop_draught(
+    crop_prod_items,
+    primary_prod,
+    draft_items,
+    4000L
+  ) |>
     .expect_equal_unordered(expected)
 })
 
@@ -387,4 +441,79 @@ testthat::test_that(".build_supply_use_from_inputs includes all livestock item t
     sort(unique(husbandry_supply$proc_cbs_code)),
     c(1, 2, 3)
   )
+})
+
+testthat::test_that(".build_supply_use_from_inputs connects animal draught to crops", {
+  items_cbs <- tibble::tribble(
+    ~item_cbs_code, ~item_type,
+    1096, "livestock_draft",
+    4000, "other"
+  )
+  items_prod <- tibble::tibble(
+    item_prod_code = 10L,
+    item_type = "crop_product"
+  )
+  coeffs <- tibble::tibble(
+    year = integer(),
+    area_code = integer(),
+    item_cbs_code_to_process = integer(),
+    value_to_process = double(),
+    item_cbs_code_processed = integer(),
+    final_value_processed = double()
+  )
+  cbs <- tibble::tibble(
+    year = 2000L,
+    area_code = 1L,
+    item_cbs_code = 20L,
+    seed = 0
+  )
+  crop_residues <- tibble::tibble(
+    year = integer(),
+    area_code = integer(),
+    item_cbs_code_crop = integer(),
+    item_cbs_code_residue = integer(),
+    value = double()
+  )
+  primary_prod <- tibble::tribble(
+    ~year, ~area_code, ~item_prod_code, ~item_cbs_code,
+    ~live_anim_code, ~unit, ~value,
+    2000, 1, 1, 1096, NA, "LU", 10,
+    2000, 1, 10, 20, NA, "ha", 100,
+    2000, 1, 10, 20, NA, "tonnes", 200
+  )
+  feed_intake <- tibble::tribble(
+    ~year, ~area_code, ~live_anim_code, ~item_cbs_code, ~supply,
+    2000, 1, 1096, 50, 10
+  )
+
+  result <- .build_supply_use_from_inputs(
+    items_prod,
+    items_cbs,
+    coeffs,
+    cbs,
+    crop_residues,
+    primary_prod,
+    feed_intake
+  )
+
+  draught_supply <- result |>
+    dplyr::filter(
+      proc_group == "animal_draught",
+      type == "supply",
+      item_cbs_code == 4000L
+    )
+  draught_use <- result |>
+    dplyr::filter(
+      proc_group == "crop_production",
+      type == "use",
+      item_cbs_code == 4000L
+    )
+
+  testthat::expect_equal(nrow(draught_supply), 1)
+  testthat::expect_equal(nrow(draught_use), 1)
+  testthat::expect_equal(
+    draught_supply$value,
+    10 * 4 * .animal_draught_tj_per_lu_hour() * 365
+  )
+  testthat::expect_equal(draught_use$value, draught_supply$value)
 })
