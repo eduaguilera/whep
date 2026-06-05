@@ -165,6 +165,14 @@ reference:
     Estimate livestock feed demand and allocate it against feed availability.
   contents:
   - redistribute_feed
+- subtitle: Feed coefficient tables
+  desc: >
+    Bouwman and Krausmann feed coefficients, feed taxonomy and diet share caps.
+  contents:
+  - conv_bouwman
+  - conv_krausmann
+  - feed_taxonomy
+  - max_intake_share
 
 - title: Livestock coefficient tables
   desc: >
