@@ -4485,9 +4485,29 @@ write_lpjml_static_inputs <- function(
   gridded_n
 }
 
+# Managed grassland fraction (LPJmL grassland CFT, rainfed band 14) from whep's
+# own grassland estimation (currently LUH2 pasture + rangeland, via
+# gridded_pasture). Irrigated grassland (band 30) stays 0. Without this band the
+# grassland stand never establishes in LPJmL and every grazing output is zero.
+.grassland_lu_band <- function(pasture_chunk, grid, row_area_ha) {
+  if (is.null(pasture_chunk) || nrow(pasture_chunk) == 0L) {
+    return(NULL)
+  }
+  g <- data.table::as.data.table(pasture_chunk)
+  g <- coord_to_rowcol(g, grid)
+  g[, cell_area_ha := row_area_ha[row]]
+  g[, value := pmin(1, pmax(0, (pasture_ha + rangeland_ha) / cell_area_ha))]
+  g[
+    value > 0,
+    .(value = sum(value, na.rm = TRUE)),
+    by = .(year, pft = 14L, row, col)
+  ]
+}
+
 .write_lu_nc_chunk <- function(
   nc_lu,
   cft_chunk,
+  pasture_chunk,
   chunk_years,
   all_years,
   grid,
@@ -4508,7 +4528,7 @@ write_lpjml_static_inputs <- function(
     .(value = sum(irrigated_frac, na.rm = TRUE)),
     by = .(year, pft = base_pft + 16L, row, col)
   ]
-  out <- rbind(rf, ir)
+  out <- rbind(rf, ir, .grassland_lu_band(pasture_chunk, grid, row_area_ha))
   out[, value := pmin(1, pmax(0, value))]
   .pft_nc_write_chunk(nc_lu, out, chunk_years, all_years, grid, 32L)
 }
@@ -4604,6 +4624,17 @@ run_crop_spatialize <- function(
     file.path(input_dir, "country_areas.parquet")
   ) |>
     dplyr::filter(year %in% year_range)
+
+  # whep grassland estimation -> LPJmL grassland landuse band (.grassland_lu_band).
+  gridded_pasture <- tryCatch(
+    nanoparquet::read_parquet(file.path(input_dir, "gridded_pasture.parquet")),
+    error = function(e) NULL
+  )
+  if (is.null(gridded_pasture)) {
+    cli::cli_warn(
+      "gridded_pasture.parquet not found; LPJmL landuse grassland band stays empty (no grazing)."
+    )
+  }
 
   crop_patterns <- nanoparquet::read_parquet(
     file.path(input_dir, "crop_patterns.parquet")
@@ -4887,6 +4918,11 @@ run_crop_spatialize <- function(
       .write_lu_nc_chunk(
         nc_lu,
         cft_chunk_norm,
+        if (is.null(gridded_pasture)) {
+          NULL
+        } else {
+          gridded_pasture[gridded_pasture$year %in% chunk_years, , drop = FALSE]
+        },
         chunk_years,
         years,
         grid,
