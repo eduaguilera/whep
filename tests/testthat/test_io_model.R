@@ -201,6 +201,9 @@ testthat::test_that("build_io_model with non-numeric years raises error", {
 testthat::test_that("IO default build helpers scope cache keys by requested years", {
   testthat::expect_null(.io_build_years(NULL))
   testthat::expect_equal(.io_build_years(c(2001, 1999)), 1999:2001)
+  testthat::expect_null(.io_context_years(NULL))
+  testthat::expect_equal(.io_context_years(2001:2005), 2001:2005)
+  testthat::expect_equal(.io_context_years(2016:2020), 2011:2020)
   testthat::expect_equal(
     .io_cache_key("primary_prod", NULL),
     "primary_prod"

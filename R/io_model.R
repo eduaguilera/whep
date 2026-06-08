@@ -66,25 +66,32 @@ build_io_model <- function(
     )
   }
   build_years <- .io_build_years(years)
+  context_years <- .io_context_years(build_years)
 
   # Build shared pipeline once when using defaults.
   # Intermediate results are session-cached (see ?whep_clear_cache).
   if (is.null(cbs) || is.null(supply_use)) {
     primary_prod <- .cache_get(
-      .io_cache_key("primary_prod", build_years),
-      .build_primary_production_for_io(build_years)
+      .io_cache_key("primary_prod", context_years),
+      .build_primary_production_for_io(context_years)
     )
+    primary_prod_build <- primary_prod |>
+      .filter_years(build_years)
 
     cbs_built <- .cache_get(.io_cache_key("cbs_built", build_years), {
       cli::cli_h1("Building commodity balance sheets")
-      .build_commodity_balances_for_io(primary_prod, build_years)
+      .build_commodity_balances_for_io(
+        primary_prod,
+        build_years,
+        context_years
+      )
     })
 
     if (is.null(cbs)) {
       cbs <- .cache_get(.io_cache_key("cbs_wide", build_years), {
         cli::cli_progress_step("Adding livestock CBS rows")
         wide <- .pivot_cbs_wide(cbs_built)
-        livestock_cbs <- get_livestock_cbs(primary_prod) |>
+        livestock_cbs <- get_livestock_cbs(primary_prod_build) |>
           .filter_years(build_years)
         dplyr::bind_rows(wide, livestock_cbs)
       })
@@ -112,7 +119,7 @@ build_io_model <- function(
           coeffs = coeffs,
           cbs = cbs,
           crop_residues = crop_residues,
-          primary_prod = primary_prod,
+          primary_prod = primary_prod_build,
           feed_intake = feed_intake
         )
       })
@@ -174,6 +181,13 @@ build_io_model <- function(
   seq.int(min(years, na.rm = TRUE), max(years, na.rm = TRUE))
 }
 
+.io_context_years <- function(years) {
+  if (is.null(years) || max(years, na.rm = TRUE) <= 2013L) {
+    return(years)
+  }
+  seq.int(min(min(years, na.rm = TRUE), 2011L), max(years, na.rm = TRUE))
+}
+
 .io_cache_key <- function(key, years) {
   if (is.null(years)) {
     return(key)
@@ -196,15 +210,20 @@ build_io_model <- function(
   )
 }
 
-.build_commodity_balances_for_io <- function(primary_prod, years) {
+.build_commodity_balances_for_io <- function(
+  primary_prod,
+  years,
+  context_years = years
+) {
   if (is.null(years)) {
     return(build_commodity_balances(primary_prod))
   }
-  build_commodity_balances(
+  result <- build_commodity_balances(
     primary_prod,
-    start_year = min(years, na.rm = TRUE),
-    end_year = max(years, na.rm = TRUE)
+    start_year = min(context_years, na.rm = TRUE),
+    end_year = max(context_years, na.rm = TRUE)
   )
+  .filter_years(result, years)
 }
 
 .build_processing_coefs_for_io <- function(cbs_built, years) {
