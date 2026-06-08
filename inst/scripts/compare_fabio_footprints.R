@@ -46,9 +46,34 @@ download_fabio_file <- function(file) {
 invisible(vapply(fabio_files, download_fabio_file, character(1)))
 
 eu28_iso3 <- c(
-  "AUT", "BEL", "BGR", "HRV", "CYP", "CZE", "DNK", "EST", "FIN", "FRA",
-  "DEU", "GRC", "HUN", "IRL", "ITA", "LVA", "LTU", "LUX", "MLT", "NLD",
-  "POL", "PRT", "ROU", "SVK", "SVN", "ESP", "SWE", "GBR"
+  "AUT",
+  "BEL",
+  "BGR",
+  "HRV",
+  "CYP",
+  "CZE",
+  "DNK",
+  "EST",
+  "FIN",
+  "FRA",
+  "DEU",
+  "GRC",
+  "HUN",
+  "IRL",
+  "ITA",
+  "LVA",
+  "LTU",
+  "LUX",
+  "MLT",
+  "NLD",
+  "POL",
+  "PRT",
+  "ROU",
+  "SVK",
+  "SVN",
+  "ESP",
+  "SWE",
+  "GBR"
 )
 
 targets <- tibble(
@@ -62,10 +87,14 @@ product_classes <- c("plant", "animal")
 class_from_group <- function(group) {
   case_when(
     group %in% c("Livestock", "Livestock products", "Fish") ~ "animal",
-    group %in% c(
-      "Primary crops", "Crop products", "Crop residues",
-      "Grass", "Forestry"
-    ) ~ "plant",
+    group %in%
+      c(
+        "Primary crops",
+        "Crop products",
+        "Crop residues",
+        "Grass",
+        "Forestry"
+      ) ~ "plant",
     TRUE ~ "other"
   )
 }
@@ -155,7 +184,8 @@ calc_fabio_year <- function(year) {
       import_share = sum(
         fp[!fabio_index$iso3c %in% target_iso],
         na.rm = TRUE
-      ) / sum(fp, na.rm = TRUE)
+      ) /
+        sum(fp, na.rm = TRUE)
     )
   })
 
@@ -187,8 +217,7 @@ make_whep_demand <- function(
 ) {
   whep_fd <- if (identical(fd, "other")) "other_uses" else fd
   cols <- which(
-    fd_labels$area_code %in% area_codes &
-      fd_labels$fd_col == whep_fd
+    fd_labels$area_code %in% area_codes & fd_labels$fd_col == whep_fd
   )
   if (length(cols) == 0L) {
     return(rep(0, nrow(y_mat)))
@@ -213,9 +242,13 @@ whep_extension_scopes <- function(extensions, labels) {
       0
     ),
     crop_and_grass_direct = ifelse(
-      labels$group %in% c(
-        "Primary crops", "Crop products", "Crop residues", "Grass"
-      ),
+      labels$group %in%
+        c(
+          "Primary crops",
+          "Crop products",
+          "Crop residues",
+          "Grass"
+        ),
       extensions,
       0
     ),
@@ -295,7 +328,8 @@ calc_whep_year <- function(io_row) {
         import_share = sum(
           fp[!labels$area_code %in% target_codes],
           na.rm = TRUE
-        ) / sum(fp, na.rm = TRUE)
+        ) /
+          sum(fp, na.rm = TRUE)
       )
     })
   })
@@ -314,7 +348,10 @@ comparison <- whep_results |>
   left_join(
     fabio_results |>
       select(
-        "year", "target", "fd", "product_class",
+        "year",
+        "target",
+        "fd",
+        "product_class",
         fabio_value = "value",
         fabio_positive_value = "positive_value",
         fabio_import_share = "import_share"
@@ -377,8 +414,15 @@ comparison |>
   filter(.data$extension_scope == "current_all_land_fp") |>
   arrange(desc(.data$ratio)) |>
   select(
-    "year", "target", "fd", "product_class",
-    "value", "fabio_value", "ratio", "import_share", "fabio_import_share"
+    "year",
+    "target",
+    "fd",
+    "product_class",
+    "value",
+    "fabio_value",
+    "ratio",
+    "import_share",
+    "fabio_import_share"
   ) |>
   print(n = 20)
 

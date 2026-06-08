@@ -73,14 +73,14 @@ build_io_model <- function(
   if (is.null(cbs) || is.null(supply_use)) {
     primary_prod <- .cache_get(
       .io_cache_key("primary_prod", context_years),
-      .build_primary_production_for_io(context_years)
+      .build_primary_prod_io(context_years)
     )
     primary_prod_build <- primary_prod |>
       .filter_years(build_years)
 
     cbs_built <- .cache_get(.io_cache_key("cbs_built", build_years), {
       cli::cli_h1("Building commodity balance sheets")
-      .build_commodity_balances_for_io(
+      .build_cbs_io(
         primary_prod,
         build_years,
         context_years
@@ -150,7 +150,13 @@ build_io_model <- function(
   n_years <- length(years)
 
   cli::cli_inform(c(
-    "i" = "Building IO model for {n_years} year{?s}.",
+    "i" = paste0(
+      "Building IO model for ",
+      n_years,
+      " year",
+      if (n_years == 1L) "" else "s",
+      "."
+    ),
     " " = "Year range: {min(years)}-{max(years)}.",
     " " = "Final demand columns: {.field {fd_cols}}.",
     if (endogenize_losses) " " else NULL,
@@ -159,7 +165,7 @@ build_io_model <- function(
 
   results <- purrr::imap(years, function(yr, i) {
     cli::cli_inform(c(
-      ">" = "Year {yr} ({i}/{n_years})..."
+      ">" = paste0("Year ", yr, " (", i, "/", n_years, ")...")
     ))
     .build_io_year(
       su = dplyr::filter(supply_use, year == yr),
@@ -200,7 +206,7 @@ build_io_model <- function(
   )
 }
 
-.build_primary_production_for_io <- function(years) {
+.build_primary_prod_io <- function(years) {
   if (is.null(years)) {
     return(build_primary_production())
   }
@@ -210,7 +216,7 @@ build_io_model <- function(
   )
 }
 
-.build_commodity_balances_for_io <- function(
+.build_cbs_io <- function(
   primary_prod,
   years,
   context_years = years
@@ -279,7 +285,7 @@ build_io_model <- function(
     1
   )
   cli::cli_inform(
-    "  Z sparsity: {z_nnz} non-zeros ({z_pct}% dense)."
+    paste0("  Z sparsity: ", z_nnz, " non-zeros (", z_pct, "% dense).")
   )
 
   cli::cli_inform("  Building final demand matrix...")

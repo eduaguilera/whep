@@ -76,8 +76,20 @@ compute_footprint_paths <- function(
   n <- length(x_vec)
   n_fd <- ncol(y_mat)
   cli::cli_inform(c(
-    "i" = "Computing first-use footprint paths for {length(origin_idx)} origin sector{?s}.",
-    " " = "Final demand: {n_fd} column{?s}."
+    "i" = paste0(
+      "Computing first-use footprint paths for ",
+      length(origin_idx),
+      " origin sector",
+      if (length(origin_idx) == 1L) "" else "s",
+      "."
+    ),
+    " " = paste0(
+      "Final demand: ",
+      n_fd,
+      " column",
+      if (n_fd == 1L) "" else "s",
+      "."
+    )
   ))
 
   intensity <- .extension_intensity(extensions, x_vec, output_tol)
@@ -408,8 +420,20 @@ compute_fp_product_paths <- function(
   n <- length(x_vec)
   n_fd <- ncol(y_mat)
   cli::cli_inform(c(
-    "i" = "Computing final-product footprint paths for {length(origin_idx)} origin sector{?s}.",
-    " " = "Final demand: {n_fd} column{?s}."
+    "i" = paste0(
+      "Computing final-product footprint paths for ",
+      length(origin_idx),
+      " origin sector",
+      if (length(origin_idx) == 1L) "" else "s",
+      "."
+    ),
+    " " = paste0(
+      "Final demand: ",
+      n_fd,
+      " column",
+      if (n_fd == 1L) "" else "s",
+      "."
+    )
   ))
 
   intensity <- .extension_intensity(extensions, x_vec, output_tol)
@@ -610,12 +634,11 @@ add_footprint_product_stage <- function(
   joined <- joined[!is.na(value) & value > min_value]
 
   if (nrow(joined) == 0L) {
-    empty <- joined[0L, ..out_cols]
+    empty <- joined[0L, out_cols, with = FALSE]
     return(tibble::as_tibble(empty))
   }
 
-  result <- joined[
-    ,
+  result <- joined[,
     .(
       value = sum(value, na.rm = TRUE),
       product_share = data.table::first(product_share)
@@ -623,7 +646,7 @@ add_footprint_product_stage <- function(
     by = group_cols
   ]
   data.table::setorder(result, -value)
-  tibble::as_tibble(result[, ..out_cols])
+  tibble::as_tibble(result[, out_cols, with = FALSE])
 }
 
 .fd_product_area_shares <- function(
@@ -652,8 +675,7 @@ add_footprint_product_stage <- function(
 
   y_dt <- data.table::as.data.table(y_sp)
   y_dt <- y_dt[x > 0]
-  y_dt[
-    ,
+  y_dt[,
     `:=`(
       target_area = as.integer(fd_labels$area_code[j]),
       target_fd = fd_labels$fd_col[j],
@@ -661,8 +683,7 @@ add_footprint_product_stage <- function(
       product_item = as.integer(labels$item_cbs_code[i])
     )
   ]
-  y_dt <- y_dt[
-    ,
+  y_dt <- y_dt[,
     .(product_value = sum(x, na.rm = TRUE)),
     by = .(target_area, target_fd, product_item, product_area)
   ]
@@ -674,8 +695,7 @@ add_footprint_product_stage <- function(
     -product_value,
     product_area
   )
-  y_dt[
-    ,
+  y_dt[,
     `:=`(
       product_total = sum(product_value, na.rm = TRUE),
       product_area_rank = seq_len(.N)
@@ -689,8 +709,7 @@ add_footprint_product_stage <- function(
     on = "product_area"
   ]
   y_dt[is.na(product_area_name), product_area_name := other_area_name]
-  y_dt <- y_dt[
-    ,
+  y_dt <- y_dt[,
     .(
       product_value = sum(product_value, na.rm = TRUE),
       product_total = data.table::first(product_total)
@@ -703,16 +722,14 @@ add_footprint_product_stage <- function(
       product_area_name
     )
   ]
-  y_dt[
-    ,
+  y_dt[,
     product_share := data.table::fifelse(
       product_total > 0,
       product_value / product_total,
       0
     )
   ]
-  tibble::as_tibble(y_dt[
-    ,
+  tibble::as_tibble(y_dt[,
     .(
       target_area,
       target_fd,
