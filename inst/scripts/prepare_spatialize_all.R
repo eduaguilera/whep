@@ -4497,11 +4497,14 @@ write_lpjml_static_inputs <- function(
   g <- coord_to_rowcol(g, grid)
   g[, cell_area_ha := row_area_ha[row]]
   g[, value := pmin(1, pmax(0, (pasture_ha + rangeland_ha) / cell_area_ha))]
-  g[
+  res <- g[
     value > 0,
     .(value = sum(value, na.rm = TRUE)),
-    by = .(year, pft = 14L, row, col)
+    by = .(year, row, col)
   ]
+  res[, pft := 14L]
+  data.table::setcolorder(res, c("year", "pft", "row", "col", "value"))
+  res[]
 }
 
 # Grassland livestock density (LSU/ha) for the LPJmL grazing module: whep grazer
