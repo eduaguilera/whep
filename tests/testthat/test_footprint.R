@@ -396,3 +396,40 @@ testthat::test_that("fd_labels yields target_fd and target_item columns", {
     set = io$labels[[1]]$item_cbs_code
   )
 })
+
+testthat::test_that("fd_labels zero footprint keeps output schema", {
+  z <- Matrix::Matrix(0, nrow = 2, ncol = 2, sparse = TRUE)
+  x <- c(100, 200)
+  y <- matrix(0, nrow = 2, ncol = 2)
+  extensions <- c(0, 0)
+  labels <- tibble::tibble(
+    area_code = c(1L, 1L),
+    item_cbs_code = c(10L, 20L)
+  )
+  fd_labels <- tibble::tibble(
+    area_code = c(1L, 2L),
+    fd_col = c("food", "food")
+  )
+
+  result <- compute_footprint(
+    x_vec = x,
+    y_mat = y,
+    extensions = extensions,
+    labels = labels,
+    z_mat = z,
+    fd_labels = fd_labels
+  )
+
+  testthat::expect_equal(nrow(result), 0L)
+  testthat::expect_equal(
+    names(result),
+    c(
+      "origin_area",
+      "origin_item",
+      "target_area",
+      "target_item",
+      "target_fd",
+      "value"
+    )
+  )
+})

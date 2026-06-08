@@ -198,6 +198,19 @@ testthat::test_that("build_io_model with non-numeric years raises error", {
   )
 })
 
+testthat::test_that("IO default build helpers scope cache keys by requested years", {
+  testthat::expect_null(.io_build_years(NULL))
+  testthat::expect_equal(.io_build_years(c(2001, 1999)), 1999:2001)
+  testthat::expect_equal(
+    .io_cache_key("primary_prod", NULL),
+    "primary_prod"
+  )
+  testthat::expect_equal(
+    .io_cache_key("primary_prod", c(2001, 1999)),
+    "primary_prod__1999__2001"
+  )
+})
+
 # Private helpers -------------------------------------------------------
 
 testthat::test_that(".block_diag builds correct block-diagonal", {

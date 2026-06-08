@@ -187,45 +187,70 @@ compute_footprint <- function(
   fd_labels
 ) {
   items <- sort(unique(labels$item_cbs_code))
-  g_mat <- .build_item_grouping(labels, items)
+  label_item_idx <- match(labels$item_cbs_code, items)
   n_y_cols <- ncol(y_mat)
 
-  purrr::map(seq_len(n_y_cols), function(j) {
+  results <- lapply(seq_len(n_y_cols), function(j) {
     .footprint_one_fd_col(
       multiply_fn,
       y_mat[, j],
-      g_mat,
       labels,
       items,
+      label_item_idx,
       fd_labels$area_code[j],
       fd_labels$fd_col[j]
     )
-  }) |>
-    dplyr::bind_rows()
+  })
+  result <- dplyr::bind_rows(results)
+  if (nrow(result) == 0L) {
+    return(.empty_footprint_by_item())
+  }
+  result
 }
 
 .footprint_one_fd_col <- function(
   multiply_fn,
   y_vec,
-  g_mat,
   labels,
   items,
+  label_item_idx,
   consumer_area,
   fd_col
 ) {
   y_vec <- as.numeric(y_vec)
-  if (all(y_vec == 0)) {
+  nz <- which(y_vec != 0)
+  if (length(nz) == 0L) {
     return(NULL)
   }
 
-  v_mat <- Matrix::Diagonal(x = y_vec) %*% g_mat
+  active_item_idx <- sort(unique(label_item_idx[nz]))
+  v_mat <- .footprint_fd_rhs(
+    y_vec,
+    nz,
+    label_item_idx,
+    active_item_idx
+  )
   fp_item <- multiply_fn(v_mat)
   .fp_grouped_to_tidy(
     fp_item,
     labels,
-    items,
+    items[active_item_idx],
     consumer_area,
     fd_col
+  )
+}
+
+.footprint_fd_rhs <- function(
+  y_vec,
+  nz,
+  label_item_idx,
+  active_item_idx
+) {
+  Matrix::sparseMatrix(
+    i = nz,
+    j = match(label_item_idx[nz], active_item_idx),
+    x = y_vec[nz],
+    dims = c(length(y_vec), length(active_item_idx))
   )
 }
 
@@ -336,52 +361,48 @@ compute_footprint <- function(
     return(result)
   }
 
-  source_totals <- tibble::tibble(
-    origin_area = as.integer(labels$area_code),
-    origin_item = as.integer(labels$item_cbs_code),
-    source_value = ifelse(x_vec <= output_tol, 0, pmax(extensions, 0))
-  ) |>
-    dplyr::group_by(.data$origin_area, .data$origin_item) |>
-    dplyr::summarise(
-      source_value = sum(.data$source_value, na.rm = TRUE),
-      .groups = "drop"
-    )
+  source_key <- .footprint_origin_key(
+    labels$area_code,
+    labels$item_cbs_code
+  )
+  source_value <- ifelse(x_vec <= output_tol, 0, pmax(extensions, 0))
+  source_value[is.na(source_value)] <- 0
+  source_totals <- .sum_by_key(source_value, source_key)
 
-  result_totals <- result |>
-    dplyr::group_by(.data$origin_area, .data$origin_item) |>
-    dplyr::summarise(
-      result_value = sum(.data$value, na.rm = TRUE),
-      .groups = "drop"
-    )
+  result_key <- .footprint_origin_key(
+    result$origin_area,
+    result$origin_item
+  )
+  result_value <- result$value
+  result_value[is.na(result_value)] <- 0
+  result_totals <- .sum_by_key(result_value, result_key)
 
-  scales <- result_totals |>
-    dplyr::left_join(
-      source_totals,
-      by = c("origin_area", "origin_item")
-    ) |>
-    dplyr::mutate(
-      source_value = tidyr::replace_na(.data$source_value, 0),
-      scale = dplyr::case_when(
-        .data$result_value <= 0 ~ 0,
-        .data$source_value <= 0 ~ 0,
-        .data$result_value > .data$source_value ~
-          .data$source_value / .data$result_value,
-        TRUE ~ 1
-      )
-    ) |>
-    dplyr::select("origin_area", "origin_item", "scale")
+  source_for_result <- source_totals[names(result_totals)]
+  source_for_result[is.na(source_for_result)] <- 0
+  scales <- rep(0, length(result_totals))
+  names(scales) <- names(result_totals)
+  valid <- result_totals > 0 & source_for_result > 0
+  scales[valid] <- ifelse(
+    result_totals[valid] > source_for_result[valid],
+    source_for_result[valid] / result_totals[valid],
+    1
+  )
 
-  result |>
-    dplyr::left_join(
-      scales,
-      by = c("origin_area", "origin_item")
-    ) |>
-    dplyr::mutate(
-      scale = tidyr::replace_na(.data$scale, 0),
-      value = .data$value * .data$scale
-    ) |>
-    dplyr::select(-dplyr::all_of("scale")) |>
-    dplyr::filter(.data$value > 0)
+  result$value <- result$value * unname(scales[result_key])
+  keep <- !is.na(result$value) & result$value > 0
+  result[keep, , drop = FALSE]
+}
+
+.footprint_origin_key <- function(area, item) {
+  paste(as.integer(area), as.integer(item), sep = "\r")
+}
+
+.sum_by_key <- function(value, key) {
+  rowsum(
+    matrix(value, ncol = 1L),
+    group = key,
+    reorder = FALSE
+  )[, 1L]
 }
 
 .empty_footprint <- function() {
@@ -390,6 +411,17 @@ compute_footprint <- function(
     origin_item = integer(0),
     target_area = integer(0),
     target_item = integer(0),
+    value = numeric(0)
+  )
+}
+
+.empty_footprint_by_item <- function() {
+  tibble::tibble(
+    origin_area = integer(0),
+    origin_item = integer(0),
+    target_area = integer(0),
+    target_item = integer(0),
+    target_fd = character(0),
     value = numeric(0)
   )
 }
