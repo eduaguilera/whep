@@ -580,41 +580,50 @@ add_footprint_product_stage <- function(
     other_area_name
   )
 
-  result <- footprints |>
-    dplyr::left_join(
-      shares,
-      by = c(
-        "target_area",
-        "target_fd",
-        "target_item" = "product_item"
-      )
-    ) |>
-    dplyr::mutate(
-      product_area = dplyr::if_else(
-        is.na(.data$product_area),
-        .data$target_area,
-        .data$product_area
-      ),
-      product_area_name = dplyr::if_else(
-        is.na(.data$product_area_name),
-        .data$target_area_name,
-        .data$product_area_name
-      ),
-      product_item = .data$target_item,
-      product_share = tidyr::replace_na(.data$product_share, 1),
-      value = .data$value * .data$product_share
-    ) |>
-    dplyr::filter(.data$value > min_value)
+  footprint_cols <- names(footprints)
+  group_cols <- c(
+    setdiff(footprint_cols, "value"),
+    "product_area",
+    "product_area_name",
+    "product_item"
+  )
+  out_cols <- c(group_cols, "value", "product_share")
 
-  group_cols <- setdiff(names(result), c("value", "product_share"))
-  result |>
-    dplyr::group_by(dplyr::across(dplyr::all_of(group_cols))) |>
-    dplyr::summarise(
-      value = sum(.data$value, na.rm = TRUE),
-      product_share = dplyr::first(.data$product_share),
-      .groups = "drop"
-    ) |>
-    dplyr::arrange(dplyr::desc(.data$value))
+  fp_dt <- data.table::as.data.table(footprints)
+  shares_dt <- data.table::as.data.table(shares)
+  joined <- shares_dt[
+    fp_dt,
+    on = c("target_area", "target_fd", "product_item" = "target_item"),
+    allow.cartesian = TRUE
+  ]
+
+  joined[
+    is.na(product_share),
+    `:=`(
+      product_area_name = target_area_name,
+      product_share = 1
+    )
+  ]
+  joined[is.na(product_area), product_area := target_area]
+  joined[, target_item := product_item]
+  joined[, value := value * product_share]
+  joined <- joined[!is.na(value) & value > min_value]
+
+  if (nrow(joined) == 0L) {
+    empty <- joined[0L, ..out_cols]
+    return(tibble::as_tibble(empty))
+  }
+
+  result <- joined[
+    ,
+    .(
+      value = sum(value, na.rm = TRUE),
+      product_share = data.table::first(product_share)
+    ),
+    by = group_cols
+  ]
+  data.table::setorder(result, -value)
+  tibble::as_tibble(result[, ..out_cols])
 }
 
 .fd_product_area_shares <- function(
@@ -638,79 +647,81 @@ add_footprint_product_stage <- function(
 
   area_names <- whep::regions_full |>
     dplyr::select(product_area = code, product_area_name = name) |>
-    dplyr::distinct(.data$product_area, .keep_all = TRUE)
+    dplyr::distinct(.data$product_area, .keep_all = TRUE) |>
+    data.table::as.data.table()
 
-  y_sp |>
-    tibble::as_tibble() |>
-    dplyr::filter(.data$x > 0) |>
-    dplyr::mutate(
-      target_area = as.integer(fd_labels$area_code[.data$j]),
-      target_fd = fd_labels$fd_col[.data$j],
-      product_area = as.integer(labels$area_code[.data$i]),
-      product_item = as.integer(labels$item_cbs_code[.data$i])
-    ) |>
-    dplyr::summarise(
-      product_value = sum(.data$x, na.rm = TRUE),
-      .by = c(
-        "target_area",
-        "target_fd",
-        "product_item",
-        "product_area"
-      )
-    ) |>
-    dplyr::group_by(
-      .data$target_area,
-      .data$target_fd,
-      .data$product_item
-    ) |>
-    dplyr::arrange(
-      dplyr::desc(.data$product_value),
-      .data$product_area,
-      .by_group = TRUE
-    ) |>
-    dplyr::mutate(
-      product_total = sum(.data$product_value, na.rm = TRUE),
-      product_area_rank = dplyr::row_number(),
-      product_area = dplyr::if_else(
-        .data$product_area_rank <= max_product_areas,
-        .data$product_area,
-        NA_integer_
-      )
-    ) |>
-    dplyr::ungroup() |>
-    dplyr::left_join(area_names, by = "product_area") |>
-    dplyr::mutate(
-      product_area_name = tidyr::replace_na(
-        .data$product_area_name,
-        other_area_name
-      )
-    ) |>
-    dplyr::summarise(
-      product_value = sum(.data$product_value, na.rm = TRUE),
-      product_total = dplyr::first(.data$product_total),
-      .by = c(
-        "target_area",
-        "target_fd",
-        "product_item",
-        "product_area",
-        "product_area_name"
-      )
-    ) |>
-    dplyr::mutate(
-      product_share = dplyr::if_else(
-        .data$product_total > 0,
-        .data$product_value / .data$product_total,
-        0
-      )
-    ) |>
-    dplyr::select(
-      "target_area",
-      "target_fd",
-      "product_item",
-      "product_area",
-      "product_area_name",
-      "product_share"
+  y_dt <- data.table::as.data.table(y_sp)
+  y_dt <- y_dt[x > 0]
+  y_dt[
+    ,
+    `:=`(
+      target_area = as.integer(fd_labels$area_code[j]),
+      target_fd = fd_labels$fd_col[j],
+      product_area = as.integer(labels$area_code[i]),
+      product_item = as.integer(labels$item_cbs_code[i])
     )
+  ]
+  y_dt <- y_dt[
+    ,
+    .(product_value = sum(x, na.rm = TRUE)),
+    by = .(target_area, target_fd, product_item, product_area)
+  ]
+  data.table::setorder(
+    y_dt,
+    target_area,
+    target_fd,
+    product_item,
+    -product_value,
+    product_area
+  )
+  y_dt[
+    ,
+    `:=`(
+      product_total = sum(product_value, na.rm = TRUE),
+      product_area_rank = seq_len(.N)
+    ),
+    by = .(target_area, target_fd, product_item)
+  ]
+  y_dt[product_area_rank > max_product_areas, product_area := NA_integer_]
+  y_dt[
+    area_names,
+    product_area_name := i.product_area_name,
+    on = "product_area"
+  ]
+  y_dt[is.na(product_area_name), product_area_name := other_area_name]
+  y_dt <- y_dt[
+    ,
+    .(
+      product_value = sum(product_value, na.rm = TRUE),
+      product_total = data.table::first(product_total)
+    ),
+    by = .(
+      target_area,
+      target_fd,
+      product_item,
+      product_area,
+      product_area_name
+    )
+  ]
+  y_dt[
+    ,
+    product_share := data.table::fifelse(
+      product_total > 0,
+      product_value / product_total,
+      0
+    )
+  ]
+  tibble::as_tibble(y_dt[
+    ,
+    .(
+      target_area,
+      target_fd,
+      product_item,
+      product_area,
+      product_area_name,
+      product_share
+    )
+  ])
 }
 
 .validate_add_stage_inputs <- function(

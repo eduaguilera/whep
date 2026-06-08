@@ -179,6 +179,38 @@ testthat::test_that("add_footprint_product_stage fills fallback product area cod
   testthat::expect_equal(result$value, 100)
 })
 
+testthat::test_that("add_footprint_product_stage applies min_share per split row", {
+  footprints <- tibble::tibble(
+    origin_area = c(1L, 1L),
+    origin_item = c(10L, 10L),
+    target_area = c(1L, 1L),
+    target_area_name = c("Target", "Target"),
+    target_item = c(20L, 20L),
+    target_fd = c("food", "food"),
+    value = c(40, 40)
+  )
+  y_mat <- Matrix::Matrix(c(50, 50), nrow = 2, sparse = TRUE)
+  labels <- tibble::tibble(
+    area_code = c(1L, 2L),
+    item_cbs_code = c(20L, 20L)
+  )
+  fd_labels <- tibble::tibble(
+    area_code = 1L,
+    fd_col = "food"
+  )
+
+  result <- add_footprint_product_stage(
+    footprints,
+    y_mat,
+    labels,
+    fd_labels,
+    max_product_areas = 2,
+    min_share = 30
+  )
+
+  testthat::expect_equal(nrow(result), 0)
+})
+
 testthat::test_that("add_footprint_product_stage rejects invalid area labels", {
   footprints <- tibble::tibble(
     origin_area = 1L,
