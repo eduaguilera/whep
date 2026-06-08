@@ -345,3 +345,28 @@
     2015L, "import", 2105L, 0.030
   )
 }
+
+.example_feed_demand <- function() {
+  tibble::tribble(
+    ~year, ~territory, ~sub_territory, ~livestock_category, ~item_cbs_code,
+    ~feed_group, ~feed_quality, ~demand_dm_t, ~fixed_demand,
+    2000L, "ESP", "prov_a", "cattle", 2514L, "cereals", "high_quality", 100, TRUE,
+    2000L, "ESP", "prov_a", "cattle", 2555L, "grass", "grass", 50, TRUE,
+    2000L, "ESP", "prov_b", "pigs", 2514L, "cereals", "high_quality", 30, TRUE
+  )
+}
+
+.example_feed_avail <- function() {
+  tibble::tribble(
+    ~year, ~sub_territory, ~item_cbs_code, ~feed_group, ~feed_quality,
+    ~avail_dm_t, ~feed_scale,
+    2000L, "prov_a", 2514L, "cereals", "high_quality", 80, "national",
+    2000L, "prov_a", 2555L, "grass", "grass", 40, "provincial",
+    2000L, "prov_b", 2514L, "cereals", "high_quality", 100, "national",
+    2000L, "prov_b", 2555L, "grass", "grass", 60, "provincial"
+  )
+}
+
+# afsetools parity fixtures were removed: afsetools::load_general_data() reads
+# Codes_coefs.xlsx via openxlsx (segfaults intermittently on R 4.5.x) and is not
+# a CI dependency, so the live parity test is not run. See test_redistribute_feed.R.

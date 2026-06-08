@@ -4485,9 +4485,54 @@ write_lpjml_static_inputs <- function(
   gridded_n
 }
 
+# Managed grassland fraction (LPJmL grassland CFT, rainfed band 14) from whep's
+# own grassland estimation (currently LUH2 pasture + rangeland, via
+# gridded_pasture). Irrigated grassland (band 30) stays 0. Without this band the
+# grassland stand never establishes in LPJmL and every grazing output is zero.
+.grassland_lu_band <- function(pasture_chunk, grid, row_area_ha) {
+  if (is.null(pasture_chunk) || nrow(pasture_chunk) == 0L) {
+    return(NULL)
+  }
+  g <- data.table::as.data.table(pasture_chunk)
+  g <- coord_to_rowcol(g, grid)
+  g[, cell_area_ha := row_area_ha[row]]
+  g[, value := pmin(1, pmax(0, (pasture_ha + rangeland_ha) / cell_area_ha))]
+  g[
+    value > 0,
+    .(value = sum(value, na.rm = TRUE)),
+    by = .(year, pft = 14L, row, col)
+  ]
+}
+
+# Grassland livestock density (LSU/ha) for the LPJmL grazing module: whep grazer
+# heads x livestock-unit coefficients / grass area. Grazers are the pasture and
+# rangeland species; LU per head from liv_lu_coefs. ls_dt already carries
+# row/col + species_group + heads. NB the heads unit must satisfy lsuha ~ a few
+# LSU/ha; if it comes out ~1000x high the heads are in 1000-head and need /1000.
+.grassland_lsuha_chunk <- function(ls_dt, pasture_chunk, grid, grazer_lu) {
+  d <- data.table::as.data.table(ls_dt)
+  d <- d[species_group %in% names(grazer_lu)]
+  if (nrow(d) == 0L || is.null(pasture_chunk) || nrow(pasture_chunk) == 0L) {
+    return(NULL)
+  }
+  d[, lu_head := grazer_lu[species_group]]
+  lsu <- d[,
+    .(lsu = sum(heads * lu_head, na.rm = TRUE)),
+    by = .(year, row, col)
+  ]
+  g <- coord_to_rowcol(data.table::as.data.table(pasture_chunk), grid)
+  g <- g[,
+    .(grass_ha = sum(pasture_ha + rangeland_ha, na.rm = TRUE)),
+    by = .(year, row, col)
+  ]
+  m <- merge(lsu, g, by = c("year", "row", "col"))
+  m[grass_ha > 0, .(year, pft = 1L, row, col, value = lsu / grass_ha)]
+}
+
 .write_lu_nc_chunk <- function(
   nc_lu,
   cft_chunk,
+  pasture_chunk,
   chunk_years,
   all_years,
   grid,
@@ -4508,7 +4553,7 @@ write_lpjml_static_inputs <- function(
     .(value = sum(irrigated_frac, na.rm = TRUE)),
     by = .(year, pft = base_pft + 16L, row, col)
   ]
-  out <- rbind(rf, ir)
+  out <- rbind(rf, ir, .grassland_lu_band(pasture_chunk, grid, row_area_ha))
   out[, value := pmin(1, pmax(0, value))]
   .pft_nc_write_chunk(nc_lu, out, chunk_years, all_years, grid, 32L)
 }
@@ -4604,6 +4649,17 @@ run_crop_spatialize <- function(
     file.path(input_dir, "country_areas.parquet")
   ) |>
     dplyr::filter(year %in% year_range)
+
+  # whep grassland estimation -> LPJmL grassland landuse band (.grassland_lu_band).
+  gridded_pasture <- tryCatch(
+    nanoparquet::read_parquet(file.path(input_dir, "gridded_pasture.parquet")),
+    error = function(e) NULL
+  )
+  if (is.null(gridded_pasture)) {
+    cli::cli_warn(
+      "gridded_pasture.parquet not found; LPJmL landuse grassland band stays empty (no grazing)."
+    )
+  }
 
   crop_patterns <- nanoparquet::read_parquet(
     file.path(input_dir, "crop_patterns.parquet")
@@ -4887,6 +4943,11 @@ run_crop_spatialize <- function(
       .write_lu_nc_chunk(
         nc_lu,
         cft_chunk_norm,
+        if (is.null(gridded_pasture)) {
+          NULL
+        } else {
+          gridded_pasture[gridded_pasture$year %in% chunk_years, , drop = FALSE]
+        },
         chunk_years,
         years,
         grid,
@@ -5078,6 +5139,30 @@ run_livestock_spatialize <- function(
     file.path(ls_dir, "livestock_species_index.csv")
   )
 
+  # Grassland livestock density (LSU/ha) input for the LPJmL grazing module,
+  # written next to the landuse so run_lpjml() can wire it. Grazers = pasture and
+  # rangeland species; LU per head from liv_lu_coefs (dairy 1.0, cattle 0.8,
+  # sheep/goats 0.1, equines 0.8, camels 1.0).
+  grazer_lu <- c(
+    cattle_dairy = 1.0,
+    cattle_non_dairy = 0.8,
+    buffalo = 0.8,
+    sheep_goats = 0.1,
+    equines = 0.8,
+    camels = 1.0
+  )
+  grazing_dir <- file.path(lpjml_out_dir, "landuse")
+  dir.create(grazing_dir, recursive = TRUE, showWarnings = FALSE)
+  nc_lsuha <- .pft_nc_create(
+    file.path(grazing_dir, paste0("grassland_lsuha_", yr_label, ".nc")),
+    "grassland_lsuha",
+    "Grassland livestock density",
+    "LSU ha-1",
+    grid,
+    1L,
+    years
+  )
+
   chunk_size <- 20L
   year_chunks <- split(years, ceiling(seq_along(years) / chunk_size))
 
@@ -5117,6 +5202,16 @@ run_livestock_spatialize <- function(
       )
     }
 
+    lsuha_chunk <- .grassland_lsuha_chunk(
+      ls_dt,
+      dplyr::filter(gridded_pasture, year %in% chunk_years),
+      grid,
+      grazer_lu
+    )
+    if (!is.null(lsuha_chunk) && nrow(lsuha_chunk) > 0L) {
+      .pft_nc_write_chunk(nc_lsuha, lsuha_chunk, chunk_years, years, grid, 1L)
+    }
+
     summary_rows[[i]] <- dplyr::summarise(
       chunk_result,
       total_heads = round(sum(heads, na.rm = TRUE)),
@@ -5139,6 +5234,10 @@ run_livestock_spatialize <- function(
   tryCatch(
     purrr::walk(nc_ls, .nc_finalise),
     error = function(e) cli::cli_warn("NC finalise error: {e$message}")
+  )
+  tryCatch(
+    .nc_finalise(nc_lsuha),
+    error = function(e) cli::cli_warn("lsuha NC finalise error: {e$message}")
   )
 
   country_totals <- dplyr::summarise(
