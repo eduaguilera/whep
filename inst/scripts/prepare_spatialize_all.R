@@ -4510,9 +4510,19 @@ write_lpjml_static_inputs <- function(
 # Grassland livestock density (LSU/ha) for the LPJmL grazing module: whep grazer
 # heads x livestock-unit coefficients / grass area. Grazers are the pasture and
 # rangeland species; LU per head from liv_lu_coefs. ls_dt already carries
-# row/col + species_group + heads. NB the heads unit must satisfy lsuha ~ a few
-# LSU/ha; if it comes out ~1000x high the heads are in 1000-head and need /1000.
-.grassland_lsuha_chunk <- function(ls_dt, pasture_chunk, grid, grazer_lu) {
+# row/col + species_group + heads. Density is capped at max_lsuha (default 4 =
+# the hard ceiling of LPJmL's own stock grassland_lsuha input on the same 0.5
+# degree grid, and the grass-only forage-balance maximum). The cap is a
+# temporary safeguard against denominator collapse where a country's ruminants
+# land in cells with near-zero mapped grass (uncapped tail reaches ~2174); the
+# real fix is upstream in the pasture mask / livestock-to-pasture allocation.
+.grassland_lsuha_chunk <- function(
+  ls_dt,
+  pasture_chunk,
+  grid,
+  grazer_lu,
+  max_lsuha = 4
+) {
   d <- data.table::as.data.table(ls_dt)
   d <- d[species_group %in% names(grazer_lu)]
   if (nrow(d) == 0L || is.null(pasture_chunk) || nrow(pasture_chunk) == 0L) {
@@ -4529,7 +4539,10 @@ write_lpjml_static_inputs <- function(
     by = .(year, row, col)
   ]
   m <- merge(lsu, g, by = c("year", "row", "col"))
-  m[grass_ha > 0, .(year, pft = 1L, row, col, value = lsu / grass_ha)]
+  m[
+    grass_ha > 0,
+    .(year, pft = 1L, row, col, value = pmin(lsu / grass_ha, max_lsuha))
+  ]
 }
 
 .write_lu_nc_chunk <- function(

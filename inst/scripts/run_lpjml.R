@@ -95,6 +95,11 @@ run_lpjml <- function(
     # Activate the managed-grassland livestock grazing module (Heinke/Herzfeld);
     # without it the grassland stand writes no *_mgrass grazing balance.
     grazing = "livestock",
+    # Drive grazing density from the grassland_lsuha input file. With
+    # prescribe_lsuha = FALSE (the model default) LPJmL ignores the file and
+    # falls back to the scalar param.lsuha (default 0): the grassland stand
+    # establishes but is never grazed and every *_mgrass output stays zero.
+    prescribe_lsuha = TRUE,
 
     # Use spatially explicit WHEP fertilizer/manure inputs instead of
     # global constant rates (fix_fertilization=true ignores the NC files)
