@@ -57,6 +57,13 @@ testthat::test_that("get_feed_intake example returns valid tibble", {
   pointblank::expect_col_vals_not_null(result, "supply")
 })
 
+testthat::test_that("feed intake normalises Buffalo to Buffaloes", {
+  result <- tibble::tibble(live_anim = c("Buffalo", "Cattle, dairy")) |>
+    .fix_feed_live_anim_names()
+
+  testthat::expect_equal(result$live_anim, c("Buffaloes", "Cattle, dairy"))
+})
+
 testthat::test_that("get_primary_production example returns valid tibble", {
   result <- get_primary_production(example = TRUE)
 
@@ -154,7 +161,8 @@ testthat::test_that("get_wide_cbs example returns valid tibble", {
       "export",
       "other_uses",
       "processing",
-      "stock_retrieval"
+      "stock_withdrawal",
+      "stock_addition"
     )
   )
   pointblank::expect_col_vals_not_null(result, "year")

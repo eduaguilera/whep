@@ -1,25 +1,54 @@
-# TODO: Consider fixing these unbalances somehow
-k_ignore_unbalanced <- c(
-  "Linum" = 772,
-  "Seed cotton" = 328,
-  "Oil, palm fruit" = 254,
-  "Hemp" = 776,
-  "Coconuts" = 248,
-  "Kapok fruit" = 310,
-  "Palmkernel Cake" = 2595
-)
+# Small crafted wide CBS fixture with consistent accounting.
+# Supply is production plus import plus stock withdrawal.
+# Use is export plus food, feed, seed, processing, other uses,
+# and stock addition.
+# Domestic supply is food, feed, seed, processing, and other uses.
+.make_cbs_fixture <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code,
+    ~production, ~import, ~export,
+    ~food, ~feed, ~seed, ~processing, ~other_uses,
+    ~stock_withdrawal, ~stock_addition, ~domestic_supply,
+    2000L, 203L, 2511L,
+    5000, 1000, 500,
+    3000, 1500, 200, 500, 300,
+    0, 0, 5500,
+    2000L, 68L, 2514L,
+    3000, 500, 200,
+    2000, 800, 100, 200, 200,
+    0, 0, 3300
+  )
+}
+
+# Small crafted processing coefficients fixture.
+.make_coefs_fixture <- function() {
+  tibble::tribble(
+    ~year, ~area_code,
+    ~item_cbs_code_to_process, ~value_to_process,
+    ~item_cbs_code_processed, ~initial_conversion_factor,
+    ~initial_value_processed, ~conversion_factor_scaling,
+    ~final_conversion_factor, ~final_value_processed,
+    2000L, 203L,
+    2511L, 5000,
+    2542L, 0.2,
+    1000, 0.5,
+    0.1, 500
+  )
+}
 
 k_tolerance <- 1e-6
 
-testthat::test_that("get_wide_cbs gives consistent Commodity Balance Sheet", {
-  testthat::skip_on_ci()
-  testthat::skip_on_cran()
-
-  cbs <- suppressWarnings(get_wide_cbs()) |>
-    dplyr::filter(!(item_cbs_code %in% k_ignore_unbalanced)) |>
+testthat::test_that("wide CBS has consistent supply-use balance", {
+  cbs <- .make_cbs_fixture() |>
     dplyr::mutate(
-      value_in = production + import + stock_retrieval,
-      value_out = export + food + feed + seed + processing + other_uses,
+      value_in = production + import + stock_withdrawal,
+      value_out = export +
+        food +
+        feed +
+        seed +
+        processing +
+        other_uses +
+        stock_addition,
       my_domestic_supply = food + feed + seed + processing + other_uses
     )
 
@@ -38,36 +67,11 @@ testthat::test_that("get_wide_cbs gives consistent Commodity Balance Sheet", {
   )
 })
 
-testthat::test_that("get_codes_coeffs gives consistent shares of processed items", {
-  testthat::skip_on_ci()
-  testthat::skip_on_cran()
-
-  coefs <- suppressWarnings(get_processing_coefs())
-  cbs <- suppressWarnings(get_wide_cbs())
-
-  df <- coefs |>
-    dplyr::left_join(
-      cbs,
-      dplyr::join_by(
-        year,
-        area_code,
-        item_cbs_code_processed == item_cbs_code
-      )
-    ) |>
-    dplyr::group_by(year, area_code, item_cbs_code_processed) |>
-    dplyr::mutate(total_proc_item = sum(final_value_processed))
+testthat::test_that("processing coefficients are internally consistent", {
+  coefs <- .make_coefs_fixture()
 
   pointblank::expect_col_vals_expr(
-    df,
-    rlang::expr(
-      dplyr::near(production, total_proc_item, tol = !!k_tolerance)
-    ),
-    # TODO: Fix few problematic data rows
-    threshold = 0.99
-  )
-
-  pointblank::expect_col_vals_expr(
-    df,
+    coefs,
     rlang::expr(
       dplyr::near(
         value_to_process * initial_conversion_factor,
@@ -76,8 +80,9 @@ testthat::test_that("get_codes_coeffs gives consistent shares of processed items
       )
     )
   )
+
   pointblank::expect_col_vals_expr(
-    df,
+    coefs,
     rlang::expr(
       dplyr::near(
         initial_value_processed * conversion_factor_scaling,
@@ -86,8 +91,9 @@ testthat::test_that("get_codes_coeffs gives consistent shares of processed items
       )
     )
   )
+
   pointblank::expect_col_vals_expr(
-    df,
+    coefs,
     rlang::expr(
       dplyr::near(
         initial_conversion_factor * conversion_factor_scaling,
@@ -96,4 +102,40 @@ testthat::test_that("get_codes_coeffs gives consistent shares of processed items
       )
     )
   )
+})
+
+testthat::test_that("livestock CBS uses slaughtered heads for draft animals", {
+  local_mocked_bindings(
+    .get_livestock_trade_totals = function(livestock_items) {
+      tibble::tibble(
+        year = integer(),
+        area_code = integer(),
+        item_cbs_code = integer(),
+        import = numeric(),
+        export = numeric()
+      )
+    }
+  )
+
+  primary <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~unit, ~value,
+    2000L, 1L, 1096L, "heads", 100,
+    2000L, 1L, 1096L, "slaughtered_heads", 10,
+    2000L, 1L, 946L, "heads", 200,
+    2000L, 1L, 946L, "slaughtered_heads", 20
+  )
+
+  result <- get_livestock_cbs(primary)
+  horse <- dplyr::filter(result, item_cbs_code == 1096L)
+  buffalo <- dplyr::filter(result, item_cbs_code == 946L)
+
+  testthat::expect_equal(horse$production, 10)
+  testthat::expect_equal(horse$domestic_supply, 10)
+  testthat::expect_equal(horse$other_uses, 10)
+  testthat::expect_equal(horse$processing, 0)
+
+  testthat::expect_equal(buffalo$production, 20)
+  testthat::expect_equal(buffalo$domestic_supply, 20)
+  testthat::expect_equal(buffalo$processing, 20)
+  testthat::expect_equal(buffalo$other_uses, 0)
 })

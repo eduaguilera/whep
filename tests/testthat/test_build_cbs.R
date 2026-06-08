@@ -184,6 +184,28 @@ test_that(".processed_raw creates value_proc column", {
   expect_true("processed_item" %in% names(result))
 })
 
+test_that(".prepare_cb_processing_for_cbs excludes unconditional beer grains", {
+  cb_proc <- tibble::tribble(
+    ~ProcessedItem, ~item_cbs, ~Product_fraction, ~Value_fraction, ~Required,
+    "Barley and products", "Beer", 6.55, 0.9, NA_real_,
+    "Hops", "Beer", 0.28, NA_real_, NA_real_,
+    "Maize and products", "Beer", 6.55, NA_real_, NA_real_,
+    "Maize and products", "Sweeteners, Other", 0.3, NA_real_, NA_real_
+  )
+
+  result <- whep:::.prepare_cb_processing_for_cbs(cb_proc)
+
+  beer_inputs <- result |>
+    dplyr::filter(.data$item_cbs == "Beer") |>
+    dplyr::pull(.data$ProcessedItem)
+
+  expect_setequal(beer_inputs, c("Barley and products", "Hops"))
+  expect_true(any(
+    result$ProcessedItem == "Maize and products" &
+      result$item_cbs == "Sweeteners, Other"
+  ))
+})
+
 
 # -- .select_best_source FBS harmonization ------------------------------------
 

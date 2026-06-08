@@ -280,11 +280,13 @@
 #'   `"Apples and products"`, `"Barley and products"`).
 #' - `item_cbs`: Name of the output CBS category produced by processing (e.g.,
 #'   `"Alcohol, Non-Food"`).
-#' - `Product_fraction`: Fraction of the processed item that yields the output
-#'   product (numeric, 0–1).
+#' - `Product_fraction`: Conversion factor from processed input quantity to
+#'   output product quantity. This can exceed 1 when the output includes added
+#'   mass, such as water in beverages.
 #' - `Value_fraction`: Economic value fraction associated with the output
 #'   product (numeric; largely `NA` in current data).
-#' - `Required`: Reserved column, currently all `NA`.
+#' - `Required`: Marks required co-product links in selected processing
+#'   chains.
 #' @source Derived from FAOSTAT commodity balance sheet processing assumptions.
 #'
 #' @examples
