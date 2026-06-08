@@ -205,7 +205,7 @@ build_gridded_landuse(
   country_areas, crop_patterns, gridded_cropland, country_grid,
   config = list(years = 2000L)
 )
-#> →   Year 2000: 2 rows (alloc 0.01s, cap 0.02s)
+#> →   Year 2000: 2 rows (alloc 0.01s, cap 0.01s)
 #> # A tibble: 2 × 7
 #>    year area_code   lon   lat item_prod_code rainfed_ha irrigated_ha
 #>   <int>     <int> <dbl> <dbl>          <int>      <dbl>        <dbl>

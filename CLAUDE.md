@@ -115,8 +115,9 @@
 
 The PR must pass these GitHub Actions checks:
 
-1.  **R-CMD-check** (5 platforms): `rcmdcheck::rcmdcheck()` with no
-    errors, warnings, or notes.
+1.  **R-CMD-check** (5 platforms):
+    [`rcmdcheck::rcmdcheck()`](http://r-lib.github.io/rcmdcheck/reference/rcmdcheck.md)
+    with no errors, warnings, or notes.
     - All NSE variables must be declared in
       [`utils::globalVariables()`](https://rdrr.io/r/utils/globalVariables.html)
       in `R/utils.R`.

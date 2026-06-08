@@ -158,6 +158,8 @@ Production, supply/use, and processing datasets.
 
 - [`build_supply_use()`](https://eduaguilera.github.io/whep/reference/build_supply_use.md)
   : Supply and use tables
+- [`get_land_fp_production()`](https://eduaguilera.github.io/whep/reference/get_land_fp_production.md)
+  : Get land footprint data for local production.
 - [`get_feed_intake()`](https://eduaguilera.github.io/whep/reference/get_feed_intake.md)
   : Livestock feed intake
 - [`get_primary_production()`](https://eduaguilera.github.io/whep/reference/get_primary_production.md)
@@ -167,7 +169,9 @@ Production, supply/use, and processing datasets.
 - [`get_processing_coefs()`](https://eduaguilera.github.io/whep/reference/get_processing_coefs.md)
   : Processed products share factors
 - [`get_wide_cbs()`](https://eduaguilera.github.io/whep/reference/get_wide_cbs.md)
-  : Commodity balance sheet data
+  : Commodity balance sheet data.
+- [`get_livestock_cbs()`](https://eduaguilera.github.io/whep/reference/get_livestock_cbs.md)
+  : Livestock commodity balance sheet entries
 
 ### Trade
 
@@ -205,6 +209,8 @@ Fetch large files from external sources and cache them.
   : External inputs
 - [`whep_list_file_versions()`](https://eduaguilera.github.io/whep/reference/whep_list_file_versions.md)
   : Input file versions
+- [`whep_clear_cache()`](https://eduaguilera.github.io/whep/reference/whep_clear_cache.md)
+  : Clear the build pipeline cache
 
 ## Code namings
 
@@ -309,6 +315,26 @@ Functions for index decomposition analysis.
 
 - [`calculate_lmdi()`](https://eduaguilera.github.io/whep/reference/calculate_lmdi.md)
   : Calculate LMDI decomposition.
+
+## Multi-regional input-output model
+
+Build and analyze multi-regional input-output (MRIO) models following
+the FABIO framework.
+
+- [`build_io_model()`](https://eduaguilera.github.io/whep/reference/build_io_model.md)
+  : Build multi-regional input-output model.
+- [`compute_leontief_inverse()`](https://eduaguilera.github.io/whep/reference/compute_leontief_inverse.md)
+  : Compute Leontief inverse.
+- [`compute_footprint()`](https://eduaguilera.github.io/whep/reference/compute_footprint.md)
+  : Compute environmental footprints.
+- [`compute_footprint_paths()`](https://eduaguilera.github.io/whep/reference/compute_footprint_paths.md)
+  : Compute first-use footprint paths.
+- [`compute_fp_product_paths()`](https://eduaguilera.github.io/whep/reference/compute_fp_product_paths.md)
+  : Compute final-product footprint paths.
+- [`add_footprint_product_stage()`](https://eduaguilera.github.io/whep/reference/add_footprint_product_stage.md)
+  : Add a final-demand product-area stage to footprints.
+- [`plot_footprint_sankey()`](https://eduaguilera.github.io/whep/reference/plot_footprint_sankey.md)
+  : Interactive footprint Sankey viewer
 
 ## Livestock emissions
 
@@ -462,5 +488,7 @@ Functions to harmonize time series items according to specified mapping.
 
 ### All vignettes
 
+- [Environmental footprint
+  analysis](https://eduaguilera.github.io/whep/articles/footprint-analysis.md):
 - [Trade sources year
   coverage](https://eduaguilera.github.io/whep/articles/trade-sources-coverage.md):

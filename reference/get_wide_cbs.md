@@ -1,6 +1,8 @@
-# Commodity balance sheet data
+# Commodity balance sheet data.
 
-States supply and use parts for each commodity balance sheet (CBS) item.
+Retrieve supply and use parts for each commodity balance sheet (CBS)
+item. Stock variations are split into two non-negative columns following
+the FABIO methodology.
 
 ## Usage
 
@@ -30,8 +32,11 @@ contains the following columns:
   see e.g.
   [`add_item_cbs_name()`](https://eduaguilera.github.io/whep/reference/add_item_cbs_name.md).
 
-The other columns are quantities (measured in tonnes), where total
-supply and total use should be balanced.
+The other columns are quantities where total supply and total use should
+be balanced. Units are tonnes for most items, and heads for live animals
+(see
+[items_cbs](https://eduaguilera.github.io/whep/reference/items_cbs.md)
+`item_type`).
 
 For supply:
 
@@ -39,13 +44,8 @@ For supply:
 
 - `import`: Obtained from importing from other countries.
 
-- `stock_retrieval`: Available as net stock from previous years. For
-  ease, only one stock column is included here as supply. If the value
-  is positive, there is a stock quantity available as supply. Otherwise,
-  it means a larger quantity was stored for later years and cannot be
-  used as supply, having to deduce it from total supply. Since in this
-  case it is negative, the total supply is still computed as the sum of
-  all of these.
+- `stock_withdrawal`: Biomass taken out of storage (non-negative).
+  Positive when stocks decrease.
 
 For use:
 
@@ -57,18 +57,21 @@ For use:
 
 - `seed`: Intended for new production.
 
-- `processing`: The product will be used to obtain other subproducts.
+- `processing`: Used to obtain other subproducts.
 
-- `other_uses`: Any other use not included in the above ones.
+- `other_uses`: Any other use not included above.
 
-There is an additional column `domestic_supply` which is computed as the
+- `stock_addition`: Biomass placed into storage (non-negative). Positive
+  when stocks increase.
+
+There is an additional column `domestic_supply` which is computed as
 total use excluding `export`.
 
 ## Examples
 
 ``` r
 get_wide_cbs(example = TRUE)
-#> # A tibble: 10 × 13
+#> # A tibble: 10 × 14
 #>     year area_code item_cbs_code domestic_supply    food production   feed  seed
 #>    <int>     <int>         <dbl>           <dbl>   <dbl>      <dbl>  <dbl> <dbl>
 #>  1  1987       250          2106      13741247       0     13741247 1.37e7     0
@@ -81,6 +84,6 @@ get_wide_cbs(example = TRUE)
 #>  8  1961       156          2658          6877    6877         2000 0          0
 #>  9  1961       236          2620         11177   11177            0 0          0
 #> 10  1995        49          2734         71117   71117        56724 0          0
-#> # ℹ 5 more variables: import <dbl>, export <dbl>, other_uses <dbl>,
-#> #   processing <dbl>, stock_retrieval <dbl>
+#> # ℹ 6 more variables: import <dbl>, export <dbl>, other_uses <dbl>,
+#> #   processing <dbl>, stock_withdrawal <dbl>, stock_addition <dbl>
 ```

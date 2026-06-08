@@ -5,7 +5,7 @@ Reports trade between pairs of countries in given years.
 ## Usage
 
 ``` r
-get_bilateral_trade(example = FALSE)
+get_bilateral_trade(example = FALSE, cbs = NULL)
 ```
 
 ## Arguments
@@ -14,6 +14,12 @@ get_bilateral_trade(example = FALSE)
 
   If `TRUE`, return a small example output without downloading remote
   data. Default is `FALSE`.
+
+- cbs:
+
+  Optional pre-computed wide CBS tibble from
+  [`get_wide_cbs()`](https://eduaguilera.github.io/whep/reference/get_wide_cbs.md).
+  If `NULL` (default), it is built internally.
 
 ## Value
 

@@ -3,6 +3,7 @@
 <url><loc>https://eduaguilera.github.io/whep/CLAUDE.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/LICENSE-text.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/LICENSE.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/articles/footprint-analysis.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/articles/index.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/articles/trade-sources-coverage.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/authors.html</loc></url>
@@ -11,6 +12,7 @@
 <url><loc>https://eduaguilera.github.io/whep/news/index.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/add_area_code.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/add_area_name.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/add_footprint_product_stage.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/add_item_cbs_code.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/add_item_cbs_name.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/add_item_prod_code.html</loc></url>
@@ -22,6 +24,7 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/build_detailed_trade.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_gridded_landuse.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_gridded_livestock.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/build_io_model.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_primary_prices.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_primary_production.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_processing_coefs.html</loc></url>
@@ -40,6 +43,10 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/cbs_trade_codes.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/cft_mapping.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/climate_mcf.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/compute_footprint.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/compute_footprint_paths.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/compute_fp_product_paths.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/compute_leontief_inverse.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/create_n_nat_destiny.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/create_n_production.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/create_n_prov_destiny.html</loc></url>
@@ -55,6 +62,8 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/get_bilateral_trade.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/get_faostat_data.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/get_feed_intake.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/get_land_fp_production.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/get_livestock_cbs.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/get_primary_production.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/get_primary_residues.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/get_processing_coefs.html</loc></url>
@@ -110,6 +119,7 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/livestock_constants.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/livestock_production_defaults.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/mueller_synthetic_n.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/plot_footprint_sankey.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/polities.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/polities_cats.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/prepare_livestock_emissions.html</loc></url>
@@ -121,6 +131,7 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/temperature_adjustment.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/uncertainty_ranges.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/whep-package.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/whep_clear_cache.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/whep_inputs.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/whep_list_file_versions.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/whep_read_file.html</loc></url>

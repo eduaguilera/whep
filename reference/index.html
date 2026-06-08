@@ -18,7 +18,8 @@
       <ul class="navbar-nav me-auto"><li class="active nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
-  <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/trade-sources-coverage.html">Trade sources year coverage</a></li>
+  <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/footprint-analysis.html">Environmental footprint analysis</a></li>
+    <li><a class="dropdown-item" href="../articles/trade-sources-coverage.html">Trade sources year coverage</a></li>
   </ul></li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
       </ul><ul class="navbar-nav"><li class="nav-item"><form class="form-inline" role="search">
@@ -146,6 +147,13 @@
 
         <dt>
 
+          <code><a href="get_land_fp_production.html">get_land_fp_production()</a></code>
+
+        </dt>
+        <dd>Get land footprint data for local production.</dd>
+
+        <dt>
+
           <code><a href="get_feed_intake.html">get_feed_intake()</a></code>
 
         </dt>
@@ -177,7 +185,14 @@
           <code><a href="get_wide_cbs.html">get_wide_cbs()</a></code>
 
         </dt>
-        <dd>Commodity balance sheet data</dd>
+        <dd>Commodity balance sheet data.</dd>
+
+        <dt>
+
+          <code><a href="get_livestock_cbs.html">get_livestock_cbs()</a></code>
+
+        </dt>
+        <dd>Livestock commodity balance sheet entries</dd>
       </dl></div><div class="section level2">
 
       <h3 id="trade">Trade<a class="anchor" aria-label="anchor" href="#trade"></a></h3>
@@ -282,6 +297,13 @@
 
         </dt>
         <dd>Input file versions</dd>
+
+        <dt>
+
+          <code><a href="whep_clear_cache.html">whep_clear_cache()</a></code>
+
+        </dt>
+        <dd>Clear the build pipeline cache</dd>
       </dl></div><div class="section level2">
       <h2 id="code-namings">Code namings<a class="anchor" aria-label="anchor" href="#code-namings"></a></h2>
 
@@ -583,6 +605,64 @@
 
         </dt>
         <dd>Calculate LMDI decomposition.</dd>
+      </dl></div><div class="section level2">
+      <h2 id="multi-regional-input-output-model">Multi-regional input-output model<a class="anchor" aria-label="anchor" href="#multi-regional-input-output-model"></a></h2>
+
+      <div class="section-desc"><p>Build and analyze multi-regional input-output (MRIO) models following the FABIO framework.</p></div>
+
+      <dl></dl></div><div class="section level2">
+
+
+
+
+      <dl><dt>
+
+          <code><a href="build_io_model.html">build_io_model()</a></code>
+
+        </dt>
+        <dd>Build multi-regional input-output model.</dd>
+
+        <dt>
+
+          <code><a href="compute_leontief_inverse.html">compute_leontief_inverse()</a></code>
+
+        </dt>
+        <dd>Compute Leontief inverse.</dd>
+
+        <dt>
+
+          <code><a href="compute_footprint.html">compute_footprint()</a></code>
+
+        </dt>
+        <dd>Compute environmental footprints.</dd>
+
+        <dt>
+
+          <code><a href="compute_footprint_paths.html">compute_footprint_paths()</a></code>
+
+        </dt>
+        <dd>Compute first-use footprint paths.</dd>
+
+        <dt>
+
+          <code><a href="compute_fp_product_paths.html">compute_fp_product_paths()</a></code>
+
+        </dt>
+        <dd>Compute final-product footprint paths.</dd>
+
+        <dt>
+
+          <code><a href="add_footprint_product_stage.html">add_footprint_product_stage()</a></code>
+
+        </dt>
+        <dd>Add a final-demand product-area stage to footprints.</dd>
+
+        <dt>
+
+          <code><a href="plot_footprint_sankey.html">plot_footprint_sankey()</a></code>
+
+        </dt>
+        <dd>Interactive footprint Sankey viewer</dd>
       </dl></div><div class="section level2">
       <h2 id="livestock-emissions">Livestock emissions<a class="anchor" aria-label="anchor" href="#livestock-emissions"></a></h2>
 

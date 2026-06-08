@@ -53,7 +53,10 @@ columns:
 
   - `t_ha`: Tonnes per hectare, available for crops.
 
-  - `heads`: Number of animals, available for livestock.
+  - `heads`: Number of animals (stocks), available for livestock.
+
+  - `slaughtered_heads`: Number of animals slaughtered, available for
+    livestock.
 
   - `LU`: Standard Livestock Unit measure, available for livestock.
 
