@@ -47,9 +47,12 @@
 #'   footprints from zero-output residuals.
 #' @param value_added_floor Minimum share of each sector's output that
 #'   is treated as non-intermediate leakage when constructing A from
-#'   `z_mat`. Column sums larger than `1 - value_added_floor` are
-#'   rescaled to that maximum. Ignored when a precomputed `l_inv` is
-#'   supplied without `z_mat`.
+#'   `z_mat` if `max_column_sum` is left at its low-level default. Ignored
+#'   when a precomputed `l_inv` is supplied without `z_mat`.
+#' @param max_column_sum Maximum allowed column sum in A when using `z_mat`.
+#'   Physical biomass systems can require more than one unit of intermediate
+#'   input per unit of output, so the footprint path defaults to `100` and only
+#'   clips extreme columns caused by residual inconsistencies or tiny outputs.
 #' @param conserve_extensions If `TRUE`, rescale positive footprint
 #'   flows within each origin area/item so their sum does not exceed
 #'   the corresponding positive extension total. This keeps footprint
@@ -98,6 +101,7 @@ compute_footprint <- function(
   fd_labels = NULL,
   output_tol = 1e-8,
   value_added_floor = 1e-3,
+  max_column_sum = 100,
   conserve_extensions = TRUE
 ) {
   n <- length(x_vec)
@@ -110,6 +114,7 @@ compute_footprint <- function(
     z_mat,
     output_tol,
     value_added_floor,
+    max_column_sum,
     conserve_extensions
   )
   n_fd <- ncol(y_mat)
@@ -139,7 +144,8 @@ compute_footprint <- function(
     a_mat <- .technical_coefficients(
       z_mat,
       x_vec,
-      value_added_floor = value_added_floor
+      value_added_floor = value_added_floor,
+      max_column_sum = max_column_sum
     )
     ia <- Matrix::Diagonal(n) - a_mat
     lu_fact <- .factor_ia(ia)
@@ -447,6 +453,7 @@ compute_footprint <- function(
   z_mat,
   output_tol,
   value_added_floor,
+  max_column_sum = 100,
   conserve_extensions
 ) {
   n <- length(x_vec)
@@ -491,6 +498,7 @@ compute_footprint <- function(
     )
   }
   .validate_value_added_floor(value_added_floor)
+  .validate_max_column_sum(max_column_sum)
   if (
     !is.logical(conserve_extensions) ||
       length(conserve_extensions) != 1 ||

@@ -264,7 +264,8 @@ testthat::test_that("sparse path caps closed sectors with value_added_floor", {
       extensions = extensions,
       labels = labels,
       z_mat = z,
-      value_added_floor = 0.01
+      value_added_floor = 0.01,
+      max_column_sum = 1 - 0.01
     ),
     "Capping"
   )
@@ -281,6 +282,7 @@ testthat::test_that("sparse path caps closed sectors with value_added_floor", {
       labels = labels,
       z_mat = z,
       value_added_floor = 0.01,
+      max_column_sum = 1 - 0.01,
       conserve_extensions = FALSE
     ),
     "Capping"
