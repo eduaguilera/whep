@@ -71,7 +71,8 @@ production. For code details see e.g. \code{add_item_cbs_name()}.
 \item \code{supply}: The given item is an output of the process.
 }
 \item \code{value}: Quantity in the item's own unit. Most items are measured in
-tonnes; animal draught is measured as annual useful work energy (TJ).
+tonnes; live animals are measured in heads; animal draught is measured as
+annual useful work energy (TJ).
 }
 }
 \description{

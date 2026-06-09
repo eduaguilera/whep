@@ -65,7 +65,8 @@
 #'    - `use`: The given item is an input of the process.
 #'    - `supply`: The given item is an output of the process.
 #' - `value`: Quantity in the item's own unit. Most items are measured in
-#'   tonnes; animal draught is measured as annual useful work energy (TJ).
+#'   tonnes; live animals are measured in heads; animal draught is measured as
+#'   annual useful work energy (TJ).
 #'
 #' @export
 #'
@@ -346,8 +347,7 @@ build_supply_use <- function(example = FALSE) {
     .build_livestock_supply(
       primary_prod,
       husbandry_items,
-      cbs,
-      slaughter_product_items
+      cbs
     ),
     .build_livestock_prods_supply(
       primary_prod,
@@ -361,53 +361,16 @@ build_supply_use <- function(example = FALSE) {
 .build_livestock_supply <- function(
   primary_prod,
   husbandry_items,
-  cbs = NULL,
-  slaughter_product_items = tibble::tibble(item_cbs_code = integer())
+  cbs = NULL
 ) {
   required_cbs <- c("year", "area_code", "item_cbs_code", "production")
   if (!is.null(cbs) && all(required_cbs %in% names(cbs))) {
-    livestock_cbs <- cbs |>
-      dplyr::inner_join(
-        husbandry_items,
-        dplyr::join_by(item_cbs_code == live_anim_code)
-      )
-
-    if (
-      nrow(slaughter_product_items) > 0L &&
-        "processing" %in% names(livestock_cbs)
-    ) {
-      slaughter_output <- .slaughter_output_totals(
-        primary_prod,
-        husbandry_items,
-        slaughter_product_items
-      ) |>
-        dplyr::rename(item_cbs_code = live_anim_code)
-
-      return(
-        livestock_cbs |>
-          dplyr::inner_join(
-            slaughter_output,
-            by = c("year", "area_code", "item_cbs_code")
-          ) |>
-          dplyr::mutate(
-            value = dplyr::if_else(
-              processing > 0,
-              slaughter_output * production / processing,
-              0
-            )
-          ) |>
-          dplyr::transmute(
-            year,
-            area_code,
-            proc_cbs_code = item_cbs_code,
-            item_cbs_code,
-            value
-          )
-      )
-    }
-
     return(
-      livestock_cbs |>
+      cbs |>
+        dplyr::inner_join(
+          husbandry_items,
+          dplyr::join_by(item_cbs_code == live_anim_code)
+        ) |>
         dplyr::transmute(
           year,
           area_code,
@@ -419,12 +382,11 @@ build_supply_use <- function(example = FALSE) {
   }
 
   primary_prod |>
-    dplyr::filter(unit == "LU") |>
+    dplyr::filter(unit == "heads") |>
     dplyr::inner_join(
       husbandry_items,
       dplyr::join_by(item_cbs_code == live_anim_code)
     ) |>
-    dplyr::mutate(value = k_tonnes_per_livestock_unit * value) |>
     dplyr::select(
       year,
       area_code,
@@ -551,11 +513,8 @@ build_supply_use <- function(example = FALSE) {
       type = "supply"
     )
 
-  slaughter_output <- .slaughter_output_totals(
-    primary_prod,
-    slaughter_items,
-    slaughter_product_items
-  )
+  slaughter_keys <- slaughter_supply |>
+    dplyr::distinct(year, area_code, live_anim_code = proc_cbs_code)
 
   cbs_slaughter <- cbs |>
     dplyr::inner_join(
@@ -563,7 +522,7 @@ build_supply_use <- function(example = FALSE) {
       dplyr::join_by(item_cbs_code == live_anim_code)
     )
 
-  slaughter_use <- slaughter_output |>
+  slaughter_use <- slaughter_keys |>
     dplyr::inner_join(
       cbs_slaughter,
       by = c(
@@ -577,39 +536,13 @@ build_supply_use <- function(example = FALSE) {
       area_code,
       proc_cbs_code = live_anim_code,
       item_cbs_code = live_anim_code,
-      value = slaughter_output
+      value = processing
     ) |>
+    dplyr::filter(.data$value > 0) |>
     dplyr::mutate(type = "use")
 
   dplyr::bind_rows(slaughter_use, slaughter_supply) |>
     dplyr::mutate(proc_group = "slaughtering")
-}
-
-.slaughter_output_totals <- function(
-  primary_prod,
-  slaughter_items,
-  slaughter_product_items
-) {
-  if (nrow(slaughter_items) == 0L || nrow(slaughter_product_items) == 0L) {
-    return(tibble::tibble(
-      year = integer(),
-      area_code = integer(),
-      live_anim_code = integer(),
-      slaughter_output = numeric()
-    ))
-  }
-
-  primary_prod |>
-    dplyr::filter(
-      unit == "tonnes",
-      !is.na(live_anim_code)
-    ) |>
-    dplyr::inner_join(slaughter_items, "live_anim_code") |>
-    dplyr::inner_join(slaughter_product_items, "item_cbs_code") |>
-    dplyr::summarise(
-      slaughter_output = sum(value, na.rm = TRUE),
-      .by = c(year, area_code, live_anim_code)
-    )
 }
 
 .build_processing <- function(coeffs) {

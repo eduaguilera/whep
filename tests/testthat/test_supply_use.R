@@ -263,15 +263,15 @@ testthat::test_that(".build_supply_crop_residue joins residues correctly", {
   testthat::expect_equal(result$item_cbs_code, 100)
 })
 
-testthat::test_that(".build_livestock_supply filters LU and scales", {
+testthat::test_that(".build_livestock_supply uses heads when CBS is unavailable", {
   husbandry_items <- tibble::tibble(
     live_anim_code = c(1, 2)
   )
   primary_prod <- tibble::tribble(
     ~year, ~area_code, ~item_prod_code, ~item_cbs_code, ~live_anim_code, ~unit, ~value,
-    2000, 1, 10, 1, NA, "LU", 100,
-    2000, 1, 11, 2, NA, "LU", 200,
-    2000, 1, 12, 3, NA, "LU", 300,
+    2000, 1, 10, 1, NA, "heads", 100,
+    2000, 1, 11, 2, NA, "heads", 200,
+    2000, 1, 12, 3, NA, "heads", 300,
     2000, 1, 13, 1, NA, "tonnes", 50
   )
 
@@ -284,7 +284,7 @@ testthat::test_that(".build_livestock_supply filters LU and scales", {
   testthat::expect_equal(nrow(result), 2)
   testthat::expect_equal(
     sort(result$value),
-    sort(c(100, 200) * 0.65)
+    sort(c(100, 200))
   )
 })
 
@@ -316,7 +316,7 @@ testthat::test_that(".build_livestock_supply uses CBS production when available"
     .expect_equal_unordered(expected)
 })
 
-testthat::test_that(".build_livestock_supply scales slaughter output to domestic production", {
+testthat::test_that(".build_livestock_supply keeps live animals in CBS head units", {
   husbandry_items <- tibble::tibble(
     live_anim_code = 1L
   )
@@ -329,18 +329,16 @@ testthat::test_that(".build_livestock_supply scales slaughter output to domestic
     ~year, ~area_code, ~item_cbs_code, ~production, ~processing,
     2000, 1, 1, 8, 10
   )
-  slaughter_product_items <- tibble::tibble(item_cbs_code = c(50L, 51L))
 
   result <- .build_livestock_supply(
     primary_prod,
     husbandry_items,
-    cbs,
-    slaughter_product_items
+    cbs
   )
 
   expected <- tibble::tribble(
     ~year, ~area_code, ~proc_cbs_code, ~item_cbs_code, ~value,
-    2000, 1, 1, 1, 80
+    2000, 1, 1, 1, 8
   )
 
   result |>
@@ -389,7 +387,7 @@ testthat::test_that(".build_slaughtering consumes live animals and supplies slau
 
   expected <- tibble::tribble(
     ~year, ~area_code, ~proc_group, ~proc_cbs_code, ~item_cbs_code, ~value, ~type,
-    2000, 1, "slaughtering", 1, 1, 125, "use",
+    2000, 1, "slaughtering", 1, 1, 10, "use",
     2000, 1, "slaughtering", 1, 50, 100, "supply",
     2000, 1, "slaughtering", 1, 51, 25, "supply"
   )
@@ -456,7 +454,7 @@ testthat::test_that(".build_husbandry combines feed use and livestock supply", {
   )
   primary_prod <- tibble::tribble(
     ~year, ~area_code, ~item_prod_code, ~item_cbs_code, ~live_anim_code, ~unit, ~value,
-    2000, 1, 10, 1, NA, "LU", 100,
+    2000, 1, 10, 1, NA, "heads", 100,
     2000, 1, 11, 60, 1, "tonnes", 40
   )
 
@@ -515,10 +513,10 @@ testthat::test_that(".build_supply_use_from_inputs includes all livestock item t
   primary_prod <- tibble::tribble(
       ~year, ~area_code, ~item_prod_code, ~item_cbs_code,
       ~live_anim_code, ~unit, ~value,
-      2000, 1, 10, 1, NA, "LU", 10,
-      2000, 1, 11, 2, NA, "LU", 20,
-      2000, 1, 12, 3, NA, "LU", 30,
-      2000, 1, 13, 4, NA, "LU", 40
+      2000, 1, 10, 1, NA, "heads", 10,
+      2000, 1, 11, 2, NA, "heads", 20,
+      2000, 1, 12, 3, NA, "heads", 30,
+      2000, 1, 13, 4, NA, "heads", 40
     )
   feed_intake <- tibble::tribble(
       ~year, ~area_code, ~live_anim_code, ~item_cbs_code, ~supply,

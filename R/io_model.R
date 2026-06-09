@@ -648,48 +648,22 @@ build_io_model <- function(
   if (!has_processing && !has_seed) {
     return(cbs_yr)
   }
-  su_used <- .compute_su_used(su, cbs_yr, has_processing, has_seed)
+  su_used <- .compute_su_used(su, has_processing, has_seed)
   cbs_yr |>
     dplyr::left_join(su_used, by = c("area_code", "item_cbs_code")) |>
     .apply_leftovers(has_processing, has_seed)
 }
 
-.compute_su_used <- function(su, cbs_yr, has_processing, has_seed) {
+.compute_su_used <- function(su, has_processing, has_seed) {
   parts <- list()
   if (has_processing) {
-    processing_used <- su |>
+    parts$proc <- su |>
       dplyr::filter(
         type == "use",
-        proc_group == "processing"
+        proc_group %in% c("processing", "slaughtering")
       ) |>
       dplyr::summarise(
         processing_used = sum(value),
-        .by = c(area_code, item_cbs_code)
-      )
-
-    slaughtering_used <- su |>
-      dplyr::filter(
-        type == "use",
-        proc_group == "slaughtering"
-      ) |>
-      dplyr::distinct(area_code, item_cbs_code) |>
-      dplyr::inner_join(
-        cbs_yr |>
-          dplyr::select(area_code, item_cbs_code, processing),
-        by = c("area_code", "item_cbs_code")
-      ) |>
-      dplyr::transmute(
-        area_code,
-        item_cbs_code,
-        processing_used = processing
-      )
-
-    parts$proc <- dplyr::bind_rows(
-      processing_used,
-      slaughtering_used
-    ) |>
-      dplyr::summarise(
-        processing_used = sum(processing_used, na.rm = TRUE),
         .by = c(area_code, item_cbs_code)
       )
   }
