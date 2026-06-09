@@ -23,6 +23,7 @@ grassland_metric <- tolower(Sys.getenv("WHEP_GRASSLAND_METRIC", "occupation"))
 usable_grass_yield_dm_t_ha <- as.numeric(
   Sys.getenv("WHEP_USABLE_GRASS_YIELD_DM_T_HA", "2.06")
 )
+max_column_sum <- as.numeric(Sys.getenv("WHEP_A_MAX_COLUMN_SUM", "100"))
 
 if (!grassland_metric %in% c("occupation", "active_grazing", "both")) {
   stop(
@@ -33,6 +34,12 @@ if (!grassland_metric %in% c("occupation", "active_grazing", "both")) {
 if (is.na(usable_grass_yield_dm_t_ha) || usable_grass_yield_dm_t_ha <= 0) {
   stop(
     "`WHEP_USABLE_GRASS_YIELD_DM_T_HA` must be a positive number.",
+    call. = FALSE
+  )
+}
+if (is.na(max_column_sum) || !is.finite(max_column_sum) || max_column_sum <= 0) {
+  stop(
+    "`WHEP_A_MAX_COLUMN_SUM` must be a positive finite number.",
     call. = FALSE
   )
 }
@@ -116,6 +123,17 @@ class_from_group <- function(group) {
   )
 }
 
+summarise_positive_fp <- function(fp, import_mask) {
+  fp_pos <- pmax(fp, 0)
+  total <- sum(fp_pos, na.rm = TRUE)
+  import_value <- sum(fp_pos[import_mask], na.rm = TRUE)
+  tibble(
+    value = total,
+    positive_value = total,
+    import_share = if (total > 0) import_value / total else NA_real_
+  )
+}
+
 fabio_regions <- read_csv(
   file.path(fabio_dir, "regions.csv"),
   show_col_types = FALSE
@@ -188,7 +206,8 @@ calc_fabio_year <- function(year) {
   result <- map_dfr(seq_len(ncol(required)), function(j) {
     fp <- ext * as.numeric(required[, j])
     target_iso <- demands$iso3c[[j]]
-    tibble(
+    bind_cols(
+      tibble(
       model = "FABIO",
       grassland_metric = NA_character_,
       extension_scope = "official_landuse",
@@ -196,14 +215,12 @@ calc_fabio_year <- function(year) {
       target = demands$target[[j]],
       fd = demands$fd[[j]],
       product_class = demands$product_class[[j]],
-      target_area_count = length(demands$area_codes[[j]]),
-      value = sum(fp, na.rm = TRUE),
-      positive_value = sum(pmax(fp, 0), na.rm = TRUE),
-      import_share = sum(
-        fp[!fabio_index$iso3c %in% target_iso],
-        na.rm = TRUE
-      ) /
-        sum(fp, na.rm = TRUE)
+      target_area_count = length(demands$area_codes[[j]])
+      ),
+      summarise_positive_fp(
+        fp,
+        !fabio_index$iso3c %in% target_iso
+      )
     )
   })
 
@@ -297,7 +314,8 @@ calc_whep_year <- function(io_row) {
   a_mat <- whep:::.technical_coefficients(
     z_mat,
     x_vec,
-    value_added_floor = 1e-3
+    value_added_floor = 1e-3,
+    max_column_sum = max_column_sum
   )
   ia <- Matrix::Diagonal(length(x_vec)) - a_mat
   lu_fact <- whep:::.factor_ia(ia)
@@ -342,7 +360,8 @@ calc_whep_year <- function(io_row) {
       map_dfr(seq_len(ncol(required)), function(j) {
         fp <- intensity * as.numeric(required[, j])
         target_codes <- demands$area_codes[[j]]
-        tibble(
+        bind_cols(
+          tibble(
           model = "WHEP",
           grassland_metric = land_metric,
           extension_scope = scope_name,
@@ -350,14 +369,12 @@ calc_whep_year <- function(io_row) {
           target = demands$target[[j]],
           fd = demands$fd[[j]],
           product_class = demands$product_class[[j]],
-          target_area_count = length(target_codes),
-          value = sum(fp, na.rm = TRUE),
-          positive_value = sum(pmax(fp, 0), na.rm = TRUE),
-          import_share = sum(
-            fp[!labels$area_code %in% target_codes],
-            na.rm = TRUE
-          ) /
-            sum(fp, na.rm = TRUE)
+          target_area_count = length(target_codes)
+          ),
+          summarise_positive_fp(
+            fp,
+            !labels$area_code %in% target_codes
+          )
         )
       })
     })
