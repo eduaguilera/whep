@@ -149,9 +149,9 @@ testthat::test_that("unmapped item names warn and are dropped", {
 })
 
 testthat::test_that("unmapped reporter codes warn and are dropped", {
-  # Code 999 has no polity mapping in regions_full
+  # Code 4444 is intentionally absent from WHEP area mappings.
   raw <- data.table::data.table(
-    `Reporter Country Code` = c(999L, 2L),
+    `Reporter Country Code` = c(4444L, 2L),
     `Partner Country Code` = c(9L, 9L),
     `Item Code` = c(15L, 15L),
     Element = c("Import Quantity", "Import Quantity"),
@@ -172,7 +172,7 @@ testthat::test_that("unmapped reporter codes warn and are dropped", {
 testthat::test_that("unmapped partner codes warn and are dropped", {
   raw <- data.table::data.table(
     `Reporter Country Code` = c(2L, 2L),
-    `Partner Country Code` = c(999L, 9L),
+    `Partner Country Code` = c(4444L, 9L),
     `Item Code` = c(15L, 15L),
     Element = c("Import Quantity", "Import Quantity"),
     Year = c(2020L, 2020L),
