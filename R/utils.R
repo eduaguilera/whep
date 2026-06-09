@@ -839,6 +839,7 @@ utils::globalVariables(
     "livestock_constants",
     "livestock_production_defaults",
     "polities",
+    "polity_area_crosswalk",
     "regional_mms_distribution",
     "temperature_adjustment",
     "uncertainty_ranges",

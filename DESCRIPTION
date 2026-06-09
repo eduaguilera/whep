@@ -50,6 +50,7 @@ Suggests:
     knitr,
     pointblank,
     rmarkdown,
+    sf,
     testthat (>= 3.0.0)
 Config/testthat/edition: 3
 VignetteBuilder: knitr
