@@ -42,7 +42,10 @@ default and distinguishes the two copies when \code{grassland_metric = "both"}.
 \description{
 Read and clean the \code{land_fp} input file, returning only land-use
 entries from local production (\code{Impact == "Land"} and
-\code{Origin == "Production"}).
+\code{Origin == "Production"}). Derived product rows from \code{land_fp} are excluded
+because they encode land impacts on product output rather than physical land
+occupation; processed products and animal products should inherit crop and
+grass land through the input-output model.
 }
 \examples{
 get_land_fp_production(example = TRUE)

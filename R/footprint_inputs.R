@@ -3,7 +3,10 @@
 #' @description
 #' Read and clean the `land_fp` input file, returning only land-use
 #' entries from local production (`Impact == "Land"` and
-#' `Origin == "Production"`).
+#' `Origin == "Production"`). Derived product rows from `land_fp` are excluded
+#' because they encode land impacts on product output rather than physical land
+#' occupation; processed products and animal products should inherit crop and
+#' grass land through the input-output model.
 #'
 #' @param example If `TRUE`, return a small example output without
 #'   downloading remote data. Default is `FALSE`.
@@ -55,7 +58,8 @@ get_land_fp_production <- function(
         origin,
         group,
         impact_u
-      )
+      ) |>
+      .drop_derived_land_extensions()
   }
 
   .apply_grassland_metric(
@@ -73,6 +77,18 @@ get_land_fp_production <- function(
     2020L, 76L, 2514L, "Land", "Cropland", "Production", "Crops", 800,
     2020L, 32L, 3000L, "Land", "Production", "Production", "Grass", 50
   )
+}
+
+.drop_derived_land_extensions <- function(land_fp) {
+  land_fp |>
+    dplyr::filter(
+      !(.data$group %in% c(
+        "Crop products",
+        "Crop residues",
+        "Draught",
+        "Livestock products"
+      ))
+    )
 }
 
 .apply_grassland_metric <- function(
