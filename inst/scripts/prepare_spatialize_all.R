@@ -146,6 +146,46 @@ coord_to_rowcol <- function(dt, grid) {
   )
 }
 
+.lsuha_nc_create <- function(path, grid, years) {
+  dlon <- ncdim_def("lon", "degrees_east", vals = grid$lon)
+  dlat <- ncdim_def("lat", "degrees_north", vals = grid$lat)
+  dtime <- ncdim_def(
+    "time",
+    "years since 0000-1-1 0:0:0",
+    vals = years
+  )
+  v <- ncvar_def(
+    "grassland_lsuha",
+    "LSU/ha",
+    list(dlon, dlat, dtime),
+    missval = -1.175494e+38,
+    longname = "Grassland livestock density",
+    prec = "float",
+    compression = 1,
+    chunksizes = c(grid$nlon, grid$nlat, 1L)
+  )
+  nc <- nc_create(path, vars = list(v), force_v4 = TRUE)
+  list(nc = nc, var = v)
+}
+
+.lsuha_nc_write_chunk <- function(nc_info, data_dt, yr_chunk, all_years, grid) {
+  m3 <- array(0, dim = c(grid$nlon, grid$nlat, length(yr_chunk)))
+  if (nrow(data_dt) > 0L) {
+    ti <- match(data_dt$year, yr_chunk)
+    flat <- (ti - 1L) * grid$nlon * grid$nlat +
+      (data_dt$row - 1L) * grid$nlon + data_dt$col
+    m3[flat] <- data_dt$value
+  }
+  t_start <- match(yr_chunk[1L], all_years)
+  ncvar_put(
+    nc_info$nc,
+    nc_info$var,
+    m3,
+    start = c(1L, 1L, t_start),
+    count = c(grid$nlon, grid$nlat, length(yr_chunk))
+  )
+}
+
 .nc_finalise <- function(nc_info, creator = "WHEP prepare_spatialize_all.R") {
   ncatt_put(nc_info$nc, 0, "Conventions", "CF-1.8")
   ncatt_put(nc_info$nc, 0, "created_by", creator)
@@ -4497,18 +4537,21 @@ write_lpjml_static_inputs <- function(
   g <- coord_to_rowcol(g, grid)
   g[, cell_area_ha := row_area_ha[row]]
   g[, value := pmin(1, pmax(0, (pasture_ha + rangeland_ha) / cell_area_ha))]
-  g[
+  out <- g[
     value > 0,
     .(value = sum(value, na.rm = TRUE)),
-    by = .(year, pft = 14L, row, col)
+    by = .(year, row, col)
   ]
+  out[, pft := 14L]
+  data.table::setcolorder(out, c("year", "pft", "row", "col", "value"))
+  out
 }
 
 # Grassland livestock density (LSU/ha) for the LPJmL grazing module: whep grazer
 # heads x livestock-unit coefficients / grass area. Grazers are the pasture and
 # rangeland species; LU per head from liv_lu_coefs. ls_dt already carries
 # row/col + species_group + heads. NB the heads unit must satisfy lsuha ~ a few
-# LSU/ha; if it comes out ~1000x high the heads are in 1000-head and need /1000.
+# LSU/ha; capped at LPJmL's stock-input ceiling to avoid denominator collapse.
 .grassland_lsuha_chunk <- function(ls_dt, pasture_chunk, grid, grazer_lu) {
   d <- data.table::as.data.table(ls_dt)
   d <- d[species_group %in% names(grazer_lu)]
@@ -4526,7 +4569,10 @@ write_lpjml_static_inputs <- function(
     by = .(year, row, col)
   ]
   m <- merge(lsu, g, by = c("year", "row", "col"))
-  m[grass_ha > 0, .(year, pft = 1L, row, col, value = lsu / grass_ha)]
+  m[
+    grass_ha > 0,
+    .(year, row, col, value = pmin(4.0, lsu / grass_ha))
+  ]
 }
 
 .write_lu_nc_chunk <- function(
@@ -5153,13 +5199,9 @@ run_livestock_spatialize <- function(
   )
   grazing_dir <- file.path(lpjml_out_dir, "landuse")
   dir.create(grazing_dir, recursive = TRUE, showWarnings = FALSE)
-  nc_lsuha <- .pft_nc_create(
+  nc_lsuha <- .lsuha_nc_create(
     file.path(grazing_dir, paste0("grassland_lsuha_", yr_label, ".nc")),
-    "grassland_lsuha",
-    "Grassland livestock density",
-    "LSU ha-1",
     grid,
-    1L,
     years
   )
 
@@ -5209,7 +5251,7 @@ run_livestock_spatialize <- function(
       grazer_lu
     )
     if (!is.null(lsuha_chunk) && nrow(lsuha_chunk) > 0L) {
-      .pft_nc_write_chunk(nc_lsuha, lsuha_chunk, chunk_years, years, grid, 1L)
+      .lsuha_nc_write_chunk(nc_lsuha, lsuha_chunk, chunk_years, years, grid)
     }
 
     summary_rows[[i]] <- dplyr::summarise(
