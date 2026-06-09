@@ -209,11 +209,10 @@ get_land_fp_production <- function(
     c("polity_name", "FAOSTAT_name", "name"),
     names(whep::regions_full)
   )
-  polity_codes <- whep::polities |>
-    dplyr::transmute(
-      polity_code = .data$iso3c,
-      !!code_column := as.integer(.data$area_code)
-    )
+
+  # land_fp uses source-facing area codes, including WHEP aggregate buckets.
+  # Matrix aggregation uses polity_area_crosswalk$polity_area_code elsewhere.
+  source_codes <- .land_fp_source_area_codes(code_column)
 
   whep::regions_full |>
     dplyr::select(
@@ -221,7 +220,7 @@ get_land_fp_production <- function(
       dplyr::all_of(alias_cols)
     ) |>
     dplyr::filter(!is.na(.data$polity_code)) |>
-    dplyr::left_join(polity_codes, by = "polity_code") |>
+    dplyr::left_join(source_codes, by = "polity_code") |>
     tidyr::pivot_longer(
       cols = dplyr::all_of(alias_cols),
       values_to = name_column,
@@ -239,4 +238,16 @@ get_land_fp_production <- function(
     dplyr::add_count(.data[[name_column]], name = "n_codes") |>
     dplyr::filter(.data$n_codes == 1L) |>
     dplyr::select(-"n_codes")
+}
+
+.land_fp_source_area_codes <- function(code_column = "code") {
+  source_file <- system.file("extdata", "regions.csv", package = "whep")
+
+  readr::read_csv(source_file, show_col_types = FALSE) |>
+    dplyr::transmute(
+      polity_code = .data$iso3c,
+      !!code_column := as.integer(.data$area_code)
+    ) |>
+    dplyr::filter(!is.na(.data$polity_code)) |>
+    dplyr::distinct(.data$polity_code, .keep_all = TRUE)
 }

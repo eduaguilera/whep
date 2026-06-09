@@ -372,35 +372,22 @@ build_primary_production <- function(
 
 .read_land_areas <- function(years = NULL) {
   cli::cli_progress_step("Reading land areas")
-  regions <- unique(
-    data.table::as.data.table(whep::regions_full)[,
-      .(iso3c, area = polity_name, polity_code)
-    ],
-    by = "iso3c"
-  )
-  polities <- data.table::as.data.table(whep::polities)[,
-    .(iso3c, area_code)
+  area_bridge <- .current_area_lookup(include_unmapped = FALSE)[
+    !is.na(area_iso3c),
+    .(iso3c = area_iso3c, area = area_name, area_code = polity_area_code)
   ]
+  area_bridge <- unique(area_bridge, by = "iso3c")
 
   dt <- .read_input("luh2-areas", years = years, year_col = "Year")
   data.table::setnames(dt, c("ISO3", "Year"), c("iso3c", "year"))
-  dt <- merge(dt, regions, by = "iso3c", all.x = TRUE, sort = FALSE)
+  dt <- merge(dt, area_bridge, by = "iso3c", all.x = TRUE, sort = FALSE)
   unmatched <- unique(dt[is.na(area), iso3c])
   if (length(unmatched) > 0) {
     cli::cli_warn(
-      "LUH2 ISO3 codes not found in regions_full, dropping: {unmatched}"
+      "LUH2 ISO3 codes not found in polity_area_crosswalk, dropping: {unmatched}"
     )
   }
   dt <- dt[!is.na(area)]
-  dt <- merge(
-    dt,
-    polities,
-    by.x = "polity_code",
-    by.y = "iso3c",
-    all.x = TRUE,
-    sort = FALSE
-  )
-  dt[, polity_code := NULL]
   dt <- dt[year > 1849]
   dt
 }
@@ -499,7 +486,14 @@ build_primary_production <- function(
   crops_eu <- whep::crops_eurostat
   regions <- whep::regions_full
 
-  polities <- whep::polities
+  area_bridge <- .current_area_lookup(include_unmapped = FALSE) |>
+    tibble::as_tibble() |>
+    dplyr::select(
+      polity_code = area_iso3c,
+      area_code = polity_area_code
+    ) |>
+    dplyr::filter(!is.na(.data$polity_code)) |>
+    dplyr::distinct(.data$polity_code, .keep_all = TRUE)
 
   .read_input("eu-agridb-fodder", years = years, year_col = "Year") |>
     dplyr::rename(year = Year) |>
@@ -515,8 +509,8 @@ build_primary_production <- function(
       by = "adb_region"
     ) |>
     dplyr::left_join(
-      polities |> dplyr::select(iso3c, area_code),
-      by = c("polity_code" = "iso3c")
+      area_bridge,
+      by = "polity_code"
     ) |>
     dplyr::select(-polity_code) |>
     dplyr::select(

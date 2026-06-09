@@ -696,10 +696,11 @@ build_processing_coefs <- function(
     .(item_cbs, item_cbs_code)
   ]
   cbs_trade <- data.table::as.data.table(whep::cbs_trade_codes)
-  regions <- data.table::as.data.table(whep::regions_full)
-  polities <- data.table::as.data.table(whep::polities)[,
-    .(iso3c, area_code)
+  area_bridge <- .current_area_lookup(include_unmapped = FALSE)[
+    !is.na(area_iso3c),
+    .(iso3c = area_iso3c, area = area_name, area_code = polity_area_code)
   ]
+  area_bridge <- unique(area_bridge, by = "iso3c")
 
   exports <- .read_input(
     "historical-trade-exports",
@@ -733,20 +734,7 @@ build_processing_coefs <- function(
     c("iso3c", "item_code_trade")
   )
 
-  region_bridge <- unique(
-    regions[, .(iso3c, area = polity_name, polity_code)],
-    by = "iso3c"
-  )
-  dt <- merge(dt, region_bridge, by = "iso3c", all.x = TRUE, sort = FALSE)
-  dt <- merge(
-    dt,
-    polities,
-    by.x = "polity_code",
-    by.y = "iso3c",
-    all.x = TRUE,
-    sort = FALSE
-  )
-  dt[, polity_code := NULL]
+  dt <- merge(dt, area_bridge, by = "iso3c", all.x = TRUE, sort = FALSE)
   dt <- merge(dt, cbs_trade, by = "item_code_trade", all.x = TRUE, sort = FALSE)
   dt <- merge(dt, items, by = "item_cbs", all.x = TRUE, sort = FALSE)
 
@@ -854,23 +842,13 @@ build_processing_coefs <- function(
     by = c("year", "area_code", "item_cbs", "item_cbs_code", "element")
   ]
 
-  regions <- data.table::as.data.table(whep::regions_full)[
-    !is.na(code),
-    .(area_code = code, polity_code, polity_name)
-  ]
-  polities <- data.table::as.data.table(whep::polities)[,
-    .(iso3c, polity_area_code = area_code)
-  ]
-
-  dt <- merge(dt, regions, by = "area_code", all = FALSE, sort = FALSE)
-  dt <- merge(
+  dt <- .add_polity_columns_dt(
     dt,
-    polities,
-    by.x = "polity_code",
-    by.y = "iso3c",
-    all.x = TRUE,
-    sort = FALSE
+    code_col = "area_code",
+    year_col = "year",
+    include_unmapped = FALSE
   )
+  dt <- dt[!is.na(polity_code)]
 
   dt <- dt[,
     .(value = sum(value, na.rm = TRUE)),

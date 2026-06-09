@@ -30,26 +30,48 @@ test_that("items_full has correct default_destiny for non-food items", {
 
 test_that("polities includes promoted FAOSTAT-reporting countries", {
   pol <- whep::polities
-  promoted <- c("BTN", "COM", "MHL", "FSM", "NRU", "SYC", "TON", "TUV")
+  promoted <- c(
+    "ATG", "BHS", "BRB", "BTN", "COM", "FJI", "GRD", "MAC",
+    "MHL", "FSM", "NCL", "NRU", "PRI", "PYF", "SYC", "SLB",
+    "TON", "TUV"
+  )
   for (code in promoted) {
     expect_true(
-      code %in% pol$iso3c,
+      code %in% pol$iso3_code,
       info = paste(code, "should be a standalone polity")
     )
   }
-  expect_gte(nrow(pol), 200L)
+  expect_gte(nrow(pol), 560L)
 })
 
-test_that("regions_full maps promoted countries to own polity_code", {
-  reg <- whep::regions_full
+test_that("polity_area_crosswalk maps promoted countries to real polities", {
+  crosswalk <- whep::polity_area_crosswalk
 
-  btn <- reg |> dplyr::filter(iso3c == "BTN")
+  btn <- crosswalk |>
+    dplyr::filter(area_iso3c == "BTN", mapping_status == "matched")
   expect_true(nrow(btn) > 0)
-  expect_equal(btn$polity_code[1], "BTN")
+  expect_true(any(grepl("^BTN-", btn$polity_code)))
 
-  com <- reg |> dplyr::filter(iso3c == "COM")
+  com <- crosswalk |>
+    dplyr::filter(area_iso3c == "COM", mapping_status == "matched")
   expect_true(nrow(com) > 0)
-  expect_equal(com$polity_code[1], "COM")
+  expect_true(any(grepl("^COM-", com$polity_code)))
+})
+
+test_that("CBS area-code polity gaps are explicit statistical composites", {
+  crosswalk <- whep::polity_area_crosswalk
+
+  cbs_unmapped <- crosswalk |>
+    dplyr::filter(
+      .data$cbs %in% TRUE,
+      .data$mapping_status == "unmapped"
+    ) |>
+    dplyr::distinct(.data$area_code, .data$area_name)
+
+  expect_equal(
+    sort(cbs_unmapped$area_code),
+    c(15L, 151L, 999L)
+  )
 })
 
 

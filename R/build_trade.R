@@ -177,44 +177,60 @@ build_detailed_trade <- function(
 
 .aggregate_dtm_to_polities <- function(dt) {
   cli::cli_progress_step("Aggregating to polity level")
-  regions <- data.table::as.data.table(whep::regions_full)
-  regions <- regions[!is.na(polity_code)]
-  polities <- data.table::as.data.table(whep::polities)
-
-  # Build bridge: FAOSTAT area_code -> polity area_code
-  bridge <- merge(
-    regions[, .(fao_code = code, polity_code)],
-    polities[, .(polity_code = iso3c, polity_area_code = area_code)],
-    by = "polity_code"
-  )
 
   # Map reporter
-  dt <- merge(
+  dt <- .add_polity_columns_dt(
     dt,
-    bridge,
-    by.x = "area_code",
-    by.y = "fao_code",
-    all.x = TRUE
+    code_col = "area_code",
+    year_col = "year",
+    include_unmapped = FALSE
   )
   .warn_unmapped_codes(dt, "polity_area_code", "area_code", "reporter")
-  dt[, area_code := NULL]
-  data.table::setnames(dt, "polity_area_code", "area_code")
+  dt[, area_code := polity_area_code]
 
   # Map partner
-  dt <- merge(
+  dt <- .add_polity_columns_dt(
     dt,
-    bridge[, .(fao_code, partner_polity = polity_area_code)],
-    by.x = "area_code_p",
-    by.y = "fao_code",
-    all.x = TRUE
+    code_col = "area_code_p",
+    year_col = "year",
+    prefix = "partner_",
+    include_unmapped = FALSE
   )
-  .warn_unmapped_codes(dt, "partner_polity", "area_code_p", "partner")
-  dt[, area_code_p := NULL]
-  data.table::setnames(dt, "partner_polity", "area_code_partner")
+  .warn_unmapped_codes(
+    dt,
+    "partner_polity_area_code",
+    "area_code_p",
+    "partner"
+  )
+  dt[, area_code_partner := partner_polity_area_code]
 
   # Drop unmatched
   dt <- dt[!is.na(area_code) & !is.na(area_code_partner)]
-  dt[, polity_code := NULL]
+  drop_cols <- intersect(
+    c(
+      "area_name",
+      "area_iso3c",
+      "polity_area_code",
+      "polity_code",
+      "polity_name",
+      "polity_start_year",
+      "polity_end_year",
+      "mapping_status",
+      "has_geometry",
+      "partner_area_name",
+      "partner_area_iso3c",
+      "partner_polity_area_code",
+      "partner_polity_code",
+      "partner_polity_name",
+      "partner_polity_start_year",
+      "partner_polity_end_year",
+      "partner_mapping_status",
+      "partner_has_geometry",
+      "area_code_p"
+    ),
+    names(dt)
+  )
+  dt[, (drop_cols) := NULL]
 
   # Re-aggregate at polity level
   by_cols <- c(
