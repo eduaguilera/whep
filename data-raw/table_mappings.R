@@ -34,13 +34,38 @@ known_polity_prefixes <- unique(polity_attrs$polity_prefix)
 
 excel_na <- c("", "NA", "#N/A", "#DIV/0!", "#REF!")
 
-regions_for_crosswalk <- here::here(
+regions_full_raw <- here::here(
   "inst",
   "extdata",
   "harmonization",
   "regions_full.csv"
 ) |>
   readr::read_csv(show_col_types = FALSE, na = excel_na)
+
+regions_compact <- here::here("inst", "extdata", "regions.csv") |>
+  readr::read_csv(show_col_types = FALSE, na = excel_na)
+
+regions_for_crosswalk <- dplyr::bind_rows(
+  regions_full_raw,
+  regions_compact |>
+    dplyr::anti_join(
+      regions_full_raw |>
+        dplyr::filter(!is.na(.data$code)) |>
+        dplyr::transmute(area_code = as.integer(.data$code)),
+      by = "area_code"
+    ) |>
+    dplyr::transmute(
+      polity_code = .data$iso3c,
+      polity_name = .data$area_name,
+      code = as.integer(.data$area_code),
+      iso3c = .data$iso3c,
+      FAOSTAT_name = .data$area_name,
+      name = .data$area_name,
+      cbs = FALSE,
+      fabio_code = as.integer(.data$area_code),
+      region = .data$region
+    )
+)
 
 manual_area_prefixes <- tibble::tribble(
   ~area_code, ~manual_polity_prefix, ~manual_note,
@@ -76,8 +101,14 @@ polity_area_crosswalk <- regions_for_crosswalk |>
       .data$reporting_polity_code,
       NA_character_
     ),
+    fabio_row_prefix = dplyr::if_else(
+      !is.na(.data$fabio_code) & .data$fabio_code == 999L,
+      "ROW",
+      NA_character_
+    ),
     mapping_prefix = dplyr::coalesce(
       .data$manual_polity_prefix,
+      .data$fabio_row_prefix,
       .data$area_iso3c_prefix,
       .data$reporting_prefix,
       # Keep these last so unmatched reporting buckets remain visible.
@@ -92,7 +123,7 @@ polity_area_crosswalk <- regions_for_crosswalk |>
   ) |>
   dplyr::mutate(
     polity_area_code = dplyr::if_else(
-      !is.na(.data$fabio_code) & .data$fabio_code != 999L,
+      !is.na(.data$fabio_code),
       .data$fabio_code,
       .data$area_code
     ),
@@ -104,6 +135,9 @@ polity_area_crosswalk <- regions_for_crosswalk |>
     ),
     mapping_note = dplyr::case_when(
       !is.na(.data$manual_note) ~ .data$manual_note,
+      !is.na(.data$fabio_code) &
+        .data$fabio_code == 999L &
+        .data$area_code != 999L ~ "FABIO collapses this source area into the Rest of World reporting polity.",
       .data$mapping_status == "unmapped" ~ "No real WHEP polity is available yet; treat this as a statistical reporting area without a polygon.",
       TRUE ~ NA_character_
     )
