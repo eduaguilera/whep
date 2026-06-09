@@ -78,14 +78,20 @@ build_supply_use <- function(example = FALSE) {
     return(.example_build_supply_use())
   }
 
+  cbs <- get_wide_cbs()
+  primary_prod <- get_primary_production()
+
   .build_supply_use_from_inputs(
     items_prod = whep::items_prod,
     items_cbs = whep::items_cbs,
     coeffs = get_processing_coefs(),
-    cbs = get_wide_cbs(),
+    cbs = cbs,
     crop_residues = get_primary_residues(),
-    primary_prod = get_primary_production(),
-    feed_intake = get_feed_intake()
+    primary_prod = primary_prod,
+    feed_intake = .build_feed_intake_from_inputs(
+      cbs = cbs,
+      primary_prod = primary_prod
+    )
   )
 }
 

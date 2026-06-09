@@ -108,9 +108,12 @@ build_io_model <- function(
         cli::cli_progress_step("Reading crop residues")
         crop_residues <- get_primary_residues() |>
           .filter_years(build_years)
-        cli::cli_progress_step("Reading feed intake")
-        feed_intake <- get_feed_intake() |>
-          .filter_years(build_years)
+        cli::cli_progress_step("Building feed intake")
+        feed_intake <- .build_feed_intake_from_inputs(
+          cbs = cbs,
+          primary_prod = primary_prod_build,
+          years = build_years
+        )
 
         cli::cli_progress_step("Assembling supply-use tables")
         .build_supply_use_from_inputs(
