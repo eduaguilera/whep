@@ -294,7 +294,7 @@ get_processing_coefs <- function(example = FALSE) {
 }
 
 # Pivot long-format CBS to wide and split stock_variation into
-# stock_withdrawal (positive) and stock_addition (negative).
+# stock_addition (positive) and stock_withdrawal (negative).
 .pivot_cbs_wide <- function(cbs_long) {
   cbs_long |>
     dplyr::select(
@@ -310,12 +310,12 @@ get_processing_coefs <- function(example = FALSE) {
       values_fill = 0
     ) |>
     dplyr::mutate(
-      stock_withdrawal = dplyr::if_else(
+      stock_addition = dplyr::if_else(
         stock_variation > 0,
         stock_variation,
         0
       ),
-      stock_addition = dplyr::if_else(
+      stock_withdrawal = dplyr::if_else(
         stock_variation < 0,
         -stock_variation,
         0

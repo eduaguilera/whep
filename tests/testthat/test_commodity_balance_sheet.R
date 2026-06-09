@@ -67,6 +67,22 @@ testthat::test_that("wide CBS has consistent supply-use balance", {
   )
 })
 
+testthat::test_that(".pivot_cbs_wide splits stock variation by balance sign", {
+  cbs_long <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~element, ~value,
+    2000L, 1L, 10L, "production", 100,
+    2000L, 1L, 10L, "stock_variation", 30,
+    2000L, 2L, 10L, "production", 100,
+    2000L, 2L, 10L, "stock_variation", -20
+  )
+
+  result <- .pivot_cbs_wide(cbs_long) |>
+    dplyr::arrange(.data$area_code)
+
+  testthat::expect_equal(result$stock_addition, c(30, 0))
+  testthat::expect_equal(result$stock_withdrawal, c(0, 20))
+})
+
 testthat::test_that("processing coefficients are internally consistent", {
   coefs <- .make_coefs_fixture()
 
