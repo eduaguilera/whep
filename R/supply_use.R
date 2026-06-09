@@ -42,9 +42,10 @@
 #'    process. The main item is predictable depending on the value of
 #'    `proc_group`:
 #'    - `crop_production`: The code is from the item for which seed usage
-#'    (if any) is reported in the commodity balance sheet (see
-#'    `get_wide_cbs()` for more). For example, the rice code for a rice
-#'    production process or the cottonseed code for the cotton production one.
+#'    (if any) is reported in the commodity balance sheet, except for field
+#'    co-products where the process uses the field aggregate item. For example,
+#'    rice production uses the rice code, while seed cotton production uses the
+#'    seed cotton code and supplies both cottonseed and cotton lint.
 #'    - `husbandry`: The code of the farmed animal, e.g. bees for beekeeping,
 #'    non-dairy cattle for non-dairy cattle husbandry, etc.
 #'    - `slaughtering`: The code of the live animal being slaughtered, e.g.
@@ -178,7 +179,10 @@ build_supply_use <- function(example = FALSE) {
     dplyr::mutate(type = "supply")
 
   cbs_items <- supply_crop_production |>
-    dplyr::distinct(item_cbs_code)
+    dplyr::summarise(
+      supply_value = sum(.data$value, na.rm = TRUE),
+      .by = c(year, area_code, proc_cbs_code, item_cbs_code)
+    )
 
   use_crop_production <- dplyr::bind_rows(
     .build_use_crop_production(cbs_items, cbs),
@@ -206,7 +210,7 @@ build_supply_use <- function(example = FALSE) {
   )
 
   cbs_items <- supply_crop_product |>
-    dplyr::distinct(item_cbs_code_crop = item_cbs_code)
+    dplyr::distinct(proc_cbs_code)
 
   supply_crop_residue <- .build_supply_crop_residue(cbs_items, crop_residues)
 
@@ -214,36 +218,238 @@ build_supply_use <- function(example = FALSE) {
 }
 
 .build_use_crop_production <- function(cbs_items, cbs) {
-  cbs |>
-    dplyr::inner_join(cbs_items, "item_cbs_code") |>
-    dplyr::filter(seed > 0) |>
+  cbs_items <- .ensure_process_column(cbs_items, "item_cbs_code")
+
+  by <- "item_cbs_code"
+  if (all(c("year", "area_code") %in% names(cbs_items))) {
+    by <- c("year", "area_code", "item_cbs_code")
+  }
+
+  use <- cbs |>
+    dplyr::inner_join(
+      cbs_items,
+      by = by,
+      relationship = "many-to-many"
+    ) |>
+    dplyr::filter(seed > 0)
+
+  if ("supply_value" %in% names(use)) {
+    use <- use |>
+      dplyr::mutate(
+        supply_value = tidyr::replace_na(.data$supply_value, 0),
+        total_supply_value = sum(.data$supply_value, na.rm = TRUE),
+        process_count = dplyr::n(),
+        seed_share = dplyr::if_else(
+          .data$total_supply_value > 0,
+          .data$supply_value / .data$total_supply_value,
+          1 / .data$process_count
+        ),
+        value = .data$seed * .data$seed_share,
+        .by = c(year, area_code, item_cbs_code)
+      )
+  } else {
+    use <- use |>
+      dplyr::mutate(value = .data$seed)
+  }
+
+  use |>
+    dplyr::summarise(
+      value = sum(.data$value, na.rm = TRUE),
+      .by = c(year, area_code, proc_cbs_code, item_cbs_code)
+    ) |>
     dplyr::select(
       year,
       area_code,
-      proc_cbs_code = item_cbs_code,
-      item_cbs_code = item_cbs_code,
-      value = seed
+      proc_cbs_code,
+      item_cbs_code,
+      value
     )
 }
 
 .build_supply_crop_product <- function(crop_prod_items, primary_prod) {
+  double_process_map <- .double_crop_process_map()
+
   primary_prod |>
     dplyr::filter(unit == "tonnes") |>
     dplyr::inner_join(crop_prod_items, "item_prod_code") |>
+    dplyr::left_join(
+      double_process_map,
+      by = c("item_prod_code", "item_cbs_code")
+    ) |>
+    dplyr::mutate(
+      proc_cbs_code = dplyr::coalesce(
+        .data$proc_cbs_code,
+        .data$item_cbs_code
+      )
+    ) |>
     dplyr::summarise(
       value = sum(value),
-      .by = c(year, area_code, item_cbs_code)
+      .by = c(year, area_code, proc_cbs_code, item_cbs_code)
+    )
+}
+
+.double_crop_process_map <- function() {
+  double_products <- .primary_double_product_map()
+  if (nrow(double_products) == 0L) {
+    return(tibble::tibble(
+      item_prod_code = integer(),
+      item_cbs_code = integer(),
+      proc_cbs_code = integer()
+    ))
+  }
+
+  processes <- .primary_double_area_map() |>
+    dplyr::select(family, output_key, proc_cbs_code = area_item_cbs_code)
+
+  double_products |>
+    dplyr::left_join(processes, by = c("family", "output_key")) |>
+    dplyr::mutate(
+      proc_cbs_code = dplyr::coalesce(
+        .data$proc_cbs_code,
+        .data$item_cbs_code
+      )
     ) |>
-    dplyr::mutate(proc_cbs_code = item_cbs_code)
+    dplyr::select(
+      item_prod_code,
+      item_cbs_code,
+      proc_cbs_code
+    ) |>
+    dplyr::distinct()
+}
+
+.double_crop_area_process_map <- function(crop_prod_items = NULL) {
+  area_map <- .primary_double_area_map()
+  if (nrow(area_map) == 0L) {
+    return(tibble::tibble(
+      item_prod_code = integer(),
+      item_cbs_code = integer(),
+      proc_cbs_code = integer()
+    ))
+  }
+
+  if (!is.null(crop_prod_items)) {
+    active_families <- .primary_double_product_map() |>
+      dplyr::semi_join(crop_prod_items, by = "item_prod_code") |>
+      dplyr::distinct(family, output_key)
+
+    area_map <- area_map |>
+      dplyr::semi_join(active_families, by = c("family", "output_key"))
+  }
+
+  area_map |>
+    dplyr::transmute(
+      item_prod_code = .data$area_item_prod_code,
+      item_cbs_code = .data$area_item_cbs_code,
+      proc_cbs_code = .data$area_item_cbs_code
+    ) |>
+    dplyr::distinct()
+}
+
+.primary_double_product_map <- function() {
+  products <- .primary_double_item_map(c("Primary", "Multi"))
+
+  products |>
+    dplyr::mutate(
+      output_key = paste(
+        sort(unique(.data$item_cbs_code)),
+        collapse = ":"
+      ),
+      .by = family
+    ) |>
+    dplyr::select(
+      family,
+      output_key,
+      item_prod_code,
+      item_cbs_code
+    )
+}
+
+.primary_double_area_map <- function() {
+  area_items <- .primary_double_item_map(c("Primary_area", "Multi_area"))
+  if (nrow(area_items) == 0L) {
+    return(tibble::tibble(
+      family = character(),
+      output_key = character(),
+      area_item_prod_code = integer(),
+      area_item_cbs_code = integer()
+    ))
+  }
+
+  keys <- .primary_double_product_map() |>
+    dplyr::distinct(family, output_key)
+
+  area_items |>
+    dplyr::left_join(keys, by = "family") |>
+    dplyr::filter(!is.na(.data$output_key)) |>
+    dplyr::transmute(
+      family,
+      output_key,
+      area_item_prod_code = item_prod_code,
+      area_item_cbs_code = item_cbs_code
+    ) |>
+    dplyr::distinct()
+}
+
+.primary_double_item_map <- function(multi_types = NULL) {
+  item_map <- whep::items_prod_full |>
+    dplyr::transmute(
+      item_prod_code = .as_integer_quiet(.data$item_prod_code),
+      item_cbs_code = .as_integer_quiet(.data$item_cbs_code)
+    ) |>
+    dplyr::filter(
+      !is.na(.data$item_prod_code),
+      !is.na(.data$item_cbs_code)
+    ) |>
+    dplyr::distinct()
+
+  result <- whep::primary_double |>
+    dplyr::transmute(
+      family = dplyr::coalesce(.data$Item_area, .data$item_prod),
+      item_prod_code = .as_integer_quiet(.data$item_prod_code),
+      multi_type = .data$Multi_type
+    )
+
+  if (!is.null(multi_types)) {
+    result <- result |>
+      dplyr::filter(.data$multi_type %in% .env$multi_types)
+  }
+
+  result |>
+    dplyr::left_join(item_map, by = "item_prod_code") |>
+    dplyr::filter(!is.na(.data$item_cbs_code)) |>
+    dplyr::select(family, item_prod_code, item_cbs_code, multi_type) |>
+    dplyr::distinct()
+}
+
+.as_integer_quiet <- function(x) {
+  suppressWarnings(as.integer(x))
+}
+
+.ensure_process_column <- function(data, item_column) {
+  if ("proc_cbs_code" %in% names(data)) {
+    return(data)
+  }
+
+  data |>
+    dplyr::mutate(proc_cbs_code = .data[[item_column]])
 }
 
 .build_supply_crop_residue <- function(cbs_items, crop_residues) {
+  cbs_items <- .ensure_process_column(cbs_items, "item_cbs_code_crop")
+  processes <- cbs_items |>
+    dplyr::distinct(proc_cbs_code)
+
   crop_residues |>
-    dplyr::inner_join(cbs_items, "item_cbs_code_crop") |>
+    dplyr::inner_join(
+      processes,
+      by = c("item_cbs_code_crop" = "proc_cbs_code"),
+      relationship = "many-to-many"
+    ) |>
+    dplyr::mutate(proc_cbs_code = .data$item_cbs_code_crop) |>
     dplyr::select(
       year,
       area_code,
-      proc_cbs_code = item_cbs_code_crop,
+      proc_cbs_code,
       item_cbs_code = item_cbs_code_residue,
       value
     )
@@ -275,14 +481,7 @@ build_supply_use <- function(example = FALSE) {
     return(.empty_supply_use_rows())
   }
 
-  crop_area <- primary_prod |>
-    dplyr::filter(unit == "ha") |>
-    dplyr::inner_join(crop_prod_items, "item_prod_code") |>
-    dplyr::summarise(
-      crop_area = sum(value, na.rm = TRUE),
-      .by = c(year, area_code, item_cbs_code)
-    ) |>
-    dplyr::filter(.data$crop_area > 0)
+  crop_area <- .build_crop_area_processes(crop_prod_items, primary_prod)
   if (nrow(crop_area) == 0L) {
     return(.empty_supply_use_rows())
   }
@@ -293,6 +492,9 @@ build_supply_use <- function(example = FALSE) {
       .by = c(year, area_code)
     ) |>
     dplyr::filter(.data$total_crop_area > 0)
+  if (nrow(area_totals) == 0L) {
+    return(.empty_supply_use_rows())
+  }
 
   crop_area |>
     dplyr::inner_join(area_totals, by = c("year", "area_code")) |>
@@ -300,10 +502,49 @@ build_supply_use <- function(example = FALSE) {
     dplyr::transmute(
       year,
       area_code,
-      proc_cbs_code = item_cbs_code,
+      proc_cbs_code,
       item_cbs_code = animal_draught_item_code,
       value = .data$value * .data$crop_area / .data$total_crop_area
     )
+}
+
+.build_crop_area_processes <- function(crop_prod_items, primary_prod) {
+  double_product_map <- .double_crop_process_map()
+  double_area_map <- .double_crop_area_process_map(crop_prod_items)
+
+  regular_area <- primary_prod |>
+    dplyr::filter(.data$unit == "ha") |>
+    dplyr::inner_join(crop_prod_items, "item_prod_code") |>
+    dplyr::anti_join(
+      double_product_map,
+      by = c("item_prod_code", "item_cbs_code")
+    ) |>
+    dplyr::transmute(
+      year,
+      area_code,
+      proc_cbs_code = item_cbs_code,
+      crop_area = value
+    )
+
+  double_area <- primary_prod |>
+    dplyr::filter(.data$unit == "ha") |>
+    dplyr::inner_join(
+      double_area_map,
+      by = c("item_prod_code", "item_cbs_code")
+    ) |>
+    dplyr::transmute(
+      year,
+      area_code,
+      proc_cbs_code,
+      crop_area = value
+    )
+
+  dplyr::bind_rows(regular_area, double_area) |>
+    dplyr::summarise(
+      crop_area = sum(.data$crop_area, na.rm = TRUE),
+      .by = c(year, area_code, proc_cbs_code)
+    ) |>
+    dplyr::filter(.data$crop_area > 0)
 }
 
 .build_husbandry <- function(

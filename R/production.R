@@ -109,23 +109,11 @@ get_primary_residues <- function(example = FALSE) {
       item_cbs_code_residue,
       value
     ) |>
-    .use_seed_cbs_item()
+    .use_crop_process_cbs_item()
 }
 
 # TODO: This is dirty, revisit when we build the data here directly.
-# Change CBS names to the item that is used as seed
-.use_seed_cbs_item <- function(crop_residues) {
-  crop_residues |>
-    dplyr::mutate(
-      item_cbs_code_crop = dplyr::case_when(
-        # "Seed cotton" changes to "Cottonseed",
-        item_cbs_code_crop == 328 ~ 2559,
-        # "Coconuts" changes to "Coconuts - Incl Copra",
-        item_cbs_code_crop == 248 ~ 2560,
-        # "Oil, palm fruit" changes to "Palm kernels"
-        item_cbs_code_crop == 254 ~ 2562,
-        # Leave others unchanged
-        .default = item_cbs_code_crop
-      )
-    )
+# Keep crop residue rows keyed to the crop production process item.
+.use_crop_process_cbs_item <- function(crop_residues) {
+  crop_residues
 }
