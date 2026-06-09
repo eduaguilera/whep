@@ -56,3 +56,44 @@ test_that("max_intake_share caps are in [0, 1]", {
   ))
   expect_true(all(d$max_intake_share >= 0 & d$max_intake_share <= 1))
 })
+
+test_that("buffalo dairy products use the dairy Bouwman feed class", {
+  demand <- tibble::tibble(
+    live_anim = c(
+      rep("Buffalo", 6),
+      "Cattle, dairy",
+      "Cattle, non-dairy"
+    ),
+    live_anim_code = c(rep(946, 6), 960, 961),
+    item_prod_code = c(947, 948, 949, 951, 952, 953, 882, 867)
+  )
+
+  out <- whep:::.assign_bouwman_feed_class(demand)
+
+  expect_equal(nrow(out), nrow(demand))
+  expect_equal(
+    out$item_bouwman,
+    c(
+      "Beef cattle",
+      "Beef cattle",
+      "Beef cattle",
+      "Dairy cattle",
+      "Dairy cattle",
+      "Dairy cattle",
+      "Dairy cattle",
+      "Beef cattle"
+    )
+  )
+})
+
+test_that("Bouwman feed class assignment supports Global-style column names", {
+  demand <- tibble::tibble(
+    Live_anim = c("Buffalo", "Buffalo"),
+    Live_anim_code = c("946.0", "946.0"),
+    item_code_prod = c("951.0", "947.0")
+  )
+
+  out <- whep:::.assign_bouwman_feed_class(demand)
+
+  expect_equal(out$item_bouwman, c("Dairy cattle", "Beef cattle"))
+})
