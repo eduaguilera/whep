@@ -92,6 +92,7 @@ testthat::test_that(".rebuild_primary_double_land rebuilds field coproduct land 
     ~year, ~area_code, ~item_cbs_code, ~impact, ~element, ~origin, ~group, ~impact_u,
     2000, 1, 2559, "Land", "Cropland", "Production", "Primary crops", 25,
     2000, 1, 2661, "Land", "Cropland", "Production", "Primary crops", 100,
+    2000, 2, 2661, "Land", "Cropland", "Production", "Primary crops", 500,
     2000, 1, 2570, "Land", "Cropland", "Production", "Primary crops", 50,
     2000, 1, 2511, "Land", "Cropland", "Production", "Primary crops", 9
   )

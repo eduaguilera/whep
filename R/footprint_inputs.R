@@ -103,27 +103,13 @@ get_land_fp_production <- function(
 }
 
 .rebuild_primary_double_land <- function(land_fp, primary_prod) {
-  special_land <- .primary_double_land(primary_prod)
-  if (nrow(special_land) == 0L) {
-    return(land_fp)
-  }
-
   target_items <- .primary_double_land_target_items()
   target_item_codes <- unique(target_items$item_cbs_code)
-  replacement_rows <- land_fp |>
-    dplyr::filter(.data$item_cbs_code %in% target_item_codes) |>
-    dplyr::semi_join(
-      special_land |>
-        dplyr::select(year, area_code, item_cbs_code) |>
-        dplyr::distinct(),
-      by = c("year", "area_code", "item_cbs_code")
-    ) |>
-    dplyr::select(year, area_code, item_cbs_code) |>
-    dplyr::distinct()
+  rebuilt_land <- .primary_double_land(primary_prod)
 
   templates <- .primary_double_land_templates(land_fp, target_items)
 
-  rebuilt <- special_land |>
+  rebuilt <- rebuilt_land |>
     dplyr::left_join(
       templates,
       by = c("year", "area_code", "item_cbs_code")
@@ -150,10 +136,7 @@ get_land_fp_production <- function(
     )
 
   land_fp |>
-    dplyr::anti_join(
-      replacement_rows,
-      by = c("year", "area_code", "item_cbs_code")
-    ) |>
+    dplyr::filter(!.data$item_cbs_code %in% target_item_codes) |>
     dplyr::bind_rows(rebuilt) |>
     dplyr::summarise(
       impact_u = sum(.data$impact_u, na.rm = TRUE),
