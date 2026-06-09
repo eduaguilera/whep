@@ -20,9 +20,10 @@ in the IO model.
 
 Following the FABIO methodology, live-animal production is estimated
 from slaughter counts as \code{slaughtered + exported - imported}
-(animals raised in the country), and domestic supply (\code{processing}
-for meat animals, \code{other_uses} for draft animals) equals
-\code{production + import - export}.
+(animals raised in the country), and domestic supply (\code{processing})
+equals \code{production + import - export}. Only live animals with explicit
+slaughter-product outputs are added; other animal products are supplied
+directly by husbandry.
 
 Units are heads (number of animals).
 }
