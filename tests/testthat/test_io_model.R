@@ -157,7 +157,7 @@ testthat::test_that("build_io_model validates missing columns", {
   bad_su <- dplyr::select(f$su, -value)
   testthat::expect_error(
     build_io_model(bad_su, f$btd, f$cbs),
-    "missing columns"
+    "missing column"
   )
 })
 

@@ -4,11 +4,25 @@
 \alias{get_land_fp_production}
 \title{Get land footprint data for local production.}
 \usage{
-get_land_fp_production(example = FALSE)
+get_land_fp_production(
+  example = FALSE,
+  grassland_metric = c("occupation", "active_grazing", "both"),
+  usable_grass_yield_dm_t_ha = 2.06
+)
 }
 \arguments{
 \item{example}{If \code{TRUE}, return a small example output without
 downloading remote data. Default is \code{FALSE}.}
+
+\item{grassland_metric}{Grassland land-extension metric. \code{"occupation"}
+returns the current LUH2 pasture+rangeland occupation area. \code{"active_grazing"}
+replaces grassland rows with the area required to supply modelled grazed
+grass intake at \code{usable_grass_yield_dm_t_ha}, capped by occupation area.
+\code{"both"} returns two scoped copies for comparing both metrics.}
+
+\item{usable_grass_yield_dm_t_ha}{Usable grazed-grass dry-matter yield in
+tonnes per hectare. Only used when \code{grassland_metric} is \code{"active_grazing"}
+or \code{"both"}.}
 }
 \value{
 A tibble with columns:
@@ -21,6 +35,8 @@ A tibble with columns:
 \item \code{origin}: Origin type.
 \item \code{group}: Group category.
 \item \code{impact_u}: Land footprint value (TODO: find which unit).
+\item \code{extension_scope}: Land-extension scope. This is \code{"occupation"} by
+default and distinguishes the two copies when \code{grassland_metric = "both"}.
 }
 }
 \description{

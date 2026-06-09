@@ -37,7 +37,7 @@ testthat::test_that("get_feed_intake example returns valid tibble", {
   result <- get_feed_intake(example = TRUE)
 
   testthat::expect_s3_class(result, "tbl_df")
-  testthat::expect_equal(nrow(result), 10)
+  testthat::expect_equal(nrow(result), 11)
   pointblank::expect_col_exists(
     result,
     columns = c(
@@ -53,6 +53,7 @@ testthat::test_that("get_feed_intake example returns valid tibble", {
       "loss_share"
     )
   )
+  testthat::expect_true("grass" %in% result$feed_type)
   pointblank::expect_col_vals_not_null(result, "year")
   pointblank::expect_col_vals_not_null(result, "supply")
 })

@@ -23,6 +23,9 @@ suppressPackageStartupMessages({
 #                                  Drop embedded paths below this total share.
 #   WHEP_FOOTPRINT_SANKEY_EMBED_MAX_NODES
 #                                  Hard per-stage node cap embedded in HTML.
+#   WHEP_GRASSLAND_METRIC        "occupation" or "active_grazing".
+#   WHEP_USABLE_GRASS_YIELD_DM_T_HA
+#                                  Usable grazed-grass DM yield for active_grazing.
 
 args <- commandArgs(trailingOnly = TRUE)
 
@@ -69,6 +72,10 @@ path_min_share <- as.numeric(
 )
 embed_max_nodes <- as.numeric(
   Sys.getenv("WHEP_FOOTPRINT_SANKEY_EMBED_MAX_NODES", "20")
+)
+grassland_metric <- tolower(Sys.getenv("WHEP_GRASSLAND_METRIC", "occupation"))
+usable_grass_yield_dm_t_ha <- as.numeric(
+  Sys.getenv("WHEP_USABLE_GRASS_YIELD_DM_T_HA", "2.06")
 )
 
 if (is.na(output_tol) || output_tol < 0) {
@@ -118,10 +125,25 @@ if (is.na(embed_max_nodes) || embed_max_nodes < 1) {
     call. = FALSE
   )
 }
+if (!grassland_metric %in% c("occupation", "active_grazing")) {
+  stop(
+    "`WHEP_GRASSLAND_METRIC` must be \"occupation\" or \"active_grazing\".",
+    call. = FALSE
+  )
+}
+if (is.na(usable_grass_yield_dm_t_ha) || usable_grass_yield_dm_t_ha <= 0) {
+  stop(
+    "`WHEP_USABLE_GRASS_YIELD_DM_T_HA` must be a positive number.",
+    call. = FALSE
+  )
+}
 
 message("Building IO model for ", year, ".")
 io <- build_io_model(years = year)
-land_use <- get_land_fp_production()
+land_use <- get_land_fp_production(
+  grassland_metric = grassland_metric,
+  usable_grass_yield_dm_t_ha = usable_grass_yield_dm_t_ha
+)
 
 labels <- io$labels[[1]]
 

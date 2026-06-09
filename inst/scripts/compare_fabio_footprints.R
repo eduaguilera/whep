@@ -19,6 +19,23 @@ years <- strsplit(
   fixed = TRUE
 )[[1]] |>
   as.integer()
+grassland_metric <- tolower(Sys.getenv("WHEP_GRASSLAND_METRIC", "occupation"))
+usable_grass_yield_dm_t_ha <- as.numeric(
+  Sys.getenv("WHEP_USABLE_GRASS_YIELD_DM_T_HA", "2.06")
+)
+
+if (!grassland_metric %in% c("occupation", "active_grazing", "both")) {
+  stop(
+    "`WHEP_GRASSLAND_METRIC` must be \"occupation\", \"active_grazing\", or \"both\".",
+    call. = FALSE
+  )
+}
+if (is.na(usable_grass_yield_dm_t_ha) || usable_grass_yield_dm_t_ha <= 0) {
+  stop(
+    "`WHEP_USABLE_GRASS_YIELD_DM_T_HA` must be a positive number.",
+    call. = FALSE
+  )
+}
 
 dir.create(fabio_dir, showWarnings = FALSE, recursive = TRUE)
 
@@ -173,6 +190,7 @@ calc_fabio_year <- function(year) {
     target_iso <- demands$iso3c[[j]]
     tibble(
       model = "FABIO",
+      grassland_metric = NA_character_,
       extension_scope = "official_landuse",
       year = year,
       target = demands$target[[j]],
@@ -196,7 +214,11 @@ calc_fabio_year <- function(year) {
 
 fabio_results <- map_dfr(years, calc_fabio_year)
 
-land_use <- get_land_fp_production()
+land_use <- get_land_fp_production(
+  grassland_metric = grassland_metric,
+  usable_grass_yield_dm_t_ha = usable_grass_yield_dm_t_ha
+)
+land_use_scope_names <- unique(land_use$extension_scope)
 
 whep_item_groups <- whep::items_full |>
   distinct(.data$item_cbs_code, .data$group)
@@ -272,16 +294,6 @@ calc_whep_year <- function(io_row) {
     left_join(whep_item_groups, by = "item_cbs_code") |>
     mutate(product_class = class_from_group(.data$group))
 
-  extensions <- land_use |>
-    filter(.data$year == !!year) |>
-    right_join(
-      labels,
-      by = c("area_code", "item_cbs_code")
-    ) |>
-    arrange(.data$index) |>
-    mutate(impact_u = tidyr::replace_na(.data$impact_u, 0)) |>
-    pull(.data$impact_u)
-
   a_mat <- whep:::.technical_coefficients(
     z_mat,
     x_vec,
@@ -306,31 +318,48 @@ calc_whep_year <- function(io_row) {
 
   demand_mat <- do.call(cbind, demands$demand)
   required <- Matrix::solve(lu_fact, demand_mat)
-  scopes <- whep_extension_scopes(extensions, labels)
 
-  result <- imap_dfr(scopes, function(scope_ext, scope_name) {
-    intensity <- ifelse(x_vec <= 1e-8, 0, scope_ext / x_vec)
-    intensity[!is.finite(intensity)] <- 0
+  result <- map_dfr(land_use_scope_names, function(land_metric) {
+    extensions <- land_use |>
+      filter(
+        .data$year == !!year,
+        .data$extension_scope == !!land_metric
+      ) |>
+      right_join(
+        labels,
+        by = c("area_code", "item_cbs_code")
+      ) |>
+      arrange(.data$index) |>
+      mutate(impact_u = tidyr::replace_na(.data$impact_u, 0)) |>
+      pull(.data$impact_u)
 
-    map_dfr(seq_len(ncol(required)), function(j) {
-      fp <- intensity * as.numeric(required[, j])
-      target_codes <- demands$area_codes[[j]]
-      tibble(
-        model = "WHEP",
-        extension_scope = scope_name,
-        year = year,
-        target = demands$target[[j]],
-        fd = demands$fd[[j]],
-        product_class = demands$product_class[[j]],
-        target_area_count = length(target_codes),
-        value = sum(fp, na.rm = TRUE),
-        positive_value = sum(pmax(fp, 0), na.rm = TRUE),
-        import_share = sum(
-          fp[!labels$area_code %in% target_codes],
-          na.rm = TRUE
-        ) /
-          sum(fp, na.rm = TRUE)
-      )
+    scopes <- whep_extension_scopes(extensions, labels)
+
+    imap_dfr(scopes, function(scope_ext, scope_name) {
+      intensity <- ifelse(x_vec <= 1e-8, 0, scope_ext / x_vec)
+      intensity[!is.finite(intensity)] <- 0
+
+      map_dfr(seq_len(ncol(required)), function(j) {
+        fp <- intensity * as.numeric(required[, j])
+        target_codes <- demands$area_codes[[j]]
+        tibble(
+          model = "WHEP",
+          grassland_metric = land_metric,
+          extension_scope = scope_name,
+          year = year,
+          target = demands$target[[j]],
+          fd = demands$fd[[j]],
+          product_class = demands$product_class[[j]],
+          target_area_count = length(target_codes),
+          value = sum(fp, na.rm = TRUE),
+          positive_value = sum(pmax(fp, 0), na.rm = TRUE),
+          import_share = sum(
+            fp[!labels$area_code %in% target_codes],
+            na.rm = TRUE
+          ) /
+            sum(fp, na.rm = TRUE)
+        )
+      })
     })
   })
 
@@ -372,15 +401,21 @@ fabio_extension_totals <- map_dfr(years, function(year) {
       value = sum(.data$landuse, na.rm = TRUE),
       .by = c("group", "comm_group")
     ) |>
-    mutate(model = "FABIO", year = year, source_column = "landuse")
+    mutate(
+      model = "FABIO",
+      grassland_metric = NA_character_,
+      year = year,
+      source_column = "landuse"
+    )
 })
 
 whep_extension_totals <- land_use |>
   filter(.data$year %in% years) |>
   summarise(
     value = sum(.data$impact_u, na.rm = TRUE),
-    .by = c("year", "group")
+    .by = c("extension_scope", "year", "group")
   ) |>
+  rename(grassland_metric = "extension_scope") |>
   mutate(
     model = "WHEP",
     comm_group = NA_character_,
@@ -391,7 +426,15 @@ extension_totals <- bind_rows(
   fabio_extension_totals,
   whep_extension_totals
 ) |>
-  select("model", "year", "group", "comm_group", "source_column", "value")
+  select(
+    "model",
+    "grassland_metric",
+    "year",
+    "group",
+    "comm_group",
+    "source_column",
+    "value"
+  )
 
 write_csv(results, file.path(fabio_dir, "footprint_aggregates.csv"))
 write_csv(comparison, file.path(fabio_dir, "footprint_comparison.csv"))
@@ -404,9 +447,9 @@ comparison |>
     min_ratio = min(.data$ratio, na.rm = TRUE),
     max_ratio = max(.data$ratio, na.rm = TRUE),
     median_import_share_diff = median(.data$import_share_diff, na.rm = TRUE),
-    .by = "extension_scope"
+    .by = c("grassland_metric", "extension_scope")
   ) |>
-  arrange(.data$median_ratio) |>
+  arrange(.data$grassland_metric, .data$median_ratio) |>
   print(n = Inf)
 
 message("\nLargest current WHEP/FABIO ratios:")
@@ -414,6 +457,7 @@ comparison |>
   filter(.data$extension_scope == "current_all_land_fp") |>
   arrange(desc(.data$ratio)) |>
   select(
+    "grassland_metric",
     "year",
     "target",
     "fd",

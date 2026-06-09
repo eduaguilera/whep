@@ -20,6 +20,9 @@ suppressPackageStartupMessages({
 #   WHEP_FOOTPRINT_VALUE_ADDED_FLOOR
 #   WHEP_FOOTPRINT_SANKEY_MIN_SHARE
 #   WHEP_FOOTPRINT_SANKEY_MAX_NODES
+#   WHEP_GRASSLAND_METRIC        "occupation" or "active_grazing".
+#   WHEP_USABLE_GRASS_YIELD_DM_T_HA
+#                                  Usable grazed-grass DM yield for active_grazing.
 
 .resolve_sankey_area <- function(value) {
   if (grepl("^[0-9]+$", value)) {
@@ -132,6 +135,10 @@ sankey_min_share <- as.numeric(
 sankey_max_nodes <- as.numeric(
   Sys.getenv("WHEP_FOOTPRINT_SANKEY_MAX_NODES", "10")
 )
+grassland_metric <- tolower(Sys.getenv("WHEP_GRASSLAND_METRIC", "occupation"))
+usable_grass_yield_dm_t_ha <- as.numeric(
+  Sys.getenv("WHEP_USABLE_GRASS_YIELD_DM_T_HA", "2.06")
+)
 
 if (is.na(output_tol) || output_tol < 0) {
   stop("`WHEP_FOOTPRINT_OUTPUT_TOL` must be non-negative.", call. = FALSE)
@@ -163,6 +170,18 @@ if (
     call. = FALSE
   )
 }
+if (!grassland_metric %in% c("occupation", "active_grazing")) {
+  stop(
+    "`WHEP_GRASSLAND_METRIC` must be \"occupation\" or \"active_grazing\".",
+    call. = FALSE
+  )
+}
+if (is.na(usable_grass_yield_dm_t_ha) || usable_grass_yield_dm_t_ha <= 0) {
+  stop(
+    "`WHEP_USABLE_GRASS_YIELD_DM_T_HA` must be a positive number.",
+    call. = FALSE
+  )
+}
 
 message(
   "Building IO model for ",
@@ -174,7 +193,10 @@ message(
   "."
 )
 io <- build_io_model(years = year)
-land_use <- get_land_fp_production()
+land_use <- get_land_fp_production(
+  grassland_metric = grassland_metric,
+  usable_grass_yield_dm_t_ha = usable_grass_yield_dm_t_ha
+)
 labels <- io$labels[[1]]
 
 extensions <- land_use |>
