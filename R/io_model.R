@@ -573,11 +573,11 @@ build_io_model <- function(
   n_areas,
   n_items
 ) {
-  big <- purrr::map(
+  share_blocks <- purrr::map(
     as.character(items),
     ~ trade_shares[[.x]]
-  ) |>
-    do.call(rbind, args = _)
+  )
+  big <- do.call(rbind, share_blocks)
   row_order <- .interleave_index(n_areas, n_items)
   methods::as(big[row_order, , drop = FALSE], "CsparseMatrix")
 }

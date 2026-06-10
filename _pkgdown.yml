@@ -88,10 +88,13 @@ reference:
 - subtitle: Polities
   contents:
   - polities
+  - polity_area_crosswalk
   - polities_cats
   - regions_full
+  - add_polity_code
   - add_area_code
   - add_area_name
+  - get_polity_geometries
 - subtitle: Commodity balance sheet items
   contents:
   - items_cbs
