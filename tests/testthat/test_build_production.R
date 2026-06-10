@@ -221,6 +221,60 @@ test_that("build_primary_production defaults to end_year 2023", {
 })
 
 
+# -- rice unit convention ------------------------------------------------------
+
+test_that(".correct_rice_milled_equivalent_final converts paddy production only", {
+  rate <- whep:::.rice_milled_extraction_rate()
+  df <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code,
+    ~item_cbs, ~item_cbs_code, ~live_anim, ~live_anim_code,
+    ~unit, ~value, ~source,
+    2000L, "China", 41L, "Rice", "27",
+    "Rice and products", 2807L, NA, NA,
+    "tonnes", 100, "FAOSTAT_prod",
+    2000L, "China", 41L, "Rice", "27",
+    "Rice and products", 2807L, NA, NA,
+    "t_ha", 10, "imputed_yield:Global",
+    2000L, "China", 41L, "Rice", "27",
+    "Rice and products", 2807L, NA, NA,
+    "ha", 20, "FAOSTAT_prod",
+    2000L, "China", 41L, "Rice", "27",
+    "Rice and products", 2807L, NA, NA,
+    "tonnes", 80, "imputed_cbs_ratio",
+    2000L, "China", 41L, "Wheat", "15",
+    "Wheat and products", 2511L, NA, NA,
+    "tonnes", 50, "FAOSTAT_prod"
+  )
+
+  result <- whep:::.correct_rice_milled_equivalent_final(df) |>
+    dplyr::arrange(.data$item_prod_code, .data$unit, .data$source)
+
+  rice <- result |>
+    dplyr::filter(.data$item_prod_code == "27")
+
+  testthat::expect_equal(
+    rice$value[rice$unit == "tonnes" & rice$source == "FAOSTAT_prod"],
+    100 * rate
+  )
+  testthat::expect_equal(
+    rice$value[rice$unit == "t_ha"],
+    10 * rate
+  )
+  testthat::expect_equal(
+    rice$value[rice$unit == "ha"],
+    20
+  )
+  testthat::expect_equal(
+    rice$value[rice$source == "imputed_cbs_ratio"],
+    80
+  )
+  testthat::expect_equal(
+    result$value[result$item_prod_code == "15"],
+    50
+  )
+})
+
+
 # -- deduplication --------------------------------------------------------------
 
 test_that(".dedup_production keeps highest-priority source", {

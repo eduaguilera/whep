@@ -210,6 +210,8 @@ build_primary_production <- function(
 #' * **Tea ÷ 4.37** — FAOSTAT reports tea in fresh-leaf weight;
 #'   this converts to made-tea weight for years after 1990. Affects
 #'   both `tonnes` and yield units (`t_ha`, `t_head`, `t_LU`).
+#' * **Rice × 0.67** — FAOSTAT reports rice production as paddy;
+#'   this converts paddy rice tonnes and yields to milled equivalent.
 #' * **Game meat stocks** — creates synthetic `LU` and `heads` rows
 #'   for item "Game" (1190) from game-meat production tonnes (1163).
 #' * **Dissolved countries** — removes overlapping country/year
@@ -224,6 +226,7 @@ build_primary_production <- function(
 .fix_production <- function(df) {
   df |>
     .correct_tea_final() |>
+    .correct_rice_milled_equivalent_final() |>
     .add_game_meat_final() |>
     .filter_dissolved_countries()
 }
@@ -1922,6 +1925,52 @@ build_primary_production <- function(
         value
       )
     )
+}
+
+#' Convert paddy rice production to milled-equivalent rice
+#' @details FAOSTAT crop production reports rice as paddy rice. WHEP's CBS rice
+#'   item is compared against FABIO's milled-equivalent rice, so paddy-based
+#'   production tonnes and `t_ha` yields are multiplied by the extraction rate.
+#'   Hectares are left unchanged. Rows imputed from CBS production are skipped
+#'   because the CBS harmonizer already converts rice to milled equivalent.
+#' @keywords internal
+#' @noRd
+.correct_rice_milled_equivalent_final <- function(
+  df,
+  extraction_rate = .rice_milled_extraction_rate()
+) {
+  force(df)
+  cli::cli_progress_step("Converting rice to milled equivalent")
+  rice_units <- c("tonnes", "t_ha")
+  paddy_sources <- c(
+    "FAOSTAT_prod",
+    "fill_linear",
+    "fill_linear_historical",
+    "LUH2_cropland",
+    "LUH2_agriland"
+  )
+
+  df |>
+    dplyr::mutate(
+      rice_source_is_paddy = .data$source %in% paddy_sources |
+        stringr::str_starts(
+          tidyr::replace_na(.data$source, ""),
+          "imputed_yield"
+        ),
+      rice_source_is_paddy = tidyr::replace_na(
+        .data$rice_source_is_paddy,
+        FALSE
+      ),
+      value = dplyr::if_else(
+        as.character(.data$item_prod_code) == "27" &
+          .data$item_cbs_code == 2807L &
+          .data$unit %in% rice_units &
+          .data$rice_source_is_paddy,
+        .data$value * extraction_rate,
+        .data$value
+      )
+    ) |>
+    dplyr::select(-dplyr::all_of("rice_source_is_paddy"))
 }
 
 #' Add game-meat livestock units and heads (final format)
