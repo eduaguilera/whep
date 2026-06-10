@@ -26,9 +26,11 @@
 #'   Default `NULL`.
 #'
 #' @returns A tibble with the same columns as [get_primary_production()]:
-#'   `year`, `area_code` (numeric FAOSTAT), `item_prod_code`,
-#'   `item_cbs_code`, `live_anim_code`, `unit`, `value`.
-#'   Names can be recovered via [add_area_name()], [add_item_prod_name()], etc.
+#'   `year`, legacy numeric `area_code`, numeric `polity_area_code`,
+#'   `reporting_polity_code`, `reporting_polity_name`,
+#'   `reporting_polity_has_geometry`, `item_prod_code`, `item_cbs_code`,
+#'   `live_anim_code`, `unit`, `value`, and `source`.
+#'   Item names can be recovered via [add_item_prod_name()] and related helpers.
 #'   When `show_duplicates = TRUE`, returns a wide tibble with one
 #'   column per source showing the competing values.
 #'
@@ -80,7 +82,8 @@ build_primary_production <- function(
       value,
       source,
       dplyr::any_of("fao_flag")
-    )
+    ) |>
+    .add_reporting_polity_columns()
 
   attr(result, ".cb_extracts") <- cb_extracts
   result
@@ -1928,8 +1931,16 @@ build_primary_production <- function(
     tidyr::pivot_wider(
       names_from = land_use,
       values_from = area_mha
-    ) |>
-    dplyr::mutate(agriland = Cropland + Pasture)
+    )
+
+  if (!"Cropland" %in% names(land_wide)) {
+    land_wide$Cropland <- 0
+  }
+  if (!"Pasture" %in% names(land_wide)) {
+    land_wide$Pasture <- 0
+  }
+  land_wide <- land_wide |>
+    dplyr::mutate(agriland = .data$Cropland + .data$Pasture)
 
   primary_raw2 |>
     dplyr::mutate(

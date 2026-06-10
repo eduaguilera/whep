@@ -192,6 +192,66 @@ add_polity_code <- function(
   tibble::as_tibble(out)
 }
 
+.add_reporting_polity_columns <- function(
+  table,
+  code_column = "area_code"
+) {
+  dt <- data.table::as.data.table(table)
+  drop_existing <- intersect(
+    c(
+      "polity_area_code",
+      "reporting_polity_code",
+      "reporting_polity_name",
+      "reporting_polity_has_geometry"
+    ),
+    names(dt)
+  )
+  if (length(drop_existing) > 0L) {
+    dt[, (drop_existing) := NULL]
+  }
+
+  out <- .add_polity_columns_dt(
+    dt,
+    code_col = code_column,
+    year_col = NULL,
+    prefix = "reporting_",
+    include_unmapped = TRUE
+  )
+  if ("reporting_has_geometry" %in% names(out)) {
+    data.table::setnames(
+      out,
+      "reporting_has_geometry",
+      "reporting_polity_has_geometry"
+    )
+  }
+  out[, polity_area_code := reporting_polity_area_code]
+  out[
+    ,
+    c(
+      "reporting_area_name",
+      "reporting_area_iso3c",
+      "reporting_polity_area_code",
+      "reporting_polity_start_year",
+      "reporting_polity_end_year",
+      "reporting_mapping_status"
+    ) := NULL
+  ]
+
+  leading_cols <- c(
+    "year",
+    code_column,
+    "polity_area_code",
+    "reporting_polity_code",
+    "reporting_polity_name",
+    "reporting_polity_has_geometry"
+  )
+  data.table::setcolorder(
+    out,
+    c(intersect(leading_cols, names(out)), setdiff(names(out), leading_cols))
+  )
+  tibble::as_tibble(out)
+}
+
 #' Get WHEP polity geometries
 #'
 #' @description

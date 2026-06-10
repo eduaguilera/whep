@@ -15,8 +15,13 @@ A tibble with the item production data.
 It contains the following columns:
 \itemize{
 \item \code{year}: The year in which the recorded event occurred.
-\item \code{area_code}: The code of the country where the data is from. For code
-details see e.g. \code{add_area_name()}.
+\item \code{area_code}: Legacy numeric reporting area code.
+\item \code{polity_area_code}: Numeric WHEP reporting polity code used for matrix
+workflows. This currently matches \code{area_code}.
+\item \code{reporting_polity_code}: WHEP polity code for the reporting polygon.
+\item \code{reporting_polity_name}: WHEP polity name for the reporting polygon.
+\item \code{reporting_polity_has_geometry}: Whether the reporting polity has a
+polygon in the WHEP polity database.
 \item \code{item_prod_code}: FAOSTAT internal code for each produced item.
 \item \code{item_cbs_code}: FAOSTAT internal code for each commodity balance sheet
 item. The commodity balance sheet contains an aggregated version of

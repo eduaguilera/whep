@@ -490,6 +490,23 @@
     paste(paste(id_cols, collapse = " + "), "~ element")
   )
   dt <- data.table::dcast(dt, form, value.var = "value", fill = 0)
+  expected_elements <- c(
+    "domestic_supply",
+    "production",
+    "import",
+    "export",
+    "stock_variation",
+    "food",
+    "feed",
+    "seed",
+    "processing",
+    "processing_primary",
+    "other_uses"
+  )
+  missing_elements <- setdiff(expected_elements, names(dt))
+  if (length(missing_elements) > 0L) {
+    dt[, (missing_elements) := 0]
+  }
 
   dt[, `:=`(
     ds_destinies = round(
