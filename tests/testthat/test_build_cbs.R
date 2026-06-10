@@ -181,15 +181,18 @@ test_that(".cbs_impute_trade tolerates missing destiny element columns", {
 
   result <- whep:::.cbs_impute_trade(raw)
 
-  expect_true(all(c(
-    "food",
-    "feed",
-    "other_uses",
-    "processing",
-    "import",
-    "export",
-    "stock_variation"
-  ) %in% result$element))
+  expect_true(all(
+    c(
+      "food",
+      "feed",
+      "other_uses",
+      "processing",
+      "import",
+      "export",
+      "stock_variation"
+    ) %in%
+      result$element
+  ))
 })
 
 

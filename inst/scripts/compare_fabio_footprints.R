@@ -37,7 +37,9 @@ if (is.na(usable_grass_yield_dm_t_ha) || usable_grass_yield_dm_t_ha <= 0) {
     call. = FALSE
   )
 }
-if (is.na(max_column_sum) || !is.finite(max_column_sum) || max_column_sum <= 0) {
+if (
+  is.na(max_column_sum) || !is.finite(max_column_sum) || max_column_sum <= 0
+) {
   stop(
     "`WHEP_A_MAX_COLUMN_SUM` must be a positive finite number.",
     call. = FALSE
@@ -208,14 +210,14 @@ calc_fabio_year <- function(year) {
     target_iso <- demands$iso3c[[j]]
     bind_cols(
       tibble(
-      model = "FABIO",
-      grassland_metric = NA_character_,
-      extension_scope = "official_landuse",
-      year = year,
-      target = demands$target[[j]],
-      fd = demands$fd[[j]],
-      product_class = demands$product_class[[j]],
-      target_area_count = length(demands$area_codes[[j]])
+        model = "FABIO",
+        grassland_metric = NA_character_,
+        extension_scope = "official_landuse",
+        year = year,
+        target = demands$target[[j]],
+        fd = demands$fd[[j]],
+        product_class = demands$product_class[[j]],
+        target_area_count = length(demands$area_codes[[j]])
       ),
       summarise_positive_fp(
         fp,
@@ -362,14 +364,14 @@ calc_whep_year <- function(io_row) {
         target_codes <- demands$area_codes[[j]]
         bind_cols(
           tibble(
-          model = "WHEP",
-          grassland_metric = land_metric,
-          extension_scope = scope_name,
-          year = year,
-          target = demands$target[[j]],
-          fd = demands$fd[[j]],
-          product_class = demands$product_class[[j]],
-          target_area_count = length(target_codes)
+            model = "WHEP",
+            grassland_metric = land_metric,
+            extension_scope = scope_name,
+            year = year,
+            target = demands$target[[j]],
+            fd = demands$fd[[j]],
+            product_class = demands$product_class[[j]],
+            target_area_count = length(target_codes)
           ),
           summarise_positive_fp(
             fp,

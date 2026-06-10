@@ -64,12 +64,15 @@ testthat::test_that("get_land_fp_production filters and cleans land_fp", {
   result <- get_land_fp_production()
 
   testthat::expect_equal(nrow(result), 1)
-  testthat::expect_false(any(result$group %in% c(
-    "Crop products",
-    "Crop residues",
-    "Draught",
-    "Livestock products"
-  )))
+  testthat::expect_false(any(
+    result$group %in%
+      c(
+        "Crop products",
+        "Crop residues",
+        "Draught",
+        "Livestock products"
+      )
+  ))
   pointblank::expect_col_vals_in_set(
     result,
     impact,

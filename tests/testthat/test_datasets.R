@@ -31,9 +31,24 @@ test_that("items_full has correct default_destiny for non-food items", {
 test_that("polities includes promoted FAOSTAT-reporting countries", {
   pol <- whep::polities
   promoted <- c(
-    "ATG", "BHS", "BRB", "BTN", "COM", "FJI", "GRD", "MAC",
-    "MHL", "FSM", "NCL", "NRU", "PRI", "PYF", "SYC", "SLB",
-    "TON", "TUV"
+    "ATG",
+    "BHS",
+    "BRB",
+    "BTN",
+    "COM",
+    "FJI",
+    "GRD",
+    "MAC",
+    "MHL",
+    "FSM",
+    "NCL",
+    "NRU",
+    "PRI",
+    "PYF",
+    "SYC",
+    "SLB",
+    "TON",
+    "TUV"
   )
   for (code in promoted) {
     expect_true(

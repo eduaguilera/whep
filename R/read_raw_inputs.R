@@ -39,8 +39,7 @@
     data.table::setDT(df)
   }
   dt <- df
-  bridge <- .current_area_lookup(include_unmapped = TRUE)[
-    ,
+  bridge <- .current_area_lookup(include_unmapped = TRUE)[,
     .(area_code_fao = area_code, iso3c = area_iso3c, area = area_name)
   ]
   bridge <- unique(bridge, by = "area_code_fao")
@@ -241,8 +240,7 @@
 
   function() {
     if (is.null(bridge)) {
-      bridge <<- .current_area_lookup(include_unmapped = FALSE)[
-        ,
+      bridge <<- .current_area_lookup(include_unmapped = FALSE)[,
         .(area_code, polity_code, polity_name, polity_area_code)
       ]
     }

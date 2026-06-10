@@ -82,12 +82,13 @@ get_land_fp_production <- function(
 .drop_derived_land_extensions <- function(land_fp) {
   land_fp |>
     dplyr::filter(
-      !(.data$group %in% c(
-        "Crop products",
-        "Crop residues",
-        "Draught",
-        "Livestock products"
-      ))
+      !(.data$group %in%
+        c(
+          "Crop products",
+          "Crop residues",
+          "Draught",
+          "Livestock products"
+        ))
     )
 }
 

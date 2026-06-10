@@ -19,7 +19,13 @@
   ]
   data.table::setorderv(
     out,
-    c("area_code", "has_polity", "is_current", "polity_end_year", "polity_start_year"),
+    c(
+      "area_code",
+      "has_polity",
+      "is_current",
+      "polity_end_year",
+      "polity_start_year"
+    ),
     order = c(1L, -1L, -1L, -1L, -1L),
     na.last = TRUE
   )
@@ -95,14 +101,12 @@
         mapping_status,
         has_geometry
       )
-    ][
-      ,
+    ][,
       c("area_code", "join_start_year", "join_end_year", base_cols),
       with = FALSE
     ]
 
-    join_data <- dt[
-      ,
+    join_data <- dt[,
       .(
         ..whep_polity_rowid = get(rowid_col),
         area_code = get(code_col),
@@ -133,8 +137,7 @@
   } else {
     lookup <- .current_area_lookup(include_unmapped = include_unmapped)
     lookup <- lookup[, c("area_code", base_cols), with = FALSE]
-    join_data <- dt[
-      ,
+    join_data <- dt[,
       .(
         ..whep_polity_rowid = get(rowid_col),
         area_code = get(code_col)
@@ -225,8 +228,7 @@ add_polity_code <- function(
     )
   }
   out[, polity_area_code := reporting_polity_area_code]
-  out[
-    ,
+  out[,
     c(
       "reporting_area_name",
       "reporting_area_iso3c",

@@ -137,8 +137,10 @@ polity_area_crosswalk <- regions_for_crosswalk |>
       !is.na(.data$manual_note) ~ .data$manual_note,
       !is.na(.data$fabio_code) &
         .data$fabio_code == 999L &
-        .data$area_code != 999L ~ "FABIO collapses this source area into the Rest of World reporting polity.",
-      .data$mapping_status == "unmapped" ~ "No real WHEP polity is available yet; treat this as a statistical reporting area without a polygon.",
+        .data$area_code !=
+          999L ~ "FABIO collapses this source area into the Rest of World reporting polity.",
+      .data$mapping_status ==
+        "unmapped" ~ "No real WHEP polity is available yet; treat this as a statistical reporting area without a polygon.",
       TRUE ~ NA_character_
     )
   ) |>
