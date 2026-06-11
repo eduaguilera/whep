@@ -64,11 +64,11 @@ testthat::test_that(".build_supply_husbandry gives livestock and non-slaughter p
 
   primary_prod <- tibble::tribble(
     ~year, ~area_code, ~item_prod_code, ~item_cbs_code, ~live_anim_code, ~unit, ~value,
-    2000, 1, 1, 1, NA, "LU", 20,
-    2000, 1, 2, 2, NA, "LU", 30,
+    2000, 1, 1, 1, NA, "heads", 100,
+    2000, 1, 2, 2, NA, "heads", 200,
     2000, 1, 5, 6, 1, "tonnes", 40,
     2000, 1, 7, 8, 1, "tonnes", 45,
-    2001, 1, 1, 1, NA, "LU", 40,
+    2001, 1, 1, 1, NA, "heads", 150,
     2001, 1, 7, 8, 1, "tonnes", 50,
     2001, 1, 7, 9, NA, "tonnes", 50,
     2002, 1, 7, 2, 3, "tonnes", 50
@@ -76,9 +76,9 @@ testthat::test_that(".build_supply_husbandry gives livestock and non-slaughter p
 
   cbs <- tibble::tribble(
     ~year, ~area_code, ~item_cbs_code, ~production,
-    2000, 1, 1, 100,
-    2000, 1, 2, 200,
-    2001, 1, 1, 150
+    2000, 1, 1, 20,
+    2000, 1, 2, 30,
+    2001, 1, 1, 40
   )
 
   slaughter_product_items <- tibble::tibble(
@@ -402,11 +402,16 @@ testthat::test_that(".build_livestock_supply uses heads when CBS is unavailable"
   )
 })
 
-testthat::test_that(".build_livestock_supply uses CBS production when available", {
+testthat::test_that(".build_livestock_supply ignores CBS production flow", {
   husbandry_items <- tibble::tibble(
     live_anim_code = c(1, 2)
   )
-  primary_prod <- tibble::tibble()
+  primary_prod <- tibble::tribble(
+    ~year, ~area_code, ~item_prod_code, ~item_cbs_code, ~live_anim_code, ~unit, ~value,
+    2000, 1, 10, 1, NA, "heads", 100,
+    2000, 1, 11, 2, NA, "heads", 200,
+    2000, 1, 12, 1, NA, "tonnes", 50
+  )
   cbs <- tibble::tribble(
     ~year, ~area_code, ~item_cbs_code, ~production,
     2000, 1, 1, 10,
@@ -422,20 +427,21 @@ testthat::test_that(".build_livestock_supply uses CBS production when available"
 
   expected <- tibble::tribble(
     ~year, ~area_code, ~proc_cbs_code, ~item_cbs_code, ~value,
-    2000, 1, 1, 1, 10,
-    2000, 1, 2, 2, 20
+    2000, 1, 1, 1, 100,
+    2000, 1, 2, 2, 200
   )
 
   result |>
     .expect_equal_unordered(expected)
 })
 
-testthat::test_that(".build_livestock_supply keeps live animals in CBS head units", {
+testthat::test_that(".build_livestock_supply keeps live animals in head units", {
   husbandry_items <- tibble::tibble(
     live_anim_code = 1L
   )
   primary_prod <- tibble::tribble(
     ~year, ~area_code, ~item_prod_code, ~item_cbs_code, ~live_anim_code, ~unit, ~value,
+    2000, 1, 9, 1, NA, "heads", 1000,
     2000, 1, 10, 50, 1, "tonnes", 80,
     2000, 1, 11, 51, 1, "tonnes", 20
   )
@@ -452,7 +458,7 @@ testthat::test_that(".build_livestock_supply keeps live animals in CBS head unit
 
   expected <- tibble::tribble(
     ~year, ~area_code, ~proc_cbs_code, ~item_cbs_code, ~value,
-    2000, 1, 1, 1, 8
+    2000, 1, 1, 1, 1000
   )
 
   result |>

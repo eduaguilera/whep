@@ -610,24 +610,10 @@ build_supply_use <- function(example = FALSE) {
   husbandry_items,
   cbs = NULL
 ) {
-  required_cbs <- c("year", "area_code", "item_cbs_code", "production")
-  if (!is.null(cbs) && all(required_cbs %in% names(cbs))) {
-    return(
-      cbs |>
-        dplyr::inner_join(
-          husbandry_items,
-          dplyr::join_by(item_cbs_code == live_anim_code)
-        ) |>
-        dplyr::transmute(
-          year,
-          area_code,
-          proc_cbs_code = item_cbs_code,
-          item_cbs_code,
-          value = production
-        )
-    )
-  }
+  force(cbs)
 
+  # Feed intake is stock-based, so live-animal husbandry output must use the
+  # stock count. CBS production is a slaughter/production flow for these items.
   primary_prod |>
     dplyr::filter(unit == "heads") |>
     dplyr::inner_join(
