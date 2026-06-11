@@ -93,17 +93,15 @@ testthat::test_that("build_io_model works with explicit inputs", {
   testthat::expect_equal(result$year[[1]], 2000)
 })
 
-testthat::test_that("x equals rowSums(z) + rowSums(y)", {
+testthat::test_that("X uses reported production output", {
   f <- io_single_country_fixture()
   result <- build_io_model(f$su, f$btd, f$cbs)
 
-  z <- result$Z[[1]]
-  y <- result$Y[[1]]
   x <- result$X[[1]]
 
   testthat::expect_equal(
     as.numeric(x),
-    as.numeric(Matrix::rowSums(z) + Matrix::rowSums(y))
+    f$cbs$production
   )
 })
 
@@ -234,6 +232,22 @@ testthat::test_that("sparse default IO builds run requested years independently"
     supply_use = NULL,
     cbs = NULL
   ))
+})
+
+testthat::test_that(".build_output_vector falls back when production is absent", {
+  dims <- list(
+    areas = 1L,
+    items = c(10L, 20L)
+  )
+  cbs <- tibble::tribble(
+    ~area_code, ~item_cbs_code, ~production,
+    1L, 10L, 100,
+    1L, 20L, 0
+  )
+
+  result <- .build_output_vector(cbs, dims, fallback = c(80, 70))
+
+  testthat::expect_equal(result, c(100, 70))
 })
 
 # Private helpers -------------------------------------------------------

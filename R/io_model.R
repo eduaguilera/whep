@@ -398,7 +398,8 @@ build_io_model <- function(
 
   cli::cli_inform("  Fixing negative outputs...")
   fixed <- .fix_negative_output(z_mat, y_mat)
-  n_neg <- sum(fixed$X < 0)
+  x_vec <- .build_output_vector(cbs_yr, dims, fixed$X)
+  n_neg <- sum(x_vec < 0)
   if (n_neg > 0) {
     cli::cli_warn(
       "  {n_neg} sector{?s} still have negative output."
@@ -410,7 +411,7 @@ build_io_model <- function(
   list(
     Z = z_mat,
     Y = fixed$Y,
-    X = fixed$X,
+    X = x_vec,
     labels = labels,
     fd_labels = fd_labels
   )
@@ -716,6 +717,35 @@ build_io_model <- function(
       methods::as("CsparseMatrix")
   })
   do.call(cbind, blocks)
+}
+
+.build_output_vector <- function(cbs_yr, dims, fallback = NULL) {
+  template <- tidyr::expand_grid(
+    area_code = dims$areas,
+    item_cbs_code = dims$items
+  )
+  output <- template |>
+    dplyr::left_join(
+      cbs_yr |>
+        dplyr::select(area_code, item_cbs_code, production),
+      by = c("area_code", "item_cbs_code")
+    ) |>
+    dplyr::arrange(
+      match(.data$area_code, dims$areas),
+      match(.data$item_cbs_code, dims$items)
+    ) |>
+    dplyr::mutate(
+      production = tidyr::replace_na(.data$production, 0)
+    ) |>
+    dplyr::pull(.data$production)
+
+  if (is.null(fallback)) {
+    return(as.numeric(output))
+  }
+
+  fallback <- as.numeric(fallback)
+  output <- ifelse(output > 0, output, fallback)
+  as.numeric(output)
 }
 
 # --- Stock and leftover adjustments ---
