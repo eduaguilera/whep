@@ -65,6 +65,15 @@ build_io_model <- function(
       "{.arg years} must be numeric or NULL."
     )
   }
+  if (.io_should_build_independent_years(years, supply_use, cbs)) {
+    return(.build_io_model_independent_years(
+      supply_use = supply_use,
+      bilateral_trade = bilateral_trade,
+      cbs = cbs,
+      years = years,
+      endogenize_losses = endogenize_losses
+    ))
+  }
   build_years <- .io_build_years(years)
   context_years <- .io_context_years(build_years)
 
@@ -188,6 +197,72 @@ build_io_model <- function(
     return(NULL)
   }
   seq.int(min(years, na.rm = TRUE), max(years, na.rm = TRUE))
+}
+
+.io_should_build_independent_years <- function(years, supply_use, cbs) {
+  if (is.null(years)) {
+    return(FALSE)
+  }
+  if (length(.io_requested_years(years)) <= 1L) {
+    return(FALSE)
+  }
+  if (.io_years_are_contiguous(years)) {
+    return(FALSE)
+  }
+
+  is.null(supply_use) || is.null(cbs)
+}
+
+.io_requested_years <- function(years) {
+  sort(unique(as.integer(years[!is.na(years)])))
+}
+
+.io_years_are_contiguous <- function(years) {
+  years <- .io_requested_years(years)
+  if (length(years) <= 1L) {
+    return(TRUE)
+  }
+
+  identical(years, seq.int(min(years), max(years)))
+}
+
+.build_io_model_independent_years <- function(
+  supply_use,
+  bilateral_trade,
+  cbs,
+  years,
+  endogenize_losses
+) {
+  years <- .io_requested_years(years)
+  cli::cli_inform(c(
+    "i" = paste0(
+      "Building ",
+      length(years),
+      " sparse requested years independently."
+    )
+  ))
+
+  purrr::map(
+    years,
+    function(yr) {
+      build_io_model(
+        supply_use = .io_filter_optional_years(supply_use, yr),
+        bilateral_trade = .io_filter_optional_years(bilateral_trade, yr),
+        cbs = .io_filter_optional_years(cbs, yr),
+        years = yr,
+        endogenize_losses = endogenize_losses
+      )
+    }
+  ) |>
+    dplyr::bind_rows()
+}
+
+.io_filter_optional_years <- function(x, years) {
+  if (is.null(x)) {
+    return(NULL)
+  }
+
+  dplyr::filter(x, .data$year %in% years)
 }
 
 .io_context_years <- function(years) {
