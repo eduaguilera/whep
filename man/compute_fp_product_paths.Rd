@@ -51,7 +51,8 @@ before returning.}
 }
 \value{
 A tibble with \code{origin_area}, \code{origin_item}, \code{product_area},
-\code{product_item}, \code{target_area}, \code{target_fd}, and \code{value}.
+\code{product_item}, \code{target_area}, role-specific polity metadata,
+\code{target_fd}, and \code{value}.
 }
 \description{
 Decompose an origin footprint by the area and item of the product supplied

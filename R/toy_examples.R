@@ -21,7 +21,8 @@
     2010, NA, "husbandry", 976, 2807, "use", 3.33e-14,
     1998, 115, "processing", 2544, 2543, "supply", 3.77e+3,
     1967, 238, "husbandry", 960, 2740, "supply", 1.05e+3
-  )
+  ) |>
+    .add_reporting_polity_columns()
 }
 
 .example_get_bilateral_trade <- function() {
@@ -54,7 +55,8 @@
     2021, 23, 1053, 2511, "crops", 627., 347., 305., 2.80e+2, 0.446,
     1977, 114, 976, 2517, "crops", 32.5, 29.2, 25.7, 3.25e+0, 0.1,
     2020, 32, 1053, 3000, "grass", 120., 100., 20., 20., 0.167
-  )
+  ) |>
+    .add_reporting_polity_columns()
 }
 
 .ex_get_primary_prod <- function() {
@@ -70,7 +72,8 @@
     1981, 130, 486, 2615, NA, "ha", 17600.,
     1962, 171, 122, 2533, NA, "t_ha", 5.15,
     1964, 173, 1037, 2737, 1049, "t_head", 0.0167
-  )
+  ) |>
+    .add_reporting_polity_columns()
 }
 
 .example_get_primary_residues <- function() {
@@ -86,7 +89,8 @@
     2018, 167, 2549, 2105, 13578.,
     1994, 109, 2605, 2105, 5597.,
     1982, 194, 2605, 2106, 280552.
-  )
+  ) |>
+    .add_reporting_polity_columns()
 }
 
 .example_get_processing_coefs <- function() {
@@ -102,7 +106,8 @@
     1974, 103, 2570, 874., 2586, 0.397, 347., 1.0, 0.397, 347.,
     1995, 230, 2625, 59452., 2658, 0.0201, 1195., 1.0, 0.0201, 1195.,
     1970, 223, 2511, 6.80, 2656, 4.74, 32.2, 1.0, 4.74, 32.2
-  )
+  ) |>
+    .add_reporting_polity_columns()
 }
 
 .example_get_wide_cbs <- function() {
@@ -118,7 +123,8 @@
     1961L, 156L, 2658, 6877., 6877., 2000., 0., 0., 4.88e3, 0., 0., 0., 0., 0.,
     1961L, 236L, 2620, 11177., 11177., 0., 0., 0., 1.12e4, 0., 0., 0., 0., 0.,
     1995L, 49L, 2734, 71117., 71117., 56724., 0., 0., 1.48e4, 0., 0., 0., 0., 0.
-  )
+  ) |>
+    .add_reporting_polity_columns()
 }
 
 .example_create_n_prov_destiny <- function() {
@@ -246,7 +252,8 @@
     1935, 211, "270",  2558, NA_character_, "ha",     4018.,     "LUH2_cropland",
     1937,   9, "772",  772,  NA_character_, "ha",     785953.,   "LUH2_cropland",
     2000,   9, "571",  2625, NA_character_, "ha",     236.,      "FAOSTAT_prod"
-  )
+  ) |>
+    .add_reporting_polity_columns()
 }
 
 .example_build_commodity_bal <- function() {
@@ -262,7 +269,8 @@
     1924,  11, 2557, "production",        1.61e2,     "historical_fill", NA_character_,
     1928,  96, 2625, "domestic_supply",   1.85e4,     NA_character_,     NA_character_,
     1879, 236, 2547, "seed",              3.83e-8,    "historical_fill", NA_character_
-  )
+  ) |>
+    .add_reporting_polity_columns()
 }
 
 .example_build_proc_coefs <- function() {
@@ -278,7 +286,8 @@
     2007,  19, 2615,  1044.,       2657, 0.00841, 8.78,      0.415,   0.00349,  3.64,
     1969,  51, 2537,  5589000.,    2542, 0.119,   667851.,   1.07,    0.128,    716000.,
     1984, 171, 2513,  104400.,     2659, 0.0240,  2501.,     0.0575,  0.00138,  144.
-  )
+  ) |>
+    .add_reporting_polity_columns()
 }
 
 .example_build_detailed_trade <- function() {
@@ -295,7 +304,8 @@
     2005L, 4L, 100L, "export", 2555L, "tonnes", 28000., 0.24,
     2012L, 100L, 4L, "import", 2570L, "tonnes", 98000., 0.31,
     2012L, 100L, 79L, "import", 2570L, "tonnes", 54000., 0.17
-  )
+  ) |>
+    .add_trade_polity_columns()
 }
 
 .example_build_trade_prices <- function() {

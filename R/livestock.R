@@ -44,5 +44,6 @@ get_feed_intake <- function(example = FALSE) {
   .build_feed_intake_from_inputs(
     cbs = get_wide_cbs(),
     primary_prod = get_primary_production()
-  )
+  ) |>
+    .add_reporting_polity_columns()
 }

@@ -10,8 +10,13 @@
 #' A tibble with the item production data.
 #' It contains the following columns:
 #' - `year`: The year in which the recorded event occurred.
-#' - `area_code`: The code of the country where the data is from. For code
-#'    details see e.g. `add_area_name()`.
+#' - `area_code`: Legacy numeric reporting area code.
+#' - `polity_area_code`: Numeric WHEP reporting polity code used for matrix
+#'    workflows. This currently matches `area_code`.
+#' - `reporting_polity_code`: WHEP polity code for the reporting polygon.
+#' - `reporting_polity_name`: WHEP polity name for the reporting polygon.
+#' - `reporting_polity_has_geometry`: Whether the reporting polity has a
+#'    polygon in the WHEP polity database.
 #' - `item_prod_code`: FAOSTAT internal code for each produced item.
 #' - `item_cbs_code`: FAOSTAT internal code for each commodity balance sheet
 #'    item. The commodity balance sheet contains an aggregated version of
@@ -109,7 +114,8 @@ get_primary_residues <- function(example = FALSE) {
       item_cbs_code_residue,
       value
     ) |>
-    .use_crop_process_cbs_item()
+    .use_crop_process_cbs_item() |>
+    .add_reporting_polity_columns()
 }
 
 # TODO: This is dirty, revisit when we build the data here directly.

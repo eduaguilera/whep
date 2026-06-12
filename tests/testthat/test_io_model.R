@@ -120,8 +120,16 @@ testthat::test_that("labels have correct dimensions", {
 
   pointblank::expect_col_exists(
     labels,
-    c("area_code", "item_cbs_code")
+    c(
+      "area_code",
+      "polity_area_code",
+      "reporting_polity_code",
+      "reporting_polity_name",
+      "reporting_polity_has_geometry",
+      "item_cbs_code"
+    )
   )
+  pointblank::expect_col_vals_not_null(labels, reporting_polity_code)
   testthat::expect_equal(
     nrow(labels),
     length(result$X[[1]])
@@ -135,8 +143,16 @@ testthat::test_that("build_io_model returns fd_labels with correct shape", {
 
   pointblank::expect_col_exists(
     fd_labs,
-    c("area_code", "fd_col")
+    c(
+      "area_code",
+      "polity_area_code",
+      "reporting_polity_code",
+      "reporting_polity_name",
+      "reporting_polity_has_geometry",
+      "fd_col"
+    )
   )
+  pointblank::expect_col_vals_not_null(fd_labs, reporting_polity_code)
   # 2 areas * 3 fd_cols (food, other_uses, stock_addition) = 6
   testthat::expect_equal(nrow(fd_labs), 6L)
   testthat::expect_equal(

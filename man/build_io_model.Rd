@@ -47,10 +47,10 @@ A tibble with one row per year and list-columns:
 \item \code{Y}: Final demand matrix.
 \item \code{X}: Total output vector.
 \item \code{labels}: Tibble mapping row/column indices to
-\code{area_code} and \code{item_cbs_code}.
+\code{area_code}, \code{item_cbs_code}, and reporting polity metadata.
 \item \code{fd_labels}: Tibble mapping each Y column to its
-\code{area_code} (consuming country) and \code{fd_col} (demand
-category, e.g. \code{"food"}) . Pass to
+\code{area_code} (consuming polity), \code{fd_col} (demand
+category, e.g. \code{"food"}), and reporting polity metadata. Pass to
 \code{\link[=compute_footprint]{compute_footprint()}} as \code{fd_labels} to get a
 \code{target_fd} column in the footprint output.
 }

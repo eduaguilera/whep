@@ -22,10 +22,11 @@
 #'   supplied, `primary_all` is ignored and the pipeline skips directly
 #'   to `.qc_cbs()`. Default `NULL`.
 #'
-#' @returns A tibble in long format with columns: `year`,
-#'   `area_code`, `item_cbs_code`, `element` (e.g.
-#'   `"production"`, `"import"`, `"food"`), `value`,
-#'   `source`, `fao_flag`.
+#' @returns A tibble in long format with columns: `year`, legacy numeric
+#'   `area_code`, numeric `polity_area_code`, `reporting_polity_code`,
+#'   `reporting_polity_name`, `reporting_polity_has_geometry`,
+#'   `item_cbs_code`, `element` (e.g. `"production"`, `"import"`, `"food"`),
+#'   `value`, `source`, and `fao_flag`.
 #'
 #' @export
 #'
@@ -116,7 +117,8 @@ build_commodity_balances <- function(
       by = by_cols
     ]
   }
-  tibble::as_tibble(as.data.frame(dt))
+  tibble::as_tibble(as.data.frame(dt)) |>
+    .add_reporting_polity_columns()
 }
 
 .normalise_cbs_values <- function(df) {
@@ -493,8 +495,14 @@ build_processing_coefs <- function(
 
   # Legacy wide format support
   src_cols <- grep("^source", names(df), value = TRUE)
+  polity_cols <- c(
+    "polity_area_code",
+    "reporting_polity_code",
+    "reporting_polity_name",
+    "reporting_polity_has_geometry"
+  )
   df |>
-    dplyr::select(-dplyr::any_of(src_cols)) |>
+    dplyr::select(-dplyr::any_of(c(src_cols, polity_cols))) |>
     dplyr::mutate(
       stock_variation = -stock_retrieval,
       .keep = "unused"
@@ -533,7 +541,8 @@ build_processing_coefs <- function(
       conversion_factor_scaling = scaling,
       final_conversion_factor = cf,
       final_value_processed = value_proc
-    )
+    ) |>
+    .add_reporting_polity_columns()
 }
 
 .prepare_cb_processing_for_cbs <- function(cb_processing) {
@@ -696,10 +705,11 @@ build_processing_coefs <- function(
     .(item_cbs, item_cbs_code)
   ]
   cbs_trade <- data.table::as.data.table(whep::cbs_trade_codes)
-  regions <- data.table::as.data.table(whep::regions_full)
-  polities <- data.table::as.data.table(whep::polities)[,
-    .(iso3c, area_code)
+  area_bridge <- .current_area_lookup(include_unmapped = FALSE)[
+    !is.na(area_iso3c),
+    .(iso3c = area_iso3c, area = area_name, area_code = polity_area_code)
   ]
+  area_bridge <- unique(area_bridge, by = "iso3c")
 
   exports <- .read_input(
     "historical-trade-exports",
@@ -733,20 +743,7 @@ build_processing_coefs <- function(
     c("iso3c", "item_code_trade")
   )
 
-  region_bridge <- unique(
-    regions[, .(iso3c, area = polity_name, polity_code)],
-    by = "iso3c"
-  )
-  dt <- merge(dt, region_bridge, by = "iso3c", all.x = TRUE, sort = FALSE)
-  dt <- merge(
-    dt,
-    polities,
-    by.x = "polity_code",
-    by.y = "iso3c",
-    all.x = TRUE,
-    sort = FALSE
-  )
-  dt[, polity_code := NULL]
+  dt <- merge(dt, area_bridge, by = "iso3c", all.x = TRUE, sort = FALSE)
   dt <- merge(dt, cbs_trade, by = "item_code_trade", all.x = TRUE, sort = FALSE)
   dt <- merge(dt, items, by = "item_cbs", all.x = TRUE, sort = FALSE)
 
@@ -854,23 +851,13 @@ build_processing_coefs <- function(
     by = c("year", "area_code", "item_cbs", "item_cbs_code", "element")
   ]
 
-  regions <- data.table::as.data.table(whep::regions_full)[
-    !is.na(code),
-    .(area_code = code, polity_code, polity_name)
-  ]
-  polities <- data.table::as.data.table(whep::polities)[,
-    .(iso3c, polity_area_code = area_code)
-  ]
-
-  dt <- merge(dt, regions, by = "area_code", all = FALSE, sort = FALSE)
-  dt <- merge(
+  dt <- .add_polity_columns_dt(
     dt,
-    polities,
-    by.x = "polity_code",
-    by.y = "iso3c",
-    all.x = TRUE,
-    sort = FALSE
+    code_col = "area_code",
+    year_col = "year",
+    include_unmapped = FALSE
   )
+  dt <- dt[!is.na(polity_code)]
 
   dt <- dt[,
     .(value = sum(value, na.rm = TRUE)),
@@ -902,7 +889,7 @@ build_processing_coefs <- function(
   )
   varnames_pasture <- c("pastr", "range")
 
-  land_areas |>
+  land_wide <- land_areas |>
     dplyr::mutate(
       land_use = dplyr::if_else(
         Land_Use %in% varnames_cropland,
@@ -919,8 +906,16 @@ build_processing_coefs <- function(
     tidyr::pivot_wider(
       names_from = land_use,
       values_from = area_mha
-    ) |>
-    dplyr::mutate(agriland = Cropland + Pasture)
+    )
+
+  if (!"Cropland" %in% names(land_wide)) {
+    land_wide$Cropland <- 0
+  }
+  if (!"Pasture" %in% names(land_wide)) {
+    land_wide$Pasture <- 0
+  }
+  land_wide |>
+    dplyr::mutate(agriland = .data$Cropland + .data$Pasture)
 }
 
 # -- Source combination --------------------------------------------------------
@@ -960,7 +955,7 @@ build_processing_coefs <- function(
 }
 
 .fix_palm_kernels <- function(inputs) {
-  dplyr::bind_rows(
+  pk <- dplyr::bind_rows(
     inputs$fbs_old |>
       dplyr::mutate(source = "FAOSTAT_FBS_Old"),
     inputs$fbs_new |>
@@ -979,7 +974,16 @@ build_processing_coefs <- function(
       values_from = value,
       values_fill = NA
     ) |>
-    dplyr::rename_with(~ stringr::str_replace(., " ", "_")) |>
+    dplyr::rename_with(~ stringr::str_replace(., " ", "_"))
+
+  if (!"Palm_kernels" %in% names(pk)) {
+    pk$Palm_kernels <- NA_real_
+  }
+  if (!"Palmkernel_Oil" %in% names(pk)) {
+    pk$Palmkernel_Oil <- NA_real_
+  }
+
+  pk |>
     fill_proxy_growth(
       value_col = Palm_kernels,
       proxy_col = "Palmkernel_Oil",
@@ -1000,17 +1004,25 @@ build_processing_coefs <- function(
 }
 
 .fill_palm_kernel_destinies <- function(pk, fbs_old) {
+  destinies <- fbs_old |>
+    dplyr::filter(
+      item_cbs == "Palm kernels",
+      element %in% c("food", "other_uses")
+    ) |>
+    tidyr::pivot_wider(
+      names_from = "element",
+      values_from = "value"
+    )
+  if (!"food" %in% names(destinies)) {
+    destinies$food <- NA_real_
+  }
+  if (!"other_uses" %in% names(destinies)) {
+    destinies$other_uses <- NA_real_
+  }
+
   pk |>
     dplyr::left_join(
-      fbs_old |>
-        dplyr::filter(
-          item_cbs == "Palm kernels",
-          element %in% c("food", "other_uses")
-        ) |>
-        tidyr::pivot_wider(
-          names_from = "element",
-          values_from = "value"
-        ),
+      destinies,
       by = c("year", "area", "area_code", "item_cbs", "item_cbs_code", "unit")
     ) |>
     fill_proxy_growth(
@@ -2071,7 +2083,20 @@ build_processing_coefs <- function(
       names_from = element,
       values_from = value,
       values_fill = NA
-    ) |>
+    )
+
+  for (destiny in destiny_list) {
+    if (!destiny %in% names(wide)) {
+      wide[[destiny]] <- 0
+    }
+  }
+  for (balance_col in c("production", "import", "export", "stock_variation")) {
+    if (!balance_col %in% names(wide)) {
+      wide[[balance_col]] <- NA_real_
+    }
+  }
+
+  wide <- wide |>
     dplyr::mutate(
       dplyr::across(
         dplyr::any_of(destiny_list),

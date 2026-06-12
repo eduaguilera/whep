@@ -50,11 +50,13 @@ Suggests:
     knitr,
     pointblank,
     rmarkdown,
+    sf,
     testthat (>= 3.0.0)
 Config/testthat/edition: 3
 VignetteBuilder: knitr
 URL: https://eduaguilera.github.io/whep/, https://github.com/eduaguilera/whep
 BugReports: https://github.com/eduaguilera/whep/issues
 Depends: 
-    R (>= 3.5)
+    R (>= 4.1.0)
 LazyData: true
+LazyDataCompression: xz

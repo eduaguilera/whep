@@ -89,6 +89,9 @@
 #'   - `lon`, `lat`: Cell centre coordinates.
 #'   - `year`: Integer year.
 #'   - `area_code`: WHEP polity code for this cell compartment.
+#'   - `polity_area_code`, `reporting_polity_code`,
+#'     `reporting_polity_name`, `reporting_polity_has_geometry`: Polity
+#'     metadata for `area_code`.
 #'   - `polycell_id`, `cell_id`: Preserved when supplied in
 #'     `country_grid`.
 #'   - `crop_name` or `cft_name`: Crop or CFT identifier.
@@ -251,7 +254,8 @@ build_gridded_landuse <- function(
     result <- .aggregate_to_cft(result, cft_mapping)
   }
 
-  tibble::as_tibble(result)
+  tibble::as_tibble(result) |>
+    .add_reporting_polity_columns()
 }
 
 # --- Private helpers ----------------------------------------------------------

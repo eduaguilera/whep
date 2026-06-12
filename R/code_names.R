@@ -234,11 +234,18 @@ add_item_prod_code <- function(
 
 .get_polities <- function(name_column, code_column, table = NULL) {
   key_column <- .resolve_polity_key(table, code_column)
+  areas <- .current_area_lookup(include_unmapped = TRUE)
 
-  whep::polities |>
+  areas |>
+    tibble::as_tibble() |>
     dplyr::select(
       !!name_column := area_name,
       !!code_column := dplyr::all_of(key_column)
+    ) |>
+    dplyr::filter(!is.na(.data[[code_column]])) |>
+    dplyr::distinct(
+      dplyr::across(dplyr::all_of(code_column)),
+      .keep_all = TRUE
     )
 }
 
@@ -265,7 +272,7 @@ add_item_prod_code <- function(
     return("area_code")
   }
 
-  "iso3c"
+  "area_iso3c"
 }
 
 .get_cbs_items <- function(name_column, code_column) {

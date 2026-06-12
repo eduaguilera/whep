@@ -13,9 +13,11 @@
     data.table::setDT(df)
   }
   dt <- df
-  bridge <- data.table::as.data.table(whep::polities)[,
-    .(iso3c, area_code_fao = area_code)
+  bridge <- .current_area_lookup(include_unmapped = FALSE)[
+    !is.na(area_iso3c),
+    .(iso3c = area_iso3c, area_code_fao = area_code)
   ]
+  bridge <- unique(bridge, by = "iso3c")
 
   dt <- merge(
     dt,
@@ -37,9 +39,10 @@
     data.table::setDT(df)
   }
   dt <- df
-  bridge <- data.table::as.data.table(whep::polities)[,
-    .(area_code_fao = area_code, iso3c, area = area_name)
+  bridge <- .current_area_lookup(include_unmapped = TRUE)[,
+    .(area_code_fao = area_code, iso3c = area_iso3c, area = area_name)
   ]
+  bridge <- unique(bridge, by = "area_code_fao")
 
   dt <- merge(
     dt,
@@ -296,18 +299,9 @@
 
   function() {
     if (is.null(bridge)) {
-      regions <- data.table::as.data.table(whep::regions_full)
-      polities <- data.table::as.data.table(whep::polities)
-      data.table::setnames(regions, "code", "area_code")
-      region_map <- regions[, .(area_code, polity_code, polity_name)]
-      pol_bridge <- polities[, .(iso3c, polity_area_code = area_code)]
-      bridge <<- merge(
-        region_map[!is.na(polity_code)],
-        pol_bridge,
-        by.x = "polity_code",
-        by.y = "iso3c",
-        sort = FALSE
-      )
+      bridge <<- .current_area_lookup(include_unmapped = FALSE)[,
+        .(area_code, polity_code, polity_name, polity_area_code)
+      ]
     }
     bridge
   }
@@ -320,9 +314,13 @@
     data.table::setDT(df)
   }
   dt <- df
-  region_map <- .polity_bridge()
-
-  dt <- merge(dt, region_map, by = "area_code", sort = FALSE)
+  dt <- .add_polity_columns_dt(
+    dt,
+    code_col = "area_code",
+    year_col = "year",
+    include_unmapped = FALSE
+  )
+  dt <- dt[!is.na(polity_code)]
   by_cols <- c(
     "year",
     "polity_area_code",
@@ -549,6 +547,23 @@
     paste(paste(id_cols, collapse = " + "), "~ element")
   )
   dt <- data.table::dcast(dt, form, value.var = "value", fill = 0)
+  expected_elements <- c(
+    "domestic_supply",
+    "production",
+    "import",
+    "export",
+    "stock_variation",
+    "food",
+    "feed",
+    "seed",
+    "processing",
+    "processing_primary",
+    "other_uses"
+  )
+  missing_elements <- setdiff(expected_elements, names(dt))
+  if (length(missing_elements) > 0L) {
+    dt[, (missing_elements) := 0]
+  }
 
   dt[, `:=`(
     ds_destinies = round(

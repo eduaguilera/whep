@@ -33,10 +33,11 @@ supplied, \code{primary_all} is ignored and the pipeline skips directly
 to \code{.qc_cbs()}. Default \code{NULL}.}
 }
 \value{
-A tibble in long format with columns: \code{year},
-\code{area_code}, \code{item_cbs_code}, \code{element} (e.g.
-\code{"production"}, \code{"import"}, \code{"food"}), \code{value},
-\code{source}, \code{fao_flag}.
+A tibble in long format with columns: \code{year}, legacy numeric
+\code{area_code}, numeric \code{polity_area_code}, \code{reporting_polity_code},
+\code{reporting_polity_name}, \code{reporting_polity_has_geometry},
+\code{item_cbs_code}, \code{element} (e.g. \code{"production"}, \code{"import"}, \code{"food"}),
+\code{value}, \code{source}, and \code{fao_flag}.
 }
 \description{
 Construct commodity balance sheets (CBS) from raw FAOSTAT data.

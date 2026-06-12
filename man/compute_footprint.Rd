@@ -72,8 +72,10 @@ than the source extension.}
 A tibble with footprint results containing:
 \itemize{
 \item \code{origin_area}: Country where the pressure occurs.
+\item \code{origin_polity_code}: WHEP polity for \code{origin_area}.
 \item \code{origin_item}: Item causing the pressure.
 \item \code{target_area}: Country consuming the product.
+\item \code{target_polity_code}: WHEP polity for \code{target_area}.
 \item \code{target_item}: Item consumed.
 \item \code{target_fd}: Demand category (e.g. \code{"food"}). Only
 present when \code{fd_labels} is provided.

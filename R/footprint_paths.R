@@ -31,7 +31,8 @@
 #'   before returning.
 #'
 #' @return A tibble with `origin_area`, `origin_item`, `use_area`, `use_item`,
-#'   `target_area`, `target_item`, `target_fd`, `path_type`, and `value`.
+#'   `target_area`, `target_item`, role-specific polity metadata,
+#'   `target_fd`, `path_type`, and `value`.
 #'
 #' @export
 compute_footprint_paths <- function(
@@ -70,7 +71,13 @@ compute_footprint_paths <- function(
     output_tol
   )
   if (length(origin_idx) == 0) {
-    return(.empty_footprint_paths())
+    return(
+      .add_footprint_path_polities(
+        .empty_footprint_paths(),
+        labels,
+        fd_labels
+      )
+    )
   }
 
   n <- length(x_vec)
@@ -123,7 +130,13 @@ compute_footprint_paths <- function(
     dplyr::bind_rows()
 
   if (nrow(paths) == 0) {
-    return(paths)
+    return(
+      .add_footprint_path_polities(
+        .empty_footprint_paths(),
+        labels,
+        fd_labels
+      )
+    )
   }
 
   if (isTRUE(conserve_extensions)) {
@@ -138,6 +151,8 @@ compute_footprint_paths <- function(
 
   paths <- paths |>
     dplyr::filter(.data$value > min_value)
+
+  paths <- .add_footprint_path_polities(paths, labels, fd_labels)
 
   cli::cli_alert_success(
     "First-use paths complete: {nrow(paths)} non-zero flows."
@@ -349,15 +364,32 @@ compute_footprint_paths <- function(
 .empty_footprint_paths <- function() {
   tibble::tibble(
     origin_area = integer(0),
+    origin_polity_code = character(0),
+    origin_polity_name = character(0),
+    origin_polity_has_geometry = logical(0),
     origin_item = integer(0),
     use_area = integer(0),
+    use_polity_code = character(0),
+    use_polity_name = character(0),
+    use_polity_has_geometry = logical(0),
     use_item = integer(0),
     target_area = integer(0),
+    target_polity_code = character(0),
+    target_polity_name = character(0),
+    target_polity_has_geometry = logical(0),
     target_item = integer(0),
     target_fd = character(0),
     path_type = character(0),
     value = numeric(0)
   )
+}
+
+.add_footprint_path_polities <- function(paths, labels, fd_labels) {
+  use_labels <- .bind_area_label_sources(labels, fd_labels)
+  paths |>
+    .add_role_polity_from_labels(labels, "origin") |>
+    .add_role_polity_from_labels(use_labels, "use") |>
+    .add_role_polity_from_labels(fd_labels, "target")
 }
 
 #' Compute final-product footprint paths.
@@ -375,7 +407,8 @@ compute_footprint_paths <- function(
 #' @inheritParams compute_footprint_paths
 #'
 #' @return A tibble with `origin_area`, `origin_item`, `product_area`,
-#'   `product_item`, `target_area`, `target_fd`, and `value`.
+#'   `product_item`, `target_area`, role-specific polity metadata,
+#'   `target_fd`, and `value`.
 #'
 #' @export
 compute_fp_product_paths <- function(
@@ -414,7 +447,13 @@ compute_fp_product_paths <- function(
     output_tol
   )
   if (length(origin_idx) == 0) {
-    return(.empty_footprint_product_paths())
+    return(
+      .add_fp_product_polities(
+        .empty_footprint_product_paths(),
+        labels,
+        fd_labels
+      )
+    )
   }
 
   n <- length(x_vec)
@@ -460,7 +499,13 @@ compute_fp_product_paths <- function(
     dplyr::bind_rows()
 
   if (nrow(paths) == 0) {
-    return(paths)
+    return(
+      .add_fp_product_polities(
+        .empty_footprint_product_paths(),
+        labels,
+        fd_labels
+      )
+    )
   }
 
   if (isTRUE(conserve_extensions)) {
@@ -475,6 +520,8 @@ compute_fp_product_paths <- function(
 
   paths <- paths |>
     dplyr::filter(.data$value > min_value)
+
+  paths <- .add_fp_product_polities(paths, labels, fd_labels)
 
   cli::cli_alert_success(
     "Final-product paths complete: {nrow(paths)} non-zero flows."
@@ -536,13 +583,29 @@ compute_fp_product_paths <- function(
 .empty_footprint_product_paths <- function() {
   tibble::tibble(
     origin_area = integer(0),
+    origin_polity_code = character(0),
+    origin_polity_name = character(0),
+    origin_polity_has_geometry = logical(0),
     origin_item = integer(0),
     product_area = integer(0),
+    product_polity_code = character(0),
+    product_polity_name = character(0),
+    product_polity_has_geometry = logical(0),
     product_item = integer(0),
     target_area = integer(0),
+    target_polity_code = character(0),
+    target_polity_name = character(0),
+    target_polity_has_geometry = logical(0),
     target_fd = character(0),
     value = numeric(0)
   )
+}
+
+.add_fp_product_polities <- function(paths, labels, fd_labels) {
+  paths |>
+    .add_role_polity_from_labels(labels, "origin") |>
+    .add_role_polity_from_labels(labels, "product") |>
+    .add_role_polity_from_labels(fd_labels, "target")
 }
 
 #' Add a final-demand product-area stage to footprints.
@@ -635,7 +698,13 @@ add_footprint_product_stage <- function(
 
   if (nrow(joined) == 0L) {
     empty <- joined[0L, out_cols, with = FALSE]
-    return(tibble::as_tibble(empty))
+    return(
+      .add_fp_stage_polities(
+        tibble::as_tibble(empty),
+        labels,
+        fd_labels
+      )
+    )
   }
 
   result <- joined[,
@@ -646,7 +715,19 @@ add_footprint_product_stage <- function(
     by = group_cols
   ]
   data.table::setorder(result, -value)
-  tibble::as_tibble(result[, out_cols, with = FALSE])
+  result[, out_cols, with = FALSE] |>
+    tibble::as_tibble() |>
+    .add_fp_stage_polities(labels, fd_labels)
+}
+
+.add_fp_stage_polities <- function(table, labels, fd_labels) {
+  out <- tibble::as_tibble(table)
+  if ("origin_area" %in% names(out)) {
+    out <- .add_role_polity_from_labels(out, labels, "origin")
+  }
+  out |>
+    .add_role_polity_from_labels(labels, "product") |>
+    .add_role_polity_from_labels(fd_labels, "target")
 }
 
 .fd_product_area_shares <- function(

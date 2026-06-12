@@ -5,14 +5,29 @@
 \alias{polities}
 \title{Polities}
 \format{
-A tibble where each row corresponds to one polity.
-It contains the following columns:
-TODO: On polities Pull Request, coming soon
+An sf data frame where each row corresponds to one territorial polity over
+a continuous time interval. Key columns include:
+\itemize{
+\item \code{polity_code}: Stable WHEP polity identifier, usually
+\code{PREFIX-start_year-end_year}.
+\item \code{polity_name}: Human-readable polity name.
+\item \code{start_year}, \code{end_year}: Inclusive validity years for the row.
+\item \code{iso3_code}, \code{iso3c}: ISO3 code where one exists. \code{iso3c} is retained as
+a compatibility alias.
+\item \code{polygon_status}: Polygon status in \code{whep-polities} (\code{"assigned"},
+\code{"proxy"}, \code{"missing"}, or \code{"excluded"}).
+\item \code{has_geometry}: Logical flag indicating whether the geometry is non-empty.
+\item \code{geom}: Multipolygon geometry.
+}
+}
+\source{
+\verb{~/whep-polities/data/final/polities_database.gpkg}.
 }
 \usage{
 polities
 }
 \description{
-Defines name/code correspondences for polities (political entities).
+Periodized WHEP polity database imported from the \code{whep-polities}
+repository.
 }
 \keyword{datasets}

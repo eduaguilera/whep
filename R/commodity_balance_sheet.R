@@ -60,7 +60,8 @@ get_wide_cbs <- function(example = FALSE) {
     cli::cli_progress_step("Adding livestock CBS rows")
     cbs <- .pivot_cbs_wide(cbs_built)
     livestock_cbs <- get_livestock_cbs(primary_prod)
-    dplyr::bind_rows(cbs, livestock_cbs)
+    dplyr::bind_rows(cbs, livestock_cbs) |>
+      .add_reporting_polity_columns()
   })
 }
 

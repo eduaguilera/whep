@@ -92,7 +92,8 @@ build_supply_use <- function(example = FALSE) {
       cbs = cbs,
       primary_prod = primary_prod
     )
-  )
+  ) |>
+    .add_reporting_polity_columns()
 }
 
 .build_supply_use_from_inputs <- function(
