@@ -90,6 +90,41 @@ testthat::test_that("get_land_fp_production filters and cleans land_fp", {
   testthat::expect_equal(result$extension_scope[[1]], "occupation")
 })
 
+testthat::test_that(".rebuild_primary_double_land rebuilds field coproduct land once", {
+  land_fp <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~impact, ~element, ~origin, ~group, ~impact_u,
+    2000, 1, 2559, "Land", "Cropland", "Production", "Primary crops", 25,
+    2000, 1, 2661, "Land", "Cropland", "Production", "Primary crops", 100,
+    2000, 2, 2661, "Land", "Cropland", "Production", "Primary crops", 500,
+    2000, 1, 2570, "Land", "Cropland", "Production", "Primary crops", 50,
+    2000, 1, 2511, "Land", "Cropland", "Production", "Primary crops", 9
+  )
+  primary_prod <- tibble::tribble(
+    ~year, ~area_code, ~item_prod_code, ~item_cbs_code, ~live_anim_code, ~unit, ~value,
+    2000, 1, 328, 328, NA, "ha", 100,
+    2000, 1, 329, 2559, NA, "tonnes", 60,
+    2000, 1, 767, 2661, NA, "tonnes", 40,
+    2000, 1, 263, 2570, NA, "ha", 10
+  )
+
+  result <- .rebuild_primary_double_land(land_fp, primary_prod) |>
+    dplyr::select(year, area_code, item_cbs_code, impact_u) |>
+    dplyr::arrange(item_cbs_code)
+
+  expected <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~impact_u,
+    2000, 1, 2511, 9,
+    2000, 1, 2559, 60,
+    2000, 1, 2570, 10,
+    2000, 1, 2661, 40
+  )
+
+  expected <- expected |>
+    dplyr::arrange(item_cbs_code)
+
+  testthat::expect_equal(result, expected)
+})
+
 testthat::test_that("get_land_fp_production can use active grazing metric", {
   local_mocked_bindings(
     whep_read_file = function(...) {

@@ -95,6 +95,7 @@ run_lpjml <- function(
     # Activate the managed-grassland livestock grazing module (Heinke/Herzfeld);
     # without it the grassland stand writes no *_mgrass grazing balance.
     grazing = "livestock",
+    prescribe_lsuha = TRUE,
 
     # Use spatially explicit WHEP fertilizer/manure inputs instead of
     # global constant rates (fix_fertilization=true ignores the NC files)
@@ -113,6 +114,7 @@ run_lpjml <- function(
       `input.no3deposition.name` = noy_name,
       `input.grassland_lsuha.name` = lsuha_name,
       `input.grassland_lsuha.fmt` = "cdf",
+      `input.grassland_lsuha.var` = "grassland_lsuha",
       # Lakes — WHEP writes NC; input.cjson updated to cdf/var="lakes"
       `input.lakes.name` = lakes_name,
       `input.lakes.fmt` = "cdf"

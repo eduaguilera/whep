@@ -213,6 +213,8 @@ build_primary_production <- function(
 #' * **Tea ÷ 4.37** — FAOSTAT reports tea in fresh-leaf weight;
 #'   this converts to made-tea weight for years after 1990. Affects
 #'   both `tonnes` and yield units (`t_ha`, `t_head`, `t_LU`).
+#' * **Rice × 0.67** — FAOSTAT reports rice production as paddy;
+#'   this converts paddy rice tonnes and yields to milled equivalent.
 #' * **Game meat stocks** — creates synthetic `LU` and `heads` rows
 #'   for item "Game" (1190) from game-meat production tonnes (1163).
 #' * **Dissolved countries** — removes overlapping country/year
@@ -227,6 +229,7 @@ build_primary_production <- function(
 .fix_production <- function(df) {
   df |>
     .correct_tea_final() |>
+    .fix_rice_milled_equiv() |>
     .add_game_meat_final() |>
     .filter_dissolved_countries()
 }
@@ -392,6 +395,76 @@ build_primary_production <- function(
   }
   dt <- dt[!is.na(area)]
   dt <- dt[year > 1849]
+  .fix_luh2_crop_collapse(dt)
+}
+
+.fix_luh2_crop_collapse <- function(
+  land_areas,
+  collapse_ratio = 0.02,
+  min_neighbor_mha = 0.001
+) {
+  crop_vars <- c("c3ann", "c3per", "c4ann", "c4per", "c3nfx")
+  if (
+    !all(
+      c("area_code", "area", "year", "Land_Use", "Area_Mha") %in%
+        names(land_areas)
+    )
+  ) {
+    return(land_areas)
+  }
+
+  dt <- data.table::as.data.table(land_areas)
+  crop_totals <- dt[
+    Land_Use %in% crop_vars,
+    .(cropland_mha = sum(Area_Mha, na.rm = TRUE)),
+    by = .(area_code, area, year)
+  ]
+  data.table::setorder(crop_totals, area_code, year)
+  crop_totals[,
+    `:=`(
+      prev_mha = data.table::shift(cropland_mha, 1L),
+      next_mha = data.table::shift(cropland_mha, 1L, type = "lead")
+    ),
+    by = area_code
+  ]
+  crop_totals[, neighbor_mha := (prev_mha + next_mha) / 2]
+
+  bad <- crop_totals[
+    !is.na(prev_mha) &
+      !is.na(next_mha) &
+      prev_mha > min_neighbor_mha &
+      next_mha > min_neighbor_mha &
+      cropland_mha < neighbor_mha * collapse_ratio,
+    .(area_code, area, year)
+  ]
+  if (nrow(bad) == 0L) {
+    return(dt)
+  }
+
+  for (i in seq_len(nrow(bad))) {
+    ac <- bad$area_code[i]
+    yr <- bad$year[i]
+    for (lu in crop_vars) {
+      prev_val <- dt[
+        area_code == ac & year == yr - 1L & Land_Use == lu,
+        Area_Mha
+      ]
+      next_val <- dt[
+        area_code == ac & year == yr + 1L & Land_Use == lu,
+        Area_Mha
+      ]
+      if (length(prev_val) > 0L && length(next_val) > 0L) {
+        dt[
+          area_code == ac & year == yr & Land_Use == lu,
+          Area_Mha := mean(c(prev_val[1L], next_val[1L]), na.rm = TRUE)
+        ]
+      }
+    }
+  }
+
+  cli::cli_alert_warning(
+    "Repaired {nrow(bad)} isolated LUH2 cropland collapse{?s} by adjacent-year interpolation"
+  )
   dt
 }
 
@@ -1862,6 +1935,53 @@ build_primary_production <- function(
         value
       )
     )
+}
+
+#' Convert paddy rice production to milled-equivalent rice
+#' @details FAOSTAT crop production reports rice as paddy rice. WHEP's CBS rice
+#'   item is compared against FABIO's milled-equivalent rice, so paddy-based
+#'   production tonnes and `t_ha` yields are multiplied by the extraction rate.
+#'   Hectares are left unchanged. Rows imputed from CBS production are skipped
+#'   because the CBS harmonizer already converts rice to milled equivalent.
+#' @keywords internal
+#' @noRd
+.fix_rice_milled_equiv <- function(
+  df,
+  extraction_rate = .rice_milled_extraction_rate()
+) {
+  force(df)
+  cli::cli_progress_step("Converting rice to milled equivalent")
+  rice_units <- c("tonnes", "t_ha")
+  paddy_sources <- c(
+    "FAOSTAT_prod",
+    "fill_linear",
+    "fill_linear_historical",
+    "LUH2_cropland",
+    "LUH2_agriland"
+  )
+
+  df |>
+    dplyr::mutate(
+      rice_source_is_paddy = .data$source %in%
+        paddy_sources |
+        stringr::str_starts(
+          tidyr::replace_na(.data$source, ""),
+          "imputed_yield"
+        ),
+      rice_source_is_paddy = tidyr::replace_na(
+        .data$rice_source_is_paddy,
+        FALSE
+      ),
+      value = dplyr::if_else(
+        as.character(.data$item_prod_code) == "27" &
+          .data$item_cbs_code == 2807L &
+          .data$unit %in% rice_units &
+          .data$rice_source_is_paddy,
+        .data$value * extraction_rate,
+        .data$value
+      )
+    ) |>
+    dplyr::select(-dplyr::all_of("rice_source_is_paddy"))
 }
 
 #' Add game-meat livestock units and heads (final format)

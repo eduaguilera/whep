@@ -45,9 +45,10 @@ process. The main item is predictable depending on the value of
 \code{proc_group}:
 \itemize{
 \item \code{crop_production}: The code is from the item for which seed usage
-(if any) is reported in the commodity balance sheet (see
-\code{get_wide_cbs()} for more). For example, the rice code for a rice
-production process or the cottonseed code for the cotton production one.
+(if any) is reported in the commodity balance sheet, except for field
+co-products where the process uses the field aggregate item. For example,
+rice production uses the rice code, while seed cotton production uses the
+seed cotton code and supplies both cottonseed and cotton lint.
 \item \code{husbandry}: The code of the farmed animal, e.g. bees for beekeeping,
 non-dairy cattle for non-dairy cattle husbandry, etc.
 \item \code{slaughtering}: The code of the live animal being slaughtered, e.g.

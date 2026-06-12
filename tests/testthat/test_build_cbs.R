@@ -112,6 +112,41 @@ test_that(".fix_item_codes remaps rice 2804 -> 2807", {
   result <- whep:::.fix_item_codes(df)
   expect_false(2804L %in% result$item_cbs_code)
   expect_true(2807L %in% result$item_cbs_code)
+  expect_equal(
+    result$value[result$item_cbs_code == 2807L],
+    100 * whep:::.rice_milled_extraction_rate()
+  )
+  expect_equal(
+    result$item_cbs[result$item_cbs_code == 2807L],
+    "Rice and products"
+  )
+})
+
+test_that(".fix_item_codes keeps milled rice when old CBS also has paddy equivalent", {
+  df <- tibble::tribble(
+    ~year, ~area_code, ~area, ~element, ~unit, ~item_cbs_code, ~item_cbs, ~value,
+    2000L, 41L, "China", "food", "tonnes", 2805L, "Rice (Milled Equivalent)", 100,
+    2000L, 41L, "China", "food", "tonnes", 2804L, "Rice (Paddy Equivalent)", 150,
+    2000L, 41L, "China", "production", "tonnes", 2804L, "Rice, paddy", 200
+  )
+
+  result <- whep:::.fix_item_codes(df)
+
+  food <- result |>
+    dplyr::filter(.data$element == "food")
+  testthat::expect_equal(nrow(food), 1)
+  testthat::expect_equal(food$item_cbs_code, 2807L)
+  testthat::expect_equal(food$item_cbs, "Rice and products")
+  testthat::expect_equal(food$value, 100)
+
+  production <- result |>
+    dplyr::filter(.data$element == "production")
+  testthat::expect_equal(production$item_cbs_code, 2807L)
+  testthat::expect_equal(production$item_cbs, "Rice and products")
+  testthat::expect_equal(
+    production$value,
+    200 * whep:::.rice_milled_extraction_rate()
+  )
 })
 
 test_that(".fix_item_codes remaps groundnuts 2820 -> 2552", {
@@ -122,6 +157,7 @@ test_that(".fix_item_codes remaps groundnuts 2820 -> 2552", {
 
   result <- whep:::.fix_item_codes(df)
   expect_equal(result$item_cbs_code, 2552L)
+  expect_equal(result$item_cbs, "Groundnuts")
 })
 
 test_that(".read_land_areas_wide tolerates missing LUH2 cropland and pasture rows", {

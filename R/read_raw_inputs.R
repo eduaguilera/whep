@@ -221,17 +221,76 @@
   dt
 }
 
+.rice_milled_extraction_rate <- function() {
+  0.67
+}
+
 .fix_item_codes <- function(dt) {
   if (!data.table::is.data.table(dt)) {
     data.table::setDT(dt)
   }
-  dt[,
-    item_cbs_code := data.table::fifelse(
-      item_cbs_code == 2804L,
-      2807L,
-      data.table::fifelse(item_cbs_code == 2820L, 2552L, item_cbs_code)
+
+  rice_key_cols <- intersect(
+    c("year", "area_code", "area", "element", "unit"),
+    names(dt)
+  )
+  if (length(rice_key_cols) > 0L && "item_cbs" %in% names(dt)) {
+    milled_rice_keys <- unique(
+      dt[
+        item_cbs_code == 2805L &
+          item_cbs == "Rice (Milled Equivalent)",
+        rice_key_cols,
+        with = FALSE
+      ]
+    )
+    if (nrow(milled_rice_keys) > 0L) {
+      milled_rice_keys[, .has_milled_rice := TRUE]
+      dt[
+        milled_rice_keys,
+        .has_milled_rice := i..has_milled_rice,
+        on = rice_key_cols
+      ]
+      dt <- dt[
+        !(!is.na(.has_milled_rice) &
+          item_cbs_code %in% c(2804L, 2807L) &
+          item_cbs == "Rice (Paddy Equivalent)")
+      ]
+      dt[, .has_milled_rice := NULL]
+    }
+  }
+
+  if ("value" %in% names(dt)) {
+    dt[
+      item_cbs_code %in%
+        c(2804L, 2807L) &
+        item_cbs %in% c("Rice, paddy", "Rice (Paddy Equivalent)"),
+      value := value * .rice_milled_extraction_rate()
+    ]
+  }
+
+  dt[
+    item_cbs_code %in%
+      c(2804L, 2805L, 2807L) &
+      item_cbs %in%
+        c(
+          "Rice, paddy",
+          "Rice (Milled Equivalent)",
+          "Rice (Paddy Equivalent)"
+        ),
+    `:=`(
+      item_cbs_code = 2807L,
+      item_cbs = "Rice and products"
     )
   ]
+
+  dt[
+    item_cbs_code == 2820L,
+    `:=`(
+      item_cbs_code = 2552L,
+      item_cbs = "Groundnuts"
+    )
+  ]
+
   dt
 }
 

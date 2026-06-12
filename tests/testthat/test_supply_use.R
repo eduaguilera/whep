@@ -64,11 +64,11 @@ testthat::test_that(".build_supply_husbandry gives livestock and non-slaughter p
 
   primary_prod <- tibble::tribble(
     ~year, ~area_code, ~item_prod_code, ~item_cbs_code, ~live_anim_code, ~unit, ~value,
-    2000, 1, 1, 1, NA, "LU", 20,
-    2000, 1, 2, 2, NA, "LU", 30,
+    2000, 1, 1, 1, NA, "heads", 100,
+    2000, 1, 2, 2, NA, "heads", 200,
     2000, 1, 5, 6, 1, "tonnes", 40,
     2000, 1, 7, 8, 1, "tonnes", 45,
-    2001, 1, 1, 1, NA, "LU", 40,
+    2001, 1, 1, 1, NA, "heads", 150,
     2001, 1, 7, 8, 1, "tonnes", 50,
     2001, 1, 7, 9, NA, "tonnes", 50,
     2002, 1, 7, 2, 3, "tonnes", 50
@@ -76,9 +76,9 @@ testthat::test_that(".build_supply_husbandry gives livestock and non-slaughter p
 
   cbs <- tibble::tribble(
     ~year, ~area_code, ~item_cbs_code, ~production,
-    2000, 1, 1, 100,
-    2000, 1, 2, 200,
-    2001, 1, 1, 150
+    2000, 1, 1, 20,
+    2000, 1, 2, 30,
+    2001, 1, 1, 40
   )
 
   slaughter_product_items <- tibble::tibble(
@@ -153,6 +153,29 @@ testthat::test_that(".build_use_crop_production gives seed use for crop producti
     .expect_equal_unordered(expected)
 })
 
+testthat::test_that(".build_use_crop_production allocates aggregate seed across processes", {
+  cbs_items <- tibble::tribble(
+    ~year, ~area_code, ~proc_cbs_code, ~item_cbs_code, ~supply_value,
+    2000, 1, 2570, 2570, 90,
+    2000, 1, 310, 2570, 10
+  )
+
+  cbs <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~seed,
+    2000, 1, 2570, 100
+  )
+
+  expected <- tibble::tribble(
+    ~year, ~area_code, ~proc_cbs_code, ~item_cbs_code, ~value,
+    2000, 1, 2570, 2570, 90,
+    2000, 1, 310, 2570, 10
+  )
+
+  cbs_items |>
+    .build_use_crop_production(cbs) |>
+    .expect_equal_unordered(expected)
+})
+
 testthat::test_that(".build_use_crop_draught allocates draught to crops by area", {
   crop_prod_items <- tibble::tibble(item_prod_code = c(1, 2))
   draft_items <- tibble::tibble(live_anim_code = c(10), work_hours_day = 5)
@@ -169,6 +192,32 @@ testthat::test_that(".build_use_crop_draught allocates draught to crops by area"
     ~year, ~area_code, ~proc_cbs_code, ~item_cbs_code, ~value,
     2000, 1, 100, 4000, 20 * 5 * .animal_draught_tj_per_lu_hour() * 365 * 0.4,
     2000, 1, 200, 4000, 20 * 5 * .animal_draught_tj_per_lu_hour() * 365 * 0.6
+  )
+
+  .build_use_crop_draught(
+    crop_prod_items,
+    primary_prod,
+    draft_items,
+    4000L
+  ) |>
+    .expect_equal_unordered(expected)
+})
+
+testthat::test_that(".build_use_crop_draught uses field area for crop coproducts", {
+  crop_prod_items <- tibble::tibble(item_prod_code = c(329L, 767L))
+  draft_items <- tibble::tibble(live_anim_code = c(10), work_hours_day = 5)
+
+  primary_prod <- tibble::tribble(
+    ~year, ~area_code, ~item_prod_code, ~item_cbs_code, ~live_anim_code, ~unit, ~value,
+    2000, 1, 328, 328, NA, "ha", 100,
+    2000, 1, 329, 2559, NA, "tonnes", 60,
+    2000, 1, 767, 2661, NA, "tonnes", 40,
+    2000, 1, 4, 10, NA, "LU", 20
+  )
+
+  expected <- tibble::tribble(
+    ~year, ~area_code, ~proc_cbs_code, ~item_cbs_code, ~value,
+    2000, 1, 328, 4000, 20 * 5 * .animal_draught_tj_per_lu_hour() * 365
   )
 
   .build_use_crop_draught(
@@ -242,6 +291,32 @@ testthat::test_that(".build_supply_crop_product summarises crop production", {
   testthat::expect_equal(row_20$value, 40)
 })
 
+testthat::test_that(".build_supply_crop_product keeps field coproducts in one process", {
+  crop_prod_items <- tibble::tibble(
+    item_prod_code = c(329L, 767L)
+  )
+  primary_prod <- tibble::tribble(
+    ~year, ~area_code, ~item_prod_code, ~item_cbs_code, ~live_anim_code, ~unit, ~value,
+    2000, 1, 328, 328, NA, "ha", 100,
+    2000, 1, 329, 2559, NA, "tonnes", 60,
+    2000, 1, 767, 2661, NA, "tonnes", 40
+  )
+
+  result <- .build_supply_crop_product(
+    crop_prod_items,
+    primary_prod
+  )
+
+  expected <- tibble::tribble(
+    ~year, ~area_code, ~proc_cbs_code, ~item_cbs_code, ~value,
+    2000, 1, 328, 2559, 60,
+    2000, 1, 328, 2661, 40
+  )
+
+  result |>
+    .expect_equal_unordered(expected)
+})
+
 testthat::test_that(".build_supply_crop_residue joins residues correctly", {
   cbs_items <- tibble::tibble(
     item_cbs_code_crop = c(10, 20)
@@ -261,6 +336,45 @@ testthat::test_that(".build_supply_crop_residue joins residues correctly", {
   testthat::expect_equal(result$value, 50)
   testthat::expect_equal(result$proc_cbs_code, 10)
   testthat::expect_equal(result$item_cbs_code, 100)
+})
+
+testthat::test_that(".build_crop_production attaches seed and residues to field coproduct process", {
+  crop_prod_items <- tibble::tibble(
+    item_prod_code = c(329L, 767L)
+  )
+  cbs <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~seed,
+    2000, 1, 2559, 5,
+    2000, 1, 2661, 0
+  )
+  primary_prod <- tibble::tribble(
+    ~year, ~area_code, ~item_prod_code, ~item_cbs_code, ~live_anim_code, ~unit, ~value,
+    2000, 1, 328, 328, NA, "ha", 100,
+    2000, 1, 329, 2559, NA, "tonnes", 60,
+    2000, 1, 767, 2661, NA, "tonnes", 40
+  )
+  crop_residues <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code_crop, ~item_cbs_code_residue, ~value,
+    2000, 1, 328, 2106, 20
+  )
+
+  result <- .build_crop_production(
+    crop_prod_items,
+    cbs,
+    primary_prod,
+    crop_residues
+  )
+
+  expected <- tibble::tribble(
+    ~year, ~area_code, ~proc_group, ~proc_cbs_code, ~item_cbs_code, ~type, ~value,
+    2000, 1, "crop_production", 328, 2559, "supply", 60,
+    2000, 1, "crop_production", 328, 2661, "supply", 40,
+    2000, 1, "crop_production", 328, 2106, "supply", 20,
+    2000, 1, "crop_production", 328, 2559, "use", 5
+  )
+
+  result |>
+    .expect_equal_unordered(expected)
 })
 
 testthat::test_that(".build_livestock_supply uses heads when CBS is unavailable", {
@@ -288,11 +402,16 @@ testthat::test_that(".build_livestock_supply uses heads when CBS is unavailable"
   )
 })
 
-testthat::test_that(".build_livestock_supply uses CBS production when available", {
+testthat::test_that(".build_livestock_supply ignores CBS production flow", {
   husbandry_items <- tibble::tibble(
     live_anim_code = c(1, 2)
   )
-  primary_prod <- tibble::tibble()
+  primary_prod <- tibble::tribble(
+    ~year, ~area_code, ~item_prod_code, ~item_cbs_code, ~live_anim_code, ~unit, ~value,
+    2000, 1, 10, 1, NA, "heads", 100,
+    2000, 1, 11, 2, NA, "heads", 200,
+    2000, 1, 12, 1, NA, "tonnes", 50
+  )
   cbs <- tibble::tribble(
     ~year, ~area_code, ~item_cbs_code, ~production,
     2000, 1, 1, 10,
@@ -308,20 +427,21 @@ testthat::test_that(".build_livestock_supply uses CBS production when available"
 
   expected <- tibble::tribble(
     ~year, ~area_code, ~proc_cbs_code, ~item_cbs_code, ~value,
-    2000, 1, 1, 1, 10,
-    2000, 1, 2, 2, 20
+    2000, 1, 1, 1, 100,
+    2000, 1, 2, 2, 200
   )
 
   result |>
     .expect_equal_unordered(expected)
 })
 
-testthat::test_that(".build_livestock_supply keeps live animals in CBS head units", {
+testthat::test_that(".build_livestock_supply keeps live animals in head units", {
   husbandry_items <- tibble::tibble(
     live_anim_code = 1L
   )
   primary_prod <- tibble::tribble(
     ~year, ~area_code, ~item_prod_code, ~item_cbs_code, ~live_anim_code, ~unit, ~value,
+    2000, 1, 9, 1, NA, "heads", 1000,
     2000, 1, 10, 50, 1, "tonnes", 80,
     2000, 1, 11, 51, 1, "tonnes", 20
   )
@@ -338,7 +458,7 @@ testthat::test_that(".build_livestock_supply keeps live animals in CBS head unit
 
   expected <- tibble::tribble(
     ~year, ~area_code, ~proc_cbs_code, ~item_cbs_code, ~value,
-    2000, 1, 1, 1, 8
+    2000, 1, 1, 1, 1000
   )
 
   result |>

@@ -65,6 +65,15 @@ build_io_model <- function(
       "{.arg years} must be numeric or NULL."
     )
   }
+  if (.io_should_build_sparse_years(years, supply_use, cbs)) {
+    return(.build_io_sparse_years(
+      supply_use = supply_use,
+      bilateral_trade = bilateral_trade,
+      cbs = cbs,
+      years = years,
+      endogenize_losses = endogenize_losses
+    ))
+  }
   build_years <- .io_build_years(years)
   context_years <- .io_context_years(build_years)
 
@@ -108,9 +117,12 @@ build_io_model <- function(
         cli::cli_progress_step("Reading crop residues")
         crop_residues <- get_primary_residues() |>
           .filter_years(build_years)
-        cli::cli_progress_step("Reading feed intake")
-        feed_intake <- get_feed_intake() |>
-          .filter_years(build_years)
+        cli::cli_progress_step("Building feed intake")
+        feed_intake <- .build_feed_intake_from_inputs(
+          cbs = cbs,
+          primary_prod = primary_prod_build,
+          years = build_years
+        )
 
         cli::cli_progress_step("Assembling supply-use tables")
         .build_supply_use_from_inputs(
@@ -187,11 +199,82 @@ build_io_model <- function(
   seq.int(min(years, na.rm = TRUE), max(years, na.rm = TRUE))
 }
 
+.io_should_build_sparse_years <- function(years, supply_use, cbs) {
+  if (is.null(years)) {
+    return(FALSE)
+  }
+  if (length(.io_requested_years(years)) <= 1L) {
+    return(FALSE)
+  }
+  if (.io_years_are_contiguous(years)) {
+    return(FALSE)
+  }
+
+  is.null(supply_use) || is.null(cbs)
+}
+
+.io_requested_years <- function(years) {
+  sort(unique(as.integer(years[!is.na(years)])))
+}
+
+.io_years_are_contiguous <- function(years) {
+  years <- .io_requested_years(years)
+  if (length(years) <= 1L) {
+    return(TRUE)
+  }
+
+  identical(years, seq.int(min(years), max(years)))
+}
+
+.build_io_sparse_years <- function(
+  supply_use,
+  bilateral_trade,
+  cbs,
+  years,
+  endogenize_losses
+) {
+  years <- .io_requested_years(years)
+  cli::cli_inform(c(
+    "i" = paste0(
+      "Building ",
+      length(years),
+      " sparse requested years independently."
+    )
+  ))
+
+  purrr::map(
+    years,
+    function(yr) {
+      build_io_model(
+        supply_use = .io_filter_optional_years(supply_use, yr),
+        bilateral_trade = .io_filter_optional_years(bilateral_trade, yr),
+        cbs = .io_filter_optional_years(cbs, yr),
+        years = yr,
+        endogenize_losses = endogenize_losses
+      )
+    }
+  ) |>
+    dplyr::bind_rows()
+}
+
+.io_filter_optional_years <- function(x, years) {
+  if (is.null(x)) {
+    return(NULL)
+  }
+
+  dplyr::filter(x, .data$year %in% years)
+}
+
 .io_context_years <- function(years) {
-  if (is.null(years) || max(years, na.rm = TRUE) <= 2013L) {
+  if (is.null(years)) {
     return(years)
   }
-  seq.int(min(min(years, na.rm = TRUE), 2011L), max(years, na.rm = TRUE))
+  start_year <- min(years, na.rm = TRUE)
+  end_year <- max(years, na.rm = TRUE)
+  if (end_year >= 2013L) {
+    start_year <- min(start_year, 2011L)
+  }
+  seq.int(start_year, end_year)
 }
 
 .io_cache_key <- function(key, years) {
@@ -320,7 +403,8 @@ build_io_model <- function(
 
   cli::cli_inform("  Fixing negative outputs...")
   fixed <- .fix_negative_output(z_mat, y_mat)
-  n_neg <- sum(fixed$X < 0)
+  x_vec <- .build_output_vector(cbs_yr, dims, fixed$X)
+  n_neg <- sum(x_vec < 0)
   if (n_neg > 0) {
     cli::cli_warn(
       "  {n_neg} sector{?s} still have negative output."
@@ -333,7 +417,7 @@ build_io_model <- function(
   list(
     Z = z_mat,
     Y = fixed$Y,
-    X = fixed$X,
+    X = x_vec,
     labels = labels,
     fd_labels = fd_labels
   )
@@ -639,6 +723,35 @@ build_io_model <- function(
       methods::as("CsparseMatrix")
   })
   do.call(cbind, blocks)
+}
+
+.build_output_vector <- function(cbs_yr, dims, fallback = NULL) {
+  template <- tidyr::expand_grid(
+    area_code = dims$areas,
+    item_cbs_code = dims$items
+  )
+  output <- template |>
+    dplyr::left_join(
+      cbs_yr |>
+        dplyr::select(area_code, item_cbs_code, production),
+      by = c("area_code", "item_cbs_code")
+    ) |>
+    dplyr::arrange(
+      match(.data$area_code, dims$areas),
+      match(.data$item_cbs_code, dims$items)
+    ) |>
+    dplyr::mutate(
+      production = tidyr::replace_na(.data$production, 0)
+    ) |>
+    dplyr::pull(.data$production)
+
+  if (is.null(fallback)) {
+    return(as.numeric(output))
+  }
+
+  fallback <- as.numeric(fallback)
+  output <- ifelse(output > 0, output, fallback)
+  as.numeric(output)
 }
 
 # --- Stock and leftover adjustments ---

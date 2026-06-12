@@ -244,10 +244,10 @@ testthat::test_that("build_io_model applies diagonal rebalancing", {
   y <- result$Y[[1]]
   x <- result$X[[1]]
 
-  # X should always be consistent after all fixes
+  # Returned X follows reported production; row totals are only a fallback.
   testthat::expect_equal(
     as.numeric(x),
-    as.numeric(Matrix::rowSums(z) + Matrix::rowSums(y))
+    f$cbs$production
   )
 
   # Item 10 (row 1) had diag(Z) >= X, so rebalancing should
@@ -481,10 +481,10 @@ testthat::test_that("build_io_model with endogenize_losses = TRUE", {
   # Z diagonal should have absorbed losses
   testthat::expect_true(z[1, 1] > 0 || z[2, 2] > 0)
 
-  # X = rowSums(Z) + rowSums(Y) should hold
+  # Returned X follows reported production even when losses are endogenized.
   testthat::expect_equal(
     as.numeric(x),
-    as.numeric(Matrix::rowSums(z) + Matrix::rowSums(y))
+    f$cbs$production
   )
 })
 

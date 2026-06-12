@@ -62,6 +62,17 @@ get_land_fp_production <- function(
       .drop_derived_land_extensions()
   }
 
+  primary_double_items <- .primary_double_land_items()
+  if (
+    !isTRUE(example) &&
+      any(land_fp$item_cbs_code %in% primary_double_items$item_cbs_code)
+  ) {
+    land_fp <- .rebuild_primary_double_land(
+      land_fp,
+      primary_prod = get_primary_production()
+    )
+  }
+
   .apply_grassland_metric(
     land_fp,
     grassland_metric,
@@ -90,6 +101,217 @@ get_land_fp_production <- function(
           "Draught",
           "Livestock products"
         ))
+    )
+}
+
+.rebuild_primary_double_land <- function(land_fp, primary_prod) {
+  target_items <- .primary_double_land_items()
+  target_item_codes <- unique(target_items$item_cbs_code)
+  rebuilt_land <- .primary_double_land(primary_prod)
+
+  templates <- .primary_double_land_templates(land_fp, target_items)
+
+  rebuilt <- rebuilt_land |>
+    dplyr::left_join(
+      templates,
+      by = c("year", "area_code", "item_cbs_code")
+    ) |>
+    dplyr::left_join(
+      target_items,
+      by = "item_cbs_code"
+    ) |>
+    dplyr::mutate(
+      impact = dplyr::coalesce(.data$impact, "Land"),
+      element = dplyr::coalesce(.data$element, "Cropland"),
+      origin = dplyr::coalesce(.data$origin, "Production"),
+      group = dplyr::coalesce(.data$group, .data$item_group, "Primary crops")
+    ) |>
+    dplyr::select(
+      year,
+      area_code,
+      item_cbs_code,
+      impact,
+      element,
+      origin,
+      group,
+      impact_u
+    )
+
+  land_fp |>
+    dplyr::filter(!.data$item_cbs_code %in% target_item_codes) |>
+    dplyr::bind_rows(rebuilt) |>
+    dplyr::summarise(
+      impact_u = sum(.data$impact_u, na.rm = TRUE),
+      .by = c(
+        year,
+        area_code,
+        item_cbs_code,
+        impact,
+        element,
+        origin,
+        group
+      )
+    )
+}
+
+.primary_double_land <- function(primary_prod) {
+  product_map <- .primary_double_product_map()
+  if (nrow(product_map) == 0L) {
+    return(tibble::tibble(
+      year = integer(),
+      area_code = integer(),
+      item_cbs_code = integer(),
+      impact_u = numeric()
+    ))
+  }
+
+  special_land <- .primary_double_special_land(primary_prod, product_map)
+  regular_land <- .primary_double_regular_land(primary_prod, product_map)
+
+  dplyr::bind_rows(special_land, regular_land) |>
+    dplyr::summarise(
+      impact_u = sum(.data$impact_u, na.rm = TRUE),
+      .by = c(year, area_code, item_cbs_code)
+    ) |>
+    dplyr::filter(.data$impact_u > 0)
+}
+
+.primary_double_special_land <- function(primary_prod, product_map) {
+  area_map <- .primary_double_area_map()
+  if (nrow(area_map) == 0L) {
+    return(tibble::tibble(
+      year = integer(),
+      area_code = integer(),
+      item_cbs_code = integer(),
+      impact_u = numeric()
+    ))
+  }
+
+  field_area <- primary_prod |>
+    dplyr::filter(.data$unit == "ha") |>
+    dplyr::inner_join(
+      area_map,
+      by = c(
+        "item_prod_code" = "area_item_prod_code",
+        "item_cbs_code" = "area_item_cbs_code"
+      )
+    ) |>
+    dplyr::summarise(
+      field_area = sum(.data$value, na.rm = TRUE),
+      .by = c(year, area_code, family)
+    ) |>
+    dplyr::filter(.data$field_area > 0)
+  if (nrow(field_area) == 0L) {
+    return(tibble::tibble(
+      year = integer(),
+      area_code = integer(),
+      item_cbs_code = integer(),
+      impact_u = numeric()
+    ))
+  }
+
+  family_outputs <- product_map |>
+    dplyr::distinct(family, item_cbs_code) |>
+    dplyr::add_count(family, name = "n_outputs")
+
+  output_production <- primary_prod |>
+    dplyr::filter(.data$unit == "tonnes") |>
+    dplyr::inner_join(
+      product_map,
+      by = c("item_prod_code", "item_cbs_code")
+    ) |>
+    dplyr::summarise(
+      output_value = sum(.data$value, na.rm = TRUE),
+      .by = c(year, area_code, family, item_cbs_code)
+    )
+
+  field_area |>
+    dplyr::inner_join(
+      family_outputs,
+      by = "family",
+      relationship = "many-to-many"
+    ) |>
+    dplyr::left_join(
+      output_production,
+      by = c("year", "area_code", "family", "item_cbs_code")
+    ) |>
+    dplyr::mutate(
+      output_value = tidyr::replace_na(.data$output_value, 0),
+      total_output = sum(.data$output_value, na.rm = TRUE),
+      share = dplyr::if_else(
+        .data$total_output > 0,
+        .data$output_value / .data$total_output,
+        1 / .data$n_outputs
+      ),
+      impact_u = .data$field_area * .data$share,
+      .by = c(year, area_code, family)
+    ) |>
+    dplyr::select(year, area_code, item_cbs_code, impact_u)
+}
+
+.primary_double_regular_land <- function(primary_prod, product_map) {
+  target_item_codes <- unique(product_map$item_cbs_code)
+  special_prod_codes <- unique(product_map$item_prod_code)
+
+  regular_map <- whep::items_prod_full |>
+    dplyr::transmute(
+      item_prod_code = .as_integer_quiet(.data$item_prod_code),
+      item_cbs_code = .as_integer_quiet(.data$item_cbs_code)
+    ) |>
+    dplyr::filter(
+      .data$item_cbs_code %in% target_item_codes,
+      !.data$item_prod_code %in% special_prod_codes,
+      !is.na(.data$item_prod_code),
+      !is.na(.data$item_cbs_code)
+    ) |>
+    dplyr::distinct()
+
+  if (nrow(regular_map) == 0L) {
+    return(tibble::tibble(
+      year = integer(),
+      area_code = integer(),
+      item_cbs_code = integer(),
+      impact_u = numeric()
+    ))
+  }
+
+  primary_prod |>
+    dplyr::filter(.data$unit == "ha") |>
+    dplyr::inner_join(
+      regular_map,
+      by = c("item_prod_code", "item_cbs_code")
+    ) |>
+    dplyr::summarise(
+      impact_u = sum(.data$value, na.rm = TRUE),
+      .by = c(year, area_code, item_cbs_code)
+    )
+}
+
+.primary_double_land_items <- function() {
+  .primary_double_product_map() |>
+    dplyr::distinct(item_cbs_code) |>
+    dplyr::left_join(
+      whep::items_full |>
+        dplyr::select(item_cbs_code, item_group = group) |>
+        dplyr::distinct(),
+      by = "item_cbs_code"
+    )
+}
+
+.primary_double_land_templates <- function(land_fp, target_items) {
+  land_fp |>
+    dplyr::semi_join(target_items, by = "item_cbs_code") |>
+    dplyr::group_by(.data$year, .data$area_code, .data$item_cbs_code) |>
+    dplyr::slice(1L) |>
+    dplyr::ungroup() |>
+    dplyr::select(
+      year,
+      area_code,
+      item_cbs_code,
+      impact,
+      element,
+      origin,
+      group
     )
 }
 

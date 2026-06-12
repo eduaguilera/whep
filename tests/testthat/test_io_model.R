@@ -93,17 +93,15 @@ testthat::test_that("build_io_model works with explicit inputs", {
   testthat::expect_equal(result$year[[1]], 2000)
 })
 
-testthat::test_that("x equals rowSums(z) + rowSums(y)", {
+testthat::test_that("X uses reported production output", {
   f <- io_single_country_fixture()
   result <- build_io_model(f$su, f$btd, f$cbs)
 
-  z <- result$Z[[1]]
-  y <- result$Y[[1]]
   x <- result$X[[1]]
 
   testthat::expect_equal(
     as.numeric(x),
-    as.numeric(Matrix::rowSums(z) + Matrix::rowSums(y))
+    f$cbs$production
   )
 })
 
@@ -217,8 +215,11 @@ testthat::test_that("build_io_model with non-numeric years raises error", {
 testthat::test_that("IO default build helpers scope cache keys by requested years", {
   testthat::expect_null(.io_build_years(NULL))
   testthat::expect_equal(.io_build_years(c(2001, 1999)), 1999:2001)
+  testthat::expect_true(.io_years_are_contiguous(c(2001, 1999, 2000)))
+  testthat::expect_false(.io_years_are_contiguous(c(2001, 1999)))
   testthat::expect_null(.io_context_years(NULL))
   testthat::expect_equal(.io_context_years(2001:2005), 2001:2005)
+  testthat::expect_equal(.io_context_years(2013), 2011:2013)
   testthat::expect_equal(.io_context_years(2016:2020), 2011:2020)
   testthat::expect_equal(
     .io_cache_key("primary_prod", NULL),
@@ -228,6 +229,42 @@ testthat::test_that("IO default build helpers scope cache keys by requested year
     .io_cache_key("primary_prod", c(2001, 1999)),
     "primary_prod__1999__2001"
   )
+})
+
+testthat::test_that("sparse default IO builds run requested years independently", {
+  f <- io_two_country_fixture()
+
+  testthat::expect_true(.io_should_build_sparse_years(
+    c(1999, 2001),
+    supply_use = NULL,
+    cbs = f$cbs
+  ))
+  testthat::expect_false(.io_should_build_sparse_years(
+    c(1999, 2001),
+    supply_use = f$su,
+    cbs = f$cbs
+  ))
+  testthat::expect_false(.io_should_build_sparse_years(
+    c(1999, 2000, 2001),
+    supply_use = NULL,
+    cbs = NULL
+  ))
+})
+
+testthat::test_that(".build_output_vector falls back when production is absent", {
+  dims <- list(
+    areas = 1L,
+    items = c(10L, 20L)
+  )
+  cbs <- tibble::tribble(
+    ~area_code, ~item_cbs_code, ~production,
+    1L, 10L, 100,
+    1L, 20L, 0
+  )
+
+  result <- .build_output_vector(cbs, dims, fallback = c(80, 70))
+
+  testthat::expect_equal(result, c(100, 70))
 })
 
 # Private helpers -------------------------------------------------------
