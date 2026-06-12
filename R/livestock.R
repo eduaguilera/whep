@@ -62,7 +62,8 @@ get_feed_intake <- function(example = FALSE) {
       intake_dry_matter = intake_dm,
       loss,
       loss_share
-    )
+    ) |>
+    .add_reporting_polity_columns()
 }
 
 .fix_feed_live_anim_names <- function(feed_intake) {

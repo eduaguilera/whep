@@ -9,12 +9,17 @@ A tibble where each row corresponds to one polity or aggregate region. It
 contains the following columns (same definitions as \code{polities_cats},
 minus the five trailing \verb{0...36}–\verb{0...40} artefact columns):
 \itemize{
-\item \code{polity_code}: Primary polity identifier (ISO 3166-1 alpha-3 or \code{NA}
-for non-sovereign aggregates).
-\item \code{polity_name}: Polity name (\code{NA} for aggregates not matched to a
-standard polity).
+\item \code{polity_code}: Legacy current polity prefix. This is kept for
+compatibility with older code that expected ISO3-like values.
+\item \code{polity_name}: Current polity, country, territory, or aggregate name.
 \item \code{V1}: Internal row index.
 \item \code{code}: Numeric FAOSTAT country/region code.
+\item \code{polity_area_code}: Numeric WHEP reporting area code used in matrix
+workflows.
+\item \code{reporting_polity_code}: Current periodized WHEP polity code for \code{code}.
+\item \code{reporting_polity_name}: Current WHEP polity name for \code{code}.
+\item \code{reporting_polity_has_geometry}: Logical flag indicating whether the
+current reporting polity has a polygon.
 \item \code{iso3c}: ISO 3166-1 alpha-3 code (\code{NA} for aggregates).
 \item \code{FAOSTAT_name}: Name used in FAOSTAT (may be \code{"#N/A"} for aggregates).
 \item \code{EU27}: Logical EU27 membership flag.

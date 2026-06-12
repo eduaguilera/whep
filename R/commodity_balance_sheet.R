@@ -60,7 +60,8 @@ get_wide_cbs <- function(example = FALSE) {
     cli::cli_progress_step("Adding livestock CBS rows")
     cbs <- .pivot_cbs_wide(cbs_built)
     livestock_cbs <- get_livestock_cbs(primary_prod)
-    dplyr::bind_rows(cbs, livestock_cbs)
+    dplyr::bind_rows(cbs, livestock_cbs) |>
+      .add_reporting_polity_columns()
   })
 }
 
@@ -74,9 +75,10 @@ get_wide_cbs <- function(example = FALSE) {
 #'
 #' Following the FABIO methodology, live-animal production is estimated
 #' from slaughter counts as `slaughtered + exported - imported`
-#' (animals raised in the country), and domestic supply (`processing`
-#' for meat animals, `other_uses` for draft animals) equals
-#' `production + import - export`.
+#' (animals raised in the country), and domestic supply (`processing`)
+#' equals `production + import - export`. Only live animals with explicit
+#' slaughter-product outputs are added; other animal products are supplied
+#' directly by husbandry.
 #'
 #' Units are heads (number of animals).
 #'
@@ -86,32 +88,23 @@ get_wide_cbs <- function(example = FALSE) {
 #'
 #' @keywords internal
 get_livestock_cbs <- function(primary_prod) {
-  meat_items <- whep::items_cbs |>
-    dplyr::filter(item_type == "livestock_meat") |>
-    dplyr::select(item_cbs_code)
-
-  draft_items <- whep::items_cbs |>
-    dplyr::filter(item_type == "livestock_draft") |>
-    dplyr::select(item_cbs_code)
-
-  all_livestock <- dplyr::bind_rows(
-    dplyr::mutate(meat_items, is_meat = TRUE),
-    dplyr::mutate(draft_items, is_meat = FALSE)
-  )
+  slaughter_livestock <- .slaughter_livestock_items(primary_prod) |>
+    dplyr::rename(item_cbs_code = live_anim_code)
 
   slaughtered <- primary_prod |>
     dplyr::inner_join(
-      all_livestock,
+      slaughter_livestock,
       dplyr::join_by(item_cbs_code)
     ) |>
     dplyr::filter(unit == "slaughtered_heads") |>
     dplyr::summarise(
       slaughtered = sum(value, na.rm = TRUE),
-      is_meat = dplyr::first(is_meat),
       .by = c(year, area_code, item_cbs_code)
     )
 
-  live_trade <- .get_livestock_trade_totals(all_livestock$item_cbs_code)
+  live_trade <- .get_livestock_trade_totals(
+    slaughter_livestock$item_cbs_code
+  )
 
   live_prod <- slaughtered |>
     dplyr::left_join(
@@ -126,30 +119,16 @@ get_livestock_cbs <- function(primary_prod) {
       domestic_supply = production + import - export
     )
 
-  dplyr::bind_rows(
-    live_prod |>
-      dplyr::filter(is_meat) |>
-      dplyr::mutate(
-        food = 0,
-        feed = 0,
-        seed = 0,
-        processing = domestic_supply,
-        other_uses = 0,
-        stock_withdrawal = 0,
-        stock_addition = 0
-      ),
-    live_prod |>
-      dplyr::filter(!is_meat) |>
-      dplyr::mutate(
-        food = 0,
-        feed = 0,
-        seed = 0,
-        processing = 0,
-        other_uses = domestic_supply,
-        stock_withdrawal = 0,
-        stock_addition = 0
-      )
-  ) |>
+  live_prod |>
+    dplyr::mutate(
+      food = 0,
+      feed = 0,
+      seed = 0,
+      processing = domestic_supply,
+      other_uses = 0,
+      stock_withdrawal = 0,
+      stock_addition = 0
+    ) |>
     dplyr::select(
       year,
       area_code,
@@ -166,6 +145,30 @@ get_livestock_cbs <- function(primary_prod) {
       stock_addition,
       domestic_supply
     )
+}
+
+.slaughter_product_codes <- function(items_cbs = whep::items_cbs) {
+  items_cbs |>
+    dplyr::filter(item_type == "slaughter_product") |>
+    dplyr::pull(item_cbs_code) |>
+    unique()
+}
+
+.slaughter_livestock_items <- function(
+  primary_prod,
+  slaughter_product_codes = .slaughter_product_codes()
+) {
+  if (length(slaughter_product_codes) == 0L) {
+    return(tibble::tibble(live_anim_code = integer()))
+  }
+
+  primary_prod |>
+    dplyr::filter(
+      unit == "tonnes",
+      !is.na(live_anim_code),
+      item_cbs_code %in% slaughter_product_codes
+    ) |>
+    dplyr::distinct(live_anim_code = as.integer(live_anim_code))
 }
 
 # Extract per-country import and export totals for live animals
@@ -292,7 +295,7 @@ get_processing_coefs <- function(example = FALSE) {
 }
 
 # Pivot long-format CBS to wide and split stock_variation into
-# stock_withdrawal (positive) and stock_addition (negative).
+# stock_addition (positive) and stock_withdrawal (negative).
 .pivot_cbs_wide <- function(cbs_long) {
   cbs_long |>
     dplyr::select(
@@ -308,12 +311,12 @@ get_processing_coefs <- function(example = FALSE) {
       values_fill = 0
     ) |>
     dplyr::mutate(
-      stock_withdrawal = dplyr::if_else(
+      stock_addition = dplyr::if_else(
         stock_variation > 0,
         stock_variation,
         0
       ),
-      stock_addition = dplyr::if_else(
+      stock_withdrawal = dplyr::if_else(
         stock_variation < 0,
         -stock_variation,
         0

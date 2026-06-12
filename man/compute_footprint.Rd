@@ -14,6 +14,7 @@ compute_footprint(
   fd_labels = NULL,
   output_tol = 1e-08,
   value_added_floor = 0.001,
+  max_column_sum = 100,
   conserve_extensions = TRUE
 )
 }
@@ -52,9 +53,13 @@ footprints from zero-output residuals.}
 
 \item{value_added_floor}{Minimum share of each sector's output that
 is treated as non-intermediate leakage when constructing A from
-\code{z_mat}. Column sums larger than \code{1 - value_added_floor} are
-rescaled to that maximum. Ignored when a precomputed \code{l_inv} is
-supplied without \code{z_mat}.}
+\code{z_mat} if \code{max_column_sum} is left at its low-level default. Ignored
+when a precomputed \code{l_inv} is supplied without \code{z_mat}.}
+
+\item{max_column_sum}{Maximum allowed column sum in A when using \code{z_mat}.
+Physical biomass systems can require more than one unit of intermediate
+input per unit of output, so the footprint path defaults to \code{100} and only
+clips extreme columns caused by residual inconsistencies or tiny outputs.}
 
 \item{conserve_extensions}{If \code{TRUE}, rescale positive footprint
 flows within each origin area/item so their sum does not exceed
@@ -67,8 +72,10 @@ than the source extension.}
 A tibble with footprint results containing:
 \itemize{
 \item \code{origin_area}: Country where the pressure occurs.
+\item \code{origin_polity_code}: WHEP polity for \code{origin_area}.
 \item \code{origin_item}: Item causing the pressure.
 \item \code{target_area}: Country consuming the product.
+\item \code{target_polity_code}: WHEP polity for \code{target_area}.
 \item \code{target_item}: Item consumed.
 \item \code{target_fd}: Demand category (e.g. \code{"food"}). Only
 present when \code{fd_labels} is provided.

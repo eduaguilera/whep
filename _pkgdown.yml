@@ -88,10 +88,13 @@ reference:
 - subtitle: Polities
   contents:
   - polities
+  - polity_area_crosswalk
   - polities_cats
   - regions_full
+  - add_polity_code
   - add_area_code
   - add_area_name
+  - get_polity_geometries
 - subtitle: Commodity balance sheet items
   contents:
   - items_cbs
@@ -174,6 +177,20 @@ reference:
   - estimate_energy_demand
   - calculate_cohorts_systems
   - calculate_uncertainty_bounds
+
+- title: Feed intake
+  desc: >
+    Estimate livestock feed demand and allocate it against feed availability.
+  contents:
+  - redistribute_feed
+- subtitle: Feed coefficient tables
+  desc: >
+    Bouwman and Krausmann feed coefficients, feed taxonomy and diet share caps.
+  contents:
+  - conv_bouwman
+  - conv_krausmann
+  - feed_taxonomy
+  - max_intake_share
 
 - title: Livestock coefficient tables
   desc: >

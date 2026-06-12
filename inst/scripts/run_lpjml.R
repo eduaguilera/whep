@@ -23,8 +23,13 @@ run_lpjml <- function(
   simulation_start_year = 1901,
   simulation_end_year = 2018,
   nspinup = 200,
-  use_cores = 24
+  use_cores = 24,
+  input_set = c("whep", "stock")
 ) {
+  # input_set "whep" runs LPJmL on whep-generated inputs; "stock" runs it on the
+  # model's own standard inputs, so whep results can be validated against LPJmL's
+  # published ones.
+  input_set <- match.arg(input_set)
   l_files_dir <- normalizePath(l_files_dir, mustWork = TRUE)
   input_path <- file.path(l_files_dir, "whep", "lpjml_inputs")
 
@@ -56,16 +61,26 @@ run_lpjml <- function(
     dep_end
   )
   lakes_name <- "lakes_rivers/glwd_lakes_and_rivers_30arcmin.nc"
-
-  .check_inputs(
-    input_path,
-    lu_name,
-    fert_name,
-    manure_name,
-    nhx_name,
-    noy_name,
-    lakes_name
+  lsuha_name <- .input_name(
+    "landuse/grassland_lsuha_%d-%d.nc",
+    export_start,
+    export_end
   )
+
+  # The whep set must carry the whep-generated grassland landuse band + lsuha;
+  # the stock set uses the model's own grassland inputs (no whep-file check).
+  if (input_set == "whep") {
+    .check_inputs(
+      input_path,
+      lu_name,
+      fert_name,
+      manure_name,
+      nhx_name,
+      noy_name,
+      lakes_name,
+      lsuha_name
+    )
+  }
 
   # ---- Build config params tibble -------------------------------------
 
@@ -77,22 +92,36 @@ run_lpjml <- function(
     nspinup = nspinup,
     river_routing = TRUE,
     landuse = "yes",
+    # Activate the managed-grassland livestock grazing module (Heinke/Herzfeld);
+    # without it the grassland stand writes no *_mgrass grazing balance.
+    grazing = "livestock",
 
     # Use spatially explicit WHEP fertilizer/manure inputs instead of
     # global constant rates (fix_fertilization=true ignores the NC files)
-    fix_fertilization = FALSE,
-
-    # Year-dependent WHEP inputs — override input.cjson names
-    `input.landuse.name` = lu_name,
-    `input.fertilizer_nr.name` = fert_name,
-    `input.manure_nr.name` = manure_name,
-    `input.nh4deposition.name` = nhx_name,
-    `input.no3deposition.name` = noy_name,
-
-    # Lakes — WHEP writes NC; input.cjson updated to cdf/var="lakes"
-    `input.lakes.name` = lakes_name,
-    `input.lakes.fmt` = "cdf"
+    fix_fertilization = FALSE
   )
+
+  if (input_set == "whep") {
+    # Year-dependent WHEP inputs override input.cjson names, including the
+    # whep-generated grassland landuse band and grazing density (lsuha).
+    simulation_params <- tibble::add_column(
+      simulation_params,
+      `input.landuse.name` = lu_name,
+      `input.fertilizer_nr.name` = fert_name,
+      `input.manure_nr.name` = manure_name,
+      `input.nh4deposition.name` = nhx_name,
+      `input.no3deposition.name` = noy_name,
+      `input.grassland_lsuha.name` = lsuha_name,
+      `input.grassland_lsuha.fmt` = "cdf",
+      # Lakes — WHEP writes NC; input.cjson updated to cdf/var="lakes"
+      `input.lakes.name` = lakes_name,
+      `input.lakes.fmt` = "cdf"
+    )
+  }
+
+  # NOTE: the grazing outputs (pft_npp, cftfrac, and the *_mgrass C+N balance:
+  # uptakec/yieldc/yieldn/fecesc/fecesn/urinec/urinen/respc/methanec_mgrass) must
+  # be present in the model output config for the availability + validation step.
 
   # ---- Write config and run LPJmL ------------------------------------
 

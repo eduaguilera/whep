@@ -124,6 +124,77 @@ test_that(".fix_item_codes remaps groundnuts 2820 -> 2552", {
   expect_equal(result$item_cbs_code, 2552L)
 })
 
+test_that(".read_land_areas_wide tolerates missing LUH2 cropland and pasture rows", {
+  local_mocked_bindings(
+    .read_land_areas = function(years = NULL) {
+      tibble::tibble(
+        year = 2023L,
+        area = "Spain",
+        Land_Use = "urban",
+        Area_Mha = 1
+      )
+    }
+  )
+
+  result <- whep:::.read_land_areas_wide(years = 2023L)
+
+  expect_true(all(c("Cropland", "Pasture", "agriland") %in% names(result)))
+  expect_equal(nrow(result), 0L)
+})
+
+test_that(".fix_palm_kernels tolerates single-year inputs without old palm-kernel anchors", {
+  empty_fbs <- tibble::tibble(
+    year = integer(),
+    area = character(),
+    area_code = integer(),
+    item_cbs = character(),
+    item_cbs_code = integer(),
+    element = character(),
+    value = numeric(),
+    unit = character()
+  )
+  inputs <- list(
+    fbs_old = empty_fbs,
+    fbs_new = tibble::tibble(
+      year = 2023L,
+      area = "Spain",
+      area_code = 203L,
+      item_cbs = "Palmkernel Oil",
+      item_cbs_code = 2577L,
+      element = "production",
+      value = 10,
+      unit = "tonnes"
+    )
+  )
+
+  result <- whep:::.fix_palm_kernels(inputs)
+
+  expect_s3_class(result, "tbl_df")
+  expect_equal(nrow(result), 0L)
+})
+
+test_that(".cbs_impute_trade tolerates missing destiny element columns", {
+  raw <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~value, ~source,
+    2023L, "Spain", 203L, "Wheat", 2511L, "production", 100, "FAOSTAT_prod"
+  )
+
+  result <- whep:::.cbs_impute_trade(raw)
+
+  expect_true(all(
+    c(
+      "food",
+      "feed",
+      "other_uses",
+      "processing",
+      "import",
+      "export",
+      "stock_variation"
+    ) %in%
+      result$element
+  ))
+})
+
 
 # -- .select_best_source -------------------------------------------------------
 
@@ -152,6 +223,19 @@ test_that(".test_cbs adds balance check columns", {
   expect_true("balance" %in% names(result))
   expect_true("check" %in% names(result))
   expect_true("domestic_supply" %in% names(result))
+})
+
+test_that(".test_cbs tolerates missing standard element columns", {
+  cbs <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~value,
+    2023L, "Spain", 203L, "Wheat", 2511L, "production", 100
+  )
+
+  result <- whep:::.test_cbs(cbs)
+
+  expect_true(all(c("food", "feed", "import", "export") %in% names(result)))
+  expect_equal(result$feed, 0)
+  expect_true("check" %in% names(result))
 })
 
 

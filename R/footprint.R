@@ -47,9 +47,12 @@
 #'   footprints from zero-output residuals.
 #' @param value_added_floor Minimum share of each sector's output that
 #'   is treated as non-intermediate leakage when constructing A from
-#'   `z_mat`. Column sums larger than `1 - value_added_floor` are
-#'   rescaled to that maximum. Ignored when a precomputed `l_inv` is
-#'   supplied without `z_mat`.
+#'   `z_mat` if `max_column_sum` is left at its low-level default. Ignored
+#'   when a precomputed `l_inv` is supplied without `z_mat`.
+#' @param max_column_sum Maximum allowed column sum in A when using `z_mat`.
+#'   Physical biomass systems can require more than one unit of intermediate
+#'   input per unit of output, so the footprint path defaults to `100` and only
+#'   clips extreme columns caused by residual inconsistencies or tiny outputs.
 #' @param conserve_extensions If `TRUE`, rescale positive footprint
 #'   flows within each origin area/item so their sum does not exceed
 #'   the corresponding positive extension total. This keeps footprint
@@ -59,8 +62,10 @@
 #'
 #' @return A tibble with footprint results containing:
 #'   - `origin_area`: Country where the pressure occurs.
+#'   - `origin_polity_code`: WHEP polity for `origin_area`.
 #'   - `origin_item`: Item causing the pressure.
 #'   - `target_area`: Country consuming the product.
+#'   - `target_polity_code`: WHEP polity for `target_area`.
 #'   - `target_item`: Item consumed.
 #'   - `target_fd`: Demand category (e.g. `"food"`). Only
 #'     present when `fd_labels` is provided.
@@ -98,6 +103,7 @@ compute_footprint <- function(
   fd_labels = NULL,
   output_tol = 1e-8,
   value_added_floor = 1e-3,
+  max_column_sum = 100,
   conserve_extensions = TRUE
 ) {
   n <- length(x_vec)
@@ -110,6 +116,7 @@ compute_footprint <- function(
     z_mat,
     output_tol,
     value_added_floor,
+    max_column_sum,
     conserve_extensions
   )
   n_fd <- ncol(y_mat)
@@ -139,7 +146,8 @@ compute_footprint <- function(
     a_mat <- .technical_coefficients(
       z_mat,
       x_vec,
-      value_added_floor = value_added_floor
+      value_added_floor = value_added_floor,
+      max_column_sum = max_column_sum
     )
     ia <- Matrix::Diagonal(n) - a_mat
     lu_fact <- .factor_ia(ia)
@@ -203,9 +211,11 @@ compute_footprint <- function(
   })
   result <- dplyr::bind_rows(results)
   if (nrow(result) == 0L) {
-    return(.empty_footprint_by_item())
+    result <- .empty_footprint_by_item()
   }
-  result
+  result |>
+    .add_role_polity_from_labels(labels, "origin") |>
+    .add_role_polity_from_labels(fd_labels, "target")
 }
 
 .footprint_one_fd_col <- function(
@@ -298,7 +308,9 @@ compute_footprint <- function(
 .footprint_direct <- function(multiply_fn, y_mat, labels) {
   fp_mat <- multiply_fn(y_mat)
   target_labs <- .infer_target_labels(fp_mat, labels)
-  .fp_dense_to_tidy(fp_mat, labels, target_labs)
+  .fp_dense_to_tidy(fp_mat, labels, target_labs) |>
+    .add_role_polity_from_labels(labels, "origin") |>
+    .add_role_polity_from_labels(target_labs, "target")
 }
 
 .fp_dense_to_tidy <- function(
@@ -331,22 +343,32 @@ compute_footprint <- function(
   n_cols <- ncol(fp_mat)
   n_rows <- nrow(labels)
   if (n_cols == n_rows) {
-    return(labels)
+    return(.add_label_polity_cols(labels))
   }
 
   n_areas <- dplyr::n_distinct(labels$area_code)
   if (n_cols %% n_areas == 0) {
     n_fd <- n_cols %/% n_areas
     areas <- sort(unique(labels$area_code))
-    return(tibble::tibble(
-      area_code = rep(areas, each = n_fd),
-      item_cbs_code = rep(NA_integer_, n_cols)
-    ))
+    return(
+      tibble::tibble(
+        area_code = rep(areas, each = n_fd),
+        item_cbs_code = rep(NA_integer_, n_cols)
+      ) |>
+        dplyr::left_join(
+          .label_reporting_polity_lookup(labels),
+          by = "area_code"
+        )
+    )
   }
 
   tibble::tibble(
     area_code = rep(NA_integer_, n_cols),
-    item_cbs_code = rep(NA_integer_, n_cols)
+    item_cbs_code = rep(NA_integer_, n_cols),
+    polity_area_code = rep(NA_integer_, n_cols),
+    reporting_polity_code = rep(NA_character_, n_cols),
+    reporting_polity_name = rep(NA_character_, n_cols),
+    reporting_polity_has_geometry = rep(NA, n_cols)
   )
 }
 
@@ -408,8 +430,14 @@ compute_footprint <- function(
 .empty_footprint <- function() {
   tibble::tibble(
     origin_area = integer(0),
+    origin_polity_code = character(0),
+    origin_polity_name = character(0),
+    origin_polity_has_geometry = logical(0),
     origin_item = integer(0),
     target_area = integer(0),
+    target_polity_code = character(0),
+    target_polity_name = character(0),
+    target_polity_has_geometry = logical(0),
     target_item = integer(0),
     value = numeric(0)
   )
@@ -418,8 +446,14 @@ compute_footprint <- function(
 .empty_footprint_by_item <- function() {
   tibble::tibble(
     origin_area = integer(0),
+    origin_polity_code = character(0),
+    origin_polity_name = character(0),
+    origin_polity_has_geometry = logical(0),
     origin_item = integer(0),
     target_area = integer(0),
+    target_polity_code = character(0),
+    target_polity_name = character(0),
+    target_polity_has_geometry = logical(0),
     target_item = integer(0),
     target_fd = character(0),
     value = numeric(0)
@@ -447,6 +481,7 @@ compute_footprint <- function(
   z_mat,
   output_tol,
   value_added_floor,
+  max_column_sum = 100,
   conserve_extensions
 ) {
   n <- length(x_vec)
@@ -491,6 +526,7 @@ compute_footprint <- function(
     )
   }
   .validate_value_added_floor(value_added_floor)
+  .validate_max_column_sum(max_column_sum)
   if (
     !is.logical(conserve_extensions) ||
       length(conserve_extensions) != 1 ||

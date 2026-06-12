@@ -9,10 +9,11 @@
 #' The technical coefficients matrix is computed as
 #' \eqn{A_{ij} = Z_{ij} / X_j}, representing the input of
 #' sector \eqn{i} needed per unit of output from sector \eqn{j}.
-#' Column sums of A are capped below 1 using `value_added_floor`
-#' (FABIO convention plus an explicit leakage floor) to ensure
-#' \eqn{(I - A)} is invertible even when supply-use data are
-#' inconsistent. The Leontief inverse is then \eqn{L = (I - A)^{-1}}.
+#' Column sums of A are capped using `max_column_sum` to avoid singular
+#' systems from inconsistent supply-use data. By default this uses
+#' `1 - value_added_floor`, preserving the previous conservative behavior
+#' for explicit Leontief inverses. The Leontief inverse is then
+#' \eqn{L = (I - A)^{-1}}.
 #'
 #' For large systems (thousands of sectors) this function is not
 #' usable: the dense L matrix requires \eqn{n^2 \times 8} bytes
@@ -31,10 +32,10 @@
 #' @param max_n Maximum system size before aborting. Defaults to
 #'   5000. Set higher at your own risk of memory exhaustion.
 #' @param value_added_floor Minimum share of each sector's output that
-#'   is treated as non-intermediate leakage when constructing A.
-#'   Column sums larger than `1 - value_added_floor` are rescaled
-#'   to that maximum. Use `0` to recover the previous cap-at-one
-#'   behavior, though this can leave singular systems.
+#'   is treated as non-intermediate leakage when constructing A if
+#'   `max_column_sum` is left at its default.
+#' @param max_column_sum Maximum allowed column sum in A. Columns above this
+#'   value are rescaled. Defaults to `1 - value_added_floor`.
 #'
 #' @return The Leontief inverse matrix \eqn{L}. Negative
 #'   values are set to zero. Returns a dense matrix.
@@ -49,9 +50,15 @@ compute_leontief_inverse <- function(
   z_mat,
   x_vec,
   max_n = 5000,
-  value_added_floor = 1e-3
+  value_added_floor = 1e-3,
+  max_column_sum = 1 - value_added_floor
 ) {
-  .validate_leontief_inputs(z_mat, x_vec, value_added_floor)
+  .validate_leontief_inputs(
+    z_mat,
+    x_vec,
+    value_added_floor,
+    max_column_sum
+  )
   n <- nrow(z_mat)
 
   if (n > max_n) {
@@ -73,7 +80,8 @@ compute_leontief_inverse <- function(
   a_mat <- .technical_coefficients(
     z_mat,
     x_vec,
-    value_added_floor = value_added_floor
+    value_added_floor = value_added_floor,
+    max_column_sum = max_column_sum
   )
 
   cli::cli_inform("  Inverting (I - A)...")
@@ -95,9 +103,11 @@ compute_leontief_inverse <- function(
 .technical_coefficients <- function(
   z_mat,
   x_vec,
-  value_added_floor = 1e-3
+  value_added_floor = 1e-3,
+  max_column_sum = 1 - value_added_floor
 ) {
   .validate_value_added_floor(value_added_floor)
+  .validate_max_column_sum(max_column_sum)
   x_inv <- ifelse(x_vec == 0, 0, 1 / x_vec)
   a_mat <- z_mat %*% Matrix::Diagonal(x = x_inv)
   # Zero negative entries in A (FABIO convention): these arise
@@ -119,23 +129,25 @@ compute_leontief_inverse <- function(
       a_mat[a_mat < 0] <- 0
     }
   }
-  # Cap column sums below 1. A column sum of exactly 1 can still
-  # make (I-A) singular, so keep an explicit value-added leakage.
   col_sums <- Matrix::colSums(a_mat)
-  max_col_sum <- 1 - value_added_floor
-  over <- col_sums > max_col_sum
+  over <- col_sums > max_column_sum
   if (any(over)) {
     n_over <- sum(over)
     cli::cli_warn(
-      "  Capping {n_over} column{?s} of A with sum > {signif(max_col_sum, 6)}."
+      "  Capping {n_over} column{?s} of A with sum > {signif(max_column_sum, 6)}."
     )
-    scale <- ifelse(over & col_sums > 0, max_col_sum / col_sums, 1)
+    scale <- ifelse(over & col_sums > 0, max_column_sum / col_sums, 1)
     a_mat <- a_mat %*% Matrix::Diagonal(x = scale)
   }
   a_mat
 }
 
-.validate_leontief_inputs <- function(z_mat, x_vec, value_added_floor) {
+.validate_leontief_inputs <- function(
+  z_mat,
+  x_vec,
+  value_added_floor,
+  max_column_sum
+) {
   if (!methods::is(z_mat, "Matrix") && !is.matrix(z_mat)) {
     cli::cli_abort("{.arg z_mat} must be a matrix.")
   }
@@ -151,6 +163,7 @@ compute_leontief_inverse <- function(
     )
   }
   .validate_value_added_floor(value_added_floor)
+  .validate_max_column_sum(max_column_sum)
 }
 
 .validate_value_added_floor <- function(value_added_floor) {
@@ -164,6 +177,20 @@ compute_leontief_inverse <- function(
   ) {
     cli::cli_abort(
       "{.arg value_added_floor} must be one finite number in [0, 1)."
+    )
+  }
+}
+
+.validate_max_column_sum <- function(max_column_sum) {
+  if (
+    !is.numeric(max_column_sum) ||
+      length(max_column_sum) != 1 ||
+      is.na(max_column_sum) ||
+      !is.finite(max_column_sum) ||
+      max_column_sum <= 0
+  ) {
+    cli::cli_abort(
+      "{.arg max_column_sum} must be one finite positive number."
     )
   }
 }

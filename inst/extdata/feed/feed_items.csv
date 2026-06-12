@@ -1,0 +1,200 @@
+item_cbs,Cat_1,feedtype_graniv,feedtype_grazers
+Choline chloride,Additives,additives,additives
+Lysine,Additives,additives,additives
+MgO,Additives,additives,additives
+Minerals,Additives,additives,additives
+Pesticides,Additives,additives,additives
+SSP,Additives,additives,additives
+Potassium carbonate,Additives,additives,additives
+Tryptophan,Additives,additives,additives
+Urea,Additives,additives,additives
+Vitamins,Additives,additives,additives
+Acid,Additives,additives,additives
+Phytase,Additives,additives,additives
+Starch,Additives,additives,additives
+Calcium soap protected fat,Additives,additives,additives
+Methionine,Additives,additives,additives
+Threonine,Additives,additives,additives
+Pigment,Additives,additives,additives
+Ammonium chloride,Additives,additives,additives
+Valine,Additives,additives,additives
+Yeast,Additives,additives,additives
+Salt,Additives,additives,additives
+Anionic salts,Additives,additives,additives
+Sodium butyrate,Additives,additives,additives
+Calcium carbonate,Additives,additives,additives
+Enzimes,Additives,additives,additives
+Bicarbonate,Additives,additives,additives
+Flavours,Additives,additives,additives
+Olein,Additives,additives,additives
+Wine,Alcohol,crops,crops
+Beer,Alcohol,crops,crops
+"Beverages, Alcoholic",Alcohol,crops,crops
+"Beverages, Fermented",Alcohol,crops,crops
+"Alcohol, Non-Food",Alcohol,crops,crops
+Ethanol,Alcohol,crops,crops
+Groundnut Cake,Cakes,crops,crops
+Sunflowerseed Cake,Cakes,crops,crops
+Copra Cake,Cakes,crops,crops
+Palmkernel Cake,Cakes,crops,crops
+Cottonseed Cake,Cakes,crops,crops
+"Oilseed Cakes, Other",Cakes,crops,crops
+Soyabean Cake,Cakes,crops,crops
+Rape and Mustard Cake,Cakes,crops,crops
+Sesameseed Cake,Cakes,crops,crops
+Soy hulls,Brans,residues,residues
+Sugarbeet pulp,Cakes,residues,residues
+DDGS,Cakes,crops,crops
+DDGS Barley,Cakes,crops,crops
+Brans,Brans,residues,residues
+"Cake, maize",Cakes,crops,crops
+Molasses,Molasses,crops,crops
+Sugar (Raw Equivalent),Sugar,crops,crops
+"Sweeteners, Other",Sugar,crops,crops
+Sugar non-centrifugal,Sugar,crops,crops
+Sesameseed Oil,Oil,crops,crops
+Maize Germ Oil,Oil,crops,crops
+Olive Oil,Oil,crops,crops
+Coconut Oil,Oil,crops,crops
+Soyabean Oil,Oil,crops,crops
+Palmkernel Oil,Oil,crops,crops
+Cottonseed Oil,Oil,crops,crops
+"Oilcrops Oil, Other",Oil,crops,crops
+Ricebran Oil,Oil,crops,crops
+Groundnut Oil,Oil,crops,crops
+Sunflowerseed Oil,Oil,crops,crops
+Rape and Mustard Oil,Fruits,crops,crops
+Straw,Straw,,residues
+Other crop residues,Other crop residues,residues,residues
+Firewood,Firewood,,
+Animal draught,Draught,,
+Fish meal,Aquatic animals,animals,animals
+"Molluscs, Other",Aquatic animals,animals,animals
+Pelagic Fish,Aquatic animals,animals,animals
+"Fish, Liver Oil",Aquatic animals,animals,animals
+Cephalopods,Aquatic animals,animals,animals
+Crustaceans,Aquatic animals,animals,animals
+Freshwater Fish,Aquatic animals,animals,animals
+Demersal Fish,Aquatic animals,animals,animals
+"Marine Fish, Other",Aquatic animals,animals,animals
+"Aquatic Animals, Others",Aquatic animals,animals,animals
+Aquatic Plants,Aquatic animals,animals,animals
+"Fish, Body Oil",Aquatic animals,animals,animals
+Wood,Firewood,,
+Fallow,Fallow,grass,grass
+Grassland,Grass,grass,grass
+Temporary grassland,Fodder_green,grass,grass
+"Cattle, dairy",Live animals,,
+"Cattle, non-dairy",Live animals,,
+Camels,Live animals,,
+Game,Live animals,,
+Buffaloes,Live animals,,
+Turkeys,Live animals,,
+Asses,Live animals,,
+Mules,Live animals,,
+Goats,Live animals,,
+Pigs,Live animals,,
+"Rodents, other",Live animals,,
+Bees,Live animals,,
+Ducks,Live animals,,
+Sheep,Live animals,,
+"Chickens, broilers",Live animals,,
+"Chickens, layers",Live animals,,
+Horses,Live animals,,
+"Camelids, other",Live animals,,
+Rabbits and hares,Live animals,,
+Animals live nes,Live animals,,
+Geese,Live animals,,
+"Fats, Animals, Raw",Animal fats,animals,animals
+Eggs,Eggs,animals,animals
+Wool (Clean Eq.),Other animal products,animals,animals
+Hides and skins,Other animal products,animals,animals
+Silk,Other animal products,animals,animals
+Honey,Other animal products,animals,animals
+Mutton & Goat Meat,Meat,animals,animals
+"Offals, Edible",Other animal products,animals,animals
+Poultry Meat,Meat,animals,animals
+Pigmeat,Meat,animals,animals
+Meat Meal,Meat,animals,animals
+Bovine Meat,Meat,animals,animals
+"Meat, Other",Meat,animals,animals
+"Butter, Ghee",Milk and products,animals,animals
+Whey,Milk and products,animals,animals
+"Milk, lactation",Lactation,animals,animals
+Milk - Excluding Butter,Milk and products,animals,animals
+Millet and products,Cereals,crops,crops
+Wheat and products,Cereals,crops,crops
+Rye and products,Cereals,crops,crops
+"Cereals, Other",Cereals,crops,crops
+Barley and products,Cereals,crops,crops
+Sorghum and products,Cereals,crops,crops
+Oats,Cereals,crops,crops
+Maize and products,Cereals,crops,crops
+Rice and products,Cereals,crops,crops
+Tea (including mate),Spices,crops,crops
+Cocoa Beans and products,Spices,crops,crops
+Coffee and products,Spices,crops,crops
+"Soft-Fibres, Other",Fibres,crops,crops
+Cottonseed,Oilseeds,crops,crops
+Jute,Fibres,crops,crops
+Jute-Like Fibres,Fibres,crops,crops
+Abaca,Fibres,crops,crops
+"Hard Fibres, Other",Fibres,crops,crops
+Sisal,Fibres,crops,crops
+Cotton lint,Fibres,crops,crops
+Fodder cereal and grasses,Fodder_green,,residues
+Fodder legumes,Fodder_green,,residues
+Fodder vegetables and roots,Fodder_green,residues,residues
+Fodder mix,Fodder_green,,residues
+Groundnuts,Oilseeds,crops,crops
+Palm kernels,Oilseeds,crops,crops
+Seed cotton,Fibres,crops,crops
+Hemp,Fibres,crops,crops
+Kapok fruit,Fibres,crops,crops
+Linum,Fibres,crops,crops
+Soyabeans,Oilseeds,crops,crops
+Coconuts - Incl Copra,Oilseeds,crops,crops
+Sesame seed,Oilseeds,crops,crops
+Sunflower seed,Oilseeds,crops,crops
+Rape and Mustardseed,Oilseeds,crops,crops
+Olives (including preserved),Olives,crops,crops
+"Oil, palm fruit",Oilseeds,crops,crops
+Coconuts,Oilseeds,crops,crops
+"Oilcrops, Other",Oilseeds,crops,crops
+Yams,Roots_tubers,crops,crops
+Cassava and products,Roots_tubers,crops,crops
+Potatoes and products,Roots_tubers,crops,crops
+"Roots, Other",Roots_tubers,crops,crops
+Sweet potatoes,Roots_tubers,crops,crops
+Sugar beet,Sugar_crops,crops,crops
+Sugar cane,Sugar_crops,crops,crops
+Rubber,Fibres,crops,crops
+Tobacco,Spices,crops,crops
+Palm Oil,Oil,crops,crops
+Plantains,Fruits,crops,crops
+Cloves,Spices,crops,crops
+Bananas,Fruits,crops,crops
+"Vegetables, Other",Vegetables,crops,crops
+Acorns,Acorns,grass,grass
+Grapes and products (excl wine),Grapes,crops,crops
+Beans,Pulses,crops,crops
+Peas,Pulses,crops,crops
+"Pulses, Other and products",Pulses,crops,crops
+Nuts and products,Treenuts,crops,crops
+Tomatoes and products,Vegetables,crops,crops
+Grapefruit and products,Citrus,crops,crops
+Apples and products,Fruits,crops,crops
+Pepper,Spices,crops,crops
+Flowers,Other,,
+"Lemons, Limes and products",Citrus,crops,crops
+"Citrus, Other",Citrus,crops,crops
+Pineapples and products,Fruits,crops,crops
+"Oranges, Mandarines",Citrus,crops,crops
+"Fruits, Other",Fruits,crops,crops
+Pimento,Spices,crops,crops
+Hops,Spices,crops,crops
+"Spices, Other",Spices,crops,crops
+Miscellaneous,Other,,
+Onions,Vegetables,crops,crops
+Dates,Fruits,crops,crops
+Scavenging,Scavenging,scavenging,scavenging

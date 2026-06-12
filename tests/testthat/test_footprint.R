@@ -41,8 +41,14 @@ testthat::test_that("compute_footprint returns tidy tibble", {
     result,
     c(
       "origin_area",
+      "origin_polity_code",
+      "origin_polity_name",
+      "origin_polity_has_geometry",
       "origin_item",
       "target_area",
+      "target_polity_code",
+      "target_polity_name",
+      "target_polity_has_geometry",
       "target_item",
       "value"
     )
@@ -264,7 +270,8 @@ testthat::test_that("sparse path caps closed sectors with value_added_floor", {
       extensions = extensions,
       labels = labels,
       z_mat = z,
-      value_added_floor = 0.01
+      value_added_floor = 0.01,
+      max_column_sum = 1 - 0.01
     ),
     "Capping"
   )
@@ -281,6 +288,7 @@ testthat::test_that("sparse path caps closed sectors with value_added_floor", {
       labels = labels,
       z_mat = z,
       value_added_floor = 0.01,
+      max_column_sum = 1 - 0.01,
       conserve_extensions = FALSE
     ),
     "Capping"
@@ -366,8 +374,16 @@ testthat::test_that("fd_labels yields target_fd and target_item columns", {
   fd_labs <- io$fd_labels[[1]]
   pointblank::expect_col_exists(
     fd_labs,
-    c("area_code", "fd_col")
+    c(
+      "area_code",
+      "polity_area_code",
+      "reporting_polity_code",
+      "reporting_polity_name",
+      "reporting_polity_has_geometry",
+      "fd_col"
+    )
   )
+  pointblank::expect_col_vals_not_null(fd_labs, reporting_polity_code)
   pointblank::expect_col_vals_not_null(fd_labs, fd_col)
 
   # compute_footprint with fd_labels adds target_fd
@@ -383,6 +399,17 @@ testthat::test_that("fd_labels yields target_fd and target_item columns", {
   )
 
   pointblank::expect_col_exists(result, "target_fd")
+  pointblank::expect_col_exists(
+    result,
+    c(
+      "origin_polity_code",
+      "origin_polity_name",
+      "origin_polity_has_geometry",
+      "target_polity_code",
+      "target_polity_name",
+      "target_polity_has_geometry"
+    )
+  )
   pointblank::expect_col_vals_not_null(result, target_area)
   pointblank::expect_col_vals_not_null(result, target_item)
   pointblank::expect_col_vals_in_set(
@@ -425,8 +452,14 @@ testthat::test_that("fd_labels zero footprint keeps output schema", {
     names(result),
     c(
       "origin_area",
+      "origin_polity_code",
+      "origin_polity_name",
+      "origin_polity_has_geometry",
       "origin_item",
       "target_area",
+      "target_polity_code",
+      "target_polity_name",
+      "target_polity_has_geometry",
       "target_item",
       "target_fd",
       "value"

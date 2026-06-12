@@ -4,10 +4,30 @@ suppressPackageStartupMessages({
 
 # Years to process
 years <- c(1986, 1987)
+grassland_metric <- tolower(Sys.getenv("WHEP_GRASSLAND_METRIC", "occupation"))
+usable_grass_yield_dm_t_ha <- as.numeric(
+  Sys.getenv("WHEP_USABLE_GRASS_YIELD_DM_T_HA", "2.06")
+)
+
+if (!grassland_metric %in% c("occupation", "active_grazing")) {
+  stop(
+    "`WHEP_GRASSLAND_METRIC` must be \"occupation\" or \"active_grazing\".",
+    call. = FALSE
+  )
+}
+if (is.na(usable_grass_yield_dm_t_ha) || usable_grass_yield_dm_t_ha <= 0) {
+  stop(
+    "`WHEP_USABLE_GRASS_YIELD_DM_T_HA` must be a positive number.",
+    call. = FALSE
+  )
+}
 
 # Build IO model for selected years.
 io <- build_io_model(years = years)
-land_use <- get_land_fp_production()
+land_use <- get_land_fp_production(
+  grassland_metric = grassland_metric,
+  usable_grass_yield_dm_t_ha = usable_grass_yield_dm_t_ha
+)
 
 # Compute footprints for all selected years.
 footprints <- purrr::pmap_dfr(

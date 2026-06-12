@@ -220,6 +220,36 @@ test_that("build_primary_production defaults to end_year 2023", {
   expect_equal(formals_prod$end_year, 2023)
 })
 
+test_that(".extend_historical keeps modern rows when LUH2 land columns are absent", {
+  primary <- tibble::tibble(
+    year = 2023L,
+    area = "Spain",
+    area_code = 203L,
+    item_prod = "Wheat",
+    item_prod_code = 15L,
+    item_cbs = "Wheat and products",
+    item_cbs_code = 2511L,
+    live_anim = NA_character_,
+    live_anim_code = NA_integer_,
+    unit = "tonnes",
+    value = 100,
+    source = "FAOSTAT_prod"
+  )
+  years <- tibble::tibble(year = 2023L)
+  land <- tibble::tibble(
+    year = 2023L,
+    area = "Spain",
+    Land_Use = "urban",
+    Area_Mha = 1
+  )
+
+  result <- whep:::.extend_historical(primary, years, land)
+
+  expect_equal(nrow(result), 1L)
+  expect_equal(result$year, 2023L)
+  expect_equal(result$value, 100)
+})
+
 
 # -- deduplication --------------------------------------------------------------
 

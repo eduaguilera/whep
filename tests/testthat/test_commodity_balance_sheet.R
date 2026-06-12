@@ -67,6 +67,22 @@ testthat::test_that("wide CBS has consistent supply-use balance", {
   )
 })
 
+testthat::test_that(".pivot_cbs_wide splits stock variation by balance sign", {
+  cbs_long <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~element, ~value,
+    2000L, 1L, 10L, "production", 100,
+    2000L, 1L, 10L, "stock_variation", 30,
+    2000L, 2L, 10L, "production", 100,
+    2000L, 2L, 10L, "stock_variation", -20
+  )
+
+  result <- .pivot_cbs_wide(cbs_long) |>
+    dplyr::arrange(.data$area_code)
+
+  testthat::expect_equal(result$stock_addition, c(30, 0))
+  testthat::expect_equal(result$stock_withdrawal, c(0, 20))
+})
+
 testthat::test_that("processing coefficients are internally consistent", {
   coefs <- .make_coefs_fixture()
 
@@ -104,7 +120,7 @@ testthat::test_that("processing coefficients are internally consistent", {
   )
 })
 
-testthat::test_that("livestock CBS uses slaughtered heads for draft animals", {
+testthat::test_that("livestock CBS routes slaughter animals to processing", {
   local_mocked_bindings(
     .get_livestock_trade_totals = function(livestock_items) {
       tibble::tibble(
@@ -118,11 +134,13 @@ testthat::test_that("livestock CBS uses slaughtered heads for draft animals", {
   )
 
   primary <- tibble::tribble(
-    ~year, ~area_code, ~item_cbs_code, ~unit, ~value,
-    2000L, 1L, 1096L, "heads", 100,
-    2000L, 1L, 1096L, "slaughtered_heads", 10,
-    2000L, 1L, 946L, "heads", 200,
-    2000L, 1L, 946L, "slaughtered_heads", 20
+    ~year, ~area_code, ~item_cbs_code, ~live_anim_code, ~unit, ~value,
+    2000L, 1L, 1096L, NA, "heads", 100,
+    2000L, 1L, 1096L, NA, "slaughtered_heads", 10,
+    2000L, 1L, 2735L, 1096L, "tonnes", 2,
+    2000L, 1L, 946L, NA, "heads", 200,
+    2000L, 1L, 946L, NA, "slaughtered_heads", 20,
+    2000L, 1L, 2731L, 946L, "tonnes", 5
   )
 
   result <- get_livestock_cbs(primary)
@@ -131,8 +149,8 @@ testthat::test_that("livestock CBS uses slaughtered heads for draft animals", {
 
   testthat::expect_equal(horse$production, 10)
   testthat::expect_equal(horse$domestic_supply, 10)
-  testthat::expect_equal(horse$other_uses, 10)
-  testthat::expect_equal(horse$processing, 0)
+  testthat::expect_equal(horse$other_uses, 0)
+  testthat::expect_equal(horse$processing, 10)
 
   testthat::expect_equal(buffalo$production, 20)
   testthat::expect_equal(buffalo$domestic_supply, 20)

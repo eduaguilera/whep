@@ -39,10 +39,10 @@
 #'   - `Y`: Final demand matrix.
 #'   - `X`: Total output vector.
 #'   - `labels`: Tibble mapping row/column indices to
-#'     `area_code` and `item_cbs_code`.
+#'     `area_code`, `item_cbs_code`, and reporting polity metadata.
 #'   - `fd_labels`: Tibble mapping each Y column to its
-#'     `area_code` (consuming country) and `fd_col` (demand
-#'     category, e.g. `"food"`) . Pass to
+#'     `area_code` (consuming polity), `fd_col` (demand
+#'     category, e.g. `"food"`), and reporting polity metadata. Pass to
 #'     [compute_footprint()] as `fd_labels` to get a
 #'     `target_fd` column in the footprint output.
 #'
@@ -327,8 +327,9 @@ build_io_model <- function(
     )
   }
 
-  labels <- .build_io_labels(dims)
-  fd_labels <- .build_fd_labels(dims, fd_cols)
+  io_year <- unique(cbs_yr$year)[1]
+  labels <- .build_io_labels(dims, year = io_year)
+  fd_labels <- .build_fd_labels(dims, fd_cols, year = io_year)
   list(
     Z = z_mat,
     Y = fixed$Y,
@@ -573,11 +574,11 @@ build_io_model <- function(
   n_areas,
   n_items
 ) {
-  big <- purrr::map(
+  share_blocks <- purrr::map(
     as.character(items),
     ~ trade_shares[[.x]]
-  ) |>
-    do.call(rbind, args = _)
+  )
+  big <- do.call(rbind, share_blocks)
   row_order <- .interleave_index(n_areas, n_items)
   methods::as(big[row_order, , drop = FALSE], "CsparseMatrix")
 }
@@ -660,7 +661,7 @@ build_io_model <- function(
     parts$proc <- su |>
       dplyr::filter(
         type == "use",
-        proc_group == "processing"
+        proc_group %in% c("processing", "slaughtering")
       ) |>
       dplyr::summarise(
         processing_used = sum(value),
@@ -947,22 +948,24 @@ build_io_model <- function(
 
 # --- Labels and output formatting ---
 
-.build_io_labels <- function(dims) {
+.build_io_labels <- function(dims, year = NULL) {
   tidyr::expand_grid(
     area_code = dims$areas,
     item_cbs_code = dims$items
   ) |>
-    dplyr::mutate(index = dplyr::row_number())
+    dplyr::mutate(index = dplyr::row_number()) |>
+    .add_label_polity_cols(year = year)
 }
 
-.build_fd_labels <- function(dims, fd_cols) {
+.build_fd_labels <- function(dims, fd_cols, year = NULL) {
   tibble::tibble(
     area_code = rep(
       dims$areas,
       each = length(fd_cols)
     ),
     fd_col = rep(fd_cols, times = dims$n_areas)
-  )
+  ) |>
+    .add_label_polity_cols(year = year)
 }
 
 .io_results_to_tibble <- function(results, years) {
