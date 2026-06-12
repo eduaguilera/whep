@@ -1,4 +1,4 @@
-test_that(".repair_luh2_cropland_collapses interpolates isolated crop collapses", {
+test_that(".fix_luh2_crop_collapse interpolates isolated crop collapses", {
   land_areas <- tibble::tribble(
     ~area_code, ~area, ~year, ~Land_Use, ~Area_Mha,
     109L, "Jamaica", 1899L, "c3ann", 0.010,
@@ -12,7 +12,7 @@ test_that(".repair_luh2_cropland_collapses interpolates isolated crop collapses"
     109L, "Jamaica", 1901L, "pastr", 0.082
   )
 
-  out <- .repair_luh2_cropland_collapses(land_areas)
+  out <- .fix_luh2_crop_collapse(land_areas)
 
   expect_equal(
     out$Area_Mha[out$year == 1900L & out$Land_Use == "c3ann"],

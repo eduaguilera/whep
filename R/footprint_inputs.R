@@ -62,7 +62,7 @@ get_land_fp_production <- function(
       .drop_derived_land_extensions()
   }
 
-  primary_double_items <- .primary_double_land_target_items()
+  primary_double_items <- .primary_double_land_items()
   if (
     !isTRUE(example) &&
       any(land_fp$item_cbs_code %in% primary_double_items$item_cbs_code)
@@ -93,17 +93,18 @@ get_land_fp_production <- function(
 .drop_derived_land_extensions <- function(land_fp) {
   land_fp |>
     dplyr::filter(
-      !(.data$group %in% c(
-        "Crop products",
-        "Crop residues",
-        "Draught",
-        "Livestock products"
-      ))
+      !(.data$group %in%
+        c(
+          "Crop products",
+          "Crop residues",
+          "Draught",
+          "Livestock products"
+        ))
     )
 }
 
 .rebuild_primary_double_land <- function(land_fp, primary_prod) {
-  target_items <- .primary_double_land_target_items()
+  target_items <- .primary_double_land_items()
   target_item_codes <- unique(target_items$item_cbs_code)
   rebuilt_land <- .primary_double_land(primary_prod)
 
@@ -285,7 +286,7 @@ get_land_fp_production <- function(
     )
 }
 
-.primary_double_land_target_items <- function() {
+.primary_double_land_items <- function() {
   .primary_double_product_map() |>
     dplyr::distinct(item_cbs_code) |>
     dplyr::left_join(

@@ -908,7 +908,37 @@ utils::globalVariables(
     "total_excess",
     "rank",
     "prev",
-    "alloc"
+    "alloc",
+    # feed intake / footprint build internals
+    ".env",
+    ".has_milled_rice",
+    "area_item_cbs_code",
+    "avail",
+    "avail_dm",
+    "cropland_mha",
+    "demand_aft",
+    "dm_feedtype_tot",
+    "dm_share_scav",
+    "family",
+    "fcr",
+    "feed_type",
+    "feedtype_graniv",
+    "feedtype_grazers",
+    "ft",
+    "graniv_feed_share",
+    "grass",
+    "grazers_feed_share",
+    "i..has_milled_rice",
+    "item_bouwman",
+    "loss_dm",
+    "neighbor_mha",
+    "next_mha",
+    "output_key",
+    "prev_mha",
+    "product_kgdm_kgfm",
+    "region_bouwman",
+    "scavenging",
+    "supply_dm"
   )
 )
 

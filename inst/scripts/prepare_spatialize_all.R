@@ -172,8 +172,11 @@ coord_to_rowcol <- function(dt, grid) {
   m3 <- array(0, dim = c(grid$nlon, grid$nlat, length(yr_chunk)))
   if (nrow(data_dt) > 0L) {
     ti <- match(data_dt$year, yr_chunk)
-    flat <- (ti - 1L) * grid$nlon * grid$nlat +
-      (data_dt$row - 1L) * grid$nlon + data_dt$col
+    flat <- (ti - 1L) *
+      grid$nlon *
+      grid$nlat +
+      (data_dt$row - 1L) * grid$nlon +
+      data_dt$col
     m3[flat] <- data_dt$value
   }
   t_start <- match(yr_chunk[1L], all_years)

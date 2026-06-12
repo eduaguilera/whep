@@ -248,11 +248,9 @@
         on = rice_key_cols
       ]
       dt <- dt[
-        !(
-          !is.na(.has_milled_rice) &
-            item_cbs_code %in% c(2804L, 2807L) &
-            item_cbs == "Rice (Paddy Equivalent)"
-        )
+        !(!is.na(.has_milled_rice) &
+          item_cbs_code %in% c(2804L, 2807L) &
+          item_cbs == "Rice (Paddy Equivalent)")
       ]
       dt[, .has_milled_rice := NULL]
     }
@@ -260,19 +258,22 @@
 
   if ("value" %in% names(dt)) {
     dt[
-      item_cbs_code %in% c(2804L, 2807L) &
+      item_cbs_code %in%
+        c(2804L, 2807L) &
         item_cbs %in% c("Rice, paddy", "Rice (Paddy Equivalent)"),
       value := value * .rice_milled_extraction_rate()
     ]
   }
 
   dt[
-    item_cbs_code %in% c(2804L, 2805L, 2807L) &
-      item_cbs %in% c(
-        "Rice, paddy",
-        "Rice (Milled Equivalent)",
-        "Rice (Paddy Equivalent)"
-      ),
+    item_cbs_code %in%
+      c(2804L, 2805L, 2807L) &
+      item_cbs %in%
+        c(
+          "Rice, paddy",
+          "Rice (Milled Equivalent)",
+          "Rice (Paddy Equivalent)"
+        ),
     `:=`(
       item_cbs_code = 2807L,
       item_cbs = "Rice and products"

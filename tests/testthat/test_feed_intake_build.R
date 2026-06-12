@@ -8,7 +8,10 @@ testthat::test_that(".normalise_feed_cbs accepts raw long CBS pins", {
 
   out <- whep:::.normalise_feed_cbs(raw)
 
-  testthat::expect_equal(names(out), c("year", "area_code", "item_cbs_code", "feed"))
+  testthat::expect_equal(
+    names(out),
+    c("year", "area_code", "item_cbs_code", "feed")
+  )
   testthat::expect_equal(out$feed, 12)
 })
 

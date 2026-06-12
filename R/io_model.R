@@ -65,8 +65,8 @@ build_io_model <- function(
       "{.arg years} must be numeric or NULL."
     )
   }
-  if (.io_should_build_independent_years(years, supply_use, cbs)) {
-    return(.build_io_model_independent_years(
+  if (.io_should_build_sparse_years(years, supply_use, cbs)) {
+    return(.build_io_sparse_years(
       supply_use = supply_use,
       bilateral_trade = bilateral_trade,
       cbs = cbs,
@@ -199,7 +199,7 @@ build_io_model <- function(
   seq.int(min(years, na.rm = TRUE), max(years, na.rm = TRUE))
 }
 
-.io_should_build_independent_years <- function(years, supply_use, cbs) {
+.io_should_build_sparse_years <- function(years, supply_use, cbs) {
   if (is.null(years)) {
     return(FALSE)
   }
@@ -226,7 +226,7 @@ build_io_model <- function(
   identical(years, seq.int(min(years), max(years)))
 }
 
-.build_io_model_independent_years <- function(
+.build_io_sparse_years <- function(
   supply_use,
   bilateral_trade,
   cbs,
@@ -266,10 +266,15 @@ build_io_model <- function(
 }
 
 .io_context_years <- function(years) {
-  if (is.null(years) || max(years, na.rm = TRUE) <= 2013L) {
+  if (is.null(years)) {
     return(years)
   }
-  seq.int(min(min(years, na.rm = TRUE), 2011L), max(years, na.rm = TRUE))
+  start_year <- min(years, na.rm = TRUE)
+  end_year <- max(years, na.rm = TRUE)
+  if (end_year >= 2013L) {
+    start_year <- min(start_year, 2011L)
+  }
+  seq.int(start_year, end_year)
 }
 
 .io_cache_key <- function(key, years) {

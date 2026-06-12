@@ -223,7 +223,7 @@ test_that("build_primary_production defaults to end_year 2023", {
 
 # -- rice unit convention ------------------------------------------------------
 
-test_that(".correct_rice_milled_equivalent_final converts paddy production only", {
+test_that(".fix_rice_milled_equiv converts paddy production only", {
   rate <- whep:::.rice_milled_extraction_rate()
   df <- tibble::tribble(
     ~year, ~area, ~area_code, ~item_prod, ~item_prod_code,
@@ -246,7 +246,7 @@ test_that(".correct_rice_milled_equivalent_final converts paddy production only"
     "tonnes", 50, "FAOSTAT_prod"
   )
 
-  result <- whep:::.correct_rice_milled_equivalent_final(df) |>
+  result <- whep:::.fix_rice_milled_equiv(df) |>
     dplyr::arrange(.data$item_prod_code, .data$unit, .data$source)
 
   rice <- result |>

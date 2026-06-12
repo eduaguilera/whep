@@ -226,7 +226,7 @@ build_primary_production <- function(
 .fix_production <- function(df) {
   df |>
     .correct_tea_final() |>
-    .correct_rice_milled_equivalent_final() |>
+    .fix_rice_milled_equiv() |>
     .add_game_meat_final() |>
     .filter_dissolved_countries()
 }
@@ -405,17 +405,21 @@ build_primary_production <- function(
   )
   dt[, polity_code := NULL]
   dt <- dt[year > 1849]
-  .repair_luh2_cropland_collapses(dt)
+  .fix_luh2_crop_collapse(dt)
 }
 
-.repair_luh2_cropland_collapses <- function(
+.fix_luh2_crop_collapse <- function(
   land_areas,
   collapse_ratio = 0.02,
   min_neighbor_mha = 0.001
 ) {
   crop_vars <- c("c3ann", "c3per", "c4ann", "c4per", "c3nfx")
-  if (!all(c("area_code", "area", "year", "Land_Use", "Area_Mha") %in%
-    names(land_areas))) {
+  if (
+    !all(
+      c("area_code", "area", "year", "Land_Use", "Area_Mha") %in%
+        names(land_areas)
+    )
+  ) {
     return(land_areas)
   }
 
@@ -426,10 +430,13 @@ build_primary_production <- function(
     by = .(area_code, area, year)
   ]
   data.table::setorder(crop_totals, area_code, year)
-  crop_totals[, `:=`(
-    prev_mha = data.table::shift(cropland_mha, 1L),
-    next_mha = data.table::shift(cropland_mha, 1L, type = "lead")
-  ), by = area_code]
+  crop_totals[,
+    `:=`(
+      prev_mha = data.table::shift(cropland_mha, 1L),
+      next_mha = data.table::shift(cropland_mha, 1L, type = "lead")
+    ),
+    by = area_code
+  ]
   crop_totals[, neighbor_mha := (prev_mha + next_mha) / 2]
 
   bad <- crop_totals[
@@ -448,8 +455,14 @@ build_primary_production <- function(
     ac <- bad$area_code[i]
     yr <- bad$year[i]
     for (lu in crop_vars) {
-      prev_val <- dt[area_code == ac & year == yr - 1L & Land_Use == lu, Area_Mha]
-      next_val <- dt[area_code == ac & year == yr + 1L & Land_Use == lu, Area_Mha]
+      prev_val <- dt[
+        area_code == ac & year == yr - 1L & Land_Use == lu,
+        Area_Mha
+      ]
+      next_val <- dt[
+        area_code == ac & year == yr + 1L & Land_Use == lu,
+        Area_Mha
+      ]
       if (length(prev_val) > 0L && length(next_val) > 0L) {
         dt[
           area_code == ac & year == yr & Land_Use == lu,
@@ -1935,7 +1948,7 @@ build_primary_production <- function(
 #'   because the CBS harmonizer already converts rice to milled equivalent.
 #' @keywords internal
 #' @noRd
-.correct_rice_milled_equivalent_final <- function(
+.fix_rice_milled_equiv <- function(
   df,
   extraction_rate = .rice_milled_extraction_rate()
 ) {
@@ -1952,7 +1965,8 @@ build_primary_production <- function(
 
   df |>
     dplyr::mutate(
-      rice_source_is_paddy = .data$source %in% paddy_sources |
+      rice_source_is_paddy = .data$source %in%
+        paddy_sources |
         stringr::str_starts(
           tidyr::replace_na(.data$source, ""),
           "imputed_yield"

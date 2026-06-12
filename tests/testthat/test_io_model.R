@@ -203,6 +203,7 @@ testthat::test_that("IO default build helpers scope cache keys by requested year
   testthat::expect_false(.io_years_are_contiguous(c(2001, 1999)))
   testthat::expect_null(.io_context_years(NULL))
   testthat::expect_equal(.io_context_years(2001:2005), 2001:2005)
+  testthat::expect_equal(.io_context_years(2013), 2011:2013)
   testthat::expect_equal(.io_context_years(2016:2020), 2011:2020)
   testthat::expect_equal(
     .io_cache_key("primary_prod", NULL),
@@ -217,17 +218,17 @@ testthat::test_that("IO default build helpers scope cache keys by requested year
 testthat::test_that("sparse default IO builds run requested years independently", {
   f <- io_two_country_fixture()
 
-  testthat::expect_true(.io_should_build_independent_years(
+  testthat::expect_true(.io_should_build_sparse_years(
     c(1999, 2001),
     supply_use = NULL,
     cbs = f$cbs
   ))
-  testthat::expect_false(.io_should_build_independent_years(
+  testthat::expect_false(.io_should_build_sparse_years(
     c(1999, 2001),
     supply_use = f$su,
     cbs = f$cbs
   ))
-  testthat::expect_false(.io_should_build_independent_years(
+  testthat::expect_false(.io_should_build_sparse_years(
     c(1999, 2000, 2001),
     supply_use = NULL,
     cbs = NULL
