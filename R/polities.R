@@ -78,7 +78,8 @@
         "area_code",
         "join_start_year",
         "join_end_year",
-        base_cols
+        base_cols,
+        "lookup_polity_type"
       ) := .(
         area_code,
         data.table::fifelse(
@@ -99,10 +100,17 @@
         polity_start_year,
         polity_end_year,
         mapping_status,
-        has_geometry
+        has_geometry,
+        get("polity_type")
       )
     ][,
-      c("area_code", "join_start_year", "join_end_year", base_cols),
+      c(
+        "area_code",
+        "join_start_year",
+        "join_end_year",
+        base_cols,
+        "lookup_polity_type"
+      ),
       with = FALSE
     ]
 
@@ -134,6 +142,52 @@
     )
     matches <- unique(matches, by = "..whep_polity_rowid")
     map <- matches[, c("..whep_polity_rowid", base_cols), with = FALSE]
+    fallback_rowids <- map[is.na(polity_code), get(rowid_col)]
+    if (length(fallback_rowids) > 0L) {
+      fallback_data <- join_data[
+        get(rowid_col) %in% fallback_rowids & !is.na(area_code)
+      ]
+      fallback_matches <- lookup[
+        fallback_data,
+        on = "area_code",
+        allow.cartesian = TRUE
+      ]
+      # Do not silently extend dataset-specific aggregate reporting areas.
+      fallback_matches <- fallback_matches[
+        !is.na(polity_code) & get("lookup_polity_type") != "aggregate"
+      ]
+      if (nrow(fallback_matches) > 0L) {
+        fallback_matches[,
+          "year_distance" := data.table::fcase(
+            year < join_start_year ,
+            join_start_year - year ,
+            year > join_end_year   ,
+            year - join_end_year   ,
+            default = 0
+          )
+        ]
+        data.table::setorderv(
+          fallback_matches,
+          c("..whep_polity_rowid", "year_distance", "join_start_year"),
+          order = c(1L, 1L, 1L),
+          na.last = TRUE
+        )
+        fallback_matches <- unique(
+          fallback_matches,
+          by = "..whep_polity_rowid"
+        )
+        fallback_map <- fallback_matches[,
+          c("..whep_polity_rowid", base_cols),
+          with = FALSE
+        ]
+        data.table::setkeyv(map, rowid_col)
+        data.table::setkeyv(fallback_map, rowid_col)
+        for (col in base_cols) {
+          map[fallback_map, (col) := get(paste0("i.", col))]
+        }
+        data.table::setkey(map, NULL)
+      }
+    }
   } else {
     lookup <- .current_area_lookup(include_unmapped = include_unmapped)
     lookup <- lookup[, c("area_code", base_cols), with = FALSE]
@@ -213,10 +267,11 @@ add_polity_code <- function(
     dt[, (drop_existing) := NULL]
   }
 
+  year_col <- if ("year" %in% names(dt)) "year" else NULL
   out <- .add_polity_columns_dt(
     dt,
     code_col = code_column,
-    year_col = NULL,
+    year_col = year_col,
     prefix = "reporting_",
     include_unmapped = TRUE
   )
@@ -252,6 +307,160 @@ add_polity_code <- function(
     c(intersect(leading_cols, names(out)), setdiff(names(out), leading_cols))
   )
   tibble::as_tibble(out)
+}
+
+.add_partner_polity_columns <- function(
+  table,
+  code_column = "area_code_partner"
+) {
+  dt <- data.table::as.data.table(table)
+  drop_existing <- intersect(
+    c(
+      "partner_polity_code",
+      "partner_polity_name",
+      "partner_polity_has_geometry"
+    ),
+    names(dt)
+  )
+  if (length(drop_existing) > 0L) {
+    dt[, (drop_existing) := NULL]
+  }
+
+  year_col <- if ("year" %in% names(dt)) "year" else NULL
+  out <- .add_polity_columns_dt(
+    dt,
+    code_col = code_column,
+    year_col = year_col,
+    prefix = "partner_",
+    include_unmapped = TRUE
+  )
+  if ("partner_has_geometry" %in% names(out)) {
+    data.table::setnames(
+      out,
+      "partner_has_geometry",
+      "partner_polity_has_geometry"
+    )
+  }
+  out[,
+    c(
+      "partner_area_name",
+      "partner_area_iso3c",
+      "partner_polity_area_code",
+      "partner_polity_start_year",
+      "partner_polity_end_year",
+      "partner_mapping_status"
+    ) := NULL
+  ]
+
+  leading_cols <- c(
+    "year",
+    code_column,
+    "partner_polity_code",
+    "partner_polity_name",
+    "partner_polity_has_geometry"
+  )
+  data.table::setcolorder(
+    out,
+    c(intersect(leading_cols, names(out)), setdiff(names(out), leading_cols))
+  )
+  tibble::as_tibble(out)
+}
+
+.reporting_polity_cols <- function() {
+  c(
+    "polity_area_code",
+    "reporting_polity_code",
+    "reporting_polity_name",
+    "reporting_polity_has_geometry"
+  )
+}
+
+.role_polity_cols <- function(role) {
+  paste0(
+    role,
+    c(
+      "_polity_code",
+      "_polity_name",
+      "_polity_has_geometry"
+    )
+  )
+}
+
+.add_label_polity_cols <- function(labels, year = NULL) {
+  out <- tibble::as_tibble(labels)
+  if (!"area_code" %in% names(out)) {
+    cli::cli_abort("{.arg labels} must include {.field area_code}.")
+  }
+
+  if (all(.reporting_polity_cols() %in% names(out))) {
+    return(out)
+  }
+
+  added_year <- FALSE
+  if (!is.null(year) && !"year" %in% names(out)) {
+    out <- dplyr::mutate(out, year = as.integer(year))
+    added_year <- TRUE
+  }
+
+  out <- .add_reporting_polity_columns(out)
+  if (added_year) {
+    out <- dplyr::select(out, -year)
+  }
+  out
+}
+
+.label_reporting_polity_lookup <- function(labels) {
+  .add_label_polity_cols(labels) |>
+    dplyr::select(dplyr::any_of(c("area_code", .reporting_polity_cols()))) |>
+    dplyr::distinct(.data$area_code, .keep_all = TRUE)
+}
+
+.bind_area_label_sources <- function(...) {
+  sources <- list(...)
+  sources <- purrr::keep(
+    sources,
+    ~ is.data.frame(.x) && "area_code" %in% names(.x)
+  )
+  if (length(sources) == 0L) {
+    return(tibble::tibble(area_code = integer(0)))
+  }
+
+  sources |>
+    purrr::map(.add_label_polity_cols) |>
+    dplyr::bind_rows() |>
+    dplyr::select(dplyr::any_of(c("area_code", .reporting_polity_cols()))) |>
+    dplyr::distinct(.data$area_code, .keep_all = TRUE)
+}
+
+.add_role_polity_from_labels <- function(
+  table,
+  labels,
+  role,
+  code_column = paste0(role, "_area")
+) {
+  out <- tibble::as_tibble(table)
+  if (!code_column %in% names(out)) {
+    cli::cli_abort(
+      "Column {.field {code_column}} is required for polity mapping."
+    )
+  }
+
+  role_cols <- .role_polity_cols(role)
+  out <- dplyr::select(out, -dplyr::any_of(role_cols))
+  lookup <- .label_reporting_polity_lookup(labels) |>
+    dplyr::transmute(
+      "{code_column}" := .data$area_code,
+      "{role_cols[[1]]}" := .data$reporting_polity_code,
+      "{role_cols[[2]]}" := .data$reporting_polity_name,
+      "{role_cols[[3]]}" := .data$reporting_polity_has_geometry
+    )
+
+  out |>
+    dplyr::left_join(lookup, by = code_column) |>
+    dplyr::relocate(
+      dplyr::all_of(role_cols),
+      .after = dplyr::all_of(code_column)
+    )
 }
 
 #' Get WHEP polity geometries

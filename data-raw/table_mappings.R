@@ -69,6 +69,7 @@ regions_for_crosswalk <- dplyr::bind_rows(
 
 manual_area_prefixes <- tibble::tribble(
   ~area_code, ~manual_polity_prefix, ~manual_note,
+  351L, "CHN", "Legacy generic China reporting area maps to WHEP China polities.",
   51L, "F51", "FAOSTAT Czechoslovakia reporting area maps to WHEP Czechoslovakia polities.",
   228L, "F228", "FAOSTAT USSR reporting area maps to WHEP Russian Empire/USSR polities.",
   248L, "F248", "FAOSTAT Yugoslav SFR reporting area maps to WHEP Yugoslavia polities."

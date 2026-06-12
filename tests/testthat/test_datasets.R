@@ -114,7 +114,7 @@ test_that("CBS and FABIO area codes map to polity database rows", {
   expect_equal(nrow(fabio_row_sources), 6L)
   expect_true(all(fabio_row_sources$fabio_code == 999L))
   expect_true(all(fabio_row_sources$polity_area_code == 999L))
-  expect_true(all(fabio_row_sources$polity_code == "ROW-1800-2025"))
+  expect_true(all(fabio_row_sources$polity_code == "ROW-1850-2023"))
   expect_true(all(fabio_row_sources$has_geometry))
 })
 

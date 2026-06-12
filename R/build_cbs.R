@@ -495,8 +495,14 @@ build_processing_coefs <- function(
 
   # Legacy wide format support
   src_cols <- grep("^source", names(df), value = TRUE)
+  polity_cols <- c(
+    "polity_area_code",
+    "reporting_polity_code",
+    "reporting_polity_name",
+    "reporting_polity_has_geometry"
+  )
   df |>
-    dplyr::select(-dplyr::any_of(src_cols)) |>
+    dplyr::select(-dplyr::any_of(c(src_cols, polity_cols))) |>
     dplyr::mutate(
       stock_variation = -stock_retrieval,
       .keep = "unused"
@@ -535,7 +541,8 @@ build_processing_coefs <- function(
       conversion_factor_scaling = scaling,
       final_conversion_factor = cf,
       final_value_processed = value_proc
-    )
+    ) |>
+    .add_reporting_polity_columns()
 }
 
 .prepare_cb_processing_for_cbs <- function(cb_processing) {

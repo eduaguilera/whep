@@ -85,7 +85,8 @@ build_supply_use <- function(example = FALSE) {
     crop_residues = get_primary_residues(),
     primary_prod = get_primary_production(),
     feed_intake = get_feed_intake()
-  )
+  ) |>
+    .add_reporting_polity_columns()
 }
 
 .build_supply_use_from_inputs <- function(

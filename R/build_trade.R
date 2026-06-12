@@ -58,6 +58,8 @@ build_detailed_trade <- function(
     dtm <- .extend_dtm_time(dtm, cbs, min_share)
   }
 
+  dtm <- .add_trade_polity_columns(dtm)
+
   tibble::as_tibble(dtm)
 }
 
@@ -259,6 +261,27 @@ build_detailed_trade <- function(
     by = c("year", "area_code", "element", "item_cbs_code", "unit")
   ]
   dt
+}
+
+.add_trade_polity_columns <- function(dt) {
+  dt |>
+    .add_reporting_polity_columns(code_column = "area_code") |>
+    .add_partner_polity_columns(code_column = "area_code_partner") |>
+    dplyr::select(
+      dplyr::any_of(c(
+        "year",
+        "area_code",
+        "polity_area_code",
+        "reporting_polity_code",
+        "reporting_polity_name",
+        "reporting_polity_has_geometry",
+        "area_code_partner",
+        "partner_polity_code",
+        "partner_polity_name",
+        "partner_polity_has_geometry"
+      )),
+      dplyr::everything()
+    )
 }
 
 .extend_dtm_time <- function(dt, cbs, min_share) {

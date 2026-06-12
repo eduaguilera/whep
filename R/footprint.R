@@ -62,8 +62,10 @@
 #'
 #' @return A tibble with footprint results containing:
 #'   - `origin_area`: Country where the pressure occurs.
+#'   - `origin_polity_code`: WHEP polity for `origin_area`.
 #'   - `origin_item`: Item causing the pressure.
 #'   - `target_area`: Country consuming the product.
+#'   - `target_polity_code`: WHEP polity for `target_area`.
 #'   - `target_item`: Item consumed.
 #'   - `target_fd`: Demand category (e.g. `"food"`). Only
 #'     present when `fd_labels` is provided.
@@ -209,9 +211,11 @@ compute_footprint <- function(
   })
   result <- dplyr::bind_rows(results)
   if (nrow(result) == 0L) {
-    return(.empty_footprint_by_item())
+    result <- .empty_footprint_by_item()
   }
-  result
+  result |>
+    .add_role_polity_from_labels(labels, "origin") |>
+    .add_role_polity_from_labels(fd_labels, "target")
 }
 
 .footprint_one_fd_col <- function(
@@ -304,7 +308,9 @@ compute_footprint <- function(
 .footprint_direct <- function(multiply_fn, y_mat, labels) {
   fp_mat <- multiply_fn(y_mat)
   target_labs <- .infer_target_labels(fp_mat, labels)
-  .fp_dense_to_tidy(fp_mat, labels, target_labs)
+  .fp_dense_to_tidy(fp_mat, labels, target_labs) |>
+    .add_role_polity_from_labels(labels, "origin") |>
+    .add_role_polity_from_labels(target_labs, "target")
 }
 
 .fp_dense_to_tidy <- function(
@@ -337,22 +343,32 @@ compute_footprint <- function(
   n_cols <- ncol(fp_mat)
   n_rows <- nrow(labels)
   if (n_cols == n_rows) {
-    return(labels)
+    return(.add_label_polity_cols(labels))
   }
 
   n_areas <- dplyr::n_distinct(labels$area_code)
   if (n_cols %% n_areas == 0) {
     n_fd <- n_cols %/% n_areas
     areas <- sort(unique(labels$area_code))
-    return(tibble::tibble(
-      area_code = rep(areas, each = n_fd),
-      item_cbs_code = rep(NA_integer_, n_cols)
-    ))
+    return(
+      tibble::tibble(
+        area_code = rep(areas, each = n_fd),
+        item_cbs_code = rep(NA_integer_, n_cols)
+      ) |>
+        dplyr::left_join(
+          .label_reporting_polity_lookup(labels),
+          by = "area_code"
+        )
+    )
   }
 
   tibble::tibble(
     area_code = rep(NA_integer_, n_cols),
-    item_cbs_code = rep(NA_integer_, n_cols)
+    item_cbs_code = rep(NA_integer_, n_cols),
+    polity_area_code = rep(NA_integer_, n_cols),
+    reporting_polity_code = rep(NA_character_, n_cols),
+    reporting_polity_name = rep(NA_character_, n_cols),
+    reporting_polity_has_geometry = rep(NA, n_cols)
   )
 }
 
@@ -414,8 +430,14 @@ compute_footprint <- function(
 .empty_footprint <- function() {
   tibble::tibble(
     origin_area = integer(0),
+    origin_polity_code = character(0),
+    origin_polity_name = character(0),
+    origin_polity_has_geometry = logical(0),
     origin_item = integer(0),
     target_area = integer(0),
+    target_polity_code = character(0),
+    target_polity_name = character(0),
+    target_polity_has_geometry = logical(0),
     target_item = integer(0),
     value = numeric(0)
   )
@@ -424,8 +446,14 @@ compute_footprint <- function(
 .empty_footprint_by_item <- function() {
   tibble::tibble(
     origin_area = integer(0),
+    origin_polity_code = character(0),
+    origin_polity_name = character(0),
+    origin_polity_has_geometry = logical(0),
     origin_item = integer(0),
     target_area = integer(0),
+    target_polity_code = character(0),
+    target_polity_name = character(0),
+    target_polity_has_geometry = logical(0),
     target_item = integer(0),
     target_fd = character(0),
     value = numeric(0)

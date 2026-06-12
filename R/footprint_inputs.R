@@ -67,14 +67,15 @@ get_land_fp_production <- function(
     grassland_metric,
     usable_grass_yield_dm_t_ha,
     example = example
-  )
+  ) |>
+    .add_reporting_polity_columns()
 }
 
 .example_land_fp_production <- function() {
   tibble::tribble(
     ~year, ~area_code, ~item_cbs_code, ~impact, ~element, ~origin, ~group, ~impact_u,
     2020L, 32L, 2511L, "Land", "Cropland", "Production", "Crops", 1000,
-    2020L, 76L, 2514L, "Land", "Cropland", "Production", "Crops", 800,
+    2020L, 9L, 2514L, "Land", "Cropland", "Production", "Crops", 800,
     2020L, 32L, 3000L, "Land", "Production", "Production", "Grass", 50
   )
 }

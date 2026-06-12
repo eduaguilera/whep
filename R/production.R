@@ -114,7 +114,8 @@ get_primary_residues <- function(example = FALSE) {
       item_cbs_code_residue,
       value
     ) |>
-    .use_seed_cbs_item()
+    .use_seed_cbs_item() |>
+    .add_reporting_polity_columns()
 }
 
 # TODO: This is dirty, revisit when we build the data here directly.
