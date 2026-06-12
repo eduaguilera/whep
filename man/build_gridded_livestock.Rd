@@ -106,6 +106,9 @@ A tibble with gridded livestock data. Columns:
 \itemize{
 \item \code{lon}, \code{lat}: Cell centre coordinates.
 \item \code{area_code}: WHEP polity code for this cell compartment.
+\item \code{polity_area_code}, \code{reporting_polity_code},
+\code{reporting_polity_name}, \code{reporting_polity_has_geometry}: Polity
+metadata for \code{area_code}.
 \item \code{polycell_id}, \code{cell_id}: Preserved when supplied in
 \code{country_grid}.
 \item \code{year}: Integer year.

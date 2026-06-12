@@ -51,7 +51,8 @@ before returning.}
 }
 \value{
 A tibble with \code{origin_area}, \code{origin_item}, \code{use_area}, \code{use_item},
-\code{target_area}, \code{target_item}, \code{target_fd}, \code{path_type}, and \code{value}.
+\code{target_area}, \code{target_item}, role-specific polity metadata,
+\code{target_fd}, \code{path_type}, and \code{value}.
 }
 \description{
 Decompose an origin footprint into the first sector that directly uses the

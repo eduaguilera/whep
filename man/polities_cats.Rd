@@ -8,11 +8,17 @@
 A tibble where each row corresponds to one polity (country or territory).
 It contains the following columns:
 \itemize{
-\item \code{polity_code}: ISO 3166-1 alpha-3 country code used as the primary
-identifier (e.g., \code{"AFG"}, \code{"ALB"}).
-\item \code{polity_name}: Common country or territory name.
+\item \code{polity_code}: Legacy current polity prefix, usually ISO 3166-1 alpha-3
+(e.g., \code{"AFG"}, \code{"ALB"}).
+\item \code{polity_name}: Current polity, country, or territory name.
 \item \code{V1}: Internal row index from the source table.
 \item \code{code}: Numeric FAOSTAT country code.
+\item \code{polity_area_code}: Numeric WHEP reporting area code used in matrix
+workflows.
+\item \code{reporting_polity_code}: Current periodized WHEP polity code for \code{code}.
+\item \code{reporting_polity_name}: Current WHEP polity name for \code{code}.
+\item \code{reporting_polity_has_geometry}: Logical flag indicating whether the
+current reporting polity has a polygon.
 \item \code{iso3c}: ISO 3166-1 alpha-3 code (character; may duplicate
 \code{polity_code} or differ for aggregates).
 \item \code{FAOSTAT_name}: Country name as used in FAOSTAT.
