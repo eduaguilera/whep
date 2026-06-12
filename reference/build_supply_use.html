@@ -88,9 +88,10 @@ obtained and might be improved in the future. See
 Together with <code>proc_group</code>, these two columns uniquely represent a
 process. The main item is predictable depending on the value of
 <code>proc_group</code>:</p><ul><li><p><code>crop_production</code>: The code is from the item for which seed usage
-(if any) is reported in the commodity balance sheet (see
-<code><a href="get_wide_cbs.html">get_wide_cbs()</a></code> for more). For example, the rice code for a rice
-production process or the cottonseed code for the cotton production one.</p></li>
+(if any) is reported in the commodity balance sheet, except for field
+co-products where the process uses the field aggregate item. For example,
+rice production uses the rice code, while seed cotton production uses the
+seed cotton code and supplies both cottonseed and cotton lint.</p></li>
 <li><p><code>husbandry</code>: The code of the farmed animal, e.g. bees for beekeeping,
 non-dairy cattle for non-dairy cattle husbandry, etc.</p></li>
 <li><p><code>slaughtering</code>: The code of the live animal being slaughtered, e.g.

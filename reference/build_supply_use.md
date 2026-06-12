@@ -62,10 +62,11 @@ following columns:
   value of `proc_group`:
 
   - `crop_production`: The code is from the item for which seed usage
-    (if any) is reported in the commodity balance sheet (see
-    [`get_wide_cbs()`](https://eduaguilera.github.io/whep/reference/get_wide_cbs.md)
-    for more). For example, the rice code for a rice production process
-    or the cottonseed code for the cotton production one.
+    (if any) is reported in the commodity balance sheet, except for
+    field co-products where the process uses the field aggregate item.
+    For example, rice production uses the rice code, while seed cotton
+    production uses the seed cotton code and supplies both cottonseed
+    and cotton lint.
 
   - `husbandry`: The code of the farmed animal, e.g. bees for
     beekeeping, non-dairy cattle for non-dairy cattle husbandry, etc.
