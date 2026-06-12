@@ -74,12 +74,12 @@ A tibble with one row per year and list-columns:
 
 - `X`: Total output vector.
 
-- `labels`: Tibble mapping row/column indices to `area_code` and
-  `item_cbs_code`.
+- `labels`: Tibble mapping row/column indices to `area_code`,
+  `item_cbs_code`, and reporting polity metadata.
 
 - `fd_labels`: Tibble mapping each Y column to its `area_code`
-  (consuming country) and `fd_col` (demand category, e.g. `"food"`) .
-  Pass to
+  (consuming polity), `fd_col` (demand category, e.g. `"food"`), and
+  reporting polity metadata. Pass to
   [`compute_footprint()`](https://eduaguilera.github.io/whep/reference/compute_footprint.md)
   as `fd_labels` to get a `target_fd` column in the footprint output.
 

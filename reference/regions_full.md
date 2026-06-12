@@ -16,15 +16,25 @@ A tibble where each row corresponds to one polity or aggregate region.
 It contains the following columns (same definitions as `polities_cats`,
 minus the five trailing `0...36`–`0...40` artefact columns):
 
-- `polity_code`: Primary polity identifier (ISO 3166-1 alpha-3 or `NA`
-  for non-sovereign aggregates).
+- `polity_code`: Legacy current polity prefix. This is kept for
+  compatibility with older code that expected ISO3-like values.
 
-- `polity_name`: Polity name (`NA` for aggregates not matched to a
-  standard polity).
+- `polity_name`: Current polity, country, territory, or aggregate name.
 
 - `V1`: Internal row index.
 
 - `code`: Numeric FAOSTAT country/region code.
+
+- `polity_area_code`: Numeric WHEP reporting area code used in matrix
+  workflows.
+
+- `reporting_polity_code`: Current periodized WHEP polity code for
+  `code`.
+
+- `reporting_polity_name`: Current WHEP polity name for `code`.
+
+- `reporting_polity_has_geometry`: Logical flag indicating whether the
+  current reporting polity has a polygon.
 
 - `iso3c`: ISO 3166-1 alpha-3 code (`NA` for aggregates).
 
@@ -102,16 +112,16 @@ for the subset restricted to sovereign countries.
 
 ``` r
 head(regions_full)
-#> # A tibble: 6 × 35
+#> # A tibble: 6 × 39
 #>   polity_code polity_name    V1  code iso3c FAOSTAT_name EU27  name  eia   iea  
-#>   <chr>       <chr>       <dbl> <dbl> <chr> <chr>        <lgl> <chr> <chr> <chr>
-#> 1 NA          NA             30    30 ATA   NA           FALSE Anta… Anta… NA   
-#> 2 NA          NA            259   351 NA    China        FALSE China NA    NA   
-#> 3 NA          NA            149   152 NTZ   NA           FALSE Neut… NA    NA   
-#> 4 NA          NA            245   254 OXY   NA           FALSE Othe… NA    NA   
-#> 5 NA          NA            260   999 ROW   NA           FALSE RoW   NA    NA   
-#> 6 NA          NA            244   252 UXY   NA           FALSE Unsp… NA    NA   
-#> # ℹ 25 more variables: water_code <dbl>, water_area <chr>, baci <dbl>,
+#>   <chr>       <chr>       <dbl> <int> <chr> <chr>        <lgl> <chr> <chr> <chr>
+#> 1 ROW         Rest of Wo…    30    30 ATA   NA           FALSE Anta… Anta… NA   
+#> 2 CHN         China (PRC)   259   351 NA    China        FALSE China NA    NA   
+#> 3 ROW         Rest of Wo…   149   152 NTZ   NA           FALSE Neut… NA    NA   
+#> 4 ROW         Rest of Wo…   245   254 OXY   NA           FALSE Othe… NA    NA   
+#> 5 ROW         Rest of Wo…   260   999 ROW   NA           FALSE RoW   NA    NA   
+#> 6 ROW         Rest of Wo…   244   252 UXY   NA           FALSE Unsp… NA    NA   
+#> # ℹ 29 more variables: water_code <dbl>, water_area <chr>, baci <dbl>,
 #> #   fish <dbl>, region_code <dbl>, cbs <lgl>, fabio_code <dbl>,
 #> #   ADB_Region <chr>, region <chr>, uISO3c <dbl>, Lassaletta <chr>,
 #> #   region_krausmann <chr>, region_HANPP <chr>, region_krausmann2 <chr>,

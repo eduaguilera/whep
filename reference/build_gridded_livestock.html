@@ -281,6 +281,9 @@ When supplied, <code>livestock_data</code>, <code>gridded_pasture</code>, and
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>A tibble with gridded livestock data. Columns:</p><ul><li><p><code>lon</code>, <code>lat</code>: Cell centre coordinates.</p></li>
 <li><p><code>area_code</code>: WHEP polity code for this cell compartment.</p></li>
+<li><p><code>polity_area_code</code>, <code>reporting_polity_code</code>,
+<code>reporting_polity_name</code>, <code>reporting_polity_has_geometry</code>: Polity
+metadata for <code>area_code</code>.</p></li>
 <li><p><code>polycell_id</code>, <code>cell_id</code>: Preserved when supplied in
 <code>country_grid</code>.</p></li>
 <li><p><code>year</code>: Integer year.</p></li>
@@ -316,11 +319,13 @@ When supplied, <code>livestock_data</code>, <code>gridded_pasture</code>, and
 <span class="r-in"><span>  <span class="va">livestock_data</span>, <span class="va">gridded_pasture</span>, <span class="va">gridded_cropland</span>, <span class="va">country_grid</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BBBB;">ℹ</span> Spatializing 1 groups over 1 years</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 2 × 6</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    year species_group area_code   lon   lat heads</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>             <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>000 cattle                1  0.25  50.2 <span style="text-decoration: underline;">3</span>077.</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span>  <span style="text-decoration: underline;">2</span>000 cattle                1  0.75  50.2 <span style="text-decoration: underline;">1</span>923.</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 2 × 10</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    year area_code polity_area_code reporting_polity_code reporting_polity_name</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>000         1                1 ARM-1991-2025         Armenia              </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span>  <span style="text-decoration: underline;">2</span>000         1                1 ARM-1991-2025         Armenia              </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 5 more variables: reporting_polity_has_geometry &lt;lgl&gt;, species_group &lt;chr&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   lon &lt;dbl&gt;, lat &lt;dbl&gt;, heads &lt;dbl&gt;</span></span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

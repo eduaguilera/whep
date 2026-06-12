@@ -40,7 +40,7 @@ table <- tibble::tibble(
 add_area_code(table)
 #> # A tibble: 4 × 2
 #>   area_name     area_code
-#>   <chr>             <dbl>
+#>   <chr>             <int>
 #> 1 Armenia               1
 #> 2 Afghanistan           2
 #> 3 Dummy Country        NA
@@ -51,7 +51,7 @@ table |>
   add_area_code(name_column = "my_area_name")
 #> # A tibble: 4 × 2
 #>   my_area_name  area_code
-#>   <chr>             <dbl>
+#>   <chr>             <int>
 #> 1 Armenia               1
 #> 2 Afghanistan           2
 #> 3 Dummy Country        NA
@@ -60,7 +60,7 @@ table |>
 add_area_code(table, code_column = "my_custom_code")
 #> # A tibble: 4 × 2
 #>   area_name     my_custom_code
-#>   <chr>                  <dbl>
+#>   <chr>                  <int>
 #> 1 Armenia                    1
 #> 2 Afghanistan                2
 #> 3 Dummy Country             NA

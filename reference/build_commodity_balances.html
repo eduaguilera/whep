@@ -107,28 +107,31 @@ to <code>.qc_cbs()</code>. Default <code>NULL</code>.</p></dd>
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    <p>A tibble in long format with columns: <code>year</code>,
-<code>area_code</code>, <code>item_cbs_code</code>, <code>element</code> (e.g.
-<code>"production"</code>, <code>"import"</code>, <code>"food"</code>), <code>value</code>,
-<code>source</code>, <code>fao_flag</code>.</p>
+    <p>A tibble in long format with columns: <code>year</code>, legacy numeric
+<code>area_code</code>, numeric <code>polity_area_code</code>, <code>reporting_polity_code</code>,
+<code>reporting_polity_name</code>, <code>reporting_polity_has_geometry</code>,
+<code>item_cbs_code</code>, <code>element</code> (e.g. <code>"production"</code>, <code>"import"</code>, <code>"food"</code>),
+<code>value</code>, <code>source</code>, and <code>fao_flag</code>.</p>
     </div>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="fu">build_commodity_balances</span><span class="op">(</span>example <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 10 × 7</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>     year area_code item_cbs_code element             value source       fao_flag</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>               <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>        <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>   </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 1</span>  <span style="text-decoration: underline;">2</span>010       120          <span style="text-decoration: underline;">2</span>731 import           1.76<span style="color: #949494;">e</span>+ 3 FAOSTAT_FBS… <span style="color: #BB0000;">NA</span>      </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 2</span>  <span style="text-decoration: underline;">1</span>981       222          <span style="text-decoration: underline;">2</span>734 domestic_supply  4.1 <span style="color: #949494;">e</span>+ 4 FAOSTAT_FBS… <span style="color: #BB0000;">NA</span>      </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 3</span>  <span style="text-decoration: underline;">1</span>906       203          <span style="text-decoration: underline;">2</span>655 processing       6.35<span style="color: #949494;">e</span>+ 4 historical_… <span style="color: #BB0000;">NA</span>      </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 4</span>  <span style="text-decoration: underline;">1</span>899       175          <span style="text-decoration: underline;">2</span>744 food             7.26<span style="color: #949494;">e</span>+ 1 historical_… <span style="color: #BB0000;">NA</span>      </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 5</span>  <span style="text-decoration: underline;">2</span>018        48          <span style="text-decoration: underline;">2</span>562 domestic_supply  1.20<span style="color: #949494;">e</span>+ 5 FAOSTAT_FBS… <span style="color: #BB0000;">NA</span>      </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 6</span>  <span style="text-decoration: underline;">1</span>871        10          <span style="text-decoration: underline;">2</span>746 stock_variation -<span style="color: #BB0000;">7.28</span><span style="color: #949494;">e</span><span style="color: #BB0000;">-12</span> <span style="color: #BB0000;">NA</span>           <span style="color: #BB0000;">NA</span>      </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 7</span>  <span style="text-decoration: underline;">1</span>938       226          <span style="text-decoration: underline;">2</span>848 production       1.51<span style="color: #949494;">e</span>+ 5 historical_… <span style="color: #BB0000;">NA</span>      </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 8</span>  <span style="text-decoration: underline;">1</span>924        11          <span style="text-decoration: underline;">2</span>557 production       1.61<span style="color: #949494;">e</span>+ 2 historical_… <span style="color: #BB0000;">NA</span>      </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 9</span>  <span style="text-decoration: underline;">1</span>928        96          <span style="text-decoration: underline;">2</span>625 domestic_supply  1.85<span style="color: #949494;">e</span>+ 4 <span style="color: #BB0000;">NA</span>           <span style="color: #BB0000;">NA</span>      </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">10</span>  <span style="text-decoration: underline;">1</span>879       236          <span style="text-decoration: underline;">2</span>547 seed             3.83<span style="color: #949494;">e</span><span style="color: #BB0000;">- 8</span> historical_… <span style="color: #BB0000;">NA</span>      </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 10 × 11</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     year area_code polity_area_code reporting_polity_code reporting_polity_name </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 1</span>  <span style="text-decoration: underline;">2</span>010       120              120 LAO-1954-2025         Laos                  </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 2</span>  <span style="text-decoration: underline;">1</span>981       222              222 TUN-1881-2025         Tunisia               </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 3</span>  <span style="text-decoration: underline;">1</span>906       203              203 ESP-1800-2025         Spain                 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 4</span>  <span style="text-decoration: underline;">1</span>899       175              175 GNB-1886-1974         Guinea-Bissau (1886-1…</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 5</span>  <span style="text-decoration: underline;">2</span>018        48               48 CRI-1800-2025         Costa Rica            </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 6</span>  <span style="text-decoration: underline;">1</span>871        10               10 AUS-1800-1901         Australian Colonies (…</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 7</span>  <span style="text-decoration: underline;">1</span>938       226              226 UGA-1926-1962         Uganda (1926-1962)    </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 8</span>  <span style="text-decoration: underline;">1</span>924        11               11 AUT-1919-2025         Austria               </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 9</span>  <span style="text-decoration: underline;">1</span>928        96               96 HKG-1842-2025         Hong Kong             </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">10</span>  <span style="text-decoration: underline;">1</span>879       236              236 VEN-1821-2025         Venezuela             </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 6 more variables: reporting_polity_has_geometry &lt;lgl&gt;, item_cbs_code &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   element &lt;chr&gt;, value &lt;dbl&gt;, source &lt;chr&gt;, fao_flag &lt;chr&gt;</span></span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

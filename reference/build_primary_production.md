@@ -61,30 +61,33 @@ build_primary_production(
 
 A tibble with the same columns as
 [`get_primary_production()`](https://eduaguilera.github.io/whep/reference/get_primary_production.md):
-`year`, `area_code` (numeric FAOSTAT), `item_prod_code`,
-`item_cbs_code`, `live_anim_code`, `unit`, `value`. Names can be
+`year`, legacy numeric `area_code`, numeric `polity_area_code`,
+`reporting_polity_code`, `reporting_polity_name`,
+`reporting_polity_has_geometry`, `item_prod_code`, `item_cbs_code`,
+`live_anim_code`, `unit`, `value`, and `source`. Item names can be
 recovered via
-[`add_area_name()`](https://eduaguilera.github.io/whep/reference/add_area_name.md),
-[`add_item_prod_name()`](https://eduaguilera.github.io/whep/reference/add_item_prod_name.md),
-etc. When `show_duplicates = TRUE`, returns a wide tibble with one
-column per source showing the competing values.
+[`add_item_prod_name()`](https://eduaguilera.github.io/whep/reference/add_item_prod_name.md)
+and related helpers. When `show_duplicates = TRUE`, returns a wide
+tibble with one column per source showing the competing values.
 
 ## Examples
 
 ``` r
 build_primary_production(example = TRUE)
-#> # A tibble: 10 × 8
-#>     year area_code item_prod_code item_cbs_code live_anim_code unit        value
-#>    <dbl>     <dbl> <chr>                  <dbl> <chr>          <chr>       <dbl>
-#>  1  1912       165 772                      772 NA             tonnes    3.25e+2
-#>  2  2012       112 982                     2848 976            t_head    2.68e-2
-#>  3  1943        41 515                     2617 NA             t_ha      6   e-1
-#>  4  1979        45 977                     2732 976            tonnes    3.3 e+1
-#>  5  1910       141 1098                    2736 1096           t_LU      1.86e-3
-#>  6  1867        90 976                      976 NA             heads     1.12e+5
-#>  7  1939        15 157                     2537 NA             ha        4.59e+4
-#>  8  1935       211 270                     2558 NA             ha        4.02e+3
-#>  9  1937         9 772                      772 NA             ha        7.86e+5
-#> 10  2000         9 571                     2625 NA             ha        2.36e+2
-#> # ℹ 1 more variable: source <chr>
+#> # A tibble: 10 × 12
+#>     year area_code polity_area_code reporting_polity_code reporting_polity_name 
+#>    <dbl>     <dbl>            <int> <chr>                 <chr>                 
+#>  1  1912       165              165 PAK-1800-1947         Pakistan (territory w…
+#>  2  2012       112              112 JOR-1946-2025         Jordan                
+#>  3  1943        41               41 CHN-1921-1945         China (1921-1945)     
+#>  4  1979        45               45 COM-1975-2025         Comoros               
+#>  5  1910       141              141 MNG-1911-1921         Bogd Khanate of Mongo…
+#>  6  1867        90               90 GIN-1894-1958         Guinea (1894-1958)    
+#>  7  1939        15               15 BLX-1850-1999         Belgium-Luxembourg    
+#>  8  1935       211              211 CHE-1800-2025         Switzerland           
+#>  9  1937         9                9 ARG-1800-2025         Argentina             
+#> 10  2000         9                9 ARG-1800-2025         Argentina             
+#> # ℹ 7 more variables: reporting_polity_has_geometry <lgl>,
+#> #   item_prod_code <chr>, item_cbs_code <dbl>, live_anim_code <chr>,
+#> #   unit <chr>, value <dbl>, source <chr>
 ```

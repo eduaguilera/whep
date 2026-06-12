@@ -30,6 +30,7 @@ compute_footprint(
   fd_labels = NULL,
   output_tol = 1e-08,
   value_added_floor = 0.001,
+  max_column_sum = 100,
   conserve_extensions = TRUE
 )
 ```
@@ -88,9 +89,16 @@ compute_footprint(
 - value_added_floor:
 
   Minimum share of each sector's output that is treated as
-  non-intermediate leakage when constructing A from `z_mat`. Column sums
-  larger than `1 - value_added_floor` are rescaled to that maximum.
-  Ignored when a precomputed `l_inv` is supplied without `z_mat`.
+  non-intermediate leakage when constructing A from `z_mat` if
+  `max_column_sum` is left at its low-level default. Ignored when a
+  precomputed `l_inv` is supplied without `z_mat`.
+
+- max_column_sum:
+
+  Maximum allowed column sum in A when using `z_mat`. Physical biomass
+  systems can require more than one unit of intermediate input per unit
+  of output, so the footprint path defaults to `100` and only clips
+  extreme columns caused by residual inconsistencies or tiny outputs.
 
 - conserve_extensions:
 
@@ -106,9 +114,13 @@ A tibble with footprint results containing:
 
 - `origin_area`: Country where the pressure occurs.
 
+- `origin_polity_code`: WHEP polity for `origin_area`.
+
 - `origin_item`: Item causing the pressure.
 
 - `target_area`: Country consuming the product.
+
+- `target_polity_code`: WHEP polity for `target_area`.
 
 - `target_item`: Item consumed.
 
@@ -141,11 +153,14 @@ compute_footprint(l_inv, x_vec, y_mat, extensions, labels)
 #> Computing multiplier matrix...
 #> Computing footprints...
 #> ✔ Footprint complete: 2 non-zero flows.
-#> # A tibble: 2 × 5
-#>   origin_area origin_item target_area target_item value
-#>         <int>       <int>       <int>       <int> <dbl>
-#> 1           1           1           1          NA  47.5
-#> 2           1           2           1          NA  30.0
+#> # A tibble: 2 × 11
+#>   origin_area origin_polity_code origin_polity_name origin_polity_has_geometry
+#>         <int> <chr>              <chr>              <lgl>                     
+#> 1           1 ARM-1991-2025      Armenia            TRUE                      
+#> 2           1 ARM-1991-2025      Armenia            TRUE                      
+#> # ℹ 7 more variables: origin_item <int>, target_area <int>,
+#> #   target_polity_code <chr>, target_polity_name <chr>,
+#> #   target_polity_has_geometry <lgl>, target_item <int>, value <dbl>
 
 # Using Z directly (computes L internally)
 compute_footprint(
@@ -159,9 +174,12 @@ compute_footprint(
 #> Sparse solve path (no dense Leontief inverse).
 #> Computing footprints...
 #> ✔ Footprint complete: 2 non-zero flows.
-#> # A tibble: 2 × 5
-#>   origin_area origin_item target_area target_item value
-#>         <int>       <int>       <int>       <int> <dbl>
-#> 1           1           1           1          NA  47.5
-#> 2           1           2           1          NA  30.0
+#> # A tibble: 2 × 11
+#>   origin_area origin_polity_code origin_polity_name origin_polity_has_geometry
+#>         <int> <chr>              <chr>              <lgl>                     
+#> 1           1 ARM-1991-2025      Armenia            TRUE                      
+#> 2           1 ARM-1991-2025      Armenia            TRUE                      
+#> # ℹ 7 more variables: origin_item <int>, target_area <int>,
+#> #   target_polity_code <chr>, target_polity_name <chr>,
+#> #   target_polity_has_geometry <lgl>, target_item <int>, value <dbl>
 ```

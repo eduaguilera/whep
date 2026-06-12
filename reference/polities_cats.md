@@ -15,14 +15,25 @@ polities_cats
 A tibble where each row corresponds to one polity (country or
 territory). It contains the following columns:
 
-- `polity_code`: ISO 3166-1 alpha-3 country code used as the primary
-  identifier (e.g., `"AFG"`, `"ALB"`).
+- `polity_code`: Legacy current polity prefix, usually ISO 3166-1
+  alpha-3 (e.g., `"AFG"`, `"ALB"`).
 
-- `polity_name`: Common country or territory name.
+- `polity_name`: Current polity, country, or territory name.
 
 - `V1`: Internal row index from the source table.
 
 - `code`: Numeric FAOSTAT country code.
+
+- `polity_area_code`: Numeric WHEP reporting area code used in matrix
+  workflows.
+
+- `reporting_polity_code`: Current periodized WHEP polity code for
+  `code`.
+
+- `reporting_polity_name`: Current WHEP polity name for `code`.
+
+- `reporting_polity_has_geometry`: Logical flag indicating whether the
+  current reporting polity has a polygon.
 
 - `iso3c`: ISO 3166-1 alpha-3 code (character; may duplicate
   `polity_code` or differ for aggregates).
@@ -109,16 +120,16 @@ CSV are dropped at load time and are not part of this dataset.
 
 ``` r
 head(polities_cats)
-#> # A tibble: 6 × 35
+#> # A tibble: 6 × 39
 #>   polity_code polity_name    V1  code iso3c FAOSTAT_name EU27  name  eia   iea  
-#>   <chr>       <chr>       <dbl> <dbl> <chr> <chr>        <lgl> <chr> <chr> <chr>
+#>   <chr>       <chr>       <dbl> <int> <chr> <chr>        <lgl> <chr> <chr> <chr>
 #> 1 AFG         Afghanistan     2     2 AFG   Afghanistan  FALSE Afgh… Afgh… 0    
 #> 2 ALB         Albania         3     3 ALB   Albania      FALSE Alba… Alba… Alba…
 #> 3 DZA         Algeria         4     4 DZA   Algeria      FALSE Alge… Alge… Alge…
 #> 4 AGO         Angola          7     7 AGO   Angola       FALSE Ango… Ango… Ango…
 #> 5 ATG         Antigua an…     8     8 ATG   Antigua and… FALSE Anti… Anti… 0    
 #> 6 ARG         Argentina       9     9 ARG   Argentina    FALSE Arge… Arge… Arge…
-#> # ℹ 25 more variables: water_code <dbl>, water_area <chr>, baci <dbl>,
+#> # ℹ 29 more variables: water_code <dbl>, water_area <chr>, baci <dbl>,
 #> #   fish <dbl>, region_code <dbl>, cbs <lgl>, fabio_code <dbl>,
 #> #   ADB_Region <chr>, region <chr>, uISO3c <dbl>, Lassaletta <chr>,
 #> #   region_krausmann <chr>, region_HANPP <chr>, region_krausmann2 <chr>,

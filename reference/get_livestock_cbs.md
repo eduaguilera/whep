@@ -6,9 +6,10 @@ balance sheet but are needed as explicit intermediates in the IO model.
 
 Following the FABIO methodology, live-animal production is estimated
 from slaughter counts as `slaughtered + exported - imported` (animals
-raised in the country), and domestic supply (`processing` for meat
-animals, `other_uses` for draft animals) equals
-`production + import - export`.
+raised in the country), and domestic supply (`processing`) equals
+`production + import - export`. Only live animals with explicit
+slaughter-product outputs are added; other animal products are supplied
+directly by husbandry.
 
 Units are heads (number of animals).
 

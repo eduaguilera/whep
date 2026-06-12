@@ -6,10 +6,11 @@ requirements across the entire supply chain, enabling footprint tracing.
 
 The technical coefficients matrix is computed as \\A\_{ij} = Z\_{ij} /
 X_j\\, representing the input of sector \\i\\ needed per unit of output
-from sector \\j\\. Column sums of A are capped below 1 using
-`value_added_floor` (FABIO convention plus an explicit leakage floor) to
-ensure \\(I - A)\\ is invertible even when supply-use data are
-inconsistent. The Leontief inverse is then \\L = (I - A)^{-1}\\.
+from sector \\j\\. Column sums of A are capped using `max_column_sum` to
+avoid singular systems from inconsistent supply-use data. By default
+this uses `1 - value_added_floor`, preserving the previous conservative
+behavior for explicit Leontief inverses. The Leontief inverse is then
+\\L = (I - A)^{-1}\\.
 
 For large systems (thousands of sectors) this function is not usable:
 the dense L matrix requires \\n^2 \times 8\\ bytes of memory (e.g. ~4.8
@@ -23,7 +24,13 @@ Accepts both dense and sparse (Matrix package) inputs.
 ## Usage
 
 ``` r
-compute_leontief_inverse(z_mat, x_vec, max_n = 5000, value_added_floor = 0.001)
+compute_leontief_inverse(
+  z_mat,
+  x_vec,
+  max_n = 5000,
+  value_added_floor = 0.001,
+  max_column_sum = 1 - value_added_floor
+)
 ```
 
 ## Arguments
@@ -46,10 +53,13 @@ compute_leontief_inverse(z_mat, x_vec, max_n = 5000, value_added_floor = 0.001)
 - value_added_floor:
 
   Minimum share of each sector's output that is treated as
-  non-intermediate leakage when constructing A. Column sums larger than
-  `1 - value_added_floor` are rescaled to that maximum. Use `0` to
-  recover the previous cap-at-one behavior, though this can leave
-  singular systems.
+  non-intermediate leakage when constructing A if `max_column_sum` is
+  left at its default.
+
+- max_column_sum:
+
+  Maximum allowed column sum in A. Columns above this value are
+  rescaled. Defaults to `1 - value_added_floor`.
 
 ## Value
 

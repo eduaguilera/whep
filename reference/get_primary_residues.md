@@ -47,17 +47,19 @@ A tibble with the crop residue data. It contains the following columns:
 
 ``` r
 get_primary_residues(example = TRUE)
-#> # A tibble: 10 × 5
-#>     year area_code item_cbs_code_crop item_cbs_code_residue  value
-#>    <dbl>     <dbl>              <dbl>                 <dbl>  <dbl>
-#>  1  2010       174               2611                  2107  46260
-#>  2  1975        54               2511                  2105 569199
-#>  3  1988        53               2561                  2106   8213
-#>  4  2020       178               2513                  2105 161992
-#>  5  1972       131               2514                  2105  38845
-#>  6  2011         4               2611                  2107 238808
-#>  7  1965       144               2517                  2105  33688
-#>  8  2018       167               2549                  2105  13578
-#>  9  1994       109               2605                  2105   5597
-#> 10  1982       194               2605                  2106 280552
+#> # A tibble: 10 × 9
+#>     year area_code polity_area_code reporting_polity_code reporting_polity_name 
+#>    <dbl>     <dbl>            <int> <chr>                 <chr>                 
+#>  1  2010       174              174 PRT-1800-2025         Portugal              
+#>  2  1975        54               54 DNK-1920-2025         Denmark               
+#>  3  1988        53               53 BEN-1960-2025         Benin                 
+#>  4  2020       178              178 ERI-1993-2025         Eritrea               
+#>  5  1972       131              131 MYS-1965-2025         Malaysia              
+#>  6  2011         4                4 DZA-1962-2025         Algeria (1962-2025)   
+#>  7  1965       144              144 MOZ-1891-1975         Mozambique (1891-1975)
+#>  8  2018       167              167 CZE-1993-2025         Czechia               
+#>  9  1994       109              109 JAM-1800-2025         Jamaica               
+#> 10  1982       194              194 SAU-1924-2025         Saudi Arabia          
+#> # ℹ 4 more variables: reporting_polity_has_geometry <lgl>,
+#> #   item_cbs_code_crop <dbl>, item_cbs_code_residue <dbl>, value <dbl>
 ```

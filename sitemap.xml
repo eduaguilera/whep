@@ -17,6 +17,7 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/add_item_cbs_name.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/add_item_prod_code.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/add_item_prod_name.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/add_polity_code.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/animals_codes.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/biomass_coefs.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_cbs_prices.html</loc></url>
@@ -47,6 +48,8 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/compute_footprint_paths.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/compute_fp_product_paths.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/compute_leontief_inverse.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/conv_bouwman.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/conv_krausmann.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/create_n_nat_destiny.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/create_n_production.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/create_n_prov_destiny.html</loc></url>
@@ -56,6 +59,7 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/estimate_energy_demand.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/expand_trade_sources.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/feed_characteristics.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/feed_taxonomy.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/fill_linear.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/fill_proxy_growth.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/fill_sum.html</loc></url>
@@ -64,6 +68,7 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/get_feed_intake.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/get_land_fp_production.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/get_livestock_cbs.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/get_polity_geometries.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/get_primary_production.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/get_primary_residues.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/get_processing_coefs.html</loc></url>
@@ -118,12 +123,15 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/liv_lu_coefs.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/livestock_constants.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/livestock_production_defaults.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/max_intake_share.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/mueller_synthetic_n.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/plot_footprint_sankey.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/polities.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/polities_cats.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/polity_area_crosswalk.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/prepare_livestock_emissions.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/primary_double.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/redistribute_feed.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/regional_mms_distribution.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/regions_full.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/run_spatialize.html</loc></url>

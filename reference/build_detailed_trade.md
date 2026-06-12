@@ -74,18 +74,22 @@ A tibble with columns:
 
 ``` r
 build_detailed_trade(example = TRUE)
-#> # A tibble: 10 × 8
-#>     year area_code area_code_partner element item_cbs_code unit    value
-#>    <int>     <int>             <int> <chr>           <int> <chr>   <dbl>
-#>  1  2010         4               100 import           2511 tonnes 125000
-#>  2  2010         4                79 import           2511 tonnes  89000
-#>  3  2015       100                 4 export           2536 tonnes  45000
-#>  4  2015       100                79 export           2536 tonnes  72000
-#>  5  2018        79                 4 import           2807 tonnes 310000
-#>  6  2018        79               100 import           2807 tonnes 150000
-#>  7  2005         4                79 export           2555 tonnes  63000
-#>  8  2005         4               100 export           2555 tonnes  28000
-#>  9  2012       100                 4 import           2570 tonnes  98000
-#> 10  2012       100                79 import           2570 tonnes  54000
-#> # ℹ 1 more variable: country_share <dbl>
+#> # A tibble: 10 × 15
+#>     year area_code polity_area_code reporting_polity_code reporting_polity_name
+#>    <int>     <int>            <int> <chr>                 <chr>                
+#>  1  2010         4                4 DZA-1962-2025         Algeria (1962-2025)  
+#>  2  2010         4                4 DZA-1962-2025         Algeria (1962-2025)  
+#>  3  2015       100              100 IND-1949-2025         India                
+#>  4  2015       100              100 IND-1949-2025         India                
+#>  5  2018        79               79 DEU-1990-2025         Germany              
+#>  6  2018        79               79 DEU-1990-2025         Germany              
+#>  7  2005         4                4 DZA-1962-2025         Algeria (1962-2025)  
+#>  8  2005         4                4 DZA-1962-2025         Algeria (1962-2025)  
+#>  9  2012       100              100 IND-1949-2025         India                
+#> 10  2012       100              100 IND-1949-2025         India                
+#> # ℹ 10 more variables: reporting_polity_has_geometry <lgl>,
+#> #   area_code_partner <int>, partner_polity_code <chr>,
+#> #   partner_polity_name <chr>, partner_polity_has_geometry <lgl>,
+#> #   element <chr>, item_cbs_code <int>, unit <chr>, value <dbl>,
+#> #   country_share <dbl>
 ```

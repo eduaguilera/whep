@@ -67,6 +67,10 @@
 <li>Use <code>.by</code> argument name for grouping.</li>
 </ul></div>
 <div class="section level2">
+<h2 id="multi-method-functions">Multi-method functions<a class="anchor" aria-label="anchor" href="#multi-method-functions"></a></h2>
+<ul><li>Estimation functions that admit more than one defensible method must expose a <code>method =</code> (or <code>tier =</code>) argument selecting among them, like <code>calculate_enteric_ch4(tier = )</code>. The default is the most rigorous available method; simpler methods remain selectable for the user’s choice, sensitivity analysis, and quantifying the accuracy benefit of the sophisticated method. Methods are alternatives, never silent fallbacks: the chosen method is recorded in an output column (e.g. <code>method_&lt;quantity&gt;</code>), and a coarser method is used only when explicitly requested.</li>
+</ul></div>
+<div class="section level2">
 <h2 id="documentation">Documentation<a class="anchor" aria-label="anchor" href="#documentation"></a></h2>
 <ul><li>Use roxygen2. Only document exported functions. Private functions (<code>.</code> prefix) can remain undocumented.</li>
 <li>Finish all doc sentences with full stop.</li>

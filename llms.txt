@@ -220,14 +220,20 @@ Add name columns in dataframes from their codes or viceversa.
 
 - [`polities`](https://eduaguilera.github.io/whep/reference/polities.md)
   : Polities
+- [`polity_area_crosswalk`](https://eduaguilera.github.io/whep/reference/polity_area_crosswalk.md)
+  : FAOSTAT/FABIO area-to-polity crosswalk
 - [`polities_cats`](https://eduaguilera.github.io/whep/reference/polities_cats.md)
   : Polity categories and regional classifications
 - [`regions_full`](https://eduaguilera.github.io/whep/reference/regions_full.md)
   : Full polity and region reference table
+- [`add_polity_code()`](https://eduaguilera.github.io/whep/reference/add_polity_code.md)
+  : Add WHEP polity codes to a table
 - [`add_area_code()`](https://eduaguilera.github.io/whep/reference/add_area_code.md)
   : Get area codes from area names
 - [`add_area_name()`](https://eduaguilera.github.io/whep/reference/add_area_name.md)
   : Get area names from area codes
+- [`get_polity_geometries()`](https://eduaguilera.github.io/whep/reference/get_polity_geometries.md)
+  : Get WHEP polity geometries
 
 ### Commodity balance sheet items
 
@@ -355,6 +361,28 @@ methods for enteric methane, manure methane, and manure nitrous oxide.
   : Calculate cohort and production system distribution.
 - [`calculate_uncertainty_bounds()`](https://eduaguilera.github.io/whep/reference/calculate_uncertainty_bounds.md)
   : Calculate uncertainty bounds for livestock emissions.
+
+## Feed intake
+
+Estimate livestock feed demand and allocate it against feed
+availability.
+
+- [`redistribute_feed()`](https://eduaguilera.github.io/whep/reference/redistribute_feed.md)
+  : Redistribute available feed supply among livestock demand.
+
+### Feed coefficient tables
+
+Bouwman and Krausmann feed coefficients, feed taxonomy and diet share
+caps.
+
+- [`conv_bouwman`](https://eduaguilera.github.io/whep/reference/conv_bouwman.md)
+  : Bouwman feed conversion ratios.
+- [`conv_krausmann`](https://eduaguilera.github.io/whep/reference/conv_krausmann.md)
+  : Krausmann per head feed intake.
+- [`feed_taxonomy`](https://eduaguilera.github.io/whep/reference/feed_taxonomy.md)
+  : Feed taxonomy.
+- [`max_intake_share`](https://eduaguilera.github.io/whep/reference/max_intake_share.md)
+  : Maximum intake shares.
 
 ## Livestock coefficient tables
 

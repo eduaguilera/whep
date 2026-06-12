@@ -177,6 +177,9 @@ A tibble with gridded livestock data. Columns:
 
 - `area_code`: WHEP polity code for this cell compartment.
 
+- `polity_area_code`, `reporting_polity_code`, `reporting_polity_name`,
+  `reporting_polity_has_geometry`: Polity metadata for `area_code`.
+
 - `polycell_id`, `cell_id`: Preserved when supplied in `country_grid`.
 
 - `year`: Integer year.
@@ -215,9 +218,11 @@ build_gridded_livestock(
   livestock_data, gridded_pasture, gridded_cropland, country_grid
 )
 #> ℹ Spatializing 1 groups over 1 years
-#> # A tibble: 2 × 6
-#>    year species_group area_code   lon   lat heads
-#>   <int> <chr>             <int> <dbl> <dbl> <dbl>
-#> 1  2000 cattle                1  0.25  50.2 3077.
-#> 2  2000 cattle                1  0.75  50.2 1923.
+#> # A tibble: 2 × 10
+#>    year area_code polity_area_code reporting_polity_code reporting_polity_name
+#>   <int>     <int>            <int> <chr>                 <chr>                
+#> 1  2000         1                1 ARM-1991-2025         Armenia              
+#> 2  2000         1                1 ARM-1991-2025         Armenia              
+#> # ℹ 5 more variables: reporting_polity_has_geometry <lgl>, species_group <chr>,
+#> #   lon <dbl>, lat <dbl>, heads <dbl>
 ```

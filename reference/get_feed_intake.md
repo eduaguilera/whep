@@ -65,18 +65,21 @@ A tibble with the feed intake data. It contains the following columns:
 
 ``` r
 get_feed_intake(example = TRUE)
-#> # A tibble: 10 × 10
-#>     year area_code live_anim_code item_cbs_code feed_type    supply     intake
-#>    <dbl>     <dbl>          <dbl>         <dbl> <chr>         <dbl>      <dbl>
-#>  1  1990        51           1096          2515 crops        429       386    
-#>  2  2007         3            976          2570 crops          5.51      4.96 
-#>  3  1996        54            960          2531 crops       5451      4906    
-#>  4  2011        NA           1052          2532 crops          0.84      0.756
-#>  5  1996       110           1052          2549 crops         17.1      15.4  
-#>  6  1986         4           1053          2514 crops     297464    267717    
-#>  7  2010       150           1068          2595 crops       2645      2380    
-#>  8  1978        NA           1096          2536 crops        159       143    
-#>  9  2021        23           1053          2511 crops        627       347    
-#> 10  1977       114            976          2517 crops         32.5      29.2  
-#> # ℹ 3 more variables: intake_dry_matter <dbl>, loss <dbl>, loss_share <dbl>
+#> # A tibble: 11 × 14
+#>     year area_code polity_area_code reporting_polity_code reporting_polity_name 
+#>    <dbl>     <dbl>            <int> <chr>                 <chr>                 
+#>  1  1990        51               51 F51-1947-1993         Czechoslovakia (1947-…
+#>  2  2007         3                3 ALB-1913-2025         Albania (1913-2025)   
+#>  3  1996        54               54 DNK-1920-2025         Denmark               
+#>  4  2011        NA               NA NA                    NA                    
+#>  5  1996       110              110 JPN-1952-2025         Japan                 
+#>  6  1986         4                4 DZA-1962-2025         Algeria (1962-2025)   
+#>  7  2010       150              150 NLD-1830-2025         Netherlands           
+#>  8  1978        NA               NA NA                    NA                    
+#>  9  2021        23               23 BLZ-1800-2025         Belize                
+#> 10  1977       114              114 KEN-1963-2025         Kenya                 
+#> 11  2020        32               32 CMR-1961-2025         Cameroon              
+#> # ℹ 9 more variables: reporting_polity_has_geometry <lgl>,
+#> #   live_anim_code <dbl>, item_cbs_code <dbl>, feed_type <chr>, supply <dbl>,
+#> #   intake <dbl>, intake_dry_matter <dbl>, loss <dbl>, loss_share <dbl>
 ```

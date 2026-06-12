@@ -62,6 +62,18 @@
 - Use `stringr` functions instead of base R for strings.
 - Use `.by` argument name for grouping.
 
+## Multi-method functions
+
+- Estimation functions that admit more than one defensible method must
+  expose a `method =` (or `tier =`) argument selecting among them, like
+  `calculate_enteric_ch4(tier = )`. The default is the most rigorous
+  available method; simpler methods remain selectable for the user’s
+  choice, sensitivity analysis, and quantifying the accuracy benefit of
+  the sophisticated method. Methods are alternatives, never silent
+  fallbacks: the chosen method is recorded in an output column
+  (e.g. `method_<quantity>`), and a coarser method is used only when
+  explicitly requested.
+
 ## Documentation
 
 - Use roxygen2. Only document exported functions. Private functions (`.`

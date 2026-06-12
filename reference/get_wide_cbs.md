@@ -71,19 +71,21 @@ total use excluding `export`.
 
 ``` r
 get_wide_cbs(example = TRUE)
-#> # A tibble: 10 × 14
-#>     year area_code item_cbs_code domestic_supply    food production   feed  seed
-#>    <int>     <int>         <dbl>           <dbl>   <dbl>      <dbl>  <dbl> <dbl>
-#>  1  1987       250          2106      13741247       0     13741247 1.37e7     0
-#>  2  2012        41          2633         82000   82000            0 0          0
-#>  3  1984       123          2595          1207       0         3854 1.21e3     0
-#>  4  1982       165          2633            86.5    86.5          0 0          0
-#>  5  1977       159          2658          2218    2218            0 0          0
-#>  6  1995       234          2671          4312       0         2500 0          0
-#>  7  1975        10           677          2270    2270         2270 0          0
-#>  8  1961       156          2658          6877    6877         2000 0          0
-#>  9  1961       236          2620         11177   11177            0 0          0
-#> 10  1995        49          2734         71117   71117        56724 0          0
-#> # ℹ 6 more variables: import <dbl>, export <dbl>, other_uses <dbl>,
+#> # A tibble: 10 × 18
+#>     year area_code polity_area_code reporting_polity_code reporting_polity_name 
+#>    <int>     <int>            <int> <chr>                 <chr>                 
+#>  1  1987       250              250 COD-1960-2025         Democratic Republic o…
+#>  2  2012        41               41 CHN-1950-2025         China (PRC)           
+#>  3  1984       123              123 LBR-1847-2025         Liberia               
+#>  4  1982       165              165 PAK-1971-2025         Pakistan              
+#>  5  1977       159              159 NGA-1961-2025         Nigeria               
+#>  6  1995       234              234 URY-1828-2025         Uruguay               
+#>  7  1975        10               10 AUS-1901-2025         Australia             
+#>  8  1961       156              156 NZL-1840-2025         New Zealand           
+#>  9  1961       236              236 VEN-1821-2025         Venezuela             
+#> 10  1995        49               49 CUB-1800-2025         Cuba                  
+#> # ℹ 13 more variables: reporting_polity_has_geometry <lgl>,
+#> #   item_cbs_code <dbl>, domestic_supply <dbl>, food <dbl>, production <dbl>,
+#> #   feed <dbl>, seed <dbl>, import <dbl>, export <dbl>, other_uses <dbl>,
 #> #   processing <dbl>, stock_withdrawal <dbl>, stock_addition <dbl>
 ```

@@ -101,6 +101,7 @@ entirely and reducing memory from \(O(n^2)\) to
 <span>  fd_labels <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  output_tol <span class="op">=</span> <span class="fl">1e-08</span>,</span>
 <span>  value_added_floor <span class="op">=</span> <span class="fl">0.001</span>,</span>
+<span>  max_column_sum <span class="op">=</span> <span class="fl">100</span>,</span>
 <span>  conserve_extensions <span class="op">=</span> <span class="cn">TRUE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -160,9 +161,15 @@ footprints from zero-output residuals.</p></dd>
 <dt id="arg-value-added-floor">value_added_floor<a class="anchor" aria-label="anchor" href="#arg-value-added-floor"></a></dt>
 <dd><p>Minimum share of each sector's output that
 is treated as non-intermediate leakage when constructing A from
-<code>z_mat</code>. Column sums larger than <code>1 - value_added_floor</code> are
-rescaled to that maximum. Ignored when a precomputed <code>l_inv</code> is
-supplied without <code>z_mat</code>.</p></dd>
+<code>z_mat</code> if <code>max_column_sum</code> is left at its low-level default. Ignored
+when a precomputed <code>l_inv</code> is supplied without <code>z_mat</code>.</p></dd>
+
+
+<dt id="arg-max-column-sum">max_column_sum<a class="anchor" aria-label="anchor" href="#arg-max-column-sum"></a></dt>
+<dd><p>Maximum allowed column sum in A when using <code>z_mat</code>.
+Physical biomass systems can require more than one unit of intermediate
+input per unit of output, so the footprint path defaults to <code>100</code> and only
+clips extreme columns caused by residual inconsistencies or tiny outputs.</p></dd>
 
 
 <dt id="arg-conserve-extensions">conserve_extensions<a class="anchor" aria-label="anchor" href="#arg-conserve-extensions"></a></dt>
@@ -177,8 +184,10 @@ than the source extension.</p></dd>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>A tibble with footprint results containing:</p><ul><li><p><code>origin_area</code>: Country where the pressure occurs.</p></li>
+<li><p><code>origin_polity_code</code>: WHEP polity for <code>origin_area</code>.</p></li>
 <li><p><code>origin_item</code>: Item causing the pressure.</p></li>
 <li><p><code>target_area</code>: Country consuming the product.</p></li>
+<li><p><code>target_polity_code</code>: WHEP polity for <code>target_area</code>.</p></li>
 <li><p><code>target_item</code>: Item consumed.</p></li>
 <li><p><code>target_fd</code>: Demand category (e.g. <code>"food"</code>). Only
 present when <code>fd_labels</code> is provided.</p></li>
@@ -208,11 +217,14 @@ present when <code>fd_labels</code> is provided.</p></li>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Computing multiplier matrix...</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Computing footprints...</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BB00;">✔</span> Footprint complete: 2 non-zero flows.</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 2 × 5</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   origin_area origin_item target_area target_item value</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>           1           1           1          <span style="color: #BB0000;">NA</span>  47.5</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span>           1           2           1          <span style="color: #BB0000;">NA</span>  30.0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 2 × 11</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   origin_area origin_polity_code origin_polity_name origin_polity_has_geometry</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>              <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>              <span style="color: #949494; font-style: italic;">&lt;lgl&gt;</span>                     </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>           1 ARM-1991-2025      Armenia            TRUE                      </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span>           1 ARM-1991-2025      Armenia            TRUE                      </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 7 more variables: origin_item &lt;int&gt;, target_area &lt;int&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   target_polity_code &lt;chr&gt;, target_polity_name &lt;chr&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   target_polity_has_geometry &lt;lgl&gt;, target_item &lt;int&gt;, value &lt;dbl&gt;</span></span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># Using Z directly (computes L internally)</span></span></span>
 <span class="r-in"><span><span class="fu">compute_footprint</span><span class="op">(</span></span></span>
@@ -226,11 +238,14 @@ present when <code>fd_labels</code> is provided.</p></li>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Sparse solve path (no dense Leontief inverse).</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Computing footprints...</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BB00;">✔</span> Footprint complete: 2 non-zero flows.</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 2 × 5</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   origin_area origin_item target_area target_item value</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>           1           1           1          <span style="color: #BB0000;">NA</span>  47.5</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span>           1           2           1          <span style="color: #BB0000;">NA</span>  30.0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 2 × 11</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   origin_area origin_polity_code origin_polity_name origin_polity_has_geometry</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>              <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>              <span style="color: #949494; font-style: italic;">&lt;lgl&gt;</span>                     </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>           1 ARM-1991-2025      Armenia            TRUE                      </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span>           1 ARM-1991-2025      Armenia            TRUE                      </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 7 more variables: origin_item &lt;int&gt;, target_area &lt;int&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   target_polity_code &lt;chr&gt;, target_polity_name &lt;chr&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   target_polity_has_geometry &lt;lgl&gt;, target_item &lt;int&gt;, value &lt;dbl&gt;</span></span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

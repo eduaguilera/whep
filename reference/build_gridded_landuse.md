@@ -145,6 +145,9 @@ A tibble with gridded crop (or CFT) harvested areas. Columns:
 
 - `area_code`: WHEP polity code for this cell compartment.
 
+- `polity_area_code`, `reporting_polity_code`, `reporting_polity_name`,
+  `reporting_polity_has_geometry`: Polity metadata for `area_code`.
+
 - `polycell_id`, `cell_id`: Preserved when supplied in `country_grid`.
 
 - `crop_name` or `cft_name`: Crop or CFT identifier.
@@ -206,9 +209,11 @@ build_gridded_landuse(
   config = list(years = 2000L)
 )
 #> →   Year 2000: 2 rows (alloc 0.01s, cap 0.01s)
-#> # A tibble: 2 × 7
-#>    year area_code   lon   lat item_prod_code rainfed_ha irrigated_ha
-#>   <int>     <int> <dbl> <dbl>          <int>      <dbl>        <dbl>
-#> 1  2000         1  0.25  50.2             15       706.            0
-#> 2  2000         1  0.75  50.2             15       294.            0
+#> # A tibble: 2 × 11
+#>    year area_code polity_area_code reporting_polity_code reporting_polity_name
+#>   <int>     <int>            <int> <chr>                 <chr>                
+#> 1  2000         1                1 ARM-1991-2025         Armenia              
+#> 2  2000         1                1 ARM-1991-2025         Armenia              
+#> # ℹ 6 more variables: reporting_polity_has_geometry <lgl>, lon <dbl>,
+#> #   lat <dbl>, item_prod_code <int>, rainfed_ha <dbl>, irrigated_ha <dbl>
 ```

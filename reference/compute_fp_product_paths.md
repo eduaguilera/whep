@@ -89,4 +89,5 @@ compute_fp_product_paths(
 ## Value
 
 A tibble with `origin_area`, `origin_item`, `product_area`,
-`product_item`, `target_area`, `target_fd`, and `value`.
+`product_item`, `target_area`, role-specific polity metadata,
+`target_fd`, and `value`.

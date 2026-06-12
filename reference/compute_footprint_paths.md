@@ -89,4 +89,5 @@ compute_footprint_paths(
 ## Value
 
 A tibble with `origin_area`, `origin_item`, `use_area`, `use_item`,
-`target_area`, `target_item`, `target_fd`, `path_type`, and `value`.
+`target_area`, `target_item`, role-specific polity metadata,
+`target_fd`, `path_type`, and `value`.

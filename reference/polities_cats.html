@@ -55,11 +55,17 @@ groupings used in the literature and international databases.</p>
     <div class="section level2">
     <h2 id="format">Format<a class="anchor" aria-label="anchor" href="#format"></a></h2>
     <p>A tibble where each row corresponds to one polity (country or territory).
-It contains the following columns:</p><ul><li><p><code>polity_code</code>: ISO 3166-1 alpha-3 country code used as the primary
-identifier (e.g., <code>"AFG"</code>, <code>"ALB"</code>).</p></li>
-<li><p><code>polity_name</code>: Common country or territory name.</p></li>
+It contains the following columns:</p><ul><li><p><code>polity_code</code>: Legacy current polity prefix, usually ISO 3166-1 alpha-3
+(e.g., <code>"AFG"</code>, <code>"ALB"</code>).</p></li>
+<li><p><code>polity_name</code>: Current polity, country, or territory name.</p></li>
 <li><p><code>V1</code>: Internal row index from the source table.</p></li>
 <li><p><code>code</code>: Numeric FAOSTAT country code.</p></li>
+<li><p><code>polity_area_code</code>: Numeric WHEP reporting area code used in matrix
+workflows.</p></li>
+<li><p><code>reporting_polity_code</code>: Current periodized WHEP polity code for <code>code</code>.</p></li>
+<li><p><code>reporting_polity_name</code>: Current WHEP polity name for <code>code</code>.</p></li>
+<li><p><code>reporting_polity_has_geometry</code>: Logical flag indicating whether the
+current reporting polity has a polygon.</p></li>
 <li><p><code>iso3c</code>: ISO 3166-1 alpha-3 code (character; may duplicate
 <code>polity_code</code> or differ for aggregates).</p></li>
 <li><p><code>FAOSTAT_name</code>: Country name as used in FAOSTAT.</p></li>
@@ -113,16 +119,16 @@ source CSV are dropped at load time and are not part of this dataset.</p>
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">polities_cats</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 6 × 35</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 6 × 39</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   polity_code polity_name    V1  code iso3c FAOSTAT_name EU27  name  eia   iea  </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>        <span style="color: #949494; font-style: italic;">&lt;lgl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>        <span style="color: #949494; font-style: italic;">&lt;lgl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span> AFG         Afghanistan     2     2 AFG   Afghanistan  FALSE Afgh… Afgh… 0    </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span> ALB         Albania         3     3 ALB   Albania      FALSE Alba… Alba… Alba…</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">3</span> DZA         Algeria         4     4 DZA   Algeria      FALSE Alge… Alge… Alge…</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">4</span> AGO         Angola          7     7 AGO   Angola       FALSE Ango… Ango… Ango…</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">5</span> ATG         Antigua an…     8     8 ATG   Antigua and… FALSE Anti… Anti… 0    </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">6</span> ARG         Argentina       9     9 ARG   Argentina    FALSE Arge… Arge… Arge…</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 25 more variables: water_code &lt;dbl&gt;, water_area &lt;chr&gt;, baci &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 29 more variables: water_code &lt;dbl&gt;, water_area &lt;chr&gt;, baci &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   fish &lt;dbl&gt;, region_code &lt;dbl&gt;, cbs &lt;lgl&gt;, fabio_code &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   ADB_Region &lt;chr&gt;, region &lt;chr&gt;, uISO3c &lt;dbl&gt;, Lassaletta &lt;chr&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   region_krausmann &lt;chr&gt;, region_HANPP &lt;chr&gt;, region_krausmann2 &lt;chr&gt;,</span></span>

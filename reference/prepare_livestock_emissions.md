@@ -55,6 +55,6 @@ tibble::tibble(
   prepare_livestock_emissions()
 #> # A tibble: 1 × 6
 #>   item_cbs_code unit  heads area_code species           iso3 
-#>           <dbl> <chr> <dbl>     <dbl> <chr>             <chr>
+#>           <dbl> <chr> <dbl>     <int> <chr>             <chr>
 #> 1           961 heads  5000        79 Cattle, non-dairy DEU  
 ```

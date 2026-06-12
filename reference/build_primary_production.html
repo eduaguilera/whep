@@ -109,9 +109,11 @@ Default <code>NULL</code>.</p></dd>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>A tibble with the same columns as <code><a href="get_primary_production.html">get_primary_production()</a></code>:
-<code>year</code>, <code>area_code</code> (numeric FAOSTAT), <code>item_prod_code</code>,
-<code>item_cbs_code</code>, <code>live_anim_code</code>, <code>unit</code>, <code>value</code>.
-Names can be recovered via <code><a href="add_area_name.html">add_area_name()</a></code>, <code><a href="add_item_prod_name.html">add_item_prod_name()</a></code>, etc.
+<code>year</code>, legacy numeric <code>area_code</code>, numeric <code>polity_area_code</code>,
+<code>reporting_polity_code</code>, <code>reporting_polity_name</code>,
+<code>reporting_polity_has_geometry</code>, <code>item_prod_code</code>, <code>item_cbs_code</code>,
+<code>live_anim_code</code>, <code>unit</code>, <code>value</code>, and <code>source</code>.
+Item names can be recovered via <code><a href="add_item_prod_name.html">add_item_prod_name()</a></code> and related helpers.
 When <code>show_duplicates = TRUE</code>, returns a wide tibble with one
 column per source showing the competing values.</p>
     </div>
@@ -119,20 +121,22 @@ column per source showing the competing values.</p>
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="fu">build_primary_production</span><span class="op">(</span>example <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 10 × 8</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>     year area_code item_prod_code item_cbs_code live_anim_code unit        value</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                  <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>          <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 1</span>  <span style="text-decoration: underline;">1</span>912       165 772                      772 <span style="color: #BB0000;">NA</span>             tonnes    3.25<span style="color: #949494;">e</span>+2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 2</span>  <span style="text-decoration: underline;">2</span>012       112 982                     <span style="text-decoration: underline;">2</span>848 976            t_head    2.68<span style="color: #949494;">e</span><span style="color: #BB0000;">-2</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 3</span>  <span style="text-decoration: underline;">1</span>943        41 515                     <span style="text-decoration: underline;">2</span>617 <span style="color: #BB0000;">NA</span>             t_ha      6   <span style="color: #949494;">e</span><span style="color: #BB0000;">-1</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 4</span>  <span style="text-decoration: underline;">1</span>979        45 977                     <span style="text-decoration: underline;">2</span>732 976            tonnes    3.3 <span style="color: #949494;">e</span>+1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 5</span>  <span style="text-decoration: underline;">1</span>910       141 1098                    <span style="text-decoration: underline;">2</span>736 1096           t_LU      1.86<span style="color: #949494;">e</span><span style="color: #BB0000;">-3</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 6</span>  <span style="text-decoration: underline;">1</span>867        90 976                      976 <span style="color: #BB0000;">NA</span>             heads     1.12<span style="color: #949494;">e</span>+5</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 7</span>  <span style="text-decoration: underline;">1</span>939        15 157                     <span style="text-decoration: underline;">2</span>537 <span style="color: #BB0000;">NA</span>             ha        4.59<span style="color: #949494;">e</span>+4</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 8</span>  <span style="text-decoration: underline;">1</span>935       211 270                     <span style="text-decoration: underline;">2</span>558 <span style="color: #BB0000;">NA</span>             ha        4.02<span style="color: #949494;">e</span>+3</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 9</span>  <span style="text-decoration: underline;">1</span>937         9 772                      772 <span style="color: #BB0000;">NA</span>             ha        7.86<span style="color: #949494;">e</span>+5</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">10</span>  <span style="text-decoration: underline;">2</span>000         9 571                     <span style="text-decoration: underline;">2</span>625 <span style="color: #BB0000;">NA</span>             ha        2.36<span style="color: #949494;">e</span>+2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 1 more variable: source &lt;chr&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 10 × 12</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     year area_code polity_area_code reporting_polity_code reporting_polity_name </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 1</span>  <span style="text-decoration: underline;">1</span>912       165              165 PAK-1800-1947         Pakistan (territory w…</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 2</span>  <span style="text-decoration: underline;">2</span>012       112              112 JOR-1946-2025         Jordan                </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 3</span>  <span style="text-decoration: underline;">1</span>943        41               41 CHN-1921-1945         China (1921-1945)     </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 4</span>  <span style="text-decoration: underline;">1</span>979        45               45 COM-1975-2025         Comoros               </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 5</span>  <span style="text-decoration: underline;">1</span>910       141              141 MNG-1911-1921         Bogd Khanate of Mongo…</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 6</span>  <span style="text-decoration: underline;">1</span>867        90               90 GIN-1894-1958         Guinea (1894-1958)    </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 7</span>  <span style="text-decoration: underline;">1</span>939        15               15 BLX-1850-1999         Belgium-Luxembourg    </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 8</span>  <span style="text-decoration: underline;">1</span>935       211              211 CHE-1800-2025         Switzerland           </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 9</span>  <span style="text-decoration: underline;">1</span>937         9                9 ARG-1800-2025         Argentina             </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">10</span>  <span style="text-decoration: underline;">2</span>000         9                9 ARG-1800-2025         Argentina             </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 7 more variables: reporting_polity_has_geometry &lt;lgl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   item_prod_code &lt;chr&gt;, item_cbs_code &lt;dbl&gt;, live_anim_code &lt;chr&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   unit &lt;chr&gt;, value &lt;dbl&gt;, source &lt;chr&gt;</span></span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

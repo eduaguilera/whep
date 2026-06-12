@@ -56,12 +56,17 @@ in international databases but may lack standard ISO codes.</p>
     <h2 id="format">Format<a class="anchor" aria-label="anchor" href="#format"></a></h2>
     <p>A tibble where each row corresponds to one polity or aggregate region. It
 contains the following columns (same definitions as <code>polities_cats</code>,
-minus the five trailing <code>0...36</code>–<code>0...40</code> artefact columns):</p><ul><li><p><code>polity_code</code>: Primary polity identifier (ISO 3166-1 alpha-3 or <code>NA</code>
-for non-sovereign aggregates).</p></li>
-<li><p><code>polity_name</code>: Polity name (<code>NA</code> for aggregates not matched to a
-standard polity).</p></li>
+minus the five trailing <code>0...36</code>–<code>0...40</code> artefact columns):</p><ul><li><p><code>polity_code</code>: Legacy current polity prefix. This is kept for
+compatibility with older code that expected ISO3-like values.</p></li>
+<li><p><code>polity_name</code>: Current polity, country, territory, or aggregate name.</p></li>
 <li><p><code>V1</code>: Internal row index.</p></li>
 <li><p><code>code</code>: Numeric FAOSTAT country/region code.</p></li>
+<li><p><code>polity_area_code</code>: Numeric WHEP reporting area code used in matrix
+workflows.</p></li>
+<li><p><code>reporting_polity_code</code>: Current periodized WHEP polity code for <code>code</code>.</p></li>
+<li><p><code>reporting_polity_name</code>: Current WHEP polity name for <code>code</code>.</p></li>
+<li><p><code>reporting_polity_has_geometry</code>: Logical flag indicating whether the
+current reporting polity has a polygon.</p></li>
 <li><p><code>iso3c</code>: ISO 3166-1 alpha-3 code (<code>NA</code> for aggregates).</p></li>
 <li><p><code>FAOSTAT_name</code>: Name used in FAOSTAT (may be <code>"#N/A"</code> for aggregates).</p></li>
 <li><p><code>EU27</code>: Logical EU27 membership flag.</p></li>
@@ -107,16 +112,16 @@ ILO, IEA, and other international statistical sources.</p>
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">regions_full</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 6 × 35</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 6 × 39</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   polity_code polity_name    V1  code iso3c FAOSTAT_name EU27  name  eia   iea  </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>        <span style="color: #949494; font-style: italic;">&lt;lgl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span> <span style="color: #BB0000;">NA</span>          <span style="color: #BB0000;">NA</span>             30    30 ATA   <span style="color: #BB0000;">NA</span>           FALSE Anta… Anta… <span style="color: #BB0000;">NA</span>   </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span> <span style="color: #BB0000;">NA</span>          <span style="color: #BB0000;">NA</span>            259   351 <span style="color: #BB0000;">NA</span>    China        FALSE China <span style="color: #BB0000;">NA</span>    <span style="color: #BB0000;">NA</span>   </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">3</span> <span style="color: #BB0000;">NA</span>          <span style="color: #BB0000;">NA</span>            149   152 NTZ   <span style="color: #BB0000;">NA</span>           FALSE Neut… <span style="color: #BB0000;">NA</span>    <span style="color: #BB0000;">NA</span>   </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">4</span> <span style="color: #BB0000;">NA</span>          <span style="color: #BB0000;">NA</span>            245   254 OXY   <span style="color: #BB0000;">NA</span>           FALSE Othe… <span style="color: #BB0000;">NA</span>    <span style="color: #BB0000;">NA</span>   </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">5</span> <span style="color: #BB0000;">NA</span>          <span style="color: #BB0000;">NA</span>            260   999 ROW   <span style="color: #BB0000;">NA</span>           FALSE RoW   <span style="color: #BB0000;">NA</span>    <span style="color: #BB0000;">NA</span>   </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">6</span> <span style="color: #BB0000;">NA</span>          <span style="color: #BB0000;">NA</span>            244   252 UXY   <span style="color: #BB0000;">NA</span>           FALSE Unsp… <span style="color: #BB0000;">NA</span>    <span style="color: #BB0000;">NA</span>   </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 25 more variables: water_code &lt;dbl&gt;, water_area &lt;chr&gt;, baci &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>        <span style="color: #949494; font-style: italic;">&lt;lgl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span> ROW         Rest of Wo…    30    30 ATA   <span style="color: #BB0000;">NA</span>           FALSE Anta… Anta… <span style="color: #BB0000;">NA</span>   </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span> CHN         China (PRC)   259   351 <span style="color: #BB0000;">NA</span>    China        FALSE China <span style="color: #BB0000;">NA</span>    <span style="color: #BB0000;">NA</span>   </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">3</span> ROW         Rest of Wo…   149   152 NTZ   <span style="color: #BB0000;">NA</span>           FALSE Neut… <span style="color: #BB0000;">NA</span>    <span style="color: #BB0000;">NA</span>   </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">4</span> ROW         Rest of Wo…   245   254 OXY   <span style="color: #BB0000;">NA</span>           FALSE Othe… <span style="color: #BB0000;">NA</span>    <span style="color: #BB0000;">NA</span>   </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">5</span> ROW         Rest of Wo…   260   999 ROW   <span style="color: #BB0000;">NA</span>           FALSE RoW   <span style="color: #BB0000;">NA</span>    <span style="color: #BB0000;">NA</span>   </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">6</span> ROW         Rest of Wo…   244   252 UXY   <span style="color: #BB0000;">NA</span>           FALSE Unsp… <span style="color: #BB0000;">NA</span>    <span style="color: #BB0000;">NA</span>   </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 29 more variables: water_code &lt;dbl&gt;, water_area &lt;chr&gt;, baci &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   fish &lt;dbl&gt;, region_code &lt;dbl&gt;, cbs &lt;lgl&gt;, fabio_code &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   ADB_Region &lt;chr&gt;, region &lt;chr&gt;, uISO3c &lt;dbl&gt;, Lassaletta &lt;chr&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   region_krausmann &lt;chr&gt;, region_HANPP &lt;chr&gt;, region_krausmann2 &lt;chr&gt;,</span></span>
