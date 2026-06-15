@@ -118,6 +118,7 @@ run_lpjml <- function(
       `input.no3deposition.name` = noy_name,
       `input.grassland_lsuha.name` = lsuha_name,
       `input.grassland_lsuha.fmt` = "cdf",
+      `input.grassland_lsuha.var` = "grassland_lsuha",
       # Lakes — WHEP writes NC; input.cjson updated to cdf/var="lakes"
       `input.lakes.name` = lakes_name,
       `input.lakes.fmt` = "cdf"

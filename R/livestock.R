@@ -41,25 +41,8 @@ get_feed_intake <- function(example = FALSE) {
     return(.example_get_feed_intake())
   }
 
-  "feed_intake" |>
-    whep_read_file() |>
-    dplyr::rename_with(tolower) |>
-    add_area_code(name_column = "area") |>
-    add_item_cbs_code(
-      name_column = "live_anim",
-      code_column = "live_anim_code"
-    ) |>
-    add_item_cbs_code(name_column = "item", code_column = "item_cbs_code") |>
-    dplyr::select(
-      year,
-      area_code,
-      live_anim_code,
-      item_cbs_code,
-      feed_type = feedtype,
-      supply,
-      intake,
-      intake_dry_matter = intake_dm,
-      loss,
-      loss_share
-    )
+  .build_feed_intake_from_inputs(
+    cbs = get_wide_cbs(),
+    primary_prod = get_primary_production()
+  )
 }

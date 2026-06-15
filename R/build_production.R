@@ -391,6 +391,63 @@ build_primary_production <- function(
   )
   dt[, polity_code := NULL]
   dt <- dt[year > 1849]
+  .repair_luh2_cropland_collapses(dt)
+}
+
+.repair_luh2_cropland_collapses <- function(
+  land_areas,
+  collapse_ratio = 0.02,
+  min_neighbor_mha = 0.001
+) {
+  crop_vars <- c("c3ann", "c3per", "c4ann", "c4per", "c3nfx")
+  if (!all(c("area_code", "area", "year", "Land_Use", "Area_Mha") %in%
+    names(land_areas))) {
+    return(land_areas)
+  }
+
+  dt <- data.table::as.data.table(land_areas)
+  crop_totals <- dt[
+    Land_Use %in% crop_vars,
+    .(cropland_mha = sum(Area_Mha, na.rm = TRUE)),
+    by = .(area_code, area, year)
+  ]
+  data.table::setorder(crop_totals, area_code, year)
+  crop_totals[, `:=`(
+    prev_mha = data.table::shift(cropland_mha, 1L),
+    next_mha = data.table::shift(cropland_mha, 1L, type = "lead")
+  ), by = area_code]
+  crop_totals[, neighbor_mha := (prev_mha + next_mha) / 2]
+
+  bad <- crop_totals[
+    !is.na(prev_mha) &
+      !is.na(next_mha) &
+      prev_mha > min_neighbor_mha &
+      next_mha > min_neighbor_mha &
+      cropland_mha < neighbor_mha * collapse_ratio,
+    .(area_code, area, year)
+  ]
+  if (nrow(bad) == 0L) {
+    return(dt)
+  }
+
+  for (i in seq_len(nrow(bad))) {
+    ac <- bad$area_code[i]
+    yr <- bad$year[i]
+    for (lu in crop_vars) {
+      prev_val <- dt[area_code == ac & year == yr - 1L & Land_Use == lu, Area_Mha]
+      next_val <- dt[area_code == ac & year == yr + 1L & Land_Use == lu, Area_Mha]
+      if (length(prev_val) > 0L && length(next_val) > 0L) {
+        dt[
+          area_code == ac & year == yr & Land_Use == lu,
+          Area_Mha := mean(c(prev_val[1L], next_val[1L]), na.rm = TRUE)
+        ]
+      }
+    }
+  }
+
+  cli::cli_alert_warning(
+    "Repaired {nrow(bad)} isolated LUH2 cropland collapse{?s} by adjacent-year interpolation"
+  )
   dt
 }
 

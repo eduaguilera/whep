@@ -146,6 +146,46 @@ coord_to_rowcol <- function(dt, grid) {
   )
 }
 
+.lsuha_nc_create <- function(path, grid, years) {
+  dlon <- ncdim_def("lon", "degrees_east", vals = grid$lon)
+  dlat <- ncdim_def("lat", "degrees_north", vals = grid$lat)
+  dtime <- ncdim_def(
+    "time",
+    "years since 0000-1-1 0:0:0",
+    vals = years
+  )
+  v <- ncvar_def(
+    "grassland_lsuha",
+    "LSU/ha",
+    list(dlon, dlat, dtime),
+    missval = -1.175494e+38,
+    longname = "Grassland livestock density",
+    prec = "float",
+    compression = 1,
+    chunksizes = c(grid$nlon, grid$nlat, 1L)
+  )
+  nc <- nc_create(path, vars = list(v), force_v4 = TRUE)
+  list(nc = nc, var = v)
+}
+
+.lsuha_nc_write_chunk <- function(nc_info, data_dt, yr_chunk, all_years, grid) {
+  m3 <- array(0, dim = c(grid$nlon, grid$nlat, length(yr_chunk)))
+  if (nrow(data_dt) > 0L) {
+    ti <- match(data_dt$year, yr_chunk)
+    flat <- (ti - 1L) * grid$nlon * grid$nlat +
+      (data_dt$row - 1L) * grid$nlon + data_dt$col
+    m3[flat] <- data_dt$value
+  }
+  t_start <- match(yr_chunk[1L], all_years)
+  ncvar_put(
+    nc_info$nc,
+    nc_info$var,
+    m3,
+    start = c(1L, 1L, t_start),
+    count = c(grid$nlon, grid$nlat, length(yr_chunk))
+  )
+}
+
 .nc_finalise <- function(nc_info, creator = "WHEP prepare_spatialize_all.R") {
   ncatt_put(nc_info$nc, 0, "Conventions", "CF-1.8")
   ncatt_put(nc_info$nc, 0, "created_by", creator)
@@ -4541,7 +4581,7 @@ write_lpjml_static_inputs <- function(
   m <- merge(lsu, g, by = c("year", "row", "col"))
   m[
     grass_ha > 0,
-    .(year, pft = 1L, row, col, value = pmin(lsu / grass_ha, max_lsuha))
+    .(year, row, col, value = pmin(lsu / grass_ha, max_lsuha))
   ]
 }
 
@@ -5169,13 +5209,9 @@ run_livestock_spatialize <- function(
   )
   grazing_dir <- file.path(lpjml_out_dir, "landuse")
   dir.create(grazing_dir, recursive = TRUE, showWarnings = FALSE)
-  nc_lsuha <- .pft_nc_create(
+  nc_lsuha <- .lsuha_nc_create(
     file.path(grazing_dir, paste0("grassland_lsuha_", yr_label, ".nc")),
-    "grassland_lsuha",
-    "Grassland livestock density",
-    "LSU ha-1",
     grid,
-    1L,
     years
   )
 
@@ -5225,7 +5261,7 @@ run_livestock_spatialize <- function(
       grazer_lu
     )
     if (!is.null(lsuha_chunk) && nrow(lsuha_chunk) > 0L) {
-      .pft_nc_write_chunk(nc_lsuha, lsuha_chunk, chunk_years, years, grid, 1L)
+      .lsuha_nc_write_chunk(nc_lsuha, lsuha_chunk, chunk_years, years, grid)
     }
 
     summary_rows[[i]] <- dplyr::summarise(
