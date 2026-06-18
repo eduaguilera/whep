@@ -15,7 +15,10 @@
 #'   `avail_dm_t`, and `feed_scale`.
 #' @param options A named list of allocation options. See
 #'   `.redistribute_feed_options()` for the available entries and their
-#'   defaults.
+#'   defaults. Supply `grass_availability` (a tibble with `year`, `territory`
+#'   or `area_code`, and `grass_avail_dm_t`) to bound the otherwise-unlimited
+#'   pasture grass at that supply per polity-year; grass-limited animals are
+#'   then underfed (`scaling_factor < 1`).
 #'
 #' @return A tibble of realised intake per demand row.
 #'
@@ -35,7 +38,7 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
   state <- .apply_zoot_fixed(state, demand, avail, options)
   state <- .run_allocation_levels(state, demand, avail, mode)
   caps <- .resolve_max_intake_caps(options$max_intake_share)
-  .assemble_result(state, demand, avail, mode, caps)
+  .assemble_result(state, demand, avail, mode, caps, options$grass_availability)
 }
 
 .redistribute_feed_options <- function(options = list()) {
@@ -46,6 +49,7 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
     sub_territory_col = "sub_territory",
     monogastric = NULL,
     max_intake_share = NULL,
+    grass_availability = NULL,
     verbose = FALSE
   )
   utils::modifyList(defaults, options)
@@ -1088,13 +1092,23 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
 
 # ---- Assembly ---------------------------------------------------------------
 
-.assemble_result <- function(state, demand, avail, mode, caps) {
+.assemble_result <- function(
+  state,
+  demand,
+  avail,
+  mode,
+  caps,
+  grass_availability = NULL
+) {
   if (length(state$allocations) == 0) {
     return(.empty_redistribute_result())
   }
   result <- dplyr::bind_rows(state$allocations)
   result <- .add_zero_rows(result, demand)
   result <- .reroute_excess_to_grass(result, avail, mode)
+  if (!is.null(grass_availability)) {
+    result <- .cap_grass_to_availability(result, grass_availability)
+  }
   live_avail <- .avail_with_remaining(state, avail)
   result <- .apply_max_intake_caps(result, live_avail, caps)
   result$demand_dm_t <- demand$demand_dm_t[result$demand_id]
@@ -1250,6 +1264,66 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
     rows$avail_id <- NA_integer_
   }
   rows[rows$intake_dm_t > 1e-9, , drop = FALSE]
+}
+
+# ---- Cap the unlimited pasture grass at the polity grass availability -------
+
+# With options$grass_availability supplied, the otherwise-unlimited pasture
+# grass (item_cbs_code = NA, "6_grassland_unlimited") is bounded by the LPJmL
+# grass supply per (territory, year). Excess is removed pro-rata across the
+# grazer rows, so the affected animals end up underfed (intake < demand): the
+# grass supply "bites" and the shortfall shows as scaling_factor < 1.
+.cap_grass_to_availability <- function(result, grass_availability) {
+  is_pasture <- result$feed_quality == "grass" & is.na(result$item_cbs_code)
+  if (!any(is_pasture)) {
+    return(result)
+  }
+  result$row_id <- seq_len(nrow(result))
+  pasture <- result[is_pasture, , drop = FALSE]
+  totals <- pasture |>
+    dplyr::summarise(
+      total = sum(intake_dm_t, na.rm = TRUE),
+      .by = c(year, territory)
+    ) |>
+    dplyr::left_join(
+      .grass_avail_by_territory(grass_availability),
+      by = c("year", "territory")
+    ) |>
+    dplyr::mutate(
+      grass_avail_dm_t = dplyr::coalesce(grass_avail_dm_t, 0),
+      excess = pmax(0, total - grass_avail_dm_t)
+    ) |>
+    dplyr::filter(excess > 1e-6)
+  if (nrow(totals) == 0) {
+    result$row_id <- NULL
+    return(result)
+  }
+  cut <- pasture |>
+    dplyr::inner_join(
+      totals[, c("year", "territory", "total", "excess")],
+      by = c("year", "territory")
+    ) |>
+    dplyr::mutate(reduction = intake_dm_t / total * excess)
+  result$intake_dm_t[cut$row_id] <- pmax(
+    0,
+    result$intake_dm_t[cut$row_id] - cut$reduction
+  )
+  result$row_id <- NULL
+  result
+}
+
+# Normalise supplied grass availability to (year, territory, grass_avail_dm_t).
+.grass_avail_by_territory <- function(grass_availability) {
+  ga <- tibble::as_tibble(grass_availability)
+  if ("area_code" %in% names(ga) && !("territory" %in% names(ga))) {
+    ga$territory <- ga$area_code
+  }
+  ga$territory <- as.character(ga$territory)
+  dplyr::summarise(
+    ga,
+    grass_avail_dm_t = sum(grass_avail_dm_t, na.rm = TRUE),
+    .by = c(year, territory)
+  )
 }
 
 # ---- Max-intake caps (per item_cbs_code and per feed_quality) ---------------

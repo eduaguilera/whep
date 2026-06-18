@@ -11,6 +11,7 @@ utils::globalVariables(
     "grass_avail_dm_t_ha",
     "grass_avail_dm_t",
     "polity_frac",
+    "total",
     ".",
     ".I",
     ".N",

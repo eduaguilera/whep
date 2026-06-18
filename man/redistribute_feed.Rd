@@ -18,7 +18,10 @@ redistribute_feed(feed_demand, feed_avail, options = list())
 
 \item{options}{A named list of allocation options. See
 \code{.redistribute_feed_options()} for the available entries and their
-defaults.}
+defaults. Supply \code{grass_availability} (a tibble with \code{year}, \code{territory}
+or \code{area_code}, and \code{grass_avail_dm_t}) to bound the otherwise-unlimited
+pasture grass at that supply per polity-year; grass-limited animals are
+then underfed (\code{scaling_factor < 1}).}
 }
 \value{
 A tibble of realised intake per demand row.
