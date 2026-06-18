@@ -41,6 +41,15 @@ reference:
   - build_gridded_landuse
   - build_gridded_livestock
 
+- title: LPJmL grass availability
+  desc: >
+    Read managed-grassland net primary production from a finished LPJmL run
+    into grazable above-ground dry-matter availability, the forage supply
+    ceiling for feed allocation.
+  contents:
+  - build_grass_availability_lpjml
+  - grass_access_shares
+
 - title: Tidy datasets
   desc: >
     Get cleaned dataframes with project related data.

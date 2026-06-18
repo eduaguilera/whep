@@ -44,6 +44,7 @@ Suggests:
     googlesheets4,
     here,
     knitr,
+    ncdf4,
     pointblank,
     rmarkdown,
     testthat (>= 3.0.0)

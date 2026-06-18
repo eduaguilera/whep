@@ -3,6 +3,13 @@
 
 utils::globalVariables(
   c(
+    # feed_lpjml.R (LPJmL grass-availability read-back)
+    "band",
+    "cft_frac",
+    "grass_npp_gc_m2",
+    "cell_area_ha",
+    "grass_avail_dm_t_ha",
+    "grass_avail_dm_t",
     ".",
     ".I",
     ".N",
