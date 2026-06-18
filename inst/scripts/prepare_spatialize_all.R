@@ -172,8 +172,11 @@ coord_to_rowcol <- function(dt, grid) {
   m3 <- array(0, dim = c(grid$nlon, grid$nlat, length(yr_chunk)))
   if (nrow(data_dt) > 0L) {
     ti <- match(data_dt$year, yr_chunk)
-    flat <- (ti - 1L) * grid$nlon * grid$nlat +
-      (data_dt$row - 1L) * grid$nlon + data_dt$col
+    flat <- (ti - 1L) *
+      grid$nlon *
+      grid$nlat +
+      (data_dt$row - 1L) * grid$nlon +
+      data_dt$col
     m3[flat] <- data_dt$value
   }
   t_start <- match(yr_chunk[1L], all_years)
@@ -910,6 +913,66 @@ prepare_country_grid <- function(l_files_dir, target_res) {
 
   cli::cli_alert_success("country_grid: {nrow(result)} cells")
   result
+}
+
+
+# ==== Section 1b: Cell x polity fractions ================================
+#
+# Fraction of each cell's land area in each polity, from FRACTIONAL coverage of
+# the same NaturalEarth polygons the country grid uses (vs the centroid
+# assignment in prepare_country_grid, which gives one polity per cell). Border
+# cells split proportionally so grass / livestock are attributed across
+# polities respecting within-cell boundaries. Writes cell_polity_fraction
+# (lon, lat, area_code, polity_frac); polity_frac sums to 1 per cell.
+
+build_cell_polity_fraction <- function(
+  l_files_dir,
+  target_res = 0.5,
+  subcells = 6L
+) {
+  cli::cli_h2("Section 1b: Cell x polity fractions")
+  shp_path <- file.path(
+    l_files_dir,
+    "NaturalEarth",
+    "Countries_shape",
+    "ne_10m_admin_0_countries.shp"
+  )
+  countries <- terra::vect(shp_path)
+  polities <- whep::polities
+  iso_raw <- as.character(countries$ISO_A3)
+  iso_eh <- as.character(countries$ISO_A3_EH)
+  iso_adm <- as.character(countries$ADM0_A3)
+  iso3c <- dplyr::if_else(
+    iso_raw != "-99",
+    iso_raw,
+    dplyr::if_else(iso_eh != "-99", iso_eh, iso_adm)
+  )
+  countries$area_code <- dplyr::left_join(
+    tibble::tibble(iso3c = iso3c),
+    dplyr::select(polities, "iso3c", "area_code"),
+    by = "iso3c"
+  )$area_code
+
+  ref <- terra::rast(
+    resolution = target_res / subcells,
+    xmin = -180,
+    xmax = 180,
+    ymin = -90,
+    ymax = 90
+  )
+  fine <- terra::rasterize(countries, ref, field = "area_code")
+  d <- data.table::as.data.table(.raster_to_tibble(fine, "area_code"))
+  d <- d[!is.na(area_code)]
+  d[,
+    lon := floor((lon + 180) / target_res) * target_res - 180 + target_res / 2
+  ]
+  d[, lat := floor((lat + 90) / target_res) * target_res - 90 + target_res / 2]
+  counts <- d[, .(n = .N), by = .(lon, lat, area_code)]
+  counts[, polity_frac := n / sum(n), by = .(lon, lat)]
+  cli::cli_alert_success("cell x polity: {nrow(counts)} (cell, polity) rows")
+  tibble::as_tibble(
+    counts[, .(lon, lat, area_code = as.integer(area_code), polity_frac)]
+  )
 }
 
 
