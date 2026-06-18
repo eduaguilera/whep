@@ -46,3 +46,16 @@ test_that("build_grass_availability_lpjml(example = TRUE) returns the tidy schem
   expect_true(all(av$grass_avail_dm_t_ha >= 0))
   expect_true(all(av$grass_avail_dm_t >= 0))
 })
+
+test_that("build_grass_availability dispatches lpjml and records the method", {
+  av <- whep::build_grass_availability(method = "lpjml", example = TRUE)
+  expect_true("method_grass" %in% names(av))
+  expect_equal(unique(av$method_grass), "lpjml")
+})
+
+test_that("build_grass_availability errors on the unimplemented coefficient method", {
+  expect_error(
+    whep::build_grass_availability(method = "coefficient"),
+    "not yet implemented"
+  )
+})

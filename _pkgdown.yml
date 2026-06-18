@@ -47,6 +47,7 @@ reference:
     into grazable above-ground dry-matter availability, the forage supply
     ceiling for feed allocation.
   contents:
+  - build_grass_availability
   - build_grass_availability_lpjml
   - grass_access_shares
 

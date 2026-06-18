@@ -6,6 +6,38 @@
 # not the realised grazing off-take (uptakec / pft_harvestc) which is instead
 # the intake-validation target (Herrero 2013 ~2.3 Pg DM).
 
+#' Build grazable grass availability.
+#'
+#' Multi-method wrapper for the grass forage supply ceiling that feeds
+#' allocation. The default `lpjml` method reads managed-grassland net primary
+#' production from a finished LPJmL run (spatially explicit, the most rigorous
+#' method); `coefficient` applies a per-area grass-yield coefficient and is not
+#' yet implemented (it needs a `grass_yield_coef` dataset).
+#'
+#' @param method Grass-availability method, `"lpjml"` or `"coefficient"`.
+#' @param ... Passed to the selected method's builder, e.g.
+#'   [build_grass_availability_lpjml()].
+#' @return A tibble of grass availability with a `method_grass` column
+#'   recording the method used.
+#' @export
+#' @examples
+#' build_grass_availability(method = "lpjml", example = TRUE)
+build_grass_availability <- function(
+  method = c("lpjml", "coefficient"),
+  ...
+) {
+  method <- rlang::arg_match(method)
+  out <- switch(
+    method,
+    lpjml = build_grass_availability_lpjml(...),
+    coefficient = cli::cli_abort(c(
+      "The {.val coefficient} grass method is not yet implemented.",
+      i = "It needs a {.field grass_yield_coef} dataset (a methodological choice)."
+    ))
+  )
+  dplyr::mutate(out, method_grass = method)
+}
+
 #' Build grazable grass availability from an LPJmL run.
 #'
 #' Reads managed-grassland net primary production (the LPJmL grassland CFT) from
