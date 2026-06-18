@@ -59,3 +59,38 @@ test_that("build_grass_availability errors on the unimplemented coefficient meth
     "not yet implemented"
   )
 })
+
+test_that("aggregate_grass_to_polity conserves total grass", {
+  grass <- whep::build_grass_availability(method = "lpjml", example = TRUE)
+  cp <- tibble::tibble(
+    lon = grass$lon,
+    lat = grass$lat,
+    area_code = 1L,
+    polity_frac = 1
+  )
+  agg <- whep::aggregate_grass_to_polity(grass, cp)
+  expect_setequal(names(agg), c("area_code", "year", "grass_avail_dm_t"))
+  expect_equal(
+    sum(agg$grass_avail_dm_t),
+    sum(grass$grass_avail_dm_t),
+    tolerance = 1e-6
+  )
+})
+
+test_that("aggregate_grass_to_polity splits a border cell by polity_frac", {
+  grass <- tibble::tibble(
+    lon = 0.25,
+    lat = 0.25,
+    year = 2000L,
+    grass_avail_dm_t = 100
+  )
+  cp <- tibble::tibble(
+    lon = c(0.25, 0.25),
+    lat = c(0.25, 0.25),
+    area_code = c(1L, 2L),
+    polity_frac = c(0.7, 0.3)
+  )
+  agg <- whep::aggregate_grass_to_polity(grass, cp)
+  expect_equal(agg$grass_avail_dm_t[agg$area_code == 1L], 70)
+  expect_equal(agg$grass_avail_dm_t[agg$area_code == 2L], 30)
+})

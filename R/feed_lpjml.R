@@ -111,6 +111,43 @@ grass_access_shares <- function(
   list(aboveground = aboveground, grazable = grazable, w_c_dm = w_c_dm)
 }
 
+#' Aggregate gridded grass availability to polity totals.
+#'
+#' Sums gridded grass availability to polity (country, or subnational where
+#' available) totals, splitting each cell's grass by the cell's land-area share
+#' in each polity so border cells are attributed proportionally. The polity
+#' grass supply ceiling for feed allocation.
+#'
+#' @param grass Gridded grass availability from [build_grass_availability()],
+#'   with `lon`, `lat`, `year` and `grass_avail_dm_t`.
+#' @param cell_polity Cell-to-polity mapping with `lon`, `lat`, `area_code` and
+#'   `polity_frac` (the cell's land-area fraction in the polity; pass 1 for a
+#'   majority assignment, e.g. from `country_grid`).
+#' @return A tibble with `area_code`, `year` and `grass_avail_dm_t`.
+#' @export
+#' @examples
+#' grass <- build_grass_availability(method = "lpjml", example = TRUE)
+#' cp <- tibble::tibble(
+#'   lon = grass$lon,
+#'   lat = grass$lat,
+#'   area_code = 1L,
+#'   polity_frac = 1
+#' )
+#' aggregate_grass_to_polity(grass, cp)
+aggregate_grass_to_polity <- function(grass, cell_polity) {
+  grass |>
+    dplyr::mutate(lon = round(lon, 2), lat = round(lat, 2)) |>
+    dplyr::inner_join(
+      dplyr::mutate(cell_polity, lon = round(lon, 2), lat = round(lat, 2)),
+      by = c("lon", "lat"),
+      relationship = "many-to-many"
+    ) |>
+    dplyr::summarise(
+      grass_avail_dm_t = sum(grass_avail_dm_t * polity_frac, na.rm = TRUE),
+      .by = c("area_code", "year")
+    )
+}
+
 # ---- Private helpers --------------------------------------------------
 
 # gC/m2/yr -> grazable t DM/ha/yr. 1 gC/m2 = 0.01 tC/ha; / w_c_dm -> t DM/ha.
