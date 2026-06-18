@@ -156,7 +156,7 @@ coord_to_rowcol <- function(dt, grid) {
   )
   v <- ncvar_def(
     "grassland_lsuha",
-    "LSU/ha",
+    "-",
     list(dlon, dlat, dtime),
     missval = -1.175494e+38,
     longname = "Grassland livestock density",
@@ -3637,6 +3637,13 @@ prepare_hydrology_inputs <- function(l_files_dir, output_dir, lpjml_out_dir) {
       return(invisible(NULL))
     }
     glwd <- terra::rast(glwd_path)
+    area_pct <- NULL
+    if (glwd_version == "v2") {
+      area_pct_tifs <- .find_v2_tif("area_pct.*\\.tif$")
+      if (length(area_pct_tifs) > 0L) {
+        area_pct <- terra::rast(area_pct_tifs[1]) / 100
+      }
+    }
     src_res <- terra::res(glwd)
     agg_factor <- round(0.5 / src_res[1])
     if (glwd_version == "v2") {
@@ -3647,7 +3654,10 @@ prepare_hydrology_inputs <- function(l_files_dir, output_dir, lpjml_out_dir) {
       river_classes <- 3
     }
     lake_rcl <- cbind(lake_classes, rep(1, length(lake_classes)))
-    lake_mask <- terra::classify(glwd, lake_rcl, others = NA)
+    lake_mask <- terra::classify(glwd, lake_rcl, others = 0)
+    if (!is.null(area_pct)) {
+      lake_mask <- lake_mask * area_pct
+    }
     lake_frac <- terra::aggregate(
       lake_mask,
       fact = agg_factor,
@@ -3655,7 +3665,10 @@ prepare_hydrology_inputs <- function(l_files_dir, output_dir, lpjml_out_dir) {
       na.rm = TRUE
     )
     river_rcl <- cbind(river_classes, rep(1, length(river_classes)))
-    river_mask <- terra::classify(glwd, river_rcl, others = NA)
+    river_mask <- terra::classify(glwd, river_rcl, others = 0)
+    if (!is.null(area_pct)) {
+      river_mask <- river_mask * area_pct
+    }
     river_frac <- terra::aggregate(
       river_mask,
       fact = agg_factor,
@@ -4047,9 +4060,9 @@ write_lpjml_static_inputs <- function(
       missval = -9999L
     )
 
-    m_coord <- new_slice(grid$nlon, grid$nlat, fill = 0L)
+    m_coord <- new_slice(grid$nlon, grid$nlat, fill = -9999L)
     ord <- order(cg$row, cg$col)
-    m_coord[cbind(cg$col[ord], cg$row[ord])] <- seq_len(nrow(cg))
+    m_coord[cbind(cg$col[ord], cg$row[ord])] <- seq_len(nrow(cg)) - 1L
     write_nc_2d(
       file.path(lpjml_out_dir, "gadm", "grid_gadm_30arcmin.nc"),
       "coord",
@@ -4334,7 +4347,7 @@ write_lpjml_static_inputs <- function(
       lpjml_out_dir,
       "nitrogen",
       sprintf(
-        "ndep_nhx_whep_annual_%d_%d.nc4",
+        "ndep_nhx_whep_monthly_%d_%d.nc4",
         min(years_d),
         max(years_d)
       )
@@ -4343,7 +4356,7 @@ write_lpjml_static_inputs <- function(
       lpjml_out_dir,
       "nitrogen",
       sprintf(
-        "ndep_noy_whep_annual_%d_%d.nc4",
+        "ndep_noy_whep_monthly_%d_%d.nc4",
         min(years_d),
         max(years_d)
       )

@@ -23,7 +23,8 @@ library(ggplot2)
 
 # ==== Configuration =====================================================
 
-l_files_dir <- "WHEP_LFILES_DIR"
+l_files_dir <- Sys.getenv("WHEP_L_FILES_DIR", unset = "")
+stopifnot(nzchar(l_files_dir), dir.exists(l_files_dir))
 output_dir <- file.path(l_files_dir, "whep", "figures")
 if (!dir.exists(output_dir)) {
   dir.create(output_dir, recursive = TRUE)

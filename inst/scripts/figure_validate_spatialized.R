@@ -30,7 +30,8 @@ devtools::load_all(".")
 
 # ---- Configuration ---------------------------------------------------
 
-l_files_dir <- "WHEP_LFILES_DIR"
+l_files_dir <- Sys.getenv("WHEP_L_FILES_DIR", unset = "")
+stopifnot(nzchar(l_files_dir), dir.exists(l_files_dir))
 whep_dir <- file.path(l_files_dir, "whep")
 input_dir <- file.path(whep_dir, "inputs")
 fig_dir <- file.path(whep_dir, "figures")
