@@ -148,6 +148,49 @@ aggregate_grass_to_polity <- function(grass, cell_polity) {
     )
 }
 
+#' Read natural-grass productivity from an LPJmL run.
+#'
+#' Sums the natural-grass PFT net primary production bands (the ungrazed
+#' natural stand, climate-driven) into a per-cell productivity layer used to
+#' distribute grazing livestock by grass production rather than pasture area.
+#' Natural-grass NPP is exogenous to the grazing density, so it avoids the
+#' livestock to grassland_lsuha to grass-NPP circularity.
+#'
+#' @param run_dir Path to the LPJmL run output directory holding `pft_npp.nc`.
+#' @param years Integer vector of calendar years to read.
+#' @param first_year First calendar year of the run's output time axis.
+#' @param example If `TRUE`, return a small fixture instead of reading a run.
+#' @return A tibble with `lon`, `lat`, `year` and `grass_npp` (gC/m2/yr).
+#' @export
+#' @examples
+#' read_lpjml_grass_productivity(example = TRUE)
+read_lpjml_grass_productivity <- function(
+  run_dir = NULL,
+  years = NULL,
+  first_year = 1901L,
+  example = FALSE
+) {
+  if (example) {
+    return(.example_grass_productivity())
+  }
+  if (!rlang::is_installed("ncdf4")) {
+    cli::cli_abort("Package {.pkg ncdf4} is required to read the LPJmL run.")
+  }
+  .read_lpjml_bands(
+    file.path(run_dir, "pft_npp.nc"),
+    "NPP",
+    c("Tropical C4 grass", "Temperate C3 grass", "Polar C3 grass"),
+    years,
+    first_year
+  ) |>
+    tibble::as_tibble() |>
+    dplyr::summarise(
+      grass_npp = sum(value, na.rm = TRUE),
+      .by = c(lon, lat, year)
+    ) |>
+    dplyr::filter(grass_npp > 0)
+}
+
 # ---- Private helpers --------------------------------------------------
 
 # gC/m2/yr -> grazable t DM/ha/yr. 1 gC/m2 = 0.01 tC/ha; / w_c_dm -> t DM/ha.
@@ -233,5 +276,15 @@ aggregate_grass_to_polity <- function(grass, cell_polity) {
     9.25, 47.75, 2000L, 612.4, 6.258, 16980,
     -55.25, -12.25, 2000L, 488.1, 4.988, 15640,
     35.75, -1.25, 2000L, 421.7, 4.310, 13110
+  )
+}
+
+# Toy fixture for the runnable example (sampled from a real read-back).
+.example_grass_productivity <- function() {
+  tibble::tribble(
+    ~lon, ~lat, ~year, ~grass_npp,
+    9.25, 47.75, 2000L, 412.7,
+    35.75, -1.25, 2000L, 631.4,
+    -55.25, -12.25, 2000L, 348.9
   )
 }

@@ -12,6 +12,7 @@ build_gridded_livestock(
   species_proxy = NULL,
   manure_pattern = NULL,
   glw_density = NULL,
+  grass_productivity = NULL,
   years = NULL
 )
 }
@@ -95,6 +96,13 @@ If provided, this \strong{replaces} the LUH2-based proxy for the
 matching groups, while still being scaled by LUH2 time trends.
 If \code{NULL}, LUH2 proxies are used for all groups.
 }}
+
+\item{grass_productivity}{A tibble with grass productivity per cell
+(\code{lon}, \code{lat}, \code{grass_npp}) from \code{\link[=read_lpjml_grass_productivity]{read_lpjml_grass_productivity()}}.
+Optional. When provided, it multiplies the \code{pasture}/\code{rangeland}
+(grazer) proxy weights so animals follow grass production rather than
+area alone; cropland/mixed proxies are unaffected. If \code{NULL}, area
+proxies are used alone.}
 
 \item{years}{Integer vector of years to spatialize. If \code{NULL}
 (default), all years present in \code{livestock_data} are processed.

@@ -94,3 +94,10 @@ test_that("aggregate_grass_to_polity splits a border cell by polity_frac", {
   expect_equal(agg$grass_avail_dm_t[agg$area_code == 1L], 70)
   expect_equal(agg$grass_avail_dm_t[agg$area_code == 2L], 30)
 })
+
+test_that("read_lpjml_grass_productivity(example = TRUE) returns the tidy schema", {
+  gp <- whep::read_lpjml_grass_productivity(example = TRUE)
+  expect_s3_class(gp, "tbl_df")
+  expect_setequal(names(gp), c("lon", "lat", "year", "grass_npp"))
+  expect_true(all(gp$grass_npp > 0))
+})

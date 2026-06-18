@@ -353,3 +353,46 @@ test_that("shared cells keep independent livestock polity compartments", {
   expect_equal(totals$manure_n_mg, c(10, 0), tolerance = 1e-6)
   expect_setequal(result$polycell_id, c("a", "b"))
 })
+
+test_that(".build_proxy_grid weights grazer cells by grass productivity", {
+  pasture <- tibble::tibble(
+    lon = c(0.25, 1.25),
+    lat = 0.25,
+    year = 2000L,
+    pasture_ha = 100,
+    rangeland_ha = 0
+  )
+  cg <- tibble::tibble(
+    lon = c(0.25, 1.25),
+    lat = 0.25,
+    area_code = 1L,
+    cell_area_frac = 1
+  )
+  gp <- tibble::tibble(lon = c(0.25, 1.25), lat = 0.25, grass_npp = c(1, 3))
+  base <- whep:::.build_proxy_grid("pasture", pasture, NULL, cg, NULL, NULL)
+  prod <- whep:::.build_proxy_grid("pasture", pasture, NULL, cg, NULL, gp)
+  expect_equal(base$weight[base$lon == 0.25], base$weight[base$lon == 1.25])
+  expect_equal(
+    prod$weight[prod$lon == 1.25] / prod$weight[prod$lon == 0.25],
+    3,
+    tolerance = 1e-9
+  )
+})
+
+test_that(".build_proxy_grid leaves cropland proxy unaffected by grass productivity", {
+  cropland <- tibble::tibble(
+    lon = c(0.25, 1.25),
+    lat = 0.25,
+    year = 2000L,
+    cropland_ha = 100
+  )
+  cg <- tibble::tibble(
+    lon = c(0.25, 1.25),
+    lat = 0.25,
+    area_code = 1L,
+    cell_area_frac = 1
+  )
+  gp <- tibble::tibble(lon = c(0.25, 1.25), lat = 0.25, grass_npp = c(1, 3))
+  out <- whep:::.build_proxy_grid("cropland", NULL, cropland, cg, NULL, gp)
+  expect_equal(out$weight[out$lon == 0.25], out$weight[out$lon == 1.25])
+})

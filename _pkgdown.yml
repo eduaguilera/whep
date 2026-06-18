@@ -51,6 +51,7 @@ reference:
   - build_grass_availability_lpjml
   - grass_access_shares
   - aggregate_grass_to_polity
+  - read_lpjml_grass_productivity
 
 - title: Tidy datasets
   desc: >
