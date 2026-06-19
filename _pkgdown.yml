@@ -163,6 +163,11 @@ reference:
   - compute_footprint_paths
   - compute_fp_product_paths
   - add_footprint_product_stage
+  - build_crop_land_extension
+  - get_crop_land_extension
+  - build_cropgrids_land_extension
+  - gridded_fallow_weights
+  - attribute_fallow_to_crops
   - plot_footprint_sankey
 
 - title: Livestock emissions

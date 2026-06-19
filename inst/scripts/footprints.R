@@ -22,12 +22,64 @@ if (is.na(usable_grass_yield_dm_t_ha) || usable_grass_yield_dm_t_ha <= 0) {
   )
 }
 
+# Land extension source for crops:
+#   "land_fp"          external pin (default; FAOSTAT harvested area rescaled by
+#                      a single country-level fallow/double-crop factor)
+#   "spatial_physical" per-cell physical cropland from the gridded land-use
+#                      pipeline (apportions LUH2 cropland by harvested share)
+#   "cropgrids"        per-crop physical cropland from CROPGRIDS (harvested area
+#                      x per-crop physical/harvested ratio; corrects
+#                      double-cropping per crop, e.g. rice)
+#   "cropgrids_fallow" as "cropgrids" plus rotational fallow attributed to crops
+#                      (FAOSTAT temporary fallow split by rainfed x propensity)
+# Non-"land_fp" sources take crop land from the chosen method and grassland from
+# the land_fp pin.
+crop_land_source <- tolower(
+  Sys.getenv("WHEP_CROP_LAND_SOURCE", "land_fp")
+)
+valid_sources <- c(
+  "land_fp",
+  "spatial_physical",
+  "cropgrids",
+  "cropgrids_fallow"
+)
+if (!crop_land_source %in% valid_sources) {
+  stop(
+    paste0(
+      "`WHEP_CROP_LAND_SOURCE` must be one of: ",
+      paste(valid_sources, collapse = ", "),
+      "."
+    ),
+    call. = FALSE
+  )
+}
+
 # Build IO model for selected years.
 io <- build_io_model(years = years)
-land_use <- get_land_fp_production(
+
+land_fp <- get_land_fp_production(
   grassland_metric = grassland_metric,
   usable_grass_yield_dm_t_ha = usable_grass_yield_dm_t_ha
 )
+
+if (crop_land_source == "land_fp") {
+  land_use <- land_fp
+} else {
+  crop_land <- if (crop_land_source %in% c("cropgrids", "cropgrids_fallow")) {
+    build_cropgrids_land_extension(source = crop_land_source) |>
+      dplyr::filter(year %in% years)
+  } else {
+    input_dir <- Sys.getenv(
+      "WHEP_LFILES_INPUT_DIR",
+      file.path(getwd(), "LPJmL_inputs", "whep", "inputs")
+    )
+    get_crop_land_extension(input_dir = input_dir, years = years)
+  }
+  grass_land <- land_fp |>
+    dplyr::filter(group == "Grass") |>
+    dplyr::select(year, area_code, item_cbs_code, impact_u)
+  land_use <- dplyr::bind_rows(crop_land, grass_land)
+}
 
 # Compute footprints for all selected years.
 footprints <- purrr::pmap_dfr(

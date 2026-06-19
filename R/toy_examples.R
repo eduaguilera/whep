@@ -378,6 +378,22 @@
   )
 }
 
+.example_crop_land_extension <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~impact_u, ~method_land,
+    2000L, 33L, 2511L, 17562678, "cropland_apportion",
+    2000L, 33L, 2514L, 2159391, "cropland_apportion",
+    2000L, 33L, 2516L, 3206883, "cropland_apportion",
+    2000L, 33L, 2555L, 7782531, "cropland_apportion",
+    2000L, 100L, 2511L, 27345112, "cropland_apportion",
+    2000L, 100L, 2513L, 9810455, "cropland_apportion",
+    2000L, 100L, 2531L, 1204599, "cropland_apportion",
+    2000L, 100L, 2555L, 7218004, "cropland_apportion",
+    2000L, 110L, 2511L, 1188233, "cropland_apportion",
+    2000L, 110L, 2805L, 1503221, "cropland_apportion"
+  )
+}
+
 # afsetools parity fixtures were removed: afsetools::load_general_data() reads
 # Codes_coefs.xlsx via openxlsx (segfaults intermittently on R 4.5.x) and is not
 # a CI dependency, so the live parity test is not run. See test_redistribute_feed.R.
