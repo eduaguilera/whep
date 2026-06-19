@@ -206,6 +206,102 @@ test_that("attribute_fallow_to_crops leaves crops unchanged when fallow is zero"
   expect_equal(res$physical_ha, 500)
 })
 
+test_that("build_hayr_land_extension reweights physical area by cycle length", {
+  physical <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~impact_u,
+    2000L, 1L, 2807L, 100,
+    2000L, 1L, 2511L, 100
+  )
+  season <- tibble::tribble(
+    ~item_cbs_code, ~season_months,
+    2807L, 5,
+    2511L, 8
+  )
+  # default conserve = "physical": total preserved, redistributed by 5:8
+  res <- whep::build_hayr_land_extension(physical, season = season)
+  expect_equal(sum(res$impact_u), 200)
+  expect_equal(res$impact_u[res$item_cbs_code == 2807L], 200 * 500 / 1300)
+  expect_equal(res$impact_u[res$item_cbs_code == 2511L], 200 * 800 / 1300)
+  expect_gt(
+    res$impact_u[res$item_cbs_code == 2511L],
+    res$impact_u[res$item_cbs_code == 2807L]
+  )
+  expect_true(all(res$method_land == "cropgrids_fallow_hayr"))
+})
+
+test_that("build_hayr_land_extension is the identity for equal cycle lengths", {
+  physical <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~impact_u,
+    2000L, 1L, 2807L, 300,
+    2000L, 1L, 2511L, 100
+  )
+  season <- tibble::tribble(
+    ~item_cbs_code, ~season_months,
+    2807L, 6,
+    2511L, 6
+  )
+  res <- whep::build_hayr_land_extension(physical, season = season)
+  expect_equal(res$impact_u[res$item_cbs_code == 2807L], 300)
+  expect_equal(res$impact_u[res$item_cbs_code == 2511L], 100)
+})
+
+test_that("build_hayr_land_extension conserves to cropland when requested", {
+  physical <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~impact_u,
+    2000L, 1L, 2807L, 100,
+    2000L, 1L, 2511L, 100
+  )
+  cropland <- tibble::tribble(~year, ~area_code, ~cropland_ha, 2000L, 1L, 150)
+  season <- tibble::tribble(
+    ~item_cbs_code, ~season_months,
+    2807L, 5,
+    2511L, 8
+  )
+  res <- whep::build_hayr_land_extension(
+    physical,
+    cropland,
+    season,
+    conserve = "cropland"
+  )
+  # cropland/physical = 150/200 = 0.75 (within bounds) -> sums to 150
+  expect_equal(sum(res$impact_u), 150)
+  expect_equal(res$impact_u[res$item_cbs_code == 2511L], 150 * 800 / 1300)
+})
+
+test_that("build_hayr_land_extension clamps cropland scaling to bounds", {
+  physical <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~impact_u,
+    2000L, 1L, 2807L, 100,
+    2000L, 1L, 2511L, 100
+  )
+  # cropland 1000 vs physical 200 -> raw scale 5, clamped to hi = 2 -> total 400
+  cropland <- tibble::tribble(~year, ~area_code, ~cropland_ha, 2000L, 1L, 1000)
+  season <- tibble::tribble(
+    ~item_cbs_code, ~season_months,
+    2807L, 6,
+    2511L, 6
+  )
+  res <- whep::build_hayr_land_extension(
+    physical,
+    cropland,
+    season,
+    conserve = "cropland",
+    scale_bounds = c(0.5, 2)
+  )
+  expect_equal(sum(res$impact_u), 400)
+})
+
+test_that("build_hayr_land_extension validates physical columns", {
+  season <- tibble::tribble(~item_cbs_code, ~season_months, 2807L, 5)
+  expect_error(
+    whep::build_hayr_land_extension(
+      tibble::tibble(year = 2000L, area_code = 1L),
+      season = season
+    ),
+    "physical"
+  )
+})
+
 test_that("gridded_fallow_weights scores rainfed crops by agro-climatic zone", {
   gridded_crops <- tibble::tribble(
     ~lon, ~lat, ~area_code, ~item_cbs_code, ~rainfed_ha,

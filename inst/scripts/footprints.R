@@ -32,6 +32,10 @@ if (is.na(usable_grass_yield_dm_t_ha) || usable_grass_yield_dm_t_ha <= 0) {
 #                      double-cropping per crop, e.g. rice)
 #   "cropgrids_fallow" as "cropgrids" plus rotational fallow attributed to crops
 #                      (FAOSTAT temporary fallow split by rainfed x propensity)
+#   "hayr"             land occupation in hectare-years: the cropgrids_fallow
+#                      physical area weighted by each crop's MIRCA cycle length
+#                      and renormalized to FAOSTAT cropland (long-cycle/perennial
+#                      crops gain land, short-cycle crops lose it)
 # Non-"land_fp" sources take crop land from the chosen method and grassland from
 # the land_fp pin.
 crop_land_source <- tolower(
@@ -41,7 +45,8 @@ valid_sources <- c(
   "land_fp",
   "spatial_physical",
   "cropgrids",
-  "cropgrids_fallow"
+  "cropgrids_fallow",
+  "hayr"
 )
 if (!crop_land_source %in% valid_sources) {
   stop(
@@ -67,6 +72,9 @@ if (crop_land_source == "land_fp") {
 } else {
   crop_land <- if (crop_land_source %in% c("cropgrids", "cropgrids_fallow")) {
     build_cropgrids_land_extension(source = crop_land_source) |>
+      dplyr::filter(year %in% years)
+  } else if (crop_land_source == "hayr") {
+    build_hayr_land_extension() |>
       dplyr::filter(year %in% years)
   } else {
     input_dir <- Sys.getenv(
