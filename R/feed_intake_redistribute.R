@@ -21,3 +21,20 @@
       for the current allocator."
   ))
 }
+
+# Curated live_anim_code -> livestock_category crosswalk: maps each live animal
+# (animals_codes.csv) to its feed livestock_category (max_intake_share.csv),
+# marks whether DEMAND comes from the IPCC Tier-2 energy model (the 6 covered
+# species) or Krausmann per-head, and names the energy species each IPCC row
+# draws maintenance from. Built + adversarially verified against the three
+# source code systems.
+.livestock_crosswalk <- function() {
+  system.file(
+    "extdata",
+    "feed",
+    "livestock_category_crosswalk.csv",
+    package = "whep"
+  ) |>
+    data.table::fread(na.strings = "") |>
+    tibble::as_tibble()
+}

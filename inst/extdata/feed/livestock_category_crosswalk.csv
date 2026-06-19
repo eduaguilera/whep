@@ -1,0 +1,23 @@
+live_anim_code,livestock_name,item_bouwman,graniv_grazers,livestock_category,demand_source,energy_species
+960,Dairy_cows,Dairy cattle,Grazers,Cattle_milk,ipcc,Cattle
+961,Cattle,Beef cattle,Grazers,Cattle_meat,ipcc,Cattle
+946,Buffaloes,Beef cattle,Grazers,Cattle_meat,ipcc,Buffalo
+976,Sheep,Sheep and goats,Grazers,Sheep,ipcc,Sheep
+1016,Goats,Sheep and goats,Grazers,Goats,ipcc,Goats
+1049,Pigs,Pigs,Granivores,Pigs,ipcc,Pigs
+1051,Hogs,,Granivores,Pigs,ipcc,Pigs
+1053,Broilers,Poultry,Granivores,Poultry,ipcc,Poultry
+1052,Hens,Poultry,Granivores,Poultry,ipcc,Poultry
+1068,Ducks,Poultry,Granivores,Poultry,ipcc,Poultry
+1072,Geese,Poultry,Granivores,Poultry,ipcc,Poultry
+1079,Turkeys,Poultry,Granivores,Poultry,ipcc,Poultry
+1096,Horses,,Grazers,Horses,krausmann,
+1107,Asses,,Grazers,Donkeys_mules,krausmann,
+1110,Mules,,Grazers,Donkeys_mules,krausmann,
+1126,Camels,,Grazers,Other,krausmann,
+1157,Camelids_other,,Grazers,Other,krausmann,
+1140,Rabbits,,Grazers,Rabbits,krausmann,
+1150,Roddents_other,,Grazers,Other,krausmann,
+1171,Animals_other,,Grazers,Other,krausmann,
+1181,Bees,,Bees,Other,krausmann,
+1190,Game,,Game,Other,krausmann,
