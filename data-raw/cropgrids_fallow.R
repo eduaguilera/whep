@@ -70,10 +70,7 @@ gridded_cbs <- as.data.table(gridded)[
   on = "item_prod_code",
   nomatch = 0
 ][,
-  .(
-    rainfed_ha = sum(rainfed_ha, na.rm = TRUE),
-    irrigated_ha = sum(irrigated_ha, na.rm = TRUE)
-  ),
+  .(rainfed_ha = sum(rainfed_ha, na.rm = TRUE)),
   by = .(lon, lat, area_code, item_cbs_code)
 ]
 

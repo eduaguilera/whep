@@ -695,7 +695,6 @@ utils::globalVariables(
     "fallow_propensity",
     "gap",
     "harvested_ha",
-    "irrig_share",
     "lgp",
     "method_land",
     "p",

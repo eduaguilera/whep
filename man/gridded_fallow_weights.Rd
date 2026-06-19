@@ -8,15 +8,14 @@ gridded_fallow_weights(gridded_crops, grid_aez = NULL, propensity = NULL)
 }
 \arguments{
 \item{gridded_crops}{Tibble keyed by grid cell and \code{item_cbs_code} with
-columns \code{lon}, \code{lat}, \code{area_code}, \code{rainfed_ha}, \code{irrigated_ha}.}
+columns \code{lon}, \code{lat}, \code{area_code}, \code{rainfed_ha}.}
 
 \item{grid_aez}{Tibble of \code{lon}, \code{lat}, \code{lgp} (length of growing period in
 days), \code{thermal} (GAEZ thermal-climate class). If \code{NULL}, the packaged
 \code{grid_aez.csv} is used.}
 
-\item{propensity}{Tibble of \code{item_cbs_code}, \code{zone}, \code{fallow_propensity}, and
-\code{irrig_share} (fraction of irrigated area also eligible for fallow, e.g.
-rice-fallow). If \code{NULL}, the packaged \code{fallow_propensity.csv} is used.}
+\item{propensity}{Tibble of \code{item_cbs_code}, \code{zone}, \code{fallow_propensity}. If
+\code{NULL}, the packaged \code{fallow_propensity.csv} is used.}
 }
 \value{
 A tibble with \code{area_code}, \code{item_cbs_code}, \code{weight}.
@@ -32,13 +31,13 @@ high in arid/semi-arid zones, rainfed rice high in the humid tropics
 }
 \examples{
 gridded_crops <- tibble::tribble(
-  ~lon, ~lat, ~area_code, ~item_cbs_code, ~rainfed_ha, ~irrigated_ha,
-  0.25, 50.25, 1L, 2511L, 500, 0
+  ~lon, ~lat, ~area_code, ~item_cbs_code, ~rainfed_ha,
+  0.25, 50.25, 1L, 2511L, 500
 )
 grid_aez <- tibble::tribble(~lon, ~lat, ~lgp, ~thermal, 0.25, 50.25, 100, 7L)
 propensity <- tibble::tribble(
-  ~item_cbs_code, ~zone, ~fallow_propensity, ~irrig_share,
-  2511L, "semiarid", 0.8, 0
+  ~item_cbs_code, ~zone, ~fallow_propensity,
+  2511L, "semiarid", 0.8
 )
 gridded_fallow_weights(gridded_crops, grid_aez, propensity)
 }

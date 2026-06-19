@@ -208,33 +208,38 @@ test_that("attribute_fallow_to_crops leaves crops unchanged when fallow is zero"
 
 test_that("gridded_fallow_weights scores rainfed crops by agro-climatic zone", {
   gridded_crops <- tibble::tribble(
-    ~lon, ~lat, ~area_code, ~item_cbs_code, ~rainfed_ha, ~irrigated_ha,
-    0.25, 50.25, 1L, 2511L, 100, 0, # wheat, arid cell
-    0.25, 50.25, 1L, 2536L, 100, 0 # sugar cane (minor), same cell
+    ~lon, ~lat, ~area_code, ~item_cbs_code, ~rainfed_ha,
+    0.25, 50.25, 1L, 2511L, 100, # wheat, arid cell
+    0.25, 50.25, 1L, 2536L, 100 # sugar cane (minor), same cell
   )
   grid_aez <- tibble::tribble(~lon, ~lat, ~lgp, ~thermal, 0.25, 50.25, 60, 7L)
   propensity <- tibble::tribble(
-    ~item_cbs_code, ~zone, ~fallow_propensity, ~irrig_share,
-    2511L, "arid", 1.0, 0,
-    2536L, "arid", 0.1, 0
+    ~item_cbs_code, ~zone, ~fallow_propensity,
+    2511L, "arid", 1.0,
+    2536L, "arid", 0.1
   )
   w <- whep::gridded_fallow_weights(gridded_crops, grid_aez, propensity)
   expect_equal(w$weight[w$item_cbs_code == 2511L], 100) # 100 * 1.0
   expect_equal(w$weight[w$item_cbs_code == 2536L], 10) # 100 * 0.1
 })
 
-test_that("gridded_fallow_weights counts irrigated rice in monsoon zones (rice-fallow)", {
-  # irrigated kharif rice in the humid tropics still leaves a rabi fallow, so
-  # irrig_share = 1 makes its irrigated area count toward the fallow weight.
+test_that("gridded_fallow_weights uses the cell's agro-climatic zone", {
+  # same crop, two cells: arid (high propensity) vs humid (low) -> different weight
   gridded_crops <- tibble::tribble(
-    ~lon, ~lat, ~area_code, ~item_cbs_code, ~rainfed_ha, ~irrigated_ha,
-    90.25, 23.25, 100L, 2807L, 40, 60 # mostly irrigated rice, humid tropics
+    ~lon, ~lat, ~area_code, ~item_cbs_code, ~rainfed_ha,
+    0.25, 50.25, 1L, 2511L, 100, # arid cell
+    0.75, 50.25, 1L, 2511L, 100 # humid cell
   )
-  grid_aez <- tibble::tribble(~lon, ~lat, ~lgp, ~thermal, 90.25, 23.25, 300, 1L)
+  grid_aez <- tibble::tribble(
+    ~lon, ~lat, ~lgp, ~thermal,
+    0.25, 50.25, 60, 7L, # arid (LGP < 90)
+    0.75, 50.25, 320, 7L # humid (LGP >= 270)
+  )
   propensity <- tibble::tribble(
-    ~item_cbs_code, ~zone, ~fallow_propensity, ~irrig_share,
-    2807L, "tropical_humid", 0.9, 1.0
+    ~item_cbs_code, ~zone, ~fallow_propensity,
+    2511L, "arid", 1.0,
+    2511L, "humid", 0.05
   )
   w <- whep::gridded_fallow_weights(gridded_crops, grid_aez, propensity)
-  expect_equal(w$weight, 90) # (40 + 1.0*60) * 0.9 = 90
+  expect_equal(w$weight, 100 * 1.0 + 100 * 0.05) # 105
 })

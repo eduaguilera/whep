@@ -403,13 +403,12 @@ attribute_fallow_to_crops <- function(cropgrids, fallow_total, alloc_weight) {
 #' (rice-fallow); perennials and the irrigated share score ~zero.
 #'
 #' @param gridded_crops Tibble keyed by grid cell and `item_cbs_code` with
-#'   columns `lon`, `lat`, `area_code`, `rainfed_ha`, `irrigated_ha`.
+#'   columns `lon`, `lat`, `area_code`, `rainfed_ha`.
 #' @param grid_aez Tibble of `lon`, `lat`, `lgp` (length of growing period in
 #'   days), `thermal` (GAEZ thermal-climate class). If `NULL`, the packaged
 #'   `grid_aez.csv` is used.
-#' @param propensity Tibble of `item_cbs_code`, `zone`, `fallow_propensity`, and
-#'   `irrig_share` (fraction of irrigated area also eligible for fallow, e.g.
-#'   rice-fallow). If `NULL`, the packaged `fallow_propensity.csv` is used.
+#' @param propensity Tibble of `item_cbs_code`, `zone`, `fallow_propensity`. If
+#'   `NULL`, the packaged `fallow_propensity.csv` is used.
 #'
 #' @return A tibble with `area_code`, `item_cbs_code`, `weight`.
 #'
@@ -417,13 +416,13 @@ attribute_fallow_to_crops <- function(cropgrids, fallow_total, alloc_weight) {
 #'
 #' @examples
 #' gridded_crops <- tibble::tribble(
-#'   ~lon, ~lat, ~area_code, ~item_cbs_code, ~rainfed_ha, ~irrigated_ha,
-#'   0.25, 50.25, 1L, 2511L, 500, 0
+#'   ~lon, ~lat, ~area_code, ~item_cbs_code, ~rainfed_ha,
+#'   0.25, 50.25, 1L, 2511L, 500
 #' )
 #' grid_aez <- tibble::tribble(~lon, ~lat, ~lgp, ~thermal, 0.25, 50.25, 100, 7L)
 #' propensity <- tibble::tribble(
-#'   ~item_cbs_code, ~zone, ~fallow_propensity, ~irrig_share,
-#'   2511L, "semiarid", 0.8, 0
+#'   ~item_cbs_code, ~zone, ~fallow_propensity,
+#'   2511L, "semiarid", 0.8
 #' )
 #' gridded_fallow_weights(gridded_crops, grid_aez, propensity)
 gridded_fallow_weights <- function(
@@ -439,13 +438,13 @@ gridded_fallow_weights <- function(
   }
   .check_required_cols(
     gridded_crops,
-    c("lon", "lat", "area_code", "item_cbs_code", "rainfed_ha", "irrigated_ha"),
+    c("lon", "lat", "area_code", "item_cbs_code", "rainfed_ha"),
     "gridded_crops"
   )
   .check_required_cols(grid_aez, c("lon", "lat", "lgp", "thermal"), "grid_aez")
   .check_required_cols(
     propensity,
-    c("item_cbs_code", "zone", "fallow_propensity", "irrig_share"),
+    c("item_cbs_code", "zone", "fallow_propensity"),
     "propensity"
   )
 
@@ -459,12 +458,11 @@ gridded_fallow_weights <- function(
     dplyr::transmute(
       item_cbs_code = as.integer(.data$item_cbs_code),
       zone = .data$zone,
-      p = .data$fallow_propensity,
-      irrig_share = .data$irrig_share
+      p = .data$fallow_propensity
     )
 
-  # Weighting area is rainfed crop area plus the share of irrigated area that
-  # still fallows (rice-fallow follows kharif rice whether or not irrigated).
+  # Weighting area is rainfed crop area (irrigated land is continuously cropped,
+  # so it does not contribute to rotational fallow).
   gridded_crops |>
     dplyr::mutate(
       area_code = as.integer(.data$area_code),
@@ -473,17 +471,9 @@ gridded_fallow_weights <- function(
     dplyr::left_join(aez, by = c("lon", "lat")) |>
     dplyr::mutate(zone = tidyr::replace_na(.data$zone, "subhumid")) |>
     dplyr::left_join(prop, by = c("item_cbs_code", "zone")) |>
-    dplyr::mutate(
-      p = tidyr::replace_na(.data$p, 0),
-      irrig_share = tidyr::replace_na(.data$irrig_share, 0)
-    ) |>
+    dplyr::mutate(p = tidyr::replace_na(.data$p, 0)) |>
     dplyr::summarise(
-      weight = sum(
-        (.ext_na0(.data$rainfed_ha) +
-          .data$irrig_share * .ext_na0(.data$irrigated_ha)) *
-          .data$p,
-        na.rm = TRUE
-      ),
+      weight = sum(.ext_na0(.data$rainfed_ha) * .data$p, na.rm = TRUE),
       .by = c(area_code, item_cbs_code)
     ) |>
     dplyr::filter(.data$weight > 0)

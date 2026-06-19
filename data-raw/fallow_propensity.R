@@ -21,22 +21,13 @@ zones <- c("arid", "semiarid", "subhumid", "humid", "tropical_humid")
 class_zone <- tibble::tribble(
   ~class, ~arid, ~semiarid, ~subhumid, ~humid, ~tropical_humid,
   "cereal_dryland", 1.00, 0.80, 0.30, 0.05, 0.10,
-  "rice", 0.10, 0.20, 0.50, 0.30, 0.90,
+  "rice", 0.10, 0.20, 0.30, 0.10, 0.90,
   "maize", 0.40, 0.30, 0.10, 0.03, 0.10,
   "pulse", 1.00, 0.80, 0.40, 0.10, 0.30,
   "oilseed", 0.70, 0.60, 0.25, 0.05, 0.15,
   "roots", 0.30, 0.25, 0.15, 0.05, 0.10,
   "minor", 0.10, 0.10, 0.08, 0.03, 0.08,
   "perennial", 0.00, 0.00, 0.00, 0.00, 0.00
-)
-
-# fraction of the IRRIGATED area that also counts toward the fallow weight.
-# Usually 0 (irrigated = continuously cropped), but rice-fallow is the rabi
-# season left fallow after kharif rice whether or not the kharif was irrigated,
-# so irrigated rice area in monsoon zones must be eligible for fallow.
-class_irrig <- tibble::tribble(
-  ~class, ~arid, ~semiarid, ~subhumid, ~humid, ~tropical_humid,
-  "rice", 0.0, 0.0, 0.5, 0.3, 1.0
 )
 
 class_of <- function(code) {
@@ -77,25 +68,14 @@ crops <- whep::items_full |>
     class = class_of(item_cbs_code)
   )
 
-prop_long <- crops |>
+fallow_propensity <- crops |>
   dplyr::left_join(class_zone, by = "class") |>
   tidyr::pivot_longer(
     dplyr::all_of(zones),
     names_to = "zone",
     values_to = "fallow_propensity"
-  )
-irrig_long <- crops |>
-  dplyr::left_join(class_irrig, by = "class") |>
-  tidyr::pivot_longer(
-    dplyr::all_of(zones),
-    names_to = "zone",
-    values_to = "irrig_share"
   ) |>
-  dplyr::mutate(irrig_share = tidyr::replace_na(irrig_share, 0))
-
-fallow_propensity <- prop_long |>
-  dplyr::left_join(irrig_long, by = c("item_cbs_code", "class", "zone")) |>
-  dplyr::transmute(item_cbs_code, zone, fallow_propensity, irrig_share) |>
+  dplyr::transmute(item_cbs_code, zone, fallow_propensity) |>
   dplyr::arrange(item_cbs_code, zone)
 
 write_csv(fallow_propensity, "inst/extdata/fallow_propensity.csv")
