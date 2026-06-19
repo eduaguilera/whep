@@ -263,3 +263,139 @@ test_that("grass_availability bounds the pasture grass sink in redistribute_feed
   expect_lt(capped_grass, base_grass)
   expect_lte(capped_grass, base_grass / 2 + 1e-6)
 })
+
+# Helper: a single grazer with a pasture-grass intake row, in territory A.
+.grass_cascade_result <- function(intake = 40) {
+  tibble::tibble(
+    demand_id = 1L,
+    year = 2000L,
+    territory = "A",
+    sub_territory = "A",
+    livestock_category = "cattle",
+    item_cbs_code = NA_integer_,
+    feed_group = "grass",
+    feed_quality = "grass",
+    intake_dm_t = intake,
+    hierarchy_level = "6_grassland_unlimited",
+    requested_item = NA_integer_,
+    source_compartment = "A",
+    avail_id = NA_integer_
+  )
+}
+
+test_that(".redistribute_grass_deficit fills the deficit from leftover, capped at it", {
+  deficit <- tibble::tibble(
+    demand_id = 1L,
+    year = 2000L,
+    territory = "A",
+    sub_territory = "A",
+    livestock_category = "cattle",
+    reduction = 60
+  )
+  live_avail <- tibble::tibble(
+    year = 2000L,
+    sub_territory = "A",
+    territory = "A",
+    feed_quality = "crops",
+    avail_remaining = 25
+  )
+  out <- whep:::.redistribute_grass_deficit(
+    .grass_cascade_result(),
+    deficit,
+    live_avail
+  )
+  sub <- out[out$hierarchy_level == "7_grass_deficit_substitute", ]
+  expect_equal(nrow(sub), 1L)
+  expect_equal(sub$intake_dm_t, 25, tolerance = 1e-9)
+  expect_equal(sub$feed_quality, "substitute")
+})
+
+test_that(".redistribute_grass_deficit caps the fill at the deficit, not the leftover", {
+  deficit <- tibble::tibble(
+    demand_id = 1L,
+    year = 2000L,
+    territory = "A",
+    sub_territory = "A",
+    livestock_category = "cattle",
+    reduction = 60
+  )
+  live_avail <- tibble::tibble(
+    year = 2000L,
+    sub_territory = "A",
+    territory = "A",
+    feed_quality = "crops",
+    avail_remaining = 100
+  )
+  out <- whep:::.redistribute_grass_deficit(
+    .grass_cascade_result(),
+    deficit,
+    live_avail
+  )
+  sub <- out[out$hierarchy_level == "7_grass_deficit_substitute", ]
+  expect_equal(sub$intake_dm_t, 60, tolerance = 1e-9)
+})
+
+test_that(".redistribute_grass_deficit ignores leftover grass availability", {
+  deficit <- tibble::tibble(
+    demand_id = 1L,
+    year = 2000L,
+    territory = "A",
+    sub_territory = "A",
+    livestock_category = "cattle",
+    reduction = 60
+  )
+  live_avail <- tibble::tibble(
+    year = 2000L,
+    sub_territory = "A",
+    territory = "A",
+    feed_quality = "grass",
+    avail_remaining = 100
+  )
+  out <- whep:::.redistribute_grass_deficit(
+    .grass_cascade_result(),
+    deficit,
+    live_avail
+  )
+  expect_false(any(out$hierarchy_level == "7_grass_deficit_substitute"))
+})
+
+test_that(".grass_deficit_diagnosis flags demand rows below maintenance", {
+  result <- tibble::tibble(demand_id = c(1L, 2L), intake_dm_t = c(30, 80))
+  demand <- tibble::tibble(
+    demand_id = c(1L, 2L),
+    livestock_category = c("cattle", "sheep"),
+    demand_dm_t = c(100, 100)
+  )
+  diag <- whep:::.grass_deficit_diagnosis(
+    result,
+    demand,
+    maintenance_share = 0.5
+  )
+  expect_equal(diag$demand_id, 1L)
+  expect_equal(diag$maintenance_dm_t, 50, tolerance = 1e-9)
+  expect_equal(diag$intake_dm_t, 30, tolerance = 1e-9)
+})
+
+test_that("redistribute_feed attaches a grass_deficit_diagnosis with maintenance_share", {
+  d <- whep:::.example_feed_demand()
+  a <- whep:::.example_feed_avail()
+  base <- whep::redistribute_feed(d, a)
+  is_sink <- base$hierarchy_level == "6_grassland_unlimited"
+  skip_if(
+    sum(base$intake_dm_t[is_sink], na.rm = TRUE) <= 1e-6,
+    "fixture does not use the unlimited grass sink"
+  )
+  ga <- base[is_sink, ] |>
+    dplyr::summarise(
+      grass_avail_dm_t = sum(intake_dm_t, na.rm = TRUE) / 4,
+      .by = c(year, territory)
+    )
+  out <- whep::redistribute_feed(
+    d,
+    a,
+    options = list(grass_availability = ga, maintenance_share = 0.95)
+  )
+  diag <- attr(out, "grass_deficit_diagnosis")
+  expect_false(is.null(diag))
+  expect_s3_class(diag, "tbl_df")
+})

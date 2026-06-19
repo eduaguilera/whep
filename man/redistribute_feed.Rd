@@ -20,11 +20,20 @@ redistribute_feed(feed_demand, feed_avail, options = list())
 \code{.redistribute_feed_options()} for the available entries and their
 defaults. Supply \code{grass_availability} (a tibble with \code{year}, \code{territory}
 or \code{area_code}, and \code{grass_avail_dm_t}) to bound the otherwise-unlimited
-pasture grass at that supply per polity-year; grass-limited animals are
-then underfed (\code{scaling_factor < 1}).}
+pasture grass at that supply per polity-year. The grass deficit then
+cascades: pasture grass is capped at the ceiling, the deficit is
+redistributed to leftover non-grass availability in the polity (added as
+\verb{7_grass_deficit_substitute} intake, limited by that leftover), and the
+residual stays as biologically-feasible underfeeding (\code{scaling_factor < 1}).
+Supply \code{maintenance_share} (a scalar fraction or a tibble with
+\code{livestock_category} and \code{maintenance_share}) to also diagnose polities
+pushed below maintenance; the over-stocked demand rows are attached to the
+result as the \code{grass_deficit_diagnosis} attribute.}
 }
 \value{
-A tibble of realised intake per demand row.
+A tibble of realised intake per demand row. When \code{maintenance_share}
+is supplied alongside \code{grass_availability}, a \code{grass_deficit_diagnosis}
+attribute lists demand rows underfed below maintenance.
 }
 \description{
 Matches livestock feed demand to available feed items through a

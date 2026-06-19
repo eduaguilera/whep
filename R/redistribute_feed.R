@@ -17,10 +17,19 @@
 #'   `.redistribute_feed_options()` for the available entries and their
 #'   defaults. Supply `grass_availability` (a tibble with `year`, `territory`
 #'   or `area_code`, and `grass_avail_dm_t`) to bound the otherwise-unlimited
-#'   pasture grass at that supply per polity-year; grass-limited animals are
-#'   then underfed (`scaling_factor < 1`).
+#'   pasture grass at that supply per polity-year. The grass deficit then
+#'   cascades: pasture grass is capped at the ceiling, the deficit is
+#'   redistributed to leftover non-grass availability in the polity (added as
+#'   `7_grass_deficit_substitute` intake, limited by that leftover), and the
+#'   residual stays as biologically-feasible underfeeding (`scaling_factor < 1`).
+#'   Supply `maintenance_share` (a scalar fraction or a tibble with
+#'   `livestock_category` and `maintenance_share`) to also diagnose polities
+#'   pushed below maintenance; the over-stocked demand rows are attached to the
+#'   result as the `grass_deficit_diagnosis` attribute.
 #'
-#' @return A tibble of realised intake per demand row.
+#' @return A tibble of realised intake per demand row. When `maintenance_share`
+#'   is supplied alongside `grass_availability`, a `grass_deficit_diagnosis`
+#'   attribute lists demand rows underfed below maintenance.
 #'
 #' @export
 redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
@@ -38,7 +47,15 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
   state <- .apply_zoot_fixed(state, demand, avail, options)
   state <- .run_allocation_levels(state, demand, avail, mode)
   caps <- .resolve_max_intake_caps(options$max_intake_share)
-  .assemble_result(state, demand, avail, mode, caps, options$grass_availability)
+  .assemble_result(
+    state,
+    demand,
+    avail,
+    mode,
+    caps,
+    options$grass_availability,
+    options$maintenance_share
+  )
 }
 
 .redistribute_feed_options <- function(options = list()) {
@@ -50,6 +67,7 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
     monogastric = NULL,
     max_intake_share = NULL,
     grass_availability = NULL,
+    maintenance_share = NULL,
     verbose = FALSE
   )
   utils::modifyList(defaults, options)
@@ -1098,7 +1116,8 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
   avail,
   mode,
   caps,
-  grass_availability = NULL
+  grass_availability = NULL,
+  maintenance_share = NULL
 ) {
   if (length(state$allocations) == 0) {
     return(.empty_redistribute_result())
@@ -1106,15 +1125,19 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
   result <- dplyr::bind_rows(state$allocations)
   result <- .add_zero_rows(result, demand)
   result <- .reroute_excess_to_grass(result, avail, mode)
-  if (!is.null(grass_availability)) {
-    result <- .cap_grass_to_availability(result, grass_availability)
-  }
   live_avail <- .avail_with_remaining(state, avail)
+  if (!is.null(grass_availability)) {
+    result <- .grass_deficit_cascade(result, grass_availability, live_avail)
+  }
   result <- .apply_max_intake_caps(result, live_avail, caps)
   result$demand_dm_t <- demand$demand_dm_t[result$demand_id]
   result$fixed_demand <- demand$fixed_demand[result$demand_id]
   result$scaling_factor <- .compute_scaling(result, demand)
-  result |>
+  diagnosis <- NULL
+  if (!is.null(grass_availability) && !is.null(maintenance_share)) {
+    diagnosis <- .grass_deficit_diagnosis(result, demand, maintenance_share)
+  }
+  out <- result |>
     dplyr::select(
       year,
       territory,
@@ -1141,6 +1164,10 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
       item_cbs_code,
       source_compartment
     )
+  if (!is.null(diagnosis)) {
+    attr(out, "grass_deficit_diagnosis") <- diagnosis
+  }
+  out
 }
 
 .add_zero_rows <- function(result, demand) {
@@ -1266,17 +1293,43 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
   rows[rows$intake_dm_t > 1e-9, , drop = FALSE]
 }
 
-# ---- Cap the unlimited pasture grass at the polity grass availability -------
+# ---- Bounded grass deficit cascade -----------------------------------------
 
 # With options$grass_availability supplied, the otherwise-unlimited pasture
 # grass (item_cbs_code = NA, "6_grassland_unlimited") is bounded by the LPJmL
-# grass supply per (territory, year). Excess is removed pro-rata across the
-# grazer rows, so the affected animals end up underfed (intake < demand): the
-# grass supply "bites" and the shortfall shows as scaling_factor < 1.
-.cap_grass_to_availability <- function(result, grass_availability) {
+# grass supply per (territory, year). The grass deficit then cascades:
+#   1. cap pasture grass at the ceiling (excess removed pro-rata),
+#   2. redistribute the deficit to leftover non-grass availability in the same
+#      polity (limited by it), added as substitution intake,
+#   3. the residual is biologically-feasible underfeeding (intake < demand, so
+#      scaling_factor < 1).
+# A separate maintenance diagnosis (.grass_deficit_diagnosis) flags polities
+# pushed below maintenance.
+.grass_deficit_cascade <- function(result, grass_availability, live_avail) {
+  capped <- .cap_grass_to_availability(
+    result,
+    grass_availability,
+    return_deficit = TRUE
+  )
+  result <- capped$result
+  deficit <- capped$deficit
+  if (is.null(deficit) || nrow(deficit) == 0) {
+    return(result)
+  }
+  .redistribute_grass_deficit(result, deficit, live_avail)
+}
+
+# Cap the pasture grass at the polity ceiling, removing the excess pro-rata.
+# With return_deficit = TRUE, also return the per-grazer reduction (the grass
+# deficit) used by the redistribution step.
+.cap_grass_to_availability <- function(
+  result,
+  grass_availability,
+  return_deficit = FALSE
+) {
   is_pasture <- result$feed_quality == "grass" & is.na(result$item_cbs_code)
   if (!any(is_pasture)) {
-    return(result)
+    return(.cap_return(result, NULL, return_deficit))
   }
   result$row_id <- seq_len(nrow(result))
   pasture <- result[is_pasture, , drop = FALSE]
@@ -1296,7 +1349,7 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
     dplyr::filter(excess > 1e-6)
   if (nrow(totals) == 0) {
     result$row_id <- NULL
-    return(result)
+    return(.cap_return(result, NULL, return_deficit))
   }
   cut <- pasture |>
     dplyr::inner_join(
@@ -1309,7 +1362,135 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
     result$intake_dm_t[cut$row_id] - cut$reduction
   )
   result$row_id <- NULL
-  result
+  deficit <- NULL
+  if (return_deficit) {
+    deficit <- dplyr::select(
+      cut,
+      demand_id,
+      year,
+      territory,
+      sub_territory,
+      livestock_category,
+      reduction
+    )
+  }
+  .cap_return(result, deficit, return_deficit)
+}
+
+.cap_return <- function(result, deficit, return_deficit) {
+  if (return_deficit) {
+    list(result = result, deficit = deficit)
+  } else {
+    result
+  }
+}
+
+# Redistribute the grass deficit to leftover non-grass availability in the same
+# polity (year, territory), pro-rata across the deficit grazers and capped at
+# that leftover. The filled portion is added as substitution intake; the rest
+# stays as underfeeding.
+.redistribute_grass_deficit <- function(result, deficit, live_avail) {
+  leftover <- .leftover_nongrass(live_avail)
+  if (nrow(leftover) == 0) {
+    return(result)
+  }
+  fill <- deficit |>
+    dplyr::left_join(leftover, by = c("year", "territory")) |>
+    dplyr::mutate(leftover = dplyr::coalesce(leftover, 0)) |>
+    dplyr::mutate(
+      terr_deficit = sum(reduction, na.rm = TRUE),
+      .by = c(year, territory)
+    ) |>
+    dplyr::mutate(
+      substitute = dplyr::if_else(
+        terr_deficit > 0,
+        reduction / terr_deficit * pmin(leftover, terr_deficit),
+        0
+      )
+    ) |>
+    dplyr::filter(substitute > 1e-9)
+  if (nrow(fill) == 0) {
+    return(result)
+  }
+  dplyr::bind_rows(result, .grass_substitute_rows(fill))
+}
+
+# Leftover (unallocated) non-grass availability per polity (year, territory).
+# The prepared availability already carries `territory`, so it is grouped
+# directly (no sub_territory -> territory remapping needed).
+.leftover_nongrass <- function(live_avail) {
+  empty <- tibble::tibble(
+    year = integer(),
+    territory = character(),
+    leftover = numeric()
+  )
+  if (is.null(live_avail) || nrow(live_avail) == 0) {
+    return(empty)
+  }
+  live_avail |>
+    dplyr::filter(feed_quality != "grass", avail_remaining > 1e-9) |>
+    dplyr::summarise(
+      leftover = sum(avail_remaining, na.rm = TRUE),
+      .by = c(year, territory)
+    )
+}
+
+# Build the substitution intake rows that fill part of the grass deficit.
+.grass_substitute_rows <- function(fill) {
+  tibble::tibble(
+    demand_id = fill$demand_id,
+    year = fill$year,
+    territory = fill$territory,
+    sub_territory = fill$sub_territory,
+    livestock_category = fill$livestock_category,
+    item_cbs_code = NA_integer_,
+    feed_group = "substitute",
+    feed_quality = "substitute",
+    intake_dm_t = fill$substitute,
+    hierarchy_level = "7_grass_deficit_substitute",
+    requested_item = NA_integer_,
+    source_compartment = fill$sub_territory,
+    avail_id = NA_integer_
+  )
+}
+
+# Diagnose polities pushed below maintenance: total intake < demand x
+# maintenance_share. `maintenance_share` is a scalar fraction or a tibble
+# (livestock_category, maintenance_share). Returns the over-stocked demand rows.
+.grass_deficit_diagnosis <- function(result, demand, maintenance_share) {
+  share <- .maintenance_share_lookup(demand, maintenance_share)
+  result |>
+    dplyr::summarise(
+      intake_dm_t = sum(intake_dm_t, na.rm = TRUE),
+      .by = demand_id
+    ) |>
+    dplyr::inner_join(share, by = "demand_id") |>
+    dplyr::mutate(maintenance_dm_t = demand_dm_t * maintenance_share) |>
+    dplyr::filter(intake_dm_t < maintenance_dm_t - 1e-9) |>
+    dplyr::select(
+      demand_id,
+      livestock_category,
+      demand_dm_t,
+      maintenance_dm_t,
+      intake_dm_t
+    )
+}
+
+# Per-demand maintenance share (scalar broadcast or per-category join).
+.maintenance_share_lookup <- function(demand, maintenance_share) {
+  base <- tibble::tibble(
+    demand_id = demand$demand_id,
+    livestock_category = demand$livestock_category,
+    demand_dm_t = demand$demand_dm_t
+  )
+  if (is.numeric(maintenance_share) && length(maintenance_share) == 1L) {
+    base$maintenance_share <- maintenance_share
+    return(base)
+  }
+  ms <- tibble::as_tibble(maintenance_share)
+  base |>
+    dplyr::left_join(ms, by = "livestock_category") |>
+    dplyr::mutate(maintenance_share = dplyr::coalesce(maintenance_share, 0))
 }
 
 # Normalise supplied grass availability to (year, territory, grass_avail_dm_t).
