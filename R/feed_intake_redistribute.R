@@ -275,3 +275,201 @@
     demand_dm_t = numeric()
   )
 }
+
+# ---- Engine 2: MIX ----------------------------------------------------------
+
+# Split Engine-1's per-category DM total across Bouwman feed types and emit the
+# `redistribute_feed()` `feed_demand` schema. Ports the Spain_Hist `add_feedtypes`
+# mix (feed shares from Bouwman, per livestock_category with a grazer-average
+# fallback for the draft species IPCC/Bouwman does not cover), globalised: the
+# Bouwman region comes from each polity (not a hardcoded "OECD Europe") and the
+# Spain-specific reallocations are dropped. Demand is emitted at feed-type grain
+# (item_cbs_code/feed_group NA); `redistribute_feed` resolves items via its
+# feed_quality matching level.
+.build_feed_mix <- function(demand_total, data = .feed_demand_data()) {
+  if (nrow(demand_total) == 0) {
+    return(.empty_feed_demand())
+  }
+  years <- sort(unique(as.integer(demand_total$year)))
+  shares <- .bouwman_feedtype_shares(data$conv_bouwman, years)
+  grazer_shares <- .grazer_feedtype_shares(shares)
+  region <- .feed_region_lookup(data$polities_cats)
+  # One bridge row per category: a category maps to a single Bouwman class (NA
+  # for draft species). graniv_grazers is NOT a key here (a category can span
+  # several graniv_grazers values, e.g. Other) and keeping it would fan a
+  # category's demand into duplicates.
+  bridge <- dplyr::distinct(data$crosswalk, livestock_category, item_bouwman)
+
+  keyed <- demand_total |>
+    dplyr::mutate(year = as.integer(year), area_code = as.integer(area_code)) |>
+    dplyr::left_join(bridge, by = "livestock_category") |>
+    dplyr::left_join(region, by = "area_code")
+  .warn_dropped_mix(keyed, data$crosswalk)
+
+  keyed |>
+    .join_feedtype_shares(shares, grazer_shares) |>
+    .emit_feed_demand()
+}
+
+# Surface demand that the mix cannot place (so it is never silently lost):
+# categories absent from the crosswalk, and areas with no Bouwman region (whose
+# demand the share join drops to NA and the emit step filters out).
+.warn_dropped_mix <- function(keyed, crosswalk) {
+  unknown <- setdiff(
+    unique(keyed$livestock_category),
+    crosswalk$livestock_category
+  )
+  if (length(unknown) > 0) {
+    n <- length(unknown)
+    cli::cli_warn(c(
+      "Feed mix received {n} livestock categor{?y/ies} not in the crosswalk:
+       {.val {unknown}}.",
+      i = "Treated as draft grazers (no Bouwman class)."
+    ))
+  }
+  no_region <- keyed[is.na(keyed$region_bouwman), , drop = FALSE]
+  if (nrow(no_region) > 0) {
+    areas <- unique(no_region$area_code)
+    dropped <- round(sum(no_region$demand_dm_t, na.rm = TRUE))
+    cli::cli_warn(c(
+      "No Bouwman region for {length(areas)} area{?s} ({.val {areas}}):
+       {dropped} t of feed demand is dropped from the mix.",
+      i = "Map the area{?s} to a Bouwman region in {.field polities_cats}."
+    ))
+  }
+  invisible(NULL)
+}
+
+# Bouwman feed-type shares: the share of each feed type in a livestock product's
+# feed, normalised per (item_bouwman, region, year) from `conv_bouwman` and
+# interpolated to every model year. This is the Spain_Hist `feed_share1` step,
+# without the Spain-specific Pigs->grass reallocation.
+.bouwman_feedtype_shares <- function(conv_bouwman, years) {
+  years <- sort(unique(as.integer(years)))
+  conv <- tibble::as_tibble(conv_bouwman) |>
+    dplyr::rename(feed_type = dplyr::any_of("feedtype")) |>
+    dplyr::rename(region_bouwman = dplyr::any_of("region")) |>
+    dplyr::mutate(year = as.integer(year)) |>
+    dplyr::mutate(
+      dm_share = conversion / sum(conversion, na.rm = TRUE),
+      .by = c(item_bouwman, region_bouwman, year)
+    )
+  all_years <- seq(
+    min(c(years, conv$year), na.rm = TRUE),
+    max(c(years, conv$year), na.rm = TRUE)
+  )
+  conv |>
+    dplyr::select(year, region_bouwman, item_bouwman, feed_type, dm_share) |>
+    tidyr::complete(
+      year = all_years,
+      tidyr::nesting(region_bouwman, item_bouwman, feed_type)
+    ) |>
+    dplyr::arrange(year) |>
+    fill_linear(
+      dm_share,
+      time_col = year,
+      .by = c("region_bouwman", "item_bouwman", "feed_type")
+    ) |>
+    dplyr::filter(year %in% years)
+}
+
+# Grazer-average feed-type shares: the mean Bouwman share across the grazing
+# products (the draft / other species borrow this, as in Spain_Hist).
+.grazer_feedtype_shares <- function(shares) {
+  shares |>
+    dplyr::filter(
+      item_bouwman %in% c("Beef cattle", "Dairy cattle", "Sheep and goats")
+    ) |>
+    dplyr::summarise(
+      dm_share = mean(dm_share, na.rm = TRUE),
+      .by = c(year, region_bouwman, feed_type)
+    )
+}
+
+# Attach the per-feed-type share to each demand row: the product-specific share
+# where the category has a Bouwman class, the grazer-average otherwise.
+.join_feedtype_shares <- function(demand, shares, grazer_shares) {
+  with_bouwman <- demand |>
+    dplyr::filter(!is.na(item_bouwman)) |>
+    dplyr::left_join(
+      shares,
+      by = c("year", "region_bouwman", "item_bouwman"),
+      relationship = "many-to-many"
+    )
+  borrow_grazer <- demand |>
+    dplyr::filter(is.na(item_bouwman)) |>
+    dplyr::left_join(
+      grazer_shares,
+      by = c("year", "region_bouwman"),
+      relationship = "many-to-many"
+    )
+  dplyr::bind_rows(with_bouwman, borrow_grazer)
+}
+
+# Final feed_demand schema for redistribute_feed. Demand stays at feed-type grain
+# (item_cbs_code / feed_group NA); each feed type maps to a representative
+# feed_quality and a fixed_demand flag.
+.emit_feed_demand <- function(mix) {
+  mix |>
+    dplyr::mutate(demand_ft = demand_dm_t * dm_share) |>
+    dplyr::filter(!is.na(feed_type), .data$demand_ft > 0) |>
+    dplyr::left_join(.feedtype_feed_quality(), by = "feed_type") |>
+    dplyr::summarise(
+      demand_dm_t = sum(demand_ft, na.rm = TRUE),
+      .by = c(year, area_code, livestock_category, feed_quality, fixed_demand)
+    ) |>
+    dplyr::transmute(
+      year,
+      territory = as.character(area_code),
+      sub_territory = NA_character_,
+      livestock_category,
+      item_cbs_code = NA_integer_,
+      feed_group = NA_character_,
+      feed_quality,
+      demand_dm_t,
+      fixed_demand
+    )
+}
+
+# Bouwman feed type -> representative redistribute_feed feed_quality + whether
+# demand is fixed (guaranteed met). Each feed type carries items of more than one
+# feed_quality (e.g. crops are mostly high_quality with some low_quality); the
+# representative quality is a documented simplification to refine later. Only
+# grass is fixed (it is met from the bounded grassland sink); other feed types
+# may be underfed when supply is short.
+.feedtype_feed_quality <- function() {
+  tibble::tribble(
+    ~feed_type,
+    ~feed_quality,
+    ~fixed_demand,
+    "grass",
+    "grass",
+    TRUE,
+    "crops",
+    "high_quality",
+    FALSE,
+    "residues",
+    "residues",
+    FALSE,
+    "animals",
+    "high_quality",
+    FALSE,
+    "scavenging",
+    "scavenging",
+    FALSE
+  )
+}
+
+.empty_feed_demand <- function() {
+  tibble::tibble(
+    year = integer(),
+    territory = character(),
+    sub_territory = character(),
+    livestock_category = character(),
+    item_cbs_code = integer(),
+    feed_group = character(),
+    feed_quality = character(),
+    demand_dm_t = numeric(),
+    fixed_demand = logical()
+  )
+}

@@ -244,3 +244,122 @@ test_that("every ruminant cohort has a Global GLEAM weight", {
   missing <- dplyr::anti_join(cats, global_w, by = c("species", "cohort"))
   expect_equal(nrow(missing), 0L)
 })
+
+# Engine 2: MIX ----------------------------------------------------------------
+
+test_that(".bouwman_feedtype_shares sum to 1 per product-region-year", {
+  shares <- whep:::.bouwman_feedtype_shares(whep::conv_bouwman, 1970L)
+  totals <- shares |>
+    dplyr::summarise(
+      tot = sum(dm_share, na.rm = TRUE),
+      .by = c(item_bouwman, region_bouwman, year)
+    )
+  expect_true(all(abs(totals$tot - 1) < 1e-6))
+})
+
+test_that(".feedtype_feed_quality maps the 5 feed types, only grass fixed", {
+  q <- whep:::.feedtype_feed_quality()
+  expect_setequal(
+    q$feed_type,
+    c("grass", "crops", "residues", "animals", "scavenging")
+  )
+  expect_true(q$fixed_demand[q$feed_type == "grass"])
+  expect_false(any(q$fixed_demand[q$feed_type != "grass"]))
+})
+
+test_that(".build_feed_mix conserves the total and emits a valid schema", {
+  region <- whep:::.feed_region_lookup(whep::polities_cats)
+  bouwman_regions <- unique(whep::conv_bouwman$region_bouwman)
+  area <- region$area_code[region$region_bouwman %in% bouwman_regions][1]
+  demand_total <- tibble::tibble(
+    year = 1970L,
+    area_code = area,
+    livestock_category = "Cattle_milk",
+    demand_dm_t = 1000,
+    method_demand = "ipcc_tier2_energy"
+  )
+  out <- whep:::.build_feed_mix(demand_total)
+  expect_setequal(
+    names(out),
+    c(
+      "year",
+      "territory",
+      "sub_territory",
+      "livestock_category",
+      "item_cbs_code",
+      "feed_group",
+      "feed_quality",
+      "demand_dm_t",
+      "fixed_demand"
+    )
+  )
+  # Bouwman shares sum to 1, so the feed-type split conserves the total.
+  expect_equal(sum(out$demand_dm_t), 1000, tolerance = 1e-6)
+  expect_true(all(out$fixed_demand[out$feed_quality == "grass"]))
+  # The emitted table is accepted by redistribute_feed.
+  avail <- tibble::tibble(
+    year = 1970L,
+    territory = unique(out$territory),
+    sub_territory = NA_character_,
+    item_cbs_code = NA_integer_,
+    feed_group = NA_character_,
+    feed_quality = "high_quality",
+    avail_dm_t = 1e6,
+    feed_scale = "national"
+  )
+  expect_no_error(
+    whep::redistribute_feed(
+      out |> dplyr::mutate(fixed_demand = FALSE),
+      avail
+    )
+  )
+})
+
+test_that(".build_feed_mix borrows grazer shares for draft species", {
+  region <- whep:::.feed_region_lookup(whep::polities_cats)
+  bouwman_regions <- unique(whep::conv_bouwman$region_bouwman)
+  area <- region$area_code[region$region_bouwman %in% bouwman_regions][1]
+  demand_total <- tibble::tibble(
+    year = 1970L,
+    area_code = area,
+    livestock_category = "Horses", # no Bouwman class -> grazer-average shares
+    demand_dm_t = 500,
+    method_demand = "krausmann_per_head"
+  )
+  out <- whep:::.build_feed_mix(demand_total)
+  expect_gt(nrow(out), 0L)
+  expect_equal(sum(out$demand_dm_t), 500, tolerance = 1e-6)
+  expect_true("grass" %in% out$feed_quality)
+})
+
+test_that(".build_feed_mix conserves the Other category (no graniv fan-out)", {
+  # Other maps to several graniv_grazers values (Grazers/Bees/Game); the bridge
+  # must not fan its demand into duplicates (a 3x conservation bug).
+  region <- whep:::.feed_region_lookup(whep::polities_cats)
+  bouwman_regions <- unique(whep::conv_bouwman$region_bouwman)
+  area <- region$area_code[region$region_bouwman %in% bouwman_regions][1]
+  demand_total <- tibble::tibble(
+    year = 1970L,
+    area_code = area,
+    livestock_category = "Other",
+    demand_dm_t = 1000,
+    method_demand = "krausmann_per_head"
+  )
+  out <- whep:::.build_feed_mix(demand_total)
+  expect_equal(sum(out$demand_dm_t), 1000, tolerance = 1e-6)
+})
+
+test_that(".build_feed_mix warns and drops demand for an area with no region", {
+  demand_total <- tibble::tibble(
+    year = 1970L,
+    area_code = 999999L,
+    livestock_category = "Cattle_meat",
+    demand_dm_t = 1000,
+    method_demand = "ipcc_tier2_energy"
+  )
+  expect_warning(
+    out <- whep:::.build_feed_mix(demand_total),
+    "dropped from the mix"
+  )
+  expect_equal(nrow(out), 0L)
+})

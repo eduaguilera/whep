@@ -902,7 +902,15 @@ utils::globalVariables(
     "cohort_heads",
     "ge_content_mj_kg_dm",
     "demand_source",
-    "dm_t"
+    "dm_t",
+    # feed_intake_redistribute.R (Engine 2 mix)
+    "region_bouwman",
+    "item_bouwman",
+    "conversion",
+    "dm_share",
+    "feed_type",
+    "graniv_grazers",
+    "demand_ft"
   )
 )
 
