@@ -895,7 +895,14 @@ utils::globalVariables(
     "total_excess",
     "rank",
     "prev",
-    "alloc"
+    "alloc",
+    # feed_intake_redistribute.R (Engine 1 demand)
+    "demand_aft",
+    "method_demand",
+    "cohort_heads",
+    "ge_content_mj_kg_dm",
+    "demand_source",
+    "dm_t"
   )
 )
 

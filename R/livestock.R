@@ -62,5 +62,5 @@ get_feed_intake <- function(
       primary_prod = get_primary_production()
     ))
   }
-  .build_feed_intake_redistribute(grain = grain, demand_tier = demand_tier)
+  .build_redistribute_intake(grain = grain, demand_tier = demand_tier)
 }
