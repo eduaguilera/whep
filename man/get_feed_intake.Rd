@@ -4,11 +4,27 @@
 \alias{get_feed_intake}
 \title{Livestock feed intake}
 \usage{
-get_feed_intake(example = FALSE)
+get_feed_intake(
+  example = FALSE,
+  grain = c("national", "provincial"),
+  demand_tier = c("fcr", "ipcc")
+)
 }
 \arguments{
 \item{example}{If \code{TRUE}, return a small example output without downloading
 remote data. Default is \code{FALSE}.}
+
+\item{grain}{Spatial grain of the feed allocation. \code{"national"} (default, the
+current supply-driven allocator) or \code{"provincial"} (the \code{redistribute_feed}
+engine at 0.5-degree cell grain). The provincial engine is a migration in
+progress and not yet implemented.}
+
+\item{demand_tier}{Demand-estimation tier. \code{"fcr"} (default, Bouwman /
+Krausmann feed-conversion) or \code{"ipcc"} (IPCC Tier-2 energy where it covers
+the species, Krausmann elsewhere). The \code{"ipcc"} tier is a migration in
+progress and not yet implemented. The defaults reproduce the current output
+for back-compatibility; they will switch to the more rigorous tier once the
+new path is built and regression-validated.}
 }
 \value{
 A tibble with the feed intake data.

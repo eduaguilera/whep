@@ -5,6 +5,16 @@
 #'
 #' @param example If `TRUE`, return a small example output without downloading
 #'   remote data. Default is `FALSE`.
+#' @param grain Spatial grain of the feed allocation. `"national"` (default, the
+#'   current supply-driven allocator) or `"provincial"` (the `redistribute_feed`
+#'   engine at 0.5-degree cell grain). The provincial engine is a migration in
+#'   progress and not yet implemented.
+#' @param demand_tier Demand-estimation tier. `"fcr"` (default, Bouwman /
+#'   Krausmann feed-conversion) or `"ipcc"` (IPCC Tier-2 energy where it covers
+#'   the species, Krausmann elsewhere). The `"ipcc"` tier is a migration in
+#'   progress and not yet implemented. The defaults reproduce the current output
+#'   for back-compatibility; they will switch to the more rigorous tier once the
+#'   new path is built and regression-validated.
 #'
 #' @returns
 #' A tibble with the feed intake data.
@@ -36,13 +46,21 @@
 #'
 #' @examples
 #' get_feed_intake(example = TRUE)
-get_feed_intake <- function(example = FALSE) {
+get_feed_intake <- function(
+  example = FALSE,
+  grain = c("national", "provincial"),
+  demand_tier = c("fcr", "ipcc")
+) {
+  grain <- rlang::arg_match(grain)
+  demand_tier <- rlang::arg_match(demand_tier)
   if (example) {
     return(.example_get_feed_intake())
   }
-
-  .build_feed_intake_from_inputs(
-    cbs = get_wide_cbs(),
-    primary_prod = get_primary_production()
-  )
+  if (grain == "national" && demand_tier == "fcr") {
+    return(.build_feed_intake_from_inputs(
+      cbs = get_wide_cbs(),
+      primary_prod = get_primary_production()
+    ))
+  }
+  .build_feed_intake_redistribute(grain = grain, demand_tier = demand_tier)
 }
