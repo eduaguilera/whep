@@ -108,17 +108,42 @@ prod_to_cbs <- whep::items_prod_full |>
   dplyr::filter(!is.na(item_prod_code), !is.na(item_cbs_code)) |>
   dplyr::distinct()
 
+class_lookup <- tibble::as_tibble(class_length) |>
+  dplyr::select(mirca_name, season_months)
+
 mirca_season <- bridge |>
-  dplyr::left_join(
-    tibble::as_tibble(class_length) |> dplyr::select(mirca_name, season_months),
-    by = "mirca_name"
-  ) |>
+  dplyr::left_join(class_lookup, by = "mirca_name") |>
   dplyr::inner_join(prod_to_cbs, by = "item_prod_code") |>
   dplyr::summarise(
     season_months = round(mean(season_months, na.rm = TRUE), 2),
     .by = item_cbs_code
   ) |>
-  dplyr::filter(!is.na(season_months)) |>
+  dplyr::filter(!is.na(season_months))
+
+# Standalone primary-crop CBS codes the Monfreda-FAO-MIRCA bridge misses,
+# because their bridge entry maps a processing/aggregate FAO item to an
+# aggregate CBS code (e.g. coconut prod 249 -> CBS 2560), never reaching the
+# standalone CBS code the harvested data uses (248). Fodder crops (2000-2003)
+# are dropped entirely because their Monfreda bridge rows carry a blank FAO
+# code. Assign each its MIRCA class length directly so it is not left to the
+# median default downstream.
+supplementary <- tibble::tribble(
+  ~item_cbs_code, ~mirca_name,
+  248L, "Others perennial", # Coconuts
+  310L, "Others perennial", # Kapok fruit
+  772L, "Others annual", # Linum (flax fibre)
+  776L, "Others annual", # Hemp
+  2000L, "Fodder grasses", # Fodder cereal/grasses
+  2001L, "Fodder grasses", # Fodder legumes
+  2002L, "Others annual", # Fodder roots and vegetables
+  2003L, "Fodder grasses" # Fodder mix
+) |>
+  dplyr::left_join(class_lookup, by = "mirca_name") |>
+  dplyr::transmute(item_cbs_code, season_months = round(season_months, 2))
+
+mirca_season <- mirca_season |>
+  dplyr::filter(!item_cbs_code %in% supplementary$item_cbs_code) |>
+  dplyr::bind_rows(supplementary) |>
   dplyr::arrange(item_cbs_code)
 
 write_csv(mirca_season, "inst/extdata/mirca_season.csv")

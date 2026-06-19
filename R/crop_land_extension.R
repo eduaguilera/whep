@@ -255,6 +255,10 @@ build_cropgrids_land_extension <- function(
     c("area_code", "item_cbs_code", "physical_ha", "harvested_ha"),
     "cropgrids"
   )
+  # Keep the crop land extension crop-only even when `harvested` is supplied by
+  # a caller (grassland is the separate grass extension; see .grass_item_cbs()).
+  harvested <- harvested |>
+    dplyr::filter(!as.integer(.data$item_cbs_code) %in% .grass_item_cbs())
 
   area_ratio <- cropgrids |>
     dplyr::filter(.data$harvested_ha > 0) |>
@@ -326,15 +330,19 @@ build_cropgrids_land_extension <- function(
 #'
 #' @param physical Tibble of a per-crop physical land extension with columns
 #'   `year`, `area_code`, `item_cbs_code`, `impact_u` (physical hectares), as
-#'   returned by [build_cropgrids_land_extension()]. If `NULL`, built from
-#'   `base`.
+#'   returned by [build_cropgrids_land_extension()]. Must be pre-aggregated to
+#'   one row per `(year, area_code, item_cbs_code)`; duplicate keys are carried
+#'   through unchanged. If `NULL`, built from `base`.
 #' @param cropland Tibble of national cropland with columns `area_code`, `year`,
 #'   `cropland_ha`, used only when `conserve = "cropland"`. If `NULL`, the
-#'   packaged FAOSTAT cropland table is used. Where a `(year, area_code)` value
-#'   is missing, the crops' own physical total is used instead.
+#'   packaged FAOSTAT cropland table is used. FAOSTAT cropland starts in 1961;
+#'   for `(year, area_code)` with no value (e.g. pre-1961 years, residual
+#'   Rest-of-World) the crops' own physical total is used instead, with a
+#'   warning.
 #' @param season Tibble of mean crop cycle length with columns `item_cbs_code`,
-#'   `season_months`. If `NULL`, the packaged MIRCA2000 season table is used.
-#'   Crops with no season are given the median cycle length.
+#'   `season_months` (strictly positive, unique keys). If `NULL`, the packaged
+#'   MIRCA2000 season table is used. Crops with no season are given the median
+#'   cycle length.
 #' @param base Which physical extension to build when `physical` is `NULL`:
 #'   `"cropgrids_fallow"` (default, fallow-inclusive) or `"cropgrids"`. Recorded
 #'   in `method_land` as `<base>_hayr`.
@@ -342,7 +350,8 @@ build_cropgrids_land_extension <- function(
 #'   `"cropland"`. See details.
 #' @param scale_bounds Length-2 numeric `c(lo, hi)` clamping the
 #'   cropland/physical scaling when `conserve = "cropland"`. Defaults to
-#'   `c(0.5, 2)`.
+#'   `c(0.5, 2)`. Country-years hitting a bound do not conserve exactly to
+#'   cropland (they land at `lo`/`hi` times physical area).
 #'
 #' @return A tibble with columns `year`, `area_code`, `item_cbs_code`,
 #'   `impact_u` (land occupation in hectare-years), and `method_land`.
@@ -384,13 +393,9 @@ build_hayr_land_extension <- function(
     "physical"
   )
   .check_required_cols(season, c("item_cbs_code", "season_months"), "season")
-
-  default_months <- stats::median(season$season_months, na.rm = TRUE)
-  season <- season |>
-    dplyr::transmute(
-      item_cbs_code = as.integer(.data$item_cbs_code),
-      season_months = as.numeric(.data$season_months)
-    )
+  prepared <- .prepare_hayr_season(season)
+  season <- prepared$season
+  default_months <- prepared$default_months
 
   weighted <- physical |>
     dplyr::transmute(
@@ -414,10 +419,12 @@ build_hayr_land_extension <- function(
 
   weighted |>
     dplyr::mutate(
-      impact_u = dplyr::if_else(
-        .data$weight_total > 0,
-        .data$target_total * .data$weight / .data$weight_total,
-        0
+      impact_u = dplyr::case_when(
+        .data$weight_total > 0 ~
+          .data$target_total * .data$weight / .data$weight_total,
+        .data$physical_total > 0 ~
+          .data$target_total * .data$physical_ha / .data$physical_total,
+        .default = 0
       ),
       method_land = paste0(base, "_hayr")
     ) |>
@@ -511,11 +518,11 @@ attribute_fallow_to_crops <- function(cropgrids, fallow_total, alloc_weight) {
       fallow_ha = tidyr::replace_na(.data$fallow_ha, 0)
     ) |>
     dplyr::mutate(
-      Wsum = sum(.data$weight, na.rm = TRUE),
+      weight_sum = sum(.data$weight, na.rm = TRUE),
       physical_ha = .data$physical_ha +
         dplyr::if_else(
-          .data$Wsum > 0,
-          .data$fallow_ha * .data$weight / .data$Wsum,
+          .data$weight_sum > 0,
+          .data$fallow_ha * .data$weight / .data$weight_sum,
           0
         ),
       .by = area_code
@@ -649,15 +656,20 @@ gridded_fallow_weights <- function(
   readr::read_csv(path, show_col_types = FALSE)
 }
 
-.harvested_area_by_cbs <- function(primary_prod) {
-  # Grassland items (group "Grass", e.g. item_cbs 3000/3002/3003) carry an area
-  # in hectares too, but are not crops: their land is the separate grassland
-  # extension. Excluding them here keeps the crop land extension crop-only and
-  # avoids duplicate keys when crop and grass extensions are combined.
-  grass_items <- whep::items_full |>
+# Grassland items (group "Grass", e.g. item_cbs 3000/3002/3003) carry an area
+# in hectares too, but are not crops: their land is the separate grassland
+# extension. Excluding them keeps the crop land extension crop-only and avoids
+# duplicate keys when crop and grass extensions are combined.
+.grass_item_cbs <- function() {
+  whep::items_full |>
     dplyr::filter(.data$group == "Grass") |>
     dplyr::pull(.data$item_cbs_code) |>
-    unique()
+    unique() |>
+    as.integer()
+}
+
+.harvested_area_by_cbs <- function(primary_prod) {
+  grass_items <- .grass_item_cbs()
   primary_prod |>
     dplyr::filter(
       .data$unit == "ha",
@@ -686,6 +698,31 @@ gridded_fallow_weights <- function(
   readr::read_csv(path, show_col_types = FALSE)
 }
 
+# Validate and normalise the season table: unique keys, strictly positive
+# lengths, and a usable median fallback for crops with no MIRCA season.
+.prepare_hayr_season <- function(season) {
+  season <- season |>
+    dplyr::transmute(
+      item_cbs_code = as.integer(.data$item_cbs_code),
+      season_months = as.numeric(.data$season_months)
+    )
+  if (anyDuplicated(season$item_cbs_code) > 0) {
+    cli::cli_abort("{.arg season} has duplicate {.field item_cbs_code} values.")
+  }
+  if (any(season$season_months <= 0, na.rm = TRUE)) {
+    cli::cli_abort(
+      "{.arg season} {.field season_months} must be strictly positive."
+    )
+  }
+  default_months <- stats::median(season$season_months, na.rm = TRUE)
+  if (!is.finite(default_months)) {
+    cli::cli_abort(
+      "{.arg season} has no usable {.field season_months} (empty or all NA)."
+    )
+  }
+  list(season = season, default_months = default_months)
+}
+
 # Add a `target_total` column = the national total the occupation is conserved
 # to. "physical" keeps the crops' own physical total; "cropland" scales to
 # FAOSTAT cropland, clamped to scale_bounds to bound coverage-driven inflation.
@@ -707,10 +744,11 @@ gridded_fallow_weights <- function(
       year = as.integer(.data$year),
       cropland_ha = as.numeric(.data$cropland_ha)
     )
+  joined <- dplyr::left_join(weighted, cropland, by = c("year", "area_code"))
+  .warn_missing_cropland(joined)
   lo <- min(scale_bounds)
   hi <- max(scale_bounds)
-  weighted |>
-    dplyr::left_join(cropland, by = c("year", "area_code")) |>
+  joined |>
     dplyr::mutate(
       scale = dplyr::if_else(
         .data$physical_total > 0 & !is.na(.data$cropland_ha),
@@ -719,6 +757,24 @@ gridded_fallow_weights <- function(
       ),
       target_total = .data$scale * .data$physical_total
     )
+}
+
+# Methods are not silent fallbacks: warn which (year, area) groups lack FAOSTAT
+# cropland and therefore conserve to physical instead (e.g. pre-1961, RoW).
+.warn_missing_cropland <- function(joined) {
+  missing <- joined |>
+    dplyr::filter(.data$physical_total > 0, is.na(.data$cropland_ha)) |>
+    dplyr::distinct(.data$year, .data$area_code)
+  if (nrow(missing) == 0L) {
+    return(invisible(NULL))
+  }
+  yrs <- range(missing$year)
+  cli::cli_warn(c(
+    "!" = "{nrow(missing)} (year, area) group{?s} have no FAOSTAT cropland;
+      conserving them to physical area instead (years {yrs[1]}-{yrs[2]}).",
+    "i" = "FAOSTAT cropland starts in 1961; pre-1961 years and uncovered
+      areas (e.g. RoW) always conserve to physical."
+  ))
 }
 
 # --- Fallback patterns for crops absent from crop_patterns --------------------

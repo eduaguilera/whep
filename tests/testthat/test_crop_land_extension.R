@@ -302,6 +302,74 @@ test_that("build_hayr_land_extension validates physical columns", {
   )
 })
 
+test_that("build_hayr_land_extension rejects a degenerate season table", {
+  physical <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~impact_u,
+    2000L, 1L, 2807L, 100
+  )
+  expect_error(
+    whep::build_hayr_land_extension(
+      physical,
+      season = tibble::tibble(
+        item_cbs_code = integer(0),
+        season_months = numeric(0)
+      )
+    ),
+    "no usable"
+  )
+  expect_error(
+    whep::build_hayr_land_extension(
+      physical,
+      season = tibble::tribble(~item_cbs_code, ~season_months, 2807L, 5, 2807L, 6)
+    ),
+    "duplicate"
+  )
+  expect_error(
+    whep::build_hayr_land_extension(
+      physical,
+      season = tibble::tribble(~item_cbs_code, ~season_months, 2807L, 0)
+    ),
+    "positive"
+  )
+})
+
+test_that("build_hayr_land_extension warns and falls back on missing cropland", {
+  physical <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~impact_u,
+    1950L, 1L, 2807L, 100,
+    2000L, 1L, 2807L, 100
+  )
+  cropland <- tibble::tribble(~year, ~area_code, ~cropland_ha, 2000L, 1L, 80)
+  season <- tibble::tribble(~item_cbs_code, ~season_months, 2807L, 5)
+  expect_warning(
+    res <- whep::build_hayr_land_extension(
+      physical,
+      cropland,
+      season,
+      conserve = "cropland"
+    ),
+    "no FAOSTAT cropland"
+  )
+  # 1950 has no cropland -> conserves to physical (100); 2000 scales to 80
+  expect_equal(res$impact_u[res$year == 1950L], 100)
+  expect_equal(res$impact_u[res$year == 2000L], 80)
+})
+
+test_that("build_cropgrids_land_extension drops grass items from crop land", {
+  harvested <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~harvested_ha,
+    2000L, 33L, 2511L, 1000,
+    2000L, 33L, 3000L, 5000 # grassland -> separate grass extension, must drop
+  )
+  cropgrids <- tibble::tribble(
+    ~area_code, ~item_cbs_code, ~physical_ha, ~harvested_ha,
+    33L, 2511L, 990, 1000
+  )
+  res <- whep::build_cropgrids_land_extension(harvested, cropgrids)
+  expect_false(3000L %in% res$item_cbs_code)
+  expect_equal(res$item_cbs_code, 2511L)
+})
+
 test_that("gridded_fallow_weights scores rainfed crops by agro-climatic zone", {
   gridded_crops <- tibble::tribble(
     ~lon, ~lat, ~area_code, ~item_cbs_code, ~rainfed_ha,

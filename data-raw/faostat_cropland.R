@@ -44,7 +44,10 @@ faostat_cropland <- cropland[, c("Area Code", year_cols), with = FALSE] |>
     year = as.integer(sub("^Y", "", year)),
     cropland_ha = cropland_1000ha * 1000
   ) |>
-  dplyr::filter(!is.na(cropland_ha), cropland_ha > 0) |>
+  # Drop FAOSTAT aggregate regions (World, continents, economic groupings; all
+  # area_code >= 5000). Real FAOSTAT country codes are < 1000 and match WHEP
+  # area_code; aggregates would silently double-count if ever summed.
+  dplyr::filter(!is.na(cropland_ha), cropland_ha > 0, area_code < 1000) |>
   dplyr::arrange(area_code, year)
 
 write_csv(faostat_cropland, "inst/extdata/faostat_cropland.csv")

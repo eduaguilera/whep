@@ -16,17 +16,21 @@ build_hayr_land_extension(
 \arguments{
 \item{physical}{Tibble of a per-crop physical land extension with columns
 \code{year}, \code{area_code}, \code{item_cbs_code}, \code{impact_u} (physical hectares), as
-returned by \code{\link[=build_cropgrids_land_extension]{build_cropgrids_land_extension()}}. If \code{NULL}, built from
-\code{base}.}
+returned by \code{\link[=build_cropgrids_land_extension]{build_cropgrids_land_extension()}}. Must be pre-aggregated to
+one row per \verb{(year, area_code, item_cbs_code)}; duplicate keys are carried
+through unchanged. If \code{NULL}, built from \code{base}.}
 
 \item{cropland}{Tibble of national cropland with columns \code{area_code}, \code{year},
 \code{cropland_ha}, used only when \code{conserve = "cropland"}. If \code{NULL}, the
-packaged FAOSTAT cropland table is used. Where a \verb{(year, area_code)} value
-is missing, the crops' own physical total is used instead.}
+packaged FAOSTAT cropland table is used. FAOSTAT cropland starts in 1961;
+for \verb{(year, area_code)} with no value (e.g. pre-1961 years, residual
+Rest-of-World) the crops' own physical total is used instead, with a
+warning.}
 
 \item{season}{Tibble of mean crop cycle length with columns \code{item_cbs_code},
-\code{season_months}. If \code{NULL}, the packaged MIRCA2000 season table is used.
-Crops with no season are given the median cycle length.}
+\code{season_months} (strictly positive, unique keys). If \code{NULL}, the packaged
+MIRCA2000 season table is used. Crops with no season are given the median
+cycle length.}
 
 \item{base}{Which physical extension to build when \code{physical} is \code{NULL}:
 \code{"cropgrids_fallow"} (default, fallow-inclusive) or \code{"cropgrids"}. Recorded
@@ -37,7 +41,8 @@ in \code{method_land} as \verb{<base>_hayr}.}
 
 \item{scale_bounds}{Length-2 numeric \code{c(lo, hi)} clamping the
 cropland/physical scaling when \code{conserve = "cropland"}. Defaults to
-\code{c(0.5, 2)}.}
+\code{c(0.5, 2)}. Country-years hitting a bound do not conserve exactly to
+cropland (they land at \code{lo}/\code{hi} times physical area).}
 }
 \value{
 A tibble with columns \code{year}, \code{area_code}, \code{item_cbs_code},
