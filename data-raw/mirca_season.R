@@ -121,7 +121,10 @@ class_lookup <- tibble::as_tibble(class_length) |>
 # collapse of several production items into one commodity-balance item so a
 # dominant crop sets the code's cycle length rather than a tiny "nes" sibling
 # (e.g. sugar beet, not "sugar crops nes"). Items with no area still contribute
-# minimally via the +1 floor.
+# minimally via the +1 floor. NOTE: this couples the shipped CSV to the
+# get_primary_production() pin snapshot at generation time; only the ~30
+# multi-item codes are sensitive, and the effect on final ha-yr is second-order
+# (season enters as a within-country relative weight, renormalized to a total).
 prod_area <- whep::get_primary_production() |>
   dplyr::filter(unit == "ha", !is.na(value)) |>
   dplyr::summarise(
@@ -161,7 +164,9 @@ supplementary <- tibble::tribble(
   2001L, "Fodder grasses", # Fodder legumes
   2002L, "Others annual", # Fodder roots and vegetables
   2003L, "Fodder grasses", # Fodder mix
-  2535L, "Cassava" # Yams (long-cycle root/tuber, not a short annual)
+  2535L, "Cassava", # Yams (long-cycle root/tuber, not a short annual)
+  2665L, "Others perennial", # Sisal (perennial fibre; MIRCA labels it annual)
+  2666L, "Others perennial" # Abaca (perennial fibre; MIRCA labels it annual)
 ) |>
   dplyr::left_join(class_lookup, by = "mirca_name") |>
   dplyr::transmute(item_cbs_code, season_months = round(season_months, 2))

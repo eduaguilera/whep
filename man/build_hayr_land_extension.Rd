@@ -54,7 +54,8 @@ A tibble with columns \code{year}, \code{area_code}, \code{item_cbs_code},
 Convert a per-crop \emph{physical area} extension (hectares) into a per-crop
 \emph{land occupation} extension (hectare-years) by weighting each crop's area by
 the share of the year it occupies the field, then renormalizing within each
-\verb{(year, area_code)} so the crops sum to the country's physical cropland.
+\verb{(year, area_code)} to a conserved national total (the crops' physical total
+by default, or FAOSTAT cropland with \code{conserve = "cropland"}).
 
 Physical area treats one hectare cropped once and one hectare double-cropped
 identically, and counts a field shared by two crops in a season twice. The

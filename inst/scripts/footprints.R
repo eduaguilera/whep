@@ -33,9 +33,12 @@ if (is.na(usable_grass_yield_dm_t_ha) || usable_grass_yield_dm_t_ha <= 0) {
 #   "cropgrids_fallow" as "cropgrids" plus rotational fallow attributed to crops
 #                      (FAOSTAT temporary fallow split by rainfed x propensity)
 #   "hayr"             land occupation in hectare-years: the cropgrids_fallow
-#                      physical area weighted by each crop's MIRCA cycle length
-#                      and renormalized to FAOSTAT cropland (long-cycle/perennial
-#                      crops gain land, short-cycle crops lose it)
+#                      physical area weighted by each crop's MIRCA cycle length,
+#                      conserving the cropgrids_fallow physical total (a pure
+#                      occupation-time reweighting; long-cycle/perennial crops
+#                      gain land, short-cycle crops lose it). Pass
+#                      conserve = "cropland" to build_hayr_land_extension() to
+#                      instead renormalize to FAOSTAT cropland.
 # Non-"land_fp" sources take crop land from the chosen method and grassland from
 # the land_fp pin.
 crop_land_source <- tolower(

@@ -334,7 +334,8 @@ build_cropgrids_land_extension <- function(
 #' Convert a per-crop *physical area* extension (hectares) into a per-crop
 #' *land occupation* extension (hectare-years) by weighting each crop's area by
 #' the share of the year it occupies the field, then renormalizing within each
-#' `(year, area_code)` so the crops sum to the country's physical cropland.
+#' `(year, area_code)` to a conserved national total (the crops' physical total
+#' by default, or FAOSTAT cropland with `conserve = "cropland"`).
 #'
 #' Physical area treats one hectare cropped once and one hectare double-cropped
 #' identically, and counts a field shared by two crops in a season twice. The

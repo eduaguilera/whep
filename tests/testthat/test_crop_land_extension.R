@@ -59,7 +59,7 @@ test_that("intensity_divide divides harvested by multi-cropping factor", {
     multicropping = multicropping
   )
 
-  # 600 / 2 (rainfed) + 200 / 1 (irrigated) = 500
+  # rainfed 600 at intensity 2 plus irrigated 200 at intensity 1 gives 500
   expect_equal(res$impact_u, 500)
   expect_true(all(res$method_land == "intensity_divide"))
 })
@@ -143,8 +143,8 @@ test_that("build_cropgrids_land_extension applies per-crop physical ratio", {
     33L, 2807L, 400, 500
   )
   res <- whep::build_cropgrids_land_extension(harvested, cropgrids)
-  expect_equal(res$impact_u[res$item_cbs_code == 2511L], 990) # 1000 * 0.99
-  expect_equal(res$impact_u[res$item_cbs_code == 2807L], 400) # 500 * 0.80
+  expect_equal(res$impact_u[res$item_cbs_code == 2511L], 990) # ratio 0.99 of 1000
+  expect_equal(res$impact_u[res$item_cbs_code == 2807L], 400) # ratio 0.80 of 500
   expect_true(all(res$method_land == "cropgrids"))
 })
 
@@ -190,7 +190,7 @@ test_that("attribute_fallow_to_crops distributes fallow by allocation weight", {
     1L, 2807L, 0
   )
   res <- whep::attribute_fallow_to_crops(cropgrids, fallow_total, alloc_weight)
-  expect_equal(res$physical_ha[res$item_cbs_code == 2511L], 700) # 500 + 200
+  expect_equal(res$physical_ha[res$item_cbs_code == 2511L], 700) # 500 cropped plus 200 fallow
   expect_equal(res$physical_ha[res$item_cbs_code == 2807L], 400)
   expect_equal(sum(res$physical_ha), 900 + 200)
 })
@@ -417,8 +417,8 @@ test_that("build_hayr_land_extension drops grass and non-positive physical", {
   physical <- tibble::tribble(
     ~year, ~area_code, ~item_cbs_code, ~impact_u,
     2000L, 1L, 2511L, 100,
-    2000L, 1L, 3000L, 100, # grass -> dropped
-    2000L, 1L, 2807L, -50 # negative -> dropped
+    2000L, 1L, 3000L, 100, # grassland item, excluded
+    2000L, 1L, 2807L, -50 # negative area, excluded
   )
   season <- tibble::tribble(
     ~item_cbs_code, ~season_months,
@@ -456,8 +456,8 @@ test_that("gridded_fallow_weights scores rainfed crops by agro-climatic zone", {
     2536L, "arid", 0.1
   )
   w <- whep::gridded_fallow_weights(gridded_crops, grid_aez, propensity)
-  expect_equal(w$weight[w$item_cbs_code == 2511L], 100) # 100 * 1.0
-  expect_equal(w$weight[w$item_cbs_code == 2536L], 10) # 100 * 0.1
+  expect_equal(w$weight[w$item_cbs_code == 2511L], 100) # 100 ha at propensity 1.0
+  expect_equal(w$weight[w$item_cbs_code == 2536L], 10) # 100 ha at propensity 0.1
 })
 
 test_that("gridded_fallow_weights uses the cell's agro-climatic zone", {
@@ -469,8 +469,8 @@ test_that("gridded_fallow_weights uses the cell's agro-climatic zone", {
   )
   grid_aez <- tibble::tribble(
     ~lon, ~lat, ~lgp, ~thermal,
-    0.25, 50.25, 60, 7L, # arid (LGP < 90)
-    0.75, 50.25, 320, 7L # humid (LGP >= 270)
+    0.25, 50.25, 60, 7L, # arid zone, LGP below 90
+    0.75, 50.25, 320, 7L # humid zone, LGP at least 270
   )
   propensity <- tibble::tribble(
     ~item_cbs_code, ~zone, ~fallow_propensity,
