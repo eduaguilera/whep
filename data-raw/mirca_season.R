@@ -14,10 +14,16 @@
 # "Others perennial" (~12 mo); perennials (oil palm, citrus, cocoa, coffee,
 # grapes, sugar cane) come out at the full 12 months, as they should.
 #
+# Citation: MIRCA2000 v1.1, Portmann, Siebert & Doll (2010), Global
+# Biogeochemical Cycles 24, GB1011 (https://www.uni-frankfurt.de/45218023/MIRCA).
+# Crosswalk: Monfreda et al. (2008) crop-to-FAOSTAT-to-MIRCA table.
+#
 # Inputs (paths via env vars, defaulting to the local LandInG tree):
 #   WHEP_MIRCA_DIR        condensed_cropping_calendars/ directory
 #   WHEP_MIRCA_NAMES      mirca_names.txt (class order = class number)
 #   WHEP_MIRCA_BRIDGE     crop_types_Monfreda_FAOSTAT_MIRCA.csv
+# Also calls get_primary_production() (remote pins) for per-item harvested area
+# used to area-weight the production-item -> commodity-balance-item collapse.
 
 library(data.table)
 library(readr)
@@ -111,11 +117,26 @@ prod_to_cbs <- whep::items_prod_full |>
 class_lookup <- tibble::as_tibble(class_length) |>
   dplyr::select(mirca_name, season_months)
 
+# Harvested area per FAO production item (all years), used to area-weight the
+# collapse of several production items into one commodity-balance item so a
+# dominant crop sets the code's cycle length rather than a tiny "nes" sibling
+# (e.g. sugar beet, not "sugar crops nes"). Items with no area still contribute
+# minimally via the +1 floor.
+prod_area <- whep::get_primary_production() |>
+  dplyr::filter(unit == "ha", !is.na(value)) |>
+  dplyr::summarise(
+    prod_area = sum(value, na.rm = TRUE),
+    .by = item_prod_code
+  ) |>
+  dplyr::mutate(item_prod_code = as.integer(item_prod_code))
+
 mirca_season <- bridge |>
   dplyr::left_join(class_lookup, by = "mirca_name") |>
   dplyr::inner_join(prod_to_cbs, by = "item_prod_code") |>
+  dplyr::left_join(prod_area, by = "item_prod_code") |>
+  dplyr::mutate(w = dplyr::coalesce(prod_area, 0) + 1) |>
   dplyr::summarise(
-    season_months = round(mean(season_months, na.rm = TRUE), 2),
+    season_months = round(sum(season_months * w) / sum(w), 2),
     .by = item_cbs_code
   ) |>
   dplyr::filter(!is.na(season_months))
@@ -127,6 +148,9 @@ mirca_season <- bridge |>
 # are dropped entirely because their Monfreda bridge rows carry a blank FAO
 # code. Assign each its MIRCA class length directly so it is not left to the
 # median default downstream.
+# Yams (2535) are mapped by the bridge to "Others annual" (4.66 mo), far short
+# of their documented 8-11 month cycle (FAO); assign the long-cycle root/tuber
+# length (MIRCA "Cassava" class, ~8 mo) instead of inventing a figure.
 supplementary <- tibble::tribble(
   ~item_cbs_code, ~mirca_name,
   248L, "Others perennial", # Coconuts
@@ -136,7 +160,8 @@ supplementary <- tibble::tribble(
   2000L, "Fodder grasses", # Fodder cereal/grasses
   2001L, "Fodder grasses", # Fodder legumes
   2002L, "Others annual", # Fodder roots and vegetables
-  2003L, "Fodder grasses" # Fodder mix
+  2003L, "Fodder grasses", # Fodder mix
+  2535L, "Cassava" # Yams (long-cycle root/tuber, not a short annual)
 ) |>
   dplyr::left_join(class_lookup, by = "mirca_name") |>
   dplyr::transmute(item_cbs_code, season_months = round(season_months, 2))

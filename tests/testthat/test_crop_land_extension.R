@@ -370,6 +370,79 @@ test_that("build_cropgrids_land_extension drops grass items from crop land", {
   expect_equal(res$item_cbs_code, 2511L)
 })
 
+test_that("build_cropgrids_land_extension warns on the ratio=1 coverage fallback", {
+  # two absent items, so the cli pluralization + vector listing is exercised
+  harvested <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~harvested_ha,
+    2000L, 33L, 2511L, 1000,
+    2000L, 33L, 2050L, 1000, # absent from cropgrids -> ratio 1 fallback
+    2000L, 33L, 2051L, 1000 # absent from cropgrids -> ratio 1 fallback
+  )
+  cropgrids <- tibble::tribble(
+    ~area_code, ~item_cbs_code, ~physical_ha, ~harvested_ha,
+    33L, 2511L, 990, 1000
+  )
+  expect_warning(
+    res <- whep::build_cropgrids_land_extension(harvested, cropgrids),
+    "absent from"
+  )
+  expect_equal(res$impact_u[res$item_cbs_code == 2050L], 1000)
+})
+
+test_that("build_crop_land_extension drops grass items", {
+  gridded_crops <- tibble::tribble(
+    ~lon, ~lat, ~year, ~area_code, ~item_prod_code, ~rainfed_ha, ~irrigated_ha,
+    0.25, 50.25, 2000L, 1L, 15L, 600, 0,
+    0.25, 50.25, 2000L, 1L, 99L, 400, 0
+  )
+  gridded_cropland <- tibble::tribble(
+    ~lon, ~lat, ~year, ~cropland_ha,
+    0.25, 50.25, 2000L, 1000
+  )
+  items <- tibble::tribble(
+    ~item_prod_code, ~item_cbs_code,
+    15L, 2511L,
+    99L, 3000L # grassland -> must be dropped
+  )
+  res <- whep::build_crop_land_extension(
+    gridded_crops,
+    gridded_cropland,
+    items_prod_full = items
+  )
+  expect_false(3000L %in% res$item_cbs_code)
+  expect_equal(res$item_cbs_code, 2511L)
+})
+
+test_that("build_hayr_land_extension drops grass and non-positive physical", {
+  physical <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~impact_u,
+    2000L, 1L, 2511L, 100,
+    2000L, 1L, 3000L, 100, # grass -> dropped
+    2000L, 1L, 2807L, -50 # negative -> dropped
+  )
+  season <- tibble::tribble(
+    ~item_cbs_code, ~season_months,
+    2511L, 8, 3000L, 12, 2807L, 5
+  )
+  res <- whep::build_hayr_land_extension(physical, season = season)
+  expect_equal(res$item_cbs_code, 2511L)
+  expect_equal(sum(res$impact_u), 100)
+})
+
+test_that("build_hayr_land_extension warns when a crop has no MIRCA season", {
+  physical <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~impact_u,
+    2000L, 1L, 2511L, 100,
+    2000L, 1L, 9998L, 100, # no season row -> median default
+    2000L, 1L, 9999L, 100 # no season row -> median default
+  )
+  season <- tibble::tribble(~item_cbs_code, ~season_months, 2511L, 8)
+  expect_warning(
+    whep::build_hayr_land_extension(physical, season = season),
+    "no MIRCA season"
+  )
+})
+
 test_that("gridded_fallow_weights scores rainfed crops by agro-climatic zone", {
   gridded_crops <- tibble::tribble(
     ~lon, ~lat, ~area_code, ~item_cbs_code, ~rainfed_ha,

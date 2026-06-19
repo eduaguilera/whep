@@ -18,7 +18,8 @@ build_hayr_land_extension(
 \code{year}, \code{area_code}, \code{item_cbs_code}, \code{impact_u} (physical hectares), as
 returned by \code{\link[=build_cropgrids_land_extension]{build_cropgrids_land_extension()}}. Must be pre-aggregated to
 one row per \verb{(year, area_code, item_cbs_code)}; duplicate keys are carried
-through unchanged. If \code{NULL}, built from \code{base}.}
+through unchanged. Grass items and non-positive \code{impact_u} rows are dropped.
+If \code{NULL}, built from \code{base}.}
 
 \item{cropland}{Tibble of national cropland with columns \code{area_code}, \code{year},
 \code{cropland_ha}, used only when \code{conserve = "cropland"}. If \code{NULL}, the
@@ -33,8 +34,9 @@ MIRCA2000 season table is used. Crops with no season are given the median
 cycle length.}
 
 \item{base}{Which physical extension to build when \code{physical} is \code{NULL}:
-\code{"cropgrids_fallow"} (default, fallow-inclusive) or \code{"cropgrids"}. Recorded
-in \code{method_land} as \verb{<base>_hayr}.}
+\code{"cropgrids_fallow"} (default, fallow-inclusive) or \code{"cropgrids"}. Always
+recorded in \code{method_land} as \verb{<base>_hayr}; when \code{physical} is supplied
+directly, \code{base} is only this label and is not validated against the data.}
 
 \item{conserve}{National total to conserve to: \code{"physical"} (default) or
 \code{"cropland"}. See details.}

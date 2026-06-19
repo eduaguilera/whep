@@ -45,6 +45,11 @@ harvested ratio to WHEP harvested area in each year:
 Note: CROPGRIDS physical area is the land where each crop actually grows; it
 excludes fallow land (unlike fallow-inclusive cropland-apportionment), so
 totals are typically a few percent below harvested area.
+
+Coverage: crops absent from CROPGRIDS (notably the FAOSTAT fodder items and a
+few minor crops) have no physical/harvested ratio and fall back to a ratio of
+1 (physical = harvested, no multi-cropping correction). The share of
+harvested area hitting this fallback is reported via a warning.
 }
 \examples{
 harvested <- tibble::tribble(

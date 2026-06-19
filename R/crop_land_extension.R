@@ -205,6 +205,11 @@ get_crop_land_extension <- function(
 #' excludes fallow land (unlike fallow-inclusive cropland-apportionment), so
 #' totals are typically a few percent below harvested area.
 #'
+#' Coverage: crops absent from CROPGRIDS (notably the FAOSTAT fodder items and a
+#' few minor crops) have no physical/harvested ratio and fall back to a ratio of
+#' 1 (physical = harvested, no multi-cropping correction). The share of
+#' harvested area hitting this fallback is reported via a warning.
+#'
 #' @param harvested Tibble of harvested area with columns `year`, `area_code`,
 #'   `item_cbs_code`, `harvested_ha`. If `NULL`, built from
 #'   [get_primary_production()] (`unit == "ha"`).
@@ -275,13 +280,16 @@ build_cropgrids_land_extension <- function(
     ) |>
     dplyr::mutate(item_cbs_code = as.integer(.data$item_cbs_code))
 
-  harvested |>
+  joined <- harvested |>
     dplyr::mutate(
       area_code = as.integer(.data$area_code),
       item_cbs_code = as.integer(.data$item_cbs_code)
     ) |>
     dplyr::left_join(area_ratio, by = c("area_code", "item_cbs_code")) |>
-    dplyr::left_join(global_ratio, by = "item_cbs_code") |>
+    dplyr::left_join(global_ratio, by = "item_cbs_code")
+  .warn_ratio_fallback(joined)
+
+  joined |>
     dplyr::mutate(
       ratio = dplyr::coalesce(.data$ratio, .data$ratio_global, 1),
       impact_u = .data$harvested_ha * .data$ratio,
@@ -295,6 +303,29 @@ build_cropgrids_land_extension <- function(
       impact_u = .data$impact_u,
       method_land = .data$method_land
     )
+}
+
+# Crops absent from CROPGRIDS get no physical/harvested ratio and fall back to
+# 1 (physical = harvested, no multi-cropping correction). Surface that share so
+# the fallback is a recorded choice rather than a silent assumption.
+.warn_ratio_fallback <- function(joined) {
+  total <- sum(joined$harvested_ha[joined$harvested_ha > 0], na.rm = TRUE)
+  miss <- joined |>
+    dplyr::filter(
+      is.na(.data$ratio),
+      is.na(.data$ratio_global),
+      .data$harvested_ha > 0
+    )
+  if (nrow(miss) == 0L || total <= 0) {
+    return(invisible(NULL))
+  }
+  share <- round(100 * sum(miss$harvested_ha, na.rm = TRUE) / total, 1)
+  items <- sort(unique(miss$item_cbs_code))
+  cli::cli_warn(c(
+    "!" = "{share}% of harvested area in {length(items)} crop{?s} absent from
+      CROPGRIDS charged its full harvested area as physical (ratio 1).",
+    "i" = "Affected item_cbs_code values: {items}."
+  ))
 }
 
 #' Build a hectare-year (land-occupation) crop land extension.
@@ -332,7 +363,8 @@ build_cropgrids_land_extension <- function(
 #'   `year`, `area_code`, `item_cbs_code`, `impact_u` (physical hectares), as
 #'   returned by [build_cropgrids_land_extension()]. Must be pre-aggregated to
 #'   one row per `(year, area_code, item_cbs_code)`; duplicate keys are carried
-#'   through unchanged. If `NULL`, built from `base`.
+#'   through unchanged. Grass items and non-positive `impact_u` rows are dropped.
+#'   If `NULL`, built from `base`.
 #' @param cropland Tibble of national cropland with columns `area_code`, `year`,
 #'   `cropland_ha`, used only when `conserve = "cropland"`. If `NULL`, the
 #'   packaged FAOSTAT cropland table is used. FAOSTAT cropland starts in 1961;
@@ -344,8 +376,9 @@ build_cropgrids_land_extension <- function(
 #'   MIRCA2000 season table is used. Crops with no season are given the median
 #'   cycle length.
 #' @param base Which physical extension to build when `physical` is `NULL`:
-#'   `"cropgrids_fallow"` (default, fallow-inclusive) or `"cropgrids"`. Recorded
-#'   in `method_land` as `<base>_hayr`.
+#'   `"cropgrids_fallow"` (default, fallow-inclusive) or `"cropgrids"`. Always
+#'   recorded in `method_land` as `<base>_hayr`; when `physical` is supplied
+#'   directly, `base` is only this label and is not validated against the data.
 #' @param conserve National total to conserve to: `"physical"` (default) or
 #'   `"cropland"`. See details.
 #' @param scale_bounds Length-2 numeric `c(lo, hi)` clamping the
@@ -397,14 +430,21 @@ build_hayr_land_extension <- function(
   season <- prepared$season
   default_months <- prepared$default_months
 
-  weighted <- physical |>
+  base_weighted <- physical |>
     dplyr::transmute(
       year = as.integer(.data$year),
       area_code = as.integer(.data$area_code),
       item_cbs_code = as.integer(.data$item_cbs_code),
       physical_ha = .data$impact_u
     ) |>
-    dplyr::left_join(season, by = "item_cbs_code") |>
+    dplyr::filter(
+      !.data$item_cbs_code %in% .grass_item_cbs(),
+      .data$physical_ha > 0
+    ) |>
+    dplyr::left_join(season, by = "item_cbs_code")
+  .warn_default_season(base_weighted)
+
+  weighted <- base_weighted |>
     dplyr::mutate(
       season_months = dplyr::coalesce(.data$season_months, default_months),
       weight = .data$physical_ha * .data$season_months
@@ -723,6 +763,23 @@ gridded_fallow_weights <- function(
   list(season = season, default_months = default_months)
 }
 
+# Crops with no MIRCA season fall back to the median cycle length. Surface which
+# items so the substitution is visible rather than silent.
+.warn_default_season <- function(base_weighted) {
+  miss <- base_weighted |>
+    dplyr::filter(is.na(.data$season_months)) |>
+    dplyr::distinct(.data$item_cbs_code) |>
+    dplyr::pull(.data$item_cbs_code)
+  if (length(miss) == 0L) {
+    return(invisible(NULL))
+  }
+  cli::cli_warn(c(
+    "!" = "{length(miss)} item{?s} have no MIRCA season; using the median
+      cycle length.",
+    "i" = "Affected item_cbs_code values: {sort(miss)}."
+  ))
+}
+
 # Add a `target_total` column = the national total the occupation is conserved
 # to. "physical" keeps the crops' own physical total; "cropland" scales to
 # FAOSTAT cropland, clamped to scale_bounds to bound coverage-driven inflation.
@@ -882,7 +939,9 @@ gridded_fallow_weights <- function(
   dt <- data.table::as.data.table(crosswalk)[dt, on = "item_prod_code"]
 
   .warn_unmapped_crop_land(dt)
-  dt <- dt[!is.na(item_cbs_code)]
+  # Keep the crop land extension crop-only, like the other crop-land methods
+  # (grassland is the separate grass extension; see .grass_item_cbs()).
+  dt <- dt[!is.na(item_cbs_code) & !item_cbs_code %in% .grass_item_cbs()]
 
   out <- dt[,
     .(impact_u = sum(physical_ha, na.rm = TRUE)),
