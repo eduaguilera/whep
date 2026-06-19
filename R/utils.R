@@ -910,7 +910,9 @@ utils::globalVariables(
     "dm_share",
     "feed_type",
     "graniv_grazers",
-    "demand_ft"
+    "demand_ft",
+    # feed_intake_redistribute.R (Engine 3 national availability)
+    "product_kgdm_kgfm"
   )
 )
 

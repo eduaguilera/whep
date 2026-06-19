@@ -363,3 +363,86 @@ test_that(".build_feed_mix warns and drops demand for an area with no region", {
   )
   expect_equal(nrow(out), 0L)
 })
+
+# Engine 3: ALLOCATION (national grain) ----------------------------------------
+
+test_that(".build_feed_avail_national tags CBS feed with quality + scale", {
+  cbs <- tibble::tribble(
+    ~year,
+    ~area_code,
+    ~item_cbs_code,
+    ~feed,
+    1970L,
+    1L,
+    2591L,
+    1000, # groundnut cake -> high_quality
+    1970L,
+    1L,
+    2105L,
+    500 # straw -> residues
+  )
+  out <- whep:::.build_feed_avail_national(cbs)
+  expect_setequal(
+    names(out),
+    c(
+      "year",
+      "territory",
+      "sub_territory",
+      "item_cbs_code",
+      "feed_group",
+      "feed_quality",
+      "avail_dm_t",
+      "feed_scale"
+    )
+  )
+  expect_true(all(out$feed_scale == "national"))
+  expect_true(all(is.na(out$sub_territory)))
+  expect_true(all(c("high_quality", "residues") %in% out$feed_quality))
+  expect_true(all(out$avail_dm_t > 0))
+  # avail = feed * 0.9 * product_kgdm_kgfm, so DM is below the fresh-matter feed.
+  cake <- out[out$item_cbs_code == 2591L, ]
+  expect_lt(cake$avail_dm_t, 1000)
+})
+
+test_that(".run_redistribute_national meets grass, caps concentrates", {
+  region <- whep:::.feed_region_lookup(whep::polities_cats)
+  bouwman_regions <- unique(whep::conv_bouwman$region_bouwman)
+  area <- region$area_code[region$region_bouwman %in% bouwman_regions][1]
+  prod <- tibble::tribble(
+    ~year,
+    ~area_code,
+    ~item_cbs_code,
+    ~live_anim_code,
+    ~item_prod_code,
+    ~unit,
+    ~value,
+    1970L,
+    area,
+    960L,
+    NA_character_,
+    "960",
+    "heads",
+    1e6 # dairy cows: grass + concentrate + residue demand
+  )
+  cbs <- tibble::tribble(
+    ~year,
+    ~area_code,
+    ~item_cbs_code,
+    ~feed,
+    1970L,
+    area,
+    2591L,
+    1e5 # limited high-quality supply -> underfeeding
+  )
+  out <- whep:::.run_redistribute_national(prod, cbs, "ipcc")
+  grass <- out[out$feed_quality == "grass", ]
+  # Grass demand is met in full via the unlimited grassland sink.
+  expect_true(all(abs(grass$intake_dm_t - grass$demand_dm_t) < 1e-6))
+  expect_true(all(grass$hierarchy_level == "6_grassland_unlimited"))
+  # High-quality intake never exceeds the CBS availability offered.
+  avail <- whep:::.build_feed_avail_national(cbs)
+  hq_avail <- sum(avail$avail_dm_t[avail$feed_quality == "high_quality"])
+  hq_intake <- sum(out$intake_dm_t[out$feed_quality == "high_quality"])
+  expect_lte(hq_intake, hq_avail + 1e-6)
+  expect_gt(hq_intake, 0)
+})

@@ -473,3 +473,63 @@
     fixed_demand = logical()
   )
 }
+
+# ---- Engine 3: ALLOCATION (national grain) ----------------------------------
+
+# Run the full national-grain feed allocation: Engine-1 demand -> Engine-2 mix ->
+# national CBS availability -> redistribute_feed. Returns the raw redistribute
+# result (reshaped to the get_feed_intake contract by a later phase). Grass is
+# the unlimited grassland sink unless `grass_availability` bounds it.
+.run_redistribute_national <- function(
+  production,
+  cbs,
+  demand_tier,
+  data = .feed_demand_data(),
+  options = list()
+) {
+  demand_total <- .build_feed_demand_total(production, demand_tier, data)
+  feed_demand <- .build_feed_mix(demand_total, data)
+  feed_avail <- .build_feed_avail_national(cbs)
+  redistribute_feed(feed_demand, feed_avail, options = options)
+}
+
+# National feed availability from the Commodity Balance Sheet `feed` element:
+# per-item dry-matter supply (with the 0.9 feed-loss factor), tagged with its
+# feed_group + feed_quality from `feed_taxonomy` and feed_scale = "national"
+# (served to every territory by the national-scale allocator). Grass is not a
+# CBS item; it enters redistribute_feed as the grassland sink, not here.
+.build_feed_avail_national <- function(
+  cbs,
+  items_full = whep::items_full,
+  biomass_coefs = whep::biomass_coefs,
+  feed_taxonomy = whep::feed_taxonomy
+) {
+  cbs <- .normalise_feed_cbs(cbs)
+  items <- .feed_items_lookup(items_full)
+  biomass <- .feed_biomass_lookup(biomass_coefs)
+  tax <- tibble::as_tibble(feed_taxonomy) |>
+    dplyr::select(item_cbs_code, feed_group, feed_quality) |>
+    dplyr::distinct(item_cbs_code, .keep_all = TRUE)
+
+  cbs |>
+    dplyr::filter(!is.na(.data$feed), .data$feed != 0) |>
+    dplyr::left_join(items, by = "item_cbs_code") |>
+    dplyr::left_join(biomass, by = "Name_biomass") |>
+    dplyr::left_join(tax, by = "item_cbs_code") |>
+    dplyr::transmute(
+      year,
+      territory = as.character(area_code),
+      sub_territory = NA_character_,
+      item_cbs_code,
+      feed_group,
+      feed_quality,
+      avail_dm_t = .data$feed * 0.9 * product_kgdm_kgfm,
+      feed_scale = "national"
+    ) |>
+    dplyr::filter(
+      !is.na(avail_dm_t),
+      avail_dm_t > 0,
+      !is.na(feed_quality),
+      feed_quality != "non_feed"
+    )
+}
