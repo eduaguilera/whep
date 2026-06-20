@@ -12,17 +12,27 @@
 #                       grass ceiling/deficit cascade + the distance-decay
 #                       feed-access buffer on the roughage trade.
 #
-# Built incrementally; until the engines land this dispatcher errors so the
-# package default (grain = "national", demand_tier = "fcr") keeps working.
+# The national grain is wired (Engines 1-3 plus the Phase-6 reshape). The
+# provincial grain (sub_territory = 0.5-degree cell) is still in progress and
+# errors; the package default (grain = "national", demand_tier = "fcr") keeps
+# routing to the legacy allocator.
 
 .build_redistribute_intake <- function(grain, demand_tier) {
-  cli::cli_abort(c(
-    "The {.val redistribute} feed-intake path is not yet implemented.",
-    i = "Migration in progress: grain = {.val {grain}}, demand_tier =
-      {.val {demand_tier}}.",
-    i = "Use the default {.code grain = \"national\", demand_tier = \"fcr\"}
-      for the current allocator."
-  ))
+  if (grain == "provincial") {
+    cli::cli_abort(c(
+      "The {.val provincial} feed-intake grain is not yet implemented.",
+      i = "Migration in progress: demand_tier = {.val {demand_tier}}.",
+      i = "Use {.code grain = \"national\"} for the redistribute path."
+    ))
+  }
+  data <- .feed_demand_data()
+  engine <- .national_redistribute(
+    get_primary_production(),
+    get_wide_cbs(),
+    demand_tier,
+    data
+  )
+  .reshape_redistribute_intake(engine$result, engine$code_shares)
 }
 
 # Curated live_anim_code -> livestock_category crosswalk: maps each live animal
@@ -60,9 +70,23 @@
   demand_tier,
   data = .feed_demand_data()
 ) {
+  .build_feed_demand_codes(production, demand_tier, data) |>
+    .aggregate_demand_to_category(data$crosswalk)
+}
+
+# Per-(year, area_code, live_anim_code) dry-matter demand, each row tagged with
+# the method that produced it. This pre-aggregation breakdown is the reverse-
+# split weight the reshape uses to attribute a livestock_category's allocated
+# intake back to its individual live animals (feed follows the demand it
+# generated).
+.build_feed_demand_codes <- function(
+  production,
+  demand_tier,
+  data = .feed_demand_data()
+) {
   prod <- .normalise_feed_primary(production)
   if (nrow(prod) == 0) {
-    return(.empty_feed_demand_total())
+    return(.empty_feed_demand_codes())
   }
   fcr <- .build_bouwman_fcr(data$conv_bouwman, sort(unique(prod$year)))
   totals <- .build_feed_demand(
@@ -82,7 +106,7 @@
   if (demand_tier == "ipcc") {
     totals <- .overlay_energy_demand(totals, production, data$crosswalk)
   }
-  .aggregate_demand_to_category(totals, data$crosswalk)
+  totals
 }
 
 # Tag every legacy (`.build_feed_demand`) row with the method that actually
@@ -257,6 +281,53 @@
   paste(sort(unique(x)), collapse = "+")
 }
 
+# Reverse-split weights: within each (year, area_code, livestock_category), the
+# share of the category's demand that each live animal generated. The reshape
+# multiplies a category's allocated intake by these shares to attribute it to the
+# individual live_anim_codes.
+.demand_code_shares <- function(codes, crosswalk) {
+  cat_map <- crosswalk |>
+    dplyr::transmute(
+      live_anim_code = as.integer(live_anim_code),
+      livestock_category
+    )
+  codes |>
+    dplyr::mutate(live_anim_code = as.integer(live_anim_code)) |>
+    dplyr::inner_join(cat_map, by = "live_anim_code") |>
+    dplyr::mutate(
+      code_share = .safe_share(demand_dm_t),
+      .by = c(year, area_code, livestock_category)
+    ) |>
+    dplyr::select(
+      year,
+      area_code,
+      livestock_category,
+      live_anim_code,
+      code_share
+    )
+}
+
+# Demand share within a group, falling back to an equal split when the group's
+# total demand is zero so intake is never dropped for a zero-demand category.
+.safe_share <- function(x) {
+  total <- sum(x, na.rm = TRUE)
+  if (total > 0) {
+    x / total
+  } else {
+    rep(1 / length(x), length(x))
+  }
+}
+
+.empty_feed_demand_codes <- function() {
+  tibble::tibble(
+    year = integer(),
+    area_code = integer(),
+    live_anim_code = integer(),
+    demand_dm_t = numeric(),
+    method_demand = character()
+  )
+}
+
 .empty_feed_demand_total <- function() {
   tibble::tibble(
     year = integer(),
@@ -334,7 +405,8 @@
     cli::cli_warn(c(
       "No Bouwman region for {length(areas)} area{?s} ({.val {areas}}):
        {dropped} t of feed demand is dropped from the mix.",
-      i = "Map the area{?s} to a Bouwman region in {.field polities_cats}."
+      i = "Map the {cli::qty(length(areas))}area{?s} to a Bouwman region in
+        {.field polities_cats}."
     ))
   }
   invisible(NULL)
@@ -487,10 +559,27 @@
   data = .feed_demand_data(),
   options = list()
 ) {
-  demand_total <- .build_feed_demand_total(production, demand_tier, data)
+  .national_redistribute(production, cbs, demand_tier, data, options)$result
+}
+
+# Run the national-grain engine, returning both the raw redistribute result and
+# the per-animal reverse-split weights from the same demand pass (so the reshape
+# never recomputes demand).
+.national_redistribute <- function(
+  production,
+  cbs,
+  demand_tier,
+  data = .feed_demand_data(),
+  options = list()
+) {
+  codes <- .build_feed_demand_codes(production, demand_tier, data)
+  demand_total <- .aggregate_demand_to_category(codes, data$crosswalk)
   feed_demand <- .build_feed_mix(demand_total, data)
   feed_avail <- .build_feed_avail_national(cbs)
-  redistribute_feed(feed_demand, feed_avail, options = options)
+  list(
+    result = redistribute_feed(feed_demand, feed_avail, options = options),
+    code_shares = .demand_code_shares(codes, data$crosswalk)
+  )
 }
 
 # National feed availability from the Commodity Balance Sheet `feed` element:
@@ -532,4 +621,176 @@
       !is.na(feed_quality),
       feed_quality != "non_feed"
     )
+}
+
+# ---- Phase 6: reshape to the get_feed_intake contract -----------------------
+
+# Reshape the raw redistribute_feed result to the get_feed_intake contract:
+# reverse-split each livestock_category's intake to its live animals (by the
+# Engine-1 demand share), label each allocated item with its Bouwman feed type,
+# and convert dry matter to fresh matter. The allocator is demand-pull, so every
+# allocated tonne is eaten: supply = intake and loss = 0 (underfeeding is carried
+# by redistribute's scaling_factor, not by a loss term).
+.reshape_redistribute_intake <- function(
+  result,
+  code_shares,
+  data = .reshape_data()
+) {
+  if (nrow(result) == 0) {
+    return(.empty_feed_intake())
+  }
+  result <- .assign_grass_sink_item(result)
+  .warn_unsplit_intake(result, code_shares)
+  result |>
+    .split_intake_to_animals(code_shares) |>
+    .label_feed_type(data$item_feedtype) |>
+    .intake_to_fresh_matter(data$item_kgdm) |>
+    .summarise_feed_intake()
+}
+
+# Surface intake the reverse-split would silently drop: rows whose area_code did
+# not parse from territory, or whose (year, area_code, livestock_category) has no
+# Engine-1 demand share. On the national path neither occurs; the guard turns a
+# future upstream desync into a visible warning rather than corrupted totals.
+.warn_unsplit_intake <- function(result, code_shares) {
+  keys <- dplyr::distinct(
+    code_shares,
+    year,
+    area_code,
+    livestock_category
+  )
+  unmatched <- result |>
+    dplyr::filter(.data$intake_dm_t > 0) |>
+    dplyr::anti_join(keys, by = c("year", "area_code", "livestock_category"))
+  if (nrow(unmatched) == 0) {
+    return(invisible(NULL))
+  }
+  dropped <- round(sum(unmatched$intake_dm_t, na.rm = TRUE))
+  cats <- unique(unmatched$livestock_category)
+  cli::cli_warn(c(
+    "Reverse-split has no demand share for {length(cats)} category-area
+     combination{?s}: {dropped} t DM of intake is dropped.",
+    i = "Cause: an area_code that did not parse from territory, or a category
+      absent from the Engine-1 demand. Totals will under-count."
+  ))
+  invisible(NULL)
+}
+
+# The unlimited grassland sink emits item_cbs_code = NA; label it with the
+# canonical Grassland item (3000) so it carries a real feeding-item code and its
+# grass biomass density for the fresh-matter conversion. Also recover the integer
+# area_code from the territory string.
+.assign_grass_sink_item <- function(result) {
+  result |>
+    tibble::as_tibble() |>
+    dplyr::mutate(
+      area_code = as.integer(territory),
+      item_cbs_code = dplyr::if_else(
+        is.na(item_cbs_code) & feed_group == "grass",
+        3000L,
+        as.integer(item_cbs_code)
+      )
+    )
+}
+
+# Reverse-split each category row to its live animals, scaling intake by the
+# per-animal demand share (so the per-animal intakes sum back to the category's).
+.split_intake_to_animals <- function(result, code_shares) {
+  result |>
+    dplyr::inner_join(
+      code_shares,
+      by = c("year", "area_code", "livestock_category"),
+      relationship = "many-to-many"
+    ) |>
+    dplyr::mutate(intake_dm_t = intake_dm_t * code_share)
+}
+
+# Label every allocated item with its Bouwman feed type, defaulting unmatched
+# items (none expected nationally) to crops.
+.label_feed_type <- function(result, item_feedtype) {
+  result |>
+    dplyr::left_join(item_feedtype, by = "item_cbs_code") |>
+    dplyr::mutate(feed_type = dplyr::coalesce(feed_type, "crops"))
+}
+
+# Convert dry-matter intake to fresh matter via each item's biomass density.
+.intake_to_fresh_matter <- function(result, item_kgdm) {
+  result |>
+    dplyr::left_join(item_kgdm, by = "item_cbs_code") |>
+    dplyr::mutate(
+      intake_dry_matter = intake_dm_t,
+      intake = intake_dm_t / product_kgdm_kgfm
+    )
+}
+
+# Collapse to the contract grain and emit its columns. Demand-pull semantics:
+# supply = intake, loss = 0, loss_share = 0.
+.summarise_feed_intake <- function(result) {
+  result |>
+    dplyr::filter(!is.na(item_cbs_code), intake_dm_t > 0) |>
+    dplyr::summarise(
+      intake = sum(intake, na.rm = TRUE),
+      intake_dry_matter = sum(intake_dry_matter, na.rm = TRUE),
+      .by = c(year, area_code, live_anim_code, item_cbs_code, feed_type)
+    ) |>
+    dplyr::transmute(
+      year = as.integer(year),
+      area_code = as.integer(area_code),
+      live_anim_code = as.integer(live_anim_code),
+      item_cbs_code = as.integer(item_cbs_code),
+      feed_type,
+      supply = intake,
+      intake,
+      intake_dry_matter,
+      loss = 0,
+      loss_share = 0
+    ) |>
+    dplyr::arrange(year, area_code, live_anim_code, item_cbs_code, feed_type)
+}
+
+# Datasets the reshape needs (feed-type labels and DM->fresh densities), grouped
+# so the reshape signature stays small and tests can inject fixtures.
+.reshape_data <- function() {
+  list(
+    item_feedtype = .item_feedtype_lookup(),
+    item_kgdm = .item_kgdm_lookup()
+  )
+}
+
+# item_cbs_code -> Bouwman feed type. grazer_feedtype is the complete per-item
+# labeling (granivore_feedtype is NA only for fibrous items granivores never
+# request); additives (compound-feed ingredients) fold into crops.
+.item_feedtype_lookup <- function(feed_taxonomy = whep::feed_taxonomy) {
+  tibble::as_tibble(feed_taxonomy) |>
+    dplyr::transmute(
+      item_cbs_code = as.integer(item_cbs_code),
+      feed_type = dplyr::coalesce(grazer_feedtype, granivore_feedtype)
+    ) |>
+    dplyr::mutate(
+      feed_type = dplyr::if_else(feed_type == "additives", "crops", feed_type)
+    ) |>
+    dplyr::filter(!is.na(item_cbs_code), !is.na(feed_type)) |>
+    dplyr::distinct(item_cbs_code, .keep_all = TRUE)
+}
+
+# item_cbs_code -> dry-matter fraction (kg DM / kg fresh) via the biomass coefs.
+.item_kgdm_lookup <- function(
+  items_full = whep::items_full,
+  biomass_coefs = whep::biomass_coefs
+) {
+  .feed_items_lookup(items_full) |>
+    dplyr::left_join(
+      .feed_biomass_lookup(biomass_coefs),
+      by = "Name_biomass"
+    ) |>
+    dplyr::transmute(
+      item_cbs_code = as.integer(item_cbs_code),
+      product_kgdm_kgfm
+    ) |>
+    dplyr::filter(
+      !is.na(item_cbs_code),
+      !is.na(product_kgdm_kgfm),
+      product_kgdm_kgfm > 0
+    ) |>
+    dplyr::distinct(item_cbs_code, .keep_all = TRUE)
 }

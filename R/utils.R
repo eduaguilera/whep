@@ -912,7 +912,12 @@ utils::globalVariables(
     "graniv_grazers",
     "demand_ft",
     # feed_intake_redistribute.R (Engine 3 national availability)
-    "product_kgdm_kgfm"
+    "product_kgdm_kgfm",
+    # feed_intake_redistribute.R (Phase 6 reshape to contract)
+    "code_share",
+    "grazer_feedtype",
+    "granivore_feedtype",
+    "intake_dry_matter"
   )
 )
 

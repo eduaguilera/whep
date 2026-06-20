@@ -1,10 +1,9 @@
-test_that("get_feed_intake routes the unimplemented redistribute path to an error", {
+test_that("get_feed_intake routes the provincial grain to an unimplemented error", {
+  # The national grain (both demand tiers) is wired; only the provincial grain
+  # still errors. The national ipcc path is exercised via the engine + reshape
+  # unit tests below (no remote data fetch).
   expect_error(
     whep::get_feed_intake(grain = "provincial"),
-    "not yet implemented"
-  )
-  expect_error(
-    whep::get_feed_intake(demand_tier = "ipcc"),
     "not yet implemented"
   )
   expect_error(
@@ -445,4 +444,276 @@ test_that(".run_redistribute_national meets grass, caps concentrates", {
   hq_intake <- sum(out$intake_dm_t[out$feed_quality == "high_quality"])
   expect_lte(hq_intake, hq_avail + 1e-6)
   expect_gt(hq_intake, 0)
+})
+
+# Phase 6: reshape to the get_feed_intake contract -----------------------------
+
+test_that(".item_feedtype_lookup labels grass and folds additives into crops", {
+  ft <- whep:::.item_feedtype_lookup()
+  expect_setequal(
+    unique(ft$feed_type),
+    c("animals", "crops", "grass", "residues", "scavenging")
+  )
+  # The canonical Grassland item is grass (the grass-sink fallback code).
+  expect_equal(ft$feed_type[ft$item_cbs_code == 3000L], "grass")
+})
+
+test_that(".item_kgdm_lookup gives the grass density used by the sink", {
+  kg <- whep:::.item_kgdm_lookup()
+  expect_true(all(kg$product_kgdm_kgfm > 0))
+  expect_equal(kg$product_kgdm_kgfm[kg$item_cbs_code == 3000L], 0.2)
+})
+
+test_that(".demand_code_shares split sums to 1 within each category", {
+  codes <- tibble::tribble(
+    ~year,
+    ~area_code,
+    ~live_anim_code,
+    ~demand_dm_t,
+    ~method_demand,
+    2000L,
+    79L,
+    1049L,
+    60, # Pigs
+    "bouwman_fcr",
+    2000L,
+    79L,
+    1051L,
+    40, # Hogs -> Pigs
+    "bouwman_fcr"
+  )
+  out <- whep:::.demand_code_shares(codes, whep:::.livestock_crosswalk())
+  pigs <- out[out$livestock_category == "Pigs", ]
+  expect_equal(sum(pigs$code_share), 1, tolerance = 1e-9)
+  expect_equal(pigs$code_share[pigs$live_anim_code == 1049L], 0.6)
+})
+
+test_that(".safe_share falls back to an equal split when total is zero", {
+  expect_equal(whep:::.safe_share(c(0, 0, 0)), rep(1 / 3, 3))
+  expect_equal(whep:::.safe_share(c(3, 1)), c(0.75, 0.25))
+})
+
+test_that(".reshape_redistribute_intake returns the empty contract schema", {
+  out <- whep:::.reshape_redistribute_intake(
+    whep::redistribute_feed(
+      tibble::tibble(
+        year = integer(),
+        territory = character(),
+        sub_territory = character(),
+        livestock_category = character(),
+        item_cbs_code = integer(),
+        feed_group = character(),
+        feed_quality = character(),
+        demand_dm_t = numeric(),
+        fixed_demand = logical()
+      ),
+      tibble::tibble(
+        year = integer(),
+        sub_territory = character(),
+        item_cbs_code = integer(),
+        feed_group = character(),
+        feed_quality = character(),
+        avail_dm_t = numeric(),
+        feed_scale = character()
+      )
+    ),
+    tibble::tibble(
+      year = integer(),
+      area_code = integer(),
+      livestock_category = character(),
+      live_anim_code = integer(),
+      code_share = numeric()
+    )
+  )
+  expect_equal(nrow(out), 0L)
+  expect_setequal(
+    names(out),
+    c(
+      "year",
+      "area_code",
+      "live_anim_code",
+      "item_cbs_code",
+      "feed_type",
+      "supply",
+      "intake",
+      "intake_dry_matter",
+      "loss",
+      "loss_share"
+    )
+  )
+})
+
+test_that(".reshape_redistribute_intake splits, labels, and converts to fresh", {
+  ft <- whep:::.item_feedtype_lookup()
+  expected_cake <- ft$feed_type[ft$item_cbs_code == 2591L]
+  # A redistribute-style result: one Pigs concentrate row + one Cattle_milk
+  # grass-sink row (item NA, feed_group grass).
+  result <- tibble::tribble(
+    ~year,
+    ~territory,
+    ~sub_territory,
+    ~livestock_category,
+    ~item_cbs_code,
+    ~feed_group,
+    ~feed_quality,
+    ~intake_dm_t,
+    2000L,
+    "79",
+    NA_character_,
+    "Pigs",
+    2591L,
+    "oilcakes",
+    "high_quality",
+    100,
+    2000L,
+    "79",
+    NA_character_,
+    "Cattle_milk",
+    NA_integer_,
+    "grass",
+    "grass",
+    50
+  )
+  code_shares <- tibble::tribble(
+    ~year,
+    ~area_code,
+    ~livestock_category,
+    ~live_anim_code,
+    ~code_share,
+    2000L,
+    79L,
+    "Pigs",
+    1049L,
+    0.6,
+    2000L,
+    79L,
+    "Pigs",
+    1051L,
+    0.4,
+    2000L,
+    79L,
+    "Cattle_milk",
+    960L,
+    1
+  )
+  out <- whep:::.reshape_redistribute_intake(result, code_shares)
+  # Demand-pull semantics.
+  expect_true(all(out$supply == out$intake))
+  expect_true(all(out$loss == 0))
+  expect_true(all(out$loss_share == 0))
+  # Conservation: total dry matter unchanged by the reshape.
+  expect_equal(sum(out$intake_dry_matter), 150, tolerance = 1e-6)
+  # Reverse-split: Pigs concentrate (100 DM) fans into 1049/1051 at 60/40.
+  pigs <- out[out$live_anim_code %in% c(1049L, 1051L), ]
+  expect_equal(sum(pigs$intake_dry_matter), 100, tolerance = 1e-6)
+  expect_equal(
+    pigs$intake_dry_matter[pigs$live_anim_code == 1049L],
+    60,
+    tolerance = 1e-6
+  )
+  expect_equal(unique(pigs$feed_type), expected_cake)
+  # Grass sink: relabeled to item 3000, feed_type grass, fresh = DM / 0.2.
+  grass <- out[out$feed_type == "grass", ]
+  expect_equal(grass$item_cbs_code, 3000L)
+  expect_equal(grass$intake_dry_matter, 50, tolerance = 1e-6)
+  expect_equal(grass$intake, 50 / 0.2, tolerance = 1e-6)
+  expect_equal(grass$live_anim_code, 960L)
+})
+
+test_that("national redistribute + reshape yields the contract and conserves DM", {
+  region <- whep:::.feed_region_lookup(whep::polities_cats)
+  bouwman_regions <- unique(whep::conv_bouwman$region_bouwman)
+  area <- region$area_code[region$region_bouwman %in% bouwman_regions][1]
+  prod <- tibble::tribble(
+    ~year,
+    ~area_code,
+    ~item_cbs_code,
+    ~live_anim_code,
+    ~item_prod_code,
+    ~unit,
+    ~value,
+    1970L,
+    area,
+    960L,
+    NA_character_,
+    "960",
+    "heads",
+    1e6
+  )
+  cbs <- tibble::tribble(
+    ~year,
+    ~area_code,
+    ~item_cbs_code,
+    ~feed,
+    1970L,
+    area,
+    2591L,
+    1e5
+  )
+  engine <- whep:::.national_redistribute(prod, cbs, "ipcc")
+  out <- whep:::.reshape_redistribute_intake(
+    engine$result,
+    engine$code_shares
+  )
+  expect_setequal(
+    names(out),
+    c(
+      "year",
+      "area_code",
+      "live_anim_code",
+      "item_cbs_code",
+      "feed_type",
+      "supply",
+      "intake",
+      "intake_dry_matter",
+      "loss",
+      "loss_share"
+    )
+  )
+  expect_type(out$area_code, "integer")
+  # The dairy cohort's live_anim_code survives the reverse-split.
+  expect_true(960L %in% out$live_anim_code)
+  expect_true("grass" %in% out$feed_type)
+  # Reshape conserves the redistribute dry-matter total.
+  expect_equal(
+    sum(out$intake_dry_matter),
+    sum(engine$result$intake_dm_t),
+    tolerance = 1e-6
+  )
+})
+
+test_that("reshape warns when intake has no reverse-split weight", {
+  # A category present in the result but absent from code_shares (a desync, or
+  # an area_code that did not parse from territory) would be silently dropped by
+  # the inner join; the guard must surface it instead.
+  result <- tibble::tribble(
+    ~year,
+    ~territory,
+    ~sub_territory,
+    ~livestock_category,
+    ~item_cbs_code,
+    ~feed_group,
+    ~feed_quality,
+    ~intake_dm_t,
+    2000L,
+    "79",
+    NA_character_,
+    "Ghosts",
+    2591L,
+    "oilcakes",
+    "high_quality",
+    100
+  )
+  code_shares <- tibble::tibble(
+    year = 2000L,
+    area_code = 79L,
+    livestock_category = "Pigs",
+    live_anim_code = 1049L,
+    code_share = 1
+  )
+  expect_warning(
+    out <- whep:::.reshape_redistribute_intake(result, code_shares),
+    "intake is dropped"
+  )
+  expect_equal(nrow(out), 0L)
 })
