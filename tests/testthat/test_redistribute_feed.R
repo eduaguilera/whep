@@ -265,6 +265,65 @@ test_that(".cap_grass_to_availability binds grass per cell (sub_territory)", {
   expect_equal(sum(b), 50, tolerance = 1e-9)
 })
 
+test_that(".cap_grass_to_availability keeps polities sharing a cell id apart", {
+  # A 0.5-degree border cell ("c1") belongs to two polities; with territory in
+  # the key each is capped against its OWN ceiling, not the conflated sum.
+  result <- tibble::tibble(
+    year = 2000L,
+    territory = c("ES", "FR"),
+    sub_territory = "c1",
+    feed_quality = "grass",
+    item_cbs_code = NA_integer_,
+    intake_dm_t = c(1000, 1000)
+  )
+  ga <- tibble::tibble(
+    year = 2000L,
+    territory = c("ES", "FR"),
+    sub_territory = "c1",
+    grass_avail_dm_t = c(100, 100)
+  )
+  capped <- whep:::.cap_grass_to_availability(result, ga)
+  expect_equal(
+    capped$intake_dm_t[capped$territory == "ES"],
+    100,
+    tolerance = 1e-9
+  )
+  expect_equal(
+    capped$intake_dm_t[capped$territory == "FR"],
+    100,
+    tolerance = 1e-9
+  )
+})
+
+test_that(".cap_grass_to_availability leaves cells absent from supply unbounded", {
+  # A cell with grazing demand but no grass-supply row is left unbounded, not
+  # capped to zero (a data gap must not silently delete grazing intake).
+  result <- tibble::tibble(
+    year = 2000L,
+    territory = "ES",
+    sub_territory = c("cellA", "cellB"),
+    feed_quality = "grass",
+    item_cbs_code = NA_integer_,
+    intake_dm_t = c(60, 50)
+  )
+  ga <- tibble::tibble(
+    year = 2000L,
+    sub_territory = "cellA",
+    grass_avail_dm_t = 30
+  )
+  capped <- whep:::.cap_grass_to_availability(result, ga)
+  expect_equal(
+    capped$intake_dm_t[capped$sub_territory == "cellA"],
+    30,
+    tolerance = 1e-9
+  )
+  expect_equal(
+    capped$intake_dm_t[capped$sub_territory == "cellB"],
+    50,
+    tolerance = 1e-9
+  )
+})
+
 test_that("grass_availability bounds the pasture grass sink in redistribute_feed", {
   d <- whep:::.example_feed_demand()
   a <- whep:::.example_feed_avail()

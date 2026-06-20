@@ -4,11 +4,11 @@ test_that("get_feed_intake routes the provincial grain to an unimplemented error
   # unit tests below (no remote data fetch).
   expect_error(
     whep::get_feed_intake(grain = "provincial"),
-    "not yet implemented"
+    "not yet wired"
   )
   expect_error(
     whep::get_feed_intake(grain = "provincial", demand_tier = "ipcc"),
-    "not yet implemented"
+    "not yet wired"
   )
 })
 
@@ -600,6 +600,13 @@ test_that(".safe_share falls back to an equal split when total is zero", {
   expect_equal(whep:::.safe_share(c(3, 1)), c(0.75, 0.25))
 })
 
+test_that(".safe_share treats NA and negative entries as zero (no DM leak)", {
+  # An NA or negative share (a missing/invalid gridded-heads cell) must not
+  # propagate NA into the demand nor inflate the other cells beyond the total.
+  expect_equal(whep:::.safe_share(c(0.6, NA, 0.4)), c(0.6, 0, 0.4))
+  expect_equal(whep:::.safe_share(c(3, -1, 1)), c(0.75, 0, 0.25))
+})
+
 test_that(".reshape_redistribute_intake returns the empty contract schema", {
   out <- whep:::.reshape_redistribute_intake(
     whep::redistribute_feed(
@@ -823,4 +830,288 @@ test_that("reshape warns when intake has no reverse-split weight", {
     "intake is dropped"
   )
   expect_equal(nrow(out), 0L)
+})
+
+# Provincial grain (sub_territory = cell) --------------------------------------
+
+test_that(".distribute_demand_to_cells splits demand to cells and conserves", {
+  feed_demand <- tibble::tribble(
+    ~year,
+    ~territory,
+    ~sub_territory,
+    ~livestock_category,
+    ~item_cbs_code,
+    ~feed_group,
+    ~feed_quality,
+    ~demand_dm_t,
+    ~fixed_demand,
+    1970L,
+    "79",
+    NA_character_,
+    "Cattle_milk",
+    NA_integer_,
+    NA_character_,
+    "grass",
+    1000,
+    TRUE,
+    1970L,
+    "79",
+    NA_character_,
+    "Cattle_milk",
+    NA_integer_,
+    NA_character_,
+    "high_quality",
+    500,
+    FALSE
+  )
+  cell_shares <- tibble::tribble(
+    ~year,
+    ~territory,
+    ~livestock_category,
+    ~sub_territory,
+    ~cell_share,
+    1970L,
+    "79",
+    "Cattle_milk",
+    "cellA",
+    0.7,
+    1970L,
+    "79",
+    "Cattle_milk",
+    "cellB",
+    0.3
+  )
+  out <- whep:::.distribute_demand_to_cells(feed_demand, cell_shares)
+  expect_setequal(unique(out$sub_territory), c("cellA", "cellB"))
+  # Cell shares sum to 1, so the total is conserved.
+  expect_equal(sum(out$demand_dm_t), 1500, tolerance = 1e-9)
+  grass_a <- out$demand_dm_t[
+    out$sub_territory == "cellA" & out$feed_quality == "grass"
+  ]
+  expect_equal(grass_a, 700, tolerance = 1e-9)
+  expect_true(all(
+    c("territory", "sub_territory", "fixed_demand") %in% names(out)
+  ))
+})
+
+test_that(".distribute_demand_to_cells renormalises shares not summing to 1", {
+  # Real gridded heads need not sum to exactly 1 (rounding, border cells); the
+  # renormalisation must conserve the total rather than drop or inflate it.
+  feed_demand <- tibble::tribble(
+    ~year,
+    ~territory,
+    ~sub_territory,
+    ~livestock_category,
+    ~item_cbs_code,
+    ~feed_group,
+    ~feed_quality,
+    ~demand_dm_t,
+    ~fixed_demand,
+    1970L,
+    "79",
+    NA_character_,
+    "Cattle_milk",
+    NA_integer_,
+    NA_character_,
+    "grass",
+    1000,
+    TRUE
+  )
+  cell_shares <- tibble::tribble(
+    ~year,
+    ~territory,
+    ~livestock_category,
+    ~sub_territory,
+    ~cell_share,
+    1970L,
+    "79",
+    "Cattle_milk",
+    "cellA",
+    0.3,
+    1970L,
+    "79",
+    "Cattle_milk",
+    "cellB",
+    0.2
+  )
+  out <- whep:::.distribute_demand_to_cells(feed_demand, cell_shares)
+  expect_equal(sum(out$demand_dm_t), 1000, tolerance = 1e-9)
+  # 0.3 / (0.3 + 0.2) = 0.6 of the total.
+  expect_equal(
+    out$demand_dm_t[out$sub_territory == "cellA"],
+    600,
+    tolerance = 1e-9
+  )
+})
+
+test_that("reshape reports grass-deficit substitute as residues, not grass", {
+  # Substitute is leftover non-grass roughage filling a bounded-grass deficit;
+  # it must be labelled residues at a roughage density, not folded into grass
+  # (which would over-state fresh matter ~5x).
+  result <- tibble::tribble(
+    ~year,
+    ~territory,
+    ~sub_territory,
+    ~livestock_category,
+    ~item_cbs_code,
+    ~feed_group,
+    ~feed_quality,
+    ~intake_dm_t,
+    2000L,
+    "79",
+    NA_character_,
+    "Cattle_milk",
+    NA_integer_,
+    "substitute",
+    "substitute",
+    90
+  )
+  code_shares <- tibble::tibble(
+    year = 2000L,
+    area_code = 79L,
+    livestock_category = "Cattle_milk",
+    live_anim_code = 960L,
+    code_share = 1
+  )
+  out <- whep:::.reshape_redistribute_intake(result, code_shares)
+  expect_equal(nrow(out), 1L)
+  expect_equal(out$feed_type, "residues")
+  expect_equal(out$intake_dry_matter, 90, tolerance = 1e-6)
+  # Fresh matter at the dry-roughage density 0.9, not the grass density 0.2.
+  expect_equal(out$intake, 90 / 0.9, tolerance = 1e-6)
+})
+
+test_that(".distribute_demand_to_cells warns on demand with no cell share", {
+  feed_demand <- tibble::tribble(
+    ~year,
+    ~territory,
+    ~sub_territory,
+    ~livestock_category,
+    ~item_cbs_code,
+    ~feed_group,
+    ~feed_quality,
+    ~demand_dm_t,
+    ~fixed_demand,
+    1970L,
+    "79",
+    NA_character_,
+    "Ghosts",
+    NA_integer_,
+    NA_character_,
+    "grass",
+    1000,
+    TRUE
+  )
+  cell_shares <- tibble::tribble(
+    ~year,
+    ~territory,
+    ~livestock_category,
+    ~sub_territory,
+    ~cell_share,
+    1970L,
+    "79",
+    "Cattle_milk",
+    "cellA",
+    1
+  )
+  expect_warning(
+    out <- whep:::.distribute_demand_to_cells(feed_demand, cell_shares),
+    "dropped from the provincial"
+  )
+  expect_equal(nrow(out), 0L)
+})
+
+test_that("provincial run yields a per-cell contract, grass capped per cell", {
+  region <- whep:::.feed_region_lookup(whep::polities_cats)
+  bouwman_regions <- unique(whep::conv_bouwman$region_bouwman)
+  area <- region$area_code[region$region_bouwman %in% bouwman_regions][1]
+  prod <- tibble::tribble(
+    ~year,
+    ~area_code,
+    ~item_cbs_code,
+    ~live_anim_code,
+    ~item_prod_code,
+    ~unit,
+    ~value,
+    1970L,
+    area,
+    960L,
+    NA_character_,
+    "960",
+    "heads",
+    1e6
+  )
+  cbs <- tibble::tribble(
+    ~year,
+    ~area_code,
+    ~item_cbs_code,
+    ~feed,
+    1970L,
+    area,
+    2591L,
+    1e5
+  )
+  cell_shares <- tibble::tribble(
+    ~year,
+    ~territory,
+    ~livestock_category,
+    ~sub_territory,
+    ~cell_share,
+    1970L,
+    as.character(area),
+    "Cattle_milk",
+    "cellA",
+    0.7,
+    1970L,
+    as.character(area),
+    "Cattle_milk",
+    "cellB",
+    0.3
+  )
+  # cellA grass ceiling is tight (forces a per-cell cap); cellB is effectively
+  # unlimited. Grass availability carries territory so border cells are not
+  # conflated across polities.
+  grass_avail <- tibble::tribble(
+    ~year,
+    ~territory,
+    ~sub_territory,
+    ~grass_avail_dm_t,
+    1970L,
+    as.character(area),
+    "cellA",
+    1e5,
+    1970L,
+    as.character(area),
+    "cellB",
+    1e12
+  )
+  eng <- whep:::.run_redistribute_provincial(
+    prod,
+    cbs,
+    "ipcc",
+    list(cell_shares = cell_shares, grass_avail = grass_avail)
+  )
+  out <- whep:::.reshape_redistribute_intake(
+    eng$result,
+    eng$code_shares,
+    provincial = TRUE
+  )
+  expect_true("sub_territory" %in% names(out))
+  expect_setequal(unique(out$sub_territory), c("cellA", "cellB"))
+  expect_true(960L %in% out$live_anim_code)
+  # The reshape conserves the redistribute dry-matter total (substitute folded).
+  expect_equal(
+    sum(out$intake_dry_matter),
+    sum(eng$result$intake_dm_t),
+    tolerance = 1e-6
+  )
+  grass_a <- sum(out$intake_dry_matter[
+    out$feed_type == "grass" & out$sub_territory == "cellA"
+  ])
+  grass_b <- sum(out$intake_dry_matter[
+    out$feed_type == "grass" & out$sub_territory == "cellB"
+  ])
+  # cellA holds 70% of the dairy herd, so without a cap it would eat MORE grass
+  # than cellB. The per-cell cap reverses that: cellA grass < cellB grass.
+  expect_lt(grass_a, grass_b)
 })

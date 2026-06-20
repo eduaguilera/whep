@@ -88,12 +88,16 @@
 .normalise_feed_cbs <- function(cbs) {
   cbs <- tibble::as_tibble(cbs) |>
     dplyr::rename_with(tolower)
-  if (!rlang::has_name(cbs, "item_cbs_code") &&
-    rlang::has_name(cbs, "item_code")) {
+  if (
+    !rlang::has_name(cbs, "item_cbs_code") &&
+      rlang::has_name(cbs, "item_code")
+  ) {
     cbs <- dplyr::rename(cbs, item_cbs_code = .data$item_code)
   }
-  if (!rlang::has_name(cbs, "feed") &&
-    all(c("element", "value") %in% names(cbs))) {
+  if (
+    !rlang::has_name(cbs, "feed") &&
+      all(c("element", "value") %in% names(cbs))
+  ) {
     return(
       cbs |>
         dplyr::mutate(
@@ -119,12 +123,19 @@
 .normalise_feed_primary <- function(primary_prod) {
   primary_prod <- tibble::as_tibble(primary_prod) |>
     dplyr::rename_with(tolower)
-  if (!rlang::has_name(primary_prod, "item_prod_code") &&
-    rlang::has_name(primary_prod, "item_code")) {
-    primary_prod <- dplyr::rename(primary_prod, item_prod_code = .data$item_code)
+  if (
+    !rlang::has_name(primary_prod, "item_prod_code") &&
+      rlang::has_name(primary_prod, "item_code")
+  ) {
+    primary_prod <- dplyr::rename(
+      primary_prod,
+      item_prod_code = .data$item_code
+    )
   }
-  if (!rlang::has_name(primary_prod, "item_cbs_code") &&
-    rlang::has_name(primary_prod, "item_code_cbs")) {
+  if (
+    !rlang::has_name(primary_prod, "item_cbs_code") &&
+      rlang::has_name(primary_prod, "item_code_cbs")
+  ) {
     primary_prod <- dplyr::rename(
       primary_prod,
       item_cbs_code = .data$item_code_cbs
@@ -333,7 +344,12 @@
     )
 }
 
-.build_feed_demand_head <- function(primary_prod, conv_krausmann, regs_codes, fcr) {
+.build_feed_demand_head <- function(
+  primary_prod,
+  conv_krausmann,
+  regs_codes,
+  fcr
+) {
   demand_shares_grazers <- fcr |>
     dplyr::filter(
       .data$item_bouwman %in%
@@ -385,7 +401,12 @@
     )
 }
 
-.allocate_feed_intake <- function(demand, feed_avail, items_full, biomass_coefs) {
+.allocate_feed_intake <- function(
+  demand,
+  feed_avail,
+  items_full,
+  biomass_coefs
+) {
   if (nrow(demand) == 0) {
     return(.empty_feed_intake())
   }
@@ -718,12 +739,10 @@
         .data$d_tot,
       demand_crops_share = 1 -
         ((.data$d_scavenging + .data$d_grass) / .data$d_tot),
-      scaling_raw = (
-        .data$d_tot -
-          .data$crops -
-          .data$residues -
-          .data$animals
-      ) /
+      scaling_raw = (.data$d_tot -
+        .data$crops -
+        .data$residues -
+        .data$animals) /
         (.data$d_scavenging + .data$d_grass),
       scaling = dplyr::case_when(
         is.infinite(.data$scaling_raw) ~ 0,
@@ -888,8 +907,8 @@
   )
 }
 
-.empty_feed_intake <- function() {
-  tibble::tibble(
+.empty_feed_intake <- function(provincial = FALSE) {
+  out <- tibble::tibble(
     year = integer(),
     area_code = integer(),
     live_anim_code = integer(),
@@ -901,4 +920,12 @@
     loss = numeric(),
     loss_share = numeric()
   )
+  if (provincial) {
+    out <- tibble::add_column(
+      out,
+      sub_territory = character(),
+      .after = "area_code"
+    )
+  }
+  out
 }

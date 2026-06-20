@@ -20,9 +20,12 @@
 .build_redistribute_intake <- function(grain, demand_tier) {
   if (grain == "provincial") {
     cli::cli_abort(c(
-      "The {.val provincial} feed-intake grain is not yet implemented.",
-      i = "Migration in progress: demand_tier = {.val {demand_tier}}.",
-      i = "Use {.code grain = \"national\"} for the redistribute path."
+      "The {.val provincial} feed-intake grain needs gridded inputs not yet
+       wired.",
+      i = "The provincial engine ({.fn .run_redistribute_provincial}) is built
+        and unit-tested with synthetic per-cell shares and grass; sourcing real
+        per-cell livestock heads and grass availability is pending (the LPJmL
+        grass read-back is blocked)."
     ))
   }
   data <- .feed_demand_data()
@@ -307,10 +310,13 @@
     )
 }
 
-# Demand share within a group, falling back to an equal split when the group's
-# total demand is zero so intake is never dropped for a zero-demand category.
+# Share of x within a group. NA and negative entries are treated as 0 (a missing
+# or invalid cell/code contributes nothing and can neither leak nor inflate the
+# total via NA propagation), falling back to an equal split when every entry is 0
+# so the group's demand is never dropped.
 .safe_share <- function(x) {
-  total <- sum(x, na.rm = TRUE)
+  x <- pmax(dplyr::coalesce(x, 0), 0)
+  total <- sum(x)
   if (total > 0) {
     x / total
   } else {
@@ -654,6 +660,103 @@
     )
 }
 
+# ---- Provincial grain (sub_territory = cell) --------------------------------
+
+# Run the provincial-grain allocation: national category demand + Bouwman mix,
+# distributed to cells by each cell's share of the category's livestock, then
+# allocated by redistribute_feed with national CBS feed served to every cell
+# (feed_scale "national") and per-cell grass bounding the pasture sink
+# (options$grass_availability, keyed by sub_territory). Returns the raw result
+# and the per-animal reverse-split weights. `spatial` carries the per-cell inputs
+# (cell_shares = per-cell head shares, grass_avail = per-cell grass ceiling).
+.run_redistribute_provincial <- function(
+  production,
+  cbs,
+  demand_tier,
+  spatial,
+  data = .feed_demand_data()
+) {
+  codes <- .build_feed_demand_codes(production, demand_tier, data)
+  demand_total <- .aggregate_demand_to_category(codes, data$crosswalk)
+  feed_demand <- .build_feed_mix(demand_total, data) |>
+    .distribute_demand_to_cells(spatial$cell_shares)
+  feed_avail <- .build_feed_avail_national(cbs) |>
+    .add_scavenging_avail(feed_demand)
+  list(
+    result = redistribute_feed(
+      feed_demand,
+      feed_avail,
+      options = list(grass_availability = spatial$grass_avail)
+    ),
+    code_shares = .demand_code_shares(codes, data$crosswalk)
+  )
+}
+
+# Distribute national feed demand to cells: each (year, territory, category)
+# demand row is split across the territory's cells by `cell_share` (the cell's
+# share of the category's livestock heads), which sums to 1 per category so the
+# total is conserved. The mix shares are polity-level, so distributing the mixed
+# demand is equivalent to mixing per cell.
+.distribute_demand_to_cells <- function(feed_demand, cell_shares) {
+  if (nrow(feed_demand) == 0) {
+    return(feed_demand)
+  }
+  cell_shares <- .normalise_cell_shares(cell_shares)
+  .warn_uncelled_demand(feed_demand, cell_shares)
+  feed_demand |>
+    dplyr::select(-sub_territory) |>
+    dplyr::inner_join(
+      cell_shares,
+      by = c("year", "territory", "livestock_category"),
+      relationship = "many-to-many"
+    ) |>
+    dplyr::transmute(
+      year,
+      territory,
+      sub_territory,
+      livestock_category,
+      item_cbs_code,
+      feed_group,
+      feed_quality,
+      demand_dm_t = demand_dm_t * cell_share,
+      fixed_demand
+    )
+}
+
+# Renormalise cell shares to sum to 1 per (year, territory, livestock_category)
+# so per-cell heads that do not sum exactly to 1 (rounding, partial coverage,
+# border cells split across polities) neither drop nor inflate the distributed
+# demand. Reuses the demand-share helper (equal split if a group sums to 0).
+.normalise_cell_shares <- function(cell_shares) {
+  cell_shares |>
+    dplyr::mutate(
+      cell_share = .safe_share(cell_share),
+      .by = c(year, territory, livestock_category)
+    )
+}
+
+# Surface demand the cell distribution would silently drop: a (year, territory,
+# category) with no per-cell share (no gridded livestock for that category).
+.warn_uncelled_demand <- function(feed_demand, cell_shares) {
+  keys <- dplyr::distinct(cell_shares, year, territory, livestock_category)
+  unmatched <- feed_demand |>
+    dplyr::filter(.data$demand_dm_t > 0) |>
+    dplyr::anti_join(keys, by = c("year", "territory", "livestock_category"))
+  if (nrow(unmatched) == 0) {
+    return(invisible(NULL))
+  }
+  dropped <- round(sum(unmatched$demand_dm_t, na.rm = TRUE))
+  cats <- unique(unmatched$livestock_category)
+  cli::cli_warn(c(
+    "No per-cell share for {length(cats)} category-territory
+     combination{?s}: {dropped} t DM of demand is dropped from the provincial
+     allocation.",
+    i = "Provide {.field cell_shares} (per-cell livestock heads) for the
+      {cli::qty(length(cats))}missing categor{?y/ies}."
+  ))
+  invisible(NULL)
+}
+
 # ---- Phase 6: reshape to the get_feed_intake contract -----------------------
 
 # Reshape the raw redistribute_feed result to the get_feed_intake contract:
@@ -665,10 +768,11 @@
 .reshape_redistribute_intake <- function(
   result,
   code_shares,
-  data = .reshape_data()
+  data = .reshape_data(),
+  provincial = FALSE
 ) {
   if (nrow(result) == 0) {
-    return(.empty_feed_intake())
+    return(.empty_feed_intake(provincial))
   }
   result <- .assign_grass_sink_item(result)
   .warn_unsplit_intake(result, code_shares)
@@ -676,7 +780,7 @@
     .split_intake_to_animals(code_shares) |>
     .label_feed_type(data$item_feedtype) |>
     .intake_to_fresh_matter(data$item_kgdm) |>
-    .summarise_feed_intake()
+    .summarise_feed_intake(provincial)
 }
 
 # Surface intake the reverse-split would silently drop: rows whose area_code did
@@ -709,8 +813,10 @@
 
 # The unlimited grassland sink emits item_cbs_code = NA; label it with the
 # canonical Grassland item (3000) so it carries a real feeding-item code and its
-# grass biomass density for the fresh-matter conversion. Also recover the integer
-# area_code from the territory string.
+# grass biomass density for the fresh-matter conversion. Grass-deficit substitute
+# rows (feed_group "substitute") are left item NA here and handled as leftover
+# roughage downstream (NOT folded into grass: their feed is non-grass, so the
+# grass density would corrupt fresh matter). Also recover the integer area_code.
 .assign_grass_sink_item <- function(result) {
   result |>
     tibble::as_tibble() |>
@@ -736,47 +842,104 @@
     dplyr::mutate(intake_dm_t = intake_dm_t * code_share)
 }
 
-# Label every allocated item with its Bouwman feed type, defaulting unmatched
-# items (none expected nationally) to crops.
+# Label every allocated item with its Bouwman feed type. Grass-deficit substitute
+# rows (leftover non-grass roughage filling a bounded-grass deficit) are labelled
+# residues; unmatched items (none expected nationally) default to crops.
 .label_feed_type <- function(result, item_feedtype) {
   result |>
     dplyr::left_join(item_feedtype, by = "item_cbs_code") |>
-    dplyr::mutate(feed_type = dplyr::coalesce(feed_type, "crops"))
+    dplyr::mutate(
+      feed_type = dplyr::case_when(
+        feed_group %in% "substitute" ~ "residues",
+        !is.na(feed_type) ~ feed_type,
+        TRUE ~ "crops"
+      )
+    )
 }
 
 # Convert dry-matter intake to fresh matter via each item's biomass density.
+# Substitute rows have no item; report them at a dry-roughage density (0.9) so
+# their fresh matter is realistic, not the 5x over-statement a grass density
+# would give (a documented MVP value, until the substitute's items are tracked).
 .intake_to_fresh_matter <- function(result, item_kgdm) {
   result |>
     dplyr::left_join(item_kgdm, by = "item_cbs_code") |>
     dplyr::mutate(
+      product_kgdm_kgfm = dplyr::if_else(
+        feed_group %in% "substitute",
+        0.9,
+        product_kgdm_kgfm
+      ),
       intake_dry_matter = intake_dm_t,
       intake = intake_dm_t / product_kgdm_kgfm
     )
 }
 
 # Collapse to the contract grain and emit its columns. Demand-pull semantics:
-# supply = intake, loss = 0, loss_share = 0.
-.summarise_feed_intake <- function(result) {
+# supply = intake, loss = 0, loss_share = 0. The provincial grain keeps
+# sub_territory (cell); the national grain (sub_territory all NA) drops it.
+.summarise_feed_intake <- function(result, provincial = FALSE) {
   result |>
-    dplyr::filter(!is.na(item_cbs_code), intake_dm_t > 0) |>
+    dplyr::filter(
+      !is.na(item_cbs_code) | feed_group %in% "substitute",
+      intake_dm_t > 0
+    ) |>
     dplyr::summarise(
       intake = sum(intake, na.rm = TRUE),
       intake_dry_matter = sum(intake_dry_matter, na.rm = TRUE),
-      .by = c(year, area_code, live_anim_code, item_cbs_code, feed_type)
+      .by = c(
+        year,
+        area_code,
+        sub_territory,
+        live_anim_code,
+        item_cbs_code,
+        feed_type
+      )
     ) |>
-    dplyr::transmute(
+    dplyr::mutate(
       year = as.integer(year),
       area_code = as.integer(area_code),
       live_anim_code = as.integer(live_anim_code),
       item_cbs_code = as.integer(item_cbs_code),
-      feed_type,
       supply = intake,
-      intake,
-      intake_dry_matter,
       loss = 0,
       loss_share = 0
     ) |>
-    dplyr::arrange(year, area_code, live_anim_code, item_cbs_code, feed_type)
+    .select_feed_intake_cols(provincial)
+}
+
+# Emit the contract columns, inserting sub_territory (cell) for the provincial
+# grain, and order by the key columns.
+.select_feed_intake_cols <- function(agg, provincial) {
+  cols <- c(
+    "year",
+    "area_code",
+    "live_anim_code",
+    "item_cbs_code",
+    "feed_type",
+    "supply",
+    "intake",
+    "intake_dry_matter",
+    "loss",
+    "loss_share"
+  )
+  if (provincial) {
+    cols <- append(cols, "sub_territory", after = 2)
+  }
+  key_cols <- intersect(
+    c(
+      "year",
+      "area_code",
+      "sub_territory",
+      "live_anim_code",
+      "item_cbs_code",
+      "feed_type"
+    ),
+    cols
+  )
+  agg |>
+    dplyr::select(dplyr::all_of(cols)) |>
+    dplyr::arrange(dplyr::across(dplyr::all_of(key_cols)))
 }
 
 # Datasets the reshape needs (feed-type labels and DM->fresh densities), grouped

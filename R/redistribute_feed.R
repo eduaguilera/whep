@@ -1339,14 +1339,11 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
       total = sum(intake_dm_t, na.rm = TRUE),
       .by = dplyr::all_of(keys)
     ) |>
-    dplyr::left_join(
+    dplyr::inner_join(
       .grass_avail_keyed(grass_availability, keys),
       by = keys
     ) |>
-    dplyr::mutate(
-      grass_avail_dm_t = dplyr::coalesce(grass_avail_dm_t, 0),
-      excess = pmax(0, total - grass_avail_dm_t)
-    ) |>
+    dplyr::mutate(excess = pmax(0, total - grass_avail_dm_t)) |>
     dplyr::filter(excess > 1e-6)
   if (nrow(totals) == 0) {
     result$row_id <- NULL
@@ -1496,14 +1493,23 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
 
 # Grass binds per cell when supplied per sub_territory (provincial grain), else
 # per polity (national grain). The cap key follows the grain of the supplied
-# grass availability: (year, sub_territory) if it carries a non-empty
-# sub_territory, otherwise (year, territory).
+# grass availability. When a sub_territory is present the polity is kept in the
+# key too (year, territory, sub_territory) so a 0.5-degree border cell shared by
+# two polities is not conflated against a single ceiling; if no polity column is
+# supplied it falls back to (year, sub_territory).
 .grass_cap_keys <- function(grass_availability) {
   ga <- tibble::as_tibble(grass_availability)
-  if (rlang::has_name(ga, "sub_territory") && !all(is.na(ga$sub_territory))) {
-    c("year", "sub_territory")
+  has_sub <- rlang::has_name(ga, "sub_territory") &&
+    !all(is.na(ga$sub_territory))
+  if (!has_sub) {
+    return(c("year", "territory"))
+  }
+  has_terr <- rlang::has_name(ga, "territory") ||
+    rlang::has_name(ga, "area_code")
+  if (has_terr) {
+    c("year", "territory", "sub_territory")
   } else {
-    c("year", "territory")
+    c("year", "sub_territory")
   }
 }
 

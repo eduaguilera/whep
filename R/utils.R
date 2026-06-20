@@ -918,6 +918,8 @@ utils::globalVariables(
     "grazer_feedtype",
     "granivore_feedtype",
     "intake_dry_matter",
+    # feed_intake_redistribute.R (provincial grain)
+    "cell_share",
     # feed_intake_build.R (legacy allocator NSE columns, merged)
     "avail",
     "avail_dm",
