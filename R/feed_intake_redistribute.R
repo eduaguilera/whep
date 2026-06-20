@@ -18,30 +18,148 @@
 # routing to the legacy allocator.
 
 .build_redistribute_intake <- function(grain, demand_tier) {
-  # Resolve the provincial input paths first, so a missing-config abort happens
-  # before the (remote) production/CBS fetch.
-  paths <- if (grain == "provincial") .provincial_paths() else NULL
-  production <- get_primary_production()
-  cbs <- get_wide_cbs()
-  data <- .feed_demand_data()
   if (grain == "provincial") {
-    years <- sort(unique(as.integer(.normalise_feed_primary(production)$year)))
-    spatial <- .provincial_spatial_inputs(years, paths)
-    engine <- .run_redistribute_provincial(
-      production,
-      cbs,
-      demand_tier,
-      spatial,
-      data
-    )
-    return(.reshape_redistribute_intake(
-      engine$result,
-      engine$code_shares,
-      provincial = TRUE
+    cli::cli_abort(c(
+      "Run the {.val provincial} grain with {.fn build_feed_intake_provincial}.",
+      i = "It chunks the per-cell allocation by year (the full run is too large
+        for one in-memory result): pass {.arg out_dir} to write per-year output
+        to disk, or a small {.arg years} subset to return it in memory."
     ))
   }
-  engine <- .national_redistribute(production, cbs, demand_tier, data)
+  engine <- .national_redistribute(
+    get_primary_production(),
+    get_wide_cbs(),
+    demand_tier,
+    .feed_demand_data()
+  )
   .reshape_redistribute_intake(engine$result, engine$code_shares)
+}
+
+#' Build provincial (per-cell) feed intake, chunked by year.
+#'
+#' @description
+#' Runs the `redistribute_feed` provincial path (0.5-degree cell grain) one year
+#' at a time, so the per-cell allocation stays within memory and the full
+#' multi-year run is restartable. Sources the LPJmL grass run and gridded
+#' livestock inputs from the `WHEP_LPJML_RUN_DIR` and `WHEP_SPATIAL_INPUT_DIR`
+#' environment variables.
+#'
+#' @param years Integer vector of years to build. Default `NULL` builds every
+#'   year present in the production data.
+#' @param out_dir Directory to write per-year `feed_intake_provincial_<year>`
+#'   parquet files to. If `NULL`, the bound result is returned in memory (only
+#'   practical for a few years).
+#' @param demand_tier Demand-estimation tier, `"ipcc"` (default) or `"fcr"`.
+#' @param overwrite Re-run years whose output file already exists. Default
+#'   `FALSE` skips them so the batch is restartable.
+#' @param example If `TRUE`, return a small example output without sourcing the
+#'   remote and gridded data. Default is `FALSE`.
+#'
+#' @returns
+#' When `out_dir` is `NULL`, a tibble in the `get_feed_intake()` contract plus a
+#' `sub_territory` (0.5-degree cell) column. Otherwise, invisibly, the written
+#' file paths.
+#'
+#' @export
+#'
+#' @examples
+#' build_feed_intake_provincial(example = TRUE)
+build_feed_intake_provincial <- function(
+  years = NULL,
+  out_dir = NULL,
+  demand_tier = c("ipcc", "fcr"),
+  overwrite = FALSE,
+  example = FALSE
+) {
+  if (example) {
+    return(.example_provincial_intake())
+  }
+  demand_tier <- rlang::arg_match(demand_tier)
+  ctx <- .provincial_run_context(demand_tier)
+  years <- .resolve_provincial_years(years, ctx$production)
+  if (is.null(out_dir)) {
+    return(.bind_provincial_years(years, ctx))
+  }
+  .write_provincial_years(years, ctx, out_dir, overwrite)
+}
+
+# Shared per-run context (configured paths + the once-fetched, normalised
+# production / CBS / coefficient data), grouped so the per-year helpers take few
+# arguments.
+.provincial_run_context <- function(demand_tier) {
+  list(
+    paths = .provincial_paths(),
+    production = .normalise_feed_primary(get_primary_production()),
+    cbs = .normalise_feed_cbs(get_wide_cbs()),
+    data = .feed_demand_data(),
+    demand_tier = demand_tier
+  )
+}
+
+# Years to build: every production year, or the requested subset intersected
+# with the production years.
+.resolve_provincial_years <- function(years, production) {
+  all_years <- sort(unique(as.integer(
+    .normalise_feed_primary(production)$year
+  )))
+  if (is.null(years)) {
+    all_years
+  } else {
+    intersect(as.integer(years), all_years)
+  }
+}
+
+# One year's provincial intake: per-cell spatial inputs -> engine -> contract.
+.provincial_year_intake <- function(yr, ctx) {
+  spatial <- .provincial_spatial_inputs(yr, ctx$paths)
+  prod_y <- dplyr::filter(ctx$production, as.integer(.data$year) == yr)
+  cbs_y <- dplyr::filter(ctx$cbs, as.integer(.data$year) == yr)
+  engine <- .run_redistribute_provincial(
+    prod_y,
+    cbs_y,
+    ctx$demand_tier,
+    spatial,
+    ctx$data
+  )
+  .reshape_redistribute_intake(
+    engine$result,
+    engine$code_shares,
+    provincial = TRUE
+  )
+}
+
+# Write per-year output to disk, skipping years already written (restartable)
+# and releasing each year's memory before the next.
+.write_provincial_years <- function(years, ctx, out_dir, overwrite) {
+  if (!dir.exists(out_dir)) {
+    dir.create(out_dir, recursive = TRUE)
+  }
+  written <- purrr::map_chr(years, function(yr) {
+    f <- file.path(out_dir, sprintf("feed_intake_provincial_%d.parquet", yr))
+    if (file.exists(f) && !overwrite) {
+      cli::cli_alert_info("Year {yr}: output exists, skipping.")
+      return(f)
+    }
+    out <- .provincial_year_intake(yr, ctx)
+    nanoparquet::write_parquet(out, f)
+    cli::cli_alert_success("Year {yr}: {nrow(out)} rows written.")
+    gc()
+    f
+  })
+  invisible(written)
+}
+
+# Bind years in memory (practical only for a few years).
+.bind_provincial_years <- function(years, ctx) {
+  if (length(years) > 5) {
+    cli::cli_warn(c(
+      "Binding {length(years)} years of provincial intake in memory.",
+      i = "Pass {.arg out_dir} to write per-year output to disk for large runs."
+    ))
+  }
+  dplyr::bind_rows(purrr::map(years, function(yr) {
+    .provincial_year_intake(yr, ctx)
+  }))
 }
 
 # Resolve the configured provincial input directories from the environment,

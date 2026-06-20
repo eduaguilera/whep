@@ -370,3 +370,15 @@
 # afsetools parity fixtures were removed: afsetools::load_general_data() reads
 # Codes_coefs.xlsx via openxlsx (segfaults intermittently on R 4.5.x) and is not
 # a CI dependency, so the live parity test is not run. See test_redistribute_feed.R.
+
+.example_provincial_intake <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~sub_territory, ~live_anim_code, ~item_cbs_code,
+    ~feed_type, ~supply, ~intake, ~intake_dry_matter, ~loss, ~loss_share,
+    2000L, 724L, "-3.75_40.25", 960L, 3000L, "grass", 1250, 1250, 250, 0, 0,
+    2000L, 724L, "-3.75_40.25", 960L, 2591L, "crops", 11, 11, 10, 0, 0,
+    2000L, 724L, "-3.25_40.25", 961L, 3000L, "grass", 900, 900, 180, 0, 0,
+    2000L, 724L, "-3.25_40.25", 976L, 3500L, "scavenging", 0, 0, 0, 0, 0,
+    2000L, 724L, "-3.25_40.75", 1049L, 2591L, "crops", 22, 22, 20, 0, 0
+  )
+}

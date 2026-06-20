@@ -1,20 +1,48 @@
-test_that("get_feed_intake provincial aborts without the spatial config", {
-  # The provincial grain is wired but needs the spatial input directories; with
-  # them unset it must abort (before any remote fetch) with config guidance. The
-  # provincial engine itself is exercised by the unit tests below.
-  withr::with_envvar(
-    c(WHEP_LPJML_RUN_DIR = "", WHEP_SPATIAL_INPUT_DIR = ""),
-    {
-      expect_error(
-        whep::get_feed_intake(grain = "provincial"),
-        "spatial input director"
-      )
-      expect_error(
-        whep::get_feed_intake(grain = "provincial", demand_tier = "ipcc"),
-        "spatial input director"
-      )
-    }
+test_that("get_feed_intake provincial points to build_feed_intake_provincial", {
+  # The provincial grain is run via the chunked-by-year batch function (the full
+  # run is too large for one in-memory result); get_feed_intake redirects there.
+  expect_error(
+    whep::get_feed_intake(grain = "provincial"),
+    "build_feed_intake_provincial"
   )
+  expect_error(
+    whep::get_feed_intake(grain = "provincial", demand_tier = "ipcc"),
+    "build_feed_intake_provincial"
+  )
+})
+
+test_that("build_feed_intake_provincial(example = TRUE) returns the contract", {
+  out <- whep::build_feed_intake_provincial(example = TRUE)
+  expect_s3_class(out, "tbl_df")
+  expect_setequal(
+    names(out),
+    c(
+      "year",
+      "area_code",
+      "sub_territory",
+      "live_anim_code",
+      "item_cbs_code",
+      "feed_type",
+      "supply",
+      "intake",
+      "intake_dry_matter",
+      "loss",
+      "loss_share"
+    )
+  )
+  expect_true(all(out$supply == out$intake))
+})
+
+test_that(".resolve_provincial_years defaults to all years, else the subset", {
+  prod <- tibble::tibble(
+    year = c(1999, 2000, 2001),
+    area_code = 1,
+    item_prod_code = "1",
+    unit = "heads",
+    value = 1
+  )
+  expect_equal(whep:::.resolve_provincial_years(NULL, prod), 1999:2001)
+  expect_equal(whep:::.resolve_provincial_years(c(2000L, 2050L), prod), 2000L)
 })
 
 test_that("get_feed_intake rejects unknown grain / demand_tier", {
