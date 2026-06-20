@@ -735,6 +735,33 @@
     )
 }
 
+# Stable per-cell id (sub_territory) from the 0.5-degree cell centre, shared by
+# the grass and livestock cell bridges so their cells align.
+.cell_id <- function(lon, lat) {
+  sprintf("%.2f_%.2f", lon, lat)
+}
+
+# Map gridded grass availability to the provincial grass_availability schema:
+# each 0.5-degree cell becomes a sub_territory under its polity (territory =
+# area_code), with a border cell split across its polities by the cell's
+# land-area fraction (polity_frac). This is the per-cell forage ceiling
+# redistribute_feed binds the pasture sink to.
+.grass_to_cells <- function(grass, cell_polity) {
+  grass |>
+    dplyr::mutate(lon = round(lon, 2), lat = round(lat, 2)) |>
+    dplyr::inner_join(
+      dplyr::mutate(cell_polity, lon = round(lon, 2), lat = round(lat, 2)),
+      by = c("lon", "lat"),
+      relationship = "many-to-many"
+    ) |>
+    dplyr::transmute(
+      year,
+      territory = as.character(area_code),
+      sub_territory = .cell_id(lon, lat),
+      grass_avail_dm_t = grass_avail_dm_t * polity_frac
+    )
+}
+
 # Surface demand the cell distribution would silently drop: a (year, territory,
 # category) with no per-cell share (no gridded livestock for that category).
 .warn_uncelled_demand <- function(feed_demand, cell_shares) {

@@ -981,6 +981,60 @@ test_that("reshape reports grass-deficit substitute as residues, not grass", {
   expect_equal(out$intake, 90 / 0.9, tolerance = 1e-6)
 })
 
+test_that(".grass_to_cells maps grass to per-cell provincial grass_availability", {
+  grass <- tibble::tribble(
+    ~lon,
+    ~lat,
+    ~year,
+    ~grass_avail_dm_t,
+    10.25,
+    50.25,
+    2000L,
+    1000,
+    10.75,
+    50.25,
+    2000L,
+    500
+  )
+  # cell (10.25, 50.25) is a border cell split 0.6 polity 1 / 0.4 polity 2; the
+  # other cell is wholly polity 1.
+  cell_polity <- tibble::tribble(
+    ~lon,
+    ~lat,
+    ~area_code,
+    ~polity_frac,
+    10.25,
+    50.25,
+    1L,
+    0.6,
+    10.25,
+    50.25,
+    2L,
+    0.4,
+    10.75,
+    50.25,
+    1L,
+    1.0
+  )
+  out <- whep:::.grass_to_cells(grass, cell_polity)
+  expect_setequal(
+    names(out),
+    c("year", "territory", "sub_territory", "grass_avail_dm_t")
+  )
+  cell_b <- whep:::.cell_id(10.25, 50.25)
+  es_border <- out$grass_avail_dm_t[
+    out$territory == "1" & out$sub_territory == cell_b
+  ]
+  expect_equal(es_border, 600, tolerance = 1e-9)
+  expect_equal(
+    out$grass_avail_dm_t[out$territory == "2"],
+    400,
+    tolerance = 1e-9
+  )
+  # The split conserves the cell's total grass.
+  expect_equal(sum(out$grass_avail_dm_t), 1500, tolerance = 1e-9)
+})
+
 test_that(".distribute_demand_to_cells warns on demand with no cell share", {
   feed_demand <- tibble::tribble(
     ~year,
