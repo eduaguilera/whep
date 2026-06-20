@@ -1331,16 +1331,17 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
   if (!any(is_pasture)) {
     return(.cap_return(result, NULL, return_deficit))
   }
+  keys <- .grass_cap_keys(grass_availability)
   result$row_id <- seq_len(nrow(result))
   pasture <- result[is_pasture, , drop = FALSE]
   totals <- pasture |>
     dplyr::summarise(
       total = sum(intake_dm_t, na.rm = TRUE),
-      .by = c(year, territory)
+      .by = dplyr::all_of(keys)
     ) |>
     dplyr::left_join(
-      .grass_avail_by_territory(grass_availability),
-      by = c("year", "territory")
+      .grass_avail_keyed(grass_availability, keys),
+      by = keys
     ) |>
     dplyr::mutate(
       grass_avail_dm_t = dplyr::coalesce(grass_avail_dm_t, 0),
@@ -1353,8 +1354,8 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
   }
   cut <- pasture |>
     dplyr::inner_join(
-      totals[, c("year", "territory", "total", "excess")],
-      by = c("year", "territory")
+      totals[, c(keys, "total", "excess")],
+      by = keys
     ) |>
     dplyr::mutate(reduction = intake_dm_t / total * excess)
   result$intake_dm_t[cut$row_id] <- pmax(
@@ -1493,17 +1494,36 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
     dplyr::mutate(maintenance_share = dplyr::coalesce(maintenance_share, 0))
 }
 
-# Normalise supplied grass availability to (year, territory, grass_avail_dm_t).
-.grass_avail_by_territory <- function(grass_availability) {
+# Grass binds per cell when supplied per sub_territory (provincial grain), else
+# per polity (national grain). The cap key follows the grain of the supplied
+# grass availability: (year, sub_territory) if it carries a non-empty
+# sub_territory, otherwise (year, territory).
+.grass_cap_keys <- function(grass_availability) {
+  ga <- tibble::as_tibble(grass_availability)
+  if (rlang::has_name(ga, "sub_territory") && !all(is.na(ga$sub_territory))) {
+    c("year", "sub_territory")
+  } else {
+    c("year", "territory")
+  }
+}
+
+# Normalise supplied grass availability to (keys, grass_avail_dm_t), where keys
+# is the cap grain from `.grass_cap_keys` (per territory or per sub_territory).
+.grass_avail_keyed <- function(grass_availability, keys) {
   ga <- tibble::as_tibble(grass_availability)
   if ("area_code" %in% names(ga) && !("territory" %in% names(ga))) {
     ga$territory <- ga$area_code
   }
-  ga$territory <- as.character(ga$territory)
+  if ("territory" %in% names(ga)) {
+    ga$territory <- as.character(ga$territory)
+  }
+  if ("sub_territory" %in% names(ga)) {
+    ga$sub_territory <- as.character(ga$sub_territory)
+  }
   dplyr::summarise(
     ga,
     grass_avail_dm_t = sum(grass_avail_dm_t, na.rm = TRUE),
-    .by = c(year, territory)
+    .by = dplyr::all_of(keys)
   )
 }
 

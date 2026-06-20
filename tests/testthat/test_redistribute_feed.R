@@ -239,6 +239,32 @@ test_that(".cap_grass_to_availability leaves grass under the ceiling untouched",
   expect_equal(sum(capped$intake_dm_t), 50, tolerance = 1e-9)
 })
 
+test_that(".cap_grass_to_availability binds grass per cell (sub_territory)", {
+  # Provincial grain: grass availability carries sub_territory, so each cell's
+  # pasture grass is bounded by its OWN ceiling, not the polity total.
+  result <- tibble::tibble(
+    year = 2000L,
+    territory = "ES",
+    sub_territory = c("cellA", "cellA", "cellB"),
+    feed_quality = "grass",
+    item_cbs_code = NA_integer_,
+    intake_dm_t = c(60, 40, 50)
+  )
+  ga <- tibble::tibble(
+    year = 2000L,
+    sub_territory = c("cellA", "cellB"),
+    grass_avail_dm_t = c(50, 100)
+  )
+  capped <- whep:::.cap_grass_to_availability(result, ga)
+  a <- capped$intake_dm_t[capped$sub_territory == "cellA"]
+  b <- capped$intake_dm_t[capped$sub_territory == "cellB"]
+  # cellA (demand 100) capped at its own 50, pro-rata across its two rows.
+  expect_equal(sum(a), 50, tolerance = 1e-9)
+  expect_equal(sort(a), c(20, 30), tolerance = 1e-9)
+  # cellB (demand 50) is under its 100 ceiling and untouched.
+  expect_equal(sum(b), 50, tolerance = 1e-9)
+})
+
 test_that("grass_availability bounds the pasture grass sink in redistribute_feed", {
   d <- whep:::.example_feed_demand()
   a <- whep:::.example_feed_avail()
