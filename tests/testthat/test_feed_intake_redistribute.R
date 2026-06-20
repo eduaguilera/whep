@@ -446,6 +446,113 @@ test_that(".run_redistribute_national meets grass, caps concentrates", {
   expect_gt(hq_intake, 0)
 })
 
+test_that(".add_scavenging_avail injects avail equal to scavenging demand", {
+  feed_demand <- tibble::tribble(
+    ~year,
+    ~territory,
+    ~sub_territory,
+    ~livestock_category,
+    ~item_cbs_code,
+    ~feed_group,
+    ~feed_quality,
+    ~demand_dm_t,
+    ~fixed_demand,
+    2000L,
+    "79",
+    NA_character_,
+    "Pigs",
+    NA_integer_,
+    NA_character_,
+    "scavenging",
+    30,
+    FALSE,
+    2000L,
+    "79",
+    NA_character_,
+    "Poultry",
+    NA_integer_,
+    NA_character_,
+    "scavenging",
+    20,
+    FALSE,
+    2000L,
+    "79",
+    NA_character_,
+    "Pigs",
+    NA_integer_,
+    NA_character_,
+    "high_quality",
+    50,
+    FALSE
+  )
+  avail0 <- tibble::tibble(
+    year = integer(),
+    territory = character(),
+    sub_territory = character(),
+    item_cbs_code = integer(),
+    feed_group = character(),
+    feed_quality = character(),
+    avail_dm_t = numeric(),
+    feed_scale = character()
+  )
+  out <- whep:::.add_scavenging_avail(avail0, feed_demand)
+  scav <- out[out$feed_quality == "scavenging", ]
+  expect_equal(nrow(scav), 1L)
+  expect_equal(scav$item_cbs_code, 3500L)
+  expect_equal(scav$avail_dm_t, 50) # 30 + 20, summed across categories
+  expect_equal(scav$feed_scale, "national")
+})
+
+test_that("scavenging demand is met from its own avail, not spilled elsewhere", {
+  feed_demand <- tibble::tribble(
+    ~year,
+    ~territory,
+    ~sub_territory,
+    ~livestock_category,
+    ~item_cbs_code,
+    ~feed_group,
+    ~feed_quality,
+    ~demand_dm_t,
+    ~fixed_demand,
+    2000L,
+    "79",
+    NA_character_,
+    "Pigs",
+    NA_integer_,
+    NA_character_,
+    "scavenging",
+    30,
+    FALSE,
+    2000L,
+    "79",
+    NA_character_,
+    "Pigs",
+    NA_integer_,
+    NA_character_,
+    "high_quality",
+    100,
+    FALSE
+  )
+  avail0 <- tibble::tibble(
+    year = integer(),
+    territory = character(),
+    sub_territory = character(),
+    item_cbs_code = integer(),
+    feed_group = character(),
+    feed_quality = character(),
+    avail_dm_t = numeric(),
+    feed_scale = character()
+  )
+  feed_avail <- whep:::.add_scavenging_avail(avail0, feed_demand)
+  res <- whep::redistribute_feed(feed_demand, feed_avail)
+  # Scavenging is fully met from its own bounded availability.
+  scav_intake <- sum(res$intake_dm_t[res$feed_quality == "scavenging"])
+  expect_equal(scav_intake, 30, tolerance = 1e-6)
+  # The scavenging item never feeds the high_quality demand (no spillover).
+  hq <- res[res$feed_quality == "high_quality", ]
+  expect_false(any(hq$item_cbs_code %in% 3500L, na.rm = TRUE))
+})
+
 # Phase 6: reshape to the get_feed_intake contract -----------------------------
 
 test_that(".item_feedtype_lookup labels grass and folds additives into crops", {

@@ -575,11 +575,42 @@
   codes <- .build_feed_demand_codes(production, demand_tier, data)
   demand_total <- .aggregate_demand_to_category(codes, data$crosswalk)
   feed_demand <- .build_feed_mix(demand_total, data)
-  feed_avail <- .build_feed_avail_national(cbs)
+  feed_avail <- .build_feed_avail_national(cbs) |>
+    .add_scavenging_avail(feed_demand)
   list(
     result = redistribute_feed(feed_demand, feed_avail, options = options),
     code_shares = .demand_code_shares(codes, data$crosswalk)
   )
+}
+
+# Scavenging (household waste, free-range foraging for monogastrics) is a non-CBS
+# free source. Give it availability exactly equal to its own demand per
+# (year, territory): enough to meet scavenging in full (scaling 1), with zero
+# leftover that surplus distribution could spill onto other feed types. The
+# canonical Scavenging item (3500) carries the scavenging feed_type label and the
+# dry-matter density the reshape needs.
+.add_scavenging_avail <- function(feed_avail, feed_demand) {
+  scav <- feed_demand |>
+    dplyr::filter(.data$feed_quality == "scavenging", .data$demand_dm_t > 0) |>
+    dplyr::summarise(
+      avail_dm_t = sum(demand_dm_t, na.rm = TRUE),
+      .by = c(year, territory)
+    )
+  if (nrow(scav) == 0) {
+    return(feed_avail)
+  }
+  scav_avail <- scav |>
+    dplyr::transmute(
+      year,
+      territory,
+      sub_territory = NA_character_,
+      item_cbs_code = 3500L,
+      feed_group = "scavenging",
+      feed_quality = "scavenging",
+      avail_dm_t,
+      feed_scale = "national"
+    )
+  dplyr::bind_rows(feed_avail, scav_avail)
 }
 
 # National feed availability from the Commodity Balance Sheet `feed` element:
