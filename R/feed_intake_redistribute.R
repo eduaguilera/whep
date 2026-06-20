@@ -18,24 +18,72 @@
 # routing to the legacy allocator.
 
 .build_redistribute_intake <- function(grain, demand_tier) {
+  # Resolve the provincial input paths first, so a missing-config abort happens
+  # before the (remote) production/CBS fetch.
+  paths <- if (grain == "provincial") .provincial_paths() else NULL
+  production <- get_primary_production()
+  cbs <- get_wide_cbs()
+  data <- .feed_demand_data()
   if (grain == "provincial") {
-    cli::cli_abort(c(
-      "The {.val provincial} feed-intake grain needs gridded inputs not yet
-       wired.",
-      i = "The provincial engine ({.fn .run_redistribute_provincial}) is built
-        and unit-tested with synthetic per-cell shares and grass; sourcing real
-        per-cell livestock heads and grass availability is pending (the LPJmL
-        grass read-back is blocked)."
+    years <- sort(unique(as.integer(.normalise_feed_primary(production)$year)))
+    spatial <- .provincial_spatial_inputs(years, paths)
+    engine <- .run_redistribute_provincial(
+      production,
+      cbs,
+      demand_tier,
+      spatial,
+      data
+    )
+    return(.reshape_redistribute_intake(
+      engine$result,
+      engine$code_shares,
+      provincial = TRUE
     ))
   }
-  data <- .feed_demand_data()
-  engine <- .national_redistribute(
-    get_primary_production(),
-    get_wide_cbs(),
-    demand_tier,
-    data
-  )
+  engine <- .national_redistribute(production, cbs, demand_tier, data)
   .reshape_redistribute_intake(engine$result, engine$code_shares)
+}
+
+# Resolve the configured provincial input directories from the environment,
+# aborting with guidance if either is unset.
+.provincial_paths <- function() {
+  run_dir <- Sys.getenv("WHEP_LPJML_RUN_DIR")
+  input_dir <- Sys.getenv("WHEP_SPATIAL_INPUT_DIR")
+  if (!nzchar(run_dir) || !nzchar(input_dir)) {
+    cli::cli_abort(c(
+      "The {.val provincial} grain needs the spatial input directories.",
+      i = "Set {.envvar WHEP_LPJML_RUN_DIR} (the LPJmL run scenario output
+        directory with {.file pft_npp.nc} and {.file cftfrac.nc}) and
+        {.envvar WHEP_SPATIAL_INPUT_DIR} (the gridded-livestock input directory)."
+    ))
+  }
+  list(run_dir = run_dir, input_dir = input_dir)
+}
+
+# Source the provincial spatial inputs (per-cell livestock head shares + per-cell
+# grass availability) from the configured directories. A heavy global
+# computation: gridded livestock plus LPJmL grass for every model year. Years
+# outside the LPJmL run's coverage get unbounded grass.
+.provincial_spatial_inputs <- function(years, paths) {
+  ls_inputs <- .load_livestock_inputs(paths$input_dir)
+  gridded_heads <- build_gridded_livestock(
+    livestock_data = ls_inputs$livestock_data,
+    gridded_pasture = ls_inputs$gridded_pasture,
+    gridded_cropland = ls_inputs$gridded_cropland,
+    country_grid = ls_inputs$country_grid,
+    species_proxy = ls_inputs$species_proxy,
+    manure_pattern = ls_inputs$manure_pattern,
+    years = years
+  )
+  grass <- build_grass_availability(
+    method = "lpjml",
+    run_dir = paths$run_dir,
+    years = years
+  )
+  list(
+    cell_shares = .heads_to_cell_shares(gridded_heads),
+    grass_avail = .grass_to_cells(grass, ls_inputs$country_grid)
+  )
 }
 
 # Curated live_anim_code -> livestock_category crosswalk: maps each live animal
@@ -189,6 +237,15 @@
 # converted to dry-matter tonnes/year via the diet gross-energy content and a
 # 365-day year, summed over the GLEAM cohorts of each animal.
 .build_demand_energy <- function(production, ruminant_codes) {
+  # The emissions bridge joins the yield (t_head) rows on a CHARACTER
+  # live_anim_code (the animal code); real production carries it as a double, so
+  # cast it (do NOT drop it: the milk-yield join needs it, or lactation energy
+  # silently drops to zero). Keep item_cbs_code integer for the code filter.
+  production <- production |>
+    dplyr::mutate(
+      item_cbs_code = as.integer(item_cbs_code),
+      dplyr::across(dplyr::any_of("live_anim_code"), as.character)
+    )
   heads <- production |>
     dplyr::filter(unit == "heads", item_cbs_code %in% ruminant_codes)
   if (nrow(heads) == 0) {
@@ -743,23 +800,108 @@
 
 # Map gridded grass availability to the provincial grass_availability schema:
 # each 0.5-degree cell becomes a sub_territory under its polity (territory =
-# area_code), with a border cell split across its polities by the cell's
-# land-area fraction (polity_frac). This is the per-cell forage ceiling
-# redistribute_feed binds the pasture sink to.
+# area_code). Pass `country_grid` (majority assignment, one polity per cell) to
+# match how gridded livestock heads are assigned; a `cell_polity` carrying
+# `polity_frac` instead splits a border cell's grass across its polities. The
+# result is the per-cell forage ceiling redistribute_feed binds the pasture sink
+# to.
 .grass_to_cells <- function(grass, cell_polity) {
+  cp <- dplyr::mutate(cell_polity, lon = round(lon, 2), lat = round(lat, 2))
+  if (!rlang::has_name(cp, "polity_frac")) {
+    cp$polity_frac <- 1
+  }
   grass |>
     dplyr::mutate(lon = round(lon, 2), lat = round(lat, 2)) |>
     dplyr::inner_join(
-      dplyr::mutate(cell_polity, lon = round(lon, 2), lat = round(lat, 2)),
+      cp,
       by = c("lon", "lat"),
       relationship = "many-to-many"
     ) |>
     dplyr::transmute(
-      year,
-      territory = as.character(area_code),
+      year = as.integer(year),
+      territory = as.character(as.integer(area_code)),
       sub_territory = .cell_id(lon, lat),
       grass_avail_dm_t = grass_avail_dm_t * polity_frac
     )
+}
+
+# Per-cell livestock head shares for the demand distribution: map each gridded
+# species_group to its feed livestock_category, sum heads per (year, territory,
+# category, cell), and normalise to the cell's share of that category's heads in
+# the polity. Gridded heads already carry their (majority) area_code, so no
+# cell->polity join is needed.
+.heads_to_cell_shares <- function(
+  gridded_heads,
+  mapping = .species_group_to_category()
+) {
+  gridded_heads |>
+    dplyr::inner_join(
+      mapping,
+      by = "species_group",
+      relationship = "many-to-many"
+    ) |>
+    dplyr::summarise(
+      heads = sum(heads, na.rm = TRUE),
+      .by = c(year, area_code, livestock_category, lon, lat)
+    ) |>
+    dplyr::mutate(
+      year = as.integer(year),
+      territory = as.character(as.integer(area_code)),
+      sub_territory = .cell_id(lon, lat)
+    ) |>
+    dplyr::mutate(
+      cell_share = .safe_share(heads),
+      .by = c(year, territory, livestock_category)
+    ) |>
+    dplyr::select(
+      year,
+      territory,
+      livestock_category,
+      sub_territory,
+      cell_share
+    )
+}
+
+# Gridded livestock species_group -> feed livestock_category. Many-to-many where
+# the gridded data is coarser than the feed categories: sheep_goats and equines
+# each share their spatial pattern across two categories (the grids do not
+# separate them); cattle_non_dairy + buffalo both inform Cattle_meat; the three
+# poultry grids (broilers, layers, other poultry) all inform Poultry; camels +
+# other inform Other, and Rabbits borrow the `other` pattern (no rabbit grid).
+# An MVP mapping to refine if finer gridded layers become available.
+.species_group_to_category <- function() {
+  tibble::tribble(
+    ~species_group,
+    ~livestock_category,
+    "cattle_dairy",
+    "Cattle_milk",
+    "cattle_non_dairy",
+    "Cattle_meat",
+    "buffalo",
+    "Cattle_meat",
+    "sheep_goats",
+    "Sheep",
+    "sheep_goats",
+    "Goats",
+    "pigs",
+    "Pigs",
+    "poultry",
+    "Poultry",
+    "chickens_broilers",
+    "Poultry",
+    "chickens_layers",
+    "Poultry",
+    "equines",
+    "Horses",
+    "equines",
+    "Donkeys_mules",
+    "camels",
+    "Other",
+    "other",
+    "Other",
+    "other",
+    "Rabbits"
+  )
 }
 
 # Surface demand the cell distribution would silently drop: a (year, territory,

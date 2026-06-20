@@ -66,7 +66,7 @@ build_grass_availability_lpjml <- function(
   example = FALSE
 ) {
   if (example) {
-    return(.example_grass_availability_lpjml())
+    return(.example_grass_avail_lpjml())
   }
   if (!rlang::is_installed("ncdf4")) {
     cli::cli_abort("Package {.pkg ncdf4} is required to read the LPJmL run.")
@@ -250,6 +250,10 @@ read_lpjml_grass_productivity <- function(
       "Band(s) not in {.file {path}}: {band_names[is.na(band_idx)]}."
     )
   }
+  years <- .clip_run_years(years, first_year, nc$dim[["time"]]$len, path)
+  if (length(years) == 0) {
+    return(.empty_lpjml_bands())
+  }
   combos <- tidyr::expand_grid(b = seq_along(band_names), y = seq_along(years))
   rows <- purrr::pmap(combos, function(b, y) {
     slab <- ncdf4::ncvar_get(
@@ -269,8 +273,35 @@ read_lpjml_grass_productivity <- function(
   data.table::rbindlist(rows)
 }
 
+# Restrict requested years to the run's output time axis, warning about (and
+# skipping) any outside it, so an out-of-coverage year does not abort the read
+# with an out-of-bounds index. Skipped years simply carry no LPJmL grass.
+.clip_run_years <- function(years, first_year, n_time, path) {
+  avail <- first_year + seq_len(n_time) - 1L
+  dropped <- setdiff(years, avail)
+  if (length(dropped) > 0) {
+    n <- length(dropped)
+    cli::cli_warn(c(
+      "{n} requested year{?s} fall outside the run's coverage
+       ({min(avail)}-{max(avail)}) in {.file {basename(path)}} and are skipped.",
+      i = "Cells in {cli::qty(n)}{?that year/those years} carry no LPJmL grass."
+    ))
+  }
+  intersect(years, avail)
+}
+
+.empty_lpjml_bands <- function() {
+  data.table::data.table(
+    lon = numeric(),
+    lat = numeric(),
+    year = integer(),
+    band = character(),
+    value = numeric()
+  )
+}
+
 # Toy fixture for the runnable example (sampled from a real read-back).
-.example_grass_availability_lpjml <- function() {
+.example_grass_avail_lpjml <- function() {
   tibble::tribble(
     ~lon, ~lat, ~year, ~grass_npp_gc_m2, ~grass_avail_dm_t_ha, ~grass_avail_dm_t,
     9.25, 47.75, 2000L, 612.4, 6.258, 16980,

@@ -101,3 +101,23 @@ test_that("read_lpjml_grass_productivity(example = TRUE) returns the tidy schema
   expect_setequal(names(gp), c("lon", "lat", "year", "grass_npp"))
   expect_true(all(gp$grass_npp > 0))
 })
+
+test_that(".clip_run_years drops out-of-coverage years with a warning", {
+  # An LPJmL run covering 1901-2009 (109 time steps) must skip requested years
+  # outside it rather than abort the read on an out-of-bounds index.
+  expect_warning(
+    out <- whep:::.clip_run_years(
+      c(1850L, 2000L, 2020L),
+      1901L,
+      109L,
+      "pft_npp.nc"
+    ),
+    "outside the run's coverage"
+  )
+  expect_equal(out, 2000L)
+  # All in-range years pass through untouched, no warning.
+  expect_silent(
+    keep <- whep:::.clip_run_years(c(1950L, 2000L), 1901L, 109L, "pft_npp.nc")
+  )
+  expect_equal(keep, c(1950L, 2000L))
+})

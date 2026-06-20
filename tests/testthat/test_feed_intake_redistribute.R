@@ -1,14 +1,19 @@
-test_that("get_feed_intake routes the provincial grain to an unimplemented error", {
-  # The national grain (both demand tiers) is wired; only the provincial grain
-  # still errors. The national ipcc path is exercised via the engine + reshape
-  # unit tests below (no remote data fetch).
-  expect_error(
-    whep::get_feed_intake(grain = "provincial"),
-    "not yet wired"
-  )
-  expect_error(
-    whep::get_feed_intake(grain = "provincial", demand_tier = "ipcc"),
-    "not yet wired"
+test_that("get_feed_intake provincial aborts without the spatial config", {
+  # The provincial grain is wired but needs the spatial input directories; with
+  # them unset it must abort (before any remote fetch) with config guidance. The
+  # provincial engine itself is exercised by the unit tests below.
+  withr::with_envvar(
+    c(WHEP_LPJML_RUN_DIR = "", WHEP_SPATIAL_INPUT_DIR = ""),
+    {
+      expect_error(
+        whep::get_feed_intake(grain = "provincial"),
+        "spatial input director"
+      )
+      expect_error(
+        whep::get_feed_intake(grain = "provincial", demand_tier = "ipcc"),
+        "spatial input director"
+      )
+    }
   )
 })
 
@@ -100,6 +105,78 @@ test_that(".energy_to_dm applies the GE/18.45 x 365 /1000 conversion", {
   expected <- 100 * (20 / 18.45) * 365 / 1000
   expect_equal(out$demand_dm_t, expected, tolerance = 1e-6)
   expect_equal(out$live_anim_code, 976L)
+})
+
+test_that(".build_demand_energy handles double-typed production codes", {
+  # Real get_primary_production carries item_cbs_code / live_anim_code as doubles;
+  # the energy bridge keys live_anim_code as a character, so the path must not
+  # break on the type (regression for the double-vs-character join).
+  production <- tibble::tribble(
+    ~year,
+    ~area_code,
+    ~item_cbs_code,
+    ~live_anim_code,
+    ~item_prod_code,
+    ~unit,
+    ~value,
+    2000,
+    79,
+    976,
+    976,
+    "976",
+    "heads",
+    1e6
+  )
+  out <- whep:::.build_demand_energy(production, c(976L))
+  expect_true(976L %in% out$live_anim_code)
+  expect_gt(out$demand_dm_t[out$live_anim_code == 976L], 0)
+})
+
+test_that(".build_demand_energy adds lactation energy from a milk-yield row", {
+  # A t_head milk-yield row must reach the energy model (its live_anim_code join
+  # keys on a character). Dropping live_anim_code would zero lactation energy and
+  # understate dairy demand ~1.85x; this guards that regression. Codes are
+  # doubles (real-data shape).
+  base <- tibble::tribble(
+    ~year,
+    ~area_code,
+    ~item_cbs_code,
+    ~live_anim_code,
+    ~item_prod_code,
+    ~unit,
+    ~value,
+    2000,
+    79,
+    960,
+    960,
+    "960",
+    "heads",
+    1e6
+  )
+  with_milk <- dplyr::bind_rows(
+    base,
+    tibble::tribble(
+      ~year,
+      ~area_code,
+      ~item_cbs_code,
+      ~live_anim_code,
+      ~item_prod_code,
+      ~unit,
+      ~value,
+      2000,
+      79,
+      960,
+      960,
+      "960",
+      "t_head",
+      5
+    )
+  )
+  ph_base <- whep:::.build_demand_energy(base, c(960L))
+  ph_milk <- whep:::.build_demand_energy(with_milk, c(960L))
+  d_base <- ph_base$demand_dm_t[ph_base$live_anim_code == 960L]
+  d_milk <- ph_milk$demand_dm_t[ph_milk$live_anim_code == 960L]
+  expect_gt(d_milk, d_base * 1.2)
 })
 
 test_that(".aggregate_demand_to_category sums codes and keeps method", {
@@ -1033,6 +1110,69 @@ test_that(".grass_to_cells maps grass to per-cell provincial grass_availability"
   )
   # The split conserves the cell's total grass.
   expect_equal(sum(out$grass_avail_dm_t), 1500, tolerance = 1e-9)
+})
+
+test_that(".heads_to_cell_shares maps species groups and shares per category", {
+  gridded_heads <- tibble::tribble(
+    ~year,
+    ~species_group,
+    ~area_code,
+    ~lon,
+    ~lat,
+    ~heads,
+    2000L,
+    "sheep_goats",
+    1L,
+    10.25,
+    50.25,
+    70,
+    2000L,
+    "sheep_goats",
+    1L,
+    10.75,
+    50.25,
+    30,
+    2000L,
+    "cattle_dairy",
+    1L,
+    10.25,
+    50.25,
+    100
+  )
+  out <- whep:::.heads_to_cell_shares(gridded_heads)
+  expect_setequal(
+    names(out),
+    c("year", "territory", "livestock_category", "sub_territory", "cell_share")
+  )
+  # sheep_goats feeds BOTH Sheep and Goats with the SAME 70/30 cell pattern.
+  expect_setequal(
+    unique(out$livestock_category),
+    c("Sheep", "Goats", "Cattle_milk")
+  )
+  cell_a <- whep:::.cell_id(10.25, 50.25)
+  sheep <- out[out$livestock_category == "Sheep", ]
+  goats <- out[out$livestock_category == "Goats", ]
+  expect_equal(sum(sheep$cell_share), 1, tolerance = 1e-9)
+  expect_equal(
+    sheep$cell_share[sheep$sub_territory == cell_a],
+    0.7,
+    tolerance = 1e-9
+  )
+  expect_equal(
+    goats$cell_share[goats$sub_territory == cell_a],
+    0.7,
+    tolerance = 1e-9
+  )
+  # Cattle_milk occupies only cell_a, so its share is 1.
+  expect_equal(out$cell_share[out$livestock_category == "Cattle_milk"], 1)
+})
+
+test_that(".species_group_to_category covers every crosswalk category", {
+  # Guards against a feed category with no gridded proxy (its demand would be
+  # dropped from the provincial allocation).
+  m <- whep:::.species_group_to_category()
+  cw_cats <- unique(whep:::.livestock_crosswalk()$livestock_category)
+  expect_true(all(cw_cats %in% m$livestock_category))
 })
 
 test_that(".distribute_demand_to_cells warns on demand with no cell share", {
