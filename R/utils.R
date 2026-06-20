@@ -917,7 +917,27 @@ utils::globalVariables(
     "code_share",
     "grazer_feedtype",
     "granivore_feedtype",
-    "intake_dry_matter"
+    "intake_dry_matter",
+    # feed_intake_build.R (legacy allocator NSE columns, merged)
+    "avail",
+    "avail_dm",
+    "dm_feedtype_tot",
+    "dm_share_scav",
+    "fcr",
+    "feedtype_graniv",
+    "feedtype_grazers",
+    "ft",
+    "graniv_feed_share",
+    "grass",
+    "grazers_feed_share",
+    "loss_dm",
+    "scavenging",
+    "supply_dm",
+    # repair_luh2_cropland_collapses NSE columns (merged)
+    "cropland_mha",
+    "neighbor_mha",
+    "next_mha",
+    "prev_mha"
   )
 )
 
