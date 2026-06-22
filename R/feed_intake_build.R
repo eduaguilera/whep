@@ -5,11 +5,11 @@
     !rlang::has_name(cbs, "item_cbs_code") &&
       rlang::has_name(cbs, "item_code")
   ) {
-    cbs <- dplyr::rename(cbs, item_cbs_code = .data$item_code)
+    cbs <- dplyr::rename(cbs, item_cbs_code = "item_code")
   }
   if (
     !rlang::has_name(cbs, "feed") &&
-      all(c("element", "value") %in% names(cbs))
+      all(rlang::has_name(cbs, c("element", "value")))
   ) {
     return(
       cbs |>
@@ -100,7 +100,7 @@
               .by = c("year", "region_bouwman", "feed_type")
             ) |>
             dplyr::filter(.data$feed_type == "scavenging") |>
-            dplyr::select(-.data$feed_type),
+            dplyr::select(-"feed_type"),
           by = c("year", "region_bouwman")
         )
     })() |>
@@ -109,7 +109,7 @@
         dplyr::left_join(
           df |>
             dplyr::filter(.data$feed_type == "scavenging") |>
-            dplyr::rename(dm_share_scav = .data$dm_share) |>
+            dplyr::rename(dm_share_scav = "dm_share") |>
             dplyr::select(
               year,
               region_bouwman,

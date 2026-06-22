@@ -20,3 +20,4 @@ vignettes/methods_references.bib
 inst/analysis/
 LPJmL_inputs/
 plans/
+.playwright-mcp/

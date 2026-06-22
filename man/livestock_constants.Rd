@@ -17,11 +17,13 @@ livestock_constants
 Named list of physical constants used in livestock
 emission calculations:
 \itemize{
-\item \code{energy_ch4_mj_kg}: 55.65 MJ/kg CH4.
-\item \code{ge_content_mj_kg_dm}: 18.45 MJ/kg DM.
-\item \code{ue_factor}: 0.04 (urinary energy as fraction of GE).
-\item \code{n_to_protein}: 6.25 (N to protein conversion).
+\item \code{energy_content_ch4_mj_kg}: 55.65 MJ/kg CH4.
+\item \code{ch4_density_kg_m3}: 0.67 kg/m3.
+\item \code{vs_energy_content_mj_kg}: 18.45 MJ/kg DM.
+\item \code{n_to_n2o}: 44/28 (N to N2O molecular mass ratio).
+\item \code{days_in_year}: 365.
 \item \code{default_de_percent}: 65\%.
+\item \code{default_ue_fraction}: 0.04 (urinary energy as fraction of GE).
 \item \code{ev_wool_mj_kg}: 24.0 MJ/kg clean wool.
 }
 }

@@ -222,7 +222,7 @@ test_that(".aggregate_demand_to_category sums codes and keeps method", {
     2000L,
     79L,
     1051L,
-    50, # Hogs -> Pigs
+    50, # Hogs to Pigs
     "bouwman_fcr",
     2000L,
     79L,
@@ -483,7 +483,7 @@ test_that(".build_feed_avail_national tags CBS feed with quality + scale", {
     1970L,
     1L,
     2105L,
-    500 # straw -> residues
+    500 # straw to residues
   )
   out <- whep:::.build_feed_avail_national(cbs)
   expect_setequal(
@@ -691,7 +691,7 @@ test_that(".demand_code_shares split sums to 1 within each category", {
     2000L,
     79L,
     1051L,
-    40, # Hogs -> Pigs
+    40, # Hogs to Pigs
     "bouwman_fcr"
   )
   out <- whep:::.demand_code_shares(codes, whep:::.livestock_crosswalk())

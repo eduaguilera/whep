@@ -237,7 +237,12 @@ run_lpjml <- function(
   }
 }
 
-.ensure_coord_bin <- function(model_path, input_path, coord_nc_name, coord_name) {
+.ensure_coord_bin <- function(
+  model_path,
+  input_path,
+  coord_nc_name,
+  coord_name
+) {
   coord_nc <- file.path(input_path, coord_nc_name)
   coord_bin <- file.path(input_path, coord_name)
   if (!file.exists(coord_nc)) {
@@ -309,7 +314,11 @@ run_lpjml <- function(
       )
     }
   )
-  climate_on_soil <- lapply(climate_grids, .match_grid_to_soil, soil = soil_grid)
+  climate_on_soil <- lapply(
+    climate_grids,
+    .match_grid_to_soil,
+    soil = soil_grid
+  )
 
   .abort_missing_climate("precipitation", climate_on_soil$prec)
   prec_valid <- climate_on_soil$prec$valid
@@ -439,7 +448,10 @@ run_lpjml <- function(
   }
 
   first <- which(years == first_year)[[1L]]
-  last <- min(first + 11L, which(years == last_year)[[length(which(years == last_year))]])
+  last <- min(
+    first + 11L,
+    which(years == last_year)[[length(which(years == last_year))]]
+  )
   seq.int(first, last)
 }
 
@@ -447,9 +459,17 @@ run_lpjml <- function(
   if (is.null(units) || is.na(units)) {
     return(seq_along(time_vals))
   }
-  origin <- sub(".*since[[:space:]]+([0-9]{4}-[0-9]{1,2}-[0-9]{1,2}).*", "\\1", units)
+  origin <- sub(
+    ".*since[[:space:]]+([0-9]{4}-[0-9]{1,2}-[0-9]{1,2}).*",
+    "\\1",
+    units
+  )
   if (identical(origin, units)) {
-    origin_year <- as.integer(sub(".*since[[:space:]]+([0-9]{4}).*", "\\1", units))
+    origin_year <- as.integer(sub(
+      ".*since[[:space:]]+([0-9]{4}).*",
+      "\\1",
+      units
+    ))
   } else {
     origin_year <- as.integer(format(as.Date(origin), "%Y"))
   }
@@ -471,8 +491,14 @@ run_lpjml <- function(
     dim_names <- dim_names[-time_dim]
   }
   values <- drop(values)
-  lon_pos <- match(dim_names[[lon_dim - (!is.na(time_dim) && lon_dim > time_dim)]], dim_names)
-  lat_pos <- match(dim_names[[lat_dim - (!is.na(time_dim) && lat_dim > time_dim)]], dim_names)
+  lon_pos <- match(
+    dim_names[[lon_dim - (!is.na(time_dim) && lon_dim > time_dim)]],
+    dim_names
+  )
+  lat_pos <- match(
+    dim_names[[lat_dim - (!is.na(time_dim) && lat_dim > time_dim)]],
+    dim_names
+  )
   if (length(dim(values)) != length(dim_names)) {
     stop("Unexpected NetCDF array shape after dropping time dimension.")
   }
@@ -503,7 +529,11 @@ run_lpjml <- function(
 }
 
 .abort_missing_climate <- function(label, coverage, reference = NULL) {
-  check_cells <- if (is.null(reference)) rep(TRUE, length(coverage$valid)) else reference
+  check_cells <- if (is.null(reference)) {
+    rep(TRUE, length(coverage$valid))
+  } else {
+    reference
+  }
   missing <- check_cells & !coverage$valid
   if (any(missing)) {
     stop(

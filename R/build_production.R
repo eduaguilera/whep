@@ -391,17 +391,21 @@ build_primary_production <- function(
   )
   dt[, polity_code := NULL]
   dt <- dt[year > 1849]
-  .repair_luh2_cropland_collapses(dt)
+  .repair_luh2_crop_collapses(dt)
 }
 
-.repair_luh2_cropland_collapses <- function(
+.repair_luh2_crop_collapses <- function(
   land_areas,
   collapse_ratio = 0.02,
   min_neighbor_mha = 0.001
 ) {
   crop_vars <- c("c3ann", "c3per", "c4ann", "c4per", "c3nfx")
-  if (!all(c("area_code", "area", "year", "Land_Use", "Area_Mha") %in%
-    names(land_areas))) {
+  if (
+    !all(
+      c("area_code", "area", "year", "Land_Use", "Area_Mha") %in%
+        names(land_areas)
+    )
+  ) {
     return(land_areas)
   }
 
@@ -412,10 +416,13 @@ build_primary_production <- function(
     by = .(area_code, area, year)
   ]
   data.table::setorder(crop_totals, area_code, year)
-  crop_totals[, `:=`(
-    prev_mha = data.table::shift(cropland_mha, 1L),
-    next_mha = data.table::shift(cropland_mha, 1L, type = "lead")
-  ), by = area_code]
+  crop_totals[,
+    `:=`(
+      prev_mha = data.table::shift(cropland_mha, 1L),
+      next_mha = data.table::shift(cropland_mha, 1L, type = "lead")
+    ),
+    by = area_code
+  ]
   crop_totals[, neighbor_mha := (prev_mha + next_mha) / 2]
 
   bad <- crop_totals[
@@ -434,8 +441,14 @@ build_primary_production <- function(
     ac <- bad$area_code[i]
     yr <- bad$year[i]
     for (lu in crop_vars) {
-      prev_val <- dt[area_code == ac & year == yr - 1L & Land_Use == lu, Area_Mha]
-      next_val <- dt[area_code == ac & year == yr + 1L & Land_Use == lu, Area_Mha]
+      prev_val <- dt[
+        area_code == ac & year == yr - 1L & Land_Use == lu,
+        Area_Mha
+      ]
+      next_val <- dt[
+        area_code == ac & year == yr + 1L & Land_Use == lu,
+        Area_Mha
+      ]
       if (length(prev_val) > 0L && length(next_val) > 0L) {
         dt[
           area_code == ac & year == yr & Land_Use == lu,

@@ -951,7 +951,7 @@ utils::globalVariables(
     "loss_dm",
     "scavenging",
     "supply_dm",
-    # repair_luh2_cropland_collapses NSE columns (merged)
+    # repair_luh2_crop_collapses NSE columns (merged)
     "cropland_mha",
     "neighbor_mha",
     "next_mha",
