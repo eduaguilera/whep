@@ -21,3 +21,6 @@ inst/analysis/
 LPJmL_inputs/
 plans/
 .fabio_compare/
+.whep_cache/
+validation/cache
+validation/cache/
