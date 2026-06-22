@@ -920,6 +920,22 @@ utils::globalVariables(
     "intake_dry_matter",
     # feed_intake_redistribute.R (provincial grain)
     "cell_share",
+    # feed_intake_redistribute.R (Phase 5b grass border grazing)
+    "surplus",
+    "deficit",
+    "demand",
+    "filled",
+    "ceil",
+    "received",
+    "got",
+    "cell_deficit",
+    "row_deficit",
+    "slon",
+    "slat",
+    "dlon",
+    "dlat",
+    "d_tot",
+    "flow",
     # feed_intake_build.R (legacy allocator NSE columns, merged)
     "avail",
     "avail_dm",

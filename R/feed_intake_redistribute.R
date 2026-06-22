@@ -92,7 +92,10 @@ build_feed_intake_provincial <- function(
     production = .normalise_feed_primary(get_primary_production()),
     cbs = .normalise_feed_cbs(get_wide_cbs()),
     data = .feed_demand_data(),
-    demand_tier = demand_tier
+    demand_tier = demand_tier,
+    # Border-strip ratio (grazing range / cell width ~ 5 km / 55 km); the share
+    # of a deficit cell's animals that can graze across the cell edge.
+    grass_border_allowance = 0.1
   )
 }
 
@@ -112,6 +115,7 @@ build_feed_intake_provincial <- function(
 # One year's provincial intake: per-cell spatial inputs -> engine -> contract.
 .provincial_year_intake <- function(yr, ctx) {
   spatial <- .provincial_spatial_inputs(yr, ctx$paths)
+  spatial$grass_border_allowance <- ctx$grass_border_allowance
   prod_y <- dplyr::filter(ctx$production, as.integer(.data$year) == yr)
   cbs_y <- dplyr::filter(ctx$cbs, as.integer(.data$year) == yr)
   engine <- .run_redistribute_provincial(
@@ -857,12 +861,21 @@ build_feed_intake_provincial <- function(
     .distribute_demand_to_cells(spatial$cell_shares)
   feed_avail <- .build_feed_avail_national(cbs) |>
     .add_scavenging_avail(feed_demand)
+  result <- redistribute_feed(
+    feed_demand,
+    feed_avail,
+    options = list(grass_availability = spatial$grass_avail)
+  )
+  allowance <- spatial$grass_border_allowance
+  if (!is.null(allowance) && allowance > 0) {
+    result <- .apply_grass_border_grazing(
+      result,
+      spatial$grass_avail,
+      allowance
+    )
+  }
   list(
-    result = redistribute_feed(
-      feed_demand,
-      feed_avail,
-      options = list(grass_availability = spatial$grass_avail)
-    ),
+    result = result,
     code_shares = .demand_code_shares(codes, data$crosswalk)
   )
 }
@@ -1042,6 +1055,174 @@ build_feed_intake_provincial <- function(
       {cli::qty(length(cats))}missing categor{?y/ies}."
   ))
   invisible(NULL)
+}
+
+# ---- Phase 5b: grass border grazing -----------------------------------------
+
+# Border grazing: a grass-deficit cell accesses a small fraction (`allowance`,
+# the border-strip ratio grazing-range / cell-width, ~0.1 at 0.5 degree) of its
+# eight immediate (king-move) same-polity neighbours' UNUSED grass, since animals
+# near a cell edge graze across it. The recovered grass is added as intake to the
+# deficit cell (it may exceed the cell's own per-cell ceiling, bounded by the
+# neighbours' surplus), so the total still respects the global grass available.
+# Empirically a ~1% correction at 0.5 degree (the surplus is mostly far from the
+# deficit), so this is the immediate-neighbour version, not a long-range buffer.
+.apply_grass_border_grazing <- function(result, grass_availability, allowance) {
+  sink <- result[
+    result$feed_quality == "grass" &
+      is.na(result$item_cbs_code) &
+      result$hierarchy_level == "6_grassland_unlimited",
+    ,
+    drop = FALSE
+  ]
+  if (nrow(sink) == 0) {
+    return(result)
+  }
+  flows <- .grass_border_cells(result, sink, grass_availability) |>
+    .grass_border_flows(allowance)
+  if (nrow(flows) == 0) {
+    return(result)
+  }
+  rows <- .grass_border_rows(sink, flows)
+  if (nrow(rows) == 0) {
+    return(result)
+  }
+  dplyr::bind_rows(result, rows)
+}
+
+# Per-cell grass balance: grass demand, capped grass intake, ceiling, surplus,
+# and the deficit STILL UNMET after the non-grass substitute cascade already
+# filled part of it (so border grazing tops up only the remainder and a cell's
+# total intake never exceeds its demand). Coordinates parse from the cell id.
+.grass_border_cells <- function(result, sink, grass_availability) {
+  per_cell <- sink |>
+    dplyr::summarise(
+      demand = sum(demand_dm_t, na.rm = TRUE),
+      intake = sum(intake_dm_t, na.rm = TRUE),
+      .by = c(year, territory, sub_territory)
+    )
+  substitute <- result[result$feed_group == "substitute", , drop = FALSE] |>
+    dplyr::summarise(
+      filled = sum(intake_dm_t, na.rm = TRUE),
+      .by = c(year, territory, sub_territory)
+    )
+  ceil <- tibble::as_tibble(grass_availability) |>
+    dplyr::mutate(territory = as.character(territory)) |>
+    dplyr::summarise(
+      ceil = sum(grass_avail_dm_t, na.rm = TRUE),
+      .by = c(year, territory, sub_territory)
+    )
+  out <- per_cell |>
+    dplyr::left_join(ceil, by = c("year", "territory", "sub_territory")) |>
+    dplyr::left_join(
+      substitute,
+      by = c("year", "territory", "sub_territory")
+    ) |>
+    dplyr::mutate(
+      ceil = dplyr::coalesce(ceil, 0),
+      filled = dplyr::coalesce(filled, 0),
+      deficit = pmax(0, demand - intake - filled),
+      surplus = pmax(0, ceil - intake)
+    )
+  coords <- .parse_cell_id(out$sub_territory)
+  out$lon <- coords$lon
+  out$lat <- coords$lat
+  out
+}
+
+# Each surplus cell offers `allowance` x surplus to its same-polity king-move
+# deficit neighbours, shared in proportion to their deficit; a deficit cell's
+# received grass is the sum of inflows, capped at its deficit.
+.grass_border_flows <- function(cells, allowance) {
+  surplus <- cells |>
+    dplyr::filter(surplus > 1e-9) |>
+    dplyr::transmute(year, territory, slon = lon, slat = lat, surplus)
+  deficit <- cells |>
+    dplyr::filter(deficit > 1e-9) |>
+    dplyr::select(year, territory, sub_territory, lon, lat, deficit)
+  if (nrow(surplus) == 0 || nrow(deficit) == 0) {
+    return(.empty_border_flows())
+  }
+  surplus |>
+    tidyr::crossing(.king_move_offsets()) |>
+    dplyr::mutate(lon = round(slon + dlon, 2), lat = round(slat + dlat, 2)) |>
+    dplyr::inner_join(deficit, by = c("year", "territory", "lon", "lat")) |>
+    dplyr::mutate(d_tot = sum(deficit), .by = c(year, territory, slon, slat)) |>
+    dplyr::mutate(flow = allowance * surplus * deficit / d_tot) |>
+    dplyr::summarise(
+      received = sum(flow, na.rm = TRUE),
+      deficit = dplyr::first(deficit),
+      .by = c(year, territory, sub_territory)
+    ) |>
+    dplyr::transmute(
+      year,
+      territory,
+      sub_territory,
+      received = pmin(received, deficit)
+    )
+}
+
+# Split each deficit cell's recovered grass across its grass-sink rows in
+# proportion to their unmet demand, and emit them as border-grazing intake.
+.grass_border_rows <- function(sink, flows) {
+  rows <- sink |>
+    dplyr::mutate(row_deficit = pmax(0, demand_dm_t - intake_dm_t)) |>
+    dplyr::inner_join(flows, by = c("year", "territory", "sub_territory")) |>
+    dplyr::mutate(
+      cell_deficit = sum(row_deficit),
+      .by = c(year, territory, sub_territory)
+    ) |>
+    dplyr::mutate(
+      got = dplyr::if_else(
+        cell_deficit > 0,
+        received * row_deficit / cell_deficit,
+        0
+      )
+    ) |>
+    dplyr::filter(got > 1e-9)
+  if (nrow(rows) == 0) {
+    return(rows[0, names(sink), drop = FALSE])
+  }
+  rows |>
+    dplyr::transmute(
+      year,
+      territory,
+      sub_territory,
+      livestock_category,
+      item_cbs_code = NA_integer_,
+      feed_group = "grass",
+      feed_quality = "grass",
+      # 0, not the sink row's demand: the grass demand is already carried on the
+      # 6_grassland_unlimited row, so a demand sum across levels never double-counts.
+      demand_dm_t = 0,
+      intake_dm_t = got,
+      scaling_factor = NA_real_,
+      hierarchy_level = "8_grass_border_grazing",
+      requested_item = NA_integer_,
+      source_compartment = sub_territory,
+      fixed_demand = TRUE
+    )
+}
+
+# Parse "lon_lat" cell ids back to numeric coordinates.
+.parse_cell_id <- function(sub_territory) {
+  parts <- stringr::str_split_fixed(sub_territory, "_", 2)
+  list(lon = as.numeric(parts[, 1]), lat = as.numeric(parts[, 2]))
+}
+
+# The eight king-move neighbour offsets on the 0.5-degree grid.
+.king_move_offsets <- function() {
+  g <- expand.grid(dlon = c(-0.5, 0, 0.5), dlat = c(-0.5, 0, 0.5))
+  g[!(g$dlon == 0 & g$dlat == 0), , drop = FALSE]
+}
+
+.empty_border_flows <- function() {
+  tibble::tibble(
+    year = integer(),
+    territory = character(),
+    sub_territory = character(),
+    received = numeric()
+  )
 }
 
 # ---- Phase 6: reshape to the get_feed_intake contract -----------------------

@@ -1337,3 +1337,208 @@ test_that("provincial run yields a per-cell contract, grass capped per cell", {
   # than cellB. The per-cell cap reverses that: cellA grass < cellB grass.
   expect_lt(grass_a, grass_b)
 })
+
+test_that(".apply_grass_border_grazing pulls neighbour surplus to a deficit cell", {
+  # cellA (deficit: demand 100, capped to its ceiling 30) borders cellB (surplus:
+  # demand 20 of a 100 ceiling). With a 10% border allowance, cellA recovers
+  # 0.1 x cellB-surplus(80) = 8 from across the edge.
+  result <- tibble::tribble(
+    ~year,
+    ~territory,
+    ~sub_territory,
+    ~livestock_category,
+    ~item_cbs_code,
+    ~feed_group,
+    ~feed_quality,
+    ~demand_dm_t,
+    ~intake_dm_t,
+    ~scaling_factor,
+    ~hierarchy_level,
+    ~requested_item,
+    ~source_compartment,
+    ~fixed_demand,
+    2000L,
+    "1",
+    "10.25_50.25",
+    "Cattle_meat",
+    NA_integer_,
+    "grass",
+    "grass",
+    100,
+    30,
+    0.3,
+    "6_grassland_unlimited",
+    NA_integer_,
+    "10.25_50.25",
+    TRUE,
+    2000L,
+    "1",
+    "10.75_50.25",
+    "Cattle_meat",
+    NA_integer_,
+    "grass",
+    "grass",
+    20,
+    20,
+    1,
+    "6_grassland_unlimited",
+    NA_integer_,
+    "10.75_50.25",
+    TRUE
+  )
+  grass_avail <- tibble::tribble(
+    ~year,
+    ~territory,
+    ~sub_territory,
+    ~grass_avail_dm_t,
+    2000L,
+    "1",
+    "10.25_50.25",
+    30,
+    2000L,
+    "1",
+    "10.75_50.25",
+    100
+  )
+  out <- whep:::.apply_grass_border_grazing(result, grass_avail, 0.1)
+  border <- out[out$hierarchy_level == "8_grass_border_grazing", ]
+  expect_equal(nrow(border), 1L)
+  expect_equal(border$sub_territory, "10.25_50.25")
+  expect_equal(border$intake_dm_t, 8, tolerance = 1e-6)
+  expect_equal(border$feed_quality, "grass")
+  # Conservation: total grass intake rises by exactly the recovered 8 (drawn from
+  # the neighbour's unused ceiling, so the global grass is still respected).
+  expect_equal(
+    sum(out$intake_dm_t) - sum(result$intake_dm_t),
+    8,
+    tolerance = 1e-6
+  )
+})
+
+test_that(".apply_grass_border_grazing tops up only the deficit left after substitute", {
+  # cellA: grass demand 100, capped to 30, with a 50 non-grass substitute fill, so
+  # only 20 of demand is still unmet. Border grazing must fill at most that 20
+  # (not the full 70 grass gap), so total intake never exceeds demand.
+  result <- tibble::tribble(
+    ~year,
+    ~territory,
+    ~sub_territory,
+    ~livestock_category,
+    ~item_cbs_code,
+    ~feed_group,
+    ~feed_quality,
+    ~demand_dm_t,
+    ~intake_dm_t,
+    ~scaling_factor,
+    ~hierarchy_level,
+    ~requested_item,
+    ~source_compartment,
+    ~fixed_demand,
+    2000L,
+    "1",
+    "10.25_50.25",
+    "Cattle_meat",
+    NA_integer_,
+    "grass",
+    "grass",
+    100,
+    30,
+    0.3,
+    "6_grassland_unlimited",
+    NA_integer_,
+    "10.25_50.25",
+    TRUE,
+    2000L,
+    "1",
+    "10.25_50.25",
+    "Cattle_meat",
+    NA_integer_,
+    "substitute",
+    "substitute",
+    0,
+    50,
+    NA_real_,
+    "7_grass_deficit_substitute",
+    NA_integer_,
+    "10.25_50.25",
+    TRUE,
+    2000L,
+    "1",
+    "10.75_50.25",
+    "Cattle_meat",
+    NA_integer_,
+    "grass",
+    "grass",
+    20,
+    20,
+    1,
+    "6_grassland_unlimited",
+    NA_integer_,
+    "10.75_50.25",
+    TRUE
+  )
+  grass_avail <- tibble::tribble(
+    ~year,
+    ~territory,
+    ~sub_territory,
+    ~grass_avail_dm_t,
+    2000L,
+    "1",
+    "10.25_50.25",
+    30,
+    2000L,
+    "1",
+    "10.75_50.25",
+    100
+  )
+  # allowance 0.5 -> neighbour offers 0.5 x 80 = 40, but only 20 of demand is unmet.
+  out <- whep:::.apply_grass_border_grazing(result, grass_avail, 0.5)
+  border <- out[out$hierarchy_level == "8_grass_border_grazing", ]
+  expect_equal(sum(border$intake_dm_t), 20, tolerance = 1e-6)
+  # cellA total intake (grass 30 + substitute 50 + border 20) equals its demand.
+  cell_a <- out[out$sub_territory == "10.25_50.25", ]
+  expect_equal(sum(cell_a$intake_dm_t), 100, tolerance = 1e-6)
+})
+
+test_that(".apply_grass_border_grazing does nothing without a surplus neighbour", {
+  # Two deficit cells that are NOT king-move neighbours: no border grazing.
+  result <- tibble::tribble(
+    ~year,
+    ~territory,
+    ~sub_territory,
+    ~livestock_category,
+    ~item_cbs_code,
+    ~feed_group,
+    ~feed_quality,
+    ~demand_dm_t,
+    ~intake_dm_t,
+    ~scaling_factor,
+    ~hierarchy_level,
+    ~requested_item,
+    ~source_compartment,
+    ~fixed_demand,
+    2000L,
+    "1",
+    "10.25_50.25",
+    "Sheep",
+    NA_integer_,
+    "grass",
+    "grass",
+    100,
+    30,
+    0.3,
+    "6_grassland_unlimited",
+    NA_integer_,
+    "10.25_50.25",
+    TRUE
+  )
+  grass_avail <- tibble::tibble(
+    year = 2000L,
+    territory = "1",
+    sub_territory = "10.25_50.25",
+    grass_avail_dm_t = 30
+  )
+  out <- whep:::.apply_grass_border_grazing(result, grass_avail, 0.1)
+  expect_equal(nrow(out), nrow(result))
+  expect_false("8_grass_border_grazing" %in% out$hierarchy_level)
+})
