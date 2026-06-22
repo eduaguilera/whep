@@ -220,6 +220,11 @@ get_crop_land_extension <- function(
 #'   `"cropgrids"` (physical crop area, excludes fallow) or `"cropgrids_fallow"`
 #'   (physical area with rotational fallow attributed to crops by
 #'   [attribute_fallow_to_crops()]). Also recorded in `method_land`.
+#' @param max_ratio Cap on the per-area physical/harvested ratio (default
+#'   `1.5`). CROPGRIDS occasionally pairs a normal physical area with a
+#'   near-zero harvested area for minor/aggregate crops, yielding a spurious
+#'   ratio in the hundreds; physical area cannot realistically exceed harvested
+#'   by more than the fallow share, so the ratio is clamped here.
 #'
 #' @return A tibble with columns `year`, `area_code`, `item_cbs_code`,
 #'   `impact_u` (physical land area in hectares), and `method_land`.
@@ -241,7 +246,8 @@ get_crop_land_extension <- function(
 build_cropgrids_land_extension <- function(
   harvested = NULL,
   cropgrids = NULL,
-  source = c("cropgrids", "cropgrids_fallow")
+  source = c("cropgrids", "cropgrids_fallow"),
+  max_ratio = 1.5
 ) {
   source <- match.arg(source)
   if (is.null(harvested)) {
@@ -291,7 +297,14 @@ build_cropgrids_land_extension <- function(
 
   joined |>
     dplyr::mutate(
-      ratio = dplyr::coalesce(.data$ratio, .data$ratio_global, 1),
+      # Cap the ratio: CROPGRIDS occasionally records a normal physical area
+      # against a near-zero harvested area for minor/aggregate crops, giving a
+      # spurious ratio in the hundreds. Physical area cannot realistically
+      # exceed harvested by more than the fallow share, so clamp to max_ratio.
+      ratio = pmin(
+        dplyr::coalesce(.data$ratio, .data$ratio_global, 1),
+        max_ratio
+      ),
       impact_u = .data$harvested_ha * .data$ratio,
       method_land = source
     ) |>
@@ -331,61 +344,41 @@ build_cropgrids_land_extension <- function(
 #' Build a hectare-year (land-occupation) crop land extension.
 #'
 #' @description
-#' Convert a per-crop *physical area* extension (hectares) into a per-crop
-#' *land occupation* extension (hectare-years) by weighting each crop's area by
-#' the share of the year it occupies the field, then renormalizing within each
-#' `(year, area_code)` to a conserved national total (the crops' physical total
-#' by default, or FAOSTAT cropland with `conserve = "cropland"`).
+#' Per-crop land *occupation* in hectare-years (the LCA `m2*year` convention):
+#' the land-time each crop's production ties up,
+#' \eqn{occupation_i = harvested_i \times L_i/12 + fallow_i}.
 #'
-#' Physical area treats one hectare cropped once and one hectare double-cropped
-#' identically, and counts a field shared by two crops in a season twice. The
-#' land-occupation unit (hectare-years, the LCA `m2*year` convention) instead
-#' charges each crop the land-*time* it ties up: a crop occupying a field for
-#' four months carries half the occupation of one occupying it for eight. Within
-#' each `(year, area_code)` the physical areas are reweighted by occupation time,
-#' \eqn{hayr_i = T \times (P_i L_i) / \sum_j (P_j L_j)}, where \eqn{P_i} is
-#' physical area, \eqn{L_i} the crop's mean cycle length (months, from
-#' MIRCA2000), and \eqn{T} the conserved national total. Long-cycle and
-#' perennial crops (sugar cane, oil palm, cocoa) gain land relative to physical
-#' area; short-cycle crops lose it. With equal cycle lengths the result equals
-#' the physical extension, so the method isolates the occupation-time effect.
+#' The first term is **active growing occupation** — harvested area times mean
+#' cycle length \eqn{L_i} (months, from MIRCA2000). Because it uses harvested
+#' area, a field double-cropped twice contributes both cycles, and a long-cycle
+#' perennial contributes close to a full year. The second term is the
+#' **rotational fallow** attributed to the crop, which occupies land the whole
+#' year while it rests.
 #'
-#' The national total \eqn{T} is set by `conserve`:
-#' - `"physical"` (default): conserve to the crops' own physical total, i.e. a
-#'   pure time reweighting. Preserves the magnitude and fallow attribution of
-#'   the physical `base` and never inflates beyond it.
-#' - `"cropland"`: conserve to FAOSTAT cropland, which additionally de-overlaps
-#'   crops that share a field across seasons (so per-crop occupation sums to
-#'   cropland). Because cropland can far exceed the physical base where
-#'   CROPGRIDS under-covers a country, the cropland/physical scaling is clamped
-#'   to `scale_bounds` to avoid runaway inflation.
+#' This is "active" occupation: land is charged only while a crop is growing on
+#' it or resting in its rotation, so the national total falls below physical
+#' cropland area (which also counts off-season idle). It is **distinct from, and
+#' complementary to**, the physical-area extensions
+#' ([build_cropgrids_land_extension()]): those measure the field area each crop
+#' holds; this measures how much land-*time* each crop's activity occupies.
+#' Short single-cropped crops and intensively double-cropped staples occupy less
+#' land-time per hectare than long-cycle and perennial crops.
 #'
-#' @param physical Tibble of a per-crop physical land extension with columns
-#'   `year`, `area_code`, `item_cbs_code`, `impact_u` (physical hectares), as
-#'   returned by [build_cropgrids_land_extension()]. Must be pre-aggregated to
-#'   one row per `(year, area_code, item_cbs_code)`; duplicate keys are carried
-#'   through unchanged. Grass items and non-positive `impact_u` rows are dropped.
-#'   If `NULL`, built from `base`.
-#' @param cropland Tibble of national cropland with columns `area_code`, `year`,
-#'   `cropland_ha`, used only when `conserve = "cropland"`. If `NULL`, the
-#'   packaged FAOSTAT cropland table is used. FAOSTAT cropland starts in 1961;
-#'   for `(year, area_code)` with no value (e.g. pre-1961 years, residual
-#'   Rest-of-World) the crops' own physical total is used instead, with a
-#'   warning.
+#' @param harvested Tibble of harvested area with columns `year`, `area_code`,
+#'   `item_cbs_code`, `harvested_ha`. If `NULL`, built from
+#'   [get_primary_production()] (and reused to build the fallow term).
+#' @param fallow Tibble of attributed rotational fallow with columns `year`,
+#'   `area_code`, `item_cbs_code`, `fallow_ha`. If `NULL`: for
+#'   `base = "cropgrids_fallow"` it is the difference between the fallow-inclusive
+#'   and cropped CROPGRIDS physical extensions; for `base = "cropgrids"` it is
+#'   zero (growing occupation only).
 #' @param season Tibble of mean crop cycle length with columns `item_cbs_code`,
 #'   `season_months` (strictly positive, unique keys). If `NULL`, the packaged
 #'   MIRCA2000 season table is used. Crops with no season are given the median
 #'   cycle length.
-#' @param base Which physical extension to build when `physical` is `NULL`:
-#'   `"cropgrids_fallow"` (default, fallow-inclusive) or `"cropgrids"`. Always
-#'   recorded in `method_land` as `<base>_hayr`; when `physical` is supplied
-#'   directly, `base` is only this label and is not validated against the data.
-#' @param conserve National total to conserve to: `"physical"` (default) or
-#'   `"cropland"`. See details.
-#' @param scale_bounds Length-2 numeric `c(lo, hi)` clamping the
-#'   cropland/physical scaling when `conserve = "cropland"`. Defaults to
-#'   `c(0.5, 2)`. Country-years hitting a bound do not conserve exactly to
-#'   cropland (they land at `lo`/`hi` times physical area).
+#' @param base `"cropgrids_fallow"` (default, include rotational fallow) or
+#'   `"cropgrids"` (growing occupation only). Recorded in `method_land` as
+#'   `<base>_hayr`.
 #'
 #' @return A tibble with columns `year`, `area_code`, `item_cbs_code`,
 #'   `impact_u` (land occupation in hectare-years), and `method_land`.
@@ -393,80 +386,85 @@ build_cropgrids_land_extension <- function(
 #' @export
 #'
 #' @examples
-#' physical <- tibble::tribble(
-#'   ~year, ~area_code, ~item_cbs_code, ~impact_u,
-#'   2000L, 1L, 2807L, 100,
-#'   2000L, 1L, 2511L, 100
+#' harvested <- tibble::tribble(
+#'   ~year, ~area_code, ~item_cbs_code, ~harvested_ha,
+#'   2000L, 1L, 2807L, 200, # rice, double-cropped (two harvests per field)
+#'   2000L, 1L, 2511L, 100 # wheat, single-cropped
 #' )
 #' season <- tibble::tribble(
 #'   ~item_cbs_code, ~season_months,
 #'   2807L, 5,
 #'   2511L, 8
 #' )
-#' # pure time reweighting: total stays 200, wheat (8 mo) gains over rice (5 mo)
-#' build_hayr_land_extension(physical, season = season)
+#' fallow <- tibble::tribble(
+#'   ~year, ~area_code, ~item_cbs_code, ~fallow_ha,
+#'   2000L, 1L, 2511L, 20
+#' )
+#' build_hayr_land_extension(harvested, fallow, season)
 build_hayr_land_extension <- function(
-  physical = NULL,
-  cropland = NULL,
+  harvested = NULL,
+  fallow = NULL,
   season = NULL,
-  base = c("cropgrids_fallow", "cropgrids"),
-  conserve = c("physical", "cropland"),
-  scale_bounds = c(0.5, 2)
+  base = c("cropgrids_fallow", "cropgrids")
 ) {
   base <- match.arg(base)
-  conserve <- match.arg(conserve)
-  if (is.null(physical)) {
-    physical <- build_cropgrids_land_extension(source = base)
+  if (is.null(harvested)) {
+    harvested <- .harvested_area_by_cbs(get_primary_production())
   }
+  .check_required_cols(
+    harvested,
+    c("year", "area_code", "item_cbs_code", "harvested_ha"),
+    "harvested"
+  )
   if (is.null(season)) {
     season <- .read_hayr_table("mirca_season.csv")
   }
-  .check_required_cols(
-    physical,
-    c("year", "area_code", "item_cbs_code", "impact_u"),
-    "physical"
-  )
   .check_required_cols(season, c("item_cbs_code", "season_months"), "season")
+  if (is.null(fallow)) {
+    fallow <- .hayr_attributed_fallow(harvested, base)
+  }
+  .check_required_cols(
+    fallow,
+    c("year", "area_code", "item_cbs_code", "fallow_ha"),
+    "fallow"
+  )
   prepared <- .prepare_hayr_season(season)
   season <- prepared$season
   default_months <- prepared$default_months
 
-  base_weighted <- physical |>
+  fallow <- fallow |>
     dplyr::transmute(
       year = as.integer(.data$year),
       area_code = as.integer(.data$area_code),
       item_cbs_code = as.integer(.data$item_cbs_code),
-      physical_ha = .data$impact_u
+      fallow_ha = as.numeric(.data$fallow_ha)
+    )
+
+  occ <- harvested |>
+    dplyr::transmute(
+      year = as.integer(.data$year),
+      area_code = as.integer(.data$area_code),
+      item_cbs_code = as.integer(.data$item_cbs_code),
+      harvested_ha = .data$harvested_ha
     ) |>
     dplyr::filter(
       !.data$item_cbs_code %in% .grass_item_cbs(),
-      .data$physical_ha > 0
+      .data$harvested_ha > 0
     ) |>
     dplyr::left_join(season, by = "item_cbs_code")
-  .warn_default_season(base_weighted)
+  .warn_default_season(occ)
 
-  weighted <- base_weighted |>
+  occ |>
     dplyr::mutate(
-      season_months = dplyr::coalesce(.data$season_months, default_months),
-      weight = .data$physical_ha * .data$season_months
+      season_months = dplyr::coalesce(.data$season_months, default_months)
     ) |>
+    dplyr::left_join(fallow, by = c("year", "area_code", "item_cbs_code")) |>
     dplyr::mutate(
-      weight_total = sum(.data$weight, na.rm = TRUE),
-      physical_total = sum(.data$physical_ha, na.rm = TRUE),
-      .by = c(year, area_code)
-    )
-
-  weighted <- .hayr_conserved_total(weighted, conserve, cropland, scale_bounds)
-
-  weighted |>
-    dplyr::mutate(
-      impact_u = dplyr::case_when(
-        .data$weight_total > 0 ~
-          .data$target_total * .data$weight / .data$weight_total,
-        .data$physical_total > 0 ~
-          .data$target_total * .data$physical_ha / .data$physical_total,
-        .default = 0
-      ),
+      fallow_ha = dplyr::coalesce(.data$fallow_ha, 0),
+      impact_u = .data$harvested_ha *
+        .data$season_months /
+        12 +
+        .data$fallow_ha,
       method_land = paste0(base, "_hayr")
     ) |>
     dplyr::filter(.data$impact_u > 0) |>
@@ -476,6 +474,57 @@ build_hayr_land_extension <- function(
       item_cbs_code = .data$item_cbs_code,
       impact_u = .data$impact_u,
       method_land = .data$method_land
+    )
+}
+
+# Rotational fallow attributed to each crop = the fallow-inclusive CROPGRIDS
+# physical extension minus the cropped-only one. Zero when fallow is excluded.
+.hayr_attributed_fallow <- function(harvested, base) {
+  if (base != "cropgrids_fallow") {
+    return(
+      harvested |>
+        dplyr::transmute(
+          year = as.integer(.data$year),
+          area_code = as.integer(.data$area_code),
+          item_cbs_code = as.integer(.data$item_cbs_code),
+          fallow_ha = 0
+        )
+    )
+  }
+  cropped <- build_cropgrids_land_extension(
+    harvested = harvested,
+    source = "cropgrids"
+  ) |>
+    dplyr::transmute(
+      year = .data$year,
+      area_code = .data$area_code,
+      item_cbs_code = .data$item_cbs_code,
+      cropped_ha = .data$impact_u
+    )
+  full <- build_cropgrids_land_extension(
+    harvested = harvested,
+    source = "cropgrids_fallow"
+  ) |>
+    dplyr::transmute(
+      year = .data$year,
+      area_code = .data$area_code,
+      item_cbs_code = .data$item_cbs_code,
+      full_ha = .data$impact_u
+    )
+  dplyr::full_join(
+    cropped,
+    full,
+    by = c("year", "area_code", "item_cbs_code")
+  ) |>
+    dplyr::transmute(
+      year = .data$year,
+      area_code = .data$area_code,
+      item_cbs_code = .data$item_cbs_code,
+      fallow_ha = pmax(
+        dplyr::coalesce(.data$full_ha, 0) -
+          dplyr::coalesce(.data$cropped_ha, 0),
+        0
+      )
     )
 }
 
@@ -778,60 +827,6 @@ gridded_fallow_weights <- function(
     "!" = "{length(miss)} item{?s} have no MIRCA season; using the median
       cycle length.",
     "i" = "Affected item_cbs_code values: {sort(miss)}."
-  ))
-}
-
-# Add a `target_total` column = the national total the occupation is conserved
-# to. "physical" keeps the crops' own physical total; "cropland" scales to
-# FAOSTAT cropland, clamped to scale_bounds to bound coverage-driven inflation.
-.hayr_conserved_total <- function(weighted, conserve, cropland, scale_bounds) {
-  if (conserve == "physical") {
-    return(dplyr::mutate(weighted, target_total = .data$physical_total))
-  }
-  if (is.null(cropland)) {
-    cropland <- .read_hayr_table("faostat_cropland.csv")
-  }
-  .check_required_cols(
-    cropland,
-    c("area_code", "year", "cropland_ha"),
-    "cropland"
-  )
-  cropland <- cropland |>
-    dplyr::transmute(
-      area_code = as.integer(.data$area_code),
-      year = as.integer(.data$year),
-      cropland_ha = as.numeric(.data$cropland_ha)
-    )
-  joined <- dplyr::left_join(weighted, cropland, by = c("year", "area_code"))
-  .warn_missing_cropland(joined)
-  lo <- min(scale_bounds)
-  hi <- max(scale_bounds)
-  joined |>
-    dplyr::mutate(
-      scale = dplyr::if_else(
-        .data$physical_total > 0 & !is.na(.data$cropland_ha),
-        pmin(pmax(.data$cropland_ha / .data$physical_total, lo), hi),
-        1
-      ),
-      target_total = .data$scale * .data$physical_total
-    )
-}
-
-# Methods are not silent fallbacks: warn which (year, area) groups lack FAOSTAT
-# cropland and therefore conserve to physical instead (e.g. pre-1961, RoW).
-.warn_missing_cropland <- function(joined) {
-  missing <- joined |>
-    dplyr::filter(.data$physical_total > 0, is.na(.data$cropland_ha)) |>
-    dplyr::distinct(.data$year, .data$area_code)
-  if (nrow(missing) == 0L) {
-    return(invisible(NULL))
-  }
-  yrs <- range(missing$year)
-  cli::cli_warn(c(
-    "!" = "{nrow(missing)} (year, area) group{?s} have no FAOSTAT cropland;
-      conserving them to physical area instead (years {yrs[1]}-{yrs[2]}).",
-    "i" = "FAOSTAT cropland starts in 1961; pre-1961 years and uncovered
-      areas (e.g. RoW) always conserve to physical."
   ))
 }
 

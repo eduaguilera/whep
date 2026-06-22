@@ -7,7 +7,8 @@
 build_cropgrids_land_extension(
   harvested = NULL,
   cropgrids = NULL,
-  source = c("cropgrids", "cropgrids_fallow")
+  source = c("cropgrids", "cropgrids_fallow"),
+  max_ratio = 1.5
 )
 }
 \arguments{
@@ -23,6 +24,12 @@ table selected by \code{source} is used.}
 \code{"cropgrids"} (physical crop area, excludes fallow) or \code{"cropgrids_fallow"}
 (physical area with rotational fallow attributed to crops by
 \code{\link[=attribute_fallow_to_crops]{attribute_fallow_to_crops()}}). Also recorded in \code{method_land}.}
+
+\item{max_ratio}{Cap on the per-area physical/harvested ratio (default
+\code{1.5}). CROPGRIDS occasionally pairs a normal physical area with a
+near-zero harvested area for minor/aggregate crops, yielding a spurious
+ratio in the hundreds; physical area cannot realistically exceed harvested
+by more than the fallow share, so the ratio is clamped here.}
 }
 \value{
 A tibble with columns \code{year}, \code{area_code}, \code{item_cbs_code},

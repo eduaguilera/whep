@@ -5,94 +5,71 @@
 \title{Build a hectare-year (land-occupation) crop land extension.}
 \usage{
 build_hayr_land_extension(
-  physical = NULL,
-  cropland = NULL,
+  harvested = NULL,
+  fallow = NULL,
   season = NULL,
-  base = c("cropgrids_fallow", "cropgrids"),
-  conserve = c("physical", "cropland"),
-  scale_bounds = c(0.5, 2)
+  base = c("cropgrids_fallow", "cropgrids")
 )
 }
 \arguments{
-\item{physical}{Tibble of a per-crop physical land extension with columns
-\code{year}, \code{area_code}, \code{item_cbs_code}, \code{impact_u} (physical hectares), as
-returned by \code{\link[=build_cropgrids_land_extension]{build_cropgrids_land_extension()}}. Must be pre-aggregated to
-one row per \verb{(year, area_code, item_cbs_code)}; duplicate keys are carried
-through unchanged. Grass items and non-positive \code{impact_u} rows are dropped.
-If \code{NULL}, built from \code{base}.}
+\item{harvested}{Tibble of harvested area with columns \code{year}, \code{area_code},
+\code{item_cbs_code}, \code{harvested_ha}. If \code{NULL}, built from
+\code{\link[=get_primary_production]{get_primary_production()}} (and reused to build the fallow term).}
 
-\item{cropland}{Tibble of national cropland with columns \code{area_code}, \code{year},
-\code{cropland_ha}, used only when \code{conserve = "cropland"}. If \code{NULL}, the
-packaged FAOSTAT cropland table is used. FAOSTAT cropland starts in 1961;
-for \verb{(year, area_code)} with no value (e.g. pre-1961 years, residual
-Rest-of-World) the crops' own physical total is used instead, with a
-warning.}
+\item{fallow}{Tibble of attributed rotational fallow with columns \code{year},
+\code{area_code}, \code{item_cbs_code}, \code{fallow_ha}. If \code{NULL}: for
+\code{base = "cropgrids_fallow"} it is the difference between the fallow-inclusive
+and cropped CROPGRIDS physical extensions; for \code{base = "cropgrids"} it is
+zero (growing occupation only).}
 
 \item{season}{Tibble of mean crop cycle length with columns \code{item_cbs_code},
 \code{season_months} (strictly positive, unique keys). If \code{NULL}, the packaged
 MIRCA2000 season table is used. Crops with no season are given the median
 cycle length.}
 
-\item{base}{Which physical extension to build when \code{physical} is \code{NULL}:
-\code{"cropgrids_fallow"} (default, fallow-inclusive) or \code{"cropgrids"}. Always
-recorded in \code{method_land} as \verb{<base>_hayr}; when \code{physical} is supplied
-directly, \code{base} is only this label and is not validated against the data.}
-
-\item{conserve}{National total to conserve to: \code{"physical"} (default) or
-\code{"cropland"}. See details.}
-
-\item{scale_bounds}{Length-2 numeric \code{c(lo, hi)} clamping the
-cropland/physical scaling when \code{conserve = "cropland"}. Defaults to
-\code{c(0.5, 2)}. Country-years hitting a bound do not conserve exactly to
-cropland (they land at \code{lo}/\code{hi} times physical area).}
+\item{base}{\code{"cropgrids_fallow"} (default, include rotational fallow) or
+\code{"cropgrids"} (growing occupation only). Recorded in \code{method_land} as
+\verb{<base>_hayr}.}
 }
 \value{
 A tibble with columns \code{year}, \code{area_code}, \code{item_cbs_code},
 \code{impact_u} (land occupation in hectare-years), and \code{method_land}.
 }
 \description{
-Convert a per-crop \emph{physical area} extension (hectares) into a per-crop
-\emph{land occupation} extension (hectare-years) by weighting each crop's area by
-the share of the year it occupies the field, then renormalizing within each
-\verb{(year, area_code)} to a conserved national total (the crops' physical total
-by default, or FAOSTAT cropland with \code{conserve = "cropland"}).
+Per-crop land \emph{occupation} in hectare-years (the LCA \code{m2*year} convention):
+the land-time each crop's production ties up,
+\eqn{occupation_i = harvested_i \times L_i/12 + fallow_i}.
 
-Physical area treats one hectare cropped once and one hectare double-cropped
-identically, and counts a field shared by two crops in a season twice. The
-land-occupation unit (hectare-years, the LCA \code{m2*year} convention) instead
-charges each crop the land-\emph{time} it ties up: a crop occupying a field for
-four months carries half the occupation of one occupying it for eight. Within
-each \verb{(year, area_code)} the physical areas are reweighted by occupation time,
-\eqn{hayr_i = T \times (P_i L_i) / \sum_j (P_j L_j)}, where \eqn{P_i} is
-physical area, \eqn{L_i} the crop's mean cycle length (months, from
-MIRCA2000), and \eqn{T} the conserved national total. Long-cycle and
-perennial crops (sugar cane, oil palm, cocoa) gain land relative to physical
-area; short-cycle crops lose it. With equal cycle lengths the result equals
-the physical extension, so the method isolates the occupation-time effect.
+The first term is \strong{active growing occupation} — harvested area times mean
+cycle length \eqn{L_i} (months, from MIRCA2000). Because it uses harvested
+area, a field double-cropped twice contributes both cycles, and a long-cycle
+perennial contributes close to a full year. The second term is the
+\strong{rotational fallow} attributed to the crop, which occupies land the whole
+year while it rests.
 
-The national total \eqn{T} is set by \code{conserve}:
-\itemize{
-\item \code{"physical"} (default): conserve to the crops' own physical total, i.e. a
-pure time reweighting. Preserves the magnitude and fallow attribution of
-the physical \code{base} and never inflates beyond it.
-\item \code{"cropland"}: conserve to FAOSTAT cropland, which additionally de-overlaps
-crops that share a field across seasons (so per-crop occupation sums to
-cropland). Because cropland can far exceed the physical base where
-CROPGRIDS under-covers a country, the cropland/physical scaling is clamped
-to \code{scale_bounds} to avoid runaway inflation.
-}
+This is "active" occupation: land is charged only while a crop is growing on
+it or resting in its rotation, so the national total falls below physical
+cropland area (which also counts off-season idle). It is \strong{distinct from, and
+complementary to}, the physical-area extensions
+(\code{\link[=build_cropgrids_land_extension]{build_cropgrids_land_extension()}}): those measure the field area each crop
+holds; this measures how much land-\emph{time} each crop's activity occupies.
+Short single-cropped crops and intensively double-cropped staples occupy less
+land-time per hectare than long-cycle and perennial crops.
 }
 \examples{
-physical <- tibble::tribble(
-  ~year, ~area_code, ~item_cbs_code, ~impact_u,
-  2000L, 1L, 2807L, 100,
-  2000L, 1L, 2511L, 100
+harvested <- tibble::tribble(
+  ~year, ~area_code, ~item_cbs_code, ~harvested_ha,
+  2000L, 1L, 2807L, 200, # rice, double-cropped (two harvests per field)
+  2000L, 1L, 2511L, 100 # wheat, single-cropped
 )
 season <- tibble::tribble(
   ~item_cbs_code, ~season_months,
   2807L, 5,
   2511L, 8
 )
-# pure time reweighting: total stays 200, wheat (8 mo) gains over rice (5 mo)
-build_hayr_land_extension(physical, season = season)
+fallow <- tibble::tribble(
+  ~year, ~area_code, ~item_cbs_code, ~fallow_ha,
+  2000L, 1L, 2511L, 20
+)
+build_hayr_land_extension(harvested, fallow, season)
 }

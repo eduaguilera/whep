@@ -206,10 +206,11 @@ test_that("attribute_fallow_to_crops leaves crops unchanged when fallow is zero"
   expect_equal(res$physical_ha, 500)
 })
 
-test_that("build_hayr_land_extension reweights physical area by cycle length", {
-  physical <- tibble::tribble(
-    ~year, ~area_code, ~item_cbs_code, ~impact_u,
-    2000L, 1L, 2807L, 100,
+test_that("build_hayr_land_extension occupation counts every harvest", {
+  # rice double-cropped (200 ha harvested on its fields), wheat single-cropped
+  harvested <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~harvested_ha,
+    2000L, 1L, 2807L, 200,
     2000L, 1L, 2511L, 100
   )
   season <- tibble::tribble(
@@ -217,142 +218,122 @@ test_that("build_hayr_land_extension reweights physical area by cycle length", {
     2807L, 5,
     2511L, 8
   )
-  # default conserve = "physical": total preserved, redistributed by 5:8
-  res <- whep::build_hayr_land_extension(physical, season = season)
-  expect_equal(sum(res$impact_u), 200)
-  expect_equal(res$impact_u[res$item_cbs_code == 2807L], 200 * 500 / 1300)
-  expect_equal(res$impact_u[res$item_cbs_code == 2511L], 200 * 800 / 1300)
-  expect_gt(
-    res$impact_u[res$item_cbs_code == 2511L],
-    res$impact_u[res$item_cbs_code == 2807L]
+  fallow <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~fallow_ha,
+    2000L, 1L, 2807L, 0,
+    2000L, 1L, 2511L, 0
   )
+  res <- whep::build_hayr_land_extension(harvested, fallow, season)
+  # occupation is harvested area times cycle fraction of the year
+  expect_equal(res$impact_u[res$item_cbs_code == 2807L], 200 * 5 / 12)
+  expect_equal(res$impact_u[res$item_cbs_code == 2511L], 100 * 8 / 12)
   expect_true(all(res$method_land == "cropgrids_fallow_hayr"))
 })
 
-test_that("build_hayr_land_extension is the identity for equal cycle lengths", {
-  physical <- tibble::tribble(
-    ~year, ~area_code, ~item_cbs_code, ~impact_u,
-    2000L, 1L, 2807L, 300,
+test_that("build_hayr_land_extension adds rotational fallow", {
+  harvested <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~harvested_ha,
     2000L, 1L, 2511L, 100
   )
-  season <- tibble::tribble(
-    ~item_cbs_code, ~season_months,
-    2807L, 6,
-    2511L, 6
+  season <- tibble::tribble(~item_cbs_code, ~season_months, 2511L, 6)
+  fallow <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~fallow_ha,
+    2000L, 1L, 2511L, 30
   )
-  res <- whep::build_hayr_land_extension(physical, season = season)
-  expect_equal(res$impact_u[res$item_cbs_code == 2807L], 300)
-  expect_equal(res$impact_u[res$item_cbs_code == 2511L], 100)
+  res <- whep::build_hayr_land_extension(harvested, fallow, season)
+  # growing 100*6/12 = 50, plus 30 fallow = 80
+  expect_equal(res$impact_u, 50 + 30)
 })
 
-test_that("build_hayr_land_extension conserves to cropland when requested", {
-  physical <- tibble::tribble(
-    ~year, ~area_code, ~item_cbs_code, ~impact_u,
-    2000L, 1L, 2807L, 100,
-    2000L, 1L, 2511L, 100
+test_that("build_hayr_land_extension base = 'cropgrids' excludes fallow", {
+  harvested <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~harvested_ha,
+    2000L, 1L, 2807L, 200
   )
-  cropland <- tibble::tribble(~year, ~area_code, ~cropland_ha, 2000L, 1L, 150)
-  season <- tibble::tribble(
-    ~item_cbs_code, ~season_months,
-    2807L, 5,
-    2511L, 8
-  )
+  season <- tibble::tribble(~item_cbs_code, ~season_months, 2807L, 6)
   res <- whep::build_hayr_land_extension(
-    physical,
-    cropland,
-    season,
-    conserve = "cropland"
+    harvested,
+    season = season,
+    base = "cropgrids"
   )
-  # cropland/physical = 150/200 = 0.75 (within bounds) -> sums to 150
-  expect_equal(sum(res$impact_u), 150)
-  expect_equal(res$impact_u[res$item_cbs_code == 2511L], 150 * 800 / 1300)
+  expect_equal(res$impact_u, 200 * 6 / 12) # growing only, no fallow
+  expect_true(all(res$method_land == "cropgrids_hayr"))
 })
 
-test_that("build_hayr_land_extension clamps cropland scaling to bounds", {
-  physical <- tibble::tribble(
-    ~year, ~area_code, ~item_cbs_code, ~impact_u,
-    2000L, 1L, 2807L, 100,
-    2000L, 1L, 2511L, 100
+test_that("build_hayr_land_extension drops grass and validates inputs", {
+  harvested <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~harvested_ha,
+    2000L, 1L, 2511L, 100,
+    2000L, 1L, 3000L, 500 # grassland item, excluded
   )
-  # cropland 1000 vs physical 200 -> raw scale 5, clamped to hi = 2 -> total 400
-  cropland <- tibble::tribble(~year, ~area_code, ~cropland_ha, 2000L, 1L, 1000)
-  season <- tibble::tribble(
-    ~item_cbs_code, ~season_months,
-    2807L, 6,
-    2511L, 6
-  )
+  season <- tibble::tribble(~item_cbs_code, ~season_months, 2511L, 6)
   res <- whep::build_hayr_land_extension(
-    physical,
-    cropland,
-    season,
-    conserve = "cropland",
-    scale_bounds = c(0.5, 2)
+    harvested,
+    season = season,
+    base = "cropgrids"
   )
-  expect_equal(sum(res$impact_u), 400)
-})
-
-test_that("build_hayr_land_extension validates physical columns", {
-  season <- tibble::tribble(~item_cbs_code, ~season_months, 2807L, 5)
+  expect_false(3000L %in% res$item_cbs_code)
+  expect_equal(res$item_cbs_code, 2511L)
   expect_error(
     whep::build_hayr_land_extension(
       tibble::tibble(year = 2000L, area_code = 1L),
-      season = season
+      season = season,
+      base = "cropgrids"
     ),
-    "physical"
+    "harvested"
   )
 })
 
 test_that("build_hayr_land_extension rejects a degenerate season table", {
-  physical <- tibble::tribble(
-    ~year, ~area_code, ~item_cbs_code, ~impact_u,
+  harvested <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~harvested_ha,
     2000L, 1L, 2807L, 100
+  )
+  fallow <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~fallow_ha, 2000L, 1L, 2807L, 0
   )
   expect_error(
     whep::build_hayr_land_extension(
-      physical,
-      season = tibble::tibble(
-        item_cbs_code = integer(0),
-        season_months = numeric(0)
-      )
+      harvested,
+      fallow,
+      tibble::tibble(item_cbs_code = integer(0), season_months = numeric(0))
     ),
     "no usable"
   )
   expect_error(
     whep::build_hayr_land_extension(
-      physical,
-      season = tibble::tribble(~item_cbs_code, ~season_months, 2807L, 5, 2807L, 6)
+      harvested,
+      fallow,
+      tibble::tribble(~item_cbs_code, ~season_months, 2807L, 5, 2807L, 6)
     ),
     "duplicate"
   )
   expect_error(
     whep::build_hayr_land_extension(
-      physical,
-      season = tibble::tribble(~item_cbs_code, ~season_months, 2807L, 0)
+      harvested,
+      fallow,
+      tibble::tribble(~item_cbs_code, ~season_months, 2807L, 0)
     ),
     "positive"
   )
 })
 
-test_that("build_hayr_land_extension warns and falls back on missing cropland", {
-  physical <- tibble::tribble(
-    ~year, ~area_code, ~item_cbs_code, ~impact_u,
-    1950L, 1L, 2807L, 100,
-    2000L, 1L, 2807L, 100
+test_that("build_hayr_land_extension warns on crops with no MIRCA season", {
+  harvested <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~harvested_ha,
+    2000L, 1L, 2511L, 100,
+    2000L, 1L, 9998L, 100,
+    2000L, 1L, 9999L, 100
   )
-  cropland <- tibble::tribble(~year, ~area_code, ~cropland_ha, 2000L, 1L, 80)
-  season <- tibble::tribble(~item_cbs_code, ~season_months, 2807L, 5)
+  season <- tibble::tribble(~item_cbs_code, ~season_months, 2511L, 8)
   expect_warning(
-    res <- whep::build_hayr_land_extension(
-      physical,
-      cropland,
-      season,
-      conserve = "cropland"
+    whep::build_hayr_land_extension(
+      harvested,
+      season = season,
+      base = "cropgrids"
     ),
-    "no FAOSTAT cropland"
+    "no MIRCA season"
   )
-  # 1950 has no cropland -> conserves to physical (100); 2000 scales to 80
-  expect_equal(res$impact_u[res$year == 1950L], 100)
-  expect_equal(res$impact_u[res$year == 2000L], 80)
 })
 
 test_that("build_cropgrids_land_extension drops grass items from crop land", {
@@ -411,36 +392,6 @@ test_that("build_crop_land_extension drops grass items", {
   )
   expect_false(3000L %in% res$item_cbs_code)
   expect_equal(res$item_cbs_code, 2511L)
-})
-
-test_that("build_hayr_land_extension drops grass and non-positive physical", {
-  physical <- tibble::tribble(
-    ~year, ~area_code, ~item_cbs_code, ~impact_u,
-    2000L, 1L, 2511L, 100,
-    2000L, 1L, 3000L, 100, # grassland item, excluded
-    2000L, 1L, 2807L, -50 # negative area, excluded
-  )
-  season <- tibble::tribble(
-    ~item_cbs_code, ~season_months,
-    2511L, 8, 3000L, 12, 2807L, 5
-  )
-  res <- whep::build_hayr_land_extension(physical, season = season)
-  expect_equal(res$item_cbs_code, 2511L)
-  expect_equal(sum(res$impact_u), 100)
-})
-
-test_that("build_hayr_land_extension warns when a crop has no MIRCA season", {
-  physical <- tibble::tribble(
-    ~year, ~area_code, ~item_cbs_code, ~impact_u,
-    2000L, 1L, 2511L, 100,
-    2000L, 1L, 9998L, 100, # no season row -> median default
-    2000L, 1L, 9999L, 100 # no season row -> median default
-  )
-  season <- tibble::tribble(~item_cbs_code, ~season_months, 2511L, 8)
-  expect_warning(
-    whep::build_hayr_land_extension(physical, season = season),
-    "no MIRCA season"
-  )
 })
 
 test_that("gridded_fallow_weights scores rainfed crops by agro-climatic zone", {
