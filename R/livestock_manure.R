@@ -116,10 +116,24 @@
       )
     )
 
+  region_from_iso3 <- !rlang::has_name(data, "region") &&
+    rlang::has_name(data, "iso3")
+  if (region_from_iso3) {
+    data <- .add_ipcc_region(data)
+  }
+
   # Try regional match first
   if (rlang::has_name(data, "region")) {
+    # Tier 1 carries no climate input, so average the cattle EFs over the
+    # climate zones IPCC reports for each region/category.
     cattle_ef <- ipcc_2019_manure_ch4_ef_cattle |>
-      dplyr::select(region, category, ef_kg_head_yr)
+      dplyr::summarise(
+        ef_kg_head_yr = mean(ef_kg_head_yr, na.rm = TRUE),
+        .by = c(region, category)
+      )
+    global_cattle <- cattle_ef |>
+      dplyr::filter(region == "Global") |>
+      dplyr::select(category, ef_global = ef_kg_head_yr)
     other_ef <- ipcc_2019_manure_ch4_ef_other |>
       dplyr::select(category, ef_kg_head_yr)
 
@@ -133,7 +147,15 @@
           "region",
           "manure_category" = "category"
         )
-      )
+      ) |>
+      dplyr::left_join(
+        global_cattle,
+        by = c("manure_category" = "category")
+      ) |>
+      dplyr::mutate(
+        ef_kg_head_yr = dplyr::coalesce(ef_kg_head_yr, ef_global)
+      ) |>
+      dplyr::select(-ef_global)
 
     other_rows <- data |>
       dplyr::filter(!is_cattle) |>
@@ -164,6 +186,9 @@
       dplyr::rename(manure_ef_kgch4 = ef_kg_head_yr)
   }
 
+  if (region_from_iso3) {
+    data <- data |> dplyr::select(-dplyr::any_of("region"))
+  }
   data |>
     dplyr::select(-manure_category)
 }

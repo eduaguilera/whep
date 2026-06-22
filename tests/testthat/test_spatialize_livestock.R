@@ -123,6 +123,33 @@ test_that("enteric_ch4_kt conservation is exact", {
   }
 })
 
+test_that("grass-weighted heads conserve when NPP covers all countries", {
+  # Every country's grazer cells carry a grass_npp value, so the
+  # grass-productivity weighting must not drop any country: national totals
+  # stay conserved. Guards the silent per-country loss that occurs when
+  # grass_npp is missing for a country's grazer cells.
+  grass_npp <- tibble::tribble(
+    ~lon, ~lat, ~grass_npp,
+    0.25, 50.25, 300,
+    0.75, 50.25, 500,
+    1.25, 50.25, 200
+  )
+
+  result <- build_gridded_livestock(
+    livestock_data,
+    gridded_pasture,
+    gridded_cropland,
+    country_grid,
+    grass_productivity = grass_npp
+  )
+
+  for (yr in unique(livestock_data$year)) {
+    input_heads <- sum(livestock_data$heads[livestock_data$year == yr])
+    grid_heads <- sum(result$heads[result$year == yr])
+    expect_equal(grid_heads, input_heads, tolerance = 1e-6)
+  }
+})
+
 test_that("cattle uses pasture proxy (not cropland)", {
   result <- build_gridded_livestock(
     livestock_data,
