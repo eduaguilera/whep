@@ -5,16 +5,15 @@
 #'
 #' @param example If `TRUE`, return a small example output without downloading
 #'   remote data. Default is `FALSE`.
-#' @param grain Spatial grain of the feed allocation. `"national"` (default, the
-#'   current supply-driven allocator) or `"provincial"` (the `redistribute_feed`
-#'   engine at 0.5-degree cell grain). The provincial engine is a migration in
-#'   progress and not yet implemented.
-#' @param demand_tier Demand-estimation tier. `"fcr"` (default, Bouwman /
-#'   Krausmann feed-conversion) or `"ipcc"` (IPCC Tier-2 energy where it covers
-#'   the species, Krausmann elsewhere). The `"ipcc"` tier is a migration in
-#'   progress and not yet implemented. The defaults reproduce the current output
-#'   for back-compatibility; they will switch to the more rigorous tier once the
-#'   new path is built and regression-validated.
+#' @param grain Spatial grain of the feed allocation. `"national"` (default, one
+#'   allocation per country) or `"provincial"` (the per-cell 0.5-degree engine,
+#'   which is heavy and run via [build_feed_intake_provincial()]; calling it here
+#'   redirects there).
+#' @param demand_tier Demand-estimation tier. `"ipcc"` (default, the rigorous
+#'   IPCC Tier-2 energy demand for the ruminant species it covers, Bouwman FCR
+#'   for pigs and poultry, Krausmann per-head for draft / other species) or
+#'   `"fcr"` (the Bouwman / Krausmann feed-conversion magnitude for every
+#'   species). Both grains allocate with `redistribute_feed()`.
 #'
 #' @returns
 #' A tibble with the feed intake data.
@@ -49,18 +48,12 @@
 get_feed_intake <- function(
   example = FALSE,
   grain = c("national", "provincial"),
-  demand_tier = c("fcr", "ipcc")
+  demand_tier = c("ipcc", "fcr")
 ) {
   grain <- rlang::arg_match(grain)
   demand_tier <- rlang::arg_match(demand_tier)
   if (example) {
     return(.example_get_feed_intake())
-  }
-  if (grain == "national" && demand_tier == "fcr") {
-    return(.build_feed_intake_from_inputs(
-      cbs = get_wide_cbs(),
-      primary_prod = get_primary_production()
-    ))
   }
   .build_redistribute_intake(grain = grain, demand_tier = demand_tier)
 }

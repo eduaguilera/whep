@@ -7,24 +7,23 @@
 get_feed_intake(
   example = FALSE,
   grain = c("national", "provincial"),
-  demand_tier = c("fcr", "ipcc")
+  demand_tier = c("ipcc", "fcr")
 )
 }
 \arguments{
 \item{example}{If \code{TRUE}, return a small example output without downloading
 remote data. Default is \code{FALSE}.}
 
-\item{grain}{Spatial grain of the feed allocation. \code{"national"} (default, the
-current supply-driven allocator) or \code{"provincial"} (the \code{redistribute_feed}
-engine at 0.5-degree cell grain). The provincial engine is a migration in
-progress and not yet implemented.}
+\item{grain}{Spatial grain of the feed allocation. \code{"national"} (default, one
+allocation per country) or \code{"provincial"} (the per-cell 0.5-degree engine,
+which is heavy and run via \code{\link[=build_feed_intake_provincial]{build_feed_intake_provincial()}}; calling it here
+redirects there).}
 
-\item{demand_tier}{Demand-estimation tier. \code{"fcr"} (default, Bouwman /
-Krausmann feed-conversion) or \code{"ipcc"} (IPCC Tier-2 energy where it covers
-the species, Krausmann elsewhere). The \code{"ipcc"} tier is a migration in
-progress and not yet implemented. The defaults reproduce the current output
-for back-compatibility; they will switch to the more rigorous tier once the
-new path is built and regression-validated.}
+\item{demand_tier}{Demand-estimation tier. \code{"ipcc"} (default, the rigorous
+IPCC Tier-2 energy demand for the ruminant species it covers, Bouwman FCR
+for pigs and poultry, Krausmann per-head for draft / other species) or
+\code{"fcr"} (the Bouwman / Krausmann feed-conversion magnitude for every
+species). Both grains allocate with \code{redistribute_feed()}.}
 }
 \value{
 A tibble with the feed intake data.
