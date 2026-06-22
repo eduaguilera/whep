@@ -83,6 +83,28 @@ test_that(".livestock_crosswalk is the verified 22-row 3-method mapping", {
 
 # Engine 1: DEMAND -------------------------------------------------------------
 
+test_that("build_feed_demand(example = TRUE) returns the demand contract", {
+  out <- whep::build_feed_demand(example = TRUE)
+  expect_s3_class(out, "tbl_df")
+  expect_named(
+    out,
+    c("year", "area_code", "livestock_category", "demand_dm_t", "method_demand")
+  )
+  expect_true(all(out$demand_dm_t > 0))
+})
+
+test_that("build_feed_demand builds the per-category demand from production", {
+  testthat::local_mocked_bindings(
+    get_primary_production = function(...) whep:::.ex_get_primary_prod()
+  )
+  out <- whep::build_feed_demand(demand_tier = "fcr")
+  expect_s3_class(out, "tbl_df")
+  expect_named(
+    out,
+    c("year", "area_code", "livestock_category", "demand_dm_t", "method_demand")
+  )
+})
+
 test_that(".demand_method_label maps the three methods by tier", {
   src <- c("ipcc", "fcr", "krausmann", "ipcc")
   expect_equal(

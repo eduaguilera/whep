@@ -382,3 +382,17 @@
     2000L, 724L, "-3.25_40.75", 1049L, 2591L, "crops", 22, 22, 20, 0, 0
   )
 }
+
+.example_feed_demand <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~livestock_category, ~demand_dm_t, ~method_demand,
+    2000L, 79L, "Cattle_milk", 5.8e6, "ipcc_tier2_energy",
+    2000L, 79L, "Cattle_meat", 9.4e6, "ipcc_tier2_energy",
+    2000L, 79L, "Sheep", 1.1e6, "ipcc_tier2_energy",
+    2000L, 79L, "Goats", 2.0e5, "ipcc_tier2_energy",
+    2000L, 79L, "Pigs", 8.7e6, "bouwman_fcr",
+    2000L, 79L, "Poultry", 3.9e6, "bouwman_fcr",
+    2000L, 79L, "Horses", 1.5e5, "krausmann_per_head",
+    2000L, 79L, "Other", 3.0e4, "krausmann_per_head"
+  )
+}

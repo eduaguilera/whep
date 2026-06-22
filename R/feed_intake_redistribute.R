@@ -83,6 +83,46 @@ build_feed_intake_local <- function(
   .write_local_years(years, ctx, out_dir, overwrite)
 }
 
+#' Build livestock feed demand.
+#'
+#' @description
+#' Estimate the dry-matter feed demand of each livestock category: the first
+#' stage of [get_feed_intake()], exposed on its own. Demand is national, per
+#' `(year, area_code, livestock_category)`, and is computed before any matching
+#' against feed supply, so it can be audited or reused (for example in land or
+#' nitrogen footprints) independently of the allocation.
+#'
+#' @param demand_tier Demand-estimation tier. `"ipcc"` (default) uses the IPCC
+#'   Tier-2 energy model for the ruminant species, Bouwman feed-conversion ratios
+#'   for pigs and poultry, and Krausmann per-head intake for draft and other
+#'   species. `"fcr"` uses the Bouwman / Krausmann magnitude for every species.
+#'   The method actually used for each row is recorded in `method_demand`.
+#' @param example If `TRUE`, return a small example output without downloading
+#'   remote data. Default is `FALSE`.
+#'
+#' @returns
+#' A tibble with one row per `(year, area_code, livestock_category)`:
+#' - `year`: The year of the demand.
+#' - `area_code`: The country code. For code details see e.g. `add_area_name()`.
+#' - `livestock_category`: The feed-demand grouping of livestock (e.g.
+#'    `Cattle_milk`, `Cattle_meat`, `Pigs`, `Poultry`).
+#' - `demand_dm_t`: Dry-matter feed demand in tonnes.
+#' - `method_demand`: The demand method(s) used, e.g. `ipcc_tier2_energy`,
+#'    `bouwman_fcr` or `krausmann_per_head` (a `+`-joined set for a mixed
+#'    category whose animals used different methods).
+#'
+#' @export
+#'
+#' @examples
+#' build_feed_demand(example = TRUE)
+build_feed_demand <- function(demand_tier = c("ipcc", "fcr"), example = FALSE) {
+  if (example) {
+    return(.example_feed_demand())
+  }
+  demand_tier <- rlang::arg_match(demand_tier)
+  .build_feed_demand_total(get_primary_production(), demand_tier)
+}
+
 # Shared per-run context (configured paths + the once-fetched, normalised
 # production / CBS / coefficient data), grouped so the per-year helpers take few
 # arguments.
