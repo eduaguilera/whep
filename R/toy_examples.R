@@ -371,7 +371,7 @@
 # Codes_coefs.xlsx via openxlsx (segfaults intermittently on R 4.5.x) and is not
 # a CI dependency, so the live parity test is not run. See test_redistribute_feed.R.
 
-.example_provincial_intake <- function() {
+.example_local_intake <- function() {
   tibble::tribble(
     ~year, ~area_code, ~sub_territory, ~live_anim_code, ~item_cbs_code,
     ~feed_type, ~supply, ~intake, ~intake_dry_matter, ~loss, ~loss_share,

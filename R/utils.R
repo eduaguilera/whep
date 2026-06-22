@@ -918,7 +918,7 @@ utils::globalVariables(
     "grazer_feedtype",
     "granivore_feedtype",
     "intake_dry_matter",
-    # feed_intake_redistribute.R (provincial grain)
+    # feed_intake_redistribute.R (local grain)
     "cell_share",
     # feed_intake_redistribute.R (Phase 5b grass border grazing)
     "surplus",

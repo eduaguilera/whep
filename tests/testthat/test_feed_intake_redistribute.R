@@ -1,18 +1,18 @@
-test_that("get_feed_intake provincial points to build_feed_intake_provincial", {
-  # The provincial grain is run via the chunked-by-year batch function (the full
+test_that("get_feed_intake local points to build_feed_intake_local", {
+  # The local grain is run via the chunked-by-year batch function (the full
   # run is too large for one in-memory result); get_feed_intake redirects there.
   expect_error(
-    whep::get_feed_intake(grain = "provincial"),
-    "build_feed_intake_provincial"
+    whep::get_feed_intake(grain = "local"),
+    "build_feed_intake_local"
   )
   expect_error(
-    whep::get_feed_intake(grain = "provincial", demand_tier = "ipcc"),
-    "build_feed_intake_provincial"
+    whep::get_feed_intake(grain = "local", demand_tier = "ipcc"),
+    "build_feed_intake_local"
   )
 })
 
-test_that("build_feed_intake_provincial(example = TRUE) returns the contract", {
-  out <- whep::build_feed_intake_provincial(example = TRUE)
+test_that("build_feed_intake_local(example = TRUE) returns the contract", {
+  out <- whep::build_feed_intake_local(example = TRUE)
   expect_s3_class(out, "tbl_df")
   expect_setequal(
     names(out),
@@ -33,7 +33,7 @@ test_that("build_feed_intake_provincial(example = TRUE) returns the contract", {
   expect_true(all(out$supply == out$intake))
 })
 
-test_that(".resolve_provincial_years defaults to all years, else the subset", {
+test_that(".resolve_local_years defaults to all years, else the subset", {
   prod <- tibble::tibble(
     year = c(1999, 2000, 2001),
     area_code = 1,
@@ -41,8 +41,8 @@ test_that(".resolve_provincial_years defaults to all years, else the subset", {
     unit = "heads",
     value = 1
   )
-  expect_equal(whep:::.resolve_provincial_years(NULL, prod), 1999:2001)
-  expect_equal(whep:::.resolve_provincial_years(c(2000L, 2050L), prod), 2000L)
+  expect_equal(whep:::.resolve_local_years(NULL, prod), 1999:2001)
+  expect_equal(whep:::.resolve_local_years(c(2000L, 2050L), prod), 2000L)
 })
 
 test_that("get_feed_intake rejects unknown grain / demand_tier", {
@@ -1086,7 +1086,7 @@ test_that("reshape reports grass-deficit substitute as residues, not grass", {
   expect_equal(out$intake, 90 / 0.9, tolerance = 1e-6)
 })
 
-test_that(".grass_to_cells maps grass to per-cell provincial grass_availability", {
+test_that(".grass_to_cells maps grass to per-cell local grass_availability", {
   grass <- tibble::tribble(
     ~lon,
     ~lat,
@@ -1197,7 +1197,7 @@ test_that(".heads_to_cell_shares maps species groups and shares per category", {
 
 test_that(".species_group_to_category covers every crosswalk category", {
   # Guards against a feed category with no gridded proxy (its demand would be
-  # dropped from the provincial allocation).
+  # dropped from the local allocation).
   m <- whep:::.species_group_to_category()
   cw_cats <- unique(whep:::.livestock_crosswalk()$livestock_category)
   expect_true(all(cw_cats %in% m$livestock_category))
@@ -1238,12 +1238,12 @@ test_that(".distribute_demand_to_cells warns on demand with no cell share", {
   )
   expect_warning(
     out <- whep:::.distribute_demand_to_cells(feed_demand, cell_shares),
-    "dropped from the provincial"
+    "dropped from the local"
   )
   expect_equal(nrow(out), 0L)
 })
 
-test_that("provincial run yields a per-cell contract, grass capped per cell", {
+test_that("local run yields a per-cell contract, grass capped per cell", {
   region <- whep:::.feed_region_lookup(whep::polities_cats)
   bouwman_regions <- unique(whep::conv_bouwman$region_bouwman)
   area <- region$area_code[region$region_bouwman %in% bouwman_regions][1]
@@ -1307,7 +1307,7 @@ test_that("provincial run yields a per-cell contract, grass capped per cell", {
     "cellB",
     1e12
   )
-  eng <- whep:::.run_redistribute_provincial(
+  eng <- whep:::.run_redistribute_local(
     prod,
     cbs,
     "ipcc",
@@ -1316,7 +1316,7 @@ test_that("provincial run yields a per-cell contract, grass capped per cell", {
   out <- whep:::.reshape_redistribute_intake(
     eng$result,
     eng$code_shares,
-    provincial = TRUE
+    local = TRUE
   )
   expect_true("sub_territory" %in% names(out))
   expect_setequal(unique(out$sub_territory), c("cellA", "cellB"))
@@ -1541,4 +1541,20 @@ test_that(".apply_grass_border_grazing does nothing without a surplus neighbour"
   out <- whep:::.apply_grass_border_grazing(result, grass_avail, 0.1)
   expect_equal(nrow(out), nrow(result))
   expect_false("8_grass_border_grazing" %in% out$hierarchy_level)
+})
+
+test_that("grass border grazing only flows within a country", {
+  # A surplus cell in country 1 sits between a same-country deficit neighbour and
+  # a different-country deficit neighbour (a 0.5-degree cell can be shared by, or
+  # border, another country). The allowance must reach only the same-country one.
+  cells <- tibble::tribble(
+    ~year, ~territory, ~sub_territory, ~lon, ~lat, ~surplus, ~deficit,
+    2000L, "1", "0_0", 0, 0, 100, 0,
+    2000L, "1", "0.5_0", 0.5, 0, 0, 50,
+    2000L, "2", "0.5_0", 0.5, 0, 0, 50
+  )
+  flows <- whep:::.grass_border_flows(cells, 0.1)
+  # Only territory 1 (same country as the surplus) receives grass.
+  expect_setequal(flows$territory, "1")
+  expect_true(all(flows$received > 0))
 })

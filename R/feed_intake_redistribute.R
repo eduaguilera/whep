@@ -13,14 +13,14 @@
 #                       feed-access buffer on the roughage trade.
 #
 # The national grain is wired (Engines 1-3 plus the Phase-6 reshape). The
-# provincial grain (sub_territory = 0.5-degree cell) is still in progress and
+# local grain (sub_territory = 0.5-degree cell) is still in progress and
 # errors; the package default (grain = "national", demand_tier = "fcr") keeps
 # routing to the legacy allocator.
 
 .build_redistribute_intake <- function(grain, demand_tier) {
-  if (grain == "provincial") {
+  if (grain == "local") {
     cli::cli_abort(c(
-      "Run the {.val provincial} grain with {.fn build_feed_intake_provincial}.",
+      "Run the {.val local} grain with {.fn build_feed_intake_local}.",
       i = "It chunks the per-cell allocation by year (the full run is too large
         for one in-memory result): pass {.arg out_dir} to write per-year output
         to disk, or a small {.arg years} subset to return it in memory."
@@ -35,10 +35,10 @@
   .reshape_redistribute_intake(engine$result, engine$code_shares)
 }
 
-#' Build provincial (per-cell) feed intake, chunked by year.
+#' Build local (per-cell) feed intake, chunked by year.
 #'
 #' @description
-#' Runs the `redistribute_feed` provincial path (0.5-degree cell grain) one year
+#' Runs the `redistribute_feed` local path (0.5-degree cell grain) one year
 #' at a time, so the per-cell allocation stays within memory and the full
 #' multi-year run is restartable. Sources the LPJmL grass run and gridded
 #' livestock inputs from the `WHEP_LPJML_RUN_DIR` and `WHEP_SPATIAL_INPUT_DIR`
@@ -46,7 +46,7 @@
 #'
 #' @param years Integer vector of years to build. Default `NULL` builds every
 #'   year present in the production data.
-#' @param out_dir Directory to write per-year `feed_intake_provincial_<year>`
+#' @param out_dir Directory to write per-year `feed_intake_local_<year>`
 #'   parquet files to. If `NULL`, the bound result is returned in memory (only
 #'   practical for a few years).
 #' @param demand_tier Demand-estimation tier, `"ipcc"` (default) or `"fcr"`.
@@ -63,8 +63,8 @@
 #' @export
 #'
 #' @examples
-#' build_feed_intake_provincial(example = TRUE)
-build_feed_intake_provincial <- function(
+#' build_feed_intake_local(example = TRUE)
+build_feed_intake_local <- function(
   years = NULL,
   out_dir = NULL,
   demand_tier = c("ipcc", "fcr"),
@@ -72,23 +72,23 @@ build_feed_intake_provincial <- function(
   example = FALSE
 ) {
   if (example) {
-    return(.example_provincial_intake())
+    return(.example_local_intake())
   }
   demand_tier <- rlang::arg_match(demand_tier)
-  ctx <- .provincial_run_context(demand_tier)
-  years <- .resolve_provincial_years(years, ctx$production)
+  ctx <- .local_run_context(demand_tier)
+  years <- .resolve_local_years(years, ctx$production)
   if (is.null(out_dir)) {
-    return(.bind_provincial_years(years, ctx))
+    return(.bind_local_years(years, ctx))
   }
-  .write_provincial_years(years, ctx, out_dir, overwrite)
+  .write_local_years(years, ctx, out_dir, overwrite)
 }
 
 # Shared per-run context (configured paths + the once-fetched, normalised
 # production / CBS / coefficient data), grouped so the per-year helpers take few
 # arguments.
-.provincial_run_context <- function(demand_tier) {
+.local_run_context <- function(demand_tier) {
   list(
-    paths = .provincial_paths(),
+    paths = .local_paths(),
     production = .normalise_feed_primary(get_primary_production()),
     cbs = .normalise_feed_cbs(get_wide_cbs()),
     data = .feed_demand_data(),
@@ -101,7 +101,7 @@ build_feed_intake_provincial <- function(
 
 # Years to build: every production year, or the requested subset intersected
 # with the production years.
-.resolve_provincial_years <- function(years, production) {
+.resolve_local_years <- function(years, production) {
   all_years <- sort(unique(as.integer(
     .normalise_feed_primary(production)$year
   )))
@@ -112,13 +112,13 @@ build_feed_intake_provincial <- function(
   }
 }
 
-# One year's provincial intake: per-cell spatial inputs -> engine -> contract.
-.provincial_year_intake <- function(yr, ctx) {
-  spatial <- .provincial_spatial_inputs(yr, ctx$paths)
+# One year's local intake: per-cell spatial inputs -> engine -> contract.
+.local_year_intake <- function(yr, ctx) {
+  spatial <- .local_spatial_inputs(yr, ctx$paths)
   spatial$grass_border_allowance <- ctx$grass_border_allowance
   prod_y <- dplyr::filter(ctx$production, as.integer(.data$year) == yr)
   cbs_y <- dplyr::filter(ctx$cbs, as.integer(.data$year) == yr)
-  engine <- .run_redistribute_provincial(
+  engine <- .run_redistribute_local(
     prod_y,
     cbs_y,
     ctx$demand_tier,
@@ -128,23 +128,23 @@ build_feed_intake_provincial <- function(
   .reshape_redistribute_intake(
     engine$result,
     engine$code_shares,
-    provincial = TRUE
+    local = TRUE
   )
 }
 
 # Write per-year output to disk, skipping years already written (restartable)
 # and releasing each year's memory before the next.
-.write_provincial_years <- function(years, ctx, out_dir, overwrite) {
+.write_local_years <- function(years, ctx, out_dir, overwrite) {
   if (!dir.exists(out_dir)) {
     dir.create(out_dir, recursive = TRUE)
   }
   written <- purrr::map_chr(years, function(yr) {
-    f <- file.path(out_dir, sprintf("feed_intake_provincial_%d.parquet", yr))
+    f <- file.path(out_dir, sprintf("feed_intake_local_%d.parquet", yr))
     if (file.exists(f) && !overwrite) {
       cli::cli_alert_info("Year {yr}: output exists, skipping.")
       return(f)
     }
-    out <- .provincial_year_intake(yr, ctx)
+    out <- .local_year_intake(yr, ctx)
     nanoparquet::write_parquet(out, f)
     cli::cli_alert_success("Year {yr}: {nrow(out)} rows written.")
     gc()
@@ -154,26 +154,26 @@ build_feed_intake_provincial <- function(
 }
 
 # Bind years in memory (practical only for a few years).
-.bind_provincial_years <- function(years, ctx) {
+.bind_local_years <- function(years, ctx) {
   if (length(years) > 5) {
     cli::cli_warn(c(
-      "Binding {length(years)} years of provincial intake in memory.",
+      "Binding {length(years)} years of local intake in memory.",
       i = "Pass {.arg out_dir} to write per-year output to disk for large runs."
     ))
   }
   dplyr::bind_rows(purrr::map(years, function(yr) {
-    .provincial_year_intake(yr, ctx)
+    .local_year_intake(yr, ctx)
   }))
 }
 
-# Resolve the configured provincial input directories from the environment,
+# Resolve the configured local input directories from the environment,
 # aborting with guidance if either is unset.
-.provincial_paths <- function() {
+.local_paths <- function() {
   run_dir <- Sys.getenv("WHEP_LPJML_RUN_DIR")
   input_dir <- Sys.getenv("WHEP_SPATIAL_INPUT_DIR")
   if (!nzchar(run_dir) || !nzchar(input_dir)) {
     cli::cli_abort(c(
-      "The {.val provincial} grain needs the spatial input directories.",
+      "The {.val local} grain needs the spatial input directories.",
       i = "Set {.envvar WHEP_LPJML_RUN_DIR} (the LPJmL run scenario output
         directory with {.file pft_npp.nc} and {.file cftfrac.nc}) and
         {.envvar WHEP_SPATIAL_INPUT_DIR} (the gridded-livestock input directory)."
@@ -182,11 +182,11 @@ build_feed_intake_provincial <- function(
   list(run_dir = run_dir, input_dir = input_dir)
 }
 
-# Source the provincial spatial inputs (per-cell livestock head shares + per-cell
+# Source the local spatial inputs (per-cell livestock head shares + per-cell
 # grass availability) from the configured directories. A heavy global
 # computation: gridded livestock plus LPJmL grass for every model year. Years
 # outside the LPJmL run's coverage get unbounded grass.
-.provincial_spatial_inputs <- function(years, paths) {
+.local_spatial_inputs <- function(years, paths) {
   ls_inputs <- .load_livestock_inputs(paths$input_dir)
   gridded_heads <- build_gridded_livestock(
     livestock_data = ls_inputs$livestock_data,
@@ -841,14 +841,14 @@ build_feed_intake_provincial <- function(
 
 # ---- Provincial grain (sub_territory = cell) --------------------------------
 
-# Run the provincial-grain allocation: national category demand + Bouwman mix,
+# Run the local-grain allocation: national category demand + Bouwman mix,
 # distributed to cells by each cell's share of the category's livestock, then
 # allocated by redistribute_feed with national CBS feed served to every cell
 # (feed_scale "national") and per-cell grass bounding the pasture sink
 # (options$grass_availability, keyed by sub_territory). Returns the raw result
 # and the per-animal reverse-split weights. `spatial` carries the per-cell inputs
 # (cell_shares = per-cell head shares, grass_avail = per-cell grass ceiling).
-.run_redistribute_provincial <- function(
+.run_redistribute_local <- function(
   production,
   cbs,
   demand_tier,
@@ -929,7 +929,7 @@ build_feed_intake_provincial <- function(
   sprintf("%.2f_%.2f", lon, lat)
 }
 
-# Map gridded grass availability to the provincial grass_availability schema:
+# Map gridded grass availability to the local grass_availability schema:
 # each 0.5-degree cell becomes a sub_territory under its polity (territory =
 # area_code). Pass `country_grid` (majority assignment, one polity per cell) to
 # match how gridded livestock heads are assigned; a `cell_polity` carrying
@@ -1049,7 +1049,7 @@ build_feed_intake_provincial <- function(
   cats <- unique(unmatched$livestock_category)
   cli::cli_warn(c(
     "No per-cell share for {length(cats)} category-territory
-     combination{?s}: {dropped} t DM of demand is dropped from the provincial
+     combination{?s}: {dropped} t DM of demand is dropped from the local
      allocation.",
     i = "Provide {.field cell_shares} (per-cell livestock heads) for the
       {cli::qty(length(cats))}missing categor{?y/ies}."
@@ -1237,10 +1237,10 @@ build_feed_intake_provincial <- function(
   result,
   code_shares,
   data = .reshape_data(),
-  provincial = FALSE
+  local = FALSE
 ) {
   if (nrow(result) == 0) {
-    return(.empty_feed_intake(provincial))
+    return(.empty_feed_intake(local))
   }
   result <- .assign_grass_sink_item(result)
   .warn_unsplit_intake(result, code_shares)
@@ -1248,7 +1248,7 @@ build_feed_intake_provincial <- function(
     .split_intake_to_animals(code_shares) |>
     .label_feed_type(data$item_feedtype) |>
     .intake_to_fresh_matter(data$item_kgdm) |>
-    .summarise_feed_intake(provincial)
+    .summarise_feed_intake(local)
 }
 
 # Surface intake the reverse-split would silently drop: rows whose area_code did
@@ -1344,9 +1344,9 @@ build_feed_intake_provincial <- function(
 }
 
 # Collapse to the contract grain and emit its columns. Demand-pull semantics:
-# supply = intake, loss = 0, loss_share = 0. The provincial grain keeps
+# supply = intake, loss = 0, loss_share = 0. The local grain keeps
 # sub_territory (cell); the national grain (sub_territory all NA) drops it.
-.summarise_feed_intake <- function(result, provincial = FALSE) {
+.summarise_feed_intake <- function(result, local = FALSE) {
   result |>
     dplyr::filter(
       !is.na(item_cbs_code) | feed_group %in% "substitute",
@@ -1373,12 +1373,12 @@ build_feed_intake_provincial <- function(
       loss = 0,
       loss_share = 0
     ) |>
-    .select_feed_intake_cols(provincial)
+    .select_feed_intake_cols(local)
 }
 
-# Emit the contract columns, inserting sub_territory (cell) for the provincial
+# Emit the contract columns, inserting sub_territory (cell) for the local
 # grain, and order by the key columns.
-.select_feed_intake_cols <- function(agg, provincial) {
+.select_feed_intake_cols <- function(agg, local) {
   cols <- c(
     "year",
     "area_code",
@@ -1391,7 +1391,7 @@ build_feed_intake_provincial <- function(
     "loss",
     "loss_share"
   )
-  if (provincial) {
+  if (local) {
     cols <- append(cols, "sub_territory", after = 2)
   }
   key_cols <- intersect(

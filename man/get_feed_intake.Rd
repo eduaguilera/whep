@@ -6,7 +6,7 @@
 \usage{
 get_feed_intake(
   example = FALSE,
-  grain = c("national", "provincial"),
+  grain = c("national", "local"),
   demand_tier = c("ipcc", "fcr")
 )
 }
@@ -15,8 +15,8 @@ get_feed_intake(
 remote data. Default is \code{FALSE}.}
 
 \item{grain}{Spatial grain of the feed allocation. \code{"national"} (default, one
-allocation per country) or \code{"provincial"} (the per-cell 0.5-degree engine,
-which is heavy and run via \code{\link[=build_feed_intake_provincial]{build_feed_intake_provincial()}}; calling it here
+allocation per country) or \code{"local"} (the per-cell 0.5-degree engine,
+which is heavy and run via \code{\link[=build_feed_intake_local]{build_feed_intake_local()}}; calling it here
 redirects there).}
 
 \item{demand_tier}{Demand-estimation tier. \code{"ipcc"} (default, the rigorous

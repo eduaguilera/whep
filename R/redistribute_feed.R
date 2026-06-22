@@ -1491,7 +1491,7 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
     dplyr::mutate(maintenance_share = dplyr::coalesce(maintenance_share, 0))
 }
 
-# Grass binds per cell when supplied per sub_territory (provincial grain), else
+# Grass binds per cell when supplied per sub_territory (local grain), else
 # per polity (national grain). The cap key follows the grain of the supplied
 # grass availability. When a sub_territory is present the polity is kept in the
 # key too (year, territory, sub_territory) so a 0.5-degree border cell shared by

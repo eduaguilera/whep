@@ -6,8 +6,8 @@
 #' @param example If `TRUE`, return a small example output without downloading
 #'   remote data. Default is `FALSE`.
 #' @param grain Spatial grain of the feed allocation. `"national"` (default, one
-#'   allocation per country) or `"provincial"` (the per-cell 0.5-degree engine,
-#'   which is heavy and run via [build_feed_intake_provincial()]; calling it here
+#'   allocation per country) or `"local"` (the per-cell 0.5-degree engine,
+#'   which is heavy and run via [build_feed_intake_local()]; calling it here
 #'   redirects there).
 #' @param demand_tier Demand-estimation tier. `"ipcc"` (default, the rigorous
 #'   IPCC Tier-2 energy demand for the ruminant species it covers, Bouwman FCR
@@ -47,7 +47,7 @@
 #' get_feed_intake(example = TRUE)
 get_feed_intake <- function(
   example = FALSE,
-  grain = c("national", "provincial"),
+  grain = c("national", "local"),
   demand_tier = c("ipcc", "fcr")
 ) {
   grain <- rlang::arg_match(grain)

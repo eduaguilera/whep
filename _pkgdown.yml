@@ -62,7 +62,7 @@ reference:
   contents:
   - build_supply_use
   - get_feed_intake
-  - build_feed_intake_provincial
+  - build_feed_intake_local
   - get_primary_production
   - get_primary_residues
   - get_processing_coefs

@@ -42,7 +42,7 @@
   ) {
     primary_prod <- dplyr::rename(
       primary_prod,
-      item_prod_code = .data$item_code
+      item_prod_code = "item_code"
     )
   }
   if (
@@ -51,7 +51,7 @@
   ) {
     primary_prod <- dplyr::rename(
       primary_prod,
-      item_cbs_code = .data$item_code_cbs
+      item_cbs_code = "item_code_cbs"
     )
   }
   primary_prod |>
@@ -376,7 +376,7 @@
   )
 }
 
-.empty_feed_intake <- function(provincial = FALSE) {
+.empty_feed_intake <- function(local = FALSE) {
   out <- tibble::tibble(
     year = integer(),
     area_code = integer(),
@@ -389,7 +389,7 @@
     loss = numeric(),
     loss_share = numeric()
   )
-  if (provincial) {
+  if (local) {
     out <- tibble::add_column(
       out,
       sub_territory = character(),
