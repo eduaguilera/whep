@@ -4,7 +4,11 @@
 \alias{build_feed_demand}
 \title{Build livestock feed demand.}
 \usage{
-build_feed_demand(demand_tier = c("ipcc", "fcr"), example = FALSE)
+build_feed_demand(
+  demand_tier = c("ipcc", "fcr"),
+  by = c("category", "feed_type"),
+  example = FALSE
+)
 }
 \arguments{
 \item{demand_tier}{Demand-estimation tier. \code{"ipcc"} (default) uses the IPCC
@@ -13,11 +17,17 @@ for pigs and poultry, and Krausmann per-head intake for draft and other
 species. \code{"fcr"} uses the Bouwman / Krausmann magnitude for every species.
 The method actually used for each row is recorded in \code{method_demand}.}
 
+\item{by}{Output grain. \code{"category"} (default) returns the per-livestock
+category demand. \code{"feed_type"} splits it across feed types and returns the
+\code{feed_demand} table that \code{\link[=redistribute_feed]{redistribute_feed()}} consumes, so the two compose:
+\code{build_feed_demand(by = "feed_type") |> redistribute_feed(feed_avail)}.}
+
 \item{example}{If \code{TRUE}, return a small example output without downloading
 remote data. Default is \code{FALSE}.}
 }
 \value{
-A tibble with one row per \verb{(year, area_code, livestock_category)}:
+With \code{by = "category"}, a tibble with one row per
+\verb{(year, area_code, livestock_category)}:
 \itemize{
 \item \code{year}: The year of the demand.
 \item \code{area_code}: The country code. For code details see e.g. \code{add_area_name()}.
@@ -28,6 +38,11 @@ A tibble with one row per \verb{(year, area_code, livestock_category)}:
 \code{bouwman_fcr} or \code{krausmann_per_head} (a \code{+}-joined set for a mixed
 category whose animals used different methods).
 }
+
+With \code{by = "feed_type"}, the demand split across feed types as the
+\code{\link[=redistribute_feed]{redistribute_feed()}} \code{feed_demand} contract: \code{year}, \code{territory},
+\code{sub_territory}, \code{livestock_category}, \code{item_cbs_code}, \code{feed_group},
+\code{feed_quality}, \code{demand_dm_t}, \code{fixed_demand}.
 }
 \description{
 Estimate the dry-matter feed demand of each livestock category: the first
@@ -38,4 +53,5 @@ nitrogen footprints) independently of the allocation.
 }
 \examples{
 build_feed_demand(example = TRUE)
+build_feed_demand(example = TRUE, by = "feed_type")
 }

@@ -105,6 +105,38 @@ test_that("build_feed_demand builds the per-category demand from production", {
   )
 })
 
+test_that("build_feed_demand(by = 'feed_type') composes with redistribute_feed", {
+  demand <- whep::build_feed_demand(example = TRUE, by = "feed_type")
+  expect_named(
+    demand,
+    c(
+      "year",
+      "territory",
+      "sub_territory",
+      "livestock_category",
+      "item_cbs_code",
+      "feed_group",
+      "feed_quality",
+      "demand_dm_t",
+      "fixed_demand"
+    )
+  )
+  feed_avail <- tibble::tribble(
+    ~year,
+    ~sub_territory,
+    ~item_cbs_code,
+    ~feed_group,
+    ~feed_quality,
+    ~avail_dm_t,
+    ~feed_scale,
+    2000L, NA_character_, 2514L, "cereals", "high_quality", 1e7, "national",
+    2000L, NA_character_, 2591L, "residues", "residues", 5e6, "national"
+  )
+  out <- whep::redistribute_feed(demand, feed_avail)
+  expect_s3_class(out, "tbl_df")
+  expect_true("intake_dm_t" %in% names(out))
+})
+
 test_that(".demand_method_label maps the three methods by tier", {
   src <- c("ipcc", "fcr", "krausmann", "ipcc")
   expect_equal(

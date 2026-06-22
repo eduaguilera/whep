@@ -97,11 +97,16 @@ build_feed_intake_local <- function(
 #'   for pigs and poultry, and Krausmann per-head intake for draft and other
 #'   species. `"fcr"` uses the Bouwman / Krausmann magnitude for every species.
 #'   The method actually used for each row is recorded in `method_demand`.
+#' @param by Output grain. `"category"` (default) returns the per-livestock
+#'   category demand. `"feed_type"` splits it across feed types and returns the
+#'   `feed_demand` table that [redistribute_feed()] consumes, so the two compose:
+#'   `build_feed_demand(by = "feed_type") |> redistribute_feed(feed_avail)`.
 #' @param example If `TRUE`, return a small example output without downloading
 #'   remote data. Default is `FALSE`.
 #'
 #' @returns
-#' A tibble with one row per `(year, area_code, livestock_category)`:
+#' With `by = "category"`, a tibble with one row per
+#' `(year, area_code, livestock_category)`:
 #' - `year`: The year of the demand.
 #' - `area_code`: The country code. For code details see e.g. `add_area_name()`.
 #' - `livestock_category`: The feed-demand grouping of livestock (e.g.
@@ -111,16 +116,32 @@ build_feed_intake_local <- function(
 #'    `bouwman_fcr` or `krausmann_per_head` (a `+`-joined set for a mixed
 #'    category whose animals used different methods).
 #'
+#' With `by = "feed_type"`, the demand split across feed types as the
+#' [redistribute_feed()] `feed_demand` contract: `year`, `territory`,
+#' `sub_territory`, `livestock_category`, `item_cbs_code`, `feed_group`,
+#' `feed_quality`, `demand_dm_t`, `fixed_demand`.
+#'
 #' @export
 #'
 #' @examples
 #' build_feed_demand(example = TRUE)
-build_feed_demand <- function(demand_tier = c("ipcc", "fcr"), example = FALSE) {
+#' build_feed_demand(example = TRUE, by = "feed_type")
+build_feed_demand <- function(
+  demand_tier = c("ipcc", "fcr"),
+  by = c("category", "feed_type"),
+  example = FALSE
+) {
+  by <- rlang::arg_match(by)
   if (example) {
-    return(.example_feed_demand())
+    return(.example_build_feed_demand(by))
   }
   demand_tier <- rlang::arg_match(demand_tier)
-  .build_feed_demand_total(get_primary_production(), demand_tier)
+  data <- .feed_demand_data()
+  total <- .build_feed_demand_total(get_primary_production(), demand_tier, data)
+  if (by == "category") {
+    return(total)
+  }
+  .build_feed_mix(total, data)
 }
 
 # Shared per-run context (configured paths + the once-fetched, normalised

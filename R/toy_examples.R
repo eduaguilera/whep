@@ -383,7 +383,11 @@
   )
 }
 
-.example_feed_demand <- function() {
+.example_build_feed_demand <- function(by = "category") {
+  if (by == "feed_type") {
+    # The redistribute_feed-ready demand contract: reuse the allocator fixture.
+    return(.example_feed_demand())
+  }
   tibble::tribble(
     ~year, ~area_code, ~livestock_category, ~demand_dm_t, ~method_demand,
     2000L, 79L, "Cattle_milk", 5.8e6, "ipcc_tier2_energy",
