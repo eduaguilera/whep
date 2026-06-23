@@ -93,3 +93,47 @@ test_that("calculate_crop_residues errors on missing columns", {
     "missing required"
   )
 })
+
+test_that("calculate_crop_roots root_shoot uses the IPCC RS ratio", {
+  x <- tibble::tibble(
+    item_prod_code = "15",
+    product_dm_t = 87.9,
+    residue_dm_t = 135.75,
+    area_ha = 40
+  )
+  out <- whep::calculate_crop_roots(x, method = "root_shoot")
+  rk <- whep::whep_coef_table("ipcc_root_coefs")
+  mp <- whep::whep_coef_table("ipcc_crop_mapping")
+  rs <- rk$rs_default[rk$ipcc_crop == mp$ipcc_crop[mp$item_prod_code == "15"]]
+  testthat::expect_equal(out$root_dm_t, (87.9 + 135.75) * rs)
+  testthat::expect_equal(out$method_root, "root_shoot")
+})
+
+test_that("calculate_crop_roots reference uses BG ref per hectare", {
+  x <- tibble::tibble(
+    item_prod_code = "15",
+    product_dm_t = 87.9,
+    residue_dm_t = 135.75,
+    area_ha = 40
+  )
+  out <- whep::calculate_crop_roots(x, method = "reference")
+  rk <- whep::whep_coef_table("ipcc_root_coefs")
+  mp <- whep::whep_coef_table("ipcc_crop_mapping")
+  bg <- rk$bg_ref_dm_t_ha[
+    rk$ipcc_crop == mp$ipcc_crop[mp$item_prod_code == "15"]
+  ]
+  testthat::expect_equal(out$root_dm_t, bg * 40)
+})
+
+test_that("calculate_crop_roots ensemble blends RS and reference", {
+  x <- tibble::tibble(
+    item_prod_code = "15",
+    product_dm_t = 87.9,
+    residue_dm_t = 135.75,
+    area_ha = 40
+  )
+  ens <- whep::calculate_crop_roots(x, method = "ensemble")$root_dm_t
+  rs <- whep::calculate_crop_roots(x, method = "root_shoot")$root_dm_t
+  ref <- whep::calculate_crop_roots(x, method = "reference")$root_dm_t
+  testthat::expect_equal(ens, 0.5 * rs + 0.5 * ref)
+})

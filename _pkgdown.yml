@@ -62,6 +62,7 @@ reference:
   - whep_coef_table
   - calculate_potential_npp
   - calculate_crop_residues
+  - calculate_crop_roots
 
 - title: Tidy datasets
   desc: >

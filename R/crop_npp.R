@@ -82,6 +82,54 @@ calculate_crop_residues <- function(
     .residue_cleanup()
 }
 
+#' Estimate crop below-ground (root) biomass.
+#'
+#' Estimates root dry matter from above-ground biomass using an ensemble of an
+#' IPCC root:shoot ratio and a reference below-ground biomass per hectare. The
+#' nitrogen-input and irrigation adjustments activate only when their driver
+#' columns are present in `x`.
+#'
+#' @param x A tibble with `item_prod_code`, `product_dm_t`, `residue_dm_t` and
+#'   `area_ha`. Optional `n_input_kg_ha` enables the nitrogen adjustment;
+#'   optional `water_regime` enables the irrigation adjustment.
+#' @param method Root method: `"ensemble"` (default, weighted root:shoot +
+#'   reference), `"root_shoot"` (root:shoot ratio only) or `"reference"`
+#'   (reference below-ground biomass only).
+#' @param weights Named list; `w_ref` is the reference weight in the ensemble
+#'   (0-1, default 0.5), used only when `method = "ensemble"`.
+#' @return The input tibble with `root_dm_t` and `method_root`.
+#' @export
+#' @examples
+#' calculate_crop_roots(
+#'   tibble::tibble(
+#'     item_prod_code = "15",
+#'     product_dm_t = 87.9,
+#'     residue_dm_t = 135.75,
+#'     area_ha = 40
+#'   )
+#' )
+calculate_crop_roots <- function(
+  x,
+  method = c("ensemble", "root_shoot", "reference"),
+  weights = list(w_ref = 0.5)
+) {
+  method <- rlang::arg_match(method)
+  .crop_npp_validate(
+    x,
+    c("item_prod_code", "product_dm_t", "residue_dm_t", "area_ha"),
+    "calculate_crop_roots"
+  )
+  w_ref <- .root_weight(weights)
+  x |>
+    .root_coefs_join() |>
+    .root_n_factor() |>
+    .root_irrigation_factor() |>
+    .root_estimates() |>
+    .root_combine(method, w_ref) |>
+    dplyr::mutate(method_root = method) |>
+    .root_cleanup()
+}
+
 .npp_coef <- function(coefs, model, param, component = NULL) {
   mask <- coefs$model == model & coefs$parameter == param
   if (!is.null(component)) {
@@ -299,6 +347,146 @@ calculate_crop_residues <- function(
       "hi_correction_factor",
       "modern_share",
       "hi_gap_factor"
+    ))
+  )
+}
+
+.root_weight <- function(weights) {
+  w <- weights[["w_ref"]]
+  if (is.null(w)) {
+    w <- 0.5
+  }
+  if (w < 0 || w > 1) {
+    cli::cli_abort("{.arg w_ref} must be between 0 and 1, not {w}.")
+  }
+  w
+}
+
+.root_coefs_join <- function(x) {
+  bio <- whep::whep_coef_table("bio_coefs") |>
+    dplyr::select(item_prod_code, root_shoot_ratio, bg_biomass_dm_kg_ha)
+  mapping <- whep::whep_coef_table("ipcc_crop_mapping") |>
+    dplyr::select(item_prod_code, ipcc_crop, crop_group)
+  root <- whep::whep_coef_table("ipcc_root_coefs") |>
+    dplyr::select(ipcc_crop, rs_default, bg_ref_dm_t_ha)
+  x |>
+    dplyr::mutate(item_prod_code = as.character(item_prod_code)) |>
+    dplyr::select(
+      -dplyr::any_of(c(
+        "root_shoot_ratio",
+        "bg_biomass_dm_kg_ha",
+        "ipcc_crop",
+        "crop_group"
+      ))
+    ) |>
+    dplyr::left_join(bio, by = "item_prod_code") |>
+    dplyr::left_join(mapping, by = "item_prod_code") |>
+    dplyr::left_join(root, by = "ipcc_crop")
+}
+
+.root_n_factor <- function(x) {
+  if (!rlang::has_name(x, "n_input_kg_ha")) {
+    return(dplyr::mutate(x, n_rs_factor = 1))
+  }
+  adj <- whep::whep_coef_table("n_input_rs_adj")
+  resp <- whep::whep_coef_table("crop_rs_n_response") |>
+    dplyr::select(crop_group, rs_n_sensitivity)
+  x |>
+    dplyr::mutate(
+      n_rs_idx = findInterval(n_input_kg_ha, vec = adj$n_input_min),
+      n_rs_idx = pmax(1L, pmin(n_rs_idx, nrow(adj))),
+      n_rs_factor_raw = adj$rs_adjustment[n_rs_idx]
+    ) |>
+    dplyr::left_join(resp, by = "crop_group") |>
+    dplyr::mutate(
+      rs_n_sensitivity = tidyr::replace_na(rs_n_sensitivity, 1),
+      n_rs_factor = 1 + (n_rs_factor_raw - 1) * rs_n_sensitivity
+    )
+}
+
+.root_irrigation_factor <- function(x) {
+  if (!rlang::has_name(x, "water_regime")) {
+    return(dplyr::mutate(x, rs_ratio_factor = 1))
+  }
+  irr <- whep::whep_coef_table("irrigation_adj") |>
+    dplyr::select(water_regime, rs_ratio_factor)
+  x |>
+    dplyr::left_join(irr, by = "water_regime") |>
+    dplyr::mutate(rs_ratio_factor = tidyr::replace_na(rs_ratio_factor, 1))
+}
+
+.root_estimates <- function(x) {
+  dplyr::mutate(
+    x,
+    rs_base = dplyr::if_else(!is.na(rs_default), rs_default, root_shoot_ratio),
+    rs_effective = rs_base * n_rs_factor * rs_ratio_factor,
+    aerial_dm_t = product_dm_t + residue_dm_t,
+    root_rs_t = aerial_dm_t * rs_effective,
+    bg_ref_used = dplyr::case_when(
+      !is.na(bg_ref_dm_t_ha) ~ bg_ref_dm_t_ha,
+      !is.na(bg_biomass_dm_kg_ha) ~ bg_biomass_dm_kg_ha / 1000,
+      TRUE ~ NA_real_
+    ),
+    root_ref_t = dplyr::if_else(
+      !is.na(bg_ref_used),
+      bg_ref_used * area_ha,
+      NA_real_
+    )
+  )
+}
+
+.root_combine <- function(x, method, w_ref) {
+  dplyr::mutate(
+    x,
+    root_dm_t = .root_pick(method, w_ref, root_rs_t, root_ref_t),
+    root_dm_t = .root_cap(root_dm_t, aerial_dm_t, rs_base),
+    root_dm_t = pmax(tidyr::replace_na(root_dm_t, 0), 0)
+  )
+}
+
+.root_pick <- function(method, w_ref, rs, ref) {
+  switch(
+    method,
+    root_shoot = rs,
+    reference = ref,
+    ensemble = dplyr::case_when(
+      !is.na(rs) & !is.na(ref) ~ (1 - w_ref) * rs + w_ref * ref,
+      !is.na(rs) ~ rs,
+      !is.na(ref) ~ ref,
+      TRUE ~ 0
+    )
+  )
+}
+
+.root_cap <- function(root, aerial, rs_base) {
+  dplyr::case_when(
+    is.na(rs_base) | aerial <= 0 ~ root,
+    root / aerial > rs_base * 3 ~ aerial * rs_base * 3,
+    TRUE ~ root
+  )
+}
+
+.root_cleanup <- function(x) {
+  dplyr::select(
+    x,
+    -dplyr::any_of(c(
+      "ipcc_crop",
+      "crop_group",
+      "rs_default",
+      "bg_ref_dm_t_ha",
+      "root_shoot_ratio",
+      "bg_biomass_dm_kg_ha",
+      "n_rs_idx",
+      "n_rs_factor_raw",
+      "n_rs_factor",
+      "rs_n_sensitivity",
+      "rs_ratio_factor",
+      "rs_base",
+      "rs_effective",
+      "aerial_dm_t",
+      "root_rs_t",
+      "bg_ref_used",
+      "root_ref_t"
     ))
   )
 }
