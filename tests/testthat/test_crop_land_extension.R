@@ -163,6 +163,24 @@ test_that("build_cropgrids_land_extension falls back to the global item ratio", 
   expect_equal(res$impact_u, 800) # global ratio 1600/2000 = 0.8
 })
 
+test_that("build_cropgrids_land_extension ignores tiny-area CROPGRIDS stubs", {
+  # area 44 is a few-hectare CROPGRIDS rounding stub with an implausible ratio;
+  # below min_cropgrids_ha it must fall through to the global item ratio rather
+  # than use (the cap of) its own stub ratio.
+  harvested <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~harvested_ha,
+    2000L, 44L, 2807L, 1000
+  )
+  cropgrids <- tibble::tribble(
+    ~area_code, ~item_cbs_code, ~physical_ha, ~harvested_ha,
+    33L, 2807L, 900, 1000, # real producer
+    44L, 2807L, 50, 5 # stub: 5 ha harvested, ratio 10 (would cap to 1.5)
+  )
+  res <- whep::build_cropgrids_land_extension(harvested, cropgrids)
+  # global ratio = (900+50)/(1000+5) = 0.945 -> impact_u ~ 945, NOT 1500
+  expect_equal(round(res$impact_u), 945)
+})
+
 test_that("build_cropgrids_land_extension validates harvested columns", {
   cropgrids <- tibble::tribble(
     ~area_code, ~item_cbs_code, ~physical_ha, ~harvested_ha,

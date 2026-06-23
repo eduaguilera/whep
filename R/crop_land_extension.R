@@ -225,6 +225,11 @@ get_crop_land_extension <- function(
 #'   near-zero harvested area for minor/aggregate crops, yielding a spurious
 #'   ratio in the hundreds; physical area cannot realistically exceed harvested
 #'   by more than the fallow share, so the ratio is clamped here.
+#' @param min_cropgrids_ha Minimum CROPGRIDS harvested area (ha, default `100`)
+#'   for a per-area physical/harvested ratio to be trusted. CROPGRIDS leaves
+#'   rounding stubs of a few hectares for marginal crop-country pairs whose
+#'   ratio is unreliable; below this floor the crop falls through to the global
+#'   per-item ratio instead.
 #'
 #' @return A tibble with columns `year`, `area_code`, `item_cbs_code`,
 #'   `impact_u` (physical land area in hectares), and `method_land`.
@@ -247,7 +252,8 @@ build_cropgrids_land_extension <- function(
   harvested = NULL,
   cropgrids = NULL,
   source = c("cropgrids", "cropgrids_fallow"),
-  max_ratio = 1.5
+  max_ratio = 1.5,
+  min_cropgrids_ha = 100
 ) {
   source <- match.arg(source)
   if (is.null(harvested)) {
@@ -271,8 +277,12 @@ build_cropgrids_land_extension <- function(
   harvested <- harvested |>
     dplyr::filter(!as.integer(.data$item_cbs_code) %in% .grass_item_cbs())
 
+  # Require a minimum CROPGRIDS harvested area before trusting the per-area
+  # ratio: a few-hectare rounding stub yields an unreliable physical/harvested
+  # ratio (and so a spurious cropping intensity), so such crops fall through to
+  # the global per-item ratio instead.
   area_ratio <- cropgrids |>
-    dplyr::filter(.data$harvested_ha > 0) |>
+    dplyr::filter(.data$harvested_ha >= min_cropgrids_ha) |>
     dplyr::transmute(
       area_code = as.integer(.data$area_code),
       item_cbs_code = as.integer(.data$item_cbs_code),

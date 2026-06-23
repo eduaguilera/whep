@@ -8,7 +8,8 @@ build_cropgrids_land_extension(
   harvested = NULL,
   cropgrids = NULL,
   source = c("cropgrids", "cropgrids_fallow"),
-  max_ratio = 1.5
+  max_ratio = 1.5,
+  min_cropgrids_ha = 100
 )
 }
 \arguments{
@@ -30,6 +31,12 @@ table selected by \code{source} is used.}
 near-zero harvested area for minor/aggregate crops, yielding a spurious
 ratio in the hundreds; physical area cannot realistically exceed harvested
 by more than the fallow share, so the ratio is clamped here.}
+
+\item{min_cropgrids_ha}{Minimum CROPGRIDS harvested area (ha, default \code{100})
+for a per-area physical/harvested ratio to be trusted. CROPGRIDS leaves
+rounding stubs of a few hectares for marginal crop-country pairs whose
+ratio is unreliable; below this floor the crop falls through to the global
+per-item ratio instead.}
 }
 \value{
 A tibble with columns \code{year}, \code{area_code}, \code{item_cbs_code},
