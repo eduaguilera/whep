@@ -256,8 +256,9 @@ calculate_npp_carbon_nitrogen <- function(x) {
   val <- coefs$value[mask]
   if (length(val) != 1L) {
     cli::cli_abort(
-      "npp_model_coefs: no unique match for model {.val {model}}, \\
-       parameter {.val {param}}."
+      "npp_model_coefs: no unique match for model {.val {model}}, parameter \\
+       {.val {param}}{if (is.null(component)) '' else \\
+       paste0(', component ', component)}."
     )
   }
   val
@@ -530,6 +531,8 @@ calculate_npp_carbon_nitrogen <- function(x) {
   x |>
     dplyr::mutate(
       n_rs_idx = findInterval(n_input_kg_ha, vec = adj$n_input_min),
+      # clamp into the valid N-input class range; out-of-range inputs (incl.
+      # any negative) fall back to the nearest class rather than erroring.
       n_rs_idx = pmax(1L, pmin(n_rs_idx, nrow(adj))),
       n_rs_factor_raw = adj$rs_adjustment[n_rs_idx]
     ) |>
@@ -749,19 +752,19 @@ calculate_npp_carbon_nitrogen <- function(x) {
   if (is.null(.by)) {
     return(dplyr::mutate(
       x,
-      weed_scaling = tidyr::replace_na(
-        weed_scaling,
-        mean(weed_scaling, na.rm = TRUE)
-      )
+      weed_scaling = tidyr::replace_na(weed_scaling, .mean_or_na(weed_scaling))
     ))
   }
   dplyr::mutate(
     x,
-    weed_scaling = dplyr::if_else(
-      is.na(weed_scaling),
-      mean(weed_scaling, na.rm = TRUE),
-      weed_scaling
-    ),
+    weed_scaling = tidyr::replace_na(weed_scaling, .mean_or_na(weed_scaling)),
     .by = dplyr::all_of(.by)
   )
+}
+
+# Group mean of the available values; NA (not NaN) when a whole group is empty,
+# so an unmatched weed-scaling group surfaces as missing rather than a silent NaN.
+.mean_or_na <- function(v) {
+  m <- mean(v, na.rm = TRUE)
+  if (is.nan(m)) NA_real_ else m
 }

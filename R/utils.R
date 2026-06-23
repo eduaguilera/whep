@@ -156,6 +156,7 @@ utils::globalVariables(
     "residue_feed_dm_t",
     "residue_burn_dm_t",
     "method_residue_destiny",
+    "removed_scale",
     "use_share",
     "burn_share",
     "residue_destiny_to_be_revised",

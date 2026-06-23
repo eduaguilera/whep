@@ -147,10 +147,20 @@ build_residue_feed_avail <- function(
     dplyr::mutate(
       use_share = tidyr::replace_na(use_share, 0),
       burn_share = tidyr::replace_na(burn_share, 0),
+      # Cap the removed (use + burn) fraction at 1, preserving the feed:burn
+      # ratio, so the three destinies always sum to residue_dm_t and soil stays
+      # non-negative even on out-of-range share data.
+      removed_scale = dplyr::if_else(
+        use_share + burn_share > 1,
+        1 / (use_share + burn_share),
+        1
+      ),
+      use_share = use_share * removed_scale,
+      burn_share = burn_share * removed_scale,
       residue_feed_dm_t = residue_dm_t * use_share,
       residue_burn_dm_t = residue_dm_t * burn_share,
-      residue_soil_dm_t = residue_dm_t * pmax(1 - use_share - burn_share, 0),
+      residue_soil_dm_t = residue_dm_t * (1 - use_share - burn_share),
       residue_destiny_to_be_revised = TRUE
     ) |>
-    dplyr::select(-use_share, -burn_share)
+    dplyr::select(-use_share, -burn_share, -removed_scale)
 }

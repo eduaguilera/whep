@@ -191,7 +191,11 @@ summarize_bnf <- function(x, group_by = "item_prod_code") {
   x |>
     dplyr::summarise(
       n = dplyr::n(),
-      legume_category = dplyr::first(legume_category),
+      legume_category = dplyr::if_else(
+        dplyr::n_distinct(legume_category) == 1L,
+        dplyr::first(legume_category),
+        NA_character_
+      ),
       total_crop_bnf_t = sum(crop_bnf_t, na.rm = TRUE),
       total_weed_bnf_t = sum(weed_bnf_t, na.rm = TRUE),
       total_nonsymbiotic_bnf_t = sum(nonsymbiotic_bnf_t, na.rm = TRUE),
@@ -343,6 +347,9 @@ summarize_bnf <- function(x, group_by = "item_prod_code") {
   if (n == 0) {
     return(1)
   }
+  # Soft-dampen the product (exponent 2/n, deliberately NOT the geometric mean's
+  # 1/n) so several moderate stresses do not collapse the combined factor toward
+  # zero. Calibrated against Keuter et al. (2014) and Ladha et al. (2022).
   Reduce(`*`, factors)^(2 / n)
 }
 
@@ -497,44 +504,42 @@ summarize_bnf <- function(x, group_by = "item_prod_code") {
   dplyr::mutate(x, nonsymbiotic_base_kg_ha = NA_real_)
 }
 
-.bnf_nonsymbiotic_estimates <- function(x, ns, soil) {
+# Apply an environmental modifier only where its driver is present (an absent
+# driver leaves the factor at 1). The modifier returns NA for NA drivers, which
+# if_else then replaces with 1.
+.bnf_modifier <- function(driver, value) {
+  dplyr::if_else(!is.na(driver), value, 1)
+}
+
+.bnf_nonsymbiotic_factors <- function(x, ns, soil) {
   dplyr::mutate(
     x,
-    nonsymbiotic_base_kg_ha = dplyr::if_else(
-      !is.na(nonsymbiotic_base_kg_ha),
-      nonsymbiotic_base_kg_ha,
-      ns$nsbnf_default_kg_ha
-    ),
     f_nitrogen_nonsymbiotic = .bnf_f_n_nonsymbiotic(
       n_synth_kg_ha,
       n_org_kg_ha,
       ns$k_n_synth,
       ns$k_n_org
     ),
-    f_temperature_nonsymbiotic = dplyr::if_else(
-      !is.na(temp_c),
-      .bnf_f_temperature(temp_c, ns$t_opt, ns$t_sigma),
-      1
+    f_temperature_nonsymbiotic = .bnf_modifier(
+      temp_c,
+      .bnf_f_temperature(temp_c, ns$t_opt, ns$t_sigma)
     ),
     f_water_nonsymbiotic = dplyr::if_else(
       !is.na(water_input_mm) & !is.na(pet_mm) & pet_mm > 0,
       .bnf_f_water(water_input_mm, pet_mm, ns$ai_threshold),
       1
     ),
-    f_som_nonsymbiotic = dplyr::if_else(
-      !is.na(som_pct),
-      .bnf_f_som(som_pct, soil$k_som, soil$som_ref),
-      1
+    f_som_nonsymbiotic = .bnf_modifier(
+      som_pct,
+      .bnf_f_som(som_pct, soil$k_som, soil$som_ref)
     ),
-    f_ph_nonsymbiotic = dplyr::if_else(
-      !is.na(soil_ph),
-      .bnf_f_ph(soil_ph, soil$ph_opt, soil$ph_sigma),
-      1
+    f_ph_nonsymbiotic = .bnf_modifier(
+      soil_ph,
+      .bnf_f_ph(soil_ph, soil$ph_opt, soil$ph_sigma)
     ),
-    f_clay_nonsymbiotic = dplyr::if_else(
-      !is.na(clay_pct),
-      .bnf_f_clay(clay_pct, soil$k_clay, soil$clay_ref),
-      1
+    f_clay_nonsymbiotic = .bnf_modifier(
+      clay_pct,
+      .bnf_f_clay(clay_pct, soil$k_clay, soil$clay_ref)
     ),
     f_env_nonsymbiotic = .bnf_dampen_product(
       f_nitrogen_nonsymbiotic,
@@ -543,12 +548,25 @@ summarize_bnf <- function(x, group_by = "item_prod_code") {
       f_som_nonsymbiotic,
       f_ph_nonsymbiotic,
       f_clay_nonsymbiotic
-    ),
-    nonsymbiotic_bnf_t = nonsymbiotic_base_kg_ha *
-      f_env_nonsymbiotic *
-      area_ha /
-      1000
+    )
   )
+}
+
+.bnf_nonsymbiotic_estimates <- function(x, ns, soil) {
+  x |>
+    dplyr::mutate(
+      nonsymbiotic_base_kg_ha = dplyr::coalesce(
+        nonsymbiotic_base_kg_ha,
+        ns$nsbnf_default_kg_ha
+      )
+    ) |>
+    .bnf_nonsymbiotic_factors(ns, soil) |>
+    dplyr::mutate(
+      nonsymbiotic_bnf_t = nonsymbiotic_base_kg_ha *
+        f_env_nonsymbiotic *
+        area_ha /
+        1000
+    )
 }
 
 .bnf_weed_spont_legumes <- function(x) {
