@@ -37,3 +37,20 @@ test_that("calculate_crop_bnf errors on missing columns", {
     "missing required"
   )
 })
+
+test_that("calculate_weed_bnf weights spontaneous and seeded legumes", {
+  x <- tibble::tibble(
+    weed_npp_n_t = 10,
+    land_use = "Cropland",
+    legumes_seeded = 0,
+    seeded_cover_crop_share = 0
+  )
+  out <- whep::calculate_weed_bnf(x)
+  bnf <- whep::whep_coef_table("bnf")
+  legs <- whep::whep_coef_table("legs_spontweeds")
+  ref <- bnf$ndfa[bnf$name_bnf == "Weeds"]
+  spont <- legs$legumes_spontaneous[legs$land_use == "Cropland"]
+  testthat::expect_equal(out$weed_ndfa_ref, ref)
+  testthat::expect_equal(out$weed_leg_share, spont)
+  testthat::expect_equal(out$weed_bnf_t, 10 * ref * spont)
+})

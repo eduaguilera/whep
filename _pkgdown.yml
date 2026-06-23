@@ -67,6 +67,7 @@ reference:
   - calculate_npp_carbon_nitrogen
   - calculate_crop_npp_components
   - calculate_crop_bnf
+  - calculate_weed_bnf
 
 - title: Tidy datasets
   desc: >

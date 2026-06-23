@@ -36,6 +36,45 @@ calculate_crop_bnf <- function(x, symbiotic_params = list()) {
     .bnf_crop_estimates()
 }
 
+#' Estimate symbiotic biological nitrogen fixation by weeds and cover crops.
+#'
+#' Estimates symbiotic BNF from leguminous weeds and seeded cover crops. The
+#' legume fraction is a weighted average of spontaneous weeds and seeded cover
+#' crops. Environmental modifiers activate only when their driver columns are
+#' present.
+#'
+#' @param x A tibble with `weed_npp_n_t`, `land_use`, `legumes_seeded` and
+#'   `seeded_cover_crop_share`. Optional `legumes_spontaneous` overrides the
+#'   land-use default; the same environmental driver columns as
+#'   [calculate_crop_bnf()] are supported.
+#' @param symbiotic_params Named list overriding the symbiotic-BNF parameters
+#'   (see [calculate_crop_bnf()]).
+#' @return The input tibble with `weed_ndfa_ref`, `weed_ndfa`, `weed_leg_share`,
+#'   `f_env_weed` and `weed_bnf_t`.
+#' @export
+#' @examples
+#' calculate_weed_bnf(
+#'   tibble::tibble(
+#'     weed_npp_n_t = 10, land_use = "Cropland",
+#'     legumes_seeded = 0, seeded_cover_crop_share = 0
+#'   )
+#' )
+calculate_weed_bnf <- function(x, symbiotic_params = list()) {
+  .bnf_validate_input(
+    x,
+    c("weed_npp_n_t", "land_use", "legumes_seeded", "seeded_cover_crop_share"),
+    "calculate_weed_bnf"
+  )
+  if (nrow(x) == 0) {
+    return(x)
+  }
+  p <- .bnf_symbiotic_params(symbiotic_params)
+  x |>
+    .bnf_ensure_env_cols() |>
+    .bnf_weed_spont_legumes() |>
+    .bnf_weed_estimates(p)
+}
+
 # ---- Private helpers --------------------------------------------------
 
 .bnf_symbiotic_params <- function(p) {
@@ -207,6 +246,59 @@ calculate_crop_bnf <- function(x, symbiotic_params = list()) {
       !is.na(ndfa),
       pmin(ndfa * f_env_symbiotic, ndfa),
       NA_real_
+    )
+  )
+}
+
+.bnf_weed_spont_legumes <- function(x) {
+  if (rlang::has_name(x, "legumes_spontaneous")) {
+    return(x)
+  }
+  legs <- whep::whep_coef_table("legs_spontweeds")
+  cropland <- legs$legumes_spontaneous[legs$land_use == "Cropland"]
+  other <- legs$legumes_spontaneous[legs$land_use == "Other"]
+  dplyr::mutate(
+    x,
+    legumes_spontaneous = dplyr::if_else(
+      land_use == "Cropland",
+      cropland,
+      other
+    )
+  )
+}
+
+.bnf_weed_estimates <- function(x, p) {
+  weed_ndfa_ref <- whep::whep_coef_table("bnf") |>
+    dplyr::filter(name_bnf == "Weeds") |>
+    dplyr::pull(ndfa)
+  dplyr::mutate(
+    x,
+    f_env_weed = .bnf_dampen_product(
+      .bnf_f_n_symbiotic(n_synth_kg_ha, n_org_kg_ha, p$k_n_synth, p$k_n_org),
+      dplyr::if_else(
+        !is.na(temp_c),
+        .bnf_f_temperature(temp_c, p$t_opt, p$t_sigma),
+        1
+      ),
+      dplyr::if_else(
+        !is.na(water_input_mm) & !is.na(pet_mm) & pet_mm > 0,
+        .bnf_f_water(water_input_mm, pet_mm, p$ai_threshold),
+        1
+      )
+    ),
+    weed_ndfa_ref = weed_ndfa_ref,
+    weed_ndfa = pmin(weed_ndfa_ref * f_env_weed, weed_ndfa_ref),
+    legumes_seeded = tidyr::replace_na(legumes_seeded, 0),
+    seeded_cover_crop_share = dplyr::if_else(
+      land_use == "Cropland",
+      seeded_cover_crop_share,
+      0
+    ),
+    weed_leg_share = (legumes_spontaneous * (1 - seeded_cover_crop_share)) +
+      (legumes_seeded * seeded_cover_crop_share),
+    weed_bnf_t = tidyr::replace_na(
+      weed_npp_n_t * weed_ndfa * weed_leg_share,
+      0
     )
   )
 }
