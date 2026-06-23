@@ -99,27 +99,38 @@ test_that("whep ports match afsetools across all branches", {
   r0 <- res()
   .eq(r0$wh, r0$af, pair_res)
 
+  # Use crops/years where the adjustment factor is genuinely != 1: maize is
+  # irrigation-sensitive (wheat is not); 1960 has partial modern-variety
+  # adoption (2000 is fully adopted, so its factor would be 1).
   r_irr <- res(
+    items = "Maize",
+    codes = "56",
+    prod = 200,
+    area = 60,
     af_extra = data.frame(Water_regime = "Irrigated"),
     wh_extra = tibble::tibble(water_regime = "Irrigated")
   )
   .eq(r_irr$wh, r_irr$af, pair_res)
 
   r_var <- res(
-    af_extra = data.frame(Year = 2000, region_HANPP = "West Europe"),
-    wh_extra = tibble::tibble(year = 2000, region_hanpp = "West Europe")
+    af_extra = data.frame(Year = 1960, region_HANPP = "West Europe"),
+    wh_extra = tibble::tibble(year = 1960, region_hanpp = "West Europe")
   )
   .eq(r_var$wh, r_var$af, pair_res)
 
   r_both <- res(
+    items = "Maize",
+    codes = "56",
+    prod = 200,
+    area = 60,
     af_extra = data.frame(
       Water_regime = "Irrigated",
-      Year = 2000,
+      Year = 1960,
       region_HANPP = "West Europe"
     ),
     wh_extra = tibble::tibble(
       water_regime = "Irrigated",
-      year = 2000,
+      year = 1960,
       region_hanpp = "West Europe"
     )
   )
