@@ -85,6 +85,8 @@ utils::globalVariables(
     "residue_c_kgdm",
     "root_c_kgdm",
     "rhizodeposit_n_kgn_krootn",
+    "lon",
+    "lat",
     # feed_lpjml.R (LPJmL grass-availability read-back)
     "band",
     "cft_frac",

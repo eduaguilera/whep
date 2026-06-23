@@ -42,13 +42,30 @@ test_that("calculate_potential_npp nceas uses non-tree ANPP", {
   testthat::expect_gt(out$npp_potential_dm_t_ha, 0)
 })
 
-test_that("lpjml potential-NPP method is not yet wired", {
+test_that("lpjml potential-NPP uses gross above-ground grass NPP", {
+  cells <- whep::read_lpjml_grass_productivity(example = TRUE)
+  x <- dplyr::select(cells, lon, lat, year)
+  out <- whep::calculate_potential_npp(
+    x,
+    method = "lpjml",
+    lpjml = list(example = TRUE)
+  )
+  sh <- whep::grass_access_shares()
+  joined <- dplyr::left_join(out, cells, by = c("lon", "lat", "year"))
+  testthat::expect_equal(
+    joined$npp_potential_dm_t_ha,
+    joined$grass_npp * sh$aboveground * sh$grazable * 0.01 / sh$w_c_dm
+  )
+  testthat::expect_equal(unique(out$method_npp_potential), "lpjml")
+})
+
+test_that("lpjml potential-NPP errors without grid coordinates", {
   testthat::expect_error(
     whep::calculate_potential_npp(
-      tibble::tibble(temp_c = 1),
+      tibble::tibble(year = 2000),
       method = "lpjml"
     ),
-    "not yet wired"
+    "lon"
   )
 })
 

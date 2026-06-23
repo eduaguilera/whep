@@ -249,10 +249,28 @@ calculate_npp_carbon_nitrogen <- function(x) {
 }
 
 .potential_npp_lpjml <- function(x, options) {
-  cli::cli_abort(c(
-    "The {.val lpjml} potential-NPP method is not yet wired.",
-    i = "It is implemented in a later task (gross LPJmL grass NPP)."
-  ))
+  if (!all(c("lon", "lat", "year") %in% names(x))) {
+    cli::cli_abort(
+      "calculate_potential_npp(method = \"lpjml\") needs {.field lon}, \\
+       {.field lat} and {.field year} to join the gridded grass NPP."
+    )
+  }
+  # Gross above-ground grass NPP: grass_access_shares() keeps grazable = 1, so
+  # .lpjml_grass_to_dm() applies only the above-ground (0.46) and carbon-to-DM
+  # conversion, not the grazing access reduction.
+  grass <- do.call(read_lpjml_grass_productivity, options) |>
+    dplyr::mutate(
+      lon = round(lon, 2),
+      lat = round(lat, 2),
+      npp_potential_dm_t_ha = .lpjml_grass_to_dm(
+        grass_npp,
+        grass_access_shares()
+      )
+    ) |>
+    dplyr::select(lon, lat, year, npp_potential_dm_t_ha)
+  x |>
+    dplyr::mutate(lon = round(lon, 2), lat = round(lat, 2)) |>
+    dplyr::inner_join(grass, by = c("lon", "lat", "year"))
 }
 
 .crop_npp_validate <- function(x, required, fn) {
