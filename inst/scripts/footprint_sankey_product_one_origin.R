@@ -191,10 +191,13 @@ message(
   "."
 )
 io <- build_io_model(years = year)
-land_use <- get_land_fp_production(
+crop_land <- build_cropgrids_land_extension(source = "cropgrids_fallow")
+grass_land <- build_grassland_land_extension(
   grassland_metric = grassland_metric,
   usable_grass_yield_dm_t_ha = usable_grass_yield_dm_t_ha
-)
+) |>
+  dplyr::select(year, area_code, item_cbs_code, impact_u)
+land_use <- dplyr::bind_rows(crop_land, grass_land)
 labels <- io$labels[[1]]
 
 extensions <- land_use |>

@@ -697,6 +697,7 @@ utils::globalVariables(
     "harvested_ha",
     "lgp",
     "method_land",
+    "method_grassland",
     "p",
     "phys",
     "phys_adj",

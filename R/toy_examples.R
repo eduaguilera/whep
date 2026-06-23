@@ -59,6 +59,16 @@
     .add_reporting_polity_columns()
 }
 
+.example_grassland_extension <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~impact_u, ~method_grassland,
+    1986L, 10L, 3000L, 2.5e7, "occupation",
+    1986L, 100L, 3000L, 8.0e6, "occupation",
+    1987L, 10L, 3000L, 2.5e7, "occupation",
+    1987L, 100L, 3000L, 8.1e6, "occupation"
+  )
+}
+
 .ex_get_primary_prod <- function() {
   tibble::tribble(
     ~year, ~area_code, ~item_prod_code, ~item_cbs_code, ~live_anim_code, ~unit, ~value,
