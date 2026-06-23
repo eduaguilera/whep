@@ -137,3 +137,25 @@ test_that("calculate_crop_roots ensemble blends RS and reference", {
   ref <- whep::calculate_crop_roots(x, method = "reference")$root_dm_t
   testthat::expect_equal(ens, 0.5 * rs + 0.5 * ref)
 })
+
+test_that("calculate_crop_npp sums product, residue and root", {
+  x <- tibble::tibble(item_prod_code = "15", production_t = 100, area_ha = 40)
+  out <- whep::calculate_crop_npp(x)
+  testthat::expect_true(
+    all(
+      c(
+        "product_dm_t",
+        "residue_dm_t",
+        "root_dm_t",
+        "crop_npp_dm_t",
+        "method_residue",
+        "method_root"
+      ) %in%
+        names(out)
+    )
+  )
+  testthat::expect_equal(
+    out$crop_npp_dm_t,
+    out$product_dm_t + out$residue_dm_t + out$root_dm_t
+  )
+})

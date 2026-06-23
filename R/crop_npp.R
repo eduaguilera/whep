@@ -130,6 +130,37 @@ calculate_crop_roots <- function(
     .root_cleanup()
 }
 
+#' Estimate total crop net primary production.
+#'
+#' Assembles total crop net primary production (product plus residue plus root
+#' dry matter) by running [calculate_crop_residues()] then
+#' [calculate_crop_roots()].
+#'
+#' @param x A tibble with `item_prod_code`, `production_t` and `area_ha`, plus
+#'   any optional adjustment columns used by the residue and root steps.
+#' @param residue_method Residue method passed to [calculate_crop_residues()].
+#' @param root_method Root method passed to [calculate_crop_roots()].
+#' @param weights Named list of ensemble weights; `w_ipcc` for residues and
+#'   `w_ref` for roots (each 0-1, default 0.5).
+#' @return The input tibble with `product_dm_t`, `yield_dm_t_ha`, `residue_dm_t`,
+#'   `root_dm_t`, `crop_npp_dm_t`, `method_residue` and `method_root`.
+#' @export
+#' @examples
+#' calculate_crop_npp(
+#'   tibble::tibble(item_prod_code = "15", production_t = 100, area_ha = 40)
+#' )
+calculate_crop_npp <- function(
+  x,
+  residue_method = "ensemble",
+  root_method = "ensemble",
+  weights = list(w_ipcc = 0.5, w_ref = 0.5)
+) {
+  x |>
+    calculate_crop_residues(method = residue_method, weights = weights) |>
+    calculate_crop_roots(method = root_method, weights = weights) |>
+    dplyr::mutate(crop_npp_dm_t = product_dm_t + residue_dm_t + root_dm_t)
+}
+
 .npp_coef <- function(coefs, model, param, component = NULL) {
   mask <- coefs$model == model & coefs$parameter == param
   if (!is.null(component)) {

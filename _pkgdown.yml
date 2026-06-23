@@ -63,6 +63,7 @@ reference:
   - calculate_potential_npp
   - calculate_crop_residues
   - calculate_crop_roots
+  - calculate_crop_npp
 
 - title: Tidy datasets
   desc: >

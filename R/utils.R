@@ -53,6 +53,7 @@ utils::globalVariables(
     "root_rs_t",
     "bg_ref_used",
     "root_ref_t",
+    "crop_npp_dm_t",
     # feed_lpjml.R (LPJmL grass-availability read-back)
     "band",
     "cft_frac",
