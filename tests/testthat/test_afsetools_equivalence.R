@@ -288,4 +288,36 @@ test_that("whep ports match afsetools across all branches", {
     .afse("calc_bnf")(master_in_af),
     list(c("bnf_t", "BNF"))
   )
+
+  ## ---- master calc_bnf with climate_type + environmental drivers ----
+  # climate_type only bites when the env/soil drivers are present (they set the
+  # climate-specific t_sigma / ai_threshold / pH / SOM-ref). afsetools applies
+  # these per row; whep applies them per climate-type group.
+  clim_af <- cbind(
+    master_in_af,
+    data.frame(
+      climate_type = "Mediterranean",
+      TMP = 28,
+      WaterInput_mm = 300,
+      PET_mm = 1000,
+      SOM_pct = 2,
+      soil_pH = 7.5,
+      clay_pct = 20
+    )
+  )
+  clim_wh <- dplyr::mutate(
+    master_in_wh,
+    climate_type = "Mediterranean",
+    temp_c = 28,
+    water_input_mm = 300,
+    pet_mm = 1000,
+    som_pct = 2,
+    soil_ph = 7.5,
+    clay_pct = 20
+  )
+  .eq(
+    whep::calculate_bnf(clim_wh),
+    .afse("calc_bnf")(clim_af),
+    list(c("bnf_t", "BNF"))
+  )
 })
