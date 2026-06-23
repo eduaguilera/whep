@@ -5,17 +5,29 @@
 # (mean length of growing period; modal thermal-climate class):
 #   - reference_length_growing_period (LGP, days): moisture/aridity proxy.
 #   - thermal_climates (class 1-12; 1-5 = tropics/subtropics).
-# Set the GAEZ directory via WHEP_GAEZ_DIR. Requires the `terra` package.
+# Requires the `terra` package.
+#
+# GAEZ is not openly downloadable by a stable URL (the data portal at
+# https://gaez.fao.org gates per-layer downloads), so it cannot be fetched
+# automatically. Obtain the two theme layers manually (or supply them as a pin)
+# and point WHEP_GAEZ_DIR at the directory holding
+# `reference_length_growing_period/data.asc` and `thermal_climates/data.asc`.
 
 library(terra)
 library(data.table)
 library(readr)
 devtools::load_all(".")
 
-gaez_dir <- Sys.getenv(
-  "WHEP_GAEZ_DIR",
-  "/home/usuario/LandInG/landuse/GAEZ"
-)
+gaez_dir <- Sys.getenv("WHEP_GAEZ_DIR", "")
+if (!nzchar(gaez_dir) || !dir.exists(gaez_dir)) {
+  stop(
+    "Set WHEP_GAEZ_DIR to a directory with the GAEZ v4 theme layers ",
+    "'reference_length_growing_period/data.asc' and ",
+    "'thermal_climates/data.asc' (download manually from https://gaez.fao.org; ",
+    "GAEZ has no open download URL).",
+    call. = FALSE
+  )
+}
 
 lgp <- rast(file.path(gaez_dir, "reference_length_growing_period/data.asc"))
 tc <- rast(file.path(gaez_dir, "thermal_climates/data.asc"))

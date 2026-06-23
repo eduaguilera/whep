@@ -19,10 +19,8 @@ library(data.table)
 library(readr)
 devtools::load_all(".")
 
-fao_path <- Sys.getenv(
-  "WHEP_FAOSTAT_LANDUSE",
-  "/home/usuario/LandInG/landuse/Faostat/landuse_all_data/Inputs_LandUse_E_All_Data_NOFLAG.csv"
-)
+source("data-raw/_faostat_landuse.R")
+fao_path <- faostat_landuse_noflag()
 
 valid_codes <- whep::regions_full |>
   filter(!is.na(.data$iso3c)) |>

@@ -20,10 +20,8 @@ library(dplyr)
 library(tidyr)
 devtools::load_all(".")
 
-fao_path <- Sys.getenv(
-  "WHEP_FAOSTAT_LANDUSE",
-  "/home/usuario/LandInG/landuse/Faostat/landuse_all_data/Inputs_LandUse_E_All_Data_NOFLAG.csv"
-)
+source("data-raw/_faostat_landuse.R")
+fao_path <- faostat_landuse_noflag()
 
 cropland <- fread(fao_path, showProgress = FALSE)[
   `Item Code` == 6620 & `Element Code` == 5110

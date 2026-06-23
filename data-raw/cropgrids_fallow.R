@@ -26,10 +26,8 @@ input_dir <- Sys.getenv(
   "WHEP_LFILES_INPUT_DIR",
   file.path(getwd(), "LPJmL_inputs", "whep", "inputs")
 )
-fao_path <- Sys.getenv(
-  "WHEP_FAOSTAT_LANDUSE",
-  "/home/usuario/LandInG/landuse/Faostat/landuse_all_data/Inputs_LandUse_E_All_Data_NOFLAG.csv"
-)
+source("data-raw/_faostat_landuse.R")
+fao_path <- faostat_landuse_noflag()
 ref_year <- as.integer(Sys.getenv("WHEP_CROPGRIDS_FALLOW_YEAR", "2020"))
 
 cropgrids <- read_csv(

@@ -10,24 +10,24 @@
 #
 #   # Full run (1851–2021, 24 cores)
 #   run_pipeline(
-#     l_files_dir  = "/home/usuario/WHEP/LPJmL_inputs",
-#     model_path   = "/home/usuario/LPJmL",
-#     climate_dir  = "/home/usuario/LPJmL/inputs/climate",
+#     l_files_dir  = "/path/to/LPJmL_inputs",
+#     model_path   = "/path/to/lpjml",
+#     climate_dir  = "/path/to/lpjml/inputs/climate",
 #     use_cores    = 24
 #   )
 #
 #   # Quick test run (2 years, skip download if data already present)
 #   run_pipeline(
-#     l_files_dir  = "/home/usuario/WHEP/LPJmL_inputs",
-#     model_path   = "/home/usuario/LPJmL",
+#     l_files_dir  = "/path/to/LPJmL_inputs",
+#     model_path   = "/path/to/lpjml",
 #     year_range   = 2000:2001,
 #     run_download = FALSE
 #   )
 #
 #   # Redo only the LPJmL step with a different spinup length
 #   run_pipeline(
-#     l_files_dir  = "/home/usuario/WHEP/LPJmL_inputs",
-#     model_path   = "/home/usuario/LPJmL",
+#     l_files_dir  = "/path/to/LPJmL_inputs",
+#     model_path   = "/path/to/lpjml",
 #     nspinup      = 500,
 #     run_download = FALSE,
 #     run_prepare  = FALSE

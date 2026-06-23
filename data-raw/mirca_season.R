@@ -18,10 +18,13 @@
 # Biogeochemical Cycles 24, GB1011 (https://www.uni-frankfurt.de/45218023/MIRCA).
 # Crosswalk: Monfreda et al. (2008) crop-to-FAOSTAT-to-MIRCA table.
 #
-# Inputs (paths via env vars, defaulting to the local LandInG tree):
-#   WHEP_MIRCA_DIR        condensed_cropping_calendars/ directory
-#   WHEP_MIRCA_NAMES      mirca_names.txt (class order = class number)
-#   WHEP_MIRCA_BRIDGE     crop_types_Monfreda_FAOSTAT_MIRCA.csv
+# Inputs:
+#   - condensed cropping calendars: downloaded from the official MIRCA2000
+#     Zenodo archive by data-raw/_mirca.R (override dir via WHEP_MIRCA_DIR).
+#   - mirca_names.txt (class order = class number) and the
+#     crop_types_Monfreda_FAOSTAT_MIRCA.csv crosswalk: small reference tables
+#     shipped under data-raw/mirca/ (override via WHEP_MIRCA_NAMES /
+#     WHEP_MIRCA_BRIDGE).
 # Also calls get_primary_production() (remote pins) for per-item harvested area
 # used to area-weight the production-item -> commodity-balance-item collapse.
 
@@ -30,17 +33,15 @@ library(readr)
 library(dplyr)
 devtools::load_all(".")
 
-mirca_dir <- Sys.getenv(
-  "WHEP_MIRCA_DIR",
-  "/home/usuario/LandInG/landuse/MIRCA2000/condensed_cropping_calendars"
-)
+source("data-raw/_mirca.R")
+mirca_dir <- mirca_calendar_dir()
 names_file <- Sys.getenv(
   "WHEP_MIRCA_NAMES",
-  "/home/usuario/LandInG/landuse/MIRCA2000/mirca_names.txt"
+  "data-raw/mirca/mirca_names.txt"
 )
 bridge_file <- Sys.getenv(
   "WHEP_MIRCA_BRIDGE",
-  "/home/usuario/LandInG/landuse/crop_types_Monfreda_FAOSTAT_MIRCA.csv"
+  "data-raw/mirca/crop_types_Monfreda_FAOSTAT_MIRCA.csv"
 )
 
 mirca_names <- readLines(names_file)
