@@ -54,3 +54,36 @@ test_that("calculate_weed_bnf weights spontaneous and seeded legumes", {
   testthat::expect_equal(out$weed_leg_share, spont)
   testthat::expect_equal(out$weed_bnf_t, 10 * ref * spont)
 })
+
+test_that("calculate_nonsymbiotic_bnf uses base rate and area, no drivers", {
+  out <- whep::calculate_nonsymbiotic_bnf(tibble::tibble(area_ha = 40))
+  testthat::expect_equal(out$f_env_nonsymbiotic, 1)
+  testthat::expect_equal(out$nonsymbiotic_base_kg_ha, 5)
+  testthat::expect_equal(out$nonsymbiotic_bnf_t, 5 * 40 / 1000)
+})
+
+test_that("calculate_nonsymbiotic_bnf nitrogen inhibition is stronger", {
+  out <- whep::calculate_nonsymbiotic_bnf(
+    tibble::tibble(area_ha = 40, n_synth_kg_ha = 100)
+  )
+  testthat::expect_equal(out$f_nitrogen_nonsymbiotic, exp(-0.005 * 100))
+})
+
+test_that("calculate_nonsymbiotic_bnf joins the crop-specific base rate", {
+  nb <- whep::whep_coef_table("names_bnf")
+  bnf <- whep::whep_coef_table("bnf")
+  m <- merge(nb, bnf, by = "name_bnf")
+  hit <- m[!is.na(m$nonsymbiotic_base_kg_ha) & m$nonsymbiotic_base_kg_ha > 5, ][
+    1,
+  ]
+  out <- whep::calculate_nonsymbiotic_bnf(
+    tibble::tibble(
+      item_prod_code = as.character(hit$item_prod_code),
+      area_ha = 40
+    )
+  )
+  testthat::expect_equal(
+    out$nonsymbiotic_base_kg_ha,
+    hit$nonsymbiotic_base_kg_ha
+  )
+})

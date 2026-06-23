@@ -68,6 +68,7 @@ reference:
   - calculate_crop_npp_components
   - calculate_crop_bnf
   - calculate_weed_bnf
+  - calculate_nonsymbiotic_bnf
 
 - title: Tidy datasets
   desc: >

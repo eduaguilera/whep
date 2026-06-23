@@ -75,6 +75,42 @@ calculate_weed_bnf <- function(x, symbiotic_params = list()) {
     .bnf_weed_estimates(p)
 }
 
+#' Estimate non-symbiotic biological nitrogen fixation.
+#'
+#' Estimates free-living and associative BNF in agricultural soils from a base
+#' rate (crop-specific from `bnf`, or a default) scaled by environmental
+#' modifiers for nitrogen, temperature, water, soil organic matter, pH and clay.
+#' Each modifier activates only when its driver column is present.
+#'
+#' @param x A tibble with `area_ha`. Optional `nonsymbiotic_base_kg_ha` (or
+#'   `item_prod_code` to join the crop-specific base rate), plus the nitrogen,
+#'   temperature, water and soil (`som_pct`, `soil_ph`, `clay_pct`) drivers.
+#' @param nonsymbiotic_params Named list overriding `nsbnf_default_kg_ha`,
+#'   `k_n_synth`, `k_n_org`, `t_opt`, `t_sigma`, `ai_threshold`.
+#' @param soil_params Named list overriding `k_som`, `som_ref`, `ph_opt`,
+#'   `ph_sigma`, `k_clay`, `clay_ref`.
+#' @return The input tibble with `nonsymbiotic_base_kg_ha`, the six
+#'   `f_*_nonsymbiotic` modifiers, `f_env_nonsymbiotic` and `nonsymbiotic_bnf_t`.
+#' @export
+#' @examples
+#' calculate_nonsymbiotic_bnf(tibble::tibble(area_ha = 40))
+calculate_nonsymbiotic_bnf <- function(
+  x,
+  nonsymbiotic_params = list(),
+  soil_params = list()
+) {
+  .bnf_validate_input(x, "area_ha", "calculate_nonsymbiotic_bnf")
+  if (nrow(x) == 0) {
+    return(x)
+  }
+  ns <- .bnf_nonsymbiotic_params(nonsymbiotic_params)
+  soil <- .bnf_soil_params(soil_params)
+  x |>
+    .bnf_ensure_env_cols() |>
+    .bnf_ensure_base_rate() |>
+    .bnf_nonsymbiotic_estimates(ns, soil)
+}
+
 # ---- Private helpers --------------------------------------------------
 
 .bnf_symbiotic_params <- function(p) {
@@ -247,6 +283,98 @@ calculate_weed_bnf <- function(x, symbiotic_params = list()) {
       pmin(ndfa * f_env_symbiotic, ndfa),
       NA_real_
     )
+  )
+}
+
+.bnf_nonsymbiotic_params <- function(p) {
+  utils::modifyList(
+    list(
+      nsbnf_default_kg_ha = 5,
+      k_n_synth = 0.005,
+      k_n_org = 0.0025,
+      t_opt = 22,
+      t_sigma = 14,
+      ai_threshold = 0.45
+    ),
+    p
+  )
+}
+
+.bnf_soil_params <- function(p) {
+  utils::modifyList(
+    list(
+      k_som = 2.0,
+      som_ref = 2.5,
+      ph_opt = 6.8,
+      ph_sigma = 1.5,
+      k_clay = 20,
+      clay_ref = 25
+    ),
+    p
+  )
+}
+
+.bnf_ensure_base_rate <- function(x) {
+  if (rlang::has_name(x, "nonsymbiotic_base_kg_ha")) {
+    return(x)
+  }
+  if (rlang::has_name(x, "item_prod_code")) {
+    return(.bnf_join_params(x))
+  }
+  dplyr::mutate(x, nonsymbiotic_base_kg_ha = NA_real_)
+}
+
+.bnf_nonsymbiotic_estimates <- function(x, ns, soil) {
+  dplyr::mutate(
+    x,
+    nonsymbiotic_base_kg_ha = dplyr::if_else(
+      !is.na(nonsymbiotic_base_kg_ha),
+      nonsymbiotic_base_kg_ha,
+      ns$nsbnf_default_kg_ha
+    ),
+    f_nitrogen_nonsymbiotic = .bnf_f_n_nonsymbiotic(
+      n_synth_kg_ha,
+      n_org_kg_ha,
+      ns$k_n_synth,
+      ns$k_n_org
+    ),
+    f_temperature_nonsymbiotic = dplyr::if_else(
+      !is.na(temp_c),
+      .bnf_f_temperature(temp_c, ns$t_opt, ns$t_sigma),
+      1
+    ),
+    f_water_nonsymbiotic = dplyr::if_else(
+      !is.na(water_input_mm) & !is.na(pet_mm) & pet_mm > 0,
+      .bnf_f_water(water_input_mm, pet_mm, ns$ai_threshold),
+      1
+    ),
+    f_som_nonsymbiotic = dplyr::if_else(
+      !is.na(som_pct),
+      .bnf_f_som(som_pct, soil$k_som, soil$som_ref),
+      1
+    ),
+    f_ph_nonsymbiotic = dplyr::if_else(
+      !is.na(soil_ph),
+      .bnf_f_ph(soil_ph, soil$ph_opt, soil$ph_sigma),
+      1
+    ),
+    f_clay_nonsymbiotic = dplyr::if_else(
+      !is.na(clay_pct),
+      .bnf_f_clay(clay_pct, soil$k_clay, soil$clay_ref),
+      1
+    ),
+    f_env_nonsymbiotic = .bnf_dampen_product(
+      f_nitrogen_nonsymbiotic,
+      f_temperature_nonsymbiotic,
+      f_water_nonsymbiotic,
+      f_som_nonsymbiotic,
+      f_ph_nonsymbiotic,
+      f_clay_nonsymbiotic
+    ),
+    nonsymbiotic_bnf_t = nonsymbiotic_base_kg_ha *
+      f_env_nonsymbiotic *
+      area_ha /
+      1000
   )
 }
 
