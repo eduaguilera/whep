@@ -60,8 +60,8 @@ calculate_residue_destinies <- function(
 #'   item_prod_code = "15", year = 2000, sub_territory = "ESP",
 #'   residue_feed_dm_t = 50
 #' ) |>
-#'   build_residue_feed_availability()
-build_residue_feed_availability <- function(
+#'   build_residue_feed_avail()
+build_residue_feed_avail <- function(
   x,
   loss_fraction = 0.15,
   feed_scale = "national"
@@ -69,7 +69,7 @@ build_residue_feed_availability <- function(
   .crop_npp_validate(
     x,
     c("item_prod_code", "year", "sub_territory", "residue_feed_dm_t"),
-    "build_residue_feed_availability"
+    "build_residue_feed_avail"
   )
   item_map <- whep::whep_coef_table("crop_residue_item_map") |>
     dplyr::transmute(

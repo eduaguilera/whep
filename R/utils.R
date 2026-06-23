@@ -150,6 +150,7 @@ utils::globalVariables(
     # residue_destiny.R
     "region_krausmann",
     "cat_krausmann",
+    "Cat_Krausmann",
     "recovery_rates",
     "feed_use_fraction",
     "residue_feed_dm_t",

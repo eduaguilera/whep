@@ -25,14 +25,14 @@ test_that("shares method splits use/burn/soil and flags provisional", {
   testthat::expect_true(out$residue_destiny_to_be_revised)
 })
 
-test_that("build_residue_feed_availability yields the redistribute_feed contract", {
+test_that("build_residue_feed_avail yields the redistribute_feed contract", {
   x <- tibble::tibble(
     item_prod_code = "15",
     year = 2000,
     sub_territory = "ESP",
     residue_feed_dm_t = 50
   )
-  out <- whep::build_residue_feed_availability(x)
+  out <- whep::build_residue_feed_avail(x)
   required <- c(
     "year",
     "sub_territory",

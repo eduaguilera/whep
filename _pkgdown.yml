@@ -72,7 +72,7 @@ reference:
   - calculate_bnf
   - summarize_bnf
   - calculate_residue_destinies
-  - build_residue_feed_availability
+  - build_residue_feed_avail
 
 - title: Tidy datasets
   desc: >
