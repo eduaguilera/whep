@@ -161,6 +161,39 @@ calculate_crop_npp <- function(
     dplyr::mutate(crop_npp_dm_t = product_dm_t + residue_dm_t + root_dm_t)
 }
 
+#' Partition crop and weed NPP into dry matter, carbon and nitrogen.
+#'
+#' Converts crop NPP components (product, residue, root) and weed biomass to
+#' nitrogen and carbon using the `bio_coefs` per-component coefficients and the
+#' `weed_coefs` scalars. Root and weed below-ground nitrogen include
+#' rhizodeposits. The residue-to-soil split is computed only when a
+#' `residue_soil_dm_t` column (from [calculate_residue_destinies()]) is present.
+#'
+#' @param x A tibble with `item_prod_code`, `product_dm_t`, `residue_dm_t` and
+#'   `root_dm_t`. Optional `weed_ag_dm_t` (above-ground weed dry matter; treated
+#'   as 0 when absent), `crop_npp_dm_t` (kept when present) and
+#'   `residue_soil_dm_t` (enables the soil-residue nitrogen and carbon split).
+#' @return The input tibble with weed dry matter, and nitrogen (`*_n_t`) and
+#'   carbon (`*_c_t`) for product, residue, root, weeds, crop NPP and total NPP.
+#' @export
+#' @examples
+#' tibble::tibble(item_prod_code = "15", production_t = 100, area_ha = 40) |>
+#'   calculate_crop_npp() |>
+#'   calculate_npp_carbon_nitrogen()
+calculate_npp_carbon_nitrogen <- function(x) {
+  .crop_npp_validate(
+    x,
+    c("item_prod_code", "product_dm_t", "residue_dm_t", "root_dm_t"),
+    "calculate_npp_carbon_nitrogen"
+  )
+  x |>
+    .npp_cn_join_coefs() |>
+    .npp_cn_weeds() |>
+    .npp_cn_crop() |>
+    .npp_cn_soil_residue() |>
+    .npp_cn_cleanup()
+}
+
 .npp_coef <- function(coefs, model, param, component = NULL) {
   mask <- coefs$model == model & coefs$parameter == param
   if (!is.null(component)) {
@@ -520,4 +553,90 @@ calculate_crop_npp <- function(
       "root_ref_t"
     ))
   )
+}
+
+.npp_cn_coef_cols <- function() {
+  c(
+    "product_n_kgdm",
+    "residue_n_kgdm",
+    "root_n_kgdm",
+    "product_c_kgdm",
+    "residue_c_kgdm",
+    "root_c_kgdm",
+    "rhizodeposit_n_kgn_krootn",
+    "residue_dm_kgfm"
+  )
+}
+
+.npp_cn_join_coefs <- function(x) {
+  coefs <- whep::whep_coef_table("bio_coefs") |>
+    dplyr::select(dplyr::all_of(c("item_prod_code", .npp_cn_coef_cols())))
+  x |>
+    dplyr::mutate(item_prod_code = as.character(item_prod_code)) |>
+    dplyr::select(-dplyr::any_of(.npp_cn_coef_cols())) |>
+    dplyr::left_join(coefs, by = "item_prod_code")
+}
+
+.npp_cn_weeds <- function(x) {
+  weed <- whep::whep_coef_table("weed_coefs")
+  if (!rlang::has_name(x, "weed_ag_dm_t")) {
+    x <- dplyr::mutate(x, weed_ag_dm_t = 0)
+  }
+  dplyr::mutate(
+    x,
+    weed_ag_dm_t = tidyr::replace_na(weed_ag_dm_t, 0),
+    weed_bg_dm_t = weed_ag_dm_t * weed$root_shoot_ratio_weed,
+    weed_npp_dm_t = weed_ag_dm_t + weed_bg_dm_t,
+    weed_ag_n_t = weed_ag_dm_t * weed$residue_n_kgdm_weed,
+    weed_bg_n_t = weed_bg_dm_t *
+      weed$root_n_kgdm_weed *
+      (1 + weed$rhizodeposit_n_weed),
+    weed_npp_n_t = weed_ag_n_t + weed_bg_n_t,
+    weed_ag_c_t = weed_ag_dm_t * weed$residue_c_kgdm_weed,
+    weed_bg_c_t = weed_bg_dm_t * weed$root_c_kgdm_weed,
+    weed_npp_c_t = weed_ag_c_t + weed_bg_c_t
+  )
+}
+
+.npp_cn_crop <- function(x) {
+  has_crop_npp <- rlang::has_name(x, "crop_npp_dm_t")
+  dplyr::mutate(
+    x,
+    crop_npp_dm_t = if (has_crop_npp) {
+      crop_npp_dm_t
+    } else {
+      product_dm_t + residue_dm_t + root_dm_t
+    },
+    total_npp_dm_t = crop_npp_dm_t + weed_npp_dm_t,
+    product_n_t = product_dm_t * product_n_kgdm,
+    residue_n_t = residue_dm_t * residue_n_kgdm,
+    root_n_t = root_dm_t * root_n_kgdm * (1 + rhizodeposit_n_kgn_krootn),
+    crop_npp_n_t = product_n_t + residue_n_t + root_n_t,
+    total_npp_n_t = crop_npp_n_t + weed_npp_n_t,
+    product_c_t = product_dm_t * product_c_kgdm,
+    residue_c_t = residue_dm_t * residue_c_kgdm,
+    root_c_t = root_dm_t * root_c_kgdm,
+    crop_npp_c_t = product_c_t + residue_c_t + root_c_t,
+    total_npp_c_t = crop_npp_c_t + weed_npp_c_t,
+    residue_fm_t = dplyr::if_else(
+      residue_dm_kgfm > 0,
+      residue_dm_t / residue_dm_kgfm,
+      0
+    )
+  )
+}
+
+.npp_cn_soil_residue <- function(x) {
+  if (!rlang::has_name(x, "residue_soil_dm_t")) {
+    return(x)
+  }
+  dplyr::mutate(
+    x,
+    residue_soil_n_t = residue_soil_dm_t * residue_n_kgdm,
+    residue_soil_c_t = residue_soil_dm_t * residue_c_kgdm
+  )
+}
+
+.npp_cn_cleanup <- function(x) {
+  dplyr::select(x, -dplyr::any_of(.npp_cn_coef_cols()))
 }

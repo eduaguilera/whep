@@ -159,3 +159,40 @@ test_that("calculate_crop_npp sums product, residue and root", {
     out$product_dm_t + out$residue_dm_t + out$root_dm_t
   )
 })
+
+test_that("calculate_npp_carbon_nitrogen partitions N and C", {
+  base <- tibble::tibble(
+    item_prod_code = "15",
+    production_t = 100,
+    area_ha = 40
+  ) |>
+    whep::calculate_crop_npp()
+  out <- whep::calculate_npp_carbon_nitrogen(base)
+  bc <- whep::whep_coef_table("bio_coefs")
+  r <- bc[bc$item_prod_code == "15", ]
+  testthat::expect_equal(out$product_n_t, out$product_dm_t * r$product_n_kgdm)
+  testthat::expect_equal(
+    out$root_n_t,
+    out$root_dm_t * r$root_n_kgdm * (1 + r$rhizodeposit_n_kgn_krootn)
+  )
+  testthat::expect_equal(
+    out$crop_npp_n_t,
+    out$product_n_t + out$residue_n_t + out$root_n_t
+  )
+  testthat::expect_equal(out$total_npp_dm_t, out$crop_npp_dm_t)
+  testthat::expect_false("residue_soil_n_t" %in% names(out))
+})
+
+test_that("calculate_npp_carbon_nitrogen adds soil residue when destiny present", {
+  base <- tibble::tibble(
+    item_prod_code = "15",
+    production_t = 100,
+    area_ha = 40,
+    residue_soil_dm_t = 50
+  ) |>
+    whep::calculate_crop_npp()
+  out <- whep::calculate_npp_carbon_nitrogen(base)
+  bc <- whep::whep_coef_table("bio_coefs")
+  rn <- bc$residue_n_kgdm[bc$item_prod_code == "15"]
+  testthat::expect_equal(out$residue_soil_n_t, 50 * rn)
+})

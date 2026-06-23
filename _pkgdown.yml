@@ -64,6 +64,7 @@ reference:
   - calculate_crop_residues
   - calculate_crop_roots
   - calculate_crop_npp
+  - calculate_npp_carbon_nitrogen
 
 - title: Tidy datasets
   desc: >
