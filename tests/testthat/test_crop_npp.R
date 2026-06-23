@@ -213,3 +213,38 @@ test_that("calculate_npp_carbon_nitrogen adds soil residue when destiny present"
   rn <- bc$residue_n_kgdm[bc$item_prod_code == "15"]
   testthat::expect_equal(out$residue_soil_n_t, 50 * rn)
 })
+
+test_that("calculate_crop_npp_components scales weeds and flags provisional", {
+  base <- tibble::tibble(
+    item_prod_code = "15",
+    production_t = 100,
+    area_ha = 40,
+    year = 2000,
+    npp_potential_dm_t_ha = 5
+  ) |>
+    whep::calculate_crop_npp()
+  out <- suppressWarnings(whep::calculate_crop_npp_components(base))
+  ws <- whep::whep_coef_table("weed_npp_scaling")
+  sc <- ws$weed_scaling[ws$item_prod_code == "15" & ws$year == 2000]
+  testthat::expect_equal(out$weed_ag_dm_t, 40 * sc * 5)
+  testthat::expect_true(out$weed_scaling_to_be_revised)
+  testthat::expect_true(
+    all(c("weed_npp_dm_t", "total_npp_n_t", "weed_npp_c_t") %in% names(out))
+  )
+})
+
+test_that("calculate_crop_npp_components warns it is Spain-specific", {
+  rlang::local_options(rlib_warning_verbosity = "verbose")
+  base <- tibble::tibble(
+    item_prod_code = "15",
+    production_t = 100,
+    area_ha = 40,
+    year = 2000,
+    npp_potential_dm_t_ha = 5
+  ) |>
+    whep::calculate_crop_npp()
+  testthat::expect_warning(
+    whep::calculate_crop_npp_components(base),
+    "to_be_revised|Spain"
+  )
+})

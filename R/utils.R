@@ -87,6 +87,9 @@ utils::globalVariables(
     "rhizodeposit_n_kgn_krootn",
     "lon",
     "lat",
+    "weed_scaling",
+    "weed_scaling_to_be_revised",
+    "to_be_revised",
     # feed_lpjml.R (LPJmL grass-availability read-back)
     "band",
     "cft_frac",

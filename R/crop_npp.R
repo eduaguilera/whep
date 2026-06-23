@@ -161,6 +161,60 @@ calculate_crop_npp <- function(
     dplyr::mutate(crop_npp_dm_t = product_dm_t + residue_dm_t + root_dm_t)
 }
 
+#' Estimate cropland NPP components including weeds.
+#'
+#' Assembles full cropland net primary production: scales weed biomass from
+#' potential NPP and the `weed_npp_scaling` factors, then partitions crop and
+#' weed biomass into dry matter, carbon and nitrogen via
+#' [calculate_npp_carbon_nitrogen()].
+#'
+#' The `weed_npp_scaling` table is taken from Spain_Hist and is flagged
+#' `to_be_revised`: it is Spain-specific and not validated for WHEP's global
+#' scope. A `weed_scaling_to_be_revised` column records this on the output and a
+#' one-time warning is emitted.
+#'
+#' @param x A tibble with `item_prod_code`, `area_ha`, `year`, `product_dm_t`,
+#'   `residue_dm_t` and `root_dm_t` (e.g. the output of [calculate_crop_npp()]).
+#'   When `npp_potential_dm_t_ha` is absent it is computed via
+#'   [calculate_potential_npp()] (which, for the default `lpjml` method, needs
+#'   `lon`/`lat`).
+#' @param .by Optional character vector of grouping columns used to fill missing
+#'   weed-scaling factors with the group mean.
+#' @param potential A named list selecting the potential-NPP source: `method`
+#'   (default `"lpjml"`) and `lpjml` options.
+#' @return The input tibble with weed dry matter, the dry-matter / nitrogen /
+#'   carbon partition for crop, weeds and total, and `weed_scaling_to_be_revised`.
+#' @export
+#' @examples
+#' tibble::tibble(
+#'   item_prod_code = "15", production_t = 100, area_ha = 40,
+#'   year = 2000, npp_potential_dm_t_ha = 5
+#' ) |>
+#'   calculate_crop_npp() |>
+#'   calculate_crop_npp_components()
+calculate_crop_npp_components <- function(
+  x,
+  .by = NULL,
+  potential = list(method = "lpjml")
+) {
+  .crop_npp_validate(
+    x,
+    c(
+      "item_prod_code",
+      "area_ha",
+      "year",
+      "product_dm_t",
+      "residue_dm_t",
+      "root_dm_t"
+    ),
+    "calculate_crop_npp_components"
+  )
+  x |>
+    .components_potential(potential) |>
+    .components_weeds(.by) |>
+    calculate_npp_carbon_nitrogen()
+}
+
 #' Partition crop and weed NPP into dry matter, carbon and nitrogen.
 #'
 #' Converts crop NPP components (product, residue, root) and weed biomass to
@@ -657,4 +711,57 @@ calculate_npp_carbon_nitrogen <- function(x) {
 
 .npp_cn_cleanup <- function(x) {
   dplyr::select(x, -dplyr::any_of(.npp_cn_coef_cols()))
+}
+
+.components_potential <- function(x, potential) {
+  if (rlang::has_name(x, "npp_potential_dm_t_ha")) {
+    return(x)
+  }
+  calculate_potential_npp(
+    x,
+    method = potential$method %||% "lpjml",
+    lpjml = potential$lpjml %||% list()
+  )
+}
+
+.components_weeds <- function(x, .by) {
+  cli::cli_warn(
+    c(
+      "Weed scaling uses the Spain-specific {.field weed_npp_scaling} table.",
+      i = "It is flagged {.field to_be_revised}: not validated for global scope."
+    ),
+    .frequency = "once",
+    .frequency_id = "weed_npp_scaling_provisional"
+  )
+  scaling <- whep::whep_coef_table("weed_npp_scaling") |>
+    dplyr::select(item_prod_code, year, weed_scaling)
+  x |>
+    dplyr::mutate(item_prod_code = as.character(item_prod_code)) |>
+    dplyr::left_join(scaling, by = c("item_prod_code", "year")) |>
+    .components_fill_scaling(.by) |>
+    dplyr::mutate(
+      weed_ag_dm_t = area_ha * weed_scaling * npp_potential_dm_t_ha,
+      weed_scaling_to_be_revised = TRUE
+    )
+}
+
+.components_fill_scaling <- function(x, .by) {
+  if (is.null(.by)) {
+    return(dplyr::mutate(
+      x,
+      weed_scaling = tidyr::replace_na(
+        weed_scaling,
+        mean(weed_scaling, na.rm = TRUE)
+      )
+    ))
+  }
+  dplyr::mutate(
+    x,
+    weed_scaling = dplyr::if_else(
+      is.na(weed_scaling),
+      mean(weed_scaling, na.rm = TRUE),
+      weed_scaling
+    ),
+    .by = dplyr::all_of(.by)
+  )
 }
