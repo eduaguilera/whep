@@ -63,7 +63,8 @@
       dplyr::any_of("live_anim_code"),
       unit,
       value
-    )
+    ) |>
+    dplyr::mutate(year = as.integer(year), area_code = as.integer(area_code))
 }
 
 .build_bouwman_fcr <- function(conv_bouwman, years) {

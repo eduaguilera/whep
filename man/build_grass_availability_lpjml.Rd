@@ -5,7 +5,7 @@
 \title{Build grazable grass availability from an LPJmL run.}
 \usage{
 build_grass_availability_lpjml(
-  run_dir = NULL,
+  run_dir = Sys.getenv("WHEP_LPJML_RUN_DIR"),
   years = NULL,
   first_year = 1901L,
   shares = grass_access_shares(),
@@ -14,7 +14,9 @@ build_grass_availability_lpjml(
 }
 \arguments{
 \item{run_dir}{Path to the LPJmL run output directory holding \code{pft_npp.nc}
-and \code{cftfrac.nc} (the \verb{scenario_*} output folder).}
+and \code{cftfrac.nc} (the \verb{scenario_*} output folder). Defaults to the
+\code{WHEP_LPJML_RUN_DIR} environment variable, consistent with
+\code{\link[=build_feed_intake_local]{build_feed_intake_local()}}.}
 
 \item{years}{Integer vector of calendar years to read.}
 

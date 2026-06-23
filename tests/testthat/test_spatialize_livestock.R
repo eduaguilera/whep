@@ -150,6 +150,30 @@ test_that("grass-weighted heads conserve when NPP covers all countries", {
   }
 })
 
+test_that("grass-weighted heads fall back to area weight for cells with NA NPP", {
+  # Cells missing from grass_productivity (NA after left_join) must keep their
+  # area-based weight, not be zeroed out and silently dropped.
+  grass_npp_partial <- tibble::tribble(
+    ~lon, ~lat, ~grass_npp,
+    0.25, 50.25, 300
+    # 0.75 and 1.25 intentionally absent
+  )
+
+  result <- build_gridded_livestock(
+    livestock_data,
+    gridded_pasture,
+    gridded_cropland,
+    country_grid,
+    grass_productivity = grass_npp_partial
+  )
+
+  for (yr in unique(livestock_data$year)) {
+    input_heads <- sum(livestock_data$heads[livestock_data$year == yr])
+    grid_heads <- sum(result$heads[result$year == yr])
+    expect_equal(grid_heads, input_heads, tolerance = 1e-6)
+  }
+})
+
 test_that("cattle uses pasture proxy (not cropland)", {
   result <- build_gridded_livestock(
     livestock_data,

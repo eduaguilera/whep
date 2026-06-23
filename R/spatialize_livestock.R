@@ -335,7 +335,9 @@ build_gridded_livestock <- function(
         dplyr::select(grass_productivity, lon, lat, grass_npp),
         by = c("lon", "lat")
       ) |>
-      dplyr::mutate(weight = weight * dplyr::coalesce(grass_npp, 0)) |>
+      dplyr::mutate(
+        weight = dplyr::if_else(is.na(grass_npp), weight, weight * grass_npp)
+      ) |>
       dplyr::filter(weight > 0) |>
       dplyr::select(-grass_npp)
   }

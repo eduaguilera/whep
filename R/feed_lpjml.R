@@ -47,7 +47,9 @@ build_grass_availability <- function(
 #' intake-validation target, not the supply).
 #'
 #' @param run_dir Path to the LPJmL run output directory holding `pft_npp.nc`
-#'   and `cftfrac.nc` (the `scenario_*` output folder).
+#'   and `cftfrac.nc` (the `scenario_*` output folder). Defaults to the
+#'   `WHEP_LPJML_RUN_DIR` environment variable, consistent with
+#'   [build_feed_intake_local()].
 #' @param years Integer vector of calendar years to read.
 #' @param first_year First calendar year of the run's output time axis.
 #' @param shares Accessibility and conversion parameters from
@@ -59,7 +61,7 @@ build_grass_availability <- function(
 #' @examples
 #' build_grass_availability_lpjml(example = TRUE)
 build_grass_availability_lpjml <- function(
-  run_dir = NULL,
+  run_dir = Sys.getenv("WHEP_LPJML_RUN_DIR"),
   years = NULL,
   first_year = 1901L,
   shares = grass_access_shares(),
@@ -67,6 +69,12 @@ build_grass_availability_lpjml <- function(
 ) {
   if (example) {
     return(.example_grass_avail_lpjml())
+  }
+  if (!nzchar(run_dir)) {
+    cli::cli_abort(c(
+      "{.arg run_dir} is empty.",
+      i = "Pass it explicitly or set {.envvar WHEP_LPJML_RUN_DIR}."
+    ))
   }
   if (!rlang::is_installed("ncdf4")) {
     cli::cli_abort("Package {.pkg ncdf4} is required to read the LPJmL run.")
@@ -157,6 +165,8 @@ aggregate_grass_to_polity <- function(grass, cell_polity) {
 #' livestock to grassland_lsuha to grass-NPP circularity.
 #'
 #' @param run_dir Path to the LPJmL run output directory holding `pft_npp.nc`.
+#'   Defaults to the `WHEP_LPJML_RUN_DIR` environment variable, consistent with
+#'   [build_feed_intake_local()].
 #' @param years Integer vector of calendar years to read.
 #' @param first_year First calendar year of the run's output time axis.
 #' @param example If `TRUE`, return a small fixture instead of reading a run.
@@ -165,13 +175,19 @@ aggregate_grass_to_polity <- function(grass, cell_polity) {
 #' @examples
 #' read_lpjml_grass_productivity(example = TRUE)
 read_lpjml_grass_productivity <- function(
-  run_dir = NULL,
+  run_dir = Sys.getenv("WHEP_LPJML_RUN_DIR"),
   years = NULL,
   first_year = 1901L,
   example = FALSE
 ) {
   if (example) {
     return(.example_grass_productivity())
+  }
+  if (!nzchar(run_dir)) {
+    cli::cli_abort(c(
+      "{.arg run_dir} is empty.",
+      i = "Pass it explicitly or set {.envvar WHEP_LPJML_RUN_DIR}."
+    ))
   }
   if (!rlang::is_installed("ncdf4")) {
     cli::cli_abort("Package {.pkg ncdf4} is required to read the LPJmL run.")

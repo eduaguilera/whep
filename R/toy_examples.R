@@ -385,8 +385,20 @@
 
 .example_build_feed_demand <- function(by = "category") {
   if (by == "feed_type") {
-    # The redistribute_feed-ready demand contract: reuse the allocator fixture.
-    return(.example_feed_demand())
+    return(tibble::tribble(
+      ~year, ~territory, ~sub_territory, ~livestock_category, ~item_cbs_code,
+      ~feed_group, ~feed_quality, ~demand_dm_t, ~fixed_demand,
+      2000L, "79", NA_character_, "Cattle_milk", NA_integer_,
+      NA_character_, "grass", 1800000, TRUE,
+      2000L, "79", NA_character_, "Cattle_milk", NA_integer_,
+      NA_character_, "high_quality", 2800000, FALSE,
+      2000L, "79", NA_character_, "Cattle_milk", NA_integer_,
+      NA_character_, "residues", 1200000, FALSE,
+      2000L, "79", NA_character_, "Pigs", NA_integer_,
+      NA_character_, "high_quality", 7400000, FALSE,
+      2000L, "79", NA_character_, "Pigs", NA_integer_,
+      NA_character_, "scavenging", 1300000, FALSE
+    ))
   }
   tibble::tribble(
     ~year, ~area_code, ~livestock_category, ~demand_dm_t, ~method_demand,

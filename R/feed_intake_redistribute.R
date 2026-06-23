@@ -338,7 +338,7 @@ build_feed_demand <- function(
     .tag_legacy_method(data$crosswalk)
 
   if (demand_tier == "ipcc") {
-    totals <- .overlay_energy_demand(totals, production, data$crosswalk)
+    totals <- .overlay_energy_demand(totals, prod, data$crosswalk)
   }
   totals
 }
