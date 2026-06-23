@@ -51,3 +51,45 @@ test_that("lpjml potential-NPP method is not yet wired", {
     "not yet wired"
   )
 })
+
+test_that("calculate_crop_residues ipcc matches the IPCC linear model", {
+  x <- tibble::tibble(item_prod_code = "15", production_t = 100, area_ha = 40)
+  out <- whep::calculate_crop_residues(x, method = "ipcc")
+
+  bc <- whep::whep_coef_table("bio_coefs")
+  rc <- whep::whep_coef_table("ipcc_residue_coefs")
+  mp <- whep::whep_coef_table("ipcc_crop_mapping")
+  pd <- bc$product_dm_kgfm[bc$item_prod_code == "15"]
+  ic <- mp$ipcc_crop[mp$item_prod_code == "15"]
+  sl <- rc$slope_ag[rc$ipcc_crop == ic]
+  it <- rc$intercept_ag_dm_t_ha[rc$ipcc_crop == ic]
+  expected <- pmax(sl * (100 * pd / 40) + it, 0) * 40
+
+  testthat::expect_equal(out$residue_dm_t, expected)
+  testthat::expect_equal(out$method_residue, "ipcc")
+  testthat::expect_equal(out$product_dm_t, 100 * pd)
+})
+
+test_that("calculate_crop_residues ratio uses the bio_coefs ratio", {
+  x <- tibble::tibble(item_prod_code = "15", production_t = 100, area_ha = 40)
+  out <- whep::calculate_crop_residues(x, method = "ratio")
+  bc <- whep::whep_coef_table("bio_coefs")
+  rr <- bc$residue_kg_product_fm_kg[bc$item_prod_code == "15"]
+  rd <- bc$residue_dm_kgfm[bc$item_prod_code == "15"]
+  testthat::expect_equal(out$residue_dm_t, 100 * rr * rd)
+})
+
+test_that("calculate_crop_residues ensemble blends ipcc and ratio", {
+  x <- tibble::tibble(item_prod_code = "15", production_t = 100, area_ha = 40)
+  ens <- whep::calculate_crop_residues(x, method = "ensemble")$residue_dm_t
+  ipcc <- whep::calculate_crop_residues(x, method = "ipcc")$residue_dm_t
+  ratio <- whep::calculate_crop_residues(x, method = "ratio")$residue_dm_t
+  testthat::expect_equal(ens, 0.5 * ipcc + 0.5 * ratio)
+})
+
+test_that("calculate_crop_residues errors on missing columns", {
+  testthat::expect_error(
+    whep::calculate_crop_residues(tibble::tibble(item_prod_code = "15")),
+    "missing required"
+  )
+})

@@ -22,9 +22,20 @@ whep_coef_table <- function(name) {
 }
 
 .read_coef <- function(name) {
-  system.file("extdata", "coefs", paste0(name, ".csv"), package = "whep") |>
+  out <- system.file(
+    "extdata",
+    "coefs",
+    paste0(name, ".csv"),
+    package = "whep"
+  ) |>
     data.table::fread(na.strings = "") |>
     tibble::as_tibble()
+  # The item key is character in some tables (e.g. "Fallow") and numeric in
+  # others; coerce to character everywhere so joins on it never mismatch.
+  if (rlang::has_name(out, "item_prod_code")) {
+    out$item_prod_code <- as.character(out$item_prod_code)
+  }
+  out
 }
 
 .coef_table_names <- function() {
