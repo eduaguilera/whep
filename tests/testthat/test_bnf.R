@@ -125,3 +125,10 @@ test_that("summarize_bnf totals the components and adds percentages", {
     all(c("pct_crop_bnf", "pct_weed_bnf", "pct_nonsymbiotic_bnf") %in% names(s))
   )
 })
+
+test_that("calculate_crop_bnf gives zero BNF for a non-legume crop", {
+  out <- whep::calculate_crop_bnf(
+    tibble::tibble(item_prod_code = "15", crop_npp_n_t = 10, product_n_t = 5)
+  )
+  testthat::expect_equal(out$crop_bnf_t, 0)
+})

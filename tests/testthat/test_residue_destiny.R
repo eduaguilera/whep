@@ -47,3 +47,17 @@ test_that("build_residue_feed_avail yields the redistribute_feed contract", {
   testthat::expect_equal(out$avail_dm_t, 50 * 0.85)
   testthat::expect_equal(out$item_cbs_code, 2105)
 })
+
+test_that("calculate_residue_destinies conserves mass with an unmatched region", {
+  out <- whep::calculate_residue_destinies(tibble::tibble(
+    item_prod_code = "15",
+    residue_dm_t = 100,
+    region_krausmann = "Nowhere",
+    region_hanpp = "Nowhere"
+  ))
+  testthat::expect_equal(
+    out$residue_feed_dm_t + out$residue_burn_dm_t + out$residue_soil_dm_t,
+    100
+  )
+  testthat::expect_equal(out$residue_soil_dm_t, 100)
+})

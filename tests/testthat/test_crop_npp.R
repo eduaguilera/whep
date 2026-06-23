@@ -248,3 +248,26 @@ test_that("calculate_crop_npp_components warns it is Spain-specific", {
     "to_be_revised|Spain"
   )
 })
+
+test_that("calculate_crop_residues handles zero area and unknown items", {
+  z <- whep::calculate_crop_residues(
+    tibble::tibble(item_prod_code = "15", production_t = 100, area_ha = 0)
+  )
+  testthat::expect_equal(z$yield_dm_t_ha, 0)
+  testthat::expect_true(is.finite(z$residue_dm_t))
+  u <- whep::calculate_crop_residues(
+    tibble::tibble(item_prod_code = "NOPE", production_t = 100, area_ha = 40)
+  )
+  testthat::expect_equal(u$residue_dm_t, 0)
+  testthat::expect_equal(nrow(u), 1L)
+})
+
+test_that("calculate_crop_roots floors at zero for items with no RS source", {
+  out <- whep::calculate_crop_roots(tibble::tibble(
+    item_prod_code = "NOPE",
+    product_dm_t = 10,
+    residue_dm_t = 5,
+    area_ha = 4
+  ))
+  testthat::expect_equal(out$root_dm_t, 0)
+})
