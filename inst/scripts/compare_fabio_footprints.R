@@ -254,9 +254,10 @@ whep_item_groups <- whep::items_full |>
   distinct(.data$item_cbs_code, .data$group)
 
 whep_area_codes <- function(target_iso) {
-  whep::polities |>
-    filter(.data$iso3c %in% target_iso) |>
-    pull(.data$area_code)
+  whep::regions_full |>
+    filter(.data$iso3c %in% target_iso, !is.na(.data$code)) |>
+    pull(.data$code) |>
+    unique()
 }
 
 make_whep_demand <- function(
@@ -441,6 +442,7 @@ fabio_extension_totals <- map_dfr(years, function(year) {
 
 whep_extension_totals <- land_use |>
   filter(.data$year %in% years) |>
+  left_join(whep_item_groups, by = "item_cbs_code") |>
   summarise(
     value = sum(.data$impact_u, na.rm = TRUE),
     .by = c("extension_scope", "year", "group")
