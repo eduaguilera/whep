@@ -1,0 +1,270 @@
+item_prod_code,item_prod_name,residue_item_cbs_code
+15,Wheat,2105
+27,Rice,2105
+44,Barley,2105
+51,"Beer of barley, malted",2106
+56,Maize (corn),2105
+60,Oil of maize,2106
+71,Rye,2105
+75,Oats,2105
+79,Millet,2105
+83,Sorghum,2105
+89,Buckwheat,2105
+92,Quinoa,2105
+94,Fonio,2106
+97,Triticale,2105
+101,Canary seed,2105
+103,Mixed grain,2105
+108,Cereals n.e.c.,2105
+116,Potatoes,2106
+122,Sweet potatoes,2106
+125,"Cassava, fresh",2106
+135,Yautia,2106
+136,Taro,2106
+137,Yams,2106
+149,"Edible roots and tubers with high starch or inulin content, n.e.c., fresh",2106
+156,Sugar cane,2106
+157,Sugar beet,2106
+161,Other sugar crops n.e.c.,2106
+162,Raw cane or beet sugar (centrifugal only),2106
+165,Molasses,2106
+176,"Beans, dry",2106
+181,"Broad beans and horse beans, dry",2106
+187,"Peas, dry",2106
+191,"Chick peas, dry",2106
+195,"Cow peas, dry",2106
+197,"Pigeon peas, dry",2106
+201,"Lentils, dry",2106
+203,"Bambara beans, dry",2106
+205,Vetches,2106
+210,Lupins,2106
+211,Other pulses n.e.c.,2106
+216,"Brazil nuts, in shell",2106
+217,"Cashew nuts, in shell",2106
+220,"Chestnuts, in shell",2106
+221,"Almonds, in shell",2106
+222,"Walnuts, in shell",2106
+223,"Pistachios, in shell",2106
+224,Kola nuts,2106
+225,"Hazelnuts, in shell",2106
+226,Areca nuts,2106
+234,"Other nuts (excluding wild edible nuts and groundnuts), in shell, n.e.c.",2106
+236,Soya beans,2106
+237,Soya bean oil,2106
+242,"Groundnuts, excluding shelled",2106
+244,Groundnut oil,2106
+248,Coconuts,2106
+249,"Coconuts, in shell",2106
+252,Coconut oil,2106
+254,Oil palm fruit,2106
+256,Palm kernels,2106
+257,Palm oil,2106
+258,Oil of palm kernel,2106
+260,Olives,2106
+261,Olive oil,2106
+263,Karite nuts (sheanuts),2106
+265,Castor oil seeds,2106
+267,Sunflower seed,2106
+268,"Sunflower-seed oil, crude",2106
+270,Rape or colza seed,2106
+271,"Rapeseed or canola oil, crude",2106
+275,Tung nuts,2106
+277,Jojoba seeds,2106
+280,Safflower seed,2106
+281,"Safflower-seed oil, crude",2106
+289,Sesame seed,2106
+290,Oil of sesame seed,2106
+292,Mustard seed,2106
+296,Poppy seed,2106
+299,Melonseed,2106
+305,Tallowtree seed,2106
+310,Kapok fruit,2106
+311,Kapokseed in shell,2106
+328,"Seed cotton, unginned",2106
+329,Cotton seed,2106
+331,Cottonseed oil,2106
+333,Linseed,2106
+334,Oil of linseed,2106
+336,Hempseed,2106
+339,"Other oil seeds, n.e.c.",2106
+358,Cabbages,2106
+366,Artichokes,2106
+367,Asparagus,2106
+372,Lettuce and chicory,2106
+373,Spinach,2106
+378,Cassava leaves,2106
+388,Tomatoes,2106
+393,Cauliflowers and broccoli,2106
+394,"Pumpkins, squash and gourds",2106
+397,Cucumbers and gherkins,2106
+399,Eggplants (aubergines),2106
+401,"Chillies and peppers, green (Capsicum spp. and Pimenta spp.)",2106
+402,"Onions and shallots, green",2106
+403,"Onions and shallots, dry (excluding dehydrated)",2106
+406,Green garlic,2106
+407,Leeks and other alliaceous vegetables,2106
+414,"Other beans, green",2106
+417,"Peas, green",2106
+420,"Broad beans and horse beans, green",2106
+423,String beans,2106
+426,Carrots and turnips,2106
+430,Okra,2106
+446,Green corn (maize),2106
+449,Mushrooms and truffles,2106
+459,Chicory roots,2106
+461,Locust beans (carobs),2106
+463,"Other vegetables, fresh n.e.c.",2106
+486,Bananas,2106
+489,Plantains and cooking bananas,2106
+490,Oranges,2106
+495,"Tangerines, mandarins, clementines",2106
+497,Lemons and limes,2106
+507,Pomelos and grapefruits,2106
+512,"Other citrus fruit, n.e.c.",2106
+515,Apples,2106
+521,Pears,2106
+523,Quinces,2106
+526,Apricots,2106
+530,Sour cherries,2106
+531,Cherries,2106
+534,Peaches and nectarines,2106
+536,Plums and sloes,2106
+541,Other stone fruits,2106
+542,Other pome fruits,2106
+544,Strawberries,2106
+547,Raspberries,2106
+549,Gooseberries,2106
+550,Currants,2106
+552,Blueberries,2106
+554,Cranberries,2106
+558,Other berries and fruits of the genus vaccinium n.e.c.,2106
+560,Grapes,2106
+564,Wine,2106
+567,Watermelons,2106
+568,Cantaloupes and other melons,2106
+569,Figs,2106
+571,"Mangoes, guavas and mangosteens",2106
+572,Avocados,2106
+574,Pineapples,2106
+577,Dates,2106
+587,Persimmons,2106
+591,Cashewapple,2106
+592,Kiwi fruit,2106
+600,Papayas,2106
+603,"Other tropical fruits, n.e.c.",2106
+619,"Other fruits, n.e.c.",2106
+636,"Forage and silage, maize",2106
+637,"Forage and silage, sorghum",2106
+638,"Forage and silage, rye grass",2106
+639,"Forage and silage, grasses nes",2106
+640,"Forage and silage, clover",2106
+641,"Forage and silage, alfalfa",2106
+642,"Forage and silage, green oilseeds",2106
+643,"Forage and silage, legumes",2106
+644,Cabbage for fodder,2106
+645,Mixed Grasses and Legumes,2106
+646,Turnips for fodder,2106
+647,Beets for fodder,2106
+648,Carrots for fodder,2106
+649,Swedes for fodder,2106
+651,Forage products,2106
+655,Vegetables and roots fodder,2106
+656,"Coffee, green",2106
+661,Cocoa beans,2106
+667,Tea leaves,2106
+671,Mate leaves,2106
+674,Tea nes,2106
+677,Hop cones,2106
+687,"Pepper (Piper spp.), raw",2106
+689,"Chillies and peppers, dry (Capsicum spp., Pimenta spp.), raw",2106
+692,"Vanilla, raw",2106
+693,"Cinnamon and cinnamon-tree flowers, raw",2106
+698,"Cloves (whole stems), raw",2106
+702,"Nutmeg, mace, cardamoms, raw",2106
+711,"Anise, badian, coriander, cumin, caraway, fennel and juniper berries, raw",2106
+720,"Ginger, raw",2106
+723,"Other stimulant, spice and aromatic crops, n.e.c.",2106
+748,"Peppermint, spearmint",2106
+754,"Pyrethrum, dried flowers",2106
+767,"Cotton lint, ginned",2106
+772,Linum,2106
+773,"Flax, processed but not spun",2106
+776,Hemp,2106
+777,"True hemp, raw or retted",2106
+778,"Kapok fibre, raw",2106
+780,"Jute, raw or retted",2106
+782,"Kenaf, and other textile bast fibres, raw or retted",2106
+788,"Ramie, raw or retted",2106
+789,"Sisal, raw",2106
+800,"Agave fibres, raw, n.e.c.",2106
+809,"Abaca, manila hemp, raw",2106
+813,"Coir, raw",2106
+821,"Other fibre crops, raw, n.e.c.",2106
+826,Unmanufactured tobacco,2106
+836,Natural rubber in primary forms,2106
+839,"Balata, gutta-percha, guayule, chicle and similar natural gums in primary forms or in plates, sheets or strip",2106
+867,"Meat of cattle with the bone, fresh or chilled",2106
+868,"Edible offal of cattle, fresh, chilled or frozen",2106
+869,"Cattle fat, unrendered",2106
+882,Raw milk of cattle,2106
+886,Butter of cow milk,2106
+887,Ghee from cow milk,2106
+890,"Whey, condensed",2106
+919,Raw hides and skins of cattle,2106
+947,"Meat of buffalo, fresh or chilled",2106
+948,"Edible offal of buffalo, fresh, chilled or frozen",2106
+949,"Buffalo fat, unrendered",2106
+951,Raw milk of buffalo,2106
+952,Butter of buffalo milk,2106
+953,Ghee from buffalo milk,2106
+957,Raw hides and skins of buffaloes,2106
+977,"Meat of sheep, fresh or chilled",2106
+978,"Edible offal of sheep, fresh, chilled or frozen",2106
+979,"Sheep fat, unrendered",2106
+982,Raw milk of sheep,2106
+983,Butter and ghee of sheep milk,2106
+987,"Shorn wool, greasy, including fleece-washed shorn wool",2106
+995,Raw hides and skins of sheep or lambs,2106
+996,Temporary grassland,2106
+1017,"Meat of goat, fresh or chilled",2106
+1018,"Edible offal of goat, fresh, chilled or frozen",2106
+1019,"Goat fat, unrendered",2106
+1020,Raw milk of goats,2106
+1022,Butter of goat milk,2106
+1025,Raw hides and skins of goats or kids,2106
+1035,"Meat of pig with the bone, fresh or chilled",2106
+1036,"Edible offal of pigs, fresh, chilled or frozen",2106
+1037,Fat of pigs,2106
+1043,"Pig fat, rendered",2106
+1058,"Meat of chickens, fresh or chilled",2106
+1062,"Hen eggs in shell, fresh",2106
+1069,"Meat of ducks, fresh or chilled",2106
+1073,"Meat of geese, fresh or chilled",2106
+1080,"Meat of turkeys, fresh or chilled",2106
+1089,"Meat of pigeons and other birds n.e.c., fresh, chilled or frozen",2106
+1091,"Eggs from other birds in shell, fresh, n.e.c.",2106
+1097,"Horse meat, fresh or chilled",2106
+1098,"Edible offals of horses and other equines,  fresh, chilled or frozen",2106
+1108,"Meat of asses, fresh or chilled",2106
+1111,"Meat of mules, fresh or chilled",2106
+1127,"Meat of camels, fresh or chilled",2106
+1128,"Edible offals of camels and other camelids, fresh, chilled or frozen",2106
+1129,Fat of camels,2106
+1130,Raw milk of camel,2106
+1141,"Meat of rabbits and hares, fresh or chilled",2106
+1151,"Meat of other domestic rodents, fresh or chilled",2106
+1158,"Meat of other domestic camelids, fresh or chilled",2106
+1163,"Game meat, fresh, chilled or frozen",2106
+1166,"Other meat n.e.c. (excluding mammals), fresh, chilled or frozen",2106
+1176,"Snails, fresh, chilled, frozen, dried, salted or in brine, except sea snails",2106
+1182,Natural honey,2106
+1183,Beeswax,2106
+1185,Silk-worm cocoons suitable for reeling,2106
+1186,Raw silk (not thrown),2106
+1225,Tallow,2106
+1242,Margarine and shortening,2106
+2108,Flowers,2106
+3001,Pasture,2106
+3002,range,2106
+3003,Fallow,2106
+Fallow,Fallow,2106

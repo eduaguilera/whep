@@ -71,6 +71,8 @@ reference:
   - calculate_nonsymbiotic_bnf
   - calculate_bnf
   - summarize_bnf
+  - calculate_residue_destinies
+  - build_residue_feed_availability
 
 - title: Tidy datasets
   desc: >
