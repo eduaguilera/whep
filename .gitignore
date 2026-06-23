@@ -21,3 +21,4 @@ inst/analysis/
 LPJmL_inputs/
 plans/
 .playwright-mcp/
+.fabio_compare/

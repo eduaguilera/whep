@@ -55,5 +55,6 @@ get_feed_intake <- function(
   if (example) {
     return(.example_get_feed_intake())
   }
-  .build_redistribute_intake(grain = grain, demand_tier = demand_tier)
+  .build_redistribute_intake(grain = grain, demand_tier = demand_tier) |>
+    .add_reporting_polity_columns()
 }

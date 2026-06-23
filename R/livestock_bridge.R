@@ -71,10 +71,15 @@ prepare_livestock_emissions <- function(
 
   # Map area_code -> iso3
   if (rlang::has_name(heads_data, "area_code")) {
+    area_bridge <- .current_area_lookup(include_unmapped = FALSE) |>
+      tibble::as_tibble() |>
+      dplyr::select(area_code, iso3 = area_iso3c) |>
+      dplyr::filter(!is.na(.data$iso3)) |>
+      dplyr::distinct(.data$area_code, .keep_all = TRUE)
+
     heads_data <- heads_data |>
       dplyr::left_join(
-        polities |>
-          dplyr::select(area_code, iso3 = iso3c),
+        area_bridge,
         by = "area_code"
       )
   }

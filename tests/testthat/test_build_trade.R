@@ -23,7 +23,14 @@ testthat::test_that("build_detailed_trade works with raw_trade input", {
     c(
       "year",
       "area_code",
+      "polity_area_code",
+      "reporting_polity_code",
+      "reporting_polity_name",
+      "reporting_polity_has_geometry",
       "area_code_partner",
+      "partner_polity_code",
+      "partner_polity_name",
+      "partner_polity_has_geometry",
       "element",
       "item_cbs",
       "item_cbs_code",
@@ -149,9 +156,9 @@ testthat::test_that("unmapped item names warn and are dropped", {
 })
 
 testthat::test_that("unmapped reporter codes warn and are dropped", {
-  # Code 999 has no polity mapping in regions_full
+  # Code 4444 is intentionally absent from WHEP area mappings.
   raw <- data.table::data.table(
-    `Reporter Country Code` = c(999L, 2L),
+    `Reporter Country Code` = c(4444L, 2L),
     `Partner Country Code` = c(9L, 9L),
     `Item Code` = c(15L, 15L),
     Element = c("Import Quantity", "Import Quantity"),
@@ -172,7 +179,7 @@ testthat::test_that("unmapped reporter codes warn and are dropped", {
 testthat::test_that("unmapped partner codes warn and are dropped", {
   raw <- data.table::data.table(
     `Reporter Country Code` = c(2L, 2L),
-    `Partner Country Code` = c(999L, 9L),
+    `Partner Country Code` = c(4444L, 9L),
     `Item Code` = c(15L, 15L),
     Element = c("Import Quantity", "Import Quantity"),
     Year = c(2020L, 2020L),
@@ -531,7 +538,14 @@ testthat::test_that("build_detailed_trade example returns expected structure", {
     c(
       "year",
       "area_code",
+      "polity_area_code",
+      "reporting_polity_code",
+      "reporting_polity_name",
+      "reporting_polity_has_geometry",
       "area_code_partner",
+      "partner_polity_code",
+      "partner_polity_name",
+      "partner_polity_has_geometry",
       "element",
       "item_cbs_code",
       "unit",

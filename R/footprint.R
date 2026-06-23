@@ -1,0 +1,548 @@
+#' Compute environmental footprints.
+#'
+#' @description
+#' Trace environmental extensions through the supply chain using
+#' the Leontief inverse, following the FABIO methodology
+#' (Bruckner et al., 2019). The footprint shows how much of an
+#' environmental pressure (e.g. land use, water, emissions) is
+#' embodied in the final consumption of each product in each
+#' country.
+#'
+#' The multiplier matrix is computed as
+#' \eqn{MP_{ij} = (e_i / X_i) \cdot L_{ij}}, where \eqn{e_i}
+#' is the extension for sector \eqn{i}. For each demand
+#' category, the footprint is decomposed per target item using
+#' the FABIO diagonal approach:
+#' \eqn{FP = MP \cdot \text{diag}(y)}, aggregated by item.
+#'
+#' For large systems, pass `z_mat` and `x_vec` instead of
+#' `l_inv`. This solves \eqn{(I - A) x = Y} directly using a
+#' sparse LU factorisation, avoiding the dense Leontief inverse
+#' entirely and reducing memory from \eqn{O(n^2)} to
+#' \eqn{O(nnz)}.
+#'
+#' @param l_inv Leontief inverse matrix from
+#'   [compute_leontief_inverse()]. Ignored when `z_mat` is
+#'   provided.
+#' @param x_vec Numeric vector of total output per sector.
+#' @param y_mat Final demand matrix from [build_io_model()].
+#' @param extensions Numeric vector of environmental extensions
+#'   (e.g. hectares of land use) per sector. Must have the same
+#'   length as `x_vec`.
+#' @param labels Tibble with `area_code` and `item_cbs_code`
+#'   mapping row/column indices to their meaning. From
+#'   [build_io_model()].
+#' @param z_mat Optional inter-industry flow matrix from
+#'   [build_io_model()]. When provided, the system is solved
+#'   directly (sparse LU), and `l_inv` is not needed.
+#' @param fd_labels Optional tibble labelling Y columns. Pass
+#'   `fd_labels[[i]]` from [build_io_model()] output. When
+#'   provided, footprints are decomposed per target item using
+#'   the FABIO diagonal approach, and the result includes a
+#'   `target_fd` column. When omitted, columns of Y are treated
+#'   as sectors (appropriate only when Y is square).
+#' @param output_tol Minimum output considered valid when computing
+#'   extension intensities. Sectors with `x_vec <= output_tol` get
+#'   zero intensity to avoid infinite or numerically explosive
+#'   footprints from zero-output residuals.
+#' @param value_added_floor Minimum share of each sector's output that
+#'   is treated as non-intermediate leakage when constructing A from
+#'   `z_mat` if `max_column_sum` is left at its low-level default. Ignored
+#'   when a precomputed `l_inv` is supplied without `z_mat`.
+#' @param max_column_sum Maximum allowed column sum in A when using `z_mat`.
+#'   Physical biomass systems can require more than one unit of intermediate
+#'   input per unit of output, so the footprint path defaults to `100` and only
+#'   clips extreme columns caused by residual inconsistencies or tiny outputs.
+#' @param conserve_extensions If `TRUE`, rescale positive footprint
+#'   flows within each origin area/item so their sum does not exceed
+#'   the corresponding positive extension total. This keeps footprint
+#'   outputs conservative when capped coefficients or negative final
+#'   demand columns would otherwise make positive-only paths larger
+#'   than the source extension.
+#'
+#' @return A tibble with footprint results containing:
+#'   - `origin_area`: Country where the pressure occurs.
+#'   - `origin_polity_code`: WHEP polity for `origin_area`.
+#'   - `origin_item`: Item causing the pressure.
+#'   - `target_area`: Country consuming the product.
+#'   - `target_polity_code`: WHEP polity for `target_area`.
+#'   - `target_item`: Item consumed.
+#'   - `target_fd`: Demand category (e.g. `"food"`). Only
+#'     present when `fd_labels` is provided.
+#'   - `value`: Footprint value in extension units.
+#'
+#' @export
+#'
+#' @examples
+#' z_mat <- matrix(c(0, 5, 10, 0), nrow = 2)
+#' x_vec <- c(100, 200)
+#' l_inv <- compute_leontief_inverse(z_mat, x_vec)
+#' y_mat <- matrix(c(85, 195), ncol = 1)
+#' extensions <- c(50, 30)
+#' labels <- tibble::tibble(
+#'   area_code = c(1L, 1L),
+#'   item_cbs_code = c(1L, 2L)
+#' )
+#'
+#' # Small system: pass pre-computed L
+#' compute_footprint(l_inv, x_vec, y_mat, extensions, labels)
+#'
+#' # Using Z directly (computes L internally)
+#' compute_footprint(
+#'   x_vec = x_vec, y_mat = y_mat,
+#'   extensions = extensions, labels = labels,
+#'   z_mat = z_mat
+#' )
+compute_footprint <- function(
+  l_inv = NULL,
+  x_vec,
+  y_mat,
+  extensions,
+  labels,
+  z_mat = NULL,
+  fd_labels = NULL,
+  output_tol = 1e-8,
+  value_added_floor = 1e-3,
+  max_column_sum = 100,
+  conserve_extensions = TRUE
+) {
+  n <- length(x_vec)
+  .validate_footprint_inputs(
+    l_inv,
+    x_vec,
+    y_mat,
+    extensions,
+    labels,
+    z_mat,
+    output_tol,
+    value_added_floor,
+    max_column_sum,
+    conserve_extensions
+  )
+  n_fd <- ncol(y_mat)
+  n_ext <- sum(extensions != 0)
+
+  cli::cli_inform(c(
+    "i" = "Computing footprint for {n} sectors.",
+    " " = "{n_ext} sectors have non-zero extensions.",
+    " " = "Final demand: {n_fd} column{?s}."
+  ))
+
+  n_tiny_ext <- sum(extensions != 0 & x_vec <= output_tol)
+  if (n_tiny_ext > 0) {
+    cli::cli_warn(c(
+      "!" = "Ignoring extensions in {n_tiny_ext} sector{?s} with output <= {.arg output_tol}.",
+      "i" = "This avoids unstable footprint intensities from near-zero output residuals."
+    ))
+  }
+
+  intensity <- .extension_intensity(extensions, x_vec, output_tol)
+  f_diag <- Matrix::Diagonal(x = intensity)
+
+  if (!is.null(z_mat)) {
+    cli::cli_inform(
+      "  Sparse solve path (no dense Leontief inverse)."
+    )
+    a_mat <- .technical_coefficients(
+      z_mat,
+      x_vec,
+      value_added_floor = value_added_floor,
+      max_column_sum = max_column_sum
+    )
+    ia <- Matrix::Diagonal(n) - a_mat
+    lu_fact <- .factor_ia(ia)
+    multiply_fn <- function(rhs) f_diag %*% Matrix::solve(lu_fact, rhs)
+  } else {
+    cli::cli_inform("  Computing multiplier matrix...")
+    mp_mat <- f_diag %*% l_inv
+    multiply_fn <- function(rhs) mp_mat %*% rhs
+  }
+
+  cli::cli_inform("  Computing footprints...")
+  result <- if (!is.null(fd_labels)) {
+    .footprint_by_item(multiply_fn, y_mat, labels, fd_labels)
+  } else {
+    .footprint_direct(multiply_fn, y_mat, labels)
+  }
+  if (isTRUE(conserve_extensions)) {
+    result <- .conserve_footprint_extensions(
+      result,
+      labels,
+      extensions,
+      x_vec,
+      output_tol
+    )
+  }
+
+  cli::cli_alert_success(
+    "Footprint complete: {nrow(result)} non-zero flows."
+  )
+  result
+}
+
+# --- Extension intensity ---
+
+.extension_intensity <- function(extensions, x_vec, output_tol = 1e-8) {
+  ifelse(x_vec <= output_tol, 0, extensions / x_vec)
+}
+
+# --- FABIO-style per-item footprint ---
+
+.footprint_by_item <- function(
+  multiply_fn,
+  y_mat,
+  labels,
+  fd_labels
+) {
+  items <- sort(unique(labels$item_cbs_code))
+  label_item_idx <- match(labels$item_cbs_code, items)
+  n_y_cols <- ncol(y_mat)
+
+  results <- lapply(seq_len(n_y_cols), function(j) {
+    .footprint_one_fd_col(
+      multiply_fn,
+      y_mat[, j],
+      labels,
+      items,
+      label_item_idx,
+      fd_labels$area_code[j],
+      fd_labels$fd_col[j]
+    )
+  })
+  result <- dplyr::bind_rows(results)
+  if (nrow(result) == 0L) {
+    result <- .empty_footprint_by_item()
+  }
+  result |>
+    .add_role_polity_from_labels(labels, "origin") |>
+    .add_role_polity_from_labels(fd_labels, "target")
+}
+
+.footprint_one_fd_col <- function(
+  multiply_fn,
+  y_vec,
+  labels,
+  items,
+  label_item_idx,
+  consumer_area,
+  fd_col
+) {
+  y_vec <- as.numeric(y_vec)
+  nz <- which(y_vec != 0)
+  if (length(nz) == 0L) {
+    return(NULL)
+  }
+
+  active_item_idx <- sort(unique(label_item_idx[nz]))
+  v_mat <- .footprint_fd_rhs(
+    y_vec,
+    nz,
+    label_item_idx,
+    active_item_idx
+  )
+  fp_item <- multiply_fn(v_mat)
+  .fp_grouped_to_tidy(
+    fp_item,
+    labels,
+    items[active_item_idx],
+    consumer_area,
+    fd_col
+  )
+}
+
+.footprint_fd_rhs <- function(
+  y_vec,
+  nz,
+  label_item_idx,
+  active_item_idx
+) {
+  Matrix::sparseMatrix(
+    i = nz,
+    j = match(label_item_idx[nz], active_item_idx),
+    x = y_vec[nz],
+    dims = c(length(y_vec), length(active_item_idx))
+  )
+}
+
+.fp_grouped_to_tidy <- function(
+  fp_mat,
+  labels,
+  items,
+  consumer_area,
+  fd_col
+) {
+  fp_mat <- Matrix::drop0(
+    methods::as(fp_mat, "CsparseMatrix")
+  )
+  sp <- Matrix::summary(fp_mat)
+  if (nrow(sp) == 0) {
+    return(NULL)
+  }
+  keep <- sp$x > 0
+  if (!any(keep)) {
+    return(NULL)
+  }
+
+  tibble::tibble(
+    origin_area = as.integer(labels$area_code[sp$i[keep]]),
+    origin_item = as.integer(labels$item_cbs_code[sp$i[keep]]),
+    target_area = as.integer(consumer_area),
+    target_item = as.integer(items[sp$j[keep]]),
+    target_fd = fd_col,
+    value = sp$x[keep]
+  )
+}
+
+.build_item_grouping <- function(labels, items) {
+  item_idx <- match(labels$item_cbs_code, items)
+  Matrix::sparseMatrix(
+    i = seq_len(nrow(labels)),
+    j = item_idx,
+    x = rep(1, nrow(labels)),
+    dims = c(nrow(labels), length(items))
+  )
+}
+
+# --- Direct footprint (no fd_labels) ---
+
+.footprint_direct <- function(multiply_fn, y_mat, labels) {
+  fp_mat <- multiply_fn(y_mat)
+  target_labs <- .infer_target_labels(fp_mat, labels)
+  .fp_dense_to_tidy(fp_mat, labels, target_labs) |>
+    .add_role_polity_from_labels(labels, "origin") |>
+    .add_role_polity_from_labels(target_labs, "target")
+}
+
+.fp_dense_to_tidy <- function(
+  fp_mat,
+  labels,
+  target_labs
+) {
+  fp_mat <- Matrix::drop0(
+    methods::as(fp_mat, "CsparseMatrix")
+  )
+  sp <- Matrix::summary(fp_mat)
+  if (nrow(sp) == 0) {
+    return(.empty_footprint())
+  }
+  keep <- sp$x > 0
+  if (!any(keep)) {
+    return(.empty_footprint())
+  }
+
+  tibble::tibble(
+    origin_area = as.integer(labels$area_code[sp$i[keep]]),
+    origin_item = as.integer(labels$item_cbs_code[sp$i[keep]]),
+    target_area = as.integer(target_labs$area_code[sp$j[keep]]),
+    target_item = as.integer(target_labs$item_cbs_code[sp$j[keep]]),
+    value = sp$x[keep]
+  )
+}
+
+.infer_target_labels <- function(fp_mat, labels) {
+  n_cols <- ncol(fp_mat)
+  n_rows <- nrow(labels)
+  if (n_cols == n_rows) {
+    return(.add_label_polity_cols(labels))
+  }
+
+  n_areas <- dplyr::n_distinct(labels$area_code)
+  if (n_cols %% n_areas == 0) {
+    n_fd <- n_cols %/% n_areas
+    areas <- sort(unique(labels$area_code))
+    return(
+      tibble::tibble(
+        area_code = rep(areas, each = n_fd),
+        item_cbs_code = rep(NA_integer_, n_cols)
+      ) |>
+        dplyr::left_join(
+          .label_reporting_polity_lookup(labels),
+          by = "area_code"
+        )
+    )
+  }
+
+  tibble::tibble(
+    area_code = rep(NA_integer_, n_cols),
+    item_cbs_code = rep(NA_integer_, n_cols),
+    polity_area_code = rep(NA_integer_, n_cols),
+    reporting_polity_code = rep(NA_character_, n_cols),
+    reporting_polity_name = rep(NA_character_, n_cols),
+    reporting_polity_has_geometry = rep(NA, n_cols)
+  )
+}
+
+.conserve_footprint_extensions <- function(
+  result,
+  labels,
+  extensions,
+  x_vec,
+  output_tol
+) {
+  if (nrow(result) == 0 || !"value" %in% names(result)) {
+    return(result)
+  }
+
+  source_key <- .footprint_origin_key(
+    labels$area_code,
+    labels$item_cbs_code
+  )
+  source_value <- ifelse(x_vec <= output_tol, 0, pmax(extensions, 0))
+  source_value[is.na(source_value)] <- 0
+  source_totals <- .sum_by_key(source_value, source_key)
+
+  result_key <- .footprint_origin_key(
+    result$origin_area,
+    result$origin_item
+  )
+  result_value <- result$value
+  result_value[is.na(result_value)] <- 0
+  result_totals <- .sum_by_key(result_value, result_key)
+
+  source_for_result <- source_totals[names(result_totals)]
+  source_for_result[is.na(source_for_result)] <- 0
+  scales <- rep(0, length(result_totals))
+  names(scales) <- names(result_totals)
+  valid <- result_totals > 0 & source_for_result > 0
+  scales[valid] <- ifelse(
+    result_totals[valid] > source_for_result[valid],
+    source_for_result[valid] / result_totals[valid],
+    1
+  )
+
+  result$value <- result$value * unname(scales[result_key])
+  keep <- !is.na(result$value) & result$value > 0
+  result[keep, , drop = FALSE]
+}
+
+.footprint_origin_key <- function(area, item) {
+  paste(as.integer(area), as.integer(item), sep = "\r")
+}
+
+.sum_by_key <- function(value, key) {
+  rowsum(
+    matrix(value, ncol = 1L),
+    group = key,
+    reorder = FALSE
+  )[, 1L]
+}
+
+.empty_footprint <- function() {
+  tibble::tibble(
+    origin_area = integer(0),
+    origin_polity_code = character(0),
+    origin_polity_name = character(0),
+    origin_polity_has_geometry = logical(0),
+    origin_item = integer(0),
+    target_area = integer(0),
+    target_polity_code = character(0),
+    target_polity_name = character(0),
+    target_polity_has_geometry = logical(0),
+    target_item = integer(0),
+    value = numeric(0)
+  )
+}
+
+.empty_footprint_by_item <- function() {
+  tibble::tibble(
+    origin_area = integer(0),
+    origin_polity_code = character(0),
+    origin_polity_name = character(0),
+    origin_polity_has_geometry = logical(0),
+    origin_item = integer(0),
+    target_area = integer(0),
+    target_polity_code = character(0),
+    target_polity_name = character(0),
+    target_polity_has_geometry = logical(0),
+    target_item = integer(0),
+    target_fd = character(0),
+    value = numeric(0)
+  )
+}
+
+# --- Sparse LU factorisation with regularisation ---
+
+# Factor (I - A) with a very small diagonal regularisation as a
+# numerical fallback. The substantive leakage floor is applied when
+# A is constructed in .technical_coefficients().
+.factor_ia <- function(ia, eps = 1e-10) {
+  Matrix::diag(ia) <- Matrix::diag(ia) + eps
+  Matrix::lu(ia)
+}
+
+# --- Input validation ---
+
+.validate_footprint_inputs <- function(
+  l_inv,
+  x_vec,
+  y_mat,
+  extensions,
+  labels,
+  z_mat,
+  output_tol,
+  value_added_floor,
+  max_column_sum = 100,
+  conserve_extensions
+) {
+  n <- length(x_vec)
+
+  if (is.null(l_inv) && is.null(z_mat)) {
+    cli::cli_abort(
+      "Provide either {.arg l_inv} or {.arg z_mat}."
+    )
+  }
+  if (!is.null(l_inv)) {
+    .validate_square_mat(l_inv, n, "l_inv")
+  }
+  if (!is.null(z_mat)) {
+    .validate_square_mat(z_mat, n, "z_mat")
+  }
+  if (nrow(y_mat) != n) {
+    cli::cli_abort(
+      "{.arg y_mat} must have {n} rows to match
+      {.arg x_vec}."
+    )
+  }
+  if (length(extensions) != n) {
+    cli::cli_abort(
+      "{.arg extensions} length ({length(extensions)})
+      must match {.arg x_vec} length ({n})."
+    )
+  }
+  if (nrow(labels) != n) {
+    cli::cli_abort(
+      "{.arg labels} must have {n} rows to match
+      {.arg x_vec}."
+    )
+  }
+  if (
+    !is.numeric(output_tol) ||
+      length(output_tol) != 1 ||
+      is.na(output_tol) ||
+      output_tol < 0
+  ) {
+    cli::cli_abort(
+      "{.arg output_tol} must be one non-negative number."
+    )
+  }
+  .validate_value_added_floor(value_added_floor)
+  .validate_max_column_sum(max_column_sum)
+  if (
+    !is.logical(conserve_extensions) ||
+      length(conserve_extensions) != 1 ||
+      is.na(conserve_extensions)
+  ) {
+    cli::cli_abort("{.arg conserve_extensions} must be `TRUE` or `FALSE`.")
+  }
+}
+
+.validate_square_mat <- function(mat, n, name) {
+  is_mat <- is.matrix(mat) || methods::is(mat, "Matrix")
+  wrong_size <- nrow(mat) != n || ncol(mat) != n
+  if (!is_mat || wrong_size) {
+    cli::cli_abort(
+      "{.arg {name}} must be a square matrix matching
+      {.arg x_vec} length ({n})."
+    )
+  }
+}

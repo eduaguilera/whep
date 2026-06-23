@@ -26,9 +26,11 @@
 #'   Default `NULL`.
 #'
 #' @returns A tibble with the same columns as [get_primary_production()]:
-#'   `year`, `area_code` (numeric FAOSTAT), `item_prod_code`,
-#'   `item_cbs_code`, `live_anim_code`, `unit`, `value`.
-#'   Names can be recovered via [add_area_name()], [add_item_prod_name()], etc.
+#'   `year`, legacy numeric `area_code`, numeric `polity_area_code`,
+#'   `reporting_polity_code`, `reporting_polity_name`,
+#'   `reporting_polity_has_geometry`, `item_prod_code`, `item_cbs_code`,
+#'   `live_anim_code`, `unit`, `value`, and `source`.
+#'   Item names can be recovered via [add_item_prod_name()] and related helpers.
 #'   When `show_duplicates = TRUE`, returns a wide tibble with one
 #'   column per source showing the competing values.
 #'
@@ -66,6 +68,10 @@ build_primary_production <- function(
 
   result <- clean |>
     .dedup_production() |>
+    dplyr::mutate(
+      item_prod_code = as.numeric(item_prod_code),
+      live_anim_code = as.numeric(live_anim_code)
+    ) |>
     dplyr::select(
       year,
       area_code,
@@ -76,7 +82,8 @@ build_primary_production <- function(
       value,
       source,
       dplyr::any_of("fao_flag")
-    )
+    ) |>
+    .add_reporting_polity_columns()
 
   attr(result, ".cb_extracts") <- cb_extracts
   result
@@ -150,6 +157,12 @@ build_primary_production <- function(
     years = years
   )
 
+  # 5b. Livestock slaughter counts
+  fao_slaughter <- .build_livestock_slaughter(
+    fao_combined,
+    years = years
+  )
+
   # 6. Primary dataset (crops + livestock, no game meat — see .fix_production)
   primary_raw <- .combine_primary_raw(fao_combined, fao_liv_all)
 
@@ -181,6 +194,7 @@ build_primary_production <- function(
     dplyr::bind_rows(grassland) |>
     .add_historical_yields(int_yields) |>
     .finalise_primary() |>
+    dplyr::bind_rows(fao_slaughter) |>
     .filter_years(output_years)
 
   attr(result, ".cb_extracts") <- cb_extracts
@@ -199,6 +213,8 @@ build_primary_production <- function(
 #' * **Tea ÷ 4.37** — FAOSTAT reports tea in fresh-leaf weight;
 #'   this converts to made-tea weight for years after 1990. Affects
 #'   both `tonnes` and yield units (`t_ha`, `t_head`, `t_LU`).
+#' * **Rice × 0.67** — FAOSTAT reports rice production as paddy;
+#'   this converts paddy rice tonnes and yields to milled equivalent.
 #' * **Game meat stocks** — creates synthetic `LU` and `heads` rows
 #'   for item "Game" (1190) from game-meat production tonnes (1163).
 #' * **Dissolved countries** — removes overlapping country/year
@@ -213,6 +229,7 @@ build_primary_production <- function(
 .fix_production <- function(df) {
   df |>
     .correct_tea_final() |>
+    .fix_rice_milled_equiv() |>
     .add_game_meat_final() |>
     .filter_dissolved_countries()
 }
@@ -361,40 +378,27 @@ build_primary_production <- function(
 
 .read_land_areas <- function(years = NULL) {
   cli::cli_progress_step("Reading land areas")
-  regions <- unique(
-    data.table::as.data.table(whep::regions_full)[,
-      .(iso3c, area = polity_name, polity_code)
-    ],
-    by = "iso3c"
-  )
-  polities <- data.table::as.data.table(whep::polities)[,
-    .(iso3c, area_code)
+  area_bridge <- .current_area_lookup(include_unmapped = FALSE)[
+    !is.na(area_iso3c),
+    .(iso3c = area_iso3c, area = area_name, area_code = polity_area_code)
   ]
+  area_bridge <- unique(area_bridge, by = "iso3c")
 
   dt <- .read_input("luh2-areas", years = years, year_col = "Year")
   data.table::setnames(dt, c("ISO3", "Year"), c("iso3c", "year"))
-  dt <- merge(dt, regions, by = "iso3c", all.x = TRUE, sort = FALSE)
+  dt <- merge(dt, area_bridge, by = "iso3c", all.x = TRUE, sort = FALSE)
   unmatched <- unique(dt[is.na(area), iso3c])
   if (length(unmatched) > 0) {
     cli::cli_warn(
-      "LUH2 ISO3 codes not found in regions_full, dropping: {unmatched}"
+      "LUH2 ISO3 codes not found in polity_area_crosswalk, dropping: {unmatched}"
     )
   }
   dt <- dt[!is.na(area)]
-  dt <- merge(
-    dt,
-    polities,
-    by.x = "polity_code",
-    by.y = "iso3c",
-    all.x = TRUE,
-    sort = FALSE
-  )
-  dt[, polity_code := NULL]
   dt <- dt[year > 1849]
-  .repair_luh2_crop_collapses(dt)
+  .fix_luh2_crop_collapse(dt)
 }
 
-.repair_luh2_crop_collapses <- function(
+.fix_luh2_crop_collapse <- function(
   land_areas,
   collapse_ratio = 0.02,
   min_neighbor_mha = 0.001
@@ -558,7 +562,14 @@ build_primary_production <- function(
   crops_eu <- whep::crops_eurostat
   regions <- whep::regions_full
 
-  polities <- whep::polities
+  area_bridge <- .current_area_lookup(include_unmapped = FALSE) |>
+    tibble::as_tibble() |>
+    dplyr::select(
+      polity_code = area_iso3c,
+      area_code = polity_area_code
+    ) |>
+    dplyr::filter(!is.na(.data$polity_code)) |>
+    dplyr::distinct(.data$polity_code, .keep_all = TRUE)
 
   .read_input("eu-agridb-fodder", years = years, year_col = "Year") |>
     dplyr::rename(year = Year) |>
@@ -574,8 +585,8 @@ build_primary_production <- function(
       by = "adb_region"
     ) |>
     dplyr::left_join(
-      polities |> dplyr::select(iso3c, area_code),
-      by = c("polity_code" = "iso3c")
+      area_bridge,
+      by = "polity_code"
     ) |>
     dplyr::select(-polity_code) |>
     dplyr::select(
@@ -1055,6 +1066,152 @@ build_primary_production <- function(
       area_code,
       item_prod_code,
       item_prod,
+      unit,
+      value,
+      source
+    )
+}
+
+# -- Livestock slaughter -------------------------------------------------------
+
+.build_slaughter_map <- function() {
+  ac <- whep::animals_codes
+  from_ac <- ac |>
+    dplyr::filter(
+      !is.na(Item_Code_product),
+      Liv_prod_cat %in%
+        c(
+          "Cattle meat",
+          "Chicken meat",
+          "Pig meat",
+          "Sheep and goat meat",
+          "Other animal meat"
+        )
+    ) |>
+    dplyr::select(
+      meat_prod_code = Item_Code_product,
+      item_cbs_code
+    )
+  supplement <- tibble::tribble(
+    ~meat_prod_code, ~item_cbs_code,
+    947, 946,
+    1073, 1072,
+    1080, 1079,
+    1141, 1140,
+    1151, 1150,
+    1097, 1096,
+    1108, 1107,
+    1111, 1110,
+    1127, 1126,
+    1158, 1157,
+    1163, 1190
+  )
+  dplyr::bind_rows(from_ac, supplement) |>
+    dplyr::distinct()
+}
+
+.read_slaughter_raw <- function(fao_combined, smap) {
+  fao_combined |>
+    dplyr::filter(element == "Producing Animals/Slaughtered") |>
+    dplyr::mutate(
+      value = dplyr::if_else(
+        unit == "1000 An",
+        value * 1000,
+        value
+      ),
+      item_prod_code = as.numeric(item_prod_code)
+    ) |>
+    dplyr::inner_join(
+      smap,
+      by = c("item_prod_code" = "meat_prod_code")
+    ) |>
+    dplyr::summarise(
+      value = sum(value, na.rm = TRUE),
+      .by = c(year, area, area_code, item_cbs_code)
+    ) |>
+    dplyr::filter(value > 0)
+}
+
+.split_slaughter_by_shares <- function(slaughter_raw, years) {
+  split_parents <- whep::animals_codes |>
+    dplyr::count(Item_Code) |>
+    dplyr::filter(n > 1) |>
+    dplyr::pull(Item_Code)
+  split_cbs <- whep::animals_codes |>
+    dplyr::filter(Item_Code %in% split_parents) |>
+    dplyr::select(Item_Code, item_cbs_code)
+
+  needs_split <- slaughter_raw |>
+    dplyr::inner_join(split_cbs, by = "item_cbs_code")
+  no_split <- slaughter_raw |>
+    dplyr::anti_join(split_cbs, by = "item_cbs_code")
+
+  if (nrow(needs_split) == 0L) {
+    return(no_split)
+  }
+  shares <- .compute_stock_shares(years)
+  split_result <- needs_split |>
+    dplyr::select(-item_cbs_code) |>
+    dplyr::distinct() |>
+    dplyr::inner_join(shares, by = c("year", "area_code", "Item_Code")) |>
+    dplyr::mutate(value = value * share) |>
+    dplyr::select(year, area, area_code, item_cbs_code, value)
+
+  dplyr::bind_rows(no_split, split_result)
+}
+
+.compute_stock_shares <- function(years) {
+  fao_stocks <- .read_livestock_stocks(years = years)
+  split_parents <- whep::animals_codes |>
+    dplyr::count(Item_Code) |>
+    dplyr::filter(n > 1) |>
+    dplyr::pull(Item_Code)
+  split_cbs <- whep::animals_codes |>
+    dplyr::filter(Item_Code %in% split_parents) |>
+    dplyr::select(Item_Code, item_cbs_code)
+
+  fao_stocks |>
+    dplyr::inner_join(split_cbs, by = "item_cbs_code") |>
+    dplyr::mutate(
+      share = value / sum(value, na.rm = TRUE),
+      .by = c(year, area_code, Item_Code)
+    ) |>
+    dplyr::filter(!is.na(share)) |>
+    dplyr::select(year, area_code, Item_Code, item_cbs_code, share)
+}
+
+.build_livestock_slaughter <- function(fao_combined, years = NULL) {
+  cli::cli_progress_step("Building livestock slaughter counts")
+  items <- whep::items_cbs
+  smap <- .build_slaughter_map()
+  raw <- .read_slaughter_raw(fao_combined, smap)
+  result <- .split_slaughter_by_shares(raw, years)
+
+  result |>
+    dplyr::left_join(
+      items |>
+        dplyr::select(item_cbs_code, item_cbs_name),
+      by = "item_cbs_code"
+    ) |>
+    dplyr::mutate(
+      item_prod = item_cbs_name,
+      item_prod_code = as.character(item_cbs_code),
+      item_cbs = item_cbs_name,
+      live_anim = NA_character_,
+      live_anim_code = NA_character_,
+      unit = "slaughtered_heads",
+      source = "FAOSTAT_prod"
+    ) |>
+    dplyr::select(
+      year,
+      area,
+      area_code,
+      item_prod,
+      item_prod_code,
+      item_cbs,
+      item_cbs_code,
+      live_anim,
+      live_anim_code,
       unit,
       value,
       source
@@ -1780,6 +1937,53 @@ build_primary_production <- function(
     )
 }
 
+#' Convert paddy rice production to milled-equivalent rice
+#' @details FAOSTAT crop production reports rice as paddy rice. WHEP's CBS rice
+#'   item is compared against FABIO's milled-equivalent rice, so paddy-based
+#'   production tonnes and `t_ha` yields are multiplied by the extraction rate.
+#'   Hectares are left unchanged. Rows imputed from CBS production are skipped
+#'   because the CBS harmonizer already converts rice to milled equivalent.
+#' @keywords internal
+#' @noRd
+.fix_rice_milled_equiv <- function(
+  df,
+  extraction_rate = .rice_milled_extraction_rate()
+) {
+  force(df)
+  cli::cli_progress_step("Converting rice to milled equivalent")
+  rice_units <- c("tonnes", "t_ha")
+  paddy_sources <- c(
+    "FAOSTAT_prod",
+    "fill_linear",
+    "fill_linear_historical",
+    "LUH2_cropland",
+    "LUH2_agriland"
+  )
+
+  df |>
+    dplyr::mutate(
+      rice_source_is_paddy = .data$source %in%
+        paddy_sources |
+        stringr::str_starts(
+          tidyr::replace_na(.data$source, ""),
+          "imputed_yield"
+        ),
+      rice_source_is_paddy = tidyr::replace_na(
+        .data$rice_source_is_paddy,
+        FALSE
+      ),
+      value = dplyr::if_else(
+        as.character(.data$item_prod_code) == "27" &
+          .data$item_cbs_code == 2807L &
+          .data$unit %in% rice_units &
+          .data$rice_source_is_paddy,
+        .data$value * extraction_rate,
+        .data$value
+      )
+    ) |>
+    dplyr::select(-dplyr::all_of("rice_source_is_paddy"))
+}
+
 #' Add game-meat livestock units and heads (final format)
 #' @details Creates `LU` and `heads` rows for item "Game" (1190) from
 #'   game-meat production tonnes (item 1163). Conversion:
@@ -1847,8 +2051,16 @@ build_primary_production <- function(
     tidyr::pivot_wider(
       names_from = land_use,
       values_from = area_mha
-    ) |>
-    dplyr::mutate(agriland = Cropland + Pasture)
+    )
+
+  if (!"Cropland" %in% names(land_wide)) {
+    land_wide$Cropland <- 0
+  }
+  if (!"Pasture" %in% names(land_wide)) {
+    land_wide$Pasture <- 0
+  }
+  land_wide <- land_wide |>
+    dplyr::mutate(agriland = .data$Cropland + .data$Pasture)
 
   primary_raw2 |>
     dplyr::mutate(

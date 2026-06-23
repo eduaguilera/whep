@@ -10,8 +10,13 @@
 #' A tibble with the item production data.
 #' It contains the following columns:
 #' - `year`: The year in which the recorded event occurred.
-#' - `area_code`: The code of the country where the data is from. For code
-#'    details see e.g. `add_area_name()`.
+#' - `area_code`: Legacy numeric reporting area code.
+#' - `polity_area_code`: Numeric WHEP reporting polity code used for matrix
+#'    workflows. This currently matches `area_code`.
+#' - `reporting_polity_code`: WHEP polity code for the reporting polygon.
+#' - `reporting_polity_name`: WHEP polity name for the reporting polygon.
+#' - `reporting_polity_has_geometry`: Whether the reporting polity has a
+#'    polygon in the WHEP polity database.
 #' - `item_prod_code`: FAOSTAT internal code for each produced item.
 #' - `item_cbs_code`: FAOSTAT internal code for each commodity balance sheet
 #'    item. The commodity balance sheet contains an aggregated version of
@@ -29,7 +34,9 @@
 #'    - `tonnes`: Available for crops and livestock products.
 #'    - `ha`: Hectares, available for crops.
 #'    - `t_ha`: Tonnes per hectare, available for crops.
-#'    - `heads`: Number of animals, available for livestock.
+#'    - `heads`: Number of animals (stocks), available for livestock.
+#'    - `slaughtered_heads`: Number of animals slaughtered, available
+#'      for livestock.
 #'    - `LU`: Standard Livestock Unit measure, available for livestock.
 #'    - `t_head`: tonnes per head, available for livestock products.
 #'    - `t_LU`: tonnes per Livestock Unit, available for livestock products.
@@ -43,7 +50,7 @@ get_primary_production <- function(example = FALSE) {
   if (example) {
     return(.ex_get_primary_prod())
   }
-  whep_read_file("primary_prod")
+  .cache_get("primary_prod", build_primary_production())
 }
 
 #' Crop residue items
@@ -107,23 +114,12 @@ get_primary_residues <- function(example = FALSE) {
       item_cbs_code_residue,
       value
     ) |>
-    .use_seed_cbs_item()
+    .use_crop_process_cbs_item() |>
+    .add_reporting_polity_columns()
 }
 
 # TODO: This is dirty, revisit when we build the data here directly.
-# Change CBS names to the item that is used as seed
-.use_seed_cbs_item <- function(crop_residues) {
-  crop_residues |>
-    dplyr::mutate(
-      item_cbs_code_crop = dplyr::case_when(
-        # "Seed cotton" changes to "Cottonseed",
-        item_cbs_code_crop == 328 ~ 2559,
-        # "Coconuts" changes to "Coconuts - Incl Copra",
-        item_cbs_code_crop == 248 ~ 2560,
-        # "Oil, palm fruit" changes to "Palm kernels"
-        item_cbs_code_crop == 254 ~ 2562,
-        # Leave others unchanged
-        .default = item_cbs_code_crop
-      )
-    )
+# Keep crop residue rows keyed to the crop production process item.
+.use_crop_process_cbs_item <- function(crop_residues) {
+  crop_residues
 }
