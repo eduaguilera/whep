@@ -111,6 +111,99 @@ calculate_nonsymbiotic_bnf <- function(
     .bnf_nonsymbiotic_estimates(ns, soil)
 }
 
+#' Estimate total biological nitrogen fixation.
+#'
+#' Sums the three BNF components: symbiotic crop legumes, symbiotic weeds/cover
+#' crops, and non-symbiotic free-living fixation, by running
+#' [calculate_crop_bnf()], [calculate_weed_bnf()] and
+#' [calculate_nonsymbiotic_bnf()]. When a `climate_type` column is present, the
+#' climate-specific parameters from `bnf_climate_params` override the relevant
+#' defaults per climate type.
+#'
+#' @param x A tibble carrying the required columns of all three component
+#'   functions, optionally with a `climate_type` column.
+#' @param symbiotic_params,nonsymbiotic_params,soil_params Named lists passed to
+#'   the component functions (see those functions).
+#' @return The input tibble with all component columns plus `fert_type` (`"BNF"`)
+#'   and `bnf_t` (total BNF).
+#' @export
+#' @examples
+#' calculate_bnf(
+#'   tibble::tibble(
+#'     item_prod_code = "176", crop_npp_n_t = 10, product_n_t = 5,
+#'     weed_npp_n_t = 4, land_use = "Cropland", legumes_seeded = 0,
+#'     seeded_cover_crop_share = 0, area_ha = 40
+#'   )
+#' )
+calculate_bnf <- function(
+  x,
+  symbiotic_params = list(),
+  nonsymbiotic_params = list(),
+  soil_params = list()
+) {
+  if (rlang::has_name(x, "climate_type")) {
+    return(.bnf_by_climate(
+      x,
+      symbiotic_params,
+      nonsymbiotic_params,
+      soil_params
+    ))
+  }
+  .bnf_combine_components(
+    x,
+    symbiotic_params,
+    nonsymbiotic_params,
+    soil_params
+  )
+}
+
+#' Summarise biological nitrogen fixation results.
+#'
+#' Aggregates the per-row BNF components into group totals, shares and mean
+#' modifiers.
+#'
+#' @param x A tibble with `crop_bnf_t`, `weed_bnf_t`, `nonsymbiotic_bnf_t` and
+#'   `bnf_t` (the output of [calculate_bnf()]).
+#' @param group_by Character vector of grouping columns (default
+#'   `"item_prod_code"`); use `NULL` for an overall summary.
+#' @return A tibble with per-group counts, BNF totals, component percentages and
+#'   mean environmental factors.
+#' @export
+#' @examples
+#' tibble::tibble(
+#'   item_prod_code = "176", crop_npp_n_t = 10, product_n_t = 5,
+#'   weed_npp_n_t = 4, land_use = "Cropland", legumes_seeded = 0,
+#'   seeded_cover_crop_share = 0, area_ha = 40
+#' ) |>
+#'   calculate_bnf() |>
+#'   summarize_bnf()
+summarize_bnf <- function(x, group_by = "item_prod_code") {
+  .bnf_validate_input(
+    x,
+    c("crop_bnf_t", "weed_bnf_t", "nonsymbiotic_bnf_t", "bnf_t"),
+    "summarize_bnf"
+  )
+  x <- .summarize_bnf_prepare(x)
+  groups <- intersect(group_by, names(x))
+  if (length(groups) > 0) {
+    x <- dplyr::group_by(x, dplyr::across(dplyr::all_of(groups)))
+  }
+  x |>
+    dplyr::summarise(
+      n = dplyr::n(),
+      legume_category = dplyr::first(legume_category),
+      total_crop_bnf_t = sum(crop_bnf_t, na.rm = TRUE),
+      total_weed_bnf_t = sum(weed_bnf_t, na.rm = TRUE),
+      total_nonsymbiotic_bnf_t = sum(nonsymbiotic_bnf_t, na.rm = TRUE),
+      total_bnf_t = sum(bnf_t, na.rm = TRUE),
+      mean_ndfa_adj = mean(ndfa_adj, na.rm = TRUE),
+      mean_f_env_symbiotic = mean(f_env_symbiotic, na.rm = TRUE),
+      mean_f_env_nonsymbiotic = mean(f_env_nonsymbiotic, na.rm = TRUE),
+      .groups = "drop"
+    ) |>
+    .summarize_bnf_pct()
+}
+
 # ---- Private helpers --------------------------------------------------
 
 .bnf_symbiotic_params <- function(p) {
@@ -284,6 +377,86 @@ calculate_nonsymbiotic_bnf <- function(
       NA_real_
     )
   )
+}
+
+.bnf_combine_components <- function(x, sp, nsp, soil) {
+  x |>
+    calculate_crop_bnf(symbiotic_params = sp) |>
+    calculate_weed_bnf(symbiotic_params = sp) |>
+    calculate_nonsymbiotic_bnf(nonsymbiotic_params = nsp, soil_params = soil) |>
+    dplyr::mutate(
+      fert_type = "BNF",
+      bnf_t = crop_bnf_t + weed_bnf_t + nonsymbiotic_bnf_t
+    )
+}
+
+.bnf_by_climate <- function(x, sp, nsp, soil) {
+  clim <- whep::whep_coef_table("bnf_climate_params")
+  x |>
+    dplyr::mutate(.bnf_row = dplyr::row_number()) |>
+    dplyr::group_split(climate_type) |>
+    purrr::map(function(grp) {
+      p <- .bnf_climate_override(clim, grp$climate_type[1], sp, nsp, soil)
+      .bnf_combine_components(grp, p$sp, p$nsp, p$soil)
+    }) |>
+    purrr::list_rbind() |>
+    dplyr::arrange(.bnf_row) |>
+    dplyr::select(-".bnf_row")
+}
+
+.bnf_climate_override <- function(clim, climate_type, sp, nsp, soil) {
+  row <- clim[clim$climate_type == climate_type, ]
+  if (nrow(row) == 0) {
+    return(list(sp = sp, nsp = nsp, soil = soil))
+  }
+  sp <- utils::modifyList(
+    sp,
+    list(t_sigma = row$t_sigma_symb, ai_threshold = row$ai_threshold)
+  )
+  nsp <- utils::modifyList(
+    nsp,
+    list(t_sigma = row$t_sigma_ns, ai_threshold = row$ai_threshold)
+  )
+  soil <- utils::modifyList(
+    soil,
+    list(ph_opt = row$ph_opt, ph_sigma = row$ph_sigma, som_ref = row$som_ref)
+  )
+  list(sp = sp, nsp = nsp, soil = soil)
+}
+
+.summarize_bnf_prepare <- function(x) {
+  if (!rlang::has_name(x, "ndfa_adj")) {
+    x[["ndfa_adj"]] <- NA_real_
+  }
+  if (!rlang::has_name(x, "f_env_symbiotic")) {
+    x[["f_env_symbiotic"]] <- NA_real_
+  }
+  if (!rlang::has_name(x, "f_env_nonsymbiotic")) {
+    x[["f_env_nonsymbiotic"]] <- NA_real_
+  }
+  if (rlang::has_name(x, "legume_category")) {
+    return(x)
+  }
+  if (!rlang::has_name(x, "name_bnf")) {
+    x[["legume_category"]] <- NA_character_
+    return(x)
+  }
+  pure_legs <- whep::whep_coef_table("pure_legs") |>
+    dplyr::select(name_bnf, legume_category)
+  dplyr::left_join(x, pure_legs, by = "name_bnf")
+}
+
+.summarize_bnf_pct <- function(x) {
+  dplyr::mutate(
+    x,
+    pct_crop_bnf = .bnf_pct(total_crop_bnf_t, total_bnf_t),
+    pct_weed_bnf = .bnf_pct(total_weed_bnf_t, total_bnf_t),
+    pct_nonsymbiotic_bnf = .bnf_pct(total_nonsymbiotic_bnf_t, total_bnf_t)
+  )
+}
+
+.bnf_pct <- function(part, total) {
+  dplyr::if_else(total > 0, 100 * part / total, NA_real_)
 }
 
 .bnf_nonsymbiotic_params <- function(p) {

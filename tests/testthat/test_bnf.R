@@ -87,3 +87,41 @@ test_that("calculate_nonsymbiotic_bnf joins the crop-specific base rate", {
     hit$nonsymbiotic_base_kg_ha
   )
 })
+
+test_that("calculate_bnf sums the three components", {
+  x <- tibble::tibble(
+    item_prod_code = "176",
+    crop_npp_n_t = 10,
+    product_n_t = 5,
+    weed_npp_n_t = 4,
+    land_use = "Cropland",
+    legumes_seeded = 0,
+    seeded_cover_crop_share = 0,
+    area_ha = 40
+  )
+  out <- whep::calculate_bnf(x)
+  testthat::expect_equal(
+    out$bnf_t,
+    out$crop_bnf_t + out$weed_bnf_t + out$nonsymbiotic_bnf_t
+  )
+  testthat::expect_equal(out$fert_type, "BNF")
+})
+
+test_that("summarize_bnf totals the components and adds percentages", {
+  x <- tibble::tibble(
+    item_prod_code = "176",
+    crop_npp_n_t = 10,
+    product_n_t = 5,
+    weed_npp_n_t = 4,
+    land_use = "Cropland",
+    legumes_seeded = 0,
+    seeded_cover_crop_share = 0,
+    area_ha = 40
+  ) |>
+    whep::calculate_bnf()
+  s <- whep::summarize_bnf(x)
+  testthat::expect_equal(s$total_bnf_t, x$bnf_t)
+  testthat::expect_true(
+    all(c("pct_crop_bnf", "pct_weed_bnf", "pct_nonsymbiotic_bnf") %in% names(s))
+  )
+})
