@@ -1,0 +1,161 @@
+cat_krausmann,region_hanpp,residue_dm_product_dm,recovery_rates
+"Wheat, other cereals",South and Central Asia,1.7,0.9
+"Rice, Paddy",South and Central Asia,1.5,0.9
+Maize,South and Central Asia,3.5,0.9
+Millet,South and Central Asia,3.5,0.9
+Sorghum,South and Central Asia,3.5,0.9
+Roots and Tubers,South and Central Asia,1,0.75
+Cassava,South and Central Asia,0.8,0.75
+Sugar Cane,South and Central Asia,0.7,0.9
+Sugar Beets,South and Central Asia,0.7,0.75
+Sugar Crops nes,South and Central Asia,0.7,0.8
+"Beans, Dry",South and Central Asia,0.4,0.5
+Pulses,South and Central Asia,0.4,0.9
+Soybeans,South and Central Asia,1.5,0.9
+Groundnuts in Shell,South and Central Asia,1.5,0.9
+Oil Palm Fruit,South and Central Asia,1.9,0.9
+Castor Beans,South and Central Asia,0.4,0.9
+Sunflower Seed,South and Central Asia,2.3,0.5
+"Rapeseed, oil crops",South and Central Asia,2.3,0.7
+Fodder crops,South and Central Asia,1.3,0
+Permanent crops,South and Central Asia,2.5,0.9
+"Wheat, other cereals",East Europe,1.5,0.75
+"Rice, Paddy",East Europe,1.2,0.75
+Maize,East Europe,1.9,0.75
+Millet,East Europe,1.9,0.75
+Sorghum,East Europe,1.9,0.75
+Roots and Tubers,East Europe,1,0.25
+Cassava,East Europe,0.8,0.25
+Sugar Cane,East Europe,0.7,0.9
+Sugar Beets,East Europe,0.5,0.25
+Sugar Crops nes,East Europe,0.6,0.3
+"Beans, Dry",East Europe,1,0.5
+Pulses,East Europe,1,0.75
+Soybeans,East Europe,1.5,0.75
+Groundnuts in Shell,East Europe,1.2,0.75
+Oil Palm Fruit,East Europe,1.9,0.9
+Castor Beans,East Europe,1,0.75
+Sunflower Seed,East Europe,1.9,0.5
+"Rapeseed, oil crops",East Europe,1.9,0.7
+Fodder crops,East Europe,1.3,0
+Permanent crops,East Europe,2.5,0.75
+"Wheat, other cereals",North Africa and West Asia,1.5,0.8
+"Rice, Paddy",North Africa and West Asia,1.2,0.8
+Maize,North Africa and West Asia,3,0.8
+Millet,North Africa and West Asia,3,0.8
+Sorghum,North Africa and West Asia,3,0.8
+Roots and Tubers,North Africa and West Asia,1,0.75
+Cassava,North Africa and West Asia,0.8,0.75
+Sugar Cane,North Africa and West Asia,0.7,0.9
+Sugar Beets,North Africa and West Asia,0.7,0.75
+Sugar Crops nes,North Africa and West Asia,0.7,0.8
+"Beans, Dry",North Africa and West Asia,0.4,0.5
+Pulses,North Africa and West Asia,0.4,0.8
+Soybeans,North Africa and West Asia,1.5,0.8
+Groundnuts in Shell,North Africa and West Asia,1.5,0.8
+Oil Palm Fruit,North Africa and West Asia,1.9,0.9
+Castor Beans,North Africa and West Asia,0.4,0.8
+Sunflower Seed,North Africa and West Asia,2.3,0.5
+"Rapeseed, oil crops",North Africa and West Asia,2.3,0.7
+Fodder crops,North Africa and West Asia,1.3,0
+Permanent crops,North Africa and West Asia,2.5,0.8
+"Wheat, other cereals",North America and Oceania,1.2,0.7
+"Rice, Paddy",North America and Oceania,1.2,0.7
+Maize,North America and Oceania,1.2,0.7
+Millet,North America and Oceania,1.2,0.7
+Sorghum,North America and Oceania,1.2,0.7
+Roots and Tubers,North America and Oceania,1,0
+Cassava,North America and Oceania,0.8,0
+Sugar Cane,North America and Oceania,0.7,0.9
+Sugar Beets,North America and Oceania,0.5,0
+Sugar Crops nes,North America and Oceania,0.6,0
+"Beans, Dry",North America and Oceania,1,0
+Pulses,North America and Oceania,1,0.7
+Soybeans,North America and Oceania,1.2,0.7
+Groundnuts in Shell,North America and Oceania,1.2,0.7
+Oil Palm Fruit,North America and Oceania,1.9,0.9
+Castor Beans,North America and Oceania,1,0.7
+Sunflower Seed,North America and Oceania,1.9,0.5
+"Rapeseed, oil crops",North America and Oceania,1.9,0.7
+Fodder crops,North America and Oceania,1.3,0
+Permanent crops,North America and Oceania,2.5,0.7
+"Wheat, other cereals",West Europe,1,0.7
+"Rice, Paddy",West Europe,1.2,0.7
+Maize,West Europe,1.2,0.7
+Millet,West Europe,1.2,0.7
+Sorghum,West Europe,1.2,0.7
+Roots and Tubers,West Europe,1,0
+Cassava,West Europe,0.8,0
+Sugar Cane,West Europe,0.7,0.9
+Sugar Beets,West Europe,0.5,0
+Sugar Crops nes,West Europe,0.6,0
+"Beans, Dry",West Europe,1,0
+Pulses,West Europe,1,0.7
+Soybeans,West Europe,1.2,0.7
+Groundnuts in Shell,West Europe,1.2,0.7
+Oil Palm Fruit,West Europe,1.9,0.9
+Castor Beans,West Europe,1,0.7
+Sunflower Seed,West Europe,1.9,0.5
+"Rapeseed, oil crops",West Europe,1.9,0.7
+Fodder crops,West Europe,1.3,0
+Permanent crops,West Europe,2.5,0.7
+"Wheat, other cereals",Sub-saharan Africa,2.3,0.9
+"Rice, Paddy",Sub-saharan Africa,1.5,0.9
+Maize,Sub-saharan Africa,3.5,0.9
+Millet,Sub-saharan Africa,3.5,0.9
+Sorghum,Sub-saharan Africa,3.5,0.9
+Roots and Tubers,Sub-saharan Africa,1,0.75
+Cassava,Sub-saharan Africa,0.8,0.75
+Sugar Cane,Sub-saharan Africa,0.7,0.9
+Sugar Beets,Sub-saharan Africa,0.7,0.75
+Sugar Crops nes,Sub-saharan Africa,0.7,0.8
+"Beans, Dry",Sub-saharan Africa,0.4,0.5
+Pulses,Sub-saharan Africa,0.4,0.9
+Soybeans,Sub-saharan Africa,1.5,0.9
+Groundnuts in Shell,Sub-saharan Africa,1.5,0.9
+Oil Palm Fruit,Sub-saharan Africa,1.9,0.9
+Castor Beans,Sub-saharan Africa,0.4,0.9
+Sunflower Seed,Sub-saharan Africa,2.3,0.5
+"Rapeseed, oil crops",Sub-saharan Africa,2.3,0.7
+Fodder crops,Sub-saharan Africa,1.3,0
+Permanent crops,Sub-saharan Africa,2.5,0.9
+"Wheat, other cereals",Latin America and Caribbean,1.5,0.8
+"Rice, Paddy",Latin America and Caribbean,1.2,0.8
+Maize,Latin America and Caribbean,3,0.8
+Millet,Latin America and Caribbean,3,0.8
+Sorghum,Latin America and Caribbean,3,0.8
+Roots and Tubers,Latin America and Caribbean,1,0.75
+Cassava,Latin America and Caribbean,0.8,0.75
+Sugar Cane,Latin America and Caribbean,0.7,0.9
+Sugar Beets,Latin America and Caribbean,0.7,0.75
+Sugar Crops nes,Latin America and Caribbean,0.7,0.8
+"Beans, Dry",Latin America and Caribbean,0.4,0.5
+Pulses,Latin America and Caribbean,0.4,0.8
+Soybeans,Latin America and Caribbean,1.5,0.8
+Groundnuts in Shell,Latin America and Caribbean,1.5,0.8
+Oil Palm Fruit,Latin America and Caribbean,1.9,0.9
+Castor Beans,Latin America and Caribbean,0.4,0.8
+Sunflower Seed,Latin America and Caribbean,2.3,0.5
+"Rapeseed, oil crops",Latin America and Caribbean,2.3,0.7
+Fodder crops,Latin America and Caribbean,1.3,0
+Permanent crops,Latin America and Caribbean,2.5,0.8
+"Wheat, other cereals",East Asia,1.5,0.8
+"Rice, Paddy",East Asia,1,0.8
+Maize,East Asia,3,0.8
+Millet,East Asia,3,0.8
+Sorghum,East Asia,3,0.8
+Roots and Tubers,East Asia,1,0.75
+Cassava,East Asia,0.8,0.75
+Sugar Cane,East Asia,0.7,0.9
+Sugar Beets,East Asia,0.7,0.75
+Sugar Crops nes,East Asia,0.7,0.8
+"Beans, Dry",East Asia,0.4,0.5
+Pulses,East Asia,0.4,0.8
+Soybeans,East Asia,1.2,0.8
+Groundnuts in Shell,East Asia,1.2,0.8
+Oil Palm Fruit,East Asia,1.5,0.9
+Castor Beans,East Asia,0.4,0.8
+Sunflower Seed,East Asia,2.3,0.5
+"Rapeseed, oil crops",East Asia,2.3,0.7
+Fodder crops,East Asia,1.3,0
+Permanent crops,East Asia,2.5,0.8

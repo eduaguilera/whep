@@ -1,0 +1,9 @@
+crop_group,hi_traditional,hi_modern,hi_gap_factor,source
+Wheat,0.32,0.47,1.88,Austin et al. 1980; Hay 1995; Unkovich et al. 2010
+Rice,0.37,0.47,1.25,Khush 2001; Hay 1995
+Maize,0.37,0.48,1.57,Lorenz et al. 2010; Hay 1995
+Sorghum_millet,0.27,0.33,1.33,Hay 1995; Unkovich et al. 2010
+Legumes,0.28,0.32,1.21,Unkovich et al. 2010; Hay 1995
+Root_tuber,0.7,0.76,1.2,Hay 1995; Bolinder 2015; smaller breeding gains for root crops
+Oilseeds,0.22,0.28,1.38,Sinclair 1998; Hay 1995
+Other,0.32,0.36,1.2,"General estimate, mixed crop types"

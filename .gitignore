@@ -21,3 +21,7 @@ inst/analysis/
 LPJmL_inputs/
 plans/
 .playwright-mcp/
+
+# one-off migration scaffolding (not part of the reproducible pipeline)
+data-raw/migration/
+inst/extdata/coefs/*_raw.csv
