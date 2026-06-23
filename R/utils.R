@@ -3,6 +3,12 @@
 
 utils::globalVariables(
   c(
+    # crop_npp.R (potential NPP + residues/roots/components)
+    "temp_c",
+    "water_input_mm",
+    "aet_mm",
+    "npp_potential_dm_t_ha",
+    "method_npp_potential",
     # feed_lpjml.R (LPJmL grass-availability read-back)
     "band",
     "cft_frac",
