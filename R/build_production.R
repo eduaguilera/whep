@@ -59,6 +59,7 @@ build_primary_production <- function(
 
   clean <- raw |>
     .fix_production() |>
+    dplyr::mutate(value = .round_reproducible(.data$value)) |>
     .qc_production(smooth = smooth_carry_forward) |>
     tibble::as_tibble()
 
@@ -2480,4 +2481,20 @@ build_primary_production <- function(
       names_from = source,
       values_from = value
     )
+}
+
+# Round to significant figures to absorb last-bit floating-point noise from
+# parallel reductions (data.table gforce and multithreaded BLAS), which makes
+# the build non-reproducible run-to-run, occasionally flipping a downstream QC
+# flag. The chosen precision is far above the real precision of the source
+# data, so no information is lost, while the noise sits well below the rounding
+# unit and is fully absorbed.
+#
+# `digits` is build-specific: the raw production values carry ~1e-16 (single
+# ULP) noise, so 9 s.f. is ample; the CBS balancing cascade
+# (additions/subtractions with cancellation) amplifies that noise to ~1e-8
+# relative, so the final CBS value rounds to 7 s.f. (half the rounding unit is
+# ~70x the worst observed noise, guaranteeing the difference is absorbed).
+.round_reproducible <- function(x, digits = 9) {
+  signif(x, digits)
 }
