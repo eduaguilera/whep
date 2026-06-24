@@ -207,11 +207,16 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
       total_demand = sum(demand_dm_t, na.rm = TRUE)
     )
   list(
-    demand_remaining = stats::setNames(demand$remaining, demand$demand_id),
-    avail_remaining = stats::setNames(avail$avail_dm_t, avail$avail_id),
-    # Cap remaining as a name-keyed vector (by .cap_key) so per-allocation
-    # lookups and updates cost O(rows-in-call), not O(full ledger).
-    cap_remaining = stats::setNames(cap$total_demand, .cap_key(cap)),
+    # Plain (unnamed) vectors indexed by demand_id / avail_id, which are
+    # dplyr::row_number()s and so equal their array position. Integer indexing
+    # then costs O(rows-in-call); a named-vector lookup would match() over all
+    # names (O(n)) on every call, which is O(n^2) across a run of many years.
+    demand_remaining = demand$remaining,
+    avail_remaining = avail$avail_dm_t,
+    cap_remaining = cap$total_demand,
+    # demand_id -> position in cap_remaining (one cap bucket per demand row), so
+    # cap lookups/updates also index by integer position rather than by key.
+    cap_pos_by_demand = match(.cap_key(demand), .cap_key(cap)),
     allocations = list()
   )
 }
@@ -222,7 +227,11 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
     return(state)
   }
   if (respect_cap) {
-    capped <- .apply_cap_ledger(state$cap_remaining, rows)
+    capped <- .apply_cap_ledger(
+      state$cap_remaining,
+      state$cap_pos_by_demand,
+      rows
+    )
     state$cap_remaining <- capped$cap_remaining
     rows <- capped$rows
     rows <- .filter_positive_intake(rows)
@@ -247,7 +256,7 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
   rows[!is.na(rows$intake_dm_t) & rows$intake_dm_t > 1e-9, , drop = FALSE]
 }
 
-.apply_cap_ledger <- function(cap_remaining, rows) {
+.apply_cap_ledger <- function(cap_remaining, cap_pos_by_demand, rows) {
   zoot <- rows$feed_quality == "zoot_fixed"
   uncapped <- rows[zoot, , drop = FALSE]
   capped <- rows[!zoot, , drop = FALSE]
@@ -255,16 +264,16 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
     return(list(cap_remaining = cap_remaining, rows = uncapped))
   }
   capped <- .order_cap_rows(capped)
-  key <- .cap_key(capped)
-  cap_left <- unname(cap_remaining[key])
-  prev <- stats::ave(capped$intake_dm_t, key, FUN = cumsum) - capped$intake_dm_t
+  pos <- cap_pos_by_demand[capped$demand_id]
+  cap_left <- cap_remaining[pos]
+  prev <- stats::ave(capped$intake_dm_t, pos, FUN = cumsum) - capped$intake_dm_t
   capped$intake_dm_t <- dplyr::if_else(
     is.na(cap_left),
     capped$intake_dm_t,
     pmax(0, pmin(capped$intake_dm_t, cap_left - prev))
   )
   capped <- capped[capped$intake_dm_t > 1e-9, , drop = FALSE]
-  cap_remaining <- .update_cap_ledger(cap_remaining, capped)
+  cap_remaining <- .update_cap_ledger(cap_remaining, cap_pos_by_demand, capped)
   list(cap_remaining = cap_remaining, rows = dplyr::bind_rows(uncapped, capped))
 }
 
@@ -288,16 +297,16 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
   capped[ord, , drop = FALSE]
 }
 
-.update_cap_ledger <- function(cap_remaining, capped) {
+.update_cap_ledger <- function(cap_remaining, cap_pos_by_demand, capped) {
   if (nrow(capped) == 0) {
     return(cap_remaining)
   }
-  key <- .cap_key(capped)
-  alloc <- rowsum(capped$intake_dm_t, group = key, reorder = FALSE)
-  ids <- rownames(alloc)
-  # Keys absent from the ledger are uncapped (cap_left was NA); ignore them so
-  # the update never creates spurious entries (mirrors the prior match()-NA).
-  known <- ids %in% names(cap_remaining)
+  pos <- cap_pos_by_demand[capped$demand_id]
+  alloc <- rowsum(capped$intake_dm_t, group = pos, reorder = FALSE)
+  ids <- as.integer(rownames(alloc))
+  # Rows whose demand has no cap bucket (pos NA) are uncapped; skip them so the
+  # update only touches real ledger positions (mirrors the prior match()-NA).
+  known <- !is.na(ids)
   cap_remaining[ids[known]] <- pmax(
     0,
     cap_remaining[ids[known]] - alloc[known, 1]
@@ -317,7 +326,7 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
 
 .decrement_remaining <- function(remaining, demand_id, intake) {
   alloc <- rowsum(intake, group = demand_id, reorder = FALSE)
-  ids <- rownames(alloc)
+  ids <- as.integer(rownames(alloc))
   remaining[ids] <- pmax(0, remaining[ids] - alloc[, 1])
   remaining
 }
@@ -331,7 +340,7 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
     return(avail_remaining)
   }
   alloc <- rowsum(rows$intake_dm_t, group = rows$avail_id, reorder = FALSE)
-  ids <- rownames(alloc)
+  ids <- as.integer(rownames(alloc))
   avail_remaining[ids] <- pmax(0, avail_remaining[ids] - alloc[, 1])
   avail_remaining
 }
@@ -363,7 +372,7 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
   zoot <- .zoot_match_avail(zoot, avail)
   rows <- .zoot_intake(zoot, options$zoot_fixed_max_multiplier)
   state <- .add_alloc(state, rows, respect_cap = FALSE)
-  state$demand_remaining[as.character(zoot$demand_id)] <- 0
+  state$demand_remaining[zoot$demand_id] <- 0
   state
 }
 
@@ -591,9 +600,7 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
 # ---- Live views (apply remaining from state) --------------------------------
 
 .live_demand <- function(state, demand) {
-  demand$remaining <- unname(state$demand_remaining[as.character(
-    demand$demand_id
-  )])
+  demand$remaining <- state$demand_remaining[demand$demand_id]
   demand[
     !is.na(demand$remaining) &
       demand$remaining > 1e-9 &
@@ -604,9 +611,7 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
 }
 
 .live_avail <- function(state, avail) {
-  avail$avail_remaining <- unname(state$avail_remaining[as.character(
-    avail$avail_id
-  )])
+  avail$avail_remaining <- state$avail_remaining[avail$avail_id]
   avail[
     !is.na(avail$avail_remaining) & avail$avail_remaining > 1e-9,
     ,
@@ -1091,9 +1096,7 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
 }
 
 .allocate_grassland_sink <- function(state, demand, only_fixed = FALSE) {
-  demand$remaining <- unname(state$demand_remaining[as.character(
-    demand$demand_id
-  )])
+  demand$remaining <- state$demand_remaining[demand$demand_id]
   target <- demand[
     !is.na(demand$remaining) &
       demand$remaining > 1e-9 &
@@ -1609,9 +1612,7 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
 }
 
 .avail_with_remaining <- function(state, avail) {
-  avail$avail_remaining <- unname(state$avail_remaining[as.character(
-    avail$avail_id
-  )])
+  avail$avail_remaining <- state$avail_remaining[avail$avail_id]
   avail
 }
 
