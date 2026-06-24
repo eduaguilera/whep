@@ -14,6 +14,10 @@
 #'   for pigs and poultry, Krausmann per-head for draft / other species) or
 #'   `"fcr"` (the Bouwman / Krausmann feed-conversion magnitude for every
 #'   species). Both grains allocate with `redistribute_feed()`.
+#' @param years Integer vector of years to build, or `NULL` (default) for every
+#'   year in the production data (1850-2023 via the LUH2 extension). Restricting
+#'   the range cuts run time proportionally; allocation is independent per year,
+#'   so a subset returns exactly the same rows for those years.
 #'
 #' @returns
 #' A tibble with the feed intake data.
@@ -48,12 +52,18 @@
 get_feed_intake <- function(
   example = FALSE,
   grain = c("national", "local"),
-  demand_tier = c("ipcc", "fcr")
+  demand_tier = c("ipcc", "fcr"),
+  years = NULL
 ) {
   grain <- rlang::arg_match(grain)
   demand_tier <- rlang::arg_match(demand_tier)
   if (example) {
     return(.example_get_feed_intake())
   }
-  .build_redistribute_intake(grain = grain, demand_tier = demand_tier)
+  .build_redistribute_intake(
+    grain = grain,
+    demand_tier = demand_tier,
+    years = years
+  ) |>
+    .add_reporting_polity_columns()
 }

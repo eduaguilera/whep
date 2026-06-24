@@ -7,7 +7,8 @@
 get_feed_intake(
   example = FALSE,
   grain = c("national", "local"),
-  demand_tier = c("ipcc", "fcr")
+  demand_tier = c("ipcc", "fcr"),
+  years = NULL
 )
 }
 \arguments{
@@ -24,6 +25,11 @@ IPCC Tier-2 energy demand for the ruminant species it covers, Bouwman FCR
 for pigs and poultry, Krausmann per-head for draft / other species) or
 \code{"fcr"} (the Bouwman / Krausmann feed-conversion magnitude for every
 species). Both grains allocate with \code{redistribute_feed()}.}
+
+\item{years}{Integer vector of years to build, or \code{NULL} (default) for every
+year in the production data (1850-2023 via the LUH2 extension). Restricting
+the range cuts run time proportionally; allocation is independent per year,
+so a subset returns exactly the same rows for those years.}
 }
 \value{
 A tibble with the feed intake data.

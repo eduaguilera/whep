@@ -200,17 +200,23 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
 # ---- State object -----------------------------------------------------------
 
 .init_state <- function(demand, avail) {
-  cap_ledger <- demand |>
+  cap <- demand |>
     dplyr::filter(feed_quality != "zoot_fixed") |>
     dplyr::summarize(
       .by = c(year, territory, sub_territory, livestock_category),
       total_demand = sum(demand_dm_t, na.rm = TRUE)
-    ) |>
-    dplyr::mutate(remaining_cap = total_demand)
+    )
   list(
-    demand_remaining = stats::setNames(demand$remaining, demand$demand_id),
-    avail_remaining = stats::setNames(avail$avail_dm_t, avail$avail_id),
-    demand_cap_ledger = cap_ledger,
+    # Plain (unnamed) vectors indexed by demand_id / avail_id, which are
+    # dplyr::row_number()s and so equal their array position. Integer indexing
+    # then costs O(rows-in-call); a named-vector lookup would match() over all
+    # names (O(n)) on every call, which is O(n^2) across a run of many years.
+    demand_remaining = demand$remaining,
+    avail_remaining = avail$avail_dm_t,
+    cap_remaining = cap$total_demand,
+    # demand_id -> position in cap_remaining (one cap bucket per demand row), so
+    # cap lookups/updates also index by integer position rather than by key.
+    cap_pos_by_demand = match(.cap_key(demand), .cap_key(cap)),
     allocations = list()
   )
 }
@@ -221,8 +227,12 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
     return(state)
   }
   if (respect_cap) {
-    capped <- .apply_cap_ledger(state$demand_cap_ledger, rows)
-    state$demand_cap_ledger <- capped$ledger
+    capped <- .apply_cap_ledger(
+      state$cap_remaining,
+      state$cap_pos_by_demand,
+      rows
+    )
+    state$cap_remaining <- capped$cap_remaining
     rows <- capped$rows
     rows <- .filter_positive_intake(rows)
     if (nrow(rows) == 0) {
@@ -246,26 +256,25 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
   rows[!is.na(rows$intake_dm_t) & rows$intake_dm_t > 1e-9, , drop = FALSE]
 }
 
-.apply_cap_ledger <- function(ledger, rows) {
+.apply_cap_ledger <- function(cap_remaining, cap_pos_by_demand, rows) {
   zoot <- rows$feed_quality == "zoot_fixed"
   uncapped <- rows[zoot, , drop = FALSE]
   capped <- rows[!zoot, , drop = FALSE]
   if (nrow(capped) == 0) {
-    return(list(ledger = ledger, rows = uncapped))
+    return(list(cap_remaining = cap_remaining, rows = uncapped))
   }
   capped <- .order_cap_rows(capped)
-  key <- .cap_key(capped)
-  idx <- match(key, .cap_key(ledger))
-  cap_left <- ledger$remaining_cap[idx]
-  prev <- stats::ave(capped$intake_dm_t, key, FUN = cumsum) - capped$intake_dm_t
+  pos <- cap_pos_by_demand[capped$demand_id]
+  cap_left <- cap_remaining[pos]
+  prev <- stats::ave(capped$intake_dm_t, pos, FUN = cumsum) - capped$intake_dm_t
   capped$intake_dm_t <- dplyr::if_else(
     is.na(cap_left),
     capped$intake_dm_t,
     pmax(0, pmin(capped$intake_dm_t, cap_left - prev))
   )
   capped <- capped[capped$intake_dm_t > 1e-9, , drop = FALSE]
-  ledger <- .update_cap_ledger(ledger, capped)
-  list(ledger = ledger, rows = dplyr::bind_rows(uncapped, capped))
+  cap_remaining <- .update_cap_ledger(cap_remaining, cap_pos_by_demand, capped)
+  list(cap_remaining = cap_remaining, rows = dplyr::bind_rows(uncapped, capped))
 }
 
 .order_cap_rows <- function(capped) {
@@ -288,15 +297,21 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
   capped[ord, , drop = FALSE]
 }
 
-.update_cap_ledger <- function(ledger, capped) {
+.update_cap_ledger <- function(cap_remaining, cap_pos_by_demand, capped) {
   if (nrow(capped) == 0) {
-    return(ledger)
+    return(cap_remaining)
   }
-  key <- .cap_key(capped)
-  alloc <- rowsum(capped$intake_dm_t, group = key, reorder = FALSE)
-  idx <- match(rownames(alloc), .cap_key(ledger))
-  ledger$remaining_cap[idx] <- pmax(0, ledger$remaining_cap[idx] - alloc[, 1])
-  ledger
+  pos <- cap_pos_by_demand[capped$demand_id]
+  alloc <- rowsum(capped$intake_dm_t, group = pos, reorder = FALSE)
+  ids <- as.integer(rownames(alloc))
+  # Rows whose demand has no cap bucket (pos NA) are uncapped; skip them so the
+  # update only touches real ledger positions (mirrors the prior match()-NA).
+  known <- !is.na(ids)
+  cap_remaining[ids[known]] <- pmax(
+    0,
+    cap_remaining[ids[known]] - alloc[known, 1]
+  )
+  cap_remaining
 }
 
 .cap_key <- function(df) {
@@ -311,7 +326,7 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
 
 .decrement_remaining <- function(remaining, demand_id, intake) {
   alloc <- rowsum(intake, group = demand_id, reorder = FALSE)
-  ids <- rownames(alloc)
+  ids <- as.integer(rownames(alloc))
   remaining[ids] <- pmax(0, remaining[ids] - alloc[, 1])
   remaining
 }
@@ -325,7 +340,7 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
     return(avail_remaining)
   }
   alloc <- rowsum(rows$intake_dm_t, group = rows$avail_id, reorder = FALSE)
-  ids <- rownames(alloc)
+  ids <- as.integer(rownames(alloc))
   avail_remaining[ids] <- pmax(0, avail_remaining[ids] - alloc[, 1])
   avail_remaining
 }
@@ -357,7 +372,7 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
   zoot <- .zoot_match_avail(zoot, avail)
   rows <- .zoot_intake(zoot, options$zoot_fixed_max_multiplier)
   state <- .add_alloc(state, rows, respect_cap = FALSE)
-  state$demand_remaining[as.character(zoot$demand_id)] <- 0
+  state$demand_remaining[zoot$demand_id] <- 0
   state
 }
 
@@ -568,12 +583,24 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
   aw[, keep, with = FALSE]
 }
 
+# ---- Group splitting --------------------------------------------------------
+
+# Allocation is independent per (year, territory). Splitting a table by that
+# key once (O(n)) and indexing each group is what keeps the per-group loops
+# linear; the previous `df[df$year == y & df$territory == t, ]` rescanned the
+# whole multi-year table on every iteration (O(n^2) over a run of many years).
+.group_key <- function(df) {
+  paste(df$year, df$territory, sep = "\r")
+}
+
+.split_by_group <- function(df) {
+  split(df, .group_key(df))
+}
+
 # ---- Live views (apply remaining from state) --------------------------------
 
 .live_demand <- function(state, demand) {
-  demand$remaining <- unname(state$demand_remaining[as.character(
-    demand$demand_id
-  )])
+  demand$remaining <- state$demand_remaining[demand$demand_id]
   demand[
     !is.na(demand$remaining) &
       demand$remaining > 1e-9 &
@@ -584,9 +611,7 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
 }
 
 .live_avail <- function(state, avail) {
-  avail$avail_remaining <- unname(state$avail_remaining[as.character(
-    avail$avail_id
-  )])
+  avail$avail_remaining <- state$avail_remaining[avail$avail_id]
   avail[
     !is.na(avail$avail_remaining) & avail$avail_remaining > 1e-9,
     ,
@@ -762,15 +787,17 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
   if (nrow(pool) == 0) {
     return(state)
   }
-  groups <- unique(pool[, c("year", "territory"), drop = FALSE])
-  for (gi in seq_len(nrow(groups))) {
+  pool_groups <- .split_by_group(pool)
+  demand_groups <- .split_by_group(demand)
+  for (key in names(pool_groups)) {
+    supply <- pool_groups[[key]]
     ctx <- list(
-      yr = groups$year[gi],
-      terr = groups$territory[gi],
+      yr = supply$year[1L],
+      terr = supply$territory[1L],
       label = label,
       opts = opts
     )
-    state <- .priority_pool_group(state, demand, pool, ctx)
+    state <- .priority_pool_group(state, demand_groups[[key]], supply, ctx)
   }
   state
 }
@@ -789,21 +816,22 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
   live
 }
 
-.priority_pool_group <- function(state, demand, pool, ctx) {
-  supply <- pool[
-    pool$year == ctx$yr & pool$territory == ctx$terr,
-    ,
-    drop = FALSE
-  ]
-  ds <- .scope_live_demand(state, demand, ctx)
-  if (nrow(supply) == 0 || nrow(ds) == 0) {
+# `demand_grp` is this group's pre-split demand slice (or NULL when the group
+# has no demand rows); `.live_demand` then works on the slice, not the full
+# table.
+.priority_pool_group <- function(state, demand_grp, supply, ctx) {
+  if (is.null(demand_grp) || nrow(supply) == 0) {
+    return(state)
+  }
+  ds <- .live_demand(state, demand_grp)
+  if (nrow(ds) == 0) {
     return(state)
   }
   prov <- supply[supply$feed_scale == "provincial", , drop = FALSE]
   nat <- supply[supply$feed_scale == "national", , drop = FALSE]
   if (!ctx$opts$allow_trade && nrow(prov) > 0) {
     state <- .priority_pool_scope(state, ds, prov, ctx, "provincial")
-    ds <- .scope_live_demand(state, demand, ctx)
+    ds <- .live_demand(state, demand_grp)
   } else {
     nat <- supply
   }
@@ -811,11 +839,6 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
     state <- .priority_pool_scope(state, ds, nat, ctx, "territory")
   }
   state
-}
-
-.scope_live_demand <- function(state, demand, ctx) {
-  ds <- .live_demand(state, demand)
-  ds[ds$year == ctx$yr & ds$territory == ctx$terr, , drop = FALSE]
 }
 
 .priority_pool_scope <- function(state, ds, supply, ctx, scope) {
@@ -1000,34 +1023,33 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
   if (nrow(surplus) == 0) {
     return(state)
   }
-  groups <- unique(surplus[, c("year", "territory"), drop = FALSE])
-  for (gi in seq_len(nrow(groups))) {
-    grp <- list(
-      yr = groups$year[gi],
-      terr = groups$territory[gi],
-      only_variable = only_variable
+  surplus_groups <- .split_by_group(surplus)
+  demand_groups <- .split_by_group(demand)
+  for (key in names(surplus_groups)) {
+    state <- .surplus_group(
+      state,
+      demand_groups[[key]],
+      surplus_groups[[key]],
+      only_variable
     )
-    state <- .surplus_group(state, demand, surplus, grp)
   }
   state
 }
 
-.surplus_group <- function(state, demand, surplus, grp) {
-  items <- surplus[
-    surplus$year == grp$yr & surplus$territory == grp$terr,
+# `demand_grp`/`items` are this group's pre-split demand and surplus slices.
+.surplus_group <- function(state, demand_grp, items, only_variable) {
+  if (is.null(demand_grp) || nrow(items) == 0) {
+    return(state)
+  }
+  ds <- demand_grp[
+    demand_grp$demand_dm_t > 0 & demand_grp$feed_quality != "zoot_fixed",
     ,
     drop = FALSE
   ]
-  ds <- demand[
-    demand$year == grp$yr & demand$territory == grp$terr,
-    ,
-    drop = FALSE
-  ]
-  ds <- ds[ds$demand_dm_t > 0 & ds$feed_quality != "zoot_fixed", , drop = FALSE]
-  if (grp$only_variable) {
+  if (only_variable) {
     ds <- ds[!ds$fixed_demand, , drop = FALSE]
   }
-  if (nrow(items) == 0 || nrow(ds) == 0) {
+  if (nrow(ds) == 0) {
     return(state)
   }
   alloc <- .surplus_alloc(items, ds)
@@ -1074,9 +1096,7 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
 }
 
 .allocate_grassland_sink <- function(state, demand, only_fixed = FALSE) {
-  demand$remaining <- unname(state$demand_remaining[as.character(
-    demand$demand_id
-  )])
+  demand$remaining <- state$demand_remaining[demand$demand_id]
   target <- demand[
     !is.na(demand$remaining) &
       demand$remaining > 1e-9 &
@@ -1592,9 +1612,7 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
 }
 
 .avail_with_remaining <- function(state, avail) {
-  avail$avail_remaining <- unname(state$avail_remaining[as.character(
-    avail$avail_id
-  )])
+  avail$avail_remaining <- state$avail_remaining[avail$avail_id]
   avail
 }
 

@@ -30,26 +30,92 @@ test_that("items_full has correct default_destiny for non-food items", {
 
 test_that("polities includes promoted FAOSTAT-reporting countries", {
   pol <- whep::polities
-  promoted <- c("BTN", "COM", "MHL", "FSM", "NRU", "SYC", "TON", "TUV")
+  promoted <- c(
+    "ATG",
+    "BHS",
+    "BRB",
+    "BTN",
+    "COM",
+    "FJI",
+    "GRD",
+    "MAC",
+    "MHL",
+    "FSM",
+    "NCL",
+    "NRU",
+    "PRI",
+    "PYF",
+    "SYC",
+    "SLB",
+    "TON",
+    "TUV"
+  )
   for (code in promoted) {
     expect_true(
-      code %in% pol$iso3c,
+      code %in% pol$iso3_code,
       info = paste(code, "should be a standalone polity")
     )
   }
-  expect_gte(nrow(pol), 200L)
+  expect_gte(nrow(pol), 560L)
 })
 
-test_that("regions_full maps promoted countries to own polity_code", {
-  reg <- whep::regions_full
+test_that("polity_area_crosswalk maps promoted countries to real polities", {
+  crosswalk <- whep::polity_area_crosswalk
 
-  btn <- reg |> dplyr::filter(iso3c == "BTN")
+  btn <- crosswalk |>
+    dplyr::filter(area_iso3c == "BTN", mapping_status == "matched")
   expect_true(nrow(btn) > 0)
-  expect_equal(btn$polity_code[1], "BTN")
+  expect_true(any(grepl("^BTN-", btn$polity_code)))
 
-  com <- reg |> dplyr::filter(iso3c == "COM")
+  com <- crosswalk |>
+    dplyr::filter(area_iso3c == "COM", mapping_status == "matched")
   expect_true(nrow(com) > 0)
-  expect_equal(com$polity_code[1], "COM")
+  expect_true(any(grepl("^COM-", com$polity_code)))
+})
+
+test_that("CBS and FABIO area codes map to polity database rows", {
+  crosswalk <- whep::polity_area_crosswalk
+
+  cbs_unmapped <- crosswalk |>
+    dplyr::filter(
+      .data$cbs %in% TRUE,
+      .data$mapping_status == "unmapped"
+    ) |>
+    dplyr::distinct(.data$area_code, .data$area_name)
+
+  fabio_unmapped <- crosswalk |>
+    dplyr::filter(
+      !is.na(.data$fabio_code),
+      .data$mapping_status == "unmapped"
+    ) |>
+    dplyr::distinct(.data$area_code, .data$area_name)
+
+  expect_equal(nrow(cbs_unmapped), 0L)
+  expect_equal(nrow(fabio_unmapped), 0L)
+
+  aggregate_codes <- crosswalk |>
+    dplyr::filter(.data$area_code %in% c(15L, 151L, 901:906, 999L)) |>
+    dplyr::distinct(.data$area_code, .data$polity_code, .data$has_geometry)
+
+  expect_equal(nrow(aggregate_codes), 9L)
+  expect_true(all(!is.na(aggregate_codes$polity_code)))
+  expect_true(all(aggregate_codes$has_geometry))
+
+  fabio_row_sources <- crosswalk |>
+    dplyr::filter(.data$area_code %in% c(30L, 69L, 152L, 252L, 254L, 299L)) |>
+    dplyr::distinct(
+      .data$area_code,
+      .data$fabio_code,
+      .data$polity_area_code,
+      .data$polity_code,
+      .data$has_geometry
+    )
+
+  expect_equal(nrow(fabio_row_sources), 6L)
+  expect_true(all(fabio_row_sources$fabio_code == 999L))
+  expect_true(all(fabio_row_sources$polity_area_code == 999L))
+  expect_true(all(fabio_row_sources$polity_code == "ROW-1850-2023"))
+  expect_true(all(fabio_row_sources$has_geometry))
 })
 
 

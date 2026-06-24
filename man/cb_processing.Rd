@@ -12,11 +12,13 @@ combination. It contains the following columns:
 \code{"Apples and products"}, \code{"Barley and products"}).
 \item \code{item_cbs}: Name of the output CBS category produced by processing (e.g.,
 \code{"Alcohol, Non-Food"}).
-\item \code{Product_fraction}: Fraction of the processed item that yields the output
-product (numeric, 0–1).
+\item \code{Product_fraction}: Conversion factor from processed input quantity to
+output product quantity. This can exceed 1 when the output includes added
+mass, such as water in beverages.
 \item \code{Value_fraction}: Economic value fraction associated with the output
 product (numeric; largely \code{NA} in current data).
-\item \code{Required}: Reserved column, currently all \code{NA}.
+\item \code{Required}: Marks required co-product links in selected processing
+chains.
 }
 }
 \source{

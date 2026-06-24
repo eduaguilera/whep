@@ -15,8 +15,13 @@ A tibble with the item production data.
 It contains the following columns:
 \itemize{
 \item \code{year}: The year in which the recorded event occurred.
-\item \code{area_code}: The code of the country where the data is from. For code
-details see e.g. \code{add_area_name()}.
+\item \code{area_code}: Legacy numeric reporting area code.
+\item \code{polity_area_code}: Numeric WHEP reporting polity code used for matrix
+workflows. This currently matches \code{area_code}.
+\item \code{reporting_polity_code}: WHEP polity code for the reporting polygon.
+\item \code{reporting_polity_name}: WHEP polity name for the reporting polygon.
+\item \code{reporting_polity_has_geometry}: Whether the reporting polity has a
+polygon in the WHEP polity database.
 \item \code{item_prod_code}: FAOSTAT internal code for each produced item.
 \item \code{item_cbs_code}: FAOSTAT internal code for each commodity balance sheet
 item. The commodity balance sheet contains an aggregated version of
@@ -36,7 +41,9 @@ items: crops (e.g. \verb{Apples and products}, \code{Beans}...), livestock (e.g.
 \item \code{tonnes}: Available for crops and livestock products.
 \item \code{ha}: Hectares, available for crops.
 \item \code{t_ha}: Tonnes per hectare, available for crops.
-\item \code{heads}: Number of animals, available for livestock.
+\item \code{heads}: Number of animals (stocks), available for livestock.
+\item \code{slaughtered_heads}: Number of animals slaughtered, available
+for livestock.
 \item \code{LU}: Standard Livestock Unit measure, available for livestock.
 \item \code{t_head}: tonnes per head, available for livestock products.
 \item \code{t_LU}: tonnes per Livestock Unit, available for livestock products.

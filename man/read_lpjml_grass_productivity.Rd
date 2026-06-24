@@ -5,14 +5,16 @@
 \title{Read natural-grass productivity from an LPJmL run.}
 \usage{
 read_lpjml_grass_productivity(
-  run_dir = NULL,
+  run_dir = Sys.getenv("WHEP_LPJML_RUN_DIR"),
   years = NULL,
   first_year = 1901L,
   example = FALSE
 )
 }
 \arguments{
-\item{run_dir}{Path to the LPJmL run output directory holding \code{pft_npp.nc}.}
+\item{run_dir}{Path to the LPJmL run output directory holding \code{pft_npp.nc}.
+Defaults to the \code{WHEP_LPJML_RUN_DIR} environment variable, consistent with
+\code{\link[=build_feed_intake_local]{build_feed_intake_local()}}.}
 
 \item{years}{Integer vector of calendar years to read.}
 

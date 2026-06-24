@@ -122,6 +122,9 @@
 #' @return A tibble with gridded livestock data. Columns:
 #'   - `lon`, `lat`: Cell centre coordinates.
 #'   - `area_code`: WHEP polity code for this cell compartment.
+#'   - `polity_area_code`, `reporting_polity_code`,
+#'     `reporting_polity_name`, `reporting_polity_has_geometry`: Polity
+#'     metadata for `area_code`.
 #'   - `polycell_id`, `cell_id`: Preserved when supplied in
 #'     `country_grid`.
 #'   - `year`: Integer year.
@@ -238,7 +241,8 @@ build_gridded_livestock <- function(
   ) |>
     dplyr::bind_rows()
 
-  result
+  result |>
+    .add_reporting_polity_columns()
 }
 
 
@@ -335,7 +339,9 @@ build_gridded_livestock <- function(
         dplyr::select(grass_productivity, lon, lat, grass_npp),
         by = c("lon", "lat")
       ) |>
-      dplyr::mutate(weight = weight * dplyr::coalesce(grass_npp, 0)) |>
+      dplyr::mutate(
+        weight = dplyr::if_else(is.na(grass_npp), weight, weight * grass_npp)
+      ) |>
       dplyr::filter(weight > 0) |>
       dplyr::select(-grass_npp)
   }

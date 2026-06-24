@@ -34,21 +34,22 @@ testthat::test_that("get_feed_intake builds internally instead of reading feed_i
   out <- whep::get_feed_intake()
 
   testthat::expect_s3_class(out, "tbl_df")
-  testthat::expect_named(
-    out,
-    c(
-      "year",
-      "area_code",
-      "live_anim_code",
-      "item_cbs_code",
-      "feed_type",
-      "supply",
-      "intake",
-      "intake_dry_matter",
-      "loss",
-      "loss_share"
-    )
+  core_cols <- c(
+    "year",
+    "area_code",
+    "live_anim_code",
+    "item_cbs_code",
+    "feed_type",
+    "supply",
+    "intake",
+    "intake_dry_matter",
+    "loss",
+    "loss_share"
   )
+  # The toy fixture is a minimal, not a coherent feed system, so the allocator
+  # can legitimately return no rows; the contract shape (core columns present,
+  # alongside the added reporting-polity columns) is what this guards.
+  testthat::expect_true(all(core_cols %in% names(out)))
 })
 
 testthat::test_that("buffalo dairy products use dairy Bouwman demand in builder", {

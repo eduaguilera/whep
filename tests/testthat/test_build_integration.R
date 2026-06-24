@@ -30,6 +30,10 @@ test_that("build_primary_production returns expected columns", {
   expected_cols <- c(
     "year",
     "area_code",
+    "polity_area_code",
+    "reporting_polity_code",
+    "reporting_polity_name",
+    "reporting_polity_has_geometry",
     "item_prod_code",
     "item_cbs_code",
     "live_anim_code",
@@ -101,7 +105,8 @@ test_that("build_primary_production matches expected output", {
   result <- whep::build_primary_production(
     .raw_data = prod_raw_fixture()
   )
-  expected <- prod_expected_fixture()
+  expected <- prod_expected_fixture() |>
+    whep:::.add_reporting_polity_columns()
   expect_equal(result, expected, ignore_attr = TRUE)
 })
 
@@ -112,7 +117,7 @@ test_that("build_primary_production spot-check USA wheat", {
   spot <- result |>
     dplyr::filter(
       area_code == 231,
-      item_prod_code == "15",
+      item_prod_code == 15,
       unit == "tonnes",
       year == 2000
     ) |>
@@ -129,6 +134,10 @@ test_that("build_commodity_balances returns expected columns", {
   expected_cols <- c(
     "year",
     "area_code",
+    "polity_area_code",
+    "reporting_polity_code",
+    "reporting_polity_name",
+    "reporting_polity_has_geometry",
     "item_cbs_code",
     "element",
     "value",
@@ -206,7 +215,8 @@ test_that("build_commodity_balances matches expected output", {
   result <- whep::build_commodity_balances(
     .fixed_data = cbs_fixed_fixture()
   )
-  expected <- cbs_expected_fixture()
+  expected <- cbs_expected_fixture() |>
+    whep:::.add_reporting_polity_columns()
   expect_equal(result, expected)
 })
 

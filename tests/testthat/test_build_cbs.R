@@ -112,6 +112,41 @@ test_that(".fix_item_codes remaps rice 2804 -> 2807", {
   result <- whep:::.fix_item_codes(df)
   expect_false(2804L %in% result$item_cbs_code)
   expect_true(2807L %in% result$item_cbs_code)
+  expect_equal(
+    result$value[result$item_cbs_code == 2807L],
+    100 * whep:::.rice_milled_extraction_rate()
+  )
+  expect_equal(
+    result$item_cbs[result$item_cbs_code == 2807L],
+    "Rice and products"
+  )
+})
+
+test_that(".fix_item_codes keeps milled rice when old CBS also has paddy equivalent", {
+  df <- tibble::tribble(
+    ~year, ~area_code, ~area, ~element, ~unit, ~item_cbs_code, ~item_cbs, ~value,
+    2000L, 41L, "China", "food", "tonnes", 2805L, "Rice (Milled Equivalent)", 100,
+    2000L, 41L, "China", "food", "tonnes", 2804L, "Rice (Paddy Equivalent)", 150,
+    2000L, 41L, "China", "production", "tonnes", 2804L, "Rice, paddy", 200
+  )
+
+  result <- whep:::.fix_item_codes(df)
+
+  food <- result |>
+    dplyr::filter(.data$element == "food")
+  testthat::expect_equal(nrow(food), 1)
+  testthat::expect_equal(food$item_cbs_code, 2807L)
+  testthat::expect_equal(food$item_cbs, "Rice and products")
+  testthat::expect_equal(food$value, 100)
+
+  production <- result |>
+    dplyr::filter(.data$element == "production")
+  testthat::expect_equal(production$item_cbs_code, 2807L)
+  testthat::expect_equal(production$item_cbs, "Rice and products")
+  testthat::expect_equal(
+    production$value,
+    200 * whep:::.rice_milled_extraction_rate()
+  )
 })
 
 test_that(".fix_item_codes remaps groundnuts 2820 -> 2552", {
@@ -122,6 +157,78 @@ test_that(".fix_item_codes remaps groundnuts 2820 -> 2552", {
 
   result <- whep:::.fix_item_codes(df)
   expect_equal(result$item_cbs_code, 2552L)
+  expect_equal(result$item_cbs, "Groundnuts")
+})
+
+test_that(".read_land_areas_wide tolerates missing LUH2 cropland and pasture rows", {
+  local_mocked_bindings(
+    .read_land_areas = function(years = NULL) {
+      tibble::tibble(
+        year = 2023L,
+        area = "Spain",
+        Land_Use = "urban",
+        Area_Mha = 1
+      )
+    }
+  )
+
+  result <- whep:::.read_land_areas_wide(years = 2023L)
+
+  expect_true(all(c("Cropland", "Pasture", "agriland") %in% names(result)))
+  expect_equal(nrow(result), 0L)
+})
+
+test_that(".fix_palm_kernels tolerates single-year inputs without old palm-kernel anchors", {
+  empty_fbs <- tibble::tibble(
+    year = integer(),
+    area = character(),
+    area_code = integer(),
+    item_cbs = character(),
+    item_cbs_code = integer(),
+    element = character(),
+    value = numeric(),
+    unit = character()
+  )
+  inputs <- list(
+    fbs_old = empty_fbs,
+    fbs_new = tibble::tibble(
+      year = 2023L,
+      area = "Spain",
+      area_code = 203L,
+      item_cbs = "Palmkernel Oil",
+      item_cbs_code = 2577L,
+      element = "production",
+      value = 10,
+      unit = "tonnes"
+    )
+  )
+
+  result <- whep:::.fix_palm_kernels(inputs)
+
+  expect_s3_class(result, "tbl_df")
+  expect_equal(nrow(result), 0L)
+})
+
+test_that(".cbs_impute_trade tolerates missing destiny element columns", {
+  raw <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~value, ~source,
+    2023L, "Spain", 203L, "Wheat", 2511L, "production", 100, "FAOSTAT_prod"
+  )
+
+  result <- whep:::.cbs_impute_trade(raw)
+
+  expect_true(all(
+    c(
+      "food",
+      "feed",
+      "other_uses",
+      "processing",
+      "import",
+      "export",
+      "stock_variation"
+    ) %in%
+      result$element
+  ))
 })
 
 
@@ -154,6 +261,19 @@ test_that(".test_cbs adds balance check columns", {
   expect_true("domestic_supply" %in% names(result))
 })
 
+test_that(".test_cbs tolerates missing standard element columns", {
+  cbs <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~value,
+    2023L, "Spain", 203L, "Wheat", 2511L, "production", 100
+  )
+
+  result <- whep:::.test_cbs(cbs)
+
+  expect_true(all(c("food", "feed", "import", "export") %in% names(result)))
+  expect_equal(result$feed, 0)
+  expect_true("check" %in% names(result))
+})
+
 
 # -- .untest_cbs ---------------------------------------------------------------
 
@@ -182,6 +302,28 @@ test_that(".processed_raw creates value_proc column", {
   result <- whep:::.processed_raw(cbs, cb_proc)
   expect_true("value_proc" %in% names(result))
   expect_true("processed_item" %in% names(result))
+})
+
+test_that(".prepare_cb_processing_for_cbs excludes unconditional beer grains", {
+  cb_proc <- tibble::tribble(
+    ~ProcessedItem, ~item_cbs, ~Product_fraction, ~Value_fraction, ~Required,
+    "Barley and products", "Beer", 6.55, 0.9, NA_real_,
+    "Hops", "Beer", 0.28, NA_real_, NA_real_,
+    "Maize and products", "Beer", 6.55, NA_real_, NA_real_,
+    "Maize and products", "Sweeteners, Other", 0.3, NA_real_, NA_real_
+  )
+
+  result <- whep:::.prepare_cb_processing_for_cbs(cb_proc)
+
+  beer_inputs <- result |>
+    dplyr::filter(.data$item_cbs == "Beer") |>
+    dplyr::pull(.data$ProcessedItem)
+
+  expect_setequal(beer_inputs, c("Barley and products", "Hops"))
+  expect_true(any(
+    result$ProcessedItem == "Maize and products" &
+      result$item_cbs == "Sweeteners, Other"
+  ))
 })
 
 

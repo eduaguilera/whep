@@ -280,11 +280,13 @@
 #'   `"Apples and products"`, `"Barley and products"`).
 #' - `item_cbs`: Name of the output CBS category produced by processing (e.g.,
 #'   `"Alcohol, Non-Food"`).
-#' - `Product_fraction`: Fraction of the processed item that yields the output
-#'   product (numeric, 0–1).
+#' - `Product_fraction`: Conversion factor from processed input quantity to
+#'   output product quantity. This can exceed 1 when the output includes added
+#'   mass, such as water in beverages.
 #' - `Value_fraction`: Economic value fraction associated with the output
 #'   product (numeric; largely `NA` in current data).
-#' - `Required`: Reserved column, currently all `NA`.
+#' - `Required`: Marks required co-product links in selected processing
+#'   chains.
 #' @source Derived from FAOSTAT commodity balance sheet processing assumptions.
 #'
 #' @examples
@@ -491,11 +493,17 @@
 #' @format
 #' A tibble where each row corresponds to one polity (country or territory).
 #' It contains the following columns:
-#' - `polity_code`: ISO 3166-1 alpha-3 country code used as the primary
-#'   identifier (e.g., `"AFG"`, `"ALB"`).
-#' - `polity_name`: Common country or territory name.
+#' - `polity_code`: Legacy current polity prefix, usually ISO 3166-1 alpha-3
+#'   (e.g., `"AFG"`, `"ALB"`).
+#' - `polity_name`: Current polity, country, or territory name.
 #' - `V1`: Internal row index from the source table.
 #' - `code`: Numeric FAOSTAT country code.
+#' - `polity_area_code`: Numeric WHEP reporting area code used in matrix
+#'   workflows.
+#' - `reporting_polity_code`: Current periodized WHEP polity code for `code`.
+#' - `reporting_polity_name`: Current WHEP polity name for `code`.
+#' - `reporting_polity_has_geometry`: Logical flag indicating whether the
+#'   current reporting polity has a polygon.
 #' - `iso3c`: ISO 3166-1 alpha-3 code (character; may duplicate
 #'   `polity_code` or differ for aggregates).
 #' - `FAOSTAT_name`: Country name as used in FAOSTAT.
@@ -580,12 +588,17 @@
 #' A tibble where each row corresponds to one polity or aggregate region. It
 #' contains the following columns (same definitions as `polities_cats`,
 #' minus the five trailing `0...36`–`0...40` artefact columns):
-#' - `polity_code`: Primary polity identifier (ISO 3166-1 alpha-3 or `NA`
-#'   for non-sovereign aggregates).
-#' - `polity_name`: Polity name (`NA` for aggregates not matched to a
-#'   standard polity).
+#' - `polity_code`: Legacy current polity prefix. This is kept for
+#'   compatibility with older code that expected ISO3-like values.
+#' - `polity_name`: Current polity, country, territory, or aggregate name.
 #' - `V1`: Internal row index.
 #' - `code`: Numeric FAOSTAT country/region code.
+#' - `polity_area_code`: Numeric WHEP reporting area code used in matrix
+#'   workflows.
+#' - `reporting_polity_code`: Current periodized WHEP polity code for `code`.
+#' - `reporting_polity_name`: Current WHEP polity name for `code`.
+#' - `reporting_polity_has_geometry`: Logical flag indicating whether the
+#'   current reporting polity has a polygon.
 #' - `iso3c`: ISO 3166-1 alpha-3 code (`NA` for aggregates).
 #' - `FAOSTAT_name`: Name used in FAOSTAT (may be `"#N/A"` for aggregates).
 #' - `EU27`: Logical EU27 membership flag.

@@ -220,6 +220,90 @@ test_that("build_primary_production defaults to end_year 2023", {
   expect_equal(formals_prod$end_year, 2023)
 })
 
+test_that(".extend_historical keeps modern rows when LUH2 land columns are absent", {
+  primary <- tibble::tibble(
+    year = 2023L,
+    area = "Spain",
+    area_code = 203L,
+    item_prod = "Wheat",
+    item_prod_code = 15L,
+    item_cbs = "Wheat and products",
+    item_cbs_code = 2511L,
+    live_anim = NA_character_,
+    live_anim_code = NA_integer_,
+    unit = "tonnes",
+    value = 100,
+    source = "FAOSTAT_prod"
+  )
+  years <- tibble::tibble(year = 2023L)
+  land <- tibble::tibble(
+    year = 2023L,
+    area = "Spain",
+    Land_Use = "urban",
+    Area_Mha = 1
+  )
+
+  result <- whep:::.extend_historical(primary, years, land)
+
+  expect_equal(nrow(result), 1L)
+  expect_equal(result$year, 2023L)
+  expect_equal(result$value, 100)
+})
+
+
+# -- rice unit convention ------------------------------------------------------
+
+test_that(".fix_rice_milled_equiv converts paddy production only", {
+  rate <- whep:::.rice_milled_extraction_rate()
+  df <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code,
+    ~item_cbs, ~item_cbs_code, ~live_anim, ~live_anim_code,
+    ~unit, ~value, ~source,
+    2000L, "China", 41L, "Rice", "27",
+    "Rice and products", 2807L, NA, NA,
+    "tonnes", 100, "FAOSTAT_prod",
+    2000L, "China", 41L, "Rice", "27",
+    "Rice and products", 2807L, NA, NA,
+    "t_ha", 10, "imputed_yield:Global",
+    2000L, "China", 41L, "Rice", "27",
+    "Rice and products", 2807L, NA, NA,
+    "ha", 20, "FAOSTAT_prod",
+    2000L, "China", 41L, "Rice", "27",
+    "Rice and products", 2807L, NA, NA,
+    "tonnes", 80, "imputed_cbs_ratio",
+    2000L, "China", 41L, "Wheat", "15",
+    "Wheat and products", 2511L, NA, NA,
+    "tonnes", 50, "FAOSTAT_prod"
+  )
+
+  result <- whep:::.fix_rice_milled_equiv(df) |>
+    dplyr::arrange(.data$item_prod_code, .data$unit, .data$source)
+
+  rice <- result |>
+    dplyr::filter(.data$item_prod_code == "27")
+
+  testthat::expect_equal(
+    rice$value[rice$unit == "tonnes" & rice$source == "FAOSTAT_prod"],
+    100 * rate
+  )
+  testthat::expect_equal(
+    rice$value[rice$unit == "t_ha"],
+    10 * rate
+  )
+  testthat::expect_equal(
+    rice$value[rice$unit == "ha"],
+    20
+  )
+  testthat::expect_equal(
+    rice$value[rice$source == "imputed_cbs_ratio"],
+    80
+  )
+  testthat::expect_equal(
+    result$value[result$item_prod_code == "15"],
+    50
+  )
+})
+
 
 # -- deduplication --------------------------------------------------------------
 

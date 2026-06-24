@@ -24,6 +24,61 @@ polities_cats <- file.path(harmonization_dir, "polities_cats.csv") |>
   readr::read_csv(show_col_types = FALSE, na = excel_na) |>
   dplyr::select(!dplyr::starts_with("0..."))
 
+if (!exists("polity_area_crosswalk")) {
+  load(here::here("data", "polity_area_crosswalk.rda"))
+}
+
+current_area_polities <- polity_area_crosswalk |>
+  dplyr::filter(!is.na(.data$area_code), !is.na(.data$polity_code)) |>
+  dplyr::mutate(
+    current_or_latest = !is.na(.data$polity_end_year) &
+      .data$polity_end_year >= 2025
+  ) |>
+  dplyr::arrange(
+    .data$area_code,
+    dplyr::desc(.data$current_or_latest),
+    dplyr::desc(.data$polity_end_year),
+    dplyr::desc(.data$polity_start_year)
+  ) |>
+  dplyr::distinct(.data$area_code, .keep_all = TRUE) |>
+  dplyr::transmute(
+    code = as.integer(.data$area_code),
+    polity_area_code = .data$polity_area_code,
+    reporting_polity_code = .data$polity_code,
+    reporting_polity_name = .data$polity_name,
+    reporting_polity_has_geometry = .data$has_geometry,
+    legacy_polity_code = sub("-.*", "", .data$polity_code)
+  )
+
+add_current_area_polities <- function(table) {
+  table |>
+    dplyr::select(
+      -dplyr::any_of(c(
+        "polity_area_code",
+        "reporting_polity_code",
+        "reporting_polity_name",
+        "reporting_polity_has_geometry",
+        "legacy_polity_code"
+      ))
+    ) |>
+    dplyr::mutate(code = as.integer(.data$code)) |>
+    dplyr::left_join(current_area_polities, by = "code") |>
+    dplyr::mutate(
+      polity_code = dplyr::coalesce(
+        .data$polity_code,
+        .data$legacy_polity_code
+      ),
+      polity_name = dplyr::coalesce(
+        .data$polity_name,
+        .data$reporting_polity_name
+      )
+    ) |>
+    dplyr::select(-"legacy_polity_code")
+}
+
+regions_full <- add_current_area_polities(regions_full)
+polities_cats <- add_current_area_polities(polities_cats)
+
 animals_codes <- file.path(harmonization_dir, "animals_codes.csv") |>
   readr::read_csv(show_col_types = FALSE, na = excel_na)
 

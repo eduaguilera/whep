@@ -4,6 +4,7 @@
 ^LICENSE\.md$
 ^docs$
 ^\.github$
+^\.git$
 ^\.lintr$
 ^_pkgdown\.yml$
 ^pkgdown$
@@ -24,3 +25,7 @@
 ^LPJmL_inputs$
 ^WHEP_LFILES_DIR$
 ^plans$
+^validation$
+^\.fabio_compare$
+^\.whep_cache$
+^\.playwright-mcp$
