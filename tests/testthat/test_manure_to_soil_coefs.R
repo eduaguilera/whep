@@ -70,3 +70,66 @@ test_that("forage N default is a plausible grazed-forage value", {
   expect_gte(fn, 0.01)
   expect_lte(fn, 0.03)
 })
+
+test_that("manure loss fractions cover the engine MMS and are in [0, 1]", {
+  loss <- whep:::.manure_loss_fractions()
+  expect_equal(
+    dplyr::n_distinct(loss[c("mms_type", "animal_category")]),
+    nrow(loss)
+  )
+  expect_true(all(loss$frac_gas_ms >= 0 & loss$frac_gas_ms <= 1))
+  expect_true(all(loss$frac_leach_ms >= 0 & loss$frac_leach_ms <= 1))
+
+  pick <- function(m, a) {
+    loss$frac_gas_ms[loss$mms_type == m & loss$animal_category == a]
+  }
+  expect_equal(pick("Pasture/Range/Paddock", "Dairy Cattle"), 0)
+  expect_equal(pick("Daily Spread", "Swine"), 0.07)
+  expect_equal(pick("Solid Storage", "Swine"), 0.45)
+  expect_equal(pick("Solid Storage", "Dairy Cattle"), 0.30)
+})
+
+test_that("every MMS x loss-category the engine can emit has a loss fraction", {
+  bridge <- whep:::.species_taxonomy_bridge()
+  loss <- whep:::.manure_loss_fractions()
+  mms <- whep::regional_mms_distribution |>
+    dplyr::filter(region == "Global", fraction > 0)
+
+  combos <- bridge |>
+    dplyr::distinct(species_gen, loss_category) |>
+    dplyr::inner_join(
+      dplyr::distinct(mms, species, mms_type),
+      by = c("species_gen" = "species"),
+      relationship = "many-to-many"
+    ) |>
+    dplyr::left_join(
+      loss,
+      by = c("mms_type", "loss_category" = "animal_category")
+    )
+  expect_false(anyNA(combos$frac_gas_ms))
+})
+
+test_that("manure C:N covers the bridge categories; placeholders are NA", {
+  bridge <- whep:::.species_taxonomy_bridge()
+  cn <- whep:::.manure_cn_ratio()
+  expect_true(all(bridge$bo_category %in% cn$cn_category))
+
+  verified <- cn[cn$reliability == "verified", ]
+  expect_false(anyNA(verified$cn_ratio))
+  expect_true(all(verified$cn_ratio >= 5 & verified$cn_ratio <= 50))
+  expect_equal(cn$cn_ratio[cn$cn_category == "Dairy Cattle"], 18)
+  expect_equal(cn$cn_ratio[cn$cn_category == "Poultry"], 6)
+
+  placeholders <- cn[cn$reliability == "placeholder", ]
+  expect_setequal(
+    placeholders$cn_category,
+    c("Mules and Asses", "Camels", "Buffalo")
+  )
+  expect_true(all(is.na(placeholders$cn_ratio)))
+})
+
+test_that("N2:N2O ratio and climate-zone cuts match verified IPCC values", {
+  expect_equal(whep:::.n2_to_n2o_ratio(), 3)
+  z <- whep:::.climate_zone_from_mat(c(5, 10, 12, 18, 25, NA))
+  expect_equal(z, c("Cool", "Cool", "Temperate", "Temperate", "Warm", NA))
+})

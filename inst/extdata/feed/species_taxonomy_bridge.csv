@@ -1,11 +1,11 @@
-livestock_category,species_gen,subcategory,bo_category,excretion_category,species_group,reliability,notes
-Cattle_milk,Cattle,Dairy,Dairy Cattle,Dairy Cattle,cattle,verified,
-Cattle_meat,Cattle,Non-Dairy,Other Cattle,Other Cattle,cattle,derived,includes buffalo (anim_code 946) lumped as cattle; buffalo N-retention 0.20 vs other-cattle 0.07
-Sheep,Sheep,All,Sheep,Sheep,sheep_goats,verified,
-Goats,Goats,All,Goats,Goats,sheep_goats,verified,
-Pigs,Swine,All,Swine,Swine - Market,pigs,derived,market swine as representative; breeding swine lumped
-Poultry,Poultry,All,Poultry,Poultry - Broilers,poultry,derived,broilers as representative; layers lumped
-Horses,Horses,All,Horses,Horses,equines,verified,
-Donkeys_mules,Mules and Asses,All,Mules and Asses,Mules and Asses,equines,verified,
-Rabbits,Swine,All,Swine,Swine - Market,other,placeholder,no IPCC rabbit coefficients; monogastric swine proxy (CALIBRATE)
-Other,Camels,All,Camels,Camels,other,placeholder,lumps camels/camelids/rodents/game/bees; camel grazer proxy (CALIBRATE)
+livestock_category,species_gen,subcategory,bo_category,excretion_category,loss_category,species_group,reliability,notes
+Cattle_milk,Cattle,Dairy,Dairy Cattle,Dairy Cattle,Dairy Cattle,cattle,verified,
+Cattle_meat,Cattle,Non-Dairy,Other Cattle,Other Cattle,Other Cattle,cattle,derived,includes buffalo (anim_code 946) lumped as cattle; buffalo N-retention 0.20 vs other-cattle 0.07
+Sheep,Sheep,All,Sheep,Sheep,Other animals,sheep_goats,verified,
+Goats,Goats,All,Goats,Goats,Other animals,sheep_goats,verified,
+Pigs,Swine,All,Swine,Swine - Market,Swine,pigs,derived,market swine as representative; breeding swine lumped
+Poultry,Poultry,All,Poultry,Poultry - Broilers,Poultry,poultry,derived,broilers as representative; layers lumped
+Horses,Horses,All,Horses,Horses,Other animals,equines,verified,
+Donkeys_mules,Mules and Asses,All,Mules and Asses,Mules and Asses,Other animals,equines,verified,
+Rabbits,Swine,All,Swine,Swine - Market,Swine,other,placeholder,no IPCC rabbit coefficients; monogastric swine proxy (CALIBRATE)
+Other,Camels,All,Camels,Camels,Other animals,other,placeholder,lumps camels/camelids/rodents/game/bees; camel grazer proxy (CALIBRATE)
