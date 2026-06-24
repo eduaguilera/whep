@@ -28,8 +28,22 @@ redistribute_feed(feed_demand, feed_avail, options = list())
 - options:
 
   A named list of allocation options. See `.redistribute_feed_options()`
-  for the available entries and their defaults.
+  for the available entries and their defaults. Supply
+  `grass_availability` (a tibble with `year`, `territory` or
+  `area_code`, and `grass_avail_dm_t`) to bound the otherwise-unlimited
+  pasture grass at that supply per polity-year. The grass deficit then
+  cascades: pasture grass is capped at the ceiling, the deficit is
+  redistributed to leftover non-grass availability in the polity (added
+  as `7_grass_deficit_substitute` intake, limited by that leftover), and
+  the residual stays as biologically-feasible underfeeding
+  (`scaling_factor < 1`). Supply `maintenance_share` (a scalar fraction
+  or a tibble with `livestock_category` and `maintenance_share`) to also
+  diagnose polities pushed below maintenance; the over-stocked demand
+  rows are attached to the result as the `grass_deficit_diagnosis`
+  attribute.
 
 ## Value
 
-A tibble of realised intake per demand row.
+A tibble of realised intake per demand row. When `maintenance_share` is
+supplied alongside `grass_availability`, a `grass_deficit_diagnosis`
+attribute lists demand rows underfed below maintenance.

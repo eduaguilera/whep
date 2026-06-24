@@ -182,6 +182,7 @@ LSU/ha reference for use with the <code>glw_density</code> parameter.</p>
 <span>  species_proxy <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  manure_pattern <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  glw_density <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  grass_productivity <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  years <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -268,6 +269,15 @@ If provided, this <strong>replaces</strong> the LUH2-based proxy for the
 matching groups, while still being scaled by LUH2 time trends.
 If <code>NULL</code>, LUH2 proxies are used for all groups.</p></li>
 </ul></dd>
+
+
+<dt id="arg-grass-productivity">grass_productivity<a class="anchor" aria-label="anchor" href="#arg-grass-productivity"></a></dt>
+<dd><p>A tibble with grass productivity per cell
+(<code>lon</code>, <code>lat</code>, <code>grass_npp</code>) from <code><a href="read_lpjml_grass_productivity.html">read_lpjml_grass_productivity()</a></code>.
+Optional. When provided, it multiplies the <code>pasture</code>/<code>rangeland</code>
+(grazer) proxy weights so animals follow grass production rather than
+area alone; cropland/mixed proxies are unaffected. If <code>NULL</code>, area
+proxies are used alone.</p></dd>
 
 
 <dt id="arg-years">years<a class="anchor" aria-label="anchor" href="#arg-years"></a></dt>

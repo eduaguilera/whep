@@ -75,12 +75,24 @@ avoid exceeding availability. The redistribution path adapts to the
 <dt id="arg-options">options<a class="anchor" aria-label="anchor" href="#arg-options"></a></dt>
 <dd><p>A named list of allocation options. See
 <code>.redistribute_feed_options()</code> for the available entries and their
-defaults.</p></dd>
+defaults. Supply <code>grass_availability</code> (a tibble with <code>year</code>, <code>territory</code>
+or <code>area_code</code>, and <code>grass_avail_dm_t</code>) to bound the otherwise-unlimited
+pasture grass at that supply per polity-year. The grass deficit then
+cascades: pasture grass is capped at the ceiling, the deficit is
+redistributed to leftover non-grass availability in the polity (added as
+<code>7_grass_deficit_substitute</code> intake, limited by that leftover), and the
+residual stays as biologically-feasible underfeeding (<code>scaling_factor &lt; 1</code>).
+Supply <code>maintenance_share</code> (a scalar fraction or a tibble with
+<code>livestock_category</code> and <code>maintenance_share</code>) to also diagnose polities
+pushed below maintenance; the over-stocked demand rows are attached to the
+result as the <code>grass_deficit_diagnosis</code> attribute.</p></dd>
 
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    <p>A tibble of realised intake per demand row.</p>
+    <p>A tibble of realised intake per demand row. When <code>maintenance_share</code>
+is supplied alongside <code>grass_availability</code>, a <code>grass_deficit_diagnosis</code>
+attribute lists demand rows underfed below maintenance.</p>
     </div>
 
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

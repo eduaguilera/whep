@@ -20,7 +20,7 @@ MacLeod et al. (2018) GLEAM 3.0.
 
 ``` r
 gleam_animal_weights
-#> # A tibble: 21 × 5
+#> # A tibble: 32 × 5
 #>    region             species system cohort       weight_kg
 #>    <chr>              <chr>   <chr>  <chr>            <dbl>
 #>  1 Western Europe     Cattle  Dairy  Adult Female       650
@@ -33,5 +33,5 @@ gleam_animal_weights
 #>  8 North America      Cattle  Beef   Fattening          450
 #>  9 Sub-Saharan Africa Cattle  All    Adult Female       250
 #> 10 Sub-Saharan Africa Cattle  All    Adult Male         350
-#> # ℹ 11 more rows
+#> # ℹ 22 more rows
 ```

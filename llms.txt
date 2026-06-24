@@ -148,6 +148,24 @@ comparison.
 - [`build_gridded_livestock()`](https://eduaguilera.github.io/whep/reference/build_gridded_livestock.md)
   : Build gridded livestock dataset
 
+## LPJmL grass availability
+
+Read managed-grassland net primary production from a finished LPJmL run
+into grazable above-ground dry-matter availability, the forage supply
+ceiling for feed allocation.
+
+- [`build_grass_availability()`](https://eduaguilera.github.io/whep/reference/build_grass_availability.md)
+  : Build grazable grass availability.
+- [`build_grass_availability_lpjml()`](https://eduaguilera.github.io/whep/reference/build_grass_availability_lpjml.md)
+  : Build grazable grass availability from an LPJmL run.
+- [`grass_access_shares()`](https://eduaguilera.github.io/whep/reference/grass_access_shares.md)
+  : Accessibility and conversion parameters for grazable grass
+  availability.
+- [`aggregate_grass_to_polity()`](https://eduaguilera.github.io/whep/reference/aggregate_grass_to_polity.md)
+  : Aggregate gridded grass availability to polity totals.
+- [`read_lpjml_grass_productivity()`](https://eduaguilera.github.io/whep/reference/read_lpjml_grass_productivity.md)
+  : Read natural-grass productivity from an LPJmL run.
+
 ## Tidy datasets
 
 Get cleaned dataframes with project related data.
@@ -160,6 +178,10 @@ Production, supply/use, and processing datasets.
   : Supply and use tables
 - [`get_feed_intake()`](https://eduaguilera.github.io/whep/reference/get_feed_intake.md)
   : Livestock feed intake
+- [`build_feed_demand()`](https://eduaguilera.github.io/whep/reference/build_feed_demand.md)
+  : Build livestock feed demand.
+- [`build_feed_intake_local()`](https://eduaguilera.github.io/whep/reference/build_feed_intake_local.md)
+  : Build local (per-cell) feed intake, chunked by year.
 - [`get_primary_production()`](https://eduaguilera.github.io/whep/reference/get_primary_production.md)
   : Primary items production
 - [`get_primary_residues()`](https://eduaguilera.github.io/whep/reference/get_primary_residues.md)

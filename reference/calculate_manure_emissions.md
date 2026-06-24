@@ -46,6 +46,6 @@ tibble::tibble(
 #> # A tibble: 1 × 7
 #>   species heads iso3  species_gen method_manure_ch4 manure_ef_kgch4
 #>   <chr>   <dbl> <chr> <chr>       <chr>                       <dbl>
-#> 1 Cattle   1000 DEU   Cattle      IPCC_2019_Tier1                 2
+#> 1 Cattle   1000 DEU   Cattle      IPCC_2019_Tier1                 1
 #> # ℹ 1 more variable: manure_ch4_tier1 <dbl>
 ```

@@ -5,7 +5,12 @@ Get amount of items used for feeding livestock.
 ## Usage
 
 ``` r
-get_feed_intake(example = FALSE)
+get_feed_intake(
+  example = FALSE,
+  grain = c("national", "local"),
+  demand_tier = c("ipcc", "fcr"),
+  years = NULL
+)
 ```
 
 ## Arguments
@@ -14,6 +19,30 @@ get_feed_intake(example = FALSE)
 
   If `TRUE`, return a small example output without downloading remote
   data. Default is `FALSE`.
+
+- grain:
+
+  Spatial grain of the feed allocation. `"national"` (default, one
+  allocation per country) or `"local"` (the per-cell 0.5-degree engine,
+  which is heavy and run via
+  [`build_feed_intake_local()`](https://eduaguilera.github.io/whep/reference/build_feed_intake_local.md);
+  calling it here redirects there).
+
+- demand_tier:
+
+  Demand-estimation tier. `"ipcc"` (default, the rigorous IPCC Tier-2
+  energy demand for the ruminant species it covers, Bouwman FCR for pigs
+  and poultry, Krausmann per-head for draft / other species) or `"fcr"`
+  (the Bouwman / Krausmann feed-conversion magnitude for every species).
+  Both grains allocate with
+  [`redistribute_feed()`](https://eduaguilera.github.io/whep/reference/redistribute_feed.md).
+
+- years:
+
+  Integer vector of years to build, or `NULL` (default) for every year
+  in the production data (1850-2023 via the LUH2 extension). Restricting
+  the range cuts run time proportionally; allocation is independent per
+  year, so a subset returns exactly the same rows for those years.
 
 ## Value
 
