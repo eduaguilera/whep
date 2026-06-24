@@ -8,7 +8,7 @@
   biomass_coefs = whep::biomass_coefs,
   conv_bouwman = whep::conv_bouwman,
   conv_krausmann = whep::conv_krausmann,
-  polities_cats = whep::polities_cats
+  crosswalk = whep::polity_area_crosswalk
 ) {
   cbs <- .normalise_feed_cbs(cbs)
   primary_prod <- .normalise_feed_primary(primary_prod)
@@ -26,7 +26,7 @@
     items_prod_full,
     animals_codes,
     conv_krausmann,
-    polities_cats,
+    crosswalk,
     fcr
   )
 
@@ -266,10 +266,10 @@
   items_prod_full,
   animals_codes,
   conv_krausmann,
-  polities_cats,
+  crosswalk,
   fcr
 ) {
-  regs_codes <- .feed_region_lookup(polities_cats)
+  regs_codes <- .feed_region_lookup(crosswalk)
   demand_fcr <- .build_feed_demand_fcr(
     primary_prod,
     items_prod_full,
@@ -869,10 +869,10 @@
     dplyr::distinct(.data$Name_biomass, .keep_all = TRUE)
 }
 
-.feed_region_lookup <- function(polities_cats) {
-  tibble::as_tibble(polities_cats) |>
+.feed_region_lookup <- function(crosswalk = whep::polity_area_crosswalk) {
+  tibble::as_tibble(crosswalk) |>
     dplyr::transmute(
-      area_code = as.integer(.data$code),
+      area_code = as.integer(.data$area_code),
       region_bouwman = .data$region
     ) |>
     dplyr::filter(!is.na(.data$area_code), !is.na(.data$region_bouwman)) |>
