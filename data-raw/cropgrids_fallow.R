@@ -12,7 +12,7 @@
 # build_cropgrids_land_extension(source = "cropgrids_fallow") then applies the
 # resulting physical/harvested ratio to WHEP harvested area in every year.
 #
-# Inputs: shipped cropgrids_land.csv and fallow_propensity.csv; grid_aez.csv
+# Inputs: the cropgrids-land pin and shipped fallow_propensity.csv; grid_aez.csv
 # (NOT shipped -- run data-raw/grid_aez.R first to generate it under
 # inst/extdata/, where gridded_fallow_weights() reads it); the spatialization
 # inputs (<l_files>/whep/inputs via WHEP_LFILES_INPUT_DIR); and the
@@ -29,10 +29,7 @@ input_dir <- Sys.getenv(
 )
 ref_year <- as.integer(Sys.getenv("WHEP_CROPGRIDS_FALLOW_YEAR", "2020"))
 
-cropgrids <- read_csv(
-  system.file("extdata", "cropgrids_land.csv", package = "whep"),
-  show_col_types = FALSE
-)
+cropgrids <- whep::whep_read_file("cropgrids-land")
 
 # Spatialize harvested area for the reference year (crop-level, no CFT agg).
 inputs <- whep:::.load_landuse_inputs(

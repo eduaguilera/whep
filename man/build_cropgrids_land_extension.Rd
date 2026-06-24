@@ -18,13 +18,14 @@ build_cropgrids_land_extension(
 \code{\link[=get_primary_production]{get_primary_production()}} (\code{unit == "ha"}).}
 
 \item{cropgrids}{Tibble of national crop areas with columns \code{area_code},
-\code{item_cbs_code}, \code{physical_ha}, \code{harvested_ha}. If \code{NULL}, the packaged
-table selected by \code{source} is used.}
+\code{item_cbs_code}, \code{physical_ha}, \code{harvested_ha}. If \code{NULL}, the remote pin
+selected by \code{source} is read via \code{\link[=whep_read_file]{whep_read_file()}}.}
 
-\item{source}{Which packaged table to use when \code{cropgrids} is \code{NULL}:
-\code{"cropgrids"} (physical crop area, excludes fallow) or \code{"cropgrids_fallow"}
-(physical area with rotational fallow attributed to crops by
-\code{\link[=attribute_fallow_to_crops]{attribute_fallow_to_crops()}}). Also recorded in \code{method_land}.}
+\item{source}{Which CROPGRIDS pin to read when \code{cropgrids} is \code{NULL}:
+\code{"cropgrids"} (\code{cropgrids-land}: physical crop area, excludes fallow) or
+\code{"cropgrids_fallow"} (\code{cropgrids-fallow-land}: physical area with rotational
+fallow attributed to crops by \code{\link[=attribute_fallow_to_crops]{attribute_fallow_to_crops()}}). Also recorded
+in \code{method_land}.}
 
 \item{max_ratio}{Cap on the per-area physical/harvested ratio (default
 \code{1.5}). CROPGRIDS occasionally pairs a normal physical area with a

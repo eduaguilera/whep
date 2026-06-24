@@ -214,12 +214,13 @@ get_crop_land_extension <- function(
 #'   `item_cbs_code`, `harvested_ha`. If `NULL`, built from
 #'   [get_primary_production()] (`unit == "ha"`).
 #' @param cropgrids Tibble of national crop areas with columns `area_code`,
-#'   `item_cbs_code`, `physical_ha`, `harvested_ha`. If `NULL`, the packaged
-#'   table selected by `source` is used.
-#' @param source Which packaged table to use when `cropgrids` is `NULL`:
-#'   `"cropgrids"` (physical crop area, excludes fallow) or `"cropgrids_fallow"`
-#'   (physical area with rotational fallow attributed to crops by
-#'   [attribute_fallow_to_crops()]). Also recorded in `method_land`.
+#'   `item_cbs_code`, `physical_ha`, `harvested_ha`. If `NULL`, the remote pin
+#'   selected by `source` is read via [whep_read_file()].
+#' @param source Which CROPGRIDS pin to read when `cropgrids` is `NULL`:
+#'   `"cropgrids"` (`cropgrids-land`: physical crop area, excludes fallow) or
+#'   `"cropgrids_fallow"` (`cropgrids-fallow-land`: physical area with rotational
+#'   fallow attributed to crops by [attribute_fallow_to_crops()]). Also recorded
+#'   in `method_land`.
 #' @param max_ratio Cap on the per-area physical/harvested ratio (default
 #'   `1.5`). CROPGRIDS occasionally pairs a normal physical area with a
 #'   near-zero harvested area for minor/aggregate crops, yielding a spurious
@@ -260,7 +261,7 @@ build_cropgrids_land_extension <- function(
     harvested <- .harvested_area_by_cbs(get_primary_production())
   }
   if (is.null(cropgrids)) {
-    cropgrids <- .read_cropgrids_land(paste0(source, "_land.csv"))
+    cropgrids <- .read_cropgrids_land(source)
   }
   .check_required_cols(
     harvested,
@@ -789,12 +790,13 @@ gridded_fallow_weights <- function(
     )
 }
 
-.read_cropgrids_land <- function(file = "cropgrids_land.csv") {
-  path <- system.file("extdata", file, package = "whep")
-  if (!nzchar(path)) {
-    cli::cli_abort("{.file {file}} not found in installed package.")
-  }
-  readr::read_csv(path, show_col_types = FALSE)
+.read_cropgrids_land <- function(source = "cropgrids") {
+  alias <- switch(
+    source,
+    cropgrids = "cropgrids-land",
+    cropgrids_fallow = "cropgrids-fallow-land"
+  )
+  whep_read_file(alias)
 }
 
 .read_hayr_table <- function(file) {

@@ -30,3 +30,8 @@ validation/cache/
 # read at package runtime, so not committed (kept out of the shipped package).
 inst/extdata/grid_aez.csv
 inst/extdata/faostat_cropland.csv
+
+# CROPGRIDS land tables: read at runtime from the cropgrids-land /
+# cropgrids-fallow-land pins (data-raw scripts build them for upload, not commit).
+inst/extdata/cropgrids_land.csv
+inst/extdata/cropgrids_fallow_land.csv
