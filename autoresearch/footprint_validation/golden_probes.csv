@@ -1,7 +1,0 @@
-probe_id,pool,layer,area_iso3,item_name,year,element,unit,notes
-prod-USA-wheat-2000,golden,production,USA,Wheat,2000,,tonnes,USDA NASS independent of FAOSTAT
-prod-CHN-rice-1970,golden,production,CHN,Rice,1970,,tonnes,pre-1961 era stress test is 1970 FAOSTAT era
-prod-FRA-wheat-2010,golden,production,FRA,Wheat,2010,,tonnes,EUROSTAT independent of FAOSTAT
-prod-IND-rice-2000,golden,production,IND,Rice,2000,,tonnes,major producer cross-check
-area-USA-wheat-2000,golden,production,USA,Wheat,2000,,ha,harvested area layer (unit ha)
-cbs-USA-wheat-food-2000,golden,cbs,USA,Wheat,2000,food,tonnes,CBS layer - independent ground truth is hard (expect uncovered)
