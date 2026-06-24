@@ -24,7 +24,7 @@ committed.
 | Variable | Source dataset | Access | Lives in | Built by |
 |---|---|---|---|---|
 | production / area | USDA NASS QuickStats bulk (USA); SEDAC, IBGE, BPS (others, via workflow) | local / open | `cache/data/<iso3>/`, `cache/findings/` | `nass_sum.R`, `subnational.workflow.js` |
-| cropping_intensity | GAEZ v3 multi-cropping suitability (LandInG) | local | `cache/ground_truth/cropping_intensity.json` | `gaez_potential.R` |
+| cropping_intensity | GAEZ v4 multiple cropping zones (mcr/mci) | open (auto-download) | `cache/ground_truth/cropping_intensity.json` | `gaez_potential.R` |
 | occupation / land_per_tonne | Poore & Nemecek 2018 (LCA, m²·yr/kg) | open | `cache/ground_truth/occupation.json` | manual (cited) |
 | cycle_length | GGCMI Phase 3 crop calendar | open (Zenodo 5062513) | `cache/ground_truth/cycle_length.json`, `cache/data/GGCMI/` | manual + `ncdf4` |
 | stability | none (WHEP's own series) | — | — | `stability.R` |
@@ -34,7 +34,10 @@ committed.
 | Key | Dataset | Location |
 |---|---|---|
 | `WHEP_NASS_DIR` | USDA NASS QuickStats bulk (crops.csv ~8 GB) | `~/Nextcloud/WHEP_ERC 2025/.../NASS` |
-| `WHEP_GAEZ_DIR` | GAEZ v3 multi-cropping suitability rasters | `~/LandInG/landuse/tmp/work_30min` |
+
+(GAEZ is no longer a required local dataset: `gaez_potential.R` auto-downloads the
+GAEZ v4 multiple-cropping-zone layers from the open FAO bucket; `WHEP_GAEZ_DIR`
+remains an optional override pointing at locally-held layers by basename.)
 
 ## Open datasets queued / wired (no license needed)
 
