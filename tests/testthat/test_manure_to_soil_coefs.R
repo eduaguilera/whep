@@ -109,23 +109,22 @@ test_that("every MMS x loss-category the engine can emit has a loss fraction", {
   expect_false(anyNA(combos$frac_gas_ms))
 })
 
-test_that("manure C:N covers the bridge categories; placeholders are NA", {
-  bridge <- whep:::.species_taxonomy_bridge()
-  cn <- whep:::.manure_cn_ratio()
-  expect_true(all(bridge$bo_category %in% cn$cn_category))
-
-  verified <- cn[cn$reliability == "verified", ]
-  expect_false(anyNA(verified$cn_ratio))
-  expect_true(all(verified$cn_ratio >= 5 & verified$cn_ratio <= 50))
-  expect_equal(cn$cn_ratio[cn$cn_category == "Dairy Cattle"], 18)
-  expect_equal(cn$cn_ratio[cn$cn_category == "Poultry"], 6)
-
-  placeholders <- cn[cn$reliability == "placeholder", ]
-  expect_setequal(
-    placeholders$cn_category,
-    c("Mules and Asses", "Camels", "Buffalo")
-  )
-  expect_true(all(is.na(placeholders$cn_ratio)))
+test_that("manure C:N rows exist in bio coefficients (reused, not duplicated)", {
+  # Manure C:N is reused from biomass_coefs Category Solid/Liquid/Excreta rows
+  # (per species x manure-type), not a bespoke table.
+  bc <- whep::biomass_coefs
+  man <- bc[
+    !is.na(bc$Category) &
+      bc$Category %in% c("Solid", "Liquid", "Excreta"),
+  ]
+  expect_gt(nrow(man), 20)
+  expect_false(anyNA(man$Residue_C_N))
+  expect_true(all(man$Residue_C_N > 3 & man$Residue_C_N < 60))
+  # species the bridge needs are present (or fall back to All_species)
+  expect_true(all(
+    c("Cattle", "Pigs", "Poultry", "Sheep", "Goats", "Horses", "Rabbits") %in%
+      man$Name_biomass
+  ))
 })
 
 test_that("N2:N2O ratio and climate-zone cuts match verified IPCC values", {

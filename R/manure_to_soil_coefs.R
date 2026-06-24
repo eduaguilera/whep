@@ -85,25 +85,6 @@
     tibble::as_tibble()
 }
 
-#' Manure carbon:nitrogen ratios per species (mass C / mass N).
-#'
-#' Default `cn_ratio` (and `cn_low`/`cn_high`) for freshly excreted manure,
-#' used to derive manure carbon from manure nitrogen, keyed by `cn_category`
-#' (the bridge `bo_category`). Verified from Rynk (1992, NRAES-54) and
-#' peer-reviewed sources; `Mules and Asses`, `Camels` and `Buffalo` are
-#' `placeholder` (NA) pending a measured value (CALIBRATE).
-#' @noRd
-.manure_cn_ratio <- function() {
-  system.file(
-    "extdata",
-    "manure",
-    "manure_cn_ratio.csv",
-    package = "whep"
-  ) |>
-    data.table::fread(na.strings = c("NA", "")) |>
-    tibble::as_tibble()
-}
-
 #' Ratio of dinitrogen (N2) to nitrous-oxide (N2O) N lost in manure storage.
 #'
 #' N2-N = ratio x N2O-N (from EF3). Default 3 (plausible range 1-10) from
