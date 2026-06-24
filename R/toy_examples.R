@@ -338,16 +338,16 @@
 .example_build_primary_prices <- function() {
   tibble::tribble(
     ~year, ~item_prod_code, ~price,
-    2010L, 15L, 0.292,
-    2015L, 15L, 0.210,
-    2010L, 56L, 0.255,
-    2015L, 56L, 0.185,
-    2010L, 236L, 0.410,
-    2015L, 236L, 0.347,
-    2010L, 31L, 0.395,
-    2015L, 31L, 0.422,
-    2018L, 406L, 0.330,
-    2018L, 486L, 0.180
+    2010L, "15", 0.292,
+    2015L, "15", 0.210,
+    2010L, "56", 0.255,
+    2015L, "56", 0.185,
+    2010L, "236", 0.410,
+    2015L, "236", 0.347,
+    2010L, "31", 0.395,
+    2015L, "31", 0.422,
+    2018L, "406", 0.330,
+    2018L, "486", 0.180
   )
 }
 
@@ -407,3 +407,45 @@
 # afsetools parity fixtures were removed: afsetools::load_general_data() reads
 # Codes_coefs.xlsx via openxlsx (segfaults intermittently on R 4.5.x) and is not
 # a CI dependency, so the live parity test is not run. See test_redistribute_feed.R.
+
+.example_local_intake <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~sub_territory, ~live_anim_code, ~item_cbs_code,
+    ~feed_type, ~supply, ~intake, ~intake_dry_matter, ~loss, ~loss_share,
+    2000L, 724L, "-3.75_40.25", 960L, 3000L, "grass", 1250, 1250, 250, 0, 0,
+    2000L, 724L, "-3.75_40.25", 960L, 2591L, "crops", 11, 11, 10, 0, 0,
+    2000L, 724L, "-3.25_40.25", 961L, 3000L, "grass", 900, 900, 180, 0, 0,
+    2000L, 724L, "-3.25_40.25", 976L, 3500L, "scavenging", 0, 0, 0, 0, 0,
+    2000L, 724L, "-3.25_40.75", 1049L, 2591L, "crops", 22, 22, 20, 0, 0
+  )
+}
+
+.example_build_feed_demand <- function(by = "category") {
+  if (by == "feed_type") {
+    return(tibble::tribble(
+      ~year, ~territory, ~sub_territory, ~livestock_category, ~item_cbs_code,
+      ~feed_group, ~feed_quality, ~demand_dm_t, ~fixed_demand,
+      2000L, "79", NA_character_, "Cattle_milk", NA_integer_,
+      NA_character_, "grass", 1800000, TRUE,
+      2000L, "79", NA_character_, "Cattle_milk", NA_integer_,
+      NA_character_, "high_quality", 2800000, FALSE,
+      2000L, "79", NA_character_, "Cattle_milk", NA_integer_,
+      NA_character_, "residues", 1200000, FALSE,
+      2000L, "79", NA_character_, "Pigs", NA_integer_,
+      NA_character_, "high_quality", 7400000, FALSE,
+      2000L, "79", NA_character_, "Pigs", NA_integer_,
+      NA_character_, "scavenging", 1300000, FALSE
+    ))
+  }
+  tibble::tribble(
+    ~year, ~area_code, ~livestock_category, ~demand_dm_t, ~method_demand,
+    2000L, 79L, "Cattle_milk", 5.8e6, "ipcc_tier2_energy",
+    2000L, 79L, "Cattle_meat", 9.4e6, "ipcc_tier2_energy",
+    2000L, 79L, "Sheep", 1.1e6, "ipcc_tier2_energy",
+    2000L, 79L, "Goats", 2.0e5, "ipcc_tier2_energy",
+    2000L, 79L, "Pigs", 8.7e6, "bouwman_fcr",
+    2000L, 79L, "Poultry", 3.9e6, "bouwman_fcr",
+    2000L, 79L, "Horses", 1.5e5, "krausmann_per_head",
+    2000L, 79L, "Other", 3.0e4, "krausmann_per_head"
+  )
+}

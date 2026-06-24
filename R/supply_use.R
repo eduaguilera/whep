@@ -88,9 +88,11 @@ build_supply_use <- function(example = FALSE) {
     cbs = cbs,
     crop_residues = get_primary_residues(),
     primary_prod = primary_prod,
-    feed_intake = .build_feed_intake_from_inputs(
-      cbs = cbs,
-      primary_prod = primary_prod
+    feed_intake = .build_redistribute_intake(
+      grain = "national",
+      demand_tier = "ipcc",
+      production = primary_prod,
+      cbs = cbs
     )
   ) |>
     .add_reporting_polity_columns()

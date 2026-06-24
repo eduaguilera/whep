@@ -4,11 +4,32 @@
 \alias{get_feed_intake}
 \title{Livestock feed intake}
 \usage{
-get_feed_intake(example = FALSE)
+get_feed_intake(
+  example = FALSE,
+  grain = c("national", "local"),
+  demand_tier = c("ipcc", "fcr"),
+  years = NULL
+)
 }
 \arguments{
 \item{example}{If \code{TRUE}, return a small example output without downloading
 remote data. Default is \code{FALSE}.}
+
+\item{grain}{Spatial grain of the feed allocation. \code{"national"} (default, one
+allocation per country) or \code{"local"} (the per-cell 0.5-degree engine,
+which is heavy and run via \code{\link[=build_feed_intake_local]{build_feed_intake_local()}}; calling it here
+redirects there).}
+
+\item{demand_tier}{Demand-estimation tier. \code{"ipcc"} (default, the rigorous
+IPCC Tier-2 energy demand for the ruminant species it covers, Bouwman FCR
+for pigs and poultry, Krausmann per-head for draft / other species) or
+\code{"fcr"} (the Bouwman / Krausmann feed-conversion magnitude for every
+species). Both grains allocate with \code{redistribute_feed()}.}
+
+\item{years}{Integer vector of years to build, or \code{NULL} (default) for every
+year in the production data (1850-2023 via the LUH2 extension). Restricting
+the range cuts run time proportionally; allocation is independent per year,
+so a subset returns exactly the same rows for those years.}
 }
 \value{
 A tibble with the feed intake data.
