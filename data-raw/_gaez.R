@@ -16,7 +16,7 @@ gaez_layer <- function(key) {
 
   cache_dir <- Sys.getenv(
     "WHEP_DATARAW_CACHE",
-    file.path(tempdir(), "whep-dataraw")
+    rappdirs::user_cache_dir("whep")
   )
   out <- file.path(cache_dir, "gaez")
   dir.create(out, showWarnings = FALSE, recursive = TRUE)

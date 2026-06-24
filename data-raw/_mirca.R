@@ -14,7 +14,7 @@ mirca_calendar_dir <- function() {
 
   cache_dir <- Sys.getenv(
     "WHEP_DATARAW_CACHE",
-    file.path(tempdir(), "whep-dataraw")
+    rappdirs::user_cache_dir("whep")
   )
   out <- file.path(cache_dir, "condensed_cropping_calendars")
   kinds <- c("rainfed", "irrigated")
