@@ -30,9 +30,11 @@
 #' @param usable_grass_yield_dm_t_ha Usable grass yield in dry-matter tonnes per
 #'   hectare, used only by `"active_grazing"`. Defaults to `2.06`.
 #' @param data Optional named list of pre-loaded inputs to avoid remote reads:
-#'   `primary_prod` (for `source = "luh2"`) and `feed_intake` (for
+#'   `primary_prod` (for `source = "luh2"`), `landuse` (the `faostat-landuse`
+#'   pin, for `source = "faostat_pasture"`) and `feed_intake` (for
 #'   `grassland_metric = "active_grazing"`). Each falls back to its reader
-#'   ([get_primary_production()], [get_feed_intake()]) when absent.
+#'   ([get_primary_production()], [whep_read_file()], [get_feed_intake()]) when
+#'   absent.
 #' @param example If `TRUE`, return a small fixture instead of reading remote
 #'   data. Defaults to `FALSE`.
 #'
@@ -60,7 +62,7 @@ build_grassland_land_extension <- function(
   occupation <- switch(
     source,
     luh2 = .grassland_occupation_luh2(data$primary_prod),
-    faostat_pasture = .grassland_occupation_faostat()
+    faostat_pasture = .grassland_occupation_faostat(data$landuse)
   )
   if (grassland_metric == "occupation") {
     return(dplyr::mutate(occupation, method_grassland = "occupation"))
@@ -94,21 +96,29 @@ build_grassland_land_extension <- function(
     )
 }
 
-# FAOSTAT "Permanent meadows and pastures" area (item 6655), shipped in
-# inst/extdata/faostat_pasture.csv (built by data-raw/faostat_pasture.R).
-.grassland_occupation_faostat <- function() {
-  path <- system.file("extdata", "faostat_pasture.csv", package = "whep")
-  if (!nzchar(path)) {
-    cli::cli_abort(
-      "{.file faostat_pasture.csv} not found in installed package."
-    )
+# FAOSTAT "Permanent meadows and pastures" area (item 6655), filtered live from
+# the faostat-landuse pin (Value is in 1000 ha). Aggregate FAOSTAT regions are
+# dropped by keeping only codes that map to a real country in regions_full.
+.grassland_occupation_faostat <- function(landuse = NULL) {
+  if (is.null(landuse)) {
+    landuse <- whep_read_file("faostat-landuse")
   }
-  readr::read_csv(path, show_col_types = FALSE) |>
+  valid_codes <- whep::regions_full |>
+    dplyr::filter(!is.na(.data$iso3c)) |>
+    dplyr::pull(.data$code) |>
+    unique()
+  landuse |>
+    dplyr::filter(.data[["Item Code"]] == 6655, .data$Element == "Area") |>
     dplyr::transmute(
-      year = as.integer(.data$year),
-      area_code = as.integer(.data$area_code),
+      year = as.integer(.data$Year),
+      area_code = as.integer(.data[["Area Code"]]),
       item_cbs_code = 3000L,
-      impact_u = .data$pasture_ha
+      impact_u = round(.data$Value * 1000, 1)
+    ) |>
+    dplyr::filter(
+      !is.na(.data$impact_u),
+      .data$impact_u > 0,
+      .data$area_code %in% valid_codes
     )
 }
 

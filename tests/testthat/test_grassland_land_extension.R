@@ -30,15 +30,24 @@ testthat::test_that("luh2 occupation sums grass area and drops crops and fallow"
   testthat::expect_equal(result$method_grassland, "occupation")
 })
 
-testthat::test_that("faostat_pasture source reads shipped permanent pasture", {
-  result <- whep::build_grassland_land_extension(source = "faostat_pasture")
-
-  pointblank::expect_col_exists(
-    result,
-    c("year", "area_code", "item_cbs_code", "impact_u", "method_grassland")
+testthat::test_that("faostat_pasture filters item 6655 from the landuse pin", {
+  landuse <- tibble::tribble(
+    ~`Area Code`, ~`Item Code`, ~Element, ~Year, ~Value,
+    10, 6655, "Area", 2000, 50000, # Australia perm. pasture (1000 ha)
+    10, 6620, "Area", 2000, 9999, # cropland -> excluded (wrong item)
+    351, 6655, "Area", 2000, 40000 # China aggregate (NA iso3c) -> excluded
   )
+
+  result <- whep::build_grassland_land_extension(
+    source = "faostat_pasture",
+    data = list(landuse = landuse)
+  )
+
+  testthat::expect_equal(nrow(result), 1L)
+  testthat::expect_equal(result$area_code, 10L)
+  testthat::expect_equal(result$impact_u, 5e7)
   testthat::expect_true(all(result$item_cbs_code == 3000L))
-  pointblank::expect_col_vals_gt(result, "impact_u", 0)
+  testthat::expect_equal(result$method_grassland, "occupation")
 })
 
 testthat::test_that("active_grazing caps area at grazing intake over yield", {

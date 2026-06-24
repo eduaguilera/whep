@@ -23,9 +23,11 @@ build_grassland_land_extension(
 hectare, used only by \code{"active_grazing"}. Defaults to \code{2.06}.}
 
 \item{data}{Optional named list of pre-loaded inputs to avoid remote reads:
-\code{primary_prod} (for \code{source = "luh2"}) and \code{feed_intake} (for
+\code{primary_prod} (for \code{source = "luh2"}), \code{landuse} (the \code{faostat-landuse}
+pin, for \code{source = "faostat_pasture"}) and \code{feed_intake} (for
 \code{grassland_metric = "active_grazing"}). Each falls back to its reader
-(\code{\link[=get_primary_production]{get_primary_production()}}, \code{\link[=get_feed_intake]{get_feed_intake()}}) when absent.}
+(\code{\link[=get_primary_production]{get_primary_production()}}, \code{\link[=whep_read_file]{whep_read_file()}}, \code{\link[=get_feed_intake]{get_feed_intake()}}) when
+absent.}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading remote
 data. Defaults to \code{FALSE}.}
