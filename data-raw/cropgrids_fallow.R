@@ -14,8 +14,7 @@
 #
 # Inputs: shipped cropgrids_land.csv, grid_aez.csv, fallow_propensity.csv; the
 # spatialization inputs (<l_files>/whep/inputs via WHEP_LFILES_INPUT_DIR); and
-# the FAOSTAT Land Use bulk CSV (Inputs_LandUse_E_All_Data_NOFLAG.csv via
-# WHEP_FAOSTAT_LANDUSE).
+# the faostat-landuse pin (FAOSTAT Land Use RL domain), via whep_read_file().
 
 library(dplyr)
 library(data.table)
@@ -26,8 +25,6 @@ input_dir <- Sys.getenv(
   "WHEP_LFILES_INPUT_DIR",
   file.path(getwd(), "LPJmL_inputs", "whep", "inputs")
 )
-source("data-raw/_faostat_landuse.R")
-fao_path <- faostat_landuse_noflag()
 ref_year <- as.integer(Sys.getenv("WHEP_CROPGRIDS_FALLOW_YEAR", "2020"))
 
 cropgrids <- read_csv(
@@ -75,11 +72,17 @@ gridded_cbs <- as.data.table(gridded)[
 weights <- gridded_fallow_weights(tibble::as_tibble(gridded_cbs))
 
 # FAOSTAT "Temporary fallow" (item 6640), reference year, ha
-ycol <- paste0("Y", ref_year)
-fallow_total <- fread(fao_path, showProgress = FALSE)[
-  `Item Code` == 6640 & Element == "Area",
-  .(area_code = `Area Code`, fallow_ha = get(ycol) * 1000)
-][!is.na(fallow_ha) & fallow_ha > 0]
+fallow_total <- whep::whep_read_file("faostat-landuse") |>
+  dplyr::filter(
+    .data[["Item Code"]] == 6640,
+    .data$Element == "Area",
+    .data$Year == ref_year
+  ) |>
+  dplyr::transmute(
+    area_code = as.integer(.data[["Area Code"]]),
+    fallow_ha = .data$Value * 1000
+  ) |>
+  dplyr::filter(!is.na(fallow_ha), fallow_ha > 0)
 
 cropgrids_fallow_land <- attribute_fallow_to_crops(
   cropgrids,
