@@ -17,7 +17,13 @@
 # errors; the package default (grain = "national", demand_tier = "fcr") keeps
 # routing to the legacy allocator.
 
-.build_redistribute_intake <- function(grain, demand_tier) {
+.build_redistribute_intake <- function(
+  grain,
+  demand_tier,
+  production = NULL,
+  cbs = NULL,
+  years = NULL
+) {
   if (grain == "local") {
     cli::cli_abort(c(
       "Run the {.val local} grain with {.fn build_feed_intake_local}.",
@@ -26,9 +32,11 @@
         to disk, or a small {.arg years} subset to return it in memory."
     ))
   }
+  production <- .filter_years(production %||% get_primary_production(), years)
+  cbs <- .filter_years(cbs %||% get_wide_cbs(), years)
   engine <- .national_redistribute(
-    get_primary_production(),
-    get_wide_cbs(),
+    production,
+    cbs,
     demand_tier,
     .feed_demand_data()
   )

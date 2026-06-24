@@ -975,21 +975,14 @@ utils::globalVariables(
     "dlat",
     "d_tot",
     "flow",
-    # feed_intake_build.R (legacy allocator NSE columns, merged)
+    # feed_intake_build.R (shared demand/lookup NSE columns)
     "avail",
-    "avail_dm",
-    "dm_feedtype_tot",
     "dm_share_scav",
     "fcr",
     "feedtype_graniv",
     "feedtype_grazers",
-    "ft",
-    "graniv_feed_share",
     "grass",
-    "grazers_feed_share",
-    "loss_dm",
     "scavenging",
-    "supply_dm",
     # .fix_luh2_crop_collapse NSE columns (merged)
     "cropland_mha",
     "neighbor_mha",
