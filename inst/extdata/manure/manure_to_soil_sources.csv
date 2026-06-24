@@ -1,6 +1,7 @@
 source_id,citation,identifier,used_for,reliability
 ipcc_2019_v4ch10,IPCC 2019 Refinement to the 2006 Guidelines Vol.4 Ch.10,https://www.ipcc-nggip.iges.or.jp,FracGasMS/FracLeachMS (Table 10.22); N2:N2O (Table 10.23); MCF; Bo; EF3; N-retention; ash; default Nex,verified
-biomass_coefs_manure,WHEP biomass_coefs Category Solid/Liquid/Excreta rows (afsetools-derived),whep::biomass_coefs,manure C:N + humification per species x manure-type (reused; not duplicated),verified
+bio_coefs_manure,WHEP bio_coefs Solid/Liquid/Excreta category rows (migrated from biomass_coefs which is being superseded),whep_coef_table bio_coefs,manure C:N + humification per species x manure-type,verified
+bio_coefs_feed,WHEP bio_coefs product_n_kgdm incl. migrated feed byproducts,whep_coef_table bio_coefs,feed-item N content (item_cbs->name_biomass->product_n_kgdm),verified
 webb_2004,Webb & Misselbrook 2004 (via IPCC 2019 Table 10.23),see IPCC 2019 V4 Ch10 Table 10.23,N2:N2O ratio underlying value,derived
 herrero_2013,Herrero et al. 2013 PNAS,doi:10.1073/pnas.1308149110,MMS-share distribution (regional_mms_distribution),verified
 west_2014,West et al. 2014 Science 345:325-328,doi:10.1126/science.1246067,crop manure-N receptivity (crops_manure_n),verified

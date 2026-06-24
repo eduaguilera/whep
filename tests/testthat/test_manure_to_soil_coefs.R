@@ -48,8 +48,8 @@ test_that("bridge species_group uses the gridding vocabulary", {
   expect_true(all(bridge$species_group %in% proxy$species_group))
 })
 
-test_that("feed N lookup resolves nitrogen for nearly all feed items", {
-  lk <- whep:::.feed_n_content_lookup(whep::items_full, whep::biomass_coefs)
+test_that("feed N lookup resolves nitrogen for feed items via bio_coefs", {
+  lk <- whep:::.feed_n_content_lookup()
   expect_equal(dplyr::n_distinct(lk$item_cbs_code), nrow(lk))
 
   feed_items <- tibble::as_tibble(whep::items_full) |>
@@ -58,7 +58,9 @@ test_that("feed N lookup resolves nitrogen for nearly all feed items", {
     lk,
     item_cbs_code %in% as.integer(feed_items$item_cbs_code)
   )
-  expect_gt(mean(!is.na(fl$feed_n_kgn_kgdm)), 0.95)
+  # bio_coefs now carries the feed byproducts; only the junk Name_biomass="0"
+  # item fails to resolve.
+  expect_gt(mean(!is.na(fl$feed_n_kgn_kgdm)), 0.99)
 
   # Non-negative; <= 0.5 accommodates urea / non-protein-N feed additives.
   vals <- lk$feed_n_kgn_kgdm[!is.na(lk$feed_n_kgn_kgdm)]
@@ -109,21 +111,18 @@ test_that("every MMS x loss-category the engine can emit has a loss fraction", {
   expect_false(anyNA(combos$frac_gas_ms))
 })
 
-test_that("manure C:N rows exist in bio coefficients (reused, not duplicated)", {
-  # Manure C:N is reused from biomass_coefs Category Solid/Liquid/Excreta rows
-  # (per species x manure-type), not a bespoke table.
-  bc <- whep::biomass_coefs
-  man <- bc[
-    !is.na(bc$Category) &
-      bc$Category %in% c("Solid", "Liquid", "Excreta"),
-  ]
-  expect_gt(nrow(man), 20)
-  expect_false(anyNA(man$Residue_C_N))
-  expect_true(all(man$Residue_C_N > 3 & man$Residue_C_N < 60))
-  # species the bridge needs are present (or fall back to All_species)
+test_that("manure C:N is reused from bio_coefs per species x manure type", {
+  cn <- whep:::.manure_cn_coefs()
+  expect_true(all(
+    c("species", "manure_type", "cn_ratio", "humified_c_kgc") %in% names(cn)
+  ))
+  expect_gt(nrow(cn), 20)
+  expect_false(anyNA(cn$cn_ratio))
+  expect_true(all(cn$cn_ratio > 3 & cn$cn_ratio < 60))
+  expect_true(all(c("Solid", "Liquid", "Excreta") %in% cn$manure_type))
   expect_true(all(
     c("Cattle", "Pigs", "Poultry", "Sheep", "Goats", "Horses", "Rabbits") %in%
-      man$Name_biomass
+      cn$species
   ))
 })
 

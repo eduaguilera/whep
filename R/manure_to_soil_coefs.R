@@ -30,27 +30,50 @@
 #' Feed nitrogen content per CBS feed item (kg N / kg DM).
 #'
 #' Two-hop crosswalk `item_cbs_code -> Name_biomass` (from `items_full`)
-#' `-> Product_kgN_kgDM` (from `biomass_coefs`), so feed-item intake can be
-#' converted to a nitrogen intake. Grass/substitute intake rows carry
-#' `item_cbs_code = NA` and have no item key; they take the forage default from
+#' `-> product_n_kgdm` (from `bio_coefs`), so feed-item intake can be converted
+#' to a nitrogen intake. Grass/substitute intake rows carry `item_cbs_code = NA`
+#' and have no item key; they take the forage default from
 #' `.forage_n_kgn_kgdm()` instead.
 #' @noRd
-.feed_n_content_lookup <- function(items, coefs) {
+.feed_n_content_lookup <- function(
+  items = whep::items_full,
+  coefs = whep::whep_coef_table("bio_coefs")
+) {
   coef_n <- tibble::as_tibble(coefs) |>
     dplyr::transmute(
-      Name_biomass = .data$Name_biomass,
-      feed_n_kgn_kgdm = .data$Product_kgN_kgDM
+      name_biomass = .data$name_biomass,
+      feed_n_kgn_kgdm = .data$product_n_kgdm
     ) |>
-    dplyr::distinct(.data$Name_biomass, .keep_all = TRUE)
+    dplyr::distinct(.data$name_biomass, .keep_all = TRUE)
 
   tibble::as_tibble(items) |>
     dplyr::transmute(
       item_cbs_code = as.integer(.data$item_cbs_code),
-      Name_biomass = .data$Name_biomass
+      name_biomass = .data$Name_biomass
     ) |>
     dplyr::filter(!is.na(.data$item_cbs_code)) |>
     dplyr::distinct(.data$item_cbs_code, .keep_all = TRUE) |>
-    dplyr::left_join(coef_n, by = "Name_biomass")
+    dplyr::left_join(coef_n, by = "name_biomass")
+}
+
+#' Manure C:N and humification per species x manure type.
+#'
+#' The `bio_coefs` table carries manure coefficients in its `Solid`, `Liquid`,
+#' `Excreta` and `Urban` `category` rows (keyed by `name_biomass` = species),
+#' with `residue_c_n_ratio` as the manure C:N and `residue_humified_c_kgc` as the
+#' humification fraction. Used to derive manure carbon from manure nitrogen.
+#' @noRd
+.manure_cn_coefs <- function(coefs = whep::whep_coef_table("bio_coefs")) {
+  tibble::as_tibble(coefs) |>
+    dplyr::filter(
+      .data$category %in% c("Solid", "Liquid", "Excreta", "Urban")
+    ) |>
+    dplyr::transmute(
+      species = .data$name_biomass,
+      manure_type = .data$category,
+      cn_ratio = .data$residue_c_n_ratio,
+      humified_c_kgc = .data$residue_humified_c_kgc
+    )
 }
 
 #' Default nitrogen content of grazed forage (kg N / kg DM).
