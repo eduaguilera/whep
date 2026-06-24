@@ -104,6 +104,42 @@ test_that("grazing keeps full N, collected loses N, N2 = 3x N2O-N", {
   expect_true(all(res$method_losses == "ipcc_2019_tier2"))
 })
 
+test_that("apply_management_losses conserves C and VS, applied C:N post-storage", {
+  res <- whep::apply_management_losses(
+    whep::split_manure_management(.toy_excretion())
+  )
+  bal <- res |>
+    dplyr::summarise(
+      c_tot = sum(applied_c + c_lost),
+      vs_tot = sum(applied_vs + vs_destroyed),
+      .by = livestock_category
+    )
+  expect_equal(
+    bal$c_tot[bal$livestock_category == "Cattle_milk"],
+    1900,
+    tolerance = 1e-8
+  )
+  expect_equal(
+    bal$vs_tot[bal$livestock_category == "Cattle_milk"],
+    60,
+    tolerance = 1e-8
+  )
+  # Grazing deposition loses no carbon in storage (fresh excreta).
+  graz <- res[res$stream == "grazing", ]
+  expect_true(all(abs(graz$c_lost) < 1e-6))
+  # Collected streams shift to the post-storage C:N: solid storage retains C
+  # (N volatilizes faster, C:N rises, c_lost = 0), liquid/slurry loses C.
+  coll <- res[res$stream == "collected" & res$applied_n > 0, ]
+  expect_true(all(coll$c_lost >= -1e-9))
+  expect_true(any(coll$c_lost > 0))
+  expect_true(all(res$applied_vs >= 0 & res$vs_destroyed >= -1e-9))
+  # Applied C:N differs from fresh-excreta C:N for collected streams.
+  excreta_cn <- res$applied_c[res$stream == "grazing"] /
+    res$applied_n[res$stream == "grazing"]
+  coll_cn <- coll$applied_c / coll$applied_n
+  expect_false(isTRUE(all.equal(coll_cn, rep(excreta_cn[1], length(coll_cn)))))
+})
+
 test_that("apply_management_losses guards bad input", {
   ok <- whep::split_manure_management(.toy_excretion())
   expect_error(

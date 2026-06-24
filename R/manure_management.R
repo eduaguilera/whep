@@ -34,7 +34,8 @@ split_manure_management <- function(excretion, options = list()) {
     .species_taxonomy_bridge(),
     "livestock_category",
     "species_gen",
-    "loss_category"
+    "loss_category",
+    "cn_species"
   )
 
   joined <- excretion |>
@@ -69,6 +70,7 @@ split_manure_management <- function(excretion, options = list()) {
       "livestock_category",
       "species_gen",
       "loss_category",
+      "cn_species",
       "mms_type",
       "stream",
       "n_stream",
@@ -120,16 +122,18 @@ split_manure_management <- function(excretion, options = list()) {
 #' (pasture/range/paddock) stream is deposited in situ and keeps its full
 #' nitrogen (its in-situ soil losses belong to the soil stage). Indirect N2O is
 #' reported as a labelled sub-flux of the already-removed volatilized and leached
-#' nitrogen (the same N is not removed twice). Carbon and volatile-solids storage
-#' losses are not yet applied (`applied_c`/`applied_vs` pass through).
+#' nitrogen (the same N is not removed twice). Carbon applied to the field is
+#' `applied_n` times the post-storage manure C:N (the solid/liquid/excreta value
+#' for the stream's management system), so the applied C:N reflects storage, not
+#' fresh excreta; the carbon and volatile-solids storage losses follow from that.
 #'
 #' @param split A tibble from [split_manure_management()].
 #' @param options A named list. `method` selects the loss method
 #'   (`"ipcc_2019_tier2"`).
 #'
-#' @return The input rows with `applied_n`, `applied_c`, `applied_vs`,
-#'   `n_volatilized`, `n_leached`, `n2o_direct_n`, `n2_n`, `n2o_indirect_n` and
-#'   `method_losses`.
+#' @return The input rows with `manure_type`, `applied_n`, `applied_c`,
+#'   `applied_vs`, `n_volatilized`, `n_leached`, `n2o_direct_n`, `n2_n`,
+#'   `n2o_indirect_n`, `c_lost`, `vs_destroyed` and `method_losses`.
 #' @export
 #' @examples
 #' excretion <- tibble::tribble(
@@ -161,7 +165,7 @@ apply_management_losses <- function(split, options = list()) {
     cli::cli_abort("Missing loss fraction or EF3 for some MMS.")
   }
 
-  out |>
+  out <- out |>
     dplyr::mutate(
       n_volatilized = dplyr::if_else(
         .data$stream == "grazing",
@@ -191,9 +195,32 @@ apply_management_losses <- function(split, options = list()) {
             .data$n2o_direct_n -
             .data$n2_n
         )
+      )
+    ) |>
+    dplyr::left_join(.mms_manure_type(), by = "mms_type") |>
+    dplyr::left_join(
+      dplyr::transmute(
+        .manure_cn_coefs(),
+        cn_species = .data$species,
+        manure_type = .data$manure_type,
+        cn_post = .data$cn_ratio
       ),
-      applied_c = .data$c_stream,
-      applied_vs = .data$vs_stream,
+      by = c("cn_species", "manure_type")
+    )
+  if (anyNA(out$cn_post)) {
+    cli::cli_abort("Missing post-storage C:N for some (species, manure_type).")
+  }
+
+  out |>
+    dplyr::mutate(
+      applied_c = pmin(.data$c_stream, .data$applied_n * .data$cn_post),
+      c_lost = .data$c_stream - .data$applied_c,
+      applied_vs = dplyr::if_else(
+        .data$c_stream > 0,
+        .data$vs_stream * .data$applied_c / .data$c_stream,
+        .data$vs_stream
+      ),
+      vs_destroyed = .data$vs_stream - .data$applied_vs,
       method_losses = opt$method
     ) |>
     dplyr::select(
@@ -203,6 +230,7 @@ apply_management_losses <- function(split, options = list()) {
       "livestock_category",
       "species_gen",
       "mms_type",
+      "manure_type",
       "stream",
       "applied_n",
       "applied_c",
@@ -212,6 +240,8 @@ apply_management_losses <- function(split, options = list()) {
       "n2o_direct_n",
       "n2_n",
       "n2o_indirect_n",
+      "c_lost",
+      "vs_destroyed",
       "method_losses"
     )
 }
@@ -220,6 +250,7 @@ apply_management_losses <- function(split, options = list()) {
   req <- c(
     "mms_type",
     "loss_category",
+    "cn_species",
     "stream",
     "n_stream",
     "c_stream",
@@ -255,5 +286,28 @@ apply_management_losses <- function(split, options = list()) {
       pick("Uncovered Anaerobic Lagoon"),
       pick("Poultry Manure - Deep Litter")
     )
+  )
+}
+
+# Map each engine MMS to the bio_coefs manure_type whose post-storage C:N applies:
+# grazing deposition is fresh excreta; solid systems use the solid C:N; slurry
+# and lagoon use the liquid C:N. The applied C:N is therefore the post-storage
+# value, not the fresh-excreta value.
+.mms_manure_type <- function() {
+  tibble::tribble(
+    ~mms_type,
+    ~manure_type,
+    "Pasture/Range/Paddock",
+    "Excreta",
+    "Daily Spread",
+    "Solid",
+    "Solid Storage",
+    "Solid",
+    "Liquid/Slurry",
+    "Liquid",
+    "Anaerobic Lagoon",
+    "Liquid",
+    "Poultry Manure",
+    "Solid"
   )
 }

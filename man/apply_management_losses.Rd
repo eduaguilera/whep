@@ -13,9 +13,9 @@ apply_management_losses(split, options = list())
 (\code{"ipcc_2019_tier2"}).}
 }
 \value{
-The input rows with \code{applied_n}, \code{applied_c}, \code{applied_vs},
-\code{n_volatilized}, \code{n_leached}, \code{n2o_direct_n}, \code{n2_n}, \code{n2o_indirect_n} and
-\code{method_losses}.
+The input rows with \code{manure_type}, \code{applied_n}, \code{applied_c},
+\code{applied_vs}, \code{n_volatilized}, \code{n_leached}, \code{n2o_direct_n}, \code{n2_n},
+\code{n2o_indirect_n}, \code{c_lost}, \code{vs_destroyed} and \code{method_losses}.
 }
 \description{
 Nets the nitrogen surviving manure management onto the field, applying the
@@ -25,8 +25,10 @@ IPCC 2019 management-loss fractions to the collected/housed streams from
 (pasture/range/paddock) stream is deposited in situ and keeps its full
 nitrogen (its in-situ soil losses belong to the soil stage). Indirect N2O is
 reported as a labelled sub-flux of the already-removed volatilized and leached
-nitrogen (the same N is not removed twice). Carbon and volatile-solids storage
-losses are not yet applied (\code{applied_c}/\code{applied_vs} pass through).
+nitrogen (the same N is not removed twice). Carbon applied to the field is
+\code{applied_n} times the post-storage manure C:N (the solid/liquid/excreta value
+for the stream's management system), so the applied C:N reflects storage, not
+fresh excreta; the carbon and volatile-solids storage losses follow from that.
 }
 \examples{
 excretion <- tibble::tribble(
