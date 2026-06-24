@@ -362,13 +362,19 @@ which solves $`(I - A)x = Y`$ without ever materialising the full L.
 ### Step 3: Compute the footprint
 
 Now provide your environmental extension vector. This must have one
-value per sector, in the same order as the labels. For land use, you can
-use
-[`get_land_fp_production()`](https://eduaguilera.github.io/whep/reference/get_land_fp_production.md):
+value per sector, in the same order as the labels. For land use, build a
+native land extension by combining the per-crop physical cropland
+([`build_cropgrids_land_extension()`](https://eduaguilera.github.io/whep/reference/build_cropgrids_land_extension.md))
+with grassland
+([`build_grassland_land_extension()`](https://eduaguilera.github.io/whep/reference/build_grassland_land_extension.md)):
 
 ``` r
 
-land_use_data <- get_land_fp_production() |>
+crop_land <- build_cropgrids_land_extension(source = "cropgrids_fallow")
+grass_land <- build_grassland_land_extension() |>
+  dplyr::select(year, area_code, item_cbs_code, impact_u)
+
+land_use_data <- dplyr::bind_rows(crop_land, grass_land) |>
   dplyr::filter(year == selected_year) |>
   dplyr::select(area_code, item_cbs_code, hectares = impact_u)
 
@@ -524,7 +530,11 @@ returns one row per year, you can loop over them:
 
 io <- build_io_model(years = 2010:2013)
 
-land <- get_land_fp_production()
+land <- dplyr::bind_rows(
+  build_cropgrids_land_extension(source = "cropgrids_fallow"),
+  build_grassland_land_extension() |>
+    dplyr::select(year, area_code, item_cbs_code, impact_u)
+)
 
 all_footprints <- purrr::pmap_dfr(
   list(

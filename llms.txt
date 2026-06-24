@@ -158,8 +158,6 @@ Production, supply/use, and processing datasets.
 
 - [`build_supply_use()`](https://eduaguilera.github.io/whep/reference/build_supply_use.md)
   : Supply and use tables
-- [`get_land_fp_production()`](https://eduaguilera.github.io/whep/reference/get_land_fp_production.md)
-  : Get land footprint data for local production.
 - [`get_feed_intake()`](https://eduaguilera.github.io/whep/reference/get_feed_intake.md)
   : Livestock feed intake
 - [`get_primary_production()`](https://eduaguilera.github.io/whep/reference/get_primary_production.md)
@@ -339,6 +337,21 @@ the FABIO framework.
   : Compute final-product footprint paths.
 - [`add_footprint_product_stage()`](https://eduaguilera.github.io/whep/reference/add_footprint_product_stage.md)
   : Add a final-demand product-area stage to footprints.
+- [`build_crop_land_extension()`](https://eduaguilera.github.io/whep/reference/build_crop_land_extension.md)
+  : Build per-crop physical cropland extension.
+- [`get_crop_land_extension()`](https://eduaguilera.github.io/whep/reference/get_crop_land_extension.md)
+  : Get the per-crop physical cropland extension from spatialization
+  inputs.
+- [`build_cropgrids_land_extension()`](https://eduaguilera.github.io/whep/reference/build_cropgrids_land_extension.md)
+  : Build a per-crop physical land extension from CROPGRIDS.
+- [`build_hayr_land_extension()`](https://eduaguilera.github.io/whep/reference/build_hayr_land_extension.md)
+  : Build a hectare-year (land-occupation) crop land extension.
+- [`build_grassland_land_extension()`](https://eduaguilera.github.io/whep/reference/build_grassland_land_extension.md)
+  : Build the native grassland land extension.
+- [`gridded_fallow_weights()`](https://eduaguilera.github.io/whep/reference/gridded_fallow_weights.md)
+  : Build agro-climatic, rainfed-gated fallow allocation weights.
+- [`attribute_fallow_to_crops()`](https://eduaguilera.github.io/whep/reference/attribute_fallow_to_crops.md)
+  : Attribute reported fallow land to crops.
 - [`plot_footprint_sankey()`](https://eduaguilera.github.io/whep/reference/plot_footprint_sankey.md)
   : Interactive footprint Sankey viewer
 

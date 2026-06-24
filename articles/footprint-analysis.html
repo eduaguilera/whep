@@ -525,10 +525,16 @@ without ever materialising the full L.</p>
 <h3 id="step-3-compute-the-footprint">Step 3: Compute the footprint<a class="anchor" aria-label="anchor" href="#step-3-compute-the-footprint"></a>
 </h3>
 <p>Now provide your environmental extension vector. This must have one
-value per sector, in the same order as the labels. For land use, you can
-use <code><a href="../reference/get_land_fp_production.html">get_land_fp_production()</a></code>:</p>
+value per sector, in the same order as the labels. For land use, build a
+native land extension by combining the per-crop physical cropland
+(<code><a href="../reference/build_cropgrids_land_extension.html">build_cropgrids_land_extension()</a></code>) with grassland
+(<code><a href="../reference/build_grassland_land_extension.html">build_grassland_land_extension()</a></code>):</p>
 <div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">land_use_data</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/get_land_fp_production.html">get_land_fp_production</a></span><span class="op">(</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<code class="sourceCode R"><span><span class="va">crop_land</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/build_cropgrids_land_extension.html">build_cropgrids_land_extension</a></span><span class="op">(</span>source <span class="op">=</span> <span class="st">"cropgrids_fallow"</span><span class="op">)</span></span>
+<span><span class="va">grass_land</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/build_grassland_land_extension.html">build_grassland_land_extension</a></span><span class="op">(</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu">dplyr</span><span class="fu">::</span><span class="fu"><a href="https://dplyr.tidyverse.org/reference/select.html" class="external-link">select</a></span><span class="op">(</span><span class="va">year</span>, <span class="va">area_code</span>, <span class="va">item_cbs_code</span>, <span class="va">impact_u</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">land_use_data</span> <span class="op">&lt;-</span> <span class="fu">dplyr</span><span class="fu">::</span><span class="fu"><a href="https://dplyr.tidyverse.org/reference/bind_rows.html" class="external-link">bind_rows</a></span><span class="op">(</span><span class="va">crop_land</span>, <span class="va">grass_land</span><span class="op">)</span> <span class="op">|&gt;</span></span>
 <span>  <span class="fu">dplyr</span><span class="fu">::</span><span class="fu"><a href="https://dplyr.tidyverse.org/reference/filter.html" class="external-link">filter</a></span><span class="op">(</span><span class="va">year</span> <span class="op">==</span> <span class="va">selected_year</span><span class="op">)</span> <span class="op">|&gt;</span></span>
 <span>  <span class="fu">dplyr</span><span class="fu">::</span><span class="fu"><a href="https://dplyr.tidyverse.org/reference/select.html" class="external-link">select</a></span><span class="op">(</span><span class="va">area_code</span>, <span class="va">item_cbs_code</span>, hectares <span class="op">=</span> <span class="va">impact_u</span><span class="op">)</span></span>
 <span></span>
@@ -685,7 +691,11 @@ loop over them:</p>
 <div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">io</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/build_io_model.html">build_io_model</a></span><span class="op">(</span>years <span class="op">=</span> <span class="fl">2010</span><span class="op">:</span><span class="fl">2013</span><span class="op">)</span></span>
 <span></span>
-<span><span class="va">land</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/get_land_fp_production.html">get_land_fp_production</a></span><span class="op">(</span><span class="op">)</span></span>
+<span><span class="va">land</span> <span class="op">&lt;-</span> <span class="fu">dplyr</span><span class="fu">::</span><span class="fu"><a href="https://dplyr.tidyverse.org/reference/bind_rows.html" class="external-link">bind_rows</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="../reference/build_cropgrids_land_extension.html">build_cropgrids_land_extension</a></span><span class="op">(</span>source <span class="op">=</span> <span class="st">"cropgrids_fallow"</span><span class="op">)</span>,</span>
+<span>  <span class="fu"><a href="../reference/build_grassland_land_extension.html">build_grassland_land_extension</a></span><span class="op">(</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>    <span class="fu">dplyr</span><span class="fu">::</span><span class="fu"><a href="https://dplyr.tidyverse.org/reference/select.html" class="external-link">select</a></span><span class="op">(</span><span class="va">year</span>, <span class="va">area_code</span>, <span class="va">item_cbs_code</span>, <span class="va">impact_u</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">all_footprints</span> <span class="op">&lt;-</span> <span class="fu">purrr</span><span class="fu">::</span><span class="fu"><a href="https://purrr.tidyverse.org/reference/map_dfr.html" class="external-link">pmap_dfr</a></span><span class="op">(</span></span>
 <span>  <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
