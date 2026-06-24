@@ -20,9 +20,9 @@
 #
 # Usage
 # -----
-#   1. Build your io_model:  io <- build_io_model(years = YEAR)
-#   2. Load FABIO X:         X  <- readRDS("~/Downloads/X.rds")
-#   3. Set YEAR and paths below, then source this script.
+#   1. Set YEAR below.
+#   2. Source this script. FABIO data is downloaded from Zenodo automatically
+#      (cached under FABIO_DIR, default a tempdir).
 
 library(dplyr)
 library(Matrix)
@@ -35,17 +35,31 @@ library(Matrix)
 YEAR <- 2010
 
 io <- build_io_model(years = YEAR)
-# https://zenodo.org/records/2577067/files/X.rds?download=1
-X <- readRDS("~/Downloads/X.rds")
 
-# Path to io_codes.csv (from the FABIO Zenodo repository)
-# https://zenodo.org/records/2577067/files/io_codes.csv?download=1
-IO_CODES_PATH <- "~/Downloads/io_codes.csv"
+# Official FABIO data (Bruckner et al. 2019, Zenodo 2577067) downloaded to a
+# cache dir (override with FABIO_DIR).
+fabio_dir <- Sys.getenv("FABIO_DIR", file.path(tempdir(), "fabio"))
+dir.create(fabio_dir, showWarnings = FALSE, recursive = TRUE)
+fabio_file <- function(name) {
+  dest <- file.path(fabio_dir, name)
+  if (!file.exists(dest)) {
+    url <- paste0(
+      "https://zenodo.org/records/2577067/files/",
+      name,
+      "?download=1"
+    )
+    download.file(url, dest, mode = "wb")
+  }
+  dest
+}
+
+X <- readRDS(fabio_file("X.rds"))
+IO_CODES_PATH <- fabio_file("io_codes.csv")
 
 # Optional: per-year Z and Y matrices. Set to NULL to skip those sections.
 # These are typically large — start with just X.
-FABIO_Z_PATH <- NULL # e.g. paste0("~/Downloads/", YEAR, "_Z.rds")
-FABIO_Y_PATH <- NULL # e.g. paste0("~/Downloads/", YEAR, "_Y.rds")
+FABIO_Z_PATH <- NULL # e.g. fabio_file(paste0(YEAR, "_Z.rds"))
+FABIO_Y_PATH <- NULL # e.g. fabio_file(paste0(YEAR, "_Y.rds"))
 
 # --------------------------------------------------------------------------- #
 # Helpers                                                                       #

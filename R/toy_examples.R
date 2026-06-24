@@ -59,6 +59,16 @@
     .add_reporting_polity_columns()
 }
 
+.example_grassland_extension <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~impact_u, ~method_grassland,
+    1986L, 10L, 3000L, 2.5e7, "occupation",
+    1986L, 100L, 3000L, 8.0e6, "occupation",
+    1987L, 10L, 3000L, 2.5e7, "occupation",
+    1987L, 100L, 3000L, 8.1e6, "occupation"
+  )
+}
+
 .ex_get_primary_prod <- function() {
   tibble::tribble(
     ~year, ~area_code, ~item_prod_code, ~item_cbs_code, ~live_anim_code, ~unit, ~value,
@@ -375,6 +385,22 @@
     2000L, "prov_a", 2555L, "grass", "grass", 40, "provincial",
     2000L, "prov_b", 2514L, "cereals", "high_quality", 100, "national",
     2000L, "prov_b", 2555L, "grass", "grass", 60, "provincial"
+  )
+}
+
+.example_crop_land_extension <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~impact_u, ~method_land,
+    2000L, 33L, 2511L, 17562678, "cropland_apportion",
+    2000L, 33L, 2514L, 2159391, "cropland_apportion",
+    2000L, 33L, 2516L, 3206883, "cropland_apportion",
+    2000L, 33L, 2555L, 7782531, "cropland_apportion",
+    2000L, 100L, 2511L, 27345112, "cropland_apportion",
+    2000L, 100L, 2513L, 9810455, "cropland_apportion",
+    2000L, 100L, 2531L, 1204599, "cropland_apportion",
+    2000L, 100L, 2555L, 7218004, "cropland_apportion",
+    2000L, 110L, 2511L, 1188233, "cropland_apportion",
+    2000L, 110L, 2805L, 1503221, "cropland_apportion"
   )
 }
 
