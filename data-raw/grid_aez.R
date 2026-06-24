@@ -1,36 +1,25 @@
 # Build inst/extdata/grid_aez.csv: per 0.5-degree cell agro-climatic indicators
 # used by gridded_fallow_weights()/.aez_zone() to classify each grid cell.
 #
-# Source: GAEZ v4 (FAO/IIASA) theme layers, 5 arc-min, aggregated to 0.5 degrees
-# (mean length of growing period; modal thermal-climate class):
-#   - reference_length_growing_period (LGP, days): moisture/aridity proxy.
-#   - thermal_climates (class 1-12; 1-5 = tropics/subtropics).
-# Requires the `terra` package.
-#
-# GAEZ is not openly downloadable by a stable URL (the data portal at
-# https://gaez.fao.org gates per-layer downloads), so it cannot be fetched
-# automatically. Obtain the two theme layers manually (or supply them as a pin)
-# and point WHEP_GAEZ_DIR at the directory holding
-# `reference_length_growing_period/data.asc` and `thermal_climates/data.asc`.
+# Source: GAEZ v4 (FAO/IIASA, open access CC BY 4.0) theme layers, 5 arc-min,
+# aggregated to 0.5 degrees (mean length of growing period; modal thermal-climate
+# class), downloaded by data-raw/_gaez.R:
+#   - length of growing period (LGP, days, 1981-2010 climatology): res01
+#     lgd_CRUTS32_Hist_8110 (lgd = LGP in days; the `lgp` code is the 1-16 LGP
+#     class, not days) -- moisture/aridity proxy.
+#   - thermal-climate class (1-12; 1-5 = tropics/subtropics): LR/aez
+#     thz_class_CRUTS32_Hist_8110.
+# Requires the `terra` package. Set WHEP_GAEZ_DIR to override the download with
+# locally-held layers (by bucket basename).
 
 library(terra)
 library(data.table)
 library(readr)
 devtools::load_all(".")
 
-gaez_dir <- Sys.getenv("WHEP_GAEZ_DIR", "")
-if (!nzchar(gaez_dir) || !dir.exists(gaez_dir)) {
-  stop(
-    "Set WHEP_GAEZ_DIR to a directory with the GAEZ v4 theme layers ",
-    "'reference_length_growing_period/data.asc' and ",
-    "'thermal_climates/data.asc' (download manually from https://gaez.fao.org; ",
-    "GAEZ has no open download URL).",
-    call. = FALSE
-  )
-}
-
-lgp <- rast(file.path(gaez_dir, "reference_length_growing_period/data.asc"))
-tc <- rast(file.path(gaez_dir, "thermal_climates/data.asc"))
+source("data-raw/_gaez.R")
+lgp <- rast(gaez_layer("data/res01/CRUTS32/Hist/lgd_CRUTS32_Hist_8110.tif"))
+tc <- rast(gaez_layer("data/LR/aez/thz_class_CRUTS32_Hist_8110_100_avg.tif"))
 lgp5 <- aggregate(lgp, fact = 6, fun = "mean", na.rm = TRUE)
 tc5 <- aggregate(tc, fact = 6, fun = "modal", na.rm = TRUE)
 
