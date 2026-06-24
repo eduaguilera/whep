@@ -741,7 +741,14 @@ gridded_fallow_weights <- function(
 .read_grid_aez <- function() {
   path <- system.file("extdata", "grid_aez.csv", package = "whep")
   if (!nzchar(path)) {
-    cli::cli_abort("{.file grid_aez.csv} not found in installed package.")
+    cli::cli_abort(
+      c(
+        "{.file grid_aez.csv} not found.",
+        "i" = "It is a build-time-only GAEZ-derived grid (not shipped). \\
+               Generate it with {.code Rscript data-raw/grid_aez.R}, or pass \\
+               {.arg grid_aez} explicitly to {.fn gridded_fallow_weights}."
+      )
+    )
   }
   readr::read_csv(path, show_col_types = FALSE)
 }
