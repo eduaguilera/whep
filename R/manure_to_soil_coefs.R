@@ -26,3 +26,40 @@
     data.table::fread(na.strings = "") |>
     tibble::as_tibble()
 }
+
+#' Feed nitrogen content per CBS feed item (kg N / kg DM).
+#'
+#' Two-hop crosswalk `item_cbs_code -> Name_biomass` (from `items_full`)
+#' `-> Product_kgN_kgDM` (from `biomass_coefs`), so feed-item intake can be
+#' converted to a nitrogen intake. Grass/substitute intake rows carry
+#' `item_cbs_code = NA` and have no item key; they take the forage default from
+#' `.forage_n_kgn_kgdm()` instead.
+#' @noRd
+.feed_n_content_lookup <- function(items, coefs) {
+  coef_n <- tibble::as_tibble(coefs) |>
+    dplyr::transmute(
+      Name_biomass = .data$Name_biomass,
+      feed_n_kgn_kgdm = .data$Product_kgN_kgDM
+    ) |>
+    dplyr::distinct(.data$Name_biomass, .keep_all = TRUE)
+
+  tibble::as_tibble(items) |>
+    dplyr::transmute(
+      item_cbs_code = as.integer(.data$item_cbs_code),
+      Name_biomass = .data$Name_biomass
+    ) |>
+    dplyr::filter(!is.na(.data$item_cbs_code)) |>
+    dplyr::distinct(.data$item_cbs_code, .keep_all = TRUE) |>
+    dplyr::left_join(coef_n, by = "Name_biomass")
+}
+
+#' Default nitrogen content of grazed forage (kg N / kg DM).
+#'
+#' Applied to grass/substitute intake rows (`item_cbs_code = NA`) that have no
+#' feed-item N key. 0.02 kg N / kg DM (~12.5% crude protein) is a mid-range
+#' grazed-forage value; provisional (CALIBRATE) pending a sourced per-feed-group
+#' forage N table.
+#' @noRd
+.forage_n_kgn_kgdm <- function() {
+  0.02
+}

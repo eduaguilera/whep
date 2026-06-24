@@ -47,3 +47,26 @@ test_that("bridge species_group uses the gridding vocabulary", {
   proxy <- whep:::.default_species_proxy()
   expect_true(all(bridge$species_group %in% proxy$species_group))
 })
+
+test_that("feed N lookup resolves nitrogen for nearly all feed items", {
+  lk <- whep:::.feed_n_content_lookup(whep::items_full, whep::biomass_coefs)
+  expect_equal(dplyr::n_distinct(lk$item_cbs_code), nrow(lk))
+
+  feed_items <- tibble::as_tibble(whep::items_full) |>
+    dplyr::filter(!is.na(feedtype_graniv) | !is.na(feedtype_grazers))
+  fl <- dplyr::filter(
+    lk,
+    item_cbs_code %in% as.integer(feed_items$item_cbs_code)
+  )
+  expect_gt(mean(!is.na(fl$feed_n_kgn_kgdm)), 0.95)
+
+  # Non-negative; <= 0.5 accommodates urea / non-protein-N feed additives.
+  vals <- lk$feed_n_kgn_kgdm[!is.na(lk$feed_n_kgn_kgdm)]
+  expect_true(all(vals >= 0 & vals <= 0.5))
+})
+
+test_that("forage N default is a plausible grazed-forage value", {
+  fn <- whep:::.forage_n_kgn_kgdm()
+  expect_gte(fn, 0.01)
+  expect_lte(fn, 0.03)
+})
