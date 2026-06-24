@@ -160,7 +160,12 @@ testthat::test_that("spatialized public outputs carry reporting polities", {
 
 testthat::test_that("legacy area reference tables are backed by polities", {
   testthat::expect_false(any(is.na(whep::polity_area_crosswalk$polity_code)))
-  testthat::expect_true(all(whep::polity_area_crosswalk$has_geometry))
+  # Every crosswalk polity must have a polygon UNLESS it is explicitly
+  # polygon_status == "unassigned": some historical periods (e.g. pre-1883
+  # Chile, before the War of the Pacific) have no faithful-vintage polygon,
+  # and we record an honest gap rather than back-project a later/modern border.
+  no_geometry <- whep::polity_area_crosswalk[!whep::polity_area_crosswalk$has_geometry, ]
+  testthat::expect_true(all(no_geometry$polygon_status == "unassigned"))
 
   for (data in list(whep::regions_full, whep::polities_cats)) {
     expect_polity_match(data, "code", "reporting_polity_code")
