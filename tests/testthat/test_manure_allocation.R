@@ -230,3 +230,12 @@ test_that("allocate_manure_to_land guards bad options and missing layers", {
   # missing the crops layer entirely aborts.
   expect_error(whep::allocate_manure_to_land(.toy_applied()), "crops")
 })
+
+test_that("an unexpected stream label aborts rather than dropping mass", {
+  bad <- .toy_applied()
+  bad$stream[1] <- "deposited"
+  expect_error(
+    whep::allocate_manure_to_land(bad, .toy_gridded()),
+    "stream"
+  )
+})

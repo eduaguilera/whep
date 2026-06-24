@@ -19,8 +19,9 @@ with the allocation weight (\code{manure_n_receptivity} for
 basis (\code{crop_n_cap}, t N, for \code{"potential_uptake"}/\code{"realised_removal"};
 \code{crop_area_ha} for \code{"fixed_ceiling"}).
 \item \code{grass} (optional): a tibble keyed by \code{year}, \code{territory}, \code{sub_territory}
-with \code{grass_n_cap} (t N) or \code{grass_area_ha}. Absent grassland means no
-grassland sink (cap zero).
+with \code{grass_n_cap} (t N) or \code{grass_area_ha}. The grassland cap is scaled by
+\code{f_n_tolerance} on the same footing as the uptake-based crop caps (not for
+\code{"fixed_ceiling"}). Absent grassland means no grassland sink (cap zero).
 }}
 
 \item{options}{A named list of method options: \code{method}

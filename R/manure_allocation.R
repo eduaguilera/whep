@@ -21,8 +21,9 @@
 #'     basis (`crop_n_cap`, t N, for `"potential_uptake"`/`"realised_removal"`;
 #'     `crop_area_ha` for `"fixed_ceiling"`).
 #'   * `grass` (optional): a tibble keyed by `year`, `territory`, `sub_territory`
-#'     with `grass_n_cap` (t N) or `grass_area_ha`. Absent grassland means no
-#'     grassland sink (cap zero).
+#'     with `grass_n_cap` (t N) or `grass_area_ha`. The grassland cap is scaled by
+#'     `f_n_tolerance` on the same footing as the uptake-based crop caps (not for
+#'     `"fixed_ceiling"`). Absent grassland means no grassland sink (cap zero).
 #' @param options A named list of method options: `method`
 #'   (`"area_x_receptivity"` default, or `"crop_n_demand"`), `cap_method`
 #'   (`"potential_uptake"` default, `"realised_removal"`, or `"fixed_ceiling"`),
@@ -57,6 +58,7 @@ allocate_manure_to_land <- function(
 ) {
   opt <- .allocate_options(options)
   .check_applied_cols(applied)
+  .check_streams(applied)
   streams <- .aggregate_applied_streams(applied)
   crops <- .prepare_crop_layer(gridded[["crops"]], opt)
   grass_cap <- .prepare_grass_cap(gridded[["grass"]], opt)
@@ -111,6 +113,19 @@ allocate_manure_to_land <- function(
   miss <- req[!purrr::map_lgl(req, ~ rlang::has_name(applied, .x))]
   if (length(miss) > 0) {
     cli::cli_abort("{.arg applied} is missing column{?s}: {.val {miss}}.")
+  }
+  invisible(NULL)
+}
+
+# The stream label is a branch key: only "collected" and "grazing" are summed,
+# so an unexpected value would be dropped (silent mass loss). Abort instead.
+.check_streams <- function(applied) {
+  bad <- setdiff(unique(applied$stream), c("collected", "grazing"))
+  if (length(bad) > 0) {
+    valid <- c("collected", "grazing")
+    cli::cli_abort(
+      "Unexpected {.field stream} value(s): {.val {bad}}. Expected {.val {valid}}."
+    )
   }
   invisible(NULL)
 }
