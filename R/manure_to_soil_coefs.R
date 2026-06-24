@@ -129,3 +129,20 @@
     TRUE ~ "Warm"
   )
 }
+
+#' Source registry for the manure-to-soil coefficient scaffolding.
+#'
+#' One row per documented source behind the scaffolded coefficient tables, with
+#' a `reliability` flag in {verified, derived, consensus, placeholder}. The
+#' modeled-v1 provenance backbone (afse data-validation framework).
+#' @noRd
+.manure_to_soil_sources <- function() {
+  system.file(
+    "extdata",
+    "manure",
+    "manure_to_soil_sources.csv",
+    package = "whep"
+  ) |>
+    data.table::fread(na.strings = c("NA", "")) |>
+    tibble::as_tibble()
+}

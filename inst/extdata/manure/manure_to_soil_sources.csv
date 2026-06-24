@@ -1,0 +1,14 @@
+source_id,citation,identifier,used_for,reliability
+ipcc_2019_v4ch10,IPCC 2019 Refinement to the 2006 Guidelines Vol.4 Ch.10,https://www.ipcc-nggip.iges.or.jp,FracGasMS/FracLeachMS (Table 10.22); N2:N2O (Table 10.23); MCF; Bo; EF3; N-retention; ash; default Nex,verified
+rynk_1992,Rynk 1992 On-Farm Composting Handbook NRAES-54 (Cornell CWMI),NRAES-54,manure C:N (dairy/other cattle; swine; poultry; horses),verified
+zhu_2020,Zhu et al. 2020 Plant and Soil,doi:10.1007/s11104-020-04528-x,manure C:N (sheep),verified
+kaur_2021,Kaur & Kommalapati 2021 SN Applied Sciences 3:724,doi:10.1007/s42452-021-04706-1,manure C:N (goats),verified
+webb_2004,Webb & Misselbrook 2004 (via IPCC 2019 Table 10.23),see IPCC 2019 V4 Ch10 Table 10.23,N2:N2O ratio underlying value,derived
+herrero_2013,Herrero et al. 2013 PNAS,doi:10.1073/pnas.1308149110,MMS-share distribution (regional_mms_distribution),verified
+west_2014,West et al. 2014 Science 345:325-328,doi:10.1126/science.1246067,crop manure-N receptivity (crops_manure_n),verified
+ipcc_2006_v4ch3,IPCC 2006 Guidelines Vol.4 Ch.3 Annex 3A.5 decision tree,https://www.ipcc-nggip.iges.or.jp,climate-zone MAT cuts (Cool<=10; Temperate 10-18; Warm>18) adopted by 2019 Ch10,verified
+ipcc_climate_zones_zenodo,IPCC Climate Zones gridded (2019 Refinement),doi:10.5281/zenodo.7303808,iso3->climate-zone layer (P2/P4 build),verified
+eu_nitrates,EU Nitrates Directive 91/676/EEC,91/676/EEC,fixed-ceiling cap 170 kg organic-N/ha,verified
+lassaletta_grassland,Lassaletta-derived Synthetic_N_Grassland_share.csv,inst/extdata/Synthetic_N_Grassland_share.csv,grassland N share (synthetic-N origin; reuse for manure is CALIBRATE; exact product unverified),placeholder
+spain_hist_ftol,Spain_Hist Calc_OA_redistribution,internal,cap tolerance f_N_tolerance default + room-weighted spill precedent,derived
+forage_n_v1,provisional grazed-forage N (~12.5% crude protein),CALIBRATE,forage N for grass/substitute intake rows,placeholder

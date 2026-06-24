@@ -133,3 +133,16 @@ test_that("N2:N2O ratio and climate-zone cuts match verified IPCC values", {
   z <- whep:::.climate_zone_from_mat(c(5, 10, 12, 18, 25, NA))
   expect_equal(z, c("Cool", "Cool", "Temperate", "Temperate", "Warm", NA))
 })
+
+test_that("source registry is well-formed and uses the reliability vocabulary", {
+  reg <- whep:::.manure_to_soil_sources()
+  expect_true(all(
+    c("source_id", "citation", "identifier", "used_for", "reliability") %in%
+      names(reg)
+  ))
+  expect_equal(dplyr::n_distinct(reg$source_id), nrow(reg))
+  expect_false(anyNA(reg$citation))
+  expect_true(all(
+    reg$reliability %in% c("verified", "derived", "consensus", "placeholder")
+  ))
+})
