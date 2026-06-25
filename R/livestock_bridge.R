@@ -163,17 +163,9 @@ prepare_livestock_emissions <- function(
     return(NULL)
   }
 
-  # Build animal-code lookup from product map
-  anim_lookup <- product_map |>
-    dplyr::mutate(
-      live_anim_code = as.character(item_cbs_code)
-    ) |>
-    dplyr::select(live_anim_code, Liv_prod_cat)
+  tagged <- .tag_yields_to_animal_product(yield_rows, product_map)
 
-  tagged <- yield_rows |>
-    dplyr::inner_join(anim_lookup, by = "live_anim_code")
-
-  if (nrow(tagged) == 0) {
+  if (is.null(tagged) || nrow(tagged) == 0) {
     return(NULL)
   }
 
@@ -219,6 +211,40 @@ prepare_livestock_emissions <- function(
     return(NULL)
   }
   yields
+}
+
+# Tag each t_head yield row with the producing animal's product category,
+# matching on the animal's DESIGNATED product (`Item_Code_product`), not just on
+# `live_anim_code`. Production carries several t_head products under one
+# `live_anim_code` (e.g. raw milk and a secondary dairy product both reported for
+# dairy cattle); a `live_anim_code`-only join tagged every one of them with the
+# animal's single `Liv_prod_cat`, so the later yield join fanned a single head
+# row across all of an animal's products and inflated its energy demand several-
+# fold. Matching on the designated product keeps exactly one yield row per
+# (year, area_code, live_anim_code). Falls back to the `live_anim_code` join when
+# the input has no `item_prod_code` (it then carries no secondary products to
+# disambiguate).
+.tag_yields_to_animal_product <- function(yield_rows, product_map) {
+  if (!rlang::has_name(yield_rows, "item_prod_code")) {
+    anim_lookup <- product_map |>
+      dplyr::transmute(
+        live_anim_code = as.character(item_cbs_code),
+        Liv_prod_cat
+      )
+    return(dplyr::inner_join(yield_rows, anim_lookup, by = "live_anim_code"))
+  }
+  product_lookup <- product_map |>
+    dplyr::transmute(
+      live_anim_code = as.character(item_cbs_code),
+      item_prod_code = as.character(Item_Code_product),
+      Liv_prod_cat
+    )
+  yield_rows |>
+    dplyr::mutate(item_prod_code = as.character(item_prod_code)) |>
+    dplyr::inner_join(
+      product_lookup,
+      by = c("live_anim_code", "item_prod_code")
+    )
 }
 
 #' @noRd

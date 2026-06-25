@@ -95,6 +95,23 @@ test_that("extracts meat yield as raw t_head", {
   expect_equal(result$meat_yield_t_head, 0.2)
 })
 
+test_that("secondary products under one live_anim_code do not duplicate heads", {
+  # Production reports several t_head products for one animal (e.g. raw milk
+  # plus a minor dairy product), all sharing the animal's live_anim_code. Only
+  # the animal's designated product (Item_Code_product 882 for dairy cattle)
+  # must drive the yield; the head row must not fan out across the others.
+  data <- tibble::tribble(
+    ~item_cbs_code, ~unit,    ~value, ~year, ~area_code,
+    ~live_anim_code, ~item_prod_code,
+    960L,  "heads",  1000,  2020L, 4L, NA_character_, "960",
+    960L,  "t_head", 5.0,   2020L, 4L, "960",        "882",
+    960L,  "t_head", 0.01,  2020L, 4L, "960",        "886"
+  )
+  result <- prepare_livestock_emissions(data)
+  expect_equal(nrow(result), 1)
+  expect_equal(result$milk_yield_kg_day, 5.0 * 1000 / 365, tolerance = 0.01)
+})
+
 test_that("preserves extra columns from input", {
   data <- tibble::tribble(
     ~item_cbs_code, ~unit,   ~value, ~weight, ~diet_quality,
