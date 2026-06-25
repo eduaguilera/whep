@@ -61,3 +61,18 @@ test_that("calculate_residue_destinies conserves mass with an unmatched region",
   )
   testthat::expect_equal(out$residue_soil_dm_t, 100)
 })
+
+test_that("krausmann split accepts regions_full recovery labels", {
+  out <- whep::calculate_residue_destinies(tibble::tibble(
+    item_prod_code = "15",
+    residue_dm_t = 100,
+    region_krausmann = "Western Europe",
+    region_hanpp = "Western Europe"
+  ))
+  testthat::expect_gt(out$residue_feed_dm_t, 0)
+  testthat::expect_gt(out$residue_burn_dm_t, 0)
+  testthat::expect_equal(
+    out$residue_feed_dm_t + out$residue_burn_dm_t + out$residue_soil_dm_t,
+    100
+  )
+})

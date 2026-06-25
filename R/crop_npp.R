@@ -220,8 +220,11 @@ calculate_crop_npp_components <- function(
 #' Converts crop NPP components (product, residue, root) and weed biomass to
 #' nitrogen and carbon using the `bio_coefs` per-component coefficients and the
 #' `weed_coefs` scalars. Root and weed below-ground nitrogen include
-#' rhizodeposits. The residue-to-soil split is computed only when a
-#' `residue_soil_dm_t` column (from [calculate_residue_destinies()]) is present.
+#' rhizodeposits. Root carbon uses `root_c_kgdm`, which includes root biomass
+#' carbon plus rhizodeposit carbon per tonne of root dry matter; use
+#' `root_mass_c_kgdm` in `bio_coefs` for root tissue carbon alone. The
+#' residue-to-soil split is computed only when a `residue_soil_dm_t` column
+#' (from [calculate_residue_destinies()]) is present.
 #'
 #' @param x A tibble with `item_prod_code`, `product_dm_t`, `residue_dm_t` and
 #'   `root_dm_t`. Optional `weed_ag_dm_t` (above-ground weed dry matter; treated

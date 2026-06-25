@@ -336,7 +336,7 @@ build_feed_demand <- function(
     data$items_prod_full,
     data$animals_codes,
     data$conv_krausmann,
-    data$polities_cats,
+    data$polity_area_crosswalk,
     fcr
   ) |>
     dplyr::summarise(
@@ -383,7 +383,7 @@ build_feed_demand <- function(
     animals_codes = whep::animals_codes,
     conv_krausmann = whep::conv_krausmann,
     conv_bouwman = whep::conv_bouwman,
-    polities_cats = whep::polities_cats,
+    polity_area_crosswalk = whep::polity_area_crosswalk,
     crosswalk = .livestock_crosswalk()
   )
 }
@@ -618,7 +618,7 @@ build_feed_demand <- function(
   years <- sort(unique(as.integer(demand_total$year)))
   shares <- .bouwman_feedtype_shares(data$conv_bouwman, years)
   grazer_shares <- .grazer_feedtype_shares(shares)
-  region <- .feed_region_lookup(data$polities_cats)
+  region <- .feed_region_lookup(data$polity_area_crosswalk)
   # One bridge row per category: a category maps to a single Bouwman class (NA
   # for draft species). graniv_grazers is NOT a key here (a category can span
   # several graniv_grazers values, e.g. Other) and keeping it would fan a
@@ -660,7 +660,7 @@ build_feed_demand <- function(
       "No Bouwman region for {length(areas)} area{?s} ({.val {areas}}):
        {dropped} t of feed demand is dropped from the mix.",
       i = "Map the {cli::qty(length(areas))}area{?s} to a Bouwman region in
-        {.field polities_cats}."
+        {.field polity_area_crosswalk}."
     ))
   }
   invisible(NULL)

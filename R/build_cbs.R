@@ -50,6 +50,7 @@ build_commodity_balances <- function(
     fixed <- .fixed_data
   }
   fixed |>
+    dplyr::mutate(value = .round_reproducible(.data$value)) |>
     .qc_cbs(smooth = smooth_carry_forward) |>
     .format_cbs_output()
 }
@@ -117,7 +118,15 @@ build_commodity_balances <- function(
       by = by_cols
     ]
   }
+  # Final rounding (coarser than the pre-dedup pass): the CBS balancing
+  # cascade amplifies single-ULP input noise up to ~1e-8 relative, so 7 s.f.
+  # (half the rounding unit, ~5e-7, is ~70x the worst observed noise) is needed
+  # to fully absorb it. Done after the grouped sum, so the summed total is the
+  # value that gets stabilised. The pre-dedup pass above stays at 9 s.f. so it
+  # only removes 1-ULP noise without merging genuinely distinct values in the
+  # value-keyed dedup.
   tibble::as_tibble(as.data.frame(dt)) |>
+    dplyr::mutate(value = .round_reproducible(.data$value, 7)) |>
     .add_reporting_polity_columns()
 }
 

@@ -120,6 +120,12 @@ calculate_nonsymbiotic_bnf <- function(
 #' climate-specific parameters from `bnf_climate_params` override the relevant
 #' defaults per climate type.
 #'
+#' The weed component uses the `weed_npp_n_t` already present in `x`. In the
+#' standard crop-NPP chain this is non-zero only when
+#' [calculate_crop_npp_components()] has been run, or when callers supply weed
+#' NPP directly; [calculate_npp_carbon_nitrogen()] treats missing weed biomass as
+#' zero.
+#'
 #' @param x A tibble carrying the required columns of all three component
 #'   functions, optionally with a `climate_type` column.
 #' @param symbiotic_params,nonsymbiotic_params,soil_params Named lists passed to
@@ -200,9 +206,9 @@ summarize_bnf <- function(x, group_by = "item_prod_code") {
       total_weed_bnf_t = sum(weed_bnf_t, na.rm = TRUE),
       total_nonsymbiotic_bnf_t = sum(nonsymbiotic_bnf_t, na.rm = TRUE),
       total_bnf_t = sum(bnf_t, na.rm = TRUE),
-      mean_ndfa_adj = mean(ndfa_adj, na.rm = TRUE),
-      mean_f_env_symbiotic = mean(f_env_symbiotic, na.rm = TRUE),
-      mean_f_env_nonsymbiotic = mean(f_env_nonsymbiotic, na.rm = TRUE),
+      mean_ndfa_adj = .mean_or_na(ndfa_adj),
+      mean_f_env_symbiotic = .mean_or_na(f_env_symbiotic),
+      mean_f_env_nonsymbiotic = .mean_or_na(f_env_nonsymbiotic),
       .groups = "drop"
     ) |>
     .summarize_bnf_pct()
@@ -464,6 +470,13 @@ summarize_bnf <- function(x, group_by = "item_prod_code") {
 
 .bnf_pct <- function(part, total) {
   dplyr::if_else(total > 0, 100 * part / total, NA_real_)
+}
+
+.mean_or_na <- function(x) {
+  if (all(is.na(x))) {
+    return(NA_real_)
+  }
+  mean(x, na.rm = TRUE)
 }
 
 .bnf_nonsymbiotic_params <- function(p) {

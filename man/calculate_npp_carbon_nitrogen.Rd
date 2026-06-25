@@ -20,8 +20,11 @@ carbon (\verb{*_c_t}) for product, residue, root, weeds, crop NPP and total NPP.
 Converts crop NPP components (product, residue, root) and weed biomass to
 nitrogen and carbon using the \code{bio_coefs} per-component coefficients and the
 \code{weed_coefs} scalars. Root and weed below-ground nitrogen include
-rhizodeposits. The residue-to-soil split is computed only when a
-\code{residue_soil_dm_t} column (from \code{\link[=calculate_residue_destinies]{calculate_residue_destinies()}}) is present.
+rhizodeposits. Root carbon uses \code{root_c_kgdm}, which includes root biomass
+carbon plus rhizodeposit carbon per tonne of root dry matter; use
+\code{root_mass_c_kgdm} in \code{bio_coefs} for root tissue carbon alone. The
+residue-to-soil split is computed only when a \code{residue_soil_dm_t} column
+(from \code{\link[=calculate_residue_destinies]{calculate_residue_destinies()}}) is present.
 }
 \examples{
 tibble::tibble(item_prod_code = "15", production_t = 100, area_ha = 40) |>

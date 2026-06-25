@@ -126,6 +126,22 @@ test_that("summarize_bnf totals the components and adds percentages", {
   )
 })
 
+test_that("summarize_bnf reports NA means for all-missing modifiers", {
+  s <- whep::summarize_bnf(tibble::tibble(
+    item_prod_code = "15",
+    crop_bnf_t = 0,
+    weed_bnf_t = 0,
+    nonsymbiotic_bnf_t = 1,
+    bnf_t = 1
+  ))
+  testthat::expect_true(is.na(s$mean_ndfa_adj))
+  testthat::expect_false(is.nan(s$mean_ndfa_adj))
+  testthat::expect_true(is.na(s$mean_f_env_symbiotic))
+  testthat::expect_false(is.nan(s$mean_f_env_symbiotic))
+  testthat::expect_true(is.na(s$mean_f_env_nonsymbiotic))
+  testthat::expect_false(is.nan(s$mean_f_env_nonsymbiotic))
+})
+
 test_that("calculate_crop_bnf gives zero BNF for a non-legume crop", {
   out <- whep::calculate_crop_bnf(
     tibble::tibble(item_prod_code = "15", crop_npp_n_t = 10, product_n_t = 5)
