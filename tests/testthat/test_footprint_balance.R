@@ -110,3 +110,78 @@ testthat::test_that("compare handles items present in only one method", {
   testthat::expect_equal(sum(cmp$value_a), 30)
   testthat::expect_equal(sum(cmp$value_b), 12)
 })
+
+# melt_bilateral_trade ------------------------------------------------
+
+testthat::test_that("melt_bilateral_trade melts items and drops self-trade", {
+  m1 <- matrix(
+    c(0, 40, 5, 0),
+    nrow = 2,
+    dimnames = list(c("1", "2"), c("1", "2"))
+  )
+  m2 <- matrix(
+    c(0, 0, 7, 0),
+    nrow = 2,
+    dimnames = list(c("1", "2"), c("1", "2"))
+  )
+  bt <- tibble::tibble(
+    year = c(2010L, 2010L),
+    item_cbs_code = c(10L, 20L),
+    bilateral_trade = list(m1, m2)
+  )
+  out <- whep::melt_bilateral_trade(bt)
+
+  out |>
+    pointblank::expect_col_exists(
+      c("year", "from_code", "to_code", "item_cbs_code", "value")
+    )
+  testthat::expect_equal(nrow(out), 3)
+  testthat::expect_true(all(out$from_code != out$to_code))
+  testthat::expect_setequal(out$value, c(40, 5, 7))
+})
+
+testthat::test_that("melt_bilateral_trade requires the matrix columns", {
+  testthat::expect_error(
+    whep::melt_bilateral_trade(tibble::tibble(year = 2010L)),
+    "missing column"
+  )
+})
+
+# build_land_balance_footprint ----------------------------------------
+
+testthat::test_that("build_land_balance_footprint uses injected inputs", {
+  inp <- .balance_inputs()
+  out <- whep::build_land_balance_footprint(
+    2010,
+    production = inp$production,
+    trade = inp$trade,
+    extension = inp$extension
+  )
+
+  by_area <- dplyr::arrange(out, area_code)
+  testthat::expect_equal(by_area$value, c(30, 20))
+  testthat::expect_true(all(out$method == "land_balance"))
+})
+
+testthat::test_that("build_land_balance_footprint example has output schema", {
+  ex <- whep::build_land_balance_footprint(example = TRUE)
+
+  ex |>
+    pointblank::expect_col_exists(
+      c("area_code", "item_cbs_code", "value", "method")
+    )
+  testthat::expect_true(all(ex$method == "land_balance"))
+})
+
+testthat::test_that("build_land_balance_footprint validates year", {
+  inp <- .balance_inputs()
+  testthat::expect_error(
+    whep::build_land_balance_footprint(
+      "nope",
+      production = inp$production,
+      trade = inp$trade,
+      extension = inp$extension
+    ),
+    "single number"
+  )
+})

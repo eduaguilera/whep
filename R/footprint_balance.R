@@ -121,6 +121,103 @@ compare_footprint_methods <- function(method_a, method_b) {
     dplyr::arrange(dplyr::desc(abs_diff))
 }
 
+#' Melt a bilateral trade matrix to long format.
+#'
+#' @description
+#' Convert the `bilateral_trade` list-column of [get_bilateral_trade()]
+#' (one square origin-by-destination matrix per year and item) into
+#' the tidy `from_code`/`to_code` long form consumed by
+#' [compute_footprint_balance()]. Self-trade (diagonal) entries are
+#' dropped.
+#'
+#' @param bilateral_trade Tibble from [get_bilateral_trade()], with
+#'   `year`, `item_cbs_code` and a `bilateral_trade` matrix
+#'   list-column.
+#'
+#' @return A tibble with `year`, `from_code`, `to_code`,
+#'   `item_cbs_code` and `value`.
+#'
+#' @export
+#'
+#' @examples
+#' m <- matrix(
+#'   c(0, 40, 0, 0),
+#'   nrow = 2,
+#'   dimnames = list(c("1", "2"), c("1", "2"))
+#' )
+#' bt <- tibble::tibble(
+#'   year = 2010L, item_cbs_code = 10L, bilateral_trade = list(m)
+#' )
+#' melt_bilateral_trade(bt)
+melt_bilateral_trade <- function(bilateral_trade) {
+  .require_cols(
+    bilateral_trade,
+    c("year", "item_cbs_code", "bilateral_trade"),
+    "bilateral_trade"
+  )
+  purrr::pmap(
+    list(
+      bilateral_trade$year,
+      bilateral_trade$item_cbs_code,
+      bilateral_trade$bilateral_trade
+    ),
+    .melt_one_trade_matrix
+  ) |>
+    purrr::list_rbind()
+}
+
+#' Build a consumption land footprint by physical trade balance.
+#'
+#' @description
+#' End-to-end land-balance footprint for one year on real WHEP data:
+#' assemble production (primary crop production plus grass dry-matter
+#' derived from grassland area times yield), the bilateral trade
+#' network, and the crop-plus-grassland direct-land extension, then
+#' trace land to consumers with [compute_footprint_balance()]. This
+#' is the independent, non-Leontief estimator for stress-testing the
+#' multi-regional input-output footprint via
+#' [compare_footprint_methods()].
+#'
+#' Grass items (`item_cbs_code` 3000 and 3002) are barely traded, so
+#' their land stays with the producing country: the balance, unlike
+#' the input-output model, does not route grass through the
+#' grass-to-livestock chain. Any `production`, `trade` or `extension`
+#' supplied explicitly is used as-is instead of being built, which is
+#' useful for reusing cached inputs or for testing.
+#'
+#' @param year Year to build the footprint for.
+#' @param production Optional production tibble
+#'   (`area_code`, `item_cbs_code`, `value`); built when `NULL`.
+#' @param trade Optional trade tibble (`from_code`, `to_code`,
+#'   `item_cbs_code`, `value`); built when `NULL`.
+#' @param extension Optional direct-land tibble (`area_code`,
+#'   `item_cbs_code`, `value`); built when `NULL`.
+#' @param example If `TRUE`, return a small example output without
+#'   downloading remote data. Default is `FALSE`.
+#'
+#' @return A tibble as returned by [compute_footprint_balance()].
+#'
+#' @export
+#'
+#' @examples
+#' build_land_balance_footprint(example = TRUE)
+build_land_balance_footprint <- function(
+  year,
+  production = NULL,
+  trade = NULL,
+  extension = NULL,
+  example = FALSE
+) {
+  if (example) {
+    return(.example_build_land_balance_footprint())
+  }
+  .validate_year(year)
+  extension <- extension %||% .land_balance_extension(year)
+  production <- production %||% .land_balance_production(year, extension)
+  trade <- trade %||% .land_balance_trade(year)
+  compute_footprint_balance(production, trade, extension)
+}
+
 # --- Helpers ---
 
 .balance_one_item <- function(prod_i, trade_i, ext_i, item) {
@@ -206,4 +303,68 @@ compare_footprint_methods <- function(method_a, method_b) {
     value = numeric(),
     method = character()
   )
+}
+
+.melt_one_trade_matrix <- function(year, item, m) {
+  m <- as.matrix(m)
+  idx <- which(m != 0 & !is.na(m), arr.ind = TRUE)
+  idx <- idx[idx[, 1] != idx[, 2], , drop = FALSE]
+  if (nrow(idx) == 0) {
+    return(NULL)
+  }
+  tibble::tibble(
+    year = as.integer(year),
+    from_code = as.integer(rownames(m)[idx[, 1]]),
+    to_code = as.integer(colnames(m)[idx[, 2]]),
+    item_cbs_code = as.integer(item),
+    value = m[idx]
+  )
+}
+
+.grass_item_codes <- function() {
+  c(3000L, 3002L)
+}
+
+.land_balance_extension <- function(year) {
+  crop <- build_cropgrids_land_extension(source = "cropgrids_fallow") |>
+    dplyr::filter(year == .env$year) |>
+    dplyr::select(area_code, item_cbs_code, value = impact_u)
+  grass <- build_grassland_land_extension(grassland_metric = "occupation") |>
+    dplyr::filter(year == .env$year) |>
+    dplyr::select(area_code, item_cbs_code, value = impact_u)
+  dplyr::bind_rows(crop, grass)
+}
+
+# Grass dry-matter tonnage is derived from grassland area times yield
+# so the grass-land intensity is internally consistent; without it the
+# balance would have zero grass throughput and silently drop all
+# grassland land.
+.land_balance_production <- function(year, extension, grass_yield = 2.06) {
+  grass_codes <- .grass_item_codes()
+  grass_prod <- extension |>
+    dplyr::filter(item_cbs_code %in% grass_codes) |>
+    dplyr::mutate(value = value * grass_yield)
+  crop_prod <- get_primary_production() |>
+    dplyr::filter(
+      year == .env$year,
+      unit == "tonnes",
+      !is.na(item_cbs_code),
+      !item_cbs_code %in% grass_codes,
+      value > 0
+    ) |>
+    dplyr::summarise(value = sum(value), .by = c(area_code, item_cbs_code))
+  dplyr::bind_rows(crop_prod, grass_prod)
+}
+
+.land_balance_trade <- function(year) {
+  get_bilateral_trade() |>
+    melt_bilateral_trade() |>
+    dplyr::filter(year == .env$year) |>
+    dplyr::select(from_code, to_code, item_cbs_code, value)
+}
+
+.validate_year <- function(year) {
+  if (!is.numeric(year) || length(year) != 1 || is.na(year)) {
+    cli::cli_abort("{.arg year} must be a single number.")
+  }
 }

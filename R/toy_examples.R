@@ -449,3 +449,19 @@
     2000L, 79L, "Other", 3.0e4, "krausmann_per_head"
   )
 }
+
+.example_build_land_balance_footprint <- function() {
+  tibble::tribble(
+    ~area_code, ~item_cbs_code, ~value, ~method,
+    10L, 3000L, 328899491, "land_balance",
+    41L, 3000L, 391524410, "land_balance",
+    101L, 2615L, 109730, "land_balance",
+    114L, 772L, 962, "land_balance",
+    122L, 2520L, 3865, "land_balance",
+    126L, 2617L, 6491, "land_balance",
+    137L, 2613L, 40.6, "land_balance",
+    179L, 2514L, 5009, "land_balance",
+    188L, 2535L, 1.83, "land_balance",
+    236L, 2537L, 1304, "land_balance"
+  )
+}
