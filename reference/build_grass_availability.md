@@ -1,11 +1,11 @@
 # Build grazable grass availability.
 
 Multi-method wrapper for the grass forage supply ceiling that feeds
-allocation. The default `lpjml` method reads managed-grassland net
-primary production from a finished LPJmL run (spatially explicit, the
-most rigorous method); `coefficient` applies a per-area grass-yield
-coefficient and is not yet implemented (it needs a `grass_yield_coef`
-dataset).
+allocation. The default `lpjml` method reads pinned LPJmL-derived
+managed-grassland net primary production/availability unless custom
+artifact data, a custom artifact path, or `run_dir` points to local
+inputs; `coefficient` applies a per-area grass-yield coefficient and is
+not yet implemented (it needs a `grass_yield_coef` dataset).
 
 ## Usage
 

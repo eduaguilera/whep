@@ -30,8 +30,8 @@ get_crop_land_extension(
   Directory holding the spatialization inputs (`country_areas.parquet`,
   `crop_patterns.parquet`, `gridded_cropland.parquet`,
   `country_grid.parquet`, and optionally `multicropping.parquet`).
-  Typically `<l_files_dir>/whep/inputs`. Required unless
-  `example = TRUE`.
+  Typically `<l_files_dir>/whep/inputs`. If `NULL` or unset, the pinned
+  WHEP spatialization inputs are used.
 
 - years:
 

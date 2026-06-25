@@ -120,12 +120,14 @@ landuse engine.</p></li>
 
 
 <dt id="arg-paths">paths<a class="anchor" aria-label="anchor" href="#arg-paths"></a></dt>
-<dd><p>Named list of filesystem paths. Recognised entries:</p><ul><li><p><code>l_files_dir</code> (required): path to the <code>L_files</code> root.</p></li>
-<li><p><code>input_dir</code>: directory holding the prepared input parquets.
-If <code>NULL</code>, defaults to <code>&lt;l_files_dir&gt;/whep/inputs</code>.</p></li>
+<dd><p>Named list of filesystem paths. Recognised entries:</p><ul><li><p><code>l_files_dir</code>: path to the <code>L_files</code> root, for local prepared inputs.</p></li>
+<li><p><code>input_dir</code>: directory holding the prepared input parquets. If <code>NULL</code>
+and <code>l_files_dir</code> is unset, the pinned WHEP spatialization inputs are
+used.</p></li>
 <li><p><code>out_dir</code>: output directory. If <code>NULL</code>, defaults to
-<code>&lt;l_files_dir&gt;/whep/spatialize/&lt;preset&gt;</code> (suffixed with
-<code>_custom</code> when <code>overrides</code> is non-empty). Created if missing.</p></li>
+<code>&lt;l_files_dir&gt;/whep/spatialize/&lt;preset&gt;</code> when <code>l_files_dir</code> is supplied,
+otherwise to a session temporary directory (suffixed with <code>_custom</code> when
+<code>overrides</code> is non-empty). Created if missing.</p></li>
 </ul></dd>
 
 </dl></div>

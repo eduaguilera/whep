@@ -94,9 +94,10 @@ supplied in e.g. <code>parquet</code> format but was in another one.</p></dd>
 
 <dt id="arg-version">version<a class="anchor" aria-label="anchor" href="#arg-version"></a></dt>
 <dd><p>The version of the file that must be read. Possible values:</p><ul><li><p><code>NULL</code>: This is the default value. A frozen version is chosen to make
-the code reproducible. Each release will have its own frozen versions.
-The version is the string that can be found in <code><a href="whep_inputs.html">whep_inputs</a></code> in the
-<code>version</code> column.</p></li>
+the code reproducible when the file has a registry version. Each release
+will have its own frozen versions. The version is the string that can be
+found in <code><a href="whep_inputs.html">whep_inputs</a></code> in the <code>version</code> column. A blank registry version
+requests the latest board version.</p></li>
 <li><p><code>"latest"</code>: This overrides the frozen version and instead fetches the
 latest one that is available. This might or might not match the frozen
 version.</p></li>

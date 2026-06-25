@@ -2,9 +2,10 @@
 
 Runs the `redistribute_feed` local path (0.5-degree cell grain) one year
 at a time, so the per-cell allocation stays within memory and the full
-multi-year run is restartable. Sources the LPJmL grass run and gridded
-livestock inputs from the `WHEP_LPJML_RUN_DIR` and
-`WHEP_SPATIAL_INPUT_DIR` environment variables.
+multi-year run is restartable. By default it sources pinned
+LPJmL-derived grass availability and pinned gridded livestock inputs.
+Pass `run_dir`, `grass_availability`, `grass_availability_path`, or
+`input_dir` to use custom local inputs instead.
 
 ## Usage
 
@@ -14,7 +15,11 @@ build_feed_intake_local(
   out_dir = NULL,
   demand_tier = c("ipcc", "fcr"),
   overwrite = FALSE,
-  example = FALSE
+  example = FALSE,
+  run_dir = NULL,
+  input_dir = NULL,
+  grass_availability = NULL,
+  grass_availability_path = NULL
 )
 ```
 
@@ -44,6 +49,30 @@ build_feed_intake_local(
 
   If `TRUE`, return a small example output without sourcing the remote
   and gridded data. Default is `FALSE`.
+
+- run_dir:
+
+  Optional path to a finished local LPJmL output directory holding
+  `pft_npp.nc` and `cftfrac.nc`. If `NULL`, pinned grass availability is
+  used unless `grass_availability` or `grass_availability_path` is
+  supplied.
+
+- input_dir:
+
+  Optional directory holding locally prepared spatialization inputs. If
+  `NULL`, pinned gridded livestock/spatial inputs are used.
+
+- grass_availability:
+
+  Optional already-derived grass availability tibble/data frame passed
+  to
+  [`build_grass_availability_lpjml()`](https://eduaguilera.github.io/whep/reference/build_grass_availability_lpjml.md).
+
+- grass_availability_path:
+
+  Optional path to an already-derived grass availability artifact passed
+  to
+  [`build_grass_availability_lpjml()`](https://eduaguilera.github.io/whep/reference/build_grass_availability_lpjml.md).
 
 ## Value
 

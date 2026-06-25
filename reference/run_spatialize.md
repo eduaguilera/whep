@@ -69,14 +69,17 @@ run_spatialize(
 
   Named list of filesystem paths. Recognised entries:
 
-  - `l_files_dir` (required): path to the `L_files` root.
+  - `l_files_dir`: path to the `L_files` root, for local prepared
+    inputs.
 
   - `input_dir`: directory holding the prepared input parquets. If
-    `NULL`, defaults to `<l_files_dir>/whep/inputs`.
+    `NULL` and `l_files_dir` is unset, the pinned WHEP spatialization
+    inputs are used.
 
   - `out_dir`: output directory. If `NULL`, defaults to
-    `<l_files_dir>/whep/spatialize/<preset>` (suffixed with `_custom`
-    when `overrides` is non-empty). Created if missing.
+    `<l_files_dir>/whep/spatialize/<preset>` when `l_files_dir` is
+    supplied, otherwise to a session temporary directory (suffixed with
+    `_custom` when `overrides` is non-empty). Created if missing.
 
 ## Value
 

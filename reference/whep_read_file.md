@@ -48,10 +48,12 @@ whep_read_file(file_alias, type = "parquet", version = NULL)
   The version of the file that must be read. Possible values:
 
   - `NULL`: This is the default value. A frozen version is chosen to
-    make the code reproducible. Each release will have its own frozen
-    versions. The version is the string that can be found in
+    make the code reproducible when the file has a registry version.
+    Each release will have its own frozen versions. The version is the
+    string that can be found in
     [`whep_inputs`](https://eduaguilera.github.io/whep/reference/whep_inputs.md)
-    in the `version` column.
+    in the `version` column. A blank registry version requests the
+    latest board version.
 
   - `"latest"`: This overrides the frozen version and instead fetches
     the latest one that is available. This might or might not match the
