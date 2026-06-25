@@ -426,7 +426,7 @@ test_that(".feedtype_feed_quality maps the 5 feed types, only grass fixed", {
 })
 
 test_that(".build_feed_mix conserves the total and emits a valid schema", {
-  region <- whep:::.feed_region_lookup(whep::polities_cats)
+  region <- whep:::.feed_region_lookup(whep::polity_area_crosswalk)
   bouwman_regions <- unique(whep::conv_bouwman$region_bouwman)
   area <- region$area_code[region$region_bouwman %in% bouwman_regions][1]
   demand_total <- tibble::tibble(
@@ -474,7 +474,7 @@ test_that(".build_feed_mix conserves the total and emits a valid schema", {
 })
 
 test_that(".build_feed_mix borrows grazer shares for draft species", {
-  region <- whep:::.feed_region_lookup(whep::polities_cats)
+  region <- whep:::.feed_region_lookup(whep::polity_area_crosswalk)
   bouwman_regions <- unique(whep::conv_bouwman$region_bouwman)
   area <- region$area_code[region$region_bouwman %in% bouwman_regions][1]
   demand_total <- tibble::tibble(
@@ -493,7 +493,7 @@ test_that(".build_feed_mix borrows grazer shares for draft species", {
 test_that(".build_feed_mix conserves the Other category (no graniv fan-out)", {
   # Other maps to several graniv_grazers values (Grazers/Bees/Game); the bridge
   # must not fan its demand into duplicates (a 3x conservation bug).
-  region <- whep:::.feed_region_lookup(whep::polities_cats)
+  region <- whep:::.feed_region_lookup(whep::polity_area_crosswalk)
   bouwman_regions <- unique(whep::conv_bouwman$region_bouwman)
   area <- region$area_code[region$region_bouwman %in% bouwman_regions][1]
   demand_total <- tibble::tibble(
@@ -563,7 +563,7 @@ test_that(".build_feed_avail_national tags CBS feed with quality + scale", {
 })
 
 test_that(".run_redistribute_national meets grass, caps concentrates", {
-  region <- whep:::.feed_region_lookup(whep::polities_cats)
+  region <- whep:::.feed_region_lookup(whep::polity_area_crosswalk)
   bouwman_regions <- unique(whep::conv_bouwman$region_bouwman)
   area <- region$area_code[region$region_bouwman %in% bouwman_regions][1]
   prod <- tibble::tribble(
@@ -894,7 +894,7 @@ test_that(".reshape_redistribute_intake splits, labels, and converts to fresh", 
 })
 
 test_that("national redistribute + reshape yields the contract and conserves DM", {
-  region <- whep:::.feed_region_lookup(whep::polities_cats)
+  region <- whep:::.feed_region_lookup(whep::polity_area_crosswalk)
   bouwman_regions <- unique(whep::conv_bouwman$region_bouwman)
   area <- region$area_code[region$region_bouwman %in% bouwman_regions][1]
   prod <- tibble::tribble(
@@ -1298,7 +1298,7 @@ test_that(".distribute_demand_to_cells warns on demand with no cell share", {
 })
 
 test_that("local run yields a per-cell contract, grass capped per cell", {
-  region <- whep:::.feed_region_lookup(whep::polities_cats)
+  region <- whep:::.feed_region_lookup(whep::polity_area_crosswalk)
   bouwman_regions <- unique(whep::conv_bouwman$region_bouwman)
   area <- region$area_code[region$region_bouwman %in% bouwman_regions][1]
   prod <- tibble::tribble(
