@@ -38,12 +38,14 @@
 #'     (granular 33-class WHEP taxonomy) or `cft_lpjml`
 #'     (12 LPJmL crop CFTs + single `others` bucket).
 #' @param paths Named list of filesystem paths. Recognised entries:
-#'   - `l_files_dir` (required): path to the `L_files` root.
-#'   - `input_dir`: directory holding the prepared input parquets.
-#'     If `NULL`, defaults to `<l_files_dir>/whep/inputs`.
+#'   - `l_files_dir`: path to the `L_files` root, for local prepared inputs.
+#'   - `input_dir`: directory holding the prepared input parquets. If `NULL`
+#'     and `l_files_dir` is unset, the pinned WHEP spatialization inputs are
+#'     used.
 #'   - `out_dir`: output directory. If `NULL`, defaults to
-#'     `<l_files_dir>/whep/spatialize/<preset>` (suffixed with
-#'     `_custom` when `overrides` is non-empty). Created if missing.
+#'     `<l_files_dir>/whep/spatialize/<preset>` when `l_files_dir` is supplied,
+#'     otherwise to a session temporary directory (suffixed with `_custom` when
+#'     `overrides` is non-empty). Created if missing.
 #'
 #' @return Invisibly, a named list with `preset`, resolved `config`,
 #'   `years`, `out_dir`, and `output_paths`.
@@ -335,21 +337,26 @@ run_spatialize <- function(
 }
 
 .resolve_paths <- function(paths, preset, overrides) {
-  if (is.null(paths$l_files_dir)) {
+  l_files_dir <- paths$l_files_dir
+  if (!is.null(l_files_dir) && !dir.exists(l_files_dir)) {
     cli::cli_abort(c(
-      "{.arg paths$l_files_dir} is required.",
-      "i" = "Pass it as part of the {.arg paths} list."
+      "{.arg paths$l_files_dir} must be an existing directory.",
+      "x" = "{.path {l_files_dir}} does not exist."
     ))
   }
-  stopifnot(dir.exists(paths$l_files_dir))
-  l_files_dir <- paths$l_files_dir
-  input_dir <- if (is.null(paths$input_dir)) {
+  input_dir <- if (!is.null(paths$input_dir)) {
+    paths$input_dir
+  } else if (!is.null(l_files_dir)) {
     file.path(l_files_dir, "whep", "inputs")
   } else {
-    paths$input_dir
+    NULL
   }
   out_dir <- if (is.null(paths$out_dir)) {
-    .default_spatialize_out_dir(l_files_dir, preset, overrides)
+    if (!is.null(l_files_dir)) {
+      .default_spatialize_out_dir(l_files_dir, preset, overrides)
+    } else {
+      .default_pin_spat_out(preset, overrides)
+    }
   } else {
     paths$out_dir
   }
@@ -454,60 +461,59 @@ run_spatialize <- function(
   paste0(base, "_custom")
 }
 
-.load_landuse_inputs <- function(input_dir, config) {
-  required <- c(
-    "country_areas.parquet",
-    "crop_patterns.parquet",
-    "gridded_cropland.parquet",
-    "country_grid.parquet"
-  )
-  missing_files <- required[
-    !file.exists(file.path(input_dir, required))
-  ]
-  if (length(missing_files) > 0L) {
-    cli::cli_abort(c(
-      "Missing required input{?s} in {.path {input_dir}}:",
-      "x" = "{.file {missing_files}}."
-    ))
+.default_pin_spat_out <- function(preset, overrides) {
+  base <- file.path(tempdir(), "whep_spatialize", preset)
+  if (length(overrides) == 0L) {
+    return(base)
   }
+  paste0(base, "_custom")
+}
 
+.load_landuse_inputs <- function(input_dir, config) {
   cft_mapping <- .read_packaged_cft_mapping()
   mapped_items <- cft_mapping$item_prod_code
 
-  country_areas <- nanoparquet::read_parquet(
-    file.path(input_dir, "country_areas.parquet")
+  country_areas <- .read_spatial_input(
+    input_dir,
+    "country_areas.parquet",
+    .spatial_input_aliases()[["country_areas"]]
   ) |>
     dplyr::filter(item_prod_code %in% mapped_items)
-  crop_patterns <- nanoparquet::read_parquet(
-    file.path(input_dir, "crop_patterns.parquet")
+  crop_patterns <- .read_spatial_input(
+    input_dir,
+    "crop_patterns.parquet",
+    .spatial_input_aliases()[["crop_patterns"]]
   ) |>
     dplyr::filter(item_prod_code %in% mapped_items)
-  gridded_cropland <- nanoparquet::read_parquet(
-    file.path(input_dir, "gridded_cropland.parquet")
+  gridded_cropland <- .read_spatial_input(
+    input_dir,
+    "gridded_cropland.parquet",
+    .spatial_input_aliases()[["gridded_cropland"]]
   )
-  country_grid <- nanoparquet::read_parquet(
-    file.path(input_dir, "country_grid.parquet")
+  country_grid <- .read_spatial_input(
+    input_dir,
+    "country_grid.parquet",
+    .spatial_input_aliases()[["country_grid"]]
   )
 
   type_cropland <- NULL
   type_mapping <- NULL
   if (isTRUE(config$use_type_constraint)) {
-    type_cl_path <- file.path(input_dir, "type_cropland.parquet")
-    if (!file.exists(type_cl_path)) {
-      cli::cli_abort(c(
-        "{.file type_cropland.parquet} not found in \\
-        {.path {input_dir}}.",
-        "i" = "Required when {.code use_type_constraint = TRUE}."
-      ))
-    }
-    type_cropland <- nanoparquet::read_parquet(type_cl_path)
+    type_cropland <- .read_spatial_input(
+      input_dir,
+      "type_cropland.parquet",
+      .spatial_input_aliases()[["type_cropland"]]
+    )
     type_mapping <- cft_mapping
   }
 
-  multicropping <- NULL
-  mc_path <- file.path(input_dir, "multicropping.parquet")
-  if (file.exists(mc_path)) {
-    multicropping <- nanoparquet::read_parquet(mc_path)
+  multicropping <- .read_spatial_input(
+    input_dir,
+    "multicropping.parquet",
+    .spatial_input_aliases()[["multicropping"]],
+    required = FALSE
+  )
+  if (!is.null(multicropping)) {
     cli::cli_alert_info(
       "multicropping: {nrow(multicropping)} rows loaded"
     )
@@ -536,43 +542,35 @@ run_spatialize <- function(
 }
 
 .load_livestock_inputs <- function(input_dir) {
-  required <- c(
+  livestock_data <- .read_spatial_input(
+    input_dir,
     "livestock_country_data.parquet",
+    .spatial_input_aliases()[["livestock_country_data"]]
+  )
+  gridded_pasture <- .read_spatial_input(
+    input_dir,
     "gridded_pasture.parquet",
+    .spatial_input_aliases()[["gridded_pasture"]]
+  )
+  gridded_cropland <- .read_spatial_input(
+    input_dir,
     "gridded_cropland.parquet",
-    "country_grid.parquet"
+    .spatial_input_aliases()[["gridded_cropland"]]
   )
-  missing_files <- required[
-    !file.exists(file.path(input_dir, required))
-  ]
-  if (length(missing_files) > 0L) {
-    cli::cli_abort(c(
-      "Missing required livestock input{?s} in \\
-      {.path {input_dir}}:",
-      "x" = "{.file {missing_files}}."
-    ))
-  }
-
-  livestock_data <- nanoparquet::read_parquet(
-    file.path(input_dir, "livestock_country_data.parquet")
-  )
-  gridded_pasture <- nanoparquet::read_parquet(
-    file.path(input_dir, "gridded_pasture.parquet")
-  )
-  gridded_cropland <- nanoparquet::read_parquet(
-    file.path(input_dir, "gridded_cropland.parquet")
-  )
-  country_grid <- nanoparquet::read_parquet(
-    file.path(input_dir, "country_grid.parquet")
+  country_grid <- .read_spatial_input(
+    input_dir,
+    "country_grid.parquet",
+    .spatial_input_aliases()[["country_grid"]]
   )
 
   species_proxy <- .read_livestock_mapping()
 
-  manure_pattern <- NULL
-  manure_path <- file.path(input_dir, "manure_pattern.parquet")
-  if (file.exists(manure_path)) {
-    manure_pattern <- nanoparquet::read_parquet(manure_path)
-  }
+  manure_pattern <- .read_spatial_input(
+    input_dir,
+    "manure_pattern.parquet",
+    .spatial_input_aliases()[["manure_pattern"]],
+    required = FALSE
+  )
 
   list(
     livestock_data = livestock_data,
@@ -581,6 +579,51 @@ run_spatialize <- function(
     country_grid = country_grid,
     species_proxy = species_proxy,
     manure_pattern = manure_pattern
+  )
+}
+
+.spatial_input_aliases <- function() {
+  c(
+    country_areas = "spatialize-country-areas",
+    crop_patterns = "spatialize-crop-patterns",
+    gridded_cropland = "spatialize-gridded-cropland",
+    country_grid = "spatialize-country-grid",
+    type_cropland = "spatialize-type-cropland",
+    multicropping = "spatialize-multicropping",
+    livestock_country_data = "spatialize-livestock-country-data",
+    gridded_pasture = "spatialize-gridded-pasture",
+    manure_pattern = "spatialize-manure-pattern"
+  )
+}
+
+.read_spatial_input <- function(input_dir, file_name, alias, required = TRUE) {
+  if (!is.null(input_dir)) {
+    path <- file.path(input_dir, file_name)
+    if (!file.exists(path)) {
+      if (isTRUE(required)) {
+        cli::cli_abort(c(
+          "Missing required spatialization input in {.path {input_dir}}:",
+          "x" = "{.file {file_name}}."
+        ))
+      }
+      return(NULL)
+    }
+    return(nanoparquet::read_parquet(path))
+  }
+
+  tryCatch(
+    whep_read_file(alias),
+    error = function(e) {
+      if (!isTRUE(required)) {
+        return(NULL)
+      }
+      cli::cli_abort(c(
+        "Could not read pinned spatialization input {.val {alias}}.",
+        i = "Provide a local {.arg input_dir} with {.file {file_name}} to use
+          locally prepared inputs instead.",
+        "Caused by" = conditionMessage(e)
+      ))
+    }
   )
 }
 
@@ -673,6 +716,7 @@ run_spatialize <- function(
       tz = "UTC"
     ),
     package_version = as.character(utils::packageVersion("whep")),
+    input_source = if (is.null(input_dir)) "pins" else "directory",
     input_dir = input_dir,
     years = as.integer(years),
     config = config,

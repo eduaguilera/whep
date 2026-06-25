@@ -45,12 +45,14 @@ landuse engine.
 
 \item{paths}{Named list of filesystem paths. Recognised entries:
 \itemize{
-\item \code{l_files_dir} (required): path to the \code{L_files} root.
-\item \code{input_dir}: directory holding the prepared input parquets.
-If \code{NULL}, defaults to \verb{<l_files_dir>/whep/inputs}.
+\item \code{l_files_dir}: path to the \code{L_files} root, for local prepared inputs.
+\item \code{input_dir}: directory holding the prepared input parquets. If \code{NULL}
+and \code{l_files_dir} is unset, the pinned WHEP spatialization inputs are
+used.
 \item \code{out_dir}: output directory. If \code{NULL}, defaults to
-\verb{<l_files_dir>/whep/spatialize/<preset>} (suffixed with
-\verb{_custom} when \code{overrides} is non-empty). Created if missing.
+\verb{<l_files_dir>/whep/spatialize/<preset>} when \code{l_files_dir} is supplied,
+otherwise to a session temporary directory (suffixed with \verb{_custom} when
+\code{overrides} is non-empty). Created if missing.
 }}
 }
 \value{

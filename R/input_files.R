@@ -28,9 +28,10 @@
 #'   supplied in e.g. `parquet` format but was in another one.
 #' @param version The version of the file that must be read. Possible values:
 #'   - `NULL`: This is the default value. A frozen version is chosen to make
-#'     the code reproducible. Each release will have its own frozen versions.
-#'     The version is the string that can be found in [`whep_inputs`] in the
-#'     `version` column.
+#'     the code reproducible when the file has a registry version. Each release
+#'     will have its own frozen versions. The version is the string that can be
+#'     found in [`whep_inputs`] in the `version` column. A blank registry version
+#'     requests the latest board version.
 #'   - `"latest"`: This overrides the frozen version and instead fetches the
 #'     latest one that is available. This might or might not match the frozen
 #'     version.
@@ -215,7 +216,16 @@ whep_list_file_versions <- function(file_alias) {
 
 .choose_version <- function(frozen_version, user_version) {
   if (is.null(user_version)) {
-    frozen_version
+    if (
+      length(frozen_version) == 0L ||
+        is.na(frozen_version) ||
+        !nzchar(frozen_version) ||
+        identical(frozen_version, "latest")
+    ) {
+      NULL
+    } else {
+      frozen_version
+    }
   } else if (user_version == "latest") {
     NULL
   } else {

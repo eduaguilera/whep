@@ -48,9 +48,10 @@
 #' @description
 #' Runs the `redistribute_feed` local path (0.5-degree cell grain) one year
 #' at a time, so the per-cell allocation stays within memory and the full
-#' multi-year run is restartable. Sources the LPJmL grass run and gridded
-#' livestock inputs from the `WHEP_LPJML_RUN_DIR` and `WHEP_SPATIAL_INPUT_DIR`
-#' environment variables.
+#' multi-year run is restartable. By default it sources pinned LPJmL-derived
+#' grass availability and pinned gridded livestock inputs. Pass `run_dir`,
+#' `grass_availability`, `grass_availability_path`, or `input_dir` to use
+#' custom local inputs instead.
 #'
 #' @param years Integer vector of years to build. Default `NULL` builds every
 #'   year present in the production data.
@@ -62,6 +63,16 @@
 #'   `FALSE` skips them so the batch is restartable.
 #' @param example If `TRUE`, return a small example output without sourcing the
 #'   remote and gridded data. Default is `FALSE`.
+#' @param run_dir Optional path to a finished local LPJmL output directory
+#'   holding `pft_npp.nc` and `cftfrac.nc`. If `NULL`, pinned grass availability
+#'   is used unless `grass_availability` or `grass_availability_path` is
+#'   supplied.
+#' @param input_dir Optional directory holding locally prepared spatialization
+#'   inputs. If `NULL`, pinned gridded livestock/spatial inputs are used.
+#' @param grass_availability Optional already-derived grass availability
+#'   tibble/data frame passed to [build_grass_availability_lpjml()].
+#' @param grass_availability_path Optional path to an already-derived grass
+#'   availability artifact passed to [build_grass_availability_lpjml()].
 #'
 #' @returns
 #' When `out_dir` is `NULL`, a tibble in the `get_feed_intake()` contract plus a
@@ -77,13 +88,23 @@ build_feed_intake_local <- function(
   out_dir = NULL,
   demand_tier = c("ipcc", "fcr"),
   overwrite = FALSE,
-  example = FALSE
+  example = FALSE,
+  run_dir = NULL,
+  input_dir = NULL,
+  grass_availability = NULL,
+  grass_availability_path = NULL
 ) {
   if (example) {
     return(.example_local_intake())
   }
   demand_tier <- rlang::arg_match(demand_tier)
-  ctx <- .local_run_context(demand_tier)
+  ctx <- .local_run_context(
+    demand_tier,
+    run_dir = run_dir,
+    input_dir = input_dir,
+    grass_availability = grass_availability,
+    grass_availability_path = grass_availability_path
+  )
   years <- .resolve_local_years(years, ctx$production)
   if (is.null(out_dir)) {
     return(.bind_local_years(years, ctx))
@@ -155,9 +176,20 @@ build_feed_demand <- function(
 # Shared per-run context (configured paths + the once-fetched, normalised
 # production / CBS / coefficient data), grouped so the per-year helpers take few
 # arguments.
-.local_run_context <- function(demand_tier) {
+.local_run_context <- function(
+  demand_tier,
+  run_dir = NULL,
+  input_dir = NULL,
+  grass_availability = NULL,
+  grass_availability_path = NULL
+) {
   list(
-    paths = .local_paths(),
+    paths = .local_paths(
+      run_dir = run_dir,
+      input_dir = input_dir,
+      grass_availability = grass_availability,
+      grass_availability_path = grass_availability_path
+    ),
     production = .normalise_feed_primary(get_primary_production()),
     cbs = .normalise_feed_cbs(get_wide_cbs()),
     data = .feed_demand_data(),
@@ -235,28 +267,30 @@ build_feed_demand <- function(
   }))
 }
 
-# Resolve the configured local input directories from the environment,
-# aborting with guidance if either is unset.
-.local_paths <- function() {
-  run_dir <- Sys.getenv("WHEP_LPJML_RUN_DIR")
-  input_dir <- Sys.getenv("WHEP_SPATIAL_INPUT_DIR")
-  if (!nzchar(run_dir) || !nzchar(input_dir)) {
-    cli::cli_abort(c(
-      "The {.val local} grain needs the spatial input directories.",
-      i = "Set {.envvar WHEP_LPJML_RUN_DIR} (the LPJmL run scenario output
-        directory with {.file pft_npp.nc} and {.file cftfrac.nc}) and
-        {.envvar WHEP_SPATIAL_INPUT_DIR} (the gridded-livestock input directory)."
-    ))
-  }
-  list(run_dir = run_dir, input_dir = input_dir)
+# Resolve optional local input directories. NULL values mean the pinned defaults
+# are used.
+.local_paths <- function(
+  run_dir = NULL,
+  input_dir = NULL,
+  grass_availability = NULL,
+  grass_availability_path = NULL
+) {
+  list(
+    run_dir = run_dir,
+    input_dir = input_dir,
+    grass_availability = grass_availability,
+    grass_availability_path = grass_availability_path
+  )
 }
 
 # Source the local spatial inputs (per-cell livestock head shares + per-cell
-# grass availability) from the configured directories. A heavy global
-# computation: gridded livestock plus LPJmL grass for every model year. Years
-# outside the LPJmL run's coverage get unbounded grass.
+# grass availability). A heavy global computation: gridded livestock plus
+# LPJmL-derived grass for every model year. Years outside a local LPJmL run's
+# coverage get unbounded grass; pinned grass is already clipped to its coverage.
 .local_spatial_inputs <- function(years, paths) {
-  ls_inputs <- .load_livestock_inputs(paths$input_dir)
+  input_dir <- if (.has_path(paths$input_dir)) paths$input_dir else NULL
+  run_dir <- if (.has_path(paths$run_dir)) paths$run_dir else NULL
+  ls_inputs <- .load_livestock_inputs(input_dir)
   gridded_heads <- build_gridded_livestock(
     livestock_data = ls_inputs$livestock_data,
     gridded_pasture = ls_inputs$gridded_pasture,
@@ -268,7 +302,9 @@ build_feed_demand <- function(
   )
   grass <- build_grass_availability(
     method = "lpjml",
-    run_dir = paths$run_dir,
+    run_dir = run_dir,
+    availability = paths$grass_availability,
+    availability_path = paths$grass_availability_path,
     years = years
   )
   list(
