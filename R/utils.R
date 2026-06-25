@@ -3,6 +3,26 @@
 
 utils::globalVariables(
   c(
+    # conservation.R (footprint + supply-use invariants)
+    "origin_area",
+    "origin_item",
+    "direct",
+    "embodied",
+    "discrepancy",
+    "rel_discrepancy",
+    "status",
+    "use",
+    "abs_diff",
+    "rel_diff",
+    "balanced",
+    # footprint_balance.R (land-balance method + comparison)
+    "from_code",
+    "to_code",
+    "value_a",
+    "value_b",
+    # footprint_uncertainty.R (Monte Carlo + sensitivity)
+    ".draw",
+    "elasticity",
     # crop_npp.R (potential NPP + residues/roots/components)
     "temp_c",
     "water_input_mm",

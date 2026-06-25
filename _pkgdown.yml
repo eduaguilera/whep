@@ -205,6 +205,42 @@ reference:
   - gridded_fallow_weights
   - attribute_fallow_to_crops
   - plot_footprint_sankey
+  - compute_footprint_balance
+  - compare_footprint_methods
+
+- title: Trustworthiness and quality control
+  desc: >
+    Checks that make footprint and balance results trustworthy: conservation
+    invariants, accounting identities, and other data-quality diagnostics.
+  contents:
+  - check_footprint_conservation
+  - summarise_conservation
+  - assert_footprint_invariants
+  - check_supply_use_balance
+- subtitle: Uncertainty and sensitivity
+  desc: >
+    Propagate input uncertainty through a footprint, combine data-quality
+    coefficients of variation, and rank sectors by local sensitivity.
+  contents:
+  - propagate_fp_uncertainty
+  - combine_cov
+  - footprint_sensitivity
+- subtitle: Provenance and reproducibility
+  desc: >
+    Record and carry the code and input versions behind a result so any
+    number can be traced back to what produced it.
+  contents:
+  - record_provenance
+  - attach_provenance
+  - get_provenance
+- subtitle: Scope and transparency
+  desc: >
+    Attach a machine-readable goal-and-scope record (method, boundary,
+    allocation, vintage, limitations) to a footprint result.
+  contents:
+  - footprint_scope
+  - attach_scope
+  - get_scope
 
 - title: Livestock emissions
   desc: >
