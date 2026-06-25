@@ -43,12 +43,13 @@ external \code{land_fp} pin.
 
 Two area sources are available, selected with \code{source}:
 \itemize{
-\item \code{"luh2"} (default): permanent grassland area (item_cbs 3000, LUH2 pasture
-and rangeland) taken from \code{\link[=build_primary_production]{build_primary_production()}}. This shares the
-gridded LUH2 land-use basis used by the crop land extensions and by
-livestock spatialisation. Rotational fallow (item_cbs 3003) is excluded
-because the \code{cropgrids_fallow} crop extension already attributes fallow to
-crops, so counting it here too would double count it.
+\item \code{"luh2"} (default): permanent and temporary grassland area (item_cbs 3000
+and 3002, LUH2 pasture and rangeland) taken from
+\code{\link[=build_primary_production]{build_primary_production()}}. This shares the gridded LUH2 land-use basis
+used by the crop land extensions and by livestock spatialisation.
+Rotational fallow (item_cbs 3003) is excluded because the
+\code{cropgrids_fallow} crop extension already attributes fallow to crops, so
+counting it here too would double count it.
 \item \code{"faostat_pasture"}: FAOSTAT "Permanent meadows and pastures" area (Land
 Use item 6655), the statistics-based basis comparable to most published
 footprint studies.

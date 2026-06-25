@@ -6,8 +6,9 @@
 #'
 #' @param x A tibble with `item_prod_code` and `residue_dm_t`. The
 #'   `krausmann_regional` method also needs `region_krausmann` (for the recovery
-#'   rate) and `region_hanpp` (for the feed-use fraction). The `shares` method
-#'   needs `year`.
+#'   rate) and `region_hanpp` (for the feed-use fraction). `region_krausmann`
+#'   can use the recovery-table labels or the matching `regions_full` labels.
+#'   The `shares` method needs `year`.
 #' @param method Destiny method: `"krausmann_regional"` (default, Krausmann
 #'   recovery x HANPP-regional feed-use fraction) or `"shares"` (the
 #'   Spain-specific per-crop-year use/burn shares, flagged `to_be_revised`).
@@ -18,7 +19,7 @@
 #' calculate_residue_destinies(
 #'   tibble::tibble(
 #'     item_prod_code = "15", residue_dm_t = 100,
-#'     region_krausmann = "West Europe", region_hanpp = "Western Europe"
+#'     region_krausmann = "Western Europe", region_hanpp = "Western Europe"
 #'   )
 #' )
 calculate_residue_destinies <- function(
@@ -111,7 +112,10 @@ build_residue_feed_avail <- function(
     dplyr::select(region_hanpp, feed_use_fraction)
   global_feed <- feed$feed_use_fraction[feed$region_hanpp == "Global"]
   x |>
-    dplyr::mutate(item_prod_code = as.character(item_prod_code)) |>
+    dplyr::mutate(
+      item_prod_code = as.character(item_prod_code),
+      region_krausmann = .residue_recovery_region(.data$region_krausmann)
+    ) |>
     dplyr::left_join(cat_map, by = "item_prod_code") |>
     dplyr::left_join(recovery, by = c("cat_krausmann", "region_krausmann")) |>
     dplyr::left_join(feed, by = "region_hanpp") |>
@@ -125,6 +129,22 @@ build_residue_feed_avail <- function(
       residue_soil_dm_t = residue_dm_t * (1 - recovery_rates)
     ) |>
     dplyr::select(-cat_krausmann, -recovery_rates, -feed_use_fraction)
+}
+
+.residue_recovery_region <- function(region) {
+  region <- as.character(region)
+  lookup <- whep::regions_full |>
+    dplyr::transmute(
+      input_region = .data$region_krausmann,
+      recovery_region = .data$region_HANPP
+    ) |>
+    dplyr::filter(
+      !is.na(.data$input_region),
+      !is.na(.data$recovery_region)
+    ) |>
+    dplyr::distinct(.data$input_region, .keep_all = TRUE)
+  mapped <- lookup$recovery_region[match(region, lookup$input_region)]
+  dplyr::coalesce(mapped, region)
 }
 
 .residue_destiny_shares <- function(x) {
