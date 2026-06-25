@@ -80,7 +80,7 @@
 }
 
 test_that("national run chains the pipeline and conserves the N balance", {
-  res <- whep::build_manure_to_soil(
+  res <- whep::build_livestock_nutrient_flows(
     .toy_intake_nat(),
     resolution = "national",
     gridded = .toy_gridded_nat()
@@ -91,7 +91,7 @@ test_that("national run chains the pipeline and conserves the N balance", {
 })
 
 test_that("applied output carries provenance for every stage", {
-  res <- whep::build_manure_to_soil(
+  res <- whep::build_livestock_nutrient_flows(
     .toy_intake_nat(),
     resolution = "national",
     gridded = .toy_gridded_nat()
@@ -112,7 +112,7 @@ test_that("applied output carries provenance for every stage", {
 })
 
 test_that("method options are forwarded to the right stage", {
-  res <- whep::build_manure_to_soil(
+  res <- whep::build_livestock_nutrient_flows(
     .toy_intake_nat(),
     resolution = "national",
     methods = list(
@@ -183,7 +183,7 @@ test_that("subnational run transports surplus between cells and conserves N", {
       1
     )
   )
-  res <- whep::build_manure_to_soil(
+  res <- whep::build_livestock_nutrient_flows(
     intake,
     resolution = "subnational",
     gridded = gridded
@@ -200,9 +200,9 @@ test_that("subnational run transports surplus between cells and conserves N", {
   expect_false(anyNA(res$applied$method_allocation))
 })
 
-test_that("build_manure_to_soil guards bad resolution and methods stage", {
+test_that("build_livestock_nutrient_flows guards bad resolution and methods stage", {
   expect_error(
-    whep::build_manure_to_soil(
+    whep::build_livestock_nutrient_flows(
       .toy_intake_nat(),
       resolution = "regional",
       gridded = .toy_gridded_nat()
@@ -210,7 +210,7 @@ test_that("build_manure_to_soil guards bad resolution and methods stage", {
     "resolution"
   )
   expect_error(
-    whep::build_manure_to_soil(
+    whep::build_livestock_nutrient_flows(
       .toy_intake_nat(),
       methods = list(excrete = list(method = "x")),
       gridded = .toy_gridded_nat()

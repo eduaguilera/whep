@@ -1,9 +1,10 @@
-#' Build the livestock manure-to-soil dataset from realised feed intake.
+#' Build livestock nutrient flows from realised feed intake.
 #'
 #' @description
-#' Top-level driver that turns the realised feed intake from [redistribute_feed()]
-#' into manure nitrogen, carbon and volatile solids applied to soil by land use
-#' and crop, plus the management-loss side-streams. It chains
+#' Top-level driver that traces the nitrogen, carbon and volatile solids in
+#' realised feed intake (the [redistribute_feed()] result) through livestock
+#' excretion, manure management and application to soil by land use and crop,
+#' plus the management-loss side-streams. It chains
 #' [estimate_n_excretion()], [split_manure_management()],
 #' [apply_management_losses()] and [allocate_manure_to_land()]; at the
 #' `"subnational"` resolution it additionally spills each cell's un-placeable
@@ -42,8 +43,8 @@
 #'     2020L, "ESP", NA, "wheat", 4, 200
 #'   )
 #' )
-#' build_manure_to_soil(intake, gridded = gridded)
-build_manure_to_soil <- function(
+#' build_livestock_nutrient_flows(intake, gridded = gridded)
+build_livestock_nutrient_flows <- function(
   intake,
   resolution = "national",
   methods = list(),

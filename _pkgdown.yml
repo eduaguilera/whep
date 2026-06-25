@@ -218,7 +218,7 @@ reference:
   - estimate_n_excretion
   - split_manure_management
   - apply_management_losses
-  - build_manure_to_soil
+  - build_livestock_nutrient_flows
   - allocate_manure_to_land
   - allocate_manure_transport
   - estimate_energy_demand
