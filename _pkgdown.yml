@@ -219,6 +219,7 @@ reference:
   - split_manure_management
   - apply_management_losses
   - allocate_manure_to_land
+  - allocate_manure_transport
   - estimate_energy_demand
   - calculate_cohorts_systems
   - calculate_uncertainty_bounds
