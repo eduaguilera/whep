@@ -10,6 +10,7 @@ build_primary_production(
   smooth_carry_forward = FALSE,
   example = FALSE,
   show_duplicates = FALSE,
+  historical_data = NULL,
   .raw_data = NULL
 )
 }
@@ -27,6 +28,15 @@ tibble instead of reading remote data. Default \code{FALSE}.}
 \item{show_duplicates}{Logical. If \code{TRUE}, return only the rows that
 have competing sources in wide format (one column per source) for
 diagnostic comparison. Default \code{FALSE}.}
+
+\item{historical_data}{Optional harmonized historical production rows to add
+before the LUH2 historical extension. May be a data frame or a path to a
+parquet/csv file. Required semantic columns are \code{year}, \code{item_prod_code},
+\code{unit}, \code{value}, and one of \code{area_code} or \code{polity_area_code}.
+Names such as \code{item_prod_name}, \code{item_cbs_name}, and \code{source} are used
+when present; WHEP item and area tables fill canonical names where possible.
+Observed historical rows are retained, and LUH2 proxy filling can use them as
+anchors. Default \code{NULL}.}
 
 \item{.raw_data}{Optional tibble with the same structure as the output
 of the internal \code{.read_production()} step. When supplied, the
