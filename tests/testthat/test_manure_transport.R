@@ -139,6 +139,47 @@ test_that("a source with no reachable sink keeps its whole surplus as residual",
   expect_equal(res$kind, "residual")
 })
 
+test_that("repeated rows for a cell are summed, not partially dropped", {
+  # Two rows for the same source cell (4 + 6) and a roomy sink: all 10 t must
+  # transport, none lost (regression: duplicate keys once leaked mass).
+  src <- tibble::tribble(
+    ~year,
+    ~territory,
+    ~sub_territory,
+    ~surplus_n,
+    ~surplus_c,
+    ~surplus_vs,
+    2020L,
+    "ESP",
+    "1.5_40",
+    4,
+    36,
+    2.4,
+    2020L,
+    "ESP",
+    "1.5_40",
+    6,
+    54,
+    3.6
+  )
+  sink <- tibble::tribble(
+    ~year,
+    ~territory,
+    ~sub_territory,
+    ~room_n,
+    2020L,
+    "ESP",
+    "1_40",
+    100
+  )
+  res <- whep::allocate_manure_transport(src, sink)
+  expect_equal(sum(res$applied_n), 10, tolerance = 1e-8)
+  expect_equal(sum(res$applied_c), 90, tolerance = 1e-8)
+  expect_equal(sum(res$applied_vs), 6, tolerance = 1e-8)
+  tr <- res[res$kind == "transported", ]
+  expect_equal(tr$applied_n, 10, tolerance = 1e-6)
+})
+
 test_that("allocate_manure_transport guards bad input", {
   expect_error(
     whep::allocate_manure_transport(

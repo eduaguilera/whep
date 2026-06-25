@@ -93,8 +93,18 @@ allocate_manure_transport <- function(
   invisible(NULL)
 }
 
+# Sum each cell's mass by key first, so repeated rows for a cell are the cell's
+# total surplus (never a partial double-count that would leak mass downstream).
 .transport_sources <- function(source_cells) {
-  src <- dplyr::filter(tibble::as_tibble(source_cells), .data$surplus_n > 1e-12)
+  src <- source_cells |>
+    tibble::as_tibble() |>
+    dplyr::summarise(
+      surplus_n = sum(.data$surplus_n),
+      surplus_c = sum(.data$surplus_c),
+      surplus_vs = sum(.data$surplus_vs),
+      .by = c("year", "territory", "sub_territory")
+    ) |>
+    dplyr::filter(.data$surplus_n > 1e-12)
   coords <- .parse_cell_id(src$sub_territory)
   src |>
     dplyr::mutate(
@@ -116,7 +126,13 @@ allocate_manure_transport <- function(
 }
 
 .transport_sinks <- function(sink_cells) {
-  snk <- dplyr::filter(tibble::as_tibble(sink_cells), .data$room_n > 1e-12)
+  snk <- sink_cells |>
+    tibble::as_tibble() |>
+    dplyr::summarise(
+      room_n = sum(.data$room_n),
+      .by = c("year", "territory", "sub_territory")
+    ) |>
+    dplyr::filter(.data$room_n > 1e-12)
   coords <- .parse_cell_id(snk$sub_territory)
   snk |>
     dplyr::mutate(lon = round(coords$lon, 2), lat = round(coords$lat, 2)) |>
