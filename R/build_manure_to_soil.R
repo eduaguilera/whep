@@ -52,6 +52,7 @@ build_manure_to_soil <- function(
   .check_resolution(resolution)
   m <- .manure_methods(methods)
   grid <- gridded %||% list()
+  alloc_opt <- .allocate_options(m$allocation)
 
   excretion <- estimate_n_excretion(intake, m$excretion)
   split <- split_manure_management(excretion, m$split)
@@ -64,7 +65,14 @@ build_manure_to_soil <- function(
   }
 
   list(
-    applied = .tag_provenance(applied, excretion, split, losses, resolution),
+    applied = .tag_provenance(
+      applied,
+      excretion,
+      split,
+      losses,
+      resolution,
+      alloc_opt
+    ),
     losses = .summarise_losses(losses),
     excretion = excretion
   )
@@ -108,7 +116,18 @@ build_manure_to_soil <- function(
     )
 }
 
-.tag_provenance <- function(applied, excretion, split, losses, resolution) {
+# Stamp every row with the caller's actual stage choices. The allocation
+# provenance is set from the resolved options (not read off the rows) so that
+# transported/disposed rows and the internal "retain_unallocated" pass used by
+# the subnational composition do not leak NA or the internal label.
+.tag_provenance <- function(
+  applied,
+  excretion,
+  split,
+  losses,
+  resolution,
+  alloc_opt
+) {
   m_transport <- if (identical(resolution, "subnational")) {
     "room_weighted"
   } else {
@@ -121,6 +140,9 @@ build_manure_to_soil <- function(
       method_vs = excretion$method_vs[1],
       method_mms = split$method_mms[1],
       method_losses = losses$method_losses[1],
+      method_allocation = alloc_opt$method,
+      method_cap = alloc_opt$cap_method,
+      disposal_method = alloc_opt$disposal_method,
       method_transport = m_transport
     )
 }

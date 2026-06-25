@@ -193,6 +193,11 @@ test_that("subnational run transports surplus between cells and conserves N", {
   # Some collected manure originating in "1.5_40" is transported to "1_40".
   expect_true("transported" %in% res$applied$source_stream)
   expect_true(all(res$applied$method_transport == "room_weighted"))
+  # Provenance is scalar-correct on every row, including transported/disposed
+  # rows: the caller's disposal choice, not the internal retain_unallocated pass.
+  expect_true(all(res$applied$disposal_method == "over_apply_local"))
+  expect_false(anyNA(res$applied$method_cap))
+  expect_false(anyNA(res$applied$method_allocation))
 })
 
 test_that("build_manure_to_soil guards bad resolution and methods stage", {
