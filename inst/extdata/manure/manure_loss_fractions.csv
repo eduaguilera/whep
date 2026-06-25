@@ -1,0 +1,27 @@
+mms_type,animal_category,frac_gas_ms,frac_leach_ms,source,reliability
+Pasture/Range/Paddock,Dairy Cattle,0,0,IPCC 2019 V4 Ch10 Table 10.18 (PRP not stored; losses via soil-deposition pathway),verified
+Pasture/Range/Paddock,Other Cattle,0,0,IPCC 2019 V4 Ch10 Table 10.18 (PRP not stored; losses via soil-deposition pathway),verified
+Pasture/Range/Paddock,Swine,0,0,IPCC 2019 V4 Ch10 Table 10.18 (PRP not stored; losses via soil-deposition pathway),verified
+Pasture/Range/Paddock,Poultry,0,0,IPCC 2019 V4 Ch10 Table 10.18 (PRP not stored; losses via soil-deposition pathway),verified
+Pasture/Range/Paddock,Other animals,0,0,IPCC 2019 V4 Ch10 Table 10.18 (PRP not stored; losses via soil-deposition pathway),verified
+Daily Spread,Dairy Cattle,0.07,0,IPCC 2019 V4 Ch10 Table 10.22 (Daily spread),verified
+Daily Spread,Other Cattle,0.07,0,IPCC 2019 V4 Ch10 Table 10.22 (Daily spread),verified
+Daily Spread,Swine,0.07,0,IPCC 2019 V4 Ch10 Table 10.22 (Daily spread),verified
+Daily Spread,Poultry,0.07,0,IPCC 2019 V4 Ch10 Table 10.22 (Daily spread),verified
+Daily Spread,Other animals,0.07,0,IPCC 2019 V4 Ch10 Table 10.22 (Daily spread),verified
+Solid Storage,Dairy Cattle,0.30,0.02,IPCC 2019 V4 Ch10 Table 10.22 (Solid storage base),verified
+Solid Storage,Other Cattle,0.45,0.02,IPCC 2019 V4 Ch10 Table 10.22 (Solid storage base),verified
+Solid Storage,Swine,0.45,0.02,IPCC 2019 V4 Ch10 Table 10.22 (Solid storage base),verified
+Solid Storage,Poultry,0.40,0.02,IPCC 2019 V4 Ch10 Table 10.22 (Solid storage base),verified
+Solid Storage,Other animals,0.12,0.02,IPCC 2019 V4 Ch10 Table 10.22 (Solid storage base),verified
+Liquid/Slurry,Dairy Cattle,0.48,0,IPCC 2019 V4 Ch10 Table 10.22 (Liquid/Slurry uncovered no crust),verified
+Liquid/Slurry,Other Cattle,0.48,0,IPCC 2019 V4 Ch10 Table 10.22 (Liquid/Slurry uncovered no crust),verified
+Liquid/Slurry,Swine,0.48,0,IPCC 2019 V4 Ch10 Table 10.22 (Liquid/Slurry uncovered no crust),verified
+Liquid/Slurry,Poultry,0.40,0,IPCC 2019 V4 Ch10 Table 10.22 (Liquid/Slurry uncovered no crust),verified
+Liquid/Slurry,Other animals,0.15,0,IPCC 2019 V4 Ch10 Table 10.22 (Liquid/Slurry uncovered no crust),verified
+Anaerobic Lagoon,Dairy Cattle,0.35,0,IPCC 2019 V4 Ch10 Table 10.22 (Uncovered anaerobic lagoon),verified
+Anaerobic Lagoon,Other Cattle,0.35,0,IPCC 2019 V4 Ch10 Table 10.22 (Uncovered anaerobic lagoon),verified
+Anaerobic Lagoon,Swine,0.40,0,IPCC 2019 V4 Ch10 Table 10.22 (Uncovered anaerobic lagoon),verified
+Anaerobic Lagoon,Poultry,0.40,0,IPCC 2019 V4 Ch10 Table 10.22 (Uncovered anaerobic lagoon),verified
+Anaerobic Lagoon,Other animals,0.35,0,IPCC 2019 V4 Ch10 Table 10.22 (Uncovered anaerobic lagoon),verified
+Poultry Manure,Poultry,0.40,0,IPCC 2019 V4 Ch10 Table 10.22 (Poultry manure with litter),verified

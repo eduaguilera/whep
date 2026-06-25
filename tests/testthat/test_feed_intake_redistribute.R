@@ -244,8 +244,11 @@ test_that(".build_demand_energy handles double-typed production codes", {
 test_that(".build_demand_energy adds lactation energy from a milk-yield row", {
   # A t_head milk-yield row must reach the energy model (its live_anim_code join
   # keys on a character). Dropping live_anim_code would zero lactation energy and
-  # understate dairy demand ~1.85x; this guards that regression. Codes are
-  # doubles (real-data shape).
+  # understate dairy demand ~1.85x; this guards that regression. The milk row
+  # carries the dairy animal's DESIGNATED milk product code (882 for "Cattle,
+  # dairy" 960): the yield-tagging join matches on (live_anim_code,
+  # item_prod_code), so a row tagged with any other product code is not seen as
+  # milk. Codes are doubles (real-data shape).
   base <- tibble::tribble(
     ~year,
     ~area_code,
@@ -276,7 +279,7 @@ test_that(".build_demand_energy adds lactation energy from a milk-yield row", {
       79,
       960,
       960,
-      "960",
+      "882",
       "t_head",
       5
     )

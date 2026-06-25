@@ -8,6 +8,7 @@ get_feed_intake(
   example = FALSE,
   grain = c("national", "local"),
   demand_tier = c("ipcc", "fcr"),
+  feed_mode = c("historical", "scenario"),
   years = NULL
 )
 }
@@ -25,6 +26,12 @@ IPCC Tier-2 energy demand for the ruminant species it covers, Bouwman FCR
 for pigs and poultry, Krausmann per-head for draft / other species) or
 \code{"fcr"} (the Bouwman / Krausmann feed-conversion magnitude for every
 species). Both grains allocate with \code{redistribute_feed()}.}
+
+\item{feed_mode}{Whether to distribute surplus feed availability.
+\code{"historical"} (default) suppresses the surplus-distribution pass: the CBS
+feed element is treated as realised consumption, so leftover availability is
+not dumped onto variable-demand livestock (which would inflate non-grass
+intake). \code{"scenario"} distributes the surplus.}
 
 \item{years}{Integer vector of years to build, or \code{NULL} (default) for every
 year in the production data (1850-2023 via the LUH2 extension). Restricting

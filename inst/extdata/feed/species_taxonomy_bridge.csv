@@ -1,0 +1,11 @@
+livestock_category,species_gen,subcategory,bo_category,excretion_category,loss_category,cn_species,species_group,reliability,notes
+Cattle_milk,Cattle,Dairy,Dairy Cattle,Dairy Cattle,Dairy Cattle,Cattle,cattle,verified,
+Cattle_meat,Cattle,Non-Dairy,Other Cattle,Other Cattle,Other Cattle,Cattle,cattle,derived,includes buffalo (anim_code 946) lumped as cattle; buffalo N-retention 0.20 vs other-cattle 0.07
+Sheep,Sheep,All,Sheep,Sheep,Other animals,Sheep,sheep_goats,verified,
+Goats,Goats,All,Goats,Goats,Other animals,Goats,sheep_goats,verified,
+Pigs,Swine,All,Swine,Swine - Market,Swine,Pigs,pigs,derived,market swine as representative; breeding swine lumped
+Poultry,Poultry,All,Poultry,Poultry - Broilers,Poultry,Poultry,poultry,derived,broilers as representative; layers lumped
+Horses,Horses,All,Horses,Horses,Other animals,Horses,equines,verified,
+Donkeys_mules,Mules and Asses,All,Mules and Asses,Mules and Asses,Other animals,Donkeys_mules,equines,verified,
+Rabbits,Swine,All,Swine,Swine - Market,Swine,Rabbits,other,placeholder,no IPCC rabbit coefficients; monogastric swine proxy for energy/MMS (C:N has real Rabbits row)
+Other,Camels,All,Camels,Camels,Other animals,All_species,other,placeholder,lumps camels/camelids/rodents/game/bees; camel proxy for IPCC coefs; All_species for C:N

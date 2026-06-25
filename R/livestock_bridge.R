@@ -163,17 +163,9 @@ prepare_livestock_emissions <- function(
     return(NULL)
   }
 
-  # Build animal-code lookup from product map
-  anim_lookup <- product_map |>
-    dplyr::mutate(
-      live_anim_code = as.character(item_cbs_code)
-    ) |>
-    dplyr::select(live_anim_code, Liv_prod_cat)
+  tagged <- .tag_yields_to_animal_product(yield_rows, product_map)
 
-  tagged <- yield_rows |>
-    dplyr::inner_join(anim_lookup, by = "live_anim_code")
-
-  if (nrow(tagged) == 0) {
+  if (is.null(tagged) || nrow(tagged) == 0) {
     return(NULL)
   }
 
@@ -190,8 +182,10 @@ prepare_livestock_emissions <- function(
       milk_yield_kg_day
     )
 
-  # Meat/egg yields
-  meat_yields <- tagged |>
+  # Meat/egg yields: convert carcass weight per head to daily live-weight gain
+  # for the energy model's ne_growth term via IPCC dressing fractions and
+  # typical fattening periods (IPCC 2019 Vol 4, Ch 10).
+  meat_yields_raw <- tagged |>
     dplyr::filter(Liv_prod_cat != "Milk") |>
     dplyr::mutate(
       item_cbs_code = as.integer(live_anim_code),
@@ -202,6 +196,7 @@ prepare_livestock_emissions <- function(
       item_cbs_code,
       meat_yield_t_head
     )
+  meat_yields <- .meat_to_weight_gain(meat_yields_raw, animals)
 
   if (nrow(milk_yields) > 0 && nrow(meat_yields) > 0) {
     yields <- milk_yields |>
@@ -219,6 +214,75 @@ prepare_livestock_emissions <- function(
     return(NULL)
   }
   yields
+}
+
+# Convert `meat_yield_t_head` (FAOSTAT carcass weight per head, tonnes) to
+# `weight_gain_kg_day` (average daily live-weight gain over the fattening period)
+# using IPCC-standard dressing fractions and fattening period lengths (IPCC 2019
+# Vol 4, Ch 10, Table 10.1 / GLEAM defaults). Applied at the species level —
+# the same granularity as the existing `livestock_production_defaults` baseline
+# it replaces — so country-specific realised carcass weights drive the energy
+# model instead of a fixed global default.
+.meat_to_weight_gain <- function(meat_yields_raw, animals) {
+  fattening_params <- tibble::tribble(
+    ~species_gen, ~dressing_frac, ~fattening_days, ~birth_weight_kg,
+    "Cattle",     0.55,           547.5,           40,
+    "Buffalo",    0.55,           547.5,           40,
+    "Sheep",      0.45,           365.0,            4,
+    "Goats",      0.45,           365.0,            3,
+    "Swine",      0.75,           183.0,            1.5
+  )
+  species_key <- tibble::as_tibble(animals) |>
+    dplyr::transmute(
+      item_cbs_code = as.integer(item_cbs_code),
+      species_gen = .get_general_species(item_cbs)
+    ) |>
+    dplyr::distinct(item_cbs_code, .keep_all = TRUE)
+  meat_yields_raw |>
+    dplyr::left_join(species_key, by = "item_cbs_code") |>
+    dplyr::left_join(fattening_params, by = "species_gen") |>
+    dplyr::mutate(
+      live_weight_kg = meat_yield_t_head *
+        1000 /
+        dplyr::coalesce(dressing_frac, 0.55),
+      weight_gain_kg_day = dplyr::if_else(
+        !is.na(dressing_frac) & live_weight_kg > birth_weight_kg,
+        (live_weight_kg - birth_weight_kg) /
+          dplyr::coalesce(fattening_days, 547.5),
+        NA_real_
+      )
+    ) |>
+    dplyr::select(
+      dplyr::any_of(c("year", "area_code")),
+      item_cbs_code,
+      weight_gain_kg_day
+    )
+}
+
+# Tag each t_head yield row with the producing animal's product category,
+# matching on the animal's DESIGNATED product (`Item_Code_product`), not just on
+# `live_anim_code`.
+.tag_yields_to_animal_product <- function(yield_rows, product_map) {
+  if (!rlang::has_name(yield_rows, "item_prod_code")) {
+    anim_lookup <- product_map |>
+      dplyr::transmute(
+        live_anim_code = as.character(item_cbs_code),
+        Liv_prod_cat
+      )
+    return(dplyr::inner_join(yield_rows, anim_lookup, by = "live_anim_code"))
+  }
+  product_lookup <- product_map |>
+    dplyr::transmute(
+      live_anim_code = as.character(item_cbs_code),
+      item_prod_code = as.character(Item_Code_product),
+      Liv_prod_cat
+    )
+  yield_rows |>
+    dplyr::mutate(item_prod_code = as.character(item_prod_code)) |>
+    dplyr::inner_join(
+      product_lookup,
+      by = c("live_anim_code", "item_prod_code")
+    )
 }
 
 #' @noRd
