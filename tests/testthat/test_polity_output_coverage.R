@@ -161,8 +161,8 @@ testthat::test_that("legacy area reference tables are backed by polities", {
   # FAOSTAT area 351 "China" is a statistical aggregate of its components
   # (mainland 41, Hong Kong 96, Macao 128, Taiwan 214), reported alongside them
   # for every year. It is intentionally left unmapped so it cannot double-count
-  # China; every OTHER reporting area must still map to a polity. See
-  # data-raw/table_mappings.R.
+  # China; every OTHER reporting area must still map to a polity. The dedup
+  # lives in the table_mappings data-raw script.
   aggregate_codes <- 351L
 
   cw <- whep::polity_area_crosswalk
