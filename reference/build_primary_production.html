@@ -64,6 +64,7 @@ This is a convenience wrapper that chains the three pipeline steps:</p><ol><li><
 <span>  smooth_carry_forward <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  example <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  show_duplicates <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  historical_data <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  .raw_data <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -96,6 +97,17 @@ have competing sources in wide format (one column per source) for
 diagnostic comparison. Default <code>FALSE</code>.</p></dd>
 
 
+<dt id="arg-historical-data">historical_data<a class="anchor" aria-label="anchor" href="#arg-historical-data"></a></dt>
+<dd><p>Optional harmonized historical production rows to add
+before the LUH2 historical extension. May be a data frame or a path to a
+parquet/csv file. Required semantic columns are <code>year</code>,
+<code>item_prod_code</code>, <code>unit</code>, <code>value</code>, and one of <code>area_code</code> or
+<code>polity_area_code</code>. Names such as <code>item_prod_name</code>, <code>item_cbs_name</code>, and
+<code>source</code> are used when present; WHEP item and area tables fill canonical
+names where possible. Observed historical rows are retained, and LUH2 proxy
+filling can use them as anchors. Default <code>NULL</code>.</p></dd>
+
+
 <dt id="arg--raw-data">.raw_data<a class="anchor" aria-label="anchor" href="#arg--raw-data"></a></dt>
 <dd><p>Optional tibble with the same structure as the output
 of the internal <code>.read_production()</code> step. When supplied, the
@@ -122,18 +134,18 @@ column per source showing the competing values.</p>
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="fu">build_primary_production</span><span class="op">(</span>example <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 10 × 12</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>     year area_code polity_area_code reporting_polity_code reporting_polity_name </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 1</span>  <span style="text-decoration: underline;">1</span>912       165              165 PAK-1800-1947         Pakistan (territory w…</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 2</span>  <span style="text-decoration: underline;">2</span>012       112              112 JOR-1946-2025         Jordan                </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 3</span>  <span style="text-decoration: underline;">1</span>943        41               41 CHN-1921-1945         China (1921-1945)     </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 4</span>  <span style="text-decoration: underline;">1</span>979        45               45 COM-1975-2025         Comoros               </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 5</span>  <span style="text-decoration: underline;">1</span>910       141              141 MNG-1911-1921         Bogd Khanate of Mongo…</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 6</span>  <span style="text-decoration: underline;">1</span>867        90               90 GIN-1894-1958         Guinea (1894-1958)    </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 7</span>  <span style="text-decoration: underline;">1</span>939        15               15 BLX-1850-1999         Belgium-Luxembourg    </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 8</span>  <span style="text-decoration: underline;">1</span>935       211              211 CHE-1800-2025         Switzerland           </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 9</span>  <span style="text-decoration: underline;">1</span>937         9                9 ARG-1800-2025         Argentina             </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">10</span>  <span style="text-decoration: underline;">2</span>000         9                9 ARG-1800-2025         Argentina             </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     year area_code polity_area_code reporting_polity_code reporting_polity_name</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 1</span>  <span style="text-decoration: underline;">1</span>912       165              165 PAK-1949-1971         Pakistan (1949-1971) </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 2</span>  <span style="text-decoration: underline;">2</span>012       112              112 JOR-1946-2025         Jordan               </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 3</span>  <span style="text-decoration: underline;">1</span>943        41               41 CHN-1950-2025         China (PRC)          </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 4</span>  <span style="text-decoration: underline;">1</span>979        45               45 COM-1975-2025         Comoros              </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 5</span>  <span style="text-decoration: underline;">1</span>910       141              141 MNG-1921-2025         Mongolia             </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 6</span>  <span style="text-decoration: underline;">1</span>867        90               90 GIN-1958-2025         Guinea               </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 7</span>  <span style="text-decoration: underline;">1</span>939        15               15 BLX-1850-1999         Belgium-Luxembourg   </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 8</span>  <span style="text-decoration: underline;">1</span>935       211              211 CHE-1800-2025         Switzerland          </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 9</span>  <span style="text-decoration: underline;">1</span>937         9                9 ARG-1800-2025         Argentina            </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">10</span>  <span style="text-decoration: underline;">2</span>000         9                9 ARG-1800-2025         Argentina            </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 7 more variables: reporting_polity_has_geometry &lt;lgl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   item_prod_code &lt;chr&gt;, item_cbs_code &lt;dbl&gt;, live_anim_code &lt;chr&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   unit &lt;chr&gt;, value &lt;dbl&gt;, source &lt;chr&gt;</span></span>

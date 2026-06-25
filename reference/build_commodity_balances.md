@@ -19,6 +19,7 @@ build_commodity_balances(
   end_year = 2023,
   smooth_carry_forward = FALSE,
   example = FALSE,
+  historical_data = NULL,
   .fixed_data = NULL
 )
 ```
@@ -48,6 +49,16 @@ build_commodity_balances(
   Logical. If `TRUE`, return a small hardcoded example tibble instead of
   reading remote data. Default `FALSE`.
 
+- historical_data:
+
+  Optional harmonized historical CBS or production rows to add before
+  the CBS historical extension. May be a data frame or a path to a
+  parquet/csv file. CBS-shaped rows should provide `year`, `value`, one
+  of `area_code` or `polity_area_code`, one of `item_cbs_code` or
+  `item_prod_code`, and preferably `element`. Production-shaped rows
+  without `element` are accepted as `production` when their unit is
+  tonnes. Default `NULL`.
+
 - .fixed_data:
 
   Optional tibble with the same structure as the output of the internal
@@ -75,7 +86,7 @@ build_commodity_balances(example = TRUE)
 #>  3  1906       203              203 ESP-1800-2025         Spain                 
 #>  4  1899       175              175 GNB-1886-1974         Guinea-Bissau (1886-1…
 #>  5  2018        48               48 CRI-1800-2025         Costa Rica            
-#>  6  1871        10               10 AUS-1800-1901         Australian Colonies (…
+#>  6  1871        10               10 AUS-1901-2025         Australia             
 #>  7  1938       226              226 UGA-1926-1962         Uganda (1926-1962)    
 #>  8  1924        11               11 AUT-1919-2025         Austria               
 #>  9  1928        96               96 HKG-1842-2025         Hong Kong             

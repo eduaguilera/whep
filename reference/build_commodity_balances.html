@@ -67,6 +67,7 @@ destiny filling, and final balancing.</p></li>
 <span>  end_year <span class="op">=</span> <span class="fl">2023</span>,</span>
 <span>  smooth_carry_forward <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  example <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  historical_data <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  .fixed_data <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -98,6 +99,16 @@ are replaced with a linear trend. Default <code>FALSE</code>.</p></dd>
 tibble instead of reading remote data. Default <code>FALSE</code>.</p></dd>
 
 
+<dt id="arg-historical-data">historical_data<a class="anchor" aria-label="anchor" href="#arg-historical-data"></a></dt>
+<dd><p>Optional harmonized historical CBS or production rows
+to add before the CBS historical extension. May be a data frame or a path
+to a parquet/csv file. CBS-shaped rows should provide <code>year</code>, <code>value</code>,
+one of <code>area_code</code> or <code>polity_area_code</code>, one of <code>item_cbs_code</code> or
+<code>item_prod_code</code>, and preferably <code>element</code>. Production-shaped rows without
+<code>element</code> are accepted as <code>production</code> when their unit is tonnes. Default
+<code>NULL</code>.</p></dd>
+
+
 <dt id="arg--fixed-data">.fixed_data<a class="anchor" aria-label="anchor" href="#arg--fixed-data"></a></dt>
 <dd><p>Optional tibble with the same structure as the
 output of the internal <code>.read_cbs() |&gt; .fix_cbs()</code> steps. When
@@ -125,7 +136,7 @@ to <code>.qc_cbs()</code>. Default <code>NULL</code>.</p></dd>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 3</span>  <span style="text-decoration: underline;">1</span>906       203              203 ESP-1800-2025         Spain                 </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 4</span>  <span style="text-decoration: underline;">1</span>899       175              175 GNB-1886-1974         Guinea-Bissau (1886-1…</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 5</span>  <span style="text-decoration: underline;">2</span>018        48               48 CRI-1800-2025         Costa Rica            </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 6</span>  <span style="text-decoration: underline;">1</span>871        10               10 AUS-1800-1901         Australian Colonies (…</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 6</span>  <span style="text-decoration: underline;">1</span>871        10               10 AUS-1901-2025         Australia             </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 7</span>  <span style="text-decoration: underline;">1</span>938       226              226 UGA-1926-1962         Uganda (1926-1962)    </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 8</span>  <span style="text-decoration: underline;">1</span>924        11               11 AUT-1919-2025         Austria               </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 9</span>  <span style="text-decoration: underline;">1</span>928        96               96 HKG-1842-2025         Hong Kong             </span>

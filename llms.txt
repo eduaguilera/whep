@@ -148,6 +148,18 @@ comparison.
 - [`build_gridded_livestock()`](https://eduaguilera.github.io/whep/reference/build_gridded_livestock.md)
   : Build gridded livestock dataset
 
+## Constant-territory back-casting
+
+Rebuild historical series onto a fixed reference-year’s boundaries by
+dasymetric spatial reallocation, optionally weighted by LPJmL/WHEP
+gridded covariates.
+
+- [`build_constant_territory_series()`](https://eduaguilera.github.io/whep/reference/build_constant_territory_series.md)
+  : Build a constant-territory time series for a reference year's
+  boundaries
+- [`make_lpjml_covariate()`](https://eduaguilera.github.io/whep/reference/make_lpjml_covariate.md)
+  : Build an LPJmL/WHEP spatial covariate function
+
 ## LPJmL grass availability
 
 Read managed-grassland net primary production from a finished LPJmL run

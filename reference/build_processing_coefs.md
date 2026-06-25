@@ -53,9 +53,9 @@ build_processing_coefs(example = TRUE)
 #>  1  2012       150              150 NLD-1830-2025         Netherlands           
 #>  2  1968       173              173 POL-1945-2025         Poland (1945-2025)    
 #>  3  2015       150              150 NLD-1830-2025         Netherlands           
-#>  4  1885       248              248 F248-1918-1919        Yugoslavia (1918-1919)
+#>  4  1885       248              248 F248-1920-1991        Yugoslavia (1920-1991)
 #>  5  1896       191              191 VCT-1833-2025         Saint Vincent and the…
-#>  6  1873        67               67 FIN-1809-1917         Grand Duchy of Finland
+#>  6  1873        67               67 FIN-1940-2025         Finland (1940-2025)   
 #>  7  1987        79               79 DEU-1949-1990         Germany (divided, 194…
 #>  8  2007        19               19 BOL-1938-2025         Bolivia               
 #>  9  1969        51               51 F51-1947-1993         Czechoslovakia (1947-…

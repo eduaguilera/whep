@@ -10,13 +10,6 @@ When a `climate_type` column is present, the climate-specific parameters
 from `bnf_climate_params` override the relevant defaults per climate
 type.
 
-The weed component uses the `weed_npp_n_t` already present in `x`. In
-the standard crop-NPP chain this is non-zero only when
-[`calculate_crop_npp_components()`](https://eduaguilera.github.io/whep/reference/calculate_crop_npp_components.md)
-has been run, or when callers supply weed NPP directly;
-[`calculate_npp_carbon_nitrogen()`](https://eduaguilera.github.io/whep/reference/calculate_npp_carbon_nitrogen.md)
-treats missing weed biomass as zero.
-
 ## Usage
 
 ``` r
@@ -43,6 +36,15 @@ calculate_bnf(
 
 The input tibble with all component columns plus `fert_type` (`"BNF"`)
 and `bnf_t` (total BNF).
+
+## Details
+
+The weed component uses the `weed_npp_n_t` already present in `x`. In
+the standard crop-NPP chain this is non-zero only when
+[`calculate_crop_npp_components()`](https://eduaguilera.github.io/whep/reference/calculate_crop_npp_components.md)
+has been run, or when callers supply weed NPP directly;
+[`calculate_npp_carbon_nitrogen()`](https://eduaguilera.github.io/whep/reference/calculate_npp_carbon_nitrogen.md)
+treats missing weed biomass as zero.
 
 ## Examples
 

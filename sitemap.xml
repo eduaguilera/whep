@@ -24,6 +24,7 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/biomass_coefs.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_cbs_prices.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_commodity_balances.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/build_constant_territory_series.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_crop_land_extension.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_cropgrids_land_extension.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_detailed_trade.html</loc></url>
@@ -147,6 +148,7 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/liv_lu_coefs.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/livestock_constants.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/livestock_production_defaults.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/make_lpjml_covariate.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/max_intake_share.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/mueller_synthetic_n.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/plot_footprint_sankey.html</loc></url>

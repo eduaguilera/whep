@@ -4,22 +4,12 @@ crops, and non-symbiotic free-living fixation, by running
 calculate_crop_bnf(), calculate_weed_bnf() and
 calculate_nonsymbiotic_bnf(). When a climate_type column is present, the
 climate-specific parameters from bnf_climate_params override the relevant
-defaults per climate type.
-The weed component uses the weed_npp_n_t already present in x. In the
-standard crop-NPP chain this is non-zero only when
-calculate_crop_npp_components() has been run, or when callers supply weed
-NPP directly; calculate_npp_carbon_nitrogen() treats missing weed biomass as
-zero."><meta property="og:description" content="Sums the three BNF components: symbiotic crop legumes, symbiotic weeds/cover
+defaults per climate type."><meta property="og:description" content="Sums the three BNF components: symbiotic crop legumes, symbiotic weeds/cover
 crops, and non-symbiotic free-living fixation, by running
 calculate_crop_bnf(), calculate_weed_bnf() and
 calculate_nonsymbiotic_bnf(). When a climate_type column is present, the
 climate-specific parameters from bnf_climate_params override the relevant
-defaults per climate type.
-The weed component uses the weed_npp_n_t already present in x. In the
-standard crop-NPP chain this is non-zero only when
-calculate_crop_npp_components() has been run, or when callers supply weed
-NPP directly; calculate_npp_carbon_nitrogen() treats missing weed biomass as
-zero."><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
+defaults per climate type."><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -64,11 +54,6 @@ crops, and non-symbiotic free-living fixation, by running
 <code><a href="calculate_nonsymbiotic_bnf.html">calculate_nonsymbiotic_bnf()</a></code>. When a <code>climate_type</code> column is present, the
 climate-specific parameters from <code>bnf_climate_params</code> override the relevant
 defaults per climate type.</p>
-<p>The weed component uses the <code>weed_npp_n_t</code> already present in <code>x</code>. In the
-standard crop-NPP chain this is non-zero only when
-<code><a href="calculate_crop_npp_components.html">calculate_crop_npp_components()</a></code> has been run, or when callers supply weed
-NPP directly; <code><a href="calculate_npp_carbon_nitrogen.html">calculate_npp_carbon_nitrogen()</a></code> treats missing weed biomass as
-zero.</p>
     </div>
 
     <div class="section level2">
@@ -99,6 +84,14 @@ the component functions (see those functions).</p></dd>
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>The input tibble with all component columns plus <code>fert_type</code> (<code>"BNF"</code>)
 and <code>bnf_t</code> (total BNF).</p>
+    </div>
+    <div class="section level2">
+    <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
+    <p>The weed component uses the <code>weed_npp_n_t</code> already present in <code>x</code>. In the
+standard crop-NPP chain this is non-zero only when
+<code><a href="calculate_crop_npp_components.html">calculate_crop_npp_components()</a></code> has been run, or when callers supply weed
+NPP directly; <code><a href="calculate_npp_carbon_nitrogen.html">calculate_npp_carbon_nitrogen()</a></code> treats missing weed biomass as
+zero.</p>
     </div>
 
     <div class="section level2">
