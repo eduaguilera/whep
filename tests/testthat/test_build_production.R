@@ -364,6 +364,9 @@ test_that(".fix_rice_milled_equiv converts paddy production only", {
     2000L, "China", 41L, "Rice", "27",
     "Rice and products", 2807L, NA, NA,
     "tonnes", 80, "imputed_cbs_ratio",
+    2000L, "China", 41L, "Rice", "27",
+    "Rice and products", 2807L, NA, NA,
+    "tonnes", 200, "historical_mitchell",
     2000L, "China", 41L, "Wheat", "15",
     "Wheat and products", 2511L, NA, NA,
     "tonnes", 50, "FAOSTAT_prod"
@@ -390,6 +393,11 @@ test_that(".fix_rice_milled_equiv converts paddy production only", {
   testthat::expect_equal(
     rice$value[rice$source == "imputed_cbs_ratio"],
     80
+  )
+  # observed historical rice is paddy too and must be milled-converted
+  testthat::expect_equal(
+    rice$value[rice$source == "historical_mitchell"],
+    200 * rate
   )
   testthat::expect_equal(
     result$value[result$item_prod_code == "15"],

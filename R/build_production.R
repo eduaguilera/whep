@@ -2292,6 +2292,10 @@ build_primary_production <- function(
         stringr::str_starts(
           tidyr::replace_na(.data$source, ""),
           "imputed_yield"
+        ) |
+        stringr::str_starts(
+          tidyr::replace_na(.data$source, ""),
+          "historical_"
         ),
       rice_source_is_paddy = tidyr::replace_na(
         .data$rice_source_is_paddy,
