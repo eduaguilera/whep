@@ -1,3 +1,4 @@
+# nolint start: object_length_linter.
 #' Build a constant-territory time series for a reference year's boundaries
 #'
 #' @description
@@ -236,7 +237,7 @@ build_constant_territory_series <- function(
       next
     }
     agg <- lapply(split(tcells, tcells$tgt), function(g) {
-      W <- sum(g$w, na.rm = TRUE)
+      w_total <- sum(g$w, na.rm = TRUE)
       covered <- sum(g$e, na.rm = TRUE)
       gap_w <- sum(g$w[is.na(g$e)], na.rm = TRUE)
       imputed <- gap_w * i_donor
@@ -245,7 +246,7 @@ build_constant_territory_series <- function(
         value = covered + imputed,
         covered = covered,
         imputed = imputed,
-        imputed_share = if (W > 0) gap_w / W else NA_real_
+        imputed_share = if (w_total > 0) gap_w / w_total else NA_real_
       )
     })
     df <- do.call(rbind, agg)
@@ -284,6 +285,7 @@ build_constant_territory_series <- function(
     "n_sources"
   )])
 }
+# nolint end
 
 # Assign each centroid to the polity whose polygon contains it. Returns a
 # character vector aligned to `centroids` order (NA where no polygon, first

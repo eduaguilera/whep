@@ -60,7 +60,7 @@ make_lpjml_covariate <- function(
     ))
   }
 
-  surface <- .lpjml_read_crop_pattern_surface(
+  surface <- .lpjml_crop_pattern_surface(
     input_dir,
     years,
     item_prod_code,
@@ -95,7 +95,7 @@ make_lpjml_covariate <- function(
   cropland
 }
 
-.lpjml_read_crop_pattern_surface <- function(
+.lpjml_crop_pattern_surface <- function(
   input_dir,
   years,
   item_prod_code,
