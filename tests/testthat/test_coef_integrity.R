@@ -13,6 +13,20 @@ test_that("bio_coefs is item-keyed, unique, and physically bounded", {
   testthat::expect_true(all(rdm >= 0 & rdm <= 1))
   rsr <- x$root_shoot_ratio[!is.na(x$root_shoot_ratio)]
   testthat::expect_true(all(rsr >= 0))
+  for (col in c("product_c_kgdm", "residue_c_kgdm", "root_mass_c_kgdm")) {
+    v <- x[[col]][!is.na(x[[col]])]
+    testthat::expect_true(all(v >= 0 & v <= 1), info = col)
+  }
+  rhizo_c <- x$rhizodeposit_mass_c_kgdm[
+    !is.na(x$rhizodeposit_mass_c_kgdm)
+  ]
+  testthat::expect_true(all(rhizo_c >= 0))
+  root_c <- x |>
+    dplyr::filter(!is.na(root_c_kgdm), !is.na(root_mass_c_kgdm))
+  testthat::expect_true(
+    all(root_c$root_c_kgdm >= root_c$root_mass_c_kgdm),
+    info = "root_c_kgdm includes root tissue plus rhizodeposit carbon"
+  )
 })
 
 test_that("BNF parameters are within physical bounds", {

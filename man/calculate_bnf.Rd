@@ -29,6 +29,12 @@ crops, and non-symbiotic free-living fixation, by running
 \code{\link[=calculate_nonsymbiotic_bnf]{calculate_nonsymbiotic_bnf()}}. When a \code{climate_type} column is present, the
 climate-specific parameters from \code{bnf_climate_params} override the relevant
 defaults per climate type.
+
+The weed component uses the \code{weed_npp_n_t} already present in \code{x}. In the
+standard crop-NPP chain this is non-zero only when
+\code{\link[=calculate_crop_npp_components]{calculate_crop_npp_components()}} has been run, or when callers supply weed
+NPP directly; \code{\link[=calculate_npp_carbon_nitrogen]{calculate_npp_carbon_nitrogen()}} treats missing weed biomass as
+zero.
 }
 \examples{
 calculate_bnf(
