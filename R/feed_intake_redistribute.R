@@ -16,12 +16,13 @@
 # is the package default (grain = "national", demand_tier = "ipcc") and runs in
 # memory. The local grain (sub_territory = 0.5-degree cell) runs via
 # build_feed_intake_local(), which chunks the per-cell allocation by year;
-# get_feed_intake(grain = "local") redirects there. Local coverage is bounded
-# by the gridded livestock inputs (country_grid + gridded heads): demand for a
-# (territory, category) with no matching per-cell share is dropped from the
-# local allocation and surfaced by a warning -- e.g. countries whose demand
-# area_code differs from their country_grid code, micro-states with no
-# 0.5-degree land cell, and the geometry-less "Rest of World" (999) residual.
+# get_feed_intake(grain = "local") redirects there. The cell bridges re-key
+# country_grid to the demand's polity_area_code (.cells_to_polity_area), so a
+# polity whose FAOSTAT area_code differs from its polity_area_code still matches
+# its cells. Local coverage is then bounded only by the gridded inputs
+# themselves: demand for a (territory, category) with no per-cell share is
+# dropped from the local allocation and surfaced by a warning -- micro-states
+# with no 0.5-degree land cell, and the geometry-less "Rest of World" (999).
 
 .build_redistribute_intake <- function(
   grain,
@@ -1057,6 +1058,29 @@ build_feed_demand <- function(
   sprintf("%.2f_%.2f", lon, lat)
 }
 
+# Re-key cells from their raw FAOSTAT `area_code` (what country_grid carries) to
+# the `polity_area_code` the demand is keyed on (production output groups by
+# polity_area_code, not area_code). Without this, any polity whose
+# polity_area_code differs from its FAOSTAT area_code never matches the demand and
+# its cells are silently dropped: e.g. Sudan (276) and South Sudan (277) both
+# collapse to polity_area_code 206 (FABIO's combined Sudan) while country_grid
+# uses 276/277, so their demand (keyed 206) found no cells. Falls back to the
+# area_code itself when the crosswalk has no entry.
+.cells_to_polity_area <- function(cells) {
+  lookup <- tibble::as_tibble(whep::polity_area_crosswalk) |>
+    dplyr::filter(!is.na(area_code), !is.na(polity_area_code)) |>
+    dplyr::transmute(
+      area_code = as.integer(area_code),
+      polity_area_code = as.integer(polity_area_code)
+    ) |>
+    dplyr::distinct(area_code, .keep_all = TRUE)
+  cells |>
+    dplyr::mutate(area_code = as.integer(area_code)) |>
+    dplyr::left_join(lookup, by = "area_code") |>
+    dplyr::mutate(area_code = dplyr::coalesce(polity_area_code, area_code)) |>
+    dplyr::select(-"polity_area_code")
+}
+
 # Map gridded grass availability to the local grass_availability schema:
 # each 0.5-degree cell becomes a sub_territory under its polity (territory =
 # area_code). Pass `country_grid` (majority assignment, one polity per cell) to
@@ -1076,6 +1100,7 @@ build_feed_demand <- function(
       by = c("lon", "lat"),
       relationship = "many-to-many"
     ) |>
+    .cells_to_polity_area() |>
     dplyr::transmute(
       year = as.integer(year),
       territory = as.character(as.integer(area_code)),
@@ -1103,6 +1128,7 @@ build_feed_demand <- function(
       heads = sum(heads, na.rm = TRUE),
       .by = c(year, area_code, livestock_category, lon, lat)
     ) |>
+    .cells_to_polity_area() |>
     dplyr::mutate(
       year = as.integer(year),
       territory = as.character(as.integer(area_code)),
