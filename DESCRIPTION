@@ -48,6 +48,7 @@ Suggests:
     htmltools,
     jsonlite,
     knitr,
+    ncdf4,
     pointblank,
     rmarkdown,
     sf,

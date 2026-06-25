@@ -963,16 +963,43 @@ generate_gleam_pdf_tables <- function() {
         "Adult Female", 450,
       "Latin America", "Cattle", "Beef",
         "Fattening", 350,
-      "Global", "Cattle", "All",
-        "Adult Female", 400,
-      "Global", "Cattle", "All",
-        "Adult Male", 600,
-      "Global", "Cattle", "All",
-        "Fattening", 300,
-      "Global", "Sheep", "All", "Adult", 45,
-      "Global", "Goats", "All", "Adult", 40,
-      "Global", "Pigs", "Fattening",
-        "Fattening", 50,
+      # Cattle (Global): Adult Female/Male and Fattening are GLEAM-consistent
+      # global-average mature/finishing liveweights (project assumption,
+      # bracketed by the explicit regional rows above: SSA 250 ... N.Am 680;
+      # pending citation to a specific GLEAM-i liveweight table). Replacement and
+      # Surplus cohorts are mature x growth fraction, a documented assumption
+      # where GLEAM gives no per-cohort liveweight: Replacement = 0.6 x same-sex
+      # adult (RF 240 = 0.6*400, RM 360 = 0.6*600); Surplus Female = culled
+      # heifer ~0.5*AF (200); Surplus Male = "calves for meat", younger/lighter
+      # ~0.4*AF (160) - so Surplus Male < Surplus Female is intentional. Cohort
+      # names match gleam_livestock_categories so the energy-model weight join
+      # resolves.
+      "Global", "Cattle", "All", "Adult Female", 400,
+      "Global", "Cattle", "All", "Adult Male", 600,
+      "Global", "Cattle", "All", "Replacement Female", 240,
+      "Global", "Cattle", "All", "Replacement Male", 360,
+      "Global", "Cattle", "All", "Surplus Female", 200,
+      "Global", "Cattle", "All", "Surplus Male", 160,
+      "Global", "Cattle", "All", "Fattening", 300,
+      # Buffalo (Global): adult anchored on the South Asia dairy buffalo
+      # liveweight (450 kg); Replacement = 0.6 x adult; draft Adult slightly
+      # heavier.
+      "Global", "Buffalo", "All", "Adult Female", 450,
+      "Global", "Buffalo", "All", "Replacement", 270,
+      "Global", "Buffalo", "All", "Adult", 480,
+      # Sheep / Goats (Global): adult is the GLEAM global average; cohort names
+      # harmonised to gleam_livestock_categories (Adult Female / Replacement /
+      # Fattening) so the weight join resolves. Replacement / Fattening are
+      # mature x growth fraction (lighter young / finishing animals).
+      "Global", "Sheep", "All", "Adult Female", 45,
+      "Global", "Sheep", "All", "Replacement", 30,
+      "Global", "Sheep", "All", "Fattening", 25,
+      "Global", "Goats", "All", "Adult Female", 40,
+      "Global", "Goats", "All", "Replacement", 26,
+      "Global", "Goats", "All", "Fattening", 22,
+      # Pigs (Global): monogastric demand uses Bouwman FCR, not the energy
+      # model; weights retained for Tier-2 manure/enteric coverage.
+      "Global", "Pigs", "Fattening", "Fattening", 50,
       "Global", "Pigs", "Breeding", "Sows", 200
     ),
 
@@ -1417,6 +1444,10 @@ generate_ipcc_tier2_params <- function() {
 
     # Feed Characteristics by diet quality.
     # Source: IPCC 2019, Vol 4, Ch 10, typical values.
+    # ge_content_mj_kg_dm is the IPCC single default (18.45 MJ/kg DM) for all
+    # diet qualities; in the gross-energy -> dry-matter intake conversion diet
+    # quality therefore enters via DE% (digestibility, hence GE), NOT via feed
+    # energy density. The three identical 18.45 values are intentional.
     feed_characteristics = tibble::tribble(
       ~diet_quality, ~de_percent, ~ndf_percent,
         ~ge_content_mj_kg_dm, ~cp_percent,

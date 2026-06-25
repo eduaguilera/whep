@@ -123,6 +123,57 @@ test_that("enteric_ch4_kt conservation is exact", {
   }
 })
 
+test_that("grass-weighted heads conserve when NPP covers all countries", {
+  # Every country's grazer cells carry a grass_npp value, so the
+  # grass-productivity weighting must not drop any country: national totals
+  # stay conserved. Guards the silent per-country loss that occurs when
+  # grass_npp is missing for a country's grazer cells.
+  grass_npp <- tibble::tribble(
+    ~lon, ~lat, ~grass_npp,
+    0.25, 50.25, 300,
+    0.75, 50.25, 500,
+    1.25, 50.25, 200
+  )
+
+  result <- build_gridded_livestock(
+    livestock_data,
+    gridded_pasture,
+    gridded_cropland,
+    country_grid,
+    grass_productivity = grass_npp
+  )
+
+  for (yr in unique(livestock_data$year)) {
+    input_heads <- sum(livestock_data$heads[livestock_data$year == yr])
+    grid_heads <- sum(result$heads[result$year == yr])
+    expect_equal(grid_heads, input_heads, tolerance = 1e-6)
+  }
+})
+
+test_that("grass-weighted heads fall back to area weight for cells with NA NPP", {
+  # Cells missing from grass_productivity (NA after left_join) must keep their
+  # area-based weight, not be zeroed out and silently dropped.
+  grass_npp_partial <- tibble::tribble(
+    ~lon, ~lat, ~grass_npp,
+    0.25, 50.25, 300
+    # 0.75 and 1.25 intentionally absent
+  )
+
+  result <- build_gridded_livestock(
+    livestock_data,
+    gridded_pasture,
+    gridded_cropland,
+    country_grid,
+    grass_productivity = grass_npp_partial
+  )
+
+  for (yr in unique(livestock_data$year)) {
+    input_heads <- sum(livestock_data$heads[livestock_data$year == yr])
+    grid_heads <- sum(result$heads[result$year == yr])
+    expect_equal(grid_heads, input_heads, tolerance = 1e-6)
+  }
+})
+
 test_that("cattle uses pasture proxy (not cropland)", {
   result <- build_gridded_livestock(
     livestock_data,
@@ -352,4 +403,47 @@ test_that("shared cells keep independent livestock polity compartments", {
   expect_equal(totals$heads, c(100, 0), tolerance = 1e-6)
   expect_equal(totals$manure_n_mg, c(10, 0), tolerance = 1e-6)
   expect_setequal(result$polycell_id, c("a", "b"))
+})
+
+test_that(".build_proxy_grid weights grazer cells by grass productivity", {
+  pasture <- tibble::tibble(
+    lon = c(0.25, 1.25),
+    lat = 0.25,
+    year = 2000L,
+    pasture_ha = 100,
+    rangeland_ha = 0
+  )
+  cg <- tibble::tibble(
+    lon = c(0.25, 1.25),
+    lat = 0.25,
+    area_code = 1L,
+    cell_area_frac = 1
+  )
+  gp <- tibble::tibble(lon = c(0.25, 1.25), lat = 0.25, grass_npp = c(1, 3))
+  base <- whep:::.build_proxy_grid("pasture", pasture, NULL, cg, NULL, NULL)
+  prod <- whep:::.build_proxy_grid("pasture", pasture, NULL, cg, NULL, gp)
+  expect_equal(base$weight[base$lon == 0.25], base$weight[base$lon == 1.25])
+  expect_equal(
+    prod$weight[prod$lon == 1.25] / prod$weight[prod$lon == 0.25],
+    3,
+    tolerance = 1e-9
+  )
+})
+
+test_that(".build_proxy_grid leaves cropland proxy unaffected by grass productivity", {
+  cropland <- tibble::tibble(
+    lon = c(0.25, 1.25),
+    lat = 0.25,
+    year = 2000L,
+    cropland_ha = 100
+  )
+  cg <- tibble::tibble(
+    lon = c(0.25, 1.25),
+    lat = 0.25,
+    area_code = 1L,
+    cell_area_frac = 1
+  )
+  gp <- tibble::tibble(lon = c(0.25, 1.25), lat = 0.25, grass_npp = c(1, 3))
+  out <- whep:::.build_proxy_grid("cropland", NULL, cropland, cg, NULL, gp)
+  expect_equal(out$weight[out$lon == 0.25], out$weight[out$lon == 1.25])
 })

@@ -64,6 +64,12 @@
 #' Join Tier 1 enteric EF (cattle tables have regional detail).
 #' @noRd
 .join_enteric_ef_tier1 <- function(data, cattle_ef, other_ef) {
+  region_from_iso3 <- !rlang::has_name(data, "region") &&
+    rlang::has_name(data, "iso3")
+  if (region_from_iso3) {
+    data <- .add_ipcc_region(data)
+  }
+
   # Buffalo uses Table 10.11 (other), not Table 10.10 (cattle)
   cattle_rows <- data |>
     dplyr::filter(species_gen == "Cattle")
@@ -79,12 +85,56 @@
     other_rows <- .join_other_ef(other_rows, other_ef)
   }
 
-  dplyr::bind_rows(cattle_rows, other_rows) |>
+  out <- dplyr::bind_rows(cattle_rows, other_rows) |>
     dplyr::rename(
       enteric_ef_kgch4 = dplyr::any_of(
         c("ef_cattle", "ef_other", "enteric_ef_kgch4")
       )
     )
+  if (region_from_iso3) {
+    out <- out |> dplyr::select(-dplyr::any_of("region"))
+  }
+  out
+}
+
+#' Derive the IPCC Tier-1 EF region from iso3 via the GLEAM hierarchy.
+#'
+#' The IPCC 2019 Refinement EF tables (10.10, 10.14) use their own region
+#' taxonomy, distinct from the GLEAM regions in gleam_geographic_hierarchy.
+#' Eight GLEAM regions map directly; two are judgement calls: GLEAM "Russia"
+#' to IPCC "Eastern Europe" and "Near East and North Africa" to "Middle East".
+#' @noRd
+.add_ipcc_region <- function(data) {
+  crosswalk <- tibble::tribble(
+    ~gleam_region,
+    ~region,
+    "North America",
+    "North America",
+    "Russia",
+    "Eastern Europe",
+    "Western Europe",
+    "Western Europe",
+    "Eastern Europe",
+    "Eastern Europe",
+    "Near East and North Africa",
+    "Middle East",
+    "East and Southeast Asia",
+    "Asia",
+    "Oceania",
+    "Oceania",
+    "South Asia",
+    "Indian Subcontinent",
+    "Latin America and Caribbean",
+    "Latin America",
+    "Sub-Saharan Africa",
+    "Africa"
+  )
+  iso_region <- gleam_geographic_hierarchy |>
+    dplyr::distinct(iso3, gleam_region) |>
+    dplyr::left_join(crosswalk, by = "gleam_region") |>
+    dplyr::select(iso3, region)
+  data |>
+    dplyr::left_join(iso_region, by = "iso3")
 }
 
 #' Join cattle-specific enteric EFs with regional fallback.

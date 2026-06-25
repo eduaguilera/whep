@@ -20,6 +20,7 @@ vignettes/methods_references.bib
 inst/analysis/
 LPJmL_inputs/
 plans/
+.playwright-mcp/
 .fabio_compare/
 .whep_cache/
 validation/cache

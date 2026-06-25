@@ -357,9 +357,7 @@ build_detailed_trade <- function(
 # Extract unique (year, area_code, item_cbs_code, element) rows from CBS.
 # Accepts wide format (import/export as columns) or long format (element col).
 .extract_cbs_ie_for_dtm <- function(cbs) {
-  if (!data.table::is.data.table(cbs)) {
-    data.table::setDT(cbs)
-  }
+  cbs <- data.table::as.data.table(cbs)
   data.table::setnames(cbs, tolower)
   nms <- names(cbs)
 

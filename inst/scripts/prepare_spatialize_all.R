@@ -156,7 +156,7 @@ coord_to_rowcol <- function(dt, grid) {
   )
   v <- ncvar_def(
     "grassland_lsuha",
-    "LSU/ha",
+    "-",
     list(dlon, dlat, dtime),
     missval = -1.175494e+38,
     longname = "Grassland livestock density",
@@ -913,6 +913,66 @@ prepare_country_grid <- function(l_files_dir, target_res) {
 
   cli::cli_alert_success("country_grid: {nrow(result)} cells")
   result
+}
+
+
+# ==== Section 1b: Cell x polity fractions ================================
+#
+# Fraction of each cell's land area in each polity, from FRACTIONAL coverage of
+# the same NaturalEarth polygons the country grid uses (vs the centroid
+# assignment in prepare_country_grid, which gives one polity per cell). Border
+# cells split proportionally so grass / livestock are attributed across
+# polities respecting within-cell boundaries. Writes cell_polity_fraction
+# (lon, lat, area_code, polity_frac); polity_frac sums to 1 per cell.
+
+build_cell_polity_fraction <- function(
+  l_files_dir,
+  target_res = 0.5,
+  subcells = 6L
+) {
+  cli::cli_h2("Section 1b: Cell x polity fractions")
+  shp_path <- file.path(
+    l_files_dir,
+    "NaturalEarth",
+    "Countries_shape",
+    "ne_10m_admin_0_countries.shp"
+  )
+  countries <- terra::vect(shp_path)
+  polities <- whep::polities
+  iso_raw <- as.character(countries$ISO_A3)
+  iso_eh <- as.character(countries$ISO_A3_EH)
+  iso_adm <- as.character(countries$ADM0_A3)
+  iso3c <- dplyr::if_else(
+    iso_raw != "-99",
+    iso_raw,
+    dplyr::if_else(iso_eh != "-99", iso_eh, iso_adm)
+  )
+  countries$area_code <- dplyr::left_join(
+    tibble::tibble(iso3c = iso3c),
+    dplyr::select(polities, "iso3c", "area_code"),
+    by = "iso3c"
+  )$area_code
+
+  ref <- terra::rast(
+    resolution = target_res / subcells,
+    xmin = -180,
+    xmax = 180,
+    ymin = -90,
+    ymax = 90
+  )
+  fine <- terra::rasterize(countries, ref, field = "area_code")
+  d <- data.table::as.data.table(.raster_to_tibble(fine, "area_code"))
+  d <- d[!is.na(area_code)]
+  d[,
+    lon := floor((lon + 180) / target_res) * target_res - 180 + target_res / 2
+  ]
+  d[, lat := floor((lat + 90) / target_res) * target_res - 90 + target_res / 2]
+  counts <- d[, .(n = .N), by = .(lon, lat, area_code)]
+  counts[, polity_frac := n / sum(n), by = .(lon, lat)]
+  cli::cli_alert_success("cell x polity: {nrow(counts)} (cell, polity) rows")
+  tibble::as_tibble(
+    counts[, .(lon, lat, area_code = as.integer(area_code), polity_frac)]
+  )
 }
 
 
@@ -3640,6 +3700,13 @@ prepare_hydrology_inputs <- function(l_files_dir, output_dir, lpjml_out_dir) {
       return(invisible(NULL))
     }
     glwd <- terra::rast(glwd_path)
+    area_pct <- NULL
+    if (glwd_version == "v2") {
+      area_pct_tifs <- .find_v2_tif("area_pct.*\\.tif$")
+      if (length(area_pct_tifs) > 0L) {
+        area_pct <- terra::rast(area_pct_tifs[1]) / 100
+      }
+    }
     src_res <- terra::res(glwd)
     agg_factor <- round(0.5 / src_res[1])
     if (glwd_version == "v2") {
@@ -3650,7 +3717,10 @@ prepare_hydrology_inputs <- function(l_files_dir, output_dir, lpjml_out_dir) {
       river_classes <- 3
     }
     lake_rcl <- cbind(lake_classes, rep(1, length(lake_classes)))
-    lake_mask <- terra::classify(glwd, lake_rcl, others = NA)
+    lake_mask <- terra::classify(glwd, lake_rcl, others = 0)
+    if (!is.null(area_pct)) {
+      lake_mask <- lake_mask * area_pct
+    }
     lake_frac <- terra::aggregate(
       lake_mask,
       fact = agg_factor,
@@ -3658,7 +3728,10 @@ prepare_hydrology_inputs <- function(l_files_dir, output_dir, lpjml_out_dir) {
       na.rm = TRUE
     )
     river_rcl <- cbind(river_classes, rep(1, length(river_classes)))
-    river_mask <- terra::classify(glwd, river_rcl, others = NA)
+    river_mask <- terra::classify(glwd, river_rcl, others = 0)
+    if (!is.null(area_pct)) {
+      river_mask <- river_mask * area_pct
+    }
     river_frac <- terra::aggregate(
       river_mask,
       fact = agg_factor,
@@ -4050,9 +4123,9 @@ write_lpjml_static_inputs <- function(
       missval = -9999L
     )
 
-    m_coord <- new_slice(grid$nlon, grid$nlat, fill = 0L)
+    m_coord <- new_slice(grid$nlon, grid$nlat, fill = -9999L)
     ord <- order(cg$row, cg$col)
-    m_coord[cbind(cg$col[ord], cg$row[ord])] <- seq_len(nrow(cg))
+    m_coord[cbind(cg$col[ord], cg$row[ord])] <- seq_len(nrow(cg)) - 1L
     write_nc_2d(
       file.path(lpjml_out_dir, "gadm", "grid_gadm_30arcmin.nc"),
       "coord",
@@ -4337,7 +4410,7 @@ write_lpjml_static_inputs <- function(
       lpjml_out_dir,
       "nitrogen",
       sprintf(
-        "ndep_nhx_whep_annual_%d_%d.nc4",
+        "ndep_nhx_whep_monthly_%d_%d.nc4",
         min(years_d),
         max(years_d)
       )
@@ -4346,7 +4419,7 @@ write_lpjml_static_inputs <- function(
       lpjml_out_dir,
       "nitrogen",
       sprintf(
-        "ndep_noy_whep_annual_%d_%d.nc4",
+        "ndep_noy_whep_monthly_%d_%d.nc4",
         min(years_d),
         max(years_d)
       )
@@ -4540,22 +4613,32 @@ write_lpjml_static_inputs <- function(
   g <- coord_to_rowcol(g, grid)
   g[, cell_area_ha := row_area_ha[row]]
   g[, value := pmin(1, pmax(0, (pasture_ha + rangeland_ha) / cell_area_ha))]
-  out <- g[
+  res <- g[
     value > 0,
     .(value = sum(value, na.rm = TRUE)),
     by = .(year, row, col)
   ]
-  out[, pft := 14L]
-  data.table::setcolorder(out, c("year", "pft", "row", "col", "value"))
-  out
+  res[, pft := 14L]
+  data.table::setcolorder(res, c("year", "pft", "row", "col", "value"))
+  res[]
 }
 
 # Grassland livestock density (LSU/ha) for the LPJmL grazing module: whep grazer
 # heads x livestock-unit coefficients / grass area. Grazers are the pasture and
 # rangeland species; LU per head from liv_lu_coefs. ls_dt already carries
-# row/col + species_group + heads. NB the heads unit must satisfy lsuha ~ a few
-# LSU/ha; capped at LPJmL's stock-input ceiling to avoid denominator collapse.
-.grassland_lsuha_chunk <- function(ls_dt, pasture_chunk, grid, grazer_lu) {
+# row/col + species_group + heads. Density is capped at max_lsuha (default 4 =
+# the hard ceiling of LPJmL's own stock grassland_lsuha input on the same 0.5
+# degree grid, and the grass-only forage-balance maximum). The cap is a
+# temporary safeguard against denominator collapse where a country's ruminants
+# land in cells with near-zero mapped grass (uncapped tail reaches ~2174); the
+# real fix is upstream in the pasture mask / livestock-to-pasture allocation.
+.grassland_lsuha_chunk <- function(
+  ls_dt,
+  pasture_chunk,
+  grid,
+  grazer_lu,
+  max_lsuha = 4
+) {
   d <- data.table::as.data.table(ls_dt)
   d <- d[species_group %in% names(grazer_lu)]
   if (nrow(d) == 0L || is.null(pasture_chunk) || nrow(pasture_chunk) == 0L) {
@@ -4574,7 +4657,7 @@ write_lpjml_static_inputs <- function(
   m <- merge(lsu, g, by = c("year", "row", "col"))
   m[
     grass_ha > 0,
-    .(year, row, col, value = pmin(4.0, lsu / grass_ha))
+    .(year, row, col, value = pmin(lsu / grass_ha, max_lsuha))
   ]
 }
 

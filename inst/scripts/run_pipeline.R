@@ -51,7 +51,7 @@ run_pipeline <- function(
   dep_start = export_start,
   dep_end = export_end,
   simulation_start_year = 1901,
-  simulation_end_year = 2018,
+  simulation_end_year = 2009,
   nspinup = 200,
   use_cores = 24,
   run_download = TRUE,
