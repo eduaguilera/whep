@@ -53,6 +53,27 @@ reference:
   - aggregate_grass_to_polity
   - read_lpjml_grass_productivity
 
+- title: Crop NPP, BNF and coefficient tables
+  desc: >
+    Crop net primary production (products, residues, roots, weeds), biological
+    nitrogen fixation, residue destinies, and the coefficient tables that drive
+    them. Ported from afsetools, item-keyed and multi-method.
+  contents:
+  - whep_coef_table
+  - calculate_potential_npp
+  - calculate_crop_residues
+  - calculate_crop_roots
+  - calculate_crop_npp
+  - calculate_npp_carbon_nitrogen
+  - calculate_crop_npp_components
+  - calculate_crop_bnf
+  - calculate_weed_bnf
+  - calculate_nonsymbiotic_bnf
+  - calculate_bnf
+  - summarize_bnf
+  - calculate_residue_destinies
+  - build_residue_feed_avail
+
 - title: Tidy datasets
   desc: >
     Get cleaned dataframes with project related data.

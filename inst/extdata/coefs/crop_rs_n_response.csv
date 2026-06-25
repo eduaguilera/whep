@@ -1,0 +1,9 @@
+crop_group,rs_n_sensitivity,source
+Wheat,1,Reference; Poorter & Nagel 2000
+Rice,0.7,Reduced; flooded soils limit root N-response; Peng & Ismail 2004
+Maize,0.95,Slightly below wheat; Anderson 1988; maize roots less plastic than wheat
+Sorghum_millet,0.9,Slightly reduced; drought-adapted roots less plastic; Blum 2005
+Legumes,0.3,Low; BNF makes roots less N-responsive; Unkovich et al. 2010
+Root_tuber,0.6,Moderate; storage roots less affected; Iwama 2008
+Oilseeds,0.8,Moderate; similar to cereals; Gan et al. 2009
+Other,0.5,General estimate for mixed crop types

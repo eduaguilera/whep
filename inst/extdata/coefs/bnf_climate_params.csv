@@ -1,0 +1,4 @@
+climate_type,t_sigma_symb,t_sigma_ns,ai_threshold,ph_opt,ph_sigma,som_ref,source
+Tropical,8,10,0.65,6.8,1.5,2.5,Hungria & Vargas 2000; Serraj et al. 1999; Belnap 2002
+Mediterranean,12,14,0.45,7.2,2.0,1.8,Zahran 1999; Bordeleau & Prevost 1994; UNEP 1992; Serraj & Sinclair 1999; Garau et al. 2005; Brockwell et al. 1991; Romanya & Rovira 2011; Aguilera et al. 2018
+Temperate,12,14,0.55,6.8,2.0,2.5,Prevost et al. 2003; Zahran 1999; Serraj et al. 1999; Streeter 2003; Batjes 1995; Loveland & Webb 2003
