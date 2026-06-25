@@ -6,7 +6,9 @@ test_that("add_polity_code maps area codes by year", {
     add_polity_code()
 
   expect_equal(mapped$polity_code[1], "AFG-1919-2025")
-  expect_equal(mapped$polity_code[2], "DZA-1831-1886")
+  # area 4 (Algeria) year 1850 is pre-anchor back-cast data -> floored to the
+  # 1961 anchor territory (French Algeria), not the 1831-1886 historical period.
+  expect_equal(mapped$polity_code[2], "DZA-1919-1962")
   expect_equal(mapped$polity_code[3], "F51-1947-1993")
   expect_equal(mapped$polity_code[4], "F228-1945-1991")
   expect_equal(mapped$polity_code[5], "F248-1920-1991")
@@ -20,12 +22,35 @@ test_that("add_polity_code does not extend aggregate rows outside their range", 
     area_code = c(2L, 15L, 151L, 904L),
     year = c(1790L, 2000L, 2023L, 2021L)
   ) |>
-    add_polity_code()
+    # disable the back-cast anchor floor here to exercise the raw out-of-range
+    # behaviour: a non-aggregate area falls back to its nearest period, while
+    # aggregate reporting areas are NOT extended beyond their range.
+    add_polity_code(backcast_anchor = -Inf)
 
   expect_equal(mapped$polity_code[1], "AFG-1800-1893")
   expect_true(is.na(mapped$polity_code[2]))
   expect_true(is.na(mapped$polity_code[3]))
   expect_true(is.na(mapped$polity_code[4]))
+})
+
+test_that("add_polity_code floors pre-1961 back-cast years to the anchor territory", {
+  # WHEP's pre-1962 series are back-cast onto ~1961 borders, so a 1900 figure
+  # represents 1961 territory and must map to the entity active in 1961, not a
+  # larger historical-extent period.
+  aut <- tibble::tibble(area_code = 11L, year = c(1900L, 2000L)) |>
+    add_polity_code()
+  expect_equal(aut$polity_code, c("AUT-1919-2025", "AUT-1919-2025"))
+
+  # disabling the floor exposes the raw year-aware historical period.
+  aut_raw <- tibble::tibble(area_code = 11L, year = 1900L) |>
+    add_polity_code(backcast_anchor = -Inf)
+  expect_equal(aut_raw$polity_code, "AUT-1800-1918")
+
+  # entities that dissolved AFTER 1961 resolve pre-anchor data to the 1961
+  # entity (USSR), not a present-day successor.
+  ussr <- tibble::tibble(area_code = 228L, year = 1930L) |>
+    add_polity_code()
+  expect_equal(ussr$polity_code, "F228-1945-1991")
 })
 
 test_that("get_polity_geometries returns requested polygon rows", {
