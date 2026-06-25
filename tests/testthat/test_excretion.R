@@ -53,6 +53,18 @@ test_that("estimate_n_excretion returns one row per livestock category", {
   expect_true(all(res$method_vs == "intake_digestibility"))
 })
 
+test_that("scavenging feed quality (poultry) resolves a digestibility", {
+  intake <- tibble::tribble(
+    ~year, ~territory, ~sub_territory, ~livestock_category,
+    ~item_cbs_code, ~feed_quality, ~intake_dm_t,
+    2020L, "ES", NA, "Poultry", NA, "scavenging", 80
+  )
+  res <- whep::estimate_n_excretion(intake)
+  expect_equal(nrow(res), 1L)
+  expect_true(res$vs_excretion > 0)
+  expect_true(res$n_excretion > 0)
+})
+
 test_that("n_intake is the canonical sum of feed N (incl. forage for grass)", {
   fn <- whep:::.feed_n_content_lookup()
   barley_n <- fn$feed_n_kgn_kgdm[fn$item_cbs_code == 2513L]

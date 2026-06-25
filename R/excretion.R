@@ -208,7 +208,9 @@ estimate_n_excretion <- function(intake, options = list()) {
     "substitute",
     0.62,
     "zoot_fixed",
-    0.68
+    0.68,
+    "scavenging",
+    0.55
   )
 }
 
