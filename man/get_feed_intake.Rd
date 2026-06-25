@@ -8,6 +8,7 @@ get_feed_intake(
   example = FALSE,
   grain = c("national", "local"),
   demand_tier = c("ipcc", "fcr"),
+  feed_mode = c("historical", "scenario"),
   years = NULL
 )
 }

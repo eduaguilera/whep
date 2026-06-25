@@ -53,16 +53,19 @@ get_feed_intake <- function(
   example = FALSE,
   grain = c("national", "local"),
   demand_tier = c("ipcc", "fcr"),
+  feed_mode = c("historical", "scenario"),
   years = NULL
 ) {
   grain <- rlang::arg_match(grain)
   demand_tier <- rlang::arg_match(demand_tier)
+  feed_mode <- rlang::arg_match(feed_mode)
   if (example) {
     return(.example_get_feed_intake())
   }
   .build_redistribute_intake(
     grain = grain,
     demand_tier = demand_tier,
+    feed_mode = feed_mode,
     years = years
   ) |>
     .add_reporting_polity_columns()

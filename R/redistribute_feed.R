@@ -25,7 +25,11 @@
 #'   Supply `maintenance_share` (a scalar fraction or a tibble with
 #'   `livestock_category` and `maintenance_share`) to also diagnose polities
 #'   pushed below maintenance; the over-stocked demand rows are attached to the
-#'   result as the `grass_deficit_diagnosis` attribute.
+#'   result as the `grass_deficit_diagnosis` attribute. Set
+#'   `distribute_surplus = FALSE` to suppress the surplus-distribution pass that
+#'   pushes leftover CBS availability onto variable-demand livestock (correct for
+#'   historical analyses where the CBS feed element is the realised consumption;
+#'   keep `TRUE`, the default, for unconstrained scenario projections).
 #'
 #' @return A tibble of realised intake per demand row. When `maintenance_share`
 #'   is supplied alongside `grass_availability`, a `grass_deficit_diagnosis`
@@ -45,7 +49,7 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
   mode <- .allocation_mode(demand)
   state <- .init_state(demand, avail)
   state <- .apply_zoot_fixed(state, demand, avail, options)
-  state <- .run_allocation_levels(state, demand, avail, mode)
+  state <- .run_allocation_levels(state, demand, avail, mode, options)
   caps <- .resolve_max_intake_caps(options$max_intake_share)
   .assemble_result(
     state,
@@ -68,6 +72,7 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
     max_intake_share = NULL,
     grass_availability = NULL,
     maintenance_share = NULL,
+    distribute_surplus = TRUE,
     verbose = FALSE
   )
   utils::modifyList(defaults, options)
@@ -639,7 +644,7 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
 
 # ---- Level driver -----------------------------------------------------------
 
-.run_allocation_levels <- function(state, demand, avail, mode) {
+.run_allocation_levels <- function(state, demand, avail, mode, options) {
   state <- .run_primary_levels(state, demand, avail)
   state <- .run_secondary_levels(state, demand, avail, mode)
   if (mode %in% c("fixed", "mixed")) {
@@ -649,7 +654,7 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
       only_fixed = mode == "mixed"
     )
   }
-  if (mode %in% c("variable", "mixed")) {
+  if (mode %in% c("variable", "mixed") && isTRUE(options$distribute_surplus)) {
     state <- .distribute_surplus(
       state,
       demand,

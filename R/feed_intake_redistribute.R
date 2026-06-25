@@ -20,6 +20,7 @@
 .build_redistribute_intake <- function(
   grain,
   demand_tier,
+  feed_mode,
   production = NULL,
   cbs = NULL,
   years = NULL
@@ -38,7 +39,8 @@
     production,
     cbs,
     demand_tier,
-    .feed_demand_data()
+    .feed_demand_data(),
+    options = list(distribute_surplus = feed_mode == "scenario")
   )
   .reshape_redistribute_intake(engine$result, engine$code_shares)
 }
@@ -76,6 +78,7 @@ build_feed_intake_local <- function(
   years = NULL,
   out_dir = NULL,
   demand_tier = c("ipcc", "fcr"),
+  feed_mode = c("historical", "scenario"),
   overwrite = FALSE,
   example = FALSE
 ) {
@@ -83,7 +86,8 @@ build_feed_intake_local <- function(
     return(.example_local_intake())
   }
   demand_tier <- rlang::arg_match(demand_tier)
-  ctx <- .local_run_context(demand_tier)
+  feed_mode <- rlang::arg_match(feed_mode)
+  ctx <- .local_run_context(demand_tier, feed_mode)
   years <- .resolve_local_years(years, ctx$production)
   if (is.null(out_dir)) {
     return(.bind_local_years(years, ctx))
@@ -155,13 +159,14 @@ build_feed_demand <- function(
 # Shared per-run context (configured paths + the once-fetched, normalised
 # production / CBS / coefficient data), grouped so the per-year helpers take few
 # arguments.
-.local_run_context <- function(demand_tier) {
+.local_run_context <- function(demand_tier, feed_mode) {
   list(
     paths = .local_paths(),
     production = .normalise_feed_primary(get_primary_production()),
     cbs = .normalise_feed_cbs(get_wide_cbs()),
     data = .feed_demand_data(),
     demand_tier = demand_tier,
+    feed_mode = feed_mode,
     # Border-strip ratio (grazing range / cell width ~ 5 km / 55 km); the share
     # of a deficit cell's animals that can graze across the cell edge.
     grass_border_allowance = 0.1
@@ -192,7 +197,8 @@ build_feed_demand <- function(
     cbs_y,
     ctx$demand_tier,
     spatial,
-    ctx$data
+    ctx$data,
+    distribute_surplus = ctx$feed_mode == "scenario"
   )
   .reshape_redistribute_intake(
     engine$result,
@@ -922,7 +928,8 @@ build_feed_demand <- function(
   cbs,
   demand_tier,
   spatial,
-  data = .feed_demand_data()
+  data = .feed_demand_data(),
+  distribute_surplus = FALSE
 ) {
   codes <- .build_feed_demand_codes(production, demand_tier, data)
   demand_total <- .aggregate_demand_to_category(codes, data$crosswalk)
@@ -933,7 +940,10 @@ build_feed_demand <- function(
   result <- redistribute_feed(
     feed_demand,
     feed_avail,
-    options = list(grass_availability = spatial$grass_avail)
+    options = list(
+      grass_availability = spatial$grass_avail,
+      distribute_surplus = distribute_surplus
+    )
   )
   allowance <- spatial$grass_border_allowance
   if (!is.null(allowance) && allowance > 0) {
