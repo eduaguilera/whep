@@ -272,6 +272,10 @@ test_that(".prepare_historical_production normalizes generic historical rows", {
   expect_equal(result$unit, "tonnes")
   expect_equal(result$value, 110)
   expect_true(stringr::str_starts(result$source, "historical_"))
+  # Prod-side item codes must be character to bind with the FAOSTAT pipeline
+  # (primary_raw2). live_anim_code being integer broke build on real data.
+  expect_type(result$item_prod_code, "character")
+  expect_type(result$live_anim_code, "character")
 })
 
 test_that(".extend_historical uses historical rows as LUH2 anchors", {

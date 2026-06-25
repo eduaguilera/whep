@@ -1981,9 +1981,9 @@ build_primary_production <- function(
       c("live_anim", "live_anim_name")
     ),
     live_anim_code = if ("live_anim_code" %in% names(raw)) {
-      suppressWarnings(as.integer(as.numeric(raw$live_anim_code)))
+      .normalise_historical_code(raw$live_anim_code)
     } else {
-      NA_integer_
+      NA_character_
     },
     unit = as.character(raw$unit),
     value = suppressWarnings(as.numeric(raw$value)),
@@ -2024,9 +2024,7 @@ build_primary_production <- function(
       item_prod_lookup = item_prod,
       item_cbs_lookup = item_cbs,
       live_anim_lookup = live_anim,
-      live_anim_code_lookup = suppressWarnings(
-        as.integer(as.numeric(live_anim_code))
-      )
+      live_anim_code_lookup = .normalise_historical_code(live_anim_code)
     )
   ]
   item_lookup_both <- unique(
@@ -2166,7 +2164,7 @@ build_primary_production <- function(
     item_cbs = character(),
     item_cbs_code = integer(),
     live_anim = character(),
-    live_anim_code = integer(),
+    live_anim_code = character(),
     unit = character(),
     value = double(),
     source = character()
