@@ -54,6 +54,43 @@ ceiling for feed allocation.
 - [`read_lpjml_grass_productivity()`](https://eduaguilera.github.io/whep/reference/read_lpjml_grass_productivity.md)
   : Read natural-grass productivity from an LPJmL run.
 
+## Crop NPP, BNF and coefficient tables
+
+Crop net primary production (products, residues, roots, weeds),
+biological nitrogen fixation, residue destinies, and the coefficient
+tables that drive them. Ported from afsetools, item-keyed and
+multi-method.
+
+- [`whep_coef_table()`](https://eduaguilera.github.io/whep/reference/whep_coef_table.md)
+  : Read a WHEP coefficient table.
+- [`calculate_potential_npp()`](https://eduaguilera.github.io/whep/reference/calculate_potential_npp.md)
+  : Estimate potential net primary production.
+- [`calculate_crop_residues()`](https://eduaguilera.github.io/whep/reference/calculate_crop_residues.md)
+  : Estimate crop above-ground residue biomass.
+- [`calculate_crop_roots()`](https://eduaguilera.github.io/whep/reference/calculate_crop_roots.md)
+  : Estimate crop below-ground (root) biomass.
+- [`calculate_crop_npp()`](https://eduaguilera.github.io/whep/reference/calculate_crop_npp.md)
+  : Estimate total crop net primary production.
+- [`calculate_npp_carbon_nitrogen()`](https://eduaguilera.github.io/whep/reference/calculate_npp_carbon_nitrogen.md)
+  : Partition crop and weed NPP into dry matter, carbon and nitrogen.
+- [`calculate_crop_npp_components()`](https://eduaguilera.github.io/whep/reference/calculate_crop_npp_components.md)
+  : Estimate cropland NPP components including weeds.
+- [`calculate_crop_bnf()`](https://eduaguilera.github.io/whep/reference/calculate_crop_bnf.md)
+  : Estimate symbiotic biological nitrogen fixation by crop legumes.
+- [`calculate_weed_bnf()`](https://eduaguilera.github.io/whep/reference/calculate_weed_bnf.md)
+  : Estimate symbiotic biological nitrogen fixation by weeds and cover
+  crops.
+- [`calculate_nonsymbiotic_bnf()`](https://eduaguilera.github.io/whep/reference/calculate_nonsymbiotic_bnf.md)
+  : Estimate non-symbiotic biological nitrogen fixation.
+- [`calculate_bnf()`](https://eduaguilera.github.io/whep/reference/calculate_bnf.md)
+  : Estimate total biological nitrogen fixation.
+- [`summarize_bnf()`](https://eduaguilera.github.io/whep/reference/summarize_bnf.md)
+  : Summarise biological nitrogen fixation results.
+- [`calculate_residue_destinies()`](https://eduaguilera.github.io/whep/reference/calculate_residue_destinies.md)
+  : Estimate the destinies of crop residues.
+- [`build_residue_feed_avail()`](https://eduaguilera.github.io/whep/reference/build_residue_feed_avail.md)
+  : Build residue feed availability for feed allocation.
+
 ## Tidy datasets
 
 Get cleaned dataframes with project related data.

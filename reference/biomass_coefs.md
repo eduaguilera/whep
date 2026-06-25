@@ -132,7 +132,7 @@ A tibble where each row corresponds to one product or item. It contains
 
 - `MgDM_m3`: Megagrams dry matter per cubic metre (bulk density proxy).
 
-- `Root_kgC_kgDM`: Carbon content of roots in kg C per kg root dry
+- `Root_kgC_kgDM`: Root plus rhizodeposit carbon in kg C per kg root dry
   matter.
 
 - `Root_humified_kgC_kgC`: Humification coefficient for root carbon.

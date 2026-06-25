@@ -6,8 +6,8 @@ used to come from the external `land_fp` pin.
 
 Two area sources are available, selected with `source`:
 
-- `"luh2"` (default): permanent grassland area (item_cbs 3000, LUH2
-  pasture and rangeland) taken from
+- `"luh2"` (default): permanent and temporary grassland area (item_cbs
+  3000 and 3002, LUH2 pasture and rangeland) taken from
   [`build_primary_production()`](https://eduaguilera.github.io/whep/reference/build_primary_production.md).
   This shares the gridded LUH2 land-use basis used by the crop land
   extensions and by livestock spatialisation. Rotational fallow
