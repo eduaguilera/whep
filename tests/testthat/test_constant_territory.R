@@ -5,7 +5,8 @@
 .rect <- function(xmin, ymin, xmax, ymax) {
   sf::st_polygon(list(matrix(
     c(xmin, ymin, xmax, ymin, xmax, ymax, xmin, ymax, xmin, ymin),
-    ncol = 2, byrow = TRUE
+    ncol = 2,
+    byrow = TRUE
   )))
 }
 
@@ -32,8 +33,11 @@
 
 test_that("uniform density: covered mass is conserved and split by area", {
   res <- build_constant_territory_series(
-    .reported, ref_year = 2000, polities = .synthetic_polities(),
-    resolution = 10000, verbose = FALSE
+    .reported,
+    ref_year = 2000,
+    polities = .synthetic_polities(),
+    resolution = 10000,
+    verbose = FALSE
   )
   res <- res[order(res$target_polity_code), ]
 
@@ -56,12 +60,16 @@ test_that("uniform density: covered mass is conserved and split by area", {
 
 test_that("donor='none' performs no imputation but still reports the gap", {
   res <- build_constant_territory_series(
-    .reported, ref_year = 2000, polities = .synthetic_polities(),
-    resolution = 10000, donor = "none", verbose = FALSE
+    .reported,
+    ref_year = 2000,
+    polities = .synthetic_polities(),
+    resolution = 10000,
+    donor = "none",
+    verbose = FALSE
   )
   tr <- res[res$target_polity_code == "T_R", ]
   expect_equal(tr$imputed, 0, tolerance = 1e-9)
-  expect_equal(tr$value, 50, tolerance = 1e-6)         # covered only
+  expect_equal(tr$value, 50, tolerance = 1e-6) # covered only
   expect_equal(tr$imputed_share, 0.5, tolerance = 1e-6) # gap still disclosed
 })
 
@@ -73,8 +81,12 @@ test_that("non-uniform covariate shifts mass dasymetrically (not by area)", {
     ifelse(x < 50000, 1, 3)
   }
   res <- build_constant_territory_series(
-    .reported, ref_year = 2000, polities = .synthetic_polities(),
-    covariate = cov_fn, resolution = 10000, verbose = FALSE
+    .reported,
+    ref_year = 2000,
+    polities = .synthetic_polities(),
+    covariate = cov_fn,
+    resolution = 10000,
+    verbose = FALSE
   )
   res <- res[order(res$target_polity_code), ]
   tl <- res[res$target_polity_code == "T_L", ]
@@ -91,12 +103,24 @@ test_that("non-uniform covariate shifts mass dasymetrically (not by area)", {
 
 test_that("years with no usable source are skipped, output schema is stable", {
   res <- build_constant_territory_series(
-    data.frame(year = 1700L, polity_code = "SRC", value = 5),  # SRC not active 1700
-    ref_year = 2000, polities = .synthetic_polities(),
-    resolution = 10000, verbose = FALSE
+    data.frame(year = 1700L, polity_code = "SRC", value = 5), # SRC not active 1700
+    ref_year = 2000,
+    polities = .synthetic_polities(),
+    resolution = 10000,
+    verbose = FALSE
   )
   expect_s3_class(res, "tbl_df")
-  expect_named(res, c("target_polity_code", "year", "value", "covered",
-                      "imputed", "imputed_share", "n_sources"))
+  expect_named(
+    res,
+    c(
+      "target_polity_code",
+      "year",
+      "value",
+      "covered",
+      "imputed",
+      "imputed_share",
+      "n_sources"
+    )
+  )
   expect_equal(nrow(res), 0)
 })

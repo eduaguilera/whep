@@ -852,9 +852,11 @@ build_processing_coefs <- function(
   }
 
   missing <- setdiff(c("year", "value"), names(raw))
-  has_area_code <- "area_code" %in% names(raw) ||
+  has_area_code <- "area_code" %in%
+    names(raw) ||
     "polity_area_code" %in% names(raw)
-  has_item_code <- "item_cbs_code" %in% names(raw) ||
+  has_item_code <- "item_cbs_code" %in%
+    names(raw) ||
     "item_prod_code" %in% names(raw)
   if (length(missing) > 0L || !has_area_code || !has_item_code) {
     cli::cli_abort(
@@ -862,7 +864,7 @@ build_processing_coefs <- function(
         "{.arg historical_data} is missing required CBS columns.",
         "x" = "Required columns: {.field year}, {.field value}, one of {.field area_code} or {.field polity_area_code}, and one of {.field item_cbs_code} or {.field item_prod_code}.",
         if (length(missing) > 0L) {
-          "x" = "Missing: {.field {missing}}."
+          "x" <- "Missing: {.field {missing}}."
         }
       )
     )
@@ -945,7 +947,8 @@ build_processing_coefs <- function(
     "processing_primary"
   )
   dt <- dt[
-    year %in% years &
+    year %in%
+      years &
       !is.na(area_code) &
       element %in% valid_elements &
       (is.na(unit) | unit == "" | unit == "tonnes") &
@@ -989,7 +992,13 @@ build_processing_coefs <- function(
   prod_lookup <- unique(prod_lookup, by = "item_prod_code")
 
   dt <- merge(dt, cbs_lookup, by = "item_cbs_code", all.x = TRUE, sort = FALSE)
-  dt <- merge(dt, prod_lookup, by = "item_prod_code", all.x = TRUE, sort = FALSE)
+  dt <- merge(
+    dt,
+    prod_lookup,
+    by = "item_prod_code",
+    all.x = TRUE,
+    sort = FALSE
+  )
   dt[, `:=`(
     item_cbs_code = data.table::fcoalesce(
       item_cbs_code,
@@ -1001,7 +1010,13 @@ build_processing_coefs <- function(
       item_cbs
     )
   )]
-  dt[, c("item_cbs_lookup", "item_cbs_code_from_prod", "item_cbs_from_prod") := NULL]
+  dt[,
+    c(
+      "item_cbs_lookup",
+      "item_cbs_code_from_prod",
+      "item_cbs_from_prod"
+    ) := NULL
+  ]
   dt <- dt[!is.na(area) & !is.na(item_cbs) & !is.na(item_cbs_code)]
   if (nrow(dt) == 0L) {
     return(.empty_historical_cbs())
@@ -1016,8 +1031,7 @@ build_processing_coefs <- function(
     "item_cbs_code",
     "element"
   )
-  out <- dt[
-    ,
+  out <- dt[,
     .(
       value = mean(value, na.rm = TRUE),
       source = .best_cbs_source(source, year[1L])
@@ -1082,8 +1096,7 @@ build_processing_coefs <- function(
     "item_cbs_code",
     "element"
   )
-  dt <- dt[
-    ,
+  dt <- dt[,
     .(value = mean(value, na.rm = TRUE)),
     by = c(key_cols, "source")
   ]
@@ -1740,7 +1753,14 @@ build_processing_coefs <- function(
     dplyr::filter(year < 1961) |>
     dplyr::left_join(
       tibble::as_tibble(observed_sources),
-      by = c("year", "area", "area_code", "item_cbs", "item_cbs_code", "element")
+      by = c(
+        "year",
+        "area",
+        "area_code",
+        "item_cbs",
+        "item_cbs_code",
+        "element"
+      )
     ) |>
     dplyr::mutate(
       source = dplyr::coalesce(

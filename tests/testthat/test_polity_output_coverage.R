@@ -164,7 +164,9 @@ testthat::test_that("legacy area reference tables are backed by polities", {
   # polygon_status == "unassigned": some historical periods (e.g. pre-1883
   # Chile, before the War of the Pacific) have no faithful-vintage polygon,
   # and we record an honest gap rather than back-project a later/modern border.
-  no_geometry <- whep::polity_area_crosswalk[!whep::polity_area_crosswalk$has_geometry, ]
+  no_geometry <- whep::polity_area_crosswalk[
+    !whep::polity_area_crosswalk$has_geometry,
+  ]
   testthat::expect_true(all(no_geometry$polygon_status == "unassigned"))
 
   for (data in list(whep::regions_full, whep::polities_cats)) {

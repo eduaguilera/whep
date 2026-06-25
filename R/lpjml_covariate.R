@@ -206,9 +206,15 @@ make_lpjml_covariate <- function(
   )
 
   dt <- data.table::as.data.table(surface[, c(
-    "year", "lon_i", "lat_i", "density"
+    "year",
+    "lon_i",
+    "lat_i",
+    "density"
   )])
-  dt <- dt[, .(density = sum(density, na.rm = TRUE)), by = .(year, lon_i, lat_i)]
+  dt <- dt[,
+    .(density = sum(density, na.rm = TRUE)),
+    by = .(year, lon_i, lat_i)
+  ]
   data.table::setkey(dt, year, lon_i, lat_i)
   available_years <- sort(unique(surface$year))
 

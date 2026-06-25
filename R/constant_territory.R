@@ -113,7 +113,9 @@ build_constant_territory_series <- function(
     cli::cli_abort("`data` is missing column{?s}: {.field {missing}}.")
   }
   if (!is.null(covariate) && !is.function(covariate)) {
-    cli::cli_abort("`covariate` must be NULL or a function(centroids_sf, year).")
+    cli::cli_abort(
+      "`covariate` must be NULL or a function(centroids_sf, year)."
+    )
   }
 
   if (is.null(polities)) {
@@ -130,7 +132,9 @@ build_constant_territory_series <- function(
 
   target <- .active(ref_year)
   if (nrow(target) == 0) {
-    cli::cli_abort("No polities with a polygon are active in `ref_year` = {ref_year}.")
+    cli::cli_abort(
+      "No polities with a polygon are active in `ref_year` = {ref_year}."
+    )
   }
 
   data <- data[!is.na(data$value), required]
@@ -192,7 +196,9 @@ build_constant_territory_series <- function(
     } else {
       dens <- as.numeric(covariate(centroids, y))
       if (length(dens) != nrow(base)) {
-        cli::cli_abort("`covariate` returned {length(dens)} values; expected {nrow(base)}.")
+        cli::cli_abort(
+          "`covariate` returned {length(dens)} values; expected {nrow(base)}."
+        )
       }
       dens[is.na(dens) | dens < 0] <- 0
     }
@@ -212,17 +218,23 @@ build_constant_territory_series <- function(
         "Year {y}: {length(starved)} source{?s} smaller than the grid resolution; refine `resolution` to capture {.val {starved}}."
       )
     }
-    intensity <- vmap[names(denom)] / denom            # per source polity
+    intensity <- vmap[names(denom)] / denom # per source polity
     base$e <- ifelse(has_data, base$w * intensity[base$src], NA_real_)
 
     # ---- donor intensity for uncovered target cells ----
-    tot_value <- sum(vmap[names(denom)], na.rm = TRUE)  # value actually distributed
+    tot_value <- sum(vmap[names(denom)], na.rm = TRUE) # value actually distributed
     tot_w_data <- sum(base$w[has_data], na.rm = TRUE)
-    i_donor <- if (donor == "regional" && tot_w_data > 0) tot_value / tot_w_data else 0
+    i_donor <- if (donor == "regional" && tot_w_data > 0) {
+      tot_value / tot_w_data
+    } else {
+      0
+    }
 
     # ---- re-aggregate to target boundaries ----
     tcells <- base[!is.na(base$tgt), ]
-    if (nrow(tcells) == 0) next
+    if (nrow(tcells) == 0) {
+      next
+    }
     agg <- lapply(split(tcells, tcells$tgt), function(g) {
       W <- sum(g$w, na.rm = TRUE)
       covered <- sum(g$e, na.rm = TRUE)
@@ -252,15 +264,24 @@ build_constant_territory_series <- function(
   out <- do.call(rbind, results)
   if (is.null(out)) {
     return(tibble::tibble(
-      target_polity_code = character(), year = integer(), value = double(),
-      covered = double(), imputed = double(), imputed_share = double(),
+      target_polity_code = character(),
+      year = integer(),
+      value = double(),
+      covered = double(),
+      imputed = double(),
+      imputed_share = double(),
       n_sources = integer()
     ))
   }
   rownames(out) <- NULL
   tibble::as_tibble(out[, c(
-    "target_polity_code", "year", "value", "covered", "imputed",
-    "imputed_share", "n_sources"
+    "target_polity_code",
+    "year",
+    "value",
+    "covered",
+    "imputed",
+    "imputed_share",
+    "n_sources"
   )])
 }
 
@@ -276,7 +297,7 @@ build_constant_territory_series <- function(
     left = TRUE
   )
   j <- sf::st_drop_geometry(j)
-  j <- j[!duplicated(j$.cid), ]            # keep first match on overlap
+  j <- j[!duplicated(j$.cid), ] # keep first match on overlap
   j <- j[order(j$.cid), ]
   j$polity_code
 }

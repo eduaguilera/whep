@@ -1924,7 +1924,8 @@ build_primary_production <- function(
 
   required <- c("year", "item_prod_code", "unit", "value")
   missing <- setdiff(required, names(raw))
-  has_area_code <- "area_code" %in% names(raw) ||
+  has_area_code <- "area_code" %in%
+    names(raw) ||
     "polity_area_code" %in% names(raw)
   if (length(missing) > 0L || !has_area_code) {
     cli::cli_abort(
@@ -1932,7 +1933,7 @@ build_primary_production <- function(
         "{.arg historical_data} is missing required columns.",
         "x" = "Required columns: {.field {required}} and one of {.field area_code} or {.field polity_area_code}.",
         if (length(missing) > 0L) {
-          "x" = "Missing: {.field {missing}}."
+          "x" <- "Missing: {.field {missing}}."
         }
       )
     )
@@ -1975,7 +1976,10 @@ build_primary_production <- function(
     } else {
       NA_integer_
     },
-    live_anim = .coalesce_historical_cols(raw, c("live_anim", "live_anim_name")),
+    live_anim = .coalesce_historical_cols(
+      raw,
+      c("live_anim", "live_anim_name")
+    ),
     live_anim_code = if ("live_anim_code" %in% names(raw)) {
       suppressWarnings(as.integer(as.numeric(raw$live_anim_code)))
     } else {
@@ -1987,7 +1991,8 @@ build_primary_production <- function(
   )
 
   dt <- dt[
-    year %in% years &
+    year %in%
+      years &
       !is.na(area_code) &
       !is.na(item_prod_code) &
       item_prod_code != "" &
@@ -2029,8 +2034,7 @@ build_primary_production <- function(
     by = c("item_prod_code", "item_cbs_code")
   )
   item_lookup_prod <- unique(
-    item_lookup[
-      ,
+    item_lookup[,
       .(
         item_prod_code,
         item_prod_lookup_prod = item_prod_lookup,
@@ -2106,8 +2110,7 @@ build_primary_production <- function(
     "live_anim_code",
     "unit"
   )
-  out <- dt[
-    ,
+  out <- dt[,
     .(
       value = mean(value, na.rm = TRUE),
       source = .best_prod_source(source)
@@ -2455,11 +2458,15 @@ build_primary_production <- function(
     value_agriland = value,
     value_livestockyield = value
   )]
-  pre[, .historical_anchor := any(
-    .observed_value %in% TRUE &
-      !is.na(.observed_source) &
-      stringr::str_starts(.observed_source, "historical_")
-  ), by = id_cols]
+  pre[,
+    .historical_anchor := any(
+      .observed_value %in%
+        TRUE &
+        !is.na(.observed_source) &
+        stringr::str_starts(.observed_source, "historical_")
+    ),
+    by = id_cols
+  ]
 
   livestock_units <- c("t_head", "t_LU")
   fill_cols <- setdiff(id_cols, c("live_anim", "live_anim_code"))
@@ -2610,8 +2617,7 @@ build_primary_production <- function(
     ),
     by = source_key
   ]
-  src_lookup_any <- df[
-    ,
+  src_lookup_any <- df[,
     .(
       source_any = .best_prod_source(source)
     ),
@@ -2665,8 +2671,10 @@ build_primary_production <- function(
     all.x = TRUE,
     sort = FALSE
   )
-  wide[, .preserve_historical_tonnes := !is.na(source_prod) &
-    stringr::str_starts(source_prod, "historical_")]
+  wide[,
+    .preserve_historical_tonnes := !is.na(source_prod) &
+      stringr::str_starts(source_prod, "historical_")
+  ]
   wide[, source := dplyr::coalesce(source_prod, source_any)]
   wide[, source_prod := NULL]
   wide[, source_any := NULL]
@@ -2683,11 +2691,13 @@ build_primary_production <- function(
   )
 
   wide[, t_ha_raw := tonnes / ha]
-  wide[, t_ha := data.table::fifelse(
-    year < 1961 & !.preserve_historical_tonnes,
-    NA_real_,
-    t_ha_raw
-  )]
+  wide[,
+    t_ha := data.table::fifelse(
+      year < 1961 & !.preserve_historical_tonnes,
+      NA_real_,
+      t_ha_raw
+    )
+  ]
 
   wide <- fill_proxy_growth(
     wide,
@@ -2701,11 +2711,13 @@ build_primary_production <- function(
     data.table::setDT(wide)
   }
   wide[, t_ha := data.table::fifelse(!is.na(t_ha), t_ha, t_ha_raw)]
-  wide[, tonnes := data.table::fifelse(
-    !.preserve_historical_tonnes & !is.na(ha),
-    ha * t_ha,
-    tonnes
-  )]
+  wide[,
+    tonnes := data.table::fifelse(
+      !.preserve_historical_tonnes & !is.na(ha),
+      ha * t_ha,
+      tonnes
+    )
+  ]
   wide[, .preserve_historical_tonnes := NULL]
   wide
 }
