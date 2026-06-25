@@ -17,8 +17,8 @@ get_crop_land_extension(
 \item{input_dir}{Directory holding the spatialization inputs
 (\code{country_areas.parquet}, \code{crop_patterns.parquet},
 \code{gridded_cropland.parquet}, \code{country_grid.parquet}, and optionally
-\code{multicropping.parquet}). Typically \verb{<l_files_dir>/whep/inputs}. Required
-unless \code{example = TRUE}.}
+\code{multicropping.parquet}). Typically \verb{<l_files_dir>/whep/inputs}. If \code{NULL}
+or unset, the pinned WHEP spatialization inputs are used.}
 
 \item{years}{Numeric vector of years to compute, or \code{NULL} for all available.}
 

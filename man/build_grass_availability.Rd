@@ -18,10 +18,11 @@ recording the method used.
 }
 \description{
 Multi-method wrapper for the grass forage supply ceiling that feeds
-allocation. The default \code{lpjml} method reads managed-grassland net primary
-production from a finished LPJmL run (spatially explicit, the most rigorous
-method); \code{coefficient} applies a per-area grass-yield coefficient and is not
-yet implemented (it needs a \code{grass_yield_coef} dataset).
+allocation. The default \code{lpjml} method reads pinned LPJmL-derived
+managed-grassland net primary production/availability unless custom artifact
+data, a custom artifact path, or \code{run_dir} points to local inputs;
+\code{coefficient} applies a per-area grass-yield coefficient and is not yet
+implemented (it needs a \code{grass_yield_coef} dataset).
 }
 \examples{
 build_grass_availability(method = "lpjml", example = TRUE)

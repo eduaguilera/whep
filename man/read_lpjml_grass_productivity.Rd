@@ -5,22 +5,30 @@
 \title{Read natural-grass productivity from an LPJmL run.}
 \usage{
 read_lpjml_grass_productivity(
-  run_dir = Sys.getenv("WHEP_LPJML_RUN_DIR"),
+  run_dir = NULL,
   years = NULL,
   first_year = 1901L,
-  example = FALSE
+  example = FALSE,
+  productivity = NULL,
+  productivity_path = NULL
 )
 }
 \arguments{
 \item{run_dir}{Path to the LPJmL run output directory holding \code{pft_npp.nc}.
-Defaults to the \code{WHEP_LPJML_RUN_DIR} environment variable, consistent with
-\code{\link[=build_feed_intake_local]{build_feed_intake_local()}}.}
+If unset, the pinned \code{lpjml-grass-productivity} artifact is used.}
 
 \item{years}{Integer vector of calendar years to read.}
 
 \item{first_year}{First calendar year of the run's output time axis.}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading a run.}
+
+\item{productivity}{Optional already-derived natural-grass productivity
+tibble/data frame. Takes precedence over pinned data and \code{run_dir}.}
+
+\item{productivity_path}{Optional path to an already-derived natural-grass
+productivity artifact (\code{.parquet}, \code{.csv}, or \code{.rds}). Takes precedence
+over pinned data and \code{run_dir}.}
 }
 \value{
 A tibble with \code{lon}, \code{lat}, \code{year} and \code{grass_npp} (gC/m2/yr).
@@ -29,8 +37,11 @@ A tibble with \code{lon}, \code{lat}, \code{year} and \code{grass_npp} (gC/m2/yr
 Sums the natural-grass PFT net primary production bands (the ungrazed
 natural stand, climate-driven) into a per-cell productivity layer used to
 distribute grazing livestock by grass production rather than pasture area.
-Natural-grass NPP is exogenous to the grazing density, so it avoids the
-livestock to grassland_lsuha to grass-NPP circularity.
+The pinned WHEP artifact is used by default; pass \code{run_dir} to read a local
+finished LPJmL run, or pass \code{productivity} / \code{productivity_path} to use an
+already-derived custom artifact. Natural-grass NPP is exogenous to the
+grazing density, so it avoids the livestock to grassland_lsuha to grass-NPP
+circularity.
 }
 \examples{
 read_lpjml_grass_productivity(example = TRUE)

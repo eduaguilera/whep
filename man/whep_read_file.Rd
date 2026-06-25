@@ -28,9 +28,10 @@ supplied in e.g. \code{parquet} format but was in another one.}
 \item{version}{The version of the file that must be read. Possible values:
 \itemize{
 \item \code{NULL}: This is the default value. A frozen version is chosen to make
-the code reproducible. Each release will have its own frozen versions.
-The version is the string that can be found in \code{\link{whep_inputs}} in the
-\code{version} column.
+the code reproducible when the file has a registry version. Each release
+will have its own frozen versions. The version is the string that can be
+found in \code{\link{whep_inputs}} in the \code{version} column. A blank registry version
+requests the latest board version.
 \item \code{"latest"}: This overrides the frozen version and instead fetches the
 latest one that is available. This might or might not match the frozen
 version.

@@ -33,6 +33,33 @@ test_that("build_feed_intake_local(example = TRUE) returns the contract", {
   expect_true(all(out$supply == out$intake))
 })
 
+test_that(".local_paths defaults to pinned inputs", {
+  paths <- whep:::.local_paths()
+  expect_null(paths$run_dir)
+  expect_null(paths$input_dir)
+  expect_null(paths$grass_availability)
+  expect_null(paths$grass_availability_path)
+})
+
+test_that(".local_paths keeps explicit custom inputs", {
+  grass <- tibble::tibble(
+    lon = 0,
+    lat = 0,
+    year = 2000L,
+    grass_avail_dm_t = 1
+  )
+  paths <- whep:::.local_paths(
+    run_dir = "/tmp/lpjml-run",
+    input_dir = "/tmp/spatial-inputs",
+    grass_availability = grass,
+    grass_availability_path = "/tmp/grass.parquet"
+  )
+  expect_equal(paths$run_dir, "/tmp/lpjml-run")
+  expect_equal(paths$input_dir, "/tmp/spatial-inputs")
+  expect_identical(paths$grass_availability, grass)
+  expect_equal(paths$grass_availability_path, "/tmp/grass.parquet")
+})
+
 test_that(".resolve_local_years defaults to all years, else the subset", {
   prod <- tibble::tibble(
     year = c(1999, 2000, 2001),

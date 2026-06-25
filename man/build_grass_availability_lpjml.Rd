@@ -5,18 +5,19 @@
 \title{Build grazable grass availability from an LPJmL run.}
 \usage{
 build_grass_availability_lpjml(
-  run_dir = Sys.getenv("WHEP_LPJML_RUN_DIR"),
+  run_dir = NULL,
   years = NULL,
   first_year = 1901L,
   shares = grass_access_shares(),
-  example = FALSE
+  example = FALSE,
+  availability = NULL,
+  availability_path = NULL
 )
 }
 \arguments{
 \item{run_dir}{Path to the LPJmL run output directory holding \code{pft_npp.nc}
-and \code{cftfrac.nc} (the \verb{scenario_*} output folder). Defaults to the
-\code{WHEP_LPJML_RUN_DIR} environment variable, consistent with
-\code{\link[=build_feed_intake_local]{build_feed_intake_local()}}.}
+and \code{cftfrac.nc} (the \verb{scenario_*} output folder). If unset, the pinned
+\code{lpjml-grass-availability} artifact is used.}
 
 \item{years}{Integer vector of calendar years to read.}
 
@@ -26,17 +27,27 @@ and \code{cftfrac.nc} (the \verb{scenario_*} output folder). Defaults to the
 \code{\link[=grass_access_shares]{grass_access_shares()}}.}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading a run.}
+
+\item{availability}{Optional already-derived grass availability tibble/data
+frame. Takes precedence over pinned data and \code{run_dir}.}
+
+\item{availability_path}{Optional path to an already-derived grass
+availability artifact (\code{.parquet}, \code{.csv}, or \code{.rds}). Takes precedence over
+pinned data and \code{run_dir}.}
 }
 \value{
 A tibble with \code{lon}, \code{lat}, \code{year}, \code{grass_npp_gc_m2},
 \code{grass_avail_dm_t_ha} and \code{grass_avail_dm_t}.
 }
 \description{
-Reads managed-grassland net primary production (the LPJmL grassland CFT) from
-a finished run and converts it to grazable above-ground dry-matter
-availability, the forage supply ceiling for feed allocation. Availability is
-the production flux, not the realised grazing off-take (the off-take is the
-intake-validation target, not the supply).
+Reads managed-grassland net primary production/availability (the LPJmL
+grassland CFT) from the pinned WHEP artifact by default. Pass
+\code{availability} or \code{availability_path} to use a custom already-derived
+artifact; pass \code{run_dir} to read a finished local LPJmL run instead and
+convert NPP to grazable above-ground dry-matter availability, the forage
+supply ceiling for feed allocation. Availability is the production flux, not
+the realised grazing off-take (the off-take is the intake-validation target,
+not the supply).
 }
 \examples{
 build_grass_availability_lpjml(example = TRUE)
