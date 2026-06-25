@@ -12,10 +12,16 @@
 #                       grass ceiling/deficit cascade + the distance-decay
 #                       feed-access buffer on the roughage trade.
 #
-# The national grain is wired (Engines 1-3 plus the Phase-6 reshape). The
-# local grain (sub_territory = 0.5-degree cell) is still in progress and
-# errors; the package default (grain = "national", demand_tier = "fcr") keeps
-# routing to the legacy allocator.
+# Both grains are wired. The national grain (Engines 1-3 + the Phase-6 reshape)
+# is the package default (grain = "national", demand_tier = "ipcc") and runs in
+# memory. The local grain (sub_territory = 0.5-degree cell) runs via
+# build_feed_intake_local(), which chunks the per-cell allocation by year;
+# get_feed_intake(grain = "local") redirects there. Local coverage is bounded
+# by the gridded livestock inputs (country_grid + gridded heads): demand for a
+# (territory, category) with no matching per-cell share is dropped from the
+# local allocation and surfaced by a warning -- e.g. countries whose demand
+# area_code differs from their country_grid code, micro-states with no
+# 0.5-degree land cell, and the geometry-less "Rest of World" (999) residual.
 
 .build_redistribute_intake <- function(
   grain,
