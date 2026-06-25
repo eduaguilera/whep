@@ -91,13 +91,38 @@ population for demographic series, livestock density for animals). With
 \code{covariate = NULL} the method reduces to area-weighted areal interpolation.
 }
 \examples{
-\dontrun{
-# Present-day Austria's wheat, back through the Austria-Hungary years,
-# weighted by gridded cropland:
-series <- build_constant_territory_series(
-  data = reported_wheat,            # year, polity_code, value
-  ref_year = 2020,
-  covariate = cropland_density_fn   # samples LUH cropland at cell centroids
-)
+# Self-contained toy: two adjacent square polities. Only "P1" reports a
+# value in 1900, so when the series is rebuilt onto the boundaries active in
+# `ref_year` 2000 (both polities), "P2" is imputed from "P1"'s intensity.
+make_square <- function(xmin, ymin, side) {
+  sf::st_polygon(list(rbind(
+    c(xmin, ymin),
+    c(xmin + side, ymin),
+    c(xmin + side, ymin + side),
+    c(xmin, ymin + side),
+    c(xmin, ymin)
+  )))
 }
+polities <- sf::st_sf(
+  polity_code = c("P1", "P2"),
+  start_year = c(1800L, 1800L),
+  end_year = c(2025L, 2025L),
+  geometry = sf::st_sfc(
+    make_square(0, 0, 2),
+    make_square(2, 0, 2),
+    crs = 4326
+  )
+)
+reported <- tibble::tibble(
+  year = 1900L,
+  polity_code = "P1",
+  value = 100
+)
+build_constant_territory_series(
+  reported,
+  ref_year = 2000,
+  polities = polities,
+  resolution = 50000,
+  verbose = FALSE
+)
 }

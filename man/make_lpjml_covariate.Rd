@@ -21,38 +21,32 @@ make_lpjml_covariate(
 in the required input are used.}
 
 \item{weighting}{Either \code{"total_cropland"}, \code{"crop_pattern"}, or a custom
-\code{function(centroids_sf, year)}. A custom function is returned unchanged.}
+\verb{function(centroids_sf, year)}. A custom function is returned unchanged.}
 
 \item{item_prod_code}{FAOSTAT/WHEP production item code. Required when
 \code{weighting = "crop_pattern"}.}
 
 \item{cft_mapping}{Mapping from WHEP item codes to CFT/LUH2 types. Defaults
-to \code{\link[=cft_mapping]{cft_mapping}}.}
+to \link{cft_mapping}.}
 }
 \value{
-A function \code{function(centroids_sf, year)} returning non-negative
+A function \verb{function(centroids_sf, year)} returning non-negative
 density values aligned to \code{centroids_sf}.
 }
 \description{
-Creates a \code{function(centroids_sf, year)} suitable for APIs that accept a
+Creates a \verb{function(centroids_sf, year)} suitable for APIs that accept a
 spatial covariate density, such as \code{\link[=build_constant_territory_series]{build_constant_territory_series()}}. The
 covariate is built from prepared WHEP/LPJmL spatialization inputs, either
 from a local \code{input_dir} or from pinned WHEP spatialization inputs when
 \code{input_dir = NULL}.
 }
 \examples{
-\dontrun{
-covariate <- make_lpjml_covariate(
-  input_dir = "/path/to/L_files/whep/inputs",
-  years = 1851:1960,
-  weighting = "crop_pattern",
-  item_prod_code = 15
-)
+# A custom covariate function is returned unchanged, ready to plug into
+# build_constant_territory_series(). Here a uniform (area-weighting) density:
+uniform <- function(centroids_sf, year) rep(1, nrow(centroids_sf))
+covariate <- make_lpjml_covariate(weighting = uniform)
+identical(covariate, uniform)
 
-build_constant_territory_series(
-  reported_values,
-  ref_year = 2020,
-  covariate = covariate
-)
-}
+# The "total_cropland" and "crop_pattern" modes instead read prepared
+# WHEP/LPJmL spatialization parquets from `input_dir` (or pinned inputs).
 }
