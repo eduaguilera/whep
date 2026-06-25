@@ -72,7 +72,8 @@ matter.
 \item \code{Residue_humified_kgC_kgC}: Humification coefficient of residue carbon
 (fraction of residue C stabilised as soil organic matter).
 \item \code{MgDM_m3}: Megagrams dry matter per cubic metre (bulk density proxy).
-\item \code{Root_kgC_kgDM}: Carbon content of roots in kg C per kg root dry matter.
+\item \code{Root_kgC_kgDM}: Root plus rhizodeposit carbon in kg C per kg root dry
+matter.
 \item \code{Root_humified_kgC_kgC}: Humification coefficient for root carbon.
 \item \code{Root_mass_kgC_kgDM}: Root carbon mass in kg C per kg crop dry matter.
 \item \code{Rhizodeposits_mass_kgC_kgDM}: Rhizodeposit carbon in kg C per kg crop

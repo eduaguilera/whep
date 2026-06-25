@@ -67,7 +67,7 @@ build_trade_prices <- function(raw_trade = NULL, example = FALSE) {
 #'
 #' @returns A tibble with columns:
 #'   - `year`: Integer year.
-#'   - `item_prod_code`: Numeric production item code.
+#'   - `item_prod_code`: Production item code (character).
 #'   - `price`: Price in KDollars per tonne.
 #'
 #' @export

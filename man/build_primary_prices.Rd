@@ -31,7 +31,7 @@ Default \code{FALSE}.}
 A tibble with columns:
 \itemize{
 \item \code{year}: Integer year.
-\item \code{item_prod_code}: Numeric production item code.
+\item \code{item_prod_code}: Production item code (character).
 \item \code{price}: Price in KDollars per tonne.
 }
 }

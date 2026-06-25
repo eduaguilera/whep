@@ -50,6 +50,39 @@ reference:
   - build_constant_territory_series
   - make_lpjml_covariate
 
+- title: LPJmL grass availability
+  desc: >
+    Read managed-grassland net primary production from a finished LPJmL run
+    into grazable above-ground dry-matter availability, the forage supply
+    ceiling for feed allocation.
+  contents:
+  - build_grass_availability
+  - build_grass_availability_lpjml
+  - grass_access_shares
+  - aggregate_grass_to_polity
+  - read_lpjml_grass_productivity
+
+- title: Crop NPP, BNF and coefficient tables
+  desc: >
+    Crop net primary production (products, residues, roots, weeds), biological
+    nitrogen fixation, residue destinies, and the coefficient tables that drive
+    them. Ported from afsetools, item-keyed and multi-method.
+  contents:
+  - whep_coef_table
+  - calculate_potential_npp
+  - calculate_crop_residues
+  - calculate_crop_roots
+  - calculate_crop_npp
+  - calculate_npp_carbon_nitrogen
+  - calculate_crop_npp_components
+  - calculate_crop_bnf
+  - calculate_weed_bnf
+  - calculate_nonsymbiotic_bnf
+  - calculate_bnf
+  - summarize_bnf
+  - calculate_residue_destinies
+  - build_residue_feed_avail
+
 - title: Tidy datasets
   desc: >
     Get cleaned dataframes with project related data.
@@ -58,8 +91,9 @@ reference:
     Production, supply/use, and processing datasets.
   contents:
   - build_supply_use
-  - get_land_fp_production
   - get_feed_intake
+  - build_feed_demand
+  - build_feed_intake_local
   - get_primary_production
   - get_primary_residues
   - get_processing_coefs
@@ -172,6 +206,13 @@ reference:
   - compute_footprint_paths
   - compute_fp_product_paths
   - add_footprint_product_stage
+  - build_crop_land_extension
+  - get_crop_land_extension
+  - build_cropgrids_land_extension
+  - build_hayr_land_extension
+  - build_grassland_land_extension
+  - gridded_fallow_weights
+  - attribute_fallow_to_crops
   - plot_footprint_sankey
 
 - title: Livestock emissions

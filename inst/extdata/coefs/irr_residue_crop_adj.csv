@@ -1,0 +1,9 @@
+crop_group,irr_residue_sensitivity,source
+Wheat,0,Ludemann 2025: irr RPR > rain RPR
+Rice,0,Ludemann 2025: paddy irrigation different mechanism
+Maize,1,Ludemann 2025: irr RPR=1.50 < rain RPR=1.74
+Sorghum_millet,0.5,Assumed intermediate; limited data
+Legumes,0,Ludemann 2025: irr RPR > rain RPR for soybeans
+Root_tuber,0.5,Limited data; moderate default
+Oilseeds,0.5,Limited data; moderate default
+Other,0,No evidence for irrigation RPR reduction

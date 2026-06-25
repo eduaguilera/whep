@@ -233,19 +233,31 @@ calc_fabio_year <- function(year) {
 
 fabio_results <- map_dfr(years, calc_fabio_year)
 
-land_use <- get_land_fp_production(
-  grassland_metric = grassland_metric,
-  usable_grass_yield_dm_t_ha = usable_grass_yield_dm_t_ha
-)
+land_metrics <- if (grassland_metric == "both") {
+  c("occupation", "active_grazing")
+} else {
+  grassland_metric
+}
+crop_land <- build_cropgrids_land_extension(source = "cropgrids_fallow")
+land_use <- map_dfr(land_metrics, function(metric) {
+  grass <- build_grassland_land_extension(
+    grassland_metric = metric,
+    usable_grass_yield_dm_t_ha = usable_grass_yield_dm_t_ha
+  ) |>
+    dplyr::select(year, area_code, item_cbs_code, impact_u)
+  dplyr::bind_rows(crop_land, grass) |>
+    dplyr::mutate(extension_scope = metric)
+})
 land_use_scope_names <- unique(land_use$extension_scope)
 
 whep_item_groups <- whep::items_full |>
   distinct(.data$item_cbs_code, .data$group)
 
 whep_area_codes <- function(target_iso) {
-  whep::polities |>
-    filter(.data$iso3c %in% target_iso) |>
-    pull(.data$area_code)
+  whep::regions_full |>
+    filter(.data$iso3c %in% target_iso, !is.na(.data$code)) |>
+    pull(.data$code) |>
+    unique()
 }
 
 make_whep_demand <- function(
@@ -271,7 +283,7 @@ make_whep_demand <- function(
 
 whep_extension_scopes <- function(extensions, labels) {
   list(
-    current_all_land_fp = extensions,
+    current_all_land = extensions,
     no_livestock_products = ifelse(
       labels$group == "Livestock products",
       0,
@@ -430,6 +442,7 @@ fabio_extension_totals <- map_dfr(years, function(year) {
 
 whep_extension_totals <- land_use |>
   filter(.data$year %in% years) |>
+  left_join(whep_item_groups, by = "item_cbs_code") |>
   summarise(
     value = sum(.data$impact_u, na.rm = TRUE),
     .by = c("extension_scope", "year", "group")
@@ -473,7 +486,7 @@ comparison |>
 
 message("\nLargest current WHEP/FABIO ratios:")
 comparison |>
-  filter(.data$extension_scope == "current_all_land_fp") |>
+  filter(.data$extension_scope == "current_all_land") |>
   arrange(desc(.data$ratio)) |>
   select(
     "grassland_metric",

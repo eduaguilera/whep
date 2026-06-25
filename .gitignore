@@ -20,4 +20,22 @@ vignettes/methods_references.bib
 inst/analysis/
 LPJmL_inputs/
 plans/
+.playwright-mcp/
 .fabio_compare/
+.whep_cache/
+validation/cache
+validation/cache/
+
+# Build-time-only GAEZ/FAOSTAT-derived grids: regenerable from data-raw, not
+# read at package runtime, so not committed (kept out of the shipped package).
+inst/extdata/grid_aez.csv
+inst/extdata/faostat_cropland.csv
+
+# CROPGRIDS land tables: read at runtime from the cropgrids-land /
+# cropgrids-fallow-land pins (data-raw scripts build them for upload, not commit).
+inst/extdata/cropgrids_land.csv
+inst/extdata/cropgrids_fallow_land.csv
+
+# one-off migration scaffolding (not part of the reproducible pipeline)
+data-raw/migration/
+inst/extdata/coefs/*_raw.csv

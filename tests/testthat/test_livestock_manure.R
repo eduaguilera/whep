@@ -69,6 +69,20 @@ testthat::test_that("Manure Tier 1 all species non-NA", {
     pointblank::expect_col_vals_not_null("manure_ef_kgch4")
 })
 
+testthat::test_that("Manure Tier 1 uses regional EF when iso3 is supplied", {
+  result <- tibble::tribble(
+    ~species, ~heads, ~iso3,
+    "Dairy Cattle", 1, "DEU"
+  ) |>
+    whep:::.calc_manure_ch4_tier1()
+
+  ef <- result |> dplyr::pull(manure_ef_kgch4)
+  # DEU -> Western Europe dairy cattle, climate-averaged: mean(31, 39) = 35.
+  # The Global fallback would instead give 36.
+  testthat::expect_equal(ef, 35)
+  testthat::expect_false("region" %in% names(result))
+})
+
 # .calc_manure_ch4_tier2 --------------------------------------------------------
 
 testthat::test_that("Manure Tier 2 returns expected columns", {

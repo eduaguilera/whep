@@ -5,6 +5,19 @@
 #'
 #' @param example If `TRUE`, return a small example output without downloading
 #'   remote data. Default is `FALSE`.
+#' @param grain Spatial grain of the feed allocation. `"national"` (default, one
+#'   allocation per country) or `"local"` (the per-cell 0.5-degree engine,
+#'   which is heavy and run via [build_feed_intake_local()]; calling it here
+#'   redirects there).
+#' @param demand_tier Demand-estimation tier. `"ipcc"` (default, the rigorous
+#'   IPCC Tier-2 energy demand for the ruminant species it covers, Bouwman FCR
+#'   for pigs and poultry, Krausmann per-head for draft / other species) or
+#'   `"fcr"` (the Bouwman / Krausmann feed-conversion magnitude for every
+#'   species). Both grains allocate with `redistribute_feed()`.
+#' @param years Integer vector of years to build, or `NULL` (default) for every
+#'   year in the production data (1850-2023 via the LUH2 extension). Restricting
+#'   the range cuts run time proportionally; allocation is independent per year,
+#'   so a subset returns exactly the same rows for those years.
 #'
 #' @returns
 #' A tibble with the feed intake data.
@@ -36,14 +49,21 @@
 #'
 #' @examples
 #' get_feed_intake(example = TRUE)
-get_feed_intake <- function(example = FALSE) {
+get_feed_intake <- function(
+  example = FALSE,
+  grain = c("national", "local"),
+  demand_tier = c("ipcc", "fcr"),
+  years = NULL
+) {
+  grain <- rlang::arg_match(grain)
+  demand_tier <- rlang::arg_match(demand_tier)
   if (example) {
     return(.example_get_feed_intake())
   }
-
-  .build_feed_intake_from_inputs(
-    cbs = get_wide_cbs(),
-    primary_prod = get_primary_production()
+  .build_redistribute_intake(
+    grain = grain,
+    demand_tier = demand_tier,
+    years = years
   ) |>
     .add_reporting_polity_columns()
 }

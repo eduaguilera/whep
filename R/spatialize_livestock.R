@@ -108,6 +108,12 @@
 #'   If provided, this **replaces** the LUH2-based proxy for the
 #'   matching groups, while still being scaled by LUH2 time trends.
 #'   If `NULL`, LUH2 proxies are used for all groups.
+#' @param grass_productivity A tibble with grass productivity per cell
+#'   (`lon`, `lat`, `grass_npp`) from [read_lpjml_grass_productivity()].
+#'   Optional. When provided, it multiplies the `pasture`/`rangeland`
+#'   (grazer) proxy weights so animals follow grass production rather than
+#'   area alone; cropland/mixed proxies are unaffected. If `NULL`, area
+#'   proxies are used alone.
 #' @param years Integer vector of years to spatialize. If `NULL`
 #'   (default), all years present in `livestock_data` are processed.
 #'   When supplied, `livestock_data`, `gridded_pasture`, and
@@ -161,6 +167,7 @@ build_gridded_livestock <- function(
   species_proxy = NULL,
   manure_pattern = NULL,
   glw_density = NULL,
+  grass_productivity = NULL,
   years = NULL
 ) {
   .validate_livestock_inputs(
@@ -226,6 +233,7 @@ build_gridded_livestock <- function(
         species_proxy = species_proxy,
         manure_pattern = manure_pattern,
         glw_density = glw_density,
+        grass_productivity = grass_productivity,
         numeric_cols = numeric_cols
       )
     },
@@ -267,7 +275,8 @@ build_gridded_livestock <- function(
   pasture_yr,
   cropland_yr,
   country_grid,
-  manure_pattern
+  manure_pattern,
+  grass_productivity = NULL
 ) {
   grid <- switch(
     proxy_type,
@@ -318,6 +327,24 @@ build_gridded_livestock <- function(
     dplyr::inner_join(country_grid, by = c("lon", "lat")) |>
     dplyr::mutate(weight = weight * cell_area_frac) |>
     dplyr::filter(weight > 0)
+
+  # Optionally weight grazers by grass productivity so animals follow grass
+  # production, not just area (deserts get fewer than savannas). Uses the
+  # exogenous natural-grass NPP to avoid the livestock -> lsuha -> NPP loop.
+  if (
+    !is.null(grass_productivity) && proxy_type %in% c("pasture", "rangeland")
+  ) {
+    grid <- grid |>
+      dplyr::left_join(
+        dplyr::select(grass_productivity, lon, lat, grass_npp),
+        by = c("lon", "lat")
+      ) |>
+      dplyr::mutate(
+        weight = dplyr::if_else(is.na(grass_npp), weight, weight * grass_npp)
+      ) |>
+      dplyr::filter(weight > 0) |>
+      dplyr::select(-grass_npp)
+  }
 
   # Optionally multiply by manure-intensity reference pattern
   if (!is.null(manure_pattern)) {
@@ -417,6 +444,7 @@ build_gridded_livestock <- function(
   species_proxy,
   manure_pattern,
   glw_density,
+  grass_productivity,
   numeric_cols
 ) {
   groups <- unique(livestock_yr$species_group)
@@ -452,7 +480,8 @@ build_gridded_livestock <- function(
         pasture_yr,
         cropland_yr,
         country_grid,
-        manure_pattern
+        manure_pattern,
+        grass_productivity
       )
     }
 

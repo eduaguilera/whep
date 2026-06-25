@@ -118,9 +118,11 @@ build_io_model <- function(
         crop_residues <- get_primary_residues() |>
           .filter_years(build_years)
         cli::cli_progress_step("Building feed intake")
-        feed_intake <- .build_feed_intake_from_inputs(
+        feed_intake <- .build_redistribute_intake(
+          grain = "national",
+          demand_tier = "ipcc",
+          production = primary_prod_build,
           cbs = cbs,
-          primary_prod = primary_prod_build,
           years = build_years
         )
 

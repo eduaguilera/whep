@@ -45,14 +45,18 @@ calculate_cohorts_systems <- function(data, system_shares = NULL) {
       system_heads = heads * system_share
     )
 
-  # Join cohorts within each system
+  # Join cohorts within each system. Key on the GENERAL species so that a species
+  # whose raw GLEAM-category name differs from its general species (e.g. "Pigs" ->
+  # "Swine") still matches the system-share table, which is keyed by general species.
+  # Without this, pig cohort_fraction came back NA because raw "Pigs" never matched
+  # the mapped "Swine" species_gen, so pigs dropped out entirely.
   cohort_fracs <- .get_cohort_fractions(categories)
 
   data |>
     dplyr::left_join(
       cohort_fracs,
       by = c(
-        "species_gen" = "species",
+        "species_gen" = "species_gen",
         "system" = "production_system"
       ),
       relationship = "many-to-many"
@@ -101,8 +105,11 @@ calculate_cohorts_systems <- function(data, system_shares = NULL) {
       cohort_share = 1 / n_cohorts,
       .by = c(species, production_system)
     ) |>
+    # Map to general species so the cohort key matches the system-share key
+    # (system shares are keyed by general species, e.g. "Swine" not "Pigs").
+    dplyr::mutate(species_gen = .get_general_species(species)) |>
     dplyr::select(
-      species,
+      species_gen,
       production_system,
       cohort,
       cohort_share

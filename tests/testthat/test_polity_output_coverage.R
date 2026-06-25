@@ -15,7 +15,6 @@ testthat::test_that("public area-code example outputs carry reporting polities",
     get_processing_coefs = get_processing_coefs(example = TRUE),
     get_primary_residues = get_primary_residues(example = TRUE),
     get_feed_intake = get_feed_intake(example = TRUE),
-    get_land_fp_production = get_land_fp_production(example = TRUE),
     build_supply_use = build_supply_use(example = TRUE)
   )
 

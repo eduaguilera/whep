@@ -13,7 +13,8 @@
 
 library(dplyr, warn.conflicts = FALSE)
 
-l_files_dir <- "WHEP_LFILES_DIR"
+l_files_dir <- Sys.getenv("WHEP_L_FILES_DIR", unset = "")
+stopifnot(nzchar(l_files_dir), dir.exists(l_files_dir))
 output_dir <- file.path(l_files_dir, "whep", "inputs")
 year_range <- 1850L:2022L
 target_res <- 0.5
