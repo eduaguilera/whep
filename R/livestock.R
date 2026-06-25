@@ -14,6 +14,11 @@
 #'   for pigs and poultry, Krausmann per-head for draft / other species) or
 #'   `"fcr"` (the Bouwman / Krausmann feed-conversion magnitude for every
 #'   species). Both grains allocate with `redistribute_feed()`.
+#' @param feed_mode Whether to distribute surplus feed availability.
+#'   `"historical"` (default) suppresses the surplus-distribution pass: the CBS
+#'   feed element is treated as realised consumption, so leftover availability is
+#'   not dumped onto variable-demand livestock (which would inflate non-grass
+#'   intake). `"scenario"` distributes the surplus.
 #' @param years Integer vector of years to build, or `NULL` (default) for every
 #'   year in the production data (1850-2023 via the LUH2 extension). Restricting
 #'   the range cuts run time proportionally; allocation is independent per year,

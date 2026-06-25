@@ -60,6 +60,11 @@
 #'   parquet files to. If `NULL`, the bound result is returned in memory (only
 #'   practical for a few years).
 #' @param demand_tier Demand-estimation tier, `"ipcc"` (default) or `"fcr"`.
+#' @param feed_mode Whether to distribute surplus feed availability.
+#'   `"historical"` (default) suppresses the surplus-distribution pass: the CBS
+#'   feed element is treated as realised consumption, so leftover availability is
+#'   not dumped onto variable-demand livestock (which would inflate non-grass
+#'   intake). `"scenario"` distributes the surplus.
 #' @param overwrite Re-run years whose output file already exists. Default
 #'   `FALSE` skips them so the batch is restartable.
 #' @param example If `TRUE`, return a small example output without sourcing the
