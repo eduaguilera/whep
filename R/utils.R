@@ -1030,6 +1030,10 @@ utils::globalVariables(
     "Item_Code_product",
     "Liv_prod_cat",
     "meat_yield_t_head",
+    "dressing_frac",
+    "fattening_days",
+    "birth_weight_kg",
+    "live_weight_kg",
     "iso3c",
     # livestock coefficient datasets (data/livestock_coefs.rda)
     "animals_codes",

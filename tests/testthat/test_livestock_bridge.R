@@ -83,7 +83,9 @@ test_that("extracts milk yield and converts to kg/day", {
   expect_equal(result$milk_yield_kg_day, expected_milk, tolerance = 0.01)
 })
 
-test_that("extracts meat yield as raw t_head", {
+test_that("meat yield is converted to weight_gain_kg_day for energy model", {
+  # Non-dairy cattle (961): carcass 0.2 t/head => live 0.2/0.55*1000 = 364 kg
+  # weight_gain = (364 - 40) / 547.5 = 0.592 kg/day (IPCC cattle defaults).
   data <- tibble::tribble(
     ~item_cbs_code, ~unit,    ~value, ~year, ~area_code,
     ~live_anim_code, ~item_prod_code,
@@ -91,8 +93,12 @@ test_that("extracts meat yield as raw t_head", {
     961L,  "t_head", 0.2,  2020L, 4L, "961",        "867"
   )
   result <- prepare_livestock_emissions(data)
-  expect_true(rlang::has_name(result, "meat_yield_t_head"))
-  expect_equal(result$meat_yield_t_head, 0.2)
+  expect_true(rlang::has_name(result, "weight_gain_kg_day"))
+  expect_equal(
+    result$weight_gain_kg_day,
+    (0.2 * 1000 / 0.55 - 40) / 547.5,
+    tolerance = 0.01
+  )
 })
 
 test_that("secondary products under one live_anim_code do not duplicate heads", {
