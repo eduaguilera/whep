@@ -62,6 +62,7 @@ custom local inputs instead.</p>
 <span>  years <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  out_dir <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  demand_tier <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"ipcc"</span>, <span class="st">"fcr"</span><span class="op">)</span>,</span>
+<span>  feed_mode <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"historical"</span>, <span class="st">"scenario"</span><span class="op">)</span>,</span>
 <span>  overwrite <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  example <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  run_dir <span class="op">=</span> <span class="cn">NULL</span>,</span>
@@ -88,6 +89,14 @@ practical for a few years).</p></dd>
 
 <dt id="arg-demand-tier">demand_tier<a class="anchor" aria-label="anchor" href="#arg-demand-tier"></a></dt>
 <dd><p>Demand-estimation tier, <code>"ipcc"</code> (default) or <code>"fcr"</code>.</p></dd>
+
+
+<dt id="arg-feed-mode">feed_mode<a class="anchor" aria-label="anchor" href="#arg-feed-mode"></a></dt>
+<dd><p>Whether to distribute surplus feed availability.
+<code>"historical"</code> (default) suppresses the surplus-distribution pass: the CBS
+feed element is treated as realised consumption, so leftover availability is
+not dumped onto variable-demand livestock (which would inflate non-grass
+intake). <code>"scenario"</code> distributes the surplus.</p></dd>
 
 
 <dt id="arg-overwrite">overwrite<a class="anchor" aria-label="anchor" href="#arg-overwrite"></a></dt>

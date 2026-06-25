@@ -439,6 +439,18 @@ methods for enteric methane, manure methane, and manure nitrous oxide.
   : Calculate enteric methane emissions.
 - [`calculate_manure_emissions()`](https://eduaguilera.github.io/whep/reference/calculate_manure_emissions.md)
   : Calculate manure emissions (CH4 + N2O).
+- [`estimate_n_excretion()`](https://eduaguilera.github.io/whep/reference/estimate_n_excretion.md)
+  : Estimate livestock nitrogen, carbon and volatile-solids excretion.
+- [`split_manure_management()`](https://eduaguilera.github.io/whep/reference/split_manure_management.md)
+  : Split livestock excretion across manure-management systems.
+- [`apply_management_losses()`](https://eduaguilera.github.io/whep/reference/apply_management_losses.md)
+  : Apply IPCC manure-management losses to the collected manure streams.
+- [`build_livestock_nutrient_flows()`](https://eduaguilera.github.io/whep/reference/build_livestock_nutrient_flows.md)
+  : Build livestock nutrient flows from realised feed intake.
+- [`allocate_manure_to_land()`](https://eduaguilera.github.io/whep/reference/allocate_manure_to_land.md)
+  : Allocate field-available manure to cropland and grassland by crop.
+- [`allocate_manure_transport()`](https://eduaguilera.github.io/whep/reference/allocate_manure_transport.md)
+  : Spill surplus manure to neighbouring cells with spare capacity.
 - [`estimate_energy_demand()`](https://eduaguilera.github.io/whep/reference/estimate_energy_demand.md)
   : Estimate energy demand (Gross Energy) - Tier 2
 - [`calculate_cohorts_systems()`](https://eduaguilera.github.io/whep/reference/calculate_cohorts_systems.md)

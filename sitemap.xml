@@ -19,7 +19,10 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/add_item_prod_name.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/add_polity_code.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/aggregate_grass_to_polity.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/allocate_manure_to_land.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/allocate_manure_transport.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/animals_codes.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/apply_management_losses.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/attribute_fallow_to_crops.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/biomass_coefs.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_cbs_prices.html</loc></url>
@@ -37,6 +40,7 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/build_gridded_livestock.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_hayr_land_extension.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_io_model.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/build_livestock_nutrient_flows.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_primary_prices.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_primary_production.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_processing_coefs.html</loc></url>
@@ -80,6 +84,7 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/crops_eurostat.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/crops_manure_n.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/estimate_energy_demand.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/estimate_n_excretion.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/expand_trade_sources.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/feed_characteristics.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/feed_taxonomy.html</loc></url>
@@ -163,6 +168,7 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/regions_full.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/run_spatialize.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/smil_2001_synthetic_n_global.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/split_manure_management.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/summarize_bnf.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/temperature_adjustment.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/uncertainty_ranges.html</loc></url>

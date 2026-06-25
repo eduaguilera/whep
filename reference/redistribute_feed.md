@@ -40,7 +40,11 @@ redistribute_feed(feed_demand, feed_avail, options = list())
   or a tibble with `livestock_category` and `maintenance_share`) to also
   diagnose polities pushed below maintenance; the over-stocked demand
   rows are attached to the result as the `grass_deficit_diagnosis`
-  attribute.
+  attribute. Set `distribute_surplus = FALSE` to suppress the
+  surplus-distribution pass that pushes leftover CBS availability onto
+  variable-demand livestock (correct for historical analyses where the
+  CBS feed element is the realised consumption; keep `TRUE`, the
+  default, for unconstrained scenario projections).
 
 ## Value
 

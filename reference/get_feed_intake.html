@@ -47,6 +47,7 @@
 <span>  example <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  grain <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"national"</span>, <span class="st">"local"</span><span class="op">)</span>,</span>
 <span>  demand_tier <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"ipcc"</span>, <span class="st">"fcr"</span><span class="op">)</span>,</span>
+<span>  feed_mode <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"historical"</span>, <span class="st">"scenario"</span><span class="op">)</span>,</span>
 <span>  years <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -73,6 +74,14 @@ IPCC Tier-2 energy demand for the ruminant species it covers, Bouwman FCR
 for pigs and poultry, Krausmann per-head for draft / other species) or
 <code>"fcr"</code> (the Bouwman / Krausmann feed-conversion magnitude for every
 species). Both grains allocate with <code><a href="redistribute_feed.html">redistribute_feed()</a></code>.</p></dd>
+
+
+<dt id="arg-feed-mode">feed_mode<a class="anchor" aria-label="anchor" href="#arg-feed-mode"></a></dt>
+<dd><p>Whether to distribute surplus feed availability.
+<code>"historical"</code> (default) suppresses the surplus-distribution pass: the CBS
+feed element is treated as realised consumption, so leftover availability is
+not dumped onto variable-demand livestock (which would inflate non-grass
+intake). <code>"scenario"</code> distributes the surplus.</p></dd>
 
 
 <dt id="arg-years">years<a class="anchor" aria-label="anchor" href="#arg-years"></a></dt>

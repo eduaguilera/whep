@@ -9,6 +9,7 @@ get_feed_intake(
   example = FALSE,
   grain = c("national", "local"),
   demand_tier = c("ipcc", "fcr"),
+  feed_mode = c("historical", "scenario"),
   years = NULL
 )
 ```
@@ -36,6 +37,14 @@ get_feed_intake(
   (the Bouwman / Krausmann feed-conversion magnitude for every species).
   Both grains allocate with
   [`redistribute_feed()`](https://eduaguilera.github.io/whep/reference/redistribute_feed.md).
+
+- feed_mode:
+
+  Whether to distribute surplus feed availability. `"historical"`
+  (default) suppresses the surplus-distribution pass: the CBS feed
+  element is treated as realised consumption, so leftover availability
+  is not dumped onto variable-demand livestock (which would inflate
+  non-grass intake). `"scenario"` distributes the surplus.
 
 - years:
 

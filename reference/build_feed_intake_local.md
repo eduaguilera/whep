@@ -14,6 +14,7 @@ build_feed_intake_local(
   years = NULL,
   out_dir = NULL,
   demand_tier = c("ipcc", "fcr"),
+  feed_mode = c("historical", "scenario"),
   overwrite = FALSE,
   example = FALSE,
   run_dir = NULL,
@@ -39,6 +40,14 @@ build_feed_intake_local(
 - demand_tier:
 
   Demand-estimation tier, `"ipcc"` (default) or `"fcr"`.
+
+- feed_mode:
+
+  Whether to distribute surplus feed availability. `"historical"`
+  (default) suppresses the surplus-distribution pass: the CBS feed
+  element is treated as realised consumption, so leftover availability
+  is not dumped onto variable-demand livestock (which would inflate
+  non-grass intake). `"scenario"` distributes the surplus.
 
 - overwrite:
 

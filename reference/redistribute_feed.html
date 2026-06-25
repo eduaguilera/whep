@@ -85,7 +85,11 @@ residual stays as biologically-feasible underfeeding (<code>scaling_factor &lt; 
 Supply <code>maintenance_share</code> (a scalar fraction or a tibble with
 <code>livestock_category</code> and <code>maintenance_share</code>) to also diagnose polities
 pushed below maintenance; the over-stocked demand rows are attached to the
-result as the <code>grass_deficit_diagnosis</code> attribute.</p></dd>
+result as the <code>grass_deficit_diagnosis</code> attribute. Set
+<code>distribute_surplus = FALSE</code> to suppress the surplus-distribution pass that
+pushes leftover CBS availability onto variable-demand livestock (correct for
+historical analyses where the CBS feed element is the realised consumption;
+keep <code>TRUE</code>, the default, for unconstrained scenario projections).</p></dd>
 
 </dl></div>
     <div class="section level2">
