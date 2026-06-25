@@ -158,17 +158,28 @@ testthat::test_that("spatialized public outputs carry reporting polities", {
 })
 
 testthat::test_that("legacy area reference tables are backed by polities", {
-  testthat::expect_false(any(is.na(whep::polity_area_crosswalk$polity_code)))
+  # FAOSTAT area 351 "China" is a statistical aggregate of its components
+  # (mainland 41, Hong Kong 96, Macao 128, Taiwan 214), reported alongside them
+  # for every year. It is intentionally left unmapped so it cannot double-count
+  # China; every OTHER reporting area must still map to a polity. See
+  # data-raw/table_mappings.R.
+  aggregate_codes <- 351L
+
+  cw <- whep::polity_area_crosswalk
+  testthat::expect_true(all(is.na(cw$polity_code[
+    cw$area_code %in% aggregate_codes
+  ])))
+  cw <- cw[!cw$area_code %in% aggregate_codes, ]
+  testthat::expect_false(any(is.na(cw$polity_code)))
   # Every crosswalk polity must have a polygon UNLESS it is explicitly
   # polygon_status == "unassigned": some historical periods (e.g. pre-1883
   # Chile, before the War of the Pacific) have no faithful-vintage polygon,
   # and we record an honest gap rather than back-project a later/modern border.
-  no_geometry <- whep::polity_area_crosswalk[
-    !whep::polity_area_crosswalk$has_geometry,
-  ]
+  no_geometry <- cw[!cw$has_geometry, ]
   testthat::expect_true(all(no_geometry$polygon_status == "unassigned"))
 
   for (data in list(whep::regions_full, whep::polities_cats)) {
+    data <- data[!data$code %in% aggregate_codes, ]
     expect_polity_match(data, "code", "reporting_polity_code")
     testthat::expect_false(any(is.na(data$polity_code)))
     coded_rows <- !is.na(data$code)
