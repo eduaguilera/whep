@@ -1,7 +1,8 @@
 # LPJmL grass-availability method (grass_method = "lpjml").
 #
-# Reads managed-grassland net primary production from a finished LPJmL run and
-# converts it to grazable above-ground dry-matter availability: the supply
+# Reads managed-grassland net primary production from pinned LPJmL-derived
+# artifacts by default, or from an explicitly supplied finished LPJmL run. It
+# converts NPP to grazable above-ground dry-matter availability: the supply
 # ceiling that feeds allocation. Availability is the PRODUCTION flux (pft_npp),
 # not the realised grazing off-take (uptakec / pft_harvestc) which is instead
 # the intake-validation target (Herrero 2013 ~2.3 Pg DM).
@@ -9,10 +10,11 @@
 #' Build grazable grass availability.
 #'
 #' Multi-method wrapper for the grass forage supply ceiling that feeds
-#' allocation. The default `lpjml` method reads managed-grassland net primary
-#' production from a finished LPJmL run (spatially explicit, the most rigorous
-#' method); `coefficient` applies a per-area grass-yield coefficient and is not
-#' yet implemented (it needs a `grass_yield_coef` dataset).
+#' allocation. The default `lpjml` method reads pinned LPJmL-derived
+#' managed-grassland net primary production/availability unless custom artifact
+#' data, a custom artifact path, or `run_dir` points to local inputs;
+#' `coefficient` applies a per-area grass-yield coefficient and is not yet
+#' implemented (it needs a `grass_yield_coef` dataset).
 #'
 #' @param method Grass-availability method, `"lpjml"` or `"coefficient"`.
 #' @param ... Passed to the selected method's builder, e.g.
@@ -40,41 +42,60 @@ build_grass_availability <- function(
 
 #' Build grazable grass availability from an LPJmL run.
 #'
-#' Reads managed-grassland net primary production (the LPJmL grassland CFT) from
-#' a finished run and converts it to grazable above-ground dry-matter
-#' availability, the forage supply ceiling for feed allocation. Availability is
-#' the production flux, not the realised grazing off-take (the off-take is the
-#' intake-validation target, not the supply).
+#' Reads managed-grassland net primary production/availability (the LPJmL
+#' grassland CFT) from the pinned WHEP artifact by default. Pass
+#' `availability` or `availability_path` to use a custom already-derived
+#' artifact; pass `run_dir` to read a finished local LPJmL run instead and
+#' convert NPP to grazable above-ground dry-matter availability, the forage
+#' supply ceiling for feed allocation. Availability is the production flux, not
+#' the realised grazing off-take (the off-take is the intake-validation target,
+#' not the supply).
 #'
 #' @param run_dir Path to the LPJmL run output directory holding `pft_npp.nc`
-#'   and `cftfrac.nc` (the `scenario_*` output folder). Defaults to the
-#'   `WHEP_LPJML_RUN_DIR` environment variable, consistent with
-#'   [build_feed_intake_local()].
+#'   and `cftfrac.nc` (the `scenario_*` output folder). If unset, the pinned
+#'   `lpjml-grass-availability` artifact is used.
 #' @param years Integer vector of calendar years to read.
 #' @param first_year First calendar year of the run's output time axis.
 #' @param shares Accessibility and conversion parameters from
 #'   [grass_access_shares()].
 #' @param example If `TRUE`, return a small fixture instead of reading a run.
+#' @param availability Optional already-derived grass availability tibble/data
+#'   frame. Takes precedence over pinned data and `run_dir`.
+#' @param availability_path Optional path to an already-derived grass
+#'   availability artifact (`.parquet`, `.csv`, or `.rds`). Takes precedence over
+#'   pinned data and `run_dir`.
 #' @return A tibble with `lon`, `lat`, `year`, `grass_npp_gc_m2`,
 #'   `grass_avail_dm_t_ha` and `grass_avail_dm_t`.
 #' @export
 #' @examples
 #' build_grass_availability_lpjml(example = TRUE)
 build_grass_availability_lpjml <- function(
-  run_dir = Sys.getenv("WHEP_LPJML_RUN_DIR"),
+  run_dir = NULL,
   years = NULL,
   first_year = 1901L,
   shares = grass_access_shares(),
-  example = FALSE
+  example = FALSE,
+  availability = NULL,
+  availability_path = NULL
 ) {
   if (example) {
     return(.example_grass_avail_lpjml())
   }
-  if (!nzchar(run_dir)) {
-    cli::cli_abort(c(
-      "{.arg run_dir} is empty.",
-      i = "Pass it explicitly or set {.envvar WHEP_LPJML_RUN_DIR}."
+  if (!is.null(availability) || !is.null(availability_path)) {
+    if (!is.null(run_dir)) {
+      cli::cli_abort(
+        "Use either a custom availability artifact or {.arg run_dir}, not both."
+      )
+    }
+    return(.read_custom_grass_avail(
+      availability,
+      availability_path,
+      years,
+      shares
     ))
+  }
+  if (!.has_path(run_dir)) {
+    return(.read_pin_grass_avail(years, shares))
   }
   if (!rlang::is_installed("ncdf4")) {
     cli::cli_abort("Package {.pkg ncdf4} is required to read the LPJmL run.")
@@ -161,33 +182,51 @@ aggregate_grass_to_polity <- function(grass, cell_polity) {
 #' Sums the natural-grass PFT net primary production bands (the ungrazed
 #' natural stand, climate-driven) into a per-cell productivity layer used to
 #' distribute grazing livestock by grass production rather than pasture area.
-#' Natural-grass NPP is exogenous to the grazing density, so it avoids the
-#' livestock to grassland_lsuha to grass-NPP circularity.
+#' The pinned WHEP artifact is used by default; pass `run_dir` to read a local
+#' finished LPJmL run, or pass `productivity` / `productivity_path` to use an
+#' already-derived custom artifact. Natural-grass NPP is exogenous to the
+#' grazing density, so it avoids the livestock to grassland_lsuha to grass-NPP
+#' circularity.
 #'
 #' @param run_dir Path to the LPJmL run output directory holding `pft_npp.nc`.
-#'   Defaults to the `WHEP_LPJML_RUN_DIR` environment variable, consistent with
-#'   [build_feed_intake_local()].
+#'   If unset, the pinned `lpjml-grass-productivity` artifact is used.
 #' @param years Integer vector of calendar years to read.
 #' @param first_year First calendar year of the run's output time axis.
 #' @param example If `TRUE`, return a small fixture instead of reading a run.
+#' @param productivity Optional already-derived natural-grass productivity
+#'   tibble/data frame. Takes precedence over pinned data and `run_dir`.
+#' @param productivity_path Optional path to an already-derived natural-grass
+#'   productivity artifact (`.parquet`, `.csv`, or `.rds`). Takes precedence
+#'   over pinned data and `run_dir`.
 #' @return A tibble with `lon`, `lat`, `year` and `grass_npp` (gC/m2/yr).
 #' @export
 #' @examples
 #' read_lpjml_grass_productivity(example = TRUE)
 read_lpjml_grass_productivity <- function(
-  run_dir = Sys.getenv("WHEP_LPJML_RUN_DIR"),
+  run_dir = NULL,
   years = NULL,
   first_year = 1901L,
-  example = FALSE
+  example = FALSE,
+  productivity = NULL,
+  productivity_path = NULL
 ) {
   if (example) {
     return(.example_grass_productivity())
   }
-  if (!nzchar(run_dir)) {
-    cli::cli_abort(c(
-      "{.arg run_dir} is empty.",
-      i = "Pass it explicitly or set {.envvar WHEP_LPJML_RUN_DIR}."
+  if (!is.null(productivity) || !is.null(productivity_path)) {
+    if (!is.null(run_dir)) {
+      cli::cli_abort(
+        "Use either a custom productivity artifact or {.arg run_dir}, not both."
+      )
+    }
+    return(.read_custom_grass_prod(
+      productivity,
+      productivity_path,
+      years
     ))
+  }
+  if (!.has_path(run_dir)) {
+    return(.read_pin_grass_prod(years))
   }
   if (!rlang::is_installed("ncdf4")) {
     cli::cli_abort("Package {.pkg ncdf4} is required to read the LPJmL run.")
@@ -208,6 +247,144 @@ read_lpjml_grass_productivity <- function(
 }
 
 # ---- Private helpers --------------------------------------------------
+
+.has_path <- function(path) {
+  !is.null(path) && !is.na(path) && nzchar(path)
+}
+
+.lpjml_grass_avail_alias <- function() {
+  "lpjml-grass-availability"
+}
+
+.lpjml_grass_prod_alias <- function() {
+  "lpjml-grass-productivity"
+}
+
+.read_pin_grass_avail <- function(years, shares) {
+  .normalise_grass_avail(
+    whep_read_file(.lpjml_grass_avail_alias()),
+    years,
+    shares,
+    .lpjml_grass_avail_alias()
+  )
+}
+
+.read_custom_grass_avail <- function(
+  availability,
+  availability_path,
+  years,
+  shares
+) {
+  out <- .read_custom_artifact(
+    availability,
+    availability_path,
+    "availability"
+  )
+  .normalise_grass_avail(out, years, shares, "custom availability")
+}
+
+.normalise_grass_avail <- function(out, years, shares, source) {
+  .check_columns(
+    out,
+    c("lon", "lat", "year"),
+    source
+  )
+  out <- .filter_years_if_present(tibble::as_tibble(out), years)
+  if (!rlang::has_name(out, "grass_avail_dm_t_ha")) {
+    .check_columns(
+      out,
+      "grass_npp_gc_m2",
+      source
+    )
+    out <- dplyr::mutate(
+      out,
+      grass_avail_dm_t_ha = .lpjml_grass_to_dm(grass_npp_gc_m2, shares)
+    )
+  }
+  if (!rlang::has_name(out, "grass_avail_dm_t")) {
+    if (!rlang::has_name(out, "cell_area_ha")) {
+      out <- dplyr::mutate(out, cell_area_ha = .cell_area_ha_lat(lat))
+    }
+    out <- dplyr::mutate(
+      out,
+      grass_avail_dm_t = grass_avail_dm_t_ha * cell_area_ha
+    )
+  }
+  if (!rlang::has_name(out, "grass_npp_gc_m2")) {
+    out$grass_npp_gc_m2 <- NA_real_
+  }
+  dplyr::select(
+    out,
+    lon,
+    lat,
+    year,
+    grass_npp_gc_m2,
+    grass_avail_dm_t_ha,
+    grass_avail_dm_t
+  )
+}
+
+.read_pin_grass_prod <- function(years) {
+  .normalise_grass_prod(
+    whep_read_file(.lpjml_grass_prod_alias()),
+    years,
+    .lpjml_grass_prod_alias()
+  )
+}
+
+.read_custom_grass_prod <- function(productivity, productivity_path, years) {
+  out <- .read_custom_artifact(
+    productivity,
+    productivity_path,
+    "productivity"
+  )
+  .normalise_grass_prod(out, years, "custom productivity")
+}
+
+.normalise_grass_prod <- function(out, years, source) {
+  .check_columns(
+    out,
+    c("lon", "lat", "year", "grass_npp"),
+    source
+  )
+  .filter_years_if_present(tibble::as_tibble(out), years) |>
+    dplyr::filter(grass_npp > 0)
+}
+
+.read_custom_artifact <- function(data, path, label) {
+  if (!is.null(data) && !is.null(path)) {
+    cli::cli_abort(
+      "Use either {.arg {label}} data or {.arg {paste0(label, '_path')}}, not both."
+    )
+  }
+  if (!is.null(data)) {
+    if (!is.data.frame(data)) {
+      cli::cli_abort("{.arg {label}} must be a data frame or tibble.")
+    }
+    return(tibble::as_tibble(data))
+  }
+  if (is.null(path) || !file.exists(path)) {
+    cli::cli_abort("{.arg {paste0(label, '_path')}} must be an existing file.")
+  }
+  ext <- tolower(fs::path_ext(path))
+  switch(
+    ext,
+    parquet = nanoparquet::read_parquet(path) |> tibble::as_tibble(),
+    csv = readr::read_csv(path, show_col_types = FALSE),
+    rds = readRDS(path) |> tibble::as_tibble(),
+    cli::cli_abort(
+      "{.arg {paste0(label, '_path')}} must be a .parquet, .csv, or .rds file."
+    )
+  )
+}
+
+.filter_years_if_present <- function(data, years) {
+  if (is.null(years)) {
+    data
+  } else {
+    dplyr::filter(data, as.integer(.data$year) %in% as.integer(years))
+  }
+}
 
 # gC/m2/yr -> grazable t DM/ha/yr. 1 gC/m2 = 0.01 tC/ha; / w_c_dm -> t DM/ha.
 .lpjml_grass_to_dm <- function(grass_npp_gc_m2, shares) {

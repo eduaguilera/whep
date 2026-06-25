@@ -93,6 +93,17 @@ testthat::test_that("custom overrides produce a distinct default output director
   testthat::expect_match(custom, "_custom$")
 })
 
+testthat::test_that(".resolve_paths can run from pinned inputs without l_files_dir", {
+  paths <- getFromNamespace(".resolve_paths", "whep")(
+    list(),
+    "whep",
+    list()
+  )
+  testthat::expect_null(paths$l_files_dir)
+  testthat::expect_null(paths$input_dir)
+  testthat::expect_match(paths$out_dir, "whep_spatialize")
+})
+
 testthat::test_that("lpjml default years are the 10y benchmark sequence", {
   benchmarks <- getFromNamespace(".benchmark_years", "whep")()
   testthat::expect_setequal(
@@ -212,6 +223,59 @@ testthat::test_that(".write_run_metadata writes a round-trippable YAML", {
   testthat::expect_setequal(meta$components, c("landuse", "livestock"))
   testthat::expect_equal(meta$years, c(1990L, 2000L, 2010L))
   testthat::expect_false(meta$config$use_type_constraint)
+})
+
+testthat::test_that(".load_landuse_inputs reads pinned inputs when input_dir is NULL", {
+  pins <- list(
+    "spatialize-country-areas" = tibble::tibble(
+      year = 2000L,
+      area_code = 1L,
+      item_prod_code = 15L,
+      harvested_area_ha = 100
+    ),
+    "spatialize-crop-patterns" = tibble::tibble(
+      lon = 0.25,
+      lat = 50.25,
+      item_prod_code = 15L,
+      harvest_fraction = 1
+    ),
+    "spatialize-gridded-cropland" = tibble::tibble(
+      lon = 0.25,
+      lat = 50.25,
+      year = 2000L,
+      cropland_ha = 100
+    ),
+    "spatialize-country-grid" = tibble::tibble(
+      lon = 0.25,
+      lat = 50.25,
+      area_code = 1L
+    ),
+    "spatialize-type-cropland" = tibble::tibble(
+      lon = 0.25,
+      lat = 50.25,
+      year = 2000L,
+      cropland_type = "cropland",
+      cropland_ha = 100
+    ),
+    "spatialize-multicropping" = tibble::tibble(
+      lon = 0.25,
+      lat = 50.25,
+      mc_rainfed = 1,
+      mc_irrigated = 1
+    )
+  )
+  testthat::local_mocked_bindings(
+    whep_read_file = function(file_alias, ...) pins[[file_alias]],
+    .package = "whep"
+  )
+  inputs <- getFromNamespace(".load_landuse_inputs", "whep")(
+    NULL,
+    list(use_type_constraint = TRUE)
+  )
+  testthat::expect_equal(inputs$input_dir, NULL)
+  testthat::expect_equal(inputs$country_grid$area_code, 1L)
+  testthat::expect_equal(inputs$multicropping$mc_rainfed, 1)
+  testthat::expect_s3_class(inputs$type_cropland, "tbl_df")
 })
 
 # --- Livestock-only end-to-end path ------------------------------------

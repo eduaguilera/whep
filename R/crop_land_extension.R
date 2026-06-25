@@ -113,8 +113,8 @@ build_crop_land_extension <- function(
 #' @param input_dir Directory holding the spatialization inputs
 #'   (`country_areas.parquet`, `crop_patterns.parquet`,
 #'   `gridded_cropland.parquet`, `country_grid.parquet`, and optionally
-#'   `multicropping.parquet`). Typically `<l_files_dir>/whep/inputs`. Required
-#'   unless `example = TRUE`.
+#'   `multicropping.parquet`). Typically `<l_files_dir>/whep/inputs`. If `NULL`
+#'   or unset, the pinned WHEP spatialization inputs are used.
 #' @param years Numeric vector of years to compute, or `NULL` for all available.
 #' @param method Physical-area conversion method passed to
 #'   [build_crop_land_extension()].
@@ -146,11 +146,15 @@ get_crop_land_extension <- function(
   if (isTRUE(example)) {
     return(.example_crop_land_extension())
   }
-  if (is.null(input_dir) || !dir.exists(input_dir)) {
-    cli::cli_abort(
+  if (!.has_path(input_dir)) {
+    input_dir <- NULL
+  }
+  if (!is.null(input_dir) && !dir.exists(input_dir)) {
+    cli::cli_abort(c(
       "{.arg input_dir} must be an existing directory with the
-      spatialization inputs."
-    )
+      spatialization inputs.",
+      "x" = "{.path {input_dir}} does not exist."
+    ))
   }
 
   inputs <- .load_landuse_inputs(

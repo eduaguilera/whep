@@ -10,7 +10,11 @@ build_feed_intake_local(
   demand_tier = c("ipcc", "fcr"),
   feed_mode = c("historical", "scenario"),
   overwrite = FALSE,
-  example = FALSE
+  example = FALSE,
+  run_dir = NULL,
+  input_dir = NULL,
+  grass_availability = NULL,
+  grass_availability_path = NULL
 )
 }
 \arguments{
@@ -34,6 +38,20 @@ intake). \code{"scenario"} distributes the surplus.}
 
 \item{example}{If \code{TRUE}, return a small example output without sourcing the
 remote and gridded data. Default is \code{FALSE}.}
+
+\item{run_dir}{Optional path to a finished local LPJmL output directory
+holding \code{pft_npp.nc} and \code{cftfrac.nc}. If \code{NULL}, pinned grass availability
+is used unless \code{grass_availability} or \code{grass_availability_path} is
+supplied.}
+
+\item{input_dir}{Optional directory holding locally prepared spatialization
+inputs. If \code{NULL}, pinned gridded livestock/spatial inputs are used.}
+
+\item{grass_availability}{Optional already-derived grass availability
+tibble/data frame passed to \code{\link[=build_grass_availability_lpjml]{build_grass_availability_lpjml()}}.}
+
+\item{grass_availability_path}{Optional path to an already-derived grass
+availability artifact passed to \code{\link[=build_grass_availability_lpjml]{build_grass_availability_lpjml()}}.}
 }
 \value{
 When \code{out_dir} is \code{NULL}, a tibble in the \code{get_feed_intake()} contract plus a
@@ -43,9 +61,10 @@ file paths.
 \description{
 Runs the \code{redistribute_feed} local path (0.5-degree cell grain) one year
 at a time, so the per-cell allocation stays within memory and the full
-multi-year run is restartable. Sources the LPJmL grass run and gridded
-livestock inputs from the \code{WHEP_LPJML_RUN_DIR} and \code{WHEP_SPATIAL_INPUT_DIR}
-environment variables.
+multi-year run is restartable. By default it sources pinned LPJmL-derived
+grass availability and pinned gridded livestock inputs. Pass \code{run_dir},
+\code{grass_availability}, \code{grass_availability_path}, or \code{input_dir} to use
+custom local inputs instead.
 }
 \examples{
 build_feed_intake_local(example = TRUE)

@@ -52,3 +52,14 @@ livestock_units,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%
 n_fix_ygpit_all,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/nitrogen_spain/_pins.yaml,20260202T110154Z-2383a
 manure-west-et-al-2014,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260430T141153Z-82eff
 global-dams,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260430T152540Z-9c64c
+spatialize-country-areas,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260625T100949Z-0b306
+spatialize-crop-patterns,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260625T100957Z-06c05
+spatialize-gridded-cropland,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260625T101008Z-ae830
+spatialize-country-grid,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260625T101041Z-8ff94
+spatialize-type-cropland,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260625T101045Z-4f570
+spatialize-multicropping,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260625T101227Z-262bf
+spatialize-livestock-country-data,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260625T101231Z-0a89d
+spatialize-gridded-pasture,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260625T101239Z-66a25
+spatialize-manure-pattern,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260625T101326Z-bc8de
+lpjml-grass-availability,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260625T101329Z-15e29
+lpjml-grass-productivity,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260625T101433Z-c477c
