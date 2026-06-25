@@ -41,6 +41,15 @@ reference:
   - build_gridded_landuse
   - build_gridded_livestock
 
+- title: Constant-territory back-casting
+  desc: >
+    Rebuild historical series onto a fixed reference-year's boundaries by
+    dasymetric spatial reallocation, optionally weighted by LPJmL/WHEP
+    gridded covariates.
+  contents:
+  - build_constant_territory_series
+  - make_lpjml_covariate
+
 - title: LPJmL grass availability
   desc: >
     Read managed-grassland net primary production from a finished LPJmL run

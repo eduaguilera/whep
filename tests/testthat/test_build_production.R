@@ -250,6 +250,99 @@ test_that(".extend_historical keeps modern rows when LUH2 land columns are absen
   expect_equal(result$value, 100)
 })
 
+test_that(".prepare_historical_production normalizes generic historical rows", {
+  historical <- tibble::tribble(
+    ~year, ~area_code, ~item_prod_code, ~unit, ~value, ~source,
+    1950L, 203L, "15.0", "tonnes", 100, "future_source",
+    1950L, 203L, "15.0", "tonnes", 120, "historical_future_source",
+    1800L, 203L, "15.0", "tonnes", 999, "future_source"
+  )
+
+  result <- whep:::.prepare_historical_production(
+    historical,
+    years = 1950:1951
+  )
+
+  expect_equal(nrow(result), 1L)
+  expect_equal(result$year, 1950L)
+  expect_equal(result$area, "Spain")
+  expect_equal(result$item_prod, "Wheat")
+  expect_equal(result$item_prod_code, "15")
+  expect_equal(result$item_cbs_code, 2511L)
+  expect_equal(result$unit, "tonnes")
+  expect_equal(result$value, 110)
+  expect_true(stringr::str_starts(result$source, "historical_"))
+  # Prod-side item codes must be character to bind with the FAOSTAT pipeline
+  # (primary_raw2). live_anim_code being integer broke build on real data.
+  expect_type(result$item_prod_code, "character")
+  expect_type(result$live_anim_code, "character")
+})
+
+test_that(".extend_historical uses historical rows as LUH2 anchors", {
+  primary <- tibble::tibble(
+    year = c(1950L, 1961L),
+    area = "Spain",
+    area_code = 203L,
+    item_prod = "Wheat",
+    item_prod_code = "15",
+    item_cbs = "Wheat and products",
+    item_cbs_code = 2511L,
+    live_anim = NA_character_,
+    live_anim_code = NA_integer_,
+    unit = "tonnes",
+    value = c(50, 100),
+    source = c("historical_test", "FAOSTAT_prod")
+  )
+  years <- tibble::tibble(year = 1949:1961)
+  land <- tibble::tibble(
+    year = 1949:1961,
+    area = "Spain",
+    Land_Use = "c3ann",
+    Area_Mha = 1
+  )
+
+  result <- whep:::.extend_historical(primary, years, land)
+
+  observed <- result |>
+    dplyr::filter(.data$year == 1950L, .data$unit == "tonnes")
+  filled <- result |>
+    dplyr::filter(.data$year == 1951L, .data$unit == "tonnes")
+
+  expect_equal(observed$value, 50)
+  expect_equal(observed$source, "historical_test")
+  expect_equal(filled$source, "historical_LUH2_cropland")
+  expect_false(is.na(filled$value))
+})
+
+test_that(".add_historical_yields preserves direct historical tonnes", {
+  df <- tibble::tibble(
+    year = 1950L,
+    area = "Spain",
+    area_code = 203L,
+    item_prod = "Wheat",
+    item_prod_code = "15",
+    item_cbs = "Wheat and products",
+    item_cbs_code = 2511L,
+    land_use = "Cropland",
+    live_anim = NA_character_,
+    live_anim_code = NA_integer_,
+    unit = c("tonnes", "ha"),
+    value = c(50, 10),
+    source = "historical_test"
+  )
+  int_yields <- tibble::tibble(
+    year = 1950L,
+    area = "Spain",
+    item_prod_code = "15",
+    yield = 999
+  )
+
+  result <- whep:::.add_historical_yields(df, int_yields)
+
+  expect_equal(result$tonnes, 50)
+  expect_equal(result$t_ha, 5)
+})
+
 
 # -- rice unit convention ------------------------------------------------------
 
@@ -271,6 +364,9 @@ test_that(".fix_rice_milled_equiv converts paddy production only", {
     2000L, "China", 41L, "Rice", "27",
     "Rice and products", 2807L, NA, NA,
     "tonnes", 80, "imputed_cbs_ratio",
+    2000L, "China", 41L, "Rice", "27",
+    "Rice and products", 2807L, NA, NA,
+    "tonnes", 200, "historical_mitchell",
     2000L, "China", 41L, "Wheat", "15",
     "Wheat and products", 2511L, NA, NA,
     "tonnes", 50, "FAOSTAT_prod"
@@ -297,6 +393,11 @@ test_that(".fix_rice_milled_equiv converts paddy production only", {
   testthat::expect_equal(
     rice$value[rice$source == "imputed_cbs_ratio"],
     80
+  )
+  # observed historical rice is paddy too and must be milled-converted
+  testthat::expect_equal(
+    rice$value[rice$source == "historical_mitchell"],
+    200 * rate
   )
   testthat::expect_equal(
     result$value[result$item_prod_code == "15"],

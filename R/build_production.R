@@ -17,6 +17,14 @@
 #' @param show_duplicates Logical. If `TRUE`, return only the rows that
 #'   have competing sources in wide format (one column per source) for
 #'   diagnostic comparison. Default `FALSE`.
+#' @param historical_data Optional harmonized historical production rows to add
+#'   before the LUH2 historical extension. May be a data frame or a path to a
+#'   parquet/csv file. Required semantic columns are `year`,
+#'   `item_prod_code`, `unit`, `value`, and one of `area_code` or
+#'   `polity_area_code`. Names such as `item_prod_name`, `item_cbs_name`, and
+#'   `source` are used when present; WHEP item and area tables fill canonical
+#'   names where possible. Observed historical rows are retained, and LUH2 proxy
+#'   filling can use them as anchors. Default `NULL`.
 #' @param .raw_data Optional tibble with the same structure as the output
 #'   of the internal `.read_production()` step. When supplied, the
 #'   remote-data read is skipped entirely and the pipeline starts from
@@ -44,6 +52,7 @@ build_primary_production <- function(
   smooth_carry_forward = FALSE,
   example = FALSE,
   show_duplicates = FALSE,
+  historical_data = NULL,
   .raw_data = NULL
 ) {
   if (example) {
@@ -51,8 +60,13 @@ build_primary_production <- function(
   }
   cli::cli_h1("Building primary production")
   if (is.null(.raw_data)) {
-    raw <- .read_production(start_year, end_year)
+    raw <- .read_production(start_year, end_year, historical_data)
   } else {
+    if (!is.null(historical_data)) {
+      cli::cli_warn(
+        "{.arg historical_data} is ignored when {.arg .raw_data} is supplied."
+      )
+    }
     raw <- .raw_data
   }
   cb_extracts <- attr(raw, ".cb_extracts")
@@ -124,7 +138,8 @@ build_primary_production <- function(
 #' @noRd
 .read_production <- function(
   start_year = 1850,
-  end_year = 2023
+  end_year = 2023,
+  historical_data = NULL
 ) {
   output_years <- start_year:end_year
   years_df <- tibble::tibble(year = output_years)
@@ -175,6 +190,17 @@ build_primary_production <- function(
 
   # 8. Assemble to final format (no dissolved-country filter — see .fix_production)
   primary_raw2 <- .assemble_production_raw(yield_all)
+
+  historical_rows <- .prepare_historical_production(
+    historical_data,
+    years = output_years
+  )
+  if (nrow(historical_rows) > 0L) {
+    cli::cli_alert_info(
+      "Adding {nrow(historical_rows)} harmonized historical production row{?s}"
+    )
+    primary_raw2 <- dplyr::bind_rows(primary_raw2, historical_rows)
+  }
 
   # 9. Historical extension
   land_areas <- .read_land_areas(years = years)
@@ -1887,6 +1913,303 @@ build_primary_production <- function(
     )
 }
 
+.prepare_historical_production <- function(historical_data, years) {
+  if (is.null(historical_data)) {
+    return(.empty_historical_production())
+  }
+
+  raw <- .read_historical_production(historical_data)
+  if (nrow(raw) == 0L) {
+    return(.empty_historical_production())
+  }
+
+  required <- c("year", "item_prod_code", "unit", "value")
+  missing <- setdiff(required, names(raw))
+  has_area_code <- "area_code" %in%
+    names(raw) ||
+    "polity_area_code" %in% names(raw)
+  if (length(missing) > 0L || !has_area_code) {
+    cli::cli_abort(
+      c(
+        "{.arg historical_data} is missing required columns.",
+        "x" = "Required columns: {.field {required}} and one of {.field area_code} or {.field polity_area_code}.",
+        if (length(missing) > 0L) {
+          "x" <- "Missing: {.field {missing}}."
+        }
+      )
+    )
+  }
+
+  raw <- tibble::as_tibble(raw)
+  n_in <- nrow(raw)
+  area_code <- .coalesce_historical_cols(
+    raw,
+    c("area_code", "polity_area_code")
+  )
+  item_prod <- .coalesce_historical_cols(
+    raw,
+    c("item_prod", "item_prod_name")
+  )
+  item_cbs <- .coalesce_historical_cols(
+    raw,
+    c("item_cbs", "item_cbs_name")
+  )
+  source <- .coalesce_historical_cols(raw, c("source", "raw_source"))
+  source <- dplyr::if_else(is.na(source) | source == "", "unknown", source)
+  source <- dplyr::if_else(
+    stringr::str_starts(source, "historical_"),
+    source,
+    paste0("historical_", source)
+  )
+
+  dt <- data.table::data.table(
+    year = suppressWarnings(as.integer(raw$year)),
+    area = .coalesce_historical_cols(
+      raw,
+      c("area", "area_name", "reporting_polity_name", "raw_country")
+    ),
+    area_code = suppressWarnings(as.integer(as.numeric(area_code))),
+    item_prod = item_prod,
+    item_prod_code = .normalise_historical_code(raw$item_prod_code),
+    item_cbs = item_cbs,
+    item_cbs_code = if ("item_cbs_code" %in% names(raw)) {
+      suppressWarnings(as.integer(as.numeric(raw$item_cbs_code)))
+    } else {
+      NA_integer_
+    },
+    live_anim = .coalesce_historical_cols(
+      raw,
+      c("live_anim", "live_anim_name")
+    ),
+    live_anim_code = if ("live_anim_code" %in% names(raw)) {
+      .normalise_historical_code(raw$live_anim_code)
+    } else {
+      NA_character_
+    },
+    unit = as.character(raw$unit),
+    value = suppressWarnings(as.numeric(raw$value)),
+    source = source
+  )
+
+  dt <- dt[
+    year %in%
+      years &
+      !is.na(area_code) &
+      !is.na(item_prod_code) &
+      item_prod_code != "" &
+      !is.na(unit) &
+      unit != "" &
+      !is.na(value) &
+      is.finite(value)
+  ]
+  if (nrow(dt) == 0L) {
+    return(.empty_historical_production())
+  }
+
+  area_lookup <- .current_area_lookup(include_unmapped = TRUE)[
+    !is.na(area_code),
+    .(
+      area_code = as.integer(area_code),
+      area_lookup = area_name
+    )
+  ]
+  area_lookup <- unique(area_lookup, by = "area_code")
+  dt <- merge(dt, area_lookup, by = "area_code", all.x = TRUE, sort = FALSE)
+  dt[, area := data.table::fcoalesce(area_lookup, area)]
+  dt[, area_lookup := NULL]
+
+  item_lookup <- data.table::as.data.table(whep::items_prod_full)[,
+    .(
+      item_prod_code = as.character(item_prod_code),
+      item_cbs_code = suppressWarnings(as.integer(as.numeric(item_cbs_code))),
+      item_prod_lookup = item_prod,
+      item_cbs_lookup = item_cbs,
+      live_anim_lookup = live_anim,
+      live_anim_code_lookup = .normalise_historical_code(live_anim_code)
+    )
+  ]
+  item_lookup_both <- unique(
+    item_lookup[!is.na(item_cbs_code)],
+    by = c("item_prod_code", "item_cbs_code")
+  )
+  item_lookup_prod <- unique(
+    item_lookup[,
+      .(
+        item_prod_code,
+        item_prod_lookup_prod = item_prod_lookup,
+        item_cbs_code_lookup_prod = item_cbs_code,
+        item_cbs_lookup_prod = item_cbs_lookup,
+        live_anim_lookup_prod = live_anim_lookup,
+        live_anim_code_lookup_prod = live_anim_code_lookup
+      )
+    ],
+    by = "item_prod_code"
+  )
+  dt <- merge(
+    dt,
+    item_lookup_both,
+    by = c("item_prod_code", "item_cbs_code"),
+    all.x = TRUE,
+    sort = FALSE
+  )
+  dt <- merge(
+    dt,
+    item_lookup_prod,
+    by = "item_prod_code",
+    all.x = TRUE,
+    sort = FALSE
+  )
+  dt[, `:=`(
+    item_prod = data.table::fcoalesce(
+      item_prod_lookup,
+      item_prod_lookup_prod,
+      item_prod
+    ),
+    item_cbs_code = data.table::fcoalesce(
+      item_cbs_code,
+      item_cbs_code_lookup_prod
+    ),
+    item_cbs = data.table::fcoalesce(
+      item_cbs_lookup,
+      item_cbs_lookup_prod,
+      item_cbs
+    ),
+    live_anim = data.table::fcoalesce(
+      live_anim_lookup,
+      live_anim_lookup_prod,
+      live_anim
+    ),
+    live_anim_code = data.table::fcoalesce(
+      live_anim_code,
+      live_anim_code_lookup,
+      live_anim_code_lookup_prod
+    )
+  )]
+  lookup_cols <- grep("_lookup", names(dt), value = TRUE)
+  dt[, (lookup_cols) := NULL]
+  dt <- dt[
+    !is.na(area) &
+      !is.na(item_prod) &
+      !is.na(item_cbs) &
+      !is.na(item_cbs_code)
+  ]
+  if (nrow(dt) == 0L) {
+    return(.empty_historical_production())
+  }
+
+  key_cols <- c(
+    "year",
+    "area",
+    "area_code",
+    "item_prod",
+    "item_prod_code",
+    "item_cbs",
+    "item_cbs_code",
+    "live_anim",
+    "live_anim_code",
+    "unit"
+  )
+  out <- dt[,
+    .(
+      value = mean(value, na.rm = TRUE),
+      source = .best_prod_source(source)
+    ),
+    by = key_cols
+  ]
+  out <- out[!is.nan(value)]
+  if (nrow(out) < n_in) {
+    cli::cli_alert_info(
+      "Kept {nrow(out)} of {n_in} harmonized historical production row{?s} after year/schema filtering and duplicate collapse"
+    )
+  }
+
+  tibble::as_tibble(out[, .historical_production_cols(), with = FALSE])
+}
+
+.read_historical_production <- function(historical_data) {
+  if (inherits(historical_data, "data.frame")) {
+    return(tibble::as_tibble(historical_data))
+  }
+
+  if (!is.character(historical_data) || length(historical_data) != 1L) {
+    cli::cli_abort(
+      "{.arg historical_data} must be {.code NULL}, a data frame, or a single file path."
+    )
+  }
+
+  path <- path.expand(historical_data)
+  if (!file.exists(path)) {
+    cli::cli_abort("{.file {path}} does not exist.")
+  }
+
+  ext <- tolower(tools::file_ext(path))
+  if (identical(ext, "parquet")) {
+    return(tibble::as_tibble(nanoparquet::read_parquet(path)))
+  }
+  if (identical(ext, "csv")) {
+    return(readr::read_csv(path, show_col_types = FALSE))
+  }
+
+  cli::cli_abort(
+    "{.arg historical_data} path must be a {.file .parquet} or {.file .csv} file."
+  )
+}
+
+.empty_historical_production <- function() {
+  tibble::tibble(
+    year = integer(),
+    area = character(),
+    area_code = integer(),
+    item_prod = character(),
+    item_prod_code = character(),
+    item_cbs = character(),
+    item_cbs_code = integer(),
+    live_anim = character(),
+    live_anim_code = character(),
+    unit = character(),
+    value = double(),
+    source = character()
+  )
+}
+
+.historical_production_cols <- function() {
+  c(
+    "year",
+    "area",
+    "area_code",
+    "item_prod",
+    "item_prod_code",
+    "item_cbs",
+    "item_cbs_code",
+    "live_anim",
+    "live_anim_code",
+    "unit",
+    "value",
+    "source"
+  )
+}
+
+.coalesce_historical_cols <- function(df, cols) {
+  present <- intersect(cols, names(df))
+  if (length(present) == 0L) {
+    return(rep(NA_character_, nrow(df)))
+  }
+  vals <- lapply(present, \(col) as.character(df[[col]]))
+  out <- vals[[1L]]
+  if (length(vals) > 1L) {
+    for (val in vals[-1L]) {
+      out <- dplyr::coalesce(out, val)
+    }
+  }
+  out
+}
+
+.normalise_historical_code <- function(x) {
+  x_chr <- stringr::str_squish(as.character(x))
+  x_num <- suppressWarnings(as.integer(as.numeric(x_chr)))
+  dplyr::if_else(!is.na(x_num), as.character(x_num), x_chr)
+}
+
 .filter_dissolved_countries <- function(df) {
   force(df)
   cli::cli_progress_step("Filtering dissolved countries")
@@ -1958,7 +2281,9 @@ build_primary_production <- function(
     "fill_linear",
     "fill_linear_historical",
     "LUH2_cropland",
-    "LUH2_agriland"
+    "LUH2_agriland",
+    "historical_LUH2_cropland",
+    "historical_LUH2_agriland"
   )
 
   df |>
@@ -1968,6 +2293,10 @@ build_primary_production <- function(
         stringr::str_starts(
           tidyr::replace_na(.data$source, ""),
           "imputed_yield"
+        ) |
+        stringr::str_starts(
+          tidyr::replace_na(.data$source, ""),
+          "historical_"
         ),
       rice_source_is_paddy = tidyr::replace_na(
         .data$rice_source_is_paddy,
@@ -2081,24 +2410,43 @@ build_primary_production <- function(
 }
 
 .fill_pre_faostat <- function(df, land_wide) {
-  pre_base <- df |>
+  id_cols <- c(
+    "area",
+    "area_code",
+    "item_prod",
+    "item_prod_code",
+    "item_cbs",
+    "item_cbs_code",
+    "land_use",
+    "live_anim",
+    "live_anim_code",
+    "unit"
+  )
+
+  pre_years <- df |>
     dplyr::filter(year < 1962) |>
-    dplyr::select(-dplyr::any_of("source"))
+    dplyr::pull(year) |>
+    unique() |>
+    sort()
+
+  pre_base <- df |>
+    dplyr::filter(
+      year < 1962,
+      !is.na(area),
+      !is.na(area_code),
+      !is.na(item_prod),
+      !is.na(item_prod_code),
+      !is.na(unit)
+    ) |>
+    dplyr::mutate(
+      .observed_value = !is.na(.data$value),
+      .observed_source = .data$source
+    )
 
   pre <- .complete_year_nesting_dt(
     pre_base,
-    id_cols = c(
-      "area",
-      "area_code",
-      "item_prod",
-      "item_prod_code",
-      "item_cbs",
-      "item_cbs_code",
-      "land_use",
-      "live_anim",
-      "live_anim_code",
-      "unit"
-    )
+    id_cols = id_cols,
+    years = pre_years
   )
 
   pre <- merge(
@@ -2113,15 +2461,25 @@ build_primary_production <- function(
     value_agriland = value,
     value_livestockyield = value
   )]
+  pre[,
+    .historical_anchor := any(
+      .observed_value %in%
+        TRUE &
+        !is.na(.observed_source) &
+        stringr::str_starts(.observed_source, "historical_")
+    ),
+    by = id_cols
+  ]
 
   livestock_units <- c("t_head", "t_LU")
+  fill_cols <- setdiff(id_cols, c("live_anim", "live_anim_code"))
 
   pre_liv <- pre |>
     dplyr::filter(unit %in% livestock_units) |>
     fill_linear(
       value_livestockyield,
       time_col = year,
-      .by = c("area", "area_code", "item_prod", "land_use", "unit")
+      .by = fill_cols
     )
 
   pre_crop <- pre |>
@@ -2130,7 +2488,7 @@ build_primary_production <- function(
       value_col = value_cropland,
       proxy_col = "Cropland",
       time_col = year,
-      .by = c("area", "area_code", "item_prod", "land_use", "unit"),
+      .by = fill_cols,
       verbose = FALSE
     )
 
@@ -2143,7 +2501,7 @@ build_primary_production <- function(
       value_col = value_agriland,
       proxy_col = "agriland",
       time_col = year,
-      .by = c("area", "area_code", "item_prod", "land_use", "unit"),
+      .by = fill_cols,
       verbose = FALSE
     )
 
@@ -2155,10 +2513,24 @@ build_primary_production <- function(
         TRUE ~ value_agriland
       ),
       source = dplyr::case_when(
+        .data$.observed_value %in% TRUE & !is.na(.data$.observed_source) ~
+          .data$.observed_source,
+        .data$.historical_anchor %in% TRUE & land_use == "Cropland" ~
+          "historical_LUH2_cropland",
+        .data$.historical_anchor %in% TRUE & unit %in% livestock_units ~
+          "historical_fill_linear",
+        .data$.historical_anchor %in% TRUE ~ "historical_LUH2_agriland",
         land_use == "Cropland" ~ "LUH2_cropland",
         unit %in% livestock_units ~ "fill_linear_historical",
         TRUE ~ "LUH2_agriland"
       )
+    ) |>
+    dplyr::select(
+      -dplyr::any_of(c(
+        ".observed_value",
+        ".observed_source",
+        ".historical_anchor"
+      ))
     )
 
   post <- df |> dplyr::filter(year > 1961)
@@ -2166,9 +2538,14 @@ build_primary_production <- function(
   dplyr::bind_rows(pre, post)
 }
 
-.complete_year_nesting_dt <- function(df, id_cols) {
+.complete_year_nesting_dt <- function(df, id_cols, years = NULL) {
   dt <- data.table::as.data.table(df)
-  years_dt <- data.table::data.table(year = sort(unique(dt$year)))
+  complete_years <- if (is.null(years)) {
+    sort(unique(dt$year))
+  } else {
+    sort(unique(years))
+  }
+  years_dt <- data.table::data.table(year = complete_years)
   keys_dt <- unique(dt[, id_cols, with = FALSE])
   years_dt[, .cross_key := 1L]
   keys_dt[, .cross_key := 1L]
@@ -2228,18 +2605,26 @@ build_primary_production <- function(
 .add_historical_yields <- function(df, int_yields) {
   force(df)
   cli::cli_progress_step("Adding historical yields")
-  # Capture source per key (take the source from tonnes/t rows as
-  # the primary source indicator)
+  # Capture source per key. Prefer tonnes/t rows as the production source
+  # indicator, but fall back to any unit so stock-only historical rows keep
+  # provenance.
   if (!data.table::is.data.table(df)) {
     data.table::setDT(df)
   }
 
-  src_lookup <- df[
+  source_key <- c("year", "area", "area_code", "item_prod", "item_prod_code")
+  src_lookup_prod <- df[
     unit %in% c("tonnes", "t"),
     .(
-      source = data.table::first(source)
+      source_prod = .best_prod_source(source)
     ),
-    by = c("year", "area", "area_code", "item_prod", "item_prod_code")
+    by = source_key
+  ]
+  src_lookup_any <- df[,
+    .(
+      source_any = .best_prod_source(source)
+    ),
+    by = source_key
   ]
 
   agg <- df[,
@@ -2277,11 +2662,25 @@ build_primary_production <- function(
 
   wide <- merge(
     wide,
-    src_lookup,
-    by = c("year", "area", "area_code", "item_prod", "item_prod_code"),
+    src_lookup_prod,
+    by = source_key,
     all.x = TRUE,
     sort = FALSE
   )
+  wide <- merge(
+    wide,
+    src_lookup_any,
+    by = source_key,
+    all.x = TRUE,
+    sort = FALSE
+  )
+  wide[,
+    .preserve_historical_tonnes := !is.na(source_prod) &
+      stringr::str_starts(source_prod, "historical_")
+  ]
+  wide[, source := dplyr::coalesce(source_prod, source_any)]
+  wide[, source_prod := NULL]
+  wide[, source_any := NULL]
   wide <- merge(
     wide,
     if (data.table::is.data.table(int_yields)) {
@@ -2295,7 +2694,13 @@ build_primary_production <- function(
   )
 
   wide[, t_ha_raw := tonnes / ha]
-  wide[, t_ha := data.table::fifelse(year < 1961, NA_real_, t_ha_raw)]
+  wide[,
+    t_ha := data.table::fifelse(
+      year < 1961 & !.preserve_historical_tonnes,
+      NA_real_,
+      t_ha_raw
+    )
+  ]
 
   wide <- fill_proxy_growth(
     wide,
@@ -2309,8 +2714,23 @@ build_primary_production <- function(
     data.table::setDT(wide)
   }
   wide[, t_ha := data.table::fifelse(!is.na(t_ha), t_ha, t_ha_raw)]
-  wide[, tonnes := data.table::fifelse(!is.na(ha), ha * t_ha, tonnes)]
+  wide[,
+    tonnes := data.table::fifelse(
+      !.preserve_historical_tonnes & !is.na(ha),
+      ha * t_ha,
+      tonnes
+    )
+  ]
+  wide[, .preserve_historical_tonnes := NULL]
   wide
+}
+
+.best_prod_source <- function(source) {
+  source <- source[!is.na(source)]
+  if (length(source) == 0L) {
+    return(NA_character_)
+  }
+  source[order(.prod_source_rank(source), source)][[1L]]
 }
 
 .first_non_missing <- function(x) {
@@ -2416,16 +2836,17 @@ build_primary_production <- function(
   dplyr::case_when(
     source == "FAOSTAT_prod" ~ 1L,
     source == "EuropeAgriDB" ~ 2L,
-    stringr::str_starts(source, "imputed_yield") ~ 3L,
-    source == "imputed_cbs_ratio" ~ 4L,
-    source == "DM_yield_estimate" ~ 5L,
-    source == "fill_linear" ~ 6L,
-    source == "fill_linear_historical" ~ 7L,
-    source == "LUH2_cropland" ~ 8L,
-    source == "LUH2_agriland" ~ 9L,
-    source == "LUH2_grassland" ~ 10L,
-    source == "Estimated" ~ 11L,
-    TRUE ~ 12L
+    stringr::str_starts(source, "historical_") ~ 3L,
+    stringr::str_starts(source, "imputed_yield") ~ 4L,
+    source == "imputed_cbs_ratio" ~ 5L,
+    source == "DM_yield_estimate" ~ 6L,
+    source == "fill_linear" ~ 7L,
+    source == "fill_linear_historical" ~ 8L,
+    source == "LUH2_cropland" ~ 9L,
+    source == "LUH2_agriland" ~ 10L,
+    source == "LUH2_grassland" ~ 11L,
+    source == "Estimated" ~ 12L,
+    TRUE ~ 13L
   )
 }
 

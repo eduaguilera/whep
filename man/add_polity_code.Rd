@@ -8,7 +8,8 @@ add_polity_code(
   table,
   code_column = "area_code",
   year_column = "year",
-  polity_code_column = "polity_code"
+  polity_code_column = "polity_code",
+  backcast_anchor = 1961L
 )
 }
 \arguments{
@@ -20,6 +21,12 @@ add_polity_code(
 force current/default mapping.}
 
 \item{polity_code_column}{Name of the output polity-code column.}
+
+\item{backcast_anchor}{First year of reported (non-back-cast) FAOSTAT data,
+default \code{1961}. Years before it are matched to the polity active in the
+anchor year, because WHEP's pre-anchor series are back-cast onto the
+anchor-year territory rather than reported under their data-year borders.
+Set to \code{-Inf} to disable and match strictly by data year.}
 }
 \value{
 A tibble with added polity metadata columns.
