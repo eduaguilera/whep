@@ -250,6 +250,74 @@ test_that(".extend_historical keeps modern rows when LUH2 land columns are absen
   expect_equal(result$value, 100)
 })
 
+test_that(".extend_historical matches LUH2 land by area_code, not name", {
+  # Production calls the country "Türkiye"; LUH2 calls it "Turkey".
+  # Joining by name would drop it; joining by area_code keeps it and
+  # back-casts the pre-1962 (NA) years from the cropland proxy.
+  primary <- tibble::tibble(
+    year = c(1959L, 1960L, 1961L),
+    area = "Türkiye",
+    area_code = 99L,
+    item_prod = "Wheat",
+    item_prod_code = 15L,
+    item_cbs = "Wheat and products",
+    item_cbs_code = 2511L,
+    live_anim = NA_character_,
+    live_anim_code = NA_integer_,
+    unit = "tonnes",
+    value = c(NA, NA, 100),
+    source = "FAOSTAT_prod"
+  )
+  years <- tibble::tibble(year = c(1959L, 1960L, 1961L))
+  land <- tibble::tibble(
+    year = c(1959L, 1960L, 1961L),
+    area = "Turkey",
+    area_code = 99L,
+    Land_Use = "c3ann",
+    Area_Mha = c(8, 9, 10)
+  )
+
+  result <- whep:::.extend_historical(primary, years, land) |>
+    dplyr::filter(area_code == 99L) |>
+    dplyr::arrange(year)
+
+  # All three years populated; none lost to the name mismatch.
+  expect_equal(result$year, c(1959L, 1960L, 1961L))
+  expect_false(anyNA(result$value))
+  expect_equal(result$value[result$year == 1961L], 100)
+  expect_true(all(result$value > 0))
+})
+
+test_that(".extend_historical warns about areas with no LUH2 land match", {
+  primary <- tibble::tibble(
+    year = c(1960L, 1961L),
+    area = "Atlantis",
+    area_code = 999L,
+    item_prod = "Wheat",
+    item_prod_code = 15L,
+    item_cbs = "Wheat and products",
+    item_cbs_code = 2511L,
+    live_anim = NA_character_,
+    live_anim_code = NA_integer_,
+    unit = "tonnes",
+    value = c(NA, 100),
+    source = "FAOSTAT_prod"
+  )
+  years <- tibble::tibble(year = c(1960L, 1961L))
+  land <- tibble::tibble(
+    year = c(1960L, 1961L),
+    area = "Spain",
+    area_code = 203L,
+    Land_Use = "c3ann",
+    Area_Mha = c(9, 10)
+  )
+
+  expect_warning(
+    whep:::.extend_historical(primary, years, land),
+    "no LUH2 land"
+  )
+})
+
 test_that(".prepare_historical_production normalizes generic historical rows", {
   historical <- tibble::tribble(
     ~year, ~area_code, ~item_prod_code, ~unit, ~value, ~source,

@@ -3,6 +3,45 @@
 
 utils::globalVariables(
   c(
+    # conservation.R (footprint + supply-use invariants)
+    "origin_area",
+    "origin_item",
+    "direct",
+    "embodied",
+    "discrepancy",
+    "rel_discrepancy",
+    "status",
+    "use",
+    "abs_diff",
+    "rel_diff",
+    "balanced",
+    # footprint_balance.R (land-balance method + comparison)
+    "from_code",
+    "to_code",
+    "value_a",
+    "value_b",
+    # footprint_uncertainty.R (Monte Carlo + sensitivity)
+    ".draw",
+    "elasticity",
+    # build_production.R historical-anchor + prod-side lookups (merged from main)
+    ".historical_anchor",
+    ".observed_source",
+    ".observed_value",
+    ".preserve_historical_tonnes",
+    ".source_rank",
+    "item_cbs_code_from_prod",
+    "item_cbs_code_lookup_prod",
+    "item_cbs_from_prod",
+    "item_cbs_lookup",
+    "item_cbs_lookup_prod",
+    "item_prod_lookup",
+    "item_prod_lookup_prod",
+    "live_anim_code_lookup",
+    "live_anim_code_lookup_prod",
+    "live_anim_lookup",
+    "live_anim_lookup_prod",
+    "source_any",
+    "source_prod",
     # crop_npp.R (potential NPP + residues/roots/components)
     "temp_c",
     "water_input_mm",

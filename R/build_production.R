@@ -2364,6 +2364,11 @@ build_primary_production <- function(
   )
   varnames_pasture <- c("pastr", "range")
 
+  # Join land to production by area_code when available (robust to
+  # country-name spelling differences); fall back to the area name
+  # only when no code is present.
+  area_key <- if ("area_code" %in% names(land_areas)) "area_code" else "area"
+
   land_wide <- land_areas |>
     dplyr::mutate(
       land_use = dplyr::case_when(
@@ -2375,9 +2380,9 @@ build_primary_production <- function(
     dplyr::filter(land_use != "Other") |>
     dplyr::summarise(
       area_mha = sum(Area_Mha, na.rm = TRUE),
-      .by = c(year, area, land_use)
+      .by = dplyr::all_of(c("year", area_key, "land_use"))
     ) |>
-    dplyr::filter(!is.na(area)) |>
+    dplyr::filter(!is.na(.data[[area_key]])) |>
     tidyr::pivot_wider(
       names_from = land_use,
       values_from = area_mha
@@ -2401,7 +2406,7 @@ build_primary_production <- function(
       )
     ) |>
     dplyr::full_join(years_df, by = "year") |>
-    .fill_pre_faostat(land_wide) |>
+    .fill_pre_faostat(land_wide, join_keys = c("year", area_key)) |>
     dplyr::filter(
       !is.na(area),
       area != "",
@@ -2409,7 +2414,7 @@ build_primary_production <- function(
     )
 }
 
-.fill_pre_faostat <- function(df, land_wide) {
+.fill_pre_faostat <- function(df, land_wide, join_keys = c("year", "area")) {
   id_cols <- c(
     "area",
     "area_code",
@@ -2422,6 +2427,8 @@ build_primary_production <- function(
     "live_anim_code",
     "unit"
   )
+  livestock_units <- c("t_head", "t_LU")
+  fill_cols <- setdiff(id_cols, c("live_anim", "live_anim_code"))
 
   pre_years <- df |>
     dplyr::filter(year < 1962) |>
@@ -2452,10 +2459,11 @@ build_primary_production <- function(
   pre <- merge(
     data.table::as.data.table(pre),
     data.table::as.data.table(land_wide),
-    by = c("year", "area"),
+    by = join_keys,
     all.x = TRUE,
     sort = FALSE
   )
+  .warn_unmatched_land(pre, land_wide, join_keys, livestock_units)
   pre[, `:=`(
     value_cropland = value,
     value_agriland = value,
@@ -2470,9 +2478,6 @@ build_primary_production <- function(
     ),
     by = id_cols
   ]
-
-  livestock_units <- c("t_head", "t_LU")
-  fill_cols <- setdiff(id_cols, c("live_anim", "live_anim_code"))
 
   pre_liv <- pre |>
     dplyr::filter(unit %in% livestock_units) |>
@@ -2536,6 +2541,33 @@ build_primary_production <- function(
   post <- df |> dplyr::filter(year > 1961)
 
   dplyr::bind_rows(pre, post)
+}
+
+# Warn loudly when pre-1962 crop/agriland rows fail to match any LUH2
+# land record, so the silent loss of back-cast production (e.g. from a
+# country-name spelling mismatch) becomes a visible, diagnosable signal
+# instead of disappearing.
+.warn_unmatched_land <- function(pre, land_wide, join_keys, livestock_units) {
+  area_col <- setdiff(join_keys, "year")
+  if (length(area_col) != 1 || !area_col %in% names(land_wide)) {
+    return(invisible(NULL))
+  }
+  land_rows <- pre[
+    !(pre$unit %in% livestock_units) & !is.na(pre[[area_col]]),
+  ]
+  unmatched <- land_rows[
+    !(land_rows[[area_col]] %in% unique(land_wide[[area_col]])),
+  ]
+  if (nrow(unmatched) == 0) {
+    return(invisible(NULL))
+  }
+  bad <- unique(unmatched$area)
+  cli::cli_warn(c(
+    "!" = "Historical extension: {length(bad)} area{?s} have no LUH2 land
+      match; their pre-1962 production is not back-cast.",
+    "i" = "First unmatched: {.val {head(bad, 5)}}."
+  ))
+  invisible(NULL)
 }
 
 .complete_year_nesting_dt <- function(df, id_cols, years = NULL) {
