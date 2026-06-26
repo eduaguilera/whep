@@ -385,3 +385,23 @@ assert_footprint_invariants <- function(
     )
   }
 }
+
+# Warn at build time about CBS rows whose supply and use differ by more
+# than `threshold` (relative), surfacing material data anomalies such as
+# corrupted trade values instead of letting them flow silently.
+.qc_supply_use_balance <- function(cbs, threshold = 0.5) {
+  flagged <- check_supply_use_balance(cbs) |>
+    dplyr::filter(!is.na(rel_diff), rel_diff > threshold)
+  if (nrow(flagged) == 0) {
+    return(invisible(NULL))
+  }
+  top <- flagged |>
+    dplyr::count(item_cbs_code, sort = TRUE) |>
+    dplyr::slice_head(n = 5)
+  cli::cli_warn(c(
+    "!" = "{nrow(flagged)} CBS row{?s} have supply-use imbalance above
+      {round(100 * threshold)}%.",
+    "i" = "Most-affected item code{?s}: {.val {top$item_cbs_code}}."
+  ))
+  invisible(flagged)
+}

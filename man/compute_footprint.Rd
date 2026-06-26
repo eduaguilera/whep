@@ -15,7 +15,8 @@ compute_footprint(
   output_tol = 1e-08,
   value_added_floor = 0.001,
   max_column_sum = 100,
-  conserve_extensions = TRUE
+  conserve_extensions = TRUE,
+  report_conservation = FALSE
 )
 }
 \arguments{
@@ -67,6 +68,12 @@ the corresponding positive extension total. This keeps footprint
 outputs conservative when capped coefficients or negative final
 demand columns would otherwise make positive-only paths larger
 than the source extension.}
+
+\item{report_conservation}{If \code{TRUE}, emit a message after
+computing the footprint reporting the conservation gap (the
+share of the direct extension that is not embodied in final
+demand), via \code{\link[=check_footprint_conservation]{check_footprint_conservation()}}. Off by default
+so the gap is opt-in but never silent when requested.}
 }
 \value{
 A tibble with footprint results containing:

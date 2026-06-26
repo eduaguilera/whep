@@ -204,3 +204,63 @@ testthat::test_that("supply-use balance requires the accounting columns", {
     "missing column"
   )
 })
+
+# report_conservation flag --------------------------------------------
+
+testthat::test_that("compute_footprint reports conservation when asked", {
+  z_mat <- matrix(c(0, 5, 10, 0), nrow = 2)
+  x_vec <- c(100, 200)
+  y_mat <- matrix(c(85, 195), ncol = 1)
+  extensions <- c(50, 30)
+  labels <- tibble::tibble(area_code = c(1L, 1L), item_cbs_code = c(1L, 2L))
+
+  testthat::expect_message(
+    whep::compute_footprint(
+      z_mat = z_mat,
+      x_vec = x_vec,
+      y_mat = y_mat,
+      extensions = extensions,
+      labels = labels,
+      report_conservation = TRUE
+    ),
+    "Conservation"
+  )
+  testthat::expect_error(
+    whep::compute_footprint(
+      z_mat = z_mat,
+      x_vec = x_vec,
+      y_mat = y_mat,
+      extensions = extensions,
+      labels = labels,
+      report_conservation = "yes"
+    ),
+    "must be"
+  )
+})
+
+# .qc_supply_use_balance ----------------------------------------------
+
+.cbs_gross_imbalance_fixture <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code,
+    ~production, ~import, ~stock_withdrawal,
+    ~export, ~food, ~feed, ~seed, ~processing, ~other_uses,
+    ~stock_addition,
+    # supply 100, use 1000 -> rel_diff 9.0, well above the 50% gate
+    2016L, 1L, 2597L, 100, 0, 0, 1000, 0, 0, 0, 0, 0, 0
+  )
+}
+
+testthat::test_that("supply-use QC warns about material imbalances", {
+  testthat::expect_warning(
+    whep:::.qc_supply_use_balance(.cbs_gross_imbalance_fixture()),
+    "supply-use imbalance"
+  )
+})
+
+testthat::test_that("supply-use QC is silent below the threshold", {
+  # both fixture rows are within ~3%, far below the 50% gate
+  testthat::expect_no_warning(
+    whep:::.qc_supply_use_balance(.cbs_balance_fixture())
+  )
+})

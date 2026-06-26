@@ -59,6 +59,11 @@
 #'   outputs conservative when capped coefficients or negative final
 #'   demand columns would otherwise make positive-only paths larger
 #'   than the source extension.
+#' @param report_conservation If `TRUE`, emit a message after
+#'   computing the footprint reporting the conservation gap (the
+#'   share of the direct extension that is not embodied in final
+#'   demand), via [check_footprint_conservation()]. Off by default
+#'   so the gap is opt-in but never silent when requested.
 #'
 #' @return A tibble with footprint results containing:
 #'   - `origin_area`: Country where the pressure occurs.
@@ -104,7 +109,8 @@ compute_footprint <- function(
   output_tol = 1e-8,
   value_added_floor = 1e-3,
   max_column_sum = 100,
-  conserve_extensions = TRUE
+  conserve_extensions = TRUE,
+  report_conservation = FALSE
 ) {
   n <- length(x_vec)
   .validate_footprint_inputs(
@@ -119,6 +125,9 @@ compute_footprint <- function(
     max_column_sum,
     conserve_extensions
   )
+  if (!rlang::is_bool(report_conservation)) {
+    cli::cli_abort("{.arg report_conservation} must be `TRUE` or `FALSE`.")
+  }
   n_fd <- ncol(y_mat)
   n_ext <- sum(extensions != 0)
 
@@ -173,11 +182,47 @@ compute_footprint <- function(
       output_tol
     )
   }
+  if (isTRUE(report_conservation)) {
+    .report_footprint_conservation(
+      result,
+      labels,
+      extensions,
+      x_vec,
+      output_tol
+    )
+  }
 
   cli::cli_alert_success(
     "Footprint complete: {nrow(result)} non-zero flows."
   )
   result
+}
+
+# Emit a one-line conservation gap report for the computed footprint.
+.report_footprint_conservation <- function(
+  result,
+  labels,
+  extensions,
+  x_vec,
+  output_tol
+) {
+  summary <- check_footprint_conservation(
+    result,
+    extensions,
+    labels,
+    x_vec,
+    output_tol = output_tol
+  ) |>
+    summarise_conservation()
+  rel <- summary$global_rel_discrepancy
+  not_embodied <- if (length(rel) == 0 || is.na(rel)) 0 else -min(rel, 0)
+  cli::cli_inform(c(
+    "i" = "Conservation: {round(100 * not_embodied, 1)}% of direct extension
+      is not embodied in final demand.",
+    "i" = "Sectors: {summary$n_under_traced} under-traced,
+      {summary$n_dropped} dropped, {summary$n_over_traced} over-traced."
+  ))
+  invisible(summary)
 }
 
 # --- Extension intensity ---
