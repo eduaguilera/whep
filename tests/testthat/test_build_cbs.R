@@ -400,6 +400,80 @@ test_that(".select_best_source uses dataset-specific source names", {
 })
 
 
+# -- historical CBS rows -------------------------------------------------------
+
+test_that(".prepare_historical_cbs accepts generic production-shaped rows", {
+  historical <- tibble::tribble(
+    ~year, ~area_code, ~item_prod_code, ~unit, ~value, ~source,
+    1950L, 203L, "15.0", "tonnes", 100, "future_source",
+    1950L, 203L, "15.0", "tonnes", 120, "historical_future_source",
+    1950L, 203L, "15.0", "ha", 10, "future_source",
+    1800L, 203L, "15.0", "tonnes", 999, "future_source"
+  )
+
+  result <- whep:::.prepare_historical_cbs(
+    historical,
+    years = 1950:1951
+  )
+
+  expect_equal(nrow(result), 1L)
+  expect_equal(result$year, 1950L)
+  expect_equal(result$area, "Spain")
+  expect_equal(result$item_cbs, "Wheat and products")
+  expect_equal(result$item_cbs_code, 2511L)
+  expect_equal(result$element, "production")
+  expect_equal(result$value, 110)
+  expect_true(stringr::str_starts(result$source, "historical_"))
+})
+
+test_that(".cbs_extend_historical preserves observed historical sources", {
+  cbs_raw0 <- tibble::tibble(
+    year = c(1950L, 1961L),
+    area = "Spain",
+    area_code = 203L,
+    item_cbs = "Wheat and products",
+    item_cbs_code = 2511L,
+    element = "food",
+    value = c(50, 100),
+    source = c("historical_test", "FAOSTAT_FBS_Old")
+  )
+  inputs <- list(
+    primary_cbs_area = tibble::tibble(
+      year = 1950:1961,
+      area = "Spain",
+      area_code = 203L,
+      item_cbs = "Wheat and products",
+      item_cbs_code = 2511L,
+      area_ha = 1
+    ),
+    gdp_pop = tibble::tibble(
+      year = 1950:1961,
+      area = "Spain",
+      pop = 1:12
+    ),
+    land_areas_wide = tibble::tibble(
+      year = 1950:1961,
+      area = "Spain",
+      Cropland = 1,
+      Pasture = 0,
+      agriland = 1
+    )
+  )
+
+  result <- whep:::.cbs_extend_historical(cbs_raw0, inputs, 1950:1961)
+
+  observed <- result |>
+    dplyr::filter(.data$year == 1950L, .data$element == "food")
+  filled <- result |>
+    dplyr::filter(.data$year == 1951L, .data$element == "food")
+
+  expect_equal(observed$value, 50)
+  expect_equal(observed$source, "historical_test")
+  expect_false(is.na(filled$value))
+  expect_equal(filled$source, "historical_fill")
+})
+
+
 # -- .format_cbs_output -------------------------------------------------------
 
 test_that(".format_cbs_output returns long format with source column", {

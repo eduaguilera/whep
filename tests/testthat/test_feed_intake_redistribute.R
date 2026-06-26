@@ -244,8 +244,11 @@ test_that(".build_demand_energy handles double-typed production codes", {
 test_that(".build_demand_energy adds lactation energy from a milk-yield row", {
   # A t_head milk-yield row must reach the energy model (its live_anim_code join
   # keys on a character). Dropping live_anim_code would zero lactation energy and
-  # understate dairy demand ~1.85x; this guards that regression. Codes are
-  # doubles (real-data shape).
+  # understate dairy demand ~1.85x; this guards that regression. The milk row
+  # carries the dairy animal's DESIGNATED milk product code (882 for "Cattle,
+  # dairy" 960): the yield-tagging join matches on (live_anim_code,
+  # item_prod_code), so a row tagged with any other product code is not seen as
+  # milk. Codes are doubles (real-data shape).
   base <- tibble::tribble(
     ~year,
     ~area_code,
@@ -276,7 +279,7 @@ test_that(".build_demand_energy adds lactation energy from a milk-yield row", {
       79,
       960,
       960,
-      "960",
+      "882",
       "t_head",
       5
     )
@@ -1165,6 +1168,35 @@ test_that("reshape reports grass-deficit substitute as residues, not grass", {
   expect_equal(out$intake_dry_matter, 90, tolerance = 1e-6)
   # Fresh matter at the dry-roughage density 0.9, not the grass density 0.2.
   expect_equal(out$intake, 90 / 0.9, tolerance = 1e-6)
+})
+
+test_that(".cells_to_polity_area re-keys cells to the demand's polity_area_code", {
+  # Sudan (276) and South Sudan (277) both collapse to polity_area_code 206
+  # (FABIO's combined Sudan), which is what the demand carries, while
+  # country_grid uses 276/277. Re-keying lets those cells match the demand
+  # instead of being dropped. Codes whose polity_area_code equals their
+  # area_code (e.g. USA 231) are unchanged.
+  cells <- tibble::tribble(
+    ~area_code,
+    ~lon,
+    ~lat,
+    ~heads,
+    276L,
+    30,
+    12,
+    100,
+    277L,
+    31,
+    6,
+    50,
+    231L,
+    -100,
+    40,
+    70
+  )
+  out <- whep:::.cells_to_polity_area(cells)
+  expect_equal(out$area_code, c(206L, 206L, 231L))
+  expect_equal(out$heads, c(100, 50, 70))
 })
 
 test_that(".grass_to_cells maps grass to per-cell local grass_availability", {

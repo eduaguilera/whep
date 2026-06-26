@@ -8,6 +8,7 @@ build_feed_intake_local(
   years = NULL,
   out_dir = NULL,
   demand_tier = c("ipcc", "fcr"),
+  feed_mode = c("historical", "scenario"),
   overwrite = FALSE,
   example = FALSE,
   run_dir = NULL,
@@ -25,6 +26,12 @@ parquet files to. If \code{NULL}, the bound result is returned in memory (only
 practical for a few years).}
 
 \item{demand_tier}{Demand-estimation tier, \code{"ipcc"} (default) or \code{"fcr"}.}
+
+\item{feed_mode}{Whether to distribute surplus feed availability.
+\code{"historical"} (default) suppresses the surplus-distribution pass: the CBS
+feed element is treated as realised consumption, so leftover availability is
+not dumped onto variable-demand livestock (which would inflate non-grass
+intake). \code{"scenario"} distributes the surplus.}
 
 \item{overwrite}{Re-run years whose output file already exists. Default
 \code{FALSE} skips them so the batch is restartable.}

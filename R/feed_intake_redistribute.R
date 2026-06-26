@@ -12,14 +12,22 @@
 #                       grass ceiling/deficit cascade + the distance-decay
 #                       feed-access buffer on the roughage trade.
 #
-# The national grain is wired (Engines 1-3 plus the Phase-6 reshape). The
-# local grain (sub_territory = 0.5-degree cell) is still in progress and
-# errors; the package default (grain = "national", demand_tier = "fcr") keeps
-# routing to the legacy allocator.
+# Both grains are wired. The national grain (Engines 1-3 + the Phase-6 reshape)
+# is the package default (grain = "national", demand_tier = "ipcc") and runs in
+# memory. The local grain (sub_territory = 0.5-degree cell) runs via
+# build_feed_intake_local(), which chunks the per-cell allocation by year;
+# get_feed_intake(grain = "local") redirects there. The cell bridges re-key
+# country_grid to the demand's polity_area_code (.cells_to_polity_area), so a
+# polity whose FAOSTAT area_code differs from its polity_area_code still matches
+# its cells. Local coverage is then bounded only by the gridded inputs
+# themselves: demand for a (territory, category) with no per-cell share is
+# dropped from the local allocation and surfaced by a warning -- micro-states
+# with no 0.5-degree land cell, and the geometry-less "Rest of World" (999).
 
 .build_redistribute_intake <- function(
   grain,
   demand_tier,
+  feed_mode,
   production = NULL,
   cbs = NULL,
   years = NULL
@@ -38,7 +46,8 @@
     production,
     cbs,
     demand_tier,
-    .feed_demand_data()
+    .feed_demand_data(),
+    options = list(distribute_surplus = feed_mode == "scenario")
   )
   .reshape_redistribute_intake(engine$result, engine$code_shares)
 }
@@ -59,6 +68,11 @@
 #'   parquet files to. If `NULL`, the bound result is returned in memory (only
 #'   practical for a few years).
 #' @param demand_tier Demand-estimation tier, `"ipcc"` (default) or `"fcr"`.
+#' @param feed_mode Whether to distribute surplus feed availability.
+#'   `"historical"` (default) suppresses the surplus-distribution pass: the CBS
+#'   feed element is treated as realised consumption, so leftover availability is
+#'   not dumped onto variable-demand livestock (which would inflate non-grass
+#'   intake). `"scenario"` distributes the surplus.
 #' @param overwrite Re-run years whose output file already exists. Default
 #'   `FALSE` skips them so the batch is restartable.
 #' @param example If `TRUE`, return a small example output without sourcing the
@@ -87,6 +101,7 @@ build_feed_intake_local <- function(
   years = NULL,
   out_dir = NULL,
   demand_tier = c("ipcc", "fcr"),
+  feed_mode = c("historical", "scenario"),
   overwrite = FALSE,
   example = FALSE,
   run_dir = NULL,
@@ -98,8 +113,10 @@ build_feed_intake_local <- function(
     return(.example_local_intake())
   }
   demand_tier <- rlang::arg_match(demand_tier)
+  feed_mode <- rlang::arg_match(feed_mode)
   ctx <- .local_run_context(
     demand_tier,
+    feed_mode,
     run_dir = run_dir,
     input_dir = input_dir,
     grass_availability = grass_availability,
@@ -178,6 +195,7 @@ build_feed_demand <- function(
 # arguments.
 .local_run_context <- function(
   demand_tier,
+  feed_mode,
   run_dir = NULL,
   input_dir = NULL,
   grass_availability = NULL,
@@ -194,6 +212,7 @@ build_feed_demand <- function(
     cbs = .normalise_feed_cbs(get_wide_cbs()),
     data = .feed_demand_data(),
     demand_tier = demand_tier,
+    feed_mode = feed_mode,
     # Border-strip ratio (grazing range / cell width ~ 5 km / 55 km); the share
     # of a deficit cell's animals that can graze across the cell edge.
     grass_border_allowance = 0.1
@@ -224,7 +243,8 @@ build_feed_demand <- function(
     cbs_y,
     ctx$demand_tier,
     spatial,
-    ctx$data
+    ctx$data,
+    distribute_surplus = ctx$feed_mode == "scenario"
   )
   .reshape_redistribute_intake(
     engine$result,
@@ -958,7 +978,8 @@ build_feed_demand <- function(
   cbs,
   demand_tier,
   spatial,
-  data = .feed_demand_data()
+  data = .feed_demand_data(),
+  distribute_surplus = FALSE
 ) {
   codes <- .build_feed_demand_codes(production, demand_tier, data)
   demand_total <- .aggregate_demand_to_category(codes, data$crosswalk)
@@ -969,7 +990,10 @@ build_feed_demand <- function(
   result <- redistribute_feed(
     feed_demand,
     feed_avail,
-    options = list(grass_availability = spatial$grass_avail)
+    options = list(
+      grass_availability = spatial$grass_avail,
+      distribute_surplus = distribute_surplus
+    )
   )
   allowance <- spatial$grass_border_allowance
   if (!is.null(allowance) && allowance > 0) {
@@ -1034,6 +1058,29 @@ build_feed_demand <- function(
   sprintf("%.2f_%.2f", lon, lat)
 }
 
+# Re-key cells from their raw FAOSTAT `area_code` (what country_grid carries) to
+# the `polity_area_code` the demand is keyed on (production output groups by
+# polity_area_code, not area_code). Without this, any polity whose
+# polity_area_code differs from its FAOSTAT area_code never matches the demand and
+# its cells are silently dropped: e.g. Sudan (276) and South Sudan (277) both
+# collapse to polity_area_code 206 (FABIO's combined Sudan) while country_grid
+# uses 276/277, so their demand (keyed 206) found no cells. Falls back to the
+# area_code itself when the crosswalk has no entry.
+.cells_to_polity_area <- function(cells) {
+  lookup <- tibble::as_tibble(whep::polity_area_crosswalk) |>
+    dplyr::filter(!is.na(area_code), !is.na(polity_area_code)) |>
+    dplyr::transmute(
+      area_code = as.integer(area_code),
+      polity_area_code = as.integer(polity_area_code)
+    ) |>
+    dplyr::distinct(area_code, .keep_all = TRUE)
+  cells |>
+    dplyr::mutate(area_code = as.integer(area_code)) |>
+    dplyr::left_join(lookup, by = "area_code") |>
+    dplyr::mutate(area_code = dplyr::coalesce(polity_area_code, area_code)) |>
+    dplyr::select(-"polity_area_code")
+}
+
 # Map gridded grass availability to the local grass_availability schema:
 # each 0.5-degree cell becomes a sub_territory under its polity (territory =
 # area_code). Pass `country_grid` (majority assignment, one polity per cell) to
@@ -1053,6 +1100,7 @@ build_feed_demand <- function(
       by = c("lon", "lat"),
       relationship = "many-to-many"
     ) |>
+    .cells_to_polity_area() |>
     dplyr::transmute(
       year = as.integer(year),
       territory = as.character(as.integer(area_code)),
@@ -1080,6 +1128,7 @@ build_feed_demand <- function(
       heads = sum(heads, na.rm = TRUE),
       .by = c(year, area_code, livestock_category, lon, lat)
     ) |>
+    .cells_to_polity_area() |>
     dplyr::mutate(
       year = as.integer(year),
       territory = as.character(as.integer(area_code)),

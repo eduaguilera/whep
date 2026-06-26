@@ -10,6 +10,7 @@ build_commodity_balances(
   end_year = 2023,
   smooth_carry_forward = FALSE,
   example = FALSE,
+  historical_data = NULL,
   .fixed_data = NULL
 )
 }
@@ -26,6 +27,14 @@ are replaced with a linear trend. Default \code{FALSE}.}
 
 \item{example}{Logical. If \code{TRUE}, return a small hardcoded example
 tibble instead of reading remote data. Default \code{FALSE}.}
+
+\item{historical_data}{Optional harmonized historical CBS or production rows
+to add before the CBS historical extension. May be a data frame or a path
+to a parquet/csv file. CBS-shaped rows should provide \code{year}, \code{value},
+one of \code{area_code} or \code{polity_area_code}, one of \code{item_cbs_code} or
+\code{item_prod_code}, and preferably \code{element}. Production-shaped rows without
+\code{element} are accepted as \code{production} when their unit is tonnes. Default
+\code{NULL}.}
 
 \item{.fixed_data}{Optional tibble with the same structure as the
 output of the internal \code{.read_cbs() |> .fix_cbs()} steps. When

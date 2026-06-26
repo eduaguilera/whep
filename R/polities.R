@@ -39,7 +39,8 @@
   code_col = "area_code",
   year_col = "year",
   prefix = "",
-  include_unmapped = FALSE
+  include_unmapped = FALSE,
+  backcast_anchor = 1961L
 ) {
   if (!data.table::is.data.table(data)) {
     data.table::setDT(data)
@@ -114,11 +115,20 @@
       with = FALSE
     ]
 
+    # WHEP's pre-1962 series are NOT reported under their data-year borders:
+    # they are back-cast from the first reported FAOSTAT year (~1961) onto that
+    # year's territory. So a 1900 "Austria" figure represents 1961 Austria, not
+    # the 1900 Habsburg crownland. Floor the polity-lookup year at the anchor so
+    # pre-anchor data maps to the entity active in 1961 (e.g. AUT-1919-2025, the
+    # modern republic; USSR/Yugoslavia/Czechoslovakia for entities that only
+    # dissolved AFTER 1961) instead of a larger historical-extent period.
+    # Genuine historical-source data (reported under real historical borders) is
+    # handled separately, keyed directly to its polity, not via this lookup.
     join_data <- dt[,
       .(
         ..whep_polity_rowid = get(rowid_col),
         area_code = get(code_col),
-        year = as.numeric(get(year_col))
+        year = pmax(as.numeric(get(year_col)), as.numeric(backcast_anchor))
       )
     ]
     matches <- lookup[
@@ -221,6 +231,11 @@
 #' @param year_column Name of the column containing years. Set to `NULL` to
 #'   force current/default mapping.
 #' @param polity_code_column Name of the output polity-code column.
+#' @param backcast_anchor First year of reported (non-back-cast) FAOSTAT data,
+#'   default `1961`. Years before it are matched to the polity active in the
+#'   anchor year, because WHEP's pre-anchor series are back-cast onto the
+#'   anchor-year territory rather than reported under their data-year borders.
+#'   Set to `-Inf` to disable and match strictly by data year.
 #'
 #' @returns A tibble with added polity metadata columns.
 #' @export
@@ -228,7 +243,8 @@ add_polity_code <- function(
   table,
   code_column = "area_code",
   year_column = "year",
-  polity_code_column = "polity_code"
+  polity_code_column = "polity_code",
+  backcast_anchor = 1961L
 ) {
   dt <- data.table::as.data.table(table)
   year_col <- if (!is.null(year_column) && year_column %in% names(dt)) {
@@ -240,7 +256,8 @@ add_polity_code <- function(
     dt,
     code_col = code_column,
     year_col = year_col,
-    include_unmapped = TRUE
+    include_unmapped = TRUE,
+    backcast_anchor = backcast_anchor
   )
 
   if (polity_code_column != "polity_code" && "polity_code" %in% names(out)) {
