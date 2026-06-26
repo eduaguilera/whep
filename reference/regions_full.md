@@ -116,7 +116,7 @@ head(regions_full)
 #>   polity_code polity_name    V1  code iso3c FAOSTAT_name EU27  name  eia   iea  
 #>   <chr>       <chr>       <dbl> <int> <chr> <chr>        <lgl> <chr> <chr> <chr>
 #> 1 ROW         Rest of Wo…    30    30 ATA   NA           FALSE Anta… Anta… NA   
-#> 2 CHN         China (PRC)   259   351 NA    China        FALSE China NA    NA   
+#> 2 NA          NA            259   351 NA    China        FALSE China NA    NA   
 #> 3 ROW         Rest of Wo…   149   152 NTZ   NA           FALSE Neut… NA    NA   
 #> 4 ROW         Rest of Wo…   245   254 OXY   NA           FALSE Othe… NA    NA   
 #> 5 ROW         Rest of Wo…   260   999 ROW   NA           FALSE RoW   NA    NA   
