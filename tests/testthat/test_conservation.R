@@ -246,15 +246,19 @@ testthat::test_that("compute_footprint reports conservation when asked", {
     ~production, ~import, ~stock_withdrawal,
     ~export, ~food, ~feed, ~seed, ~processing, ~other_uses,
     ~stock_addition,
-    # supply 100, use 1000 -> rel_diff 9.0, well above the 50% gate
-    2016L, 1L, 2597L, 100, 0, 0, 1000, 0, 0, 0, 0, 0, 0
+    # two distinct items, each supply 100 / use 1000 -> rel_diff 9.0, well
+    # above the 50% gate. Multiple items exercise the plural-message path.
+    2016L, 1L, 2597L, 100, 0, 0, 1000, 0, 0, 0, 0, 0, 0,
+    2016L, 1L, 2731L, 100, 0, 0, 1000, 0, 0, 0, 0, 0, 0
   )
 }
 
 testthat::test_that("supply-use QC warns about material imbalances", {
+  # Two affected items must pluralise without aborting: the warning's
+  # quantity has to come from the item count, not the code vector itself.
   testthat::expect_warning(
     whep:::.qc_supply_use_balance(.cbs_gross_imbalance_fixture()),
-    "supply-use imbalance"
+    "Most-affected item codes"
   )
 })
 

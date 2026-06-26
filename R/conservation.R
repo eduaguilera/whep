@@ -401,7 +401,8 @@ assert_footprint_invariants <- function(
   cli::cli_warn(c(
     "!" = "{nrow(flagged)} CBS row{?s} have supply-use imbalance above
       {round(100 * threshold)}%.",
-    "i" = "Most-affected item code{?s}: {.val {top$item_cbs_code}}."
+    "i" = "Most-affected item code{cli::qty(nrow(top))}{?s}:
+      {.val {top$item_cbs_code}}."
   ))
   invisible(flagged)
 }
