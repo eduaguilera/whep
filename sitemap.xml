@@ -19,6 +19,7 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/add_item_prod_name.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/add_polity_code.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/aggregate_grass_to_polity.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/allocate_grazing_to_products.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/allocate_manure_to_land.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/allocate_manure_transport.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/animals_codes.html</loc></url>
@@ -41,6 +42,7 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/build_grass_availability.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_grass_availability_lpjml.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_grassland_land_extension.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/build_grazing_feed_footprint.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_gridded_landuse.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_gridded_livestock.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_hayr_land_extension.html</loc></url>

@@ -437,6 +437,10 @@ the FABIO framework.
   : Melt a bilateral trade matrix to long format.
 - [`compare_footprint_methods()`](https://eduaguilera.github.io/whep/reference/compare_footprint_methods.md)
   : Compare two footprint estimates.
+- [`allocate_grazing_to_products()`](https://eduaguilera.github.io/whep/reference/allocate_grazing_to_products.md)
+  : Allocate grazing land forward to livestock products.
+- [`build_grazing_feed_footprint()`](https://eduaguilera.github.io/whep/reference/build_grazing_feed_footprint.md)
+  : Build a grazing-land footprint by forward feed-allocation.
 
 ## Trustworthiness and quality control
 
