@@ -209,7 +209,7 @@ build_land_balance_footprint <- function(
   example = FALSE
 ) {
   if (example) {
-    return(.example_build_land_balance_footprint())
+    return(.ex_land_balance_footprint())
   }
   .validate_year(year)
   extension <- extension %||% .land_balance_extension(year)

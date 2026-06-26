@@ -397,6 +397,10 @@ get_bilateral_trade <- function(example = FALSE, cbs = NULL) {
   tcrossprod(exports, imports * scale)
 }
 
+# Iterative proportional fitting of the bilateral trade matrix. This
+# is RAS / biproportional fitting and delegates to the shared core in
+# balance.R; trade matrices are small and dense, so they take the
+# dense scaling path. Returns the best estimate even if not converged.
 .ipf_2d <- function(
   seed,
   target_rows,
@@ -404,29 +408,5 @@ get_bilateral_trade <- function(example = FALSE, cbs = NULL) {
   max_iter = 1000L,
   tol = 0.1
 ) {
-  m <- seed
-  nr <- nrow(m)
-  nc <- ncol(m)
-  ones <- rep.int(1, nr)
-  check_every <- 5L
-  for (i in seq_len(max_iter)) {
-    rs <- .rowSums(m, nr, nc)
-    rs[rs == 0] <- 1
-    m <- m * (target_rows / rs)
-
-    cs <- .colSums(m, nr, nc)
-    cs[cs == 0] <- 1
-    m <- m * tcrossprod(ones, target_cols / cs)
-
-    if (i %% check_every == 0L) {
-      row_err <- max(abs(
-        .rowSums(m, nr, nc) - target_rows
-      ))
-      col_err <- max(abs(
-        .colSums(m, nr, nc) - target_cols
-      ))
-      if (row_err < tol && col_err < tol) break
-    }
-  }
-  m
+  .ras_iterate(seed, target_rows, target_cols, max_iter, tol)$m
 }

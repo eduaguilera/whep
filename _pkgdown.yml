@@ -193,6 +193,8 @@ reference:
   contents:
   - build_io_model
   - compute_leontief_inverse
+  - balance_ras
+  - balance_io_flows
   - compute_footprint
   - compute_footprint_paths
   - compute_fp_product_paths

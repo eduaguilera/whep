@@ -450,7 +450,7 @@
   )
 }
 
-.example_build_land_balance_footprint <- function() {
+.ex_land_balance_footprint <- function() {
   tibble::tribble(
     ~area_code, ~item_cbs_code, ~value, ~method,
     10L, 3000L, 328899491, "land_balance",
