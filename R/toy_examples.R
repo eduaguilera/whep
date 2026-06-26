@@ -465,3 +465,19 @@
     236L, 2537L, 1304, "land_balance"
   )
 }
+
+.ex_grazing_feed_footprint <- function() {
+  tibble::tribble(
+    ~area_code, ~item_cbs_code, ~value, ~method,
+    10L, 2848L, 184625300, "grazing_feed_allocation",
+    10L, 2731L, 71204900, "grazing_feed_allocation",
+    41L, 2731L, 38950100, "grazing_feed_allocation",
+    33L, 2848L, 24310700, "grazing_feed_allocation",
+    33L, 2732L, 9875400, "grazing_feed_allocation",
+    100L, 2731L, 6420300, "grazing_feed_allocation",
+    79L, 2848L, 3155800, "grazing_feed_allocation",
+    179L, 2735L, 812600, "grazing_feed_allocation",
+    122L, 2740L, 49120, "grazing_feed_allocation",
+    137L, 2732L, 18430, "grazing_feed_allocation"
+  )
+}
