@@ -53,6 +53,31 @@ test_that("add_polity_code floors pre-1961 back-cast years to the anchor territo
   expect_equal(ussr$polity_code, "F228-1945-1991")
 })
 
+test_that("China aggregate area 351 is unmapped so it cannot double-count", {
+  # FAOSTAT reports area 351 "China" (mainland + Hong Kong + Macao + Taiwan) for
+  # every year ALONGSIDE its components (41, 96, 128, 214), which carry their own
+  # polities. Mapping 351 to a polity too summed China twice across every FAOSTAT
+  # domain, so 351 must stay unmapped (dropped as a statistical aggregate) while
+  # each component keeps its own polity.
+  mapped <- tibble::tibble(
+    area_code = c(351L, 41L, 96L, 128L, 214L),
+    year = 2020L
+  ) |>
+    add_polity_code()
+
+  expect_true(is.na(mapped$polity_code[mapped$area_code == 351L]))
+  expect_equal(mapped$polity_code[mapped$area_code == 41L], "CHN-1950-2025")
+  expect_equal(mapped$polity_code[mapped$area_code == 96L], "HKG-1842-2025")
+  expect_equal(mapped$polity_code[mapped$area_code == 128L], "MAC-1800-2025")
+  expect_equal(mapped$polity_code[mapped$area_code == 214L], "TWN-1945-2025")
+
+  # 351 carries no reporting polity in the crosswalk (its iso3c is also NA).
+  cw <- whep::polity_area_crosswalk
+  agg <- cw[cw$area_code == 351L, ]
+  expect_true(all(is.na(agg$polity_code)))
+  expect_true(all(is.na(agg$reporting_polity_code)))
+})
+
 test_that("get_polity_geometries returns requested polygon rows", {
   geoms <- get_polity_geometries(c(
     "AFG-1919-2025",

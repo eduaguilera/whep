@@ -67,9 +67,19 @@ regions_for_crosswalk <- dplyr::bind_rows(
     )
 )
 
+# Only dissolved-state aggregates whose FAOSTAT reporting does NOT overlap their
+# successor states in time belong here (Czechoslovakia -> Czechia/Slovakia in
+# 1993, USSR -> successors in 1992, Yugoslav SFR -> successors in 1992): the
+# aggregate is the sole China-style overlap, so mapping it is lossless.
+#
+# FAOSTAT area 351 "China" is deliberately NOT mapped: it is an aggregate of
+# 41 (mainland) + 96 (Hong Kong) + 128 (Macao) + 214 (Taiwan) reported ALONGSIDE
+# those components for every year (1961-2024, full overlap). Those components
+# already map to their own polities (CHN/HKG/MAC/TWN), so mapping 351 to CHN as
+# well double-counted China across every FAOSTAT domain. Left unmapped, 351 is
+# dropped as a statistical aggregate (its iso3c and polity_code are NA).
 manual_area_prefixes <- tibble::tribble(
   ~area_code, ~manual_polity_prefix, ~manual_note,
-  351L, "CHN", "Legacy generic China reporting area maps to WHEP China polities.",
   51L, "F51", "FAOSTAT Czechoslovakia reporting area maps to WHEP Czechoslovakia polities.",
   228L, "F228", "FAOSTAT USSR reporting area maps to WHEP Russian Empire/USSR polities.",
   248L, "F248", "FAOSTAT Yugoslav SFR reporting area maps to WHEP Yugoslavia polities."

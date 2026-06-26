@@ -1170,6 +1170,35 @@ test_that("reshape reports grass-deficit substitute as residues, not grass", {
   expect_equal(out$intake, 90 / 0.9, tolerance = 1e-6)
 })
 
+test_that(".cells_to_polity_area re-keys cells to the demand's polity_area_code", {
+  # Sudan (276) and South Sudan (277) both collapse to polity_area_code 206
+  # (FABIO's combined Sudan), which is what the demand carries, while
+  # country_grid uses 276/277. Re-keying lets those cells match the demand
+  # instead of being dropped. Codes whose polity_area_code equals their
+  # area_code (e.g. USA 231) are unchanged.
+  cells <- tibble::tribble(
+    ~area_code,
+    ~lon,
+    ~lat,
+    ~heads,
+    276L,
+    30,
+    12,
+    100,
+    277L,
+    31,
+    6,
+    50,
+    231L,
+    -100,
+    40,
+    70
+  )
+  out <- whep:::.cells_to_polity_area(cells)
+  expect_equal(out$area_code, c(206L, 206L, 231L))
+  expect_equal(out$heads, c(100, 50, 70))
+})
+
 test_that(".grass_to_cells maps grass to per-cell local grass_availability", {
   grass <- tibble::tribble(
     ~lon,
