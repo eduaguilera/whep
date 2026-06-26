@@ -833,6 +833,20 @@
 
         <dt>
 
+          <code><a href="balance_ras.html">balance_ras()</a></code>
+
+        </dt>
+        <dd>Balance a matrix to target margins by RAS.</dd>
+
+        <dt>
+
+          <code><a href="balance_io_flows.html">balance_io_flows()</a></code>
+
+        </dt>
+        <dd>Balance input-output flows so the footprint conserves.</dd>
+
+        <dt>
+
           <code><a href="compute_footprint.html">compute_footprint()</a></code>
 
         </dt>
@@ -914,6 +928,161 @@
 
         </dt>
         <dd>Interactive footprint Sankey viewer</dd>
+
+        <dt>
+
+          <code><a href="compute_footprint_balance.html">compute_footprint_balance()</a></code>
+
+        </dt>
+        <dd>Compute land footprints by physical trade balance.</dd>
+
+        <dt>
+
+          <code><a href="build_land_balance_footprint.html">build_land_balance_footprint()</a></code>
+
+        </dt>
+        <dd>Build a consumption land footprint by physical trade balance.</dd>
+
+        <dt>
+
+          <code><a href="melt_bilateral_trade.html">melt_bilateral_trade()</a></code>
+
+        </dt>
+        <dd>Melt a bilateral trade matrix to long format.</dd>
+
+        <dt>
+
+          <code><a href="compare_footprint_methods.html">compare_footprint_methods()</a></code>
+
+        </dt>
+        <dd>Compare two footprint estimates.</dd>
+      </dl></div><div class="section level2">
+      <h2 id="trustworthiness-and-quality-control">Trustworthiness and quality control<a class="anchor" aria-label="anchor" href="#trustworthiness-and-quality-control"></a></h2>
+
+      <div class="section-desc"><p>Checks that make footprint and balance results trustworthy: conservation invariants, accounting identities, and other data-quality diagnostics.</p></div>
+
+      <dl></dl></div><div class="section level2">
+
+
+
+
+      <dl><dt>
+
+          <code><a href="check_footprint_conservation.html">check_footprint_conservation()</a></code>
+
+        </dt>
+        <dd>Check footprint conservation against direct extensions.</dd>
+
+        <dt>
+
+          <code><a href="summarise_conservation.html">summarise_conservation()</a></code>
+
+        </dt>
+        <dd>Summarise a footprint conservation report.</dd>
+
+        <dt>
+
+          <code><a href="assert_footprint_invariants.html">assert_footprint_invariants()</a></code>
+
+        </dt>
+        <dd>Assert that footprint conservation invariants hold.</dd>
+
+        <dt>
+
+          <code><a href="check_supply_use_balance.html">check_supply_use_balance()</a></code>
+
+        </dt>
+        <dd>Check the commodity balance sheet supply-use identity.</dd>
+      </dl></div><div class="section level2">
+
+      <h3 id="uncertainty-and-sensitivity">Uncertainty and sensitivity<a class="anchor" aria-label="anchor" href="#uncertainty-and-sensitivity"></a></h3>
+      <div class="section-desc"><p>Propagate input uncertainty through a footprint, combine data-quality coefficients of variation, and rank sectors by local sensitivity.</p></div>
+
+      <dl></dl></div><div class="section level2">
+
+
+
+
+      <dl><dt>
+
+          <code><a href="propagate_fp_uncertainty.html">propagate_fp_uncertainty()</a></code>
+
+        </dt>
+        <dd>Propagate input uncertainty through a footprint.</dd>
+
+        <dt>
+
+          <code><a href="combine_cov.html">combine_cov()</a></code>
+
+        </dt>
+        <dd>Combine independent coefficient-of-variation components.</dd>
+
+        <dt>
+
+          <code><a href="footprint_sensitivity.html">footprint_sensitivity()</a></code>
+
+        </dt>
+        <dd>Local sensitivity of a footprint to each extension.</dd>
+      </dl></div><div class="section level2">
+
+      <h3 id="provenance-and-reproducibility">Provenance and reproducibility<a class="anchor" aria-label="anchor" href="#provenance-and-reproducibility"></a></h3>
+      <div class="section-desc"><p>Record and carry the code and input versions behind a result so any number can be traced back to what produced it.</p></div>
+
+      <dl></dl></div><div class="section level2">
+
+
+
+
+      <dl><dt>
+
+          <code><a href="record_provenance.html">record_provenance()</a></code>
+
+        </dt>
+        <dd>Record provenance for a reproducible result.</dd>
+
+        <dt>
+
+          <code><a href="attach_provenance.html">attach_provenance()</a></code>
+
+        </dt>
+        <dd>Attach a provenance record to a result.</dd>
+
+        <dt>
+
+          <code><a href="get_provenance.html">get_provenance()</a></code>
+
+        </dt>
+        <dd>Retrieve a result's provenance record.</dd>
+      </dl></div><div class="section level2">
+
+      <h3 id="scope-and-transparency">Scope and transparency<a class="anchor" aria-label="anchor" href="#scope-and-transparency"></a></h3>
+      <div class="section-desc"><p>Attach a machine-readable goal-and-scope record (method, boundary, allocation, vintage, limitations) to a footprint result.</p></div>
+
+      <dl></dl></div><div class="section level2">
+
+
+
+
+      <dl><dt>
+
+          <code><a href="footprint_scope.html">footprint_scope()</a></code>
+
+        </dt>
+        <dd>Describe the scope of a footprint result.</dd>
+
+        <dt>
+
+          <code><a href="attach_scope.html">attach_scope()</a></code>
+
+        </dt>
+        <dd>Attach a scope record to a result.</dd>
+
+        <dt>
+
+          <code><a href="get_scope.html">get_scope()</a></code>
+
+        </dt>
+        <dd>Retrieve a result's scope record.</dd>
       </dl></div><div class="section level2">
       <h2 id="livestock-emissions">Livestock emissions<a class="anchor" aria-label="anchor" href="#livestock-emissions"></a></h2>
 

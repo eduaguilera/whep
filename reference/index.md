@@ -288,6 +288,10 @@ the FABIO framework.
   : Build multi-regional input-output model.
 - [`compute_leontief_inverse()`](https://eduaguilera.github.io/whep/reference/compute_leontief_inverse.md)
   : Compute Leontief inverse.
+- [`balance_ras()`](https://eduaguilera.github.io/whep/reference/balance_ras.md)
+  : Balance a matrix to target margins by RAS.
+- [`balance_io_flows()`](https://eduaguilera.github.io/whep/reference/balance_io_flows.md)
+  : Balance input-output flows so the footprint conserves.
 - [`compute_footprint()`](https://eduaguilera.github.io/whep/reference/compute_footprint.md)
   : Compute environmental footprints.
 - [`compute_footprint_paths()`](https://eduaguilera.github.io/whep/reference/compute_footprint_paths.md)
@@ -313,6 +317,64 @@ the FABIO framework.
   : Attribute reported fallow land to crops.
 - [`plot_footprint_sankey()`](https://eduaguilera.github.io/whep/reference/plot_footprint_sankey.md)
   : Interactive footprint Sankey viewer
+- [`compute_footprint_balance()`](https://eduaguilera.github.io/whep/reference/compute_footprint_balance.md)
+  : Compute land footprints by physical trade balance.
+- [`build_land_balance_footprint()`](https://eduaguilera.github.io/whep/reference/build_land_balance_footprint.md)
+  : Build a consumption land footprint by physical trade balance.
+- [`melt_bilateral_trade()`](https://eduaguilera.github.io/whep/reference/melt_bilateral_trade.md)
+  : Melt a bilateral trade matrix to long format.
+- [`compare_footprint_methods()`](https://eduaguilera.github.io/whep/reference/compare_footprint_methods.md)
+  : Compare two footprint estimates.
+
+## Trustworthiness and quality control
+
+Checks that make footprint and balance results trustworthy: conservation
+invariants, accounting identities, and other data-quality diagnostics.
+
+- [`check_footprint_conservation()`](https://eduaguilera.github.io/whep/reference/check_footprint_conservation.md)
+  : Check footprint conservation against direct extensions.
+- [`summarise_conservation()`](https://eduaguilera.github.io/whep/reference/summarise_conservation.md)
+  : Summarise a footprint conservation report.
+- [`assert_footprint_invariants()`](https://eduaguilera.github.io/whep/reference/assert_footprint_invariants.md)
+  : Assert that footprint conservation invariants hold.
+- [`check_supply_use_balance()`](https://eduaguilera.github.io/whep/reference/check_supply_use_balance.md)
+  : Check the commodity balance sheet supply-use identity.
+
+### Uncertainty and sensitivity
+
+Propagate input uncertainty through a footprint, combine data-quality
+coefficients of variation, and rank sectors by local sensitivity.
+
+- [`propagate_fp_uncertainty()`](https://eduaguilera.github.io/whep/reference/propagate_fp_uncertainty.md)
+  : Propagate input uncertainty through a footprint.
+- [`combine_cov()`](https://eduaguilera.github.io/whep/reference/combine_cov.md)
+  : Combine independent coefficient-of-variation components.
+- [`footprint_sensitivity()`](https://eduaguilera.github.io/whep/reference/footprint_sensitivity.md)
+  : Local sensitivity of a footprint to each extension.
+
+### Provenance and reproducibility
+
+Record and carry the code and input versions behind a result so any
+number can be traced back to what produced it.
+
+- [`record_provenance()`](https://eduaguilera.github.io/whep/reference/record_provenance.md)
+  : Record provenance for a reproducible result.
+- [`attach_provenance()`](https://eduaguilera.github.io/whep/reference/attach_provenance.md)
+  : Attach a provenance record to a result.
+- [`get_provenance()`](https://eduaguilera.github.io/whep/reference/get_provenance.md)
+  : Retrieve a result's provenance record.
+
+### Scope and transparency
+
+Attach a machine-readable goal-and-scope record (method, boundary,
+allocation, vintage, limitations) to a footprint result.
+
+- [`footprint_scope()`](https://eduaguilera.github.io/whep/reference/footprint_scope.md)
+  : Describe the scope of a footprint result.
+- [`attach_scope()`](https://eduaguilera.github.io/whep/reference/attach_scope.md)
+  : Attach a scope record to a result.
+- [`get_scope()`](https://eduaguilera.github.io/whep/reference/get_scope.md)
+  : Retrieve a result's scope record.
 
 ## Livestock emissions
 

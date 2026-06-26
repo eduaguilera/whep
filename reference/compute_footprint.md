@@ -31,7 +31,8 @@ compute_footprint(
   output_tol = 1e-08,
   value_added_floor = 0.001,
   max_column_sum = 100,
-  conserve_extensions = TRUE
+  conserve_extensions = TRUE,
+  report_conservation = FALSE
 )
 ```
 
@@ -107,6 +108,14 @@ compute_footprint(
   extension total. This keeps footprint outputs conservative when capped
   coefficients or negative final demand columns would otherwise make
   positive-only paths larger than the source extension.
+
+- report_conservation:
+
+  If `TRUE`, emit a message after computing the footprint reporting the
+  conservation gap (the share of the direct extension that is not
+  embodied in final demand), via
+  [`check_footprint_conservation()`](https://eduaguilera.github.io/whep/reference/check_footprint_conservation.md).
+  Off by default so the gap is opt-in but never silent when requested.
 
 ## Value
 

@@ -102,7 +102,8 @@ entirely and reducing memory from \(O(n^2)\) to
 <span>  output_tol <span class="op">=</span> <span class="fl">1e-08</span>,</span>
 <span>  value_added_floor <span class="op">=</span> <span class="fl">0.001</span>,</span>
 <span>  max_column_sum <span class="op">=</span> <span class="fl">100</span>,</span>
-<span>  conserve_extensions <span class="op">=</span> <span class="cn">TRUE</span></span>
+<span>  conserve_extensions <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  report_conservation <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -179,6 +180,14 @@ the corresponding positive extension total. This keeps footprint
 outputs conservative when capped coefficients or negative final
 demand columns would otherwise make positive-only paths larger
 than the source extension.</p></dd>
+
+
+<dt id="arg-report-conservation">report_conservation<a class="anchor" aria-label="anchor" href="#arg-report-conservation"></a></dt>
+<dd><p>If <code>TRUE</code>, emit a message after
+computing the footprint reporting the conservation gap (the
+share of the direct extension that is not embodied in final
+demand), via <code><a href="check_footprint_conservation.html">check_footprint_conservation()</a></code>. Off by default
+so the gap is opt-in but never silent when requested.</p></dd>
 
 </dl></div>
     <div class="section level2">
