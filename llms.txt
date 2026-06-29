@@ -429,6 +429,8 @@ the FABIO framework.
   : Build the native grassland land extension.
 - [`build_livestock_ghg_extension()`](https://eduaguilera.github.io/whep/reference/build_livestock_ghg_extension.md)
   : Build the livestock greenhouse-gas emissions extension.
+- [`build_energy_co2_extension()`](https://eduaguilera.github.io/whep/reference/build_energy_co2_extension.md)
+  : Build the livestock energy-use CO2 footprint extension (meat only).
 - [`build_crop_soil_n2o_extension()`](https://eduaguilera.github.io/whep/reference/build_crop_soil_n2o_extension.md)
   : Build the crop/soil N2O extension.
 - [`gridded_fallow_weights()`](https://eduaguilera.github.io/whep/reference/gridded_fallow_weights.md)
@@ -597,7 +599,7 @@ Data from MacLeod et al. (2018) GLEAM 3.0 Supplement S1.
 - [`gleam_fracremove`](https://eduaguilera.github.io/whep/reference/gleam_fracremove.md)
   : Country-level fraction of crop residues removed.
 - [`gleam_energy_use_ef`](https://eduaguilera.github.io/whep/reference/gleam_energy_use_ef.md)
-  : Energy use emission factors by species and system.
+  : Energy use emission factors for livestock production.
 
 ### IPCC 2019 Refinement tables
 
