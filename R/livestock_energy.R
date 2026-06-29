@@ -175,6 +175,18 @@ estimate_energy_demand <- function(data, method = "ipcc2019") {
 
 # Private helpers ----
 
+#' Detect dairy animals without matching the "non-dairy" label.
+#'
+#' A naive case-insensitive match on "dairy" also matches "non-dairy" (e.g. the
+#' `item_cbs` name "Cattle, non-dairy"), which would misclassify beef cattle as
+#' dairy and assign them the much larger dairy emission factors. This excludes
+#' the "non-dairy" / "non dairy" forms.
+#' @noRd
+.is_dairy <- function(species) {
+  stringr::str_detect(species, "(?i)dairy") &
+    !stringr::str_detect(species, "(?i)non[- ]?dairy")
+}
+
 #' Map species string to general category.
 #' @noRd
 .get_general_species <- function(s) {
@@ -200,7 +212,7 @@ estimate_energy_demand <- function(data, method = "ipcc2019") {
 #' @noRd
 .get_subcategory <- function(s) {
   dplyr::case_when(
-    stringr::str_detect(s, "(?i)Dairy") ~ "Dairy",
+    .is_dairy(s) ~ "Dairy",
     stringr::str_detect(s, "(?i)Cattle|Buffalo") ~ "Non-Dairy",
     TRUE ~ "All"
   )
@@ -305,9 +317,7 @@ estimate_energy_demand <- function(data, method = "ipcc2019") {
   data <- data |>
     dplyr::mutate(
       defaults_key = dplyr::case_when(
-        stringr::str_detect(species, "(?i)Dairy") &
-          species_gen == "Cattle" ~
-          "Dairy Cattle",
+        .is_dairy(species) & species_gen == "Cattle" ~ "Dairy Cattle",
         species_gen == "Cattle" ~ "Other Cattle",
         TRUE ~ species_gen
       )

@@ -141,7 +141,7 @@
 #' @noRd
 .join_cattle_ef <- function(cattle_rows, cattle_ef) {
   cattle_category <- dplyr::case_when(
-    stringr::str_detect(cattle_rows$species, "(?i)Dairy") ~ "Dairy Cattle",
+    .is_dairy(cattle_rows$species) ~ "Dairy Cattle",
     TRUE ~ "Other Cattle"
   )
   cattle_rows <- cattle_rows |>

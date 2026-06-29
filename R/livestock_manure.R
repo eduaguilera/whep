@@ -107,9 +107,7 @@
   data <- data |>
     dplyr::mutate(
       manure_category = dplyr::case_when(
-        stringr::str_detect(species, "(?i)Dairy") &
-          species_gen == "Cattle" ~
-          "Dairy Cattle",
+        .is_dairy(species) & species_gen == "Cattle" ~ "Dairy Cattle",
         species_gen == "Cattle" ~ "Other Cattle",
         species %in% all_categories ~ species,
         TRUE ~ species_gen
@@ -244,9 +242,7 @@
 #' @noRd
 .get_bo_category <- function(species, species_gen) {
   dplyr::case_when(
-    stringr::str_detect(species, "(?i)Dairy") &
-      species_gen == "Cattle" ~
-      "Dairy Cattle",
+    .is_dairy(species) & species_gen == "Cattle" ~ "Dairy Cattle",
     species_gen == "Cattle" ~ "Other Cattle",
     species_gen == "Swine" &
       stringr::str_detect(species, "(?i)Breed") ~
