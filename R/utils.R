@@ -927,6 +927,7 @@ utils::globalVariables(
     "method_land",
     "method_grassland",
     "method_ghg",
+    "method_labour",
     "method_soil_n2o",
     "p",
     "phys",

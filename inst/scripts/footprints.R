@@ -67,17 +67,22 @@ if (!crop_land_source %in% valid_sources) {
 #   "energy"         livestock energy-use CO2 (kg CO2e) for meat production from
 #                    GLEAM (build_energy_co2_extension); keyed on the
 #                    same live-animal sectors as "ghg", so the two can be summed.
+#   "labour"         agricultural working hours from the Global Labour Database
+#                    (build_labour_extension); crop-only. The labour tier is set
+#                    with WHEP_LABOUR_COMPONENT (default "total").
 # GHG tier (WHEP_GHG_TIER, 1 or 2) and GWP100 standard (WHEP_GHG_GWP, ar6/ar5/
 # ar4) follow the multi-method convention; see build_livestock_ghg_extension().
 pressure <- tolower(Sys.getenv("WHEP_FOOTPRINT_PRESSURE", "land"))
-if (!pressure %in% c("land", "ghg", "energy")) {
+if (!pressure %in% c("land", "ghg", "energy", "labour")) {
   stop(
-    "`WHEP_FOOTPRINT_PRESSURE` must be \"land\", \"ghg\" or \"energy\".",
+    "`WHEP_FOOTPRINT_PRESSURE` must be \"land\", \"ghg\", \"energy\" or ",
+    "\"labour\".",
     call. = FALSE
   )
 }
 ghg_tier <- as.integer(Sys.getenv("WHEP_GHG_TIER", "1"))
 ghg_gwp <- tolower(Sys.getenv("WHEP_GHG_GWP", "ar6"))
+labour_component <- tolower(Sys.getenv("WHEP_LABOUR_COMPONENT", "total"))
 
 # Build IO model for selected years.
 io <- build_io_model(years = years)
@@ -88,6 +93,10 @@ extension_use <- if (pressure == "ghg") {
     dplyr::select(year, area_code, item_cbs_code, impact_u)
 } else if (pressure == "energy") {
   build_energy_co2_extension() |>
+    dplyr::filter(year %in% years) |>
+    dplyr::select(year, area_code, item_cbs_code, impact_u)
+} else if (pressure == "labour") {
+  build_labour_extension(component = labour_component) |>
     dplyr::filter(year %in% years) |>
     dplyr::select(year, area_code, item_cbs_code, impact_u)
 } else {

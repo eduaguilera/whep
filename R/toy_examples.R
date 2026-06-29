@@ -103,6 +103,16 @@
   )
 }
 
+.example_labour_extension <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~impact_u, ~method_labour,
+    2000L, 2L, 2511L, 6.20e8, "GLD_total", # Afghanistan wheat, total hours
+    2000L, 2L, 2514L, 4.50e7, "GLD_total", # Afghanistan maize, total hours
+    2000L, 3L, 2511L, 1.10e8, "GLD_total", # Albania wheat, total hours
+    2010L, 2L, 2511L, 7.40e8, "GLD_total"
+  )
+}
+
 .ex_get_primary_prod <- function() {
   tibble::tribble(
     ~year, ~area_code, ~item_prod_code, ~item_cbs_code, ~live_anim_code, ~unit, ~value,
