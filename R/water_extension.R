@@ -11,10 +11,11 @@
 #' Coefficient sources: crop intensities (cubic metres per tonne) come from
 #' Mialyk et al. (2024), the 4TU dataset "Water footprints and crop water use of
 #' 175 individual crops for 1990-2019" (doi:10.4121/7b45bcc6-686b-404d-a910-13c87156716a);
-#' livestock blue water (cubic metres per head) from Mekonnen & Hoekstra (2012),
-#' "A Global Assessment of the Water Footprint of Farm Animal Products"
-#' (doi:10.1007/s10021-011-9517-8); grazing green water (cubic metres per
-#' hectare) follows FABIO's pasture-water approach.
+#' livestock blue water (drinking plus service water, cubic metres per head) is
+#' derived from Chapagain & Hoekstra (2003), Value of Water Research Report
+#' Series No. 13, Tables 3.8 and 3.9; grazing green water (cubic metres per
+#' hectare) is the country-average actual evapotranspiration of grazed pasture
+#' from Schyns et al. (2019, doi:10.1073/pnas.1817380116).
 #'
 #' The footprint engine traces one impact column at a time, so the water type is
 #' selected with `component` (recorded in `method_water`), rather than returned
