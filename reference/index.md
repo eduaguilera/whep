@@ -294,6 +294,10 @@ the FABIO framework.
   : Balance input-output flows so the footprint conserves.
 - [`compute_footprint()`](https://eduaguilera.github.io/whep/reference/compute_footprint.md)
   : Compute environmental footprints.
+- [`build_footprint()`](https://eduaguilera.github.io/whep/reference/build_footprint.md)
+  : Compute a footprint end-to-end from an extension table.
+- [`align_extension()`](https://eduaguilera.github.io/whep/reference/align_extension.md)
+  : Align an extension table to input-output sector labels.
 - [`compute_footprint_paths()`](https://eduaguilera.github.io/whep/reference/compute_footprint_paths.md)
   : Compute first-use footprint paths.
 - [`compute_fp_product_paths()`](https://eduaguilera.github.io/whep/reference/compute_fp_product_paths.md)
@@ -311,6 +315,10 @@ the FABIO framework.
   : Build a hectare-year (land-occupation) crop land extension.
 - [`build_grassland_land_extension()`](https://eduaguilera.github.io/whep/reference/build_grassland_land_extension.md)
   : Build the native grassland land extension.
+- [`build_livestock_ghg_extension()`](https://eduaguilera.github.io/whep/reference/build_livestock_ghg_extension.md)
+  : Build the livestock greenhouse-gas emissions extension.
+- [`build_crop_soil_n2o_extension()`](https://eduaguilera.github.io/whep/reference/build_crop_soil_n2o_extension.md)
+  : Build the crop/soil N2O extension.
 - [`gridded_fallow_weights()`](https://eduaguilera.github.io/whep/reference/gridded_fallow_weights.md)
   : Build agro-climatic, rainfed-gated fallow allocation weights.
 - [`attribute_fallow_to_crops()`](https://eduaguilera.github.io/whep/reference/attribute_fallow_to_crops.md)

@@ -72,9 +72,10 @@ auto-selects based on data completeness.</p></dd>
 <li><p>Tier 2: <code>volatile_solids</code>, <code>methane_potential</code>,
 <code>weighted_mcf</code>, <code>manure_ch4_per_head</code>,
 <code>manure_ch4_tier2</code>.</p></li>
-<li><p>N2O (Tier 2 only): <code>method_manure_n2o</code>,
+<li><p>N2O (both tiers): <code>method_manure_n2o</code>,
 <code>n_excretion</code>, <code>manure_n2o_direct</code>,
-<code>manure_n2o_indirect</code>, <code>manure_n2o_total</code>.</p></li>
+<code>manure_n2o_indirect</code>, <code>manure_n2o_total</code>. Tier 1 uses default per-head
+excretion rates; Tier 2 uses the energy/nitrogen balance.</p></li>
 </ul></div>
 
     <div class="section level2">
@@ -83,11 +84,13 @@ auto-selects based on data completeness.</p></dd>
 <span class="r-in"><span>  species <span class="op">=</span> <span class="st">"Cattle"</span>, heads <span class="op">=</span> <span class="fl">1000</span>, iso3 <span class="op">=</span> <span class="st">"DEU"</span></span></span>
 <span class="r-in"><span><span class="op">)</span> <span class="op">|&gt;</span></span></span>
 <span class="r-in"><span>  <span class="fu">calculate_manure_emissions</span><span class="op">(</span>tier <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 1 × 7</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 1 × 14</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   species heads iso3  species_gen method_manure_ch4 manure_ef_kgch4</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                       <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span> Cattle   <span style="text-decoration: underline;">1</span>000 DEU   Cattle      IPCC_2019_Tier1                 1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 1 more variable: manure_ch4_tier1 &lt;dbl&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 8 more variables: manure_ch4_tier1 &lt;dbl&gt;, method_manure_n2o &lt;chr&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   manure_category &lt;chr&gt;, region &lt;chr&gt;, n_excretion &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   manure_n2o_direct &lt;dbl&gt;, manure_n2o_indirect &lt;dbl&gt;, manure_n2o_total &lt;dbl&gt;</span></span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

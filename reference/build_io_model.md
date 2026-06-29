@@ -17,7 +17,9 @@ build_io_model(
   bilateral_trade = NULL,
   cbs = NULL,
   years = NULL,
-  endogenize_losses = FALSE
+  endogenize_losses = FALSE,
+  method = c("mass", "value"),
+  prices = NULL
 )
 ```
 
@@ -63,6 +65,22 @@ build_io_model(
   moved from final demand to the diagonal of `Z` (self-use), following
   the FABIO convention. The `losses` column is removed from Y and
   `fd_labels`. Defaults to `FALSE`.
+
+- method:
+
+  Co-product allocation method. `"mass"` (default) splits a multi-output
+  process's inputs across its products by physical mass; `"value"`
+  splits them by economic value (mass times export price), so high-value
+  co-products (e.g. oil over cake, meat over hides) carry a larger share
+  of upstream pressures. A process whose co-products lack usable prices
+  falls back to mass.
+
+- prices:
+
+  Optional tibble of item prices as from
+  [`build_cbs_prices()`](https://eduaguilera.github.io/whep/reference/build_cbs_prices.md)
+  (`year`, `element`, `item_cbs_code`, `price`). Used only when
+  `method = "value"`; built automatically when `NULL`.
 
 ## Value
 

@@ -69,7 +69,9 @@ intermediate flow from sector <code>i</code> to sector <code>j</code>.</p>
 <span>  bilateral_trade <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  cbs <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  years <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  endogenize_losses <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span>  endogenize_losses <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  method <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"mass"</span>, <span class="st">"value"</span><span class="op">)</span>,</span>
+<span>  prices <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -112,6 +114,21 @@ contains a <code>losses</code> column, losses are moved from final
 demand to the diagonal of <code>Z</code> (self-use), following the
 FABIO convention. The <code>losses</code> column is removed from Y
 and <code>fd_labels</code>. Defaults to <code>FALSE</code>.</p></dd>
+
+
+<dt id="arg-method">method<a class="anchor" aria-label="anchor" href="#arg-method"></a></dt>
+<dd><p>Co-product allocation method. <code>"mass"</code> (default) splits a
+multi-output process's inputs across its products by physical mass;
+<code>"value"</code> splits them by economic value (mass times export price), so
+high-value co-products (e.g. oil over cake, meat over hides) carry a larger
+share of upstream pressures. A process whose co-products lack usable prices
+falls back to mass.</p></dd>
+
+
+<dt id="arg-prices">prices<a class="anchor" aria-label="anchor" href="#arg-prices"></a></dt>
+<dd><p>Optional tibble of item prices as from <code><a href="build_cbs_prices.html">build_cbs_prices()</a></code>
+(<code>year</code>, <code>element</code>, <code>item_cbs_code</code>, <code>price</code>). Used only when
+<code>method = "value"</code>; built automatically when <code>NULL</code>.</p></dd>
 
 </dl></div>
     <div class="section level2">

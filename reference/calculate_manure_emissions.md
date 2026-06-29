@@ -33,8 +33,10 @@ Dataframe with all input columns preserved, plus:
 - Tier 2: `volatile_solids`, `methane_potential`, `weighted_mcf`,
   `manure_ch4_per_head`, `manure_ch4_tier2`.
 
-- N2O (Tier 2 only): `method_manure_n2o`, `n_excretion`,
-  `manure_n2o_direct`, `manure_n2o_indirect`, `manure_n2o_total`.
+- N2O (both tiers): `method_manure_n2o`, `n_excretion`,
+  `manure_n2o_direct`, `manure_n2o_indirect`, `manure_n2o_total`. Tier 1
+  uses default per-head excretion rates; Tier 2 uses the energy/nitrogen
+  balance.
 
 ## Examples
 
@@ -43,9 +45,11 @@ tibble::tibble(
   species = "Cattle", heads = 1000, iso3 = "DEU"
 ) |>
   calculate_manure_emissions(tier = 1)
-#> # A tibble: 1 × 7
+#> # A tibble: 1 × 14
 #>   species heads iso3  species_gen method_manure_ch4 manure_ef_kgch4
 #>   <chr>   <dbl> <chr> <chr>       <chr>                       <dbl>
 #> 1 Cattle   1000 DEU   Cattle      IPCC_2019_Tier1                 1
-#> # ℹ 1 more variable: manure_ch4_tier1 <dbl>
+#> # ℹ 8 more variables: manure_ch4_tier1 <dbl>, method_manure_n2o <chr>,
+#> #   manure_category <chr>, region <chr>, n_excretion <dbl>,
+#> #   manure_n2o_direct <dbl>, manure_n2o_indirect <dbl>, manure_n2o_total <dbl>
 ```
