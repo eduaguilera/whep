@@ -5,6 +5,10 @@
   `area_code` x `item_cbs_code`), with selectable IPCC tier and GWP100 standard,
   ready to feed `compute_footprint()`. `inst/scripts/footprints.R` gains a
   `WHEP_FOOTPRINT_PRESSURE` switch to trace GHG instead of land (#100).
+* `calculate_livestock_emissions(tier = 1)` now also computes manure N2O
+  (direct and indirect) from IPCC default per-head excretion rates, so the
+  default Tier-1 GHG footprint covers enteric CH4 + manure CH4 + manure N2O
+  rather than methane alone (#100).
 * Add `build_footprint()` and `align_extension()`: trace a long-format
   extension table through the supply chain end to end, de-duplicating the
   per-year alignment glue previously repeated across the footprint driver

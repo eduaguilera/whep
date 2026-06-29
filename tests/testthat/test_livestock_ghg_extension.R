@@ -53,7 +53,7 @@ testthat::test_that("Tier 1 emissions scale linearly with head counts", {
   testthat::expect_equal(joined$impact_u_double, joined$impact_u_base * 2)
 })
 
-testthat::test_that("GWP standard rescales the CH4-only Tier 1 footprint", {
+testthat::test_that("GWP standard rescales the footprint", {
   ar6 <- whep::build_livestock_ghg_extension(
     gwp = "ar6",
     data = list(primary_prod = .ghg_prod_fixture())
@@ -63,9 +63,19 @@ testthat::test_that("GWP standard rescales the CH4-only Tier 1 footprint", {
     data = list(primary_prod = .ghg_prod_fixture())
   )
 
-  # Tier 1 has no N2O, so the whole footprint is methane and the ratio is the
-  # ratio of the CH4 GWP100 factors (AR6 = 27, AR5 = 28).
-  testthat::expect_equal(ar5$impact_u / ar6$impact_u, rep(28 / 27, nrow(ar6)))
+  joined <- dplyr::inner_join(
+    ar6,
+    ar5,
+    by = c("year", "area_code", "item_cbs_code"),
+    suffix = c("_ar6", "_ar5")
+  )
+  ratio <- joined$impact_u_ar5 / joined$impact_u_ar6
+  # Each sector's CO2e blends CH4 (AR5 28 vs AR6 27) and N2O (AR5 265 vs
+  # AR6 273), so the ratio sits between the two gas ratios and is not 1.
+  testthat::expect_true(all(
+    ratio >= 265 / 273 - 1e-9 & ratio <= 28 / 27 + 1e-9
+  ))
+  testthat::expect_true(any(abs(ratio - 1) > 1e-6))
   testthat::expect_true(all(ar5$method_ghg == "IPCC_2019_Tier1_AR5"))
 })
 

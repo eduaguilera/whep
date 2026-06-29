@@ -17,13 +17,14 @@
 #' Two IPCC tiers are available, selected with `tier`:
 #' - `1` (default): Tier 1 regional emission factors (IPCC 2019). It needs only
 #'   species, country and head counts, so it is complete for every country in
-#'   [get_primary_production()]. It covers enteric and manure **methane**; the
-#'   package does not produce manure N2O at Tier 1, so N2O is excluded here.
-#' - `2`: Tier 2 cohort energy balance (IPCC 2019). It additionally includes
-#'   direct and indirect manure **N2O**, but requires cohort weight and diet
-#'   inputs. Animals whose emissions cannot be resolved (missing diet or energy
-#'   data) are dropped with a warning rather than entering the footprint as
-#'   `NA`.
+#'   [get_primary_production()]. It covers enteric and manure **methane** and
+#'   manure **N2O** (direct and indirect, from default per-head nitrogen
+#'   excretion rates).
+#' - `2`: Tier 2 cohort energy balance (IPCC 2019). It derives enteric CH4 and
+#'   manure N2O from a per-animal energy and nitrogen balance, for finer
+#'   resolution, but requires cohort weight and diet inputs. Animals whose
+#'   emissions cannot be resolved (missing diet or energy data) are dropped with
+#'   a warning rather than entering the footprint as `NA`.
 #'
 #' The CO2e conversion uses 100-year global warming potentials selected with
 #' `gwp`:
