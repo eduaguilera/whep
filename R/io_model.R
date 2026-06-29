@@ -121,6 +121,7 @@ build_io_model <- function(
         feed_intake <- .build_redistribute_intake(
           grain = "national",
           demand_tier = "ipcc",
+          feed_mode = "historical",
           production = primary_prod_build,
           cbs = cbs,
           years = build_years
