@@ -172,6 +172,33 @@ testthat::test_that("Nex is annualized (kgN/head/yr)", {
   testthat::expect_lt(nex, 200)
 })
 
+testthat::test_that("Manure Tier 2 scales cohort rows by cohort_heads", {
+  # Regression for #106: like enteric CH4, manure CH4 and N2O totals must scale
+  # by the cohort's own head count, not the national `heads` each expanded row
+  # still carries.
+  result <- tibble::tibble(
+    species = "Cattle, dairy",
+    heads = 1000,
+    iso3 = "DEU",
+    milk_yield_kg_day = 20,
+    diet_quality = "High"
+  ) |>
+    whep::calculate_cohorts_systems() |>
+    whep::estimate_energy_demand() |>
+    whep:::.calc_manure_ch4_tier2() |>
+    whep:::.calc_manure_n2o()
+
+  testthat::expect_equal(
+    result$manure_ch4_tier2,
+    result$cohort_heads * result$manure_ch4_per_head
+  )
+  # Aggregated to the herd, manure N2O stays in a realistic per-head range; it
+  # was inflated by the cohort count (~11x) when scaled by national heads.
+  per_head_n2o <- sum(result$manure_n2o_total) / 1000
+  testthat::expect_gt(per_head_n2o, 0.5)
+  testthat::expect_lt(per_head_n2o, 10)
+})
+
 testthat::test_that("Manure Tier 1 Buffalo uses Table 10.15 EF", {
   result <- single_tier1_fixture("Buffalo", 1) |>
     whep:::.calc_manure_ch4_tier1()

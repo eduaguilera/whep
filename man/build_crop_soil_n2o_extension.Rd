@@ -22,7 +22,8 @@ removal (\code{gleam_fracremove}) is a future refinement.}
 
 \item{data}{Optional named list of pre-loaded inputs to avoid remote reads:
 \code{primary_prod} (\code{\link[=get_primary_production]{get_primary_production()}}, for harvested area),
-\code{fertilizer} (the \code{faostat-fertilizer-nutrients} pin) and \code{primary_residues}
+\code{fertilizer} (the \code{faostat-fertilizer-nutrients} pin), \code{manure} (the
+\code{faostat-emissions-livestock} pin) and \code{primary_residues}
 (\code{\link[=get_primary_residues]{get_primary_residues()}}). Each falls back to its reader when absent.}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading remote
@@ -38,12 +39,14 @@ managed soils, as a footprint extension keyed by \verb{(year, area_code, item_cb
 soil-N2O analogue of \code{\link[=build_livestock_ghg_extension]{build_livestock_ghg_extension()}} and feeds
 \code{\link[=build_footprint]{build_footprint()}} / \code{\link[=compute_footprint]{compute_footprint()}} the same way.
 
-Two nitrogen inputs to soil are included:
+Three nitrogen inputs to soil are included:
 \itemize{
 \item \strong{Synthetic fertiliser} (F_SN): FAOSTAT reports it only as a country total
 (tonnes N per \code{area_code} per year), so it is allocated to crops in
 proportion to each crop's harvested area within the country-year (from
 \code{\link[=get_primary_production]{get_primary_production()}}).
+\item \strong{Applied manure} (F_ON): FAOSTAT "Manure applied to soils (N content)"
+country total, allocated to crops by harvested area as for F_SN.
 \item \strong{Crop residues} (F_CR): the dry matter of above-ground residues returned
 to soil (from \code{\link[=get_primary_residues]{get_primary_residues()}}, net of the removed fraction) times
 the crop's residue nitrogen content (IPCC 2019 Table 11.1a).
@@ -51,14 +54,15 @@ the crop's residue nitrogen content (IPCC 2019 Table 11.1a).
 
 N2O is then estimated with IPCC 2019 Refinement (Vol 4, Ch 11) Tier 1
 factors (climate-aggregated): direct \code{EF1 = 0.010}; indirect via
-volatilisation \code{FracGASF = 0.11} times \code{EF4 = 0.010} (synthetic fertiliser
-only -- residue N does not volatilise, Eq 11.9); indirect via leaching
-\code{FracLEACH = 0.24} times \code{EF5 = 0.011}. N2O-N is converted to N2O by 44/28
-and to CO2e with the chosen GWP100.
+volatilisation \code{EF4 = 0.010} applied to the volatilised fraction
+(\code{FracGASF = 0.11} for synthetic, \code{FracGASM = 0.21} for manure; crop residues
+do not volatilise, Eq 11.9); indirect via leaching \code{FracLEACH = 0.24} times
+\code{EF5 = 0.011}. N2O-N is converted to N2O by 44/28 and to CO2e with the chosen
+GWP100.
 
-Applied manure (F_ON) and below-ground residue N are further Tier 1 inputs
-not yet included; F_ON needs a manure-management/applied-fraction model and
-is tracked as a follow-up.
+Manure deposited by grazing animals (F_PRP, which uses the grazing EF3 on
+pasture) and below-ground residue N are further Tier 1 inputs not yet
+included.
 }
 \examples{
 build_crop_soil_n2o_extension(example = TRUE)

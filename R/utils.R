@@ -20,6 +20,13 @@ utils::globalVariables(
     "to_code",
     "value_a",
     "value_b",
+    # footprint_grazing.R (forward feed-allocation)
+    "land",
+    "land_animal",
+    "intake",
+    "intake_share",
+    "output_share",
+    "method_allocation",
     # footprint_uncertainty.R (Monte Carlo + sensitivity)
     ".draw",
     "elasticity",
