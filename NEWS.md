@@ -17,13 +17,15 @@
   default Tier-1 GHG footprint covers enteric CH4 + manure CH4 + manure N2O
   rather than methane alone (#100).
 * Add `build_crop_soil_n2o_extension()`: IPCC 2019 Tier 1 nitrous-oxide from
-  nitrogen applied to managed soils -- synthetic fertiliser (FAOSTAT country
-  total allocated to crops by harvested area) and above-ground crop-residue N
-  (residue dry matter times Table 11.1a N content, net of removal) -- as a CO2e
-  footprint extension keyed by `(area_code, item_cbs_code)`. Direct (EF1) plus
-  indirect volatilisation (synthetic only) and leaching per Ch. 11; EFs verified
-  against the IPCC source. Applied manure (F_ON) is a documented follow-up
-  (#100).
+  nitrogen applied to managed soils -- synthetic fertiliser (F_SN), applied
+  manure (F_ON, FAOSTAT "Manure applied to soils"), and above-ground crop
+  residues (F_CR, residue dry matter times Table 11.1a N content, net of
+  removal) -- as a CO2e footprint extension keyed by `(area_code,
+  item_cbs_code)`. F_SN and F_ON are FAOSTAT country totals allocated to crops
+  by harvested area. Direct (EF1), indirect volatilisation (FracGASF for
+  synthetic, FracGASM for manure; residues excluded) and leaching per Ch. 11;
+  EFs verified against the IPCC source. Grazing deposition (F_PRP) and
+  below-ground residue N are documented follow-ups (#100).
 * Add `build_footprint()` and `align_extension()`: trace a long-format
   extension table through the supply chain end to end, de-duplicating the
   per-year alignment glue previously repeated across the footprint driver

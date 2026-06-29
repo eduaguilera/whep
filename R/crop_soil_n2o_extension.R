@@ -7,25 +7,28 @@
 #' soil-N2O analogue of [build_livestock_ghg_extension()] and feeds
 #' [build_footprint()] / [compute_footprint()] the same way.
 #'
-#' Two nitrogen inputs to soil are included:
+#' Three nitrogen inputs to soil are included:
 #' - **Synthetic fertiliser** (F_SN): FAOSTAT reports it only as a country total
 #'   (tonnes N per `area_code` per year), so it is allocated to crops in
 #'   proportion to each crop's harvested area within the country-year (from
 #'   [get_primary_production()]).
+#' - **Applied manure** (F_ON): FAOSTAT "Manure applied to soils (N content)"
+#'   country total, allocated to crops by harvested area as for F_SN.
 #' - **Crop residues** (F_CR): the dry matter of above-ground residues returned
 #'   to soil (from [get_primary_residues()], net of the removed fraction) times
 #'   the crop's residue nitrogen content (IPCC 2019 Table 11.1a).
 #'
 #' N2O is then estimated with IPCC 2019 Refinement (Vol 4, Ch 11) Tier 1
 #' factors (climate-aggregated): direct `EF1 = 0.010`; indirect via
-#' volatilisation `FracGASF = 0.11` times `EF4 = 0.010` (synthetic fertiliser
-#' only -- residue N does not volatilise, Eq 11.9); indirect via leaching
-#' `FracLEACH = 0.24` times `EF5 = 0.011`. N2O-N is converted to N2O by 44/28
-#' and to CO2e with the chosen GWP100.
+#' volatilisation `EF4 = 0.010` applied to the volatilised fraction
+#' (`FracGASF = 0.11` for synthetic, `FracGASM = 0.21` for manure; crop residues
+#' do not volatilise, Eq 11.9); indirect via leaching `FracLEACH = 0.24` times
+#' `EF5 = 0.011`. N2O-N is converted to N2O by 44/28 and to CO2e with the chosen
+#' GWP100.
 #'
-#' Applied manure (F_ON) and below-ground residue N are further Tier 1 inputs
-#' not yet included; F_ON needs a manure-management/applied-fraction model and
-#' is tracked as a follow-up.
+#' Manure deposited by grazing animals (F_PRP, which uses the grazing EF3 on
+#' pasture) and below-ground residue N are further Tier 1 inputs not yet
+#' included.
 #'
 #' @param gwp 100-year global warming potential standard for N2O, `"ar6"`
 #'   (default, 273), `"ar5"` (265) or `"ar4"` (298).
@@ -35,7 +38,8 @@
 #'   removal (`gleam_fracremove`) is a future refinement.
 #' @param data Optional named list of pre-loaded inputs to avoid remote reads:
 #'   `primary_prod` ([get_primary_production()], for harvested area),
-#'   `fertilizer` (the `faostat-fertilizer-nutrients` pin) and `primary_residues`
+#'   `fertilizer` (the `faostat-fertilizer-nutrients` pin), `manure` (the
+#'   `faostat-emissions-livestock` pin) and `primary_residues`
 #'   ([get_primary_residues()]). Each falls back to its reader when absent.
 #' @param example If `TRUE`, return a small fixture instead of reading remote
 #'   data. Defaults to `FALSE`.
@@ -69,15 +73,22 @@ build_crop_soil_n2o_extension <- function(
   } else {
     data$fertilizer
   }
+  manure <- if (is.null(data$manure)) {
+    whep_read_file("faostat-emissions-livestock")
+  } else {
+    data$manure
+  }
   primary_residues <- if (is.null(data$primary_residues)) {
     get_primary_residues()
   } else {
     data$primary_residues
   }
 
-  synthetic <- .synthetic_n_inputs(fertilizer, .crop_area_shares(primary_prod))
+  shares <- .crop_area_shares(primary_prod)
+  synthetic <- .synthetic_n_inputs(fertilizer, shares)
+  manure_n <- .manure_n_inputs(manure, shares)
   residue <- .residue_n_inputs(primary_residues, residue_removed_frac)
-  .soil_n2o_co2e(synthetic, residue, gwp)
+  .soil_n2o_co2e(synthetic, manure_n, residue, gwp)
 }
 
 # Synthetic fertiliser N (tonnes N) per crop: country total split by area share.
@@ -92,6 +103,40 @@ build_crop_soil_n2o_extension <- function(
       area_code,
       item_cbs_code,
       n_t = .data$synthetic_n_t * .data$area_share
+    )
+}
+
+# Applied-manure N (tonnes N) per crop: FAOSTAT country total split by area share.
+.manure_n_inputs <- function(manure, shares) {
+  shares |>
+    dplyr::inner_join(
+      .manure_applied_n_country(manure),
+      by = c("year", "area_code")
+    ) |>
+    dplyr::transmute(
+      year,
+      area_code,
+      item_cbs_code,
+      n_t = .data$manure_applied_n_t * .data$area_share
+    )
+}
+
+# Country-total manure N applied to soils (tonnes N) from the FAOSTAT emissions
+# pin (reported in kg N as "Manure applied to soils (N content)").
+.manure_applied_n_country <- function(manure) {
+  manure |>
+    dplyr::filter(
+      .data$Item == "All Animals",
+      .data$Element == "Manure applied to soils (N content)"
+    ) |>
+    dplyr::transmute(
+      year = as.integer(.data$Year),
+      area_code = as.integer(.data[["Area Code"]]),
+      manure_applied_n_t = .data$Value / 1000
+    ) |>
+    dplyr::filter(
+      !is.na(.data$manure_applied_n_t),
+      .data$manure_applied_n_t >= 0
     )
 }
 
@@ -156,18 +201,23 @@ build_crop_soil_n2o_extension <- function(
 # Apply the IPCC 2019 Tier 1 soil-N2O factors to each N-input stream and sum to
 # (year, area_code, item_cbs_code). Synthetic fertiliser N volatilises and
 # leaches; residue N only leaches (Eq 11.9), so the two get different factors.
-.soil_n2o_co2e <- function(synthetic, residue, gwp) {
+.soil_n2o_co2e <- function(synthetic, manure, residue, gwp) {
   ef <- .soil_n2o_factors()
   gwp_n2o <- .ghg_gwp_factors(gwp)[["n2o"]]
   to_co2e <- ef$n_to_n2o * 1000 * gwp_n2o
+  # Synthetic fertiliser volatilises via FracGASF, organic manure via FracGASM;
+  # crop residues do not volatilise (Eq 11.9). All three leach.
   factor_synthetic <- (ef$ef1 +
     ef$frac_gasf * ef$ef4 +
     ef$frac_leach * ef$ef5) *
+    to_co2e
+  factor_manure <- (ef$ef1 + ef$frac_gasm * ef$ef4 + ef$frac_leach * ef$ef5) *
     to_co2e
   factor_residue <- (ef$ef1 + ef$frac_leach * ef$ef5) * to_co2e
 
   dplyr::bind_rows(
     dplyr::mutate(synthetic, impact_u = .data$n_t * factor_synthetic),
+    dplyr::mutate(manure, impact_u = .data$n_t * factor_manure),
     dplyr::mutate(residue, impact_u = .data$n_t * factor_residue)
   ) |>
     dplyr::summarise(
@@ -185,6 +235,7 @@ build_crop_soil_n2o_extension <- function(
   list(
     ef1 = 0.010,
     frac_gasf = 0.11,
+    frac_gasm = 0.21,
     frac_leach = 0.24,
     ef4 = 0.010,
     ef5 = 0.011,

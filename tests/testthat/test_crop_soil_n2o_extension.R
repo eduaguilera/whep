@@ -11,7 +11,7 @@
     2010L, 10L, 3000L, "ha", 9999,
     2010L, 10L, 2511L, "tonnes", 42
   )
-  # empty residues by default, so the synthetic split is isolated
+  # empty residues + manure by default, so the synthetic split is isolated
   primary_residues <- tibble::tibble(
     year = integer(),
     area_code = integer(),
@@ -19,10 +19,18 @@
     item_cbs_code_residue = integer(),
     value = numeric()
   )
+  manure <- tibble::tibble(
+    Item = character(),
+    Element = character(),
+    Year = integer(),
+    `Area Code` = integer(),
+    Value = numeric()
+  )
   list(
     fertilizer = fertilizer,
     primary_prod = primary_prod,
-    primary_residues = primary_residues
+    primary_residues = primary_residues,
+    manure = manure
   )
 }
 
@@ -72,6 +80,23 @@ testthat::test_that("residue N adds via the leaching-only factor", {
     result$impact_u[result$item_cbs_code == 2511L],
     expected
   )
+})
+
+testthat::test_that("applied manure adds via the FracGASM volatilisation factor", {
+  f <- .soil_n2o_fixture()
+  f$fertilizer$Value <- 0 # isolate the manure contribution
+  f$manure <- tibble::tribble(
+    ~Item, ~Element, ~Year, ~`Area Code`, ~Value,
+    "All Animals", "Manure applied to soils (N content)", 2010, 10, 1e7
+  )
+  result <- whep::build_crop_soil_n2o_extension(data = f)
+
+  # FAOSTAT value is kg N -> /1000 = tonnes N, split 70/30 by area
+  # manure factor: EF1 + FracGASM*EF4 + FracLEACH*EF5
+  per_t_n <- (0.010 + 0.21 * 0.010 + 0.24 * 0.011) * (44 / 28) * 1000 * 273
+  testthat::expect_equal(sum(result$impact_u), (1e7 / 1000) * per_t_n)
+  wheat <- result$impact_u[result$item_cbs_code == 2511L]
+  testthat::expect_equal(wheat / sum(result$impact_u), 0.7)
 })
 
 testthat::test_that("GWP standard rescales soil N2O proportionally", {
