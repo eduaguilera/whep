@@ -62,9 +62,11 @@ optionally <code>iso3</code> or <code>region</code>.</p></dd>
 
 
 <dt id="arg-system-shares">system_shares<a class="anchor" aria-label="anchor" href="#arg-system-shares"></a></dt>
-<dd><p>Optional dataframe with <code>species</code>,
-<code>system</code>, <code>share</code> columns. If <code>NULL</code>, uses
-GLEAM defaults.</p></dd>
+<dd><p>Optional dataframe with <code>species_gen</code>,
+<code>system</code>, <code>system_share</code> columns. If <code>NULL</code>, uses GLEAM
+defaults and routes dairy/non-dairy commodities to their
+matching production system. Supplying this overrides both,
+so the supplied shares are used verbatim.</p></dd>
 
 </dl></div>
     <div class="section level2">

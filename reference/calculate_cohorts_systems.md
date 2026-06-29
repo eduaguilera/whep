@@ -18,8 +18,10 @@ calculate_cohorts_systems(data, system_shares = NULL)
 
 - system_shares:
 
-  Optional dataframe with `species`, `system`, `share` columns. If
-  `NULL`, uses GLEAM defaults.
+  Optional dataframe with `species_gen`, `system`, `system_share`
+  columns. If `NULL`, uses GLEAM defaults and routes dairy/non-dairy
+  commodities to their matching production system. Supplying this
+  overrides both, so the supplied shares are used verbatim.
 
 ## Value
 
