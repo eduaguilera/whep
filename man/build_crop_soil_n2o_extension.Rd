@@ -2,10 +2,11 @@
 % Please edit documentation in R/crop_soil_n2o_extension.R
 \name{build_crop_soil_n2o_extension}
 \alias{build_crop_soil_n2o_extension}
-\title{Build the crop/soil N2O extension (synthetic fertiliser).}
+\title{Build the crop/soil N2O extension.}
 \usage{
 build_crop_soil_n2o_extension(
   gwp = c("ar6", "ar5", "ar4"),
+  residue_removed_frac = 0.45,
   data = list(),
   example = FALSE
 )
@@ -14,46 +15,50 @@ build_crop_soil_n2o_extension(
 \item{gwp}{100-year global warming potential standard for N2O, \code{"ar6"}
 (default, 273), \code{"ar5"} (265) or \code{"ar4"} (298).}
 
+\item{residue_removed_frac}{Fraction of above-ground crop residue removed
+from the field (for feed, fuel or construction) and therefore not returned
+to soil. Defaults to \code{0.45}, a global mid-range value; country-specific
+removal (\code{gleam_fracremove}) is a future refinement.}
+
 \item{data}{Optional named list of pre-loaded inputs to avoid remote reads:
-\code{primary_prod} (the \code{\link[=get_primary_production]{get_primary_production()}} output, for harvested area)
-and \code{fertilizer} (the \code{faostat-fertilizer-nutrients} pin). Each falls back
-to its reader when absent.}
+\code{primary_prod} (\code{\link[=get_primary_production]{get_primary_production()}}, for harvested area),
+\code{fertilizer} (the \code{faostat-fertilizer-nutrients} pin) and \code{primary_residues}
+(\code{\link[=get_primary_residues]{get_primary_residues()}}). Each falls back to its reader when absent.}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading remote
 data. Defaults to \code{FALSE}.}
 }
 \value{
 A tibble with columns \code{year}, \code{area_code}, \code{item_cbs_code},
-\code{impact_u} (synthetic-fertiliser soil N2O in kilograms CO2e) and
-\code{method_soil_n2o}.
+\code{impact_u} (soil N2O in kilograms CO2e) and \code{method_soil_n2o}.
 }
 \description{
-Estimate IPCC 2019 Tier 1 nitrous-oxide emissions from synthetic nitrogen
-fertiliser applied to managed soils, as a footprint extension keyed by
-\verb{(year, area_code, item_cbs_code)} in kilograms of carbon-dioxide equivalent
-(CO2e). This is the soil-N2O analogue of \code{\link[=build_livestock_ghg_extension]{build_livestock_ghg_extension()}}
-and feeds \code{\link[=build_footprint]{build_footprint()}} / \code{\link[=compute_footprint]{compute_footprint()}} the same way.
+Estimate IPCC 2019 Tier 1 nitrous-oxide emissions from nitrogen applied to
+managed soils, as a footprint extension keyed by \verb{(year, area_code, item_cbs_code)} in kilograms of carbon-dioxide equivalent (CO2e). This is the
+soil-N2O analogue of \code{\link[=build_livestock_ghg_extension]{build_livestock_ghg_extension()}} and feeds
+\code{\link[=build_footprint]{build_footprint()}} / \code{\link[=compute_footprint]{compute_footprint()}} the same way.
 
-Synthetic fertiliser nitrogen is reported by FAOSTAT only as a country total
-(tonnes N per \code{area_code} per year). It is allocated to crops in proportion
-to each crop's harvested area within the country-year (from
-\code{\link[=get_primary_production]{get_primary_production()}}), so a crop with a larger share of national
-cropland carries a larger share of the fertiliser N. N2O is then estimated
-with IPCC 2019 Refinement (Vol 4, Ch 11) Tier 1 factors:
+Two nitrogen inputs to soil are included:
 \itemize{
-\item direct: \code{EF1 = 0.010} kg N2O-N per kg N (Table 11.1, climate-aggregated),
-\item indirect via volatilisation: \code{FracGASF = 0.11} times \code{EF4 = 0.010},
-\item indirect via leaching/runoff: \code{FracLEACH = 0.24} times \code{EF5 = 0.011}
-(Table 11.3),
+\item \strong{Synthetic fertiliser} (F_SN): FAOSTAT reports it only as a country total
+(tonnes N per \code{area_code} per year), so it is allocated to crops in
+proportion to each crop's harvested area within the country-year (from
+\code{\link[=get_primary_production]{get_primary_production()}}).
+\item \strong{Crop residues} (F_CR): the dry matter of above-ground residues returned
+to soil (from \code{\link[=get_primary_residues]{get_primary_residues()}}, net of the removed fraction) times
+the crop's residue nitrogen content (IPCC 2019 Table 11.1a).
 }
 
-summed and converted N2O-N to N2O by 44/28, then to CO2e with the chosen
-GWP100 (see \code{\link[=build_livestock_ghg_extension]{build_livestock_ghg_extension()}} for the \code{gwp} options).
+N2O is then estimated with IPCC 2019 Refinement (Vol 4, Ch 11) Tier 1
+factors (climate-aggregated): direct \code{EF1 = 0.010}; indirect via
+volatilisation \code{FracGASF = 0.11} times \code{EF4 = 0.010} (synthetic fertiliser
+only -- residue N does not volatilise, Eq 11.9); indirect via leaching
+\code{FracLEACH = 0.24} times \code{EF5 = 0.011}. N2O-N is converted to N2O by 44/28
+and to CO2e with the chosen GWP100.
 
-This first cut covers \strong{synthetic fertiliser} only -- the dominant managed-
-soil N2O source. Applied manure (F_ON) and crop-residue N (F_CR) are further
-Tier 1 inputs not yet included; they require a manure-to-soil allocation and
-the residue-N balance respectively, and are tracked as follow-ups.
+Applied manure (F_ON) and below-ground residue N are further Tier 1 inputs
+not yet included; F_ON needs a manure-management/applied-fraction model and
+is tracked as a follow-up.
 }
 \examples{
 build_crop_soil_n2o_extension(example = TRUE)

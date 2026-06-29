@@ -84,8 +84,8 @@
 .example_soil_n2o_extension <- function() {
   tibble::tribble(
     ~year, ~area_code, ~item_cbs_code, ~impact_u, ~method_soil_n2o,
-    2010L, 10L, 2511L, 4.126122e8, "IPCC_2019_Tier1_synthetic_AR6",
-    2010L, 10L, 2513L, 1.768338e8, "IPCC_2019_Tier1_synthetic_AR6"
+    2010L, 10L, 2511L, 4.126122e8, "IPCC_2019_Tier1_AR6",
+    2010L, 10L, 2513L, 1.768338e8, "IPCC_2019_Tier1_AR6"
   )
 }
 
