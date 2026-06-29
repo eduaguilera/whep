@@ -19,9 +19,10 @@
 
   data <- .join_enteric_ef_tier1(data, cattle_ef, other_ef)
 
+  n_animals <- .animal_count(data)
   data |>
     dplyr::mutate(
-      enteric_ch4_tier1 = heads * enteric_ef_kgch4
+      enteric_ch4_tier1 = n_animals * enteric_ef_kgch4
     ) |>
     dplyr::select(-dplyr::any_of(c("ef_cattle", "ef_other")))
 }
@@ -48,13 +49,14 @@
 
   energy_conversion <- livestock_constants$energy_content_ch4_mj_kg
 
+  n_animals <- .animal_count(data)
   data |>
     dplyr::mutate(
       enteric_ch4_per_head = gross_energy *
         (ym_factor / 100) *
         365 /
         energy_conversion,
-      enteric_ch4_tier2 = heads * enteric_ch4_per_head,
+      enteric_ch4_tier2 = n_animals * enteric_ch4_per_head,
       method_enteric = "IPCC_2019_Tier2"
     )
 }

@@ -116,6 +116,36 @@ testthat::test_that("Tier 2 total equals heads * per_head", {
   testthat::expect_equal(total, per_head * heads)
 })
 
+testthat::test_that("Tier 2 scales cohort rows by cohort_heads, not heads", {
+  # Regression for #106: each expanded cohort row still carries the national
+  # `heads`, so scaling by `heads` and summing over cohorts inflated the herd
+  # total by the cohort count (~20x for cattle).
+  expanded <- tibble::tibble(
+    species = "Cattle, dairy",
+    heads = 1000,
+    iso3 = "DEU",
+    milk_yield_kg_day = 20,
+    diet_quality = "High"
+  ) |>
+    whep::calculate_cohorts_systems()
+
+  result <- expanded |>
+    whep::estimate_energy_demand() |>
+    whep:::.calc_enteric_ch4_tier2()
+
+  # The per-row total uses cohort_heads, not the national heads it carries.
+  testthat::expect_equal(
+    result$enteric_ch4_tier2,
+    result$cohort_heads * result$enteric_ch4_per_head
+  )
+
+  # Aggregated to the herd, the per-head figure stays in the IPCC range
+  # (it was ~1,300 before the fix).
+  per_head <- sum(result$enteric_ch4_tier2) / 1000
+  testthat::expect_gt(per_head, 50)
+  testthat::expect_lt(per_head, 200)
+})
+
 testthat::test_that("Tier 2 adds Method_Enteric column", {
   result <- dairy_tier2_fixture() |>
     estimate_energy_demand() |>

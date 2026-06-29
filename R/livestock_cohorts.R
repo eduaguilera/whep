@@ -96,6 +96,24 @@ calculate_cohorts_systems <- function(data, system_shares = NULL) {
   )
 }
 
+#' Number of animals a single emissions row represents.
+#'
+#' Per-head IPCC emissions are scaled to totals by the animal count of the row.
+#' After [calculate_cohorts_systems()] expands a national herd, each row is one
+#' GLEAM cohort, so that count is `cohort_heads` (national `heads` times the
+#' cohort fraction), not the national `heads` the row still carries. Scaling
+#' expanded rows by `heads` and then summing over cohorts inflated Tier 2
+#' totals by the cohort count (issue #106). Without expansion only `heads` is
+#' present and is itself the animal count.
+#' @noRd
+.animal_count <- function(data) {
+  if (rlang::has_name(data, "cohort_heads")) {
+    data$cohort_heads
+  } else {
+    data$heads
+  }
+}
+
 #' Get cohort fractions within each production system.
 #' @noRd
 .get_cohort_fractions <- function(categories) {

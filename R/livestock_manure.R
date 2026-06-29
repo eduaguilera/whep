@@ -9,9 +9,10 @@
 
   data <- .join_manure_ch4_ef_tier1(data)
 
+  n_animals <- .animal_count(data)
   data |>
     dplyr::mutate(
-      manure_ch4_tier1 = heads * manure_ef_kgch4
+      manure_ch4_tier1 = n_animals * manure_ef_kgch4
     )
 }
 
@@ -117,6 +118,7 @@
 
   ch4_density <- 0.67 # kg/m3 CH4 at STP
 
+  n_animals <- .animal_count(data)
   data |>
     dplyr::mutate(
       manure_ch4_per_head = volatile_solids *
@@ -124,7 +126,7 @@
         methane_potential *
         ch4_density *
         weighted_mcf,
-      manure_ch4_tier2 = heads * manure_ch4_per_head
+      manure_ch4_tier2 = n_animals * manure_ch4_per_head
     )
 }
 
@@ -493,9 +495,10 @@
       mean(na.rm = TRUE)
     pasture_ef <- dplyr::coalesce(pasture_ef, 0.02)
 
+    n_animals <- .animal_count(data)
     data <- data |>
       dplyr::mutate(
-        manure_n2o_direct = heads * n_excretion * pasture_ef * n2o_to_n
+        manure_n2o_direct = n_animals * n_excretion * pasture_ef * n2o_to_n
       )
   }
 
@@ -534,10 +537,11 @@
       .by = row_id_n2o
     )
 
+  n_animals <- .animal_count(data)
   data |>
     dplyr::left_join(n2o_weighted, by = "row_id_n2o") |>
     dplyr::mutate(
-      manure_n2o_direct = heads *
+      manure_n2o_direct = n_animals *
         n_excretion *
         dplyr::coalesce(weighted_ef3, 0.005) *
         n2o_to_n
@@ -557,10 +561,11 @@
   frac_gas <- .get_indirect_param("frac_gasms")
   frac_leach <- .get_indirect_param("frac_leach")
 
+  n_animals <- .animal_count(data)
   data |>
     dplyr::mutate(
-      n2o_volatilization = heads * n_excretion * frac_gas * ef4 * n2o_to_n,
-      n2o_leaching = heads * n_excretion * frac_leach * ef5 * n2o_to_n,
+      n2o_volatilization = n_animals * n_excretion * frac_gas * ef4 * n2o_to_n,
+      n2o_leaching = n_animals * n_excretion * frac_leach * ef5 * n2o_to_n,
       manure_n2o_indirect = n2o_volatilization +
         n2o_leaching
     ) |>
