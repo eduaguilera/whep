@@ -128,7 +128,13 @@ get_bilateral_trade <- function(example = FALSE, cbs = NULL) {
   n <- length(codes)
   code_int <- as.integer(levels(codes))
   ngroups <- nrow(btd)
-  n_cores <- max(1L, parallel::detectCores() %/% 2L)
+  # mclapply() forks, which is unavailable on Windows; run serially there.
+  # Same OS guard as spatialize.R. Output is identical on all platforms.
+  n_cores <- if (.Platform$OS.type == "windows") {
+    1L
+  } else {
+    max(1L, parallel::detectCores() %/% 2L)
+  }
 
   btd$bilateral_trade <- parallel::mclapply(
     seq_len(ngroups),
