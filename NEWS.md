@@ -26,6 +26,17 @@
   synthetic, FracGASM for manure; residues excluded) and leaching per Ch. 11;
   EFs verified against the IPCC source. Grazing deposition (F_PRP) and
   below-ground residue N are documented follow-ups (#100).
+* Add `build_nitrogen_extension()`: cropland nitrogen pressure (kg N) keyed by
+  `(year, area_code, item_cbs_code)`, with `method = "surplus"` (default) or
+  `"bnf"`. `"surplus"` is the soil nitrogen balance, inputs minus removal:
+  inputs reuse the soil-N assembly of `build_crop_soil_n2o_extension()` (F_SN,
+  F_ON, F_CR) plus biological N fixation, and removal is the nitrogen in the
+  harvested product; both fixation and removal come from whep's own crop-NPP
+  nitrogen chain (`calculate_crop_npp()`, `calculate_npp_carbon_nitrogen()`,
+  `calculate_crop_bnf()`). Net soil-N mining is floored to zero. `"bnf"` traces
+  symbiotic legume fixation alone. Fully in-repo (no new pins);
+  `inst/scripts/footprints.R` gains `"nitrogen"` (with `WHEP_N_METHOD`) to the
+  `WHEP_FOOTPRINT_PRESSURE` switch (#113).
 * Add `build_footprint()` and `align_extension()`: trace a long-format
   extension table through the supply chain end to end, de-duplicating the
   per-year alignment glue previously repeated across the footprint driver
