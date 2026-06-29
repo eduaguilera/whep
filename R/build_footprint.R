@@ -20,6 +20,9 @@
 #' @param io Optional pre-built [build_io_model()] result (a tibble with one
 #'   row per year). Supply it to reuse one model across several extensions
 #'   instead of rebuilding it. When `NULL` (default), it is built for `years`.
+#' @param method Co-product allocation method passed to [build_io_model()],
+#'   `"mass"` (default) or `"value"`. Ignored when `io` is supplied (the model
+#'   already encodes its allocation).
 #' @param value_col Name of the extension magnitude column, `"impact_u"` by
 #'   default.
 #' @param ... Further arguments passed to [compute_footprint()] (e.g.
@@ -54,15 +57,17 @@ build_footprint <- function(
   extension,
   years = NULL,
   io = NULL,
+  method = c("mass", "value"),
   value_col = "impact_u",
   ...
 ) {
+  method <- rlang::arg_match(method)
   .check_extension_table(extension, value_col)
   if (is.null(io)) {
     if (is.null(years)) {
       years <- sort(unique(extension$year))
     }
-    io <- build_io_model(years = years)
+    io <- build_io_model(years = years, method = method)
   }
   .check_io_model(io)
 

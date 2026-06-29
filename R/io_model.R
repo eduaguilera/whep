@@ -33,6 +33,15 @@
 #'   demand to the diagonal of `Z` (self-use), following the
 #'   FABIO convention. The `losses` column is removed from Y
 #'   and `fd_labels`. Defaults to `FALSE`.
+#' @param method Co-product allocation method. `"mass"` (default) splits a
+#'   multi-output process's inputs across its products by physical mass;
+#'   `"value"` splits them by economic value (mass times export price), so
+#'   high-value co-products (e.g. oil over cake, meat over hides) carry a larger
+#'   share of upstream pressures. A process whose co-products lack usable prices
+#'   falls back to mass.
+#' @param prices Optional tibble of item prices as from [build_cbs_prices()]
+#'   (`year`, `element`, `item_cbs_code`, `price`). Used only when
+#'   `method = "value"`; built automatically when `NULL`.
 #'
 #' @return A tibble with one row per year and list-columns:
 #'   - `Z`: Inter-industry flow matrix (product-by-product).
@@ -58,8 +67,11 @@ build_io_model <- function(
   bilateral_trade = NULL,
   cbs = NULL,
   years = NULL,
-  endogenize_losses = FALSE
+  endogenize_losses = FALSE,
+  method = c("mass", "value"),
+  prices = NULL
 ) {
+  method <- rlang::arg_match(method)
   if (!is.null(years) && !is.numeric(years)) {
     cli::cli_abort(
       "{.arg years} must be numeric or NULL."
@@ -71,7 +83,9 @@ build_io_model <- function(
       bilateral_trade = bilateral_trade,
       cbs = cbs,
       years = years,
-      endogenize_losses = endogenize_losses
+      endogenize_losses = endogenize_losses,
+      method = method,
+      prices = prices
     ))
   }
   build_years <- .io_build_years(years)
@@ -151,6 +165,15 @@ build_io_model <- function(
     )
   }
   .validate_io_inputs(supply_use, bilateral_trade, cbs)
+  if (method == "value" && is.null(prices)) {
+    prices <- .cache_get(
+      .io_cache_key("cbs_prices", build_years),
+      {
+        cli::cli_h1("Building CBS prices for value allocation")
+        build_cbs_prices(cbs = cbs)
+      }
+    )
+  }
   common_years <- .get_common_years(
     supply_use,
     bilateral_trade,
@@ -187,7 +210,9 @@ build_io_model <- function(
       btd = dplyr::filter(bilateral_trade, year == yr),
       cbs_yr = dplyr::filter(cbs, year == yr),
       fd_cols = fd_cols,
-      endogenize_losses = endogenize_losses
+      endogenize_losses = endogenize_losses,
+      method = method,
+      prices_yr = .io_prices_for_year(prices, yr)
     )
   })
 
@@ -234,7 +259,9 @@ build_io_model <- function(
   bilateral_trade,
   cbs,
   years,
-  endogenize_losses
+  endogenize_losses,
+  method = "mass",
+  prices = NULL
 ) {
   years <- .io_requested_years(years)
   cli::cli_inform(c(
@@ -253,7 +280,9 @@ build_io_model <- function(
         bilateral_trade = .io_filter_optional_years(bilateral_trade, yr),
         cbs = .io_filter_optional_years(cbs, yr),
         years = yr,
-        endogenize_losses = endogenize_losses
+        endogenize_losses = endogenize_losses,
+        method = method,
+        prices = .io_filter_optional_years(prices, yr)
       )
     }
   ) |>
@@ -336,7 +365,9 @@ build_io_model <- function(
   btd,
   cbs_yr,
   fd_cols,
-  endogenize_losses = FALSE
+  endogenize_losses = FALSE,
+  method = "mass",
+  prices_yr = NULL
 ) {
   dims <- .get_io_dims(su, cbs_yr)
   n_sectors <- dims$n_areas * dims$n_items
@@ -357,7 +388,11 @@ build_io_model <- function(
   )
 
   cli::cli_inform("  Building supply matrix...")
-  mr_supply <- .build_mr_supply(su, dims)
+  mr_supply <- if (method == "value") {
+    .weight_supply_by_value(su, dims, prices_yr)
+  } else {
+    .build_mr_supply(su, dims)
+  }
   trans <- .row_normalize(mr_supply)
 
   cli::cli_inform(
@@ -527,6 +562,53 @@ build_io_model <- function(
   su |>
     dplyr::filter(type == "supply") |>
     .build_block_diag_matrix(dims)
+}
+
+# Export prices for one year, used to weight co-product allocation by value.
+.io_prices_for_year <- function(prices, yr) {
+  if (is.null(prices)) {
+    return(NULL)
+  }
+  prices |>
+    dplyr::filter(.data$year == yr, .data$element == "export")
+}
+
+# Value-weighted supply matrix: scale each supply quantity by its export price
+# before normalisation, so a process's inputs split across co-products by
+# economic value instead of mass (FABIO's trans_v). Prices are global per item
+# (no area dimension). If any co-product of a process lacks a usable price, the
+# whole process falls back to mass so its co-products stay on one consistent
+# basis. With no prices the matrix is identical to the mass build.
+.weight_supply_by_value <- function(su, dims, prices_yr) {
+  if (is.null(prices_yr) || nrow(prices_yr) == 0L) {
+    return(.build_mr_supply(su, dims))
+  }
+  price_lookup <- prices_yr |>
+    dplyr::distinct(.data$item_cbs_code, .keep_all = TRUE) |>
+    dplyr::select("item_cbs_code", "price")
+
+  su_value <- su |>
+    dplyr::left_join(price_lookup, by = "item_cbs_code") |>
+    dplyr::mutate(
+      price_ok = .data$type == "supply" &
+        !is.na(.data$price) &
+        .data$price > 0 &
+        is.finite(.data$price)
+    ) |>
+    dplyr::mutate(
+      group_ok = all(.data$price_ok | .data$type != "supply"),
+      .by = c(area_code, proc_group, proc_cbs_code)
+    ) |>
+    dplyr::mutate(
+      value = dplyr::if_else(
+        .data$type == "supply" & .data$group_ok,
+        .data$value * .data$price,
+        .data$value
+      )
+    ) |>
+    dplyr::select(-"price", -"price_ok", -"group_ok")
+
+  .build_mr_supply(su_value, dims)
 }
 
 # --- Z matrix construction ---

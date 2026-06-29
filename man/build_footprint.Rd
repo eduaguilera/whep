@@ -8,6 +8,7 @@ build_footprint(
   extension,
   years = NULL,
   io = NULL,
+  method = c("mass", "value"),
   value_col = "impact_u",
   ...
 )
@@ -22,6 +23,10 @@ build_footprint(
 \item{io}{Optional pre-built \code{\link[=build_io_model]{build_io_model()}} result (a tibble with one
 row per year). Supply it to reuse one model across several extensions
 instead of rebuilding it. When \code{NULL} (default), it is built for \code{years}.}
+
+\item{method}{Co-product allocation method passed to \code{\link[=build_io_model]{build_io_model()}},
+\code{"mass"} (default) or \code{"value"}. Ignored when \code{io} is supplied (the model
+already encodes its allocation).}
 
 \item{value_col}{Name of the extension magnitude column, \code{"impact_u"} by
 default.}

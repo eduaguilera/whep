@@ -60,6 +60,69 @@ io_single_country_fixture <- function() {
   list(su = su, btd = btd, cbs = cbs)
 }
 
+io_multi_output_fixture <- function() {
+  # One processing process turns 80 of crop 10 into co-products 20 (mass 90)
+  # and 21 (mass 10). Export prices 1 and 9 give value shares 90:90 = 50:50,
+  # vs mass shares 90:10.
+  su <- tibble::tribble(
+    ~year, ~area_code, ~proc_group, ~proc_cbs_code, ~item_cbs_code, ~type, ~value,
+    2000, 1, "crop_production", 10, 10, "supply", 100,
+    2000, 1, "processing", 10, 10, "use", 80,
+    2000, 1, "processing", 10, 20, "supply", 90,
+    2000, 1, "processing", 10, 21, "supply", 10,
+  )
+  btd <- tibble::tibble(
+    year = rep(2000L, 3),
+    item_cbs_code = c(10, 20, 21),
+    bilateral_trade = list(matrix(0, 1, 1), matrix(0, 1, 1), matrix(0, 1, 1))
+  )
+  cbs <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~production, ~import, ~export, ~food, ~other_uses, ~stock_withdrawal, ~stock_addition,
+    2000, 1, 10, 100, 0, 0, 20, 0, 0, 0,
+    2000, 1, 20, 90, 0, 0, 80, 0, 0, 0,
+    2000, 1, 21, 10, 0, 0, 9, 0, 0, 0,
+  )
+  prices <- tibble::tribble(
+    ~year, ~element, ~item_cbs_code, ~price,
+    2000, "export", 20, 1,
+    2000, "export", 21, 9,
+  )
+  list(su = su, btd = btd, cbs = cbs, prices = prices)
+}
+
+testthat::test_that("mass is the default and value allocation reweights co-products", {
+  f <- io_multi_output_fixture()
+  z_default <- whep::build_io_model(f$su, f$btd, f$cbs)$Z[[1]]
+  z_mass <- whep::build_io_model(f$su, f$btd, f$cbs, method = "mass")$Z[[1]]
+  z_value <- whep::build_io_model(
+    f$su,
+    f$btd,
+    f$cbs,
+    method = "value",
+    prices = f$prices
+  )$Z[[1]]
+
+  # default == mass (regression guard)
+  testthat::expect_equal(as.matrix(z_mass), as.matrix(z_default))
+  # crop 10's use (80) splits across co-products 20, 21 (sorted cols 2, 3)
+  testthat::expect_equal(unname(Matrix::colSums(z_mass)[2:3]), c(72, 8))
+  testthat::expect_equal(unname(Matrix::colSums(z_value)[2:3]), c(40, 40))
+})
+
+testthat::test_that("value allocation falls back to mass when a price is missing", {
+  f <- io_multi_output_fixture()
+  z_mass <- whep::build_io_model(f$su, f$btd, f$cbs, method = "mass")$Z[[1]]
+  z_partial <- whep::build_io_model(
+    f$su,
+    f$btd,
+    f$cbs,
+    method = "value",
+    prices = dplyr::filter(f$prices, item_cbs_code == 20)
+  )$Z[[1]]
+
+  testthat::expect_equal(as.matrix(z_partial), as.matrix(z_mass))
+})
+
 # build_io_model --------------------------------------------------------
 
 testthat::test_that("build_io_model handles 2-country 2-item example", {

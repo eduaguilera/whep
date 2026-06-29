@@ -1,5 +1,12 @@
 # whep (development version)
 
+* `build_io_model()` and `build_footprint()` gain a `method = c("mass",
+  "value")` argument for co-product allocation. `"value"` splits a multi-output
+  process's inputs (and the pressures embodied in them) across its products by
+  economic value (mass times export price from `build_cbs_prices()`) instead of
+  mass, falling back to mass for any process whose co-products lack prices. The
+  default `"mass"` preserves previous results (#100).
+
 * Add `build_livestock_ghg_extension()`: aggregate the IPCC enteric and manure
   emissions pipeline into a greenhouse-gas footprint extension (kg CO2e per
   `area_code` x `item_cbs_code`), with selectable IPCC tier and GWP100 standard,
