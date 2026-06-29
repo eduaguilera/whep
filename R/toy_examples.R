@@ -89,6 +89,16 @@
   )
 }
 
+.example_water_extension <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~impact_u, ~method_water,
+    2000L, 2L, 2514L, 3.52e8, "WFN_blue", # Afghanistan maize, blue
+    2000L, 2L, 2511L, 9.80e8, "WFN_blue", # Afghanistan wheat, blue
+    2000L, 2L, 961L, 4.50e7, "WFN_blue", # Afghanistan cattle, blue
+    2010L, 2L, 2514L, 4.10e8, "WFN_blue"
+  )
+}
+
 .ex_get_primary_prod <- function() {
   tibble::tribble(
     ~year, ~area_code, ~item_prod_code, ~item_cbs_code, ~live_anim_code, ~unit, ~value,
