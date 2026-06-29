@@ -918,6 +918,7 @@ utils::globalVariables(
     "lgp",
     "method_land",
     "method_grassland",
+    "method_ghg",
     "p",
     "phys",
     "phys_adj",
