@@ -59,8 +59,8 @@ spatialize-multicropping,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQM
 spatialize-livestock-country-data,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260625T101231Z-0a89d
 spatialize-gridded-pasture,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260625T101239Z-66a25
 spatialize-manure-pattern,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260625T101326Z-bc8de
-lpjml-grass-availability,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260805T122057Z-1de81
-lpjml-grass-productivity,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260805T122127Z-c7521
+lpjml-grass-availability,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260625T101329Z-15e29
+lpjml-grass-productivity,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260625T101433Z-c477c
 lpjml-wind-isimip-1901-2019,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260727T153206Z-3d666
 lpjml-wind-era5-2017-2023,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260727T153534Z-cdaa4
 stock_prod_ygps,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/nitrogen_spain/_pins.yaml,20260428T141215Z-9a171
@@ -70,6 +70,6 @@ lpjml-rlds-isimip-1901-2019,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZ
 lpjml-rlds-era5-2017-2023,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260730T174638Z-1e7e7
 lpjml-grass-natural-net-c,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260805T122139Z-f04a5
 lpjml-soc-hydrology,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260805T122201Z-491da
-wfn-water-crop,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,PENDING_UPLOAD
+wfn-water-crop,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260629T135518Z-6db42
 water-livestock-blue,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,PENDING_UPLOAD
 water-grazing-green,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,PENDING_UPLOAD
