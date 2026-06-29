@@ -157,15 +157,19 @@ estimate_energy_demand <- function(data, method = "ipcc2019") {
 #' GE from NE components: IPCC Eq 10.16.
 #' @noRd
 .estimate_gross_energy <- function(data) {
+  default_de <- livestock_constants$default_de_percent
   if (!rlang::has_name(data, "de_percent")) {
     data <- data |>
-      dplyr::mutate(
-        de_percent = livestock_constants$default_de_percent
-      )
+      dplyr::mutate(de_percent = default_de)
   }
 
   data |>
     dplyr::mutate(
+      # The diet join can leave de_percent NA for rows whose diet_quality did
+      # not match; fall back to the default so the energy balance still solves
+      # instead of propagating NA into gross_energy (and thus all Tier 2
+      # emissions).
+      de_percent = dplyr::coalesce(de_percent, default_de),
       rem = .calc_rem(de_percent),
       reg = .calc_reg(de_percent),
       gross_energy = (ne_total_maintenance / rem + ne_total_growth / reg) /

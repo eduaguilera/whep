@@ -456,6 +456,9 @@
         n_retention_frac,
         0.07
       ),
+      # Default crude protein when the diet join left it NA, so N intake (and
+      # thus Tier 2 manure N2O) resolves instead of propagating NA.
+      cp_percent = dplyr::coalesce(cp_percent, 12),
       n_intake = (gross_energy / ge_content) *
         (cp_percent / 100) /
         6.25,
