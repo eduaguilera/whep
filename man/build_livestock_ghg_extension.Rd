@@ -54,10 +54,11 @@ excretion rates).
 manure N2O from a per-animal energy and nitrogen balance, for finer
 resolution, but requires cohort weight and diet inputs. Animals whose
 emissions cannot be resolved (missing diet or energy data) are dropped with
-a warning rather than entering the footprint as \code{NA}. \strong{Tier 2 is not yet
-calibrated} -- its enteric CH4 currently runs well above Tier 1 -- so
-Tier 1 is the recommended default until the Tier 2 energy model is
-validated.
+a warning rather than entering the footprint as \code{NA}. Its per-head enteric
+and manure emissions now sit in the same range as the Tier 1 regional
+factors. Tier 1 remains the default because it is complete for every
+country in \code{\link[=get_primary_production]{get_primary_production()}}, whereas Tier 2 needs cohort and
+diet inputs.
 }
 
 The CO2e conversion uses 100-year global warming potentials selected with
