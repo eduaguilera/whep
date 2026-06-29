@@ -41,8 +41,10 @@ Mialyk et al. (2024), the 4TU dataset "Water footprints and crop water use of
 livestock blue water (drinking plus service water, cubic metres per head) is
 derived from Chapagain & Hoekstra (2003), Value of Water Research Report
 Series No. 13, Tables 3.8 and 3.9; grazing green water (cubic metres per
-hectare) is the country-average actual evapotranspiration of grazed pasture
-from Schyns et al. (2019, doi:10.1073/pnas.1817380116).
+hectare) is the country-average green evapotranspiration of managed grassland
+from the WHEP LPJmL run (2000-2009 mean) over the full grassland area (the
+occupation basis of \code{\link[=build_grassland_land_extension]{build_grassland_land_extension()}}), following the
+approach of Schyns et al. (2019, doi:10.1073/pnas.1817380116).
 
 The footprint engine traces one impact column at a time, so the water type is
 selected with \code{component} (recorded in \code{method_water}), rather than returned
