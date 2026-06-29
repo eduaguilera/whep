@@ -69,6 +69,26 @@
   )
 }
 
+.example_ghg_extension <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~impact_u, ~method_ghg,
+    1986L, 10L, 960L, 6.156e8, "IPCC_2019_Tier1_AR6",
+    1986L, 10L, 961L, 3.078e9, "IPCC_2019_Tier1_AR6",
+    1986L, 10L, 976L, 1.10565e9, "IPCC_2019_Tier1_AR6",
+    1986L, 100L, 961L, 2.2464e9, "IPCC_2019_Tier1_AR6",
+    1987L, 10L, 961L, 3.10878e9, "IPCC_2019_Tier1_AR6",
+    1987L, 100L, 960L, 8.424e8, "IPCC_2019_Tier1_AR6"
+  )
+}
+
+.example_soil_n2o_extension <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~impact_u, ~method_soil_n2o,
+    2010L, 10L, 2511L, 4.126122e8, "IPCC_2019_Tier1_AR6",
+    2010L, 10L, 2513L, 1.768338e8, "IPCC_2019_Tier1_AR6"
+  )
+}
+
 .ex_get_primary_prod <- function() {
   tibble::tribble(
     ~year, ~area_code, ~item_prod_code, ~item_cbs_code, ~live_anim_code, ~unit, ~value,

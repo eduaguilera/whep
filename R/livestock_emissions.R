@@ -99,9 +99,10 @@ calculate_enteric_ch4 <- function(data, tier = NULL) {
 #'   - Tier 2: `volatile_solids`, `methane_potential`,
 #'     `weighted_mcf`, `manure_ch4_per_head`,
 #'     `manure_ch4_tier2`.
-#'   - N2O (Tier 2 only): `method_manure_n2o`,
+#'   - N2O (both tiers): `method_manure_n2o`,
 #'     `n_excretion`, `manure_n2o_direct`,
-#'     `manure_n2o_indirect`, `manure_n2o_total`.
+#'     `manure_n2o_indirect`, `manure_n2o_total`. Tier 1 uses default per-head
+#'     excretion rates; Tier 2 uses the energy/nitrogen balance.
 #' @export
 #'
 #' @examples
@@ -117,7 +118,9 @@ calculate_manure_emissions <- function(data, tier = NULL) {
       .calc_manure_ch4_tier2() |>
       .calc_manure_n2o()
   } else {
-    data <- .calc_manure_ch4_tier1(data)
+    data <- data |>
+      .calc_manure_ch4_tier1() |>
+      .calc_manure_n2o_tier1()
   }
   data
 }
@@ -156,5 +159,6 @@ calculate_manure_emissions <- function(data, tier = NULL) {
 .run_tier1 <- function(data) {
   data |>
     .calc_enteric_ch4_tier1() |>
-    .calc_manure_ch4_tier1()
+    .calc_manure_ch4_tier1() |>
+    .calc_manure_n2o_tier1()
 }

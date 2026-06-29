@@ -59,61 +59,54 @@ if (!crop_land_source %in% valid_sources) {
   )
 }
 
+# Environmental pressure traced through the supply chain:
+#   "land" (default) physical/occupation land use (ha or ha-yr), assembled from
+#                    the crop and grassland land extensions below.
+#   "ghg"            livestock greenhouse-gas emissions (kg CO2e) from the IPCC
+#                    enteric + manure pipeline (build_livestock_ghg_extension).
+# GHG tier (WHEP_GHG_TIER, 1 or 2) and GWP100 standard (WHEP_GHG_GWP, ar6/ar5/
+# ar4) follow the multi-method convention; see build_livestock_ghg_extension().
+pressure <- tolower(Sys.getenv("WHEP_FOOTPRINT_PRESSURE", "land"))
+if (!pressure %in% c("land", "ghg")) {
+  stop("`WHEP_FOOTPRINT_PRESSURE` must be \"land\" or \"ghg\".", call. = FALSE)
+}
+ghg_tier <- as.integer(Sys.getenv("WHEP_GHG_TIER", "1"))
+ghg_gwp <- tolower(Sys.getenv("WHEP_GHG_GWP", "ar6"))
+
 # Build IO model for selected years.
 io <- build_io_model(years = years)
 
-crop_land <- if (crop_land_source %in% c("cropgrids", "cropgrids_fallow")) {
-  build_cropgrids_land_extension(source = crop_land_source) |>
-    dplyr::filter(year %in% years)
-} else if (crop_land_source == "hayr") {
-  build_hayr_land_extension() |>
-    dplyr::filter(year %in% years)
+extension_use <- if (pressure == "ghg") {
+  build_livestock_ghg_extension(tier = ghg_tier, gwp = ghg_gwp) |>
+    dplyr::filter(year %in% years) |>
+    dplyr::select(year, area_code, item_cbs_code, impact_u)
 } else {
-  input_dir <- Sys.getenv(
-    "WHEP_LFILES_INPUT_DIR",
-    file.path(getwd(), "LPJmL_inputs", "whep", "inputs")
-  )
-  get_crop_land_extension(input_dir = input_dir, years = years)
+  crop_land <- if (crop_land_source %in% c("cropgrids", "cropgrids_fallow")) {
+    build_cropgrids_land_extension(source = crop_land_source) |>
+      dplyr::filter(year %in% years)
+  } else if (crop_land_source == "hayr") {
+    build_hayr_land_extension() |>
+      dplyr::filter(year %in% years)
+  } else {
+    input_dir <- Sys.getenv(
+      "WHEP_LFILES_INPUT_DIR",
+      file.path(getwd(), "LPJmL_inputs", "whep", "inputs")
+    )
+    get_crop_land_extension(input_dir = input_dir, years = years)
+  }
+
+  grass_land <- build_grassland_land_extension(
+    grassland_metric = grassland_metric,
+    usable_grass_yield_dm_t_ha = usable_grass_yield_dm_t_ha
+  ) |>
+    dplyr::filter(year %in% years) |>
+    dplyr::select(year, area_code, item_cbs_code, impact_u)
+
+  dplyr::bind_rows(crop_land, grass_land)
 }
 
-grass_land <- build_grassland_land_extension(
-  grassland_metric = grassland_metric,
-  usable_grass_yield_dm_t_ha = usable_grass_yield_dm_t_ha
-) |>
-  dplyr::filter(year %in% years) |>
-  dplyr::select(year, area_code, item_cbs_code, impact_u)
-
-land_use <- dplyr::bind_rows(crop_land, grass_land)
-
-# Compute footprints for all selected years.
-footprints <- purrr::pmap_dfr(
-  list(
-    io$year,
-    io$Z,
-    io$X,
-    io$Y,
-    io$labels,
-    io$fd_labels
-  ),
-  function(yr, z_mat, x_vec, y_mat, labels, fd_labels) {
-    extensions <- land_use |>
-      dplyr::filter(year == yr) |>
-      dplyr::right_join(labels, by = c("area_code", "item_cbs_code")) |>
-      tidyr::replace_na(list(impact_u = 0)) |>
-      dplyr::arrange(index) |>
-      dplyr::pull(impact_u)
-
-    compute_footprint(
-      z_mat = z_mat,
-      x_vec = x_vec,
-      y_mat = y_mat,
-      extensions = extensions,
-      labels = labels,
-      fd_labels = fd_labels
-    ) |>
-      dplyr::mutate(year = yr)
-  }
-)
+# Trace the chosen extension through the supply chain for all selected years.
+footprints <- build_footprint(extension_use, io = io)
 
 footprints |>
   add_area_name(

@@ -263,6 +263,13 @@ prepare_livestock_emissions <- function(
 # matching on the animal's DESIGNATED product (`Item_Code_product`), not just on
 # `live_anim_code`.
 .tag_yields_to_animal_product <- function(yield_rows, product_map) {
+  # `live_anim_code` arrives as an integer from real production data but the
+  # lookups key on it as character, so coerce before any join to keep the
+  # key types compatible.
+  yield_rows <- dplyr::mutate(
+    yield_rows,
+    live_anim_code = as.character(.data$live_anim_code)
+  )
   if (!rlang::has_name(yield_rows, "item_prod_code")) {
     anim_lookup <- product_map |>
       dplyr::transmute(

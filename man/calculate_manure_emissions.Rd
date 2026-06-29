@@ -23,9 +23,10 @@ Dataframe with all input columns preserved, plus:
 \item Tier 2: \code{volatile_solids}, \code{methane_potential},
 \code{weighted_mcf}, \code{manure_ch4_per_head},
 \code{manure_ch4_tier2}.
-\item N2O (Tier 2 only): \code{method_manure_n2o},
+\item N2O (both tiers): \code{method_manure_n2o},
 \code{n_excretion}, \code{manure_n2o_direct},
-\code{manure_n2o_indirect}, \code{manure_n2o_total}.
+\code{manure_n2o_indirect}, \code{manure_n2o_total}. Tier 1 uses default per-head
+excretion rates; Tier 2 uses the energy/nitrogen balance.
 }
 }
 \description{

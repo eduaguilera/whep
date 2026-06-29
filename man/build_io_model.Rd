@@ -9,7 +9,9 @@ build_io_model(
   bilateral_trade = NULL,
   cbs = NULL,
   years = NULL,
-  endogenize_losses = FALSE
+  endogenize_losses = FALSE,
+  method = c("mass", "value"),
+  prices = NULL
 )
 }
 \arguments{
@@ -39,6 +41,17 @@ contains a \code{losses} column, losses are moved from final
 demand to the diagonal of \code{Z} (self-use), following the
 FABIO convention. The \code{losses} column is removed from Y
 and \code{fd_labels}. Defaults to \code{FALSE}.}
+
+\item{method}{Co-product allocation method. \code{"mass"} (default) splits a
+multi-output process's inputs across its products by physical mass;
+\code{"value"} splits them by economic value (mass times export price), so
+high-value co-products (e.g. oil over cake, meat over hides) carry a larger
+share of upstream pressures. A process whose co-products lack usable prices
+falls back to mass.}
+
+\item{prices}{Optional tibble of item prices as from \code{\link[=build_cbs_prices]{build_cbs_prices()}}
+(\code{year}, \code{element}, \code{item_cbs_code}, \code{price}). Used only when
+\code{method = "value"}; built automatically when \code{NULL}.}
 }
 \value{
 A tibble with one row per year and list-columns:

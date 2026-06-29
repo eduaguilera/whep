@@ -15,6 +15,79 @@
     )
 }
 
+#' IPCC 2019 Tier 1 manure N2O (direct + indirect).
+#'
+#' Uses default per-head nitrogen excretion rates (`ipcc_2019_n_excretion`)
+#' instead of the energy-balance N intake, then reuses the Tier 2 direct and
+#' indirect N2O helpers (which need only `n_excretion` and `heads`).
+#' @noRd
+.calc_manure_n2o_tier1 <- function(data) {
+  if (!rlang::has_name(data, "species_gen")) {
+    data <- dplyr::mutate(data, species_gen = .get_general_species(species))
+  }
+  data <- data |>
+    dplyr::mutate(method_manure_n2o = "IPCC_2019_Tier1") |>
+    .join_n_excretion_tier1() |>
+    .calc_direct_n2o() |>
+    .calc_indirect_n2o()
+  data |>
+    dplyr::mutate(
+      manure_n2o_total = manure_n2o_direct + manure_n2o_indirect
+    )
+}
+
+#' Join default per-head N excretion (kg N/head/yr) for Tier 1.
+#' @noRd
+.join_n_excretion_tier1 <- function(data) {
+  data <- data |>
+    dplyr::mutate(
+      manure_category = dplyr::case_when(
+        .is_dairy(species) & species_gen == "Cattle" ~ "Dairy Cattle",
+        species_gen == "Cattle" ~ "Other Cattle",
+        TRUE ~ species_gen
+      )
+    )
+  if (!rlang::has_name(data, "region") && rlang::has_name(data, "iso3")) {
+    data <- .add_ipcc_region(data)
+  }
+
+  # Augment the table with base-species rows (mean over subcategories, e.g.
+  # "Swine - Market"/"Swine - Breeding" -> "Swine") so a species_gen key with no
+  # exact subcategory still matches.
+  nex_base <- ipcc_2019_n_excretion |>
+    dplyr::mutate(
+      cat_base = stringr::str_trim(stringr::str_extract(category, "^[^-]+"))
+    ) |>
+    dplyr::summarise(
+      nex_kg_n_head_yr = mean(nex_kg_n_head_yr, na.rm = TRUE),
+      .by = c(region, cat_base)
+    ) |>
+    dplyr::rename(category = cat_base)
+  nex_all <- dplyr::bind_rows(ipcc_2019_n_excretion, nex_base) |>
+    dplyr::distinct(region, category, .keep_all = TRUE)
+  global_nex <- nex_all |>
+    dplyr::filter(region == "Global") |>
+    dplyr::select(category, nex_global = nex_kg_n_head_yr)
+
+  if (rlang::has_name(data, "region")) {
+    data |>
+      dplyr::left_join(
+        dplyr::filter(nex_all, region != "Global"),
+        by = c("region", "manure_category" = "category")
+      ) |>
+      dplyr::left_join(global_nex, by = c("manure_category" = "category")) |>
+      dplyr::mutate(
+        n_excretion = dplyr::coalesce(nex_kg_n_head_yr, nex_global)
+      ) |>
+      dplyr::select(-dplyr::any_of(c("nex_kg_n_head_yr", "nex_global")))
+  } else {
+    data |>
+      dplyr::left_join(global_nex, by = c("manure_category" = "category")) |>
+      dplyr::mutate(n_excretion = nex_global) |>
+      dplyr::select(-dplyr::any_of("nex_global"))
+  }
+}
+
 #' IPCC 2019 Tier 2 manure CH4.
 #' @noRd
 .calc_manure_ch4_tier2 <- function(data) {
@@ -107,9 +180,7 @@
   data <- data |>
     dplyr::mutate(
       manure_category = dplyr::case_when(
-        stringr::str_detect(species, "(?i)Dairy") &
-          species_gen == "Cattle" ~
-          "Dairy Cattle",
+        .is_dairy(species) & species_gen == "Cattle" ~ "Dairy Cattle",
         species_gen == "Cattle" ~ "Other Cattle",
         species %in% all_categories ~ species,
         TRUE ~ species_gen
@@ -244,9 +315,7 @@
 #' @noRd
 .get_bo_category <- function(species, species_gen) {
   dplyr::case_when(
-    stringr::str_detect(species, "(?i)Dairy") &
-      species_gen == "Cattle" ~
-      "Dairy Cattle",
+    .is_dairy(species) & species_gen == "Cattle" ~ "Dairy Cattle",
     species_gen == "Cattle" ~ "Other Cattle",
     species_gen == "Swine" &
       stringr::str_detect(species, "(?i)Breed") ~
@@ -387,6 +456,9 @@
         n_retention_frac,
         0.07
       ),
+      # Default crude protein when the diet join left it NA, so N intake (and
+      # thus Tier 2 manure N2O) resolves instead of propagating NA.
+      cp_percent = dplyr::coalesce(cp_percent, 12),
       n_intake = (gross_energy / ge_content) *
         (cp_percent / 100) /
         6.25,
