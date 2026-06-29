@@ -64,11 +64,17 @@ if (!crop_land_source %in% valid_sources) {
 #                    the crop and grassland land extensions below.
 #   "ghg"            livestock greenhouse-gas emissions (kg CO2e) from the IPCC
 #                    enteric + manure pipeline (build_livestock_ghg_extension).
+#   "energy"         livestock energy-use CO2 (kg CO2e) for meat production from
+#                    GLEAM (build_energy_co2_extension); keyed on the
+#                    same live-animal sectors as "ghg", so the two can be summed.
 # GHG tier (WHEP_GHG_TIER, 1 or 2) and GWP100 standard (WHEP_GHG_GWP, ar6/ar5/
 # ar4) follow the multi-method convention; see build_livestock_ghg_extension().
 pressure <- tolower(Sys.getenv("WHEP_FOOTPRINT_PRESSURE", "land"))
-if (!pressure %in% c("land", "ghg")) {
-  stop("`WHEP_FOOTPRINT_PRESSURE` must be \"land\" or \"ghg\".", call. = FALSE)
+if (!pressure %in% c("land", "ghg", "energy")) {
+  stop(
+    "`WHEP_FOOTPRINT_PRESSURE` must be \"land\", \"ghg\" or \"energy\".",
+    call. = FALSE
+  )
 }
 ghg_tier <- as.integer(Sys.getenv("WHEP_GHG_TIER", "1"))
 ghg_gwp <- tolower(Sys.getenv("WHEP_GHG_GWP", "ar6"))
@@ -78,6 +84,10 @@ io <- build_io_model(years = years)
 
 extension_use <- if (pressure == "ghg") {
   build_livestock_ghg_extension(tier = ghg_tier, gwp = ghg_gwp) |>
+    dplyr::filter(year %in% years) |>
+    dplyr::select(year, area_code, item_cbs_code, impact_u)
+} else if (pressure == "energy") {
+  build_energy_co2_extension() |>
     dplyr::filter(year %in% years) |>
     dplyr::select(year, area_code, item_cbs_code, impact_u)
 } else {

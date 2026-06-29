@@ -1089,6 +1089,8 @@ utils::globalVariables(
     "climate_mcf",
     "feed_characteristics",
     "gleam_animal_weights",
+    "gleam_dressing_percentages",
+    "gleam_energy_use_ef",
     "gleam_geographic_hierarchy",
     "gleam_livestock_categories",
     "grazing_energy_coefs",

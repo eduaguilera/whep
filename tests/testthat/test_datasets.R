@@ -409,16 +409,19 @@ test_that("gleam_energy_use_ef is a clean tibble", {
     obj,
     "gleam_energy_use_ef",
     c(
-      "grouping",
       "species",
+      "herd",
+      "grouping",
+      "grouping_scheme",
       "system",
       "climate",
       "energy_type",
+      "denominator",
       "emission_factor"
     ),
     min_rows = 100L
   )
-  expect_equal(ncol(obj), 6L)
+  expect_equal(ncol(obj), 9L)
   assert_numeric_cols(
     obj,
     "gleam_energy_use_ef",
@@ -428,16 +431,24 @@ test_that("gleam_energy_use_ef is a clean tibble", {
     unique(obj$energy_type),
     c("embedded", "direct")
   )
+  expect_setequal(
+    unique(obj$grouping_scheme),
+    c("development3", "region5", "detailed15")
+  )
+  expect_setequal(
+    unique(obj$denominator),
+    c("lw", "milk", "egg")
+  )
   expected_species <- c(
-    "dairy_cattle",
+    "cattle",
+    "buffalo",
     "small_ruminants",
     "pigs",
     "chickens",
-    "dairy_cattle_buffalo",
     "large_ruminants"
   )
   expect_true(all(obj$species %in% expected_species))
-  # All 6 species are present (no silently dropped table)
+  # All species are present (no silently dropped table)
   expect_setequal(unique(obj$species), expected_species)
   # Both energy types have multiple species
   species_per_type <- obj |>
@@ -446,41 +457,34 @@ test_that("gleam_energy_use_ef is a clean tibble", {
       .by = energy_type
     )
   expect_true(all(species_per_type$n >= 3L))
-  # Emission factors must be non-negative where not NA
-  expect_true(
-    all(obj$emission_factor >= 0, na.rm = TRUE)
+  # Footnote-derived rows: meat cattle embedded is half of dairy cattle.
+  dairy <- obj |>
+    dplyr::filter(
+      species == "cattle",
+      herd == "dairy",
+      energy_type == "embedded"
+    )
+  meat <- obj |>
+    dplyr::filter(
+      species == "cattle",
+      herd == "non_dairy",
+      energy_type == "embedded"
+    )
+  joined <- dplyr::inner_join(
+    dairy,
+    meat,
+    by = c("grouping", "system", "climate"),
+    suffix = c("_dairy", "_meat")
   )
+  expect_equal(joined$emission_factor_meat, joined$emission_factor_dairy * 0.5)
+  # Emission factors must be non-negative and fully resolved (this catches the
+  # middle-dot notation parsing failure for pigs and chickens).
+  expect_true(all(obj$emission_factor >= 0))
+  expect_false(any(is.na(obj$emission_factor)))
   # No footnote text in grouping column
   expect_false(
     any(grepl("^a\\s", obj$grouping)),
     info = "footnote rows must be filtered out"
-  )
-  # Pigs and chickens must have non-NA emission factors
-  # (catches middle-dot notation parsing failure)
-  pigs_ef <- obj |>
-    dplyr::filter(species == "pigs", energy_type == "embedded")
-  expect_true(
-    all(!is.na(pigs_ef$emission_factor)),
-    info = "pigs embedded EFs must not be NA"
-  )
-  chickens_ef <- obj |>
-    dplyr::filter(
-      species == "chickens",
-      energy_type == "embedded"
-    )
-  expect_true(
-    all(!is.na(chickens_ef$emission_factor)),
-    info = "chickens embedded EFs must not be NA"
-  )
-  # At least 95% of all emission factors should be non-NA
-  non_na_share <- mean(!is.na(obj$emission_factor))
-  expect_true(
-    non_na_share > 0.95,
-    info = paste0(
-      "only ",
-      round(non_na_share * 100),
-      "% non-NA emission factors"
-    )
   )
 })
 
