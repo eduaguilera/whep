@@ -3,37 +3,60 @@
 \docType{data}
 \name{gleam_energy_use_ef}
 \alias{gleam_energy_use_ef}
-\title{Energy use emission factors by species and system.}
+\title{Energy use emission factors for livestock production.}
 \format{
 A tibble in long format with columns:
 \describe{
-\item{grouping}{Country or country group
-(e.g. \code{"OECD"}, \code{"EU 27"}).}
-\item{species}{Animal species or group
-(e.g. \code{"dairy_cattle"}, \code{"pigs"}).}
+\item{species}{Animal species or group (\code{"cattle"},
+\code{"buffalo"}, \code{"large_ruminants"},
+\code{"small_ruminants"}, \code{"pigs"},
+\code{"chickens"}).}
+\item{herd}{Herd or product line (\code{"dairy"},
+\code{"non_dairy"}, \code{"broilers"}, \code{"layers"},
+\code{"all"}). \code{NA} for pigs.}
+\item{grouping}{Country or country group as reported by
+GLEAM (e.g. \code{"OECD"}, \code{"EU 27"},
+\code{"Least developed countries"}).}
+\item{grouping_scheme}{Which country grouping the
+\code{grouping} belongs to: \code{"development3"}
+(OECD / least developed / others), \code{"region5"}
+(OECD / four non-OECD regions) or \code{"detailed15"}
+(individual OECD members plus world regions).}
 \item{system}{Production system (e.g.
-\code{"Grassland based"}, \code{"industrial"}).
+\code{"grassland_based"}, \code{"industrial"}).
 \code{NA} when not applicable.}
 \item{climate}{Climate zone (\code{"arid"},
 \code{"humid"}, \code{"temperate"}). \code{NA} when
 not applicable.}
 \item{energy_type}{\code{"embedded"} or
 \code{"direct"}.}
-\item{emission_factor}{Emission factor in kg CO2-eq
-per unit product.}
+\item{denominator}{Reporting basis of the factor:
+\code{"lw"} (live weight), \code{"milk"} or
+\code{"egg"}.}
+\item{emission_factor}{Emission factor in kg CO2-eq per
+kg of the \code{denominator}.}
 }
 }
 \source{
 MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
-Tables S.7.1 through S.7.7.
+Tables S.7.1 through S.7.7. \doi{10.1088/1748-9326/aad4d8}
 }
 \usage{
 gleam_energy_use_ef
 }
 \description{
-Emission factors for embedded and direct energy use in
-livestock production, by species, production system, and
-climate zone.
+Emission factors for embedded (feed-production) and direct
+(on-farm) energy use in livestock production, from GLEAM 3.0
+tables S.7.1 through S.7.7. Note that the factors are
+expressed per kilogram of \emph{live weight}, \emph{milk} or
+\emph{egg} depending on the species and herd: see the
+\code{denominator} column. The GLEAM footnotes are
+materialised as derived rows: embedded energy for meat
+(non-dairy) cattle and all buffalo is half of dairy cattle
+(S.7.1 note a); embedded energy for non-dairy small ruminants
+is half of the listed values (S.7.2 note a); direct energy
+for dairy small ruminants is double the dairy cattle values
+(S.7.5 note a).
 }
 \examples{
 gleam_energy_use_ef

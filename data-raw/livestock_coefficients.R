@@ -589,221 +589,285 @@ parse_fracremove <- function(raw) {
   df[keep, , drop = FALSE]
 }
 
-# S.7.1–S.7.7: energy use emission factors
+# Footnote/derived rows: copy `df`, scale the EF, relabel herd (and species).
+# Base assignment avoids the data-mask shadowing of `mutate(herd = herd)`.
+.energy_scaled_rows <- function(df, factor, herd, species = NULL) {
+  df$emission_factor <- df$emission_factor * factor
+  df$herd <- herd
+  if (!is.null(species)) {
+    df$species <- species
+  }
+  df
+}
+
+.norm_gleam_system <- function(x) {
+  dplyr::case_when(
+    stringr::str_detect(x, "(?i)grassland") ~ "grassland_based",
+    stringr::str_detect(x, "(?i)mixed") ~ "mixed_farming",
+    .default = x
+  )
+}
+
+# S.7.1-S.7.7: energy use emission factors.
+#
+# Re-ingested cleanly (issue #105): every species is captured at both the
+# embedded and direct stages, and each row is tagged with its grouping scheme,
+# production system, climate zone, energy stage and reporting `denominator`
+# (live weight, milk or egg) so downstream code never has to guess the basis.
+# The GLEAM footnotes are materialised as derived rows: meat (non-dairy) cattle
+# and all buffalo embedded energy is half of dairy cattle (S.7.1 note a);
+# non-dairy small ruminant embedded energy is half of the listed values (S.7.2
+# note a); dairy small ruminant direct energy is double the dairy cattle values
+# (S.7.5 note a).
 parse_energy_use_ef <- function(gleam_raw) {
   rows <- list()
 
-  # S.7.1: embedded energy, dairy cattle (grouping, system,
-  # arid, humid, temperate)
-  if (!is.null(gleam_raw$tab_s71)) {
-    raw <- gleam_raw$tab_s71
-    df <- .gleam_skip_title(
-      raw,
-      c("grouping", "system", "arid", "humid", "temperate")
+  # S.7.1 embedded, dairy cattle (kg CO2-eq / kg LW): grouping x system x clim.
+  df <- .gleam_skip_title(
+    gleam_raw$tab_s71,
+    c("grouping", "system", "arid", "humid", "temperate")
+  )
+  df <- df[!is.na(df$grouping) | !is.na(df$system), ]
+  df$grouping <- zoo::na.locf(df$grouping, na.rm = FALSE)
+  df <- .drop_footnotes(df, "grouping")
+  s71 <- df |>
+    tidyr::pivot_longer(
+      cols = c("arid", "humid", "temperate"),
+      names_to = "climate",
+      values_to = "emission_factor"
+    ) |>
+    dplyr::mutate(
+      species = "cattle",
+      herd = "dairy",
+      grouping_scheme = "development3",
+      system = .norm_gleam_system(system),
+      energy_type = "embedded",
+      denominator = "lw",
+      emission_factor = .parse_gleam_numeric(emission_factor)
     )
-    df <- df[!is.na(df$grouping) | !is.na(df$system), ]
-    df$grouping <- zoo::na.locf(df$grouping, na.rm = FALSE)
-    df <- .drop_footnotes(df, "grouping")
-    rows[[1]] <- df |>
-      tidyr::pivot_longer(
-        cols = c("arid", "humid", "temperate"),
-        names_to = "climate",
-        values_to = "emission_factor"
-      ) |>
-      dplyr::mutate(
-        species = "dairy_cattle",
-        energy_type = "embedded",
-        emission_factor = .parse_gleam_numeric(emission_factor)
-      )
-  }
+  rows <- c(
+    rows,
+    list(
+      s71,
+      .energy_scaled_rows(s71, 0.5, "non_dairy"),
+      .energy_scaled_rows(s71, 0.5, "all", species = "buffalo")
+    )
+  )
 
-  # S.7.2: embedded energy, small ruminants
-  if (!is.null(gleam_raw$tab_s72)) {
-    raw <- gleam_raw$tab_s72
-    df <- .gleam_skip_title(
-      raw,
-      c("grouping", "arid", "humid", "temperate")
+  # S.7.2 embedded, small ruminants (kg CO2-eq / kg LW): grouping x climate.
+  df <- .gleam_skip_title(
+    gleam_raw$tab_s72,
+    c("grouping", "arid", "humid", "temperate")
+  )
+  df <- .drop_footnotes(df, "grouping")
+  s72 <- df |>
+    tidyr::pivot_longer(
+      cols = c("arid", "humid", "temperate"),
+      names_to = "climate",
+      values_to = "emission_factor"
+    ) |>
+    dplyr::mutate(
+      species = "small_ruminants",
+      herd = "dairy",
+      grouping_scheme = "development3",
+      system = NA_character_,
+      energy_type = "embedded",
+      denominator = "lw",
+      emission_factor = .parse_gleam_numeric(emission_factor)
     )
-    df <- .drop_footnotes(df, "grouping")
-    rows[[2]] <- df |>
-      tidyr::pivot_longer(
-        cols = c("arid", "humid", "temperate"),
-        names_to = "climate",
-        values_to = "emission_factor"
-      ) |>
-      dplyr::mutate(
-        species = "small_ruminants",
-        system = NA_character_,
-        energy_type = "embedded",
-        emission_factor = .parse_gleam_numeric(emission_factor)
-      )
-  }
+  rows <- c(rows, list(s72, .energy_scaled_rows(s72, 0.5, "non_dairy")))
 
-  # S.7.3: embedded energy, pigs (middle-dot notation)
-  if (!is.null(gleam_raw$tab_s73)) {
-    raw <- gleam_raw$tab_s73
-    df <- .gleam_skip_title(
-      raw,
-      c("grouping", "industrial", "intermediate", "backyard")
-    )
-    df <- .drop_footnotes(df, "grouping")
-    rows[[3]] <- df |>
-      tidyr::pivot_longer(
-        cols = c("industrial", "intermediate", "backyard"),
-        names_to = "system",
-        values_to = "emission_factor"
-      ) |>
-      dplyr::mutate(
-        species = "pigs",
-        climate = NA_character_,
-        energy_type = "embedded",
-        emission_factor = .parse_gleam_numeric(emission_factor)
-      )
-  }
-
-  # S.7.4: embedded energy, chickens (middle-dot notation)
-  if (!is.null(gleam_raw$tab_s74)) {
-    raw <- gleam_raw$tab_s74
-    df <- .gleam_skip_title(
-      raw,
-      c("grouping", "broilers", "layers")
-    )
-    df <- .drop_footnotes(df, "grouping")
-    rows[[4]] <- df |>
-      tidyr::pivot_longer(
-        cols = c("broilers", "layers"),
-        names_to = "system",
-        values_to = "emission_factor"
-      ) |>
-      dplyr::mutate(
-        species = "chickens",
-        climate = NA_character_,
-        energy_type = "embedded",
-        emission_factor = .parse_gleam_numeric(emission_factor)
-      )
-  }
-
-  # S.7.5: direct energy, dairy cattle & buffalo
-  # (2-row header: system x climate)
-  if (!is.null(gleam_raw$tab_s75)) {
-    raw <- gleam_raw$tab_s75
-    # Two-row header: row 2 has systems, row 3 has climates.
-    col_names <- c(
-      "grouping",
-      "grassland_based_arid",
-      "grassland_based_humid",
-      "grassland_based_temperate",
-      "mixed_farming_arid",
-      "mixed_farming_humid",
-      "mixed_farming_temperate"
-    )
-    df <- raw[-(1:3), , drop = FALSE]
-    names(df) <- col_names
-    df <- df[!is.na(df$grouping), ]
-    df <- df[!grepl("^a\\s|^Note", df$grouping), ]
-    s75_long <- list()
-    for (sys in c("grassland_based", "mixed_farming")) {
-      for (clim in c("arid", "humid", "temperate")) {
-        col <- paste0(sys, "_", clim)
-        s75_long <- c(
-          s75_long,
-          list(tibble::tibble(
-            grouping = df$grouping,
-            system = sys,
-            climate = clim,
-            emission_factor = .parse_gleam_numeric(df[[col]])
-          ))
+  # S.7.3 embedded, pigs (kg CO2-eq / kg LW): grouping x system.
+  df <- .gleam_skip_title(
+    gleam_raw$tab_s73,
+    c("grouping", "industrial", "intermediate", "backyard")
+  )
+  df <- .drop_footnotes(df, "grouping")
+  rows <- c(
+    rows,
+    list(
+      df |>
+        tidyr::pivot_longer(
+          cols = c("industrial", "intermediate", "backyard"),
+          names_to = "system",
+          values_to = "emission_factor"
+        ) |>
+        dplyr::mutate(
+          species = "pigs",
+          herd = NA_character_,
+          grouping_scheme = "region5",
+          climate = NA_character_,
+          energy_type = "embedded",
+          denominator = "lw",
+          emission_factor = .parse_gleam_numeric(emission_factor)
         )
-      }
-    }
-    rows[[5]] <- dplyr::bind_rows(s75_long) |>
-      dplyr::mutate(
-        species = "dairy_cattle_buffalo",
-        energy_type = "direct"
-      )
-  }
-
-  # S.7.6: direct energy, non-dairy ruminants
-  if (!is.null(gleam_raw$tab_s76)) {
-    raw <- gleam_raw$tab_s76
-    df <- .gleam_skip_title(raw, NULL)
-    names(df) <- c(
-      "grouping",
-      "large_ruminants_grassland",
-      "large_ruminants_mixed",
-      "small_ruminants"
     )
-    df <- .drop_footnotes(df, "grouping")
-    rows[[6]] <- df |>
-      tidyr::pivot_longer(
-        cols = -"grouping",
-        names_to = "system",
-        values_to = "emission_factor"
-      ) |>
-      dplyr::mutate(
-        species = dplyr::case_when(
-          grepl("small", system) ~ "small_ruminants",
-          .default = "large_ruminants"
-        ),
-        system = stringr::str_remove(
-          system,
-          "large_ruminants_|small_ruminants"
-        ),
-        system = dplyr::na_if(system, ""),
-        climate = NA_character_,
-        energy_type = "direct",
-        emission_factor = .parse_gleam_numeric(emission_factor)
-      )
-  }
+  )
 
-  # S.7.7: direct energy, monogastrics (2-row header)
-  if (!is.null(gleam_raw$tab_s77)) {
-    raw <- gleam_raw$tab_s77
-    col_names <- c(
-      "grouping",
-      "pigs_intermediate",
-      "pigs_industrial",
-      "layers",
-      "broilers"
+  # S.7.4 embedded, chickens: broilers (kg / kg LW), layers (kg / kg egg).
+  df <- .gleam_skip_title(
+    gleam_raw$tab_s74,
+    c("grouping", "broilers", "layers")
+  )
+  df <- .drop_footnotes(df, "grouping")
+  rows <- c(
+    rows,
+    list(
+      df |>
+        tidyr::pivot_longer(
+          cols = c("broilers", "layers"),
+          names_to = "herd",
+          values_to = "emission_factor"
+        ) |>
+        dplyr::mutate(
+          species = "chickens",
+          grouping_scheme = "region5",
+          system = NA_character_,
+          climate = NA_character_,
+          energy_type = "embedded",
+          denominator = dplyr::if_else(herd == "layers", "egg", "lw"),
+          emission_factor = .parse_gleam_numeric(emission_factor)
+        )
     )
-    df <- raw[-(1:3), , drop = FALSE]
-    names(df) <- col_names
-    df <- .drop_footnotes(df, "grouping")
-    rows[[7]] <- df |>
-      tidyr::pivot_longer(
-        cols = -"grouping",
-        names_to = "species_system",
-        values_to = "emission_factor"
-      ) |>
-      dplyr::mutate(
-        species = dplyr::case_when(
-          grepl("pigs", species_system) ~ "pigs",
-          species_system == "layers" ~ "chickens",
-          species_system == "broilers" ~ "chickens"
-        ),
-        system = dplyr::case_when(
-          species_system == "pigs_intermediate" ~ "intermediate",
-          species_system == "pigs_industrial" ~ "industrial",
-          species_system == "layers" ~ "layers",
-          species_system == "broilers" ~ "broilers"
-        ),
-        climate = NA_character_,
-        energy_type = "direct",
-        emission_factor = .parse_gleam_numeric(emission_factor)
-      ) |>
-      dplyr::select(-species_system)
-  }
+  )
 
-  result <- dplyr::bind_rows(rows)
-  result |>
+  # S.7.5 direct, dairy cattle & buffalo (kg CO2-eq / kg MILK): two-row header
+  # (system x climate). Footnote: dairy small ruminants assumed double.
+  col_names <- c(
+    "grouping",
+    "grassland_based_arid",
+    "grassland_based_humid",
+    "grassland_based_temperate",
+    "mixed_farming_arid",
+    "mixed_farming_humid",
+    "mixed_farming_temperate"
+  )
+  df <- gleam_raw$tab_s75[-(1:3), , drop = FALSE]
+  names(df) <- col_names
+  df <- df[!is.na(df$grouping), ]
+  df <- df[!grepl("^a\\s|^Note", df$grouping), ]
+  s75 <- df |>
+    tidyr::pivot_longer(
+      cols = -"grouping",
+      names_to = "sys_clim",
+      values_to = "emission_factor"
+    ) |>
+    tidyr::separate_wider_regex(
+      sys_clim,
+      c(system = "grassland_based|mixed_farming", "_", climate = ".*")
+    ) |>
+    dplyr::mutate(
+      species = "cattle",
+      herd = "dairy",
+      grouping_scheme = "detailed15",
+      energy_type = "direct",
+      denominator = "milk",
+      emission_factor = .parse_gleam_numeric(emission_factor)
+    )
+  rows <- c(
+    rows,
+    list(
+      s75,
+      .energy_scaled_rows(s75, 1, "dairy", species = "buffalo"),
+      .energy_scaled_rows(s75, 2, "dairy", species = "small_ruminants")
+    )
+  )
+
+  # S.7.6 direct, non-dairy ruminants (kg CO2-eq / kg LW).
+  df <- .gleam_skip_title(gleam_raw$tab_s76, NULL)
+  names(df) <- c(
+    "grouping",
+    "large_ruminants_grassland_based",
+    "large_ruminants_mixed_farming",
+    "small_ruminants"
+  )
+  df <- .drop_footnotes(df, "grouping")
+  rows <- c(
+    rows,
+    list(
+      df |>
+        tidyr::pivot_longer(
+          cols = -"grouping",
+          names_to = "key",
+          values_to = "emission_factor"
+        ) |>
+        dplyr::mutate(
+          species = dplyr::if_else(
+            stringr::str_detect(key, "small"),
+            "small_ruminants",
+            "large_ruminants"
+          ),
+          system = dplyr::case_when(
+            stringr::str_detect(key, "grassland") ~ "grassland_based",
+            stringr::str_detect(key, "mixed") ~ "mixed_farming",
+            .default = NA_character_
+          ),
+          herd = "non_dairy",
+          grouping_scheme = "detailed15",
+          climate = NA_character_,
+          energy_type = "direct",
+          denominator = "lw",
+          emission_factor = .parse_gleam_numeric(emission_factor)
+        ) |>
+        dplyr::select(-"key")
+    )
+  )
+
+  # S.7.7 direct, monogastrics: pigs (kg / kg LW), layers (kg / kg egg),
+  # broilers (kg / kg LW). Two-row header.
+  df <- gleam_raw$tab_s77[-(1:3), , drop = FALSE]
+  names(df) <- c(
+    "grouping",
+    "pigs_intermediate",
+    "pigs_industrial",
+    "chickens_layers",
+    "chickens_broilers"
+  )
+  df <- .drop_footnotes(df, "grouping")
+  rows <- c(
+    rows,
+    list(
+      df |>
+        tidyr::pivot_longer(
+          cols = -"grouping",
+          names_to = "key",
+          values_to = "emission_factor"
+        ) |>
+        tidyr::separate_wider_regex(
+          key,
+          c(species = "pigs|chickens", "_", herd_sys = ".*")
+        ) |>
+        dplyr::mutate(
+          system = dplyr::if_else(species == "pigs", herd_sys, NA_character_),
+          herd = dplyr::if_else(species == "chickens", herd_sys, NA_character_),
+          grouping_scheme = "detailed15",
+          climate = NA_character_,
+          energy_type = "direct",
+          denominator = dplyr::if_else(
+            species == "chickens" & herd == "layers",
+            "egg",
+            "lw"
+          ),
+          emission_factor = .parse_gleam_numeric(emission_factor)
+        ) |>
+        dplyr::select(-"herd_sys")
+    )
+  )
+
+  dplyr::bind_rows(rows) |>
+    dplyr::filter(!is.na(emission_factor)) |>
     dplyr::select(
-      "grouping",
       "species",
+      "herd",
+      "grouping",
+      "grouping_scheme",
       "system",
       "climate",
       "energy_type",
+      "denominator",
       "emission_factor"
-    )
+    ) |>
+    dplyr::arrange(species, herd, energy_type, grouping, system, climate)
 }
 
 # S.A1–S.A2: geographic hierarchy

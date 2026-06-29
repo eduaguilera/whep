@@ -81,6 +81,20 @@
   )
 }
 
+.example_energy_co2_extension <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~impact_u, ~method_energy,
+    2010L, 21L, 961L, 1.7669e9, "GLEAM_3.0_energy_meat",
+    2010L, 21L, 1053L, 3.4077e9, "GLEAM_3.0_energy_meat",
+    2010L, 231L, 961L, 8.3289e9, "GLEAM_3.0_energy_meat",
+    2010L, 231L, 976L, 5.7395e7, "GLEAM_3.0_energy_meat",
+    2010L, 231L, 1016L, 1.7517e7, "GLEAM_3.0_energy_meat",
+    2010L, 231L, 1049L, 1.9281e9, "GLEAM_3.0_energy_meat",
+    2010L, 231L, 1051L, 2.1423e8, "GLEAM_3.0_energy_meat",
+    2010L, 231L, 1053L, 1.1171e10, "GLEAM_3.0_energy_meat"
+  )
+}
+
 .example_soil_n2o_extension <- function() {
   tibble::tribble(
     ~year, ~area_code, ~item_cbs_code, ~impact_u, ~method_soil_n2o,
