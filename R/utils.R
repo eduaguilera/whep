@@ -1082,6 +1082,8 @@ utils::globalVariables(
     "all_categories",
     "cohort_fraction",
     "system_share",
+    "system",
+    "routed_system",
     # livestock bridge
     "Item_Code_product",
     "Liv_prod_cat",

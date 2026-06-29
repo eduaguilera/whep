@@ -10,9 +10,11 @@ calculate_cohorts_systems(data, system_shares = NULL)
 \item{data}{Dataframe with \code{species}, \code{heads}, and
 optionally \code{iso3} or \code{region}.}
 
-\item{system_shares}{Optional dataframe with \code{species},
-\code{system}, \code{share} columns. If \code{NULL}, uses
-GLEAM defaults.}
+\item{system_shares}{Optional dataframe with \code{species_gen},
+\code{system}, \code{system_share} columns. If \code{NULL}, uses GLEAM
+defaults and routes dairy/non-dairy commodities to their
+matching production system. Supplying this overrides both,
+so the supplied shares are used verbatim.}
 }
 \value{
 Dataframe expanded to cohort level with

@@ -275,6 +275,13 @@ cohorts and production systems using:
 - `gleam_livestock_categories`: cohort fractions by species
 - GLEAM S.6 tables (e.g. `gleam_field_operation_ef`, `gleam_mechanization_levels`): system shares by species + region
 
+The default system split is keyed by general species, then routed by the
+commodity's dairy/non-dairy subcategory: a `Cattle, dairy` herd goes
+entirely to the Dairy system and `Cattle, non-dairy` entirely to the Beef
+system, rather than both receiving the generic 30/70 blend (issue #109).
+Single-commodity species (e.g. `Buffalo`) keep the blend. A supplied
+`system_shares` argument overrides this routing.
+
 ---
 
 ### 3.6 Uncertainty (`livestock_uncertainty.R`)
