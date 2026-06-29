@@ -103,6 +103,17 @@
   )
 }
 
+.example_biodiv_extension <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~impact_u, ~method_biodiversity,
+    2010L, 21L, 2511L, 2.439627e-3, "chaudhary_brooks_2018_occupation_intense",
+    2010L, 21L, 3000L, 2.454240e-3, "chaudhary_brooks_2018_occupation_intense",
+    2010L, 68L, 2511L, 4.616822e-4, "chaudhary_brooks_2018_occupation_intense",
+    2010L, 101L, 2511L, 9.532754e-3, "chaudhary_brooks_2018_occupation_intense",
+    2010L, 231L, 2511L, 7.887119e-4, "chaudhary_brooks_2018_occupation_intense"
+  )
+}
+
 .ex_get_primary_prod <- function() {
   tibble::tribble(
     ~year, ~area_code, ~item_prod_code, ~item_cbs_code, ~live_anim_code, ~unit, ~value,

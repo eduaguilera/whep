@@ -638,3 +638,30 @@
 #' @examples
 #' head(regions_full)
 "regions_full"
+
+#' Land-use biodiversity characterization factors (Chaudhary & Brooks 2018)
+#'
+#' Country-level characterization factors (CFs) quantifying potential global
+#' species loss from agricultural land occupation, used by
+#' [build_biodiversity_extension()]. They are the taxa-aggregated, global
+#' (vulnerability-weighted), average-approach land-occupation CFs of Chaudhary
+#' & Brooks (2018), in Potentially Disappeared Fraction of species (PDF) per
+#' square metre of land occupied, with a published 95% confidence interval.
+#'
+#' @format
+#' A tibble with one row per country, agricultural land-use type and land-use
+#' intensity:
+#' - `iso3c`: ISO 3166-1 alpha-3 country code.
+#' - `land_use_type`: Agricultural land-use class, `"crop"` or `"pasture"`.
+#' - `intensity`: Land-use intensity, `"minimal"`, `"light"` or `"intense"`.
+#' - `cf_mean`: Mean CF in PDF per square metre.
+#' - `cf_lo`: Lower bound of the published 95% confidence interval.
+#' - `cf_hi`: Upper bound of the published 95% confidence interval.
+#' @source Chaudhary, A. & Brooks, T. M. (2018). Land Use Intensity-Specific
+#'   Global Characterization Factors to Assess Product Biodiversity Footprints.
+#'   Environmental Science & Technology, 52(9), 5094-5104.
+#'   \doi{10.1021/acs.est.7b05570}. Supporting Information, Table S5.
+#'
+#' @examples
+#' head(biodiversity_cf)
+"biodiversity_cf"

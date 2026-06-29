@@ -928,6 +928,7 @@ utils::globalVariables(
     "method_grassland",
     "method_ghg",
     "method_soil_n2o",
+    "method_biodiversity",
     "p",
     "phys",
     "phys_adj",

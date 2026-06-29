@@ -158,6 +158,7 @@ reference:
     Lookup and coefficient tables used internally across the pipeline.
   contents:
   - animals_codes
+  - biodiversity_cf
   - biomass_coefs
   - cb_processing
   - cft_mapping
@@ -218,6 +219,7 @@ reference:
   - build_livestock_ghg_extension
   - build_energy_co2_extension
   - build_crop_soil_n2o_extension
+  - build_biodiversity_extension
   - gridded_fallow_weights
   - attribute_fallow_to_crops
   - plot_footprint_sankey
