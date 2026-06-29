@@ -216,6 +216,7 @@ reference:
   - build_hayr_land_extension
   - build_grassland_land_extension
   - build_livestock_ghg_extension
+  - build_crop_soil_n2o_extension
   - gridded_fallow_weights
   - attribute_fallow_to_crops
   - plot_footprint_sankey

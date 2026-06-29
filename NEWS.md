@@ -16,6 +16,11 @@
   (direct and indirect) from IPCC default per-head excretion rates, so the
   default Tier-1 GHG footprint covers enteric CH4 + manure CH4 + manure N2O
   rather than methane alone (#100).
+* Add `build_crop_soil_n2o_extension()`: IPCC 2019 Tier 1 nitrous-oxide from
+  synthetic fertiliser applied to managed soils, allocated to crops by harvested
+  area, as a CO2e footprint extension keyed by `(area_code, item_cbs_code)`.
+  Direct (EF1) plus indirect (volatilisation, leaching) per Ch. 11. Applied
+  manure and crop-residue N are documented follow-ups (#100).
 * Add `build_footprint()` and `align_extension()`: trace a long-format
   extension table through the supply chain end to end, de-duplicating the
   per-year alignment glue previously repeated across the footprint driver
