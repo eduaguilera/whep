@@ -7,9 +7,11 @@
 #'
 #' @param data Dataframe with `species`, `heads`, and
 #'   optionally `iso3` or `region`.
-#' @param system_shares Optional dataframe with `species`,
-#'   `system`, `share` columns. If `NULL`, uses
-#'   GLEAM defaults.
+#' @param system_shares Optional dataframe with `species_gen`,
+#'   `system`, `system_share` columns. If `NULL`, uses GLEAM
+#'   defaults and routes dairy/non-dairy commodities to their
+#'   matching production system. Supplying this overrides both,
+#'   so the supplied shares are used verbatim.
 #'
 #' @return Dataframe expanded to cohort level with
 #'   `cohort`, `system`, `cohort_heads`, and
@@ -30,7 +32,8 @@ calculate_cohorts_systems <- function(data, system_shares = NULL) {
       species_gen = .get_general_species(species)
     )
 
-  if (is.null(system_shares)) {
+  use_default <- is.null(system_shares)
+  if (use_default) {
     system_shares <- .default_system_shares()
   }
 
@@ -40,7 +43,17 @@ calculate_cohorts_systems <- function(data, system_shares = NULL) {
       system_shares,
       by = "species_gen",
       relationship = "many-to-many"
-    ) |>
+    )
+
+  # Default shares are keyed by general species, so both cattle commodities
+  # ("Cattle, dairy" / "Cattle, non-dairy") would otherwise receive the same
+  # generic Dairy/Beef blend (issue #109). When the commodity name itself names
+  # a dairy/non-dairy subcategory, send the whole herd to that system instead.
+  if (use_default) {
+    data <- .route_to_commodity_system(data)
+  }
+
+  data <- data |>
     dplyr::mutate(
       system_heads = heads * system_share
     )
@@ -93,6 +106,54 @@ calculate_cohorts_systems <- function(data, system_shares = NULL) {
     "Swine", "Fattening", 0.85,
     "Poultry", "Layers", 0.50,
     "Poultry", "Broilers", 0.50
+  )
+}
+
+#' Route a herd to the production system named by its commodity.
+#'
+#' Default system shares are keyed by general species, so a dairy and a non-dairy
+#' commodity of the same species share one blend. When the commodity name
+#' identifies a dairy/non-dairy subcategory, keep only that subcategory's system
+#' and give it the full share. Commodities that name no subcategory keep the
+#' generic blend untouched.
+#' @noRd
+.route_to_commodity_system <- function(data) {
+  routing <- .subcategory_system_map() |>
+    dplyr::rename(routed_system = system)
+
+  data |>
+    dplyr::mutate(subcategory = .commodity_subcategory(species)) |>
+    dplyr::left_join(routing, by = c("species_gen", "subcategory")) |>
+    dplyr::filter(is.na(routed_system) | system == routed_system) |>
+    dplyr::mutate(
+      system_share = dplyr::if_else(is.na(routed_system), system_share, 1)
+    ) |>
+    dplyr::select(-routed_system, -subcategory)
+}
+
+#' Dairy/non-dairy subcategory named by a commodity, else `NA`.
+#'
+#' Unlike [.get_subcategory()], this returns `NA` (not "Non-Dairy") when the name
+#' does not literally say dairy/non-dairy, so single-commodity species (e.g.
+#' "Buffalo") keep the generic system blend instead of collapsing to one system.
+#' @noRd
+.commodity_subcategory <- function(species) {
+  dplyr::case_when(
+    .is_dairy(species) ~ "Dairy",
+    stringr::str_detect(species, "(?i)non[- ]?dairy") ~ "Non-Dairy",
+    TRUE ~ NA_character_
+  )
+}
+
+#' Production system each commodity subcategory routes to, by species.
+#'
+#' Only cattle has separate dairy and non-dairy commodities in `animals_codes`.
+#' @noRd
+.subcategory_system_map <- function() {
+  tibble::tribble(
+    ~species_gen, ~subcategory, ~system,
+    "Cattle", "Dairy", "Dairy",
+    "Cattle", "Non-Dairy", "Beef"
   )
 }
 
