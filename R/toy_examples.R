@@ -103,6 +103,16 @@
   )
 }
 
+.example_nitrogen_extension <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~impact_u, ~method_nitrogen,
+    2010L, 10L, 2511L, 1.284e8, "soil_n_surplus",
+    2010L, 10L, 2513L, 5.71e7, "soil_n_surplus",
+    2010L, 10L, 2555L, 6.6e6, "soil_n_surplus",
+    2010L, 100L, 2511L, 4.05e7, "soil_n_surplus"
+  )
+}
+
 .ex_get_primary_prod <- function() {
   tibble::tribble(
     ~year, ~area_code, ~item_prod_code, ~item_cbs_code, ~live_anim_code, ~unit, ~value,

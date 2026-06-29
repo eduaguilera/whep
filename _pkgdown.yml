@@ -218,6 +218,7 @@ reference:
   - build_livestock_ghg_extension
   - build_energy_co2_extension
   - build_crop_soil_n2o_extension
+  - build_nitrogen_extension
   - gridded_fallow_weights
   - attribute_fallow_to_crops
   - plot_footprint_sankey
