@@ -390,13 +390,17 @@ build_carbon_balance <- function(
 # -- Soil-organic-nitrogen change ---------------------------------------------
 
 # Net carbon loss (rate < 0) mineralizes nitrogen at the cropland-class
-# mineralization C:N (a positive N input); net gain immobilizes nitrogen at the
-# sequestration C:N (SOC_Fun.R:278-283). The asymmetric ratios come from
-# whep::soil_cn_ratios; Cropland uses the Conventional row.
+# mineralization C:N (son_change > 0, a positive N-release flux into the mineral
+# pool that Module C consumes as an N input); net gain immobilizes nitrogen at
+# the sequestration C:N (son_change < 0). This is the N-release-flux convention
+# (negated relative to the Spain_Hist SOC_Fun.R:278-283 delta-SON-stock sign) so
+# downstream consumers add it directly. The asymmetric ratios come from
+# whep::soil_cn_ratios (Conventional rows).
 .cb_derive_son <- function(marched) {
   cn <- .cb_cn_lookup()
   marched |>
-    dplyr::left_join(cn, by = "land_use") |>
+    dplyr::mutate(cropland_class = .cb_cropland_class(.data$land_use)) |>
+    dplyr::left_join(cn, by = "cropland_class") |>
     dplyr::mutate(
       cn_used = dplyr::if_else(
         .data$rate_mgc_ha < 0,
@@ -405,24 +409,37 @@ build_carbon_balance <- function(
       ),
       son_change_kgn_ha = -.data$rate_mgc_ha * 1000 / .data$cn_used
     ) |>
-    dplyr::select(-"cn_mineralization", -"cn_sequestration", -"cn_used")
+    dplyr::select(
+      -"cropland_class",
+      -"cn_mineralization",
+      -"cn_sequestration",
+      -"cn_used"
+    )
 }
 
-# Map each land-use class to its asymmetric C:N pair. Cropland -> the Cropland
-# Conventional row; every other class -> the NonCropland Conventional row.
-.cb_cn_lookup <- function() {
-  conv <- whep::soil_cn_ratios |>
-    dplyr::filter(.data$management == "Conventional")
-  crop <- conv |> dplyr::filter(.data$cropland_class == "Cropland")
-  noncrop <- conv |> dplyr::filter(.data$cropland_class == "NonCropland")
-  tibble::tibble(
-    land_use = c("Cropland", "NonCropland"),
-    cn_mineralization = c(
-      crop$cn_mineralization,
-      noncrop$cn_mineralization
-    ),
-    cn_sequestration = c(crop$cn_sequestration, noncrop$cn_sequestration)
+# Classify any land-use label as Cropland vs NonCropland for the C:N lookup.
+# Case-insensitive so the LUH2 reader's lowercase classes (cropland, grassland,
+# natural, urban) resolve: only "cropland" maps to the Cropland C:N pair, every
+# other class maps to NonCropland.
+.cb_cropland_class <- function(land_use) {
+  dplyr::if_else(
+    stringr::str_to_lower(land_use) == "cropland",
+    "Cropland",
+    "NonCropland"
   )
+}
+
+# The asymmetric C:N pair per cropland class (Conventional management). Keyed by
+# cropland_class so .cb_derive_son joins on the classified label, never on the
+# raw land-use string.
+.cb_cn_lookup <- function() {
+  whep::soil_cn_ratios |>
+    dplyr::filter(.data$management == "Conventional") |>
+    dplyr::select(
+      "cropland_class",
+      "cn_mineralization",
+      "cn_sequestration"
+    )
 }
 
 # -- Finalisation -------------------------------------------------------------

@@ -168,6 +168,37 @@ test_that("son_change uses asymmetric C:N with correct sign", {
   }
 })
 
+test_that("son_change resolves C:N for the lowercase 4-class land-use vocab", {
+  # The LUH2 reader (phase 2B) emits lowercase cropland / grassland / natural /
+  # urban. .cb_cn_lookup must map "cropland" to the Cropland C:N pair and every
+  # other class to NonCropland (case-insensitive), never leaving son_change NA.
+  marched <- tibble::tribble(
+    ~land_use, ~rate_mgc_ha,
+    "cropland", -0.5,
+    "grassland", -0.5,
+    "natural", 0.5,
+    "urban", -0.5
+  )
+  out <- whep:::.cb_derive_son(marched)
+  testthat::expect_false(any(is.na(out$son_change_kgn_ha)))
+
+  cn <- whep::soil_cn_ratios |>
+    dplyr::filter(management == "Conventional")
+  crop_min <- cn$cn_mineralization[cn$cropland_class == "Cropland"]
+  noncrop_min <- cn$cn_mineralization[cn$cropland_class == "NonCropland"]
+  # Cropland loss uses the Cropland mineralization C:N; grassland the NonCropland.
+  testthat::expect_equal(
+    out$son_change_kgn_ha[out$land_use == "cropland"],
+    0.5 * 1000 / crop_min,
+    tolerance = 1e-6
+  )
+  testthat::expect_equal(
+    out$son_change_kgn_ha[out$land_use == "grassland"],
+    0.5 * 1000 / noncrop_min,
+    tolerance = 1e-6
+  )
+})
+
 # -- Non-negativity -----------------------------------------------------------
 
 test_that("stocks never go negative on the example run", {
