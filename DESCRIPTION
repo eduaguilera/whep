@@ -20,6 +20,7 @@ Imports:
     arrow,
     cli,
     data.table,
+    deSolve,
     dplyr,
     fs,
     FAOSTAT,

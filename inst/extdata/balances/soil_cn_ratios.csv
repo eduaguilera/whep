@@ -1,0 +1,5 @@
+cropland_class,management,cn_ratio,cn_mineralization,cn_sequestration
+Cropland,Conventional,10,8,11
+Cropland,Organic,10,9,13
+NonCropland,Conventional,15,11,15
+NonCropland,Organic,15,11,15

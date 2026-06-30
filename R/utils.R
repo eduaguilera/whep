@@ -1279,7 +1279,11 @@ utils::globalVariables(
     "area_item_cbs_code",
     "family",
     "i..has_milled_rice",
-    "output_key"
+    "output_key",
+    # soil-balance coefficient datasets (Module B, Task B1)
+    "soc_turnover_params",
+    "amg_h_by_input_type",
+    "soil_cn_ratios"
   )
 )
 

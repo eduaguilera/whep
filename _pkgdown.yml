@@ -76,6 +76,17 @@ reference:
   - build_water_balance
   - get_soc_climate_drivers
 
+- title: Soil-balance coefficient tables
+  desc: >
+    Structural parameter tables for the soil-organic-carbon turnover models
+    (HSOC, RothC, ICBM, AMG, Century), the AMG humification coefficient by
+    carbon input type, and the soil carbon-to-nitrogen ratios used to convert
+    soil-carbon change into net nitrogen mineralization or sequestration.
+  contents:
+  - soc_turnover_params
+  - amg_h_by_input_type
+  - soil_cn_ratios
+
 - title: Crop NPP, BNF and coefficient tables
   desc: >
     Crop net primary production (products, residues, roots, weeds), biological

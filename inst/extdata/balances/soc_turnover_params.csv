@@ -1,0 +1,44 @@
+model,component,parameter,value,unit,description
+hsoc,fresh,decomposition_rate,0.48,per_year,Fresh pool first-order decomposition rate constant.
+hsoc,humus,decomposition_rate,0.02,per_year,Humus pool first-order decomposition rate constant.
+hsoc,iom,decomposition_rate,0,per_year,Inert organic matter pool decomposition rate constant (inert).
+rothc,dpm,decomposition_rate,10.0,per_year,Decomposable plant material pool decomposition rate constant.
+rothc,rpm,decomposition_rate,0.3,per_year,Resistant plant material pool decomposition rate constant.
+rothc,bio,decomposition_rate,0.66,per_year,Microbial biomass pool decomposition rate constant.
+rothc,hum,decomposition_rate,0.02,per_year,Humified organic matter pool decomposition rate constant.
+rothc,iom,decomposition_rate,0,per_year,Inert organic matter pool decomposition rate constant (inert).
+rothc,input,dpm_rpm_ratio,1.44,ratio,Default ratio of decomposable to resistant plant material in inputs.
+rothc,dpm,init_active_fraction,0.01,fraction,Initial fraction of active carbon allocated to the DPM pool.
+rothc,rpm,init_active_fraction,0.02,fraction,Initial fraction of active carbon allocated to the RPM pool.
+rothc,bio,init_active_fraction,0.05,fraction,Initial fraction of active carbon allocated to the BIO pool.
+rothc,hum,init_active_fraction,0.92,fraction,Initial fraction of active carbon allocated to the HUM pool.
+icbm,young,decomposition_rate,0.8,per_year,Young pool decomposition rate constant.
+icbm,old,decomposition_rate,0.00605,per_year,Old pool decomposition rate constant.
+icbm,transfer,humification_coefficient,0.13,fraction,Humification coefficient transferring young to old pool.
+amg,active,decomposition_rate,0.165,per_year,Active pool decomposition rate constant.
+amg,stable,inert_fraction,0.65,fraction,Stable (inert) fraction of initial soil organic carbon.
+century,str,base_rate_weekly,0.094,per_week,Structural litter base weekly decomposition rate (before lignin and rate modifiers).
+century,met,base_rate_weekly,0.35,per_week,Metabolic litter base weekly decomposition rate.
+century,act,base_rate_weekly,0.14,per_week,Active soil organic matter base weekly decomposition rate (before texture modifier).
+century,slw,base_rate_weekly,0.0038,per_week,Slow soil organic matter base weekly decomposition rate.
+century,pas,base_rate_weekly,0.00013,per_week,Passive soil organic matter base weekly decomposition rate.
+century,all,weeks_per_year,52,weeks,Annualisation factor converting weekly rates to annual rates.
+century,str_act,transfer_fraction_const,0.55,fraction,Respiration loss fraction in structural-to-active transfer (1-Ls scaled).
+century,str_slw,transfer_fraction_const,0.30,fraction,Respiration loss fraction in structural-to-slow transfer (Ls scaled).
+century,met_act,transfer_fraction_const,0.55,fraction,Respiration loss fraction in metabolic-to-active transfer.
+century,act_pas,transfer_fraction,0.004,fraction,Fraction of active outflow transferred to the passive pool.
+century,slw_act,transfer_fraction,0.42,fraction,Fraction of slow outflow recycled to the active pool.
+century,slw_pas,transfer_fraction,0.03,fraction,Fraction of slow outflow transferred to the passive pool.
+century,pas_act,transfer_fraction_const,0.55,fraction,Respiration loss fraction in passive-to-active transfer (gives 0.45 to active).
+century,act,respiration_intercept,0.85,fraction,Intercept of active-pool respiration/stabilization fraction Es.
+century,act,respiration_texture_slope,0.68,per_fraction,Texture slope of active-pool respiration/stabilization fraction Es.
+century,act,texture_intercept,1,fraction,Intercept of active-pool texture multiplier fTxtr.
+century,act,texture_slope,0.75,per_fraction,Texture slope of active-pool texture multiplier fTxtr.
+century,met,metabolic_intercept,0.85,fraction,Intercept of metabolic input fraction Fm.
+century,met,metabolic_ln_slope,0.018,per_ratio,Lignin-to-nitrogen slope of metabolic input fraction Fm.
+century,defaults,silt_pct,45,percent,Default silt percentage.
+century,defaults,lignin_fraction,0.5,fraction,Default structural (lignin) fraction Ls.
+century,defaults,lignin_n_ratio,0.025,ratio,Default lignin-to-nitrogen ratio LN (= 1/40).
+century,act,init_fraction,0.05,fraction,Initial fraction of soil organic carbon allocated to the active pool.
+century,slw,init_fraction,0.40,fraction,Initial fraction of soil organic carbon allocated to the slow pool.
+century,pas,init_fraction,0.55,fraction,Initial fraction of soil organic carbon allocated to the passive pool.
