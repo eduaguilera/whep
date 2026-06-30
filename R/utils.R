@@ -216,6 +216,10 @@ utils::globalVariables(
     # feed_lpjml.R (LPJmL grass-availability read-back)
     "band",
     "cft_frac",
+    # lpjml_hydrology.R (gridded hydrology NetCDF reader)
+    "month",
+    "layer",
+    "time_index",
     "grass_npp_gc_m2",
     "cell_area_ha",
     "grass_avail_dm_t_ha",

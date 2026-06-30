@@ -62,6 +62,14 @@ reference:
   - aggregate_grass_to_polity
   - read_lpjml_grass_productivity
 
+- title: Soil balances - water
+  desc: >
+    Read LPJmL hydrology outputs (drainage, evapotranspiration components,
+    precipitation, irrigation, runoff, discharge and soil water content) into
+    tidy long form for the water balance.
+  contents:
+  - read_lpjml_hydrology
+
 - title: Crop NPP, BNF and coefficient tables
   desc: >
     Crop net primary production (products, residues, roots, weeds), biological
