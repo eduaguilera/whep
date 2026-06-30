@@ -575,6 +575,31 @@
   )
 }
 
+# Historical gridded SOC balance fixture (one cell, two land-use classes, three
+# years). Generated from a real build_carbon_balance(model = "hsoc") run: the
+# cell starts at the fraction-weighted equilibrium density, marches forward on
+# the yearly areas, and in 2001 Cropland shrinks while NonCropland grows so the
+# land-use-change transfer (luc_transfer_mgc_ha) sums to zero across the cell.
+.example_carbon_balance <- function() {
+  tibble::tribble(
+    ~lon, ~lat, ~area_code, ~land_use, ~year, ~area_ha, ~stock_mgc_ha,
+    ~mineralization_mgc_ha, ~c_input_mgc_ha, ~luc_transfer_mgc_ha,
+    ~rate_mgc_ha, ~son_change_kgn_ha, ~method_soc,
+    0.250000, 0.250000, 1L, "Cropland", 2000L, 60.000000, 37.749198,
+    2.096878, 2.500000, 0.000000, 0.403122, -36.647441, "hsoc",
+    0.250000, 0.250000, 1L, "NonCropland", 2000L, 40.000000, 36.738231,
+    2.107845, 1.500000, 0.000000, -0.607845, 55.258678, "hsoc",
+    0.250000, 0.250000, 1L, "Cropland", 2001L, 50.000000, 38.129686,
+    2.119512, 2.500000, -7.625937, 0.380488, -34.589790, "hsoc",
+    0.250000, 0.250000, 1L, "NonCropland", 2001L, 50.000000, 36.557691,
+    2.073538, 1.500000, 7.625937, -0.573538, 52.139830, "hsoc",
+    0.250000, 0.250000, 1L, "Cropland", 2002L, 50.000000, 38.488810,
+    2.140876, 2.500000, -7.697762, 0.359124, -32.647669, "hsoc",
+    0.250000, 0.250000, 1L, "NonCropland", 2002L, 50.000000, 36.493236,
+    2.063348, 1.500000, 7.697762, -0.563348, 51.213484, "hsoc"
+  )
+}
+
 .ex_grazing_feed_footprint <- function() {
   tibble::tribble(
     ~area_code, ~item_cbs_code, ~value, ~method,

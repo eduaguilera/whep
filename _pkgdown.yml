@@ -127,6 +127,16 @@ reference:
   contents:
   - build_soil_carbon_inputs
 
+- title: Soil balances - carbon (historical balance)
+  desc: >
+    Reconstruct per-cell soil-organic-carbon stock trajectories: equilibrium
+    initialisation under the earliest land-use carbon inputs, a forward march on
+    yearly per-cell per-class land-use areas with a carbon-conserving
+    land-use-change transfer, and the derived soil-organic-nitrogen change via
+    the asymmetric soil carbon-to-nitrogen ratios.
+  contents:
+  - build_carbon_balance
+
 - title: Crop NPP, BNF and coefficient tables
   desc: >
     Crop net primary production (products, residues, roots, weeds), biological

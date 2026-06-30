@@ -1314,7 +1314,27 @@ utils::globalVariables(
     "total_c_mg",
     "residue_c_mgc_ha_yr",
     "root_c_mgc_ha_yr",
-    "manure_c_mgc_ha_yr"
+    "manure_c_mgc_ha_yr",
+    # carbon_balance.R (Module B, Task B2a-3) — gridded SOC balance NSE columns
+    "c_input_mgc_ha_yr",
+    "humified_fraction",
+    "climate_modifier",
+    "soc_eq_mgc_ha",
+    "stock_mgc_ha",
+    "mineralization_mgc_ha",
+    "c_input_mgc_ha",
+    "luc_transfer_mgc_ha",
+    "rate_mgc_ha",
+    "son_change_kgn_ha",
+    "new_area_ha",
+    "old_area_ha",
+    "area_change",
+    "mass_moved",
+    "cropland_class",
+    "management",
+    "cn_mineralization",
+    "cn_sequestration",
+    "cn_used"
   )
 )
 
