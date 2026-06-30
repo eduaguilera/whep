@@ -618,6 +618,28 @@
   )
 }
 
+# Gridded LUH2 land-use-class fixture: three 0.5-degree cells, one year, the
+# four carbon-balance classes. Per cell the four fractions tile to 1 and
+# area_ha = fraction * .luh2_cell_area_ha(lat). Mirrors read_luh2_landuse()
+# output at "grid" resolution.
+.example_luh2_landuse <- function() {
+  tibble::tribble(
+    ~lon, ~lat, ~area_code, ~year, ~land_use, ~fraction, ~area_ha,
+    -3.25, 40.25, 203L, 2000L, "cropland", 0.40, 94368.14,
+    -3.25, 40.25, 203L, 2000L, "grassland", 0.20, 47184.07,
+    -3.25, 40.25, 203L, 2000L, "natural", 0.35, 82572.12,
+    -3.25, 40.25, 203L, 2000L, "urban", 0.05, 11796.02,
+    35.25, -1.25, 79L, 2000L, "cropland", 0.30, 92709.98,
+    35.25, -1.25, 79L, 2000L, "grassland", 0.25, 77258.31,
+    35.25, -1.25, 79L, 2000L, "natural", 0.40, 123613.30,
+    35.25, -1.25, 79L, 2000L, "urban", 0.05, 15451.66,
+    9.25, 47.75, 11L, 2000L, "cropland", 0.25, 51958.29,
+    9.25, 47.75, 11L, 2000L, "grassland", 0.20, 41566.63,
+    9.25, 47.75, 11L, 2000L, "natural", 0.50, 103916.58,
+    9.25, 47.75, 11L, 2000L, "urban", 0.05, 10391.66
+  )
+}
+
 .ex_grazing_feed_footprint <- function() {
   tibble::tribble(
     ~area_code, ~item_cbs_code, ~value, ~method,

@@ -137,6 +137,7 @@ reference:
     the asymmetric soil carbon-to-nitrogen ratios.
   contents:
   - build_carbon_balance
+  - read_luh2_landuse
 
 - title: Crop NPP, BNF and coefficient tables
   desc: >
