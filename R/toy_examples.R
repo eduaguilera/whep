@@ -600,6 +600,24 @@
   )
 }
 
+# Toy fixture for read_cru_climate (sampled from a real CRU 4.09 tmp read,
+# degrees Celsius, year 2000).
+.example_cru_climate <- function() {
+  tibble::tribble(
+    ~lon, ~lat, ~year, ~month, ~value, ~var,
+    22.75, -31.25, 2000L, 7L, 8.6, "tmp",
+    49.25, -14.25, 2000L, 1L, 20.8, "tmp",
+    109.75, 1.25, 2000L, 1L, 26.2, "tmp",
+    57.25, 25.75, 2000L, 1L, 20.7, "tmp",
+    -1.75, 27.25, 2000L, 1L, 12.7, "tmp",
+    68.25, 27.25, 2000L, 1L, 16.2, "tmp",
+    -92.75, 38.75, 2000L, 1L, -0.1, "tmp",
+    42.25, 58.75, 2000L, 7L, 19.0, "tmp",
+    18.75, 66.25, 2000L, 7L, 13.0, "tmp",
+    80.75, 72.75, 2000L, 7L, 5.6, "tmp"
+  )
+}
+
 .ex_grazing_feed_footprint <- function() {
   tibble::tribble(
     ~area_code, ~item_cbs_code, ~value, ~method,
