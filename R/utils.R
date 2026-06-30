@@ -1283,7 +1283,24 @@ utils::globalVariables(
     # soil-balance coefficient datasets (Module B, Task B1)
     "soc_turnover_params",
     "amg_h_by_input_type",
-    "soil_cn_ratios"
+    "soil_cn_ratios",
+    # soc_models.R (Module B, Task B4) — SOC turnover model NSE columns
+    "model",
+    "component",
+    "pattern",
+    "input_type",
+    "match_order",
+    "h",
+    "dpm",
+    "rpm",
+    "bio",
+    "hum",
+    "iom",
+    "met",
+    "act",
+    "slw",
+    "pas",
+    "soc_total"
   )
 )
 

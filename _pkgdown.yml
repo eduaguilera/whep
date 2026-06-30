@@ -87,6 +87,32 @@ reference:
   - amg_h_by_input_type
   - soil_cn_ratios
 
+- title: Soil balances - carbon (SOC climate)
+  desc: >
+    Per-model native climate rate-modifying functions for the soil-organic-carbon
+    turnover models. Each model carries its own published temperature and moisture
+    response (RothC/HSOC a*b*c, ICBM re_clim, AMGv2 f(T)*f(H), Century DEFAC),
+    not a shared scalar.
+  contents:
+  - soc_rate_modifier_rothc
+  - soc_rate_modifier_icbm
+  - soc_rate_modifier_amg
+  - soc_rate_modifier_century
+
+- title: Soil balances - carbon (SOC models)
+  desc: >
+    Soil-organic-carbon turnover models sharing a common annual call contract.
+    HSOC (two pools plus inert organic matter) and RothC (five pools) step
+    forward in time; ICBM (two pools) and AMG (active plus stable) are
+    analytical; Century (five pools) integrates an ODE. Each pulls its rate
+    constants from `soc_turnover_params` and takes an annual climate modifier.
+  contents:
+  - calculate_soc_hsoc
+  - calculate_soc_rothc
+  - calculate_soc_icbm
+  - calculate_soc_amg
+  - calculate_soc_century
+
 - title: Crop NPP, BNF and coefficient tables
   desc: >
     Crop net primary production (products, residues, roots, weeds), biological
