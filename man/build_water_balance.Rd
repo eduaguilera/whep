@@ -14,18 +14,24 @@ build_water_balance(
 \arguments{
 \item{method}{Named list selecting the estimation method for each term:
 \code{aet} (\code{"components"}, the only method), \code{drainage} (\code{"seepage"} default,
-LPJmL native, or \code{"runoff_resid"}, the budget residual) and \code{blue_green}
-(\code{"cft_native"} default, per-crop blue/green water, or \code{"irrig_share"},
-the irrigation share of water input). Members left out take their default.}
+LPJmL native seepage, or \code{"residual"}, a seepage reconstruction from the
+budget residual usable only when the seepage file is absent) and
+\code{blue_green} (\code{"cft_native"} default, per-crop blue/green consumptive
+water, or \code{"irrig_share"}, the irrigation share of water input). Members
+left out take their default.}
 
 \item{resolution}{\code{"grid"} (per cell, default) or \code{"polity"} (aggregated to
 \code{year} and \code{area_code}).}
 
 \item{data}{Optional named list of pre-loaded inputs to avoid NetCDF reads:
-annual hydrology tibbles \code{transp}, \code{evap}, \code{interc}, \code{prec}, \code{irrig},
-\code{runoff}, \code{drainage} and \code{swc} (each \code{lon}, \code{lat}, \code{year}, \code{value}), and a
-\code{cell_polity} crosswalk (\code{lon}, \code{lat}, \code{area_code}, \code{polity_frac},
-\code{cell_area_ha}). Each falls back to \code{\link[=read_lpjml_hydrology]{read_lpjml_hydrology()}} when absent.}
+hydrology tibbles \code{transp}, \code{evap}, \code{interc}, \code{prec}, \code{irrig}, \code{runoff}
+and \code{seepage} (each \code{lon}, \code{lat}, \code{year}, \code{value}; annual-summed
+automatically when a \code{month} column is present), \code{swc} (\code{lon}, \code{lat},
+\code{year}, \code{month}, \code{layer}, \code{value} fractional saturation), optional
+per-crop consumptive water \code{cft_consump_water_b} and \code{cft_consump_water_g}
+(each \code{lon}, \code{lat}, \code{year}, \code{value} mm/yr) and a \code{cell_polity} crosswalk
+(\code{lon}, \code{lat}, \code{area_code}, \code{polity_frac}, \code{cell_area_ha}). Each falls back
+to \code{\link[=read_lpjml_hydrology]{read_lpjml_hydrology()}} when absent.}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading data.
 Defaults to \code{FALSE}.}
@@ -39,14 +45,18 @@ A tibble. For \code{resolution = "grid"}: \code{lon}, \code{lat}, \code{area_cod
 }
 \description{
 Combines LPJmL monthly hydrology outputs into an annual per-cell water
-balance that closes as \code{water_input_mm = aet_mm + drainage_mm + soil_water_change_mm}. Actual evapotranspiration (\code{aet_mm}) is the sum of the
+balance that closes as \code{water_input_mm = aet_mm + runoff_mm + drainage_mm + soil_water_change_mm}. Actual evapotranspiration (\code{aet_mm}) is the sum of the
 transpiration, evaporation and interception components (LPJmL has no direct
 AET, PET or temperature output). Water input is precipitation plus
-irrigation. Drainage defaults to LPJmL deep seepage; the \code{"runoff_resid"}
-method instead derives drainage as the budget residual. Evapotranspiration
-is split into a blue (irrigation-sourced) and green (rain-sourced) part. The
-result is returned per grid cell, or aggregated to polity totals when
-\code{resolution = "polity"}.
+irrigation. \code{drainage_mm} is LPJmL deep seepage, the leaching driver
+downstream; \code{runoff_mm} is LPJmL total runoff (surface plus lateral), which
+leaves the cell laterally and is not a leaching term but must appear in the
+budget. Drainage defaults to native seepage; the \code{"residual"} method instead
+reconstructs seepage as \code{water_input - aet - runoff - soil_water_change}, for
+use only when the seepage file is absent (it equals seepage when the balance
+closes). Evapotranspiration is split into a blue (irrigation-sourced) and
+green (rain-sourced) part. The result is returned per grid cell, or
+aggregated to polity totals when \code{resolution = "polity"}.
 }
 \examples{
 build_water_balance(example = TRUE)

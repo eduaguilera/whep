@@ -500,30 +500,34 @@
   )
 }
 
-# Gridded water-balance fixture. Constructed so that, for every row,
-# water_input_mm == aet_mm + drainage_mm + soil_water_change_mm exactly
-# (aet_mm == aet_blue_mm + aet_green_mm), letting the closure test pass.
+# Gridded water-balance fixture. Constructed so that, for every row, the 4-term
+# identity water_input_mm == aet_mm + runoff_mm + drainage_mm +
+# soil_water_change_mm holds exactly (and aet_mm == aet_blue_mm + aet_green_mm),
+# letting the closure test pass. drainage_mm = water_input - aet - runoff -
+# soil_water_change for each row. method_water carries the default cft_native
+# blue/green label.
 .example_water_balance <- function() {
+  label <- "aet:components|drain:seepage|bg:cft_native"
   tibble::tribble(
     ~lon, ~lat, ~area_code, ~year, ~water_input_mm, ~pet_mm, ~aet_mm,
     ~aet_blue_mm, ~aet_green_mm, ~drainage_mm, ~runoff_mm,
     ~soil_water_change_mm, ~method_water, ~polity_frac, ~cell_area_ha,
-    9.25, 47.75, 11L, 2000L, 1200, 1400, 800, 200, 600, 350, 50, 50,
-    "aet:components|drain:seepage", 1, 30100,
-    9.75, 47.75, 11L, 2000L, 1100, 1350, 760, 180, 580, 300, 40, 40,
-    "aet:components|drain:seepage", 1, 30100,
-    -55.25, -12.25, 21L, 2000L, 1800, 1600, 1300, 400, 900, 480, 80, 20,
-    "aet:components|drain:seepage", 1, 33500,
-    -55.75, -12.25, 21L, 2000L, 1750, 1550, 1260, 380, 880, 470, 70, 20,
-    "aet:components|drain:seepage", 1, 33500,
-    35.75, -1.25, 79L, 2000L, 900, 1700, 650, 150, 500, 200, 30, 50,
-    "aet:components|drain:seepage", 1, 30900,
-    35.25, -1.25, 79L, 2000L, 950, 1720, 690, 160, 530, 220, 30, 40,
-    "aet:components|drain:seepage", 1, 30900,
-    -3.75, 40.25, 203L, 2000L, 600, 1300, 420, 80, 340, 150, 20, 30,
-    "aet:components|drain:seepage", 1, 27500,
-    -3.25, 40.25, 203L, 2000L, 650, 1320, 460, 90, 370, 160, 20, 30,
-    "aet:components|drain:seepage", 1, 27500
+    9.25, 47.75, 11L, 2000L, 1200, NA, 800, 200, 600, 300, 50, 50,
+    label, 1, 30100,
+    9.75, 47.75, 11L, 2000L, 1100, NA, 760, 180, 580, 260, 40, 40,
+    label, 1, 30100,
+    -55.25, -12.25, 21L, 2000L, 1800, NA, 1300, 400, 900, 400, 80, 20,
+    label, 1, 33500,
+    -55.75, -12.25, 21L, 2000L, 1750, NA, 1260, 380, 880, 400, 70, 20,
+    label, 1, 33500,
+    35.75, -1.25, 79L, 2000L, 900, NA, 650, 150, 500, 170, 30, 50,
+    label, 1, 30900,
+    35.25, -1.25, 79L, 2000L, 950, NA, 690, 160, 530, 190, 30, 40,
+    label, 1, 30900,
+    -3.75, 40.25, 203L, 2000L, 600, NA, 420, 80, 340, 130, 20, 30,
+    label, 1, 27500,
+    -3.25, 40.25, 203L, 2000L, 650, NA, 460, 90, 370, 140, 20, 30,
+    label, 1, 27500
   )
 }
 
