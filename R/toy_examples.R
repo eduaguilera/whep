@@ -500,6 +500,46 @@
   )
 }
 
+# Gridded water-balance fixture. Constructed so that, for every row,
+# water_input_mm == aet_mm + drainage_mm + soil_water_change_mm exactly
+# (aet_mm == aet_blue_mm + aet_green_mm), letting the closure test pass.
+.example_water_balance <- function() {
+  tibble::tribble(
+    ~lon, ~lat, ~area_code, ~year, ~water_input_mm, ~pet_mm, ~aet_mm,
+    ~aet_blue_mm, ~aet_green_mm, ~drainage_mm, ~runoff_mm,
+    ~soil_water_change_mm, ~method_water, ~polity_frac, ~cell_area_ha,
+    9.25, 47.75, 11L, 2000L, 1200, 1400, 800, 200, 600, 350, 50, 50,
+    "aet:components|drain:seepage", 1, 30100,
+    9.75, 47.75, 11L, 2000L, 1100, 1350, 760, 180, 580, 300, 40, 40,
+    "aet:components|drain:seepage", 1, 30100,
+    -55.25, -12.25, 21L, 2000L, 1800, 1600, 1300, 400, 900, 480, 80, 20,
+    "aet:components|drain:seepage", 1, 33500,
+    -55.75, -12.25, 21L, 2000L, 1750, 1550, 1260, 380, 880, 470, 70, 20,
+    "aet:components|drain:seepage", 1, 33500,
+    35.75, -1.25, 79L, 2000L, 900, 1700, 650, 150, 500, 200, 30, 50,
+    "aet:components|drain:seepage", 1, 30900,
+    35.25, -1.25, 79L, 2000L, 950, 1720, 690, 160, 530, 220, 30, 40,
+    "aet:components|drain:seepage", 1, 30900,
+    -3.75, 40.25, 203L, 2000L, 600, 1300, 420, 80, 340, 150, 20, 30,
+    "aet:components|drain:seepage", 1, 27500,
+    -3.25, 40.25, 203L, 2000L, 650, 1320, 460, 90, 370, 160, 20, 30,
+    "aet:components|drain:seepage", 1, 27500
+  )
+}
+
+# Monthly SOC climate-driver fixture (one cell, three months). Temperature and
+# topsoil soil-water saturation drive the SOC decomposition modifiers; clay is a
+# soil-texture covariate. water_minus_pet_mm is the monthly water surplus.
+.example_soc_climate_drivers <- function() {
+  tibble::tribble(
+    ~lon, ~lat, ~area_code, ~year, ~month, ~temp_c, ~swc_topsoil,
+    ~water_minus_pet_mm, ~clay_pct,
+    9.25, 47.75, 11L, 2000L, 1L, 1.2, 0.62, -10, 18,
+    9.25, 47.75, 11L, 2000L, 2L, 3.4, 0.58, 5, 18,
+    9.25, 47.75, 11L, 2000L, 3L, 7.8, 0.51, 20, 18
+  )
+}
+
 .ex_grazing_feed_footprint <- function() {
   tibble::tribble(
     ~area_code, ~item_cbs_code, ~value, ~method,
