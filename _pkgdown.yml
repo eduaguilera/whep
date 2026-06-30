@@ -118,6 +118,15 @@ reference:
   - calculate_soc_amg
   - calculate_soc_century
 
+- title: Soil balances - carbon (inputs)
+  desc: >
+    Assemble the soil carbon-input layer the turnover models consume: crop
+    residue, root and applied-manure carbon per cell, crop and year in
+    megagrams of carbon per hectare, plus the carbon-weighted humification
+    fraction from `residue_humification`.
+  contents:
+  - build_soil_carbon_inputs
+
 - title: Crop NPP, BNF and coefficient tables
   desc: >
     Crop net primary production (products, residues, roots, weeds), biological

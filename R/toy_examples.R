@@ -103,6 +103,19 @@
   )
 }
 
+.example_soil_carbon_inputs <- function() {
+  tibble::tribble(
+    ~lon, ~lat, ~area_code, ~item_prod_code, ~year,
+    ~residue_c_mgc_ha_yr, ~root_c_mgc_ha_yr, ~manure_c_mgc_ha_yr,
+    ~total_c_input_mgc_ha_yr, ~humified_fraction,
+    0.25, 0.25, 1L, "15", 2020L, 1.5, 1.0, 0.5, 3.0, 0.159478034188034,
+    0.75, 0.25, 1L, "15", 2020L, 1.5, 1.0, 0.5, 3.0, 0.159478034188034,
+    0.25, 0.25, 1L, "27", 2020L, 1.5, 0.5, 0.5, 2.5, 0.155724456876457,
+    0.75, 0.25, 1L, "27", 2020L, 1.5, 0.5, 0.5, 2.5, 0.155724456876457
+  ) |>
+    dplyr::mutate(method_c_input = "humified_weighted")
+}
+
 .ex_get_primary_prod <- function() {
   tibble::tribble(
     ~year, ~area_code, ~item_prod_code, ~item_cbs_code, ~live_anim_code, ~unit, ~value,

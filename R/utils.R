@@ -1303,7 +1303,18 @@ utils::globalVariables(
     "pas",
     "soc_total",
     # soc_dynamics.R (Module B, Task B5) — selector output stamp
-    "method_soc"
+    "method_soc",
+    # soil_carbon_inputs.R (Module B, Task B2a-2) — gridded soil C input NSE
+    "c_mass_mg",
+    "area_weight",
+    "crop_area_ha",
+    "residue_c_mg",
+    "root_c_mg",
+    "manure_c_mg",
+    "total_c_mg",
+    "residue_c_mgc_ha_yr",
+    "root_c_mgc_ha_yr",
+    "manure_c_mgc_ha_yr"
   )
 )
 
