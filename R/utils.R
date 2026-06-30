@@ -1285,6 +1285,14 @@ utils::globalVariables(
     "amg_h_by_input_type",
     "soil_cn_ratios",
     "residue_humification",
+    # nitrogen-loss coefficient datasets (Module C, Task C1)
+    "n2o_efs_disaggregated",
+    "fertiliser_n2o_modifiers",
+    "meisinger_denitrification",
+    "drainage_ranges",
+    "subsoil_no3_reduction",
+    "manner_params",
+    "n_attenuation_constants",
     # soc_models.R (Module B, Task B4) — SOC turnover model NSE columns
     "model",
     "component",

@@ -1,0 +1,34 @@
+category,key,sub_key,factor
+max_nh3,Urea,,0.45
+max_nh3,AN,,0.04
+max_nh3,CAN,,0.04
+max_nh3,AS,,0.45
+ph,Urea,pH<7,1.00
+ph,Urea,other pH,1.00
+ph,AN,pH<7,1.00
+ph,AN,other pH,1.00
+ph,CAN,pH<7,1.00
+ph,CAN,other pH,1.00
+ph,AS,pH<7,0.09
+ph,AS,other pH,1.00
+incorporation,TallerCrop,,0.70
+incorporation,Incorporated,,0.20
+incorporation,Other,,1.00
+technique,Broadcast,,1.00
+technique,deep injection,,0.10
+technique,shallow injection,,0.30
+technique,Band spread-trailing hose,,0.70
+technique,Band spread-trailing hose (short grass),,0.70
+technique,Band spread-trailing hose (long grass),,0.40
+windspeed,nowind,,1.00
+windspeed,moderawind,,1.20
+windspeed,strongwind,,1.60
+rainfall_wet,noraindry,,1.0000
+rainfall_wet,norainmoderate,,0.9125
+rainfall_wet,norainwet,,0.8250
+rainfall_wet,lightraindry,,0.7375
+rainfall_wet,lightrainmoderate,,0.6500
+rainfall_wet,lightrainwet,,0.5625
+rainfall_wet,heavyraindry,,0.4750
+rainfall_wet,heavyrainmoderate,,0.3875
+rainfall_wet,heavyrainwet,,0.3000

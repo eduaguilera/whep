@@ -90,6 +90,23 @@ reference:
   - soil_cn_ratios
   - residue_humification
 
+- title: Nitrogen-loss coefficient tables
+  desc: >
+    Coefficient datasets for the nitrogen-loss cascade (Module C): the
+    disaggregated direct N2O emission factors by climate and irrigation, the
+    fertiliser-type N2O modifying factors, the Meisinger and Randall topsoil
+    denitrification matrix with its drainage-class bins, the subsoil nitrate
+    reduction shares, the MANNER ammonia-volatilisation factor tables, and the
+    C:N leaching-attenuation and indirect-N2O constants.
+  contents:
+  - n2o_efs_disaggregated
+  - fertiliser_n2o_modifiers
+  - meisinger_denitrification
+  - drainage_ranges
+  - subsoil_no3_reduction
+  - manner_params
+  - n_attenuation_constants
+
 - title: Soil balances - carbon (SOC climate)
   desc: >
     Per-model native climate rate-modifying functions for the soil-organic-carbon

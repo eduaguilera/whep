@@ -1,0 +1,9 @@
+constant,value,description
+a_cn_min_cn,15.00,"Input C:N below which the C:N leaching attenuation A_CN is zero."
+a_cn_span,120.00,"C:N span above the minimum needed to reach the A_CN cap for cropland and natural non-cropland."
+a_cn_span_other,60.00,"Steeper C:N span for the Other land-use class (rocky outcrops, urban edges, riparian, abandoned)."
+a_cn_max,0.98,"Maximum C:N leaching attenuation (forest woody-litter anchor)."
+ef5_no3_to_n2o,0.011,"IPCC EF5: fraction of leached NO3-N emitted as indirect N2O-N."
+ef4_nh3_to_n2o_atl,0.016,"Atlantic (wet) NH3-N to indirect N2O-N factor (IPCC 2019 Table 11.3)."
+nh3_frac_synthetic,0.11,"IPCC 2019 Table 11.3 NH3-N volatilisation fraction for synthetic fertiliser."
+nh3_frac_organic,0.21,"IPCC 2019 Table 11.3 NH3-N volatilisation fraction for organic N inputs."

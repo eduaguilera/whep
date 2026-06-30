@@ -1,0 +1,7 @@
+drainage_rate,s_min,s_max
+Very_high,1000.0,3000
+High,500.0,1000
+Medium,200.0,500
+Low,50.0,200
+Very_low,0.1,50
+None,-0.1,0.1
