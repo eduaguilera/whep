@@ -1284,6 +1284,7 @@ utils::globalVariables(
     "soc_turnover_params",
     "amg_h_by_input_type",
     "soil_cn_ratios",
+    "residue_humification",
     # soc_models.R (Module B, Task B4) — SOC turnover model NSE columns
     "model",
     "component",

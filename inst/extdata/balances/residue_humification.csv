@@ -1,0 +1,11 @@
+input_type,humified_fraction,description
+crop_residue,0.1153466666666667,Aboveground herbaceous crop residue (cereals legumes vegetables forage); Spain_Hist Biomass_coefs Residue_humified_kgC_kgC herbaceous average.
+root,0.1782459207459208,Belowground herbaceous root and rhizodeposit carbon; Spain_Hist Biomass_coefs Root_humified_kgC_kgC herbaceous average.
+weed,0.1153466666666667,Aboveground weed and spontaneous-grass biomass; Spain_Hist uses the Grass Residue_humified_kgC_kgC value for weeds.
+woody_residue,0.325,Woody residue and prunings from fruit citrus grapevine olive treenut and forest biomass; Spain_Hist Biomass_coefs woody average.
+manure,0.2543363636363637,Livestock solid and liquid manure averaged over species; Spain_Hist Biomass_coefs Solid/Liquid Residue_humified_kgC_kgC.
+excreta,0.2543363636363637,Livestock total excreta averaged over species (grazing returns); Spain_Hist Biomass_coefs Excreta Residue_humified_kgC_kgC.
+urban,0.32016818181818185,Urban organic waste applied to soil (aggregate); Spain_Hist Biomass_coefs Urban Residue_humified_kgC_kgC.
+urban_compost,0.386,Composted municipal solid waste; Spain_Hist Biomass_coefs Municipal solid waste composted Residue_humified_kgC_kgC.
+compost,0.71,Stabilised compost amendment; Spain_Hist Biomass_coefs Compost Residue_humified_kgC_kgC.
+green_manure,0.1153466666666667,Incorporated green manure (fresh herbaceous); no native Spain_Hist value so set equal to crop_residue herbaceous analogue.

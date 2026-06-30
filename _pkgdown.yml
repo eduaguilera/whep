@@ -80,12 +80,14 @@ reference:
   desc: >
     Structural parameter tables for the soil-organic-carbon turnover models
     (HSOC, RothC, ICBM, AMG, Century), the AMG humification coefficient by
-    carbon input type, and the soil carbon-to-nitrogen ratios used to convert
-    soil-carbon change into net nitrogen mineralization or sequestration.
+    carbon input type, the soil carbon-to-nitrogen ratios used to convert
+    soil-carbon change into net nitrogen mineralization or sequestration, and
+    the per-input-type humification fractions for the HSOC model.
   contents:
   - soc_turnover_params
   - amg_h_by_input_type
   - soil_cn_ratios
+  - residue_humification
 
 - title: Soil balances - carbon (SOC climate)
   desc: >

@@ -77,3 +77,50 @@ test_that("amg_h_by_input_type values match the published h table", {
   testthat::expect_equal(lookup[["residue"]], 0.13)
   testthat::expect_equal(lookup[["mineral"]], 0.13)
 })
+
+test_that("residue_humification has the expected columns", {
+  pointblank::expect_col_exists(
+    whep::residue_humification,
+    columns = c("input_type", "humified_fraction", "description")
+  )
+})
+
+test_that("residue_humification transcribes the Spain_Hist anchors", {
+  lookup <- whep::residue_humification |>
+    dplyr::select(input_type, humified_fraction) |>
+    tibble::deframe()
+
+  # Weed/grass aboveground = Spain_Hist "Grass" Residue_humified_kgC_kgC.
+  testthat::expect_equal(
+    lookup[["weed"]],
+    0.1153466666666667,
+    tolerance = 1e-6
+  )
+  # Crop residue (herbaceous aboveground) shares the same coefficient.
+  testthat::expect_equal(
+    lookup[["crop_residue"]],
+    0.1153466666666667,
+    tolerance = 1e-6
+  )
+  # Root (belowground herbaceous) coefficient.
+  testthat::expect_equal(
+    lookup[["root"]],
+    0.1782459207459208,
+    tolerance = 1e-6
+  )
+  # Excreta / manure average over species.
+  testthat::expect_equal(
+    lookup[["excreta"]],
+    0.2543363636363637,
+    tolerance = 1e-6
+  )
+})
+
+test_that("residue_humification fractions are valid proportions", {
+  pointblank::expect_col_vals_between(
+    whep::residue_humification,
+    columns = "humified_fraction",
+    left = 0,
+    right = 1
+  )
+})
