@@ -39,6 +39,9 @@ or \code{"mean"} (soil-water default).}
 \item{data}{Optional pre-read tibble (\code{lon}, \code{lat}, \code{year}, \code{month},
 \code{value}, and \code{layer} for \code{"swc"}) used in place of reading NetCDF, for
 testing.}
+
+\item{example}{If \code{TRUE}, return a small fixture instead of reading remote
+data. Defaults to \code{FALSE}.}
 }
 \value{
 A tibble with columns \code{lon}, \code{lat}, \code{year}, \code{value} (plus \code{month}

@@ -45,6 +45,8 @@
 #' @param data Optional pre-read tibble (`lon`, `lat`, `year`, `month`,
 #'   `value`, and `layer` for `"swc"`) used in place of reading NetCDF, for
 #'   testing.
+#' @param example If `TRUE`, return a small fixture instead of reading remote
+#'   data. Defaults to `FALSE`.
 #' @return A tibble with columns `lon`, `lat`, `year`, `value` (plus `month`
 #'   when `monthly = TRUE`, and `layer` for `"swc"`).
 #' @export

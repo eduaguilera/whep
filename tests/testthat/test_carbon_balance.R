@@ -214,3 +214,115 @@ test_that("polity resolution conserves carbon mass vs grid", {
   cmp <- dplyr::inner_join(grid_mass, pol_mass, by = "year")
   testthat::expect_true(all(abs(cmp$m.x - cmp$m.y) < 1e-6))
 })
+
+# -- Spain_Hist port-fidelity validation (skip_on_ci) -------------------------
+#
+# Compare WHEP build_carbon_balance(model = "hsoc", resolution = "polity")
+# against the Spain_Hist SOC reference output, the per-province steady-state SOC
+# density (Mg C/ha) the Spain pipeline writes as the "Baseline" rows of
+# SOC_BAU_AE_per_province.csv (Value_ha column). WHEP ports the same equilibrium
+# (StockEq_MgCha = Input_MgC / K, SOC_Fun.R:Calc_equilibrium :220-233) and the
+# same area-weighted polity aggregation, so the two per-province SOC densities
+# must agree.
+#
+# This needs real province-resolution Spain inputs (CRU climate, historical
+# land-use areas, clay, per-class carbon inputs). Those readers are a later task
+# and are not wired in WHEP yet (.cb_read_* abort), so .cb_spain_hist_inputs()
+# returns NULL and the test legitimately skips locally. It is authored fully so
+# that, once the real wiring lands, it runs and asserts port fidelity. The
+# tolerance is NOT loosened to force a pass: any divergence is reported in the
+# message and left red.
+
+# Locate the Spain_Hist repo from an env var, falling back to the sibling repo
+# layout. Never hardcode the absolute user path in tracked code.
+.spain_hist_dir <- function() {
+  d <- Sys.getenv("SPAIN_HIST_DIR", "")
+  if (nzchar(d)) {
+    return(d)
+  }
+  file.path(dirname(here::here()), "Spain_Hist")
+}
+
+# Spain_Hist reference SOC: the "Baseline" per-province steady-state SOC density
+# (Value_ha, Mg C/ha). Returns NULL if the output file is absent so the test
+# skips rather than failing on a missing dependency.
+.load_spain_hist_soc <- function() {
+  f <- file.path(
+    .spain_hist_dir(),
+    "output",
+    "SOC_BAU_AE_per_province.csv"
+  )
+  if (!file.exists(f)) {
+    return(NULL)
+  }
+  data.table::fread(f) |>
+    tibble::as_tibble() |>
+    dplyr::filter(.data$Year_sc == "Baseline") |>
+    dplyr::transmute(
+      province = .data$Province_name,
+      soc_ref_mgc_ha = .data$Value_ha
+    )
+}
+
+# Build the WHEP build_carbon_balance() inputs at Spain province resolution from
+# the same primary data the Spain pipeline consumes. The real readers (CRU
+# climate, historical land-use, clay, per-class carbon inputs) are a later task
+# and are not wired yet, so this returns NULL today and the test skips. When the
+# wiring lands, replace the body with the real province-resolution loader.
+.cb_spain_hist_inputs <- function() {
+  NULL
+}
+
+# area_code -> Spain province name lookup, supplied alongside the province
+# inputs when the real wiring lands. Today it is an empty mapping; the test
+# skips before it is used.
+.cb_province_lookup <- function() {
+  tibble::tibble(
+    area_code = integer(),
+    province = character()
+  )
+}
+
+test_that("WHEP polity SOC matches Spain_Hist per-province baseline", {
+  testthat::skip_on_ci()
+  ref <- .load_spain_hist_soc()
+  testthat::skip_if(
+    is.null(ref),
+    "Spain_Hist SOC_BAU_AE_per_province.csv not found."
+  )
+  inputs <- .cb_spain_hist_inputs()
+  testthat::skip_if(
+    is.null(inputs),
+    "Province-resolution Spain inputs not wired in WHEP yet (later task)."
+  )
+
+  whep_soc <- whep::build_carbon_balance(
+    model = "hsoc",
+    resolution = "polity",
+    data = inputs
+  ) |>
+    dplyr::filter(.data$year == max(.data$year)) |>
+    dplyr::left_join(.cb_province_lookup(), by = "area_code") |>
+    dplyr::select("province", soc_whep_mgc_ha = "stock_mgc_ha")
+
+  cmp <- dplyr::inner_join(whep_soc, ref, by = "province") |>
+    dplyr::mutate(
+      abs_pct_diff = 100 *
+        abs(.data$soc_whep_mgc_ha - .data$soc_ref_mgc_ha) /
+        .data$soc_ref_mgc_ha
+    )
+
+  # Documented tolerance: per-province SOC density within 5% of the Spain_Hist
+  # reference. This is a port-fidelity check between two implementations of the
+  # same equilibrium, so agreement should be tight; 5% leaves room for the
+  # cell -> province aggregation grain differing between the two pipelines.
+  worst <- max(cmp$abs_pct_diff)
+  testthat::expect_lt(
+    worst,
+    5,
+    label = sprintf(
+      "max per-province SOC divergence vs Spain_Hist = %.2f%%",
+      worst
+    )
+  )
+})
