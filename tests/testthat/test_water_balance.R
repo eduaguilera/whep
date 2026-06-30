@@ -40,6 +40,24 @@ testthat::test_that("residual drainage still closes the 4-term budget", {
   ))
 })
 
+testthat::test_that("example exposes footprint columns and prec+irrig split", {
+  wb <- whep::build_water_balance(example = TRUE)
+
+  pointblank::expect_col_exists(
+    wb,
+    c(
+      "prec_mm",
+      "irrig_mm",
+      "blue_consump_mm",
+      "green_consump_mm",
+      "cft_nir_mm"
+    )
+  )
+  # water input is precipitation plus irrigation, exactly.
+  split_resid <- wb$water_input_mm - (wb$prec_mm + wb$irrig_mm)
+  testthat::expect_true(all(abs(split_resid) < 1e-6))
+})
+
 testthat::test_that("get_soc_climate_drivers returns monthly climate drivers", {
   drv <- whep::get_soc_climate_drivers(example = TRUE)
   pointblank::expect_col_exists(
@@ -206,4 +224,71 @@ testthat::test_that("real-path rejects an invalid drainage method", {
     ),
     "drainage"
   )
+})
+
+testthat::test_that("real-path exposes prec/irrig split and footprint cols", {
+  syn <- .wb_synthetic_monthly()
+  wb <- suppressWarnings(
+    whep::build_water_balance(data = syn$inputs, example = FALSE)
+  )
+
+  pointblank::expect_col_exists(
+    wb,
+    c(
+      "prec_mm",
+      "irrig_mm",
+      "blue_consump_mm",
+      "green_consump_mm",
+      "cft_nir_mm"
+    )
+  )
+  split_resid <- wb$water_input_mm - (wb$prec_mm + wb$irrig_mm)
+  testthat::expect_true(all(abs(split_resid) < 1e-6))
+  # 4-term closure STILL holds alongside the additive prec/irrig split.
+  resid <- wb$water_input_mm -
+    (wb$aet_mm + wb$runoff_mm + wb$drainage_mm + wb$soil_water_change_mm)
+  testthat::expect_true(all(abs(resid) < 0.01 * wb$water_input_mm))
+})
+
+testthat::test_that("blue/green consumptive equal the per-CFT mm summed", {
+  syn <- .wb_synthetic_monthly()
+  cells <- dplyr::distinct(syn$inputs$prec, lon, lat, year)
+  # Two crop bands per cell so the per-cell sum is exercised.
+  syn$inputs$cft_consump_water_b <- dplyr::bind_rows(
+    dplyr::mutate(cells, value = 50),
+    dplyr::mutate(cells, value = 70)
+  )
+  syn$inputs$cft_consump_water_g <- dplyr::bind_rows(
+    dplyr::mutate(cells, value = 100),
+    dplyr::mutate(cells, value = 180)
+  )
+
+  wb <- whep::build_water_balance(data = syn$inputs, example = FALSE)
+  # cft_consump_water_b summed over bands gives blue_consump_mm (50 + 70).
+  testthat::expect_equal(
+    wb$blue_consump_mm,
+    rep(120, nrow(wb)),
+    tolerance = 1e-8
+  )
+  testthat::expect_equal(
+    wb$green_consump_mm,
+    rep(280, nrow(wb)),
+    tolerance = 1e-8
+  )
+})
+
+testthat::test_that("polity resolution carries the new footprint columns", {
+  pol <- whep::build_water_balance(resolution = "polity", example = TRUE)
+  pointblank::expect_col_exists(
+    pol,
+    c(
+      "prec_mm",
+      "irrig_mm",
+      "blue_consump_mm",
+      "green_consump_mm",
+      "cft_nir_mm"
+    )
+  )
+  # cft_nir_mm is all-NA in the fixture; the all-NA guard keeps it NA, not NaN.
+  testthat::expect_true(all(is.na(pol$cft_nir_mm)))
 })

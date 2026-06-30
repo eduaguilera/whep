@@ -32,6 +32,18 @@
 #' green (rain-sourced) part. The result is returned per grid cell, or
 #' aggregated to polity totals when `resolution = "polity"`.
 #'
+#' The output also exposes the footprint-relevant terms folded into the budget:
+#' `prec_mm` (precipitation) and `irrig_mm` (applied irrigation, the gross
+#' blue-water volume), which satisfy `water_input_mm = prec_mm + irrig_mm`;
+#' `blue_consump_mm` and `green_consump_mm`, the LPJmL-native consumptive blue
+#' and green water (the per-CFT `cft_consump_water_b` / `cft_consump_water_g`
+#' totals when supplied, otherwise the blue and green AET); and `cft_nir_mm`,
+#' the net irrigation requirement (LPJmL `cft_nir`), the net blue-water demand,
+#' summed to cell level when `data$cft_nir` is supplied and `NA` otherwise.
+#' Potential evapotranspiration (`pet_mm`) comes from the CRU climate forcing
+#' that drives the LPJmL run and is `NA` until that forcing is wired (see
+#' `data$pet`); no PET formula is fabricated here.
+#'
 #' @param method Named list selecting the estimation method for each term:
 #'   `aet` (`"components"`, the only method), `drainage` (`"seepage"` default,
 #'   LPJmL native seepage, or `"residual"`, a seepage reconstruction from the
@@ -47,14 +59,18 @@
 #'   automatically when a `month` column is present), `swc` (`lon`, `lat`,
 #'   `year`, `month`, `layer`, `value` fractional saturation), optional
 #'   per-crop consumptive water `cft_consump_water_b` and `cft_consump_water_g`
-#'   (each `lon`, `lat`, `year`, `value` mm/yr) and a `cell_polity` crosswalk
-#'   (`lon`, `lat`, `area_code`, `polity_frac`, `cell_area_ha`). Each falls back
-#'   to [read_lpjml_hydrology()] when absent.
+#'   (each `lon`, `lat`, `year`, `value` mm/yr), an optional `cft_nir`
+#'   net-irrigation-requirement input (`lon`, `lat`, `year`, `value` mm/yr,
+#'   summed to cell level when supplied; exposed as `cft_nir_mm`, else `NA`)
+#'   and a `cell_polity` crosswalk (`lon`, `lat`, `area_code`, `polity_frac`,
+#'   `cell_area_ha`). Each falls back to [read_lpjml_hydrology()] when absent,
+#'   except `cft_nir` (see Details), `pet` and the consumptive-water inputs.
 #' @param example If `TRUE`, return a small fixture instead of reading data.
 #'   Defaults to `FALSE`.
 #' @return A tibble. For `resolution = "grid"`: `lon`, `lat`, `area_code`,
-#'   `year`, `water_input_mm`, `pet_mm`, `aet_mm`, `aet_blue_mm`,
-#'   `aet_green_mm`, `drainage_mm`, `runoff_mm`, `soil_water_change_mm` and
+#'   `year`, `water_input_mm`, `prec_mm`, `irrig_mm`, `pet_mm`, `aet_mm`,
+#'   `aet_blue_mm`, `aet_green_mm`, `blue_consump_mm`, `green_consump_mm`,
+#'   `cft_nir_mm`, `drainage_mm`, `runoff_mm`, `soil_water_change_mm` and
 #'   `method_water`. For `resolution = "polity"`: the same terms aggregated to
 #'   `year` and `area_code`.
 #' @export
@@ -173,22 +189,39 @@ get_soc_climate_drivers <- function(
   .wb_attach_cft_consump(wide, data)
 }
 
-# Attach cell-level blue/green consumptive water (mm/yr) from the per-CFT
-# `cft_consump_water_b` / `cft_consump_water_g` inputs, summing the crop-band
-# values per cell-year. Columns are NA when the per-CFT inputs are not supplied,
-# which makes the cft_native blue/green method fall back (see .wb_blue_green()).
+# Attach cell-level blue/green consumptive water and net irrigation requirement
+# (mm/yr) from the per-CFT `cft_consump_water_b` / `cft_consump_water_g` /
+# `cft_nir` inputs, summing the crop-band values per cell-year. Columns are NA
+# when the corresponding per-CFT input is not supplied; the all-NA blue/green
+# consumptive columns make the cft_native split fall back (see .wb_blue_green()).
 .wb_attach_cft_consump <- function(wide, data) {
-  blue <- .wb_cell_consump(data$cft_consump_water_b, "consump_blue_mm")
-  green <- .wb_cell_consump(data$cft_consump_water_g, "consump_green_mm")
-  wide <- if (is.null(blue)) {
-    dplyr::mutate(wide, consump_blue_mm = NA_real_)
+  band_inputs <- list(
+    consump_blue_mm = data$cft_consump_water_b,
+    consump_green_mm = data$cft_consump_water_g,
+    cft_nir_mm = data$cft_nir
+  )
+  purrr::reduce2(
+    band_inputs,
+    names(band_inputs),
+    .wb_join_cell_band,
+    .init = wide
+  )
+}
+
+# Join one per-CFT band input summed to cell-year as `out_col`, or add an all-NA
+# column when the input is absent.
+# TODO(cft_nir): wire the per-CFT mcft_nir.nc reader so `data$cft_nir` is not
+# required. mcft_nir.nc carries a CFT band dimension; read_lpjml_hydrology()
+# currently decodes a 4-D array's third dim as a soil `layer`, so the per-CFT
+# band needs a dedicated reader (or a band-summing path) before cft_nir can be
+# read automatically. Until then cft_nir_mm is NA unless `data$cft_nir` is
+# supplied as a cell-year (or per-band) `lon`,`lat`,`year`,`value` tibble.
+.wb_join_cell_band <- function(wide, raw, out_col) {
+  summed <- .wb_cell_consump(raw, out_col)
+  if (is.null(summed)) {
+    dplyr::mutate(wide, "{out_col}" := NA_real_)
   } else {
-    dplyr::left_join(wide, blue, by = c("lon", "lat", "year"))
-  }
-  if (is.null(green)) {
-    dplyr::mutate(wide, consump_green_mm = NA_real_)
-  } else {
-    dplyr::left_join(wide, green, by = c("lon", "lat", "year"))
+    dplyr::left_join(wide, summed, by = c("lon", "lat", "year"))
   }
 }
 
@@ -273,13 +306,16 @@ get_soc_climate_drivers <- function(
 }
 
 # Combine components into the closing terms: AET sums transp, evap and interc;
-# water input sums prec and irrig; runoff carried through; drainage by method;
-# pet placeholder (no LPJmL PET). The 4-term identity is water input equals aet
-# plus runoff plus drainage plus soil-water change.
+# water input sums prec and irrig (also exposed as prec_mm and irrig_mm);
+# runoff carried through; drainage by method; pet placeholder (no LPJmL PET).
+# The 4-term identity is water input equals aet plus runoff plus drainage plus
+# soil-water change, and the additive identity water_input == prec + irrig holds.
 .wb_compute_terms <- function(wide, method) {
   out <- dplyr::mutate(
     wide,
     aet_mm = transp + evap + interc,
+    prec_mm = prec,
+    irrig_mm = irrig,
     water_input_mm = prec + irrig,
     runoff_mm = runoff,
     pet_mm = NA_real_
@@ -325,7 +361,8 @@ get_soc_climate_drivers <- function(
 }
 
 # Blue/green split from the per-CFT consumptive-water totals: the blue share is
-# blue / (blue + green), applied to total AET.
+# blue / (blue + green), applied to total AET. The native consumptive-water mm
+# are exposed directly as blue_consump_mm and green_consump_mm.
 .wb_blue_green_cft <- function(terms) {
   total <- terms$consump_blue_mm + terms$consump_green_mm
   blue_share <- dplyr::if_else(total > 0, terms$consump_blue_mm / total, 0)
@@ -333,12 +370,16 @@ get_soc_climate_drivers <- function(
     terms,
     aet_blue_mm = aet_mm * blue_share,
     aet_green_mm = aet_mm * (1 - blue_share),
+    blue_consump_mm = consump_blue_mm,
+    green_consump_mm = consump_green_mm,
     .bg_method = "cft_native"
   )
 }
 
 # Blue/green split from the irrigation share of water input. Labelled
 # irrig_share when requested, or irrig_share_fallback when cft_native degraded.
+# Without per-CFT consumptive water, blue_consump_mm and green_consump_mm fall
+# back to the blue and green AET (the best available consumptive proxy).
 .wb_blue_green_irrig_share <- function(terms, method) {
   blue_share <- dplyr::if_else(
     terms$water_input_mm > 0,
@@ -354,6 +395,8 @@ get_soc_climate_drivers <- function(
     terms,
     aet_blue_mm = aet_mm * blue_share,
     aet_green_mm = aet_mm * (1 - blue_share),
+    blue_consump_mm = aet_mm * blue_share,
+    green_consump_mm = aet_mm * (1 - blue_share),
     .bg_method = bg_method
   )
 }
@@ -384,10 +427,15 @@ get_soc_climate_drivers <- function(
       area_code,
       year,
       water_input_mm,
+      prec_mm,
+      irrig_mm,
       pet_mm,
       aet_mm,
       aet_blue_mm,
       aet_green_mm,
+      blue_consump_mm,
+      green_consump_mm,
+      cft_nir_mm,
       drainage_mm,
       runoff_mm,
       soil_water_change_mm,
@@ -412,10 +460,15 @@ get_soc_climate_drivers <- function(
 .wb_aggregate_polity <- function(grid) {
   depth_cols <- c(
     "water_input_mm",
+    "prec_mm",
+    "irrig_mm",
     "pet_mm",
     "aet_mm",
     "aet_blue_mm",
     "aet_green_mm",
+    "blue_consump_mm",
+    "green_consump_mm",
+    "cft_nir_mm",
     "drainage_mm",
     "runoff_mm",
     "soil_water_change_mm"

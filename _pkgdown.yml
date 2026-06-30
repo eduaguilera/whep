@@ -65,9 +65,12 @@ reference:
 - title: Soil balances - water
   desc: >
     Read LPJmL hydrology outputs (drainage, evapotranspiration components,
-    precipitation, irrigation, runoff, discharge and soil water content) into
-    tidy long form, close the gridded soil water balance and assemble the
-    monthly climate drivers for the soil-organic-carbon dynamics.
+    precipitation, irrigation, runoff, discharge, soil water content and the
+    per-crop net irrigation requirement) into tidy long form, close the gridded
+    soil water balance exposing the footprint-relevant terms (precipitation,
+    applied irrigation, blue and green consumptive water, net irrigation
+    requirement), and assemble the monthly climate drivers for the
+    soil-organic-carbon dynamics.
   contents:
   - read_lpjml_hydrology
   - build_water_balance

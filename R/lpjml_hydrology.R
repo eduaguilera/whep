@@ -12,6 +12,8 @@
 #       mrunoff.nc -> "runoff", mdischarge.nc -> "discharge"
 #     mswc.nc -> "SWC" (4-D lon x lat x layer[6] x time, fractional saturation
 #       0-1; layers at 200/500/1000/2000/3000/13000 mm).
+#     mcft_nir.nc -> "cft_nir" (net irrigation requirement, mm/month, per-CFT
+#       band dimension; the blue-water net-demand BW_net analogue).
 # - Monthly time index for year y, month m = (y - first_year) * 12 + m.
 # - Local dev run dir is read from Sys.getenv("WHEP_LPJML_RUN_DIR"); never
 #   hardcode an absolute path in committed code.
@@ -29,7 +31,7 @@
 #'
 #' @param var Logical variable name, one of `"drainage"`, `"transp"`,
 #'   `"evap"`, `"interc"`, `"aet"`, `"prec"`, `"rain"`, `"irrig"`, `"runoff"`,
-#'   `"discharge"` or `"swc"`.
+#'   `"discharge"`, `"swc"` or `"cft_nir"` (per-CFT net irrigation requirement).
 #' @param run_dir Path to the LPJmL run output directory. Defaults to
 #'   `Sys.getenv("WHEP_LPJML_RUN_DIR")`.
 #' @param years Optional integer vector of calendar years to keep. `NULL`
@@ -60,7 +62,8 @@ read_lpjml_hydrology <- function(
     "irrig",
     "runoff",
     "discharge",
-    "swc"
+    "swc",
+    "cft_nir"
   ),
   run_dir = NULL,
   years = NULL,
@@ -93,7 +96,8 @@ read_lpjml_hydrology <- function(
     "irrig", "mirrig.nc", "irrig",
     "runoff", "mrunoff.nc", "runoff",
     "discharge", "mdischarge.nc", "discharge",
-    "swc", "mswc.nc", "SWC"
+    "swc", "mswc.nc", "SWC",
+    "cft_nir", "mcft_nir.nc", "cft_nir"
   )
 }
 

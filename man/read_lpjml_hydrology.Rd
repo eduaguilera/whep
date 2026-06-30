@@ -6,7 +6,7 @@
 \usage{
 read_lpjml_hydrology(
   var = c("drainage", "transp", "evap", "interc", "aet", "prec", "rain", "irrig",
-    "runoff", "discharge", "swc"),
+    "runoff", "discharge", "swc", "cft_nir"),
   run_dir = NULL,
   years = NULL,
   first_year = 1901L,
@@ -19,7 +19,7 @@ read_lpjml_hydrology(
 \arguments{
 \item{var}{Logical variable name, one of \code{"drainage"}, \code{"transp"},
 \code{"evap"}, \code{"interc"}, \code{"aet"}, \code{"prec"}, \code{"rain"}, \code{"irrig"}, \code{"runoff"},
-\code{"discharge"} or \code{"swc"}.}
+\code{"discharge"}, \code{"swc"} or \code{"cft_nir"} (per-CFT net irrigation requirement).}
 
 \item{run_dir}{Path to the LPJmL run output directory. Defaults to
 \code{Sys.getenv("WHEP_LPJML_RUN_DIR")}.}

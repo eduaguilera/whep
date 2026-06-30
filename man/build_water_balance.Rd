@@ -29,17 +29,21 @@ and \code{seepage} (each \code{lon}, \code{lat}, \code{year}, \code{value}; annu
 automatically when a \code{month} column is present), \code{swc} (\code{lon}, \code{lat},
 \code{year}, \code{month}, \code{layer}, \code{value} fractional saturation), optional
 per-crop consumptive water \code{cft_consump_water_b} and \code{cft_consump_water_g}
-(each \code{lon}, \code{lat}, \code{year}, \code{value} mm/yr) and a \code{cell_polity} crosswalk
-(\code{lon}, \code{lat}, \code{area_code}, \code{polity_frac}, \code{cell_area_ha}). Each falls back
-to \code{\link[=read_lpjml_hydrology]{read_lpjml_hydrology()}} when absent.}
+(each \code{lon}, \code{lat}, \code{year}, \code{value} mm/yr), an optional \code{cft_nir}
+net-irrigation-requirement input (\code{lon}, \code{lat}, \code{year}, \code{value} mm/yr,
+summed to cell level when supplied; exposed as \code{cft_nir_mm}, else \code{NA})
+and a \code{cell_polity} crosswalk (\code{lon}, \code{lat}, \code{area_code}, \code{polity_frac},
+\code{cell_area_ha}). Each falls back to \code{\link[=read_lpjml_hydrology]{read_lpjml_hydrology()}} when absent,
+except \code{cft_nir} (see Details), \code{pet} and the consumptive-water inputs.}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading data.
 Defaults to \code{FALSE}.}
 }
 \value{
 A tibble. For \code{resolution = "grid"}: \code{lon}, \code{lat}, \code{area_code},
-\code{year}, \code{water_input_mm}, \code{pet_mm}, \code{aet_mm}, \code{aet_blue_mm},
-\code{aet_green_mm}, \code{drainage_mm}, \code{runoff_mm}, \code{soil_water_change_mm} and
+\code{year}, \code{water_input_mm}, \code{prec_mm}, \code{irrig_mm}, \code{pet_mm}, \code{aet_mm},
+\code{aet_blue_mm}, \code{aet_green_mm}, \code{blue_consump_mm}, \code{green_consump_mm},
+\code{cft_nir_mm}, \code{drainage_mm}, \code{runoff_mm}, \code{soil_water_change_mm} and
 \code{method_water}. For \code{resolution = "polity"}: the same terms aggregated to
 \code{year} and \code{area_code}.
 }
@@ -57,6 +61,18 @@ use only when the seepage file is absent (it equals seepage when the balance
 closes). Evapotranspiration is split into a blue (irrigation-sourced) and
 green (rain-sourced) part. The result is returned per grid cell, or
 aggregated to polity totals when \code{resolution = "polity"}.
+
+The output also exposes the footprint-relevant terms folded into the budget:
+\code{prec_mm} (precipitation) and \code{irrig_mm} (applied irrigation, the gross
+blue-water volume), which satisfy \code{water_input_mm = prec_mm + irrig_mm};
+\code{blue_consump_mm} and \code{green_consump_mm}, the LPJmL-native consumptive blue
+and green water (the per-CFT \code{cft_consump_water_b} / \code{cft_consump_water_g}
+totals when supplied, otherwise the blue and green AET); and \code{cft_nir_mm},
+the net irrigation requirement (LPJmL \code{cft_nir}), the net blue-water demand,
+summed to cell level when \code{data$cft_nir} is supplied and \code{NA} otherwise.
+Potential evapotranspiration (\code{pet_mm}) comes from the CRU climate forcing
+that drives the LPJmL run and is \code{NA} until that forcing is wired (see
+\code{data$pet}); no PET formula is fabricated here.
 }
 \examples{
 build_water_balance(example = TRUE)
