@@ -106,7 +106,10 @@ reference:
     forward in time; ICBM (two pools) and AMG (active plus stable) are
     analytical; Century (five pools) integrates an ODE. Each pulls its rate
     constants from `soc_turnover_params` and takes an annual climate modifier.
+    `calculate_soc_dynamics` is the selector that dispatches to any of them and
+    builds the per-model native climate modifier from supplied climate drivers.
   contents:
+  - calculate_soc_dynamics
   - calculate_soc_hsoc
   - calculate_soc_rothc
   - calculate_soc_icbm

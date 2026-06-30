@@ -1300,7 +1300,9 @@ utils::globalVariables(
     "act",
     "slw",
     "pas",
-    "soc_total"
+    "soc_total",
+    # soc_dynamics.R (Module B, Task B5) — selector output stamp
+    "method_soc"
   )
 )
 

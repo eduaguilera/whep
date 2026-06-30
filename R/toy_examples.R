@@ -548,6 +548,20 @@
   )
 }
 
+# SOC dynamics selector output (ICBM model, six annual rows). Young and old
+# pool stocks plus their total, with the method_soc stamp naming the model.
+.example_soc_dynamics <- function() {
+  tibble::tribble(
+    ~year, ~y, ~o, ~soc_total, ~method_soc,
+    0L, 2.7488, 47.2512, 50.0000, "icbm",
+    1L, 2.6118, 47.2077, 49.8195, "icbm",
+    2L, 2.5502, 47.1742, 49.7244, "icbm",
+    3L, 2.5226, 47.1453, 49.6679, "icbm",
+    4L, 2.5101, 47.1185, 49.6287, "icbm",
+    5L, 2.5046, 47.0928, 49.5974, "icbm"
+  )
+}
+
 .ex_grazing_feed_footprint <- function() {
   tibble::tribble(
     ~area_code, ~item_cbs_code, ~value, ~method,
