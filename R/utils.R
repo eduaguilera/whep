@@ -1347,7 +1347,18 @@ utils::globalVariables(
     "management",
     "cn_mineralization",
     "cn_sequestration",
-    "cn_used"
+    "cn_used",
+    # lpjml_npp.R (Module B, Task B2c-2) — per-PFT carbon reader NSE
+    "npft",
+    "name_pft",
+    # grass_natural_carbon_inputs.R (Module B, Task B2c-2) — grassland/natural
+    # soil carbon input NSE columns
+    "net_c",
+    "stand_frac",
+    "grass_frac",
+    "excreta_c_mgc_ha_yr",
+    "npp_c_mgc_ha_yr",
+    "residue_c_mgc_ha_yr_gn"
   )
 )
 

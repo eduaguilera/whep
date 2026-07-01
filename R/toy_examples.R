@@ -640,6 +640,48 @@
   )
 }
 
+# Per-PFT annual LPJmL NPP fixture: two 0.5-degree cells, one year, a handful
+# of PFT bands (one natural tree, one natural grass, the two managed
+# grasslands). Values are per-PFT-stand gC/m2/yr. Mirrors read_lpjml_npp()
+# output. Sampled from the real pft_npp.nc (year 2000, indicative magnitudes).
+.example_lpjml_npp <- function() {
+  tibble::tribble(
+    ~lon, ~lat, ~year, ~npft, ~name_pft, ~value,
+    26.25, 35.25, 2000L, 3L, "temperate needleleaved evergreen tree", 48.6,
+    26.25, 35.25, 2000L, 9L, "Tropical C4 grass", 325.0,
+    26.25, 35.25, 2000L, 10L, "Temperate C3 grass", 66.9,
+    26.25, 35.25, 2000L, 25L, "rainfed grassland", 496.0,
+    -64.25, -35.75, 2000L, 3L, "temperate needleleaved evergreen tree", 699.0,
+    -64.25, -35.75, 2000L, 10L, "Temperate C3 grass", 96.2,
+    -64.25, -35.75, 2000L, 25L, "rainfed grassland", 910.0,
+    -74.75, -52.25, 2000L, 10L, "Temperate C3 grass", 279.0,
+    -74.75, -52.25, 2000L, 25L, "rainfed grassland", 325.0,
+    -74.75, -52.25, 2000L, 41L, "irrigated grassland", 0.0
+  )
+}
+
+# Grassland + natural soil carbon input fixture: two cells, one year, the two
+# carbon-balance classes. c_input_mgc_ha_yr is (NPP - harvest) in MgC/ha/yr
+# (grassland also adds grazing excreta); humified_fraction is the weed value for
+# grassland and the woody value for natural. Mirrors
+# build_grass_natural_carbon_inputs() output at "grid" resolution.
+# nolint start: object_length_linter.
+.example_grass_natural_carbon_inputs <- function() {
+  tibble::tribble(
+    ~lon, ~lat, ~area_code, ~year, ~land_use,
+    ~c_input_mgc_ha_yr, ~humified_fraction, ~method_c_input,
+    26.25, 35.25, 300L, 2000L, "grassland",
+    4.35, 0.1153467, "lpjml_npp_minus_harvest",
+    26.25, 35.25, 300L, 2000L, "natural",
+    4.56, 0.325, "lpjml_npp_minus_harvest",
+    -64.25, -35.75, 32L, 2000L, "grassland",
+    1.95, 0.1153467, "lpjml_npp_minus_harvest",
+    -64.25, -35.75, 32L, 2000L, "natural",
+    9.26, 0.325, "lpjml_npp_minus_harvest"
+  )
+}
+# nolint end
+
 .ex_grazing_feed_footprint <- function() {
   tibble::tribble(
     ~area_code, ~item_cbs_code, ~value, ~method,

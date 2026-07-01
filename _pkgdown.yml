@@ -73,6 +73,7 @@ reference:
     soil-organic-carbon dynamics.
   contents:
   - read_lpjml_hydrology
+  - read_lpjml_npp
   - read_cru_climate
   - build_water_balance
   - get_soc_climate_drivers
@@ -141,9 +142,12 @@ reference:
     Assemble the soil carbon-input layer the turnover models consume: crop
     residue, root and applied-manure carbon per cell, crop and year in
     megagrams of carbon per hectare, plus the carbon-weighted humification
-    fraction from `residue_humification`.
+    fraction from `residue_humification`. The grassland and natural-land
+    carbon inputs come from the LPJmL net primary production minus harvested
+    carbon (grassland additionally carrying grazing-excreta carbon).
   contents:
   - build_soil_carbon_inputs
+  - build_grass_natural_carbon_inputs
 
 - title: Soil balances - carbon (historical balance)
   desc: >
