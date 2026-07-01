@@ -150,6 +150,16 @@ reference:
   - build_grass_natural_carbon_inputs
   - build_carbon_inputs
 
+- title: Soil balances - nitrogen
+  desc: >
+    Gridded nitrogen-balance inputs (Module C). Atmospheric nitrogen
+    deposition from HaNi NHx and NOy, aggregated to WHEP's 0.5-degree grid and
+    converted to a per-hectare rate using the true latitude-dependent cell
+    area.
+  contents:
+  - read_n_deposition
+  - build_n_deposition
+
 - title: Soil balances - carbon (historical balance)
   desc: >
     Reconstruct per-cell soil-organic-carbon stock trajectories: equilibrium

@@ -1362,7 +1362,17 @@ utils::globalVariables(
     "grass_frac",
     "excreta_c_mgc_ha_yr",
     "npp_c_mgc_ha_yr",
-    "residue_c_mgc_ha_yr_gn"
+    "residue_c_mgc_ha_yr_gn",
+    # n_deposition.R (Module C, Task C2) — gridded HaNi deposition NSE columns
+    "lon_block",
+    "lat_block",
+    "value_g",
+    "value_g_nhx",
+    "value_g_noy",
+    "value_g_total",
+    "deposition_kgn_ha",
+    "deposition_n_t",
+    "method_deposition"
   )
 )
 
