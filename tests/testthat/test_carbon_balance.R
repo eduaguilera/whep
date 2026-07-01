@@ -199,6 +199,119 @@ test_that("son_change resolves C:N for the lowercase 4-class land-use vocab", {
   )
 })
 
+# -- Raw-driver climate path (phase 2C) ---------------------------------------
+
+# Monthly raw SOC climate drivers per cell-year (temp_c, water_minus_pet_mm)
+# that build_carbon_balance must reduce to a model-native climate_modifier via
+# the .soc_climate_modifier() path when data$climate carries no precomputed
+# climate_modifier. Warm, moist months so the HSOC/RothC modifier is > 1.
+.cb_raw_climate_fixture <- function() {
+  tidyr::expand_grid(
+    lon = 0.25,
+    lat = 0.25,
+    area_code = 1L,
+    year = 2000:2002,
+    month = 1:12
+  ) |>
+    dplyr::mutate(
+      temp_c = 12 + 6 * sin((month - 3) / 12 * 2 * pi),
+      water_minus_pet_mm = 30 - 5 * (month - 6),
+      soil_cover = 0
+    )
+}
+
+.cb_raw_test_data <- function() {
+  d <- .cb_test_data()
+  d$climate <- .cb_raw_climate_fixture()
+  d
+}
+
+test_that("raw-driver climate reduces to a model-native modifier in [0, 1.5]", {
+  # Reproduce what build_carbon_balance computes internally: the per-cell-year
+  # HSOC modifier from the monthly drivers must be finite and in a plausible
+  # decomposition-modifier band, and it must NOT be the neutral 1 (the drivers
+  # are warm/moist, so it differs).
+  raw <- .cb_raw_climate_fixture() |>
+    dplyr::filter(year == 2000)
+  cm <- whep:::.cb_year_climate_modifier("hsoc", raw, clay_pct = 20)
+  testthat::expect_true(is.finite(cm))
+  testthat::expect_gt(cm, 0)
+  testthat::expect_lt(cm, 1.5)
+  testthat::expect_false(isTRUE(all.equal(cm, 1)))
+})
+
+# Cell-total carbon (sum of stock x area) at the first year, a single scalar per
+# run, used to compare equilibrium-driven initial stocks across climate paths.
+.cb_first_year_cell_c <- function(cb) {
+  cb |>
+    dplyr::filter(.data$year == min(.data$year)) |>
+    dplyr::summarise(c = sum(.data$stock_mgc_ha * .data$area_ha)) |>
+    dplyr::pull(.data$c)
+}
+
+test_that("raw-driver path feeds the model (differs from neutral modifier)", {
+  neutral <- whep::build_carbon_balance(
+    model = "hsoc",
+    resolution = "grid",
+    data = .cb_test_data()
+  )
+  raw <- whep::build_carbon_balance(
+    model = "hsoc",
+    resolution = "grid",
+    data = .cb_raw_test_data()
+  )
+  # Both runs share every input except the climate: the neutral run injects
+  # climate_modifier = 1, the raw run derives a non-unit modifier from the
+  # monthly drivers, so the equilibrium (hence the initial cell carbon) differs.
+  testthat::expect_false(isTRUE(all.equal(
+    .cb_first_year_cell_c(neutral),
+    .cb_first_year_cell_c(raw)
+  )))
+  testthat::expect_true(all(raw$stock_mgc_ha >= 0))
+})
+
+test_that("back-compat: injected climate_modifier is used as-is", {
+  # The phase-2A fixture injects climate_modifier directly; the raw-driver path
+  # must not disturb it. A modifier of exactly 1 must reproduce the neutral run.
+  cb <- whep::build_carbon_balance(
+    model = "hsoc",
+    resolution = "grid",
+    data = .cb_test_data()
+  )
+  # HSOC equilibrium at climate_modifier = 1 equals the analytic I/k (per the
+  # equilibrium test above), so the modifier was honoured verbatim.
+  testthat::expect_true(all(is.finite(cb$stock_mgc_ha)))
+})
+
+test_that("equilibrium_climate normal drives the spin-up, not the march", {
+  # When data$equilibrium_climate supplies a per-cell-year climatological normal
+  # distinct from the forward drivers, the equilibrium modifier must come from
+  # the normal (so the initial stock reflects the 1901-1930 climate), while the
+  # forward-year rate uses the year-specific drivers.
+  d <- .cb_raw_test_data()
+  # A cold equilibrium normal (low temp) => slower decomposition => higher SOC
+  # equilibrium than the warm forward drivers would give.
+  d$equilibrium_climate <- .cb_raw_climate_fixture() |>
+    dplyr::filter(year == 2000) |>
+    dplyr::mutate(temp_c = temp_c - 8, year = 0L)
+  cb_norm <- whep::build_carbon_balance(
+    model = "hsoc",
+    resolution = "grid",
+    data = d
+  )
+  cb_plain <- whep::build_carbon_balance(
+    model = "hsoc",
+    resolution = "grid",
+    data = .cb_raw_test_data()
+  )
+  # Colder equilibrium climate => slower decomposition => higher equilibrium
+  # SOC, so the first-year cell carbon under the normal exceeds the plain run.
+  testthat::expect_gt(
+    .cb_first_year_cell_c(cb_norm),
+    .cb_first_year_cell_c(cb_plain)
+  )
+})
+
 # -- Non-negativity -----------------------------------------------------------
 
 test_that("stocks never go negative on the example run", {

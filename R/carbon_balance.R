@@ -28,8 +28,16 @@
 #'   when absent: \code{c_inputs} (per cell, land-use class and year, with
 #'   \code{c_input_mgc_ha_yr} and \code{humified_fraction}); \code{land_use}
 #'   (yearly per-cell per-class \code{lon}, \code{lat}, \code{area_code},
-#'   \code{year}, \code{land_use}, \code{area_ha}); \code{climate} (per cell-year
-#'   \code{climate_modifier}); \code{clay} (per cell \code{clay_pct}).
+#'   \code{year}, \code{land_use}, \code{area_ha}); \code{climate} (either a
+#'   precomputed per cell-year \code{climate_modifier}, or the raw monthly
+#'   drivers \code{temp_c} and \code{water_minus_pet_mm} keyed by
+#'   \code{lon}, \code{lat}, \code{area_code}, \code{year}, \code{month} with an
+#'   optional per cell-year \code{soil_cover}, from which the selected model's
+#'   native modifier is computed internally); \code{clay} (per cell
+#'   \code{clay_pct}); and an optional \code{equilibrium_climate} (the
+#'   pre-industrial climatological normal, one representative monthly cycle per
+#'   cell, used only for the equilibrium spin-up modifier while the forward
+#'   march uses the year-specific drivers).
 #' @param example If \code{TRUE}, return a small fixture instead of reading
 #'   remote data. Defaults to \code{FALSE}.
 #' @return A tibble keyed by \code{(lon, lat, area_code, land_use, year)} at
@@ -55,8 +63,8 @@ build_carbon_balance <- function(
   model <- rlang::arg_match(model)
   resolution <- rlang::arg_match(resolution)
   d <- .cb_resolve_inputs(data)
-  classes <- .cb_class_table(d) |> .cb_attach_equilibrium(model)
-  init <- .cb_initialise(classes)
+  classes <- .cb_class_table(d, model) |> .cb_attach_equilibrium(model)
+  init <- .cb_initialise(classes, model, d)
   marched <- .cb_march(classes, init)
   marched |>
     .cb_derive_son() |>
@@ -71,13 +79,20 @@ build_carbon_balance <- function(
     c_inputs = data$c_inputs %||% .cb_read_c_inputs(),
     land_use = data$land_use %||% .cb_read_land_use(),
     climate = data$climate %||% .cb_read_climate(),
-    clay = data$clay %||% .cb_read_clay()
+    clay = data$clay %||% .cb_read_clay(),
+    equilibrium_climate = data$equilibrium_climate
   )
 }
 
-# Join land-use areas, carbon inputs, climate and clay into one per-cell,
-# per-land-use, per-year class table; add the cell-year land-use fraction.
-.cb_class_table <- function(d) {
+# Join land-use areas, carbon inputs, the per-cell-year climate modifier and
+# clay into one per-cell, per-land-use, per-year class table; add the cell-year
+# land-use fraction. The climate modifier is either the precomputed
+# `climate_modifier` column (back-compat) or one derived from the raw monthly
+# drivers via the selected model's native climate function (see
+# `.cb_climate_modifier_table()`).
+.cb_class_table <- function(d, model) {
+  clay <- d$clay
+  modifiers <- .cb_climate_modifier_table(d$climate, clay, model)
   d$land_use |>
     dplyr::mutate(
       frac = .data$area_ha / sum(.data$area_ha),
@@ -87,9 +102,66 @@ build_carbon_balance <- function(
       d$c_inputs,
       by = c("lon", "lat", "area_code", "year", "land_use")
     ) |>
-    dplyr::left_join(d$climate, by = c("lon", "lat", "area_code", "year")) |>
-    dplyr::left_join(d$clay, by = c("lon", "lat")) |>
+    dplyr::left_join(
+      modifiers,
+      by = c("lon", "lat", "area_code", "year")
+    ) |>
+    dplyr::left_join(clay, by = c("lon", "lat")) |>
     dplyr::mutate(climate_modifier = .data$climate_modifier %|% 1)
+}
+
+# -- Climate modifier resolution ----------------------------------------------
+
+# Per-cell-year climate modifier the balance consumes. If `climate` already
+# carries a `climate_modifier` column it is passed through unchanged
+# (back-compat with the phase-2A injected path); otherwise the raw monthly
+# drivers are reduced per cell-year to the selected model's native modifier via
+# `.cb_year_climate_modifier()`. Clay is joined in because the RothC/HSOC
+# modifier needs it.
+.cb_climate_modifier_table <- function(climate, clay, model) {
+  keys <- c("lon", "lat", "area_code", "year")
+  if (rlang::has_name(climate, "climate_modifier")) {
+    return(dplyr::distinct(
+      dplyr::select(climate, dplyr::all_of(c(keys, "climate_modifier")))
+    ))
+  }
+  climate |>
+    dplyr::left_join(clay, by = c("lon", "lat")) |>
+    .cb_arrange_by_month() |>
+    dplyr::summarise(
+      climate_modifier = .cb_year_climate_modifier(
+        model,
+        dplyr::pick(dplyr::everything()),
+        dplyr::first(.data$clay_pct)
+      ),
+      .by = dplyr::all_of(keys)
+    )
+}
+
+# Order the monthly climate rows by month within each cell-year so the RothC
+# topsoil-moisture-deficit accumulation sees January-to-December sequence.
+.cb_arrange_by_month <- function(climate) {
+  if (rlang::has_name(climate, "month")) {
+    dplyr::arrange(climate, .data$month)
+  } else {
+    climate
+  }
+}
+
+# Reduce one cell-year's monthly raw climate drivers to the selected model's
+# native climate rate modifier, reusing the same `.soc_climate_modifier()` path
+# `calculate_soc_dynamics()` uses so the modifier always matches `model`. Monthly
+# driver columns (e.g. temp_c, water_minus_pet_mm) ride in as vectors; the scalar
+# covariates (clay_pct, and soil_cover defaulting to 0 = bare soil when absent)
+# are supplied alongside. Returns 1 (neutral) when the required drivers are
+# absent, mirroring `.soc_climate_modifier()`.
+.cb_year_climate_modifier <- function(model, months, clay_pct) {
+  drivers <- as.list(months)
+  drivers$clay_pct <- clay_pct
+  if (!rlang::has_name(months, "soil_cover")) {
+    drivers$soil_cover <- 0
+  }
+  .soc_climate_modifier(model, drivers)
 }
 
 # -- Equilibrium + initialisation ---------------------------------------------
@@ -193,11 +265,53 @@ build_carbon_balance <- function(
 
 # Initialise each cell from the earliest year: every class starts at the
 # cell-weighted-mean equilibrium density (SOC_init = sum_lu(frac_lu * soc_eq_lu)).
-.cb_initialise <- function(classes) {
+# The equilibrium (spin-up) modifier optionally comes from a distinct
+# pre-industrial climatological normal (`d$equilibrium_climate`, RESOLVED F3),
+# so the initial stock reflects the equilibrium climate while the forward march
+# uses the year-specific modifier already carried in `soc_eq_mgc_ha`.
+.cb_initialise <- function(classes, model, d) {
   first_year <- min(classes$year)
-  classes |>
-    dplyr::filter(.data$year == first_year) |>
-    .cb_init_density()
+  first <- dplyr::filter(classes, .data$year == first_year)
+  first <- .cb_apply_equilibrium_climate(first, model, d)
+  .cb_init_density(first)
+}
+
+# Recompute the first-year per-class equilibrium densities under the
+# equilibrium-climate normal when one is supplied, overwriting `soc_eq_mgc_ha`
+# for the initialisation only. With no normal the first-year forward equilibrium
+# is kept (the prior behaviour).
+.cb_apply_equilibrium_climate <- function(first, model, d) {
+  eq_climate <- d$equilibrium_climate
+  if (is.null(eq_climate)) {
+    return(first)
+  }
+  eq_mod <- .cb_equilibrium_modifier_table(eq_climate, d$clay, model)
+  first |>
+    dplyr::left_join(eq_mod, by = c("lon", "lat", "area_code")) |>
+    dplyr::mutate(
+      climate_modifier = .data$climate_modifier_eq %|% .data$climate_modifier
+    ) |>
+    dplyr::select(-"climate_modifier_eq", -"soc_eq_mgc_ha") |>
+    .cb_attach_equilibrium(model)
+}
+
+# Per-cell equilibrium-climate modifier from the pre-industrial normal. The
+# normal carries the same monthly raw drivers as the forward climate but only
+# one representative period per cell, so it collapses to one modifier per
+# (lon, lat, area_code) named `climate_modifier_eq`.
+.cb_equilibrium_modifier_table <- function(eq_climate, clay, model) {
+  cell_keys <- c("lon", "lat", "area_code")
+  eq_climate |>
+    dplyr::left_join(clay, by = c("lon", "lat")) |>
+    .cb_arrange_by_month() |>
+    dplyr::summarise(
+      climate_modifier_eq = .cb_year_climate_modifier(
+        model,
+        dplyr::pick(dplyr::everything()),
+        dplyr::first(.data$clay_pct)
+      ),
+      .by = dplyr::all_of(cell_keys)
+    )
 }
 
 # Cell-level initial SOC density: the fraction-weighted mean of the per-class

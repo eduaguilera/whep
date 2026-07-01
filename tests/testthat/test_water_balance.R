@@ -76,6 +76,102 @@ testthat::test_that("get_soc_climate_drivers returns monthly climate drivers", {
   pointblank::expect_col_vals_between(drv, "month", 1, 12)
 })
 
+# ---- get_soc_climate_drivers real-path wiring (CRU temp + LPJmL prec/irrig -
+# CRU pet). Inject synthetic CRU + LPJmL monthly inputs so no NetCDF is read.
+
+.socd_synthetic <- function() {
+  cells <- tibble::tribble(
+    ~lon, ~lat,
+    9.25, 47.75,
+    -3.25, 40.25
+  )
+  months <- tidyr::expand_grid(cells, year = 2000L, month = 1:12)
+  # temp in degrees Celsius; pet in mm per day; prec and irrig in mm per month.
+  temp <- dplyr::mutate(months, value = 5 + 10 * (month / 12))
+  pet <- dplyr::mutate(months, value = 1 + 2 * (month / 12))
+  prec <- dplyr::mutate(months, value = 60)
+  irrig <- dplyr::mutate(months, value = 5)
+  swc <- tidyr::expand_grid(cells, year = 2000L, month = 1:12, layer = 1:2) |>
+    dplyr::mutate(value = dplyr::if_else(layer == 1L, 0.45, 0.40))
+  clay <- dplyr::mutate(cells, clay_pct = 22)
+  cell_polity <- dplyr::mutate(cells, area_code = c(11L, 203L))
+  list(
+    temp = temp,
+    pet = pet,
+    prec = prec,
+    irrig = irrig,
+    swc = swc,
+    clay = clay,
+    cell_polity = cell_polity
+  )
+}
+
+testthat::test_that("get_soc_climate_drivers wires CRU temp + prec+irrig-PET", {
+  drv <- whep::get_soc_climate_drivers(data = .socd_synthetic())
+  pointblank::expect_col_exists(
+    drv,
+    c(
+      "lon",
+      "lat",
+      "area_code",
+      "year",
+      "month",
+      "temp_c",
+      "swc_topsoil",
+      "water_minus_pet_mm",
+      "clay_pct",
+      "method_water_input"
+    )
+  )
+  # temp_c comes straight from the CRU tmp input.
+  jan <- dplyr::filter(drv, month == 1L, area_code == 11L)
+  testthat::expect_equal(jan$temp_c, 5 + 10 / 12, tolerance = 1e-8)
+  # The water surplus is precipitation plus irrigation minus PET as a monthly
+  # total (PET mm per day times the days in the month). January 2000 has 31
+  # days and PET per day of one plus two-twelfths.
+  expected_wmp <- (60 + 5) - (1 + 2 / 12) * 31
+  testthat::expect_equal(jan$water_minus_pet_mm, expected_wmp, tolerance = 1e-6)
+  # area_code arrives from the cell-polity crosswalk; swc from LPJmL topsoil.
+  testthat::expect_true(all(drv$swc_topsoil == 0.45))
+  testthat::expect_setequal(unique(drv$area_code), c(11L, 203L))
+})
+
+testthat::test_that("SOC drivers feed a plausible HSOC modifier", {
+  drv <- whep::get_soc_climate_drivers(data = .socd_synthetic())
+  one <- dplyr::filter(drv, area_code == 11L) |> dplyr::arrange(month)
+  cm <- whep::soc_rate_modifier_rothc(
+    temp_c = one$temp_c,
+    water_minus_pet_mm = one$water_minus_pet_mm,
+    clay_pct = one$clay_pct[1],
+    soil_cover = 0
+  )
+  testthat::expect_true(is.finite(cm))
+  testthat::expect_gt(cm, 0)
+  testthat::expect_lt(cm, 2)
+})
+
+# ---- Real-data smoke test (skip if CRU dir absent): read a few 2000 cells.
+testthat::test_that("get_soc_climate_drivers reads real CRU for a few cells", {
+  cru_dir <- Sys.getenv("WHEP_CRU_DIR", "C:/XL_files/CRU/CRU_TS_4")
+  testthat::skip_if_not(
+    file.exists(file.path(cru_dir, "cru_ts4.09.1901.2024.tmp.dat.nc")),
+    "CRU TS 4.09 tmp file not found."
+  )
+  tmp <- whep::read_cru_climate("tmp", years = 2000L)
+  pet <- whep::read_cru_climate("pet", years = 2000L)
+  # A handful of European land cells.
+  sel <- tmp |>
+    dplyr::filter(lon > -5, lon < 5, lat > 40, lat < 50) |>
+    dplyr::distinct(lon, lat) |>
+    head(4)
+  temp_sel <- dplyr::semi_join(tmp, sel, by = c("lon", "lat"))
+  pet_sel <- dplyr::semi_join(pet, sel, by = c("lon", "lat"))
+  testthat::expect_true(all(is.finite(temp_sel$value)))
+  testthat::expect_true(all(temp_sel$value > -40 & temp_sel$value < 40))
+  # PET in mm/day is small and positive.
+  testthat::expect_true(all(pet_sel$value >= 0 & pet_sel$value < 20))
+})
+
 testthat::test_that("polity resolution aggregates by year and area_code", {
   grid <- whep::build_water_balance(resolution = "grid", example = TRUE)
   pol <- whep::build_water_balance(resolution = "polity", example = TRUE)

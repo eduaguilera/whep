@@ -554,10 +554,10 @@
 .example_soc_climate_drivers <- function() {
   tibble::tribble(
     ~lon, ~lat, ~area_code, ~year, ~month, ~temp_c, ~swc_topsoil,
-    ~water_minus_pet_mm, ~clay_pct,
-    9.25, 47.75, 11L, 2000L, 1L, 1.2, 0.62, -10, 18,
-    9.25, 47.75, 11L, 2000L, 2L, 3.4, 0.58, 5, 18,
-    9.25, 47.75, 11L, 2000L, 3L, 7.8, 0.51, 20, 18
+    ~water_minus_pet_mm, ~clay_pct, ~method_water_input,
+    9.25, 47.75, 11L, 2000L, 1L, 1.2, 0.62, -10, 18, "lpjml_prec_irrig",
+    9.25, 47.75, 11L, 2000L, 2L, 3.4, 0.58, 5, 18, "lpjml_prec_irrig",
+    9.25, 47.75, 11L, 2000L, 3L, 7.8, 0.51, 20, 18, "lpjml_prec_irrig"
   )
 }
 

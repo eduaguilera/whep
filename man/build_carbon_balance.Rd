@@ -27,8 +27,16 @@ build_carbon_balance(
 when absent: \code{c_inputs} (per cell, land-use class and year, with
 \code{c_input_mgc_ha_yr} and \code{humified_fraction}); \code{land_use}
 (yearly per-cell per-class \code{lon}, \code{lat}, \code{area_code},
-\code{year}, \code{land_use}, \code{area_ha}); \code{climate} (per cell-year
-\code{climate_modifier}); \code{clay} (per cell \code{clay_pct}).}
+\code{year}, \code{land_use}, \code{area_ha}); \code{climate} (either a
+precomputed per cell-year \code{climate_modifier}, or the raw monthly
+drivers \code{temp_c} and \code{water_minus_pet_mm} keyed by
+\code{lon}, \code{lat}, \code{area_code}, \code{year}, \code{month} with an
+optional per cell-year \code{soil_cover}, from which the selected model's
+native modifier is computed internally); \code{clay} (per cell
+\code{clay_pct}); and an optional \code{equilibrium_climate} (the
+pre-industrial climatological normal, one representative monthly cycle per
+cell, used only for the equilibrium spin-up modifier while the forward
+march uses the year-specific drivers).}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading
 remote data. Defaults to \code{FALSE}.}

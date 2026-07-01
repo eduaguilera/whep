@@ -94,39 +94,50 @@ build_water_balance <- function(
     .wb_finalise(method, resolution)
 }
 
-#' Assemble monthly SOC climate drivers from LPJmL hydrology.
+#' Assemble monthly SOC climate drivers from CRU climate and LPJmL hydrology.
 #'
 #' @description
 #' Builds the monthly per-cell climate drivers the soil-organic-carbon
 #' decomposition modifiers consume: air temperature, topsoil soil-water
 #' saturation, the monthly water-minus-potential-evapotranspiration surplus and
-#' clay content. LPJmL provides soil water content directly (`read_lpjml_hydrology("swc")`,
-#' topmost layer); temperature comes from the climate forcing and clay from a
-#' soil product, neither of which is in the hydrology output (see Details).
+#' clay content. Air temperature comes from CRU TS 4.09
+#' ([read_cru_climate()] `"tmp"`, degrees Celsius); potential
+#' evapotranspiration from CRU `"pet"` (mm/day), converted to a monthly total by
+#' multiplying by the days in the month; the water input (precipitation plus
+#' irrigation) from the LPJmL run so it is consistent with the hydrology that
+#' produced the soil water content; and soil water content from LPJmL directly
+#' ([read_lpjml_hydrology()] `"swc"`, topmost layer). Clay content is a
+#' soil-texture covariate supplied via `data$clay`; the polity key comes from a
+#' cell-polity crosswalk (`data$cell_polity`).
 #'
 #' @details
-#' Air temperature is not an LPJmL hydrology output. Until the forcing
-#' temperature path is resolved from `lpjml_config.json`, pass it via
-#' `data$temp` (`lon`, `lat`, `year`, `month`, `temp_c`). Clay content likewise
-#' comes from a soil-texture product passed via `data$clay` (`lon`, `lat`,
-#' `clay_pct`). Potential evapotranspiration is also absent from LPJmL; when no
-#' `data$pet` is supplied the water surplus column is returned as `NA`.
+#' The monthly water surplus is `water_minus_pet_mm = (prec + irrig) -
+#' pet_mm_day * days_in_month`. The water input basis is recorded in
+#' `method_water_input` (`"lpjml_prec_irrig"`, LPJmL precipitation plus
+#' irrigation). Air temperature (CRU) and clay (a soil product) are not LPJmL
+#' outputs, hence the mixed sources.
 #'
 #' @param run_dir Path to the LPJmL run output directory. Defaults to
 #'   `Sys.getenv("WHEP_LPJML_RUN_DIR")` via [read_lpjml_hydrology()].
-#' @param data Optional named list of pre-loaded inputs: `swc`
-#'   ([read_lpjml_hydrology()] soil water content), `temp` (forcing
-#'   temperature), `pet` (potential evapotranspiration) and `clay` (soil clay
-#'   fraction). Each falls back to its reader when available.
+#' @param years Optional integer vector of calendar years to keep. `NULL` keeps
+#'   every year the inputs cover.
+#' @param data Optional named list of pre-loaded inputs, each falling back to
+#'   its reader when absent: `temp` (CRU `tmp`, `lon`, `lat`, `year`, `month`,
+#'   `value` degrees Celsius), `pet` (CRU `pet`, same schema, mm/day), `prec`
+#'   and `irrig` (LPJmL monthly, `lon`, `lat`, `year`, `month`, `value` mm/month),
+#'   `swc` ([read_lpjml_hydrology()] soil water content), `clay` (`lon`, `lat`,
+#'   `clay_pct`, required) and `cell_polity` (`lon`, `lat`, `area_code`, the
+#'   polity crosswalk, required).
 #' @param example If `TRUE`, return a small fixture instead of reading data.
 #'   Defaults to `FALSE`.
 #' @return A tibble with `lon`, `lat`, `area_code`, `year`, `month`, `temp_c`,
-#'   `swc_topsoil`, `water_minus_pet_mm` and `clay_pct`.
+#'   `swc_topsoil`, `water_minus_pet_mm`, `clay_pct` and `method_water_input`.
 #' @export
 #' @examples
 #' get_soc_climate_drivers(example = TRUE)
 get_soc_climate_drivers <- function(
   run_dir = NULL,
+  years = NULL,
   data = list(),
   example = FALSE
 ) {
@@ -134,9 +145,10 @@ get_soc_climate_drivers <- function(
     return(.example_soc_climate_drivers())
   }
   swc <- .wb_swc_topsoil(data, run_dir)
-  temp <- .wb_require_input(data$temp, "temp", c("temp_c"))
+  monthly <- .socd_monthly_climate(data, years)
   clay <- .wb_require_input(data$clay, "clay", c("clay_pct"))
-  .assemble_soc_drivers(swc, temp, clay, data$pet)
+  polity <- .wb_require_input(data$cell_polity, "cell_polity", c("area_code"))
+  .assemble_soc_drivers(swc, monthly, clay, polity)
 }
 
 # ---- Private helpers --------------------------------------------------
@@ -558,34 +570,88 @@ get_soc_climate_drivers <- function(
   tibble::as_tibble(input)
 }
 
-# Join topsoil soil water, temperature, optional PET surplus and clay into the
-# monthly SOC driver schema; water_minus_pet_mm is NA when no PET is supplied.
-# area_code rides in on the temperature input (the caller's keyed forcing).
-.assemble_soc_drivers <- function(swc, temp, clay, pet) {
-  if (!rlang::has_name(temp, "area_code")) {
-    cli::cli_abort(c(
-      "The {.field temp} input must carry an {.field area_code} column.",
-      i = "It keys the SOC drivers to a polity (forcing TODO; see Details)."
-    ))
-  }
-  drivers <- swc |>
-    dplyr::inner_join(temp, by = c("lon", "lat", "year", "month")) |>
-    dplyr::left_join(clay, by = c("lon", "lat"))
-  drivers <- if (is.null(pet)) {
-    dplyr::mutate(drivers, water_minus_pet_mm = NA_real_)
-  } else {
-    dplyr::left_join(drivers, pet, by = c("lon", "lat", "year", "month"))
-  }
-  dplyr::select(
-    drivers,
-    lon,
-    lat,
-    area_code,
-    year,
-    month,
-    temp_c,
-    swc_topsoil,
-    water_minus_pet_mm,
-    clay_pct
-  )
+# Build the monthly climate part of the SOC drivers: CRU air temperature, and
+# the monthly water surplus water_minus_pet_mm = (LPJmL prec + irrig) - CRU
+# pet[mm/day] * days_in_month. Each source falls back to its reader when not
+# injected. Returns lon, lat, year, month, temp_c, water_minus_pet_mm and the
+# method_water_input provenance label.
+.socd_monthly_climate <- function(data, years) {
+  temp <- .socd_read(data$temp, "tmp", years)
+  pet <- .socd_read(data$pet, "pet", years)
+  prec <- .socd_lpjml(data$prec, "prec", years)
+  irrig <- .socd_lpjml(data$irrig, "irrig", years)
+  temp |>
+    dplyr::rename(temp_c = value) |>
+    dplyr::inner_join(
+      dplyr::rename(pet, pet_mm_day = value),
+      by = c("lon", "lat", "year", "month")
+    ) |>
+    dplyr::inner_join(
+      dplyr::rename(prec, prec_mm = value),
+      by = c("lon", "lat", "year", "month")
+    ) |>
+    dplyr::inner_join(
+      dplyr::rename(irrig, irrig_mm = value),
+      by = c("lon", "lat", "year", "month")
+    ) |>
+    dplyr::mutate(
+      water_minus_pet_mm = (prec_mm + irrig_mm) -
+        pet_mm_day * .days_in_month(year, month),
+      method_water_input = "lpjml_prec_irrig"
+    ) |>
+    dplyr::select(
+      lon,
+      lat,
+      year,
+      month,
+      temp_c,
+      water_minus_pet_mm,
+      method_water_input
+    )
+}
+
+# Read a CRU variable (temp or pet) from the injected tibble or read_cru_climate.
+.socd_read <- function(input, var, years) {
+  raw <- input %||% read_cru_climate(var, years = years)
+  .check_columns(raw, c("lon", "lat", "year", "month", "value"), var)
+  tibble::as_tibble(raw)
+}
+
+# Read an LPJmL monthly hydrology flux from the injected tibble or the reader.
+.socd_lpjml <- function(input, var, years) {
+  raw <- input %||% read_lpjml_hydrology(var, years = years, monthly = TRUE)
+  .check_columns(raw, c("lon", "lat", "year", "month", "value"), var)
+  tibble::as_tibble(raw)
+}
+
+# Days in a calendar month, vectorised, honouring leap years.
+.days_in_month <- function(year, month) {
+  base <- c(31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
+  leap <- (year %% 4 == 0 & year %% 100 != 0) | (year %% 400 == 0)
+  base[month] + as.integer(month == 2L & leap)
+}
+
+# Join topsoil soil water, the monthly CRU/LPJmL climate, clay and the polity
+# key into the monthly SOC driver schema. area_code comes from the cell-polity
+# crosswalk (lon, lat); a border cell keeps every polity it overlaps.
+.assemble_soc_drivers <- function(swc, monthly, clay, polity) {
+  swc |>
+    dplyr::inner_join(monthly, by = c("lon", "lat", "year", "month")) |>
+    dplyr::left_join(clay, by = c("lon", "lat")) |>
+    dplyr::inner_join(
+      dplyr::select(polity, lon, lat, area_code),
+      by = c("lon", "lat")
+    ) |>
+    dplyr::select(
+      lon,
+      lat,
+      area_code,
+      year,
+      month,
+      temp_c,
+      swc_topsoil,
+      water_minus_pet_mm,
+      clay_pct,
+      method_water_input
+    )
 }

@@ -2,41 +2,56 @@
 % Please edit documentation in R/water_balance.R
 \name{get_soc_climate_drivers}
 \alias{get_soc_climate_drivers}
-\title{Assemble monthly SOC climate drivers from LPJmL hydrology.}
+\title{Assemble monthly SOC climate drivers from CRU climate and LPJmL hydrology.}
 \usage{
-get_soc_climate_drivers(run_dir = NULL, data = list(), example = FALSE)
+get_soc_climate_drivers(
+  run_dir = NULL,
+  years = NULL,
+  data = list(),
+  example = FALSE
+)
 }
 \arguments{
 \item{run_dir}{Path to the LPJmL run output directory. Defaults to
 \code{Sys.getenv("WHEP_LPJML_RUN_DIR")} via \code{\link[=read_lpjml_hydrology]{read_lpjml_hydrology()}}.}
 
-\item{data}{Optional named list of pre-loaded inputs: \code{swc}
-(\code{\link[=read_lpjml_hydrology]{read_lpjml_hydrology()}} soil water content), \code{temp} (forcing
-temperature), \code{pet} (potential evapotranspiration) and \code{clay} (soil clay
-fraction). Each falls back to its reader when available.}
+\item{years}{Optional integer vector of calendar years to keep. \code{NULL} keeps
+every year the inputs cover.}
+
+\item{data}{Optional named list of pre-loaded inputs, each falling back to
+its reader when absent: \code{temp} (CRU \code{tmp}, \code{lon}, \code{lat}, \code{year}, \code{month},
+\code{value} degrees Celsius), \code{pet} (CRU \code{pet}, same schema, mm/day), \code{prec}
+and \code{irrig} (LPJmL monthly, \code{lon}, \code{lat}, \code{year}, \code{month}, \code{value} mm/month),
+\code{swc} (\code{\link[=read_lpjml_hydrology]{read_lpjml_hydrology()}} soil water content), \code{clay} (\code{lon}, \code{lat},
+\code{clay_pct}, required) and \code{cell_polity} (\code{lon}, \code{lat}, \code{area_code}, the
+polity crosswalk, required).}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading data.
 Defaults to \code{FALSE}.}
 }
 \value{
 A tibble with \code{lon}, \code{lat}, \code{area_code}, \code{year}, \code{month}, \code{temp_c},
-\code{swc_topsoil}, \code{water_minus_pet_mm} and \code{clay_pct}.
+\code{swc_topsoil}, \code{water_minus_pet_mm}, \code{clay_pct} and \code{method_water_input}.
 }
 \description{
 Builds the monthly per-cell climate drivers the soil-organic-carbon
 decomposition modifiers consume: air temperature, topsoil soil-water
 saturation, the monthly water-minus-potential-evapotranspiration surplus and
-clay content. LPJmL provides soil water content directly (\code{read_lpjml_hydrology("swc")},
-topmost layer); temperature comes from the climate forcing and clay from a
-soil product, neither of which is in the hydrology output (see Details).
+clay content. Air temperature comes from CRU TS 4.09
+(\code{\link[=read_cru_climate]{read_cru_climate()}} \code{"tmp"}, degrees Celsius); potential
+evapotranspiration from CRU \code{"pet"} (mm/day), converted to a monthly total by
+multiplying by the days in the month; the water input (precipitation plus
+irrigation) from the LPJmL run so it is consistent with the hydrology that
+produced the soil water content; and soil water content from LPJmL directly
+(\code{\link[=read_lpjml_hydrology]{read_lpjml_hydrology()}} \code{"swc"}, topmost layer). Clay content is a
+soil-texture covariate supplied via \code{data$clay}; the polity key comes from a
+cell-polity crosswalk (\code{data$cell_polity}).
 }
 \details{
-Air temperature is not an LPJmL hydrology output. Until the forcing
-temperature path is resolved from \code{lpjml_config.json}, pass it via
-\code{data$temp} (\code{lon}, \code{lat}, \code{year}, \code{month}, \code{temp_c}). Clay content likewise
-comes from a soil-texture product passed via \code{data$clay} (\code{lon}, \code{lat},
-\code{clay_pct}). Potential evapotranspiration is also absent from LPJmL; when no
-\code{data$pet} is supplied the water surplus column is returned as \code{NA}.
+The monthly water surplus is \code{water_minus_pet_mm = (prec + irrig) - pet_mm_day * days_in_month}. The water input basis is recorded in
+\code{method_water_input} (\code{"lpjml_prec_irrig"}, LPJmL precipitation plus
+irrigation). Air temperature (CRU) and clay (a soil product) are not LPJmL
+outputs, hence the mixed sources.
 }
 \examples{
 get_soc_climate_drivers(example = TRUE)
