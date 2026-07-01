@@ -257,11 +257,17 @@ calculate_manner_nh3 <- function(
   if (is.na(incorporation_delay_h) || is.infinite(incorporation_delay_h)) {
     return(dplyr::filter(table, .data$delay_bin == "No incorporation")$factor)
   }
-  table |>
-    dplyr::filter(!is.na(.data$delay_hours)) |>
-    dplyr::filter(.data$delay_hours >= incorporation_delay_h) |>
-    dplyr::slice_min(.data$delay_hours, n = 1) |>
-    dplyr::pull("factor")
+  finite_bins <- dplyr::filter(table, !is.na(.data$delay_hours))
+  ceiling_bin <- dplyr::filter(
+    finite_bins,
+    .data$delay_hours >= incorporation_delay_h
+  )
+  # A delay beyond the largest finite bin (">12 days") clamps to that bin's
+  # factor rather than silently returning zero rows.
+  if (nrow(ceiling_bin) == 0) {
+    return(dplyr::slice_max(finite_bins, .data$delay_hours, n = 1)$factor)
+  }
+  dplyr::slice_min(ceiling_bin, .data$delay_hours, n = 1)$factor
 }
 
 # Inorganic (ammoniacal) nitrogen fraction: "urban" is a fixed 0.5

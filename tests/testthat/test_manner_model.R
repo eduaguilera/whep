@@ -136,6 +136,30 @@ testthat::test_that("calculate_manner_nh3 clamps the AE climate factor to [0.6, 
   testthat::expect_equal(out$ef, expected_ef, tolerance = 1e-6)
 })
 
+testthat::test_that("incorporation delay beyond the largest bin clamps, not zero rows", {
+  drivers <- list(
+    rainfall_mm = 0,
+    irrigated = FALSE,
+    windspeed_ms = 3,
+    technique = "Broadcast",
+    system = "Arable",
+    temp_c = 15,
+    species = "Cattle"
+  )
+  beyond_ceiling <- whep::calculate_manner_nh3(
+    n_applied_t = 1,
+    fertiliser = "cattle_slurry",
+    drivers = c(drivers, list(incorporation_delay_h = 20000))
+  )
+  at_ceiling <- whep::calculate_manner_nh3(
+    n_applied_t = 1,
+    fertiliser = "cattle_slurry",
+    drivers = c(drivers, list(incorporation_delay_h = 10000))
+  )
+  testthat::expect_equal(nrow(beyond_ceiling), 1L)
+  testthat::expect_equal(beyond_ceiling$ef, at_ceiling$ef, tolerance = 1e-6)
+})
+
 testthat::test_that("calculate_manner_nh3 applies the FYM 0.4 correction", {
   drivers <- list(
     rainfall_mm = 40,
