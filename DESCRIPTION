@@ -53,7 +53,8 @@ Suggests:
     pointblank,
     rmarkdown,
     sf,
-    testthat (>= 3.0.0)
+    testthat (>= 3.0.0),
+    zip
 Config/testthat/edition: 3
 VignetteBuilder: knitr
 URL: https://eduaguilera.github.io/whep/, https://github.com/eduaguilera/whep

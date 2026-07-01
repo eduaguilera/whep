@@ -1372,7 +1372,22 @@ utils::globalVariables(
     "value_g_total",
     "deposition_kgn_ha",
     "deposition_n_t",
-    "method_deposition"
+    "method_deposition",
+    # hyde_population.R (Module C, Task C3) — gridded HYDE population NSE
+    # columns
+    "urban_pop",
+    # n_urban.R (Module C, Task C3) — urban nitrogen driver NSE columns
+    "urban_n_gg",
+    "urban_kgn_cap",
+    "urban_n_generated_t",
+    "surplus_n",
+    "surplus_c",
+    "surplus_vs",
+    "room_n",
+    "cropland_ha",
+    "applied_n",
+    "urban_n_t",
+    "method_urban"
   )
 )
 

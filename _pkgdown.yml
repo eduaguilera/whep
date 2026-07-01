@@ -108,6 +108,16 @@ reference:
   - manner_params
   - n_attenuation_constants
 
+- title: Urban nitrogen coefficient tables
+  desc: >
+    Spain historical benchmark series (Module C, Task C3) behind
+    `build_urban_n()`'s global default per-capita urban-N-to-agriculture
+    rate: the raw national-total urban nitrogen series and its derived
+    per-capita rate.
+  contents:
+  - urban_n_reference
+  - urban_kgn_cap_reference
+
 - title: Soil balances - carbon (SOC climate)
   desc: >
     Per-model native climate rate-modifying functions for the soil-organic-carbon
@@ -155,10 +165,14 @@ reference:
     Gridded nitrogen-balance inputs (Module C). Atmospheric nitrogen
     deposition from HaNi NHx and NOy, aggregated to WHEP's 0.5-degree grid and
     converted to a per-hectare rate using the true latitude-dependent cell
-    area.
+    area. Urban/human-excreta nitrogen from gridded HYDE population and a
+    per-capita rate, with neighbour-cell transport buffering for cells with
+    no local cropland room.
   contents:
   - read_n_deposition
   - build_n_deposition
+  - read_hyde_population
+  - build_urban_n
 
 - title: Soil balances - carbon (historical balance)
   desc: >
