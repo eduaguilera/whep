@@ -176,3 +176,83 @@ test_that("real pin smoke test (skipped when unreadable)", {
     c("lon", "lat", "year", "land_use", "fraction")
   )
 })
+
+# ---- Real local states.nc smoke test ---------------------------------------
+.luh2_local_states_nc <- function() {
+  file.path(
+    Sys.getenv("WHEP_LUH2_DIR", "C:/XL_files/LUH2/LUH2 v2h"),
+    "states.nc"
+  )
+}
+
+test_that("local states.nc reads at 0.5 deg with plausible year-2000 land use", {
+  testthat::skip_if(
+    !file.exists(.luh2_local_states_nc()),
+    "local LUH2 states.nc not present"
+  )
+  out <- whep::read_luh2_landuse(resolution = "grid", years = 2000L)
+
+  # 0.5-degree grid on the standard 0.5 centres
+  testthat::expect_true(all(out$year == 2000L))
+  lon_off <- (out$lon + 179.75) %% 0.5
+  lat_off <- (out$lat - 83.75) %% 0.5
+  testthat::expect_true(all(abs(pmin(lon_off, 0.5 - lon_off)) < 1e-6))
+  testthat::expect_true(all(abs(pmin(lat_off, 0.5 - lat_off)) < 1e-6))
+
+  # fractions in 0..1
+  testthat::expect_true(all(out$fraction >= -1e-9 & out$fraction <= 1 + 1e-6))
+
+  # per-cell 4-class totals: inland cells tile to ~1; coastal cells fall short
+  # by their ocean fraction, so no cell exceeds ~1 and inland cells hit 1.
+  totals <- out |>
+    dplyr::summarise(tot = sum(fraction), .by = c(lon, lat))
+  testthat::expect_true(all(totals$tot < 1.02))
+  # a fully-inland central-Europe cell tiles to ~1
+  ce_tot <- totals |>
+    dplyr::filter(abs(lon - 9.25) < 0.01, abs(lat - 48.25) < 0.01) |>
+    dplyr::pull(tot)
+  testthat::expect_true(length(ce_tot) == 1L && abs(ce_tot - 1) < 0.02)
+
+  # that central-Europe cell has meaningful cropland
+  crop_ce <- out |>
+    dplyr::filter(
+      abs(lon - 9.25) < 0.01,
+      abs(lat - 48.25) < 0.01,
+      land_use == "cropland"
+    ) |>
+    dplyr::pull(fraction)
+  testthat::expect_true(length(crop_ce) == 1L && crop_ce > 0.1)
+
+  # Global cropland area: the country-grid join (centroid rasterization) only
+  # retains cells assignable to a polity, so it undercounts the physical
+  # global total. Verify the reader's own aggregation against the ~1.5 Gha
+  # literature value on the pre-join gridded classes.
+  phys <- whep:::.luh2_read_states_nc(.luh2_local_states_nc(), years = 2000L) |>
+    whep:::.luh2_map_classes()
+  phys$area_ha <- phys$fraction * whep:::.luh2_cell_area_ha(phys$lat)
+  gcrop <- phys |>
+    dplyr::filter(land_use == "cropland") |>
+    dplyr::summarise(gha = sum(area_ha) / 1e9) |>
+    dplyr::pull(gha)
+  gland <- sum(phys$area_ha) / 1e9
+  cat(
+    "\nYear-2000 global cropland (Gha):",
+    round(gcrop, 3),
+    "| total land (Gha):",
+    round(gland, 3),
+    "\n"
+  )
+  print(utils::head(as.data.frame(out)))
+  testthat::expect_true(gcrop > 1.3 && gcrop < 1.7)
+  testthat::expect_true(gland > 12 && gland < 14)
+})
+
+test_that("local states.nc is readable for 1750", {
+  testthat::skip_if(
+    !file.exists(.luh2_local_states_nc()),
+    "local LUH2 states.nc not present"
+  )
+  out <- whep::read_luh2_landuse(resolution = "grid", years = 1750L)
+  testthat::expect_true(all(out$year == 1750L))
+  testthat::expect_true(nrow(out) > 0L)
+})

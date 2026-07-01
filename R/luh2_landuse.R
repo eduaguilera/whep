@@ -61,7 +61,7 @@ read_luh2_landuse <- function(
   }
   resolution <- rlang::arg_match(resolution)
   data <- data %||% list()
-  states <- data$states %||% .luh2_read_states(years = years)
+  states <- data$states %||% .luh2_read_states_source(years = years)
   if (!is.null(years)) {
     states <- dplyr::filter(states, .data$year %in% years)
   }
@@ -155,6 +155,116 @@ read_luh2_landuse <- function(
       .by = c("area_code", "year", "land_use")
     ) |>
     tibble::as_tibble()
+}
+
+# -- States source dispatch ---------------------------------------------------
+
+# Choose the states source: the clean LOCAL LUH2 v2h states.nc when present
+# (the registered pin payload is corrupted, see file header), otherwise fall
+# back to the pin reader. The directory comes from the WHEP_LUH2_DIR env var.
+.luh2_read_states_source <- function(years = NULL) {
+  nc_path <- file.path(.luh2_states_dir(), "states.nc")
+  if (file.exists(nc_path)) {
+    return(.luh2_read_states_nc(nc_path, years = years))
+  }
+  .luh2_read_states(years = years)
+}
+
+.luh2_states_dir <- function() {
+  Sys.getenv("WHEP_LUH2_DIR", "C:/XL_files/LUH2/LUH2 v2h")
+}
+
+# -- Local states.nc reader ---------------------------------------------------
+
+# Read the 12 LUH2 v2h state fractions for the requested years from the clean
+# local states.nc and area-aggregate the 0.25-degree native grid to the
+# 0.5-degree carbon grid. Returns long (lon, lat, year, land_use, fraction) on
+# the 0.5-degree cell centres. LUH2 v2h time index 1 = year 850 CE.
+.luh2_read_states_nc <- function(nc_path, years = NULL) {
+  years <- years %||% seq_len(.luh2_time_len_nc(nc_path))
+  purrr::map_dfr(years, \(yr) .luh2_read_states_nc_year(nc_path, yr))
+}
+
+# Read one year's 12 states from states.nc and aggregate to 0.5 degrees.
+.luh2_read_states_nc_year <- function(nc_path, year) {
+  vars <- .luh2_class_lookup()$state
+  nc <- ncdf4::nc_open(nc_path)
+  on.exit(ncdf4::nc_close(nc))
+  lat <- ncdf4::ncvar_get(nc, "lat")
+  time_idx <- year - 850L + 1L
+  time_len <- nc$dim$time$len
+  if (time_idx < 1L || time_idx > time_len) {
+    cli::cli_abort(
+      "Year {year} outside LUH2 v2h range {850L}-{850L + time_len - 1L}."
+    )
+  }
+  lon <- ncdf4::ncvar_get(nc, "lon")
+  long <- purrr::map_dfr(vars, \(v) {
+    .luh2_slice_to_cells(
+      ncdf4::ncvar_get(
+        nc,
+        v,
+        start = c(1L, 1L, time_idx),
+        count = c(-1L, -1L, 1L)
+      ),
+      lon,
+      lat,
+      v
+    )
+  })
+  .luh2_aggregate_half_degree(long, year)
+}
+
+# Turn a native [lon, lat] fraction slice into a long table of native cells,
+# dropping NA (ocean) fractions, tagged with the state name. Ocean sub-cells
+# carry no cropland and must contribute 0 to the aggregate: dropping them here
+# is corrected by dividing by the FULL 0.5-degree cell area downstream (not by
+# the summed weights of the present sub-cells only).
+.luh2_slice_to_cells <- function(vals, lon, lat, state) {
+  # vals is the [lon, lat] slice from ncvar_get: as.vector() runs lon fastest,
+  # so the coordinate table must run lon fastest too. CJ varies its LAST
+  # argument fastest, hence CJ(lat, lon).
+  dt <- data.table::CJ(lat = lat, lon = lon, sorted = FALSE)
+  dt[, fraction := as.vector(vals)]
+  dt <- dt[!is.na(fraction)]
+  dt[, land_use := state]
+  tibble::as_tibble(dt)
+}
+
+# Area-aggregate native 0.25-degree fractions to the 0.5-degree carbon grid.
+# Per (0.5-cell, state) the aggregated fraction is the native-area-weighted
+# cropland/grass/etc. area summed over the member native sub-cells divided by
+# the FULL 0.5-degree cell area, so ocean (dropped-NA) sub-cells contribute 0.
+# This conserves the native land area exactly.
+.luh2_aggregate_half_degree <- function(long, year) {
+  dt <- data.table::as.data.table(long)
+  dt[, lon5 := floor((lon + 180) / 0.5) * 0.5 - 180 + 0.25]
+  dt[, lat5 := floor((lat + 90) / 0.5) * 0.5 - 90 + 0.25]
+  dt[, native_area := .luh2_native_cell_area_ha(lat)]
+  agg <- dt[,
+    .(state_area = sum(fraction * native_area)),
+    by = .(lon = lon5, lat = lat5, land_use)
+  ]
+  agg[, fraction := state_area / .luh2_cell_area_ha(lat)]
+  agg[, year := as.integer(year)]
+  tibble::as_tibble(agg[, .(lon, lat, year, land_use, fraction)])
+}
+
+# Spherical area (ha) of a native 0.25-degree LUH2 cell centred at latitude
+# `lat`. Four of these tile one 0.5-degree carbon cell.
+.luh2_native_cell_area_ha <- function(lat) {
+  earth_radius_m <- 6371000
+  half_step_rad <- 0.125 * pi / 180
+  lon_step_rad <- 0.25 * pi / 180
+  band <- sin(lat * pi / 180 + half_step_rad) -
+    sin(lat * pi / 180 - half_step_rad)
+  earth_radius_m^2 * lon_step_rad * band / 1e4
+}
+
+.luh2_time_len_nc <- function(nc_path) {
+  nc <- ncdf4::nc_open(nc_path)
+  on.exit(ncdf4::nc_close(nc))
+  nc$dim$time$len
 }
 
 # -- Pin readers --------------------------------------------------------------

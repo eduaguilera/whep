@@ -1153,6 +1153,11 @@ utils::globalVariables(
     "regional_mms_distribution",
     "temperature_adjustment",
     "uncertainty_ranges",
+    # luh2_landuse.R local states.nc aggregation internals
+    "lon5",
+    "lat5",
+    "native_area",
+    "state_area",
     # spatialize internals
     "c_wt",
     "density",
