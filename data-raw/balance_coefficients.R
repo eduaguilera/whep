@@ -65,6 +65,16 @@ n_attenuation_constants <- .read_balance_csv("n_attenuation_constants.csv")
 urban_n_reference <- .read_balance_csv("urban_n_reference.csv")
 urban_kgn_cap_reference <- .read_balance_csv("urban_kgn_cap_reference.csv")
 
+# Module C (Task C4) MANNER process-based ammonia-volatilisation coefficient
+# datasets, complementing manner_params (see R/datasets_balances.R @source
+# for provenance).
+manner_rate_factor <- .read_balance_csv("manner_rate_factor.csv")
+manner_rain_factor <- .read_balance_csv("manner_rain_factor.csv")
+manner_incorporation_factor <- .read_balance_csv(
+  "manner_incorporation_factor.csv"
+)
+manure_inorganic_n <- .read_balance_csv("manure_inorganic_n.csv")
+
 usethis::use_data(
   soc_turnover_params,
   amg_h_by_input_type,
@@ -79,5 +89,9 @@ usethis::use_data(
   n_attenuation_constants,
   urban_n_reference,
   urban_kgn_cap_reference,
+  manner_rate_factor,
+  manner_rain_factor,
+  manner_incorporation_factor,
+  manure_inorganic_n,
   overwrite = TRUE
 )

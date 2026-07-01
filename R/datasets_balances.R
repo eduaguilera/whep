@@ -482,3 +482,143 @@
 #' @examples
 #' urban_kgn_cap_reference
 "urban_kgn_cap_reference"
+
+#' MANNER synthetic-fertiliser application-rate factor.
+#'
+#' @description
+#' Multiplicative ammonia-volatilisation factor for synthetic fertiliser as a
+#' function of the nitrogen application rate, keyed by fertiliser, soil type
+#' (calcareous / non-calcareous) and application-rate bin (kg N/ha). Used by
+#' [calculate_manner_nh3()]'s synthetic-fertiliser path. AN and CAN are 1 for
+#' every soil type and rate bin; Urea follows the same rate-response curve on
+#' both soil types; AS follows the Urea curve on calcareous soils and is 1 on
+#' non-calcareous soils.
+#'
+#' @format A tibble with columns:
+#' \describe{
+#'   \item{fertiliser}{Synthetic fertiliser: \code{"Urea"}, \code{"AN"},
+#'     \code{"CAN"} or \code{"AS"}.}
+#'   \item{soil_type}{\code{"calcareous"} or \code{"non-calcareous"}.}
+#'   \item{rate_bin}{Application-rate bin (kg N/ha): one of \code{"0-30"},
+#'     \code{"30-60"}, \code{"60-90"}, \code{"90-120"}, \code{"120-150"},
+#'     \code{"150-180"}, \code{"180-200"}, \code{">200"}.}
+#'   \item{factor}{Numeric multiplicative rate factor.}
+#' }
+#'
+#' @source WHEP project-internal coefficient workbook (not a public DOI):
+#'   Spain historical MANNER implementation, \code{NH3_model.xlsx}, sheet
+#'   "synthetic fertilisers".
+#'
+#' @examples
+#' manner_rate_factor
+"manner_rate_factor"
+
+#' MANNER synthetic-fertiliser rainfall factor.
+#'
+#' @description
+#' Multiplicative ammonia-volatilisation factor for synthetic fertiliser as a
+#' function of soil pH class and the same rainfall/wetness classification
+#' used by the organic-manure \code{rainfall_wet} table in
+#' [manner_params]. Used by [calculate_manner_nh3()]'s synthetic-fertiliser
+#' path. AN and CAN are 1 for every pH class and rainfall class; AS is 1 for
+#' every \code{pH<7} row.
+#'
+#' @format A tibble with columns:
+#' \describe{
+#'   \item{fertiliser}{Synthetic fertiliser: \code{"Urea"}, \code{"AN"},
+#'     \code{"CAN"} or \code{"AS"}.}
+#'   \item{ph_class}{Soil pH class: \code{"pH<7"} or \code{"other pH"}.}
+#'   \item{rainfall_class}{Combined rainfall-level/wetness class (e.g.
+#'     \code{"noraindry"}, \code{"heavyrainwet"}), the same 9 classes as
+#'     [manner_params]'s \code{rainfall_wet} table.}
+#'   \item{factor}{Numeric multiplicative rainfall factor.}
+#' }
+#'
+#' @source WHEP project-internal coefficient workbook (not a public DOI):
+#'   Spain historical MANNER implementation, \code{NH3_model.xlsx}, sheet
+#'   "synthetic fertilisers".
+#'
+#' @examples
+#' manner_rain_factor
+"manner_rain_factor"
+
+#' MANNER organic-manure incorporation-delay factor.
+#'
+#' @description
+#' Multiplicative ammonia-volatilisation factor for organic manure as a
+#' function of the delay between surface application and soil incorporation,
+#' by manure type. Used by [calculate_manner_nh3()]'s organic-manure path,
+#' distinct from [manner_params]'s \code{incorporation} table (a land-use
+#' factor reused by the synthetic-fertiliser path; see that dataset's
+#' description). The delay bins are monotonically increasing; a supplied
+#' delay is assigned to the first (shortest) bin whose \code{delay_hours} is
+#' greater than or equal to it, and a missing or infinite delay maps to
+#' \code{"No incorporation"} (factor 1, no volatilisation reduction).
+#'
+#' @format A tibble with columns:
+#' \describe{
+#'   \item{manure_type}{Organic manure type: \code{"cattle_slurry"},
+#'     \code{"pig_slurry"}, \code{"FYM"} or \code{"poultry_manure"}.}
+#'   \item{delay_bin}{Incorporation-delay bin label (e.g. \code{"<2 h"},
+#'     \code{"6-12 days"}, \code{"No incorporation"}).}
+#'   \item{delay_hours}{Upper bound of the delay bin in hours; \code{NA} for
+#'     \code{"No incorporation"}.}
+#'   \item{factor}{Numeric multiplicative incorporation factor.}
+#' }
+#'
+#' @source WHEP project-internal coefficient workbook (not a public DOI):
+#'   Spain historical MANNER implementation, \code{NH3_model.xlsx}, sheet
+#'   "manures".
+#'
+#' @examples
+#' manner_incorporation_factor
+"manner_incorporation_factor"
+
+#' Inorganic (mineral) nitrogen fraction of excreted manure by species.
+#'
+#' @description
+#' Fraction of total excreted nitrogen that is in inorganic (ammoniacal) form
+#' and therefore available for ammonia volatilisation, by livestock species
+#' and manure stream (whole excreta, or after separation into a liquid and a
+#' solid fraction). Used by [calculate_manner_nh3()]'s organic-manure path to
+#' scale the realised emission factor down to the ammoniacal nitrogen actually
+#' applied. The mapping from [calculate_manner_nh3()]'s \code{manure_type}
+#' argument to this table's \code{species}/\code{manure_stream} keys
+#' (\code{cattle_slurry}/\code{pig_slurry} to the \code{"Liquid"} stream,
+#' \code{FYM} to Cattle \code{"Solid"}, \code{poultry_manure} to Poultry
+#' \code{"Solid"}) is a documented modelling choice made when porting this
+#' table, not a literal Spain_Hist crosswalk; see
+#' [calculate_manner_nh3()]'s Details.
+#'
+#' @format A tibble with columns:
+#' \describe{
+#'   \item{species}{Livestock species: \code{"Sheep"}, \code{"Goats"},
+#'     \code{"Poultry"}, \code{"Cattle"}, \code{"Pigs"}, \code{"Horses"},
+#'     \code{"Donkeys_mules"} or \code{"Rabbits"}.}
+#'   \item{manure_stream}{Manure stream: \code{"Excreta"} (whole, unseparated
+#'     excreta), \code{"Liquid"} or \code{"Solid"} (after mechanical
+#'     separation); not every species has a \code{"Liquid"} row.}
+#'   \item{inorganic_n_fraction}{Fraction of the stream's total nitrogen that
+#'     is inorganic (ammoniacal).}
+#'   \item{source}{Short author-year provenance string as cited in the
+#'     Spain_Hist \code{Livestock.xlsx} \code{Manure_inorganic_N} sheet for
+#'     that coefficient. These are secondary citations transcribed from that
+#'     workbook, not independently DOI-verified full bibliographic entries.}
+#' }
+#'
+#' @source WHEP project-internal coefficient workbook (not a public DOI):
+#'   Spain historical livestock coefficient workbook, \code{Livestock.xlsx},
+#'   sheet \code{Manure_inorganic_N}. That sheet in turn cites: Van Soest, P.
+#'   J. (1994); Nahm, K. H. (2003); Nahm, K. H. (2005); Smith, K. A. & Frost,
+#'   J. P. (2000); Chambers, B. J. et al. (1999); Chambers, B. J. et al.
+#'   (2000); Nicholson, F. A. et al. (1996); Canh, T. T. et al. (1997);
+#'   Sommer, S. G. et al. (2004); Burton, C. H. & Turner, C. (2003);
+#'   Martinez, J. & Burton, C. H. (2003); Rotz, C. A. (2004); Wheeler, E. F.
+#'   et al. (2011); Gungor-Demirci, G. & Demirer, G. N. (2004); Lebas, F.
+#'   (1975); Lebas, F. (2004). These secondary citations are transcribed as
+#'   recorded in the workbook and have not been independently verified
+#'   against the primary sources.
+#'
+#' @examples
+#' manure_inorganic_n
+"manure_inorganic_n"

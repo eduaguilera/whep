@@ -97,8 +97,10 @@ reference:
     disaggregated direct N2O emission factors by climate and irrigation, the
     fertiliser-type N2O modifying factors, the Meisinger and Randall topsoil
     denitrification matrix with its drainage-class bins, the subsoil nitrate
-    reduction shares, the MANNER ammonia-volatilisation factor tables, and the
-    C:N leaching-attenuation and indirect-N2O constants.
+    reduction shares, the MANNER ammonia-volatilisation factor tables (plus
+    the synthetic-fertiliser rate/rainfall factors, the organic-manure
+    incorporation-delay factor and the inorganic nitrogen fraction by
+    species), and the C:N leaching-attenuation and indirect-N2O constants.
   contents:
   - n2o_efs_disaggregated
   - fertiliser_n2o_modifiers
@@ -106,6 +108,10 @@ reference:
   - drainage_ranges
   - subsoil_no3_reduction
   - manner_params
+  - manner_rate_factor
+  - manner_rain_factor
+  - manner_incorporation_factor
+  - manure_inorganic_n
   - n_attenuation_constants
 
 - title: Urban nitrogen coefficient tables
@@ -167,12 +173,14 @@ reference:
     converted to a per-hectare rate using the true latitude-dependent cell
     area. Urban/human-excreta nitrogen from gridded HYDE population and a
     per-capita rate, with neighbour-cell transport buffering for cells with
-    no local cropland room.
+    no local cropland room. Ammonia-N volatilisation from the MANNER
+    process-based model, for synthetic fertiliser and organic manure.
   contents:
   - read_n_deposition
   - build_n_deposition
   - read_hyde_population
   - build_urban_n
+  - calculate_manner_nh3
 
 - title: Soil balances - carbon (historical balance)
   desc: >

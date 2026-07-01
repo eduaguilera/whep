@@ -1387,7 +1387,27 @@ utils::globalVariables(
     "cropland_ha",
     "applied_n",
     "urban_n_t",
-    "method_urban"
+    "method_urban",
+    # manner_model.R (Module C, Task C4) — MANNER coefficient datasets + NSE
+    "manner_rate_factor",
+    "manner_rain_factor",
+    "manner_incorporation_factor",
+    "manure_inorganic_n",
+    "soil_type",
+    "rate_bin",
+    "ph_class",
+    "rainfall_class",
+    "manure_type",
+    "delay_bin",
+    "delay_hours",
+    "species",
+    "manure_stream",
+    "inorganic_n_fraction",
+    "sub_key",
+    "n_applied_t",
+    "ef",
+    "nh3_n_t",
+    "method_manner"
   )
 )
 
