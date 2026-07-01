@@ -72,3 +72,40 @@ test_that("the example fixture returns a tibble stamped icbm", {
   testthat::expect_s3_class(out, "tbl_df")
   testthat::expect_true(all(out$method_soc == "icbm"))
 })
+
+test_that("an already-supplied climate_modifier is honoured when raw drivers are absent", {
+  # Regression test: a caller (e.g. the carbon-balance equilibrium spin-up)
+  # may compute the model-native modifier itself from real climate data and
+  # pass only the resulting scalar, with none of the raw driver columns
+  # (temp_c, water_minus_pet_mm, ...) present. calculate_soc_dynamics() must
+  # honour that value rather than silently forcing it back to a neutral 1.
+  base_data <- list(initial_soc_mgc_ha = 50, c_input_mgc_ha_yr = 2, years = 20)
+  neutral <- whep::calculate_soc_dynamics(
+    model = "icbm",
+    data = base_data
+  )
+  supplied <- whep::calculate_soc_dynamics(
+    model = "icbm",
+    data = c(base_data, list(climate_modifier = 0.5))
+  )
+  testthat::expect_false(
+    isTRUE(all.equal(
+      utils::tail(neutral$soc_total, 1),
+      utils::tail(supplied$soc_total, 1)
+    ))
+  )
+  # A halved modifier halves the decay+input rate; the analytic ICBM old-pool
+  # steady state h*i/k_O scales linearly with the modifier's effect on k_O.
+  no_mod <- whep:::.soc_dispatch("icbm", base_data, climate_modifier = 1)
+  half_mod <- whep:::.soc_dispatch("icbm", base_data, climate_modifier = 0.5)
+  testthat::expect_equal(
+    utils::tail(supplied$soc_total, 1),
+    utils::tail(half_mod$soc_total, 1),
+    tolerance = 1e-9
+  )
+  testthat::expect_equal(
+    utils::tail(neutral$soc_total, 1),
+    utils::tail(no_mod$soc_total, 1),
+    tolerance = 1e-9
+  )
+})

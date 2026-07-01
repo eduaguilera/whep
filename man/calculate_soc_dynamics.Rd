@@ -25,7 +25,10 @@ may also carry \code{clay_pct} and model-specific arguments (for example
 \code{c_input_type} and \code{init_mode} for AMG). Climate drivers, when
 present, are read from the same list to build the climate modifier
 (see \code{\link{soc_rate_modifier_rothc}} and siblings for the per-model
-driver names).}
+driver names). If the drivers are absent but \code{data$climate_modifier}
+already holds a value, that value is used instead of recomputing it;
+only when neither is available does the model run with a neutral
+modifier of 1.}
 
 \item{example}{If \code{TRUE}, return a small hardcoded example tibble
 instead of running the model.}

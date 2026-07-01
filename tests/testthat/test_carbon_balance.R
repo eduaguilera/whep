@@ -582,20 +582,32 @@ test_that("WHEP polity SOC matches Spain_Hist per-province baseline", {
         .data$soc_ref_mgc_ha
     )
 
-  # Documented divergence (task 2C-4, real 2019 run): WHEP's cropland-class
+  # Documented divergence (task 2C-4, real 2019 run, after fixing the
+  # climate_modifier passthrough bug in calculate_soc_dynamics()/
+  # .soc_climate_modifier() -- see R/soc_dynamics.R): WHEP's cropland-class
   # single-year equilibrium vs the Spain per-crop dynamically-evolved 2019 stock
-  # diverges by a median of ~34% (mean ~34%, max ~158%; n = 50 provinces). WHEP
-  # SOC densities (15.6-127.8 Mg C/ha) and the reference (23.2-120.9) share the
-  # same magnitude. The gap decomposes into two structural, non-bug sources:
-  #   (i) equilibrium vs march (~19% median): the reference is the 1860-2019
-  #       evolved stock; the slow humus pool (k = 0.02/yr) lags its equilibrium,
-  #       and Spain's OWN 2019 equilibrium already differs from its OWN evolved
-  #       stock by ~19% median. WHEP's engine supports the full march but the
-  #       in-test assembly runs a single-year equilibrium.
-  #   (ii) class-grain aggregation (~+15% on top): WHEP runs one equilibrium per
-  #       cropland class (area-weighted carbon input and abc, carbon-weighted
-  #       humification) whereas Spain computes a per-crop K = k*abc then sums;
-  #       the 1/(k*abc) nonlinearity (Jensen) inflates the class aggregate.
+  # diverges by a median of ~17.6% (mean ~27%, max ~200%; n = 50 provinces).
+  # Before that fix, every equilibrium was silently computed at
+  # climate_modifier = 1 regardless of the injected abc, inflating the median
+  # divergence to ~34%; fixing it dropped the median to ~17.6% (a per-province
+  # spot check, e.g. Teruel abc = 0.364, confirms the equilibrium now matches
+  # calculate_soc_hsoc() called directly with the same climate_modifier).
+  # The residual gap decomposes into two structural, non-bug sources:
+  #   (i) equilibrium vs march (~19% at the per-crop level, see below): the
+  #       reference is the 1860-2019 evolved stock; the slow humus pool
+  #       (k = 0.02/yr) lags its equilibrium, and Spain's OWN 2019 equilibrium
+  #       already differs from its OWN evolved stock by this much. WHEP's
+  #       engine supports the full march but the in-test assembly runs a
+  #       single-year equilibrium.
+  #   (ii) small-stratum sensitivity in a few provinces: the max is driven by
+  #       Bizkaia and Gipuzkoa, which have the smallest cropland areas of all
+  #       50 provinces (~3,600-4,400 ha, versus up to ~950,000 ha elsewhere)
+  #       combined with the highest per-hectare carbon inputs (~4-8 MgC/ha/yr,
+  #       versus ~1.3-3 typical) and a high climate modifier -- a tiny,
+  #       intensively-managed cropland fringe in otherwise pastoral/forested
+  #       Atlantic provinces. A small stratum's area-weighted equilibrium is
+  #       more volatile than the slow 160-year evolved reference, amplifying
+  #       the equilibrium-vs-march gap precisely where it is measured.
   # The turnover math itself is a faithful port (fresh/humus k, C:N and
   # humification coefficients match Spain exactly; a per-crop reconstruction with
   # WHEP's formulas reproduces Spain's per-crop equilibrium to < 1e-9). The 5%
