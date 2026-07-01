@@ -57,6 +57,14 @@ subsoil_no3_reduction <- .read_balance_csv("subsoil_no3_reduction.csv")
 manner_params <- .read_balance_csv("manner_params.csv")
 n_attenuation_constants <- .read_balance_csv("n_attenuation_constants.csv")
 
+# Module C (Task C3) urban nitrogen coefficient datasets. urban_n_reference is
+# the raw Spain_Hist benchmark series (see R/datasets_balances.R @source for
+# provenance). urban_kgn_cap_reference is the DERIVED per-capita rate; it is
+# NOT recomputed here (see data-raw/build_urban_kgn_cap.R for how it was
+# built and how to regenerate it against real HYDE data).
+urban_n_reference <- .read_balance_csv("urban_n_reference.csv")
+urban_kgn_cap_reference <- .read_balance_csv("urban_kgn_cap_reference.csv")
+
 usethis::use_data(
   soc_turnover_params,
   amg_h_by_input_type,
@@ -69,5 +77,7 @@ usethis::use_data(
   subsoil_no3_reduction,
   manner_params,
   n_attenuation_constants,
+  urban_n_reference,
+  urban_kgn_cap_reference,
   overwrite = TRUE
 )

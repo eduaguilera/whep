@@ -426,3 +426,59 @@
 #' @examples
 #' n_attenuation_constants
 "n_attenuation_constants"
+
+#' Spain historical urban nitrogen applied to agriculture.
+#'
+#' @description
+#' National-total nitrogen from Spanish urban human excreta and municipal
+#' waste actually applied to agricultural land, at benchmark years. Used by
+#' [build_urban_n()] as the global default per-capita urban-N-to-agriculture
+#' rate (a documented placeholder, see that function's Details): this is
+#' Spain's own historical series applied everywhere, not a
+#' globally-calibrated estimate.
+#'
+#' @format A tibble with columns:
+#' \describe{
+#'   \item{area_code}{ISO3 country code (currently only \code{"ESP"}).}
+#'   \item{year}{Benchmark calendar year.}
+#'   \item{urban_n_gg}{National-total urban nitrogen applied to agriculture
+#'     (Gg N/year).}
+#' }
+#'
+#' @source Aguilera, E. (WHEP project team). Own estimation, transcribed
+#'   from the Spain_Hist repository (private project data, not a public
+#'   DOI): \code{input/Urban_waste.xlsx} sheet \code{UrbanN} and
+#'   \code{input/updates/UrbanN_update.csv}.
+#'
+#' @examples
+#' urban_n_reference
+"urban_n_reference"
+
+#' Spain historical per-capita urban nitrogen rate.
+#'
+#' @description
+#' The per-capita urban-nitrogen-to-agriculture rate,
+#' \code{urban_n_reference$urban_n_gg * 1e6 / spain_urban_population}, at
+#' each \code{urban_n_reference} benchmark year `build_urban_n()` could
+#' compute a verified rate for. See
+#' \code{data-raw/build_urban_kgn_cap.R} for the derivation and its
+#' provenance caveat: the committed rows use World Bank urban-population
+#' figures (verified back to 1990 only), not HYDE, because no local HYDE
+#' data was available when this table was built; the 1860, 1900 and 1950
+#' \code{urban_n_reference} benchmark years are deliberately absent (no
+#' verified denominator), not fabricated.
+#'
+#' @format A tibble with columns:
+#' \describe{
+#'   \item{year}{Benchmark calendar year.}
+#'   \item{urban_kgn_cap}{Per-capita urban nitrogen applied to agriculture
+#'     (kg N per person per year).}
+#' }
+#'
+#' @source Derived from \code{urban_n_reference} and World Bank indicator
+#'   \code{SP.URB.TOTL} (Spain urban population); see
+#'   \code{data-raw/build_urban_kgn_cap.R}.
+#'
+#' @examples
+#' urban_kgn_cap_reference
+"urban_kgn_cap_reference"
