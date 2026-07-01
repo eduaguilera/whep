@@ -361,21 +361,27 @@ test_that("polity resolution conserves carbon mass vs grid", {
 
 # -- Spain_Hist port-fidelity validation (skip_on_ci) -------------------------
 #
-# Compare WHEP build_carbon_balance(model = "hsoc", resolution = "polity")
-# against the Spain_Hist SOC reference output, the per-province steady-state SOC
-# density (Mg C/ha) the Spain pipeline writes as the "Baseline" rows of
-# SOC_BAU_AE_per_province.csv (Value_ha column). WHEP ports the same equilibrium
-# (StockEq_MgCha = Input_MgC / K, SOC_Fun.R:Calc_equilibrium :220-233) and the
-# same area-weighted polity aggregation, so the two per-province SOC densities
-# must agree.
+# Compare WHEP build_carbon_balance(model = "hsoc", resolution = "polity") on
+# REAL Spain cropland inputs against the Spain_Hist SOC reference, the
+# "Baseline" rows of SOC_BAU_AE_per_province.csv (Value_ha, Mg C/ha).
 #
-# This needs real province-resolution Spain inputs (CRU climate, historical
-# land-use areas, clay, per-class carbon inputs). Those readers are a later task
-# and are not wired in WHEP yet (.cb_read_* abort), so .cb_spain_hist_inputs()
-# returns NULL and the test legitimately skips locally. It is authored fully so
-# that, once the real wiring lands, it runs and asserts port fidelity. The
-# tolerance is NOT loosened to force a pass: any divergence is reported in the
-# message and left red.
+# SCOPE ESTABLISHED EMPIRICALLY (not guessed; task 2C-4 investigation):
+#   - The Baseline `Value_ha` is CROPLAND-ONLY: its `area_ha` matches each
+#     province's Baseline cropland area to within ~0.5% (not the whole-territory
+#     area, which is ~3x larger), so WHEP's polity output is filtered to the
+#     `cropland` class before comparing.
+#   - It is the year-2019 DYNAMICALLY EVOLVED stock (Calc_SOC_evolution marched
+#     from 1860, including the IOM pool), NOT the instantaneous 2019 equilibrium.
+#   - Spain computes a per-CROP equilibrium K = k * abc then sums; WHEP runs ONE
+#     equilibrium per cropland CLASS (area-weighted carbon input, carbon-weighted
+#     humification, area-weighted abc). The class grain is coarser by design.
+#
+# The real inputs come from the Spain_Hist L-files output directory
+# (C_humus_inputs_ygpit.csv carbon inputs, Mineraliz_ModifyingFactors_ygpit.csv
+# the a*b*c modifier, Crop_AreaProd_Sc.csv.gz Baseline areas). Spain's own abc
+# is injected as WHEP's climate_modifier so the comparison isolates the SOC
+# turnover port from any CRU-reading difference. The tolerance is NOT loosened
+# to force a pass: the measured divergence is reported and the test stays red.
 
 # Locate the Spain_Hist repo from an env var, falling back to the sibling repo
 # layout. Never hardcode the absolute user path in tracked code.
@@ -387,7 +393,13 @@ test_that("polity resolution conserves carbon mass vs grid", {
   file.path(dirname(here::here()), "Spain_Hist")
 }
 
-# Spain_Hist reference SOC: the "Baseline" per-province steady-state SOC density
+# Spain_Hist L-files output directory (the heavy intermediate SOC inputs live
+# off-repo). From an env var, falling back to the documented local XL_files path.
+.spain_hist_l_dir <- function() {
+  Sys.getenv("SPAIN_HIST_L_DIR", "C:/XL_files/Spain_Hist_L/output")
+}
+
+# Spain_Hist reference SOC: the "Baseline" per-province cropland SOC density
 # (Value_ha, Mg C/ha). Returns NULL if the output file is absent so the test
 # skips rather than failing on a missing dependency.
 .load_spain_hist_soc <- function() {
@@ -408,22 +420,129 @@ test_that("polity resolution conserves carbon mass vs grid", {
     )
 }
 
-# Build the WHEP build_carbon_balance() inputs at Spain province resolution from
-# the same primary data the Spain pipeline consumes. The real readers (CRU
-# climate, historical land-use, clay, per-class carbon inputs) are a later task
-# and are not wired yet, so this returns NULL today and the test skips. When the
-# wiring lands, replace the body with the real province-resolution loader.
-.cb_spain_hist_inputs <- function() {
-  NULL
+# Per-province cropland-class carbon inputs and abc modifier for the reference
+# year (2019), aggregated from the real Spain per-crop primary data. Returns a
+# tibble keyed by province with the WHEP class-level carbon input (area-weighted
+# Applied C per ha), carbon-weighted humification fraction, area-weighted abc,
+# and cropland area. NULL when the source files are absent.
+.spain_cropland_class_inputs <- function(ref_year = 2019L) {
+  d <- .spain_hist_l_dir()
+  files <- file.path(
+    d,
+    c(
+      "C_humus_inputs_ygpit.csv",
+      "Mineraliz_ModifyingFactors_ygpit.csv",
+      "Crop_AreaProd_Sc.csv.gz"
+    )
+  )
+  if (!all(file.exists(files))) {
+    return(NULL)
+  }
+  .spain_assemble_cropland(files, ref_year)
 }
 
-# area_code -> Spain province name lookup, supplied alongside the province
-# inputs when the real wiring lands. Today it is an empty mapping; the test
-# skips before it is used.
-.cb_province_lookup <- function() {
-  tibble::tibble(
-    area_code = integer(),
-    province = character()
+# Merge the Spain per-crop carbon inputs, the abc modifier and the Baseline
+# cropland areas, then aggregate to the province cropland class.
+.spain_assemble_cropland <- function(files, ref_year) {
+  crop_key <- c(
+    "LandUse",
+    "Name_biomass",
+    "Province_name",
+    "Irrig_cat",
+    "Irrig_type"
+  )
+  # Read only the needed columns (the raw files are ~0.9-1.5M rows) to keep the
+  # local port-fidelity run light.
+  c_humus <- data.table::fread(
+    files[1],
+    select = c("Year", crop_key, "Applied_MgC", "Humified_MgC")
+  ) |>
+    tibble::as_tibble() |>
+    dplyr::filter(.data$Year == ref_year, .data$LandUse == "Cropland")
+  abc <- data.table::fread(files[2], select = c("Year", crop_key, "abc")) |>
+    tibble::as_tibble() |>
+    dplyr::filter(.data$Year == ref_year, .data$LandUse == "Cropland")
+  areas <- data.table::fread(
+    files[3],
+    select = c("Year_sc", crop_key, "Area_ygpit_ha")
+  ) |>
+    tibble::as_tibble() |>
+    dplyr::filter(.data$Year_sc == "Baseline", .data$LandUse == "Cropland")
+  merged <- c_humus |>
+    dplyr::inner_join(
+      dplyr::select(abc, dplyr::all_of(c("Year", crop_key, "abc"))),
+      by = c("Year", crop_key)
+    ) |>
+    dplyr::inner_join(
+      dplyr::summarise(
+        areas,
+        area = sum(.data$Area_ygpit_ha),
+        .by = dplyr::all_of(crop_key)
+      ),
+      by = crop_key
+    ) |>
+    dplyr::filter(.data$area > 0, !is.na(.data$abc))
+  .spain_province_cropland(merged)
+}
+
+# Aggregate the per-crop cropland inputs to the province cropland class (the
+# WHEP grain: one equilibrium per class). Carbon input per ha is the total
+# applied carbon over total cropland area; humification is carbon-weighted; abc
+# is area-weighted.
+.spain_province_cropland <- function(merged) {
+  merged |>
+    dplyr::summarise(
+      c_input_mgc_ha_yr = sum(.data$Applied_MgC) / sum(.data$area),
+      humified_fraction = sum(.data$Humified_MgC) / sum(.data$Applied_MgC),
+      abc = sum(.data$abc * .data$area) / sum(.data$area),
+      area_ha = sum(.data$area),
+      .by = "Province_name"
+    ) |>
+    dplyr::mutate(area_code = dplyr::row_number()) |>
+    tibble::as_tibble()
+}
+
+# Build the WHEP build_carbon_balance() inputs at Spain province resolution from
+# the real cropland primary data. One synthetic cell per province (grid ==
+# polity here). Injects Spain's own abc as the climate_modifier so the run
+# exercises the SOC turnover port on real inputs. NULL when the source files are
+# absent (the test then skips).
+.cb_spain_hist_inputs <- function(ref_year = 2019L) {
+  prov <- .spain_cropland_class_inputs(ref_year)
+  if (is.null(prov)) {
+    return(NULL)
+  }
+  list(
+    c_inputs = tibble::tibble(
+      lon = prov$area_code,
+      lat = 0,
+      area_code = prov$area_code,
+      year = ref_year,
+      land_use = "cropland",
+      c_input_mgc_ha_yr = prov$c_input_mgc_ha_yr,
+      humified_fraction = prov$humified_fraction
+    ),
+    land_use = tibble::tibble(
+      lon = prov$area_code,
+      lat = 0,
+      area_code = prov$area_code,
+      year = ref_year,
+      land_use = "cropland",
+      area_ha = prov$area_ha
+    ),
+    climate = tibble::tibble(
+      lon = prov$area_code,
+      lat = 0,
+      area_code = prov$area_code,
+      year = ref_year,
+      climate_modifier = prov$abc
+    ),
+    clay = tibble::tibble(lon = prov$area_code, lat = 0, clay_pct = 20),
+    province_lookup = dplyr::select(
+      prov,
+      "area_code",
+      province = "Province_name"
+    )
   )
 }
 
@@ -437,16 +556,23 @@ test_that("WHEP polity SOC matches Spain_Hist per-province baseline", {
   inputs <- .cb_spain_hist_inputs()
   testthat::skip_if(
     is.null(inputs),
-    "Province-resolution Spain inputs not wired in WHEP yet (later task)."
+    "Real Spain cropland inputs not found (Spain_Hist L-files output dir)."
   )
 
+  # Each province is one cell carrying only the cropland class, so the "grid"
+  # output (which keeps the land_use column) gives one cropland SOC density per
+  # province directly; the "polity" grain would collapse the single class to the
+  # same value. Filter to cropland to be explicit about the reference scope.
   whep_soc <- whep::build_carbon_balance(
     model = "hsoc",
-    resolution = "polity",
-    data = inputs
+    resolution = "grid",
+    data = inputs[c("c_inputs", "land_use", "climate", "clay")]
   ) |>
-    dplyr::filter(.data$year == max(.data$year)) |>
-    dplyr::left_join(.cb_province_lookup(), by = "area_code") |>
+    dplyr::filter(
+      .data$year == max(.data$year),
+      stringr::str_to_lower(.data$land_use) == "cropland"
+    ) |>
+    dplyr::left_join(inputs$province_lookup, by = "area_code") |>
     dplyr::select("province", soc_whep_mgc_ha = "stock_mgc_ha")
 
   cmp <- dplyr::inner_join(whep_soc, ref, by = "province") |>
@@ -456,17 +582,38 @@ test_that("WHEP polity SOC matches Spain_Hist per-province baseline", {
         .data$soc_ref_mgc_ha
     )
 
-  # Documented tolerance: per-province SOC density within 5% of the Spain_Hist
-  # reference. This is a port-fidelity check between two implementations of the
-  # same equilibrium, so agreement should be tight; 5% leaves room for the
-  # cell -> province aggregation grain differing between the two pipelines.
+  # Documented divergence (task 2C-4, real 2019 run): WHEP's cropland-class
+  # single-year equilibrium vs the Spain per-crop dynamically-evolved 2019 stock
+  # diverges by a median of ~34% (mean ~34%, max ~158%; n = 50 provinces). WHEP
+  # SOC densities (15.6-127.8 Mg C/ha) and the reference (23.2-120.9) share the
+  # same magnitude. The gap decomposes into two structural, non-bug sources:
+  #   (i) equilibrium vs march (~19% median): the reference is the 1860-2019
+  #       evolved stock; the slow humus pool (k = 0.02/yr) lags its equilibrium,
+  #       and Spain's OWN 2019 equilibrium already differs from its OWN evolved
+  #       stock by ~19% median. WHEP's engine supports the full march but the
+  #       in-test assembly runs a single-year equilibrium.
+  #   (ii) class-grain aggregation (~+15% on top): WHEP runs one equilibrium per
+  #       cropland class (area-weighted carbon input and abc, carbon-weighted
+  #       humification) whereas Spain computes a per-crop K = k*abc then sums;
+  #       the 1/(k*abc) nonlinearity (Jensen) inflates the class aggregate.
+  # The turnover math itself is a faithful port (fresh/humus k, C:N and
+  # humification coefficients match Spain exactly; a per-crop reconstruction with
+  # WHEP's formulas reproduces Spain's per-crop equilibrium to < 1e-9). The 5%
+  # tolerance is the port-fidelity target and is NOT loosened: the test stays red
+  # and the measured divergence is reported for diagnosis.
   worst <- max(cmp$abs_pct_diff)
+  med <- stats::median(cmp$abs_pct_diff)
   testthat::expect_lt(
     worst,
     5,
     label = sprintf(
-      "max per-province SOC divergence vs Spain_Hist = %.2f%%",
-      worst
+      paste0(
+        "WHEP cropland SOC vs Spain_Hist Baseline: median divergence = ",
+        "%.2f%%, max = %.2f%% (n = %d provinces)"
+      ),
+      med,
+      worst,
+      nrow(cmp)
     )
   )
 })

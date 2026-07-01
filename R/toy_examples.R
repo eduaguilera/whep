@@ -682,6 +682,20 @@
 }
 # nolint end
 
+# Per-land-use-class carbon inputs mirroring build_carbon_inputs() output at
+# "grid" resolution: the cropland class (aggregated from per-crop inputs) plus
+# the grassland and natural classes, keyed (lon, lat, area_code, year,
+# land_use) with c_input_mgc_ha_yr and the carbon-weighted humified_fraction.
+.example_carbon_inputs <- function() {
+  tibble::tribble(
+    ~lon, ~lat, ~area_code, ~year, ~land_use,
+    ~c_input_mgc_ha_yr, ~humified_fraction, ~method_c_input,
+    0.25, 0.25, 1L, 2000L, "cropland", 2.75, 0.1818182, "humified_weighted",
+    0.25, 0.25, 1L, 2000L, "grassland", 4.0, 0.1153467, "lpjml_npp_minus_harvest",
+    0.25, 0.25, 1L, 2000L, "natural", 6.0, 0.325, "lpjml_npp_minus_harvest"
+  )
+}
+
 .ex_grazing_feed_footprint <- function() {
   tibble::tribble(
     ~area_code, ~item_cbs_code, ~value, ~method,

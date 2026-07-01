@@ -148,6 +148,7 @@ reference:
   contents:
   - build_soil_carbon_inputs
   - build_grass_natural_carbon_inputs
+  - build_carbon_inputs
 
 - title: Soil balances - carbon (historical balance)
   desc: >
