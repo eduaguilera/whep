@@ -357,6 +357,29 @@
 
 # Tests --------------------------------------------------------------------
 
+testthat::test_that("calculate_npp_carbon_nitrogen runs once per build_nitrogen_balance call", {
+  # build_n_inputs()'s "recycling" term and this function's own prod_n_t
+  # term both need calculate_npp_carbon_nitrogen()'s result; a prior
+  # version recomputed it twice despite an .n_balance_npp() cache helper
+  # because the cache was never populated before the first call site ran.
+  # Prepare the fixture data BEFORE mocking: .nb_data_with_drivers() makes
+  # its own build_n_inputs() call to derive driver rows, which is a
+  # legitimate, separate call outside build_nitrogen_balance() and must
+  # not be counted here.
+  data <- .nb_data_with_drivers()
+  call_count <- 0
+  real_fn <- whep::calculate_npp_carbon_nitrogen
+  testthat::local_mocked_bindings(
+    calculate_npp_carbon_nitrogen = function(...) {
+      call_count <<- call_count + 1
+      real_fn(...)
+    },
+    .package = "whep"
+  )
+  .nb_run(data = data)
+  testthat::expect_equal(call_count, 1L)
+})
+
 testthat::test_that("balance closes: n_balance_t equals input minus output", {
   out <- .nb_run()
   testthat::expect_true(nrow(out) > 0)

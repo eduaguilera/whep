@@ -135,6 +135,11 @@ build_nitrogen_balance <- function(
   m <- .nb_methods(methods)
   key <- .nb_key(resolution)
 
+  # Compute calculate_npp_carbon_nitrogen() once and cache it on data, so
+  # build_n_inputs()'s "recycling" term and this function's own prod_n_t
+  # term (both calling .n_balance_npp()) share one result instead of each
+  # re-running the full NPP-N pipeline.
+  data$.npp_cache <- .n_balance_npp(data)
   n_inputs <- data$n_inputs %||%
     build_n_inputs(resolution = resolution, data = data)
 

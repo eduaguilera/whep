@@ -196,7 +196,16 @@ build_n_inputs <- function(
 # invoke calculate_npp_carbon_nitrogen(data$npp_n_input) separately. Returns
 # NULL (not an empty tibble) when data$npp_n_input is absent, so callers can
 # distinguish "not computed" from "computed but empty".
+#
+# data$.npp_cache lets a caller that needs this result more than once within
+# a single top-level call (build_nitrogen_balance() calls this both via
+# build_n_inputs()'s "recycling" term and its own prod_n_t term) compute it
+# ONCE and short-circuit every subsequent call, rather than re-running
+# calculate_npp_carbon_nitrogen() per call site.
 .n_balance_npp <- function(data) {
+  if (!is.null(data$.npp_cache)) {
+    return(data$.npp_cache)
+  }
   if (is.null(data$npp_n_input)) {
     return(NULL)
   }
