@@ -218,6 +218,65 @@ testthat::test_that("calculate_n_leaching(meisinger_drainage) aborts on No_tilla
   )
 })
 
+testthat::test_that("calculate_n_leaching(meisinger_drainage) aborts on an unmapped fert_type", {
+  # "Recycling" is a real fert_type elsewhere in this file's aguilera join
+  # but has no row in subsoil_no3_reduction, so it must abort rather than
+  # silently propagate NA through no3_n_t/denitrification_n_t.
+  x <- tibble::tribble(
+      ~n_surplus_t,
+      ~fert_type,
+      ~climate,
+      ~irrig_cat,
+      ~land_use,
+      ~cn_input,
+      ~tillage,
+      ~som_share,
+      100,
+      "Recycling",
+      "MED",
+      "Rainfed",
+      "Cropland",
+      NA_real_,
+      "Not_specified",
+      0.03
+    )
+  testthat::expect_error(
+    whep::calculate_n_leaching(
+      x,
+      drainage_mm = 600,
+      method = "meisinger_drainage"
+    )
+  )
+})
+
+testthat::test_that("calculate_n_leaching(meisinger_drainage) aborts on an out-of-range som_share", {
+  x <- tibble::tribble(
+      ~n_surplus_t,
+      ~fert_type,
+      ~climate,
+      ~irrig_cat,
+      ~land_use,
+      ~cn_input,
+      ~tillage,
+      ~som_share,
+      100,
+      "Synthetic",
+      "MED",
+      "Rainfed",
+      "Cropland",
+      NA_real_,
+      "Tillage",
+      -0.01
+    )
+  testthat::expect_error(
+    whep::calculate_n_leaching(
+      x,
+      drainage_mm = 600,
+      method = "meisinger_drainage"
+    )
+  )
+})
+
 testthat::test_that("calculate_n_leaching(method = \"ipcc_fracleach\") uses the 0.24 FracLEACH constant", {
   x <- tibble::tribble(~n_surplus_t, 100)
   out <- whep::calculate_n_leaching(x, method = "ipcc_fracleach")

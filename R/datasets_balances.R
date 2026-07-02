@@ -300,7 +300,7 @@
 #' @description
 #' Half-open bins that map an annual soil drainage flux (mm) to a
 #' drainage class. A drainage value \code{s} is assigned to the class
-#' whose interval satisfies \code{s_min < s < s_max}. The classes key the
+#' whose interval satisfies \code{s_min < s <= s_max}. The classes key the
 #' Meisinger denitrification matrix and the subsoil NO3 reduction table.
 #'
 #' @format A tibble with columns:

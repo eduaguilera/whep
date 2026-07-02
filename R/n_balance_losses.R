@@ -490,7 +490,26 @@ calculate_indirect_n2o_nh3 <- function(x, example = FALSE) {
         "drainage_rate"
       )
     ) |>
-    dplyr::pull("denit_share")
+    dplyr::pull("denit_share") |>
+    .leaching_check_na(
+      "meisinger_denitrification",
+      "fert_cat/tillage/som_content/climate_cat/drainage_rate"
+    )
+}
+
+# meisinger_denitrification and subsoil_no3_reduction are lookup tables with
+# real coverage gaps (e.g. fert_type "Recycling" is absent from
+# subsoil_no3_reduction); an unmatched row must abort, not silently
+# propagate NA through no3_n_t/denitrification_n_t/n2o_indirect_no3_n_t.
+.leaching_check_na <- function(values, table_name, join_desc) {
+  if (anyNA(values)) {
+    cli::cli_abort(c(
+      "{.field {table_name}} has no matching row for {sum(is.na(values))} \\
+       row{?s} of {.arg x}.",
+      i = "Check the {join_desc} combination against {.code whep::{table_name}}."
+    ))
+  }
+  values
 }
 
 # Bin a numeric vector into a labelled class via a half-open s_min < v <=
@@ -531,7 +550,8 @@ calculate_indirect_n2o_nh3 <- function(x, example = FALSE) {
       whep::subsoil_no3_reduction,
       by = c("fert_type", "climate", "irrig_cat")
     ) |>
-    dplyr::pull("no3_red")
+    dplyr::pull("no3_red") |>
+    .leaching_check_na("subsoil_no3_reduction", "fert_type/climate/irrig_cat")
 }
 
 # ---- Private helpers: shared ---------------------------------------------
