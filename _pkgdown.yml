@@ -100,7 +100,9 @@ reference:
     reduction shares, the MANNER ammonia-volatilisation factor tables (plus
     the synthetic-fertiliser rate/rainfall factors, the organic-manure
     incorporation-delay factor and the inorganic nitrogen fraction by
-    species), and the C:N leaching-attenuation and indirect-N2O constants.
+    species), the IPCC 2006 Tier 1 direct soil N2O factors, the soil
+    organic matter content bins, and the C:N leaching-attenuation and
+    indirect-N2O constants.
   contents:
   - n2o_efs_disaggregated
   - fertiliser_n2o_modifiers
@@ -112,6 +114,8 @@ reference:
   - manner_rain_factor
   - manner_incorporation_factor
   - manure_inorganic_n
+  - n2o_efs_ipcc2006
+  - som_ranges
   - n_attenuation_constants
 
 - title: Urban nitrogen coefficient tables
@@ -181,6 +185,10 @@ reference:
   - read_hyde_population
   - build_urban_n
   - calculate_manner_nh3
+  - calculate_nh3
+  - calculate_soil_n2o
+  - calculate_n_leaching
+  - calculate_indirect_n2o_nh3
 
 - title: Soil balances - carbon (historical balance)
   desc: >

@@ -75,6 +75,13 @@ manner_incorporation_factor <- .read_balance_csv(
 )
 manure_inorganic_n <- .read_balance_csv("manure_inorganic_n.csv")
 
+# Module C (Task C5) nitrogen-loss coefficient datasets: IPCC 2006 Tier 1
+# direct soil N2O emission factors (complementing n2o_efs_disaggregated's
+# Cayuela/IPCC-2019 factors) and the soil organic matter content bins used
+# by the Meisinger denitrification lookup.
+n2o_efs_ipcc2006 <- .read_balance_csv("n2o_efs_ipcc2006.csv")
+som_ranges <- .read_balance_csv("som_ranges.csv")
+
 usethis::use_data(
   soc_turnover_params,
   amg_h_by_input_type,
@@ -93,5 +100,7 @@ usethis::use_data(
   manner_rain_factor,
   manner_incorporation_factor,
   manure_inorganic_n,
+  n2o_efs_ipcc2006,
+  som_ranges,
   overwrite = TRUE
 )

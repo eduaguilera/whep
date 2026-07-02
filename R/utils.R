@@ -1407,7 +1407,28 @@ utils::globalVariables(
     "n_applied_t",
     "ef",
     "nh3_n_t",
-    "method_manner"
+    "method_manner",
+    # n_balance_losses.R (Module C, Task C5) — NH3, soil N2O, leaching NSE
+    "n_input_t",
+    "method_nh3",
+    "n2o_direct_n_t",
+    "irrig_type",
+    "n2o_efs_ipcc2006",
+    "som_ranges",
+    "n_surplus_t",
+    "no3_n_t",
+    "denitrification_n_t",
+    "n2o_indirect_no3_n_t",
+    "method_leaching",
+    "irrig_cat",
+    "cn_input",
+    "som_share",
+    "som_content",
+    "som_min",
+    "som_max",
+    "drainage_rate",
+    "no3_red",
+    "n2o_indirect_nh3_n_t"
   )
 )
 

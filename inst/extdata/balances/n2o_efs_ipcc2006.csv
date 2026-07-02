@@ -1,0 +1,13 @@
+irrig_type,climate,ef
+Tier_1,ATL,0.010
+Rainfed,MED,0.010
+Traditional,MED,0.010
+Drip,MED,0.010
+Sprinkler,MED,0.010
+Flooded,MED,0.003
+Med_average,MED,0.010
+Rainfed,ATL,0.010
+Traditional,ATL,0.010
+Drip,ATL,0.010
+Sprinkler,ATL,0.010
+Flooded,ATL,0.003

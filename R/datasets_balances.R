@@ -622,3 +622,68 @@
 #' @examples
 #' manure_inorganic_n
 "manure_inorganic_n"
+
+#' IPCC 2006 Tier 1 direct soil N2O emission factors by climate and
+#' irrigation.
+#'
+#' @description
+#' Direct nitrous-oxide emission factors (fraction of applied nitrogen
+#' emitted as N2O-N) under the IPCC 2006 Guidelines Tier 1 defaults,
+#' disaggregated by irrigation/management stratum and climate zone. Unlike
+#' [n2o_efs_disaggregated()] (the Cayuela et al. 2017 meta-analytic
+#' Mediterranean factors plus the IPCC 2019 Atlantic default), every stratum
+#' here carries the flat IPCC 2006 default (0.010), except flooded rice
+#' (0.003) in both climate zones. Used by [calculate_soil_n2o()]'s
+#' `method = "ipcc2006"`.
+#'
+#' @format A tibble with columns:
+#' \describe{
+#'   \item{irrig_type}{Irrigation / management stratum: one of
+#'     \code{"Tier_1"}, \code{"Rainfed"}, \code{"Traditional"},
+#'     \code{"Drip"}, \code{"Sprinkler"}, \code{"Flooded"},
+#'     \code{"Med_average"}.}
+#'   \item{climate}{Climate zone: \code{"MED"} (Mediterranean) or
+#'     \code{"ATL"} (Atlantic).}
+#'   \item{ef}{Direct N2O emission factor (kg N2O-N per kg applied N).}
+#' }
+#'
+#' @source WHEP project-internal coefficient workbook (not independently
+#'   DOI-verified): \code{N_coefficients.xlsx}, sheet
+#'   \code{N2O_EFs_IPCC2006}, itself transcribed from IPCC (2006), 2006 IPCC
+#'   Guidelines for National Greenhouse Gas Inventories, Vol. 4, Chapter 11,
+#'   Tier 1 defaults.
+#'
+#' @examples
+#' n2o_efs_ipcc2006
+"n2o_efs_ipcc2006"
+
+#' Soil organic matter content bins.
+#'
+#' @description
+#' Half-open bins that map a soil organic matter share (fraction) to a
+#' soil organic matter class. A share \code{s} is assigned to the class
+#' whose interval satisfies \code{s_min < s <= s_max}; the top (\code{High})
+#' bin has no finite ceiling in the source and is treated as open-ended
+#' (any share above its \code{s_min} is \code{"High"}), so \code{s_max = 1}
+#' here is a wide ceiling, not a literal source value. The classes key the
+#' Meisinger denitrification matrix ([meisinger_denitrification]).
+#'
+#' @format A tibble with columns:
+#' \describe{
+#'   \item{som_content}{Soil organic matter class: \code{"High"},
+#'     \code{"Medium"} or \code{"Low"}.}
+#'   \item{som_min}{Lower bound of the soil organic matter share interval
+#'     (fraction).}
+#'   \item{som_max}{Upper bound of the soil organic matter share interval
+#'     (fraction); the \code{"High"} row's value is a wide ceiling, not a
+#'     literal source bound (see Description).}
+#' }
+#'
+#' @source Spain historical nitrogen coefficient workbook
+#'   (\code{N_coefficients.xlsx}, sheet \code{SOM_ranges}), companion to the
+#'   Meisinger & Randall (1991) denitrification matrix.
+#'   \doi{10.2136/1991.managingnitrogen.c5}.
+#'
+#' @examples
+#' som_ranges
+"som_ranges"
