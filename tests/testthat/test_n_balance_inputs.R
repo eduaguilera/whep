@@ -406,6 +406,41 @@ testthat::test_that("manure_type maps to manure_solid/manure_liquid/excreta", {
   testthat::expect_true(all(manure$area_code == 10L))
 })
 
+testthat::test_that("manure territory resolves an iso3c code, not just a stringified area_code", {
+  # build_livestock_nutrient_flows()'s own @examples/tests use an iso3c
+  # territory ("ESP"); the real pipeline (redistribute_feed()) instead
+  # casts area_code to character. Both must resolve, not just one.
+  intake <- .nbi_livestock_intake()
+  intake$territory <- "ESP"
+  gridded <- .nbi_gridded()
+  gridded$crops$territory <- "ESP"
+  gridded$grass$territory <- "ESP"
+  data <- .nbi_full_data()
+  data$livestock_intake <- intake
+  data$gridded <- gridded
+
+  out <- whep::build_n_inputs(data = data)
+  manure <- out[
+    out$fert_type %in% c("manure_solid", "manure_liquid", "excreta"),
+  ]
+  testthat::expect_true(nrow(manure) > 0)
+  # ESP's whep::regions_full "code" is 203.
+  testthat::expect_true(all(manure$area_code == 203L))
+})
+
+testthat::test_that("an unresolvable manure territory aborts rather than propagating NA", {
+  intake <- .nbi_livestock_intake()
+  intake$territory <- "NOT_A_REAL_CODE"
+  gridded <- .nbi_gridded()
+  gridded$crops$territory <- "NOT_A_REAL_CODE"
+  gridded$grass$territory <- "NOT_A_REAL_CODE"
+  data <- .nbi_full_data()
+  data$livestock_intake <- intake
+  data$gridded <- gridded
+
+  testthat::expect_error(whep::build_n_inputs(data = data))
+})
+
 testthat::test_that("years filters the assembled output", {
   data <- .nbi_full_data()
   out <- whep::build_n_inputs(years = 2010L, data = data)

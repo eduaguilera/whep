@@ -231,7 +231,7 @@ build_n_inputs <- function(
     dplyr::mutate(
       lon = coords$lon,
       lat = coords$lat,
-      area_code = .as_integer_quiet(.data$territory),
+      area_code = .manure_territory_to_area_code(.data$territory),
       item_cbs_code = .ni_manure_item_cbs(.data$crop, .data$land_use),
       fert_type = .ni_manure_fert_type(.data$manure_type)
     ) |>
@@ -247,6 +247,38 @@ build_n_inputs <- function(
         "fert_type"
       )
     )
+}
+
+# build_livestock_nutrient_flows()'s $applied$territory carries either a
+# stringified area_code (the real pipeline's own convention, e.g.
+# feed_intake_redistribute.R:805 territory = as.character(area_code)) or an
+# ISO3 code (the function's own roxygen @examples and test fixtures use
+# territory = "ESP"). Resolve both rather than assuming one and silently
+# NA-ing the other: try integer parsing first, then fall back to an
+# iso3c -> area_code lookup via whep::regions_full; abort on anything that
+# resolves to neither, rather than propagating NA into area_code.
+.manure_territory_to_area_code <- function(territory) {
+  as_int <- suppressWarnings(as.integer(territory))
+  still_missing <- is.na(as_int) & !is.na(territory)
+  if (any(still_missing)) {
+    iso3_lookup <- whep::regions_full |>
+      dplyr::filter(!is.na(.data$iso3c)) |>
+      dplyr::distinct(.data$iso3c, .data$code)
+    resolved <- tibble::tibble(iso3c = territory[still_missing]) |>
+      dplyr::left_join(iso3_lookup, by = "iso3c") |>
+      dplyr::pull("code")
+    as_int[still_missing] <- resolved
+  }
+  unresolved <- unique(territory[is.na(as_int) & !is.na(territory)])
+  if (length(unresolved) > 0) {
+    cli::cli_abort(c(
+      "Could not resolve {.field territory} to an {.field area_code}.",
+      i = "Unrecognised value{?s}: {.val {unresolved}}. Expected a
+           stringified area_code or a known {.field iso3c} in
+           {.code whep::regions_full}."
+    ))
+  }
+  as_int
 }
 
 .ni_manure_coords <- function(sub_territory) {
@@ -287,12 +319,18 @@ build_n_inputs <- function(
 }
 
 .ni_manure_fert_type <- function(manure_type) {
+  unexpected <- setdiff(unique(manure_type), c("Excreta", "Solid", "Liquid"))
+  if (length(unexpected) > 0) {
+    cli::cli_abort(c(
+      "Unexpected {.field manure_type} value{?s}: {.val {unexpected}}.",
+      i = "Expected one of {.val Excreta}, {.val Solid} or {.val Liquid}."
+    ))
+  }
   dplyr::case_match(
     manure_type,
     "Excreta" ~ "excreta",
     "Solid" ~ "manure_solid",
-    "Liquid" ~ "manure_liquid",
-    .default = "excreta"
+    "Liquid" ~ "manure_liquid"
   )
 }
 
