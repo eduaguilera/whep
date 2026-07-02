@@ -239,3 +239,105 @@ test_that("an unexpected stream label aborts rather than dropping mass", {
     "stream"
   )
 })
+
+# Two manure_type collected streams (Solid, Liquid) plus grazing (Excreta),
+# same cell/year/territory as .toy_applied() but split across manure_type.
+.toy_applied_multitype <- function() {
+  tibble::tribble(
+    ~year,
+    ~territory,
+    ~sub_territory,
+    ~livestock_category,
+    ~stream,
+    ~manure_type,
+    ~applied_n,
+    ~applied_c,
+    ~applied_vs,
+    2020L,
+    "ESP",
+    NA,
+    "Cattle_milk",
+    "collected",
+    "Solid",
+    80,
+    800,
+    40,
+    2020L,
+    "ESP",
+    NA,
+    "Cattle_milk",
+    "grazing",
+    "Excreta",
+    20,
+    380,
+    12,
+    2020L,
+    "ESP",
+    NA,
+    "Pigs",
+    "collected",
+    "Liquid",
+    30,
+    270,
+    18
+  )
+}
+
+test_that("allocate_manure_to_land carries manure_type through the output", {
+  res <- whep::allocate_manure_to_land(
+    .toy_applied_multitype(),
+    .toy_gridded()
+  )
+  expect_true(rlang::has_name(res, "manure_type"))
+  expect_true(all(c("Solid", "Liquid", "Excreta") %in% res$manure_type))
+})
+
+test_that("manure_type mass is conserved per type, not just in aggregate", {
+  res <- whep::allocate_manure_to_land(
+    .toy_applied_multitype(),
+    .toy_gridded()
+  )
+  by_type <- dplyr::summarise(
+    res,
+    applied_n = sum(.data$applied_n),
+    .by = "manure_type"
+  )
+  expect_equal(
+    by_type$applied_n[by_type$manure_type == "Solid"],
+    80,
+    tolerance = 1e-6
+  )
+  expect_equal(
+    by_type$applied_n[by_type$manure_type == "Liquid"],
+    30,
+    tolerance = 1e-6
+  )
+  expect_equal(
+    by_type$applied_n[by_type$manure_type == "Excreta"],
+    20,
+    tolerance = 1e-6
+  )
+  expect_equal(sum(res$applied_n), 130, tolerance = 1e-8)
+})
+
+test_that("grazing rows carry manure_type Excreta, matching .mms_manure_type", {
+  res <- whep::allocate_manure_to_land(
+    .toy_applied_multitype(),
+    .toy_gridded()
+  )
+  graz <- res[res$source_stream == "grazing", ]
+  expect_true(all(graz$manure_type == "Excreta"))
+})
+
+test_that("allocate_manure_to_land without a manure_type column keeps its old aggregate totals", {
+  # .toy_applied() has no manure_type column: this is the pre-existing input
+  # shape every earlier test in this file uses. Totals must be byte-identical
+  # to before manure_type was threaded through.
+  res <- whep::allocate_manure_to_land(.toy_applied(), .toy_gridded())
+  expect_equal(sum(res$applied_n), 130, tolerance = 1e-8)
+  expect_equal(sum(res$applied_c), 1450, tolerance = 1e-8)
+  expect_equal(sum(res$applied_vs), 70, tolerance = 1e-8)
+  # No manure_type supplied: every row falls back to a single implicit type.
+  expect_true(rlang::has_name(res, "manure_type"))
+  expect_true(all(res$manure_type == "Excreta"))
+})

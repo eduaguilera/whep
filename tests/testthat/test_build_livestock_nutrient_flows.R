@@ -200,6 +200,88 @@ test_that("subnational run transports surplus between cells and conserves N", {
   expect_false(anyNA(res$applied$method_allocation))
 })
 
+test_that("applied output carries manure_type at national resolution", {
+  res <- whep::build_livestock_nutrient_flows(
+    .toy_intake_nat(),
+    resolution = "national",
+    gridded = .toy_gridded_nat()
+  )
+  expect_true(rlang::has_name(res$applied, "manure_type"))
+  expect_true(all(c("Solid", "Liquid", "Excreta") %in% res$applied$manure_type))
+  by_type <- dplyr::summarise(
+    res$applied,
+    applied_n = sum(.data$applied_n),
+    .by = "manure_type"
+  )
+  expect_equal(sum(by_type$applied_n), sum(res$applied$applied_n))
+})
+
+test_that("subnational transport reattaches a sensible manure_type split, not a single collapsed value", {
+  # Same mixed-species scenario as the transport test above: cattle + pigs
+  # naturally split across Solid/Liquid/Excreta manure_type through the real
+  # split_manure_management()/apply_management_losses() pipeline, so the
+  # surplus that gets transported off "1.5_40" is itself a manure_type mix.
+  intake <- dplyr::bind_rows(
+    dplyr::mutate(.toy_intake_nat(), sub_territory = "1.5_40"),
+    dplyr::mutate(
+      dplyr::filter(.toy_intake_nat(), livestock_category == "Pigs"),
+      sub_territory = "1_40"
+    )
+  )
+  gridded <- list(
+    crops = tibble::tribble(
+      ~year,
+      ~territory,
+      ~sub_territory,
+      ~crop,
+      ~manure_n_receptivity,
+      ~crop_n_cap,
+      2020L,
+      "ESP",
+      "1.5_40",
+      "barley",
+      6,
+      0.5,
+      2020L,
+      "ESP",
+      "1_40",
+      "barley",
+      6,
+      500
+    ),
+    grass = tibble::tribble(
+      ~year,
+      ~territory,
+      ~sub_territory,
+      ~grass_n_cap,
+      2020L,
+      "ESP",
+      "1.5_40",
+      0.5,
+      2020L,
+      "ESP",
+      "1_40",
+      1
+    )
+  )
+  res <- whep::build_livestock_nutrient_flows(
+    intake,
+    resolution = "subnational",
+    gridded = gridded
+  )
+  transported <- res$applied[res$applied$source_stream == "transported", ]
+  expect_true(nrow(transported) > 0)
+  expect_true(rlang::has_name(transported, "manure_type"))
+  # Not lost (every transported row has a real label)...
+  expect_false(anyNA(transported$manure_type))
+  # ...and not collapsed to one value: the transported total is split across
+  # more than one manure_type, mirroring the mixed surplus it came from.
+  expect_true(length(unique(transported$manure_type)) > 1)
+  # Overall mass balance still holds with the manure_type split reattached.
+  bal <- .balance_n(res)
+  expect_equal(bal[["out"]], bal[["excreted"]], tolerance = 1e-6)
+})
+
 test_that("build_livestock_nutrient_flows guards bad resolution and methods stage", {
   expect_error(
     whep::build_livestock_nutrient_flows(

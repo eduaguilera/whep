@@ -36,8 +36,12 @@ with \code{grass_n_cap} (t N) or \code{grass_area_ha}. The grassland cap is scal
 A tibble with one row per allocation target: \code{year}, \code{territory},
 \code{sub_territory}, \code{land_use} (\code{"Cropland"}/\code{"Grassland"}/\code{"Disposal"}/
 \code{"Unallocated"}), \code{crop}, \code{source_stream} (\code{"collected"}/\code{"grazing"}),
-\code{applied_n}, \code{applied_c}, \code{applied_vs}, \code{over_cap} and the
-\code{method_allocation}, \code{method_cap} and \code{disposal_method} provenance columns.
+\code{manure_type} (\code{"Excreta"}/\code{"Solid"}/\code{"Liquid"}, carried from \code{applied}
+when present; each allocated row's N/C/VS is split across the
+\code{manure_type}s in proportion to their share of the cell's collected N,
+so the capacity-filling math itself stays pooled), \code{applied_n},
+\code{applied_c}, \code{applied_vs}, \code{over_cap} and the \code{method_allocation},
+\code{method_cap} and \code{disposal_method} provenance columns.
 }
 \description{
 Distributes the manure nitrogen, carbon and volatile solids that survive
@@ -52,10 +56,10 @@ its post-storage bundle ratio, so mass is conserved by construction.
 }
 \examples{
 applied <- tibble::tribble(
-  ~year, ~territory, ~sub_territory, ~stream,
+  ~year, ~territory, ~sub_territory, ~stream, ~manure_type,
   ~applied_n, ~applied_c, ~applied_vs,
-  2020L, "ESP", NA, "collected", 80, 800, 40,
-  2020L, "ESP", NA, "grazing", 20, 380, 12
+  2020L, "ESP", NA, "collected", "Solid", 80, 800, 40,
+  2020L, "ESP", NA, "grazing", "Excreta", 20, 380, 12
 )
 crops <- tibble::tribble(
   ~year, ~territory, ~sub_territory, ~crop, ~manure_n_receptivity, ~crop_n_cap,

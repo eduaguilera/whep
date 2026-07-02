@@ -35,15 +35,19 @@
 #' @return A tibble with one row per allocation target: `year`, `territory`,
 #'   `sub_territory`, `land_use` (`"Cropland"`/`"Grassland"`/`"Disposal"`/
 #'   `"Unallocated"`), `crop`, `source_stream` (`"collected"`/`"grazing"`),
-#'   `applied_n`, `applied_c`, `applied_vs`, `over_cap` and the
-#'   `method_allocation`, `method_cap` and `disposal_method` provenance columns.
+#'   `manure_type` (`"Excreta"`/`"Solid"`/`"Liquid"`, carried from `applied`
+#'   when present; each allocated row's N/C/VS is split across the
+#'   `manure_type`s in proportion to their share of the cell's collected N,
+#'   so the capacity-filling math itself stays pooled), `applied_n`,
+#'   `applied_c`, `applied_vs`, `over_cap` and the `method_allocation`,
+#'   `method_cap` and `disposal_method` provenance columns.
 #' @export
 #' @examples
 #' applied <- tibble::tribble(
-#'   ~year, ~territory, ~sub_territory, ~stream,
+#'   ~year, ~territory, ~sub_territory, ~stream, ~manure_type,
 #'   ~applied_n, ~applied_c, ~applied_vs,
-#'   2020L, "ESP", NA, "collected", 80, 800, 40,
-#'   2020L, "ESP", NA, "grazing", 20, 380, 12
+#'   2020L, "ESP", NA, "collected", "Solid", 80, 800, 40,
+#'   2020L, "ESP", NA, "grazing", "Excreta", 20, 380, 12
 #' )
 #' crops <- tibble::tribble(
 #'   ~year, ~territory, ~sub_territory, ~crop, ~manure_n_receptivity, ~crop_n_cap,
@@ -60,10 +64,12 @@ allocate_manure_to_land <- function(
   .check_applied_cols(applied)
   .check_streams(applied)
   streams <- .aggregate_applied_streams(applied)
+  type_shares <- .manure_type_shares(applied)
   crops <- .prepare_crop_layer(gridded[["crops"]], opt)
   grass_cap <- .prepare_grass_cap(gridded[["grass"]], opt)
   cropland <- .fill_cropland(streams, crops)
-  .assemble_allocation(streams, cropland, grass_cap, opt)
+  .assemble_allocation(streams, cropland, grass_cap, opt) |>
+    .reattach_manure_type(type_shares)
 }
 
 # Private helpers ----
@@ -131,6 +137,10 @@ allocate_manure_to_land <- function(
 }
 
 # Collapse the per-system manure to per-polity collected and grazing totals.
+# The capacity-filling math (crop caps, grassland spillover, disposal) stays
+# pooled across manure_type here; the per-manure_type split is reattached
+# downstream from .manure_type_shares(), the same proportional-share pattern
+# .stream_ratios() already uses for applied_c/applied_vs.
 .aggregate_applied_streams <- function(applied) {
   applied |>
     tibble::as_tibble() |>
@@ -143,6 +153,75 @@ allocate_manure_to_land <- function(
       graze_vs = sum(.data$applied_vs[.data$stream == "grazing"]),
       .by = c("year", "territory", "sub_territory")
     )
+}
+
+# Per-(year, territory, sub_territory, stream, manure_type) share of that
+# stream's pooled N. A missing manure_type column (e.g. a caller that has not
+# adopted the field yet) is treated as a single implicit "Excreta" bucket, so
+# the reattachment step is a no-op share of 1 and every existing aggregate
+# total is untouched.
+.manure_type_shares <- function(applied) {
+  applied <- tibble::as_tibble(applied)
+  if (!rlang::has_name(applied, "manure_type")) {
+    applied <- dplyr::mutate(applied, manure_type = "Excreta")
+  }
+  applied |>
+    dplyr::summarise(
+      type_n = sum(.data$applied_n),
+      .by = c("year", "territory", "sub_territory", "stream", "manure_type")
+    ) |>
+    dplyr::mutate(
+      stream_n = sum(.data$type_n),
+      share = dplyr::if_else(
+        .data$stream_n > 0,
+        .data$type_n / .data$stream_n,
+        0
+      ),
+      .by = c("year", "territory", "sub_territory", "stream")
+    ) |>
+    dplyr::select(
+      "year",
+      "territory",
+      "sub_territory",
+      "stream",
+      "manure_type",
+      "share"
+    )
+}
+
+# Split each pooled allocation row's N/C/VS across manure_type in proportion
+# to that manure_type's share of the row's source_stream (collected/grazing)
+# pooled N for the same cell; a cell/stream with zero total N (share table has
+# no matching rows, e.g. a "Disposal"/"Unallocated" cell whose stream never
+# had positive pooled N) keeps a single "Excreta"-labelled row so mass is
+# never silently dropped.
+.reattach_manure_type <- function(allocation, type_shares) {
+  joined <- allocation |>
+    dplyr::mutate(row_id = dplyr::row_number()) |>
+    dplyr::left_join(
+      type_shares,
+      by = c(
+        "year",
+        "territory",
+        "sub_territory",
+        "source_stream" = "stream"
+      ),
+      relationship = "many-to-many"
+    )
+  unmatched <- joined |>
+    dplyr::filter(is.na(.data$manure_type)) |>
+    dplyr::mutate(manure_type = "Excreta", share = 1)
+  joined |>
+    dplyr::filter(!is.na(.data$manure_type)) |>
+    dplyr::bind_rows(unmatched) |>
+    dplyr::mutate(
+      applied_n = .data$applied_n * .data$share,
+      applied_c = .data$applied_c * .data$share,
+      applied_vs = .data$applied_vs * .data$share
+    ) |>
+    dplyr::arrange(.data$row_id) |>
+    dplyr::select(-"row_id", -"share") |>
+    dplyr::relocate("manure_type", .after = "source_stream")
 }
 
 .prepare_crop_layer <- function(crops, opt) {
