@@ -41,7 +41,15 @@ when present; each allocated row's N/C/VS is split across the
 \code{manure_type}s in proportion to their share of the cell's collected N,
 so the capacity-filling math itself stays pooled), \code{applied_n},
 \code{applied_c}, \code{applied_vs}, \code{over_cap} and the \code{method_allocation},
-\code{method_cap} and \code{disposal_method} provenance columns.
+\code{method_cap} and \code{disposal_method} provenance columns. The N split by
+\code{manure_type} is exact (mass-conserving per type); \code{applied_c} and
+\code{applied_vs} are split by the SAME N-proportional share, not by each
+\code{manure_type}'s own C:N/VS:N ratio, so a per-\code{manure_type} carbon or
+volatile-solids figure does not reflect that type's actual composition
+(e.g. solid vs. liquid manure have materially different C:N). Callers
+needing manure-type-specific carbon/VS (e.g. CH4 potential by system)
+should not rely on the \code{manure_type}-broken-out \code{applied_c}/
+\code{applied_vs} columns without accounting for this.
 }
 \description{
 Distributes the manure nitrogen, carbon and volatile solids that survive

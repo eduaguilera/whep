@@ -40,7 +40,15 @@
 #'   `manure_type`s in proportion to their share of the cell's collected N,
 #'   so the capacity-filling math itself stays pooled), `applied_n`,
 #'   `applied_c`, `applied_vs`, `over_cap` and the `method_allocation`,
-#'   `method_cap` and `disposal_method` provenance columns.
+#'   `method_cap` and `disposal_method` provenance columns. The N split by
+#'   `manure_type` is exact (mass-conserving per type); `applied_c` and
+#'   `applied_vs` are split by the SAME N-proportional share, not by each
+#'   `manure_type`'s own C:N/VS:N ratio, so a per-`manure_type` carbon or
+#'   volatile-solids figure does not reflect that type's actual composition
+#'   (e.g. solid vs. liquid manure have materially different C:N). Callers
+#'   needing manure-type-specific carbon/VS (e.g. CH4 potential by system)
+#'   should not rely on the `manure_type`-broken-out `applied_c`/
+#'   `applied_vs` columns without accounting for this.
 #' @export
 #' @examples
 #' applied <- tibble::tribble(
