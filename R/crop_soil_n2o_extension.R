@@ -156,25 +156,12 @@ build_crop_soil_n2o_extension <- function(
 }
 
 # Each crop's share of national harvested cropland area per year (grassland
-# excluded), used to split the country fertiliser total across crops.
+# excluded), used to split the country fertiliser total across crops. A thin
+# call-through to the promoted, shared implementation in
+# R/n_balance_spatialize.R (Task C6), reused by build_crop_soil_n2o_extension()
+# and by spatialize_country_n_to_crops().
 .crop_area_shares <- function(primary_prod) {
-  grass <- c(3000L, 3002L, 3003L)
-  primary_prod |>
-    dplyr::filter(
-      .data$unit == "ha",
-      !is.na(.data$item_cbs_code),
-      !.data$item_cbs_code %in% grass,
-      .data$value > 0
-    ) |>
-    dplyr::summarise(
-      area_ha = sum(.data$value),
-      .by = c(year, area_code, item_cbs_code)
-    ) |>
-    dplyr::mutate(
-      area_share = .data$area_ha / sum(.data$area_ha),
-      .by = c(year, area_code)
-    ) |>
-    dplyr::select(year, area_code, item_cbs_code, area_share)
+  .n_crop_area_shares(primary_prod)
 }
 
 # Above-ground crop-residue N returned to soil (tonnes N) per crop: residue dry

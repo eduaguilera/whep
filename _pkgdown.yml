@@ -178,7 +178,10 @@ reference:
     area. Urban/human-excreta nitrogen from gridded HYDE population and a
     per-capita rate, with neighbour-cell transport buffering for cells with
     no local cropland room. Ammonia-N volatilisation from the MANNER
-    process-based model, for synthetic fertiliser and organic manure.
+    process-based model, for synthetic fertiliser and organic manure. Gridded
+    windspeed and soil pH drivers, the cell-polity assembly, and the
+    polity-to-crop-to-grid spatialization of a country-level nitrogen total
+    (Task C6 infrastructure).
   contents:
   - read_n_deposition
   - build_n_deposition
@@ -189,6 +192,10 @@ reference:
   - calculate_soil_n2o
   - calculate_n_leaching
   - calculate_indirect_n2o_nh3
+  - read_lpjml_wind
+  - read_soil_ph
+  - build_cell_polity
+  - spatialize_country_n_to_crops
 
 - title: Soil balances - carbon (historical balance)
   desc: >

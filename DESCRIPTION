@@ -53,6 +53,7 @@ Suggests:
     pointblank,
     rmarkdown,
     sf,
+    terra,
     testthat (>= 3.0.0),
     zip
 Config/testthat/edition: 3

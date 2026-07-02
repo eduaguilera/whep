@@ -1428,7 +1428,13 @@ utils::globalVariables(
     "som_max",
     "drainage_rate",
     "no3_red",
-    "n2o_indirect_nh3_n_t"
+    "n2o_indirect_nh3_n_t",
+    # lpjml_wind.R (Module C, Task C6) — gridded windspeed reader NSE
+    "windspeed_ms",
+    # n_balance_spatialize.R (Module C, Task C6) — cell_polity assembly +
+    # crop-pattern spatialization NSE columns
+    "weighted_ha",
+    "group_ha"
   )
 )
 
