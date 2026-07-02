@@ -169,10 +169,10 @@ build_n_inputs <- function(
 # ---- 2. Recycling (residue + root N returned to soil) --------------------
 
 .n_inputs_recycling <- function(data) {
-  if (is.null(data$npp_n_input)) {
+  npp <- .n_balance_npp(data)
+  if (is.null(npp)) {
     return(.ni_empty())
   }
-  npp <- calculate_npp_carbon_nitrogen(data$npp_n_input)
   residue_soil_n <- if (rlang::has_name(npp, "residue_soil_n_t")) {
     npp$residue_soil_n_t
   } else {
@@ -188,6 +188,19 @@ build_n_inputs <- function(
     fert_type = "recycling",
     n_input_t = .data$root_n_t + residue_soil_n
   )
+}
+
+# Shared NPP-N computation: build_nitrogen_balance() (Task C7) needs the SAME
+# calculate_npp_carbon_nitrogen() result for prod_n_t/residue N, so this is
+# exposed as a package-internal helper rather than letting each caller
+# invoke calculate_npp_carbon_nitrogen(data$npp_n_input) separately. Returns
+# NULL (not an empty tibble) when data$npp_n_input is absent, so callers can
+# distinguish "not computed" from "computed but empty".
+.n_balance_npp <- function(data) {
+  if (is.null(data$npp_n_input)) {
+    return(NULL)
+  }
+  calculate_npp_carbon_nitrogen(data$npp_n_input)
 }
 
 # item_cbs_code from item_prod_code via the same crosswalk used elsewhere

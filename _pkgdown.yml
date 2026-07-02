@@ -200,6 +200,7 @@ reference:
   - build_cell_polity
   - spatialize_country_n_to_crops
   - build_n_inputs
+  - build_nitrogen_balance
 
 - title: Soil balances - carbon (historical balance)
   desc: >
