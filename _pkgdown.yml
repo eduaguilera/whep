@@ -181,7 +181,10 @@ reference:
     process-based model, for synthetic fertiliser and organic manure. Gridded
     windspeed and soil pH drivers, the cell-polity assembly, and the
     polity-to-crop-to-grid spatialization of a country-level nitrogen total
-    (Task C6 infrastructure).
+    (Task C6 infrastructure). The gridded nitrogen INPUT assembly combines
+    every source (BNF, residue/root recycling, manure, deposition, urban,
+    soil organic-matter mineralization, synthetic fertiliser) into one
+    long-format table (Task C6 final phase).
   contents:
   - read_n_deposition
   - build_n_deposition
@@ -196,6 +199,7 @@ reference:
   - read_soil_ph
   - build_cell_polity
   - spatialize_country_n_to_crops
+  - build_n_inputs
 
 - title: Soil balances - carbon (historical balance)
   desc: >
