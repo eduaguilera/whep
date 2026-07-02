@@ -79,14 +79,18 @@ build_supply_use <- function(example = FALSE) {
   }
 
   cbs <- get_wide_cbs()
-  primary_prod <- get_primary_production()
+  # Production and residues are per-country; supply-use joins the
+  # FABIO-grain CBS by area, so collapse them at this boundary.
+  primary_prod <- get_primary_production() |>
+    dplyr::select(-dplyr::any_of(c("source", "fao_flag"))) |>
+    collapse_to_fabio_regions()
 
   .build_supply_use_from_inputs(
     items_prod = whep::items_prod,
     items_cbs = whep::items_cbs,
     coeffs = get_processing_coefs(),
     cbs = cbs,
-    crop_residues = get_primary_residues(),
+    crop_residues = collapse_to_fabio_regions(get_primary_residues()),
     primary_prod = primary_prod,
     feed_intake = .build_redistribute_intake(
       grain = "national",

@@ -7,13 +7,10 @@ expect_polity_match <- function(data, code_col, polity_col) {
 
 testthat::test_that("public area-code example outputs carry reporting polities", {
   outputs <- list(
-    get_primary_production = get_primary_production(example = TRUE),
-    build_primary_production = build_primary_production(example = TRUE),
     get_wide_cbs = get_wide_cbs(example = TRUE),
     build_commodity_balances = build_commodity_balances(example = TRUE),
     build_processing_coefs = build_processing_coefs(example = TRUE),
     get_processing_coefs = get_processing_coefs(example = TRUE),
-    get_primary_residues = get_primary_residues(example = TRUE),
     get_feed_intake = get_feed_intake(example = TRUE),
     build_supply_use = build_supply_use(example = TRUE)
   )
@@ -23,6 +20,29 @@ testthat::test_that("public area-code example outputs carry reporting polities",
     \(output) {
       expect_polity_match(
         output,
+        "area_code",
+        "reporting_polity_code"
+      )
+    }
+  )
+})
+
+testthat::test_that("per-country base outputs re-join reporting polities", {
+  # Base datasets stay at per-country grain and omit the derived polity
+  # columns; the polity identity must still be attachable on demand for
+  # every area code they emit.
+  outputs <- list(
+    get_primary_production = get_primary_production(example = TRUE),
+    build_primary_production = build_primary_production(example = TRUE),
+    get_primary_residues = get_primary_residues(example = TRUE)
+  )
+
+  purrr::walk(
+    outputs,
+    \(output) {
+      testthat::expect_false("reporting_polity_code" %in% names(output))
+      expect_polity_match(
+        whep::add_reporting_polity_columns(output),
         "area_code",
         "reporting_polity_code"
       )

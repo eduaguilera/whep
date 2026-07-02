@@ -56,6 +56,7 @@ build_energy_co2_extension <- function(
   } else {
     data$primary_prod
   }
+  primary_prod <- .collapse_production_to_fabio(primary_prod)
 
   intensity <- .energy_intensity_by_country()
   primary_prod |>

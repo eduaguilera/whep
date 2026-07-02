@@ -359,8 +359,10 @@ build_cbs_prices <- function(
   ]
   vop[, `:=`(unit = "kdollars", element = "production")]
 
-  # Aggregate to polity level
-  .aggregate_to_polities(vop, item_prod_code)
+  # Harmonize per-country, then collapse: prices feed the value-weighted IO
+  # model, which runs at the FABIO region grain.
+  vop <- .harmonize_areas(vop, item_prod_code)
+  .collapse_to_fabio_regions_dt(vop)
 }
 
 # -- Internal: CBS prices ------------------------------------------------------

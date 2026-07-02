@@ -68,6 +68,7 @@ build_crop_soil_n2o_extension <- function(
   } else {
     data$primary_prod
   }
+  primary_prod <- .collapse_production_to_fabio(primary_prod)
   fertilizer <- if (is.null(data$fertilizer)) {
     whep_read_file("faostat-fertilizer-nutrients")
   } else {
@@ -83,6 +84,7 @@ build_crop_soil_n2o_extension <- function(
   } else {
     data$primary_residues
   }
+  primary_residues <- collapse_to_fabio_regions(primary_residues)
 
   shares <- .crop_area_shares(primary_prod)
   synthetic <- .synthetic_n_inputs(fertilizer, shares)

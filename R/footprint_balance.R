@@ -345,6 +345,7 @@ build_land_balance_footprint <- function(
     dplyr::filter(item_cbs_code %in% grass_codes) |>
     dplyr::mutate(value = value * grass_yield)
   crop_prod <- get_primary_production() |>
+    .collapse_production_to_fabio() |>
     dplyr::filter(
       year == .env$year,
       unit == "tonnes",

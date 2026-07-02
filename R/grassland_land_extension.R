@@ -84,6 +84,7 @@ build_grassland_land_extension <- function(
   if (is.null(primary_prod)) {
     primary_prod <- get_primary_production()
   }
+  primary_prod <- .collapse_production_to_fabio(primary_prod)
   grass_items <- setdiff(.grass_item_cbs(), .fallow_item_cbs())
   primary_prod |>
     dplyr::filter(

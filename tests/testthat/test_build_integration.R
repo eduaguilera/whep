@@ -30,10 +30,6 @@ test_that("build_primary_production returns expected columns", {
   expected_cols <- c(
     "year",
     "area_code",
-    "polity_area_code",
-    "reporting_polity_code",
-    "reporting_polity_name",
-    "reporting_polity_has_geometry",
     "item_prod_code",
     "item_cbs_code",
     "live_anim_code",
@@ -105,8 +101,7 @@ test_that("build_primary_production matches expected output", {
   result <- whep::build_primary_production(
     .raw_data = prod_raw_fixture()
   )
-  expected <- prod_expected_fixture() |>
-    whep:::.add_reporting_polity_columns()
+  expected <- prod_expected_fixture()
   expect_equal(result, expected, ignore_attr = TRUE)
 })
 

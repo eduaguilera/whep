@@ -1,5 +1,24 @@
 # whep (development version)
 
+* Base datasets now keep per-country grain: `build_primary_production()` (and
+  the shared raw-input path) no longer bakes FABIO's Rest-of-World aggregation
+  into the atomic data. Identifiable countries that FABIO does not enumerate
+  (Syria, North Macedonia, Palestine, Eswatini, ...) and Sudan/South Sudan keep
+  their own `area_code` rows. The collapse to the closed FABIO region list
+  moved into the new exported `collapse_to_fabio_regions()`, applied
+  explicitly at the CBS/IO matrix boundary. The base production output is also
+  trimmed to identity codes only; the derived polity columns are re-joinable
+  on demand via the new exported `add_reporting_polity_columns()` (#120).
+
+* Fix a commodity-balance double count: CBS source selection keys on area name
+  plus code, and inputs previously carried two different names for the same
+  `area_code` (the crosswalk polity name from raw-input aggregation vs the
+  FAOSTAT area name from production). Both series survived selection and were
+  summed, roughly doubling CBS values for every area whose polity name differs
+  from its FAOSTAT name (China, Türkiye, Iran, Bolivia, Taiwan, ...). All CBS
+  inputs now share the canonical crosswalk area name, so source selection
+  merges them correctly (#120).
+
 * `build_io_model()` and `build_footprint()` gain a `method = c("mass",
   "value")` argument for co-product allocation. `"value"` splits a multi-output
   process's inputs (and the pressures embodied in them) across its products by

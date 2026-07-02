@@ -7,16 +7,16 @@
 #'   remote data. Default is `FALSE`.
 #'
 #' @returns
-#' A tibble with the item production data.
+#' A tibble with the item production data at per-country grain: every
+#' identifiable FAOSTAT reporting area keeps its own row (redundant
+#' statistical aggregates such as FAOSTAT area 351 "China" are dropped).
+#' Polity metadata can be attached with [add_reporting_polity_columns()],
+#' and the FABIO region grain needed for matrix workflows obtained with
+#' [collapse_to_fabio_regions()].
 #' It contains the following columns:
 #' - `year`: The year in which the recorded event occurred.
-#' - `area_code`: Legacy numeric reporting area code.
-#' - `polity_area_code`: Numeric WHEP reporting polity code used for matrix
-#'    workflows. This currently matches `area_code`.
-#' - `reporting_polity_code`: WHEP polity code for the reporting polygon.
-#' - `reporting_polity_name`: WHEP polity name for the reporting polygon.
-#' - `reporting_polity_has_geometry`: Whether the reporting polity has a
-#'    polygon in the WHEP polity database.
+#' - `area_code`: Numeric FAOSTAT reporting area code. For code details see
+#'    e.g. `add_area_name()`.
 #' - `item_prod_code`: FAOSTAT internal code for each produced item.
 #' - `item_cbs_code`: FAOSTAT internal code for each commodity balance sheet
 #'    item. The commodity balance sheet contains an aggregated version of
@@ -114,8 +114,7 @@ get_primary_residues <- function(example = FALSE) {
       item_cbs_code_residue,
       value
     ) |>
-    .use_crop_process_cbs_item() |>
-    .add_reporting_polity_columns()
+    .use_crop_process_cbs_item()
 }
 
 # TODO: This is dirty, revisit when we build the data here directly.

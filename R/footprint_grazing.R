@@ -315,6 +315,7 @@ build_grazing_feed_footprint <- function(
 .grazing_production <- function(year) {
   out_items <- .livestock_output_items()
   get_primary_production() |>
+    .collapse_production_to_fabio() |>
     dplyr::filter(
       .data$unit == "tonnes",
       year == .env$year,

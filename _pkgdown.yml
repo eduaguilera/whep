@@ -135,6 +135,8 @@ reference:
   - polities_cats
   - regions_full
   - add_polity_code
+  - add_reporting_polity_columns
+  - collapse_to_fabio_regions
   - add_area_code
   - add_area_name
   - get_polity_geometries

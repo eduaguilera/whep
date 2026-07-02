@@ -48,11 +48,13 @@ Default \code{NULL}.}
 }
 \value{
 A tibble with the same columns as \code{\link[=get_primary_production]{get_primary_production()}}:
-\code{year}, legacy numeric \code{area_code}, numeric \code{polity_area_code},
-\code{reporting_polity_code}, \code{reporting_polity_name},
-\code{reporting_polity_has_geometry}, \code{item_prod_code}, \code{item_cbs_code},
-\code{live_anim_code}, \code{unit}, \code{value}, and \code{source}.
-Item names can be recovered via \code{\link[=add_item_prod_name]{add_item_prod_name()}} and related helpers.
+\code{year}, numeric \code{area_code}, \code{item_prod_code}, \code{item_cbs_code},
+\code{live_anim_code}, \code{unit}, \code{value}, and \code{source}. Rows are at
+per-country grain: every identifiable FAOSTAT reporting area keeps its
+own \code{area_code}. Item and area names can be recovered via
+\code{\link[=add_item_prod_name]{add_item_prod_name()}}, \code{\link[=add_area_name]{add_area_name()}} and related helpers; polity
+metadata via \code{\link[=add_reporting_polity_columns]{add_reporting_polity_columns()}}; the FABIO region grain
+needed for matrix workflows via \code{\link[=collapse_to_fabio_regions]{collapse_to_fabio_regions()}}.
 When \code{show_duplicates = TRUE}, returns a wide tibble with one
 column per source showing the competing values.
 }

@@ -34,11 +34,13 @@
 #'   Default `NULL`.
 #'
 #' @returns A tibble with the same columns as [get_primary_production()]:
-#'   `year`, legacy numeric `area_code`, numeric `polity_area_code`,
-#'   `reporting_polity_code`, `reporting_polity_name`,
-#'   `reporting_polity_has_geometry`, `item_prod_code`, `item_cbs_code`,
-#'   `live_anim_code`, `unit`, `value`, and `source`.
-#'   Item names can be recovered via [add_item_prod_name()] and related helpers.
+#'   `year`, numeric `area_code`, `item_prod_code`, `item_cbs_code`,
+#'   `live_anim_code`, `unit`, `value`, and `source`. Rows are at
+#'   per-country grain: every identifiable FAOSTAT reporting area keeps its
+#'   own `area_code`. Item and area names can be recovered via
+#'   [add_item_prod_name()], [add_area_name()] and related helpers; polity
+#'   metadata via [add_reporting_polity_columns()]; the FABIO region grain
+#'   needed for matrix workflows via [collapse_to_fabio_regions()].
 #'   When `show_duplicates = TRUE`, returns a wide tibble with one
 #'   column per source showing the competing values.
 #'
@@ -97,8 +99,7 @@ build_primary_production <- function(
       value,
       source,
       dplyr::any_of("fao_flag")
-    ) |>
-    .add_reporting_polity_columns()
+    )
 
   attr(result, ".cb_extracts") <- cb_extracts
   result
@@ -382,12 +383,12 @@ build_primary_production <- function(
       "value"
     )
   )
-  # Rename FAOSTAT flag so .aggregate_to_polities carries it through
+  # Rename FAOSTAT flag so .harmonize_areas carries it through
   if ("Flag" %in% names(dt)) {
     data.table::setnames(dt, "Flag", "fao_flag")
   }
   dt[, item_prod_code := as.character(item_prod_code)]
-  dt <- .aggregate_to_polities(dt, item_prod_code, item_prod)
+  dt <- .harmonize_areas(dt, item_prod_code, item_prod)
   data.table::setorderv(
     dt,
     c(
@@ -407,7 +408,7 @@ build_primary_production <- function(
   cli::cli_progress_step("Reading land areas")
   area_bridge <- .current_area_lookup(include_unmapped = FALSE)[
     !is.na(area_iso3c),
-    .(iso3c = area_iso3c, area = area_name, area_code = polity_area_code)
+    .(iso3c = area_iso3c, area = area_name, area_code)
   ]
   area_bridge <- unique(area_bridge, by = "iso3c")
 
@@ -497,9 +498,12 @@ build_primary_production <- function(
 
 .read_int_yields <- function(years = NULL) {
   cli::cli_progress_step("Reading international yields")
-  regions <- data.table::as.data.table(whep::regions_full)[,
-    .(code, polity_name)
+  # Key names off the crosswalk so yields join the per-country production
+  # rows, whose `area` is the canonical crosswalk name.
+  regions <- .current_area_lookup(include_unmapped = FALSE)[,
+    .(code = area_code, area = area_name)
   ]
+  regions <- unique(regions, by = "code")
 
   dt <- .read_input("international-yields", years = years, year_col = "year")
   dt[, item_prod_code := as.character(item_code)]
@@ -510,7 +514,6 @@ build_primary_production <- function(
     year < 1962 & !is.na(yield) & yield != 0 & yield < 100
   ]
   dt <- merge(dt, regions, by = "code", all.x = TRUE, sort = FALSE)
-  data.table::setnames(dt, "polity_name", "area")
   dt <- dt[,
     .(yield = mean(yield, na.rm = TRUE)),
     by = c("year", "area", "item_prod_code")
@@ -567,7 +570,7 @@ build_primary_production <- function(
     unit = "t",
     item_prod_code = as.character(item_prod_code)
   )]
-  dt <- .aggregate_to_polities(dt, item_prod_code, item_prod)
+  dt <- .harmonize_areas(dt, item_prod_code, item_prod)
   dt <- merge(
     dt,
     items_prod[, .(item_prod_code, item_cbs)],
@@ -589,11 +592,14 @@ build_primary_production <- function(
   crops_eu <- whep::crops_eurostat
   regions <- whep::regions_full
 
+  # Per-country bridge; `area` uses the canonical crosswalk name so fodder
+  # rows group with the FAOSTAT reads in later name-keyed joins.
   area_bridge <- .current_area_lookup(include_unmapped = FALSE) |>
     tibble::as_tibble() |>
     dplyr::select(
       polity_code = area_iso3c,
-      area_code = polity_area_code
+      area = area_name,
+      area_code
     ) |>
     dplyr::filter(!is.na(.data$polity_code)) |>
     dplyr::distinct(.data$polity_code, .keep_all = TRUE)
@@ -606,7 +612,6 @@ build_primary_production <- function(
       regions |>
         dplyr::select(
           adb_region = ADB_Region,
-          area = polity_name,
           polity_code
         ),
       by = "adb_region"
@@ -926,7 +931,7 @@ build_primary_production <- function(
   if ("Source" %in% names(dt)) {
     dt <- dt[Source == "FAO TIER 1"]
   }
-  .aggregate_to_polities(dt, item_cbs_code, item_cbs)
+  .harmonize_areas(dt, item_cbs_code, item_cbs)
 }
 
 .combine_livestock <- function(
