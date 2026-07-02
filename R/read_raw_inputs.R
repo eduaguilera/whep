@@ -294,20 +294,14 @@
   dt
 }
 
-.polity_bridge <- local({
-  bridge <- NULL
-
-  function() {
-    if (is.null(bridge)) {
-      bridge <<- .current_area_lookup(include_unmapped = FALSE)[,
-        .(area_code, polity_code, polity_name, polity_area_code)
-      ]
-    }
-    bridge
-  }
-})
-
-.aggregate_to_polities <- function(df, ...) {
+# Harmonize raw FAOSTAT reporting areas at per-country grain: attach the
+# periodized polity mapping, drop redundant statistical aggregates (e.g.
+# FAOSTAT area 351 "China", whose components 41/96/128/214 are reported
+# alongside it), canonicalise the area name, and sum values over recoded
+# items. Every identifiable country keeps its own `area_code` row; the FABIO
+# Rest-of-World collapse is deferred to collapse_to_fabio_regions() at the
+# IO/matrix boundary.
+.harmonize_areas <- function(df, ...) {
   dots <- as.character(match.call(expand.dots = FALSE)$...)
 
   if (!data.table::is.data.table(df)) {
@@ -321,10 +315,11 @@
     include_unmapped = FALSE
   )
   dt <- dt[!is.na(polity_code)]
+  dt[, area := area_name]
   by_cols <- c(
     "year",
-    "polity_area_code",
-    "polity_name",
+    "area_code",
+    "area",
     "unit",
     "element",
     dots
@@ -340,11 +335,6 @@
     dt <- dt[, .(value = sum(value, na.rm = TRUE)), by = by_cols]
   }
 
-  data.table::setnames(
-    dt,
-    c("polity_area_code", "polity_name"),
-    c("area_code", "area")
-  )
   dt
 }
 
@@ -409,7 +399,7 @@
     cols <- c(cols, "fao_flag")
   }
   dt <- dt[, cols, with = FALSE]
-  .aggregate_to_polities(dt, item_cbs, item_cbs_code)
+  .harmonize_areas(dt, item_cbs, item_cbs_code)
 }
 
 .extract_cb <- function(pin_alias, years = NULL) {

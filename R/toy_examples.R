@@ -116,8 +116,7 @@
     1981, 130, 486, 2615, NA, "ha", 17600.,
     1962, 171, 122, 2533, NA, "t_ha", 5.15,
     1964, 173, 1037, 2737, 1049, "t_head", 0.0167
-  ) |>
-    .add_reporting_polity_columns()
+  )
 }
 
 .example_get_primary_residues <- function() {
@@ -133,8 +132,7 @@
     2018, 167, 2549, 2105, 13578.,
     1994, 109, 2605, 2105, 5597.,
     1982, 194, 2605, 2106, 280552.
-  ) |>
-    .add_reporting_polity_columns()
+  )
 }
 
 .example_get_processing_coefs <- function() {
@@ -296,8 +294,7 @@
     1935, 211, "270",  2558, NA_character_, "ha",     4018.,     "LUH2_cropland",
     1937,   9, "772",  772,  NA_character_, "ha",     785953.,   "LUH2_cropland",
     2000,   9, "571",  2625, NA_character_, "ha",     236.,      "FAOSTAT_prod"
-  ) |>
-    .add_reporting_polity_columns()
+  )
 }
 
 .example_build_commodity_bal <- function() {

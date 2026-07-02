@@ -78,6 +78,38 @@ test_that("China aggregate area 351 is unmapped so it cannot double-count", {
   expect_true(all(is.na(agg$reporting_polity_code)))
 })
 
+test_that("add_reporting_polity_columns re-joins derived polity metadata", {
+  out <- tibble::tibble(
+    year = c(2015L, 2015L),
+    area_code = c(212L, 203L),
+    value = c(1, 2)
+  ) |>
+    whep::add_reporting_polity_columns()
+
+  expect_true(all(
+    c(
+      "polity_area_code",
+      "reporting_polity_code",
+      "reporting_polity_name",
+      "reporting_polity_has_geometry"
+    ) %in%
+      names(out)
+  ))
+  syria <- dplyr::filter(out, area_code == 212L)
+  expect_equal(syria$polity_area_code, 999L)
+  expect_equal(syria$reporting_polity_code, "ROW-1850-2023")
+  spain <- dplyr::filter(out, area_code == 203L)
+  expect_equal(spain$polity_area_code, 203L)
+  expect_equal(spain$reporting_polity_code, "ESP-1800-2025")
+})
+
+test_that("add_reporting_polity_columns requires the code column", {
+  expect_error(
+    whep::add_reporting_polity_columns(tibble::tibble(x = 1)),
+    "area_code"
+  )
+})
+
 test_that("get_polity_geometries returns requested polygon rows", {
   geoms <- get_polity_geometries(c(
     "AFG-1919-2025",

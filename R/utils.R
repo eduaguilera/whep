@@ -244,6 +244,7 @@ utils::globalVariables(
     "i.harvest_fraction",
     "i.other_mean",
     "i.product_area_name",
+    "i.region_area_name",
     "i.scale_new_old",
     "i.source",
     ".has_np",

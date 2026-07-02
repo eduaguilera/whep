@@ -41,6 +41,9 @@
     ))
   }
   production <- .filter_years(production %||% get_primary_production(), years)
+  # Feed demand joins the FABIO-grain CBS and country grid by area, so
+  # per-country production is collapsed here (no-op if already collapsed).
+  production <- .collapse_production_to_fabio(production)
   cbs <- .filter_years(cbs %||% get_wide_cbs(), years)
   engine <- .national_redistribute(
     production,

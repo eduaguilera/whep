@@ -266,6 +266,33 @@ add_polity_code <- function(
   tibble::as_tibble(out)
 }
 
+#' Add reporting polity columns to a table
+#'
+#' @description
+#' Attach the derived reporting-polity metadata that base WHEP datasets
+#' (e.g. [build_primary_production()]) deliberately omit: the polity
+#' identity is a pure lookup on the area code (and `year`, when present), so
+#' it is joined on demand instead of being carried through every table.
+#' Adds `polity_area_code` (the numeric WHEP reporting code used in matrix
+#' workflows), `reporting_polity_code`, `reporting_polity_name`, and
+#' `reporting_polity_has_geometry` from [polity_area_crosswalk].
+#'
+#' @param table A data frame with a numeric FAOSTAT area-code column.
+#' @param code_column Name of the column containing numeric area codes.
+#'
+#' @returns A tibble with the reporting polity columns added.
+#' @export
+#'
+#' @examples
+#' tibble::tibble(year = 2015L, area_code = 212L, value = 1) |>
+#'   add_reporting_polity_columns()
+add_reporting_polity_columns <- function(table, code_column = "area_code") {
+  if (!rlang::has_name(table, code_column)) {
+    cli::cli_abort("{.arg table} must include {.field {code_column}}.")
+  }
+  .add_reporting_polity_columns(table, code_column = code_column)
+}
+
 .add_reporting_polity_columns <- function(
   table,
   code_column = "area_code"

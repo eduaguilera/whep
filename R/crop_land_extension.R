@@ -262,7 +262,9 @@ build_cropgrids_land_extension <- function(
 ) {
   source <- match.arg(source)
   if (is.null(harvested)) {
-    harvested <- .harvested_area_by_cbs(get_primary_production())
+    harvested <- get_primary_production() |>
+      .collapse_production_to_fabio() |>
+      .harvested_area_by_cbs()
   }
   if (is.null(cropgrids)) {
     cropgrids <- .read_cropgrids_land(source)
@@ -424,7 +426,9 @@ build_hayr_land_extension <- function(
 ) {
   base <- match.arg(base)
   if (is.null(harvested)) {
-    harvested <- .harvested_area_by_cbs(get_primary_production())
+    harvested <- get_primary_production() |>
+      .collapse_production_to_fabio() |>
+      .harvested_area_by_cbs()
   }
   .check_required_cols(
     harvested,

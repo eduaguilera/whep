@@ -100,6 +100,13 @@ build_io_model <- function(
     )
     primary_prod_build <- primary_prod |>
       .filter_years(build_years)
+    # Supply-use, livestock CBS and feed intake all join the FABIO-grain
+    # CBS and trade sheets by area, so the per-country production is
+    # collapsed here, at the matrix boundary. Annotation columns are
+    # dropped first so collapsed keys stay unique.
+    primary_prod_io <- primary_prod_build |>
+      dplyr::select(-dplyr::any_of(c("source", "fao_flag"))) |>
+      collapse_to_fabio_regions()
 
     cbs_built <- .cache_get(.io_cache_key("cbs_built", build_years), {
       cli::cli_h1("Building commodity balance sheets")
@@ -114,7 +121,7 @@ build_io_model <- function(
       cbs <- .cache_get(.io_cache_key("cbs_wide", build_years), {
         cli::cli_progress_step("Adding livestock CBS rows")
         wide <- .pivot_cbs_wide(cbs_built)
-        livestock_cbs <- get_livestock_cbs(primary_prod_build) |>
+        livestock_cbs <- get_livestock_cbs(primary_prod_io) |>
           .filter_years(build_years)
         dplyr::bind_rows(wide, livestock_cbs)
       })
@@ -130,13 +137,14 @@ build_io_model <- function(
         cli::cli_h1("Building supply-use tables")
         cli::cli_progress_step("Reading crop residues")
         crop_residues <- get_primary_residues() |>
-          .filter_years(build_years)
+          .filter_years(build_years) |>
+          collapse_to_fabio_regions()
         cli::cli_progress_step("Building feed intake")
         feed_intake <- .build_redistribute_intake(
           grain = "national",
           demand_tier = "ipcc",
           feed_mode = "historical",
-          production = primary_prod_build,
+          production = primary_prod_io,
           cbs = cbs,
           years = build_years
         )
@@ -148,7 +156,7 @@ build_io_model <- function(
           coeffs = coeffs,
           cbs = cbs,
           crop_residues = crop_residues,
-          primary_prod = primary_prod_build,
+          primary_prod = primary_prod_io,
           feed_intake = feed_intake
         )
       })

@@ -615,17 +615,33 @@ build_processing_coefs <- function(
     years = years
   )
 
+  # The raw extracts and primary production arrive at per-country grain.
+  # The CBS balancing machinery (source selection, trade imputation,
+  # bilateral trade sheets) needs the closed FABIO region list, so this is
+  # the boundary where the explicit collapse happens.
+  fbs_new <- .collapse_to_fabio_regions_dt(fbs_new)
+  fbs_old <- .collapse_to_fabio_regions_dt(fbs_old)
+  cbs_crops <- .collapse_to_fabio_regions_dt(cbs_crops)
+  cbs_animals <- .collapse_to_fabio_regions_dt(cbs_animals)
+  cbs_new <- .collapse_to_fabio_regions_dt(cbs_new)
+  primary_fabio <- .collapse_to_fabio_regions_dt(
+    data.table::as.data.table(primary_all)
+  )
+
   # Trade
-  fao_trade <- .read_fao_trade(years = years)
+  fao_trade <- .collapse_to_fabio_regions_dt(.read_fao_trade(years = years))
   fishstat_trade <- .read_fishstat_trade(years = years)
+  if (!is.null(fishstat_trade)) {
+    fishstat_trade <- .collapse_to_fabio_regions_dt(fishstat_trade)
+  }
   trade_hist <- .read_historical_trade(years = years)
 
   # GDP over population
   gdp_pop <- .read_gdp_pop(years = years)
 
   # Primary production as CBS
-  primary_cbs <- .primary_to_cbs(primary_all)
-  primary_cbs_area <- .primary_to_cbs_area(primary_all)
+  primary_cbs <- .primary_to_cbs(primary_fabio)
+  primary_cbs_area <- .primary_to_cbs_area(primary_fabio)
 
   # Crop residues
   crop_residues <- .read_crop_residues(years = years)
@@ -718,7 +734,7 @@ build_processing_coefs <- function(
   ]
   dt <- dt[element %in% c("import", "export")]
 
-  .aggregate_to_polities(dt, item_cbs_code)
+  .harmonize_areas(dt, item_cbs_code)
 }
 
 .read_fao_trade <- function(years = NULL) {
@@ -1178,30 +1194,8 @@ build_processing_coefs <- function(
     by = c("year", "area_code", "item_cbs", "item_cbs_code", "element")
   ]
 
-  dt <- .add_polity_columns_dt(
-    dt,
-    code_col = "area_code",
-    year_col = "year",
-    include_unmapped = FALSE
-  )
-  dt <- dt[!is.na(polity_code)]
-
-  dt <- dt[,
-    .(value = sum(value, na.rm = TRUE)),
-    by = c(
-      "year",
-      "polity_area_code",
-      "polity_name",
-      "item_cbs",
-      "item_cbs_code",
-      "element"
-    )
-  ]
-  data.table::setnames(
-    dt,
-    c("polity_area_code", "polity_name"),
-    c("area_code", "area")
-  )
+  dt[, area := NA_character_]
+  dt <- .collapse_to_fabio_regions_dt(dt)
   dt
 }
 

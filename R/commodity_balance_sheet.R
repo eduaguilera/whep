@@ -59,7 +59,9 @@ get_wide_cbs <- function(example = FALSE) {
   .cache_get("cbs_wide", {
     cli::cli_progress_step("Adding livestock CBS rows")
     cbs <- .pivot_cbs_wide(cbs_built)
-    livestock_cbs <- get_livestock_cbs(primary_prod)
+    livestock_cbs <- get_livestock_cbs(
+      .collapse_production_to_fabio(primary_prod)
+    )
     wide <- dplyr::bind_rows(cbs, livestock_cbs) |>
       .add_reporting_polity_columns()
     .qc_supply_use_balance(wide)

@@ -72,6 +72,7 @@ build_livestock_ghg_extension <- function(
   } else {
     data$primary_prod
   }
+  primary_prod <- .collapse_production_to_fabio(primary_prod)
 
   primary_prod |>
     .livestock_emissions_by_sector(tier) |>
