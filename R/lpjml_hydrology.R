@@ -80,7 +80,8 @@ read_lpjml_hydrology <- function(
   }
   var <- rlang::arg_match(var)
   agg <- if (var == "swc" && missing(agg)) "mean" else rlang::arg_match(agg)
-  long <- data %||% .read_hydro_cube(var, .resolve_run_dir(run_dir), first_year)
+  long <- data %||%
+    .read_hydro_cube(var, .resolve_run_dir(run_dir), first_year, years)
   long <- .filter_years_if_present(long, years)
   if (monthly) long else .aggregate_hydro_annual(long, var, agg)
 }
@@ -118,23 +119,35 @@ read_lpjml_hydrology <- function(
 }
 
 # Read one logical hydrology variable into a long tibble. The synthetic "aet"
-# sums its three actual-evapotranspiration components per cell-month.
-.read_hydro_cube <- function(var, run_dir, first_year) {
+# sums its three actual-evapotranspiration components per cell-month. `years`
+# (when supplied) is forwarded so only the covering NetCDF time slice is read
+# (see .read_hydro_one()).
+.read_hydro_cube <- function(var, run_dir, first_year, years = NULL) {
   rlang::check_installed("ncdf4")
   if (var == "aet") {
-    return(.read_aet_cube(run_dir, first_year))
+    return(.read_aet_cube(run_dir, first_year, years))
   }
   spec <- .hydro_var_map()[.hydro_var_map()$var == var, ]
-  .read_hydro_one(file.path(run_dir, spec$file), spec$netcdf_var, first_year)
+  .read_hydro_one(
+    file.path(run_dir, spec$file),
+    spec$netcdf_var,
+    first_year,
+    years
+  )
 }
 
 # Sum transpiration + evaporation + interception into actual evapotranspiration.
-.read_aet_cube <- function(run_dir, first_year) {
+.read_aet_cube <- function(run_dir, first_year, years = NULL) {
   components <- c("transp", "evap", "interc")
   spec <- .hydro_var_map()
   parts <- purrr::map(components, function(component) {
     row <- spec[spec$var == component, ]
-    .read_hydro_one(file.path(run_dir, row$file), row$netcdf_var, first_year)
+    .read_hydro_one(
+      file.path(run_dir, row$file),
+      row$netcdf_var,
+      first_year,
+      years
+    )
   })
   data.table::rbindlist(parts) |>
     data.table::as.data.table() |>
@@ -144,7 +157,17 @@ read_lpjml_hydrology <- function(
 
 # Read a single LPJmL monthly NetCDF (3-D, or 4-D for soil water content) into
 # a long tibble: lon, lat, year, month, value (plus layer when 4-D).
-.read_hydro_one <- function(path, netcdf_var, first_year) {
+#
+# When `years` is supplied, only the contiguous NetCDF time slice covering
+# min(years):max(years) is fetched via ncvar_get(start=, count=), instead of
+# reading the entire (multi-decade, potentially 4-D) cube into memory. This is
+# a partial optimization for the common single-year/contiguous-range case: a
+# non-contiguous `years` vector (e.g. c(1920, 1950)) still over-fetches the
+# full 1920:1950 range at the NetCDF level, and .filter_years_if_present()
+# (called by the caller after this returns) narrows it down to the exact
+# requested years as a post-hoc safety net -- a deliberate, acceptable scope
+# boundary, not a full general solution.
+.read_hydro_one <- function(path, netcdf_var, first_year, years = NULL) {
   if (!file.exists(path)) {
     cli::cli_abort("LPJmL hydrology file not found: {.file {path}}.")
   }
@@ -152,10 +175,50 @@ read_lpjml_hydrology <- function(
   on.exit(ncdf4::nc_close(nc))
   lon <- ncdf4::ncvar_get(nc, "lon")
   lat <- ncdf4::ncvar_get(nc, "lat")
-  slab <- ncdf4::ncvar_get(nc, netcdf_var)
-  n_time <- nc$dim[["time"]]$len
-  dt <- .hydro_slab_to_long(slab, lon, lat, n_time, first_year)
+  slice <- .hydro_time_slice(nc, netcdf_var, first_year, years)
+  slab <- if (is.null(slice)) {
+    ncdf4::ncvar_get(nc, netcdf_var)
+  } else {
+    ncdf4::ncvar_get(
+      nc,
+      netcdf_var,
+      start = slice$start,
+      count = slice$count
+    )
+  }
+  n_time <- if (is.null(slice)) nc$dim[["time"]]$len else slice$n_months
+  slab_first_year <- if (is.null(slice)) first_year else slice$slab_first_year
+  dt <- .hydro_slab_to_long(slab, lon, lat, n_time, slab_first_year)
   tibble::as_tibble(dt)
+}
+
+# Compute the ncvar_get() start=/count= slice covering min(years):max(years),
+# plus the adjusted "first year" of the resulting slab (needed so
+# .hydro_slab_to_long() decodes year/month correctly for a slab that no
+# longer starts at the file's own first_year). Returns NULL when years is
+# NULL (caller then falls back to the full, unsliced read).
+.hydro_time_slice <- function(nc, netcdf_var, first_year, years) {
+  if (is.null(years)) {
+    return(NULL)
+  }
+  slab_first_year <- min(years)
+  last_year <- max(years)
+  time_start <- (slab_first_year - first_year) * 12L + 1L
+  n_months <- (last_year - slab_first_year + 1L) * 12L
+  ndims <- nc$var[[netcdf_var]]$ndims
+  if (ndims == 4L) {
+    start <- c(1, 1, 1, time_start)
+    count <- c(-1, -1, -1, n_months)
+  } else {
+    start <- c(1, 1, time_start)
+    count <- c(-1, -1, n_months)
+  }
+  list(
+    start = start,
+    count = count,
+    n_months = n_months,
+    slab_first_year = slab_first_year
+  )
 }
 
 # Reshape a (lon, lat, [layer,] time) array into a long data.table with the

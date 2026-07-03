@@ -598,7 +598,7 @@ testthat::test_that("WHEP water balance matches Spain_Hist national 2005 totals"
   #       (transpiration + evaporation + interception) uniformly over every
   #       cell regardless of land use. Restricting to Spain_Hist's own
   #       cropland-only AET (325 mm) against WHEP's whole-territory 352 mm
-  #       would narrow the gap to ~7.7%, i.e. most of the 27.69% divergence
+  #       would narrow the gap to ~8.28%, i.e. most of the 27.69% divergence
   #       traces to the non-cropland two-thirds of Spain's territory, where
   #       the two models' AET methods differ most, not to a WHEP defect on
   #       the land use Spain_Hist itself models most carefully.
