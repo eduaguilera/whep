@@ -381,6 +381,28 @@ testthat::test_that("calculate_manner_nh3_default does not require technique/inc
   )
 })
 
+testthat::test_that("calculate_manner_nh3_default aborts on a synthetic fertiliser", {
+  drivers <- list(
+    soil_ph = 6.5,
+    rate_kg_ha = 100,
+    rainfall_mm = 40,
+    irrigated = FALSE,
+    windspeed_ms = 3,
+    system = "Arable",
+    temp_c = 15,
+    temp_c_annual_mean = 12,
+    species = "Cattle"
+  )
+  testthat::expect_error(
+    whep::calculate_manner_nh3_default(
+      n_applied_t = 10,
+      fertiliser = "Urea",
+      drivers = drivers
+    ),
+    regexp = "cattle_slurry"
+  )
+})
+
 testthat::test_that("calculate_manner_nh3_default example fixture is schema-complete", {
   out <- whep::calculate_manner_nh3_default(example = TRUE)
   pointblank::expect_col_exists(
