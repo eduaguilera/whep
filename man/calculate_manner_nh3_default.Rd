@@ -47,17 +47,18 @@ assumption default, not a region/era-specific survey. It fixes
 production MANNER run, which itself hardcodes Broadcast application
 nationally with no region/era variation
 (\code{factor_ap_technique <- application_technique_manure[Technique == "Broadcast", ...]} applied unconditionally to its whole national run).
-For incorporation delay, it blends three of
-\link{manner_incorporation_factor}'s \code{delay_bin} categories: 50\% of applied
-nitrogen assumed never incorporated (\code{incorporation_delay_h = NA},
-matching how \code{\link[=calculate_manner_nh3]{calculate_manner_nh3()}} treats a missing delay as
-\code{"No incorporation"}), 25\% incorporated within 12-24 hours
+For incorporation delay, it blends four of
+\link{manner_incorporation_factor}'s \code{delay_bin} categories in equal 25\%
+shares: 25\% of applied nitrogen assumed never incorporated
+(\code{incorporation_delay_h = NA}, matching how \code{\link[=calculate_manner_nh3]{calculate_manner_nh3()}}
+treats a missing delay as \code{"No incorporation"}), 25\% incorporated within
+2 hours (\code{incorporation_delay_h = 2}), 25\% within 12-24 hours
 (\code{incorporation_delay_h = 24}) and 25\% within 1-2 days
 (\code{incorporation_delay_h = 48}). Only \code{ef} and \code{nh3_n_t} are
-share-weighted across the three blend calls; \code{n_applied_t} is carried
+share-weighted across the four blend calls; \code{n_applied_t} is carried
 through as-is, not re-weighted, since the full \code{n_applied_t} is assumed
-split across the three incorporation-delay scenarios rather than
-triplicated.
+split across the four incorporation-delay scenarios rather than
+quadruplicated.
 }
 \examples{
 calculate_manner_nh3_default(example = TRUE)

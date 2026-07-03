@@ -11,13 +11,14 @@ A tibble with columns:
 \code{"Broadcast"}.}
 \item{delay_bin}{Incorporation-delay bin label, one of
 \link{manner_incorporation_factor}'s \code{delay_bin} values:
-\code{"No incorporation"}, \code{"12-24 h"} or \code{"1-2 days"}.}
+\code{"No incorporation"}, \code{"<2 h"}, \code{"12-24 h"} or
+\code{"1-2 days"}.}
 \item{incorporation_delay_h}{Hours between surface application and soil
 incorporation passed to \code{\link[=calculate_manner_nh3]{calculate_manner_nh3()}}: \code{NA} for
-\code{"No incorporation"}, \code{24} for \code{"12-24 h"} and
-\code{48} for \code{"1-2 days"}.}
+\code{"No incorporation"}, \code{2} for \code{"<2 h"}, \code{24} for
+\code{"12-24 h"} and \code{48} for \code{"1-2 days"}.}
 \item{share}{Fraction of applied nitrogen assumed to follow this
-incorporation-delay bin; the three shares sum to 1.}
+incorporation-delay bin; the four shares sum to 1 (0.25 each).}
 }
 }
 \source{
@@ -35,12 +36,12 @@ per-cell/per-era manure-application-technique survey data does not exist
 (which is everywhere right now). Every row fixes
 \code{technique = "Broadcast"}, matching Spain_Hist's own real production
 MANNER run (which itself hardcodes Broadcast application nationally with
-no region/era variation). The three rows blend
-\link{manner_incorporation_factor}'s \code{delay_bin} categories: half the
-applied nitrogen assumed never incorporated, a quarter incorporated
-within 12-24 hours, and a quarter within 1-2 days. See
-\code{\link[=calculate_manner_nh3_default]{calculate_manner_nh3_default()}}'s Details for the full reasoning; this
-is not derived from a region/era survey.
+no region/era variation). The four rows blend
+\link{manner_incorporation_factor}'s \code{delay_bin} categories in equal
+shares: a quarter of applied nitrogen assumed never incorporated, a
+quarter incorporated within 2 hours, a quarter within 12-24 hours, and a
+quarter within 1-2 days. See \code{\link[=calculate_manner_nh3_default]{calculate_manner_nh3_default()}}'s Details
+for the full reasoning; this is not derived from a region/era survey.
 }
 \examples{
 manner_default_technique_mix
