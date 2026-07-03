@@ -460,13 +460,16 @@
 #' The per-capita urban-nitrogen-to-agriculture rate,
 #' \code{urban_n_reference$urban_n_gg * 1e6 / spain_urban_population}, at
 #' each \code{urban_n_reference} benchmark year `build_urban_n()` could
-#' compute a verified rate for. See
-#' \code{data-raw/build_urban_kgn_cap.R} for the derivation and its
-#' provenance caveat: the committed rows use World Bank urban-population
-#' figures (verified back to 1990 only), not HYDE, because no local HYDE
-#' data was available when this table was built; the 1860, 1900 and 1950
-#' \code{urban_n_reference} benchmark years are deliberately absent (no
-#' verified denominator), not fabricated.
+#' compute a verified rate for. See \code{data-raw/build_urban_kgn_cap.R}
+#' for the derivation: every \code{urban_n_reference} benchmark year,
+#' including 1860, 1900 and 1950, now has its own verified denominator.
+#' Most rows use real gridded HYDE baseline-scenario urban population
+#' (summed over Spain's cell_polity footprint from
+#' \code{whep::build_cell_polity()}); the 2018, 2020 and 2022 rows keep the
+#' World Bank \code{SP.URB.TOTL} urban-population denominator instead,
+#' because the local HYDE mirror used to build this table only extends
+#' through 2017. Every row is real, verified data; not all rows share the
+#' same source.
 #'
 #' @format A tibble with columns:
 #' \describe{
@@ -475,8 +478,9 @@
 #'     (kg N per person per year).}
 #' }
 #'
-#' @source Derived from \code{urban_n_reference} and World Bank indicator
-#'   \code{SP.URB.TOTL} (Spain urban population); see
+#' @source Derived from \code{urban_n_reference} and Spain urban population:
+#'   HYDE baseline-scenario gridded population (1860-2016 rows) and World
+#'   Bank indicator \code{SP.URB.TOTL} (2018-2022 rows); see
 #'   \code{data-raw/build_urban_kgn_cap.R}.
 #'
 #' @examples
