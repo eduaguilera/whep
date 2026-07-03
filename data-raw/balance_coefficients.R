@@ -75,6 +75,16 @@ manner_incorporation_factor <- .read_balance_csv(
 )
 manure_inorganic_n <- .read_balance_csv("manure_inorganic_n.csv")
 
+# Module C (Task C4 follow-up) gross-assumption default for MANNER's
+# technique/incorporation_delay_h drivers, used where real per-cell/per-era
+# application-technique survey data does not exist (everywhere right now).
+# See calculate_manner_nh3_default()'s @details in R/manner_model.R for the
+# reasoning; this is a deliberate, permanent placeholder, not a temporary
+# stopgap pending a specific dataset.
+manner_default_technique_mix <- .read_balance_csv(
+  "manner_default_technique_mix.csv"
+)
+
 # Module C (Task C5) nitrogen-loss coefficient datasets: IPCC 2006 Tier 1
 # direct soil N2O emission factors (complementing n2o_efs_disaggregated's
 # Cayuela/IPCC-2019 factors) and the soil organic matter content bins used
@@ -100,6 +110,7 @@ usethis::use_data(
   manner_rain_factor,
   manner_incorporation_factor,
   manure_inorganic_n,
+  manner_default_technique_mix,
   n2o_efs_ipcc2006,
   som_ranges,
   overwrite = TRUE

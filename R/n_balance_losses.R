@@ -11,13 +11,17 @@
 #' Estimate ammonia-N volatilisation from applied nitrogen.
 #'
 #' @description
-#' Two independent methods for the fraction of applied nitrogen volatilised
-#' as ammonia. `"ipcc"` (IPCC 2019 Tier 1, `n_fun.r:914-930`) needs only
-#' `fert_type` and applies a single global fraction. `"manner"` (the
-#' default) dispatches each row through the process-based
+#' Three independent methods for the fraction of applied nitrogen
+#' volatilised as ammonia. `"ipcc"` (IPCC 2019 Tier 1, `n_fun.r:914-930`)
+#' needs only `fert_type` and applies a single global fraction. `"manner"`
+#' (the default) dispatches each row through the process-based
 #' [calculate_manner_nh3()] MANNER model (Task C4), which requires far more
 #' driver detail (see Details); this asymmetry in input requirements is
-#' intentional, not an oversight.
+#' intentional, not an oversight. `"manner_default"` dispatches each row
+#' through [calculate_manner_nh3_default()] instead, the same process-based
+#' organic-manure model but with `technique`/`incorporation_delay_h` filled
+#' in from a documented gross-assumption blend rather than required as
+#' driver columns.
 #'
 #' @details
 #' `method = "manner"` requires `x` to already carry a `manner_fertiliser`
@@ -37,24 +41,39 @@
 #' inherently per-row categorical, not vectorizable across the coefficient
 #' joins); this row-iteration is isolated to a small private helper.
 #'
+#' `method = "manner_default"` requires the same `manner_fertiliser` column
+#' (restricted to the organic-manure keys, since the gross default only
+#' covers that path) plus `rainfall_mm`, `irrigated`, `windspeed_ms`,
+#' `system`, `temp_c` and `species` (unless `manner_fertiliser == "urban"`).
+#' It does NOT require `technique` or `incorporation_delay_h`: those are
+#' filled in from [manner_default_technique_mix] (see
+#' [calculate_manner_nh3_default()]'s Details for the gross-assumption
+#' reasoning), never invented per-row.
+#'
 #' @param x A tibble with `n_input_t` (numeric, tonnes N) and `fert_type`.
 #'   `method = "manner"` additionally requires `manner_fertiliser` and the
-#'   driver columns listed in Details.
-#' @param method `"manner"` (default, process-based, per-row) or `"ipcc"`
-#'   (Tier 1, global fraction).
+#'   driver columns listed in Details. `method = "manner_default"`
+#'   additionally requires `manner_fertiliser` and the driver columns listed
+#'   in Details, but NOT `technique`/`incorporation_delay_h`.
+#' @param method `"manner"` (default, process-based, per-row), `"ipcc"`
+#'   (Tier 1, global fraction) or `"manner_default"` (process-based organic
+#'   path with a gross-assumption technique/incorporation-delay blend, no
+#'   `technique`/`incorporation_delay_h` columns required).
 #' @param example If `TRUE`, return a small fixture instead of computing
 #'   from `x`. Defaults to `FALSE`.
 #' @return `x` with `nh3_n_t` and `method_nh3` appended.
 #' @export
 #' @examples
 #' calculate_nh3(example = TRUE)
-calculate_nh3 <- function(x, method = c("manner", "ipcc"), example = FALSE) {
-  method <- match.arg(method)
+calculate_nh3 <- function(x, method = "manner", example = FALSE) {
+  method <- rlang::arg_match(method, c("manner", "ipcc", "manner_default"))
   if (isTRUE(example)) {
     return(.example_nh3())
   }
   if (method == "ipcc") {
     .nh3_ipcc(x)
+  } else if (method == "manner_default") {
+    .nh3_manner_default(x)
   } else {
     .nh3_manner(x)
   }
@@ -305,6 +324,70 @@ calculate_indirect_n2o_nh3 <- function(x, example = FALSE) {
     fertiliser = row$manner_fertiliser,
     drivers = drivers
   )$ef
+}
+
+# manner_default dispatch: same organic-path driver contract as .nh3_manner
+# MINUS technique/incorporation_delay_h, which calculate_manner_nh3_default()
+# fills in from the gross-assumption blend instead. Reads nh3_n_t directly
+# off each row's calculate_manner_nh3_default() call rather than
+# re-deriving via ef * n_input_t: the blended ef already excludes the
+# inorganic_n_fraction scaling (matching calculate_manner_nh3()'s organic
+# path, where ef and nh3_n_t are not related by a plain n_input_t product).
+.nh3_manner_default <- function(x) {
+  .nh3_manner_default_require_columns(x)
+  nh3_n_t <- purrr::pmap_dbl(x, .nh3_manner_default_row_nh3)
+  x |>
+    dplyr::mutate(
+      nh3_n_t = nh3_n_t,
+      method_nh3 = "manner_default"
+    )
+}
+
+.nh3_manner_default_cols <- c(
+  "rainfall_mm",
+  "irrigated",
+  "windspeed_ms",
+  "system",
+  "temp_c"
+)
+
+.nh3_manner_default_require_columns <- function(x) {
+  if (!rlang::has_name(x, "manner_fertiliser")) {
+    cli::cli_abort(c(
+      "{.arg x} is missing required column {.field manner_fertiliser}.",
+      i = paste0(
+        "calculate_nh3(method = \"manner_default\") requires the exact ",
+        "calculate_manner_nh3_default() fertiliser key on every row."
+      )
+    ))
+  }
+  needs_species <- !all(x$manner_fertiliser == "urban")
+  required <- c(
+    .nh3_manner_default_cols,
+    if (needs_species) "species"
+  )
+  missing <- required[!purrr::map_lgl(required, \(col) rlang::has_name(x, col))]
+  if (length(missing) > 0) {
+    cli::cli_abort(c(
+      "{.arg x} is missing required MANNER driver column{?s} {.field {missing}}.",
+      i = "calculate_nh3(method = \"manner_default\") never invents driver values."
+    ))
+  }
+}
+
+# One calculate_manner_nh3_default() call per row.
+.nh3_manner_default_row_nh3 <- function(...) {
+  row <- list(...)
+  drivers <- if (row$manner_fertiliser == "urban") {
+    row[.nh3_manner_default_cols]
+  } else {
+    c(row[.nh3_manner_default_cols], list(species = row$species))
+  }
+  calculate_manner_nh3_default(
+    n_applied_t = row$n_input_t,
+    fertiliser = row$manner_fertiliser,
+    drivers = drivers
+  )$nh3_n_t
 }
 
 # ---- Private helpers: calculate_soil_n2o -------------------------------

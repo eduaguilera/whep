@@ -83,6 +83,74 @@ calculate_manner_nh3 <- function(
   }
 }
 
+#' Estimate ammonia-N volatilisation with MANNER's gross-default technique
+#' and incorporation-delay blend.
+#'
+#' @description
+#' A thin wrapper around [calculate_manner_nh3()]'s organic-manure path that
+#' fills in `technique` and `incorporation_delay_h` from
+#' [manner_default_technique_mix] instead of requiring them as caller-
+#' supplied drivers. It calls [calculate_manner_nh3()] once per row of
+#' [manner_default_technique_mix] and combines the results into a single
+#' share-weighted emission factor. Use this only where real per-cell/per-era
+#' application-technique survey data does not exist (see Details).
+#'
+#' @details
+#' [manner_default_technique_mix] is a deliberate, permanent gross-
+#' assumption default, not a region/era-specific survey. It fixes
+#' `technique = "Broadcast"` on every row, matching Spain_Hist's own real
+#' production MANNER run, which itself hardcodes Broadcast application
+#' nationally with no region/era variation
+#' (`factor_ap_technique <- application_technique_manure[Technique ==
+#' "Broadcast", ...]` applied unconditionally to its whole national run).
+#' For incorporation delay, it blends three of
+#' [manner_incorporation_factor]'s `delay_bin` categories: 50% of applied
+#' nitrogen assumed never incorporated (`incorporation_delay_h = NA`,
+#' matching how [calculate_manner_nh3()] treats a missing delay as
+#' `"No incorporation"`), 25% incorporated within 12-24 hours
+#' (`incorporation_delay_h = 24`) and 25% within 1-2 days
+#' (`incorporation_delay_h = 48`). Only `ef` and `nh3_n_t` are
+#' share-weighted across the three blend calls; `n_applied_t` is carried
+#' through as-is, not re-weighted, since the full `n_applied_t` is assumed
+#' split across the three incorporation-delay scenarios rather than
+#' triplicated.
+#'
+#' @param n_applied_t Numeric, nitrogen applied (t).
+#' @param fertiliser One of `"cattle_slurry"`, `"pig_slurry"`, `"FYM"`,
+#'   `"poultry_manure"`, `"urban"` (the [calculate_manner_nh3()]
+#'   organic-manure path; the gross default only applies there).
+#' @param drivers A named list of driver values, as in
+#'   [calculate_manner_nh3()]'s organic path, EXCEPT `technique` and
+#'   `incorporation_delay_h` are neither required nor used (they come from
+#'   [manner_default_technique_mix] instead).
+#' @param example If `TRUE`, return a small fixture instead of computing
+#'   from drivers. Defaults to `FALSE`.
+#' @return A tibble with `n_applied_t`, `ef` (share-weighted realised
+#'   emission factor), `nh3_n_t` and `method_manner`.
+#' @export
+#' @examples
+#' calculate_manner_nh3_default(example = TRUE)
+calculate_manner_nh3_default <- function(
+  n_applied_t = NULL,
+  fertiliser = NULL,
+  drivers = list(),
+  example = FALSE
+) {
+  if (isTRUE(example)) {
+    return(.example_manner_nh3_default())
+  }
+  context <- list(
+    n_applied_t = n_applied_t,
+    fertiliser = fertiliser,
+    drivers = drivers
+  )
+  blend <- purrr::pmap(
+    whep::manner_default_technique_mix,
+    \(...) .manner_default_blend(context, list(...))
+  )
+  .manner_default_combine(blend, n_applied_t, fertiliser)
+}
+
 # ---- Private helpers: synthetic-fertiliser path -----------------------
 
 # Synthetic path: ef = ph * rate * max_nh3 * land_use * rain * temp.
@@ -343,5 +411,48 @@ calculate_manner_nh3 <- function(
   tibble::tribble(
     ~n_applied_t, ~ef, ~nh3_n_t, ~method_manner,
     10, 0.033284475, 0.33284475, "manner_synthetic_Urea"
+  )
+}
+
+# ---- Private helpers: calculate_manner_nh3_default ---------------------
+
+# One calculate_manner_nh3() call for a single manner_default_technique_mix
+# row, with that row's technique/incorporation_delay_h substituted into
+# context$drivers and its share carried alongside the result.
+.manner_default_blend <- function(context, row) {
+  row_drivers <- modifyList(
+    context$drivers,
+    list(
+      technique = row$technique,
+      incorporation_delay_h = row$incorporation_delay_h
+    )
+  )
+  out <- calculate_manner_nh3(
+    context$n_applied_t,
+    context$fertiliser,
+    row_drivers
+  )
+  list(ef = out$ef, nh3_n_t = out$nh3_n_t, share = row$share)
+}
+
+# Share-weighted average of ef/nh3_n_t across the blend rows; n_applied_t is
+# kept as-is (not re-weighted), only the emission factor is blended.
+.manner_default_combine <- function(blend, n_applied_t, fertiliser) {
+  shares <- purrr::map_dbl(blend, "share")
+  ef <- sum(purrr::map_dbl(blend, "ef") * shares)
+  nh3_n_t <- sum(purrr::map_dbl(blend, "nh3_n_t") * shares)
+  tibble::tibble(
+    n_applied_t = n_applied_t,
+    ef = ef,
+    nh3_n_t = nh3_n_t,
+    method_manner = paste0("manner_default_", fertiliser)
+  )
+}
+
+# Toy fixture for a runnable example (one organic-manure default-blend call).
+.example_manner_nh3_default <- function() {
+  tibble::tribble(
+    ~n_applied_t, ~ef, ~nh3_n_t, ~method_manner,
+    10, 0.2799187, 1.679512, "manner_default_cattle_slurry"
   )
 }

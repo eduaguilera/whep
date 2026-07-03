@@ -99,10 +99,10 @@ reference:
     denitrification matrix with its drainage-class bins, the subsoil nitrate
     reduction shares, the MANNER ammonia-volatilisation factor tables (plus
     the synthetic-fertiliser rate/rainfall factors, the organic-manure
-    incorporation-delay factor and the inorganic nitrogen fraction by
-    species), the IPCC 2006 Tier 1 direct soil N2O factors, the soil
-    organic matter content bins, and the C:N leaching-attenuation and
-    indirect-N2O constants.
+    incorporation-delay factor, the inorganic nitrogen fraction by species
+    and the gross-default technique/incorporation-delay blend), the IPCC
+    2006 Tier 1 direct soil N2O factors, the soil organic matter content
+    bins, and the C:N leaching-attenuation and indirect-N2O constants.
   contents:
   - n2o_efs_disaggregated
   - fertiliser_n2o_modifiers
@@ -114,6 +114,7 @@ reference:
   - manner_rain_factor
   - manner_incorporation_factor
   - manure_inorganic_n
+  - manner_default_technique_mix
   - n2o_efs_ipcc2006
   - som_ranges
   - n_attenuation_constants
@@ -178,7 +179,10 @@ reference:
     area. Urban/human-excreta nitrogen from gridded HYDE population and a
     per-capita rate, with neighbour-cell transport buffering for cells with
     no local cropland room. Ammonia-N volatilisation from the MANNER
-    process-based model, for synthetic fertiliser and organic manure. Gridded
+    process-based model, for synthetic fertiliser and organic manure, plus a
+    gross-default organic-manure variant that fills in the application
+    technique and incorporation delay from a documented placeholder blend
+    instead of requiring per-cell/per-era survey data. Gridded
     windspeed and soil pH drivers, the cell-polity assembly, and the
     polity-to-crop-to-grid spatialization of a country-level nitrogen total
     (Task C6 infrastructure). The gridded nitrogen INPUT assembly combines
@@ -191,6 +195,7 @@ reference:
   - read_hyde_population
   - build_urban_n
   - calculate_manner_nh3
+  - calculate_manner_nh3_default
   - calculate_nh3
   - calculate_soil_n2o
   - calculate_n_leaching
