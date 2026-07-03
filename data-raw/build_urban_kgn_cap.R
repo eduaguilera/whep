@@ -20,8 +20,12 @@
 # area code; whep::build_cell_polity() returns area_code as the integer
 # FAOSTAT code, not an ISO3 string), inner-joined to
 # whep::read_hyde_population() (real HYDE baseline-scenario urban population,
-# WHEP_HYDE_DIR) and summed to a national total. Because build_cell_polity()
-# covers Spain's whole grid footprint (unlike the earlier World Bank series,
+# WHEP_HYDE_DIR), weighted by polity_frac per cell (matching every other
+# build_cell_polity() consumer in this package, e.g. R/feed_lpjml.R,
+# R/n_deposition.R) to avoid overcounting population in cells that straddle
+# Spain's border with Portugal, France or Morocco, and summed to a national
+# total. Because build_cell_polity() covers Spain's whole grid footprint
+# (unlike the earlier World Bank series,
 # which only started at 1960), the 1860, 1900 and 1950 benchmark years now
 # get their own genuine HYDE-derived ratio for the first time.
 #
@@ -57,7 +61,10 @@ spain_urban_pop <- whep::read_hyde_population(
 ) |>
   dplyr::inner_join(spain_cell_polity, by = c("lon", "lat")) |>
   dplyr::filter(area_code == 203L) |>
-  dplyr::summarise(urban_pop = sum(urban_pop), .by = "year")
+  dplyr::summarise(
+    urban_pop = sum(urban_pop * polity_frac),
+    .by = "year"
+  )
 
 hyde_rows <- whep::urban_n_reference |>
   dplyr::inner_join(spain_urban_pop, by = "year") |>
