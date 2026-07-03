@@ -122,13 +122,61 @@ testthat::test_that("read_soil_ph aggregates HWSD raster + attributes", {
   testthat::expect_true(all(result$soil_ph == 6.5))
 })
 
+testthat::test_that(".crop_to_target crops the raster to the target extent", {
+  testthat::skip_if_not_installed("terra")
+  rast <- terra::rast(
+    nrows = 12,
+    ncols = 12,
+    xmin = -3,
+    xmax = 3,
+    ymin = -3,
+    ymax = 3,
+    resolution = 0.5
+  )
+  terra::values(rast) <- seq_len(terra::ncell(rast))
+  target <- tibble::tibble(lon = c(-0.25, 0.25), lat = c(-0.25, 0.25))
+
+  cropped <- whep:::.crop_to_target(rast, target, target_res = 0.5)
+  ext <- terra::ext(cropped)
+
+  testthat::expect_lt(terra::ncell(cropped), terra::ncell(rast))
+  testthat::expect_gte(ext$xmin, -1)
+  testthat::expect_lte(ext$xmax, 1)
+  testthat::expect_gte(ext$ymin, -1)
+  testthat::expect_lte(ext$ymax, 1)
+})
+
+testthat::test_that(".crop_to_target is a no-op without a target grid", {
+  testthat::skip_if_not_installed("terra")
+  rast <- terra::rast(
+    nrows = 4,
+    ncols = 4,
+    xmin = -1,
+    xmax = 1,
+    ymin = -1,
+    ymax = 1
+  )
+  terra::values(rast) <- seq_len(terra::ncell(rast))
+
+  unchanged <- whep:::.crop_to_target(rast, NULL, target_res = 0.5)
+
+  testthat::expect_equal(terra::ncell(unchanged), terra::ncell(rast))
+})
+
 testthat::test_that("read_soil_ph reads real local HWSD data (smoke)", {
   testthat::skip_if(
     Sys.getenv("WHEP_HWSD_DIR") == "",
     "WHEP_HWSD_DIR not set; skipping real-data smoke test."
   )
 
-  result <- whep::read_soil_ph()
+  # Crop to a small Iberian target grid: classifying the full-resolution
+  # global HWSD raster whole exhausts memory and crashes the R session.
+  target <- tidyr::expand_grid(
+    lon = seq(-9.75, 3.75, by = 0.5),
+    lat = seq(36.25, 43.75, by = 0.5)
+  )
+
+  result <- whep::read_soil_ph(data = list(cell_polity = target))
 
   pointblank::expect_col_exists(result, c("lon", "lat", "soil_ph"))
   testthat::expect_gt(nrow(result), 0L)

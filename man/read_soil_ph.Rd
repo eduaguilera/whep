@@ -11,8 +11,10 @@ read_soil_ph(hwsd_dir = NULL, data = list(), example = FALSE)
 \code{hwsd.bil}. Defaults to \code{Sys.getenv("WHEP_HWSD_DIR")}.}
 
 \item{data}{Optional named list of pre-loaded inputs: \code{cell_polity}
-(\code{lon}, \code{lat}, at minimum), used as the target grid for gap-filling.
-When absent, gap-filling is skipped (documented fallback above).}
+(\code{lon}, \code{lat}, at minimum), used both to crop the HWSD raster to the
+region of interest before reclassification and as the target grid for
+gap-filling. When absent, cropping and gap-filling are both skipped
+(documented fallback above).}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading data.
 Defaults to \code{FALSE}.}
@@ -26,10 +28,13 @@ table and raster, derives each map unit's pH from its dominant USDA
 texture class, and aggregates the result to WHEP's 0.5-degree grid by
 averaging the native HWSD cells inside each 0.5-degree block. Soil pH is
 a static HWSD property: the result has no \code{year} column. When
-\code{data$cell_polity} is supplied, cells present in that target grid but
-missing from the aggregated HWSD grid are gap-filled from the nearest
-available neighbour; otherwise gap-filling is skipped and the returned
-grid only covers cells where HWSD itself has data.
+\code{data$cell_polity} is supplied, the native HWSD raster is first cropped to
+that grid's extent before reclassification (so a regional caller never
+materialises or reclassifies the full-resolution global raster), and cells
+present in that target grid but missing from the aggregated HWSD grid are
+gap-filled from the nearest available neighbour; otherwise cropping and
+gap-filling are both skipped and the returned grid covers every cell where
+HWSD itself has data.
 }
 \examples{
 read_soil_ph(example = TRUE)

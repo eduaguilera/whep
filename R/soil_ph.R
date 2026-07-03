@@ -31,16 +31,21 @@
 #' texture class, and aggregates the result to WHEP's 0.5-degree grid by
 #' averaging the native HWSD cells inside each 0.5-degree block. Soil pH is
 #' a static HWSD property: the result has no `year` column. When
-#' `data$cell_polity` is supplied, cells present in that target grid but
-#' missing from the aggregated HWSD grid are gap-filled from the nearest
-#' available neighbour; otherwise gap-filling is skipped and the returned
-#' grid only covers cells where HWSD itself has data.
+#' `data$cell_polity` is supplied, the native HWSD raster is first cropped to
+#' that grid's extent before reclassification (so a regional caller never
+#' materialises or reclassifies the full-resolution global raster), and cells
+#' present in that target grid but missing from the aggregated HWSD grid are
+#' gap-filled from the nearest available neighbour; otherwise cropping and
+#' gap-filling are both skipped and the returned grid covers every cell where
+#' HWSD itself has data.
 #'
 #' @param hwsd_dir Path to the directory holding `hwsd_data.csv` and
 #'   `hwsd.bil`. Defaults to `Sys.getenv("WHEP_HWSD_DIR")`.
 #' @param data Optional named list of pre-loaded inputs: `cell_polity`
-#'   (`lon`, `lat`, at minimum), used as the target grid for gap-filling.
-#'   When absent, gap-filling is skipped (documented fallback above).
+#'   (`lon`, `lat`, at minimum), used both to crop the HWSD raster to the
+#'   region of interest before reclassification and as the target grid for
+#'   gap-filling. When absent, cropping and gap-filling are both skipped
+#'   (documented fallback above).
 #' @param example If `TRUE`, return a small fixture instead of reading data.
 #'   Defaults to `FALSE`.
 #' @return A tibble with `lon`, `lat`, `soil_ph`.
@@ -54,7 +59,12 @@ read_soil_ph <- function(hwsd_dir = NULL, data = list(), example = FALSE) {
   rlang::check_installed("terra")
   dir <- .resolve_hwsd_dir(hwsd_dir)
   mu_soils <- .read_hwsd_attributes_local(dir) |> .derive_dominant_soil()
-  soil_grid <- .aggregate_hwsd(dir, mu_soils, target_res = 0.5)
+  soil_grid <- .aggregate_hwsd(
+    dir,
+    mu_soils,
+    target_res = 0.5,
+    target_grid = data$cell_polity
+  )
   if (is.null(data$cell_polity)) {
     return(soil_grid)
   }
@@ -119,12 +129,22 @@ read_soil_ph <- function(hwsd_dir = NULL, data = list(), example = FALSE) {
 
 # Reclassify the HWSD map-unit raster to per-cell pH and spatially
 # aggregate to WHEP's 0.5-degree grid (mean of native cells per block).
-.aggregate_hwsd <- function(hwsd_dir, mu_soils, target_res) {
+# When `target_grid` (a `lon`/`lat` tibble) is supplied, the raster is first
+# cropped to that grid's bounding box (padded half a target cell on each
+# side) BEFORE the expensive terra::classify(), so a regional caller never
+# materialises or reclassifies the full-resolution global HWSD raster (which
+# otherwise exhausts memory and crashes the R session).
+.aggregate_hwsd <- function(
+  hwsd_dir,
+  mu_soils,
+  target_res,
+  target_grid = NULL
+) {
   hwsd_path <- file.path(hwsd_dir, "hwsd.bil")
   if (!file.exists(hwsd_path)) {
     cli::cli_abort("HWSD raster not found at {.file {hwsd_path}}.")
   }
-  hwsd_rast <- terra::rast(hwsd_path)
+  hwsd_rast <- .crop_to_target(terra::rast(hwsd_path), target_grid, target_res)
   agg_factor <- as.integer(target_res / terra::res(hwsd_rast)[1])
 
   rcl_ph <- as.matrix(mu_soils[, c("mu_global", "t_ph_h2o")])
@@ -144,6 +164,23 @@ read_soil_ph <- function(hwsd_dir = NULL, data = list(), example = FALSE) {
       lat = round(.data$lat, 2),
       soil_ph = round(.data$soil_ph, 2)
     )
+}
+
+# Crop the native HWSD raster to a target grid's bounding box, padded half a
+# target cell on each side. Returns the raster unchanged when no target grid
+# is supplied (the documented global path).
+.crop_to_target <- function(rast, target_grid, target_res) {
+  if (is.null(target_grid)) {
+    return(rast)
+  }
+  pad <- target_res / 2
+  extent <- terra::ext(
+    min(target_grid$lon) - pad,
+    max(target_grid$lon) + pad,
+    min(target_grid$lat) - pad,
+    max(target_grid$lat) + pad
+  )
+  terra::crop(rast, extent)
 }
 
 # Gap-fill cells present in the target grid but missing from the aggregated
