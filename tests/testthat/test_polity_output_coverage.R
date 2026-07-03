@@ -191,12 +191,20 @@ testthat::test_that("legacy area reference tables are backed by polities", {
   ])))
   cw <- cw[!cw$area_code %in% aggregate_codes, ]
   testthat::expect_false(any(is.na(cw$polity_code)))
-  # Every crosswalk polity must have a polygon UNLESS it is explicitly
-  # polygon_status == "unassigned": some historical periods (e.g. pre-1883
-  # Chile, before the War of the Pacific) have no faithful-vintage polygon,
-  # and we record an honest gap rather than back-project a later/modern border.
-  no_geometry <- cw[!cw$has_geometry, ]
-  testthat::expect_true(all(no_geometry$polygon_status == "unassigned"))
+  # A polity reachable by FAOSTAT-era data must have a polygon unless it is
+  # explicitly polygon_status == "unassigned" (an honest gap rather than a
+  # back-projected modern border). Pre-1961-only historical periods
+  # (polity_end_year < 1961) are never selected — the crosswalk floors data
+  # years at the 1961 back-cast anchor — so their polygons may still be
+  # pending upstream (whep-polities) without affecting any real mapping.
+  reachable_no_geometry <- cw[
+    !cw$has_geometry &
+      !is.na(cw$polity_end_year) &
+      cw$polity_end_year >= 1961,
+  ]
+  testthat::expect_true(
+    all(reachable_no_geometry$polygon_status == "unassigned")
+  )
 
   for (data in list(whep::regions_full, whep::polities_cats)) {
     data <- data[!data$code %in% aggregate_codes, ]

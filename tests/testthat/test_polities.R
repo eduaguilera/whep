@@ -11,8 +11,11 @@ test_that("add_polity_code maps area codes by year", {
   expect_equal(mapped$polity_code[2], "DZA-1919-1962")
   expect_equal(mapped$polity_code[3], "F51-1947-1993")
   expect_equal(mapped$polity_code[4], "F228-1945-1991")
-  expect_equal(mapped$polity_code[5], "F248-1920-1991")
-  expect_equal(mapped$polity_code[6], "BLX-1850-1999")
+  # F248 (Yugoslavia) and BLX (Belgium-Luxembourg) carry a finer periodisation
+  # in the polities DB (a blanket span plus period splits); the year-aware join
+  # selects the most specific covering period.
+  expect_equal(mapped$polity_code[5], "F248-1947-1991")
+  expect_equal(mapped$polity_code[6], "BLX-1921-1999")
   expect_equal(mapped$polity_code[7], "RAFR-1850-2021")
   expect_equal(mapped$polity_code[8], "ROW-1850-2023")
 })
@@ -23,13 +26,19 @@ test_that("add_polity_code does not extend aggregate rows outside their range", 
     year = c(1790L, 2000L, 2023L, 2021L)
   ) |>
     # disable the back-cast anchor floor here to exercise the raw out-of-range
-    # behaviour: a non-aggregate area falls back to its nearest period, while
-    # aggregate reporting areas are NOT extended beyond their range.
+    # behaviour: an area falls back to its nearest NON-aggregate period, while
+    # an area whose only periods are aggregates is NOT extended (stays NA).
     add_polity_code(backcast_anchor = -Inf)
 
+  # area 2 (Afghanistan) 1790: extends to the nearest AFG period.
   expect_equal(mapped$polity_code[1], "AFG-1800-1893")
-  expect_true(is.na(mapped$polity_code[2]))
-  expect_true(is.na(mapped$polity_code[3]))
+  # area 15 (Belgium-Luxembourg) 2000: BLX is national, extends past its 1999 end.
+  expect_equal(mapped$polity_code[2], "BLX-1921-1999")
+  # area 151 (Netherlands Antilles) 2023: skips the NEARER aggregate period
+  # ANT-1961-2010 and extends to the farther non-aggregate colonial period
+  # ANT-1816-1960 — i.e. aggregates are never used to extend.
+  expect_equal(mapped$polity_code[3], "ANT-1816-1960")
+  # area 904 (Latin America Other) 2021: aggregate-only, so it stays NA.
   expect_true(is.na(mapped$polity_code[4]))
 })
 
