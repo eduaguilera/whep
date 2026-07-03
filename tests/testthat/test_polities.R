@@ -104,9 +104,11 @@ test_that("add_reporting_polity_columns re-joins derived polity metadata", {
     ) %in%
       names(out)
   ))
+  # Syria keeps its own polity via the curated alias crosswalk (the FABIO
+  # RoW membership survives only in polity_area_code, the matrix code).
   syria <- dplyr::filter(out, area_code == 212L)
   expect_equal(syria$polity_area_code, 999L)
-  expect_equal(syria$reporting_polity_code, "ROW-1850-2023")
+  expect_equal(syria$reporting_polity_code, "SYR-1967-2025")
   spain <- dplyr::filter(out, area_code == 203L)
   expect_equal(spain$polity_area_code, 203L)
   expect_equal(spain$reporting_polity_code, "ESP-1800-2025")

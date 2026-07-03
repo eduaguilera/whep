@@ -105,17 +105,17 @@
 
 .ex_get_primary_prod <- function() {
   tibble::tribble(
-    ~year, ~area_code, ~item_prod_code, ~item_cbs_code, ~live_anim_code, ~unit, ~value,
-    1969, 216, 1049, 1049, NA, "heads", 4326071.,
-    2018, 100, 265, 2570, NA, "tonnes", 1567560.,
-    1962, 16, 987, 2746, 976, "t_LU", 0.0138,
-    1974, 101, 1091, 2744, 1068, "tonnes", 37200.,
-    1990, 225, 960, 960, NA, "LU", 23894.,
-    2005, 4, 406, 2605, NA, "ha", 10848.,
-    1988, 137, 1052, 1052, NA, "heads", 460.,
-    1981, 130, 486, 2615, NA, "ha", 17600.,
-    1962, 171, 122, 2533, NA, "t_ha", 5.15,
-    1964, 173, 1037, 2737, 1049, "t_head", 0.0167
+    ~year, ~polity_code, ~item_prod_code, ~item_cbs_code, ~live_anim_code, ~unit, ~value,
+    1969, "THA-1909-2025", 1049, 1049, NA, "heads", 4326071.,
+    2018, "IND-1949-2025", 265, 2570, NA, "tonnes", 1567560.,
+    1962, "BGD-1947-1971", 987, 2746, 976, "t_LU", 0.0138,
+    1974, "IDN-1969-1976", 1091, 2744, 1068, "tonnes", 37200.,
+    1990, "ARE-1892-2025", 960, 960, NA, "LU", 23894.,
+    2005, "DZA-1962-2025", 406, 2605, NA, "ha", 10848.,
+    1988, "MUS-1800-2025", 1052, 1052, NA, "heads", 460.,
+    1981, "MWI-1964-2025", 486, 2615, NA, "ha", 17600.,
+    1962, "PHL-1800-2025", 122, 2533, NA, "t_ha", 5.15,
+    1964, "POL-1945-2025", 1037, 2737, 1049, "t_head", 0.0167
   )
 }
 
@@ -283,17 +283,17 @@
 
 .example_build_primary_prod <- function() {
   tibble::tribble(
-    ~year, ~area_code, ~item_prod_code, ~item_cbs_code, ~live_anim_code, ~unit, ~value, ~source,
-    1912, 165, "772",  772,  NA_character_, "tonnes", 325.,      "LUH2_cropland",
-    2012, 112, "982",  2848, "976",         "t_head", 0.0268,    "FAOSTAT_prod",
-    1943,  41, "515",  2617, NA_character_, "t_ha",   0.600,     "LUH2_cropland",
-    1979,  45, "977",  2732, "976",         "tonnes", 33.,       "FAOSTAT_prod",
-    1910, 141, "1098", 2736, "1096",        "t_LU",   0.00186,   "LUH2_agriland",
-    1867,  90, "976",  976,  NA_character_, "heads",  111941.,   NA_character_,
-    1939,  15, "157",  2537, NA_character_, "ha",     45921.,    "LUH2_cropland",
-    1935, 211, "270",  2558, NA_character_, "ha",     4018.,     "LUH2_cropland",
-    1937,   9, "772",  772,  NA_character_, "ha",     785953.,   "LUH2_cropland",
-    2000,   9, "571",  2625, NA_character_, "ha",     236.,      "FAOSTAT_prod"
+    ~year, ~polity_code, ~item_prod_code, ~item_cbs_code, ~live_anim_code, ~unit, ~value, ~source,
+    1912, "PAK-1949-1971", "772",  772,  NA_character_, "tonnes", 325.,      "LUH2_cropland",
+    2012, "JOR-1946-2025", "982",  2848, "976",         "t_head", 0.0268,    "FAOSTAT_prod",
+    1943, "CHN-1950-2025", "515",  2617, NA_character_, "t_ha",   0.600,     "LUH2_cropland",
+    1979, "COM-1975-2025", "977",  2732, "976",         "tonnes", 33.,       "FAOSTAT_prod",
+    1910, "MNG-1921-2025", "1098", 2736, "1096",        "t_LU",   0.00186,   "LUH2_agriland",
+    1867, "GIN-1958-2025", "976",  976,  NA_character_, "heads",  111941.,   NA_character_,
+    1939, "BLX-1921-1999", "157",  2537, NA_character_, "ha",     45921.,    "LUH2_cropland",
+    1935, "CHE-1800-2025", "270",  2558, NA_character_, "ha",     4018.,     "LUH2_cropland",
+    1937, "ARG-1902-2025", "772",  772,  NA_character_, "ha",     785953.,   "LUH2_cropland",
+    2000, "ARG-1902-2025", "571",  2625, NA_character_, "ha",     236.,      "FAOSTAT_prod"
   )
 }
 

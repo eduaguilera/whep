@@ -1,14 +1,32 @@
 # whep (development version)
 
-* Base datasets now keep per-country grain: `build_primary_production()` (and
-  the shared raw-input path) no longer bakes FABIO's Rest-of-World aggregation
-  into the atomic data. Identifiable countries that FABIO does not enumerate
-  (Syria, North Macedonia, Palestine, Eswatini, ...) and Sudan/South Sudan keep
-  their own `area_code` rows. The collapse to the closed FABIO region list
-  moved into the new exported `collapse_to_fabio_regions()`, applied
-  explicitly at the CBS/IO matrix boundary. The base production output is also
-  trimmed to identity codes only; the derived polity columns are re-joinable
-  on demand via the new exported `add_reporting_polity_columns()` (#120).
+* The base production dataset is now keyed by the period-specific WHEP
+  polity: `build_primary_production()`/`get_primary_production()` return
+  `year, polity_code, item..., unit, value, source`, with no FABIO
+  Rest-of-World aggregation baked in and no source-specific identifiers
+  (the FAOSTAT `area_code` is internal only). Each source is matched to
+  polities on its own path: FAOSTAT-era and back-cast rows via the curated
+  alias crosswalk at the 1961 anchor, genuine historical rows
+  (`historical_*` sources) to their vintage polity (a 1900 France row maps
+  to `FRA-1871-1919`, not the modern republic), and LUH2 land — present-day
+  boundaries back-cast in time — to the present-day polity (so e.g. South
+  Sudan's grassland is never attributed to a defunct predecessor). The
+  collapse to the closed FABIO region list moved into the new exported
+  `collapse_to_fabio_regions()`, applied explicitly at the CBS/IO matrix
+  boundary, and accepts both area-keyed and polity-keyed input. Derived
+  polity metadata for area-keyed tables is re-joinable on demand via the
+  new exported `add_reporting_polity_columns()` (#120).
+
+* `polity_area_crosswalk` is now built from the curated alias table
+  maintained in the whep-polities repository (see `data-raw/table_mappings.R`
+  and the `WHEP_POLITIES_ALIASES` env var) instead of a prefix-matching
+  heuristic over `regions_full`; `regions_full` is kept only for
+  `fabio_code`/`cbs`/region metadata. Identifiable territories that the old
+  crosswalk folded into the Rest-of-World polity (Syria, North Macedonia,
+  Eswatini, French Guiana, Palestine, micro-states, ...) keep their own
+  polity, and former-entity reporting areas map to their former polity
+  (Sudan (former) to the undivided-Sudan polity, never the rump
+  successor) (#120).
 
 * Fix a commodity-balance double count: CBS source selection keys on area name
   plus code, and inputs previously carried two different names for the same

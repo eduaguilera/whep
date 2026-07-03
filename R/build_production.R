@@ -34,13 +34,17 @@
 #'   Default `NULL`.
 #'
 #' @returns A tibble with the same columns as [get_primary_production()]:
-#'   `year`, numeric `area_code`, `item_prod_code`, `item_cbs_code`,
-#'   `live_anim_code`, `unit`, `value`, and `source`. Rows are at
-#'   per-country grain: every identifiable FAOSTAT reporting area keeps its
-#'   own `area_code`. Item and area names can be recovered via
-#'   [add_item_prod_name()], [add_area_name()] and related helpers; polity
-#'   metadata via [add_reporting_polity_columns()]; the FABIO region grain
-#'   needed for matrix workflows via [collapse_to_fabio_regions()].
+#'   `year`, `polity_code`, `item_prod_code`, `item_cbs_code`,
+#'   `live_anim_code`, `unit`, `value`, and `source`. Rows are keyed by the
+#'   period-specific WHEP polity (see [polity_area_crosswalk] and
+#'   [get_polity_geometries()]): every identifiable country maps to its own
+#'   polity, FAOSTAT-era and back-cast rows to the polity active at the 1961
+#'   anchor, and genuine historical rows (source `historical_*`) to their
+#'   vintage polity. Source-specific identifiers such as the FAOSTAT
+#'   `area_code` are internal and not part of the output. Item names can be
+#'   recovered via [add_item_prod_name()] and related helpers; the FABIO
+#'   region grain needed for matrix workflows via
+#'   [collapse_to_fabio_regions()].
 #'   When `show_duplicates = TRUE`, returns a wide tibble with one
 #'   column per source showing the competing values.
 #'
@@ -99,10 +103,83 @@ build_primary_production <- function(
       value,
       source,
       dplyr::any_of("fao_flag")
-    )
+    ) |>
+    .map_production_to_polities()
 
   attr(result, ".cb_extracts") <- cb_extracts
   result
+}
+
+# Convert the internal per-country table (keyed by the FAOSTAT-native
+# `area_code`, which is the series-continuity key all gap-filling operates
+# on) to the final polity-keyed dataset. Matching to polities is per source
+# class:
+# - FAOSTAT-era and back-cast rows use the anchored year-aware mapping:
+#   pre-1961 rows are back-cast onto ~1961 territory, so they belong to the
+#   polity active at the anchor (a 1900 back-cast "Austria" row is modern
+#   Austria's territory, not the Habsburg empire).
+# - Genuine historical rows (source "historical_*") are REAL reported data
+#   under real-year borders, so they use the unanchored mapping and recover
+#   their vintage polity (a 1900 France row -> FRA-1800-1919).
+# `area_code` is a FAOSTAT-specific identifier and is dropped from the final
+# output; other sources join the dataset through their own polity matching,
+# never through FAOSTAT codes.
+.map_production_to_polities <- function(df) {
+  is_historical <- !is.na(df$source) &
+    stringr::str_starts(df$source, "historical")
+  mapped <- dplyr::bind_rows(
+    add_polity_code(df[!is_historical, ]),
+    add_polity_code(df[is_historical, ], backcast_anchor = -Inf)
+  )
+
+  unmapped <- mapped |>
+    dplyr::filter(is.na(.data$polity_code)) |>
+    dplyr::distinct(.data$area_code)
+  if (nrow(unmapped) > 0L) {
+    cli::cli_warn(c(
+      "Dropping {nrow(unmapped)} area code{?s} with no polity match.",
+      "i" = "Area code{?s}: {unmapped$area_code}."
+    ))
+  }
+
+  # Distinct areas rarely merge into one polity (Rest-of-World members,
+  # shared boundary years); when they do, sum values and keep the
+  # highest-priority source label so (year, polity, item, unit) stays a
+  # strict key.
+  has_flag <- rlang::has_name(mapped, "fao_flag")
+  by_cols <- c(
+    "year",
+    "polity_code",
+    "item_prod_code",
+    "item_cbs_code",
+    "live_anim_code",
+    "unit"
+  )
+  mapped <- mapped |>
+    dplyr::filter(!is.na(.data$polity_code))
+  if (has_flag) {
+    mapped <- mapped |>
+      dplyr::summarise(
+        value = sum(.data$value, na.rm = TRUE),
+        source = .best_prod_source(.data$source),
+        fao_flag = .data$fao_flag[1L],
+        .by = dplyr::all_of(by_cols)
+      )
+  } else {
+    mapped <- mapped |>
+      dplyr::summarise(
+        value = sum(.data$value, na.rm = TRUE),
+        source = .best_prod_source(.data$source),
+        .by = dplyr::all_of(by_cols)
+      )
+  }
+  mapped |>
+    dplyr::arrange(
+      .data$year,
+      .data$polity_code,
+      .data$item_prod_code,
+      .data$unit
+    )
 }
 
 
@@ -406,11 +483,24 @@ build_primary_production <- function(
 
 .read_land_areas <- function(years = NULL) {
   cli::cli_progress_step("Reading land areas")
+  # LUH2 is keyed by MODERN ISO3 (present-day boundaries back-cast in time),
+  # so each ISO3 maps to its CURRENT reporting area — the one whose polity
+  # period is still open — never a former entity that shares the ISO3:
+  # e.g. SDN -> 276 (Sudan), not 206 "Sudan (former)"; ETH -> 238, not 62
+  # "Ethiopia PDR". Otherwise modern-territory land is mis-attributed to a
+  # defunct predecessor.
   area_bridge <- .current_area_lookup(include_unmapped = FALSE)[
     !is.na(area_iso3c),
-    .(iso3c = area_iso3c, area = area_name, area_code)
+    .(iso3c = area_iso3c, area = area_name, area_code, polity_end_year)
   ]
+  data.table::setorderv(
+    area_bridge,
+    c("iso3c", "polity_end_year"),
+    order = c(1L, -1L),
+    na.last = TRUE
+  )
   area_bridge <- unique(area_bridge, by = "iso3c")
+  area_bridge[, polity_end_year := NULL]
 
   dt <- .read_input("luh2-areas", years = years, year_col = "Year")
   data.table::setnames(dt, c("ISO3", "Year"), c("iso3c", "year"))

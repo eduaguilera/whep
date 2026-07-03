@@ -27,26 +27,37 @@ testthat::test_that("public area-code example outputs carry reporting polities",
   )
 })
 
-testthat::test_that("per-country base outputs re-join reporting polities", {
-  # Base datasets stay at per-country grain and omit the derived polity
-  # columns; the polity identity must still be attachable on demand for
-  # every area code they emit.
+testthat::test_that("polity-keyed base outputs carry period polities", {
+  # The base production dataset is keyed directly by the period-specific
+  # WHEP polity; source-specific identifiers (FAOSTAT area_code) are
+  # internal only.
   outputs <- list(
     get_primary_production = get_primary_production(example = TRUE),
-    build_primary_production = build_primary_production(example = TRUE),
-    get_primary_residues = get_primary_residues(example = TRUE)
+    build_primary_production = build_primary_production(example = TRUE)
   )
 
   purrr::walk(
     outputs,
     \(output) {
-      testthat::expect_false("reporting_polity_code" %in% names(output))
-      expect_polity_match(
-        whep::add_reporting_polity_columns(output),
-        "area_code",
-        "reporting_polity_code"
-      )
+      testthat::expect_false("area_code" %in% names(output))
+      testthat::expect_true("polity_code" %in% names(output))
+      testthat::expect_false(any(is.na(output$polity_code)))
+      testthat::expect_true(all(
+        output$polity_code %in% whep::polity_area_crosswalk$polity_code
+      ))
     }
+  )
+})
+
+testthat::test_that("area-keyed base outputs re-join reporting polities", {
+  # Residues stay at per-country area grain for now; the polity identity
+  # must still be attachable on demand for every area code they emit.
+  output <- get_primary_residues(example = TRUE)
+  testthat::expect_false("reporting_polity_code" %in% names(output))
+  expect_polity_match(
+    whep::add_reporting_polity_columns(output),
+    "area_code",
+    "reporting_polity_code"
   )
 })
 

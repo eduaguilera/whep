@@ -67,7 +67,7 @@ testthat::test_that("get_primary_production example returns valid tibble", {
     result,
     columns = c(
       "year",
-      "area_code",
+      "polity_code",
       "item_prod_code",
       "item_cbs_code",
       "live_anim_code",

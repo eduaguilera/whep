@@ -243,6 +243,8 @@ utils::globalVariables(
     "i.domestic_supply",
     "i.harvest_fraction",
     "i.other_mean",
+    "fabio_code",
+    "N",
     "i.product_area_name",
     "i.region_area_name",
     "i.scale_new_old",

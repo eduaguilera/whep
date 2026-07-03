@@ -6,31 +6,34 @@
 # FABIO regions is one-way, so it is applied here, explicitly, at the
 # IO/matrix boundary — never inside the base data builders.
 
-#' Collapse per-country areas to FABIO regions
+#' Collapse per-country tables to FABIO regions
 #'
 #' @description
 #' Aggregate a per-country table to the closed FABIO region list required at
-#' the IO/matrix boundary. Each `area_code` is mapped to its FABIO reporting
-#' region (the `polity_area_code` column of [polity_area_crosswalk]):
-#' countries that FABIO does not enumerate are summed into the Rest of World
-#' region (code `999`), and Sudan/South Sudan are combined into the former
-#' Sudan region (code `206`). The mapping is year-aware when a `year` column
+#' the IO/matrix boundary. Tables keyed by FAOSTAT `area_code` have each
+#' area mapped to its FABIO reporting region (the `polity_area_code` column
+#' of [polity_area_crosswalk]); tables keyed by `polity_code` (e.g. the
+#' output of [build_primary_production()]) have each polity mapped to the
+#' FABIO region its reporting areas belong to. In both cases countries that
+#' FABIO does not enumerate are summed into the Rest of World region (code
+#' `999`), and Sudan/South Sudan are combined into the former Sudan region
+#' (code `206`). The area-keyed mapping is year-aware when a `year` column
 #' is present.
 #'
 #' All columns other than the value columns (and an optional `fao_flag`
 #' column, which keeps its first value per group) are treated as grouping
 #' keys. If an `area` name column is present it is replaced by the FABIO
-#' region name. Rows whose `area_code` has no FABIO region mapping (e.g.
-#' statistical aggregates such as FAOSTAT area 351 "China") are dropped with
-#' a warning.
+#' region name. Rows with no FABIO region mapping (e.g. statistical
+#' aggregates such as FAOSTAT area 351 "China") are dropped with a warning.
 #'
 #' The collapse preserves totals: each value column sums to the same total
 #' before and after, up to the dropped unmapped rows. Applying it to an
 #' already collapsed table is a no-op, since every FABIO region code maps to
 #' itself.
 #'
-#' @param table A data frame with an `area_code` column of FAOSTAT numeric
-#'   area codes, the value columns, and any other grouping columns.
+#' @param table A data frame keyed by either a FAOSTAT numeric `area_code`
+#'   column or a WHEP `polity_code` column, with the value columns and any
+#'   other grouping columns.
 #' @param value_columns Character vector of columns to sum within each
 #'   collapsed group. Default `"value"`.
 #'
@@ -49,8 +52,13 @@
 #' ) |>
 #'   collapse_to_fabio_regions()
 collapse_to_fabio_regions <- function(table, value_columns = "value") {
-  if (!rlang::has_name(table, "area_code")) {
-    cli::cli_abort("{.arg table} must include {.field area_code}.")
+  if (
+    !rlang::has_name(table, "area_code") &&
+      !rlang::has_name(table, "polity_code")
+  ) {
+    cli::cli_abort(
+      "{.arg table} must include {.field area_code} or {.field polity_code}."
+    )
   }
   missing_values <- setdiff(value_columns, names(table))
   if (length(missing_values) > 0L) {
@@ -70,6 +78,9 @@ collapse_to_fabio_regions <- function(table, value_columns = "value") {
 .collapse_to_fabio_regions_dt <- function(df, value_columns = "value") {
   if (!data.table::is.data.table(df)) {
     data.table::setDT(df)
+  }
+  if (!"area_code" %in% names(df) && "polity_code" %in% names(df)) {
+    df <- .polity_to_fabio_area(df)
   }
   year_col <- if ("year" %in% names(df)) "year" else NULL
   dt <- .add_polity_columns_dt(
@@ -119,9 +130,44 @@ collapse_to_fabio_regions <- function(table, value_columns = "value") {
   }
 }
 
-# Collapse per-country primary production to FABIO regions, dropping the
-# per-row annotation and derived polity columns first so the collapsed keys
-# stay unique. No-op on already collapsed input.
+# Convert a polity-keyed table to FABIO-area keying: each polity maps to the
+# FABIO region its reporting areas belong to (derived from the crosswalk, so
+# it needs no year: a polity is period-specific already). Polities with no
+# region mapping are dropped with a warning.
+.polity_to_fabio_area <- function(dt) {
+  lookup <- data.table::as.data.table(polity_area_crosswalk)[
+    !is.na(polity_code) & !is.na(fabio_code),
+    .(polity_code, fabio_code)
+  ]
+  lookup <- unique(lookup)
+  ambiguous <- lookup[, .N, by = polity_code][N > 1L]
+  if (nrow(ambiguous) > 0L) {
+    cli::cli_warn(c(
+      "{nrow(ambiguous)} polit{?y/ies} map to more than one FABIO region;
+       keeping the first.",
+      "i" = "Polit{?y/ies}: {ambiguous$polity_code}."
+    ))
+    lookup <- unique(lookup, by = "polity_code")
+  }
+
+  dt <- merge(dt, lookup, by = "polity_code", all.x = TRUE, sort = FALSE)
+  unmapped <- unique(dt[is.na(fabio_code), polity_code])
+  if (length(unmapped) > 0L) {
+    cli::cli_warn(c(
+      "Dropping {length(unmapped)} polit{?y/ies} without a FABIO
+       region mapping.",
+      "i" = "Unmapped polit{?y/ies}: {unmapped}."
+    ))
+    dt <- dt[!is.na(fabio_code)]
+  }
+  dt[, area_code := fabio_code]
+  dt[, c("polity_code", "fabio_code") := NULL]
+  dt
+}
+
+# Collapse primary production (polity-keyed) to FABIO regions, dropping the
+# per-row annotation columns first so the collapsed keys stay unique. No-op
+# on already collapsed (area-keyed) input.
 .collapse_production_to_fabio <- function(primary_prod) {
   primary_prod |>
     dplyr::select(

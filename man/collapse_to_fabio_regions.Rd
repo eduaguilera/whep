@@ -2,13 +2,14 @@
 % Please edit documentation in R/fabio_regions.R
 \name{collapse_to_fabio_regions}
 \alias{collapse_to_fabio_regions}
-\title{Collapse per-country areas to FABIO regions}
+\title{Collapse per-country tables to FABIO regions}
 \usage{
 collapse_to_fabio_regions(table, value_columns = "value")
 }
 \arguments{
-\item{table}{A data frame with an \code{area_code} column of FAOSTAT numeric
-area codes, the value columns, and any other grouping columns.}
+\item{table}{A data frame keyed by either a FAOSTAT numeric \code{area_code}
+column or a WHEP \code{polity_code} column, with the value columns and any
+other grouping columns.}
 
 \item{value_columns}{Character vector of columns to sum within each
 collapsed group. Default \code{"value"}.}
@@ -19,19 +20,21 @@ FABIO region code and the value columns summed per group.
 }
 \description{
 Aggregate a per-country table to the closed FABIO region list required at
-the IO/matrix boundary. Each \code{area_code} is mapped to its FABIO reporting
-region (the \code{polity_area_code} column of \link{polity_area_crosswalk}):
-countries that FABIO does not enumerate are summed into the Rest of World
-region (code \code{999}), and Sudan/South Sudan are combined into the former
-Sudan region (code \code{206}). The mapping is year-aware when a \code{year} column
+the IO/matrix boundary. Tables keyed by FAOSTAT \code{area_code} have each
+area mapped to its FABIO reporting region (the \code{polity_area_code} column
+of \link{polity_area_crosswalk}); tables keyed by \code{polity_code} (e.g. the
+output of \code{\link[=build_primary_production]{build_primary_production()}}) have each polity mapped to the
+FABIO region its reporting areas belong to. In both cases countries that
+FABIO does not enumerate are summed into the Rest of World region (code
+\code{999}), and Sudan/South Sudan are combined into the former Sudan region
+(code \code{206}). The area-keyed mapping is year-aware when a \code{year} column
 is present.
 
 All columns other than the value columns (and an optional \code{fao_flag}
 column, which keeps its first value per group) are treated as grouping
 keys. If an \code{area} name column is present it is replaced by the FABIO
-region name. Rows whose \code{area_code} has no FABIO region mapping (e.g.
-statistical aggregates such as FAOSTAT area 351 "China") are dropped with
-a warning.
+region name. Rows with no FABIO region mapping (e.g. statistical
+aggregates such as FAOSTAT area 351 "China") are dropped with a warning.
 
 The collapse preserves totals: each value column sums to the same total
 before and after, up to the dropped unmapped rows. Applying it to an

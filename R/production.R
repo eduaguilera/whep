@@ -7,16 +7,19 @@
 #'   remote data. Default is `FALSE`.
 #'
 #' @returns
-#' A tibble with the item production data at per-country grain: every
-#' identifiable FAOSTAT reporting area keeps its own row (redundant
-#' statistical aggregates such as FAOSTAT area 351 "China" are dropped).
-#' Polity metadata can be attached with [add_reporting_polity_columns()],
-#' and the FABIO region grain needed for matrix workflows obtained with
-#' [collapse_to_fabio_regions()].
+#' A tibble with the item production data keyed by the period-specific WHEP
+#' polity: every identifiable country maps to its own polity (redundant
+#' statistical aggregates such as FAOSTAT area 351 "China" are dropped, and
+#' source-specific identifiers such as the FAOSTAT area code are internal
+#' only). The FABIO region grain needed for matrix workflows is obtained
+#' with [collapse_to_fabio_regions()].
 #' It contains the following columns:
 #' - `year`: The year in which the recorded event occurred.
-#' - `area_code`: Numeric FAOSTAT reporting area code. For code details see
-#'    e.g. `add_area_name()`.
+#' - `polity_code`: Period-specific WHEP polity code (see
+#'    [polity_area_crosswalk] and [get_polity_geometries()]). FAOSTAT-era
+#'    and back-cast rows carry the polity active at the 1961 anchor;
+#'    genuine historical rows (source `historical_*`) carry their vintage
+#'    polity.
 #' - `item_prod_code`: FAOSTAT internal code for each produced item.
 #' - `item_cbs_code`: FAOSTAT internal code for each commodity balance sheet
 #'    item. The commodity balance sheet contains an aggregated version of

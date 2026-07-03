@@ -11,17 +11,20 @@ get_primary_production(example = FALSE)
 remote data. Default is \code{FALSE}.}
 }
 \value{
-A tibble with the item production data at per-country grain: every
-identifiable FAOSTAT reporting area keeps its own row (redundant
-statistical aggregates such as FAOSTAT area 351 "China" are dropped).
-Polity metadata can be attached with \code{\link[=add_reporting_polity_columns]{add_reporting_polity_columns()}},
-and the FABIO region grain needed for matrix workflows obtained with
-\code{\link[=collapse_to_fabio_regions]{collapse_to_fabio_regions()}}.
+A tibble with the item production data keyed by the period-specific WHEP
+polity: every identifiable country maps to its own polity (redundant
+statistical aggregates such as FAOSTAT area 351 "China" are dropped, and
+source-specific identifiers such as the FAOSTAT area code are internal
+only). The FABIO region grain needed for matrix workflows is obtained
+with \code{\link[=collapse_to_fabio_regions]{collapse_to_fabio_regions()}}.
 It contains the following columns:
 \itemize{
 \item \code{year}: The year in which the recorded event occurred.
-\item \code{area_code}: Numeric FAOSTAT reporting area code. For code details see
-e.g. \code{add_area_name()}.
+\item \code{polity_code}: Period-specific WHEP polity code (see
+\link{polity_area_crosswalk} and \code{\link[=get_polity_geometries]{get_polity_geometries()}}). FAOSTAT-era
+and back-cast rows carry the polity active at the 1961 anchor;
+genuine historical rows (source \verb{historical_*}) carry their vintage
+polity.
 \item \code{item_prod_code}: FAOSTAT internal code for each produced item.
 \item \code{item_cbs_code}: FAOSTAT internal code for each commodity balance sheet
 item. The commodity balance sheet contains an aggregated version of

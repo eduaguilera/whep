@@ -537,9 +537,48 @@ test_that("build_primary_production output has no duplicate keys", {
   keys <- dplyr::select(
     result,
     year,
-    area_code,
+    polity_code,
     item_prod_code,
     unit
   )
   expect_equal(nrow(keys), nrow(dplyr::distinct(keys)))
+})
+
+# -- polity mapping --------------------------------------------------------------
+
+test_that(".map_production_to_polities keys by period polity per source class", {
+  df <- tibble::tibble(
+    year = c(1900, 1900, 2015, 2015, 2015),
+    area_code = c(68, 68, 212, 61, 30),
+    item_prod_code = 15,
+    item_cbs_code = 2511,
+    live_anim_code = NA_real_,
+    unit = "tonnes",
+    value = c(10, 20, 5, 7, 1),
+    source = c(
+      # genuine historical rows recover the VINTAGE polity (unanchored) ...
+      "historical_printed",
+      # ... while back-cast rows are floored to the 1961-anchor polity.
+      "LUH2_cropland",
+      "FAOSTAT_prod",
+      "FAOSTAT_prod",
+      "FAOSTAT_prod"
+    )
+  )
+
+  out <- whep:::.map_production_to_polities(df)
+
+  expect_false("area_code" %in% names(out))
+  france <- dplyr::filter(out, grepl("^FRA-", polity_code))
+  expect_setequal(france$polity_code, c("FRA-1871-1919", "FRA-1919-2025"))
+  expect_equal(
+    dplyr::pull(dplyr::filter(france, polity_code == "FRA-1871-1919"), value),
+    10
+  )
+  # Syria (212) keeps its own polity; Equatorial Guinea (61) likewise —
+  # neither folds into RoW in the polity-keyed base.
+  expect_true(any(grepl("^SYR-", out$polity_code)))
+  expect_true(any(grepl("^GNQ-", out$polity_code)))
+  # Antarctica (30) is a genuine non-country and lands on the RoW polity.
+  expect_true("ROW-1850-2023" %in% out$polity_code)
 })

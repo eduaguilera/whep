@@ -36,6 +36,14 @@
 .normalise_feed_primary <- function(primary_prod) {
   primary_prod <- tibble::as_tibble(primary_prod) |>
     dplyr::rename_with(tolower)
+  # Feed demand joins the FABIO-grain CBS and country grid by area, so
+  # polity-keyed production (the base output) is collapsed here.
+  if (
+    rlang::has_name(primary_prod, "polity_code") &&
+      !rlang::has_name(primary_prod, "area_code")
+  ) {
+    primary_prod <- .collapse_production_to_fabio(primary_prod)
+  }
   if (
     !rlang::has_name(primary_prod, "item_prod_code") &&
       rlang::has_name(primary_prod, "item_code")

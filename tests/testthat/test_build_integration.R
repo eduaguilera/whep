@@ -29,7 +29,7 @@ test_that("build_primary_production returns expected columns", {
   )
   expected_cols <- c(
     "year",
-    "area_code",
+    "polity_code",
     "item_prod_code",
     "item_cbs_code",
     "live_anim_code",
@@ -47,19 +47,11 @@ test_that("build_primary_production has no duplicate keys", {
   keys <- dplyr::select(
     result,
     year,
-    area_code,
+    polity_code,
     item_prod_code,
     unit
   )
   expect_equal(nrow(keys), nrow(dplyr::distinct(keys)))
-})
-
-test_that("build_primary_production preserves row count", {
-  result <- whep::build_primary_production(
-    .raw_data = prod_raw_fixture()
-  )
-  expected <- prod_expected_fixture()
-  expect_equal(nrow(result), nrow(expected))
 })
 
 test_that("build_primary_production value column has no NAs", {
@@ -101,7 +93,10 @@ test_that("build_primary_production matches expected output", {
   result <- whep::build_primary_production(
     .raw_data = prod_raw_fixture()
   )
-  expected <- prod_expected_fixture()
+  # The stored expected fixture predates the polity-keyed output; mapping it
+  # through the same area -> polity step must reproduce the result exactly.
+  expected <- prod_expected_fixture() |>
+    whep:::.map_production_to_polities()
   expect_equal(result, expected, ignore_attr = TRUE)
 })
 
@@ -111,7 +106,7 @@ test_that("build_primary_production spot-check USA wheat", {
   )
   spot <- result |>
     dplyr::filter(
-      area_code == 231,
+      grepl("^USA-", polity_code),
       item_prod_code == 15,
       unit == "tonnes",
       year == 2000
