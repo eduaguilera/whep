@@ -73,3 +73,22 @@
 #' - `mapping_note`: Explanation for manual or unmapped rows.
 #' @source Derived from [polities] and `inst/extdata/harmonization/regions_full.csv`.
 "polity_area_crosswalk"
+
+#' Periodized grid-cell to polity membership
+#'
+#' Assigns each half-degree land-use grid cell to every polity whose vintage
+#' polygon contains it, tagged with the polity's active period. Used to
+#' aggregate the gridded pasture series into grassland area per polity within
+#' each polity's own historical borders. Membership is non-exclusive: a cell
+#' inside both a federation and one of its members, or inside a former entity
+#' and its successor, belongs to each of them, because grassland is summed per
+#' polity independently rather than partitioned one owner per cell.
+#'
+#' @format
+#' A tibble with one row per grid-cell/polity membership:
+#' - `lon`, `lat`: Cell-centre coordinates (degrees, 0.5-degree grid).
+#' - `polity_code`: WHEP polity whose polygon contains the cell.
+#' - `start_year`, `end_year`: Inclusive active period of the polity.
+#' @source Derived from [polities] and the `spatialize-gridded-pasture` grid
+#'   (see `data-raw/polity_grid_cells.R`).
+"polity_grid_cells"

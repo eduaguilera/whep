@@ -3,6 +3,13 @@
 
 utils::globalVariables(
   c(
+    # build_production.R periodized grassland
+    "polity_grid_cells",
+    "grass_type",
+    "pasture",
+    "range",
+    "prefix",
+    "exact_start",
     # conservation.R (footprint + supply-use invariants)
     "origin_area",
     "origin_item",

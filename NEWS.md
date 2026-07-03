@@ -17,6 +17,19 @@
   polity metadata for area-keyed tables is re-joinable on demand via the
   new exported `add_reporting_polity_columns()` (#120).
 
+* Grassland is now built by periodized cell-to-polity zonal aggregation
+  instead of the present-day `luh2-areas` country totals. Each polity's
+  pasture and rangeland is summed from the half-degree gridded pasture series
+  over the cells inside that polity's own vintage polygon, for the years it
+  was active -- so a historical polity gets the grassland within its
+  historical borders (a 1900 France row on `FRA-1871-1919` carries the
+  grassland inside 1900 France, not present-day France). The new
+  `polity_grid_cells` package dataset carries the cell-to-polity membership
+  (regenerate with `data-raw/polity_grid_cells.R`). Overlapping periods of the
+  same entity are collapsed to the single period the area-to-polity mapping
+  picks; genuinely distinct overlapping entities (a federation and its
+  members) each keep the land inside their own borders (#120).
+
 * `polity_area_crosswalk` is now built from the curated alias table
   maintained in the whep-polities repository (see `data-raw/table_mappings.R`
   and the `WHEP_POLITIES_ALIASES` env var) instead of a prefix-matching

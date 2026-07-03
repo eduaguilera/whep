@@ -106,6 +106,23 @@ build_primary_production <- function(
     ) |>
     .map_production_to_polities()
 
+  # Grassland is polity-keyed from the periodized aggregation (each polity's
+  # own borders), so it is appended here rather than mapped from area codes.
+  # Skipped under the `.raw_data` test hook, which supplies its own synthetic
+  # production and must not pull the real gridded pasture series.
+  if (is.null(.raw_data)) {
+    grassland <- .build_grassland(years = start_year:end_year) |>
+      dplyr::mutate(value = .round_reproducible(.data$value))
+    result <- result |>
+      dplyr::bind_rows(grassland) |>
+      dplyr::arrange(
+        .data$year,
+        .data$polity_code,
+        .data$item_prod_code,
+        .data$unit
+      )
+  }
+
   attr(result, ".cb_extracts") <- cb_extracts
   result
 }
@@ -290,13 +307,12 @@ build_primary_production <- function(
     land_areas
   )
 
-  # 10. Add grassland + historical yields
-  grassland <- .build_grassland(land_areas)
-
+  # 10. Add historical yields. Grassland is built separately by periodized
+  # cell -> polity aggregation and injected after the area -> polity mapping,
+  # so it does not flow through this area-code assembly.
   cb_extracts <- attr(cbs_prod_raw, ".cb_extracts")
 
   result <- primary_ext |>
-    dplyr::bind_rows(grassland) |>
     .add_historical_yields(int_yields) |>
     .finalise_primary() |>
     dplyr::bind_rows(fao_slaughter) |>
@@ -2694,39 +2710,93 @@ build_primary_production <- function(
   )
 }
 
-.build_grassland <- function(land_areas) {
-  cli::cli_progress_step("Building grassland")
-  varnames_pasture <- c("pastr", "range")
+# Build grassland area per polity by periodized zonal aggregation.
+#
+# Each polity's grassland is the pasture + rangeland in the grid cells that
+# fall inside ITS OWN vintage polygon, for the years its period was active --
+# so a historical polity (e.g. FRA-1871-1919) gets the grassland within its
+# 1900 borders, computed from its 1900 cells, not present-day France's. The
+# cell -> polity membership in `polity_grid_cells` is deliberately
+# non-exclusive: overlapping polities (a federation and its members, a former
+# entity and its successor) each pick up the land inside their own borders,
+# which is correct because we sum per polity independently rather than try to
+# assign each cell to a single owner. The output is already polity-keyed, so
+# it is injected into the final dataset after the FAOSTAT area -> polity
+# mapping rather than flowing through the area-code assembly.
+.build_grassland <- function(years = NULL) {
+  cli::cli_progress_step("Building grassland (periodized cell to polity)")
+  gp <- .read_input(
+    "spatialize-gridded-pasture",
+    years = years,
+    year_col = "year"
+  )
+  .aggregate_grassland_cells(gp, polity_grid_cells)
+}
 
-  land_areas |>
-    dplyr::filter(Land_Use %in% varnames_pasture) |>
-    dplyr::mutate(
-      item_prod = dplyr::if_else(
-        Land_Use == "pastr",
-        "Pasture",
-        "range"
-      ),
-      item_prod_code = dplyr::if_else(
-        Land_Use == "pastr",
-        "3001",
-        "3002"
-      ),
-      item_cbs = "Grassland",
-      item_cbs_code = 3000L
-    ) |>
-    dplyr::summarise(
-      value = sum(Area_Mha, na.rm = TRUE) * 1e6,
-      .by = c(
-        year,
-        area,
-        area_code,
-        item_prod,
-        item_prod_code,
-        item_cbs,
-        item_cbs_code
-      )
-    ) |>
-    dplyr::mutate(unit = "ha", source = "LUH2_grassland")
+# Sum the gridded pasture/rangeland into grassland area per polity.
+#
+# `gp` is the per-cell/year gridded series (`lon`, `lat`, `year`,
+# `pasture_ha`, `rangeland_ha`); `cells` is the cell -> polity membership
+# (`polity_grid_cells`). A cell contributes to every polity whose polygon
+# contains it, so overlapping distinct entities each keep the land inside
+# their own borders; overlapping periods of the SAME entity are collapsed to
+# the single period the area -> polity mapping would pick (exact-start, else
+# latest-starting), so an entity is never double-counted across its own
+# periods. Returns one polity-keyed row per grassland item (pasture 3001,
+# rangeland 3002).
+.aggregate_grassland_cells <- function(gp, cells) {
+  gp <- data.table::as.data.table(gp)
+  cells <- data.table::as.data.table(cells)
+
+  grass <- merge(gp, cells, by = c("lon", "lat"), allow.cartesian = TRUE)
+  grass <- grass[year >= start_year & year <= end_year]
+
+  grass[, prefix := sub("-.*", "", polity_code)]
+  grass[, exact_start := as.integer(start_year == year)]
+  data.table::setorder(grass, year, lon, lat, prefix, -exact_start, -start_year)
+  grass <- unique(grass, by = c("year", "lon", "lat", "prefix"))
+
+  grass <- grass[,
+    .(
+      pasture = sum(pasture_ha, na.rm = TRUE),
+      range = sum(rangeland_ha, na.rm = TRUE)
+    ),
+    by = .(year, polity_code)
+  ]
+
+  grass <- data.table::melt(
+    grass,
+    id.vars = c("year", "polity_code"),
+    measure.vars = c("pasture", "range"),
+    variable.name = "grass_type",
+    value.name = "value"
+  )
+  grass <- grass[value > 0]
+  grass[,
+    `:=`(
+      item_prod_code = data.table::fifelse(grass_type == "pasture", 3001, 3002),
+      item_cbs_code = 3000,
+      live_anim_code = NA_real_,
+      unit = "ha",
+      source = "LUH2_grassland",
+      fao_flag = NA_character_,
+      grass_type = NULL
+    )
+  ]
+
+  grass |>
+    tibble::as_tibble() |>
+    dplyr::select(
+      year,
+      polity_code,
+      item_prod_code,
+      item_cbs_code,
+      live_anim_code,
+      unit,
+      value,
+      source,
+      fao_flag
+    )
 }
 
 .add_historical_yields <- function(df, int_yields) {

@@ -132,6 +132,7 @@ reference:
   contents:
   - polities
   - polity_area_crosswalk
+  - polity_grid_cells
   - polities_cats
   - regions_full
   - add_polity_code
