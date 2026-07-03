@@ -115,8 +115,11 @@ comm -23 \
 - **Primary production**: `build_primary_production()` — FAOSTAT + LUH2 extension (1850–2023).
 - **CBS**: `build_commodity_balances()` — long format output with `source` and `fao_flag` columns.
 - **Processing coefficients**: `build_processing_coefs()` — cascades from CBS.
+- **Soil water balance**: `build_water_balance()` — gridded (0.5° cell × polity) annual water budget from LPJmL hydrology (drainage for N leaching); `get_soc_climate_drivers()` emits the monthly SOC climate drivers.
+- **Soil carbon (SOC)**: `build_carbon_balance()` — historical gridded SOC dynamics (equilibrium init + LUH2-driven march + LUC transfer), yielding ΔSOC → ΔSON. `calculate_soc_dynamics(model = c("hsoc","rothc","icbm","amg","century"))` wraps the five SOC models (default `"hsoc"`); `build_soil_carbon_inputs()` assembles humified C inputs.
+- **Soil nitrogen balance**: `build_nitrogen_balance()` — full gridded N balance (inputs − outputs, NUE indicators, GWP/CO2e). `build_n_inputs()` assembles the input terms; `calculate_nh3()`/`calculate_soil_n2o()`/`calculate_n_leaching()` are the selectable loss methods; `build_n_deposition()`/`build_urban_n()` read gridded deposition and urban/human N.
 - **Source labels**: use dataset-specific names (`FAOSTAT_prod`, `FAOSTAT_FBS_New`, etc.).
-- **New data sources**: register via `whep_inputs.csv` + pins system; prepare with `inst/scripts/prepare_upload.R`.
+- **New data sources**: register via `whep_inputs.csv` + pins system; prepare with `inst/scripts/prepare_upload.R`. Multi-GB rasters (CRU, LPJmL, HYDE, HaNi, wind, LUH2, HWSD) stay on local disk and are read via env vars (`WHEP_CRU_DIR`, `WHEP_LPJML_RUN_DIR`, `WHEP_HYDE_DIR`, `WHEP_HANI_DIR`, `WHEP_WIND_DIR`, `WHEP_LUH2_DIR`, `WHEP_HWSD_DIR`); the readers abort with an instruction when unset (never hardcode the absolute path).
 
 ## Package data updates
 

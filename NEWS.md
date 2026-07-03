@@ -1,5 +1,22 @@
 # whep (development version)
 
+* Add gridded soil **water, carbon and nitrogen balances** (0.5° cell × polity
+  fragment). `build_water_balance()` closes the annual cell water budget from
+  LPJmL hydrology and exposes drainage (for N leaching) plus footprint terms;
+  `get_soc_climate_drivers()` emits the monthly SOC climate drivers from CRU.
+  `build_carbon_balance()` runs historical SOC dynamics (equilibrium init,
+  LUH2-driven land-use march, LUC C-transfer) and derives ΔSON via asymmetric
+  C:N; `calculate_soc_dynamics(model = c("hsoc","rothc","icbm","amg",
+  "century"))` wraps the five SOC models (default `"hsoc"`), fed by
+  `build_soil_carbon_inputs()`. `build_nitrogen_balance()` assembles inputs
+  (`build_n_inputs()`, incl. `build_n_deposition()`/`build_urban_n()`) minus the
+  selectable losses (`calculate_nh3()`/`calculate_soil_n2o()`/
+  `calculate_n_leaching()`, with the process-based MANNER NH3 model) into
+  surplus, NUE and GWP/CO2e indicators. New readers: `read_lpjml_hydrology()`,
+  `read_cru_climate()`, `read_luh2_landuse()`, `read_hyde_population()`,
+  `read_lpjml_wind()`, `read_soil_ph()`. New coefficient datasets for SOC
+  turnover, humification, C:N, N2O EFs, MANNER and denitrification.
+
 * `build_io_model()` and `build_footprint()` gain a `method = c("mass",
   "value")` argument for co-product allocation. `"value"` splits a multi-output
   process's inputs (and the pressures embodied in them) across its products by
