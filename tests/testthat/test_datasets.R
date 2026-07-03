@@ -93,29 +93,48 @@ test_that("CBS and FABIO area codes map to polity database rows", {
   expect_equal(nrow(cbs_unmapped), 0L)
   expect_equal(nrow(fabio_unmapped), 0L)
 
+  # Aggregate / composite reporting areas each map to at least one polity,
+  # and every mapped period carries geometry (some, e.g. 15 BLX and 151 ANT,
+  # carry more than one period in the polities DB).
   aggregate_codes <- crosswalk |>
-    dplyr::filter(.data$area_code %in% c(15L, 151L, 901:906, 999L)) |>
-    dplyr::distinct(.data$area_code, .data$polity_code, .data$has_geometry)
+    dplyr::filter(.data$area_code %in% c(15L, 151L, 901:906, 999L))
 
-  expect_equal(nrow(aggregate_codes), 9L)
+  expect_setequal(
+    unique(aggregate_codes$area_code),
+    c(15L, 151L, 901:906, 999L)
+  )
   expect_true(all(!is.na(aggregate_codes$polity_code)))
   expect_true(all(aggregate_codes$has_geometry))
 
-  fabio_row_sources <- crosswalk |>
-    dplyr::filter(.data$area_code %in% c(30L, 69L, 152L, 252L, 254L, 299L)) |>
+  # Genuine non-countries (no per-country home) still collapse to the RoW
+  # reporting polity via fabio_code == 999.
+  noncountry <- crosswalk |>
+    dplyr::filter(.data$area_code %in% c(30L, 152L, 252L, 254L)) |>
     dplyr::distinct(
       .data$area_code,
       .data$fabio_code,
       .data$polity_area_code,
-      .data$polity_code,
-      .data$has_geometry
+      .data$polity_code
     )
+  expect_true(all(noncountry$fabio_code == 999L))
+  expect_true(all(noncountry$polity_area_code == 999L))
+  expect_true(all(noncountry$polity_code == "ROW-1850-2023"))
 
-  expect_equal(nrow(fabio_row_sources), 6L)
-  expect_true(all(fabio_row_sources$fabio_code == 999L))
-  expect_true(all(fabio_row_sources$polity_area_code == 999L))
-  expect_true(all(fabio_row_sources$polity_code == "ROW-1850-2023"))
-  expect_true(all(fabio_row_sources$has_geometry))
+  # Identifiable territories keep their OWN polity (per-country grain) even
+  # though FABIO still collapses them to RoW downstream (fabio_code == 999).
+  identifiable <- crosswalk |>
+    dplyr::filter(.data$area_code %in% c(69L, 299L))
+  expect_true(all(identifiable$fabio_code == 999L))
+  expect_true(all(identifiable$polity_area_code == 999L))
+  expect_false(any(identifiable$polity_code == "ROW-1850-2023"))
+  expect_true(any(grepl(
+    "^GUF-",
+    identifiable$polity_code[identifiable$area_code == 69L]
+  )))
+  expect_true(any(grepl(
+    "^PSE-",
+    identifiable$polity_code[identifiable$area_code == 299L]
+  )))
 })
 
 

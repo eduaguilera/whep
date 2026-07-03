@@ -85,7 +85,43 @@ manual_area_prefixes <- tibble::tribble(
   248L, "F248", "FAOSTAT Yugoslav SFR reporting area maps to WHEP Yugoslavia polities."
 )
 
-polity_area_crosswalk <- regions_for_crosswalk |>
+# Authoritative area_code -> polity prefix(es) from the curated alias table
+# (whep-polities pipelines/faostat-era-matching). This REPLACES the historical
+# prefix GUESS (the iso3c / reporting-code coalesce) for every area the
+# reviewed table covers. An area can map to several polity chains over time
+# (e.g. 206 "Sudan (former)" -> SUD pre-2011 then SDN), so this is a long
+# area_code x prefix table, not a scalar per area. Areas the table does NOT
+# cover keep the legacy coalesce fallback below — importantly the FABIO
+# fabio_code == 999 -> Rest of World bucket, so no area that currently routes
+# somewhere silently becomes NA (which the base build would drop).
+alias_path <- Sys.getenv(
+  "WHEP_POLITIES_ALIASES",
+  unset = path.expand(
+    "~/whep-polities/pipelines/faostat-era-matching/state/faostat_aliases.csv"
+  )
+)
+alias_area_prefix <- if (file.exists(alias_path)) {
+  readr::read_csv(alias_path, show_col_types = FALSE) |>
+    dplyr::transmute(
+      area_code = as.integer(.data$area_code),
+      mapping_prefix = sub("-.*", "", .data$target_polity_code)
+    ) |>
+    dplyr::filter(!is.na(.data$area_code), !is.na(.data$mapping_prefix)) |>
+    dplyr::distinct()
+} else {
+  warning(
+    "Curated alias table not found at ",
+    alias_path,
+    "; falling back to the legacy prefix-guess crosswalk. ",
+    "Set WHEP_POLITIES_ALIASES or check out whep-polities."
+  )
+  tibble::tibble(area_code = integer(), mapping_prefix = character())
+}
+covered_areas <- unique(alias_area_prefix$area_code)
+
+# Per-area metadata + the legacy fallback prefix, used only where the alias
+# table has no entry (aggregates like 351, and areas with no polity yet).
+area_meta <- regions_for_crosswalk |>
   dplyr::transmute(
     area_code = as.integer(.data$code),
     area_name = dplyr::coalesce(
@@ -100,6 +136,7 @@ polity_area_crosswalk <- regions_for_crosswalk |>
     fabio_code = as.integer(.data$fabio_code),
     region = .data$region
   ) |>
+  dplyr::distinct(.data$area_code, .keep_all = TRUE) |>
   dplyr::left_join(manual_area_prefixes, by = "area_code") |>
   dplyr::mutate(
     area_iso3c_prefix = dplyr::if_else(
@@ -117,15 +154,41 @@ polity_area_crosswalk <- regions_for_crosswalk |>
       "ROW",
       NA_character_
     ),
-    mapping_prefix = dplyr::coalesce(
+    fallback_prefix = dplyr::coalesce(
       .data$manual_polity_prefix,
       .data$fabio_row_prefix,
       .data$area_iso3c_prefix,
       .data$reporting_prefix,
-      # Keep these last so unmatched reporting buckets remain visible.
       .data$reporting_polity_code,
       .data$area_iso3c
     )
+  )
+
+# Long area_code -> mapping_prefix: the curated alias where it exists, else
+# the legacy fallback for uncovered areas.
+area_prefix_long <- dplyr::bind_rows(
+  alias_area_prefix,
+  area_meta |>
+    dplyr::filter(!.data$area_code %in% covered_areas) |>
+    dplyr::transmute(.data$area_code, mapping_prefix = .data$fallback_prefix)
+) |>
+  dplyr::distinct()
+
+polity_area_crosswalk <- area_meta |>
+  dplyr::select(
+    area_code,
+    area_name,
+    area_iso3c,
+    reporting_polity_code,
+    reporting_polity_name,
+    cbs,
+    fabio_code,
+    region
+  ) |>
+  dplyr::left_join(
+    area_prefix_long,
+    by = "area_code",
+    relationship = "many-to-many"
   ) |>
   dplyr::left_join(
     polity_attrs,
@@ -139,13 +202,19 @@ polity_area_crosswalk <- regions_for_crosswalk |>
       .data$area_code
     ),
     mapping_status = dplyr::case_when(
-      !is.na(.data$manual_polity_prefix) & !is.na(.data$polity_code) ~ "manual",
-      !is.na(.data$polity_code) ~ "matched",
       is.na(.data$area_code) ~ "not_a_reporting_area",
+      .data$area_code %in%
+        covered_areas &
+        !is.na(.data$polity_code) ~ "matched",
+      !is.na(.data$polity_code) ~ "matched",
       TRUE ~ "unmapped"
     ),
     mapping_note = dplyr::case_when(
-      !is.na(.data$manual_note) ~ .data$manual_note,
+      .data$area_code %in%
+        covered_areas &
+        !is.na(
+          .data$polity_code
+        ) ~ "Mapped via the curated faostat-era alias table (whep-polities).",
       !is.na(.data$fabio_code) &
         .data$fabio_code == 999L &
         .data$area_code !=
