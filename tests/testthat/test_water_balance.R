@@ -388,3 +388,252 @@ testthat::test_that("polity resolution carries the new footprint columns", {
   # cft_nir_mm is all-NA in the fixture; the all-NA guard keeps it NA, not NaN.
   testthat::expect_true(all(is.na(pol$cft_nir_mm)))
 })
+
+# -- Spain_Hist port-fidelity validation (skip_on_ci, Task A4) ---------------
+#
+# Compare whep::build_water_balance() on REAL LPJmL 0.5-degree grid cells
+# covering Spain against Spain_Hist's own water balance reference,
+# Wat_ygpit.csv, at NATIONAL area-weighted-mean totals for a single reference
+# year (2005, chosen because Wat_ygpit.csv covers 1860-2023 but the local
+# LPJmL run only covers 1901-2009).
+#
+# THIS TEST IS METHODOLOGICALLY DIFFERENT from Module B/C's fidelity tests
+# (test_carbon_balance.R, test_n_balance.R): those compare "does WHEP's PORTED
+# TRANSFORM reproduce Spain_Hist given the SAME real inputs" ("province as
+# cell", Spain's own per-crop carbon inputs / N inputs injected directly into
+# WHEP's assembler). This test compares TWO INDEPENDENT HYDROLOGICAL MODELS
+# of the same physical process on Spain's real geography: WHEP's
+# build_water_balance() is driven ENTIRELY by real LPJmL grid-cell hydrology
+# output (a global process-based dynamic vegetation + hydrology model run at
+# 0.5-degree resolution), while Spain_Hist's Wat_ygpit.csv comes from an
+# independent bucket-model + crop-Kc + GlobWat water balance computed at
+# per-crop x per-province grain. No WHEP input is taken from Spain_Hist here
+# (unlike Module B/C's fidelity tests, which inject Spain's own driver
+# values); this is a genuine cross-model comparison, not a port-fidelity
+# check of a transcribed equation, so a real, non-trivial divergence is
+# expected and is NOT evidence of a bug.
+#
+# GRAIN: compared at NATIONAL level only (area-weighted mean depth, mm),
+# never per-province, because LPJmL's 0.5-degree grid cells do not align with
+# Spain's 50 province boundaries -- following Task C8's precedent in
+# test_n_balance.R for a similarly grain-mismatched comparison (there, N
+# masses are summed nationally instead of compared per-province because the
+# WHEP crop-name join is incomplete at province grain; here, mm DEPTHS are
+# area-weighted-mean nationally, mirroring test_carbon_balance.R's/
+# test_n_balance.R's own province-area-weighting pattern for turning
+# per-region values into one national figure, since summing mm depths across
+# regions of very different area would not be physically meaningful).
+#
+# Spain_Hist's own reference is itself area-weighted across ALL SIX of its
+# land-use classes (Cropland, Dehesa, Forest_high, Forest_low,
+# Pasture_Shrubland, Other), not cropland alone: WHEP's LPJmL cells are not
+# restricted to agricultural land either (LPJmL simulates the whole grid
+# cell under its natural-potential-vegetation-plus-cropland/irrigation mix),
+# so comparing both sides' whole-territory area-weighted mean is the
+# apples-to-apples national scope (a cropland-only diagnostic split is
+# reported in the comment below to help interpret the gap, but is not what
+# is asserted).
+
+# Spain_Hist's reference NATIONAL area-weighted-mean totals (2005, every
+# LandUse class) for the 3 terms this test compares. Area-weighted (not
+# summed) because WaterInput_mm/AET_mm/S_mm are per-hectare depths (mm), not
+# volumes; weighting by Area_ygpit_ha mirrors test_carbon_balance.R's /
+# test_n_balance.R's own province-area-weighting pattern for building one
+# national figure out of per-region depth/rate values. NULL when the file is
+# absent so the test skips rather than failing on a missing dependency.
+.wb_spain_reference_national <- function(ref_year = 2005L) {
+  f <- file.path(.spain_hist_l_dir(), "Wat_ygpit.csv")
+  if (!file.exists(f)) {
+    return(NULL)
+  }
+  cols <- c(
+    "YearH",
+    "Province_name",
+    "LandUse",
+    "Area_ygpit_ha",
+    "WaterInput_mm",
+    "AET_mm",
+    "S_mm"
+  )
+  ref_year_rows <- data.table::fread(f, select = cols) |>
+    tibble::as_tibble() |>
+    dplyr::filter(.data$YearH == ref_year)
+  dplyr::summarise(
+    ref_year_rows,
+    water_input_ref = stats::weighted.mean(
+      .data$WaterInput_mm,
+      .data$Area_ygpit_ha,
+      na.rm = TRUE
+    ),
+    aet_ref = stats::weighted.mean(
+      .data$AET_mm,
+      .data$Area_ygpit_ha,
+      na.rm = TRUE
+    ),
+    drainage_ref = stats::weighted.mean(
+      .data$S_mm,
+      .data$Area_ygpit_ha,
+      na.rm = TRUE
+    )
+  )
+}
+
+# Real LPJmL hydrology inputs for build_water_balance(), pre-filtered to the
+# grid cells covering Spain via the real cell-polity crosswalk
+# (whep::build_cell_polity(), area_code == 203L). Reads each annual flux
+# read_lpjml_hydrology() needs (.wb_read_inputs()'s flux_vars: transp, evap,
+# interc, prec, irrig, runoff, seepage) plus monthly swc ONCE for the single
+# reference year (years = 2005L), never the years = NULL default (which would
+# read all 109 years globally). NULL when the cell-polity parquet or the
+# LPJmL run directory are absent, so the test skips.
+.wb_spain_lpjml_inputs <- function(ref_year = 2005L) {
+  cell_polity <- tryCatch(whep::build_cell_polity(), error = function(e) NULL)
+  if (is.null(cell_polity)) {
+    return(NULL)
+  }
+  spain_cells <- dplyr::filter(cell_polity, .data$area_code == 203L)
+  if (nrow(spain_cells) == 0) {
+    return(NULL)
+  }
+  fluxes <- tryCatch(
+    .wb_spain_fluxes(spain_cells, ref_year),
+    error = function(e) NULL
+  )
+  if (is.null(fluxes)) {
+    return(NULL)
+  }
+  c(fluxes, list(cell_polity = spain_cells))
+}
+
+# Read the 7 annual hydrology fluxes plus monthly swc for ref_year, each
+# inner-joined down to the Spain cell list before returning. Errors (e.g. the
+# LPJmL run directory is absent) propagate to the caller's tryCatch.
+.wb_spain_fluxes <- function(spain_cells, ref_year) {
+  cell_key <- dplyr::select(spain_cells, "lon", "lat")
+  flux_vars <- c(
+    transp = "transp",
+    evap = "evap",
+    interc = "interc",
+    prec = "prec",
+    irrig = "irrig",
+    runoff = "runoff",
+    seepage = "drainage"
+  )
+  fluxes <- purrr::map(flux_vars, function(reader_var) {
+    raw <- whep::read_lpjml_hydrology(
+      reader_var,
+      years = ref_year,
+      monthly = FALSE
+    )
+    dplyr::inner_join(raw, cell_key, by = c("lon", "lat"))
+  })
+  swc_raw <- whep::read_lpjml_hydrology(
+    "swc",
+    years = ref_year,
+    monthly = TRUE
+  )
+  fluxes$swc <- dplyr::inner_join(swc_raw, cell_key, by = c("lon", "lat"))
+  fluxes
+}
+
+testthat::test_that("WHEP water balance matches Spain_Hist national 2005 totals", {
+  testthat::skip_on_ci()
+  ref_nat <- .wb_spain_reference_national()
+  testthat::skip_if(
+    is.null(ref_nat),
+    "Spain_Hist Wat_ygpit.csv not found."
+  )
+  spain_inputs <- .wb_spain_lpjml_inputs()
+  testthat::skip_if(
+    is.null(spain_inputs),
+    "Real LPJmL hydrology / cell-polity crosswalk not found for Spain."
+  )
+
+  whep_out <- whep::build_water_balance(
+    method = list(blue_green = "irrig_share"),
+    resolution = "polity",
+    data = spain_inputs
+  )
+
+  terms <- c("water_input", "aet", "drainage")
+  cmp <- tibble::tibble(
+    term = terms,
+    whep = c(
+      whep_out$water_input_mm,
+      whep_out$aet_mm,
+      whep_out$drainage_mm
+    ),
+    ref = c(
+      ref_nat$water_input_ref,
+      ref_nat$aet_ref,
+      ref_nat$drainage_ref
+    )
+  ) |>
+    dplyr::mutate(abs_pct_diff = 100 * abs(.data$whep - .data$ref) / .data$ref)
+
+  # Measured divergence (task A4, real 2005 run, national area-weighted-mean
+  # totals across whole-territory Spain, n = 276 LPJmL 0.5-degree cells vs 50
+  # Spain_Hist provinces x 6 land-use classes collapsed to one national
+  # area-weighted mean per term):
+  #   water_input_mm  447 mm (WHEP) vs 459 mm (Spain_Hist)  ->  2.62%
+  #   aet_mm          352 mm (WHEP) vs 276 mm (Spain_Hist)  -> 27.69%
+  #   drainage_mm      60 mm (WHEP) vs  67 mm (Spain_Hist)  -> 10.25%
+  #   (median = 10.25%, max = 27.69%)
+  # Decomposition (not tuned to force a pass, per this branch's Module B/C
+  # precedent):
+  #   (i) water_input_mm (precipitation + irrigation) is the closest term:
+  #       both sides ultimately derive precipitation from gridded climate
+  #       forcing at a similar spatial/temporal resolution, so this term
+  #       mostly validates that the two models see a similar amount of water
+  #       arriving at the land surface.
+  #   (ii) aet_mm is the largest divergence and is NOT primarily a bug: a
+  #       diagnostic split of Spain_Hist's own reference by land-use class
+  #       shows AET = 325 mm for CROPLAND alone (area 18.1M ha) vs 248 mm for
+  #       every NON-CROPLAND class combined (area 32.5M ha, i.e. forest,
+  #       dehesa, pasture/shrubland, other) -- Spain_Hist's non-cropland AET
+  #       is a coarser proxy (it is not the project's focus, unlike its
+  #       detailed per-crop Kc-based cropland AET) and is area-weighted 64%
+  #       into the whole-territory reference used here. LPJmL, by contrast,
+  #       simulates a full process-based dynamic-vegetation water balance
+  #       (transpiration + evaporation + interception) uniformly over every
+  #       cell regardless of land use. Restricting to Spain_Hist's own
+  #       cropland-only AET (325 mm) against WHEP's whole-territory 352 mm
+  #       would narrow the gap to ~7.7%, i.e. most of the 27.69% divergence
+  #       traces to the non-cropland two-thirds of Spain's territory, where
+  #       the two models' AET methods differ most, not to a WHEP defect on
+  #       the land use Spain_Hist itself models most carefully.
+  #   (iii) drainage_mm (LPJmL deep seepage vs Spain_Hist's GlobWat-corrected
+  #       bucket-model drainage, S_mm) sits just above the 10% bar. Because
+  #       drainage is the water-budget residual after AET and runoff are
+  #       removed, it inherits some of (ii)'s AET gap indirectly (WHEP's
+  #       higher AET, all else equal, would be expected to leave LESS residual
+  #       water for drainage than Spain_Hist's lower-AET reference -- yet WHEP's
+  #       drainage is ALSO lower than Spain_Hist's here, 60 vs 67 mm, so the
+  #       gap is not a simple AET-residual pass-through; LPJmL's runoff_mm,
+  #       which Spain_Hist's own water.r model does not report or partition
+  #       out the same way, is the more likely absorber of the difference).
+  # None of this is a bug in build_water_balance()'s own arithmetic (the
+  # 4-term budget-closure tests earlier in this file exercise that arithmetic
+  # directly on synthetic inputs and pass exactly); it is the documented cost
+  # of comparing two independent hydrological models -- LPJmL's process-based
+  # dynamic-vegetation water balance vs Spain_Hist's crop-Kc bucket model plus
+  # GlobWat correction -- on Spain's real geography. The 10% tolerance
+  # (test_carbon_balance.R's / test_n_balance.R's precedent for a similarly
+  # in-scope-limited fidelity comparison) is NOT loosened to force a pass:
+  # the measured divergence is reported here for diagnosis.
+  worst <- max(cmp$abs_pct_diff)
+  med <- stats::median(cmp$abs_pct_diff)
+  testthat::expect_lt(
+    worst,
+    10,
+    label = sprintf(
+      paste0(
+        "WHEP water balance vs Spain_Hist 2005 national area-weighted ",
+        "totals: median divergence = %.2f%%, max = %.2f%% (terms: %s)"
+      ),
+      med,
+      worst,
+      paste(sprintf("%s=%.1f%%", cmp$term, cmp$abs_pct_diff), collapse = ", ")
+    )
+  )
+})
