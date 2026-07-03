@@ -420,7 +420,7 @@ calculate_manner_nh3_default <- function(
 # row, with that row's technique/incorporation_delay_h substituted into
 # context$drivers and its share carried alongside the result.
 .manner_default_blend <- function(context, row) {
-  row_drivers <- modifyList(
+  row_drivers <- utils::modifyList(
     context$drivers,
     list(
       technique = row$technique,
