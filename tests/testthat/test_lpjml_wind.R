@@ -89,3 +89,22 @@ testthat::test_that("example = TRUE returns a schema-complete fixture", {
   )
   testthat::expect_gt(nrow(result), 0)
 })
+
+testthat::test_that("reads the real GSWP3-W5E5 wind forcing file", {
+  testthat::skip_if(
+    Sys.getenv("WHEP_WIND_DIR") == "",
+    "WHEP_WIND_DIR not set; skipping real-data smoke test."
+  )
+
+  result <- whep::read_lpjml_wind(years = 2005L)
+
+  pointblank::expect_col_exists(
+    result,
+    c("lon", "lat", "year", "month", "windspeed_ms")
+  )
+  testthat::expect_gt(nrow(result), 0)
+  testthat::expect_setequal(result$year, 2005L)
+  testthat::expect_false(anyNA(result$windspeed_ms))
+  testthat::expect_true(all(result$windspeed_ms >= 0))
+  testthat::expect_true(all(result$windspeed_ms <= 20))
+})
