@@ -25,7 +25,7 @@ read_cru_climate(
 keeps every year present in the file.}
 
 \item{cru_dir}{Path to the CRU TS NetCDF directory. Defaults to
-\code{Sys.getenv("WHEP_CRU_DIR", "C:/XL_files/CRU/CRU_TS_4")}.}
+\code{Sys.getenv("WHEP_CRU_DIR")}; aborts when neither is set.}
 
 \item{data}{Optional pre-read tibble (\code{lon}, \code{lat}, \code{year}, \code{month},
 \code{value}) used in place of reading NetCDF, for testing.}

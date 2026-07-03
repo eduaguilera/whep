@@ -180,7 +180,7 @@ test_that("real pin smoke test (skipped when unreadable)", {
 # ---- Real local states.nc smoke test ---------------------------------------
 .luh2_local_states_nc <- function() {
   file.path(
-    Sys.getenv("WHEP_LUH2_DIR", "C:/XL_files/LUH2/LUH2 v2h"),
+    Sys.getenv("WHEP_LUH2_DIR", ""),
     "states.nc"
   )
 }

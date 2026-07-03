@@ -19,10 +19,10 @@
 }
 
 # Spain_Hist L-files output directory (the heavy intermediate SOC/N-balance
-# inputs live off-repo). From an env var, falling back to the documented
-# local XL_files path.
+# inputs live off-repo). From an env var; empty when unset so callers skip
+# rather than read a hardcoded absolute path.
 .spain_hist_l_dir <- function() {
-  Sys.getenv("SPAIN_HIST_L_DIR", "C:/XL_files/Spain_Hist_L/output")
+  Sys.getenv("SPAIN_HIST_L_DIR", "")
 }
 
 # Province -> Climate ("ATL"/"MED") lookup, read read-only from Spain_Hist's

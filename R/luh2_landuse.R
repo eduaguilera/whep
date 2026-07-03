@@ -171,7 +171,7 @@ read_luh2_landuse <- function(
 }
 
 .luh2_states_dir <- function() {
-  Sys.getenv("WHEP_LUH2_DIR", "C:/XL_files/LUH2/LUH2 v2h")
+  Sys.getenv("WHEP_LUH2_DIR", "")
 }
 
 # -- Local states.nc reader ---------------------------------------------------

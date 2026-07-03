@@ -152,7 +152,7 @@ testthat::test_that("SOC drivers feed a plausible HSOC modifier", {
 
 # ---- Real-data smoke test (skip if CRU dir absent): read a few 2000 cells.
 testthat::test_that("get_soc_climate_drivers reads real CRU for a few cells", {
-  cru_dir <- Sys.getenv("WHEP_CRU_DIR", "C:/XL_files/CRU/CRU_TS_4")
+  cru_dir <- Sys.getenv("WHEP_CRU_DIR", "")
   testthat::skip_if_not(
     file.exists(file.path(cru_dir, "cru_ts4.09.1901.2024.tmp.dat.nc")),
     "CRU TS 4.09 tmp file not found."

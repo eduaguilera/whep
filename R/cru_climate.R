@@ -1,7 +1,8 @@
 # CRU TS 4.09 monthly climate NetCDF reader.
 #
 # CONFIRMED CRU FACTS (file inspected; do not re-guess):
-# - Dir from Sys.getenv("WHEP_CRU_DIR", "C:/XL_files/CRU/CRU_TS_4"). Files are
+# - Dir from Sys.getenv("WHEP_CRU_DIR") (aborts if unset; never hardcode the
+#   absolute path). Files are
 #   cru_ts4.09.1901.2024.<var>.dat.nc for var in tmp, tmn, tmx, pre, pet, vap,
 #   cld, wet, dtr, frs (the 4.09 set, coverage to 2024).
 # - Grid: lon[720] -179.75..179.75, lat[360] -89.75..89.75 (global 0.5 deg).
@@ -28,7 +29,7 @@
 #' @param years Optional integer vector of calendar years to keep. `NULL`
 #'   keeps every year present in the file.
 #' @param cru_dir Path to the CRU TS NetCDF directory. Defaults to
-#'   `Sys.getenv("WHEP_CRU_DIR", "C:/XL_files/CRU/CRU_TS_4")`.
+#'   `Sys.getenv("WHEP_CRU_DIR")`; aborts when neither is set.
 #' @param data Optional pre-read tibble (`lon`, `lat`, `year`, `month`,
 #'   `value`) used in place of reading NetCDF, for testing.
 #' @param example If `TRUE`, return a small fixture instead of reading data.
@@ -68,10 +69,16 @@ read_cru_climate <- function(
   dplyr::mutate(long, var = var)
 }
 
-# Resolve the CRU directory from the argument, else the environment variable
-# with the documented local fallback.
+# Resolve the CRU directory from the argument, else the environment variable.
 .resolve_cru_dir <- function(cru_dir) {
-  cru_dir %||% Sys.getenv("WHEP_CRU_DIR", "C:/XL_files/CRU/CRU_TS_4")
+  resolved <- cru_dir %||% Sys.getenv("WHEP_CRU_DIR")
+  if (!.has_path(resolved)) {
+    cli::cli_abort(c(
+      "No CRU climate directory available.",
+      i = "Pass {.arg cru_dir} or set {.envvar WHEP_CRU_DIR}."
+    ))
+  }
+  resolved
 }
 
 # On-disk file name for one CRU variable in the 4.09 (1901-2024) set.

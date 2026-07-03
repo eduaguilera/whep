@@ -37,7 +37,7 @@ test_that("read_cru_climate filters injected data by year", {
 })
 
 test_that("read_cru_climate reads a real CRU file (smoke)", {
-  cru_dir <- Sys.getenv("WHEP_CRU_DIR", "C:/XL_files/CRU/CRU_TS_4")
+  cru_dir <- Sys.getenv("WHEP_CRU_DIR", "")
   testthat::skip_if(!dir.exists(cru_dir))
   out <- whep::read_cru_climate(var = "tmp", years = 2000, cru_dir = cru_dir)
   pointblank::expect_col_exists(

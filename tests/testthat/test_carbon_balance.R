@@ -394,9 +394,9 @@ test_that("polity resolution conserves carbon mass vs grid", {
 }
 
 # Spain_Hist L-files output directory (the heavy intermediate SOC inputs live
-# off-repo). From an env var, falling back to the documented local XL_files path.
+# off-repo). From an env var; empty when unset so callers skip.
 .spain_hist_l_dir <- function() {
-  Sys.getenv("SPAIN_HIST_L_DIR", "C:/XL_files/Spain_Hist_L/output")
+  Sys.getenv("SPAIN_HIST_L_DIR", "")
 }
 
 # Spain_Hist reference SOC: the "Baseline" per-province cropland SOC density
