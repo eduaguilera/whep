@@ -252,7 +252,7 @@ testthat::test_that("calculate_manner_nh3 aborts on an invalid fertiliser", {
 
 # ---- calculate_manner_nh3_default -----------------------------------------
 
-testthat::test_that("calculate_manner_nh3_default blends strictly between the No-incorporation and 12-24h bounds", {
+testthat::test_that("calculate_manner_nh3_default blends strictly within the 4 blend bins' bounds", {
   drivers <- list(
     rainfall_mm = 40,
     irrigated = FALSE,
@@ -261,21 +261,18 @@ testthat::test_that("calculate_manner_nh3_default blends strictly between the No
     temp_c = 15,
     species = "Cattle"
   )
-  no_incorporation <- whep::calculate_manner_nh3(
-    n_applied_t = 10,
-    fertiliser = "cattle_slurry",
-    drivers = c(
-      drivers,
-      list(technique = "Broadcast", incorporation_delay_h = NA)
-    )
-  )
-  within_24h <- whep::calculate_manner_nh3(
-    n_applied_t = 10,
-    fertiliser = "cattle_slurry",
-    drivers = c(
-      drivers,
-      list(technique = "Broadcast", incorporation_delay_h = 24)
-    )
+  bin_efs <- purrr::map_dbl(
+    list(NA, 2, 24, 48),
+    \(delay_h) {
+      whep::calculate_manner_nh3(
+        n_applied_t = 10,
+        fertiliser = "cattle_slurry",
+        drivers = c(
+          drivers,
+          list(technique = "Broadcast", incorporation_delay_h = delay_h)
+        )
+      )$ef
+    }
   )
   default_out <- whep::calculate_manner_nh3_default(
     n_applied_t = 10,
@@ -283,10 +280,8 @@ testthat::test_that("calculate_manner_nh3_default blends strictly between the No
     drivers = drivers
   )
 
-  lower_bound <- min(no_incorporation$ef, within_24h$ef)
-  upper_bound <- max(no_incorporation$ef, within_24h$ef)
-  testthat::expect_gt(default_out$ef, lower_bound)
-  testthat::expect_lt(default_out$ef, upper_bound)
+  testthat::expect_gt(default_out$ef, min(bin_efs))
+  testthat::expect_lt(default_out$ef, max(bin_efs))
 })
 
 testthat::test_that("calculate_manner_nh3_default matches a hand-computed share-weighted blend", {
@@ -306,6 +301,14 @@ testthat::test_that("calculate_manner_nh3_default matches a hand-computed share-
       list(technique = "Broadcast", incorporation_delay_h = NA)
     )
   )
+  within_2h <- whep::calculate_manner_nh3(
+    n_applied_t = 10,
+    fertiliser = "cattle_slurry",
+    drivers = c(
+      drivers,
+      list(technique = "Broadcast", incorporation_delay_h = 2)
+    )
+  )
   within_24h <- whep::calculate_manner_nh3(
     n_applied_t = 10,
     fertiliser = "cattle_slurry",
@@ -322,12 +325,14 @@ testthat::test_that("calculate_manner_nh3_default matches a hand-computed share-
       list(technique = "Broadcast", incorporation_delay_h = 48)
     )
   )
-  expected_ef <- 0.50 *
+  expected_ef <- 0.25 *
     no_incorporation$ef +
+    0.25 * within_2h$ef +
     0.25 * within_24h$ef +
     0.25 * within_48h$ef
-  expected_nh3_n_t <- 0.50 *
+  expected_nh3_n_t <- 0.25 *
     no_incorporation$nh3_n_t +
+    0.25 * within_2h$nh3_n_t +
     0.25 * within_24h$nh3_n_t +
     0.25 * within_48h$nh3_n_t
 
@@ -390,22 +395,27 @@ testthat::test_that("calculate_manner_nh3_default example fixture is schema-comp
   pointblank::expect_col_vals_gte(out, "ef", 0)
 })
 
-testthat::test_that("manner_default_technique_mix has the 3 expected rows summing to 1", {
+testthat::test_that("manner_default_technique_mix has the 4 expected rows summing to 1", {
   mix <- whep::manner_default_technique_mix
   pointblank::expect_col_exists(
     mix,
     c("technique", "delay_bin", "incorporation_delay_h", "share")
   )
-  testthat::expect_equal(nrow(mix), 3L)
+  testthat::expect_equal(nrow(mix), 4L)
   testthat::expect_true(all(mix$technique == "Broadcast"))
   testthat::expect_setequal(
     mix$delay_bin,
-    c("No incorporation", "12-24 h", "1-2 days")
+    c("No incorporation", "<2 h", "12-24 h", "1-2 days")
   )
   testthat::expect_equal(sum(mix$share), 1.0, tolerance = 1e-9)
+  testthat::expect_true(all(mix$share == 0.25))
   testthat::expect_true(is.na(
     mix$incorporation_delay_h[mix$delay_bin == "No incorporation"]
   ))
+  testthat::expect_equal(
+    mix$incorporation_delay_h[mix$delay_bin == "<2 h"],
+    2
+  )
   testthat::expect_equal(
     mix$incorporation_delay_h[mix$delay_bin == "12-24 h"],
     24

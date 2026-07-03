@@ -103,17 +103,18 @@ calculate_manner_nh3 <- function(
 #' nationally with no region/era variation
 #' (`factor_ap_technique <- application_technique_manure[Technique ==
 #' "Broadcast", ...]` applied unconditionally to its whole national run).
-#' For incorporation delay, it blends three of
-#' [manner_incorporation_factor]'s `delay_bin` categories: 50% of applied
-#' nitrogen assumed never incorporated (`incorporation_delay_h = NA`,
-#' matching how [calculate_manner_nh3()] treats a missing delay as
-#' `"No incorporation"`), 25% incorporated within 12-24 hours
+#' For incorporation delay, it blends four of
+#' [manner_incorporation_factor]'s `delay_bin` categories in equal 25%
+#' shares: 25% of applied nitrogen assumed never incorporated
+#' (`incorporation_delay_h = NA`, matching how [calculate_manner_nh3()]
+#' treats a missing delay as `"No incorporation"`), 25% incorporated within
+#' 2 hours (`incorporation_delay_h = 2`), 25% within 12-24 hours
 #' (`incorporation_delay_h = 24`) and 25% within 1-2 days
 #' (`incorporation_delay_h = 48`). Only `ef` and `nh3_n_t` are
-#' share-weighted across the three blend calls; `n_applied_t` is carried
+#' share-weighted across the four blend calls; `n_applied_t` is carried
 #' through as-is, not re-weighted, since the full `n_applied_t` is assumed
-#' split across the three incorporation-delay scenarios rather than
-#' triplicated.
+#' split across the four incorporation-delay scenarios rather than
+#' quadruplicated.
 #'
 #' @param n_applied_t Numeric, nitrogen applied (t).
 #' @param fertiliser One of `"cattle_slurry"`, `"pig_slurry"`, `"FYM"`,
@@ -453,6 +454,6 @@ calculate_manner_nh3_default <- function(
 .example_manner_nh3_default <- function() {
   tibble::tribble(
     ~n_applied_t, ~ef, ~nh3_n_t, ~method_manner,
-    10, 0.2799187, 1.679512, "manner_default_cattle_slurry"
+    10, 0.2189861, 1.313917, "manner_default_cattle_slurry"
   )
 }
