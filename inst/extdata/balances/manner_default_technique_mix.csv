@@ -1,0 +1,4 @@
+technique,delay_bin,incorporation_delay_h,share
+Broadcast,No incorporation,,0.50
+Broadcast,12-24 h,24,0.25
+Broadcast,1-2 days,48,0.25

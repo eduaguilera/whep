@@ -574,6 +574,45 @@
 #' manner_incorporation_factor
 "manner_incorporation_factor"
 
+#' Gross-default technique/incorporation-delay blend for MANNER.
+#'
+#' @description
+#' A deliberate, permanent gross-assumption default for
+#' [calculate_manner_nh3()]'s \code{technique} and
+#' \code{incorporation_delay_h} organic-manure drivers, for use where real
+#' per-cell/per-era manure-application-technique survey data does not exist
+#' (which is everywhere right now). Every row fixes
+#' \code{technique = "Broadcast"}, matching Spain_Hist's own real production
+#' MANNER run (which itself hardcodes Broadcast application nationally with
+#' no region/era variation). The three rows blend
+#' [manner_incorporation_factor]'s \code{delay_bin} categories: half the
+#' applied nitrogen assumed never incorporated, a quarter incorporated
+#' within 12-24 hours, and a quarter within 1-2 days. See
+#' [calculate_manner_nh3_default()]'s Details for the full reasoning; this
+#' is not derived from a region/era survey.
+#'
+#' @format A tibble with columns:
+#' \describe{
+#'   \item{technique}{Manure application technique: always
+#'     \code{"Broadcast"}.}
+#'   \item{delay_bin}{Incorporation-delay bin label, one of
+#'     [manner_incorporation_factor]'s \code{delay_bin} values:
+#'     \code{"No incorporation"}, \code{"12-24 h"} or \code{"1-2 days"}.}
+#'   \item{incorporation_delay_h}{Hours between surface application and soil
+#'     incorporation passed to [calculate_manner_nh3()]: \code{NA} for
+#'     \code{"No incorporation"}, \code{24} for \code{"12-24 h"} and
+#'     \code{48} for \code{"1-2 days"}.}
+#'   \item{share}{Fraction of applied nitrogen assumed to follow this
+#'     incorporation-delay bin; the three shares sum to 1.}
+#' }
+#'
+#' @source Gross default assumption, not a region/era-specific survey; see
+#'   [calculate_manner_nh3_default()]'s Details for the reasoning.
+#'
+#' @examples
+#' manner_default_technique_mix
+"manner_default_technique_mix"
+
 #' Inorganic (mineral) nitrogen fraction of excreted manure by species.
 #'
 #' @description

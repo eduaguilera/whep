@@ -4,15 +4,19 @@
 \alias{calculate_nh3}
 \title{Estimate ammonia-N volatilisation from applied nitrogen.}
 \usage{
-calculate_nh3(x, method = c("manner", "ipcc"), example = FALSE)
+calculate_nh3(x, method = "manner", example = FALSE)
 }
 \arguments{
 \item{x}{A tibble with \code{n_input_t} (numeric, tonnes N) and \code{fert_type}.
 \code{method = "manner"} additionally requires \code{manner_fertiliser} and the
-driver columns listed in Details.}
+driver columns listed in Details. \code{method = "manner_default"}
+additionally requires \code{manner_fertiliser} and the driver columns listed
+in Details, but NOT \code{technique}/\code{incorporation_delay_h}.}
 
-\item{method}{\code{"manner"} (default, process-based, per-row) or \code{"ipcc"}
-(Tier 1, global fraction).}
+\item{method}{\code{"manner"} (default, process-based, per-row), \code{"ipcc"}
+(Tier 1, global fraction) or \code{"manner_default"} (process-based organic
+path with a gross-assumption technique/incorporation-delay blend, no
+\code{technique}/\code{incorporation_delay_h} columns required).}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of computing
 from \code{x}. Defaults to \code{FALSE}.}
@@ -21,13 +25,17 @@ from \code{x}. Defaults to \code{FALSE}.}
 \code{x} with \code{nh3_n_t} and \code{method_nh3} appended.
 }
 \description{
-Two independent methods for the fraction of applied nitrogen volatilised
-as ammonia. \code{"ipcc"} (IPCC 2019 Tier 1, \code{n_fun.r:914-930}) needs only
-\code{fert_type} and applies a single global fraction. \code{"manner"} (the
-default) dispatches each row through the process-based
+Three independent methods for the fraction of applied nitrogen
+volatilised as ammonia. \code{"ipcc"} (IPCC 2019 Tier 1, \code{n_fun.r:914-930})
+needs only \code{fert_type} and applies a single global fraction. \code{"manner"}
+(the default) dispatches each row through the process-based
 \code{\link[=calculate_manner_nh3]{calculate_manner_nh3()}} MANNER model (Task C4), which requires far more
 driver detail (see Details); this asymmetry in input requirements is
-intentional, not an oversight.
+intentional, not an oversight. \code{"manner_default"} dispatches each row
+through \code{\link[=calculate_manner_nh3_default]{calculate_manner_nh3_default()}} instead, the same process-based
+organic-manure model but with \code{technique}/\code{incorporation_delay_h} filled
+in from a documented gross-assumption blend rather than required as
+driver columns.
 }
 \details{
 \code{method = "manner"} requires \code{x} to already carry a \code{manner_fertiliser}
@@ -45,6 +53,15 @@ required column aborts naming exactly which column is absent. Each row is
 dispatched to \code{\link[=calculate_manner_nh3]{calculate_manner_nh3()}} individually (MANNER's dispatch is
 inherently per-row categorical, not vectorizable across the coefficient
 joins); this row-iteration is isolated to a small private helper.
+
+\code{method = "manner_default"} requires the same \code{manner_fertiliser} column
+(restricted to the organic-manure keys, since the gross default only
+covers that path) plus \code{rainfall_mm}, \code{irrigated}, \code{windspeed_ms},
+\code{system}, \code{temp_c} and \code{species} (unless \code{manner_fertiliser == "urban"}).
+It does NOT require \code{technique} or \code{incorporation_delay_h}: those are
+filled in from \link{manner_default_technique_mix} (see
+\code{\link[=calculate_manner_nh3_default]{calculate_manner_nh3_default()}}'s Details for the gross-assumption
+reasoning), never invented per-row.
 }
 \examples{
 calculate_nh3(example = TRUE)

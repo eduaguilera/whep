@@ -1408,6 +1408,12 @@ utils::globalVariables(
     "ef",
     "nh3_n_t",
     "method_manner",
+    # calculate_manner_nh3_default() (Module C, Task C4 follow-up) — gross
+    # default technique/incorporation-delay blend NSE columns
+    "manner_default_technique_mix",
+    "technique",
+    "incorporation_delay_h",
+    "share",
     # n_balance_losses.R (Module C, Task C5) — NH3, soil N2O, leaching NSE
     "n_input_t",
     "method_nh3",

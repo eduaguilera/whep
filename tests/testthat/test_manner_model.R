@@ -249,3 +249,169 @@ testthat::test_that("calculate_manner_nh3 aborts on an invalid fertiliser", {
     )
   )
 })
+
+# ---- calculate_manner_nh3_default -----------------------------------------
+
+testthat::test_that("calculate_manner_nh3_default blends strictly between the No-incorporation and 12-24h bounds", {
+  drivers <- list(
+    rainfall_mm = 40,
+    irrigated = FALSE,
+    windspeed_ms = 3,
+    system = "Arable",
+    temp_c = 15,
+    species = "Cattle"
+  )
+  no_incorporation <- whep::calculate_manner_nh3(
+    n_applied_t = 10,
+    fertiliser = "cattle_slurry",
+    drivers = c(
+      drivers,
+      list(technique = "Broadcast", incorporation_delay_h = NA)
+    )
+  )
+  within_24h <- whep::calculate_manner_nh3(
+    n_applied_t = 10,
+    fertiliser = "cattle_slurry",
+    drivers = c(
+      drivers,
+      list(technique = "Broadcast", incorporation_delay_h = 24)
+    )
+  )
+  default_out <- whep::calculate_manner_nh3_default(
+    n_applied_t = 10,
+    fertiliser = "cattle_slurry",
+    drivers = drivers
+  )
+
+  lower_bound <- min(no_incorporation$ef, within_24h$ef)
+  upper_bound <- max(no_incorporation$ef, within_24h$ef)
+  testthat::expect_gt(default_out$ef, lower_bound)
+  testthat::expect_lt(default_out$ef, upper_bound)
+})
+
+testthat::test_that("calculate_manner_nh3_default matches a hand-computed share-weighted blend", {
+  drivers <- list(
+    rainfall_mm = 40,
+    irrigated = FALSE,
+    windspeed_ms = 3,
+    system = "Arable",
+    temp_c = 15,
+    species = "Cattle"
+  )
+  no_incorporation <- whep::calculate_manner_nh3(
+    n_applied_t = 10,
+    fertiliser = "cattle_slurry",
+    drivers = c(
+      drivers,
+      list(technique = "Broadcast", incorporation_delay_h = NA)
+    )
+  )
+  within_24h <- whep::calculate_manner_nh3(
+    n_applied_t = 10,
+    fertiliser = "cattle_slurry",
+    drivers = c(
+      drivers,
+      list(technique = "Broadcast", incorporation_delay_h = 24)
+    )
+  )
+  within_48h <- whep::calculate_manner_nh3(
+    n_applied_t = 10,
+    fertiliser = "cattle_slurry",
+    drivers = c(
+      drivers,
+      list(technique = "Broadcast", incorporation_delay_h = 48)
+    )
+  )
+  expected_ef <- 0.50 *
+    no_incorporation$ef +
+    0.25 * within_24h$ef +
+    0.25 * within_48h$ef
+  expected_nh3_n_t <- 0.50 *
+    no_incorporation$nh3_n_t +
+    0.25 * within_24h$nh3_n_t +
+    0.25 * within_48h$nh3_n_t
+
+  default_out <- whep::calculate_manner_nh3_default(
+    n_applied_t = 10,
+    fertiliser = "cattle_slurry",
+    drivers = drivers
+  )
+
+  testthat::expect_equal(default_out$ef, expected_ef, tolerance = 1e-9)
+  testthat::expect_equal(
+    default_out$nh3_n_t,
+    expected_nh3_n_t,
+    tolerance = 1e-9
+  )
+  testthat::expect_equal(default_out$n_applied_t, 10)
+})
+
+testthat::test_that("calculate_manner_nh3_default stamps method_manner as manner_default_<fertiliser>", {
+  drivers <- list(
+    rainfall_mm = 40,
+    irrigated = FALSE,
+    windspeed_ms = 3,
+    system = "Arable",
+    temp_c = 15,
+    species = "Pigs"
+  )
+  out <- whep::calculate_manner_nh3_default(
+    n_applied_t = 5,
+    fertiliser = "pig_slurry",
+    drivers = drivers
+  )
+  testthat::expect_equal(out$method_manner, "manner_default_pig_slurry")
+})
+
+testthat::test_that("calculate_manner_nh3_default does not require technique/incorporation_delay_h drivers", {
+  drivers <- list(
+    rainfall_mm = 40,
+    irrigated = FALSE,
+    windspeed_ms = 3,
+    system = "Arable",
+    temp_c = 15,
+    species = "Cattle"
+  )
+  testthat::expect_no_error(
+    whep::calculate_manner_nh3_default(
+      n_applied_t = 10,
+      fertiliser = "cattle_slurry",
+      drivers = drivers
+    )
+  )
+})
+
+testthat::test_that("calculate_manner_nh3_default example fixture is schema-complete", {
+  out <- whep::calculate_manner_nh3_default(example = TRUE)
+  pointblank::expect_col_exists(
+    out,
+    c("n_applied_t", "ef", "nh3_n_t", "method_manner")
+  )
+  pointblank::expect_col_vals_gte(out, "ef", 0)
+})
+
+testthat::test_that("manner_default_technique_mix has the 3 expected rows summing to 1", {
+  mix <- whep::manner_default_technique_mix
+  pointblank::expect_col_exists(
+    mix,
+    c("technique", "delay_bin", "incorporation_delay_h", "share")
+  )
+  testthat::expect_equal(nrow(mix), 3L)
+  testthat::expect_true(all(mix$technique == "Broadcast"))
+  testthat::expect_setequal(
+    mix$delay_bin,
+    c("No incorporation", "12-24 h", "1-2 days")
+  )
+  testthat::expect_equal(sum(mix$share), 1.0, tolerance = 1e-9)
+  testthat::expect_true(is.na(
+    mix$incorporation_delay_h[mix$delay_bin == "No incorporation"]
+  ))
+  testthat::expect_equal(
+    mix$incorporation_delay_h[mix$delay_bin == "12-24 h"],
+    24
+  )
+  testthat::expect_equal(
+    mix$incorporation_delay_h[mix$delay_bin == "1-2 days"],
+    48
+  )
+})

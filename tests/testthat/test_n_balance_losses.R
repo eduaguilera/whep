@@ -67,6 +67,58 @@ testthat::test_that("calculate_nh3(method = \"manner\") matches calculate_manner
   testthat::expect_equal(out$method_nh3, "manner")
 })
 
+testthat::test_that("calculate_nh3(method = \"manner_default\") aborts when a driver column is missing", {
+  x <- tibble::tribble(
+    ~n_input_t, ~fert_type, ~manner_fertiliser,
+    10, "Solid", "cattle_slurry"
+  )
+  testthat::expect_error(whep::calculate_nh3(x, method = "manner_default"))
+})
+
+testthat::test_that("calculate_nh3(method = \"manner_default\") dispatches without technique/incorporation_delay_h columns", {
+  x <- tibble::tribble(
+    ~n_input_t,
+    ~fert_type,
+    ~manner_fertiliser,
+    ~rainfall_mm,
+    ~irrigated,
+    ~windspeed_ms,
+    ~system,
+    ~temp_c,
+    ~species,
+    10,
+    "Solid",
+    "cattle_slurry",
+    40,
+    FALSE,
+    3,
+    "Arable",
+    15,
+    "Cattle"
+  )
+  testthat::expect_false(rlang::has_name(x, "technique"))
+  testthat::expect_false(rlang::has_name(x, "incorporation_delay_h"))
+
+  out <- whep::calculate_nh3(x, method = "manner_default")
+  direct <- whep::calculate_manner_nh3_default(
+    n_applied_t = 10,
+    fertiliser = "cattle_slurry",
+    drivers = list(
+      rainfall_mm = 40,
+      irrigated = FALSE,
+      windspeed_ms = 3,
+      system = "Arable",
+      temp_c = 15,
+      species = "Cattle"
+    )
+  )
+
+  testthat::expect_true(is.finite(out$nh3_n_t))
+  testthat::expect_true(out$nh3_n_t > 0)
+  testthat::expect_equal(out$nh3_n_t, direct$nh3_n_t, tolerance = 1e-9)
+  testthat::expect_equal(out$method_nh3, "manner_default")
+})
+
 testthat::test_that("calculate_nh3 example fixture is schema-complete", {
   out <- whep::calculate_nh3(example = TRUE)
   pointblank::expect_col_exists(
