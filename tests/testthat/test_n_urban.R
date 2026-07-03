@@ -34,9 +34,9 @@ testthat::test_that("build_urban_n converts population to a nitrogen load", {
   # lands entirely on its own cell as residual, regardless of that cell's
   # own room (a cell's own room only bounds what its NEIGHBOURS can send it,
   # not its own locally generated load; see test below for the transport
-  # case). 0.9105927 is the real HYDE-derived 2000 rate (see
-  # data-raw/build_urban_kgn_cap.R).
-  expected_n_t <- 30898536 * 0.9105927201917676 / 1000
+  # case). 0.9410902 is the real HYDE-derived 2000 rate, weighted by
+  # polity_frac (see data-raw/build_urban_kgn_cap.R).
+  expected_n_t <- 30898536 * 0.9410902351391244 / 1000
   testthat::expect_equal(out$urban_n_t, expected_n_t, tolerance = 1e-6)
   testthat::expect_equal(out$method_urban, "spain_hist_rate|room_weighted")
 })
@@ -46,7 +46,7 @@ testthat::test_that("build_urban_n spills surplus to a neighbouring cell with cr
   # transported to its same-polity neighbour, which has cropland room. This
   # is the explicit test that allocate_manure_transport() is really wired in
   # and really moves N between cells, not a no-op. The population is small
-  # enough that the generated N (100 * 0.9105927 / 1000 = 0.0911 t) fits
+  # enough that the generated N (100 * 0.9410902 / 1000 = 0.0941 t) fits
   # comfortably within the neighbour's room (170 kg/ha * 1000 ha = 170 t),
   # so the whole load is transportable, not partially residual.
   urban_population <- tibble::tribble(
@@ -76,14 +76,15 @@ testthat::test_that("build_urban_n spills surplus to a neighbouring cell with cr
     nrow(source_row) == 0 || sum(source_row$urban_n_t) < 1e-6
   )
   # The neighbour cell actually receives the transported load.
-  expected_n_t <- 100 * 0.9105927201917676 / 1000
+  expected_n_t <- 100 * 0.9410902351391244 / 1000
   testthat::expect_equal(sink_row$urban_n_t, expected_n_t, tolerance = 1e-6)
   testthat::expect_true(sink_row$urban_n_t > 0)
 })
 
 testthat::test_that("build_urban_n interpolates the per-capita rate between benchmark years", {
-  # 2004 is midway between the real HYDE-derived 2000 (0.9105927) and 2008
-  # (1.2009433) benchmark rates in urban_kgn_cap_reference.
+  # 2004 is midway between the real HYDE-derived 2000 (0.9410902) and 2008
+  # (1.2422579) benchmark rates in urban_kgn_cap_reference (polity_frac
+  # weighted).
   urban_population <- tibble::tribble(
     ~lon, ~lat, ~year, ~urban_pop,
     -0.25, -0.25, 2004L, 1000000
@@ -100,8 +101,8 @@ testthat::test_that("build_urban_n interpolates the per-capita rate between benc
     )
   )
 
-  interpolated_rate <- 0.9105927201917676 +
-    (1.200943307620827 - 0.9105927201917676) * (2004 - 2000) / (2008 - 2000)
+  interpolated_rate <- 0.9410902351391244 +
+    (1.242257867931792 - 0.9410902351391244) * (2004 - 2000) / (2008 - 2000)
   expected_n_t <- 1000000 * interpolated_rate / 1000
   testthat::expect_equal(out$urban_n_t, expected_n_t, tolerance = 1e-6)
 })
@@ -124,9 +125,10 @@ testthat::test_that("build_urban_n holds the rate constant outside the benchmark
   )
 
   # 1800 is before the earliest urban_kgn_cap_reference benchmark (now 1860,
-  # the real HYDE-derived rate; see data-raw/build_urban_kgn_cap.R), so the
-  # rate is carried backward from 1860.
-  expected_n_t <- 1000000 * 1.0527208214393555 / 1000
+  # the real HYDE-derived rate, polity_frac weighted; see
+  # data-raw/build_urban_kgn_cap.R), so the rate is carried backward from
+  # 1860.
+  expected_n_t <- 1000000 * 1.084416541366471 / 1000
   testthat::expect_equal(out$urban_n_t, expected_n_t, tolerance = 1e-6)
 })
 
