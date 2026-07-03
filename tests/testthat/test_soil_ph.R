@@ -121,3 +121,16 @@ testthat::test_that("read_soil_ph aggregates HWSD raster + attributes", {
   pointblank::expect_col_exists(result, c("lon", "lat", "soil_ph"))
   testthat::expect_true(all(result$soil_ph == 6.5))
 })
+
+testthat::test_that("read_soil_ph reads real local HWSD data (smoke)", {
+  testthat::skip_if(
+    Sys.getenv("WHEP_HWSD_DIR") == "",
+    "WHEP_HWSD_DIR not set; skipping real-data smoke test."
+  )
+
+  result <- whep::read_soil_ph()
+
+  pointblank::expect_col_exists(result, c("lon", "lat", "soil_ph"))
+  testthat::expect_gt(nrow(result), 0L)
+  testthat::expect_true(all(result$soil_ph >= 3.5 & result$soil_ph <= 10))
+})
