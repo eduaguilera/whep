@@ -477,3 +477,81 @@ testthat::test_that("resolution argument is validated", {
     "resolution"
   )
 })
+
+testthat::test_that("recycling stamps the total-residue basis when no soil col", {
+  # .nbi_npp_input() supplies residue_dm_t but not residue_soil_dm_t, so the
+  # recycling term must fall back to gross residue N and say so.
+  out <- whep::build_n_inputs(data = .nbi_full_data())
+  rec <- out[out$fert_type == "recycling", ]
+  testthat::expect_true(nrow(rec) > 0)
+  testthat::expect_true(all(rec$method_recycling_n == "total_residue"))
+})
+
+testthat::test_that("recycling stamps the soil-returned basis when supplied", {
+  data <- .nbi_full_data()
+  data$npp_n_input <- dplyr::mutate(
+    data$npp_n_input,
+    residue_soil_dm_t = .data$residue_dm_t * 0.4
+  )
+  out <- whep::build_n_inputs(data = data)
+  rec <- out[out$fert_type == "recycling", ]
+  testthat::expect_true(nrow(rec) > 0)
+  testthat::expect_true(all(rec$method_recycling_n == "residue_soil_returned"))
+})
+
+testthat::test_that("recycling basis switch changes n_input_t and is stamped", {
+  total_basis <- whep::build_n_inputs(data = .nbi_full_data())
+  soil_data <- .nbi_full_data()
+  soil_data$npp_n_input <- dplyr::mutate(
+    soil_data$npp_n_input,
+    residue_soil_dm_t = .data$residue_dm_t * 0.4
+  )
+  soil_basis <- whep::build_n_inputs(data = soil_data)
+
+  total_n <- total_basis$n_input_t[total_basis$fert_type == "recycling"]
+  soil_n <- soil_basis$n_input_t[soil_basis$fert_type == "recycling"]
+  # The soil-returned basis must be strictly smaller (residue removed for
+  # feed/fuel is excluded), and the two calls must carry different stamps.
+  testthat::expect_lt(soil_n, total_n)
+  testthat::expect_false(
+    identical(
+      unique(total_basis$method_recycling_n[
+        total_basis$fert_type == "recycling"
+      ]),
+      unique(soil_basis$method_recycling_n[
+        soil_basis$fert_type == "recycling"
+      ])
+    )
+  )
+})
+
+testthat::test_that("method_recycling_n is NA for non-recycling fert_types", {
+  out <- whep::build_n_inputs(data = .nbi_full_data())
+  non_rec <- out[out$fert_type != "recycling", ]
+  testthat::expect_true(all(is.na(non_rec$method_recycling_n)))
+})
+
+testthat::test_that("an unmapped Cropland crop name aborts rather than NA", {
+  gridded <- .nbi_gridded()
+  gridded$crops$crop <- "mixed cereals not a real crop"
+  data <- .nbi_full_data()
+  data$gridded <- gridded
+
+  testthat::expect_error(
+    whep::build_n_inputs(data = data),
+    "item_cbs_code"
+  )
+})
+
+testthat::test_that("a valid lowercase Cropland crop resolves without NA", {
+  # The default fixture crop is "barley"; its manure rows must carry a real
+  # item_cbs_code, never NA_integer_.
+  out <- whep::build_n_inputs(data = .nbi_full_data())
+  cropland_manure <- out[
+    out$fert_type %in%
+      c("manure_solid", "manure_liquid") &
+      out$item_cbs_code != 3000L,
+  ]
+  testthat::expect_true(nrow(cropland_manure) > 0)
+  testthat::expect_true(all(!is.na(cropland_manure$item_cbs_code)))
+})

@@ -56,9 +56,14 @@ real data. Defaults to \code{FALSE}.}
 }
 \value{
 A tibble. At \code{resolution = "grid"}: \code{lon}, \code{lat}, \code{area_code},
-\code{item_cbs_code}, \code{year}, \code{fert_type}, \code{n_input_t}. At
-\code{resolution = "polity"}: \code{area_code}, \code{item_cbs_code}, \code{year},
-\code{fert_type}, \code{n_input_t} (summed over cells).
+\code{item_cbs_code}, \code{year}, \code{fert_type}, \code{n_input_t},
+\code{method_recycling_n}. At \code{resolution = "polity"}: \code{area_code},
+\code{item_cbs_code}, \code{year}, \code{fert_type}, \code{method_recycling_n}, \code{n_input_t}
+(summed over cells). \code{method_recycling_n} records which residue basis the
+\code{"recycling"} term used: \code{"residue_soil_returned"} when the upstream NPP
+input supplied \code{residue_soil_dm_t} (residue N net of removal for
+feed/fuel/burning) or \code{"total_residue"} when only gross residue N was
+available; it is \code{NA} for every other \code{fert_type}.
 }
 \description{
 Combines biological nitrogen fixation (\code{\link[=calculate_bnf]{calculate_bnf()}}), residue/root N

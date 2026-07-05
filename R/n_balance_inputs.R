@@ -84,9 +84,14 @@
 #' @param example If `TRUE`, return a small fixture instead of assembling
 #'   real data. Defaults to `FALSE`.
 #' @return A tibble. At `resolution = "grid"`: `lon`, `lat`, `area_code`,
-#'   `item_cbs_code`, `year`, `fert_type`, `n_input_t`. At
-#'   `resolution = "polity"`: `area_code`, `item_cbs_code`, `year`,
-#'   `fert_type`, `n_input_t` (summed over cells).
+#'   `item_cbs_code`, `year`, `fert_type`, `n_input_t`,
+#'   `method_recycling_n`. At `resolution = "polity"`: `area_code`,
+#'   `item_cbs_code`, `year`, `fert_type`, `method_recycling_n`, `n_input_t`
+#'   (summed over cells). `method_recycling_n` records which residue basis the
+#'   `"recycling"` term used: `"residue_soil_returned"` when the upstream NPP
+#'   input supplied `residue_soil_dm_t` (residue N net of removal for
+#'   feed/fuel/burning) or `"total_residue"` when only gross residue N was
+#'   available; it is `NA` for every other `fert_type`.
 #' @export
 #' @examples
 #' build_n_inputs(example = TRUE)
@@ -116,7 +121,9 @@ build_n_inputs <- function(
 
 # ---- Private helpers: schema + resolution ------------------------------
 
-# Common output schema every source helper must produce.
+# Common output schema every source helper must produce. `method_recycling_n`
+# records which residue basis the "recycling" term used (soil-returned vs
+# total residue N); it is NA for every other fert_type.
 .ni_schema <- function() {
   c(
     "lon",
@@ -125,7 +132,8 @@ build_n_inputs <- function(
     "item_cbs_code",
     "year",
     "fert_type",
-    "n_input_t"
+    "n_input_t",
+    "method_recycling_n"
   )
 }
 
@@ -143,7 +151,13 @@ build_n_inputs <- function(
   x |>
     dplyr::summarise(
       n_input_t = sum(.data$n_input_t, na.rm = TRUE),
-      .by = c("area_code", "item_cbs_code", "year", "fert_type")
+      .by = c(
+        "area_code",
+        "item_cbs_code",
+        "year",
+        "fert_type",
+        "method_recycling_n"
+      )
     )
 }
 
@@ -173,11 +187,7 @@ build_n_inputs <- function(
   if (is.null(npp)) {
     return(.ni_empty())
   }
-  residue_soil_n <- if (rlang::has_name(npp, "residue_soil_n_t")) {
-    npp$residue_soil_n_t
-  } else {
-    npp$residue_n_t
-  }
+  basis <- .ni_recycling_basis(npp)
   dplyr::transmute(
     npp,
     lon = .data$lon,
@@ -186,8 +196,26 @@ build_n_inputs <- function(
     item_cbs_code = .data$item_cbs_code,
     year = .data$year,
     fert_type = "recycling",
-    n_input_t = .data$root_n_t + residue_soil_n
+    n_input_t = .data$root_n_t + .data[[basis$column]],
+    method_recycling_n = basis$method
   )
+}
+
+# The recycling term's residue-N basis depends on whether the upstream NPP
+# input carried `residue_soil_dm_t` (so calculate_npp_carbon_nitrogen() emitted
+# `residue_soil_n_t`, the residue N actually returned to soil after removal for
+# feed/fuel/burning). When it did not, only gross `residue_n_t` (the FULL
+# residue N) is available and is used instead, overstating the soil return.
+# This basis switch is not a silent fallback: it is stamped in
+# `method_recycling_n` so downstream consumers can tell the two apart.
+.ni_recycling_basis <- function(npp) {
+  if (rlang::has_name(npp, "residue_soil_n_t")) {
+    return(list(
+      column = "residue_soil_n_t",
+      method = "residue_soil_returned"
+    ))
+  }
+  list(column = "residue_n_t", method = "total_residue")
 }
 
 # Shared NPP-N computation: build_nitrogen_balance() (Task C7) needs the SAME
@@ -328,6 +356,15 @@ build_n_inputs <- function(
   )
 }
 
+# Cropland `crop` names are free-form lowercase strings from the manure
+# engine; resolve each to item_cbs_code via the case-folded item_prod
+# crosswalk. A non-NA crop name that matches nothing is a genuine mapping gap
+# (a renamed or free-form crop the crosswalk does not know), so abort naming it
+# rather than emit an NA item_cbs_code indistinguishable from the deliberately
+# non-crop-specific deposition/urban/SOM rows, mirroring
+# .manure_territory_to_area_code()'s treatment of unresolvable territories. An
+# NA crop (grassland rows) never reaches this abort: it is routed to the grass
+# sentinel by .ni_manure_item_cbs() and its NA lookup here is discarded.
 .ni_crop_name_to_item_cbs <- function(crop) {
   lookup <- whep::items_prod_full |>
     dplyr::transmute(
@@ -335,9 +372,20 @@ build_n_inputs <- function(
       item_cbs_code = .as_integer_quiet(.data$item_cbs_code)
     ) |>
     dplyr::distinct(.data$crop_lower, .keep_all = TRUE)
-  tibble::tibble(crop_lower = stringr::str_to_lower(crop)) |>
-    dplyr::left_join(lookup, by = "crop_lower") |>
-    dplyr::pull("item_cbs_code")
+  resolved <- tibble::tibble(crop_lower = stringr::str_to_lower(crop)) |>
+    dplyr::left_join(lookup, by = "crop_lower")
+  unresolved <- unique(
+    crop[!is.na(resolved$crop_lower) & is.na(resolved$item_cbs_code)]
+  )
+  if (length(unresolved) > 0) {
+    cli::cli_abort(c(
+      "Could not resolve manure {.field crop} to an {.field item_cbs_code}.",
+      i = "Unrecognised value{?s}: {.val {unresolved}}. Expected a crop name
+           matching {.field item_prod} in {.code whep::items_prod_full}
+           (matched case-insensitively)."
+    ))
+  }
+  resolved$item_cbs_code
 }
 
 .ni_manure_fert_type <- function(manure_type) {
@@ -497,7 +545,8 @@ build_n_inputs <- function(
     item_cbs_code = integer(),
     year = integer(),
     fert_type = character(),
-    n_input_t = double()
+    n_input_t = double(),
+    method_recycling_n = character()
   )
 }
 
@@ -574,5 +623,12 @@ build_n_inputs <- function(
     2020L,
     "manure_liquid",
     0.7
-  )
+  ) |>
+    dplyr::mutate(
+      method_recycling_n = dplyr::if_else(
+        .data$fert_type == "recycling",
+        "total_residue",
+        NA_character_
+      )
+    )
 }
