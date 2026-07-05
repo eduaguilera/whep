@@ -135,6 +135,63 @@ test_that("polity resolution aggregates cropland conserving carbon mass", {
   testthat::expect_false(rlang::has_name(pol, "lon"))
 })
 
+# Two cropland cells in one polity: a cropland-heavy cell (90 ha) with a low
+# per-ha density (1.0) and a cropland-light cell (10 ha) with a high per-ha
+# density (4.0). One crop per cell, so the cell density equals its crop density
+# and the cell cropland area equals its crop area. A plain (unweighted) mean
+# would return (1.0 + 4.0) / 2 = 2.5 and overstate the polity carbon input; the
+# correct area-weighted density is (1.0*90 + 4.0*10) / 100 = 1.3.
+.ci_two_cell_data <- function() {
+  cropland <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~item_prod_code, ~year,
+    ~total_c_input_mgc_ha_yr, ~humified_fraction, ~method_c_input,
+    0.25, 0.25, 1L, "15", 2000L, 1.0, 0.20, "humified_weighted",
+    0.75, 0.25, 1L, "27", 2000L, 4.0, 0.10, "humified_weighted"
+  )
+  crop_area <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~item_prod_code, ~crop_area_ha,
+    0.25, 0.25, 1L, "15", 90,
+    0.75, 0.25, 1L, "27", 10
+  )
+  grass_natural <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~year, ~land_use,
+    ~c_input_mgc_ha_yr, ~humified_fraction, ~method_c_input,
+    0.25, 0.25, 1L, 2000L, "grassland", 4.0, 0.1153467, "lpjml_npp_minus_harvest",
+    0.75, 0.25, 1L, 2000L, "grassland", 2.0, 0.1153467, "lpjml_npp_minus_harvest"
+  )
+  list(
+    cropland = cropland,
+    crop_area = crop_area,
+    grass_natural = grass_natural
+  )
+}
+
+test_that("polity cropland density is area-weighted, not a plain mean", {
+  pol <- whep::build_carbon_inputs(
+    resolution = "polity",
+    data = .ci_two_cell_data()
+  )
+  crop <- dplyr::filter(pol, land_use == "cropland")
+  # Area-weighted: (1.0*90 + 4.0*10) / (90+10) = 130/100 = 1.3, not mean 2.5.
+  testthat::expect_equal(crop$c_input_mgc_ha_yr, 1.3, tolerance = 1e-9)
+  # Total cropland carbon mass is conserved: density * total area == sum of the
+  # per-cell density * cell area over the grid.
+  grid <- whep::build_carbon_inputs(
+    resolution = "grid",
+    data = .ci_two_cell_data()
+  )
+  grid_crop <- dplyr::filter(grid, land_use == "cropland")
+  grid_mass <- sum(grid_crop$c_input_mgc_ha_yr * c(90, 10))
+  testthat::expect_equal(
+    crop$c_input_mgc_ha_yr * 100,
+    grid_mass,
+    tolerance = 1e-9
+  )
+  # Humification fraction is carbon-mass-weighted (mass = density * area):
+  # masses 90 and 40, so (0.20*90 + 0.10*40)/130 = 22/130, not mean 0.15.
+  testthat::expect_equal(crop$humified_fraction, 22 / 130, tolerance = 1e-9)
+})
+
 test_that("example = TRUE returns the documented schema", {
   out <- whep::build_carbon_inputs(example = TRUE)
   pointblank::expect_col_exists(

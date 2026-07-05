@@ -77,6 +77,8 @@ build_carbon_inputs <- function(
 # The class carbon density is the harvested-area-weighted mean of the per-crop
 # densities; the humification fraction is the carbon-mass-weighted mean (mass =
 # density x area), so a crop supplying more carbon dominates the class fraction.
+# `class_area_ha` (the cell's total cropland area) is carried so the downstream
+# polity aggregation can area-weight the per-hectare density and conserve mass.
 .ci_cropland_class <- function(cropland, crop_area) {
   cropland |>
     dplyr::inner_join(
@@ -92,6 +94,7 @@ build_carbon_inputs <- function(
         .data$crop_area_ha
       ),
       humified_fraction = .ci_wmean(.data$humified_fraction, .data$c_mass),
+      class_area_ha = sum(.data$crop_area_ha),
       .by = c("lon", "lat", "area_code", "year")
     ) |>
     dplyr::mutate(
@@ -103,17 +106,26 @@ build_carbon_inputs <- function(
 # -- Finalisation -------------------------------------------------------------
 
 # Grid output keeps per-cell per-class rows; polity output aggregates to
-# (area_code, year, land_use) by a plain mean of the per-hectare densities
-# across the polity's cells (each class density is already per hectare of that
-# class), matching build_grass_natural_carbon_inputs's polity aggregation.
+# (area_code, year, land_use). The per-hectare density is area-weighted by the
+# cell's class area (`class_area_ha`) so the polity density times the polity
+# class area equals the summed grid-level carbon mass; the humification fraction
+# is carbon-mass-weighted (mass = density x class area) so humified carbon is
+# likewise conserved. Classes without a per-cell class area (grassland, natural,
+# whose densities pass through from build_grass_natural_carbon_inputs) fall back
+# to a plain mean via .ci_wmean's zero-weight guard.
 .ci_finalise <- function(x, resolution) {
+  drop_cols <- c("class_area_ha")
   if (resolution == "grid") {
-    return(tibble::as_tibble(x))
+    return(tibble::as_tibble(dplyr::select(x, -dplyr::any_of(drop_cols))))
   }
   x |>
+    dplyr::mutate(
+      area_weight = dplyr::coalesce(.data$class_area_ha, 0),
+      c_mass = .data$c_input_mgc_ha_yr * .data$area_weight
+    ) |>
     dplyr::summarise(
-      c_input_mgc_ha_yr = mean(.data$c_input_mgc_ha_yr),
-      humified_fraction = mean(.data$humified_fraction),
+      c_input_mgc_ha_yr = .ci_wmean(.data$c_input_mgc_ha_yr, .data$area_weight),
+      humified_fraction = .ci_wmean(.data$humified_fraction, .data$c_mass),
       method_c_input = .data$method_c_input[1],
       .by = c("area_code", "year", "land_use")
     ) |>
