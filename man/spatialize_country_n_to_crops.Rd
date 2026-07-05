@@ -55,7 +55,12 @@ the grid level by distributing each polity-crop total across cells in
 proportion to the cell's share of that polity-crop's total crop-pattern
 area (\code{type_ha * harvest_fraction}, summed over LUH2 cropland classes;
 the exact formula used by \code{\link[=make_lpjml_covariate]{make_lpjml_covariate()}}'s \code{crop_pattern}
-weighting).
+weighting). A polity-crop with no crop-pattern hectares (crop absent from
+the static pattern raster, or its pattern area sums to zero in the polity)
+is instead spread uniformly across the polity's cropland cells, weighted by
+each cell's cropland area, so the grid output still re-aggregates to the
+polity total. Such reallocations emit a warning naming the affected crops
+and the reallocated nitrogen.
 }
 \examples{
 spatialize_country_n_to_crops(

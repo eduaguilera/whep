@@ -134,6 +134,84 @@ testthat::test_that("grid cells split within a crop by crop-pattern hectares", {
   testthat::expect_equal(sum(wheat$n_t), 70)
 })
 
+# crop_shares whose second crop (barley, item_cbs_code 2513 -> item_prod_code
+# 44) is absent from the crop-pattern raster below.
+.nbs_crop_shares_unmatched <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~area_share,
+    2010L, 10L, 2511L, 0.7, # wheat, item_prod_code 15 (in the raster)
+    2010L, 10L, 2513L, 0.3 # barley, item_prod_code 44 (NOT in the raster)
+  )
+}
+
+# crop_patterns carrying hectares only for wheat (item_prod_code 15); barley
+# (44) has no cells, triggering the uniform-cropland fallback.
+.nbs_crop_patterns_wheat_only <- function() {
+  tibble::tribble(
+    ~lon, ~lat, ~item_prod_code, ~harvest_fraction,
+    0.25, 50.25, 15L, 0.6,
+    0.75, 50.25, 15L, 0.2
+  )
+}
+
+.nbs_grid_data_unmatched <- function() {
+  list(
+    crop_patterns = .nbs_crop_patterns_wheat_only(),
+    type_cropland = .nbs_type_cropland()
+  )
+}
+
+testthat::test_that("grid warns when a crop is absent from patterns", {
+  testthat::expect_warning(
+    whep::spatialize_country_n_to_crops(
+      country_totals = .nbs_country_totals(),
+      crop_shares = .nbs_crop_shares_unmatched(),
+      cell_polity = .nbs_cell_polity(),
+      resolution = "grid",
+      data = .nbs_grid_data_unmatched()
+    ),
+    "2513"
+  )
+})
+
+testthat::test_that("grid conserves mass when a crop is absent from patterns", {
+  result <- suppressWarnings(
+    whep::spatialize_country_n_to_crops(
+      country_totals = .nbs_country_totals(),
+      crop_shares = .nbs_crop_shares_unmatched(),
+      cell_polity = .nbs_cell_polity(),
+      resolution = "grid",
+      data = .nbs_grid_data_unmatched()
+    )
+  )
+
+  testthat::expect_equal(sum(result$n_t), sum(.nbs_country_totals()$n_t))
+  wheat <- result$n_t[result$item_cbs_code == 2511L]
+  barley <- result$n_t[result$item_cbs_code == 2513L]
+  testthat::expect_equal(sum(wheat), 70)
+  testthat::expect_equal(sum(barley), 30)
+})
+
+testthat::test_that("absent crop is spread across cropland cells by area", {
+  result <- suppressWarnings(
+    whep::spatialize_country_n_to_crops(
+      country_totals = .nbs_country_totals(),
+      crop_shares = .nbs_crop_shares_unmatched(),
+      cell_polity = .nbs_cell_polity(),
+      resolution = "grid",
+      data = .nbs_grid_data_unmatched()
+    )
+  )
+
+  barley <- result[result$item_cbs_code == 2513L, ]
+  # cropland type_ha: cell1 = 1000+200 = 1200, cell2 = 1000; total 2200.
+  # 30 t barley split 1200/2200 and 1000/2200 across the two cropland cells.
+  barley_cell1 <- barley$n_t[barley$lon == 0.25]
+  barley_cell2 <- barley$n_t[barley$lon == 0.75]
+  testthat::expect_equal(barley_cell1, 30 * 1200 / 2200)
+  testthat::expect_equal(barley_cell2, 30 * 1000 / 2200)
+})
+
 testthat::test_that("grid resolution requires cell_polity", {
   testthat::expect_error(
     whep::spatialize_country_n_to_crops(

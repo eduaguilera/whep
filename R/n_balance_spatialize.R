@@ -66,7 +66,12 @@ build_cell_polity <- function(polity_fraction_path = NULL) {
 #' proportion to the cell's share of that polity-crop's total crop-pattern
 #' area (`type_ha * harvest_fraction`, summed over LUH2 cropland classes;
 #' the exact formula used by [make_lpjml_covariate()]'s `crop_pattern`
-#' weighting).
+#' weighting). A polity-crop with no crop-pattern hectares (crop absent from
+#' the static pattern raster, or its pattern area sums to zero in the polity)
+#' is instead spread uniformly across the polity's cropland cells, weighted by
+#' each cell's cropland area, so the grid output still re-aggregates to the
+#' polity total. Such reallocations emit a warning naming the affected crops
+#' and the reallocated nitrogen.
 #'
 #' @param country_totals A tibble with `year`, `area_code`, `n_t`: the
 #'   polity-level nitrogen total for one fertiliser type.
@@ -197,15 +202,32 @@ spatialize_country_n_to_crops <- function(
 }
 
 # Distribute each polity-crop N total across grid cells in proportion to the
-# cell's share of that polity-crop's crop-pattern hectares.
+# cell's share of that polity-crop's crop-pattern hectares. Any polity-crop
+# absent from the crop-pattern raster (or whose pattern area sums to zero in
+# the polity) is instead spread uniformly across the polity's cropland cells
+# (weighted by cell cropland area), so grid totals still re-aggregate to the
+# polity total rather than silently dropping that crop's nitrogen.
 .n_grid_totals <- function(polity_crop, cell_polity, data) {
   years <- unique(polity_crop$year)
   item_prod_codes <- .n_item_prod_codes(unique(polity_crop$item_cbs_code))
-  pattern_ha <- .n_crop_pattern_ha(data, years, item_prod_codes$item_prod_code)
-  weights <- .n_cell_weights(pattern_ha, cell_polity, item_prod_codes)
+  cropland_ha <- .n_cropland_ha(data, years)
+  pattern_ha <- .n_crop_pattern_ha(
+    cropland_ha,
+    data,
+    item_prod_codes$item_prod_code
+  )
+  pattern_weights <- .n_cell_weights(pattern_ha, cell_polity, item_prod_codes)
+  cropland_weights <- .n_cropland_cell_weights(cropland_ha, cell_polity)
+  matched <- .n_grid_matched(polity_crop, pattern_weights)
+  unmatched <- .n_grid_unmatched(polity_crop, pattern_weights, cropland_weights)
+  dplyr::bind_rows(matched, unmatched)
+}
+
+# Polity-crops that have crop-pattern weights: distribute by cell_share.
+.n_grid_matched <- function(polity_crop, pattern_weights) {
   polity_crop |>
     dplyr::inner_join(
-      weights,
+      pattern_weights,
       by = c("year", "area_code", "item_cbs_code"),
       relationship = "many-to-many"
     ) |>
@@ -217,6 +239,63 @@ spatialize_country_n_to_crops <- function(
       item_cbs_code,
       n_t = .data$n_t * .data$cell_share
     )
+}
+
+# Polity-crops absent from the crop-pattern weights: warn on the reallocated
+# tonnage, then spread uniformly across the polity's cropland cells so no
+# nitrogen is lost from the grid total.
+.n_grid_unmatched <- function(polity_crop, pattern_weights, cropland_weights) {
+  unmatched <- polity_crop |>
+    dplyr::anti_join(
+      dplyr::distinct(
+        pattern_weights,
+        .data$year,
+        .data$area_code,
+        .data$item_cbs_code
+      ),
+      by = c("year", "area_code", "item_cbs_code")
+    )
+  if (nrow(unmatched) == 0L) {
+    return(.n_empty_grid())
+  }
+  .n_warn_unmatched(unmatched)
+  unmatched |>
+    dplyr::inner_join(
+      cropland_weights,
+      by = c("year", "area_code"),
+      relationship = "many-to-many"
+    ) |>
+    dplyr::transmute(
+      lon,
+      lat,
+      area_code,
+      year,
+      item_cbs_code,
+      n_t = .data$n_t * .data$cropland_share
+    )
+}
+
+# A zero-row tibble with the grid output schema.
+.n_empty_grid <- function() {
+  tibble::tibble(
+    lon = numeric(),
+    lat = numeric(),
+    area_code = integer(),
+    year = integer(),
+    item_cbs_code = integer(),
+    n_t = numeric()
+  )
+}
+
+# Warn that some crops' nitrogen was reallocated to cropland cells because the
+# crop-pattern raster had no hectares for them in the polity.
+.n_warn_unmatched <- function(unmatched) {
+  cli::cli_warn(c(
+    "!" = "{nrow(unmatched)} polity-crop total{?s} ({round(sum(unmatched$n_t), 3)}
+           t N) had no crop-pattern grid cells; reallocating uniformly across
+           the polity's cropland cells.",
+    "i" = "Affected item_cbs_code{?s}: {sort(unique(unmatched$item_cbs_code))}."
+  ))
 }
 
 # item_cbs_code -> item_prod_code lookup (the same crosswalk used by
@@ -234,17 +313,23 @@ spatialize_country_n_to_crops <- function(
     dplyr::distinct(.data$item_cbs_code, .data$item_prod_code)
 }
 
-# Per-cell per-crop hectares = type_ha (summed over luh2_type) * harvest_
-# fraction, the exact formula used by make_lpjml_covariate()'s
-# "crop_pattern" branch (R/lpjml_covariate.R), reused verbatim.
-.n_crop_pattern_ha <- function(data, years, item_prod_codes) {
-  type_cropland <- .n_read_type_cropland(data$type_cropland, years) |>
+# Per-cell total cropland hectares = type_ha summed over luh2_type, for the
+# requested years. The crop-independent cropland area used both for the
+# per-crop pattern weights and for the fallback uniform reallocation.
+.n_cropland_ha <- function(data, years) {
+  .n_read_type_cropland(data$type_cropland, years) |>
     dplyr::summarise(
       type_ha = sum(.data$type_ha, na.rm = TRUE),
       .by = c(lon, lat, year)
     )
+}
+
+# Per-cell per-crop hectares = type_ha (summed over luh2_type) * harvest_
+# fraction, the exact formula used by make_lpjml_covariate()'s
+# "crop_pattern" branch (R/lpjml_covariate.R), reused verbatim.
+.n_crop_pattern_ha <- function(cropland_ha, data, item_prod_codes) {
   crop_patterns <- .n_read_crop_patterns(data$crop_patterns, item_prod_codes)
-  dplyr::inner_join(type_cropland, crop_patterns, by = c("lon", "lat")) |>
+  dplyr::inner_join(cropland_ha, crop_patterns, by = c("lon", "lat")) |>
     dplyr::mutate(
       crop_pattern_ha = .data$type_ha * .data$harvest_fraction
     ) |>
@@ -295,7 +380,9 @@ spatialize_country_n_to_crops <- function(
 
 # Each cell's share of its polity-crop's total crop_pattern_ha, joined to
 # the cell-polity crosswalk (area_code) and the item_cbs_code<->item_prod_code
-# lookup.
+# lookup. Polity-crops whose weighted crop-pattern area sums to zero are
+# dropped here (returned as unmatched) so the caller reallocates them across
+# the polity's cropland cells instead of distributing to a zero share.
 .n_cell_weights <- function(pattern_ha, cell_polity, item_prod_codes) {
   pattern_ha |>
     dplyr::inner_join(item_prod_codes, by = "item_prod_code") |>
@@ -309,12 +396,26 @@ spatialize_country_n_to_crops <- function(
       group_ha = sum(.data$weighted_ha),
       .by = c(year, area_code, item_cbs_code)
     ) |>
-    dplyr::mutate(
-      cell_share = dplyr::if_else(
-        .data$group_ha > 0,
-        .data$weighted_ha / .data$group_ha,
-        0
-      )
-    ) |>
+    dplyr::filter(.data$group_ha > 0) |>
+    dplyr::mutate(cell_share = .data$weighted_ha / .data$group_ha) |>
     dplyr::select(lon, lat, area_code, year, item_cbs_code, cell_share)
+}
+
+# Each cell's share of its polity's total cropland area (crop-independent),
+# used to spread the nitrogen of crops absent from the crop-pattern raster.
+.n_cropland_cell_weights <- function(cropland_ha, cell_polity) {
+  cropland_ha |>
+    dplyr::inner_join(
+      dplyr::select(cell_polity, lon, lat, area_code, polity_frac),
+      by = c("lon", "lat"),
+      relationship = "many-to-many"
+    ) |>
+    dplyr::mutate(weighted_ha = .data$type_ha * .data$polity_frac) |>
+    dplyr::mutate(
+      group_ha = sum(.data$weighted_ha),
+      .by = c(year, area_code)
+    ) |>
+    dplyr::filter(.data$group_ha > 0) |>
+    dplyr::mutate(cropland_share = .data$weighted_ha / .data$group_ha) |>
+    dplyr::select(lon, lat, area_code, year, cropland_share)
 }
