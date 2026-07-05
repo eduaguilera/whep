@@ -248,6 +248,11 @@ utils::globalVariables(
     "swc_topsoil",
     "water_minus_pet_mm",
     "pet_mm_day",
+    "water_balance_mm",
+    "theta",
+    "t_field",
+    "t_wilt",
+    "porosity",
     "method_water_input",
     "grass_npp_gc_m2",
     "cell_area_ha",
@@ -1108,6 +1113,8 @@ utils::globalVariables(
     "weighted_ef3",
     "weighted_mcf",
     "wool_production_kg_yr",
+    "work_coef",
+    "cw_effective",
     "work_hours_day",
     "work_hours_day_default",
     "ym_factor",
@@ -1440,7 +1447,10 @@ utils::globalVariables(
     # n_balance_spatialize.R (Module C, Task C6) — cell_polity assembly +
     # crop-pattern spatialization NSE columns
     "weighted_ha",
-    "group_ha"
+    "group_ha",
+    "cropland_share",
+    # n_balance_inputs.R — recycling-N basis provenance stamp
+    "method_recycling_n"
   )
 )
 
