@@ -12,8 +12,11 @@
 #' @param data A dataframe with columns `species`, `cohort`, `heads`,
 #'   and optionally `iso3`. Optional production columns: `weight`,
 #'   `milk_yield_kg_day`, `fat_percent`, `weight_gain_kg_day`,
-#'   `work_hours_day`, `pregnant_fraction`, `temperature_c`,
-#'   `diet_quality`, `grazing_distance_km`, `system`.
+#'   `work_hours_day`, `work_coef`, `pregnant_fraction`, `temperature_c`,
+#'   `diet_quality`, `grazing_distance_km`, `system`. `work_coef`
+#'   overrides the joined IPCC work coefficient (`cw`, 0 by default for
+#'   every species) for rows that need draught/work energy (IPCC Eq
+#'   10.11) without changing the global default.
 #' @param method Method for calculation (default `"ipcc2019"`).
 #'
 #' @return Dataframe with added `gross_energy` (MJ/day), intermediate
@@ -132,10 +135,20 @@ estimate_energy_demand <- function(data, method = "ipcc2019") {
 }
 
 #' NEwork: IPCC Eq 10.11.
+#'
+#' A caller-supplied `work_coef` overrides the species/subcategory `cw`
+#' joined from `ipcc_tier2_energy_coefs`, which is 0 for every species by
+#' default (a world-inventory model should not add work energy to all
+#' cattle). Pass `work_coef` for known draught animals (e.g. working oxen)
+#' alongside `work_hours_day`.
 #' @noRd
 .calc_energy_work <- function(data) {
   data |>
-    dplyr::mutate(ne_work = cw * ne_maintenance * work_hours_day)
+    dplyr::mutate(
+      cw_effective = dplyr::coalesce(work_coef, cw, 0),
+      ne_work = cw_effective * ne_maintenance * work_hours_day
+    ) |>
+    dplyr::select(-cw_effective)
 }
 
 #' NEp: IPCC Eq 10.13.
@@ -303,6 +316,7 @@ estimate_energy_demand <- function(data, method = "ipcc2019") {
     "lactose_percent",
     "weight_gain_kg_day",
     "work_hours_day",
+    "work_coef",
     "pregnant_fraction",
     "wool_production_kg_yr"
   )

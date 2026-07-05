@@ -174,3 +174,24 @@ testthat::test_that("Beef cattle gets default weight gain", {
   testthat::expect_equal(wg, 0.5)
   testthat::expect_gt(neg, 0)
 })
+
+# .calc_energy_work / work_coef override -----------------------------------
+
+testthat::test_that("work_coef override activates NE_work for cattle (whep's own cw is 0)", {
+  no_override <- working_oxen_tier2_fixture(work_coef = NA_real_) |>
+    estimate_energy_demand()
+  with_override <- working_oxen_tier2_fixture(work_coef = 0.10) |>
+    estimate_energy_demand()
+
+  testthat::expect_equal(no_override$ne_work, 0)
+  testthat::expect_gt(with_override$ne_work, 0)
+  testthat::expect_gt(with_override$gross_energy, no_override$gross_energy)
+})
+
+testthat::test_that("work_coef is NA-safe and does not affect rows without it", {
+  no_col <- tibble::tibble(
+    species = "Beef Cattle", cohort = "Adult Male", weight = 420,
+    work_hours_day = 6, diet_quality = "Medium", heads = 10
+  ) |> estimate_energy_demand()
+  testthat::expect_equal(no_col$ne_work, 0)
+})
