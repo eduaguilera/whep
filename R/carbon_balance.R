@@ -29,15 +29,20 @@
 #'   \code{c_input_mgc_ha_yr} and \code{humified_fraction}); \code{land_use}
 #'   (yearly per-cell per-class \code{lon}, \code{lat}, \code{area_code},
 #'   \code{year}, \code{land_use}, \code{area_ha}); \code{climate} (either a
-#'   precomputed per cell-year \code{climate_modifier}, or the raw monthly
-#'   drivers \code{temp_c} and \code{water_minus_pet_mm} keyed by
-#'   \code{lon}, \code{lat}, \code{area_code}, \code{year}, \code{month} with an
-#'   optional per cell-year \code{soil_cover}, from which the selected model's
-#'   native modifier is computed internally); \code{clay} (per cell
-#'   \code{clay_pct}); and an optional \code{equilibrium_climate} (the
-#'   pre-industrial climatological normal, one representative monthly cycle per
-#'   cell, used only for the equilibrium spin-up modifier while the forward
-#'   march uses the year-specific drivers).
+#'   precomputed per cell-year \code{climate_modifier}, applied to every
+#'   land-use class alike, or the raw monthly drivers \code{temp_c} and
+#'   \code{water_minus_pet_mm} keyed by \code{lon}, \code{lat},
+#'   \code{area_code}, \code{year}, \code{month}, from which the selected
+#'   model's native modifier is computed internally per land-use class: for the
+#'   RothC/HSOC cover term the monthly vegetated soil-cover fraction is taken
+#'   from the generic land-use curve \code{\link{soc_soil_cover_curve}} (a crop
+#'   growth-stage canopy for cropland, sustained perennial cover for
+#'   grassland/natural), so any \code{soil_cover} column supplied on the raw
+#'   drivers is ignored); \code{clay} (per cell \code{clay_pct}); and an
+#'   optional \code{equilibrium_climate} (the pre-industrial climatological
+#'   normal, one representative monthly cycle per cell, used only for the
+#'   equilibrium spin-up modifier while the forward march uses the year-specific
+#'   drivers).
 #' @param example If \code{TRUE}, return a small fixture instead of reading
 #'   remote data. Defaults to \code{FALSE}.
 #' @return A tibble keyed by \code{(lon, lat, area_code, land_use, year)} at
@@ -84,41 +89,90 @@ build_carbon_balance <- function(
   )
 }
 
-# Join land-use areas, carbon inputs, the per-cell-year climate modifier and
-# clay into one per-cell, per-land-use, per-year class table; add the cell-year
-# land-use fraction. The climate modifier is either the precomputed
-# `climate_modifier` column (back-compat) or one derived from the raw monthly
-# drivers via the selected model's native climate function (see
-# `.cb_climate_modifier_table()`).
+# Join land-use areas, carbon inputs, the per-cell-year (and, for the raw-driver
+# path, per-land-use) climate modifier and clay into one per-cell, per-land-use,
+# per-year class table; add the cell-year land-use fraction. A land-use class
+# with no carbon-input row (e.g. LUH2 `urban`, for which the input builders emit
+# nothing) is kept as a zero-carbon class (`c_input` and `humified_fraction`
+# coalesced to 0) rather than dropped, so `frac` still sums to 1 across the cell
+# and that class's area share dilutes rather than deflates the cell equilibrium
+# SOC. The climate modifier is either the precomputed `climate_modifier` column
+# (back-compat, one value per cell-year, land-use-independent) or one derived
+# from the raw monthly drivers via the selected model's native climate function,
+# reduced PER LAND USE so the RothC/HSOC plant-cover term differs between
+# cropland (crop growth-stage curve) and grassland/natural (perennial cover);
+# see `.cb_climate_modifier_table()`. A genuinely missing modifier aborts.
 .cb_class_table <- function(d, model) {
   clay <- d$clay
-  modifiers <- .cb_climate_modifier_table(d$climate, clay, model)
-  d$land_use |>
+  base <- d$land_use |>
     dplyr::mutate(
       frac = .data$area_ha / sum(.data$area_ha),
       .by = c("lon", "lat", "area_code", "year")
     ) |>
-    dplyr::inner_join(
+    dplyr::left_join(
       d$c_inputs,
       by = c("lon", "lat", "area_code", "year", "land_use")
     ) |>
-    dplyr::left_join(
-      modifiers,
-      by = c("lon", "lat", "area_code", "year")
-    ) |>
+    dplyr::mutate(
+      c_input_mgc_ha_yr = dplyr::coalesce(.data$c_input_mgc_ha_yr, 0),
+      humified_fraction = dplyr::coalesce(.data$humified_fraction, 0)
+    )
+  modifiers <- .cb_climate_modifier_table(d$climate, clay, model, base$land_use)
+  base |>
+    .cb_join_modifier(modifiers) |>
     dplyr::left_join(clay, by = c("lon", "lat")) |>
-    dplyr::mutate(climate_modifier = .data$climate_modifier %|% 1)
+    .cb_check_climate_modifier()
+}
+
+# Join the modifier table onto the class table. The raw-driver modifier table
+# carries a `land_use` column (the modifier varies by class), so it is joined on
+# the 5-key; the precomputed back-compat table has one modifier per cell-year,
+# so it is joined on the 4-key and broadcast to every class.
+.cb_join_modifier <- function(base, modifiers) {
+  keys <- c("lon", "lat", "area_code", "year")
+  if (rlang::has_name(modifiers, "land_use")) {
+    dplyr::left_join(base, modifiers, by = c(keys, "land_use"))
+  } else {
+    dplyr::left_join(base, modifiers, by = keys)
+  }
+}
+
+# Abort if any cell-year that has land-use and carbon-input coverage lacks a
+# climate modifier: a missing modifier is a real climate-data gap and must not
+# be silently replaced by a neutral 1 (which would run SOC turnover at
+# unmodified decomposition and hide the gap). The per-model native modifier path
+# already returns a legitimate 1 when only the raw driver columns are absent
+# (soc_dynamics.R:80-81), so an NA here means the cell-year is missing from the
+# climate table entirely, never a merely driverless cell.
+.cb_check_climate_modifier <- function(classes) {
+  missing <- classes |> dplyr::filter(is.na(.data$climate_modifier))
+  if (nrow(missing) > 0) {
+    gaps <- missing |>
+      dplyr::distinct(.data$lon, .data$lat, .data$area_code, .data$year)
+    cli::cli_abort(
+      c(
+        "Missing {.field climate_modifier} for {nrow(gaps)} cell-year{?s}.",
+        i = "Every cell-year with land-use and carbon-input coverage needs a
+          climate modifier; supply {.code data$climate} for these cell-years."
+      )
+    )
+  }
+  classes
 }
 
 # -- Climate modifier resolution ----------------------------------------------
 
-# Per-cell-year climate modifier the balance consumes. If `climate` already
-# carries a `climate_modifier` column it is passed through unchanged
-# (back-compat with the phase-2A injected path); otherwise the raw monthly
-# drivers are reduced per cell-year to the selected model's native modifier via
-# `.cb_year_climate_modifier()`. Clay is joined in because the RothC/HSOC
-# modifier needs it.
-.cb_climate_modifier_table <- function(climate, clay, model) {
+# Climate modifier the balance consumes. If `climate` already carries a
+# `climate_modifier` column it is passed through unchanged (back-compat with the
+# phase-2A injected path), one value per cell-year with no land-use dependence.
+# Otherwise the raw monthly drivers are reduced to the selected model's native
+# modifier PER (cell-year, land_use): each class's monthly `soil_cover` is
+# attached first (see `.cb_attach_soil_cover()`), so the RothC/HSOC plant-cover
+# term differs between cropland and perennial classes, then reduced via
+# `.cb_year_climate_modifier()`. Models that do not consume `soil_cover` (ICBM,
+# AMG, Century) get an identical modifier across classes. Clay is joined in
+# because the RothC/HSOC modifier needs it.
+.cb_climate_modifier_table <- function(climate, clay, model, land_use_classes) {
   keys <- c("lon", "lat", "area_code", "year")
   if (rlang::has_name(climate, "climate_modifier")) {
     return(dplyr::distinct(
@@ -126,16 +180,72 @@ build_carbon_balance <- function(
     ))
   }
   climate |>
-    dplyr::left_join(clay, by = c("lon", "lat")) |>
+    .cb_join_clay(clay) |>
     .cb_arrange_by_month() |>
+    .cb_attach_soil_cover(land_use_classes) |>
     dplyr::summarise(
       climate_modifier = .cb_year_climate_modifier(
         model,
         dplyr::pick(dplyr::everything()),
         dplyr::first(.data$clay_pct)
       ),
-      .by = dplyr::all_of(keys)
+      .by = dplyr::all_of(c(keys, "land_use"))
     )
+}
+
+# get_soc_climate_drivers() already embeds clay_pct in its own output (RothC/
+# HSOC need it as a climate driver too); joining the separately-supplied `clay`
+# on top would silently suffix both to clay_pct.x/clay_pct.y and break the
+# .data$clay_pct read, so only join `clay` in when `climate` lacks it.
+.cb_join_clay <- function(climate, clay) {
+  if (rlang::has_name(climate, "clay_pct")) {
+    climate
+  } else {
+    dplyr::left_join(climate, clay, by = c("lon", "lat"))
+  }
+}
+
+# Cross the monthly climate rows with every land-use class present in the
+# cell-year and attach each class's monthly vegetated soil-cover fraction. For
+# cropland the fraction follows the generic crop growth-stage canopy curve
+# (`whep::soc_soil_cover_curve`) aligned so the peak-canopy (mid-season) month is
+# the cell-year's warmest month, with the remaining fallow/off-season months at
+# a low bare-soil cover; grassland and natural carry a sustained perennial cover
+# year-round. A class absent from the curve table (e.g. urban) defaults to bare
+# soil (soil_cover 0), preserving the prior behaviour for those classes.
+.cb_attach_soil_cover <- function(climate, land_use_classes) {
+  classes <- unique(land_use_classes)
+  climate |>
+    dplyr::select(-dplyr::any_of("soil_cover")) |>
+    dplyr::mutate(
+      months_from_peak = .cb_months_from_peak(.data$month, .data$temp_c),
+      .by = c("lon", "lat", "area_code", "year")
+    ) |>
+    tidyr::crossing(land_use = classes) |>
+    dplyr::mutate(.cover_key = stringr::str_to_lower(.data$land_use)) |>
+    dplyr::left_join(
+      .cb_cover_curve(),
+      by = c(".cover_key" = "land_use", "months_from_peak")
+    ) |>
+    dplyr::mutate(soil_cover = dplyr::coalesce(.data$soil_cover, 0)) |>
+    dplyr::select(-".cover_key")
+}
+
+# Signed month offset of each month from the cell-year's warmest (peak-canopy)
+# month, on a 12-month circle mapped to -5..6 (0 = the warmest month). Aligns
+# the crop cover curve's mid-season peak to the growing-season temperature peak,
+# which auto-handles both hemispheres from the temperature seasonality alone.
+.cb_months_from_peak <- function(month, temp_c) {
+  peak <- month[which.max(temp_c)]
+  raw <- (month - peak) %% 12
+  dplyr::if_else(raw <= 6, raw, raw - 12L)
+}
+
+# The generic land-use monthly soil-cover curve, matched to lowercase land-use
+# labels so the LUH2 reader's classes (cropland, grassland, natural) resolve.
+.cb_cover_curve <- function() {
+  whep::soc_soil_cover_curve |>
+    dplyr::mutate(land_use = stringr::str_to_lower(.data$land_use))
 }
 
 # Order the monthly climate rows by month within each cell-year so the RothC
@@ -220,6 +330,13 @@ build_carbon_balance <- function(
   if (model == "hsoc") {
     args$humification_fraction <- humified_fraction
   }
+  if (model == "amg") {
+    # fixed_iom would split the arbitrary analytic `seed` by a fixed stable
+    # fraction; there is no real measured total here to split, so the
+    # from-scratch equilibrium must derive both pools from ca_ss/f_iom
+    # instead (see .amg_init()'s steady_state branch).
+    args$init_mode <- "steady_state"
+  }
   traj <- calculate_soc_dynamics(model = model, data = args)
   dplyr::last(.cb_total_stock(traj)$stock_mgc_ha)
 }
@@ -285,9 +402,14 @@ build_carbon_balance <- function(
   if (is.null(eq_climate)) {
     return(first)
   }
-  eq_mod <- .cb_equilibrium_modifier_table(eq_climate, d$clay, model)
+  eq_mod <- .cb_equilibrium_modifier_table(
+    eq_climate,
+    d$clay,
+    model,
+    first$land_use
+  )
   first |>
-    dplyr::left_join(eq_mod, by = c("lon", "lat", "area_code")) |>
+    dplyr::left_join(eq_mod, by = c("lon", "lat", "area_code", "land_use")) |>
     dplyr::mutate(
       climate_modifier = .data$climate_modifier_eq %|% .data$climate_modifier
     ) |>
@@ -295,15 +417,22 @@ build_carbon_balance <- function(
     .cb_attach_equilibrium(model)
 }
 
-# Per-cell equilibrium-climate modifier from the pre-industrial normal. The
-# normal carries the same monthly raw drivers as the forward climate but only
-# one representative period per cell, so it collapses to one modifier per
-# (lon, lat, area_code) named `climate_modifier_eq`.
-.cb_equilibrium_modifier_table <- function(eq_climate, clay, model) {
-  cell_keys <- c("lon", "lat", "area_code")
+# Per-cell, per-land-use equilibrium-climate modifier from the pre-industrial
+# normal. The normal carries the same monthly raw drivers as the forward climate
+# but only one representative period per cell; each land-use class's monthly
+# soil-cover is attached (as in the forward path) before reducing to one
+# `climate_modifier_eq` per (lon, lat, area_code, land_use).
+.cb_equilibrium_modifier_table <- function(
+  eq_climate,
+  clay,
+  model,
+  land_use_classes
+) {
+  cell_keys <- c("lon", "lat", "area_code", "land_use")
   eq_climate |>
-    dplyr::left_join(clay, by = c("lon", "lat")) |>
+    .cb_join_clay(clay) |>
     .cb_arrange_by_month() |>
+    .cb_attach_soil_cover(land_use_classes) |>
     dplyr::summarise(
       climate_modifier_eq = .cb_year_climate_modifier(
         model,
@@ -360,45 +489,96 @@ build_carbon_balance <- function(
     dplyr::bind_rows()
 }
 
-# March one cell forward year by year. State is a named density vector indexed
-# by land-use class; per year compute the model annual update (mineralization
-# and input), then redistribute released carbon via the land-use-change buffer.
+# March one cell forward year by year (Spain_Hist Calc_SOC_evolution
+# :370-410). State is a named density vector indexed by land-use class. The
+# first year keeps the equilibrium-weighted initial stock unchanged; each later
+# year advances the previous year's stock with the PREVIOUS year's rate and
+# input (soc - soc*K[i-1] + Input[i-1]) then redistributes released carbon via
+# the land-use-change buffer. Reported diagnostics for a year use that year's
+# own post-transfer stock, rate and input.
 .cb_march_cell <- function(cell, init) {
   years <- sort(unique(cell$year))
   state <- stats::setNames(init$stock_mgc_ha, init$land_use)
-  prev_area <- .cb_year_areas(cell, years[1])
   out <- vector("list", length(years))
   for (i in seq_along(years)) {
-    yr <- cell |> dplyr::filter(.data$year == years[i])
-    step <- .cb_year_step(yr, state, prev_area)
+    cur <- cell |> dplyr::filter(.data$year == years[i])
+    prev <- if (i == 1L) {
+      NULL
+    } else {
+      dplyr::filter(cell, .data$year == years[i - 1L])
+    }
+    step <- .cb_year_step(cur, prev, state)
     out[[i]] <- step$rows
     state <- step$state
-    prev_area <- .cb_year_areas(cell, years[i])
   }
   dplyr::bind_rows(out)
 }
 
-# One year of evolution for a cell: model annual update per class, then the
-# carbon-conserving land-use-change transfer driven by the area change.
-.cb_year_step <- function(yr, state, prev_area) {
-  yr <- yr |> dplyr::arrange(.data$land_use)
-  prev_stock <- state[yr$land_use]
-  k_eff <- .cb_effective_rate(yr)
-  mineralization <- prev_stock * k_eff
-  stepped <- prev_stock - mineralization + yr$c_input_mgc_ha_yr
+# One year of evolution for a cell. The first year (`prev` NULL) leaves the
+# initial stock in place with no transfer; a later year advances each class's
+# previous-year stock with the previous year's rate and input, then applies the
+# carbon-conserving land-use-change transfer driven by the previous-to-current
+# area change. A class absent from the previous year starts from zero stock and
+# zero area (a newly appearing class carries no carbon; Spain_Hist NaN guard,
+# SOC_Fun.R:388-390).
+.cb_year_step <- function(cur, prev, state) {
+  cur <- cur |> dplyr::arrange(.data$land_use)
+  stepped <- .cb_advance_stock(cur, prev, state)
   transferred <- .cb_luc_transfer(
     tibble::tibble(
-      land_use = yr$land_use,
+      land_use = cur$land_use,
       stock_mgc_ha = stepped,
-      old_area_ha = prev_area[yr$land_use],
-      new_area_ha = yr$area_ha
+      old_area_ha = .cb_prev_areas(cur, prev),
+      new_area_ha = cur$area_ha
     )
   )
-  rows <- .cb_year_rows(yr, transferred, mineralization)
+  rows <- .cb_year_rows(cur, transferred)
   list(
     rows = rows,
     state = stats::setNames(transferred$stock_mgc_ha, transferred$land_use)
   )
+}
+
+# Per-class stock entering the current year's transfer. The first year passes
+# the initial stock through unchanged; a later year applies the previous year's
+# decay and input to the previous year's stock. A class with no previous-year
+# stock (absent last year) enters at zero.
+.cb_advance_stock <- function(cur, prev, state) {
+  prev_stock <- .cb_lookup(state, cur$land_use)
+  if (is.null(prev)) {
+    return(prev_stock)
+  }
+  k_prev <- .cb_lookup(.cb_rate_vec(prev), cur$land_use)
+  input_prev <- .cb_lookup(.cb_input_vec(prev), cur$land_use)
+  prev_stock - prev_stock * k_prev + input_prev
+}
+
+# Named lookup that maps classes absent from the source vector to 0 rather than
+# propagating NA (Spain_Hist treats a class absent last year as zero stock).
+.cb_lookup <- function(vec, land_use) {
+  looked <- vec[land_use]
+  dplyr::coalesce(unname(looked), 0)
+}
+
+# Previous-year effective decay rate per class as a named vector (0 for a class
+# absent last year, so its stock does not decay before it exists).
+.cb_rate_vec <- function(prev) {
+  stats::setNames(.cb_effective_rate(prev), prev$land_use)
+}
+
+# Previous-year carbon input per class as a named vector.
+.cb_input_vec <- function(prev) {
+  stats::setNames(prev$c_input_mgc_ha_yr, prev$land_use)
+}
+
+# Previous-year area per class aligned to the current year's classes; a class
+# absent last year has zero previous area, so it enters the transfer as a pure
+# area gain drawing from the released-carbon buffer.
+.cb_prev_areas <- function(cur, prev) {
+  if (is.null(prev)) {
+    return(cur$area_ha)
+  }
+  .cb_lookup(stats::setNames(prev$area_ha, prev$land_use), cur$land_use)
 }
 
 # Effective annual decay rate making the stock relax to the model equilibrium
@@ -410,28 +590,27 @@ build_carbon_balance <- function(
 
 # Assemble the per-class output rows for one cell-year. `transferred` is keyed
 # by land_use (it was reordered by area change inside the transfer), so it is
-# matched back to the year's class order. luc_transfer_mgc_ha is the buffer mass
-# exchanged per current hectare (sums to zero across the cell).
-.cb_year_rows <- function(yr, transferred, mineralization) {
-  idx <- match(yr$land_use, transferred$land_use)
+# matched back to the year's class order. Mineralization, rate and input are the
+# year's own diagnostics on its post-transfer stock (Spain_Hist
+# Calc_SOC_categories, SOC_Fun.R:275-283). luc_transfer_mgc_ha is the buffer
+# mass exchanged per current hectare (sums to zero across the cell).
+.cb_year_rows <- function(cur, transferred) {
+  idx <- match(cur$land_use, transferred$land_use)
+  stock <- transferred$stock_mgc_ha[idx]
+  mineralization <- stock * .cb_effective_rate(cur)
   tibble::tibble(
-    lon = yr$lon,
-    lat = yr$lat,
-    area_code = yr$area_code,
-    land_use = yr$land_use,
-    year = yr$year,
-    area_ha = yr$area_ha,
-    stock_mgc_ha = transferred$stock_mgc_ha[idx],
+    lon = cur$lon,
+    lat = cur$lat,
+    area_code = cur$area_code,
+    land_use = cur$land_use,
+    year = cur$year,
+    area_ha = cur$area_ha,
+    stock_mgc_ha = stock,
     mineralization_mgc_ha = mineralization,
-    c_input_mgc_ha = yr$c_input_mgc_ha_yr,
-    luc_transfer_mgc_ha = transferred$mass_moved[idx] / yr$area_ha,
-    rate_mgc_ha = yr$c_input_mgc_ha_yr - mineralization
+    c_input_mgc_ha = cur$c_input_mgc_ha_yr,
+    luc_transfer_mgc_ha = transferred$mass_moved[idx] / cur$area_ha,
+    rate_mgc_ha = cur$c_input_mgc_ha_yr - mineralization
   )
-}
-
-.cb_year_areas <- function(cell, year) {
-  yr <- cell |> dplyr::filter(.data$year == year)
-  stats::setNames(yr$area_ha, yr$land_use)
 }
 
 # Land-use-change carbon transfer (Spain_Hist Calc_SOC_evolution :377-408).

@@ -270,6 +270,32 @@ test_that("raw-driver path feeds the model (differs from neutral modifier)", {
   testthat::expect_true(all(raw$stock_mgc_ha >= 0))
 })
 
+test_that("climate carrying its own clay_pct does not collide with data$clay", {
+  # get_soc_climate_drivers()'s real output already embeds clay_pct (RothC/
+  # HSOC need it as a climate driver too), so a caller wiring its real output
+  # straight into build_carbon_balance()'s data$climate, alongside a separate
+  # data$clay, must not silently suffix both to clay_pct.x/clay_pct.y and lose
+  # the plain clay_pct column .cb_year_climate_modifier() reads.
+  raw_with_clay <- .cb_raw_climate_fixture() |>
+    dplyr::mutate(clay_pct = 20)
+  d <- .cb_test_data()
+  d$climate <- raw_with_clay
+  cb <- whep::build_carbon_balance(
+    model = "hsoc",
+    resolution = "grid",
+    data = d
+  )
+  testthat::expect_true(all(is.finite(cb$stock_mgc_ha)))
+  # Must reproduce the plain raw-driver run (clay_pct=20 either way), not some
+  # NA-clay or dropped-modifier fallback.
+  raw <- whep::build_carbon_balance(
+    model = "hsoc",
+    resolution = "grid",
+    data = .cb_raw_test_data()
+  )
+  testthat::expect_equal(cb$stock_mgc_ha, raw$stock_mgc_ha, tolerance = 1e-9)
+})
+
 test_that("back-compat: injected climate_modifier is used as-is", {
   # The phase-2A fixture injects climate_modifier directly; the raw-driver path
   # must not disturb it. A modifier of exactly 1 must reproduce the neutral run.
@@ -281,6 +307,154 @@ test_that("back-compat: injected climate_modifier is used as-is", {
   # HSOC equilibrium at climate_modifier = 1 equals the analytic I/k (per the
   # equilibrium test above), so the modifier was honoured verbatim.
   testthat::expect_true(all(is.finite(cb$stock_mgc_ha)))
+})
+
+# -- Land-use-specific soil cover (T24 / soil_cover finding) -------------------
+
+# Strongly seasonal monthly drivers (temperature peaks in July) for one cell,
+# with the lowercase LUH2 land-use vocabulary the soil-cover curve is keyed on.
+.cb_seasonal_climate_fixture <- function() {
+  tidyr::expand_grid(
+    lon = 0.25,
+    lat = 0.25,
+    area_code = 1L,
+    year = 2000L,
+    month = 1:12
+  ) |>
+    dplyr::mutate(
+      temp_c = 12 + 10 * sin((month - 4) / 12 * 2 * pi),
+      water_minus_pet_mm = 20 - 3 * (month - 6)
+    )
+}
+
+.cb_clay_only <- function() {
+  tibble::tribble(~lon, ~lat, ~clay_pct, 0.25, 0.25, 20)
+}
+
+test_that("RothC/HSOC modifier differs between cropland and perennial classes", {
+  # Before this fix a single climate modifier per cell-year was broadcast to
+  # every land-use class, so cropland, grassland and natural shared one value.
+  # Now the RothC/HSOC cover term is class-specific: cropland (a seasonal canopy
+  # with a bare fallow period) must mineralize differently from grassland /
+  # natural (sustained perennial cover) in the same cell-year.
+  classes <- c("cropland", "grassland", "natural")
+  mods <- whep:::.cb_climate_modifier_table(
+    .cb_seasonal_climate_fixture(),
+    .cb_clay_only(),
+    "hsoc",
+    classes
+  )
+  crop <- mods$climate_modifier[mods$land_use == "cropland"]
+  grass <- mods$climate_modifier[mods$land_use == "grassland"]
+  nat <- mods$climate_modifier[mods$land_use == "natural"]
+  # Cropland has bare fallow months (cover_factor up to 1.0), so it mineralizes
+  # faster than the perennially-covered classes (cover_factor floored near 0.66).
+  testthat::expect_gt(crop, grass)
+  testthat::expect_false(isTRUE(all.equal(crop, grass)))
+  # Grassland and natural share the same sustained perennial cover, so their
+  # HSOC modifiers coincide.
+  testthat::expect_equal(grass, nat, tolerance = 1e-12)
+  # The end-to-end balance carries the class-specific modifier through: a
+  # co-located cropland and grassland row get distinct equilibrium stocks.
+  cb <- whep::build_carbon_balance(
+    model = "hsoc",
+    resolution = "grid",
+    data = list(
+      land_use = .cb_land_use_fixture() |>
+        dplyr::mutate(
+          land_use = dplyr::recode(
+            land_use,
+            Cropland = "cropland",
+            NonCropland = "grassland"
+          )
+        ),
+      c_inputs = .cb_c_inputs_fixture() |>
+        dplyr::mutate(
+          land_use = dplyr::recode(
+            land_use,
+            Cropland = "cropland",
+            NonCropland = "grassland"
+          )
+        ),
+      climate = tidyr::expand_grid(
+        lon = 0.25,
+        lat = 0.25,
+        area_code = 1L,
+        year = 2000:2002,
+        month = 1:12
+      ) |>
+        dplyr::mutate(
+          temp_c = 12 + 10 * sin((month - 4) / 12 * 2 * pi),
+          water_minus_pet_mm = 20 - 3 * (month - 6)
+        ),
+      clay = .cb_clay_only()
+    )
+  )
+  # The first year initialises every class to the cell-weighted-mean stock, so
+  # the class-specific modifier surfaces in the per-class equilibrium decay rate:
+  # cropland (faster mineralization) and grassland must have distinct rates in
+  # the first year and diverging stocks once the march applies those rates.
+  first <- dplyr::filter(cb, year == 2000L)
+  testthat::expect_false(isTRUE(all.equal(
+    first$rate_mgc_ha[first$land_use == "cropland"],
+    first$rate_mgc_ha[first$land_use == "grassland"]
+  )))
+  later <- dplyr::filter(cb, year == 2001L)
+  testthat::expect_false(isTRUE(all.equal(
+    later$stock_mgc_ha[later$land_use == "cropland"],
+    later$stock_mgc_ha[later$land_use == "grassland"]
+  )))
+})
+
+test_that("cropland soil_cover varies across the growing and fallow seasons", {
+  # The crop growth-stage curve must make cropland cover rise to a mid-season
+  # peak at the warmest month and fall to a low bare-soil value in the fallow
+  # months, never a single flat land-use constant.
+  climate <- dplyr::left_join(
+    .cb_seasonal_climate_fixture(),
+    .cb_clay_only(),
+    by = c("lon", "lat")
+  )
+  cover <- whep:::.cb_attach_soil_cover(climate, "cropland") |>
+    dplyr::arrange(month)
+  testthat::expect_gt(length(unique(cover$soil_cover)), 1)
+  # Peak cover is at the warmest month (July here), well above the fallow floor.
+  peak_month <- cover$month[which.max(cover$temp_c)]
+  testthat::expect_equal(
+    cover$soil_cover[cover$month == peak_month],
+    0.95,
+    tolerance = 1e-9
+  )
+  testthat::expect_lt(min(cover$soil_cover), 0.1)
+  # A perennial class instead carries one sustained cover across every month.
+  grass <- whep:::.cb_attach_soil_cover(climate, "grassland")
+  testthat::expect_length(unique(grass$soil_cover), 1)
+})
+
+test_that("ICBM/AMG/Century modifiers ignore soil cover (class-invariant)", {
+  # Only RothC/HSOC consume soil_cover; the other three models must produce an
+  # identical modifier for every land-use class in a cell-year (their driver
+  # lists do not reference soil_cover), so this fix leaves them unchanged.
+  climate <- .cb_seasonal_climate_fixture() |>
+    dplyr::mutate(
+      precip_mm = 50,
+      pet_mm = 40,
+      water_balance_mm = 120,
+      theta = 0.25,
+      t_field = 0.29,
+      t_wilt = 0.14,
+      porosity = 0.43
+    )
+  classes <- c("cropland", "grassland", "natural")
+  for (model in c("icbm", "amg", "century")) {
+    mods <- whep:::.cb_climate_modifier_table(
+      climate,
+      .cb_clay_only(),
+      model,
+      classes
+    )
+    testthat::expect_length(unique(round(mods$climate_modifier, 12)), 1)
+  }
 })
 
 test_that("equilibrium_climate normal drives the spin-up, not the march", {
@@ -357,4 +531,44 @@ test_that("polity resolution conserves carbon mass vs grid", {
     dplyr::summarise(m = sum(stock_mgc_ha * area_ha), .by = year)
   cmp <- dplyr::inner_join(grid_mass, pol_mass, by = "year")
   testthat::expect_true(all(abs(cmp$m.x - cmp$m.y) < 1e-6))
+})
+
+# A single-class row for one cell-year, used to build a multi-cell marched
+# fixture for .cb_finalise() with independently chosen stock_mgc_ha/area_ha
+# per cell, so the polity aggregation's area-weighted mean can be checked
+# against a hand-computed value (would fail under a plain unweighted mean).
+.cb_finalise_cell_row <- function(lon, lat, stock_mgc_ha, area_ha) {
+  tibble::tibble(
+    lon = lon,
+    lat = lat,
+    area_code = 1L,
+    land_use = "Cropland",
+    year = 2000L,
+    area_ha = area_ha,
+    stock_mgc_ha = stock_mgc_ha,
+    mineralization_mgc_ha = 0,
+    c_input_mgc_ha = 0,
+    luc_transfer_mgc_ha = 0,
+    rate_mgc_ha = 0,
+    son_change_kgn_ha = 0,
+    method_soc = "hsoc"
+  )
+}
+
+test_that("polity area-weighted mean is exercised across multiple cells", {
+  marched <- dplyr::bind_rows(
+    .cb_finalise_cell_row(0.25, 0.25, stock_mgc_ha = 40, area_ha = 30),
+    .cb_finalise_cell_row(0.75, 0.75, stock_mgc_ha = 100, area_ha = 70)
+  )
+  pol <- whep:::.cb_finalise(marched, resolution = "polity")
+
+  expected_wmean <- (40 * 30 + 100 * 70) / (30 + 70)
+  unweighted_mean <- (40 + 100) / 2
+  # A plain unweighted mean across the two cells would give 70, distinct from
+  # the area-weighted 82 -- this test fails if the aggregation regresses to an
+  # unweighted mean.
+  testthat::expect_equal(unweighted_mean, 70)
+  testthat::expect_equal(expected_wmean, 82)
+  testthat::expect_equal(pol$stock_mgc_ha, expected_wmean, tolerance = 1e-9)
+  testthat::expect_false(isTRUE(all.equal(pol$stock_mgc_ha, unweighted_mean)))
 })

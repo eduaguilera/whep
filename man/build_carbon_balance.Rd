@@ -28,15 +28,20 @@ when absent: \code{c_inputs} (per cell, land-use class and year, with
 \code{c_input_mgc_ha_yr} and \code{humified_fraction}); \code{land_use}
 (yearly per-cell per-class \code{lon}, \code{lat}, \code{area_code},
 \code{year}, \code{land_use}, \code{area_ha}); \code{climate} (either a
-precomputed per cell-year \code{climate_modifier}, or the raw monthly
-drivers \code{temp_c} and \code{water_minus_pet_mm} keyed by
-\code{lon}, \code{lat}, \code{area_code}, \code{year}, \code{month} with an
-optional per cell-year \code{soil_cover}, from which the selected model's
-native modifier is computed internally); \code{clay} (per cell
-\code{clay_pct}); and an optional \code{equilibrium_climate} (the
-pre-industrial climatological normal, one representative monthly cycle per
-cell, used only for the equilibrium spin-up modifier while the forward
-march uses the year-specific drivers).}
+precomputed per cell-year \code{climate_modifier}, applied to every
+land-use class alike, or the raw monthly drivers \code{temp_c} and
+\code{water_minus_pet_mm} keyed by \code{lon}, \code{lat},
+\code{area_code}, \code{year}, \code{month}, from which the selected
+model's native modifier is computed internally per land-use class: for the
+RothC/HSOC cover term the monthly vegetated soil-cover fraction is taken
+from the generic land-use curve \code{\link{soc_soil_cover_curve}} (a crop
+growth-stage canopy for cropland, sustained perennial cover for
+grassland/natural), so any \code{soil_cover} column supplied on the raw
+drivers is ignored); \code{clay} (per cell \code{clay_pct}); and an
+optional \code{equilibrium_climate} (the pre-industrial climatological
+normal, one representative monthly cycle per cell, used only for the
+equilibrium spin-up modifier while the forward march uses the year-specific
+drivers).}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading
 remote data. Defaults to \code{FALSE}.}
