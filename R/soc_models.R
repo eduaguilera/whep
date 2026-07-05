@@ -158,8 +158,11 @@ calculate_soc_icbm <- function(
 #'   scaling the active-pool decomposition rate.
 #' @param c_input_type Carbon input type label used to look up the
 #'   humification coefficient.
-#' @param init_mode Initial pool split: \code{"fixed_iom"} (published stable
-#'   fraction) or \code{"steady_state"}.
+#' @param init_mode Initial pool split. \code{"fixed_iom"} splits the supplied
+#'   initial stock by the published stable fraction. \code{"steady_state"}
+#'   ignores the supplied stock and starts from the analytical equilibrium
+#'   \code{ca_ss / (1 - f_iom)} (active pool at its steady state
+#'   \code{ca_ss = h * input / k}, stable pool the matching inert share).
 #' @return A tibble with one row per year: \code{year}, \code{ca}, \code{cs}
 #'   and \code{soc_total}.
 #' @source Saffih-Hdadi, K. & Mary, B. (2008).
@@ -323,34 +326,48 @@ calculate_soc_century <- function(
 
 .rothc_run <- function(pools, rates, splits, input, climate_modifier, years) {
   dt <- 1 / 12
-  c_in_dpm <- input / 12 * splits$frac_dpm
-  c_in_rpm <- input / 12 * splits$frac_rpm
+  n_sub <- .rothc_substeps(rates, climate_modifier, dt)
+  step <- list(
+    c_in_dpm = input / 12 * splits$frac_dpm / n_sub,
+    c_in_rpm = input / 12 * splits$frac_rpm / n_sub,
+    dt = dt / n_sub,
+    n_sub = n_sub
+  )
   purrr::accumulate(
     seq_len(12 * years),
-    \(state, .) {
-      .rothc_step(
-        state,
-        rates,
-        splits,
-        c_in_dpm,
-        c_in_rpm,
-        climate_modifier,
-        dt
-      )
-    },
+    \(state, .) .rothc_step(state, rates, splits, climate_modifier, step),
     .init = pools
   )
 }
 
-.rothc_step <- function(state, rates, splits, c_in_dpm, c_in_rpm, abc, dt) {
-  dec_dpm <- state$dpm * rates[["dpm"]] * abc * dt
-  dec_rpm <- state$rpm * rates[["rpm"]] * abc * dt
-  dec_bio <- state$bio * rates[["bio"]] * abc * dt
-  dec_hum <- state$hum * rates[["hum"]] * abc * dt
+# Adaptive sub-step count for the explicit-Euler stepping. The forward-Euler
+# scheme for x' = -k*x stays bounded and non-negative only while k*abc*dt <= 1;
+# the fast DPM pool (k = 10/yr) breaches this whenever the annual climate
+# modifier pushes the effective monthly rate over 1 (common for warm/wet cells),
+# so split each monthly step into as many equal sub-steps as needed to keep the
+# fastest pool's per-sub-step k*abc*dt at or below 1. n_sub = 1 (the historical
+# single-step regime) reproduces the previous trajectory bit for bit.
+.rothc_substeps <- function(rates, abc, dt) {
+  max(1L, as.integer(ceiling(max(rates) * abc * dt)))
+}
+
+.rothc_step <- function(state, rates, splits, abc, step) {
+  purrr::reduce(
+    seq_len(step$n_sub),
+    \(s, .) .rothc_euler(s, rates, splits, abc, step),
+    .init = state
+  )
+}
+
+.rothc_euler <- function(state, rates, splits, abc, step) {
+  dec_dpm <- state$dpm * rates[["dpm"]] * abc * step$dt
+  dec_rpm <- state$rpm * rates[["rpm"]] * abc * step$dt
+  dec_bio <- state$bio * rates[["bio"]] * abc * step$dt
+  dec_hum <- state$hum * rates[["hum"]] * abc * step$dt
   total_dec <- dec_dpm + dec_rpm + dec_bio + dec_hum
   list(
-    dpm = state$dpm - dec_dpm + c_in_dpm,
-    rpm = state$rpm - dec_rpm + c_in_rpm,
+    dpm = state$dpm - dec_dpm + step$c_in_dpm,
+    rpm = state$rpm - dec_rpm + step$c_in_rpm,
     bio = state$bio - dec_bio + total_dec * splits$frac_bio,
     hum = state$hum - dec_hum + total_dec * splits$frac_hum
   )
@@ -431,8 +448,13 @@ calculate_soc_century <- function(
   if (init_mode == "fixed_iom") {
     return(list(cs0 = f_iom * soc0, ca0 = (1 - f_iom) * soc0))
   }
-  ca0 <- min(ca_ss, 0.5 * soc0)
-  list(cs0 = max(soc0 - ca0, 0), ca0 = ca0)
+  if (f_iom >= 1) {
+    cli::cli_abort(
+      "AMG stable fraction {.arg f_iom} = {f_iom} must be < 1 for the \\
+      steady-state spin-up (equilibrium total is ca_ss / (1 - f_iom))."
+    )
+  }
+  list(cs0 = ca_ss * f_iom / (1 - f_iom), ca0 = ca_ss)
 }
 
 # -- Century helpers ----------------------------------------------------------

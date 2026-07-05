@@ -80,6 +80,37 @@ test_that("AMG stable pool is constant and the init mode is validated", {
   )
 })
 
+test_that("AMG steady_state equals ca_ss / (1 - f_iom) and ignores the seed", {
+  # steady_state mode derives its own equilibrium total analytically from the
+  # active steady state and the stable fraction, independent of the supplied
+  # initial stock. Default h = 0.15, k = 0.165, f_iom = 0.65.
+  target <- (0.15 * 2 / 0.165) / (1 - 0.65)
+  finals <- purrr::map_dbl(c(10, 40, 80, 1000), \(s0) {
+    out <- whep::calculate_soc_amg(
+      initial_soc_mgc_ha = s0,
+      c_input_mgc_ha_yr = 2,
+      years = 20,
+      climate_modifier = 1,
+      init_mode = "steady_state"
+    )
+    utils::tail(out$soc_total, 1)
+  })
+  # Every seed lands on the identical analytical equilibrium.
+  testthat::expect_equal(length(unique(round(finals, 8))), 1L)
+  testthat::expect_equal(finals[1], target, tolerance = 1e-8)
+  # The trajectory is flat: it starts at equilibrium and stays there.
+  out <- whep::calculate_soc_amg(
+    initial_soc_mgc_ha = 40,
+    c_input_mgc_ha_yr = 2,
+    years = 20,
+    climate_modifier = 1,
+    init_mode = "steady_state"
+  )
+  testthat::expect_equal(out$ca[1], 0.15 * 2 / 0.165, tolerance = 1e-8)
+  testthat::expect_equal(out$cs[1], target - 0.15 * 2 / 0.165, tolerance = 1e-8)
+  testthat::expect_equal(length(unique(round(out$soc_total, 8))), 1L)
+})
+
 test_that("HSOC returns the three pools and conserves at equilibrium", {
   out <- whep::calculate_soc_hsoc(
     initial_soc_mgc_ha = 50,
@@ -130,6 +161,55 @@ test_that("RothC stock is positive, converges and is monotone", {
   testthat::expect_equal(length(unique(sign(round(steps, 8)))), 1L)
   # Late steps are smaller than early steps: it is converging.
   testthat::expect_lt(abs(utils::tail(steps, 1)), abs(steps[1]))
+})
+
+test_that("RothC stays bounded under aggressive climate modifiers", {
+  # The fast DPM pool (k = 10/yr) makes the monthly explicit-Euler step diverge
+  # once k * climate_modifier / 12 exceeds 1; adaptive sub-stepping must keep
+  # the trajectory finite and physically plausible instead of exploding.
+  cases <- c(2, 3.69, 5, 10)
+  for (cm in cases) {
+    out <- whep::calculate_soc_rothc(
+      initial_soc_mgc_ha = 60,
+      c_input_mgc_ha_yr = 3,
+      years = 50,
+      clay_pct = 20,
+      climate_modifier = cm
+    )
+    ceiling_stock <- 60 + 3 * 50
+    testthat::expect_true(all(is.finite(out$soc_total)))
+    testthat::expect_true(all(out$soc_total > 0))
+    testthat::expect_true(all(out$soc_total < ceiling_stock))
+  }
+})
+
+test_that("RothC converges to a finite steady state at the reproduction case", {
+  # The hot/wet tropical cell that diverged before the sub-stepping guard.
+  out <- whep::calculate_soc_rothc(
+    initial_soc_mgc_ha = 60,
+    c_input_mgc_ha_yr = 3,
+    years = 50,
+    clay_pct = 20,
+    climate_modifier = 3.69
+  )
+  final <- utils::tail(out$soc_total, 1)
+  testthat::expect_true(is.finite(final))
+  testthat::expect_gt(final, 0)
+  # The stock relaxes monotonically and the annual flux collapses toward zero:
+  # the late-year step is a small fraction of the first-year step (converging,
+  # not diverging), and a long horizon settles onto a finite asymptote.
+  steps <- diff(out$soc_total)
+  testthat::expect_true(all(steps < 0))
+  testthat::expect_lt(abs(utils::tail(steps, 1)), 0.05 * abs(steps[1]))
+  long <- whep::calculate_soc_rothc(
+    initial_soc_mgc_ha = 60,
+    c_input_mgc_ha_yr = 3,
+    years = 300,
+    clay_pct = 20,
+    climate_modifier = 3.69
+  )
+  testthat::expect_true(is.finite(utils::tail(long$soc_total, 1)))
+  testthat::expect_lt(abs(utils::tail(diff(long$soc_total), 1)), 1e-4)
 })
 
 test_that("RothC total equals the sum of its five pools", {

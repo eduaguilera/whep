@@ -33,8 +33,11 @@ scaling the active-pool decomposition rate.}
 \item{c_input_type}{Carbon input type label used to look up the
 humification coefficient.}
 
-\item{init_mode}{Initial pool split: \code{"fixed_iom"} (published stable
-fraction) or \code{"steady_state"}.}
+\item{init_mode}{Initial pool split. \code{"fixed_iom"} splits the supplied
+initial stock by the published stable fraction. \code{"steady_state"}
+ignores the supplied stock and starts from the analytical equilibrium
+\code{ca_ss / (1 - f_iom)} (active pool at its steady state
+\code{ca_ss = h * input / k}, stable pool the matching inert share).}
 }
 \value{
 A tibble with one row per year: \code{year}, \code{ca}, \code{cs}
