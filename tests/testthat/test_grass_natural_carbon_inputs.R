@@ -195,6 +195,47 @@ testthat::test_that("grazing excreta adds a per-ha density to grassland", {
   )
 })
 
+testthat::test_that("ISO3 excreta territory resolves to area_code, not NA", {
+  # An `applied` stream keyed by ISO3 (not a stringified area_code) must
+  # resolve through the canonical territory helper; a bare as.integer() cast
+  # would NA the ISO3 and silently drop all grazing-excreta carbon.
+  esp_code <- whep::regions_full$code[
+    whep::regions_full$iso3c == "ESP" & !is.na(whep::regions_full$iso3c)
+  ][1]
+  d <- .gn_fixture_data(excreta = FALSE)
+  d$country_grid <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~cell_area_frac,
+    0.25, 0.25, esp_code, 1,
+    0.75, 0.25, esp_code, 1
+  )
+  d$land_use <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~year, ~land_use, ~area_ha,
+    0.25, 0.25, esp_code, 2000L, "grassland", 100,
+    0.75, 0.25, esp_code, 2000L, "grassland", 300
+  )
+  d$excreta <- tibble::tribble(
+    ~year, ~territory, ~sub_territory, ~land_use, ~crop, ~applied_c,
+    2000L, "ESP", NA, "Grassland", NA, 80
+  )
+  with_ex <- whep::build_grass_natural_carbon_inputs(
+    resolution = "grid",
+    data = d
+  )
+  without_ex <- whep::build_grass_natural_carbon_inputs(
+    resolution = "grid",
+    data = .gn_fixture_data(excreta = FALSE)
+  )
+  gr_with <- with_ex[with_ex$land_use == "grassland", ]
+  gr_with <- gr_with[order(gr_with$lon), ]
+  gr_without <- without_ex[without_ex$land_use == "grassland", ]
+  gr_without <- gr_without[order(gr_without$lon), ]
+  # Total grassland area 400 ha; 80 tonnes C -> uniform 0.2 MgC/ha added.
+  testthat::expect_equal(
+    gr_with$c_input_mgc_ha_yr - gr_without$c_input_mgc_ha_yr,
+    rep(0.2, nrow(gr_with))
+  )
+})
+
 testthat::test_that("polity output aggregates area-weighted per class", {
   out <- whep::build_grass_natural_carbon_inputs(
     resolution = "polity",

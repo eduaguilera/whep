@@ -235,7 +235,7 @@ build_grass_natural_carbon_inputs <- function(
       .by = c("year", "territory")
     ) |>
     dplyr::transmute(
-      area_code = as.integer(.data$territory),
+      area_code = .manure_territory_to_area_code(.data$territory),
       year = as.integer(.data$year),
       excreta_c_mg = .data$excreta_c_mg
     )
