@@ -1,11 +1,15 @@
 # Hand-built fixtures keep the arithmetic checkable by inspection.
 
 .sci_npp_fixture <- function() {
-  # Two crops in one polity, one year. Carbon masses in tonnes C.
+  # Two crops in one polity, one year. Carbon masses in tonnes C. residue_c_t
+  # is the GROSS residue carbon; residue_soil_c_t is the soil-returned fraction
+  # (here 40% removed for feed/fuel/burning) and is the value the soil-carbon
+  # input must use. weed_npp_c_t is the combined AG + BG weed carbon.
   tibble::tribble(
-    ~area_code, ~item_prod_code, ~year, ~residue_c_t, ~root_c_t,
-    1L, "15", 2020L, 60, 40,
-    1L, "27", 2020L, 30, 10
+    ~area_code, ~item_prod_code, ~year,
+    ~residue_c_t, ~residue_soil_c_t, ~root_c_t, ~weed_npp_c_t,
+    1L, "15", 2020L, 100, 60, 40, 10,
+    1L, "27", 2020L, 50, 30, 10, 5
   )
 }
 
@@ -61,6 +65,7 @@ test_that("polity output has the documented schema and keys", {
     "year",
     "residue_c_mgc_ha_yr",
     "root_c_mgc_ha_yr",
+    "weed_c_mgc_ha_yr",
     "manure_c_mgc_ha_yr",
     "total_c_input_mgc_ha_yr",
     "humified_fraction",
@@ -84,7 +89,7 @@ test_that("grid output is keyed by cell x crop x year", {
   testthat::expect_equal(nrow(out), 4L)
 })
 
-test_that("total C input equals residue + root + manure (mass closure)", {
+test_that("total C input equals residue + root + weed + manure (mass closure)", {
   out <- whep::build_soil_carbon_inputs(
     resolution = "grid",
     data = .sci_fixture_data()
@@ -93,6 +98,7 @@ test_that("total C input equals residue + root + manure (mass closure)", {
     out$total_c_input_mgc_ha_yr,
     out$residue_c_mgc_ha_yr +
       out$root_c_mgc_ha_yr +
+      out$weed_c_mgc_ha_yr +
       out$manure_c_mgc_ha_yr
   )
 })
@@ -102,11 +108,13 @@ test_that("polity per-ha equals total C mass over total crop area", {
     resolution = "polity",
     data = .sci_fixture_data()
   )
-  # Crop 15: residue 60 + root 40 + manure 20 = 120 Mg C over 40 ha = 3.0.
+  # Crop 15: residue-soil 60 + root 40 + weed 10 + manure 20 = 130 over 40 ha.
+  # The residue term uses residue_soil_c_t (60), NOT gross residue_c_t (100).
   crop15 <- out[out$item_prod_code == "15", ]
-  testthat::expect_equal(crop15$total_c_input_mgc_ha_yr, 120 / 40)
+  testthat::expect_equal(crop15$total_c_input_mgc_ha_yr, 130 / 40)
   testthat::expect_equal(crop15$residue_c_mgc_ha_yr, 60 / 40)
   testthat::expect_equal(crop15$root_c_mgc_ha_yr, 40 / 40)
+  testthat::expect_equal(crop15$weed_c_mgc_ha_yr, 10 / 40)
   testthat::expect_equal(crop15$manure_c_mgc_ha_yr, 20 / 40)
 })
 
@@ -118,9 +126,11 @@ test_that("humified_fraction is the C-weighted mean of components", {
   hum <- whep::residue_humification
   h_res <- hum$humified_fraction[hum$input_type == "crop_residue"]
   h_root <- hum$humified_fraction[hum$input_type == "root"]
+  h_weed <- hum$humified_fraction[hum$input_type == "weed"]
   h_man <- hum$humified_fraction[hum$input_type == "manure"]
-  # Crop 15: residue 60, root 40, manure 20 (Mg C). C-weighted humified.
-  expected15 <- (60 * h_res + 40 * h_root + 20 * h_man) / (60 + 40 + 20)
+  # Crop 15: residue-soil 60, root 40, weed 10, manure 20 (Mg C). C-weighted.
+  expected15 <- (60 * h_res + 40 * h_root + 10 * h_weed + 20 * h_man) /
+    (60 + 40 + 10 + 20)
   crop15 <- out[out$item_prod_code == "15", ]
   testthat::expect_equal(crop15$humified_fraction, expected15)
 })
@@ -172,6 +182,99 @@ test_that("grid to polity aggregation conserves total C mass", {
   testthat::expect_equal(joined$mass_grid, joined$mass_polity)
 })
 
+test_that("residue C uses residue_soil_c_t, not gross residue_c_t", {
+  # 50% straw removal: gross residue_c_t = 100, residue_soil_c_t = 50. The soil
+  # input must count 50, so residue_c_mgc_ha_yr = 50 / 40 ha = 1.25, NOT 2.5.
+  npp <- tibble::tribble(
+    ~area_code, ~item_prod_code, ~year,
+    ~residue_c_t, ~residue_soil_c_t, ~root_c_t, ~weed_npp_c_t,
+    1L, "15", 2020L, 100, 50, 0, 0
+  )
+  manure <- tibble::tribble(
+    ~year, ~territory, ~sub_territory, ~land_use, ~crop, ~applied_c,
+    2020L, "1", NA, "Cropland", "15", 0
+  )
+  grid <- .sci_grid_fixture()
+  data <- list(
+    npp = npp,
+    manure = manure,
+    country_grid = grid$country_grid,
+    crop_patterns = grid$crop_patterns,
+    residue_humification = whep::residue_humification
+  )
+  out <- whep::build_soil_carbon_inputs(resolution = "polity", data = data)
+  crop15 <- out[out$item_prod_code == "15", ]
+  testthat::expect_equal(crop15$residue_c_mgc_ha_yr, 50 / 40)
+})
+
+test_that("manure territory as an iso3c resolves instead of dropping to NA", {
+  esp_code <- whep::regions_full |>
+    dplyr::filter(.data$iso3c == "ESP") |>
+    dplyr::distinct(.data$code) |>
+    dplyr::pull(.data$code)
+  npp <- tibble::tribble(
+    ~area_code, ~item_prod_code, ~year,
+    ~residue_c_t, ~residue_soil_c_t, ~root_c_t, ~weed_npp_c_t,
+    esp_code, "15", 2020L, 100, 60, 40, 10
+  )
+  manure <- tibble::tribble(
+    ~year, ~territory, ~sub_territory, ~land_use, ~crop, ~applied_c,
+    2020L, "ESP", NA, "Cropland", "15", 20
+  )
+  country_grid <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~cell_area_frac,
+    0.25, 0.25, esp_code, 1
+  )
+  crop_patterns <- tibble::tribble(
+    ~lon, ~lat, ~item_prod_code, ~harvest_fraction, ~crop_area_ha,
+    0.25, 0.25, "15", 1.0, 40
+  )
+  data <- list(
+    npp = npp,
+    manure = manure,
+    country_grid = country_grid,
+    crop_patterns = crop_patterns,
+    residue_humification = whep::residue_humification
+  )
+  out <- whep::build_soil_carbon_inputs(resolution = "polity", data = data)
+  # 20 t manure C over 40 ha = 0.5, not 0 (which a silent as.integer NA drop
+  # would give).
+  testthat::expect_equal(out$manure_c_mgc_ha_yr, 20 / 40)
+})
+
+test_that("manure territory that is neither area_code nor iso3c aborts", {
+  data <- .sci_fixture_data()
+  data$manure$territory <- "not_a_place"
+  testthat::expect_error(
+    whep::build_soil_carbon_inputs(resolution = "polity", data = data),
+    "Could not resolve"
+  )
+})
+
+test_that("npp missing residue_soil_c_t or weed_npp_c_t aborts", {
+  data <- .sci_fixture_data()
+  data$npp <- dplyr::select(data$npp, -"residue_soil_c_t")
+  testthat::expect_error(
+    whep::build_soil_carbon_inputs(resolution = "polity", data = data),
+    "residue_soil_c_t"
+  )
+})
+
+test_that("a crop with no crop-pattern cells warns and is not silent", {
+  # Crop 27 has NPP carbon but is absent from crop_patterns (no cells): its
+  # carbon must not vanish silently.
+  data <- .sci_fixture_data()
+  data$crop_patterns <- dplyr::filter(
+    data$crop_patterns,
+    .data$item_prod_code == "15"
+  )
+  testthat::expect_warning(
+    out <- whep::build_soil_carbon_inputs(resolution = "polity", data = data),
+    "no crop-pattern cells"
+  )
+  testthat::expect_setequal(out$item_prod_code, "15")
+})
+
 test_that("example = TRUE returns the documented schema", {
   out <- whep::build_soil_carbon_inputs(example = TRUE)
   expected <- c(
@@ -182,6 +285,7 @@ test_that("example = TRUE returns the documented schema", {
     "year",
     "residue_c_mgc_ha_yr",
     "root_c_mgc_ha_yr",
+    "weed_c_mgc_ha_yr",
     "manure_c_mgc_ha_yr",
     "total_c_input_mgc_ha_yr",
     "humified_fraction",

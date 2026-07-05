@@ -15,13 +15,14 @@ build_soil_carbon_inputs(
 \code{area_code}).}
 
 \item{data}{Optional named list of pre-loaded inputs, each falling back to
-its reader when absent: \code{npp} (residue and root carbon per \code{area_code},
-\code{item_prod_code}, \code{year}, columns \code{residue_c_t} and \code{root_c_t}, tonnes C);
-\code{manure} (the \code{applied} tibble of \code{\link[=build_livestock_nutrient_flows]{build_livestock_nutrient_flows()}}, with
-\code{crop} already on the \code{item_prod_code} key and \code{territory} on the
-\code{area_code} key); \code{country_grid} and \code{crop_patterns} (the spatialization
-inputs, \code{crop_patterns} carrying per-cell \code{crop_area_ha});
-\code{residue_humification} (defaults to \link{residue_humification}).}
+its reader when absent: \code{npp} (soil-returned residue, root and weed carbon
+per \code{area_code}, \code{item_prod_code}, \code{year}, columns \code{residue_soil_c_t},
+\code{root_c_t} and \code{weed_npp_c_t}, tonnes C); \code{manure} (the \code{applied} tibble of
+\code{\link[=build_livestock_nutrient_flows]{build_livestock_nutrient_flows()}}, with \code{crop} already on the
+\code{item_prod_code} key and \code{territory} a stringified \code{area_code} or \code{iso3c});
+\code{country_grid} and \code{crop_patterns} (the spatialization inputs,
+\code{crop_patterns} carrying per-cell \code{crop_area_ha}); \code{residue_humification}
+(defaults to \link{residue_humification}).}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading remote
 data. Defaults to \code{FALSE}.}
@@ -30,20 +31,23 @@ data. Defaults to \code{FALSE}.}
 A tibble keyed by \verb{(lon, lat, area_code, item_prod_code, year)} at
 \code{"grid"} resolution (or \verb{(area_code, item_prod_code, year)} at
 \code{"polity"}), with \code{residue_c_mgc_ha_yr}, \code{root_c_mgc_ha_yr},
-\code{manure_c_mgc_ha_yr}, \code{total_c_input_mgc_ha_yr}, \code{humified_fraction} and
-\code{method_c_input}.
+\code{weed_c_mgc_ha_yr}, \code{manure_c_mgc_ha_yr}, \code{total_c_input_mgc_ha_yr},
+\code{humified_fraction} and \code{method_c_input}.
 }
 \description{
-Builds the carbon returned to soil from crop residues, crop roots and
+Builds the carbon returned to soil from crop residues, crop roots, weeds and
 applied manure, as the carbon-input layer the soil-organic-carbon turnover
-models (\code{\link[=calculate_soc_dynamics]{calculate_soc_dynamics()}}) consume. Crop residue and root carbon
-come from \code{\link[=calculate_npp_carbon_nitrogen]{calculate_npp_carbon_nitrogen()}} (per polity, crop and year);
-manure carbon comes from \code{\link[=build_livestock_nutrient_flows]{build_livestock_nutrient_flows()}}'s \code{applied}
-stream. The three component carbon masses are converted to megagrams of
-carbon (1 tonne = 1 Mg), gridded to cells in proportion to each crop's
-harvested area, and divided by the cell-crop area to give Mg C per hectare
-per year. A carbon-weighted humification fraction is computed per cell-year
-from \link{residue_humification}.
+models (\code{\link[=calculate_soc_dynamics]{calculate_soc_dynamics()}}) consume. Soil-returned residue carbon
+(residue net of the fraction removed for feed, fuel and burning), root carbon
+and weed (spontaneous-grass) carbon come from
+\code{\link[=calculate_npp_carbon_nitrogen]{calculate_npp_carbon_nitrogen()}} (per polity, crop and year); manure carbon
+comes from \code{\link[=build_livestock_nutrient_flows]{build_livestock_nutrient_flows()}}'s \code{applied} stream. The four
+component carbon masses are converted to megagrams of carbon (1 tonne =
+1 Mg), gridded to cells in proportion to each crop's harvested area, and
+divided by the cell-crop area to give Mg C per hectare per year. A
+carbon-weighted humification fraction is computed per cell-year from
+\link{residue_humification}, with the weed carbon humified at the weed
+(spontaneous-grass) coefficient.
 
 At \code{"polity"} resolution the component carbon masses are summed back to
 \verb{(area_code, item_prod_code, year)} and the per-hectare values and humified
