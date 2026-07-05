@@ -8,8 +8,7 @@ calculate_indirect_n2o_nh3(x, example = FALSE)
 }
 \arguments{
 \item{x}{A tibble with \code{nh3_n_t}, \code{climate} and (for MED rows) the
-\code{irrig_type}/\code{fert_type} columns \code{\link[=calculate_soil_n2o]{calculate_soil_n2o()}}'s
-\code{method = "aguilera"} needs.}
+\code{irrig_type} column \link{n2o_efs_disaggregated} is keyed on.}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of computing
 from \code{x}. Defaults to \code{FALSE}.}
@@ -20,10 +19,10 @@ from \code{x}. Defaults to \code{FALSE}.}
 \description{
 Converts the ammonia-N already volatilised (\code{\link[=calculate_nh3]{calculate_nh3()}}'s
 \code{nh3_n_t}) into indirect nitrous oxide (\code{n_fun.r:955-957}). Atlantic rows
-use the flat IPCC EF4 factor (\code{ef4_nh3_to_n2o_atl}, 0.016); Mediterranean
-rows reuse the SAME Cayuela-style \code{ef * mf} product
-\code{\link[=calculate_soil_n2o]{calculate_soil_n2o()}}'s \code{method = "aguilera"} computes for direct N2O,
-rather than re-deriving that join a second time.
+use the flat IPCC EF4 factor (\code{ef4_nh3_to_n2o_atl}, 0.016) and touch no
+emission-factor lookup; Mediterranean rows use the disaggregated
+\link{n2o_efs_disaggregated} \code{ef} on \verb{(irrig_type, climate)} alone (\code{NH3_MgN * N2O_EF}), WITHOUT the \link{fertiliser_n2o_modifiers} \code{mf} that
+\code{\link[=calculate_soil_n2o]{calculate_soil_n2o()}}'s \code{method = "aguilera"} applies to direct N2O.
 }
 \examples{
 calculate_indirect_n2o_nh3(example = TRUE)

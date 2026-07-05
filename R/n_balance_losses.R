@@ -83,12 +83,12 @@ calculate_nh3 <- function(x, method = "manner", example = FALSE) {
 #'
 #' @description
 #' Three emission-factor regimes for direct nitrous oxide from
-#' nitrogen applied to soil. `"aguilera"` (`n_fun.r:906-912`) is the full
-#' Spain_Hist disaggregated method, needing the finer `irrig_type`/
-#' `fert_type` granularity: `n2o_direct_n_t = n_input_t * ef * mf`, `ef`
-#' from [n2o_efs_disaggregated] on `(irrig_type, climate)`, `mf` from
-#' [fertiliser_n2o_modifiers] on `(fert_type, climate)`.
-#' `"ipcc2019"` (the default) is a coarser global fallback needing only
+#' nitrogen applied to soil. `"aguilera"` (the default, `n_fun.r:906-912`)
+#' is the full Spain_Hist disaggregated method, needing the finer
+#' `irrig_type`/`fert_type` granularity: `n2o_direct_n_t = n_input_t * ef *
+#' mf`, `ef` from [n2o_efs_disaggregated] on `(irrig_type, climate)`, `mf`
+#' from [fertiliser_n2o_modifiers] on `(fert_type, climate)`.
+#' `"ipcc2019"` is a coarser global fallback needing only
 #' `climate`, reusing the SAME [n2o_efs_disaggregated] table's two
 #' climate-level rows (`irrig_type == "Tier_1"` for ATL, `irrig_type ==
 #' "Med_average"` for MED) with no `mf` multiplier; the ATL value (0.010)
@@ -102,8 +102,8 @@ calculate_nh3 <- function(x, method = "manner", example = FALSE) {
 #' @param x A tibble with `n_input_t` and `climate`. `method = "aguilera"`
 #'   or `"ipcc2006"` additionally require `irrig_type` and (aguilera only)
 #'   `fert_type`.
-#' @param method `"ipcc2019"` (default, climate-only), `"aguilera"`
-#'   (Cayuela-disaggregated, needs `irrig_type`/`fert_type`) or `"ipcc2006"`
+#' @param method `"aguilera"` (default, Cayuela-disaggregated, needs
+#'   `irrig_type`/`fert_type`), `"ipcc2019"` (climate-only) or `"ipcc2006"`
 #'   (IPCC 2006 Tier 1, needs `irrig_type`).
 #' @param example If `TRUE`, return a small fixture instead of computing
 #'   from `x`. Defaults to `FALSE`.
@@ -113,7 +113,7 @@ calculate_nh3 <- function(x, method = "manner", example = FALSE) {
 #' calculate_soil_n2o(example = TRUE)
 calculate_soil_n2o <- function(
   x,
-  method = c("ipcc2019", "aguilera", "ipcc2006"),
+  method = c("aguilera", "ipcc2019", "ipcc2006"),
   example = FALSE
 ) {
   method <- match.arg(method)
@@ -151,10 +151,11 @@ calculate_soil_n2o <- function(
 #' `n_fun.r:983`). The RETURNED `denitrification_n_t` is this second,
 #' residual value, not the raw share product; this is a deliberate two-step
 #' sequence in the source, not a redundant computation to simplify away.
-#' Drainage and soil organic matter bins are matched `s_min < s <= s_max`
-#' (the source's exact boundary operator at the shared edge between
-#' adjacent bins is not fully pinned down by the porting spec; this
-#' half-open convention makes the bins exhaustive and non-overlapping).
+#' Drainage and soil organic matter bins are matched with the source's
+#' strictly-open `s_min < s < s_max` filter (`n_fun.r:939,942`): a value
+#' exactly on a shared bin edge, or outside the covered range, matches no
+#' bin and aborts via the unmatched-row check (the source drops it),
+#' rather than being pulled into an adjacent or ceiling bin.
 #'
 #' Manure/organic rows (`fert_cat == "Manure"`, i.e. every `fert_type`
 #' other than `"Synthetic"`) always join the Meisinger table's
@@ -200,14 +201,14 @@ calculate_n_leaching <- function(
 #' @description
 #' Converts the ammonia-N already volatilised ([calculate_nh3()]'s
 #' `nh3_n_t`) into indirect nitrous oxide (`n_fun.r:955-957`). Atlantic rows
-#' use the flat IPCC EF4 factor (`ef4_nh3_to_n2o_atl`, 0.016); Mediterranean
-#' rows reuse the SAME Cayuela-style `ef * mf` product
-#' [calculate_soil_n2o()]'s `method = "aguilera"` computes for direct N2O,
-#' rather than re-deriving that join a second time.
+#' use the flat IPCC EF4 factor (`ef4_nh3_to_n2o_atl`, 0.016) and touch no
+#' emission-factor lookup; Mediterranean rows use the disaggregated
+#' [n2o_efs_disaggregated] `ef` on `(irrig_type, climate)` alone (`NH3_MgN *
+#' N2O_EF`), WITHOUT the [fertiliser_n2o_modifiers] `mf` that
+#' [calculate_soil_n2o()]'s `method = "aguilera"` applies to direct N2O.
 #'
 #' @param x A tibble with `nh3_n_t`, `climate` and (for MED rows) the
-#'   `irrig_type`/`fert_type` columns [calculate_soil_n2o()]'s
-#'   `method = "aguilera"` needs.
+#'   `irrig_type` column [n2o_efs_disaggregated] is keyed on.
 #' @param example If `TRUE`, return a small fixture instead of computing
 #'   from `x`. Defaults to `FALSE`.
 #' @return `x` with `n2o_indirect_nh3_n_t` appended.
@@ -218,14 +219,14 @@ calculate_indirect_n2o_nh3 <- function(x, example = FALSE) {
   if (isTRUE(example)) {
     return(.example_indirect_n2o_nh3())
   }
-  ef_mf <- .soil_n2o_ef_mf_aguilera(x)
+  ef_med <- .indirect_nh3_ef_med(x)
   ef4_atl <- .n_constant("ef4_nh3_to_n2o_atl")
   x |>
     dplyr::mutate(
       n2o_indirect_nh3_n_t = dplyr::if_else(
         .data$climate == "ATL",
         .data$nh3_n_t * ef4_atl,
-        .data$nh3_n_t * ef_mf
+        .data$nh3_n_t * ef_med
       )
     )
 }
@@ -404,13 +405,7 @@ calculate_indirect_n2o_nh3 <- function(x, example = FALSE) {
 }
 
 .soil_n2o_ef_mf_aguilera <- function(x) {
-  ef <- x |>
-    dplyr::select("irrig_type", "climate") |>
-    dplyr::left_join(
-      whep::n2o_efs_disaggregated,
-      by = c("irrig_type", "climate")
-    ) |>
-    dplyr::pull("ef")
+  ef <- .soil_n2o_ef_disaggregated(x)
   .soil_n2o_check_ef(x, ef)
   mf <- x |>
     dplyr::select("fert_type", "climate") |>
@@ -419,7 +414,28 @@ calculate_indirect_n2o_nh3 <- function(x, example = FALSE) {
       by = c("fert_type", "climate")
     ) |>
     dplyr::pull("mf")
+  .soil_n2o_check_mf(x, mf)
   ef * mf
+}
+
+# The disaggregated (irrig_type, climate) ef, joined without any NA guard so
+# both the aguilera direct-N2O path (which adds mf) and the MED indirect-NH3
+# path (which uses ef alone) can share one join.
+.soil_n2o_ef_disaggregated <- function(x) {
+  x |>
+    dplyr::select("irrig_type", "climate") |>
+    dplyr::left_join(
+      whep::n2o_efs_disaggregated,
+      by = c("irrig_type", "climate")
+    ) |>
+    dplyr::pull("ef")
+}
+
+# MED indirect NH3-N2O uses the disaggregated ef alone (no mf), so the ATL
+# branch never touches an emission factor; ATL rows keep their NA ef here and
+# it is discarded by calculate_indirect_n2o_nh3()'s ATL if_else branch.
+.indirect_nh3_ef_med <- function(x) {
+  .soil_n2o_ef_disaggregated(x)
 }
 
 # The source table's ATL non-Tier_1/Flooded rows carry a real data gap (NA
@@ -432,6 +448,24 @@ calculate_indirect_n2o_nh3 <- function(x, example = FALSE) {
       i = paste0(
         "n2o_efs_disaggregated has no direct N2O factor for Atlantic ",
         "irrigation strata other than {.val Tier_1} and {.val Flooded}."
+      )
+    ))
+  }
+}
+
+# An NA mf must abort, not multiply the ef into a silent NA that a downstream
+# na.rm sum would drop: a missing modifier is a real data gap
+# (fertiliser_n2o_modifiers) that has to be visible.
+.soil_n2o_check_mf <- function(x, mf) {
+  if (anyNA(mf)) {
+    bad <- unique(x$fert_type[is.na(mf)])
+    cli::cli_abort(c(
+      "{.field fertiliser_n2o_modifiers} has no modifier for \\
+       fert_type{?s} {.val {bad}}.",
+      i = paste0(
+        "calculate_soil_n2o(method = \"aguilera\") never treats a missing ",
+        "modifier as zero; add the {.field mf} value to ",
+        "{.code whep::fertiliser_n2o_modifiers}."
       )
     ))
   }
@@ -555,13 +589,12 @@ calculate_indirect_n2o_nh3 <- function(x, example = FALSE) {
     "s_min",
     "s_max"
   )
-  climate_cat <- dplyr::if_else(x$climate == "MED", "Semiarid", "Humid")
   tibble::tibble(
     fert_cat = fert_cat,
     tillage = tillage_join,
     som_content = som_content,
-    climate_cat = climate_cat,
-    drainage_rate = drainage_rate
+    drainage_rate = drainage_rate,
+    climate = x$climate
   ) |>
     dplyr::left_join(
       whep::meisinger_denitrification,
@@ -569,14 +602,14 @@ calculate_indirect_n2o_nh3 <- function(x, example = FALSE) {
         "fert_cat",
         "tillage",
         "som_content",
-        "climate_cat",
-        "drainage_rate"
+        "drainage_rate",
+        "climate"
       )
     ) |>
     dplyr::pull("denit_share") |>
     .leaching_check_na(
       "meisinger_denitrification",
-      "fert_cat/tillage/som_content/climate_cat/drainage_rate"
+      "fert_cat/tillage/som_content/drainage_rate/climate"
     )
 }
 
@@ -595,21 +628,17 @@ calculate_indirect_n2o_nh3 <- function(x, example = FALSE) {
   values
 }
 
-# Bin a numeric vector into a labelled class via a half-open s_min < v <=
-# s_max lookup table; the top class's finite s_max is treated as an open
-# ceiling (any value above its s_min matches), per the tables' own
-# open-topped design (see whep::som_ranges' documentation).
+# Bin a numeric vector into a labelled class via the source's strictly-open
+# min < v < max filter (n_fun.r:939,942): a value on a shared bin edge or
+# outside the covered range matches no bin and returns NA (the source drops
+# such rows), rather than being pulled into an adjacent or ceiling bin.
 .bin_range <- function(values, ranges, label_col, min_col, max_col) {
-  top <- dplyr::slice_max(ranges, .data[[max_col]], n = 1)
   purrr::map_chr(values, function(v) {
     hit <- ranges[
-      v > ranges[[min_col]] & v <= ranges[[max_col]],
+      v > ranges[[min_col]] & v < ranges[[max_col]],
       ,
       drop = FALSE
     ]
-    if (nrow(hit) == 0 && v > top[[min_col]]) {
-      hit <- top
-    }
     hit[[label_col]][1]
   })
 }

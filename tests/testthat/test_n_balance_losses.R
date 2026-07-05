@@ -150,6 +150,39 @@ testthat::test_that("calculate_soil_n2o(method = \"aguilera\") aborts on unsuppo
   testthat::expect_error(whep::calculate_soil_n2o(x, method = "aguilera"))
 })
 
+testthat::test_that("calculate_soil_n2o(method = \"aguilera\") aborts on a missing fertiliser modifier", {
+  # A fert_type with no fertiliser_n2o_modifiers row (BNF) yields NA mf; the
+  # aguilera path must abort rather than multiply ef by NA and let a
+  # downstream na.rm sum silently drop the term.
+  x <- tibble::tribble(
+    ~n_input_t, ~fert_type, ~climate, ~irrig_type,
+    10, "BNF", "MED", "Drip"
+  )
+  testthat::expect_error(whep::calculate_soil_n2o(x, method = "aguilera"))
+})
+
+testthat::test_that("calculate_soil_n2o(method = \"aguilera\") never returns a silent NA modifier for MED SOM/Urban/Recycling", {
+  # Invariant across the fertiliser_n2o_modifiers CSV state: these MED rows
+  # are NA before the CSV fix and 0.00 after it, so the result must be EITHER
+  # a clean abort (NA modifier) OR a finite value (0.00 -> 0), never a silent
+  # NA n2o_direct_n_t.
+  x <- tibble::tribble(
+    ~n_input_t, ~fert_type, ~climate, ~irrig_type,
+    10, "SOM", "MED", "Drip",
+    10, "Urban", "MED", "Drip",
+    10, "Recycling", "MED", "Drip"
+  )
+  out <- tryCatch(
+    whep::calculate_soil_n2o(x, method = "aguilera"),
+    error = function(e) NULL
+  )
+  if (!is.null(out)) {
+    testthat::expect_false(anyNA(out$n2o_direct_n_t))
+  } else {
+    testthat::succeed("aborted on NA modifier (pre-CSV-fix state)")
+  }
+})
+
 testthat::test_that("calculate_soil_n2o(method = \"ipcc2019\") uses the climate-level rows regardless of irrig_type", {
   x <- tibble::tribble(
     ~n_input_t, ~climate, ~irrig_type,
@@ -329,6 +362,82 @@ testthat::test_that("calculate_n_leaching(meisinger_drainage) aborts on an out-o
   )
 })
 
+testthat::test_that("calculate_n_leaching(meisinger_drainage) resolves near-zero drainage to full denitrification for MED and ATL", {
+  # Regression for the Meisinger join fan-out: a cell with drainage in the
+  # "None" bin (-0.1 < S < 0.1, waterlogged) must resolve to denit_share = 1
+  # (whole surplus denitrified) for BOTH climates. The table's "None" rows
+  # all carry climate_cat = "Semiarid", so the join must key on climate
+  # (MED/ATL), not on a derived Semiarid/Humid climate_cat: keying on the
+  # latter fans a MED cell onto two rows (crash) and leaves an ATL cell
+  # unmatched (abort).
+  x <- tibble::tribble(
+    ~n_surplus_t,
+    ~fert_type,
+    ~climate,
+    ~irrig_cat,
+    ~land_use,
+    ~cn_input,
+    ~tillage,
+    ~som_share,
+    100,
+    "Solid",
+    "MED",
+    "Rainfed",
+    "Cropland",
+    NA_real_,
+    "Not_specified",
+    0.06,
+    100,
+    "Solid",
+    "ATL",
+    "Rainfed",
+    "Cropland",
+    NA_real_,
+    "Not_specified",
+    0.06
+  )
+  out <- whep::calculate_n_leaching(
+    x,
+    drainage_mm = c(0.05, 0.05),
+    method = "meisinger_drainage"
+  )
+
+  # denit_share = 1 -> raw_denit = surplus -> no3 = 0 -> denit = surplus.
+  testthat::expect_equal(out$no3_n_t, c(0, 0), tolerance = 1e-9)
+  testthat::expect_equal(out$denitrification_n_t, c(100, 100), tolerance = 1e-9)
+  testthat::expect_equal(out$n2o_indirect_no3_n_t, c(0, 0), tolerance = 1e-9)
+})
+
+testthat::test_that("calculate_n_leaching(meisinger_drainage) drops a value exactly on a shared drainage edge", {
+  # S = 1000 is the shared High/Very_high edge; strictly-open bins match
+  # neither (n_fun.r:939), so the row is unmatched and aborts.
+  x <- tibble::tribble(
+    ~n_surplus_t,
+    ~fert_type,
+    ~climate,
+    ~irrig_cat,
+    ~land_use,
+    ~cn_input,
+    ~tillage,
+    ~som_share,
+    100,
+    "Solid",
+    "MED",
+    "Rainfed",
+    "Cropland",
+    NA_real_,
+    "Not_specified",
+    0.06
+  )
+  testthat::expect_error(
+    whep::calculate_n_leaching(
+      x,
+      drainage_mm = 1000,
+      method = "meisinger_drainage"
+    )
+  )
+})
+
 testthat::test_that("calculate_n_leaching(method = \"ipcc_fracleach\") uses the 0.24 FracLEACH constant", {
   x <- tibble::tribble(~n_surplus_t, 100)
   out <- whep::calculate_n_leaching(x, method = "ipcc_fracleach")
@@ -378,9 +487,24 @@ testthat::test_that("calculate_indirect_n2o_nh3 applies EF4 for Atlantic rows", 
   testthat::expect_equal(out$n2o_indirect_nh3_n_t, 1 * 0.016, tolerance = 1e-9)
 })
 
-testthat::test_that("calculate_indirect_n2o_nh3 reuses the aguilera ef*mf for Mediterranean rows", {
+testthat::test_that("calculate_indirect_n2o_nh3 applies EF4 for Atlantic rows without touching the EF lookup", {
+  # The ATL branch is a flat nh3 * 0.016 that needs no emission factor, so a
+  # non-Tier_1/Flooded ATL irrig_type (Drip/Sprinkler/Rainfed/Traditional,
+  # which carry NA in n2o_efs_disaggregated) must NOT abort.
+  x <- tibble::tribble(
+    ~nh3_n_t, ~climate, ~fert_type, ~irrig_type,
+    1, "ATL", "Solid", "Drip"
+  )
+  out <- whep::calculate_indirect_n2o_nh3(x)
+
+  testthat::expect_equal(out$n2o_indirect_nh3_n_t, 1 * 0.016, tolerance = 1e-9)
+})
+
+testthat::test_that("calculate_indirect_n2o_nh3 uses the disaggregated ef (no mf) for Mediterranean rows", {
   # Same Solid / MED / Drip combination as the calculate_soil_n2o aguilera
-  # test: ef = 0.0051, mf = 0.38.
+  # test (ef = 0.0051), but the indirect NH3-N2O term is NH3_MgN * N2O_EF
+  # (n_fun.r:955-957): the disaggregated ef ALONE, WITHOUT the fertiliser
+  # modifier mf = 0.38 that only applies to the direct-N2O term.
   x <- tibble::tribble(
     ~nh3_n_t, ~climate, ~fert_type, ~irrig_type,
     1, "MED", "Solid", "Drip"
@@ -389,7 +513,7 @@ testthat::test_that("calculate_indirect_n2o_nh3 reuses the aguilera ef*mf for Me
 
   testthat::expect_equal(
     out$n2o_indirect_nh3_n_t,
-    1 * 0.0051 * 0.38,
+    1 * 0.0051,
     tolerance = 1e-9
   )
 })

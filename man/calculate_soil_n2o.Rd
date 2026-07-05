@@ -6,7 +6,7 @@
 \usage{
 calculate_soil_n2o(
   x,
-  method = c("ipcc2019", "aguilera", "ipcc2006"),
+  method = c("aguilera", "ipcc2019", "ipcc2006"),
   example = FALSE
 )
 }
@@ -15,8 +15,8 @@ calculate_soil_n2o(
 or \code{"ipcc2006"} additionally require \code{irrig_type} and (aguilera only)
 \code{fert_type}.}
 
-\item{method}{\code{"ipcc2019"} (default, climate-only), \code{"aguilera"}
-(Cayuela-disaggregated, needs \code{irrig_type}/\code{fert_type}) or \code{"ipcc2006"}
+\item{method}{\code{"aguilera"} (default, Cayuela-disaggregated, needs
+\code{irrig_type}/\code{fert_type}), \code{"ipcc2019"} (climate-only) or \code{"ipcc2006"}
 (IPCC 2006 Tier 1, needs \code{irrig_type}).}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of computing
@@ -27,12 +27,11 @@ from \code{x}. Defaults to \code{FALSE}.}
 }
 \description{
 Three emission-factor regimes for direct nitrous oxide from
-nitrogen applied to soil. \code{"aguilera"} (\code{n_fun.r:906-912}) is the full
-Spain_Hist disaggregated method, needing the finer \code{irrig_type}/
-\code{fert_type} granularity: \code{n2o_direct_n_t = n_input_t * ef * mf}, \code{ef}
-from \link{n2o_efs_disaggregated} on \verb{(irrig_type, climate)}, \code{mf} from
-\link{fertiliser_n2o_modifiers} on \verb{(fert_type, climate)}.
-\code{"ipcc2019"} (the default) is a coarser global fallback needing only
+nitrogen applied to soil. \code{"aguilera"} (the default, \code{n_fun.r:906-912})
+is the full Spain_Hist disaggregated method, needing the finer
+\code{irrig_type}/\code{fert_type} granularity: \code{n2o_direct_n_t = n_input_t * ef * mf}, \code{ef} from \link{n2o_efs_disaggregated} on \verb{(irrig_type, climate)}, \code{mf}
+from \link{fertiliser_n2o_modifiers} on \verb{(fert_type, climate)}.
+\code{"ipcc2019"} is a coarser global fallback needing only
 \code{climate}, reusing the SAME \link{n2o_efs_disaggregated} table's two
 climate-level rows (\code{irrig_type == "Tier_1"} for ATL, \code{irrig_type == "Med_average"} for MED) with no \code{mf} multiplier; the ATL value (0.010)
 is the same value documented as \code{EF1} in

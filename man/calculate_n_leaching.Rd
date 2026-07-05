@@ -51,10 +51,11 @@ derive \code{no3_n_t}, then overwritten as \code{n_surplus_t - no3_n_t} (verifie
 \code{n_fun.r:983}). The RETURNED \code{denitrification_n_t} is this second,
 residual value, not the raw share product; this is a deliberate two-step
 sequence in the source, not a redundant computation to simplify away.
-Drainage and soil organic matter bins are matched \verb{s_min < s <= s_max}
-(the source's exact boundary operator at the shared edge between
-adjacent bins is not fully pinned down by the porting spec; this
-half-open convention makes the bins exhaustive and non-overlapping).
+Drainage and soil organic matter bins are matched with the source's
+strictly-open \verb{s_min < s < s_max} filter (\verb{n_fun.r:939,942}): a value
+exactly on a shared bin edge, or outside the covered range, matches no
+bin and aborts via the unmatched-row check (the source drops it),
+rather than being pulled into an adjacent or ceiling bin.
 
 Manure/organic rows (\code{fert_cat == "Manure"}, i.e. every \code{fert_type}
 other than \code{"Synthetic"}) always join the Meisinger table's
