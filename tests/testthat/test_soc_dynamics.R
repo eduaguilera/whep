@@ -73,6 +73,77 @@ test_that("the example fixture returns a tibble stamped icbm", {
   testthat::expect_true(all(out$method_soc == "icbm"))
 })
 
+test_that("model = rothc dispatches with a non-neutral native modifier", {
+  base_data <- list(initial_soc_mgc_ha = 50, c_input_mgc_ha_yr = 2, years = 5)
+  out <- whep::calculate_soc_dynamics(
+    model = "rothc",
+    data = c(
+      base_data,
+      list(
+        temp_c = c(5, 15, 25),
+        water_minus_pet_mm = c(-30, 10, 40),
+        clay_pct = 20,
+        soil_cover = 0.5
+      )
+    )
+  )
+  modifier <- whep::soc_rate_modifier_rothc(
+    temp_c = c(5, 15, 25),
+    water_minus_pet_mm = c(-30, 10, 40),
+    clay_pct = 20,
+    soil_cover = 0.5
+  )
+  testthat::expect_gt(abs(modifier - 1), 1e-6)
+  testthat::expect_true(all(out$method_soc == "rothc"))
+  testthat::expect_true(all(is.finite(out$soc_total)))
+})
+
+test_that("model = amg dispatches with a non-neutral native modifier", {
+  base_data <- list(initial_soc_mgc_ha = 50, c_input_mgc_ha_yr = 2, years = 5)
+  out <- whep::calculate_soc_dynamics(
+    model = "amg",
+    data = c(
+      base_data,
+      list(temp_c = c(8, 15, 22), water_balance_mm = c(-100, 0, 200))
+    )
+  )
+  modifier <- whep::soc_rate_modifier_amg(
+    temp_c = c(8, 15, 22),
+    water_balance_mm = c(-100, 0, 200)
+  )
+  testthat::expect_gt(abs(modifier - 1), 1e-6)
+  testthat::expect_true(all(out$method_soc == "amg"))
+  testthat::expect_true(all(is.finite(out$soc_total)))
+})
+
+test_that("model = century dispatches with a non-neutral native modifier", {
+  base_data <- list(
+    initial_soc_mgc_ha = 50,
+    c_input_mgc_ha_yr = 2,
+    years = 5,
+    clay_pct = 20
+  )
+  out <- whep::calculate_soc_dynamics(
+    model = "century",
+    data = c(
+      base_data,
+      list(
+        temp_c = c(15, 25, 35),
+        precip_mm = c(40, 60, 80),
+        pet_mm = c(50, 70, 90)
+      )
+    )
+  )
+  modifier <- whep::soc_rate_modifier_century(
+    temp_c = c(15, 25, 35),
+    precip_mm = c(40, 60, 80),
+    pet_mm = c(50, 70, 90)
+  )
+  testthat::expect_gt(abs(modifier - 1), 1e-6)
+  testthat::expect_true(all(out$method_soc == "century"))
+  testthat::expect_true(all(is.finite(out$soc_total)))
+})
+
 test_that("an already-supplied climate_modifier is honoured when raw drivers are absent", {
   # Regression test: a caller (e.g. the carbon-balance equilibrium spin-up)
   # may compute the model-native modifier itself from real climate data and
