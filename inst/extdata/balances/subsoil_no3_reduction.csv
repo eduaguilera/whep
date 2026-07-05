@@ -31,7 +31,7 @@ Urban,MED,Rainfed,0.40
 Urban,MED,Irrigated,0.65
 Urban,ATL,Rainfed,0.70
 Urban,ATL,Irrigated,0.75
-BNF,MED,Rainfed,0.35
-BNF,MED,Irrigated,0.55
-BNF,ATL,Rainfed,0.65
-BNF,ATL,Irrigated,0.70
+BNF,MED,Rainfed,0.40
+BNF,MED,Irrigated,0.65
+BNF,ATL,Rainfed,0.70
+BNF,ATL,Irrigated,0.75
