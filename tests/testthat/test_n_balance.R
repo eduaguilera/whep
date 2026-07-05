@@ -536,3 +536,139 @@ testthat::test_that("gwp argument is validated and total_gwp_co2e_kg is non-nega
     whep::build_nitrogen_balance(gwp = "ar99", data = list())
   )
 })
+
+testthat::test_that("total_gwp_co2e_kg matches the 44/28 x GWP x 1000 formula", {
+  # .nb_gwp() sums the three N2O-N terms (kg... actually tonnes N), converts
+  # N2O-N -> N2O via the 44/28 molecular-mass ratio (whep:::.soil_n2o_factors()
+  # $n_to_n2o), applies the N2O GWP factor from whep:::.ghg_gwp_factors(gwp),
+  # then scales tonnes -> kilograms (x1000). Pulling both factors from their
+  # actual source (rather than hardcoding guessed numbers) means this test
+  # fails if either constant, or the x1000 scaling, silently drifts.
+  n_to_n2o <- whep:::.soil_n2o_factors()$n_to_n2o
+  gwp_n2o_ar6 <- whep:::.ghg_gwp_factors("ar6")[["n2o"]]
+  gwp_n2o_ar5 <- whep:::.ghg_gwp_factors("ar5")[["n2o"]]
+
+  x <- tibble::tibble(
+    n2o_direct_n_t = 2,
+    n2o_indirect_nh3_n_t = 0.5,
+    n2o_indirect_no3_n_t = 0.3
+  )
+  total_n2o_n_t <- 2 + 0.5 + 0.3
+
+  out_ar6 <- whep:::.nb_gwp(x, gwp = "ar6")
+  expected_ar6 <- total_n2o_n_t * n_to_n2o * gwp_n2o_ar6 * 1000
+  testthat::expect_equal(
+    out_ar6$total_gwp_co2e_kg,
+    expected_ar6,
+    tolerance = 1e-9
+  )
+
+  out_ar5 <- whep:::.nb_gwp(x, gwp = "ar5")
+  expected_ar5 <- total_n2o_n_t * n_to_n2o * gwp_n2o_ar5 * 1000
+  testthat::expect_equal(
+    out_ar5$total_gwp_co2e_kg,
+    expected_ar5,
+    tolerance = 1e-9
+  )
+  testthat::expect_false(isTRUE(all.equal(expected_ar6, expected_ar5)))
+})
+
+testthat::test_that("SOM sequestration is kept when no NA-item input row exists", {
+  # A cell in net carbon GAIN (son_change_kgn_ha < 0) emits no
+  # som_mineralization input row; if it also lacks deposition/urban N, x has
+  # no NA-item row. A left join would drop the sequestration output entirely;
+  # the full-join merge must keep it (as its own NA-item row).
+  key <- c("lon", "lat", "area_code", "item_cbs_code", "year")
+  x <- tibble::tibble(
+    lon = 0.25,
+    lat = 50.25,
+    area_code = 10L,
+    item_cbs_code = 2511L, # a real crop row only; NO NA-item row present
+    year = 2010L,
+    prod_n_t = 40,
+    used_residue_n_t = 5,
+    burnt_residue_n_t = 2,
+    grazed_weeds_n_t = 0,
+    n_input_full_t = 100
+  )
+  cb <- tibble::tibble(
+    lon = 0.25,
+    lat = 50.25,
+    area_code = 10L,
+    land_use = "Cropland",
+    year = 2010L,
+    area_ha = 1000,
+    son_change_kgn_ha = -0.4 # negative => sequestration = 0.4 * 1000 / 1000
+  )
+  out <- whep:::.nb_add_som_sequestration(x, list(carbon_balance = cb), key)
+  testthat::expect_equal(sum(out$som_sequestration_n_t), 0.4)
+  # The sequestration lands on its own NA-item row, not the crop row.
+  na_row <- out[is.na(out$item_cbs_code), ]
+  testthat::expect_equal(nrow(na_row), 1L)
+  testthat::expect_equal(na_row$som_sequestration_n_t, 0.4)
+  # Input aggregates carried onto the output-only row default to 0, not NA.
+  testthat::expect_false(anyNA(out$n_input_full_t))
+  testthat::expect_false(anyNA(out$prod_n_t))
+})
+
+testthat::test_that("grazed weeds key the grass sentinel (3000L), joining grass rows", {
+  # build_n_inputs()'s manure engine keys grass rows to item_cbs_code 3000L;
+  # grazed weeds must use the SAME sentinel so they attach to the grass row
+  # rather than an NA code that never matches it.
+  key <- c("lon", "lat", "area_code", "item_cbs_code", "year")
+  x <- tibble::tibble(
+    lon = 0.25,
+    lat = 50.25,
+    area_code = 10L,
+    item_cbs_code = 3000L, # grass row from the manure engine; NO NA-item row
+    year = 2010L,
+    prod_n_t = 0,
+    used_residue_n_t = 0,
+    burnt_residue_n_t = 0,
+    n_input_full_t = 20
+  )
+  intake <- tibble::tibble(
+    year = 2010L,
+    territory = "10",
+    sub_territory = "0.25_50.25",
+    feed_quality = "grass",
+    intake_dm_t = 600
+  )
+  weed_coef <- whep::whep_coef_table("weed_coefs")$residue_n_kgdm_weed
+  out <- whep:::.nb_add_grazed_weeds(x, list(livestock_intake = intake), key)
+  # 600 * weed_coef of grazed-weeds N, attached to the single grass row
+  # (no phantom NA row created).
+  testthat::expect_equal(nrow(out), 1L)
+  testthat::expect_equal(out$item_cbs_code, 3000L)
+  testthat::expect_equal(out$grazed_weeds_n_t, 600 * weed_coef)
+})
+
+testthat::test_that("duplicate n_balance_leaching_drivers keys abort the join", {
+  # A caller-supplied leaching-drivers table with a duplicate balance key
+  # would fan x out and misalign the balance-key-aligned drainage_mm vector;
+  # the many-to-one join must abort at the source instead.
+  key <- c("area_code", "item_cbs_code", "year")
+  x <- tibble::tibble(
+    area_code = c(10L, 10L),
+    item_cbs_code = c(2511L, 2513L),
+    year = 2010L
+  )
+  drivers_dup <- tibble::tibble(
+    area_code = 10L,
+    item_cbs_code = c(2511L, 2511L, 2513L), # 2511 duplicated
+    year = 2010L,
+    climate = "MED"
+  )
+  testthat::expect_error(
+    whep:::.nb_leaching_join(x, drivers_dup, key),
+    "match at most 1 row"
+  )
+  # A unique table joins without error (one row per balance key).
+  drivers_ok <- tibble::tibble(
+    area_code = 10L,
+    item_cbs_code = c(2511L, 2513L),
+    year = 2010L,
+    climate = "MED"
+  )
+  testthat::expect_equal(nrow(whep:::.nb_leaching_join(x, drivers_ok, key)), 2L)
+})

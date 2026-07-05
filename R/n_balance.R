@@ -92,8 +92,11 @@
 #'     mapping from [build_n_inputs()]'s lowercase values). A second set of
 #'     balance-key-only driver columns (`irrig_cat`, `tillage`, `som_share`,
 #'     `cn_input`, `land_use`) for [calculate_n_leaching()] is read from
-#'     `n_balance_leaching_drivers`. Missing required drivers abort inside
-#'     the called `calculate_*()` function, naming the exact column.
+#'     `n_balance_leaching_drivers`, which must hold at most one row per
+#'     balance key (a many-to-one join aborts on duplicate keys rather than
+#'     fanning the rows out and misaligning `drainage_mm`). Missing required
+#'     drivers abort inside the called `calculate_*()` function, naming the
+#'     exact column.
 #'   * `drainage_mm`: annual drainage (mm) for [calculate_n_leaching()], as
 #'     a numeric vector aligned to the balance-key rows, or already present
 #'     as a `drainage_mm` column via `n_balance_leaching_drivers`.
@@ -337,21 +340,16 @@ build_nitrogen_balance <- function(
       grazed_weeds_n_t = sum(.data$intake_dm_t * weed_n_kgdm, na.rm = TRUE),
       .by = dplyr::all_of(key)
     )
-  x |>
-    dplyr::left_join(grazed, by = key) |>
-    dplyr::mutate(
-      grazed_weeds_n_t = tidyr::replace_na(
-        .data$grazed_weeds_n_t,
-        0
-      )
-    )
+  .nb_merge_output_term(x, grazed, key)
 }
 
 # Reuse build_n_inputs()'s manure territory/coordinate resolution verbatim
 # (same package, private helpers callable directly) rather than
-# reimplementing it a third time. item_cbs_code is NA_integer_ (grazed
-# forage is not attributed to a single crop item), matching the "not
-# crop-specific" sentinel used package-wide.
+# reimplementing it a third time. Grazed forage is grass, so item_cbs_code is
+# 3000L, the SAME grass sentinel build_n_inputs()'s manure engine assigns to
+# grassland rows (.ni_manure_item_cbs()): this keys grazed weeds onto the
+# grass N rows they belong with instead of the NA "no specific item" code
+# (which never matches the 3000L grass input rows).
 .nb_grazed_coords <- function(x) {
   coords <- .ni_manure_coords(x$sub_territory)
   x |>
@@ -359,7 +357,7 @@ build_nitrogen_balance <- function(
       lon = coords$lon,
       lat = coords$lat,
       area_code = .manure_territory_to_area_code(.data$territory),
-      item_cbs_code = NA_integer_
+      item_cbs_code = 3000L
     )
 }
 
@@ -369,8 +367,10 @@ build_nitrogen_balance <- function(
 # area_ha directly (the same way .n_inputs_som() does). carbon_balance is
 # per-land-use, not per-crop, so it carries no item_cbs_code (like
 # .n_inputs_som()'s deposition/urban/SOM rows); the NA_integer_
-# "not crop-specific" sentinel is added before grouping so the join matches
-# x's own NA_integer_ som_mineralization rows.
+# "not crop-specific" sentinel is used. A cell in net carbon GAIN
+# (son_change_kgn_ha < 0) emits no som_mineralization input row, so .nb_merge_
+# output_term()'s full join is what keeps the sequestration output when no
+# NA-item input row (deposition/urban/SOM) exists at that cell to attach to.
 .nb_add_som_sequestration <- function(x, data, key) {
   if (is.null(data$carbon_balance)) {
     return(dplyr::mutate(x, som_sequestration_n_t = 0))
@@ -385,14 +385,23 @@ build_nitrogen_balance <- function(
       ),
       .by = dplyr::all_of(key)
     )
-  x |>
-    dplyr::left_join(seq_n, by = key) |>
-    dplyr::mutate(
-      som_sequestration_n_t = tidyr::replace_na(
-        .data$som_sequestration_n_t,
-        0
-      )
-    )
+  .nb_merge_output_term(x, seq_n, key)
+}
+
+# Merge an output term keyed by `key` onto x. Unlike a left join (which drops
+# any term row whose key is absent from x -- the failure mode when a cell in
+# net carbon gain, or a grass cell with no manure input row, has no
+# pre-existing balance-key row to attach to), a full join keeps the term's
+# rows and creates the balance-key row when it is missing. Every non-key
+# numeric column (the newly-added output column and the input/output
+# aggregates already on x) is coalesced to 0 on those output-only rows, which
+# would otherwise carry NA from the join and poison the balance closure.
+.nb_merge_output_term <- function(x, term, key) {
+  dplyr::full_join(x, term, by = key) |>
+    dplyr::mutate(dplyr::across(
+      !dplyr::all_of(key) & dplyr::where(is.numeric),
+      \(v) tidyr::replace_na(v, 0)
+    ))
 }
 
 # ---- Step 3a: loss cascade -------------------------------------------------
@@ -545,7 +554,7 @@ build_nitrogen_balance <- function(
   joined <- if (is.null(data$n_balance_leaching_drivers)) {
     x
   } else {
-    dplyr::left_join(x, data$n_balance_leaching_drivers, by = key)
+    .nb_leaching_join(x, data$n_balance_leaching_drivers, key)
   }
   drainage <- if (rlang::has_name(joined, "drainage_mm")) {
     "drainage_mm"
@@ -554,6 +563,18 @@ build_nitrogen_balance <- function(
   }
   calculate_n_leaching(joined, drainage_mm = drainage, method = m$leaching) |>
     dplyr::mutate(method_leaching = m$leaching)
+}
+
+# n_balance_leaching_drivers is caller-supplied and documented as one row per
+# balance key. Enforce that with a many-to-one join: a duplicate key would
+# otherwise fan x out to more rows than the caller's balance-key-aligned
+# drainage_mm vector, and calculate_n_leaching() would then either abort with
+# a size-mismatch error far from the cause or (when the fanned count happens
+# to match) bind drainage to the wrong cells silently, corrupting the
+# leaching/denitrification partition. dplyr aborts here at the join instead,
+# naming the offending row.
+.nb_leaching_join <- function(x, drivers, key) {
+  dplyr::left_join(x, drivers, by = key, relationship = "many-to-one")
 }
 
 # Five NUE ratios (Balance_parameters n_fun.r:375-402 + NUE_calc N_Figs.R:

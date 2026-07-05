@@ -49,8 +49,11 @@ the file-level "fert_type vocabulary bridge" note for the exact
 mapping from \code{\link[=build_n_inputs]{build_n_inputs()}}'s lowercase values). A second set of
 balance-key-only driver columns (\code{irrig_cat}, \code{tillage}, \code{som_share},
 \code{cn_input}, \code{land_use}) for \code{\link[=calculate_n_leaching]{calculate_n_leaching()}} is read from
-\code{n_balance_leaching_drivers}. Missing required drivers abort inside
-the called \verb{calculate_*()} function, naming the exact column.
+\code{n_balance_leaching_drivers}, which must hold at most one row per
+balance key (a many-to-one join aborts on duplicate keys rather than
+fanning the rows out and misaligning \code{drainage_mm}). Missing required
+drivers abort inside the called \verb{calculate_*()} function, naming the
+exact column.
 \item \code{drainage_mm}: annual drainage (mm) for \code{\link[=calculate_n_leaching]{calculate_n_leaching()}}, as
 a numeric vector aligned to the balance-key rows, or already present
 as a \code{drainage_mm} column via \code{n_balance_leaching_drivers}.
