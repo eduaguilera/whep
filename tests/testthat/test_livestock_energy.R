@@ -190,8 +190,13 @@ testthat::test_that("work_coef override activates NE_work for cattle (whep's own
 
 testthat::test_that("work_coef is NA-safe and does not affect rows without it", {
   no_col <- tibble::tibble(
-    species = "Beef Cattle", cohort = "Adult Male", weight = 420,
-    work_hours_day = 6, diet_quality = "Medium", heads = 10
-  ) |> estimate_energy_demand()
+    species = "Beef Cattle",
+    cohort = "Adult Male",
+    weight = 420,
+    work_hours_day = 6,
+    diet_quality = "Medium",
+    heads = 10
+  ) |>
+    estimate_energy_demand()
   testthat::expect_equal(no_col$ne_work, 0)
 })

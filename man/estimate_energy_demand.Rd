@@ -10,8 +10,11 @@ estimate_energy_demand(data, method = "ipcc2019")
 \item{data}{A dataframe with columns \code{species}, \code{cohort}, \code{heads},
 and optionally \code{iso3}. Optional production columns: \code{weight},
 \code{milk_yield_kg_day}, \code{fat_percent}, \code{weight_gain_kg_day},
-\code{work_hours_day}, \code{pregnant_fraction}, \code{temperature_c},
-\code{diet_quality}, \code{grazing_distance_km}, \code{system}.}
+\code{work_hours_day}, \code{work_coef}, \code{pregnant_fraction}, \code{temperature_c},
+\code{diet_quality}, \code{grazing_distance_km}, \code{system}. \code{work_coef}
+overrides the joined IPCC work coefficient (\code{cw}, 0 by default for
+every species) for rows that need draught/work energy (IPCC Eq
+10.11) without changing the global default.}
 
 \item{method}{Method for calculation (default \code{"ipcc2019"}).}
 }
