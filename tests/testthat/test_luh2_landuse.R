@@ -159,6 +159,18 @@ test_that("polity resolution sums area_ha to (area_code, year, land_use)", {
   testthat::expect_setequal(unique(out$area_code), c(203L, 79L))
 })
 
+test_that(".luh2_nc_years defaults to calendar years 850..end, not indices", {
+  # time_len = 1166 -> a complete v2h file spanning 850..2015. The default must
+  # be calendar years (base 850), never bare 1-based time indices (1..1166),
+  # which would be mis-read as pre-850 calendar years and abort.
+  testthat::local_mocked_bindings(.luh2_time_len_nc = function(nc_path) 1166L)
+  yrs <- whep:::.luh2_nc_years("ignored.nc")
+  testthat::expect_equal(yrs[1], 850L)
+  testthat::expect_equal(yrs[length(yrs)], 2015L)
+  testthat::expect_equal(length(yrs), 1166L)
+  testthat::expect_false(any(yrs < 850L))
+})
+
 test_that("real pin smoke test (skipped when unreadable)", {
   states <- tryCatch(
     whep:::.luh2_read_states(years = 1750L),

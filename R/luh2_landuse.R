@@ -181,8 +181,15 @@ read_luh2_landuse <- function(
 # 0.5-degree carbon grid. Returns long (lon, lat, year, land_use, fraction) on
 # the 0.5-degree cell centres. LUH2 v2h time index 1 = year 850 CE.
 .luh2_read_states_nc <- function(nc_path, years = NULL) {
-  years <- years %||% seq_len(.luh2_time_len_nc(nc_path))
+  years <- years %||% .luh2_nc_years(nc_path)
   purrr::map_dfr(years, \(yr) .luh2_read_states_nc_year(nc_path, yr))
+}
+
+# Full calendar-year sequence the states.nc covers. LUH2 v2h time index 1 =
+# year 850 CE, so the series spans 850 .. 850 + time_len - 1 (2015 for a
+# complete v2h file). Derived from time_len, not a hardcoded end year.
+.luh2_nc_years <- function(nc_path) {
+  seq(850L, 850L + .luh2_time_len_nc(nc_path) - 1L)
 }
 
 # Read one year's 12 states from states.nc and aggregate to 0.5 degrees.
