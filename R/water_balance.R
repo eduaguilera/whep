@@ -99,23 +99,40 @@ build_water_balance <- function(
 #' @description
 #' Builds the monthly per-cell climate drivers the soil-organic-carbon
 #' decomposition modifiers consume: air temperature, topsoil soil-water
-#' saturation, the monthly water-minus-potential-evapotranspiration surplus and
-#' clay content. Air temperature comes from CRU TS 4.09
-#' ([read_cru_climate()] `"tmp"`, degrees Celsius); potential
-#' evapotranspiration from CRU `"pet"` (mm/day), converted to a monthly total by
-#' multiplying by the days in the month; the water input (precipitation plus
-#' irrigation) from the LPJmL run so it is consistent with the hydrology that
-#' produced the soil water content; and soil water content from LPJmL directly
-#' ([read_lpjml_hydrology()] `"swc"`, topmost layer). Clay content is a
-#' soil-texture covariate supplied via `data$clay`; the polity key comes from a
-#' cell-polity crosswalk (`data$cell_polity`).
+#' saturation, monthly precipitation and potential evapotranspiration (the
+#' Century modifier drivers), the monthly water-minus-potential-
+#' evapotranspiration surplus (the RothC/HSOC driver), the annual water balance
+#' (the AMG driver), the volumetric soil water content with its field-capacity,
+#' wilting-point and porosity references (the ICBM moisture drivers) and clay
+#' content. Air temperature comes from CRU TS 4.09 ([read_cru_climate()]
+#' `"tmp"`, degrees Celsius); potential evapotranspiration from CRU `"pet"`
+#' (mm/day), converted to a monthly total by multiplying by the days in the
+#' month; the water input (precipitation plus irrigation) from the LPJmL run so
+#' it is consistent with the hydrology that produced the soil water content; and
+#' soil water content from LPJmL directly ([read_lpjml_hydrology()] `"swc"`,
+#' topmost layer). The soil hydraulic references (field capacity, wilting point,
+#' porosity) come from the dominant HWSD texture class of each cell via
+#' [read_soil_hydraulic()], and the volumetric soil water content is
+#' `theta = swc_topsoil * porosity` (the LPJmL fractional saturation scaled by
+#' the cell porosity). Clay content is a soil-texture covariate supplied via
+#' `data$clay`; the polity key comes from a cell-polity crosswalk
+#' (`data$cell_polity`).
 #'
 #' @details
-#' The monthly water surplus is `water_minus_pet_mm = (prec + irrig) -
-#' pet_mm_day * days_in_month`. The water input basis is recorded in
-#' `method_water_input` (`"lpjml_prec_irrig"`, LPJmL precipitation plus
-#' irrigation). Air temperature (CRU) and clay (a soil product) are not LPJmL
-#' outputs, hence the mixed sources.
+#' The monthly PET total is `pet_mm = pet_mm_day * days_in_month`; the monthly
+#' water surplus is `water_minus_pet_mm = (precip_mm + irrig_mm) - pet_mm`; and
+#' the annual water balance `water_balance_mm` is the per-cell-year sum of that
+#' surplus, repeated across every month of the cell-year so it can drive the AMG
+#' modifier that expects one annual scalar per cell-year. `precip_mm` carries
+#' precipitation only (irrigation excluded), as the Century moisture factor
+#' expects. The volumetric soil water content `theta = swc_topsoil * porosity`
+#' varies by month with the LPJmL saturation, while its `t_field`, `t_wilt` and
+#' `porosity` references are static per cell (the dominant HWSD texture class'
+#' properties), together driving the ICBM piecewise moisture response. The water
+#' input basis is recorded in `method_water_input` (`"lpjml_prec_irrig"`, LPJmL
+#' precipitation plus irrigation). Air temperature (CRU) and the soil texture
+#' products (clay, hydraulic properties) are not LPJmL outputs, hence the mixed
+#' sources.
 #'
 #' @param run_dir Path to the LPJmL run output directory. Defaults to
 #'   `Sys.getenv("WHEP_LPJML_RUN_DIR")` via [read_lpjml_hydrology()].
@@ -126,12 +143,20 @@ build_water_balance <- function(
 #'   `value` degrees Celsius), `pet` (CRU `pet`, same schema, mm/day), `prec`
 #'   and `irrig` (LPJmL monthly, `lon`, `lat`, `year`, `month`, `value` mm/month),
 #'   `swc` ([read_lpjml_hydrology()] soil water content), `clay` (`lon`, `lat`,
-#'   `clay_pct`, required) and `cell_polity` (`lon`, `lat`, `area_code`, the
-#'   polity crosswalk, required).
+#'   `clay_pct`, required), `cell_polity` (`lon`, `lat`, `area_code`, the polity
+#'   crosswalk, required) and `soil_hydraulic` (`lon`, `lat`, `t_field`,
+#'   `t_wilt`, `porosity`; falls back to [read_soil_hydraulic()], cropped to
+#'   `cell_polity` when supplied).
 #' @param example If `TRUE`, return a small fixture instead of reading data.
 #'   Defaults to `FALSE`.
 #' @return A tibble with `lon`, `lat`, `area_code`, `year`, `month`, `temp_c`,
-#'   `swc_topsoil`, `water_minus_pet_mm`, `clay_pct` and `method_water_input`.
+#'   `swc_topsoil`, `precip_mm` and `pet_mm` (monthly, the Century modifier
+#'   drivers), `water_minus_pet_mm` (the monthly RothC/HSOC surplus),
+#'   `water_balance_mm` (the annual sum of `water_minus_pet_mm`, the AMG
+#'   modifier driver, repeated across a cell-year's months), `clay_pct`,
+#'   `theta`, `t_field`, `t_wilt` and `porosity` (the ICBM moisture drivers:
+#'   the monthly volumetric soil water content and its static field-capacity,
+#'   wilting-point and porosity references) and `method_water_input`.
 #' @export
 #' @examples
 #' get_soc_climate_drivers(example = TRUE)
@@ -144,11 +169,12 @@ get_soc_climate_drivers <- function(
   if (isTRUE(example)) {
     return(.example_soc_climate_drivers())
   }
-  swc <- .wb_swc_topsoil(data, run_dir)
+  swc <- .wb_swc_topsoil(data, run_dir, years)
   monthly <- .socd_monthly_climate(data, years)
   clay <- .wb_require_input(data$clay, "clay", c("clay_pct"))
   polity <- .wb_require_input(data$cell_polity, "cell_polity", c("area_code"))
-  .assemble_soc_drivers(swc, monthly, clay, polity)
+  hydraulic <- .socd_soil_hydraulic(data)
+  .assemble_soc_drivers(swc, monthly, clay, polity, hydraulic)
 }
 
 # ---- Private helpers --------------------------------------------------
@@ -497,9 +523,15 @@ get_soc_climate_drivers <- function(
     )
 }
 
-# Area-weighted mean that returns NA (never NaN) when every value is missing, so
-# an all-NA column (e.g. the pet_mm placeholder) aggregates to NA, not NaN.
+# Area-weighted mean that returns NA (never NaN) when no valid entry remains, so
+# an all-NA column (e.g. the pet_mm placeholder) aggregates to NA, not NaN. A
+# single NA weight (e.g. a border cell with NA cell_area_ha or polity_frac) is
+# dropped rather than poisoning the whole polity total via sum(weight) = NA;
+# weighted.mean's na.rm filters only on col, never on weight.
 .wb_weighted_mean <- function(col, weight) {
+  keep <- !is.na(weight)
+  col <- col[keep]
+  weight <- weight[keep]
   if (all(is.na(col))) {
     return(NA_real_)
   }
@@ -547,9 +579,16 @@ get_soc_climate_drivers <- function(
 }
 
 # Topsoil soil-water saturation per cell-month, from data$swc or the reader.
-.wb_swc_topsoil <- function(data, run_dir) {
+# `years` is forwarded so the reader slices the soil-water cube to the requested
+# years instead of materialising the full multi-decade 4-D array.
+.wb_swc_topsoil <- function(data, run_dir, years) {
   swc <- data$swc %||%
-    read_lpjml_hydrology("swc", run_dir = run_dir, monthly = TRUE)
+    read_lpjml_hydrology(
+      "swc",
+      run_dir = run_dir,
+      years = years,
+      monthly = TRUE
+    )
   top <- if (rlang::has_name(swc, "layer")) {
     dplyr::filter(swc, layer == min(layer))
   } else {
@@ -570,11 +609,12 @@ get_soc_climate_drivers <- function(
   tibble::as_tibble(input)
 }
 
-# Build the monthly climate part of the SOC drivers: CRU air temperature, and
-# the monthly water surplus water_minus_pet_mm = (LPJmL prec + irrig) - CRU
-# pet[mm/day] * days_in_month. Each source falls back to its reader when not
-# injected. Returns lon, lat, year, month, temp_c, water_minus_pet_mm and the
-# method_water_input provenance label.
+# Build the monthly climate part of the SOC drivers: CRU air temperature, the
+# monthly water surplus water_minus_pet_mm = (LPJmL prec + irrig) - CRU
+# pet[mm/day] * days_in_month, and the per-model driver columns the SOC
+# decomposition modifiers consume: precip_mm and pet_mm (monthly, for Century)
+# and water_balance_mm (the annual sum of water_minus_pet_mm, for AMG). Each
+# source falls back to its reader when not injected.
 .socd_monthly_climate <- function(data, years) {
   temp <- .socd_read(data$temp, "tmp", years)
   pet <- .socd_read(data$pet, "pet", years)
@@ -587,7 +627,7 @@ get_soc_climate_drivers <- function(
       by = c("lon", "lat", "year", "month")
     ) |>
     dplyr::inner_join(
-      dplyr::rename(prec, prec_mm = value),
+      dplyr::rename(prec, precip_mm = value),
       by = c("lon", "lat", "year", "month")
     ) |>
     dplyr::inner_join(
@@ -595,19 +635,37 @@ get_soc_climate_drivers <- function(
       by = c("lon", "lat", "year", "month")
     ) |>
     dplyr::mutate(
-      water_minus_pet_mm = (prec_mm + irrig_mm) -
-        pet_mm_day * .days_in_month(year, month),
+      pet_mm = pet_mm_day * .days_in_month(year, month),
+      water_minus_pet_mm = (precip_mm + irrig_mm) - pet_mm,
       method_water_input = "lpjml_prec_irrig"
     ) |>
+    .socd_add_water_balance() |>
     dplyr::select(
       lon,
       lat,
       year,
       month,
       temp_c,
+      precip_mm,
+      pet_mm,
       water_minus_pet_mm,
+      water_balance_mm,
       method_water_input
     )
+}
+
+# Attach the annual water balance (mm): the per-cell-year sum of the monthly
+# water_minus_pet_mm surplus (P + irrig - PET), joined back so every month of a
+# cell-year carries that year's single annual scalar (the per-cell-year value
+# soc_rate_modifier_amg expects). Keyed on (lon, lat, year): the annual balance
+# of a grid cell is independent of which polity later claims it.
+.socd_add_water_balance <- function(monthly) {
+  annual <- monthly |>
+    dplyr::summarise(
+      water_balance_mm = sum(water_minus_pet_mm),
+      .by = c(lon, lat, year)
+    )
+  dplyr::inner_join(monthly, annual, by = c("lon", "lat", "year"))
 }
 
 # Read a CRU variable (temp or pet) from the injected tibble or read_cru_climate.
@@ -631,10 +689,13 @@ get_soc_climate_drivers <- function(
   base[month] + as.integer(month == 2L & leap)
 }
 
-# Join topsoil soil water, the monthly CRU/LPJmL climate, clay and the polity
-# key into the monthly SOC driver schema. area_code comes from the cell-polity
-# crosswalk (lon, lat); a border cell keeps every polity it overlaps.
-.assemble_soc_drivers <- function(swc, monthly, clay, polity) {
+# Join topsoil soil water, the monthly CRU/LPJmL climate, clay, the polity key
+# and the soil hydraulic properties into the monthly SOC driver schema.
+# area_code comes from the cell-polity crosswalk (lon, lat); a border cell keeps
+# every polity it overlaps. theta (volumetric soil water content, the ICBM
+# moisture driver) is the LPJmL topsoil fractional saturation times the cell's
+# derived porosity: theta = swc_topsoil * porosity.
+.assemble_soc_drivers <- function(swc, monthly, clay, polity, hydraulic) {
   swc |>
     dplyr::inner_join(monthly, by = c("lon", "lat", "year", "month")) |>
     dplyr::left_join(clay, by = c("lon", "lat")) |>
@@ -642,6 +703,8 @@ get_soc_climate_drivers <- function(
       dplyr::select(polity, lon, lat, area_code),
       by = c("lon", "lat")
     ) |>
+    dplyr::left_join(hydraulic, by = c("lon", "lat")) |>
+    dplyr::mutate(theta = .data$swc_topsoil * .data$porosity) |>
     dplyr::select(
       lon,
       lat,
@@ -650,8 +713,30 @@ get_soc_climate_drivers <- function(
       month,
       temp_c,
       swc_topsoil,
+      precip_mm,
+      pet_mm,
       water_minus_pet_mm,
+      water_balance_mm,
       clay_pct,
+      theta,
+      t_field,
+      t_wilt,
+      porosity,
       method_water_input
     )
+}
+
+# Read (or accept via data$soil_hydraulic) the per-cell soil hydraulic
+# properties (t_field, t_wilt, porosity) that feed the ICBM moisture driver,
+# via the shared HWSD reader. The cell-polity crosswalk, when supplied, crops
+# and gap-fills the HWSD raster to the region of interest.
+.socd_soil_hydraulic <- function(data) {
+  hydraulic <- data$soil_hydraulic %||%
+    read_soil_hydraulic(data = list(cell_polity = data$cell_polity))
+  .check_columns(
+    hydraulic,
+    c("lon", "lat", "t_field", "t_wilt", "porosity"),
+    "soil_hydraulic"
+  )
+  tibble::as_tibble(hydraulic)
 }

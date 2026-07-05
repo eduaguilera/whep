@@ -95,6 +95,14 @@ testthat::test_that("get_soc_climate_drivers returns monthly climate drivers", {
     dplyr::mutate(value = dplyr::if_else(layer == 1L, 0.45, 0.40))
   clay <- dplyr::mutate(cells, clay_pct = 22)
   cell_polity <- dplyr::mutate(cells, area_code = c(11L, 203L))
+  # Injected loam-class soil hydraulics (t_field 0.29, t_wilt 0.14, porosity
+  # 0.43) so the ICBM driver path never reaches the real HWSD reader.
+  soil_hydraulic <- dplyr::mutate(
+    cells,
+    t_field = 0.29,
+    t_wilt = 0.14,
+    porosity = 0.43
+  )
   list(
     temp = temp,
     pet = pet,
@@ -102,7 +110,8 @@ testthat::test_that("get_soc_climate_drivers returns monthly climate drivers", {
     irrig = irrig,
     swc = swc,
     clay = clay,
-    cell_polity = cell_polity
+    cell_polity = cell_polity,
+    soil_hydraulic = soil_hydraulic
   )
 }
 
@@ -148,6 +157,132 @@ testthat::test_that("SOC drivers feed a plausible HSOC modifier", {
   testthat::expect_true(is.finite(cm))
   testthat::expect_gt(cm, 0)
   testthat::expect_lt(cm, 2)
+})
+
+testthat::test_that("SOC drivers emit the Century and AMG climate columns", {
+  drv <- whep::get_soc_climate_drivers(data = .socd_synthetic())
+  pointblank::expect_col_exists(
+    drv,
+    c("precip_mm", "pet_mm", "water_balance_mm")
+  )
+  one <- dplyr::filter(drv, area_code == 11L) |> dplyr::arrange(month)
+  # precip_mm is precipitation only (irrigation excluded), from the LPJmL prec
+  # input of 60 mm every month; pet_mm is the CRU mm/day times days in month.
+  testthat::expect_true(all(one$precip_mm == 60))
+  testthat::expect_equal(one$pet_mm[1], (1 + 2 / 12) * 31, tolerance = 1e-8)
+  # water_balance_mm is the annual sum of the monthly water surplus, identical
+  # on every month of the cell-year (the AMG per-cell-year scalar).
+  testthat::expect_equal(
+    unique(one$water_balance_mm),
+    sum(one$water_minus_pet_mm),
+    tolerance = 1e-8
+  )
+  testthat::expect_length(unique(one$water_balance_mm), 1)
+})
+
+testthat::test_that("SOC drivers drive non-neutral Century and AMG modifiers", {
+  drv <- whep::get_soc_climate_drivers(data = .socd_synthetic())
+  one <- dplyr::filter(drv, area_code == 11L) |> dplyr::arrange(month)
+  century <- whep::soc_rate_modifier_century(
+    temp_c = one$temp_c,
+    precip_mm = one$precip_mm,
+    pet_mm = one$pet_mm
+  )
+  amg <- whep::soc_rate_modifier_amg(
+    temp_c = one$temp_c,
+    water_balance_mm = one$water_balance_mm
+  )
+  # A finite modifier that is NOT exactly 1 confirms the drivers reach the
+  # modifier rather than the neutral fallback the missing columns used to force.
+  testthat::expect_true(is.finite(century) && century > 0 && century != 1)
+  testthat::expect_true(is.finite(amg) && amg > 0 && amg != 1)
+  testthat::expect_equal(century, 0.19223662444227, tolerance = 1e-6)
+  testthat::expect_equal(amg, 0.603259664579879, tolerance = 1e-6)
+})
+
+testthat::test_that("SOC drivers emit the ICBM moisture columns", {
+  drv <- whep::get_soc_climate_drivers(data = .socd_synthetic())
+  pointblank::expect_col_exists(
+    drv,
+    c("theta", "t_field", "t_wilt", "porosity")
+  )
+  # The injected loam-class references arrive unchanged, and theta is the
+  # topsoil fractional saturation times the cell porosity, NOT the 0.4
+  # whole-profile constant used elsewhere in the water balance.
+  testthat::expect_true(all(drv$t_field == 0.29))
+  testthat::expect_true(all(drv$t_wilt == 0.14))
+  testthat::expect_true(all(drv$porosity == 0.43))
+  testthat::expect_equal(drv$theta, drv$swc_topsoil * drv$porosity)
+  # swc_topsoil is 0.45 in the fixture, so theta is 0.45 * 0.43, well above the
+  # 0.4 * 0.45 the old whole-profile porosity constant would have given.
+  testthat::expect_true(all(abs(drv$theta - 0.45 * 0.43) < 1e-9))
+  testthat::expect_false(isTRUE(all.equal(unique(drv$theta), 0.45 * 0.4)))
+})
+
+testthat::test_that("the texture-class hydraulic table is physically ordered", {
+  hyd <- whep::soil_hydraulic_by_texture
+  # Every USDA class: wilting point < field capacity < porosity, all in (0, 1).
+  testthat::expect_true(all(hyd$wilting_point > 0 & hyd$wilting_point < 1))
+  testthat::expect_true(all(hyd$field_capacity > hyd$wilting_point))
+  testthat::expect_true(all(hyd$porosity > hyd$field_capacity))
+  testthat::expect_true(all(hyd$porosity < 1))
+  # The HWSD code crosswalk resolves every code 1..13 to a class in the table.
+  joined <- dplyr::inner_join(
+    whep::hwsd_texture_usda,
+    hyd,
+    by = "usda_texture_class"
+  )
+  testthat::expect_equal(nrow(joined), 13L)
+  # Spot-check the two clay codes (heavy = 1, light = 3) both map to clay
+  # (porosity 0.47), and code 13 maps to sand (porosity 0.43).
+  clay_codes <- joined[joined$t_usda_tex %in% c(1L, 3L), ]
+  testthat::expect_true(all(clay_codes$usda_texture_class == "clay"))
+  testthat::expect_true(all(clay_codes$porosity == 0.47))
+  sand <- joined[joined$t_usda_tex == 13L, ]
+  testthat::expect_equal(sand$field_capacity, 0.08)
+})
+
+testthat::test_that("SOC drivers drive a non-neutral ICBM modifier end-to-end", {
+  drv <- whep::get_soc_climate_drivers(data = .socd_synthetic())
+  one <- dplyr::filter(drv, area_code == 11L) |> dplyr::arrange(month)
+  # The all-present check in .soc_climate_drivers("icbm") now succeeds, so the
+  # ICBM moisture response actually runs instead of the neutral-1 fallback.
+  icbm <- whep::soc_rate_modifier_icbm(
+    temp_c = one$temp_c,
+    theta = one$theta,
+    t_field = one$t_field,
+    t_wilt = one$t_wilt,
+    porosity = one$porosity
+  )
+  testthat::expect_true(is.finite(icbm) && icbm > 0 && icbm != 1)
+  # Feeding the four ICBM drivers into calculate_soc_dynamics(model = "icbm")
+  # yields a trajectory that DIFFERS from the neutral-modifier one.
+  driven <- whep::calculate_soc_dynamics(
+    model = "icbm",
+    data = list(
+      initial_soc_mgc_ha = 50,
+      c_input_mgc_ha_yr = 2,
+      years = 5,
+      temp_c = one$temp_c,
+      theta = one$theta,
+      t_field = one$t_field[1],
+      t_wilt = one$t_wilt[1],
+      porosity = one$porosity[1]
+    )
+  )
+  neutral <- whep::calculate_soc_dynamics(
+    model = "icbm",
+    data = list(
+      initial_soc_mgc_ha = 50,
+      c_input_mgc_ha_yr = 2,
+      years = 5,
+      climate_modifier = 1
+    )
+  )
+  final_driven <- dplyr::last(driven$soc_total)
+  final_neutral <- dplyr::last(neutral$soc_total)
+  testthat::expect_true(is.finite(final_driven))
+  testthat::expect_gt(abs(final_driven - final_neutral), 1e-6)
 })
 
 # ---- Real-data smoke test (skip if CRU dir absent): read a few 2000 cells.
@@ -387,4 +522,199 @@ testthat::test_that("polity resolution carries the new footprint columns", {
   )
   # cft_nir_mm is all-NA in the fixture; the all-NA guard keeps it NA, not NaN.
   testthat::expect_true(all(is.na(pol$cft_nir_mm)))
+})
+
+testthat::test_that("a single NA-weight cell does not poison the polity mean", {
+  # Put both synthetic cells in one polity, then give the second cell an NA
+  # cell_area_ha (a border/coastal crosswalk row). The polity aggregate must be
+  # the first cell's value, not NA for the whole polity.
+  syn <- .wb_synthetic_monthly()
+  cells <- dplyr::distinct(syn$inputs$prec, lon, lat)
+  syn$inputs$cell_polity <- tibble::tibble(
+    lon = cells$lon,
+    lat = cells$lat,
+    area_code = 11L,
+    polity_frac = 1,
+    cell_area_ha = c(30000, NA_real_)
+  )
+  grid <- suppressWarnings(
+    whep::build_water_balance(data = syn$inputs, resolution = "grid")
+  )
+  pol <- suppressWarnings(
+    whep::build_water_balance(data = syn$inputs, resolution = "polity")
+  )
+  keep_cell <- dplyr::filter(grid, lon == cells$lon[1], lat == cells$lat[1])
+  # Exactly one polity-year row, and every depth column finite (not NA) and
+  # equal to the surviving (non-NA-weight) cell's value.
+  testthat::expect_equal(nrow(pol), 1L)
+  testthat::expect_false(is.na(pol$water_input_mm))
+  testthat::expect_equal(
+    pol$water_input_mm,
+    keep_cell$water_input_mm,
+    tolerance = 1e-6
+  )
+  testthat::expect_equal(pol$aet_mm, keep_cell$aet_mm, tolerance = 1e-6)
+  testthat::expect_equal(
+    pol$drainage_mm,
+    keep_cell$drainage_mm,
+    tolerance = 1e-6
+  )
+})
+
+# Two cells in one polity with DIFFERENT per-cell flux totals (so
+# water_input_mm/aet_mm genuinely differ) and DIFFERENT weights
+# (polity_frac * cell_area_ha). Each cell's own 4-term budget closes exactly
+# (no runoff/drainage, single-layer swc held constant so soil_water_change is
+# 0), which keeps the fixture simple while still varying the two depth values
+# the weighted mean must respect.
+.wb_two_cell_diff_depths <- function() {
+  cells <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~prec, ~irrig, ~aet_total,
+    9.25, 47.75, 11L, 500, 0, 300,
+    -3.25, 40.25, 11L, 900, 0, 300
+  )
+  months <- tidyr::expand_grid(
+    dplyr::select(cells, lon, lat, area_code, prec, irrig, aet_total),
+    month = 1:12
+  ) |>
+    dplyr::mutate(
+      year = 2000L,
+      transp = aet_total / 12,
+      evap = 0,
+      interc = 0,
+      runoff = 0,
+      seepage = 0,
+      prec_m = prec / 12,
+      irrig_m = irrig / 12
+    )
+  to_long <- function(var) {
+    dplyr::select(months, lon, lat, year, month, value = dplyr::all_of(var))
+  }
+  swc <- tidyr::expand_grid(
+    dplyr::select(cells, lon, lat),
+    year = 2000L,
+    month = 1:12,
+    layer = 1L
+  ) |>
+    dplyr::mutate(value = 0.3)
+  cell_polity <- tibble::tibble(
+    lon = cells$lon,
+    lat = cells$lat,
+    area_code = cells$area_code,
+    polity_frac = 1,
+    cell_area_ha = c(10000, 90000)
+  )
+  list(
+    transp = to_long("transp"),
+    evap = to_long("evap"),
+    interc = to_long("interc"),
+    prec = to_long("prec_m"),
+    irrig = to_long("irrig_m"),
+    runoff = to_long("runoff"),
+    seepage = to_long("seepage"),
+    swc = swc,
+    cell_polity = cell_polity
+  )
+}
+
+testthat::test_that("polity mean is genuinely area-weighted, not a plain mean", {
+  # water_input_mm (prec) is 500 for the light-weight cell (10000 ha) and 900
+  # for the heavy-weight cell (90000 ha). A plain unweighted mean would give
+  # 700; the area-weighted mean is much closer to 900, so this fails if
+  # .wb_aggregate_polity() silently used mean() instead of
+  # stats::weighted.mean().
+  inputs <- .wb_two_cell_diff_depths()
+  grid <- suppressWarnings(
+    whep::build_water_balance(data = inputs, resolution = "grid")
+  )
+  pol <- suppressWarnings(
+    whep::build_water_balance(data = inputs, resolution = "polity")
+  )
+  grid <- dplyr::inner_join(grid, inputs$cell_polity, by = c("lon", "lat"))
+  expected_water_input <- stats::weighted.mean(
+    grid$water_input_mm,
+    grid$cell_area_ha
+  )
+  unweighted_water_input <- mean(grid$water_input_mm)
+
+  testthat::expect_equal(nrow(pol), 1L)
+  testthat::expect_equal(
+    pol$water_input_mm,
+    expected_water_input,
+    tolerance = 1e-8
+  )
+  testthat::expect_equal(pol$water_input_mm, 860, tolerance = 1e-8)
+  # Sanity: the two cells' depths and weights genuinely differ, so the
+  # weighted and unweighted means are not coincidentally equal.
+  testthat::expect_true(
+    abs(expected_water_input - unweighted_water_input) > 1e-3
+  )
+})
+
+testthat::test_that("a genuinely mixed NA-weight polity keeps only the valid cells' weighted mean", {
+  # T10a fix regression (R/water_balance.R .wb_weighted_mean): three cells in
+  # one polity, two with DIFFERENT valid depths/weights (the 500/10000 and
+  # 900/90000 fixture cells) and a third with an NA cell_area_ha. The polity
+  # aggregate must equal the weighted mean of the two VALID cells only, not NA
+  # and not a mean that folds in the NA-weight cell.
+  inputs <- .wb_two_cell_diff_depths()
+  third_cell <- tibble::tribble(
+    ~lon, ~lat, ~area_code,
+    50.25, 10.25, 11L
+  )
+  months <- tidyr::expand_grid(third_cell, month = 1:12) |>
+    dplyr::mutate(
+      year = 2000L,
+      transp = 60,
+      evap = 0,
+      interc = 0,
+      irrig = 0,
+      runoff = 0,
+      seepage = 0,
+      prec = 100
+    )
+  swc_extra <- tidyr::expand_grid(third_cell, month = 1:12, layer = 1L) |>
+    dplyr::mutate(year = 2000L, value = 0.3)
+  to_long <- function(data, var) {
+    dplyr::select(data, lon, lat, year, month, value = dplyr::all_of(var))
+  }
+  inputs$transp <- dplyr::bind_rows(inputs$transp, to_long(months, "transp"))
+  inputs$evap <- dplyr::bind_rows(inputs$evap, to_long(months, "evap"))
+  inputs$interc <- dplyr::bind_rows(inputs$interc, to_long(months, "interc"))
+  inputs$prec <- dplyr::bind_rows(inputs$prec, to_long(months, "prec"))
+  inputs$irrig <- dplyr::bind_rows(inputs$irrig, to_long(months, "irrig"))
+  inputs$runoff <- dplyr::bind_rows(inputs$runoff, to_long(months, "runoff"))
+  inputs$seepage <- dplyr::bind_rows(inputs$seepage, to_long(months, "seepage"))
+  inputs$swc <- dplyr::bind_rows(inputs$swc, swc_extra)
+
+  cells <- dplyr::distinct(inputs$prec, lon, lat)
+  inputs$cell_polity <- tibble::tibble(
+    lon = cells$lon,
+    lat = cells$lat,
+    area_code = 11L,
+    polity_frac = 1,
+    cell_area_ha = c(10000, 90000, NA_real_)
+  )
+
+  grid <- suppressWarnings(
+    whep::build_water_balance(data = inputs, resolution = "grid")
+  )
+  pol <- suppressWarnings(
+    whep::build_water_balance(data = inputs, resolution = "polity")
+  )
+  valid_grid <- dplyr::filter(grid, lon != third_cell$lon) |>
+    dplyr::inner_join(inputs$cell_polity, by = c("lon", "lat"))
+  expected_water_input <- stats::weighted.mean(
+    valid_grid$water_input_mm,
+    valid_grid$cell_area_ha
+  )
+
+  testthat::expect_equal(nrow(pol), 1L)
+  testthat::expect_false(is.na(pol$water_input_mm))
+  testthat::expect_equal(
+    pol$water_input_mm,
+    expected_water_input,
+    tolerance = 1e-8
+  )
+  testthat::expect_equal(pol$water_input_mm, 860, tolerance = 1e-8)
 })

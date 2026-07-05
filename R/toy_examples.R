@@ -550,14 +550,24 @@
 
 # Monthly SOC climate-driver fixture (one cell, three months). Temperature and
 # topsoil soil-water saturation drive the SOC decomposition modifiers; clay is a
-# soil-texture covariate. water_minus_pet_mm is the monthly water surplus.
+# soil-texture covariate. precip_mm and pet_mm (monthly) drive the Century
+# modifier; water_minus_pet_mm is the monthly RothC/HSOC surplus (here
+# precip_mm - pet_mm, irrigation zero); water_balance_mm is the annual sum of
+# that surplus (-10 + 5 + 20 = 15), repeated on every month for the AMG modifier.
+# theta/t_field/t_wilt/porosity drive the ICBM moisture response: t_field, t_wilt
+# and porosity are the loam-class references (0.29/0.14/0.43) and theta is the
+# monthly volumetric water content swc_topsoil * porosity.
 .example_soc_climate_drivers <- function() {
   tibble::tribble(
-    ~lon, ~lat, ~area_code, ~year, ~month, ~temp_c, ~swc_topsoil,
-    ~water_minus_pet_mm, ~clay_pct, ~method_water_input,
-    9.25, 47.75, 11L, 2000L, 1L, 1.2, 0.62, -10, 18, "lpjml_prec_irrig",
-    9.25, 47.75, 11L, 2000L, 2L, 3.4, 0.58, 5, 18, "lpjml_prec_irrig",
-    9.25, 47.75, 11L, 2000L, 3L, 7.8, 0.51, 20, 18, "lpjml_prec_irrig"
+    ~lon, ~lat, ~area_code, ~year, ~month, ~temp_c, ~swc_topsoil, ~precip_mm,
+    ~pet_mm, ~water_minus_pet_mm, ~water_balance_mm, ~clay_pct, ~theta,
+    ~t_field, ~t_wilt, ~porosity, ~method_water_input,
+    9.25, 47.75, 11L, 2000L, 1L, 1.2, 0.62, 45, 55, -10, 15, 18, 0.2666,
+    0.29, 0.14, 0.43, "lpjml_prec_irrig",
+    9.25, 47.75, 11L, 2000L, 2L, 3.4, 0.58, 50, 45, 5, 15, 18, 0.2494,
+    0.29, 0.14, 0.43, "lpjml_prec_irrig",
+    9.25, 47.75, 11L, 2000L, 3L, 7.8, 0.51, 60, 40, 20, 15, 18, 0.2193,
+    0.29, 0.14, 0.43, "lpjml_prec_irrig"
   )
 }
 

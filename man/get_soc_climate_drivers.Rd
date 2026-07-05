@@ -23,35 +23,61 @@ its reader when absent: \code{temp} (CRU \code{tmp}, \code{lon}, \code{lat}, \co
 \code{value} degrees Celsius), \code{pet} (CRU \code{pet}, same schema, mm/day), \code{prec}
 and \code{irrig} (LPJmL monthly, \code{lon}, \code{lat}, \code{year}, \code{month}, \code{value} mm/month),
 \code{swc} (\code{\link[=read_lpjml_hydrology]{read_lpjml_hydrology()}} soil water content), \code{clay} (\code{lon}, \code{lat},
-\code{clay_pct}, required) and \code{cell_polity} (\code{lon}, \code{lat}, \code{area_code}, the
-polity crosswalk, required).}
+\code{clay_pct}, required), \code{cell_polity} (\code{lon}, \code{lat}, \code{area_code}, the polity
+crosswalk, required) and \code{soil_hydraulic} (\code{lon}, \code{lat}, \code{t_field},
+\code{t_wilt}, \code{porosity}; falls back to \code{\link[=read_soil_hydraulic]{read_soil_hydraulic()}}, cropped to
+\code{cell_polity} when supplied).}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading data.
 Defaults to \code{FALSE}.}
 }
 \value{
 A tibble with \code{lon}, \code{lat}, \code{area_code}, \code{year}, \code{month}, \code{temp_c},
-\code{swc_topsoil}, \code{water_minus_pet_mm}, \code{clay_pct} and \code{method_water_input}.
+\code{swc_topsoil}, \code{precip_mm} and \code{pet_mm} (monthly, the Century modifier
+drivers), \code{water_minus_pet_mm} (the monthly RothC/HSOC surplus),
+\code{water_balance_mm} (the annual sum of \code{water_minus_pet_mm}, the AMG
+modifier driver, repeated across a cell-year's months), \code{clay_pct},
+\code{theta}, \code{t_field}, \code{t_wilt} and \code{porosity} (the ICBM moisture drivers:
+the monthly volumetric soil water content and its static field-capacity,
+wilting-point and porosity references) and \code{method_water_input}.
 }
 \description{
 Builds the monthly per-cell climate drivers the soil-organic-carbon
 decomposition modifiers consume: air temperature, topsoil soil-water
-saturation, the monthly water-minus-potential-evapotranspiration surplus and
-clay content. Air temperature comes from CRU TS 4.09
-(\code{\link[=read_cru_climate]{read_cru_climate()}} \code{"tmp"}, degrees Celsius); potential
-evapotranspiration from CRU \code{"pet"} (mm/day), converted to a monthly total by
-multiplying by the days in the month; the water input (precipitation plus
-irrigation) from the LPJmL run so it is consistent with the hydrology that
-produced the soil water content; and soil water content from LPJmL directly
-(\code{\link[=read_lpjml_hydrology]{read_lpjml_hydrology()}} \code{"swc"}, topmost layer). Clay content is a
-soil-texture covariate supplied via \code{data$clay}; the polity key comes from a
-cell-polity crosswalk (\code{data$cell_polity}).
+saturation, monthly precipitation and potential evapotranspiration (the
+Century modifier drivers), the monthly water-minus-potential-
+evapotranspiration surplus (the RothC/HSOC driver), the annual water balance
+(the AMG driver), the volumetric soil water content with its field-capacity,
+wilting-point and porosity references (the ICBM moisture drivers) and clay
+content. Air temperature comes from CRU TS 4.09 (\code{\link[=read_cru_climate]{read_cru_climate()}}
+\code{"tmp"}, degrees Celsius); potential evapotranspiration from CRU \code{"pet"}
+(mm/day), converted to a monthly total by multiplying by the days in the
+month; the water input (precipitation plus irrigation) from the LPJmL run so
+it is consistent with the hydrology that produced the soil water content; and
+soil water content from LPJmL directly (\code{\link[=read_lpjml_hydrology]{read_lpjml_hydrology()}} \code{"swc"},
+topmost layer). The soil hydraulic references (field capacity, wilting point,
+porosity) come from the dominant HWSD texture class of each cell via
+\code{\link[=read_soil_hydraulic]{read_soil_hydraulic()}}, and the volumetric soil water content is
+\code{theta = swc_topsoil * porosity} (the LPJmL fractional saturation scaled by
+the cell porosity). Clay content is a soil-texture covariate supplied via
+\code{data$clay}; the polity key comes from a cell-polity crosswalk
+(\code{data$cell_polity}).
 }
 \details{
-The monthly water surplus is \code{water_minus_pet_mm = (prec + irrig) - pet_mm_day * days_in_month}. The water input basis is recorded in
-\code{method_water_input} (\code{"lpjml_prec_irrig"}, LPJmL precipitation plus
-irrigation). Air temperature (CRU) and clay (a soil product) are not LPJmL
-outputs, hence the mixed sources.
+The monthly PET total is \code{pet_mm = pet_mm_day * days_in_month}; the monthly
+water surplus is \code{water_minus_pet_mm = (precip_mm + irrig_mm) - pet_mm}; and
+the annual water balance \code{water_balance_mm} is the per-cell-year sum of that
+surplus, repeated across every month of the cell-year so it can drive the AMG
+modifier that expects one annual scalar per cell-year. \code{precip_mm} carries
+precipitation only (irrigation excluded), as the Century moisture factor
+expects. The volumetric soil water content \code{theta = swc_topsoil * porosity}
+varies by month with the LPJmL saturation, while its \code{t_field}, \code{t_wilt} and
+\code{porosity} references are static per cell (the dominant HWSD texture class'
+properties), together driving the ICBM piecewise moisture response. The water
+input basis is recorded in \code{method_water_input} (\code{"lpjml_prec_irrig"}, LPJmL
+precipitation plus irrigation). Air temperature (CRU) and the soil texture
+products (clay, hydraulic properties) are not LPJmL outputs, hence the mixed
+sources.
 }
 \examples{
 get_soc_climate_drivers(example = TRUE)

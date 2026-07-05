@@ -51,6 +51,70 @@ testthat::test_that(".derive_dominant_soil drops rows with NA texture", {
   testthat::expect_equal(result$t_ph_h2o, 5.5)
 })
 
+# ---- .derive_dominant_texture() / read_soil_hydraulic() ----------------
+
+testthat::test_that(".derive_dominant_texture picks the largest-share class", {
+  result <- whep:::.derive_dominant_texture(.hwsd_attr_fixture())
+
+  pointblank::expect_col_exists(result, c("mu_global", "t_usda_tex"))
+  testthat::expect_equal(result$t_usda_tex[result$mu_global == 1L], 7L)
+  testthat::expect_equal(result$t_usda_tex[result$mu_global == 2L], 12L)
+  testthat::expect_equal(result$t_usda_tex[result$mu_global == 3L], 3L)
+})
+
+testthat::test_that("read_soil_hydraulic example fixture is schema-complete", {
+  out <- whep::read_soil_hydraulic(example = TRUE)
+
+  pointblank::expect_col_exists(
+    out,
+    c("lon", "lat", "t_field", "t_wilt", "porosity")
+  )
+  testthat::expect_true(all(out$t_field > out$t_wilt))
+  testthat::expect_true(all(out$porosity > out$t_field))
+})
+
+testthat::test_that("read_soil_hydraulic maps dominant texture to hydraulics", {
+  testthat::skip_if_not_installed("terra")
+  dir <- withr::local_tempdir()
+  # Map unit 1 is dominantly texture 13 (sand): sand hydraulics are porosity
+  # 0.43, field capacity 0.08, wilting point 0.03.
+  attr <- tibble::tribble(
+    ~mu_global, ~t_usda_tex, ~share, ~t_ph_h2o,
+    1L, 13L, 100, 6.5
+  )
+  readr::write_csv(attr, file.path(dir, "hwsd_data.csv"))
+
+  rast <- terra::rast(
+    nrows = 12,
+    ncols = 12,
+    xmin = -1,
+    xmax = 1,
+    ymin = -1,
+    ymax = 1,
+    resolution = 1 / 6
+  )
+  terra::values(rast) <- 1L
+  terra::writeRaster(
+    rast,
+    file.path(dir, "hwsd.bil"),
+    filetype = "EHdr",
+    overwrite = TRUE
+  )
+
+  result <- whep::read_soil_hydraulic(hwsd_dir = dir)
+
+  pointblank::expect_col_exists(
+    result,
+    c("lon", "lat", "t_field", "t_wilt", "porosity")
+  )
+  testthat::expect_true(all(abs(result$porosity - 0.43) < 1e-9))
+  testthat::expect_true(all(abs(result$t_field - 0.08) < 1e-9))
+  testthat::expect_true(all(abs(result$t_wilt - 0.03) < 1e-9))
+  testthat::expect_true(all(
+    result$t_field > result$t_wilt & result$porosity > result$t_field
+  ))
+})
+
 # ---- .gapfill_soil() ---------------------------------------------------
 
 testthat::test_that(".gapfill_soil fills a missing cell from a neighbour", {
