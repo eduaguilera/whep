@@ -51,14 +51,19 @@ rainfall, temperature, wind speed, application technique, system
 }
 \details{
 The organic path's \code{inorganic_n_fraction} lookup (\link{manure_inorganic_n})
-maps \code{manure_type} to a species/manure-stream key: \code{"cattle_slurry"} and
-\code{"pig_slurry"} to the \code{"Liquid"} stream of Cattle/Pigs respectively,
-\code{"FYM"} to Cattle \code{"Solid"}, and \code{"poultry_manure"} to Poultry
-\code{"Solid"}. This mapping is a documented modelling choice made when
-porting \link{manure_inorganic_n} (a reasonable reading of the manure-type
-naming), not a literal Spain_Hist crosswalk table. \code{"urban"} bypasses
-this lookup entirely: it fixes \code{inorganic_n_fraction = 0.5} regardless
-of species, matching \code{nh3.r:102-104}.
+maps \code{manure_type} to its ammoniacal \code{manure_stream} (\code{"Liquid"} for
+\code{"cattle_slurry"}/\code{"pig_slurry"}, \code{"Solid"} for \code{"FYM"}/
+\code{"poultry_manure"}) and reads that stream's fraction for the actual
+\code{species} driver supplied by the caller. This matches Spain_Hist, which
+maps every species' solid stream to the FYM MANNER class yet looks the
+inorganic-N fraction up per real species. When \code{species} is omitted it
+falls back to the manure type's default species (Cattle for
+\code{"cattle_slurry"}/\code{"FYM"}, Pigs for \code{"pig_slurry"}, Poultry for
+\code{"poultry_manure"}). \code{"urban"} bypasses this lookup entirely: it fixes
+\code{inorganic_n_fraction = 0.5} regardless of species, matching
+\code{nh3.r:102-104}. For the AG availability and incorporation factors,
+\code{"urban"} maps to the FYM manure class (Spain_Hist Manner_ferts row 43),
+including the 0.4 Org_ef correction.
 }
 \examples{
 calculate_manner_nh3(example = TRUE)

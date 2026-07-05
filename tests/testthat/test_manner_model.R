@@ -193,42 +193,126 @@ testthat::test_that("calculate_manner_nh3 applies the FYM 0.4 correction", {
   )
 })
 
-testthat::test_that("calculate_manner_nh3 urban special case fixes inorganic_n_fraction at 0.5 without species", {
+testthat::test_that("calculate_manner_nh3 urban maps to the FYM class and fixes inorganic_n_fraction at 0.5 without species", {
+  drivers <- list(
+    rainfall_mm = 40,
+    irrigated = FALSE,
+    windspeed_ms = 3,
+    technique = "Broadcast",
+    system = "Arable",
+    temp_c = 15,
+    incorporation_delay_h = Inf
+  )
   out <- whep::calculate_manner_nh3(
     n_applied_t = 1,
     fertiliser = "urban",
-    drivers = list(
-      rainfall_mm = 40,
-      irrigated = FALSE,
-      windspeed_ms = 3,
-      technique = "Broadcast",
-      system = "Arable",
-      temp_c = 15,
-      incorporation_delay_h = Inf
-    )
+    drivers = drivers
+  )
+  fym_out <- whep::calculate_manner_nh3(
+    n_applied_t = 1,
+    fertiliser = "FYM",
+    drivers = c(drivers, list(species = "Cattle"))
   )
   cattle_out <- whep::calculate_manner_nh3(
     n_applied_t = 1,
     fertiliser = "cattle_slurry",
-    drivers = list(
-      rainfall_mm = 40,
-      irrigated = FALSE,
-      windspeed_ms = 3,
-      technique = "Broadcast",
-      system = "Arable",
-      temp_c = 15,
-      incorporation_delay_h = Inf,
-      species = "Cattle"
-    )
+    drivers = c(drivers, list(species = "Cattle"))
   )
-  # urban uses the same organic Org_ef machinery but a manure_coef/dm_factor
-  # of its own is undefined -- instead it borrows nothing from the manure
-  # tables besides the inorganic_n_fraction override; the point of this test
-  # is only that inorganic_n_fraction = 0.5 is applied without requiring a
-  # species driver, so nh3_n_t should be well-defined and finite.
+  # Spain_Hist (N_coefficients.xlsx, Manner_ferts row 43) maps Urban to the
+  # FYM MANNER class, so urban shares FYM's AG (manure_coef 0.683), the 0.4
+  # Org_ef correction and the FYM incorporation factors: its ef must match
+  # the FYM path and must NOT match cattle_slurry's. It keeps its own fixed
+  # inorganic_n_fraction = 0.5 override (independent of species), so
+  # nh3_n_t = ef * n_applied_t * 0.5 and no species driver is required.
   testthat::expect_equal(out$method_manner, "manner_organic_urban")
-  testthat::expect_true(is.finite(out$nh3_n_t))
-  testthat::expect_true(out$nh3_n_t > 0)
+  testthat::expect_equal(out$ef, fym_out$ef, tolerance = 1e-9)
+  testthat::expect_false(isTRUE(all.equal(out$ef, cattle_out$ef)))
+  testthat::expect_equal(out$nh3_n_t, out$ef * 1 * 0.5, tolerance = 1e-9)
+})
+
+testthat::test_that("calculate_manner_nh3 FYM inorganic_n_fraction tracks the actual species driver", {
+  drivers <- list(
+    rainfall_mm = 40,
+    irrigated = FALSE,
+    windspeed_ms = 3,
+    technique = "Broadcast",
+    system = "Arable",
+    temp_c = 15,
+    incorporation_delay_h = Inf
+  )
+  # Spain_Hist maps every species' solid stream to the FYM MANNER class but
+  # looks the ammoniacal fraction up per real species, so nh3_n_t must scale
+  # by each species' Solid-stream inorganic_n_fraction (whereas ef, computed
+  # before that scaling, stays constant across species). A regression to the
+  # old hardcoded Cattle-Solid (0.225) would make every species identical.
+  expected_solid_fraction <- c(
+    Cattle = 0.225,
+    Sheep = 0.2,
+    Goats = 0.2,
+    Horses = 0.15,
+    Donkeys_mules = 0.15,
+    Rabbits = 0.15,
+    Poultry = 0.325,
+    Pigs = 0.275
+  )
+  outs <- purrr::map(
+    names(expected_solid_fraction),
+    \(sp) {
+      whep::calculate_manner_nh3(
+        n_applied_t = 1,
+        fertiliser = "FYM",
+        drivers = c(drivers, list(species = sp))
+      )
+    }
+  )
+  ef_values <- purrr::map_dbl(outs, "ef")
+  nh3_values <- purrr::map_dbl(outs, "nh3_n_t")
+  testthat::expect_equal(
+    diff(range(ef_values)),
+    0,
+    tolerance = 1e-12
+  )
+  testthat::expect_equal(
+    nh3_values,
+    ef_values * unname(expected_solid_fraction),
+    tolerance = 1e-9
+  )
+  # A property that MUST hold once species matters: the two extreme fractions
+  # give measurably different loss (guards against silent species drop).
+  testthat::expect_gt(
+    nh3_values[[which(names(expected_solid_fraction) == "Poultry")]],
+    nh3_values[[which(names(expected_solid_fraction) == "Horses")]]
+  )
+})
+
+testthat::test_that("calculate_manner_nh3 FYM falls back to Cattle Solid when species is omitted", {
+  drivers <- list(
+    rainfall_mm = 40,
+    irrigated = FALSE,
+    windspeed_ms = 3,
+    technique = "Broadcast",
+    system = "Arable",
+    temp_c = 15,
+    incorporation_delay_h = Inf
+  )
+  no_species <- whep::calculate_manner_nh3(
+    n_applied_t = 1,
+    fertiliser = "FYM",
+    drivers = drivers
+  )
+  cattle <- whep::calculate_manner_nh3(
+    n_applied_t = 1,
+    fertiliser = "FYM",
+    drivers = c(drivers, list(species = "Cattle"))
+  )
+  # A direct caller may omit species; the FYM default species is Cattle, so
+  # nh3_n_t must equal the explicit Cattle call (Solid fraction 0.225).
+  testthat::expect_equal(no_species$nh3_n_t, cattle$nh3_n_t, tolerance = 1e-9)
+  testthat::expect_equal(
+    no_species$nh3_n_t,
+    no_species$ef * 0.225,
+    tolerance = 1e-9
+  )
 })
 
 testthat::test_that("calculate_manner_nh3 example fixture is schema-complete", {

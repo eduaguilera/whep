@@ -22,14 +22,19 @@
 #'
 #' @details
 #' The organic path's `inorganic_n_fraction` lookup ([manure_inorganic_n])
-#' maps `manure_type` to a species/manure-stream key: `"cattle_slurry"` and
-#' `"pig_slurry"` to the `"Liquid"` stream of Cattle/Pigs respectively,
-#' `"FYM"` to Cattle `"Solid"`, and `"poultry_manure"` to Poultry
-#' `"Solid"`. This mapping is a documented modelling choice made when
-#' porting [manure_inorganic_n] (a reasonable reading of the manure-type
-#' naming), not a literal Spain_Hist crosswalk table. `"urban"` bypasses
-#' this lookup entirely: it fixes `inorganic_n_fraction = 0.5` regardless
-#' of species, matching `nh3.r:102-104`.
+#' maps `manure_type` to its ammoniacal `manure_stream` (`"Liquid"` for
+#' `"cattle_slurry"`/`"pig_slurry"`, `"Solid"` for `"FYM"`/
+#' `"poultry_manure"`) and reads that stream's fraction for the actual
+#' `species` driver supplied by the caller. This matches Spain_Hist, which
+#' maps every species' solid stream to the FYM MANNER class yet looks the
+#' inorganic-N fraction up per real species. When `species` is omitted it
+#' falls back to the manure type's default species (Cattle for
+#' `"cattle_slurry"`/`"FYM"`, Pigs for `"pig_slurry"`, Poultry for
+#' `"poultry_manure"`). `"urban"` bypasses this lookup entirely: it fixes
+#' `inorganic_n_fraction = 0.5` regardless of species, matching
+#' `nh3.r:102-104`. For the AG availability and incorporation factors,
+#' `"urban"` maps to the FYM manure class (Spain_Hist Manner_ferts row 43),
+#' including the 0.4 Org_ef correction.
 #'
 #' @param n_applied_t Numeric, nitrogen applied (t).
 #' @param fertiliser One of `"Urea"`, `"AN"`, `"CAN"`, `"AS"` (synthetic
@@ -237,8 +242,9 @@ calculate_manner_nh3_default <- function(
 # ---- Private helpers: organic-manure path ------------------------------
 
 # Organic path: Org_ef = rain_wet * AG * technique * windspeed * system *
-# incorporation, with a 0.4 correction for FYM; nh3_n_t also scales by the
-# inorganic (ammoniacal) nitrogen fraction of the applied manure.
+# incorporation, with a 0.4 correction for the FYM manure class (FYM and
+# urban, which maps to FYM); nh3_n_t also scales by the inorganic
+# (ammoniacal) nitrogen fraction of the applied manure.
 .manner_organic <- function(n_applied_t, fertiliser, drivers) {
   manure_key <- .manner_manure_key(fertiliser)
   ag <- .manner_ag(manure_key, drivers)
@@ -256,7 +262,7 @@ calculate_manner_nh3_default <- function(
     ) *
     .manner_system_factor(drivers$system) *
     .manner_incorporation_factor(manure_key, drivers$incorporation_delay_h)
-  ef <- if (fertiliser == "FYM") ef_raw * 0.4 else ef_raw
+  ef <- if (manure_key == "FYM") ef_raw * 0.4 else ef_raw
   inorganic_n_fraction <- .manner_inorganic_n_fraction(
     fertiliser,
     drivers$species
@@ -269,12 +275,14 @@ calculate_manner_nh3_default <- function(
   )
 }
 
-# "urban" is not a real manure type in the AG/incorporation sub-tables; it
-# borrows cattle_slurry's coefficients since both represent a wet/
-# slurry-like organic input (see calculate_manner_nh3 Details for the
-# inorganic_n_fraction override that actually distinguishes it).
+# "urban" is not a real manure type in the AG/incorporation sub-tables; the
+# verified Spain_Hist source (N_coefficients.xlsx, Manner_ferts sheet, row
+# 43) maps Urban to FYM, so it borrows FYM's coefficients: manure_coef
+# 0.683, the 0.4 Org_ef correction and the FYM incorporation factors (see
+# calculate_manner_nh3 Details for the inorganic_n_fraction override that
+# still fixes urban at 0.5 regardless of this class).
 .manner_manure_key <- function(fertiliser) {
-  if (fertiliser == "urban") "cattle_slurry" else fertiliser
+  if (fertiliser == "urban") "FYM" else fertiliser
 }
 
 # AG = climate-and-manure-adjusted ammoniacal availability: AE (clamped
@@ -341,9 +349,15 @@ calculate_manner_nh3_default <- function(
 }
 
 # Inorganic (ammoniacal) nitrogen fraction: "urban" is a fixed 0.5
-# override (nh3.r:102-104), independent of species; every other manure
-# type looks up manure_inorganic_n via its species/stream mapping (see
-# calculate_manner_nh3 Details).
+# override (nh3.r:102-104), independent of species; every other manure type
+# looks up manure_inorganic_n at its ammoniacal stream (Liquid for the
+# slurries, Solid for FYM/poultry) for the ACTUAL applied species. Spain_Hist
+# maps every species' solid stream (Sheep/Horses/Goats/Donkeys_mules/Rabbits)
+# to the FYM MANNER class but looks Manure_inorganic_N up per real species, so
+# the caller-supplied species drives the fraction. species is NULL only when a
+# direct caller omits it; then it falls back to the manure type's default
+# species (Cattle slurry/FYM, Pigs slurry, Poultry manure) per the documented
+# calculate_manner_nh3 Details mapping.
 .manner_inorganic_n_fraction <- function(fertiliser, species) {
   if (fertiliser == "urban") {
     return(0.5)
@@ -354,15 +368,20 @@ calculate_manner_nh3_default <- function(
     FYM = "Solid",
     poultry_manure = "Solid"
   )
-  species_map <- c(
+  default_species <- c(
     cattle_slurry = "Cattle",
     pig_slurry = "Pigs",
     FYM = "Cattle",
     poultry_manure = "Poultry"
   )
+  species <- if (is.null(species) || is.na(species)) {
+    default_species[[fertiliser]]
+  } else {
+    species
+  }
   whep::manure_inorganic_n |>
     dplyr::filter(
-      .data$species == species_map[[fertiliser]],
+      .data$species == .env$species,
       .data$manure_stream == stream_map[[fertiliser]]
     ) |>
     dplyr::pull("inorganic_n_fraction")
