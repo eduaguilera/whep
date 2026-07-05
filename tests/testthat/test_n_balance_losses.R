@@ -402,7 +402,8 @@ testthat::test_that("calculate_n_leaching(meisinger_drainage) resolves near-zero
     method = "meisinger_drainage"
   )
 
-  # denit_share = 1 -> raw_denit = surplus -> no3 = 0 -> denit = surplus.
+  # Full denitrification share routes the whole surplus to denitrification,
+  # leaving no3 at zero.
   testthat::expect_equal(out$no3_n_t, c(0, 0), tolerance = 1e-9)
   testthat::expect_equal(out$denitrification_n_t, c(100, 100), tolerance = 1e-9)
   testthat::expect_equal(out$n2o_indirect_no3_n_t, c(0, 0), tolerance = 1e-9)

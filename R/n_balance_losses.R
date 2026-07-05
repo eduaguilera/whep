@@ -335,7 +335,7 @@ calculate_indirect_n2o_nh3 <- function(x, example = FALSE) {
 # inorganic_n_fraction scaling (matching calculate_manner_nh3()'s organic
 # path, where ef and nh3_n_t are not related by a plain n_input_t product).
 .nh3_manner_default <- function(x) {
-  .nh3_manner_default_require_columns(x)
+  .nh3_manner_default_req_cols(x)
   nh3_n_t <- purrr::pmap_dbl(x, .nh3_manner_default_row_nh3)
   x |>
     dplyr::mutate(
@@ -352,7 +352,7 @@ calculate_indirect_n2o_nh3 <- function(x, example = FALSE) {
   "temp_c"
 )
 
-.nh3_manner_default_require_columns <- function(x) {
+.nh3_manner_default_req_cols <- function(x) {
   if (!rlang::has_name(x, "manner_fertiliser")) {
     cli::cli_abort(c(
       "{.arg x} is missing required column {.field manner_fertiliser}.",

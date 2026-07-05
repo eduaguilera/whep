@@ -145,7 +145,7 @@ calculate_manner_nh3_default <- function(
   if (isTRUE(example)) {
     return(.example_manner_nh3_default())
   }
-  .manner_default_validate_fertiliser(fertiliser)
+  .manner_default_valid_fert(fertiliser)
   context <- list(
     n_applied_t = n_applied_t,
     fertiliser = fertiliser,
@@ -440,7 +440,7 @@ calculate_manner_nh3_default <- function(
 # calculate_manner_nh3_default() only wraps calculate_manner_nh3()'s
 # organic-manure path (technique/incorporation_delay_h are meaningless for
 # synthetic fertiliser), so it validates against the organic keys only.
-.manner_default_validate_fertiliser <- function(fertiliser) {
+.manner_default_valid_fert <- function(fertiliser) {
   organic_keys <- c(
     "cattle_slurry",
     "pig_slurry",
