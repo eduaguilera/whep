@@ -43,6 +43,18 @@ residue_humification <- here::here(
 ) |>
   readr::read_csv(show_col_types = FALSE)
 
+# Module B (Task B3 / T24) generic land-use monthly soil-cover curve feeding the
+# RothC/HSOC cover factor (crop growth-stage canopy for cropland, perennial
+# cover for grassland/natural). See R/datasets_balances.R @source for provenance.
+soc_soil_cover_curve <- here::here(
+  "inst",
+  "extdata",
+  "balances",
+  "soc_soil_cover_curve.csv"
+) |>
+  readr::read_csv(show_col_types = FALSE) |>
+  dplyr::mutate(months_from_peak = as.integer(months_from_peak))
+
 # Module C (Task C1) nitrogen-loss coefficient datasets.
 .read_balance_csv <- function(name) {
   here::here("inst", "extdata", "balances", name) |>
@@ -92,11 +104,21 @@ manner_default_technique_mix <- .read_balance_csv(
 n2o_efs_ipcc2006 <- .read_balance_csv("n2o_efs_ipcc2006.csv")
 som_ranges <- .read_balance_csv("som_ranges.csv")
 
+# Module B (Task B3 / T10b) soil-hydraulic property table by USDA texture
+# class (Cosby et al. 1984 class averages) and the HWSD2 topsoil-texture-code
+# to USDA-class-name crosswalk, feeding get_soc_climate_drivers()'s per-cell
+# ICBM moisture drivers (t_field, t_wilt, porosity). See R/datasets_balances.R
+# @source for provenance.
+soil_hydraulic_by_texture <- .read_balance_csv("soil_hydraulic_by_texture.csv")
+hwsd_texture_usda <- .read_balance_csv("hwsd_texture_usda.csv") |>
+  dplyr::mutate(t_usda_tex = as.integer(t_usda_tex))
+
 usethis::use_data(
   soc_turnover_params,
   amg_h_by_input_type,
   soil_cn_ratios,
   residue_humification,
+  soc_soil_cover_curve,
   n2o_efs_disaggregated,
   fertiliser_n2o_modifiers,
   meisinger_denitrification,
@@ -113,5 +135,7 @@ usethis::use_data(
   manner_default_technique_mix,
   n2o_efs_ipcc2006,
   som_ranges,
+  soil_hydraulic_by_texture,
+  hwsd_texture_usda,
   overwrite = TRUE
 )

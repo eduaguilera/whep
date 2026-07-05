@@ -83,13 +83,18 @@ reference:
     Structural parameter tables for the soil-organic-carbon turnover models
     (HSOC, RothC, ICBM, AMG, Century), the AMG humification coefficient by
     carbon input type, the soil carbon-to-nitrogen ratios used to convert
-    soil-carbon change into net nitrogen mineralization or sequestration, and
-    the per-input-type humification fractions for the HSOC model.
+    soil-carbon change into net nitrogen mineralization or sequestration, the
+    per-input-type humification fractions for the HSOC model, and the USDA
+    texture-class soil hydraulic properties (with the HWSD texture-code
+    crosswalk) feeding the ICBM moisture modifier.
   contents:
   - soc_turnover_params
   - amg_h_by_input_type
   - soil_cn_ratios
   - residue_humification
+  - soc_soil_cover_curve
+  - soil_hydraulic_by_texture
+  - hwsd_texture_usda
 
 - title: Nitrogen-loss coefficient tables
   desc: >
@@ -202,6 +207,7 @@ reference:
   - calculate_indirect_n2o_nh3
   - read_lpjml_wind
   - read_soil_ph
+  - read_soil_hydraulic
   - build_cell_polity
   - spatialize_country_n_to_crops
   - build_n_inputs

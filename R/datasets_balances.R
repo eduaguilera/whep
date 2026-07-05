@@ -128,6 +128,65 @@
 #' soil_cn_ratios
 "soil_cn_ratios"
 
+#' Generic land-use soil-cover curve for the RothC/HSOC cover factor.
+#'
+#' @description
+#' Monthly vegetated soil-cover fraction (0 bare, 1 fully covered) by land-use
+#' class, driving the plant-cover term of the RothC and HSOC decomposition
+#' modifier (\code{\link{soc_rate_modifier_rothc}}, where the cover factor is
+#' \code{0.6 + 0.4 * (1 - soil_cover)}: covered soil decomposes more slowly than
+#' bare soil). \code{\link{build_carbon_balance}} attaches these values to each
+#' cell-month before reducing the monthly climate drivers to an annual modifier,
+#' so cropland (a seasonal crop canopy with a bare fallow period) mineralizes
+#' soil carbon differently from grassland and natural land (perennial cover).
+#' The curve is keyed on the signed month offset from the cell-year's warmest
+#' (peak-canopy) month rather than the calendar month, so the same generic
+#' curve aligns to the growing season in either hemisphere from the temperature
+#' seasonality alone.
+#'
+#' For cropland the fractions follow the FAO-56 crop growth-stage canopy
+#' development of a generic 150-day annual field crop (the FAO-56 maize-grain
+#' template, 30/40/50/30 days for the initial, development, mid-season and
+#' late-season stages): a low establishment cover during the initial stage
+#' (about 10 percent ground cover), rising through the development stage to an
+#' effective full canopy at mid-season (the peak, offset 0), then declining
+#' through late-season senescence, with the remaining fallow/off-season months
+#' at a low bare-soil cover. Grassland and natural land carry a sustained high
+#' perennial cover in every month (no bare fallow period), following the RothC
+#' convention that permanent vegetation is treated as covered year-round.
+#'
+#' @format A tibble with columns:
+#' \describe{
+#'   \item{land_use}{Land-use class: \code{"cropland"}, \code{"grassland"} or
+#'     \code{"natural"} (matched case-insensitively; a class absent from the
+#'     table, such as \code{"urban"}, is treated as bare soil).}
+#'   \item{months_from_peak}{Signed month offset from the warmest month of the
+#'     cell-year (integer \code{-5} to \code{6}; \code{0} is the peak-canopy
+#'     mid-season month).}
+#'   \item{soil_cover}{Vegetated soil-cover fraction for that class and month
+#'     offset (0 bare, 1 fully covered).}
+#' }
+#'
+#' @source Crop canopy development stages and their durations follow the FAO-56
+#'   crop coefficient framework: Allen, R. G., Pereira, L. S., Raes, D. &
+#'   Smith, M. (1998). *Crop evapotranspiration: Guidelines for computing crop
+#'   water requirements* (FAO Irrigation and Drainage Paper 56). Food and
+#'   Agriculture Organization of the United Nations, Rome (Chapter 6 and Table
+#'   11: initial stage to about 10 percent ground cover, development to
+#'   effective full cover, full canopy at mid-season, senescence in
+#'   late-season; generic 150-day annual-crop template). The binary
+#'   covered-versus-bare cover convention it feeds is that of the RothC model:
+#'   Coleman, K. & Jenkinson, D. S. (1996). RothC-26.3: a model for the
+#'   turnover of carbon in soil. \doi{10.1007/978-3-642-61094-3_17} (the soil
+#'   cover rate-modifying factor slows decomposition when growing plants are
+#'   present). The perennial grassland/natural cover and the fallow-period
+#'   bare-soil value are generic modelling assumptions, not a per-crop
+#'   observational survey.
+#'
+#' @examples
+#' soc_soil_cover_curve
+"soc_soil_cover_curve"
+
 #' Humification fraction by carbon input type.
 #'
 #' @description
@@ -731,3 +790,78 @@
 #' @examples
 #' som_ranges
 "som_ranges"
+
+#' Soil hydraulic properties by USDA texture class.
+#'
+#' @description
+#' Class-average volumetric soil water contents by USDA texture class:
+#' total porosity (saturation), field capacity (33 kPa) and permanent
+#' wilting point (1500 kPa), each as a volumetric fraction
+#' (cubic metre water per cubic metre soil). These are the per-cell soil
+#' hydraulic drivers the ICBM soil-carbon moisture modifier consumes
+#' ([soc_rate_modifier_icbm()]'s \code{t_field}, \code{t_wilt} and
+#' \code{porosity}); [get_soc_climate_drivers()] joins this table onto the
+#' dominant HWSD texture class of each grid cell to emit those columns. Every
+#' row satisfies \code{porosity > field_capacity > wilting_point} with all
+#' three in \code{(0, 1)}.
+#'
+#' @format A tibble with columns:
+#' \describe{
+#'   \item{usda_texture_class}{USDA texture class (snake_case):
+#'     \code{"sand"}, \code{"loamy_sand"}, \code{"sandy_loam"},
+#'     \code{"silt_loam"}, \code{"silt"}, \code{"loam"},
+#'     \code{"sandy_clay_loam"}, \code{"silty_clay_loam"},
+#'     \code{"clay_loam"}, \code{"sandy_clay"}, \code{"silty_clay"} or
+#'     \code{"clay"}.}
+#'   \item{porosity}{Total porosity / saturated volumetric water content
+#'     (fraction).}
+#'   \item{field_capacity}{Volumetric water content at field capacity, 33 kPa
+#'     (fraction).}
+#'   \item{wilting_point}{Volumetric water content at the permanent wilting
+#'     point, 1500 kPa (fraction).}
+#' }
+#'
+#' @source Class-average hydraulic properties compiled by texture class in
+#'   "Average hydraulic properties of ARS soil texture classes" (Schaake, J.,
+#'   draft February 2000; 2128 soil samples), the values used as the default
+#'   soil-texture lookup in the VIC land-surface model
+#'   (\url{https://vic.readthedocs.io/en/master/Documentation/soiltext/}).
+#'   The underlying regression relating the water-retention parameters to
+#'   texture is Cosby, B. J., Hornberger, G. M., Clapp, R. B. & Ginn, T. R.
+#'   (1984). A statistical exploration of the relationships of soil moisture
+#'   characteristics to the physical properties of soils. *Water Resources
+#'   Research*, 20(6), 682-690. \doi{10.1029/WR020i006p00682}.
+#'
+#' @examples
+#' soil_hydraulic_by_texture
+"soil_hydraulic_by_texture"
+
+#' HWSD topsoil USDA texture code to texture-class crosswalk.
+#'
+#' @description
+#' Maps the HWSD (Harmonized World Soil Database) topsoil USDA texture code
+#' \code{t_usda_tex} (the \code{TEXTURE_USDA} field, integers 1 to 13) to the
+#' canonical USDA texture-class name keying [soil_hydraulic_by_texture].
+#' [get_soc_climate_drivers()] uses it to translate each grid cell's dominant
+#' HWSD texture code into its hydraulic properties. HWSD splits clay into a
+#' heavy-clay (code 1) and a light-clay (code 3) class; both map to the single
+#' USDA \code{"clay"} class of the standard 12-class system, matching how the
+#' WHEP HWSD preparation pipeline collapses them.
+#'
+#' @format A tibble with columns:
+#' \describe{
+#'   \item{t_usda_tex}{HWSD topsoil USDA texture code (integer 1 to 13).}
+#'   \item{usda_texture_class}{Canonical USDA texture class (snake_case), one
+#'     of the classes in [soil_hydraulic_by_texture].}
+#' }
+#'
+#' @source HWSD topsoil USDA texture-code legend as documented for the local
+#'   HWSD extract in the WHEP spatial-input preparation pipeline
+#'   (\code{inst/scripts/prepare_spatialize_all.R}), following the Harmonized
+#'   World Soil Database version 2.0 \code{D_TEXTURE_USDA} class ordering.
+#'   FAO & IIASA (2023). *Harmonized World Soil Database version 2.0*. Rome
+#'   and Laxenburg. \doi{10.4060/cc3823en}.
+#'
+#' @examples
+#' hwsd_texture_usda
+"hwsd_texture_usda"
