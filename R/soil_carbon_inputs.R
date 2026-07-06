@@ -301,23 +301,24 @@ build_soil_carbon_inputs <- function(
 }
 
 .sci_humification_lookup <- function(residue_humification) {
-  pick <- function(type) {
-    v <- residue_humification$humified_fraction[
-      residue_humification$input_type == type
-    ]
-    if (length(v) != 1L) {
-      cli::cli_abort(
-        "{.field residue_humification} needs one {.val {type}} row."
-      )
-    }
-    v
-  }
   list(
-    crop_residue = pick("crop_residue"),
-    root = pick("root"),
-    weed = pick("weed"),
-    manure = pick("manure")
+    crop_residue = .sci_humification_pick(residue_humification, "crop_residue"),
+    root = .sci_humification_pick(residue_humification, "root"),
+    weed = .sci_humification_pick(residue_humification, "weed"),
+    manure = .sci_humification_pick(residue_humification, "manure")
   )
+}
+
+.sci_humification_pick <- function(residue_humification, type) {
+  v <- residue_humification$humified_fraction[
+    residue_humification$input_type == type
+  ]
+  if (length(v) != 1L) {
+    cli::cli_abort(
+      "{.field residue_humification} needs one {.val {type}} row."
+    )
+  }
+  v
 }
 
 .sci_read_npp <- function() {
