@@ -5,7 +5,7 @@
 \title{Build the full nitrogen balance: inputs, outputs, losses and NUE.}
 \usage{
 build_nitrogen_balance(
-  methods = list(nh3 = "manner", n2o = "aguilera", leaching = "meisinger_drainage"),
+  methods = list(nh3 = "manner", n2o = "ipcc2019", leaching = "meisinger_drainage"),
   resolution = c("grid", "polity"),
   data = list(),
   gwp = c("ar6", "ar5", "ar4"),
@@ -15,8 +15,9 @@ build_nitrogen_balance(
 \arguments{
 \item{methods}{A named list of method choices: \code{nh3} (forwarded to
 \code{\link[=calculate_nh3]{calculate_nh3()}}, default \code{"manner"}), \code{n2o} (forwarded to
-\code{\link[=calculate_soil_n2o]{calculate_soil_n2o()}}, default \code{"aguilera"}) and \code{leaching} (forwarded
-to \code{\link[=calculate_n_leaching]{calculate_n_leaching()}}, default \code{"meisinger_drainage"}).}
+\code{\link[=calculate_soil_n2o]{calculate_soil_n2o()}}, default \code{"ipcc2019"}, the globally applicable
+IPCC 2019 Tier 1 method) and \code{leaching} (forwarded to
+\code{\link[=calculate_n_leaching]{calculate_n_leaching()}}, default \code{"meisinger_drainage"}).}
 
 \item{resolution}{\code{"grid"} (default) or \code{"polity"}, as in
 \code{\link[=build_n_inputs]{build_n_inputs()}}; \code{"polity"} sums every term (and re-derives every

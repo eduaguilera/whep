@@ -6,7 +6,7 @@
 \usage{
 calculate_soil_n2o(
   x,
-  method = c("aguilera", "ipcc2019", "ipcc2006"),
+  method = c("ipcc2019", "aguilera", "ipcc2006"),
   example = FALSE
 )
 }
@@ -15,9 +15,9 @@ calculate_soil_n2o(
 or \code{"ipcc2006"} additionally require \code{irrig_type} and (aguilera only)
 \code{fert_type}.}
 
-\item{method}{\code{"aguilera"} (default, Cayuela-disaggregated, needs
-\code{irrig_type}/\code{fert_type}), \code{"ipcc2019"} (climate-only) or \code{"ipcc2006"}
-(IPCC 2006 Tier 1, needs \code{irrig_type}).}
+\item{method}{\code{"ipcc2019"} (default, IPCC 2019 Tier 1, climate-only),
+\code{"aguilera"} (Mediterranean-calibrated, needs \code{irrig_type}/\code{fert_type})
+or \code{"ipcc2006"} (IPCC 2006 Tier 1, needs \code{irrig_type}).}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of computing
 from \code{x}. Defaults to \code{FALSE}.}
@@ -27,19 +27,22 @@ from \code{x}. Defaults to \code{FALSE}.}
 }
 \description{
 Three emission-factor regimes for direct nitrous oxide from
-nitrogen applied to soil. \code{"aguilera"} (the default, \code{n_fun.r:906-912})
-is the full Spain_Hist disaggregated method, needing the finer
-\code{irrig_type}/\code{fert_type} granularity: \code{n2o_direct_n_t = n_input_t * ef * mf}, \code{ef} from \link{n2o_efs_disaggregated} on \verb{(irrig_type, climate)}, \code{mf}
-from \link{fertiliser_n2o_modifiers} on \verb{(fert_type, climate)}.
-\code{"ipcc2019"} is a coarser global fallback needing only
-\code{climate}, reusing the SAME \link{n2o_efs_disaggregated} table's two
-climate-level rows (\code{irrig_type == "Tier_1"} for ATL, \code{irrig_type == "Med_average"} for MED) with no \code{mf} multiplier; the ATL value (0.010)
-is the same value documented as \code{EF1} in
-\code{\link[=build_crop_soil_n2o_extension]{build_crop_soil_n2o_extension()}}, pulled from one shared source of
-truth rather than hardcoded a second time. \code{"ipcc2006"} uses the
-\link{n2o_efs_ipcc2006} table (IPCC 2006 Tier 1 defaults, flat 0.010 except
-flooded rice 0.003), keyed like \code{"aguilera"} on \verb{(irrig_type, climate)}
-with no \code{mf} multiplier.
+nitrogen applied to soil. \code{"ipcc2019"} (the default) is the IPCC 2019
+Tier 1 climate-disaggregated \code{EF1}, needing only \code{climate}: it reuses the
+\link{n2o_efs_disaggregated} table's two climate-level rows (\code{irrig_type == "Tier_1"} for ATL, \code{irrig_type == "Med_average"} for MED, 0.010 wet /
+0.005 dry) with no \code{mf} multiplier; the ATL value (0.010) is the same
+value documented as \code{EF1} in \code{\link[=build_crop_soil_n2o_extension]{build_crop_soil_n2o_extension()}}, pulled
+from one shared source of truth rather than hardcoded a second time. It is
+the default because it is the internationally standard, globally
+applicable Tier 1 method. \code{"aguilera"} (\code{n_fun.r:906-912}) is a finer
+Mediterranean-calibrated disaggregation (Cayuela et al. 2017), selectable
+where its \code{irrig_type}/\code{fert_type} granularity is available and its
+regional emission factors apply: \code{n2o_direct_n_t = n_input_t * ef * mf},
+\code{ef} from \link{n2o_efs_disaggregated} on \verb{(irrig_type, climate)}, \code{mf} from
+\link{fertiliser_n2o_modifiers} on \verb{(fert_type, climate)}. \code{"ipcc2006"} uses
+the \link{n2o_efs_ipcc2006} table (IPCC 2006 Tier 1 defaults, flat 0.010
+except flooded rice 0.003), keyed like \code{"aguilera"} on
+\verb{(irrig_type, climate)} with no \code{mf} multiplier.
 }
 \examples{
 calculate_soil_n2o(example = TRUE)

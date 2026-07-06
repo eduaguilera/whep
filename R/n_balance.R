@@ -59,8 +59,9 @@
 #'
 #' @param methods A named list of method choices: `nh3` (forwarded to
 #'   [calculate_nh3()], default `"manner"`), `n2o` (forwarded to
-#'   [calculate_soil_n2o()], default `"aguilera"`) and `leaching` (forwarded
-#'   to [calculate_n_leaching()], default `"meisinger_drainage"`).
+#'   [calculate_soil_n2o()], default `"ipcc2019"`, the globally applicable
+#'   IPCC 2019 Tier 1 method) and `leaching` (forwarded to
+#'   [calculate_n_leaching()], default `"meisinger_drainage"`).
 #' @param resolution `"grid"` (default) or `"polity"`, as in
 #'   [build_n_inputs()]; `"polity"` sums every term (and re-derives every
 #'   indicator) over cells.
@@ -122,7 +123,7 @@
 build_nitrogen_balance <- function(
   methods = list(
     nh3 = "manner",
-    n2o = "aguilera",
+    n2o = "ipcc2019",
     leaching = "meisinger_drainage"
   ),
   resolution = c("grid", "polity"),
@@ -160,7 +161,7 @@ build_nitrogen_balance <- function(
 .nb_methods <- function(methods) {
   list(
     nh3 = methods$nh3 %||% "manner",
-    n2o = methods$n2o %||% "aguilera",
+    n2o = methods$n2o %||% "ipcc2019",
     leaching = methods$leaching %||% "meisinger_drainage"
   )
 }
@@ -752,7 +753,7 @@ build_nitrogen_balance <- function(
     100 / 99,
     (1.5 + 0.56 + 0.132) * (44 / 28) * 273 * 1000,
     "manner",
-    "aguilera",
+    "ipcc2019",
     "meisinger_drainage"
   )
 }

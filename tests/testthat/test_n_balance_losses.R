@@ -142,22 +142,17 @@ testthat::test_that("calculate_soil_n2o(method = \"aguilera\") matches a hand-co
   testthat::expect_equal(out$method_soil_n2o, "aguilera")
 })
 
-testthat::test_that("calculate_soil_n2o defaults to the rigorous aguilera method", {
-  # Per the package multi-method rule the default must be the most rigorous
-  # option (aguilera), not the coarse ipcc2019 climate-only fallback.
+testthat::test_that("calculate_soil_n2o defaults to the IPCC 2019 Tier 1 method", {
+  # The default is the globally applicable IPCC 2019 Tier 1 climate-only EF1
+  # (needing only climate), not the Mediterranean-calibrated aguilera.
   x <- tibble::tribble(
-    ~n_input_t, ~fert_type, ~climate, ~irrig_type,
-    10, "Synthetic", "MED", "Rainfed"
+    ~n_input_t, ~climate,
+    10, "MED"
   )
   out <- whep::calculate_soil_n2o(x)
-  testthat::expect_equal(out$method_soil_n2o, "aguilera")
-  # The aguilera estimate multiplies n input by the Rainfed/MED emission
-  # factor and the Synthetic/MED modifier (ten tonnes at 0.0027 and 1.0).
-  testthat::expect_equal(
-    out$n2o_direct_n_t,
-    10 * 0.0027 * 1.0,
-    tolerance = 1e-9
-  )
+  testthat::expect_equal(out$method_soil_n2o, "ipcc2019")
+  # IPCC 2019 Tier 1 dry-climate EF1 is 0.005 (ten tonnes at 0.005).
+  testthat::expect_equal(out$n2o_direct_n_t, 10 * 0.005, tolerance = 1e-9)
 })
 
 testthat::test_that("calculate_soil_n2o(method = \"aguilera\") aborts on unsupported ATL irrig_type", {

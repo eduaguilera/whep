@@ -83,28 +83,30 @@ calculate_nh3 <- function(x, method = "manner", example = FALSE) {
 #'
 #' @description
 #' Three emission-factor regimes for direct nitrous oxide from
-#' nitrogen applied to soil. `"aguilera"` (the default, `n_fun.r:906-912`)
-#' is the full Spain_Hist disaggregated method, needing the finer
-#' `irrig_type`/`fert_type` granularity: `n2o_direct_n_t = n_input_t * ef *
-#' mf`, `ef` from [n2o_efs_disaggregated] on `(irrig_type, climate)`, `mf`
-#' from [fertiliser_n2o_modifiers] on `(fert_type, climate)`.
-#' `"ipcc2019"` is a coarser global fallback needing only
-#' `climate`, reusing the SAME [n2o_efs_disaggregated] table's two
-#' climate-level rows (`irrig_type == "Tier_1"` for ATL, `irrig_type ==
-#' "Med_average"` for MED) with no `mf` multiplier; the ATL value (0.010)
-#' is the same value documented as `EF1` in
-#' [build_crop_soil_n2o_extension()], pulled from one shared source of
-#' truth rather than hardcoded a second time. `"ipcc2006"` uses the
-#' [n2o_efs_ipcc2006] table (IPCC 2006 Tier 1 defaults, flat 0.010 except
-#' flooded rice 0.003), keyed like `"aguilera"` on `(irrig_type, climate)`
-#' with no `mf` multiplier.
+#' nitrogen applied to soil. `"ipcc2019"` (the default) is the IPCC 2019
+#' Tier 1 climate-disaggregated `EF1`, needing only `climate`: it reuses the
+#' [n2o_efs_disaggregated] table's two climate-level rows (`irrig_type ==
+#' "Tier_1"` for ATL, `irrig_type == "Med_average"` for MED, 0.010 wet /
+#' 0.005 dry) with no `mf` multiplier; the ATL value (0.010) is the same
+#' value documented as `EF1` in [build_crop_soil_n2o_extension()], pulled
+#' from one shared source of truth rather than hardcoded a second time. It is
+#' the default because it is the internationally standard, globally
+#' applicable Tier 1 method. `"aguilera"` (`n_fun.r:906-912`) is a finer
+#' Mediterranean-calibrated disaggregation (Cayuela et al. 2017), selectable
+#' where its `irrig_type`/`fert_type` granularity is available and its
+#' regional emission factors apply: `n2o_direct_n_t = n_input_t * ef * mf`,
+#' `ef` from [n2o_efs_disaggregated] on `(irrig_type, climate)`, `mf` from
+#' [fertiliser_n2o_modifiers] on `(fert_type, climate)`. `"ipcc2006"` uses
+#' the [n2o_efs_ipcc2006] table (IPCC 2006 Tier 1 defaults, flat 0.010
+#' except flooded rice 0.003), keyed like `"aguilera"` on
+#' `(irrig_type, climate)` with no `mf` multiplier.
 #'
 #' @param x A tibble with `n_input_t` and `climate`. `method = "aguilera"`
 #'   or `"ipcc2006"` additionally require `irrig_type` and (aguilera only)
 #'   `fert_type`.
-#' @param method `"aguilera"` (default, Cayuela-disaggregated, needs
-#'   `irrig_type`/`fert_type`), `"ipcc2019"` (climate-only) or `"ipcc2006"`
-#'   (IPCC 2006 Tier 1, needs `irrig_type`).
+#' @param method `"ipcc2019"` (default, IPCC 2019 Tier 1, climate-only),
+#'   `"aguilera"` (Mediterranean-calibrated, needs `irrig_type`/`fert_type`)
+#'   or `"ipcc2006"` (IPCC 2006 Tier 1, needs `irrig_type`).
 #' @param example If `TRUE`, return a small fixture instead of computing
 #'   from `x`. Defaults to `FALSE`.
 #' @return `x` with `n2o_direct_n_t` and `method_soil_n2o` appended.
@@ -113,7 +115,7 @@ calculate_nh3 <- function(x, method = "manner", example = FALSE) {
 #' calculate_soil_n2o(example = TRUE)
 calculate_soil_n2o <- function(
   x,
-  method = c("aguilera", "ipcc2019", "ipcc2006"),
+  method = c("ipcc2019", "aguilera", "ipcc2006"),
   example = FALSE
 ) {
   method <- match.arg(method)
@@ -685,18 +687,8 @@ calculate_indirect_n2o_nh3 <- function(x, example = FALSE) {
 
 .example_soil_n2o <- function() {
   tibble::tribble(
-    ~n_input_t,
-    ~climate,
-    ~irrig_type,
-    ~fert_type,
-    ~n2o_direct_n_t,
-    ~method_soil_n2o,
-    10,
-    "MED",
-    "Rainfed",
-    "Synthetic",
-    0.027,
-    "aguilera"
+    ~n_input_t, ~climate, ~irrig_type, ~n2o_direct_n_t, ~method_soil_n2o,
+    10, "MED", "Med_average", 0.05, "ipcc2019"
   )
 }
 
