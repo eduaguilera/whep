@@ -166,6 +166,11 @@ test_that("fertiliser_n2o_modifiers transcribes the MF anchors", {
   testthat::expect_equal(mf("Liquid", "MED"), 1.70)
   testthat::expect_equal(mf("Excreta_cattle_monog", "MED"), 0.20)
   testthat::expect_equal(mf("Synthetic", "ATL"), 1.60)
+  # The MED solid-organic streams are the DOI-verified 0.00, not NA (a missing
+  # value would make calculate_soil_n2o(method = "aguilera") return NA).
+  testthat::expect_equal(mf("Recycling", "MED"), 0.00)
+  testthat::expect_equal(mf("SOM", "MED"), 0.00)
+  testthat::expect_equal(mf("Urban", "MED"), 0.00)
 })
 
 test_that("meisinger_denitrification has the expected columns and size", {
@@ -251,6 +256,13 @@ test_that("subsoil_no3_reduction transcribes the NO3 reduction anchors", {
   testthat::expect_equal(no3("Synthetic", "MED", "Rainfed"), 0.20)
   testthat::expect_equal(no3("Synthetic", "ATL", "Irrigated"), 0.60)
   testthat::expect_equal(no3("Excreta_cattle_monog", "ATL", "Irrigated"), 0.75)
+  # BNF inherits the Excreta_cattle_monog reduction fractions across all four
+  # climate/irrigation bins (the verified source override), not the raw sheet
+  # values (0.35/0.55/0.65/0.70).
+  testthat::expect_equal(no3("BNF", "MED", "Rainfed"), 0.40)
+  testthat::expect_equal(no3("BNF", "MED", "Irrigated"), 0.65)
+  testthat::expect_equal(no3("BNF", "ATL", "Rainfed"), 0.70)
+  testthat::expect_equal(no3("BNF", "ATL", "Irrigated"), 0.75)
 })
 
 test_that("manner_params transcribes the MANNER factor anchors", {
