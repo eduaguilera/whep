@@ -411,7 +411,10 @@ build_carbon_balance <- function(
   first |>
     dplyr::left_join(eq_mod, by = c("lon", "lat", "area_code", "land_use")) |>
     dplyr::mutate(
-      climate_modifier = .data$climate_modifier_eq %|% .data$climate_modifier
+      climate_modifier = dplyr::coalesce(
+        .data$climate_modifier_eq,
+        .data$climate_modifier
+      )
     ) |>
     dplyr::select(-"climate_modifier_eq", -"soc_eq_mgc_ha") |>
     .cb_attach_equilibrium(model)
@@ -768,8 +771,6 @@ build_carbon_balance <- function(
   }
   sum(value * weight) / sum(weight)
 }
-
-`%|%` <- function(x, y) dplyr::if_else(is.na(x), y, x)
 
 # -- Reader stubs (real readers are separate later tasks) ---------------------
 

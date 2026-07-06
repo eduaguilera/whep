@@ -108,6 +108,56 @@ test_that("init weights per-class equilibria by land-use fractions", {
   testthat::expect_equal(unique(init$stock_mgc_ha), expected, tolerance = 1e-9)
 })
 
+test_that("a land-use class with no carbon input survives as zero-carbon area", {
+  # ASK-1 resolution: a class present in land_use but absent from c_inputs
+  # (e.g. LUH2 urban) must be kept as a zero-carbon class that DILUTES the
+  # cell (area share retained, equilibrium ~0), not silently dropped, which
+  # would break the cell's land-use accounting and deflate its SOC.
+  land_use <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~year, ~land_use, ~area_ha,
+    0.25, 0.25, 1L, 2000L, "cropland", 60,
+    0.25, 0.25, 1L, 2000L, "grassland", 35,
+    0.25, 0.25, 1L, 2000L, "urban", 5
+  )
+  c_inputs <- tidyr::expand_grid(
+    lon = 0.25,
+    lat = 0.25,
+    area_code = 1L,
+    year = 2000L,
+    land_use = c("cropland", "grassland")
+  ) |>
+    dplyr::mutate(
+      c_input_mgc_ha_yr = dplyr::if_else(land_use == "cropland", 2.5, 1.5),
+      humified_fraction = 0.3
+    )
+  climate <- tibble::tibble(
+    lon = 0.25,
+    lat = 0.25,
+    area_code = 1L,
+    year = 2000L,
+    climate_modifier = 1
+  )
+  clay <- tibble::tribble(~lon, ~lat, ~clay_pct, 0.25, 0.25, 20)
+  out <- whep::build_carbon_balance(
+    model = "hsoc",
+    resolution = "grid",
+    data = list(
+      land_use = land_use,
+      c_inputs = c_inputs,
+      climate = climate,
+      clay = clay
+    )
+  )
+  urban <- out[out$land_use == "urban", ]
+  # The class is retained (not dropped by an inner join), with zero carbon
+  # input, a finite stock and no nitrogen flux, and nothing anywhere is NA.
+  testthat::expect_equal(nrow(urban), 1L)
+  testthat::expect_equal(urban$c_input_mgc_ha, 0)
+  testthat::expect_equal(urban$son_change_kgn_ha, 0)
+  testthat::expect_true(all(is.finite(out$stock_mgc_ha)))
+  testthat::expect_setequal(out$land_use, c("cropland", "grassland", "urban"))
+})
+
 # -- Land-use-change carbon conservation (key adversarial invariant) ----------
 
 test_that("LUC transfer conserves total cell carbon when A shrinks, B grows", {
