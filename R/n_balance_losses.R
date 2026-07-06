@@ -685,8 +685,18 @@ calculate_indirect_n2o_nh3 <- function(x, example = FALSE) {
 
 .example_soil_n2o <- function() {
   tibble::tribble(
-    ~n_input_t, ~climate, ~irrig_type, ~n2o_direct_n_t, ~method_soil_n2o,
-    10, "MED", "Med_average", 0.05, "ipcc2019"
+    ~n_input_t,
+    ~climate,
+    ~irrig_type,
+    ~fert_type,
+    ~n2o_direct_n_t,
+    ~method_soil_n2o,
+    10,
+    "MED",
+    "Rainfed",
+    "Synthetic",
+    0.027,
+    "aguilera"
   )
 }
 
