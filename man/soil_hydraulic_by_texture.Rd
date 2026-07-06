@@ -43,10 +43,11 @@ wilting point (1500 kPa), each as a volumetric fraction
 (cubic metre water per cubic metre soil). These are the per-cell soil
 hydraulic drivers the ICBM soil-carbon moisture modifier consumes
 (\code{\link[=soc_rate_modifier_icbm]{soc_rate_modifier_icbm()}}'s \code{t_field}, \code{t_wilt} and
-\code{porosity}); \code{\link[=get_soc_climate_drivers]{get_soc_climate_drivers()}} joins this table onto the
-dominant HWSD texture class of each grid cell to emit those columns. Every
-row satisfies \code{porosity > field_capacity > wilting_point} with all
-three in \code{(0, 1)}.
+\code{porosity}); \code{\link[=read_soil_hydraulic]{read_soil_hydraulic()}} joins this table onto the
+dominant HWSD texture class of each grid cell to emit those columns, which
+then feed \code{\link[=get_soc_climate_drivers]{get_soc_climate_drivers()}}. Every row satisfies
+\code{porosity > field_capacity > wilting_point} with all three in
+\code{(0, 1)}.
 }
 \examples{
 soil_hydraulic_by_texture

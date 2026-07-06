@@ -800,10 +800,11 @@
 #' (cubic metre water per cubic metre soil). These are the per-cell soil
 #' hydraulic drivers the ICBM soil-carbon moisture modifier consumes
 #' ([soc_rate_modifier_icbm()]'s \code{t_field}, \code{t_wilt} and
-#' \code{porosity}); [get_soc_climate_drivers()] joins this table onto the
-#' dominant HWSD texture class of each grid cell to emit those columns. Every
-#' row satisfies \code{porosity > field_capacity > wilting_point} with all
-#' three in \code{(0, 1)}.
+#' \code{porosity}); [read_soil_hydraulic()] joins this table onto the
+#' dominant HWSD texture class of each grid cell to emit those columns, which
+#' then feed [get_soc_climate_drivers()]. Every row satisfies
+#' \code{porosity > field_capacity > wilting_point} with all three in
+#' \code{(0, 1)}.
 #'
 #' @format A tibble with columns:
 #' \describe{
@@ -842,7 +843,7 @@
 #' Maps the HWSD (Harmonized World Soil Database) topsoil USDA texture code
 #' \code{t_usda_tex} (the \code{TEXTURE_USDA} field, integers 1 to 13) to the
 #' canonical USDA texture-class name keying [soil_hydraulic_by_texture].
-#' [get_soc_climate_drivers()] uses it to translate each grid cell's dominant
+#' [read_soil_hydraulic()] uses it to translate each grid cell's dominant
 #' HWSD texture code into its hydraulic properties. HWSD splits clay into a
 #' heavy-clay (code 1) and a light-clay (code 3) class; both map to the single
 #' USDA \code{"clay"} class of the standard 12-class system, matching how the

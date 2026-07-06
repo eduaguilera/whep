@@ -27,7 +27,7 @@ hwsd_texture_usda
 Maps the HWSD (Harmonized World Soil Database) topsoil USDA texture code
 \code{t_usda_tex} (the \code{TEXTURE_USDA} field, integers 1 to 13) to the
 canonical USDA texture-class name keying \link{soil_hydraulic_by_texture}.
-\code{\link[=get_soc_climate_drivers]{get_soc_climate_drivers()}} uses it to translate each grid cell's dominant
+\code{\link[=read_soil_hydraulic]{read_soil_hydraulic()}} uses it to translate each grid cell's dominant
 HWSD texture code into its hydraulic properties. HWSD splits clay into a
 heavy-clay (code 1) and a light-clay (code 3) class; both map to the single
 USDA \code{"clay"} class of the standard 12-class system, matching how the

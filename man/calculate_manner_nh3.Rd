@@ -28,9 +28,10 @@ used for CAN/AS). Organic path: \code{rainfall_mm}, \code{irrigated},
 \link{manner_params} \code{technique} keys), \code{system} (\code{"Arable"} or
 \code{"Grassland"}), \code{temp_c}, \code{incorporation_delay_h} (numeric hours
 between surface application and soil incorporation, or \code{Inf}/\code{NA} for
-no incorporation), \code{species} (required unless \code{fertiliser == "urban"};
-one of the eight \link{manure_inorganic_n} species, used only to look up
-\code{inorganic_n_fraction}).}
+no incorporation), \code{species} (optional; one of the eight
+\link{manure_inorganic_n} species, used only to look up
+\code{inorganic_n_fraction}; when omitted it falls back to the manure type's
+default species, and it is ignored entirely for \code{"urban"}).}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of computing
 from drivers. Defaults to \code{FALSE}.}

@@ -14,8 +14,13 @@
   `calculate_n_leaching()`, with the process-based MANNER NH3 model) into
   surplus, NUE and GWP/CO2e indicators. New readers: `read_lpjml_hydrology()`,
   `read_cru_climate()`, `read_luh2_landuse()`, `read_hyde_population()`,
-  `read_lpjml_wind()`, `read_soil_ph()`. New coefficient datasets for SOC
-  turnover, humification, C:N, N2O EFs, MANNER and denitrification.
+  `read_lpjml_wind()`, `read_soil_ph()`, `read_soil_hydraulic()` (per-cell
+  field capacity, wilting point and porosity from HWSD texture, feeding the
+  ICBM SOC moisture modifier). New coefficient datasets for SOC turnover,
+  humification, C:N, N2O EFs, MANNER and denitrification, the crop
+  growth-stage soil-cover curve (`soc_soil_cover_curve`), and the USDA
+  texture-class soil hydraulic properties (`soil_hydraulic_by_texture`) with
+  the HWSD texture-code crosswalk (`hwsd_texture_usda`).
 
 * `build_io_model()` and `build_footprint()` gain a `method = c("mass",
   "value")` argument for co-product allocation. `"value"` splits a multi-output

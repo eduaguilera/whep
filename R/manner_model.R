@@ -50,9 +50,10 @@
 #'   [manner_params] `technique` keys), `system` (`"Arable"` or
 #'   `"Grassland"`), `temp_c`, `incorporation_delay_h` (numeric hours
 #'   between surface application and soil incorporation, or `Inf`/`NA` for
-#'   no incorporation), `species` (required unless `fertiliser == "urban"`;
-#'   one of the eight [manure_inorganic_n] species, used only to look up
-#'   `inorganic_n_fraction`).
+#'   no incorporation), `species` (optional; one of the eight
+#'   [manure_inorganic_n] species, used only to look up
+#'   `inorganic_n_fraction`; when omitted it falls back to the manure type's
+#'   default species, and it is ignored entirely for `"urban"`).
 #' @param example If `TRUE`, return a small fixture instead of computing
 #'   from drivers. Defaults to `FALSE`.
 #' @return A tibble with `n_applied_t`, `ef` (realised emission factor),
