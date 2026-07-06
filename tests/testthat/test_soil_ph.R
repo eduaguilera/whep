@@ -149,6 +149,56 @@ testthat::test_that(".gapfill_soil skips cells already present", {
   testthat::expect_equal(nrow(result), 1L)
 })
 
+testthat::test_that(".gapfill_soil uses the caller's fallback, not pH 7.0", {
+  soil_grid <- tibble::tribble(
+    ~lon, ~lat, ~soil_ph,
+    -0.25, -0.25, 0.29
+  )
+  # A cell with no neighbour within the search window must take the caller's
+  # domain-neutral fallback (here the loam field capacity, 0.29), never the
+  # pH-domain 7.0.
+  country_grid <- tibble::tribble(
+    ~lon, ~lat,
+    -0.25, -0.25,
+    89.75, 89.75
+  )
+  result <- whep:::.gapfill_soil(
+    soil_grid,
+    country_grid,
+    max_search = 1L,
+    fallback = 0.29,
+    label = "soil hydraulic"
+  )
+  far <- result[result$lon == 89.75, ]
+  testthat::expect_equal(far$soil_ph, 0.29)
+})
+
+testthat::test_that(".gapfill_soil_hydraulic falls back to loam, not pH 7.0", {
+  # An isolated target cell far from any aggregated hydraulic data must fall
+  # back per-property to the central-texture (loam) reference values, never the
+  # pH reader's 7.0 (impossible for a volumetric fraction in (0, 1)).
+  loam <- whep::soil_hydraulic_by_texture |>
+    dplyr::filter(usda_texture_class == "loam")
+  grid <- tibble::tribble(
+    ~lon, ~lat, ~t_field, ~t_wilt, ~porosity,
+    -0.25, -0.25, 0.21, 0.09, 0.40
+  )
+  country_grid <- tibble::tribble(
+    ~lon, ~lat,
+    -0.25, -0.25,
+    89.75, 89.75
+  )
+  result <- whep:::.gapfill_soil_hydraulic(grid, country_grid)
+  far <- result[result$lon == 89.75, ]
+  testthat::expect_equal(far$t_field, loam$field_capacity)
+  testthat::expect_equal(far$t_wilt, loam$wilting_point)
+  testthat::expect_equal(far$porosity, loam$porosity)
+  # Never the impossible pH-domain fallback.
+  testthat::expect_true(all(
+    far$t_field < 1 & far$t_wilt < 1 & far$porosity < 1
+  ))
+})
+
 # ---- read_soil_ph() -----------------------------------------------------
 
 testthat::test_that("read_soil_ph example fixture is schema-complete", {

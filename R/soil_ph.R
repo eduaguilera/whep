@@ -222,13 +222,28 @@ read_soil_hydraulic <- function(
 
 # Gap-fill cells in the target grid missing from the aggregated hydraulic grid
 # from the nearest available neighbour, one property at a time via the shared
-# .gapfill_soil() (which fills a single value column), then rejoin.
+# .gapfill_soil() (which fills a single value column), then rejoin. Each
+# property's no-neighbour fallback is its central-texture (loam) reference from
+# soil_hydraulic_by_texture, never the pH reader's neutral 7.0 (which is
+# impossible for a volumetric fraction in (0, 1) and would corrupt the ICBM
+# moisture modifier downstream).
 .gapfill_soil_hydraulic <- function(grid, country_grid) {
-  cols <- c("t_field", "t_wilt", "porosity")
-  filled <- purrr::map(cols, function(col) {
+  loam <- whep::soil_hydraulic_by_texture |>
+    dplyr::filter(.data$usda_texture_class == "loam")
+  fallbacks <- c(
+    t_field = loam$field_capacity,
+    t_wilt = loam$wilting_point,
+    porosity = loam$porosity
+  )
+  filled <- purrr::imap(fallbacks, function(fallback, col) {
     single <- dplyr::rename(grid, soil_ph = dplyr::all_of(col))
     single <- dplyr::select(single, "lon", "lat", "soil_ph")
-    .gapfill_soil(single, country_grid) |>
+    .gapfill_soil(
+      single,
+      country_grid,
+      fallback = fallback,
+      label = "soil hydraulic"
+    ) |>
       dplyr::rename("{col}" := "soil_ph")
   })
   purrr::reduce(filled, dplyr::inner_join, by = c("lon", "lat"))
@@ -296,30 +311,41 @@ read_soil_hydraulic <- function(
 
 # Gap-fill cells present in the target grid but missing from the aggregated
 # HWSD grid, from the nearest available neighbour (inverse-distance-squared
-# weighted mean pH), searching outward in 0.5-degree rings up to
-# `max_search` rings.
-.gapfill_soil <- function(soil_grid, country_grid, max_search = 100L) {
+# weighted mean of the `soil_ph` value column), searching outward in
+# 0.5-degree rings up to `max_search` rings. `fallback` is the domain-neutral
+# value used when no neighbour exists within the search window (pH 7.0 for the
+# pH reader; a central-texture reference for each hydraulic property), and
+# `label` names the quantity in the progress message so the shared helper does
+# not mislabel a hydraulic gap-fill as a pH one.
+.gapfill_soil <- function(
+  soil_grid,
+  country_grid,
+  max_search = 100L,
+  fallback = 7.0,
+  label = "soil pH"
+) {
   missing <- country_grid |>
     dplyr::select("lon", "lat") |>
     dplyr::anti_join(soil_grid, by = c("lon", "lat"))
   if (nrow(missing) == 0) {
     return(soil_grid)
   }
-  cli::cli_alert_info("Gap-filling {nrow(missing)} soil pH cells...")
+  cli::cli_alert_info("Gap-filling {nrow(missing)} {label} cells...")
   filled <- purrr::map2(
     missing$lon,
     missing$lat,
     .fill_soil_cell,
     soil_grid = soil_grid,
-    max_search = max_search
+    max_search = max_search,
+    fallback = fallback
   )
   dplyr::bind_rows(soil_grid, dplyr::bind_rows(filled))
 }
 
-# Fill one missing cell's pH from its nearest available HWSD neighbours,
-# searching outward in 0.5-degree rings; falls back to pH 7.0 when nothing
+# Fill one missing cell's value from its nearest available HWSD neighbours,
+# searching outward in 0.5-degree rings; falls back to `fallback` when nothing
 # is found within `max_search` rings.
-.fill_soil_cell <- function(m_lon, m_lat, soil_grid, max_search) {
+.fill_soil_cell <- function(m_lon, m_lat, soil_grid, max_search, fallback) {
   for (radius in seq_len(max_search)) {
     neighbours <- soil_grid |>
       dplyr::filter(
@@ -346,7 +372,7 @@ read_soil_hydraulic <- function(
       ))
     }
   }
-  tibble::tibble(lon = m_lon, lat = m_lat, soil_ph = 7.0)
+  tibble::tibble(lon = m_lon, lat = m_lat, soil_ph = fallback)
 }
 
 # Toy fixture for a runnable example (one cell).
