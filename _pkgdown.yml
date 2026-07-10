@@ -213,6 +213,17 @@ reference:
   - build_n_inputs
   - build_nitrogen_balance
 
+- title: SJOS - nitrogen
+  desc: >
+    Safe and Just Operating Space for nitrogen. Reader for the
+    Schulte-Uebbing et al. (2022) gridded critical-nitrogen layers
+    (critical surplus, critical input, exceedance, the medium-specific
+    critical losses and the binding-threshold map) that the
+    boundary-exceedance modules compare the WHEP nitrogen surplus and
+    process-based losses against.
+  contents:
+  - read_critical_n
+
 - title: Soil balances - carbon (historical balance)
   desc: >
     Reconstruct per-cell soil-organic-carbon stock trajectories: equilibrium
