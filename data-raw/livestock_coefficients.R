@@ -1341,7 +1341,7 @@ generate_ipcc_2019_tables <- function() {
       "Buffalo", "Lactating cow",          0.386,
       "Buffalo", "Non-lactating/Bulls",    0.322,
       "Sheep",   "All",                    0.217,
-      "Goats",   "All",                    0.217
+      "Goats",   "All",                    0.315
     )
   )
 }
@@ -1444,8 +1444,13 @@ generate_ipcc_tier2_params <- function() {
         0.322, 0.17, 0.00, 0.10, 0.00, 20.0,
       "Sheep", "All",
         0.217, 0.0107, 0.00, 0.077, 0.00, 23.0,
+      # Goats Cfi = 0.315 (IPCC 2019 Refinement Vol4 Ch10 Table 10.4), a
+      # species-distinct maintenance coefficient; earlier code duplicated the
+      # sheep value (0.217), underestimating goat NEm by ~31%. ca_pasture kept
+      # at the sheep flat-pasture value pending a goat-specific Ca decision
+      # (IPCC Table 10.5 gives lowland goats 0.019, hilly 0.024).
       "Goats", "All",
-        0.217, 0.0107, 0.00, 0.077, 0.00, 23.0
+        0.315, 0.0107, 0.00, 0.077, 0.00, 23.0
     ),
 
     # Ym values (% GE) used for Tier 2 enteric CH4.

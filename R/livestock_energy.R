@@ -12,11 +12,15 @@
 #' @param data A dataframe with columns `species`, `cohort`, `heads`,
 #'   and optionally `iso3`. Optional production columns: `weight`,
 #'   `milk_yield_kg_day`, `fat_percent`, `weight_gain_kg_day`,
-#'   `work_hours_day`, `work_coef`, `pregnant_fraction`, `temperature_c`,
-#'   `diet_quality`, `grazing_distance_km`, `system`. `work_coef`
-#'   overrides the joined IPCC work coefficient (`cw`, 0 by default for
-#'   every species) for rows that need draught/work energy (IPCC Eq
-#'   10.11) without changing the global default.
+#'   `work_hours_day`, `work_coef`, `cfi`, `pregnant_fraction`,
+#'   `temperature_c`, `diet_quality`, `grazing_distance_km`, `system`.
+#'   `work_coef` overrides the joined IPCC work coefficient (`cw`, 0 by
+#'   default for every species) for rows that need draught/work energy
+#'   (IPCC Eq 10.11) without changing the global default. `cfi` overrides
+#'   the joined maintenance coefficient (`cfi_mj_day_kg075`, IPCC Eq 10.3)
+#'   for rows whose herd-average maintenance requirement is known from a
+#'   national inventory (e.g. a housed dairy herd calibrated to a
+#'   Zootecnicas/NIR Cfi), without changing the global default.
 #' @param method Method for calculation (default `"ipcc2019"`).
 #'
 #' @return Dataframe with added `gross_energy` (MJ/day), intermediate
@@ -72,15 +76,31 @@ estimate_energy_demand <- function(data, method = "ipcc2019") {
 }
 
 #' NEm: IPCC Eq 10.3.
+#'
+#' A caller-supplied `cfi` overrides the species/subcategory
+#' `cfi_mj_day_kg075` joined from `ipcc_tier2_energy_coefs`. Pass it when a
+#' herd-average maintenance coefficient is known from a national inventory
+#' (e.g. a housed dairy herd whose Zootecnicas/NIR Cfi differs from the
+#' generic IPCC default) so the override applies per row without changing
+#' the global default.
 #' @noRd
 .calc_energy_maintenance <- function(data) {
   data |>
     dplyr::mutate(
-      ne_maintenance = cfi_mj_day_kg075 * weight^0.75 * (1 + temp_adjustment)
+      ne_maintenance = dplyr::coalesce(cfi, cfi_mj_day_kg075) *
+        weight^0.75 *
+        (1 + temp_adjustment)
     )
 }
 
-#' NEa: IPCC Eq 10.4.
+#' NEa: IPCC Eq 10.4 (cattle/buffalo) and Eq 10.5 (sheep/goats).
+#'
+#' IPCC 2019 Vol4 Ch10 uses two activity forms with different Ca units:
+#' cattle/buffalo (Eq 10.4) `NEa = Ca * NEm` with Ca dimensionless; sheep/goats
+#' (Eq 10.5) `NEa = Ca * BW` with Ca in MJ day^-1 kg^-1. The species-specific
+#' Ca values already live in `ipcc_tier2_energy_coefs` (`ca_pasture`); only the
+#' multiplicand differs by species. Earlier code applied the cattle form
+#' (`Ca * NEm`) to all species, understating sheep/goat activity energy.
 #' @noRd
 .calc_energy_activity <- function(data) {
   walking_cost <- grazing_energy_coefs$value_mj_kg_km[
@@ -88,8 +108,11 @@ estimate_energy_demand <- function(data, method = "ipcc2019") {
   ]
   data |>
     dplyr::mutate(
-      ne_activity = activity_coef *
-        ne_maintenance +
+      ne_activity = dplyr::if_else(
+        species_gen %in% c("Sheep", "Goats"),
+        activity_coef * weight,
+        activity_coef * ne_maintenance
+      ) +
         walking_cost * weight * grazing_distance_km
     )
 }
@@ -317,6 +340,7 @@ estimate_energy_demand <- function(data, method = "ipcc2019") {
     "weight_gain_kg_day",
     "work_hours_day",
     "work_coef",
+    "cfi",
     "pregnant_fraction",
     "wool_production_kg_yr"
   )

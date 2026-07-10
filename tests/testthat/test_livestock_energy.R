@@ -119,6 +119,55 @@ testthat::test_that("NEg is positive for growing animals", {
   testthat::expect_gt(neg, 0)
 })
 
+# .calc_energy_maintenance: species-distinct Cfi -------------------------------
+
+testthat::test_that("Goats use IPCC Table 10.4 Cfi (0.315), distinct from sheep", {
+  goat <- tibble::tibble(
+    species = "Goats", cohort = "All", weight = 40,
+    diet_quality = "Low", heads = 1
+  ) |>
+    estimate_energy_demand()
+  sheep <- tibble::tibble(
+    species = "Sheep", cohort = "All", weight = 40,
+    diet_quality = "Low", heads = 1
+  ) |>
+    estimate_energy_demand()
+
+  # NEm = Cfi * BW^0.75; at equal weight the goat/sheep ratio is the Cfi ratio.
+  testthat::expect_equal(
+    goat$ne_maintenance / sheep$ne_maintenance,
+    0.315 / 0.217,
+    tolerance = 1e-3
+  )
+})
+
+# .calc_energy_activity: sheep/goats use Eq 10.5 (Ca * BW) ----------------------
+
+testthat::test_that("sheep/goat activity uses Ca * body weight (IPCC Eq 10.5)", {
+  ewe <- tibble::tibble(
+    species = "Sheep", cohort = "All", weight = 50,
+    diet_quality = "Low", heads = 1, grazing_distance_km = 0
+  ) |>
+    estimate_energy_demand()
+
+  # ca_pasture for sheep is 0.0107 MJ day^-1 kg^-1; NEa = 0.0107 * 50 = 0.535,
+  # NOT 0.0107 * NEm (~0.041). Guards against reverting to the cattle form.
+  testthat::expect_equal(ewe$ne_activity, 0.0107 * 50, tolerance = 1e-6)
+  testthat::expect_gt(ewe$ne_activity, ewe$ne_maintenance * 0.0107 * 2)
+})
+
+testthat::test_that("cattle activity still uses Ca * NEm (IPCC Eq 10.4)", {
+  cow <- beef_tier2_fixture() |>
+    dplyr::mutate(grazing_distance_km = 0) |>
+    estimate_energy_demand()
+
+  testthat::expect_equal(
+    cow$ne_activity,
+    cow$activity_coef * cow$ne_maintenance,
+    tolerance = 1e-6
+  )
+})
+
 # .calc_energy_wool -------------------------------------------------------------
 
 testthat::test_that("NEwool is zero for non-sheep", {
@@ -199,4 +248,35 @@ testthat::test_that("work_coef is NA-safe and does not affect rows without it", 
   ) |>
     estimate_energy_demand()
   testthat::expect_equal(no_col$ne_work, 0)
+})
+
+# .calc_energy_maintenance / cfi override ----------------------------------
+
+testthat::test_that("cfi override lowers NEm and GE for a housed dairy herd", {
+  default <- dairy_tier2_fixture() |>
+    estimate_energy_demand()
+  # 0.332 is the Zootecnicas/NIR housed-dairy maintenance coefficient, below
+  # whep's generic dairy default (0.386).
+  override <- dairy_tier2_fixture() |>
+    dplyr::mutate(cfi = 0.332) |>
+    estimate_energy_demand()
+
+  testthat::expect_lt(override$ne_maintenance, default$ne_maintenance)
+  testthat::expect_lt(override$gross_energy, default$gross_energy)
+  # NEm = cfi * BW^0.75 * (1 + temp_adj); at equal weight/temp the override/
+  # default ratio is exactly the Cfi ratio.
+  testthat::expect_equal(
+    override$ne_maintenance / default$ne_maintenance,
+    0.332 / 0.386,
+    tolerance = 1e-3
+  )
+})
+
+testthat::test_that("cfi is NA-safe and does not affect rows without it", {
+  with_na <- dairy_tier2_fixture() |>
+    dplyr::mutate(cfi = NA_real_) |>
+    estimate_energy_demand()
+  no_col <- dairy_tier2_fixture() |>
+    estimate_energy_demand()
+  testthat::expect_equal(with_na$ne_maintenance, no_col$ne_maintenance)
 })
