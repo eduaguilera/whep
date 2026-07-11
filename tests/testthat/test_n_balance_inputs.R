@@ -602,3 +602,68 @@ testthat::test_that("transported manure is retained as an unattributed agricultu
   testthat::expect_equal(out$n_input_t, 7)
   testthat::expect_true(is.na(out$item_cbs_code))
 })
+
+# Synthetic fertiliser: Coello rate-weighted crop split (Task 1.4) ------------
+
+.nis_primary_prod <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~unit, ~value,
+    2010L, 10L, 2511L, "ha", 100, # wheat
+    2010L, 10L, 2514L, "ha", 100 # maize
+  )
+}
+.nis_fertilizer <- function() {
+  tibble::tribble(
+    ~Element, ~Item, ~Year, ~`Area Code`, ~Value,
+    "Agricultural Use", "Nutrient nitrogen N (total)", 2010L, 10L, 1000
+  )
+}
+.nis_coello_rates <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~kg_n_ha,
+    2010L, 10L, 2511L, 150,
+    2010L, 10L, 2514L, 50
+  )
+}
+
+testthat::test_that("build_n_inputs conserves FAOSTAT synthetic total", {
+  res <- whep::build_n_inputs(
+    resolution = "polity",
+    data = list(
+      primary_prod = .nis_primary_prod(),
+      fertilizer = .nis_fertilizer(),
+      coello_rates = .nis_coello_rates(),
+      synthetic_method = "coello"
+    )
+  ) |>
+    dplyr::filter(.data$fert_type == "synthetic")
+  testthat::expect_equal(sum(res$n_input_t), 1000) # national total held
+  testthat::expect_equal(
+    res$n_input_t[res$item_cbs_code == 2511L],
+    750
+  ) # wheat = 0.75 * 1000
+  testthat::expect_equal(
+    res$n_input_t[res$item_cbs_code == 2514L],
+    250
+  )
+  testthat::expect_true(all(res$method_synthetic == "coello"))
+})
+
+testthat::test_that("build_n_inputs area_share method conserves too", {
+  res <- whep::build_n_inputs(
+    resolution = "polity",
+    data = list(
+      primary_prod = .nis_primary_prod(),
+      fertilizer = .nis_fertilizer(),
+      coello_rates = .nis_coello_rates(),
+      synthetic_method = "area_share"
+    )
+  ) |>
+    dplyr::filter(.data$fert_type == "synthetic")
+  testthat::expect_equal(sum(res$n_input_t), 1000)
+  testthat::expect_equal(
+    res$n_input_t[res$item_cbs_code == 2511L],
+    500
+  ) # equal area -> equal split
+  testthat::expect_true(all(res$method_synthetic == "area_share"))
+})

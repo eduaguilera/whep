@@ -45,8 +45,15 @@ is never computed here.
 \item \code{primary_prod}, \code{fertilizer}, \code{crop_patterns}, \code{type_cropland},
 \code{cell_polity}: the synthetic-fertiliser assembly (country total from
 \code{fertilizer}, the \code{faostat-fertilizer-nutrients} pin, split to crops
-by \code{primary_prod} harvested-area shares, then to cells by
+by the chosen crop-share method, then to cells by
 \code{crop_patterns}/\code{type_cropland}).
+\item \code{synthetic_method}: how the synthetic-N country total is split across
+crops, \code{"coello"} (default; Coello 2025 rate-weighted, FAOSTAT-
+conserving) or \code{"area_share"} (harvested-area shares only).
+\item \code{coello_rates}: crop-specific synthetic-N rate table shaped like
+\link{coello_synthetic_n} (\code{year}, \code{area_code}, \code{item_cbs_code},
+\code{kg_n_ha}); defaults to \code{whep::coello_synthetic_n}. Used only when
+\code{synthetic_method = "coello"}.
 \item \code{gridded}, \code{resolution} (of the manure engine, default \code{"national"}),
 \code{methods}: forwarded to \code{\link[=build_livestock_nutrient_flows]{build_livestock_nutrient_flows()}}.
 }}
@@ -57,13 +64,16 @@ real data. Defaults to \code{FALSE}.}
 \value{
 A tibble. At \code{resolution = "grid"}: \code{lon}, \code{lat}, \code{area_code},
 \code{item_cbs_code}, \code{year}, \code{fert_type}, \code{n_input_t},
-\code{method_recycling_n}. At \code{resolution = "polity"}: \code{area_code},
-\code{item_cbs_code}, \code{year}, \code{fert_type}, \code{method_recycling_n}, \code{n_input_t}
-(summed over cells). \code{method_recycling_n} records which residue basis the
-\code{"recycling"} term used: \code{"residue_soil_returned"} when the upstream NPP
-input supplied \code{residue_soil_dm_t} (residue N net of removal for
-feed/fuel/burning) or \code{"total_residue"} when only gross residue N was
-available; it is \code{NA} for every other \code{fert_type}.
+\code{method_recycling_n}, \code{method_synthetic}. At \code{resolution = "polity"}:
+\code{area_code}, \code{item_cbs_code}, \code{year}, \code{fert_type}, \code{method_recycling_n},
+\code{method_synthetic}, \code{n_input_t} (summed over cells).
+\code{method_recycling_n} records which residue basis the \code{"recycling"} term
+used: \code{"residue_soil_returned"} when the upstream NPP input supplied
+\code{residue_soil_dm_t} (residue N net of removal for feed/fuel/burning) or
+\code{"total_residue"} when only gross residue N was available; it is \code{NA} for
+every other \code{fert_type}. \code{method_synthetic} records the synthetic
+crop-split basis (\code{"coello"} or \code{"area_share"}) on \code{"synthetic"} rows and
+is \code{NA} for every other \code{fert_type}.
 }
 \description{
 Combines biological nitrogen fixation (\code{\link[=calculate_bnf]{calculate_bnf()}}), residue/root N

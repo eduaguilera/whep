@@ -76,21 +76,31 @@
 #'   * `primary_prod`, `fertilizer`, `crop_patterns`, `type_cropland`,
 #'     `cell_polity`: the synthetic-fertiliser assembly (country total from
 #'     `fertilizer`, the `faostat-fertilizer-nutrients` pin, split to crops
-#'     by `primary_prod` harvested-area shares, then to cells by
+#'     by the chosen crop-share method, then to cells by
 #'     `crop_patterns`/`type_cropland`).
+#'   * `synthetic_method`: how the synthetic-N country total is split across
+#'     crops, `"coello"` (default; Coello 2025 rate-weighted, FAOSTAT-
+#'     conserving) or `"area_share"` (harvested-area shares only).
+#'   * `coello_rates`: crop-specific synthetic-N rate table shaped like
+#'     [coello_synthetic_n] (`year`, `area_code`, `item_cbs_code`,
+#'     `kg_n_ha`); defaults to `whep::coello_synthetic_n`. Used only when
+#'     `synthetic_method = "coello"`.
 #'   * `gridded`, `resolution` (of the manure engine, default `"national"`),
 #'     `methods`: forwarded to [build_livestock_nutrient_flows()].
 #' @param example If `TRUE`, return a small fixture instead of assembling
 #'   real data. Defaults to `FALSE`.
 #' @return A tibble. At `resolution = "grid"`: `lon`, `lat`, `area_code`,
 #'   `item_cbs_code`, `year`, `fert_type`, `n_input_t`,
-#'   `method_recycling_n`. At `resolution = "polity"`: `area_code`,
-#'   `item_cbs_code`, `year`, `fert_type`, `method_recycling_n`, `n_input_t`
-#'   (summed over cells). `method_recycling_n` records which residue basis the
-#'   `"recycling"` term used: `"residue_soil_returned"` when the upstream NPP
-#'   input supplied `residue_soil_dm_t` (residue N net of removal for
-#'   feed/fuel/burning) or `"total_residue"` when only gross residue N was
-#'   available; it is `NA` for every other `fert_type`.
+#'   `method_recycling_n`, `method_synthetic`. At `resolution = "polity"`:
+#'   `area_code`, `item_cbs_code`, `year`, `fert_type`, `method_recycling_n`,
+#'   `method_synthetic`, `n_input_t` (summed over cells).
+#'   `method_recycling_n` records which residue basis the `"recycling"` term
+#'   used: `"residue_soil_returned"` when the upstream NPP input supplied
+#'   `residue_soil_dm_t` (residue N net of removal for feed/fuel/burning) or
+#'   `"total_residue"` when only gross residue N was available; it is `NA` for
+#'   every other `fert_type`. `method_synthetic` records the synthetic
+#'   crop-split basis (`"coello"` or `"area_share"`) on `"synthetic"` rows and
+#'   is `NA` for every other `fert_type`.
 #' @export
 #' @examples
 #' build_n_inputs(example = TRUE)
@@ -132,7 +142,8 @@ build_n_inputs <- function(
     "year",
     "fert_type",
     "n_input_t",
-    "method_recycling_n"
+    "method_recycling_n",
+    "method_synthetic"
   )
 }
 
@@ -155,7 +166,8 @@ build_n_inputs <- function(
         "item_cbs_code",
         "year",
         "fert_type",
-        "method_recycling_n"
+        "method_recycling_n",
+        "method_synthetic"
       )
     )
 }
@@ -492,11 +504,30 @@ build_n_inputs <- function(
   }
   country_totals <- .synthetic_n_country(data$fertilizer) |>
     dplyr::transmute(.data$year, .data$area_code, n_t = .data$synthetic_n_t)
-  crop_shares <- .n_crop_area_shares(data$primary_prod)
-  if (is.null(data$cell_polity)) {
-    return(.ni_synthetic_polity(country_totals, crop_shares))
+  crop_shares <- .n_synthetic_crop_shares(
+    data$primary_prod,
+    data$synthetic_method %||% "coello",
+    data$coello_rates
+  )
+  spatialized <- if (is.null(data$cell_polity)) {
+    .ni_synthetic_polity(country_totals, crop_shares)
+  } else {
+    .ni_synthetic_grid(country_totals, crop_shares, data)
   }
-  .ni_synthetic_grid(country_totals, crop_shares, data)
+  .ni_attach_synthetic_method(spatialized, crop_shares)
+}
+
+# method_synthetic is uniform within a (year, area_code) group (the coello vs
+# area_share choice is per country-year), so join it back by (year, area_code)
+# after spatialization, which drops non-key columns.
+.ni_attach_synthetic_method <- function(spatialized, crop_shares) {
+  lookup <- dplyr::distinct(
+    crop_shares,
+    .data$year,
+    .data$area_code,
+    .data$method_synthetic
+  )
+  dplyr::left_join(spatialized, lookup, by = c("year", "area_code"))
 }
 
 .ni_synthetic_polity <- function(country_totals, crop_shares) {
@@ -550,7 +581,8 @@ build_n_inputs <- function(
     year = integer(),
     fert_type = character(),
     n_input_t = double(),
-    method_recycling_n = character()
+    method_recycling_n = character(),
+    method_synthetic = character()
   )
 }
 
@@ -632,6 +664,11 @@ build_n_inputs <- function(
       method_recycling_n = dplyr::if_else(
         .data$fert_type == "recycling",
         "total_residue",
+        NA_character_
+      ),
+      method_synthetic = dplyr::if_else(
+        .data$fert_type == "synthetic",
+        "coello",
         NA_character_
       )
     )
