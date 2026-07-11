@@ -289,3 +289,46 @@ testthat::test_that("missing required columns abort with a clear message", {
     "country_totals"
   )
 })
+
+# .n_crop_rate_shares (Coello rate-weighted, conserving crop shares) ----------
+
+.nrs_primary_prod <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~unit, ~value,
+    2010L, 10L, 2511L, "ha", 100, # wheat
+    2010L, 10L, 2514L, "ha", 100, # maize
+    2010L, 10L, 3000L, "ha", 500 # grassland (excluded)
+  )
+}
+.nrs_coello_rates <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~kg_n_ha,
+    2010L, 10L, 2511L, 150, # wheat: high rate
+    2010L, 10L, 2514L, 50 # maize: low rate
+  )
+}
+
+testthat::test_that(".n_crop_rate_shares conserves + differentiates", {
+  res <- whep:::.n_crop_rate_shares(
+    .nrs_primary_prod(),
+    .nrs_coello_rates()
+  )
+  testthat::expect_equal(sum(res$area_share), 1)
+  wheat <- res$area_share[res$item_cbs_code == 2511L]
+  maize <- res$area_share[res$item_cbs_code == 2514L]
+  testthat::expect_gt(wheat, maize) # equal area, higher rate -> higher share
+  testthat::expect_equal(wheat, 0.75) # 150*100 / (150*100 + 50*100)
+  testthat::expect_true(all(res$method_synthetic == "coello"))
+  testthat::expect_false(any(res$item_cbs_code == 3000L)) # grass excluded
+})
+
+testthat::test_that(".n_crop_rate_shares falls back to area shares", {
+  empty <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~kg_n_ha,
+    2010L, 88L, 2511L, 150 # no coverage for area 10
+  )
+  res <- whep:::.n_crop_rate_shares(.nrs_primary_prod(), empty)
+  testthat::expect_equal(sum(res$area_share), 1)
+  testthat::expect_equal(res$area_share[res$item_cbs_code == 2511L], 0.5)
+  testthat::expect_true(all(res$method_synthetic == "area_share"))
+})
