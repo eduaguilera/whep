@@ -351,6 +351,7 @@ reference:
   - biomass_coefs
   - cb_processing
   - cft_mapping
+  - coello_synthetic_n
   - crops_eurostat
   - crops_manure_n
   - lassaletta_grassland_share

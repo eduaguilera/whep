@@ -850,7 +850,6 @@ test_that("livestock_constants is a named list", {
   expect_true("days_in_year" %in% names(obj))
 })
 
-
 # -- mapping key uniqueness (issue #178) ---------------------------------------
 
 # A non-unique join key silently fans out downstream merges; a fully
@@ -896,4 +895,18 @@ test_that("FAOSTAT production code 1807 maps only to Sheep and Goat Meat", {
   citrus <- whep::items_prod_full |>
     dplyr::filter(item_prod == "Citrus Fruit, Total")
   expect_equal(citrus$item_prod_code, "1804")
+})
+
+testthat::test_that("coello_synthetic_n has the expected schema + range", {
+  x <- whep::coello_synthetic_n
+  pointblank::expect_col_exists(
+    x,
+    c("year", "area_code", "item_cbs_code", "kg_n_ha")
+  )
+  testthat::expect_true(is.integer(x$area_code))
+  testthat::expect_true(is.integer(x$item_cbs_code))
+  testthat::expect_equal(min(x$year), 1961L)
+  testthat::expect_equal(max(x$year), 2023L)
+  testthat::expect_true(all(x$kg_n_ha >= 0))
+  testthat::expect_gt(nrow(x), 0L)
 })
