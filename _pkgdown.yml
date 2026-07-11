@@ -224,6 +224,19 @@ reference:
   contents:
   - read_critical_n
 
+- title: SJOS - nitrogen coefficient tables
+  desc: >
+    Planetary reactive-nitrogen boundary parameters, the nourishment
+    protein/energy thresholds (with the waste-inequality factor and class
+    cutoffs), and the boundary/nourishment classification levels with their
+    plotting colours, feeding the SJOS-N per-capita boundary axis and the
+    2-way safe-and-just classification.
+  contents:
+  - n_boundary_params
+  - nourishment_thresholds
+  - sjos_levels
+  - nourish_levels
+
 - title: Soil balances - carbon (historical balance)
   desc: >
     Reconstruct per-cell soil-organic-carbon stock trajectories: equilibrium

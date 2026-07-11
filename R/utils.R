@@ -1683,7 +1683,12 @@ utils::globalVariables(
     "share_food",
     "share_other",
     "total_gap",
-    "total_production"
+    "total_production",
+    # sjos_n coefficient datasets (Module 0, Task 0.4)
+    "n_boundary_params",
+    "nourishment_thresholds",
+    "sjos_levels",
+    "nourish_levels"
   )
 )
 
