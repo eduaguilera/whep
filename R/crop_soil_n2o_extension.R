@@ -9,11 +9,13 @@
 #'
 #' Three nitrogen inputs to soil are included:
 #' - **Synthetic fertiliser** (F_SN): FAOSTAT reports it only as a country total
-#'   (tonnes N per `area_code` per year), so it is allocated to crops in
-#'   proportion to each crop's harvested area within the country-year (from
-#'   [get_primary_production()]).
+#'   (tonnes N per `area_code` per year), so it is allocated to crops by the
+#'   Coello 2025 rate-weighted, FAOSTAT-conserving crop share (default; the
+#'   national total is preserved), or by harvested-area share when
+#'   `synthetic_method = "area_share"`.
 #' - **Applied manure** (F_ON): FAOSTAT "Manure applied to soils (N content)"
-#'   country total, allocated to crops by harvested area as for F_SN.
+#'   country total, allocated to crops by harvested area (Coello is a
+#'   synthetic-N rate basis only).
 #' - **Crop residues** (F_CR): the dry matter of above-ground residues returned
 #'   to soil (from [get_primary_residues()], net of the removed fraction) times
 #'   the crop's residue nitrogen content (IPCC 2019 Table 11.1a).
@@ -41,6 +43,10 @@
 #'   `fertilizer` (the `faostat-fertilizer-nutrients` pin), `manure` (the
 #'   `faostat-emissions-livestock` pin) and `primary_residues`
 #'   ([get_primary_residues()]). Each falls back to its reader when absent.
+#'   `synthetic_method` selects the synthetic-N crop split, `"coello"`
+#'   (default; Coello 2025 rate-weighted, FAOSTAT-conserving) or
+#'   `"area_share"`; `coello_rates` overrides the rate table (shaped like
+#'   [coello_synthetic_n]), defaulting to `whep::coello_synthetic_n`.
 #' @param example If `TRUE`, return a small fixture instead of reading remote
 #'   data. Defaults to `FALSE`.
 #'
@@ -84,9 +90,14 @@ build_crop_soil_n2o_extension <- function(
     data$primary_residues
   }
 
-  shares <- .crop_area_shares(primary_prod)
-  synthetic <- .synthetic_n_inputs(fertilizer, shares)
-  manure_n <- .manure_n_inputs(manure, shares)
+  area_shares <- .crop_area_shares(primary_prod)
+  synth_shares <- .n_synthetic_crop_shares(
+    primary_prod,
+    data$synthetic_method %||% "coello",
+    data$coello_rates
+  )
+  synthetic <- .synthetic_n_inputs(fertilizer, synth_shares)
+  manure_n <- .manure_n_inputs(manure, area_shares)
   residue <- .residue_n_inputs(primary_residues, residue_removed_frac)
   .soil_n2o_co2e(synthetic, manure_n, residue, gwp)
 }

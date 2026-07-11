@@ -24,7 +24,11 @@ removal (\code{gleam_fracremove}) is a future refinement.}
 \code{primary_prod} (\code{\link[=get_primary_production]{get_primary_production()}}, for harvested area),
 \code{fertilizer} (the \code{faostat-fertilizer-nutrients} pin), \code{manure} (the
 \code{faostat-emissions-livestock} pin) and \code{primary_residues}
-(\code{\link[=get_primary_residues]{get_primary_residues()}}). Each falls back to its reader when absent.}
+(\code{\link[=get_primary_residues]{get_primary_residues()}}). Each falls back to its reader when absent.
+\code{synthetic_method} selects the synthetic-N crop split, \code{"coello"}
+(default; Coello 2025 rate-weighted, FAOSTAT-conserving) or
+\code{"area_share"}; \code{coello_rates} overrides the rate table (shaped like
+\link{coello_synthetic_n}), defaulting to \code{whep::coello_synthetic_n}.}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading remote
 data. Defaults to \code{FALSE}.}
@@ -42,11 +46,13 @@ soil-N2O analogue of \code{\link[=build_livestock_ghg_extension]{build_livestock
 Three nitrogen inputs to soil are included:
 \itemize{
 \item \strong{Synthetic fertiliser} (F_SN): FAOSTAT reports it only as a country total
-(tonnes N per \code{area_code} per year), so it is allocated to crops in
-proportion to each crop's harvested area within the country-year (from
-\code{\link[=get_primary_production]{get_primary_production()}}).
+(tonnes N per \code{area_code} per year), so it is allocated to crops by the
+Coello 2025 rate-weighted, FAOSTAT-conserving crop share (default; the
+national total is preserved), or by harvested-area share when
+\code{synthetic_method = "area_share"}.
 \item \strong{Applied manure} (F_ON): FAOSTAT "Manure applied to soils (N content)"
-country total, allocated to crops by harvested area as for F_SN.
+country total, allocated to crops by harvested area (Coello is a
+synthetic-N rate basis only).
 \item \strong{Crop residues} (F_CR): the dry matter of above-ground residues returned
 to soil (from \code{\link[=get_primary_residues]{get_primary_residues()}}, net of the removed fraction) times
 the crop's residue nitrogen content (IPCC 2019 Table 11.1a).
