@@ -332,3 +332,35 @@ testthat::test_that(".n_crop_rate_shares falls back to area shares", {
   testthat::expect_equal(res$area_share[res$item_cbs_code == 2511L], 0.5)
   testthat::expect_true(all(res$method_synthetic == "area_share"))
 })
+
+# .n_synthetic_crop_shares (method dispatcher) --------------------------------
+
+testthat::test_that(".n_synthetic_crop_shares dispatches on method", {
+  coello <- whep:::.n_synthetic_crop_shares(
+    .nrs_primary_prod(),
+    "coello",
+    .nrs_coello_rates()
+  )
+  testthat::expect_equal(
+    coello$area_share[coello$item_cbs_code == 2511L],
+    0.75
+  )
+  testthat::expect_true(all(coello$method_synthetic == "coello"))
+
+  area <- whep:::.n_synthetic_crop_shares(
+    .nrs_primary_prod(),
+    "area_share"
+  )
+  testthat::expect_equal(
+    area$area_share[area$item_cbs_code == 2511L],
+    0.5
+  )
+  testthat::expect_true(all(area$method_synthetic == "area_share"))
+})
+
+testthat::test_that(".n_synthetic_crop_shares rejects bad method", {
+  testthat::expect_error(
+    whep:::.n_synthetic_crop_shares(.nrs_primary_prod(), "smil"),
+    "method"
+  )
+})

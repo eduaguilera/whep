@@ -248,6 +248,27 @@ spatialize_country_n_to_crops <- function(
     )
 }
 
+# Shared synthetic-N crop-share origin for both the build_n_inputs() and
+# build_crop_soil_n2o_extension() synthetic paths: default "coello"
+# (rate-weighted, FAOSTAT-conserving) or "area_share" (harvested-area only).
+# Selecting one origin here is what stops the two consumers from diverging
+# (fix at origin, decision 3).
+.n_synthetic_crop_shares <- function(
+  primary_prod,
+  method = c("coello", "area_share"),
+  coello_rates = NULL
+) {
+  method <- rlang::arg_match(method)
+  if (method == "area_share") {
+    return(
+      .n_crop_area_shares(primary_prod) |>
+        dplyr::mutate(method_synthetic = "area_share")
+    )
+  }
+  coello_rates <- coello_rates %||% whep::coello_synthetic_n
+  .n_crop_rate_shares(primary_prod, coello_rates)
+}
+
 # Polity-total N (one fert_type) x crop-area-share -> polity x crop N.
 .n_polity_crop_totals <- function(country_totals, crop_shares) {
   missing_support <- country_totals |>
