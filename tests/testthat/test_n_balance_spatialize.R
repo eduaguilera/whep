@@ -317,7 +317,8 @@ testthat::test_that(".n_crop_rate_shares conserves + differentiates", {
   wheat <- res$area_share[res$item_cbs_code == 2511L]
   maize <- res$area_share[res$item_cbs_code == 2514L]
   testthat::expect_gt(wheat, maize) # equal area, higher rate -> higher share
-  testthat::expect_equal(wheat, 0.75) # 150*100 / (150*100 + 50*100)
+  # wheat weight (rate 150 x 100 ha) over the two-crop weight sum is 0.75
+  testthat::expect_equal(wheat, 0.75)
   testthat::expect_true(all(res$method_synthetic == "coello"))
   testthat::expect_false(any(res$item_cbs_code == 3000L)) # grass excluded
 })

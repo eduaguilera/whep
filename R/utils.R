@@ -1468,6 +1468,9 @@ utils::globalVariables(
     "cropland_share",
     # n_balance_inputs.R — recycling-N basis provenance stamp
     "method_recycling_n",
+    # n_balance_spatialize.R / n_balance_inputs.R — synthetic-N crop-split
+    # basis provenance stamp (Coello vs area_share, Module 1)
+    "method_synthetic",
     # check_series_jumps.R (level-2 within-series jump detector)
     ".value_now",
     ".value_prev",

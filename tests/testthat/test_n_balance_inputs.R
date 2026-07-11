@@ -638,10 +638,11 @@ testthat::test_that("build_n_inputs conserves FAOSTAT synthetic total", {
   ) |>
     dplyr::filter(.data$fert_type == "synthetic")
   testthat::expect_equal(sum(res$n_input_t), 1000) # national total held
+  # wheat takes 0.75 of the 1000 t national total
   testthat::expect_equal(
     res$n_input_t[res$item_cbs_code == 2511L],
     750
-  ) # wheat = 0.75 * 1000
+  )
   testthat::expect_equal(
     res$n_input_t[res$item_cbs_code == 2514L],
     250
