@@ -908,5 +908,8 @@ testthat::test_that("coello_synthetic_n has the expected schema + range", {
   testthat::expect_equal(min(x$year), 1961L)
   testthat::expect_equal(max(x$year), 2023L)
   testthat::expect_true(all(x$kg_n_ha >= 0))
+  # Data-quality safeguard: implausible Coello outliers (>1000 kg N/ha) are
+  # dropped to missing in the builder, so no rate exceeds the threshold.
+  testthat::expect_true(all(x$kg_n_ha <= 1000))
   testthat::expect_gt(nrow(x), 0L)
 })

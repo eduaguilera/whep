@@ -78,10 +78,12 @@
 #' 2023 with [fill_linear]. Used by the package synthetic-fertiliser path
 #' (`method = "coello"`) to differentiate the FAOSTAT national synthetic-N
 #' total across crops while conserving that national total. Rates are the
-#' source values clamped to non-negative and are not otherwise capped, so a
-#' few small areas carry Coello model-extrapolation outliers; the downstream
-#' rate-weighted share normalises within each country-year, so conservation
-#' of the national total is preserved regardless.
+#' source values clamped to non-negative; implausible outliers above
+#' 1000 kg N/ha (Coello model-extrapolation artifacts in a few small areas)
+#' are treated as missing, so those crop-area-years follow the missing-rate
+#' fallback (temporal fill where available, else the area-share weight) rather
+#' than skewing the split. The downstream rate-weighted share normalises
+#' within each country-year, so the national total is conserved regardless.
 #'
 #' @format A tibble with one row per year-area-crop:
 #' - `year`: Integer calendar year (1961-2023).

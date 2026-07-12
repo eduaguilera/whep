@@ -14,15 +14,20 @@
 # 1961-2019 are carried forward to 2023 with whep::fill_linear (rate held at
 # the 2019 value; decision 6).
 #
-# Rates are carried verbatim from Coello (only clamped to >= 0), NOT capped:
-# Coello's corrected column carries model-extrapolation outliers concentrated
-# in a few small areas (e.g. FAOSTAT area 99, ~1966-1975, up to ~37000 kg
-# N/ha; ~0.5% of rows exceed 1000 kg/ha). Reproducing Coello faithfully is the
-# design (decision 3); an upper cap would be a methodological deviation from
-# the source. The magnitude does not break conservation: the downstream
-# rate-weighted crop share (.n_crop_rate_shares(), Task 1.2) normalises to 1
-# within each (year, area_code), so the FAOSTAT national synthetic-N total is
-# always conserved; an outlier only skews the relative split within its area.
+# Data-quality safeguard (user decision 2026-07-12): Coello's corrected column
+# carries model-extrapolation outliers concentrated in a few small areas (e.g.
+# FAOSTAT area 99, ~1966-1975, up to ~37000 kg N/ha; ~0.5% of rows exceed
+# 1000 kg/ha). Rates above implausible_kg_n_ha (1000 kg N/ha, well above any
+# real agronomic rate) are treated as MISSING here, not capped: the missing
+# (crop, area, year) then follow the builder's existing missing-rate handling
+# -- temporal interpolation/carry-forward of the crop's own plausible rates
+# where available, else the .n_crop_rate_shares() fallback (which imputes the
+# (year, area_code) mean rate in a covered year, or plain area weights in a
+# fully-uncovered one). Conservation is unaffected either way: the downstream
+# rate-weighted crop share normalises to 1 within each (year, area_code), so
+# the FAOSTAT national synthetic-N total is always conserved; the safeguard
+# only prevents an artifact from skewing the relative per-crop split within its
+# area (decision 14, per-crop granularity).
 #
 # The raw CSV lives off-repo under L_files (never committed; >50 MB rule).
 # Read via WHEP_COELLO_DIR with a documented home fallback and base read.csv
@@ -45,12 +50,20 @@ if (!file.exists(csv_file)) {
 raw <- utils::read.csv(csv_file, stringsAsFactors = FALSE) |>
   tibble::as_tibble()
 
+# Rates above this are Coello model-extrapolation artifacts, not real
+# agronomic rates; treated as missing (see header safeguard).
+implausible_kg_n_ha <- 1000
+
 coello_group <- raw |>
   dplyr::transmute(
     year = as.integer(Year),
     area_code = as.integer(FAOStat_area_code),
     coello_crop_code = as.character(Crop_Code),
-    kg_n_ha = pmax(as.numeric(predicted_N_avg_app_cor), 0)
+    kg_n_ha = dplyr::if_else(
+      as.numeric(predicted_N_avg_app_cor) > implausible_kg_n_ha,
+      NA_real_,
+      pmax(as.numeric(predicted_N_avg_app_cor), 0)
+    )
   ) |>
   dplyr::filter(!is.na(year), !is.na(area_code), !is.na(kg_n_ha))
 
