@@ -1691,7 +1691,11 @@ utils::globalVariables(
     "n_boundary_params",
     "nourishment_thresholds",
     "sjos_levels",
-    "nourish_levels"
+    "nourish_levels",
+    # n_surplus.R (SJOS-N Module 2, Task 2.1) — surplus decomposition NSE
+    "surplus_n_t",
+    "method_surplus",
+    "surplus_kgn_ha"
   )
 )
 

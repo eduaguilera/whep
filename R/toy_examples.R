@@ -765,3 +765,36 @@
     0.25, 51.25, 63
   )
 }
+
+# A small build_nitrogen_balance()-shaped fixture (8 crop-cell-year rows, two
+# cells, a nitrogen deficit and a zero-surplus row included) constructed so the
+# harvest-removal surplus is exactly checkable. burnt_residue_n_t varies but
+# does not enter the surplus.
+.example_n_surplus_balance <- function() {
+  tibble::tribble(
+    ~lon,
+    ~lat,
+    ~area_code,
+    ~item_cbs_code,
+    ~year,
+    ~area_ha,
+    ~n_input_std_t,
+    ~prod_n_t,
+    ~used_residue_n_t,
+    ~grazed_weeds_n_t,
+    ~burnt_residue_n_t,
+    ~n_balance_t,
+    0.25, 0.25, 1L, 2511L, 2010L, 100, 50, 20, 5, 0, 3, 22,
+    0.25, 0.25, 1L, 2513L, 2010L, 50, 10, 8, 1, 0, 1, 0,
+    0.25, 0.25, 1L, 2555L, 2010L, 40, 4, 6, 0, 0, 0, -2,
+    0.75, 0.25, 1L, 2511L, 2010L, 200, 120, 40, 10, 8, 5, 55,
+    0.75, 0.25, 1L, 2513L, 2010L, 80, 30, 12, 3, 0, 2, 12,
+    0.25, 0.25, 1L, 2511L, 2011L, 100, 60, 25, 5, 2, 4, 20,
+    0.75, 0.25, 1L, 3000L, 2010L, 300, 15, 5, 0, 10, 0, -3,
+    0.25, 0.25, 1L, 2555L, 2011L, 20, 8, 3, 1, 0, 1, 3
+  )
+}
+
+.example_n_surplus <- function() {
+  calculate_n_surplus(.example_n_surplus_balance())
+}
