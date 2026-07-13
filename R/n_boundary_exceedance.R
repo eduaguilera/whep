@@ -126,17 +126,30 @@ build_n_boundary_exceedance <- function(
   dplyr::mutate(joined, actual_kgn_ha = .data$surplus_kgn_ha)
 }
 
+# Shared exceed-share formula for both boundary modes: the surplus mode (Mode
+# A, this file) and the pathway mode (Mode B, R/n_pathway_boundary.R). The
+# fraction of a per-hectare pressure that lies above the critical value: 0 when
+# the pressure is at or below zero or below the critical value, else
+# (actual - critical) / actual, so (actual * share) and (actual * (1 - share))
+# partition the pressure exactly (conservation). Kept in one place so the two
+# modes cannot drift to subtly different formulas.
+.n_exceed_split <- function(actual, critical) {
+  dplyr::if_else(
+    actual <= 0 | actual < critical,
+    0,
+    (actual - critical) / actual
+  )
+}
+
 # Split each crop's per-hectare nitrogen into the exceedance and
-# within-boundary parts (intensity and mass). exceed_share is 0 when the crop
-# is at or below zero or below the critical value, else (actual - critical) /
-# actual, so exceedance + within_boundary == actual.
+# within-boundary parts (intensity and mass) using the shared exceed-share
+# formula, so exceedance + within_boundary == actual.
 .nbx_decompose <- function(x) {
   dplyr::mutate(
     x,
-    exceed_share = dplyr::if_else(
-      .data$actual_kgn_ha <= 0 | .data$actual_kgn_ha < .data$critical_kgn_ha,
-      0,
-      (.data$actual_kgn_ha - .data$critical_kgn_ha) / .data$actual_kgn_ha
+    exceed_share = .n_exceed_split(
+      .data$actual_kgn_ha,
+      .data$critical_kgn_ha
     ),
     exceedance_kgn_ha = .data$actual_kgn_ha * .data$exceed_share,
     within_boundary_kgn_ha = .data$actual_kgn_ha * (1 - .data$exceed_share),

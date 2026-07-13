@@ -1708,7 +1708,32 @@ utils::globalVariables(
     "actual_n_t",
     "metric",
     "method_boundary",
-    "image_region"
+    "image_region",
+    # n_pathway_boundary.R (SJOS-N Module 2, Task 2.3) — pathway-mode
+    # per-medium boundary exceedance NSE columns
+    "critical_air_kgn_ha",
+    "critical_gw_kgn_ha",
+    "critical_sw_kgn_ha",
+    "critical_water_kgn_ha",
+    "actual_air_kgn_ha",
+    "actual_water_kgn_ha",
+    "nh3_air_n_t",
+    "manure_mgmt_nh3_n_t",
+    "exceed_share_air",
+    "exceed_share_water",
+    "exceedance_air_kgn_ha",
+    "exceedance_water_kgn_ha",
+    "within_air_kgn_ha",
+    "within_water_kgn_ha",
+    "exceedance_air_n_t",
+    "exceedance_water_n_t",
+    "within_air_n_t",
+    "within_water_n_t",
+    "actual_air_n_t",
+    "actual_water_n_t",
+    "binding_water_medium",
+    "binding_boundary",
+    "nh3_source"
   )
 )
 

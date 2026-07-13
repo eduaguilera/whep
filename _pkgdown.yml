@@ -223,11 +223,15 @@ reference:
     process-based losses against. The gridded soil-surface nitrogen surplus
     (net inputs minus harvested-nitrogen exports) and its surplus-mode
     critical-boundary exceedance, decomposed per crop into the parts within
-    and above the boundary.
+    and above the boundary. The pathway-mode boundary instead routes each
+    process-based nitrogen loss to its medium-specific critical load (ammonia
+    to air, nitrate to the tighter of groundwater and surface water),
+    decomposing each medium and naming the binding boundary per crop.
   contents:
   - read_critical_n
   - calculate_n_surplus
   - build_n_boundary_exceedance
+  - build_n_pathway_exceedance
 
 - title: SJOS - nitrogen coefficient tables
   desc: >

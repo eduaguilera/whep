@@ -833,3 +833,46 @@
     metric = "surplus"
   )
 }
+
+.example_n_pathway_exceedance <- function() {
+  balance <- tibble::tribble(
+    ~lon,
+    ~lat,
+    ~area_code,
+    ~item_cbs_code,
+    ~year,
+    ~area_ha,
+    ~nh3_n_t,
+    ~no3_n_t,
+    0.25, 0.25, 1L, 2511L, 2010L, 100, 3.0, 5.0,
+    0.25, 0.25, 1L, 2513L, 2010L, 50, 0.5, 0.8,
+    0.75, 0.25, 1L, 2511L, 2010L, 200, 8.0, 4.0,
+    0.25, 0.75, 1L, 2555L, 2010L, 40, 1.2, 3.0
+  )
+  critical_loads <- list(
+    crit_nh3_emission = tibble::tribble(
+      ~lon, ~lat, ~value,
+      0.25, 0.25, 20,
+      0.75, 0.25, 25,
+      0.25, 0.75, 15
+    ),
+    crit_leaching_gw = tibble::tribble(
+      ~lon, ~lat, ~value,
+      0.25, 0.25, 30,
+      0.75, 0.25, 40,
+      0.25, 0.75, 50
+    ),
+    crit_load_sw = tibble::tribble(
+      ~lon, ~lat, ~value,
+      0.25, 0.25, 40,
+      0.75, 0.25, 20,
+      0.25, 0.75, 60
+    )
+  )
+  build_n_pathway_exceedance(
+    balance = balance,
+    critical_loads = critical_loads,
+    nh3_source = "soil",
+    resolution = "grid"
+  )
+}
