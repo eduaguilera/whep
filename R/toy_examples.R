@@ -798,3 +798,38 @@
 .example_n_surplus <- function() {
   calculate_n_surplus(.example_n_surplus_balance())
 }
+
+# A shared 2x2-cell surplus + critical pair, run through the real
+# build_n_boundary_exceedance() at grid resolution (surplus metric), spanning a
+# crop above the critical value and one below it.
+.example_n_boundary_exceedance <- function() {
+  surplus <- tibble::tribble(
+    ~lon,
+    ~lat,
+    ~area_code,
+    ~item_cbs_code,
+    ~year,
+    ~area_ha,
+    ~n_input_std_t,
+    ~surplus_kgn_ha,
+    0.25, 0.25, 1L, 2511L, 2010L, 100, 12, 80,
+    0.25, 0.25, 1L, 2513L, 2010L, 50, 4, 30,
+    0.75, 0.25, 1L, 2511L, 2010L, 200, 30, 90,
+    0.25, 0.75, 1L, 2511L, 2010L, 40, 6, 60,
+    0.75, 0.75, 1L, 2555L, 2010L, 10, 3, 150
+  )
+  critical <- tibble::tribble(
+    ~lon, ~lat, ~value,
+    0.25, 0.25, 50,
+    0.75, 0.25, 120,
+    0.25, 0.75, 40,
+    0.75, 0.75, 100
+  )
+  build_n_boundary_exceedance(
+    surplus = surplus,
+    critical = critical,
+    land_use = "all",
+    resolution = "grid",
+    metric = "surplus"
+  )
+}

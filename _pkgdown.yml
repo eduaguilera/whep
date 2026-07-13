@@ -221,11 +221,13 @@ reference:
     critical losses and the binding-threshold map) that the
     boundary-exceedance modules compare the WHEP nitrogen surplus and
     process-based losses against. The gridded soil-surface nitrogen surplus
-    (net inputs minus harvested-nitrogen exports) the boundary modules
-    consume.
+    (net inputs minus harvested-nitrogen exports) and its surplus-mode
+    critical-boundary exceedance, decomposed per crop into the parts within
+    and above the boundary.
   contents:
   - read_critical_n
   - calculate_n_surplus
+  - build_n_boundary_exceedance
 
 - title: SJOS - nitrogen coefficient tables
   desc: >

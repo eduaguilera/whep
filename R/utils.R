@@ -1695,7 +1695,20 @@ utils::globalVariables(
     # n_surplus.R (SJOS-N Module 2, Task 2.1) — surplus decomposition NSE
     "surplus_n_t",
     "method_surplus",
-    "surplus_kgn_ha"
+    "surplus_kgn_ha",
+    # n_boundary_exceedance.R (SJOS-N Module 2, Task 2.2) — boundary exceedance
+    # decomposition NSE columns
+    "critical_kgn_ha",
+    "actual_kgn_ha",
+    "exceed_share",
+    "exceedance_kgn_ha",
+    "within_boundary_kgn_ha",
+    "exceedance_n_t",
+    "within_boundary_n_t",
+    "actual_n_t",
+    "metric",
+    "method_boundary",
+    "image_region"
   )
 )
 
