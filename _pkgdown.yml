@@ -233,7 +233,9 @@ reference:
     per-capita supply, and normalizes that supply onto a piecewise adequacy
     score classified Under, Adequate or Over. The boundary and nourishment
     sides are then crossed per crop into the 2-way safe-and-just
-    classification.
+    classification, and each crop's exceedance, within-boundary or total
+    surplus nitrogen becomes the intensity of an embodied-nitrogen trade
+    footprint extension.
   contents:
   - read_critical_n
   - calculate_n_surplus
@@ -245,6 +247,7 @@ reference:
   - disaggregate_ussr
   - build_n_boundary_percapita
   - classify_sjos_n
+  - build_n_exceedance_extension
 
 - title: SJOS - nitrogen coefficient tables
   desc: >

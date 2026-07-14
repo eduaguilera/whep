@@ -1764,7 +1764,10 @@ utils::globalVariables(
     "nourish_norm",
     # sjos_n_class.R (SJOS-N Module 4, Task 4.1) — 2-way SJOS classification NSE
     "boundary_side",
-    "sjos_class"
+    "sjos_class",
+    # n_exceedance_extension.R (SJOS-N Module 4, Task 4.2) — footprint extension
+    # category provenance stamp
+    "method_n_exceedance"
   )
 )
 
