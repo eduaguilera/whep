@@ -241,6 +241,7 @@ reference:
   - normalize_nourishment
   - calculate_food_gini
   - disaggregate_ussr
+  - build_n_boundary_percapita
 
 - title: SJOS - nitrogen coefficient tables
   desc: >

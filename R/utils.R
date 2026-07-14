@@ -1753,7 +1753,15 @@ utils::globalVariables(
     "score",
     "ussr_area_code",
     "successor_area_code",
-    "pop_share"
+    "pop_share",
+    # n_boundary_percapita.R (SJOS-N Module 3, Task 3.5) — per-capita boundary
+    # axis NSE columns
+    "n_percapita_kg",
+    "world_pop",
+    "low_pc",
+    "high_pc",
+    "boundary_norm",
+    "nourish_norm"
   )
 )
 
