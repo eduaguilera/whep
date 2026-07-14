@@ -230,13 +230,15 @@ reference:
     nourishment ("just") axis supplies per-capita protein and dietary energy,
     from the commodity-balance food element times the biomass nutrition
     coefficients divided by population, or from FAOSTAT Food Balance Sheet
-    per-capita supply.
+    per-capita supply, and normalizes that supply onto a piecewise adequacy
+    score classified Under, Adequate or Over.
   contents:
   - read_critical_n
   - calculate_n_surplus
   - build_n_boundary_exceedance
   - build_n_pathway_exceedance
   - build_food_supply
+  - normalize_nourishment
 
 - title: SJOS - nitrogen coefficient tables
   desc: >

@@ -1742,7 +1742,11 @@ utils::globalVariables(
     "energy_mj",
     "protein_g_cap_day",
     "energy_kcal_cap_day",
-    "population"
+    "population",
+    # nourishment.R (SJOS-N Module 3, Task 3.3) — normalization NSE columns
+    "value_norm",
+    "nourish",
+    "bound"
   )
 )
 
