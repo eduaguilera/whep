@@ -1746,7 +1746,14 @@ utils::globalVariables(
     # nourishment.R (SJOS-N Module 3, Task 3.3) — normalization NSE columns
     "value_norm",
     "nourish",
-    "bound"
+    "bound",
+    # food_gini.R (SJOS-N Module 3, Task 3.4) — between-country Gini + USSR
+    # disaggregation NSE columns
+    "gini",
+    "score",
+    "ussr_area_code",
+    "successor_area_code",
+    "pop_share"
   )
 )
 

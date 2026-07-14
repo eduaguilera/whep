@@ -239,6 +239,8 @@ reference:
   - build_n_pathway_exceedance
   - build_food_supply
   - normalize_nourishment
+  - calculate_food_gini
+  - disaggregate_ussr
 
 - title: SJOS - nitrogen coefficient tables
   desc: >
