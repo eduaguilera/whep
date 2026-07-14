@@ -107,7 +107,10 @@
 #' @param example If `TRUE`, return a small fixture instead of assembling
 #'   real data. Defaults to `FALSE`.
 #' @return A tibble keyed by `year`/`area_code`/`item_cbs_code` (plus
-#'   `lon`/`lat` at `resolution = "grid"`) with the input aggregates
+#'   `lon`/`lat` at `resolution = "grid"`) with `area_ha` (each crop's
+#'   harvested hectares in the cell, summed over cells at
+#'   `resolution = "polity"`; used downstream to convert tonnes N to a
+#'   per-hectare rate), the input aggregates
 #'   (`n_input_full_t`, `n_input_full_nosom_t`, `n_input_std_t`,
 #'   `n_input_som_t`, `n_input_for_n2o_t`), the output aggregates
 #'   (`n_output_residues_t`, `n_output_som_t`, `n_output_useful_t`,
@@ -277,17 +280,37 @@ build_nitrogen_balance <- function(
 # prod_n_t: the SAME calculate_npp_carbon_nitrogen() result build_n_inputs()
 # already computes for its "recycling" term, via the shared .n_balance_npp()
 # helper (R/n_balance_inputs.R) -- not a second, separate NPP-N call.
+# area_ha (each crop's harvested hectares, needed downstream by
+# calculate_n_surplus()/build_n_pathway_exceedance() to convert tonnes N to a
+# per-hectare rate) is summed from the SAME NPP rows onto the balance key: at
+# resolution = "grid" per (lon, lat, area_code, item_cbs_code, year), at
+# "polity" over cells. Several item_prod_code crops can map to one
+# item_cbs_code, so the harvested areas are summed the same way prod_n_t is.
 .nb_add_prod_n <- function(x, data, key) {
   npp <- .n_balance_npp(data)
   if (is.null(npp)) {
-    return(dplyr::mutate(x, prod_n_t = 0))
+    return(dplyr::mutate(x, prod_n_t = 0, area_ha = NA_real_))
   }
   prod <- npp |>
+    .nb_npp_with_area() |>
     dplyr::summarise(
       prod_n_t = sum(.data$product_n_t, na.rm = TRUE),
+      area_ha = sum(.data$area_ha, na.rm = TRUE),
       .by = dplyr::all_of(key)
     )
   .nb_merge_output_term(x, prod, key)
+}
+
+# The NPP result carries each crop's harvested area (area_ha) when the upstream
+# npp_n_input supplied it (the real crop-NPP chain, calculate_crop_npp() etc.,
+# preserves it). When a caller assembled npp_n_input without area_ha, the
+# harvested area is genuinely unknown, so an NA column is added rather than a
+# fabricated value; it then sums (na.rm) to 0 on the balance key.
+.nb_npp_with_area <- function(npp) {
+  if (rlang::has_name(npp, "area_ha")) {
+    return(npp)
+  }
+  dplyr::mutate(npp, area_ha = NA_real_)
 }
 
 # used_residue_n_t / burnt_residue_n_t: calculate_residue_destinies() splits
@@ -648,6 +671,7 @@ build_nitrogen_balance <- function(
 .nb_finalise <- function(x) {
   cols <- c(
     .nb_present_key(x),
+    "area_ha",
     "n_input_full_t",
     "n_input_full_nosom_t",
     "n_input_std_t",
@@ -717,6 +741,7 @@ build_nitrogen_balance <- function(
     ~area_code,
     ~item_cbs_code,
     ~year,
+    ~area_ha,
     ~n_input_full_t,
     ~n_input_full_nosom_t,
     ~n_input_std_t,
@@ -753,6 +778,7 @@ build_nitrogen_balance <- function(
     10L,
     2511L,
     2020L,
+    120,
     100,
     98,
     98,

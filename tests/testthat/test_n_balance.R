@@ -39,6 +39,7 @@
     ~year,
     ~item_prod_code,
     ~item_cbs_code,
+    ~area_ha,
     ~product_dm_t,
     ~residue_dm_t,
     ~root_dm_t,
@@ -48,6 +49,7 @@
     2010L,
     "15",
     2511L,
+    40,
     87.9,
     135.75,
     30,
@@ -502,6 +504,47 @@ testthat::test_that("example fixture is schema-complete", {
     out,
     c("nue_std", "nue_som", "nue_useful", "surplus_share", "method_nh3")
   )
+})
+
+testthat::test_that("example fixture carries a positive area_ha keyed to the crop", {
+  out <- whep::build_nitrogen_balance(example = TRUE)
+  pointblank::expect_col_exists(out, "area_ha")
+  # area_ha is the crop's harvested hectares: strictly positive on the crop row.
+  testthat::expect_true(all(out$area_ha > 0))
+  testthat::expect_true(rlang::has_name(out, "item_cbs_code"))
+})
+
+testthat::test_that("build_nitrogen_balance emits per-crop area_ha on the grid key", {
+  # The NPP input supplies each crop's harvested hectares (area_ha = 40 for
+  # item_prod 15 -> item_cbs 2511); it must survive to the balance output on
+  # the crop's grid row so calculate_n_surplus()/build_n_pathway_exceedance()
+  # can convert tonnes N to kg N/ha.
+  out <- .nb_run()
+  pointblank::expect_col_exists(out, "area_ha")
+  crop <- dplyr::filter(out, !is.na(item_cbs_code), item_cbs_code == 2511L)
+  testthat::expect_equal(nrow(crop), 1L)
+  testthat::expect_equal(crop$area_ha, 40)
+  testthat::expect_true(all(crop$area_ha > 0))
+})
+
+testthat::test_that("resolution = \"polity\" sums area_ha per key over cells", {
+  data <- .nb_data_with_drivers()
+  grid <- .nb_run(data, resolution = "grid")
+  polity <- .nb_run(data, resolution = "polity")
+  pointblank::expect_col_exists(polity, "area_ha")
+  # Single grid cell, so the per-crop harvested area is conserved across the
+  # two resolutions.
+  testthat::expect_equal(
+    sum(polity$area_ha),
+    sum(grid$area_ha),
+    tolerance = 1e-6
+  )
+  crop_polity <- dplyr::filter(
+    polity,
+    !is.na(item_cbs_code),
+    item_cbs_code == 2511L
+  )
+  testthat::expect_equal(crop_polity$area_ha, 40)
 })
 
 testthat::test_that("example fixture closes and has non-negative surplus", {

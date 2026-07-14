@@ -69,7 +69,10 @@ real data. Defaults to \code{FALSE}.}
 }
 \value{
 A tibble keyed by \code{year}/\code{area_code}/\code{item_cbs_code} (plus
-\code{lon}/\code{lat} at \code{resolution = "grid"}) with the input aggregates
+\code{lon}/\code{lat} at \code{resolution = "grid"}) with \code{area_ha} (each crop's
+harvested hectares in the cell, summed over cells at
+\code{resolution = "polity"}; used downstream to convert tonnes N to a
+per-hectare rate), the input aggregates
 (\code{n_input_full_t}, \code{n_input_full_nosom_t}, \code{n_input_std_t},
 \code{n_input_som_t}, \code{n_input_for_n2o_t}), the output aggregates
 (\code{n_output_residues_t}, \code{n_output_som_t}, \code{n_output_useful_t},
