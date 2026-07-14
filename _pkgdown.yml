@@ -231,7 +231,9 @@ reference:
     from the commodity-balance food element times the biomass nutrition
     coefficients divided by population, or from FAOSTAT Food Balance Sheet
     per-capita supply, and normalizes that supply onto a piecewise adequacy
-    score classified Under, Adequate or Over.
+    score classified Under, Adequate or Over. The boundary and nourishment
+    sides are then crossed per crop into the 2-way safe-and-just
+    classification.
   contents:
   - read_critical_n
   - calculate_n_surplus
@@ -242,6 +244,7 @@ reference:
   - calculate_food_gini
   - disaggregate_ussr
   - build_n_boundary_percapita
+  - classify_sjos_n
 
 - title: SJOS - nitrogen coefficient tables
   desc: >

@@ -1761,7 +1761,10 @@ utils::globalVariables(
     "low_pc",
     "high_pc",
     "boundary_norm",
-    "nourish_norm"
+    "nourish_norm",
+    # sjos_n_class.R (SJOS-N Module 4, Task 4.1) — 2-way SJOS classification NSE
+    "boundary_side",
+    "sjos_class"
   )
 )
 
