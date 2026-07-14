@@ -1733,7 +1733,16 @@ utils::globalVariables(
     "actual_water_n_t",
     "binding_water_medium",
     "binding_boundary",
-    "nh3_source"
+    "nh3_source",
+    # food_supply.R (SJOS-N Module 3, Task 3.1) — per-capita food supply NSE
+    "food_t",
+    "protein_frac_kgfm",
+    "energy_mj_kgfm",
+    "protein_t",
+    "energy_mj",
+    "protein_g_cap_day",
+    "energy_kcal_cap_day",
+    "population"
   )
 )
 

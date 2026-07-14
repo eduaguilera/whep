@@ -876,3 +876,17 @@
     resolution = "grid"
   )
 }
+
+# Per-capita food-supply fixture (whep_native path). Sampled from a real
+# build_food_supply() run on a tiny commodity-balance food + population +
+# two-item biomass_coefs fixture: protein via the Edible_N -> N -> product-N
+# coalesce chain times 6.25, gross energy via MJ / 0.004184, both divided by
+# population and 365 days.
+.example_build_food_supply <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~protein_g_cap_day, ~energy_kcal_cap_day, ~population,
+    2010L, 10L, 63.3561643836, 1551.900259305, 10000,
+    2010L, 32L, 27.3972602740, 681.002645433, 5000,
+    2011L, 10L, 49.0196078431, 1351.348575261, 10200
+  )
+}

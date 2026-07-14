@@ -226,12 +226,17 @@ reference:
     and above the boundary. The pathway-mode boundary instead routes each
     process-based nitrogen loss to its medium-specific critical load (ammonia
     to air, nitrate to the tighter of groundwater and surface water),
-    decomposing each medium and naming the binding boundary per crop.
+    decomposing each medium and naming the binding boundary per crop. The
+    nourishment ("just") axis supplies per-capita protein and dietary energy,
+    from the commodity-balance food element times the biomass nutrition
+    coefficients divided by population, or from FAOSTAT Food Balance Sheet
+    per-capita supply.
   contents:
   - read_critical_n
   - calculate_n_surplus
   - build_n_boundary_exceedance
   - build_n_pathway_exceedance
+  - build_food_supply
 
 - title: SJOS - nitrogen coefficient tables
   desc: >
