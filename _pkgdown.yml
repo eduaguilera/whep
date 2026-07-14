@@ -246,6 +246,7 @@ reference:
   - calculate_food_gini
   - disaggregate_ussr
   - build_n_boundary_percapita
+  - build_n_percapita
   - classify_sjos_n
   - build_n_exceedance_extension
   - build_sjos_n_footprint
