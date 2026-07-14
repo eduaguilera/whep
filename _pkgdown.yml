@@ -250,6 +250,7 @@ reference:
   - classify_sjos_n
   - build_n_exceedance_extension
   - build_sjos_n_footprint
+  - build_sjos_nitrogen
 
 - title: SJOS - nitrogen coefficient tables
   desc: >

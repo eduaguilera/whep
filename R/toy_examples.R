@@ -915,3 +915,164 @@
     2011L, 10L, 49.0196078431, 1351.348575261, 10200
   )
 }
+
+# The single coherent input set that drives build_sjos_nitrogen(example = TRUE)
+# end to end. Two countries (1, 2), one year (2010), four 0.5-degree cells and
+# three crops, laid out so every module join is non-empty and consistent: the
+# balance grid keys match the critical and critical-load cells; the balance
+# country/year keys match the commodity-balance food, population and
+# nitrogen-input keys; and the biomass_coefs / items_full bridge covers every
+# food item. The surplus, ammonia and nitrate values put some crop-cells above
+# and some below their critical value so the exceedance, pathway and
+# classification tables each carry both outcomes. Populations and input masses
+# are world-country scale so the per-capita boundary and nourishment scores land
+# in a sensible range. A single named list, one entry per injected module input.
+.sjos_n_example_data <- function() {
+  list(
+    balance = .sjos_n_balance_fixture(),
+    critical = .sjos_n_critical_fixture(),
+    critical_loads = .sjos_n_crit_loads_fixture(),
+    cbs_food = .sjos_n_cbs_food_fixture(),
+    population = .sjos_n_pop_fixture(),
+    n_inputs = .sjos_n_inputs_fixture(),
+    biomass_coefs = .sjos_n_coefs_fixture(),
+    items_full = .sjos_n_items_fixture()
+  )
+}
+
+# Gridded nitrogen-balance fixture carrying both the surplus terms (net input
+# and the harvested-nitrogen exports) and the pathway losses (ammonia, nitrate),
+# so the one balance feeds calculate_n_surplus() and build_n_pathway_exceedance()
+# alike.
+.sjos_n_balance_fixture <- function() {
+  tibble::tribble(
+    ~lon,
+    ~lat,
+    ~area_code,
+    ~item_cbs_code,
+    ~year,
+    ~area_ha,
+    ~n_input_std_t,
+    ~prod_n_t,
+    ~used_residue_n_t,
+    ~grazed_weeds_n_t,
+    ~burnt_residue_n_t,
+    ~n_balance_t,
+    ~nh3_n_t,
+    ~no3_n_t,
+    0.25, 0.25, 1L, 2511L, 2010L, 100, 50, 20, 5, 0, 3, 22, 3.0, 5.0,
+    0.25, 0.25, 1L, 2513L, 2010L, 50, 10, 8, 1, 0, 1, 0, 0.5, 0.8,
+    0.75, 0.25, 1L, 2511L, 2010L, 200, 120, 40, 10, 8, 5, 55, 8.0, 4.0,
+    0.75, 0.25, 1L, 2555L, 2010L, 40, 4, 6, 0, 0, 0, -2, 1.2, 3.0,
+    10.25, 5.25, 2L, 2511L, 2010L, 80, 30, 12, 3, 0, 2, 12, 2.5, 6.0,
+    10.25, 5.25, 2L, 2513L, 2010L, 60, 8, 6, 1, 0, 0, 1, 0.4, 0.5,
+    10.75, 5.25, 2L, 2555L, 2010L, 20, 8, 3, 1, 0, 1, 3, 0.6, 2.0
+  )
+}
+
+# Critical nitrogen surplus (kg N/ha/yr) at the four balance cells.
+.sjos_n_critical_fixture <- function() {
+  tibble::tribble(
+    ~lon, ~lat, ~value,
+    0.25, 0.25, 50,
+    0.75, 0.25, 120,
+    10.25, 5.25, 50,
+    10.75, 5.25, 100
+  )
+}
+
+# The three medium-specific critical loads (kg N/ha/yr) at the four balance
+# cells: ammonia emission (air), groundwater leaching and surface-water load.
+.sjos_n_crit_loads_fixture <- function() {
+  list(
+    crit_nh3_emission = tibble::tribble(
+      ~lon, ~lat, ~value,
+      0.25, 0.25, 20,
+      0.75, 0.25, 25,
+      10.25, 5.25, 20,
+      10.75, 5.25, 15
+    ),
+    crit_leaching_gw = tibble::tribble(
+      ~lon, ~lat, ~value,
+      0.25, 0.25, 30,
+      0.75, 0.25, 40,
+      10.25, 5.25, 30,
+      10.75, 5.25, 50
+    ),
+    crit_load_sw = tibble::tribble(
+      ~lon, ~lat, ~value,
+      0.25, 0.25, 40,
+      0.75, 0.25, 20,
+      10.25, 5.25, 40,
+      10.75, 5.25, 60
+    )
+  )
+}
+
+# Commodity-balance food tonnes per country-crop, sized so the per-capita
+# protein lands under the floor for country 1 and over the ceiling for country
+# 2 (an Under and an Over nourishment class).
+.sjos_n_cbs_food_fixture <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~food_t,
+    2010L, 1L, 2511L, 5.0e8,
+    2010L, 1L, 2513L, 1.0e8,
+    2010L, 1L, 2555L, 4.0e7,
+    2010L, 2L, 2511L, 6.0e8,
+    2010L, 2L, 2513L, 8.0e7,
+    2010L, 2L, 2555L, 4.0e7
+  )
+}
+
+# National populations (absolute persons), world-country scale so the per-capita
+# boundary bounds are realistic.
+.sjos_n_pop_fixture <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~population,
+    2010L, 1L, 4.0e9,
+    2010L, 2L, 3.0e9
+  )
+}
+
+# Long-format nitrogen inputs for the per-capita reactive-nitrogen axis: the
+# synthetic and biological-fixation terms feed the anthropogenic total; the
+# manure term is present to confirm it is excluded by the framing.
+.sjos_n_inputs_fixture <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~fert_type, ~n_input_t,
+    2010L, 1L, "synthetic", 4.0e7,
+    2010L, 1L, "bnf", 2.0e7,
+    2010L, 1L, "manure", 1.0e7,
+    2010L, 2L, "synthetic", 3.4e7,
+    2010L, 2L, "bnf", 1.7e7,
+    2010L, 2L, "manure", 1.0e7
+  )
+}
+
+# Nutrition coefficients for the three food items (protein via Edible_N_kgFM x
+# 6.25, gross energy via GE_product_edible_portion_MJ_kgFM). The other columns of
+# the coalesce chains are present but unused here.
+.sjos_n_coefs_fixture <- function() {
+  tibble::tribble(
+    ~Name_biomass,
+    ~Edible_N_kgFM,
+    ~N_kgN_kgFM,
+    ~Product_kgN_kgDM,
+    ~Product_kgDM_kgFM,
+    ~GE_product_edible_portion_MJ_kgFM,
+    ~GE_product_MJ_kgFM,
+    "Wheat", 0.020, NA, NA, NA, 13.0, NA,
+    "Barley", 0.018, NA, NA, NA, 12.5, NA,
+    "Soybeans", 0.055, NA, NA, NA, 17.0, NA
+  )
+}
+
+# The item_cbs_code to Name_biomass bridge for the three food items.
+.sjos_n_items_fixture <- function() {
+  tibble::tribble(
+    ~item_cbs_code, ~Name_biomass,
+    2511L, "Wheat",
+    2513L, "Barley",
+    2555L, "Soybeans"
+  )
+}
