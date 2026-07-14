@@ -834,6 +834,31 @@
   )
 }
 
+# The embodied-nitrogen trade footprint fixture (fp_all + fp_food). Produced by
+# tracing the exceedance category of a minimal 2-region x 2-item scenario through
+# build_sjos_n_footprint(): area 1 exports part of its item-10 nitrogen to area
+# 2's food demand (the single traded flow), everything else is consumed
+# domestically. Total fp_all embodied N (175 t) equals the extension total; the
+# food subset drops area 1's item-20 other-uses flow (20 t).
+.ex_build_sjos_n_footprint <- function() {
+  fp_all <- tibble::tribble(
+    ~year, ~target_area, ~origin, ~item_cbs_code, ~impact_u, ~category,
+    2000L, 1L, "Domestic consumption", 10L, 60, "exceedance",
+    2000L, 1L, "Domestic consumption", 20L, 20, "exceedance",
+    2000L, 2L, "Traded", 10L, 40, "exceedance",
+    2000L, 2L, "Domestic consumption", 10L, 40, "exceedance",
+    2000L, 2L, "Domestic consumption", 20L, 15, "exceedance"
+  )
+  fp_food <- tibble::tribble(
+    ~year, ~target_area, ~origin, ~item_cbs_code, ~impact_u, ~category,
+    2000L, 1L, "Domestic consumption", 10L, 60, "exceedance",
+    2000L, 2L, "Traded", 10L, 40, "exceedance",
+    2000L, 2L, "Domestic consumption", 10L, 40, "exceedance",
+    2000L, 2L, "Domestic consumption", 20L, 15, "exceedance"
+  )
+  list(fp_all = fp_all, fp_food = fp_food)
+}
+
 .example_n_pathway_exceedance <- function() {
   balance <- tibble::tribble(
     ~lon,
