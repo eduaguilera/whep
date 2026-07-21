@@ -133,12 +133,24 @@ build_n_boundary_exceedance <- function(
 # (actual - critical) / actual, so (actual * share) and (actual * (1 - share))
 # partition the pressure exactly (conservation). Kept in one place so the two
 # modes cannot drift to subtly different formulas.
+#
+# The share is CLAMPED to [0, 1]. A critical value can be NEGATIVE in the real
+# Schulte-Uebbing gridded critical N surplus (1796 of 28881 agricultural cells,
+# 6.2%, down to -396 kg N/ha): those cells are so sensitive that the safe
+# surplus is a net removal, so no positive surplus at all is tolerable. Without
+# the clamp, (actual - critical)/actual exceeds 1 there, which would make
+# exceedance larger than the pressure itself and drive within_boundary
+# NEGATIVE, breaking the decomposition. Clamping assigns the whole pressure to
+# exceedance (share 1, within 0), which is the correct reading: none of it is
+# within the boundary. The overshoot MAGNITUDE beyond a negative critical is
+# actual - critical, a different quantity from this within/exceedance split.
 .n_exceed_split <- function(actual, critical) {
-  dplyr::if_else(
+  raw <- dplyr::if_else(
     actual <= 0 | actual < critical,
     0,
     (actual - critical) / actual
   )
+  pmin(1, pmax(0, raw))
 }
 
 # Split each crop's per-hectare nitrogen into the exceedance and

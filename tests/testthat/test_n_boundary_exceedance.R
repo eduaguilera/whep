@@ -181,3 +181,43 @@ testthat::test_that("build_n_boundary_exceedance(example = TRUE) runs", {
     out$actual_n_t
   )
 })
+
+# A NEGATIVE critical surplus is real: 1796 of 28881 cells (6.2%) of the
+# Schulte-Uebbing gridded critical N surplus are below zero (to -396 kg N/ha),
+# meaning the cell tolerates no positive surplus at all. The share must clamp
+# to 1 (all of the pressure is exceedance, none within boundary) rather than
+# exceeding 1 and driving within_boundary negative.
+testthat::test_that("a negative critical value clamps the share to 1", {
+  surplus <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~item_cbs_code, ~year, ~area_ha, ~surplus_kgn_ha,
+    1, 1, 10L, 2511L, 2000L, 100, 50
+  )
+  critical <- tibble::tibble(lon = 1, lat = 1, value = -100)
+  out <- whep::build_n_boundary_exceedance(surplus, critical)
+  testthat::expect_equal(out$exceed_share, 1)
+  testthat::expect_equal(out$exceedance_kgn_ha, 50)
+  testthat::expect_equal(out$within_boundary_kgn_ha, 0)
+  # The decomposition still partitions the pressure exactly.
+  testthat::expect_equal(
+    out$exceedance_n_t + out$within_boundary_n_t,
+    out$actual_n_t
+  )
+  testthat::expect_true(out$exceed_share >= 0 && out$exceed_share <= 1)
+})
+
+testthat::test_that("shares stay in [0, 1] across a critical-value sweep", {
+  surplus <- tibble::tibble(
+    lon = 1:5,
+    lat = 1,
+    area_code = 10L,
+    item_cbs_code = 2511L,
+    year = 2000L,
+    area_ha = 100,
+    surplus_kgn_ha = 40
+  )
+  critical <- tibble::tibble(lon = 1:5, lat = 1, value = c(-396, -1, 0, 20, 80))
+  out <- whep::build_n_boundary_exceedance(surplus, critical)
+  testthat::expect_true(all(out$exceed_share >= 0 & out$exceed_share <= 1))
+  testthat::expect_true(all(out$within_boundary_kgn_ha >= 0))
+  testthat::expect_true(all(out$exceedance_kgn_ha <= out$actual_kgn_ha))
+})
