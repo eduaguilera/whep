@@ -13,6 +13,7 @@ fill_linear(
   value_col,
   time_col = year,
   interpolate = TRUE,
+  log_space = FALSE,
   fill_forward = TRUE,
   fill_backward = TRUE,
   value_smooth_window = NULL,
@@ -38,6 +39,17 @@ fill_linear(
 - interpolate:
 
   Logical. If `TRUE` (default), performs linear interpolation.
+
+- log_space:
+
+  Logical. If `TRUE`, interior interpolation is performed in log space
+  (constant compound growth rate) for each gap segment whose two
+  bracketing anchors are both finite and strictly positive; any segment
+  with a non-positive or non-finite anchor falls back to linear
+  interpolation. Default: `FALSE`, i.e. linear interpolation everywhere.
+  Log-space fills are labelled `"Log-linear interpolation"` in the
+  source column, distinct from `"Linear interpolation"`, so the choice
+  survives downstream. Carrying forward or backward is unaffected.
 
 - fill_forward:
 
@@ -119,4 +131,20 @@ fill_linear(
 #> 10 b        2018     NA Gap not filled               
 #> 11 b        2019      5 Original                     
 #> 12 b        2020      5 Last value carried forward   
+fill_linear(sample_tibble, value, log_space = TRUE, .by = c("category"))
+#> # A tibble: 12 × 4
+#>    category year  value source_value                 
+#>    <chr>    <chr> <dbl> <chr>                        
+#>  1 a        2015   3    First value carried backwards
+#>  2 a        2016   3    Original                     
+#>  3 a        2017   2    Linear interpolation         
+#>  4 a        2018   1    Linear interpolation         
+#>  5 a        2019   0    Original                     
+#>  6 a        2020   0    Last value carried forward   
+#>  7 b        2015   1    Original                     
+#>  8 b        2016   1.50 Log-linear interpolation     
+#>  9 b        2017   2.24 Log-linear interpolation     
+#> 10 b        2018   3.34 Log-linear interpolation     
+#> 11 b        2019   5    Original                     
+#> 12 b        2020   5    Last value carried forward   
 ```
