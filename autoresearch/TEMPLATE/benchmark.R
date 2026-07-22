@@ -16,8 +16,8 @@
 #   3. The `targets` vector — which functions to drill into for caller
 #      analysis (defaults assume a tidyverse/data.table pipeline).
 
-# Load the package in dev mode. If running inside renv with all deps
-# installed, `library(<PACKAGE>)` also works.
+# Load the package in dev mode. With all deps installed,
+# `library(<PACKAGE>)` also works.
 devtools::load_all(".")
 
 # ── Config ──────────────────────────────────────────────────────────────────
