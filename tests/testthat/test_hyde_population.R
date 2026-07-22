@@ -118,6 +118,25 @@ testthat::test_that("read_hyde_population drops NODATA cells", {
   )
 })
 
+testthat::test_that("all-NODATA blocks are absent rather than false zeros", {
+  fixture <- .hyde_fixture_zip(
+    year = 1900L,
+    n_lon_blocks = 1L,
+    n_lat_blocks = 1L,
+    nodata_cells = seq_len(36L)
+  )
+  result <- whep::read_hyde_population(
+    hyde_dir = fixture$dir,
+    years = 1900L
+  )
+
+  testthat::expect_equal(nrow(result), 0L)
+  testthat::expect_identical(
+    names(result),
+    c("lon", "lat", "year", "urban_pop")
+  )
+})
+
 testthat::test_that("read_hyde_population reads multiple years", {
   fixture_1900 <- .hyde_fixture_zip(year = 1900L, fill_value = 100)
   fixture_1950 <- .hyde_fixture_zip(year = 1950L, fill_value = 200)

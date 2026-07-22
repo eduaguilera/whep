@@ -157,6 +157,17 @@ test_that("read_cru_climate slices the requested year from the NetCDF", {
   testthat::expect_equal(target$value, 327)
 })
 
+test_that("read_cru_climate keeps its schema when no requested year exists", {
+  cube <- .cru_fixture_cube()
+  out <- whep::read_cru_climate(var = "tmp", years = 1999L, cru_dir = cube$dir)
+
+  testthat::expect_equal(nrow(out), 0L)
+  testthat::expect_identical(
+    names(out),
+    c("lon", "lat", "year", "month", "value", "var")
+  )
+})
+
 test_that("read_cru_climate reads a real CRU file (smoke)", {
   cru_dir <- Sys.getenv("WHEP_CRU_DIR", "")
   testthat::skip_if(!dir.exists(cru_dir))

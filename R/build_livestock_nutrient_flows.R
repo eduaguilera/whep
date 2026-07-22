@@ -351,12 +351,15 @@ build_livestock_nutrient_flows <- function(
   if (is.null(grass_cap)) {
     return(dplyr::mutate(crop_cap, grass_cap_n = 0))
   }
-  crop_cap |>
-    dplyr::left_join(
-      dplyr::rename(grass_cap, grass_cap_n = "grass_n_cap"),
-      by = c("year", "territory", "sub_territory")
-    ) |>
-    dplyr::mutate(grass_cap_n = dplyr::coalesce(.data$grass_cap_n, 0))
+  dplyr::full_join(
+    crop_cap,
+    dplyr::rename(grass_cap, grass_cap_n = "grass_n_cap"),
+    by = c("year", "territory", "sub_territory")
+  ) |>
+    dplyr::mutate(
+      cap = dplyr::coalesce(.data$cap, 0),
+      grass_cap_n = dplyr::coalesce(.data$grass_cap_n, 0)
+    )
 }
 
 # Replace each source cell's retained surplus with the transport outcome:

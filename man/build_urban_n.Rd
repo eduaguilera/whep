@@ -13,11 +13,12 @@ keeps every year \code{data$urban_population} covers.}
 \item{data}{Optional named list of pre-loaded inputs: \code{urban_population}
 (\code{lon}, \code{lat}, \code{year}, \code{urban_pop}, falling back to
 \code{\link[=read_hyde_population]{read_hyde_population()}} when absent), \code{cell_polity} (\code{lon}, \code{lat},
-\code{area_code}, required) and \code{cropland_ha} (\code{lon}, \code{lat}, \code{area_code},
-\code{year}, \code{cropland_ha}, required: the gridded cropland area used as the
-simple room proxy, \code{cropland_ha * 0.170} t N/ha, the same EU-Nitrates
-fixed ceiling used by \code{\link[=allocate_manure_to_land]{allocate_manure_to_land()}}'s \code{fixed_ceiling_kg_ha}
-default).}
+\code{area_code}, plus optional \code{polity_frac}; a missing \code{polity_frac} is
+treated as 1 for backwards compatibility) and \code{cropland_ha} (\code{lon},
+\code{lat}, \code{area_code}, \code{year}, \code{cropland_ha}, required: the gridded cropland
+area used as the simple room proxy, \code{cropland_ha * 0.170} t N/ha, the same
+EU-Nitrates fixed ceiling used by \code{\link[=allocate_manure_to_land]{allocate_manure_to_land()}}'s
+\code{fixed_ceiling_kg_ha} default).}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading data.
 Defaults to \code{FALSE}.}

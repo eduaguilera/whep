@@ -62,6 +62,17 @@ testthat::test_that("years argument filters the time axis", {
   testthat::expect_setequal(result$month, c(1L, 2L))
 })
 
+testthat::test_that("an absent year returns an empty documented schema", {
+  cube <- .lpjml_wind_fixture_cube()
+  result <- whep::read_lpjml_wind(years = 1800L, wind_dir = cube$dir)
+
+  testthat::expect_equal(nrow(result), 0L)
+  testthat::expect_identical(
+    names(result),
+    c("lon", "lat", "year", "month", "windspeed_ms")
+  )
+})
+
 testthat::test_that("row order reflects the file's north-to-south latitude", {
   cube <- .lpjml_wind_fixture_cube()
   result <- whep::read_lpjml_wind(years = 1902L, wind_dir = cube$dir)

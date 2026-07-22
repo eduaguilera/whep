@@ -41,6 +41,44 @@ test_that("ICBM degenerate branch stays finite when rates coincide", {
   testthat::expect_true(all(out$soc_total > 0))
 })
 
+test_that("ICBM accumulates inputs when climate stops decomposition", {
+  out <- whep::calculate_soc_icbm(
+    initial_soc_mgc_ha = 50,
+    c_input_mgc_ha_yr = 2,
+    years = 5,
+    climate_modifier = 0
+  )
+
+  testthat::expect_equal(out$soc_total, 50 + 2 * (0:5))
+})
+
+test_that("ICBM old-pool solution follows its transfer ODE", {
+  # For dO/dt = h*k_y*Y - k_o*O, the derivative at t = 0 must have
+  # this sign and magnitude. This catches a reversal of the two transient
+  # exponential terms while remaining independent of the steady state.
+  k_y <- 0.8
+  k_o <- 0.2
+  h <- 0.1
+  y_ss <- 2
+  y_0 <- 5
+  o_ss <- h * k_y * y_ss / k_o
+  o_0 <- 3
+  dt <- 1e-6
+  series <- whep:::.icbm_old_series(
+    c(0, dt),
+    o_ss,
+    o_0,
+    y_ss,
+    y_0,
+    k_y,
+    k_o,
+    h
+  )
+  observed <- (series[2] - series[1]) / dt
+  expected <- h * k_y * y_0 - k_o * o_0
+  testthat::expect_equal(observed, expected, tolerance = 1e-5)
+})
+
 test_that("AMG active pool converges to its analytical steady state", {
   # Active-pool steady state is h * input / k. Default h = 0.15 (unrecognised
   # input type), k = 0.165.
@@ -78,6 +116,18 @@ test_that("AMG stable pool is constant and the init mode is validated", {
     whep::calculate_soc_amg(50, 2, 5, init_mode = "bogus"),
     class = "rlang_error"
   )
+})
+
+test_that("AMG accumulates humified inputs when decomposition is zero", {
+  out <- whep::calculate_soc_amg(
+    initial_soc_mgc_ha = 50,
+    c_input_mgc_ha_yr = 2,
+    years = 5,
+    climate_modifier = 0
+  )
+  expected <- 50 + 0.15 * 2 * (0:5)
+
+  testthat::expect_equal(out$soc_total, expected)
 })
 
 test_that("AMG steady_state equals ca_ss / (1 - f_iom) and ignores the seed", {

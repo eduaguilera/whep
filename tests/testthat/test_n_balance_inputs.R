@@ -365,6 +365,17 @@ testthat::test_that("deposition and urban use the NA_integer_ sentinel", {
   testthat::expect_true(nrow(urb) > 0 && all(is.na(urb$item_cbs_code)))
 })
 
+testthat::test_that("urban ISO3 area codes resolve instead of becoming NA", {
+  data <- .nbi_full_data()
+  data$cell_polity$area_code <- "ESP"
+  data$cropland_ha$area_code <- "ESP"
+
+  out <- whep:::.n_inputs_urban(data)
+
+  testthat::expect_equal(out$area_code, 203L)
+  testthat::expect_false(anyNA(out$area_code))
+})
+
 testthat::test_that("polity resolution is the cell-summed aggregate of grid", {
   grid <- whep::build_n_inputs(data = .nbi_full_data(), resolution = "grid")
   polity <- whep::build_n_inputs(data = .nbi_full_data(), resolution = "polity")
@@ -554,4 +565,40 @@ testthat::test_that("a valid lowercase Cropland crop resolves without NA", {
   ]
   testthat::expect_true(nrow(cropland_manure) > 0)
   testthat::expect_true(all(!is.na(cropland_manure$item_cbs_code)))
+})
+
+testthat::test_that("unattributed Cropland manure is not mislabeled as grass", {
+  applied <- tibble::tibble(
+    year = 2010L,
+    territory = "10",
+    sub_territory = "0.25_50.25",
+    land_use = "Cropland",
+    crop = NA_character_,
+    manure_type = "Solid",
+    applied_n = 5
+  )
+
+  out <- whep:::.manure_to_n_inputs(applied)
+
+  testthat::expect_equal(out$fert_type, "manure_solid")
+  testthat::expect_true(is.na(out$item_cbs_code))
+})
+
+testthat::test_that("transported manure is retained as an unattributed agricultural input", {
+  applied <- tibble::tibble(
+    year = 2010L,
+    territory = "10",
+    sub_territory = "0.25_50.25",
+    land_use = "transported",
+    crop = NA_character_,
+    manure_type = "Liquid",
+    applied_n = 7
+  )
+
+  out <- whep:::.manure_to_n_inputs(applied)
+
+  testthat::expect_equal(nrow(out), 1L)
+  testthat::expect_equal(out$fert_type, "manure_liquid")
+  testthat::expect_equal(out$n_input_t, 7)
+  testthat::expect_true(is.na(out$item_cbs_code))
 })

@@ -157,8 +157,17 @@ read_hyde_population <- function(
     lat_block = .hani_block_center(lat)[rep(seq_len(n_row), each = n_col)],
     urban_pop = as.vector(t(mat))
   )
+  dt <- dt[!is.na(urban_pop)]
+  if (nrow(dt) == 0L) {
+    return(data.table::data.table(
+      lon = double(),
+      lat = double(),
+      year = integer(),
+      urban_pop = double()
+    ))
+  }
   dt[,
-    .(year = year, urban_pop = sum(urban_pop, na.rm = TRUE)),
+    .(year = year, urban_pop = sum(urban_pop)),
     by = .(lon = lon_block, lat = lat_block)
   ]
 }

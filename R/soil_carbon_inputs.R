@@ -25,8 +25,9 @@
 #'   its reader when absent: `npp` (soil-returned residue, root and weed carbon
 #'   per `area_code`, `item_prod_code`, `year`, columns `residue_soil_c_t`,
 #'   `root_c_t` and `weed_npp_c_t`, tonnes C); `manure` (the `applied` tibble of
-#'   [build_livestock_nutrient_flows()], with `crop` already on the
-#'   `item_prod_code` key and `territory` a stringified `area_code` or `iso3c`);
+#'   [build_livestock_nutrient_flows()], with `crop` either an existing
+#'   `item_prod_code` or an `item_prod` name from [items_prod_full] (matched
+#'   case-insensitively), and `territory` a stringified `area_code` or `iso3c`);
 #'   `country_grid` and `crop_patterns` (the spatialization inputs,
 #'   `crop_patterns` carrying per-cell `crop_area_ha`); `residue_humification`
 #'   (defaults to [residue_humification]).
@@ -112,27 +113,77 @@ build_soil_carbon_inputs <- function(
   ))
 }
 
-# Manure carbon applied to cropland, keyed like the NPP components. The applied
-# stream's `crop` must already be on the item_prod_code key; `territory` is a
-# stringified area_code or an iso3c, resolved via the same helper the N-inputs
-# manure engine uses (aborts on unmapped keys rather than NA-ing them out).
+# Manure carbon applied to cropland, keyed like the NPP components. The manure
+# engine emits crop names, while hand-supplied applied streams may already carry
+# item_prod_code strings; resolve either form through items_prod_full. Territory
+# is a stringified area_code or an iso3c, resolved via the same helper the
+# N-inputs manure engine uses (both mappings abort rather than silently emit NA).
 .sci_manure_components <- function(manure) {
   manure |>
     dplyr::filter(
       .data$land_use == "Cropland",
       !is.na(.data$crop)
     ) |>
+    dplyr::mutate(
+      item_prod_code = .sci_manure_crop_to_item_prod_code(.data$crop)
+    ) |>
     dplyr::summarise(
       c_mass_mg = sum(.data$applied_c, na.rm = TRUE),
-      .by = c("year", "territory", "crop")
+      .by = c("year", "territory", "item_prod_code")
     ) |>
     dplyr::transmute(
       area_code = .manure_territory_to_area_code(.data$territory),
-      item_prod_code = as.character(.data$crop),
+      item_prod_code = .data$item_prod_code,
       year = as.integer(.data$year),
       input_type = "manure",
       c_mass_mg = .data$c_mass_mg
     )
+}
+
+.sci_manure_crop_to_item_prod_code <- function(crop) {
+  crop <- trimws(as.character(crop))
+  lookup <- whep::items_prod_full |>
+    dplyr::transmute(
+      item_prod_code = trimws(as.character(.data$item_prod_code)),
+      crop_lower = stringr::str_to_lower(trimws(as.character(.data$item_prod)))
+    ) |>
+    dplyr::filter(
+      !is.na(.data$item_prod_code),
+      .data$item_prod_code != ""
+    )
+
+  codes <- unique(lookup$item_prod_code)
+  resolved <- rep(NA_character_, length(crop))
+  is_code <- !is.na(crop) & crop %in% codes
+  resolved[is_code] <- crop[is_code]
+
+  name_lookup <- lookup |>
+    dplyr::filter(
+      !is.na(.data$crop_lower),
+      .data$crop_lower != ""
+    ) |>
+    dplyr::distinct(.data$crop_lower, .data$item_prod_code)
+  duplicate_name <- duplicated(name_lookup$crop_lower) |
+    duplicated(name_lookup$crop_lower, fromLast = TRUE)
+  unambiguous_names <- name_lookup[!duplicate_name, ]
+
+  needs_name <- !is.na(crop) & is.na(resolved)
+  name_match <- match(
+    stringr::str_to_lower(crop[needs_name]),
+    unambiguous_names$crop_lower
+  )
+  resolved[needs_name] <- unambiguous_names$item_prod_code[name_match]
+
+  unresolved <- unique(crop[!is.na(crop) & is.na(resolved)])
+  if (length(unresolved) > 0) {
+    cli::cli_abort(c(
+      "Could not resolve manure {.field crop} to an {.field item_prod_code}.",
+      i = "Unrecognised or ambiguous value{?s}: {.val {unresolved}}. Expected
+           an existing {.field item_prod_code} or an {.field item_prod} name in
+           {.code whep::items_prod_full} (matched case-insensitively)."
+    ))
+  }
+  resolved
 }
 
 # Distribute each polity-crop-year carbon mass across cells in proportion to the
@@ -140,6 +191,14 @@ build_soil_carbon_inputs <- function(
 .sci_to_grid <- function(components, country_grid, crop_patterns) {
   cells <- .sci_cell_crop_area(country_grid, crop_patterns)
   weights <- cells |>
+    # Zero, missing and non-finite harvested areas provide no spatial support.
+    # Keeping a zero-only group here would divide 0 by 0 and silently turn its
+    # carbon mass into NaN; dropping it lets .sci_warn_unspatialized() report
+    # the unsupported polity-crop group through the existing warning path.
+    dplyr::filter(
+      is.finite(.data$crop_area_ha),
+      .data$crop_area_ha > 0
+    ) |>
     dplyr::mutate(
       area_weight = .data$crop_area_ha /
         sum(.data$crop_area_ha),

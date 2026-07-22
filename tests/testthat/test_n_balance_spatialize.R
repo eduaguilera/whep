@@ -99,6 +99,20 @@ testthat::test_that("polity_crop resolution splits totals by area share", {
   testthat::expect_equal(rice, 30)
 })
 
+testthat::test_that("polity_crop aborts rather than dropping a total with no crop shares", {
+  shares <- dplyr::mutate(.nbs_crop_shares(), year = 2011L)
+
+  testthat::expect_error(
+    whep::spatialize_country_n_to_crops(
+      country_totals = .nbs_country_totals(),
+      crop_shares = shares,
+      cell_polity = NULL,
+      resolution = "polity_crop"
+    ),
+    "no crop-area shares"
+  )
+})
+
 testthat::test_that("grid resolution conserves mass to the country total", {
   result <- whep::spatialize_country_n_to_crops(
     country_totals = .nbs_country_totals(),
@@ -210,6 +224,22 @@ testthat::test_that("absent crop is spread across cropland cells by area", {
   barley_cell2 <- barley$n_t[barley$lon == 0.75]
   testthat::expect_equal(barley_cell1, 30 * 1200 / 2200)
   testthat::expect_equal(barley_cell2, 30 * 1000 / 2200)
+})
+
+testthat::test_that("grid aborts rather than dropping N when no fallback cropland exists", {
+  zero_cropland <- .nbs_grid_data_unmatched()
+  zero_cropland$type_cropland$type_ha <- 0
+
+  testthat::expect_error(
+    whep::spatialize_country_n_to_crops(
+      country_totals = .nbs_country_totals(),
+      crop_shares = .nbs_crop_shares_unmatched(),
+      cell_polity = .nbs_cell_polity(),
+      resolution = "grid",
+      data = zero_cropland
+    ),
+    "no positive cropland"
+  )
 })
 
 testthat::test_that("grid resolution requires cell_polity", {

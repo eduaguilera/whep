@@ -195,6 +195,27 @@ testthat::test_that("grazing excreta adds a per-ha density to grassland", {
   )
 })
 
+testthat::test_that("grassland area is not polity-scaled twice", {
+  country_grid <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~cell_area_frac,
+    0.25, 0.25, 1L, 0.25,
+    0.25, 0.25, 2L, 0.75
+  )
+  # The grid-level LUH2 result has already split a physical 400-ha grassland
+  # cell into these two polity-compartment areas.
+  land_use <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~year, ~land_use, ~area_ha,
+    0.25, 0.25, 1L, 2000L, "grassland", 100,
+    0.25, 0.25, 2L, 2000L, "grassland", 300
+  )
+
+  area <- whep:::.gn_grass_area(land_use, country_grid) |>
+    dplyr::arrange(.data$area_code)
+
+  testthat::expect_equal(area$grass_area_ha, c(100, 300))
+  testthat::expect_equal(sum(area$grass_area_ha), 400)
+})
+
 testthat::test_that("ISO3 excreta territory resolves to area_code, not NA", {
   # An `applied` stream keyed by ISO3 (not a stringified area_code) must
   # resolve through the canonical territory helper; a bare as.integer() cast
@@ -246,6 +267,15 @@ testthat::test_that("polity output aggregates area-weighted per class", {
     all(c("area_code", "year", "land_use", "c_input_mgc_ha_yr") %in% names(out))
   )
   testthat::expect_setequal(out$land_use, c("grassland", "natural"))
+  grass <- dplyr::filter(out, .data$land_use == "grassland")
+  # Cell densities are 2.25 and 4.5 MgC/ha over 100 and 300 ha. The polity
+  # density must conserve their carbon mass, not take the plain cell mean.
+  expected <- (2.25 * 100 + 4.5 * 300) / 400
+  testthat::expect_equal(grass$c_input_mgc_ha_yr, expected)
+  testthat::expect_false(isTRUE(all.equal(
+    grass$c_input_mgc_ha_yr,
+    mean(c(2.25, 4.5))
+  )))
 })
 
 testthat::test_that("example = TRUE returns the documented schema", {

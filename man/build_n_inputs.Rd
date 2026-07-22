@@ -83,10 +83,10 @@ Spain_Hist's N_balance.R): its source computation was not available for
 this task, so it is never emitted, only reserved in the vocabulary.
 
 Terms that are fundamentally per-cell or per-land-use rather than
-per-crop (\code{"deposition"}, \code{"urban"}, \code{"som_mineralization"}) carry
-\code{item_cbs_code = NA_integer_}, the same "no specific item" sentinel
-already used package-wide for non-crop rows (e.g.
-\code{\link[=redistribute_feed]{redistribute_feed()}}'s grass-border-grazing rows).
+per-crop (\code{"deposition"}, \code{"urban"}, \code{"som_mineralization"}, and
+transported manure whose pooled crop-plus-grass sink does not identify a
+single landing crop) carry \code{item_cbs_code = NA_integer_}, the same "no
+specific item" sentinel already used package-wide for non-crop rows.
 }
 \examples{
 build_n_inputs(example = TRUE)

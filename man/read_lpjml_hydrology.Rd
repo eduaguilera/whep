@@ -37,15 +37,16 @@ soil water content averaged).}
 or \code{"mean"} (soil-water default).}
 
 \item{data}{Optional pre-read tibble (\code{lon}, \code{lat}, \code{year}, \code{month},
-\code{value}, and \code{layer} for \code{"swc"}) used in place of reading NetCDF, for
-testing.}
+\code{value}, plus \code{layer} for \code{"swc"} or \code{band} for
+\code{"cft_nir"}) used in place of reading NetCDF, for testing.}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading remote
 data. Defaults to \code{FALSE}.}
 }
 \value{
 A tibble with columns \code{lon}, \code{lat}, \code{year}, \code{value} (plus \code{month}
-when \code{monthly = TRUE}, and \code{layer} for \code{"swc"}).
+when \code{monthly = TRUE}, \code{layer} for \code{"swc"}, and \code{band} for
+\code{"cft_nir"}).
 }
 \description{
 Reads one monthly LPJmL hydrology output (drainage, evapotranspiration

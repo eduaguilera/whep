@@ -221,14 +221,19 @@ calculate_indirect_n2o_nh3 <- function(x, example = FALSE) {
   if (isTRUE(example)) {
     return(.example_indirect_n2o_nh3())
   }
-  ef_med <- .indirect_nh3_ef_med(x)
+  .n_check_climate(x$climate)
+  med_rows <- which(x$climate == "MED")
+  ef_med <- rep(NA_real_, nrow(x))
+  if (length(med_rows) > 0L) {
+    ef_med[med_rows] <- .indirect_nh3_ef_med(x[med_rows, , drop = FALSE])
+  }
   ef4_atl <- .n_constant("ef4_nh3_to_n2o_atl")
   x |>
     dplyr::mutate(
       n2o_indirect_nh3_n_t = dplyr::if_else(
         .data$climate == "ATL",
         .data$nh3_n_t * ef4_atl,
-        .data$nh3_n_t * ef_med
+        .data$nh3_n_t * .env$ef_med
       )
     )
 }
@@ -253,13 +258,15 @@ calculate_indirect_n2o_nh3 <- function(x, example = FALSE) {
 
 # MANNER dispatch: requires manner_fertiliser plus every driver column its
 # fertiliser path needs, aborting with the exact missing column rather than
-# guessing a mapping or falling back silently.
+# guessing a mapping or falling back silently. Read nh3_n_t directly from the
+# model result: for organic fertilisers it includes the manure-specific
+# inorganic-N fraction and therefore is not simply ef * n_input_t.
 .nh3_manner <- function(x) {
   .nh3_manner_require_columns(x)
-  ef <- purrr::pmap_dbl(x, .nh3_manner_row_ef)
+  nh3_n_t <- purrr::pmap_dbl(x, .nh3_manner_row_nh3)
   x |>
     dplyr::mutate(
-      nh3_n_t = ef * .data$n_input_t,
+      nh3_n_t = .env$nh3_n_t,
       method_nh3 = "manner"
     )
 }
@@ -312,7 +319,7 @@ calculate_indirect_n2o_nh3 <- function(x, example = FALSE) {
 
 # One MANNER call per row; dispatch stays isolated here rather than leaking
 # a row-by-row style into the rest of this file.
-.nh3_manner_row_ef <- function(...) {
+.nh3_manner_row_nh3 <- function(...) {
   row <- list(...)
   synthetic <- c("Urea", "AN", "CAN", "AS")
   drivers <- if (row$manner_fertiliser %in% synthetic) {
@@ -326,7 +333,7 @@ calculate_indirect_n2o_nh3 <- function(x, example = FALSE) {
     n_applied_t = row$n_input_t,
     fertiliser = row$manner_fertiliser,
     drivers = drivers
-  )$ef
+  )$nh3_n_t
 }
 
 # manner_default dispatch: same organic-path driver contract as .nh3_manner
@@ -341,7 +348,7 @@ calculate_indirect_n2o_nh3 <- function(x, example = FALSE) {
   nh3_n_t <- purrr::pmap_dbl(x, .nh3_manner_default_row_nh3)
   x |>
     dplyr::mutate(
-      nh3_n_t = nh3_n_t,
+      nh3_n_t = .env$nh3_n_t,
       method_nh3 = "manner_default"
     )
 }
@@ -408,7 +415,7 @@ calculate_indirect_n2o_nh3 <- function(x, example = FALSE) {
 
 .soil_n2o_ef_mf_aguilera <- function(x) {
   ef <- .soil_n2o_ef_disaggregated(x)
-  .soil_n2o_check_ef(x, ef)
+  .soil_n2o_check_ef(ef)
   mf <- x |>
     dplyr::select("fert_type", "climate") |>
     dplyr::left_join(
@@ -437,20 +444,34 @@ calculate_indirect_n2o_nh3 <- function(x, example = FALSE) {
 # branch never touches an emission factor; ATL rows keep their NA ef here and
 # it is discarded by calculate_indirect_n2o_nh3()'s ATL if_else branch.
 .indirect_nh3_ef_med <- function(x) {
-  .soil_n2o_ef_disaggregated(x)
+  if (!rlang::has_name(x, "irrig_type")) {
+    cli::cli_abort(c(
+      "Mediterranean rows require {.field irrig_type}.",
+      i = paste0(
+        "Atlantic rows use the flat EF4 and do not require this column; ",
+        "Mediterranean rows are keyed by irrig_type and climate."
+      )
+    ))
+  }
+  ef <- .soil_n2o_ef_disaggregated(x)
+  if (anyNA(ef)) {
+    cli::cli_abort(c(
+      "{.field n2o_efs_disaggregated} has no factor for a Mediterranean row.",
+      i = "Check irrig_type/climate against whep::n2o_efs_disaggregated."
+    ))
+  }
+  ef
 }
 
-# The source table's ATL non-Tier_1/Flooded rows carry a real data gap (NA
-# ef), not a value calculate_soil_n2o() should silently propagate.
-.soil_n2o_check_ef <- function(x, ef) {
-  bad <- is.na(ef) & !(x$climate == "MED")
-  if (any(bad)) {
+# Any missing factor in the direct-N2O path is unsupported. The source table's
+# ATL non-Tier_1/Flooded rows deliberately carry NA, while every supported MED
+# irrigation key has a finite factor; neither case may silently propagate NA.
+# The separate indirect-NH3 path still bypasses this lookup entirely for ATL.
+.soil_n2o_check_ef <- function(ef) {
+  if (anyNA(ef)) {
     cli::cli_abort(c(
-      "Unsupported {.field irrig_type} for an Atlantic row.",
-      i = paste0(
-        "n2o_efs_disaggregated has no direct N2O factor for Atlantic ",
-        "irrigation strata other than {.val Tier_1} and {.val Flooded}."
-      )
+      "{.field n2o_efs_disaggregated} has no direct N2O factor for a row.",
+      i = "Check irrig_type/climate against whep::n2o_efs_disaggregated."
     ))
   }
 }
@@ -478,6 +499,7 @@ calculate_indirect_n2o_nh3 <- function(x, example = FALSE) {
 # 0.010/0.005 factors -- the same 0.010 documented as EF1 in
 # build_crop_soil_n2o_extension(), not re-hardcoded here.
 .soil_n2o_ipcc2019 <- function(x) {
+  .n_check_climate(x$climate)
   ef_atl <- .n2o_disaggregated_row("Tier_1", "ATL")
   ef_med <- .n2o_disaggregated_row("Med_average", "MED")
   x |>
@@ -501,9 +523,15 @@ calculate_indirect_n2o_nh3 <- function(x, example = FALSE) {
     dplyr::select("irrig_type", "climate") |>
     dplyr::left_join(whep::n2o_efs_ipcc2006, by = c("irrig_type", "climate")) |>
     dplyr::pull("ef")
+  if (anyNA(ef)) {
+    cli::cli_abort(c(
+      "{.field n2o_efs_ipcc2006} has no direct N2O factor for a row.",
+      i = "Check irrig_type/climate against whep::n2o_efs_ipcc2006."
+    ))
+  }
   x |>
     dplyr::mutate(
-      n2o_direct_n_t = .data$n_input_t * ef,
+      n2o_direct_n_t = .data$n_input_t * .env$ef,
       method_soil_n2o = "ipcc2006"
     )
 }
@@ -547,7 +575,7 @@ calculate_indirect_n2o_nh3 <- function(x, example = FALSE) {
   ef5 <- .n_constant("ef5_no3_to_n2o")
   x |>
     dplyr::mutate(
-      no3_n_t = no3_n_t,
+      no3_n_t = .env$no3_n_t,
       denitrification_n_t = .data$n_surplus_t - .data$no3_n_t,
       n2o_indirect_no3_n_t = .data$no3_n_t * ef5,
       method_leaching = "meisinger_drainage"
@@ -674,6 +702,18 @@ calculate_indirect_n2o_nh3 <- function(x, example = FALSE) {
   whep::n_attenuation_constants |>
     dplyr::filter(.data$constant == name) |>
     dplyr::pull("value")
+}
+
+.n_check_climate <- function(climate) {
+  valid <- c("ATL", "MED")
+  bad <- unique(climate[is.na(climate) | !climate %in% valid])
+  if (length(bad) > 0L) {
+    cli::cli_abort(c(
+      "Unexpected or missing {.field climate} value{?s}: {.val {bad}}.",
+      i = "Expected {.val ATL} or {.val MED}."
+    ))
+  }
+  invisible(NULL)
 }
 
 # ---- Private helpers: examples -------------------------------------------

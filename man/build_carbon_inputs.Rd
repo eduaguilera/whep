@@ -26,7 +26,9 @@ crop and year, with \code{total_c_input_mgc_ha_yr} and \code{humified_fraction})
 \code{crop_area} (per cell, crop and year harvested area with columns \code{lon},
 \code{lat}, \code{area_code}, \code{item_prod_code}, \code{year}, \code{crop_area_ha}, used to
 area-weight the crop densities); \code{grass_natural} (the
-\code{\link[=build_grass_natural_carbon_inputs]{build_grass_natural_carbon_inputs()}} output at the class grain). When
+\code{\link[=build_grass_natural_carbon_inputs]{build_grass_natural_carbon_inputs()}} output at the class grain); and
+optional \code{land_use} (per-cell class \code{area_ha}, used to area-weight
+grassland/natural polity output). When
 \code{cropland} or \code{grass_natural} are absent the respective builder is called
 with the remaining members of \code{data}.}
 

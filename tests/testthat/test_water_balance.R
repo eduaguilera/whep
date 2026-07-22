@@ -145,6 +145,69 @@ testthat::test_that("get_soc_climate_drivers wires CRU temp + prec+irrig-PET", {
   testthat::expect_setequal(unique(drv$area_code), c(11L, 203L))
 })
 
+testthat::test_that("SOC LPJmL readers receive the requested run directory", {
+  data <- .socd_synthetic()
+  lpjml <- data[c("prec", "irrig")]
+  data$prec <- NULL
+  data$irrig <- NULL
+  calls <- list()
+  testthat::local_mocked_bindings(
+    read_lpjml_hydrology = function(
+      var,
+      run_dir = NULL,
+      years = NULL,
+      monthly = FALSE,
+      ...
+    ) {
+      calls[[length(calls) + 1L]] <<- list(
+        var = var,
+        run_dir = run_dir,
+        years = years,
+        monthly = monthly
+      )
+      lpjml[[var]]
+    },
+    .package = "whep"
+  )
+
+  whep::get_soc_climate_drivers(
+    run_dir = "/tmp/intended-lpjml-run",
+    years = 2000L,
+    data = data
+  )
+
+  testthat::expect_setequal(
+    vapply(calls, `[[`, character(1), "var"),
+    c("prec", "irrig")
+  )
+  testthat::expect_true(all(vapply(
+    calls,
+    \(x) identical(x$run_dir, "/tmp/intended-lpjml-run"),
+    logical(1)
+  )))
+  testthat::expect_true(all(vapply(
+    calls,
+    \(x) identical(x$years, 2000L) && isTRUE(x$monthly),
+    logical(1)
+  )))
+})
+
+testthat::test_that("SOC years filter also applies to injected inputs", {
+  data <- .socd_synthetic()
+  time_inputs <- c("temp", "pet", "prec", "irrig", "swc")
+  for (name in time_inputs) {
+    data[[name]] <- dplyr::bind_rows(
+      data[[name]],
+      dplyr::mutate(data[[name]], year = 2001L)
+    )
+  }
+
+  out <- whep::get_soc_climate_drivers(years = 2000L, data = data)
+
+  testthat::expect_setequal(out$year, 2000L)
+  testthat::expect_equal(nrow(out), 24L)
+})
+
 testthat::test_that("SOC drivers feed a plausible HSOC modifier", {
   drv <- whep::get_soc_climate_drivers(data = .socd_synthetic())
   one <- dplyr::filter(drv, area_code == 11L) |> dplyr::arrange(month)
@@ -412,6 +475,28 @@ testthat::test_that("real-path 4-term budget closes within 1% (runoff included)"
   pointblank::expect_col_exists(wb, c("runoff_mm", "drainage_mm"))
 })
 
+testthat::test_that("residual drainage does not read an absent seepage file", {
+  inputs <- .wb_synthetic_monthly()$inputs
+  inputs$seepage <- NULL
+  testthat::local_mocked_bindings(
+    read_lpjml_hydrology = function(...) {
+      stop("no hydrology reader should be called for fully injected inputs")
+    },
+    .package = "whep"
+  )
+
+  wb <- suppressWarnings(whep::build_water_balance(
+    method = list(drainage = "residual"),
+    data = inputs
+  ))
+
+  testthat::expect_true(all(is.finite(wb$drainage_mm)))
+  testthat::expect_true(all(stringr::str_detect(
+    wb$method_water,
+    "drain:residual"
+  )))
+})
+
 testthat::test_that("real-path method_water records the blue_green choice", {
   syn <- .wb_synthetic_monthly()
   wb <- suppressWarnings(
@@ -559,6 +644,15 @@ testthat::test_that("a single NA-weight cell does not poison the polity mean", {
     keep_cell$drainage_mm,
     tolerance = 1e-6
   )
+})
+
+testthat::test_that("zero-area polity weights return NA rather than NaN", {
+  all_zero <- whep:::.wb_weighted_mean(c(1, 2), c(0, 0))
+  one_valid <- whep:::.wb_weighted_mean(c(1, 3), c(0, 2))
+
+  testthat::expect_true(is.na(all_zero))
+  testthat::expect_false(is.nan(all_zero))
+  testthat::expect_equal(one_valid, 3)
 })
 
 # Two cells in one polity with DIFFERENT per-cell flux totals (so

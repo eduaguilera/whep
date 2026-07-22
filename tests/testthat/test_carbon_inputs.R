@@ -60,6 +60,37 @@ test_that("cropland class = area-weighted per-ha C, C-weighted humification", {
   testthat::expect_equal(crop$humified_fraction, expected_hf, tolerance = 1e-9)
 })
 
+test_that("year-varying crop areas weight only their matching input year", {
+  cropland <- tidyr::expand_grid(
+    lon = 0.25,
+    lat = 0.25,
+    area_code = 1L,
+    item_prod_code = c("15", "27"),
+    year = c(2000L, 2001L)
+  ) |>
+    dplyr::mutate(
+      total_c_input_mgc_ha_yr = dplyr::if_else(
+        .data$item_prod_code == "15",
+        1,
+        9
+      ),
+      humified_fraction = 0.2
+    )
+  crop_area <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~item_prod_code, ~year, ~crop_area_ha,
+    0.25, 0.25, 1L, "15", 2000L, 90,
+    0.25, 0.25, 1L, "27", 2000L, 10,
+    0.25, 0.25, 1L, "15", 2001L, 10,
+    0.25, 0.25, 1L, "27", 2001L, 90
+  )
+
+  out <- whep:::.ci_cropland_class(cropland, crop_area) |>
+    dplyr::arrange(.data$year)
+
+  testthat::expect_equal(out$c_input_mgc_ha_yr, c(1.8, 8.2))
+  testthat::expect_equal(out$class_area_ha, c(100, 100))
+})
+
 test_that("output carries every class with the balance c_inputs schema", {
   out <- whep::build_carbon_inputs(resolution = "grid", data = .ci_test_data())
   pointblank::expect_col_exists(
@@ -159,10 +190,16 @@ test_that("polity resolution aggregates cropland conserving carbon mass", {
     0.25, 0.25, 1L, 2000L, "grassland", 4.0, 0.1153467, "lpjml_npp_minus_harvest",
     0.75, 0.25, 1L, 2000L, "grassland", 2.0, 0.1153467, "lpjml_npp_minus_harvest"
   )
+  land_use <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~year, ~land_use, ~area_ha,
+    0.25, 0.25, 1L, 2000L, "grassland", 90,
+    0.75, 0.25, 1L, 2000L, "grassland", 10
+  )
   list(
     cropland = cropland,
     crop_area = crop_area,
-    grass_natural = grass_natural
+    grass_natural = grass_natural,
+    land_use = land_use
   )
 }
 
@@ -190,6 +227,21 @@ test_that("polity cropland density is area-weighted, not a plain mean", {
   # Humification fraction is carbon-mass-weighted (mass = density * area):
   # masses 90 and 40, so (0.20*90 + 0.10*40)/130 = 22/130, not mean 0.15.
   testthat::expect_equal(crop$humified_fraction, 22 / 130, tolerance = 1e-9)
+})
+
+test_that("polity grassland density uses its land-use area", {
+  pol <- whep::build_carbon_inputs(
+    resolution = "polity",
+    data = .ci_two_cell_data()
+  )
+  grass <- dplyr::filter(pol, .data$land_use == "grassland")
+
+  testthat::expect_equal(
+    grass$c_input_mgc_ha_yr,
+    (4 * 90 + 2 * 10) / 100,
+    tolerance = 1e-9
+  )
+  testthat::expect_false(isTRUE(all.equal(grass$c_input_mgc_ha_yr, 3)))
 })
 
 test_that("example = TRUE returns the documented schema", {

@@ -114,6 +114,17 @@ testthat::test_that("read_lpjml_npp years filter keeps only requested years", {
   testthat::expect_true(all(g$value == 301))
 })
 
+testthat::test_that("read_lpjml_npp keeps its schema for an absent year", {
+  cube <- .lpjml_npp_fixture_cube()
+  out <- whep::read_lpjml_npp("npp", run_dir = cube$dir, years = 1800L)
+
+  testthat::expect_equal(nrow(out), 0L)
+  testthat::expect_identical(
+    names(out),
+    c("lon", "lat", "year", "npft", "name_pft", "value")
+  )
+})
+
 testthat::test_that("read_lpjml_npp example returns the documented schema", {
   out <- whep::read_lpjml_npp(example = TRUE)
   pointblank::expect_col_exists(

@@ -108,6 +108,33 @@ test_that("init weights per-class equilibria by land-use fractions", {
   testthat::expect_equal(unique(init$stock_mgc_ha), expected, tolerance = 1e-9)
 })
 
+test_that("each cell initialises at its own earliest available year", {
+  classes <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~year, ~land_use, ~soc_eq_mgc_ha, ~frac,
+    0.25, 0.25, 1L, 2000L, "cropland", 40, 0.6,
+    0.25, 0.25, 1L, 2000L, "natural", 70, 0.4,
+    0.75, 0.25, 2L, 2001L, "cropland", 20, 0.25,
+    0.75, 0.25, 2L, 2001L, "natural", 60, 0.75
+  )
+
+  init <- whep:::.cb_initialise(
+    classes,
+    model = "hsoc",
+    d = list(equilibrium_climate = NULL)
+  ) |>
+    dplyr::arrange(.data$area_code, .data$land_use)
+
+  testthat::expect_setequal(init$area_code, c(1L, 2L))
+  testthat::expect_equal(
+    unique(init$stock_mgc_ha[init$area_code == 1L]),
+    40 * 0.6 + 70 * 0.4
+  )
+  testthat::expect_equal(
+    unique(init$stock_mgc_ha[init$area_code == 2L]),
+    20 * 0.25 + 60 * 0.75
+  )
+})
+
 test_that("a land-use class with no carbon input survives as zero-carbon area", {
   # ASK-1 resolution: a class present in land_use but absent from c_inputs
   # (e.g. LUH2 urban) must be kept as a zero-carbon class that DILUTES the

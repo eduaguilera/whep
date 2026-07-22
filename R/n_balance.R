@@ -91,8 +91,9 @@
 #'     documentation, e.g. `"Synthetic"`, `"Solid"`, `"Excreta_other"`; see
 #'     the file-level "fert_type vocabulary bridge" note for the exact
 #'     mapping from [build_n_inputs()]'s lowercase values). A second set of
-#'     balance-key-only driver columns (`irrig_cat`, `tillage`, `som_share`,
-#'     `cn_input`, `land_use`) for [calculate_n_leaching()] is read from
+#'     balance-key-only driver columns (`fert_type`, `climate`, `irrig_cat`,
+#'     `tillage`, `som_share`, `cn_input`, `land_use`) for
+#'     [calculate_n_leaching()] is read from
 #'     `n_balance_leaching_drivers`, which must hold at most one row per
 #'     balance key (a many-to-one join aborts on duplicate keys rather than
 #'     fanning the rows out and misaligning `drainage_mm`). Missing required
@@ -159,10 +160,23 @@ build_nitrogen_balance <- function(
 # ---- Private helpers: method validation ----------------------------------
 
 .nb_methods <- function(methods) {
+  valid_names <- c("nh3", "n2o", "leaching")
+  unknown <- setdiff(names(methods), valid_names)
+  if (length(unknown) > 0L) {
+    cli::cli_abort(
+      "Unknown {.arg methods} name{?s}: {.val {unknown}}. Use {.val {valid_names}}."
+    )
+  }
+  nh3 <- methods$nh3 %||% "manner"
+  n2o <- methods$n2o %||% "ipcc2019"
+  leaching <- methods$leaching %||% "meisinger_drainage"
   list(
-    nh3 = methods$nh3 %||% "manner",
-    n2o = methods$n2o %||% "ipcc2019",
-    leaching = methods$leaching %||% "meisinger_drainage"
+    nh3 = rlang::arg_match(nh3, c("manner", "ipcc", "manner_default")),
+    n2o = rlang::arg_match(n2o, c("ipcc2019", "aguilera", "ipcc2006")),
+    leaching = rlang::arg_match(
+      leaching,
+      c("meisinger_drainage", "ipcc_fracleach")
+    )
   )
 }
 
@@ -273,9 +287,7 @@ build_nitrogen_balance <- function(
       prod_n_t = sum(.data$product_n_t, na.rm = TRUE),
       .by = dplyr::all_of(key)
     )
-  x |>
-    dplyr::left_join(prod, by = key) |>
-    dplyr::mutate(prod_n_t = tidyr::replace_na(.data$prod_n_t, 0))
+  .nb_merge_output_term(x, prod, key)
 }
 
 # used_residue_n_t / burnt_residue_n_t: calculate_residue_destinies() splits
@@ -309,12 +321,7 @@ build_nitrogen_balance <- function(
       ),
       .by = dplyr::all_of(key)
     )
-  x |>
-    dplyr::left_join(destiny, by = key) |>
-    dplyr::mutate(
-      used_residue_n_t = tidyr::replace_na(.data$used_residue_n_t, 0),
-      burnt_residue_n_t = tidyr::replace_na(.data$burnt_residue_n_t, 0)
-    )
+  .nb_merge_output_term(x, destiny, key)
 }
 
 # grazed_weeds_n_t: real grazed-forage intake from data$livestock_intake
@@ -418,6 +425,16 @@ build_nitrogen_balance <- function(
 # matching fertiliser_n2o_modifiers's coverage.
 .nb_losses <- function(x, n_inputs, key, m, data) {
   rows <- .nb_loss_rows(n_inputs, key, data)
+  if (nrow(rows) == 0L) {
+    return(dplyr::mutate(
+      x,
+      nh3_n_t = 0,
+      n2o_direct_n_t = 0,
+      n2o_indirect_nh3_n_t = 0,
+      method_nh3 = m$nh3,
+      method_soil_n2o = m$n2o
+    ))
+  }
   no_volat <- c("Recycling", "SOM")
   with_nh3 <- dplyr::bind_rows(
     rows |>
@@ -476,7 +493,12 @@ build_nitrogen_balance <- function(
   if (is.null(data$n_balance_drivers)) {
     return(rows)
   }
-  dplyr::left_join(rows, data$n_balance_drivers, by = c(key, "fert_type"))
+  dplyr::left_join(
+    rows,
+    data$n_balance_drivers,
+    by = c(key, "fert_type"),
+    relationship = "many-to-one"
+  )
 }
 
 # ---- Step 3b/c: balance closure, SOM cap, NUE ------------------------------
@@ -514,7 +536,7 @@ build_nitrogen_balance <- function(
     dplyr::mutate(
       n_balance_t = .data$n_input_full_t - .data$n_output_full_t,
       surplus_t = pmax(0, .data$n_balance_t),
-      surplus_share = .data$surplus_t / .data$n_input_full_t
+      surplus_share = .nb_ratio(.data$surplus_t, .data$n_input_full_t)
     )
 }
 
@@ -586,12 +608,21 @@ build_nitrogen_balance <- function(
 .nb_nue <- function(x) {
   dplyr::mutate(
     x,
-    nue_std = .data$prod_n_t / .data$n_input_std_t,
-    nue_residues = .data$n_output_residues_t / .data$n_input_std_t,
-    nue_som = .data$n_output_som_t / .data$n_input_full_t,
-    nue_useful = .data$n_output_useful_t / .data$n_input_full_t,
-    nue_full = .data$n_output_full_t / .data$n_input_som_t
+    nue_std = .nb_ratio(.data$prod_n_t, .data$n_input_std_t),
+    nue_residues = .nb_ratio(
+      .data$n_output_residues_t,
+      .data$n_input_std_t
+    ),
+    nue_som = .nb_ratio(.data$n_output_som_t, .data$n_input_full_t),
+    nue_useful = .nb_ratio(.data$n_output_useful_t, .data$n_input_full_t),
+    nue_full = .nb_ratio(.data$n_output_full_t, .data$n_input_som_t)
   )
+}
+
+# A nutrient-use ratio is undefined when its input denominator is zero. Return
+# NA rather than leaking NaN/Inf from output-only balance rows.
+.nb_ratio <- function(numerator, denominator) {
+  dplyr::if_else(denominator > 0, numerator / denominator, NA_real_)
 }
 
 # GWP/CO2e indicator: reuses .ghg_gwp_factors() (livestock_ghg_extension.R)

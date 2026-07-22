@@ -37,6 +37,16 @@ test_that("soc_rate_modifier_rothc cover and deficit lower the modifier", {
   testthat::expect_lt(dry, bare)
 })
 
+test_that("soc_rate_modifier_rothc is zero below its temperature domain", {
+  out <- whep::soc_rate_modifier_rothc(
+    temp_c = c(-30, -18.27),
+    water_minus_pet_mm = c(20, 20),
+    clay_pct = 20,
+    soil_cover = 0
+  )
+  testthat::expect_equal(out, rep(0, length(out)))
+})
+
 test_that("soc_rate_modifier_icbm re_temp equals 1 at 30 C", {
   # Normalization property (reclim 30-degree anchor): with theta in the plateau
   # and temp at 30 C, re = re_wat * re_temp / 0.1056855 reduces to re_temp = 1
@@ -101,4 +111,14 @@ test_that("soc_rate_modifier_century moisture rises with precip", {
     pet_mm = 50
   )
   testthat::expect_gt(wet, dry)
+})
+
+test_that("soc_rate_modifier_century is finite above its maximum temperature", {
+  out <- whep::soc_rate_modifier_century(
+    temp_c = c(45, 46, 60),
+    precip_mm = c(50, 50, 50),
+    pet_mm = c(50, 50, 50)
+  )
+  testthat::expect_true(all(is.finite(out)))
+  testthat::expect_equal(out, rep(0, length(out)))
 })

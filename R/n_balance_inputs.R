@@ -11,11 +11,10 @@
 # spatialize.R).
 #
 # item_cbs_code sentinel convention: terms that are fundamentally per-cell
-# or per-land-use, not per-crop (deposition, urban, SOM mineralization), use
-# NA_integer_, the SAME "no specific item" sentinel already used package-wide
-# for non-crop rows (see item_cbs_code = NA_integer_ in
-# R/feed_intake_redistribute.R and R/redistribute_feed.R), rather than
-# inventing a new magic code.
+# or per-land-use, not per-crop (deposition, urban, SOM mineralization, and
+# transported manure whose pooled crop-plus-grass sink cannot identify a
+# single landing crop), use NA_integer_, the SAME "no specific item" sentinel
+# already used package-wide for non-crop rows, rather than a magic code.
 #
 # accum_loss (perennial-crop standing-biomass N accumulation/decumulation,
 # from Spain_Hist's N_balance.R) is a DOCUMENTED GAP: its source computation
@@ -42,10 +41,10 @@
 #' this task, so it is never emitted, only reserved in the vocabulary.
 #'
 #' Terms that are fundamentally per-cell or per-land-use rather than
-#' per-crop (`"deposition"`, `"urban"`, `"som_mineralization"`) carry
-#' `item_cbs_code = NA_integer_`, the same "no specific item" sentinel
-#' already used package-wide for non-crop rows (e.g.
-#' [redistribute_feed()]'s grass-border-grazing rows).
+#' per-crop (`"deposition"`, `"urban"`, `"som_mineralization"`, and
+#' transported manure whose pooled crop-plus-grass sink does not identify a
+#' single landing crop) carry `item_cbs_code = NA_integer_`, the same "no
+#' specific item" sentinel already used package-wide for non-crop rows.
 #'
 #' @param years Optional integer vector of calendar years to keep. `NULL`
 #'   keeps every year the assembled inputs cover.
@@ -285,7 +284,9 @@ build_n_inputs <- function(
       item_cbs_code = .ni_manure_item_cbs(.data$crop, .data$land_use),
       fert_type = .ni_manure_fert_type(.data$manure_type)
     ) |>
-    dplyr::filter(.data$land_use %in% c("Cropland", "Grassland")) |>
+    dplyr::filter(
+      .data$land_use %in% c("Cropland", "Grassland", "transported")
+    ) |>
     dplyr::summarise(
       n_input_t = sum(.data$applied_n, na.rm = TRUE),
       .by = c(
@@ -342,17 +343,19 @@ build_n_inputs <- function(
 }
 
 # Grassland's crop is always NA in the manure engine's grain (grazing/
-# grassland-spilled manure is not attributed to any single crop): map it to
-# item_cbs_code 3000L, the grass sentinel used package-wide. A real crop
-# name (Cropland rows) resolves via the same item_prod-name crosswalk as
-# .ni_item_cbs_from_prod(), matched case-insensitively since the manure
-# engine's `crop` values are free-form lowercase strings (e.g. "barley")
-# while whep::items_prod_full$item_prod is title-case ("Barley").
+# grassland-spilled manure is not attributed to any single crop): map those
+# rows to item_cbs_code 3000L, the grass sentinel used package-wide. Some
+# Cropland rows also deliberately have crop = NA (for example an
+# over_apply_local residual), and successful transport landings are pooled
+# across crop and grass capacity with no crop. These rows retain the ordinary
+# NA_integer_ no-specific-item sentinel. A real Cropland crop name resolves
+# via the item_prod crosswalk.
 .ni_manure_item_cbs <- function(crop, land_use) {
-  dplyr::if_else(
-    land_use == "Grassland" | is.na(crop),
-    3000L,
-    .ni_crop_name_to_item_cbs(crop)
+  resolved <- .ni_crop_name_to_item_cbs(crop)
+  dplyr::case_when(
+    land_use == "Grassland" ~ 3000L,
+    land_use == "Cropland" & is.na(crop) ~ NA_integer_,
+    .default = resolved
   )
 }
 
@@ -363,8 +366,8 @@ build_n_inputs <- function(
 # rather than emit an NA item_cbs_code indistinguishable from the deliberately
 # non-crop-specific deposition/urban/SOM rows, mirroring
 # .manure_territory_to_area_code()'s treatment of unresolvable territories. An
-# NA crop (grassland rows) never reaches this abort: it is routed to the grass
-# sentinel by .ni_manure_item_cbs() and its NA lookup here is discarded.
+# NA crop never reaches this abort: .ni_manure_item_cbs() assigns either the
+# grass code or the no-specific-item sentinel from land_use.
 .ni_crop_name_to_item_cbs <- function(crop) {
   lookup <- whep::items_prod_full |>
     dplyr::transmute(
@@ -441,10 +444,10 @@ build_n_inputs <- function(
       lon = .data$lon,
       lat = .data$lat,
       # build_urban_n() stringifies area_code internally (its manure-
-      # transport reuse needs a character territory key); cast back to
-      # integer here so it matches every other source's area_code type
-      # (the cell_polity crosswalk's own, e.g. the FAOSTAT Area Code).
-      area_code = .as_integer_quiet(.data$area_code),
+      # transport reuse needs a character territory key). Resolve either its
+      # normal numeric-string code or an ISO3 fixture/input through the same
+      # checked resolver as the manure path; never turn an ISO3 into silent NA.
+      area_code = .manure_territory_to_area_code(.data$area_code),
       item_cbs_code = NA_integer_,
       year = .data$year,
       fert_type = "urban",

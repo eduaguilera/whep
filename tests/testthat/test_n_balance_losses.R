@@ -67,6 +67,51 @@ testthat::test_that("calculate_nh3(method = \"manner\") matches calculate_manner
   testthat::expect_equal(out$method_nh3, "manner")
 })
 
+testthat::test_that("calculate_nh3 preserves MANNER's organic inorganic-N scaling", {
+  x <- tibble::tribble(
+    ~n_input_t,
+    ~fert_type,
+    ~manner_fertiliser,
+    ~rainfall_mm,
+    ~irrigated,
+    ~windspeed_ms,
+    ~technique,
+    ~system,
+    ~temp_c,
+    ~incorporation_delay_h,
+    ~species,
+    10,
+    "Liquid",
+    "cattle_slurry",
+    40,
+    FALSE,
+    3,
+    "Broadcast",
+    "Arable",
+    15,
+    Inf,
+    "Cattle"
+  )
+  out <- whep::calculate_nh3(x, method = "manner")
+  direct <- whep::calculate_manner_nh3(
+    n_applied_t = 10,
+    fertiliser = "cattle_slurry",
+    drivers = list(
+      rainfall_mm = 40,
+      irrigated = FALSE,
+      windspeed_ms = 3,
+      technique = "Broadcast",
+      system = "Arable",
+      temp_c = 15,
+      incorporation_delay_h = Inf,
+      species = "Cattle"
+    )
+  )
+
+  testthat::expect_equal(out$nh3_n_t, direct$nh3_n_t, tolerance = 1e-9)
+  testthat::expect_false(isTRUE(all.equal(out$nh3_n_t, direct$ef * 10)))
+})
+
 testthat::test_that("calculate_nh3(method = \"manner_default\") aborts when a driver column is missing", {
   x <- tibble::tribble(
     ~n_input_t, ~fert_type, ~manner_fertiliser,
@@ -96,6 +141,9 @@ testthat::test_that("calculate_nh3(method = \"manner_default\") dispatches witho
     15,
     "Cattle"
   )
+  # A transform must overwrite a pre-existing result column, not let dplyr's
+  # data mask shadow the newly computed local vector.
+  x$nh3_n_t <- -999
   testthat::expect_false(rlang::has_name(x, "technique"))
   testthat::expect_false(rlang::has_name(x, "incorporation_delay_h"))
 
@@ -163,6 +211,19 @@ testthat::test_that("calculate_soil_n2o(method = \"aguilera\") aborts on unsuppo
   testthat::expect_error(whep::calculate_soil_n2o(x, method = "aguilera"))
 })
 
+testthat::test_that(
+  "calculate_soil_n2o aguilera aborts on unsupported MED irrig_type",
+  {
+    # Every supported Mediterranean irrigation key has a finite EF. An
+    # unmatched key must not disappear in a downstream na.rm sum.
+    x <- tibble::tribble(
+      ~n_input_t, ~fert_type, ~climate, ~irrig_type,
+      10, "Solid", "MED", "not_a_real_irrigation_type"
+    )
+    testthat::expect_error(whep::calculate_soil_n2o(x, method = "aguilera"))
+  }
+)
+
 testthat::test_that("calculate_soil_n2o(method = \"aguilera\") aborts on a missing fertiliser modifier", {
   # A fert_type with no fertiliser_n2o_modifiers row (BNF) yields NA mf; the
   # aguilera path must abort rather than multiply ef by NA and let a
@@ -215,6 +276,11 @@ testthat::test_that("calculate_soil_n2o(method = \"ipcc2019\") uses the climate-
   testthat::expect_equal(out$n2o_direct_n_t[3] / 10, 0.010)
 })
 
+testthat::test_that("calculate_soil_n2o(method = \"ipcc2019\") rejects an unknown climate", {
+  x <- tibble::tibble(n_input_t = 10, climate = "MDE")
+  testthat::expect_error(whep::calculate_soil_n2o(x), "climate")
+})
+
 testthat::test_that("calculate_soil_n2o(method = \"ipcc2006\") distinguishes flooded from rainfed MED", {
   x <- tibble::tribble(
     ~n_input_t, ~climate, ~irrig_type,
@@ -226,6 +292,14 @@ testthat::test_that("calculate_soil_n2o(method = \"ipcc2006\") distinguishes flo
   testthat::expect_equal(out$n2o_direct_n_t[1], 10 * 0.003)
   testthat::expect_equal(out$n2o_direct_n_t[2], 10 * 0.010)
   testthat::expect_true(all(out$method_soil_n2o == "ipcc2006"))
+})
+
+testthat::test_that("calculate_soil_n2o(method = \"ipcc2006\") aborts on an unsupported lookup", {
+  x <- tibble::tribble(
+    ~n_input_t, ~climate, ~irrig_type,
+    10, "MED", "not_a_real_irrigation_type"
+  )
+  testthat::expect_error(whep::calculate_soil_n2o(x, method = "ipcc2006"))
 })
 
 testthat::test_that("calculate_soil_n2o example fixture is schema-complete", {
@@ -271,6 +345,9 @@ testthat::test_that("calculate_n_leaching(method = \"meisinger_drainage\") match
     "No_tillage",
     0.06
   )
+  # Guard against a stale input result shadowing the newly computed local
+  # no3_n_t vector inside mutate().
+  x$no3_n_t <- -999
   out <- whep::calculate_n_leaching(
     x,
     drainage_mm = 600,
@@ -502,12 +579,11 @@ testthat::test_that("calculate_indirect_n2o_nh3 applies EF4 for Atlantic rows", 
 })
 
 testthat::test_that("calculate_indirect_n2o_nh3 applies EF4 for Atlantic rows without touching the EF lookup", {
-  # The ATL branch is a flat nh3 * 0.016 that needs no emission factor, so a
-  # non-Tier_1/Flooded ATL irrig_type (Drip/Sprinkler/Rainfed/Traditional,
-  # which carry NA in n2o_efs_disaggregated) must NOT abort.
+  # The ATL branch is a flat nh3 * 0.016 that needs no emission factor or
+  # irrig_type column at all.
   x <- tibble::tribble(
-    ~nh3_n_t, ~climate, ~fert_type, ~irrig_type,
-    1, "ATL", "Solid", "Drip"
+    ~nh3_n_t, ~climate, ~fert_type,
+    1, "ATL", "Solid"
   )
   out <- whep::calculate_indirect_n2o_nh3(x)
 
@@ -530,6 +606,19 @@ testthat::test_that("calculate_indirect_n2o_nh3 uses the disaggregated ef (no mf
     1 * 0.0051,
     tolerance = 1e-9
   )
+})
+
+testthat::test_that("calculate_indirect_n2o_nh3 aborts on an unsupported MED irrig_type", {
+  x <- tibble::tribble(
+    ~nh3_n_t, ~climate, ~irrig_type,
+    1, "MED", "not_a_real_irrigation_type"
+  )
+  testthat::expect_error(whep::calculate_indirect_n2o_nh3(x))
+})
+
+testthat::test_that("calculate_indirect_n2o_nh3 rejects an unknown climate", {
+  x <- tibble::tibble(nh3_n_t = 1, climate = "MDE")
+  testthat::expect_error(whep::calculate_indirect_n2o_nh3(x), "climate")
 })
 
 testthat::test_that("calculate_indirect_n2o_nh3 example fixture is schema-complete", {

@@ -387,8 +387,11 @@ build_carbon_balance <- function(
 # so the initial stock reflects the equilibrium climate while the forward march
 # uses the year-specific modifier already carried in `soc_eq_mgc_ha`.
 .cb_initialise <- function(classes, model, d) {
-  first_year <- min(classes$year)
-  first <- dplyr::filter(classes, .data$year == first_year)
+  first <- dplyr::filter(
+    classes,
+    .data$year == min(.data$year),
+    .by = c("lon", "lat", "area_code")
+  )
   first <- .cb_apply_equilibrium_climate(first, model, d)
   .cb_init_density(first)
 }

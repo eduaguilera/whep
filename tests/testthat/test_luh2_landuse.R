@@ -135,6 +135,37 @@ test_that("area_ha equals fraction times cell_area_ha", {
   testthat::expect_equal(chk$area_ha, chk$expected, tolerance = 1e-6)
 })
 
+test_that("build_cell_polity-shaped fractions split LUH2 border cells", {
+  states <- tibble::tibble(
+    lon = 0.25,
+    lat = 40.25,
+    year = 2000L,
+    land_use = "c3ann",
+    fraction = 1
+  )
+  # build_cell_polity() calls this column polity_frac; it has the same
+  # physical-cell compartment meaning as cell_area_frac.
+  cell_polity <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~polity_frac, ~cell_area_ha,
+    0.25, 40.25, 1L, 0.25, 100,
+    0.25, 40.25, 2L, 0.75, 100
+  )
+
+  out <- whep::read_luh2_landuse(
+    resolution = "grid",
+    data = list(states = states, country_grid = cell_polity)
+  ) |>
+    dplyr::arrange(.data$area_code)
+  physical_area <- whep:::.luh2_cell_area_ha(40.25)
+
+  testthat::expect_equal(
+    out$area_ha,
+    physical_area * c(0.25, 0.75),
+    tolerance = 1e-6
+  )
+  testthat::expect_equal(sum(out$area_ha), physical_area, tolerance = 1e-6)
+})
+
 test_that("1750 is retrievable when the source covers it", {
   raw <- .luh2_raw_fixture()
   out <- whep::read_luh2_landuse(
@@ -169,6 +200,25 @@ test_that(".luh2_nc_years defaults to calendar years 850..end, not indices", {
   testthat::expect_equal(yrs[length(yrs)], 2015L)
   testthat::expect_equal(length(yrs), 1166L)
   testthat::expect_false(any(yrs < 850L))
+})
+
+test_that("an unset LUH2 directory cannot select a current-directory file", {
+  temp_dir <- withr::local_tempdir()
+  withr::local_dir(temp_dir)
+  file.create("states.nc")
+  testthat::local_mocked_bindings(
+    .luh2_states_dir = function() "",
+    .luh2_read_states_nc = function(...) {
+      stop("current-directory states.nc must not be read")
+    },
+    .luh2_read_states = function(years = NULL) {
+      tibble::tibble(source = "pin", year = years)
+    },
+    .package = "whep"
+  )
+
+  out <- whep:::.luh2_read_states_source(years = 1750L)
+  testthat::expect_equal(out$source, "pin")
 })
 
 test_that("real pin smoke test (skipped when unreadable)", {

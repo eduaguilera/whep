@@ -81,6 +81,63 @@ testthat::test_that("build_urban_n spills surplus to a neighbouring cell with cr
   testthat::expect_true(sink_row$urban_n_t > 0)
 })
 
+testthat::test_that("build_urban_n splits a border cell by polity_frac", {
+  urban_population <- tibble::tribble(
+    ~lon, ~lat, ~year, ~urban_pop,
+    -0.25, -0.25, 2000L, 1000
+  )
+  cell_polity <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~polity_frac,
+    -0.25, -0.25, "ESP", 0.7,
+    -0.25, -0.25, "FRA", 0.3
+  )
+  cropland_ha <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~year, ~cropland_ha,
+    -0.25, -0.25, "ESP", 2000L, 1000,
+    -0.25, -0.25, "FRA", 2000L, 1000
+  )
+  out <- whep::build_urban_n(
+    data = list(
+      urban_population = urban_population,
+      cell_polity = cell_polity,
+      cropland_ha = cropland_ha
+    )
+  )
+
+  generated_n_t <- 1000 * 0.9410902351391244 / 1000
+  testthat::expect_equal(sum(out$urban_n_t), generated_n_t, tolerance = 1e-9)
+  testthat::expect_equal(
+    out$urban_n_t[match(c("ESP", "FRA"), out$area_code)],
+    generated_n_t * c(0.7, 0.3),
+    tolerance = 1e-9
+  )
+})
+
+testthat::test_that("build_urban_n filters preloaded inputs by years", {
+  urban_population <- tibble::tribble(
+    ~lon, ~lat, ~year, ~urban_pop,
+    -0.25, -0.25, 2000L, 100,
+    -0.25, -0.25, 2001L, 100
+  )
+  cropland_ha <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~year, ~cropland_ha,
+    -0.25, -0.25, "ESP", 2000L, 1000,
+    -0.25, -0.25, "ESP", 2001L, 1000
+  )
+
+  out <- whep::build_urban_n(
+    years = 2001L,
+    data = list(
+      urban_population = urban_population,
+      cell_polity = .example_cell_polity_urban(),
+      cropland_ha = cropland_ha
+    )
+  )
+
+  testthat::expect_equal(out$year, 2001L)
+  testthat::expect_equal(nrow(out), 1L)
+})
+
 testthat::test_that("build_urban_n interpolates the per-capita rate between benchmark years", {
   # 2004 is midway between the real HYDE-derived 2000 (0.9410902) and 2008
   # (1.2422579) benchmark rates in urban_kgn_cap_reference (polity_frac

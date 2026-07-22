@@ -393,6 +393,109 @@ testthat::test_that("surplus_t is never negative", {
   testthat::expect_true(all(out$surplus_t >= 0))
 })
 
+testthat::test_that("output-only production keys are preserved", {
+  key <- c("lon", "lat", "area_code", "item_cbs_code", "year")
+  inputs <- tibble::tibble(
+    lon = 0.25,
+    lat = 50.25,
+    area_code = 10L,
+    item_cbs_code = 2511L,
+    year = 2010L,
+    n_input_full_t = 1
+  )
+  npp <- tibble::tibble(
+    lon = 0.25,
+    lat = 50.25,
+    area_code = 10L,
+    item_cbs_code = 2513L,
+    year = 2010L,
+    product_n_t = 2
+  )
+
+  out <- whep:::.nb_add_prod_n(inputs, list(.npp_cache = npp), key)
+
+  testthat::expect_setequal(out$item_cbs_code, c(2511L, 2513L))
+  testthat::expect_equal(out$prod_n_t[out$item_cbs_code == 2513L], 2)
+  testthat::expect_equal(out$n_input_full_t[out$item_cbs_code == 2513L], 0)
+})
+
+testthat::test_that("output-only residue-destiny keys are preserved", {
+  key <- c("lon", "lat", "area_code", "item_cbs_code", "year")
+  inputs <- tibble::tibble(
+    lon = 0.25,
+    lat = 50.25,
+    area_code = 10L,
+    item_cbs_code = 2807L,
+    year = 2010L,
+    n_input_full_t = 1
+  )
+  data <- list(residue_destiny_input = .nb_residue_destiny_input())
+
+  out <- whep:::.nb_add_residue_destiny(inputs, data, key)
+
+  testthat::expect_setequal(out$item_cbs_code, c(2511L, 2807L))
+  testthat::expect_equal(out$n_input_full_t[out$item_cbs_code == 2511L], 0)
+  testthat::expect_false(anyNA(
+    out$used_residue_n_t[out$item_cbs_code == 2511L]
+  ))
+})
+
+testthat::test_that("duplicate loss-driver keys abort instead of duplicating emissions", {
+  key <- c("lon", "lat", "area_code", "item_cbs_code", "year")
+  n_inputs <- tibble::tibble(
+    lon = 0.25,
+    lat = 50.25,
+    area_code = 10L,
+    item_cbs_code = 2511L,
+    year = 2010L,
+    fert_type = "synthetic",
+    n_input_t = 10
+  )
+  drivers <- tibble::tibble(
+    lon = c(0.25, 0.25),
+    lat = c(50.25, 50.25),
+    area_code = c(10L, 10L),
+    item_cbs_code = c(2511L, 2511L),
+    year = c(2010L, 2010L),
+    fert_type = c("Synthetic", "Synthetic"),
+    climate = c("MED", "MED")
+  )
+
+  testthat::expect_error(
+    whep:::.nb_loss_rows(n_inputs, key, list(n_balance_drivers = drivers))
+  )
+})
+
+testthat::test_that("a balance with no loss-relevant inputs gets zero losses", {
+  key <- c("lon", "lat", "area_code", "item_cbs_code", "year")
+  balance <- tibble::tibble(
+    lon = 0.25,
+    lat = 50.25,
+    area_code = 10L,
+    item_cbs_code = 2511L,
+    year = 2010L
+  )
+  n_inputs <- dplyr::mutate(balance, fert_type = "bnf", n_input_t = 10)
+  methods <- list(
+    nh3 = "manner",
+    n2o = "ipcc2019",
+    leaching = "meisinger_drainage"
+  )
+
+  out <- whep:::.nb_losses(balance, n_inputs, key, methods, list())
+
+  testthat::expect_equal(out$nh3_n_t, 0)
+  testthat::expect_equal(out$n2o_direct_n_t, 0)
+  testthat::expect_equal(out$n2o_indirect_nh3_n_t, 0)
+})
+
+testthat::test_that("loss methods are validated even when no loss rows exist", {
+  testthat::expect_error(whep:::.nb_methods(list(nh3 = "not_a_method")))
+  testthat::expect_error(whep:::.nb_methods(list(n2o = "not_a_method")))
+  testthat::expect_error(whep:::.nb_methods(list(leaching = "not_a_method")))
+  testthat::expect_error(whep:::.nb_methods(list(nh_3 = "ipcc")))
+})
+
 testthat::test_that("example fixture is schema-complete", {
   out <- whep::build_nitrogen_balance(example = TRUE)
   pointblank::expect_col_exists(
@@ -513,6 +616,28 @@ testthat::test_that("NUE denominators are not accidentally collapsed", {
   testthat::expect_equal(out$nue_full, 70 / 80)
   testthat::expect_false(isTRUE(all.equal(out$nue_som, 45 / 80)))
   testthat::expect_false(isTRUE(all.equal(out$nue_full, 70 / 90)))
+})
+
+testthat::test_that("zero-input balance rows have undefined, not infinite, ratios", {
+  balance <- tibble::tibble(
+    n_input_full_t = 0,
+    n_output_full_t = 2
+  ) |>
+    whep:::.nb_balance()
+  nue <- tibble::tibble(
+    n_input_std_t = 0,
+    n_input_full_t = 0,
+    n_input_som_t = 0,
+    prod_n_t = 2,
+    n_output_residues_t = 2,
+    n_output_som_t = 2,
+    n_output_useful_t = 2,
+    n_output_full_t = 2
+  ) |>
+    whep:::.nb_nue()
+
+  testthat::expect_true(is.na(balance$surplus_share))
+  testthat::expect_true(all(is.na(dplyr::select(nue, dplyr::starts_with("nue_")))))
 })
 
 testthat::test_that("method_nh3/method_soil_n2o/method_leaching are stamped", {

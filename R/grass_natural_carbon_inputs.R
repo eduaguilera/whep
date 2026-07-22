@@ -44,9 +44,9 @@
 #'   [read_lpjml_npp()] output); `stand_frac` (per cell, year and PFT name the
 #'   managed-grassland stand fractions with columns `lon`, `lat`, `year`,
 #'   `name_pft`, `stand_frac`); `country_grid` (`lon`, `lat`, `area_code`,
-#'   `cell_area_frac`); `land_use` (per cell grassland `area_ha`, used to spread
-#'   excreta); `excreta` (the `applied` tibble of
-#'   [build_livestock_nutrient_flows()], grassland rows carry `applied_c`
+#'   `cell_area_frac`); `land_use` (per-cell class `area_ha`, used to spread
+#'   excreta and to area-weight polity output); `excreta` (the `applied` tibble
+#'   of [build_livestock_nutrient_flows()], grassland rows carry `applied_c`
 #'   tonnes C); `residue_humification` (defaults to [residue_humification]).
 #' @param example If `TRUE`, return a small fixture instead of reading remote
 #'   data. Defaults to `FALSE`.
@@ -72,7 +72,7 @@ build_grass_natural_carbon_inputs <- function(
   natural <- .gn_natural_input(d)
   grassland <- .gn_grassland_input(d)
   dplyr::bind_rows(natural, grassland) |>
-    .gn_finalise(resolution)
+    .gn_finalise(resolution, d$land_use)
 }
 
 # -- Input resolution ---------------------------------------------------------
@@ -241,16 +241,18 @@ build_grass_natural_carbon_inputs <- function(
     )
 }
 
-# Total grassland area (ha) per polity-year from the land-use layer, scaled by
-# each cell's polity fraction.
+# Total grassland area (ha) per polity-year from the land-use layer. The
+# read_luh2_landuse() grid contract has already scaled area_ha by the cell's
+# polity fraction, so the country-grid join only validates the compartment and
+# must not apply that fraction a second time.
 .gn_grass_area <- function(land_use, country_grid) {
   cg <- .normalize_country_grid(country_grid) |>
-    dplyr::select("lon", "lat", "area_code", "cell_area_frac")
+    dplyr::select("lon", "lat", "area_code")
   land_use |>
     dplyr::filter(stringr::str_to_lower(.data$land_use) == "grassland") |>
     dplyr::inner_join(cg, by = c("lon", "lat", "area_code")) |>
     dplyr::summarise(
-      grass_area_ha = sum(.data$area_ha * .data$cell_area_frac),
+      grass_area_ha = sum(.data$area_ha),
       .by = c("area_code", "year")
     )
 }
@@ -291,15 +293,33 @@ build_grass_natural_carbon_inputs <- function(
 
 # Grid output keeps the per-cell per-class rows; polity output aggregates to
 # (area_code, year, land_use) area-weighting the per-hectare densities by the
-# class area so total carbon mass is conserved. Without an area weight per cell
-# here, the per-hectare density is a plain mean across the polity's cells.
-.gn_finalise <- function(x, resolution) {
+# matching land-use area so total carbon mass is conserved. A class absent from
+# the supplied land-use layer retains the historical plain-mean fallback.
+.gn_finalise <- function(x, resolution, land_use) {
   if (resolution == "grid") {
     return(tibble::as_tibble(x))
   }
-  x |>
+  class_area <- land_use |>
+    dplyr::mutate(
+      lon = round(.data$lon, 2),
+      lat = round(.data$lat, 2),
+      land_use = stringr::str_to_lower(.data$land_use)
+    ) |>
     dplyr::summarise(
-      c_input_mgc_ha_yr = mean(.data$c_input_mgc_ha_yr),
+      class_area_ha = sum(.data$area_ha),
+      .by = c("lon", "lat", "area_code", "year", "land_use")
+    )
+  x |>
+    dplyr::left_join(
+      class_area,
+      by = c("lon", "lat", "area_code", "year", "land_use")
+    ) |>
+    dplyr::mutate(class_area_ha = dplyr::coalesce(.data$class_area_ha, 0)) |>
+    dplyr::summarise(
+      c_input_mgc_ha_yr = .gn_wmean(
+        .data$c_input_mgc_ha_yr,
+        .data$class_area_ha
+      ),
       humified_fraction = .data$humified_fraction[1],
       method_c_input = .data$method_c_input[1],
       .by = c("area_code", "year", "land_use")

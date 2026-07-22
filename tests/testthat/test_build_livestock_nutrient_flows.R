@@ -282,6 +282,39 @@ test_that("subnational transport reattaches a sensible manure_type split, not a 
   expect_equal(bal[["out"]], bal[["excreted"]], tolerance = 1e-6)
 })
 
+test_that("transport room includes grass-only as well as crop-only cells", {
+  local <- tibble::tibble(
+    year = integer(),
+    territory = character(),
+    sub_territory = character(),
+    source_stream = character(),
+    land_use = character(),
+    applied_n = double()
+  )
+  gridded <- list(
+    crops = tibble::tibble(
+      year = 2020L,
+      territory = "ESP",
+      sub_territory = "1_40",
+      crop = "barley",
+      manure_n_receptivity = 1,
+      crop_n_cap = 100
+    ),
+    grass = tibble::tibble(
+      year = 2020L,
+      territory = "ESP",
+      sub_territory = "1.5_40",
+      grass_n_cap = 50
+    )
+  )
+
+  out <- whep:::.cell_room(local, gridded, list())
+
+  expect_setequal(out$sub_territory, c("1_40", "1.5_40"))
+  expect_equal(out$room_n[out$sub_territory == "1_40"], 120)
+  expect_equal(out$room_n[out$sub_territory == "1.5_40"], 60)
+})
+
 test_that("build_livestock_nutrient_flows guards bad resolution and methods stage", {
   expect_error(
     whep::build_livestock_nutrient_flows(

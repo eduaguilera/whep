@@ -85,6 +85,8 @@ build_n_deposition <- function(years = NULL, data = list(), example = FALSE) {
   }
   nhx <- data$nhx %||% read_n_deposition("nhx", years = years)
   noy <- data$noy %||% read_n_deposition("noy", years = years)
+  nhx <- .nd_filter_years(nhx, years)
+  noy <- .nd_filter_years(noy, years)
   polity <- .wb_require_input(
     data$cell_polity,
     "cell_polity",
@@ -94,6 +96,13 @@ build_n_deposition <- function(years = NULL, data = list(), example = FALSE) {
 }
 
 # ---- Private helpers --------------------------------------------------
+
+.nd_filter_years <- function(x, years) {
+  if (is.null(years)) {
+    return(x)
+  }
+  dplyr::filter(x, .data$year %in% years)
+}
 
 # Resolve the HaNi data directory from the argument, else the env var.
 .resolve_hani_dir <- function(hani_dir) {
@@ -127,6 +136,14 @@ build_n_deposition <- function(years = NULL, data = list(), example = FALSE) {
     seq_len(n_time)
   } else {
     which(available_years %in% years)
+  }
+  if (length(time_idx) == 0L) {
+    return(tibble::tibble(
+      lon = double(),
+      lat = double(),
+      year = integer(),
+      value_g = double()
+    ))
   }
   layers <- lapply(time_idx, function(ti) {
     .read_hani_year(nc, netcdf_var, lon, lat, ti, available_years[ti])

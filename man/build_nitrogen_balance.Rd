@@ -48,8 +48,9 @@ columns \code{\link[=calculate_nh3]{calculate_nh3()}}/\code{\link[=calculate_soi
 documentation, e.g. \code{"Synthetic"}, \code{"Solid"}, \code{"Excreta_other"}; see
 the file-level "fert_type vocabulary bridge" note for the exact
 mapping from \code{\link[=build_n_inputs]{build_n_inputs()}}'s lowercase values). A second set of
-balance-key-only driver columns (\code{irrig_cat}, \code{tillage}, \code{som_share},
-\code{cn_input}, \code{land_use}) for \code{\link[=calculate_n_leaching]{calculate_n_leaching()}} is read from
+balance-key-only driver columns (\code{fert_type}, \code{climate}, \code{irrig_cat},
+\code{tillage}, \code{som_share}, \code{cn_input}, \code{land_use}) for
+\code{\link[=calculate_n_leaching]{calculate_n_leaching()}} is read from
 \code{n_balance_leaching_drivers}, which must hold at most one row per
 balance key (a many-to-one join aborts on duplicate keys rather than
 fanning the rows out and misaligning \code{drainage_mm}). Missing required

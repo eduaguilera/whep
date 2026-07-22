@@ -44,11 +44,12 @@
 #' @param data Optional named list of pre-loaded inputs: `urban_population`
 #'   (`lon`, `lat`, `year`, `urban_pop`, falling back to
 #'   [read_hyde_population()] when absent), `cell_polity` (`lon`, `lat`,
-#'   `area_code`, required) and `cropland_ha` (`lon`, `lat`, `area_code`,
-#'   `year`, `cropland_ha`, required: the gridded cropland area used as the
-#'   simple room proxy, `cropland_ha * 0.170` t N/ha, the same EU-Nitrates
-#'   fixed ceiling used by [allocate_manure_to_land()]'s `fixed_ceiling_kg_ha`
-#'   default).
+#'   `area_code`, plus optional `polity_frac`; a missing `polity_frac` is
+#'   treated as 1 for backwards compatibility) and `cropland_ha` (`lon`,
+#'   `lat`, `area_code`, `year`, `cropland_ha`, required: the gridded cropland
+#'   area used as the simple room proxy, `cropland_ha * 0.170` t N/ha, the same
+#'   EU-Nitrates fixed ceiling used by [allocate_manure_to_land()]'s
+#'   `fixed_ceiling_kg_ha` default).
 #' @param example If `TRUE`, return a small fixture instead of reading data.
 #'   Defaults to `FALSE`.
 #' @return A tibble with `lon`, `lat`, `area_code`, `year`, `urban_n_t` and
@@ -61,12 +62,14 @@ build_urban_n <- function(years = NULL, data = list(), example = FALSE) {
     return(.example_urban_n())
   }
   urban_pop <- data$urban_population %||% read_hyde_population(years = years)
+  urban_pop <- .urban_filter_years(urban_pop, years)
   polity <- .wb_require_input(data$cell_polity, "cell_polity", "area_code")
   cropland <- .wb_require_input(
     data$cropland_ha,
     "cropland_ha",
     c("area_code", "year", "cropland_ha")
-  )
+  ) |>
+    .urban_filter_years(years)
   generated <- .urban_n_generated(urban_pop, polity)
   source_cells <- .urban_source_cells(generated)
   sink_cells <- .urban_sink_cells(cropland)
@@ -76,15 +79,27 @@ build_urban_n <- function(years = NULL, data = list(), example = FALSE) {
 
 # ---- Private helpers --------------------------------------------------
 
-# Urban N generated per cell-year: urban_pop * urban_kgn_cap(year) / 1000,
-# joined to the polity crosswalk for area_code / territory.
+.urban_filter_years <- function(x, years) {
+  if (is.null(years)) {
+    return(x)
+  }
+  dplyr::filter(x, .data$year %in% years)
+}
+
+# Urban N generated per cell-polity-year: the cell load is split by
+# polity_frac after joining the polity crosswalk. Simple one-polity crosswalks
+# may omit polity_frac and retain the historical implicit value of 1.
 .urban_n_generated <- function(urban_pop, polity) {
   rate <- .urban_kgn_cap_series(unique(urban_pop$year))
+  if (!rlang::has_name(polity, "polity_frac")) {
+    polity <- dplyr::mutate(polity, polity_frac = 1)
+  }
   urban_pop |>
     dplyr::inner_join(rate, by = "year") |>
     dplyr::inner_join(polity, by = c("lon", "lat")) |>
     dplyr::mutate(
-      urban_n_generated_t = .data$urban_pop * .data$urban_kgn_cap / 1000
+      urban_n_generated_t = .data$urban_pop * .data$urban_kgn_cap *
+        .data$polity_frac / 1000
     )
 }
 

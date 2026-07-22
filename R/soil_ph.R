@@ -326,6 +326,10 @@ read_soil_hydraulic <- function(
 ) {
   missing <- country_grid |>
     dplyr::select("lon", "lat") |>
+    # Border cells occur once per overlapping polity in the country grid, but
+    # soil properties are cell-level. Fill each coordinate once or the three
+    # hydraulic-property joins multiply duplicate rows cartesianly.
+    dplyr::distinct() |>
     dplyr::anti_join(soil_grid, by = c("lon", "lat"))
   if (nrow(missing) == 0) {
     return(soil_grid)

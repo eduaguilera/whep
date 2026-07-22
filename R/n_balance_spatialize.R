@@ -191,8 +191,30 @@ spatialize_country_n_to_crops <- function(
 
 # Polity-total N (one fert_type) x crop-area-share -> polity x crop N.
 .n_polity_crop_totals <- function(country_totals, crop_shares) {
+  missing_support <- country_totals |>
+    dplyr::anti_join(
+      dplyr::distinct(crop_shares, .data$year, .data$area_code),
+      by = c("year", "area_code")
+    )
+  if (nrow(missing_support) > 0L) {
+    cli::cli_abort(c(
+      paste0(
+        "Cannot allocate {nrow(missing_support)} polity N total{?s}: ",
+        "no crop-area shares are available."
+      ),
+      i = paste0(
+        "Affected year/area_code pairs: ",
+        "{unique(paste(missing_support$year, ",
+        "missing_support$area_code, sep = '/'))}."
+      )
+    ))
+  }
   crop_shares |>
-    dplyr::inner_join(country_totals, by = c("year", "area_code")) |>
+    dplyr::inner_join(
+      country_totals,
+      by = c("year", "area_code"),
+      relationship = "many-to-one"
+    ) |>
     dplyr::transmute(
       year,
       area_code,
@@ -257,6 +279,24 @@ spatialize_country_n_to_crops <- function(
     )
   if (nrow(unmatched) == 0L) {
     return(.n_empty_grid())
+  }
+  missing_support <- unmatched |>
+    dplyr::anti_join(
+      dplyr::distinct(cropland_weights, .data$year, .data$area_code),
+      by = c("year", "area_code")
+    )
+  if (nrow(missing_support) > 0L) {
+    cli::cli_abort(c(
+      paste0(
+        "Cannot spatialize {nrow(missing_support)} polity-crop total{?s}: ",
+        "no positive cropland cells are available."
+      ),
+      i = paste0(
+        "Affected year/area_code pairs: ",
+        "{unique(paste(missing_support$year, ",
+        "missing_support$area_code, sep = '/'))}."
+      )
+    ))
   }
   .n_warn_unmatched(unmatched)
   unmatched |>

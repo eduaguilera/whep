@@ -149,6 +149,28 @@ testthat::test_that(".gapfill_soil skips cells already present", {
   testthat::expect_equal(nrow(result), 1L)
 })
 
+testthat::test_that(".gapfill_soil fills a border coordinate only once", {
+  soil_grid <- tibble::tribble(
+    ~lon, ~lat, ~soil_ph,
+    -0.25, -0.25, 6.0
+  )
+  # The missing coordinate occurs twice because two polities overlap it.
+  country_grid <- tibble::tribble(
+    ~lon, ~lat, ~area_code,
+    -0.25, -0.25, 1L,
+    0.25, -0.25, 1L,
+    0.25, -0.25, 2L
+  )
+
+  result <- whep:::.gapfill_soil(soil_grid, country_grid)
+
+  testthat::expect_equal(nrow(result), 2L)
+  testthat::expect_equal(
+    sum(result$lon == 0.25 & result$lat == -0.25),
+    1L
+  )
+})
+
 testthat::test_that(".gapfill_soil uses the caller's fallback, not pH 7.0", {
   soil_grid <- tibble::tribble(
     ~lon, ~lat, ~soil_ph,

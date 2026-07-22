@@ -341,3 +341,13 @@ test_that("allocate_manure_to_land without a manure_type column keeps its old ag
   expect_true(rlang::has_name(res, "manure_type"))
   expect_true(all(res$manure_type == "Excreta"))
 })
+
+test_that("a present but missing manure_type aborts instead of duplicating mass", {
+  applied <- .toy_applied_multitype()
+  applied$manure_type[1] <- NA_character_
+
+  expect_error(
+    whep::allocate_manure_to_land(applied, .toy_gridded()),
+    "manure_type"
+  )
+})

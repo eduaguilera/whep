@@ -87,7 +87,7 @@ build_water_balance <- function(
   if (isTRUE(example)) {
     return(.wb_example(method, resolution))
   }
-  .wb_read_inputs(data) |>
+  .wb_read_inputs(data, method) |>
     .wb_compute_terms(method) |>
     .wb_blue_green(method) |>
     .wb_attach_polity(data) |>
@@ -170,7 +170,7 @@ get_soc_climate_drivers <- function(
     return(.example_soc_climate_drivers())
   }
   swc <- .wb_swc_topsoil(data, run_dir, years)
-  monthly <- .socd_monthly_climate(data, years)
+  monthly <- .socd_monthly_climate(data, run_dir, years)
   clay <- .wb_require_input(data$clay, "clay", c("clay_pct"))
   polity <- .wb_require_input(data$cell_polity, "cell_polity", c("area_code"))
   hydraulic <- .socd_soil_hydraulic(data)
@@ -201,7 +201,7 @@ get_soc_climate_drivers <- function(
 # it and join on the cell-year key into one wide tibble. The seepage term uses
 # the reader's logical "drainage" var (mseepage.nc) but the data override key is
 # `seepage`. The soil-water-change term is appended from the layered swc.
-.wb_read_inputs <- function(data) {
+.wb_read_inputs <- function(data, method) {
   # name -> reader logical var; data overrides use the name (e.g. data$seepage).
   flux_vars <- c(
     transp = "transp",
@@ -212,6 +212,9 @@ get_soc_climate_drivers <- function(
     runoff = "runoff",
     seepage = "drainage"
   )
+  if (method$drainage == "residual") {
+    flux_vars <- flux_vars[names(flux_vars) != "seepage"]
+  }
   parts <- purrr::imap(flux_vars, function(reader_var, name) {
     raw <- data[[name]] %||% read_lpjml_hydrology(reader_var, monthly = FALSE)
     .wb_annual_flux(raw, name)
@@ -248,12 +251,10 @@ get_soc_climate_drivers <- function(
 
 # Join one per-CFT band input summed to cell-year as `out_col`, or add an all-NA
 # column when the input is absent.
-# TODO(cft_nir): wire the per-CFT mcft_nir.nc reader so `data$cft_nir` is not
-# required. mcft_nir.nc carries a CFT band dimension; read_lpjml_hydrology()
-# currently decodes a 4-D array's third dim as a soil `layer`, so the per-CFT
-# band needs a dedicated reader (or a band-summing path) before cft_nir can be
-# read automatically. Until then cft_nir_mm is NA unless `data$cft_nir` is
-# supplied as a cell-year (or per-band) `lon`,`lat`,`year`,`value` tibble.
+# TODO(cft_nir): optionally wire read_lpjml_hydrology("cft_nir") here once
+# build_water_balance() has a run-directory/year contract. Until then
+# cft_nir_mm is NA unless `data$cft_nir` is supplied as a cell-year (or
+# per-band) `lon`,`lat`,`year`,`value` tibble.
 .wb_join_cell_band <- function(wide, raw, out_col) {
   summed <- .wb_cell_consump(raw, out_col)
   if (is.null(summed)) {
@@ -523,16 +524,16 @@ get_soc_climate_drivers <- function(
     )
 }
 
-# Area-weighted mean that returns NA (never NaN) when no valid entry remains, so
-# an all-NA column (e.g. the pet_mm placeholder) aggregates to NA, not NaN. A
-# single NA weight (e.g. a border cell with NA cell_area_ha or polity_frac) is
-# dropped rather than poisoning the whole polity total via sum(weight) = NA;
-# weighted.mean's na.rm filters only on col, never on weight.
+# Area-weighted mean that returns NA (never NaN) when no valid positive-weight
+# entry remains, so an all-NA column (e.g. the pet_mm placeholder) or an
+# all-zero-area polity aggregates to NA, not NaN. Invalid weights (e.g. a
+# border cell with NA cell_area_ha) are dropped rather than poisoning the whole
+# polity total; weighted.mean's na.rm filters only on col, never on weight.
 .wb_weighted_mean <- function(col, weight) {
-  keep <- !is.na(weight)
+  keep <- is.finite(weight) & weight > 0
   col <- col[keep]
   weight <- weight[keep]
-  if (all(is.na(col))) {
+  if (length(col) == 0L || all(is.na(col))) {
     return(NA_real_)
   }
   stats::weighted.mean(col, weight, na.rm = TRUE)
@@ -589,6 +590,7 @@ get_soc_climate_drivers <- function(
       years = years,
       monthly = TRUE
     )
+  swc <- .filter_years_if_present(tibble::as_tibble(swc), years)
   top <- if (rlang::has_name(swc, "layer")) {
     dplyr::filter(swc, layer == min(layer))
   } else {
@@ -615,11 +617,11 @@ get_soc_climate_drivers <- function(
 # decomposition modifiers consume: precip_mm and pet_mm (monthly, for Century)
 # and water_balance_mm (the annual sum of water_minus_pet_mm, for AMG). Each
 # source falls back to its reader when not injected.
-.socd_monthly_climate <- function(data, years) {
+.socd_monthly_climate <- function(data, run_dir, years) {
   temp <- .socd_read(data$temp, "tmp", years)
   pet <- .socd_read(data$pet, "pet", years)
-  prec <- .socd_lpjml(data$prec, "prec", years)
-  irrig <- .socd_lpjml(data$irrig, "irrig", years)
+  prec <- .socd_lpjml(data$prec, "prec", run_dir, years)
+  irrig <- .socd_lpjml(data$irrig, "irrig", run_dir, years)
   temp |>
     dplyr::rename(temp_c = value) |>
     dplyr::inner_join(
@@ -672,14 +674,20 @@ get_soc_climate_drivers <- function(
 .socd_read <- function(input, var, years) {
   raw <- input %||% read_cru_climate(var, years = years)
   .check_columns(raw, c("lon", "lat", "year", "month", "value"), var)
-  tibble::as_tibble(raw)
+  .filter_years_if_present(tibble::as_tibble(raw), years)
 }
 
 # Read an LPJmL monthly hydrology flux from the injected tibble or the reader.
-.socd_lpjml <- function(input, var, years) {
-  raw <- input %||% read_lpjml_hydrology(var, years = years, monthly = TRUE)
+.socd_lpjml <- function(input, var, run_dir, years) {
+  raw <- input %||%
+    read_lpjml_hydrology(
+      var,
+      run_dir = run_dir,
+      years = years,
+      monthly = TRUE
+    )
   .check_columns(raw, c("lon", "lat", "year", "month", "value"), var)
-  tibble::as_tibble(raw)
+  .filter_years_if_present(tibble::as_tibble(raw), years)
 }
 
 # Days in a calendar month, vectorised, honouring leap years.

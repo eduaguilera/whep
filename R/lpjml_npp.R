@@ -88,6 +88,16 @@ read_lpjml_npp <- function(
   on.exit(ncdf4::nc_close(nc))
   names_pft <- .lpjml_npp_names(nc)
   keep <- .lpjml_npp_keep_years(nc, first_year, years)
+  if (length(keep) == 0L) {
+    return(tibble::tibble(
+      lon = double(),
+      lat = double(),
+      year = integer(),
+      npft = integer(),
+      name_pft = character(),
+      value = double()
+    ))
+  }
   parts <- purrr::map(keep, function(ti) {
     .lpjml_npp_slice(nc, spec$netcdf_var, names_pft, first_year, ti)
   })

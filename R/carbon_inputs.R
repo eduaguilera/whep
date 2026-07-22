@@ -30,7 +30,9 @@
 #'   `crop_area` (per cell, crop and year harvested area with columns `lon`,
 #'   `lat`, `area_code`, `item_prod_code`, `year`, `crop_area_ha`, used to
 #'   area-weight the crop densities); `grass_natural` (the
-#'   [build_grass_natural_carbon_inputs()] output at the class grain). When
+#'   [build_grass_natural_carbon_inputs()] output at the class grain); and
+#'   optional `land_use` (per-cell class `area_ha`, used to area-weight
+#'   grassland/natural polity output). When
 #'   `cropland` or `grass_natural` are absent the respective builder is called
 #'   with the remaining members of `data`.
 #' @param example If `TRUE`, return a small fixture instead of reading remote
@@ -57,7 +59,7 @@ build_carbon_inputs <- function(
   d <- .ci_resolve_inputs(data)
   cropland <- .ci_cropland_class(d$cropland, d$crop_area)
   dplyr::bind_rows(cropland, d$grass_natural) |>
-    .ci_finalise(resolution)
+    .ci_finalise(resolution, data$land_use)
 }
 
 # -- Input resolution ---------------------------------------------------------
@@ -80,10 +82,14 @@ build_carbon_inputs <- function(
 # `class_area_ha` (the cell's total cropland area) is carried so the downstream
 # polity aggregation can area-weight the per-hectare density and conserve mass.
 .ci_cropland_class <- function(cropland, crop_area) {
+  join_keys <- c("lon", "lat", "area_code", "item_prod_code")
+  if (rlang::has_name(crop_area, "year")) {
+    join_keys <- c(join_keys, "year")
+  }
   cropland |>
     dplyr::inner_join(
       crop_area,
-      by = c("lon", "lat", "area_code", "item_prod_code")
+      by = join_keys
     ) |>
     dplyr::mutate(
       c_mass = .data$total_c_input_mgc_ha_yr * .data$crop_area_ha
@@ -110,13 +116,16 @@ build_carbon_inputs <- function(
 # cell's class area (`class_area_ha`) so the polity density times the polity
 # class area equals the summed grid-level carbon mass; the humification fraction
 # is carbon-mass-weighted (mass = density x class area) so humified carbon is
-# likewise conserved. Classes without a per-cell class area (grassland, natural,
-# whose densities pass through from build_grass_natural_carbon_inputs) fall back
-# to a plain mean via .ci_wmean's zero-weight guard.
-.ci_finalise <- function(x, resolution) {
+# likewise conserved. Grassland/natural class areas are attached from
+# `land_use` when supplied; a class with no available area retains the plain
+# mean fallback via .ci_wmean's zero-weight guard.
+.ci_finalise <- function(x, resolution, land_use = NULL) {
   drop_cols <- c("class_area_ha")
   if (resolution == "grid") {
     return(tibble::as_tibble(dplyr::select(x, -dplyr::any_of(drop_cols))))
+  }
+  if (!is.null(land_use)) {
+    x <- .ci_attach_land_use_area(x, land_use)
   }
   x |>
     dplyr::mutate(
@@ -130,6 +139,34 @@ build_carbon_inputs <- function(
       .by = c("area_code", "year", "land_use")
     ) |>
     tibble::as_tibble()
+}
+
+# Supply class-area weights for grassland/natural rows from the same LUH2 layer
+# consumed by the carbon balance. Cropland retains its harvested-area weight;
+# unmatched classes retain the existing zero-weight/plain-mean fallback.
+.ci_attach_land_use_area <- function(x, land_use) {
+  areas <- land_use |>
+    dplyr::mutate(
+      lon = round(.data$lon, 2),
+      lat = round(.data$lat, 2),
+      land_use = stringr::str_to_lower(.data$land_use)
+    ) |>
+    dplyr::summarise(
+      land_area_ha = sum(.data$area_ha),
+      .by = c("lon", "lat", "area_code", "year", "land_use")
+    )
+  x |>
+    dplyr::left_join(
+      areas,
+      by = c("lon", "lat", "area_code", "year", "land_use")
+    ) |>
+    dplyr::mutate(
+      class_area_ha = dplyr::coalesce(
+        .data$class_area_ha,
+        .data$land_area_ha
+      )
+    ) |>
+    dplyr::select(-"land_area_ha")
 }
 
 .ci_wmean <- function(value, weight) {

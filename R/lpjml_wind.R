@@ -83,6 +83,15 @@ read_lpjml_wind <- function(years = NULL, wind_dir = NULL, example = FALSE) {
     origin = "1970-01-01"
   )
   time_idx <- .wind_time_index(time_dates, years)
+  if (length(time_idx) == 0L) {
+    return(tibble::tibble(
+      lon = double(),
+      lat = double(),
+      year = integer(),
+      month = integer(),
+      windspeed_ms = double()
+    ))
+  }
   fill_value <- ncdf4::ncatt_get(nc, "wind", "_FillValue")$value
   layers <- lapply(time_idx, function(ti) {
     .read_wind_month(nc, lon, lat, time_dates[ti], ti, fill_value)

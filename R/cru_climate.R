@@ -100,6 +100,15 @@ read_cru_climate <- function(
   lat <- ncdf4::ncvar_get(nc, "lat")
   stamps <- .cru_time_stamps(nc)
   keep <- .cru_keep_indices(stamps$year, years)
+  if (length(keep) == 0L) {
+    return(tibble::tibble(
+      lon = double(),
+      lat = double(),
+      year = integer(),
+      month = integer(),
+      value = double()
+    ))
+  }
   parts <- purrr::map(keep, function(ti) {
     .cru_slice_to_long(nc, var, lon, lat, ti, stamps$year[ti], stamps$month[ti])
   })

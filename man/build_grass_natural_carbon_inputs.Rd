@@ -23,8 +23,8 @@ when absent: \code{npp} and \code{harvestc} (per cell, PFT and year, the
 \code{\link[=read_lpjml_npp]{read_lpjml_npp()}} output); \code{stand_frac} (per cell, year and PFT name the
 managed-grassland stand fractions with columns \code{lon}, \code{lat}, \code{year},
 \code{name_pft}, \code{stand_frac}); \code{country_grid} (\code{lon}, \code{lat}, \code{area_code},
-\code{cell_area_frac}); \code{land_use} (per cell grassland \code{area_ha}, used to spread
-excreta); \code{excreta} (the \code{applied} tibble of
+\code{cell_area_frac}); \code{land_use} (per-cell class \code{area_ha}, used to spread
+excreta and to area-weight polity output); \code{excreta} (the \code{applied} tibble of
 \code{\link[=build_livestock_nutrient_flows]{build_livestock_nutrient_flows()}}, grassland rows carry \code{applied_c}
 tonnes C); \code{residue_humification} (defaults to \link{residue_humification}).}
 

@@ -43,12 +43,13 @@
 #' @param agg Annual aggregation for `monthly = FALSE`, `"sum"` (flux default)
 #'   or `"mean"` (soil-water default).
 #' @param data Optional pre-read tibble (`lon`, `lat`, `year`, `month`,
-#'   `value`, and `layer` for `"swc"`) used in place of reading NetCDF, for
-#'   testing.
+#'   `value`, plus `layer` for `"swc"` or `band` for `"cft_nir"`) used in
+#'   place of reading NetCDF, for testing.
 #' @param example If `TRUE`, return a small fixture instead of reading remote
 #'   data. Defaults to `FALSE`.
 #' @return A tibble with columns `lon`, `lat`, `year`, `value` (plus `month`
-#'   when `monthly = TRUE`, and `layer` for `"swc"`).
+#'   when `monthly = TRUE`, `layer` for `"swc"`, and `band` for
+#'   `"cft_nir"`).
 #' @export
 #' @examples
 #' read_lpjml_hydrology(example = TRUE)
@@ -82,6 +83,7 @@ read_lpjml_hydrology <- function(
   agg <- if (var == "swc" && missing(agg)) "mean" else rlang::arg_match(agg)
   long <- data %||%
     .read_hydro_cube(var, .resolve_run_dir(run_dir), first_year, years)
+  long <- .hydro_name_band(long, var)
   long <- .filter_years_if_present(long, years)
   if (monthly) long else .aggregate_hydro_annual(long, var, agg)
 }
@@ -245,14 +247,31 @@ read_lpjml_hydrology <- function(
   }
 }
 
-# Aggregate the 12 monthly values of each year per cell (and layer for swc):
-# flux variables sum, soil water content means.
-.aggregate_hydro_annual <- function(long, var, agg) {
-  group_cols <- if (rlang::has_name(long, "layer")) {
-    c("lon", "lat", "year", "layer")
-  } else {
-    c("lon", "lat", "year")
+# The generic 4-D decoder calls the third dimension `layer`, which is correct
+# for SWC but not for the per-CFT cft_nir cube. Give that dimension its public
+# `band` name before returning or aggregating; injected data already using
+# `band` passes through unchanged.
+.hydro_name_band <- function(long, var) {
+  if (
+    var == "cft_nir" &&
+      rlang::has_name(long, "layer") &&
+      !rlang::has_name(long, "band")
+  ) {
+    return(dplyr::rename(long, band = "layer"))
   }
+  long
+}
+
+# Aggregate the 12 monthly values of each year per cell and third-dimension
+# member (`layer` for SWC, `band` for cft_nir): flux variables sum, soil water
+# content means.
+.aggregate_hydro_annual <- function(long, var, agg) {
+  group_cols <- c(
+    "lon",
+    "lat",
+    "year",
+    intersect(c("layer", "band"), names(long))
+  )
   reducer <- if (agg == "mean") base::mean else base::sum
   dplyr::summarise(
     long,

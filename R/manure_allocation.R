@@ -173,6 +173,16 @@ allocate_manure_to_land <- function(
   if (!rlang::has_name(applied, "manure_type")) {
     applied <- dplyr::mutate(applied, manure_type = "Excreta")
   }
+  valid <- c("Excreta", "Solid", "Liquid")
+  bad <- unique(applied$manure_type[
+    is.na(applied$manure_type) | !applied$manure_type %in% valid
+  ])
+  if (length(bad) > 0L) {
+    cli::cli_abort(c(
+      "Unexpected or missing {.field manure_type} value{?s}: {.val {bad}}.",
+      i = "Expected one of {.val Excreta}, {.val Solid} or {.val Liquid}."
+    ))
+  }
   applied |>
     dplyr::summarise(
       type_n = sum(.data$applied_n),

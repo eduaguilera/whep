@@ -136,6 +136,28 @@ testthat::test_that("calculate_manner_nh3 clamps the AE climate factor to [0.6, 
   testthat::expect_equal(out$ef, expected_ef, tolerance = 1e-6)
 })
 
+testthat::test_that("calculate_manner_nh3 rejects an unknown land system", {
+  drivers <- list(
+    rainfall_mm = 0,
+    irrigated = FALSE,
+    windspeed_ms = 3,
+    technique = "Broadcast",
+    system = "Arabale",
+    temp_c = 15,
+    incorporation_delay_h = Inf,
+    species = "Cattle"
+  )
+
+  testthat::expect_error(
+    whep::calculate_manner_nh3(
+      n_applied_t = 1,
+      fertiliser = "cattle_slurry",
+      drivers = drivers
+    ),
+    "system"
+  )
+})
+
 testthat::test_that("incorporation delay beyond the largest bin clamps, not zero rows", {
   drivers <- list(
     rainfall_mm = 0,

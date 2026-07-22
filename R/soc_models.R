@@ -395,7 +395,14 @@ calculate_soc_century <- function(
   y_0 <- y_frac * soc0
   o_0 <- max(soc0 - y_0, 0)
   t <- seq(0, years)
-  y_t <- y_ss + (y_0 - y_ss) * exp(-k_y * t)
+  # At zero decomposition the usual steady-state form divides by zero. The
+  # young-pool ODE then reduces exactly to dY/dt = input, so incoming carbon
+  # accumulates linearly instead of disappearing from the trajectory.
+  y_t <- if (k_y > 0) {
+    y_ss + (y_0 - y_ss) * exp(-k_y * t)
+  } else {
+    y_0 + input * t
+  }
   o_t <- .icbm_old_series(t, o_ss, o_0, y_ss, y_0, k_y, k_o, h)
   tibble::tibble(year = t, y = y_t, o = o_t, soc_total = y_t + o_t)
 }
@@ -408,7 +415,7 @@ calculate_soc_century <- function(
     )
   }
   a <- h * k_y * (y_0 - y_ss) / (k_o - k_y)
-  o_ss + (o_0 - o_ss + a) * exp(-k_o * t) - a * exp(-k_y * t)
+  o_ss + (o_0 - o_ss - a) * exp(-k_o * t) + a * exp(-k_y * t)
 }
 
 # -- AMG helpers --------------------------------------------------------------
@@ -435,7 +442,14 @@ calculate_soc_century <- function(
   ca_ss <- if (params$k > 0) params$h * inputs$input / params$k else 0
   init <- .amg_init(inputs$soc0, ca_ss, params$f_iom, params$init_mode)
   t <- seq(0, inputs$years)
-  ca_t <- ca_ss + (init$ca0 - ca_ss) * exp(-params$k * t)
+  # With no decomposition the active-pool ODE is dCa/dt = h * input. Its
+  # zero-rate limit is linear accumulation, not the constant stock produced by
+  # substituting k = 0 into the steady-state expression.
+  ca_t <- if (params$k > 0) {
+    ca_ss + (init$ca0 - ca_ss) * exp(-params$k * t)
+  } else {
+    init$ca0 + params$h * inputs$input * t
+  }
   tibble::tibble(
     year = t,
     ca = ca_t,

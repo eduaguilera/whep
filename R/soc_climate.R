@@ -42,7 +42,14 @@ soc_rate_modifier_rothc <- function(
   soil_cover,
   soil_depth_m = 0.3
 ) {
-  a <- pmax(47.91 / (1 + exp(106.06 / (temp_c + 18.27))), 0)
+  # The RothC response is undefined at -18.27 C and only applies above that
+  # lower bound. Evaluating the expression below the vertical asymptote wraps
+  # it back to values near 47.91 instead of zero decomposition.
+  a <- ifelse(
+    temp_c <= -18.27,
+    0,
+    47.91 / (1 + exp(106.06 / (temp_c + 18.27)))
+  )
   max_tsmd <- soil_depth_m *
     100 *
     (-(20 + 1.3 * clay_pct - 0.01 * clay_pct^2)) /
@@ -209,6 +216,9 @@ soc_rate_modifier_century <- function(temp_c, precip_mm, pet_mm) {
 .century_temperature_factor <- function(temp_c) {
   t_max <- 45
   t_opt <- 35
-  ratio <- (t_max - temp_c) / (t_max - t_opt)
+  # DEFAC has no temperature response above t_max. Without this lower clamp,
+  # temperatures above 45 C raise a negative ratio to a fractional power and
+  # produce NaN.
+  ratio <- pmax((t_max - temp_c) / (t_max - t_opt), 0)
   ratio^0.2 * exp((0.2 / 2.63) * (1 - ratio^2.63))
 }

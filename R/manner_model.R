@@ -320,7 +320,16 @@ calculate_manner_nh3_default <- function(
 
 # Arable is drier/faster-drying than grassland (lower NH3 loss).
 .manner_system_factor <- function(system) {
-  if (system == "Arable") 0.85 else 1.15
+  if (identical(system, "Arable")) {
+    return(0.85)
+  }
+  if (identical(system, "Grassland")) {
+    return(1.15)
+  }
+  cli::cli_abort(c(
+    "Unexpected or missing {.field system} value {.val {system}}.",
+    i = "Expected {.val Arable} or {.val Grassland}."
+  ))
 }
 
 # Incorporation factor: pick the first (shortest) delay bin whose

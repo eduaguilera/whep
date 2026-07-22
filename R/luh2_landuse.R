@@ -163,9 +163,12 @@ read_luh2_landuse <- function(
 # (the registered pin payload is corrupted, see file header), otherwise fall
 # back to the pin reader. The directory comes from the WHEP_LUH2_DIR env var.
 .luh2_read_states_source <- function(years = NULL) {
-  nc_path <- file.path(.luh2_states_dir(), "states.nc")
-  if (file.exists(nc_path)) {
-    return(.luh2_read_states_nc(nc_path, years = years))
+  states_dir <- .luh2_states_dir()
+  if (.has_path(states_dir)) {
+    nc_path <- file.path(states_dir, "states.nc")
+    if (file.exists(nc_path)) {
+      return(.luh2_read_states_nc(nc_path, years = years))
+    }
   }
   .luh2_read_states(years = years)
 }

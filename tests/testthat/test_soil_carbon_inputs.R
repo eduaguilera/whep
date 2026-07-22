@@ -251,6 +251,29 @@ test_that("manure territory that is neither area_code nor iso3c aborts", {
   )
 })
 
+test_that("manure crop names resolve case-insensitively to item_prod_code", {
+  manure <- .sci_manure_fixture()
+  manure$crop[1] <- "wHeAt"
+
+  out <- whep:::.sci_manure_components(manure)
+
+  wheat <- out[out$item_prod_code == "15", ]
+  testthat::expect_equal(nrow(wheat), 1L)
+  testthat::expect_equal(wheat$c_mass_mg, 20)
+  # The other row proves existing item_prod_code strings remain valid.
+  testthat::expect_setequal(out$item_prod_code, c("15", "27"))
+})
+
+test_that("unknown manure crop names abort instead of losing carbon", {
+  manure <- .sci_manure_fixture()[1, ]
+  manure$crop <- "not_a_known_crop"
+
+  testthat::expect_error(
+    whep:::.sci_manure_components(manure),
+    "Could not resolve manure"
+  )
+})
+
 test_that("npp missing residue_soil_c_t or weed_npp_c_t aborts", {
   data <- .sci_fixture_data()
   data$npp <- dplyr::select(data$npp, -"residue_soil_c_t")
@@ -273,6 +296,25 @@ test_that("a crop with no crop-pattern cells warns and is not silent", {
     "no crop-pattern cells"
   )
   testthat::expect_setequal(out$item_prod_code, "15")
+})
+
+test_that("a crop with zero-only pattern area warns instead of producing NaN", {
+  data <- .sci_fixture_data()
+  data$crop_patterns <- data$crop_patterns |>
+    dplyr::mutate(
+      crop_area_ha = dplyr::if_else(
+        .data$item_prod_code == "27",
+        0,
+        .data$crop_area_ha
+      )
+    )
+
+  testthat::expect_warning(
+    out <- whep::build_soil_carbon_inputs(resolution = "polity", data = data),
+    "no crop-pattern cells"
+  )
+  testthat::expect_setequal(out$item_prod_code, "15")
+  testthat::expect_true(all(is.finite(out$total_c_input_mgc_ha_yr)))
 })
 
 test_that("example = TRUE returns the documented schema", {

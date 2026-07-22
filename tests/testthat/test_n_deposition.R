@@ -95,6 +95,18 @@ testthat::test_that("read_n_deposition maps time index to calendar year", {
   testthat::expect_setequal(result$year, c(1850L, 1852L))
 })
 
+testthat::test_that("read_n_deposition returns its schema when requested years are absent", {
+  cube <- .hani_fixture_cube(n_years = 1L)
+  result <- whep::read_n_deposition(
+    species = "nhx",
+    hani_dir = cube$dir,
+    years = 1900L
+  )
+
+  testthat::expect_equal(nrow(result), 0L)
+  testthat::expect_named(result, c("lon", "lat", "year", "value_g"))
+})
+
 # ---- build_n_deposition() ---------------------------------------------
 
 .example_cell_polity <- function() {
@@ -134,6 +146,27 @@ testthat::test_that("build_n_deposition converts mass to a per-hectare rate", {
   testthat::expect_equal(out$deposition_kgn_ha, 10)
   # 10 kg/ha * 300000 ha * 1 (polity_frac) / 1000 (kg->t) = 3000 t
   testthat::expect_equal(out$deposition_n_t, 3000)
+})
+
+testthat::test_that("build_n_deposition filters preloaded inputs by years", {
+  nhx <- tibble::tribble(
+    ~lon, ~lat, ~year, ~value_g,
+    -0.25, -0.25, 2019L, 1000,
+    -0.25, -0.25, 2020L, 2000
+  )
+  noy <- tibble::tribble(
+    ~lon, ~lat, ~year, ~value_g,
+    -0.25, -0.25, 2019L, 100,
+    -0.25, -0.25, 2020L, 200
+  )
+
+  out <- whep::build_n_deposition(
+    years = 2020L,
+    data = list(nhx = nhx, noy = noy, cell_polity = .example_cell_polity())
+  )
+
+  testthat::expect_equal(out$year, 2020L)
+  testthat::expect_equal(nrow(out), 1L)
 })
 
 testthat::test_that("build_n_deposition example fixture is schema-complete", {
