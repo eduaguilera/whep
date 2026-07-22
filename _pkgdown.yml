@@ -203,6 +203,7 @@ reference:
     Functions for index decomposition analysis.
   contents:
   - calculate_lmdi
+  - decompose_weighted_ratio
 
 - title: Multi-regional input-output model
   desc: >
