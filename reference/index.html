@@ -1008,7 +1008,7 @@
       </dl></div><div class="section level2">
       <h2 id="trustworthiness-and-quality-control">Trustworthiness and quality control<a class="anchor" aria-label="anchor" href="#trustworthiness-and-quality-control"></a></h2>
 
-      <div class="section-desc"><p>Checks that make footprint and balance results trustworthy: conservation invariants, accounting identities, and other data-quality diagnostics.</p></div>
+      <div class="section-desc"><p>Checks that make footprint, balance and time-series results trustworthy: conservation invariants, accounting identities, within-series jump detection (the level-2 detector of the AFE data-validation framework), and other data-quality diagnostics.</p></div>
 
       <dl></dl></div><div class="section level2">
 
@@ -1042,6 +1042,13 @@
 
         </dt>
         <dd>Check the commodity balance sheet supply-use identity.</dd>
+
+        <dt>
+
+          <code><a href="check_series_jumps.html">check_series_jumps()</a></code>
+
+        </dt>
+        <dd>Flag implausible year-on-year jumps in a time series.</dd>
       </dl></div><div class="section level2">
 
       <h3 id="uncertainty-and-sensitivity">Uncertainty and sensitivity<a class="anchor" aria-label="anchor" href="#uncertainty-and-sensitivity"></a></h3>
