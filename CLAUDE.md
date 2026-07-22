@@ -5,7 +5,7 @@
 - Follow the workflow: <https://lbm364dl.github.io/follow-the-workflow/>
 - Follow tidyverse style guide: <https://style.tidyverse.org/>
 - Maximum line width is 80 characters.
-- For code formatting, **always** run `air format .` before committing. Install the binary if not on PATH. Do not try to format manually.
+- For code formatting, **always** run `air format .` before committing. Install the binary if not on PATH. Do not try to format manually. There is no pre-merge formatting check; `main` is reformatted automatically after merge, but a PR is **not ready** until you have run `air format .` yourself so the reviewed diff matches what lands and no formatting-only commits pile up on `main`.
 - Extract complex logic into private/helper functions (prefixed with `.`) early. These helpers should be stateless and receive all necessary context via arguments.
 - Functions should be short. Ideally no more than 25 lines. Split large functions into smaller ones with meaningful names.
 - Main exported functions should come first in the file. Private helpers come at the end.
@@ -66,7 +66,7 @@ The PR must pass these GitHub Actions checks:
 2. **lint** (`lintr`): Must pass with these linters disabled: `object_usage_linter`, `line_length_linter`, `indentation_linter`, `commas_linter` (conflicts with `air` formatting).
    - Run locally: `Rscript -e "lintr::lint_package(linters=lintr::linters_with_defaults(object_usage_linter=NULL, line_length_linter=NULL, indentation_linter=NULL, commas_linter=NULL))"`
 
-3. **format-suggest** (`air`): Code must be formatted with `air format .`
+3. **Formatting** (`air`): there is **no pre-merge formatting check**. Instead, the `format-main` workflow reformats `main` with `air format .` after every merge. This is a safety net, **not** a licence to skip formatting: always run `air format .` yourself before a PR is ready, so the diff you review is the diff that merges and `main` does not accumulate formatting-only commits.
    - **This is mandatory, not optional.** Do not attempt to manually match air style -- always run the binary.
    - If `air` is not on PATH, install it: download from `https://github.com/posit-dev/air/releases/latest/download/air-x86_64-pc-windows-msvc.zip` (Windows) or use `posit-dev/setup-air` (CI). Then run `air format .` on the repo root.
    - After running air, also run `devtools::document()` to update `man/` files.
