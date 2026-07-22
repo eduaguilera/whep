@@ -190,6 +190,14 @@ reference:
   - fill_sum
   - fill_proxy_growth
 
+- title: Multi-source consolidation
+  desc: >
+    Reduce a multi-source panel to one winning row per cell by source priority,
+    with measure-aware demotion, coverage and quality tie-breaks, and an
+    isolated-flip continuity override.
+  contents:
+  - consolidate_sources
+
 - title: Decomposition analysis
   desc: >
     Functions for index decomposition analysis.

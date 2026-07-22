@@ -1248,7 +1248,18 @@ utils::globalVariables(
     "area_item_cbs_code",
     "family",
     "i..has_milled_rice",
-    "output_key"
+    "output_key",
+    # consolidate_sources.R — winner-selection NSE columns
+    ".effective_rank",
+    ".coverage_ord",
+    ".quality_rank",
+    ".prev_source",
+    ".next_source",
+    ".prev_time",
+    ".next_time",
+    ".neighbor",
+    ".isolated",
+    ".n_tie"
   )
 )
 
