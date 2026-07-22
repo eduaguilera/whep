@@ -12,12 +12,8 @@ consolidate_sources(
   .by = NULL,
   time_col = year,
   drop_at = 100L,
-  measure_basis = NULL,
-  measure_penalty = 1000L,
-  measure_exempt = NULL,
-  tie_break_coverage = TRUE,
-  quality_col = NULL,
-  quality_levels = NULL,
+  measure = NULL,
+  tie_break = NULL,
   continuity_override = TRUE,
   verbose = TRUE
 )
@@ -44,29 +40,31 @@ numeric; the continuity override treats a difference of one as adjacent.}
 \item{drop_at}{Integer rank at or above which a source is dropped before
 consolidation. Default: \code{100L}.}
 
-\item{measure_basis}{Optional data frame flagging measure-mismatched rows. It
-must contain the source column and may add further key columns present in
-\code{data} (for example a category column) to scope the flag; a data row is
-flagged when it matches any \code{measure_basis} row on all its columns. Default:
-\code{NULL} (no demotion).}
+\item{measure}{Optional named list of measure-demotion options:
+\itemize{
+\item \code{basis}: data frame flagging measure-mismatched rows. It must contain
+the source column and may add further key columns present in \code{data}
+(for example a category column) to scope the flag; a data row is
+flagged when it matches any \code{basis} row on all its columns. Default:
+\code{NULL} (no demotion).
+\item \code{penalty}: integer added to the effective rank of a flagged,
+non-exempt row. Default: \code{1000L} (larger than any sensible base rank,
+so a flagged source falls below every unflagged one while flagged
+sources keep their relative order).
+\item \code{exempt}: one-sided formula selecting rows the penalty never applies
+to, such as \code{~ region == "WLD"}, evaluated on the rows that survive
+the hard drop. Default: \code{NULL}.
+}}
 
-\item{measure_penalty}{Integer added to the effective rank of a flagged,
-non-exempt row. Default: \code{1000L} (larger than any sensible base rank, so a
-flagged source falls below every unflagged one while flagged sources keep
-their relative order).}
-
-\item{measure_exempt}{Optional filter expression (evaluated in \code{data})
-selecting rows the penalty never applies to, such as \code{region == "WLD"}.
-Default: \code{NULL}.}
-
-\item{tie_break_coverage}{Logical. Break equal-rank ties by broader coverage.
-Default: \code{TRUE}.}
-
-\item{quality_col}{Optional unquoted name of a quality column used as a
-tie-break after coverage. Default: \code{NULL}.}
-
-\item{quality_levels}{Character vector ordering \code{quality_col} values best
-first (unlisted values rank last). Required when \code{quality_col} is set.}
+\item{tie_break}{Optional named list of options breaking equal-rank ties:
+\itemize{
+\item \code{coverage}: logical, break ties by broader within-series coverage.
+Default: \code{TRUE}.
+\item \code{quality_col}: string naming a quality column used as a tie-break
+after coverage. Default: \code{NULL}.
+\item \code{quality_levels}: character vector ordering \code{quality_col} values best
+first (unlisted values rank last). Required when \code{quality_col} is set.
+}}
 
 \item{continuity_override}{Logical. Revert isolated single-period winner
 flips. Default: \code{TRUE}.}
@@ -80,8 +78,9 @@ columns of \code{data}, and four added provenance columns: \code{n_sources} (dis
 sources contesting the cell after the hard drop), \code{source_rank} (the
 winner's base priority rank), \code{effective_rank} (base rank plus any measure
 penalty applied), and \code{measure_demoted} (whether the winner carried the
-measure penalty, true only for a lone flagged source). Rows are ordered by
-\code{.by} then \code{time_col}.
+measure penalty; a flagged source only wins a cell that no
+measure-consistent source reports). Rows are ordered by \code{.by} then
+\code{time_col}.
 }
 \description{
 Reduce a long panel in which several sources report the same
@@ -103,22 +102,26 @@ listed with a smaller rank. To exclude an unreliable source, list it at
 \item \strong{Measure-aware demotion.} A source can report a different measure than
 the panel's target concept (production where the panel means consumption,
 generation shares where it means primary energy, a sector fragment where it
-means a category total). Rows flagged by \code{measure_basis} receive
-\code{measure_penalty} added to their effective rank, so a measure-mismatched
+means a category total). Rows flagged by \code{measure$basis} receive
+\code{measure$penalty} added to their effective rank, so a measure-mismatched
 source loses any cell a measure-consistent source also reports, yet still
 wins a cell it alone reports (a lone reporter is never demoted away). Rows
-matching \code{measure_exempt} keep their base rank (for example world-level
+matching \code{measure$exempt} keep their base rank (for example world-level
 cells, where production equals consumption).
 \item \strong{Winner selection.} Within each (\code{.by}, \code{time_col}) cell the winner is
 the row of lowest effective rank; ties are broken by broader within-series
 coverage (the count of cells the source reports across the \code{.by} group)
-when \code{tie_break_coverage}, then by \code{quality_col} ordered per
-\code{quality_levels}, then by ascending source name (reported when \code{verbose}).
+when \code{tie_break$coverage}, then by \code{tie_break$quality_col} ordered per
+\code{tie_break$quality_levels}, then by ascending source name (reported when
+\code{verbose}).
 \item \strong{Continuity override.} When enabled, an isolated single-period winner
 flip is reverted: if the immediately preceding and following periods share
 a different winner that also reports the middle period, that continuous
 source reclaims the middle cell, removing single-period teeth from
-otherwise smooth series.
+otherwise smooth series. The reversion is skipped when it would hand a
+cell won by a measure-consistent source back to a measure-demoted one:
+continuity never undoes the measure penalty, because a single-period
+source switch is cosmetic while a measure switch corrupts the series.
 }
 
 This operationalises the AFE decision \emph{Consolidate multi-source panels

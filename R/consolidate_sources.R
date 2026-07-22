@@ -21,24 +21,28 @@
 #'   2. **Measure-aware demotion.** A source can report a different measure than
 #'   the panel's target concept (production where the panel means consumption,
 #'   generation shares where it means primary energy, a sector fragment where it
-#'   means a category total). Rows flagged by `measure_basis` receive
-#'   `measure_penalty` added to their effective rank, so a measure-mismatched
+#'   means a category total). Rows flagged by `measure$basis` receive
+#'   `measure$penalty` added to their effective rank, so a measure-mismatched
 #'   source loses any cell a measure-consistent source also reports, yet still
 #'   wins a cell it alone reports (a lone reporter is never demoted away). Rows
-#'   matching `measure_exempt` keep their base rank (for example world-level
+#'   matching `measure$exempt` keep their base rank (for example world-level
 #'   cells, where production equals consumption).
 #'
 #'   3. **Winner selection.** Within each (`.by`, `time_col`) cell the winner is
 #'   the row of lowest effective rank; ties are broken by broader within-series
 #'   coverage (the count of cells the source reports across the `.by` group)
-#'   when `tie_break_coverage`, then by `quality_col` ordered per
-#'   `quality_levels`, then by ascending source name (reported when `verbose`).
+#'   when `tie_break$coverage`, then by `tie_break$quality_col` ordered per
+#'   `tie_break$quality_levels`, then by ascending source name (reported when
+#'   `verbose`).
 #'
 #'   4. **Continuity override.** When enabled, an isolated single-period winner
 #'   flip is reverted: if the immediately preceding and following periods share
 #'   a different winner that also reports the middle period, that continuous
 #'   source reclaims the middle cell, removing single-period teeth from
-#'   otherwise smooth series.
+#'   otherwise smooth series. The reversion is skipped when it would hand a
+#'   cell won by a measure-consistent source back to a measure-demoted one:
+#'   continuity never undoes the measure penalty, because a single-period
+#'   source switch is cosmetic while a measure switch corrupts the series.
 #'
 #'   This operationalises the AFE decision *Consolidate multi-source panels
 #'   measure-consistently* (`wiki/decisions/measure-consistent-panel-consolidation`):
@@ -63,24 +67,26 @@
 #'   numeric; the continuity override treats a difference of one as adjacent.
 #' @param drop_at Integer rank at or above which a source is dropped before
 #'   consolidation. Default: `100L`.
-#' @param measure_basis Optional data frame flagging measure-mismatched rows. It
-#'   must contain the source column and may add further key columns present in
-#'   `data` (for example a category column) to scope the flag; a data row is
-#'   flagged when it matches any `measure_basis` row on all its columns. Default:
-#'   `NULL` (no demotion).
-#' @param measure_penalty Integer added to the effective rank of a flagged,
-#'   non-exempt row. Default: `1000L` (larger than any sensible base rank, so a
-#'   flagged source falls below every unflagged one while flagged sources keep
-#'   their relative order).
-#' @param measure_exempt Optional filter expression (evaluated in `data`)
-#'   selecting rows the penalty never applies to, such as `region == "WLD"`.
-#'   Default: `NULL`.
-#' @param tie_break_coverage Logical. Break equal-rank ties by broader coverage.
-#'   Default: `TRUE`.
-#' @param quality_col Optional unquoted name of a quality column used as a
-#'   tie-break after coverage. Default: `NULL`.
-#' @param quality_levels Character vector ordering `quality_col` values best
-#'   first (unlisted values rank last). Required when `quality_col` is set.
+#' @param measure Optional named list of measure-demotion options:
+#'   * `basis`: data frame flagging measure-mismatched rows. It must contain
+#'     the source column and may add further key columns present in `data`
+#'     (for example a category column) to scope the flag; a data row is
+#'     flagged when it matches any `basis` row on all its columns. Default:
+#'     `NULL` (no demotion).
+#'   * `penalty`: integer added to the effective rank of a flagged,
+#'     non-exempt row. Default: `1000L` (larger than any sensible base rank,
+#'     so a flagged source falls below every unflagged one while flagged
+#'     sources keep their relative order).
+#'   * `exempt`: one-sided formula selecting rows the penalty never applies
+#'     to, such as `~ region == "WLD"`, evaluated on the rows that survive
+#'     the hard drop. Default: `NULL`.
+#' @param tie_break Optional named list of options breaking equal-rank ties:
+#'   * `coverage`: logical, break ties by broader within-series coverage.
+#'     Default: `TRUE`.
+#'   * `quality_col`: string naming a quality column used as a tie-break
+#'     after coverage. Default: `NULL`.
+#'   * `quality_levels`: character vector ordering `quality_col` values best
+#'     first (unlisted values rank last). Required when `quality_col` is set.
 #' @param continuity_override Logical. Revert isolated single-period winner
 #'   flips. Default: `TRUE`.
 #' @param verbose Logical. Report the drop count, name-order ties, and
@@ -92,8 +98,9 @@
 #'   sources contesting the cell after the hard drop), `source_rank` (the
 #'   winner's base priority rank), `effective_rank` (base rank plus any measure
 #'   penalty applied), and `measure_demoted` (whether the winner carried the
-#'   measure penalty, true only for a lone flagged source). Rows are ordered by
-#'   `.by` then `time_col`.
+#'   measure penalty; a flagged source only wins a cell that no
+#'   measure-consistent source reports). Rows are ordered by `.by` then
+#'   `time_col`.
 #'
 #' @export
 #'
@@ -122,40 +129,25 @@ consolidate_sources <- function(
   .by = NULL,
   time_col = year,
   drop_at = 100L,
-  measure_basis = NULL,
-  measure_penalty = 1000L,
-  measure_exempt = NULL,
-  tie_break_coverage = TRUE,
-  quality_col = NULL,
-  quality_levels = NULL,
+  measure = NULL,
+  tie_break = NULL,
   continuity_override = TRUE,
   verbose = TRUE
 ) {
-  value_name <- rlang::as_name(rlang::enquo(value_col))
-  source_name <- rlang::as_name(rlang::enquo(source_col))
-  time_name <- rlang::as_name(rlang::enquo(time_col))
-  quality_quo <- rlang::enquo(quality_col)
-  has_quality <- !rlang::quo_is_null(quality_quo)
-  quality_name <- if (has_quality) rlang::as_name(quality_quo) else NULL
-  exempt_quo <- rlang::enquo(measure_exempt)
-  has_exempt <- !rlang::quo_is_null(exempt_quo)
-
-  .cs_check_inputs(
-    data,
-    value_name,
-    source_name,
-    time_name,
-    .by,
-    quality_name,
-    has_quality,
-    quality_levels,
-    measure_basis
+  cols <- list(
+    value = rlang::as_name(rlang::enquo(value_col)),
+    source = rlang::as_name(rlang::enquo(source_col)),
+    time = rlang::as_name(rlang::enquo(time_col)),
+    by = .by
   )
+  measure <- .cs_measure_opts(measure)
+  tie_break <- .cs_tie_break_opts(tie_break)
+  .cs_check_inputs(data, cols, measure, tie_break)
 
-  cell_keys <- c(.by, time_name)
+  cell_keys <- c(.by, cols$time)
   work <- .cs_hard_drop(
     tibble::as_tibble(data),
-    source_name,
+    cols$source,
     priority,
     drop_at,
     verbose
@@ -163,83 +155,88 @@ consolidate_sources <- function(
   if (nrow(work) == 0L) {
     return(.cs_empty_result(data))
   }
-  .cs_assert_unique(work, c(cell_keys, source_name))
+  .cs_assert_unique(work, c(cell_keys, cols$source))
 
-  work <- .cs_add_effective_rank(
-    work,
-    measure_basis,
-    measure_penalty,
-    exempt_quo,
-    has_exempt
-  )
-  work <- .cs_add_tiebreaks(
-    work,
-    .by,
-    source_name,
-    value_name,
-    time_name,
-    cell_keys,
-    tie_break_coverage,
-    quality_name,
-    has_quality,
-    quality_levels
-  )
+  work <- .cs_add_effective_rank(work, measure)
+  work <- .cs_add_tiebreaks(work, cols, tie_break)
 
-  won <- .cs_select_winners(work, cell_keys, source_name, verbose)
+  won <- .cs_select_winners(work, cell_keys, cols$source, verbose)
   if (continuity_override) {
-    won <- .cs_apply_continuity(
-      won,
-      work,
-      .by,
-      time_name,
-      source_name,
-      cell_keys,
-      verbose
-    )
+    won <- .cs_apply_continuity(won, work, cols, verbose)
   }
   .cs_finalize(won, data, cell_keys)
 }
 
+# --- Options ------------------------------------------------------------------
+
+.cs_measure_opts <- function(measure) {
+  defaults <- list(basis = NULL, penalty = 1000L, exempt = NULL)
+  .cs_merge_opts(measure, defaults, "measure")
+}
+
+.cs_tie_break_opts <- function(tie_break) {
+  defaults <- list(coverage = TRUE, quality_col = NULL, quality_levels = NULL)
+  .cs_merge_opts(tie_break, defaults, "tie_break")
+}
+
+.cs_merge_opts <- function(opts, defaults, arg_name) {
+  if (is.null(opts)) {
+    return(defaults)
+  }
+  if (!is.list(opts) || (length(opts) > 0L && is.null(names(opts)))) {
+    cli::cli_abort("`{arg_name}` must be a named list.")
+  }
+  unknown <- setdiff(names(opts), names(defaults))
+  if (length(unknown) > 0L) {
+    cli::cli_abort("Unknown `{arg_name}` option{?s}: {.val {unknown}}.")
+  }
+  utils::modifyList(defaults, opts, keep.null = TRUE)
+}
+
 # --- Validation ---------------------------------------------------------------
 
-.cs_check_inputs <- function(
-  data,
-  value_name,
-  source_name,
-  time_name,
-  by,
-  quality_name,
-  has_quality,
-  quality_levels,
-  measure_basis
-) {
-  needed <- c(value_name, source_name, time_name, by, quality_name)
+.cs_check_inputs <- function(data, cols, measure, tie_break) {
+  needed <- c(
+    cols$value,
+    cols$source,
+    cols$time,
+    cols$by,
+    tie_break$quality_col
+  )
   missing <- setdiff(needed, names(data))
   if (length(missing) > 0L) {
     cli::cli_abort("Column{?s} not found in `data`: {.val {missing}}.")
   }
-  if (has_quality && is.null(quality_levels)) {
-    cli::cli_abort("`quality_levels` is required when `quality_col` is set.")
+  if (!is.null(tie_break$quality_col) && is.null(tie_break$quality_levels)) {
+    cli::cli_abort(
+      "`tie_break$quality_levels` is required when `tie_break$quality_col` is set."
+    )
   }
-  if (!is.null(measure_basis)) {
-    mb_cols <- names(tibble::as_tibble(measure_basis))
-    if (!source_name %in% mb_cols) {
-      cli::cli_abort(
-        "`measure_basis` must contain the source column {.val {source_name}}."
-      )
-    }
-    extra <- setdiff(mb_cols, names(data))
-    if (length(extra) > 0L) {
-      cli::cli_abort(
-        "`measure_basis` column{?s} not in `data`: {.val {extra}}."
-      )
-    }
-  }
+  .cs_check_measure_basis(data, measure$basis, cols$source)
   reserved <- c("n_sources", "source_rank", "effective_rank", "measure_demoted")
   clash <- intersect(reserved, names(data))
   if (length(clash) > 0L) {
     cli::cli_abort(
       "`data` already has reserved output column{?s}: {.val {clash}}."
+    )
+  }
+  invisible(NULL)
+}
+
+.cs_check_measure_basis <- function(data, basis, source_name) {
+  if (is.null(basis)) {
+    return(invisible(NULL))
+  }
+  mb_cols <- names(tibble::as_tibble(basis))
+  if (!source_name %in% mb_cols) {
+    cli::cli_abort(
+      "`measure$basis` must contain the source column {.val {source_name}}."
+    )
+  }
+  extra <- setdiff(mb_cols, names(data))
+  if (length(extra) > 0L) {
+    cli::cli_abort(
+      "`measure$basis` column{?s} not in `data`: {.val {extra}}."
     )
   }
   invisible(NULL)
@@ -301,22 +298,16 @@ consolidate_sources <- function(
 
 # --- Effective rank (measure demotion) ----------------------------------------
 
-.cs_add_effective_rank <- function(
-  work,
-  measure_basis,
-  measure_penalty,
-  exempt_quo,
-  has_exempt
-) {
-  flag <- .cs_measure_flag(work, measure_basis)
-  exempt <- if (has_exempt) {
-    .cs_eval_exempt(work, exempt_quo)
-  } else {
+.cs_add_effective_rank <- function(work, measure) {
+  flag <- .cs_measure_flag(work, measure$basis)
+  exempt <- if (is.null(measure$exempt)) {
     rep(FALSE, nrow(work))
+  } else {
+    .cs_eval_exempt(work, measure$exempt)
   }
   work$.measure_demoted <- flag & !exempt
   work$.effective_rank <- work$.base_rank +
-    as.integer(measure_penalty) * work$.measure_demoted
+    as.integer(measure$penalty) * work$.measure_demoted
   work
 }
 
@@ -332,11 +323,16 @@ consolidate_sources <- function(
   seq_len(nrow(work)) %in% hit$.cs_row
 }
 
-.cs_eval_exempt <- function(work, exempt_quo) {
-  mask <- rlang::eval_tidy(exempt_quo, data = work)
+.cs_eval_exempt <- function(work, exempt) {
+  if (!rlang::is_formula(exempt, lhs = FALSE)) {
+    cli::cli_abort(
+      "`measure$exempt` must be a one-sided formula, e.g. `~ region == \"WLD\"`."
+    )
+  }
+  mask <- rlang::eval_tidy(rlang::as_quosure(exempt), data = work)
   if (!is.logical(mask) || length(mask) != nrow(work)) {
     cli::cli_abort(
-      "`measure_exempt` must evaluate to a logical vector of length nrow(data)."
+      "`measure$exempt` must evaluate to one logical per row."
     )
   }
   mask[is.na(mask)] <- FALSE
@@ -345,26 +341,19 @@ consolidate_sources <- function(
 
 # --- Coverage, quality, n_sources ---------------------------------------------
 
-.cs_add_tiebreaks <- function(
-  work,
-  by,
-  source_name,
-  value_name,
-  time_name,
-  cell_keys,
-  tie_break_coverage,
-  quality_name,
-  has_quality,
-  quality_levels
-) {
-  work <- .cs_add_coverage(work, by, source_name, value_name, time_name)
-  work$.coverage_ord <- if (tie_break_coverage) work$.coverage else 0L
-  work$.quality_rank <- if (has_quality) {
-    .cs_quality_rank(work[[quality_name]], quality_levels)
-  } else {
+.cs_add_tiebreaks <- function(work, cols, tie_break) {
+  cell_keys <- c(cols$by, cols$time)
+  work <- .cs_add_coverage(work, cols$by, cols$source, cols$value, cols$time)
+  work$.coverage_ord <- if (tie_break$coverage) work$.coverage else 0L
+  work$.quality_rank <- if (is.null(tie_break$quality_col)) {
     0L
+  } else {
+    .cs_quality_rank(
+      work[[tie_break$quality_col]],
+      tie_break$quality_levels
+    )
   }
-  .cs_add_n_sources(work, cell_keys, source_name)
+  .cs_add_n_sources(work, cell_keys, cols$source)
 }
 
 .cs_add_coverage <- function(work, by, source_name, value_name, time_name) {
@@ -424,7 +413,7 @@ consolidate_sources <- function(
   tie <- ordered |>
     dplyr::group_by(dplyr::across(dplyr::all_of(cell_keys))) |>
     dplyr::filter(
-      dplyr::across(dplyr::all_of(key_cols), \(v) v == dplyr::first(v))
+      dplyr::if_all(dplyr::all_of(key_cols), \(v) v == dplyr::first(v))
     ) |>
     dplyr::summarise(
       .n_tie = dplyr::n_distinct(.data[[source_name]]),
@@ -441,24 +430,18 @@ consolidate_sources <- function(
 
 # --- Continuity override ------------------------------------------------------
 
-.cs_apply_continuity <- function(
-  won,
-  work,
-  by,
-  time_name,
-  source_name,
-  cell_keys,
-  verbose
-) {
-  flagged <- .cs_flag_isolated(won, by, time_name, source_name)
+.cs_apply_continuity <- function(won, work, cols, verbose) {
+  cell_keys <- c(cols$by, cols$time)
+  flagged <- .cs_flag_isolated(won, cols$by, cols$time, cols$source)
   clean <- .cs_drop_iso_cols(flagged)
   iso <- flagged[flagged$.isolated, , drop = FALSE]
   if (nrow(iso) == 0L) {
     return(clean)
   }
   repl_keys <- iso[cell_keys]
-  repl_keys[[source_name]] <- iso$.neighbor
-  repl <- dplyr::inner_join(work, repl_keys, by = c(cell_keys, source_name))
+  repl_keys[[cols$source]] <- iso$.neighbor
+  repl <- dplyr::inner_join(work, repl_keys, by = c(cell_keys, cols$source))
+  repl <- .cs_block_demoting_reversion(repl, iso, cell_keys)
   if (nrow(repl) == 0L) {
     return(clean)
   }
@@ -472,6 +455,19 @@ consolidate_sources <- function(
     )
   }
   out
+}
+
+# Continuity must not reintroduce measure mixing: an isolated
+# measure-consistent winner is never handed back to a measure-demoted flanking
+# source. The reversion stays allowed when both rows carry the penalty.
+.cs_block_demoting_reversion <- function(repl, iso, cell_keys) {
+  displaced <- iso[c(cell_keys, ".measure_demoted")]
+  names(displaced)[names(displaced) == ".measure_demoted"] <-
+    ".displaced_demoted"
+  repl <- dplyr::left_join(repl, displaced, by = cell_keys)
+  keep <- !(repl$.measure_demoted & !repl$.displaced_demoted)
+  repl$.displaced_demoted <- NULL
+  repl[keep, , drop = FALSE]
 }
 
 .cs_flag_isolated <- function(won, by, time_name, source_name) {

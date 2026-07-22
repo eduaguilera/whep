@@ -72,7 +72,7 @@ testthat::test_that("broader coverage breaks an equal-rank tie and beats name or
     source_col = source,
     priority = c(Mitchell = 4L, Malanima = 4L),
     .by = c("region", "category"),
-    tie_break_coverage = FALSE,
+    tie_break = list(coverage = FALSE),
     continuity_override = FALSE,
     verbose = FALSE
   )
@@ -100,8 +100,7 @@ testthat::test_that("quality_col decides an equal-rank, equal-coverage tie", {
     source_col = source,
     priority = c(Etemad = 4L, Malanima = 4L),
     .by = c("region", "category"),
-    quality_col = tier,
-    quality_levels = tier_levels,
+    tie_break = list(quality_col = "tier", quality_levels = tier_levels),
     verbose = FALSE
   )
 
@@ -178,7 +177,7 @@ testthat::test_that("measure demotion flips a contested cell but spares a lone r
     source_col = source,
     priority = c(Etemad = 1L, OWID = 4L),
     .by = c("region", "category"),
-    measure_basis = measure_basis,
+    measure = list(basis = measure_basis),
     verbose = FALSE
   )
   testthat::expect_equal(won$source, "OWID")
@@ -197,7 +196,7 @@ testthat::test_that("measure demotion flips a contested cell but spares a lone r
     source_col = source,
     priority = c(Etemad = 1L, OWID = 4L),
     .by = c("region", "category"),
-    measure_basis = measure_basis,
+    measure = list(basis = measure_basis),
     verbose = FALSE
   )
   testthat::expect_equal(won_lone$source, "Etemad")
@@ -223,8 +222,7 @@ testthat::test_that("measure_exempt keys keep their base rank", {
     source_col = source,
     priority = c(Etemad = 1L, OWID = 4L),
     .by = c("region", "category"),
-    measure_basis = measure_basis,
-    measure_exempt = region == "WLD",
+    measure = list(basis = measure_basis, exempt = ~ region == "WLD"),
     verbose = FALSE
   )
 
@@ -270,6 +268,36 @@ testthat::test_that("continuity override reverts an isolated single-year flip", 
   testthat::expect_equal(won_off[won_off$year == 1901, ]$source, "B")
 })
 
+testthat::test_that("continuity never reverts to a measure-demoted source", {
+  # Etemad (rank 1, measure-flagged) wins 1900 and 1902 as a lone demoted
+  # reporter. OWID (rank 4, measure-consistent) wins the contested 1901 via
+  # the penalty. The isolated 1901 flip must NOT be smoothed back to Etemad:
+  # continuity never undoes the measure penalty.
+  measure_basis <- tibble::tibble(source = "Etemad", category = "Oil")
+  panel <- tibble::tribble(
+    ~year, ~region, ~category, ~source, ~value,
+    1900, "SAU", "Oil", "Etemad", 2.60,
+    1901, "SAU", "Oil", "Etemad", 2.70,
+    1901, "SAU", "Oil", "OWID", 0.036,
+    1902, "SAU", "Oil", "Etemad", 2.80
+  )
+
+  won <- whep::consolidate_sources(
+    panel,
+    value_col = value,
+    source_col = source,
+    priority = c(Etemad = 1L, OWID = 4L),
+    .by = c("region", "category"),
+    measure = list(basis = measure_basis),
+    verbose = FALSE
+  )
+
+  win_1901 <- won[won$year == 1901, ]
+  testthat::expect_equal(win_1901$source, "OWID")
+  testthat::expect_equal(win_1901$value, 0.036)
+  testthat::expect_false(win_1901$measure_demoted)
+})
+
 testthat::test_that("continuity override leaves a genuine two-year run in place", {
   # B (rank 1) wins 1901 AND 1902: a real switch, not a single-year tooth.
   panel <- tibble::tribble(
@@ -293,6 +321,32 @@ testthat::test_that("continuity override leaves a genuine two-year run in place"
 
   testthat::expect_equal(won[won$year == 1901, ]$source, "B")
   testthat::expect_equal(won[won$year == 1902, ]$source, "B")
+})
+
+# Verbose tie reporting ---------------------------------------------------------
+
+testthat::test_that("verbose mode reports name-order tie resolution", {
+  # A and B tie on rank, coverage, and (absent) quality in the single 1900
+  # cell, so ascending source name decides and verbose mode must say so.
+  panel <- tibble::tribble(
+    ~year, ~region, ~category, ~source, ~value,
+    1900, "WLD", "Coal", "A", 10,
+    1900, "WLD", "Coal", "B", 20
+  )
+
+  msgs <- testthat::capture_messages(
+    won <- whep::consolidate_sources(
+      panel,
+      value_col = value,
+      source_col = source,
+      priority = c(A = 4L, B = 4L),
+      .by = c("region", "category"),
+      verbose = TRUE
+    )
+  )
+
+  testthat::expect_true(any(grepl("name resolved 1 cell tie", msgs)))
+  testthat::expect_equal(won$source, "A")
 })
 
 # Deterministic output ordering ------------------------------------------------
