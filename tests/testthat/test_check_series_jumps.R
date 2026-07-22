@@ -165,6 +165,26 @@ testthat::test_that("a flat series returns a typed zero-row tibble", {
   testthat::expect_type(flags$allowlisted, "logical")
 })
 
+testthat::test_that("integer input yields a double value column", {
+  ints <- tibble::tibble(
+    category = "energy",
+    year = 2000:2002,
+    value = c(100L, 100L, 300L)
+  )
+
+  flags <- whep::check_series_jumps(
+    ints,
+    value,
+    .by = "category",
+    verbose = FALSE
+  )
+
+  testthat::expect_equal(nrow(flags), 1L)
+  testthat::expect_type(flags$value, "double")
+  testthat::expect_type(flags$prev_value, "double")
+  testthat::expect_equal(flags$value, 300)
+})
+
 # check_series_jumps: ungrouped + validation ------------------------------
 
 testthat::test_that("works without groups and reports cli counts", {

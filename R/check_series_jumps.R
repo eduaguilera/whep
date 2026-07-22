@@ -158,6 +158,9 @@ check_series_jumps <- function(
   dt <- data.table::as.data.table(data)[, ..keep]
   dt[, .value_now := as.double(get(value_col))]
   dt[, .time_num := as.double(get(time_col))]
+  if (!value_col %in% c(by_cols, time_col)) {
+    dt[, (value_col) := NULL]
+  }
   data.table::setorderv(dt, c(by_cols, ".time_num"))
 
   lag_by <- if (length(by_cols) > 0) by_cols else NULL
