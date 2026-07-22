@@ -479,15 +479,15 @@ build_carbon_balance <- function(
       .cb_march_cell(
         dplyr::filter(
           classes,
-          .data$lon == lon,
-          .data$lat == lat,
-          .data$area_code == ac
+          .data$lon == .env$lon,
+          .data$lat == .env$lat,
+          .data$area_code == .env$ac
         ),
         dplyr::filter(
           init,
-          .data$lon == lon,
-          .data$lat == lat,
-          .data$area_code == ac
+          .data$lon == .env$lon,
+          .data$lat == .env$lat,
+          .data$area_code == .env$ac
         )
       )
     }

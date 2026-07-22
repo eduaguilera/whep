@@ -334,7 +334,7 @@ spatialize_country_n_to_crops <- function(
     "!" = "{nrow(unmatched)} polity-crop total{?s} ({round(sum(unmatched$n_t), 3)}
            t N) had no crop-pattern grid cells; reallocating uniformly across
            the polity's cropland cells.",
-    "i" = "Affected item_cbs_code{?s}: {sort(unique(unmatched$item_cbs_code))}."
+    "i" = "Affected item_cbs_code{?s}: {as.character(sort(unique(unmatched$item_cbs_code)))}."
   ))
 }
 

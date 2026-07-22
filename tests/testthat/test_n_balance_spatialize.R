@@ -99,6 +99,29 @@ testthat::test_that("polity_crop resolution splits totals by area share", {
   testthat::expect_equal(rice, 30)
 })
 
+testthat::test_that(".n_warn_unmatched warns (not errors) for several codes", {
+  # Regression: the "i" bullet interpolated `item_cbs_code{?s}: {codes}` with a
+  # NUMERIC `codes` vector, so cli's make_quantity() hit stopifnot(length == 1)
+  # and ABORTED whenever >= 2 crops were unmatched (770 of them for a real 2010
+  # run). A warning about reallocation must never turn into an error.
+  unmatched <- tibble::tibble(
+    item_cbs_code = c(2511L, 2807L, 2513L),
+    n_t = c(1, 2, 3)
+  )
+
+  testthat::expect_warning(
+    result <- whep:::.n_warn_unmatched(unmatched),
+    "no crop-pattern grid cells"
+  )
+  # It must not raise a condition of class "error".
+  testthat::expect_no_error(
+    withCallingHandlers(
+      whep:::.n_warn_unmatched(unmatched),
+      warning = function(w) invokeRestart("muffleWarning")
+    )
+  )
+})
+
 testthat::test_that("polity_crop aborts rather than dropping a total with no crop shares", {
   shares <- dplyr::mutate(.nbs_crop_shares(), year = 2011L)
 

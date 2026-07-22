@@ -344,17 +344,18 @@ build_n_inputs <- function(
 
 # Grassland's crop is always NA in the manure engine's grain (grazing/
 # grassland-spilled manure is not attributed to any single crop): map those
-# rows to item_cbs_code 3000L, the grass sentinel used package-wide. Some
-# Cropland rows also deliberately have crop = NA (for example an
-# over_apply_local residual), and successful transport landings are pooled
-# across crop and grass capacity with no crop. These rows retain the ordinary
-# NA_integer_ no-specific-item sentinel. A real Cropland crop name resolves
-# via the item_prod crosswalk.
+# rows to item_cbs_code 3000L, the grass sentinel used package-wide. Every
+# other row whose crop is NA keeps the ordinary NA_integer_ no-specific-item
+# sentinel: a Cropland residual (e.g. an over_apply_local remainder) and a
+# transport landing (pooled across crop and grass capacity with no crop)
+# alike. The is.na(crop) branch is checked before the crosswalk default so a
+# missing crop never reaches .ni_crop_name_to_item_cbs(). A real crop name
+# resolves via the item_prod crosswalk.
 .ni_manure_item_cbs <- function(crop, land_use) {
   resolved <- .ni_crop_name_to_item_cbs(crop)
   dplyr::case_when(
     land_use == "Grassland" ~ 3000L,
-    land_use == "Cropland" & is.na(crop) ~ NA_integer_,
+    is.na(crop) ~ NA_integer_,
     .default = resolved
   )
 }
@@ -376,7 +377,7 @@ build_n_inputs <- function(
     ) |>
     dplyr::distinct(.data$crop_lower, .keep_all = TRUE)
   resolved <- tibble::tibble(crop_lower = stringr::str_to_lower(crop)) |>
-    dplyr::left_join(lookup, by = "crop_lower")
+    dplyr::left_join(lookup, by = "crop_lower", na_matches = "never")
   unresolved <- unique(
     crop[!is.na(resolved$crop_lower) & is.na(resolved$item_cbs_code)]
   )

@@ -185,6 +185,101 @@ test_that("a land-use class with no carbon input survives as zero-carbon area", 
   testthat::expect_setequal(out$land_use, c("cropland", "grassland", "urban"))
 })
 
+test_that("cells sharing one area_code march independently", {
+  # Regression for the .cb_march() data-mask bug: the per-cell filter wrote
+  # `.data$lon == lon`, but bare `lon`/`lat` resolved to the tibble's OWN
+  # columns, making both predicates tautologies. Only area_code filtered, so
+  # every cell in a country inherited the FIRST cell's classes (the global run
+  # has 178 area_codes over ~59k cells). Two cells in ONE area_code, with
+  # different cropland C inputs, must yield different SOC -- and each cell's
+  # result must match a standalone single-cell run.
+  land_use <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~year, ~land_use, ~area_ha,
+    0.25, 0.25, 1L, 2000L, "Cropland", 60,
+    0.25, 0.25, 1L, 2000L, "NonCropland", 40,
+    0.25, 0.25, 1L, 2001L, "Cropland", 50,
+    0.25, 0.25, 1L, 2001L, "NonCropland", 50,
+    0.75, 0.25, 1L, 2000L, "Cropland", 30,
+    0.75, 0.25, 1L, 2000L, "NonCropland", 70,
+    0.75, 0.25, 1L, 2001L, "Cropland", 20,
+    0.75, 0.25, 1L, 2001L, "NonCropland", 80
+  )
+  c_inputs <- tidyr::expand_grid(
+    tibble::tribble(
+      ~lon, ~lat, ~crop_input,
+      0.25, 0.25, 3.0,
+      0.75, 0.25, 1.0
+    ),
+    year = 2000:2001,
+    land_use = c("Cropland", "NonCropland")
+  ) |>
+    dplyr::mutate(
+      area_code = 1L,
+      c_input_mgc_ha_yr = dplyr::if_else(
+        .data$land_use == "Cropland",
+        .data$crop_input,
+        1.5
+      ),
+      humified_fraction = 0.3
+    ) |>
+    dplyr::select(-"crop_input")
+  climate <- tidyr::expand_grid(
+    tibble::tibble(lon = c(0.25, 0.75), lat = 0.25),
+    year = 2000:2001
+  ) |>
+    dplyr::mutate(area_code = 1L, climate_modifier = 1)
+  clay <- tibble::tribble(
+    ~lon, ~lat, ~clay_pct,
+    0.25, 0.25, 20,
+    0.75, 0.25, 20
+  )
+  both_data <- list(
+    land_use = land_use,
+    c_inputs = c_inputs,
+    climate = climate,
+    clay = clay
+  )
+  # The same cell B, run entirely on its own.
+  cell_b_only <- function(x) dplyr::filter(x, .data$lon == 0.75)
+  b_data <- list(
+    land_use = cell_b_only(land_use),
+    c_inputs = cell_b_only(c_inputs),
+    climate = cell_b_only(climate),
+    clay = cell_b_only(clay)
+  )
+
+  out_both <- whep::build_carbon_balance(
+    model = "hsoc",
+    resolution = "grid",
+    data = both_data
+  )
+  out_b <- whep::build_carbon_balance(
+    model = "hsoc",
+    resolution = "grid",
+    data = b_data
+  )
+
+  key <- c("lon", "lat", "year", "land_use")
+  b_in_both <- out_both |>
+    dplyr::filter(.data$lon == 0.75) |>
+    dplyr::arrange(dplyr::across(dplyr::all_of(key)))
+  b_alone <- out_b |>
+    dplyr::arrange(dplyr::across(dplyr::all_of(key)))
+
+  # Cell B is unaffected by cell A's presence.
+  testthat::expect_equal(b_in_both$stock_mgc_ha, b_alone$stock_mgc_ha)
+  testthat::expect_equal(b_in_both$son_change_kgn_ha, b_alone$son_change_kgn_ha)
+  # And the two cells genuinely differ (a 3x vs 1x cropland C input).
+  a_crop <- out_both |>
+    dplyr::filter(.data$lon == 0.25, .data$land_use == "Cropland")
+  b_crop <- out_both |>
+    dplyr::filter(.data$lon == 0.75, .data$land_use == "Cropland")
+  testthat::expect_false(isTRUE(all.equal(
+    sum(a_crop$stock_mgc_ha),
+    sum(b_crop$stock_mgc_ha)
+  )))
+})
+
 # -- Land-use-change carbon conservation (key adversarial invariant) ----------
 
 test_that("LUC transfer conserves total cell carbon when A shrinks, B grows", {
