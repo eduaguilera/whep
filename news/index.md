@@ -2,6 +2,11 @@
 
 ## whep (development version)
 
+- Add
+  [`decompose_weighted_ratio()`](https://eduaguilera.github.io/whep/reference/decompose_weighted_ratio.md)
+  for exact Kitagawa/Shapley, additive LMDI, and sequential-polar
+  decomposition of changing aggregate ratios.
+
 - [`build_io_model()`](https://eduaguilera.github.io/whep/reference/build_io_model.md)
   and
   [`build_footprint()`](https://eduaguilera.github.io/whep/reference/build_footprint.md)
