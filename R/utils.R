@@ -1261,7 +1261,18 @@ utils::globalVariables(
     "i.band_lo",
     "i.band_hi",
     "allowlisted",
-    "..allow_keys"
+    "..allow_keys",
+    # consolidate_sources.R — winner-selection NSE columns
+    ".effective_rank",
+    ".coverage_ord",
+    ".quality_rank",
+    ".prev_source",
+    ".next_source",
+    ".prev_time",
+    ".next_time",
+    ".neighbor",
+    ".isolated",
+    ".n_tie"
   )
 )
 
