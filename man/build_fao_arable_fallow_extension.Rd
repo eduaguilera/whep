@@ -32,7 +32,9 @@ from \code{harvested}.}
 the within-country fallow allocation weight, e.g. from
 \code{\link[=gridded_fallow_weights]{gridded_fallow_weights()}} (the recommended agro-climatic, rainfed-gated
 weight). If \code{NULL}, fallow is distributed in proportion to each arable
-crop's cropped physical area (perennials always excluded).}
+crop's cropped physical area (perennials always excluded). The cropped-area
+fallback is used independently for an area when it has no usable supplied
+weights, a non-finite or negative supplied weight, or a non-positive total.}
 
 \item{items_prod_full}{Crosswalk used to classify \code{item_cbs_code} as arable or
 perennial via \code{Herb_Woody}. Defaults to \link{items_prod_full}.}
@@ -71,6 +73,10 @@ arable total equals FAO \code{arable_ha} by construction.
 scaled so their total equals FAO \code{permanent_ha}, preserving the within-group
 physical pattern.
 }
+
+A positive target without a corresponding arable crop row or positive
+perennial base area is reported as an error because it cannot be reconciled
+without inventing a crop allocation.
 
 The default of \code{\link[=build_cropgrids_land_extension]{build_cropgrids_land_extension()}} and the footprint balance
 are unchanged; this is an additive method.

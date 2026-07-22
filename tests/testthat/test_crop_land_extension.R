@@ -479,11 +479,33 @@ test_that("get_arable_permanent_land reconstructs FAO cropland = arable + perman
   expect_equal(ap$arable_ha + ap$permanent_ha, ap$cropland_ha)
   # missing-permanent country: permanent filled from cropland - arable
   alb <- ap[ap$area_code == 3L, ]
-  expect_equal(alb$permanent_ha, 300000) # (1000 - 700) * 1000
+  expect_equal(alb$permanent_ha, 300000) # inferred remainder, converted to ha
   # missing-arable country: arable filled from cropland - permanent
   dza <- ap[ap$area_code == 4L, ]
-  expect_equal(dza$arable_ha, 380000) # (500 - 120) * 1000
+  expect_equal(dza$arable_ha, 380000) # inferred remainder, converted to ha
   expect_true(all(ap$source == "fao"))
+})
+
+test_that("reported zero land components remain distinct from missing reports", {
+  zero_components <- tibble::tribble(
+    ~`Area Code`, ~`Item Code`, ~Element, ~Unit, ~Year, ~Value,
+    3, 6620, "Area", "1000 ha", 2020, 10,
+    3, 6621, "Area", "1000 ha", 2020, 0,
+    4, 6620, "Area", "1000 ha", 2020, 10,
+    4, 6650, "Area", "1000 ha", 2020, 0
+  )
+
+  ap <- whep::get_arable_permanent_land(
+    data = zero_components,
+    years = 2020L
+  )
+  all_permanent <- ap[ap$area_code == 3L, ]
+  all_arable <- ap[ap$area_code == 4L, ]
+
+  expect_equal(all_permanent$arable_ha, 0)
+  expect_equal(all_permanent$permanent_ha, 10000)
+  expect_equal(all_arable$arable_ha, 10000)
+  expect_equal(all_arable$permanent_ha, 0)
 })
 
 test_that("get_arable_permanent_land drops the FAOSTAT China aggregate 351", {
@@ -538,6 +560,38 @@ test_that("get_arable_permanent_land backcasts pre-1961 from LUH2, spliced at 19
   expect_lt(abs(s1960 - 0.25), 0.02)
 })
 
+test_that("land-base readers accept snake case without mutating supplied data tables", {
+  fao <- data.table::data.table(
+    area_code = c(3L, 3L),
+    item_code = c(6620L, 6621L),
+    element = "Area",
+    unit = "1000 ha",
+    year = 2020L,
+    value = c(10, 7)
+  )
+  fao_names <- names(fao)
+  ap <- whep::get_arable_permanent_land(data = fao, years = 2020L)
+
+  expect_named(fao, fao_names)
+  expect_equal(ap$arable_ha, 7000)
+  expect_equal(ap$permanent_ha, 3000)
+
+  luh2 <- data.table::data.table(
+    ISO3 = c("TUN", "PRT", "PRT"),
+    Year = 1960L,
+    Land_Use = c("c3ann", "c3ann", "c3per"),
+    Area_Mha = c(1, 1, 0.2)
+  )
+  luh2_names <- names(luh2)
+  cft <- whep:::.read_luh2_cft(luh2)
+  tun <- cft[cft$area_code == 222L, ]
+
+  expect_named(luh2, luh2_names)
+  expect_equal(tun$annual, 1e6)
+  expect_equal(tun$perennial, 0)
+  expect_equal(tun$luh2_cropland, 1e6)
+})
+
 # Fixtures for the per-crop FAO-arable fallow extension.
 .fao_fallow_items <- function() {
   tibble::tribble(
@@ -545,7 +599,7 @@ test_that("get_arable_permanent_land backcasts pre-1961 from LUH2, spliced at 19
     2511L, "Herbaceous", # wheat (arable)
     2513L, "Herbaceous", # barley (arable)
     2514L, "Herbaceous", # maize (arable)
-    2560L, "Woody" # coconuts / olives (perennial)
+    2560L, "Woody" # perennial crops such as coconuts and olives
   )
 }
 
@@ -565,10 +619,10 @@ test_that("build_fao_arable_fallow_extension distributes fallow summing to fallo
     items_prod_full = .fao_fallow_items()
   )
   # fallow_total = 600 - (300 + 200) = 100, distributed by cropped area share
-  expect_equal(sum(res$impact_u), 600) # arable total == FAO arable
-  expect_equal(sum(res$impact_u) - sum(base$impact_u), 100) # fallow == fallow_total
-  expect_equal(res$impact_u[res$item_cbs_code == 2511L], 360) # 300 + 100*300/500
-  expect_equal(res$impact_u[res$item_cbs_code == 2513L], 240) # 200 + 100*200/500
+  expect_equal(sum(res$impact_u), 600) # matches the FAO arable total
+  expect_equal(sum(res$impact_u) - sum(base$impact_u), 100) # adds all fallow
+  expect_equal(res$impact_u[res$item_cbs_code == 2511L], 360) # wheat share
+  expect_equal(res$impact_u[res$item_cbs_code == 2513L], 240) # barley share
   expect_true(all(res$method_land == "fao_arable_fallow"))
 })
 
@@ -636,7 +690,134 @@ test_that("build_fao_arable_fallow_extension scales arable down when cropped phy
     arable_permanent = ap,
     items_prod_full = .fao_fallow_items()
   )
-  expect_equal(sum(res$impact_u), 600) # arable total == FAO arable by construction
-  expect_equal(res$impact_u[res$item_cbs_code == 2511L], 450) # 600 * 600/800
-  expect_equal(res$impact_u[res$item_cbs_code == 2513L], 150) # 200 * 600/800
+  expect_equal(sum(res$impact_u), 600) # matches the FAO arable total
+  expect_equal(res$impact_u[res$item_cbs_code == 2511L], 450) # wheat share
+  expect_equal(res$impact_u[res$item_cbs_code == 2513L], 150) # barley share
+})
+
+test_that("fallow weights fall back independently for unsupported areas", {
+  base <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~impact_u,
+    2020L, 1L, 2511L, 300,
+    2020L, 1L, 2513L, 200,
+    2020L, 2L, 2511L, 100,
+    2020L, 2L, 2513L, 300,
+    2020L, 3L, 2511L, 200,
+    2020L, 3L, 2513L, 200
+  )
+  ap <- tibble::tribble(
+    ~area_code, ~year, ~arable_ha, ~permanent_ha,
+    1L, 2020L, 600, 0,
+    2L, 2020L, 500, 0,
+    3L, 2020L, 500, 0
+  )
+  weights <- tibble::tribble(
+    ~area_code, ~item_cbs_code, ~weight,
+    1L, 2511L, 1,
+    1L, 2513L, 0,
+    2L, 2511L, 0,
+    2L, 2513L, 0
+  )
+
+  res <- whep::build_fao_arable_fallow_extension(
+    base_extension = base,
+    arable_permanent = ap,
+    fallow_weights = weights,
+    items_prod_full = .fao_fallow_items()
+  )
+
+  totals <- res |>
+    dplyr::summarise(impact_u = sum(.data$impact_u), .by = area_code)
+  expect_equal(totals$impact_u[match(1:3, totals$area_code)], c(600, 500, 500))
+  expect_equal(res$impact_u[res$area_code == 1L], c(400, 200))
+  expect_equal(res$impact_u[res$area_code == 2L], c(125, 375))
+  expect_equal(res$impact_u[res$area_code == 3L], c(250, 250))
+})
+
+test_that("impossible arable reconciliation fails explicitly", {
+  base <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~impact_u,
+    2020L, 1L, 2511L, 0
+  )
+  ap <- tibble::tribble(
+    ~area_code, ~year, ~arable_ha, ~permanent_ha,
+    1L, 2020L, 100, 0
+  )
+  weights <- tibble::tribble(
+    ~area_code, ~item_cbs_code, ~weight,
+    1L, 2511L, 0
+  )
+
+  expect_error(
+    whep::build_fao_arable_fallow_extension(
+      base_extension = base,
+      arable_permanent = ap,
+      fallow_weights = weights,
+      items_prod_full = .fao_fallow_items()
+    ),
+    "Arable totals do not reconcile"
+  )
+})
+
+test_that("invalid custom weights cannot create negative crop areas", {
+  base <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~impact_u,
+    2020L, 1L, 2511L, 100,
+    2020L, 1L, 2513L, 300
+  )
+  ap <- tibble::tribble(
+    ~area_code, ~year, ~arable_ha, ~permanent_ha,
+    1L, 2020L, 500, 0
+  )
+  weights <- tibble::tribble(
+    ~area_code, ~item_cbs_code, ~weight,
+    1L, 2511L, -1,
+    1L, 2513L, 2
+  )
+
+  res <- whep::build_fao_arable_fallow_extension(
+    base_extension = base,
+    arable_permanent = ap,
+    fallow_weights = weights,
+    items_prod_full = .fao_fallow_items()
+  )
+
+  expect_equal(res$impact_u, c(125, 375))
+  expect_true(all(res$impact_u >= 0))
+})
+
+test_that("positive land targets require crop support", {
+  perennial_only <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~impact_u,
+    2020L, 1L, 2560L, 100
+  )
+  arable_target <- tibble::tribble(
+    ~area_code, ~year, ~arable_ha, ~permanent_ha,
+    1L, 2020L, 50, 100
+  )
+  expect_error(
+    whep::build_fao_arable_fallow_extension(
+      base_extension = perennial_only,
+      arable_permanent = arable_target,
+      items_prod_full = .fao_fallow_items()
+    ),
+    "without arable crop rows"
+  )
+
+  arable_only <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~impact_u,
+    2020L, 1L, 2511L, 100
+  )
+  permanent_target <- tibble::tribble(
+    ~area_code, ~year, ~arable_ha, ~permanent_ha,
+    1L, 2020L, 100, 50
+  )
+  expect_error(
+    whep::build_fao_arable_fallow_extension(
+      base_extension = arable_only,
+      arable_permanent = permanent_target,
+      items_prod_full = .fao_fallow_items()
+    ),
+    "without positive perennial base area"
+  )
 })

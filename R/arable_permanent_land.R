@@ -110,7 +110,13 @@ get_arable_permanent_land <- function(
 # Permanent crops physical Area rows only, harmonised to whep area_code.
 .read_fao_rl <- function(data = NULL, input_dir = NULL) {
   raw <- .fetch_fao_rl(data = data, input_dir = input_dir)
+  # The normalisation below renames and adds columns by reference. Copy first so
+  # a caller-owned data.table is not modified; internally read data can be
+  # normalised in place without doubling its memory footprint.
   dt <- data.table::as.data.table(raw)
+  if (!is.null(data) && data.table::is.data.table(raw)) {
+    dt <- data.table::copy(dt)
+  }
 
   # Accept both the raw FAOSTAT pin schema (spaced names) and an already
   # snake_cased local file.
@@ -121,6 +127,7 @@ get_arable_permanent_land <- function(
     "Unit" = "unit",
     "Year" = "year",
     "Value" = "value",
+    "area_code" = "area_code_fao",
     "area_fao_code" = "area_code_fao",
     "item" = "item_name"
   )
@@ -146,7 +153,6 @@ get_arable_permanent_land <- function(
   if (!"unit" %in% names(dt)) {
     dt[, unit := "1000 ha"]
   }
-
   items <- .fao_rl_items()
   dt <- dt[
     element == "Area" &
@@ -214,11 +220,11 @@ get_arable_permanent_land <- function(
     dt,
     area_code + year ~ item_code,
     value.var = "ha",
-    fun.aggregate = sum
+    fun.aggregate = sum,
+    fill = NA_real_
   )
-  # dcast fills absent combinations with 0; distinguish a true 0 from "not
-  # reported" is not possible here, but FAO reports these items for every
-  # cropland-bearing country-year, so 0 means genuinely absent.
+  # Keep an unreported item as NA while preserving an explicitly reported zero.
+  # The distinction is needed for all-permanent and all-arable economies.
   for (nm in as.character(items)) {
     if (!nm %in% names(w)) {
       w[, (nm) := NA_real_]
@@ -227,12 +233,9 @@ get_arable_permanent_land <- function(
   w[, cropland_ha := get(as.character(items[["cropland"]]))]
   w[, arable_rep := get(as.character(items[["arable"]]))]
   w[, permanent_rep := get(as.character(items[["permanent"]]))]
-  # dcast fills item combinations absent from the source with 0; for these land
-  # areas a 0 means the item was not reported for that country-year, so treat it
-  # as missing (a cropland-bearing country never has literally 0 ha of land).
+  # Zero total cropland carries no physical land extension. Component zeros,
+  # however, are valid observations and must remain distinguishable from NA.
   w[cropland_ha == 0, cropland_ha := NA_real_]
-  w[arable_rep == 0, arable_rep := NA_real_]
-  w[permanent_rep == 0, permanent_rep := NA_real_]
 
   # arable = reported Arable land; where absent but Cropland and Permanent are
   # present, fill from the FAO identity so all-permanent economies are kept.
@@ -264,11 +267,16 @@ get_arable_permanent_land <- function(
   } else {
     .read_input("luh2-areas", years = NULL, year_col = "Year")
   }
+  # setnames() mutates by reference, so preserve a caller-owned data.table while
+  # avoiding an extra full copy of the internally read LUH2 dataset.
   dt <- data.table::as.data.table(raw)
-  if ("ISO3" %in% names(dt)) {
+  if (!is.null(luh2_data) && data.table::is.data.table(raw)) {
+    dt <- data.table::copy(dt)
+  }
+  if ("ISO3" %in% names(dt) && !"iso3c" %in% names(dt)) {
     data.table::setnames(dt, "ISO3", "iso3c")
   }
-  if ("Year" %in% names(dt)) {
+  if ("Year" %in% names(dt) && !"year" %in% names(dt)) {
     data.table::setnames(dt, "Year", "year")
   }
   annual <- c("c3ann", "c4ann", "c3nfx")
@@ -286,7 +294,12 @@ get_arable_permanent_land <- function(
     .(area_ha = sum(Area_Mha, na.rm = TRUE) * 1e6),
     by = .(area_code, year = as.integer(year), kind)
   ]
-  w <- data.table::dcast(agg, area_code + year ~ kind, value.var = "area_ha")
+  w <- data.table::dcast(
+    agg,
+    area_code + year ~ kind,
+    value.var = "area_ha",
+    fill = 0
+  )
   if (!"annual" %in% names(w)) {
     w[, annual := 0]
   }
@@ -416,6 +429,9 @@ get_arable_permanent_land <- function(
 #' - **Perennial crops** (`Herb_Woody == "Woody"`) receive no fallow and are
 #'   scaled so their total equals FAO `permanent_ha`, preserving the within-group
 #'   physical pattern.
+#' A positive target without a corresponding arable crop row or positive
+#' perennial base area is reported as an error because it cannot be reconciled
+#' without inventing a crop allocation.
 #'
 #' The default of [build_cropgrids_land_extension()] and the footprint balance
 #' are unchanged; this is an additive method.
@@ -436,7 +452,9 @@ get_arable_permanent_land <- function(
 #'   the within-country fallow allocation weight, e.g. from
 #'   [gridded_fallow_weights()] (the recommended agro-climatic, rainfed-gated
 #'   weight). If `NULL`, fallow is distributed in proportion to each arable
-#'   crop's cropped physical area (perennials always excluded).
+#'   crop's cropped physical area (perennials always excluded). The cropped-area
+#'   fallback is used independently for an area when it has no usable supplied
+#'   weights, a non-finite or negative supplied weight, or a non-positive total.
 #' @param items_prod_full Crosswalk used to classify `item_cbs_code` as arable or
 #'   perennial via `Herb_Woody`. Defaults to [items_prod_full].
 #'
@@ -470,7 +488,7 @@ get_arable_permanent_land <- function(
 #'   harvested, arable_permanent, base_extension,
 #'   items_prod_full = items
 #' )
-build_fao_arable_fallow_extension <- function(
+build_fao_arable_fallow_extension <- function( # nolint: object_length_linter.
   harvested = NULL,
   arable_permanent = NULL,
   base_extension = NULL,
@@ -574,6 +592,50 @@ build_fao_arable_fallow_extension <- function(
   arable <- base[kind == "arable"]
   peren <- base[kind == "perennial"]
 
+  # A positive target cannot be manufactured when the corresponding crop kind
+  # has no row (or, for proportional perennial scaling, has zero base area).
+  support <- base[,
+    .(
+      arable_rows = sum(kind == "arable"),
+      perennial_base = sum(physical_ha[kind == "perennial"])
+    ),
+    by = .(area_code, year)
+  ]
+  support <- merge(
+    support,
+    ap[, .(area_code, year, arable_ha, permanent_ha)],
+    by = c("area_code", "year"),
+    all.x = TRUE
+  )
+  unsupported_arable <- support[
+    !is.na(arable_ha) & arable_ha > 0 & arable_rows == 0L
+  ]
+  if (nrow(unsupported_arable) > 0L) {
+    keys <- paste(
+      paste(unsupported_arable$area_code, unsupported_arable$year, sep = "/"),
+      collapse = ", "
+    )
+    cli::cli_abort(
+      "Cannot reconcile positive arable totals without arable crop rows: {.val {keys}}."
+    )
+  }
+  unsupported_perennial <- support[
+    !is.na(permanent_ha) & permanent_ha > 0 & perennial_base <= 0
+  ]
+  if (nrow(unsupported_perennial) > 0L) {
+    keys <- paste(
+      paste(
+        unsupported_perennial$area_code,
+        unsupported_perennial$year,
+        sep = "/"
+      ),
+      collapse = ", "
+    )
+    cli::cli_abort(
+      "Cannot reconcile positive permanent-crop totals without positive perennial base area: {.val {keys}}."
+    )
+  }
+
   # --- arable: pre-scale any per-year overshoot down to FAO arable, then let
   #     attribute_fallow_to_crops() distribute the remaining slack as fallow. ---
   s_arable <- arable[,
@@ -616,10 +678,61 @@ build_fao_arable_fallow_extension <- function(
       # Default: distribute this year's fallow by cropped arable physical area.
       ay[, .(area_code, item_cbs_code, weight = physical_ha)]
     } else {
-      weights[area_code %in% ay$area_code]
+      weights_y <- merge(
+        ay[, .(
+          area_code,
+          item_cbs_code,
+          fallback_weight = physical_ha
+        )],
+        weights,
+        by = c("area_code", "item_cbs_code"),
+        all.x = TRUE
+      )
+      weights_y[,
+        invalid_weight := any(
+          !is.na(weight) & (!is.finite(weight) | weight < 0)
+        ),
+        by = area_code
+      ]
+      weights_y[is.na(weight), weight := 0]
+      weights_y[,
+        weight_sum := sum(weight),
+        by = area_code
+      ]
+      weights_y[
+        invalid_weight | !is.finite(weight_sum) | weight_sum <= 0,
+        weight := fallback_weight
+      ]
+      weights_y[, .(area_code, item_cbs_code, weight)]
     }
     attributed <- attribute_fallow_to_crops(cropgrids_y, fallow_y, weights_y)
     attributed <- data.table::as.data.table(attributed)
+
+    reconciliation <- attributed[,
+      .(actual_arable = sum(physical_ha)),
+      by = area_code
+    ]
+    reconciliation <- merge(
+      sy[, .(area_code, target_arable = arable_ha)],
+      reconciliation,
+      by = "area_code",
+      all.x = TRUE
+    )
+    reconciliation[,
+      tolerance := pmax(1e-8, abs(target_arable) * 1e-10)
+    ]
+    failed <- reconciliation[
+      is.na(actual_arable) |
+        !is.finite(actual_arable) |
+        abs(actual_arable - target_arable) > tolerance
+    ]
+    if (nrow(failed) > 0L) {
+      failed_areas <- paste(failed$area_code, collapse = ", ")
+      cli::cli_abort(
+        "Arable totals do not reconcile for area codes: {.val {failed_areas}}."
+      )
+    }
+
     attributed[, year := yr]
     arable_out[[length(arable_out) + 1L]] <- attributed[, .(
       year,
@@ -646,6 +759,30 @@ build_fao_arable_fallow_extension <- function(
       physical_ha
     )
   ]
+
+  if (nrow(peren) > 0L) {
+    perennial_reconciliation <- peren[,
+      .(
+        actual_permanent = sum(impact_u),
+        target_permanent = permanent_ha[[1L]]
+      ),
+      by = .(area_code, year)
+    ]
+    perennial_reconciliation[,
+      tolerance := pmax(1e-8, abs(target_permanent) * 1e-10)
+    ]
+    failed_perennial <- perennial_reconciliation[
+      !is.na(target_permanent) &
+        (!is.finite(actual_permanent) |
+          abs(actual_permanent - target_permanent) > tolerance)
+    ]
+    if (nrow(failed_perennial) > 0L) {
+      failed_areas <- paste(failed_perennial$area_code, collapse = ", ")
+      cli::cli_abort(
+        "Permanent-crop totals do not reconcile for area codes: {.val {failed_areas}}."
+      )
+    }
+  }
 
   data.table::rbindlist(
     list(
