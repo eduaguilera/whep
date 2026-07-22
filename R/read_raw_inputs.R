@@ -119,6 +119,10 @@
 
 # Get local file paths for a pin alias (download if needed, don't read).
 .download_pin_paths <- function(file_alias) {
+  if (.use_github_inputs()) {
+    return(.get_github_release_paths(file_alias))
+  }
+
   file_info <- .fetch_file_info(file_alias, whep::whep_inputs)
   version <- .choose_version(file_info$version, NULL)
 
