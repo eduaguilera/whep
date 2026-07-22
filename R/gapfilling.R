@@ -14,6 +14,14 @@
 #' @param time_col The column containing time values. Default: `year`.
 #' @param interpolate Logical. If `TRUE` (default),
 #'   performs linear interpolation.
+#' @param log_space Logical. If `TRUE`, interior interpolation is performed in
+#'   log space (constant compound growth rate) for each gap segment whose two
+#'   bracketing anchors are both finite and strictly positive; any segment with
+#'   a non-positive or non-finite anchor falls back to linear interpolation.
+#'   Default: `FALSE`, i.e. linear interpolation everywhere. Log-space fills are
+#'   labelled `"Log-linear interpolation"` in the source column, distinct from
+#'   `"Linear interpolation"`, so the choice survives downstream. Carrying
+#'   forward or backward is unaffected.
 #' @param fill_forward Logical. If `TRUE` (default),
 #'   carries last value forward.
 #' @param fill_backward Logical. If `TRUE` (default),
@@ -47,11 +55,13 @@
 #'   interpolate = FALSE,
 #'   .by = c("category"),
 #' )
+#' fill_linear(sample_tibble, value, log_space = TRUE, .by = c("category"))
 fill_linear <- function(
   data,
   value_col,
   time_col = year,
   interpolate = TRUE,
+  log_space = FALSE,
   fill_forward = TRUE,
   fill_backward = TRUE,
   value_smooth_window = NULL,
@@ -61,6 +71,10 @@ fill_linear <- function(
   time_col_name <- rlang::as_name(rlang::enquo(time_col))
   source_col_name <- paste0("source_", value_col_name)
   by_cols <- .by %||% character(0)
+
+  if (!rlang::is_bool(log_space)) {
+    cli::cli_abort("`log_space` must be a single `TRUE` or `FALSE`.")
+  }
 
   n <- nrow(data)
   if (n == 0L) {
@@ -107,6 +121,7 @@ fill_linear <- function(
       smooth_vals,
       times,
       interpolate,
+      log_space,
       fill_forward,
       fill_backward
     )
@@ -129,6 +144,7 @@ fill_linear <- function(
       source_col_name,
       by_cols,
       interpolate,
+      log_space,
       fill_forward,
       fill_backward,
       value_smooth_window,
@@ -190,9 +206,22 @@ fill_linear <- function(
       NA_real_
     )
     interp <- locf + (nocb - locf) * frac
+    if (log_space) {
+      interp_log <- .loglinear_interp(tm, tl, tn, locf, nocb)
+      use_log <- !is.na(interp_log)
+      interp <- data.table::fifelse(use_log, interp_log, interp)
+    }
     mask <- is_na & !is.na(interp) & locf_ok & nocb_ok
     filled[mask] <- interp[mask]
-    source[mask] <- "Linear interpolation"
+    if (log_space) {
+      source[mask] <- data.table::fifelse(
+        use_log[mask],
+        "Log-linear interpolation",
+        "Linear interpolation"
+      )
+    } else {
+      source[mask] <- "Linear interpolation"
+    }
   }
 
   # Carry backward (NAs before first valid in group)
@@ -226,6 +255,7 @@ fill_linear <- function(
   source_col_name,
   by_cols,
   interpolate,
+  log_space,
   fill_forward,
   fill_backward,
   value_smooth_window,
@@ -258,14 +288,14 @@ fill_linear <- function(
         last_v <- valid[length(valid)]
 
         if (interpolate && length(valid) >= 2L && first_v < last_v) {
-          interp <- .safe_na_approx(sv, x = tm, na.rm = FALSE)
-          if (length(interp) == m) {
+          interp <- .interp_series(sv, tm, log_space)
+          if (length(interp$value) == m) {
             mask <- nna &
-              !is.na(interp) &
+              !is.na(interp$value) &
               seq_len(m) > first_v &
               seq_len(m) < last_v
-            filled[mask] <- interp[mask]
-            src[mask] <- "Linear interpolation"
+            filled[mask] <- interp$value[mask]
+            src[mask] <- .interp_source_label(interp$kind[mask])
           }
         }
         if (fill_backward && first_v > 1L) {
@@ -320,6 +350,7 @@ fill_linear <- function(
   smooth_vals,
   times,
   interpolate,
+  log_space,
   fill_forward,
   fill_backward
 ) {
@@ -366,11 +397,11 @@ fill_linear <- function(
     if (length(mid_idx) > 0L) {
       na_mid <- mid_idx[is.na(filled[mid_idx])]
       if (length(na_mid) > 0L) {
-        interp <- .safe_na_approx(smooth_vals, x = times, na.rm = FALSE)
-        if (length(interp) == n) {
-          fill_mask <- na_mid[!is.na(interp[na_mid])]
-          filled[fill_mask] <- interp[fill_mask]
-          source[fill_mask] <- "Linear interpolation"
+        interp <- .interp_series(smooth_vals, times, log_space)
+        if (length(interp$value) == n) {
+          fill_mask <- na_mid[!is.na(interp$value[na_mid])]
+          filled[fill_mask] <- interp$value[fill_mask]
+          source[fill_mask] <- .interp_source_label(interp$kind[fill_mask])
         }
       }
     }
@@ -382,6 +413,72 @@ fill_linear <- function(
   source[has_orig] <- "Original"
 
   list(value = filled, source = source)
+}
+
+# Interpolate a series, optionally refilling each interior segment in log space.
+# `smooth_vals` carries NA at gap positions; the non-NA entries are the anchors.
+# The linear baseline is `.safe_na_approx()` (identical to the prior behaviour,
+# so `log_space = FALSE` is a no-op). When `log_space` is TRUE, every gap whose
+# bracketing anchors are both finite and strictly positive is refilled in log
+# space (constant compound growth rate). Returns a list with `value` (the
+# interpolated vector) and `kind` (per-position label: "loglinear", "linear",
+# or NA where no interpolated value was produced).
+.interp_series <- function(smooth_vals, times, log_space) {
+  n <- length(smooth_vals)
+  linear <- .safe_na_approx(smooth_vals, x = times, na.rm = FALSE)
+  if (length(linear) != n) {
+    return(list(value = linear, kind = NA_character_))
+  }
+
+  kind <- data.table::fifelse(is.na(linear), NA_character_, "linear")
+  value <- linear
+
+  if (log_space) {
+    tt <- as.numeric(times)
+    anchor_time <- data.table::fifelse(!is.na(smooth_vals), tt, NA_real_)
+    anchor_val <- as.numeric(smooth_vals)
+    log_val <- .loglinear_interp(
+      tt,
+      data.table::nafill(anchor_time, "locf"),
+      data.table::nafill(anchor_time, "nocb"),
+      data.table::nafill(anchor_val, "locf"),
+      data.table::nafill(anchor_val, "nocb")
+    )
+    use_log <- is.na(smooth_vals) & !is.na(log_val) & !is.na(linear)
+    value[use_log] <- log_val[use_log]
+    kind[use_log] <- "loglinear"
+  }
+
+  list(value = value, kind = kind)
+}
+
+# Log-space (constant-growth) interpolation between bracketing anchors.
+# Returns the interpolated value where both anchors are finite and strictly
+# positive and the anchor times differ; NA elsewhere (the caller keeps its
+# linear value there). Non-positive anchors are floored to 1 before `log()`
+# purely to avoid NaN warnings; those positions are discarded by `usable`.
+.loglinear_interp <- function(t, t0, t1, v0, v1) {
+  span <- t1 - t0
+  usable <- is.finite(v0) &
+    is.finite(v1) &
+    v0 > 0 &
+    v1 > 0 &
+    is.finite(span) &
+    span != 0
+  safe_v0 <- data.table::fifelse(usable, v0, 1)
+  safe_v1 <- data.table::fifelse(usable, v1, 1)
+  frac <- (t - t0) / span
+  out <- exp(log(safe_v0) + frac * (log(safe_v1) - log(safe_v0)))
+  data.table::fifelse(usable, out, NA_real_)
+}
+
+# Map per-position interpolation `kind` labels to source-column strings.
+.interp_source_label <- function(kind) {
+  data.table::fifelse(
+    !is.na(kind) & kind == "loglinear",
+    "Log-linear interpolation",
+    "Linear interpolation"
+  )
 }
 
 #' Fill gaps summing the previous value of a variable to the value of
