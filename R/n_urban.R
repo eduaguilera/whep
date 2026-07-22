@@ -98,8 +98,10 @@ build_urban_n <- function(years = NULL, data = list(), example = FALSE) {
     dplyr::inner_join(rate, by = "year") |>
     dplyr::inner_join(polity, by = c("lon", "lat")) |>
     dplyr::mutate(
-      urban_n_generated_t = .data$urban_pop * .data$urban_kgn_cap *
-        .data$polity_frac / 1000
+      urban_n_generated_t = .data$urban_pop *
+        .data$urban_kgn_cap *
+        .data$polity_frac /
+        1000
     )
 }
 

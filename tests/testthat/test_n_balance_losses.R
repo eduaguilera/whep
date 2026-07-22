@@ -211,18 +211,15 @@ testthat::test_that("calculate_soil_n2o(method = \"aguilera\") aborts on unsuppo
   testthat::expect_error(whep::calculate_soil_n2o(x, method = "aguilera"))
 })
 
-testthat::test_that(
-  "calculate_soil_n2o aguilera aborts on unsupported MED irrig_type",
-  {
-    # Every supported Mediterranean irrigation key has a finite EF. An
-    # unmatched key must not disappear in a downstream na.rm sum.
-    x <- tibble::tribble(
+testthat::test_that("calculate_soil_n2o aguilera aborts on unsupported MED irrig_type", {
+  # Every supported Mediterranean irrigation key has a finite EF. An
+  # unmatched key must not disappear in a downstream na.rm sum.
+  x <- tibble::tribble(
       ~n_input_t, ~fert_type, ~climate, ~irrig_type,
       10, "Solid", "MED", "not_a_real_irrigation_type"
     )
-    testthat::expect_error(whep::calculate_soil_n2o(x, method = "aguilera"))
-  }
-)
+  testthat::expect_error(whep::calculate_soil_n2o(x, method = "aguilera"))
+})
 
 testthat::test_that("calculate_soil_n2o(method = \"aguilera\") aborts on a missing fertiliser modifier", {
   # A fert_type with no fertiliser_n2o_modifiers row (BNF) yields NA mf; the

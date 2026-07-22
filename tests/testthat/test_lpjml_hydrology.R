@@ -162,40 +162,37 @@ testthat::test_that("years= subsets a 4-D (layered) variable correctly", {
   testthat::expect_equal(decoded_month, result$month)
 })
 
-testthat::test_that(
-  "cft_nir exposes and preserves a CFT band, not a soil layer",
-  {
-    injected <- tidyr::expand_grid(
-      lon = 0.25,
-      lat = 0.25,
-      year = 2000L,
-      month = 1:2,
-      layer = 1:2
-    ) |>
-      dplyr::mutate(value = layer * 10 + month)
+testthat::test_that("cft_nir exposes and preserves a CFT band, not a soil layer", {
+  injected <- tidyr::expand_grid(
+    lon = 0.25,
+    lat = 0.25,
+    year = 2000L,
+    month = 1:2,
+    layer = 1:2
+  ) |>
+    dplyr::mutate(value = layer * 10 + month)
 
-    monthly <- whep::read_lpjml_hydrology(
-      "cft_nir",
-      data = injected,
-      monthly = TRUE
-    )
-    annual <- whep::read_lpjml_hydrology(
-      "cft_nir",
-      data = injected,
-      monthly = FALSE
-    )
+  monthly <- whep::read_lpjml_hydrology(
+    "cft_nir",
+    data = injected,
+    monthly = TRUE
+  )
+  annual <- whep::read_lpjml_hydrology(
+    "cft_nir",
+    data = injected,
+    monthly = FALSE
+  )
 
-    testthat::expect_true("band" %in% names(monthly))
-    testthat::expect_false("layer" %in% names(monthly))
-    testthat::expect_setequal(monthly$band, 1:2)
-    testthat::expect_equal(nrow(annual), 2L)
-    testthat::expect_setequal(annual$band, 1:2)
-    testthat::expect_equal(
-      dplyr::arrange(annual, band)$value,
-      c(23, 43)
-    )
-  }
-)
+  testthat::expect_true("band" %in% names(monthly))
+  testthat::expect_false("layer" %in% names(monthly))
+  testthat::expect_setequal(monthly$band, 1:2)
+  testthat::expect_equal(nrow(annual), 2L)
+  testthat::expect_setequal(annual$band, 1:2)
+  testthat::expect_equal(
+    dplyr::arrange(annual, band)$value,
+    c(23, 43)
+  )
+})
 
 testthat::test_that("years=NULL still reads every year (regression guard)", {
   cube <- .lpjml_hydro_multiyear_fixture(first_year = 1900L, n_years = 3L)

@@ -123,13 +123,19 @@ testthat::test_that("NEg is positive for growing animals", {
 
 testthat::test_that("Goats use IPCC Table 10.4 Cfi (0.315), distinct from sheep", {
   goat <- tibble::tibble(
-    species = "Goats", cohort = "All", weight = 40,
-    diet_quality = "Low", heads = 1
+    species = "Goats",
+    cohort = "All",
+    weight = 40,
+    diet_quality = "Low",
+    heads = 1
   ) |>
     estimate_energy_demand()
   sheep <- tibble::tibble(
-    species = "Sheep", cohort = "All", weight = 40,
-    diet_quality = "Low", heads = 1
+    species = "Sheep",
+    cohort = "All",
+    weight = 40,
+    diet_quality = "Low",
+    heads = 1
   ) |>
     estimate_energy_demand()
 
@@ -145,8 +151,12 @@ testthat::test_that("Goats use IPCC Table 10.4 Cfi (0.315), distinct from sheep"
 
 testthat::test_that("sheep/goat activity uses Ca * body weight (IPCC Eq 10.5)", {
   ewe <- tibble::tibble(
-    species = "Sheep", cohort = "All", weight = 50,
-    diet_quality = "Low", heads = 1, grazing_distance_km = 0
+    species = "Sheep",
+    cohort = "All",
+    weight = 50,
+    diet_quality = "Low",
+    heads = 1,
+    grazing_distance_km = 0
   ) |>
     estimate_energy_demand()
 
@@ -158,8 +168,12 @@ testthat::test_that("sheep/goat activity uses Ca * body weight (IPCC Eq 10.5)", 
 
 testthat::test_that("goats use the goat-specific Ca (0.019), distinct from sheep", {
   goat <- tibble::tibble(
-    species = "Goats", cohort = "All", weight = 45,
-    diet_quality = "Low", heads = 1, grazing_distance_km = 0
+    species = "Goats",
+    cohort = "All",
+    weight = 45,
+    diet_quality = "Low",
+    heads = 1,
+    grazing_distance_km = 0
   ) |>
     estimate_energy_demand()
 
