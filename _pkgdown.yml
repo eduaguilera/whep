@@ -230,13 +230,16 @@ reference:
 
 - title: Trustworthiness and quality control
   desc: >
-    Checks that make footprint and balance results trustworthy: conservation
-    invariants, accounting identities, and other data-quality diagnostics.
+    Checks that make footprint, balance and time-series results trustworthy:
+    conservation invariants, accounting identities, within-series jump
+    detection (the level-2 detector of the AFE data-validation framework), and
+    other data-quality diagnostics.
   contents:
   - check_footprint_conservation
   - summarise_conservation
   - assert_footprint_invariants
   - check_supply_use_balance
+  - check_series_jumps
 - subtitle: Uncertainty and sensitivity
   desc: >
     Propagate input uncertainty through a footprint, combine data-quality

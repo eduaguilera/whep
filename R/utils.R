@@ -1248,7 +1248,20 @@ utils::globalVariables(
     "area_item_cbs_code",
     "family",
     "i..has_milled_rice",
-    "output_key"
+    "output_key",
+    # check_series_jumps.R (level-2 within-series jump detector)
+    ".value_now",
+    ".value_prev",
+    ".time_num",
+    ".time_prev",
+    ".lo",
+    ".hi",
+    "band_lo",
+    "band_hi",
+    "i.band_lo",
+    "i.band_hi",
+    "allowlisted",
+    "..allow_keys"
   )
 )
 
