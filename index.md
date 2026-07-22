@@ -93,7 +93,8 @@ We try to follow best coding practices, specifically focused on R
 package creation. The process is roughly summarized in:
 
 - Use git. Work on your own branch.
-- Track dependencies using `renv` R package.
+- Declare dependencies in `DESCRIPTION`; CI tests against the latest
+  CRAN versions.
 - Add your new functionality inside `R/` directory as functions.
 - Add function documentation.
 - Write clean code. Follow [Tidyverse style
