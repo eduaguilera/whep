@@ -29,6 +29,8 @@ nitrogen (the same N is not removed twice). Carbon applied to the field is
 \code{applied_n} times the post-storage manure C:N (the solid/liquid/excreta value
 for the stream's management system), so the applied C:N reflects storage, not
 fresh excreta; the carbon and volatile-solids storage losses follow from that.
+The grazing stream undergoes no storage and keeps its full carbon and volatile
+solids (no storage C:N cap is applied to it).
 }
 \examples{
 excretion <- tibble::tribble(
