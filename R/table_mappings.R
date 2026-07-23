@@ -68,8 +68,12 @@
 #'   statistical composites that are not real polities.
 #' - `polity_start_year`, `polity_end_year`: Validity interval for the matched
 #'   polity.
-#' - `mapping_status`: `"matched"`, `"manual"`, `"unmapped"`, or
-#'   `"not_a_reporting_area"`.
-#' - `mapping_note`: Explanation for manual or unmapped rows.
-#' @source Derived from [polities] and `inst/extdata/harmonization/regions_full.csv`.
+#' - `mapping_status`: one of `"matched_curated"` (area resolved via the curated
+#'   FAOSTAT-era alias table), `"matched_fallback"` (resolved by the legacy
+#'   iso3c/reporting-code guess), `"row"` (uncurated area collapsed to the Rest
+#'   of World bucket), or `"unmapped"` (no real WHEP polity yet).
+#' - `mapping_note`: Explanation of how the row was mapped.
+#' @source Derived from [polities], the curated alias table
+#'   `inst/extdata/harmonization/faostat_aliases.csv`, and
+#'   `inst/extdata/harmonization/regions_full.csv`.
 "polity_area_crosswalk"

@@ -15,13 +15,17 @@ A tibble with one row per area-code/polity-period mapping. Key columns:
 statistical composites that are not real polities.
 \item \code{polity_start_year}, \code{polity_end_year}: Validity interval for the matched
 polity.
-\item \code{mapping_status}: \code{"matched"}, \code{"manual"}, \code{"unmapped"}, or
-\code{"not_a_reporting_area"}.
-\item \code{mapping_note}: Explanation for manual or unmapped rows.
+\item \code{mapping_status}: one of \code{"matched_curated"} (area resolved via the curated
+FAOSTAT-era alias table), \code{"matched_fallback"} (resolved by the legacy
+iso3c/reporting-code guess), \code{"row"} (uncurated area collapsed to the Rest
+of World bucket), or \code{"unmapped"} (no real WHEP polity yet).
+\item \code{mapping_note}: Explanation of how the row was mapped.
 }
 }
 \source{
-Derived from \link{polities} and \code{inst/extdata/harmonization/regions_full.csv}.
+Derived from \link{polities}, the curated alias table
+\code{inst/extdata/harmonization/faostat_aliases.csv}, and
+\code{inst/extdata/harmonization/regions_full.csv}.
 }
 \usage{
 polity_area_crosswalk

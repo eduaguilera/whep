@@ -157,6 +157,34 @@ testthat::test_that("spatialized public outputs carry reporting polities", {
   expect_polity_match(livestock, "area_code", "reporting_polity_code")
 })
 
+testthat::test_that("crosswalk resolves specific areas to the right polity", {
+  # Presence/non-NA (expect_polity_match above) is necessary but not
+  # sufficient: it would pass even if an area were mapped to the WRONG polity.
+  # Pin the actual area -> polity for a handful of periodized-name countries so
+  # a mis-routing regression is caught by VALUE, not just presence.
+  cw <- whep::polity_area_crosswalk
+
+  polity_for <- function(area) {
+    unique(cw$polity_code[cw$area_code == area])
+  }
+
+  # Sudan split: former (206) -> SUD, post-secession Sudan (276) -> SDN,
+  # South Sudan (277) -> SSD. The 206 -> SUD link is the one the curated alias
+  # table exists to protect (legacy guessing routed it to SDN).
+  testthat::expect_true(all(grepl("^SUD-", polity_for(206L))))
+  testthat::expect_true(all(grepl("^SDN-", polity_for(276L))))
+  testthat::expect_true(all(grepl("^SSD-", polity_for(277L))))
+
+  # Dissolved-state aggregates keep their manual F-prefix polity chains.
+  testthat::expect_true(all(grepl("^F51-", polity_for(51L))))
+  testthat::expect_true(all(grepl("^F228-", polity_for(228L))))
+  testthat::expect_true(all(grepl("^F248-", polity_for(248L))))
+
+  # Mainland China (41) resolves to CHN while the 351 aggregate stays unmapped.
+  testthat::expect_true(all(grepl("^CHN-", polity_for(41L))))
+  testthat::expect_true(all(is.na(polity_for(351L))))
+})
+
 testthat::test_that("legacy area reference tables are backed by polities", {
   # FAOSTAT area 351 "China" is a statistical aggregate of its components
   # (mainland 41, Hong Kong 96, Macao 128, Taiwan 214), reported alongside them

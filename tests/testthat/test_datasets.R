@@ -63,14 +63,77 @@ test_that("polity_area_crosswalk maps promoted countries to real polities", {
   crosswalk <- whep::polity_area_crosswalk
 
   btn <- crosswalk |>
-    dplyr::filter(area_iso3c == "BTN", mapping_status == "matched")
+    dplyr::filter(area_iso3c == "BTN", mapping_status == "matched_curated")
   expect_true(nrow(btn) > 0)
   expect_true(any(grepl("^BTN-", btn$polity_code)))
 
   com <- crosswalk |>
-    dplyr::filter(area_iso3c == "COM", mapping_status == "matched")
+    dplyr::filter(area_iso3c == "COM", mapping_status == "matched_curated")
   expect_true(nrow(com) > 0)
   expect_true(any(grepl("^COM-", com$polity_code)))
+})
+
+test_that("periodized-name reporting areas map to the correct polity chains", {
+  crosswalk <- whep::polity_area_crosswalk
+
+  # Each area_code -> the polity prefix it MUST resolve to. These are the
+  # split/dissolved-state cases the curated alias table exists to disambiguate;
+  # a regression in the crosswalk build (e.g. a silent legacy-guess fallback)
+  # would break the exact area -> prefix links asserted here.
+  expected <- tibble::tribble(
+    ~area_code, ~prefix, ~status,
+    206L, "SUD", "matched_curated", # Sudan (former), pre-2011
+    276L, "SDN", "matched_curated", # Sudan (post-secession)
+    277L, "SSD", "matched_curated", # South Sudan
+    51L, "F51", "matched_curated", # Czechoslovakia aggregate
+    228L, "F228", "matched_curated", # USSR aggregate
+    248L, "F248", "matched_curated", # Yugoslav SFR aggregate
+    69L, "GUF", "matched_curated", # French Guiana (own polity, FABIO RoW)
+    299L, "PSE", "matched_curated" # Palestine (own polity, FABIO RoW)
+  )
+
+  purrr::pwalk(expected, function(area_code, prefix, status) {
+    rows <- crosswalk |> dplyr::filter(.data$area_code == !!area_code)
+    expect_gt(nrow(rows), 0L)
+    expect_true(
+      all(grepl(paste0("^", prefix, "-"), rows$polity_code)),
+      info = paste(area_code, "must map only to", prefix)
+    )
+    expect_setequal(unique(rows$mapping_status), status)
+  })
+
+  # China 351 is the deliberate double-count guard: it stays unmapped.
+  china <- crosswalk |> dplyr::filter(.data$area_code == 351L)
+  expect_true(all(is.na(china$polity_code)))
+  expect_setequal(unique(china$mapping_status), "unmapped")
+})
+
+test_that("polity_area_crosswalk mapping_status classes are as expected", {
+  crosswalk <- whep::polity_area_crosswalk
+
+  # No blank source codes survive into the committed crosswalk.
+  expect_false(any(is.na(crosswalk$area_code)))
+
+  # The status vocabulary is closed: exactly these four classes.
+  expect_setequal(
+    unique(crosswalk$mapping_status),
+    c("matched_curated", "matched_fallback", "row", "unmapped")
+  )
+
+  status_counts <- table(crosswalk$mapping_status)
+  # The curated alias table drives the vast majority of the mappings; the
+  # legacy fallback should stay a small residual and RoW-collapsed areas a
+  # bounded bucket. These guard against a no-alias rebuild silently diverging.
+  expect_gt(status_counts[["matched_curated"]], 500L)
+  expect_lt(status_counts[["matched_fallback"]], 50L)
+  expect_lte(status_counts[["unmapped"]], 5L)
+  # Every non-unmapped row carries a real polity; every unmapped row does not.
+  matched <- crosswalk |>
+    dplyr::filter(.data$mapping_status != "unmapped")
+  unmapped <- crosswalk |>
+    dplyr::filter(.data$mapping_status == "unmapped")
+  expect_false(any(is.na(matched$polity_code)))
+  expect_true(all(is.na(unmapped$polity_code)))
 })
 
 test_that("CBS and FABIO area codes map to polity database rows", {
