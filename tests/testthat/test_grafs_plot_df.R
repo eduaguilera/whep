@@ -469,12 +469,15 @@ test_that(".create_cropland_total_df sums the three cropland-output labels", {
   )
 
   out <- .create_cropland_total_df(df_flow)
-  huesca <- dplyr::pull(
-    dplyr::filter(out, province == "Huesca", label == "{CRPLNDTOTN}"),
-    data
-  )
+  pick <- function(prov) {
+    dplyr::pull(
+      dplyr::filter(out, province == prov, label == "{CRPLNDTOTN}"),
+      data
+    )
+  }
 
-  expect_equal(huesca, 190)
+  expect_equal(pick("Huesca"), 190)
+  expect_equal(pick("Spain"), 10)
   expect_true(all(out$align == "R"))
   expect_equal(unique(out$label), "{CRPLNDTOTN}")
 })
@@ -699,4 +702,99 @@ test_that(".create_n_flow_df drops unmapped rows without leaking NA labels", {
     dplyr::pull(dplyr::filter(out, label == "{CROP_EXPORT}"), data),
     100
   )
+})
+
+
+# .rescale_grafs_labels: text tokens preserved -------------------------------
+
+test_that(".rescale_grafs_labels preserves non-numeric label values", {
+  df_final <- tibble::tribble(
+    ~province, ~year, ~label, ~data, ~align, ~arrowColor,
+    "Huesca", 2000, "{PROVINCE_NAME}", "Huesca", "L", "",
+    "Huesca", 2000, "{YEAR}", "2000", "L", "",
+    "Huesca", 2000, "{ARAiN}", "12340", "R", "",
+    "Huesca", 2000, "{POPULATIONM}", "0.22", "L", ""
+  )
+
+  out <- .rescale_grafs_labels(df_final)
+  pick <- function(l) dplyr::pull(dplyr::filter(out, label == l), data)
+
+  # {PROVINCE_NAME} must survive (as.numeric("Huesca") would give NA)
+  expect_equal(pick("{PROVINCE_NAME}"), "Huesca")
+  expect_equal(pick("{YEAR}"), "2000")
+  expect_equal(pick("{ARAiN}"), "12.34")
+  expect_equal(pick("{POPULATIONM}"), "0.22")
+})
+
+
+# assemble chain keeps meta rows intact end-to-end ---------------------------
+
+test_that("rescale -> add_spain_totals -> collapse keeps meta rows", {
+  df_final <- tibble::tribble(
+    ~province, ~year, ~label, ~data, ~align, ~arrowColor,
+    "Huesca", 2000, "{PROVINCE_NAME}", "Huesca", "L", "",
+    "Huesca", 2000, "{YEAR}", "2000", "L", "",
+    "Huesca", 2000, "{FORN}", "10", "R", "",
+    "Teruel", 2000, "{FORN}", "5", "R", ""
+  )
+
+  out <- df_final |>
+    .rescale_grafs_labels() |>
+    .add_spain_totals() |>
+    .collapse_grafs_labels()
+  pick <- function(prov, l) {
+    dplyr::pull(dplyr::filter(out, province == prov, label == l), data)
+  }
+
+  expect_equal(pick("Huesca", "{PROVINCE_NAME}"), "Huesca")
+  expect_equal(pick("Huesca", "{YEAR}"), "2000")
+  expect_setequal(
+    names(out),
+    c("province", "year", "label", "data", "align", "arrowColor")
+  )
+})
+
+
+# .collapse_grafs_labels: non-additive with leading NA -----------------------
+
+test_that(".collapse_grafs_labels returns first non-NA for non-additive labels", {
+  df_final <- tibble::tribble(
+    ~province, ~year, ~label, ~data, ~align, ~arrowColor,
+    "Spain", 2000, "{FORha}", NA_character_, "R", "",
+    "Spain", 2000, "{FORha}", "10", "R", ""
+  )
+
+  out <- .collapse_grafs_labels(df_final)
+
+  expect_equal(nrow(out), 1)
+  expect_equal(out$data, "10")
+})
+
+
+# .create_livestock_lu_df: single system present ------------------------------
+
+test_that(".create_livestock_lu_df tolerates a single livestock system", {
+  testthat::local_mocked_bindings(
+    whep_read_file = function(alias) {
+      if (alias == "livestock_prod_ygps") {
+        return(
+          tibble::tribble(
+            ~Province_name, ~Year, ~Livestock_cat, ~Stock_Number,
+            "Huesca", 2000, "Cattle", 1000000
+          )
+        )
+      }
+      tibble::tribble(
+        ~Livestock_cat, ~LU_head, ~system,
+        "Cattle", 0.8, "ruminant"
+      )
+    }
+  )
+
+  out <- .create_livestock_lu_df()
+  pick <- function(l) dplyr::pull(dplyr::filter(out, label == l), data)
+
+  expect_equal(pick("{RUMIANTSLU}"), 800000)
+  expect_equal(pick("{MONOGLU}"), 0)
+  expect_equal(pick("{MONOGMLU}"), 0)
 })

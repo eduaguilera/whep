@@ -78,34 +78,8 @@ plot_input_output_livestock <- function(example = FALSE) {
   df <- .load_nat_destiny(example) |>
     dplyr::filter(Province_name != "Sea")
 
-  inputs <- df |>
-    dplyr::filter(Destiny %in% c("livestock_rum", "livestock_mono")) |>
-    dplyr::group_by(Year, Destiny) |>
-    dplyr::summarise(MgN = sum(MgN, na.rm = TRUE), .groups = "drop") |>
-    dplyr::mutate(
-      Type = dplyr::recode(
-        Destiny,
-        "livestock_rum" = "Feed_ruminants",
-        "livestock_mono" = "Feed_monogastric"
-      )
-    )
-
-  production <- df |>
-    dplyr::filter(
-      Origin == "Livestock",
-      Destiny %in%
-        c(
-          "population_food",
-          "population_other_uses",
-          "export",
-          "livestock_rum",
-          "livestock_mono"
-        )
-    ) |>
-    dplyr::group_by(Year) |>
-    dplyr::summarise(MgN = sum(MgN, na.rm = TRUE), .groups = "drop") |>
-    dplyr::mutate(Type = "Production")
-
+  inputs <- .livestock_feed_inputs(df)
+  production <- .livestock_production(df)
   surplus <- .surplus_from_totals(inputs, production, positive_only = FALSE)
 
   feed_types <- c("Feed_ruminants", "Feed_monogastric")
@@ -242,6 +216,38 @@ plot_input_output_system <- function(example = FALSE) {
     dplyr::summarise(MgN = sum(MgN, na.rm = TRUE), .groups = "drop")
 }
 
+.livestock_feed_inputs <- function(df) {
+  df |>
+    dplyr::filter(Destiny %in% c("livestock_rum", "livestock_mono")) |>
+    dplyr::group_by(Year, Destiny) |>
+    dplyr::summarise(MgN = sum(MgN, na.rm = TRUE), .groups = "drop") |>
+    dplyr::mutate(
+      Type = dplyr::recode(
+        Destiny,
+        "livestock_rum" = "Feed_ruminants",
+        "livestock_mono" = "Feed_monogastric"
+      )
+    )
+}
+
+.livestock_production <- function(df) {
+  df |>
+    dplyr::filter(
+      Origin == "Livestock",
+      Destiny %in%
+        c(
+          "population_food",
+          "population_other_uses",
+          "export",
+          "livestock_rum",
+          "livestock_mono"
+        )
+    ) |>
+    dplyr::group_by(Year) |>
+    dplyr::summarise(MgN = sum(MgN, na.rm = TRUE), .groups = "drop") |>
+    dplyr::mutate(Type = "Production")
+}
+
 .system_level_inputs <- function(df) {
   soil_inputs <- df |>
     dplyr::filter(
@@ -324,9 +330,9 @@ plot_input_output_system <- function(example = FALSE) {
     dplyr::group_by(Year) |>
     dplyr::summarise(use_total = sum(MgN), .groups = "drop")
 
-  input_sum |>
-    dplyr::left_join(use_sum, by = "Year") |>
+  dplyr::full_join(input_sum, use_sum, by = "Year") |>
     dplyr::mutate(
+      input_total = dplyr::coalesce(input_total, 0),
       use_total = dplyr::coalesce(use_total, 0),
       net = input_total - use_total,
       MgN = if (positive_only) pmax(net, 0) else net,

@@ -250,14 +250,26 @@ test_that(".stacked_area_plot returns a labelled stacked-area ggplot", {
 
 # plot builders: surplus sign semantics ----------------------------------------
 
-test_that("plot_input_output clamps surplus to non-negative", {
+test_that("plot_input_output clamps a negative cropland surplus to zero", {
+  # inputs (5) < production (100), so the unclamped net is negative; the
+  # cropland builder uses positive_only = TRUE and must clamp it to zero.
+  testthat::local_mocked_bindings(
+    create_n_nat_destiny = function(example = FALSE) {
+      tibble::tribble(
+        ~year, ~province_name, ~item, ~irrig_cat, ~box, ~origin, ~destiny, ~mg_n,
+        2000, "Spain", "Wheat", NA, "Cropland", "Synthetic", "Cropland", 5,
+        2000, "Spain", "Wheat", NA, "Cropland", "Cropland", "population_food", 100
+      )
+    }
+  )
+
   g <- whep::plot_input_output(example = TRUE)
   surplus <- g$data |>
     dplyr::filter(Type == "Surplus") |>
     dplyr::pull(MgN)
 
   expect_s3_class(g, "ggplot")
-  expect_true(all(surplus >= 0))
+  expect_true(all(surplus == 0))
 })
 
 test_that("plot_input_output_system uses the documented factor levels", {
@@ -280,8 +292,67 @@ test_that("plot_input_output_system uses the documented factor levels", {
   expect_true(all(input_rows$MgN <= 0))
 })
 
-test_that("plot_input_output_livestock returns a ggplot without clamping", {
+test_that("plot_input_output_livestock keeps a negative surplus unclamped", {
+  # feed inputs (10) < livestock production (100), so the signed net is
+  # negative; the livestock builder uses positive_only = FALSE and must keep it.
+  testthat::local_mocked_bindings(
+    create_n_nat_destiny = function(example = FALSE) {
+      tibble::tribble(
+        ~year, ~province_name, ~item, ~irrig_cat, ~box, ~origin, ~destiny, ~mg_n,
+        2000, "Spain", "Wheat", NA, "Cropland", "Cropland", "livestock_rum", 10,
+        2000, "Spain", "Bovine Meat", NA, "Livestock", "Livestock", "population_food", 100
+      )
+    }
+  )
+
   g <- whep::plot_input_output_livestock(example = TRUE)
+  surplus <- g$data |>
+    dplyr::filter(Type == "Surplus") |>
+    dplyr::pull(MgN)
+
   expect_s3_class(g, "ggplot")
-  expect_true("Surplus" %in% as.character(g$data$Type))
+  expect_true(any(surplus < 0))
+})
+
+
+# .surplus_from_totals: years present only in uses ----------------------------
+
+test_that(".surplus_from_totals keeps years present only in uses", {
+  inputs <- tibble::tribble(
+    ~Year, ~Type, ~MgN,
+    2000, "A", 100
+  )
+  uses <- tibble::tribble(
+    ~Year, ~Type, ~MgN,
+    2000, "B", 40,
+    2001, "B", 30
+  )
+
+  out <- .surplus_from_totals(inputs, uses, positive_only = FALSE)
+  pick <- function(y) dplyr::pull(dplyr::filter(out, Year == y), MgN)
+
+  expect_setequal(out$Year, c(2000, 2001))
+  expect_equal(pick(2000), 60)
+  expect_equal(pick(2001), -30)
+})
+
+
+# .livestock_feed_inputs / .livestock_production ------------------------------
+
+test_that(".livestock_feed_inputs recodes feed destinies", {
+  out <- .livestock_feed_inputs(.fixture_nat_destiny())
+  pick <- function(t) dplyr::pull(dplyr::filter(out, Type == t), MgN)
+
+  # feed is selected by destiny regardless of origin, so the Outside ->
+  # livestock_mono row (40) counts as monogastric feed
+  expect_equal(pick("Feed_ruminants"), 100 + 120)
+  expect_equal(pick("Feed_monogastric"), 40)
+  expect_setequal(out$Type, c("Feed_ruminants", "Feed_monogastric"))
+})
+
+test_that(".livestock_production sums livestock output to one Type", {
+  out <- .livestock_production(.fixture_nat_destiny())
+
+  expect_equal(unique(out$Type), "Production")
+  expect_equal(out$MgN, 50)
 })

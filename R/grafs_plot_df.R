@@ -65,7 +65,7 @@ create_grafs_plot_df <- function(example = FALSE) {
     df_land_surplus = df_land_surplus
   )
 
-  .assemble_grafs_df(
+  .assemble_grafs_df(list(
     df_land = df_land,
     df_combined = df_combined,
     df_import = df_import,
@@ -73,7 +73,7 @@ create_grafs_plot_df <- function(example = FALSE) {
     df_n_input = df_n_input,
     df_population = df_population,
     df_crplndtot = df_crplndtot
-  )
+  ))
 }
 
 # Private helpers --------------------------------------------------------------
@@ -137,24 +137,10 @@ create_grafs_plot_df <- function(example = FALSE) {
   dplyr::bind_rows(df_prov, df_spain)
 }
 
-.assemble_grafs_df <- function(
-  df_land,
-  df_combined,
-  df_import,
-  df_lu,
-  df_n_input,
-  df_population,
-  df_crplndtot
-) {
-  df_final <- dplyr::bind_rows(
-    df_land |> dplyr::mutate(data = as.character(data)),
-    df_combined,
-    df_import |> dplyr::mutate(data = as.character(data)),
-    df_lu |> dplyr::mutate(data = as.character(data)),
-    df_n_input |> dplyr::mutate(data = as.character(data)),
-    df_population |> dplyr::mutate(data = as.character(data)),
-    df_crplndtot |> dplyr::mutate(data = as.character(data))
-  ) |>
+.assemble_grafs_df <- function(components) {
+  df_final <- components |>
+    purrr::map(\(df) dplyr::mutate(df, data = as.character(data))) |>
+    dplyr::bind_rows() |>
     dplyr::arrange(province, year, label) |>
     dplyr::filter(!is.na(province) & !is.na(year)) |>
     dplyr::mutate(arrowColor = "") |>
@@ -224,16 +210,15 @@ create_grafs_plot_df <- function(example = FALSE) {
     "{ARArN}"
   )
 
+  # Coerce only the N-value labels; text tokens such as {PROVINCE_NAME} must
+  # keep their original string (as.numeric() would turn them into NA).
   df_final |>
     dplyr::mutate(
-      data = suppressWarnings(
-        ifelse(
-          label %in% n_labels,
-          as.numeric(data) / 1000,
-          as.numeric(data)
-        )
-      ),
-      data = as.character(data)
+      data = dplyr::if_else(
+        label %in% n_labels,
+        as.character(suppressWarnings(as.numeric(data)) / 1000),
+        data
+      )
     )
 }
 
@@ -608,10 +593,14 @@ create_grafs_plot_df <- function(example = FALSE) {
     ) |>
     dplyr::group_by(Province_name, Year, system) |>
     dplyr::summarise(LU = sum(LU, na.rm = TRUE), .groups = "drop") |>
+    dplyr::mutate(
+      system = factor(system, levels = c("ruminant", "monogastric"))
+    ) |>
     tidyr::pivot_wider(
       names_from = system,
       values_from = LU,
-      values_fill = 0
+      values_fill = 0,
+      names_expand = TRUE
     ) |>
     dplyr::mutate(
       `{RUMIANTSLU}` = ruminant,
