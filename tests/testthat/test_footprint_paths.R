@@ -40,6 +40,69 @@ testthat::test_that("compute_footprint_paths decomposes first intermediate use",
   testthat::expect_equal(intermediate$value, 50)
 })
 
+testthat::test_that("path totals reconcile with footprint under equal cap", {
+  # Column 2 of A sums to 100 / 50 = 2, i.e. within (0.999, 100]. The old
+  # path default cap of 0.999 would clip it while compute_footprint's cap of
+  # 100 would not, breaking reconciliation. With a shared cap the path totals
+  # must equal the footprint totals exactly.
+  z_mat <- matrix(c(0, 100, 0, 0), nrow = 2, byrow = TRUE)
+  x_vec <- c(100, 50)
+  y_mat <- matrix(c(0, 50), nrow = 2)
+  extensions <- c(100, 0)
+  labels <- tibble::tibble(
+    area_code = c(1L, 1L),
+    item_cbs_code = c(10L, 20L)
+  )
+  fd_labels <- tibble::tibble(area_code = 2L, fd_col = "food")
+
+  fp <- compute_footprint(
+    x_vec = x_vec,
+    y_mat = y_mat,
+    extensions = extensions,
+    labels = labels,
+    z_mat = z_mat,
+    fd_labels = fd_labels,
+    conserve_extensions = FALSE
+  )
+  paths <- compute_footprint_paths(
+    z_mat = z_mat,
+    x_vec = x_vec,
+    y_mat = y_mat,
+    extensions = extensions,
+    labels = labels,
+    fd_labels = fd_labels,
+    conserve_extensions = FALSE
+  )
+  product_paths <- compute_fp_product_paths(
+    z_mat = z_mat,
+    x_vec = x_vec,
+    y_mat = y_mat,
+    extensions = extensions,
+    labels = labels,
+    fd_labels = fd_labels,
+    conserve_extensions = FALSE
+  )
+
+  testthat::expect_equal(sum(fp$value), 100)
+  testthat::expect_equal(sum(paths$value), sum(fp$value))
+  testthat::expect_equal(sum(product_paths$value), sum(fp$value))
+})
+
+testthat::test_that("compute_footprint_paths validates max_column_sum", {
+  testthat::expect_error(
+    compute_footprint_paths(
+      z_mat = matrix(0, nrow = 1, ncol = 1),
+      x_vec = 1,
+      y_mat = matrix(1, nrow = 1),
+      extensions = 1,
+      labels = tibble::tibble(area_code = 1L, item_cbs_code = 1L),
+      fd_labels = tibble::tibble(area_code = 1L, fd_col = "food"),
+      max_column_sum = -1
+    ),
+    "max_column_sum"
+  )
+})
+
 testthat::test_that("compute_footprint_paths returns empty output for absent origin", {
   paths <- compute_footprint_paths(
     z_mat = matrix(0, nrow = 1, ncol = 1),
@@ -153,6 +216,39 @@ testthat::test_that("add_footprint_product_stage splits by supplier shares", {
     20
   )
   testthat::expect_equal(unique(result$product_item), 20L)
+})
+
+testthat::test_that("product_area_name matches crosswalk polity name", {
+  footprints <- tibble::tibble(
+    origin_area = 231L,
+    origin_item = 10L,
+    target_area = 231L,
+    target_area_name = "United States of America",
+    target_item = 20L,
+    target_fd = "food",
+    value = 100
+  )
+  y_mat <- Matrix::Matrix(c(60, 40), nrow = 2, sparse = TRUE)
+  labels <- tibble::tibble(
+    area_code = c(231L, 68L),
+    item_cbs_code = c(20L, 20L)
+  )
+  fd_labels <- tibble::tibble(area_code = 231L, fd_col = "food")
+
+  result <- add_footprint_product_stage(
+    footprints,
+    y_mat,
+    labels,
+    fd_labels,
+    max_product_areas = 2
+  )
+
+  testthat::expect_equal(nrow(result), 2)
+  testthat::expect_false("Other" %in% result$product_area_name)
+  testthat::expect_equal(
+    result$product_area_name,
+    result$product_polity_name
+  )
 })
 
 testthat::test_that("add_footprint_product_stage fills fallback product area code", {
