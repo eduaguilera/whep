@@ -1263,6 +1263,7 @@ utils::globalVariables(
     "allowlisted",
     "..allow_keys",
     # consolidate_sources.R — winner-selection NSE columns
+    ".value_na",
     ".effective_rank",
     ".coverage_ord",
     ".quality_rank",
