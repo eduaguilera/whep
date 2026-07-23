@@ -1425,6 +1425,9 @@ generate_ipcc_tier2_params <- function() {
     # non-dairy (non-lactating/bulls).
     # Ca = activity coefficient (IPCC Eq 10.4).
     # Cp = pregnancy coefficient (IPCC Eq 10.13).
+    # Cw = work coefficient (IPCC Eq 10.11): 0.10 of NEm required
+    #   per hour of draft work. IPCC defines it only for cattle and
+    #   buffalo, so it stays 0 for sheep and goats (not draft animals).
     # REG_gain_mj_kg = typical energy content of gain
     #   (used with REG in Eq 10.6).
     energy_coefs = tibble::tribble(
@@ -1432,13 +1435,13 @@ generate_ipcc_tier2_params <- function() {
         ~cfi_mj_day_kg075, ~ca_pasture, ~ca_feedlot,
         ~cp, ~cw, ~energy_content_gain_mj_kg,
       "Cattle", "Dairy",
-        0.386, 0.17, 0.00, 0.10, 0.00, 22.0,
+        0.386, 0.17, 0.00, 0.10, 0.10, 22.0,
       "Cattle", "Non-Dairy",
-        0.322, 0.17, 0.00, 0.10, 0.00, 22.0,
+        0.322, 0.17, 0.00, 0.10, 0.10, 22.0,
       "Buffalo", "Dairy",
-        0.386, 0.17, 0.00, 0.10, 0.00, 20.0,
+        0.386, 0.17, 0.00, 0.10, 0.10, 20.0,
       "Buffalo", "Non-Dairy",
-        0.322, 0.17, 0.00, 0.10, 0.00, 20.0,
+        0.322, 0.17, 0.00, 0.10, 0.10, 20.0,
       "Sheep", "All",
         0.217, 0.0107, 0.00, 0.077, 0.00, 23.0,
       "Goats", "All",

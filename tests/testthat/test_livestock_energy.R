@@ -129,6 +129,68 @@ testthat::test_that("NEwool is zero for non-sheep", {
   testthat::expect_equal(newool, 0)
 })
 
+# .calc_energy_work -------------------------------------------------------------
+
+testthat::test_that("draft animals get nonzero work energy", {
+  result <- tibble::tibble(
+    species = "Buffalo",
+    cohort = "Adult Female",
+    heads = 10,
+    weight = 400,
+    diet_quality = "Medium"
+  ) |>
+    whep::estimate_energy_demand()
+
+  ne_work <- result |> dplyr::pull(ne_work)
+  ne_maintenance <- result |> dplyr::pull(ne_maintenance)
+  work_hours <- result |> dplyr::pull(work_hours_day)
+
+  # Buffalo default work_hours_day = 2, so NEwork must be positive.
+  testthat::expect_gt(work_hours, 0)
+  testthat::expect_gt(ne_work, 0)
+  # IPCC Eq 10.11: NEwork = 0.10 * NEm * hours.
+  testthat::expect_equal(ne_work, 0.10 * ne_maintenance * work_hours)
+})
+
+testthat::test_that("work energy scales with work hours", {
+  base <- tibble::tibble(
+    species = "Dairy Cattle",
+    cohort = "Adult Female",
+    heads = 10,
+    weight = 500,
+    diet_quality = "Medium"
+  )
+
+  low <- base |>
+    dplyr::mutate(work_hours_day = 1) |>
+    whep::estimate_energy_demand() |>
+    dplyr::pull(ne_work)
+
+  high <- base |>
+    dplyr::mutate(work_hours_day = 6) |>
+    whep::estimate_energy_demand() |>
+    dplyr::pull(ne_work)
+
+  testthat::expect_gt(high, low)
+})
+
+testthat::test_that("non-draft ruminants get zero work energy", {
+  # IPCC Eq 10.11 defines work energy only for cattle and buffalo;
+  # sheep keep cw = 0 even if work_hours_day is supplied.
+  result <- tibble::tibble(
+    species = "Sheep",
+    cohort = "Ewe",
+    heads = 10,
+    weight = 60,
+    diet_quality = "Medium",
+    work_hours_day = 5
+  ) |>
+    whep::estimate_energy_demand()
+
+  ne_work <- result |> dplyr::pull(ne_work)
+  testthat::expect_equal(ne_work, 0)
+})
+
 # .estimate_gross_energy --------------------------------------------------------
 
 testthat::test_that("REM and REG are between 0 and 1", {
