@@ -207,3 +207,26 @@ testthat::test_that("Manure Tier 1 Buffalo uses Table 10.15 EF", {
   # IPCC Table 10.15: Buffalo = 2
   testthat::expect_equal(ef, 2)
 })
+
+testthat::test_that(".join_bo gives Camels their own Bo, distinct from Buffalo", {
+  # Regression for #251: Camels previously copied Buffalo's Bo (0.10).
+  # IPCC 2019 Refinement Table 10.16a: Camels = 0.26, Buffalo = 0.10.
+  data <- tibble::tribble(
+    ~species,   ~species_gen,
+    "Camels",   "Camels",
+    "Buffalo",  "Buffalo"
+  )
+
+  result <- whep:::.join_bo(data)
+
+  camel_bo <- result |>
+    dplyr::filter(species == "Camels") |>
+    dplyr::pull(methane_potential)
+  buffalo_bo <- result |>
+    dplyr::filter(species == "Buffalo") |>
+    dplyr::pull(methane_potential)
+
+  testthat::expect_equal(camel_bo, 0.26)
+  testthat::expect_equal(buffalo_bo, 0.10)
+  testthat::expect_false(isTRUE(all.equal(camel_bo, buffalo_bo)))
+})

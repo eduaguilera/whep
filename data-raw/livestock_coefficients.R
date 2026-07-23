@@ -1204,7 +1204,7 @@ generate_ipcc_2019_tables <- function() {
       "Goats",               0.18,
       "Horses",              0.33,
       "Mules and Asses",     0.33,
-      "Camels",              0.10,
+      "Camels",              0.26,
       "Poultry - Layers",    0.39,
       "Poultry - Broilers",  0.24
     ),
@@ -1470,8 +1470,11 @@ generate_ipcc_tier2_params <- function() {
     ),
 
     # Bo - Maximum CH4 producing capacity (m3 CH4/kg VS).
-    # Source: IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.16.
-    # Note: Dairy and non-dairy cattle have DIFFERENT Bo.
+    # Source: IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.16a.
+    # Note: Dairy and non-dairy cattle have DIFFERENT Bo. Values are the
+    # "High productivity systems" column (matches the convention already
+    # used for Buffalo = 0.10). Camels = 0.26 (was previously miscopied
+    # from Buffalo's 0.10 -- see issue #251).
     bo_values = tibble::tribble(
       ~category,             ~bo_m3_kg_vs,
       "Dairy Cattle",         0.24,
@@ -1483,7 +1486,7 @@ generate_ipcc_tier2_params <- function() {
       "Goats",                0.18,
       "Horses",               0.33,
       "Mules and Asses",      0.33,
-      "Camels",               0.10,
+      "Camels",               0.26,
       "Poultry - Layers",     0.39,
       "Poultry - Broilers",   0.24
     ),
