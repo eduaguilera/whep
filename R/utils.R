@@ -636,6 +636,7 @@ utils::globalVariables(
     "polity_end_year",
     "polity_name",
     "polity_start_year",
+    "polity_type",
     "pop",
     "Pop_Mpeop_yg",
     "Pop_share",
