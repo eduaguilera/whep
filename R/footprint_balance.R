@@ -63,8 +63,16 @@ compute_footprint_balance <- function(production, trade, extension) {
     c("area_code", "item_cbs_code", "value"),
     "extension"
   )
+  .require_finite_value(production, "production")
+  .require_finite_value(trade, "trade")
+  .require_finite_value(extension, "extension")
+  .warn_orphan_land(production, trade, extension)
 
-  items <- sort(unique(c(production$item_cbs_code, trade$item_cbs_code)))
+  items <- sort(unique(c(
+    production$item_cbs_code,
+    trade$item_cbs_code,
+    extension$item_cbs_code
+  )))
   purrr::map(items, \(it) {
     .balance_one_item(
       production[production$item_cbs_code == it, ],
@@ -221,7 +229,12 @@ build_land_balance_footprint <- function(
 # --- Helpers ---
 
 .balance_one_item <- function(prod_i, trade_i, ext_i, item) {
-  areas <- sort(unique(c(prod_i$area_code, trade_i$from_code, trade_i$to_code)))
+  areas <- sort(unique(c(
+    prod_i$area_code,
+    trade_i$from_code,
+    trade_i$to_code,
+    ext_i$area_code
+  )))
   if (length(areas) == 0) {
     return(.empty_balance())
   }
@@ -367,4 +380,39 @@ build_land_balance_footprint <- function(
   if (!is.numeric(year) || length(year) != 1 || is.na(year)) {
     cli::cli_abort("{.arg year} must be a single number.")
   }
+}
+
+# A non-finite land value silently propagates through solve() and
+# wipes the whole item's solution, so reject NA/NaN/Inf loudly.
+.require_finite_value <- function(data, name) {
+  if (nrow(data) > 0 && any(!is.finite(data$value))) {
+    cli::cli_abort(
+      "{.arg {name}} column {.field value} must be finite (no NA/NaN/Inf)."
+    )
+  }
+}
+
+# Direct land whose (item_cbs_code, area_code) has no production and
+# no trade cannot carry a balance footprint and would vanish; surface
+# it instead of dropping it silently.
+.warn_orphan_land <- function(production, trade, extension) {
+  support <- dplyr::bind_rows(
+    dplyr::distinct(production, item_cbs_code, area_code),
+    dplyr::distinct(trade, item_cbs_code, area_code = from_code),
+    dplyr::distinct(trade, item_cbs_code, area_code = to_code)
+  ) |>
+    dplyr::distinct()
+  orphan <- extension |>
+    dplyr::filter(value > 0) |>
+    dplyr::anti_join(support, by = c("item_cbs_code", "area_code"))
+  if (nrow(orphan) == 0) {
+    return(invisible())
+  }
+  items <- sort(unique(orphan$item_cbs_code))
+  cli::cli_warn(c(
+    "!" = "Dropped {nrow(orphan)} extension land record{?s} \\
+           ({round(sum(orphan$value))} units total) with no production \\
+           or trade support from the balance footprint.",
+    "i" = "Affected item_cbs_code: {items}."
+  ))
 }
