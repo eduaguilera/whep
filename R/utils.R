@@ -1285,6 +1285,7 @@ utils::globalVariables(
     # grafs_plot_df.R (GRAFS plot dataset)
     "province",
     "input",
+    "Box_filled",
     "FORha",
     "PERiha",
     "PERrha",

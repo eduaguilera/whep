@@ -100,3 +100,188 @@ test_that("plot_input_output builders return ggplot objects on example data", {
   expect_s3_class(whep::plot_input_output_livestock(example = TRUE), "ggplot")
   expect_s3_class(whep::plot_input_output_system(example = TRUE), "ggplot")
 })
+
+
+# .system_inputs ---------------------------------------------------------------
+
+test_that(".system_inputs recodes Origin to Type for the Cropland system", {
+  fixture <- tibble::tribble(
+    ~Year, ~Province_name, ~Item, ~Origin, ~Destiny, ~MgN,
+    2000, "Spain", "Wheat", "Synthetic", "Cropland", 800,
+    2000, "Spain", "Wheat", "Fixation", "Cropland", 200,
+    2000, "Spain", "Manure", "Livestock", "Cropland", 500,
+    2000, "Spain", "Waste", "People", "Cropland", 70,
+    2000, "Spain", "Wheat", "Cropland", "export", 60
+  )
+
+  out <- .system_inputs(fixture, "Cropland")
+  pick <- function(t) dplyr::pull(dplyr::filter(out, Type == t), MgN)
+
+  expect_equal(pick("Synthetic_fertilizer"), 800)
+  expect_equal(pick("Fixation"), 200)
+  expect_equal(pick("Manure"), 500)
+  expect_equal(pick("Urban"), 70)
+  # the Cropland->export distractor row is excluded (Origin not an input source)
+  expect_false("Cropland" %in% out$Origin)
+  expect_equal(nrow(out), 4)
+})
+
+
+# .import_use ------------------------------------------------------------------
+
+test_that(".import_use sums Outside imports for the given destinies", {
+  fixture <- tibble::tribble(
+    ~Year, ~Origin, ~Destiny, ~MgN,
+    2000, "Outside", "livestock_mono", 40,
+    2000, "Outside", "population_food", 30,
+    2000, "Cropland", "livestock_rum", 100
+  )
+
+  feed <- .import_use(
+    fixture,
+    c("livestock_rum", "livestock_mono"),
+    "Feed_import"
+  )
+  food <- .import_use(
+    fixture,
+    c("population_food", "population_other_uses"),
+    "Food_import"
+  )
+
+  expect_equal(feed$MgN, 40)
+  expect_equal(feed$Type, "Feed_import")
+  expect_equal(food$MgN, 30)
+  expect_equal(food$Type, "Food_import")
+})
+
+
+# .system_level_inputs ---------------------------------------------------------
+
+test_that(".system_level_inputs binds recoded soil inputs with imports", {
+  fixture <- tibble::tribble(
+    ~Year, ~Origin, ~Destiny, ~MgN,
+    2000, "Synthetic", "Cropland", 800,
+    2000, "Fixation", "Cropland", 200,
+    2000, "Outside", "livestock_mono", 40,
+    2000, "Outside", "population_food", 30
+  )
+
+  out <- .system_level_inputs(fixture)
+  pick <- function(t) dplyr::pull(dplyr::filter(out, Type == t), MgN)
+
+  expect_setequal(
+    out$Type,
+    c("Synthetic_fertilizer", "Fixation", "Feed_import", "Food_import")
+  )
+  expect_equal(pick("Synthetic_fertilizer"), 800)
+  expect_equal(pick("Fixation"), 200)
+  expect_equal(pick("Feed_import"), 40)
+  expect_equal(pick("Food_import"), 30)
+})
+
+
+# .system_level_uses -----------------------------------------------------------
+
+test_that(".system_level_uses splits Feed, Food, Other_uses and Export", {
+  fixture <- tibble::tribble(
+    ~Year, ~Origin, ~Destiny, ~MgN,
+    2000, "Cropland", "livestock_rum", 100,
+    2000, "Cropland", "livestock_rum", 120,
+    2000, "Cropland", "population_food", 300,
+    2000, "Livestock", "population_food", 50,
+    2000, "Cropland", "population_other_uses", 25,
+    2000, "Cropland", "export", 60,
+    2000, "Outside", "livestock_rum", 999
+  )
+
+  out <- .system_level_uses(fixture)
+  pick <- function(t) dplyr::pull(dplyr::filter(out, Type == t), MgN)
+
+  expect_equal(pick("Feed"), 220)
+  expect_equal(pick("Food"), 350)
+  expect_equal(pick("Other_uses"), 25)
+  expect_equal(pick("Export"), 60)
+})
+
+
+# .load_nat_destiny ------------------------------------------------------------
+
+test_that(".load_nat_destiny renames the snake_case contract to PascalCase", {
+  out <- .load_nat_destiny(example = TRUE)
+
+  expect_true(all(
+    c(
+      "Year",
+      "Province_name",
+      "Item",
+      "Irrig_cat",
+      "Box",
+      "Origin",
+      "Destiny",
+      "MgN"
+    ) %in%
+      names(out)
+  ))
+  expect_false(any(c("year", "province_name", "mg_n") %in% names(out)))
+})
+
+
+# .stacked_area_plot -----------------------------------------------------------
+
+test_that(".stacked_area_plot returns a labelled stacked-area ggplot", {
+  plot_df <- tibble::tribble(
+    ~Year, ~Type, ~MgN,
+    2000, "A", 1,
+    2001, "A", 2
+  ) |>
+    dplyr::mutate(Type = factor(Type))
+
+  g <- .stacked_area_plot(plot_df, "My title", c("A" = "red"))
+  geoms <- vapply(g$layers, function(l) class(l$geom)[1], character(1))
+
+  expect_s3_class(g, "ggplot")
+  expect_true("GeomArea" %in% geoms)
+  expect_true("GeomHline" %in% geoms)
+  expect_equal(g$labels$title, "My title")
+  expect_equal(g$labels$y, "Gg N")
+  expect_equal(g$labels$x, "Year")
+})
+
+
+# plot builders: surplus sign semantics ----------------------------------------
+
+test_that("plot_input_output clamps surplus to non-negative", {
+  g <- whep::plot_input_output(example = TRUE)
+  surplus <- g$data |>
+    dplyr::filter(Type == "Surplus") |>
+    dplyr::pull(MgN)
+
+  expect_s3_class(g, "ggplot")
+  expect_true(all(surplus >= 0))
+})
+
+test_that("plot_input_output_system uses the documented factor levels", {
+  g <- whep::plot_input_output_system(example = TRUE)
+  input_types <- c(
+    "Synthetic_fertilizer",
+    "Fixation",
+    "Deposition",
+    "Feed_import",
+    "Food_import"
+  )
+
+  expect_s3_class(g, "ggplot")
+  expect_equal(
+    levels(g$data$Type),
+    c(input_types, "Surplus", "Feed", "Food", "Other_uses", "Export")
+  )
+  input_rows <- g$data |>
+    dplyr::filter(Type %in% input_types)
+  expect_true(all(input_rows$MgN <= 0))
+})
+
+test_that("plot_input_output_livestock returns a ggplot without clamping", {
+  g <- whep::plot_input_output_livestock(example = TRUE)
+  expect_s3_class(g, "ggplot")
+  expect_true("Surplus" %in% as.character(g$data$Type))
+})

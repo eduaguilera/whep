@@ -318,14 +318,17 @@ create_grafs_plot_df <- function(example = FALSE) {
     "{KM2_PROVINCE}"
   )
 
+  # `label` is a grouping key, so reduce it to a scalar with dplyr::first()
+  # before testing membership; using the bare (group-length) vector inside
+  # summarise() makes case_when() return >1 value for any multi-row group.
   df_final |>
     dplyr::mutate(data_num = suppressWarnings(as.numeric(data))) |>
     dplyr::group_by(province, year, label) |>
     dplyr::summarise(
       data = dplyr::case_when(
-        label %in% non_additive_labels & any(!is.na(data_num)) ~
+        dplyr::first(label) %in% non_additive_labels & any(!is.na(data_num)) ~
           as.character(dplyr::first(data_num[!is.na(data_num)])),
-        label %in% non_additive_labels ~ dplyr::first(data),
+        dplyr::first(label) %in% non_additive_labels ~ dplyr::first(data),
         all(is.na(data_num)) ~ dplyr::first(data),
         TRUE ~ as.character(sum(data_num, na.rm = TRUE))
       ),
@@ -360,6 +363,48 @@ create_grafs_plot_df <- function(example = FALSE) {
     dplyr::summarise(group = dplyr::first(group), .groups = "drop")
 
   df_n_flows <- prov_destiny_df |>
+    .classify_import_flows(item_box_lookup) |>
+    .append_import_aggregates() |>
+    dplyr::mutate(
+      province = Province_name,
+      year = Year,
+      align = "L"
+    ) |>
+    dplyr::select(province, year, label, data, align)
+
+  right_labels <- c(
+    "{CROP_POPIMPORT}",
+    "{IMPORT_ANIMALCR_RUM}",
+    "{IMPORT_ANIMALCR_MONOG}",
+    "{IMPORT_ANIMALCR}",
+    "{IMANOTR}",
+    "{IMANOTM}",
+    "{IMANOT}"
+  )
+
+  dplyr::bind_rows(
+    df_n_flows,
+    .import_animal_products(prov_destiny_df),
+    .import_crop_popimport(prov_destiny_df)
+  ) |>
+    tidyr::complete(
+      province,
+      year,
+      label,
+      fill = list(data = 0, align = "L")
+    ) |>
+    dplyr::mutate(
+      align = dplyr::case_when(
+        label %in% right_labels ~ "R",
+        TRUE ~ "L"
+      )
+    )
+}
+
+# Classify each raw import/soil-input flow into its GRAFS label, then aggregate
+# to one N value per province, year and label.
+.classify_import_flows <- function(prov_destiny_df, item_box_lookup) {
+  prov_destiny_df |>
     dplyr::left_join(item_box_lookup, by = c("Item" = "item")) |>
     dplyr::mutate(
       Box_filled = dplyr::case_when(
@@ -453,79 +498,49 @@ create_grafs_plot_df <- function(example = FALSE) {
     dplyr::filter(!is.na(label)) |>
     dplyr::group_by(Province_name, Year, label) |>
     dplyr::summarise(data = sum(MgN, na.rm = TRUE), .groups = "drop")
+}
 
-  df_crop_popimport <- prov_destiny_df |>
-    dplyr::filter(
-      Box == "Cropland",
-      Origin == "Outside",
-      Destiny %in% c("population_food", "population_other_uses")
-    ) |>
-    dplyr::group_by(Province_name, Year) |>
-    dplyr::summarise(data = sum(MgN, na.rm = TRUE), .groups = "drop") |>
-    dplyr::mutate(
-      label = "{CROP_POPIMPORT}",
-      province = Province_name,
-      year = Year,
-      align = "R"
-    ) |>
-    dplyr::select(province, year, label, data, align)
-
-  df_fix_dep_cr <- df_n_flows |>
-    dplyr::filter(label %in% c("{OXDEPCROPS}", "{FIXCR}")) |>
-    dplyr::group_by(Province_name, Year) |>
-    dplyr::summarise(data = sum(data), .groups = "drop") |>
-    dplyr::mutate(label = "{FIX_DEP_CR}")
-
-  df_fix_dep_grass <- df_n_flows |>
-    dplyr::filter(label %in% c("{OXDEPGRASS}", "{FIXGR}")) |>
-    dplyr::group_by(Province_name, Year) |>
-    dplyr::summarise(data = sum(data), .groups = "drop") |>
-    dplyr::mutate(label = "{FIX_DEP_GRASS}")
-
-  df_import_animalcr <- df_n_flows |>
-    dplyr::filter(
-      label %in% c("{IMPORT_ANIMALCR_RUM}", "{IMPORT_ANIMALCR_MONOG}")
-    ) |>
-    dplyr::group_by(Province_name, Year) |>
-    dplyr::summarise(data = sum(data), .groups = "drop") |>
-    dplyr::mutate(label = "{IMPORT_ANIMALCR}")
-
+# Bind the classified flows with the derived roll-up labels (combined
+# fixation+deposition, total animal-crop imports, total synthetic, total
+# non-food agro-industry imports).
+.append_import_aggregates <- function(df_n_flows) {
   df_synth_total <- df_n_flows |>
     dplyr::filter(label == "{SYNTHF}") |>
     dplyr::mutate(label = "{SYNTHF_TOTAL}")
 
-  df_imanot <- df_n_flows |>
-    dplyr::filter(label %in% c("{IMANOTR}", "{IMANOTM}")) |>
+  dplyr::bind_rows(
+    df_n_flows,
+    .sum_import_labels(
+      df_n_flows,
+      c("{OXDEPCROPS}", "{FIXCR}"),
+      "{FIX_DEP_CR}"
+    ),
+    .sum_import_labels(
+      df_n_flows,
+      c("{OXDEPGRASS}", "{FIXGR}"),
+      "{FIX_DEP_GRASS}"
+    ),
+    .sum_import_labels(
+      df_n_flows,
+      c("{IMPORT_ANIMALCR_RUM}", "{IMPORT_ANIMALCR_MONOG}"),
+      "{IMPORT_ANIMALCR}"
+    ),
+    df_synth_total,
+    .sum_import_labels(df_n_flows, c("{IMANOTR}", "{IMANOTM}"), "{IMANOT}")
+  )
+}
+
+.sum_import_labels <- function(df_n_flows, from, to) {
+  df_n_flows |>
+    dplyr::filter(label %in% from) |>
     dplyr::group_by(Province_name, Year) |>
     dplyr::summarise(data = sum(data), .groups = "drop") |>
-    dplyr::mutate(label = "{IMANOT}")
+    dplyr::mutate(label = to)
+}
 
-  df_n_flows <- dplyr::bind_rows(
-    df_n_flows,
-    df_fix_dep_cr,
-    df_fix_dep_grass,
-    df_import_animalcr,
-    df_synth_total,
-    df_imanot
-  ) |>
-    dplyr::mutate(
-      province = Province_name,
-      year = Year,
-      align = "L"
-    ) |>
-    dplyr::select(province, year, label, data, align)
-
-  right_labels <- c(
-    "{CROP_POPIMPORT}",
-    "{IMPORT_ANIMALCR_RUM}",
-    "{IMPORT_ANIMALCR_MONOG}",
-    "{IMPORT_ANIMALCR}",
-    "{IMANOTR}",
-    "{IMANOTM}",
-    "{IMANOT}"
-  )
-
-  df_imphmana <- prov_destiny_df |>
+# Imported animal and fish products consumed by the population ({IMPHMANA}).
+.import_animal_products <- function(prov_destiny_df) {
+  prov_destiny_df |>
     dplyr::filter(
       Origin == "Outside",
       Destiny %in% c("population_food", "population_other_uses"),
@@ -540,26 +555,25 @@ create_grafs_plot_df <- function(example = FALSE) {
       align = "L"
     ) |>
     dplyr::select(province, year, label, data, align)
+}
 
-  df_n_flows <- dplyr::bind_rows(
-    df_n_flows,
-    df_imphmana,
-    df_crop_popimport
-  )
-
-  df_n_flows |>
-    tidyr::complete(
-      province,
-      year,
-      label,
-      fill = list(data = 0, align = "L")
+# Imported cropland products consumed by the population ({CROP_POPIMPORT}).
+.import_crop_popimport <- function(prov_destiny_df) {
+  prov_destiny_df |>
+    dplyr::filter(
+      Box == "Cropland",
+      Origin == "Outside",
+      Destiny %in% c("population_food", "population_other_uses")
     ) |>
+    dplyr::group_by(Province_name, Year) |>
+    dplyr::summarise(data = sum(MgN, na.rm = TRUE), .groups = "drop") |>
     dplyr::mutate(
-      align = dplyr::case_when(
-        label %in% right_labels ~ "R",
-        TRUE ~ "L"
-      )
-    )
+      label = "{CROP_POPIMPORT}",
+      province = Province_name,
+      year = Year,
+      align = "R"
+    ) |>
+    dplyr::select(province, year, label, data, align)
 }
 
 #' Create livestock units (LU) dataset.
