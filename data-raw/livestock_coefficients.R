@@ -1326,11 +1326,14 @@ generate_ipcc_2019_tables <- function() {
       "Other",                           0.005
     ),
 
-    # Table 10.4: Cfi coefficients (MJ/day/kg^0.75).
-    # Source: IPCC 2019 Refinement, Vol 4, Ch 10, Eq 10.3.
+    # Table 10.4 (Updated): Cfi coefficients (MJ/day/kg^0.75).
+    # Source: IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.4 (Updated).
     # Note: Cfi differs between lactating and non-lactating
     # cattle; the 2019 Refinement does NOT change these from
-    # the 2006 values.
+    # the 2006 values. Goats = 0.315 is its OWN value, distinct
+    # from Sheep (>1yr) = 0.217 -- the 2006 guidelines omitted
+    # goats, which is why an earlier version of this table
+    # copied the sheep row (see #249).
     table_10_4 = tibble::tribble(
       ~category, ~subcategory, ~cfi_mj_day_kg075,
       "Cattle",  "Lactating cow",          0.386,
@@ -1338,7 +1341,7 @@ generate_ipcc_2019_tables <- function() {
       "Buffalo", "Lactating cow",          0.386,
       "Buffalo", "Non-lactating/Bulls",    0.322,
       "Sheep",   "All",                    0.217,
-      "Goats",   "All",                    0.217
+      "Goats",   "All",                    0.315
     )
   )
 }
@@ -1420,9 +1423,12 @@ generate_ipcc_2006_tables <- function() {
 generate_ipcc_tier2_params <- function() {
   list(
     # Energy coefficients for Tier 2 GE calculation.
-    # Source: IPCC 2019 Refinement, Vol 4, Ch 10, Eq 10.3-10.16.
+    # Source: IPCC 2019 Refinement, Vol 4, Ch 10, Eq 10.3-10.16,
+    # Cfi from Table 10.4 (Updated).
     # Note: Cfi now distinguishes dairy (lactating) vs
-    # non-dairy (non-lactating/bulls).
+    # non-dairy (non-lactating/bulls). Goats Cfi = 0.315 is
+    # its own IPCC value, distinct from Sheep (>1yr) = 0.217
+    # (previously miscopied from Sheep -- see #249).
     # Ca = activity coefficient (IPCC Eq 10.4).
     # Cp = pregnancy coefficient (IPCC Eq 10.13).
     # REG_gain_mj_kg = typical energy content of gain
@@ -1442,7 +1448,7 @@ generate_ipcc_tier2_params <- function() {
       "Sheep", "All",
         0.217, 0.0107, 0.00, 0.077, 0.00, 23.0,
       "Goats", "All",
-        0.217, 0.0107, 0.00, 0.077, 0.00, 23.0
+        0.315, 0.0107, 0.00, 0.077, 0.00, 23.0
     ),
 
     # Ym values (% GE) used for Tier 2 enteric CH4.

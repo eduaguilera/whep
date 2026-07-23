@@ -174,3 +174,26 @@ testthat::test_that("Beef cattle gets default weight gain", {
   testthat::expect_equal(wg, 0.5)
   testthat::expect_gt(neg, 0)
 })
+
+testthat::test_that(".join_energy_coefs gives Goats their own Cfi, distinct from Sheep", {
+  # Regression for #249: Goats previously copied Sheep's Cfi (0.217). IPCC
+  # 2019 Refinement Table 10.4 (Updated): Goats = 0.315, Sheep (>1yr) = 0.217.
+  data <- tibble::tribble(
+    ~species_gen, ~subcategory,
+    "Goats",       "All",
+    "Sheep",       "All"
+  )
+
+  result <- whep:::.join_energy_coefs(data)
+
+  goat_cfi <- result |>
+    dplyr::filter(species_gen == "Goats") |>
+    dplyr::pull(cfi_mj_day_kg075)
+  sheep_cfi <- result |>
+    dplyr::filter(species_gen == "Sheep") |>
+    dplyr::pull(cfi_mj_day_kg075)
+
+  testthat::expect_equal(goat_cfi, 0.315)
+  testthat::expect_equal(sheep_cfi, 0.217)
+  testthat::expect_false(isTRUE(all.equal(goat_cfi, sheep_cfi)))
+})
