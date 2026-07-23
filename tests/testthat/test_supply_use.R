@@ -744,3 +744,58 @@ testthat::test_that(".build_supply_use_from_inputs connects animal draught to cr
   )
   testthat::expect_equal(draught_use$value, draught_supply$value)
 })
+
+# build_supply_use (exported entry point) --------------------------------------
+
+testthat::test_that("build_supply_use() calls .build_redistribute_intake() with a valid feed_mode", {
+  # Regression for #176: the exported build_supply_use() built its feed_intake
+  # input via .build_redistribute_intake() without passing feed_mode, which
+  # has no default and is required -- every real (non-example) call aborted
+  # with "argument 'feed_mode' is missing, with no default" before building
+  # anything. The mock below mirrors .build_redistribute_intake()'s real
+  # signature (feed_mode with no default) so a regression reproduces the
+  # exact original error instead of silently accepting a missing argument.
+  captured <- NULL
+  testthat::local_mocked_bindings(
+    get_wide_cbs = function(...) "cbs_stub",
+    get_primary_production = function(...) "primary_prod_stub",
+    get_processing_coefs = function(...) "coeffs_stub",
+    get_primary_residues = function(...) "residues_stub",
+    .build_redistribute_intake = function(
+      grain,
+      demand_tier,
+      feed_mode,
+      production = NULL,
+      cbs = NULL,
+      years = NULL
+    ) {
+      captured <<- list(
+        grain = grain,
+        demand_tier = demand_tier,
+        feed_mode = feed_mode
+      )
+      "feed_intake_stub"
+    },
+    .build_supply_use_from_inputs = function(
+      items_prod,
+      items_cbs,
+      coeffs,
+      cbs,
+      crop_residues,
+      primary_prod,
+      feed_intake
+    ) {
+      # Force feed_intake's promise: build_supply_use() constructs it via
+      # .build_redistribute_intake() lazily as this call's argument, so it
+      # would otherwise never actually run under R's lazy evaluation.
+      force(feed_intake)
+      "supply_use_stub"
+    },
+    .add_reporting_polity_columns = function(x) x
+  )
+
+  result <- build_supply_use()
+
+  testthat::expect_equal(result, "supply_use_stub")
+  testthat::expect_equal(captured$feed_mode, "historical")
+})
