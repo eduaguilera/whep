@@ -60,6 +60,9 @@ A tibble, one row per (\code{ref_year}-target, data \code{year}):
 \item \code{imputed}: mass added for uncovered cells
 \item \code{imputed_share}: covariate fraction imputed (0 = fully observed)
 \item \code{n_sources}: number of source polities contributing that year
+\item \code{unallocated}: total reported value from sources that could not be placed
+on the grid that year (constant within a year; 0 when all were placed).
+Kept out of \code{covered}/\code{imputed} so it is neither smeared nor lost.
 }
 }
 \description{
