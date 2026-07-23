@@ -17,20 +17,31 @@ test_that("add_polity_code maps area codes by year", {
   expect_equal(mapped$polity_code[8], "ROW-1850-2023")
 })
 
-test_that("add_polity_code does not extend aggregate rows outside their range", {
+test_that("add_polity_code extends out-of-period rows to their nearest period", {
   mapped <- tibble::tibble(
     area_code = c(2L, 15L, 151L, 904L),
     year = c(1790L, 2000L, 2023L, 2021L)
   ) |>
     # disable the back-cast anchor floor here to exercise the raw out-of-range
-    # behaviour: a non-aggregate area falls back to its nearest period, while
-    # aggregate reporting areas are NOT extended beyond their range.
+    # behaviour: rows whose year no period covers fall back to their nearest
+    # period. Aggregate reporting areas (15, 151, 904) are extended too, so
+    # their most-recent years are not silently dropped.
     add_polity_code(backcast_anchor = -Inf)
 
   expect_equal(mapped$polity_code[1], "AFG-1800-1893")
-  expect_true(is.na(mapped$polity_code[2]))
-  expect_true(is.na(mapped$polity_code[3]))
-  expect_true(is.na(mapped$polity_code[4]))
+  expect_equal(mapped$polity_code[2], "BLX-1850-1999")
+  expect_equal(mapped$polity_code[3], "ANT-1961-2010")
+  expect_equal(mapped$polity_code[4], "RLAM-1850-2013")
+})
+
+test_that("aggregate area 904 keeps its most-recent years (2014-2023)", {
+  # area 904 "Latin America Other" carries only RLAM-1850-2013, so its post-2013
+  # FABIO data previously mapped to NA and was dropped by callers. It must now
+  # extend to the aggregate polity instead.
+  mapped <- tibble::tibble(area_code = 904L, year = 2013:2023) |>
+    add_polity_code()
+
+  expect_true(all(mapped$polity_code == "RLAM-1850-2013"))
 })
 
 test_that("add_polity_code floors pre-1961 back-cast years to the anchor territory", {
@@ -76,6 +87,35 @@ test_that("China aggregate area 351 is unmapped so it cannot double-count", {
   agg <- cw[cw$area_code == 351L, ]
   expect_true(all(is.na(agg$polity_code)))
   expect_true(all(is.na(agg$reporting_polity_code)))
+})
+
+test_that("partner polity mapping emits partner_polity_area_code", {
+  # the partner path must canonicalize partners symmetrically with the
+  # reporting side (which promotes reporting_polity_area_code -> polity_area_code).
+  mapped <- tibble::tibble(
+    area_code_partner = c(2L, 41L),
+    year = c(2000L, 2020L)
+  ) |>
+    whep:::.add_partner_polity_columns()
+
+  expect_true("partner_polity_area_code" %in% names(mapped))
+  expect_equal(mapped$partner_polity_area_code, c(2L, 41L))
+  expect_equal(mapped$partner_polity_code, c("AFG-1919-2025", "CHN-1950-2025"))
+})
+
+test_that("current mapping picks the open (latest-ending) period", {
+  # the open-period sentinel is derived from the crosswalk's latest end year,
+  # not a hardcoded literal, so the current mapping selects the still-open
+  # period over Afghanistan's earlier closed periods.
+  cw <- whep::polity_area_crosswalk
+  afg <- cw[cw$area_code == 2L & !is.na(cw$polity_code), ]
+  latest <- afg$polity_code[which.max(afg$polity_end_year)]
+
+  mapped <- tibble::tibble(area_code = 2L) |>
+    add_polity_code(year_column = NULL)
+
+  expect_equal(mapped$polity_code, latest)
+  expect_equal(mapped$polity_code, "AFG-1919-2025")
 })
 
 test_that("get_polity_geometries returns requested polygon rows", {
