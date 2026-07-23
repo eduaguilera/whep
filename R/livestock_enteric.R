@@ -227,7 +227,7 @@
     dplyr::select(-ef_other, -ef_agg)
 }
 
-#' Join Ym values from Table 10.12 with feed situation mapping.
+#' Join Ym values from IPCC 2019 Table 10.13 with feed situation mapping.
 #' @noRd
 .join_ym <- function(data) {
   ym_tbl <- ipcc_tier2_ym_values
@@ -248,16 +248,6 @@
       feed_situation = dplyr::case_when(
         !is.na(system) & system == "Feedlot" ~ "Feedlot",
         TRUE ~ diet_quality
-      )
-    )
-
-  # Map sheep by body weight per Table 10.12 footnote
-  data <- data |>
-    dplyr::mutate(
-      feed_situation = dplyr::case_when(
-        species_gen == "Sheep" & !is.na(weight) & weight < 75 ~ "Low",
-        species_gen == "Sheep" & !is.na(weight) & weight >= 75 ~ "High",
-        TRUE ~ feed_situation
       )
     )
 
