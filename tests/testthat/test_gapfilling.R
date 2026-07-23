@@ -748,6 +748,48 @@ test_that("fill_proxy_growth works with grouping", {
   expect_false(is.na(fra_filled))
 })
 
+test_that("fill_proxy_growth groups proxy growth by region (var:group)", {
+  # Advanced "variable:group" syntax: growth is taken from `gdp` aggregated
+  # over `region`, not from the value column's own series. ESP and FRA share
+  # region "EU", so ESP's gaps are backfilled with the region-mean gdp growth
+  # (mean of the two countries' growths), not ESP's own gdp growth.
+  data <- tibble::tribble(
+    ~region, ~country, ~year, ~value, ~gdp,
+    "EU", "ESP", 2000, NA, 100,
+    "EU", "ESP", 2001, NA, 120,
+    "EU", "ESP", 2002, 500, 150,
+    "EU", "FRA", 2000, 1000, 200,
+    "EU", "FRA", 2001, 1200, 260,
+    "EU", "FRA", 2002, 1400, 299
+  )
+
+  result <- fill_proxy_growth(
+    data,
+    value_col = value,
+    proxy_col = "gdp:region",
+    .by = "country",
+    verbose = FALSE
+  )
+
+  # Region-mean gdp growth: 2001 = mean(0.20, 0.30) = 0.25;
+  # 2002 = mean(0.25, 0.15) = 0.20. Backfill from the 2002 anchor (500):
+  #   value_2001 = 500 / 1.20; value_2000 = value_2001 / 1.25.
+  esp <- result |>
+    dplyr::filter(country == "ESP") |>
+    dplyr::arrange(year)
+
+  expect_equal(esp$value[esp$year == 2001], 500 / 1.20, tolerance = 1e-6)
+  expect_equal(
+    esp$value[esp$year == 2000],
+    500 / (1.20 * 1.25),
+    tolerance = 1e-6
+  )
+
+  # The region-grouped result must differ from ESP's own-gdp backfill, which
+  # would give 500 / 1.25 for 2001. This confirms growth is grouped by region.
+  expect_false(isTRUE(all.equal(esp$value[esp$year == 2001], 500 / 1.25)))
+})
+
 test_that("fill_proxy_growth extrapolates per group, not across groups", {
   # Regression: .parse_proxy_spec used to return `group_vars` while
   # downstream code read `present_group_vars` (unset), collapsing all

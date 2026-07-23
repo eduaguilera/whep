@@ -1915,6 +1915,11 @@ fill_proxy_growth <- function(
 }
 
 .parse_proxy_spec <- function(spec, data, value_col, group_by, verbose) {
+  # Advanced grouped syntax "variable:group1+group2" (optional "[weight]").
+  if (grepl(":", spec)) {
+    return(.parse_grouped_proxy_spec(spec, data))
+  }
+
   weight_col <- NULL
   col_name <- spec
   if (grepl("\\[", spec)) {
@@ -1970,30 +1975,15 @@ fill_proxy_growth <- function(
           if (!is.null(weight_col)) "_w" else ""
         )
       ))
-    } else {
-      if (verbose) {
-        message(
-          "Auto-detected '",
-          col_name,
-          "' as categorical -> ",
-          "using as grouping variable"
-        )
-      }
-      return(list(
-        source_var = value_col,
-        group_vars = col_name,
-        present_group_vars = present(col_name),
-        weight_col = weight_col,
-        spec_name = paste0(
-          value_col,
-          "_",
-          col_name,
-          if (!is.null(weight_col)) "_w" else ""
-        )
-      ))
     }
-  } else {
-    warning("Column '", col_name, "' not found in data")
+    if (verbose) {
+      message(
+        "Auto-detected '",
+        col_name,
+        "' as categorical -> ",
+        "using as grouping variable"
+      )
+    }
     return(list(
       source_var = value_col,
       group_vars = col_name,
@@ -2008,10 +1998,28 @@ fill_proxy_growth <- function(
     ))
   }
 
-  parts <- strsplit(spec, ":")[[1]]
-  source_var <- parts[1]
-  rhs <- if (length(parts) > 1) parts[2] else ""
+  cli::cli_warn("Column {.val {col_name}} not found in data.")
+  list(
+    source_var = value_col,
+    group_vars = col_name,
+    present_group_vars = present(col_name),
+    weight_col = weight_col,
+    spec_name = paste0(
+      value_col,
+      "_",
+      col_name,
+      if (!is.null(weight_col)) "_w" else ""
+    )
+  )
+}
 
+# Parse the advanced "variable:group1+group2[weight]" proxy syntax, where the
+# growth reference is `variable` aggregated over the `+`-separated grouping
+# columns (optionally weighted by `weight`).
+.parse_grouped_proxy_spec <- function(spec, data) {
+  parts <- strsplit(spec, ":")[[1]]
+  source_var <- trimws(parts[1])
+  rhs <- if (length(parts) > 1) parts[2] else ""
   if (is.na(rhs)) {
     rhs <- ""
   }
@@ -2043,7 +2051,7 @@ fill_proxy_growth <- function(
   list(
     source_var = source_var,
     group_vars = group_vars,
-    present_group_vars = present(group_vars),
+    present_group_vars = intersect(group_vars, names(data)),
     weight_col = weight_col,
     spec_name = spec_name
   )
