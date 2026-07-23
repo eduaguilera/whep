@@ -65,7 +65,9 @@ sectors in proportion to their slaughtered head counts. Because GLEAM reports
 its factors by production system and climate zone but the package has no
 country-level system or climate shares, the intensities are collapsed to one
 value per country by an unweighted mean across systems and climate zones;
-this choice is recorded in \code{method_energy}.
+this choice is recorded in \code{method_energy}. A meat group with carcass output
+but no slaughtered-head counts keeps its energy CO2e, split equally across
+the group's live-animal sectors, and triggers a warning.
 
 \code{gleam_geographic_hierarchy} is the country universe of the whole extension,
 so a reporting area absent from it gets no energy intensity and its meat

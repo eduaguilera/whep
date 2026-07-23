@@ -330,6 +330,29 @@ testthat::test_that("area -> iso3 needs no tie-break across polity periods", {
   testthat::expect_false(351L %in% area2iso$area_code)
 })
 
+testthat::test_that("carcass with no slaughter heads is not dropped", {
+  # Bovine carcass output but zero slaughtered-head rows for the group.
+  prod <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~unit, ~value,
+    2000L, 231L, 2731L, "tonnes", 1e7
+  )
+  testthat::expect_warning(
+    result <- whep::build_energy_co2_extension(
+      data = list(primary_prod = prod)
+    ),
+    "slaughtered-head"
+  )
+
+  # The group's CO2e survives and is split equally across both sectors.
+  testthat::expect_setequal(result$item_cbs_code, c(961L, 946L))
+  testthat::expect_true(all(result$impact_u > 0))
+  testthat::expect_false(any(is.na(result$impact_u)))
+  testthat::expect_equal(
+    result$impact_u[result$item_cbs_code == 961L],
+    result$impact_u[result$item_cbs_code == 946L]
+  )
+})
+
 testthat::test_that("only the gleam method is available", {
   testthat::expect_error(
     whep::build_energy_co2_extension(method = "fao"),
