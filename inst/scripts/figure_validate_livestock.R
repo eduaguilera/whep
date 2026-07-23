@@ -96,20 +96,31 @@ faostat_totals <- faostat |>
     fao_manure_n = manure_n_mg
   )
 
-comparison <- gridded_by_country |>
-  inner_join(
-    faostat_totals,
-    by = c("year", "area_code", "species_group")
-  ) |>
+# Full join so countries present on only one side are kept: a reference
+# country with no gridded output (a total mass leak) and a gridded
+# country the reference says has no animals both survive and get flagged.
+comparison <- .join_conservation(
+  gridded_by_country,
+  faostat_totals,
+  by = c("year", "area_code", "species_group"),
+  fill = c(
+    "grid_heads",
+    "grid_enteric_ch4",
+    "grid_manure_ch4",
+    "grid_manure_n2o",
+    "grid_manure_n",
+    "fao_heads",
+    "fao_enteric_ch4",
+    "fao_manure_ch4",
+    "fao_manure_n2o",
+    "fao_manure_n"
+  )
+) |>
   mutate(
     heads_diff = grid_heads - fao_heads,
-    heads_rel_error = if_else(
-      fao_heads > 0,
-      abs(grid_heads - fao_heads) / fao_heads * 100,
-      0
-    )
+    heads_rel_error = .conservation_rel_error(grid_heads, fao_heads)
   ) |>
-  inner_join(polities, by = "area_code")
+  left_join(polities, by = "area_code")
 
 cli::cli_alert_success(
   "Matched {nrow(comparison)} country-species-year observations"
