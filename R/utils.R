@@ -240,6 +240,7 @@ utils::globalVariables(
     # data.table update-join (dt[lookup, col := i.col, on = ...]) symbols
     "i..has_np",
     "i.dest_share_global",
+    "i.area",
     "i.domestic_supply",
     "i.harvest_fraction",
     "i.other_mean",
