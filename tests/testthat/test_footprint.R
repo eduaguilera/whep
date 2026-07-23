@@ -248,6 +248,96 @@ testthat::test_that("sparse path (z_mat) matches dense path (l_inv)", {
   testthat::expect_equal(nrow(sparse), nrow(dense))
 })
 
+testthat::test_that("sparse and dense paths agree when A stays productive", {
+  # Column sums of A are 0.13 and 0.14 (< 1), so L is non-negative and
+  # the two paths must produce identical footprints, not just equal sums.
+  f <- footprint_2sector_fixture()
+
+  dense <- compute_footprint(
+    f$l_inv,
+    f$x,
+    f$y,
+    f$extensions,
+    f$labels
+  )
+  sparse <- testthat::expect_no_warning(
+    compute_footprint(
+      x_vec = f$x,
+      y_mat = f$y,
+      extensions = f$extensions,
+      labels = f$labels,
+      z_mat = f$z
+    )
+  )
+
+  key <- c("origin_area", "origin_item", "target_area", "target_item")
+  dense <- dplyr::arrange(dense, dplyr::across(dplyr::all_of(key)))
+  sparse <- dplyr::arrange(sparse, dplyr::across(dplyr::all_of(key)))
+
+  testthat::expect_equal(sparse, dense, tolerance = 1e-8)
+})
+
+testthat::test_that("sparse path warns when A column sum reaches 1", {
+  # A column 2 sums to 1.3 (>= 1): the sparse solve can diverge from a
+  # dense l_inv, so the divergence must be signalled, not silent.
+  z <- matrix(c(0, 0, 70, 60), nrow = 2)
+  x <- c(100, 100)
+  y <- matrix(c(40, 50), ncol = 1)
+  extensions <- c(20, 10)
+  labels <- tibble::tibble(
+    area_code = c(1L, 1L),
+    item_cbs_code = c(10L, 20L)
+  )
+
+  testthat::expect_warning(
+    compute_footprint(
+      x_vec = x,
+      y_mat = y,
+      extensions = extensions,
+      labels = labels,
+      z_mat = z
+    ),
+    "may diverge"
+  )
+})
+
+testthat::test_that("fd_labels length must match ncol(y_mat)", {
+  z <- matrix(
+    c(5, 2, 1, 0, 3, 1, 0, 2, 0, 1, 4, 0, 1, 0, 1, 3),
+    nrow = 4,
+    byrow = TRUE
+  )
+  y <- matrix(
+    c(30, 20, 10, 5, 25, 15, 8, 3),
+    nrow = 4,
+    ncol = 4
+  )
+  x <- rowSums(z) + rowSums(y)
+  l_inv <- compute_leontief_inverse(z, x)
+  extensions <- c(10, 5, 8, 3)
+  labels <- tibble::tibble(
+    area_code = c(1L, 1L, 2L, 2L),
+    item_cbs_code = c(10L, 20L, 10L, 20L)
+  )
+  # Only 2 rows for 4 Y columns: stale/wrong-year fd_labels.
+  fd_labels <- tibble::tibble(
+    area_code = c(1L, 2L),
+    fd_col = c("food", "food")
+  )
+
+  testthat::expect_error(
+    compute_footprint(
+      l_inv,
+      x,
+      y,
+      extensions,
+      labels,
+      fd_labels = fd_labels
+    ),
+    "one row per"
+  )
+})
+
 testthat::test_that("sparse path caps closed sectors with value_added_floor", {
   z <- Matrix::sparseMatrix(
     i = 1,
