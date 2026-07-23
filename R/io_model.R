@@ -111,7 +111,7 @@ build_io_model <- function(
     })
 
     if (is.null(cbs)) {
-      cbs <- .cache_get(.io_cache_key("cbs_wide", build_years), {
+      cbs <- .cache_get(.io_cache_key("cbs_wide_io", build_years), {
         cli::cli_progress_step("Adding livestock CBS rows")
         wide <- .pivot_cbs_wide(cbs_built)
         livestock_cbs <- get_livestock_cbs(primary_prod_build) |>
