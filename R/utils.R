@@ -269,6 +269,8 @@ utils::globalVariables(
     ".grp_pos",
     ".is_miss_tmp",
     ".lambda",
+    ".all_na",
+    ".na",
     ".load_inputs_typologies_julia",
     ".n_rates",
     ".pred_end",
