@@ -1890,13 +1890,19 @@ build_processing_coefs <- function(
   ]
   overlap_ratio <- overlap[,
     .(
-      scale_new_old = stats::median(
+      n_overlap = .N,
+      scale_raw = stats::median(
         FAOSTAT_FBS_New / FAOSTAT_FBS_Old,
         na.rm = TRUE
       )
     ),
     by = group_cols
-  ][is.finite(scale_new_old)]
+  ][is.finite(scale_raw)]
+
+  # Guard against extreme ratios (unit changes, near-zero overlap values) and
+  # against extrapolating a single overlap year to five decades: clamp to a
+  # plausible band and require a minimum number of overlap observations.
+  overlap_ratio <- .clamp_fbs_scale_ratio(overlap_ratio)
 
   wide[
     overlap_ratio,
@@ -3560,16 +3566,7 @@ build_processing_coefs <- function(
     all.x = TRUE,
     sort = FALSE
   )
-  cbs_raw8[,
-    `:=`(
-      domestic_supply = pmax(domestic_supply, 0),
-      export = data.table::fifelse(
-        balance < 0,
-        production + import - stock_variation - domestic_supply,
-        export
-      )
-    )
-  ]
+  cbs_raw8 <- .cbs_fix_final_balance(cbs_raw8)
   cbs_raw8[, default_destiny := NULL]
   cbs_raw8 <- .untest_cbs(cbs_raw8)
 
@@ -3616,4 +3613,41 @@ build_processing_coefs <- function(
     all.x = TRUE,
     sort = FALSE
   )
+}
+
+# -- Helpers -------------------------------------------------------------------
+
+# Bounds for the FBS_Old -> FBS_New scaling ratio. The [lower, upper] band
+# mirrors the clamp used for processing scalings; min_overlap avoids
+# extrapolating a single overlap year to the whole FBS_Old series.
+.fbs_scale_ratio_bounds <- function() {
+  list(lower = 0.2, upper = 5, min_overlap = 2L)
+}
+
+# Clamp the FBS scaling ratio to a plausible band and drop groups whose
+# overlap window is too thin to trust. Groups that fail the overlap threshold
+# are dropped so they stay unscaled (source remains FAOSTAT_FBS_Old).
+.clamp_fbs_scale_ratio <- function(overlap_ratio) {
+  bounds <- .fbs_scale_ratio_bounds()
+  overlap_ratio <- overlap_ratio[n_overlap >= bounds$min_overlap]
+  overlap_ratio[,
+    scale_new_old := pmin(pmax(scale_raw, bounds$lower), bounds$upper)
+  ]
+  overlap_ratio[, c("n_overlap", "scale_raw") := NULL]
+  overlap_ratio[]
+}
+
+# Reconcile the final CBS balance. Clamp domestic supply at 0 first, then
+# recompute export from the clamped supply so the export fix cannot read a
+# negative supply, and clamp export at 0 so no negative exports survive.
+.cbs_fix_final_balance <- function(cbs_dt) {
+  cbs_dt[, domestic_supply := pmax(domestic_supply, 0)]
+  cbs_dt[,
+    export := data.table::fifelse(
+      balance < 0,
+      pmax(production + import - stock_variation - domestic_supply, 0),
+      export
+    )
+  ]
+  cbs_dt[]
 }
