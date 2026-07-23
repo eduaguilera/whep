@@ -1215,7 +1215,14 @@ build_primary_production <- function(
   if (nrow(needs_split) == 0L) {
     return(no_split)
   }
-  shares <- .compute_stock_shares(years)
+  # Stock shares come from the faostat-emissions-livestock pin, which lags
+  # QCL slaughter by 1-2 years. Carry the latest known share forward (and
+  # interpolate/back-fill) so split species keep their slaughter counts in
+  # QCL's most recent years, mirroring the value_st fill in
+  # .combine_livestock(). Without this the inner_join drops those years and
+  # cattle/swine/chicken slaughtered_heads silently vanish.
+  shares <- .compute_stock_shares(years) |>
+    .carry_forward_shares(sort(unique(needs_split$year)))
   split_result <- needs_split |>
     dplyr::select(-item_cbs_code) |>
     dplyr::distinct() |>
@@ -1224,6 +1231,21 @@ build_primary_production <- function(
     dplyr::select(year, area, area_code, item_cbs_code, value)
 
   dplyr::bind_rows(no_split, split_result)
+}
+
+.carry_forward_shares <- function(shares, target_years) {
+  shares |>
+    tidyr::complete(
+      year = target_years,
+      tidyr::nesting(area_code, Item_Code, item_cbs_code)
+    ) |>
+    fill_linear(
+      share,
+      time_col = year,
+      .by = c("area_code", "Item_Code", "item_cbs_code")
+    ) |>
+    dplyr::filter(!is.na(share)) |>
+    dplyr::select(year, area_code, Item_Code, item_cbs_code, share)
 }
 
 .compute_stock_shares <- function(years) {

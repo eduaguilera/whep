@@ -651,7 +651,6 @@ test_that("build_primary_production output has no duplicate keys", {
   expect_equal(nrow(keys), nrow(dplyr::distinct(keys)))
 })
 
-
 # -- .split_stock_share ---------------------------------------------------------
 
 test_that(".split_stock_share splits proportionally when both sub-items have data", {
@@ -734,4 +733,37 @@ test_that(".split_stock_share keeps groups (year, area, item_prod_code) independ
   result <- .split_stock_share(data)
 
   expect_equal(result$value_comb, c(0, 100, 50, 150))
+})
+
+test_that(".carry_forward_shares extends shares to QCL's latest years", {
+  # Shares from the emissions pin lag QCL by 1-2 years: here they stop at
+  # 2021 while slaughter data (target_years) runs to 2023.
+  shares <- tibble::tribble(
+    ~year, ~area_code, ~Item_Code, ~item_cbs_code, ~share,
+    2020L, 203L, 866L, 867L, 0.4,
+    2020L, 203L, 866L, 868L, 0.6,
+    2021L, 203L, 866L, 867L, 0.3,
+    2021L, 203L, 866L, 868L, 0.7
+  )
+  target_years <- 2020:2023
+
+  result <- whep:::.carry_forward_shares(shares, target_years)
+
+  # Every target year is covered for both split sub-items.
+  expect_equal(sort(unique(result$year)), 2020:2023)
+  expect_equal(nrow(result), 8L)
+
+  # Latest known share (2021) is carried forward to 2022 and 2023.
+  latest <- result |>
+    dplyr::filter(year %in% c(2022L, 2023L)) |>
+    dplyr::arrange(year, item_cbs_code)
+  expect_equal(latest$share, c(0.3, 0.7, 0.3, 0.7))
+
+  # Shares still sum to 1 within each (year, area_code, Item_Code).
+  sums <- result |>
+    dplyr::summarise(
+      total = sum(share),
+      .by = c(year, area_code, Item_Code)
+    )
+  expect_equal(sums$total, rep(1, 4))
 })
