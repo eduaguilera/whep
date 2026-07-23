@@ -103,6 +103,37 @@ test_that("calculate_nue_crops computes NUE correctly", {
   expect_equal(nue$nue, 5 / 5 * 100)
 })
 
+# .combine_nue_livestock
+test_that(".combine_nue_livestock does not double-count excretion", {
+  # Pigs produce multiple items, so the product join fans out to 2 rows.
+  intake_n <- tibble::tribble(
+    ~year, ~province_name, ~livestock_cat, ~feed_n,
+    2000, "A", "Pigs", 100
+  )
+
+  prod_n <- tibble::tribble(
+    ~year, ~province_name, ~livestock_cat, ~item, ~prod_n,
+    2000, "A", "Pigs", "Meat", 30,
+    2000, "A", "Pigs", "Offals", 10
+  )
+
+  excretion_n <- tibble::tribble(
+    ~year, ~province_name, ~livestock_cat, ~excretion_n,
+    2000, "A", "Pigs", 55
+  )
+
+  out <- .combine_nue_livestock(intake_n, prod_n, excretion_n)
+
+  expect_equal(nrow(out), 2)
+
+  # Mass balance is a single category-level value: excretion counted once.
+  # (sum(products) + excretion) / feed = (30 + 10 + 55) / 100.
+  expect_equal(unique(out$mass_balance), (30 + 10 + 55) / 100)
+
+  # Per-item nue is a valid decomposition summing to total products / feed.
+  expect_equal(sum(out$nue), (30 + 10) / 100 * 100)
+})
+
 # calculate_system_nue
 test_that("calculate_system_nue computes system NUE correctly", {
   soil_inputs <- tibble::tribble(

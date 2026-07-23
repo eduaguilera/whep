@@ -307,7 +307,22 @@ calculate_nue_livestock <- function(example = FALSE) {
     ) |>
     dplyr::rename_with(tolower)
 
-  nue_livestock <- intake_n |>
+  .combine_nue_livestock(intake_n, prod_n, excretion_n)
+}
+
+#' @title Combine livestock N flows into NUE and mass balance
+#' @description Joins per-category feed and excretion N with per-item product
+#' N. Per-item `nue` is computed row-wise, while `mass_balance` is computed at
+#' the `(year, province_name, livestock_cat)` level so excretion (which is a
+#' category-level flow) is counted once rather than once per produced item.
+#' @param intake_n Feed N per year, province, and livestock category.
+#' @param prod_n Product N per year, province, livestock category, and item.
+#' @param excretion_n Excreted N per year, province, and livestock category.
+#' @return A tibble with per-item `nue` and category-level `mass_balance`.
+#' @keywords internal
+#' @noRd
+.combine_nue_livestock <- function(intake_n, prod_n, excretion_n) {
+  intake_n |>
     dplyr::inner_join(
       prod_n,
       by = c("year", "province_name", "livestock_cat")
@@ -318,7 +333,8 @@ calculate_nue_livestock <- function(example = FALSE) {
     ) |>
     dplyr::mutate(
       nue = prod_n / feed_n * 100,
-      mass_balance = (prod_n + excretion_n) / feed_n
+      mass_balance = (sum(prod_n) + excretion_n) / feed_n,
+      .by = c(year, province_name, livestock_cat)
     ) |>
     dplyr::select(
       year,
@@ -331,8 +347,6 @@ calculate_nue_livestock <- function(example = FALSE) {
       nue,
       mass_balance
     )
-
-  nue_livestock
 }
 
 #' @title System NUE
