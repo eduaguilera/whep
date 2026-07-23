@@ -980,28 +980,17 @@ build_primary_production <- function(
     # Carry value_st forward (and back) in time per (area, item_cbs_code)
     # so years that fall outside the faostat-emissions-livestock pin's
     # coverage (typically the last 1-2 years; FAO emissions data lags
-    # QCL) inherit the latest known sub-item stock. Without this, the
-    # share = value_st / sum(value_st) below evaluates to NA for every
-    # row in those years, the value_comb branch falls back to the full
-    # QCL value, and all item_prod_code sub-rows that derive from the
-    # same QCL Item_Code (e.g. Cattle dairy + non-dairy from
-    # Item_Code 866, Swine market + breeding from 1034, Chickens layers
-    # + broilers from 1057) all receive the unsplit total, which
-    # multiplies the country head count by the number of sub-rows.
+    # QCL) inherit the latest known sub-item stock. Without this,
+    # fill_linear() cannot interpolate those years and .split_stock_share()
+    # below would treat them the same as an entirely-missing sub-item
+    # series (see its own comment for how that case is handled without
+    # double-counting).
     fill_linear(
       value_st,
       time_col = year,
       .by = c("area", "item_cbs_code")
     ) |>
-    dplyr::mutate(
-      share = value_st / sum(value_st),
-      value_comb = dplyr::if_else(
-        is.na(share) | share == 1,
-        value,
-        value * share
-      ),
-      .by = c(year, area, item_prod_code)
-    ) |>
+    .split_stock_share() |>
     dplyr::filter(!is.na(area_code)) |>
     dplyr::mutate(
       n = dplyr::n(),
@@ -1047,6 +1036,39 @@ build_primary_production <- function(
         "Livestock_name"
       )
     )
+}
+
+# Split the unsplit QCL stock (`value`) across sub-items (e.g. dairy vs
+# non-dairy cattle) sharing the same parent item_prod_code, proportionally to
+# each sub-item's own emissions-stock series (`value_st`).
+#
+# sum(value_st) used na.rm = FALSE, so if even one sub-item's value_st was
+# entirely NA for a country (fill_linear() has no anchor point to
+# interpolate from), the group sum became NA, share became NA for EVERY
+# sub-item in the group -- including ones with perfectly good data -- and
+# value_comb fell back to the full unsplit `value` for all of them. A country
+# whose cattle herd is split into dairy/non-dairy then had BOTH sub-rows
+# receive 100% of the total head count instead of a real split, double (or
+# n-fold) counting the herd.
+#
+# Fix: sum with na.rm = TRUE, so a sub-item with no data at all contributes
+# 0 rather than NA, and its share becomes 0 -- letting siblings that DO have
+# data absorb the total instead of everyone falling back to it. If the whole
+# group has no data (sum is 0), split equally across the n sub-items instead
+# of giving each the full amount, so the total is still conserved.
+.split_stock_share <- function(data) {
+  data |>
+    dplyr::mutate(
+      sum_value_st = sum(value_st, na.rm = TRUE),
+      share = dplyr::if_else(
+        sum_value_st > 0,
+        dplyr::coalesce(value_st, 0) / sum_value_st,
+        1 / dplyr::n()
+      ),
+      value_comb = value * share,
+      .by = c(year, area, item_prod_code)
+    ) |>
+    dplyr::select(-sum_value_st, -share)
 }
 
 .finalise_livestock <- function(fao_liv_raw, animals, liv_lu) {
