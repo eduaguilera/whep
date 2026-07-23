@@ -3,6 +3,28 @@ harmonization_dir <- here::here("inst", "extdata", "harmonization")
 # Excel exports use #N/A, #DIV/0!, and #REF! for missing/error cells
 excel_na <- c("", "NA", "#N/A", "#DIV/0!", "#REF!")
 
+# Guard against non-unique join keys and duplicate rows in mapping tables.
+# A non-unique key silently fans out downstream joins; duplicate rows
+# double-count. Fail loudly at build time so bad data never ships.
+.assert_unique_key <- function(table, key, name) {
+  values <- table[[key]]
+  dup_keys <- unique(values[!is.na(values) & duplicated(values)])
+  if (length(dup_keys) > 0) {
+    cli::cli_abort(c(
+      "Non-unique key {.field {key}} in {.val {name}}.",
+      "x" = "Duplicated value{?s}: {.val {dup_keys}}."
+    ))
+  }
+  dup_rows <- nrow(table) - nrow(dplyr::distinct(table))
+  if (dup_rows > 0) {
+    cli::cli_abort(c(
+      "Duplicate rows in {.val {name}}.",
+      "x" = "{dup_rows} fully duplicated row{?s} found."
+    ))
+  }
+  invisible(table)
+}
+
 # Direct reads ----------------------------------------------------------------
 
 regions_full <- file.path(harmonization_dir, "regions_full.csv") |>
@@ -160,6 +182,14 @@ items_prim <- dplyr::bind_rows(
     Cat_FAO1 = dplyr::coalesce(Cat_FAO1, Cat_FAO12)
   ) |>
   dplyr::select(-Farm_class2, -Cat_Labour2, -Cat_FAO12)
+
+# Integrity guards ------------------------------------------------------------
+
+.assert_unique_key(items_prod_full, "item_prod_code", "items_prod_full")
+.assert_unique_key(items_full, "item_cbs_code", "items_full")
+.assert_unique_key(regions_full, "code", "regions_full")
+.assert_unique_key(cbs_trade_codes, "item_code_trade", "cbs_trade_codes")
+.assert_unique_key(animals_codes, "item_cbs_code", "animals_codes")
 
 # Save as package data --------------------------------------------------------
 
