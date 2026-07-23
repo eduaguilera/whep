@@ -1281,7 +1281,31 @@ utils::globalVariables(
     ".next_time",
     ".neighbor",
     ".isolated",
-    ".n_tie"
+    ".n_tie",
+    # grafs_plot_df.R (GRAFS plot dataset)
+    "province",
+    "input",
+    "FORha",
+    "PERiha",
+    "PERrha",
+    "HORiha",
+    "HORrha",
+    "NPEiha",
+    "NPErha",
+    "{AN_LS}",
+    "{AN_OTH}",
+    "{AN_LS_OTH}",
+    "{GREHha}",
+    "{HAGRASS}",
+    "{RUMIANTSLU}",
+    "{RUMIANTSMLU}",
+    "{MONOGLU}",
+    "{MONOGMLU}",
+    # input_output_plots.R (national N input/output plots)
+    "Type",
+    "input_total",
+    "use_total",
+    "net"
   )
 )
 
