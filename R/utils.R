@@ -547,6 +547,7 @@ utils::globalVariables(
     "livestock_cat",
     "Livestock_cat",
     "Livestock_density",
+    "livestock_aqua",
     "livestock_mono",
     "Livestock_name",
     "livestock_rum",
