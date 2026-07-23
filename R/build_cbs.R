@@ -2883,7 +2883,10 @@ build_processing_coefs <- function(
         is_tradeable & has_reliable_anchor & net_trade < 0 ~ -net_trade,
         TRUE ~ 0
       ),
-      production = tidyr::replace_na(production, 0),
+      # NOTE: production is intentionally left as NA here so that
+      # .reestimate_domestic_supply() can impute it from the
+      # domestic-supply residual. Do not replace_na(production) before
+      # that call or the imputation branch becomes dead code (#142).
       stock_variation = tidyr::replace_na(
         stock_variation,
         0
