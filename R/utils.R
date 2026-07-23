@@ -322,6 +322,7 @@ utils::globalVariables(
     "area_code_p",
     "area_code_partner",
     "area_ha",
+    "fao_area",
     "area_iso3c",
     "area_mha",
     "Area",
