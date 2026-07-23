@@ -739,25 +739,32 @@ build_processing_coefs <- function(
     .(item_cbs, item_cbs_code)
   ]
   cbs_trade <- data.table::as.data.table(whep::cbs_trade_codes)
+  # Map the ISO3 reporter to the polity area code only. The human-readable
+  # area name is derived from the code afterwards (see below) so it matches
+  # the primary-production naming convention exactly, rather than trusting a
+  # potentially multi-valued name carried alongside the code.
   area_bridge <- .current_area_lookup(include_unmapped = FALSE)[
     !is.na(area_iso3c),
-    .(iso3c = area_iso3c, area = area_name, area_code = polity_area_code)
+    .(iso3c = area_iso3c, area_code = polity_area_code)
   ]
   area_bridge <- unique(area_bridge, by = "iso3c")
 
+  # The exports pin holds reporter exports and the imports pin holds reporter
+  # imports (verified against FAOSTAT 1961 overlap values), so label them
+  # directly. An earlier version mirrored the flows, which reversed direction.
   exports <- .read_input(
     "historical-trade-exports",
     years = years,
     year_col = "year"
   )
-  exports[, element := "import"]
+  exports[, element := "export"]
 
   imports <- .read_input(
     "historical-trade-imports",
     years = years,
     year_col = "year"
   )
-  imports[, element := "export"]
+  imports[, element := "import"]
 
   dt <- data.table::rbindlist(
     list(exports, imports),
@@ -781,11 +788,18 @@ build_processing_coefs <- function(
   dt <- merge(dt, cbs_trade, by = "item_code_trade", all.x = TRUE, sort = FALSE)
   dt <- merge(dt, items, by = "item_cbs", all.x = TRUE, sort = FALSE)
 
+  dt <- dt[!is.na(area_code)]
   dt <- dt[,
     .(value = sum(value, na.rm = TRUE)),
-    by = c("year", "area", "area_code", "item_cbs", "item_cbs_code", "element")
+    by = c("year", "area_code", "item_cbs", "item_cbs_code", "element")
   ]
   dt[, unit := "tonnes"]
+
+  # Derive the area name from the code so it matches the convention used by
+  # primary production, which is what the pre-1961 extension joins against.
+  dt <- add_area_name(dt) |>
+    data.table::as.data.table()
+  data.table::setnames(dt, "area_name", "area")
   dt[!is.na(area)]
 }
 
@@ -1545,8 +1559,12 @@ build_processing_coefs <- function(
   trade <- traded_res
   trade[, source := "FAOSTAT_trade"]
 
+  # Historical (pre-1961) trade evidence. FAOSTAT trade begins in 1961, so
+  # this is the only import/export source feeding the pre-1961 extension.
+  trade_hist <- .prepare_trade_hist_source(inputs$trade_hist)
+
   dt <- data.table::rbindlist(
-    list(fbs_new, fbs_old, cbs, primary, trade),
+    list(fbs_new, fbs_old, cbs, primary, trade, trade_hist),
     use.names = TRUE,
     fill = TRUE
   )
@@ -1565,6 +1583,19 @@ build_processing_coefs <- function(
   dt_pp[, element := "processing_primary"]
 
   data.table::rbindlist(list(dt, dt_pp), use.names = TRUE, fill = TRUE)
+}
+
+# Label historical trade with its source and restrict it to the pre-1961
+# extension window. Keeping it out of the FAOSTAT era (>= 1961) avoids mixing
+# it with the polity-name convention those sources use.
+.prepare_trade_hist_source <- function(trade_hist) {
+  if (is.null(trade_hist) || nrow(trade_hist) == 0L) {
+    return(data.table::data.table())
+  }
+  dt <- data.table::as.data.table(trade_hist)
+  dt <- dt[year < 1961L]
+  data.table::set(dt, j = "source", value = "trade_hist")
+  dt
 }
 
 .select_best_source <- function(cbs_raw_all) {
