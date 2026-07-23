@@ -36,6 +36,35 @@ testthat::test_that(".activity_data_choices returns expected values", {
   testthat::expect_true("crop_production" %in% choices)
 })
 
+testthat::test_that(".populate_iso3_code keeps China aggregate distinct", {
+  testthat::skip_if_not_installed("FAOSTAT")
+
+  df <- tibble::tribble(
+    ~area, ~value,
+    "China", 100,
+    "China, mainland", 90,
+    "Portugal", 5
+  ) |>
+    as.data.frame()
+
+  # fillCountryCode warns about unmatched / ambiguous China codes.
+  result <- suppressWarnings(.populate_iso3_code(df))
+
+  # "China, mainland" (area 41) is the mapped Chinese producer.
+  mainland_iso <- result[result$area == "China, mainland", "ISO3_CODE"]
+  testthat::expect_equal(mainland_iso, "CHN")
+
+  # The aggregate "China" (area 351) must stay unmapped so it is not
+  # summed together with "China, mainland".
+  aggregate_iso <- result[result$area == "China", "ISO3_CODE"]
+  testthat::expect_true(is.na(aggregate_iso))
+
+  # No ISO3 code may be shared by two distinct source areas.
+  mapped <- result[!is.na(result$ISO3_CODE), ]
+  dup_codes <- mapped$ISO3_CODE[duplicated(mapped$ISO3_CODE)]
+  testthat::expect_length(dup_codes, 0)
+})
+
 testthat::test_that(".bad_activity_data_param_error returns helpful message", {
   msg <- .bad_activity_data_param_error()
 

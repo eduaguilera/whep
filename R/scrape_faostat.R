@@ -85,6 +85,10 @@ get_faostat_data <- function(activity_data, ...) {
 
   # manually fix some crazy countries/ISO3_CODE
   df[df$area == "China, mainland", "ISO3_CODE"] <- "CHN"
+  # The aggregate "China" (FAOSTAT area 351) bundles mainland, Hong Kong,
+  # Macao and Taiwan. Leave it unmapped so it is not conflated with
+  # "China, mainland" (41); otherwise the largest producer is double-counted.
+  df[df$area == "China", "ISO3_CODE"] <- NA_character_
   df[df$area == "T\u00FCrkiye", "ISO3_CODE"] <- "TUR"
   df[df$area == "Netherlands (Kingdom of the)", "ISO3_CODE"] <- "NLD"
   df[df$area == "Sudan", "ISO3_CODE"] <- "SDN"
