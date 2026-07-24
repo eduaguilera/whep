@@ -408,9 +408,50 @@ test_that(".sci_combine_crop_patterns scales harvest_fraction by cropland", {
   testthat::expect_equal(wheat_b$crop_area_ha, 50)
 })
 
-test_that(".sci_read_manure aborts with an actionable message", {
-  testthat::expect_error(
-    whep:::.sci_read_manure(),
-    "turnkey"
+test_that(".sci_manure_crop_layer emits the manure-engine crops contract", {
+  # Production-shaped fixture: two crops (ha rows), one livestock and one
+  # grassland row that must be dropped, in polity 203.
+  production <- tibble::tribble(
+    ~area_code, ~item_prod_code, ~item_cbs_code, ~live_anim_code,
+    ~year, ~unit, ~value,
+    203L, 15, 2511L, NA, 2000L, "ha", 40,
+    203L, 15, 2511L, NA, 2000L, "tonnes", 100,
+    203L, 27, 2807L, NA, 2000L, "ha", 20,
+    203L, 866, 2731L, 866L, 2000L, "heads", 5,
+    203L, 3000, 3000L, NA, 2000L, "ha", 999
   )
+  out <- whep:::.sci_manure_crop_layer(production)
+  testthat::expect_setequal(
+    names(out),
+    c(
+      "year",
+      "territory",
+      "sub_territory",
+      "crop",
+      "manure_n_receptivity",
+      "crop_area_ha"
+    )
+  )
+  # Only the two crops survive (livestock and grassland dropped).
+  testthat::expect_setequal(out$crop, c("15", "27"))
+  # territory is the stringified area_code, crop the item_prod_code string.
+  testthat::expect_true(all(out$territory == "203"))
+  testthat::expect_true(all(is.na(out$sub_territory)))
+  # manure_n_receptivity is the harvested area (area-proportional allocation).
+  crop15 <- out[out$crop == "15", ]
+  testthat::expect_equal(crop15$manure_n_receptivity, 40)
+  testthat::expect_equal(crop15$crop_area_ha, 40)
+})
+
+test_that(".sci_read_manure runs turnkey and yields cropland applied_c", {
+  testthat::skip_on_ci()
+  testthat::skip_if_not_installed("arrow")
+  applied <- whep:::.sci_read_manure(years = 2010L)
+  testthat::expect_true(all(
+    c("year", "territory", "land_use", "crop", "applied_c") %in%
+      names(applied)
+  ))
+  cropland <- applied[applied$land_use == "Cropland" & !is.na(applied$crop), ]
+  testthat::expect_gt(nrow(cropland), 0L)
+  testthat::expect_gt(sum(cropland$applied_c, na.rm = TRUE), 0)
 })

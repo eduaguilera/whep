@@ -695,3 +695,34 @@ test_that(".cb_hwsd_clay reads per-cell clay from HWSD", {
   testthat::expect_setequal(names(clay), c("lon", "lat", "clay_pct"))
   testthat::expect_true(all(clay$clay_pct >= 0 & clay$clay_pct <= 100))
 })
+
+# -- years pass-through (turnkey scoping) -------------------------------------
+
+# build_carbon_balance() and its default-reader carbon-input builders must
+# expose a `years` argument so a turnkey call can scope the (otherwise
+# 850-2015) LUH2 range. Pure signature check; no pins or rasters are touched.
+test_that("carbon builders expose a years argument threaded to readers", {
+  fns <- c(
+    "build_carbon_balance",
+    "build_carbon_inputs",
+    "build_soil_carbon_inputs",
+    "build_grass_natural_carbon_inputs"
+  )
+  for (nm in fns) {
+    fn <- getExportedValue("whep", nm)
+    testthat::expect_true(
+      "years" %in% names(formals(fn)),
+      info = paste0(nm, " must accept a `years` argument")
+    )
+    testthat::expect_null(
+      eval(formals(fn)$years),
+      info = paste0(nm, "'s `years` must default to NULL (back-compatible)")
+    )
+  }
+  # The default readers forward `years` to the year-aware source functions.
+  testthat::expect_true("years" %in% names(formals(whep:::.cb_read_land_use)))
+  testthat::expect_true("years" %in% names(formals(whep:::.cb_read_climate)))
+  testthat::expect_true("years" %in% names(formals(whep:::.cb_read_c_inputs)))
+  testthat::expect_true("years" %in% names(formals(whep:::.sci_read_npp)))
+  testthat::expect_true("years" %in% names(formals(whep:::.sci_read_manure)))
+})

@@ -21,6 +21,10 @@
 #'
 #' @param resolution `"grid"` (default, per cell) or `"polity"` (aggregated to
 #'   `area_code`).
+#' @param years Optional integer vector of calendar years to keep. `NULL`
+#'   (default) keeps every year the inputs cover. Threaded into the default NPP
+#'   and manure readers so they slice to the requested years; ignored for inputs
+#'   supplied via `data`.
 #' @param data Optional named list of pre-loaded inputs, each falling back to
 #'   its reader when absent: `npp` (soil-returned residue, root and weed carbon
 #'   per `area_code`, `item_prod_code`, `year`, columns `residue_soil_c_t`,
@@ -47,13 +51,14 @@
 build_soil_carbon_inputs <- function(
   resolution = c("grid", "polity"),
   data = list(),
+  years = NULL,
   example = FALSE
 ) {
   resolution <- rlang::arg_match(resolution)
   if (isTRUE(example)) {
     return(.example_soil_carbon_inputs())
   }
-  d <- .sci_resolve_inputs(data)
+  d <- .sci_resolve_inputs(data, years)
   components <- .sci_assemble_components(d$npp, d$manure)
   gridded <- .sci_to_grid(components, d$country_grid, d$crop_patterns)
   .sci_finalise(gridded, resolution, d$residue_humification)
@@ -61,10 +66,10 @@ build_soil_carbon_inputs <- function(
 
 # Private helpers ----
 
-.sci_resolve_inputs <- function(data) {
+.sci_resolve_inputs <- function(data, years = NULL) {
   list(
-    npp = data$npp %||% .sci_read_npp(),
-    manure = data$manure %||% .sci_read_manure(),
+    npp = data$npp %||% .sci_read_npp(years),
+    manure = data$manure %||% .sci_read_manure(years),
     country_grid = data$country_grid %||% .sci_read_country_grid(),
     crop_patterns = data$crop_patterns %||% .sci_read_crop_patterns(),
     residue_humification = data$residue_humification %||%
@@ -388,8 +393,8 @@ build_soil_carbon_inputs <- function(
 # and root dry matter) -> calculate_residue_destinies() (the soil-returned
 # residue fraction) -> calculate_npp_carbon_nitrogen() (the carbon partition,
 # including residue_soil_c_t, root_c_t and weed_npp_c_t).
-.sci_read_npp <- function() {
-  .sci_npp_from_primary_prod(get_primary_production())
+.sci_read_npp <- function(years = NULL) {
+  .sci_npp_from_primary_prod(.filter_years(get_primary_production(), years))
 }
 
 # Run the crop-NPP carbon chain on a get_primary_production() table and keep the
@@ -453,22 +458,66 @@ build_soil_carbon_inputs <- function(
     dplyr::distinct(.data$area_code, .keep_all = TRUE)
 }
 
-# Manure carbon applied to cropland has no turnkey default source: it comes
-# from build_livestock_nutrient_flows()'s `applied` stream, which requires a
-# redistribute_feed() intake that is not itself obtainable from a pin without
-# the full feed-allocation pipeline. Rather than silently drop the manure
-# carbon input, abort with the actionable path (RESOLVED: report as the one
-# remaining turnkey blocker for the cropland stream).
-.sci_read_manure <- function() {
-  cli::cli_abort(
-    c(
-      "No turnkey {.field manure} source is available.",
-      i = "Pass {.code data$manure} (the {.field applied} stream of \\
-           {.fun build_livestock_nutrient_flows}). That function needs a \\
-           {.fun redistribute_feed} intake, which has no default pin, so \\
-           manure carbon cannot be assembled turnkey."
-    )
+# Manure carbon applied to cropland, the `applied` stream of
+# build_livestock_nutrient_flows(). The realised feed intake it consumes is the
+# redistribute_feed() national result (the same contract estimate_n_excretion
+# needs: year, territory, sub_territory, livestock_category, item_cbs_code,
+# feed_quality, intake_dm_t), built turnkey from the cached production and CBS
+# pins via .run_redistribute_national() (get_feed_intake()'s own internal engine;
+# its public output is a reshaped per-animal table that is NOT the excretion
+# contract, so the engine result is used directly). feed_mode is "historical"
+# (distribute_surplus = FALSE). allocate_manure_to_land() requires a cropland
+# receptivity layer, supplied turnkey by .sci_manure_crop_layer() with the
+# fixed-ceiling (EU Nitrates-Directive 170 kg N/ha) cap, which needs only
+# harvested area. The `crop` it emits is the item_prod_code, so it resolves
+# straight back through .sci_manure_crop_prod_code().
+.sci_read_manure <- function(years = NULL) {
+  production <- .filter_years(get_primary_production(), years)
+  cbs <- .filter_years(get_wide_cbs(), years)
+  intake <- .run_redistribute_national(
+    production = production,
+    cbs = cbs,
+    demand_tier = "ipcc",
+    options = list(distribute_surplus = FALSE)
   )
+  build_livestock_nutrient_flows(
+    intake,
+    resolution = "national",
+    methods = list(allocation = list(cap_method = "fixed_ceiling")),
+    gridded = list(crops = .sci_manure_crop_layer(production))
+  )$applied
+}
+
+# Turnkey cropland receptivity layer for the manure allocation: per polity-crop
+# harvested area (ha) from the primary production, keyed to the manure engine's
+# (year, territory, sub_territory, crop) grain. `crop` is the item_prod_code so
+# it resolves straight back through .sci_manure_crop_prod_code();
+# manure_n_receptivity is the harvested area, so collected manure is spread
+# across a polity's crops in proportion to each crop's area (the same basis
+# .sci_to_grid re-grids by); the fixed_ceiling cap needs only crop_area_ha.
+# Grassland and livestock rows are excluded, matching .sci_crop_prod_wide().
+.sci_manure_crop_layer <- function(production) {
+  grass <- c(3000L, 3002L, 3003L)
+  production |>
+    dplyr::filter(
+      .data$unit == "ha",
+      !is.na(.data$item_prod_code),
+      is.na(.data$live_anim_code),
+      !.data$item_cbs_code %in% grass
+    ) |>
+    dplyr::summarise(
+      crop_area_ha = sum(.data$value, na.rm = TRUE),
+      .by = c("area_code", "item_prod_code", "year")
+    ) |>
+    dplyr::filter(.data$crop_area_ha > 0) |>
+    dplyr::transmute(
+      year = as.integer(.data$year),
+      territory = as.character(.data$area_code),
+      sub_territory = NA_character_,
+      crop = as.character(.data$item_prod_code),
+      manure_n_receptivity = .data$crop_area_ha,
+      crop_area_ha = .data$crop_area_ha
+    )
 }
 
 # The cell -> polity crosswalk from the spatialization country grid.

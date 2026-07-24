@@ -39,6 +39,10 @@
 #'
 #' @param resolution `"grid"` (default, per cell and class) or `"polity"`
 #'   (aggregated to `area_code`, area-weighting the per-hectare densities).
+#' @param years Optional integer vector of calendar years to keep. `NULL`
+#'   (default) keeps every year the inputs cover. Threaded into the default
+#'   LPJmL NPP, stand-fraction and land-use readers so they slice to the
+#'   requested years; ignored for inputs supplied via `data`.
 #' @param data Named list of pre-loaded inputs, each falling back to its reader
 #'   when absent: `npp` and `harvestc` (per cell, PFT and year, the
 #'   [read_lpjml_npp()] output); `stand_frac` (per cell, year and PFT name the
@@ -62,13 +66,14 @@
 build_grass_natural_carbon_inputs <- function(
   resolution = c("grid", "polity"),
   data = list(),
+  years = NULL,
   example = FALSE
 ) {
   resolution <- rlang::arg_match(resolution)
   if (isTRUE(example)) {
     return(.example_grass_natural_carbon_inputs())
   }
-  d <- .gn_resolve_inputs(data)
+  d <- .gn_resolve_inputs(data, years)
   natural <- .gn_natural_input(d)
   grassland <- .gn_grassland_input(d)
   dplyr::bind_rows(natural, grassland) |>
@@ -77,13 +82,13 @@ build_grass_natural_carbon_inputs <- function(
 
 # -- Input resolution ---------------------------------------------------------
 
-.gn_resolve_inputs <- function(data) {
+.gn_resolve_inputs <- function(data, years = NULL) {
   list(
-    npp = data$npp %||% read_lpjml_npp("npp"),
-    harvestc = data$harvestc %||% read_lpjml_npp("harvestc"),
-    stand_frac = data$stand_frac %||% .gn_read_stand_frac(),
+    npp = data$npp %||% read_lpjml_npp("npp", years = years),
+    harvestc = data$harvestc %||% read_lpjml_npp("harvestc", years = years),
+    stand_frac = data$stand_frac %||% .gn_read_stand_frac(years = years),
     country_grid = data$country_grid %||% .gn_read_country_grid(),
-    land_use = data$land_use %||% .gn_read_land_use(),
+    land_use = data$land_use %||% .gn_read_land_use(years),
     excreta = data$excreta,
     residue_humification = data$residue_humification %||%
       whep::residue_humification
@@ -407,7 +412,7 @@ build_grass_natural_carbon_inputs <- function(
 }
 
 # Per-cell grassland (and other class) areas from LUH2 v2h.
-.gn_read_land_use <- function() {
-  read_luh2_landuse(resolution = "grid")
+.gn_read_land_use <- function(years = NULL) {
+  read_luh2_landuse(resolution = "grid", years = years)
 }
 # nolint end

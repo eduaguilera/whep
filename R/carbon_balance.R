@@ -24,6 +24,13 @@
 #'   \code{"icbm"}, \code{"amg"} or \code{"century"}.
 #' @param resolution \code{"grid"} (default, per cell and land-use class) or
 #'   \code{"polity"} (aggregated to \code{area_code} conserving carbon mass).
+#' @param years Optional integer vector of calendar years to keep. \code{NULL}
+#'   (default) keeps every year the inputs cover, but reading the full LUH2 range
+#'   (850-2015) is infeasible turnkey, so a subset is strongly recommended when
+#'   the default readers are used. Threaded into every default reader
+#'   (\code{\link{read_luh2_landuse}}, \code{\link{get_soc_climate_drivers}} and
+#'   \code{\link{build_carbon_inputs}}); ignored for inputs supplied via
+#'   \code{data}.
 #' @param data Named list of pre-loaded inputs, each falling back to its reader
 #'   when absent: \code{c_inputs} (per cell, land-use class and year, with
 #'   \code{c_input_mgc_ha_yr} and \code{humified_fraction}); \code{land_use}
@@ -60,6 +67,7 @@ build_carbon_balance <- function(
   model = c("hsoc", "rothc", "icbm", "amg", "century"),
   resolution = c("grid", "polity"),
   data = list(),
+  years = NULL,
   example = FALSE
 ) {
   if (isTRUE(example)) {
@@ -67,7 +75,7 @@ build_carbon_balance <- function(
   }
   model <- rlang::arg_match(model)
   resolution <- rlang::arg_match(resolution)
-  d <- .cb_resolve_inputs(data)
+  d <- .cb_resolve_inputs(data, years)
   classes <- .cb_class_table(d, model) |> .cb_attach_equilibrium(model)
   init <- .cb_initialise(classes, model, d)
   marched <- .cb_march(classes, init)
@@ -79,10 +87,10 @@ build_carbon_balance <- function(
 
 # -- Input resolution ---------------------------------------------------------
 
-.cb_resolve_inputs <- function(data) {
-  c_inputs <- data$c_inputs %||% .cb_read_c_inputs()
-  land_use <- data$land_use %||% .cb_read_land_use()
-  climate <- data$climate %||% .cb_read_climate()
+.cb_resolve_inputs <- function(data, years = NULL) {
+  c_inputs <- data$c_inputs %||% .cb_read_c_inputs(years)
+  land_use <- data$land_use %||% .cb_read_land_use(years)
+  climate <- data$climate %||% .cb_read_climate(years)
   # get_soc_climate_drivers() carries clay_pct in its own output, so a
   # turnkey (or clay_pct-bearing) climate table supplies the per-cell clay
   # directly; only fall back to the standalone HWSD clay reader when the
@@ -808,15 +816,15 @@ build_carbon_balance <- function(
 # (build_grass_natural_carbon_inputs) builders by build_carbon_inputs(). Grid
 # grain is required: .cb_class_table() joins c_inputs onto the land-use areas
 # per cell.
-.cb_read_c_inputs <- function() {
-  build_carbon_inputs(resolution = "grid")
+.cb_read_c_inputs <- function(years = NULL) {
+  build_carbon_inputs(resolution = "grid", years = years)
 }
 
 # Yearly per-cell per-class land-use areas from LUH2 v2h (read_luh2_landuse()
 # emits lowercase cropland/grassland/natural/urban classes, matching the
 # carbon-input builders).
-.cb_read_land_use <- function() {
-  read_luh2_landuse(resolution = "grid")
+.cb_read_land_use <- function(years = NULL) {
+  read_luh2_landuse(resolution = "grid", years = years)
 }
 
 # The per cell-year monthly climate drivers get_soc_climate_drivers() produces
@@ -824,9 +832,10 @@ build_carbon_balance <- function(
 # .cb_climate_modifier_table() derives the selected model's native modifier.
 # get_soc_climate_drivers() requires the per-cell clay and cell-polity
 # crosswalk, supplied here from HWSD and the spatialization country grid.
-.cb_read_climate <- function() {
+.cb_read_climate <- function(years = NULL) {
   cell_polity <- .cb_read_cell_polity()
   get_soc_climate_drivers(
+    years = years,
     data = list(
       clay = .cb_hwsd_clay(cell_polity),
       cell_polity = cell_polity

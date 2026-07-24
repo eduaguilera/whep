@@ -7,6 +7,7 @@
 build_soil_carbon_inputs(
   resolution = c("grid", "polity"),
   data = list(),
+  years = NULL,
   example = FALSE
 )
 }
@@ -24,6 +25,11 @@ case-insensitively), and \code{territory} a stringified \code{area_code} or \cod
 \code{country_grid} and \code{crop_patterns} (the spatialization inputs,
 \code{crop_patterns} carrying per-cell \code{crop_area_ha}); \code{residue_humification}
 (defaults to \link{residue_humification}).}
+
+\item{years}{Optional integer vector of calendar years to keep. \code{NULL}
+(default) keeps every year the inputs cover. Threaded into the default NPP
+and manure readers so they slice to the requested years; ignored for inputs
+supplied via \code{data}.}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading remote
 data. Defaults to \code{FALSE}.}

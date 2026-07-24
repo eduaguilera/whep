@@ -11,6 +11,7 @@ natural carbon inputs per the WHEP historical carbon-balance design.
 build_grass_natural_carbon_inputs(
   resolution = c("grid", "polity"),
   data = list(),
+  years = NULL,
   example = FALSE
 )
 }
@@ -27,6 +28,11 @@ managed-grassland stand fractions with columns \code{lon}, \code{lat}, \code{yea
 excreta and to area-weight polity output); \code{excreta} (the \code{applied} tibble
 of \code{\link[=build_livestock_nutrient_flows]{build_livestock_nutrient_flows()}}, grassland rows carry \code{applied_c}
 tonnes C); \code{residue_humification} (defaults to \link{residue_humification}).}
+
+\item{years}{Optional integer vector of calendar years to keep. \code{NULL}
+(default) keeps every year the inputs cover. Threaded into the default
+LPJmL NPP, stand-fraction and land-use readers so they slice to the
+requested years; ignored for inputs supplied via \code{data}.}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading remote
 data. Defaults to \code{FALSE}.}

@@ -12,6 +12,7 @@ the WHEP historical carbon-balance design.
 build_carbon_inputs(
   resolution = c("grid", "polity"),
   data = list(),
+  years = NULL,
   example = FALSE
 )
 }
@@ -31,6 +32,12 @@ optional \code{land_use} (per-cell class \code{area_ha}, used to area-weight
 grassland/natural polity output). When
 \code{cropland} or \code{grass_natural} are absent the respective builder is called
 with the remaining members of \code{data}.}
+
+\item{years}{Optional integer vector of calendar years to keep. \code{NULL}
+(default) keeps every year the inputs cover. Threaded into the default
+\code{\link[=build_soil_carbon_inputs]{build_soil_carbon_inputs()}} and \code{\link[=build_grass_natural_carbon_inputs]{build_grass_natural_carbon_inputs()}}
+builders so their readers slice to the requested years; ignored for inputs
+supplied via \code{data}.}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading remote
 data. Defaults to \code{FALSE}.}

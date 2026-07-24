@@ -13,6 +13,7 @@ build_carbon_balance(
   model = c("hsoc", "rothc", "icbm", "amg", "century"),
   resolution = c("grid", "polity"),
   data = list(),
+  years = NULL,
   example = FALSE
 )
 }
@@ -42,6 +43,14 @@ optional \code{equilibrium_climate} (the pre-industrial climatological
 normal, one representative monthly cycle per cell, used only for the
 equilibrium spin-up modifier while the forward march uses the year-specific
 drivers).}
+
+\item{years}{Optional integer vector of calendar years to keep. \code{NULL}
+(default) keeps every year the inputs cover, but reading the full LUH2 range
+(850-2015) is infeasible turnkey, so a subset is strongly recommended when
+the default readers are used. Threaded into every default reader
+(\code{\link{read_luh2_landuse}}, \code{\link{get_soc_climate_drivers}} and
+\code{\link{build_carbon_inputs}}); ignored for inputs supplied via
+\code{data}.}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading
 remote data. Defaults to \code{FALSE}.}
