@@ -36,6 +36,74 @@ testthat::test_that("consolidate_sources keeps the highest-priority source", {
   testthat::expect_equal(won$source_rank, 1L)
 })
 
+# NA-valued high-rank row never beats a real lower-rank value ------------------
+
+testthat::test_that("a rank-1 NA does not beat a rank-4 real observation", {
+  # OWID (rank 1) reports year 2000 as NA; Malanima (rank 4) reports 20. The
+  # consolidated cell must hold Malanima's real 20, not OWID's NA.
+  panel <- tibble::tribble(
+    ~year, ~region, ~category, ~source, ~value,
+    2000, "WLD", "Coal", "OWID", NA_real_,
+    2000, "WLD", "Coal", "Malanima", 20
+  )
+
+  won <- whep::consolidate_sources(
+    panel,
+    value_col = value,
+    source_col = source,
+    priority = c(OWID = 1L, Malanima = 4L),
+    .by = c("region", "category"),
+    verbose = FALSE
+  )
+
+  testthat::expect_equal(nrow(won), 1L)
+  testthat::expect_equal(won$source, "Malanima")
+  testthat::expect_equal(won$value, 20)
+  testthat::expect_equal(won$source_rank, 4L)
+
+  # A cell wins NA only when every source is missing there.
+  all_na <- tibble::tribble(
+    ~year, ~region, ~category, ~source, ~value,
+    2001, "WLD", "Coal", "OWID", NA_real_,
+    2001, "WLD", "Coal", "Malanima", NA_real_
+  )
+  won_na <- whep::consolidate_sources(
+    all_na,
+    value_col = value,
+    source_col = source,
+    priority = c(OWID = 1L, Malanima = 4L),
+    .by = c("region", "category"),
+    verbose = FALSE
+  )
+  testthat::expect_equal(nrow(won_na), 1L)
+  testthat::expect_true(is.na(won_na$value))
+})
+
+testthat::test_that("continuity override does not reinstate an NA neighbour", {
+  # B (rank 1) wins 1901; A (rank 4) flanks 1900 and 1902 but reports 1901 as
+  # NA. Continuity must not smooth 1901 back to A's NA, so B keeps the cell.
+  panel <- tibble::tribble(
+    ~year, ~region, ~category, ~source, ~value,
+    1900, "WLD", "Coal", "A", 10,
+    1901, "WLD", "Coal", "A", NA_real_,
+    1901, "WLD", "Coal", "B", 99,
+    1902, "WLD", "Coal", "A", 12
+  )
+
+  won <- whep::consolidate_sources(
+    panel,
+    value_col = value,
+    source_col = source,
+    priority = c(B = 1L, A = 4L),
+    .by = c("region", "category"),
+    verbose = FALSE
+  )
+
+  win_1901 <- won[won$year == 1901, ]
+  testthat::expect_equal(win_1901$source, "B")
+  testthat::expect_equal(win_1901$value, 99)
+})
+
 # Coverage tie-break beats alphabetical ----------------------------------------
 
 testthat::test_that("broader coverage breaks an equal-rank tie and beats name order", {
