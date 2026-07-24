@@ -504,23 +504,20 @@ build_primary_production <- function(
 
 .read_int_yields <- function(years = NULL) {
   cli::cli_progress_step("Reading international yields")
-  regions <- data.table::as.data.table(whep::regions_full)[,
-    .(code, polity_name)
-  ]
-
+  # The raw `area_code` is already a `polity_area_code`, matching the
+  # production `area_code`. Key the proxy by code (not by the periodized
+  # polity name) so the merge in `.add_historical_yields()` matches.
   dt <- .read_input("international-yields", years = years, year_col = "year")
   dt[, item_prod_code := as.character(item_code)]
-  data.table::setnames(dt, "area_code", "code")
+  dt[, area_code := as.integer(area_code)]
   dt[, item_code := NULL]
 
   dt <- dt[
     year < 1962 & !is.na(yield) & yield != 0 & yield < 100
   ]
-  dt <- merge(dt, regions, by = "code", all.x = TRUE, sort = FALSE)
-  data.table::setnames(dt, "polity_name", "area")
   dt <- dt[,
     .(yield = mean(yield, na.rm = TRUE)),
-    by = c("year", "area", "item_prod_code")
+    by = c("year", "area_code", "item_prod_code")
   ]
   dt <- dt[!is.nan(yield)]
   dt
@@ -534,7 +531,6 @@ build_primary_production <- function(
   items <- whep::items_full
   crops_eu <- whep::crops_eurostat
   biomass <- whep::biomass_coefs
-  regions <- whep::regions_full
 
   # Old FAO fodder data
   i_fodder <- .read_fodder_old(years = years)
@@ -716,6 +712,20 @@ build_primary_production <- function(
   fodder_euadb,
   items_prod
 ) {
+  # `.read_fodder_euadb()` labels rows with the plain `polity_name`, but
+  # `fodder` carries periodized names, so a name-keyed join fragments rows.
+  # Rekey EU AgriDB onto the FAO name for the same (year, area_code) so the
+  # joins below match on a consistent (year, area_code, area) key.
+  fao_area <- fodder |>
+    dplyr::filter(!is.na(area)) |>
+    dplyr::distinct(year, area_code, area) |>
+    dplyr::rename(fao_area = area)
+
+  fodder_euadb <- fodder_euadb |>
+    dplyr::left_join(fao_area, by = c("year", "area_code")) |>
+    dplyr::mutate(area = dplyr::coalesce(fao_area, area)) |>
+    dplyr::select(-fao_area)
+
   euadb_area <- fodder_euadb |>
     dplyr::filter(Unit == "Mha") |>
     dplyr::mutate(ha_euadb = value * 1e6) |>
@@ -2242,27 +2252,21 @@ build_primary_production <- function(
 .filter_dissolved_countries <- function(df) {
   force(df)
   cli::cli_progress_step("Filtering dissolved countries")
+  # Key on `area_code` (polity_area_code), not `area`: after
+  # `.aggregate_to_polities()` the `area` names are periodized
+  # (e.g. "Czechoslovakia (1947-1993)"), so name conditions never fire.
   df |>
     dplyr::filter(
-      !(area == "Czechoslovakia" & year > 1992),
-      !(area %in%
-        c(
-          "Czech Republic",
-          "Czechia",
-          "Slovakia"
-        ) &
-        year < 1993),
-      !(area %in%
-        c(
-          "Lithuania",
-          "Latvia",
-          "Estonia",
-          "Slovenia",
-          "Croatia"
-        ) &
-        year < 1992),
-      !(area == "Belgium-Luxembourg" & year > 1999),
-      !(area %in% c("Belgium", "Luxembourg") & year < 2000)
+      # Czechoslovakia (51) after its 1992 dissolution
+      !(area_code == 51L & year > 1992),
+      # Czechia (167) and Slovakia (199) before 1993
+      !(area_code %in% c(167L, 199L) & year < 1993),
+      # Baltics, Slovenia (198), Croatia (98) before 1992
+      !(area_code %in% c(126L, 119L, 63L, 198L, 98L) & year < 1992),
+      # Belgium-Luxembourg (15) after its 1999 split
+      !(area_code == 15L & year > 1999),
+      # Belgium (255) and Luxembourg (256) before 2000
+      !(area_code %in% c(255L, 256L) & year < 2000)
     )
 }
 
@@ -2742,6 +2746,7 @@ build_primary_production <- function(
   wide[, source := dplyr::coalesce(source_prod, source_any)]
   wide[, source_prod := NULL]
   wide[, source_any := NULL]
+  wide[, area_code := as.integer(area_code)]
   wide <- merge(
     wide,
     if (data.table::is.data.table(int_yields)) {
@@ -2749,7 +2754,7 @@ build_primary_production <- function(
     } else {
       data.table::as.data.table(int_yields)
     },
-    by = c("year", "area", "item_prod_code"),
+    by = c("year", "area_code", "item_prod_code"),
     all.x = TRUE,
     sort = FALSE
   )

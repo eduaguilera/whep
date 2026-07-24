@@ -46,22 +46,102 @@
 # -- filter_dissolved_countries ------------------------------------------------
 
 test_that(".filter_dissolved_countries removes dissolved polities", {
+  # `area` is periodized after `.aggregate_to_polities()`; the filter must
+  # key on `area_code` (Czechoslovakia = 51), not on the plain name.
   df <- tibble::tribble(
     ~year, ~area, ~area_code, ~value,
     2000L, "Spain", 203L, 10,
-    2000L, "Czechoslovakia", 999L, 20,
-    1990L, "Czechoslovakia", 999L, 30
+    2000L, "Czechoslovakia (1947-1993)", 51L, 20,
+    1990L, "Czechoslovakia (1947-1993)", 51L, 30
   )
 
   result <- whep:::.filter_dissolved_countries(df)
   # Czechoslovakia after 1992 should be removed
   expect_false(
-    any(result$area == "Czechoslovakia" & result$year > 1992)
+    any(result$area_code == 51L & result$year > 1992)
   )
   # Czechoslovakia before 1993 should be kept
   expect_true(
-    any(result$area == "Czechoslovakia" & result$year == 1990)
+    any(result$area_code == 51L & result$year == 1990)
   )
+})
+
+test_that(".filter_dissolved_countries dedups at the 1992/1993 boundary", {
+  # Both the dissolved polity and its successors present in the overlap
+  # years. Czechoslovakia (51) must go for 1993, successors for 1992.
+  df <- tibble::tribble(
+    ~year, ~area, ~area_code, ~value,
+    1993L, "Czechoslovakia (1947-1993)", 51L, 20,
+    1993L, "Czechia", 167L, 10,
+    1993L, "Slovakia", 199L, 11,
+    1992L, "Czechia", 167L, 9,
+    1992L, "Slovakia", 199L, 8
+  )
+
+  result <- whep:::.filter_dissolved_countries(df)
+  # dissolved parent removed after 1992
+  expect_false(any(result$area_code == 51L))
+  # successors removed before 1993
+  expect_false(any(result$area_code %in% c(167L, 199L) & result$year < 1993))
+  # successors kept in 1993
+  expect_true(any(result$area_code == 167L & result$year == 1993))
+  expect_true(any(result$area_code == 199L & result$year == 1993))
+})
+
+
+# -- add_historical_yields (pre-1962 yield proxy) ------------------------------
+
+test_that(".add_historical_yields back-casts a periodized-name country", {
+  # China's periodized `area` ("China (PRC)") never equals the plain proxy
+  # name, so the proxy must join by `area_code` (41). If it matches, the
+  # pre-1961 tonnes are back-cast from the yield-growth proxy.
+  df <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code, ~item_cbs, ~item_cbs_code, ~land_use, ~live_anim, ~live_anim_code, ~unit, ~value, ~source,
+    1961L, "China (PRC)", 41L, "Wheat", "15", "Wheat", 2511L, "cropland", NA_character_, NA_integer_, "tonnes", 6000, "FAOSTAT_prod",
+    1961L, "China (PRC)", 41L, "Wheat", "15", "Wheat", 2511L, "cropland", NA_character_, NA_integer_, "ha", 100, "FAOSTAT_prod",
+    1960L, "China (PRC)", 41L, "Wheat", "15", "Wheat", 2511L, "cropland", NA_character_, NA_integer_, "tonnes", 0, "FAOSTAT_prod",
+    1960L, "China (PRC)", 41L, "Wheat", "15", "Wheat", 2511L, "cropland", NA_character_, NA_integer_, "ha", 100, "FAOSTAT_prod"
+  )
+  int_yields <- tibble::tribble(
+    ~year, ~area_code, ~item_prod_code, ~yield,
+    1960L, 41L, "15", 2.0,
+    1961L, 41L, "15", 2.5
+  )
+
+  result <- whep:::.add_historical_yields(df, int_yields) |>
+    tibble::as_tibble()
+  # proxy joined by code → yield attached for the periodized-name country
+  expect_true(all(!is.na(result$yield)))
+  # 1960 tonnes back-cast from proxy: 100 * (60 * 2.0/2.5) = 4800
+  tonnes_1960 <- result$tonnes[result$year == 1960L]
+  expect_equal(tonnes_1960, 4800)
+})
+
+
+# -- merge_euadb_fodder --------------------------------------------------------
+
+test_that(".merge_euadb_fodder merges EU rows by code, not fragmenting", {
+  # FAO fodder uses periodized names; EU AgriDB uses plain names. The merge
+  # must align them by `area_code` so a matched crop stays a single row.
+  fodder <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code, ~t, ~t_dm, ~ha,
+    2010L, "Foo (1990-2020)", 100L, "Grass", "3001", 5, 4, 10
+  )
+  fodder_euadb <- tibble::tribble(
+    ~year, ~area, ~area_code, ~Name_Eurostat, ~Label, ~Unit, ~value,
+    2010L, "Foo", 100L, "GrassEuro", "Area", "Mha", 5,
+    2010L, "Foo", 100L, "GrassEuro", "Yield", "kgN/ha", 200
+  )
+  items_prod <- tibble::tribble(
+    ~item_prod, ~item_prod_code, ~Name_Eurostat,
+    "Grass", "3001", "GrassEuro"
+  )
+
+  result <- whep:::.merge_euadb_fodder(fodder, fodder_euadb, items_prod)
+  # single merged row for the matched crop (not two fragments)
+  expect_equal(nrow(result), 1L)
+  expect_false(is.na(result$ha))
+  expect_false(is.na(result$ha_euadb))
 })
 
 
@@ -400,7 +480,7 @@ test_that(".add_historical_yields preserves direct historical tonnes", {
   )
   int_yields <- tibble::tibble(
     year = 1950L,
-    area = "Spain",
+    area_code = 203L,
     item_prod_code = "15",
     yield = 999
   )
