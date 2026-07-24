@@ -185,3 +185,21 @@ test_that("read_cru_climate reads a real CRU file (smoke)", {
   testthat::expect_gt(mean_temp, -40)
   testthat::expect_lt(mean_temp, 40)
 })
+
+test_that(".cru_file matches any CRU version and prefers the newest", {
+  dir <- withr::local_tempdir()
+  # only 4.07 present -> version-agnostic match (old code hardcoded 4.09)
+  file.create(file.path(dir, "cru_ts4.07.1901.2022.tmp.dat.nc"))
+  testthat::expect_equal(
+    basename(.cru_file("tmp", dir)),
+    "cru_ts4.07.1901.2022.tmp.dat.nc"
+  )
+  # both versions present -> newest wins
+  file.create(file.path(dir, "cru_ts4.09.1901.2024.tmp.dat.nc"))
+  testthat::expect_equal(
+    basename(.cru_file("tmp", dir)),
+    "cru_ts4.09.1901.2024.tmp.dat.nc"
+  )
+  # no file for the variable -> clear error
+  testthat::expect_error(.cru_file("pet", dir), "No CRU file")
+})
