@@ -2,9 +2,9 @@
 % Please edit documentation in R/scrape_faostat.R
 \name{get_faostat_data}
 \alias{get_faostat_data}
-\title{Scrapes activity_data from FAOSTAT and slightly post-processes it}
+\title{Scrape activity data from FAOSTAT and post-process it}
 \usage{
-get_faostat_data(activity_data, ...)
+get_faostat_data(activity_data, ..., example = FALSE)
 }
 \arguments{
 \item{activity_data}{activity data required from FAOSTAT; needs
@@ -12,10 +12,15 @@ to be one of \code{c('livestock','crop_area','crop_yield','crop_production')}.}
 
 \item{...}{can be whichever column name from \code{get_faostat_bulk},
 particularly \code{year}, \code{area} or \code{ISO3_CODE}.}
+
+\item{example}{Logical. If \code{TRUE}, return a small hardcoded example
+\code{tibble} instead of scraping FAOSTAT. Useful for offline demos and
+documentation. Default \code{FALSE}.}
 }
 \value{
-\code{data.frame} of FAOSTAT for \code{activity_data}; default is for
-all years and countries.
+\code{tibble} of FAOSTAT for \code{activity_data} with columns \code{area},
+\code{item}, \code{element}, \code{year}, \code{value}, \code{unit} and \code{ISO3_CODE}; default is
+for all years and countries.
 }
 \description{
 Important: Dynamically allows for the introduction of subsets as \code{"..."}.
@@ -24,7 +29,5 @@ Note: overhead by individually scraping FAOSTAT code QCL for crop data;
 it's fine.
 }
 \examples{
-\dontrun{
-get_faostat_data("livestock", year = 2010, area = "Portugal")
-}
+get_faostat_data(example = TRUE)
 }

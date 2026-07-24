@@ -111,7 +111,7 @@ build_io_model <- function(
     })
 
     if (is.null(cbs)) {
-      cbs <- .cache_get(.io_cache_key("cbs_wide", build_years), {
+      cbs <- .cache_get(.io_cache_key("cbs_wide_io", build_years), {
         cli::cli_progress_step("Adding livestock CBS rows")
         wide <- .pivot_cbs_wide(cbs_built)
         livestock_cbs <- get_livestock_cbs(primary_prod_build) |>
@@ -968,27 +968,21 @@ build_io_model <- function(
   }
 
   n_fd <- length(fd_cols)
-  n_items <- dims$n_items
 
-  # Extract losses columns from Y, aggregate by product within
-  # each country, and place on the domestic sub-block diagonal
-  for (a in seq_len(dims$n_areas)) {
-    y_col <- (a - 1L) * n_fd + losses_idx
-    rows <- ((a - 1L) * n_items + 1L):(a * n_items)
-    losses_vec <- as.numeric(y_mat[rows, y_col])
-
-    # Add losses to the diagonal of the country's sub-block
-    for (k in seq_along(losses_vec)) {
-      if (losses_vec[k] != 0) {
-        global_row <- (a - 1L) * n_items + k
-        z_mat[global_row, global_row] <-
-          z_mat[global_row, global_row] + losses_vec[k]
-      }
-    }
-  }
+  # Y was expanded by trade shares, so a consuming country's losses
+  # are spread across every source block of its losses column
+  # (domestic on the diagonal block, imported on off-diagonal ones).
+  # Sum each sector's losses across all consuming countries and add
+  # them to that sector's own diagonal (self-use). This retains
+  # import-sourced losses on Z and conserves total output X, whereas
+  # reading only the domestic diagonal block would discard them.
+  losses_col_indices <- seq(losses_idx, ncol(y_mat), by = n_fd)
+  losses_per_row <- Matrix::rowSums(
+    y_mat[, losses_col_indices, drop = FALSE]
+  )
+  Matrix::diag(z_mat) <- Matrix::diag(z_mat) + losses_per_row
 
   # Remove losses columns from Y
-  losses_col_indices <- seq(losses_idx, ncol(y_mat), by = n_fd)
   y_mat <- y_mat[, -losses_col_indices, drop = FALSE]
   fd_cols <- fd_cols[-losses_idx]
 

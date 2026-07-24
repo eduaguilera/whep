@@ -37,8 +37,8 @@ soil water content averaged).}
 or \code{"mean"} (soil-water default).}
 
 \item{data}{Optional pre-read tibble (\code{lon}, \code{lat}, \code{year}, \code{month},
-\code{value}, plus \code{layer} for \code{"swc"} or \code{band} for
-\code{"cft_nir"}) used in place of reading NetCDF, for testing.}
+\code{value}, plus \code{layer} for \code{"swc"} or \code{band} for \code{"cft_nir"}) used in
+place of reading NetCDF, for testing.}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading remote
 data. Defaults to \code{FALSE}.}

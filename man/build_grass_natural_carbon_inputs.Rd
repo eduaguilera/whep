@@ -24,8 +24,8 @@ when absent: \code{npp} and \code{harvestc} (per cell, PFT and year, the
 managed-grassland stand fractions with columns \code{lon}, \code{lat}, \code{year},
 \code{name_pft}, \code{stand_frac}); \code{country_grid} (\code{lon}, \code{lat}, \code{area_code},
 \code{cell_area_frac}); \code{land_use} (per-cell class \code{area_ha}, used to spread
-excreta and to area-weight polity output); \code{excreta} (the \code{applied} tibble of
-\code{\link[=build_livestock_nutrient_flows]{build_livestock_nutrient_flows()}}, grassland rows carry \code{applied_c}
+excreta and to area-weight polity output); \code{excreta} (the \code{applied} tibble
+of \code{\link[=build_livestock_nutrient_flows]{build_livestock_nutrient_flows()}}, grassland rows carry \code{applied_c}
 tonnes C); \code{residue_humification} (defaults to \link{residue_humification}).}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading remote

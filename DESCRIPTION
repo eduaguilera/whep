@@ -45,7 +45,6 @@ RoxygenNote: 7.3.3
 Suggests:
     DBI,
     ggplot2,
-    googlesheets4,
     here,
     htmltools,
     jsonlite,

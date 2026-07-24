@@ -637,7 +637,10 @@ testthat::test_that("zero-input balance rows have undefined, not infinite, ratio
     whep:::.nb_nue()
 
   testthat::expect_true(is.na(balance$surplus_share))
-  testthat::expect_true(all(is.na(dplyr::select(nue, dplyr::starts_with("nue_")))))
+  testthat::expect_true(all(is.na(dplyr::select(
+    nue,
+    dplyr::starts_with("nue_")
+  ))))
 })
 
 testthat::test_that("method_nh3/method_soil_n2o/method_leaching are stamped", {

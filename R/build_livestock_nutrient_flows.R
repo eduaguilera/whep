@@ -370,7 +370,7 @@ build_livestock_nutrient_flows <- function(
   kept <- dplyr::filter(local, .data$land_use != "Unallocated")
   transported <- flows |>
     dplyr::filter(.data$kind == "transported") |>
-    .transport_landing("transported", FALSE, by_type$transported)
+    .transport_landing("Cropland", FALSE, by_type$transported)
   residual <- flows |>
     dplyr::filter(.data$kind == "residual") |>
     .transport_landing(

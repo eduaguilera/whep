@@ -193,6 +193,10 @@ test_that("subnational run transports surplus between cells and conserves N", {
   # Some collected manure originating in "1.5_40" is transported to "1_40".
   expect_true("transported" %in% res$applied$source_stream)
   expect_true(all(res$applied$method_transport == "room_weighted"))
+  # No row escapes the documented land_use domain: transported manure lands as
+  # "Cropland", never the internal "transported" label (issue #202).
+  land_use_domain <- c("Cropland", "Grassland", "Disposal", "Unallocated")
+  expect_true(all(res$applied$land_use %in% land_use_domain))
   # Provenance is scalar-correct on every row, including transported/disposed
   # rows: the caller's disposal choice, not the internal retain_unallocated pass.
   expect_true(all(res$applied$disposal_method == "over_apply_local"))

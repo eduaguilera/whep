@@ -532,6 +532,33 @@ test_that(".show_prod_duplicates returns wide format of competing sources", {
   expect_equal(src_cols[1], "FAOSTAT_prod")
 })
 
+test_that("QC flags reflect post-dedup values, not competing sources", {
+  # Two sources disagree by >10x on 2001; FAOSTAT_prod is a smooth series.
+  competing <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code, ~unit, ~value, ~source,
+    2000L, "Spain", 203L, "Wheat", 15L, "tonnes", 5000, "FAOSTAT_prod",
+    2001L, "Spain", 203L, "Wheat", 15L, "tonnes", 5500, "FAOSTAT_prod",
+    2002L, "Spain", 203L, "Wheat", 15L, "tonnes", 6000, "FAOSTAT_prod",
+    2001L, "Spain", 203L, "Wheat", 15L, "tonnes", 100000, "imputed_yield"
+  )
+
+  # QC after dedup: the competing imputed_yield value for 2001 is discarded,
+  # leaving a smooth single-source series with no spike.
+  qc_after <- competing |>
+    whep:::.dedup_production() |>
+    whep:::.qc_production()
+  expect_false(
+    any(stringr::str_detect(qc_after$qc_flag, "spike"), na.rm = TRUE)
+  )
+
+  # Regression guard: QC before dedup compares the two 2001 sources and
+  # raises a spurious spike flag.
+  qc_before <- whep:::.qc_production(competing)
+  expect_true(
+    any(stringr::str_detect(qc_before$qc_flag, "spike"), na.rm = TRUE)
+  )
+})
+
 test_that("build_primary_production output has no duplicate keys", {
   result <- whep::build_primary_production(example = TRUE)
   keys <- dplyr::select(
