@@ -72,15 +72,27 @@ arable total equals FAO \code{arable_ha} by construction.
 \item \strong{Perennial crops} (\code{Herb_Woody == "Woody"}) receive no fallow and are
 scaled so their total equals FAO \code{permanent_ha}, preserving the within-group
 physical pattern.
-}
-
 A positive target without a corresponding arable crop row or positive
 perennial base area is reported as an error because it cannot be reconciled
 without inventing a crop allocation.
+}
 
 The default of \code{\link[=build_cropgrids_land_extension]{build_cropgrids_land_extension()}} and the footprint balance
 are unchanged; this is an additive method.
 }
+\section{Temporary grassland (do not double-count)}{
+
+FAO's \strong{Arable land} total includes \emph{temporary meadows and pastures} —
+temporary grassland is part of cropland, not grassland. This method therefore
+already absorbs the temporary-grassland slice into its arable-crop total. Do
+\strong{not} combine it with CBS 3002 (\verb{Temporary grassland}) from
+\code{\link[=build_grassland_land_extension]{build_grassland_land_extension()}} on top, or that land is counted twice. The
+intended invariant is
+\verb{ordinary crop occupation (incl. fallow) + CBS 3002 = FAO Arable land}.
+Netting modelled CBS 3002 out of the arable target and promoting this method
+to the footprint-balance default is tracked in issue #342.
+}
+
 \examples{
 harvested <- tibble::tribble(
   ~year, ~area_code, ~item_cbs_code, ~harvested_ha,

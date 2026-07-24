@@ -436,6 +436,17 @@ get_arable_permanent_land <- function(
 #' The default of [build_cropgrids_land_extension()] and the footprint balance
 #' are unchanged; this is an additive method.
 #'
+#' @section Temporary grassland (do not double-count):
+#' FAO's **Arable land** total includes *temporary meadows and pastures* —
+#' temporary grassland is part of cropland, not grassland. This method therefore
+#' already absorbs the temporary-grassland slice into its arable-crop total. Do
+#' **not** combine it with CBS 3002 (`Temporary grassland`) from
+#' [build_grassland_land_extension()] on top, or that land is counted twice. The
+#' intended invariant is
+#' `ordinary crop occupation (incl. fallow) + CBS 3002 = FAO Arable land`.
+#' Netting modelled CBS 3002 out of the arable target and promoting this method
+#' to the footprint-balance default is tracked in issue #342.
+#'
 #' @param harvested Tibble of harvested area with columns `year`, `area_code`,
 #'   `item_cbs_code`, `harvested_ha`. If `NULL`, built from
 #'   [get_primary_production()] (`unit == "ha"`); passing a cached harvested
@@ -488,7 +499,8 @@ get_arable_permanent_land <- function(
 #'   harvested, arable_permanent, base_extension,
 #'   items_prod_full = items
 #' )
-build_fao_arable_fallow_extension <- function( # nolint: object_length_linter.
+# nolint start: object_length_linter.
+build_fao_arable_fallow_extension <- function(
   harvested = NULL,
   arable_permanent = NULL,
   base_extension = NULL,
@@ -563,6 +575,7 @@ build_fao_arable_fallow_extension <- function( # nolint: object_length_linter.
   data.table::setorder(out, year, area_code, item_cbs_code)
   tibble::as_tibble(out)
 }
+# nolint end
 
 # Integer item_cbs_code values that are perennial (Woody), resolved by majority
 # where an item_cbs maps to item_prod of mixed Herb_Woody class.
