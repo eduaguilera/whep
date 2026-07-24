@@ -570,3 +570,88 @@ test_that("build_primary_production output has no duplicate keys", {
   )
   expect_equal(nrow(keys), nrow(dplyr::distinct(keys)))
 })
+
+
+# -- .split_stock_share ---------------------------------------------------------
+
+test_that(".split_stock_share splits proportionally when both sub-items have data", {
+  data <- tibble::tribble(
+    ~year, ~area, ~item_prod_code, ~value, ~value_st,
+    2000, "A", "866", 100, 30,
+    2000, "A", "866", 100, 70
+  )
+
+  result <- .split_stock_share(data)
+
+  # value is the same unsplit QCL total repeated on every row of the group
+  # (from the earlier inner_join fan-out), so the group's real total is 100,
+  # not sum(data$value).
+  expect_equal(result$value_comb, c(30, 70))
+  expect_equal(sum(result$value_comb), 100)
+})
+
+test_that(".split_stock_share does not double-count when one sub-item is entirely NA", {
+  # Regression for #144: previously sum(value_st) had no na.rm, so a single
+  # NA sub-item made the whole group's share NA, and BOTH sub-rows fell back
+  # to the full unsplit `value` -- doubling the country's herd count.
+  data <- tibble::tribble(
+    ~year, ~area, ~item_prod_code, ~value, ~value_st,
+    2000, "A", "866", 100, NA_real_,
+    2000, "A", "866", 100, 40
+  )
+
+  result <- .split_stock_share(data)
+
+  # The NA sub-item gets 0 (no data to justify any share); the sub-item with
+  # data absorbs the rest. Total heads must equal the original unsplit value.
+  expect_equal(result$value_comb, c(0, 100))
+  expect_equal(sum(result$value_comb), 100)
+})
+
+test_that(".split_stock_share splits equally when every sub-item is NA", {
+  # If no sub-item has any data at all, an equal split (rather than giving
+  # every sub-item the full total) is the only way to keep the total heads
+  # conserved without an arbitrary preference for one sub-item.
+  data <- tibble::tribble(
+    ~year, ~area, ~item_prod_code, ~value, ~value_st,
+    2000, "A", "866", 90, NA_real_,
+    2000, "A", "866", 90, NA_real_,
+    2000, "A", "866", 90, NA_real_
+  )
+
+  result <- .split_stock_share(data)
+
+  expect_equal(result$value_comb, rep(30, 3))
+  expect_equal(sum(result$value_comb), 90)
+})
+
+test_that(".split_stock_share keeps the full value for a single-item group", {
+  # A parent item_prod_code with only one mapped sub-item (no real dairy/
+  # non-dairy-style split) should always receive the whole unsplit value,
+  # whether or not it happens to have its own value_st.
+  with_data <- tibble::tribble(
+    ~year, ~area, ~item_prod_code, ~value, ~value_st,
+    2000, "A", "976", 50, 12
+  )
+  without_data <- tibble::tribble(
+    ~year, ~area, ~item_prod_code, ~value, ~value_st,
+    2000, "A", "976", 50, NA_real_
+  )
+
+  expect_equal(.split_stock_share(with_data)$value_comb, 50)
+  expect_equal(.split_stock_share(without_data)$value_comb, 50)
+})
+
+test_that(".split_stock_share keeps groups (year, area, item_prod_code) independent", {
+  data <- tibble::tribble(
+    ~year, ~area, ~item_prod_code, ~value, ~value_st,
+    2000, "A", "866", 100, NA_real_,
+    2000, "A", "866", 100, 60,
+    2000, "B", "866", 200, 10,
+    2000, "B", "866", 200, 30
+  )
+
+  result <- .split_stock_share(data)
+
+  expect_equal(result$value_comb, c(0, 100, 50, 150))
+})

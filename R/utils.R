@@ -839,6 +839,7 @@ utils::globalVariables(
     "value_sel",
     "value_share",
     "value_st",
+    "sum_value_st",
     "value_to_process",
     "value2",
     "Value_fraction",
