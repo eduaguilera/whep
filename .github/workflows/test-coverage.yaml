@@ -9,9 +9,16 @@ name: test-coverage.yaml
 
 permissions: read-all
 
+# Cancel a superseded run on the same branch/PR so stale runs do not pile up.
+concurrency:
+  group: test-coverage-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test-coverage:
     runs-on: ubuntu-latest
+    # Hard cap so a hung test fails fast instead of running for tens of minutes.
+    timeout-minutes: 15
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
       USE_RENV: "FALSE"
