@@ -794,6 +794,7 @@ utils::globalVariables(
     "total_trade",
     "total_value",
     "Total_value",
+    "share_sum",
     "target_area",
     "target_area_name",
     "target_fd",
