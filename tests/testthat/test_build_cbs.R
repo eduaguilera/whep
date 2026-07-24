@@ -249,6 +249,27 @@ test_that(".select_best_source prioritises FAOSTAT_prod source", {
   )
 })
 
+test_that(".select_best_source keys on area_code, not periodized name", {
+  # Sources disagree on the `area` name for the same `area_code` (plain name
+  # vs periodized polity name). They must still compete on the integer code
+  # instead of both surviving and being summed downstream (100 + 90 = 190).
+  cbs_raw_all <- tibble::tribble(
+    ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~year, ~value, ~source,
+    "China, mainland", 41L, "Wheat", 2511L, "production", 2010L, 100, "FAOSTAT_prod",
+    "China (PRC)", 41L, "Wheat", 2511L, "production", 2010L, 90, "FAOSTAT_FBS_New"
+  )
+
+  selected <- whep:::.select_best_source(cbs_raw_all)
+  prod <- selected |> dplyr::filter(element == "production")
+  expect_equal(nrow(prod), 1L)
+  expect_equal(prod$value, 100)
+
+  formatted <- whep:::.format_cbs_output(selected)
+  prod_fmt <- formatted |> dplyr::filter(element == "production")
+  expect_equal(nrow(prod_fmt), 1L)
+  expect_equal(prod_fmt$value, 100)
+})
+
 
 # -- .test_cbs -----------------------------------------------------------------
 
