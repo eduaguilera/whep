@@ -58,11 +58,13 @@ column per source showing the competing values.
 }
 \description{
 Construct the full primary production dataset from raw FAOSTAT inputs.
-This is a convenience wrapper that chains the three pipeline steps:
+This is a convenience wrapper that chains the pipeline steps:
 \enumerate{
 \item \code{.read_production()} — read & reformat FAOSTAT data.
 \item \code{.fix_production()} — apply Global-ported corrections.
-\item \code{.qc_production()} — flag data-quality anomalies.
+\item \code{.dedup_production()} — keep one value per key across sources.
+\item \code{.qc_production()} — flag data-quality anomalies on the
+surviving (deduplicated) values.
 }
 }
 \examples{

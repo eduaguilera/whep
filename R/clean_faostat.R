@@ -343,8 +343,9 @@
       is_cf <- !is.na(qc_carry_forward) & qc_carry_forward
       anchor <- !is_cf & !is.na(val)
       n_anchor <- cumsum(anchor)
-      anchor_start <- max(0L, max(n_anchor[anchor]) - anchor_years + 1L)
-      use_anchor <- anchor & n_anchor > anchor_start
+      n_max <- if (any(anchor)) max(n_anchor[anchor]) else 0L
+      anchor_start <- max(0L, n_max - anchor_years + 1L)
+      use_anchor <- anchor & n_anchor >= anchor_start
       list(val, time, is_cf, anchor, n_anchor, anchor_start, use_anchor)
     },
     by = by
@@ -359,11 +360,19 @@
         fit <- stats::coef(stats::lm(ay ~ ax))
         slope <- fit[2]
         intercept <- fit[1]
-      } else {
+        smoothed <- pmax(intercept + slope * .time, 0)
+      } else if (length(ax) == 1) {
         slope <- 0
-        intercept <- mean(ay, na.rm = TRUE)
+        intercept <- ay
+        smoothed <- pmax(intercept + slope * .time, 0)
+      } else {
+        # No anchor points (e.g. a fully-constant series where every row
+        # is flagged carry-forward): leave the series unchanged instead of
+        # producing NaN from mean(numeric(0)).
+        slope <- NA_real_
+        intercept <- NA_real_
+        smoothed <- .val
       }
-      smoothed <- pmax(intercept + slope * .time, 0)
       list(slope, intercept, smoothed)
     },
     by = by

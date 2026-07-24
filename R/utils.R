@@ -269,6 +269,8 @@ utils::globalVariables(
     ".grp_pos",
     ".is_miss_tmp",
     ".lambda",
+    ".all_na",
+    ".na",
     ".load_inputs_typologies_julia",
     ".n_rates",
     ".pred_end",
@@ -1248,7 +1250,31 @@ utils::globalVariables(
     "area_item_cbs_code",
     "family",
     "i..has_milled_rice",
-    "output_key"
+    "output_key",
+    # check_series_jumps.R (level-2 within-series jump detector)
+    ".value_now",
+    ".value_prev",
+    ".time_num",
+    ".time_prev",
+    ".lo",
+    ".hi",
+    "band_lo",
+    "band_hi",
+    "i.band_lo",
+    "i.band_hi",
+    "allowlisted",
+    "..allow_keys",
+    # consolidate_sources.R — winner-selection NSE columns
+    ".effective_rank",
+    ".coverage_ord",
+    ".quality_rank",
+    ".prev_source",
+    ".next_source",
+    ".prev_time",
+    ".next_time",
+    ".neighbor",
+    ".isolated",
+    ".n_tie"
   )
 )
 

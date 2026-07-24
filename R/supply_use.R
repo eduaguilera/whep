@@ -91,6 +91,7 @@ build_supply_use <- function(example = FALSE) {
     feed_intake = .build_redistribute_intake(
       grain = "national",
       demand_tier = "ipcc",
+      feed_mode = "historical",
       production = primary_prod,
       cbs = cbs
     )
@@ -278,8 +279,12 @@ build_supply_use <- function(example = FALSE) {
 .build_supply_crop_product <- function(crop_prod_items, primary_prod) {
   double_process_map <- .double_crop_process_map()
 
+  # Drop NA production before aggregating, matching the feed-intake guard in
+  # .build_redistribute_intake(). A single NA would otherwise poison the whole
+  # group sum, and an all-NA group must be absent rather than a misleading zero
+  # supply that downstream seed-share allocation reads as real.
   primary_prod |>
-    dplyr::filter(unit == "tonnes") |>
+    dplyr::filter(unit == "tonnes", !is.na(value)) |>
     dplyr::inner_join(crop_prod_items, "item_prod_code") |>
     dplyr::left_join(
       double_process_map,
@@ -292,7 +297,7 @@ build_supply_use <- function(example = FALSE) {
       )
     ) |>
     dplyr::summarise(
-      value = sum(value),
+      value = sum(value, na.rm = TRUE),
       .by = c(year, area_code, proc_cbs_code, item_cbs_code)
     )
 }

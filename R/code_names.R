@@ -280,6 +280,10 @@ add_item_prod_code <- function(
     dplyr::select(
       !!name_column := item_cbs_name,
       !!code_column := item_cbs_code
+    ) |>
+    dplyr::distinct(
+      dplyr::across(dplyr::all_of(code_column)),
+      .keep_all = TRUE
     )
 }
 
@@ -288,5 +292,9 @@ add_item_prod_code <- function(
     dplyr::select(
       !!name_column := item_prod_name,
       !!code_column := item_prod_code
+    ) |>
+    dplyr::distinct(
+      dplyr::across(dplyr::all_of(code_column)),
+      .keep_all = TRUE
     )
 }
