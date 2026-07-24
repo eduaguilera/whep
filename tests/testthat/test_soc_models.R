@@ -289,3 +289,20 @@ test_that("Century returns five positive pools summing to the total", {
   testthat::expect_true(all(out$soc_total > 0))
   testthat::expect_true(all(out$act >= 0))
 })
+
+test_that("Century metabolic fraction uses L/N in the tens, not its reciprocal", {
+  # Fm = 0.85 - 0.018 * (L/N). With the corrected LN = 40 most litter is
+  # structural (Fm ~ 0.13, Fs ~ 0.87); the old reciprocal 0.025 gave Fm ~ 0.85.
+  tx <- .century_texture(clay_pct = 20, silt_pct = 45, ls = 0.5, ln = 40)
+  testthat::expect_equal(tx$fm, 0.85 - 0.018 * 40)
+  testthat::expect_lt(tx$fm, 0.2)
+  testthat::expect_equal(tx$fm + tx$fs, 1)
+})
+
+test_that("Century silt+clay texture is capped so es / f_txtr stay non-negative", {
+  # clay 90% + silt 45% would sum to 1.35 unclamped, driving es and f_txtr
+  # negative (respiration < 0 creates carbon); the fraction is capped at 1.
+  tx <- .century_texture(clay_pct = 90, silt_pct = 45, ls = 0.5, ln = 40)
+  testthat::expect_gte(tx$es, 0)
+  testthat::expect_gte(tx$f_txtr, 0)
+})

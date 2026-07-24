@@ -137,17 +137,27 @@ build_grass_natural_carbon_inputs <- function(
 # Grassland input: the stand-area-weighted mean of the rainfed and irrigated
 # grassland net (NPP - harvest) densities, plus the grazing-excreta density.
 .gn_grassland_input <- function(d) {
-  hf <- .gn_humified(d$residue_humification, "weed")
+  # Grass litter (weed coefficient) and grazing excreta (excreta coefficient,
+  # ~2.2x higher) humify differently; carbon-weight the two so each stream keeps
+  # its own humification fraction, matching the crop path (.sci_humified_fraction).
+  hf_npp <- .gn_humified(d$residue_humification, "weed")
+  hf_excreta <- .gn_humified(d$residue_humification, "excreta")
   net <- .gn_grassland_net(d$npp, d$harvestc, d$stand_frac) |>
     .gn_attach_polity(d$country_grid)
   excreta <- .gn_excreta_density(d$excreta, d$land_use, d$country_grid)
   net |>
     dplyr::left_join(excreta, by = c("area_code", "year")) |>
     dplyr::mutate(
-      c_input_mgc_ha_yr = .data$npp_c_mgc_ha_yr +
-        dplyr::coalesce(.data$excreta_c_mgc_ha_yr, 0),
+      npp_c = .data$npp_c_mgc_ha_yr,
+      excreta_c = dplyr::coalesce(.data$excreta_c_mgc_ha_yr, 0),
+      c_input_mgc_ha_yr = .data$npp_c + .data$excreta_c,
+      humified_fraction = dplyr::if_else(
+        .data$c_input_mgc_ha_yr > 0,
+        (.data$npp_c * hf_npp + .data$excreta_c * hf_excreta) /
+          .data$c_input_mgc_ha_yr,
+        hf_npp
+      ),
       land_use = "grassland",
-      humified_fraction = hf,
       method_c_input = "lpjml_npp_minus_harvest"
     ) |>
     dplyr::select(

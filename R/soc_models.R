@@ -340,13 +340,10 @@ calculate_soc_century <- function(
   )
 }
 
-# Adaptive sub-step count for the explicit-Euler stepping. The forward-Euler
-# scheme for x' = -k*x stays bounded and non-negative only while k*abc*dt <= 1;
-# the fast DPM pool (k = 10/yr) breaches this whenever the annual climate
-# modifier pushes the effective monthly rate over 1 (common for warm/wet cells),
-# so split each monthly step into as many equal sub-steps as needed to keep the
-# fastest pool's per-sub-step k*abc*dt at or below 1. n_sub = 1 (the historical
-# single-step regime) reproduces the previous trajectory bit for bit.
+# Sub-step count within each month. The analytical exp() decay is
+# unconditionally stable, so sub-stepping is no longer needed for stability; it
+# only refines the within-month coupling between decomposition and the carbon
+# inputs added each sub-step (finer for fast pools under warm/wet climate).
 .rothc_substeps <- function(rates, abc, dt) {
   max(1L, as.integer(ceiling(max(rates) * abc * dt)))
 }
@@ -360,10 +357,13 @@ calculate_soc_century <- function(
 }
 
 .rothc_euler <- function(state, rates, splits, abc, step) {
-  dec_dpm <- state$dpm * rates[["dpm"]] * abc * step$dt
-  dec_rpm <- state$rpm * rates[["rpm"]] * abc * step$dt
-  dec_bio <- state$bio * rates[["bio"]] * abc * step$dt
-  dec_hum <- state$hum * rates[["hum"]] * abc * step$dt
+  # RothC decomposes each pool by the analytical monthly fraction
+  # 1 - exp(-k * abc * t) (Coleman & Jenkinson 1996), not the linear k*abc*t
+  # approximation, which overstates loss from the fast pools.
+  dec_dpm <- state$dpm * (1 - exp(-rates[["dpm"]] * abc * step$dt))
+  dec_rpm <- state$rpm * (1 - exp(-rates[["rpm"]] * abc * step$dt))
+  dec_bio <- state$bio * (1 - exp(-rates[["bio"]] * abc * step$dt))
+  dec_hum <- state$hum * (1 - exp(-rates[["hum"]] * abc * step$dt))
   total_dec <- dec_dpm + dec_rpm + dec_bio + dec_hum
   list(
     dpm = state$dpm - dec_dpm + step$c_in_dpm,
@@ -486,7 +486,12 @@ calculate_soc_century <- function(
 }
 
 .century_texture <- function(clay_pct, silt_pct, ls, ln) {
-  txtr <- max(min(clay_pct, 100), 0) / 100 + max(min(silt_pct, 100), 0) / 100
+  # Silt + clay is a single soil fraction and cannot exceed 1; cap the sum so
+  # the downstream es / f_txtr terms stay non-negative on clay-rich soils.
+  txtr <- min(
+    max(min(clay_pct, 100), 0) / 100 + max(min(silt_pct, 100), 0) / 100,
+    1
+  )
   f_txtr <- .soc_param("century", "act", "texture_intercept") -
     .soc_param("century", "act", "texture_slope") * txtr
   es <- .soc_param("century", "act", "respiration_intercept") -

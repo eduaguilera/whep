@@ -614,7 +614,11 @@ build_carbon_balance <- function(
     stock_mgc_ha = stock,
     mineralization_mgc_ha = mineralization,
     c_input_mgc_ha = cur$c_input_mgc_ha_yr,
-    luc_transfer_mgc_ha = transferred$mass_moved[idx] / cur$area_ha,
+    luc_transfer_mgc_ha = dplyr::if_else(
+      cur$area_ha > 0,
+      transferred$mass_moved[idx] / cur$area_ha,
+      0
+    ),
     rate_mgc_ha = cur$c_input_mgc_ha_yr - mineralization
   )
 }
