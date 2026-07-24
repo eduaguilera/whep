@@ -125,7 +125,7 @@ build_soil_carbon_inputs <- function(
       !is.na(.data$crop)
     ) |>
     dplyr::mutate(
-      item_prod_code = .sci_manure_crop_to_item_prod_code(.data$crop)
+      item_prod_code = .sci_manure_crop_prod_code(.data$crop)
     ) |>
     dplyr::summarise(
       c_mass_mg = sum(.data$applied_c, na.rm = TRUE),
@@ -140,7 +140,7 @@ build_soil_carbon_inputs <- function(
     )
 }
 
-.sci_manure_crop_to_item_prod_code <- function(crop) {
+.sci_manure_crop_prod_code <- function(crop) {
   crop <- trimws(as.character(crop))
   lookup <- whep::items_prod_full |>
     dplyr::transmute(
