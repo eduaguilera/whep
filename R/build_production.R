@@ -2,11 +2,13 @@
 #'
 #' @description
 #' Construct the full primary production dataset from raw FAOSTAT inputs.
-#' This is a convenience wrapper that chains the three pipeline steps:
+#' This is a convenience wrapper that chains the pipeline steps:
 #'
 #' 1. `.read_production()` — read & reformat FAOSTAT data.
 #' 2. `.fix_production()` — apply Global-ported corrections.
-#' 3. `.qc_production()` — flag data-quality anomalies.
+#' 3. `.dedup_production()` — keep one value per key across sources.
+#' 4. `.qc_production()` — flag data-quality anomalies on the
+#'   surviving (deduplicated) values.
 #'
 #' @param start_year Integer. First year to include. Default `1850`.
 #' @param end_year Integer. Last year to include. Default `2023`.
@@ -74,15 +76,20 @@ build_primary_production <- function(
   clean <- raw |>
     .fix_production() |>
     dplyr::mutate(value = .round_reproducible(.data$value)) |>
-    .qc_production(smooth = smooth_carry_forward) |>
     tibble::as_tibble()
 
   if (show_duplicates) {
     return(.show_prod_duplicates(clean))
   }
 
+  # QC flags are computed after deduplication so anomaly detection compares
+  # surviving values within a single source. Running it before dedup compared
+  # values across competing sources (later discarded), yielding spurious
+  # spike and carry-forward flags when sources disagreed.
   result <- clean |>
     .dedup_production() |>
+    .qc_production(smooth = smooth_carry_forward) |>
+    tibble::as_tibble() |>
     dplyr::mutate(
       item_prod_code = as.numeric(item_prod_code),
       live_anim_code = as.numeric(live_anim_code)
