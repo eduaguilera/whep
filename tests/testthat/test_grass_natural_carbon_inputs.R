@@ -409,3 +409,24 @@ testthat::test_that("real LPJmL run gives plausible C-input magnitudes", {
   testthat::expect_gt(nat_median, 4)
   testthat::expect_lt(nat_median, 15)
 })
+
+# Default stand-fraction reader against the real cftfrac.nc. Skipped on CI and
+# whenever the LPJmL run is absent (never fetches a remote pin/raster).
+testthat::test_that(".gn_read_stand_frac reads cftfrac.nc grassland stands", {
+  testthat::skip_on_ci()
+  run_dir <- Sys.getenv("WHEP_LPJML_RUN_DIR")
+  testthat::skip_if(
+    !nzchar(run_dir) || !file.exists(file.path(run_dir, "cftfrac.nc")),
+    "cftfrac.nc not available"
+  )
+  out <- whep:::.gn_read_stand_frac(run_dir = run_dir)
+  testthat::expect_setequal(
+    names(out),
+    c("lon", "lat", "year", "name_pft", "stand_frac")
+  )
+  testthat::expect_setequal(
+    unique(out$name_pft),
+    c("rainfed grassland", "irrigated grassland")
+  )
+  testthat::expect_true(all(out$stand_frac > 0 & out$stand_frac <= 1))
+})

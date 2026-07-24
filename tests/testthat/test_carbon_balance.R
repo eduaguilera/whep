@@ -649,3 +649,49 @@ test_that("polity area-weighted mean is exercised across multiple cells", {
   testthat::expect_equal(pol$stock_mgc_ha, expected_wmean, tolerance = 1e-9)
   testthat::expect_false(isTRUE(all.equal(pol$stock_mgc_ha, unweighted_mean)))
 })
+
+# -- Default input readers (wiring) -------------------------------------------
+
+test_that(".cb_clay_from_climate reuses the climate table's clay_pct", {
+  climate <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~year, ~month, ~clay_pct,
+    0.25, 0.25, 1L, 2000L, 1L, 20,
+    0.25, 0.25, 1L, 2000L, 2L, 20,
+    0.75, 0.25, 1L, 2000L, 1L, 35
+  )
+  clay <- whep:::.cb_clay_from_climate(climate)
+  testthat::expect_setequal(names(clay), c("lon", "lat", "clay_pct"))
+  testthat::expect_equal(nrow(clay), 2L)
+  testthat::expect_setequal(clay$clay_pct, c(20, 35))
+})
+
+test_that(".cb_clay_from_climate returns NULL without clay_pct", {
+  climate <- tibble::tibble(
+    lon = 0.25,
+    lat = 0.25,
+    area_code = 1L,
+    year = 2000L,
+    climate_modifier = 1
+  )
+  testthat::expect_null(whep:::.cb_clay_from_climate(climate))
+})
+
+# Default per-cell clay reader against the real HWSD extract. Skipped on CI and
+# whenever HWSD is absent (never fetches a remote raster).
+test_that(".cb_hwsd_clay reads per-cell clay from HWSD", {
+  testthat::skip_on_ci()
+  hwsd_dir <- Sys.getenv("WHEP_HWSD_DIR")
+  testthat::skip_if(
+    !nzchar(hwsd_dir) || !file.exists(file.path(hwsd_dir, "hwsd_data.csv")),
+    "HWSD extract not available"
+  )
+  testthat::skip_if_not_installed("terra")
+  cell_polity <- tibble::tribble(
+    ~lon, ~lat, ~area_code,
+    -3.75, 40.25, 203L,
+    -3.25, 40.25, 203L
+  )
+  clay <- whep:::.cb_hwsd_clay(cell_polity)
+  testthat::expect_setequal(names(clay), c("lon", "lat", "clay_pct"))
+  testthat::expect_true(all(clay$clay_pct >= 0 & clay$clay_pct <= 100))
+})

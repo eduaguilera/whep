@@ -181,19 +181,15 @@ build_carbon_inputs <- function(
 # Per cell-crop harvested area (ha), scaled by the cell's land fraction, from
 # the same static country_grid + crop_patterns build_soil_carbon_inputs uses
 # (crop_patterns is time-invariant, so no year key). Only reached when
-# data$crop_area is absent; requires data$country_grid and data$crop_patterns
-# (the spatialization inputs) to be supplied.
+# data$crop_area is absent; country_grid and crop_patterns fall back to the
+# same default readers build_soil_carbon_inputs uses, so the crop-area weights
+# are derivable turnkey.
 .ci_crop_area <- function(data) {
-  if (is.null(data$country_grid) || is.null(data$crop_patterns)) {
-    cli::cli_abort(c(
-      "No {.field crop_area} supplied and it cannot be derived.",
-      i = "Pass {.code data$crop_area} (per cell-crop harvested area) or both
-           {.code data$country_grid} and {.code data$crop_patterns}."
-    ))
-  }
-  cg <- .normalize_country_grid(data$country_grid) |>
+  country_grid <- data$country_grid %||% .sci_read_country_grid()
+  crop_patterns <- data$crop_patterns %||% .sci_read_crop_patterns()
+  cg <- .normalize_country_grid(country_grid) |>
     dplyr::mutate(lon = round(.data$lon, 2), lat = round(.data$lat, 2))
-  data$crop_patterns |>
+  crop_patterns |>
     dplyr::mutate(
       lon = round(.data$lon, 2),
       lat = round(.data$lat, 2),

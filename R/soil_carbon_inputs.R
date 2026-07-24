@@ -380,34 +380,139 @@ build_soil_carbon_inputs <- function(
   v
 }
 
+# -- Default input readers ----------------------------------------------------
+
+# Soil-returned residue, root and weed carbon per polity, crop and year, from
+# the crop-NPP chain run on the real primary production: get_primary_production()
+# (product tonnage and harvested area per crop) -> calculate_crop_npp() (residue
+# and root dry matter) -> calculate_residue_destinies() (the soil-returned
+# residue fraction) -> calculate_npp_carbon_nitrogen() (the carbon partition,
+# including residue_soil_c_t, root_c_t and weed_npp_c_t).
 .sci_read_npp <- function() {
-  cli::cli_abort(
-    c(
-      "No {.field npp} reader is wired yet.",
-      i = "Pass {.code data$npp} (soil-returned residue, root and weed carbon \\
-           per polity, crop and year) from {.fun calculate_npp_carbon_nitrogen}."
-    )
-  )
+  .sci_npp_from_primary_prod(get_primary_production())
 }
 
+# Run the crop-NPP carbon chain on a get_primary_production() table and keep the
+# soil-carbon input columns build_soil_carbon_inputs() consumes.
+.sci_npp_from_primary_prod <- function(primary_prod) {
+  primary_prod |>
+    .sci_crop_prod_wide() |>
+    calculate_crop_npp() |>
+    calculate_residue_destinies(method = "krausmann_regional") |>
+    calculate_npp_carbon_nitrogen() |>
+    dplyr::transmute(
+      area_code = as.integer(.data$area_code),
+      item_prod_code = as.character(.data$item_prod_code),
+      year = as.integer(.data$year),
+      residue_soil_c_t = .data$residue_soil_c_t,
+      root_c_t = .data$root_c_t,
+      weed_npp_c_t = .data$weed_npp_c_t
+    )
+}
+
+# Reshape the long primary-production table to one crop-polity-year row carrying
+# production tonnage and harvested area, plus the Krausmann/HANPP regions the
+# residue-destiny split needs. Grassland and livestock rows are dropped; only
+# crop production (tonnes) and area (ha) are kept.
+.sci_crop_prod_wide <- function(primary_prod) {
+  grass <- c(3000L, 3002L, 3003L)
+  wide <- primary_prod |>
+    dplyr::filter(
+      .data$unit %in% c("tonnes", "ha"),
+      !is.na(.data$item_prod_code),
+      is.na(.data$live_anim_code),
+      !.data$item_cbs_code %in% grass
+    ) |>
+    dplyr::mutate(
+      unit = dplyr::if_else(.data$unit == "tonnes", "production_t", "area_ha")
+    ) |>
+    dplyr::summarise(
+      value = sum(.data$value, na.rm = TRUE),
+      .by = c("area_code", "item_prod_code", "year", "unit")
+    ) |>
+    tidyr::pivot_wider(
+      names_from = "unit",
+      values_from = "value",
+      values_fill = 0
+    )
+  wide |>
+    dplyr::filter(.data$production_t > 0, .data$area_ha > 0) |>
+    dplyr::mutate(item_prod_code = as.character(.data$item_prod_code)) |>
+    dplyr::left_join(.sci_crop_regions(), by = "area_code")
+}
+
+# The Krausmann recovery and HANPP feed-use regions per polity, from
+# whep::regions_full, keyed by the legacy numeric area_code.
+.sci_crop_regions <- function() {
+  whep::regions_full |>
+    dplyr::transmute(
+      area_code = as.integer(.data$code),
+      region_krausmann = .data$region_krausmann,
+      region_hanpp = .data$region_HANPP
+    ) |>
+    dplyr::distinct(.data$area_code, .keep_all = TRUE)
+}
+
+# Manure carbon applied to cropland has no turnkey default source: it comes
+# from build_livestock_nutrient_flows()'s `applied` stream, which requires a
+# redistribute_feed() intake that is not itself obtainable from a pin without
+# the full feed-allocation pipeline. Rather than silently drop the manure
+# carbon input, abort with the actionable path (RESOLVED: report as the one
+# remaining turnkey blocker for the cropland stream).
 .sci_read_manure <- function() {
   cli::cli_abort(
     c(
-      "No {.field manure} reader is wired yet.",
+      "No turnkey {.field manure} source is available.",
       i = "Pass {.code data$manure} (the {.field applied} stream of \\
-           {.fun build_livestock_nutrient_flows})."
+           {.fun build_livestock_nutrient_flows}). That function needs a \\
+           {.fun redistribute_feed} intake, which has no default pin, so \\
+           manure carbon cannot be assembled turnkey."
     )
   )
 }
 
+# The cell -> polity crosswalk from the spatialization country grid.
 .sci_read_country_grid <- function() {
-  cli::cli_abort(
-    "No {.field country_grid} reader is wired yet; pass {.code data$country_grid}."
+  whep_read_file("spatialize-country-grid")
+}
+
+# Per-cell crop harvested area (ha) used to grid the polity-crop carbon masses.
+# crop_patterns.parquet (pin "spatialize-crop-patterns") carries only the static
+# per-cell harvest_fraction, so the absolute per-cell crop area is
+# harvest_fraction times the cell's cropland area from the gridded-cropland pin
+# ("spatialize-gridded-cropland", per-cell-year cropland_ha, collapsed to a
+# time-invariant per-cell mean to match the time-invariant crop_patterns
+# contract).
+.sci_read_crop_patterns <- function() {
+  .sci_combine_crop_patterns(
+    whep_read_file("spatialize-crop-patterns"),
+    whep_read_file("spatialize-gridded-cropland")
   )
 }
 
-.sci_read_crop_patterns <- function() {
-  cli::cli_abort(
-    "No {.field crop_patterns} reader is wired yet; pass {.code data$crop_patterns}."
-  )
+# Turn the static per-cell harvest_fraction and the per-cell-year gridded
+# cropland area into a time-invariant per-cell-crop area (ha):
+# crop_area_ha = harvest_fraction * mean-over-years cropland_ha. Kept pure so
+# it is testable without the pins.
+.sci_combine_crop_patterns <- function(patterns, cropland) {
+  patterns <- patterns |>
+    dplyr::mutate(
+      lon = round(.data$lon, 2),
+      lat = round(.data$lat, 2),
+      item_prod_code = as.character(.data$item_prod_code)
+    )
+  cropland <- cropland |>
+    dplyr::mutate(lon = round(.data$lon, 2), lat = round(.data$lat, 2)) |>
+    dplyr::summarise(
+      cropland_ha = mean(.data$cropland_ha, na.rm = TRUE),
+      .by = c("lon", "lat")
+    )
+  patterns |>
+    dplyr::inner_join(cropland, by = c("lon", "lat")) |>
+    dplyr::transmute(
+      lon = .data$lon,
+      lat = .data$lat,
+      item_prod_code = .data$item_prod_code,
+      crop_area_ha = .data$harvest_fraction * .data$cropland_ha
+    )
 }

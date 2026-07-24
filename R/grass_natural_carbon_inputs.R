@@ -337,29 +337,77 @@ build_grass_natural_carbon_inputs <- function(
     tibble::as_tibble()
 }
 
-# -- Reader stubs (real readers wired elsewhere) ------------------------------
+# -- Default input readers ----------------------------------------------------
 
-.gn_read_stand_frac <- function() {
-  cli::cli_abort(
-    c(
-      "No {.field stand_frac} reader is wired yet.",
-      i = "Pass {.code data$stand_frac} (per-cell managed-grassland stand \\
-           fractions from cftfrac.nc)."
+# Per-cell managed-grassland stand fractions from the LPJmL run's cftfrac.nc.
+# The rainfed and irrigated grassland bands (matched by NamePFT, never band
+# index) are sliced per year and reshaped to (lon, lat, year, name_pft,
+# stand_frac), keeping only present (finite, positive) stands. The run
+# directory follows the shared LPJmL convention (WHEP_LPJML_RUN_DIR).
+.gn_read_stand_frac <- function(
+  run_dir = NULL,
+  years = NULL,
+  first_year = 1901L
+) {
+  rlang::check_installed("ncdf4")
+  run_dir <- .resolve_run_dir(run_dir)
+  path <- file.path(run_dir, "cftfrac.nc")
+  if (!file.exists(path)) {
+    cli::cli_abort("LPJmL managed-fraction file not found: {.file {path}}.")
+  }
+  nc <- ncdf4::nc_open(path)
+  on.exit(ncdf4::nc_close(nc))
+  keep <- .gn_stand_frac_keep_years(nc, first_year, years)
+  parts <- purrr::map(keep, function(ti) {
+    .gn_stand_frac_slice(nc, first_year, ti)
+  })
+  tibble::as_tibble(data.table::rbindlist(parts))
+}
+
+# Annual time-step indices to read from cftfrac.nc: all, or only the requested
+# calendar years (index 1 = first_year).
+.gn_stand_frac_keep_years <- function(nc, first_year, years) {
+  n_time <- nc$dim[["time"]]$len
+  stamp_years <- first_year + seq_len(n_time) - 1L
+  if (is.null(years)) {
+    seq_len(n_time)
+  } else {
+    which(stamp_years %in% as.integer(years))
+  }
+}
+
+# One year's rainfed and irrigated grassland stand fractions, long by name_pft.
+.gn_stand_frac_slice <- function(nc, first_year, time_index) {
+  lon <- ncdf4::ncvar_get(nc, "lon")
+  lat <- ncdf4::ncvar_get(nc, "lat")
+  names_pft <- as.character(ncdf4::ncvar_get(nc, "NamePFT"))
+  bands <- which(names_pft %in% .gn_grassland_pfts())
+  year <- first_year + time_index - 1L
+  parts <- purrr::map(bands, function(k) {
+    slab <- ncdf4::ncvar_get(
+      nc,
+      "CFTfrac",
+      start = c(1L, 1L, k, time_index),
+      count = c(-1L, -1L, 1L, 1L)
     )
-  )
+    dt <- data.table::data.table(
+      lon = rep(lon, times = length(lat)),
+      lat = rep(lat, each = length(lon)),
+      year = as.integer(year),
+      name_pft = names_pft[k],
+      stand_frac = as.vector(slab)
+    )
+    dt[is.finite(stand_frac) & stand_frac > 0]
+  })
+  data.table::rbindlist(parts)
 }
 
 .gn_read_country_grid <- function() {
   whep_read_file("spatialize-country-grid")
 }
 
+# Per-cell grassland (and other class) areas from LUH2 v2h.
 .gn_read_land_use <- function() {
-  cli::cli_abort(
-    c(
-      "No {.field land_use} reader is wired yet.",
-      i = "Pass {.code data$land_use} (per-cell grassland areas from \\
-           {.fun read_luh2_landuse})."
-    )
-  )
+  read_luh2_landuse(resolution = "grid")
 }
 # nolint end

@@ -80,13 +80,35 @@ build_carbon_balance <- function(
 # -- Input resolution ---------------------------------------------------------
 
 .cb_resolve_inputs <- function(data) {
+  c_inputs <- data$c_inputs %||% .cb_read_c_inputs()
+  land_use <- data$land_use %||% .cb_read_land_use()
+  climate <- data$climate %||% .cb_read_climate()
+  # get_soc_climate_drivers() carries clay_pct in its own output, so a
+  # turnkey (or clay_pct-bearing) climate table supplies the per-cell clay
+  # directly; only fall back to the standalone HWSD clay reader when the
+  # climate table lacks it (the precomputed climate_modifier path).
+  clay <- data$clay %||% .cb_clay_from_climate(climate) %||% .cb_read_clay()
   list(
-    c_inputs = data$c_inputs %||% .cb_read_c_inputs(),
-    land_use = data$land_use %||% .cb_read_land_use(),
-    climate = data$climate %||% .cb_read_climate(),
-    clay = data$clay %||% .cb_read_clay(),
+    c_inputs = c_inputs,
+    land_use = land_use,
+    climate = climate,
+    clay = clay,
     equilibrium_climate = data$equilibrium_climate
   )
+}
+
+# Reuse the per-cell clay_pct the climate-driver table already carries, so the
+# clay driving the turnover model and the clay driving the RothC/HSOC modifier
+# come from one source. Returns NULL when the climate table has no clay_pct
+# (the precomputed climate_modifier path), letting the caller fall back to the
+# standalone HWSD clay reader.
+.cb_clay_from_climate <- function(climate) {
+  if (!rlang::has_name(climate, "clay_pct")) {
+    return(NULL)
+  }
+  climate |>
+    dplyr::select("lon", "lat", "clay_pct") |>
+    dplyr::distinct()
 }
 
 # Join land-use areas, carbon inputs, the per-cell-year (and, for the raw-driver
@@ -779,34 +801,73 @@ build_carbon_balance <- function(
   sum(value * weight) / sum(weight)
 }
 
-# -- Reader stubs (real readers are separate later tasks) ---------------------
+# -- Default input readers ----------------------------------------------------
 
+# The per-(cell, land-use class, year) carbon-input layer, assembled from the
+# cropland (build_soil_carbon_inputs), grassland and natural
+# (build_grass_natural_carbon_inputs) builders by build_carbon_inputs(). Grid
+# grain is required: .cb_class_table() joins c_inputs onto the land-use areas
+# per cell.
 .cb_read_c_inputs <- function() {
-  cli::cli_abort(
-    c(
-      "No {.field c_inputs} reader is wired yet.",
-      i = "Pass {.code data$c_inputs} from {.fun build_soil_carbon_inputs}."
-    )
-  )
+  build_carbon_inputs(resolution = "grid")
 }
 
+# Yearly per-cell per-class land-use areas from LUH2 v2h (read_luh2_landuse()
+# emits lowercase cropland/grassland/natural/urban classes, matching the
+# carbon-input builders).
 .cb_read_land_use <- function() {
-  cli::cli_abort(
-    c(
-      "No {.field land_use} reader is wired yet.",
-      i = "Pass {.code data$land_use} (yearly per-cell per-class areas)."
+  read_luh2_landuse(resolution = "grid")
+}
+
+# The per cell-year monthly climate drivers get_soc_climate_drivers() produces
+# (temperature, water surplus, soil moisture and clay_pct), from which
+# .cb_climate_modifier_table() derives the selected model's native modifier.
+# get_soc_climate_drivers() requires the per-cell clay and cell-polity
+# crosswalk, supplied here from HWSD and the spatialization country grid.
+.cb_read_climate <- function() {
+  cell_polity <- .cb_read_cell_polity()
+  get_soc_climate_drivers(
+    data = list(
+      clay = .cb_hwsd_clay(cell_polity),
+      cell_polity = cell_polity
     )
   )
 }
 
-.cb_read_climate <- function() {
-  cli::cli_abort(
-    "No {.field climate} reader is wired yet; pass {.code data$climate}."
-  )
+# Standalone per-cell clay reader (only reached when the resolved climate table
+# carries no clay_pct); the HWSD clay cropped to the spatialization country grid.
+.cb_read_clay <- function() {
+  .cb_hwsd_clay(.cb_read_cell_polity())
 }
 
-.cb_read_clay <- function() {
-  cli::cli_abort(
-    "No {.field clay} reader is wired yet; pass {.code data$clay}."
+# The cell -> polity crosswalk (lon, lat, area_code) from the spatialization
+# country grid, the same source grass_natural and LUH2 use.
+.cb_read_cell_polity <- function() {
+  whep_read_file("spatialize-country-grid") |>
+    .normalize_country_grid() |>
+    dplyr::select("lon", "lat", "area_code")
+}
+
+# Per-cell topsoil clay percent from HWSD: the map-unit share-weighted mean of
+# the HWSD topsoil clay fraction (t_clay), aggregated to the 0.5-degree grid
+# (cropped to `cell_polity`) via the shared HWSD aggregation helper. Reuses the
+# HWSD attribute/raster path read_soil_hydraulic() uses so the clay driver is
+# consistent with the hydraulic drivers.
+.cb_hwsd_clay <- function(cell_polity) {
+  rlang::check_installed("terra")
+  hwsd_dir <- .resolve_hwsd_dir(NULL)
+  mu_clay <- .read_hwsd_attributes_local(hwsd_dir) |>
+    dplyr::filter(!is.na(.data$t_clay)) |>
+    dplyr::summarise(
+      clay_pct = stats::weighted.mean(.data$t_clay, .data$share),
+      .by = "mu_global"
+    )
+  .aggregate_hwsd(
+    hwsd_dir,
+    mu_clay,
+    target_res = 0.5,
+    target_grid = cell_polity,
+    value_col = "clay_pct",
+    out_col = "clay_pct"
   )
 }

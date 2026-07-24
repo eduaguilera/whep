@@ -337,3 +337,80 @@ test_that("example = TRUE returns the documented schema", {
   testthat::expect_s3_class(out, "tbl_df")
   testthat::expect_gt(nrow(out), 0L)
 })
+
+# -- Default input readers (wiring) -------------------------------------------
+
+# A minimal get_primary_production()-shaped table: two crops (production +
+# harvested area), one livestock row and one grassland row that must be dropped.
+.sci_primary_prod_fixture <- function() {
+  tibble::tribble(
+    ~area_code, ~item_prod_code, ~item_cbs_code, ~live_anim_code,
+    ~year, ~unit, ~value,
+    203L, 15, 2511L, NA, 2000L, "tonnes", 100,
+    203L, 15, 2511L, NA, 2000L, "ha", 40,
+    203L, 27, 2807L, NA, 2000L, "tonnes", 50,
+    203L, 27, 2807L, NA, 2000L, "ha", 20,
+    203L, 866, 2731L, 866L, 2000L, "tonnes", 999,
+    203L, 3000, 3000L, NA, 2000L, "ha", 999
+  )
+}
+
+test_that(".sci_npp_from_primary_prod runs the crop chain to soil carbon", {
+  out <- suppressWarnings(
+    whep:::.sci_npp_from_primary_prod(.sci_primary_prod_fixture())
+  )
+  testthat::expect_setequal(
+    names(out),
+    c(
+      "area_code",
+      "item_prod_code",
+      "year",
+      "residue_soil_c_t",
+      "root_c_t",
+      "weed_npp_c_t"
+    )
+  )
+  # Only the two crops survive (livestock and grassland dropped).
+  testthat::expect_setequal(out$item_prod_code, c("15", "27"))
+  # The crop chain returns no weed carbon (weeds need the components step).
+  testthat::expect_true(all(out$weed_npp_c_t == 0))
+  # Soil-returned residue and root carbon are positive for a real crop.
+  wheat <- out[out$item_prod_code == "15", ]
+  testthat::expect_gt(wheat$residue_soil_c_t, 0)
+  testthat::expect_gt(wheat$root_c_t, 0)
+})
+
+test_that(".sci_combine_crop_patterns scales harvest_fraction by cropland", {
+  patterns <- tibble::tribble(
+    ~lon, ~lat, ~item_prod_code, ~harvest_fraction,
+    0.25, 0.25, "15", 0.6,
+    0.25, 0.25, "27", 0.4,
+    0.75, 0.25, "15", 1.0
+  )
+  cropland <- tibble::tribble(
+    ~lon, ~lat, ~year, ~cropland_ha,
+    0.25, 0.25, 2000L, 100,
+    0.25, 0.25, 2001L, 200,
+    0.75, 0.25, 2000L, 50
+  )
+  out <- whep:::.sci_combine_crop_patterns(patterns, cropland)
+  testthat::expect_setequal(
+    names(out),
+    c("lon", "lat", "item_prod_code", "crop_area_ha")
+  )
+  # Cell (0.25, 0.25) mean cropland = 150: crop 15 = 90, crop 27 = 60.
+  wheat_a <- out[out$lon == 0.25 & out$item_prod_code == "15", ]
+  testthat::expect_equal(wheat_a$crop_area_ha, 90)
+  rice_a <- out[out$lon == 0.25 & out$item_prod_code == "27", ]
+  testthat::expect_equal(rice_a$crop_area_ha, 60)
+  # Cell (0.75, 0.25) cropland 50: crop 15 = 50.
+  wheat_b <- out[out$lon == 0.75, ]
+  testthat::expect_equal(wheat_b$crop_area_ha, 50)
+})
+
+test_that(".sci_read_manure aborts with an actionable message", {
+  testthat::expect_error(
+    whep:::.sci_read_manure(),
+    "turnkey"
+  )
+})
