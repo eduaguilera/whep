@@ -292,6 +292,13 @@ testthat::test_that("IO default build helpers scope cache keys by requested year
     .io_cache_key("primary_prod", c(2001, 1999)),
     "primary_prod__1999__2001"
   )
+  # The IO model caches a plain (no reporting-polity columns, no QC)
+  # cbs_wide object; get_wide_cbs() caches the reporting version under
+  # the bare "cbs_wide" slot. Their keys must never collide (issue #243).
+  testthat::expect_false(.io_cache_key("cbs_wide_io", NULL) == "cbs_wide")
+  testthat::expect_false(
+    .io_cache_key("cbs_wide_io", c(1999, 2001)) == "cbs_wide"
+  )
 })
 
 testthat::test_that("sparse default IO builds run requested years independently", {
