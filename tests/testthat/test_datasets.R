@@ -849,3 +849,51 @@ test_that("livestock_constants is a named list", {
   expect_true("energy_content_ch4_mj_kg" %in% names(obj))
   expect_true("days_in_year" %in% names(obj))
 })
+
+
+# -- mapping key uniqueness (issue #178) ---------------------------------------
+
+# A non-unique join key silently fans out downstream merges; a fully
+# duplicated row double-counts. Assert both invariants on the shipped
+# mapping tables. NA keys are allowed (unmapped rows), but non-NA keys
+# must be unique.
+assert_unique_key <- function(obj, name, key) {
+  values <- obj[[key]]
+  dup_keys <- unique(values[!is.na(values) & duplicated(values)])
+  expect_true(
+    length(dup_keys) == 0L,
+    info = paste(
+      name,
+      "has non-unique key",
+      key,
+      "-",
+      paste(dup_keys, collapse = ", ")
+    )
+  )
+  expect_equal(
+    nrow(obj),
+    nrow(dplyr::distinct(obj)),
+    label = paste(name, "has fully duplicated rows")
+  )
+}
+
+test_that("mapping tables have unique keys and no duplicate rows", {
+  assert_unique_key(whep::items_prod_full, "items_prod_full", "item_prod_code")
+  assert_unique_key(whep::items_full, "items_full", "item_cbs_code")
+  assert_unique_key(whep::regions_full, "regions_full", "code")
+  assert_unique_key(whep::cbs_trade_codes, "cbs_trade_codes", "item_code_trade")
+  assert_unique_key(whep::animals_codes, "animals_codes", "item_cbs_code")
+})
+
+test_that("FAOSTAT production code 1807 maps only to Sheep and Goat Meat", {
+  # Verified against FAOSTAT: 1807 = Sheep and Goat Meat,
+  # Citrus Fruit, Total = 1804 (issue #178).
+  at_1807 <- whep::items_prod_full |>
+    dplyr::filter(item_prod_code == 1807)
+  expect_equal(nrow(at_1807), 1L)
+  expect_equal(at_1807$item_prod, "Sheep and Goat Meat")
+
+  citrus <- whep::items_prod_full |>
+    dplyr::filter(item_prod == "Citrus Fruit, Total")
+  expect_equal(citrus$item_prod_code, "1804")
+})
