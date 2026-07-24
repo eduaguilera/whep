@@ -207,3 +207,55 @@ testthat::test_that("Manure Tier 1 Buffalo uses Table 10.15 EF", {
   # IPCC Table 10.15: Buffalo = 2
   testthat::expect_equal(ef, 2)
 })
+
+testthat::test_that(".calc_weighted_mcf reaches the Latin America MMS mix, not the Global default", {
+  # Regression for #174: regional_mms_distribution previously used region
+  # label "Latin America and Caribbean", which never matched the "Latin
+  # America" region produced by .add_ipcc_region(). The four LAC-specific
+  # rows were dead data, and every Latin American row silently fell back to
+  # region == NA handling (coalesce to a flat MCF of 2.0%).
+  data <- tibble::tribble(
+    ~species_gen, ~region,          ~method_manure_ch4,
+    "Cattle",      "Latin America", "x",
+    "Cattle",      "Global",        "x"
+  )
+
+  result <- whep:::.calc_weighted_mcf(data)
+
+  lac_mcf <- result |>
+    dplyr::filter(region == "Latin America") |>
+    dplyr::pull(weighted_mcf)
+  global_mcf <- result |>
+    dplyr::filter(region == "Global") |>
+    dplyr::pull(weighted_mcf)
+
+  # Both must resolve to the real regional_mms_distribution mix (not the
+  # coalesce() fallback of mcf = 2.0/fraction = 1.0, which would give 0.02),
+  # and Latin America's MMS mix must differ from the Global default mix.
+  testthat::expect_false(isTRUE(all.equal(lac_mcf, 0.02)))
+  testthat::expect_false(isTRUE(all.equal(lac_mcf, global_mcf)))
+})
+
+testthat::test_that("regional_mms_distribution region labels match the IPCC region vocabulary", {
+  # Regression for #174: a referential check that every non-Global region in
+  # regional_mms_distribution is a region .add_ipcc_region() can actually
+  # produce (catches the whole "hardcoded label that never joins" class).
+  valid_regions <- c(
+    "North America",
+    "Eastern Europe",
+    "Western Europe",
+    "Middle East",
+    "Asia",
+    "Oceania",
+    "Indian Subcontinent",
+    "Latin America",
+    "Africa"
+  )
+
+  present_regions <- regional_mms_distribution |>
+    dplyr::filter(region != "Global") |>
+    dplyr::pull(region) |>
+    unique()
+
+  testthat::expect_true(all(present_regions %in% valid_regions))
+})
