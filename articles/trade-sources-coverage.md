@@ -3,27 +3,27 @@
 ``` r
 
 library(whep)
-# Don't ask for credentials (read public files)
-googlesheets4::gs4_deauth()
 ```
 
-First we read the trade sources sheet and build a dataframe where each
-row accounts for one year.
+First we read the bundled snapshot of the trade sources table and build
+a dataframe where each row accounts for one year. The snapshot ships
+with the package so the vignette builds without any network access. It
+mirrors the `Final_Sources_Trade` tab of the project’s trade sources
+spreadsheet.
 
 ``` r
 
-# Step 1: Authentication
-sheet_url <- "1UdwgS87x5OsLjNuKaY3JA01GoI5nwsenz62JXCeq0GQ"
+trade_sources_path <- system.file(
+  "extdata",
+  "trade_sources.csv",
+  package = "whep"
+)
 
-# PART 1: trade_sources FOR TRADE
-
-# Step 2: Rest of Program
 expanded_trade_sources <-
-  sheet_url |>
-  googlesheets4::read_sheet(sheet = "Final_Sources_Trade") |>
+  trade_sources_path |>
+  utils::read.csv(check.names = FALSE, na.strings = c("", "NA")) |>
+  tibble::as_tibble() |>
   expand_trade_sources()
-#> ✔ Reading from WHEP Source identification.
-#> ✔ Range ''Final_Sources_Trade''.
 ```
 
 Now we build some plots.

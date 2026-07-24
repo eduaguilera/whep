@@ -363,7 +363,7 @@ Lookup and coefficient tables used internally across the pipeline.
 Download FAOSTAT data as is.
 
 - [`get_faostat_data()`](https://eduaguilera.github.io/whep/reference/get_faostat_data.md)
-  : Scrapes activity_data from FAOSTAT and slightly post-processes it
+  : Scrape activity data from FAOSTAT and post-process it
 
 ## Data sources
 

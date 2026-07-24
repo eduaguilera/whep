@@ -71,24 +71,24 @@
     
     
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://eduaguilera.github.io/whep/">whep</a></span><span class="op">)</span></span>
-<span><span class="co"># Don't ask for credentials (read public files)</span></span>
-<span><span class="fu">googlesheets4</span><span class="fu">::</span><span class="fu"><a href="https://googlesheets4.tidyverse.org/reference/gs4_deauth.html" class="external-link">gs4_deauth</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
-<p>First we read the trade sources sheet and build a dataframe where
-each row accounts for one year.</p>
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://eduaguilera.github.io/whep/">whep</a></span><span class="op">)</span></span></code></pre></div>
+<p>First we read the bundled snapshot of the trade sources table and
+build a dataframe where each row accounts for one year. The snapshot
+ships with the package so the vignette builds without any network
+access. It mirrors the <code>Final_Sources_Trade</code> tab of the
+project’s trade sources spreadsheet.</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># Step 1: Authentication</span></span>
-<span><span class="va">sheet_url</span> <span class="op">&lt;-</span> <span class="st">"1UdwgS87x5OsLjNuKaY3JA01GoI5nwsenz62JXCeq0GQ"</span></span>
+<code class="sourceCode R"><span><span class="va">trade_sources_path</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/system.file.html" class="external-link">system.file</a></span><span class="op">(</span></span>
+<span>  <span class="st">"extdata"</span>,</span>
+<span>  <span class="st">"trade_sources.csv"</span>,</span>
+<span>  package <span class="op">=</span> <span class="st">"whep"</span></span>
+<span><span class="op">)</span></span>
 <span></span>
-<span><span class="co"># PART 1: trade_sources FOR TRADE</span></span>
-<span></span>
-<span><span class="co"># Step 2: Rest of Program</span></span>
 <span><span class="va">expanded_trade_sources</span> <span class="op">&lt;-</span></span>
-<span>  <span class="va">sheet_url</span> <span class="op">|&gt;</span></span>
-<span>  <span class="fu">googlesheets4</span><span class="fu">::</span><span class="fu"><a href="https://googlesheets4.tidyverse.org/reference/range_read.html" class="external-link">read_sheet</a></span><span class="op">(</span>sheet <span class="op">=</span> <span class="st">"Final_Sources_Trade"</span><span class="op">)</span> <span class="op">|&gt;</span></span>
-<span>  <span class="fu"><a href="../reference/expand_trade_sources.html">expand_trade_sources</a></span><span class="op">(</span><span class="op">)</span></span>
-<span><span class="co">#&gt; <span style="color: #00BB00;">✔</span> Reading from <span style="color: #00BBBB;">WHEP Source identification</span>.</span></span>
-<span><span class="co">#&gt; <span style="color: #00BB00;">✔</span> Range '<span style="color: #BBBB00;">'Final_Sources_Trade'</span>'.</span></span></code></pre></div>
+<span>  <span class="va">trade_sources_path</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu">utils</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/r/utils/read.table.html" class="external-link">read.csv</a></span><span class="op">(</span>check.names <span class="op">=</span> <span class="cn">FALSE</span>, na.strings <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">""</span>, <span class="st">"NA"</span><span class="op">)</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu">tibble</span><span class="fu">::</span><span class="fu"><a href="https://tibble.tidyverse.org/reference/as_tibble.html" class="external-link">as_tibble</a></span><span class="op">(</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu"><a href="../reference/expand_trade_sources.html">expand_trade_sources</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
 <p>Now we build some plots.</p>
 <p>Plot showing years covered by
 <code>expanded_trade_sources</code>:</p>
