@@ -28,8 +28,8 @@ perennial base area is reported as an error because it cannot be reconciled
 without inventing a crop allocation.
 
 
-The default of build_cropgrids_land_extension() and the footprint balance
-are unchanged; this is an additive method."><meta property="og:description" content="Turn per-crop harvested-derived physical area into a fallow-inclusive physical
+This is the crop-side default of the land-balance footprint
+(build_land_balance_footprint())."><meta property="og:description" content="Turn per-crop harvested-derived physical area into a fallow-inclusive physical
 land extension whose arable-crop total reconciles to FAO's physical
 Arable land and whose perennial-crop total reconciles to FAO's physical
 Permanent crops (get_arable_permanent_land()), per (area_code, year).
@@ -58,8 +58,8 @@ perennial base area is reported as an error because it cannot be reconciled
 without inventing a crop allocation.
 
 
-The default of build_cropgrids_land_extension() and the footprint balance
-are unchanged; this is an additive method."><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
+This is the crop-side default of the land-balance footprint
+(build_land_balance_footprint())."><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -124,8 +124,8 @@ physical pattern.
 A positive target without a corresponding arable crop row or positive
 perennial base area is reported as an error because it cannot be reconciled
 without inventing a crop allocation.</p></li>
-</ul><p>The default of <code><a href="build_cropgrids_land_extension.html">build_cropgrids_land_extension()</a></code> and the footprint balance
-are unchanged; this is an additive method.</p>
+</ul><p>This is the crop-side default of the land-balance footprint
+(<code><a href="build_land_balance_footprint.html">build_land_balance_footprint()</a></code>).</p>
     </div>
 
     <div class="section level2">
@@ -135,6 +135,7 @@ are unchanged; this is an additive method.</p>
 <span>  arable_permanent <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  base_extension <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  fallow_weights <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  temporary_grassland <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  items_prod_full <span class="op">=</span> <span class="fu">whep</span><span class="fu">::</span><span class="va"><a href="items_prod_full.html">items_prod_full</a></span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -174,6 +175,16 @@ fallback is used independently for an area when it has no usable supplied
 weights, a non-finite or negative supplied weight, or a non-positive total.</p></dd>
 
 
+<dt id="arg-temporary-grassland">temporary_grassland<a class="anchor" aria-label="anchor" href="#arg-temporary-grassland"></a></dt>
+<dd><p>Tibble of grassland occupation in the
+<code><a href="build_grassland_land_extension.html">build_grassland_land_extension()</a></code> schema (<code>area_code</code>, <code>year</code>,
+<code>item_cbs_code</code>, <code>impact_u</code>); its CBS 3002 rows are the temporary grassland
+netted out of the arable target so ordinary crops plus CBS 3002 reconcile to
+FAO Arable land (see the temporary-grassland section). If <code>NULL</code> (default)
+no netting is applied and arable crops reconcile to the full FAO Arable
+land; the land-balance footprint supplies the grassland occupation here.</p></dd>
+
+
 <dt id="arg-items-prod-full">items_prod_full<a class="anchor" aria-label="anchor" href="#arg-items-prod-full"></a></dt>
 <dd><p>Crosswalk used to classify <code>item_cbs_code</code> as arable or
 perennial via <code>Herb_Woody</code>. Defaults to <a href="items_prod_full.html">items_prod_full</a>.</p></dd>
@@ -186,18 +197,22 @@ perennial via <code>Herb_Woody</code>. Defaults to <a href="items_prod_full.html
 (<code>"fao_arable_fallow"</code>).</p>
     </div>
     <div class="section level2">
-    <h2 id="temporary-grassland-do-not-double-count-">Temporary grassland (do not double-count)<a class="anchor" aria-label="anchor" href="#temporary-grassland-do-not-double-count-"></a></h2>
+    <h2 id="temporary-grassland-no-double-count-">Temporary grassland (no double-count)<a class="anchor" aria-label="anchor" href="#temporary-grassland-no-double-count-"></a></h2>
 
 
 <p>FAO's <strong>Arable land</strong> total includes <em>temporary meadows and pastures</em> —
-temporary grassland is part of cropland, not grassland. This method therefore
-already absorbs the temporary-grassland slice into its arable-crop total. Do
-<strong>not</strong> combine it with CBS 3002 (<code>Temporary grassland</code>) from
-<code><a href="build_grassland_land_extension.html">build_grassland_land_extension()</a></code> on top, or that land is counted twice. The
-intended invariant is
-<code>ordinary crop occupation (incl. fallow) + CBS 3002 = FAO Arable land</code>.
-Netting modelled CBS 3002 out of the arable target and promoting this method
-to the footprint-balance default is tracked in issue #342.</p>
+temporary grassland is part of cropland, not grassland. That land is also
+reported separately as CBS 3002 (<code>Temporary grassland</code>) by
+<code><a href="build_grassland_land_extension.html">build_grassland_land_extension()</a></code>, so summing both extensions naively would
+count it twice. Pass that grassland occupation as <code>temporary_grassland</code> and
+its CBS 3002 is netted out of the arable target before reconciling ordinary
+crops, enforcing the invariant per <code>(area_code, year)</code>
+<code>ordinary crop occupation (incl. fallow) + CBS 3002 = FAO Arable land</code>. The
+land-balance footprint (<code><a href="build_land_balance_footprint.html">build_land_balance_footprint()</a></code>) does exactly this. Where
+modelled CBS 3002 exceeds FAO Arable land (survey vs. fodder-reconstruction
+mismatch) the arable target is clamped at 0 and a warning is emitted. Called
+standalone (<code>temporary_grassland = NULL</code>) no netting is applied and the arable
+crops reconcile to the full FAO Arable land.</p>
     </div>
 
     <div class="section level2">
@@ -221,14 +236,19 @@ to the footprint-balance default is tracked in issue #342.</p>
 <span class="r-in"><span>  <span class="fl">2511L</span>, <span class="st">"Herbaceous"</span>,</span></span>
 <span class="r-in"><span>  <span class="fl">2560L</span>, <span class="st">"Woody"</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">temporary_grassland</span> <span class="op">&lt;-</span> <span class="fu">tibble</span><span class="fu">::</span><span class="fu"><a href="https://tibble.tidyverse.org/reference/tribble.html" class="external-link">tribble</a></span><span class="op">(</span></span></span>
+<span class="r-in"><span>  <span class="op">~</span><span class="va">area_code</span>, <span class="op">~</span><span class="va">year</span>, <span class="op">~</span><span class="va">item_cbs_code</span>, <span class="op">~</span><span class="va">impact_u</span>,</span></span>
+<span class="r-in"><span>  <span class="fl">1L</span>, <span class="fl">2020L</span>, <span class="fl">3002L</span>, <span class="fl">100</span> <span class="co"># temporary grassland netted out of arable</span></span></span>
+<span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">build_fao_arable_fallow_extension</span><span class="op">(</span></span></span>
 <span class="r-in"><span>  <span class="va">harvested</span>, <span class="va">arable_permanent</span>, <span class="va">base_extension</span>,</span></span>
+<span class="r-in"><span>  temporary_grassland <span class="op">=</span> <span class="va">temporary_grassland</span>,</span></span>
 <span class="r-in"><span>  items_prod_full <span class="op">=</span> <span class="va">items</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 2 × 5</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    year area_code item_cbs_code impact_u method_land      </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>            </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>020         1          <span style="text-decoration: underline;">2</span>511      500 fao_arable_fallow</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>020         1          <span style="text-decoration: underline;">2</span>511      400 fao_arable_fallow</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span>  <span style="text-decoration: underline;">2</span>020         1          <span style="text-decoration: underline;">2</span>560      100 fao_arable_fallow</span>
 </code></pre></div>
     </div>
