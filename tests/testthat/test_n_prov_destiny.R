@@ -513,6 +513,51 @@ test_that(".combine_destinies adds food_pets to food", {
 })
 
 
+# .add_feed ---------------------------------------------------------------------
+
+test_that(".add_feed does not crash when a Livestock_type category is entirely absent", {
+  # Regression for #175: pivot_wider() only creates a column for a
+  # Livestock_type level actually present in the input. A dataset with no
+  # Aquaculture or Pets rows at all previously crashed with "object
+  # 'aquaculture' not found" instead of treating those flows as zero.
+  feed_intake <- tibble::tribble(
+    ~Year, ~Province_name, ~Item, ~Livestock_cat, ~FM_Mg,
+    2000, "A", "Wheat", "Cattle_meat", 10,
+    2000, "A", "Wheat", "Pigs", 4
+  )
+
+  out <- .add_feed(feed_intake)
+
+  expect_equal(out$feed_intake$feed, 14)
+  expect_equal(out$feed_intake$food_pets, 0)
+  expect_equal(out$feed_share_rum_mono$share_rum, 10 / 14)
+  expect_equal(out$feed_share_rum_mono$share_mono, 4 / 14)
+})
+
+
+# .calculate_food_and_other_uses -------------------------------------------------
+
+test_that(".calculate_food_and_other_uses does not crash when a Destiny is entirely absent", {
+  # Regression for #175: same pivot_wider() class of bug as .add_feed() --
+  # a dataset with no Other_uses rows at all previously crashed with "object
+  # 'Other_uses' not found".
+  population_share <- tibble::tribble(
+    ~Year, ~Province_name, ~Pop_share,
+    2000, "A", 0.5
+  )
+
+  pie_full_destinies_fm <- tibble::tribble(
+    ~Year, ~Item, ~Destiny, ~Element, ~Value_destiny,
+    2000, "Wheat", "Food", "Domestic_supply", 20
+  )
+
+  out <- .calculate_food_and_other_uses(population_share, pie_full_destinies_fm)
+
+  expect_equal(out$food, 10)
+  expect_equal(out$other_uses, 0)
+})
+
+
 # .convert_to_items_n ----------------------------------------------------------
 
 test_that(".convert_to_items_n converts consumption FM to N", {
