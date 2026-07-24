@@ -291,6 +291,32 @@ testthat::test_that(".build_supply_crop_product summarises crop production", {
   testthat::expect_equal(row_20$value, 40)
 })
 
+testthat::test_that(".build_supply_crop_product ignores NA production", {
+  crop_prod_items <- tibble::tibble(
+    item_prod_code = c(1, 2)
+  )
+  primary_prod <- tibble::tribble(
+    ~year, ~area_code, ~item_prod_code, ~item_cbs_code, ~live_anim_code, ~unit, ~value,
+    2000, 1, 1, 10, NA, "tonnes", 50,
+    2000, 1, 2, 10, NA, "tonnes", NA,
+    2000, 1, 1, 20, NA, "tonnes", NA
+  )
+
+  result <- .build_supply_crop_product(
+    crop_prod_items,
+    primary_prod
+  )
+
+  # An NA in the item 10 group must not poison the real value of 50.
+  row_10 <- result |>
+    dplyr::filter(item_cbs_code == 10)
+  testthat::expect_equal(row_10$value, 50)
+
+  # An all-NA group must be absent, not a misleading zero supply row.
+  testthat::expect_equal(nrow(result), 1)
+  testthat::expect_false(20 %in% result$item_cbs_code)
+})
+
 testthat::test_that(".build_supply_crop_product keeps field coproducts in one process", {
   crop_prod_items <- tibble::tibble(
     item_prod_code = c(329L, 767L)
