@@ -33,8 +33,14 @@
 #'   `item_prod_code` or an `item_prod` name from [items_prod_full] (matched
 #'   case-insensitively), and `territory` a stringified `area_code` or `iso3c`);
 #'   `country_grid` and `crop_patterns` (the spatialization inputs,
-#'   `crop_patterns` carrying per-cell `crop_area_ha`); `residue_humification`
-#'   (defaults to [residue_humification]).
+#'   `crop_patterns` carrying per-cell `crop_area_ha`); `harvested_area` (the
+#'   FAOSTAT national harvested area per `area_code`, `item_prod_code`, `year`
+#'   in a `faostat_area_ha` column, used to renormalize each polity-crop-year's
+#'   spatialized cell area to the national total so per-hectare densities are
+#'   the national density and carbon mass is conserved; defaults to the same
+#'   `get_primary_production()` table the NPP reader uses, and is skipped when a
+#'   hand-supplied `npp` keeps the pipeline offline unless supplied here);
+#'   `residue_humification` (defaults to [residue_humification]).
 #' @param example If `TRUE`, return a small fixture instead of reading remote
 #'   data. Defaults to `FALSE`.
 #'
@@ -60,18 +66,33 @@ build_soil_carbon_inputs <- function(
   }
   d <- .sci_resolve_inputs(data, years)
   components <- .sci_assemble_components(d$npp, d$manure)
-  gridded <- .sci_to_grid(components, d$country_grid, d$crop_patterns)
+  gridded <- .sci_to_grid(
+    components,
+    d$country_grid,
+    d$crop_patterns,
+    d$harvested_area
+  )
   .sci_finalise(gridded, resolution, d$residue_humification)
 }
 
 # Private helpers ----
 
+# harvested_area is the FAOSTAT national harvested area per (area_code,
+# item_prod_code, year); .sci_to_grid renormalizes each polity-crop-year's
+# spatialized cell area so its cell-sum equals this national truth (see there).
+# It is paired with the default NPP reader: the turnkey path derives it from the
+# same get_primary_production() table the NPP chain starts from, while a
+# hand-supplied npp keeps the BYO path offline (harvested_area stays NULL and no
+# renormalization happens) unless the caller also supplies data$harvested_area.
 .sci_resolve_inputs <- function(data, years = NULL) {
+  harvested_area <- data$harvested_area %||%
+    (if (is.null(data$npp)) .sci_read_harvested_area(years) else NULL)
   list(
     npp = data$npp %||% .sci_read_npp(years),
     manure = data$manure %||% .sci_read_manure(years),
     country_grid = data$country_grid %||% .sci_read_country_grid(),
     crop_patterns = data$crop_patterns %||% .sci_read_crop_patterns(),
+    harvested_area = harvested_area,
     residue_humification = data$residue_humification %||%
       whep::residue_humification
   )
@@ -193,7 +214,20 @@ build_soil_carbon_inputs <- function(
 
 # Distribute each polity-crop-year carbon mass across cells in proportion to the
 # cell's harvested area, then attach the cell-crop area for per-hectare scaling.
-.sci_to_grid <- function(components, country_grid, crop_patterns) {
+# The spatialized crop_area_ha is only a spatial PATTERN: its cell-sum can
+# undershoot (or overshoot) the FAOSTAT national harvested area, which would
+# distort the per-hectare density (per-ha = polity mass / sum of spatialized
+# area). When harvested_area is supplied, renormalize each polity-crop-year's
+# cell area so its cell-sum equals the FAOSTAT national area, making per-ha the
+# national density and conserving the polity carbon mass (see
+# .sci_rescale_cell_area). This leaves area_weight, and therefore the cell mass
+# distribution, unchanged.
+.sci_to_grid <- function(
+  components,
+  country_grid,
+  crop_patterns,
+  harvested_area = NULL
+) {
   cells <- .sci_cell_crop_area(country_grid, crop_patterns)
   weights <- cells |>
     # Zero, missing and non-finite harvested areas provide no spatial support.
@@ -216,6 +250,7 @@ build_soil_carbon_inputs <- function(
       by = c("area_code", "item_prod_code"),
       relationship = "many-to-many"
     ) |>
+    .sci_rescale_cell_area(harvested_area) |>
     dplyr::mutate(c_mass_mg = .data$c_mass_mg * .data$area_weight) |>
     dplyr::select(
       "lon",
@@ -227,6 +262,40 @@ build_soil_carbon_inputs <- function(
       "c_mass_mg",
       "crop_area_ha"
     )
+}
+
+# Renormalize the per-cell crop area to the FAOSTAT national harvested area.
+# Since area_weight = crop_area_ha / sum(crop_area_ha) per polity-crop, the
+# scaled cell area crop_area_ha * faostat_area / sum(crop_area_ha) is exactly
+# area_weight * faostat_area. Per-ha then becomes (polity_mass * area_weight) /
+# (area_weight * faostat_area) = polity_mass / faostat_area (uniform across the
+# polity's cells for that crop), and the cell masses still sum to the polity
+# mass, so mass is conserved. Groups with no supplied FAOSTAT area (NA/<=0) keep
+# their spatialized area unchanged, preserving the offline BYO-inputs path.
+.sci_rescale_cell_area <- function(joined, harvested_area) {
+  if (is.null(harvested_area) || nrow(harvested_area) == 0) {
+    return(joined)
+  }
+  faostat <- harvested_area |>
+    dplyr::transmute(
+      area_code = as.integer(.data$area_code),
+      item_prod_code = as.character(.data$item_prod_code),
+      year = as.integer(.data$year),
+      faostat_area_ha = as.numeric(.data$faostat_area_ha)
+    )
+  joined |>
+    dplyr::left_join(
+      faostat,
+      by = c("area_code", "item_prod_code", "year")
+    ) |>
+    dplyr::mutate(
+      crop_area_ha = dplyr::if_else(
+        is.finite(.data$faostat_area_ha) & .data$faostat_area_ha > 0,
+        .data$area_weight * .data$faostat_area_ha,
+        .data$crop_area_ha
+      )
+    ) |>
+    dplyr::select(-"faostat_area_ha")
 }
 
 # The inner_join that spatializes polity-crop carbon to cells silently drops any
@@ -395,6 +464,38 @@ build_soil_carbon_inputs <- function(
 # including residue_soil_c_t, root_c_t and weed_npp_c_t).
 .sci_read_npp <- function(years = NULL) {
   .sci_npp_from_primary_prod(.filter_years(get_primary_production(), years))
+}
+
+# FAOSTAT national harvested area (ha) per (area_code, item_prod_code, year),
+# the truth .sci_to_grid renormalizes the spatialized cell area to. Read from
+# the same get_primary_production() table the NPP chain starts from, filtered to
+# crop harvested-area rows (grassland and livestock dropped, matching
+# .sci_crop_prod_wide). One table serves every input_type (residue/root/weed and
+# manure), all keyed by (area_code, item_prod_code, year).
+.sci_read_harvested_area <- function(years = NULL) {
+  .sci_harvested_area(.filter_years(get_primary_production(), years))
+}
+
+.sci_harvested_area <- function(primary_prod) {
+  grass <- c(3000L, 3002L, 3003L)
+  primary_prod |>
+    dplyr::filter(
+      .data$unit == "ha",
+      !is.na(.data$item_prod_code),
+      is.na(.data$live_anim_code),
+      !.data$item_cbs_code %in% grass
+    ) |>
+    dplyr::summarise(
+      faostat_area_ha = sum(.data$value, na.rm = TRUE),
+      .by = c("area_code", "item_prod_code", "year")
+    ) |>
+    dplyr::filter(.data$faostat_area_ha > 0) |>
+    dplyr::transmute(
+      area_code = as.integer(.data$area_code),
+      item_prod_code = as.character(.data$item_prod_code),
+      year = as.integer(.data$year),
+      faostat_area_ha = .data$faostat_area_ha
+    )
 }
 
 # Run the crop-NPP carbon chain on a get_primary_production() table and keep the

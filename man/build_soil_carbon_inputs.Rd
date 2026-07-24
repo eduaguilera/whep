@@ -23,8 +23,14 @@ per \code{area_code}, \code{item_prod_code}, \code{year}, columns \code{residue_
 \code{item_prod_code} or an \code{item_prod} name from \link{items_prod_full} (matched
 case-insensitively), and \code{territory} a stringified \code{area_code} or \code{iso3c});
 \code{country_grid} and \code{crop_patterns} (the spatialization inputs,
-\code{crop_patterns} carrying per-cell \code{crop_area_ha}); \code{residue_humification}
-(defaults to \link{residue_humification}).}
+\code{crop_patterns} carrying per-cell \code{crop_area_ha}); \code{harvested_area} (the
+FAOSTAT national harvested area per \code{area_code}, \code{item_prod_code}, \code{year}
+in a \code{faostat_area_ha} column, used to renormalize each polity-crop-year's
+spatialized cell area to the national total so per-hectare densities are
+the national density and carbon mass is conserved; defaults to the same
+\code{get_primary_production()} table the NPP reader uses, and is skipped when a
+hand-supplied \code{npp} keeps the pipeline offline unless supplied here);
+\code{residue_humification} (defaults to \link{residue_humification}).}
 
 \item{years}{Optional integer vector of calendar years to keep. \code{NULL}
 (default) keeps every year the inputs cover. Threaded into the default NPP
