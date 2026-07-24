@@ -326,10 +326,14 @@ build_land_balance_footprint <- function(
 }
 
 .land_balance_extension <- function(year) {
-  crop <- build_cropgrids_land_extension(source = "cropgrids_fallow") |>
+  # Build grassland once and pass it in: the FAO-arable crop extension nets the
+  # same CBS 3002 out of its arable target as the grass side adds back, so
+  # crop + grass occupation reconciles to FAO Arable land (no double-count).
+  grass_full <- build_grassland_land_extension(grassland_metric = "occupation")
+  crop <- build_fao_arable_fallow_extension(temporary_grassland = grass_full) |>
     dplyr::filter(year == .env$year) |>
     dplyr::select(area_code, item_cbs_code, value = impact_u)
-  grass <- build_grassland_land_extension(grassland_metric = "occupation") |>
+  grass <- grass_full |>
     dplyr::filter(year == .env$year) |>
     dplyr::select(area_code, item_cbs_code, value = impact_u)
   dplyr::bind_rows(crop, grass)
