@@ -92,6 +92,41 @@ testthat::test_that("Tier 1 uses regional EF when iso3 is supplied", {
   testthat::expect_false("region" %in% names(result))
 })
 
+# .add_ipcc_region --------------------------------------------------------------
+
+testthat::test_that("IPCC region crosswalk covers all GLEAM regions", {
+  # Regression for #268: four crosswalk keys ("Russia",
+  # "Near East and North Africa", "East and Southeast Asia",
+  # "Latin America and Caribbean") never matched the real gleam_region
+  # values, leaving 90/204 countries with region = NA.
+  hierarchy <- whep::gleam_geographic_hierarchy |>
+    dplyr::distinct(iso3)
+
+  result <- whep:::.add_ipcc_region(hierarchy)
+
+  # Antarctica (ATF, SGS) has no IPCC EF region and is the only allowed gap.
+  unmapped <- result |>
+    dplyr::filter(is.na(region)) |>
+    dplyr::pull(iso3)
+  testthat::expect_setequal(unmapped, c("ATF", "SGS"))
+})
+
+testthat::test_that("IPCC region resolves representative countries", {
+  result <- tibble::tribble(
+    ~iso3,
+    "RUS",
+    "SAU",
+    "CHN",
+    "BRA"
+  ) |>
+    whep:::.add_ipcc_region()
+
+  testthat::expect_equal(
+    result$region,
+    c("Eastern Europe", "Middle East", "Asia", "Latin America")
+  )
+})
+
 # .calc_enteric_ch4_tier2 -------------------------------------------------------
 
 testthat::test_that("Tier 2 enteric is in IPCC range for dairy", {
