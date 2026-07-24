@@ -91,6 +91,7 @@ build_supply_use <- function(example = FALSE) {
     feed_intake = .build_redistribute_intake(
       grain = "national",
       demand_tier = "ipcc",
+      feed_mode = "historical",
       production = primary_prod,
       cbs = cbs
     )
