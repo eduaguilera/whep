@@ -226,13 +226,17 @@ build_livestock_nutrient_flows <- function(
 
 # Replace each source cell's retained surplus with the transport outcome:
 # manure delivered to neighbours, plus the un-transportable remainder disposed
-# locally per the caller's disposal method.
+# locally per the caller's disposal method. Transported manure fills the sink
+# cells' remaining cropland-plus-grassland room; only collected manure is ever
+# transported (in-situ grazing is not), so it lands as "Cropland" to stay within
+# the documented land_use domain, matching the "over_apply_local" disposal fate.
+# Its transported origin is still recorded in source_stream.
 .fold_transport <- function(local, flows, alloc_methods) {
   opt <- .allocate_options(alloc_methods)
   kept <- dplyr::filter(local, .data$land_use != "Unallocated")
   transported <- flows |>
     dplyr::filter(.data$kind == "transported") |>
-    .transport_landing("transported", FALSE)
+    .transport_landing("Cropland", FALSE)
   residual <- flows |>
     dplyr::filter(.data$kind == "residual") |>
     .transport_landing(
