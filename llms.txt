@@ -433,6 +433,11 @@ the FABIO framework.
 - [`get_crop_land_extension()`](https://eduaguilera.github.io/whep/reference/get_crop_land_extension.md)
   : Get the per-crop physical cropland extension from spatialization
   inputs.
+- [`get_arable_permanent_land()`](https://eduaguilera.github.io/whep/reference/get_arable_permanent_land.md)
+  : Physical arable and permanent-crop land base (fallow-inclusive).
+- [`build_fao_arable_fallow_extension()`](https://eduaguilera.github.io/whep/reference/build_fao_arable_fallow_extension.md)
+  : Build a per-crop physical land extension with FAO fallow-inclusive
+  arable land.
 - [`build_cropgrids_land_extension()`](https://eduaguilera.github.io/whep/reference/build_cropgrids_land_extension.md)
   : Build a per-crop physical land extension from CROPGRIDS.
 - [`build_hayr_land_extension()`](https://eduaguilera.github.io/whep/reference/build_hayr_land_extension.md)

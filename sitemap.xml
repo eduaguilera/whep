@@ -40,6 +40,7 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/build_cropgrids_land_extension.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_detailed_trade.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_energy_co2_extension.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/build_fao_arable_fallow_extension.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_feed_demand.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_feed_intake_local.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_footprint.html</loc></url>
@@ -114,6 +115,7 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/fill_sum.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/footprint_scope.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/footprint_sensitivity.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/get_arable_permanent_land.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/get_bilateral_trade.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/get_crop_land_extension.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/get_faostat_data.html</loc></url>
