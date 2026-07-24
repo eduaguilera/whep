@@ -164,9 +164,10 @@ The PR must pass these GitHub Actions checks:
       contents. Every `.Rd` file (except `whep-package.Rd`) must have a
       matching entry.
     - Run locally: `Rscript -e "pkgdown::build_reference_index()"`
-5.  **Tests**: `devtools::test()` — 2 pre-existing failures in
-    `test_commodity_balance_sheet.R` are expected (pin format,
-    `skip_on_ci`).
+5.  **Tests**: `devtools::test()` — the whole suite must be 100% green
+    (a failing test is a hard `R CMD check --as-cran` ERROR).
+    `test_commodity_balance_sheet.R` uses small self-contained fixtures
+    (no pins, no network) and passes.
 
 ## Before committing
 

@@ -129,7 +129,7 @@
 </li>
 </ul></li>
 <li>
-<strong>Tests</strong>: <code>devtools::test()</code> — 2 pre-existing failures in <code>test_commodity_balance_sheet.R</code> are expected (pin format, <code>skip_on_ci</code>).</li>
+<strong>Tests</strong>: <code>devtools::test()</code> — the whole suite must be 100% green (a failing test is a hard <code>R CMD check --as-cran</code> ERROR). <code>test_commodity_balance_sheet.R</code> uses small self-contained fixtures (no pins, no network) and passes.</li>
 </ol></div>
 <div class="section level2">
 <h2 id="before-committing">Before committing<a class="anchor" aria-label="anchor" href="#before-committing"></a></h2>
