@@ -43,7 +43,6 @@ Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.3
 Suggests: 
     ggplot2,
-    googlesheets4,
     here,
     htmltools,
     jsonlite,
