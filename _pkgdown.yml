@@ -221,6 +221,8 @@ reference:
   - add_footprint_product_stage
   - build_crop_land_extension
   - get_crop_land_extension
+  - get_arable_permanent_land
+  - build_fao_arable_fallow_extension
   - build_cropgrids_land_extension
   - build_hayr_land_extension
   - build_grassland_land_extension
