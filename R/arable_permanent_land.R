@@ -433,19 +433,23 @@ get_arable_permanent_land <- function(
 #' perennial base area is reported as an error because it cannot be reconciled
 #' without inventing a crop allocation.
 #'
-#' The default of [build_cropgrids_land_extension()] and the footprint balance
-#' are unchanged; this is an additive method.
+#' This is the crop-side default of the land-balance footprint
+#' ([build_land_balance_footprint()]).
 #'
-#' @section Temporary grassland (do not double-count):
+#' @section Temporary grassland (no double-count):
 #' FAO's **Arable land** total includes *temporary meadows and pastures* —
-#' temporary grassland is part of cropland, not grassland. This method therefore
-#' already absorbs the temporary-grassland slice into its arable-crop total. Do
-#' **not** combine it with CBS 3002 (`Temporary grassland`) from
-#' [build_grassland_land_extension()] on top, or that land is counted twice. The
-#' intended invariant is
-#' `ordinary crop occupation (incl. fallow) + CBS 3002 = FAO Arable land`.
-#' Netting modelled CBS 3002 out of the arable target and promoting this method
-#' to the footprint-balance default is tracked in issue #342.
+#' temporary grassland is part of cropland, not grassland. That land is also
+#' reported separately as CBS 3002 (`Temporary grassland`) by
+#' [build_grassland_land_extension()], so summing both extensions naively would
+#' count it twice. Pass that grassland occupation as `temporary_grassland` and
+#' its CBS 3002 is netted out of the arable target before reconciling ordinary
+#' crops, enforcing the invariant per `(area_code, year)`
+#' `ordinary crop occupation (incl. fallow) + CBS 3002 = FAO Arable land`. The
+#' land-balance footprint ([build_land_balance_footprint()]) does exactly this. Where
+#' modelled CBS 3002 exceeds FAO Arable land (survey vs. fodder-reconstruction
+#' mismatch) the arable target is clamped at 0 and a warning is emitted. Called
+#' standalone (`temporary_grassland = NULL`) no netting is applied and the arable
+#' crops reconcile to the full FAO Arable land.
 #'
 #' @param harvested Tibble of harvested area with columns `year`, `area_code`,
 #'   `item_cbs_code`, `harvested_ha`. If `NULL`, built from
@@ -466,6 +470,13 @@ get_arable_permanent_land <- function(
 #'   crop's cropped physical area (perennials always excluded). The cropped-area
 #'   fallback is used independently for an area when it has no usable supplied
 #'   weights, a non-finite or negative supplied weight, or a non-positive total.
+#' @param temporary_grassland Tibble of grassland occupation in the
+#'   [build_grassland_land_extension()] schema (`area_code`, `year`,
+#'   `item_cbs_code`, `impact_u`); its CBS 3002 rows are the temporary grassland
+#'   netted out of the arable target so ordinary crops plus CBS 3002 reconcile to
+#'   FAO Arable land (see the temporary-grassland section). If `NULL` (default)
+#'   no netting is applied and arable crops reconcile to the full FAO Arable
+#'   land; the land-balance footprint supplies the grassland occupation here.
 #' @param items_prod_full Crosswalk used to classify `item_cbs_code` as arable or
 #'   perennial via `Herb_Woody`. Defaults to [items_prod_full].
 #'
@@ -495,8 +506,13 @@ get_arable_permanent_land <- function(
 #'   2511L, "Herbaceous",
 #'   2560L, "Woody"
 #' )
+#' temporary_grassland <- tibble::tribble(
+#'   ~area_code, ~year, ~item_cbs_code, ~impact_u,
+#'   1L, 2020L, 3002L, 100 # temporary grassland netted out of arable
+#' )
 #' build_fao_arable_fallow_extension(
 #'   harvested, arable_permanent, base_extension,
+#'   temporary_grassland = temporary_grassland,
 #'   items_prod_full = items
 #' )
 # nolint start: object_length_linter.
@@ -505,6 +521,7 @@ build_fao_arable_fallow_extension <- function(
   arable_permanent = NULL,
   base_extension = NULL,
   fallow_weights = NULL,
+  temporary_grassland = NULL, # nolint: object_length_linter.
   items_prod_full = whep::items_prod_full
 ) {
   if (is.null(base_extension)) {
@@ -541,6 +558,12 @@ build_fao_arable_fallow_extension <- function(
     arable_ha = as.numeric(arable_ha),
     permanent_ha = as.numeric(permanent_ha)
   )]
+
+  # FAO Arable land already contains temporary meadows and pastures (CBS 3002),
+  # which the grassland extension reports separately. Net that land out of the
+  # arable target so ordinary crops reconcile to the arable land they alone
+  # occupy and the invariant ordinary + CBS 3002 = FAO arable holds.
+  ap <- .net_temporary_grassland(ap, temporary_grassland)
 
   perennial_codes <- .item_cbs_perennial(items_prod_full)
   base[,
@@ -595,6 +618,57 @@ build_fao_arable_fallow_extension <- function(
   data.table::setorder(tally, item_cbs_code, -N)
   majority <- tally[, .SD[1L], by = item_cbs_code]
   majority[Herb_Woody == "Woody", item_cbs_code]
+}
+
+# Subtract temporary grassland (CBS 3002) from each (area_code, year) arable
+# target so ordinary arable crops reconcile to the arable land they alone
+# occupy. Modelled CBS 3002 can exceed FAO arable land for a few country-years
+# (survey vs. fodder-reconstruction mismatch); those are clamped at 0 and warned.
+.net_temporary_grassland <- function(ap, temporary_grassland) {
+  temp <- .temporary_grassland_ha(temporary_grassland)
+  if (nrow(temp) == 0L) {
+    return(ap)
+  }
+  ap <- merge(ap, temp, by = c("area_code", "year"), all.x = TRUE)
+  ap[is.na(temp_grassland_ha), temp_grassland_ha := 0]
+  overshoot <- ap[temp_grassland_ha > arable_ha]
+  if (nrow(overshoot) > 0L) {
+    keys <- paste(
+      paste(overshoot$area_code, overshoot$year, sep = "/"),
+      collapse = ", "
+    )
+    cli::cli_warn(c(
+      "Modelled temporary grassland (CBS 3002) exceeds FAO arable land for {.val {keys}}.",
+      i = "Arable target clamped at 0; combined crop plus CBS 3002 occupation will exceed FAO arable land there."
+    ))
+  }
+  ap[, arable_ha := pmax(0, arable_ha - temp_grassland_ha)]
+  ap[, temp_grassland_ha := NULL]
+  ap[]
+}
+
+# Temporary grassland (CBS 3002) hectares per (area_code, year). NULL means no
+# netting (standalone use); a supplied table must carry the grassland extension
+# schema (area_code, year, item_cbs_code, impact_u), from which CBS 3002 is kept.
+.temporary_grassland_ha <- function(temporary_grassland) {
+  if (is.null(temporary_grassland)) {
+    return(data.table::data.table(
+      area_code = integer(),
+      year = integer(),
+      temp_grassland_ha = numeric()
+    ))
+  }
+  .check_required_cols(
+    temporary_grassland,
+    c("area_code", "year", "item_cbs_code", "impact_u"),
+    "temporary_grassland"
+  )
+  dt <- data.table::as.data.table(temporary_grassland)
+  dt <- dt[as.integer(item_cbs_code) == 3002L] # CBS 3002 temporary grassland.
+  dt[,
+    .(temp_grassland_ha = sum(as.numeric(impact_u))),
+    by = .(area_code = as.integer(area_code), year = as.integer(year))
+  ]
 }
 
 # Per (area_code, year): add rotational fallow to arable crops up to FAO Arable

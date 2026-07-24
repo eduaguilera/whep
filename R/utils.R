@@ -51,6 +51,7 @@ utils::globalVariables(
     "source_prod",
     # crop_npp.R (potential NPP + residues/roots/components)
     "temp_c",
+    "temp_grassland_ha",
     "water_input_mm",
     "aet_mm",
     "npp_potential_dm_t_ha",
