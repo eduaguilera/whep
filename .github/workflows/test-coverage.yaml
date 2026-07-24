@@ -17,8 +17,9 @@ concurrency:
 jobs:
   test-coverage:
     runs-on: ubuntu-latest
-    # Hard cap so a hung test fails fast instead of running for tens of minutes.
-    timeout-minutes: 15
+    # Backstop against a hung test; set above a healthy run (which is a few
+    # minutes here) with headroom for a cold dependency install.
+    timeout-minutes: 30
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
       USE_RENV: "FALSE"

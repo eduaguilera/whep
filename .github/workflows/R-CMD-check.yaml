@@ -18,9 +18,12 @@ concurrency:
 jobs:
   R-CMD-check:
     runs-on: ${{ matrix.config.os }}
-    # Hard cap so a hung test (e.g. a large remote read) fails fast instead of
-    # running for tens of minutes. A healthy check finishes in ~5-7 min.
-    timeout-minutes: 15
+    # Backstop against a hung test (e.g. a large remote read) that would
+    # otherwise run for tens of minutes. Set well above a healthy run: the
+    # check itself is ~5-7 min, but the R-devel matrix leg compiles the geo
+    # deps (sf/terra/ncdf4/deSolve) from source on a cold cache, which alone can
+    # approach 15 min. 30 leaves headroom for that yet still kills a real hang.
+    timeout-minutes: 30
 
     name: ${{ matrix.config.os }} (${{ matrix.config.r }})
 
