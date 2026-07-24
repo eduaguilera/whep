@@ -354,7 +354,9 @@ build_n_inputs <- function(
   resolved <- .ni_crop_name_to_item_cbs(crop)
   dplyr::case_when(
     land_use == "Grassland" ~ 3000L,
-    land_use == "Cropland" & is.na(crop) ~ NA_integer_,
+    # Any non-grass row without a crop (Cropland residual, transported/disposed
+    # manure) is a deliberately non-crop-specific input -> no item_cbs_code.
+    is.na(crop) ~ NA_integer_,
     .default = resolved
   )
 }
