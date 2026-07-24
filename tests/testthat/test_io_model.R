@@ -448,3 +448,43 @@ testthat::test_that(".fix_negative_output returns both X and Y", {
     rowSums(z) + rowSums(y)
   )
 })
+
+testthat::test_that(".endogenize_losses conserves X across source blocks", {
+  # 2 countries x 2 items. Rows/cols indexed (source, item):
+  # 1=(A1,I1) 2=(A1,I2) 3=(A2,I1) 4=(A2,I2). fd_cols = food, losses,
+  # so Y columns are (consume A1, food/losses, consume A2, food/losses).
+  dims <- list(n_areas = 2L, n_items = 2L)
+  fd_cols <- c("food", "losses")
+
+  z0 <- diag(c(20, 10, 15, 12))
+  # Row 1 carries an imported loss: item I1 sourced from A1 but
+  # consumed (and lost) in A2 -> col 4. That off-diagonal-block loss
+  # is what the old domestic-only code silently discarded.
+  y0 <- rbind(
+    c(10, 3, 5, 7),
+    c(4, 1, 0, 0),
+    c(0, 0, 8, 2),
+    c(2, 0, 6, 5)
+  )
+
+  x_before <- rowSums(z0) + rowSums(y0)
+  total_losses <- sum(y0[, c(2, 4)])
+
+  endo <- .endogenize_losses(z0, y0, dims, fd_cols)
+  x_after <- Matrix::rowSums(endo$Z) + Matrix::rowSums(endo$Y)
+
+  # Total output is conserved (fails with the domestic-only version,
+  # which loses the imported 7 on row 1).
+  testthat::expect_equal(as.numeric(x_after), as.numeric(x_before))
+
+  # All losses removed from Y are absorbed onto the Z diagonal.
+  absorbed <- sum(Matrix::diag(endo$Z) - diag(z0))
+  testthat::expect_equal(absorbed, total_losses)
+
+  # Row 1 gains both its domestic (3) and imported (7) losses.
+  testthat::expect_equal(Matrix::diag(endo$Z)[1] - z0[1, 1], 10)
+
+  # Losses columns are dropped from Y and fd_cols.
+  testthat::expect_equal(endo$fd_cols, "food")
+  testthat::expect_equal(ncol(endo$Y), 2L)
+})
