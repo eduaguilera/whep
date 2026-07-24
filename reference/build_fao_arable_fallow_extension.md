@@ -99,9 +99,10 @@ build_fao_arable_fallow_extension(
   schema (`area_code`, `year`, `item_cbs_code`, `impact_u`); its CBS
   3002 rows are the temporary grassland netted out of the arable target
   so ordinary crops plus CBS 3002 reconcile to FAO Arable land (see the
-  temporary-grassland section). If `NULL` (default) no netting is
-  applied and arable crops reconcile to the full FAO Arable land; the
-  land-balance footprint supplies the grassland occupation here.
+  temporary-grassland section). If `NULL` (default) it is built with
+  [`build_grassland_land_extension()`](https://eduaguilera.github.io/whep/reference/build_grassland_land_extension.md)`(grassland_metric = "occupation")`
+  so netting still applies (correct but slow); supply the table to skip
+  that rebuild, or pass one with no CBS 3002 rows to opt out.
 
 - items_prod_full:
 
@@ -128,11 +129,13 @@ the invariant per `(area_code, year)`
 `ordinary crop occupation (incl. fallow) + CBS 3002 = FAO Arable land`.
 The land-balance footprint
 ([`build_land_balance_footprint()`](https://eduaguilera.github.io/whep/reference/build_land_balance_footprint.md))
-does exactly this. Where modelled CBS 3002 exceeds FAO Arable land
-(survey vs. fodder-reconstruction mismatch) the arable target is clamped
-at 0 and a warning is emitted. Called standalone
-(`temporary_grassland = NULL`) no netting is applied and the arable
-crops reconcile to the full FAO Arable land.
+does exactly this, passing the grassland occupation it has already
+built. When `temporary_grassland` is `NULL` (default) the grassland
+occupation extension is built internally so netting still happens —
+correct but slow, since that build reruns much of the pipeline; supply
+the table to avoid the rebuild. Where modelled CBS 3002 exceeds FAO
+Arable land (survey vs. fodder-reconstruction mismatch) the arable
+target is clamped at 0 and a warning is emitted.
 
 ## Examples
 
