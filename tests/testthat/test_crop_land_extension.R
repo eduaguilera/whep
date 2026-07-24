@@ -603,6 +603,15 @@ test_that("land-base readers accept snake case without mutating supplied data ta
   )
 }
 
+# No temporary grassland in the scenario: passed to opt out of CBS 3002 netting
+# so reconciliation-mechanics tests stay pin-free (a NULL default would build
+# the real grassland occupation extension).
+.no_temp_grassland <- function() {
+  tibble::tribble(
+    ~area_code, ~year, ~item_cbs_code, ~impact_u
+  )
+}
+
 test_that("build_fao_arable_fallow_extension distributes fallow summing to fallow_total", {
   base <- tibble::tribble(
     ~year, ~area_code, ~item_cbs_code, ~impact_u,
@@ -616,6 +625,7 @@ test_that("build_fao_arable_fallow_extension distributes fallow summing to fallo
   res <- whep::build_fao_arable_fallow_extension(
     base_extension = base,
     arable_permanent = ap,
+    temporary_grassland = .no_temp_grassland(),
     items_prod_full = .fao_fallow_items()
   )
   # fallow_total = 600 - (300 + 200) = 100, distributed by cropped area share
@@ -639,6 +649,7 @@ test_that("build_fao_arable_fallow_extension gives perennials zero fallow and sc
   res <- whep::build_fao_arable_fallow_extension(
     base_extension = base,
     arable_permanent = ap,
+    temporary_grassland = .no_temp_grassland(),
     items_prod_full = .fao_fallow_items()
   )
   wheat <- res$impact_u[res$item_cbs_code == 2511L]
@@ -665,6 +676,7 @@ test_that("build_fao_arable_fallow_extension leaves intensity-1 arable (FRA/USA-
   res <- whep::build_fao_arable_fallow_extension(
     base_extension = base,
     arable_permanent = ap,
+    temporary_grassland = .no_temp_grassland(),
     items_prod_full = .fao_fallow_items()
   )
   expect_equal(res$impact_u[res$item_cbs_code == 2511L], 480) # unchanged
@@ -688,6 +700,7 @@ test_that("build_fao_arable_fallow_extension scales arable down when cropped phy
   res <- whep::build_fao_arable_fallow_extension(
     base_extension = base,
     arable_permanent = ap,
+    temporary_grassland = .no_temp_grassland(),
     items_prod_full = .fao_fallow_items()
   )
   expect_equal(sum(res$impact_u), 600) # matches the FAO arable total
@@ -723,6 +736,7 @@ test_that("fallow weights fall back independently for unsupported areas", {
     base_extension = base,
     arable_permanent = ap,
     fallow_weights = weights,
+    temporary_grassland = .no_temp_grassland(),
     items_prod_full = .fao_fallow_items()
   )
 
@@ -753,6 +767,7 @@ test_that("impossible arable reconciliation fails explicitly", {
       base_extension = base,
       arable_permanent = ap,
       fallow_weights = weights,
+      temporary_grassland = .no_temp_grassland(),
       items_prod_full = .fao_fallow_items()
     ),
     "Arable totals do not reconcile"
@@ -779,6 +794,7 @@ test_that("invalid custom weights cannot create negative crop areas", {
     base_extension = base,
     arable_permanent = ap,
     fallow_weights = weights,
+    temporary_grassland = .no_temp_grassland(),
     items_prod_full = .fao_fallow_items()
   )
 
@@ -799,6 +815,7 @@ test_that("positive land targets require crop support", {
     whep::build_fao_arable_fallow_extension(
       base_extension = perennial_only,
       arable_permanent = arable_target,
+      temporary_grassland = .no_temp_grassland(),
       items_prod_full = .fao_fallow_items()
     ),
     "without arable crop rows"
@@ -816,6 +833,7 @@ test_that("positive land targets require crop support", {
     whep::build_fao_arable_fallow_extension(
       base_extension = arable_only,
       arable_permanent = permanent_target,
+      temporary_grassland = .no_temp_grassland(),
       items_prod_full = .fao_fallow_items()
     ),
     "without positive perennial base area"
