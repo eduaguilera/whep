@@ -356,3 +356,151 @@ test_that(".livestock_production sums livestock output to one Type", {
   expect_equal(unique(out$Type), "Production")
   expect_equal(out$MgN, 50)
 })
+
+
+# ported feature: per-ha normalization ----------------------------------------
+
+test_that(".normalize_mg_n divides totals by area when per_ha is TRUE", {
+  df <- tibble::tribble(
+    ~Year, ~Type, ~MgN,
+    2000, "Synthetic_fertilizer", 500
+  )
+  lu_area <- tibble::tribble(
+    ~Year, ~area_ha,
+    2000, 1000
+  )
+
+  gg <- .normalize_mg_n(df, per_ha = FALSE, lu_area = NULL)
+  per_ha <- .normalize_mg_n(df, per_ha = TRUE, lu_area = lu_area)
+
+  # Gg conversion divides by 1000; per-ha is MgN * 1000 / area_ha (kg N/ha)
+  expect_equal(gg$MgN, 0.5)
+  expect_equal(per_ha$MgN, 500)
+  expect_false("area_ha" %in% names(per_ha))
+})
+
+test_that("plot_input_output honours per_ha on real (mocked) data", {
+  testthat::local_mocked_bindings(
+    create_n_nat_destiny = function(example = FALSE) {
+      tibble::tribble(
+        ~year, ~province_name, ~item, ~irrig_cat, ~box, ~origin, ~destiny, ~mg_n,
+        2000, "Spain", "Wheat", NA, "Cropland", "Synthetic", "Cropland", 800,
+        2000, "Spain", "Wheat", NA, "Cropland", "Cropland", "population_food", 300
+      )
+    },
+    whep_read_file = function(alias) {
+      tibble::tribble(
+        ~Year, ~LandUse, ~Area_ygpit_ha,
+        2000, "Cropland", 1000,
+        2000, "Forest", 500
+      )
+    }
+  )
+
+  g <- whep::plot_input_output(system = "Cropland", per_ha = TRUE)
+
+  expect_s3_class(g, "ggplot")
+  expect_equal(g$labels$y, "kg N/ha")
+})
+
+
+# ported feature: accumulation term for semi-natural system --------------------
+
+test_that(".calculate_n_accum nets accumulation gains against losses", {
+  n_balance <- tibble::tribble(
+    ~Year, ~LandUse, ~Accum_gain_AG_MgN, ~Accum_gain_BG_MgN, ~Accum_loss,
+    2000, "Forest", 40, 10, 20,
+    2000, "Cropland", 999, 999, 999
+  )
+
+  out <- .calculate_n_accum(n_balance, landuse = "Forest")
+
+  expect_equal(unique(out$Type), "Accumulation")
+  expect_equal(out$MgN, 40 + 10 - 20)
+})
+
+test_that("plot_input_output adds an Accumulation layer for semi-natural", {
+  testthat::local_mocked_bindings(
+    create_n_nat_destiny = function(example = FALSE) {
+      tibble::tribble(
+        ~year, ~province_name, ~item, ~irrig_cat, ~box, ~origin, ~destiny, ~mg_n,
+        2000, "Spain", "Grass", NA, "sna", "Fixation", "semi_natural_agroecosystems", 500,
+        2000, "Spain", "Grass", NA, "sna", "semi_natural_agroecosystems", "livestock_rum", 300
+      )
+    },
+    whep_read_file = function(alias) {
+      tibble::tribble(
+        ~Year, ~LandUse, ~Area_ygpit_ha, ~Accum_gain_AG_MgN, ~Accum_gain_BG_MgN, ~Accum_loss,
+        2000, "Forest", 1000, 40, 10, 20,
+        2000, "Cropland", 500, 999, 999, 999
+      )
+    }
+  )
+
+  g <- whep::plot_input_output(system = "semi_natural_agroecosystems")
+
+  expect_s3_class(g, "ggplot")
+  expect_true("Accumulation" %in% as.character(g$data$Type))
+  expect_true("Accumulation" %in% levels(g$data$Type))
+})
+
+test_that("plot_input_output_system keeps base levels in example mode", {
+  # example mode has no n_balance pin, so no Accumulation level is introduced
+  g <- whep::plot_input_output_system(example = TRUE)
+  expect_false("Accumulation" %in% levels(g$data$Type))
+})
+
+
+# ported feature: livestock feed-origin + rum/mono production breakdown --------
+
+test_that("plot_input_output_livestock splits feed origin and production", {
+  testthat::local_mocked_bindings(
+    create_n_nat_destiny = function(example = FALSE) {
+      tibble::tribble(
+        ~year, ~province_name, ~item, ~irrig_cat, ~box, ~origin, ~destiny, ~mg_n,
+        2000, "Spain", "Wheat", NA, "Cropland", "Cropland", "livestock_rum", 50,
+        2000, "Spain", "Grass", NA, "sna", "semi_natural_agroecosystems", "livestock_rum", 30,
+        2000, "Spain", "Soy", NA, "Cropland", "Outside", "livestock_mono", 20,
+        2000, "Spain", "Bovine Meat", NA, "Livestock", "Livestock", "population_food", 100,
+        2000, "Spain", "Pork", NA, "Livestock", "Livestock", "population_food", 60
+      )
+    },
+    whep_read_file = function(alias) {
+      tibble::tribble(
+        ~Item, ~Livestock_cat,
+        "Bovine Meat", "Cattle_meat",
+        "Pork", "Pigs"
+      )
+    }
+  )
+
+  g <- whep::plot_input_output_livestock()
+  types <- as.character(g$data$Type)
+
+  expect_s3_class(g, "ggplot")
+  expect_true(all(
+    c("Grass_local", "Crops_local", "Imports") %in% types
+  ))
+  expect_true(all(
+    c("Production_rum", "Production_mono") %in% types
+  ))
+})
+
+test_that(".livestock_feed_by_origin buckets feed by N origin", {
+  fixture <- tibble::tribble(
+    ~Year, ~Origin, ~Destiny, ~MgN,
+    2000, "Cropland", "livestock_rum", 50,
+    2000, "semi_natural_agroecosystems", "livestock_rum", 30,
+    2000, "Outside", "livestock_mono", 20,
+    2000, "Livestock", "livestock_rum", 999
+  )
+
+  out <- .livestock_feed_by_origin(fixture)
+  pick <- function(t) dplyr::pull(dplyr::filter(out, Type == t), MgN)
+
+  expect_equal(pick("Crops_local"), 50)
+  expect_equal(pick("Grass_local"), 30)
+  expect_equal(pick("Imports"), 20)
+  # the Livestock-origin distractor is not a feed origin bucket
+  expect_setequal(out$Type, c("Crops_local", "Grass_local", "Imports"))
+})

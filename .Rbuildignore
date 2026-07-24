@@ -17,6 +17,8 @@
 ^Meta$
 ^.vscode$
 ^\.agent$
+^Rplot\.png$
+^typology_kgha_agricultural\.jpg$
 ^\.claude$
 ^CLAUDE\.md$
 ^autoresearch$

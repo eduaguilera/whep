@@ -39,3 +39,12 @@ inst/extdata/cropgrids_fallow_land.csv
 # one-off migration scaffolding (not part of the reproducible pipeline)
 data-raw/migration/
 inst/extdata/coefs/*_raw.csv
+
+# GRAFS/typology plot artefacts
+Rplots.pdf
+Rplot.png
+typology_kgha_agricultural.jpg
+tree.html
+
+# local renv library (never committed)
+renv/

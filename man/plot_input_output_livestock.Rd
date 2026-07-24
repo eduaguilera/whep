@@ -4,9 +4,13 @@
 \alias{plot_input_output_livestock}
 \title{Plot national nitrogen inputs, production, and surplus for livestock.}
 \usage{
-plot_input_output_livestock(example = FALSE)
+plot_input_output_livestock(per_ha = FALSE, example = FALSE)
 }
 \arguments{
+\item{per_ha}{Logical. If \code{TRUE}, express nitrogen flows per hectare of
+agricultural land (kg N/ha) instead of national totals (Gg N). Requires
+remote data, so it is ignored in example mode. Default is \code{FALSE}.}
+
 \item{example}{If \code{TRUE}, build the plot from a small example dataset without
 downloading remote data. Default is \code{FALSE}.}
 }
@@ -15,7 +19,11 @@ A \code{ggplot} object.
 }
 \description{
 Builds a stacked-area plot of Spanish national livestock nitrogen feed
-inputs (as negative values), production, and surplus over time.
+inputs (as negative values), production, and surplus over time. On real
+data feed is broken down by origin (local grass, local crops, imports) and
+production is split into ruminant and monogastric output using the
+\code{stock_prod_ygps} pin. In example mode a simpler feed-by-destiny breakdown
+is used so the plot builds offline.
 }
 \examples{
 plot_input_output_livestock(example = TRUE)

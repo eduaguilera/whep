@@ -1,0 +1,453 @@
+create_typo_ts_plot <- function(
+  n_prov_destiny = NULL,
+  shapefile_path = "C:/PhD/GRAFS/Production Boxes/Final Files/Inputs/ne_10m_admin_1_states_provinces.shp",
+  benchmark_years = seq(1860, 2020, by = 20)
+) {
+  if (is.null(n_prov_destiny)) {
+    n_prov_destiny <- create_n_prov_destiny()
+  }
+
+  livestock_prod_ygps <- whep_read_file("stock_prod_ygps")
+  npp_ygpit <- whep_read_file("npp_ygpit")
+
+  lu_mapping <- tibble::tribble(
+    ~Animal_class,   ~LU_head,
+    "Dairy_cows", 1, "Cattle", 0.8, "Sheep_goats", 0.1, "Equines", 0.8,
+    "Pigs", 0.3, "Hogs", 0.5, "Broilers", 0.007, "Hens", 0.014,
+    "Other_birds", 0.03, "Turkeys", 0.03, "Ducks", 0.01, "Geese", 0.02,
+    "Ostriches", 0.35, "Small_birds", 0.001, "Rabbits", 0.02, "Bees", 0.01
+  )
+
+  livestockcat_to_class <- tibble::tribble(
+    ~Livestock_cat, ~Animal_class,
+    "Cattle_milk", "Dairy_cows",
+    "Cattle_meat", "Cattle",
+    "Sheep", "Sheep_goats",
+    "Goats", "Sheep_goats",
+    "Donkeys_mules", "Equines",
+    "Horses", "Equines",
+    "Pigs", "Pigs",
+    "Hogs", "Hogs",
+    "Poultry", "Hens",
+    "Rabbits", "Rabbits",
+    "Bees", "Bees"
+  )
+
+  lu_df <- livestock_prod_ygps |>
+    dplyr::left_join(livestockcat_to_class, by = "Livestock_cat") |>
+    dplyr::left_join(lu_mapping, by = "Animal_class") |>
+    dplyr::mutate(
+      LU_head = tidyr::replace_na(LU_head, 0),
+      LU_total_row = Stock_Number * LU_head
+    ) |>
+    dplyr::group_by(Year, Province_name) |>
+    dplyr::summarise(LU_total = sum(LU_total_row), .groups = "drop")
+
+  area_df <- npp_ygpit |>
+    dplyr::group_by(Year, Province_name) |>
+    dplyr::summarise(Area_ha = sum(Area_ygpit_ha), .groups = "drop")
+
+  livestock_density_df <- lu_df |>
+    dplyr::left_join(area_df, by = c("Year", "Province_name")) |>
+    dplyr::mutate(
+      Area_ha = dplyr::na_if(Area_ha, 0),
+      Livestock_density = LU_total / Area_ha
+    )
+
+  productivity_df <- npp_ygpit |>
+    dplyr::filter(LandUse == "Cropland") |>
+    dplyr::group_by(Year, Province_name) |>
+    dplyr::summarise(
+      Prod_MgN_total = sum(Prod_MgN),
+      Area_ha_crops = sum(Area_ygpit_ha),
+      .groups = "drop"
+    ) |>
+    dplyr::mutate(crop_productivity = Prod_MgN_total / Area_ha_crops * 1000)
+
+  n_agg <- n_prov_destiny |>
+    dplyr::group_by(year, province_name, origin, destiny, box) |>
+    dplyr::summarise(mg_n = sum(mg_n), .groups = "drop")
+
+  indicators <- n_agg |>
+    dplyr::group_by(year, province_name) |>
+    dplyr::summarise(
+      production_crops = sum(mg_n[origin == "Cropland"]),
+      production_seminatural = sum(mg_n[
+        origin == "semi_natural_agroecosystems"
+      ]),
+      animal_ingestion = sum(mg_n[
+        destiny %in% c("livestock_mono", "livestock_rum")
+      ]),
+      pop_consumption = sum(mg_n[destiny == "population_food"]),
+      production_total = sum(mg_n[
+        origin %in%
+          c("Cropland", "Livestock", "semi_natural_agroecosystems") &
+          destiny %in%
+            c(
+              "population_food",
+              "population_other_uses",
+              "livestock_mono",
+              "livestock_rum",
+              "export"
+            )
+      ]),
+      imported_feed_share = sum(mg_n[
+        origin == "Outside" &
+          destiny %in% c("livestock_mono", "livestock_rum")
+      ]) /
+        sum(mg_n[
+          origin %in%
+            c("Cropland", "semi_natural_agroecosystems", "Outside") &
+            destiny %in% c("livestock_mono", "livestock_rum")
+        ]),
+      local_feed_share = sum(mg_n[
+        origin %in%
+          c("Cropland", "semi_natural_agroecosystems") &
+          destiny %in% c("livestock_mono", "livestock_rum")
+      ]) /
+        sum(mg_n[
+          origin %in%
+            c("Cropland", "semi_natural_agroecosystems", "Outside") &
+            destiny %in% c("livestock_mono", "livestock_rum")
+        ]),
+      feed_from_seminatural_share = sum(mg_n[
+        origin == "semi_natural_agroecosystems" &
+          destiny %in% c("livestock_mono", "livestock_rum")
+      ]) /
+        sum(mg_n[
+          origin %in%
+            c("Cropland", "semi_natural_agroecosystems", "Outside") &
+            destiny %in% c("livestock_mono", "livestock_rum")
+        ]),
+      Manure_share = sum(mg_n[origin == "Livestock"]) /
+        sum(mg_n[
+          origin %in% c("Livestock", "Synthetic", "Fixation", "Deposition")
+        ]),
+      synthetic_share = sum(mg_n[origin == "Synthetic"]) /
+        sum(mg_n[
+          origin %in% c("Synthetic", "Livestock", "Fixation", "Deposition")
+        ]),
+      .groups = "drop"
+    ) |>
+    tidyr::replace_na(list(
+      imported_feed_share = 0,
+      local_feed_share = 0,
+      feed_from_seminatural_share = 0,
+      Manure_share = 0,
+      synthetic_share = 0
+    ))
+
+  indicators <- indicators |>
+    dplyr::left_join(
+      livestock_density_df,
+      by = c("year" = "Year", "province_name" = "Province_name")
+    ) |>
+    dplyr::left_join(
+      productivity_df,
+      by = c("year" = "Year", "province_name" = "Province_name")
+    ) |>
+    dplyr::mutate(dplyr::across(
+      dplyr::where(is.numeric),
+      ~ tidyr::replace_na(., 0)
+    ))
+
+  indicators <- indicators |>
+    dplyr::mutate(
+      Typology_base = dplyr::case_when(
+        production_seminatural > production_crops ~
+          "Semi-natural agroecosystems",
+        production_crops > animal_ingestion &
+          synthetic_share > 0.4 &
+          crop_productivity >= 10 ~
+          "Specialized cropping systems (intensive)",
+        production_crops > animal_ingestion &
+          synthetic_share <= 0.4 &
+          crop_productivity < 8 ~
+          "Specialized cropping systems (extensive)",
+        Livestock_density > 1.3 &
+          imported_feed_share > 0.6 &
+          feed_from_seminatural_share < 0.4 ~
+          "Specialized livestock systems (intensive)",
+        Livestock_density > 1 &
+          Livestock_density <= 1.3 &
+          imported_feed_share > 0.6 &
+          feed_from_seminatural_share < 0.4 ~
+          "Specialized livestock systems (extensive)",
+        local_feed_share > 0.3 & Manure_share > 0.3 & crop_productivity >= 30 ~
+          "Connected crop-livestock systems (intensive)",
+        local_feed_share > 0.3 & Manure_share > 0.3 & crop_productivity < 30 ~
+          "Connected crop-livestock systems (extensive)",
+        local_feed_share < 0.6 & Manure_share < 0.6 ~
+          "Disconnected crop-livestock systems (intensive)",
+        TRUE ~ "Disconnected crop-livestock systems (extensive)"
+      ),
+      Typology = dplyr::case_when(
+        pop_consumption > production_total ~ "Urban systems",
+        TRUE ~ Typology_base
+      )
+    )
+
+  layer_name <- tools::file_path_sans_ext(basename(shapefile_path))
+  sf_provinces <- sf::st_read(
+    shapefile_path,
+    query = paste0("SELECT * FROM ", layer_name, " WHERE iso_a2='ES'"),
+    quiet = TRUE
+  )
+
+  province_col <- intersect(
+    c("NAME_1", "name", "NAME", "province"),
+    colnames(sf_provinces)
+  )[1]
+
+  sf_provinces <- sf_provinces |>
+    dplyr::mutate(
+      name_clean = stringi::stri_trans_general(
+        .data[[province_col]],
+        "Latin-ASCII"
+      ),
+      name_clean = gsub(" ", "_", name_clean)
+    )
+
+  sf_provinces$name_clean[sf_provinces$name_clean == "La_Rioja"] <- "Rioja"
+  sf_provinces$name_clean[sf_provinces$name_clean == "Alava"] <- "Araba"
+  sf_provinces$name_clean[sf_provinces$name_clean == "Lerida"] <- "Lleida"
+  sf_provinces$name_clean[sf_provinces$name_clean == "Castellon"] <- "Castello"
+  sf_provinces$name_clean[sf_provinces$name_clean == "La_Coruna"] <- "A_Coruna"
+  sf_provinces$name_clean[sf_provinces$name_clean == "Orense"] <- "Ourense"
+  sf_provinces$name_clean[sf_provinces$name_clean == "Gerona"] <- "Girona"
+
+  sf_provinces <- sf_provinces[
+    !sf_provinces$name_clean %in% c("Las_Palmas", "Tenerife"),
+  ]
+
+  typology_colors <- c(
+    "Semi-natural agroecosystems" = "#66a61e",
+    "Specialized cropping systems (intensive)" = "#F7DD5A",
+    "Specialized cropping systems (extensive)" = "#FFF7C2",
+    "Specialized livestock systems (intensive)" = "#b3001b",
+    "Specialized livestock systems (extensive)" = "#C94F6B",
+    "Connected crop-livestock systems (intensive)" = "#7A4F20",
+    "Connected crop-livestock systems (extensive)" = "#AF814B",
+    "Disconnected crop-livestock systems (intensive)" = "#E67E00",
+    "Disconnected crop-livestock systems (extensive)" = "#F6A640",
+    "Urban systems" = "#6A5ACD"
+  )
+
+  typology_levels <- names(typology_colors)
+
+  map_list <- list()
+
+  for (yr in benchmark_years) {
+    df_yr <- indicators |>
+      dplyr::filter(year == yr) |>
+      dplyr::mutate(
+        pattern_type = ifelse(Typology == "Urban systems", "stripe", "none"),
+        pattern_fill = "Urban systems"
+      )
+
+    typology_map <- sf_provinces |>
+      dplyr::inner_join(df_yr, by = c("name_clean" = "province_name"))
+
+    p <- ggplot2::ggplot(typology_map) +
+      ggpattern::geom_sf_pattern(
+        ggplot2::aes(
+          fill = Typology_base,
+          pattern = pattern_type,
+          pattern_fill = pattern_fill
+        ),
+        color = "black",
+        pattern_angle = 45,
+        pattern_density = 0.5,
+        pattern_spacing = 0.05
+      ) +
+      ggplot2::scale_fill_manual(
+        values = typology_colors[names(typology_colors) != "Urban systems"],
+        drop = TRUE
+      ) +
+      ggpattern::scale_pattern_fill_manual(
+        values = c("Urban systems" = typology_colors["Urban systems"]),
+        na.value = NA
+      ) +
+      ggplot2::labs(title = paste("Year", yr)) +
+      ggplot2::theme_minimal() +
+      ggplot2::theme(
+        legend.position = "none",
+        plot.title = ggplot2::element_text(size = 9, face = "plain")
+      )
+
+    map_list[[as.character(yr)]] <- p
+  }
+
+  block_width <- 0.002
+  block_height <- 0.002
+  block_gap <- 0.0006
+  title_y <- 0.505
+
+  n <- length(typology_levels)
+
+  y_top <- seq(from = 0.5, by = -(block_height + block_gap), length.out = n)
+  y_bottom <- y_top - block_height
+
+  legend_df <- data.frame(
+    Typology = typology_levels,
+    Color = unname(typology_colors),
+    is_urban = typology_levels == "Urban systems",
+    ymin = y_bottom,
+    ymax = y_top
+  )
+
+  n_stripes <- 10
+  stripe_df <- subset(legend_df, is_urban)
+
+  stripe_lines <- do.call(
+    rbind,
+    lapply(seq_len(nrow(stripe_df)), function(i) {
+      xs <- seq(0, block_width, length.out = n_stripes)
+      data.frame(
+        x = xs,
+        xend = xs,
+        y = rep(stripe_df$ymin[i], n_stripes),
+        yend = rep(stripe_df$ymax[i], n_stripes)
+      )
+    })
+  )
+
+  legend_plot <- ggplot2::ggplot(legend_df) +
+    ggplot2::annotate(
+      "text",
+      x = 0,
+      y = title_y,
+      label = "Typologies",
+      hjust = 0,
+      vjust = 0,
+      size = 5
+    ) +
+    ggplot2::geom_rect(
+      ggplot2::aes(
+        xmin = 0,
+        xmax = block_width,
+        ymin = ymin,
+        ymax = ymax,
+        fill = ifelse(is_urban, "white", Color)
+      ),
+      color = "black"
+    ) +
+    ggplot2::geom_segment(
+      data = stripe_lines,
+      ggplot2::aes(
+        x = x,
+        xend = xend,
+        y = y,
+        yend = yend
+      ),
+      color = "#6A5ACD",
+      linewidth = 0.28
+    ) +
+    ggplot2::geom_text(
+      ggplot2::aes(
+        x = block_width + 0.001,
+        y = (ymin + ymax) / 2,
+        label = Typology
+      ),
+      hjust = 0,
+      size = 5
+    ) +
+    ggplot2::scale_fill_identity() +
+    ggplot2::scale_x_continuous(
+      limits = c(0, 0.05),
+      expand = c(0, 0)
+    ) +
+    ggplot2::scale_y_continuous(
+      limits = c(min(y_bottom) - 0.005, max(y_top) + 0.01),
+      expand = c(0, 0)
+    ) +
+    ggplot2::coord_fixed(ratio = 1, clip = "off") +
+    ggplot2::theme_void() +
+    ggplot2::theme(
+      plot.margin = ggplot2::margin(2, 2, 2, 2)
+    )
+
+  combined <- patchwork::wrap_plots(map_list, ncol = 3)
+
+  final_plot <- (combined | legend_plot) +
+    patchwork::plot_annotation(
+      title = "Typologies in Spain (1860-2020)"
+    ) &
+    ggplot2::theme(
+      plot.title = ggplot2::element_text(
+        size = 18,
+        margin = ggplot2::margin(t = 0, b = 8)
+      )
+    )
+
+  grid::grid.newpage()
+  print(final_plot)
+
+  output_path <- "C:/PhD/Typologies/Typologies_spain/new_typologies/typologies_spain.png"
+
+  ggplot2::ggsave(
+    filename = output_path,
+    plot = final_plot,
+    width = 16,
+    height = 10,
+    dpi = 300
+  )
+
+  indicators
+}
+
+create_typology_decision_tree <- function() {
+  DiagrammeR::grViz(
+    '
+  digraph decision_tree {
+    graph [rankdir=TB, fontname="Arial", nodesep=0.05, ranksep=0.5]
+    node [shape=rectangle, style=filled, fillcolor=white,
+          fontname="Arial", fontsize=10, margin="0.1,0.08"]
+    edge [fontname="Arial", fontsize=9]
+
+    q_urban    [label="Human consumption > Total agricultural production"]
+    q_semi     [label="Semi-natural production > Crop production x 0.6"]
+    q_crop     [label="Crop production > Animal ingestion"]
+    q_crop_int [label="Synthetic share > 40% & Crop productivity > 10 kg N/ha"]
+    q_ls_cond  [label="Livestock density > 1 LU/ha & Imported feed share > 60%\n& Feed from semi-natural share < 40%"]
+    q_ls_dens  [label="Livestock density > 1.3 LU/ha"]
+    q_conn     [label="Local feed share > 30% & Manure share > 30%"]
+    q_conn_pr  [label="Crop productivity > 30 kg N/ha"]
+    q_disc     [label="Local feed share < 50% & Manure share < 50%\n& Synthetic share > 10%"]
+
+    r_urban  [label="Urban system", fillcolor=white, fontcolor="#6A5ACD", color="#6A5ACD", style="dashed,filled", penwidth=2]
+    r_semi   [label="Semi-natural\nagroecosystem",             fillcolor="#66a61e",  fontcolor=white]
+    r_cr_int [label="Specialized cropping\n(intensive)",       fillcolor="#F7DD5A",  fontcolor=black]
+    r_cr_ext [label="Specialized cropping\n(extensive)",       fillcolor="#FFF7C2",  fontcolor=black]
+    r_ls_int [label="Specialized livestock\n(intensive)",      fillcolor="#b3001b",  fontcolor=white]
+    r_ls_ext [label="Specialized livestock\n(extensive)",      fillcolor="#C94F6B",  fontcolor=white]
+    r_co_int [label="Connected crop-livestock\n(intensive)",   fillcolor="#7A4F20",  fontcolor=white]
+    r_co_ext [label="Connected crop-livestock\n(extensive)",   fillcolor="#AF814B",  fontcolor=white]
+    r_di_int [label="Disconnected crop-livestock\n(intensive)",fillcolor="#E67E00",  fontcolor=white]
+    r_di_ext [label="Disconnected crop-livestock\n(extensive)",fillcolor="#F6A640",  fontcolor=black]
+
+    {rank=same; r_semi; r_cr_int; r_cr_ext; r_ls_int; r_ls_ext; r_co_int; r_co_ext; r_di_int; r_di_ext; r_urban}
+    r_semi -> r_cr_int -> r_cr_ext -> r_ls_int -> r_ls_ext -> r_co_int -> r_co_ext -> r_di_int -> r_di_ext -> r_urban [style=invis]
+
+    q_urban    -> r_urban    [label="Yes"]
+    q_urban    -> q_semi     [label="No"]
+    q_semi     -> r_semi     [label="Yes"]
+    q_semi     -> q_crop     [label="No"]
+    q_crop     -> q_crop_int [label="Yes"]
+    q_crop     -> q_ls_cond  [label="No"]
+    q_crop_int -> r_cr_int   [label="Yes"]
+    q_crop_int -> r_cr_ext   [label="No"]
+    q_ls_cond  -> q_ls_dens  [label="Yes"]
+    q_ls_dens  -> r_ls_int   [label="Yes"]
+    q_ls_dens  -> r_ls_ext   [label="No"]
+    q_ls_cond  -> q_conn     [label="No"]
+    q_conn     -> q_conn_pr  [label="Yes"]
+    q_conn_pr  -> r_co_int   [label="Yes"]
+    q_conn_pr  -> r_co_ext   [label="No"]
+    q_conn     -> q_disc     [label="No"]
+    q_disc     -> r_di_int   [label="Yes"]
+    q_disc     -> r_di_ext   [label="No"]
+  }
+  '
+  )
+}

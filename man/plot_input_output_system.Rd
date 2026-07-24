@@ -4,9 +4,13 @@
 \alias{plot_input_output_system}
 \title{Plot national nitrogen inputs and uses for the full agro-food system.}
 \usage{
-plot_input_output_system(example = FALSE)
+plot_input_output_system(per_ha = FALSE, example = FALSE)
 }
 \arguments{
+\item{per_ha}{Logical. If \code{TRUE}, express nitrogen flows per hectare of
+agricultural land (kg N/ha) instead of national totals (Gg N). Requires
+remote data, so it is ignored in example mode. Default is \code{FALSE}.}
+
 \item{example}{If \code{TRUE}, build the plot from a small example dataset without
 downloading remote data. Default is \code{FALSE}.}
 }
@@ -16,7 +20,8 @@ A \code{ggplot} object.
 \description{
 Builds a stacked-area plot of Spanish national nitrogen inputs (soil inputs
 and imports, as negative values) against uses (feed, food, other uses,
-exports) and surplus over time.
+exports) and surplus over time. A nitrogen "Accumulation" term is added
+when the \code{n_balance_ygpit_all} pin is available.
 }
 \examples{
 plot_input_output_system(example = TRUE)

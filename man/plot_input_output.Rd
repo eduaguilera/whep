@@ -6,12 +6,17 @@
 \usage{
 plot_input_output(
   system = c("Cropland", "semi_natural_agroecosystems"),
+  per_ha = FALSE,
   example = FALSE
 )
 }
 \arguments{
 \item{system}{Character. One of \code{"Cropland"} or
 \code{"semi_natural_agroecosystems"}.}
+
+\item{per_ha}{Logical. If \code{TRUE}, express nitrogen flows per hectare of the
+system's land area (kg N/ha) instead of national totals (Gg N). Requires
+remote data, so it is ignored in example mode. Default is \code{FALSE}.}
 
 \item{example}{If \code{TRUE}, build the plot from a small example dataset without
 downloading remote data. Default is \code{FALSE}.}
@@ -22,7 +27,9 @@ A \code{ggplot} object.
 \description{
 Builds a stacked-area plot of Spanish national nitrogen inputs (as negative
 values), production, residues, and surplus over time for either cropland or
-semi-natural agroecosystems.
+semi-natural agroecosystems. For the semi-natural system a nitrogen
+"Accumulation" term (net soil/biomass N accumulation) is added when the
+\code{n_balance_ygpit_all} pin is available.
 }
 \examples{
 plot_input_output(example = TRUE)
