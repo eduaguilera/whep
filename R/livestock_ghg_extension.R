@@ -101,7 +101,7 @@ build_livestock_ghg_extension <- function(
   )
   n2o <- .sum_emission_cols(emissions, "manure_n2o_total")
   co2e <- ch4 * factors[["ch4"]] + n2o * factors[["n2o"]]
-  .warn_dropped_ghg(co2e)
+  .warn_dropped_ghg(co2e, emissions, tier)
 
   emissions |>
     dplyr::mutate(co2e_kg = co2e) |>
@@ -145,15 +145,51 @@ build_livestock_ghg_extension <- function(
   paste0("IPCC_2019_Tier", tier, "_", toupper(gwp))
 }
 
-.warn_dropped_ghg <- function(co2e) {
+.warn_dropped_ghg <- function(co2e, emissions, tier) {
   n_na <- sum(is.na(co2e))
-  if (n_na > 0L) {
+  if (n_na == 0L) {
+    return(invisible())
+  }
+
+  systematic_species <- .species_with_no_tier_coefs(co2e, emissions)
+  n_systematic <- sum(
+    is.na(co2e) & emissions$species_gen %in% systematic_species
+  )
+  n_partial <- n_na - n_systematic
+
+  if (length(systematic_species) > 0L) {
+    demonstrative <- if (length(systematic_species) == 1L) "this" else "these"
     cli::cli_warn(c(
-      "!" = "Dropping {n_na} livestock row{?s} with unresolved emissions.",
+      "!" = "Dropping {n_systematic} livestock row{?s} for
+        {.val {systematic_species}}: no Tier {tier} coefficients exist for
+        {demonstrative} species.",
+      "i" = "This is a systematic gap (the whole species has no matching
+        coefficient row), not a missing-data one -- Tier 1 (the package
+        default) still covers {demonstrative} species."
+    ))
+  }
+
+  if (n_partial > 0L) {
+    cli::cli_warn(c(
+      "!" = "Dropping {n_partial} livestock row{?s} with unresolved emissions.",
       "i" = "These rows lack the cohort or diet inputs the Tier 2 energy
         balance needs."
     ))
   }
+}
+
+# Species where EVERY row lacking co2e is missing (as opposed to some rows of
+# a species resolving fine and others not, which points to a per-row data gap
+# rather than a species entirely absent from the tier's coefficient tables).
+.species_with_no_tier_coefs <- function(co2e, emissions) {
+  if (!rlang::has_name(emissions, "species_gen")) {
+    return(character())
+  }
+  emissions |>
+    dplyr::mutate(.na = is.na(co2e)) |>
+    dplyr::summarise(.all_na = all(.na), .by = species_gen) |>
+    dplyr::filter(.all_na) |>
+    dplyr::pull(species_gen)
 }
 
 .check_ghg_tier <- function(tier) {
