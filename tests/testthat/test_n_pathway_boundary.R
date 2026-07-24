@@ -106,6 +106,34 @@ testthat::test_that("binding_boundary picks the higher-exceedance medium", {
   testthat::expect_equal(none_row$binding_boundary, "none")
 })
 
+testthat::test_that("a zero-area (non-crop) row gets NA binding_boundary, not 'both'", {
+  # Regression: rows with area_ha 0/NA (the per-cell deposition / urban / SOM
+  # non-crop terms) have NA per-hectare exceedance shares, which fail every
+  # case_when comparison and used to fall through to the "both" default. They
+  # must be NA -- a row with no agricultural area has no binding medium.
+  balance <- dplyr::bind_rows(
+    .npb_balance_fixture(),
+    tibble::tibble(
+      lon = 0.25,
+      lat = 0.25,
+      area_code = 1L,
+      item_cbs_code = NA_integer_,
+      year = 2010L,
+      area_ha = 0,
+      nh3_n_t = 5,
+      no3_n_t = 5
+    )
+  )
+  out <- whep::build_n_pathway_exceedance(
+    balance,
+    .npb_loads_fixture(),
+    resolution = "grid"
+  )
+  na_row <- dplyr::filter(out, is.na(.data$item_cbs_code))
+  testthat::expect_equal(nrow(na_row), 1L)
+  testthat::expect_true(is.na(na_row$binding_boundary))
+})
+
 testthat::test_that("each medium conserves and shares stay in [0, 1]", {
   out <- whep::build_n_pathway_exceedance(
     .npb_balance_fixture(),

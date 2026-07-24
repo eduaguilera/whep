@@ -14,8 +14,8 @@ build_n_boundary_percapita(
 \arguments{
 \item{n_percapita}{A tibble keyed by \code{year}, \code{area_code} with
 \code{n_percapita_kg}, the country total anthropogenic reactive N per capita
-(kg N/cap/yr, synthetic plus biological fixation). Injected (see the file
-note on its upstream derivation).}
+(kg N/cap/yr, synthetic plus biological fixation), from
+\code{\link[=build_n_percapita]{build_n_percapita()}} or injected directly.}
 
 \item{nourishment}{A tibble keyed by \code{year}, \code{area_code} with \code{value_norm}
 (the nourishment normalization, for example a \code{\link[=normalize_nourishment]{normalize_nourishment()}}

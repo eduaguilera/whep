@@ -39,7 +39,10 @@
 #'   binding-threshold layers.
 #' @param land_use Land-use scope: `"all"` (arable plus intensively managed
 #'   grassland), `"ara"` (arable only) or `"igl"` (intensively managed
-#'   grassland).
+#'   grassland). Ignored by the critical-loss layers (`crit_nh3_emission`,
+#'   `crit_leaching_gw`, `crit_load_sw`), which have a single land-use-agnostic
+#'   file; used by the binding threshold and the surplus/input/exceedance
+#'   layers.
 #' @param dir Optional path to the archive directory, overriding
 #'   `WHEP_CRITICAL_N_DIR`. Defaults to `NULL`.
 #' @param data Optional pre-read tibble (`lon`, `lat`, `value`) returned

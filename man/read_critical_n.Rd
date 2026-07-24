@@ -28,7 +28,10 @@ binding-threshold layers.}
 
 \item{land_use}{Land-use scope: \code{"all"} (arable plus intensively managed
 grassland), \code{"ara"} (arable only) or \code{"igl"} (intensively managed
-grassland).}
+grassland). Ignored by the critical-loss layers (\code{crit_nh3_emission},
+\code{crit_leaching_gw}, \code{crit_load_sw}), which have a single land-use-agnostic
+file; used by the binding threshold and the surplus/input/exceedance
+layers.}
 
 \item{dir}{Optional path to the archive directory, overriding
 \code{WHEP_CRITICAL_N_DIR}. Defaults to \code{NULL}.}

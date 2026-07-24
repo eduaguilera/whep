@@ -245,13 +245,18 @@ build_n_pathway_exceedance <- function(
   )
 }
 
-# The medium exceeded most: "none" when neither medium exceeds, otherwise the
-# medium with the strictly greater exceedance share, or "both" on an exact
-# positive tie (all cases handled explicitly).
+# The medium exceeded most: NA when a share is NA (a per-cell row with no
+# agricultural area, e.g. the deposition/urban/SOM non-crop rows, cannot have a
+# binding medium), "none" when neither medium exceeds, otherwise the medium with
+# the strictly greater exceedance share, or "both" on an exact positive tie. The
+# NA clause comes first so those rows are not swept into the "both" default by
+# case_when's non-TRUE-on-NA comparisons.
 .npb_binding <- function(x) {
   dplyr::mutate(
     x,
     binding_boundary = dplyr::case_when(
+      is.na(.data$exceed_share_air) | is.na(.data$exceed_share_water) ~
+        NA_character_,
       .data$exceed_share_air <= 0 & .data$exceed_share_water <= 0 ~ "none",
       .data$exceed_share_air > .data$exceed_share_water ~ "air",
       .data$exceed_share_water > .data$exceed_share_air ~ "water",

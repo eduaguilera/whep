@@ -47,9 +47,11 @@
 #'   ([read_critical_n()] critical surplus), a `critical_loads` list (the three
 #'   medium critical loads for the pathway boundary), `cbs_food`, `population`,
 #'   `n_inputs`, and optionally `biomass_coefs` / `items_full` for the food
-#'   supply and either an `io` model or `fp_flows` for the footprint. When
-#'   neither `io` nor `fp_flows` is present the footprint is traced through a
-#'   domestic-closure fixture built from the extension. Defaults to `list()`.
+#'   supply, `manure_mgmt_nh3_n_t` for the pathway boundary when
+#'   `nh3_source = "total_agricultural"`, and either an `io` model or `fp_flows`
+#'   for the footprint. When neither `io` nor `fp_flows` is present the footprint
+#'   is traced through a domestic-closure fixture built from the extension.
+#'   Defaults to `list()`.
 #' @param surplus_method Surplus definition passed to [calculate_n_surplus()],
 #'   `"harvest_removal"` (default) or `"full_balance"`.
 #' @param boundary_land_use Land-use scope stamp passed to

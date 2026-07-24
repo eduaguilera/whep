@@ -19,9 +19,11 @@ must carry a \code{balance} (\code{\link[=build_nitrogen_balance]{build_nitrogen
 (\code{\link[=read_critical_n]{read_critical_n()}} critical surplus), a \code{critical_loads} list (the three
 medium critical loads for the pathway boundary), \code{cbs_food}, \code{population},
 \code{n_inputs}, and optionally \code{biomass_coefs} / \code{items_full} for the food
-supply and either an \code{io} model or \code{fp_flows} for the footprint. When
-neither \code{io} nor \code{fp_flows} is present the footprint is traced through a
-domestic-closure fixture built from the extension. Defaults to \code{list()}.}
+supply, \code{manure_mgmt_nh3_n_t} for the pathway boundary when
+\code{nh3_source = "total_agricultural"}, and either an \code{io} model or \code{fp_flows}
+for the footprint. When neither \code{io} nor \code{fp_flows} is present the footprint
+is traced through a domestic-closure fixture built from the extension.
+Defaults to \code{list()}.}
 
 \item{surplus_method}{Surplus definition passed to \code{\link[=calculate_n_surplus]{calculate_n_surplus()}},
 \code{"harvest_removal"} (default) or \code{"full_balance"}.}

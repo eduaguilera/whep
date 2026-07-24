@@ -17,10 +17,10 @@
 # here). world_population from the food-supply set approximates the true world
 # population (the set of countries with supply data).
 #
-# Integration note: n_percapita is INJECTED. Deriving it from build_n_inputs()
-# (aggregating the synthetic + BNF input terms to a national total and dividing
-# by population) is an upstream wiring step out of scope for this
-# fixture-tested function.
+# Integration note: n_percapita is produced by build_n_percapita()
+# (R/n_percapita.R), which aggregates build_n_inputs()'s synthetic + BNF terms
+# to a national total and divides by population; it can also be injected
+# directly. This function only normalizes and joins, so it stays fixture-tested.
 
 #' Build the per-capita nitrogen-boundary versus nourishment scatter.
 #'
@@ -41,8 +41,8 @@
 #'
 #' @param n_percapita A tibble keyed by `year`, `area_code` with
 #'   `n_percapita_kg`, the country total anthropogenic reactive N per capita
-#'   (kg N/cap/yr, synthetic plus biological fixation). Injected (see the file
-#'   note on its upstream derivation).
+#'   (kg N/cap/yr, synthetic plus biological fixation), from
+#'   [build_n_percapita()] or injected directly.
 #' @param nourishment A tibble keyed by `year`, `area_code` with `value_norm`
 #'   (the nourishment normalization, for example a [normalize_nourishment()]
 #'   output) and `population` (absolute persons), whose per-year population sum

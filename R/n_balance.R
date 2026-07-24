@@ -304,8 +304,10 @@ build_nitrogen_balance <- function(
 # The NPP result carries each crop's harvested area (area_ha) when the upstream
 # npp_n_input supplied it (the real crop-NPP chain, calculate_crop_npp() etc.,
 # preserves it). When a caller assembled npp_n_input without area_ha, the
-# harvested area is genuinely unknown, so an NA column is added rather than a
-# fabricated value; it then sums (na.rm) to 0 on the balance key.
+# harvested area is genuinely unknown, so an NA column is added instead of a
+# guessed value. That NA collapses (na.rm) to 0 on the balance key, which
+# downstream yields an NA per-hectare rate (the same guard as a true zero-area
+# cell) rather than a spurious finite rate.
 .nb_npp_with_area <- function(npp) {
   if (rlang::has_name(npp, "area_ha")) {
     return(npp)

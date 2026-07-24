@@ -125,7 +125,11 @@ build_food_supply <- function(
       .data$GE_product_edible_portion_MJ_kgFM,
       .data$GE_product_MJ_kgFM
     )
-  )
+  ) |>
+    # One coefficient row per biomass name: biomass_coefs carries duplicate
+    # Name_biomass rows (e.g. livestock cohorts), and without this a name with
+    # >1 row would fan out and double-count food_t downstream.
+    dplyr::distinct(.data$Name_biomass, .keep_all = TRUE)
   dplyr::left_join(bridge, nutrition, by = "Name_biomass")
 }
 
