@@ -330,15 +330,15 @@ calculate_lmdi(
 #> # A tibble: 9 × 5
 #>   period    component_type factor_label       additive multiplicative
 #>   <chr>     <chr>          <chr>                 <dbl>          <dbl>
-#> 1 2010-2011 factor         emissions/activity    21.0           1.2  
+#> 1 2010-2011 factor         emissions/activity    21.0           1.20 
 #> 2 2010-2011 factor         activity              11.0           1.1  
 #> 3 2010-2011 target         emissions             32             1.32 
-#> 4 2011-2012 factor         emissions/activity   -34.4           0.75 
+#> 4 2011-2012 factor         emissions/activity   -34.4           0.750
 #> 5 2011-2012 factor         activity              10.4           1.09 
 #> 6 2011-2012 target         emissions            -24             0.818
 #> 7 2012-2013 factor         emissions/activity    12.5           1.11 
 #> 8 2012-2013 factor         activity               9.50          1.08 
-#> 9 2012-2013 target         emissions             22             1.20 
+#> 9 2012-2013 target         emissions             22.0           1.20 
 
 # --- 6. Structural (sectoral) decomposition with [] notation ---
 # Decomposes emissions into:
