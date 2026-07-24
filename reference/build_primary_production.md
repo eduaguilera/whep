@@ -1,13 +1,16 @@
 # Build primary production dataset
 
 Construct the full primary production dataset from raw FAOSTAT inputs.
-This is a convenience wrapper that chains the three pipeline steps:
+This is a convenience wrapper that chains the pipeline steps:
 
 1.  `.read_production()` — read & reformat FAOSTAT data.
 
 2.  `.fix_production()` — apply Global-ported corrections.
 
-3.  `.qc_production()` — flag data-quality anomalies.
+3.  `.dedup_production()` — keep one value per key across sources.
+
+4.  `.qc_production()` — flag data-quality anomalies on the surviving
+    (deduplicated) values.
 
 ## Usage
 
