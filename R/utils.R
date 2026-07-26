@@ -1020,6 +1020,7 @@ utils::globalVariables(
     "ca_feedlot",
     "ca_pasture",
     "category",
+    "cfi",
     "cfi_mj_day_kg075",
     "climate_zone",
     "cohort",
