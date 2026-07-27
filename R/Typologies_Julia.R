@@ -525,9 +525,12 @@ create_typologies_grafs_spain <- function(
   feed_import_by_province,
   domestic_feed_by_province
 ) {
+  # Both inputs carry LU_total, derived from the same aggregated LU table, so
+  # joining them unsuffixed would produce LU_total.x / LU_total.y and the
+  # select() below would find no LU_total at all. Keep the import-side copy.
   feed_import_by_province |>
     dplyr::left_join(
-      domestic_feed_by_province,
+      domestic_feed_by_province |> dplyr::select(-dplyr::any_of("LU_total")),
       by = c("Year", "Province_name")
     ) |>
     dplyr::mutate(
