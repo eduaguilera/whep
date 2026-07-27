@@ -1384,10 +1384,9 @@ production_diversity_plot <- function() {
   # ---- Load data ----
   flows <- create_n_prov_destiny()
 
-  items <- readxl::read_excel(
-    "C:/PhD/GRAFS/Inputs_SACO/Codes_coefs.xlsx",
-    sheet = "Names_biomass_CB"
-  )
+  # The codes_coefs pin is exactly the Names_biomass_CB sheet of
+  # Codes_coefs.xlsx (same 233 rows, same Name_biomass/Item/Name/Cat_1).
+  items <- whep_read_file("codes_coefs")
 
   df <- dplyr::left_join(
     flows,
@@ -1465,10 +1464,9 @@ intens_spec_sec_axis <- function() {
   flows <- create_n_prov_destiny()
   npp_ygpit <- whep_read_file("npp_ygpit") |> dplyr::rename_with(tolower)
 
-  items <- readxl::read_excel(
-    "C:/PhD/GRAFS/Inputs_SACO/Codes_coefs.xlsx",
-    sheet = "Names_biomass_CB"
-  )
+  # The codes_coefs pin is exactly the Names_biomass_CB sheet of
+  # Codes_coefs.xlsx (same 233 rows, same Name_biomass/Item/Name/Cat_1).
+  items <- whep_read_file("codes_coefs")
 
   df_prod <- flows |>
     dplyr::filter(
@@ -1715,10 +1713,9 @@ n_indicators_ts_plot <- function() {
 spatial_diversity <- function() {
   flows <- create_n_prov_destiny()
 
-  items <- readxl::read_excel(
-    "C:/PhD/GRAFS/Inputs_SACO/Codes_coefs.xlsx",
-    sheet = "Names_biomass_CB"
-  )
+  # The codes_coefs pin is exactly the Names_biomass_CB sheet of
+  # Codes_coefs.xlsx (same 233 rows, same Name_biomass/Item/Name/Cat_1).
+  items <- whep_read_file("codes_coefs")
 
   df <- flows |>
     dplyr::left_join(items, by = c("item" = "Name_biomass")) |>
