@@ -62,8 +62,9 @@ build_livestock_nutrient_flows(
 ## Value
 
 A named list with `applied` (manure applied per
-`land_use x crop (x cell)` with all `method_*` provenance columns),
-`losses` (management-loss side-streams per polity) and `excretion` (the
+`land_use x crop (x cell)` with `manure_type` (`"Excreta"`/`"Solid"`/
+`"Liquid"`) and all `method_*` provenance columns), `losses`
+(management-loss side-streams per polity) and `excretion` (the
 per-category excretion totals).
 
 ## Examples
@@ -84,16 +85,19 @@ gridded <- list(
 )
 build_livestock_nutrient_flows(intake, gridded = gridded)
 #> $applied
-#> # A tibble: 3 × 19
-#>    year territory sub_territory land_use crop  source_stream applied_n applied_c
-#>   <int> <chr>     <lgl>         <chr>    <chr> <chr>             <dbl>     <dbl>
-#> 1  2020 ESP       NA            Cropland barl… collected          2.41      41.0
-#> 2  2020 ESP       NA            Cropland wheat collected          1.61      27.3
-#> 3  2020 ESP       NA            Grassla… NA    grazing            6.29     120. 
-#> # ℹ 11 more variables: applied_vs <dbl>, over_cap <lgl>,
-#> #   method_allocation <chr>, method_cap <chr>, disposal_method <chr>,
-#> #   resolution <chr>, method_n_excretion <chr>, method_vs <chr>,
-#> #   method_mms <chr>, method_losses <chr>, method_transport <chr>
+#> # A tibble: 5 × 20
+#>    year territory sub_territory land_use  crop   source_stream manure_type
+#>   <int> <chr>     <lgl>         <chr>     <chr>  <chr>         <chr>      
+#> 1  2020 ESP       NA            Cropland  barley collected     Solid      
+#> 2  2020 ESP       NA            Cropland  barley collected     Liquid     
+#> 3  2020 ESP       NA            Cropland  wheat  collected     Solid      
+#> 4  2020 ESP       NA            Cropland  wheat  collected     Liquid     
+#> 5  2020 ESP       NA            Grassland NA     grazing       Excreta    
+#> # ℹ 13 more variables: applied_n <dbl>, applied_c <dbl>, applied_vs <dbl>,
+#> #   over_cap <lgl>, method_allocation <chr>, method_cap <chr>,
+#> #   disposal_method <chr>, resolution <chr>, method_n_excretion <chr>,
+#> #   method_vs <chr>, method_mms <chr>, method_losses <chr>,
+#> #   method_transport <chr>
 #> 
 #> $losses
 #> # A tibble: 1 × 10

@@ -191,6 +191,507 @@
         </dt>
         <dd>Read natural-grass productivity from an LPJmL run.</dd>
       </dl></div><div class="section level2">
+      <h2 id="soil-balances-water">Soil balances - water<a class="anchor" aria-label="anchor" href="#soil-balances-water"></a></h2>
+
+      <div class="section-desc"><p>Read LPJmL hydrology outputs (drainage, evapotranspiration components, precipitation, irrigation, runoff, discharge, soil water content and the per-crop net irrigation requirement) into tidy long form, close the gridded soil water balance exposing the footprint-relevant terms (precipitation, applied irrigation, blue and green consumptive water, net irrigation requirement), and assemble the monthly climate drivers for the soil-organic-carbon dynamics.</p></div>
+
+      <dl></dl></div><div class="section level2">
+
+
+
+
+      <dl><dt>
+
+          <code><a href="read_lpjml_hydrology.html">read_lpjml_hydrology()</a></code>
+
+        </dt>
+        <dd>Read an LPJmL hydrology variable into a tidy tibble.</dd>
+
+        <dt>
+
+          <code><a href="read_lpjml_npp.html">read_lpjml_npp()</a></code>
+
+        </dt>
+        <dd>Read a per-PFT annual LPJmL carbon variable into a tidy tibble.</dd>
+
+        <dt>
+
+          <code><a href="read_cru_climate.html">read_cru_climate()</a></code>
+
+        </dt>
+        <dd>Read a CRU TS 4.09 monthly climate variable into a tidy tibble.</dd>
+
+        <dt>
+
+          <code><a href="build_water_balance.html">build_water_balance()</a></code>
+
+        </dt>
+        <dd>Build a gridded soil water balance from LPJmL hydrology.</dd>
+
+        <dt>
+
+          <code><a href="get_soc_climate_drivers.html">get_soc_climate_drivers()</a></code>
+
+        </dt>
+        <dd>Assemble monthly SOC climate drivers from CRU climate and LPJmL hydrology.</dd>
+      </dl></div><div class="section level2">
+      <h2 id="soil-balance-coefficient-tables">Soil-balance coefficient tables<a class="anchor" aria-label="anchor" href="#soil-balance-coefficient-tables"></a></h2>
+
+      <div class="section-desc"><p>Structural parameter tables for the soil-organic-carbon turnover models (HSOC, RothC, ICBM, AMG, Century), the AMG humification coefficient by carbon input type, the soil carbon-to-nitrogen ratios used to convert soil-carbon change into net nitrogen mineralization or sequestration, the per-input-type humification fractions for the HSOC model, and the USDA texture-class soil hydraulic properties (with the HWSD texture-code crosswalk) feeding the ICBM moisture modifier.</p></div>
+
+      <dl></dl></div><div class="section level2">
+
+
+
+
+      <dl><dt>
+
+          <code><a href="soc_turnover_params.html">soc_turnover_params</a></code>
+
+        </dt>
+        <dd>Soil organic carbon turnover parameters by model.</dd>
+
+        <dt>
+
+          <code><a href="amg_h_by_input_type.html">amg_h_by_input_type</a></code>
+
+        </dt>
+        <dd>AMG humification coefficient by carbon input type.</dd>
+
+        <dt>
+
+          <code><a href="soil_cn_ratios.html">soil_cn_ratios</a></code>
+
+        </dt>
+        <dd>Soil carbon-to-nitrogen ratios for organic-matter balances.</dd>
+
+        <dt>
+
+          <code><a href="residue_humification.html">residue_humification</a></code>
+
+        </dt>
+        <dd>Humification fraction by carbon input type.</dd>
+
+        <dt>
+
+          <code><a href="soc_soil_cover_curve.html">soc_soil_cover_curve</a></code>
+
+        </dt>
+        <dd>Generic land-use soil-cover curve for the RothC/HSOC cover factor.</dd>
+
+        <dt>
+
+          <code><a href="soil_hydraulic_by_texture.html">soil_hydraulic_by_texture</a></code>
+
+        </dt>
+        <dd>Soil hydraulic properties by USDA texture class.</dd>
+
+        <dt>
+
+          <code><a href="hwsd_texture_usda.html">hwsd_texture_usda</a></code>
+
+        </dt>
+        <dd>HWSD topsoil USDA texture code to texture-class crosswalk.</dd>
+      </dl></div><div class="section level2">
+      <h2 id="nitrogen-loss-coefficient-tables">Nitrogen-loss coefficient tables<a class="anchor" aria-label="anchor" href="#nitrogen-loss-coefficient-tables"></a></h2>
+
+      <div class="section-desc"><p>Coefficient datasets for the nitrogen-loss cascade (Module C): the disaggregated direct N2O emission factors by climate and irrigation, the fertiliser-type N2O modifying factors, the Meisinger and Randall topsoil denitrification matrix with its drainage-class bins, the subsoil nitrate reduction shares, the MANNER ammonia-volatilisation factor tables (plus the synthetic-fertiliser rate/rainfall factors, the organic-manure incorporation-delay factor, the inorganic nitrogen fraction by species and the gross-default technique/incorporation-delay blend), the IPCC 2006 Tier 1 direct soil N2O factors, the soil organic matter content bins, and the C:N leaching-attenuation and indirect-N2O constants.</p></div>
+
+      <dl></dl></div><div class="section level2">
+
+
+
+
+      <dl><dt>
+
+          <code><a href="n2o_efs_disaggregated.html">n2o_efs_disaggregated</a></code>
+
+        </dt>
+        <dd>Disaggregated direct soil N2O emission factors by climate and irrigation.</dd>
+
+        <dt>
+
+          <code><a href="fertiliser_n2o_modifiers.html">fertiliser_n2o_modifiers</a></code>
+
+        </dt>
+        <dd>Fertiliser-type modifying factors for direct soil N2O.</dd>
+
+        <dt>
+
+          <code><a href="meisinger_denitrification.html">meisinger_denitrification</a></code>
+
+        </dt>
+        <dd>Meisinger and Randall topsoil denitrification share matrix.</dd>
+
+        <dt>
+
+          <code><a href="drainage_ranges.html">drainage_ranges</a></code>
+
+        </dt>
+        <dd>Drainage-class bins keyed on annual soil drainage.</dd>
+
+        <dt>
+
+          <code><a href="subsoil_no3_reduction.html">subsoil_no3_reduction</a></code>
+
+        </dt>
+        <dd>Subsoil nitrate reduction shares by source, climate and irrigation.</dd>
+
+        <dt>
+
+          <code><a href="manner_params.html">manner_params</a></code>
+
+        </dt>
+        <dd>MANNER process-based ammonia-volatilisation factors.</dd>
+
+        <dt>
+
+          <code><a href="manner_rate_factor.html">manner_rate_factor</a></code>
+
+        </dt>
+        <dd>MANNER synthetic-fertiliser application-rate factor.</dd>
+
+        <dt>
+
+          <code><a href="manner_rain_factor.html">manner_rain_factor</a></code>
+
+        </dt>
+        <dd>MANNER synthetic-fertiliser rainfall factor.</dd>
+
+        <dt>
+
+          <code><a href="manner_incorporation_factor.html">manner_incorporation_factor</a></code>
+
+        </dt>
+        <dd>MANNER organic-manure incorporation-delay factor.</dd>
+
+        <dt>
+
+          <code><a href="manure_inorganic_n.html">manure_inorganic_n</a></code>
+
+        </dt>
+        <dd>Inorganic (mineral) nitrogen fraction of excreted manure by species.</dd>
+
+        <dt>
+
+          <code><a href="manner_default_technique_mix.html">manner_default_technique_mix</a></code>
+
+        </dt>
+        <dd>Gross-default technique/incorporation-delay blend for MANNER.</dd>
+
+        <dt>
+
+          <code><a href="n2o_efs_ipcc2006.html">n2o_efs_ipcc2006</a></code>
+
+        </dt>
+        <dd>IPCC 2006 Tier 1 direct soil N2O emission factors by climate and irrigation.</dd>
+
+        <dt>
+
+          <code><a href="som_ranges.html">som_ranges</a></code>
+
+        </dt>
+        <dd>Soil organic matter content bins.</dd>
+
+        <dt>
+
+          <code><a href="n_attenuation_constants.html">n_attenuation_constants</a></code>
+
+        </dt>
+        <dd>Nitrogen leaching-attenuation and indirect-N2O constants.</dd>
+      </dl></div><div class="section level2">
+      <h2 id="urban-nitrogen-coefficient-tables">Urban nitrogen coefficient tables<a class="anchor" aria-label="anchor" href="#urban-nitrogen-coefficient-tables"></a></h2>
+
+      <div class="section-desc"><p>Spain historical benchmark series (Module C, Task C3) behind <code><a href="../reference/build_urban_n.html">build_urban_n()</a></code>’s global default per-capita urban-N-to-agriculture rate: the raw national-total urban nitrogen series and its derived per-capita rate.</p></div>
+
+      <dl></dl></div><div class="section level2">
+
+
+
+
+      <dl><dt>
+
+          <code><a href="urban_n_reference.html">urban_n_reference</a></code>
+
+        </dt>
+        <dd>Spain historical urban nitrogen applied to agriculture.</dd>
+
+        <dt>
+
+          <code><a href="urban_kgn_cap_reference.html">urban_kgn_cap_reference</a></code>
+
+        </dt>
+        <dd>Spain historical per-capita urban nitrogen rate.</dd>
+      </dl></div><div class="section level2">
+      <h2 id="soil-balances-carbon-soc-climate-">Soil balances - carbon (SOC climate)<a class="anchor" aria-label="anchor" href="#soil-balances-carbon-soc-climate-"></a></h2>
+
+      <div class="section-desc"><p>Per-model native climate rate-modifying functions for the soil-organic-carbon turnover models. Each model carries its own published temperature and moisture response (RothC/HSOC a<em>b</em>c, ICBM re_clim, AMGv2 f(T)*f(H), Century DEFAC), not a shared scalar.</p></div>
+
+      <dl></dl></div><div class="section level2">
+
+
+
+
+      <dl><dt>
+
+          <code><a href="soc_rate_modifier_rothc.html">soc_rate_modifier_rothc()</a></code>
+
+        </dt>
+        <dd>Compute the RothC and HSOC annual climate rate modifier.</dd>
+
+        <dt>
+
+          <code><a href="soc_rate_modifier_icbm.html">soc_rate_modifier_icbm()</a></code>
+
+        </dt>
+        <dd>Compute the ICBM annual climate rate modifier.</dd>
+
+        <dt>
+
+          <code><a href="soc_rate_modifier_amg.html">soc_rate_modifier_amg()</a></code>
+
+        </dt>
+        <dd>Compute the AMG (AMGv2) annual climate rate modifier.</dd>
+
+        <dt>
+
+          <code><a href="soc_rate_modifier_century.html">soc_rate_modifier_century()</a></code>
+
+        </dt>
+        <dd>Compute the Century DEFAC annual climate rate modifier.</dd>
+      </dl></div><div class="section level2">
+      <h2 id="soil-balances-carbon-soc-models-">Soil balances - carbon (SOC models)<a class="anchor" aria-label="anchor" href="#soil-balances-carbon-soc-models-"></a></h2>
+
+      <div class="section-desc"><p>Soil-organic-carbon turnover models sharing a common annual call contract. HSOC (two pools plus inert organic matter) and RothC (five pools) step forward in time; ICBM (two pools) and AMG (active plus stable) are analytical; Century (five pools) integrates an ODE. Each pulls its rate constants from <code>soc_turnover_params</code> and takes an annual climate modifier. <code>calculate_soc_dynamics</code> is the selector that dispatches to any of them and builds the per-model native climate modifier from supplied climate drivers.</p></div>
+
+      <dl></dl></div><div class="section level2">
+
+
+
+
+      <dl><dt>
+
+          <code><a href="calculate_soc_dynamics.html">calculate_soc_dynamics()</a></code>
+
+        </dt>
+        <dd>Simulate soil organic carbon dynamics with a selectable model.</dd>
+
+        <dt>
+
+          <code><a href="calculate_soc_hsoc.html">calculate_soc_hsoc()</a></code>
+
+        </dt>
+        <dd>Simulate soil organic carbon with the HSOC two-pool model.</dd>
+
+        <dt>
+
+          <code><a href="calculate_soc_rothc.html">calculate_soc_rothc()</a></code>
+
+        </dt>
+        <dd>Simulate soil organic carbon with the RothC five-pool model.</dd>
+
+        <dt>
+
+          <code><a href="calculate_soc_icbm.html">calculate_soc_icbm()</a></code>
+
+        </dt>
+        <dd>Simulate soil organic carbon with the ICBM two-pool model.</dd>
+
+        <dt>
+
+          <code><a href="calculate_soc_amg.html">calculate_soc_amg()</a></code>
+
+        </dt>
+        <dd>Simulate soil organic carbon with the AMG model.</dd>
+
+        <dt>
+
+          <code><a href="calculate_soc_century.html">calculate_soc_century()</a></code>
+
+        </dt>
+        <dd>Simulate soil organic carbon with the Century five-pool model.</dd>
+      </dl></div><div class="section level2">
+      <h2 id="soil-balances-carbon-inputs-">Soil balances - carbon (inputs)<a class="anchor" aria-label="anchor" href="#soil-balances-carbon-inputs-"></a></h2>
+
+      <div class="section-desc"><p>Assemble the soil carbon-input layer the turnover models consume: crop residue, root and applied-manure carbon per cell, crop and year in megagrams of carbon per hectare, plus the carbon-weighted humification fraction from <code>residue_humification</code>. The grassland and natural-land carbon inputs come from the LPJmL net primary production minus harvested carbon (grassland additionally carrying grazing-excreta carbon).</p></div>
+
+      <dl></dl></div><div class="section level2">
+
+
+
+
+      <dl><dt>
+
+          <code><a href="build_soil_carbon_inputs.html">build_soil_carbon_inputs()</a></code>
+
+        </dt>
+        <dd>Assemble soil carbon inputs per cell, crop and year.</dd>
+
+        <dt>
+
+          <code><a href="build_grass_natural_carbon_inputs.html">build_grass_natural_carbon_inputs()</a></code>
+
+        </dt>
+        <dd>Build grassland and natural-land soil carbon inputs from LPJmL.</dd>
+
+        <dt>
+
+          <code><a href="build_carbon_inputs.html">build_carbon_inputs()</a></code>
+
+        </dt>
+        <dd>Assemble the per-land-use-class soil carbon inputs.</dd>
+      </dl></div><div class="section level2">
+      <h2 id="soil-balances-nitrogen">Soil balances - nitrogen<a class="anchor" aria-label="anchor" href="#soil-balances-nitrogen"></a></h2>
+
+      <div class="section-desc"><p>Gridded nitrogen-balance inputs (Module C). Atmospheric nitrogen deposition from HaNi NHx and NOy, aggregated to WHEP’s 0.5-degree grid and converted to a per-hectare rate using the true latitude-dependent cell area. Urban/human-excreta nitrogen from gridded HYDE population and a per-capita rate, with neighbour-cell transport buffering for cells with no local cropland room. Ammonia-N volatilisation from the MANNER process-based model, for synthetic fertiliser and organic manure, plus a gross-default organic-manure variant that fills in the application technique and incorporation delay from a documented placeholder blend instead of requiring per-cell/per-era survey data. Gridded windspeed and soil pH drivers, the cell-polity assembly, and the polity-to-crop-to-grid spatialization of a country-level nitrogen total (Task C6 infrastructure). The gridded nitrogen INPUT assembly combines every source (BNF, residue/root recycling, manure, deposition, urban, soil organic-matter mineralization, synthetic fertiliser) into one long-format table (Task C6 final phase).</p></div>
+
+      <dl></dl></div><div class="section level2">
+
+
+
+
+      <dl><dt>
+
+          <code><a href="read_n_deposition.html">read_n_deposition()</a></code>
+
+        </dt>
+        <dd>Read a HaNi atmospheric nitrogen deposition species onto WHEP's grid.</dd>
+
+        <dt>
+
+          <code><a href="build_n_deposition.html">build_n_deposition()</a></code>
+
+        </dt>
+        <dd>Build gridded atmospheric nitrogen deposition inputs.</dd>
+
+        <dt>
+
+          <code><a href="read_hyde_population.html">read_hyde_population()</a></code>
+
+        </dt>
+        <dd>Read gridded HYDE urban population onto WHEP's grid.</dd>
+
+        <dt>
+
+          <code><a href="build_urban_n.html">build_urban_n()</a></code>
+
+        </dt>
+        <dd>Build gridded urban/human-excreta nitrogen inputs to agriculture.</dd>
+
+        <dt>
+
+          <code><a href="calculate_manner_nh3.html">calculate_manner_nh3()</a></code>
+
+        </dt>
+        <dd>Estimate ammonia-N volatilisation with the MANNER process-based model.</dd>
+
+        <dt>
+
+          <code><a href="calculate_manner_nh3_default.html">calculate_manner_nh3_default()</a></code>
+
+        </dt>
+        <dd>Estimate ammonia-N volatilisation with MANNER's gross-default technique and incorporation-delay blend.</dd>
+
+        <dt>
+
+          <code><a href="calculate_nh3.html">calculate_nh3()</a></code>
+
+        </dt>
+        <dd>Estimate ammonia-N volatilisation from applied nitrogen.</dd>
+
+        <dt>
+
+          <code><a href="calculate_soil_n2o.html">calculate_soil_n2o()</a></code>
+
+        </dt>
+        <dd>Estimate direct soil N2O emissions from applied nitrogen.</dd>
+
+        <dt>
+
+          <code><a href="calculate_n_leaching.html">calculate_n_leaching()</a></code>
+
+        </dt>
+        <dd>Estimate nitrate leaching, topsoil denitrification and indirect N2O.</dd>
+
+        <dt>
+
+          <code><a href="calculate_indirect_n2o_nh3.html">calculate_indirect_n2o_nh3()</a></code>
+
+        </dt>
+        <dd>Estimate indirect N2O from volatilised ammonia.</dd>
+
+        <dt>
+
+          <code><a href="read_lpjml_wind.html">read_lpjml_wind()</a></code>
+
+        </dt>
+        <dd>Read gridded LPJmL-forcing windspeed onto WHEP's grid.</dd>
+
+        <dt>
+
+          <code><a href="read_soil_ph.html">read_soil_ph()</a></code>
+
+        </dt>
+        <dd>Read gridded soil pH onto WHEP's grid.</dd>
+
+        <dt>
+
+          <code><a href="read_soil_hydraulic.html">read_soil_hydraulic()</a></code>
+
+        </dt>
+        <dd>Read gridded soil hydraulic properties from HWSD onto WHEP's grid.</dd>
+
+        <dt>
+
+          <code><a href="build_cell_polity.html">build_cell_polity()</a></code>
+
+        </dt>
+        <dd>Assemble WHEP's cell-polity crosswalk with true grid-cell area.</dd>
+
+        <dt>
+
+          <code><a href="spatialize_country_n_to_crops.html">spatialize_country_n_to_crops()</a></code>
+
+        </dt>
+        <dd>Spatialize a polity-level nitrogen total to crops and grid cells.</dd>
+
+        <dt>
+
+          <code><a href="build_n_inputs.html">build_n_inputs()</a></code>
+
+        </dt>
+        <dd>Assemble gridded nitrogen inputs from every WHEP N-input source.</dd>
+
+        <dt>
+
+          <code><a href="build_nitrogen_balance.html">build_nitrogen_balance()</a></code>
+
+        </dt>
+        <dd>Build the full nitrogen balance: inputs, outputs, losses and NUE.</dd>
+      </dl></div><div class="section level2">
+      <h2 id="soil-balances-carbon-historical-balance-">Soil balances - carbon (historical balance)<a class="anchor" aria-label="anchor" href="#soil-balances-carbon-historical-balance-"></a></h2>
+
+      <div class="section-desc"><p>Reconstruct per-cell soil-organic-carbon stock trajectories: equilibrium initialisation under the earliest land-use carbon inputs, a forward march on yearly per-cell per-class land-use areas with a carbon-conserving land-use-change transfer, and the derived soil-organic-nitrogen change via the asymmetric soil carbon-to-nitrogen ratios.</p></div>
+
+      <dl></dl></div><div class="section level2">
+
+
+
+
+      <dl><dt>
+
+          <code><a href="build_carbon_balance.html">build_carbon_balance()</a></code>
+
+        </dt>
+        <dd>Build the historical gridded soil-organic-carbon balance.</dd>
+
+        <dt>
+
+          <code><a href="read_luh2_landuse.html">read_luh2_landuse()</a></code>
+
+        </dt>
+        <dd>Read gridded yearly LUH2 land-use-class fractions and areas.</dd>
+      </dl></div><div class="section level2">
       <h2 id="crop-npp-bnf-and-coefficient-tables">Crop NPP, BNF and coefficient tables<a class="anchor" aria-label="anchor" href="#crop-npp-bnf-and-coefficient-tables"></a></h2>
 
       <div class="section-desc"><p>Crop net primary production (products, residues, roots, weeds), biological nitrogen fixation, residue destinies, and the coefficient tables that drive them. Ported from afsetools, item-keyed and multi-method.</p></div>

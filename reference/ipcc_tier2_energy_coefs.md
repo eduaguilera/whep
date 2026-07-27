@@ -63,6 +63,6 @@ ipcc_tier2_energy_coefs
 #> 3 Buffalo  Dairy                  0.386     0.17            0 0.1       0
 #> 4 Buffalo  Non-Dairy              0.322     0.17            0 0.1       0
 #> 5 Sheep    All                    0.217     0.0107          0 0.077     0
-#> 6 Goats    All                    0.217     0.0107          0 0.077     0
+#> 6 Goats    All                    0.315     0.019           0 0.077     0
 #> # ℹ 1 more variable: energy_content_gain_mj_kg <dbl>
 ```

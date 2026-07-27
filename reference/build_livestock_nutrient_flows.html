@@ -108,8 +108,9 @@ passed to <code><a href="allocate_manure_to_land.html">allocate_manure_to_land()
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>A named list with <code>applied</code> (manure applied per
-<code>land_use x crop (x cell)</code> with all <code>method_*</code> provenance columns),
-<code>losses</code> (management-loss side-streams per polity) and <code>excretion</code> (the
+<code>land_use x crop (x cell)</code> with <code>manure_type</code> (<code>"Excreta"</code>/<code>"Solid"</code>/
+<code>"Liquid"</code>) and all <code>method_*</code> provenance columns), <code>losses</code>
+(management-loss side-streams per polity) and <code>excretion</code> (the
 per-category excretion totals).</p>
     </div>
 
@@ -130,16 +131,19 @@ per-category excretion totals).</p>
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">build_livestock_nutrient_flows</span><span class="op">(</span><span class="va">intake</span>, gridded <span class="op">=</span> <span class="va">gridded</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $applied</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 3 × 19</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    year territory sub_territory land_use crop  source_stream applied_n applied_c</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;lgl&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>             <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>020 ESP       <span style="color: #BB0000;">NA</span>            Cropland barl… collected          2.41      41.0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span>  <span style="text-decoration: underline;">2</span>020 ESP       <span style="color: #BB0000;">NA</span>            Cropland wheat collected          1.61      27.3</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">3</span>  <span style="text-decoration: underline;">2</span>020 ESP       <span style="color: #BB0000;">NA</span>            Grassla… <span style="color: #BB0000;">NA</span>    grazing            6.29     120. </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 11 more variables: applied_vs &lt;dbl&gt;, over_cap &lt;lgl&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_allocation &lt;chr&gt;, method_cap &lt;chr&gt;, disposal_method &lt;chr&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   resolution &lt;chr&gt;, method_n_excretion &lt;chr&gt;, method_vs &lt;chr&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_mms &lt;chr&gt;, method_losses &lt;chr&gt;, method_transport &lt;chr&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 5 × 20</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    year territory sub_territory land_use  crop   source_stream manure_type</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;lgl&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>  <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>      </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>020 ESP       <span style="color: #BB0000;">NA</span>            Cropland  barley collected     Solid      </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span>  <span style="text-decoration: underline;">2</span>020 ESP       <span style="color: #BB0000;">NA</span>            Cropland  barley collected     Liquid     </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">3</span>  <span style="text-decoration: underline;">2</span>020 ESP       <span style="color: #BB0000;">NA</span>            Cropland  wheat  collected     Solid      </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">4</span>  <span style="text-decoration: underline;">2</span>020 ESP       <span style="color: #BB0000;">NA</span>            Cropland  wheat  collected     Liquid     </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">5</span>  <span style="text-decoration: underline;">2</span>020 ESP       <span style="color: #BB0000;">NA</span>            Grassland <span style="color: #BB0000;">NA</span>     grazing       Excreta    </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 13 more variables: applied_n &lt;dbl&gt;, applied_c &lt;dbl&gt;, applied_vs &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   over_cap &lt;lgl&gt;, method_allocation &lt;chr&gt;, method_cap &lt;chr&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   disposal_method &lt;chr&gt;, resolution &lt;chr&gt;, method_n_excretion &lt;chr&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_vs &lt;chr&gt;, method_mms &lt;chr&gt;, method_losses &lt;chr&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_transport &lt;chr&gt;</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $losses</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 1 × 10</span></span>

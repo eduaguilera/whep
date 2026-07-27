@@ -29,5 +29,5 @@ ipcc_2019_cfi
 #> 3 Buffalo  Lactating cow                  0.386
 #> 4 Buffalo  Non-lactating/Bulls            0.322
 #> 5 Sheep    All                            0.217
-#> 6 Goats    All                            0.217
+#> 6 Goats    All                            0.315
 ```

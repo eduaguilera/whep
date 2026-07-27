@@ -2,6 +2,43 @@
 
 ## whep (development version)
 
+- Add gridded soil **water, carbon and nitrogen balances** (0.5° cell ×
+  polity fragment).
+  [`build_water_balance()`](https://eduaguilera.github.io/whep/reference/build_water_balance.md)
+  closes the annual cell water budget from LPJmL hydrology and exposes
+  drainage (for N leaching) plus footprint terms;
+  [`get_soc_climate_drivers()`](https://eduaguilera.github.io/whep/reference/get_soc_climate_drivers.md)
+  emits the monthly SOC climate drivers from CRU.
+  [`build_carbon_balance()`](https://eduaguilera.github.io/whep/reference/build_carbon_balance.md)
+  runs historical SOC dynamics (equilibrium init, LUH2-driven land-use
+  march, LUC C-transfer) and derives ΔSON via asymmetric C:N;
+  `calculate_soc_dynamics(model = c("hsoc","rothc","icbm","amg", "century"))`
+  wraps the five SOC models (default `"hsoc"`), fed by
+  [`build_soil_carbon_inputs()`](https://eduaguilera.github.io/whep/reference/build_soil_carbon_inputs.md).
+  [`build_nitrogen_balance()`](https://eduaguilera.github.io/whep/reference/build_nitrogen_balance.md)
+  assembles inputs
+  ([`build_n_inputs()`](https://eduaguilera.github.io/whep/reference/build_n_inputs.md),
+  incl. [`build_n_deposition()`](https://eduaguilera.github.io/whep/reference/build_n_deposition.md)/[`build_urban_n()`](https://eduaguilera.github.io/whep/reference/build_urban_n.md))
+  minus the selectable losses
+  ([`calculate_nh3()`](https://eduaguilera.github.io/whep/reference/calculate_nh3.md)/[`calculate_soil_n2o()`](https://eduaguilera.github.io/whep/reference/calculate_soil_n2o.md)/
+  [`calculate_n_leaching()`](https://eduaguilera.github.io/whep/reference/calculate_n_leaching.md),
+  with the process-based MANNER NH3 model) into surplus, NUE and
+  GWP/CO2e indicators. New readers:
+  [`read_lpjml_hydrology()`](https://eduaguilera.github.io/whep/reference/read_lpjml_hydrology.md),
+  [`read_cru_climate()`](https://eduaguilera.github.io/whep/reference/read_cru_climate.md),
+  [`read_luh2_landuse()`](https://eduaguilera.github.io/whep/reference/read_luh2_landuse.md),
+  [`read_hyde_population()`](https://eduaguilera.github.io/whep/reference/read_hyde_population.md),
+  [`read_lpjml_wind()`](https://eduaguilera.github.io/whep/reference/read_lpjml_wind.md),
+  [`read_soil_ph()`](https://eduaguilera.github.io/whep/reference/read_soil_ph.md),
+  [`read_soil_hydraulic()`](https://eduaguilera.github.io/whep/reference/read_soil_hydraulic.md)
+  (per-cell field capacity, wilting point and porosity from HWSD
+  texture, feeding the ICBM SOC moisture modifier). New coefficient
+  datasets for SOC turnover, humification, C:N, N2O EFs, MANNER and
+  denitrification, the crop growth-stage soil-cover curve
+  (`soc_soil_cover_curve`), and the USDA texture-class soil hydraulic
+  properties (`soil_hydraulic_by_texture`) with the HWSD texture-code
+  crosswalk (`hwsd_texture_usda`).
+
 - Add
   [`ensure_columns()`](https://eduaguilera.github.io/whep/reference/ensure_columns.md)
   to complete tibbles from typed zero-row prototypes, with safe casts,

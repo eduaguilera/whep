@@ -212,10 +212,38 @@ comm -23 \
 - **Processing coefficients**:
   [`build_processing_coefs()`](https://eduaguilera.github.io/whep/reference/build_processing_coefs.md)
   — cascades from CBS.
+- **Soil water balance**:
+  [`build_water_balance()`](https://eduaguilera.github.io/whep/reference/build_water_balance.md)
+  — gridded (0.5° cell × polity) annual water budget from LPJmL
+  hydrology (drainage for N leaching);
+  [`get_soc_climate_drivers()`](https://eduaguilera.github.io/whep/reference/get_soc_climate_drivers.md)
+  emits the monthly SOC climate drivers.
+- **Soil carbon (SOC)**:
+  [`build_carbon_balance()`](https://eduaguilera.github.io/whep/reference/build_carbon_balance.md)
+  — historical gridded SOC dynamics (equilibrium init + LUH2-driven
+  march + LUC transfer), yielding ΔSOC → ΔSON.
+  `calculate_soc_dynamics(model = c("hsoc","rothc","icbm","amg","century"))`
+  wraps the five SOC models (default `"hsoc"`);
+  [`build_soil_carbon_inputs()`](https://eduaguilera.github.io/whep/reference/build_soil_carbon_inputs.md)
+  assembles humified C inputs.
+- **Soil nitrogen balance**:
+  [`build_nitrogen_balance()`](https://eduaguilera.github.io/whep/reference/build_nitrogen_balance.md)
+  — full gridded N balance (inputs − outputs, NUE indicators, GWP/CO2e).
+  [`build_n_inputs()`](https://eduaguilera.github.io/whep/reference/build_n_inputs.md)
+  assembles the input terms;
+  [`calculate_nh3()`](https://eduaguilera.github.io/whep/reference/calculate_nh3.md)/[`calculate_soil_n2o()`](https://eduaguilera.github.io/whep/reference/calculate_soil_n2o.md)/[`calculate_n_leaching()`](https://eduaguilera.github.io/whep/reference/calculate_n_leaching.md)
+  are the selectable loss methods;
+  [`build_n_deposition()`](https://eduaguilera.github.io/whep/reference/build_n_deposition.md)/[`build_urban_n()`](https://eduaguilera.github.io/whep/reference/build_urban_n.md)
+  read gridded deposition and urban/human N.
 - **Source labels**: use dataset-specific names (`FAOSTAT_prod`,
   `FAOSTAT_FBS_New`, etc.).
 - **New data sources**: register via `whep_inputs.csv` + pins system;
-  prepare with `inst/scripts/prepare_upload.R`.
+  prepare with `inst/scripts/prepare_upload.R`. Multi-GB rasters (CRU,
+  LPJmL, HYDE, HaNi, wind, LUH2, HWSD) stay on local disk and are read
+  via env vars (`WHEP_CRU_DIR`, `WHEP_LPJML_RUN_DIR`, `WHEP_HYDE_DIR`,
+  `WHEP_HANI_DIR`, `WHEP_WIND_DIR`, `WHEP_LUH2_DIR`, `WHEP_HWSD_DIR`);
+  the readers abort with an instruction when unset (never hardcode the
+  absolute path).
 
 ## Package data updates
 

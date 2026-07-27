@@ -69,8 +69,15 @@ IPCC Eq 10.16.</p>
 <dd><p>A dataframe with columns <code>species</code>, <code>cohort</code>, <code>heads</code>,
 and optionally <code>iso3</code>. Optional production columns: <code>weight</code>,
 <code>milk_yield_kg_day</code>, <code>fat_percent</code>, <code>weight_gain_kg_day</code>,
-<code>work_hours_day</code>, <code>pregnant_fraction</code>, <code>temperature_c</code>,
-<code>diet_quality</code>, <code>grazing_distance_km</code>, <code>system</code>.</p></dd>
+<code>work_hours_day</code>, <code>work_coef</code>, <code>cfi</code>, <code>pregnant_fraction</code>,
+<code>temperature_c</code>, <code>diet_quality</code>, <code>grazing_distance_km</code>, <code>system</code>.
+<code>work_coef</code> overrides the joined IPCC work coefficient (<code>cw</code>, 0 by
+default for every species) for rows that need draught/work energy
+(IPCC Eq 10.11) without changing the global default. <code>cfi</code> overrides
+the joined maintenance coefficient (<code>cfi_mj_day_kg075</code>, IPCC Eq 10.3)
+for rows whose herd-average maintenance requirement is known from a
+national inventory (e.g. a housed dairy herd calibrated to a
+Zootecnicas/NIR Cfi), without changing the global default.</p></dd>
 
 
 <dt id="arg-method">method<a class="anchor" aria-label="anchor" href="#arg-method"></a></dt>

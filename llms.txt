@@ -179,6 +179,236 @@ ceiling for feed allocation.
 - [`read_lpjml_grass_productivity()`](https://eduaguilera.github.io/whep/reference/read_lpjml_grass_productivity.md)
   : Read natural-grass productivity from an LPJmL run.
 
+## Soil balances - water
+
+Read LPJmL hydrology outputs (drainage, evapotranspiration components,
+precipitation, irrigation, runoff, discharge, soil water content and the
+per-crop net irrigation requirement) into tidy long form, close the
+gridded soil water balance exposing the footprint-relevant terms
+(precipitation, applied irrigation, blue and green consumptive water,
+net irrigation requirement), and assemble the monthly climate drivers
+for the soil-organic-carbon dynamics.
+
+- [`read_lpjml_hydrology()`](https://eduaguilera.github.io/whep/reference/read_lpjml_hydrology.md)
+  : Read an LPJmL hydrology variable into a tidy tibble.
+- [`read_lpjml_npp()`](https://eduaguilera.github.io/whep/reference/read_lpjml_npp.md)
+  : Read a per-PFT annual LPJmL carbon variable into a tidy tibble.
+- [`read_cru_climate()`](https://eduaguilera.github.io/whep/reference/read_cru_climate.md)
+  : Read a CRU TS 4.09 monthly climate variable into a tidy tibble.
+- [`build_water_balance()`](https://eduaguilera.github.io/whep/reference/build_water_balance.md)
+  : Build a gridded soil water balance from LPJmL hydrology.
+- [`get_soc_climate_drivers()`](https://eduaguilera.github.io/whep/reference/get_soc_climate_drivers.md)
+  : Assemble monthly SOC climate drivers from CRU climate and LPJmL
+  hydrology.
+
+## Soil-balance coefficient tables
+
+Structural parameter tables for the soil-organic-carbon turnover models
+(HSOC, RothC, ICBM, AMG, Century), the AMG humification coefficient by
+carbon input type, the soil carbon-to-nitrogen ratios used to convert
+soil-carbon change into net nitrogen mineralization or sequestration,
+the per-input-type humification fractions for the HSOC model, and the
+USDA texture-class soil hydraulic properties (with the HWSD texture-code
+crosswalk) feeding the ICBM moisture modifier.
+
+- [`soc_turnover_params`](https://eduaguilera.github.io/whep/reference/soc_turnover_params.md)
+  : Soil organic carbon turnover parameters by model.
+- [`amg_h_by_input_type`](https://eduaguilera.github.io/whep/reference/amg_h_by_input_type.md)
+  : AMG humification coefficient by carbon input type.
+- [`soil_cn_ratios`](https://eduaguilera.github.io/whep/reference/soil_cn_ratios.md)
+  : Soil carbon-to-nitrogen ratios for organic-matter balances.
+- [`residue_humification`](https://eduaguilera.github.io/whep/reference/residue_humification.md)
+  : Humification fraction by carbon input type.
+- [`soc_soil_cover_curve`](https://eduaguilera.github.io/whep/reference/soc_soil_cover_curve.md)
+  : Generic land-use soil-cover curve for the RothC/HSOC cover factor.
+- [`soil_hydraulic_by_texture`](https://eduaguilera.github.io/whep/reference/soil_hydraulic_by_texture.md)
+  : Soil hydraulic properties by USDA texture class.
+- [`hwsd_texture_usda`](https://eduaguilera.github.io/whep/reference/hwsd_texture_usda.md)
+  : HWSD topsoil USDA texture code to texture-class crosswalk.
+
+## Nitrogen-loss coefficient tables
+
+Coefficient datasets for the nitrogen-loss cascade (Module C): the
+disaggregated direct N2O emission factors by climate and irrigation, the
+fertiliser-type N2O modifying factors, the Meisinger and Randall topsoil
+denitrification matrix with its drainage-class bins, the subsoil nitrate
+reduction shares, the MANNER ammonia-volatilisation factor tables (plus
+the synthetic-fertiliser rate/rainfall factors, the organic-manure
+incorporation-delay factor, the inorganic nitrogen fraction by species
+and the gross-default technique/incorporation-delay blend), the IPCC
+2006 Tier 1 direct soil N2O factors, the soil organic matter content
+bins, and the C:N leaching-attenuation and indirect-N2O constants.
+
+- [`n2o_efs_disaggregated`](https://eduaguilera.github.io/whep/reference/n2o_efs_disaggregated.md)
+  : Disaggregated direct soil N2O emission factors by climate and
+  irrigation.
+- [`fertiliser_n2o_modifiers`](https://eduaguilera.github.io/whep/reference/fertiliser_n2o_modifiers.md)
+  : Fertiliser-type modifying factors for direct soil N2O.
+- [`meisinger_denitrification`](https://eduaguilera.github.io/whep/reference/meisinger_denitrification.md)
+  : Meisinger and Randall topsoil denitrification share matrix.
+- [`drainage_ranges`](https://eduaguilera.github.io/whep/reference/drainage_ranges.md)
+  : Drainage-class bins keyed on annual soil drainage.
+- [`subsoil_no3_reduction`](https://eduaguilera.github.io/whep/reference/subsoil_no3_reduction.md)
+  : Subsoil nitrate reduction shares by source, climate and irrigation.
+- [`manner_params`](https://eduaguilera.github.io/whep/reference/manner_params.md)
+  : MANNER process-based ammonia-volatilisation factors.
+- [`manner_rate_factor`](https://eduaguilera.github.io/whep/reference/manner_rate_factor.md)
+  : MANNER synthetic-fertiliser application-rate factor.
+- [`manner_rain_factor`](https://eduaguilera.github.io/whep/reference/manner_rain_factor.md)
+  : MANNER synthetic-fertiliser rainfall factor.
+- [`manner_incorporation_factor`](https://eduaguilera.github.io/whep/reference/manner_incorporation_factor.md)
+  : MANNER organic-manure incorporation-delay factor.
+- [`manure_inorganic_n`](https://eduaguilera.github.io/whep/reference/manure_inorganic_n.md)
+  : Inorganic (mineral) nitrogen fraction of excreted manure by species.
+- [`manner_default_technique_mix`](https://eduaguilera.github.io/whep/reference/manner_default_technique_mix.md)
+  : Gross-default technique/incorporation-delay blend for MANNER.
+- [`n2o_efs_ipcc2006`](https://eduaguilera.github.io/whep/reference/n2o_efs_ipcc2006.md)
+  : IPCC 2006 Tier 1 direct soil N2O emission factors by climate and
+  irrigation.
+- [`som_ranges`](https://eduaguilera.github.io/whep/reference/som_ranges.md)
+  : Soil organic matter content bins.
+- [`n_attenuation_constants`](https://eduaguilera.github.io/whep/reference/n_attenuation_constants.md)
+  : Nitrogen leaching-attenuation and indirect-N2O constants.
+
+## Urban nitrogen coefficient tables
+
+Spain historical benchmark series (Module C, Task C3) behind
+[`build_urban_n()`](https://eduaguilera.github.io/whep/reference/build_urban_n.md)’s
+global default per-capita urban-N-to-agriculture rate: the raw
+national-total urban nitrogen series and its derived per-capita rate.
+
+- [`urban_n_reference`](https://eduaguilera.github.io/whep/reference/urban_n_reference.md)
+  : Spain historical urban nitrogen applied to agriculture.
+- [`urban_kgn_cap_reference`](https://eduaguilera.github.io/whep/reference/urban_kgn_cap_reference.md)
+  : Spain historical per-capita urban nitrogen rate.
+
+## Soil balances - carbon (SOC climate)
+
+Per-model native climate rate-modifying functions for the
+soil-organic-carbon turnover models. Each model carries its own
+published temperature and moisture response (RothC/HSOC a*b*c, ICBM
+re_clim, AMGv2 f(T)\*f(H), Century DEFAC), not a shared scalar.
+
+- [`soc_rate_modifier_rothc()`](https://eduaguilera.github.io/whep/reference/soc_rate_modifier_rothc.md)
+  : Compute the RothC and HSOC annual climate rate modifier.
+- [`soc_rate_modifier_icbm()`](https://eduaguilera.github.io/whep/reference/soc_rate_modifier_icbm.md)
+  : Compute the ICBM annual climate rate modifier.
+- [`soc_rate_modifier_amg()`](https://eduaguilera.github.io/whep/reference/soc_rate_modifier_amg.md)
+  : Compute the AMG (AMGv2) annual climate rate modifier.
+- [`soc_rate_modifier_century()`](https://eduaguilera.github.io/whep/reference/soc_rate_modifier_century.md)
+  : Compute the Century DEFAC annual climate rate modifier.
+
+## Soil balances - carbon (SOC models)
+
+Soil-organic-carbon turnover models sharing a common annual call
+contract. HSOC (two pools plus inert organic matter) and RothC (five
+pools) step forward in time; ICBM (two pools) and AMG (active plus
+stable) are analytical; Century (five pools) integrates an ODE. Each
+pulls its rate constants from `soc_turnover_params` and takes an annual
+climate modifier. `calculate_soc_dynamics` is the selector that
+dispatches to any of them and builds the per-model native climate
+modifier from supplied climate drivers.
+
+- [`calculate_soc_dynamics()`](https://eduaguilera.github.io/whep/reference/calculate_soc_dynamics.md)
+  : Simulate soil organic carbon dynamics with a selectable model.
+- [`calculate_soc_hsoc()`](https://eduaguilera.github.io/whep/reference/calculate_soc_hsoc.md)
+  : Simulate soil organic carbon with the HSOC two-pool model.
+- [`calculate_soc_rothc()`](https://eduaguilera.github.io/whep/reference/calculate_soc_rothc.md)
+  : Simulate soil organic carbon with the RothC five-pool model.
+- [`calculate_soc_icbm()`](https://eduaguilera.github.io/whep/reference/calculate_soc_icbm.md)
+  : Simulate soil organic carbon with the ICBM two-pool model.
+- [`calculate_soc_amg()`](https://eduaguilera.github.io/whep/reference/calculate_soc_amg.md)
+  : Simulate soil organic carbon with the AMG model.
+- [`calculate_soc_century()`](https://eduaguilera.github.io/whep/reference/calculate_soc_century.md)
+  : Simulate soil organic carbon with the Century five-pool model.
+
+## Soil balances - carbon (inputs)
+
+Assemble the soil carbon-input layer the turnover models consume: crop
+residue, root and applied-manure carbon per cell, crop and year in
+megagrams of carbon per hectare, plus the carbon-weighted humification
+fraction from `residue_humification`. The grassland and natural-land
+carbon inputs come from the LPJmL net primary production minus harvested
+carbon (grassland additionally carrying grazing-excreta carbon).
+
+- [`build_soil_carbon_inputs()`](https://eduaguilera.github.io/whep/reference/build_soil_carbon_inputs.md)
+  : Assemble soil carbon inputs per cell, crop and year.
+- [`build_grass_natural_carbon_inputs()`](https://eduaguilera.github.io/whep/reference/build_grass_natural_carbon_inputs.md)
+  : Build grassland and natural-land soil carbon inputs from LPJmL.
+- [`build_carbon_inputs()`](https://eduaguilera.github.io/whep/reference/build_carbon_inputs.md)
+  : Assemble the per-land-use-class soil carbon inputs.
+
+## Soil balances - nitrogen
+
+Gridded nitrogen-balance inputs (Module C). Atmospheric nitrogen
+deposition from HaNi NHx and NOy, aggregated to WHEP’s 0.5-degree grid
+and converted to a per-hectare rate using the true latitude-dependent
+cell area. Urban/human-excreta nitrogen from gridded HYDE population and
+a per-capita rate, with neighbour-cell transport buffering for cells
+with no local cropland room. Ammonia-N volatilisation from the MANNER
+process-based model, for synthetic fertiliser and organic manure, plus a
+gross-default organic-manure variant that fills in the application
+technique and incorporation delay from a documented placeholder blend
+instead of requiring per-cell/per-era survey data. Gridded windspeed and
+soil pH drivers, the cell-polity assembly, and the
+polity-to-crop-to-grid spatialization of a country-level nitrogen total
+(Task C6 infrastructure). The gridded nitrogen INPUT assembly combines
+every source (BNF, residue/root recycling, manure, deposition, urban,
+soil organic-matter mineralization, synthetic fertiliser) into one
+long-format table (Task C6 final phase).
+
+- [`read_n_deposition()`](https://eduaguilera.github.io/whep/reference/read_n_deposition.md)
+  : Read a HaNi atmospheric nitrogen deposition species onto WHEP's
+  grid.
+- [`build_n_deposition()`](https://eduaguilera.github.io/whep/reference/build_n_deposition.md)
+  : Build gridded atmospheric nitrogen deposition inputs.
+- [`read_hyde_population()`](https://eduaguilera.github.io/whep/reference/read_hyde_population.md)
+  : Read gridded HYDE urban population onto WHEP's grid.
+- [`build_urban_n()`](https://eduaguilera.github.io/whep/reference/build_urban_n.md)
+  : Build gridded urban/human-excreta nitrogen inputs to agriculture.
+- [`calculate_manner_nh3()`](https://eduaguilera.github.io/whep/reference/calculate_manner_nh3.md)
+  : Estimate ammonia-N volatilisation with the MANNER process-based
+  model.
+- [`calculate_manner_nh3_default()`](https://eduaguilera.github.io/whep/reference/calculate_manner_nh3_default.md)
+  : Estimate ammonia-N volatilisation with MANNER's gross-default
+  technique and incorporation-delay blend.
+- [`calculate_nh3()`](https://eduaguilera.github.io/whep/reference/calculate_nh3.md)
+  : Estimate ammonia-N volatilisation from applied nitrogen.
+- [`calculate_soil_n2o()`](https://eduaguilera.github.io/whep/reference/calculate_soil_n2o.md)
+  : Estimate direct soil N2O emissions from applied nitrogen.
+- [`calculate_n_leaching()`](https://eduaguilera.github.io/whep/reference/calculate_n_leaching.md)
+  : Estimate nitrate leaching, topsoil denitrification and indirect N2O.
+- [`calculate_indirect_n2o_nh3()`](https://eduaguilera.github.io/whep/reference/calculate_indirect_n2o_nh3.md)
+  : Estimate indirect N2O from volatilised ammonia.
+- [`read_lpjml_wind()`](https://eduaguilera.github.io/whep/reference/read_lpjml_wind.md)
+  : Read gridded LPJmL-forcing windspeed onto WHEP's grid.
+- [`read_soil_ph()`](https://eduaguilera.github.io/whep/reference/read_soil_ph.md)
+  : Read gridded soil pH onto WHEP's grid.
+- [`read_soil_hydraulic()`](https://eduaguilera.github.io/whep/reference/read_soil_hydraulic.md)
+  : Read gridded soil hydraulic properties from HWSD onto WHEP's grid.
+- [`build_cell_polity()`](https://eduaguilera.github.io/whep/reference/build_cell_polity.md)
+  : Assemble WHEP's cell-polity crosswalk with true grid-cell area.
+- [`spatialize_country_n_to_crops()`](https://eduaguilera.github.io/whep/reference/spatialize_country_n_to_crops.md)
+  : Spatialize a polity-level nitrogen total to crops and grid cells.
+- [`build_n_inputs()`](https://eduaguilera.github.io/whep/reference/build_n_inputs.md)
+  : Assemble gridded nitrogen inputs from every WHEP N-input source.
+- [`build_nitrogen_balance()`](https://eduaguilera.github.io/whep/reference/build_nitrogen_balance.md)
+  : Build the full nitrogen balance: inputs, outputs, losses and NUE.
+
+## Soil balances - carbon (historical balance)
+
+Reconstruct per-cell soil-organic-carbon stock trajectories: equilibrium
+initialisation under the earliest land-use carbon inputs, a forward
+march on yearly per-cell per-class land-use areas with a
+carbon-conserving land-use-change transfer, and the derived
+soil-organic-nitrogen change via the asymmetric soil carbon-to-nitrogen
+ratios.
+
+- [`build_carbon_balance()`](https://eduaguilera.github.io/whep/reference/build_carbon_balance.md)
+  : Build the historical gridded soil-organic-carbon balance.
+- [`read_luh2_landuse()`](https://eduaguilera.github.io/whep/reference/read_luh2_landuse.md)
+  : Read gridded yearly LUH2 land-use-class fractions and areas.
+
 ## Crop NPP, BNF and coefficient tables
 
 Crop net primary production (products, residues, roots, weeds),

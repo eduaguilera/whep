@@ -19,9 +19,16 @@ estimate_energy_demand(data, method = "ipcc2019")
 
   A dataframe with columns `species`, `cohort`, `heads`, and optionally
   `iso3`. Optional production columns: `weight`, `milk_yield_kg_day`,
-  `fat_percent`, `weight_gain_kg_day`, `work_hours_day`,
-  `pregnant_fraction`, `temperature_c`, `diet_quality`,
-  `grazing_distance_km`, `system`.
+  `fat_percent`, `weight_gain_kg_day`, `work_hours_day`, `work_coef`,
+  `cfi`, `pregnant_fraction`, `temperature_c`, `diet_quality`,
+  `grazing_distance_km`, `system`. `work_coef` overrides the joined IPCC
+  work coefficient (`cw`, 0 by default for every species) for rows that
+  need draught/work energy (IPCC Eq 10.11) without changing the global
+  default. `cfi` overrides the joined maintenance coefficient
+  (`cfi_mj_day_kg075`, IPCC Eq 10.3) for rows whose herd-average
+  maintenance requirement is known from a national inventory (e.g. a
+  housed dairy herd calibrated to a Zootecnicas/NIR Cfi), without
+  changing the global default.
 
 - method:
 

@@ -163,9 +163,15 @@
 <li>
 <strong>Processing coefficients</strong>: <code><a href="reference/build_processing_coefs.html">build_processing_coefs()</a></code> — cascades from CBS.</li>
 <li>
+<strong>Soil water balance</strong>: <code><a href="reference/build_water_balance.html">build_water_balance()</a></code> — gridded (0.5° cell × polity) annual water budget from LPJmL hydrology (drainage for N leaching); <code><a href="reference/get_soc_climate_drivers.html">get_soc_climate_drivers()</a></code> emits the monthly SOC climate drivers.</li>
+<li>
+<strong>Soil carbon (SOC)</strong>: <code><a href="reference/build_carbon_balance.html">build_carbon_balance()</a></code> — historical gridded SOC dynamics (equilibrium init + LUH2-driven march + LUC transfer), yielding ΔSOC → ΔSON. <code>calculate_soc_dynamics(model = c("hsoc","rothc","icbm","amg","century"))</code> wraps the five SOC models (default <code>"hsoc"</code>); <code><a href="reference/build_soil_carbon_inputs.html">build_soil_carbon_inputs()</a></code> assembles humified C inputs.</li>
+<li>
+<strong>Soil nitrogen balance</strong>: <code><a href="reference/build_nitrogen_balance.html">build_nitrogen_balance()</a></code> — full gridded N balance (inputs − outputs, NUE indicators, GWP/CO2e). <code><a href="reference/build_n_inputs.html">build_n_inputs()</a></code> assembles the input terms; <code><a href="reference/calculate_nh3.html">calculate_nh3()</a></code>/<code><a href="reference/calculate_soil_n2o.html">calculate_soil_n2o()</a></code>/<code><a href="reference/calculate_n_leaching.html">calculate_n_leaching()</a></code> are the selectable loss methods; <code><a href="reference/build_n_deposition.html">build_n_deposition()</a></code>/<code><a href="reference/build_urban_n.html">build_urban_n()</a></code> read gridded deposition and urban/human N.</li>
+<li>
 <strong>Source labels</strong>: use dataset-specific names (<code>FAOSTAT_prod</code>, <code>FAOSTAT_FBS_New</code>, etc.).</li>
 <li>
-<strong>New data sources</strong>: register via <code>whep_inputs.csv</code> + pins system; prepare with <code>inst/scripts/prepare_upload.R</code>.</li>
+<strong>New data sources</strong>: register via <code>whep_inputs.csv</code> + pins system; prepare with <code>inst/scripts/prepare_upload.R</code>. Multi-GB rasters (CRU, LPJmL, HYDE, HaNi, wind, LUH2, HWSD) stay on local disk and are read via env vars (<code>WHEP_CRU_DIR</code>, <code>WHEP_LPJML_RUN_DIR</code>, <code>WHEP_HYDE_DIR</code>, <code>WHEP_HANI_DIR</code>, <code>WHEP_WIND_DIR</code>, <code>WHEP_LUH2_DIR</code>, <code>WHEP_HWSD_DIR</code>); the readers abort with an instruction when unset (never hardcode the absolute path).</li>
 </ul></div>
 <div class="section level2">
 <h2 id="package-data-updates">Package data updates<a class="anchor" aria-label="anchor" href="#package-data-updates"></a></h2>

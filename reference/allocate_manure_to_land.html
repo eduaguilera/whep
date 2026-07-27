@@ -108,17 +108,29 @@ with <code>grass_n_cap</code> (t N) or <code>grass_area_ha</code>. The grassland
     <p>A tibble with one row per allocation target: <code>year</code>, <code>territory</code>,
 <code>sub_territory</code>, <code>land_use</code> (<code>"Cropland"</code>/<code>"Grassland"</code>/<code>"Disposal"</code>/
 <code>"Unallocated"</code>), <code>crop</code>, <code>source_stream</code> (<code>"collected"</code>/<code>"grazing"</code>),
-<code>applied_n</code>, <code>applied_c</code>, <code>applied_vs</code>, <code>over_cap</code> and the
-<code>method_allocation</code>, <code>method_cap</code> and <code>disposal_method</code> provenance columns.</p>
+<code>manure_type</code> (<code>"Excreta"</code>/<code>"Solid"</code>/<code>"Liquid"</code>, carried from <code>applied</code>
+when present; each allocated row's N/C/VS is split across the
+<code>manure_type</code>s in proportion to their share of the cell's collected N,
+so the capacity-filling math itself stays pooled), <code>applied_n</code>,
+<code>applied_c</code>, <code>applied_vs</code>, <code>over_cap</code> and the <code>method_allocation</code>,
+<code>method_cap</code> and <code>disposal_method</code> provenance columns. The N split by
+<code>manure_type</code> is exact (mass-conserving per type); <code>applied_c</code> and
+<code>applied_vs</code> are split by the SAME N-proportional share, not by each
+<code>manure_type</code>'s own C:N/VS:N ratio, so a per-<code>manure_type</code> carbon or
+volatile-solids figure does not reflect that type's actual composition
+(e.g. solid vs. liquid manure have materially different C:N). Callers
+needing manure-type-specific carbon/VS (e.g. CH4 potential by system)
+should not rely on the <code>manure_type</code>-broken-out <code>applied_c</code>/
+<code>applied_vs</code> columns without accounting for this.</p>
     </div>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="va">applied</span> <span class="op">&lt;-</span> <span class="fu">tibble</span><span class="fu">::</span><span class="fu"><a href="https://tibble.tidyverse.org/reference/tribble.html" class="external-link">tribble</a></span><span class="op">(</span></span></span>
-<span class="r-in"><span>  <span class="op">~</span><span class="va">year</span>, <span class="op">~</span><span class="va">territory</span>, <span class="op">~</span><span class="va">sub_territory</span>, <span class="op">~</span><span class="va">stream</span>,</span></span>
+<span class="r-in"><span>  <span class="op">~</span><span class="va">year</span>, <span class="op">~</span><span class="va">territory</span>, <span class="op">~</span><span class="va">sub_territory</span>, <span class="op">~</span><span class="va">stream</span>, <span class="op">~</span><span class="va">manure_type</span>,</span></span>
 <span class="r-in"><span>  <span class="op">~</span><span class="va">applied_n</span>, <span class="op">~</span><span class="va">applied_c</span>, <span class="op">~</span><span class="va">applied_vs</span>,</span></span>
-<span class="r-in"><span>  <span class="fl">2020L</span>, <span class="st">"ESP"</span>, <span class="cn">NA</span>, <span class="st">"collected"</span>, <span class="fl">80</span>, <span class="fl">800</span>, <span class="fl">40</span>,</span></span>
-<span class="r-in"><span>  <span class="fl">2020L</span>, <span class="st">"ESP"</span>, <span class="cn">NA</span>, <span class="st">"grazing"</span>, <span class="fl">20</span>, <span class="fl">380</span>, <span class="fl">12</span></span></span>
+<span class="r-in"><span>  <span class="fl">2020L</span>, <span class="st">"ESP"</span>, <span class="cn">NA</span>, <span class="st">"collected"</span>, <span class="st">"Solid"</span>, <span class="fl">80</span>, <span class="fl">800</span>, <span class="fl">40</span>,</span></span>
+<span class="r-in"><span>  <span class="fl">2020L</span>, <span class="st">"ESP"</span>, <span class="cn">NA</span>, <span class="st">"grazing"</span>, <span class="st">"Excreta"</span>, <span class="fl">20</span>, <span class="fl">380</span>, <span class="fl">12</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">crops</span> <span class="op">&lt;-</span> <span class="fu">tibble</span><span class="fu">::</span><span class="fu"><a href="https://tibble.tidyverse.org/reference/tribble.html" class="external-link">tribble</a></span><span class="op">(</span></span></span>
 <span class="r-in"><span>  <span class="op">~</span><span class="va">year</span>, <span class="op">~</span><span class="va">territory</span>, <span class="op">~</span><span class="va">sub_territory</span>, <span class="op">~</span><span class="va">crop</span>, <span class="op">~</span><span class="va">manure_n_receptivity</span>, <span class="op">~</span><span class="va">crop_n_cap</span>,</span></span>
@@ -126,14 +138,15 @@ with <code>grass_n_cap</code> (t N) or <code>grass_area_ha</code>. The grassland
 <span class="r-in"><span>  <span class="fl">2020L</span>, <span class="st">"ESP"</span>, <span class="cn">NA</span>, <span class="st">"wheat"</span>, <span class="fl">4</span>, <span class="fl">40</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">allocate_manure_to_land</span><span class="op">(</span><span class="va">applied</span>, <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>crops <span class="op">=</span> <span class="va">crops</span><span class="op">)</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 3 × 13</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    year territory sub_territory land_use crop  source_stream applied_n applied_c</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;lgl&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>             <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>020 ESP       <span style="color: #BB0000;">NA</span>            Cropland barl… collected            48       480</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span>  <span style="text-decoration: underline;">2</span>020 ESP       <span style="color: #BB0000;">NA</span>            Cropland wheat collected            32       320</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">3</span>  <span style="text-decoration: underline;">2</span>020 ESP       <span style="color: #BB0000;">NA</span>            Grassla… <span style="color: #BB0000;">NA</span>    grazing              20       380</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 5 more variables: applied_vs &lt;dbl&gt;, over_cap &lt;lgl&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_allocation &lt;chr&gt;, method_cap &lt;chr&gt;, disposal_method &lt;chr&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 3 × 14</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    year territory sub_territory land_use  crop   source_stream manure_type</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;lgl&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>  <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>      </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>020 ESP       <span style="color: #BB0000;">NA</span>            Cropland  barley collected     Solid      </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span>  <span style="text-decoration: underline;">2</span>020 ESP       <span style="color: #BB0000;">NA</span>            Cropland  wheat  collected     Solid      </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">3</span>  <span style="text-decoration: underline;">2</span>020 ESP       <span style="color: #BB0000;">NA</span>            Grassland <span style="color: #BB0000;">NA</span>     grazing       Excreta    </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 7 more variables: applied_n &lt;dbl&gt;, applied_c &lt;dbl&gt;, applied_vs &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   over_cap &lt;lgl&gt;, method_allocation &lt;chr&gt;, method_cap &lt;chr&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   disposal_method &lt;chr&gt;</span></span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

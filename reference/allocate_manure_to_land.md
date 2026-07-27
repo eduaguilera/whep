@@ -58,18 +58,29 @@ allocate_manure_to_land(applied, gridded = list(), options = list())
 A tibble with one row per allocation target: `year`, `territory`,
 `sub_territory`, `land_use` (`"Cropland"`/`"Grassland"`/`"Disposal"`/
 `"Unallocated"`), `crop`, `source_stream` (`"collected"`/`"grazing"`),
-`applied_n`, `applied_c`, `applied_vs`, `over_cap` and the
-`method_allocation`, `method_cap` and `disposal_method` provenance
-columns.
+`manure_type` (`"Excreta"`/`"Solid"`/`"Liquid"`, carried from `applied`
+when present; each allocated row's N/C/VS is split across the
+`manure_type`s in proportion to their share of the cell's collected N,
+so the capacity-filling math itself stays pooled), `applied_n`,
+`applied_c`, `applied_vs`, `over_cap` and the `method_allocation`,
+`method_cap` and `disposal_method` provenance columns. The N split by
+`manure_type` is exact (mass-conserving per type); `applied_c` and
+`applied_vs` are split by the SAME N-proportional share, not by each
+`manure_type`'s own C:N/VS:N ratio, so a per-`manure_type` carbon or
+volatile-solids figure does not reflect that type's actual composition
+(e.g. solid vs. liquid manure have materially different C:N). Callers
+needing manure-type-specific carbon/VS (e.g. CH4 potential by system)
+should not rely on the `manure_type`-broken-out `applied_c`/
+`applied_vs` columns without accounting for this.
 
 ## Examples
 
 ``` r
 applied <- tibble::tribble(
-  ~year, ~territory, ~sub_territory, ~stream,
+  ~year, ~territory, ~sub_territory, ~stream, ~manure_type,
   ~applied_n, ~applied_c, ~applied_vs,
-  2020L, "ESP", NA, "collected", 80, 800, 40,
-  2020L, "ESP", NA, "grazing", 20, 380, 12
+  2020L, "ESP", NA, "collected", "Solid", 80, 800, 40,
+  2020L, "ESP", NA, "grazing", "Excreta", 20, 380, 12
 )
 crops <- tibble::tribble(
   ~year, ~territory, ~sub_territory, ~crop, ~manure_n_receptivity, ~crop_n_cap,
@@ -77,12 +88,13 @@ crops <- tibble::tribble(
   2020L, "ESP", NA, "wheat", 4, 40
 )
 allocate_manure_to_land(applied, list(crops = crops))
-#> # A tibble: 3 × 13
-#>    year territory sub_territory land_use crop  source_stream applied_n applied_c
-#>   <int> <chr>     <lgl>         <chr>    <chr> <chr>             <dbl>     <dbl>
-#> 1  2020 ESP       NA            Cropland barl… collected            48       480
-#> 2  2020 ESP       NA            Cropland wheat collected            32       320
-#> 3  2020 ESP       NA            Grassla… NA    grazing              20       380
-#> # ℹ 5 more variables: applied_vs <dbl>, over_cap <lgl>,
-#> #   method_allocation <chr>, method_cap <chr>, disposal_method <chr>
+#> # A tibble: 3 × 14
+#>    year territory sub_territory land_use  crop   source_stream manure_type
+#>   <int> <chr>     <lgl>         <chr>     <chr>  <chr>         <chr>      
+#> 1  2020 ESP       NA            Cropland  barley collected     Solid      
+#> 2  2020 ESP       NA            Cropland  wheat  collected     Solid      
+#> 3  2020 ESP       NA            Grassland NA     grazing       Excreta    
+#> # ℹ 7 more variables: applied_n <dbl>, applied_c <dbl>, applied_vs <dbl>,
+#> #   over_cap <lgl>, method_allocation <chr>, method_cap <chr>,
+#> #   disposal_method <chr>
 ```
