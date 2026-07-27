@@ -726,3 +726,27 @@ test_that("carbon builders expose a years argument threaded to readers", {
   testthat::expect_true("years" %in% names(formals(whep:::.sci_read_npp)))
   testthat::expect_true("years" %in% names(formals(whep:::.sci_read_manure)))
 })
+
+test_that("cell-years without climate coverage are dropped with a warning", {
+  d <- .cb_test_data()
+  # A second cell present in land_use + c_inputs but absent from climate/clay:
+  # its climate_modifier resolves to NA. The run must warn and drop it, not
+  # abort, and still return the covered cell's SOC.
+  shift <- function(df) {
+    df$lon <- 88.25
+    df$lat <- 8.25
+    df$area_code <- 777L
+    df
+  }
+  d$land_use <- dplyr::bind_rows(d$land_use, shift(d$land_use))
+  d$c_inputs <- dplyr::bind_rows(d$c_inputs, shift(d$c_inputs))
+
+  testthat::expect_warning(
+    whep::build_carbon_balance(model = "hsoc", data = d),
+    "Dropped"
+  )
+  out <- suppressWarnings(whep::build_carbon_balance(model = "hsoc", data = d))
+  testthat::expect_false(any(out$area_code == 777L))
+  testthat::expect_true(any(out$area_code == 1L))
+  testthat::expect_true(all(is.finite(out$stock_mgc_ha)))
+})

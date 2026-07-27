@@ -131,7 +131,8 @@ build_carbon_balance <- function(
 # from the raw monthly drivers via the selected model's native climate function,
 # reduced PER LAND USE so the RothC/HSOC plant-cover term differs between
 # cropland (crop growth-stage curve) and grassland/natural (perennial cover);
-# see `.cb_climate_modifier_table()`. A genuinely missing modifier aborts.
+# see `.cb_climate_modifier_table()`. A cell-year with no modifier at all (no
+# climate coverage) is dropped with a warning by `.cb_drop_uncovered_climate()`.
 .cb_class_table <- function(d, model) {
   clay <- d$clay
   base <- d$land_use |>
@@ -151,7 +152,7 @@ build_carbon_balance <- function(
   base |>
     .cb_join_modifier(modifiers) |>
     dplyr::left_join(clay, by = c("lon", "lat")) |>
-    .cb_check_climate_modifier()
+    .cb_drop_uncovered_climate()
 }
 
 # Join the modifier table onto the class table. The raw-driver modifier table
@@ -167,25 +168,26 @@ build_carbon_balance <- function(
   }
 }
 
-# Abort if any cell-year that has land-use and carbon-input coverage lacks a
-# climate modifier: a missing modifier is a real climate-data gap and must not
-# be silently replaced by a neutral 1 (which would run SOC turnover at
-# unmodified decomposition and hide the gap). The per-model native modifier path
-# already returns a legitimate 1 when only the raw driver columns are absent
-# (soc_dynamics.R:80-81), so an NA here means the cell-year is missing from the
-# climate table entirely, never a merely driverless cell.
-.cb_check_climate_modifier <- function(classes) {
+# Drop cell-years that have land-use and carbon-input coverage but no climate
+# modifier. An NA here means the cell-year is missing from the climate table
+# entirely (a real climate-data gap), never a merely driverless cell: the
+# per-model native modifier path returns a legitimate 1 when only the raw driver
+# columns are absent (soc_dynamics.R:80-81). Such cells cannot be modelled, so
+# warn and drop them (surfacing the coverage loss) rather than aborting the whole
+# run on a small gap, or silently running SOC turnover at an unmodified neutral 1.
+.cb_drop_uncovered_climate <- function(classes) {
   missing <- classes |> dplyr::filter(is.na(.data$climate_modifier))
   if (nrow(missing) > 0) {
     gaps <- missing |>
       dplyr::distinct(.data$lon, .data$lat, .data$area_code, .data$year)
-    cli::cli_abort(
+    cli::cli_warn(
       c(
-        "Missing {.field climate_modifier} for {nrow(gaps)} cell-year{?s}.",
-        i = "Every cell-year with land-use and carbon-input coverage needs a
-          climate modifier; supply {.code data$climate} for these cell-years."
+        "!" = "Dropped {nrow(gaps)} cell-year{?s} with land-use/carbon-input
+          coverage but no climate modifier (outside the climate-driver grid).",
+        i = "Supply {.code data$climate} for these cell-years to retain them."
       )
     )
+    classes <- classes |> dplyr::filter(!is.na(.data$climate_modifier))
   }
   classes
 }
