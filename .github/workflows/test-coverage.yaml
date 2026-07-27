@@ -14,7 +14,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
-      USE_RENV: "FALSE"
 
     steps:
       - uses: actions/checkout@v4
