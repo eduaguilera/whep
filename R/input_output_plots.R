@@ -389,7 +389,16 @@ plot_input_output_system <- function(per_ha = FALSE, example = FALSE) {
     "Horses",
     "Donkeys_mules"
   )
-  monogastric_cats <- c("Pigs", "Hogs", "Poultry", "Rabbits", "Bees")
+  # Other_birds is monogastric, consistent with .add_feed() in
+  # n_prov_destiny.R; without it the stock_prod_ygps rows for that
+  # category fall through to NA and are dropped below.
+  monogastric_cats <- c(
+    "Pigs",
+    "Poultry",
+    "Rabbits",
+    "Bees",
+    "Other_birds"
+  )
   livestock_prod |>
     dplyr::distinct(Item, Livestock_cat) |>
     dplyr::mutate(
