@@ -5,7 +5,13 @@
 
   country_grid <- tibble::as_tibble(country_grid)
   frac_col <- intersect(
-    c("cell_area_frac", "area_frac", "country_frac", "landfrac"),
+    c(
+      "cell_area_frac",
+      "polity_frac",
+      "area_frac",
+      "country_frac",
+      "landfrac"
+    ),
     names(country_grid)
   )
 

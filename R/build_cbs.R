@@ -790,12 +790,19 @@ build_processing_coefs <- function(
 }
 
 # Enrich codes-only primary output with names needed by the CBS pipeline.
+# build_primary_production() may already return item_cbs_name (a newer, richer
+# output than the "codes-only" shape this function originally assumed);
+# re-adding it via add_item_cbs_name() would collide with the existing column
+# (dplyr suffixes both to .x/.y) and leave no plain item_cbs_name to rename.
+# Skip the join when the name is already present.
 .enrich_primary_with_names <- function(primary_all) {
-  primary_all |>
+  out <- primary_all |>
     add_area_name() |>
-    dplyr::rename(area = area_name) |>
-    add_item_cbs_name(code_column = "item_cbs_code") |>
-    dplyr::rename(item_cbs = item_cbs_name)
+    dplyr::rename(area = area_name)
+  if (!"item_cbs_name" %in% names(out)) {
+    out <- add_item_cbs_name(out, code_column = "item_cbs_code")
+  }
+  dplyr::rename(out, item_cbs = item_cbs_name)
 }
 
 .primary_to_cbs <- function(primary_all) {

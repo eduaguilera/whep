@@ -9,9 +9,21 @@ name: R-CMD-check.yaml
 
 permissions: read-all
 
+# Cancel a superseded run of this workflow on the same branch/PR when a new
+# commit is pushed, so stale runs do not pile up.
+concurrency:
+  group: R-CMD-check-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   R-CMD-check:
     runs-on: ${{ matrix.config.os }}
+    # Backstop against a hung test (e.g. a large remote read) that would
+    # otherwise run for tens of minutes. Set well above a healthy run: the
+    # check itself is ~5-7 min, but the R-devel matrix leg compiles the geo
+    # deps (sf/terra/ncdf4/deSolve) from source on a cold cache, which alone can
+    # approach 15 min. 30 leaves headroom for that yet still kills a real hang.
+    timeout-minutes: 30
 
     name: ${{ matrix.config.os }} (${{ matrix.config.r }})
 

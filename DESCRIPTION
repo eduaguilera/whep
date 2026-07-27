@@ -20,6 +20,7 @@ Imports:
     arrow,
     cli,
     data.table,
+    deSolve,
     dplyr,
     fs,
     FAOSTAT,
@@ -28,7 +29,7 @@ Imports:
     methods,
     nanoparquet,
     pins,
-    purrr,
+    purrr (>= 1.0.0),
     rappdirs,
     readr,
     rlang,
@@ -36,6 +37,7 @@ Imports:
     stringr,
     tibble,
     tidyr,
+    vctrs,
     withr,
     yaml,
     readxl,
@@ -45,6 +47,7 @@ Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.3
 Suggests:
+    DBI,
     DiagrammeR,
     ggpattern,
     ggplot2,
@@ -56,8 +59,11 @@ Suggests:
     patchwork,
     pointblank,
     rmarkdown,
+    RSQLite,
     sf,
-    testthat (>= 3.0.0)
+    terra,
+    testthat (>= 3.0.0),
+    zip
 Config/testthat/edition: 3
 VignetteBuilder: knitr
 URL: https://eduaguilera.github.io/whep/, https://github.com/eduaguilera/whep

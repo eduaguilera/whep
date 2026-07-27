@@ -25,6 +25,19 @@ beef_tier2_fixture <- function() {
   )
 }
 
+#' Minimal Tier 2 working-oxen input (draught energy via work_coef override).
+working_oxen_tier2_fixture <- function(work_coef = NULL) {
+  tibble::tibble(
+    species = "Beef Cattle",
+    cohort = "Adult Male",
+    weight = 420,
+    work_hours_day = 6,
+    diet_quality = "Medium",
+    heads = 10,
+    work_coef = work_coef
+  )
+}
+
 #' Minimal Tier 1 input for multiple species.
 tier1_fixture <- function() {
   tibble::tibble(

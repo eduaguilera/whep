@@ -1,5 +1,30 @@
 # whep (development version)
 
+* Add gridded soil **water, carbon and nitrogen balances** (0.5° cell × polity
+  fragment). `build_water_balance()` closes the annual cell water budget from
+  LPJmL hydrology and exposes drainage (for N leaching) plus footprint terms;
+  `get_soc_climate_drivers()` emits the monthly SOC climate drivers from CRU.
+  `build_carbon_balance()` runs historical SOC dynamics (equilibrium init,
+  LUH2-driven land-use march, LUC C-transfer) and derives ΔSON via asymmetric
+  C:N; `calculate_soc_dynamics(model = c("hsoc","rothc","icbm","amg",
+  "century"))` wraps the five SOC models (default `"hsoc"`), fed by
+  `build_soil_carbon_inputs()`. `build_nitrogen_balance()` assembles inputs
+  (`build_n_inputs()`, incl. `build_n_deposition()`/`build_urban_n()`) minus the
+  selectable losses (`calculate_nh3()`/`calculate_soil_n2o()`/
+  `calculate_n_leaching()`, with the process-based MANNER NH3 model) into
+  surplus, NUE and GWP/CO2e indicators. New readers: `read_lpjml_hydrology()`,
+  `read_cru_climate()`, `read_luh2_landuse()`, `read_hyde_population()`,
+  `read_lpjml_wind()`, `read_soil_ph()`, `read_soil_hydraulic()` (per-cell
+  field capacity, wilting point and porosity from HWSD texture, feeding the
+  ICBM SOC moisture modifier). New coefficient datasets for SOC turnover,
+  humification, C:N, N2O EFs, MANNER and denitrification, the crop
+  growth-stage soil-cover curve (`soc_soil_cover_curve`), and the USDA
+  texture-class soil hydraulic properties (`soil_hydraulic_by_texture`) with
+  the HWSD texture-code crosswalk (`hwsd_texture_usda`).
+
+* Add `ensure_columns()` to complete tibbles from typed zero-row prototypes,
+  with safe casts, scalar defaults, deterministic ordering, and explicit
+  extra-column handling.
 * Add `decompose_weighted_ratio()` for exact Kitagawa/Shapley, additive LMDI,
   and sequential-polar decomposition of changing aggregate ratios.
 * `build_io_model()` and `build_footprint()` gain a `method = c("mass",
