@@ -20,11 +20,49 @@ run_lpjml <- function(
   l_files_dir = "LPJmL_inputs",
   sim_path = file.path(model_path, "simulation"),
   export_start = 1851,
-  export_end = 2021,
+  export_end = 2023,
   dep_start = export_start,
-  dep_end = export_end,
+  # N deposition is only exported to 2021; it lags the other WHEP inputs
+  # until prepare_spatialize_all.R is re-run for 2022-2023.
+  dep_end = 2021,
   simulation_start_year = 1901,
-  simulation_end_year = 2009,
+  # `simulation_end_year` must not exceed the end year of any *hard* forcing.
+  # LPJmL treats its inputs in two ways (verified in the LPJmL source):
+  #
+  #   HARD -- read per year by readclimate(); a year outside the file's range
+  #   aborts with ERROR130/ERROR131 and no fallback. Configuring past the end
+  #   is what produced the all-NA 2010+ and corrupt seepage of the
+  #   global_1901-2018 run (issue #340):
+  #     temp / prec / cloud / wetdays  CRU TS 4.09   1901-2024
+  #     co2                            NOAA-extended 1765-2025
+  #     wind  gswp3-w5e5 + ERA5 tail                 1901-2023  <- binding
+  #
+  #   CLAMPED -- routed through landuse.c::checkyear() or the equivalent, which
+  #   emits "WARNING024: ... data from last year used" and holds the last year
+  #   constant. Ending early costs realism, not validity:
+  #     popdens (ISIMIP3a) 2021     residue_on_field  2015
+  #     with_tillage       2010     crop_phu (phusum) 2019
+  #     nh4/no3deposition  2021     landuse/fert/manure/lsuha (WHEP) 2023
+  #   tillage and residues are not stale copies: those are the last years the
+  #   source datasets cover at all (PIK ships the identical files).
+  #
+  #   NOT READ in this configuration: tamp (needs fire = SPITFIRE; this runs
+  #   fire = "fire"), wateruse (wateruse = "no"), burntarea (prescribed-
+  #   burntarea fire only).
+  #
+  # 2023 is now reachable, as asked for in #340. Wind was the last hard forcing
+  # short of it: the ISIMIP obsclim products stop at 2019 (W5E5 v2.0 ends
+  # there), so 2020-2023 comes from ERA5, bias-corrected per cell and per
+  # calendar month against the 2017-2019 overlap (extend_lpjml_wind()).
+  #
+  # Caveat to carry into any write-up: the clamped inputs above are frozen for
+  # the late years -- tillage after 2010, residues after 2015, popdens and
+  # ndep after 2021 -- so a 2023 run is native climate with management held
+  # constant, not native throughout.
+  simulation_end_year = 2023,
+  # CRU TS release used for temp/prec/cloud/wetdays, as written by
+  # prepare_spatialize_all.R (Section 9d).
+  cru_tag = "cru_ts4.09.1901.2024",
   nspinup = 200,
   use_cores = 24,
   input_set = c("whep", "stock")
@@ -65,12 +103,26 @@ run_lpjml <- function(
   )
   lakes_name <- "lakes_rivers/glwd_lakes_and_rivers_30arcmin.nc"
   soil_name <- "soil/soil_30arcmin_13_types.nc"
-  temp_name <- "climate/cru_ts_3_10.1901.2009.tmp.dat.nc"
-  prec_name <- "climate/cru_ts_3_10_01.1901.2009.pre.dat.nc"
-  cloud_name <- "climate/cru_ts_3_10.1901.2009.cld.dat.nc"
-  wind_name <- "climate/wind_gswp3-w5e5_1901_2016_monthly.nc"
-  co2_name <- "climate/historical_CO2_annual_1765_2018.txt"
-  wetdays_name <- "climate/cru_ts3.20.1901.2011.wet.dat.nc"
+  # CRU TS supplies temp/prec/cloud/wetdays from one release; the files are
+  # written by prepare_spatialize_all.R (Section 9d), which strips stn/mae/maea
+  # diagnostics and normalises the `units` attribute to the strings declared
+  # below. The superseded 3.10/3.20 forcing ended in 2009/2011 and is what
+  # capped every historical run at 2009 (issue #340).
+  temp_name <- sprintf("climate/%s.tmp.dat.nc", cru_tag)
+  prec_name <- sprintf("climate/%s.pre.dat.nc", cru_tag)
+  cloud_name <- sprintf("climate/%s.cld.dat.nc", cru_tag)
+  wetdays_name <- sprintf("climate/%s.wet.dat.nc", cru_tag)
+  # Wind, in three pieces: ISIMIP2a gswp3-w5e5 (1901-2016), ISIMIP3a monthly
+  # means for 2017-2019, and ERA5 for 2020-2023. The two ISIMIP rounds agree
+  # at the 2016 overlap (unweighted global mean 6.3289 vs 6.32887 m/s), and
+  # the ERA5 tail is bias-corrected per cell and calendar month against
+  # 2017-2019, so neither joint introduces a step. See
+  # prepare_lpjml_wind.R::extend_lpjml_wind() and fetch_era5_wind.py.
+  wind_name <- "climate/wind_gswp3-w5e5_era5_1901_2023_monthly.nc"
+  co2_name <- "climate/historical_CO2_annual_1765_2025.txt"
+  # ISIMIP3a population converted to people/km2 by prepare_spatialize_all.R
+  # (Section 9c). Replaces the stock HYDE3 .clm, which stops at 2011.
+  popdens_name <- "socioeconomic/popdens_isimip3a_1901_2021.nc"
   coord_nc_name <- "gadm/grid_gadm_30arcmin.nc"
   coord_name <- "gadm/grid_gadm_30arcmin.bin"
   lsuha_name <- .input_name(
@@ -100,7 +152,8 @@ run_lpjml <- function(
       wind_name,
       co2_name,
       wetdays_name,
-      lsuha_name
+      lsuha_name,
+      popdens_name
     )
     .check_climate_coverage(
       input_path,
@@ -174,6 +227,12 @@ run_lpjml <- function(
       `input.wetdays.unit` = "day",
       `input.co2.name` = co2_name,
       `input.co2.fmt` = "txt",
+      `input.popdens.name` = popdens_name,
+      `input.popdens.fmt` = "cdf",
+      `input.popdens.var` = "popdens",
+      # Matches both the file attribute and what src/spitfire/popdens.c asks
+      # for, so no udunits conversion is applied.
+      `input.popdens.unit` = "km-2",
       `input.grassland_lsuha.name` = lsuha_name,
       `input.grassland_lsuha.fmt` = "cdf",
       `input.grassland_lsuha.var` = "grassland_lsuha",
