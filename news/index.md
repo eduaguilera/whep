@@ -3,6 +3,12 @@
 ## whep (development version)
 
 - Add
+  [`ensure_columns()`](https://eduaguilera.github.io/whep/reference/ensure_columns.md)
+  to complete tibbles from typed zero-row prototypes, with safe casts,
+  scalar defaults, deterministic ordering, and explicit extra-column
+  handling.
+
+- Add
   [`decompose_weighted_ratio()`](https://eduaguilera.github.io/whep/reference/decompose_weighted_ratio.md)
   for exact Kitagawa/Shapley, additive LMDI, and sequential-polar
   decomposition of changing aggregate ratios.

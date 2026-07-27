@@ -259,6 +259,14 @@ Get a tidy dataframe with the found sources for different data.
 - [`expand_trade_sources()`](https://eduaguilera.github.io/whep/reference/expand_trade_sources.md)
   : Trade data sources
 
+## Data-frame utilities
+
+Complete tabular schemas without losing column types or silently
+discarding extra fields.
+
+- [`ensure_columns()`](https://eduaguilera.github.io/whep/reference/ensure_columns.md)
+  : Complete columns from a typed prototype.
+
 ## Gap filling functions
 
 Functions to fill gaps (NA values) in time-dependent variables using
