@@ -28,21 +28,26 @@
 #'   matching `measure$exempt` keep their base rank (for example world-level
 #'   cells, where production equals consumption).
 #'
-#'   3. **Winner selection.** Within each (`.by`, `time_col`) cell the winner is
-#'   the row of lowest effective rank; ties are broken by broader within-series
-#'   coverage (the count of cells the source reports across the `.by` group)
-#'   when `tie_break$coverage`, then by `tie_break$quality_col` ordered per
-#'   `tie_break$quality_levels`, then by ascending source name (reported when
-#'   `verbose`).
+#'   3. **Winner selection.** Within each (`.by`, `time_col`) cell any row with
+#'   a real (non-missing) value outranks every `value_col`-missing row, so a
+#'   higher-priority source's `NA` never discards a lower-priority source's real
+#'   observation; a cell wins `NA` only when no source reports a real value. Among
+#'   rows with a real value the winner is the row of lowest effective rank; ties
+#'   are broken by broader within-series coverage (the count of cells the source
+#'   reports across the `.by` group) when `tie_break$coverage`, then by
+#'   `tie_break$quality_col` ordered per `tie_break$quality_levels`, then by
+#'   ascending source name (reported when `verbose`).
 #'
 #'   4. **Continuity override.** When enabled, an isolated single-period winner
 #'   flip is reverted: if the immediately preceding and following periods share
 #'   a different winner that also reports the middle period, that continuous
 #'   source reclaims the middle cell, removing single-period teeth from
-#'   otherwise smooth series. The reversion is skipped when it would hand a
-#'   cell won by a measure-consistent source back to a measure-demoted one:
-#'   continuity never undoes the measure penalty, because a single-period
-#'   source switch is cosmetic while a measure switch corrupts the series.
+#'   otherwise smooth series. The reversion is skipped when the flanking source's
+#'   middle-period value is itself missing (continuity never reinstates an `NA`)
+#'   and when it would hand a cell won by a measure-consistent source back to a
+#'   measure-demoted one: continuity never undoes the measure penalty, because a
+#'   single-period source switch is cosmetic while a measure switch corrupts the
+#'   series.
 #'
 #'   This operationalises the AFE decision *Consolidate multi-source panels
 #'   measure-consistently* (`wiki/decisions/measure-consistent-panel-consolidation`):
@@ -343,6 +348,7 @@ consolidate_sources <- function(
 
 .cs_add_tiebreaks <- function(work, cols, tie_break) {
   cell_keys <- c(cols$by, cols$time)
+  work$.value_na <- is.na(work[[cols$value]])
   work <- .cs_add_coverage(work, cols$by, cols$source, cols$value, cols$time)
   work$.coverage_ord <- if (tie_break$coverage) work$.coverage else 0L
   work$.quality_rank <- if (is.null(tie_break$quality_col)) {
@@ -394,6 +400,7 @@ consolidate_sources <- function(
 .cs_select_winners <- function(work, cell_keys, source_name, verbose) {
   ordered <- dplyr::arrange(
     work,
+    .value_na,
     .effective_rank,
     dplyr::desc(.coverage_ord),
     .quality_rank,
@@ -409,7 +416,12 @@ consolidate_sources <- function(
 }
 
 .cs_log_name_ties <- function(ordered, cell_keys, source_name) {
-  key_cols <- c(".effective_rank", ".coverage_ord", ".quality_rank")
+  key_cols <- c(
+    ".value_na",
+    ".effective_rank",
+    ".coverage_ord",
+    ".quality_rank"
+  )
   tie <- ordered |>
     dplyr::group_by(dplyr::across(dplyr::all_of(cell_keys))) |>
     dplyr::filter(
@@ -441,6 +453,7 @@ consolidate_sources <- function(
   repl_keys <- iso[cell_keys]
   repl_keys[[cols$source]] <- iso$.neighbor
   repl <- dplyr::inner_join(work, repl_keys, by = c(cell_keys, cols$source))
+  repl <- repl[!repl$.value_na, , drop = FALSE]
   repl <- .cs_block_demoting_reversion(repl, iso, cell_keys)
   if (nrow(repl) == 0L) {
     return(clean)

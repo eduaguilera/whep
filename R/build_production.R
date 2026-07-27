@@ -504,23 +504,20 @@ build_primary_production <- function(
 
 .read_int_yields <- function(years = NULL) {
   cli::cli_progress_step("Reading international yields")
-  regions <- data.table::as.data.table(whep::regions_full)[,
-    .(code, polity_name)
-  ]
-
+  # The raw `area_code` is already a `polity_area_code`, matching the
+  # production `area_code`. Key the proxy by code (not by the periodized
+  # polity name) so the merge in `.add_historical_yields()` matches.
   dt <- .read_input("international-yields", years = years, year_col = "year")
   dt[, item_prod_code := as.character(item_code)]
-  data.table::setnames(dt, "area_code", "code")
+  dt[, area_code := as.integer(area_code)]
   dt[, item_code := NULL]
 
   dt <- dt[
     year < 1962 & !is.na(yield) & yield != 0 & yield < 100
   ]
-  dt <- merge(dt, regions, by = "code", all.x = TRUE, sort = FALSE)
-  data.table::setnames(dt, "polity_name", "area")
   dt <- dt[,
     .(yield = mean(yield, na.rm = TRUE)),
-    by = c("year", "area", "item_prod_code")
+    by = c("year", "area_code", "item_prod_code")
   ]
   dt <- dt[!is.nan(yield)]
   dt
@@ -534,7 +531,6 @@ build_primary_production <- function(
   items <- whep::items_full
   crops_eu <- whep::crops_eurostat
   biomass <- whep::biomass_coefs
-  regions <- whep::regions_full
 
   # Old FAO fodder data
   i_fodder <- .read_fodder_old(years = years)
@@ -716,6 +712,20 @@ build_primary_production <- function(
   fodder_euadb,
   items_prod
 ) {
+  # `.read_fodder_euadb()` labels rows with the plain `polity_name`, but
+  # `fodder` carries periodized names, so a name-keyed join fragments rows.
+  # Rekey EU AgriDB onto the FAO name for the same (year, area_code) so the
+  # joins below match on a consistent (year, area_code, area) key.
+  fao_area <- fodder |>
+    dplyr::filter(!is.na(area)) |>
+    dplyr::distinct(year, area_code, area) |>
+    dplyr::rename(fao_area = area)
+
+  fodder_euadb <- fodder_euadb |>
+    dplyr::left_join(fao_area, by = c("year", "area_code")) |>
+    dplyr::mutate(area = dplyr::coalesce(fao_area, area)) |>
+    dplyr::select(-fao_area)
+
   euadb_area <- fodder_euadb |>
     dplyr::filter(Unit == "Mha") |>
     dplyr::mutate(ha_euadb = value * 1e6) |>
@@ -987,28 +997,17 @@ build_primary_production <- function(
     # Carry value_st forward (and back) in time per (area, item_cbs_code)
     # so years that fall outside the faostat-emissions-livestock pin's
     # coverage (typically the last 1-2 years; FAO emissions data lags
-    # QCL) inherit the latest known sub-item stock. Without this, the
-    # share = value_st / sum(value_st) below evaluates to NA for every
-    # row in those years, the value_comb branch falls back to the full
-    # QCL value, and all item_prod_code sub-rows that derive from the
-    # same QCL Item_Code (e.g. Cattle dairy + non-dairy from
-    # Item_Code 866, Swine market + breeding from 1034, Chickens layers
-    # + broilers from 1057) all receive the unsplit total, which
-    # multiplies the country head count by the number of sub-rows.
+    # QCL) inherit the latest known sub-item stock. Without this,
+    # fill_linear() cannot interpolate those years and .split_stock_share()
+    # below would treat them the same as an entirely-missing sub-item
+    # series (see its own comment for how that case is handled without
+    # double-counting).
     fill_linear(
       value_st,
       time_col = year,
       .by = c("area", "item_cbs_code")
     ) |>
-    dplyr::mutate(
-      share = value_st / sum(value_st),
-      value_comb = dplyr::if_else(
-        is.na(share) | share == 1,
-        value,
-        value * share
-      ),
-      .by = c(year, area, item_prod_code)
-    ) |>
+    .split_stock_share() |>
     dplyr::filter(!is.na(area_code)) |>
     dplyr::mutate(
       n = dplyr::n(),
@@ -1054,6 +1053,39 @@ build_primary_production <- function(
         "Livestock_name"
       )
     )
+}
+
+# Split the unsplit QCL stock (`value`) across sub-items (e.g. dairy vs
+# non-dairy cattle) sharing the same parent item_prod_code, proportionally to
+# each sub-item's own emissions-stock series (`value_st`).
+#
+# sum(value_st) used na.rm = FALSE, so if even one sub-item's value_st was
+# entirely NA for a country (fill_linear() has no anchor point to
+# interpolate from), the group sum became NA, share became NA for EVERY
+# sub-item in the group -- including ones with perfectly good data -- and
+# value_comb fell back to the full unsplit `value` for all of them. A country
+# whose cattle herd is split into dairy/non-dairy then had BOTH sub-rows
+# receive 100% of the total head count instead of a real split, double (or
+# n-fold) counting the herd.
+#
+# Fix: sum with na.rm = TRUE, so a sub-item with no data at all contributes
+# 0 rather than NA, and its share becomes 0 -- letting siblings that DO have
+# data absorb the total instead of everyone falling back to it. If the whole
+# group has no data (sum is 0), split equally across the n sub-items instead
+# of giving each the full amount, so the total is still conserved.
+.split_stock_share <- function(data) {
+  data |>
+    dplyr::mutate(
+      sum_value_st = sum(value_st, na.rm = TRUE),
+      share = dplyr::if_else(
+        sum_value_st > 0,
+        dplyr::coalesce(value_st, 0) / sum_value_st,
+        1 / dplyr::n()
+      ),
+      value_comb = value * share,
+      .by = c(year, area, item_prod_code)
+    ) |>
+    dplyr::select(-sum_value_st, -share)
 }
 
 .finalise_livestock <- function(fao_liv_raw, animals, liv_lu) {
@@ -1183,7 +1215,14 @@ build_primary_production <- function(
   if (nrow(needs_split) == 0L) {
     return(no_split)
   }
-  shares <- .compute_stock_shares(years)
+  # Stock shares come from the faostat-emissions-livestock pin, which lags
+  # QCL slaughter by 1-2 years. Carry the latest known share forward (and
+  # interpolate/back-fill) so split species keep their slaughter counts in
+  # QCL's most recent years, mirroring the value_st fill in
+  # .combine_livestock(). Without this the inner_join drops those years and
+  # cattle/swine/chicken slaughtered_heads silently vanish.
+  shares <- .compute_stock_shares(years) |>
+    .carry_forward_shares(sort(unique(needs_split$year)))
   split_result <- needs_split |>
     dplyr::select(-item_cbs_code) |>
     dplyr::distinct() |>
@@ -1192,6 +1231,21 @@ build_primary_production <- function(
     dplyr::select(year, area, area_code, item_cbs_code, value)
 
   dplyr::bind_rows(no_split, split_result)
+}
+
+.carry_forward_shares <- function(shares, target_years) {
+  shares |>
+    tidyr::complete(
+      year = target_years,
+      tidyr::nesting(area_code, Item_Code, item_cbs_code)
+    ) |>
+    fill_linear(
+      share,
+      time_col = year,
+      .by = c("area_code", "Item_Code", "item_cbs_code")
+    ) |>
+    dplyr::filter(!is.na(share)) |>
+    dplyr::select(year, area_code, Item_Code, item_cbs_code, share)
 }
 
 .compute_stock_shares <- function(years) {
@@ -2220,27 +2274,21 @@ build_primary_production <- function(
 .filter_dissolved_countries <- function(df) {
   force(df)
   cli::cli_progress_step("Filtering dissolved countries")
+  # Key on `area_code` (polity_area_code), not `area`: after
+  # `.aggregate_to_polities()` the `area` names are periodized
+  # (e.g. "Czechoslovakia (1947-1993)"), so name conditions never fire.
   df |>
     dplyr::filter(
-      !(area == "Czechoslovakia" & year > 1992),
-      !(area %in%
-        c(
-          "Czech Republic",
-          "Czechia",
-          "Slovakia"
-        ) &
-        year < 1993),
-      !(area %in%
-        c(
-          "Lithuania",
-          "Latvia",
-          "Estonia",
-          "Slovenia",
-          "Croatia"
-        ) &
-        year < 1992),
-      !(area == "Belgium-Luxembourg" & year > 1999),
-      !(area %in% c("Belgium", "Luxembourg") & year < 2000)
+      # Czechoslovakia (51) after its 1992 dissolution
+      !(area_code == 51L & year > 1992),
+      # Czechia (167) and Slovakia (199) before 1993
+      !(area_code %in% c(167L, 199L) & year < 1993),
+      # Baltics, Slovenia (198), Croatia (98) before 1992
+      !(area_code %in% c(126L, 119L, 63L, 198L, 98L) & year < 1992),
+      # Belgium-Luxembourg (15) after its 1999 split
+      !(area_code == 15L & year > 1999),
+      # Belgium (255) and Luxembourg (256) before 2000
+      !(area_code %in% c(255L, 256L) & year < 2000)
     )
 }
 
@@ -2720,6 +2768,7 @@ build_primary_production <- function(
   wide[, source := dplyr::coalesce(source_prod, source_any)]
   wide[, source_prod := NULL]
   wide[, source_any := NULL]
+  wide[, area_code := as.integer(area_code)]
   wide <- merge(
     wide,
     if (data.table::is.data.table(int_yields)) {
@@ -2727,7 +2776,7 @@ build_primary_production <- function(
     } else {
       data.table::as.data.table(int_yields)
     },
-    by = c("year", "area", "item_prod_code"),
+    by = c("year", "area_code", "item_prod_code"),
     all.x = TRUE,
     sort = FALSE
   )

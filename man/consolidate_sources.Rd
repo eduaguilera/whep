@@ -108,20 +108,25 @@ source loses any cell a measure-consistent source also reports, yet still
 wins a cell it alone reports (a lone reporter is never demoted away). Rows
 matching \code{measure$exempt} keep their base rank (for example world-level
 cells, where production equals consumption).
-\item \strong{Winner selection.} Within each (\code{.by}, \code{time_col}) cell the winner is
-the row of lowest effective rank; ties are broken by broader within-series
-coverage (the count of cells the source reports across the \code{.by} group)
-when \code{tie_break$coverage}, then by \code{tie_break$quality_col} ordered per
-\code{tie_break$quality_levels}, then by ascending source name (reported when
-\code{verbose}).
+\item \strong{Winner selection.} Within each (\code{.by}, \code{time_col}) cell any row with
+a real (non-missing) value outranks every \code{value_col}-missing row, so a
+higher-priority source's \code{NA} never discards a lower-priority source's real
+observation; a cell wins \code{NA} only when no source reports a real value. Among
+rows with a real value the winner is the row of lowest effective rank; ties
+are broken by broader within-series coverage (the count of cells the source
+reports across the \code{.by} group) when \code{tie_break$coverage}, then by
+\code{tie_break$quality_col} ordered per \code{tie_break$quality_levels}, then by
+ascending source name (reported when \code{verbose}).
 \item \strong{Continuity override.} When enabled, an isolated single-period winner
 flip is reverted: if the immediately preceding and following periods share
 a different winner that also reports the middle period, that continuous
 source reclaims the middle cell, removing single-period teeth from
-otherwise smooth series. The reversion is skipped when it would hand a
-cell won by a measure-consistent source back to a measure-demoted one:
-continuity never undoes the measure penalty, because a single-period
-source switch is cosmetic while a measure switch corrupts the series.
+otherwise smooth series. The reversion is skipped when the flanking source's
+middle-period value is itself missing (continuity never reinstates an \code{NA})
+and when it would hand a cell won by a measure-consistent source back to a
+measure-demoted one: continuity never undoes the measure penalty, because a
+single-period source switch is cosmetic while a measure switch corrupts the
+series.
 }
 
 This operationalises the AFE decision \emph{Consolidate multi-source panels

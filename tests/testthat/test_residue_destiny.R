@@ -62,6 +62,25 @@ test_that("calculate_residue_destinies conserves mass with an unmatched region",
   testthat::expect_equal(out$residue_soil_dm_t, 100)
 })
 
+test_that("region-map guard rejects a krausmann label with two HANPP regions", {
+  # The real regions_full map is 1:1, so calculate_residue_destinies works; the
+  # guard exists so a future fan-out (one Krausmann label -> several HANPP
+  # regions) aborts loudly instead of silently keeping the first (relates #170).
+  fan_out <- tibble::tibble(
+    input_region = c("Western Europe", "Western Europe"),
+    recovery_region = c("West Europe", "North America and Oceania")
+  )
+  testthat::expect_error(
+    whep:::.assert_unique_region_map(fan_out),
+    "region_HANPP"
+  )
+  one_to_one <- tibble::tibble(
+    input_region = c("Western Europe", "Eastern Asia"),
+    recovery_region = c("West Europe", "East Asia")
+  )
+  testthat::expect_no_error(whep:::.assert_unique_region_map(one_to_one))
+})
+
 test_that("krausmann split accepts regions_full recovery labels", {
   out <- whep::calculate_residue_destinies(tibble::tibble(
     item_prod_code = "15",

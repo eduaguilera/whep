@@ -26,8 +26,8 @@
 #'   Semi-natural agroecosystems, Livestock, Fish, Agro-industry, Deposition,
 #'   Fixation, Synthetic, People (waste water), Livestock (manure).
 #'   - `destiny`: The destiny category of N: population_food,
-#'   population_other_uses, livestock_mono, livestock_rum (feed), export,
-#'   Cropland (for N soil inputs).
+#'   population_other_uses, livestock_mono, livestock_rum, livestock_aqua
+#'   (feed), export, Cropland (for N soil inputs).
 #'   - `mg_n`: Nitrogen amount in megagrams (Mg).
 #'
 #' @export
@@ -122,8 +122,8 @@ create_n_prov_destiny <- function(example = FALSE) {
 #'   Semi-natural agroecosystems, Livestock, Fish, Agro-industry, Deposition,
 #'   Fixation, Synthetic, People (waste water), Livestock (manure).
 #'   - `destiny`: The destiny category of N: population_food,
-#'   population_other_uses, livestock_mono, livestock_rum (feed), export,
-#'   Cropland (for N soil inputs).
+#'   population_other_uses, livestock_mono, livestock_rum, livestock_aqua
+#'   (feed), export, Cropland (for N soil inputs).
 #'   - `mg_n`: Nitrogen amount in megagrams (Mg).
 #'   - `province_name`: Set to "Spain" for all national-level rows.
 #'
@@ -144,7 +144,8 @@ create_n_nat_destiny <- function(example = FALSE) {
           "population_food",
           "population_other_uses",
           "livestock_rum",
-          "livestock_mono"
+          "livestock_mono",
+          "livestock_aqua"
         )
     ) |>
     dplyr::group_by(year, item, destiny) |>
@@ -181,7 +182,8 @@ create_n_nat_destiny <- function(example = FALSE) {
               "population_food",
               "population_other_uses",
               "livestock_rum",
-              "livestock_mono"
+              "livestock_mono",
+              "livestock_aqua"
             )
         ],
         na.rm = TRUE
@@ -1211,13 +1213,14 @@ create_n_nat_destiny <- function(example = FALSE) {
 
 #' @title Split local consumption
 #' @description Splits local consumption into population food, other uses,
-#' and livestock. Livestock feed is split into livestock_rum (ruminants) and
-#' livestock_mono (monogastric).
+#' and livestock. Livestock feed is split into livestock_rum (ruminants),
+#' livestock_mono (monogastric), and livestock_aqua (aquaculture, the
+#' residual feed share).
 #' @param local_vs_import A dataset containing local and imported consumption.
 #' @param feed_share_rum_mono A dataset with feed shares between ruminants
 #' and monogastric animals.
 #' @return A dataset with consumption split into population_food,
-#' livestock_rum, livestock_mono, and population_other_uses.
+#' livestock_rum, livestock_mono, livestock_aqua, and population_other_uses.
 #' @keywords internal
 #' @noRd
 .split_local_consumption <- function(local_vs_import, feed_share_rum_mono) {
@@ -1231,6 +1234,11 @@ create_n_nat_destiny <- function(example = FALSE) {
       population_other_uses = local_consumption * other_uses_share,
       livestock_rum = local_consumption * feed_share * share_rum,
       livestock_mono = local_consumption * feed_share * share_mono,
+      # Aquaculture is the residual feed share (1 - rum - mono), so that all
+      # feed N is assigned a destiny and no N mass leaks (see issue #148).
+      livestock_aqua = local_consumption *
+        feed_share *
+        (1 - share_rum - share_mono),
       Origin = Box
     ) |>
     tidyr::pivot_longer(
@@ -1238,7 +1246,8 @@ create_n_nat_destiny <- function(example = FALSE) {
         population_food,
         population_other_uses,
         livestock_rum,
-        livestock_mono
+        livestock_mono,
+        livestock_aqua
       ),
       names_to = "Destiny",
       values_to = "MgN"
@@ -1247,8 +1256,8 @@ create_n_nat_destiny <- function(example = FALSE) {
 
 #' @title Split imported consumption
 #' @description Splits imports by consumption and assigns origins.
-#' Livestock feed is split into livestock_rum (ruminants) and livestock_mono
-#' (monogastric).
+#' Livestock feed is split into livestock_rum (ruminants), livestock_mono
+#' (monogastric), and livestock_aqua (aquaculture, the residual feed share).
 #' COMMENT: pmin prevents imported N for food and other uses from becoming
 #' unrealistically high.
 #' For human consumption, imports usually replace local supply instead of
@@ -1280,6 +1289,11 @@ create_n_nat_destiny <- function(example = FALSE) {
       population_other_uses = base_amount_food_other * other_uses_share,
       livestock_rum = import_consumption * feed_share * share_rum,
       livestock_mono = import_consumption * feed_share * share_mono,
+      # Aquaculture is the residual feed share (1 - rum - mono), so that all
+      # feed N is assigned a destiny and no N mass leaks (see issue #148).
+      livestock_aqua = import_consumption *
+        feed_share *
+        (1 - share_rum - share_mono),
       Origin = "Outside",
       Irrig_cat = NA_character_
     ) |>
@@ -1289,6 +1303,7 @@ create_n_nat_destiny <- function(example = FALSE) {
       population_other_uses = sum(population_other_uses, na.rm = TRUE),
       livestock_rum = sum(livestock_rum, na.rm = TRUE),
       livestock_mono = sum(livestock_mono, na.rm = TRUE),
+      livestock_aqua = sum(livestock_aqua, na.rm = TRUE),
       .by = c("Year", "Province_name", "Item", "Box", "Origin", "Irrig_cat")
     ) |>
     tidyr::pivot_longer(
@@ -1296,7 +1311,8 @@ create_n_nat_destiny <- function(example = FALSE) {
         population_food,
         population_other_uses,
         livestock_rum,
-        livestock_mono
+        livestock_mono,
+        livestock_aqua
       ),
       names_to = "Destiny",
       values_to = "MgN"

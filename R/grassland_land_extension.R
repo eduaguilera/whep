@@ -98,16 +98,18 @@ build_grassland_land_extension <- function(
 }
 
 # FAOSTAT "Permanent meadows and pastures" area (item 6655), filtered live from
-# the faostat-landuse pin (Value is in 1000 ha). Aggregate FAOSTAT regions are
-# dropped by keeping only codes that map to a real country in regions_full.
+# the faostat-landuse pin (Value is in 1000 ha). Raw FAOSTAT reporting areas are
+# mapped to WHEP polities through polity_area_crosswalk and collapsed to
+# polity_area_code, the same country basis the LUH2 grassland source already
+# uses. Statistical aggregates that overlap their components (e.g. FAOSTAT
+# "China" 351, "World", continents) are unmapped in the crosswalk and dropped
+# here, so they cannot double-count. This replaces an earlier `!is.na(iso3c)`
+# heuristic on regions_full, which reinvented aggregate detection and left the
+# two grassland sources keyed on different area codes (raw FAOSTAT vs polity).
 .grassland_occupation_faostat <- function(landuse = NULL) {
   if (is.null(landuse)) {
     landuse <- whep_read_file("faostat-landuse")
   }
-  valid_codes <- whep::regions_full |>
-    dplyr::filter(!is.na(.data$iso3c)) |>
-    dplyr::pull(.data$code) |>
-    unique()
   landuse |>
     dplyr::filter(.data[["Item Code"]] == 6655, .data$Element == "Area") |>
     dplyr::transmute(
@@ -116,11 +118,23 @@ build_grassland_land_extension <- function(
       item_cbs_code = 3000L,
       impact_u = round(.data$Value * 1000, 1)
     ) |>
-    dplyr::filter(
-      !is.na(.data$impact_u),
-      .data$impact_u > 0,
-      .data$area_code %in% valid_codes
-    )
+    dplyr::filter(!is.na(.data$impact_u), .data$impact_u > 0) |>
+    .grassland_faostat_to_polities()
+}
+
+# Collapse raw FAOSTAT reporting areas to WHEP polity_area_code via the canonical
+# crosswalk, dropping unmapped statistical aggregates. Keeps the extension grain
+# (year, area_code, item_cbs_code); area_code is now a polity_area_code, matching
+# the LUH2 source.
+.grassland_faostat_to_polities <- function(occupation) {
+  occupation |>
+    add_polity_code(code_column = "area_code", year_column = "year") |>
+    dplyr::filter(!is.na(.data$polity_code)) |>
+    dplyr::summarise(
+      impact_u = sum(.data$impact_u, na.rm = TRUE),
+      .by = c(year, polity_area_code, item_cbs_code)
+    ) |>
+    dplyr::rename(area_code = polity_area_code)
 }
 
 .fallow_item_cbs <- function() {

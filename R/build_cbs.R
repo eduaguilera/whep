@@ -1576,8 +1576,13 @@ build_processing_coefs <- function(
 
 .select_best_source <- function(cbs_raw_all) {
   # Pivot sources into columns — avoids grouped summarise + nth overhead.
+  # Key on the integer `area_code`, not the `area` name: sources disagree on
+  # the name for the same code (plain name vs periodized polity name, e.g.
+  # code 41 -> "China, mainland" vs "China (PRC)"). Keying on the name would
+  # scatter the sources for one country into separate groups so both survive
+  # selection and get summed downstream (double-counting production). The
+  # human-readable name is re-attached from a per-code lookup at the end.
   key_cols <- c(
-    "area",
     "area_code",
     "year",
     "item_cbs",
@@ -1585,7 +1590,6 @@ build_processing_coefs <- function(
     "element"
   )
   group_cols <- c(
-    "area",
     "area_code",
     "item_cbs",
     "item_cbs_code",
@@ -1593,7 +1597,9 @@ build_processing_coefs <- function(
   )
 
   dt_raw <- data.table::as.data.table(cbs_raw_all)
-  dt_raw <- dt_raw[!is.na(area), c(key_cols, "source", "value"), with = FALSE]
+  dt_raw <- dt_raw[!is.na(area)]
+  area_lookup <- unique(dt_raw[, .(area_code, area)], by = "area_code")
+  dt_raw <- dt_raw[, c(key_cols, "source", "value"), with = FALSE]
 
   # Pivot only primary sources (3 cols) instead of all sources.
   # Avoids expensive frankv over many source columns.
@@ -1709,6 +1715,8 @@ build_processing_coefs <- function(
     element %in% clamp_elems & (value < 0 | is.infinite(value)),
     value := 0
   ]
+
+  wide[area_lookup, area := i.area, on = "area_code"]
 
   wide <- wide |>
     dplyr::select(

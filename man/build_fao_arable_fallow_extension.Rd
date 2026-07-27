@@ -9,6 +9,7 @@ build_fao_arable_fallow_extension(
   arable_permanent = NULL,
   base_extension = NULL,
   fallow_weights = NULL,
+  temporary_grassland = NULL,
   items_prod_full = whep::items_prod_full
 )
 }
@@ -35,6 +36,14 @@ weight). If \code{NULL}, fallow is distributed in proportion to each arable
 crop's cropped physical area (perennials always excluded). The cropped-area
 fallback is used independently for an area when it has no usable supplied
 weights, a non-finite or negative supplied weight, or a non-positive total.}
+
+\item{temporary_grassland}{Tibble of grassland occupation in the
+\code{\link[=build_grassland_land_extension]{build_grassland_land_extension()}} schema (\code{area_code}, \code{year},
+\code{item_cbs_code}, \code{impact_u}); its CBS 3002 rows are the temporary grassland
+netted out of the arable target so ordinary crops plus CBS 3002 reconcile to
+FAO Arable land (see the temporary-grassland section). If \code{NULL} (default)
+it is built with \code{\link[=build_grassland_land_extension]{build_grassland_land_extension()}}\code{(grassland_metric = "occupation")} so netting still applies (correct but slow); supply the table
+to skip that rebuild, or pass one with no CBS 3002 rows to opt out.}
 
 \item{items_prod_full}{Crosswalk used to classify \code{item_cbs_code} as arable or
 perennial via \code{Herb_Woody}. Defaults to \link{items_prod_full}.}
@@ -77,20 +86,27 @@ perennial base area is reported as an error because it cannot be reconciled
 without inventing a crop allocation.
 }
 
-The default of \code{\link[=build_cropgrids_land_extension]{build_cropgrids_land_extension()}} and the footprint balance
-are unchanged; this is an additive method.
+This is the crop-side default of the land-balance footprint
+(\code{\link[=build_land_balance_footprint]{build_land_balance_footprint()}}).
 }
-\section{Temporary grassland (do not double-count)}{
+\section{Temporary grassland (no double-count)}{
 
 FAO's \strong{Arable land} total includes \emph{temporary meadows and pastures} —
-temporary grassland is part of cropland, not grassland. This method therefore
-already absorbs the temporary-grassland slice into its arable-crop total. Do
-\strong{not} combine it with CBS 3002 (\verb{Temporary grassland}) from
-\code{\link[=build_grassland_land_extension]{build_grassland_land_extension()}} on top, or that land is counted twice. The
-intended invariant is
-\verb{ordinary crop occupation (incl. fallow) + CBS 3002 = FAO Arable land}.
-Netting modelled CBS 3002 out of the arable target and promoting this method
-to the footprint-balance default is tracked in issue #342.
+temporary grassland is part of cropland, not grassland. That land is also
+reported separately as CBS 3002 (\verb{Temporary grassland}) by
+\code{\link[=build_grassland_land_extension]{build_grassland_land_extension()}}, so summing both extensions naively would
+count it twice. Pass that grassland occupation as \code{temporary_grassland} and
+its CBS 3002 is netted out of the arable target before reconciling ordinary
+crops, enforcing the invariant per \verb{(area_code, year)}
+\verb{ordinary crop occupation (incl. fallow) + CBS 3002 = FAO Arable land}. The
+land-balance footprint (\code{\link[=build_land_balance_footprint]{build_land_balance_footprint()}}) does exactly this,
+passing the grassland occupation it has already built. When
+\code{temporary_grassland} is \code{NULL} (default) the grassland occupation extension
+is built internally so netting still happens — correct but slow, since that
+build reruns much of the pipeline; supply the table to avoid the rebuild.
+Where modelled CBS 3002 exceeds FAO Arable land (survey vs.
+fodder-reconstruction mismatch) the arable target is clamped at 0 and a
+warning is emitted.
 }
 
 \examples{
@@ -113,8 +129,13 @@ items <- tibble::tribble(
   2511L, "Herbaceous",
   2560L, "Woody"
 )
+temporary_grassland <- tibble::tribble(
+  ~area_code, ~year, ~item_cbs_code, ~impact_u,
+  1L, 2020L, 3002L, 100 # temporary grassland netted out of arable
+)
 build_fao_arable_fallow_extension(
   harvested, arable_permanent, base_extension,
+  temporary_grassland = temporary_grassland,
   items_prod_full = items
 )
 }

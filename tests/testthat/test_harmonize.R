@@ -262,6 +262,38 @@ test_that("harmonize_interpolate interpolates shares linearly", {
     expect_equal(c(7, 3))
 })
 
+test_that("1:n split conserves mass in a partially observed year", {
+  # Harm set {1, 2, 3}. Years 2000 and 2002 are fully observed; 2001
+  # only observes members 1 and 2 (member 3's simple value is
+  # missing), so member 3's share is interpolated. Without
+  # renormalization the shares in 2001 sum to more than 1, inflating
+  # the 1:n split. The total mass in 2001 must equal the simple input
+  # (10 + 10) plus the single 1:n observation (30), i.e. 50.
+  input <- tibble::tribble(
+    ~item, ~item_code_harm, ~year, ~value, ~type,
+    "wheat", 1, 2000, 10, "simple",
+    "rice", 2, 2000, 10, "simple",
+    "barley", 3, 2000, 10, "simple",
+    "wheat", 1, 2001, 10, "simple",
+    "rice", 2, 2001, 10, "simple",
+    "wheatricebarley", 1, 2001, 30, "1:n",
+    "wheatricebarley", 2, 2001, 30, "1:n",
+    "wheatricebarley", 3, 2001, 30, "1:n",
+    "wheat", 1, 2002, 10, "simple",
+    "rice", 2, 2002, 10, "simple",
+    "barley", 3, 2002, 10, "simple"
+  )
+
+  result <- input |>
+    whep::harmonize_interpolate() |>
+    dplyr::filter(year == 2001)
+
+  result |>
+    dplyr::pull(value) |>
+    sum() |>
+    expect_equal(50)
+})
+
 test_that("harmonize_interpolate preserves simple values unchanged", {
   input <- tibble::tribble(
     ~item, ~item_code_harm, ~year, ~value, ~type,
