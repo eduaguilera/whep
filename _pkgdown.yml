@@ -182,6 +182,13 @@ reference:
   - expand_trade_sources
   
 
+- title: Data-frame utilities
+  desc: >
+    Complete tabular schemas without losing column types or silently
+    discarding extra fields.
+  contents:
+  - ensure_columns
+
 - title: Gap filling functions
   desc: >
     Functions to fill gaps (NA values) in time-dependent variables using different methods.
