@@ -750,3 +750,12 @@ test_that("cell-years without climate coverage are dropped with a warning", {
   testthat::expect_true(any(out$area_code == 1L))
   testthat::expect_true(all(is.finite(out$stock_mgc_ha)))
 })
+
+test_that("progress feedback is on for real runs, off under testthat", {
+  # Real runs (including non-interactive Rscript batch runs) get phase progress;
+  # under testthat it is suppressed so the test log stays clean.
+  withr::local_envvar(TESTTHAT = "")
+  testthat::expect_true(whep:::.cb_show_progress())
+  withr::local_envvar(TESTTHAT = "true")
+  testthat::expect_false(whep:::.cb_show_progress())
+})

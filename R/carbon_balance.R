@@ -75,9 +75,22 @@ build_carbon_balance <- function(
   }
   model <- rlang::arg_match(model)
   resolution <- rlang::arg_match(resolution)
+  progress <- .cb_show_progress()
+  if (progress) {
+    cli::cli_progress_step("Reading model inputs (may read multi-GB rasters)")
+  }
   d <- .cb_resolve_inputs(data, years)
+  if (progress) {
+    cli::cli_progress_step("Computing per-class equilibrium")
+  }
   classes <- .cb_class_table(d, model) |> .cb_attach_equilibrium(model)
+  if (progress) {
+    cli::cli_progress_step("Initialising soil-carbon pools")
+  }
   init <- .cb_initialise(classes, model, d)
+  if (progress) {
+    cli::cli_progress_done()
+  }
   marched <- .cb_march(classes, init)
   marched |>
     .cb_derive_son() |>
@@ -512,7 +525,8 @@ build_carbon_balance <- function(
   init_split <- split(init, cell_key(init))
   purrr::map(
     names(classes_split),
-    \(k) .cb_march_cell(classes_split[[k]], init_split[[k]] %||% init[0, ])
+    \(k) .cb_march_cell(classes_split[[k]], init_split[[k]] %||% init[0, ]),
+    .progress = "Marching cells"
   ) |>
     dplyr::bind_rows()
 }
@@ -871,4 +885,14 @@ build_carbon_balance <- function(
     value_col = "clay_pct",
     out_col = "clay_pct"
   )
+}
+
+# Whether to print phase-progress feedback. Real runs (including non-interactive
+# Rscript batch runs, which are the common way this multi-minute model is run)
+# should show progress so the user is never left staring at a silent process;
+# under testthat it is suppressed so the test log stays clean. The march bar
+# (purrr `.progress`) is separately gated by cli's show-after delay, so it never
+# renders for the fast test fixtures and needs no explicit guard.
+.cb_show_progress <- function() {
+  !identical(Sys.getenv("TESTTHAT"), "true")
 }
