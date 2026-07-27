@@ -744,3 +744,113 @@ test_that("polity area-weighted mean is exercised across multiple cells", {
   testthat::expect_equal(pol$stock_mgc_ha, expected_wmean, tolerance = 1e-9)
   testthat::expect_false(isTRUE(all.equal(pol$stock_mgc_ha, unweighted_mean)))
 })
+
+# -- Default input readers (wiring) -------------------------------------------
+
+test_that(".cb_clay_from_climate reuses the climate table's clay_pct", {
+  climate <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~year, ~month, ~clay_pct,
+    0.25, 0.25, 1L, 2000L, 1L, 20,
+    0.25, 0.25, 1L, 2000L, 2L, 20,
+    0.75, 0.25, 1L, 2000L, 1L, 35
+  )
+  clay <- whep:::.cb_clay_from_climate(climate)
+  testthat::expect_setequal(names(clay), c("lon", "lat", "clay_pct"))
+  testthat::expect_equal(nrow(clay), 2L)
+  testthat::expect_setequal(clay$clay_pct, c(20, 35))
+})
+
+test_that(".cb_clay_from_climate returns NULL without clay_pct", {
+  climate <- tibble::tibble(
+    lon = 0.25,
+    lat = 0.25,
+    area_code = 1L,
+    year = 2000L,
+    climate_modifier = 1
+  )
+  testthat::expect_null(whep:::.cb_clay_from_climate(climate))
+})
+
+# Default per-cell clay reader against the real HWSD extract. Skipped on CI and
+# whenever HWSD is absent (never fetches a remote raster).
+test_that(".cb_hwsd_clay reads per-cell clay from HWSD", {
+  testthat::skip_on_ci()
+  hwsd_dir <- Sys.getenv("WHEP_HWSD_DIR")
+  testthat::skip_if(
+    !nzchar(hwsd_dir) || !file.exists(file.path(hwsd_dir, "hwsd_data.csv")),
+    "HWSD extract not available"
+  )
+  testthat::skip_if_not_installed("terra")
+  cell_polity <- tibble::tribble(
+    ~lon, ~lat, ~area_code,
+    -3.75, 40.25, 203L,
+    -3.25, 40.25, 203L
+  )
+  clay <- whep:::.cb_hwsd_clay(cell_polity)
+  testthat::expect_setequal(names(clay), c("lon", "lat", "clay_pct"))
+  testthat::expect_true(all(clay$clay_pct >= 0 & clay$clay_pct <= 100))
+})
+
+# -- years pass-through (turnkey scoping) -------------------------------------
+
+# build_carbon_balance() and its default-reader carbon-input builders must
+# expose a `years` argument so a turnkey call can scope the (otherwise
+# 850-2015) LUH2 range. Pure signature check; no pins or rasters are touched.
+test_that("carbon builders expose a years argument threaded to readers", {
+  fns <- c(
+    "build_carbon_balance",
+    "build_carbon_inputs",
+    "build_soil_carbon_inputs",
+    "build_grass_natural_carbon_inputs"
+  )
+  for (nm in fns) {
+    fn <- getExportedValue("whep", nm)
+    testthat::expect_true(
+      "years" %in% names(formals(fn)),
+      info = paste0(nm, " must accept a `years` argument")
+    )
+    testthat::expect_null(
+      eval(formals(fn)$years),
+      info = paste0(nm, "'s `years` must default to NULL (back-compatible)")
+    )
+  }
+  # The default readers forward `years` to the year-aware source functions.
+  testthat::expect_true("years" %in% names(formals(whep:::.cb_read_land_use)))
+  testthat::expect_true("years" %in% names(formals(whep:::.cb_read_climate)))
+  testthat::expect_true("years" %in% names(formals(whep:::.cb_read_c_inputs)))
+  testthat::expect_true("years" %in% names(formals(whep:::.sci_read_npp)))
+  testthat::expect_true("years" %in% names(formals(whep:::.sci_read_manure)))
+})
+
+test_that("cell-years without climate coverage are dropped with a warning", {
+  d <- .cb_test_data()
+  # A second cell present in land_use + c_inputs but absent from climate/clay:
+  # its climate_modifier resolves to NA. The run must warn and drop it, not
+  # abort, and still return the covered cell's SOC.
+  shift <- function(df) {
+    df$lon <- 88.25
+    df$lat <- 8.25
+    df$area_code <- 777L
+    df
+  }
+  d$land_use <- dplyr::bind_rows(d$land_use, shift(d$land_use))
+  d$c_inputs <- dplyr::bind_rows(d$c_inputs, shift(d$c_inputs))
+
+  testthat::expect_warning(
+    whep::build_carbon_balance(model = "hsoc", data = d),
+    "Dropped"
+  )
+  out <- suppressWarnings(whep::build_carbon_balance(model = "hsoc", data = d))
+  testthat::expect_false(any(out$area_code == 777L))
+  testthat::expect_true(any(out$area_code == 1L))
+  testthat::expect_true(all(is.finite(out$stock_mgc_ha)))
+})
+
+test_that("progress feedback is on for real runs, off under testthat", {
+  # Real runs (including non-interactive Rscript batch runs) get phase progress;
+  # under testthat it is suppressed so the test log stays clean.
+  withr::local_envvar(TESTTHAT = "")
+  testthat::expect_true(whep:::.cb_show_progress())
+  withr::local_envvar(TESTTHAT = "true")
+  testthat::expect_false(whep:::.cb_show_progress())
+})

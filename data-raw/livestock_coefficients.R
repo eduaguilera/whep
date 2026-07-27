@@ -13,9 +13,6 @@
 # - IPCC 2006: 2006 IPCC Guidelines for National GHG Inventories
 #   Volume 4, Chapter 10
 
-if (file.exists("renv/activate.R")) {
-  source("renv/activate.R")
-}
 library(openxlsx)
 library(dplyr)
 library(tidyr)

@@ -221,7 +221,98 @@ test_that("an unset LUH2 directory cannot select a current-directory file", {
   testthat::expect_equal(out$source, "pin")
 })
 
+# Build a tiny synthetic LUH2 v2h states.nc (native grid, one time slice = year
+# 850) carrying the 12 state fractions, so the real NetCDF parser and class
+# mapper can be smoke-tested on CI without the ~6.6 GB luh2_v2h_states pin.
+.luh2_fixture_states_nc <- function() {
+  dir <- withr::local_tempdir(.local_envir = parent.frame())
+  lon <- c(-179.875, -179.625, -179.375, -179.125)
+  lat <- c(89.875, 89.625)
+  frac <- c(
+    c3ann = 0.10,
+    c4ann = 0.02,
+    c3per = 0.01,
+    c4per = 0.00,
+    c3nfx = 0.02,
+    pastr = 0.20,
+    range = 0.05,
+    primf = 0.40,
+    secdf = 0.05,
+    primn = 0.02,
+    secdn = 0.01,
+    urban = 0.05
+  )
+  fill <- 1e20
+  dim_lon <- ncdf4::ncdim_def("lon", "degrees_east", lon)
+  dim_lat <- ncdf4::ncdim_def("lat", "degrees_north", lat)
+  dim_time <- ncdf4::ncdim_def("time", "years since 850-1-1", 0)
+  vars <- lapply(names(frac), \(s) {
+    ncdf4::ncvar_def(s, "1", list(dim_lon, dim_lat, dim_time), missval = fill)
+  })
+  path <- file.path(dir, "states.nc")
+  nc <- ncdf4::nc_create(path, vars)
+  for (s in names(frac)) {
+    arr <- array(frac[[s]], dim = c(length(lon), length(lat), 1L))
+    arr[1L, 1L, 1L] <- fill # one ocean sub-cell -> NA, to exercise the drop
+    ncdf4::ncvar_put(nc, s, arr)
+  }
+  ncdf4::nc_close(nc)
+  list(
+    path = path,
+    year = 850L,
+    cropland = sum(frac[c("c3ann", "c4ann", "c3per", "c4per", "c3nfx")])
+  )
+}
+
+test_that("states.nc parser reads a synthetic file and maps 12 states to 4 classes", {
+  fx <- .luh2_fixture_states_nc()
+  states <- whep:::.luh2_read_states_nc(fx$path, years = fx$year)
+
+  pointblank::expect_col_exists(
+    states,
+    c("lon", "lat", "year", "land_use", "fraction")
+  )
+  testthat::expect_true(all(states$year == 850L))
+  testthat::expect_true(all(
+    states$fraction >= -1e-9 & states$fraction <= 1.001
+  ))
+  # all 12 native states survive the slice/aggregate
+  testthat::expect_setequal(
+    unique(states$land_use),
+    c(
+      "c3ann",
+      "c4ann",
+      "c3per",
+      "c4per",
+      "c3nfx",
+      "pastr",
+      "range",
+      "primf",
+      "secdf",
+      "primn",
+      "secdn",
+      "urban"
+    )
+  )
+
+  mapped <- whep:::.luh2_map_classes(states)
+  testthat::expect_setequal(
+    unique(mapped$land_use),
+    c("cropland", "grassland", "natural", "urban")
+  )
+  # 12 -> 4 conserves fraction: cropland = sum of the five crop states. The
+  # fully-present 0.5-degree cell reaches the exact sum (ocean-adjacent cells
+  # fall short by their dropped ocean area, so use the max cell).
+  crop <- mapped$fraction[mapped$land_use == "cropland"]
+  testthat::expect_true(all(crop > 0 & crop <= fx$cropland + 1e-6))
+  testthat::expect_equal(max(crop), fx$cropland, tolerance = 1e-6)
+})
+
 test_that("real pin smoke test (skipped when unreadable)", {
+  # The luh2_v2h_states pin is the ~6.6 GB LUH2 states product. On CI there is
+  # no warm cache, so reading it downloads the whole file and hangs the check
+  # (the tryCatch below only guards against an *error*, not a slow download).
+  testthat::skip_on_ci()
   states <- tryCatch(
     whep:::.luh2_read_states(years = 1750L),
     error = function(e) NULL

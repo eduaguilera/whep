@@ -81,9 +81,22 @@ read_cru_climate <- function(
   resolved
 }
 
-# On-disk file name for one CRU variable in the 4.09 (1901-2024) set.
+# On-disk path for one CRU variable. Matches any CRU TS version / year span
+# (e.g. cru_ts4.07.1901.2022, cru_ts4.09.1901.2024) rather than hardcoding one,
+# so the reader is robust to the CRU release available on disk.
 .cru_file <- function(var, cru_dir) {
-  file.path(cru_dir, paste0("cru_ts4.09.1901.2024.", var, ".dat.nc"))
+  pattern <- paste0("^cru_ts.*\\.", var, "\\.dat\\.nc$")
+  hits <- list.files(cru_dir, pattern = pattern, full.names = TRUE)
+  if (length(hits) == 0L) {
+    cli::cli_abort(c(
+      "No CRU file for variable {.val {var}} in {.file {cru_dir}}.",
+      i = "Expected a file like {.file cru_ts<version>.<years>.{var}.dat.nc}."
+    ))
+  }
+  # If several CRU releases are present for a variable (e.g. 4.07 and 4.09),
+  # use the newest: the version/year span sorts lexicographically, so the last
+  # sorted path is the most recent release.
+  utils::tail(sort(hits), 1L)
 }
 
 # Read one CRU variable for the requested years, slicing the time dimension at

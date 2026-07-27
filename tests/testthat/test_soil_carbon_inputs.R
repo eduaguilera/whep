@@ -337,3 +337,250 @@ test_that("example = TRUE returns the documented schema", {
   testthat::expect_s3_class(out, "tbl_df")
   testthat::expect_gt(nrow(out), 0L)
 })
+
+# -- FAOSTAT harvested-area renormalization (issue #357) ----------------------
+
+# The spatialized crop area undershoots the FAOSTAT national area: crop 15 has
+# 40 spatialized ha but 100 FAOSTAT ha, crop 27 has 20 spatialized ha but 50
+# FAOSTAT ha. Without renormalization the per-ha density inflates (mass / 40
+# instead of mass / 100). harvested_area carries the FAOSTAT truth.
+.sci_harvested_area_fixture <- function() {
+  tibble::tribble(
+    ~area_code, ~item_prod_code, ~year, ~faostat_area_ha,
+    1L, "15", 2020L, 100,
+    1L, "27", 2020L, 50
+  )
+}
+
+.sci_fixture_data_with_area <- function() {
+  data <- .sci_fixture_data()
+  data$harvested_area <- .sci_harvested_area_fixture()
+  data
+}
+
+test_that("per-ha equals national density (mass / FAOSTAT area), not inflated", {
+  # Crop 15 carbon mass = residue-soil 60 + root 40 + weed 10 + manure 20 = 130.
+  # Old (inflated) per-ha = 130 / 40 spatialized ha = 3.25. National density is
+  # 130 / 100 FAOSTAT ha = 1.3, which the renormalization must now produce.
+  out <- whep::build_soil_carbon_inputs(
+    resolution = "polity",
+    data = .sci_fixture_data_with_area()
+  )
+  crop15 <- out[out$item_prod_code == "15", ]
+  testthat::expect_equal(crop15$total_c_input_mgc_ha_yr, 130 / 100)
+  testthat::expect_equal(crop15$residue_c_mgc_ha_yr, 60 / 100)
+  testthat::expect_equal(crop15$manure_c_mgc_ha_yr, 20 / 100)
+  # Crop 27 mass = 30 + 10 + 5 + 10 = 55 over 50 FAOSTAT ha = 1.1.
+  crop27 <- out[out$item_prod_code == "27", ]
+  testthat::expect_equal(crop27$total_c_input_mgc_ha_yr, 55 / 50)
+})
+
+test_that("renormalized grid density is uniform across a polity's cells", {
+  out <- whep::build_soil_carbon_inputs(
+    resolution = "grid",
+    data = .sci_fixture_data_with_area()
+  )
+  # per-ha = polity mass / FAOSTAT area is the national density, so every cell
+  # of a given crop carries the same value regardless of its spatial weight.
+  crop15 <- out[out$item_prod_code == "15", ]
+  testthat::expect_equal(
+    length(unique(round(crop15$total_c_input_mgc_ha_yr, 10))),
+    1L
+  )
+  testthat::expect_true(all(
+    abs(crop15$total_c_input_mgc_ha_yr - 130 / 100) < 1e-9
+  ))
+})
+
+test_that("renormalization conserves the national carbon mass on the grid", {
+  grid <- whep::build_soil_carbon_inputs(
+    resolution = "grid",
+    data = .sci_fixture_data_with_area()
+  )
+  # Scaled cell area = area_weight * FAOSTAT area; sum(per_ha * scaled_area)
+  # over a polity's cells must equal the polity carbon mass.
+  cp <- .sci_grid_fixture()$crop_patterns
+  spatial_tot <- cp |>
+    dplyr::summarise(spatial = sum(crop_area_ha), .by = "item_prod_code")
+  faostat <- .sci_harvested_area_fixture() |>
+    dplyr::select("item_prod_code", "faostat_area_ha")
+  recovered <- grid |>
+    dplyr::left_join(
+      dplyr::select(cp, lon, lat, item_prod_code, crop_area_ha),
+      by = c("lon", "lat", "item_prod_code")
+    ) |>
+    dplyr::left_join(spatial_tot, by = "item_prod_code") |>
+    dplyr::left_join(faostat, by = "item_prod_code") |>
+    dplyr::mutate(
+      scaled_area = crop_area_ha / spatial * faostat_area_ha
+    ) |>
+    dplyr::summarise(
+      mass = sum(total_c_input_mgc_ha_yr * scaled_area),
+      .by = "item_prod_code"
+    )
+  # Crop 15 mass 130, crop 27 mass 55 (residue-soil + root + weed + manure).
+  expected <- tibble::tibble(
+    item_prod_code = c("15", "27"),
+    mass = c(130, 55)
+  )
+  joined <- dplyr::inner_join(
+    recovered,
+    expected,
+    by = "item_prod_code",
+    suffix = c("_out", "_exp")
+  )
+  testthat::expect_equal(joined$mass_out, joined$mass_exp)
+})
+
+test_that("harvested_area is ignored for groups with no FAOSTAT area", {
+  # Crop 27 has no FAOSTAT row: it keeps the spatialized-area density (55 / 20),
+  # while crop 15 renormalizes to 130 / 100.
+  data <- .sci_fixture_data()
+  data$harvested_area <- tibble::tribble(
+    ~area_code, ~item_prod_code, ~year, ~faostat_area_ha,
+    1L, "15", 2020L, 100
+  )
+  out <- whep::build_soil_carbon_inputs(resolution = "polity", data = data)
+  crop15 <- out[out$item_prod_code == "15", ]
+  crop27 <- out[out$item_prod_code == "27", ]
+  testthat::expect_equal(crop15$total_c_input_mgc_ha_yr, 130 / 100)
+  testthat::expect_equal(crop27$total_c_input_mgc_ha_yr, 55 / 20)
+})
+
+test_that(".sci_harvested_area keeps crop ha rows and drops grass/livestock", {
+  production <- tibble::tribble(
+    ~area_code, ~item_prod_code, ~item_cbs_code, ~live_anim_code,
+    ~year, ~unit, ~value,
+    203L, 15, 2511L, NA, 2000L, "tonnes", 100,
+    203L, 15, 2511L, NA, 2000L, "ha", 40,
+    203L, 27, 2807L, NA, 2000L, "ha", 20,
+    203L, 866, 2731L, 866L, 2000L, "heads", 5,
+    203L, 3000, 3000L, NA, 2000L, "ha", 999
+  )
+  out <- whep:::.sci_harvested_area(production)
+  testthat::expect_setequal(
+    names(out),
+    c("area_code", "item_prod_code", "year", "faostat_area_ha")
+  )
+  testthat::expect_setequal(out$item_prod_code, c("15", "27"))
+  crop15 <- out[out$item_prod_code == "15", ]
+  testthat::expect_equal(crop15$faostat_area_ha, 40)
+})
+
+# -- Default input readers (wiring) -------------------------------------------
+
+# A minimal get_primary_production()-shaped table: two crops (production +
+# harvested area), one livestock row and one grassland row that must be dropped.
+.sci_primary_prod_fixture <- function() {
+  tibble::tribble(
+    ~area_code, ~item_prod_code, ~item_cbs_code, ~live_anim_code,
+    ~year, ~unit, ~value,
+    203L, 15, 2511L, NA, 2000L, "tonnes", 100,
+    203L, 15, 2511L, NA, 2000L, "ha", 40,
+    203L, 27, 2807L, NA, 2000L, "tonnes", 50,
+    203L, 27, 2807L, NA, 2000L, "ha", 20,
+    203L, 866, 2731L, 866L, 2000L, "tonnes", 999,
+    203L, 3000, 3000L, NA, 2000L, "ha", 999
+  )
+}
+
+test_that(".sci_npp_from_primary_prod runs the crop chain to soil carbon", {
+  out <- suppressWarnings(
+    whep:::.sci_npp_from_primary_prod(.sci_primary_prod_fixture())
+  )
+  testthat::expect_setequal(
+    names(out),
+    c(
+      "area_code",
+      "item_prod_code",
+      "year",
+      "residue_soil_c_t",
+      "root_c_t",
+      "weed_npp_c_t"
+    )
+  )
+  # Only the two crops survive (livestock and grassland dropped).
+  testthat::expect_setequal(out$item_prod_code, c("15", "27"))
+  # The crop chain returns no weed carbon (weeds need the components step).
+  testthat::expect_true(all(out$weed_npp_c_t == 0))
+  # Soil-returned residue and root carbon are positive for a real crop.
+  wheat <- out[out$item_prod_code == "15", ]
+  testthat::expect_gt(wheat$residue_soil_c_t, 0)
+  testthat::expect_gt(wheat$root_c_t, 0)
+})
+
+test_that(".sci_combine_crop_patterns scales harvest_fraction by cropland", {
+  patterns <- tibble::tribble(
+    ~lon, ~lat, ~item_prod_code, ~harvest_fraction,
+    0.25, 0.25, "15", 0.6,
+    0.25, 0.25, "27", 0.4,
+    0.75, 0.25, "15", 1.0
+  )
+  cropland <- tibble::tribble(
+    ~lon, ~lat, ~year, ~cropland_ha,
+    0.25, 0.25, 2000L, 100,
+    0.25, 0.25, 2001L, 200,
+    0.75, 0.25, 2000L, 50
+  )
+  out <- whep:::.sci_combine_crop_patterns(patterns, cropland)
+  testthat::expect_setequal(
+    names(out),
+    c("lon", "lat", "item_prod_code", "crop_area_ha")
+  )
+  # Cell (0.25, 0.25) mean cropland = 150: crop 15 = 90, crop 27 = 60.
+  wheat_a <- out[out$lon == 0.25 & out$item_prod_code == "15", ]
+  testthat::expect_equal(wheat_a$crop_area_ha, 90)
+  rice_a <- out[out$lon == 0.25 & out$item_prod_code == "27", ]
+  testthat::expect_equal(rice_a$crop_area_ha, 60)
+  # Cell (0.75, 0.25) cropland 50: crop 15 = 50.
+  wheat_b <- out[out$lon == 0.75, ]
+  testthat::expect_equal(wheat_b$crop_area_ha, 50)
+})
+
+test_that(".sci_manure_crop_layer emits the manure-engine crops contract", {
+  # Production-shaped fixture: two crops (ha rows), one livestock and one
+  # grassland row that must be dropped, in polity 203.
+  production <- tibble::tribble(
+    ~area_code, ~item_prod_code, ~item_cbs_code, ~live_anim_code,
+    ~year, ~unit, ~value,
+    203L, 15, 2511L, NA, 2000L, "ha", 40,
+    203L, 15, 2511L, NA, 2000L, "tonnes", 100,
+    203L, 27, 2807L, NA, 2000L, "ha", 20,
+    203L, 866, 2731L, 866L, 2000L, "heads", 5,
+    203L, 3000, 3000L, NA, 2000L, "ha", 999
+  )
+  out <- whep:::.sci_manure_crop_layer(production)
+  testthat::expect_setequal(
+    names(out),
+    c(
+      "year",
+      "territory",
+      "sub_territory",
+      "crop",
+      "manure_n_receptivity",
+      "crop_area_ha"
+    )
+  )
+  # Only the two crops survive (livestock and grassland dropped).
+  testthat::expect_setequal(out$crop, c("15", "27"))
+  # territory is the stringified area_code, crop the item_prod_code string.
+  testthat::expect_true(all(out$territory == "203"))
+  testthat::expect_true(all(is.na(out$sub_territory)))
+  # manure_n_receptivity is the harvested area (area-proportional allocation).
+  crop15 <- out[out$crop == "15", ]
+  testthat::expect_equal(crop15$manure_n_receptivity, 40)
+  testthat::expect_equal(crop15$crop_area_ha, 40)
+})
+
+test_that(".sci_read_manure runs turnkey and yields cropland applied_c", {
+  testthat::skip_on_ci()
+  testthat::skip_if_not_installed("arrow")
+  applied <- whep:::.sci_read_manure(years = 2010L)
+  testthat::expect_true(all(
+    c("year", "territory", "land_use", "crop", "applied_c") %in%
+      names(applied)
+  ))
+  cropland <- applied[applied$land_use == "Cropland" & !is.na(applied$crop), ]
+  testthat::expect_gt(nrow(cropland), 0L)
+  testthat::expect_gt(sum(cropland$applied_c, na.rm = TRUE), 0)
+})

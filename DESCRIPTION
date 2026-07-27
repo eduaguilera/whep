@@ -29,7 +29,7 @@ Imports:
     methods,
     nanoparquet,
     pins,
-    purrr,
+    purrr (>= 1.0.0),
     rappdirs,
     readr,
     rlang,
@@ -45,7 +45,6 @@ RoxygenNote: 7.3.3
 Suggests:
     DBI,
     ggplot2,
-    googlesheets4,
     here,
     htmltools,
     jsonlite,

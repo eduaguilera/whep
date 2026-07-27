@@ -39,6 +39,10 @@
 #'
 #' @param resolution `"grid"` (default, per cell and class) or `"polity"`
 #'   (aggregated to `area_code`, area-weighting the per-hectare densities).
+#' @param years Optional integer vector of calendar years to keep. `NULL`
+#'   (default) keeps every year the inputs cover. Threaded into the default
+#'   LPJmL NPP, stand-fraction and land-use readers so they slice to the
+#'   requested years; ignored for inputs supplied via `data`.
 #' @param data Named list of pre-loaded inputs, each falling back to its reader
 #'   when absent: `npp` and `harvestc` (per cell, PFT and year, the
 #'   [read_lpjml_npp()] output); `stand_frac` (per cell, year and PFT name the
@@ -62,13 +66,14 @@
 build_grass_natural_carbon_inputs <- function(
   resolution = c("grid", "polity"),
   data = list(),
+  years = NULL,
   example = FALSE
 ) {
   resolution <- rlang::arg_match(resolution)
   if (isTRUE(example)) {
     return(.example_grass_natural_carbon_inputs())
   }
-  d <- .gn_resolve_inputs(data)
+  d <- .gn_resolve_inputs(data, years)
   natural <- .gn_natural_input(d)
   grassland <- .gn_grassland_input(d)
   dplyr::bind_rows(natural, grassland) |>
@@ -77,13 +82,13 @@ build_grass_natural_carbon_inputs <- function(
 
 # -- Input resolution ---------------------------------------------------------
 
-.gn_resolve_inputs <- function(data) {
+.gn_resolve_inputs <- function(data, years = NULL) {
   list(
-    npp = data$npp %||% read_lpjml_npp("npp"),
-    harvestc = data$harvestc %||% read_lpjml_npp("harvestc"),
-    stand_frac = data$stand_frac %||% .gn_read_stand_frac(),
+    npp = data$npp %||% read_lpjml_npp("npp", years = years),
+    harvestc = data$harvestc %||% read_lpjml_npp("harvestc", years = years),
+    stand_frac = data$stand_frac %||% .gn_read_stand_frac(years = years),
     country_grid = data$country_grid %||% .gn_read_country_grid(),
-    land_use = data$land_use %||% .gn_read_land_use(),
+    land_use = data$land_use %||% .gn_read_land_use(years),
     excreta = data$excreta,
     residue_humification = data$residue_humification %||%
       whep::residue_humification
@@ -137,17 +142,27 @@ build_grass_natural_carbon_inputs <- function(
 # Grassland input: the stand-area-weighted mean of the rainfed and irrigated
 # grassland net (NPP - harvest) densities, plus the grazing-excreta density.
 .gn_grassland_input <- function(d) {
-  hf <- .gn_humified(d$residue_humification, "weed")
+  # Grass litter (weed coefficient) and grazing excreta (excreta coefficient,
+  # ~2.2x higher) humify differently; carbon-weight the two so each stream keeps
+  # its own humification fraction, matching the crop path (.sci_humified_fraction).
+  hf_npp <- .gn_humified(d$residue_humification, "weed")
+  hf_excreta <- .gn_humified(d$residue_humification, "excreta")
   net <- .gn_grassland_net(d$npp, d$harvestc, d$stand_frac) |>
     .gn_attach_polity(d$country_grid)
   excreta <- .gn_excreta_density(d$excreta, d$land_use, d$country_grid)
   net |>
     dplyr::left_join(excreta, by = c("area_code", "year")) |>
     dplyr::mutate(
-      c_input_mgc_ha_yr = .data$npp_c_mgc_ha_yr +
-        dplyr::coalesce(.data$excreta_c_mgc_ha_yr, 0),
+      npp_c = .data$npp_c_mgc_ha_yr,
+      excreta_c = dplyr::coalesce(.data$excreta_c_mgc_ha_yr, 0),
+      c_input_mgc_ha_yr = .data$npp_c + .data$excreta_c,
+      humified_fraction = dplyr::if_else(
+        .data$c_input_mgc_ha_yr > 0,
+        (.data$npp_c * hf_npp + .data$excreta_c * hf_excreta) /
+          .data$c_input_mgc_ha_yr,
+        hf_npp
+      ),
       land_use = "grassland",
-      humified_fraction = hf,
       method_c_input = "lpjml_npp_minus_harvest"
     ) |>
     dplyr::select(
@@ -327,29 +342,77 @@ build_grass_natural_carbon_inputs <- function(
     tibble::as_tibble()
 }
 
-# -- Reader stubs (real readers wired elsewhere) ------------------------------
+# -- Default input readers ----------------------------------------------------
 
-.gn_read_stand_frac <- function() {
-  cli::cli_abort(
-    c(
-      "No {.field stand_frac} reader is wired yet.",
-      i = "Pass {.code data$stand_frac} (per-cell managed-grassland stand \\
-           fractions from cftfrac.nc)."
+# Per-cell managed-grassland stand fractions from the LPJmL run's cftfrac.nc.
+# The rainfed and irrigated grassland bands (matched by NamePFT, never band
+# index) are sliced per year and reshaped to (lon, lat, year, name_pft,
+# stand_frac), keeping only present (finite, positive) stands. The run
+# directory follows the shared LPJmL convention (WHEP_LPJML_RUN_DIR).
+.gn_read_stand_frac <- function(
+  run_dir = NULL,
+  years = NULL,
+  first_year = 1901L
+) {
+  rlang::check_installed("ncdf4")
+  run_dir <- .resolve_run_dir(run_dir)
+  path <- file.path(run_dir, "cftfrac.nc")
+  if (!file.exists(path)) {
+    cli::cli_abort("LPJmL managed-fraction file not found: {.file {path}}.")
+  }
+  nc <- ncdf4::nc_open(path)
+  on.exit(ncdf4::nc_close(nc))
+  keep <- .gn_stand_frac_keep_years(nc, first_year, years)
+  parts <- purrr::map(keep, function(ti) {
+    .gn_stand_frac_slice(nc, first_year, ti)
+  })
+  tibble::as_tibble(data.table::rbindlist(parts))
+}
+
+# Annual time-step indices to read from cftfrac.nc: all, or only the requested
+# calendar years (index 1 = first_year).
+.gn_stand_frac_keep_years <- function(nc, first_year, years) {
+  n_time <- nc$dim[["time"]]$len
+  stamp_years <- first_year + seq_len(n_time) - 1L
+  if (is.null(years)) {
+    seq_len(n_time)
+  } else {
+    which(stamp_years %in% as.integer(years))
+  }
+}
+
+# One year's rainfed and irrigated grassland stand fractions, long by name_pft.
+.gn_stand_frac_slice <- function(nc, first_year, time_index) {
+  lon <- ncdf4::ncvar_get(nc, "lon")
+  lat <- ncdf4::ncvar_get(nc, "lat")
+  names_pft <- as.character(ncdf4::ncvar_get(nc, "NamePFT"))
+  bands <- which(names_pft %in% .gn_grassland_pfts())
+  year <- first_year + time_index - 1L
+  parts <- purrr::map(bands, function(k) {
+    slab <- ncdf4::ncvar_get(
+      nc,
+      "CFTfrac",
+      start = c(1L, 1L, k, time_index),
+      count = c(-1L, -1L, 1L, 1L)
     )
-  )
+    dt <- data.table::data.table(
+      lon = rep(lon, times = length(lat)),
+      lat = rep(lat, each = length(lon)),
+      year = as.integer(year),
+      name_pft = names_pft[k],
+      stand_frac = as.vector(slab)
+    )
+    dt[is.finite(stand_frac) & stand_frac > 0]
+  })
+  data.table::rbindlist(parts)
 }
 
 .gn_read_country_grid <- function() {
   whep_read_file("spatialize-country-grid")
 }
 
-.gn_read_land_use <- function() {
-  cli::cli_abort(
-    c(
-      "No {.field land_use} reader is wired yet.",
-      i = "Pass {.code data$land_use} (per-cell grassland areas from \\
-           {.fun read_luh2_landuse})."
-    )
-  )
+# Per-cell grassland (and other class) areas from LUH2 v2h.
+.gn_read_land_use <- function(years = NULL) {
+  read_luh2_landuse(resolution = "grid", years = years)
 }
 # nolint end

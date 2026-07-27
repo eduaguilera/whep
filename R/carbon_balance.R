@@ -24,6 +24,13 @@
 #'   \code{"icbm"}, \code{"amg"} or \code{"century"}.
 #' @param resolution \code{"grid"} (default, per cell and land-use class) or
 #'   \code{"polity"} (aggregated to \code{area_code} conserving carbon mass).
+#' @param years Optional integer vector of calendar years to keep. \code{NULL}
+#'   (default) keeps every year the inputs cover, but reading the full LUH2 range
+#'   (850-2015) is infeasible turnkey, so a subset is strongly recommended when
+#'   the default readers are used. Threaded into every default reader
+#'   (\code{\link{read_luh2_landuse}}, \code{\link{get_soc_climate_drivers}} and
+#'   \code{\link{build_carbon_inputs}}); ignored for inputs supplied via
+#'   \code{data}.
 #' @param data Named list of pre-loaded inputs, each falling back to its reader
 #'   when absent: \code{c_inputs} (per cell, land-use class and year, with
 #'   \code{c_input_mgc_ha_yr} and \code{humified_fraction}); \code{land_use}
@@ -60,6 +67,7 @@ build_carbon_balance <- function(
   model = c("hsoc", "rothc", "icbm", "amg", "century"),
   resolution = c("grid", "polity"),
   data = list(),
+  years = NULL,
   example = FALSE
 ) {
   if (isTRUE(example)) {
@@ -67,9 +75,22 @@ build_carbon_balance <- function(
   }
   model <- rlang::arg_match(model)
   resolution <- rlang::arg_match(resolution)
-  d <- .cb_resolve_inputs(data)
+  progress <- .cb_show_progress()
+  if (progress) {
+    cli::cli_progress_step("Reading model inputs (may read multi-GB rasters)")
+  }
+  d <- .cb_resolve_inputs(data, years)
+  if (progress) {
+    cli::cli_progress_step("Computing per-class equilibrium")
+  }
   classes <- .cb_class_table(d, model) |> .cb_attach_equilibrium(model)
+  if (progress) {
+    cli::cli_progress_step("Initialising soil-carbon pools")
+  }
   init <- .cb_initialise(classes, model, d)
+  if (progress) {
+    cli::cli_progress_done()
+  }
   marched <- .cb_march(classes, init)
   marched |>
     .cb_derive_son() |>
@@ -79,14 +100,36 @@ build_carbon_balance <- function(
 
 # -- Input resolution ---------------------------------------------------------
 
-.cb_resolve_inputs <- function(data) {
+.cb_resolve_inputs <- function(data, years = NULL) {
+  c_inputs <- data$c_inputs %||% .cb_read_c_inputs(years)
+  land_use <- data$land_use %||% .cb_read_land_use(years)
+  climate <- data$climate %||% .cb_read_climate(years)
+  # get_soc_climate_drivers() carries clay_pct in its own output, so a
+  # turnkey (or clay_pct-bearing) climate table supplies the per-cell clay
+  # directly; only fall back to the standalone HWSD clay reader when the
+  # climate table lacks it (the precomputed climate_modifier path).
+  clay <- data$clay %||% .cb_clay_from_climate(climate) %||% .cb_read_clay()
   list(
-    c_inputs = data$c_inputs %||% .cb_read_c_inputs(),
-    land_use = data$land_use %||% .cb_read_land_use(),
-    climate = data$climate %||% .cb_read_climate(),
-    clay = data$clay %||% .cb_read_clay(),
+    c_inputs = c_inputs,
+    land_use = land_use,
+    climate = climate,
+    clay = clay,
     equilibrium_climate = data$equilibrium_climate
   )
+}
+
+# Reuse the per-cell clay_pct the climate-driver table already carries, so the
+# clay driving the turnover model and the clay driving the RothC/HSOC modifier
+# come from one source. Returns NULL when the climate table has no clay_pct
+# (the precomputed climate_modifier path), letting the caller fall back to the
+# standalone HWSD clay reader.
+.cb_clay_from_climate <- function(climate) {
+  if (!rlang::has_name(climate, "clay_pct")) {
+    return(NULL)
+  }
+  climate |>
+    dplyr::select("lon", "lat", "clay_pct") |>
+    dplyr::distinct()
 }
 
 # Join land-use areas, carbon inputs, the per-cell-year (and, for the raw-driver
@@ -101,7 +144,8 @@ build_carbon_balance <- function(
 # from the raw monthly drivers via the selected model's native climate function,
 # reduced PER LAND USE so the RothC/HSOC plant-cover term differs between
 # cropland (crop growth-stage curve) and grassland/natural (perennial cover);
-# see `.cb_climate_modifier_table()`. A genuinely missing modifier aborts.
+# see `.cb_climate_modifier_table()`. A cell-year with no modifier at all (no
+# climate coverage) is dropped with a warning by `.cb_drop_uncovered_climate()`.
 .cb_class_table <- function(d, model) {
   clay <- d$clay
   base <- d$land_use |>
@@ -121,7 +165,7 @@ build_carbon_balance <- function(
   base |>
     .cb_join_modifier(modifiers) |>
     dplyr::left_join(clay, by = c("lon", "lat")) |>
-    .cb_check_climate_modifier()
+    .cb_drop_uncovered_climate()
 }
 
 # Join the modifier table onto the class table. The raw-driver modifier table
@@ -137,25 +181,26 @@ build_carbon_balance <- function(
   }
 }
 
-# Abort if any cell-year that has land-use and carbon-input coverage lacks a
-# climate modifier: a missing modifier is a real climate-data gap and must not
-# be silently replaced by a neutral 1 (which would run SOC turnover at
-# unmodified decomposition and hide the gap). The per-model native modifier path
-# already returns a legitimate 1 when only the raw driver columns are absent
-# (soc_dynamics.R:80-81), so an NA here means the cell-year is missing from the
-# climate table entirely, never a merely driverless cell.
-.cb_check_climate_modifier <- function(classes) {
+# Drop cell-years that have land-use and carbon-input coverage but no climate
+# modifier. An NA here means the cell-year is missing from the climate table
+# entirely (a real climate-data gap), never a merely driverless cell: the
+# per-model native modifier path returns a legitimate 1 when only the raw driver
+# columns are absent (soc_dynamics.R:80-81). Such cells cannot be modelled, so
+# warn and drop them (surfacing the coverage loss) rather than aborting the whole
+# run on a small gap, or silently running SOC turnover at an unmodified neutral 1.
+.cb_drop_uncovered_climate <- function(classes) {
   missing <- classes |> dplyr::filter(is.na(.data$climate_modifier))
   if (nrow(missing) > 0) {
     gaps <- missing |>
       dplyr::distinct(.data$lon, .data$lat, .data$area_code, .data$year)
-    cli::cli_abort(
+    cli::cli_warn(
       c(
-        "Missing {.field climate_modifier} for {nrow(gaps)} cell-year{?s}.",
-        i = "Every cell-year with land-use and carbon-input coverage needs a
-          climate modifier; supply {.code data$climate} for these cell-years."
+        "!" = "Dropped {nrow(gaps)} cell-year{?s} with land-use/carbon-input
+          coverage but no climate modifier (outside the climate-driver grid).",
+        i = "Supply {.code data$climate} for these cell-years to retain them."
       )
     )
+    classes <- classes |> dplyr::filter(!is.na(.data$climate_modifier))
   }
   classes
 }
@@ -470,27 +515,18 @@ build_carbon_balance <- function(
 
 # March every cell forward over its years, applying the model annual update then
 # the land-use-change carbon transfer. Each cell is processed independently.
+# Both tables are partitioned once by the cell key (an O(n) split) and the
+# groups zipped, rather than re-filtering the whole table per cell (which was
+# O(cells^2) and dominated the global run time). A cell absent from `init` gets
+# an empty init slice, matching the previous per-cell zero-row filter.
 .cb_march <- function(classes, init) {
-  cells <- classes |>
-    dplyr::distinct(.data$lon, .data$lat, .data$area_code)
-  purrr::pmap(
-    list(cells$lon, cells$lat, cells$area_code),
-    \(lon, lat, ac) {
-      .cb_march_cell(
-        dplyr::filter(
-          classes,
-          .data$lon == .env$lon,
-          .data$lat == .env$lat,
-          .data$area_code == .env$ac
-        ),
-        dplyr::filter(
-          init,
-          .data$lon == .env$lon,
-          .data$lat == .env$lat,
-          .data$area_code == .env$ac
-        )
-      )
-    }
+  cell_key <- \(x) paste(x$lon, x$lat, x$area_code, sep = "\r")
+  classes_split <- split(classes, cell_key(classes))
+  init_split <- split(init, cell_key(init))
+  purrr::map(
+    names(classes_split),
+    \(k) .cb_march_cell(classes_split[[k]], init_split[[k]] %||% init[0, ]),
+    .progress = "Marching cells"
   ) |>
     dplyr::bind_rows()
 }
@@ -614,7 +650,11 @@ build_carbon_balance <- function(
     stock_mgc_ha = stock,
     mineralization_mgc_ha = mineralization,
     c_input_mgc_ha = cur$c_input_mgc_ha_yr,
-    luc_transfer_mgc_ha = transferred$mass_moved[idx] / cur$area_ha,
+    luc_transfer_mgc_ha = dplyr::if_else(
+      cur$area_ha > 0,
+      transferred$mass_moved[idx] / cur$area_ha,
+      0
+    ),
     rate_mgc_ha = cur$c_input_mgc_ha_yr - mineralization
   )
 }
@@ -775,34 +815,84 @@ build_carbon_balance <- function(
   sum(value * weight) / sum(weight)
 }
 
-# -- Reader stubs (real readers are separate later tasks) ---------------------
+# -- Default input readers ----------------------------------------------------
 
-.cb_read_c_inputs <- function() {
-  cli::cli_abort(
-    c(
-      "No {.field c_inputs} reader is wired yet.",
-      i = "Pass {.code data$c_inputs} from {.fun build_soil_carbon_inputs}."
+# The per-(cell, land-use class, year) carbon-input layer, assembled from the
+# cropland (build_soil_carbon_inputs), grassland and natural
+# (build_grass_natural_carbon_inputs) builders by build_carbon_inputs(). Grid
+# grain is required: .cb_class_table() joins c_inputs onto the land-use areas
+# per cell.
+.cb_read_c_inputs <- function(years = NULL) {
+  build_carbon_inputs(resolution = "grid", years = years)
+}
+
+# Yearly per-cell per-class land-use areas from LUH2 v2h (read_luh2_landuse()
+# emits lowercase cropland/grassland/natural/urban classes, matching the
+# carbon-input builders).
+.cb_read_land_use <- function(years = NULL) {
+  read_luh2_landuse(resolution = "grid", years = years)
+}
+
+# The per cell-year monthly climate drivers get_soc_climate_drivers() produces
+# (temperature, water surplus, soil moisture and clay_pct), from which
+# .cb_climate_modifier_table() derives the selected model's native modifier.
+# get_soc_climate_drivers() requires the per-cell clay and cell-polity
+# crosswalk, supplied here from HWSD and the spatialization country grid.
+.cb_read_climate <- function(years = NULL) {
+  cell_polity <- .cb_read_cell_polity()
+  get_soc_climate_drivers(
+    years = years,
+    data = list(
+      clay = .cb_hwsd_clay(cell_polity),
+      cell_polity = cell_polity
     )
   )
 }
 
-.cb_read_land_use <- function() {
-  cli::cli_abort(
-    c(
-      "No {.field land_use} reader is wired yet.",
-      i = "Pass {.code data$land_use} (yearly per-cell per-class areas)."
-    )
-  )
-}
-
-.cb_read_climate <- function() {
-  cli::cli_abort(
-    "No {.field climate} reader is wired yet; pass {.code data$climate}."
-  )
-}
-
+# Standalone per-cell clay reader (only reached when the resolved climate table
+# carries no clay_pct); the HWSD clay cropped to the spatialization country grid.
 .cb_read_clay <- function() {
-  cli::cli_abort(
-    "No {.field clay} reader is wired yet; pass {.code data$clay}."
+  .cb_hwsd_clay(.cb_read_cell_polity())
+}
+
+# The cell -> polity crosswalk (lon, lat, area_code) from the spatialization
+# country grid, the same source grass_natural and LUH2 use.
+.cb_read_cell_polity <- function() {
+  whep_read_file("spatialize-country-grid") |>
+    .normalize_country_grid() |>
+    dplyr::select("lon", "lat", "area_code")
+}
+
+# Per-cell topsoil clay percent from HWSD: the map-unit share-weighted mean of
+# the HWSD topsoil clay fraction (t_clay), aggregated to the 0.5-degree grid
+# (cropped to `cell_polity`) via the shared HWSD aggregation helper. Reuses the
+# HWSD attribute/raster path read_soil_hydraulic() uses so the clay driver is
+# consistent with the hydraulic drivers.
+.cb_hwsd_clay <- function(cell_polity) {
+  rlang::check_installed("terra")
+  hwsd_dir <- .resolve_hwsd_dir(NULL)
+  mu_clay <- .read_hwsd_attributes_local(hwsd_dir) |>
+    dplyr::filter(!is.na(.data$t_clay)) |>
+    dplyr::summarise(
+      clay_pct = stats::weighted.mean(.data$t_clay, .data$share),
+      .by = "mu_global"
+    )
+  .aggregate_hwsd(
+    hwsd_dir,
+    mu_clay,
+    target_res = 0.5,
+    target_grid = cell_polity,
+    value_col = "clay_pct",
+    out_col = "clay_pct"
   )
+}
+
+# Whether to print phase-progress feedback. Real runs (including non-interactive
+# Rscript batch runs, which are the common way this multi-minute model is run)
+# should show progress so the user is never left staring at a silent process;
+# under testthat it is suppressed so the test log stays clean. The march bar
+# (purrr `.progress`) is separately gated by cli's show-after delay, so it never
+# renders for the fast test fixtures and needs no explicit guard.
+.cb_show_progress <- function() {
+  !identical(Sys.getenv("TESTTHAT"), "true")
 }

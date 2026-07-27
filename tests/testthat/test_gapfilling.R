@@ -386,6 +386,183 @@ testthat::test_that("fill_linear handles no NAs without error", {
     pointblank::expect_col_vals_equal(source_value, "Original")
 })
 
+# fill_linear log_space --------------------------------------------------------
+
+testthat::test_that("fill_linear log_space uses the geometric midpoint", {
+  gap <- tibble::tribble(
+    ~year, ~value,
+    0, 1,
+    5, NA,
+    10, 1024
+  )
+
+  log_result <- gap |>
+    fill_linear(value, log_space = TRUE)
+  linear_result <- gap |>
+    fill_linear(value)
+
+  # Geometric (constant-growth) midpoint of 1 and 1024 is 32, not the
+  # arithmetic midpoint 512.5 that linear interpolation returns.
+  testthat::expect_equal(log_result$value[2], 32)
+  testthat::expect_false(isTRUE(all.equal(log_result$value[2], 512.5)))
+  testthat::expect_equal(log_result$source_value[2], "Log-linear interpolation")
+
+  testthat::expect_equal(linear_result$value[2], 512.5)
+  testthat::expect_equal(linear_result$source_value[2], "Linear interpolation")
+})
+
+testthat::test_that("fill_linear log_space falls back to linear on non-positive anchors", {
+  # A zero anchor makes log space undefined -> linear fallback.
+  tibble::tribble(
+    ~year, ~value,
+    0, 0,
+    5, NA,
+    10, 10
+  ) |>
+    fill_linear(value, log_space = TRUE) |>
+    testthat::expect_equal(
+      tibble::tribble(
+        ~year, ~value, ~source_value,
+        0, 0, "Original",
+        5, 5, "Linear interpolation",
+        10, 10, "Original"
+      )
+    )
+
+  # A negative anchor is likewise undefined -> linear fallback.
+  tibble::tribble(
+    ~year, ~value,
+    0, -4,
+    5, NA,
+    10, 8
+  ) |>
+    fill_linear(value, log_space = TRUE) |>
+    testthat::expect_equal(
+      tibble::tribble(
+        ~year, ~value, ~source_value,
+        0, -4, "Original",
+        5, 2, "Linear interpolation",
+        10, 8, "Original"
+      )
+    )
+})
+
+testthat::test_that("fill_linear log_space mixes log and linear segments in one series", {
+  # First gap has positive anchors (log); second gap is bracketed by a zero
+  # anchor (linear). Both segments coexist with distinct source labels.
+  tibble::tribble(
+    ~year, ~value,
+    0, 1,
+    5, NA,
+    10, 1024,
+    15, NA,
+    20, 0
+  ) |>
+    fill_linear(value, log_space = TRUE) |>
+    testthat::expect_equal(
+      tibble::tribble(
+        ~year, ~value, ~source_value,
+        0, 1, "Original",
+        5, 32, "Log-linear interpolation",
+        10, 1024, "Original",
+        15, 512, "Linear interpolation",
+        20, 0, "Original"
+      )
+    )
+})
+
+testthat::test_that("fill_linear log_space interpolates per group", {
+  tibble::tribble(
+    ~category, ~year, ~value,
+    "a", 0, 1,
+    "a", 5, NA,
+    "a", 10, 1024,
+    "b", 0, 2,
+    "b", 5, NA,
+    "b", 10, 200
+  ) |>
+    fill_linear(value, log_space = TRUE, .by = "category") |>
+    testthat::expect_equal(
+      tibble::tribble(
+        ~category, ~year, ~value, ~source_value,
+        "a", 0, 1, "Original",
+        "a", 5, 32, "Log-linear interpolation",
+        "a", 10, 1024, "Original",
+        "b", 0, 2, "Original",
+        "b", 5, 20, "Log-linear interpolation",
+        "b", 10, 200, "Original"
+      )
+    )
+})
+
+testthat::test_that("fill_linear log_space works on the smoothing (grouped) path", {
+  noisy <- tibble::tribble(
+    ~category, ~year, ~value,
+    "a", 2010, 10,
+    "a", 2011, 12,
+    "a", 2012, 8,
+    "a", 2013, NA,
+    "a", 2014, NA,
+    "a", 2015, 40,
+    "a", 2016, 44,
+    "a", 2017, 36
+  )
+
+  res_lin <- noisy |>
+    fill_linear(value, value_smooth_window = 3, .by = "category")
+  res_log <- noisy |>
+    fill_linear(
+      value,
+      log_space = TRUE,
+      value_smooth_window = 3,
+      .by = "category"
+    )
+
+  # Both fill the interior gap; the log-space fill differs from the linear one
+  # on a rising series and is labelled distinctly.
+  testthat::expect_false(any(is.na(res_lin$value[4:5])))
+  testthat::expect_false(any(is.na(res_log$value[4:5])))
+  testthat::expect_false(isTRUE(all.equal(
+    res_lin$value[4:5],
+    res_log$value[4:5]
+  )))
+  testthat::expect_true(
+    any(res_log$source_value == "Log-linear interpolation")
+  )
+})
+
+testthat::test_that("fill_linear default arguments match linear behaviour (regression lock)", {
+  # Omitting log_space must be byte-identical to log_space = FALSE, and must
+  # reproduce the established linear interpolation output.
+  grouped_default <- fill_linear_fixture() |>
+    fill_linear(value, .by = "category")
+  grouped_explicit <- fill_linear_fixture() |>
+    fill_linear(value, log_space = FALSE, .by = "category")
+  testthat::expect_equal(grouped_default, grouped_explicit)
+
+  ungrouped_default <- simple_linear_series() |>
+    fill_linear(value)
+  ungrouped_explicit <- simple_linear_series() |>
+    fill_linear(value, log_space = FALSE)
+  testthat::expect_equal(ungrouped_default, ungrouped_explicit)
+
+  grouped_default |>
+    dplyr::filter(category == "b") |>
+    dplyr::pull(value) |>
+    testthat::expect_equal(c(1, 2, 3, 4, 5, 5))
+  grouped_default |>
+    dplyr::filter(category == "b") |>
+    dplyr::pull(source_value) |>
+    testthat::expect_equal(c(
+      "Original",
+      "Linear interpolation",
+      "Linear interpolation",
+      "Linear interpolation",
+      "Original",
+      "Last value carried forward"
+    ))
+})
+
 # fill_sum --------------------------------------------------------------------
 
 testthat::test_that("fill_sum accumulates changes while keeping originals", {
@@ -569,6 +746,48 @@ test_that("fill_proxy_growth works with grouping", {
 
   expect_false(is.na(esp_filled))
   expect_false(is.na(fra_filled))
+})
+
+test_that("fill_proxy_growth groups proxy growth by region (var:group)", {
+  # Advanced "variable:group" syntax: growth is taken from `gdp` aggregated
+  # over `region`, not from the value column's own series. ESP and FRA share
+  # region "EU", so ESP's gaps are backfilled with the region-mean gdp growth
+  # (mean of the two countries' growths), not ESP's own gdp growth.
+  data <- tibble::tribble(
+    ~region, ~country, ~year, ~value, ~gdp,
+    "EU", "ESP", 2000, NA, 100,
+    "EU", "ESP", 2001, NA, 120,
+    "EU", "ESP", 2002, 500, 150,
+    "EU", "FRA", 2000, 1000, 200,
+    "EU", "FRA", 2001, 1200, 260,
+    "EU", "FRA", 2002, 1400, 299
+  )
+
+  result <- fill_proxy_growth(
+    data,
+    value_col = value,
+    proxy_col = "gdp:region",
+    .by = "country",
+    verbose = FALSE
+  )
+
+  # Region-mean gdp growth: 2001 = mean(0.20, 0.30) = 0.25;
+  # 2002 = mean(0.25, 0.15) = 0.20. Backfill from the 2002 anchor (500):
+  #   value_2001 = 500 / 1.20; value_2000 = value_2001 / 1.25.
+  esp <- result |>
+    dplyr::filter(country == "ESP") |>
+    dplyr::arrange(year)
+
+  expect_equal(esp$value[esp$year == 2001], 500 / 1.20, tolerance = 1e-6)
+  expect_equal(
+    esp$value[esp$year == 2000],
+    500 / (1.20 * 1.25),
+    tolerance = 1e-6
+  )
+
+  # The region-grouped result must differ from ESP's own-gdp backfill, which
+  # would give 500 / 1.25 for 2001. This confirms growth is grouped by region.
+  expect_false(isTRUE(all.equal(esp$value[esp$year == 2001], 500 / 1.25)))
 })
 
 test_that("fill_proxy_growth extrapolates per group, not across groups", {

@@ -77,6 +77,22 @@ test_that(".calculate_n_production sums production correctly", {
   expect_equal(out$prod, 10)
 })
 
+test_that(".calculate_n_production does not crash when a destiny category is entirely absent", {
+  # Regression for #175: pivot_wider() only creates a column for a destiny
+  # level actually present in the input. A province/year/item with no export
+  # rows at all previously crashed the mutate() with "object 'export' not
+  # found" instead of treating it as zero.
+  grafs <- tibble::tribble(
+    ~year, ~province_name, ~item, ~box, ~destiny, ~mg_n,
+    2000, "A", "Wheat", "Cropland", "population_food", 5,
+    2000, "A", "Wheat", "Cropland", "livestock_rum", 2
+  )
+
+  out <- .calculate_n_production(grafs)
+
+  expect_equal(out$prod, 7)
+})
+
 
 # calculate_nue_crops
 test_that("calculate_nue_crops computes NUE correctly", {

@@ -3,12 +3,12 @@
 #
 # Re-generates country_areas.parquet with MIRCA2000 irrigation fractions.
 # This is a lightweight alternative to re-running the full
-# prepare_spatialize_inputs.R — it only regenerates the country_areas
+# prepare_spatialize_all.R — it only regenerates the country_areas
 # output, using the existing MIRCA, LUH2, and FAOSTAT data.
 #
 # Prerequisites:
 #   - mirca_irrigation_country.parquet (from prepare_mirca_inputs.R)
-#   - country_grid.parquet (from prepare_spatialize_inputs.R)
+#   - country_grid.parquet (from prepare_spatialize_all.R)
 # -----------------------------------------------------------------------
 
 library(dplyr, warn.conflicts = FALSE)
@@ -23,7 +23,13 @@ target_res <- 0.5
 # We extract just what we need: prepare_country_areas and its helpers
 local({
   # Read the whole script source
-  lines <- readLines("inst/scripts/prepare_spatialize_inputs.R")
+  prepare_script <- "inst/scripts/prepare_spatialize_all.R"
+  if (!file.exists(prepare_script)) {
+    cli::cli_abort(
+      "{.file {prepare_script}} not found. Run this script from the package root."
+    )
+  }
+  lines <- readLines(prepare_script)
 
   # Find the Main execution line and cut before it
   main_line <- grep("^# ==== Main execution", lines)

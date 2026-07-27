@@ -183,5 +183,5 @@ polity_area_crosswalk <- regions_for_crosswalk |>
 
 usethis::use_data(items_cbs, overwrite = TRUE)
 usethis::use_data(items_prod, overwrite = TRUE)
-usethis::use_data(polities, overwrite = TRUE)
+usethis::use_data(polities, overwrite = TRUE, compress = "xz")
 usethis::use_data(polity_area_crosswalk, overwrite = TRUE)

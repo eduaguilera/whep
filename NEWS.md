@@ -22,6 +22,8 @@
   texture-class soil hydraulic properties (`soil_hydraulic_by_texture`) with
   the HWSD texture-code crosswalk (`hwsd_texture_usda`).
 
+* Add `decompose_weighted_ratio()` for exact Kitagawa/Shapley, additive LMDI,
+  and sequential-polar decomposition of changing aggregate ratios.
 * `build_io_model()` and `build_footprint()` gain a `method = c("mass",
   "value")` argument for co-product allocation. `"value"` splits a multi-output
   process's inputs (and the pressures embodied in them) across its products by

@@ -131,16 +131,31 @@ testthat::test_that("natural humified fraction is the woody value", {
   testthat::expect_true(all(nat$humified_fraction == woody))
 })
 
-testthat::test_that("grassland humified fraction is the weed value", {
-  out <- whep::build_grass_natural_carbon_inputs(
-    resolution = "grid",
-    data = .gn_fixture_data(excreta = FALSE)
-  )
+testthat::test_that("grassland humified fraction carbon-weights npp and excreta", {
   weed <- whep::residue_humification$humified_fraction[
     whep::residue_humification$input_type == "weed"
   ]
-  gr <- out[out$land_use == "grassland", ]
-  testthat::expect_true(all(gr$humified_fraction == weed))
+  excreta_hf <- whep::residue_humification$humified_fraction[
+    whep::residue_humification$input_type == "excreta"
+  ]
+  # With no excreta the blend reduces to the weed (grass-litter) value.
+  gr0 <- whep::build_grass_natural_carbon_inputs(
+    resolution = "grid",
+    data = .gn_fixture_data(excreta = FALSE)
+  )
+  gr0 <- gr0[gr0$land_use == "grassland", ]
+  testthat::expect_equal(gr0$humified_fraction, rep(weed, nrow(gr0)))
+  # With grazing excreta added, each grassland cell's fraction is the
+  # carbon-weighted blend of weed (litter) and the higher excreta coefficient,
+  # so it sits strictly between the two and above the weed-only value.
+  gr1 <- whep::build_grass_natural_carbon_inputs(
+    resolution = "grid",
+    data = .gn_fixture_data(excreta = TRUE)
+  )
+  gr1 <- gr1[gr1$land_use == "grassland" & gr1$c_input_mgc_ha_yr > 0, ]
+  testthat::expect_true(all(gr1$humified_fraction >= weed - 1e-9))
+  testthat::expect_true(all(gr1$humified_fraction <= excreta_hf + 1e-9))
+  testthat::expect_true(any(gr1$humified_fraction > weed + 1e-9))
 })
 
 testthat::test_that("grassland net C is floored at zero", {
@@ -393,4 +408,25 @@ testthat::test_that("real LPJmL run gives plausible C-input magnitudes", {
   nat_median <- stats::median(nat$c_input_mgc_ha_yr)
   testthat::expect_gt(nat_median, 4)
   testthat::expect_lt(nat_median, 15)
+})
+
+# Default stand-fraction reader against the real cftfrac.nc. Skipped on CI and
+# whenever the LPJmL run is absent (never fetches a remote pin/raster).
+testthat::test_that(".gn_read_stand_frac reads cftfrac.nc grassland stands", {
+  testthat::skip_on_ci()
+  run_dir <- Sys.getenv("WHEP_LPJML_RUN_DIR")
+  testthat::skip_if(
+    !nzchar(run_dir) || !file.exists(file.path(run_dir, "cftfrac.nc")),
+    "cftfrac.nc not available"
+  )
+  out <- whep:::.gn_read_stand_frac(run_dir = run_dir)
+  testthat::expect_setequal(
+    names(out),
+    c("lon", "lat", "year", "name_pft", "stand_frac")
+  )
+  testthat::expect_setequal(
+    unique(out$name_pft),
+    c("rainfed grassland", "irrigated grassland")
+  )
+  testthat::expect_true(all(out$stand_frac > 0 & out$stand_frac <= 1))
 })

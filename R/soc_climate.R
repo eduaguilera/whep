@@ -50,13 +50,17 @@ soc_rate_modifier_rothc <- function(
     0,
     47.91 / (1 + exp(106.06 / (temp_c + 18.27)))
   )
+  # Max topsoil-moisture deficit, matching the Spain_Hist oracle
+  # (Calc_HSOC_Modifying_factors): canonical RothC-26.3 additionally divides
+  # this by a bare-soil factor (1.8 bare / 1.0 covered), but Spain_Hist omits it
+  # and folds cover into the c factor below, so we match the oracle.
   max_tsmd <- soil_depth_m *
     100 *
     (-(20 + 1.3 * clay_pct - 0.01 * clay_pct^2)) /
     23
   b <- .rothc_moisture_factor(water_minus_pet_mm, max_tsmd)
   cover_factor <- 0.6 + 0.4 * (1 - soil_cover)
-  mean(a * b * cover_factor)
+  mean(a * b * cover_factor, na.rm = TRUE)
 }
 
 #' Compute the ICBM annual climate rate modifier.
@@ -93,7 +97,7 @@ soc_rate_modifier_icbm <- function(temp_c, theta, t_field, t_wilt, porosity) {
   # the test asserts re_temp == 1 at temp_c == 30.
   re_temp <- ifelse(temp_c < -3.78, 0, (temp_c - (-3.78))^2 / (30 - (-3.78))^2)
   re_wat <- .icbm_moisture_factor(theta, t_field, t_wilt, porosity)
-  mean(re_temp * re_wat / 0.1056855)
+  mean(re_temp * re_wat / 0.1056855, na.rm = TRUE)
 }
 
 #' Compute the AMG (AMGv2) annual climate rate modifier.
@@ -122,7 +126,7 @@ soc_rate_modifier_icbm <- function(temp_c, theta, t_field, t_wilt, porosity) {
 soc_rate_modifier_amg <- function(temp_c, water_balance_mm) {
   f_t <- .amg_temperature_factor(temp_c)
   f_h <- .amg_moisture_factor(water_balance_mm)
-  mean(f_t * f_h)
+  mean(f_t * f_h, na.rm = TRUE)
 }
 
 #' Compute the Century DEFAC annual climate rate modifier.
@@ -153,7 +157,7 @@ soc_rate_modifier_amg <- function(temp_c, water_balance_mm) {
 soc_rate_modifier_century <- function(temp_c, precip_mm, pet_mm) {
   t_factor <- .century_temperature_factor(temp_c)
   w_factor <- 1 / (1 + 30 * exp(-8.5 * (precip_mm / pet_mm)))
-  mean(t_factor * w_factor)
+  mean(t_factor * w_factor, na.rm = TRUE)
 }
 
 # -- Private helpers ----------------------------------------------------------

@@ -798,6 +798,7 @@ create_n_nat_destiny <- function(example = FALSE) {
       values_from = feed_amount,
       values_fill = 0
     ) |>
+    .ensure_feed_type_cols() |>
     dplyr::mutate(
       # TODO: check if aquaculture belongs here
       # aquaculture was already in feed before these changes, but "magically"
@@ -819,6 +820,21 @@ create_n_nat_destiny <- function(example = FALSE) {
     feed_share_rum_mono = feed_share_rum_mono |>
       dplyr::select(Year, Province_name, Item, share_rum, share_mono)
   )
+}
+
+#' Ensure every Livestock_type pivot column exists after pivot_wider().
+#'
+#' pivot_wider() only creates a column for a level actually present in the
+#' input, so a province/year/item with no aquaculture or pets rows (for
+#' example) would otherwise crash the downstream `feed`/`food_pets` mutate
+#' with "object not found".
+#' @keywords internal
+#' @noRd
+.ensure_feed_type_cols <- function(feed_wide) {
+  required <- c("ruminant", "monogastric", "pets", "aquaculture")
+  missing <- setdiff(required, names(feed_wide))
+  feed_wide[missing] <- 0
+  feed_wide
 }
 
 #' @title Population
@@ -880,8 +896,10 @@ create_n_nat_destiny <- function(example = FALSE) {
     ) |>
     tidyr::pivot_wider(
       names_from = Destiny,
-      values_from = Total_value
-    )
+      values_from = Total_value,
+      values_fill = 0
+    ) |>
+    .ensure_food_other_uses_cols()
 
   prov_food_other_uses <- total_food_other_uses |>
     dplyr::left_join(
@@ -900,6 +918,20 @@ create_n_nat_destiny <- function(example = FALSE) {
     dplyr::select(Year, Province_name, Item, food, other_uses)
 
   prov_food_other_uses
+}
+
+#' Ensure both Food and Other_uses pivot columns exist after pivot_wider().
+#'
+#' If every row is one Destiny (e.g. no Other_uses rows anywhere in the
+#' input), pivot_wider() never creates that column, and the downstream
+#' mutate() crashes with "object not found".
+#' @keywords internal
+#' @noRd
+.ensure_food_other_uses_cols <- function(total_food_other_uses) {
+  required <- c("Food", "Other_uses")
+  missing <- setdiff(required, names(total_food_other_uses))
+  total_food_other_uses[missing] <- 0
+  total_food_other_uses
 }
 
 #' @title Combine all destinies ------------------------------------------------

@@ -24,6 +24,11 @@
 #' @param resolution `"grid"` (default, per cell and class) or `"polity"`
 #'   (aggregated to `area_code`, area-weighting the cropland density by the
 #'   polity crop area).
+#' @param years Optional integer vector of calendar years to keep. `NULL`
+#'   (default) keeps every year the inputs cover. Threaded into the default
+#'   [build_soil_carbon_inputs()] and [build_grass_natural_carbon_inputs()]
+#'   builders so their readers slice to the requested years; ignored for inputs
+#'   supplied via `data`.
 #' @param data Named list of pre-loaded inputs, each falling back to its builder
 #'   when absent: `cropland` (the [build_soil_carbon_inputs()] output, per cell,
 #'   crop and year, with `total_c_input_mgc_ha_yr` and `humified_fraction`);
@@ -50,13 +55,14 @@
 build_carbon_inputs <- function(
   resolution = c("grid", "polity"),
   data = list(),
+  years = NULL,
   example = FALSE
 ) {
   resolution <- rlang::arg_match(resolution)
   if (isTRUE(example)) {
     return(.example_carbon_inputs())
   }
-  d <- .ci_resolve_inputs(data)
+  d <- .ci_resolve_inputs(data, years)
   cropland <- .ci_cropland_class(d$cropland, d$crop_area)
   dplyr::bind_rows(cropland, d$grass_natural) |>
     .ci_finalise(resolution, data$land_use)
@@ -64,12 +70,13 @@ build_carbon_inputs <- function(
 
 # -- Input resolution ---------------------------------------------------------
 
-.ci_resolve_inputs <- function(data) {
+.ci_resolve_inputs <- function(data, years = NULL) {
   list(
-    cropland = data$cropland %||% build_soil_carbon_inputs(data = data),
+    cropland = data$cropland %||%
+      build_soil_carbon_inputs(data = data, years = years),
     crop_area = data$crop_area %||% .ci_crop_area(data),
     grass_natural = data$grass_natural %||%
-      build_grass_natural_carbon_inputs(data = data)
+      build_grass_natural_carbon_inputs(data = data, years = years)
   )
 }
 
@@ -181,19 +188,15 @@ build_carbon_inputs <- function(
 # Per cell-crop harvested area (ha), scaled by the cell's land fraction, from
 # the same static country_grid + crop_patterns build_soil_carbon_inputs uses
 # (crop_patterns is time-invariant, so no year key). Only reached when
-# data$crop_area is absent; requires data$country_grid and data$crop_patterns
-# (the spatialization inputs) to be supplied.
+# data$crop_area is absent; country_grid and crop_patterns fall back to the
+# same default readers build_soil_carbon_inputs uses, so the crop-area weights
+# are derivable turnkey.
 .ci_crop_area <- function(data) {
-  if (is.null(data$country_grid) || is.null(data$crop_patterns)) {
-    cli::cli_abort(c(
-      "No {.field crop_area} supplied and it cannot be derived.",
-      i = "Pass {.code data$crop_area} (per cell-crop harvested area) or both
-           {.code data$country_grid} and {.code data$crop_patterns}."
-    ))
-  }
-  cg <- .normalize_country_grid(data$country_grid) |>
+  country_grid <- data$country_grid %||% .sci_read_country_grid()
+  crop_patterns <- data$crop_patterns %||% .sci_read_crop_patterns()
+  cg <- .normalize_country_grid(country_grid) |>
     dplyr::mutate(lon = round(.data$lon, 2), lat = round(.data$lat, 2))
-  data$crop_patterns |>
+  crop_patterns |>
     dplyr::mutate(
       lon = round(.data$lon, 2),
       lat = round(.data$lat, 2),
