@@ -7,7 +7,8 @@
 create_typologies_grafs_spain(
   make_map = TRUE,
   shapefile_path = NULL,
-  map_year = 1980
+  map_year = 1980,
+  inputs_dir = NULL
 )
 }
 \arguments{
@@ -20,6 +21,11 @@ cached locally; set \code{options(whep.provinces_shapefile = )} to point at
 an existing copy instead.}
 
 \item{map_year}{The year for which the typology map is created.}
+
+\item{inputs_dir}{Directory holding the GRAFS Spain input files
+(\code{Livestock_Prod_ygps.csv}, \code{NPP_ygpit.csv.gz}, and so on). These are
+not shipped with the package; point this at a synced copy, or set
+\code{options(whep.grafs_inputs_dir = )} once per session.}
 }
 \value{
 A tibble with the classification of Spanish provinces into typologies.

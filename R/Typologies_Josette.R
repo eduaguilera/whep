@@ -15,16 +15,22 @@
 #'
 #' @param map_year The year for which the typology map is created.
 #'
+#' @param inputs_dir Directory holding the GRAFS Spain input files
+#'   (`Livestock_Prod_ygps.csv`, `NPP_ygpit.csv.gz`, and so on). These are
+#'   not shipped with the package; point this at a synced copy, or set
+#'   `options(whep.grafs_inputs_dir = )` once per session.
+#'
 #' @return A tibble with the typology classification per year and province.
 #'
 #' @export
 create_typologies_of_josette <- function(
   make_map = TRUE,
   shapefile_path = NULL,
-  map_year = 1980
+  map_year = 1980,
+  inputs_dir = NULL
 ) {
   shapefile_path <- .provinces_shapefile(shapefile_path)
-  inputs_dir <- "C:/PhD/GRAFS/Production Boxes/Final Files/Inputs"
+  inputs_dir <- .grafs_inputs_dir(inputs_dir)
 
   # Load datasets
   data <- .load_inputs_josette(inputs_dir, shapefile_path)
@@ -146,7 +152,7 @@ create_typologies_of_josette <- function(
       skip = 1
     ),
     sf_provinces_spain = sf_provinces_spain,
-    n_input_df = readr::read_csv(file.path(inputs_dir, "n_inputs_combined.csv"))
+    n_input_df = readr::read_csv(file.path(inputs_dir, "N_Inputs_combined.csv"))
   )
 }
 

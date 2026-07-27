@@ -15,6 +15,11 @@
 #'
 #' @param map_year The year for which the typology map is created.
 #'
+#' @param inputs_dir Directory holding the GRAFS Spain input files
+#'   (`Livestock_Prod_ygps.csv`, `NPP_ygpit.csv.gz`, and so on). These are
+#'   not shipped with the package; point this at a synced copy, or set
+#'   `options(whep.grafs_inputs_dir = )` once per session.
+#'
 #' @returns
 #' A tibble with the classification of Spanish provinces into typologies.
 #' It contains the following columns:
@@ -41,10 +46,11 @@
 create_typologies_grafs_spain <- function(
   make_map = TRUE,
   shapefile_path = NULL,
-  map_year = 1980
+  map_year = 1980,
+  inputs_dir = NULL
 ) {
   shapefile_path <- .provinces_shapefile(shapefile_path)
-  inputs_dir <- "C:/PhD/GRAFS/Production Boxes/Final Files/Inputs"
+  inputs_dir <- .grafs_inputs_dir(inputs_dir)
 
   # Load datasets
   data <- .load_inputs_typologies_julia(inputs_dir, shapefile_path)
