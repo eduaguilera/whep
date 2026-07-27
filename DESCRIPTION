@@ -36,6 +36,7 @@ Imports:
     stringr,
     tibble,
     tidyr,
+    vctrs,
     withr,
     yaml,
     zoo

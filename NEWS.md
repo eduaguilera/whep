@@ -22,6 +22,9 @@
   texture-class soil hydraulic properties (`soil_hydraulic_by_texture`) with
   the HWSD texture-code crosswalk (`hwsd_texture_usda`).
 
+* Add `ensure_columns()` to complete tibbles from typed zero-row prototypes,
+  with safe casts, scalar defaults, deterministic ordering, and explicit
+  extra-column handling.
 * Add `decompose_weighted_ratio()` for exact Kitagawa/Shapley, additive LMDI,
   and sequential-polar decomposition of changing aggregate ratios.
 * `build_io_model()` and `build_footprint()` gain a `method = c("mass",
