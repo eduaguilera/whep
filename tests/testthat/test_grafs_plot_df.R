@@ -284,13 +284,15 @@ test_that(".create_n_import_df labels, aggregates and aligns import flows", {
 
 # .create_animal_losses_df -----------------------------------------------------
 
-test_that(".create_animal_losses_df converts GgN to MgN and sums losses", {
+test_that(".create_animal_losses_df sums excreted N as animal losses", {
+  # n_excretion_ygs reports excreted N directly in MgN (N_excr_MgN); it no
+  # longer carries the Gross_Prod_GgN / Net_Prod_GgN pair.
   testthat::local_mocked_bindings(
     whep_read_file = function(alias) {
       tibble::tribble(
-        ~Year, ~Province_name, ~Livestock_cat, ~Gross_Prod_GgN, ~Net_Prod_GgN,
-        2000, "Huesca", "Cattle", 2, 1.5,
-        2000, "Huesca", "Pigs", 1, 0.8
+        ~Year, ~Province_name, ~Livestock_cat, ~N_excr_MgN,
+        2000, "Huesca", "Cattle", 500,
+        2000, "Huesca", "Pigs", 200
       )
     }
   )

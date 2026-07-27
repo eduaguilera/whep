@@ -466,8 +466,9 @@ test_that("plot_input_output_livestock splits feed origin and production", {
       )
     },
     whep_read_file = function(alias) {
+      # stock_prod_ygps keys products as item_cbs, not Item.
       tibble::tribble(
-        ~Item, ~Livestock_cat,
+        ~item_cbs, ~Livestock_cat,
         "Bovine Meat", "Cattle_meat",
         "Pork", "Pigs"
       )

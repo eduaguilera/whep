@@ -284,7 +284,7 @@ circ_nue_traj_plot <- function() {
   # ---- Cropland area ----
   cropland_area <- npp_ygpit |>
     dplyr::filter(
-      LandUse %in%
+      landuse %in%
         c(
           "Cropland",
           "semi_natural_agroecosystems"

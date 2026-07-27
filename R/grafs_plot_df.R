@@ -1185,17 +1185,20 @@ create_grafs_plot_df <- function(example = FALSE) {
 #'
 #' @noRd
 .create_animal_losses_df <- function(prov_destiny_df) {
+  # The n_excretion_ygs pin reports excreted N directly as N_excr_MgN;
+  # it no longer carries the Gross_Prod_GgN / Net_Prod_GgN pair whose
+  # difference this used to take (that also needed a GgN -> MgN factor,
+  # which N_excr_MgN already is).
   n_excretion <- whep_read_file("n_excretion_ygs") |>
     dplyr::select(
       Year,
       Province_name,
       Livestock_cat,
-      Gross_Prod_GgN,
-      Net_Prod_GgN
+      N_excr_MgN
     ) |>
     dplyr::distinct() |>
     dplyr::mutate(
-      `{AN_LS}` = (Gross_Prod_GgN - Net_Prod_GgN) * 1e3
+      `{AN_LS}` = N_excr_MgN
     ) |>
     dplyr::group_by(Province_name, Year) |>
     dplyr::summarise(

@@ -400,6 +400,8 @@ plot_input_output_system <- function(per_ha = FALSE, example = FALSE) {
     "Other_birds"
   )
   livestock_prod |>
+    # stock_prod_ygps keys products as item_cbs; this file uses Item.
+    dplyr::rename(Item = item_cbs) |>
     dplyr::distinct(Item, Livestock_cat) |>
     dplyr::mutate(
       prod_type = dplyr::case_when(

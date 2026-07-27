@@ -307,7 +307,7 @@ calculate_nue_livestock <- function(example = FALSE) {
   }
   intake_n <- whep_read_file("intake_ygiac") |>
     dplyr::rename_with(tolower) |>
-    dplyr::rename(n_mg_n = n_mgn) |>
+    dplyr::rename(n_mg_n = intake_mgn) |>
     dplyr::filter(livestock_cat != "Pets") |>
     dplyr::group_by(year, province_name, livestock_cat) |>
     dplyr::summarise(
@@ -317,6 +317,9 @@ calculate_nue_livestock <- function(example = FALSE) {
 
   prod_n <- whep_read_file("stock_prod_ygps") |>
     dplyr::rename_with(tolower) |>
+    # The pin keys products as item_cbs; the rest of the pipeline (and this
+    # function's output) uses the data-layer name `item`.
+    dplyr::rename(item = item_cbs) |>
     dplyr::filter(!is.na(prod_mgn)) |>
     dplyr::group_by(year, province_name, livestock_cat, item) |>
     dplyr::summarise(
