@@ -464,8 +464,6 @@ utils::globalVariables(
     "geom_bar",
     "geom_sf",
     "ggplot",
-    "grafs_prod_destiny",
-    "grafs_prod_item_n",
     "GRASS_TO_LIVESTOCK",
     "GrazedWeeds_MgDM",
     "GrazedWeeds_MgN",
@@ -1425,6 +1423,7 @@ utils::globalVariables(
     "local_consumed",
     "total_consumed",
     # n_prov_destiny.R / n_soil_inputs_nue.R (alice data-layer NSE columns)
+    "intake_mgn",
     "destiny_share",
     "feed_gap",
     "feed_local",
