@@ -500,27 +500,17 @@ build_carbon_balance <- function(
 
 # March every cell forward over its years, applying the model annual update then
 # the land-use-change carbon transfer. Each cell is processed independently.
+# Both tables are partitioned once by the cell key (an O(n) split) and the
+# groups zipped, rather than re-filtering the whole table per cell (which was
+# O(cells^2) and dominated the global run time). A cell absent from `init` gets
+# an empty init slice, matching the previous per-cell zero-row filter.
 .cb_march <- function(classes, init) {
-  cells <- classes |>
-    dplyr::distinct(.data$lon, .data$lat, .data$area_code)
-  purrr::pmap(
-    list(cells$lon, cells$lat, cells$area_code),
-    \(lon, lat, ac) {
-      .cb_march_cell(
-        dplyr::filter(
-          classes,
-          .data$lon == lon,
-          .data$lat == lat,
-          .data$area_code == ac
-        ),
-        dplyr::filter(
-          init,
-          .data$lon == lon,
-          .data$lat == lat,
-          .data$area_code == ac
-        )
-      )
-    }
+  cell_key <- \(x) paste(x$lon, x$lat, x$area_code, sep = "\r")
+  classes_split <- split(classes, cell_key(classes))
+  init_split <- split(init, cell_key(init))
+  purrr::map(
+    names(classes_split),
+    \(k) .cb_march_cell(classes_split[[k]], init_split[[k]] %||% init[0, ])
   ) |>
     dplyr::bind_rows()
 }

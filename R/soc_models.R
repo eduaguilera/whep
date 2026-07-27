@@ -282,13 +282,21 @@ calculate_soc_century <- function(
 }
 
 .hsoc_pool_series <- function(stock_eq, input, decay, years) {
-  stocks <- purrr::accumulate(
-    seq_len(years),
-    \(stock, .) stock - stock * decay + input,
-    .init = stock_eq
-  )
+  # Closed form of the linear recurrence stock_{t+1} = stock_t (1 - decay) +
+  # input, evaluated at 0:years. Replaces an O(years) purrr::accumulate loop
+  # (5000 steps per input combination in the carbon-balance spin-up) with an
+  # O(1) vectorised expression. The spin-up always starts at the fixed point
+  # stock_eq = input / decay, so the series is flat; the closed form keeps this
+  # exact for any decay while avoiding the per-combo loop.
+  yr <- 0:years
+  stocks <- if (decay == 0) {
+    stock_eq + input * yr
+  } else {
+    decayed <- (1 - decay)^yr
+    input / decay + (stock_eq - input / decay) * decayed
+  }
   tibble::tibble(
-    year = 0:years,
+    year = yr,
     stock_mgc_ha = stocks,
     rate_mgc_ha = input - stocks * decay
   )
