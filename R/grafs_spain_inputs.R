@@ -12,7 +12,6 @@
     "Codes_coefs.xlsx",
     "GRAFS_Prod_Destiny_git.csv",
     "Livestock_Prod_ygps.csv",
-    "N_Inputs_combined.csv",
     "NPP_ygpit.csv.gz",
     "PIE_FullDestinies_FM.csv"
   )

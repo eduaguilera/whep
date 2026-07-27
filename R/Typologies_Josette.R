@@ -152,7 +152,20 @@ create_typologies_of_josette <- function(
       skip = 1
     ),
     sf_provinces_spain = sf_provinces_spain,
-    n_input_df = readr::read_csv(file.path(inputs_dir, "N_Inputs_combined.csv"))
+    # N soil inputs are computed by the package rather than read from a
+    # precomputed file, so they follow the current n_balance pin (including
+    # the corrected Excreta) instead of a frozen snapshot.
+    n_input_df = create_n_soil_inputs() |>
+      dplyr::rename(
+        Year = year,
+        Province_name = province_name,
+        Box = box,
+        MgN_dep = deposition,
+        MgN_fix = fixation,
+        MgN_syn = synthetic,
+        MgN_manure = manure,
+        MgN_urban = urban
+      )
   )
 }
 
