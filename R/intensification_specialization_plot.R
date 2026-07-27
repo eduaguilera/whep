@@ -1745,7 +1745,7 @@ n_indicators_ts_plot <- function() {
       x = NULL,
       y = NULL,
       color = "Indicator",
-      title = "Nitrogen system indicators for Spain (1860–2021)"
+      title = "Nitrogen system indicators for Spain (1860-2021)"
     ) +
     ggplot2::theme_minimal() +
     ggplot2::theme(
