@@ -29,8 +29,9 @@ passed to \code{\link[=allocate_manure_to_land]{allocate_manure_to_land()}}; req
 }
 \value{
 A named list with \code{applied} (manure applied per
-\verb{land_use x crop (x cell)} with all \verb{method_*} provenance columns),
-\code{losses} (management-loss side-streams per polity) and \code{excretion} (the
+\verb{land_use x crop (x cell)} with \code{manure_type} (\code{"Excreta"}/\code{"Solid"}/
+\code{"Liquid"}) and all \verb{method_*} provenance columns), \code{losses}
+(management-loss side-streams per polity) and \code{excretion} (the
 per-category excretion totals).
 }
 \description{

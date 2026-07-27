@@ -103,6 +103,19 @@
   )
 }
 
+.example_soil_carbon_inputs <- function() {
+  tibble::tribble(
+    ~lon, ~lat, ~area_code, ~item_prod_code, ~year,
+    ~residue_c_mgc_ha_yr, ~root_c_mgc_ha_yr, ~weed_c_mgc_ha_yr,
+    ~manure_c_mgc_ha_yr, ~total_c_input_mgc_ha_yr, ~humified_fraction,
+    0.25, 0.25, 1L, "15", 2020L, 1.5, 1.0, 0.25, 0.5, 3.25, 0.156083313609467,
+    0.75, 0.25, 1L, "15", 2020L, 1.5, 1.0, 0.25, 0.5, 3.25, 0.156083313609467,
+    0.25, 0.25, 1L, "27", 2020L, 1.5, 0.5, 0.25, 0.5, 2.75, 0.152053748675567,
+    0.75, 0.25, 1L, "27", 2020L, 1.5, 0.5, 0.25, 0.5, 2.75, 0.152053748675567
+  ) |>
+    dplyr::mutate(method_c_input = "humified_weighted")
+}
+
 .ex_get_primary_prod <- function() {
   tibble::tribble(
     ~year, ~area_code, ~item_prod_code, ~item_cbs_code, ~live_anim_code, ~unit, ~value,
@@ -497,6 +510,199 @@
     179L, 2514L, 5009, "land_balance",
     188L, 2535L, 1.83, "land_balance",
     236L, 2537L, 1304, "land_balance"
+  )
+}
+
+# Gridded water-balance fixture. Constructed so that, for every row, the 4-term
+# identity water_input_mm == aet_mm + runoff_mm + drainage_mm +
+# soil_water_change_mm holds exactly (and aet_mm == aet_blue_mm + aet_green_mm),
+# and the additive identity water_input_mm == prec_mm + irrig_mm holds exactly,
+# letting both the closure and prec/irrig-split tests pass. drainage_mm =
+# water_input - aet - runoff - soil_water_change for each row. blue/green
+# consumptive water mirror the blue/green AET (the per-CFT inputs are absent in
+# the fixture); cft_nir_mm is NA (no net-irrigation-requirement input).
+# method_water carries the default cft_native blue/green label.
+.example_water_balance <- function() {
+  label <- "aet:components|drain:seepage|bg:cft_native"
+  tibble::tribble(
+    ~lon, ~lat, ~area_code, ~year, ~water_input_mm, ~prec_mm, ~irrig_mm,
+    ~pet_mm, ~aet_mm, ~aet_blue_mm, ~aet_green_mm, ~blue_consump_mm,
+    ~green_consump_mm, ~cft_nir_mm, ~drainage_mm, ~runoff_mm,
+    ~soil_water_change_mm, ~method_water, ~polity_frac, ~cell_area_ha,
+    9.25, 47.75, 11L, 2000L, 1200, 950, 250, NA, 800, 200, 600, 200, 600, NA,
+    300, 50, 50, label, 1, 30100,
+    9.75, 47.75, 11L, 2000L, 1100, 880, 220, NA, 760, 180, 580, 180, 580, NA,
+    260, 40, 40, label, 1, 30100,
+    -55.25, -12.25, 21L, 2000L, 1800, 1300, 500, NA, 1300, 400, 900, 400, 900,
+    NA, 400, 80, 20, label, 1, 33500,
+    -55.75, -12.25, 21L, 2000L, 1750, 1270, 480, NA, 1260, 380, 880, 380, 880,
+    NA, 400, 70, 20, label, 1, 33500,
+    35.75, -1.25, 79L, 2000L, 900, 720, 180, NA, 650, 150, 500, 150, 500, NA,
+    170, 30, 50, label, 1, 30900,
+    35.25, -1.25, 79L, 2000L, 950, 760, 190, NA, 690, 160, 530, 160, 530, NA,
+    190, 30, 40, label, 1, 30900,
+    -3.75, 40.25, 203L, 2000L, 600, 500, 100, NA, 420, 80, 340, 80, 340, NA,
+    130, 20, 30, label, 1, 27500,
+    -3.25, 40.25, 203L, 2000L, 650, 540, 110, NA, 460, 90, 370, 90, 370, NA,
+    140, 20, 30, label, 1, 27500
+  )
+}
+
+# Monthly SOC climate-driver fixture (one cell, three months). Temperature and
+# topsoil soil-water saturation drive the SOC decomposition modifiers; clay is a
+# soil-texture covariate. precip_mm and pet_mm (monthly) drive the Century
+# modifier; water_minus_pet_mm is the monthly RothC/HSOC surplus (here
+# precip_mm - pet_mm, irrigation zero); water_balance_mm is the annual sum of
+# that surplus (-10 + 5 + 20 = 15), repeated on every month for the AMG modifier.
+# theta/t_field/t_wilt/porosity drive the ICBM moisture response: t_field, t_wilt
+# and porosity are the loam-class references (0.29/0.14/0.43) and theta is the
+# monthly volumetric water content swc_topsoil * porosity.
+.example_soc_climate_drivers <- function() {
+  tibble::tribble(
+    ~lon, ~lat, ~area_code, ~year, ~month, ~temp_c, ~swc_topsoil, ~precip_mm,
+    ~pet_mm, ~water_minus_pet_mm, ~water_balance_mm, ~clay_pct, ~theta,
+    ~t_field, ~t_wilt, ~porosity, ~method_water_input,
+    9.25, 47.75, 11L, 2000L, 1L, 1.2, 0.62, 45, 55, -10, 15, 18, 0.2666,
+    0.29, 0.14, 0.43, "lpjml_prec_irrig",
+    9.25, 47.75, 11L, 2000L, 2L, 3.4, 0.58, 50, 45, 5, 15, 18, 0.2494,
+    0.29, 0.14, 0.43, "lpjml_prec_irrig",
+    9.25, 47.75, 11L, 2000L, 3L, 7.8, 0.51, 60, 40, 20, 15, 18, 0.2193,
+    0.29, 0.14, 0.43, "lpjml_prec_irrig"
+  )
+}
+
+# SOC dynamics selector output (ICBM model, six annual rows). Young and old
+# pool stocks plus their total, with the method_soc stamp naming the model.
+.example_soc_dynamics <- function() {
+  tibble::tribble(
+    ~year, ~y, ~o, ~soc_total, ~method_soc,
+    0L, 2.7488, 47.2512, 50.0000, "icbm",
+    1L, 2.6118, 47.2077, 49.8195, "icbm",
+    2L, 2.5502, 47.1742, 49.7244, "icbm",
+    3L, 2.5226, 47.1453, 49.6679, "icbm",
+    4L, 2.5101, 47.1185, 49.6287, "icbm",
+    5L, 2.5046, 47.0928, 49.5974, "icbm"
+  )
+}
+
+# Historical gridded SOC balance fixture (one cell, two land-use classes, three
+# years). Generated from a real build_carbon_balance(model = "hsoc") run: the
+# cell starts at the fraction-weighted equilibrium density, marches forward on
+# the yearly areas, and in 2001 Cropland shrinks while NonCropland grows so the
+# land-use-change transfer (luc_transfer_mgc_ha) sums to zero across the cell.
+.example_carbon_balance <- function() {
+  tibble::tribble(
+    ~lon, ~lat, ~area_code, ~land_use, ~year, ~area_ha, ~stock_mgc_ha,
+    ~mineralization_mgc_ha, ~c_input_mgc_ha, ~luc_transfer_mgc_ha,
+    ~rate_mgc_ha, ~son_change_kgn_ha, ~method_soc,
+    0.250000, 0.250000, 1L, "Cropland", 2000L, 60.000000, 37.346076,
+    2.096878, 2.500000, 0.000000, 0.403122, -36.647441, "hsoc",
+    0.250000, 0.250000, 1L, "NonCropland", 2000L, 40.000000, 37.346076,
+    2.107845, 1.500000, 0.000000, -0.607845, 55.258678, "hsoc",
+    0.250000, 0.250000, 1L, "Cropland", 2001L, 50.000000, 37.749198,
+    2.119512, 2.500000, -7.549840, 0.380488, -34.589790, "hsoc",
+    0.250000, 0.250000, 1L, "NonCropland", 2001L, 50.000000, 36.940424,
+    2.084950, 1.500000, 7.549840, -0.584950, 53.177282, "hsoc",
+    0.250000, 0.250000, 1L, "Cropland", 2002L, 50.000000, 38.129686,
+    2.140876, 2.500000, 0.000000, 0.359124, -32.647669, "hsoc",
+    0.250000, 0.250000, 1L, "NonCropland", 2002L, 50.000000, 36.355474,
+    2.051935, 1.500000, 0.000000, -0.551935, 50.175910, "hsoc"
+  )
+}
+
+# Toy fixture for read_cru_climate (sampled from a real CRU 4.09 tmp read,
+# degrees Celsius, year 2000).
+.example_cru_climate <- function() {
+  tibble::tribble(
+    ~lon, ~lat, ~year, ~month, ~value, ~var,
+    22.75, -31.25, 2000L, 7L, 8.6, "tmp",
+    49.25, -14.25, 2000L, 1L, 20.8, "tmp",
+    109.75, 1.25, 2000L, 1L, 26.2, "tmp",
+    57.25, 25.75, 2000L, 1L, 20.7, "tmp",
+    -1.75, 27.25, 2000L, 1L, 12.7, "tmp",
+    68.25, 27.25, 2000L, 1L, 16.2, "tmp",
+    -92.75, 38.75, 2000L, 1L, -0.1, "tmp",
+    42.25, 58.75, 2000L, 7L, 19.0, "tmp",
+    18.75, 66.25, 2000L, 7L, 13.0, "tmp",
+    80.75, 72.75, 2000L, 7L, 5.6, "tmp"
+  )
+}
+
+# Gridded LUH2 land-use-class fixture: three 0.5-degree cells, one year, the
+# four carbon-balance classes. Per cell the four fractions tile to 1 and
+# area_ha = fraction * .luh2_cell_area_ha(lat). Mirrors read_luh2_landuse()
+# output at "grid" resolution.
+.example_luh2_landuse <- function() {
+  tibble::tribble(
+    ~lon, ~lat, ~area_code, ~year, ~land_use, ~fraction, ~area_ha,
+    -3.25, 40.25, 203L, 2000L, "cropland", 0.40, 94368.14,
+    -3.25, 40.25, 203L, 2000L, "grassland", 0.20, 47184.07,
+    -3.25, 40.25, 203L, 2000L, "natural", 0.35, 82572.12,
+    -3.25, 40.25, 203L, 2000L, "urban", 0.05, 11796.02,
+    35.25, -1.25, 79L, 2000L, "cropland", 0.30, 92709.98,
+    35.25, -1.25, 79L, 2000L, "grassland", 0.25, 77258.31,
+    35.25, -1.25, 79L, 2000L, "natural", 0.40, 123613.30,
+    35.25, -1.25, 79L, 2000L, "urban", 0.05, 15451.66,
+    9.25, 47.75, 11L, 2000L, "cropland", 0.25, 51958.29,
+    9.25, 47.75, 11L, 2000L, "grassland", 0.20, 41566.63,
+    9.25, 47.75, 11L, 2000L, "natural", 0.50, 103916.58,
+    9.25, 47.75, 11L, 2000L, "urban", 0.05, 10391.66
+  )
+}
+
+# Per-PFT annual LPJmL NPP fixture: two 0.5-degree cells, one year, a handful
+# of PFT bands (one natural tree, one natural grass, the two managed
+# grasslands). Values are per-PFT-stand gC/m2/yr. Mirrors read_lpjml_npp()
+# output. Sampled from the real pft_npp.nc (year 2000, indicative magnitudes).
+.example_lpjml_npp <- function() {
+  tibble::tribble(
+    ~lon, ~lat, ~year, ~npft, ~name_pft, ~value,
+    26.25, 35.25, 2000L, 3L, "temperate needleleaved evergreen tree", 48.6,
+    26.25, 35.25, 2000L, 9L, "Tropical C4 grass", 325.0,
+    26.25, 35.25, 2000L, 10L, "Temperate C3 grass", 66.9,
+    26.25, 35.25, 2000L, 25L, "rainfed grassland", 496.0,
+    -64.25, -35.75, 2000L, 3L, "temperate needleleaved evergreen tree", 699.0,
+    -64.25, -35.75, 2000L, 10L, "Temperate C3 grass", 96.2,
+    -64.25, -35.75, 2000L, 25L, "rainfed grassland", 910.0,
+    -74.75, -52.25, 2000L, 10L, "Temperate C3 grass", 279.0,
+    -74.75, -52.25, 2000L, 25L, "rainfed grassland", 325.0,
+    -74.75, -52.25, 2000L, 41L, "irrigated grassland", 0.0
+  )
+}
+
+# Grassland + natural soil carbon input fixture: two cells, one year, the two
+# carbon-balance classes. c_input_mgc_ha_yr is (NPP - harvest) in MgC/ha/yr
+# (grassland also adds grazing excreta); humified_fraction is the weed value for
+# grassland and the woody value for natural. Mirrors
+# build_grass_natural_carbon_inputs() output at "grid" resolution.
+# nolint start: object_length_linter.
+.example_grass_natural_carbon_inputs <- function() {
+  tibble::tribble(
+    ~lon, ~lat, ~area_code, ~year, ~land_use,
+    ~c_input_mgc_ha_yr, ~humified_fraction, ~method_c_input,
+    26.25, 35.25, 300L, 2000L, "grassland",
+    4.35, 0.1153467, "lpjml_npp_minus_harvest",
+    26.25, 35.25, 300L, 2000L, "natural",
+    4.56, 0.325, "lpjml_npp_minus_harvest",
+    -64.25, -35.75, 32L, 2000L, "grassland",
+    1.95, 0.1153467, "lpjml_npp_minus_harvest",
+    -64.25, -35.75, 32L, 2000L, "natural",
+    9.26, 0.325, "lpjml_npp_minus_harvest"
+  )
+}
+# nolint end
+
+# Per-land-use-class carbon inputs mirroring build_carbon_inputs() output at
+# "grid" resolution: the cropland class (aggregated from per-crop inputs) plus
+# the grassland and natural classes, keyed (lon, lat, area_code, year,
+# land_use) with c_input_mgc_ha_yr and the carbon-weighted humified_fraction.
+.example_carbon_inputs <- function() {
+  tibble::tribble(
+    ~lon, ~lat, ~area_code, ~year, ~land_use,
+    ~c_input_mgc_ha_yr, ~humified_fraction, ~method_c_input,
+    0.25, 0.25, 1L, 2000L, "cropland", 2.75, 0.1818182, "humified_weighted",
+    0.25, 0.25, 1L, 2000L, "grassland", 4.0, 0.1153467, "lpjml_npp_minus_harvest",
+    0.25, 0.25, 1L, 2000L, "natural", 6.0, 0.325, "lpjml_npp_minus_harvest"
   )
 }
 

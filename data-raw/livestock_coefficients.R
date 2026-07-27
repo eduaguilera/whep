@@ -1338,7 +1338,7 @@ generate_ipcc_2019_tables <- function() {
       "Buffalo", "Lactating cow",          0.386,
       "Buffalo", "Non-lactating/Bulls",    0.322,
       "Sheep",   "All",                    0.217,
-      "Goats",   "All",                    0.217
+      "Goats",   "All",                    0.315
     )
   )
 }
@@ -1441,8 +1441,16 @@ generate_ipcc_tier2_params <- function() {
         0.322, 0.17, 0.00, 0.10, 0.00, 20.0,
       "Sheep", "All",
         0.217, 0.0107, 0.00, 0.077, 0.00, 23.0,
+      # Goats: species-distinct IPCC 2019 Refinement Vol4 Ch10 coefficients.
+      # Cfi = 0.315 (Table 10.4; earlier code duplicated the sheep 0.217,
+      # underestimating goat NEm ~31%). ca_pasture = 0.019 (Table 10.5 goat
+      # flat/lowland pasture; earlier code duplicated the sheep flat-pasture
+      # value 0.0107, understating goat activity energy ~44%). Flat pasture is
+      # the global default here, matching the sheep convention; terrain-specific
+      # values (goat hilly 0.024) belong in a per-consumer override, not the
+      # global table.
       "Goats", "All",
-        0.217, 0.0107, 0.00, 0.077, 0.00, 23.0
+        0.315, 0.019, 0.00, 0.077, 0.00, 23.0
     ),
 
     # Ym values (% GE) used for Tier 2 enteric CH4.
