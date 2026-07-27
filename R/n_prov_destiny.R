@@ -935,6 +935,7 @@ create_n_nat_destiny <- function(example = FALSE) {
           ) ~
           "monogastric",
         Livestock_cat == "Pets" ~ "pets",
+        Livestock_cat == "Aquaculture" ~ "aquaculture",
         TRUE ~ NA_character_
       )
     ) |>
@@ -952,7 +953,10 @@ create_n_nat_destiny <- function(example = FALSE) {
       ruminant = dplyr::coalesce(ruminant, 0),
       monogastric = dplyr::coalesce(monogastric, 0),
       pets = dplyr::coalesce(pets, 0),
-      feed = ruminant + monogastric,
+      aquaculture = dplyr::coalesce(aquaculture, 0),
+      # Aquaculture intake is feed: dropping it leaks that N out of the
+      # balance. See .ensure_livestock_cols() for the column guarantee.
+      feed = ruminant + monogastric + aquaculture,
       food_pets = pets
     )
 
@@ -1702,6 +1706,7 @@ create_n_nat_destiny <- function(example = FALSE) {
 }
 
 .ensure_livestock_cols <- function(df) {
-  missing <- setdiff(c("ruminant", "monogastric", "pets"), names(df))
+  required <- c("ruminant", "monogastric", "pets", "aquaculture")
+  missing <- setdiff(required, names(df))
   dplyr::mutate(df, !!!purrr::map(rlang::set_names(missing), ~0))
 }

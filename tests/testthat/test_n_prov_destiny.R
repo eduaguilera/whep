@@ -354,16 +354,17 @@ test_that(".add_feed classifies livestock and computes feed shares", {
 
   expect_named(out, c("feed_intake", "feed_share_rum_mono"))
 
-  # feed_intake. Aquaculture is not a ruminant/monogastric category, so it is
-  # excluded from feed. feed = ruminant (Cattle_meat) + monogastric (Pigs).
+  # feed_intake. Aquaculture intake counts as feed alongside ruminants and
+  # monogastrics, so feed = 60 (Cattle_meat) + 30 (Pigs) + 5 (Aquaculture).
   fi <- out$feed_intake
-  expect_equal(fi$feed, 60 + 30)
+  expect_equal(fi$feed, 60 + 30 + 5)
   expect_equal(fi$food_pets, 10)
 
-  # feed shares (denominator is total feed = 90, Aquaculture excluded)
+  # Shares are over total feed (95); the aquaculture share is implicit as
+  # 1 - share_rum - share_mono.
   fs <- out$feed_share_rum_mono
-  expect_equal(fs$share_rum, 60 / 90, tolerance = 1e-12)
-  expect_equal(fs$share_mono, 30 / 90, tolerance = 1e-12)
+  expect_equal(fs$share_rum, 60 / 95, tolerance = 1e-12)
+  expect_equal(fs$share_mono, 30 / 95, tolerance = 1e-12)
 })
 
 test_that(".add_feed handles zero feed total gracefully", {
