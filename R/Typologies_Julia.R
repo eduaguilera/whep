@@ -15,11 +15,6 @@
 #'
 #' @param map_year The year for which the typology map is created.
 #'
-#' @param inputs_dir Directory holding the GRAFS Spain input files
-#'   (`Livestock_Prod_ygps.csv`, `NPP_ygpit.csv.gz`, and so on). These are
-#'   not shipped with the package; point this at a synced copy, or set
-#'   `options(whep.grafs_inputs_dir = )` once per session.
-#'
 #' @returns
 #' A tibble with the classification of Spanish provinces into typologies.
 #' It contains the following columns:
@@ -46,14 +41,12 @@
 create_typologies_grafs_spain <- function(
   make_map = TRUE,
   shapefile_path = NULL,
-  map_year = 1980,
-  inputs_dir = NULL
+  map_year = 1980
 ) {
   shapefile_path <- .provinces_shapefile(shapefile_path)
-  inputs_dir <- .grafs_inputs_dir(inputs_dir)
 
   # Load datasets
-  data <- .load_inputs_typologies_julia(inputs_dir, shapefile_path)
+  data <- .load_inputs_typologies_julia(shapefile_path)
   data$sf_provinces <- data$sf_provinces_spain
 
   data$sf_provinces$name <- stringi::stri_trans_general(
@@ -81,7 +74,7 @@ create_typologies_grafs_spain <- function(
   ]
 
   # Prepare LU coefficients with Livestock_cat mapping
-  lu_coefs_mapped <- .prepare_lu_coefs(data$Codes_coefs)
+  lu_coefs_mapped <- .prepare_lu_coefs(data$livestock_units)
 
   # Merge livestock data with LU coefficients and calculate totals
   lu_totals_detailed <- .calculate_lu_totals(
@@ -153,73 +146,112 @@ create_typologies_grafs_spain <- function(
 #' @title Load input datasets --------------------------------------------------
 #'
 #' @param shapefile_path The local path where the input data are located.
-#' @param inputs_dir Path to the input data directory.
 #'
 #' @keywords internal
 #' @noRd
-.load_inputs_typologies_julia <- function(inputs_dir, shapefile_path) {
-  layer_name <- tools::file_path_sans_ext(basename(shapefile_path))
-
-  sf_provinces_spain <- sf::st_read(
-    shapefile_path,
-    query = paste0(
-      "SELECT * FROM ",
-      layer_name,
-      " WHERE iso_a2 = 'ES'"
-    )
-  )
-
+.load_inputs_typologies_julia <- function(shapefile_path) {
   list(
-    Livestock_Prod_ygps = readr::read_csv(file.path(
-      inputs_dir,
-      "Livestock_Prod_ygps.csv"
-    )),
-    Codes_coefs = readxl::read_excel(
-      file.path(inputs_dir, "Codes_coefs.xlsx"),
-      sheet = "Liv_LU_coefs"
-    ),
-    NPP_ygpit = readr::read_csv(file.path(inputs_dir, "NPP_ygpit.csv.gz")),
-    GRAFS_Prod_Destiny_git = readr::read_csv(file.path(
-      inputs_dir,
-      "GRAFS_Prod_Destiny_git.csv"
-    )),
-    PIE_FullDestinies_FM = readr::read_csv(file.path(
-      inputs_dir,
-      "PIE_FullDestinies_FM.csv"
-    )),
-    sf_provinces_spain = sf_provinces_spain
+    Livestock_Prod_ygps = whep_read_file("livestock_prod_ygps"),
+    livestock_units = whep_read_file("livestock_units"),
+    NPP_ygpit = whep_read_file("npp_ygpit"),
+    GRAFS_Prod_Destiny_git = .grafs_prod_destiny_legacy(),
+    PIE_FullDestinies_FM = whep_read_file("pie_full_destinies_fm"),
+    sf_provinces_spain = .read_spain_provinces(shapefile_path)
   )
 }
 
-#' @title Mapping: Livestock_cat (from livestock data) to Animal_class
-#' (from coefficients)
+#' @title Read the Spanish provinces layer -------------------------------------
+#'
+#' @param shapefile_path Path to a Natural Earth admin-1 shapefile.
+#'
 #' @keywords internal
 #' @noRd
-.create_livestockcat_mapping <- function() {
-  tibble::tribble(
-    ~Livestock_cat,    ~Animal_class,
-    "Cattle_milk",     "Dairy_cows",
-    "Cattle_meat",     "Cattle",
-    "Sheep",           "Sheep_goats",
-    "Goats",           "Sheep_goats",
-    "Donkeys_mules",   "Equines",
-    "Horses",          "Equines",
-    "Pigs",            "Pigs",
-    "Poultry",         "Hens",
-    "Rabbits",         "Rabbits"
+.read_spain_provinces <- function(shapefile_path) {
+  layer_name <- tools::file_path_sans_ext(basename(shapefile_path))
+
+  sf::st_read(
+    shapefile_path,
+    query = paste0("SELECT * FROM ", layer_name, " WHERE iso_a2 = 'ES'")
   )
+}
+
+#' @title Legacy view of the GRAFS N flows -------------------------------------
+#'
+#' @description
+#' Both typologies were written against the precomputed
+#' `GRAFS_Prod_Destiny_git.csv` file. `create_n_prov_destiny()` now computes
+#' the same flows, but with a different schema and vocabulary, so the whole
+#' translation lives here instead of in every downstream helper:
+#'
+#' - `destiny == "population_food"` becomes `Destiny == "Food"`.
+#' - `destiny == "population_other_uses"` becomes `Destiny == "Other_uses"`.
+#' - `destiny` in `livestock_rum`/`livestock_mono`/`livestock_aqua` becomes
+#'   `Destiny == "Feed"`.
+#' - `destiny == "export"` becomes `Destiny == "Export"`.
+#' - `box == "semi_natural_agroecosystems"` becomes
+#'   `Box == "Semi_natural_agroecosystems"`.
+#' - Soil-input rows (origin Deposition, Fixation, Synthetic, Livestock,
+#'   People) are dropped: the legacy file did not contain them.
+#'
+#' The legacy file had no `"Import"` destiny either. Its Food/Feed/Other_uses
+#' rows are gross use (imports included) and imports are repeated as separate
+#' `"Import"` rows, which is why downstream code computes production as
+#' `Food + Feed + Other_uses + Export - Import`. Imported flows are
+#' `origin == "Outside"` here and already carry their real destiny, so they
+#' are emitted twice, once under that destiny and once as `"Import"`, which
+#' reproduces the legacy convention exactly rather than double counting.
+#'
+#' @param prod_destiny Tibble of N flows from `create_n_prov_destiny()`.
+#'
+#' @keywords internal
+#' @noRd
+.grafs_prod_destiny_legacy <- function(
+  prod_destiny = create_n_prov_destiny()
+) {
+  legacy_destiny <- c(
+    population_food = "Food",
+    population_other_uses = "Other_uses",
+    livestock_rum = "Feed",
+    livestock_mono = "Feed",
+    livestock_aqua = "Feed",
+    export = "Export"
+  )
+
+  flows <- prod_destiny |>
+    .rename_destiny_pascal() |>
+    dplyr::filter(Destiny %in% names(legacy_destiny)) |>
+    dplyr::mutate(
+      Box = dplyr::if_else(
+        Box == "semi_natural_agroecosystems",
+        "Semi_natural_agroecosystems",
+        Box
+      )
+    )
+
+  dplyr::bind_rows(
+    flows |> dplyr::mutate(Destiny = unname(legacy_destiny[Destiny])),
+    flows |>
+      dplyr::filter(Origin == "Outside") |>
+      dplyr::mutate(Destiny = "Import")
+  ) |>
+    dplyr::summarise(
+      MgN = sum(MgN, na.rm = TRUE),
+      .by = c("Year", "Province_name", "Item", "Box", "Destiny")
+    )
 }
 
 #' @title Prepare LU coefficients with Livestock_cat mapping -------------------
 #'
-#' @param codes_coefs_df An excel file including coefficients.
+#' @description
+#' The `livestock_units` pin already maps each `Livestock_cat` to its
+#' `Animal_class` and livestock-unit coefficient, so no hardcoded mapping is
+#' needed.
+#'
+#' @param livestock_units_df Tibble from the `livestock_units` pin.
 #' @keywords internal
 #' @noRd
-.prepare_lu_coefs <- function(codes_coefs_df) {
-  mapping <- .create_livestockcat_mapping()
-
-  mapping |>
-    dplyr::inner_join(codes_coefs_df, by = "Animal_class") |>
+.prepare_lu_coefs <- function(livestock_units_df) {
+  livestock_units_df |>
     dplyr::select(Livestock_cat, Animal_class, LU_head) |>
     dplyr::distinct()
 }
