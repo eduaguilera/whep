@@ -3,9 +3,12 @@
 create_typologies_spain <- function(
   n_prov_destiny = NULL,
   make_map = TRUE,
-  shapefile_path = "C:/PhD/GRAFS/Production Boxes/Final Files/Inputs/ne_10m_admin_1_states_provinces.shp",
+  shapefile_path = NULL,
   map_year = 1860
 ) {
+  if (make_map) {
+    shapefile_path <- .provinces_shapefile(shapefile_path)
+  }
   if (is.null(n_prov_destiny)) {
     n_prov_destiny <- create_n_prov_destiny()
   }

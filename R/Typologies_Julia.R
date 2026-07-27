@@ -7,7 +7,11 @@
 #'
 #' @param make_map If TRUE a map of the typologies will be created.
 #'
-#' @param shapefile_path Path to the shapefile used for mapping provinces.
+#' @param shapefile_path Optional path to a Natural Earth 10m admin-1
+#'   states/provinces shapefile. When `NULL` (default) the layer is
+#'   downloaded from <https://www.naturalearthdata.com> on first use and
+#'   cached locally; set `options(whep.provinces_shapefile = )` to point at
+#'   an existing copy instead.
 #'
 #' @param map_year The year for which the typology map is created.
 #'
@@ -36,12 +40,10 @@
 #' @export
 create_typologies_grafs_spain <- function(
   make_map = TRUE,
-  shapefile_path = paste0(
-    "C:/PhD/GRAFS/Production Boxes/",
-    "Final Files/Inputs/ne_10m_admin_1_states_provinces.shp"
-  ),
+  shapefile_path = NULL,
   map_year = 1980
 ) {
+  shapefile_path <- .provinces_shapefile(shapefile_path)
   inputs_dir <- "C:/PhD/GRAFS/Production Boxes/Final Files/Inputs"
 
   # Load datasets

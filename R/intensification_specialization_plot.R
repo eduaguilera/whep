@@ -427,7 +427,7 @@ circ_nue_traj_plot <- function() {
   list(plot = p, data = df)
 }
 
-circ_nue_crop_ts_plot <- function() {
+circ_nue_crop_ts_plot <- function(out_dir = NULL) {
   # ---- Load data ----
   flows <- create_n_prov_destiny()
 
@@ -590,18 +590,23 @@ circ_nue_crop_ts_plot <- function() {
   print(p)
 
   # ---- Save plot ----
-  ggplot2::ggsave(
-    "C:/PhD/Typologies/Typologies_spain/typology_plot/circularity_nue_cropland_timeseries.jpeg",
-    plot = p,
-    width = 10,
-    height = 7,
-    dpi = 300
-  )
+  if (!is.null(out_dir)) {
+    if (!dir.exists(out_dir)) {
+      dir.create(out_dir, recursive = TRUE)
+    }
+    ggplot2::ggsave(
+      file.path(out_dir, "circularity_nue_cropland_timeseries.jpeg"),
+      plot = p,
+      width = 10,
+      height = 7,
+      dpi = 300
+    )
+  }
 
   list(plot = p, data = df)
 }
 
-intens_spec_ts <- function() {
+intens_spec_ts <- function(out_dir = NULL) {
   # ---- Load data ----
   flows <- create_n_prov_destiny()
   npp_ygpit <- whep_read_file("npp_ygpit") |> dplyr::rename_with(tolower)
@@ -731,19 +736,27 @@ intens_spec_ts <- function() {
   print(p)
 
   # ---- Save plot ----
-  ggplot2::ggsave(
-    filename = "C:/PhD/Typologies/Typologies_spain/typology_plot/intensification_specialization_timeseries.jpeg",
-    plot = p,
-    width = 10,
-    height = 7,
-    dpi = 300
-  )
+  if (!is.null(out_dir)) {
+    if (!dir.exists(out_dir)) {
+      dir.create(out_dir, recursive = TRUE)
+    }
+    ggplot2::ggsave(
+      filename = file.path(
+        out_dir,
+        "intensification_specialization_timeseries.jpeg"
+      ),
+      plot = p,
+      width = 10,
+      height = 7,
+      dpi = 300
+    )
+  }
 
   list(plot = p, data = df_ts)
 }
 
 
-yield_nue_trajectory_plot <- function() {
+yield_nue_trajectory_plot <- function(out_dir = NULL) {
   # ---- Load data ----
   flows <- create_n_prov_destiny()
   npp_ygpit <- whep_read_file("npp_ygpit") |> dplyr::rename_with(tolower)
@@ -831,19 +844,24 @@ yield_nue_trajectory_plot <- function() {
   print(p)
 
   # ---- Save plot ----
-  ggplot2::ggsave(
-    "C:/PhD/Typologies/Typologies_spain/typology_plot/yield_nue_trajectory.jpeg",
-    plot = p,
-    width = 10,
-    height = 7,
-    dpi = 300
-  )
+  if (!is.null(out_dir)) {
+    if (!dir.exists(out_dir)) {
+      dir.create(out_dir, recursive = TRUE)
+    }
+    ggplot2::ggsave(
+      file.path(out_dir, "yield_nue_trajectory.jpeg"),
+      plot = p,
+      width = 10,
+      height = 7,
+      dpi = 300
+    )
+  }
 
   list(plot = p, data = df)
 }
 
 
-intens_traj_plot <- function() {
+intens_traj_plot <- function(out_dir = NULL) {
   # ---- Load data ----
   flows <- create_n_prov_destiny()
   npp_ygpit <- whep_read_file("npp_ygpit") |> dplyr::rename_with(tolower)
@@ -925,18 +943,23 @@ intens_traj_plot <- function() {
   print(p)
 
   # ---- Save plot ----
-  ggplot2::ggsave(
-    "C:/PhD/Typologies/Typologies_spain/typology_plot/intensification_trajectory.jpeg",
-    plot = p,
-    width = 10,
-    height = 7,
-    dpi = 300
-  )
+  if (!is.null(out_dir)) {
+    if (!dir.exists(out_dir)) {
+      dir.create(out_dir, recursive = TRUE)
+    }
+    ggplot2::ggsave(
+      file.path(out_dir, "intensification_trajectory.jpeg"),
+      plot = p,
+      width = 10,
+      height = 7,
+      dpi = 300
+    )
+  }
 
   list(plot = p, data = df)
 }
 
-intens_ts_plot <- function() {
+intens_ts_plot <- function(out_dir = NULL) {
   # ---- Load data ----
   flows <- create_n_prov_destiny()
   npp_ygpit <- whep_read_file("npp_ygpit") |> dplyr::rename_with(tolower)
@@ -1033,18 +1056,23 @@ intens_ts_plot <- function() {
   print(p)
 
   # ---- Save plot ----
-  ggplot2::ggsave(
-    "C:/PhD/Typologies/Typologies_spain/typology_plot/intensification_timeseries.jpeg",
-    plot = p,
-    width = 10,
-    height = 7,
-    dpi = 300
-  )
+  if (!is.null(out_dir)) {
+    if (!dir.exists(out_dir)) {
+      dir.create(out_dir, recursive = TRUE)
+    }
+    ggplot2::ggsave(
+      file.path(out_dir, "intensification_timeseries.jpeg"),
+      plot = p,
+      width = 10,
+      height = 7,
+      dpi = 300
+    )
+  }
 
   list(plot = p, data = df)
 }
 
-nue_fertilizer_timeseries_plot <- function() {
+nue_fertilizer_timeseries_plot <- function(out_dir = NULL) {
   flows <- create_n_prov_destiny()
 
   # ---- Crop production ----
@@ -1167,18 +1195,23 @@ nue_fertilizer_timeseries_plot <- function() {
 
   print(p)
 
-  ggplot2::ggsave(
-    filename = "C:/PhD/Typologies/Typologies_spain/typology_plot/nue_fertilizer_time.jpeg",
-    plot = p,
-    width = 12,
-    height = 8,
-    dpi = 300
-  )
+  if (!is.null(out_dir)) {
+    if (!dir.exists(out_dir)) {
+      dir.create(out_dir, recursive = TRUE)
+    }
+    ggplot2::ggsave(
+      filename = file.path(out_dir, "nue_fertilizer_time.jpeg"),
+      plot = p,
+      width = 12,
+      height = 8,
+      dpi = 300
+    )
+  }
 
   list(plot = p, data = df)
 }
 
-nue_fertilizer_trajectory_plot <- function() {
+nue_fertilizer_trajectory_plot <- function(out_dir = NULL) {
   # ---- Load data ----
   flows <- create_n_prov_destiny()
 
@@ -1261,19 +1294,24 @@ nue_fertilizer_trajectory_plot <- function() {
   print(p)
 
   # ---- Save plot ----
-  ggplot2::ggsave(
-    filename = "C:/PhD/Typologies/Typologies_spain/typology_plot/nue_fertilizer_dependency.jpeg",
-    plot = p,
-    width = 10,
-    height = 7,
-    dpi = 300
-  )
+  if (!is.null(out_dir)) {
+    if (!dir.exists(out_dir)) {
+      dir.create(out_dir, recursive = TRUE)
+    }
+    ggplot2::ggsave(
+      filename = file.path(out_dir, "nue_fertilizer_dependency.jpeg"),
+      plot = p,
+      width = 10,
+      height = 7,
+      dpi = 300
+    )
+  }
 
   list(plot = p, data = df)
 }
 
 
-nrr_cropland_timeseries_plot <- function() {
+nrr_cropland_timeseries_plot <- function(out_dir = NULL) {
   # ---- Load data ----
   flows <- create_n_prov_destiny()
 
@@ -1368,13 +1406,18 @@ nrr_cropland_timeseries_plot <- function() {
   print(p)
 
   # ---- Save ----
-  ggplot2::ggsave(
-    "C:/PhD/Typologies/Typologies_spain/typology_plot/nrr_cropland_timeseries.jpeg",
-    plot = p,
-    width = 10,
-    height = 7,
-    dpi = 300
-  )
+  if (!is.null(out_dir)) {
+    if (!dir.exists(out_dir)) {
+      dir.create(out_dir, recursive = TRUE)
+    }
+    ggplot2::ggsave(
+      file.path(out_dir, "nrr_cropland_timeseries.jpeg"),
+      plot = p,
+      width = 10,
+      height = 7,
+      dpi = 300
+    )
+  }
 
   list(plot = p, data = df)
 }
@@ -1460,7 +1503,7 @@ production_diversity_plot <- function() {
   list(plot = p, data = diversity_ts)
 }
 
-intens_spec_sec_axis <- function() {
+intens_spec_sec_axis <- function(out_dir = NULL) {
   flows <- create_n_prov_destiny()
   npp_ygpit <- whep_read_file("npp_ygpit") |> dplyr::rename_with(tolower)
 
@@ -1579,13 +1622,18 @@ intens_spec_sec_axis <- function() {
 
   print(p)
 
-  ggplot2::ggsave(
-    "C:/PhD/Typologies/Typologies_spain/typology_plot/intensification_specialization_secondary.jpeg",
-    plot = p,
-    width = 10,
-    height = 7,
-    dpi = 300
-  )
+  if (!is.null(out_dir)) {
+    if (!dir.exists(out_dir)) {
+      dir.create(out_dir, recursive = TRUE)
+    }
+    ggplot2::ggsave(
+      file.path(out_dir, "intensification_specialization_secondary.jpeg"),
+      plot = p,
+      width = 10,
+      height = 7,
+      dpi = 300
+    )
+  }
 
   list(plot = p, data = df)
 }
