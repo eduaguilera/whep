@@ -11,8 +11,14 @@ whep_polities_gpkg <- Sys.getenv(
 
 polities <- sf::st_read(whep_polities_gpkg, quiet = TRUE)
 
-# The GeoPackage round-trip writes missing text as the literal string "NA", so
-# reading it back gives a value that LOOKS present. `iso3_code` had 79 such rows
+# Kept as a belt-and-braces guard even though upstream now normalises this at the
+# source (lbm364dl/whep-polities#39 writes NULL rather than "NA" or ""). It costs a
+# vectorised comparison per character column and it reported 79 iso3 and 185 cow
+# values the first time it ran, so it stays until the upstream fix has been in place
+# long enough to trust — and it makes this build correct against an older GeoPackage.
+#
+# The GeoPackage round-trip used to write missing text as the literal string "NA", so
+# reading it back gave a value that LOOKED present. `iso3_code` had 79 such rows
 # against 3 real NAs and `cow_code` 185, which means a consumer filtering
 # `is.na(iso3_code)` found 3 missing codes when 82 were missing. Worse, any check
 # of the form `!is.na(iso3)` treated those rows as having a valid ISO3 — the

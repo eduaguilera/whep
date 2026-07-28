@@ -1,7 +1,9 @@
 # whep (development version)
 
-* Missing `iso3_code` and `cow_code` in `polities` are now real `NA` rather than
-  the literal string `"NA"`. The GeoPackage round-trip writes missing text as
+* Missing `iso3_code` and `cow_code` in `polities` are now real `NA`. They were the
+  literal string `"NA"`, which upstream has since normalised to NULL at the source,
+  so this now holds for `iso3_code` (82 rows), `cow_code` (216) and
+  `polygon_feature_id` (29) rather than only where this package could patch it. The GeoPackage round-trip writes missing text as
   `"NA"`, so 79 rows of `iso3_code` and 185 of `cow_code` looked present:
   `is.na(iso3_code)` found 3 missing codes when 82 were missing, and any
   `!is.na(iso3)` guard treated those rows as carrying a valid ISO3. Converted at
