@@ -8,11 +8,10 @@
 # Usage:
 #   source("inst/scripts/run_pipeline.R")
 #
-#   # Full run (1851–2021, 24 cores)
+#   # Full run (1851–2023, 24 cores)
 #   run_pipeline(
 #     l_files_dir  = "/path/to/LPJmL_inputs",
 #     model_path   = "/path/to/lpjml",
-#     climate_dir  = "/path/to/lpjml/inputs/climate",
 #     use_cores    = 24
 #   )
 #
@@ -42,16 +41,23 @@ run_pipeline <- function(
   l_files_dir,
   model_path,
   datasets = NULL,
-  year_range = 1851:2021,
+  year_range = 1851:2023,
   target_res = 0.5,
-  climate_dir = NULL,
+  # CRU TS release to derive the climate forcing from; NULL takes the newest
+  # present under <l_files_dir>/CRU. Climate used to be symlinked in from a
+  # prepared `climate_dir`; it is now derived like every other input, so that
+  # argument is gone (Section 9d of prepare_spatialize_all.R).
+  cru_version = NULL,
   sim_path = file.path(model_path, "simulation"),
   export_start = min(year_range),
   export_end = max(year_range),
   dep_start = export_start,
-  dep_end = export_end,
+  # N deposition is only exported to 2021 and lags the other WHEP inputs.
+  dep_end = 2021,
   simulation_start_year = 1901,
-  simulation_end_year = 2009,
+  # See run_lpjml.R for the forcing-ceiling table behind this: 2023 is the
+  # last year every *hard* LPJmL input covers.
+  simulation_end_year = 2023,
   nspinup = 200,
   use_cores = 24,
   run_download = TRUE,
@@ -69,7 +75,7 @@ run_pipeline <- function(
       l_files_dir = l_files_dir,
       year_range = year_range,
       target_res = target_res,
-      climate_dir = climate_dir
+      cru_version = cru_version
     )
   }
 

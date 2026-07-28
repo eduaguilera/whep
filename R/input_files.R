@@ -21,6 +21,11 @@
 #'     function already returns the dataset in an `R` object, so the origin is
 #'     irrelevant, and `parquet` is read faster.
 #'
+#'   - `nc` / `nc4`: Returns the path to the downloaded NetCDF instead of its
+#'     contents, because these grids are read lazily by `ncdf4`/`terra` and are
+#'     far too large to materialise as a tibble.
+#'   - `raw`: Returns the file path without any processing.
+#'
 #'   Saving each file in both formats is for transparency and accessibility
 #'   purposes, e.g., having to share the data with non-programmers who can
 #'   easily import a CSV into a spreadsheet. You will most likely never have
@@ -137,6 +142,11 @@ whep_list_file_versions <- function(file_alias) {
     dir.create(tmpdir, recursive = TRUE)
     utils::untar(path, exdir = tmpdir)
     list.files(tmpdir, full.names = TRUE, recursive = TRUE)
+  } else if (extension %in% c("nc", "nc4")) {
+    # NetCDF is read lazily by the caller (ncdf4/terra open by path, and these
+    # grids are far too large to materialise as a tibble), so hand back the
+    # path rather than the contents.
+    path
   } else if (extension == "raw") {
     # Return the raw file path without processing
     path
