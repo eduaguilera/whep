@@ -47,14 +47,17 @@ FOLDED_INTO_AGGREGATE <- c(
   239L, 240L, 299L
 )
 
-# Areas whose COLONIAL-ERA polity this package cannot reach, because the
-# crosswalk maps an area to exactly one polity prefix and upstream gives the
-# colonial and modern polities DIFFERENT prefixes: Angola is ANG-1905-1975 then
-# AGO-1975-2025, Zimbabwe SRH-1953-1964 then ZWE-*, Botswana BEC then BWA,
-# Zambia NRH then ZMB, Sudan SUD then SDN, Viet Nam F237 then VNM, Yemen F249
-# then YEM. A single prefix cannot reach both, so pre-independence FAOSTAT years
-# resolve to the modern polity instead. See whep#387.
-DIFFERENT_ERA <- c(7L, 20L, 181L, 206L, 237L, 249L, 251L)
+# CLOSED. This held the seven areas whose colonial-era polity was unreachable,
+# because the crosswalk mapped an area to one prefix while upstream gives the
+# colonial and modern polities different ones (Angola ANG then AGO, Sudan SUD
+# then SDN, Zimbabwe SRH then ZWE, ...). `manual_area_prefixes` in
+# data-raw/table_mappings.R now lists BOTH prefixes for each, so the year-aware
+# resolution reaches the right era and the set is empty.
+#
+# Deliberately kept as an empty vector rather than deleted: the third test
+# asserts in both directions, so if a future change reopens any of these the
+# failure names the area instead of silently re-baselining it.
+DIFFERENT_ERA <- integer(0)
 
 classify <- function() {
   a <- read_aliases()

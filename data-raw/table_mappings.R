@@ -118,7 +118,42 @@ manual_area_prefixes <- tibble::tribble(
     "that previously served this area was RETIRED upstream as a duplicate of ",
     "that chain, and excluding dead polities left the area with no mapping at ",
     "all. The iso3 prefix DJI no longer names a live polity."
-  )
+  ),
+
+  # -- Areas whose chain spans TWO prefixes ----------------------------------
+  #
+  # An area is mapped by prefix, and upstream gives the colonial and modern
+  # polities of these seven chains DIFFERENT prefixes. Listing only the ISO3 one
+  # left the colonial polity unreachable, so pre-independence FAOSTAT years fell
+  # through to the modern polity: 1965 Angola resolved to AGO-1975-2025 "Angola
+  # (independent, 1975-2025)", and 1970 Sudan to SDN-2011-2025 — post-secession
+  # Sudan, which by definition EXCLUDES the territory that 1970 Sudan reported.
+  # That is data attributed to a polity that did not exist, not data dropped.
+  #
+  # Both prefixes are listed per area, which the many-to-many join expands into
+  # the union of both families. No year bounds are needed: every one of these
+  # chains is contiguous and overlap-free (checked — Zimbabwe and Viet Nam even
+  # interleave, ZWE/ZWE/SRH/ZWE/ZWE and VNM/F237/VNM, without overlapping), so
+  # the year-aware resolution in add_polity_code() picks the right era on its own.
+  #
+  # Upstream's own FAOSTAT matching pipeline already assigns exactly these
+  # polities; test_upstream_faostat_agreement.R compares the two. See whep#387 —
+  # if the prefixes are ever unified upstream, these entries become redundant
+  # rather than wrong.
+  7L, "ANG", "Portuguese Angola (ANG-1800-1890 .. ANG-1905-1975) before the 1975 independence; AGO after.",
+  7L, "AGO", "Independent Angola (AGO-1975-2025); the colonial era is the ANG chain.",
+  20L, "BEC", "Bechuanaland Protectorate (BEC-1885-1966) before the 1966 independence.",
+  20L, "BWA", "Botswana (BWA-1966-2025); the protectorate era is BEC.",
+  181L, "SRH", "Southern Rhodesia (SRH-1953-1964), the federation era between ZWE-1900-1953 and ZWE-1964-1980.",
+  181L, "ZWE", "Zimbabwe chain either side of the SRH federation era.",
+  206L, "SUD", "Sudan before the 2011 secession (SUD-1899-1934 .. SUD-1956-2011), which INCLUDED present-day South Sudan.",
+  206L, "SDN", "Sudan after the 2011 secession (SDN-2011-2025), which excludes South Sudan.",
+  237L, "F237", "Partitioned Viet Nam (F237-1954-1975) between VNM-1887-1954 and VNM-1975-2025.",
+  237L, "VNM", "Viet Nam either side of the 1954-1975 partition.",
+  249L, "F249", "Yemen before the 1990 unification (F249-1918-1990).",
+  249L, "YEM", "Unified Yemen (YEM-1990-2025).",
+  251L, "NRH", "Northern Rhodesia (NRH-1911-1953, NRH-1953-1964) before the 1964 independence.",
+  251L, "ZMB", "Zambia (ZMB-1964-2025); the protectorate era is the NRH chain."
 )
 
 polity_area_crosswalk <- regions_for_crosswalk |>

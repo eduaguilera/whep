@@ -1,5 +1,17 @@
 # whep (development version)
 
+* Pre-independence FAOSTAT years no longer resolve to the modern polity. The
+  crosswalk mapped each reporting area to a single polity prefix, and upstream
+  gives the colonial and modern polities of seven chains different prefixes
+  (Angola `ANG-1905-1975` then `AGO-1975-2025`, Sudan `SUD` then `SDN`, Zimbabwe
+  `SRH` then `ZWE`, Botswana `BEC`/`BWA`, Zambia `NRH`/`ZMB`, Viet Nam `F237`,
+  Yemen `F249`). The colonial polity was unreachable, so `add_polity_code()` fell
+  back to the modern one: 1965 Angola resolved to "Angola (independent,
+  1975-2025)", and 1970 Sudan to post-secession `SDN-2011-2025`, which excludes
+  the South Sudanese territory those reports covered. `manual_area_prefixes` now
+  lists both prefixes per area. 118 area-years change attribution, all of which
+  previously had NO span-covering polity.
+
 * `.iso3_to_fao_area_code()` no longer breaks an ambiguous ISO3 on row order. An
   ISO3 can name two FAOSTAT reporting areas because the pre-split entity is kept
   beside its successor (`ETH` is both 62 "Ethiopia PDR" and 238 "Ethiopia"), and
