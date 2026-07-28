@@ -236,8 +236,22 @@ polity_area_crosswalk <- regions_for_crosswalk |>
       .data$reporting_polity_code,
       NA_character_
     ),
+    # FABIO folds many small territories into its Rest of World bucket, which is
+    # carried by `polity_area_code` above (it takes `fabio_code`, so 999). Forcing
+    # `polity_code` to ROW as well is redundant for FABIO and harmful for an area
+    # that has data of its own: 4 of the 31 folded areas are flagged `cbs`, i.e.
+    # they have their own commodity balance sheets — New Caledonia, North
+    # Macedonia, Eswatini and Syria — and their CBS rows were resolving to
+    # ROW-1850-2023 while a real polity for each exists upstream. Syria alone is
+    # ~113k layer-B rows.
+    #
+    # So the ROW override applies only where the area has NO data of its own. The
+    # other 27 keep folding, correctly: they carry no CBS data, so routing them
+    # individually would diverge from FABIO for nothing.
     fabio_row_prefix = dplyr::if_else(
-      !is.na(.data$fabio_code) & .data$fabio_code == 999L,
+      !is.na(.data$fabio_code) &
+        .data$fabio_code == 999L &
+        !(.data$cbs %in% TRUE),
       "ROW",
       NA_character_
     ),

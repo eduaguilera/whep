@@ -53,11 +53,19 @@ read_aliases <- function() {
 }
 
 # Areas where upstream names a specific polity but this package folds the area
-# into an aggregate (ROW-1850-2023 and the continental "Other" buckets). These
-# are small territories AND several substantial ones — Syria, Swaziland, North
-# Macedonia, New Caledonia — whose data lands in Rest of World here while a real
-# polity for them exists upstream. Tracked, not fixed: moving an area out of ROW
-# changes published aggregates, so it is a deliberate decision, not a cleanup.
+# into an aggregate (ROW-1850-2023 and the continental "Other" buckets).
+#
+# Reduced from 31 to 27. The four removed — New Caledonia (153), North Macedonia
+# (154), Eswatini (209) and Syria (212) — were the only folded areas flagged
+# `cbs`, meaning they have their OWN commodity balance sheets, so their data was
+# resolving to Rest of World while a real polity for each existed upstream. Syria
+# alone is ~113k layer-B rows. They now resolve to their own polities;
+# `polity_area_code` still carries FABIO's 999 bucket, so FABIO alignment is
+# untouched.
+#
+# The remaining 27 are correctly folded and are NOT a defect to clear: they carry
+# no CBS data, so routing them individually would diverge from FABIO for no gain.
+# Kept baselined so a NEW fold still fails.
 folded_into_aggregate <- c(
   5L,
   6L,
@@ -75,8 +83,6 @@ folded_into_aggregate <- c(
   135L,
   140L,
   142L,
-  153L,
-  154L,
   160L,
   161L,
   180L,
@@ -85,8 +91,6 @@ folded_into_aggregate <- c(
   190L,
   192L,
   205L,
-  209L,
-  212L,
   239L,
   240L,
   299L
