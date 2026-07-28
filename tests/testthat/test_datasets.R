@@ -93,16 +93,27 @@ test_that("CBS and FABIO area codes map to polity database rows", {
   expect_equal(nrow(cbs_unmapped), 0L)
   expect_equal(nrow(fabio_unmapped), 0L)
 
+  # The aggregate reporting areas: Belgium-Luxembourg (15), Netherlands Antilles
+  # (151), the six continental "Other" buckets (901-906) and Rest of World (999).
+  aggregate_area_codes <- c(15L, 151L, 901:906, 999L)
   aggregate_codes <- crosswalk |>
-    dplyr::filter(.data$area_code %in% c(15L, 151L, 901:906, 999L)) |>
+    dplyr::filter(.data$area_code %in% aggregate_area_codes) |>
     dplyr::distinct(.data$area_code, .data$polity_code, .data$has_geometry)
 
-  expect_equal(nrow(aggregate_codes), 9L)
+  # Asserted per area, NOT as a row count. `nrow() == 9` silently encoded "each
+  # of these areas maps to exactly one polity", which stopped being true the
+  # moment upstream periodized a family: area 15 now maps to both BLX-1850-1999
+  # and BLX-1921-1999, and 151 to ANT-1816-1960 and ANT-1961-2010, so the count
+  # reached 11. A count is the wrong shape for this — the property wanted is that
+  # every aggregate area resolves, whatever number of periods it resolves into.
+  expect_setequal(aggregate_codes$area_code, aggregate_area_codes)
   expect_true(all(!is.na(aggregate_codes$polity_code)))
   expect_true(all(aggregate_codes$has_geometry))
 
+  # Territories FABIO folds into Rest of World rather than reporting separately.
+  row_source_codes <- c(30L, 69L, 152L, 252L, 254L, 299L)
   fabio_row_sources <- crosswalk |>
-    dplyr::filter(.data$area_code %in% c(30L, 69L, 152L, 252L, 254L, 299L)) |>
+    dplyr::filter(.data$area_code %in% row_source_codes) |>
     dplyr::distinct(
       .data$area_code,
       .data$fabio_code,
@@ -111,7 +122,10 @@ test_that("CBS and FABIO area codes map to polity database rows", {
       .data$has_geometry
     )
 
-  expect_equal(nrow(fabio_row_sources), 6L)
+  # Same reasoning as above: assert the areas, not how many rows they produce.
+  # This one passes as a count today only because ROW-1850-2023 has not been
+  # periodized; it would break the same way if it ever were.
+  expect_setequal(fabio_row_sources$area_code, row_source_codes)
   expect_true(all(fabio_row_sources$fabio_code == 999L))
   expect_true(all(fabio_row_sources$polity_area_code == 999L))
   expect_true(all(fabio_row_sources$polity_code == "ROW-1850-2023"))
