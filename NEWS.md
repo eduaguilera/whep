@@ -1,5 +1,13 @@
 # whep (development version)
 
+* Missing `iso3_code` and `cow_code` in `polities` are now real `NA` rather than
+  the literal string `"NA"`. The GeoPackage round-trip writes missing text as
+  `"NA"`, so 79 rows of `iso3_code` and 185 of `cow_code` looked present:
+  `is.na(iso3_code)` found 3 missing codes when 82 were missing, and any
+  `!is.na(iso3)` guard treated those rows as carrying a valid ISO3. Converted at
+  the read for every character column, since `"NA"` is not a legitimate value for
+  any of them (Namibia is `NAM`).
+
 * New `resolve_polity_label()` and the `polity_label_aliases` dataset resolve a
   source's country **label** to a polity. `add_polity_code()` handles numeric
   FAOSTAT area codes, and nothing handled labels — so datasets carrying them had

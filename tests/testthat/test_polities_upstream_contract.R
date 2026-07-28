@@ -128,3 +128,92 @@ test_that("no polity lacking geometry claims one, beyond the upstream backlog", 
     )
   )
 })
+
+upstream_csv_path <- function() {
+  Sys.getenv(
+    "WHEP_POLITIES_CSV",
+    unset = path.expand("~/whep-polities/data/final/polities_database.csv")
+  )
+}
+
+test_that("every identity field matches upstream, row by row", {
+  mf <- read_manifest()
+  path <- upstream_csv_path()
+  testthat::skip_if_not(
+    file.exists(path),
+    paste0("upstream database CSV not found at ", path)
+  )
+
+  # The manifest publishes `identity_sha256` over exactly the fields a consumer
+  # resolves against, precisely so drift in any of them invalidates a downstream
+  # copy. None of the other tests here used it, which is how a changed
+  # `wiki_status` slipped through: the row count, the code set and the
+  # dead-routing check were all still satisfied.
+  #
+  # The hash itself is NOT replicated. It is a digest of Python's json.dumps
+  # output, and reproducing that byte-for-byte from R depends on serialiser
+  # details neither side promises — a naive attempt gives a different digest even
+  # when the DATA is identical, which would be a test that fails for the wrong
+  # reason. Comparing the fields directly is both robust and better: it names the
+  # row and the field that disagree, which a hash cannot.
+  fields <- mf$identity_fields
+  upstream <- utils::read.csv(
+    path,
+    colClasses = "character",
+    check.names = FALSE
+  )
+  here <- as.data.frame(whep::polities)
+
+  # `polities` renames two fields on import; map them back before comparing.
+  if (!"start_year" %in% names(here) && "polity_start_year" %in% names(here)) {
+    names(here)[names(here) == "polity_start_year"] <- "start_year"
+  }
+  if (!"end_year" %in% names(here) && "polity_end_year" %in% names(here)) {
+    names(here)[names(here) == "polity_end_year"] <- "end_year"
+  }
+
+  comparable <- intersect(fields, intersect(names(upstream), names(here)))
+  expect_true(
+    "polity_code" %in% comparable,
+    info = "cannot compare without polity_code on both sides"
+  )
+
+  upstream <- upstream[order(upstream$polity_code), comparable, drop = FALSE]
+  here <- here[order(here$polity_code), comparable, drop = FALSE]
+  expect_setequal(upstream$polity_code, here$polity_code)
+
+  # Compared as character throughout: the embedded copy carries integers where the
+  # CSV carries text, and a type difference is not drift.
+  norm <- function(x) {
+    x <- as.character(x)
+    x[is.na(x)] <- ""
+    trimws(x)
+  }
+  mismatches <- character(0)
+  for (f in setdiff(comparable, "polity_code")) {
+    differs <- norm(upstream[[f]]) != norm(here[[f]])
+    if (any(differs)) {
+      codes <- utils::head(upstream$polity_code[differs], 3)
+      mismatches <- c(
+        mismatches,
+        sprintf(
+          "%s (%d row(s), e.g. %s: upstream=%s here=%s)",
+          f,
+          sum(differs),
+          codes[1],
+          norm(upstream[[f]])[differs][1],
+          norm(here[[f]])[differs][1]
+        )
+      )
+    }
+  }
+  expect_equal(
+    length(mismatches),
+    0L,
+    info = paste0(
+      "identity fields disagree with upstream: ",
+      paste(mismatches, collapse = "; "),
+      " — re-run data-raw/table_mappings.R and commit data/."
+    )
+  )
+})

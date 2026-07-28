@@ -10,6 +10,40 @@ whep_polities_gpkg <- Sys.getenv(
 )
 
 polities <- sf::st_read(whep_polities_gpkg, quiet = TRUE)
+
+# The GeoPackage round-trip writes missing text as the literal string "NA", so
+# reading it back gives a value that LOOKS present. `iso3_code` had 79 such rows
+# against 3 real NAs and `cow_code` 185, which means a consumer filtering
+# `is.na(iso3_code)` found 3 missing codes when 82 were missing. Worse, any check
+# of the form `!is.na(iso3)` treated those rows as having a valid ISO3 — the
+# ISO3-keyed bridges in read_raw_inputs.R do exactly that.
+#
+# Converted for every character column: "NA" is not a legitimate value for any of
+# them (Namibia is NAM, not NA), so there is nothing to preserve. Deliberately
+# done here, at the read, rather than in each consumer — the artifact belongs to
+# the file format, not to any one use of the data.
+chr_cols <- names(polities)[vapply(polities, is.character, logical(1))]
+na_text <- vapply(
+  chr_cols,
+  function(col) sum(polities[[col]] == "NA", na.rm = TRUE),
+  integer(1)
+)
+for (col in chr_cols[na_text > 0L]) {
+  polities[[col]][polities[[col]] == "NA"] <- NA_character_
+}
+if (any(na_text > 0L)) {
+  affected <- paste0(
+    names(na_text)[na_text > 0L],
+    " (",
+    na_text[na_text > 0L],
+    ")",
+    collapse = ", "
+  )
+  cli::cli_inform(
+    "Converted literal \"NA\" text to missing in: {affected}."
+  )
+}
+
 polities$iso3c <- polities$iso3_code
 polities$has_geometry <- !sf::st_is_empty(polities)
 
