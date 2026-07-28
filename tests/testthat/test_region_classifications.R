@@ -14,10 +14,25 @@
 # territories across every continent, so it genuinely has no single region.
 
 CLASSIFICATION_COLS <- c(
-  "region_code", "ADB_Region", "region", "region_krausmann", "region_HANPP",
-  "region_krausmann2", "region_UN_sub", "region_UN", "region_ILO1",
-  "region_ILO2", "region_ILO3", "region_IEA", "region_IPCC", "region_labour",
-  "region_labour_agg", "region_labour_mech", "region_test", "EU27", "continent"
+  "region_code",
+  "ADB_Region",
+  "region",
+  "region_krausmann",
+  "region_HANPP",
+  "region_krausmann2",
+  "region_UN_sub",
+  "region_UN",
+  "region_ILO1",
+  "region_ILO2",
+  "region_ILO3",
+  "region_IEA",
+  "region_IPCC",
+  "region_labour",
+  "region_labour_agg",
+  "region_labour_mech",
+  "region_test",
+  "EU27",
+  "continent"
 )
 
 aggregate_polities <- function() {
@@ -33,14 +48,17 @@ test_that("region classifications do not contradict themselves within a polity",
 
   for (col in intersect(CLASSIFICATION_COLS, names(rf))) {
     n_distinct <- tapply(
-      rf[[col]], rf$reporting_polity_code,
+      rf[[col]],
+      rf$reporting_polity_code,
       function(v) length(unique(v[!is.na(v)]))
     )
     conflicting <- names(n_distinct)[n_distinct > 1]
     expect_equal(
-      length(conflicting), 0L,
+      length(conflicting),
+      0L,
       info = paste0(
-        col, " takes several values within one polity: ",
+        col,
+        " takes several values within one polity: ",
         paste(utils::head(conflicting, 5), collapse = ", "),
         " — a consumer's answer would depend on which reporting area it read."
       )
@@ -59,9 +77,12 @@ test_that("the consumed classifications cover every polity-resolved row", {
   for (col in c("region_krausmann", "region_HANPP")) {
     missing <- unique(rf$reporting_polity_code[is.na(rf[[col]])])
     expect_equal(
-      length(missing), 0L,
+      length(missing),
+      0L,
       info = paste0(
-        col, " is missing for: ", paste(utils::head(missing, 5), collapse = ", ")
+        col,
+        " is missing for: ",
+        paste(utils::head(missing, 5), collapse = ", ")
       )
     )
   }

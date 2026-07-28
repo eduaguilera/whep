@@ -158,8 +158,10 @@
     # defeats the guard further down which refuses to extend an aggregate
     # reporting area beyond its range — the guard only fires when the chosen row
     # IS the aggregate.
-    matches[, is_aggregate := !is.na(get("lookup_polity_type")) &
-      get("lookup_polity_type") == "aggregate"]
+    matches[,
+      is_aggregate := !is.na(get("lookup_polity_type")) &
+        get("lookup_polity_type") == "aggregate"
+    ]
     data.table::setorderv(
       matches,
       c(

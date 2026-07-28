@@ -33,7 +33,8 @@ test_that("the rule uniquely resolves every ISO3 in the lookup", {
   # Over-determination would mean the rule itself has to guess, which is the
   # failure mode it exists to remove.
   expect_equal(
-    sum(n_canonical > 1), 0L,
+    sum(n_canonical > 1),
+    0L,
     info = paste0(
       "ISO3 codes with more than one canonical area: ",
       paste(names(n_canonical)[n_canonical > 1], collapse = ", ")
@@ -50,10 +51,12 @@ test_that("the rule uniquely resolves every ISO3 in the lookup", {
     integer(1)
   )
   expect_equal(
-    sum(multi > 1), 0L,
+    sum(multi > 1),
+    0L,
     info = paste0(
       "ISO3 codes with no canonical area AND several candidates, so the ",
-      "function would abort: ", paste(names(multi)[multi > 1], collapse = ", ")
+      "function would abort: ",
+      paste(names(multi)[multi > 1], collapse = ", ")
     )
   )
 })
@@ -65,13 +68,21 @@ test_that("no FAOSTAT area maps to two ISO3 codes", {
   d <- unique(lk[, c("area_code", "area_iso3c")])
   dup <- unique(d$area_code[duplicated(d$area_code)])
   expect_equal(
-    length(dup), 0L,
-    info = paste0("areas with several ISO3 codes: ", paste(dup, collapse = ", "))
+    length(dup),
+    0L,
+    info = paste0(
+      "areas with several ISO3 codes: ",
+      paste(dup, collapse = ", ")
+    )
   )
 })
 
 test_that("the ISO3 bridge round-trips through the FAOSTAT bridge", {
-  df <- data.frame(area_code = c("ETH", "SDN", "FRA", "BRA"), year = 2000L, v = 1)
+  df <- data.frame(
+    area_code = c("ETH", "SDN", "FRA", "BRA"),
+    year = 2000L,
+    v = 1
+  )
   fao <- whep:::.iso3_to_fao_area_code(df)
   back <- as.data.frame(whep:::.fao_to_iso3_area_code(fao))
   expect_setequal(back$area_code, c("ETH", "SDN", "FRA", "BRA"))

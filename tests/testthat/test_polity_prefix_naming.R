@@ -18,7 +18,8 @@ for (nm in c("regions_full", "polities_cats")) {
     expect_false(
       "polity_code" %in% names(d),
       info = paste0(
-        nm, " has a `polity_code` column again. If it holds prefixes, call it ",
+        nm,
+        " has a `polity_code` column again. If it holds prefixes, call it ",
         "`polity_prefix`; if it holds real codes, it must resolve against ",
         "whep::polities."
       )
@@ -30,9 +31,11 @@ for (nm in c("regions_full", "polities_cats")) {
       d$polity_prefix[grepl(CODE_RE, d$polity_prefix)]
     ))
     expect_equal(
-      length(offending), 0L,
+      length(offending),
+      0L,
       info = paste0(
-        nm, "$polity_prefix contains periodized codes: ",
+        nm,
+        "$polity_prefix contains periodized codes: ",
         paste(utils::head(offending, 5), collapse = ", ")
       )
     )
@@ -48,9 +51,11 @@ for (nm in c("regions_full", "polities_cats")) {
     # this breaks: it kept pointing at polities that had been split away.
     unknown <- setdiff(unique(codes), whep::polities$polity_code)
     expect_equal(
-      length(unknown), 0L,
+      length(unknown),
+      0L,
       info = paste0(
-        nm, "$reporting_polity_code has values absent from whep::polities: ",
+        nm,
+        "$reporting_polity_code has values absent from whep::polities: ",
         paste(utils::head(unknown, 5), collapse = ", "),
         " — re-run data-raw/harmonization_tables.R and commit data/."
       )

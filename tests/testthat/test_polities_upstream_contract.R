@@ -29,7 +29,8 @@ read_manifest <- function() {
   testthat::skip_if_not(
     file.exists(path),
     paste0(
-      "whep-polities manifest not found at ", path,
+      "whep-polities manifest not found at ",
+      path,
       " — set WHEP_POLITIES_MANIFEST or check out the sibling repository"
     )
   )
@@ -43,14 +44,20 @@ test_that("the embedded polity table matches the upstream manifest", {
     nrow(whep::polities),
     mf$counts$total,
     info = paste0(
-      "polities has ", nrow(whep::polities), " rows against ", mf$counts$total,
+      "polities has ",
+      nrow(whep::polities),
+      " rows against ",
+      mf$counts$total,
       " upstream. Re-run data-raw/table_mappings.R and commit data/."
     )
   )
 
   # Set comparison, not just a count: equal counts with different membership is
   # exactly what a split-plus-merge upstream produces.
-  expect_setequal(whep::polities$polity_code, mf$live_polity_codes |> c(mf$dead_polity_codes))
+  expect_setequal(
+    whep::polities$polity_code,
+    mf$live_polity_codes |> c(mf$dead_polity_codes)
+  )
 })
 
 test_that("no polity resolution targets a dead upstream polity", {
@@ -95,7 +102,8 @@ test_that("no polity lacking geometry claims one, beyond the upstream backlog", 
     0L,
     info = paste0(
       "polities claim a polygon they do not have and are NOT in the upstream ",
-      "backlog: ", paste(utils::head(unexpected, 10), collapse = ", ")
+      "backlog: ",
+      paste(utils::head(unexpected, 10), collapse = ", ")
     )
   )
 })

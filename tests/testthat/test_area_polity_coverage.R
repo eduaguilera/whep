@@ -21,7 +21,8 @@ test_that("every FAOSTAT area resolves to a polity, bar the documented aggregate
 
   unexpected <- setdiff(as.integer(unmapped$area_code), DELIBERATELY_UNMAPPED)
   expect_equal(
-    length(unexpected), 0L,
+    length(unexpected),
+    0L,
     info = paste0(
       "FAOSTAT areas resolving to no polity, so their rows are dropped from ",
       "every build: ",
@@ -29,7 +30,9 @@ test_that("every FAOSTAT area resolves to a polity, bar the documented aggregate
         utils::head(
           paste0(
             unmapped$area_code[as.integer(unmapped$area_code) %in% unexpected],
-            " (", unmapped$area_name[as.integer(unmapped$area_code) %in% unexpected], ")"
+            " (",
+            unmapped$area_name[as.integer(unmapped$area_code) %in% unexpected],
+            ")"
           ),
           10
         ),
@@ -42,7 +45,10 @@ test_that("every FAOSTAT area resolves to a polity, bar the documented aggregate
 
   # The reverse: an entry in the allowlist that HAS become mapped is stale, and
   # keeping it invites someone to unmap it again on this test's authority.
-  still_unmapped <- intersect(DELIBERATELY_UNMAPPED, as.integer(unmapped$area_code))
+  still_unmapped <- intersect(
+    DELIBERATELY_UNMAPPED,
+    as.integer(unmapped$area_code)
+  )
   expect_setequal(still_unmapped, DELIBERATELY_UNMAPPED)
 })
 
@@ -53,11 +59,15 @@ test_that("the China aggregate stays unmapped while its components resolve", {
   components <- c(41L, 96L, 128L, 214L)
 
   for (code in components) {
-    resolved <- cw$polity_code[!is.na(cw$area_code) & as.integer(cw$area_code) == code]
+    resolved <- cw$polity_code[
+      !is.na(cw$area_code) & as.integer(cw$area_code) == code
+    ]
     expect_true(
       length(stats::na.omit(resolved)) > 0,
       info = paste0(
-        "FAOSTAT area ", code, " is a China component and must map to its own ",
+        "FAOSTAT area ",
+        code,
+        " is a China component and must map to its own ",
         "polity, otherwise dropping the 351 aggregate loses it entirely."
       )
     )

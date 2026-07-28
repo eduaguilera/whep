@@ -16,7 +16,8 @@ test_that("every reporting window names a real FAOSTAT area", {
   cw <- whep::polity_area_crosswalk
   unknown <- setdiff(windows$area_code, cw$polity_area_code)
   expect_equal(
-    length(unknown), 0L,
+    length(unknown),
+    0L,
     info = paste0(
       "areas absent from polity_area_crosswalk$polity_area_code: ",
       paste(unknown, collapse = ", ")
@@ -50,9 +51,15 @@ test_that("no reporting window admits a year outside its polity spans", {
     expect_true(
       first >= span_first,
       info = paste0(
-        "area ", w$area_code, " admits rows from ", first,
-        " but its earliest polity starts ", span_first,
-        " (", w$why, ")"
+        "area ",
+        w$area_code,
+        " admits rows from ",
+        first,
+        " but its earliest polity starts ",
+        span_first,
+        " (",
+        w$why,
+        ")"
       )
     )
     # `end_year` 2025 is the database's "still ongoing" sentinel, not a real
@@ -62,9 +69,15 @@ test_that("no reporting window admits a year outside its polity spans", {
     expect_true(
       ongoing || last <= span_last,
       info = paste0(
-        "area ", w$area_code, " admits rows to ", last,
-        " but its latest polity ends ", span_last,
-        " (", w$why, ")"
+        "area ",
+        w$area_code,
+        " admits rows to ",
+        last,
+        " but its latest polity ends ",
+        span_last,
+        " (",
+        w$why,
+        ")"
       )
     )
   }
@@ -75,9 +88,36 @@ test_that("the filter reproduces the integer cutoffs it replaced", {
   # to cover every cutoff. The two deliberate tightenings (area 51 before 1918,
   # area 15 before 1850) are asserted separately below and excluded here.
   grid <- expand.grid(
-    area_code = c(51L, 167L, 199L, 126L, 119L, 63L, 198L, 98L, 15L, 255L, 256L, 1L),
-    year = c(1700L, 1800L, 1860L, 1910L, 1917L, 1918L, 1930L, 1960L, 1991L,
-             1992L, 1993L, 1999L, 2000L, 2020L)
+    area_code = c(
+      51L,
+      167L,
+      199L,
+      126L,
+      119L,
+      63L,
+      198L,
+      98L,
+      15L,
+      255L,
+      256L,
+      1L
+    ),
+    year = c(
+      1700L,
+      1800L,
+      1860L,
+      1910L,
+      1917L,
+      1918L,
+      1930L,
+      1960L,
+      1991L,
+      1992L,
+      1993L,
+      1999L,
+      2000L,
+      2020L
+    )
   )
   grid$tonnes <- 1
 
@@ -104,8 +144,15 @@ test_that("the filter reproduces the integer cutoffs it replaced", {
   extra <- setdiff(key(old), key(new))
   expect_setequal(
     extra,
-    c("51 1700", "51 1800", "51 1860", "51 1910", "51 1917",
-      "15 1700", "15 1800")
+    c(
+      "51 1700",
+      "51 1800",
+      "51 1860",
+      "51 1910",
+      "51 1917",
+      "15 1700",
+      "15 1800"
+    )
   )
 })
 

@@ -44,7 +44,10 @@
   ]
   bridge <- unique(bridge)
   # Keep the canonical rows for an ISO3 when it has any, all of them otherwise.
-  bridge[, keep := if (any(canonical)) canonical else rep(TRUE, .N), by = "iso3c"]
+  bridge[,
+    keep := if (any(canonical)) canonical else rep(TRUE, .N),
+    by = "iso3c"
+  ]
   bridge <- bridge[keep == TRUE]
   bridge[, c("canonical", "keep") := NULL]
 
