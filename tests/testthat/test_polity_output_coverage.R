@@ -1,3 +1,25 @@
+# Rows upstream knows claim a polygon the GeoPackage cannot carry
+# (whep-polities issue #3). Read from the published manifest when available so
+# the list cannot drift from the source; otherwise fall back to the six that
+# reach this crosswalk today, so the test still constrains something when the
+# sibling checkout is absent.
+upstream_polygon_gaps <- function() {
+  path <- Sys.getenv(
+    "WHEP_POLITIES_MANIFEST",
+    unset = path.expand("~/whep-polities/data/final/polities_manifest.json")
+  )
+  if (file.exists(path)) {
+    mf <- jsonlite::fromJSON(path, simplifyVector = TRUE)
+    if (!is.null(mf$polygon_gap_polity_codes)) {
+      return(mf$polygon_gap_polity_codes)
+    }
+  }
+  c(
+    "CAN-1800-1866", "CAN-1866-1870", "GRC-1830-1881",
+    "IDN-BLB-1949-1951", "IDN-JVM-1949-1951", "IDN-OTH-1949-1951"
+  )
+}
+
 expect_polity_match <- function(data, code_col, polity_col) {
   testthat::expect_true(code_col %in% names(data))
   testthat::expect_true(polity_col %in% names(data))
@@ -175,8 +197,33 @@ testthat::test_that("legacy area reference tables are backed by polities", {
   # polygon_status == "unassigned": some historical periods (e.g. pre-1883
   # Chile, before the War of the Pacific) have no faithful-vintage polygon,
   # and we record an honest gap rather than back-project a later/modern border.
+  #
+  # Exception: upstream tracks a backlog of rows whose status DOES assert a
+  # polygon the GeoPackage cannot carry, because their feature id was recorded
+  # as prose rather than a resolvable value (whep-polities issue #3, listed in
+  # its scripts/validate_polygons_baseline.txt and published as
+  # polygon_gap_polity_codes in its manifest). Six of them reach this crosswalk
+  # — CAN-1800-1866, CAN-1866-1870, GRC-1830-1881 and the three
+  # IDN-*-1949-1951 island groups. Asserting the strict invariant here makes
+  # this test red until that backlog clears, which is how a test stops being
+  # read; tolerating exactly the published set keeps it sharp for anything NEW.
+  # test_polities_upstream_contract.R makes the same assertion against the
+  # manifest directly.
+  known_gaps <- upstream_polygon_gaps()
   no_geometry <- cw[!cw$has_geometry, ]
-  testthat::expect_true(all(no_geometry$polygon_status == "unassigned"))
+  unexpected <- no_geometry[
+    no_geometry$polygon_status != "unassigned" &
+      !no_geometry$polity_code %in% known_gaps,
+  ]
+  testthat::expect_equal(
+    nrow(unexpected),
+    0L,
+    info = paste0(
+      "polities lack geometry while claiming one, outside the upstream ",
+      "backlog: ",
+      paste(utils::head(unique(unexpected$polity_code), 10), collapse = ", ")
+    )
+  )
 
   for (data in list(whep::regions_full, whep::polities_cats)) {
     data <- data[!data$code %in% aggregate_codes, ]
