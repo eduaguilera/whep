@@ -494,8 +494,12 @@
 #' @format
 #' A tibble where each row corresponds to one polity (country or territory).
 #' It contains the following columns:
-#' - `polity_code`: Legacy current polity prefix, usually ISO 3166-1 alpha-3
-#'   (e.g., `"AFG"`, `"ALB"`).
+#' - `polity_prefix`: Polity **family prefix**, usually ISO 3166-1 alpha-3
+#'   (e.g., `"AFG"`, `"ALB"`). This is NOT a polity code and will not resolve
+#'   against [polities]: a code identifies one period (`"AFG-1919-2025"`),
+#'   whereas a prefix names the whole family. Use `reporting_polity_code` to
+#'   join to [polities] or [polity_area_crosswalk]. Renamed from `polity_code`
+#'   in 0.3.0.9000, where the misleading name invited exactly that bad join.
 #' - `polity_name`: Current polity, country, or territory name.
 #' - `V1`: Internal row index from the source table.
 #' - `code`: Numeric FAOSTAT country code.
@@ -506,7 +510,7 @@
 #' - `reporting_polity_has_geometry`: Logical flag indicating whether the
 #'   current reporting polity has a polygon.
 #' - `iso3c`: ISO 3166-1 alpha-3 code (character; may duplicate
-#'   `polity_code` or differ for aggregates).
+#'   `polity_prefix` or differ for aggregates).
 #' - `FAOSTAT_name`: Country name as used in FAOSTAT.
 #' - `EU27`: Logical flag; `TRUE` if the polity is a member of the EU27.
 #' - `name`: Country name used in other external databases.
@@ -589,8 +593,10 @@
 #' A tibble where each row corresponds to one polity or aggregate region. It
 #' contains the following columns (same definitions as `polities_cats`,
 #' minus the five trailing `0...36`–`0...40` artefact columns):
-#' - `polity_code`: Legacy current polity prefix. This is kept for
-#'   compatibility with older code that expected ISO3-like values.
+#' - `polity_prefix`: Polity **family prefix** (ISO3-like), not a polity code;
+#'   see `regions_full` for why the two must not be confused. Join to
+#'   [polities] via `reporting_polity_code`. Renamed from `polity_code` in
+#'   0.3.0.9000.
 #' - `polity_name`: Current polity, country, territory, or aggregate name.
 #' - `V1`: Internal row index.
 #' - `code`: Numeric FAOSTAT country/region code.

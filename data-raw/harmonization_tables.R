@@ -69,7 +69,9 @@ current_area_polities <- polity_area_crosswalk |>
     reporting_polity_code = .data$polity_code,
     reporting_polity_name = .data$polity_name,
     reporting_polity_has_geometry = .data$has_geometry,
-    legacy_polity_code = sub("-.*", "", .data$polity_code)
+    # A prefix, not a code: the ISO3-shaped family key. Used only to fill
+    # `polity_prefix` for area codes the crosswalk does not resolve.
+    legacy_polity_prefix = sub("-.*", "", .data$polity_code)
   )
 
 add_current_area_polities <- function(table) {
@@ -80,22 +82,22 @@ add_current_area_polities <- function(table) {
         "reporting_polity_code",
         "reporting_polity_name",
         "reporting_polity_has_geometry",
-        "legacy_polity_code"
+        "legacy_polity_prefix"
       ))
     ) |>
     dplyr::mutate(code = as.integer(.data$code)) |>
     dplyr::left_join(current_area_polities, by = "code") |>
     dplyr::mutate(
-      polity_code = dplyr::coalesce(
-        .data$polity_code,
-        .data$legacy_polity_code
+      polity_prefix = dplyr::coalesce(
+        .data$polity_prefix,
+        .data$legacy_polity_prefix
       ),
       polity_name = dplyr::coalesce(
         .data$polity_name,
         .data$reporting_polity_name
       )
     ) |>
-    dplyr::select(-"legacy_polity_code")
+    dplyr::select(-"legacy_polity_prefix")
 }
 
 regions_full <- add_current_area_polities(regions_full)

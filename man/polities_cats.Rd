@@ -8,8 +8,12 @@
 A tibble where each row corresponds to one polity (country or territory).
 It contains the following columns:
 \itemize{
-\item \code{polity_code}: Legacy current polity prefix, usually ISO 3166-1 alpha-3
-(e.g., \code{"AFG"}, \code{"ALB"}).
+\item \code{polity_prefix}: Polity \strong{family prefix}, usually ISO 3166-1 alpha-3
+(e.g., \code{"AFG"}, \code{"ALB"}). This is NOT a polity code and will not resolve
+against \link{polities}: a code identifies one period (\code{"AFG-1919-2025"}),
+whereas a prefix names the whole family. Use \code{reporting_polity_code} to
+join to \link{polities} or \link{polity_area_crosswalk}. Renamed from \code{polity_code}
+in 0.3.0.9000, where the misleading name invited exactly that bad join.
 \item \code{polity_name}: Current polity, country, or territory name.
 \item \code{V1}: Internal row index from the source table.
 \item \code{code}: Numeric FAOSTAT country code.
@@ -20,7 +24,7 @@ workflows.
 \item \code{reporting_polity_has_geometry}: Logical flag indicating whether the
 current reporting polity has a polygon.
 \item \code{iso3c}: ISO 3166-1 alpha-3 code (character; may duplicate
-\code{polity_code} or differ for aggregates).
+\code{polity_prefix} or differ for aggregates).
 \item \code{FAOSTAT_name}: Country name as used in FAOSTAT.
 \item \code{EU27}: Logical flag; \code{TRUE} if the polity is a member of the EU27.
 \item \code{name}: Country name used in other external databases.

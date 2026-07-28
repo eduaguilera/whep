@@ -82,7 +82,9 @@ regions_for_crosswalk <- dplyr::bind_rows(
       by = "area_code"
     ) |>
     dplyr::transmute(
-      polity_code = .data$iso3c,
+      # `polity_prefix`, not a polity code: this is an ISO3-shaped family key
+      # that the prefix join below resolves to a period-specific polity.
+      polity_prefix = .data$iso3c,
       polity_name = .data$area_name,
       code = as.integer(.data$area_code),
       iso3c = .data$iso3c,
@@ -128,7 +130,7 @@ polity_area_crosswalk <- regions_for_crosswalk |>
       .data$polity_name
     ),
     area_iso3c = .data$iso3c,
-    reporting_polity_code = .data$polity_code,
+    reporting_polity_code = .data$polity_prefix,
     reporting_polity_name = .data$polity_name,
     cbs = .data$cbs,
     fabio_code = as.integer(.data$fabio_code),

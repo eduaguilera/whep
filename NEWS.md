@@ -1,5 +1,20 @@
 # whep (development version)
 
+* **Breaking:** the `polity_code` column of `regions_full` and `polities_cats`
+  is renamed `polity_prefix`. It never held polity codes — all 271 values were
+  bare ISO3-shaped family prefixes (`"AFG"`, `"ROW"`), so joining it to
+  `polities`, whose codes are periodized (`"AFG-1919-2025"`), silently matched
+  nothing. Join on `reporting_polity_code` instead, which carries the real
+  code. `inst/extdata/harmonization/regions_full.csv` and `polities_cats.csv`
+  are renamed to match, and `test_polity_prefix_naming.R` now fails if either
+  column regains the misleading name.
+
+* `regions_full` and `polities_cats` are rebuilt against the current
+  whep-polities database. The committed copies were stale and 12 area codes
+  still resolved to superseded polities — 8 of them explicitly retired
+  upstream (Angola to `AGO-1816-2025` rather than `AGO-1975-2025`, Brazil to
+  the collapsed row rather than the post-Acre split).
+
 * Add gridded soil **water, carbon and nitrogen balances** (0.5° cell × polity
   fragment). `build_water_balance()` closes the annual cell water budget from
   LPJmL hydrology and exposes drainage (for N leaching) plus footprint terms;

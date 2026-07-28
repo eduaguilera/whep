@@ -228,7 +228,12 @@ testthat::test_that("legacy area reference tables are backed by polities", {
   for (data in list(whep::regions_full, whep::polities_cats)) {
     data <- data[!data$code %in% aggregate_codes, ]
     expect_polity_match(data, "code", "reporting_polity_code")
-    testthat::expect_false(any(is.na(data$polity_code)))
+    # `polity_prefix`, not `polity_code` — these tables carry the ISO3-shaped
+    # family key, and `reporting_polity_code` above carries the real code. On
+    # the old name this read an absent column, so `is.na(NULL)` was
+    # `logical(0)`, `any()` of it was FALSE, and the assertion passed
+    # vacuously while only emitting a warning.
+    testthat::expect_false(any(is.na(data$polity_prefix)))
     coded_rows <- !is.na(data$code)
     testthat::expect_true(all(data$reporting_polity_has_geometry[coded_rows]))
   }
