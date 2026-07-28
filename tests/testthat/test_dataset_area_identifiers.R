@@ -128,3 +128,46 @@ test_that("region-taxonomy columns are not expected to resolve to polities", {
   # eventually deletes.
   expect_setequal(intersect(regions, known_area_iso3()), "USA")
 })
+
+# `resolve_polity_label()` must normalise labels the same way
+# `matchlib.norm` does upstream, or the two sides resolve the same input
+# differently. A cross-check over 6,627 probes (every alias x its boundary years x
+# three sources, R against the Python implementation) found 25 disagreements from
+# exactly this: the first R version only lowercased and squished whitespace.
+#
+# These pin each rule that diverged. The parenthetical one is the consequential
+# one — upstream reduces "Sudan (former)" to "sudan", which merges it into the
+# `sudan` rule set and changes which alias wins.
+test_that("label normalisation matches the upstream matcher's rules", {
+  # Accent folding: the map stores "Reunion", data may carry "Réunion".
+  expect_equal(
+    resolve_polity_label("Réunion", "lassaletta-grassland-share", 1980L),
+    resolve_polity_label("Reunion", "lassaletta-grassland-share", 1980L)
+  )
+
+  # Parenthesised qualifiers are dropped, so these are the same label.
+  expect_equal(
+    resolve_polity_label("Sudan (former)", "faostat", 1990L),
+    resolve_polity_label("Sudan", "faostat", 1990L)
+  )
+
+  # Case and surrounding whitespace are irrelevant.
+  expect_equal(
+    resolve_polity_label("  SWAZILAND  ", "lassaletta-grassland-share", 1980L),
+    resolve_polity_label("Swaziland", "lassaletta-grassland-share", 1980L)
+  )
+
+  # Punctuation becomes a space, so an apostrophe variant still resolves.
+  expect_equal(
+    resolve_polity_label("Cote d'Ivoire", "lassaletta-grassland-share", 1980L),
+    resolve_polity_label("Cote d Ivoire", "lassaletta-grassland-share", 1980L)
+  )
+
+  # And a label that genuinely has no alias still returns NA rather than
+  # normalising its way onto something unrelated.
+  expect_true(is.na(resolve_polity_label(
+    "Not A Real Country",
+    "lassaletta-grassland-share",
+    1980L
+  )))
+})

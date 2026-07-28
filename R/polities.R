@@ -616,9 +616,25 @@ resolve_polity_label <- function(label, source = NULL, year = NULL) {
   source <- recycle(source, "source")
   year <- recycle(year, "year")
 
-  # Matched case-insensitively on a squished label: sources differ in casing and
-  # spacing for the same name, and upstream normalises the same way.
-  norm <- function(x) tolower(trimws(gsub("[[:space:]]+", " ", x)))
+  # Normalisation must match `matchlib.norm` upstream EXACTLY, or the two sides
+  # resolve differently for the same input. My first version only lowercased and
+  # squished whitespace, and a cross-check against the Python implementation over
+  # 6,627 probes found 25 disagreements because of it: upstream also folds accents,
+  # DROPS parenthesised qualifiers, and strips a leading "the".
+  #
+  # The parenthetical rule is the consequential one. Upstream reduces
+  # "Sudan (former)" to "sudan", which merges it into the `sudan` rule set and
+  # changes which alias wins; without it, R saw a separate label and picked a
+  # different polity for 2011. Each step below mirrors one line of matchlib.norm.
+  norm <- function(x) {
+    x <- tolower(trimws(x))
+    # NFKD + drop non-ASCII: "Réunion" -> "reunion", "Türkiye" -> "turkiye".
+    x <- stringi::stri_trans_general(x, "Latin-ASCII")
+    x <- gsub("\\s*\\(.*?\\)\\s*", " ", x) # drop "(former)", "(to 1919)"
+    x <- sub("^the\\s+", "", x)
+    x <- gsub("[^a-z0-9 ]", " ", x)
+    trimws(gsub("\\s+", " ", x))
+  }
   alias_key <- norm(aliases$source_label)
 
   vapply(

@@ -8,6 +8,12 @@
   the read for every character column, since `"NA"` is not a legitimate value for
   any of them (Namibia is `NAM`).
 
+* `resolve_polity_label()` normalises labels the way the upstream matcher does:
+  folding accents, dropping parenthesised qualifiers (`"Sudan (former)"` is
+  `"sudan"`), stripping a leading `"the"`, and mapping punctuation to spaces. The
+  first version only lowercased and squished whitespace, which made it resolve 25
+  of 6,627 cross-checked cases differently from upstream.
+
 * New `resolve_polity_label()` and the `polity_label_aliases` dataset resolve a
   source's country **label** to a polity. `add_polity_code()` handles numeric
   FAOSTAT area codes, and nothing handled labels — so datasets carrying them had
