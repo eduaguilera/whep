@@ -1,5 +1,20 @@
 # whep (development version)
 
+* `.filter_dissolved_countries()` in `build_production()` no longer hardcodes
+  FAOSTAT area codes with bare year cutoffs. The bounds now live in
+  `.production_reporting_windows`, which separates the two things the integer
+  version conflated: **polity existence** (Slovakia is `SVK-1993-2025`, so a
+  1970 Slovakia row is attributed to a polity that did not exist) and **FAOSTAT
+  reporting convention** (Belgium is `BEL-1831-2025`, but the source files it
+  inside Belgium-Luxembourg until 1999, so admitting Belgium rows earlier would
+  double-count). Only the first is derivable from the polities database, which
+  is why the table is not replaced by a join — but the polity span now bounds
+  every window, checked by `test_polity_reporting_windows.R`. That check found
+  two missing lower bounds: the old filter admitted Czechoslovakia before 1918
+  and Belgium-Luxembourg before 1850, which matters now that `historical_data`
+  feeds pre-1961 rows through the same path. No row that previously survived is
+  readmitted.
+
 * **Breaking:** the `polity_code` column of `regions_full` and `polities_cats`
   is renamed `polity_prefix`. It never held polity codes — all 271 values were
   bare ISO3-shaped family prefixes (`"AFG"`, `"ROW"`), so joining it to

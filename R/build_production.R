@@ -2271,25 +2271,72 @@ build_primary_production <- function(
   dplyr::if_else(!is.na(x_num), as.character(x_num), x_chr)
 }
 
+# Years in which each FAOSTAT reporting area is the correct reporter.
+#
+# This used to be a wall of bare integers with year cutoffs, which hid the fact
+# that TWO different kinds of bound are being expressed, and that only one of
+# them is derivable from the polities database:
+#
+#   Polity existence. Slovakia is SVK-1993-2025, so a 1970 Slovakia row is a row
+#   attributed to a polity that did not exist. This bound IS in whep::polities.
+#
+#   Source reporting convention. Belgium is BEL-1831-2025 — it existed for the
+#   whole period — but FAOSTAT files it inside Belgium-Luxembourg (area 15) until
+#   1999 and only reports area 255 from 2000. Admitting Belgium rows before 2000
+#   would double-count against area 15. This bound is a property of FAOSTAT, is
+#   NOT in the polities database, and is narrower than the polity span.
+#
+# So this cannot be replaced by a join against polity spans: doing that would
+# readmit Belgium 1831-1999 and the interwar Baltic republics on top of the
+# aggregates that already carry them. What the polity spans DO give is a check —
+# a window must never admit a year its polity does not cover. test_polity_
+# reporting_windows.R asserts that against whep::polity_area_crosswalk, and it
+# is how the two missing lower bounds below were found: the old filter admitted
+# Czechoslovakia before 1918 and Belgium-Luxembourg before 1850, which matters
+# now that `historical_data` feeds pre-1961 rows through here.
+#
+# `NA` means unbounded on that side. Bounds are inclusive.
+.production_reporting_windows <- tibble::tribble(
+  ~area_code, ~first_year, ~last_year, ~why,
+  # Czechoslovakia: F51-1918-1938 through F51-1947-1993. Reports until the
+  # 1993 dissolution; successors take over from 1993.
+  51L, 1918L, 1992L, "polity span (F51 family, 1918-1993)",
+  167L, 1993L, NA_integer_, "successor of area 51; CZE-1804-1918 is not reported by FAOSTAT",
+  199L, 1993L, NA_integer_, "polity span (SVK-1993-2025)",
+  # Baltics: the polities exist from 1800 (governorates, interwar republics,
+  # SSRs) but FAOSTAT reports them inside the USSR until 1991.
+  63L, 1992L, NA_integer_, "source convention; EST-1918-1940 and Estonian SSR are inside the USSR aggregate",
+  119L, 1992L, NA_integer_, "source convention; LVA interwar and SSR rows are inside the USSR aggregate",
+  126L, 1992L, NA_integer_, "source convention; LTU interwar and SSR rows are inside the USSR aggregate",
+  # Yugoslav successors: polity spans start at 1992, so these coincide.
+  98L, 1992L, NA_integer_, "polity span (HRV-1992-2025)",
+  198L, 1992L, NA_integer_, "polity span (SVN-1992-2025)",
+  # Belgium-Luxembourg reports jointly until the 1999 split; the two members
+  # are reported separately only from 2000, though both long predate it.
+  15L, 1850L, 1999L, "polity span (BLX-1850-1999)",
+  255L, 2000L, NA_integer_, "source convention; BEL-1831-2025 is inside area 15 until 1999",
+  256L, 2000L, NA_integer_, "source convention; LUX-1839-2025 is inside area 15 until 1999"
+)
+
 .filter_dissolved_countries <- function(df) {
   force(df)
   cli::cli_progress_step("Filtering dissolved countries")
   # Key on `area_code` (polity_area_code), not `area`: after
   # `.aggregate_to_polities()` the `area` names are periodized
   # (e.g. "Czechoslovakia (1947-1993)"), so name conditions never fire.
-  df |>
-    dplyr::filter(
-      # Czechoslovakia (51) after its 1992 dissolution
-      !(area_code == 51L & year > 1992),
-      # Czechia (167) and Slovakia (199) before 1993
-      !(area_code %in% c(167L, 199L) & year < 1993),
-      # Baltics, Slovenia (198), Croatia (98) before 1992
-      !(area_code %in% c(126L, 119L, 63L, 198L, 98L) & year < 1992),
-      # Belgium-Luxembourg (15) after its 1999 split
-      !(area_code == 15L & year > 1999),
-      # Belgium (255) and Luxembourg (256) before 2000
-      !(area_code %in% c(255L, 256L) & year < 2000)
-    )
+  windows <- .production_reporting_windows
+  # Matched rather than joined: a join would collide with any `first_year` /
+  # `last_year` already on `df` and would be picky about integer-vs-double
+  # `area_code`. NA means unconstrained on that side, which covers both an
+  # unlisted area and an explicitly open bound.
+  idx <- match(df$area_code, windows$area_code)
+  first_year <- windows$first_year[idx]
+  last_year <- windows$last_year[idx]
+  dplyr::filter(
+    df,
+    is.na(first_year) | .data$year >= first_year,
+    is.na(last_year) | .data$year <= last_year
+  )
 }
 
 # -- Post-processing corrections (used by .fix_production) --------------------
