@@ -249,6 +249,24 @@ test_that(".select_best_source prioritises FAOSTAT_prod source", {
   )
 })
 
+test_that(".select_best_source coalesces integer and double source values", {
+  # Global sources disagree on storage type: the pivoted FAOSTAT_prod /
+  # FAOSTAT_FBS_New inherit an integer raw `value`, while the scaled FBS_Old and
+  # the other-source mean are doubles. fcoalesce() aborts on a mixed set, so the
+  # sources must be coerced to a common numeric type first. Regression for the
+  # global CBS build crashing in `Combining CBS sources`.
+  cbs_raw_all <- tibble::tribble(
+    ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~year, ~value, ~source, ~unit,
+    "China", 41L, "Wheat", 2511L, "production", 2000L, 100L, "FAOSTAT_prod", "tonnes",
+    "China", 41L, "Wheat", 2511L, "production", 2000L, 90.5, "FAOSTAT_FBS_Old", "tonnes",
+    "Brazil", 21L, "Maize", 2514L, "production", 2000L, 55.2, "FAOSTAT_FBS_Old", "tonnes"
+  )
+  result <- whep:::.select_best_source(cbs_raw_all)
+  expect_type(result$value, "double")
+  expect_equal(result$value[result$area_code == 41L], 100)
+  expect_equal(result$value[result$area_code == 21L], 55.2)
+})
+
 test_that(".select_best_source keys on area_code, not periodized name", {
   # Sources disagree on the `area` name for the same `area_code` (plain name
   # vs periodized polity name). They must still compete on the integer code

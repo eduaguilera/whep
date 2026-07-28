@@ -1679,13 +1679,18 @@ build_processing_coefs <- function(
     )
   ]
 
-  # Source selection: Primary > FBS_New > scaled FBS_Old > other
+  # Source selection: Primary > FBS_New > scaled FBS_Old > other. Coerce every
+  # source to double first: the pivoted FAOSTAT_prod / FAOSTAT_FBS_New inherit
+  # the raw `value` type (integer for some global sources), while FBS_Old_scaled
+  # and other_mean are computed doubles, and fcoalesce() aborts on a mixed
+  # integer/double set. Production quantities are continuous, so double is the
+  # correct common type.
   wide[,
     value := data.table::fcoalesce(
-      FAOSTAT_prod,
-      FAOSTAT_FBS_New,
-      FBS_Old_scaled,
-      other_mean
+      as.double(FAOSTAT_prod),
+      as.double(FAOSTAT_FBS_New),
+      as.double(FBS_Old_scaled),
+      as.double(other_mean)
     )
   ]
   wide[,
