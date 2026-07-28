@@ -737,3 +737,19 @@
     "Portugal", "Swine, market", "stocks", 2010L, 1980000, "An", "PRT"
   )
 }
+
+.example_create_grafs_plot_df <- function() {
+  tibble::tribble(
+    ~province, ~year, ~label, ~data, ~align, ~arrowColor,
+    "Huesca", 2000, "{ARAiN}", "12.34", "R", "",
+    "Huesca", 2000, "{CROPS_TO_LIVESTOCK}", "45.6", "L", "",
+    "Huesca", 2000, "{POPULATIONM}", "0.22", "L", "",
+    "Huesca", 2000, "{PROVINCE_NAME}", "Huesca", "L", "",
+    "Huesca", 2000, "{WIDTH_MAX}", "1500", "L", "",
+    "Huesca", 2000, "{YEAR}", "2000", "L", "",
+    "Lleida", 2000, "{ARArN}", "8.9", "R", "",
+    "Lleida", 2000, "{LVSTCKTOTN}", "3.21", "L", "",
+    "Spain", 2000, "{CRPLNDTOTN}", "120.5", "R", "",
+    "Spain", 2000, "{POPULATIONM}", "40.1", "L", ""
+  )
+}

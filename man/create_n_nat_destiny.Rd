@@ -2,7 +2,7 @@
 % Please edit documentation in R/n_prov_destiny.R
 \name{create_n_nat_destiny}
 \alias{create_n_nat_destiny}
-\title{GRAFS Nitrogen (N) flows at Spain national level}
+\title{GRAFS Nitrogen (N) flows – National Spain}
 \usage{
 create_n_nat_destiny(example = FALSE)
 }
@@ -23,8 +23,8 @@ Semi-natural agroecosystems, Livestock, Fish, or Agro-industry.
 Semi-natural agroecosystems, Livestock, Fish, Agro-industry, Deposition,
 Fixation, Synthetic, People (waste water), Livestock (manure).
 \item \code{destiny}: The destiny category of N: population_food,
-population_other_uses, livestock_mono, livestock_rum, livestock_aqua
-(feed), export, Cropland (for N soil inputs).
+population_other_uses, livestock_mono, livestock_rum (feed), export,
+Cropland (for N soil inputs).
 \item \code{mg_n}: Nitrogen amount in megagrams (Mg).
 \item \code{province_name}: Set to "Spain" for all national-level rows.
 }

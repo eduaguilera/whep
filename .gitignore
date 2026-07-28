@@ -40,5 +40,11 @@ inst/extdata/cropgrids_fallow_land.csv
 data-raw/migration/
 inst/extdata/coefs/*_raw.csv
 
+# GRAFS/typology plot artefacts
+Rplots.pdf
+Rplot.png
+typology_kgha_agricultural.jpg
+tree.html
+
 # interactive code diagram (generated, local only)
 diagram/

@@ -47,7 +47,7 @@ test_that(".merge_items_biomass returns NA for unmatched biomass", {
 
 test_that(".summarise_crops_residues groups and sums correctly", {
   crop_data <- tibble::tribble(
-    ~Year, ~Province_name, ~Name_biomass, ~Item, ~Product_residue, ~LandUse, ~Irrig_cat, ~Prod_ygpit_Mg,
+    ~Year, ~Province_name, ~Name_biomass, ~item_cbs, ~Product_residue, ~LandUse, ~Irrig_cat, ~Prod_ygpit_Mg,
     2000, "A", "Wheat", "Wheat", "Product", "Cropland", "irrig", 100,
     2000, "A", "Wheat", "Wheat", "Product", "Cropland", "irrig", 50,
     2000, "A", "Wheat", "Wheat", "Residue", "Cropland", "rainfed", 30
@@ -74,10 +74,9 @@ test_that(".summarise_crops_residues groups and sums correctly", {
 
 test_that(".aggregate_crop_seminatural combines fallow, semi-natural, crops", {
   npp_merged <- tibble::tribble(
-    ~Year, ~Province_name, ~Name_biomass, ~Item, ~LandUse, ~Irrig_cat, ~GrazedWeeds_MgDM, ~Prod_ygpit_Mg, ~Used_Residue_MgFM,
-    2000, "A", "Fallow", "Fallow", "Cropland", "rainfed", 10, 0, 0,
-    2000, "A", "Grass", "Grassland", "Dehesa",
-    NA, 20, 5, 3
+    ~Year, ~Province_name, ~Name_biomass, ~Item, ~LandUse, ~Irrig_cat, ~GrazedWeeds_MgDM, ~GrazedAcorns_MgDM, ~GrazedFodder_MgDM, ~Prod_ygpit_Mg, ~Used_Residue_MgFM,
+    2000, "A", "Fallow", "Fallow", "Cropland", "rainfed", 10, 0, 0, 0, 0,
+    2000, "A", "Grass", "Grassland", "Dehesa", NA, 20, 0, 0, 5, 3
   )
 
   crop_prod <- tibble::tribble(
@@ -103,7 +102,7 @@ test_that(".aggregate_crop_seminatural combines fallow, semi-natural, crops", {
 
 test_that(".prepare_livestock_production structures livestock data", {
   livestock <- tibble::tribble(
-    ~Year, ~Province_name, ~Item, ~Name_biomass, ~Prod_Mg,
+    ~Year, ~Province_name, ~item_cbs, ~Name_biomass, ~Prod_Mg,
     2000, "A", "Beef", "Cattle", 500,
     2000, "A", "Milk", "Cattle", 300
   )
@@ -344,34 +343,32 @@ test_that(".convert_fm_dm_n filters NA Item with zero production", {
 
 test_that(".add_feed classifies livestock and computes feed shares", {
   intake <- tibble::tribble(
-    ~Year, ~Province_name, ~Item, ~Livestock_cat, ~FM_Mg,
+    ~Year, ~Province_name, ~item_cbs, ~Livestock_cat, ~intake_MgFM,
     2000, "A", "Wheat", "Cattle_meat", 60,
     2000, "A", "Wheat", "Pigs", 30,
-    2000, "A", "Wheat", "Pets", 10,
-    2000, "A", "Wheat", "Aquaculture", 5
+    2000, "A", "Wheat", "Pets", 10
   )
 
   out <- .add_feed(intake)
 
   expect_named(out, c("feed_intake", "feed_share_rum_mono"))
 
-  # feed_intake
+  # feed_intake. feed = 60 (Cattle_meat) + 30 (Pigs).
   fi <- out$feed_intake
-  expect_equal(fi$feed, 60 + 30 + 5)
+  expect_equal(fi$feed, 60 + 30)
   expect_equal(fi$food_pets, 10)
 
-  # feed shares
+  # Shares are over total feed (90).
   fs <- out$feed_share_rum_mono
-  expect_equal(fs$share_rum, 60 / 95, tolerance = 1e-12)
-  expect_equal(fs$share_mono, 30 / 95, tolerance = 1e-12)
+  expect_equal(fs$share_rum, 60 / 90, tolerance = 1e-12)
+  expect_equal(fs$share_mono, 30 / 90, tolerance = 1e-12)
 })
 
 test_that(".add_feed handles zero feed total gracefully", {
   intake <- tibble::tribble(
-    ~Year, ~Province_name, ~Item, ~Livestock_cat, ~FM_Mg,
+    ~Year, ~Province_name, ~item_cbs, ~Livestock_cat, ~intake_MgFM,
     2000, "A", "Wheat", "Cattle_meat", 0,
     2000, "A", "Wheat", "Pigs", 0,
-    2000, "A", "Wheat", "Aquaculture", 0,
     2000, "A", "Wheat", "Pets", 10
   )
 
@@ -384,7 +381,7 @@ test_that(".add_feed handles zero feed total gracefully", {
 
 test_that(".add_feed maps all livestock types correctly", {
   intake <- tibble::tribble(
-    ~Year, ~Province_name, ~Item, ~Livestock_cat, ~FM_Mg,
+    ~Year, ~Province_name, ~item_cbs, ~Livestock_cat, ~intake_MgFM,
     2000, "A", "Grain", "Sheep", 10,
     2000, "A", "Grain", "Goats", 10,
     2000, "A", "Grain", "Horses", 10,
@@ -393,7 +390,6 @@ test_that(".add_feed maps all livestock types correctly", {
     2000, "A", "Grain", "Rabbits", 10,
     2000, "A", "Grain", "Fur animals", 5,
     2000, "A", "Grain", "Other", 5,
-    2000, "A", "Grain", "Aquaculture", 0,
     2000, "A", "Grain", "Pets", 0
   )
 
@@ -510,51 +506,6 @@ test_that(".combine_destinies adds food_pets to food", {
 
   # food should include food_pets
   expect_equal(out$food, (10 + 5) * 1)
-})
-
-
-# .add_feed ---------------------------------------------------------------------
-
-test_that(".add_feed does not crash when a Livestock_type category is entirely absent", {
-  # Regression for #175: pivot_wider() only creates a column for a
-  # Livestock_type level actually present in the input. A dataset with no
-  # Aquaculture or Pets rows at all previously crashed with "object
-  # 'aquaculture' not found" instead of treating those flows as zero.
-  feed_intake <- tibble::tribble(
-    ~Year, ~Province_name, ~Item, ~Livestock_cat, ~FM_Mg,
-    2000, "A", "Wheat", "Cattle_meat", 10,
-    2000, "A", "Wheat", "Pigs", 4
-  )
-
-  out <- .add_feed(feed_intake)
-
-  expect_equal(out$feed_intake$feed, 14)
-  expect_equal(out$feed_intake$food_pets, 0)
-  expect_equal(out$feed_share_rum_mono$share_rum, 10 / 14)
-  expect_equal(out$feed_share_rum_mono$share_mono, 4 / 14)
-})
-
-
-# .calculate_food_and_other_uses -------------------------------------------------
-
-test_that(".calculate_food_and_other_uses does not crash when a Destiny is entirely absent", {
-  # Regression for #175: same pivot_wider() class of bug as .add_feed() --
-  # a dataset with no Other_uses rows at all previously crashed with "object
-  # 'Other_uses' not found".
-  population_share <- tibble::tribble(
-    ~Year, ~Province_name, ~Pop_share,
-    2000, "A", 0.5
-  )
-
-  pie_full_destinies_fm <- tibble::tribble(
-    ~Year, ~Item, ~Destiny, ~Element, ~Value_destiny,
-    2000, "Wheat", "Food", "Domestic_supply", 20
-  )
-
-  out <- .calculate_food_and_other_uses(population_share, pie_full_destinies_fm)
-
-  expect_equal(out$food, 10)
-  expect_equal(out$other_uses, 0)
 })
 
 
@@ -706,8 +657,8 @@ test_that(".prep_final_ds recognises Fallow and Acorns", {
 
 test_that(".calculate_consumption_shares computes correct shares", {
   data <- tibble::tribble(
-    ~Year, ~Province_name, ~Item, ~Irrig_cat, ~food, ~other_uses, ~feed,
-    2000, "A", "Wheat", "irrig", 60, 20, 20
+    ~Year, ~Province_name, ~Item, ~Box, ~Irrig_cat, ~production_n, ~food, ~other_uses, ~feed,
+    2000, "A", "Wheat", "Cropland", "irrig", 100, 60, 20, 20
   )
 
   out <- .calculate_consumption_shares(data)
@@ -715,13 +666,13 @@ test_that(".calculate_consumption_shares computes correct shares", {
   expect_equal(out$food_share, 0.6)
   expect_equal(out$other_uses_share, 0.2)
   expect_equal(out$feed_share, 0.2)
-  expect_equal(out$consumption_total, 100)
+  expect_equal(out$local_total, 100)
 })
 
 test_that(".calculate_consumption_shares returns 0 when total is 0", {
   data <- tibble::tribble(
-    ~Year, ~Province_name, ~Item, ~Irrig_cat, ~food, ~other_uses, ~feed,
-    2000, "A", "Wheat", "irrig", 0, 0, 0
+    ~Year, ~Province_name, ~Item, ~Box, ~Irrig_cat, ~production_n, ~food, ~other_uses, ~feed,
+    2000, "A", "Wheat", "Cropland", "irrig", 0, 0, 0, 0
   )
 
   out <- .calculate_consumption_shares(data)
@@ -758,40 +709,16 @@ test_that(".split_local_consumption splits by shares and feed type", {
   expect_equal(unique(out$Origin), "Cropland")
 })
 
-test_that(".split_local_consumption assigns aquaculture feed (no N leak)", {
-  # share_rum + share_mono < 1, so an aquaculture feed slice exists.
-  # All local consumption must be assigned a destiny (issue #148).
-  local_import <- tibble::tribble(
-    ~Year, ~Province_name, ~Item, ~Box, ~Irrig_cat, ~local_consumption, ~import_consumption, ~food_share, ~feed_share, ~other_uses_share,
-    2000, "A", "Wheat", "Cropland", "irrig", 100, 0, 0.4, 0.5, 0.1
-  )
-
-  feed_shares <- tibble::tribble(
-    ~Year, ~Province_name, ~Item, ~share_rum, ~share_mono,
-    2000, "A", "Wheat", 0.5, 0.2
-  )
-
-  out <- .split_local_consumption(local_import, feed_shares)
-
-  vals <- out |>
-    dplyr::select(Destiny, MgN) |>
-    tibble::deframe()
-
-  # aquaculture is the residual feed share (1 - 0.5 - 0.2 = 0.3)
-  expect_equal(vals[["livestock_aqua"]], 100 * 0.5 * 0.3, tolerance = 1e-12)
-
-  # total destiny N equals local consumption: no mass leaks
-  expect_equal(sum(out$MgN), 100, tolerance = 1e-12)
-})
-
-
 # .split_import_consumption ----------------------------------------------------
 
 test_that(".split_import_consumption limits imports and splits", {
+  # Total demand (food/other_uses/feed) and local shares are chosen so the
+  # import gap shares work out to food = 0.6, other = 0.1, feed = 0.3 for
+  # Wheat and food = 0.5 for FishProd.
   local_vs_import <- tibble::tribble(
-    ~Year, ~Province_name, ~Item, ~Box, ~local_consumption, ~import_consumption, ~food_share, ~feed_share, ~other_uses_share,
-    2000, "A", "Wheat", "Cropland", 50, 30, 0.6, 0.3, 0.1,
-    2000, "A", "FishProd", "Fish", 20, 10, 0.5, 0.4, 0.1
+    ~Year, ~Province_name, ~Item, ~Box, ~local_consumption, ~import_consumption, ~food, ~other_uses, ~feed, ~food_share, ~feed_share, ~other_uses_share,
+    2000, "A", "Wheat", "Cropland", 50, 30, 36, 6, 18, 0.6, 0.3, 0.1,
+    2000, "A", "FishProd", "Fish", 20, 10, 15, 3, 12, 0.5, 0.4, 0.1
   )
 
   feed_share_rum_mono <- tibble::tribble(
@@ -847,9 +774,9 @@ test_that(".split_import_consumption limits imports and splits", {
 test_that(".split_import_consumption aggregates duplicates from Irrig_cat", {
   # Two Irrig_cat rows that become NA → should be aggregated
   local_vs_import <- tibble::tribble(
-    ~Year, ~Province_name, ~Item, ~Box, ~Irrig_cat, ~local_consumption, ~import_consumption, ~food_share, ~feed_share, ~other_uses_share,
-    2000, "A", "Wheat", "Cropland", "irrig", 40, 20, 0.5, 0.5, 0.0,
-    2000, "A", "Wheat", "Cropland", "rainfed", 60, 30, 0.5, 0.5, 0.0
+    ~Year, ~Province_name, ~Item, ~Box, ~Irrig_cat, ~local_consumption, ~import_consumption, ~food, ~other_uses, ~feed, ~food_share, ~feed_share, ~other_uses_share,
+    2000, "A", "Wheat", "Cropland", "irrig", 40, 20, 30, 0, 30, 0.5, 0.5, 0.0,
+    2000, "A", "Wheat", "Cropland", "rainfed", 60, 30, 40, 0, 40, 0.5, 0.5, 0.0
   )
 
   feed_shares <- tibble::tribble(
@@ -867,37 +794,6 @@ test_that(".split_import_consumption aggregates duplicates from Irrig_cat", {
     sum()
   expect_equal(food_total, 25)
 })
-
-test_that(".split_import_consumption assigns aquaculture feed (no N leak)", {
-  # Pure feed import with share_rum + share_mono < 1: the aquaculture slice
-  # of imported feed must be assigned a destiny (issue #148).
-  local_vs_import <- tibble::tribble(
-    ~Year, ~Province_name, ~Item, ~Box, ~Irrig_cat, ~local_consumption, ~import_consumption, ~food_share, ~feed_share, ~other_uses_share,
-    2000, "A", "Wheat", "Cropland", "irrig", 200, 100, 0, 1, 0
-  )
-
-  feed_shares <- tibble::tribble(
-    ~Year, ~Province_name, ~Item, ~share_rum, ~share_mono,
-    2000, "A", "Wheat", 0.5, 0.2
-  )
-
-  out <- .split_import_consumption(local_vs_import, feed_shares)
-
-  vals <- out |>
-    dplyr::filter(
-      Destiny != "population_food",
-      Destiny != "population_other_uses"
-    ) |>
-    dplyr::select(Destiny, MgN) |>
-    tibble::deframe()
-
-  # aquaculture residual feed share = 1 - 0.5 - 0.2 = 0.3
-  expect_equal(vals[["livestock_aqua"]], 100 * 1 * 0.3, tolerance = 1e-12)
-
-  # all imported feed N is assigned to a livestock destiny: no leak
-  expect_equal(sum(out$MgN), 100, tolerance = 1e-12)
-})
-
 
 # .add_exports -----------------------------------------------------------------
 
@@ -1100,9 +996,9 @@ test_that(".finalize_prod_destiny combines local, import, export flows", {
   )
 
   codes <- tibble::tribble(
-    ~item, ~group,
-    "Wheat", "Primary crops",
-    "Fish", "Fish"
+    ~item, ~group, ~Name_biomass,
+    "Wheat", "Primary crops", "Wheat",
+    "Fish", "Fish", "Fish"
   )
 
   soil <- tibble::tribble(

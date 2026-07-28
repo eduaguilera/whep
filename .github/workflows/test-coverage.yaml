@@ -22,7 +22,6 @@ jobs:
     timeout-minutes: 30
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
-      USE_RENV: "FALSE"
 
     steps:
       - uses: actions/checkout@v4

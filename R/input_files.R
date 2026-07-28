@@ -112,6 +112,24 @@ whep_list_file_versions <- function(file_alias) {
 .read_file <- function(paths, extension) {
   path <- purrr::detect(paths, ~ stringr::str_ends(.x, extension))
 
+  # Only for formats this function knows how to read: an unrecognised
+  # `extension` must still fall through to the "unknown file type" error.
+  known <- c("csv", "parquet", "tar.gz", "tgz", "raw")
+
+  if (is.null(path) && extension %in% known) {
+    # data.txt / _pins.yaml are pins bookkeeping, not readable inputs.
+    available <- paths |>
+      purrr::map_chr(fs::path_ext) |>
+      unique() |>
+      setdiff(c("", "txt", "yaml"))
+    cli::cli_abort(c(
+      "This input has no {.val {extension}} file.",
+      i = "Available format{?s}: {.val {available}}.",
+      i = "Pass {.code type = } to pick one, e.g.
+           {.code whep_read_file(alias, type = \"{available[1]}\")}."
+    ))
+  }
+
   if (extension == "csv") {
     readr::read_csv(path, show_col_types = FALSE)
   } else if (extension == "parquet") {
