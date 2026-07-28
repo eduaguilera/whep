@@ -109,7 +109,40 @@ if (n_fail > 0L) {
   print(bad, row.names = FALSE)
 }
 
-# --- 5. Verdict --------------------------------------------------------------
+# --- 5. pkgdown reference index ----------------------------------------------
+# Not the whole site build, which is slow and needs network — just the check that
+# actually fails: pkgdown errors if an exported topic is missing from
+# _pkgdown.yml's index. That is how the pkgdown job broke after
+# `resolve_polity_label()` and `polity_label_aliases` were added, and it is cheap
+# to catch here.
+topics <- sub("\\.Rd$", "", basename(list.files("man", pattern = "\\.Rd$")))
+if (length(topics) > 0L && file.exists("_pkgdown.yml")) {
+  cfg <- yaml::read_yaml("_pkgdown.yml")
+  indexed <- trimws(unlist(strsplit(
+    unlist(lapply(cfg$reference, function(x) x$contents)),
+    "\n"
+  )))
+  # Selector helpers match many topics at once; they cannot be compared by name.
+  indexed <- indexed[
+    nzchar(indexed) &
+      !grepl("^(starts_with|matches|has_keyword|ends_with)", indexed)
+  ]
+  missing_topics <- setdiff(topics, indexed)
+  missing_topics <- missing_topics[
+    !grepl("^(whep-package|reexports|pipe)$", missing_topics)
+  ]
+  record(
+    "pkgdown index",
+    length(missing_topics) == 0L,
+    if (length(missing_topics) == 0L) {
+      sprintf("%d topics all indexed", length(topics))
+    } else {
+      paste("missing:", paste(utils::head(missing_topics, 6), collapse = ", "))
+    }
+  )
+}
+
+# --- 6. Verdict --------------------------------------------------------------
 cat("\n")
 failed <- Filter(function(r) !r$ok, results)
 if (length(failed) == 0L) {
