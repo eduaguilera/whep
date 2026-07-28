@@ -9,9 +9,17 @@
 # resolving fails until it is removed from the baseline. So the lists shrink as
 # the data is fixed and cannot quietly license a regression.
 #
-# The right fix is upstream aliases, not a lookup table here — whep-polities
-# already resolves source labels to polities that way, and "Cape Verde",
-# "Swaziland", "Turkey", "ROM" and "ZAR" are textbook alias cases. See whep#389.
+# RESOLVED for 17 of the 19 labels. whep-polities published a label -> polity map
+# (data/final/label_alias_map.csv), this package embeds it as
+# `polity_label_aliases`, and `resolve_polity_label()` reads it. The baselines
+# below are now the labels that remain unresolved THROUGH that path, which is a
+# much sharper claim than "unresolvable against polity names".
+#
+# Two are deliberately unresolved, and only for part of their range: `FSU` and
+# `Belgium-Luxemburg` are aggregates the source keeps reporting after the
+# territory stopped existing (1991 and 1999). Routing those years anywhere would
+# attribute data to a polity that had ended, so they are left NA pending a
+# constant-territory aggregate polity. See whep#389.
 
 known_area_iso3 <- function() {
   cw <- as.data.frame(whep::polity_area_crosswalk)
@@ -23,50 +31,65 @@ known_area_names <- function() {
   unique(c(stats::na.omit(cw$area_name), stats::na.omit(cw$polity_name)))
 }
 
-# `mueller_synthetic_n$iso3c` is named for ISO3 but holds FAO-style legacy codes
-# for ten countries: Belize is BLZ not BZE, Romania ROU not ROM, and ZAR is Zaire,
-# which became COD in 1997. 328 of 5043 rows.
-mueller_unresolved_iso3 <- c(
-  "BZE",
-  "COS",
-  "ELS",
-  "GUA",
-  "HAI",
-  "HON",
-  "ROM",
-  "SRM",
-  "TRI",
-  "ZAR"
-)
+# CLOSED. Held the ten FAO-style legacy codes in `mueller_synthetic_n$iso3c`
+# (Belize is BLZ not BZE, Romania ROU not ROM, ZAR is Zaire, renamed COD in 1997).
+# All ten now resolve via `resolve_polity_label()`. Kept as an empty vector so a
+# regression names the code rather than silently re-baselining it.
+mueller_unresolved_iso3 <- character(0)
 
-# `lassaletta_grassland_share$Country` holds free-text names with spelling and
-# vintage variants: Cabo Verde as "Cape Verde", Eswatini as "Swaziland", Türkiye
-# as "Turkey", Réunion unaccented, plus "FSU" for the former Soviet Union, which
-# is an aggregate rather than a country. 441 of 6909 rows.
-lassaletta_unresolved_names <- c(
-  "Belgium-Luxemburg",
-  "Cape Verde",
-  "Cote d'Ivoire",
-  "DPRepublic of Korea",
-  "FSU",
-  "Occupied Palestinian Territory",
-  "Reunion",
-  "Swaziland",
-  "Turkey"
-)
+# Reduced from nine to two. Seven name variants (Cape Verde, Swaziland, Turkey,
+# Reunion, Cote d'Ivoire, DPRepublic of Korea, Occupied Palestinian Territory) now
+# resolve, Cape Verde via a year-split at independence. The two that remain are
+# aggregates reported past the end of the territory they name, and are unresolved
+# only for the tail: FSU resolves 1961-1991 and Belgium-Luxemburg 1961-1999.
+lassaletta_unresolved_names <- c("Belgium-Luxemburg", "FSU")
 
-test_that("mueller_synthetic_n's iso3c column resolves, bar the known legacy codes", {
+test_that("every mueller_synthetic_n label resolves to a polity", {
   m <- as.data.frame(whep::mueller_synthetic_n)
-  unresolved <- sort(setdiff(unique(m$iso3c), known_area_iso3()))
+  labels <- unique(m$iso3c)
+
+  # Resolved the way a consumer should: try the area-code iso3 first, then the
+  # published alias map for anything it does not cover.
+  direct <- labels %in% known_area_iso3()
+  via_alias <- !is.na(resolve_polity_label(
+    labels,
+    "mueller-synthetic-n",
+    # No year column — the table is application RATES — so aliases are scoped to
+    # the extant polity's span and any year inside it resolves.
+    2000L
+  ))
+  unresolved <- sort(labels[!direct & !via_alias])
 
   expect_setequal(unresolved, mueller_unresolved_iso3)
 })
 
-test_that("lassaletta_grassland_share's Country column resolves, bar the known variants", {
+test_that("every lassaletta_grassland_share label resolves, bar two aggregates", {
   l <- as.data.frame(whep::lassaletta_grassland_share)
-  unresolved <- sort(setdiff(unique(l$Country), known_area_names()))
+  labels <- unique(l$Country)
 
-  expect_setequal(unresolved, lassaletta_unresolved_names)
+  direct <- labels %in% known_area_names()
+  # Resolved at the FIRST year the source reports, 1961. Using a single year is
+  # deliberate: a label that resolves for part of its range is still a gap for the
+  # rest, and the two aggregates below are exactly that case.
+  via_alias <- !is.na(resolve_polity_label(
+    labels,
+    "lassaletta-grassland-share",
+    1961L
+  ))
+  unresolved <- sort(labels[!direct & !via_alias])
+
+  expect_setequal(unresolved, character(0))
+
+  # The real remaining gap: the tail years, after the territory ended.
+  tail_unresolved <- sort(labels[
+    is.na(resolve_polity_label(
+      labels,
+      "lassaletta-grassland-share",
+      2009L
+    )) &
+      !direct
+  ])
+  expect_setequal(tail_unresolved, lassaletta_unresolved_names)
 })
 
 test_that("urban_n_reference's area_code is an ISO3 string, not a FAOSTAT area code", {

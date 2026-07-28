@@ -1,5 +1,16 @@
 # whep (development version)
 
+* New `resolve_polity_label()` and the `polity_label_aliases` dataset resolve a
+  source's country **label** to a polity. `add_polity_code()` handles numeric
+  FAOSTAT area codes, and nothing handled labels — so datasets carrying them had
+  no supported path to a polity: `mueller_synthetic_n$iso3c` holds FAO-style
+  legacy codes (`"BZE"`, `"ROM"`, `"ZAR"`) and
+  `lassaletta_grassland_share$Country` holds name variants (`"Cape Verde"`,
+  `"Swaziland"`). Resolution is source- and year-aware, since the same label can
+  mean different things per source and its referent changes over time (`"Cape
+  Verde"` is the Portuguese colony before 1975 and Cabo Verde after). The mapping
+  is a copy of the contract published by whep-polities, not a lookup built here.
+
 * Pre-independence FAOSTAT years no longer resolve to the modern polity. The
   crosswalk mapped each reporting area to a single polity prefix, and upstream
   gives the colonial and modern polities of seven chains different prefixes

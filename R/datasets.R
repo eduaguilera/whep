@@ -644,3 +644,41 @@
 #' @examples
 #' head(regions_full)
 "regions_full"
+
+
+#' Source label to polity aliases
+#'
+#' @description
+#' The mapping from a country or area **label**, as a source writes it, to a WHEP
+#' polity. Read by [resolve_polity_label()].
+#'
+#' @details
+#' A copy of `data/final/label_alias_map.csv` as published by whep-polities, which
+#' is the authority for what a label means. It is embedded rather than resolved at
+#' runtime for the same reason [polities] is: a package function cannot depend on a
+#' sibling checkout existing. It is deliberately not *computed* here — a second
+#' lookup in this package would be a second authority for the same question, which
+#' is how the FAOSTAT area mapping came to attribute 118 area-years to polities
+#' that did not exist.
+#'
+#' Two scopings carry the meaning, and both are load-bearing:
+#'
+#' - `source` — the same label can mean different things in different sources, so
+#'   an alias may apply to one source only. Empty means it applies to any.
+#' - `year_start` / `year_end` — a label's referent changes. `"Cape Verde"` is the
+#'   Portuguese colony `CPV-1886-1975` before independence and `CPV-1975-2025`
+#'   after, so it appears twice with different ranges. Empty means any year.
+#'
+#' @format
+#' A tibble with one row per alias:
+#' - `source_label`: the label as the source writes it, verbatim.
+#' - `source`: source slug the alias is scoped to; empty applies to any source.
+#' - `year_start`, `year_end`: inclusive year range; empty applies to any year.
+#' - `polity_code`: the polity the label resolves to.
+#' - `common_name`: human-readable name for that polity.
+#' - `confidence`: the upstream matcher's confidence in the assignment.
+#'
+#' @seealso [resolve_polity_label()], [polity_area_crosswalk] for numeric codes.
+#' @examples
+#' head(polity_label_aliases)
+"polity_label_aliases"

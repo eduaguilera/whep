@@ -61,6 +61,59 @@ known_polity_prefixes <- unique(polity_attrs$polity_prefix)
 
 excel_na <- c("", "NA", "#N/A", "#DIV/0!", "#REF!")
 
+# The source-label -> polity map published by whep-polities
+# (data/final/label_alias_map.csv, gated there by write_label_alias_map.py
+# --check). Embedded rather than resolved at runtime, for the same reason
+# `polities` is: a package function cannot depend on a sibling checkout existing.
+#
+# This exists because `add_polity_code()` resolves NUMERIC area codes and nothing
+# resolved a country LABEL. Datasets carrying labels therefore had no supported
+# path to a polity: mueller_synthetic_n's `iso3c` column holds FAO-style legacy
+# codes (BZE, ROM, ZAR) and lassaletta_grassland_share's `Country` holds name
+# variants (Cape Verde, Swaziland), and both simply went unresolved. Building a
+# lookup here instead of consuming the published one would make this package a
+# second authority for label -> polity, which is what misattributed 118
+# area-years of FAOSTAT data (whep#387).
+whep_label_alias_map <- Sys.getenv(
+  "WHEP_POLITIES_LABEL_ALIAS_MAP",
+  unset = path.expand("~/whep-polities/data/final/label_alias_map.csv")
+)
+
+polity_label_aliases <- readr::read_csv(
+  whep_label_alias_map,
+  show_col_types = FALSE,
+  na = excel_na,
+  col_types = readr::cols(
+    source_label = readr::col_character(),
+    source = readr::col_character(),
+    year_start = readr::col_integer(),
+    year_end = readr::col_integer(),
+    polity_code = readr::col_character(),
+    common_name = readr::col_character(),
+    confidence = readr::col_character()
+  )
+)
+
+# Every published alias must name a polity this package carries. Upstream gates
+# the same invariant, so a failure here means the two copies have drifted rather
+# than that the map is wrong.
+unknown_alias_targets <- setdiff(
+  polity_label_aliases$polity_code,
+  polities$polity_code
+)
+if (length(unknown_alias_targets) > 0L) {
+  cli::cli_abort(c(
+    "The published label alias map targets polities this package does not carry.",
+    x = "Unknown: {.val {utils::head(unknown_alias_targets, 5)}}.",
+    i = "Rebuild from the same whep-polities revision that produced the map."
+  ))
+}
+
+cli::cli_inform(paste0(
+  "Loaded {nrow(polity_label_aliases)} published label aliases over ",
+  "{length(unique(polity_label_aliases$source_label))} labels."
+))
+
 regions_full_raw <- here::here(
   "inst",
   "extdata",
@@ -256,3 +309,4 @@ usethis::use_data(items_cbs, overwrite = TRUE)
 usethis::use_data(items_prod, overwrite = TRUE)
 usethis::use_data(polities, overwrite = TRUE, compress = "xz")
 usethis::use_data(polity_area_crosswalk, overwrite = TRUE)
+usethis::use_data(polity_label_aliases, overwrite = TRUE)

@@ -537,3 +537,135 @@ get_polity_geometries <- function(polity_codes = NULL) {
   }
   out
 }
+
+
+#' Resolve a source's country label to a polity
+#'
+#' @description
+#' Maps a country or area **label**, as a source writes it, to a WHEP polity
+#' code. This complements [add_polity_code()], which resolves numeric FAOSTAT
+#' area codes: before this existed there was no supported path from a label to a
+#' polity, so datasets carrying labels went unresolved. `mueller_synthetic_n`'s
+#' `iso3c` column holds FAO-style legacy codes (`"BZE"` for Belize, `"ROM"` for
+#' Romania, `"ZAR"` for Zaire) and `lassaletta_grassland_share`'s `Country` holds
+#' name variants (`"Cape Verde"`, `"Swaziland"`), none of which resolve against
+#' [polities] directly.
+#'
+#' @details
+#' The mapping is [polity_label_aliases], a copy of the map published by
+#' whep-polities. It is deliberately NOT computed here: a label's meaning is a
+#' fact about the source, upstream already decides it, and a second lookup in
+#' this package would be a second authority for the same question.
+#'
+#' Resolution is **source- and year-aware**, and both matter:
+#'
+#' - An alias may be scoped to one `source`, because the same label can mean
+#'   different things in different sources. A scoped alias never applies to
+#'   another source; an unscoped one applies to any.
+#' - An alias may be scoped to a year range, because a label's referent changes.
+#'   `"Cape Verde"` in 1970 is the Portuguese colony `CPV-1886-1975`; in 1990 it
+#'   is `CPV-1975-2025`.
+#'
+#' Where several aliases match, the most specific wins: year-scoped over
+#' unscoped, then source-scoped, then the narrower year range. That ordering
+#' mirrors `matchlib.Matcher.match_alias` upstream, so both sides agree.
+#'
+#' Returns `NA` when no alias matches, which is a real answer rather than a
+#' failure. Some labels are aggregates a source keeps reporting after the
+#' territory stopped existing — `"FSU"` runs to 2009 though nothing has held that
+#' territory since 1991 — and those years are deliberately unmapped rather than
+#' routed to a polity that had ended.
+#'
+#' @param label Character vector of source labels.
+#' @param source Optional source slug (e.g. `"lassaletta-grassland-share"`).
+#'   Length 1, or the same length as `label`. `NULL` matches unscoped aliases
+#'   only.
+#' @param year Optional integer vector of years. Length 1, or the same length as
+#'   `label`. `NULL` matches aliases with no year scope only.
+#'
+#' @returns A character vector of polity codes, `NA` where nothing matched.
+#'
+#' @examples
+#' resolve_polity_label("ZAR", source = "mueller-synthetic-n", year = 2000)
+#' resolve_polity_label(
+#'   c("Cape Verde", "Cape Verde"),
+#'   source = "lassaletta-grassland-share",
+#'   year = c(1970L, 1990L)
+#' )
+#'
+#' @seealso [add_polity_code()] for numeric area codes.
+#' @export
+resolve_polity_label <- function(label, source = NULL, year = NULL) {
+  aliases <- whep::polity_label_aliases
+  n <- length(label)
+
+  recycle <- function(x, nm) {
+    if (is.null(x)) {
+      return(rep(NA, n))
+    }
+    if (length(x) == 1L) {
+      return(rep(x, n))
+    }
+    if (length(x) != n) {
+      cli::cli_abort(
+        "{.arg {nm}} must be length 1 or the same length as {.arg label}."
+      )
+    }
+    x
+  }
+  source <- recycle(source, "source")
+  year <- recycle(year, "year")
+
+  # Matched case-insensitively on a squished label: sources differ in casing and
+  # spacing for the same name, and upstream normalises the same way.
+  norm <- function(x) tolower(trimws(gsub("[[:space:]]+", " ", x)))
+  alias_key <- norm(aliases$source_label)
+
+  vapply(
+    seq_len(n),
+    function(i) {
+      hit <- which(alias_key == norm(label[i]))
+      if (length(hit) == 0L) {
+        return(NA_character_)
+      }
+      cand <- aliases[hit, ]
+
+      # A source-scoped alias applies only to that source.
+      keep <- is.na(cand$source) |
+        cand$source == "" |
+        (!is.na(source[i]) & cand$source == source[i])
+      cand <- cand[keep, ]
+      if (nrow(cand) == 0L) {
+        return(NA_character_)
+      }
+
+      # A year-scoped alias applies only inside its range. With no year given,
+      # only unscoped aliases can match — guessing a year would invent an answer.
+      scoped <- !is.na(cand$year_start) & !is.na(cand$year_end)
+      in_range <- !scoped |
+        (!is.na(year[i]) &
+          year[i] >= cand$year_start &
+          year[i] <= cand$year_end)
+      cand <- cand[in_range, ]
+      if (nrow(cand) == 0L) {
+        return(NA_character_)
+      }
+
+      # Most specific first: year-scoped, then source-scoped, then narrower span.
+      scoped <- !is.na(cand$year_start) & !is.na(cand$year_end)
+      span <- ifelse(
+        scoped,
+        cand$year_end - cand$year_start,
+        .Machine$integer.max
+      )
+      ord <- order(
+        -(2L *
+          as.integer(scoped) +
+          as.integer(!is.na(cand$source) & cand$source != "")),
+        span
+      )
+      cand$polity_code[ord[1]]
+    },
+    character(1)
+  )
+}
