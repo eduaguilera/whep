@@ -1,8 +1,8 @@
-# whep-polities runs its own FAOSTAT matching pipeline
-# (pipelines/faostat-era-matching), whose state file records, per FAOSTAT
-# reporting area and year range, the polity that area's data belongs to. This
-# package builds the SAME mapping independently, by joining area codes to polity
-# families on an ISO3-shaped prefix.
+# whep-polities resolves, per FAOSTAT reporting area and year range, which polity
+# that area's data belongs to, and publishes the result as
+# data/final/faostat_area_polity_map.csv. This package builds the SAME mapping
+# independently, by joining area codes to polity families on an ISO3-shaped
+# prefix.
 #
 # Two authorities for one question. These tests compare them.
 #
@@ -13,13 +13,20 @@
 #
 # Skips when the upstream checkout is absent, like test_polities_upstream_
 # contract.R: an unavailable second opinion is not evidence of agreement.
+#
+# The upstream map is fingerprinted in polities_manifest.json under
+# `faostat_area_map`, so a copy that has drifted is detectable rather than
+# silently compared.
 
+# Reads the PUBLISHED map, data/final/faostat_area_polity_map.csv, not the
+# matching pipeline's state directory. The state file is working state — its
+# columns serve the matcher and nothing promises their shape — whereas the
+# published map has a documented column set and is gated by
+# scripts/write_faostat_area_map.py --check upstream.
 aliases_path <- function() {
   Sys.getenv(
-    "WHEP_POLITIES_FAOSTAT_ALIASES",
-    unset = path.expand(
-      "~/whep-polities/pipelines/faostat-era-matching/state/faostat_aliases.csv"
-    )
+    "WHEP_POLITIES_FAOSTAT_MAP",
+    unset = path.expand("~/whep-polities/data/final/faostat_area_polity_map.csv")
   )
 }
 
@@ -27,11 +34,18 @@ read_aliases <- function() {
   path <- aliases_path()
   testthat::skip_if_not(
     file.exists(path),
-    paste0("upstream FAOSTAT alias state not found at ", path)
+    paste0(
+      "upstream FAOSTAT area map not found at ", path,
+      " — set WHEP_POLITIES_FAOSTAT_MAP or check out the sibling repository"
+    )
   )
   a <- utils::read.csv(path, stringsAsFactors = FALSE)
-  a <- a[a$match_status == "matched" & !is.na(suppressWarnings(as.integer(a$area_code))), ]
+  # The published map contains only resolved mappings, so there is no
+  # match_status to filter on: every row is an assertion that this area's data
+  # belongs to this polity over this year range.
+  a <- a[!is.na(suppressWarnings(as.integer(a$area_code))), ]
   a$area_code <- as.integer(a$area_code)
+  a$target_polity_code <- a$polity_code
   a
 }
 
