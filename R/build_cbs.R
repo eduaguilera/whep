@@ -1047,13 +1047,22 @@ build_processing_coefs <- function(
     "item_cbs_code",
     "element"
   )
-  out <- dt[,
-    .(
-      value = mean(value, na.rm = TRUE),
-      source = .best_cbs_source(source, year[1L])
-    ),
-    by = key_cols
+  # Best source per group WITHOUT calling .best_cbs_source() per group (which
+  # re-ran .cbs_source_rank()'s case_when for every group). Rank every row once,
+  # then take the mean value and the lowest-ranked (then alphabetical) non-NA
+  # source per group by ordering. Left join reproduces NA source for all-NA
+  # groups, exactly as the per-group call returned.
+  dt[, .src_rank := .cbs_source_rank(source, year)]
+  dt[is.na(.src_rank), .src_rank := .Machine$integer.max]
+  val <- dt[, .(value = mean(value, na.rm = TRUE)), by = key_cols]
+  src <- dt[!is.na(source)]
+  data.table::setorderv(src, c(key_cols, ".src_rank", "source"))
+  src <- src[
+    src[, .I[1L], by = key_cols]$V1,
+    c(key_cols, "source"),
+    with = FALSE
   ]
+  out <- merge(val, src, by = key_cols, all.x = TRUE, sort = FALSE)
   out <- out[!is.nan(value)]
   if (nrow(out) < n_in) {
     cli::cli_alert_info(
@@ -1122,15 +1131,6 @@ build_processing_coefs <- function(
   out <- dt[dt[, .I[1L], by = key_cols]$V1]
   out[, .source_rank := NULL]
   tibble::as_tibble(out)
-}
-
-.best_cbs_source <- function(source, year) {
-  source <- source[!is.na(source)]
-  if (length(source) == 0L) {
-    return(NA_character_)
-  }
-  year <- rep(year, length.out = length(source))
-  source[order(.cbs_source_rank(source, year), source)][[1L]]
 }
 
 .cbs_source_rank <- function(source, year) {
@@ -1757,11 +1757,32 @@ build_processing_coefs <- function(
     ) |>
     .collapse_cbs_observations()
 
-  observed_sources <- data.table::as.data.table(cbs_hist)[
-    !is.na(value),
-    .(observed_source = .best_cbs_source(source, year[1L])),
-    by = c("year", "area", "area_code", "item_cbs", "item_cbs_code", "element")
+  # Vectorised equivalent of the per-group .best_cbs_source() call: rank once,
+  # sort NA/unrecognised sources last, then take the first (best) source per
+  # group. Keeps every !is.na(value) group so all-NA-source groups still yield
+  # observed_source = NA, matching the per-group call.
+  obs_keys <- c(
+    "year",
+    "area",
+    "area_code",
+    "item_cbs",
+    "item_cbs_code",
+    "element"
+  )
+  obs_dt <- data.table::as.data.table(cbs_hist)[!is.na(value)]
+  obs_dt[, .src_rank := .cbs_source_rank(source, year)]
+  obs_dt[is.na(.src_rank) | is.na(source), .src_rank := .Machine$integer.max]
+  data.table::setorderv(
+    obs_dt,
+    c(obs_keys, ".src_rank", "source"),
+    na.last = TRUE
+  )
+  observed_sources <- obs_dt[
+    obs_dt[, .I[1L], by = obs_keys]$V1,
+    c(obs_keys, "source"),
+    with = FALSE
   ]
+  data.table::setnames(observed_sources, "source", "observed_source")
 
   cbs_hist <- cbs_hist |>
     dplyr::select(-dplyr::any_of("source"))
