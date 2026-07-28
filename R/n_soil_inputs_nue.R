@@ -162,6 +162,7 @@ create_n_production <- function(example = FALSE) {
       values_from = mg_n,
       values_fill = 0
     ) |>
+    .ensure_destiny_cols() |>
     dplyr::mutate(
       feed = livestock_rum + livestock_mono,
       prod = population_food + population_other_uses + feed + export,
@@ -173,6 +174,26 @@ create_n_production <- function(example = FALSE) {
       .by = c(year, province_name, item, box)
     ) |>
     dplyr::arrange(year, province_name, item, box)
+}
+
+#' Ensure every destiny pivot column exists after pivot_wider().
+#'
+#' If a destiny category (e.g. export) has no rows anywhere in the input,
+#' pivot_wider() never creates that column, and the downstream mutate()
+#' crashes with "object not found".
+#' @keywords internal
+#' @noRd
+.ensure_destiny_cols <- function(prod_wide) {
+  required <- c(
+    "livestock_rum",
+    "livestock_mono",
+    "population_food",
+    "population_other_uses",
+    "export"
+  )
+  missing <- setdiff(required, names(prod_wide))
+  prod_wide[missing] <- 0
+  prod_wide
 }
 
 
