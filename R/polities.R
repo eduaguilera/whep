@@ -152,9 +152,9 @@
     # normally meant, while this maps a FAOSTAT reporting AREA, and some of those
     # areas are themselves aggregates. A cross-check over 16,960 area-years found
     # the divergence confined to FAOSTAT area 15 for 1961-1999 (39 cases), which is
-    # the one family where two live polities genuinely overlap — see
-    # lbm364dl/whep-polities#40. Do not "align" this with matchlib without
-    # resolving that overlap upstream first.
+    # the one family where two live polities genuinely overlap (whep-polities
+    # issue 40). Do not align this with matchlib without resolving that overlap
+    # upstream first.
     #
     # Prefer an `aggregate` polity when one covers the year. Those rows exist
     # PRECISELY to serve a dataset's aggregate reporting area — BLX-1850-1999
