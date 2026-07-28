@@ -333,22 +333,16 @@ build_carbon_balance <- function(
       .data$climate_modifier,
       .data$clay_pct
     )
-  # HSOC (the default) has a closed-form equilibrium, so compute it vectorised
-  # over the distinct combinations rather than running a 5000-year spin-up per
+  # Models with a closed-form equilibrium compute it vectorised over the
+  # distinct combinations rather than running a 5000-year spin-up per
   # combination. At global grain the near-continuous climate/clay values barely
   # dedupe, so the old per-combination trajectory dominated the whole run; the
   # closed form is the exact point that spin-up converges to (verified identical
-  # to < 1e-9 relative). The other models have no wired closed form here yet and
+  # to < 1e-9 relative). Models without a wired closed form (RothC, Century)
   # fall back to the one-trajectory-per-combination path (see #352).
-  if (model == "hsoc") {
-    return(dplyr::mutate(
-      combos,
-      soc_eq_mgc_ha = .cb_hsoc_equilibrium(
-        .data$c_input_mgc_ha_yr,
-        .data$humified_fraction,
-        .data$climate_modifier
-      )
-    ))
+  closed <- .cb_closed_form_equilibrium(model, combos)
+  if (!is.null(closed)) {
+    return(dplyr::mutate(combos, soc_eq_mgc_ha = closed))
   }
   dplyr::mutate(
     combos,
@@ -362,6 +356,31 @@ build_carbon_balance <- function(
       \(input, hf, cm, clay) .cb_steady_state(model, input, hf, cm, clay)
     )
   )
+}
+
+# Vectorised closed-form equilibrium SOC density for the models that have one,
+# else NULL (caller falls back to the per-combination spin-up). Each formula is
+# the fixed point of that model's dynamics under a constant carbon input and
+# scalar climate modifier -- the exact stock its 5000-year spin-up relaxes to;
+# climate_modifier scales the decomposition rates exactly as the model does.
+.cb_closed_form_equilibrium <- function(model, combos) {
+  input <- combos$c_input_mgc_ha_yr
+  cm <- combos$climate_modifier
+  switch(
+    model,
+    hsoc = .cb_hsoc_equilibrium(input, combos$humified_fraction, cm),
+    amg = .cb_amg_equilibrium(input, cm),
+    NULL
+  )
+}
+
+# AMG: active pool at its steady state ca_ss = h * input / k (k scaled by the
+# climate modifier); the total adds the inert stable share, giving
+# ca_ss / (1 - f_iom) (see calculate_soc_amg()'s steady_state init).
+.cb_amg_equilibrium <- function(input, climate_modifier) {
+  k <- .soc_param("amg", "active", "decomposition_rate") * climate_modifier
+  f_iom <- .soc_param("amg", "stable", "inert_fraction")
+  (.amg_default_h() * input / k) / (1 - f_iom)
 }
 
 # Closed-form HSOC steady state, vectorised over its inputs. The active fresh
