@@ -1,5 +1,13 @@
 # whep (development version)
 
+* `.iso3_to_fao_area_code()` no longer breaks an ambiguous ISO3 on row order. An
+  ISO3 can name two FAOSTAT reporting areas because the pre-split entity is kept
+  beside its successor (`ETH` is both 62 "Ethiopia PDR" and 238 "Ethiopia"), and
+  `unique(bridge, by = "iso3c")` was resolving `ETH` to the **dissolved** area 62
+  for every year. The tie is now broken on the polities database — prefer the
+  area that is its polity's `polity_area_code` — and the function aborts rather
+  than guessing if that leaves a choice.
+
 * `.filter_dissolved_countries()` in `build_production()` no longer hardcodes
   FAOSTAT area codes with bare year cutoffs. The bounds now live in
   `.production_reporting_windows`, which separates the two things the integer
