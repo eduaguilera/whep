@@ -13,7 +13,34 @@ polities <- sf::st_read(whep_polities_gpkg, quiet = TRUE)
 polities$iso3c <- polities$iso3_code
 polities$has_geometry <- !sf::st_is_empty(polities)
 
-polity_attrs <- polities |>
+# `wiki_status` values that mean the row must NEVER receive data: `retired` (the
+# row was withdrawn) and `superseded` (it was split or merged into finer rows,
+# and carries a `superseded_by` pointer upstream). whep-polities enforces the
+# same exclusion in its own matcher (`matchlib.Matcher.DEAD_STATUS`), and without
+# it here the crosswalk routed 24 FAOSTAT area codes to withdrawn polities —
+# Brazil 21 to the collapsed BRA-1800-2025 rather than the three rows that
+# replaced it at the 1903 Acre acquisition, India 100 and Indonesia 101 likewise.
+# That both attributes data to a row that no longer exists AND hides the period
+# splits that replaced it.
+#
+# The rows are kept in `polities` for provenance (a reader may need to know what
+# a historical code used to mean) but are excluded from anything that RESOLVES
+# data, which is `polity_attrs` and therefore the crosswalk.
+WHEP_DEAD_POLITY_STATUS <- c("retired", "superseded")
+
+polities_live <- polities |>
+  dplyr::filter(!.data$wiki_status %in% WHEP_DEAD_POLITY_STATUS)
+
+n_dead <- nrow(polities) - nrow(polities_live)
+if (n_dead > 0L) {
+  cli::cli_inform(paste0(
+    "Excluded {n_dead} polit{?y/ies} with wiki_status in ",
+    "{.val {WHEP_DEAD_POLITY_STATUS}} from polity resolution ",
+    "(kept in `polities` for provenance)."
+  ))
+}
+
+polity_attrs <- polities_live |>
   sf::st_drop_geometry() |>
   dplyr::mutate(polity_prefix = sub("-.*", "", .data$polity_code)) |>
   dplyr::select(
@@ -82,7 +109,14 @@ manual_area_prefixes <- tibble::tribble(
   ~area_code, ~manual_polity_prefix, ~manual_note,
   51L, "F51", "FAOSTAT Czechoslovakia reporting area maps to WHEP Czechoslovakia polities.",
   228L, "F228", "FAOSTAT USSR reporting area maps to WHEP Russian Empire/USSR polities.",
-  248L, "F248", "FAOSTAT Yugoslav SFR reporting area maps to WHEP Yugoslavia polities."
+  248L, "F248", "FAOSTAT Yugoslav SFR reporting area maps to WHEP Yugoslavia polities.",
+  72L, "FRS", paste0(
+    "FAOSTAT Djibouti (72) maps to the WHEP FRS chain (FRS-1884-1977 French ",
+    "Somaliland, FRS-1977-2025 Djibouti). Needed because the DJI-1886-2025 row ",
+    "that previously served this area was RETIRED upstream as a duplicate of ",
+    "that chain, and excluding dead polities left the area with no mapping at ",
+    "all. The iso3 prefix DJI no longer names a live polity."
+  )
 )
 
 polity_area_crosswalk <- regions_for_crosswalk |>
