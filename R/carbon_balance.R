@@ -369,9 +369,29 @@ build_carbon_balance <- function(
   switch(
     model,
     hsoc = .cb_hsoc_equilibrium(input, combos$humified_fraction, cm),
+    icbm = .cb_icbm_equilibrium(input, cm),
     amg = .cb_amg_equilibrium(input, cm),
+    century = .cb_century_equilibrium(input, cm, combos$clay_pct),
+    rothc = .cb_rothc_equilibrium(
+      input,
+      cm,
+      combos$clay_pct,
+      combos$humified_fraction
+    ),
     NULL
   )
+}
+
+# ICBM: young pool at input / k_y and old pool at h * input / k_o, both rates
+# scaled by the climate modifier (see calculate_soc_icbm()). This is the true
+# t -> infinity fixed point; it differs from the previous value by up to ~1e-4
+# where the slow old pool had not fully converged in the 5000-year spin-up.
+.cb_icbm_equilibrium <- function(input, climate_modifier) {
+  k_young <- .soc_param("icbm", "young", "decomposition_rate") *
+    climate_modifier
+  k_old <- .soc_param("icbm", "old", "decomposition_rate") * climate_modifier
+  h <- .soc_param("icbm", "transfer", "humification_coefficient")
+  input / k_young + h * input / k_old
 }
 
 # AMG: active pool at its steady state ca_ss = h * input / k (k scaled by the
@@ -381,6 +401,114 @@ build_carbon_balance <- function(
   k <- .soc_param("amg", "active", "decomposition_rate") * climate_modifier
   f_iom <- .soc_param("amg", "stable", "inert_fraction")
   (.amg_default_h() * input / k) / (1 - f_iom)
+}
+
+# Century: the 5-pool linear ODE (str, met, act, slw, pas) fixed point. The
+# structural/metabolic pools sit at their inflow / rate; the active/slow/passive
+# pools solve the 3-way transfer loop (act <-> slw <-> pas) analytically. This
+# is the true t -> infinity steady state -- it differs from the previous
+# 5000-year `deSolve` value where the very slow passive pool had not converged.
+.cb_century_equilibrium <- function(input, climate_modifier, clay_pct) {
+  p <- .cb_century_coefs(climate_modifier, clay_pct)
+  out_str <- p$fs * input
+  out_met <- p$fm * input
+  denom <- 1 -
+    p$a_slw_act * p$a_act_slw -
+    p$a_pas_act * p$a_act_pas -
+    p$a_pas_act * p$a_slw_pas * p$a_act_slw
+  from_str_met <- p$a_str_act * out_str + p$a_met_act * out_met
+  from_slw_loop <- (p$a_slw_act + p$a_pas_act * p$a_slw_pas) *
+    p$a_str_slw *
+    out_str
+  out_act <- (from_str_met + from_slw_loop) / denom
+  out_slw <- p$a_str_slw * out_str + p$a_act_slw * out_act
+  out_pas <- p$a_act_pas * out_act + p$a_slw_pas * out_slw
+  out_str /
+    p$k_str +
+    out_met / p$k_met +
+    out_act / p$k_act +
+    out_slw / p$k_slw +
+    out_pas / p$k_pas
+}
+
+# Vectorised Century rates and inter-pool transfer fractions from the climate
+# modifier and clay (mirrors .century_params/.century_texture/.century_rates/
+# .century_transfers). fm/fs (metabolic/structural input split) depend only on
+# the constant lignin:N ratio, so they are scalars.
+.cb_century_coefs <- function(climate_modifier, clay_pct) {
+  ls <- .soc_param("century", "defaults", "lignin_fraction")
+  ln <- .soc_param("century", "defaults", "lignin_n_ratio")
+  silt <- .soc_param("century", "defaults", "silt_pct")
+  weeks <- .soc_param("century", "all", "weeks_per_year")
+  base <- .soc_rates_named("century", "base_rate_weekly")
+  txtr <- pmin(pmax(pmin(clay_pct, 100), 0) / 100 + silt / 100, 1)
+  f_txtr <- .soc_param("century", "act", "texture_intercept") -
+    .soc_param("century", "act", "texture_slope") * txtr
+  es <- .soc_param("century", "act", "respiration_intercept") -
+    .soc_param("century", "act", "respiration_texture_slope") * txtr
+  fm <- .soc_param("century", "met", "metabolic_intercept") -
+    .soc_param("century", "met", "metabolic_ln_slope") * ln
+  a_act_pas <- .soc_param("century", "act_pas", "transfer_fraction")
+  list(
+    fm = fm,
+    fs = 1 - fm,
+    k_str = base[["str"]] * exp(-3 * ls) * weeks * climate_modifier,
+    k_met = base[["met"]] * weeks * climate_modifier,
+    k_act = base[["act"]] * f_txtr * weeks * climate_modifier,
+    k_slw = base[["slw"]] * weeks * climate_modifier,
+    k_pas = base[["pas"]] * weeks * climate_modifier,
+    a_str_act = (1 - ls) *
+      (1 - .soc_param("century", "str_act", "transfer_fraction_const")),
+    a_str_slw = ls *
+      (1 - .soc_param("century", "str_slw", "transfer_fraction_const")),
+    a_met_act = 1 - .soc_param("century", "met_act", "transfer_fraction_const"),
+    a_act_slw = 1 - es - a_act_pas,
+    a_act_pas = a_act_pas,
+    a_slw_act = .soc_param("century", "slw_act", "transfer_fraction"),
+    a_slw_pas = .soc_param("century", "slw_pas", "transfer_fraction"),
+    a_pas_act = 1 -
+      .soc_param("century", "pas_act", "transfer_fraction_const")
+  )
+}
+
+# RothC: exact fixed point of the monthly sub-step map (Coleman & Jenkinson
+# 1996). DPM/RPM sit at their input over the per-sub-step decayed fraction; the
+# BIO+HUM feedback closes because the total decomposition flux is
+# (c_dpm + c_rpm) / (1 - frac_bio - frac_hum). The inert IOM pool is the Falloon
+# (1998) function of the seed stock, matching calculate_soc_rothc(). Uses the
+# same sub-step count as the run, so it equals what the spin-up converges to.
+.cb_rothc_equilibrium <- function(
+  input,
+  climate_modifier,
+  clay_pct,
+  humified_fraction
+) {
+  rates <- .soc_rates("rothc", c("dpm", "rpm", "bio", "hum"))
+  n_sub <- pmax(1L, as.integer(ceiling(max(rates) * climate_modifier / 12)))
+  step_dt <- 1 / (12 * n_sub)
+  ratio <- .soc_param("rothc", "input", "dpm_rpm_ratio")
+  frac_dpm <- ratio / (1 + ratio)
+  x <- 1.67 * (1.85 + 1.60 * exp(-0.0786 * clay_pct))
+  frac_bio <- 0.46 / (x + 1)
+  frac_hum <- 0.54 / (x + 1)
+  c_dpm <- input / 12 * frac_dpm / n_sub
+  c_rpm <- input / 12 * (1 - frac_dpm) / n_sub
+  survive <- \(k) 1 - exp(-k * climate_modifier * step_dt)
+  dpm <- c_dpm / survive(rates[["dpm"]])
+  rpm <- c_rpm / survive(rates[["rpm"]])
+  total_dec <- (c_dpm + c_rpm) / (1 - frac_bio - frac_hum)
+  bio <- total_dec * frac_bio / survive(rates[["bio"]])
+  hum <- total_dec * frac_hum / survive(rates[["hum"]])
+  k_fresh <- .cb_param("hsoc", "fresh")
+  k_humus <- .cb_param("hsoc", "humus")
+  seed <- pmax(
+    input *
+      (1 - humified_fraction) /
+      (k_fresh * climate_modifier) +
+      input * humified_fraction / (k_humus * climate_modifier),
+    1
+  )
+  dpm + rpm + bio + hum + 0.049 * seed^1.139
 }
 
 # Closed-form HSOC steady state, vectorised over its inputs. The active fresh

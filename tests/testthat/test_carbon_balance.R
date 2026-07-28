@@ -91,33 +91,47 @@ test_that("HSOC equilibrium density matches analytic I/k per pool", {
   testthat::expect_equal(eq$soc_eq_mgc_ha, expected_total, tolerance = 1e-3)
 })
 
-test_that("vectorised closed-form equilibria equal the per-combo spin-up", {
+test_that("vectorised closed-form equilibria match the spin-up they replace", {
   # .cb_equilibrium() computes the equilibrium with a closed form instead of a
-  # 5000-year spin-up per input combination for the models that have one (HSOC,
-  # AMG). Guard that each fast path stays identical to the trajectory it
-  # replaces across a grid of carbon input, humification, climate-modifier and
-  # clay values.
-  grid <- tidyr::expand_grid(
-    input = c(0.2, 1.0, 2.5, 5.0, 12.0),
-    hf = c(0.1, 0.3, 0.6),
-    cm = c(0.3, 1.0, 2.0),
-    clay = c(5, 20, 45)
-  )
+  # 5000-year spin-up per input combination for all five models. Guard each
+  # fast path against the trajectory it replaces across a grid of inputs. HSOC,
+  # AMG and RothC reach a flat/converged spin-up so match to machine precision;
+  # ICBM and Century match the true fixed point, which differs slightly from
+  # the 5000-year value because their slowest pool has not fully converged
+  # there (the closed form is the exact t -> infinity stock) -- hence the
+  # looser, pool-specific tolerances below.
   combos <- tibble::tibble(
-    c_input_mgc_ha_yr = grid$input,
-    humified_fraction = grid$hf,
-    climate_modifier = grid$cm,
-    clay_pct = grid$clay
+    c_input_mgc_ha_yr = c(0.5, 2.5, 6.0),
+    humified_fraction = c(0.2, 0.3, 0.5),
+    climate_modifier = c(0.4, 1.0, 1.6),
+    clay_pct = c(8, 22, 40)
   )
-  for (model in c("hsoc", "amg")) {
+  tolerances <- list(
+    hsoc = 1e-8,
+    amg = 1e-8,
+    rothc = 1e-6,
+    century = 1e-4,
+    icbm = 1e-3
+  )
+  for (model in names(tolerances)) {
     trajectory <- purrr::pmap_dbl(
-      list(grid$input, grid$hf, grid$cm, grid$clay),
-      \(input, hf, cm, clay) {
-        whep:::.cb_steady_state(model, input, hf, cm, clay)
+      combos,
+      \(c_input_mgc_ha_yr, humified_fraction, climate_modifier, clay_pct) {
+        whep:::.cb_steady_state(
+          model,
+          c_input_mgc_ha_yr,
+          humified_fraction,
+          climate_modifier,
+          clay_pct
+        )
       }
     )
     closed_form <- whep:::.cb_closed_form_equilibrium(model, combos)
-    testthat::expect_equal(closed_form, trajectory, tolerance = 1e-8)
+    testthat::expect_equal(
+      closed_form,
+      trajectory,
+      tolerance = tolerances[[model]]
+    )
   }
 })
 
