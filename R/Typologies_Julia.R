@@ -185,8 +185,7 @@ create_typologies_grafs_spain <- function(
 #'
 #' - `destiny == "population_food"` becomes `Destiny == "Food"`.
 #' - `destiny == "population_other_uses"` becomes `Destiny == "Other_uses"`.
-#' - `destiny` in `livestock_rum`/`livestock_mono`/`livestock_aqua` becomes
-#'   `Destiny == "Feed"`.
+#' - `destiny` in `livestock_rum`/`livestock_mono` becomes `Destiny == "Feed"`.
 #' - `destiny == "export"` becomes `Destiny == "Export"`.
 #' - `box == "semi_natural_agroecosystems"` becomes
 #'   `Box == "Semi_natural_agroecosystems"`.
@@ -213,7 +212,6 @@ create_typologies_grafs_spain <- function(
     population_other_uses = "Other_uses",
     livestock_rum = "Feed",
     livestock_mono = "Feed",
-    livestock_aqua = "Feed",
     export = "Export"
   )
 

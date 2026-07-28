@@ -346,25 +346,22 @@ test_that(".add_feed classifies livestock and computes feed shares", {
     ~Year, ~Province_name, ~item_cbs, ~Livestock_cat, ~intake_MgFM,
     2000, "A", "Wheat", "Cattle_meat", 60,
     2000, "A", "Wheat", "Pigs", 30,
-    2000, "A", "Wheat", "Pets", 10,
-    2000, "A", "Wheat", "Aquaculture", 5
+    2000, "A", "Wheat", "Pets", 10
   )
 
   out <- .add_feed(intake)
 
   expect_named(out, c("feed_intake", "feed_share_rum_mono"))
 
-  # feed_intake. Aquaculture intake counts as feed alongside ruminants and
-  # monogastrics, so feed = 60 (Cattle_meat) + 30 (Pigs) + 5 (Aquaculture).
+  # feed_intake. feed = 60 (Cattle_meat) + 30 (Pigs).
   fi <- out$feed_intake
-  expect_equal(fi$feed, 60 + 30 + 5)
+  expect_equal(fi$feed, 60 + 30)
   expect_equal(fi$food_pets, 10)
 
-  # Shares are over total feed (95); the aquaculture share is implicit as
-  # 1 - share_rum - share_mono.
+  # Shares are over total feed (90).
   fs <- out$feed_share_rum_mono
-  expect_equal(fs$share_rum, 60 / 95, tolerance = 1e-12)
-  expect_equal(fs$share_mono, 30 / 95, tolerance = 1e-12)
+  expect_equal(fs$share_rum, 60 / 90, tolerance = 1e-12)
+  expect_equal(fs$share_mono, 30 / 90, tolerance = 1e-12)
 })
 
 test_that(".add_feed handles zero feed total gracefully", {
@@ -372,7 +369,6 @@ test_that(".add_feed handles zero feed total gracefully", {
     ~Year, ~Province_name, ~item_cbs, ~Livestock_cat, ~intake_MgFM,
     2000, "A", "Wheat", "Cattle_meat", 0,
     2000, "A", "Wheat", "Pigs", 0,
-    2000, "A", "Wheat", "Aquaculture", 0,
     2000, "A", "Wheat", "Pets", 10
   )
 
@@ -394,7 +390,6 @@ test_that(".add_feed maps all livestock types correctly", {
     2000, "A", "Grain", "Rabbits", 10,
     2000, "A", "Grain", "Fur animals", 5,
     2000, "A", "Grain", "Other", 5,
-    2000, "A", "Grain", "Aquaculture", 0,
     2000, "A", "Grain", "Pets", 0
   )
 
@@ -714,33 +709,6 @@ test_that(".split_local_consumption splits by shares and feed type", {
   expect_equal(unique(out$Origin), "Cropland")
 })
 
-test_that(".split_local_consumption assigns aquaculture feed (no N leak)", {
-  # share_rum + share_mono < 1, so an aquaculture feed slice exists.
-  # All local consumption must be assigned a destiny (issue #148).
-  local_import <- tibble::tribble(
-    ~Year, ~Province_name, ~Item, ~Box, ~Irrig_cat, ~local_consumption, ~import_consumption, ~food_share, ~feed_share, ~other_uses_share,
-    2000, "A", "Wheat", "Cropland", "irrig", 100, 0, 0.4, 0.5, 0.1
-  )
-
-  feed_shares <- tibble::tribble(
-    ~Year, ~Province_name, ~Item, ~share_rum, ~share_mono,
-    2000, "A", "Wheat", 0.5, 0.2
-  )
-
-  out <- .split_local_consumption(local_import, feed_shares)
-
-  vals <- out |>
-    dplyr::select(Destiny, MgN) |>
-    tibble::deframe()
-
-  # aquaculture is the residual feed share (1 - 0.5 - 0.2 = 0.3)
-  expect_equal(vals[["livestock_aqua"]], 100 * 0.5 * 0.3, tolerance = 1e-12)
-
-  # total destiny N equals local consumption: no mass leaks
-  expect_equal(sum(out$MgN), 100, tolerance = 1e-12)
-})
-
-
 # .split_import_consumption ----------------------------------------------------
 
 test_that(".split_import_consumption limits imports and splits", {
@@ -826,41 +794,6 @@ test_that(".split_import_consumption aggregates duplicates from Irrig_cat", {
     sum()
   expect_equal(food_total, 25)
 })
-
-test_that(".split_import_consumption assigns aquaculture feed (no N leak)", {
-  # Pure feed import with share_rum + share_mono < 1: the aquaculture slice
-  # of imported feed must be assigned a destiny (issue #148).
-  # This implementation derives the import split from unmet demand gaps, so
-  # the demand columns (food / other_uses / feed) must be supplied too. With
-  # food = other_uses = 0 and feed above local_consumption, the whole gap is
-  # feed, giving share_feed = 1 as this test intends.
-  local_vs_import <- tibble::tribble(
-    ~Year, ~Province_name, ~Item, ~Box, ~Irrig_cat, ~local_consumption, ~import_consumption, ~food_share, ~feed_share, ~other_uses_share, ~food, ~other_uses, ~feed,
-    2000, "A", "Wheat", "Cropland", "irrig", 200, 100, 0, 1, 0, 0, 0, 300
-  )
-
-  feed_shares <- tibble::tribble(
-    ~Year, ~Province_name, ~Item, ~share_rum, ~share_mono,
-    2000, "A", "Wheat", 0.5, 0.2
-  )
-
-  out <- .split_import_consumption(local_vs_import, feed_shares)
-
-  vals <- out |>
-    dplyr::filter(
-      Destiny != "population_food",
-      Destiny != "population_other_uses"
-    ) |>
-    dplyr::select(Destiny, MgN) |>
-    tibble::deframe()
-
-  # aquaculture residual feed share = 1 - 0.5 - 0.2 = 0.3
-  expect_equal(vals[["livestock_aqua"]], 100 * 1 * 0.3, tolerance = 1e-12)
-
-  # all imported feed N is assigned to a livestock destiny: no leak
-  expect_equal(sum(out$MgN), 100, tolerance = 1e-12)
-})
-
 
 # .add_exports -----------------------------------------------------------------
 
