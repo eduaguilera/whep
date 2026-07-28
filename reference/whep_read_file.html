@@ -85,6 +85,10 @@ possible values in the <code>alias</code> column of the <code><a href="whep_inpu
 If the <code>parquet</code> version is available, this is useless because this
 function already returns the dataset in an <code>R</code> object, so the origin is
 irrelevant, and <code>parquet</code> is read faster.</p></li>
+<li><p><code>nc</code> / <code>nc4</code>: Returns the path to the downloaded NetCDF instead of its
+contents, because these grids are read lazily by <code>ncdf4</code>/<code>terra</code> and are
+far too large to materialise as a tibble.</p></li>
+<li><p><code>raw</code>: Returns the file path without any processing.</p></li>
 </ul><p>Saving each file in both formats is for transparency and accessibility
 purposes, e.g., having to share the data with non-programmers who can
 easily import a CSV into a spreadsheet. You will most likely never have

@@ -37,6 +37,12 @@ whep_read_file(file_alias, type = "parquet", version = NULL)
     because this function already returns the dataset in an `R` object,
     so the origin is irrelevant, and `parquet` is read faster.
 
+  - `nc` / `nc4`: Returns the path to the downloaded NetCDF instead of
+    its contents, because these grids are read lazily by `ncdf4`/`terra`
+    and are far too large to materialise as a tibble.
+
+  - `raw`: Returns the file path without any processing.
+
   Saving each file in both formats is for transparency and accessibility
   purposes, e.g., having to share the data with non-programmers who can
   easily import a CSV into a spreadsheet. You will most likely never
