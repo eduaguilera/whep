@@ -371,6 +371,10 @@ create_typologies_of_josette <- function(
       names_from = Element,
       values_from = Value_destiny_N,
       values_fill = 0
+    ) |>
+    dplyr::summarise(
+      dplyr::across(c(Production, Export, Import), \(x) sum(x, na.rm = TRUE)),
+      .by = Year
     )
 
   # Calculate total Livestock Units (LU) in Spain per year
