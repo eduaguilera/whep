@@ -144,6 +144,18 @@
       exact_start := !is.na(polity_start_year) &
         polity_start_year == join_start_year
     ]
+    # NOTE for anyone cross-checking this against whep-polities' matcher: the two
+    # deliberately DISAGREE here, and it is not a bug in either.
+    # `matchlib.Matcher.pick_by_year` prefers `national` over an overlapping
+    # aggregate; this prefers the aggregate. Both are right for what they resolve:
+    # matchlib maps a source's LABEL onto a polity family, where a country is
+    # normally meant, while this maps a FAOSTAT reporting AREA, and some of those
+    # areas are themselves aggregates. A cross-check over 16,960 area-years found
+    # the divergence confined to FAOSTAT area 15 for 1961-1999 (39 cases), which is
+    # the one family where two live polities genuinely overlap — see
+    # lbm364dl/whep-polities#40. Do not "align" this with matchlib without
+    # resolving that overlap upstream first.
+    #
     # Prefer an `aggregate` polity when one covers the year. Those rows exist
     # PRECISELY to serve a dataset's aggregate reporting area — BLX-1850-1999
     # "Belgium-Luxembourg" for FAOSTAT area 15, ANT-1961-2010 "Netherlands
