@@ -26,16 +26,16 @@ polities$has_geometry <- !sf::st_is_empty(polities)
 # The rows are kept in `polities` for provenance (a reader may need to know what
 # a historical code used to mean) but are excluded from anything that RESOLVES
 # data, which is `polity_attrs` and therefore the crosswalk.
-WHEP_DEAD_POLITY_STATUS <- c("retired", "superseded")
+whep_dead_polity_status <- c("retired", "superseded")
 
 polities_live <- polities |>
-  dplyr::filter(!.data$wiki_status %in% WHEP_DEAD_POLITY_STATUS)
+  dplyr::filter(!.data$wiki_status %in% whep_dead_polity_status)
 
 n_dead <- nrow(polities) - nrow(polities_live)
 if (n_dead > 0L) {
   cli::cli_inform(paste0(
     "Excluded {n_dead} polit{?y/ies} with wiki_status in ",
-    "{.val {WHEP_DEAD_POLITY_STATUS}} from polity resolution ",
+    "{.val {whep_dead_polity_status}} from polity resolution ",
     "(kept in `polities` for provenance)."
   ))
 }

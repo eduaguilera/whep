@@ -13,13 +13,13 @@
 # successors begin. Its components already map to CHN/HKG/MAC/TWN, so mapping
 # 351 as well double-counted China across every FAOSTAT domain. It is left
 # unmapped so it is dropped as a statistical aggregate.
-DELIBERATELY_UNMAPPED <- c(351L)
+deliberately_unmapped <- c(351L)
 
 test_that("every FAOSTAT area resolves to a polity, bar the documented aggregate", {
   lk <- as.data.frame(whep:::.current_area_lookup(include_unmapped = TRUE))
   unmapped <- lk[is.na(lk$polity_code), ]
 
-  unexpected <- setdiff(as.integer(unmapped$area_code), DELIBERATELY_UNMAPPED)
+  unexpected <- setdiff(as.integer(unmapped$area_code), deliberately_unmapped)
   expect_equal(
     length(unexpected),
     0L,
@@ -38,7 +38,7 @@ test_that("every FAOSTAT area resolves to a polity, bar the documented aggregate
         ),
         collapse = ", "
       ),
-      ". Either map it in whep-polities, or add it to DELIBERATELY_UNMAPPED ",
+      ". Either map it in whep-polities, or add it to deliberately_unmapped ",
       "with the reason."
     )
   )
@@ -46,10 +46,10 @@ test_that("every FAOSTAT area resolves to a polity, bar the documented aggregate
   # The reverse: an entry in the allowlist that HAS become mapped is stale, and
   # keeping it invites someone to unmap it again on this test's authority.
   still_unmapped <- intersect(
-    DELIBERATELY_UNMAPPED,
+    deliberately_unmapped,
     as.integer(unmapped$area_code)
   )
-  expect_setequal(still_unmapped, DELIBERATELY_UNMAPPED)
+  expect_setequal(still_unmapped, deliberately_unmapped)
 })
 
 test_that("the China aggregate stays unmapped while its components resolve", {

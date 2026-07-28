@@ -11,7 +11,7 @@
 #
 # The right fix is upstream aliases, not a lookup table here — whep-polities
 # already resolves source labels to polities that way, and "Cape Verde",
-# "Swaziland", "Turkey", "ROM" and "ZAR" are textbook alias cases. See whep#388.
+# "Swaziland", "Turkey", "ROM" and "ZAR" are textbook alias cases. See whep#389.
 
 known_area_iso3 <- function() {
   cw <- as.data.frame(whep::polity_area_crosswalk)
@@ -26,7 +26,7 @@ known_area_names <- function() {
 # `mueller_synthetic_n$iso3c` is named for ISO3 but holds FAO-style legacy codes
 # for ten countries: Belize is BLZ not BZE, Romania ROU not ROM, and ZAR is Zaire,
 # which became COD in 1997. 328 of 5043 rows.
-MUELLER_UNRESOLVED_ISO3 <- c(
+mueller_unresolved_iso3 <- c(
   "BZE",
   "COS",
   "ELS",
@@ -43,7 +43,7 @@ MUELLER_UNRESOLVED_ISO3 <- c(
 # vintage variants: Cabo Verde as "Cape Verde", Eswatini as "Swaziland", Türkiye
 # as "Turkey", Réunion unaccented, plus "FSU" for the former Soviet Union, which
 # is an aggregate rather than a country. 441 of 6909 rows.
-LASSALETTA_UNRESOLVED_NAMES <- c(
+lassaletta_unresolved_names <- c(
   "Belgium-Luxemburg",
   "Cape Verde",
   "Cote d'Ivoire",
@@ -59,14 +59,14 @@ test_that("mueller_synthetic_n's iso3c column resolves, bar the known legacy cod
   m <- as.data.frame(whep::mueller_synthetic_n)
   unresolved <- sort(setdiff(unique(m$iso3c), known_area_iso3()))
 
-  expect_setequal(unresolved, MUELLER_UNRESOLVED_ISO3)
+  expect_setequal(unresolved, mueller_unresolved_iso3)
 })
 
 test_that("lassaletta_grassland_share's Country column resolves, bar the known variants", {
   l <- as.data.frame(whep::lassaletta_grassland_share)
   unresolved <- sort(setdiff(unique(l$Country), known_area_names()))
 
-  expect_setequal(unresolved, LASSALETTA_UNRESOLVED_NAMES)
+  expect_setequal(unresolved, lassaletta_unresolved_names)
 })
 
 test_that("urban_n_reference's area_code is an ISO3 string, not a FAOSTAT area code", {

@@ -13,7 +13,7 @@
 # Aggregate polities are exempt by construction — ROW-1850-2023 folds in ~60
 # territories across every continent, so it genuinely has no single region.
 
-CLASSIFICATION_COLS <- c(
+classification_cols <- c(
   "region_code",
   "ADB_Region",
   "region",
@@ -46,7 +46,7 @@ test_that("region classifications do not contradict themselves within a polity",
   aggs <- aggregate_polities()
   rf <- rf[!rf$reporting_polity_code %in% aggs, ]
 
-  for (col in intersect(CLASSIFICATION_COLS, names(rf))) {
+  for (col in intersect(classification_cols, names(rf))) {
     n_distinct <- tapply(
       rf[[col]],
       rf$reporting_polity_code,

@@ -58,7 +58,7 @@ read_aliases <- function() {
 # Macedonia, New Caledonia — whose data lands in Rest of World here while a real
 # polity for them exists upstream. Tracked, not fixed: moving an area out of ROW
 # changes published aggregates, so it is a deliberate decision, not a cleanup.
-FOLDED_INTO_AGGREGATE <- c(
+folded_into_aggregate <- c(
   5L,
   6L,
   17L,
@@ -102,7 +102,7 @@ FOLDED_INTO_AGGREGATE <- c(
 # Deliberately kept as an empty vector rather than deleted: the third test
 # asserts in both directions, so if a future change reopens any of these the
 # failure names the area instead of silently re-baselining it.
-DIFFERENT_ERA <- integer(0)
+different_era <- integer(0)
 
 classify <- function() {
   a <- read_aliases()
@@ -172,7 +172,7 @@ test_that("the known completeness gaps do not grow", {
   cls <- classify()
 
   for (kind in c("folded", "different_era")) {
-    baseline <- if (kind == "folded") FOLDED_INTO_AGGREGATE else DIFFERENT_ERA
+    baseline <- if (kind == "folded") folded_into_aggregate else different_era
     observed <- sort(unique(cls$area_code[cls$kind == kind]))
 
     # New entries fail: a gap appearing is a regression, whether from an upstream

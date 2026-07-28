@@ -9,7 +9,7 @@
 # a prefix column must never contain codes, and a code column must never
 # contain prefixes.
 
-CODE_RE <- "^[A-Za-z0-9]+-[0-9]{4}-[0-9]{4}$"
+code_re <- "^[A-Za-z0-9]+-[0-9]{4}-[0-9]{4}$"
 
 for (nm in c("regions_full", "polities_cats")) {
   test_that(paste(nm, "names its prefix column honestly"), {
@@ -28,7 +28,7 @@ for (nm in c("regions_full", "polities_cats")) {
 
     # A prefix is never a code.
     offending <- unique(stats::na.omit(
-      d$polity_prefix[grepl(CODE_RE, d$polity_prefix)]
+      d$polity_prefix[grepl(code_re, d$polity_prefix)]
     ))
     expect_equal(
       length(offending),
