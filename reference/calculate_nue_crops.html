@@ -75,13 +75,20 @@ remote data. Default is <code>FALSE</code>.</p></dd>
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    <p>A tibble containing nitrogen use efficiency (NUE) for crops.
+    <p>A tibble containing nitrogen input, production, and NUE data.
 It includes the following columns:</p><ul><li><p><code>year</code>: Year.</p></li>
 <li><p><code>province_name</code>: The Spanish province.</p></li>
 <li><p><code>item</code>: The item which was produced, defined in <code>names_biomass_cb</code>.</p></li>
 <li><p><code>box</code>: One of the two systems of the GRAFS model: cropland or
 semi-natural agroecosystems.</p></li>
-<li><p><code>nue</code>: Nitrogen Use Efficiency as a percentage (%).</p></li>
+<li><p><code>deposition</code>: Atmospheric nitrogen deposition in megagrams (Mg).</p></li>
+<li><p><code>fixation</code>: Nitrogen fixation in megagrams (Mg).</p></li>
+<li><p><code>synthetic</code>: Synthetic nitrogen fertilizer applied to the land in
+megagrams (Mg).</p></li>
+<li><p><code>manure</code>: Nitrogen in manure applied to the land in megagrams (Mg).</p></li>
+<li><p><code>urban</code>: Nitrogen in wastewater from human sources in megagrams (Mg).</p></li>
+<li><p><code>prod</code>: Produced nitrogen in megagrams (Mg).</p></li>
+<li><p><code>inputs</code>: Total nitrogen inputs in megagrams (Mg).</p></li>
 </ul></div>
 
     <div class="section level2">

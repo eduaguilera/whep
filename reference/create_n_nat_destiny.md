@@ -1,4 +1,4 @@
-# GRAFS Nitrogen (N) flows at Spain national level
+# GRAFS Nitrogen (N) flows – National Spain
 
 Provides N flows of the Spanish agro-food system on a national level
 between 1860 and 2020. This dataset is the national equivalent of the
@@ -39,8 +39,8 @@ includes the following columns:
   Synthetic, People (waste water), Livestock (manure).
 
 - `destiny`: The destiny category of N: population_food,
-  population_other_uses, livestock_mono, livestock_rum, livestock_aqua
-  (feed), export, Cropland (for N soil inputs).
+  population_other_uses, livestock_mono, livestock_rum (feed), export,
+  Cropland (for N soil inputs).
 
 - `mg_n`: Nitrogen amount in megagrams (Mg).
 

@@ -384,7 +384,18 @@ Nitrogen inputs, outputs, production, and destinies for Spain.
 - [`calculate_system_nue()`](https://eduaguilera.github.io/whep/reference/calculate_system_nue.md)
   : System NUE
 - [`create_n_nat_destiny()`](https://eduaguilera.github.io/whep/reference/create_n_nat_destiny.md)
-  : GRAFS Nitrogen (N) flows at Spain national level
+  : GRAFS Nitrogen (N) flows – National Spain
+- [`create_grafs_plot_df()`](https://eduaguilera.github.io/whep/reference/create_grafs_plot_df.md)
+  : Create GRAFS plot dataset.
+- [`plot_input_output()`](https://eduaguilera.github.io/whep/reference/plot_input_output.md)
+  : Plot national nitrogen inputs, production, and surplus for a land
+  system.
+- [`plot_input_output_livestock()`](https://eduaguilera.github.io/whep/reference/plot_input_output_livestock.md)
+  : Plot national nitrogen inputs, production, and surplus for
+  livestock.
+- [`plot_input_output_system()`](https://eduaguilera.github.io/whep/reference/plot_input_output_system.md)
+  : Plot national nitrogen inputs and uses for the full agro-food
+  system.
 
 ## Download large input datasets
 
@@ -488,6 +499,36 @@ Get a tidy dataframe with the found sources for different data.
 
 - [`expand_trade_sources()`](https://eduaguilera.github.io/whep/reference/expand_trade_sources.md)
   : Trade data sources
+
+## Nitrogen typologies Spain
+
+Functions to generate data for N inputs, outputs, production, destinies,
+typologies, etc.
+
+- [`create_typologies_of_josette()`](https://eduaguilera.github.io/whep/reference/create_typologies_of_josette.md)
+  : Typologies of Josette
+- [`create_typologies_grafs_spain()`](https://eduaguilera.github.io/whep/reference/create_typologies_grafs_spain.md)
+  : Typologies of Julia
+- [`create_alfredos_typologies()`](https://eduaguilera.github.io/whep/reference/create_alfredos_typologies.md)
+  : Alfredo's typology classification
+- [`create_typologies_whep()`](https://eduaguilera.github.io/whep/reference/create_typologies_whep.md)
+  : Create WHEP typologies for Spain
+- [`create_grafs_plot_df()`](https://eduaguilera.github.io/whep/reference/create_grafs_plot_df.md)
+  : Create GRAFS plot dataset.
+- [`create_n_prov_destiny()`](https://eduaguilera.github.io/whep/reference/create_n_prov_destiny.md)
+  : GRAFS Nitrogen (N) flows
+- [`create_n_soil_inputs()`](https://eduaguilera.github.io/whep/reference/create_n_soil_inputs.md)
+  : Nitrogen (N) soil inputs for Spain
+- [`create_n_production()`](https://eduaguilera.github.io/whep/reference/create_n_production.md)
+  : N production for Spain
+- [`calculate_nue_crops()`](https://eduaguilera.github.io/whep/reference/calculate_nue_crops.md)
+  : N soil inputs and Nitrogen Use Efficiency (NUE) for crop
+- [`calculate_nue_livestock()`](https://eduaguilera.github.io/whep/reference/calculate_nue_livestock.md)
+  : NUE for Livestock
+- [`calculate_system_nue()`](https://eduaguilera.github.io/whep/reference/calculate_system_nue.md)
+  : System NUE
+- [`create_n_nat_destiny()`](https://eduaguilera.github.io/whep/reference/create_n_nat_destiny.md)
+  : GRAFS Nitrogen (N) flows – National Spain
 
 ## Data-frame utilities
 

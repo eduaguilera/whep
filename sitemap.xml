@@ -121,10 +121,15 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/consolidate_sources.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/conv_bouwman.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/conv_krausmann.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/create_alfredos_typologies.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/create_grafs_plot_df.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/create_n_nat_destiny.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/create_n_production.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/create_n_prov_destiny.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/create_n_soil_inputs.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/create_typologies_grafs_spain.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/create_typologies_of_josette.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/create_typologies_whep.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/crops_eurostat.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/crops_manure_n.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/decompose_weighted_ratio.html</loc></url>
@@ -223,6 +228,9 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/n2o_efs_ipcc2006.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/n_attenuation_constants.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/plot_footprint_sankey.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/plot_input_output.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/plot_input_output_livestock.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/plot_input_output_system.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/polities.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/polities_cats.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/polity_area_crosswalk.html</loc></url>

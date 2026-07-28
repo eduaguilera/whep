@@ -22,8 +22,8 @@ calculate_nue_crops(example = FALSE)
 
 ## Value
 
-A tibble containing nitrogen use efficiency (NUE) for crops. It includes
-the following columns:
+A tibble containing nitrogen input, production, and NUE data. It
+includes the following columns:
 
 - `year`: Year.
 
@@ -34,7 +34,20 @@ the following columns:
 - `box`: One of the two systems of the GRAFS model: cropland or
   semi-natural agroecosystems.
 
-- `nue`: Nitrogen Use Efficiency as a percentage (%).
+- `deposition`: Atmospheric nitrogen deposition in megagrams (Mg).
+
+- `fixation`: Nitrogen fixation in megagrams (Mg).
+
+- `synthetic`: Synthetic nitrogen fertilizer applied to the land in
+  megagrams (Mg).
+
+- `manure`: Nitrogen in manure applied to the land in megagrams (Mg).
+
+- `urban`: Nitrogen in wastewater from human sources in megagrams (Mg).
+
+- `prod`: Produced nitrogen in megagrams (Mg).
+
+- `inputs`: Total nitrogen inputs in megagrams (Mg).
 
 ## Examples
 
