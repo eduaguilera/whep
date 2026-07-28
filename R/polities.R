@@ -144,10 +144,31 @@
       exact_start := !is.na(polity_start_year) &
         polity_start_year == join_start_year
     ]
+    # Prefer an `aggregate` polity when one covers the year. Those rows exist
+    # PRECISELY to serve a dataset's aggregate reporting area — BLX-1850-1999
+    # "Belgium-Luxembourg" for FAOSTAT area 15, ANT-1961-2010 "Netherlands
+    # Antilles" for 151, the RAFR/ROW region rows — so when such an area also
+    # has a narrower same-prefix sibling, the aggregate is the intended target.
+    #
+    # Without this, refreshing the polity data displaces them: the newly
+    # imported BLX-1921-1999 "Belgium-Luxembourg Economic Union" (the 1921 BLEU
+    # treaty entity, `national`) and ANT-1816-1960 "Dutch Caribbean" (`colonial`)
+    # both start later than their aggregate siblings, so the
+    # `polity_start_year` tiebreak below picked them for 1961 data. That also
+    # defeats the guard further down which refuses to extend an aggregate
+    # reporting area beyond its range — the guard only fires when the chosen row
+    # IS the aggregate.
+    matches[, is_aggregate := !is.na(get("lookup_polity_type")) &
+      get("lookup_polity_type") == "aggregate"]
     data.table::setorderv(
       matches,
-      c("..whep_polity_rowid", "exact_start", "polity_start_year"),
-      order = c(1L, -1L, -1L),
+      c(
+        "..whep_polity_rowid",
+        "exact_start",
+        "is_aggregate",
+        "polity_start_year"
+      ),
+      order = c(1L, -1L, -1L, -1L),
       na.last = TRUE
     )
     matches <- unique(matches, by = "..whep_polity_rowid")
@@ -163,8 +184,24 @@
         allow.cartesian = TRUE
       ]
       # Do not silently extend dataset-specific aggregate reporting areas.
+      #
+      # The test is on the AREA, not on the candidate row. Excluding merely the
+      # aggregate ROWS worked only while such an area had no other polity: once
+      # BLX-1921-1999 (`national`) and ANT-1816-1960 (`colonial`) arrived
+      # alongside their aggregate siblings, a year outside the aggregate's range
+      # fell through to those narrower rows and got extended anyway — exactly
+      # what this guard exists to prevent. So an area that HAS an aggregate
+      # polity is never extended, whichever row would have been chosen.
+      aggregate_area_codes <- unique(
+        lookup[
+          !is.na(get("lookup_polity_type")) &
+            get("lookup_polity_type") == "aggregate",
+          area_code
+        ]
+      )
       fallback_matches <- fallback_matches[
-        !is.na(polity_code) & get("lookup_polity_type") != "aggregate"
+        !is.na(polity_code) &
+          !(area_code %in% aggregate_area_codes)
       ]
       if (nrow(fallback_matches) > 0L) {
         fallback_matches[,

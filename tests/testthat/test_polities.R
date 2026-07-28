@@ -11,7 +11,11 @@ test_that("add_polity_code maps area codes by year", {
   expect_equal(mapped$polity_code[2], "DZA-1919-1962")
   expect_equal(mapped$polity_code[3], "F51-1947-1993")
   expect_equal(mapped$polity_code[4], "F228-1945-1991")
-  expect_equal(mapped$polity_code[5], "F248-1920-1991")
+  # F248-1920-1991 was RETIRED upstream when whep-polities split Yugoslavia at
+  # the 1947 Paris Peace Treaty (Italy ceded Istria and Zadar, ~4,165 km2), so
+  # 1980 resolves to the post-1947 row. Retired and superseded polities are
+  # excluded from resolution — see data-raw/table_mappings.R.
+  expect_equal(mapped$polity_code[5], "F248-1947-1991")
   expect_equal(mapped$polity_code[6], "BLX-1850-1999")
   expect_equal(mapped$polity_code[7], "RAFR-1850-2021")
   expect_equal(mapped$polity_code[8], "ROW-1850-2023")
