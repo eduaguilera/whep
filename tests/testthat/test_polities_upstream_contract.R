@@ -60,6 +60,27 @@ test_that("the embedded polity table matches the upstream manifest", {
   )
 })
 
+test_that("the embedded copy agrees with upstream about WHICH rows are dead", {
+  mf <- read_manifest()
+
+  # This test exists because its absence let real drift through. When
+  # GCO-1884-2025 was retired upstream, every other assertion here still passed:
+  # the row count was unchanged (a retirement moves a code between lists, it does
+  # not remove it), the code set was unchanged for the same reason, and nothing
+  # routed to it, so the dead-routing check was satisfied too. The embedded copy
+  # sat with `wiki_status: draft` against `retired` upstream and no test could
+  # see it.
+  #
+  # `wiki_status` is one of the manifest's identity fields precisely because a
+  # changed status must invalidate a downstream copy. Comparing the SET of codes
+  # each side considers dead is the field-level form of that check, and unlike
+  # recomputing `identity_sha256` in R it says which row disagrees.
+  pol <- as.data.frame(whep::polities)
+  dead_here <- sort(pol$polity_code[pol$wiki_status %in% mf$dead_status])
+
+  expect_setequal(dead_here, mf$dead_polity_codes)
+})
+
 test_that("no polity resolution targets a dead upstream polity", {
   mf <- read_manifest()
 
