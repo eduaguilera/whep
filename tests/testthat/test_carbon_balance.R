@@ -91,6 +91,25 @@ test_that("HSOC equilibrium density matches analytic I/k per pool", {
   testthat::expect_equal(eq$soc_eq_mgc_ha, expected_total, tolerance = 1e-3)
 })
 
+test_that("vectorised HSOC equilibrium equals the per-combo spin-up", {
+  # .cb_equilibrium() computes the HSOC equilibrium with a closed form instead
+  # of a 5000-year spin-up per input combination. Guard that the fast path
+  # stays identical to the trajectory it replaces across a grid of carbon
+  # input, humification, climate-modifier and clay values.
+  grid <- tidyr::expand_grid(
+    input = c(0.2, 1.0, 2.5, 5.0, 12.0),
+    hf = c(0.1, 0.3, 0.6),
+    cm = c(0.3, 1.0, 2.0),
+    clay = c(5, 20, 45)
+  )
+  trajectory <- purrr::pmap_dbl(
+    list(grid$input, grid$hf, grid$cm, grid$clay),
+    \(input, hf, cm, clay) whep:::.cb_steady_state("hsoc", input, hf, cm, clay)
+  )
+  closed_form <- whep:::.cb_hsoc_equilibrium(grid$input, grid$hf, grid$cm)
+  testthat::expect_equal(closed_form, trajectory, tolerance = 1e-8)
+})
+
 # -- 1750-style initialisation weighting --------------------------------------
 
 test_that("init weights per-class equilibria by land-use fractions", {

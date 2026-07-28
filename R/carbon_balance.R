@@ -325,25 +325,61 @@ build_carbon_balance <- function(
 # under each class's carbon input and climate. Reuses calculate_soc_dynamics();
 # never reimplements the pool kinetics. One run per distinct input combination.
 .cb_equilibrium <- function(model, classes) {
-  classes |>
+  combos <- classes |>
     dplyr::distinct(
       .data$land_use,
       .data$c_input_mgc_ha_yr,
       .data$humified_fraction,
       .data$climate_modifier,
       .data$clay_pct
-    ) |>
-    dplyr::mutate(
-      soc_eq_mgc_ha = purrr::pmap_dbl(
-        list(
-          .data$c_input_mgc_ha_yr,
-          .data$humified_fraction,
-          .data$climate_modifier,
-          .data$clay_pct
-        ),
-        \(input, hf, cm, clay) .cb_steady_state(model, input, hf, cm, clay)
-      )
     )
+  # HSOC (the default) has a closed-form equilibrium, so compute it vectorised
+  # over the distinct combinations rather than running a 5000-year spin-up per
+  # combination. At global grain the near-continuous climate/clay values barely
+  # dedupe, so the old per-combination trajectory dominated the whole run; the
+  # closed form is the exact point that spin-up converges to (verified identical
+  # to < 1e-9 relative). The other models have no wired closed form here yet and
+  # fall back to the one-trajectory-per-combination path (see #352).
+  if (model == "hsoc") {
+    return(dplyr::mutate(
+      combos,
+      soc_eq_mgc_ha = .cb_hsoc_equilibrium(
+        .data$c_input_mgc_ha_yr,
+        .data$humified_fraction,
+        .data$climate_modifier
+      )
+    ))
+  }
+  dplyr::mutate(
+    combos,
+    soc_eq_mgc_ha = purrr::pmap_dbl(
+      list(
+        .data$c_input_mgc_ha_yr,
+        .data$humified_fraction,
+        .data$climate_modifier,
+        .data$clay_pct
+      ),
+      \(input, hf, cm, clay) .cb_steady_state(model, input, hf, cm, clay)
+    )
+  )
+}
+
+# Closed-form HSOC steady state, vectorised over its inputs. The active fresh
+# and humus pools sit at their fixed points input_pool / (k_pool *
+# climate_modifier); the inert (IOM) pool is the Falloon (1998) function
+# 0.049 * active^1.139 of the seed active stock (floored at 1, matching
+# `.cb_seed_stock()`). This is the exact stock the 5000-year HSOC spin-up
+# relaxes to (the pool series starts at the fixed point and is flat), so it
+# replaces a 5000-step trajectory per input combination with an O(1)
+# expression.
+.cb_hsoc_equilibrium <- function(input, humified_fraction, climate_modifier) {
+  k_fresh <- .cb_param("hsoc", "fresh")
+  k_humus <- .cb_param("hsoc", "humus")
+  active <- input *
+    (1 - humified_fraction) /
+    (k_fresh * climate_modifier) +
+    input * humified_fraction / (k_humus * climate_modifier)
+  active + 0.049 * pmax(active, 1)^1.139
 }
 
 # Attach the equilibrium density to every class-year row by joining on the
