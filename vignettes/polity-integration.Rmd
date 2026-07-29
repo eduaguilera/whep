@@ -131,10 +131,8 @@ grid <- expand.grid(
   area_code = sort(unique(pairs$area_code)),
   year = 1961:2024
 )
-reachable <- unique(paste(
-  add_polity_code(grid)$area_code,
-  add_polity_code(grid)$polity_code
-))
+resolved <- add_polity_code(grid)
+reachable <- unique(paste(resolved$area_code, resolved$polity_code))
 unreachable <- pairs[!paste(pairs$area_code, pairs$polity_code) %in% reachable, ]
 c(
   pairs = nrow(pairs),
