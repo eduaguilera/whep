@@ -78,3 +78,39 @@ testthat::test_that("the function accepts a tibble as well as a data.table", {
     "NOT FOUND"
   )
 })
+
+testthat::test_that("the FAOSTAT group threshold matches how areas are actually numbered", {
+  # The classifier treats area_code >= 5000 as one of FAOSTAT's own regional groups rather than a
+  # territory. That is an assumption about the SOURCE's numbering, embedded in this package, so it needs
+  # pinning from both directions or it drifts silently into mislabelling.
+  #
+  #   nothing this project models may sit at or above the threshold, or a real territory would be
+  #     dismissed as an aggregate
+  #   the codes real data carries that this project does NOT model should be at or above it, or a
+  #     source aggregate would be reported as the caller's mistake
+  #
+  # Measured when the threshold was chosen: the crosswalk's highest area code is 999, and of the 244
+  # distinct codes in real FAOSTAT production, all 34 absent from the crosswalk are >= 5000 and none
+  # below it is absent.
+  threshold <- 5000L
+
+  modelled <- unique(stats::na.omit(
+    as.data.frame(whep::polity_area_crosswalk)$area_code
+  ))
+  testthat::expect_gt(length(modelled), 200L)
+  testthat::expect_false(
+    any(modelled >= threshold),
+    info = paste0(
+      "an area this project models now sits at or above the FAOSTAT group threshold, so the ",
+      "classifier would dismiss it as an aggregate: ",
+      paste(
+        utils::head(sort(modelled[modelled >= threshold]), 6),
+        collapse = ", "
+      )
+    )
+  )
+
+  # regions_full is the other numbering source and must agree.
+  regions <- unique(stats::na.omit(as.data.frame(whep::regions_full)$code))
+  testthat::expect_false(any(regions >= threshold))
+})
