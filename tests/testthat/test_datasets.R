@@ -93,9 +93,18 @@ test_that("CBS and FABIO area codes map to polity database rows", {
   expect_equal(nrow(cbs_unmapped), 0L)
   expect_equal(nrow(fabio_unmapped), 0L)
 
-  # The aggregate reporting areas: Belgium-Luxembourg (15), Netherlands Antilles
-  # (151), the six continental "Other" buckets (901-906) and Rest of World (999).
-  aggregate_area_codes <- c(15L, 151L, 901:906, 999L)
+  # DISCOVERED from polity_type, not listed. The enumerated version named nine areas
+  # — Belgium-Luxembourg (15), Netherlands Antilles (151), the six continental "Other"
+  # buckets (901-906) and Rest of World (999) — and there are ELEVEN: areas 237 and
+  # 249 also resolve to aggregate polities (F237-1954-1975 and F249-1918-1990, the
+  # combined-reporting Viet Nam and Yemen rows), so those two went unchecked. Deriving
+  # the set means an aggregate added upstream is covered without anyone editing this.
+  aggregate_area_codes <- sort(unique(as.integer(
+    crosswalk$polity_area_code[
+      !is.na(crosswalk$polity_type) & crosswalk$polity_type == "aggregate"
+    ]
+  )))
+  expect_gte(length(aggregate_area_codes), 9L)
   aggregate_codes <- crosswalk |>
     dplyr::filter(.data$area_code %in% aggregate_area_codes) |>
     dplyr::distinct(.data$area_code, .data$polity_code, .data$has_geometry)

@@ -13,27 +13,20 @@
 # Aggregate polities are exempt by construction — ROW-1850-2023 folds in ~60
 # territories across every continent, so it genuinely has no single region.
 
-classification_cols <- c(
-  "region_code",
-  "ADB_Region",
-  "region",
-  "region_krausmann",
-  "region_HANPP",
-  "region_krausmann2",
-  "region_UN_sub",
-  "region_UN",
-  "region_ILO1",
-  "region_ILO2",
-  "region_ILO3",
-  "region_IEA",
-  "region_IPCC",
-  "region_labour",
-  "region_labour_agg",
-  "region_labour_mech",
-  "region_test",
-  "EU27",
-  "continent"
-)
+# DISCOVERED, not listed. The enumerated version had two defects of exactly the kind
+# a list acquires: it named `continent`, which is not a column of this table at all, so
+# that entry silently checked nothing; and it missed `iea`, a real classification column
+# that therefore went unchecked. Matching on the column names present means a
+# classification added tomorrow is covered without anyone remembering.
+classification_cols <- function() {
+  nm <- names(as.data.frame(whep::regions_full))
+  grep(
+    "region|continent|EU27|ADB|krausmann|HANPP|ILO|IEA|IPCC|labour",
+    nm,
+    ignore.case = TRUE,
+    value = TRUE
+  )
+}
 
 aggregate_polities <- function() {
   cw <- as.data.frame(whep::polity_area_crosswalk)
@@ -46,7 +39,7 @@ test_that("region classifications do not contradict themselves within a polity",
   aggs <- aggregate_polities()
   rf <- rf[!rf$reporting_polity_code %in% aggs, ]
 
-  for (col in intersect(classification_cols, names(rf))) {
+  for (col in intersect(classification_cols(), names(rf))) {
     n_distinct <- tapply(
       rf[[col]],
       rf$reporting_polity_code,
