@@ -655,6 +655,69 @@ build_processing_coefs <- function(
   if ("Year" %in% names(dt)) {
     data.table::setnames(dt, "Year", "year")
   }
+  .canonicalise_gdp_pop_area(dt)
+}
+
+# Map this input's area NAMES onto the canonical crosswalk names, via the published alias map.
+#
+# .fill_with_proxies() joins population and land proxies on `c("year", "area")` — the name, not
+# a code. The gdp-population pin writes short forms where FAOSTAT writes long ones, so eleven
+# of its 196 names matched nothing: Bolivia, China Taiwan, DR Congo, Iran, Ivory Coast, Lao,
+# North Korea, Syria, Tanzania, Turkey, Venezuela. 1,892 rows, 6.4% of the input, and the
+# failure is silent — an unmatched proxy is an NA, not an error, so those countries simply went
+# unfilled.
+#
+# Every one of the eleven resolves through the alias map, which is what that map is for:
+# "Ivory Coast" to CIV-1960-2025 and thence to the canonical "Côte d'Ivoire", "Turkey" to
+# TUR-1920-2025 and "Türkiye". So the name is resolved to a POLITY and the polity's canonical
+# area name substituted, rather than a hand-written synonym list being bolted on here.
+#
+# Names already matching the crosswalk are left untouched, so this cannot rewrite a name that
+# was working.
+.canonicalise_gdp_pop_area <- function(dt) {
+  if (!"area" %in% names(dt)) {
+    return(dt)
+  }
+  crosswalk <- data.table::as.data.table(whep::polity_area_crosswalk)
+  canonical <- unique(stats::na.omit(crosswalk$area_name))
+  unmatched <- setdiff(unique(stats::na.omit(dt$area)), canonical)
+  if (length(unmatched) == 0L) {
+    return(dt)
+  }
+
+  # A fixed resolution year is enough: what is wanted is the polity's canonical NAME, which
+  # does not vary by period within a family. Several years are tried so an entity that did not
+  # exist in one of them still resolves.
+  resolved <- rep(NA_character_, length(unmatched))
+  for (year in c(2000L, 1990L, 1961L)) {
+    todo <- is.na(resolved)
+    if (!any(todo)) {
+      break
+    }
+    resolved[todo] <- resolve_polity_label(
+      unmatched[todo],
+      source = "faostat",
+      year = year
+    )
+  }
+
+  lookup <- unique(
+    crosswalk[
+      !is.na(polity_code) & !is.na(area_name),
+      .(polity_code, area_name)
+    ],
+    by = "polity_code"
+  )
+  target <- lookup$area_name[match(resolved, lookup$polity_code)]
+  rename <- stats::setNames(target, unmatched)
+  rename <- rename[!is.na(rename)]
+  if (length(rename) == 0L) {
+    return(dt)
+  }
+
+  dt <- data.table::copy(dt)
+  hit <- dt$area %in% names(rename)
+  dt[hit, area := unname(rename[dt$area[hit]])]
   dt
 }
 
