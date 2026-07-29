@@ -32,7 +32,7 @@ create_n_prov_destiny <- function() {
   codes_coefs_items_full <- whep_read_file("codes_coefs_items_full")
   biomass_coefs <- whep_read_file("biomass_coefs")
   pie_full_destinies_fm <- whep_read_file("pie_full_destinies_fm")
-  processed_prov_fixed <- whep_read_file("processed_prov_fixed")
+  processing_coefs <- get_processing_coefs()
   livestock_prod_ygps <- whep_read_file("stock_prod_ygps")
   crop_area_npp_no_fallow <- whep_read_file("crop_area_npp_ygpitr_no_fallow")
   npp_ygpit <- whep_read_file("npp_ygpit")
@@ -62,15 +62,35 @@ create_n_prov_destiny <- function() {
       .prepare_livestock_production(livestock_prod_ygps)
     )
 
+  national_production <- .national_item_production(prod_combined_boxes)
+  first_year <- min(national_production$Year, na.rm = TRUE)
+
+  spain_coefs_observed <- .spain_processing_coefs(processing_coefs)
+  spain_coefs <- .backfill_processing_cf(spain_coefs_observed, first_year)
+  processing_shares <- .calculate_processing_shares(
+    spain_coefs_observed,
+    national_production
+  ) |>
+    .backfill_processing_shares(first_year)
+
+  processed <- .calculate_processed_amounts(
+    prod_combined_boxes,
+    processing_shares,
+    spain_coefs
+  )
+
   food_and_other_uses <- population_yg |>
     .calculate_population_share() |>
     .calculate_food_and_other_uses(pie_full_destinies_fm)
 
   grafs_prod_item_trade <- biomass_item_merged |>
-    .remove_seeds_from_system(pie_full_destinies_fm, prod_combined_boxes) |>
+    .remove_seeds_from_system(
+      pie_full_destinies_fm,
+      processed$non_processed
+    ) |>
     .add_grass_wood() |>
     .prepare_prod_data(
-      .prepare_processed_data(processed_prov_fixed),
+      processed$processed_items,
       codes_coefs_items_full
     ) |>
     .convert_fm_dm_n(biomass_coefs) |>
@@ -673,27 +693,208 @@ create_n_nat_destiny <- function() {
   grafs_prod_added
 }
 
-#' @title Processed Items ------------------------------------------------------
-#' @description Summarise processed items by Year, Province, Biomass,
-#' Item & ProcessedItem.
+#' @title Spain processing coefficients -----------------------------------------
+#' @description Filters the cached national processing-coefficients pin
+#' (`get_processing_coefs()`) down to Spain, using its own item names — the
+#' pin's `ProcessedItem` column is actually the primary/input item (e.g.
+#' `"Cottonseed"`) and its `item` column is the processed output (e.g.
+#' `"Cottonseed Cake"`), so they are relabelled here to the Item/ProcessedItem
+#' convention used throughout this file. `value_to_process` (the amount of
+#' the primary item consumed by processing) isn't stored directly, but
+#' `value_proc = value_to_process * cf`, so it is recovered by division.
 #'
-#' @param processed_prov_fixed Dataframe containing data for processed items.
+#' @param processing_coefs Output of `get_processing_coefs()`.
 #'
-#' @return A dataframe with processed item values structured for integration.
+#' @return A dataframe with Year, Item, ProcessedItem, value_to_process, cf.
 #' @keywords internal
 #' @noRd
-.prepare_processed_data <- function(
-  processed_prov_fixed
-) {
-  processed_data <- processed_prov_fixed |>
-    dplyr::group_by(Year, Province_name, Name_biomass, Item, ProcessedItem) |>
-    dplyr::summarise(
-      ProcessedItem_amount = sum(ProcessedItem_amount, na.rm = TRUE),
-      .groups = "drop"
-    ) |>
-    dplyr::mutate(
+.spain_processing_coefs <- function(processing_coefs) {
+  processing_coefs |>
+    dplyr::filter(area == "Spain", !is.na(cf), cf > 0) |>
+    dplyr::transmute(
+      Year,
       Item = ProcessedItem,
-      production_fm = ProcessedItem_amount,
+      ProcessedItem = item,
+      value_to_process = value_proc / cf,
+      cf
+    )
+}
+
+#' @title National production by item ---------------------------------------
+#' @description Sums province-level production to a national total per item
+#' and year, used as the denominator for processing shares.
+#'
+#' @param prod_combined_boxes Dataframe with production_fm by province.
+#'
+#' @return A dataframe with Year, Item, national_production_fm.
+#' @keywords internal
+#' @noRd
+.national_item_production <- function(prod_combined_boxes) {
+  prod_combined_boxes |>
+    dplyr::summarise(
+      national_production_fm = sum(production_fm, na.rm = TRUE),
+      .by = c(Year, Item)
+    )
+}
+
+#' @title Processing shares by item -------------------------------------------
+#' @description Computes the national fraction of each item's production
+#' that goes to processing, capped at 1. An item can yield several
+#' ProcessedItem outputs, each with its own (near-identical, up to rounding)
+#' estimate of `value_to_process` — these are averaged down to a single
+#' value per Year/Item so downstream joins don't duplicate rows.
+#'
+#' @param spain_coefs Output of `.spain_processing_coefs()`.
+#' @param national_production Output of `.national_item_production()`.
+#'
+#' @return A dataframe with Year, Item, share_processing.
+#' @keywords internal
+#' @noRd
+.calculate_processing_shares <- function(
+  spain_coefs,
+  national_production
+) {
+  spain_coefs |>
+    dplyr::summarise(
+      value_to_process = mean(value_to_process, na.rm = TRUE),
+      .by = c(Year, Item)
+    ) |>
+    dplyr::left_join(national_production, by = c("Year", "Item")) |>
+    dplyr::mutate(
+      national_production_fm = dplyr::coalesce(national_production_fm, 0),
+      share_processing = dplyr::if_else(
+        national_production_fm > 0,
+        pmin(value_to_process / national_production_fm, 1),
+        0
+      )
+    ) |>
+    dplyr::select(Year, Item, share_processing)
+}
+
+#' @title Backfill early-year processing shares -------------------------------
+#' @description `processing_coefs` only covers years from 1961 onward. For
+#' each Item, its earliest observed share_processing (1961) is copied back
+#' to every year from `first_year` up to (but not including) that first
+#' observed year, matching the original workflow's assumption that
+#' pre-1961 processing behaved like 1961.
+#'
+#' @param processing_shares Output of `.calculate_processing_shares()`.
+#' @param first_year Earliest year present in the production data.
+#'
+#' @return `processing_shares` extended with backfilled early-year rows.
+#' @keywords internal
+#' @noRd
+.backfill_processing_shares <- function(processing_shares, first_year) {
+  earliest <- processing_shares |>
+    dplyr::group_by(Item) |>
+    dplyr::slice_min(Year, with_ties = FALSE) |>
+    dplyr::ungroup() |>
+    dplyr::filter(Year > first_year)
+
+  backfilled <- earliest |>
+    dplyr::mutate(backfill_years = purrr::map2(first_year, Year - 1, seq)) |>
+    tidyr::unnest(backfill_years) |>
+    dplyr::mutate(Year = backfill_years) |>
+    dplyr::select(-backfill_years)
+
+  dplyr::bind_rows(processing_shares, backfilled)
+}
+
+#' @title Backfill early-year processing cf/output mapping --------------------
+#' @description `processing_coefs` only covers years from 1961 onward. For
+#' each Item/ProcessedItem pair, its earliest observed row (1961) is copied
+#' back to every year from `first_year` up to (but not including) that
+#' first observed year. Without this, pre-1961 processed mass (subtracted
+#' via the backfilled share) would have no ProcessedItem to convert into,
+#' silently disappearing instead of showing up as output.
+#'
+#' @param spain_coefs Output of `.spain_processing_coefs()`.
+#' @param first_year Earliest year present in the production data.
+#'
+#' @return `spain_coefs` extended with backfilled early-year rows.
+#' @keywords internal
+#' @noRd
+.backfill_processing_cf <- function(spain_coefs, first_year) {
+  earliest <- spain_coefs |>
+    dplyr::group_by(Item, ProcessedItem) |>
+    dplyr::slice_min(Year, with_ties = FALSE) |>
+    dplyr::ungroup() |>
+    dplyr::filter(Year > first_year)
+
+  backfilled <- earliest |>
+    dplyr::mutate(backfill_years = purrr::map2(first_year, Year - 1, seq)) |>
+    tidyr::unnest(backfill_years) |>
+    dplyr::mutate(Year = backfill_years) |>
+    dplyr::select(-backfill_years)
+
+  dplyr::bind_rows(spain_coefs, backfilled)
+}
+
+#' @title Processed and non-processed production amounts -----------------------
+#' @description Splits cropland production into a non-processed remainder
+#' and, separately, the processed-item quantities it yields. Only Cropland
+#' rows are considered for processing; other boxes pass through unchanged.
+#'
+#' @param prod_combined_boxes Dataframe with production_fm by province.
+#' @param processing_shares Output of `.calculate_processing_shares()`.
+#' @param spain_coefs Output of `.spain_processing_coefs()`.
+#'
+#' @return A list with 'non_processed' and 'processed_items' dataframes.
+#' @keywords internal
+#' @noRd
+.calculate_processed_amounts <- function(
+  prod_combined_boxes,
+  processing_shares,
+  spain_coefs
+) {
+  with_share <- prod_combined_boxes |>
+    dplyr::left_join(processing_shares, by = c("Year", "Item")) |>
+    dplyr::mutate(
+      share_processing = dplyr::if_else(
+        Box == "Cropland",
+        dplyr::coalesce(share_processing, 0),
+        0
+      ),
+      processed_fm = production_fm * share_processing
+    )
+
+  non_processed <- with_share |>
+    dplyr::mutate(production_fm = production_fm - processed_fm) |>
+    dplyr::select(-share_processing, -processed_fm)
+
+  list(
+    non_processed = non_processed,
+    processed_items = .expand_processed_items(with_share, spain_coefs)
+  )
+}
+
+#' @title Expand processed input mass into processed item quantities -----------
+#' @description Aggregates the processed input mass per item and converts it
+#' into each of its processed-item outputs using the conversion factor.
+#'
+#' @param with_share Production rows joined with share_processing and
+#' processed_fm, as built by `.calculate_processed_amounts()`.
+#' @param spain_coefs Output of `.spain_processing_coefs()`.
+#'
+#' @return A dataframe with Year, Province_name, Name_biomass, Item, Box,
+#' production_fm, prod_type — one row per processed item, per province.
+#' @keywords internal
+#' @noRd
+.expand_processed_items <- function(with_share, spain_coefs) {
+  with_share |>
+    dplyr::summarise(
+      processed_fm = sum(processed_fm, na.rm = TRUE),
+      .by = c(Year, Province_name, Name_biomass, Item)
+    ) |>
+    dplyr::left_join(
+      spain_coefs |> dplyr::select(Year, Item, ProcessedItem, cf),
+      by = c("Year", "Item"),
+      relationship = "many-to-many"
+    ) |>
+    dplyr::filter(!is.na(ProcessedItem)) |>
+    dplyr::mutate(
+      production_fm = processed_fm * cf,
+      Item = ProcessedItem,
       Box = "Cropland",
       prod_type = "Product"
     ) |>
@@ -706,8 +907,6 @@ create_n_nat_destiny <- function() {
       production_fm,
       prod_type
     )
-
-  processed_data
 }
 
 #' @title Match structure of grafs_prod_combined_no_seeds ----------------------
@@ -1592,12 +1791,12 @@ create_n_nat_destiny <- function() {
       value_n = dplyr::case_when(
         prod_type %in% c("Residue", "Grass") ~
           value_fm *
-          dplyr::coalesce(Residue_kgDM_kgFM, Product_kgDM_kgFM) *
-          dplyr::coalesce(Residue_kgN_kgDM, Product_kgN_kgDM),
+            dplyr::coalesce(Residue_kgDM_kgFM, Product_kgDM_kgFM) *
+            dplyr::coalesce(Residue_kgN_kgDM, Product_kgN_kgDM),
         prod_type == "Product" ~
           value_fm *
-          Product_kgDM_kgFM *
-          Product_kgN_kgDM,
+            Product_kgDM_kgFM *
+            Product_kgN_kgDM,
 
         TRUE ~ NA_real_
       )

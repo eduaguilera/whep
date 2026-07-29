@@ -192,27 +192,255 @@ test_that(".add_grass_wood filters out NA production", {
 })
 
 
-# .prepare_processed_data -----------------------------------------------------
+# .spain_processing_coefs -------------------------------------------------------
 
-test_that(".prepare_processed_data summarises processed items", {
-  processed <- tibble::tribble(
-    ~Year, ~Province_name, ~Name_biomass, ~Item, ~ProcessedItem, ~ProcessedItem_amount,
-    2000, "A", "Wheat", "Wheat", "Flour", 40,
-    2000, "A", "Wheat", "Wheat", "Flour", 10,
-    2000, "A", "Wheat", "Wheat", "Bran", 20
+test_that(".spain_processing_coefs filters to Spain and relabels item names", {
+  # Mirrors the real pin's schema: `ProcessedItem` is actually the primary
+  # (input) item and `item` is the processed output.
+  processing_coefs <- tibble::tribble(
+    ~Year, ~area, ~ProcessedItem, ~item, ~cf,
+    2000, "Spain", "Grapes", "Wine", 0.5,
+    2000, "Afghanistan", "Grapes", "Wine", 0.5
+  ) |>
+    dplyr::mutate(value_proc = 50)
+
+  out <- .spain_processing_coefs(processing_coefs)
+
+  expect_equal(nrow(out), 1)
+  expect_equal(out$Item, "Grapes")
+  expect_equal(out$ProcessedItem, "Wine")
+  expect_equal(out$value_to_process, 100)
+  expect_equal(out$cf, 0.5)
+})
+
+test_that(".spain_processing_coefs drops non-positive or missing cf", {
+  processing_coefs <- tibble::tribble(
+    ~Year, ~area, ~ProcessedItem, ~item, ~cf, ~value_proc,
+    2000, "Spain", "Grapes", "Wine", 0.5, 50,
+    2000, "Spain", "Olives", "Oil", 0, 0,
+    2000, "Spain", "Wheat", "Flour", NA_real_, 10
   )
 
-  out <- .prepare_processed_data(processed)
+  out <- .spain_processing_coefs(processing_coefs)
 
-  expect_equal(nrow(out), 2)
-  expect_true(all(out$Box == "Cropland"))
-  expect_true(all(out$prod_type == "Product"))
+  expect_equal(nrow(out), 1)
+  expect_equal(out$Item, "Grapes")
+})
 
-  flour <- out |> dplyr::filter(Item == "Flour")
-  expect_equal(flour$production_fm, 50)
 
-  bran <- out |> dplyr::filter(Item == "Bran")
-  expect_equal(bran$production_fm, 20)
+# .national_item_production ------------------------------------------------------
+
+test_that(".national_item_production sums production across provinces", {
+  prod <- tibble::tribble(
+    ~Year, ~Item, ~Province_name, ~production_fm,
+    2000, "Grapes", "A", 100,
+    2000, "Grapes", "B", 50,
+    2000, "Wheat", "A", 30
+  )
+
+  out <- .national_item_production(prod)
+
+  expect_equal(
+    out$national_production_fm[out$Item == "Grapes"],
+    150
+  )
+  expect_equal(
+    out$national_production_fm[out$Item == "Wheat"],
+    30
+  )
+})
+
+
+# .calculate_processing_shares ---------------------------------------------------
+
+test_that(".calculate_processing_shares computes the national share", {
+  spain_coefs <- tibble::tribble(
+    ~Year, ~Item, ~ProcessedItem, ~value_to_process, ~cf,
+    2000, "Grapes", "Wine", 40, 0.5,
+    2000, "Grapes", "Juice", 40, 0.3
+  )
+
+  national_production <- tibble::tribble(
+    ~Year, ~Item, ~national_production_fm,
+    2000, "Grapes", 100
+  )
+
+  out <- .calculate_processing_shares(spain_coefs, national_production)
+
+  expect_equal(nrow(out), 1)
+  expect_equal(out$share_processing, 0.4)
+})
+
+test_that(".calculate_processing_shares collapses to one row per Item even when co-products carry slightly different value_to_process (rounding noise)", {
+  spain_coefs <- tibble::tribble(
+    ~Year, ~Item, ~ProcessedItem, ~value_to_process, ~cf,
+    2000, "Wheat", "Flour", 100, 0.7,
+    2000, "Wheat", "Bran", 102, 0.2,
+    2000, "Wheat", "DDGS", 98, 0.1
+  )
+
+  national_production <- tibble::tribble(
+    ~Year, ~Item, ~national_production_fm,
+    2000, "Wheat", 200
+  )
+
+  out <- .calculate_processing_shares(spain_coefs, national_production)
+
+  expect_equal(nrow(out), 1)
+  expect_equal(out$share_processing, 0.5)
+})
+
+test_that(".calculate_processing_shares caps the share at 1", {
+  spain_coefs <- tibble::tribble(
+    ~Year, ~Item, ~ProcessedItem, ~value_to_process, ~cf,
+    2000, "Grapes", "Wine", 150, 0.5
+  )
+
+  national_production <- tibble::tribble(
+    ~Year, ~Item, ~national_production_fm,
+    2000, "Grapes", 100
+  )
+
+  out <- .calculate_processing_shares(spain_coefs, national_production)
+
+  expect_equal(out$share_processing, 1)
+})
+
+test_that(".calculate_processing_shares returns 0 for zero national production", {
+  spain_coefs <- tibble::tribble(
+    ~Year, ~Item, ~ProcessedItem, ~value_to_process, ~cf,
+    2000, "Grapes", "Wine", 50, 0.5
+  )
+
+  national_production <- tibble::tribble(
+    ~Year, ~Item, ~national_production_fm,
+    2000, "Grapes", 0
+  )
+
+  out <- .calculate_processing_shares(spain_coefs, national_production)
+
+  expect_equal(out$share_processing, 0)
+})
+
+
+# .expand_processed_items ---------------------------------------------------------
+
+test_that(".expand_processed_items multiplies processed mass by cf", {
+  with_share <- tibble::tribble(
+    ~Year, ~Province_name, ~Name_biomass, ~Item, ~processed_fm,
+    2000, "A", "Grape", "Grapes", 40
+  )
+
+  spain_coefs <- tibble::tribble(
+    ~Year, ~Item, ~ProcessedItem, ~cf,
+    2000, "Grapes", "Wine", 0.5
+  )
+
+  out <- .expand_processed_items(with_share, spain_coefs)
+
+  expect_equal(out$Item, "Wine")
+  expect_equal(out$production_fm, 20)
+  expect_equal(out$Box, "Cropland")
+  expect_equal(out$prod_type, "Product")
+})
+
+
+# .backfill_processing_shares -----------------------------------------------------
+
+test_that(".backfill_processing_shares copies the earliest share backward", {
+  processing_shares <- tibble::tribble(
+    ~Year, ~Item, ~share_processing,
+    1961, "Grapes", 0.9,
+    1962, "Grapes", 0.92
+  )
+
+  out <- .backfill_processing_shares(processing_shares, first_year = 1959)
+
+  expect_equal(nrow(out), 4)
+  backfilled <- out |> dplyr::filter(Year < 1961) |> dplyr::arrange(Year)
+  expect_equal(backfilled$Year, c(1959, 1960))
+  expect_equal(backfilled$share_processing, c(0.9, 0.9))
+})
+
+test_that(".backfill_processing_shares does nothing when data already starts at first_year", {
+  processing_shares <- tibble::tribble(
+    ~Year, ~Item, ~share_processing,
+    1961, "Grapes", 0.9
+  )
+
+  out <- .backfill_processing_shares(processing_shares, first_year = 1961)
+
+  expect_equal(nrow(out), 1)
+})
+
+
+# .backfill_processing_cf -----------------------------------------------------
+
+test_that(".backfill_processing_cf copies the earliest cf mapping backward", {
+  spain_coefs <- tibble::tribble(
+    ~Year, ~Item, ~ProcessedItem, ~value_to_process, ~cf,
+    1961, "Grapes", "Wine", 100, 0.67,
+    1961, "Grapes", "Alcohol, Non-Food", 100, 0.006,
+    1962, "Grapes", "Wine", 105, 0.68
+  )
+
+  out <- .backfill_processing_cf(spain_coefs, first_year = 1959)
+
+  backfilled <- out |>
+    dplyr::filter(Year < 1961) |>
+    dplyr::arrange(Year, ProcessedItem)
+
+  expect_equal(nrow(backfilled), 4)
+  expect_setequal(unique(backfilled$Year), c(1959, 1960))
+  expect_setequal(
+    unique(backfilled$ProcessedItem),
+    c("Wine", "Alcohol, Non-Food")
+  )
+  expect_equal(
+    backfilled$cf[backfilled$ProcessedItem == "Wine" & backfilled$Year == 1959],
+    0.67
+  )
+})
+
+
+# .calculate_processed_amounts -----------------------------------------------------
+
+test_that(".calculate_processed_amounts splits and expands production", {
+  prod <- tibble::tribble(
+    ~Year, ~Province_name, ~Name_biomass, ~Item, ~Box, ~prod_type, ~production_fm,
+    2000, "A", "Grape", "Grapes", "Cropland", "Product", 100,
+    2000, "A", "Beef", "Beef", "Livestock", "Product", 50
+  )
+
+  processing_shares <- tibble::tribble(
+    ~Year, ~Item, ~share_processing,
+    2000, "Grapes", 0.4,
+    2000, "Beef", 0.9
+  )
+
+  spain_coefs <- tibble::tribble(
+    ~Year, ~Item, ~ProcessedItem, ~value_to_process, ~cf,
+    2000, "Grapes", "Wine", 40, 0.5,
+    2000, "Grapes", "Juice", 40, 0.3
+  )
+
+  out <- .calculate_processed_amounts(prod, processing_shares, spain_coefs)
+
+  grapes_row <- out$non_processed |> dplyr::filter(Item == "Grapes")
+  expect_equal(grapes_row$production_fm, 60)
+
+  # Non-cropland rows pass through unchanged, even if a share exists.
+  beef_row <- out$non_processed |> dplyr::filter(Item == "Beef")
+  expect_equal(beef_row$production_fm, 50)
+
+  wine_row <- out$processed_items |> dplyr::filter(Item == "Wine")
+  expect_equal(wine_row$production_fm, 100 * 0.4 * 0.5)
+
+  juice_row <- out$processed_items |> dplyr::filter(Item == "Juice")
+  expect_equal(juice_row$production_fm, 100 * 0.4 * 0.3)
+
+  expect_true(all(out$processed_items$Box == "Cropland"))
+  expect_true(all(out$processed_items$prod_type == "Product"))
 })
 
 
