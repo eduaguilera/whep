@@ -405,6 +405,30 @@ test_that("shared cells keep independent livestock polity compartments", {
   expect_setequal(result$polycell_id, c("a", "b"))
 })
 
+test_that("country with totals but no proxy cell warns and keeps others", {
+  # area_code 3 has national heads but no cell in country_grid, so it has
+  # no allocatable proxy weight. It must not vanish silently: warn, and
+  # still allocate the country that does have cells (area_code 1).
+  ld <- tibble::tribble(
+    ~year, ~area_code, ~species_group, ~heads,
+    2000L,         1L,       "cattle",  10000,
+    2000L,         3L,       "cattle",   7000
+  )
+
+  expect_warning(
+    result <- build_gridded_livestock(
+      ld,
+      gridded_pasture,
+      gridded_cropland,
+      country_grid
+    ),
+    "no proxy grid cell"
+  )
+
+  # Country 1 is fully allocated; country 3 (no cell) is not silently mixed in
+  expect_equal(sum(result$heads), 10000, tolerance = 1e-6)
+})
+
 test_that(".build_proxy_grid weights grazer cells by grass productivity", {
   pasture <- tibble::tibble(
     lon = c(0.25, 1.25),

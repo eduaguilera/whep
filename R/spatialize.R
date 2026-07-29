@@ -390,6 +390,11 @@ build_gridded_landuse <- function(
     )
   )]
 
+  # Surface (country, crop) pairs whose national area cannot be allocated
+  # (no matching grid cell / only zero-cropland cells) before the filter
+  # below silently drops them.
+  .warn_unallocated_crops(dat, yr)
+
   result <- dat[
     allocated_rf > 0 | allocated_ir > 0,
     c(
@@ -895,6 +900,33 @@ build_gridded_landuse <- function(
     gridded_cropland = gridded_cropland,
     type_cropland = type_cropland
   )
+}
+
+#' Warn about country-crops whose national area cannot be allocated.
+#'
+#' A (country, crop) with a positive harvested area but no matching grid
+#' cell (or only zero-cropland cells) receives a zero allocation and would
+#' otherwise be dropped silently, leaking its national total. Detect these
+#' and warn with the count, leaked area, and identities.
+#' @noRd
+.warn_unallocated_crops <- function(dat, yr) {
+  leaked <- dat[,
+    .(
+      national_area = harvested_area_ha[1L],
+      allocated = sum(allocated_rf + allocated_ir, na.rm = TRUE)
+    ),
+    by = .(area_code, item_prod_code)
+  ]
+  leaked <- leaked[national_area > 0 & allocated <= 0]
+  if (nrow(leaked) == 0L) {
+    return(invisible(NULL))
+  }
+  cli::cli_warn(c(
+    "{nrow(leaked)} (country, crop) pair{?s} in year {yr} have national \\
+     harvested area but no allocatable grid cell; \\
+     {round(sum(leaked$national_area))} ha dropped:",
+    "x" = "area_code{?s} {.val {sort(unique(leaked$area_code))}}."
+  ))
 }
 
 #' Aggregate crop-level results to CFT level.
