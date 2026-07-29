@@ -408,9 +408,22 @@ polity_area_crosswalk <- regions_for_crosswalk |>
     # Two representations of the same decision, and only one of them had been fixed. A
     # smoke run against the real pins is what exposed it: the built output contained zero
     # rows for either area while the raw input had thousands.
+    # The exception applies ONLY to the rest-of-world fold, i.e. fabio_code 999.
+    #
+    # My first version excluded data-reporting areas from `fabio_code` entirely, and that
+    # broke something the redirect was quietly also doing: mapping a FORMER entity onto its
+    # modern successor's FABIO code. Ethiopia PDR and Sudan (former) both carry their
+    # successor's code, which is what kept exactly one area per ISO3 satisfying
+    # `area_code == polity_area_code` — the `canonical` tie-break in read_raw_inputs.R.
+    # Freeing them gave ETH and SDN two canonical areas each, and .iso3_to_fao_area_code()
+    # aborts on precisely that ambiguity.
+    #
+    # So the condition names 999 explicitly. Un-folding rest-of-world is the intent; the
+    # former-to-successor redirect is left alone.
     polity_area_code = dplyr::if_else(
       !is.na(.data$fabio_code) &
-        !(.data$area_code %in% areas_with_observed_data),
+        !(.data$fabio_code == 999L &
+          .data$area_code %in% areas_with_observed_data),
       .data$fabio_code,
       .data$area_code
     ),
