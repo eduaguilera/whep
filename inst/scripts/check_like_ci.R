@@ -104,6 +104,37 @@ record(
     sum(res$skipped)
   )
 )
+
+# A skip is indistinguishable from a pass in that summary line, which is how the
+# assertion guarding this integration's ORIGINAL defect — area codes resolving to
+# retired polities — went unrun on CI for the whole life of the branch while the branch
+# read as green. So name what was silenced.
+#
+# The upstream-contract skips are unavoidable rather than an oversight: whep-polities is
+# a PRIVATE repository, so CI cannot clone it without a cross-repo token, and these
+# assertions compare this package against files only that repo publishes. Closing the
+# gap needs a secret, which is a maintainer decision. Everything checkable WITHOUT
+# upstream has been moved into tests that run unconditionally
+# (test_crosswalk_polity_agreement.R, and the alias/polity agreement checks).
+skipped <- res[res$skipped > 0, c("file", "test")]
+if (nrow(skipped) > 0L) {
+  upstream <- grepl("upstream|contract", skipped$file, ignore.case = TRUE)
+  cat(sprintf(
+    "\n  %d test(s) SKIPPED — %d needing the upstream contracts, %d needing external data:\n",
+    nrow(skipped),
+    sum(upstream),
+    sum(!upstream)
+  ))
+  for (i in which(upstream)) {
+    cat(sprintf("    [upstream] %s: %s\n", skipped$file[i], skipped$test[i]))
+  }
+  if (any(!upstream)) {
+    cat(sprintf(
+      "    [external] %s\n",
+      paste(unique(skipped$file[!upstream]), collapse = ", ")
+    ))
+  }
+}
 if (n_fail > 0L) {
   bad <- res[res$failed > 0L, c("file", "test", "failed")]
   print(bad, row.names = FALSE)
