@@ -283,7 +283,18 @@ polity_area_crosswalk <- regions_for_crosswalk |>
       .data$polity_name
     ),
     area_iso3c = .data$iso3c,
-    reporting_polity_code = .data$polity_prefix,
+    # A PREFIX, not a code — named accordingly. This column used to be called
+    # `reporting_polity_code` and reached the published crosswalk under that name
+    # while holding 609 bare family prefixes and zero periodized codes: 206 of its
+    # distinct values named no polity at all, so the join the docs point consumers
+    # at returned nothing. The real code is `polity_code`, added by the polity_attrs
+    # join below, and it is 609/609 valid.
+    #
+    # The old name was also a latent collision: .add_polity_columns_dt(prefix =
+    # "reporting_") manufactures its own `reporting_polity_code` from the lookup's
+    # `polity_code`, so the lookup carried two columns of that name meaning
+    # different things. Package outputs happened to get the right one.
+    reporting_polity_prefix = .data$polity_prefix,
     reporting_polity_name = .data$polity_name,
     cbs = .data$cbs,
     fabio_code = as.integer(.data$fabio_code),
@@ -297,8 +308,8 @@ polity_area_crosswalk <- regions_for_crosswalk |>
       NA_character_
     ),
     reporting_prefix = dplyr::if_else(
-      .data$reporting_polity_code %in% known_polity_prefixes,
-      .data$reporting_polity_code,
+      .data$reporting_polity_prefix %in% known_polity_prefixes,
+      .data$reporting_polity_prefix,
       NA_character_
     ),
     # FABIO folds many small territories into its Rest of World bucket, which is
@@ -326,7 +337,7 @@ polity_area_crosswalk <- regions_for_crosswalk |>
       .data$area_iso3c_prefix,
       .data$reporting_prefix,
       # Keep these last so unmatched reporting buckets remain visible.
-      .data$reporting_polity_code,
+      .data$reporting_polity_prefix,
       .data$area_iso3c
     )
   ) |>
@@ -362,7 +373,7 @@ polity_area_crosswalk <- regions_for_crosswalk |>
     area_code,
     area_name,
     area_iso3c,
-    reporting_polity_code,
+    reporting_polity_prefix,
     reporting_polity_name,
     cbs,
     fabio_code,

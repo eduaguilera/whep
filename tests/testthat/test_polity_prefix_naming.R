@@ -9,7 +9,9 @@
 # a prefix column must never contain codes, and a code column must never
 # contain prefixes.
 
-code_re <- "^[A-Za-z0-9]+-[0-9]{4}-[0-9]{4}$"
+# Anchored on the trailing year pair because a prefix may contain hyphens of its
+# own (AZE-SSR-1920-1991, IDN-JVM-1949-1951 are real codes).
+code_re <- "^.+-[0-9]{4}-[0-9]{4}$"
 
 for (nm in c("regions_full", "polities_cats")) {
   test_that(paste(nm, "names its prefix column honestly"), {

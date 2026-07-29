@@ -79,7 +79,13 @@ test_that("China aggregate area 351 is unmapped so it cannot double-count", {
   cw <- whep::polity_area_crosswalk
   agg <- cw[cw$area_code == 351L, ]
   expect_true(all(is.na(agg$polity_code)))
-  expect_true(all(is.na(agg$reporting_polity_code)))
+  # Name the column that exists. Reading an absent column here returned NULL, so
+  # `is.na(NULL)` was `logical(0)` and `all()` of it was TRUE: the assertion passed
+  # vacuously and only emitted a warning. That is how the rename of this column to
+  # `reporting_polity_prefix` almost slipped through — a rise in the suite's warning
+  # count was the only signal. Assert presence first so it cannot recur.
+  expect_true("reporting_polity_prefix" %in% names(agg))
+  expect_true(all(is.na(agg$reporting_polity_prefix)))
 })
 
 test_that("get_polity_geometries returns requested polygon rows", {

@@ -63,6 +63,10 @@
 #' - `area_code`: Numeric FAOSTAT/FABIO reporting area code.
 #' - `area_name`: Reporting area name.
 #' - `area_iso3c`: Reporting-area ISO3-like code where available.
+#' - `reporting_polity_prefix`: ISO3-shaped family key for the reporting area —
+#'   a PREFIX, never a code. Do not join it to [polities]; use `polity_code`.
+#'   It was called `reporting_polity_code` until 0.3.0.9000, where it held 609
+#'   bare prefixes and no periodized codes, so that join returned nothing.
 #' - `polity_area_code`: Numeric area code retained for WHEP matrix workflows.
 #' - `polity_code`, `polity_name`: Matched WHEP polity, or `NA` for
 #'   statistical composites that are not real polities.
