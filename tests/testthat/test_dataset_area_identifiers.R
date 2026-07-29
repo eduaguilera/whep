@@ -288,3 +288,62 @@ test_that("every label alias targets a live polity this package carries", {
     )
   )
 })
+
+testthat::test_that("a column called area_code holds a numeric area code, or is the known case", {
+  # The fourth instance of this branch's recurring defect: a column whose name promises one kind of
+  # identifier and holds another. The earlier three were regions_full$polity_code and
+  # polity_area_crosswalk$reporting_polity_code, both holding prefixes and both renamed, and
+  # gdp-population$area_code, which holds ISO3-shaped prefixes and cannot be renamed because it is a
+  # pinned input.
+  #
+  # urban_n_reference is the fourth and is BASELINED, not fixed. The test above documents why:
+  # renaming a published dataset's column is a breaking change and the maintainer's call. I built
+  # the fix — rename to `area_iso3c`, derive a numeric `area_code` from the crosswalk — confirmed it
+  # works, and then reverted it, because that earlier deferral is a decision and I had no new
+  # information that overrides it. The evidence I did gather is on the issue instead.
+  #
+  # Swept across every exported dataset so the NEXT one fails here rather than being found by
+  # accident five iterations later.
+  baseline <- "urban_n_reference"
+
+  exported <- utils::data(package = "whep")$results[, "Item"]
+  offenders <- character()
+  checked <- 0L
+  for (nm in exported) {
+    d <- tryCatch(get(nm, envir = asNamespace("whep")), error = function(e) {
+      NULL
+    })
+    if (is.null(d) || !is.data.frame(d) || !"area_code" %in% names(d)) {
+      next
+    }
+    checked <- checked + 1L
+    v <- d[["area_code"]]
+    numeric_like <- is.numeric(v) ||
+      all(is.na(v) | grepl("^[0-9]+$", as.character(v)))
+    if (!numeric_like && !nm %in% baseline) {
+      offenders <- c(
+        offenders,
+        paste0(
+          nm,
+          " (e.g. ",
+          paste(utils::head(unique(stats::na.omit(v)), 3), collapse = ", "),
+          ")"
+        )
+      )
+    }
+  }
+  testthat::expect_gte(checked, 2L)
+  testthat::expect_equal(
+    length(offenders),
+    0L,
+    info = paste0(
+      "these datasets have an `area_code` column holding something other than a numeric area ",
+      "code — rename it to say what it holds: ",
+      paste(offenders, collapse = "; ")
+    )
+  )
+
+  # Bidirectional: if the baselined dataset is ever fixed, this fails and the entry comes out.
+  known <- get(baseline, envir = asNamespace("whep"))
+  testthat::expect_false(is.numeric(as.data.frame(known)$area_code))
+})
