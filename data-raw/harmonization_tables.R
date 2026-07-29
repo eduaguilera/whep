@@ -27,24 +27,36 @@ excel_na <- c("", "NA", "#N/A", "#DIV/0!", "#REF!")
 
 # Direct reads ----------------------------------------------------------------
 
-regions_full <- file.path(harmonization_dir, "regions_full.csv") |>
-  readr::read_csv(show_col_types = FALSE, na = excel_na) |>
-  # Two ADB region codes are blank in the vendored table while every other EU country
-  # carries its two-letter code, and the EuropeAgriDB fodder pin reports under `AT` and
-  # `GB`. The consequence was measurable: 2,030 of 23,183 fodder rows — 8.8% — resolved
-  # to no area at all, because .read_fodder_euadb() bridges through ADB_Region.
-  #
-  # Filled here rather than in inst/extdata/harmonization/regions_full.csv, which is a
-  # vendored file: patching it would diverge from its source, and this is the same
-  # override pattern `manual_area_prefixes` already uses in table_mappings.R. `AT` and
-  # `GB` are the ISO 3166-1 alpha-2 codes the pin uses, so neither is a guess.
+# Two ADB region codes are blank in the vendored tables while every other EU country
+# carries its two-letter code, and the EuropeAgriDB fodder pin reports under `AT` and
+# `GB`. The consequence was measurable: 2,030 of 23,183 fodder rows — 8.8% — resolved
+# to no area at all, because .read_fodder_euadb() bridges through ADB_Region.
+#
+# Filled here rather than in the vendored CSVs, which would diverge from their source;
+# this is the same override pattern `manual_area_prefixes` already uses in
+# table_mappings.R. `AT` and `GB` are the ISO 3166-1 alpha-2 codes the pin uses, so
+# neither is a guess.
+#
+# A FUNCTION, applied to BOTH tables, because the first version was inline on
+# regions_full alone. polities_cats carries the same 40 columns over a 198-row subset
+# of the same areas, so it kept NA for Austria and the United Kingdom while
+# regions_full gained AT and GB — one override, applied to one of two copies of the
+# same fact. That is not a modelling difference like the Bhutan and Comoros folds
+# below; it is an identity key that is either right or missing.
+fill_adb_region <- function(x) {
   dplyr::mutate(
+    x,
     ADB_Region = dplyr::case_when(
       is.na(.data$ADB_Region) & .data$code == 11 ~ "AT",
       is.na(.data$ADB_Region) & .data$code == 229 ~ "GB",
       .default = .data$ADB_Region
     )
   )
+}
+
+regions_full <- file.path(harmonization_dir, "regions_full.csv") |>
+  readr::read_csv(show_col_types = FALSE, na = excel_na) |>
+  fill_adb_region()
 
 items_full <- file.path(harmonization_dir, "items_full.csv") |>
   readr::read_csv(show_col_types = FALSE, na = excel_na)
@@ -60,7 +72,8 @@ cbs_trade_codes <- file.path(harmonization_dir, "cbs_trade_codes.csv") |>
 
 polities_cats <- file.path(harmonization_dir, "polities_cats.csv") |>
   readr::read_csv(show_col_types = FALSE, na = excel_na) |>
-  dplyr::select(!dplyr::starts_with("0..."))
+  dplyr::select(!dplyr::starts_with("0...")) |>
+  fill_adb_region()
 
 if (!exists("polity_area_crosswalk")) {
   load(here::here("data", "polity_area_crosswalk.rda"))
