@@ -40,9 +40,14 @@ its successor the Russian Federation is filed under Europe).
 \item \code{region_code}: Numeric regional code.
 \item \code{cbs}: Logical CBS dataset membership flag.
 \item \code{fabio_code}: FABIO database numeric code.
-\item \code{ADB_Region}: Asian Development Bank region.
-\item \code{region}: General world region.
-\item \code{uISO3c}: UN M49 numeric code.
+\item \code{ADB_Region}: Reporter key for the EU \strong{AgriDB} fodder input, not the Asian
+Development Bank, and not a regional grouping: 28 ISO 3166-1 alpha-2 codes for
+European countries plus \code{BE_LU} and \code{CZ_SK} for the two reporters AgriDB treats
+as single units. See \code{polities_cats} for the full account.
+\item \code{region}: The \strong{Bouwman} seventeen-region feed taxonomy, the one
+\code{conv_bouwman} is joined on -- not an interchangeable world-region label.
+\item \code{uISO3c}: Logical flag stored as 0/1, NOT a country code: \code{0} marks an \code{iso3c}
+that appears more than once here. Two rows today, \code{ETH} and \code{SDN}.
 \item \code{Lassaletta}: Lassaletta et al. nitrogen study grouping.
 \item \code{region_krausmann}: Krausmann regional grouping.
 \item \code{region_HANPP}: HANPP study regional grouping.

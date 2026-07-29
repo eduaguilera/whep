@@ -44,10 +44,25 @@ Administration (EIA).
 \item \code{cbs}: Logical flag; \code{TRUE} if the polity is included in the CBS
 dataset.
 \item \code{fabio_code}: Numeric country code used in the FABIO database.
-\item \code{ADB_Region}: Asian Development Bank regional classification.
-\item \code{region}: General world region (e.g., \code{"South Asia"},
-\code{"Eastern Europe"}).
-\item \code{uISO3c}: Numeric Unicode / UN M49 country code.
+\item \code{ADB_Region}: Reporter key for the EU \strong{AgriDB} fodder input
+(\code{eu-agridb-fodder}), not the Asian Development Bank. Despite the name it is
+not a regional grouping: its 28 values are ISO 3166-1 alpha-2 codes for
+European countries, plus two composites for reporters that AgriDB treats as
+single units while the polities database models them as their own polities --
+\code{BE_LU} (Belgium-Luxembourg, area 15) and \code{CZ_SK} (Czechoslovakia, area 51).
+Those composites are why it cannot be replaced by a plain ISO2 lookup.
+\code{NA} for every area AgriDB does not report.
+\item \code{region}: The \strong{Bouwman} seventeen-region feed taxonomy, which
+\code{conv_bouwman} is joined on (e.g. \code{"South Asia"}, \code{"Eastern Europe"}). Named
+generically, but it is this specific taxonomy and not an interchangeable
+world-region label; the four accounting residuals and the five continental
+"Other" buckets carry \code{NA} because no single Bouwman region is correct for
+them.
+\item \code{uISO3c}: Logical flag stored as 0/1, NOT a country code: \code{0} marks an
+\code{iso3c} that appears more than once in this table. Exactly two rows are \code{0}
+today, \code{ETH} and \code{SDN}, whose codes each cover two territorial extents
+because of the Eritrean (1993) and South Sudanese (2011) separations -- the
+thing the polities database models with periods.
 \item \code{Lassaletta}: Country grouping used in Lassaletta et al. nitrogen flow
 studies.
 \item \code{region_krausmann}: Regional grouping from Krausmann et al. biomass

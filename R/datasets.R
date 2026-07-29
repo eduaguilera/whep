@@ -530,10 +530,25 @@
 #' - `cbs`: Logical flag; `TRUE` if the polity is included in the CBS
 #'   dataset.
 #' - `fabio_code`: Numeric country code used in the FABIO database.
-#' - `ADB_Region`: Asian Development Bank regional classification.
-#' - `region`: General world region (e.g., `"South Asia"`,
-#'   `"Eastern Europe"`).
-#' - `uISO3c`: Numeric Unicode / UN M49 country code.
+#' - `ADB_Region`: Reporter key for the EU **AgriDB** fodder input
+#'   (`eu-agridb-fodder`), not the Asian Development Bank. Despite the name it is
+#'   not a regional grouping: its 28 values are ISO 3166-1 alpha-2 codes for
+#'   European countries, plus two composites for reporters that AgriDB treats as
+#'   single units while the polities database models them as their own polities --
+#'   `BE_LU` (Belgium-Luxembourg, area 15) and `CZ_SK` (Czechoslovakia, area 51).
+#'   Those composites are why it cannot be replaced by a plain ISO2 lookup.
+#'   `NA` for every area AgriDB does not report.
+#' - `region`: The **Bouwman** seventeen-region feed taxonomy, which
+#'   `conv_bouwman` is joined on (e.g. `"South Asia"`, `"Eastern Europe"`). Named
+#'   generically, but it is this specific taxonomy and not an interchangeable
+#'   world-region label; the four accounting residuals and the five continental
+#'   "Other" buckets carry `NA` because no single Bouwman region is correct for
+#'   them.
+#' - `uISO3c`: Logical flag stored as 0/1, NOT a country code: `0` marks an
+#'   `iso3c` that appears more than once in this table. Exactly two rows are `0`
+#'   today, `ETH` and `SDN`, whose codes each cover two territorial extents
+#'   because of the Eritrean (1993) and South Sudanese (2011) separations -- the
+#'   thing the polities database models with periods.
 #' - `Lassaletta`: Country grouping used in Lassaletta et al. nitrogen flow
 #'   studies.
 #' - `region_krausmann`: Regional grouping from Krausmann et al. biomass
@@ -629,9 +644,14 @@
 #' - `region_code`: Numeric regional code.
 #' - `cbs`: Logical CBS dataset membership flag.
 #' - `fabio_code`: FABIO database numeric code.
-#' - `ADB_Region`: Asian Development Bank region.
-#' - `region`: General world region.
-#' - `uISO3c`: UN M49 numeric code.
+#' - `ADB_Region`: Reporter key for the EU **AgriDB** fodder input, not the Asian
+#'   Development Bank, and not a regional grouping: 28 ISO 3166-1 alpha-2 codes for
+#'   European countries plus `BE_LU` and `CZ_SK` for the two reporters AgriDB treats
+#'   as single units. See `polities_cats` for the full account.
+#' - `region`: The **Bouwman** seventeen-region feed taxonomy, the one
+#'   `conv_bouwman` is joined on -- not an interchangeable world-region label.
+#' - `uISO3c`: Logical flag stored as 0/1, NOT a country code: `0` marks an `iso3c`
+#'   that appears more than once here. Two rows today, `ETH` and `SDN`.
 #' - `Lassaletta`: Lassaletta et al. nitrogen study grouping.
 #' - `region_krausmann`: Krausmann regional grouping.
 #' - `region_HANPP`: HANPP study regional grouping.

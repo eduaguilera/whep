@@ -603,8 +603,14 @@ build_primary_production <- function(
   # the join silently stopped matching, because the lookup's `area_iso3c` is still
   # `CSK`. That one did not abort; it dropped 13% of fodder rows.
   #
-  # regions_full carries `code` for all 26 of its ADB_Region rows, so the prefix hop was
+  # regions_full carries `code` for all 28 of its ADB_Region rows, so the prefix hop was
   # never needed. Joining code to code removes the whole class of breakage.
+  #
+  # 28, not the 26 this said until now: the count moved when Austria (11) and the United
+  # Kingdom (229) had their ADB codes filled in, and the comment was not updated with the
+  # data. It matters because the number is the evidence for the claim in the line above --
+  # a reader checking whether every ADB row can be reached would find 28 rows against a
+  # sentence about 26 and have to re-derive which was right.
   area_bridge <- .current_area_lookup(include_unmapped = FALSE) |>
     tibble::as_tibble() |>
     dplyr::select(
