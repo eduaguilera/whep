@@ -28,7 +28,23 @@ excel_na <- c("", "NA", "#N/A", "#DIV/0!", "#REF!")
 # Direct reads ----------------------------------------------------------------
 
 regions_full <- file.path(harmonization_dir, "regions_full.csv") |>
-  readr::read_csv(show_col_types = FALSE, na = excel_na)
+  readr::read_csv(show_col_types = FALSE, na = excel_na) |>
+  # Two ADB region codes are blank in the vendored table while every other EU country
+  # carries its two-letter code, and the EuropeAgriDB fodder pin reports under `AT` and
+  # `GB`. The consequence was measurable: 2,030 of 23,183 fodder rows — 8.8% — resolved
+  # to no area at all, because .read_fodder_euadb() bridges through ADB_Region.
+  #
+  # Filled here rather than in inst/extdata/harmonization/regions_full.csv, which is a
+  # vendored file: patching it would diverge from its source, and this is the same
+  # override pattern `manual_area_prefixes` already uses in table_mappings.R. `AT` and
+  # `GB` are the ISO 3166-1 alpha-2 codes the pin uses, so neither is a guess.
+  dplyr::mutate(
+    ADB_Region = dplyr::case_when(
+      is.na(.data$ADB_Region) & .data$code == 11 ~ "AT",
+      is.na(.data$ADB_Region) & .data$code == 229 ~ "GB",
+      .default = .data$ADB_Region
+    )
+  )
 
 items_full <- file.path(harmonization_dir, "items_full.csv") |>
   readr::read_csv(show_col_types = FALSE, na = excel_na)

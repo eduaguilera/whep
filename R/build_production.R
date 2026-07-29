@@ -592,23 +592,27 @@ build_primary_production <- function(
   crops_eu <- whep::crops_eurostat
   regions <- whep::regions_full
 
-  # `polity_prefix`, not `polity_code`. regions_full's ISO3-shaped family key was
-  # renamed from `polity_code` earlier on this branch, precisely because it held
-  # prefixes rather than codes — and this call site was missed. The join below then
-  # selected a column that no longer existed, so building the fodder dataset aborted
-  # with "Column `polity_code` doesn't exist".
+  # Bridge on the NUMERIC area code, not on a prefix or an ISO string.
   #
-  # Nothing caught it: get_primary_production(example = TRUE) never reaches this
-  # function, and the real-data path needs the EuropeAgriDB pin, so it is skipped on
-  # CI. A smoke run against the actual pins is what surfaced it.
+  # This join has now broken twice for the same underlying reason — it depended on
+  # regions_full's family key agreeing with the lookup's ISO code, and those are
+  # separate fields maintained for different purposes. First the key was renamed from
+  # `polity_code` to `polity_prefix` and this call site was missed, so the build aborted
+  # with "Column `polity_code` doesn't exist". Then the key for Czechoslovakia was
+  # corrected from `CSK` to `F51` — right in itself, since no CSK polity exists — and
+  # the join silently stopped matching, because the lookup's `area_iso3c` is still
+  # `CSK`. That one did not abort; it dropped 13% of fodder rows.
+  #
+  # regions_full carries `code` for all 26 of its ADB_Region rows, so the prefix hop was
+  # never needed. Joining code to code removes the whole class of breakage.
   area_bridge <- .current_area_lookup(include_unmapped = FALSE) |>
     tibble::as_tibble() |>
     dplyr::select(
-      polity_prefix = area_iso3c,
-      area_code = polity_area_code
+      code = "area_code",
+      area_code = "polity_area_code"
     ) |>
-    dplyr::filter(!is.na(.data$polity_prefix)) |>
-    dplyr::distinct(.data$polity_prefix, .keep_all = TRUE)
+    dplyr::filter(!is.na(.data$code)) |>
+    dplyr::distinct(.data$code, .keep_all = TRUE)
 
   .read_input("eu-agridb-fodder", years = years, year_col = "Year") |>
     dplyr::rename(year = Year) |>
@@ -619,15 +623,15 @@ build_primary_production <- function(
         dplyr::select(
           adb_region = ADB_Region,
           area = polity_name,
-          polity_prefix
+          code
         ),
       by = "adb_region"
     ) |>
     dplyr::left_join(
       area_bridge,
-      by = "polity_prefix"
+      by = "code"
     ) |>
-    dplyr::select(-polity_prefix) |>
+    dplyr::select(-"code") |>
     dplyr::select(
       year,
       area,
