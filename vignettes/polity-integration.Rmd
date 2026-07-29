@@ -1,0 +1,116 @@
+---
+title: "How areas resolve to polities"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{How areas resolve to polities}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+```
+
+```{r setup}
+library(whep)
+```
+
+Every area, country and region identifier in this package resolves to a **polity** — a
+territorial-economic unit from the `whep-polities` database, coded `PREFIX-startyear-endyear`.
+This vignette documents how that resolution works, which columns are safe to join on, and
+where the honest gaps are.
+
+## What the package embeds, and what it verifies
+
+`whep-polities` publishes four files. This package embeds a copy of each and checks it has not
+drifted:
+
+| upstream file | embedded as | what is verified |
+|---|---|---|
+| `polities_database.gpkg` | `polities` | row-by-row on eight identity fields |
+| `faostat_area_polity_map.csv` | `polity_area_crosswalk` | no area conflicts on overlapping years |
+| `label_alias_map.csv` | `polity_label_aliases` | every alias targets a polity this package carries |
+| `polities_manifest.json` | — | identity fields, dead codes, polygon gaps |
+
+Those comparisons need the upstream repository, which is private, so they skip on CI. What runs
+everywhere is the comparison **between the two embedded objects**: `polities` and
+`polity_area_crosswalk` are built by separate steps from the same source, so disagreement on any
+identity field means one was regenerated and the other was not.
+
+## Resolving an area
+
+```{r}
+add_polity_code(data.frame(area_code = c(185L, 51L), year = c(2000L, 1960L)))[
+  , c("area_code", "year", "polity_code")
+]
+```
+
+Two conventions matter:
+
+- **`end_year` is exclusive.** Area 185 in 2014 resolves to `RUS-2014-2025`, not `RUS-1991-2014`.
+- **Years before 1961 are clamped** to the first FAOSTAT year before matching, because the
+  source series begin there. Asking for 1850 gives the polity that was live in 1961.
+
+A resolved row carries both a code and a numeric key, and they answer different questions:
+
+- `reporting_polity_code` — the polity. Join this to `polities`.
+- `polity_area_code` — the numeric area key the matrix workflows use. Most builds emit this
+  **as** their `area_code`, so it, not the polity code, determines how rows aggregate.
+
+That distinction is load-bearing. Eleven areas that FABIO folds into rest-of-world report data of
+their own, and correcting only their `polity_code` left them still summed into area 999 by the
+numeric key.
+
+## Resolving a label
+
+`resolve_polity_label()` needs **both** a source and a year. Aliases are source-scoped and
+year-ranged, so omitting either silently returns `NA` rather than erring:
+
+```{r}
+resolve_polity_label(
+  c("Ivory Coast", "Türkiye", "Eswatini"),
+  source = "faostat",
+  year = 2000L
+)
+```
+
+```{r}
+# Without a year, nothing resolves — the aliases are all year-ranged.
+resolve_polity_label("Ivory Coast", source = "faostat")
+```
+
+## Three columns look like an area name; one is safe
+
+`regions_full` carries `name`, `FAOSTAT_name` and `polity_name`. Only one matches the crosswalk:
+
+```{r}
+cw <- unique(as.data.frame(polity_area_crosswalk)[, c("area_code", "area_name")])
+rf <- as.data.frame(regions_full)[, c("code", "name", "FAOSTAT_name", "polity_name")]
+both <- merge(cw[!is.na(cw$area_code), ], rf, by.x = "area_code", by.y = "code")
+vapply(
+  c("name", "FAOSTAT_name", "polity_name"),
+  function(col) sum(both$area_name != both[[col]], na.rm = TRUE),
+  integer(1)
+)
+```
+
+`FAOSTAT_name` is canonical. `name` carries short forms (Turkey, Czech Republic, Ivory Coast) and
+`polity_name` carries the aggregate label for folded areas (Bermuda reads "Latin America Other").
+A lot of code joins on `c("year", "area", ...)`, and using either non-canonical column loses rows
+silently — an unmatched join yields `NA`, not an error. Two inputs had exactly that defect:
+`gdp-population` lost 6.4% of its rows and the fodder bridge 13.3%.
+
+## Where the gaps are
+
+Stated rather than hidden, because each is a real limit on what the data can say:
+
+- **Rest-of-world folding.** Areas with no data of their own fold into a `ROW-*` polity, which is
+  what FABIO does. Areas that *do* report data are excluded from the fold, decided by the
+  `observed_rows` column of the published alias map.
+- **Pre-1961 back-casting** needs a LUH2 land series per area. The French overseas departments
+  have none — LUH2 folds *départements* into France — so their earlier production is not
+  back-cast rather than being estimated from an aggregate.
+- **IPCC regions** come from the GLEAM hierarchy, which does not cover 59 of the areas carrying
+  an ISO3. Those use the `Global` coefficient, which covers every category.
+- **Reporting buckets** (`RLAM-1850-2013` and the other regional "Other" rows) end before the
+  data does, so their most recent years resolve to nothing.
