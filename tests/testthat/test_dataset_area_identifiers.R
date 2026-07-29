@@ -247,7 +247,12 @@ test_that("every label alias targets a live polity this package carries", {
       "year_end",
       "polity_code",
       "common_name",
-      "confidence"
+      "confidence",
+      # New in the upstream contract: source rows actually observed for this label,
+      # 0 when the label is merely mappable. Consumed by the crosswalk to decide which
+      # FABIO rest-of-world areas may be folded — an area that reports data must not be
+      # collapsed into an aggregate.
+      "observed_rows"
     )
   )
 

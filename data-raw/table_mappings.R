@@ -155,7 +155,12 @@ polity_label_aliases <- readr::read_csv(
     year_end = readr::col_integer(),
     polity_code = readr::col_character(),
     common_name = readr::col_character(),
-    confidence = readr::col_character()
+    confidence = readr::col_character(),
+    # New in the upstream contract: how many source rows were actually observed for
+    # this label, 0 when the label is merely mappable. Declared explicitly because
+    # this col_types list is exhaustive by intent — an upstream column that is not
+    # named here is a column this script cannot see.
+    observed_rows = readr::col_double()
   )
 )
 
@@ -274,6 +279,49 @@ manual_area_prefixes <- tibble::tribble(
   251L, "ZMB", "Zambia (ZMB-1964-2025); the protectorate era is the NRH chain."
 )
 
+# Areas whose label has data of its own, per the upstream alias map's observed_rows.
+#
+# The `cbs` flag alone was too narrow a test for "has data". Eleven areas that FABIO
+# folds into rest-of-world carry no commodity balances yet hold substantial production
+# and trade: Bermuda 67,310 observed rows, Faroe Islands 45,036, Cook Islands 42,137,
+# Palestine 32,534, Equatorial Guinea 23,719, Niue 22,055, Reunion 13,083, Guadeloupe
+# 11,766, Martinique 9,541, Palau 9,051, French Guiana 8,934. All eleven were being
+# routed to ROW-1850-2023 while each has its own live polity that the alias map already
+# targets for the same label — two published contracts disagreeing about where one
+# territory's data belongs.
+#
+# Deliberately keyed on observed data rather than on "an alias exists". Fourteen more
+# folded areas do have an alias but zero observed rows — Monaco, San Marino, Montserrat,
+# Norfolk Island and the like. Unfolding those would change no data and would diverge
+# from FABIO's aggregation for nothing, so they keep folding, which is the same
+# reasoning as before; only the test for it is now correct.
+alias_observed <- polity_label_aliases |>
+  dplyr::filter(
+    !is.na(.data$observed_rows),
+    .data$observed_rows > 0,
+    !startsWith(.data$polity_code, "ROW-")
+  ) |>
+  dplyr::distinct(source_label = .data$source_label)
+
+# Match on EITHER label column, not just FAOSTAT_name. Bermuda (17) and Palau (180)
+# carry the literal Excel error string "#N/A" there while their `name` column is
+# correct, so a FAOSTAT_name-only join silently left both folded — 67,310 and 9,051
+# observed rows respectively — and the fix looked like it worked because the other nine
+# areas moved.
+areas_with_observed_data <- regions_for_crosswalk |>
+  # `code`, not `area_code` — the latter only exists after the transmute below.
+  dplyr::filter(!is.na(.data$code)) |>
+  dplyr::select("code", "FAOSTAT_name", "name") |>
+  tidyr::pivot_longer(
+    c("FAOSTAT_name", "name"),
+    values_to = "label",
+    values_drop_na = TRUE
+  ) |>
+  dplyr::inner_join(alias_observed, by = c("label" = "source_label")) |>
+  dplyr::pull("code") |>
+  as.integer() |>
+  unique()
+
 polity_area_crosswalk <- regions_for_crosswalk |>
   dplyr::transmute(
     area_code = as.integer(.data$code),
@@ -327,7 +375,8 @@ polity_area_crosswalk <- regions_for_crosswalk |>
     fabio_row_prefix = dplyr::if_else(
       !is.na(.data$fabio_code) &
         .data$fabio_code == 999L &
-        !(.data$cbs %in% TRUE),
+        !(.data$cbs %in% TRUE) &
+        !(.data$area_code %in% areas_with_observed_data),
       "ROW",
       NA_character_
     ),
@@ -360,10 +409,25 @@ polity_area_crosswalk <- regions_for_crosswalk |>
     ),
     mapping_note = dplyr::case_when(
       !is.na(.data$manual_note) ~ .data$manual_note,
+      # Only claim the fold happened when it actually did. This used to fire on any
+      # area with fabio_code 999, so once areas carrying their own data stopped being
+      # folded, their rows kept a note asserting they were collapsed into Rest of
+      # World while pointing at BMU-1968-2025 or PSE-1948-2025 — a note contradicting
+      # the mapping it annotates.
       !is.na(.data$fabio_code) &
         .data$fabio_code == 999L &
-        .data$area_code !=
-          999L ~ "FABIO collapses this source area into the Rest of World reporting polity.",
+        .data$area_code != 999L &
+        !is.na(.data$polity_code) &
+        startsWith(.data$polity_code, "ROW-") ~
+        "FABIO collapses this source area into the Rest of World reporting polity.",
+      !is.na(.data$fabio_code) &
+        .data$fabio_code == 999L &
+        .data$area_code != 999L &
+        !is.na(.data$polity_code) ~
+        paste(
+          "FABIO collapses this source area into Rest of World, but it reports data",
+          "of its own, so WHEP routes it to its own polity instead."
+        ),
       .data$mapping_status ==
         "unmapped" ~ "No real WHEP polity is available yet; treat this as a statistical reporting area without a polygon.",
       TRUE ~ NA_character_

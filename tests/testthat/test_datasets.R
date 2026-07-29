@@ -120,7 +120,15 @@ test_that("CBS and FABIO area codes map to polity database rows", {
   expect_true(all(aggregate_codes$has_geometry))
 
   # Territories FABIO folds into Rest of World rather than reporting separately.
-  row_source_codes <- c(30L, 69L, 152L, 252L, 254L, 299L)
+  #
+  # Two of the six no longer fold: 69 (French Guiana) and 299 (Palestine) report data
+  # of their own — 8,934 and 32,534 observed rows in the upstream alias map — so WHEP
+  # routes them to GUF-* and PSE-1948-2025 instead of collapsing them. Folding an area
+  # that reports data discards it into an aggregate. The remaining four genuinely have
+  # no data of their own: 30 Antarctica, 152 Neutral Zone, 252 Unspecified,
+  # 254 Others (adjustment). See test_row_fold_has_no_data.R for the invariant.
+  row_source_codes <- c(30L, 152L, 252L, 254L)
+  reattributed_codes <- c(69L, 299L)
   fabio_row_sources <- crosswalk |>
     dplyr::filter(.data$area_code %in% row_source_codes) |>
     dplyr::distinct(
@@ -139,6 +147,14 @@ test_that("CBS and FABIO area codes map to polity database rows", {
   expect_true(all(fabio_row_sources$polity_area_code == 999L))
   expect_true(all(fabio_row_sources$polity_code == "ROW-1850-2023"))
   expect_true(all(fabio_row_sources$has_geometry))
+
+  # And the two that were pulled back out must NOT be folded — bidirectional, so
+  # re-burying them in the aggregate fails here rather than passing quietly.
+  reattributed <- crosswalk |>
+    dplyr::filter(.data$area_code %in% reattributed_codes) |>
+    dplyr::distinct(.data$area_code, .data$polity_code)
+  expect_setequal(reattributed$area_code, reattributed_codes)
+  expect_false(any(startsWith(reattributed$polity_code, "ROW-")))
 })
 
 
