@@ -58,6 +58,84 @@ test_that("every crosswalk polity_code exists in polities", {
   )
 })
 
+test_that("the crosswalk agrees with polities on EVERY identity field", {
+  # The upstream manifest declares eight identity fields — polity_code, polity_name,
+  # start_year, end_year, polity_type, iso3_code, cow_code, wiki_status — chosen precisely
+  # because drift in any of them invalidates a downstream copy. The check below covered ONE
+  # of the eight.
+  #
+  # Both embedded objects carry all eight (the crosswalk spells two of them
+  # `polity_start_year` / `polity_end_year`), and they are built by separate steps from the
+  # same upstream. So comparing them detects a partial rebuild — data/polities.rda regenerated
+  # while data/polity_area_crosswalk.rda was not, or the reverse — which is the drift class
+  # this whole branch exists to prevent.
+  #
+  # This matters most because the test that DOES compare all eight fields against upstream
+  # lives in test_polities_upstream_contract.R, and that file is one of the eight [upstream]
+  # skips: whep-polities is private, so CI cannot clone it. This comparison needs nothing
+  # outside the package, so it runs everywhere.
+  cw <- as.data.frame(whep::polity_area_crosswalk)
+  pol <- as.data.frame(whep::polities)
+
+  # crosswalk column -> polities column. Named rather than derived, because the two year
+  # fields are deliberately prefixed in the crosswalk to distinguish them from an area's own
+  # years, and guessing at that mapping would be the kind of cleverness that breaks quietly.
+  fields <- c(
+    polity_name = "polity_name",
+    polity_start_year = "start_year",
+    polity_end_year = "end_year",
+    polity_type = "polity_type",
+    iso3_code = "iso3_code",
+    cow_code = "cow_code",
+    wiki_status = "wiki_status"
+  )
+  present <- fields[
+    names(fields) %in% names(cw) & unname(fields) %in% names(pol)
+  ]
+  # Non-vacuous: if the crosswalk stops carrying these columns this must fail, not pass by
+  # comparing nothing.
+  expect_gte(length(present), 6L)
+
+  left <- unique(cw[!is.na(cw$polity_code), c("polity_code", names(present))])
+  both <- merge(
+    left,
+    pol[, c("polity_code", unname(present))],
+    by = "polity_code"
+  )
+  expect_gt(nrow(both), 400L)
+
+  problems <- character()
+  for (i in seq_along(present)) {
+    cw_col <- names(present)[i]
+    pol_col <- unname(present)[i]
+    a <- both[[if (cw_col == pol_col) paste0(cw_col, ".x") else cw_col]]
+    b <- both[[if (cw_col == pol_col) paste0(pol_col, ".y") else pol_col]]
+    differing <- !((is.na(a) & is.na(b)) |
+      (!is.na(a) & !is.na(b) & as.character(a) == as.character(b)))
+    if (any(differing)) {
+      problems <- c(
+        problems,
+        paste0(
+          pol_col,
+          ": ",
+          sum(differing),
+          " row(s), e.g. ",
+          paste(utils::head(both$polity_code[differing], 3), collapse = ", ")
+        )
+      )
+    }
+  }
+  expect_equal(
+    length(problems),
+    0L,
+    info = paste0(
+      "the crosswalk and polities disagree on identity fields, which means one was ",
+      "regenerated from upstream and the other was not: ",
+      paste(problems, collapse = " | ")
+    )
+  )
+})
+
 test_that("the crosswalk's wiki_status agrees with polities'", {
   cw <- as.data.frame(whep::polity_area_crosswalk)
   pol <- as.data.frame(whep::polities)
