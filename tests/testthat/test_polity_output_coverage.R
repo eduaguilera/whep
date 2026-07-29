@@ -1,8 +1,3 @@
-# Rows upstream knows claim a polygon the GeoPackage cannot carry
-# (whep-polities issue #3). Read from the published manifest when available so
-# the list cannot drift from the source; otherwise fall back to the six that
-# reach this crosswalk today, so the test still constrains something when the
-# sibling checkout is absent.
 # The set of polities whose status asserts a polygon the upstream GeoPackage
 # cannot carry. Returns NULL when the manifest is unavailable, so the caller can
 # skip rather than guess.
@@ -17,18 +12,37 @@
 #
 # Returning NULL is not weakening the check: without the baseline the assertion
 # cannot tell a published gap from a new one, so it has nothing to assert.
-upstream_polygon_gaps <- function() {
+upstream_manifest <- function() {
   path <- Sys.getenv(
     "WHEP_POLITIES_MANIFEST",
     unset = path.expand("~/whep-polities/data/final/polities_manifest.json")
   )
-  if (file.exists(path)) {
-    mf <- jsonlite::fromJSON(path, simplifyVector = TRUE)
-    if (!is.null(mf$polygon_gap_polity_codes)) {
-      return(mf$polygon_gap_polity_codes)
-    }
+  if (!file.exists(path)) {
+    return(NULL)
   }
-  NULL
+  jsonlite::fromJSON(path, simplifyVector = TRUE)
+}
+
+upstream_polygon_gaps <- function() {
+  mf <- upstream_manifest()
+  if (is.null(mf)) {
+    return(NULL)
+  }
+  mf$polygon_gap_polity_codes
+}
+
+# Which polygon_status values ASSERT a polygon exists. Read from the manifest rather
+# than written as "anything except unassigned": that hardcoding holds only because the
+# vocabulary happens to have exactly one non-claiming value today. While the four
+# legacy statuses were still in use, three of them (`missing`, `excluded`,
+# `unassigned`) asserted no polygon, and a `!= "unassigned"` test would have counted
+# two of those as claiming one.
+upstream_claims_polygon <- function() {
+  mf <- upstream_manifest()
+  if (is.null(mf)) {
+    return(NULL)
+  }
+  mf$claims_polygon_status
 }
 
 expect_polity_match <- function(data, code_col, polity_col) {
@@ -228,8 +242,15 @@ testthat::test_that("legacy area reference tables are backed by polities", {
     )
   } else {
     no_geometry <- cw[!cw$has_geometry, ]
+    # Which statuses CLAIM a polygon is read from the manifest, not asserted here as
+    # "anything except unassigned". That hardcoding held only because the vocabulary
+    # happens to have exactly one non-claiming value today; when four legacy statuses
+    # were still in use (`derived`, `missing`, `approximate`, `excluded`), three of them
+    # asserted no polygon and this comparison would have counted them as claiming one.
+    claims <- upstream_claims_polygon()
     unexpected <- no_geometry[
-      no_geometry$polygon_status != "unassigned" &
+      no_geometry$polygon_status %in%
+        claims &
         !no_geometry$polity_code %in% known_gaps,
     ]
     testthat::expect_equal(
