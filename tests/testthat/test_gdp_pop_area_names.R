@@ -49,3 +49,48 @@ testthat::test_that("canonicalisation leaves already-matching names alone", {
   testthat::expect_gt(sum(was_ok), 20000L)
   testthat::expect_identical(fixed$area[was_ok], raw$area[was_ok])
 })
+
+testthat::test_that("the eleven renamed countries actually reach a population proxy", {
+  # The name check above is necessary but not sufficient: matching the crosswalk's vocabulary
+  # does not by itself prove the proxy JOIN succeeds. This asserts the outcome that matters —
+  # .fill_with_proxies() merges on c("year", "area"), so a CBS frame carrying canonical names
+  # must find a population for each.
+  #
+  # Measured both ways rather than reasoned about. With canonicalisation, 33 of 33 requested
+  # rows (eleven countries x three years) find a population. Without it, 0 of 33 — every one
+  # silently NA, which is what the build was doing before.
+  gdp <- tryCatch(whep:::.read_gdp_pop(), error = function(e) NULL)
+  testthat::skip_if(is.null(gdp), "gdp-population pin unavailable")
+
+  canonical <- c(
+    "Bolivia (Plurinational State of)",
+    "China, Taiwan Province of",
+    "Democratic Republic of the Congo",
+    "Iran (Islamic Republic of)",
+    "C\u00f4te d'Ivoire",
+    "Lao People's Democratic Republic",
+    "Democratic People's Republic of Korea",
+    "Syrian Arab Republic",
+    "United Republic of Tanzania",
+    "T\u00fcrkiye",
+    "Venezuela (Bolivarian Republic of)"
+  )
+  frame <- expand.grid(
+    year = c(1990L, 2000L, 2010L),
+    area = canonical,
+    stringsAsFactors = FALSE
+  )
+  pop <- unique(as.data.frame(gdp)[, c("year", "area", "pop")])
+  joined <- merge(frame, pop, by = c("year", "area"), all.x = TRUE)
+
+  unmatched <- joined[is.na(joined$pop), ]
+  testthat::expect_equal(
+    nrow(unmatched),
+    0L,
+    info = paste0(
+      "these canonical area names find no population proxy, so .fill_with_proxies() will ",
+      "leave them NA: ",
+      paste(unique(unmatched$area), collapse = ", ")
+    )
+  )
+})
