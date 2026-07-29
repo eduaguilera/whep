@@ -34,13 +34,28 @@ Sys.setenv(
 )
 
 results <- list()
+# Each gate's wall-clock is printed alongside its verdict. Not decoration: the reason this
+# script stopped being run before pushes is that nobody knew which gate was eating the time,
+# so the whole thing got abandoned rather than the slow part addressed.
+.gate_clock <- Sys.time()
+
 record <- function(name, ok, detail = "") {
+  now <- Sys.time()
+  secs <- as.numeric(now - .gate_clock, units = "secs")
+  .gate_clock <<- now
   results[[length(results) + 1L]] <<- list(
     name = name,
     ok = ok,
-    detail = detail
+    detail = detail,
+    secs = secs
   )
-  cat(sprintf("%-24s %s %s\n", name, if (ok) "PASS" else "FAIL", detail))
+  cat(sprintf(
+    "%-24s %s %6.1fs  %s\n",
+    name,
+    if (ok) "PASS" else "FAIL",
+    secs,
+    detail
+  ))
 }
 
 cat("Running the CI gates with the upstream contracts unreachable.\n\n")
@@ -84,6 +99,61 @@ if (n_lints > 0L) {
 # --- 4. Tests ----------------------------------------------------------------
 # load_all rather than an installed build: this is a pre-push check, and the point
 # is to exercise the working tree.
+#
+# WHEP_CHECK_FAST=1 mirrors CI exactly by setting CI=true for the suite, which makes the four
+# `skip_on_ci()` real-pin tests skip as they do there.
+#
+# Why that option exists, with every figure MEASURED on an otherwise idle machine — the two
+# earlier versions of this comment were guesses and both were wrong:
+#
+#   air              0.8s
+#   lintr           39.2s
+#   suite mirrored  85.7s   4630 pass, 0 fail, 2 warn, 21 skip
+#   ----------------------
+#   whole script    ~2 min
+#
+#   suite NOT mirrored   ~25 min. The four skip_on_ci() real-pin tests are the entire
+#                        difference; with them skipped the slowest single file is 5.4s.
+#
+# Two things made this hard to establish, both worth recording because they cost several
+# rounds of wrong conclusions.
+#
+# First, every measurement I took while a 27-minute production build was running was
+# meaningless. I read a starved run as evidence about cost, concluded "lintr dominates, several
+# minutes", and wrote that here. Uncontended, lintr is 39 seconds.
+#
+# Second, `WHEP_CHECK_FAST=1` silently did nothing for one whole run: as.logical("1") is NA in
+# R, not TRUE, so the flag read FALSE and the full suite ran while I waited for a two-minute one
+# and drew conclusions from the delay. The flag now accepts 1/true/t/yes/y.
+#
+# The reason any of this matters: a pre-push gate that takes tens of minutes does not get
+# waited for. Mine did not. It was started, starved, killed and restarted several times, and in
+# the meantime I pushed a change to the canonical area key that broke 8 tests across three
+# files. CI caught it; the gate that should have was still running.
+#
+# The default remains the full run, because those four tests are the only local coverage of
+# the pin-backed paths and hiding them would trade one blind spot for another. But `fast` is
+# what you want before a push.
+# `as.logical("1")` is NA in R, not TRUE, so the obvious `WHEP_CHECK_FAST=1` silently did
+# nothing — the flag read FALSE and the full 25-minute suite ran while I sat waiting for a
+# two-minute one and drew conclusions from the delay. Accept the spellings people actually
+# type.
+fast <- tolower(trimws(Sys.getenv("WHEP_CHECK_FAST", ""))) %in%
+  c("1", "true", "t", "yes", "y")
+if (fast) {
+  cat(
+    "\n  WHEP_CHECK_FAST=1: mirroring CI, so the four skip_on_ci() real-pin tests\n",
+    "  (soil carbon, carbon balance, grass natural carbon inputs, LUH2 landuse) will\n",
+    "  skip. Run without it to exercise those locally.\n\n",
+    sep = ""
+  )
+  old_ci <- Sys.getenv("CI", unset = NA)
+  Sys.setenv(CI = "true")
+  on.exit(
+    if (is.na(old_ci)) Sys.unsetenv("CI") else Sys.setenv(CI = old_ci),
+    add = TRUE
+  )
+}
 suppressMessages(devtools::load_all(quiet = TRUE))
 raw <- testthat::test_dir(
   "tests/testthat",
