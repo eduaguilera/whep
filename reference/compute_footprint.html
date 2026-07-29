@@ -15,7 +15,16 @@ For large systems, pass z_mat and x_vec instead of
 l_inv. This solves \((I - A) x = Y\) directly using a
 sparse LU factorisation, avoiding the dense Leontief inverse
 entirely and reducing memory from \(O(n^2)\) to
-\(O(nnz)\)."><meta property="og:description" content="Trace environmental extensions through the supply chain using
+\(O(nnz)\).
+The z_mat and l_inv paths give identical results while the
+largest column sum of A stays below 1 (the Leontief inverse is
+then non-negative). At or above 1 the paths can diverge: the dense
+inverse zeroes negative entries whereas the sparse solve drops the
+resulting negative embodied flows, and a precomputed l_inv may
+have been capped differently (compute_leontief_inverse() defaults
+to a conservative cap below 1). The z_mat path emits a warning
+when this happens; max_column_sum is ignored when l_inv is
+supplied directly."><meta property="og:description" content="Trace environmental extensions through the supply chain using
 the Leontief inverse, following the FABIO methodology
 (Bruckner et al., 2019). The footprint shows how much of an
 environmental pressure (e.g. land use, water, emissions) is
@@ -31,7 +40,16 @@ For large systems, pass z_mat and x_vec instead of
 l_inv. This solves \((I - A) x = Y\) directly using a
 sparse LU factorisation, avoiding the dense Leontief inverse
 entirely and reducing memory from \(O(n^2)\) to
-\(O(nnz)\)."><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
+\(O(nnz)\).
+The z_mat and l_inv paths give identical results while the
+largest column sum of A stays below 1 (the Leontief inverse is
+then non-negative). At or above 1 the paths can diverge: the dense
+inverse zeroes negative entries whereas the sparse solve drops the
+resulting negative embodied flows, and a precomputed l_inv may
+have been capped differently (compute_leontief_inverse() defaults
+to a conservative cap below 1). The z_mat path emits a warning
+when this happens; max_column_sum is ignored when l_inv is
+supplied directly."><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -87,6 +105,15 @@ the FABIO diagonal approach:
 sparse LU factorisation, avoiding the dense Leontief inverse
 entirely and reducing memory from \(O(n^2)\) to
 \(O(nnz)\).</p>
+<p>The <code>z_mat</code> and <code>l_inv</code> paths give identical results while the
+largest column sum of A stays below 1 (the Leontief inverse is
+then non-negative). At or above 1 the paths can diverge: the dense
+inverse zeroes negative entries whereas the sparse solve drops the
+resulting negative embodied flows, and a precomputed <code>l_inv</code> may
+have been capped differently (<code><a href="compute_leontief_inverse.html">compute_leontief_inverse()</a></code> defaults
+to a conservative cap below 1). The <code>z_mat</code> path emits a warning
+when this happens; <code>max_column_sum</code> is ignored when <code>l_inv</code> is
+supplied directly.</p>
     </div>
 
     <div class="section level2">

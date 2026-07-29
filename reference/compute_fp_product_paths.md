@@ -25,6 +25,7 @@ compute_fp_product_paths(
   origin_item = NULL,
   output_tol = 1e-08,
   value_added_floor = 0.001,
+  max_column_sum = 100,
   conserve_extensions = TRUE,
   min_value = 0
 )
@@ -75,6 +76,13 @@ compute_fp_product_paths(
 
   Minimum non-intermediate leakage share used when constructing
   technical coefficients from `z_mat`.
+
+- max_column_sum:
+
+  Maximum allowed column sum in A. Must match the value used by
+  [`compute_footprint()`](https://eduaguilera.github.io/whep/reference/compute_footprint.md)
+  (default `100`) so the path decomposition and the footprint it
+  decomposes share an identical A cap.
 
 - conserve_extensions:
 

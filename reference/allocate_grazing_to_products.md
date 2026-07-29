@@ -19,7 +19,9 @@ ready to route to consumers with
 [`compute_footprint_balance()`](https://eduaguilera.github.io/whep/reference/compute_footprint_balance.md).
 Because each step redistributes a total without creating or destroying
 it, the country-level land total is conserved whenever an animal fed and
-produced an output there.
+produced an output there. Land fed to animals that produced no eligible
+output item is set aside and reported via a warning rather than silently
+dropped.
 
 ## Usage
 

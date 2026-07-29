@@ -72,6 +72,7 @@ demand carries the origin footprint.</p>
 <span>  origin_item <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  output_tol <span class="op">=</span> <span class="fl">1e-08</span>,</span>
 <span>  value_added_floor <span class="op">=</span> <span class="fl">0.001</span>,</span>
+<span>  max_column_sum <span class="op">=</span> <span class="fl">100</span>,</span>
 <span>  conserve_extensions <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>  min_value <span class="op">=</span> <span class="fl">0</span></span>
 <span><span class="op">)</span></span></code></pre></div>
@@ -121,6 +122,12 @@ intensities.</p></dd>
 <dt id="arg-value-added-floor">value_added_floor<a class="anchor" aria-label="anchor" href="#arg-value-added-floor"></a></dt>
 <dd><p>Minimum non-intermediate leakage share used when
 constructing technical coefficients from <code>z_mat</code>.</p></dd>
+
+
+<dt id="arg-max-column-sum">max_column_sum<a class="anchor" aria-label="anchor" href="#arg-max-column-sum"></a></dt>
+<dd><p>Maximum allowed column sum in A. Must match the value
+used by <code><a href="compute_footprint.html">compute_footprint()</a></code> (default <code>100</code>) so the path decomposition
+and the footprint it decomposes share an identical A cap.</p></dd>
 
 
 <dt id="arg-conserve-extensions">conserve_extensions<a class="anchor" aria-label="anchor" href="#arg-conserve-extensions"></a></dt>

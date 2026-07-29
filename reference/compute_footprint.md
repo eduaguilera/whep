@@ -17,6 +17,17 @@ solves \\(I - A) x = Y\\ directly using a sparse LU factorisation,
 avoiding the dense Leontief inverse entirely and reducing memory from
 \\O(n^2)\\ to \\O(nnz)\\.
 
+The `z_mat` and `l_inv` paths give identical results while the largest
+column sum of A stays below 1 (the Leontief inverse is then
+non-negative). At or above 1 the paths can diverge: the dense inverse
+zeroes negative entries whereas the sparse solve drops the resulting
+negative embodied flows, and a precomputed `l_inv` may have been capped
+differently
+([`compute_leontief_inverse()`](https://eduaguilera.github.io/whep/reference/compute_leontief_inverse.md)
+defaults to a conservative cap below 1). The `z_mat` path emits a
+warning when this happens; `max_column_sum` is ignored when `l_inv` is
+supplied directly.
+
 ## Usage
 
 ``` r
