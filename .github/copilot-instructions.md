@@ -73,7 +73,7 @@ The PR must pass ALL these GitHub Actions checks. Before committing, verify loca
 
 2. **lint** (`lintr`): `lintr::lint_package(linters=lintr::linters_with_defaults(object_usage_linter=NULL, line_length_linter=NULL, indentation_linter=NULL, commas_linter=NULL))`
 
-3. **format-suggest** (`air`): Code must be formatted with `air format .`
+3. **Formatting** (`air`): there is **no pre-merge formatting check**. The `format-main` workflow reformats `main` with `air format .` after every merge. Treat it as a safety net, not a reason to skip: always run `air format .` yourself before a PR is ready, so the reviewed diff matches what merges and `main` does not accumulate formatting-only commits.
    - **This is mandatory, not optional.** Do not attempt to manually match air style — always run the binary. Manual formatting will miss things.
    - If `air` is not on PATH, install it from `https://github.com/posit-dev/air/releases`. Then run `air format .` on the repo root.
    - Air formats **all** `.R` files in the repo (`R/`, `tests/`, `data-raw/`, etc.), not just the files you edited.

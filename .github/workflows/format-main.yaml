@@ -1,0 +1,39 @@
+# Reformat `main` with air after every merge, committing any changes back.
+# Replaces the pre-merge `format-suggest` check: contributors no longer need a
+# green formatting gate, but are still expected to run `air format .` locally
+# (see CLAUDE.md) so this job normally has nothing to do.
+#
+# Note: pushing to a protected `main` requires the acting identity to be in the
+# branch-protection bypass list. The default GITHUB_TOKEN also does not trigger
+# downstream workflows, so the format commit will not re-run other checks; use a
+# PAT or GitHub App token if that is needed.
+
+on:
+  push:
+    branches: [main]
+
+name: format-main.yaml
+
+jobs:
+  format-main:
+    name: format-main
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install
+        uses: posit-dev/setup-air@v1
+
+      - name: Format
+        run: air format .
+
+      - name: Commit
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "Format with air [skip ci]"
+          commit_user_name: github-actions[bot]
+          commit_user_email: github-actions[bot]@users.noreply.github.com
