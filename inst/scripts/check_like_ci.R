@@ -27,10 +27,16 @@
 # Pointed at a path that cannot exist rather than unset, so the tests take their
 # documented skip branch instead of falling back to a default location that might
 # happen to resolve on this machine.
+pre_env <- c(
+  WHEP_POLITIES_MANIFEST = Sys.getenv("WHEP_POLITIES_MANIFEST", ""),
+  WHEP_POLITIES_FAOSTAT_MAP = Sys.getenv("WHEP_POLITIES_FAOSTAT_MAP", ""),
+  WHEP_POLITIES_CSV = Sys.getenv("WHEP_POLITIES_CSV", "")
+)
 Sys.setenv(
   WHEP_POLITIES_MANIFEST = "/nonexistent/polities_manifest.json",
   WHEP_POLITIES_FAOSTAT_MAP = "/nonexistent/faostat_area_polity_map.csv",
-  WHEP_POLITIES_FAOSTAT_ALIASES = "/nonexistent/faostat_aliases.csv"
+  WHEP_POLITIES_FAOSTAT_ALIASES = "/nonexistent/faostat_aliases.csv",
+  WHEP_POLITIES_CSV = "/nonexistent/polities_database.csv"
 )
 
 results <- list()
@@ -304,6 +310,115 @@ if (length(topics) > 0L && file.exists("_pkgdown.yml")) {
     } else {
       paste("missing:", paste(utils::head(missing_topics, 6), collapse = ", "))
     }
+  )
+}
+
+# --- 5b. The upstream contract tests, run WITH the contracts present ---------
+# Section 1 blinds this run to the published contracts because CI is blind to
+# them. That is faithful, and it has a cost nobody accounted for: those
+# assertions then execute NOWHERE. CI cannot run them (the files live on
+# whep-polities#39 and are absent from a runner), and this script refuses to.
+#
+# It cost something real. `folded_into_aggregate` in
+# test_upstream_faostat_agreement.R carries a bidirectional baseline whose whole
+# purpose is to fail when a listed gap closes, so a fixed case cannot stay
+# baselined. Twelve of its twenty-seven entries closed while the file skipped on
+# every run, local and CI. The test was correct and simply never executed.
+#
+# So: a SECOND pass, over those files only, with the contracts located rather
+# than neutralised. Not a relaxation of the first pass — both conditions now get
+# exercised, which is the point, since each catches what the other cannot. When
+# no contracts are found this reports SKIP with the paths it tried, rather than
+# passing quietly.
+# All THREE contract files, from ONE directory. The first version of this pass
+# required only the manifest and the FAOSTAT map, and left WHEP_POLITIES_CSV to
+# its own default -- which resolves to the sibling repo's MAIN branch. So it
+# compared a branch manifest against a main CSV and reported three identity
+# fields as disagreeing with upstream when upstream agreed with itself
+# perfectly; the wiki, the branch CSV and this package's data all said AGO,
+# while the main CSV still said ANG. Mixing sources produces exactly the class
+# of finding this whole comparison exists to detect, which makes it worse than
+# no check.
+contract_files <- c(
+  "polities_manifest.json",
+  "faostat_area_polity_map.csv",
+  "polities_database.csv"
+)
+# `pre_env` is captured at the top of this script, before section 1 overwrites
+# these variables, so a developer who has already pointed them somewhere keeps
+# that choice.
+candidates <- unique(c(
+  dirname(pre_env[["WHEP_POLITIES_MANIFEST"]]),
+  dirname(pre_env[["WHEP_POLITIES_CSV"]]),
+  path.expand("~/whep-polities/data/final"),
+  # git worktrees of the sibling repo, where the branch under review lives
+  Sys.glob("/tmp/*/data/final"),
+  Sys.glob(path.expand("~/whep-polities*/data/final"))
+))
+candidates <- Filter(
+  function(d) {
+    !is.na(d) && nzchar(d) && all(file.exists(file.path(d, contract_files)))
+  },
+  candidates
+)
+
+.gate_clock <- Sys.time()
+if (length(candidates) == 0L) {
+  record(
+    "upstream contract tests",
+    TRUE,
+    sprintf(
+      "SKIP - no directory with %s found; tried %d location(s)",
+      paste(contract_files, collapse = " + "),
+      length(candidates)
+    )
+  )
+} else {
+  contract_dir <- candidates[[1]]
+  Sys.setenv(
+    WHEP_POLITIES_MANIFEST = file.path(contract_dir, "polities_manifest.json"),
+    WHEP_POLITIES_FAOSTAT_MAP = file.path(
+      contract_dir,
+      "faostat_area_polity_map.csv"
+    ),
+    WHEP_POLITIES_CSV = file.path(contract_dir, "polities_database.csv")
+  )
+  # One test_local call with a regex filter, not four. Each call reloads the
+  # package, and four reloads made this pass cost more than the suite it
+  # supplements.
+  contract_tests <- c(
+    "upstream_faostat_agreement",
+    "polities_upstream_contract",
+    "faostat_unmapped_contract",
+    "polity_output_coverage"
+  )
+  res <- tryCatch(
+    testthat::test_local(
+      filter = paste(contract_tests, collapse = "|"),
+      reporter = "silent",
+      stop_on_failure = FALSE
+    ),
+    error = function(e) NULL
+  )
+  totals <- c(pass = 0L, fail = 1L, skip = 0L)
+  if (!is.null(res)) {
+    df <- as.data.frame(res)
+    totals <- c(
+      pass = sum(df$passed),
+      fail = sum(df$failed),
+      skip = sum(df$skipped)
+    )
+  }
+  record(
+    "upstream contract tests",
+    totals[["fail"]] == 0L,
+    sprintf(
+      "%d pass, %d fail, %d skip (contracts from %s)",
+      totals[["pass"]],
+      totals[["fail"]],
+      totals[["skip"]],
+      contract_dir
+    )
   )
 }
 
