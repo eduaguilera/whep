@@ -927,6 +927,7 @@ prepare_country_grid <- function(l_files_dir, target_res) {
 
 build_cell_polity_fraction <- function(
   l_files_dir,
+  country_grid,
   target_res = 0.5,
   subcells = 6L
 ) {
@@ -988,11 +989,29 @@ build_cell_polity_fraction <- function(
   ]
   d[, lat := floor((lat + 90) / target_res) * target_res - 90 + target_res / 2]
   counts <- d[, .(n = .N), by = .(lon, lat, area_code)]
+  # Coerce to the integer polity code and drop any subcells that carry no valid
+  # code, before the fraction is normalised, so the crosswalk never emits an NA
+  # area_code and the surviving fractions still sum to 1.
+  counts[, area_code := as.integer(area_code)]
+  counts <- counts[!is.na(area_code)]
+  # Restrict to the simulated model grid: without this the Natural Earth land
+  # mask (Antarctica, small territories, etc.) injects cells LPJmL never
+  # simulates, which arrive downstream with non-finite drainage (see #381). The
+  # cell filter keeps every polity fragment of a retained cell.
+  grid_cells <- unique(
+    data.table::as.data.table(country_grid)[, .(lon, lat)]
+  )
+  before <- nrow(unique(counts[, .(lon, lat)]))
+  counts <- merge(counts, grid_cells, by = c("lon", "lat"))
+  after <- nrow(unique(counts[, .(lon, lat)]))
+  cli::cli_alert_info(
+    "restricted crosswalk to the simulated grid: {before} -> {after} cells"
+  )
+  # Renormalise so each retained cell's polity fractions still sum to 1 after
+  # dropping unassigned subcells.
   counts[, polity_frac := n / sum(n), by = .(lon, lat)]
   cli::cli_alert_success("cell x polity: {nrow(counts)} (cell, polity) rows")
-  tibble::as_tibble(
-    counts[, .(lon, lat, area_code = as.integer(area_code), polity_frac)]
-  )
+  tibble::as_tibble(counts[, .(lon, lat, area_code, polity_frac)])
 }
 
 
@@ -6281,7 +6300,11 @@ prepare_spatialize_all <- function(
 
   # Section 1b: Cell x polity fractions (fractional crosswalk for the balance
   # modules; build_cell_polity() reads this parquet).
-  cell_polity_fraction <- build_cell_polity_fraction(l_files_dir, target_res)
+  cell_polity_fraction <- build_cell_polity_fraction(
+    l_files_dir,
+    country_grid,
+    target_res
+  )
   .save_parquet(cell_polity_fraction, output_dir, "cell_polity_fraction")
 
   # Section 5: MIRCA irrigation (run before country_areas so MIRCA
