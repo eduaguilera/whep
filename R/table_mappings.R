@@ -80,9 +80,13 @@
 #'   folded into a rest-of-world polity keeps its own code while the polity's is
 #'   `ROW` (`ASM` against `ROW`), and a colonial-era row carries the era's key
 #'   while the area keeps the modern one (`AGO` against `ANG`, `BWA` against
-#'   `BEC`). A dependency with no FAOSTAT area of its own resolves to its parent
-#'   state, so `JEY` sits against `GBR` and `ALA` against `FIN`. Join on whichever
-#'   answers your question, but not on the assumption that they agree.
+#'   `BEC`). And some rows record a source's own aggregation: the reporting area is
+#'   a parent state while `area_iso3c` carries a dependency's code, because the
+#'   source reports that dependency under the parent — `JEY`, `GGY` and `IMN`
+#'   against `GBR-*`, `ALA` against `FIN-*`, `SXM` against `NLD-*`. Those rows
+#'   have no `area_code`, so nothing routes through them; they document how the
+#'   source counts, not a territorial claim. Join on whichever column answers your
+#'   question, but not on the assumption that they agree.
 #' - `reporting_polity_prefix`: ISO3-shaped family key for the reporting area —
 #'   a PREFIX, never a code. Do not join it to [polities]; use `polity_code`.
 #'   It was called `reporting_polity_code` until 0.3.0.9000, where it held 609
