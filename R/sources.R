@@ -37,7 +37,63 @@ expand_trade_sources <- function(trade_sources) {
       ),
       ImpExp = `Imp/Exp`,
       In_Saco = as.integer(!is.na(SACO_link)),
-    )
+    ) |>
+    .add_reporter_polity()
+}
+
+# Attach the polity each expanded row's reporter names IN THAT YEAR.
+#
+# This function's output was the last exported area-keyed table in the package with no
+# polity on it. Its rows are already one-year-per-row, which is exactly the shape
+# year-aware resolution needs, so the reporter and the Year settle it with no
+# interpolation.
+#
+# Resolution goes through the alias table under source "trade-sources", added upstream
+# (whep-polities#39) rather than by name-matching here, because that repository owns
+# label-to-polity identity. 34 aliases over the 8 reporters, one per polity period the
+# reporter's own year span crosses:
+#
+#   United Kingdom  2 periods   Germany  8    United States  4    India  3
+#   France          3           Canada   3    Egypt          1    China  10
+#
+# The two reporters spelled with a trailing "(the)" -- the United Kingdom and the
+# United States -- differ from the canonical area names by nothing else, which is
+# precisely what the alias table is for.
+#
+# CHINA IS THE ONE THAT COULD NOT GO THROUGH AN AREA. Its FAOSTAT area 351 is the
+# deliberate China aggregate that maps to no polity, so an area-mediated lookup returns
+# nothing for it. The aliases target the CHN chain directly, which the alias table
+# permits because it maps labels to polities, not to areas. The superseded
+# CHN-1921-1945 is excluded, so the 1921-1945 span resolves through CHN-1921-1932 and
+# CHN-1932-1945 rather than a row that may never receive data.
+#
+# `Reporter` may be absent: expand_trade_sources() is exported and documented with an
+# example that has no such column, so a missing reporter yields NA rather than an error.
+.add_reporter_polity <- function(x) {
+  if (!all(c("Reporter", "Year") %in% names(x))) {
+    return(dplyr::mutate(x, reporting_polity_code = NA_character_))
+  }
+  years <- unique(stats::na.omit(as.integer(x$Year)))
+  resolved <- lapply(years, function(y) {
+    data.frame(
+      .yr = y,
+      .lbl = unique(as.character(x$Reporter)),
+      stringsAsFactors = FALSE
+    ) |>
+      (\(d) {
+        d$reporting_polity_code <- resolve_polity_label(
+          d$.lbl,
+          source = "trade-sources",
+          year = y
+        )
+        d
+      })()
+  })
+  key <- do.call(rbind, resolved)
+  x$.yr <- as.integer(x$Year)
+  x$.lbl <- as.character(x$Reporter)
+  out <- dplyr::left_join(x, key, by = c(".yr", ".lbl"))
+  dplyr::select(out, -".yr", -".lbl")
 }
 
 .expand_trade_years <- function(trade_sources) {
