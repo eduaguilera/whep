@@ -115,46 +115,83 @@ testthat::test_that("the FAOSTAT group threshold matches how areas are actually 
   testthat::expect_false(any(regions >= threshold))
 })
 
-testthat::test_that("real FAOSTAT production contains no area code we do not know", {
-  # The invariant that makes the warning worth having. On real data the two informational branches
-  # fire and the warning one does not, because every code FAOSTAT ships is either a territory this
-  # project maps, a deliberate aggregate, or one of the source's own regional groups.
+testthat::test_that("no pinned input carries an area code we cannot account for", {
+  # The invariant that makes the warning worth having, across every area-keyed input rather than one.
+  # On real data the two informational branches fire and the warning one does not, because every code
+  # these sources ship is either a territory this project maps, a deliberate aggregate, or one of
+  # FAOSTAT's own regional groups.
   #
-  # Verified end to end on a real slice: 244 distinct area codes in, 205 out, with "15 and 351"
-  # reported as deliberately unmapped and 34 codes reported as FAOSTAT groups — and no warning.
+  # Verified end to end on a real production slice: 244 distinct codes in, 205 out, with "15 and 351"
+  # reported as deliberately unmapped and 34 reported as regional groups — and no warning. Measured
+  # across the others too: international-yields 179 codes, fishstat-trade 189,
+  # faostat-production-old 221, none unexplained.
   #
-  # If FAOSTAT introduces a reporting area this project has never seen, this is what turns that from
-  # a silent 26% drop into a message naming the code. That is the whole point, so it is asserted
-  # against the real source rather than a fixture.
-  raw <- tryCatch(
-    data.table::as.data.table(whep:::.read_input("faostat-production")),
-    error = function(e) NULL
-  )
-  testthat::skip_if(is.null(raw), "faostat-production pin unavailable")
-  data.table::setnames(raw, "Area Code", "area_code", skip_absent = TRUE)
-
-  codes <- sort(unique(as.integer(raw$area_code)))
-  testthat::expect_gt(length(codes), 200L)
-
+  # If any of these sources introduces a reporting area this project has never seen, this is what turns
+  # a silent drop into a message naming the code.
+  #
+  # The area column is spelled three ways across these pins — area_code, "Area Code", AreaCode — so the
+  # candidates are tried in turn and a pin whose column is not found is REPORTED rather than quietly
+  # passing. I checked one input with an incomplete candidate list and it looked like the pin had no
+  # area column at all.
   modelled <- unique(stats::na.omit(
     as.data.frame(whep::polity_area_crosswalk)$area_code
   ))
-  unexplained <- setdiff(
-    codes,
-    c(
-      modelled,
-      whep:::faostat_deliberate_area_codes,
-      codes[codes >= whep:::faostat_group_code_min]
-    )
+  group_min <- whep:::faostat_group_code_min
+  deliberate <- whep:::faostat_deliberate_area_codes
+
+  inputs <- c(
+    "faostat-production",
+    "faostat-production-old",
+    "international-yields",
+    "fishstat-trade"
   )
+  checked <- 0L
+  problems <- character()
+  for (pin in inputs) {
+    raw <- tryCatch(
+      data.table::as.data.table(whep:::.read_input(pin)),
+      error = function(e) NULL
+    )
+    if (is.null(raw)) {
+      next
+    }
+    col <- intersect(c("area_code", "Area Code", "AreaCode"), names(raw))
+    if (length(col) == 0L) {
+      problems <- c(problems, paste0(pin, ": no recognisable area column"))
+      next
+    }
+    codes <- suppressWarnings(as.integer(raw[[col[1]]]))
+    codes <- sort(unique(codes[!is.na(codes)]))
+    if (length(codes) == 0L) {
+      next
+    }
+    checked <- checked + 1L
+    unexplained <- setdiff(
+      codes,
+      c(modelled, deliberate, codes[codes >= group_min])
+    )
+    if (length(unexplained) > 0L) {
+      problems <- c(
+        problems,
+        paste0(
+          pin,
+          ": ",
+          length(unexplained),
+          " unaccounted code(s) — ",
+          paste(utils::head(unexplained, 6), collapse = ", ")
+        )
+      )
+    }
+  }
+
+  testthat::skip_if(checked == 0L, "no pinned inputs reachable")
   testthat::expect_equal(
-    length(unexplained),
+    length(problems),
     0L,
     info = paste0(
-      "FAOSTAT production carries area codes that are neither mapped, nor deliberately ",
-      "unmapped, nor regional groups — their rows are being dropped and someone should decide ",
-      "what they are: ",
-      paste(utils::head(unexplained, 8), collapse = ", ")
+      "these inputs carry area codes that are neither mapped, nor deliberately unmapped, nor ",
+      "regional groups, so their rows are dropped and someone should decide what they are: ",
+      paste(problems, collapse = "; ")
     )
   )
 })
