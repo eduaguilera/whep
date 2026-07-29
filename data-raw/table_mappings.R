@@ -396,8 +396,21 @@ polity_area_crosswalk <- regions_for_crosswalk |>
     relationship = "many-to-many"
   ) |>
   dplyr::mutate(
+    # Takes `fabio_code` — which is 999 for every area FABIO folds into rest of world —
+    # EXCEPT for areas that report data of their own. Without that exception the fold
+    # removed at the polity level stayed in force at the numeric level, and the numeric
+    # level is what the build actually keys on: get_primary_production() emits
+    # `polity_area_code` as its `area_code`, so the Faroe Islands' 2,458 raw production
+    # rows and Palestine's 9,606 were still being summed into area 999 and attributed to
+    # ROW-1850-2023, even though the crosswalk resolved them to FRO-1800-2025 and
+    # PSE-1948-2025.
+    #
+    # Two representations of the same decision, and only one of them had been fixed. A
+    # smoke run against the real pins is what exposed it: the built output contained zero
+    # rows for either area while the raw input had thousands.
     polity_area_code = dplyr::if_else(
-      !is.na(.data$fabio_code),
+      !is.na(.data$fabio_code) &
+        !(.data$area_code %in% areas_with_observed_data),
       .data$fabio_code,
       .data$area_code
     ),
