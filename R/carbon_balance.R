@@ -711,7 +711,9 @@ build_carbon_balance <- function(
     \(k) .cb_march_cell(classes_split[[k]], init_split[[k]] %||% init[0, ]),
     .progress = "Marching cells"
   ) |>
-    dplyr::bind_rows()
+    data.table::rbindlist() |>
+    as.data.frame() |>
+    tibble::as_tibble()
 }
 
 # March one cell forward year by year (Spain_Hist Calc_SOC_evolution
@@ -723,14 +725,17 @@ build_carbon_balance <- function(
 # own post-transfer stock, rate and input.
 .cb_march_cell <- function(cell, init) {
   years <- sort(unique(cell$year))
+  # Split once by year (base) instead of a dplyr::filter per year -- the march
+  # calls this once per cell, so the per-year data-mask overhead adds up.
+  by_year <- split(cell, cell$year)
   state <- stats::setNames(init$stock_mgc_ha, init$land_use)
   out <- vector("list", length(years))
   for (i in seq_along(years)) {
-    cur <- cell |> dplyr::filter(.data$year == years[i])
+    cur <- by_year[[as.character(years[i])]]
     prev <- if (i == 1L) {
       NULL
     } else {
-      dplyr::filter(cell, .data$year == years[i - 1L])
+      by_year[[as.character(years[i - 1L])]]
     }
     step <- .cb_year_step(cur, prev, state)
     out[[i]] <- step$rows
@@ -747,7 +752,9 @@ build_carbon_balance <- function(
 # zero area (a newly appearing class carries no carbon; Spain_Hist NaN guard,
 # SOC_Fun.R:388-390).
 .cb_year_step <- function(cur, prev, state) {
-  cur <- cur |> dplyr::arrange(.data$land_use)
+  # Base radix order matches dplyr::arrange(land_use)'s C-locale ordering
+  # without the per-call data-mask overhead (this runs once per cell-year).
+  cur <- cur[order(cur$land_use, method = "radix"), , drop = FALSE]
   stepped <- .cb_advance_stock(cur, prev, state)
   transferred <- .cb_luc_transfer(
     tibble::tibble(
@@ -850,27 +857,29 @@ build_carbon_balance <- function(
 # area-weighted density, re-averaging its density over its new total area. Total
 # cell carbon (sum of density x area) is conserved.
 .cb_luc_transfer <- function(before) {
-  dt <- data.table::as.data.table(before)
-  dt[, area_change := new_area_ha - old_area_ha]
-  data.table::setorder(dt, area_change)
+  # Ordered by area_change ascending (shrinking classes first), matching the
+  # previous data.table::setorder; base radix order is stable like setorder, so
+  # ties keep input order. Operating on plain vectors avoids an
+  # as.data.table()/as_tibble() round-trip on every cell-year (the march calls
+  # this ~n_cells * n_years times).
+  ord <- order(before$new_area_ha - before$old_area_ha, method = "radix")
+  land_use <- before$land_use[ord]
+  old_area <- before$old_area_ha[ord]
+  new_area <- before$new_area_ha[ord]
+  stocks <- before$stock_mgc_ha[ord]
+  moved <- numeric(length(stocks))
   pool <- list(carbon = 0, area = 0)
-  stocks <- dt$stock_mgc_ha
-  moved <- numeric(nrow(dt))
-  for (i in seq_len(nrow(dt))) {
-    res <- .cb_transfer_one(
-      stocks[i],
-      dt$old_area_ha[i],
-      dt$new_area_ha[i],
-      pool
-    )
+  for (i in seq_along(stocks)) {
+    res <- .cb_transfer_one(stocks[i], old_area[i], new_area[i], pool)
     stocks[i] <- res$stock
     moved[i] <- res$mass_moved
     pool <- res$pool
   }
-  dt[, stock_mgc_ha := stocks]
-  dt[, mass_moved := moved]
-  tibble::as_tibble(
-    dt[, c("land_use", "stock_mgc_ha", "new_area_ha", "mass_moved")]
+  tibble::tibble(
+    land_use = land_use,
+    stock_mgc_ha = stocks,
+    new_area_ha = new_area,
+    mass_moved = moved
   )
 }
 
