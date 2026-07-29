@@ -434,41 +434,65 @@ build_detailed_trade <- function(
   }
 }
 
+# FAOSTAT area codes at or above this are the source's own regional groups — World is 5000, Africa
+# 5100, Eastern Africa 5101 — not territories. Measured against real production: of the 244 distinct
+# area codes it carries, 34 are absent from the crosswalk and ALL 34 are >= 5000. None below it is
+# absent. So this threshold separates "the source aggregates" from "the caller made a mistake"
+# cleanly on today's data.
+.faostat_group_code_min <- 5000L
+
 .warn_unmapped_codes <- function(dt, mapped_col, original_col, role, ...) {
-  # Distinguish a deliberate non-mapping from an area code that does not exist, and do it from the
-  # CROSSWALK rather than from the caller's mapping_status.
+  # Three outcomes, not one message. Dropping rows is correct in all three, but the reason a user
+  # needs to hear differs, and an earlier version of this said "not mapped to a polity, dropping" for
+  # everything.
   #
-  # My first version read mapping_status, which does carry the distinction — "unmapped" for the
-  # deliberate case, NA when nothing was found. But every call site here passes
-  # `include_unmapped = FALSE`, which removes the unmapped rows from the lookup, so mapping_status
-  # comes back NA for BOTH cases and the warning confidently told users that FAOSTAT 351 "China" was
-  # an area code this project does not know. Measured: with that flag, 351 and a fabricated 4444 are
-  # indistinguishable.
+  #   a deliberate non-mapping   the area is in the crosswalk and resolves to no polity, because
+  #                              mapping it would double-count — FAOSTAT 351 "China" alongside its
+  #                              own components, 15 Belgium-Luxembourg
+  #   a FAOSTAT regional group   code >= 5000: World, Africa, Eastern Africa. Never territories, so
+  #                              their absence is the source's design, not a gap in ours
+  #   an unknown code            neither of the above: the input carries an area code this project
+  #                              does not know, which is the only case that means something is wrong
   #
-  # The crosswalk itself always knows. An area present there but resolving to no polity is the
-  # deliberate case; an area absent from it entirely is the caller's typo.
+  # Classified from the CROSSWALK rather than from mapping_status, because every call site passes
+  # `include_unmapped = FALSE`, which strips the unmapped rows out of the lookup and makes
+  # mapping_status NA for the deliberate case too. A version of this that read mapping_status
+  # reported China as an unknown code.
   missing <- dt[is.na(get(mapped_col))]
   if (nrow(missing) == 0L) {
     return(invisible(NULL))
   }
-  codes <- unique(missing[[original_col]])
-  crosswalk <- as.data.frame(whep::polity_area_crosswalk)
-  known <- unique(stats::na.omit(crosswalk$area_code))
+  codes <- sort(unique(missing[[original_col]]))
+  known <- unique(stats::na.omit(
+    as.data.frame(whep::polity_area_crosswalk)$area_code
+  ))
+
   deliberate <- codes[codes %in% known]
-  unknown <- codes[!codes %in% known]
+  rest <- codes[!codes %in% known]
+  # A local without the leading dot: cli treats `{.name}` as a style directive, so interpolating
+  # the constant directly errors with "Invalid cli literal ... starts with a dot".
+  group_min <- .faostat_group_code_min
+  groups <- rest[rest >= group_min]
+  unknown <- rest[rest < group_min]
 
   if (length(deliberate) > 0) {
-    cli::cli_warn(
+    cli::cli_inform(
       "{stringr::str_to_sentence(role)} area codes deliberately unmapped, dropping:
-       {deliberate}. These are statistical aggregates reported alongside their own
-       components; routing them would double-count."
+       {deliberate}. Statistical aggregates reported alongside their own components;
+       routing them would double-count."
+    )
+  }
+  if (length(groups) > 0) {
+    cli::cli_inform(
+      "{stringr::str_to_sentence(role)}: dropping {length(groups)} FAOSTAT regional
+       group code{?s} (>= {group_min}), which are not territories."
     )
   }
   if (length(unknown) > 0) {
     cli::cli_warn(
       "{stringr::str_to_sentence(role)} area codes NOT FOUND in the polity crosswalk,
-       dropping: {unknown}. Unlike a deliberate non-mapping, this means the input
-       carries an area code this project does not know."
+       dropping: {unknown}. Unlike a deliberate non-mapping or a FAOSTAT group, this
+       means the input carries an area code this project does not know."
     )
   }
   invisible(NULL)
