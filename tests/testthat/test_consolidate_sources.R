@@ -716,6 +716,42 @@ testthat::test_that("verbose mode reports resolved quality variants", {
   testthat::expect_true(any(grepl("Resolved 1 per-source cell variant", msgs)))
 })
 
+testthat::test_that("positive coverage counts the surviving best variant", {
+  # Pins the ordering of the two options: variants are resolved BEFORE coverage
+  # is counted. BOKU's 1919 coverage therefore comes from the Estimated 0 that
+  # wins its variant contest, not from the Interpolated 4 that loses it, so
+  # BOKU covers one positive year against Zed's two and Zed takes 1919 --
+  # against the ascending name order, which would have picked BOKU.
+  panel <- tibble::tribble(
+    ~year, ~region, ~category, ~source, ~value, ~tier,
+    1919, "AUT", "Food_feed", "BOKU", 0, "Estimated",
+    1919, "AUT", "Food_feed", "BOKU", 4, "Interpolated",
+    1920, "AUT", "Food_feed", "BOKU", 3, "Estimated",
+    1919, "AUT", "Food_feed", "Zed", 9, "Observed",
+    1920, "AUT", "Food_feed", "Zed", 8, "Observed"
+  )
+
+  won <- whep::consolidate_sources(
+    panel,
+    value_col = value,
+    source_col = source,
+    priority = c(BOKU = 4L, Zed = 4L),
+    .by = c("region", "category"),
+    tie_break = list(
+      coverage = "positive",
+      quality_col = "tier",
+      quality_levels = tier_levels,
+      quality_variants = TRUE
+    ),
+    verbose = FALSE
+  )
+
+  win_1919 <- won[won$year == 1919, ]
+  testthat::expect_equal(win_1919$source, "Zed")
+  testthat::expect_equal(win_1919$value, 9)
+  testthat::expect_equal(win_1919$n_sources, 2L)
+})
+
 testthat::test_that("quality_variants is inert on a panel without variants", {
   # Turning the option on must not change a panel that already holds one row
   # per source per cell: the resolution only ever drops losing variants.
