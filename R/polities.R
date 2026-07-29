@@ -266,6 +266,12 @@
   out <- merge(dt, map, by = rowid_col, all.x = TRUE, sort = FALSE)
   data.table::setorderv(out, rowid_col)
   out[, (rowid_col) := NULL]
+  # Record the anchor here rather than in each caller: this is the single point where it is
+  # applied, and there are seven call sites (add_polity_code, the reporting- and role-column
+  # helpers, build_trade twice, build_cbs, read_raw_inputs). Setting it once means every path that
+  # assigns a polity carries its provenance, including the production, CBS and trade outputs — and
+  # a constant-territory series of production is the realistic case the check exists for.
+  data.table::setattr(out, "whep_backcast_anchor", backcast_anchor)
   out
 }
 
@@ -321,18 +327,8 @@ add_polity_code <- function(
   if (polity_code_column != "polity_code" && "polity_code" %in% names(out)) {
     data.table::setnames(out, "polity_code", polity_code_column)
   }
-  out <- tibble::as_tibble(out)
-  # Record which anchor produced these codes, so a downstream consumer can tell whether the
-  # polity on a pre-anchor row names the territory the value was reported for.
-  # build_constant_territory_series() reads this: it spreads each value over its polity's own
-  # extent, which is wrong for a back-cast series resolved by strict data year, and the two cases
-  # are indistinguishable from the data alone.
-  #
-  # An attribute rather than a column because it is a fact about the resolution, not about any
-  # row. It survives filter/mutate/select/rename/arrange and is dropped by summarise, so the
-  # failure mode is the safe one: absent means no claim, which means no warning.
-  attr(out, "whep_backcast_anchor") <- backcast_anchor
-  out
+  # The anchor marker is set by .add_polity_columns_dt(), so it is already present here.
+  tibble::as_tibble(out)
 }
 
 .add_reporting_polity_columns <- function(

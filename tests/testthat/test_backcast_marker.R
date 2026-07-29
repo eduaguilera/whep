@@ -26,6 +26,17 @@ testthat::test_that("add_polity_code records the anchor it used", {
   testthat::expect_equal(attr(strict, "whep_backcast_anchor"), -Inf)
 })
 
+testthat::test_that("every polity-assigning path records the anchor", {
+  # Set inside .add_polity_columns_dt(), the single point where the anchor is applied, so all seven
+  # call sites inherit it rather than six of them silently omitting it. That matters because the
+  # realistic use of the check is a constant-territory series of PRODUCTION, and production does not
+  # go through add_polity_code() — it goes through the reporting-column helper.
+  a <- function(x) attr(x, "whep_backcast_anchor", exact = TRUE)
+  testthat::expect_equal(a(get_primary_production(example = TRUE)), 1961L)
+  testthat::expect_equal(a(get_wide_cbs(example = TRUE)), 1961L)
+  testthat::expect_equal(a(build_detailed_trade(example = TRUE)), 1961L)
+})
+
 testthat::test_that("the marker survives the verbs a caller puts between the two calls", {
   resolved <- add_polity_code(data.frame(
     area_code = 10L,
