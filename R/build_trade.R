@@ -194,7 +194,13 @@ build_detailed_trade <- function(
     year_col = "year",
     include_unmapped = FALSE
   )
-  .warn_unmapped_codes(dt, "polity_area_code", "area_code", "reporter")
+  .warn_unmapped_codes(
+    dt,
+    "polity_area_code",
+    "area_code",
+    "reporter",
+    status_col = "mapping_status"
+  )
   dt[, area_code := polity_area_code]
 
   # Map partner
@@ -209,7 +215,8 @@ build_detailed_trade <- function(
     dt,
     "partner_polity_area_code",
     "area_code_p",
-    "partner"
+    "partner",
+    status_col = "partner_mapping_status"
   )
   dt[, area_code_partner := partner_polity_area_code]
 
@@ -434,12 +441,51 @@ build_detailed_trade <- function(
   }
 }
 
-.warn_unmapped_codes <- function(dt, mapped_col, original_col, role) {
-  codes <- unique(dt[is.na(get(mapped_col)), get(original_col)])
-  if (length(codes) > 0) {
+.warn_unmapped_codes <- function(
+  dt,
+  mapped_col,
+  original_col,
+  role,
+  status_col = NULL
+) {
+  # Distinguish a deliberate non-mapping from an area code that does not exist.
+  #
+  # Both give a NA polity and both get dropped, so this warning used to report them identically:
+  # "area codes not mapped to a polity, dropping". They are different problems. FAOSTAT 351 "China"
+  # is unmapped ON PURPOSE — it is reported alongside its own components, so routing it too would
+  # double-count every Chinese figure — while an area code absent from the crosswalk means the
+  # caller's input is wrong. Telling a user their data is broken when it is not, or the reverse, is
+  # the whole value of the message.
+  #
+  # `mapping_status` carries the distinction: "unmapped" for the deliberate case, NA when no
+  # crosswalk row was found at all.
+  missing <- dt[is.na(get(mapped_col))]
+  if (nrow(missing) == 0L) {
+    return(invisible(NULL))
+  }
+  if (is.null(status_col) || !status_col %in% names(dt)) {
+    codes <- unique(missing[[original_col]])
     cli::cli_warn(
       "{stringr::str_to_sentence(role)} area codes not mapped to
        a polity, dropping: {codes}"
     )
+    return(invisible(NULL))
   }
+  deliberate <- unique(missing[get(status_col) == "unmapped"][[original_col]])
+  unknown <- unique(missing[is.na(get(status_col))][[original_col]])
+  if (length(deliberate) > 0) {
+    cli::cli_warn(
+      "{stringr::str_to_sentence(role)} area codes deliberately unmapped, dropping:
+       {deliberate}. These are statistical aggregates reported alongside their own
+       components; routing them would double-count."
+    )
+  }
+  if (length(unknown) > 0) {
+    cli::cli_warn(
+      "{stringr::str_to_sentence(role)} area codes NOT FOUND in the polity crosswalk,
+       dropping: {unknown}. Unlike a deliberate non-mapping, this means the input
+       carries an area code this project does not know."
+    )
+  }
+  invisible(NULL)
 }

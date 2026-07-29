@@ -173,7 +173,10 @@ testthat::test_that("unmapped reporter codes warn and are dropped", {
 
   testthat::expect_warning(
     result <- build_detailed_trade(raw_trade = raw),
-    "Reporter.*not mapped to a polity"
+    # Area 4444 does not exist, so the NOT-FOUND branch must fire rather than the
+    # deliberate-non-mapping one. The two used to share a message, which meant a user
+    # could not tell a typo in their input from an aggregate excluded on purpose.
+    "Reporter.*NOT FOUND in the polity crosswalk"
   )
 
   testthat::expect_equal(nrow(result), 1)
@@ -193,7 +196,10 @@ testthat::test_that("unmapped partner codes warn and are dropped", {
 
   testthat::expect_warning(
     result <- build_detailed_trade(raw_trade = raw),
-    "Partner.*not mapped to a polity"
+    # Area 4444 does not exist, so the NOT-FOUND branch must fire rather than the
+    # deliberate-non-mapping one. The two used to share a message, which meant a user
+    # could not tell a typo in their input from an aggregate excluded on purpose.
+    "Partner.*NOT FOUND in the polity crosswalk"
   )
 
   testthat::expect_equal(nrow(result), 1)
