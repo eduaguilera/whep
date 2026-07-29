@@ -592,14 +592,23 @@ build_primary_production <- function(
   crops_eu <- whep::crops_eurostat
   regions <- whep::regions_full
 
+  # `polity_prefix`, not `polity_code`. regions_full's ISO3-shaped family key was
+  # renamed from `polity_code` earlier on this branch, precisely because it held
+  # prefixes rather than codes — and this call site was missed. The join below then
+  # selected a column that no longer existed, so building the fodder dataset aborted
+  # with "Column `polity_code` doesn't exist".
+  #
+  # Nothing caught it: get_primary_production(example = TRUE) never reaches this
+  # function, and the real-data path needs the EuropeAgriDB pin, so it is skipped on
+  # CI. A smoke run against the actual pins is what surfaced it.
   area_bridge <- .current_area_lookup(include_unmapped = FALSE) |>
     tibble::as_tibble() |>
     dplyr::select(
-      polity_code = area_iso3c,
+      polity_prefix = area_iso3c,
       area_code = polity_area_code
     ) |>
-    dplyr::filter(!is.na(.data$polity_code)) |>
-    dplyr::distinct(.data$polity_code, .keep_all = TRUE)
+    dplyr::filter(!is.na(.data$polity_prefix)) |>
+    dplyr::distinct(.data$polity_prefix, .keep_all = TRUE)
 
   .read_input("eu-agridb-fodder", years = years, year_col = "Year") |>
     dplyr::rename(year = Year) |>
@@ -610,15 +619,15 @@ build_primary_production <- function(
         dplyr::select(
           adb_region = ADB_Region,
           area = polity_name,
-          polity_code
+          polity_prefix
         ),
       by = "adb_region"
     ) |>
     dplyr::left_join(
       area_bridge,
-      by = "polity_code"
+      by = "polity_prefix"
     ) |>
-    dplyr::select(-polity_code) |>
+    dplyr::select(-polity_prefix) |>
     dplyr::select(
       year,
       area,
