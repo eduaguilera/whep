@@ -171,3 +171,52 @@ test_that("label normalisation matches the upstream matcher's rules", {
     1980L
   )))
 })
+
+# `resolve_polity_label()` is new public API, and its argument handling encodes
+# deliberate choices that are easy to "simplify" into silent behaviour changes. These
+# pin the documented contract rather than the implementation.
+test_that("resolve_polity_label handles its arguments as documented", {
+  # Vectorised over `label`, with `source`/`year` recycled from length 1.
+  expect_equal(
+    resolve_polity_label(c("BZE", "ZAR"), "mueller-synthetic-n", 2000L),
+    c("BLZ-1981-2025", "COD-1960-2025")
+  )
+
+  # Element-wise years, which is what makes a year-split alias usable at all.
+  expect_equal(
+    resolve_polity_label(
+      c("Cape Verde", "Cape Verde"),
+      "lassaletta-grassland-share",
+      c(1970L, 1990L)
+    ),
+    c("CPV-1886-1975", "CPV-1975-2025")
+  )
+
+  # A length that is neither 1 nor length(label) is a caller error, not something to
+  # recycle silently — recycling would pair labels with the wrong sources.
+  expect_error(
+    resolve_polity_label(c("BZE", "ZAR"), c("a", "b", "c"), 2000L),
+    "length 1 or the same length"
+  )
+
+  # NULL year matches only aliases with NO year scope. This is deliberate: inventing a
+  # year to make a year-scoped alias apply would fabricate an answer. `Swaziland`'s
+  # alias is year-scoped, so it must NOT resolve without one.
+  expect_true(is.na(
+    resolve_polity_label("Swaziland", "lassaletta-grassland-share", NULL)
+  ))
+
+  # NULL source matches only unscoped aliases, for the same reason in the other
+  # dimension: `Swaziland`'s alias is scoped to a source, so a caller who does not say
+  # which source their data came from gets NA rather than a guess.
+  expect_true(is.na(resolve_polity_label("Swaziland", NULL, 1980L)))
+
+  # Degenerate inputs return the same shape rather than erroring.
+  expect_length(
+    resolve_polity_label(character(0), "mueller-synthetic-n", 2000L),
+    0L
+  )
+  expect_true(is.na(
+    resolve_polity_label(NA_character_, "mueller-synthetic-n", 2000L)
+  ))
+})
