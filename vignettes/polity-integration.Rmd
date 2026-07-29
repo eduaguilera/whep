@@ -48,8 +48,12 @@ add_polity_code(data.frame(area_code = c(185L, 51L), year = c(2000L, 1960L)))[
 Two conventions matter:
 
 - **`end_year` is exclusive.** Area 185 in 2014 resolves to `RUS-2014-2025`, not `RUS-1991-2014`.
-- **Years before 1961 are clamped** to the first FAOSTAT year before matching, because the
-  source series begin there. Asking for 1850 gives the polity that was live in 1961.
+- **Years before 1961 match the polity active in 1961.** Not a convenience: WHEP's pre-1961
+  series are *back-cast onto 1961 territory* rather than reported under their own year's borders,
+  so the 1961-active polity is the correct target and matching by data year would attribute
+  1961-border figures to an entity with different borders. On the real production build this
+  covers 1,978,400 rows — 31% of the dataset — whose polity span excludes the row's own year.
+  Pass `backcast_anchor = -Inf` to match strictly by data year instead.
 
 A resolved row carries both a code and a numeric key, and they answer different questions:
 
