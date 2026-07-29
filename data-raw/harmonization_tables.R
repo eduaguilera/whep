@@ -69,6 +69,15 @@ current_area_polities <- polity_area_crosswalk |>
     reporting_polity_code = .data$polity_code,
     reporting_polity_name = .data$polity_name,
     reporting_polity_has_geometry = .data$has_geometry,
+    # The continent comes from the polity, not from this table's own vendored
+    # `region_UN` column. Those two disagree for 54 of 253 comparable areas, and
+    # the vendored one is the unreliable side: area 228 "USSR" is filed under
+    # Asia while area 185 "Russian Federation" — the same territorial family — is
+    # filed under Europe. Upstream is consistent, putting all twelve F228/RUS
+    # periods in Europe. Nothing in the package reads `region_UN`, so rather than
+    # hand-patch one cell of a vendored table, publish the polity's own answer
+    # next to it and let consumers prefer the sourced column.
+    reporting_polity_continent = .data$continent,
     # A prefix, not a code: the ISO3-shaped family key. Used only to fill
     # `polity_prefix` for area codes the crosswalk does not resolve.
     legacy_polity_prefix = sub("-.*", "", .data$polity_code)
@@ -82,6 +91,7 @@ add_current_area_polities <- function(table) {
         "reporting_polity_code",
         "reporting_polity_name",
         "reporting_polity_has_geometry",
+        "reporting_polity_continent",
         "legacy_polity_prefix"
       ))
     ) |>

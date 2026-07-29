@@ -509,6 +509,11 @@
 #' - `reporting_polity_name`: Current WHEP polity name for `code`.
 #' - `reporting_polity_has_geometry`: Logical flag indicating whether the
 #'   current reporting polity has a polygon.
+#' - `reporting_polity_continent`: Continent of the current reporting polity,
+#'   taken from the polities database. Prefer this over the vendored
+#'   `region_UN` column, which disagrees with it for 54 of 253 comparable
+#'   areas and is internally inconsistent (the USSR is filed under Asia while
+#'   its successor the Russian Federation is filed under Europe).
 #' - `iso3c`: ISO 3166-1 alpha-3 code (character; may duplicate
 #'   `polity_prefix` or differ for aggregates).
 #' - `FAOSTAT_name`: Country name as used in FAOSTAT.
@@ -606,6 +611,11 @@
 #' - `reporting_polity_name`: Current WHEP polity name for `code`.
 #' - `reporting_polity_has_geometry`: Logical flag indicating whether the
 #'   current reporting polity has a polygon.
+#' - `reporting_polity_continent`: Continent of the current reporting polity,
+#'   taken from the polities database. Prefer this over the vendored
+#'   `region_UN` column, which disagrees with it for 54 of 253 comparable
+#'   areas and is internally inconsistent (the USSR is filed under Asia while
+#'   its successor the Russian Federation is filed under Europe).
 #' - `iso3c`: ISO 3166-1 alpha-3 code (`NA` for aggregates).
 #' - `FAOSTAT_name`: Name used in FAOSTAT (may be `"#N/A"` for aggregates).
 #' - `EU27`: Logical EU27 membership flag.
