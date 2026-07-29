@@ -37,7 +37,12 @@ testthat::test_that("LUH2 land lost to unmatched codes stays negligible", {
   # bigger number is upstream of us entirely. Asserted separately, with headroom, so a real
   # regression — a substantial territory falling out of the crosswalk — fails while these stay
   # quiet.
-  land <- tryCatch(whep:::.read_input("luh2-areas"), error = function(e) NULL)
+  # Restricted to recent years: the full pin is large enough to dominate the suite's runtime,
+  # and both questions here are about the latest year's shares.
+  land <- tryCatch(
+    whep:::.read_input("luh2-areas", years = 2015:2030, year_col = "Year"),
+    error = function(e) NULL
+  )
   testthat::skip_if(is.null(land), "luh2-areas pin unavailable")
   dt <- data.table::as.data.table(land)
 
@@ -62,7 +67,7 @@ testthat::test_that("LUH2 covers the reattributed areas except the French depart
   # reason, and the tryCatch below already is one — it skips exactly when the pin cannot
   # be read, and runs otherwise.
   land <- tryCatch(
-    whep:::.read_input("luh2-areas"),
+    whep:::.read_input("luh2-areas", years = 2015:2030, year_col = "Year"),
     error = function(e) NULL
   )
   testthat::skip_if(is.null(land), "luh2-areas pin unavailable")
