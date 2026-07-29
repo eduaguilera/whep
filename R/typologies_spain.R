@@ -228,7 +228,7 @@ create_typologies_spain <- function(
           "Specialized cropping systems (intensive)",
         production_crops > animal_ingestion &
           synthetic_share <= 0.4 &
-          crop_productivity < 8 ~
+          crop_productivity < 10 ~
           "Specialized cropping systems (extensive)",
         Livestock_density > 1.3 &
           imported_feed_share > 0.6 &
@@ -239,9 +239,9 @@ create_typologies_spain <- function(
           imported_feed_share > 0.6 &
           feed_from_seminatural_share < 0.4 ~
           "Specialized livestock systems (extensive)",
-        local_feed_share > 0.3 & Manure_share > 0.3 & crop_productivity >= 30 ~
+        local_feed_share > 0.3 & Manure_share > 0.25 & crop_productivity >= 30 ~
           "Connected crop-livestock systems (intensive)",
-        local_feed_share > 0.3 & Manure_share > 0.3 & crop_productivity < 30 ~
+        local_feed_share > 0.3 & Manure_share > 0.25 & crop_productivity < 30 ~
           "Connected crop-livestock systems (extensive)",
         local_feed_share < 0.6 & Manure_share < 0.6 ~
           "Disconnected crop-livestock systems (intensive)",
@@ -255,7 +255,8 @@ create_typologies_spain <- function(
         pop_consumption > production_total ~ "Urban systems",
         TRUE ~ Typology_base
       )
-    )
+    ) |>
+    dplyr::filter(year <= 2021)
 
   if (make_map) {
     layer_name <- tools::file_path_sans_ext(basename(shapefile_path))
@@ -314,35 +315,30 @@ create_typologies_spain <- function(
       )
 
     typology_colors <- c(
-      "Semi-natural agroecosystems" = "#66a61e",
-
       "Specialized cropping systems (intensive)" = "#F7DD5A",
       "Specialized cropping systems (extensive)" = "#FFF7C2",
-
       "Specialized livestock systems (intensive)" = "#b3001b",
       "Specialized livestock systems (extensive)" = "#C94F6B",
-
-      "Connected crop-livestock systems (intensive)" = "#7A4F20",
-      "Connected crop-livestock systems (extensive)" = "#AF814B",
-
       "Disconnected crop-livestock systems (intensive)" = "#E67E00",
       "Disconnected crop-livestock systems (extensive)" = "#F6A640",
-
+      "Connected crop-livestock systems (intensive)" = "#7A4F20",
+      "Connected crop-livestock systems (extensive)" = "#AF814B",
+      "Semi-natural agroecosystems" = "#66a61e",
       "Urban systems" = "#6A5ACD"
     )
 
     typologies_map$Typology_base <- factor(
       typologies_map$Typology_base,
       levels = c(
-        "Semi-natural agroecosystems",
         "Specialized cropping systems (intensive)",
         "Specialized cropping systems (extensive)",
         "Specialized livestock systems (intensive)",
         "Specialized livestock systems (extensive)",
+        "Disconnected crop-livestock systems (intensive)",
+        "Disconnected crop-livestock systems (extensive)",
         "Connected crop-livestock systems (intensive)",
         "Connected crop-livestock systems (extensive)",
-        "Disconnected crop-livestock systems (intensive)",
-        "Disconnected crop-livestock systems (extensive)"
+        "Semi-natural agroecosystems"
       )
     )
 

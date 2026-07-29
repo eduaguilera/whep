@@ -321,8 +321,7 @@ create_grafs_plot_df <- function() {
     dplyr::left_join(item_box_lookup, by = c("item" = "item")) |>
     dplyr::mutate(
       box_filled = dplyr::case_when(
-        item %in% c("Holm oak", "Average wood") ~
-          "semi_natural_agroecosystems",
+        item %in% c("Holm oak", "Average wood") ~ "semi_natural_agroecosystems",
         item == "Fallow" ~ "Cropland",
         group %in% c("Crop products", "Primary crops", "crop residue") ~
           "Cropland",
@@ -1274,8 +1273,7 @@ create_grafs_plot_df <- function() {
     "{LIVESTOCK_TO_HUMAN}",
     "{LIVESTOCK_EXPORTED}",
     "{LIVESTOCK_TO_CROPS}",
-    "{LIVESTOCK_TO_GRASS}",
-    "{AN_OTH}"
+    "{LIVESTOCK_TO_GRASS}"
   )
 
   df_inputs <- df_all_flows |>

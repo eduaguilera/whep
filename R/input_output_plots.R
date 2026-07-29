@@ -10,18 +10,13 @@ plot_input_output <- function(
   per_ha = FALSE
 ) {
   system <- match.arg(system)
-  data <- create_n_nat_destiny()
-  needs_n_balance <- per_ha || system == "semi_natural_agroecosystems"
-  n_balance <- if (needs_n_balance) {
-    whep_read_file("n_balance_ygpit_all")
+  data <- create_n_nat_destiny() |>
+    dplyr::filter(as.numeric(year) <= 2021)
+  n_balance <- if (per_ha) {
+    whep_read_file("n_balance_ygpit_all") |>
+      dplyr::filter(as.numeric(Year) <= 2021)
   } else {
     NULL
-  }
-  accum <- if (system == "semi_natural_agroecosystems") {
-    landuse_filter <- unique(n_balance$LandUse[n_balance$LandUse != "Cropland"])
-    .calculate_n_accum(n_balance, landuse_filter)
-  } else {
-    tibble::tibble(year = integer(), mg_n = numeric(), Type = character())
   }
 
   df_system <- data |>
@@ -78,14 +73,9 @@ plot_input_output <- function(
 
   surplus <- input_sum |>
     dplyr::left_join(prod_sum, by = "year") |>
-    dplyr::left_join(
-      accum |> dplyr::select(year, Accum = mg_n),
-      by = "year"
-    ) |>
     dplyr::mutate(
       Production = dplyr::coalesce(Production, 0),
-      Accum = dplyr::coalesce(Accum, 0),
-      Surplus = pmax(Input_Total - Production - Accum, 0)
+      Surplus = pmax(Input_Total - Production, 0)
     ) |>
     dplyr::select(year, Surplus) |>
     dplyr::mutate(Type = "Surplus")
@@ -104,7 +94,6 @@ plot_input_output <- function(
   plot_df <- dplyr::bind_rows(
     inputs |> dplyr::select(year, Type, mg_n),
     production |> dplyr::select(year, Type, mg_n),
-    accum |> dplyr::select(year, Type, mg_n),
     surplus |> dplyr::rename(mg_n = Surplus)
   ) |>
     .normalize_mg_n(per_ha, lu_area) |>
@@ -117,7 +106,8 @@ plot_input_output <- function(
             "Fixation",
             "Deposition",
             "Urban"
-          ) ~ -mg_n,
+          ) ~
+          -mg_n,
         TRUE ~ mg_n
       ),
       Type = factor(
@@ -129,7 +119,6 @@ plot_input_output <- function(
           "Deposition",
           "Urban",
           "Surplus",
-          "Accumulation",
           "Production",
           "Residues"
         )
@@ -145,14 +134,38 @@ plot_input_output <- function(
       "text",
       x = -Inf,
       y = Inf,
-      label = if (system == "Cropland") "Cropland" else "Semi-natural agroecosystems",
+      label = if (system == "Cropland") {
+        "Cropland"
+      } else {
+        "Semi-natural agroecosystems"
+      },
       hjust = -0.05,
       vjust = 1.5,
-      size = 3.5,
+      size = 7,
       fontface = "bold"
     ) +
     ggplot2::labs(x = NULL, y = y_lab, fill = "") +
     ggplot2::scale_fill_manual(
+      breaks = c(
+        "Surplus",
+        "Production",
+        "Residues",
+        "Urban",
+        "Deposition",
+        "Fixation",
+        "Manure",
+        "Synthetic_fertilizer"
+      ),
+      labels = c(
+        "Surplus",
+        "Production",
+        "Residues",
+        "Urban",
+        "Deposition",
+        "Fixation",
+        "Manure",
+        "Synthetic fertilizer"
+      ),
       values = c(
         "Synthetic_fertilizer" = "red4",
         "Manure" = "darkorange3",
@@ -160,12 +173,16 @@ plot_input_output <- function(
         "Fixation" = "olivedrab4",
         "Deposition" = "gray40",
         "Surplus" = "slategray",
-        "Accumulation" = "steelblue4",
         "Residues" = "goldenrod3",
         "Production" = "orange3"
       )
     ) +
-    ggplot2::theme_minimal()
+    ggplot2::theme_minimal() +
+    ggplot2::theme(
+      legend.text = ggplot2::element_text(size = 15),
+      legend.key.size = ggplot2::unit(1.2, "cm"),
+      axis.text = ggplot2::element_text(size = 13)
+    )
 }
 
 
@@ -186,7 +203,8 @@ plot_input_output_livestock <- function(per_ha = FALSE) {
     dplyr::filter(province_name != "Sea")
 
   item_to_type <- livestock_prod |>
-    dplyr::distinct(Item, Livestock_cat) |>
+    dplyr::distinct(item_cbs, Livestock_cat) |>
+    dplyr::rename(Item = item_cbs) |>
     dplyr::mutate(
       prod_type = dplyr::case_when(
         Livestock_cat %in%
@@ -294,11 +312,27 @@ plot_input_output_livestock <- function(per_ha = FALSE) {
       label = "Livestock system",
       hjust = -0.05,
       vjust = 1.5,
-      size = 3.5,
+      size = 7,
       fontface = "bold"
     ) +
     ggplot2::labs(x = NULL, y = y_lab, fill = "") +
     ggplot2::scale_fill_manual(
+      breaks = c(
+        "Surplus",
+        "Production_rum",
+        "Production_mono",
+        "Grass_local",
+        "Crops_local",
+        "Imports"
+      ),
+      labels = c(
+        "Surplus",
+        "Production ruminants",
+        "Production monogastric",
+        "Grass local",
+        "Crops local",
+        "Imports"
+      ),
       values = c(
         "Grass_local" = "darkolivegreen3",
         "Crops_local" = "#1b9e77",
@@ -308,7 +342,12 @@ plot_input_output_livestock <- function(per_ha = FALSE) {
         "Production_mono" = "darkorange3"
       )
     ) +
-    ggplot2::theme_minimal()
+    ggplot2::theme_minimal() +
+    ggplot2::theme(
+      legend.text = ggplot2::element_text(size = 15),
+      legend.key.size = ggplot2::unit(1.2, "cm"),
+      axis.text = ggplot2::element_text(size = 13)
+    )
 }
 
 
@@ -317,9 +356,9 @@ plot_input_output_livestock <- function(per_ha = FALSE) {
 #' @return A ggplot object.
 #' @export
 plot_input_output_system <- function(per_ha = FALSE) {
-  data <- create_n_nat_destiny()
+  data <- create_n_nat_destiny() |>
+    dplyr::filter(as.numeric(year) <= 2021)
   n_balance <- whep_read_file("n_balance_ygpit_all")
-  accum <- .calculate_n_accum(n_balance)
   lu_area <- if (per_ha) .get_area_national(n_balance) else NULL
 
   df <- data |>
@@ -407,14 +446,9 @@ plot_input_output_system <- function(per_ha = FALSE) {
 
   surplus <- input_sum |>
     dplyr::left_join(use_sum, by = "year") |>
-    dplyr::left_join(
-      accum |> dplyr::select(year, Accum = mg_n),
-      by = "year"
-    ) |>
     dplyr::mutate(
       Use_Total = dplyr::coalesce(Use_Total, 0),
-      Accum = dplyr::coalesce(Accum, 0),
-      mg_n = pmax(Input_Total - Use_Total - Accum, 0),
+      mg_n = pmax(Input_Total - Use_Total, 0),
       Type = "Surplus"
     ) |>
     dplyr::select(year, Type, mg_n)
@@ -424,7 +458,6 @@ plot_input_output_system <- function(per_ha = FALSE) {
   plot_df <- dplyr::bind_rows(
     inputs,
     uses_core,
-    accum |> dplyr::select(year, Type, mg_n),
     surplus
   ) |>
     .normalize_mg_n(per_ha, lu_area) |>
@@ -437,7 +470,8 @@ plot_input_output_system <- function(per_ha = FALSE) {
             "Deposition",
             "Feed_import",
             "Food_import"
-          ) ~ -mg_n,
+          ) ~
+          -mg_n,
         TRUE ~ mg_n
       ),
       Type = factor(
@@ -449,7 +483,6 @@ plot_input_output_system <- function(per_ha = FALSE) {
           "Feed_import",
           "Food_import",
           "Surplus",
-          "Accumulation",
           "Feed",
           "Food",
           "Other_uses",
@@ -468,18 +501,41 @@ plot_input_output_system <- function(per_ha = FALSE) {
       label = "Agro-food system",
       hjust = -0.05,
       vjust = 1.5,
-      size = 3.5,
+      size = 7,
       fontface = "bold"
     ) +
     ggplot2::labs(x = NULL, y = y_lab, fill = "") +
     ggplot2::scale_fill_manual(
+      breaks = c(
+        "Surplus",
+        "Feed",
+        "Food",
+        "Other_uses",
+        "Export",
+        "Food_import",
+        "Feed_import",
+        "Deposition",
+        "Fixation",
+        "Synthetic_fertilizer"
+      ),
+      labels = c(
+        "Surplus",
+        "Feed",
+        "Food",
+        "Other uses",
+        "Export",
+        "Food import",
+        "Feed import",
+        "Deposition",
+        "Fixation",
+        "Synthetic fertilizer"
+      ),
       values = c(
         "Synthetic_fertilizer" = "red4",
         "Fixation" = "olivedrab4",
         "Deposition" = "gray40",
         "Feed_import" = "#1b9e77",
         "Food_import" = "darkolivegreen3",
-        "Accumulation" = "steelblue4",
         "Feed" = "darkorange3",
         "Food" = "darkorange4",
         "Other_uses" = "sandybrown",
@@ -487,7 +543,12 @@ plot_input_output_system <- function(per_ha = FALSE) {
         "Surplus" = "slategray"
       )
     ) +
-    ggplot2::theme_minimal()
+    ggplot2::theme_minimal() +
+    ggplot2::theme(
+      legend.text = ggplot2::element_text(size = 15),
+      legend.key.size = ggplot2::unit(1.2, "cm"),
+      axis.text = ggplot2::element_text(size = 13)
+    )
 }
 
 
@@ -514,19 +575,4 @@ plot_input_output_system <- function(per_ha = FALSE) {
   } else {
     dplyr::mutate(df, mg_n = mg_n / 1000)
   }
-}
-
-.calculate_n_accum <- function(n_balance, landuse = NULL) {
-  df <- n_balance
-  if (!is.null(landuse)) {
-    df <- dplyr::filter(df, LandUse %in% landuse)
-  }
-  df |>
-    dplyr::mutate(
-      Accum_net = Accum_gain_AG_MgN + Accum_gain_BG_MgN - Accum_loss
-    ) |>
-    dplyr::group_by(Year) |>
-    dplyr::summarise(mg_n = sum(Accum_net, na.rm = TRUE), .groups = "drop") |>
-    dplyr::rename(year = Year) |>
-    dplyr::mutate(Type = "Accumulation")
 }

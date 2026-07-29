@@ -10,32 +10,40 @@ typology_area_stacked_bars <- function() {
     )
 
   typology_colors <- c(
-    "Semi-natural agroecosystems" = "#66a61e",
     "Specialized cropping systems (intensive)" = "#F7DD5A",
     "Specialized cropping systems (extensive)" = "#FFF7C2",
     "Specialized livestock systems (intensive)" = "#b3001b",
     "Specialized livestock systems (extensive)" = "#C94F6B",
+    "Disconnected crop-livestock systems (intensive)" = "#E67E00",
+    "Disconnected crop-livestock systems (extensive)" = "#F6A640",
     "Connected crop-livestock systems (intensive)" = "#7A4F20",
     "Connected crop-livestock systems (extensive)" = "#AF814B",
-    "Disconnected crop-livestock systems (intensive)" = "#E67E00",
-    "Disconnected crop-livestock systems (extensive)" = "#F6A640"
+    "Semi-natural agroecosystems" = "#66a61e"
   )
 
   df <- .build_area_totals(
-    .sum_area_by_prov(npp_ygpit), typologies_df, typology_colors
+    .sum_area_by_prov(npp_ygpit),
+    typologies_df,
+    typology_colors
   )
 
   year_breaks <- df$Year |> unique() |> sort()
   year_breaks <- year_breaks[year_breaks %% 20 == 0]
 
   p_total <- .plot_area_stacked(
-    df, year_breaks, "Mha",
-    "Total land area by typology", "Total area (Mha)",
+    df,
+    year_breaks,
+    "Mha",
+    "Total land area by typology",
+    "Total area (Mha)",
     typology_colors
   )
   p_pct <- .plot_area_stacked(
-    df, year_breaks, "Percent_ha",
-    "Land area by typology (%)", "Share of total area (%)",
+    df,
+    year_breaks,
+    "Percent_ha",
+    "Land area by typology (%)",
+    "Share of total area (%)",
     typology_colors
   )
 
@@ -120,11 +128,11 @@ typology_kgha_lines <- function() {
   df_all <- build_kgha(area_all, soil_all)
 
   typology_colors <- c(
-    "Semi-natural agroecosystems" = "#66a61e",
     "Specialized cropping systems" = "#F7DD5A",
     "Specialized livestock systems" = "#b3001b",
+    "Disconnected crop-livestock systems" = "#E67E00",
     "Connected crop-livestock systems" = "#7A4F20",
-    "Disconnected crop-livestock systems" = "#E67E00"
+    "Semi-natural agroecosystems" = "#66a61e"
   )
 
   df_agri$Typology <- factor(df_agri$Typology, levels = names(typology_colors))
@@ -177,7 +185,9 @@ typology_kgha_lines <- function() {
 
 .sum_area_by_prov <- function(npp_ygpit, land_uses = NULL) {
   df <- npp_ygpit
-  if (!is.null(land_uses)) df <- dplyr::filter(df, LandUse %in% land_uses)
+  if (!is.null(land_uses)) {
+    df <- dplyr::filter(df, LandUse %in% land_uses)
+  }
   df |>
     dplyr::group_by(Year, Province_name) |>
     dplyr::summarise(
@@ -217,7 +227,10 @@ typology_kgha_lines <- function() {
     ggplot2::scale_x_discrete(breaks = as.character(year_breaks)) +
     ggplot2::scale_fill_manual(values = colors) +
     ggplot2::labs(
-      title = title, x = "Year", y = y_label, fill = "Typology"
+      title = title,
+      x = "Year",
+      y = y_label,
+      fill = "Typology"
     ) +
     ggplot2::theme_minimal() +
     ggplot2::theme(

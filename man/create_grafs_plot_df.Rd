@@ -11,6 +11,6 @@ A tibble containing province, year, label, data, and alignment.
 }
 \description{
 Combines land input data and N flows from crops, livestock, imports, and
-exports to generate a dataset of nitrogen (MgN) by province and year, to
+exports to generate a dataset of nitrogen (mg_n) by province and year, to
 create a GRAFS plot, offered by Alfredo Rodríguez.
 }

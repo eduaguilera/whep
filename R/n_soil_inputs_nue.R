@@ -97,23 +97,6 @@ create_n_soil_inputs <- function(example = FALSE) {
     Box_semi_natural_agroecosystems = "semi_natural_agroecosystems"
   )
 
-  n_balance_old <- whep_read_file("n_balance_ygpit_all_old")
-
-  excreta_old <- n_balance_old |>
-    dplyr::group_by(Year, Province_name, Name_biomass, LandUse, Irrig_cat) |>
-    dplyr::summarise(
-      Excreta_old = sum(Excreta, na.rm = TRUE),
-      .groups = "drop"
-    )
-
-  n_balance_ygpit_all <- n_balance_ygpit_all |>
-    dplyr::left_join(
-      excreta_old,
-      by = c("Year", "Province_name", "Name_biomass", "LandUse", "Irrig_cat")
-    ) |>
-    dplyr::mutate(Excreta = dplyr::coalesce(Excreta_old, 0)) |>
-    dplyr::select(-Excreta_old)
-
   # Combine all necessary n Inputs
   n_soil_inputs <- n_balance_ygpit_all |>
     dplyr::left_join(items, by = "Name_biomass") |>

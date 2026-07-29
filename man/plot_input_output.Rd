@@ -4,7 +4,10 @@
 \alias{plot_input_output}
 \title{Plot N inputs, production and surplus}
 \usage{
-plot_input_output(system = c("Cropland", "semi_natural_agroecosystems"))
+plot_input_output(
+  system = c("Cropland", "semi_natural_agroecosystems"),
+  per_ha = FALSE
+)
 }
 \arguments{
 \item{system}{Character. One of "Cropland" or

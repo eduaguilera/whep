@@ -4,7 +4,7 @@
 \alias{plot_input_output_livestock}
 \title{Plot N inputs, production and surplus for Livestock system}
 \usage{
-plot_input_output_livestock()
+plot_input_output_livestock(per_ha = FALSE)
 }
 \value{
 A ggplot object.

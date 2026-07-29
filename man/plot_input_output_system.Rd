@@ -4,7 +4,7 @@
 \alias{plot_input_output_system}
 \title{Plot N inputs and uses for full agro-food system (system level)}
 \usage{
-plot_input_output_system()
+plot_input_output_system(per_ha = FALSE)
 }
 \value{
 A ggplot object.

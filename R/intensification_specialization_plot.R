@@ -893,7 +893,7 @@ intens_traj_plot <- function() {
     dplyr::left_join(crop_production, by = "year") |>
       dplyr::left_join(fertilizer_input, by = "year") |>
       dplyr::mutate(
-        # Land productivity (kg N / ha)
+        # Crop productivity (kg N / ha)
         land_productivity = (crop_N * 1000) / cropland_area,
 
         # Nitrogen intensity (kg N / ha)
@@ -938,106 +938,76 @@ intens_traj_plot <- function() {
 
 intens_ts_plot <- function() {
   # ---- Load data ----
-  flows <- create_n_prov_destiny()
+  flows <- create_n_nat_destiny()
   npp_ygpit <- whep_read_file("npp_ygpit") |> dplyr::rename_with(tolower)
 
-  # ---- Cropland area ----
-  cropland_area <- npp_ygpit |>
-    dplyr::filter(landuse == "Cropland") |>
-    dplyr::group_by(year) |>
-    dplyr::summarise(
-      cropland_area = sum(area_ygpit_ha, na.rm = TRUE),
-      .groups = "drop"
-    )
-
-  # ---- Crop production ----
-  crop_production <- flows |>
+  # ---- Agricultural area (cropland + semi-natural) ----
+  agri_area <- npp_ygpit |>
     dplyr::filter(
-      origin == "Cropland",
-      destiny %in%
+      landuse %in%
         c(
-          "population_food",
-          "livestock_rum",
-          "livestock_mono",
-          "export"
+          "Cropland",
+          "Dehesa",
+          "Forest_high",
+          "Forest_low",
+          "Other",
+          "Pasture_Shrubland"
         )
     ) |>
     dplyr::group_by(year) |>
     dplyr::summarise(
-      crop_N = sum(mg_n, na.rm = TRUE),
+      agri_area = sum(area_ygpit_ha, na.rm = TRUE),
       .groups = "drop"
     )
 
-  # ---- Synthetic fertilizer ----
-  fertilizer_input <- flows |>
+  # ---- Whole AFS production ----
+  system_food <- flows |>
     dplyr::filter(
-      origin == "Synthetic",
-      destiny == "Cropland"
+      origin %in%
+        c("Cropland", "semi_natural_agroecosystems", "Livestock"),
+      destiny %in% c("population_food", "population_other_uses", "export")
     ) |>
     dplyr::group_by(year) |>
     dplyr::summarise(
-      fertilizer_N = sum(mg_n, na.rm = TRUE),
+      system_N = sum(mg_n, na.rm = TRUE),
       .groups = "drop"
     )
 
   # ---- Combine ----
-  df <- cropland_area |>
-    dplyr::rename(year_dup = year) |
-    dplyr::left_join(crop_production, by = "year") |>
-      dplyr::left_join(fertilizer_input, by = "year") |>
-      dplyr::mutate(
-        land_productivity = (crop_N * 1000) / cropland_area,
-        nitrogen_intensity = (fertilizer_N * 1000) / cropland_area
-      )
-
-  # ---- Convert to long format ----
-  df_long <- df |>
-    tidyr::pivot_longer(
-      cols = c(land_productivity, nitrogen_intensity),
-      names_to = "indicator",
-      values_to = "value"
+  df <- agri_area |>
+    dplyr::left_join(system_food, by = "year") |>
+    dplyr::mutate(
+      system_productivity = system_N * 1000 / agri_area
     )
 
   # ---- Plot ----
   p <- ggplot2::ggplot(
-    df_long,
-    ggplot2::aes(
-      x = year,
-      y = value,
-      color = indicator
-    )
+    df |> dplyr::filter(year <= 2021),
+    ggplot2::aes(x = year, y = system_productivity)
   ) +
-    ggplot2::geom_line(size = 1.3) +
-    ggplot2::scale_color_manual(
-      values = c(
-        land_productivity = "#1b9e77",
-        nitrogen_intensity = "#d95f02"
-      ),
-      labels = c(
-        "Land productivity",
-        "Nitrogen input intensity"
-      )
+    ggplot2::geom_line(color = "#7B2D8B", linewidth = 1.3) +
+    ggplot2::scale_x_continuous(
+      breaks = seq(1860, 2020, by = 20),
+      limits = c(1860, 2021)
     ) +
     ggplot2::labs(
       x = NULL,
-      y = "kg N / ha",
-      color = "Indicator",
-      title = "N inputs and crop productivity in Spain (1860-2020)"
+      y = "N productivity (kg N / ha)",
+      title = "N productivity of the whole agro-food system (kg N / ha)"
     ) +
-    ggplot2::theme_minimal() +
+    ggplot2::theme_minimal(base_size = 13) +
     ggplot2::theme(
-      plot.title = ggplot2::element_text(face = "bold"),
-      legend.position = "right"
-    )
+      plot.title = ggplot2::element_text(face = "bold", size = 15)
+    ) +
+    .stacked_bar_theme()
 
   print(p)
 
-  # ---- Save plot ----
   ggplot2::ggsave(
-    "C:/PhD/Typologies/Typologies_spain/typology_plot/intensification_timeseries.jpeg",
+    "C:/PhD/plots/intensification_specialisation_indicators/land_productivity.jpeg",
     plot = p,
     width = 10,
-    height = 7,
+    height = 5,
     dpi = 300
   )
 
@@ -1170,7 +1140,7 @@ nue_fertilizer_timeseries_plot <- function() {
   ggplot2::ggsave(
     filename = "C:/PhD/Typologies/Typologies_spain/typology_plot/nue_fertilizer_time.jpeg",
     plot = p,
-    width = 12,
+    width = 10,
     height = 8,
     dpi = 300
   )
@@ -1384,10 +1354,7 @@ production_diversity_plot <- function() {
   # ---- Load data ----
   flows <- create_n_prov_destiny()
 
-  items <- readxl::read_excel(
-    "C:/PhD/GRAFS/Inputs_SACO/Codes_coefs.xlsx",
-    sheet = "Names_biomass_CB"
-  )
+  items <- whep_read_file("codes_coefs")
 
   df <- dplyr::left_join(
     flows,
@@ -1405,11 +1372,12 @@ production_diversity_plot <- function() {
           "livestock_mono",
           "export"
         ),
-      origin != "Outside"
+      origin != "Outside",
+      !is.na(Cat_1)
     )
 
   prod_group <- df |>
-    dplyr::group_by(year, province_name, item) |>
+    dplyr::group_by(year, province_name, Cat_1) |>
     dplyr::summarise(
       value = sum(mg_n, na.rm = TRUE),
       .groups = "drop"
@@ -1465,10 +1433,7 @@ intens_spec_sec_axis <- function() {
   flows <- create_n_prov_destiny()
   npp_ygpit <- whep_read_file("npp_ygpit") |> dplyr::rename_with(tolower)
 
-  items <- readxl::read_excel(
-    "C:/PhD/GRAFS/Inputs_SACO/Codes_coefs.xlsx",
-    sheet = "Names_biomass_CB"
-  )
+  items <- whep_read_file("codes_coefs")
 
   df_prod <- flows |>
     dplyr::filter(
@@ -1714,10 +1679,7 @@ n_indicators_ts_plot <- function() {
 spatial_diversity <- function() {
   flows <- create_n_prov_destiny()
 
-  items <- readxl::read_excel(
-    "C:/PhD/GRAFS/Inputs_SACO/Codes_coefs.xlsx",
-    sheet = "Names_biomass_CB"
-  )
+  items <- whep_read_file("codes_coefs")
 
   df <- flows |>
     dplyr::left_join(items, by = c("item" = "Name_biomass")) |>
@@ -1766,6 +1728,7 @@ spatial_diversity <- function() {
       y = "Spatial diversity (Shannon index)",
       title = "Spatial diversity of agricultural production in Spain"
     ) +
+    ggplot2::scale_y_continuous(limits = c(0, 1)) +
     ggplot2::theme_minimal()
 
   print(p)
@@ -2013,7 +1976,7 @@ ext_dep_plot_national <- function() {
 
   # ---- Plot 1: Dependency ----
   p1 <- ggplot2::ggplot(
-    df,
+    df |> dplyr::filter(year <= 2021),
     ggplot2::aes(x = year, y = external_dependency)
   ) +
     ggplot2::geom_line(
@@ -2024,17 +1987,33 @@ ext_dep_plot_national <- function() {
       labels = scales::percent_format(),
       limits = c(0, 1)
     ) +
+    ggplot2::scale_x_continuous(
+      breaks = seq(1860, 2020, by = 20),
+      limits = c(1860, 2021)
+    ) +
     ggplot2::labs(
       x = NULL,
-      y = "External N dependency",
-      title = "Dependence on external nitrogen inputs in Spain (1860-2021)"
+      y = "External N dependency (%)",
+      title = "External N dependency of the whole agro-food system (%)"
     ) +
-    ggplot2::theme_minimal() +
+    ggplot2::theme_minimal(base_size = 13) +
     ggplot2::theme(
-      plot.title = ggplot2::element_text(face = "bold")
-    )
+      plot.title = ggplot2::element_text(face = "bold", size = 15),
+      axis.text.x = ggplot2::element_text(angle = 45, hjust = 1),
+      legend.text = ggplot2::element_text(size = 12),
+      legend.title = ggplot2::element_text(size = 13)
+    ) +
+    .stacked_bar_theme()
 
   print(p1)
+
+  ggplot2::ggsave(
+    "C:/PhD/plots/intensification_specialisation_indicators/ext_dependency.jpeg",
+    plot = p1,
+    width = 10,
+    height = 5,
+    dpi = 300
+  )
 
   # ---- Plot 2: Composition ----
   df_long <- df |>
@@ -2080,16 +2059,340 @@ ext_dep_plot_national <- function() {
       fill = "Input type",
       title = "Composition of nitrogen inputs in Spain"
     ) +
-    ggplot2::theme_minimal() +
+    ggplot2::theme_minimal(base_size = 13) +
     ggplot2::theme(
-      plot.title = ggplot2::element_text(face = "bold")
-    )
+      plot.title = ggplot2::element_text(face = "bold", size = 15),
+      legend.text = ggplot2::element_text(size = 12),
+      legend.title = ggplot2::element_text(size = 13)
+    ) +
+    .stacked_bar_theme()
 
   print(p2)
+
+  ggplot2::ggsave(
+    "C:/PhD/plots/intensification_specialisation_indicators/ext_composition.jpeg",
+    plot = p2,
+    width = 10,
+    height = 5,
+    dpi = 300
+  )
 
   list(
     dependency_plot = p1,
     composition_plot = p2,
     data = df
   )
+}
+
+
+external_dependency_maps <- function(
+  shapefile_path = "C:/PhD/GRAFS/Production Boxes/Final Files/Inputs/ne_10m_admin_1_states_provinces.shp"
+) {
+  flows <- create_n_prov_destiny()
+  df_period <- .calc_end_provincial(flows)
+  sf_spain <- .load_spain_sf(shapefile_path)
+
+  map_df <- sf_spain |>
+    dplyr::inner_join(df_period, by = c("name_clean" = "province_name"))
+
+  p <- ggplot2::ggplot(map_df) +
+    ggplot2::geom_sf(
+      ggplot2::aes(fill = external_dependency * 100),
+      color = "grey80",
+      linewidth = 0.2
+    ) +
+    ggplot2::facet_wrap(~period, nrow = 1) +
+    ggplot2::scale_fill_fermenter(
+      palette = "YlOrBr",
+      direction = 1,
+      breaks = c(0, 20, 40, 60, 70, 80, 90, 100),
+      limits = c(0, 100),
+      name = "External N\ndependency (%)"
+    ) +
+    ggplot2::labs(
+      title = "External N dependency across Spanish provinces"
+    ) +
+    ggplot2::theme_minimal(base_size = 18) +
+    ggplot2::theme(
+      plot.title = ggplot2::element_text(face = "bold", size = 22),
+      strip.text = ggplot2::element_text(size = 18),
+      legend.text = ggplot2::element_text(size = 16),
+      legend.title = ggplot2::element_text(size = 18),
+      legend.key.height = ggplot2::unit(1.2, "cm"),
+      legend.key.width = ggplot2::unit(0.8, "cm")
+    )
+
+  print(p)
+
+  ggplot2::ggsave(
+    "C:/PhD/plots/intensification_specialisation_indicators/external_dependency_map.jpeg",
+    plot = p,
+    width = 14,
+    height = 4.5,
+    dpi = 300
+  )
+
+  list(plot = p, data = df_period)
+}
+
+
+n_productivity_maps <- function(
+  shapefile_path = "C:/PhD/GRAFS/Production Boxes/Final Files/Inputs/ne_10m_admin_1_states_provinces.shp"
+) {
+  flows <- create_n_prov_destiny()
+  npp_ygpit <- whep_read_file("npp_ygpit") |> dplyr::rename_with(tolower)
+  df_period <- .calc_n_productivity_provincial(flows, npp_ygpit)
+  sf_spain <- .load_spain_sf(shapefile_path)
+
+  map_df <- sf_spain |>
+    dplyr::inner_join(df_period, by = c("name_clean" = "province_name"))
+
+  p <- ggplot2::ggplot(map_df) +
+    ggplot2::geom_sf(
+      ggplot2::aes(fill = n_productivity),
+      color = "grey80",
+      linewidth = 0.2
+    ) +
+    ggplot2::facet_wrap(~period, nrow = 1) +
+    ggplot2::scale_fill_fermenter(
+      palette = "Purples",
+      direction = 1,
+      breaks = c(0, 5, 10, 15, 20, 30, 40, 50),
+      name = "N productivity\n(kg N / ha)"
+    ) +
+    ggplot2::labs(
+      title = "N productivity of the whole agro-food system across Spanish provinces"
+    ) +
+    ggplot2::theme_minimal(base_size = 18) +
+    ggplot2::theme(
+      plot.title = ggplot2::element_text(face = "bold", size = 22),
+      strip.text = ggplot2::element_text(size = 18),
+      legend.text = ggplot2::element_text(size = 16),
+      legend.title = ggplot2::element_text(size = 18),
+      legend.key.height = ggplot2::unit(1.2, "cm"),
+      legend.key.width = ggplot2::unit(0.8, "cm")
+    )
+
+  print(p)
+
+  ggplot2::ggsave(
+    "C:/PhD/plots/intensification_specialisation_indicators/n_productivity_map.jpeg",
+    plot = p,
+    width = 14,
+    height = 4.5,
+    dpi = 300
+  )
+
+  list(plot = p, data = df_period)
+}
+
+
+.calc_end_provincial <- function(flows) {
+  flows |>
+    dplyr::filter(
+      (destiny %in%
+        c("Cropland", "semi_natural_agroecosystems") &
+        origin %in%
+          c("Synthetic", "Fixation", "Deposition", "Livestock", "People")) |
+        (destiny %in%
+          c(
+            "livestock_mono",
+            "livestock_rum",
+            "population_food",
+            "population_other_uses"
+          ) &
+          origin %in%
+            c("Cropland", "semi_natural_agroecosystems", "Outside"))
+    ) |>
+    dplyr::mutate(
+      input_type = dplyr::case_when(
+        origin %in%
+          c("Synthetic", "Fixation", "Deposition") &
+          destiny %in% c("Cropland", "semi_natural_agroecosystems") ~
+          "external",
+        origin == "Outside" &
+          destiny %in%
+            c(
+              "livestock_mono",
+              "livestock_rum",
+              "population_food",
+              "population_other_uses"
+            ) ~
+          "external",
+        origin %in%
+          c("Livestock", "People") &
+          destiny %in% c("Cropland", "semi_natural_agroecosystems") ~
+          "internal",
+        origin %in%
+          c("Cropland", "semi_natural_agroecosystems") &
+          destiny %in%
+            c(
+              "livestock_mono",
+              "livestock_rum",
+              "population_food",
+              "population_other_uses"
+            ) ~
+          "internal",
+        TRUE ~ NA_character_
+      )
+    ) |>
+    dplyr::filter(!is.na(input_type)) |>
+    dplyr::group_by(year, province_name, input_type) |>
+    dplyr::summarise(
+      value_MgN = sum(mg_n, na.rm = TRUE),
+      .groups = "drop"
+    ) |>
+    tidyr::pivot_wider(
+      names_from = input_type,
+      values_from = value_MgN,
+      values_fill = 0
+    ) |>
+    dplyr::mutate(
+      external_dependency = external / (external + internal),
+      period = dplyr::case_when(
+        year >= 1865 & year <= 1870 ~ "1865-1870",
+        year >= 1925 & year <= 1930 ~ "1925-1930",
+        year >= 1965 & year <= 1970 ~ "1965-1970",
+        year >= 2015 & year <= 2020 ~ "2015-2020",
+        TRUE ~ NA_character_
+      )
+    ) |>
+    dplyr::filter(!is.na(period)) |>
+    dplyr::group_by(province_name, period) |>
+    dplyr::summarise(
+      external_dependency = mean(external_dependency, na.rm = TRUE),
+      .groups = "drop"
+    ) |>
+    dplyr::mutate(
+      period = factor(
+        period,
+        levels = c("1865-1870", "1925-1930", "1965-1970", "2015-2020")
+      )
+    )
+}
+
+
+.load_spain_sf <- function(shapefile_path) {
+  layer_name <- tools::file_path_sans_ext(basename(shapefile_path))
+  sf_provinces <- sf::st_read(
+    shapefile_path,
+    query = paste0(
+      "SELECT * FROM ",
+      layer_name,
+      " WHERE iso_a2 = 'ES'"
+    ),
+    quiet = TRUE
+  )
+
+  province_col <- intersect(
+    c("NAME_1", "name", "NAME", "province"),
+    colnames(sf_provinces)
+  )[1]
+
+  name_corrections <- c(
+    La_Rioja = "Rioja",
+    Alava = "Araba",
+    Lerida = "Lleida",
+    Castellon = "Castello",
+    La_Coruna = "A_Coruna",
+    Orense = "Ourense",
+    Gerona = "Girona"
+  )
+
+  sf_provinces |>
+    dplyr::mutate(
+      name_clean = stringi::stri_trans_general(
+        .data[[province_col]],
+        "Latin-ASCII"
+      ),
+      name_clean = gsub(" ", "_", name_clean),
+      name_clean = dplyr::recode(name_clean, !!!name_corrections)
+    ) |>
+    dplyr::filter(!name_clean %in% c("Las_Palmas", "Tenerife"))
+}
+
+
+.calc_n_productivity_provincial <- function(flows, npp_ygpit) {
+  system_food_df <- flows |>
+    dplyr::filter(
+      origin %in%
+        c("Cropland", "semi_natural_agroecosystems", "Livestock"),
+      destiny %in% c("population_food", "population_other_uses", "export")
+    ) |>
+    dplyr::group_by(year, province_name) |>
+    dplyr::summarise(
+      system_MgN = sum(mg_n, na.rm = TRUE),
+      .groups = "drop"
+    )
+
+  agri_area_df <- npp_ygpit |>
+    dplyr::filter(
+      landuse %in%
+        c(
+          "Cropland",
+          "Dehesa",
+          "Forest_high",
+          "Forest_low",
+          "Other",
+          "Pasture_Shrubland"
+        )
+    ) |>
+    dplyr::group_by(year, province_name) |>
+    dplyr::summarise(
+      agri_area_ha = sum(area_ygpit_ha, na.rm = TRUE),
+      .groups = "drop"
+    )
+
+  system_food_df |>
+    dplyr::left_join(agri_area_df, by = c("year", "province_name")) |>
+    dplyr::mutate(
+      n_productivity = system_MgN * 1000 / agri_area_ha,
+      period = dplyr::case_when(
+        year >= 1865 & year <= 1870 ~ "1865-1870",
+        year >= 1925 & year <= 1930 ~ "1925-1930",
+        year >= 1965 & year <= 1970 ~ "1965-1970",
+        year >= 2015 & year <= 2020 ~ "2015-2020",
+        TRUE ~ NA_character_
+      )
+    ) |>
+    dplyr::filter(!is.na(period)) |>
+    dplyr::group_by(province_name, period) |>
+    dplyr::summarise(
+      n_productivity = mean(n_productivity, na.rm = TRUE),
+      .groups = "drop"
+    ) |>
+    dplyr::mutate(
+      period = factor(
+        period,
+        levels = c("1865-1870", "1925-1930", "1965-1970", "2015-2020")
+      )
+    )
+}
+
+
+.calc_delta_provincial <- function(end_df, prod_df) {
+  end_delta <- end_df |>
+    dplyr::filter(period %in% c("1865-1870", "2015-2020")) |>
+    tidyr::pivot_wider(
+      names_from = period,
+      values_from = external_dependency
+    ) |>
+    dplyr::mutate(
+      delta_external = (`2015-2020` - `1865-1870`) * 100
+    ) |>
+    dplyr::select(province_name, delta_external)
+
+  prod_delta <- prod_df |>
+    dplyr::filter(period %in% c("1865-1870", "2015-2020")) |>
+    tidyr::pivot_wider(
+      names_from = period,
+      values_from = n_productivity
+    ) |>
+    dplyr::mutate(
+      delta_productivity = `2015-2020` - `1865-1870`
+    ) |>
+    dplyr::select(province_name, delta_productivity)
+
+  end_delta |>
+    dplyr::inner_join(prod_delta, by = "province_name")
 }
