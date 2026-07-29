@@ -703,17 +703,155 @@ build_carbon_balance <- function(
 # O(cells^2) and dominated the global run time). A cell absent from `init` gets
 # an empty init slice, matching the previous per-cell zero-row filter.
 .cb_march <- function(classes, init) {
-  cell_key <- \(x) paste(x$lon, x$lat, x$area_code, sep = "\r")
-  classes_split <- split(classes, cell_key(classes))
-  init_split <- split(init, cell_key(init))
-  purrr::map(
-    names(classes_split),
-    \(k) .cb_march_cell(classes_split[[k]], init_split[[k]] %||% init[0, ]),
-    .progress = "Marching cells"
-  ) |>
-    data.table::rbindlist() |>
-    as.data.frame() |>
-    tibble::as_tibble()
+  dt <- data.table::as.data.table(classes)
+  dt[, `:=`(
+    cell_key = paste(lon, lat, area_code, sep = "\r"),
+    eff_rate = data.table::fifelse(
+      soc_eq_mgc_ha > 0,
+      c_input_mgc_ha_yr / soc_eq_mgc_ha,
+      0
+    )
+  )]
+  years <- sort(unique(dt$year))
+  init_dt <- data.table::as.data.table(init)
+  init_dt[, cell_key := paste(lon, lat, area_code, sep = "\r")]
+  # state: transferred stock per (cell_key, land_use), carried across years.
+  state <- init_dt[, .(cell_key, land_use, prev_stock = stock_mgc_ha)]
+  prev <- NULL
+  out <- vector("list", length(years))
+  for (i in seq_along(years)) {
+    out[[i]] <- .cb_march_year(dt[year == years[i]], state, prev)
+    state <- out[[i]]$state
+    prev <- out[[i]]$prev
+    out[[i]] <- out[[i]]$rows
+  }
+  # Match the previous per-cell order: cells by their string key, then year,
+  # then land_use (the old split()/arrange order).
+  res <- data.table::rbindlist(out)
+  data.table::setorder(res, cell_key, year, land_use)
+  res[, cell_key := NULL]
+  tibble::as_tibble(as.data.frame(res))
+}
+
+# Advance one year for ALL cells at once, apply the land-use-change transfer
+# vectorised across cells, and build the output rows. Returns the year's rows
+# plus the carried state and the prev-year rate/input/area for the next step.
+.cb_march_year <- function(cur, state, prev) {
+  cur <- cur[, .(
+    cell_key,
+    lon,
+    lat,
+    area_code,
+    land_use,
+    year,
+    area_ha,
+    c_input_mgc_ha_yr,
+    eff_rate
+  )]
+  cur <- state[cur, on = c("cell_key", "land_use")]
+  cur[is.na(prev_stock), prev_stock := 0]
+  if (is.null(prev)) {
+    # First year: no prior rates, and old_area == new_area so no LUC transfer.
+    cur[, `:=`(stepped = prev_stock, old_area = area_ha)]
+  } else {
+    cur <- prev[cur, on = c("cell_key", "land_use")]
+    cur[is.na(k_prev), k_prev := 0]
+    cur[is.na(input_prev), input_prev := 0]
+    cur[is.na(old_area), old_area := 0]
+    cur[, stepped := prev_stock - prev_stock * k_prev + input_prev]
+  }
+  cur <- .cb_luc_all(cur)
+  cur[, `:=`(
+    mineralization = new_stock * eff_rate,
+    luc = data.table::fifelse(area_ha > 0, mass_moved / area_ha, 0)
+  )]
+  list(
+    rows = cur[, .(
+      lon,
+      lat,
+      area_code,
+      land_use,
+      year,
+      area_ha,
+      stock_mgc_ha = new_stock,
+      mineralization_mgc_ha = mineralization,
+      c_input_mgc_ha = c_input_mgc_ha_yr,
+      luc_transfer_mgc_ha = luc,
+      rate_mgc_ha = c_input_mgc_ha_yr - mineralization,
+      cell_key
+    )],
+    state = cur[, .(cell_key, land_use, prev_stock = new_stock)],
+    prev = cur[, .(
+      cell_key,
+      land_use,
+      k_prev = eff_rate,
+      input_prev = c_input_mgc_ha_yr,
+      old_area = area_ha
+    )]
+  )
+}
+
+# Vectorised land-use-change carbon transfer across all cells. Within a cell,
+# shrinking classes (with positive stock) release stock * lost_area into a pool;
+# the pool density carbon/area is constant while growing classes absorb from it,
+# so each grower (in area-change-ascending order) draws
+# min(gained_area, pool_area_remaining) at that fixed density. The remaining
+# pool area is pool_area minus the cumulative gained area of earlier growers,
+# which vectorises as an exclusive cumulative sum. Ordering by (cell, area
+# change) before the per-cell sum/cumsum makes the arithmetic follow the same
+# ascending order as the previous sequential loop.
+.cb_luc_all <- function(d) {
+  d[, area_change := area_ha - old_area]
+  data.table::setorder(d, cell_key, area_change)
+  d[, `:=`(
+    is_shrink = area_ha < old_area & stepped > 0,
+    is_grow = area_ha > old_area
+  )]
+  d[, `:=`(
+    shrink_area = data.table::fifelse(is_shrink, old_area - area_ha, 0),
+    shrink_carbon = data.table::fifelse(
+      is_shrink,
+      stepped * (old_area - area_ha),
+      0
+    ),
+    gained = data.table::fifelse(is_grow, area_ha - old_area, 0)
+  )]
+  d[,
+    `:=`(
+      pool_area = sum(shrink_area),
+      pool_carbon = sum(shrink_carbon)
+    ),
+    by = "cell_key"
+  ]
+  d[, dens := data.table::fifelse(pool_area > 0, pool_carbon / pool_area, 0)]
+  d[, cum_prev := cumsum(gained) - gained, by = "cell_key"]
+  d[, remaining := pool_area - cum_prev]
+  # A grower only takes carbon when the pool still has area at its turn; if not,
+  # its stock is unchanged (the old sequential code's `else` branch).
+  d[, active_grow := is_grow & remaining > 0]
+  d[,
+    drawn_area := data.table::fifelse(
+      active_grow,
+      pmin(gained, remaining),
+      0
+    )
+  ]
+  d[, drawn_c := dens * drawn_area]
+  d[,
+    new_stock := data.table::fifelse(
+      active_grow,
+      (stepped * old_area + drawn_c) / area_ha,
+      stepped
+    )
+  ]
+  d[,
+    mass_moved := data.table::fifelse(
+      active_grow,
+      drawn_c,
+      data.table::fifelse(is_shrink, -(stepped * (old_area - area_ha)), 0)
+    )
+  ]
+  d
 }
 
 # March one cell forward year by year (Spain_Hist Calc_SOC_evolution
