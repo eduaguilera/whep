@@ -3,6 +3,29 @@
 
 utils::globalVariables(
   c(
+    # carbon_balance.R (vectorised SOC march, data.table NSE)
+    "cell_key",
+    "eff_rate",
+    "prev_stock",
+    "stepped",
+    "old_area",
+    "k_prev",
+    "input_prev",
+    "is_shrink",
+    "is_grow",
+    "shrink_area",
+    "shrink_carbon",
+    "gained",
+    "pool_area",
+    "pool_carbon",
+    "dens",
+    "cum_prev",
+    "active_grow",
+    "drawn_area",
+    "drawn_c",
+    "new_stock",
+    "mineralization",
+    "luc",
     # conservation.R (footprint + supply-use invariants)
     "origin_area",
     "origin_item",

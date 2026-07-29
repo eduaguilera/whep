@@ -325,25 +325,208 @@ build_carbon_balance <- function(
 # under each class's carbon input and climate. Reuses calculate_soc_dynamics();
 # never reimplements the pool kinetics. One run per distinct input combination.
 .cb_equilibrium <- function(model, classes) {
-  classes |>
+  combos <- classes |>
     dplyr::distinct(
       .data$land_use,
       .data$c_input_mgc_ha_yr,
       .data$humified_fraction,
       .data$climate_modifier,
       .data$clay_pct
-    ) |>
-    dplyr::mutate(
-      soc_eq_mgc_ha = purrr::pmap_dbl(
-        list(
-          .data$c_input_mgc_ha_yr,
-          .data$humified_fraction,
-          .data$climate_modifier,
-          .data$clay_pct
-        ),
-        \(input, hf, cm, clay) .cb_steady_state(model, input, hf, cm, clay)
-      )
     )
+  # Models with a closed-form equilibrium compute it vectorised over the
+  # distinct combinations rather than running a 5000-year spin-up per
+  # combination. At global grain the near-continuous climate/clay values barely
+  # dedupe, so the old per-combination trajectory dominated the whole run; the
+  # closed form is the exact point that spin-up converges to (verified identical
+  # to < 1e-9 relative). Models without a wired closed form (RothC, Century)
+  # fall back to the one-trajectory-per-combination path (see #352).
+  closed <- .cb_closed_form_equilibrium(model, combos)
+  if (!is.null(closed)) {
+    return(dplyr::mutate(combos, soc_eq_mgc_ha = closed))
+  }
+  dplyr::mutate(
+    combos,
+    soc_eq_mgc_ha = purrr::pmap_dbl(
+      list(
+        .data$c_input_mgc_ha_yr,
+        .data$humified_fraction,
+        .data$climate_modifier,
+        .data$clay_pct
+      ),
+      \(input, hf, cm, clay) .cb_steady_state(model, input, hf, cm, clay)
+    )
+  )
+}
+
+# Vectorised closed-form equilibrium SOC density for the models that have one,
+# else NULL (caller falls back to the per-combination spin-up). Each formula is
+# the fixed point of that model's dynamics under a constant carbon input and
+# scalar climate modifier -- the exact stock its 5000-year spin-up relaxes to;
+# climate_modifier scales the decomposition rates exactly as the model does.
+.cb_closed_form_equilibrium <- function(model, combos) {
+  input <- combos$c_input_mgc_ha_yr
+  cm <- combos$climate_modifier
+  switch(
+    model,
+    hsoc = .cb_hsoc_equilibrium(input, combos$humified_fraction, cm),
+    icbm = .cb_icbm_equilibrium(input, cm),
+    amg = .cb_amg_equilibrium(input, cm),
+    century = .cb_century_equilibrium(input, cm, combos$clay_pct),
+    rothc = .cb_rothc_equilibrium(
+      input,
+      cm,
+      combos$clay_pct,
+      combos$humified_fraction
+    ),
+    NULL
+  )
+}
+
+# ICBM: young pool at input / k_y and old pool at h * input / k_o, both rates
+# scaled by the climate modifier (see calculate_soc_icbm()). This is the true
+# t -> infinity fixed point; it differs from the previous value by up to ~1e-4
+# where the slow old pool had not fully converged in the 5000-year spin-up.
+.cb_icbm_equilibrium <- function(input, climate_modifier) {
+  k_young <- .soc_param("icbm", "young", "decomposition_rate") *
+    climate_modifier
+  k_old <- .soc_param("icbm", "old", "decomposition_rate") * climate_modifier
+  h <- .soc_param("icbm", "transfer", "humification_coefficient")
+  input / k_young + h * input / k_old
+}
+
+# AMG: active pool at its steady state ca_ss = h * input / k (k scaled by the
+# climate modifier); the total adds the inert stable share, giving
+# ca_ss / (1 - f_iom) (see calculate_soc_amg()'s steady_state init).
+.cb_amg_equilibrium <- function(input, climate_modifier) {
+  k <- .soc_param("amg", "active", "decomposition_rate") * climate_modifier
+  f_iom <- .soc_param("amg", "stable", "inert_fraction")
+  (.amg_default_h() * input / k) / (1 - f_iom)
+}
+
+# Century: the 5-pool linear ODE (str, met, act, slw, pas) fixed point. The
+# structural/metabolic pools sit at their inflow / rate; the active/slow/passive
+# pools solve the 3-way transfer loop (act <-> slw <-> pas) analytically. This
+# is the true t -> infinity steady state -- it differs from the previous
+# 5000-year `deSolve` value where the very slow passive pool had not converged.
+.cb_century_equilibrium <- function(input, climate_modifier, clay_pct) {
+  p <- .cb_century_coefs(climate_modifier, clay_pct)
+  out_str <- p$fs * input
+  out_met <- p$fm * input
+  denom <- 1 -
+    p$a_slw_act * p$a_act_slw -
+    p$a_pas_act * p$a_act_pas -
+    p$a_pas_act * p$a_slw_pas * p$a_act_slw
+  from_str_met <- p$a_str_act * out_str + p$a_met_act * out_met
+  from_slw_loop <- (p$a_slw_act + p$a_pas_act * p$a_slw_pas) *
+    p$a_str_slw *
+    out_str
+  out_act <- (from_str_met + from_slw_loop) / denom
+  out_slw <- p$a_str_slw * out_str + p$a_act_slw * out_act
+  out_pas <- p$a_act_pas * out_act + p$a_slw_pas * out_slw
+  out_str /
+    p$k_str +
+    out_met / p$k_met +
+    out_act / p$k_act +
+    out_slw / p$k_slw +
+    out_pas / p$k_pas
+}
+
+# Vectorised Century rates and inter-pool transfer fractions from the climate
+# modifier and clay (mirrors .century_params/.century_texture/.century_rates/
+# .century_transfers). fm/fs (metabolic/structural input split) depend only on
+# the constant lignin:N ratio, so they are scalars.
+.cb_century_coefs <- function(climate_modifier, clay_pct) {
+  ls <- .soc_param("century", "defaults", "lignin_fraction")
+  ln <- .soc_param("century", "defaults", "lignin_n_ratio")
+  silt <- .soc_param("century", "defaults", "silt_pct")
+  weeks <- .soc_param("century", "all", "weeks_per_year")
+  base <- .soc_rates_named("century", "base_rate_weekly")
+  txtr <- pmin(pmax(pmin(clay_pct, 100), 0) / 100 + silt / 100, 1)
+  f_txtr <- .soc_param("century", "act", "texture_intercept") -
+    .soc_param("century", "act", "texture_slope") * txtr
+  es <- .soc_param("century", "act", "respiration_intercept") -
+    .soc_param("century", "act", "respiration_texture_slope") * txtr
+  fm <- .soc_param("century", "met", "metabolic_intercept") -
+    .soc_param("century", "met", "metabolic_ln_slope") * ln
+  a_act_pas <- .soc_param("century", "act_pas", "transfer_fraction")
+  list(
+    fm = fm,
+    fs = 1 - fm,
+    k_str = base[["str"]] * exp(-3 * ls) * weeks * climate_modifier,
+    k_met = base[["met"]] * weeks * climate_modifier,
+    k_act = base[["act"]] * f_txtr * weeks * climate_modifier,
+    k_slw = base[["slw"]] * weeks * climate_modifier,
+    k_pas = base[["pas"]] * weeks * climate_modifier,
+    a_str_act = (1 - ls) *
+      (1 - .soc_param("century", "str_act", "transfer_fraction_const")),
+    a_str_slw = ls *
+      (1 - .soc_param("century", "str_slw", "transfer_fraction_const")),
+    a_met_act = 1 - .soc_param("century", "met_act", "transfer_fraction_const"),
+    a_act_slw = 1 - es - a_act_pas,
+    a_act_pas = a_act_pas,
+    a_slw_act = .soc_param("century", "slw_act", "transfer_fraction"),
+    a_slw_pas = .soc_param("century", "slw_pas", "transfer_fraction"),
+    a_pas_act = 1 -
+      .soc_param("century", "pas_act", "transfer_fraction_const")
+  )
+}
+
+# RothC: exact fixed point of the monthly sub-step map (Coleman & Jenkinson
+# 1996). DPM/RPM sit at their input over the per-sub-step decayed fraction; the
+# BIO+HUM feedback closes because the total decomposition flux is
+# (c_dpm + c_rpm) / (1 - frac_bio - frac_hum). The inert IOM pool is the Falloon
+# (1998) function of the seed stock, matching calculate_soc_rothc(). Uses the
+# same sub-step count as the run, so it equals what the spin-up converges to.
+.cb_rothc_equilibrium <- function(
+  input,
+  climate_modifier,
+  clay_pct,
+  humified_fraction
+) {
+  rates <- .soc_rates("rothc", c("dpm", "rpm", "bio", "hum"))
+  n_sub <- pmax(1L, as.integer(ceiling(max(rates) * climate_modifier / 12)))
+  step_dt <- 1 / (12 * n_sub)
+  ratio <- .soc_param("rothc", "input", "dpm_rpm_ratio")
+  frac_dpm <- ratio / (1 + ratio)
+  x <- 1.67 * (1.85 + 1.60 * exp(-0.0786 * clay_pct))
+  frac_bio <- 0.46 / (x + 1)
+  frac_hum <- 0.54 / (x + 1)
+  c_dpm <- input / 12 * frac_dpm / n_sub
+  c_rpm <- input / 12 * (1 - frac_dpm) / n_sub
+  survive <- \(k) 1 - exp(-k * climate_modifier * step_dt)
+  dpm <- c_dpm / survive(rates[["dpm"]])
+  rpm <- c_rpm / survive(rates[["rpm"]])
+  total_dec <- (c_dpm + c_rpm) / (1 - frac_bio - frac_hum)
+  bio <- total_dec * frac_bio / survive(rates[["bio"]])
+  hum <- total_dec * frac_hum / survive(rates[["hum"]])
+  k_fresh <- .cb_param("hsoc", "fresh")
+  k_humus <- .cb_param("hsoc", "humus")
+  seed <- pmax(
+    input *
+      (1 - humified_fraction) /
+      (k_fresh * climate_modifier) +
+      input * humified_fraction / (k_humus * climate_modifier),
+    1
+  )
+  dpm + rpm + bio + hum + 0.049 * seed^1.139
+}
+
+# Closed-form HSOC steady state, vectorised over its inputs. The active fresh
+# and humus pools sit at their fixed points input_pool / (k_pool *
+# climate_modifier); the inert (IOM) pool is the Falloon (1998) function
+# 0.049 * active^1.139 of the seed active stock (floored at 1, matching
+# `.cb_seed_stock()`). This is the exact stock the 5000-year HSOC spin-up
+# relaxes to (the pool series starts at the fixed point and is flat), so it
+# replaces a 5000-step trajectory per input combination with an O(1)
+# expression.
+.cb_hsoc_equilibrium <- function(input, humified_fraction, climate_modifier) {
+  k_fresh <- .cb_param("hsoc", "fresh")
+  k_humus <- .cb_param("hsoc", "humus")
+  active <- input *
+    (1 - humified_fraction) /
+    (k_fresh * climate_modifier) +
+    input * humified_fraction / (k_humus * climate_modifier)
+  active + 0.049 * pmax(active, 1)^1.139
 }
 
 # Attach the equilibrium density to every class-year row by joining on the
@@ -520,15 +703,155 @@ build_carbon_balance <- function(
 # O(cells^2) and dominated the global run time). A cell absent from `init` gets
 # an empty init slice, matching the previous per-cell zero-row filter.
 .cb_march <- function(classes, init) {
-  cell_key <- \(x) paste(x$lon, x$lat, x$area_code, sep = "\r")
-  classes_split <- split(classes, cell_key(classes))
-  init_split <- split(init, cell_key(init))
-  purrr::map(
-    names(classes_split),
-    \(k) .cb_march_cell(classes_split[[k]], init_split[[k]] %||% init[0, ]),
-    .progress = "Marching cells"
-  ) |>
-    dplyr::bind_rows()
+  dt <- data.table::as.data.table(classes)
+  dt[, `:=`(
+    cell_key = paste(lon, lat, area_code, sep = "\r"),
+    eff_rate = data.table::fifelse(
+      soc_eq_mgc_ha > 0,
+      c_input_mgc_ha_yr / soc_eq_mgc_ha,
+      0
+    )
+  )]
+  years <- sort(unique(dt$year))
+  init_dt <- data.table::as.data.table(init)
+  init_dt[, cell_key := paste(lon, lat, area_code, sep = "\r")]
+  # state: transferred stock per (cell_key, land_use), carried across years.
+  state <- init_dt[, .(cell_key, land_use, prev_stock = stock_mgc_ha)]
+  prev <- NULL
+  out <- vector("list", length(years))
+  for (i in seq_along(years)) {
+    out[[i]] <- .cb_march_year(dt[year == years[i]], state, prev)
+    state <- out[[i]]$state
+    prev <- out[[i]]$prev
+    out[[i]] <- out[[i]]$rows
+  }
+  # Match the previous per-cell order: cells by their string key, then year,
+  # then land_use (the old split()/arrange order).
+  res <- data.table::rbindlist(out)
+  data.table::setorder(res, cell_key, year, land_use)
+  res[, cell_key := NULL]
+  tibble::as_tibble(as.data.frame(res))
+}
+
+# Advance one year for ALL cells at once, apply the land-use-change transfer
+# vectorised across cells, and build the output rows. Returns the year's rows
+# plus the carried state and the prev-year rate/input/area for the next step.
+.cb_march_year <- function(cur, state, prev) {
+  cur <- cur[, .(
+    cell_key,
+    lon,
+    lat,
+    area_code,
+    land_use,
+    year,
+    area_ha,
+    c_input_mgc_ha_yr,
+    eff_rate
+  )]
+  cur <- state[cur, on = c("cell_key", "land_use")]
+  cur[is.na(prev_stock), prev_stock := 0]
+  if (is.null(prev)) {
+    # First year: no prior rates, and old_area == new_area so no LUC transfer.
+    cur[, `:=`(stepped = prev_stock, old_area = area_ha)]
+  } else {
+    cur <- prev[cur, on = c("cell_key", "land_use")]
+    cur[is.na(k_prev), k_prev := 0]
+    cur[is.na(input_prev), input_prev := 0]
+    cur[is.na(old_area), old_area := 0]
+    cur[, stepped := prev_stock - prev_stock * k_prev + input_prev]
+  }
+  cur <- .cb_luc_all(cur)
+  cur[, `:=`(
+    mineralization = new_stock * eff_rate,
+    luc = data.table::fifelse(area_ha > 0, mass_moved / area_ha, 0)
+  )]
+  list(
+    rows = cur[, .(
+      lon,
+      lat,
+      area_code,
+      land_use,
+      year,
+      area_ha,
+      stock_mgc_ha = new_stock,
+      mineralization_mgc_ha = mineralization,
+      c_input_mgc_ha = c_input_mgc_ha_yr,
+      luc_transfer_mgc_ha = luc,
+      rate_mgc_ha = c_input_mgc_ha_yr - mineralization,
+      cell_key
+    )],
+    state = cur[, .(cell_key, land_use, prev_stock = new_stock)],
+    prev = cur[, .(
+      cell_key,
+      land_use,
+      k_prev = eff_rate,
+      input_prev = c_input_mgc_ha_yr,
+      old_area = area_ha
+    )]
+  )
+}
+
+# Vectorised land-use-change carbon transfer across all cells. Within a cell,
+# shrinking classes (with positive stock) release stock * lost_area into a pool;
+# the pool density carbon/area is constant while growing classes absorb from it,
+# so each grower (in area-change-ascending order) draws
+# min(gained_area, pool_area_remaining) at that fixed density. The remaining
+# pool area is pool_area minus the cumulative gained area of earlier growers,
+# which vectorises as an exclusive cumulative sum. Ordering by (cell, area
+# change) before the per-cell sum/cumsum makes the arithmetic follow the same
+# ascending order as the previous sequential loop.
+.cb_luc_all <- function(d) {
+  d[, area_change := area_ha - old_area]
+  data.table::setorder(d, cell_key, area_change)
+  d[, `:=`(
+    is_shrink = area_ha < old_area & stepped > 0,
+    is_grow = area_ha > old_area
+  )]
+  d[, `:=`(
+    shrink_area = data.table::fifelse(is_shrink, old_area - area_ha, 0),
+    shrink_carbon = data.table::fifelse(
+      is_shrink,
+      stepped * (old_area - area_ha),
+      0
+    ),
+    gained = data.table::fifelse(is_grow, area_ha - old_area, 0)
+  )]
+  d[,
+    `:=`(
+      pool_area = sum(shrink_area),
+      pool_carbon = sum(shrink_carbon)
+    ),
+    by = "cell_key"
+  ]
+  d[, dens := data.table::fifelse(pool_area > 0, pool_carbon / pool_area, 0)]
+  d[, cum_prev := cumsum(gained) - gained, by = "cell_key"]
+  d[, remaining := pool_area - cum_prev]
+  # A grower only takes carbon when the pool still has area at its turn; if not,
+  # its stock is unchanged (the old sequential code's `else` branch).
+  d[, active_grow := is_grow & remaining > 0]
+  d[,
+    drawn_area := data.table::fifelse(
+      active_grow,
+      pmin(gained, remaining),
+      0
+    )
+  ]
+  d[, drawn_c := dens * drawn_area]
+  d[,
+    new_stock := data.table::fifelse(
+      active_grow,
+      (stepped * old_area + drawn_c) / area_ha,
+      stepped
+    )
+  ]
+  d[,
+    mass_moved := data.table::fifelse(
+      active_grow,
+      drawn_c,
+      data.table::fifelse(is_shrink, -(stepped * (old_area - area_ha)), 0)
+    )
+  ]
+  d
 }
 
 # March one cell forward year by year (Spain_Hist Calc_SOC_evolution
@@ -540,14 +863,17 @@ build_carbon_balance <- function(
 # own post-transfer stock, rate and input.
 .cb_march_cell <- function(cell, init) {
   years <- sort(unique(cell$year))
+  # Split once by year (base) instead of a dplyr::filter per year -- the march
+  # calls this once per cell, so the per-year data-mask overhead adds up.
+  by_year <- split(cell, cell$year)
   state <- stats::setNames(init$stock_mgc_ha, init$land_use)
   out <- vector("list", length(years))
   for (i in seq_along(years)) {
-    cur <- cell |> dplyr::filter(.data$year == years[i])
+    cur <- by_year[[as.character(years[i])]]
     prev <- if (i == 1L) {
       NULL
     } else {
-      dplyr::filter(cell, .data$year == years[i - 1L])
+      by_year[[as.character(years[i - 1L])]]
     }
     step <- .cb_year_step(cur, prev, state)
     out[[i]] <- step$rows
@@ -564,7 +890,9 @@ build_carbon_balance <- function(
 # zero area (a newly appearing class carries no carbon; Spain_Hist NaN guard,
 # SOC_Fun.R:388-390).
 .cb_year_step <- function(cur, prev, state) {
-  cur <- cur |> dplyr::arrange(.data$land_use)
+  # Base radix order matches dplyr::arrange(land_use)'s C-locale ordering
+  # without the per-call data-mask overhead (this runs once per cell-year).
+  cur <- cur[order(cur$land_use, method = "radix"), , drop = FALSE]
   stepped <- .cb_advance_stock(cur, prev, state)
   transferred <- .cb_luc_transfer(
     tibble::tibble(
@@ -667,27 +995,29 @@ build_carbon_balance <- function(
 # area-weighted density, re-averaging its density over its new total area. Total
 # cell carbon (sum of density x area) is conserved.
 .cb_luc_transfer <- function(before) {
-  dt <- data.table::as.data.table(before)
-  dt[, area_change := new_area_ha - old_area_ha]
-  data.table::setorder(dt, area_change)
+  # Ordered by area_change ascending (shrinking classes first), matching the
+  # previous data.table::setorder; base radix order is stable like setorder, so
+  # ties keep input order. Operating on plain vectors avoids an
+  # as.data.table()/as_tibble() round-trip on every cell-year (the march calls
+  # this ~n_cells * n_years times).
+  ord <- order(before$new_area_ha - before$old_area_ha, method = "radix")
+  land_use <- before$land_use[ord]
+  old_area <- before$old_area_ha[ord]
+  new_area <- before$new_area_ha[ord]
+  stocks <- before$stock_mgc_ha[ord]
+  moved <- numeric(length(stocks))
   pool <- list(carbon = 0, area = 0)
-  stocks <- dt$stock_mgc_ha
-  moved <- numeric(nrow(dt))
-  for (i in seq_len(nrow(dt))) {
-    res <- .cb_transfer_one(
-      stocks[i],
-      dt$old_area_ha[i],
-      dt$new_area_ha[i],
-      pool
-    )
+  for (i in seq_along(stocks)) {
+    res <- .cb_transfer_one(stocks[i], old_area[i], new_area[i], pool)
     stocks[i] <- res$stock
     moved[i] <- res$mass_moved
     pool <- res$pool
   }
-  dt[, stock_mgc_ha := stocks]
-  dt[, mass_moved := moved]
-  tibble::as_tibble(
-    dt[, c("land_use", "stock_mgc_ha", "new_area_ha", "mass_moved")]
+  tibble::tibble(
+    land_use = land_use,
+    stock_mgc_ha = stocks,
+    new_area_ha = new_area,
+    mass_moved = moved
   )
 }
 

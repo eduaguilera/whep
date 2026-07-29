@@ -91,6 +91,50 @@ test_that("HSOC equilibrium density matches analytic I/k per pool", {
   testthat::expect_equal(eq$soc_eq_mgc_ha, expected_total, tolerance = 1e-3)
 })
 
+test_that("vectorised closed-form equilibria match the spin-up they replace", {
+  # .cb_equilibrium() computes the equilibrium with a closed form instead of a
+  # 5000-year spin-up per input combination for all five models. Guard each
+  # fast path against the trajectory it replaces across a grid of inputs. HSOC,
+  # AMG and RothC reach a flat/converged spin-up so match to machine precision;
+  # ICBM and Century match the true fixed point, which differs slightly from
+  # the 5000-year value because their slowest pool has not fully converged
+  # there (the closed form is the exact t -> infinity stock) -- hence the
+  # looser, pool-specific tolerances below.
+  combos <- tibble::tibble(
+    c_input_mgc_ha_yr = c(0.5, 2.5, 6.0),
+    humified_fraction = c(0.2, 0.3, 0.5),
+    climate_modifier = c(0.4, 1.0, 1.6),
+    clay_pct = c(8, 22, 40)
+  )
+  tolerances <- list(
+    hsoc = 1e-8,
+    amg = 1e-8,
+    rothc = 1e-6,
+    century = 1e-4,
+    icbm = 1e-3
+  )
+  for (model in names(tolerances)) {
+    trajectory <- purrr::pmap_dbl(
+      combos,
+      \(c_input_mgc_ha_yr, humified_fraction, climate_modifier, clay_pct) {
+        whep:::.cb_steady_state(
+          model,
+          c_input_mgc_ha_yr,
+          humified_fraction,
+          climate_modifier,
+          clay_pct
+        )
+      }
+    )
+    closed_form <- whep:::.cb_closed_form_equilibrium(model, combos)
+    testthat::expect_equal(
+      closed_form,
+      trajectory,
+      tolerance = tolerances[[model]]
+    )
+  }
+})
+
 # -- 1750-style initialisation weighting --------------------------------------
 
 test_that("init weights per-class equilibria by land-use fractions", {
