@@ -10,6 +10,10 @@ A tibble with one row per area-code/polity-period mapping. Key columns:
 \item \code{area_code}: Numeric FAOSTAT/FABIO reporting area code.
 \item \code{area_name}: Reporting area name.
 \item \code{area_iso3c}: Reporting-area ISO3-like code where available.
+\item \code{reporting_polity_prefix}: ISO3-shaped family key for the reporting area —
+a PREFIX, never a code. Do not join it to \link{polities}; use \code{polity_code}.
+It was called \code{reporting_polity_code} until 0.3.0.9000, where it held 609
+bare prefixes and no periodized codes, so that join returned nothing.
 \item \code{polity_area_code}: Numeric area code retained for WHEP matrix workflows.
 \item \code{polity_code}, \code{polity_name}: Matched WHEP polity, or \code{NA} for
 statistical composites that are not real polities.

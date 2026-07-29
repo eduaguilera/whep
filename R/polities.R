@@ -591,9 +591,13 @@ get_polity_geometries <- function(polity_codes = NULL) {
 #' @param label Character vector of source labels.
 #' @param source Optional source slug (e.g. `"lassaletta-grassland-share"`).
 #'   Length 1, or the same length as `label`. `NULL` matches unscoped aliases
-#'   only.
+#'   only — 166 of 672, so a `NULL` source also narrows the answer sharply.
 #' @param year Optional integer vector of years. Length 1, or the same length as
-#'   `label`. `NULL` matches aliases with no year scope only.
+#'   `label`. `NULL` matches aliases with no year scope only — which is 19 of the
+#'   672 published aliases, so omitting `year` returns `NA` for almost every
+#'   label. That is the documented behaviour rather than a bug, but it looks
+#'   exactly like "this label is unknown", so supply a year unless you
+#'   specifically want the unscoped rules.
 #'
 #' @returns A character vector of polity codes, `NA` where nothing matched.
 #'

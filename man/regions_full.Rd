@@ -22,6 +22,11 @@ workflows.
 \item \code{reporting_polity_name}: Current WHEP polity name for \code{code}.
 \item \code{reporting_polity_has_geometry}: Logical flag indicating whether the
 current reporting polity has a polygon.
+\item \code{reporting_polity_continent}: Continent of the current reporting polity,
+taken from the polities database. Prefer this over the vendored
+\code{region_UN} column, which disagrees with it for 54 of 253 comparable
+areas and is internally inconsistent (the USSR is filed under Asia while
+its successor the Russian Federation is filed under Europe).
 \item \code{iso3c}: ISO 3166-1 alpha-3 code (\code{NA} for aggregates).
 \item \code{FAOSTAT_name}: Name used in FAOSTAT (may be \code{"#N/A"} for aggregates).
 \item \code{EU27}: Logical EU27 membership flag.
