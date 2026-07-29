@@ -43,11 +43,23 @@
 #' - `polity_code`: Stable WHEP polity identifier, usually
 #'   `PREFIX-start_year-end_year`.
 #' - `polity_name`: Human-readable polity name.
-#' - `start_year`, `end_year`: Inclusive validity years for the row.
+#' - `start_year`, `end_year`: Validity years. `start_year` is inclusive and
+#'   `end_year` is **exclusive** — area 185 in 2014 resolves to `RUS-2014-2025`,
+#'   not `RUS-1991-2014`. Filtering with `year <= end_year` double-counts every
+#'   boundary year. This entry said "Inclusive" until 0.3.0.9000, which was the
+#'   opposite of the behaviour.
 #' - `iso3_code`, `iso3c`: ISO3 code where one exists. `iso3c` is retained as
-#'   a compatibility alias.
-#' - `polygon_status`: Polygon status in `whep-polities` (`"assigned"`,
-#'   `"proxy"`, `"missing"`, or `"excluded"`).
+#'   a compatibility alias. Not always an ISO 3166-1 code: historical entities
+#'   with no assignment carry a WHEP-internal key, and some values are withdrawn
+#'   ISO codes (`CSK`, `SUN`, `YUG`, `SCG`) that were real when the data was.
+#' - `polygon_status`: One of `"assigned"`, `"proxy"`, `"estimate"`,
+#'   `"polygon_vintage_drift"` or `"unassigned"`. Only `"unassigned"` asserts
+#'   that no polygon exists. The list here read `"missing"` and `"excluded"`
+#'   until 0.3.0.9000 — two values the vocabulary no longer has, so a filter on
+#'   either returned nothing rather than erring.
+#' - `polygon_area_km2`: Area as RECORDED upstream from an independent source,
+#'   for cross-checking the attached geometry. Sparse by nature — present for
+#'   182 of 740 rows — so compute area from `geom` rather than relying on it.
 #' - `has_geometry`: Logical flag indicating whether the geometry is non-empty.
 #' - `geom`: Multipolygon geometry.
 #' @source `~/whep-polities/data/final/polities_database.gpkg`.

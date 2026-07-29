@@ -11,11 +11,23 @@ a continuous time interval. Key columns include:
 \item \code{polity_code}: Stable WHEP polity identifier, usually
 \code{PREFIX-start_year-end_year}.
 \item \code{polity_name}: Human-readable polity name.
-\item \code{start_year}, \code{end_year}: Inclusive validity years for the row.
+\item \code{start_year}, \code{end_year}: Validity years. \code{start_year} is inclusive and
+\code{end_year} is \strong{exclusive} — area 185 in 2014 resolves to \code{RUS-2014-2025},
+not \code{RUS-1991-2014}. Filtering with \code{year <= end_year} double-counts every
+boundary year. This entry said "Inclusive" until 0.3.0.9000, which was the
+opposite of the behaviour.
 \item \code{iso3_code}, \code{iso3c}: ISO3 code where one exists. \code{iso3c} is retained as
-a compatibility alias.
-\item \code{polygon_status}: Polygon status in \code{whep-polities} (\code{"assigned"},
-\code{"proxy"}, \code{"missing"}, or \code{"excluded"}).
+a compatibility alias. Not always an ISO 3166-1 code: historical entities
+with no assignment carry a WHEP-internal key, and some values are withdrawn
+ISO codes (\code{CSK}, \code{SUN}, \code{YUG}, \code{SCG}) that were real when the data was.
+\item \code{polygon_status}: One of \code{"assigned"}, \code{"proxy"}, \code{"estimate"},
+\code{"polygon_vintage_drift"} or \code{"unassigned"}. Only \code{"unassigned"} asserts
+that no polygon exists. The list here read \code{"missing"} and \code{"excluded"}
+until 0.3.0.9000 — two values the vocabulary no longer has, so a filter on
+either returned nothing rather than erring.
+\item \code{polygon_area_km2}: Area as RECORDED upstream from an independent source,
+for cross-checking the attached geometry. Sparse by nature — present for
+182 of 740 rows — so compute area from \code{geom} rather than relying on it.
 \item \code{has_geometry}: Logical flag indicating whether the geometry is non-empty.
 \item \code{geom}: Multipolygon geometry.
 }
