@@ -32,7 +32,13 @@ statistical composites that are not real polities.
 \item \code{polity_start_year}, \code{polity_end_year}: Validity interval for the matched
 polity.
 \item \code{mapping_status}: \code{"matched"}, \code{"manual"}, \code{"unmapped"}, or
-\code{"not_a_reporting_area"}.
+\code{"not_a_reporting_area"}. Together with \code{\link[=add_polity_code]{add_polity_code()}} this
+distinguishes three cases a bare \code{is.na(polity_code)} check conflates: an
+area that resolved (\code{"matched"}/\code{"manual"}), one deliberately left unmapped
+because mapping it would double-count (\code{"unmapped"} — FAOSTAT 351 "China" is
+the example, reported alongside its own components), and an area code that
+does not exist at all, which yields \code{NA} here because no crosswalk row was
+found. A typo and a documented non-mapping are different problems.
 \item \code{mapping_note}: Explanation for manual or unmapped rows.
 }
 }

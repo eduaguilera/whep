@@ -97,7 +97,13 @@
 #' - `polity_start_year`, `polity_end_year`: Validity interval for the matched
 #'   polity.
 #' - `mapping_status`: `"matched"`, `"manual"`, `"unmapped"`, or
-#'   `"not_a_reporting_area"`.
+#'   `"not_a_reporting_area"`. Together with [add_polity_code()] this
+#'   distinguishes three cases a bare `is.na(polity_code)` check conflates: an
+#'   area that resolved (`"matched"`/`"manual"`), one deliberately left unmapped
+#'   because mapping it would double-count (`"unmapped"` — FAOSTAT 351 "China" is
+#'   the example, reported alongside its own components), and an area code that
+#'   does not exist at all, which yields `NA` here because no crosswalk row was
+#'   found. A typo and a documented non-mapping are different problems.
 #' - `mapping_note`: Explanation for manual or unmapped rows.
 #' @source Derived from [polities] and `inst/extdata/harmonization/regions_full.csv`.
 "polity_area_crosswalk"
