@@ -230,54 +230,91 @@ regions_for_crosswalk <- dplyr::bind_rows(
 # already map to their own polities (CHN/HKG/MAC/TWN), so mapping 351 to CHN as
 # well double-counted China across every FAOSTAT domain. Left unmapped, 351 is
 # dropped as a statistical aggregate (its iso3c and polity_code are NA).
-manual_area_prefixes <- tibble::tribble(
-  ~area_code, ~manual_polity_prefix, ~manual_note,
-  51L, "F51", "FAOSTAT Czechoslovakia reporting area maps to WHEP Czechoslovakia polities.",
-  228L, "F228", "FAOSTAT USSR reporting area maps to WHEP Russian Empire/USSR polities.",
-  248L, "F248", "FAOSTAT Yugoslav SFR reporting area maps to WHEP Yugoslavia polities.",
-  72L, "FRS", paste0(
-    "FAOSTAT Djibouti (72) maps to the WHEP FRS chain (FRS-1884-1977 French ",
-    "Somaliland, FRS-1977-2025 Djibouti). Needed because the DJI-1886-2025 row ",
-    "that previously served this area was RETIRED upstream as a duplicate of ",
-    "that chain, and excluding dead polities left the area with no mapping at ",
-    "all. The iso3 prefix DJI no longer names a live polity."
-  ),
-
-  # -- Areas whose chain spans TWO prefixes ----------------------------------
-  #
-  # An area is mapped by prefix, and upstream gives the colonial and modern
-  # polities of these seven chains DIFFERENT prefixes. Listing only the ISO3 one
-  # left the colonial polity unreachable, so pre-independence FAOSTAT years fell
-  # through to the modern polity: 1965 Angola resolved to AGO-1975-2025 "Angola
-  # (independent, 1975-2025)", and 1970 Sudan to SDN-2011-2025 — post-secession
-  # Sudan, which by definition EXCLUDES the territory that 1970 Sudan reported.
-  # That is data attributed to a polity that did not exist, not data dropped.
-  #
-  # Both prefixes are listed per area, which the many-to-many join expands into
-  # the union of both families. No year bounds are needed: every one of these
-  # chains is contiguous and overlap-free (checked — Zimbabwe and Viet Nam even
-  # interleave, ZWE/ZWE/SRH/ZWE/ZWE and VNM/F237/VNM, without overlapping), so
-  # the year-aware resolution in add_polity_code() picks the right era on its own.
-  #
-  # Upstream's own FAOSTAT matching pipeline already assigns exactly these
-  # polities; test_upstream_faostat_agreement.R compares the two. See whep#387 —
-  # if the prefixes are ever unified upstream, these entries become redundant
-  # rather than wrong.
-  7L, "ANG", "Portuguese Angola (ANG-1800-1890 .. ANG-1905-1975) before the 1975 independence; AGO after.",
-  7L, "AGO", "Independent Angola (AGO-1975-2025); the colonial era is the ANG chain.",
-  20L, "BEC", "Bechuanaland Protectorate (BEC-1885-1966) before the 1966 independence.",
-  20L, "BWA", "Botswana (BWA-1966-2025); the protectorate era is BEC.",
-  181L, "SRH", "Southern Rhodesia (SRH-1953-1964), the federation era between ZWE-1900-1953 and ZWE-1964-1980.",
-  181L, "ZWE", "Zimbabwe chain either side of the SRH federation era.",
-  206L, "SUD", "Sudan before the 2011 secession (SUD-1899-1934 .. SUD-1956-2011), which INCLUDED present-day South Sudan.",
-  206L, "SDN", "Sudan after the 2011 secession (SDN-2011-2025), which excludes South Sudan.",
-  237L, "F237", "Partitioned Viet Nam (F237-1954-1975) between VNM-1887-1954 and VNM-1975-2025.",
-  237L, "VNM", "Viet Nam either side of the 1954-1975 partition.",
-  249L, "F249", "Yemen before the 1990 unification (F249-1918-1990).",
-  249L, "YEM", "Unified Yemen (YEM-1990-2025).",
-  251L, "NRH", "Northern Rhodesia (NRH-1911-1953, NRH-1953-1964) before the 1964 independence.",
-  251L, "ZMB", "Zambia (ZMB-1964-2025); the protectorate era is the NRH chain."
+# Area-to-prefix overrides, DERIVED from the published FAOSTAT map rather than written out.
+#
+# Eleven of these were hand-maintained here, and the file's own comment conceded that
+# "upstream's own FAOSTAT matching pipeline already assigns exactly these polities". Comparing
+# them proved it: ten of the eleven were byte-identical to what the published map yields. Keeping
+# a second copy of a decision upstream already makes is exactly what resolve_polity_label()'s
+# documentation forbids for aliases, and for the same reason.
+#
+# The comparison also showed the hand-written list was INCOMPLETE. Upstream gives more than one
+# prefix to seven areas; the list covered six. Area 240, United States Virgin Islands, was
+# missing, and upstream maps it across two eras — DWI-1800-1917 (Danish West Indies) and
+# VIR-1917-2025. That omission is currently masked because area 240 has no observed data and so
+# folds into rest-of-world, but it is latent rather than harmless: if the area ever gained data
+# its pre-1917 years would resolve to VIR-1917-2025, which is precisely the misattribution this
+# mechanism exists to prevent.
+#
+# Deriving it cannot be incomplete. An area appears here when upstream's own mapping needs a
+# prefix the area's ISO3 does not supply, or needs more than one.
+whep_faostat_area_map <- Sys.getenv(
+  "WHEP_POLITIES_FAOSTAT_MAP",
+  unset = path.expand("~/whep-polities/data/final/faostat_area_polity_map.csv")
 )
+if (!file.exists(whep_faostat_area_map)) {
+  cli::cli_abort(c(
+    "The published FAOSTAT area map is missing.",
+    x = "Looked for {.path {whep_faostat_area_map}}.",
+    i = paste(
+      "It is published by whep-polities as",
+      "{.path data/final/faostat_area_polity_map.csv} and gated there by",
+      "{.code scripts/write_faostat_area_map.py --check}."
+    ),
+    i = "Point {.envvar WHEP_POLITIES_FAOSTAT_MAP} at it if checked out elsewhere."
+  ))
+}
+
+upstream_area_prefixes <- readr::read_csv(
+  whep_faostat_area_map,
+  show_col_types = FALSE,
+  na = excel_na
+) |>
+  dplyr::transmute(
+    area_code = as.integer(.data$area_code),
+    manual_polity_prefix = sub("-.*", "", .data$polity_code),
+    iso3 = .data$iso3
+  ) |>
+  dplyr::filter(!is.na(.data$area_code)) |>
+  dplyr::distinct() |>
+  # Only areas that actually NEED an override: those upstream spreads across more than one
+  # prefix, and those whose single prefix is not the one the area's ISO3 would supply on its
+  # own. Deriving for every mapped area instead marks 564 of 622 crosswalk rows
+  # `mapping_status == "manual"`, which erases the distinction between an area matched by ISO3
+  # and one deliberately redirected — the status is metadata a reader relies on.
+  dplyr::mutate(
+    n_prefix = dplyr::n_distinct(.data$manual_polity_prefix),
+    .by = "area_code"
+  ) |>
+  dplyr::filter(
+    .data$n_prefix > 1L |
+      is.na(.data$iso3) |
+      .data$manual_polity_prefix != .data$iso3
+  ) |>
+  dplyr::select("area_code", "manual_polity_prefix")
+
+# Area 206 is augmented, and it is the one place the two sources disagree. Upstream maps
+# "Sudan (former)" to the SUD chain only, declining any post-2011 mapping; this package also
+# routes post-2011 years to SDN-2011-2025 so the area resolves across the 2011 secession. Both
+# readings are defensible and the difference is inert in practice, since FAOSTAT reports
+# post-2011 years under areas 276 and 277 rather than 206. Kept explicit so the divergence is a
+# recorded choice rather than a silent edit to derived data.
+manual_area_prefixes <- dplyr::bind_rows(
+  upstream_area_prefixes,
+  tibble::tibble(area_code = 206L, manual_polity_prefix = "SDN")
+) |>
+  dplyr::distinct() |>
+  dplyr::mutate(
+    manual_note = paste0(
+      "Prefix assigned by the published whep-polities FAOSTAT area map",
+      dplyr::if_else(
+        .data$area_code == 206L & .data$manual_polity_prefix == "SDN",
+        ", augmented here so area 206 resolves across the 2011 Sudan secession",
+        ""
+      ),
+      "."
+    )
+  )
 
 # Areas whose label has data of its own, per the upstream alias map's observed_rows.
 #
@@ -381,8 +418,19 @@ polity_area_crosswalk <- regions_for_crosswalk |>
       NA_character_
     ),
     mapping_prefix = dplyr::coalesce(
-      .data$manual_polity_prefix,
+      # `fabio_row_prefix` FIRST, so the rest-of-world fold outranks a derived override.
+      #
+      # This ordering only matters for one area, checked rather than assumed: of the twelve
+      # areas needing an override, area 240 (United States Virgin Islands) is the only one that
+      # is also a fold candidate. It has no observed data, so folding it is what the fold rule
+      # says — "unfolding an area with no data would change no data while diverging from FABIO's
+      # aggregation for nothing". With `manual` first, deriving the overrides from upstream
+      # silently pulled 240 out of the fold, which test_region_continent_agreement.R caught.
+      #
+      # For every other area the two are never both set: an area with data has no
+      # `fabio_row_prefix`, so its override still wins.
       .data$fabio_row_prefix,
+      .data$manual_polity_prefix,
       .data$area_iso3c_prefix,
       .data$reporting_prefix,
       # Keep these last so unmatched reporting buckets remain visible.
