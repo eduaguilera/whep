@@ -74,7 +74,15 @@
 #' A tibble with one row per area-code/polity-period mapping. Key columns:
 #' - `area_code`: Numeric FAOSTAT/FABIO reporting area code.
 #' - `area_name`: Reporting area name.
-#' - `area_iso3c`: Reporting-area ISO3-like code where available.
+#' - `area_iso3c`: ISO3-like code of the reporting AREA, where available. Not the
+#'   same as `iso3_code`, which this table also carries and which belongs to the
+#'   resolved POLITY — they differ on 56 of the 273 rows that have both. An area
+#'   folded into a rest-of-world polity keeps its own code while the polity's is
+#'   `ROW` (`ASM` against `ROW`), and a colonial-era row carries the era's key
+#'   while the area keeps the modern one (`AGO` against `ANG`, `BWA` against
+#'   `BEC`). A dependency with no FAOSTAT area of its own resolves to its parent
+#'   state, so `JEY` sits against `GBR` and `ALA` against `FIN`. Join on whichever
+#'   answers your question, but not on the assumption that they agree.
 #' - `reporting_polity_prefix`: ISO3-shaped family key for the reporting area —
 #'   a PREFIX, never a code. Do not join it to [polities]; use `polity_code`.
 #'   It was called `reporting_polity_code` until 0.3.0.9000, where it held 609
