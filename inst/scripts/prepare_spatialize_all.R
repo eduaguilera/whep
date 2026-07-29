@@ -938,7 +938,6 @@ build_cell_polity_fraction <- function(
     "ne_10m_admin_0_countries.shp"
   )
   countries <- terra::vect(shp_path)
-  polities <- whep::polities
   iso_raw <- as.character(countries$ISO_A3)
   iso_eh <- as.character(countries$ISO_A3_EH)
   iso_adm <- as.character(countries$ADM0_A3)
@@ -947,11 +946,32 @@ build_cell_polity_fraction <- function(
     iso_raw,
     dplyr::if_else(iso_eh != "-99", iso_eh, iso_adm)
   )
-  countries$area_code <- dplyr::left_join(
+  # whep::polities dropped its area_code column in the polity restructure, so
+  # map iso3c -> area_code via whep::regions_full (its canonical iso3c -> code
+  # crosswalk), deduping the few iso3c that appear more than once.
+  iso_lookup <- whep::regions_full |>
+    dplyr::filter(!is.na(.data$iso3c)) |>
+    dplyr::transmute(iso3c = .data$iso3c, area_code = .data$code)
+  iso_lookup <- iso_lookup[!duplicated(iso_lookup$iso3c), ]
+  matched <- dplyr::left_join(
     tibble::tibble(iso3c = iso3c),
-    dplyr::select(polities, "iso3c", "area_code"),
+    iso_lookup,
     by = "iso3c"
   )$area_code
+  countries$area_code <- matched
+  n_features <- length(matched)
+  n_matched <- sum(!is.na(matched))
+  cli::cli_alert_info(
+    "iso3c -> area_code: matched {n_matched} of {n_features} country features"
+  )
+  if (n_matched < n_features) {
+    unmatched <- sort(unique(iso3c[is.na(matched) & iso3c != "-99"]))
+    cli::cli_warn(c(
+      "!" = "{length(unmatched)} country feature{?s} had no area_code and
+        contribute no cells.",
+      i = "Unmatched iso3c: {unmatched}."
+    ))
+  }
 
   ref <- terra::rast(
     resolution = target_res / subcells,
@@ -6258,6 +6278,11 @@ prepare_spatialize_all <- function(
   # Section 1: Country grid
   country_grid <- prepare_country_grid(l_files_dir, target_res)
   .save_parquet(country_grid, output_dir, "country_grid")
+
+  # Section 1b: Cell x polity fractions (fractional crosswalk for the balance
+  # modules; build_cell_polity() reads this parquet).
+  cell_polity_fraction <- build_cell_polity_fraction(l_files_dir, target_res)
+  .save_parquet(cell_polity_fraction, output_dir, "cell_polity_fraction")
 
   # Section 5: MIRCA irrigation (run before country_areas so MIRCA
   # is available on the first pass)
