@@ -252,6 +252,35 @@ whep_faostat_area_map <- Sys.getenv(
   "WHEP_POLITIES_FAOSTAT_MAP",
   unset = path.expand("~/whep-polities/data/final/faostat_area_polity_map.csv")
 )
+# All three upstream inputs must come from ONE checkout. They are three separate
+# environment variables with three separate defaults and nothing has required them
+# to agree, which is not a hypothetical: this script was run with the alias map
+# pointed at a branch worktree and WHEP_POLITIES_CSV -- a variable this script does
+# not read at all -- pointed at the same place, so the polities table silently came
+# from the sibling repo's MAIN branch instead. The rebuilt data carried main's
+# retired polygon_status vocabulary (`missing`, `excluded`, `approximate`,
+# `derived`) while the alias map carried the branch's, and the only reason it
+# surfaced was a documentation test that pins the vocabulary.
+#
+# Mixing sources produces artefacts indistinguishable from real drift. Cheaper to
+# refuse.
+upstream_dirs <- unique(dirname(c(
+  whep_polities_gpkg,
+  whep_label_alias_map,
+  whep_faostat_area_map
+)))
+if (length(upstream_dirs) > 1L) {
+  cli::cli_abort(c(
+    "The upstream polities inputs come from more than one directory.",
+    x = "Resolved to: {.path {upstream_dirs}}",
+    i = paste(
+      "Set WHEP_POLITIES_GPKG, WHEP_POLITIES_LABEL_ALIAS_MAP and",
+      "WHEP_POLITIES_FAOSTAT_MAP to files in the SAME whep-polities checkout.",
+      "Note that WHEP_POLITIES_CSV is read by the tests, not by this script."
+    )
+  ))
+}
+
 if (!file.exists(whep_faostat_area_map)) {
   cli::cli_abort(c(
     "The published FAOSTAT area map is missing.",
