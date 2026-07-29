@@ -114,3 +114,47 @@ testthat::test_that("the FAOSTAT group threshold matches how areas are actually 
   regions <- unique(stats::na.omit(as.data.frame(whep::regions_full)$code))
   testthat::expect_false(any(regions >= threshold))
 })
+
+testthat::test_that("real FAOSTAT production contains no area code we do not know", {
+  # The invariant that makes the warning worth having. On real data the two informational branches
+  # fire and the warning one does not, because every code FAOSTAT ships is either a territory this
+  # project maps, a deliberate aggregate, or one of the source's own regional groups.
+  #
+  # Verified end to end on a real slice: 244 distinct area codes in, 205 out, with "15 and 351"
+  # reported as deliberately unmapped and 34 codes reported as FAOSTAT groups — and no warning.
+  #
+  # If FAOSTAT introduces a reporting area this project has never seen, this is what turns that from
+  # a silent 26% drop into a message naming the code. That is the whole point, so it is asserted
+  # against the real source rather than a fixture.
+  raw <- tryCatch(
+    data.table::as.data.table(whep:::.read_input("faostat-production")),
+    error = function(e) NULL
+  )
+  testthat::skip_if(is.null(raw), "faostat-production pin unavailable")
+  data.table::setnames(raw, "Area Code", "area_code", skip_absent = TRUE)
+
+  codes <- sort(unique(as.integer(raw$area_code)))
+  testthat::expect_gt(length(codes), 200L)
+
+  modelled <- unique(stats::na.omit(
+    as.data.frame(whep::polity_area_crosswalk)$area_code
+  ))
+  unexplained <- setdiff(
+    codes,
+    c(
+      modelled,
+      whep:::faostat_deliberate_area_codes,
+      codes[codes >= whep:::faostat_group_code_min]
+    )
+  )
+  testthat::expect_equal(
+    length(unexplained),
+    0L,
+    info = paste0(
+      "FAOSTAT production carries area codes that are neither mapped, nor deliberately ",
+      "unmapped, nor regional groups — their rows are being dropped and someone should decide ",
+      "what they are: ",
+      paste(utils::head(unexplained, 8), collapse = ", ")
+    )
+  )
+})
