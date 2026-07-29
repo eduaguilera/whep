@@ -434,13 +434,6 @@ build_detailed_trade <- function(
   }
 }
 
-# FAOSTAT area codes at or above this are the source's own regional groups — World is 5000, Africa
-# 5100, Eastern Africa 5101 — not territories. Measured against real production: of the 244 distinct
-# area codes it carries, 34 are absent from the crosswalk and ALL 34 are >= 5000. None below it is
-# absent. So this threshold separates "the source aggregates" from "the caller made a mistake"
-# cleanly on today's data.
-.faostat_group_code_min <- 5000L
-
 .warn_unmapped_codes <- function(dt, mapped_col, original_col, role, ...) {
   # Three outcomes, not one message. Dropping rows is correct in all three, but the reason a user
   # needs to hear differs, and an earlier version of this said "not mapped to a polity, dropping" for
@@ -473,11 +466,17 @@ build_detailed_trade <- function(
     as.data.frame(whep::polity_area_crosswalk)$area_code
   ))
 
-  deliberate <- codes[codes %in% known]
-  rest <- codes[!codes %in% known]
-  # A local without the leading dot: cli treats `{.name}` as a style directive, so interpolating
-  # the constant directly errors with "Invalid cli literal ... starts with a dot".
-  group_min <- .faostat_group_code_min
+  # A code upstream names as deliberately unmapped counts as such even if it is absent from the
+  # crosswalk, which is the part inference got wrong.
+  deliberate <- codes[
+    codes %in% known | codes %in% faostat_deliberate_area_codes
+  ]
+  rest <- codes[!codes %in% deliberate]
+  # Both values come from upstream's published `faostat_unmapped_areas`, embedded in sysdata by
+  # data-raw/constants.R. They were hardcoded here until upstream published them — the threshold
+  # measured against real production, "deliberate" inferred from crosswalk membership — and neither
+  # inference could distinguish a decision from an absence.
+  group_min <- faostat_group_code_min
   groups <- rest[rest >= group_min]
   unknown <- rest[rest < group_min]
 
