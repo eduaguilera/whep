@@ -194,13 +194,7 @@ build_detailed_trade <- function(
     year_col = "year",
     include_unmapped = FALSE
   )
-  .warn_unmapped_codes(
-    dt,
-    "polity_area_code",
-    "area_code",
-    "reporter",
-    status_col = "mapping_status"
-  )
+  .warn_unmapped_codes(dt, "polity_area_code", "area_code", "reporter")
   dt[, area_code := polity_area_code]
 
   # Map partner
@@ -215,8 +209,7 @@ build_detailed_trade <- function(
     dt,
     "partner_polity_area_code",
     "area_code_p",
-    "partner",
-    status_col = "partner_mapping_status"
+    "partner"
   )
   dt[, area_code_partner := partner_polity_area_code]
 
@@ -441,38 +434,29 @@ build_detailed_trade <- function(
   }
 }
 
-.warn_unmapped_codes <- function(
-  dt,
-  mapped_col,
-  original_col,
-  role,
-  status_col = NULL
-) {
-  # Distinguish a deliberate non-mapping from an area code that does not exist.
+.warn_unmapped_codes <- function(dt, mapped_col, original_col, role, ...) {
+  # Distinguish a deliberate non-mapping from an area code that does not exist, and do it from the
+  # CROSSWALK rather than from the caller's mapping_status.
   #
-  # Both give a NA polity and both get dropped, so this warning used to report them identically:
-  # "area codes not mapped to a polity, dropping". They are different problems. FAOSTAT 351 "China"
-  # is unmapped ON PURPOSE — it is reported alongside its own components, so routing it too would
-  # double-count every Chinese figure — while an area code absent from the crosswalk means the
-  # caller's input is wrong. Telling a user their data is broken when it is not, or the reverse, is
-  # the whole value of the message.
+  # My first version read mapping_status, which does carry the distinction — "unmapped" for the
+  # deliberate case, NA when nothing was found. But every call site here passes
+  # `include_unmapped = FALSE`, which removes the unmapped rows from the lookup, so mapping_status
+  # comes back NA for BOTH cases and the warning confidently told users that FAOSTAT 351 "China" was
+  # an area code this project does not know. Measured: with that flag, 351 and a fabricated 4444 are
+  # indistinguishable.
   #
-  # `mapping_status` carries the distinction: "unmapped" for the deliberate case, NA when no
-  # crosswalk row was found at all.
+  # The crosswalk itself always knows. An area present there but resolving to no polity is the
+  # deliberate case; an area absent from it entirely is the caller's typo.
   missing <- dt[is.na(get(mapped_col))]
   if (nrow(missing) == 0L) {
     return(invisible(NULL))
   }
-  if (is.null(status_col) || !status_col %in% names(dt)) {
-    codes <- unique(missing[[original_col]])
-    cli::cli_warn(
-      "{stringr::str_to_sentence(role)} area codes not mapped to
-       a polity, dropping: {codes}"
-    )
-    return(invisible(NULL))
-  }
-  deliberate <- unique(missing[get(status_col) == "unmapped"][[original_col]])
-  unknown <- unique(missing[is.na(get(status_col))][[original_col]])
+  codes <- unique(missing[[original_col]])
+  crosswalk <- as.data.frame(whep::polity_area_crosswalk)
+  known <- unique(stats::na.omit(crosswalk$area_code))
+  deliberate <- codes[codes %in% known]
+  unknown <- codes[!codes %in% known]
+
   if (length(deliberate) > 0) {
     cli::cli_warn(
       "{stringr::str_to_sentence(role)} area codes deliberately unmapped, dropping:
