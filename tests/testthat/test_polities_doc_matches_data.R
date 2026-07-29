@@ -47,16 +47,39 @@ testthat::test_that("the alias map's exhaustive column list really is exhaustive
   # data-raw/table_mappings.R to decide which areas may be folded, and left out of the list.
   #
   # Asserted against the .Rd rather than the source, so it reflects what a reader actually gets.
-  rd <- system.file("..", "man", "polity_label_aliases.Rd", package = "whep")
-  if (!file.exists(rd)) {
-    rd <- file.path("man", "polity_label_aliases.Rd")
-  }
-  testthat::skip_if_not(
-    file.exists(rd),
-    "polity_label_aliases.Rd not available"
+  # Read the INSTALLED documentation, not man/*.Rd. R CMD check runs tests from an installed package
+  # in a temporary library where man/ does not exist, so the source-tree path skipped on CI with
+  # "polity_label_aliases.Rd not available" — confirmed from CI's own skip list, not assumed. The
+  # rendered help is reachable in both contexts; the source file is used too when present.
+  rendered <- tryCatch(
+    paste(
+      utils::capture.output(print(utils::help(
+        "polity_label_aliases",
+        package = "whep"
+      ))),
+      collapse = " "
+    ),
+    error = function(e) ""
   )
-
-  text <- paste(readLines(rd, warn = FALSE), collapse = " ")
+  # testthat sets the working directory to tests/testthat, so a bare "man/..." does not resolve —
+  # which made every column look undocumented on the first attempt. Try the candidates instead of
+  # assuming one.
+  candidates <- c(
+    file.path("man", "polity_label_aliases.Rd"),
+    file.path("..", "..", "man", "polity_label_aliases.Rd"),
+    system.file("..", "man", "polity_label_aliases.Rd", package = "whep")
+  )
+  source_rd <- candidates[file.exists(candidates)]
+  from_source <- if (length(source_rd)) {
+    paste(readLines(source_rd[1], warn = FALSE), collapse = " ")
+  } else {
+    ""
+  }
+  text <- paste(rendered, from_source)
+  testthat::skip_if(
+    !nzchar(trimws(text)),
+    "no rendered or source documentation reachable for polity_label_aliases"
+  )
   columns <- names(as.data.frame(whep::polity_label_aliases))
   testthat::expect_gte(length(columns), 8L)
 
