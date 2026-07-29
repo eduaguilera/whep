@@ -19,7 +19,8 @@
 #' [compute_footprint_balance()]. Because each step redistributes a
 #' total without creating or destroying it, the country-level land
 #' total is conserved whenever an animal fed and produced an output
-#' there.
+#' there. Land fed to animals that produced no eligible output item is
+#' set aside and reported via a warning rather than silently dropped.
 #'
 #' @param grass_land Tibble with `year`, `area_code` and `value`
 #'   (grazing land, e.g. hectares). Multiple rows per country (for
@@ -224,13 +225,19 @@ build_grazing_feed_footprint <- function(
     dplyr::select(year, area_code, live_anim_code, item_cbs_code, output_share)
 }
 
-# Combine the per-animal land with the per-animal output weights.
+# Combine the per-animal land with the per-animal output weights. A left
+# join keeps the land of animals that fed but produced no eligible output
+# item, which an inner join would silently drop; that land is surfaced by
+# .warn_unattributed_output_land() before being set aside.
 .grazing_land_to_products <- function(land_by_animal, weights) {
-  land_by_animal |>
-    dplyr::inner_join(
+  joined <- land_by_animal |>
+    dplyr::left_join(
       weights,
       by = c("year", "area_code", "live_anim_code")
-    ) |>
+    )
+  .warn_unattributed_output_land(land_by_animal, joined)
+  joined |>
+    dplyr::filter(!is.na(item_cbs_code)) |>
     dplyr::summarise(
       value = sum(land_animal * output_share),
       .by = c(year, area_code, item_cbs_code)
@@ -363,6 +370,33 @@ build_grazing_feed_footprint <- function(
       attributed to meat or dairy.",
     "i" = "These areas have grassland but no grazing-animal feed intake to
       hand the land forward to."
+  ))
+  invisible(dropped)
+}
+
+# Surface grazing land handed to animals that fed but produced no eligible
+# output item (e.g. no meat or milk under `products = "meat_milk"`): the
+# product-output join cannot place it on any traded item, so it is set
+# aside rather than silently conserved. Reported, never hidden.
+.warn_unattributed_output_land <- function(land_by_animal, joined) {
+  total <- sum(land_by_animal$land_animal, na.rm = TRUE)
+  if (total <= 0) {
+    return(invisible(NULL))
+  }
+  dropped <- joined |>
+    dplyr::filter(is.na(item_cbs_code)) |>
+    dplyr::distinct(year, area_code, live_anim_code, land_animal)
+  lost <- sum(dropped$land_animal, na.rm = TRUE)
+  if (lost <= 0) {
+    return(invisible(NULL))
+  }
+  areas <- length(unique(dropped$area_code))
+  cli::cli_warn(c(
+    "!" = "{round(100 * lost / total, 1)}% of grazing land is fed to
+      animals in {areas} countr{?y/ies} that produced no eligible output
+      item and cannot be attributed to a product.",
+    "i" = "These grazing animals had forage intake but no matching
+      production of the selected products to hand the land forward to."
   ))
   invisible(dropped)
 }
