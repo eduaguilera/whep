@@ -119,6 +119,31 @@ whep_label_alias_map <- Sys.getenv(
   unset = path.expand("~/whep-polities/data/final/label_alias_map.csv")
 )
 
+# Fail with an explanation rather than readr's bare "does not exist". This file is
+# published by whep-polities and arrives with lbm364dl/whep-polities#39, whereas
+# polities_database.gpkg is already on that repo's main — so between the two PRs
+# merging, this is the one upstream artifact a regeneration can be missing, and the
+# raw error names a path without saying what provides it.
+if (!file.exists(whep_label_alias_map)) {
+  cli::cli_abort(c(
+    "The published label alias map is missing.",
+    x = "Looked for {.path {whep_label_alias_map}}.",
+    i = paste(
+      "It is published by whep-polities as {.path data/final/label_alias_map.csv}",
+      "and gated there by {.code scripts/write_label_alias_map.py --check}."
+    ),
+    i = paste(
+      "If that repository is checked out elsewhere, point",
+      "{.envvar WHEP_POLITIES_LABEL_ALIAS_MAP} at the file."
+    ),
+    i = paste(
+      "MERGE ORDER: whep-polities#39 introduces this file, so it must merge before",
+      "this package's data/ can be regenerated. The committed data/*.rda already",
+      "carry the aliases, so only regeneration is affected, not use."
+    )
+  ))
+}
+
 polity_label_aliases <- readr::read_csv(
   whep_label_alias_map,
   show_col_types = FALSE,
