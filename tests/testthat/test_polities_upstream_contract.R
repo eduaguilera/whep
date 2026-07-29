@@ -217,3 +217,70 @@ test_that("every identity field matches upstream, row by row", {
     )
   )
 })
+
+# `observed_rows` carries THREE states, and two of them were published as one until
+# upstream stopped coercing empty to zero:
+#
+#   positive   measured, that many rows
+#   0          measured, and genuinely none
+#   NA         NOT measured -- that source's corpus is not in the upstream repository
+#
+# The third state is most of the non-FAOSTAT sources. Every
+# lassaletta-grassland-share, mueller-synthetic-n and crops-manure-n alias is NA,
+# because those datasets live in THIS package and upstream never sees them. Measured
+# here they are the opposite of inert: 6,082 Lassaletta country-years resolve, 184
+# crops_manure_n codes, 156 Mueller codes. Published as 0, they read as 393 dead
+# aliases, and any check using "observed_rows == 0" as an inertness test would have
+# flagged all 152 of those three sources.
+#
+# Asserted here rather than left to the roxygen, because the collapse is invisible:
+# coercing NA to 0 changes no row count, breaks no join, and fails no existing test.
+# The only symptom is a column that quietly means something else.
+testthat::test_that("observed_rows distinguishes measured-zero from not-measured", {
+  al <- as.data.frame(whep::polity_label_aliases)
+  testthat::expect_true("observed_rows" %in% names(al))
+
+  n_na <- sum(is.na(al$observed_rows))
+  n_zero <- sum(al$observed_rows == 0, na.rm = TRUE)
+  n_pos <- sum(al$observed_rows > 0, na.rm = TRUE)
+  testthat::expect_equal(n_na + n_zero + n_pos, nrow(al))
+
+  # All three states must be occupied. If NA vanishes the coercion is back; if 0
+  # vanishes the distinction has become vacuous from the other side.
+  testthat::expect_gt(n_na, 100L)
+  testthat::expect_gt(n_zero, 10L)
+  testthat::expect_gt(n_pos, 100L)
+
+  # The sources whose data lives in this package must be entirely NA -- upstream
+  # cannot have measured them. A 0 appearing here means the coercion returned.
+  ours <- c(
+    "lassaletta-grassland-share",
+    "mueller-synthetic-n",
+    "crops-manure-n"
+  )
+  mine <- al[which(al$source %in% ours), ]
+  testthat::expect_gt(nrow(mine), 140L)
+  testthat::expect_equal(
+    sum(!is.na(mine$observed_rows)),
+    0L,
+    info = paste0(
+      "aliases for sources whose corpus is not upstream, yet carrying a measured ",
+      "count: ",
+      paste(
+        utils::head(mine$source_label[!is.na(mine$observed_rows)], 10),
+        collapse = ", "
+      )
+    )
+  )
+
+  # And the aliases those sources' data actually exercises are NOT inert, which is
+  # the claim the NA state protects. Measured here, where the data lives.
+  d <- whep::crops_manure_n
+  codes <- sort(unique(stats::na.omit(d$ISO)))
+  resolved <- resolve_polity_label(
+    codes,
+    source = "crops-manure-n",
+    year = 2000L
+  )
+  testthat::expect_gt(sum(!is.na(resolved)), 0L)
+})

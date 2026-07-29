@@ -357,10 +357,18 @@ manual_area_prefixes <- dplyr::bind_rows(
 # territory's data belongs.
 #
 # Deliberately keyed on observed data rather than on "an alias exists". Fourteen more
-# folded areas do have an alias but zero observed rows — Monaco, San Marino, Montserrat,
+# folded areas do have an alias but no observed rows — Monaco, San Marino, Montserrat,
 # Norfolk Island and the like. Unfolding those would change no data and would diverge
 # from FABIO's aggregation for nothing, so they keep folding, which is the same
 # reasoning as before; only the test for it is now correct.
+#
+# "No observed rows" now covers two upstream states rather than one: 0, meaning
+# measured and none, and NA, meaning that source's corpus is not in the upstream repo
+# at all. The filter below already excluded NA explicitly, so nothing here changed
+# when upstream stopped coercing the second into the first -- confirmed by rebuilding
+# and diffing every area's polity_area_code, 0 of 218 moved. Worth stating because the
+# obvious reading of `observed_rows == 0` as "this label is inert" is now wrong, and
+# 393 of 806 aliases are in the NA state.
 alias_observed <- polity_label_aliases |>
   dplyr::filter(
     !is.na(.data$observed_rows),

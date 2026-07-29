@@ -13,12 +13,29 @@ A tibble with one row per alias:
 \item \code{polity_code}: the polity the label resolves to.
 \item \code{common_name}: human-readable name for that polity.
 \item \code{confidence}: the upstream matcher's confidence in the assignment.
-\item \code{observed_rows}: how many source rows were actually seen carrying this label,
-\code{0} when the label is merely mappable. Published so a consumer can tell
-"this label carries data" from "this label could be resolved if it did",
-which are different questions. \code{data-raw/table_mappings.R} uses it to decide
-which FABIO rest-of-world areas may be folded: an area that reports data must
-keep its own polity rather than being summed into an aggregate.
+\item \code{observed_rows}: rows seen carrying this label, with THREE distinct states,
+because two of them used to be reported as one:
+\itemize{
+\item a positive count: measured, that many rows (384 aliases)
+\item \code{0}: measured, and genuinely none (29 aliases)
+\item \code{NA}: \strong{not measured}, because that source's corpus does not live in the
+upstream repository (393 aliases)
+}
+
+The third state is most of the non-FAOSTAT sources. Every
+\code{lassaletta-grassland-share}, \code{mueller-synthetic-n} and \code{crops-manure-n} alias
+is \code{NA}, since those datasets live in THIS package and upstream never sees
+them. Measured here they are anything but inert: 6,082 Lassaletta
+country-years resolve, 184 \code{crops_manure_n} codes, 156 Mueller codes. They
+were published as \code{0} until upstream stopped coercing empty to zero, which
+invited exactly the wrong reading, and would have made an inert-alias check
+flag all 152 of them.
+
+\code{data-raw/table_mappings.R} uses it to decide which FABIO rest-of-world areas
+may be folded: an area that reports data must keep its own polity rather than
+being summed into an aggregate. That filter already tested
+\code{!is.na(observed_rows) & observed_rows > 0}, so the three-state change moved no
+area -- verified by rebuilding and comparing every \code{polity_area_code}.
 }
 
 Unlike \link{polities} and \link{polity_area_crosswalk}, whose \verb{@format} sections list
