@@ -125,6 +125,18 @@ build_constant_territory_series <- function(
   polities <- polities[, c("polity_code", "start_year", "end_year")]
   # only polities that actually carry a polygon can host or receive mass
   polities <- polities[!sf::st_is_empty(polities), ]
+  # The ORDER here is load-bearing: transform first, then repair. Reversing it
+  # silently destroys geometry that crosses the antimeridian, because
+  # `st_make_valid()` on geographic coordinates goes through s2 and mangles the
+  # wrap-around. Measured on RUS-1991-2014 (Russia, 133 polygons, Chukotka east of
+  # 180 degrees):
+  #
+  #   st_transform then st_make_valid   16,882,058 km2   correct
+  #   st_make_valid then st_transform   10,866,387 km2   36% of Russia lost
+  #
+  # The raw geometry is already valid (`st_is_valid()` is TRUE for every row), so
+  # the repair is defensive rather than necessary — which is exactly why a reordering
+  # would not look wrong and no test would fail on it. Do not swap these.
   polities <- sf::st_make_valid(sf::st_transform(polities, crs_equal_area))
 
   .active <- function(yr) {
