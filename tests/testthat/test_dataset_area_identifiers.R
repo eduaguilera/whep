@@ -220,3 +220,66 @@ test_that("resolve_polity_label handles its arguments as documented", {
     resolve_polity_label(NA_character_, "mueller-synthetic-n", 2000L)
   ))
 })
+
+# `polity_label_aliases` and `polities` are two embedded datasets built by the same
+# data-raw script but stored as separate .rda files, so they can be regenerated
+# independently — and nothing asserted they agree. data-raw does abort when an alias
+# targets a polity the package does not carry, but that is BUILD time. Rebuilding
+# polities.rda after an upstream retirement without rebuilding the alias copy would
+# leave `resolve_polity_label()` returning codes a consumer cannot use, and no test
+# would notice.
+#
+# This needs no upstream checkout — it compares two datasets that ship in the package —
+# so unlike the contract tests it runs unconditionally, including on CI.
+test_that("every label alias targets a live polity this package carries", {
+  aliases <- as.data.frame(whep::polity_label_aliases)
+  pol <- as.data.frame(whep::polities)
+
+  # Non-vacuous: a silently empty dataset would make everything below pass for free.
+  expect_gte(nrow(aliases), 500L)
+
+  expect_setequal(
+    names(aliases),
+    c(
+      "source_label",
+      "source",
+      "year_start",
+      "year_end",
+      "polity_code",
+      "common_name",
+      "confidence"
+    )
+  )
+
+  blank <- sum(is.na(aliases$polity_code) | aliases$polity_code == "")
+  expect_equal(
+    blank,
+    0L,
+    info = "an alias with no target can never route anything"
+  )
+
+  unknown <- sort(setdiff(unique(aliases$polity_code), pol$polity_code))
+  expect_equal(
+    length(unknown),
+    0L,
+    info = paste0(
+      "alias targets absent from whep::polities: ",
+      paste(utils::head(unknown, 5), collapse = ", "),
+      " — the two datasets were built from different upstream revisions; re-run ",
+      "data-raw/table_mappings.R and commit both."
+    )
+  )
+
+  # Dead rows must never receive data, so an alias pointing at one is worse than an
+  # alias pointing at nothing: it resolves, and to a row the contract forbids.
+  dead <- pol$polity_code[pol$wiki_status %in% c("retired", "superseded")]
+  routed_dead <- sort(intersect(unique(aliases$polity_code), dead))
+  expect_equal(
+    length(routed_dead),
+    0L,
+    info = paste0(
+      "aliases route to retired or superseded polities: ",
+      paste(utils::head(routed_dead, 5), collapse = ", ")
+    )
+  )
+})
