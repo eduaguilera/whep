@@ -118,11 +118,33 @@ Stated rather than hidden, because each is a real limit on what the data can say
   an ISO3. Those use the `Global` coefficient, which covers every category.
 - **Reporting buckets** (`RLAM-1850-2013` and the other regional "Other" rows) end before the
   data does, so their most recent years resolve to nothing.
-- **Most of the crosswalk is unreachable, by design.** Of its 599 area-polity pairs, 274 can
-  never be returned by `add_polity_code()`: 273 belong to polities that ended at or before 1961,
-  and the clamp means no earlier year is matched directly. The crosswalk deliberately carries
-  whole polity chains, while FAOSTAT-sourced resolution can only deliver the 1961-onward part of
-  each. A mapping existing in the crosswalk is therefore not evidence that any query returns it.
+- **Most of the crosswalk is unreachable, by design.** The crosswalk deliberately carries whole
+  polity chains, while FAOSTAT-sourced resolution can only deliver the 1961-onward part of each.
+  A mapping existing in the crosswalk is therefore not evidence that any query returns it:
+
+```{r}
+pairs <- unique(polity_area_crosswalk[
+  !is.na(polity_area_crosswalk$area_code) & !is.na(polity_area_crosswalk$polity_code),
+  c("area_code", "polity_code", "polity_end_year")
+])
+grid <- expand.grid(
+  area_code = sort(unique(pairs$area_code)),
+  year = 1961:2024
+)
+reachable <- unique(paste(
+  add_polity_code(grid)$area_code,
+  add_polity_code(grid)$polity_code
+))
+unreachable <- pairs[!paste(pairs$area_code, pairs$polity_code) %in% reachable, ]
+c(
+  pairs = nrow(pairs),
+  unreachable = nrow(unreachable),
+  ended_by_1961 = sum(unreachable$polity_end_year <= 1961L)
+)
+```
+
+  Almost every unreachable pair belongs to a polity that ended at or before 1961, which the clamp
+  makes unselectable.
 
 ```{r}
 # The one unreachable pair that does NOT end before 1961 — area 15 maps to two overlapping
