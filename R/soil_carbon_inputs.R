@@ -363,26 +363,41 @@ build_soil_carbon_inputs <- function(
 # polity grain recovers the polity crop area, the grid grain the cell area.
 .sci_sum_components <- function(gridded, keys) {
   cell_keys <- unique(c(keys, "lon", "lat"))
-  per_cell <- gridded |>
-    dplyr::summarise(
-      crop_area_ha = .data$crop_area_ha[1],
-      residue_c_mg = sum(
-        .data$c_mass_mg[.data$input_type == "crop_residue"]
-      ),
-      root_c_mg = sum(.data$c_mass_mg[.data$input_type == "root"]),
-      weed_c_mg = sum(.data$c_mass_mg[.data$input_type == "weed"]),
-      manure_c_mg = sum(.data$c_mass_mg[.data$input_type == "manure"]),
-      .by = dplyr::all_of(cell_keys)
-    )
-  per_cell |>
-    dplyr::summarise(
-      crop_area_ha = sum(.data$crop_area_ha),
-      residue_c_mg = sum(.data$residue_c_mg),
-      root_c_mg = sum(.data$root_c_mg),
-      weed_c_mg = sum(.data$weed_c_mg),
-      manure_c_mg = sum(.data$manure_c_mg),
-      .by = dplyr::all_of(keys)
-    )
+  # Pre-mask the carbon mass by input_type ONCE (vectorised) so the per-cell
+  # aggregation is a plain GForce grouped sum, instead of a dplyr summarise that
+  # re-resolves .data and sub-sets c_mass_mg per group. At global cell grain the
+  # per-group .data-pronoun path dominated the whole soil-carbon-input read.
+  # fifelse propagates NA (in c_mass_mg or input_type) exactly as the
+  # `c_mass_mg[input_type == ...]` subset did; data.table `by=` keeps
+  # first-appearance group order, matching dplyr `.by`.
+  dt <- data.table::as.data.table(gridded)
+  dt[, `:=`(
+    .residue = data.table::fifelse(input_type == "crop_residue", c_mass_mg, 0),
+    .root = data.table::fifelse(input_type == "root", c_mass_mg, 0),
+    .weed = data.table::fifelse(input_type == "weed", c_mass_mg, 0),
+    .manure = data.table::fifelse(input_type == "manure", c_mass_mg, 0)
+  )]
+  per_cell <- dt[,
+    .(
+      crop_area_ha = crop_area_ha[1L],
+      residue_c_mg = sum(.residue),
+      root_c_mg = sum(.root),
+      weed_c_mg = sum(.weed),
+      manure_c_mg = sum(.manure)
+    ),
+    by = cell_keys
+  ]
+  out <- per_cell[,
+    .(
+      crop_area_ha = sum(crop_area_ha),
+      residue_c_mg = sum(residue_c_mg),
+      root_c_mg = sum(root_c_mg),
+      weed_c_mg = sum(weed_c_mg),
+      manure_c_mg = sum(manure_c_mg)
+    ),
+    by = keys
+  ]
+  tibble::as_tibble(as.data.frame(out))
 }
 
 # Per-hectare carbon by dividing the grain's carbon mass by its crop area.
