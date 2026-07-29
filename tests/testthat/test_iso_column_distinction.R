@@ -41,10 +41,8 @@ testthat::test_that("the crosswalk's area_iso3c and iso3_code stay distinct", {
   # They must differ somewhere, or the documented distinction is fiction.
   testthat::expect_gt(nrow(differing), 20L)
 
-  # And the differences must be the two explained kinds: a ROW fold, or a polity whose key differs
-  # from the area's because the era does. Anything else means a third cause nobody has looked at.
-  # Three explained causes: the ROW fold, a known multi-era override, and a dependency with no
-  # FAOSTAT area resolving to its parent state.
+  # Three explained causes: the ROW fold, a known multi-era override, and a parent-state row
+  # carrying a dependency's code. Anything else means a fourth nobody has looked at.
   overrides <- c(
     7L,
     15L,
