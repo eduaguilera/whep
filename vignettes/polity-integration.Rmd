@@ -114,3 +114,14 @@ Stated rather than hidden, because each is a real limit on what the data can say
   an ISO3. Those use the `Global` coefficient, which covers every category.
 - **Reporting buckets** (`RLAM-1850-2013` and the other regional "Other" rows) end before the
   data does, so their most recent years resolve to nothing.
+- **Most of the crosswalk is unreachable, by design.** Of its 599 area-polity pairs, 274 can
+  never be returned by `add_polity_code()`: 273 belong to polities that ended at or before 1961,
+  and the clamp means no earlier year is matched directly. The crosswalk deliberately carries
+  whole polity chains, while FAOSTAT-sourced resolution can only deliver the 1961-onward part of
+  each. A mapping existing in the crosswalk is therefore not evidence that any query returns it.
+
+```{r}
+# The one unreachable pair that does NOT end before 1961 — area 15 maps to two overlapping
+# Belgium-Luxembourg rows and the resolver only ever picks the first.
+add_polity_code(data.frame(area_code = 15L, year = c(1930L, 1970L)))$polity_code
+```
