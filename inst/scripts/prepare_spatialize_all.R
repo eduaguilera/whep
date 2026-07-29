@@ -868,6 +868,22 @@ cft_to_pft <- c(
 #
 # Rasterize NaturalEarth to a 0.5-degree grid with WHEP area_code.
 
+# iso3c -> area_code from inst/extdata/regions.csv. whep::polities dropped its
+# area_code column in the polity restructure, which silently broke both
+# rasterisation sections against the current schema (#381); this is the
+# canonical replacement, shared so the country grid and the cell x polity
+# crosswalk stay consistent. Verified to reproduce the existing 58,795-cell
+# country_grid pin cell-for-cell with identical codes.
+.spatialize_area_lookup <- function() {
+  path <- system.file("extdata", "regions.csv", package = "whep")
+  regions <- utils::read.csv(path, stringsAsFactors = FALSE)
+  lookup <- regions[
+    !is.na(regions$iso3c) & !is.na(regions$area_code),
+    c("iso3c", "area_code")
+  ]
+  lookup[!duplicated(lookup$iso3c), ]
+}
+
 prepare_country_grid <- function(l_files_dir, target_res) {
   cli::cli_h2("Section 1: Country grid")
 
@@ -878,8 +894,6 @@ prepare_country_grid <- function(l_files_dir, target_res) {
     "ne_10m_admin_0_countries.shp"
   )
   countries <- terra::vect(shp_path)
-  polities <- whep::polities
-
   iso_raw <- as.character(countries$ISO_A3)
   iso_eh <- as.character(countries$ISO_A3_EH)
   iso_adm <- as.character(countries$ADM0_A3)
@@ -889,12 +903,11 @@ prepare_country_grid <- function(l_files_dir, target_res) {
     dplyr::if_else(iso_eh != "-99", iso_eh, iso_adm)
   )
 
-  ne_data <- tibble::tibble(iso3c = iso3c) |>
-    dplyr::left_join(
-      dplyr::select(polities, "iso3c", "area_code"),
-      by = "iso3c"
-    )
-  countries$area_code <- ne_data$area_code
+  countries$area_code <- dplyr::left_join(
+    tibble::tibble(iso3c = iso3c),
+    .spatialize_area_lookup(),
+    by = "iso3c"
+  )$area_code
 
   ref <- terra::rast(
     resolution = target_res,
@@ -907,9 +920,13 @@ prepare_country_grid <- function(l_files_dir, target_res) {
   cli::cli_alert_info("Rasterizing shapefile to {target_res}-degree grid")
   grid_rast <- terra::rasterize(countries, ref, field = "area_code")
 
+  # Coerce to integer BEFORE dropping NA: terra writes its integer NoData as the
+  # sentinel -2147483648, which is not NA, so filtering first would leave those
+  # ocean/unassigned cells in and only NA them at as.integer(). as.integer()
+  # maps the sentinel to NA, then the filter drops it (#381).
   result <- .raster_to_tibble(grid_rast, "area_code") |>
-    dplyr::filter(!is.na(area_code)) |>
-    dplyr::mutate(area_code = as.integer(area_code))
+    dplyr::mutate(area_code = as.integer(area_code)) |>
+    dplyr::filter(!is.na(area_code))
 
   cli::cli_alert_success("country_grid: {nrow(result)} cells")
   result
@@ -947,16 +964,11 @@ build_cell_polity_fraction <- function(
     iso_raw,
     dplyr::if_else(iso_eh != "-99", iso_eh, iso_adm)
   )
-  # whep::polities dropped its area_code column in the polity restructure, so
-  # map iso3c -> area_code via whep::regions_full (its canonical iso3c -> code
-  # crosswalk), deduping the few iso3c that appear more than once.
-  iso_lookup <- whep::regions_full |>
-    dplyr::filter(!is.na(.data$iso3c)) |>
-    dplyr::transmute(iso3c = .data$iso3c, area_code = .data$code)
-  iso_lookup <- iso_lookup[!duplicated(iso_lookup$iso3c), ]
+  # Same iso3c -> area_code lookup as the country grid (regions.csv), so the
+  # crosswalk covers exactly the same countries as the simulated grid.
   matched <- dplyr::left_join(
     tibble::tibble(iso3c = iso3c),
-    iso_lookup,
+    .spatialize_area_lookup(),
     by = "iso3c"
   )$area_code
   countries$area_code <- matched

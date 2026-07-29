@@ -850,12 +850,15 @@ testthat::test_that(".wb_attach_polity drops unsimulated cells and warns (#381)"
   testthat::expect_true(all(is.finite(out$drainage_mm)))
 })
 
-testthat::test_that("regions_full carries the iso3c->code crosswalk (#381 guard)", {
-  # inst/scripts/prepare_spatialize_all.R build_cell_polity_fraction() maps
-  # iso3c -> area_code via whep::regions_full$code. Guard the columns it needs
-  # so a future schema drift (like the polities restructure that removed
-  # area_code, which silently broke the orphaned builder) fails loudly here.
-  testthat::expect_true(all(c("iso3c", "code") %in% names(whep::regions_full)))
-  lookup <- whep::regions_full[!is.na(whep::regions_full$iso3c), ]
-  testthat::expect_true(any(!is.na(lookup$code)))
+testthat::test_that("regions.csv carries the iso3c->area_code crosswalk (#381 guard)", {
+  # inst/scripts/prepare_spatialize_all.R maps iso3c -> area_code via
+  # inst/extdata/regions.csv for both the country grid and the cell x polity
+  # crosswalk. Guard the columns it needs so a future schema drift (like the
+  # polities restructure that removed area_code, which silently broke both
+  # rasterisation sections) fails loudly here instead.
+  path <- system.file("extdata", "regions.csv", package = "whep")
+  testthat::expect_true(nzchar(path))
+  regions <- utils::read.csv(path, stringsAsFactors = FALSE)
+  testthat::expect_true(all(c("iso3c", "area_code") %in% names(regions)))
+  testthat::expect_true(any(!is.na(regions$area_code)))
 })
