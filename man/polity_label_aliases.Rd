@@ -13,7 +13,16 @@ A tibble with one row per alias:
 \item \code{polity_code}: the polity the label resolves to.
 \item \code{common_name}: human-readable name for that polity.
 \item \code{confidence}: the upstream matcher's confidence in the assignment.
+\item \code{observed_rows}: how many source rows were actually seen carrying this label,
+\code{0} when the label is merely mappable. Published so a consumer can tell
+"this label carries data" from "this label could be resolved if it did",
+which are different questions. \code{data-raw/table_mappings.R} uses it to decide
+which FABIO rest-of-world areas may be folded: an area that reports data must
+keep its own polity rather than being summed into an aggregate.
 }
+
+Unlike \link{polities} and \link{polity_area_crosswalk}, whose \verb{@format} sections list
+\emph{key} columns, this one is exhaustive — every column is above.
 }
 \usage{
 polity_label_aliases

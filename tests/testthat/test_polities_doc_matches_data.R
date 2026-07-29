@@ -38,3 +38,42 @@ testthat::test_that("polygon_area_km2 is sparse, as documented", {
   # And it must not be empty either, or the cross-check it exists for has nothing to work with.
   testthat::expect_gt(recorded, 50L)
 })
+
+testthat::test_that("the alias map's exhaustive column list really is exhaustive", {
+  # polity_label_aliases documents itself as "A tibble with one row per alias:" followed by every
+  # column — an exhaustive listing, unlike polities and polity_area_crosswalk, which say "Key
+  # columns" and are selective by design. That distinction decides whether an omission is a defect,
+  # and here it is: `observed_rows` was added to the published contract on this branch, consumed by
+  # data-raw/table_mappings.R to decide which areas may be folded, and left out of the list.
+  #
+  # Asserted against the .Rd rather than the source, so it reflects what a reader actually gets.
+  rd <- system.file("..", "man", "polity_label_aliases.Rd", package = "whep")
+  if (!file.exists(rd)) {
+    rd <- file.path("man", "polity_label_aliases.Rd")
+  }
+  testthat::skip_if_not(
+    file.exists(rd),
+    "polity_label_aliases.Rd not available"
+  )
+
+  text <- paste(readLines(rd, warn = FALSE), collapse = " ")
+  columns <- names(as.data.frame(whep::polity_label_aliases))
+  testthat::expect_gte(length(columns), 8L)
+
+  undocumented <- columns[
+    !vapply(
+      columns,
+      function(col) grepl(col, text, fixed = TRUE),
+      logical(1)
+    )
+  ]
+  testthat::expect_equal(
+    length(undocumented),
+    0L,
+    info = paste0(
+      "polity_label_aliases documents its columns exhaustively, so these are missing from ",
+      "@format: ",
+      paste(undocumented, collapse = ", ")
+    )
+  )
+})

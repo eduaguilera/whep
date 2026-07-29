@@ -687,6 +687,15 @@
 #' - `polity_code`: the polity the label resolves to.
 #' - `common_name`: human-readable name for that polity.
 #' - `confidence`: the upstream matcher's confidence in the assignment.
+#' - `observed_rows`: how many source rows were actually seen carrying this label,
+#'   `0` when the label is merely mappable. Published so a consumer can tell
+#'   "this label carries data" from "this label could be resolved if it did",
+#'   which are different questions. `data-raw/table_mappings.R` uses it to decide
+#'   which FABIO rest-of-world areas may be folded: an area that reports data must
+#'   keep its own polity rather than being summed into an aggregate.
+#'
+#' Unlike [polities] and [polity_area_crosswalk], whose `@format` sections list
+#' *key* columns, this one is exhaustive — every column is above.
 #'
 #' @seealso [resolve_polity_label()], [polity_area_crosswalk] for numeric codes.
 #' @examples
