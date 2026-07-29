@@ -127,6 +127,39 @@ build_constant_territory_series <- function(
   verbose = TRUE
 ) {
   donor <- match.arg(donor)
+  # If the input records how its polity codes were resolved, check the one combination that is
+  # silently wrong: strict data-year matching on a series that predates the back-cast anchor.
+  # Step 1 spreads each value over its polity's extent, so a 1900 row carrying a 1900-era polity
+  # while the value describes anchor-year borders is reallocated from the wrong extent, and the
+  # result is plausible rather than obviously broken.
+  #
+  # Only warns when the marker is present AND the data actually contains pre-anchor years — with
+  # everything at or after the anchor, strict and anchored resolution agree and there is nothing
+  # to say. No marker means no claim about provenance, so no warning.
+  resolved_anchor <- attr(data, "whep_backcast_anchor", exact = TRUE)
+  if (
+    !is.null(resolved_anchor) &&
+      is.numeric(resolved_anchor) &&
+      "year" %in% names(data) &&
+      any(data$year < 1961L, na.rm = TRUE) &&
+      resolved_anchor < 1961L
+  ) {
+    cli::cli_warn(c(
+      "!" = paste(
+        "Input was resolved with {.code backcast_anchor = {resolved_anchor}}, so pre-1961 rows",
+        "carry the polity of their data year."
+      ),
+      i = paste(
+        "This function spreads each value over that polity's extent. If the series is",
+        "back-cast onto 1961 territory, the extent is the wrong one and the reallocation will",
+        "be plausible but wrong."
+      ),
+      i = paste(
+        "Resolve with the default {.code backcast_anchor = 1961} for back-cast series. Strict",
+        "matching is correct only for values reported under their own year's borders."
+      )
+    ))
+  }
   required <- c("year", "polity_code", "value")
   missing <- setdiff(required, names(data))
   if (length(missing)) {

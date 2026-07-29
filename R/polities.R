@@ -321,7 +321,18 @@ add_polity_code <- function(
   if (polity_code_column != "polity_code" && "polity_code" %in% names(out)) {
     data.table::setnames(out, "polity_code", polity_code_column)
   }
-  tibble::as_tibble(out)
+  out <- tibble::as_tibble(out)
+  # Record which anchor produced these codes, so a downstream consumer can tell whether the
+  # polity on a pre-anchor row names the territory the value was reported for.
+  # build_constant_territory_series() reads this: it spreads each value over its polity's own
+  # extent, which is wrong for a back-cast series resolved by strict data year, and the two cases
+  # are indistinguishable from the data alone.
+  #
+  # An attribute rather than a column because it is a fact about the resolution, not about any
+  # row. It survives filter/mutate/select/rename/arrange and is dropped by summarise, so the
+  # failure mode is the safe one: absent means no claim, which means no warning.
+  attr(out, "whep_backcast_anchor") <- backcast_anchor
+  out
 }
 
 .add_reporting_polity_columns <- function(
