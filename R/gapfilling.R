@@ -310,6 +310,11 @@ fill_linear <- function(
 #' than two usable anchors remain there is nothing to interpolate between, and
 #' every element of `y` and `method` is `NA`.
 #'
+#' An output position that coincides with an anchor position returns that
+#' anchor's value unchanged, labelled `"linear"`, because nothing needed
+#' interpolating there. In particular log space never rebuilds an anchor value
+#' it was handed, which would perturb it in the last bits.
+#'
 #' @export
 #'
 #' @examples
@@ -662,10 +667,19 @@ interp_vec <- function(x, y, xout, log_space = FALSE, rule = 1) {
 # `.loglinear_interp()`, the same helper `fill_linear(log_space = TRUE)` uses,
 # so the two entry points cannot drift apart. Output positions outside the
 # anchor range keep whatever `rule` gave them.
+#
+# Positions that coincide with an anchor keep their linear value too, which
+# `stats::approx()` returns bit-exactly. Nothing needs interpolating there, and
+# rebuilding the value as `exp(log(v0))` would perturb it in the last bits
+# (`exp(log(3)) != 3`). `fill_linear(log_space = TRUE)` never hits this because
+# `.interp_series()` only writes into positions whose value is missing.
 .interp_vec_apply_log <- function(anchors, xout, linear, method) {
   n_anchors <- length(anchors$x)
   lower <- findInterval(xout, anchors$x)
-  inside <- !is.na(lower) & lower >= 1L & lower < n_anchors
+  inside <- !is.na(lower) &
+    lower >= 1L &
+    lower < n_anchors &
+    !xout %in% anchors$x
   safe_lower <- pmin(pmax(lower, 1L), n_anchors - 1L)
   safe_lower[is.na(safe_lower)] <- 1L
   log_value <- .loglinear_interp(

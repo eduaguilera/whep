@@ -55,6 +55,11 @@ paths always see the same anchor set. Anchors whose value is infinite are
 kept, but a segment bounded by one is never eligible for log space. If fewer
 than two usable anchors remain there is nothing to interpolate between, and
 every element of \code{y} and \code{method} is \code{NA}.
+
+An output position that coincides with an anchor position returns that
+anchor's value unchanged, labelled \code{"linear"}, because nothing needed
+interpolating there. In particular log space never rebuilds an anchor value
+it was handed, which would perturb it in the last bits.
 }
 \examples{
 # Constant compound growth: the 2005 midpoint of 1 and 1024 is 32, whereas

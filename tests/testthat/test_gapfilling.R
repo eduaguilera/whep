@@ -1594,8 +1594,10 @@ testthat::test_that("interp_vec collapses tied anchor positions", {
     xout = c(2005, 2010, 2015),
     log_space = TRUE
   )
+  # 2010 is itself an anchor position once the tie is averaged, so it is
+  # returned as that averaged value rather than interpolated.
   testthat::expect_equal(tied$y, c(32, 1024, 32768))
-  testthat::expect_equal(tied$method, rep("loglinear", 3))
+  testthat::expect_equal(tied$method, c("loglinear", "linear", "loglinear"))
 
   # Every anchor at the same position leaves a single usable anchor.
   degenerate <- whep::interp_vec(
@@ -1606,6 +1608,39 @@ testthat::test_that("interp_vec collapses tied anchor positions", {
   )
   testthat::expect_equal(degenerate$y, NA_real_)
   testthat::expect_equal(degenerate$method, NA_character_)
+})
+
+testthat::test_that("interp_vec returns anchor positions bit-exactly", {
+  # A caller that densifies a whole grid of positions passes the anchor
+  # positions along with the gaps. Log space must not rebuild the anchor values
+  # it was handed: `exp(log(3))` is 3.0000000000000004, not 3, which would
+  # break a downstream bit-identical comparison. `expect_identical()`, not
+  # `expect_equal()`, is the point of this test.
+  anchor_x <- c(2000, 2010, 2020, 2030)
+  anchor_y <- c(3, 7, 300, 11)
+  on_anchors <- whep::interp_vec(
+    anchor_x,
+    anchor_y,
+    xout = anchor_x,
+    log_space = TRUE
+  )
+  testthat::expect_identical(on_anchors$y, anchor_y)
+  testthat::expect_identical(on_anchors$method, rep("linear", 4))
+
+  # A flat segment is the same trap: the midpoint of 7 and 7 is 7 exactly, but
+  # a log-space round trip returns 6.999999999999999.
+  flat <- whep::interp_vec(
+    c(2000, 2010),
+    c(7, 7),
+    xout = c(2000, 2005, 2010),
+    log_space = TRUE
+  )
+  testthat::expect_identical(flat$y[c(1L, 3L)], c(7, 7))
+
+  # Interior positions are still interpolated in log space, so pinning the
+  # anchors has not disabled the feature.
+  whep::interp_vec(anchor_x, anchor_y, xout = 2005, log_space = TRUE)$method |>
+    testthat::expect_equal("loglinear")
 })
 
 testthat::test_that("interp_vec applies rule outside the anchor range", {
