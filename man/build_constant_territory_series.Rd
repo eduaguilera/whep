@@ -90,6 +90,27 @@ surface used elsewhere in WHEP spatialization (cropland for crop output,
 population for demographic series, livestock density for animals). With
 \code{covariate = NULL} the method reduces to area-weighted areal interpolation.
 }
+\section{How \code{polity_code} must have been assigned}{
+
+Step 1 spreads each value over \emph{that polity's own extent for that year}, so it
+assumes the \code{polity_code} on a row names the territory the value was actually
+reported for. That holds for data resolved by \code{\link[=add_polity_code]{add_polity_code()}} with its
+default \code{backcast_anchor = 1961}: WHEP's pre-1961 series are back-cast onto
+1961 territory, and the anchor assigns them the polity active in 1961, so the
+polity's extent and the value's basis agree.
+
+It does \strong{not} hold if the input was resolved with \code{backcast_anchor = -Inf}.
+That matches strictly by data year, so a 1900 row of a back-cast series would
+carry a 1900-era polity while the value still describes 1961 borders — and
+this function would then spread 1961-border figures across a 1900 extent. The
+error is silent: the reallocation succeeds and returns plausible numbers.
+
+Strict matching is the right choice for values genuinely reported under their
+own year's borders, such as the historical sources resolved through
+year-ranged aliases (Mitchell, IIA, FAO 1952). The two cases cannot be told
+apart from the data alone, so the caller has to know which it holds.
+}
+
 \examples{
 # Self-contained toy: two adjacent square polities. Only "P1" reports a
 # value in 1900, so when the series is rebuilt onto the boundaries active in

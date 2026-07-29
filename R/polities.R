@@ -288,6 +288,13 @@
 #'   anchor-year territory rather than reported under their data-year borders.
 #'   Set to `-Inf` to disable and match strictly by data year.
 #'
+#'   Strict matching is correct for values genuinely reported under their own
+#'   year's borders, but it must not be fed to
+#'   [build_constant_territory_series()] for a back-cast series: that function
+#'   spreads each value over its polity's extent, so a 1900 row carrying a
+#'   1900-era polity while the value describes 1961 borders would be reallocated
+#'   from the wrong extent, silently and plausibly.
+#'
 #' @returns A tibble with added polity metadata columns.
 #' @export
 add_polity_code <- function(
