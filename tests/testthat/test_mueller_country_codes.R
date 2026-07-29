@@ -17,10 +17,15 @@
 # aliased to SCG-1992-2006.
 
 testthat::test_that("every Mueller country code resolves to a distinct polity", {
-  d <- readr::read_csv(
-    system.file("extdata", "mueller_synthetic_n.csv", package = "whep"),
-    show_col_types = FALSE
-  )
+  # The EXPORTED dataset, not inst/extdata/mueller_synthetic_n.csv. The two hold
+  # identical content (5,043 rows, the same 156 codes), but .Rbuildignore
+  # excludes the CSV, so `system.file()` returns "" in an installed package and
+  # `read_csv("")` errors. Locally it resolved, because pkgload maps system.file
+  # onto the source tree -- so this passed on my machine and failed on all five
+  # CI platforms.
+  #
+  # Two representations of one fact, and I read the one that does not ship.
+  d <- whep::mueller_synthetic_n
   codes <- sort(unique(stats::na.omit(d$iso3c)))
   # Non-vacuous: an empty or renamed column would make the rest pass for free.
   testthat::expect_gt(length(codes), 150L)

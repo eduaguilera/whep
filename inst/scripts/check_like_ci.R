@@ -422,6 +422,67 @@ if (length(candidates) == 0L) {
   )
 }
 
+# --- 5c. system.file() paths that .Rbuildignore excludes ---------------------
+# This script's whole premise is "run the gates the way CI runs them", and it has
+# a structural blind spot it cannot fix by running more tests: it uses
+# testthat::test_local(), which loads the SOURCE tree, where pkgload maps
+# system.file() onto inst/. CI checks an INSTALLED package, where a
+# build-ignored file is simply absent and system.file() returns "".
+#
+# That difference cost a five-platform CI failure. test_mueller_country_codes.R
+# read inst/extdata/mueller_synthetic_n.csv, which .Rbuildignore excludes because
+# the same data ships as the exported dataset whep::mueller_synthetic_n. Locally
+# the path resolved and the test passed; on every CI platform read_csv("") errored.
+# Two representations of one fact, and the test read the one that does not ship.
+#
+# No amount of test-running catches this from a source tree, so it is checked
+# statically instead: any file a test reaches for through system.file() must not
+# be excluded from the build.
+ignore_path <- ".Rbuildignore"
+test_files <- Sys.glob("tests/testthat/*.R")
+if (file.exists(ignore_path) && length(test_files) > 0L) {
+  patterns <- Filter(nzchar, trimws(readLines(ignore_path, warn = FALSE)))
+  excluded <- character(0)
+  for (tf in test_files) {
+    src <- paste(readLines(tf, warn = FALSE), collapse = "\n")
+    # system.file("dir", "name", ...) -> the inst-relative path it resolves to
+    hits <- regmatches(
+      src,
+      gregexpr('system\\.file\\(\\s*"[^"]+"\\s*,\\s*"[^"]+"', src)
+    )[[1]]
+    for (h in hits) {
+      parts <- regmatches(h, gregexpr('"[^"]+"', h))[[1]]
+      parts <- gsub('"', "", parts)
+      if (length(parts) < 2L || parts[[1]] == "..") {
+        next
+      }
+      rel <- file.path("inst", parts[[1]], parts[[2]])
+      hit <- vapply(
+        patterns,
+        function(p) {
+          isTRUE(tryCatch(grepl(p, rel), error = function(e) FALSE))
+        },
+        logical(1)
+      )
+      if (any(hit)) {
+        excluded <- c(excluded, sprintf("%s -> %s", basename(tf), rel))
+      }
+    }
+  }
+  record(
+    "no test reads a build-ignored file",
+    length(excluded) == 0L,
+    if (length(excluded) == 0L) {
+      sprintf("%d test file(s) scanned", length(test_files))
+    } else {
+      paste(
+        "returns \"\" in an installed package:",
+        paste(unique(excluded), collapse = "; ")
+      )
+    }
+  )
+}
+
 # --- 6. Verdict --------------------------------------------------------------
 cat("\n")
 failed <- Filter(function(r) !r$ok, results)
