@@ -365,6 +365,11 @@
     year_col = "year",
     include_unmapped = FALSE
   )
+  # Say what is being dropped. This filter removed 1,109,466 rows of real FAOSTAT
+  # production — 26% — in total silence: FAOSTAT's own regional groups plus the
+  # deliberately unmapped aggregates. All expected, none of it visible, so a genuinely
+  # unknown area code would have been just as quiet.
+  .warn_unmapped_codes(dt, "polity_code", "area_code", "input")
   dt <- dt[!is.na(polity_code)]
   by_cols <- c(
     "year",

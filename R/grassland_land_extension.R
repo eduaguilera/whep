@@ -129,6 +129,18 @@ build_grassland_land_extension <- function(
 .grassland_faostat_to_polities <- function(occupation) {
   occupation |>
     add_polity_code(code_column = "area_code", year_column = "year") |>
+    (\(x) {
+      # Same silent drop read_raw_inputs had. The comment above already said "dropping
+      # unmapped statistical aggregates", which is true and was never verifiable from
+      # the output.
+      .warn_unmapped_codes(
+        x,
+        "polity_code",
+        "area_code",
+        "grassland occupation"
+      )
+      x
+    })() |>
     dplyr::filter(!is.na(.data$polity_code)) |>
     dplyr::summarise(
       impact_u = sum(.data$impact_u, na.rm = TRUE),

@@ -458,7 +458,13 @@ build_detailed_trade <- function(
   # `include_unmapped = FALSE`, which strips the unmapped rows out of the lookup and makes
   # mapping_status NA for the deliberate case too. A version of this that read mapping_status
   # reported China as an unknown code.
-  missing <- dt[is.na(get(mapped_col))]
+  # Accepts a data.table or a plain data frame: the trade path is data.table, the grassland path is
+  # a dplyr pipeline, and the classification has nothing to do with either representation.
+  frame <- as.data.frame(dt)
+  if (!all(c(mapped_col, original_col) %in% names(frame))) {
+    return(invisible(NULL))
+  }
+  missing <- frame[is.na(frame[[mapped_col]]), , drop = FALSE]
   if (nrow(missing) == 0L) {
     return(invisible(NULL))
   }
