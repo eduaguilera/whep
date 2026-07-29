@@ -622,7 +622,19 @@ build_primary_production <- function(
       regions |>
         dplyr::select(
           adb_region = ADB_Region,
-          area = polity_name,
+          # FAOSTAT_name, not polity_name. `area` is a join key downstream
+          # (by = c("year", "area", "Name_Eurostat")), and the crosswalk's canonical
+          # `area_name` is derived from FAOSTAT_name — they agree on all 260 areas, whereas
+          # polity_name differs on 72 because it carries the aggregate label for folded areas
+          # ("Latin America Other" for Bermuda) and short forms elsewhere.
+          #
+          # Measured before changing it: 2 of the 28 fodder areas were labelled
+          # "Netherlands" and "United Kingdom" against the canonical "Netherlands (Kingdom
+          # of the)" and "United Kingdom of Great Britain and Northern Ireland", so those
+          # rows would not have matched downstream. The UK is the area whose ADB code was
+          # only just filled in, which would have made that fix look complete while half of
+          # it silently failed.
+          area = FAOSTAT_name,
           code
         ),
       by = "adb_region"
