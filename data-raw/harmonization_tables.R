@@ -50,6 +50,20 @@ if (!exists("polity_area_crosswalk")) {
   load(here::here("data", "polity_area_crosswalk.rda"))
 }
 
+# Prefixes of every polity the crosswalk knows. Used to tell a real family key from
+# a legacy one. Sound as a whitelist: every prefix here comes from an upstream
+# polity_code, so nothing invalid can sneak in. It is a subset of all upstream
+# prefixes (213 of 375), which only means the check is conservative.
+crosswalk_polity_prefixes <- unique(
+  sub(
+    "-.*",
+    "",
+    polity_area_crosswalk$polity_code[
+      !is.na(polity_area_crosswalk$polity_code)
+    ]
+  )
+)
+
 current_area_polities <- polity_area_crosswalk |>
   dplyr::filter(!is.na(.data$area_code), !is.na(.data$polity_code)) |>
   dplyr::mutate(
@@ -105,6 +119,28 @@ add_current_area_polities <- function(table) {
       polity_name = dplyr::coalesce(
         .data$polity_name,
         .data$reporting_polity_name
+      )
+    ) |>
+    # Repair `polity_prefix` values that name no polity at all. The vendored
+    # tables carry legacy ISO3-shaped keys for three dissolved federations —
+    # CSK, SUN, YUG — and upstream files those chains under F51, F228 and F248.
+    # The `reporting_polity_code` on those same rows is already correct
+    # (F51-1947-1993, F228-1945-1991, F248-1991-1992); only the family key
+    # dangled, so grouping by `polity_prefix` to collect "every period of
+    # Czechoslovakia" returned nothing and could not be joined to upstream.
+    #
+    # Repair only the DANGLING values, deliberately not all of them. Several
+    # rows legitimately carry an aggregate prefix that differs from their own
+    # reporting code — polities_cats files Bhutan under RASI and Comoros under
+    # RAFR, folding them into rest-of-Asia and rest-of-Africa — and RASI/RAFR
+    # are real upstream prefixes. Deriving every prefix from the reporting code
+    # would silently undo those modelling choices.
+    dplyr::mutate(
+      polity_prefix = dplyr::if_else(
+        !is.na(.data$reporting_polity_code) &
+          !.data$polity_prefix %in% crosswalk_polity_prefixes,
+        sub("-.*", "", .data$reporting_polity_code),
+        .data$polity_prefix
       )
     ) |>
     dplyr::select(-"legacy_polity_prefix")
