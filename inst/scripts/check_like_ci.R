@@ -85,13 +85,12 @@ if (n_lints > 0L) {
 # load_all rather than an installed build: this is a pre-push check, and the point
 # is to exercise the working tree.
 suppressMessages(devtools::load_all(quiet = TRUE))
-res <- as.data.frame(
-  testthat::test_dir(
-    "tests/testthat",
-    reporter = "silent",
-    stop_on_failure = FALSE
-  )
+raw <- testthat::test_dir(
+  "tests/testthat",
+  reporter = "silent",
+  stop_on_failure = FALSE
 )
+res <- as.data.frame(raw)
 n_fail <- sum(res$failed)
 record(
   "testthat suite",
@@ -104,6 +103,71 @@ record(
     sum(res$skipped)
   )
 )
+
+# A warning is indistinguishable from a pass in that summary line too, and one
+# warning class in particular means an assertion tested NOTHING: reading a column
+# that does not exist returns NULL, and NULL is silently benign inside the usual
+# checks — `is.na(NULL)` is `logical(0)`, so `all()` of it is TRUE and `any()` of it
+# is FALSE. The assertion passes vacuously.
+#
+# This branch has been bitten twice. Renaming a `polity_code` column to
+# `polity_prefix` left a test reading the old name and it kept passing; renaming the
+# crosswalk's `reporting_polity_code` to `reporting_polity_prefix` did the same to a
+# different test. Both times the only signal was this script's warning count going
+# from 2 to 3 while failures stayed at 0 — something a summary line does not
+# highlight and a green badge actively hides.
+#
+# So promote that class from a counted warning to a failed gate, naming the test.
+#
+# The first attempt at this was a globalCallingHandlers() backstop in
+# tests/testthat/setup.R, which would also have covered CI. It cannot work: testthat
+# sources setup.R with handlers already on the stack, and globalCallingHandlers()
+# refuses to install there. Hence the check lives in this pre-push harness instead.
+#
+# Scope, stated honestly: only tibbles warn on absent-column access. `data.frame` and
+# `data.table` return NULL in complete silence, so a test that calls as.data.frame()
+# first is not covered by anything here. The durable habit is to assert a column
+# exists before asserting anything about its contents; this gate is the backstop.
+vacuous <- do.call(
+  rbind,
+  lapply(raw, function(tst) {
+    warns <- Filter(
+      function(e) inherits(e, "expectation_warning"),
+      tst$results
+    )
+    msgs <- vapply(warns, conditionMessage, character(1))
+    hit <- grepl("Unknown or uninitialised column", msgs, fixed = TRUE)
+    if (!any(hit)) {
+      return(NULL)
+    }
+    data.frame(
+      file = tst$file,
+      test = tst$test,
+      msg = trimws(msgs[hit]),
+      stringsAsFactors = FALSE
+    )
+  })
+)
+record(
+  "no vacuous column access",
+  is.null(vacuous),
+  if (is.null(vacuous)) {
+    "no test reads a column that does not exist"
+  } else {
+    sprintf("%d assertion(s) read an absent column", nrow(vacuous))
+  }
+)
+if (!is.null(vacuous)) {
+  cat("\n  These assertions pass without testing anything:\n")
+  for (i in seq_len(nrow(vacuous))) {
+    cat(sprintf(
+      "    %s: %s\n      %s\n",
+      vacuous$file[i],
+      vacuous$test[i],
+      vacuous$msg[i]
+    ))
+  }
+}
 
 # A skip is indistinguishable from a pass in that summary line, which is how the
 # assertion guarding this integration's ORIGINAL defect — area codes resolving to
