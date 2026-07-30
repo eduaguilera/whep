@@ -1504,9 +1504,16 @@ build_processing_coefs <- function(
     ) |>
     dplyr::summarise(
       value = sum(value, na.rm = TRUE),
+      # Group by the CODE, and carry the name along. `area_code` here is already
+      # the reporting bucket, so grouping by `area` beside it splits any bucket
+      # that folds areas under different names — the same defect fixed in
+      # `.aggregate_to_polities()`, and the residue of it: fixing that one took
+      # the duplicate (key, source) combinations reaching the cast from 1,525 to
+      # 12, and these 12 were the remainder, all `FAOSTAT_trade` in bucket 206
+      # for 2014-2023.
+      area = dplyr::first(area),
       .by = c(
         year,
-        area,
         area_code,
         item_cbs,
         item_cbs_code,
@@ -1670,6 +1677,38 @@ build_processing_coefs <- function(
   # Avoids expensive frankv over many source columns.
   primary_sources <- c("FAOSTAT_prod", "FAOSTAT_FBS_New", "FAOSTAT_FBS_Old")
   src_pivot <- dt_raw[source %in% primary_sources]
+
+  # REFUSE TO CAST DUPLICATE KEYS, because the default is silent corruption.
+  #
+  # `dcast()` with no `fun.aggregate` falls back to `length()` on duplicate
+  # keys, so the "values" become ROW COUNTS. Whether anyone finds out is luck:
+  # counts are integer, and `FBS_Old_scaled` below is double only when
+  # `scale_new_old` applies, which depends on the build window. One real
+  # instance was 1,525 keys in bucket 206 (Sudan and South Sudan folded into one
+  # reporting code without being summed, 2014-2023): at 1990-2023 the build died
+  # in `fcoalesce` with a type clash, and over the full range it completed with
+  # counts in place of quantities. The crash was the good case, and it is not
+  # the one that should be relied upon.
+  #
+  # The cause is fixed in `.aggregate_to_polities()`, which now groups by the
+  # reporting bucket rather than by bucket-plus-name. This guard is the other
+  # half: any future duplicate names itself here instead of being averaged into
+  # the data as a count.
+  dup_keys <- src_pivot[,
+    .N,
+    by = c(key_cols, "source")
+  ][N > 1L]
+  if (nrow(dup_keys) > 0L) {
+    cli::cli_abort(c(
+      "{nrow(dup_keys)} (key, source) combinations appear more than once, so
+       casting them would replace values with row counts.",
+      "i" = "area codes: {.val {sort(unique(dup_keys$area_code))}}",
+      "i" = "sources: {.val {sort(unique(dup_keys$source))}}",
+      "i" = "years: {.val {unique(range(dup_keys$year))}}",
+      "x" = "Aggregate these rows before they reach the cast."
+    ))
+  }
+
   wide <- data.table::dcast(
     src_pivot,
     stats::as.formula(paste(

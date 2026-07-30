@@ -371,10 +371,32 @@
   # unknown area code would have been just as quiet.
   .warn_unmapped_codes(dt, "polity_code", "area_code", "input")
   dt <- dt[!is.na(polity_code)]
+  # GROUP BY THE KEY, NOT BY THE LABEL. `polity_area_code` is the reporting bucket this
+  # function aggregates to, and several FAOSTAT areas can fold into one bucket. Grouping by
+  # `polity_name` alongside it split those buckets by name, so the folded areas were never
+  # summed: the result carried two rows for one `(year, area_code, ...)` key after the
+  # rename below.
+  #
+  # Measured at 1990-2023: 1,525 duplicate
+  # `(area_code, year, item_cbs, item_cbs_code, element, source)` keys, all in bucket 206,
+  # in FAOSTAT_FBS_New and FAOSTAT_trade, 2014-2023. That bucket folds FAOSTAT areas 206
+  # "Sudan (former)", 276 "Sudan" and 277 "South Sudan"; from 2014 Sudan and South Sudan
+  # both report, and they carry different polity names, so the split fires.
+  #
+  # WHAT THAT COSTS DOWNSTREAM IS WORSE THAN THE DUPLICATE. `.select_best_source()` casts
+  # these rows wide with no `fun.aggregate`, so data.table falls back to `length()` and the
+  # "values" become ROW COUNTS. Whether that is visible is luck: the counts are integer,
+  # and `FBS_Old_scaled` is double only when `scale_new_old` applies, so the build either
+  # dies in `fcoalesce` with a type clash or completes with counts in place of quantities.
+  # At 1990-2023 it dies; over the full range it completes. The crash was the good case.
+  #
+  # This is pre-existing and identical on main — both fail the same way at the same window,
+  # with the same 1,525 keys — so it is not a consequence of routing more areas through the
+  # polities database. It is, though, exactly the inconsistency this work is about: the
+  # bucket is the polity-derived key, and summing into it is what the bucket means.
   by_cols <- c(
     "year",
     "polity_area_code",
-    "polity_name",
     "unit",
     "element",
     dots
@@ -383,11 +405,18 @@
   has_flag <- "fao_flag" %in% names(dt)
   if (has_flag) {
     dt <- dt[,
-      .(value = sum(value, na.rm = TRUE), fao_flag = fao_flag[1L]),
+      .(
+        value = sum(value, na.rm = TRUE),
+        polity_name = polity_name[1L],
+        fao_flag = fao_flag[1L]
+      ),
       by = by_cols
     ]
   } else {
-    dt <- dt[, .(value = sum(value, na.rm = TRUE)), by = by_cols]
+    dt <- dt[,
+      .(value = sum(value, na.rm = TRUE), polity_name = polity_name[1L]),
+      by = by_cols
+    ]
   }
 
   data.table::setnames(
