@@ -12,7 +12,9 @@
 # those by other means, two of which had the target sitting in the wrong CSV column.
 #
 # So the check lives here, where the data is. For each alias, count the rows its label
-# and year range actually serve. Measured today: 152 aliases, ZERO serving no rows.
+# and year range actually serve. Measured today: 181 aliases across the three sources
+# below, ZERO serving no rows — plus 34 more under `trade-sources`, of which THREE are
+# inert and named at the bottom of this file.
 #
 # This matters most for the 133 aliases generated mechanically in this branch -- 129
 # for Lassaletta from exact polity-name matches and 4 for crops_manure_n. "Generated

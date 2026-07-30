@@ -712,7 +712,7 @@
 #'   - a positive count: measured, that many rows (384 aliases)
 #'   - `0`: measured, and genuinely none (29 aliases)
 #'   - `NA`: **not measured**, because that source's corpus does not live in the
-#'     upstream repository (393 aliases)
+#'     upstream repository (456 aliases)
 #'
 #'   The third state is most of the non-FAOSTAT sources. Every
 #'   `lassaletta-grassland-share`, `mueller-synthetic-n` and `crops-manure-n` alias

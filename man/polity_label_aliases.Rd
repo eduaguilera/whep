@@ -19,13 +19,13 @@ because two of them used to be reported as one:
 \item a positive count: measured, that many rows (384 aliases)
 \item \code{0}: measured, and genuinely none (29 aliases)
 \item \code{NA}: \strong{not measured}, because that source's corpus does not live in the
-upstream repository (393 aliases)
+upstream repository (456 aliases)
 }
 
 The third state is most of the non-FAOSTAT sources. Every
 \code{lassaletta-grassland-share}, \code{mueller-synthetic-n} and \code{crops-manure-n} alias
 is \code{NA}, since those datasets live in THIS package and upstream never sees
-them. Measured here they are anything but inert: 6,082 Lassaletta
+them. Measured here they are anything but inert: 6,781 Lassaletta
 country-years resolve, 184 \code{crops_manure_n} codes, 156 Mueller codes. They
 were published as \code{0} until upstream stopped coercing empty to zero, which
 invited exactly the wrong reading, and would have made an inert-alias check
