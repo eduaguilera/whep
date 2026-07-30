@@ -1299,20 +1299,30 @@ build_primary_production <- function(
 }
 
 .carry_forward_shares <- function(shares, target_years) {
-  shares |>
+  # `area` is half the key, because one polity_area_code can hold several
+  # reporting territories — but only when the caller HAS it. Naming it
+  # unconditionally read as a hard requirement and was not one:
+  # `tidyr::nesting()` evaluates with tidy eval, so a frame without an `area`
+  # column does not error, it looks the name up in the calling environment. In
+  # the full test suite some other file leaves an `area` object in scope and the
+  # lookup succeeds, so this function passed for as long as it was never run on
+  # its own. Run alone, it failed with "object 'area' not found".
+  #
+  # So the key is built from the columns that are actually present. A caller
+  # without `area` has no two-names-per-code problem to solve, and keying on
+  # `area_code` alone is right for them.
+  key <- intersect(
+    c("area_code", "area", "Item_Code", "item_cbs_code"),
+    names(shares)
+  )
+  out <- shares |>
     tidyr::complete(
       year = target_years,
-      tidyr::nesting(area_code, area, Item_Code, item_cbs_code)
+      tidyr::nesting(!!!rlang::syms(key))
     ) |>
-    fill_linear(
-      share,
-      time_col = year,
-      .by = c("area_code", "area", "Item_Code", "item_cbs_code")
-    ) |>
-    dplyr::filter(!is.na(share)) |>
-    # `area` is carried through, not dropped: it is half the key now that one
-    # polity_area_code can hold several reporting territories.
-    dplyr::select(year, area_code, area, Item_Code, item_cbs_code, share)
+    fill_linear(share, time_col = year, .by = key) |>
+    dplyr::filter(!is.na(share))
+  dplyr::select(out, dplyr::all_of(c("year", key, "share")))
 }
 
 .compute_stock_shares <- function(years) {

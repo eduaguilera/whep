@@ -85,9 +85,18 @@ testthat::test_that("the two tables disagree only where they are known to", {
     }
   }
 
-  # `cbs` and `fabio_code` carry the deliberate Bhutan/Comoros folds; the region_*
-  # columns carry the "0" encoding artefact. ADB_Region is deliberately NOT in this
-  # list -- it was the one real defect and it is fixed, so its reappearance fails.
+  # THE "0" ARTEFACT IS NOW FIXED AT THE SOURCE RATHER THAN TOLERATED HERE, so the
+  # thirteen columns that carried it have left this list: eia, iea and eleven region_*
+  # columns. This test described the artefact accurately and then baselined it, which
+  # left "0" in the shipped data — and "0" reads as data. `!is.na(iea)` kept all 198
+  # rows instead of the 139 with an IEA name, a join on `iea` would have matched 59
+  # rows to each other as one country, and grouping by `region_UN` produced a "0"
+  # region. `blank_zero_sentinels()` in data-raw/_labels.R clears it in character
+  # columns only, since a numeric 0 is a real value in `EU27` and `cbs`.
+  #
+  # What remains is the deliberate Bhutan/Comoros fold, four columns carrying one
+  # decision. ADB_Region is deliberately NOT in this list -- it was the one real defect
+  # and it is fixed, so its reappearance fails.
   # Measured, not recalled: my first version of this list was written from a
   # truncated console dump and omitted polity_prefix, polity_name, eia and iea while
   # inventing four columns that agree. The test caught it, which is the argument for
@@ -106,20 +115,7 @@ testthat::test_that("the two tables disagree only where they are known to", {
     "polity_prefix",
     "polity_name",
     "cbs",
-    "fabio_code",
-    "eia",
-    "iea",
-    "region_UN_sub",
-    "region_UN",
-    "region_ILO1",
-    "region_ILO2",
-    "region_ILO3",
-    "region_IEA",
-    "region_IPCC",
-    "region_labour",
-    "region_labour_agg",
-    "region_labour_mech",
-    "region_test"
+    "fabio_code"
   )
   testthat::expect_setequal(differing, expected)
 
@@ -225,4 +221,22 @@ testthat::test_that("the two reference tables agree on every aggregation key", {
       paste(utils::head(differing, 10), collapse = ", ")
     )
   )
+})
+
+testthat::test_that("neither table uses \"0\" as a missing-value sentinel", {
+  # The artefact this file used to baseline. Kept as its own assertion so that a
+  # re-export of either vendored CSV cannot quietly reintroduce it: the columns above
+  # would start differing again, but only for rows where one table happens to have a
+  # value, so the set of differing columns is a weaker signal than the sentinel itself.
+  for (nm in c("regions_full", "polities_cats")) {
+    tbl <- as.data.frame(get(nm, envir = asNamespace("whep")))
+    chr <- names(tbl)[vapply(tbl, is.character, logical(1))]
+    testthat::expect_gt(length(chr), 10L)
+    zeros <- vapply(
+      chr,
+      function(cl) sum(tbl[[cl]] == "0", na.rm = TRUE),
+      numeric(1)
+    )
+    testthat::expect_equal(unname(zeros[zeros > 0]), numeric(0))
+  }
 })

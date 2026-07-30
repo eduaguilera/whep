@@ -735,6 +735,36 @@ test_that(".split_stock_share keeps groups (year, area, item_prod_code) independ
   expect_equal(result$value_comb, c(0, 100, 50, 150))
 })
 
+test_that(".carry_forward_shares keys on `area` when the caller has one", {
+  # Both paths matter and only one was covered, which is how the requirement went
+  # unnoticed. The fixture below HAS `area`, because one polity_area_code can hold
+  # several reporting territories — FABIO's bucket 999 holds Eswatini alongside
+  # rest-of-world — and dividing one territory's stock by a two-territory total is the
+  # defect the key exists to prevent.
+  #
+  # The sibling test's fixture has NO `area`, and that used to error with "object
+  # 'area' not found" when run alone: `tidyr::nesting()` evaluates with tidy eval, so a
+  # missing column is looked up in the CALLING ENVIRONMENT, and in a full-suite run
+  # another file leaves an `area` object in scope. The function passed for as long as it
+  # was never run on its own.
+  shares <- tibble::tribble(
+    ~year, ~area_code, ~area, ~Item_Code, ~item_cbs_code, ~share,
+    2020L, 999L, "Eswatini", 866L, 867L, 0.4,
+    2020L, 999L, "Eswatini", 866L, 868L, 0.6,
+    2020L, 999L, "RoW", 866L, 867L, 0.9,
+    2020L, 999L, "RoW", 866L, 868L, 0.1
+  )
+  result <- whep:::.carry_forward_shares(shares, 2020:2021)
+
+  expect_true("area" %in% names(result))
+  # Two territories under one code stay apart, and each carries forward on its own.
+  expect_equal(nrow(result), 8L)
+  eswatini <- result[result$area == "Eswatini" & result$year == 2021L, ]
+  row <- result[result$area == "RoW" & result$year == 2021L, ]
+  expect_equal(sort(eswatini$share), c(0.4, 0.6))
+  expect_equal(sort(row$share), c(0.1, 0.9))
+})
+
 test_that(".carry_forward_shares extends shares to QCL's latest years", {
   # Shares from the emissions pin lag QCL by 1-2 years: here they stop at
   # 2021 while slaughter data (target_years) runs to 2023.
