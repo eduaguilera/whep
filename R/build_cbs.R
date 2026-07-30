@@ -1256,6 +1256,14 @@ build_processing_coefs <- function(
     year_col = "year",
     include_unmapped = FALSE
   )
+  # Say what is dropped. Of the three places this pipeline discards rows with no polity,
+  # the other two already announce it and this one did not — and it is the one that now
+  # matters most: routing residue area names through the polities database took the
+  # unmatched rows from 44,985 to 200, and these 200 are what falls out here. They are
+  # all Tanzania 1961-1964, held up by the TAN-1922-1964 code/column disagreement
+  # baselined upstream, so a reader who sees this message has the whole remaining gap in
+  # front of them rather than a silently shorter table.
+  .warn_unmapped_codes(dt, "polity_code", "area_code", "crop residues")
   dt <- dt[!is.na(polity_code)]
 
   dt <- dt[,

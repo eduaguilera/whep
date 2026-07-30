@@ -625,3 +625,37 @@ testthat::test_that("build_detailed_trade example has valid content", {
     result$area_code != result$area_code_partner
   ))
 })
+
+test_that(".warn_unmapped_codes reports rows that carry no code at all", {
+  # The fourth outcome, and the one this helper could not see. It classified unmappable
+  # rows by their CODE — a deliberate non-mapping, a FAOSTAT regional group, or an unknown
+  # code — via `codes <- sort(unique(original[is.na(mapped)]))`. `sort()` drops NA, so rows
+  # whose code is itself missing produced an empty set and the function returned in silence.
+  #
+  # That is precisely what a source keyed by area NAME produces when a label does not
+  # resolve, and it is how 160 crop-residue rows were dropped without a word — the
+  # remainder after routing residue names through the polities database took the unmatched
+  # count from 44,985 to 200.
+  none <- data.table::data.table(
+    polity_code = rep(NA_character_, 3L),
+    area_code = rep(NA_integer_, 3L)
+  )
+  expect_warning(
+    whep:::.warn_unmapped_codes(
+      none,
+      "polity_code",
+      "area_code",
+      "crop residues"
+    ),
+    "lack any"
+  )
+
+  # Silent when every row maps, or the warning becomes noise and gets muffled.
+  ok <- data.table::data.table(
+    polity_code = c("FRA-1919-2025", "DEU-1990-2025"),
+    area_code = c(68L, 79L)
+  )
+  expect_silent(
+    whep:::.warn_unmapped_codes(ok, "polity_code", "area_code", "crop residues")
+  )
+})

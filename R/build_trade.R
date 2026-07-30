@@ -477,15 +477,34 @@ build_detailed_trade <- function(
   # reported China as an unknown code.
   # Accepts a data.table or a plain data frame: the trade path is data.table, the grassland path is
   # a dplyr pipeline, and the classification has nothing to do with either representation.
-  # Pull the two columns as vectors rather than converting the table. `[[` works the same on a
-  # data.table, a tibble and a data frame, so this stays representation-agnostic without copying —
-  # and it is called once per input, on tables of millions of rows. The as.data.frame() version cost
-  # 0.9s and ~300 MB per call on 4M rows to compute a handful of distinct codes.
+  # Pull the two columns as vectors rather than converting the table. `[[` works
+  # the same on a data.table, a tibble and a data frame, so this stays
+  # representation-agnostic without copying — and it is called once per input,
+  # on tables of millions of rows. The as.data.frame() version cost 0.9s and
+  # ~300 MB per call on 4M rows to compute a handful of distinct codes.
   if (!all(c(mapped_col, original_col) %in% names(dt))) {
     return(invisible(NULL))
   }
   mapped <- dt[[mapped_col]]
   original <- dt[[original_col]]
+
+  # A FOURTH outcome, and the one this function could not see. `sort()` drops
+  # NA, so rows whose ORIGINAL code is itself missing contributed no codes and
+  # the whole function returned silently — it could only ever report a code that
+  # failed to map, never the absence of a code. That is exactly what a
+  # name-keyed source produces when a label does not resolve, which is how 160
+  # crop-residue rows were dropped without a word.
+  no_code <- sum(is.na(mapped) & is.na(original))
+  if (no_code > 0L) {
+    cli::cli_warn(c(
+      "!" = "{no_code} row{?s} lack{?s/} any {.field {original_col}} entirely, so that
+         much {role} data cannot be mapped to a polity and is dropped.",
+      "i" = "A source keyed by area NAME produces this when a label does not resolve;
+         `add_area_code()` routes unmatched names through the polities database, and what
+         remains is a label the database has no alias for."
+    ))
+  }
+
   codes <- sort(unique(original[is.na(mapped)]))
   if (length(codes) == 0L) {
     return(invisible(NULL))
