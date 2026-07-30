@@ -24,14 +24,20 @@
 # full-range runs on an unchanged tree gave `rows` of 2,768,578 or 2,764,471 -- a swing of 4,107
 # rows (0.148%) -- with values wobbling in the fourth decimal alongside. Tracked in whep#420.
 #
-# It CONVERGES rather than varying randomly, and it is cache-related. At a window that exercises
-# the pre-1961 path (1950-1965) successive runs gave 1008989, 1008403, 1002576, 1002444, then
-# 1002444 three times: monotonically decreasing to a fixed point, which is a cache filling up.
-# 36 of 75 pin cache entries were refreshed during these builds, so pins are fetched at build
-# time and the output depends on which are already local.
+# It is LOCALISED but not yet explained, and three tidy stories about it have been wrong. At a
+# window exercising the pre-1961 path (1950-1965), eight runs gave 1008989, 1008403, 1002576,
+# 1002444, 1002444, 1002444, 1004980, 1002576 -- a ~0.65% spread with repeats. The first four
+# looked monotonic, the middle three looked converged, and neither held. Assume no structure in
+# small samples of this.
 #
-# So this baseline may encode a mid-warm-up state. Re-record it on a warm cache before treating
-# any figure here as exact; the 1% band absorbs the difference either way.
+# What holds: 1990-1993 is byte-identical over six runs, so the variance needs the pre-1961 path;
+# `build_primary_production()` is identical over five sessions, so area resolution is not
+# involved; and it is deterministic WITHIN a session. The cached payload files are dated
+# 2026-03-25 and unchanged -- only the small `data.txt` index is re-fetched -- so it is not the
+# input data changing. 1950-1965 reproduces it in ~3 minutes, which is the loop to use.
+#
+# This baseline may therefore differ by ~0.15% from a fresh run for reasons that have nothing to
+# do with your change. That is what the 1% band is for; do not tighten it without fixing #420.
 #
 # WITHIN a session it is bit-identical, which narrows the cause and rules out the obvious
 # suspects. Two builds in one session with `whep_clear_cache()` between them took 410s and 389s
