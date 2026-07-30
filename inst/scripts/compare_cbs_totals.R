@@ -37,6 +37,11 @@
 # returns the first one's result, so "identical" measures nothing -- which is how my first
 # attempt at it produced a confident wrong answer.
 #
+# BISECTED BY STAGE: `build_primary_production()` at full range is identical across FIVE separate
+# sessions (6,168,623 rows, value 5.781364289e+12), so the divergence is downstream of it, inside
+# the commodity-balance build. That also clears the polities work of suspicion -- area resolution,
+# the crosswalk and the contract all run in production too, and production does not move.
+#
 # Two consequences for anyone using this script. A `rows` diff under ~0.2% says nothing at all,
 # so do not chase one. And any comparison that hinges on a few thousand rows -- including
 # against `main` -- is inside the noise and needs repeat runs before it means anything. The
