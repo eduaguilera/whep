@@ -85,3 +85,66 @@ test_that("the consumed classifications cover every polity-resolved row", {
   # complete so that "mostly NA" is a documented property, not a suspicion.
   expect_true(sum(is.na(rf$ADB_Region)) > 0)
 })
+
+test_that("the unconsumed classifications lack only dissolved states and RoW", {
+  # The 14 columns with no consumer in R/ (whep#386) are not checked above, and "unchecked and
+  # mostly fine" is the state that makes a future consumer dangerous. Measured, their gap is
+  # not general incompleteness at all — it is a single structured class.
+  #
+  # Six of them are PRESENT-DAY classifications, and each is missing exactly five polities:
+  # the four dissolved federations and RoW. That is absence by construction, the same reason
+  # GLEAM has no row for Czechoslovakia: the UN, the ILO, the IEA and the IPCC do not assign a
+  # region to a state that no longer exists, and an aggregate is not a country.
+  #
+  # Worth pinning by identity for two reasons. Whep#386 proposes giving these columns
+  # consumers, and a reader deciding that needs to know precisely which rows such a consumer
+  # would drop — and these four federations are not a rounding error: they carry 11.88% of
+  # production value at 1961 (test_luh2_backcast_reach.R). And if a LIVE country ever goes
+  # missing from one of these, it is a country being dropped from a regional aggregation, which
+  # would otherwise hide among 14 columns nobody looks at.
+  rf <- as.data.frame(whep::regions_full)
+  rf <- rf[!is.na(rf$reporting_polity_code), ]
+
+  present_day <- c(
+    "region_UN",
+    "region_UN_sub",
+    "region_ILO1",
+    "region_ILO2",
+    "region_ILO3",
+    "region_IEA",
+    "region_IPCC"
+  )
+  # The four federations, plus RoW which is an aggregate rather than a territory.
+  allowed <- c(
+    "F51-1947-1993", # Czechoslovakia
+    "F228-1945-1991", # USSR
+    "F248-1991-1992", # Yugoslav SFR
+    "SCG-1992-2006", # Serbia and Montenegro
+    "ROW-1850-2023"
+  )
+
+  for (col in intersect(present_day, names(rf))) {
+    missing <- sort(unique(rf$reporting_polity_code[is.na(rf[[col]])]))
+    # Non-vacuous: a column that is complete would pass the subset test on nothing, and these
+    # are known to be sparse — if one becomes complete, that is a change worth noticing.
+    expect_gt(length(missing), 0L)
+    expect_equal(
+      setdiff(missing, allowed),
+      character(0),
+      info = paste0(
+        col,
+        " lacks a region for a polity that is neither a dissolved federation nor an ",
+        "aggregate, so a consumer of this column would silently drop a live country: ",
+        paste(utils::head(setdiff(missing, allowed), 5), collapse = ", ")
+      )
+    )
+  }
+
+  # The source-coverage columns are a different kind of sparse and must NOT be read as region
+  # classifications: `iea` is missing for 73 polities and `baci` for 9, because each names the
+  # countries that source reports, not a partition of the world. Asserted so the two kinds stay
+  # distinguishable — a reader who lumps them together would conclude this database is riddled
+  # with missing regions.
+  expect_gt(sum(is.na(rf$iea)), 50L)
+  expect_gt(sum(is.na(rf$baci)), 5L)
+})
