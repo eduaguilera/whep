@@ -248,10 +248,10 @@ calculate_indirect_n2o_nh3 <- function(x, example = FALSE) {
   x |>
     dplyr::mutate(
       nh3_n_t = data.table::fcase(
-        .data$fert_type == "Synthetic",
-        .data$n_input_t * frac_synth,
-        .data$fert_type %in% c("Recycling", "SOM"),
-        0,
+        .data$fert_type == "Synthetic"             ,
+        .data$n_input_t * frac_synth               ,
+        .data$fert_type %in% c("Recycling", "SOM") ,
+                                                 0 ,
         default = .data$n_input_t * frac_org
       ),
       method_nh3 = "ipcc"

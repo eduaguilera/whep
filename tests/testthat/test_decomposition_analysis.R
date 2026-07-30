@@ -142,7 +142,7 @@ test_that(".destiny_group maps raw destinies to the four buckets", {
   )
 })
 
-# .crop_output_by_destiny + .crop_item_destiny_shares
+# Tests for .crop_output_by_destiny and .crop_item_destiny_shares
 test_that("crop destiny shares are computed proportionally per item", {
   n_prov_destiny <- tibble::tribble(
     ~year, ~province_name, ~item, ~origin, ~destiny, ~mg_n,
@@ -256,8 +256,8 @@ test_that("covariance is positive when weight concentrates on the high-value uni
 
   out <- .olley_pakes_covariance(units)
 
-  # w_mean = 0.5, s_mean = 7.5
-  # cov = (0.6-0.5)*(10-7.5) + (0.4-0.5)*(5-7.5) = 0.25 + 0.25 = 0.5
+  # mean weight is 0.5 and mean surplus is 7.5; the covariance between
+  # weight and surplus across the two units works out to 0.5
   expect_equal(out$covariance, 0.5)
 })
 
@@ -291,7 +291,7 @@ test_that("manure recycling ratio is manure's share of total land N inputs", {
   expect_equal(out$recycling_ratio, 0.3)
 })
 
-# .crop_livestock_connectivity_panel
+# .crop_livestock_conn_panel
 test_that("connectivity panel joins self-sufficiency and recycling ratio", {
   n_prov_destiny <- tibble::tribble(
     ~year, ~province_name, ~origin, ~destiny, ~mg_n,
@@ -301,7 +301,7 @@ test_that("connectivity panel joins self-sufficiency and recycling ratio", {
     2000, "A", "Synthetic", "Cropland", 70
   )
 
-  out <- .crop_livestock_connectivity_panel(n_prov_destiny)
+  out <- .crop_livestock_conn_panel(n_prov_destiny)
 
   expect_equal(out$self_sufficiency, 0.6)
   expect_equal(out$recycling_ratio, 0.3)

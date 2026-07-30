@@ -106,7 +106,7 @@ plot_finn_circularity <- function(
       from_comp = dplyr::if_else(origin %in% comps, origin, NA_character_)
     )
 
-  M <- .finn_flow_matrix(
+  flow_matrix <- .finn_flow_matrix(
     dplyr::filter(flows, !is.na(from_comp), !is.na(to_comp)),
     comps
   )
@@ -118,16 +118,17 @@ plot_finn_circularity <- function(
   tibble::tibble(
     year = keys$year,
     province_name = keys$province_name,
-    finn_index = .calculate_finn(M, z)
+    finn_index = .calculate_finn(flow_matrix, z)
   )
 }
 
-# Builds n x n flow matrix M where M[i, j] = flow from compartment i to j.
+# Builds an n x n flow matrix where entry [i, j] is the flow from
+# compartment i to j.
 .finn_flow_matrix <- function(internal_flows, compartments) {
   n <- length(compartments)
-  M <- matrix(0, n, n, dimnames = list(compartments, compartments))
+  flow_matrix <- matrix(0, n, n, dimnames = list(compartments, compartments))
   if (nrow(internal_flows) == 0) {
-    return(M)
+    return(flow_matrix)
   }
 
   agg <- internal_flows |>
@@ -137,8 +138,8 @@ plot_finn_circularity <- function(
   idx <- (match(agg$from_comp, compartments) - 1L) *
     n +
     match(agg$to_comp, compartments)
-  M[idx] <- agg$mg_n
-  M
+  flow_matrix[idx] <- agg$mg_n
+  flow_matrix
 }
 
 .finn_input_vector <- function(ext_flows, compartments) {
@@ -155,28 +156,31 @@ plot_finn_circularity <- function(
   z
 }
 
-# Computes FCI using the Leontief inverse following Finn (1976).
-# T_i    = z_i + colSums(M)[i]   (input-based throughflow)
-# G[i,j] = M[i,j] / T[j]         (input structural matrix, column-normalised)
-# N      = (I - G)^{-1}           (Leontief inverse)
-# FCI    = sum_i (n_ii-1)/n_ii * T_i / TST
-.calculate_finn <- function(M, z) {
-  T_vec <- z + colSums(M)
-  if (any(T_vec <= 0)) {
+# Computes the Finn Cycling Index (FCI) via the Leontief inverse, following
+# Finn (1976). Throughflow per compartment is the external input plus its
+# total inflow from other compartments; the structural matrix normalises
+# each flow by its receiving compartment's throughflow; the Leontief
+# inverse of that structural matrix gives the expected number of visits to
+# each compartment per unit of throughflow. FCI is the throughflow-weighted
+# share of total system throughput that cycles back to its own
+# compartment rather than passing straight through.
+.calculate_finn <- function(flow_matrix, z) {
+  throughflow <- z + colSums(flow_matrix)
+  if (any(throughflow <= 0)) {
     return(NA_real_)
   }
 
-  G <- sweep(M, 2, T_vec, "/")
-  n <- nrow(M)
+  struct_matrix <- sweep(flow_matrix, 2, throughflow, "/")
+  n <- nrow(flow_matrix)
 
   tryCatch(
     {
-      N <- solve(diag(n) - G)
-      d <- diag(N)
+      leontief_inv <- solve(diag(n) - struct_matrix)
+      d <- diag(leontief_inv)
       if (any(d <= 0)) {
         return(NA_real_)
       }
-      sum(T_vec * (1 - 1 / d)) / sum(T_vec)
+      sum(throughflow * (1 - 1 / d)) / sum(throughflow)
     },
     error = function(e) NA_real_
   )

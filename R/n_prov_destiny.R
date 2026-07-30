@@ -1829,12 +1829,12 @@ create_n_nat_destiny <- function(example = FALSE) {
       value_n = dplyr::case_when(
         prod_type %in% c("Residue", "Grass") ~
           value_fm *
-            dplyr::coalesce(Residue_kgDM_kgFM, Product_kgDM_kgFM) *
-            dplyr::coalesce(Residue_kgN_kgDM, Product_kgN_kgDM),
+          dplyr::coalesce(Residue_kgDM_kgFM, Product_kgDM_kgFM) *
+          dplyr::coalesce(Residue_kgN_kgDM, Product_kgN_kgDM),
         prod_type == "Product" ~
           value_fm *
-            Product_kgDM_kgFM *
-            Product_kgN_kgDM,
+          Product_kgDM_kgFM *
+          Product_kgN_kgDM,
 
         TRUE ~ NA_real_
       )

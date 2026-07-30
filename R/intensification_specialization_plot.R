@@ -2197,7 +2197,7 @@ n_productivity_maps <- function(
 ) {
   flows <- create_n_prov_destiny()
   npp_ygpit <- whep_read_file("npp_ygpit") |> dplyr::rename_with(tolower)
-  df_period <- .calc_n_productivity_provincial(flows, npp_ygpit)
+  df_period <- .calc_n_productivity_prov(flows, npp_ygpit)
   sf_spain <- .load_spain_sf(shapefile_path)
 
   map_df <- sf_spain |>
@@ -2368,7 +2368,7 @@ n_productivity_maps <- function(
 }
 
 
-.calc_n_productivity_provincial <- function(flows, npp_ygpit) {
+.calc_n_productivity_prov <- function(flows, npp_ygpit) {
   system_food_df <- flows |>
     dplyr::filter(
       origin %in%

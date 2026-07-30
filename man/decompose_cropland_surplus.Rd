@@ -50,7 +50,7 @@ Contributions are additive and residual-free: they sum exactly to the
 observed change in cropland N surplus for every year-on-year transition.
 
 This is a simplified, national-only view (no provincial or destiny
-breakdown); \code{\link[=decompose_specialization_covariance]{decompose_specialization_covariance()}} still uses the
+breakdown); \code{\link[=decompose_specialization_cov]{decompose_specialization_cov()}} still uses the
 full province x destiny detail for its \code{cropland_province} and
 \code{cropland_destiny} series.
 }

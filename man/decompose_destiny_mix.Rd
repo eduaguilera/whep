@@ -23,7 +23,7 @@ from \code{\link[=create_n_nat_destiny]{create_n_nat_destiny()}}'s national comm
 Deliberately \emph{not} \code{\link[=create_n_prov_destiny]{create_n_prov_destiny()}}'s provincial data summed
 up: the provincial \code{"export"} destiny does not distinguish
 inter-provincial trade from true international export (per
-\code{\link[=decompose_crop_livestock_connectivity]{decompose_crop_livestock_connectivity()}}'s same caveat on \code{"Outside"}
+\code{\link[=decompose_crop_livestock_conn]{decompose_crop_livestock_conn()}}'s same caveat on \code{"Outside"}
 imports), which would overstate the export share here.
 \code{\link[=create_n_nat_destiny]{create_n_nat_destiny()}} instead recomputes export/import directly
 from the national production-vs-consumption balance per item, so

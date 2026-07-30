@@ -1695,14 +1695,14 @@ build_processing_coefs <- function(
   ]
   wide[,
     source := data.table::fcase(
-      !is.na(FAOSTAT_prod),
-      "FAOSTAT_prod",
-      !is.na(FAOSTAT_FBS_New),
-      "FAOSTAT_FBS_New",
-      !is.na(FBS_Old_scaled) & !is.na(scale_new_old) & scale_new_old != 1,
-      "FAOSTAT_FBS_Old_scaled",
-      !is.na(FAOSTAT_FBS_Old),
-      "FAOSTAT_FBS_Old",
+      !is.na(FAOSTAT_prod)                                                ,
+      "FAOSTAT_prod"                                                      ,
+      !is.na(FAOSTAT_FBS_New)                                             ,
+      "FAOSTAT_FBS_New"                                                   ,
+      !is.na(FBS_Old_scaled) & !is.na(scale_new_old) & scale_new_old != 1 ,
+      "FAOSTAT_FBS_Old_scaled"                                            ,
+      !is.na(FAOSTAT_FBS_Old)                                             ,
+      "FAOSTAT_FBS_Old"                                                   ,
       default = "mean"
     )
   ]

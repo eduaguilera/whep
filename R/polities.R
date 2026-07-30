@@ -169,10 +169,10 @@
       if (nrow(fallback_matches) > 0L) {
         fallback_matches[,
           "year_distance" := data.table::fcase(
-            year < join_start_year,
-            join_start_year - year,
-            year > join_end_year,
-            year - join_end_year,
+            year < join_start_year ,
+            join_start_year - year ,
+            year > join_end_year   ,
+            year - join_end_year   ,
             default = 0
           )
         ]

@@ -1638,7 +1638,7 @@ utils::globalVariables(
     "yend",
     "ymax",
     "ymin",
-    # validate_national_trade.R / plot_national_trade_validation
+    # validate_national_trade.R and plot_national_trade_validation
     "Residue_kgDM_kgFM",
     "Residue_kgN_kgDM",
     "value_n",

@@ -15,7 +15,7 @@
 #' observed change in cropland N surplus for every year-on-year transition.
 #'
 #' This is a simplified, national-only view (no provincial or destiny
-#' breakdown); [decompose_specialization_covariance()] still uses the
+#' breakdown); [decompose_specialization_cov()] still uses the
 #' full province x destiny detail for its `cropland_province` and
 #' `cropland_destiny` series.
 #'
@@ -173,7 +173,7 @@ decompose_semi_natural_surplus <- function(
 #' excreted N.
 #'
 #' This is a simplified, national-only view with no species breakdown
-#' (no species-mix factor); [decompose_specialization_covariance()] still
+#' (no species-mix factor); [decompose_specialization_cov()] still
 #' uses the full per-species detail for its `livestock_species` series.
 #' Only livestock categories with a livestock-unit (LU) coefficient in
 #' `livestock_units` are included in the underlying herd/feed/excretion
@@ -349,8 +349,8 @@ decompose_urban_losses <- function(
 #'   manure no longer carry a spatial/destiny/species-mix factor (see
 #'   their own simplified decompositions), so no factor currently maps to
 #'   a "specialization" mechanism — that signal now lives only in
-#'   [decompose_specialization_covariance()] and
-#'   [decompose_crop_livestock_connectivity()].
+#'   [decompose_specialization_cov()] and
+#'   [decompose_crop_livestock_conn()].
 #'
 #' @param n_prov_destiny Nitrogen flows tibble from
 #'   [create_n_prov_destiny()], shared across all four compartments. If
@@ -367,8 +367,8 @@ decompose_urban_losses <- function(
 #' @export
 #'
 #' @examples
-#' # decompose_territorial_n_losses()
-decompose_territorial_n_losses <- function(n_prov_destiny = NULL, raw = NULL) {
+#' # decompose_terr_losses()
+decompose_terr_losses <- function(n_prov_destiny = NULL, raw = NULL) {
   if (is.null(n_prov_destiny)) {
     n_prov_destiny <- create_n_prov_destiny()
   }
@@ -417,7 +417,7 @@ decompose_territorial_n_losses <- function(n_prov_destiny = NULL, raw = NULL) {
 #' Decompose territorial N losses by reference period (chained)
 #'
 #' @description
-#' Runs the same four compartments as [decompose_territorial_n_losses()],
+#' Runs the same four compartments as [decompose_terr_losses()],
 #' but comparing each reference period (each averaged across its ten
 #' years) against the immediately preceding one — 1860-1870 ->
 #' 1920-1930 -> 1960-1970 -> 2010-2020 — plus one extra transition
@@ -446,8 +446,8 @@ decompose_territorial_n_losses <- function(n_prov_destiny = NULL, raw = NULL) {
 #' @export
 #'
 #' @examples
-#' # decompose_territorial_n_losses_periods()
-decompose_territorial_n_losses_periods <- function(
+#' # decompose_terr_losses_periods()
+decompose_terr_losses_periods <- function(
   n_prov_destiny = NULL,
   raw = NULL
 ) {
@@ -513,7 +513,7 @@ decompose_territorial_n_losses_periods <- function(
 #' [decompose_cropland_surplus()], [decompose_semi_natural_surplus()], and
 #' [decompose_manure_losses()] are all simplified to national-only views
 #' with no spatial, destiny, or species-mix factor, so the LMDI
-#' "Specialization" mechanism (in [decompose_territorial_n_losses()]) is
+#' "Specialization" mechanism (in [decompose_terr_losses()]) is
 #' currently empty. This function recovers the provincial and species
 #' allocation signal independently, straight from the underlying panels:
 #' it shows whether the allocation of area or herd across units
@@ -532,7 +532,7 @@ decompose_territorial_n_losses_periods <- function(
 #' expressed in per-unit-area or per-unit-herd surplus terms (Mg N per ha,
 #' or Mg N per livestock unit) — it is not directly comparable in
 #' magnitude to the "Specialization" mechanism total from
-#' [decompose_territorial_n_losses()], only in sign and trend.
+#' [decompose_terr_losses()], only in sign and trend.
 #'
 #' @param n_prov_destiny Nitrogen flows tibble from
 #'   [create_n_prov_destiny()]. If `NULL`, loaded automatically.
@@ -546,8 +546,8 @@ decompose_territorial_n_losses_periods <- function(
 #' @export
 #'
 #' @examples
-#' # decompose_specialization_covariance()
-decompose_specialization_covariance <- function(
+#' # decompose_specialization_cov()
+decompose_specialization_cov <- function(
   n_prov_destiny = NULL,
   raw = NULL
 ) {
@@ -635,13 +635,13 @@ decompose_specialization_covariance <- function(
 #' @export
 #'
 #' @examples
-#' # decompose_crop_livestock_connectivity()
-decompose_crop_livestock_connectivity <- function(n_prov_destiny = NULL) {
+#' # decompose_crop_livestock_conn()
+decompose_crop_livestock_conn <- function(n_prov_destiny = NULL) {
   if (is.null(n_prov_destiny)) {
     n_prov_destiny <- create_n_prov_destiny()
   }
 
-  by_province <- .crop_livestock_connectivity_panel(n_prov_destiny) |>
+  by_province <- .crop_livestock_conn_panel(n_prov_destiny) |>
     .filter_analysis_years()
 
   national <- by_province |>
@@ -664,7 +664,7 @@ decompose_crop_livestock_connectivity <- function(n_prov_destiny = NULL) {
 #' Deliberately *not* [create_n_prov_destiny()]'s provincial data summed
 #' up: the provincial `"export"` destiny does not distinguish
 #' inter-provincial trade from true international export (per
-#' [decompose_crop_livestock_connectivity()]'s same caveat on `"Outside"`
+#' [decompose_crop_livestock_conn()]'s same caveat on `"Outside"`
 #' imports), which would overstate the export share here.
 #' [create_n_nat_destiny()] instead recomputes export/import directly
 #' from the national production-vs-consumption balance per item, so
@@ -711,9 +711,9 @@ decompose_destiny_mix <- function(n_nat_destiny = NULL) {
 #' losses since the start of the reconstruction: one broken down by
 #' compartment (cropland, semi-natural, manure, urban), one regrouped by
 #' transformation mechanism (scale, specialization, intensification,
-#' efficiency), as computed by [decompose_territorial_n_losses()].
+#' efficiency), as computed by [decompose_terr_losses()].
 #'
-#' @param decomp A named list from [decompose_territorial_n_losses()].
+#' @param decomp A named list from [decompose_terr_losses()].
 #'   If `NULL`, computed automatically (slow).
 #'
 #' @return A named list with ggplot objects `by_compartment` and
@@ -721,10 +721,10 @@ decompose_destiny_mix <- function(n_nat_destiny = NULL) {
 #' @export
 #'
 #' @examples
-#' # plot_n_losses_decomposition()
-plot_n_losses_decomposition <- function(decomp = NULL) {
+#' # plot_loss_decomp()
+plot_loss_decomp <- function(decomp = NULL) {
   if (is.null(decomp)) {
-    decomp <- decompose_territorial_n_losses()
+    decomp <- decompose_terr_losses()
   }
 
   list(
@@ -749,13 +749,13 @@ plot_n_losses_decomposition <- function(decomp = NULL) {
 #' territorial N losses
 #'
 #' @description
-#' Uses the same data as [plot_n_losses_decomposition()], but plots each
+#' Uses the same data as [plot_loss_decomp()], but plots each
 #' year's own additive contribution directly, without accumulating it
 #' over time: each bar shows how much a compartment or mechanism
 #' contributed to the change in territorial N losses in that one
 #' year-on-year transition, not the running total since 1860.
 #'
-#' @param decomp A named list from [decompose_territorial_n_losses()].
+#' @param decomp A named list from [decompose_terr_losses()].
 #'   If `NULL`, computed automatically (slow).
 #'
 #' @return A named list with ggplot objects `by_compartment` and
@@ -763,10 +763,10 @@ plot_n_losses_decomposition <- function(decomp = NULL) {
 #' @export
 #'
 #' @examples
-#' # plot_n_losses_decomposition_yearly()
-plot_n_losses_decomposition_yearly <- function(decomp = NULL) {
+#' # plot_loss_decomp_yearly()
+plot_loss_decomp_yearly <- function(decomp = NULL) {
   if (is.null(decomp)) {
-    decomp <- decompose_territorial_n_losses()
+    decomp <- decompose_terr_losses()
   }
 
   list(
@@ -791,14 +791,14 @@ plot_n_losses_decomposition_yearly <- function(decomp = NULL) {
 #' losses
 #'
 #' @description
-#' Same data as [plot_n_losses_decomposition_yearly()], but smooths each
+#' Same data as [plot_loss_decomp_yearly()], but smooths each
 #' year's own additive contribution with a centered rolling mean
 #' (`window` years wide, `NA`-padded at the edges) before plotting, to
 #' make sustained multi-year trends (e.g. a period of continuously
 #' improving efficiency) easier to see than in the raw, noisy
 #' year-on-year series.
 #'
-#' @param decomp A named list from [decompose_territorial_n_losses()].
+#' @param decomp A named list from [decompose_terr_losses()].
 #'   If `NULL`, computed automatically (slow).
 #' @param window Width of the centered rolling-mean window, in years.
 #'   Default `10`.
@@ -808,10 +808,10 @@ plot_n_losses_decomposition_yearly <- function(decomp = NULL) {
 #' @export
 #'
 #' @examples
-#' # plot_n_losses_decomposition_rolling()
-plot_n_losses_decomposition_rolling <- function(decomp = NULL, window = 10) {
+#' # plot_loss_decomp_rolling()
+plot_loss_decomp_rolling <- function(decomp = NULL, window = 10) {
   if (is.null(decomp)) {
-    decomp <- decompose_territorial_n_losses()
+    decomp <- decompose_terr_losses()
   }
 
   compartment_title <- paste0(
@@ -853,14 +853,14 @@ plot_n_losses_decomposition_rolling <- function(decomp = NULL, window = 10) {
 #' one combined panel plot
 #'
 #' @description
-#' Combines the two views from [plot_n_losses_decomposition_rolling()]
+#' Combines the two views from [plot_loss_decomp_rolling()]
 #' (by compartment and by mechanism) side by side into a single
-#' patchwork plot, matching [plot_n_losses_decomposition_periods_panel()]'s
+#' patchwork plot, matching [plot_loss_decomp_periods_panel()]'s
 #' style: one shared y-axis label, each panel keeping its own legend
 #' (compartment and mechanism are different fill scales, so the legends
 #' aren't collected into one).
 #'
-#' @param decomp A named list from [decompose_territorial_n_losses()].
+#' @param decomp A named list from [decompose_terr_losses()].
 #'   If `NULL`, computed automatically (slow).
 #' @param window Width of the centered rolling-mean window, in years.
 #'   Default `10`.
@@ -870,13 +870,13 @@ plot_n_losses_decomposition_rolling <- function(decomp = NULL, window = 10) {
 #' @export
 #'
 #' @examples
-#' # plot_n_losses_decomposition_rolling_panel()
-plot_n_losses_decomposition_rolling_panel <- function(
+#' # plot_loss_decomp_rolling_panel()
+plot_loss_decomp_rolling_panel <- function(
   decomp = NULL,
   window = 10
 ) {
   if (is.null(decomp)) {
-    decomp <- decompose_territorial_n_losses()
+    decomp <- decompose_terr_losses()
   }
 
   p_compartment <- decomp$by_compartment |>
@@ -911,17 +911,17 @@ plot_n_losses_decomposition_rolling_panel <- function(
 #'
 #' @description
 #' Plots two stacked bar charts from
-#' [decompose_territorial_n_losses_periods()]: one bar per reference
+#' [decompose_terr_losses_periods()]: one bar per reference
 #' period comparison, labeled by mean year (1865-1925, 1925-1965,
 #' 1965-2015), each compared against the immediately preceding reference
 #' period (chained), plus one extra bar for the full analysis window
 #' (Total (1865-2015)), broken down by compartment in one chart and by
 #' mechanism in the other. Contributions are normalized to Gg N/yr (see
-#' [decompose_territorial_n_losses_periods()]), since the chained
+#' [decompose_terr_losses_periods()]), since the chained
 #' transitions and the Total span very different numbers of years.
 #'
 #' @param decomp A named list from
-#'   [decompose_territorial_n_losses_periods()]. If `NULL`, computed
+#'   [decompose_terr_losses_periods()]. If `NULL`, computed
 #'   automatically (slow).
 #'
 #' @return A named list with ggplot objects `by_compartment` and
@@ -929,10 +929,10 @@ plot_n_losses_decomposition_rolling_panel <- function(
 #' @export
 #'
 #' @examples
-#' # plot_n_losses_decomposition_periods()
-plot_n_losses_decomposition_periods <- function(decomp = NULL) {
+#' # plot_loss_decomp_periods()
+plot_loss_decomp_periods <- function(decomp = NULL) {
   if (is.null(decomp)) {
-    decomp <- decompose_territorial_n_losses_periods()
+    decomp <- decompose_terr_losses_periods()
   }
 
   list(
@@ -957,7 +957,7 @@ plot_n_losses_decomposition_periods <- function(decomp = NULL) {
 #' panel plot
 #'
 #' @description
-#' Combines the two views from [plot_n_losses_decomposition_periods()]
+#' Combines the two views from [plot_loss_decomp_periods()]
 #' (by compartment and by mechanism) side by side into a single
 #' patchwork plot with one shared y-axis label, since both break down
 #' contributions to the same total territorial N losses. Each panel
@@ -965,7 +965,7 @@ plot_n_losses_decomposition_periods <- function(decomp = NULL) {
 #' scales, so the legends aren't collected into one).
 #'
 #' @param decomp A named list from
-#'   [decompose_territorial_n_losses_periods()]. If `NULL`, computed
+#'   [decompose_terr_losses_periods()]. If `NULL`, computed
 #'   automatically (slow).
 #'
 #' @return A patchwork ggplot object with two panels ("By compartment",
@@ -973,10 +973,10 @@ plot_n_losses_decomposition_periods <- function(decomp = NULL) {
 #' @export
 #'
 #' @examples
-#' # plot_n_losses_decomposition_periods_panel()
-plot_n_losses_decomposition_periods_panel <- function(decomp = NULL) {
+#' # plot_loss_decomp_periods_panel()
+plot_loss_decomp_periods_panel <- function(decomp = NULL) {
   if (is.null(decomp)) {
-    decomp <- decompose_territorial_n_losses_periods()
+    decomp <- decompose_terr_losses_periods()
   }
 
   p_compartment <- .plot_period_bars(
@@ -1009,7 +1009,7 @@ plot_n_losses_decomposition_periods_panel <- function(decomp = NULL) {
 #'
 #' @description
 #' Plots the Olley-Pakes allocation covariance from
-#' [decompose_specialization_covariance()] as a line chart, one line per
+#' [decompose_specialization_cov()] as a line chart, one line per
 #' dimension (cropland province, cropland destiny, livestock species), with
 #' a zero reference line. Positive and rising values indicate genuine
 #' specialization (allocation concentrating into high-surplus units);
@@ -1018,17 +1018,17 @@ plot_n_losses_decomposition_periods_panel <- function(decomp = NULL) {
 #' additive decomposition, per the decomposition proposal.
 #'
 #' @param covariance A named list from
-#'   [decompose_specialization_covariance()]. If `NULL`, computed
+#'   [decompose_specialization_cov()]. If `NULL`, computed
 #'   automatically (slow).
 #'
 #' @return A ggplot object.
 #' @export
 #'
 #' @examples
-#' # plot_specialization_covariance()
-plot_specialization_covariance <- function(covariance = NULL) {
+#' # plot_specialization_cov()
+plot_specialization_cov <- function(covariance = NULL) {
   if (is.null(covariance)) {
-    covariance <- decompose_specialization_covariance()
+    covariance <- decompose_specialization_cov()
   }
 
   combined <- purrr::imap(covariance, ~ dplyr::mutate(.x, dimension = .y)) |>
@@ -1057,23 +1057,23 @@ plot_specialization_covariance <- function(covariance = NULL) {
 #' @description
 #' Plots the national, unweighted average of local feed self-sufficiency
 #' and the manure-recycling ratio from
-#' [decompose_crop_livestock_connectivity()] as a line chart over time.
+#' [decompose_crop_livestock_conn()] as a line chart over time.
 #' Falling lines indicate growing crop-livestock disconnection. This is
 #' meant as a supplementary diagnostic reported alongside (not inside) the
 #' main additive decomposition, per the decomposition proposal.
 #'
 #' @param connectivity A named list from
-#'   [decompose_crop_livestock_connectivity()]. If `NULL`, computed
+#'   [decompose_crop_livestock_conn()]. If `NULL`, computed
 #'   automatically (slow).
 #'
 #' @return A ggplot object.
 #' @export
 #'
 #' @examples
-#' # plot_crop_livestock_connectivity()
-plot_crop_livestock_connectivity <- function(connectivity = NULL) {
+#' # plot_crop_livestock_conn()
+plot_crop_livestock_conn <- function(connectivity = NULL) {
   if (is.null(connectivity)) {
-    connectivity <- decompose_crop_livestock_connectivity()
+    connectivity <- decompose_crop_livestock_conn()
   }
 
   national_long <- connectivity$national |>
@@ -1152,7 +1152,7 @@ plot_destiny_mix <- function(destiny_mix = NULL) {
 #' contribution of each factor *within* one compartment's own
 #' decomposition (e.g. Cropland's Size/Intensity/Inefficiency), as
 #' opposed to the AFS-wide panels 1-2 from
-#' [plot_n_losses_decomposition()], which only show each compartment's
+#' [plot_loss_decomp()], which only show each compartment's
 #' total contribution.
 #'
 #' @param cropland A tibble from [decompose_cropland_surplus()]. If
@@ -1169,8 +1169,8 @@ plot_destiny_mix <- function(destiny_mix = NULL) {
 #' @export
 #'
 #' @examples
-#' # plot_compartment_factor_panels()
-plot_compartment_factor_panels <- function(
+#' # plot_compart_factor()
+plot_compart_factor <- function(
   cropland = NULL,
   semi_natural = NULL,
   manure = NULL,
@@ -1202,9 +1202,9 @@ plot_compartment_factor_panels <- function(
 #' (non-cumulative)
 #'
 #' @description
-#' Same as [plot_compartment_factor_panels()], but plots each year's own
+#' Same as [plot_compart_factor()], but plots each year's own
 #' additive contribution directly, without accumulating it over time —
-#' matching [plot_n_losses_decomposition_yearly()]'s year-on-year view,
+#' matching [plot_loss_decomp_yearly()]'s year-on-year view,
 #' one panel per compartment.
 #'
 #' @param cropland A tibble from [decompose_cropland_surplus()]. If
@@ -1221,8 +1221,8 @@ plot_compartment_factor_panels <- function(
 #' @export
 #'
 #' @examples
-#' # plot_compartment_factor_panels_yearly()
-plot_compartment_factor_panels_yearly <- function(
+#' # plot_compart_factor_yearly()
+plot_compart_factor_yearly <- function(
   cropland = NULL,
   semi_natural = NULL,
   manure = NULL,
@@ -1242,10 +1242,10 @@ plot_compartment_factor_panels_yearly <- function(
   }
 
   list(
-    cropland = .plot_compartment_factor_panel_yearly(cropland),
-    semi_natural = .plot_compartment_factor_panel_yearly(semi_natural),
-    manure = .plot_compartment_factor_panel_yearly(manure),
-    urban = .plot_compartment_factor_panel_yearly(urban)
+    cropland = .plot_compart_factor_yearly(cropland),
+    semi_natural = .plot_compart_factor_yearly(semi_natural),
+    manure = .plot_compart_factor_yearly(manure),
+    urban = .plot_compart_factor_yearly(urban)
   )
 }
 
@@ -1253,7 +1253,7 @@ plot_compartment_factor_panels_yearly <- function(
 #' Plot each compartment's own factor breakdown, rolling mean
 #'
 #' @description
-#' Same as [plot_compartment_factor_panels_yearly()], but smooths each
+#' Same as [plot_compart_factor_yearly()], but smooths each
 #' year's own additive contribution with a centered rolling mean
 #' (`window` years wide, `NA`-padded at the edges) before plotting, one
 #' panel per compartment.
@@ -1274,8 +1274,8 @@ plot_compartment_factor_panels_yearly <- function(
 #' @export
 #'
 #' @examples
-#' # plot_compartment_factor_panels_rolling()
-plot_compartment_factor_panels_rolling <- function(
+#' # plot_compart_factor_roll()
+plot_compart_factor_roll <- function(
   cropland = NULL,
   semi_natural = NULL,
   manure = NULL,
@@ -1296,13 +1296,13 @@ plot_compartment_factor_panels_rolling <- function(
   }
 
   list(
-    cropland = .plot_compartment_factor_panel_rolling(cropland, window),
-    semi_natural = .plot_compartment_factor_panel_rolling(
+    cropland = .plot_compart_factor_roll(cropland, window),
+    semi_natural = .plot_compart_factor_roll(
       semi_natural,
       window
     ),
-    manure = .plot_compartment_factor_panel_rolling(manure, window),
-    urban = .plot_compartment_factor_panel_rolling(urban, window)
+    manure = .plot_compart_factor_roll(manure, window),
+    urban = .plot_compart_factor_roll(urban, window)
   )
 }
 
@@ -1312,9 +1312,9 @@ plot_compartment_factor_panels_rolling <- function(
 #'
 #' @description
 #' Same factor-level breakdown as
-#' [plot_compartment_factor_panels_rolling()], combining all four
+#' [plot_compart_factor_roll()], combining all four
 #' compartments side by side into a single patchwork plot, matching
-#' [plot_compartment_factor_panels_periods()]'s style: one shared y-axis
+#' [plot_compart_factor_periods()]'s style: one shared y-axis
 #' per axis-sharing pair (Cropland+Semi-natural share "N surpluses",
 #' Livestock+Urban share "N losses"), one shared legend, fixed unique
 #' colors per factor label.
@@ -1335,8 +1335,8 @@ plot_compartment_factor_panels_rolling <- function(
 #' @export
 #'
 #' @examples
-#' # plot_compartment_factor_panels_rolling_panel()
-plot_compartment_factor_panels_rolling_panel <- function(
+#' # plot_compart_factor_roll_panel()
+plot_compart_factor_roll_panel <- function(
   cropland = NULL,
   semi_natural = NULL,
   manure = NULL,
@@ -1358,10 +1358,10 @@ plot_compartment_factor_panels_rolling_panel <- function(
 
   titles <- .compartment_panel_titles()
   plot_data <- list(
-    cropland = .compartment_rolling_factor_data(cropland, window),
-    semi_natural = .compartment_rolling_factor_data(semi_natural, window),
-    manure = .compartment_rolling_factor_data(manure, window),
-    urban = .compartment_rolling_factor_data(urban, window)
+    cropland = .compart_roll_factor_data(cropland, window),
+    semi_natural = .compart_roll_factor_data(semi_natural, window),
+    manure = .compart_roll_factor_data(manure, window),
+    urban = .compart_roll_factor_data(urban, window)
   )
   surplus_ylim <- .stacked_bar_range(
     list(plot_data$cropland, plot_data$semi_natural),
@@ -1416,10 +1416,10 @@ plot_compartment_factor_panels_rolling_panel <- function(
 #' combined panel plot
 #'
 #' @description
-#' Same factor-level breakdown as [plot_compartment_factor_panels()], but
+#' Same factor-level breakdown as [plot_compart_factor()], but
 #' using the four reference-period bars from
-#' [decompose_territorial_n_losses_periods()] (matching
-#' [plot_n_losses_decomposition_periods()]) instead of the year-on-year
+#' [decompose_terr_losses_periods()] (matching
+#' [plot_loss_decomp_periods()]) instead of the year-on-year
 #' cumulative view, and combining all four compartments side by side into
 #' a single patchwork plot sharing one legend, instead of four separate
 #' ggplot objects. Each factor label has a fixed, unique color across the
@@ -1439,8 +1439,8 @@ plot_compartment_factor_panels_rolling_panel <- function(
 #' @export
 #'
 #' @examples
-#' # plot_compartment_factor_panels_periods()
-plot_compartment_factor_panels_periods <- function(
+#' # plot_compart_factor_periods()
+plot_compart_factor_periods <- function(
   cropland = NULL,
   semi_natural = NULL,
   manure = NULL,
@@ -1461,10 +1461,10 @@ plot_compartment_factor_panels_periods <- function(
 
   titles <- .compartment_panel_titles()
   plot_data <- list(
-    cropland = .compartment_period_factor_data(cropland),
-    semi_natural = .compartment_period_factor_data(semi_natural),
-    manure = .compartment_period_factor_data(manure),
-    urban = .compartment_period_factor_data(urban)
+    cropland = .compart_period_factor_data(cropland),
+    semi_natural = .compart_period_factor_data(semi_natural),
+    manure = .compart_period_factor_data(manure),
+    urban = .compart_period_factor_data(urban)
   )
   surplus_ylim <- .stacked_bar_range(
     list(plot_data$cropland, plot_data$semi_natural),
@@ -1743,7 +1743,7 @@ plot_compartment_factor_panels_periods <- function(
     )
 }
 
-.crop_livestock_connectivity_panel <- function(n_prov_destiny) {
+.crop_livestock_conn_panel <- function(n_prov_destiny) {
   self_sufficiency <- .local_feed_self_sufficiency(n_prov_destiny) |>
     dplyr::select(year, province_name, self_sufficiency)
 
@@ -1760,7 +1760,7 @@ plot_compartment_factor_panels_periods <- function(
 
 # --- Private helpers: semi-natural panel ---------------------------------------
 
-.semi_natural_landuse_categories <- function() {
+.semi_natural_landuse_cats <- function() {
   c("Dehesa", "Forest_high", "Forest_low", "Other", "Pasture_Shrubland")
 }
 
@@ -1797,7 +1797,7 @@ plot_compartment_factor_panels_periods <- function(
 
   area_p <- npp_ygpit |>
     dplyr::rename_with(tolower) |>
-    dplyr::filter(landuse %in% .semi_natural_landuse_categories()) |>
+    dplyr::filter(landuse %in% .semi_natural_landuse_cats()) |>
     dplyr::mutate(year = as.numeric(year)) |>
     dplyr::summarise(
       area = sum(area_ygpit_ha, na.rm = TRUE),
@@ -2380,7 +2380,7 @@ plot_compartment_factor_panels_periods <- function(
     .plot_cumulative_stack(factor_label, title)
 }
 
-.plot_compartment_factor_panel_yearly <- function(decomp) {
+.plot_compart_factor_yearly <- function(decomp) {
   title <- unique(decomp$factor_label[decomp$component_type == "target"])[1]
 
   decomp |>
@@ -2389,17 +2389,17 @@ plot_compartment_factor_panels_periods <- function(
     .plot_yearly_stack(factor_label, title)
 }
 
-.plot_compartment_factor_panel_rolling <- function(decomp, window) {
+.plot_compart_factor_roll <- function(decomp, window) {
   title <- unique(decomp$factor_label[decomp$component_type == "target"])[1]
 
-  .compartment_rolling_factor_data(decomp, window) |>
+  .compart_roll_factor_data(decomp, window) |>
     .plot_rolling_stack(factor_label, title)
 }
 
 # One compartment's own factors, rolling mean (not cumulated), keeping
 # factor_label instead of collapsing it — the rolling counterpart of
-# .compartment_period_factor_data().
-.compartment_rolling_factor_data <- function(decomp, window) {
+# .compart_period_factor_data().
+.compart_roll_factor_data <- function(decomp, window) {
   decomp |>
     .add_period_start() |>
     .cumulate_series("factor_label", target_only = FALSE) |>
@@ -2437,7 +2437,7 @@ plot_compartment_factor_panels_periods <- function(
 # transition (not cumulated, matching .aggregate_period_series(), but
 # keeping factor_label instead of collapsing it), and normalizes to a
 # per-year rate the same way .aggregate_period_series() does.
-.compartment_period_factor_data <- function(decomp) {
+.compart_period_factor_data <- function(decomp) {
   decomp |>
     dplyr::filter(component_type == "factor") |>
     dplyr::summarise(

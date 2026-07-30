@@ -51,7 +51,7 @@ feed N intake per livestock unit, excreted fraction of feed N
 excreted N.
 
 This is a simplified, national-only view with no species breakdown
-(no species-mix factor); \code{\link[=decompose_specialization_covariance]{decompose_specialization_covariance()}} still
+(no species-mix factor); \code{\link[=decompose_specialization_cov]{decompose_specialization_cov()}} still
 uses the full per-species detail for its \code{livestock_species} series.
 Only livestock categories with a livestock-unit (LU) coefficient in
 \code{livestock_units} are included in the underlying herd/feed/excretion
