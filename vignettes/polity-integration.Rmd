@@ -197,6 +197,34 @@ c(
 )
 ```
 
+## What a clean build says
+
+A build that resolves every row still emits one warning, and knowing which one is the difference between reading
+output and trusting it. On `build_primary_production(1990, 1993)` chained into
+`build_commodity_balances()` — 170,972 and 265,124 rows, **zero `NA` across all four polity columns in both**:
+
+```
+LUH2 territories with no FAOSTAT area code, dropping: JEY, GGY, IMN, BLM, ALA, and SXM.
+Each has a polity upstream but no area code to aggregate through; see whep#407.
+```
+
+That is the whole inventory. It was four warnings earlier in this work, and the other three were defects:
+
+- **an unknown area code, twice.** 420 "Sub-Saharan Africa" and 265 "China (excluding intra-trade)" are FAOSTAT
+  aggregates whose codes sit *below* the `group_code_min` threshold, so the rule of thumb missed them and they
+  were reported as codes the project does not know. Upstream now publishes the six such codes explicitly.
+- **a duplicate-year warning that was a real cross-territory denominator.** Livestock split shares were computed
+  as `value / sum(value)` grouped by `polity_area_code`, and one bucket held two territories — so Eswatini's
+  broilers were divided by an Eswatini-plus-rest-of-world total. Two different shares for one key, resolved by row
+  order. Rest of World's share was wrong by a factor of 222.
+- **a sentinel bundled with real territories.** The LUH2 message above used to include `-99`, LUH2's own
+  unassigned marker, which carries **510×** the land of the six territories combined. Reporting them together made
+  a property of the source read as a gap in this project's coverage.
+
+The pattern in all three: a warning that fires on every build is read as background. The two that mattered were
+distinguishable only by measuring what they dropped — 0.6% of a pin, a 222× share error, and 0.39% of global land
+against 0.0008%.
+
 ## Where the gaps are
 
 Stated rather than hidden, because each is a real limit on what the data can say:
