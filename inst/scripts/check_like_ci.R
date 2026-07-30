@@ -673,6 +673,69 @@ if (length(builder_rd) > 0L) {
   )
 }
 
+# --- 5f. No test helper is used before it is defined -------------------------
+# testthat executes a file top to bottom, so a `test_that()` block calling a helper
+# defined further down in the same file can fail with "could not find function". Local
+# runs of this suite reported 5063 passing tests while R CMD check failed on ALL FIVE
+# platforms for exactly that reason, in test_stock_share_territory_key.R.
+#
+# The failure hid for hours, and not because it was subtle: R-CMD-check.yaml sets
+# `concurrency: cancel-in-progress`, so every push cancelled the matrix before it could
+# report, and four consecutive runs died that way. This gate exists so the answer does
+# not depend on a remote run surviving long enough to speak.
+#
+# Static, so it costs nothing: find top-level `name <- function(` definitions, then look
+# for a call to that name on an earlier line.
+helper_order <- local({
+  files <- list.files("tests/testthat", pattern = "\\.R$", full.names = TRUE)
+  problems <- list()
+  for (f in files) {
+    lines <- readLines(f, warn = FALSE)
+    defs <- regmatches(
+      lines,
+      regexec("^([A-Za-z._][A-Za-z0-9._]*)\\s*<-\\s*function\\s*\\(", lines)
+    )
+    for (i in seq_along(defs)) {
+      if (length(defs[[i]]) < 2L) {
+        next
+      }
+      nm <- defs[[i]][2]
+      if (i == 1L) {
+        next
+      }
+      before <- lines[seq_len(i - 1L)]
+      # Ignore comment lines: a helper NAMED in a comment is not a call.
+      before <- before[!grepl("^\\s*#", before)]
+      hit <- grep(
+        paste0("(?<![A-Za-z0-9._])", nm, "\\s*\\("),
+        before,
+        perl = TRUE
+      )
+      if (length(hit) > 0L) {
+        problems[[length(problems) + 1L]] <- sprintf(
+          "%s: %s() called before its definition on line %d",
+          basename(f),
+          nm,
+          i
+        )
+      }
+    }
+  }
+  problems
+})
+record(
+  "no test helper used before it is defined",
+  length(helper_order) == 0L,
+  if (length(helper_order) == 0L) {
+    sprintf(
+      "%d test file(s) scanned",
+      length(list.files("tests/testthat", pattern = "\\.R$"))
+    )
+  } else {
+    paste(unlist(helper_order), collapse = "; ")
+  }
+)
+
 # --- 5e. Prove the gates above can fail --------------------------------------
 # The four checks this script added over this branch were each mutation-tested by hand when
 # written. A hand test proves a gate worked once, on one machine, on the defect its author
