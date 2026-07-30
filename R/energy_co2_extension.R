@@ -363,7 +363,18 @@ build_energy_co2_extension <- function(
       .by = c("year", "area_code", "grp", "item_cbs_code")
     ) |>
     dplyr::mutate(
-      share = .data$heads / sum(.data$heads),
+      # Explicit zero when the group has no heads to allocate across. Two groups hit
+      # 0/0 on a real 1990-1991 build -- area 162, poultry -- producing NaN, which
+      # .energy_allocate_to_sectors() then discarded via `sum(na.rm = TRUE)`. The
+      # arithmetic outcome is the same 0; the difference is that it was an accident of
+      # NA-dropping rather than a statement, and a NaN in an intermediate is one
+      # refactor away from becoming a NaN in an output.
+      # `denom` as a column, not sum() inline: inside mutate(.by=) it recycles to the
+      # group's length, so if_else sees matching sizes. The inline form fails with
+      # "`true` must have size 1, not size 2", which is a length rule rather than a
+      # logic error and worth naming so the obvious rewrite is not retried.
+      denom = sum(.data$heads),
+      share = dplyr::if_else(.data$denom > 0, .data$heads / .data$denom, 0),
       .by = c("year", "area_code", "grp")
     ) |>
     dplyr::select("year", "area_code", "grp", "item_cbs_code", "share")
