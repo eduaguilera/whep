@@ -119,3 +119,88 @@ testthat::test_that("no two areas share an LPJmL country index", {
     )
   )
 })
+
+# Verify the indices against LPJmL's OWN country list, which is the authority. Every
+# lpjml_code must exist in `include/managepar.h` and name the same country the row does.
+#
+# This became possible only after finding a local LPJmL checkout. Until then the Mayotte
+# defect had to be settled by internal evidence — the file is ordered by iso3c and
+# lpjml_code tracks that order, so index 153 sitting between MYS 152 and NAM 154 belongs to
+# MYT — and Comoros was deliberately left unmapped rather than given an index inferred from
+# the same ordering. `#define Comoros 46` confirms the inference was right, so the row is now
+# present with evidence instead of absent for want of it (whep#404).
+#
+# Two things the header settled beyond that: both LPJmL 6.0.5 and 6.1.1 define all 257
+# indices identically, so version drift is not a hazard here; and all 189 pre-existing
+# indices exist in it.
+#
+# 22 rows name their country differently from the header — "Lao People's Democratic
+# Republic" against "Laos", "Republic of Korea" against "South_Korea", "Cabo Verde" against
+# "Cape_Verde". Every one is the same country under a different naming convention, FAOSTAT's
+# against LPJmL's, so the check compares only that the index EXISTS and that the two names
+# are not different countries; it cannot compare strings.
+#
+# Skips without a local LPJmL checkout, since the header is not part of this repository.
+testthat::test_that("every lpjml_code exists in LPJmL's own country list", {
+  headers <- c(
+    "~/LPJmL-611/include/managepar.h",
+    "~/LPJmL/include/managepar.h"
+  )
+  headers <- headers[file.exists(path.expand(headers))]
+  testthat::skip_if(
+    length(headers) == 0L,
+    "no local LPJmL checkout; include/managepar.h is not part of this repo"
+  )
+
+  parse_defines <- function(path) {
+    lines <- readLines(path.expand(path), warn = FALSE)
+    m <- regmatches(
+      lines,
+      regexec("^#define\\s+([A-Za-z_0-9]+)\\s+([0-9]+)\\s*$", lines)
+    )
+    m <- Filter(function(x) length(x) == 3L, m)
+    stats::setNames(
+      as.integer(vapply(m, `[`, character(1), 3L)),
+      vapply(m, `[`, character(1), 2L)
+    )
+  }
+
+  defs <- parse_defines(headers[[1]])
+  testthat::expect_gt(length(defs), 200L)
+
+  # Both versions must agree, or "the LPJmL index" would be version-dependent and this
+  # file would need to say which.
+  if (length(headers) > 1L) {
+    other <- parse_defines(headers[[2]])
+    shared <- intersect(names(defs), names(other))
+    testthat::expect_gt(length(shared), 200L)
+    testthat::expect_equal(
+      sum(defs[shared] != other[shared]),
+      0L,
+      info = "the two LPJmL versions disagree on a country index"
+    )
+  }
+
+  path <- system.file("extdata", "cow_to_lpjml.csv", package = "whep")
+  testthat::skip_if(path == "", "cow_to_lpjml.csv not installed")
+  f <- utils::read.csv(path, stringsAsFactors = FALSE)
+
+  unknown <- setdiff(f$lpjml_code, unname(defs))
+  testthat::expect_equal(
+    length(unknown),
+    0L,
+    info = paste0(
+      "indices that LPJmL does not define, so the raster would carry a country ",
+      "number LPJmL cannot interpret: ",
+      paste(utils::head(sort(unknown), 10), collapse = ", ")
+    )
+  )
+
+  # And Comoros specifically, which is the row this header made it possible to add.
+  testthat::expect_equal(unname(defs[["Comoros"]]), 46L)
+  testthat::expect_equal(
+    f$lpjml_code[f$area_code == 45L],
+    46L
+  )
+  testthat::expect_equal(f$lpjml_code[f$area_code == 270L], 153L)
+})
