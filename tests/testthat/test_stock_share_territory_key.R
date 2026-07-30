@@ -26,6 +26,33 @@
 # The invariant below is the one that could not have been satisfied before: shares within a
 # territory-item group must sum to 1. Under the old key they summed to 1 across a group
 # that spanned territories, which is a different and meaningless statement.
+# Defined BEFORE its first use, which is not a style preference. testthat executes a file
+# top to bottom, so a `test_that()` block that calls a function defined further down can
+# fail with "could not find function". This helper sat below its two call sites, and R CMD
+# check failed on all FIVE platforms for exactly that reason while every local run passed.
+#
+# I do not know which local mechanism masked it and am not going to guess: the sibling file
+# the old comment said it was shared with never defined it, so the leftover-from-a-previous
+# run explanation is unverified. What is established is the failure, the platforms, and that
+# hoisting the definition fixes it.
+#
+# Shared with test_polities_cats_vs_regions_full.R's version so the two cannot drift into
+# checking subtly different things.
+differing_aggregation_keys <- function() {
+  r <- as.data.frame(whep::regions_full)
+  r <- r[which(!is.na(r$code)), ]
+  r <- r[!duplicated(r$code), ]
+  cw <- as.data.frame(whep::polity_area_crosswalk)
+  cw <- cw[which(!is.na(cw$area_code)), ]
+  cw <- cw[!duplicated(cw$area_code), ]
+  idx <- match(r$code, cw$area_code)
+  from_cw <- cw$polity_area_code[idx]
+  ok <- !is.na(idx)
+  a <- r$polity_area_code[ok]
+  b <- from_cw[ok]
+  r$code[ok][which((is.na(a) != is.na(b)) | (!is.na(a) & !is.na(b) & a != b))]
+}
+
 testthat::test_that("stock shares are keyed by reporting territory and sum to one", {
   testthat::skip_on_ci()
   sh <- tryCatch(
@@ -146,22 +173,6 @@ testthat::test_that("no reporting territory shares the FABIO rest-of-world bucke
   )
 })
 
-# Shared by the assertion above and by test_polities_cats_vs_regions_full.R's version, so
-# the two cannot drift into checking subtly different things.
-differing_aggregation_keys <- function() {
-  r <- as.data.frame(whep::regions_full)
-  r <- r[which(!is.na(r$code)), ]
-  r <- r[!duplicated(r$code), ]
-  cw <- as.data.frame(whep::polity_area_crosswalk)
-  cw <- cw[which(!is.na(cw$area_code)), ]
-  cw <- cw[!duplicated(cw$area_code), ]
-  idx <- match(r$code, cw$area_code)
-  from_cw <- cw$polity_area_code[idx]
-  ok <- !is.na(idx)
-  a <- r$polity_area_code[ok]
-  b <- from_cw[ok]
-  r$code[ok][which((is.na(a) != is.na(b)) | (!is.na(a) & !is.na(b) & a != b))]
-}
 
 # The derivation deciding which folded areas keep their own aggregation key has TWO
 # routes, unioned, and the second is gated on `cbs`. Both halves of that structure are
