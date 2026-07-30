@@ -147,13 +147,13 @@ c(
 )
 ```
 
-Mueller and `crops_manure_n` are complete. Lassaletta is not, and the residue is four different
-things rather than one backlog: nine FAO long-form spellings that exist as aliases under the
-`faostat` source but do not carry over because the alias table is source-scoped; `Morocco`, which
-matches two polity families; eight predecessor-era cases where the bare name is genuinely ambiguous
-(`Germany` and `Yemen` before 1990 name two polities each, `Bangladesh` before 1971 is East
-Pakistan); and two that *should* not resolve — `South Sudan` is listed from 1961 though it did not
-exist until 2011, and `Czechoslovakia` runs to 2009 though it dissolved in 1993.
+Mueller and `crops_manure_n` are complete, and Lassaletta is complete in the only sense available
+to it: every one of its remaining unresolved country-years is a **source anachronism** — a label
+carried outside the period its entity existed. `South Sudan` is listed from 1961 though it did not
+exist until 2011; `FSU` and `Yugoslav SFR` run past their dissolutions; `Czechoslovakia` reaches
+2009 though it dissolved in 1993; `Belgium-Luxemburg` continues past the 1999 split. Each resolves
+correctly for the years its entity *did* exist, so resolving the tails would be wrong rather than
+better.
 
 `expand_trade_sources()` is the same shape, and complete: its rows are already one year each, so
 the reporter and the year settle every row.

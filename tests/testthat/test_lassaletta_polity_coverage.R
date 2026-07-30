@@ -6,8 +6,10 @@
 # -- Afghanistan, Albania, Argentina -- resolved to nothing, because there is no
 # name-to-polity path outside the alias table.
 #
-# 129 aliases were added UPSTREAM rather than name-matching logic here, because the
-# polities database owns label-to-polity identity. Coverage is now 88.0%.
+# 158 aliases were added UPSTREAM rather than name-matching logic here, because the
+# polities database owns label-to-polity identity. Coverage is now 98.1%.
+#
+# The first 129 were generated mechanically; the later 29 are described below.
 #
 # HOW THE 129 WERE DERIVED, since "generated mechanically" is the part worth
 # distrusting:
@@ -31,29 +33,32 @@
 # reports only 4 overlaps precisely because it filters dead rows, and my generator
 # did not.
 #
-# WHAT REMAINS UNRESOLVED, deliberately, and why it is not one bug:
+# WHAT REMAINS UNRESOLVED, and it is now exactly ONE thing rather than four.
+# Coverage is 98.1%, and every one of the 128 remaining country-years is a SOURCE
+# ANACHRONISM -- the dataset carries a label outside the period its entity existed:
 #
-#   FAO long-form names (9)  "Iran (Islamic Republic of)", "Lao People's Democratic
-#                            Republic", "Republic of Korea", "United Republic of
-#                            Tanzania", "Venezuela (Bolivarian Republic of)",
-#                            "Bolivia (Plurinational State of)", "Ethiopia PDR",
-#                            "Yugoslav SFR", "FSU". Standard FAO spellings that
-#                            already exist as aliases under the `faostat` source;
-#                            the alias table is source-scoped, so they do not carry
-#                            over. A cross-source fallback would close most of this.
-#   ambiguous by name (1)    "Morocco" matches more than one family, the MAR/MOR
-#                            cross-family overlap the upstream README documents.
-#   predecessor-era (8)      Germany and Yemen before 1990 name TWO polities each,
-#                            so the bare name is genuinely ambiguous; Bangladesh
-#                            before 1971 is East Pakistan; Zimbabwe, Zambia and
-#                            Malawi before 1964 are the Federation of Rhodesia and
-#                            Nyasaland; Singapore before 1965 is part of Malaysia;
-#                            Suriname before 1975 is Dutch Guiana. Each is a
-#                            curation decision, not a lookup.
-#   correctly unresolvable   "South Sudan" is listed for 1961-2009 but did not exist
-#                            until 2011, and "Czechoslovakia" is listed through 2009
-#                            though it dissolved in 1993. Resolving these would be
-#                            wrong.
+#   South Sudan        1961-2009   did not exist until 2011
+#   FSU                1992-2009   dissolved in 1991
+#   Yugoslav SFR       1992-2009   dissolved in 1992
+#   Ethiopia PDR       1993-2009   renamed in 1993
+#   Czechoslovakia     1994-2009   dissolved in 1993
+#   Belgium-Luxemburg  2000-2009   split in 1999
+#
+# Resolving any of these would be WRONG, so the residue is not a backlog and 98.1% is
+# effectively complete. Each label already resolves correctly for the years its entity
+# did exist -- FSU 1961-1991 reaches F228-1945-1991, Czechoslovakia 1961-1992 reaches
+# F51-1947-1993 -- so the gap is precisely the out-of-period tail.
+#
+# The 88% -> 98.1% step came from a realisation rather than new curation: I had written
+# the previous residue up as "predecessor-era cases needing curation decisions", when the
+# `faostat` source ALREADY CONTAINED those decisions for the identical labels. Germany
+# before 1990 was already assigned DEU-1949-1990, Yemen F249-1918-1990, Bangladesh
+# BGD-1947-1971, Zambia NRH-1953-1964, and Morocco's two-family ambiguity was already
+# settled as MAR. Lassaletta et al. use FAO country names, so 28 of the 29 aliases added
+# are copies of decisions someone had already made, with only the year range intersected
+# against this dataset's window. The 29th is China, which has no faostat alias because
+# area 351 is deliberately unmapped to avoid double-counting its components -- a concern
+# that does not arise here, since this source reports a single China series.
 #
 # The floor below is deliberately a floor and not an equality: upstream alias work
 # should be free to raise it. It fails if coverage DROPS, which is the regression
@@ -76,7 +81,7 @@ testthat::test_that("Lassaletta country-years resolve to polities at the establi
     }
   ))
   rate <- mean(!is.na(resolved))
-  testthat::expect_gt(rate, 0.85)
+  testthat::expect_gt(rate, 0.97)
 
   # Every resolved code must be a real, live polity. A coverage rate says nothing
   # about whether the targets exist, and a typo in a generated alias would raise
