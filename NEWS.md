@@ -1,4 +1,41 @@
 # whep (development version)
+* `resolve_polity_label()` now falls back to a polity's own `polity_name` when no
+  alias applies, mirroring upstream's "alias, then ISO/name family + year
+  containment". Previously a caller passing the database's own name for a polity
+  got `NA` -- `resolve_polity_label("Netherlands")` found nothing while `polities`
+  carried a polity named exactly that. Two guards bound it: a name resolves only
+  when exactly one polity carries it in the year asked about (52 pairs share a
+  normalised name and overlap in years), and an alias covering that year outranks
+  the name whatever its source. Sweeping 3,760 `(label, year)` pairs against the
+  previous behaviour: 1,509 answers filled in, none lost, none changed. Names of
+  deliberately-unmapped reporting areas are refused, so FAOSTAT's `"China"`
+  (area 351, the aggregate of mainland, Hong Kong, Macao and Taiwan) does not
+  resolve to the mainland polity and double-count against its own components.
+
+* `add_area_code()` routes names the crosswalk cannot match exactly through the
+  polities database instead of returning `NA`. It fills `NA` only, so the
+  crosswalk stays authoritative wherever it has an answer, and it is year-aware
+  (`"Czech Republic"` is Czechia from 1993 and Czechoslovakia before it).
+  `get_primary_residues()`, the one builder that resolves areas by name, went
+  from 44,985 of 475,688 rows (9.5%) with no area code to 200 (0.04%).
+
+* **Values change for reporting buckets that fold several FAOSTAT areas.**
+  `.aggregate_to_polities()` and `.get_traded_residues()` grouped by the bucket
+  code *and* the area name, so areas folding into one bucket under different
+  names were never summed -- 1,525 duplicate keys at 1990-2023, all in FABIO's
+  Sudan region 206, which folds FAOSTAT 206, 276 "Sudan" and 277 "South Sudan".
+  Because `dcast()` without `fun.aggregate` answers a duplicate key with
+  `length()`, those values were row COUNTS, not quantities, in any build that
+  did not happen to die on the resulting type clash. Folded areas now sum, and
+  a bucket is labelled with its own name (206 is `"Sudan (former)"`) rather than
+  a member's, so the label no longer varies by year. See #414 for the remaining
+  modelling question: the summed bucket is still attributed to a single-territory
+  polity.
+
+* `build_commodity_balances()` now aborts if duplicate keys reach the source
+  cast, naming the area codes, sources and years, rather than silently replacing
+  values with row counts. A build that previously completed with corrupt values
+  for a folded bucket will now fail loudly until the rows are aggregated.
 
 * Missing `iso3_code` and `cow_code` in `polities` are now real `NA`. They were the
   literal string `"NA"`, which upstream has since normalised to NULL at the source,
