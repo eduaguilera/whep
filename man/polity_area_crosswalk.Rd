@@ -40,7 +40,27 @@ the example, reported alongside its own components), and an area code that
 does not exist at all, which yields \code{NA} here because no crosswalk row was
 found. A typo and a documented non-mapping are different problems.
 \item \code{mapping_note}: Explanation for manual or unmapped rows.
+\item \code{reporting_polity_name}: Name of the polity the area reports as. Differs from
+\code{area_name} on 72 areas, because a folded area carries its aggregate's label:
+Bermuda reads \code{"Latin America Other"}. Joining downstream on the wrong one of
+these silently loses rows — that defect cost 13.3\% of the fodder bridge and
+6.4\% of \code{gdp-population}.
+\item \code{cbs}: Logical. \code{TRUE} where the area has its own commodity balance sheet.
+Load-bearing beyond its own reporting: it gates whether an area whose polity
+has data may be unfolded from the FABIO rest-of-world bucket, which is what
+keeps 351 China and five deliberately-folded territories from unfolding.
+\item \code{fabio_code}: FABIO's numeric area, \code{999} for everything FABIO folds into
+rest-of-world. NOT the same as \code{polity_area_code}: 17 areas keep their own
+aggregation key while FABIO folds them, so aggregating on \code{fabio_code}
+reproduces FABIO and aggregating on \code{polity_area_code} does not.
+\item \code{polity_type}, \code{cow_code}, \code{continent}, \code{wiki_status}, \code{polygon_status},
+\code{has_geometry}: carried through from \link{polities} for the matched polity, with
+the same meanings. \code{wiki_status} matters most: \code{"retired"} and \code{"superseded"}
+rows must never receive data, and a crosswalk row can point at one.
 }
+
+This list is exhaustive as of 0.3.0.9000 — every column of the shipped table
+appears above.
 }
 \source{
 Derived from \link{polities} and \code{inst/extdata/harmonization/regions_full.csv}.

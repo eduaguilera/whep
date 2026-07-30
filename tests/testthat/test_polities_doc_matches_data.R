@@ -100,3 +100,51 @@ testthat::test_that("the alias map's exhaustive column list really is exhaustive
     )
   )
 })
+
+# Both polity tables now claim their column list is EXHAUSTIVE. That claim rots the
+# moment a column is added, and it rots silently: nothing about an undocumented column
+# fails, which is how `polities` came to describe ten of its twenty columns under the
+# heading "Key columns include" — among them `wiki_status`, the one a consumer must
+# filter on to avoid routing data to a retired polity.
+#
+# Found by comparing each dataset's column names against its .Rd text, the same check
+# that found six undocumented fields in the upstream manifest. Applied here it also
+# confirms polity_label_aliases, regions_full and polities_cats were already complete, so
+# the gap was specific rather than general.
+#
+# The .Rd files are absent from an installed package, so this skips there rather than
+# passing vacuously.
+testthat::test_that("every column of the polity tables is documented", {
+  for (ds in c("polities", "polity_area_crosswalk", "polity_label_aliases")) {
+    rd <- system.file("..", "man", paste0(ds, ".Rd"), package = "whep")
+    if (!file.exists(rd)) {
+      rd <- file.path("man", paste0(ds, ".Rd"))
+    }
+    testthat::skip_if_not(
+      file.exists(rd),
+      paste0("man/", ds, ".Rd not available in an installed package")
+    )
+    doc <- paste(readLines(rd, warn = FALSE), collapse = " ")
+    cols <- names(as.data.frame(get(ds, envir = asNamespace("whep"))))
+    # Non-vacuous: an empty column list would make the setdiff below trivially empty.
+    testthat::expect_gt(length(cols), 5L)
+
+    undocumented <- cols[
+      !vapply(
+        cols,
+        function(col) grepl(col, doc, fixed = TRUE),
+        logical(1)
+      )
+    ]
+    testthat::expect_equal(
+      length(undocumented),
+      0L,
+      info = paste0(
+        ds,
+        " has columns absent from its documentation, which claims to be ",
+        "exhaustive: ",
+        paste(undocumented, collapse = ", ")
+      )
+    )
+  }
+})

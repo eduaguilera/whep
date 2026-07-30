@@ -6,7 +6,7 @@
 \title{Polities}
 \format{
 An sf data frame where each row corresponds to one territorial polity over
-a continuous time interval. Key columns include:
+a continuous time interval. Every column is described below:
 \itemize{
 \item \code{polity_code}: Stable WHEP polity identifier, usually
 \code{PREFIX-start_year-end_year}.
@@ -29,8 +29,41 @@ either returned nothing rather than erring.
 for cross-checking the attached geometry. Sparse by nature — present for
 182 of 740 rows — so compute area from \code{geom} rather than relying on it.
 \item \code{has_geometry}: Logical flag indicating whether the geometry is non-empty.
+\item \code{wiki_status}: \strong{The column a consumer must filter on.} One of \code{"draft"},
+\code{"reviewed"}, \code{"retired"}, \code{"superseded"}. The last two mean the row MUST
+NEVER RECEIVE DATA — upstream publishes them as \code{dead_status} in its manifest
+and lists the codes in \code{dead_polity_codes}. 27 of 740 rows are dead, and they
+are not obviously distinguishable otherwise: retired duplicates carry the same
+name, iso3 and often a valid geometry as their live successor, which is how
+\code{ARG-1800-2025} and \code{BRA-1800-2025} sat alongside \code{ARG-1902-2025} and
+\code{BRA-1909-2025} spanning identical years.
+\item \code{polity_type}: One of eight values including \code{"national"}, \code{"colonial"},
+\code{"subnational"} and \code{"aggregate"}. \code{"aggregate"} marks rest-of-world and the
+continental "Other" buckets, which are not territories: filtering them out is
+how you get a list of real polities.
+\item \code{continent}: Seven values. Coarser than some region taxonomies and finer than
+others — \code{gleam_geographic_hierarchy} says \code{"Americas"} where this says
+\code{"North America"} or \code{"South America"}, which is a granularity difference and
+not a disagreement.
+\item \code{cow_code}: Correlates of War state number where one applies, for 523 of 740
+rows. Not unique over overlapping years: 29 pairs share a code by design,
+because COW numbers a state while this table periodizes territory.
+\item \code{predecessor}, \code{successor}: Semicolon-separated polity codes, present for 414
+and 489 rows. A dissolution lists several successors in one field
+(\code{AEF-1910-1960} names four), so split on \code{"; "} rather than treating either
+as a single code.
+\item \code{polygon_source}, \code{polygon_feature_id}, \code{polygon_feature_year}: provenance of
+the attached geometry — which dataset, which feature in it, and for which
+vintage. \code{polygon_feature_id} is the field to check when a polygon looks
+wrong: recording it as prose rather than a resolvable value is what upstream's
+\code{polygon_gap_polity_codes} tracks.
+\item \code{last_ingest}: Date the wiki page was last reconciled with its sources.
 \item \code{geom}: Multipolygon geometry.
 }
+
+This list is exhaustive as of 0.3.0.9000 — every column of the shipped table
+appears above. It read "Key columns include" while omitting ten, among them
+\code{wiki_status}, which is the one a consumer cannot afford to miss.
 }
 \source{
 \verb{~/whep-polities/data/final/polities_database.gpkg}.

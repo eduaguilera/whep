@@ -39,7 +39,7 @@
 #'
 #' @format
 #' An sf data frame where each row corresponds to one territorial polity over
-#' a continuous time interval. Key columns include:
+#' a continuous time interval. Every column is described below:
 #' - `polity_code`: Stable WHEP polity identifier, usually
 #'   `PREFIX-start_year-end_year`.
 #' - `polity_name`: Human-readable polity name.
@@ -61,7 +61,40 @@
 #'   for cross-checking the attached geometry. Sparse by nature — present for
 #'   182 of 740 rows — so compute area from `geom` rather than relying on it.
 #' - `has_geometry`: Logical flag indicating whether the geometry is non-empty.
+#' - `wiki_status`: **The column a consumer must filter on.** One of `"draft"`,
+#'   `"reviewed"`, `"retired"`, `"superseded"`. The last two mean the row MUST
+#'   NEVER RECEIVE DATA — upstream publishes them as `dead_status` in its manifest
+#'   and lists the codes in `dead_polity_codes`. 27 of 740 rows are dead, and they
+#'   are not obviously distinguishable otherwise: retired duplicates carry the same
+#'   name, iso3 and often a valid geometry as their live successor, which is how
+#'   `ARG-1800-2025` and `BRA-1800-2025` sat alongside `ARG-1902-2025` and
+#'   `BRA-1909-2025` spanning identical years.
+#' - `polity_type`: One of eight values including `"national"`, `"colonial"`,
+#'   `"subnational"` and `"aggregate"`. `"aggregate"` marks rest-of-world and the
+#'   continental "Other" buckets, which are not territories: filtering them out is
+#'   how you get a list of real polities.
+#' - `continent`: Seven values. Coarser than some region taxonomies and finer than
+#'   others — `gleam_geographic_hierarchy` says `"Americas"` where this says
+#'   `"North America"` or `"South America"`, which is a granularity difference and
+#'   not a disagreement.
+#' - `cow_code`: Correlates of War state number where one applies, for 523 of 740
+#'   rows. Not unique over overlapping years: 29 pairs share a code by design,
+#'   because COW numbers a state while this table periodizes territory.
+#' - `predecessor`, `successor`: Semicolon-separated polity codes, present for 414
+#'   and 489 rows. A dissolution lists several successors in one field
+#'   (`AEF-1910-1960` names four), so split on `"; "` rather than treating either
+#'   as a single code.
+#' - `polygon_source`, `polygon_feature_id`, `polygon_feature_year`: provenance of
+#'   the attached geometry — which dataset, which feature in it, and for which
+#'   vintage. `polygon_feature_id` is the field to check when a polygon looks
+#'   wrong: recording it as prose rather than a resolvable value is what upstream's
+#'   `polygon_gap_polity_codes` tracks.
+#' - `last_ingest`: Date the wiki page was last reconciled with its sources.
 #' - `geom`: Multipolygon geometry.
+#'
+#' This list is exhaustive as of 0.3.0.9000 — every column of the shipped table
+#' appears above. It read "Key columns include" while omitting ten, among them
+#' `wiki_status`, which is the one a consumer cannot afford to miss.
 #' @source `~/whep-polities/data/final/polities_database.gpkg`.
 "polities"
 
@@ -105,5 +138,25 @@
 #'   does not exist at all, which yields `NA` here because no crosswalk row was
 #'   found. A typo and a documented non-mapping are different problems.
 #' - `mapping_note`: Explanation for manual or unmapped rows.
+#' - `reporting_polity_name`: Name of the polity the area reports as. Differs from
+#'   `area_name` on 72 areas, because a folded area carries its aggregate's label:
+#'   Bermuda reads `"Latin America Other"`. Joining downstream on the wrong one of
+#'   these silently loses rows — that defect cost 13.3% of the fodder bridge and
+#'   6.4% of `gdp-population`.
+#' - `cbs`: Logical. `TRUE` where the area has its own commodity balance sheet.
+#'   Load-bearing beyond its own reporting: it gates whether an area whose polity
+#'   has data may be unfolded from the FABIO rest-of-world bucket, which is what
+#'   keeps 351 China and five deliberately-folded territories from unfolding.
+#' - `fabio_code`: FABIO's numeric area, `999` for everything FABIO folds into
+#'   rest-of-world. NOT the same as `polity_area_code`: 17 areas keep their own
+#'   aggregation key while FABIO folds them, so aggregating on `fabio_code`
+#'   reproduces FABIO and aggregating on `polity_area_code` does not.
+#' - `polity_type`, `cow_code`, `continent`, `wiki_status`, `polygon_status`,
+#'   `has_geometry`: carried through from [polities] for the matched polity, with
+#'   the same meanings. `wiki_status` matters most: `"retired"` and `"superseded"`
+#'   rows must never receive data, and a crosswalk row can point at one.
+#'
+#' This list is exhaustive as of 0.3.0.9000 — every column of the shipped table
+#' appears above.
 #' @source Derived from [polities] and `inst/extdata/harmonization/regions_full.csv`.
 "polity_area_crosswalk"
