@@ -359,3 +359,62 @@ testthat::test_that("no alias reaches years its target polity did not exist in",
     c("Portuguese Timor", "Gold Coast", "Trieste", "French Morocco")
   )
 })
+
+# Every period boundary in an alias chain is a one-year ambiguity, and the cause is a
+# convention rather than a mistake: an alias `year_end` is INCLUSIVE while a polity
+# `end_year` is EXCLUSIVE, so an alias ending at a polity's last year and the next alias
+# starting at the successor's first year BOTH cover that year. Which polity a value lands
+# in is then decided by match order.
+#
+# Swept every (label, source) group with more than one row. 25 have a year where two rows
+# name different polities, and the rate varies by how the aliases were WRITTEN:
+#
+#   (any)                        18 of 31 chains ambiguous   hand-entered
+#   fao1952                       3 of 18
+#   faostat                       2 of 43
+#   lassaletta-grassland-share    1 of 30   generated
+#   trade-sources                 0 of  7   generated
+#
+# The generated sets are clean because they were built with `year_end = polity_end_year -
+# 1`, so consecutive ranges do not touch. That is the fix, and this measurement is the
+# argument for applying it to the hand-entered chains: 18 boundary years currently resolve
+# by match order. Reported as whep-polities#54.
+#
+# The one Lassaletta case is Cape Verde, whose two rows overlap at 1975 by deliberate
+# curation — a choice about which polity gets a mid-year independence — and is exempted by
+# name in test_lassaletta_polity_coverage.R rather than by weakening the rule.
+#
+# Most of the 25 are benign in effect: the two candidates are ADJACENT PERIODS OF ONE
+# FAMILY, so a boundary-year value lands in one of two neighbouring periods of the same
+# territory. Five are cross-family and are the ones worth a curation decision.
+testthat::test_that("generated alias chains have no ambiguous boundary years", {
+  al <- as.data.frame(whep::polity_label_aliases)
+  generated <- c("trade-sources", "crops-manure-n")
+
+  ambiguous <- character(0)
+  for (src in generated) {
+    rows <- al[which(al$source == src), ]
+    testthat::expect_gt(nrow(rows), 3L)
+    for (lbl in unique(rows$source_label)) {
+      chain <- rows[rows$source_label == lbl, ]
+      if (nrow(chain) < 2L) {
+        next
+      }
+      chain <- chain[order(chain$year_start), ]
+      # Consecutive ranges must not touch: the next start is strictly after the previous
+      # end. This is the property the inclusive/exclusive mismatch breaks.
+      if (any(chain$year_start[-1] <= chain$year_end[-nrow(chain)])) {
+        ambiguous <- c(ambiguous, paste0(src, ": ", lbl))
+      }
+    }
+  }
+  testthat::expect_equal(
+    length(ambiguous),
+    0L,
+    info = paste0(
+      "generated alias chains whose consecutive ranges touch, so a boundary year ",
+      "resolves by match order: ",
+      paste(ambiguous, collapse = "; ")
+    )
+  )
+})
