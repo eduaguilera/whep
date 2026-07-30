@@ -9,7 +9,14 @@
 #' A tibble with one row per crop-country combination containing:
 #' - `Crop_name`: Crop name (character).
 #' - `ISO`: ISO 3166-1 alpha-3 country code.
-#' - `Continent`: Three-letter continent code (e.g. `"AFR"`, `"ASI"`).
+#' - `Continent`: The source's own grouping code, and **not a continent** despite the
+#'   name. It mixes two things: EU members are `"EU"` rather than `"EUR"`, and `"LAM"`
+#'   spans territories this project places on two different continents (Argentina in
+#'   South America, Antigua and Barbuda in North America). Nothing in the package reads
+#'   it, and nothing should — for a polity's continent use `polity_area_crosswalk$continent`,
+#'   which is the polities database's answer. Kept as it arrives from the source rather
+#'   than silently recoded, so this column and the crosswalk cannot be confused for two
+#'   opinions about one fact.
 #' - `Manure_N_Mg`: Manure nitrogen applied in megagrams (Mg).
 #'
 #' @source West, P. C. et al. (2014). Leverage points for improving global
