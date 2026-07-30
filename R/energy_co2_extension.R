@@ -151,9 +151,65 @@ build_energy_co2_extension <- function(
   )
 }
 
-# Map each country to its grouping under each of the three GLEAM schemes.
+# Map each country to its grouping under each of the three GLEAM schemes. Say
+# which reporting areas this scheme cannot classify, because the alternative is
+# nothing at all.
+#
+# `gleam_geographic_hierarchy` defines the country universe for the whole energy
+# extension: every scheme below is derived from it, so an area absent from that
+# table gets no row — not a wrong group, no group — and a join then drops it in
+# silence.
+#
+# 18 of the 217 self-reporting areas have no row there, and only five of those
+# are a problem. Seven are regional aggregates (RAFR, RASI, REUR, RLAM, RNAM,
+# ROCE, ROW), which a country table should not carry, and six are dissolved
+# entities absent from a present-day table by construction. The five that remain
+# — Bermuda, Guam, Nauru, Palau and Tuvalu — exist today, report under their own
+# area codes, and are unclassifiable. Tuvalu is the sharpest:
+# `.energy_ldc_iso3()` lists TUV as least-developed, so the code asserts a
+# classification for a country the table it joins against cannot represent.
+#
+# This WARNS rather than assigning a group. Which GLEAM region Bermuda belongs
+# to is a modelling decision — Oceania is uncontroversial for the other four,
+# "Latin America and the Caribbean" is a poor fit for Bermuda — and it is
+# tracked in whep#415. Nothing here is edited in the source table either: it is
+# parsed from the GLEAM Excel workbook, so adding five rows would make this
+# package's copy diverge from the published source with nothing recording it.
+.warn_areas_gleam_cannot_group <- function() {
+  cw <- as.data.frame(whep::polity_area_crosswalk)
+  keep <- which(
+    !is.na(cw$area_code) &
+      !is.na(cw$area_iso3c) &
+      cw$area_code == cw$polity_area_code &
+      !is.na(cw$polity_end_year) &
+      cw$polity_end_year >= 2020
+  )
+  live <- unique(cw[keep, c("area_iso3c", "area_name")])
+  # Aggregates keep their own bucket too, so exclude anything whose polity is
+  # typed as one rather than filtering on a hand-written list of region codes.
+  agg <- unique(cw$area_iso3c[which(cw$polity_type == "aggregate")])
+  live <- live[!live$area_iso3c %in% agg, , drop = FALSE]
+  missing <- live[
+    !live$area_iso3c %in% gleam_geographic_hierarchy$iso3,
+    ,
+    drop = FALSE
+  ]
+  if (nrow(missing) == 0L) {
+    return(invisible(NULL))
+  }
+  cli::cli_warn(c(
+    "!" = "{nrow(missing)} live reporting areas have no row in
+       {.field gleam_geographic_hierarchy}, so the energy extension cannot
+       group them and they are dropped.",
+    "i" = "Areas: {.val {sort(missing$area_name)}}.",
+    "i" = "Assigning them a GLEAM region is a modelling decision; see whep#415."
+  ))
+  invisible(NULL)
+}
+
 .energy_country_grouping <- function() {
   ldc <- .energy_ldc_iso3()
+  .warn_areas_gleam_cannot_group()
   gleam_geographic_hierarchy |>
     dplyr::transmute(
       iso3 = .data$iso3,

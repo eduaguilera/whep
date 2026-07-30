@@ -84,3 +84,40 @@ test_that("every LDC code names a polity in the database", {
   known <- unique(stats::na.omit(c(pol$iso3_code, pol$iso3c)))
   expect_equal(setdiff(ldc, known), character(0))
 })
+
+test_that("the energy grouping says which live areas it cannot classify", {
+  # Option 2 from whep#415, and the one that is safe whichever way the modelling question
+  # goes: name the drop without inventing a region for it. Previously an area absent from
+  # `gleam_geographic_hierarchy` got no row at all, and a join then lost it in silence.
+  expect_warning(
+    whep:::.energy_country_grouping(),
+    "no row in"
+  )
+  msg <- tryCatch(
+    {
+      withCallingHandlers(
+        whep:::.energy_country_grouping(),
+        warning = function(w) stop(conditionMessage(w), call. = FALSE)
+      )
+      ""
+    },
+    error = function(e) conditionMessage(e)
+  )
+
+  # The five live territories, by name.
+  for (nm in c("Bermuda", "Guam", "Nauru", "Palau", "Tuvalu")) {
+    expect_match(msg, nm, fixed = TRUE)
+  }
+  # And NOT the thirteen that are legitimately absent: a country table should not carry
+  # regional aggregates, and GLEAM is a present-day table so dissolved states have no
+  # business in it. Naming those too would make the warning noise and get it muffled.
+  for (nm in c(
+    "RoW",
+    "Czechoslovakia",
+    "USSR",
+    "Yugoslav SFR",
+    "Belgium-Luxembourg"
+  )) {
+    expect_false(grepl(nm, msg, fixed = TRUE))
+  }
+})
