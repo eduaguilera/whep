@@ -717,7 +717,7 @@
 #'   The third state is most of the non-FAOSTAT sources. Every
 #'   `lassaletta-grassland-share`, `mueller-synthetic-n` and `crops-manure-n` alias
 #'   is `NA`, since those datasets live in THIS package and upstream never sees
-#'   them. Measured here they are anything but inert: 6,082 Lassaletta
+#'   them. Measured here they are anything but inert: 6,781 Lassaletta
 #'   country-years resolve, 184 `crops_manure_n` codes, 156 Mueller codes. They
 #'   were published as `0` until upstream stopped coercing empty to zero, which
 #'   invited exactly the wrong reading, and would have made an inert-alias check

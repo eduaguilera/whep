@@ -228,7 +228,7 @@ test_that("every identity field matches upstream, row by row", {
 # The third state is most of the non-FAOSTAT sources. Every
 # lassaletta-grassland-share, mueller-synthetic-n and crops-manure-n alias is NA,
 # because those datasets live in THIS package and upstream never sees them. Measured
-# here they are the opposite of inert: 6,082 Lassaletta country-years resolve, 184
+# here they are the opposite of inert: 6,781 Lassaletta country-years resolve, 184
 # crops_manure_n codes, 156 Mueller codes. Published as 0, they read as 393 dead
 # aliases, and any check using "observed_rows == 0" as an inertness test would have
 # flagged all 152 of those three sources.
