@@ -868,6 +868,22 @@ cft_to_pft <- c(
 #
 # Rasterize NaturalEarth to a 0.5-degree grid with WHEP area_code.
 
+# iso3c -> area_code from inst/extdata/regions.csv. whep::polities dropped its
+# area_code column in the polity restructure, which silently broke both
+# rasterisation sections against the current schema (#381); this is the
+# canonical replacement, shared so the country grid and the cell x polity
+# crosswalk stay consistent. Verified to reproduce the existing 58,795-cell
+# country_grid pin cell-for-cell with identical codes.
+.spatialize_area_lookup <- function() {
+  path <- system.file("extdata", "regions.csv", package = "whep")
+  regions <- utils::read.csv(path, stringsAsFactors = FALSE)
+  lookup <- regions[
+    !is.na(regions$iso3c) & !is.na(regions$area_code),
+    c("iso3c", "area_code")
+  ]
+  lookup[!duplicated(lookup$iso3c), ]
+}
+
 prepare_country_grid <- function(l_files_dir, target_res) {
   cli::cli_h2("Section 1: Country grid")
 
@@ -878,8 +894,6 @@ prepare_country_grid <- function(l_files_dir, target_res) {
     "ne_10m_admin_0_countries.shp"
   )
   countries <- terra::vect(shp_path)
-  polities <- whep::polities
-
   iso_raw <- as.character(countries$ISO_A3)
   iso_eh <- as.character(countries$ISO_A3_EH)
   iso_adm <- as.character(countries$ADM0_A3)
@@ -889,12 +903,11 @@ prepare_country_grid <- function(l_files_dir, target_res) {
     dplyr::if_else(iso_eh != "-99", iso_eh, iso_adm)
   )
 
-  ne_data <- tibble::tibble(iso3c = iso3c) |>
-    dplyr::left_join(
-      dplyr::select(polities, "iso3c", "area_code"),
-      by = "iso3c"
-    )
-  countries$area_code <- ne_data$area_code
+  countries$area_code <- dplyr::left_join(
+    tibble::tibble(iso3c = iso3c),
+    .spatialize_area_lookup(),
+    by = "iso3c"
+  )$area_code
 
   ref <- terra::rast(
     resolution = target_res,
@@ -907,9 +920,13 @@ prepare_country_grid <- function(l_files_dir, target_res) {
   cli::cli_alert_info("Rasterizing shapefile to {target_res}-degree grid")
   grid_rast <- terra::rasterize(countries, ref, field = "area_code")
 
+  # Coerce to integer BEFORE dropping NA: terra writes its integer NoData as the
+  # sentinel -2147483648, which is not NA, so filtering first would leave those
+  # ocean/unassigned cells in and only NA them at as.integer(). as.integer()
+  # maps the sentinel to NA, then the filter drops it (#381).
   result <- .raster_to_tibble(grid_rast, "area_code") |>
-    dplyr::filter(!is.na(area_code)) |>
-    dplyr::mutate(area_code = as.integer(area_code))
+    dplyr::mutate(area_code = as.integer(area_code)) |>
+    dplyr::filter(!is.na(area_code))
 
   cli::cli_alert_success("country_grid: {nrow(result)} cells")
   result
@@ -927,6 +944,7 @@ prepare_country_grid <- function(l_files_dir, target_res) {
 
 build_cell_polity_fraction <- function(
   l_files_dir,
+  country_grid,
   target_res = 0.5,
   subcells = 6L
 ) {
@@ -938,7 +956,6 @@ build_cell_polity_fraction <- function(
     "ne_10m_admin_0_countries.shp"
   )
   countries <- terra::vect(shp_path)
-  polities <- whep::polities
   iso_raw <- as.character(countries$ISO_A3)
   iso_eh <- as.character(countries$ISO_A3_EH)
   iso_adm <- as.character(countries$ADM0_A3)
@@ -947,11 +964,27 @@ build_cell_polity_fraction <- function(
     iso_raw,
     dplyr::if_else(iso_eh != "-99", iso_eh, iso_adm)
   )
-  countries$area_code <- dplyr::left_join(
+  # Same iso3c -> area_code lookup as the country grid (regions.csv), so the
+  # crosswalk covers exactly the same countries as the simulated grid.
+  matched <- dplyr::left_join(
     tibble::tibble(iso3c = iso3c),
-    dplyr::select(polities, "iso3c", "area_code"),
+    .spatialize_area_lookup(),
     by = "iso3c"
   )$area_code
+  countries$area_code <- matched
+  n_features <- length(matched)
+  n_matched <- sum(!is.na(matched))
+  cli::cli_alert_info(
+    "iso3c -> area_code: matched {n_matched} of {n_features} country features"
+  )
+  if (n_matched < n_features) {
+    unmatched <- sort(unique(iso3c[is.na(matched) & iso3c != "-99"]))
+    cli::cli_warn(c(
+      "!" = "{length(unmatched)} country feature{?s} had no area_code and
+        contribute no cells.",
+      i = "Unmatched iso3c: {unmatched}."
+    ))
+  }
 
   ref <- terra::rast(
     resolution = target_res / subcells,
@@ -968,11 +1001,29 @@ build_cell_polity_fraction <- function(
   ]
   d[, lat := floor((lat + 90) / target_res) * target_res - 90 + target_res / 2]
   counts <- d[, .(n = .N), by = .(lon, lat, area_code)]
+  # Coerce to the integer polity code and drop any subcells that carry no valid
+  # code, before the fraction is normalised, so the crosswalk never emits an NA
+  # area_code and the surviving fractions still sum to 1.
+  counts[, area_code := as.integer(area_code)]
+  counts <- counts[!is.na(area_code)]
+  # Restrict to the simulated model grid: without this the Natural Earth land
+  # mask (Antarctica, small territories, etc.) injects cells LPJmL never
+  # simulates, which arrive downstream with non-finite drainage (see #381). The
+  # cell filter keeps every polity fragment of a retained cell.
+  grid_cells <- unique(
+    data.table::as.data.table(country_grid)[, .(lon, lat)]
+  )
+  before <- nrow(unique(counts[, .(lon, lat)]))
+  counts <- merge(counts, grid_cells, by = c("lon", "lat"))
+  after <- nrow(unique(counts[, .(lon, lat)]))
+  cli::cli_alert_info(
+    "restricted crosswalk to the simulated grid: {before} -> {after} cells"
+  )
+  # Renormalise so each retained cell's polity fractions still sum to 1 after
+  # dropping unassigned subcells.
   counts[, polity_frac := n / sum(n), by = .(lon, lat)]
   cli::cli_alert_success("cell x polity: {nrow(counts)} (cell, polity) rows")
-  tibble::as_tibble(
-    counts[, .(lon, lat, area_code = as.integer(area_code), polity_frac)]
-  )
+  tibble::as_tibble(counts[, .(lon, lat, area_code, polity_frac)])
 }
 
 
@@ -6258,6 +6309,15 @@ prepare_spatialize_all <- function(
   # Section 1: Country grid
   country_grid <- prepare_country_grid(l_files_dir, target_res)
   .save_parquet(country_grid, output_dir, "country_grid")
+
+  # Section 1b: Cell x polity fractions (fractional crosswalk for the balance
+  # modules; build_cell_polity() reads this parquet).
+  cell_polity_fraction <- build_cell_polity_fraction(
+    l_files_dir,
+    country_grid,
+    target_res
+  )
+  .save_parquet(cell_polity_fraction, output_dir, "cell_polity_fraction")
 
   # Section 5: MIRCA irrigation (run before country_areas so MIRCA
   # is available on the first pass)
