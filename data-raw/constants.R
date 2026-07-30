@@ -44,11 +44,21 @@ faostat_group_code_min <- as.integer(unmapped$group_code_min)
 faostat_deliberate_area_codes <- sort(as.integer(
   unmapped$deliberate_area_codes
 ))
+# Regional groups whose code sits BELOW the threshold, so `code >= group_code_min`
+# misses them. Kept separate from the deliberate non-mappings because they are a
+# different fact: 351 China is a decision not to route an aggregate that would
+# double-count its components, while 420 Sub-Saharan Africa is simply a group with a
+# low code. Read from the manifest rather than hardcoded, for the same reason the other
+# two are.
+faostat_subthreshold_groups <- sort(as.integer(
+  unmapped$subthreshold_group_codes
+))
 
 usethis::use_data(
   k_tonnes_per_livestock_unit,
   faostat_group_code_min,
   faostat_deliberate_area_codes,
+  faostat_subthreshold_groups,
   internal = TRUE,
   overwrite = TRUE
 )

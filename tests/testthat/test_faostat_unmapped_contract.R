@@ -55,3 +55,94 @@ testthat::test_that("the embedded constants match the upstream manifest", {
     as.integer(published$deliberate_area_codes)
   )
 })
+
+# A THRESHOLD IS A RULE OF THUMB, AND FAOSTAT BREAKS IT. `code >= group_code_min`
+# covers the main regional groups -- World 5000, the continents, the income bands -- but
+# is not exhaustive: the emissions domains carry aggregates inside the country range.
+#
+# 420 "Sub-Saharan Africa" is 14,427 rows of faostat-emissions-livestock, 0.6% of that
+# pin, and it was classified as "an area code this project does not know" on every real
+# build. That is the WARNING bucket, and the point of having three buckets is that this
+# one means something is wrong.
+#
+# Found by running a build, not by reading code, and only visible because the unknown
+# bucket warns while the other two inform. The full sweep of that pin: 39 unmapped codes,
+# 38 proper groups at or above the threshold, and exactly this one below it.
+#
+# Published separately from `deliberate_area_codes` because the two are different facts
+# that happen to share an effect. 351 China is a DECISION -- it is reported alongside its
+# own components, so routing it anywhere would double-count. 420 is simply a group with a
+# low code. A consumer cannot tell them apart from the numbers, which is why upstream
+# names both.
+testthat::test_that("subthreshold FAOSTAT groups are classified as groups, not unknowns", {
+  sub_groups <- whep:::faostat_subthreshold_groups
+  testthat::expect_true(is.numeric(sub_groups))
+  testthat::expect_true(420L %in% sub_groups)
+
+  # Must be below the threshold, or it would need no exception and the list would be
+  # silently redundant.
+  testthat::expect_true(all(sub_groups < whep:::faostat_group_code_min))
+
+  # And disjoint from the deliberate non-mappings: a code in both would mean upstream
+  # is asserting two different reasons for the same drop.
+  testthat::expect_equal(
+    length(intersect(sub_groups, whep:::faostat_deliberate_area_codes)),
+    0L
+  )
+})
+
+testthat::test_that("the embedded subthreshold list matches the manifest", {
+  path <- Sys.getenv(
+    "WHEP_POLITIES_MANIFEST",
+    unset = path.expand("~/whep-polities/data/final/polities_manifest.json")
+  )
+  testthat::skip_if_not(
+    file.exists(path),
+    "upstream manifest unavailable; cannot check the embedded copy for drift"
+  )
+  mf <- jsonlite::fromJSON(path, simplifyVector = TRUE)
+  upstream <- sort(as.integer(
+    mf$faostat_unmapped_areas$subthreshold_group_codes
+  ))
+  testthat::expect_equal(
+    sort(as.integer(whep:::faostat_subthreshold_groups)),
+    upstream,
+    info = "rerun data-raw/constants.R and commit R/sysdata.rda"
+  )
+})
+
+testthat::test_that("the drop classifier puts a subthreshold group in the group bucket", {
+  # Exercised through the real function rather than by reimplementing its arithmetic,
+  # since the defect was in which bucket a code lands in, not in the buckets themselves.
+  dt <- data.table::data.table(
+    area_code = c(420L, 5000L, 351L, 421L, 68L),
+    polity_area_code = c(NA, NA, NA, NA, 68L)
+  )
+  msgs <- character(0)
+  warns <- character(0)
+  withCallingHandlers(
+    whep:::.warn_unmapped_codes(dt, "polity_area_code", "area_code", "test"),
+    message = function(cond) {
+      msgs <<- c(msgs, conditionMessage(cond))
+      invokeRestart("muffleMessage")
+    },
+    warning = function(cond) {
+      warns <<- c(warns, conditionMessage(cond))
+      invokeRestart("muffleWarning")
+    }
+  )
+  all_msgs <- paste(msgs, collapse = " ")
+  all_warns <- paste(warns, collapse = " ")
+
+  # 420 must be reported as a group, and NOT as an unknown. Named explicitly in the
+  # message because the count alone used to carry the text "(>= 5000)", which stopped
+  # being true the moment a below-threshold code joined the bucket.
+  testthat::expect_true(grepl("420", all_msgs))
+  testthat::expect_false(grepl("420", all_warns))
+  testthat::expect_true(grepl("below 5000", all_msgs))
+  # 421 is below the threshold and in no upstream list, so it must STILL warn -- the
+  # fix had to correct the bucket, not silence it. Chosen deliberately over a code like
+  # 999999, which is above the threshold and would have been classed a group by the
+  # rule itself, making the assertion vacuous.
+  testthat::expect_true(grepl("421", all_warns))
+})

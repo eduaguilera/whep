@@ -481,8 +481,18 @@ build_detailed_trade <- function(
   # measured against real production, "deliberate" inferred from crosswalk membership — and neither
   # inference could distinguish a decision from an absence.
   group_min <- faostat_group_code_min
-  groups <- rest[rest >= group_min]
-  unknown <- rest[rest < group_min]
+  # A threshold is a rule of thumb, and FAOSTAT breaks it. `>= 5000` covers the main
+  # groups (World, the continents, the income bands) but the emissions domains carry
+  # aggregates in the country range: 420 "Sub-Saharan Africa" is 14,427 rows of
+  # faostat-emissions-livestock, and it was reported as "an area code this project does
+  # not know" on every real build until upstream published the exception list.
+  #
+  # Found by running a build rather than by reading, and only visible because the
+  # unknown bucket is a WARNING while the other two are informational -- the whole point
+  # of separating them.
+  sub_groups <- faostat_subthreshold_groups
+  groups <- rest[rest >= group_min | rest %in% sub_groups]
+  unknown <- rest[rest < group_min & !rest %in% sub_groups]
 
   if (length(deliberate) > 0) {
     cli::cli_inform(
@@ -492,9 +502,26 @@ build_detailed_trade <- function(
     )
   }
   if (length(groups) > 0) {
+    # Name the below-threshold ones explicitly. The count alone used to be followed by
+    # "(>= 5000)", which stopped being true once 420 joined the bucket, and a reader
+    # checking why a low code was treated as a group would have found a message
+    # asserting the opposite. The main groups stay a count, because a real build drops
+    # 38 of them and listing those is noise.
+    low <- sort(groups[groups < group_min])
+    low_note <- if (length(low) > 0) {
+      paste0(
+        " Includes ",
+        paste(low, collapse = ", "),
+        ", which upstream lists as a group despite being below ",
+        group_min,
+        "."
+      )
+    } else {
+      ""
+    }
     cli::cli_inform(
       "{stringr::str_to_sentence(role)}: dropping {length(groups)} FAOSTAT regional
-       group code{?s} (>= {group_min}), which are not territories."
+       group code{?s}, which are not territories.{low_note}"
     )
   }
   if (length(unknown) > 0) {
