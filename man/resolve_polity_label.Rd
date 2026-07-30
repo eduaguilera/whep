@@ -10,28 +10,31 @@ resolve_polity_label(label, source = NULL, year = NULL)
 \item{label}{Character vector of source labels.}
 
 \item{source}{Optional source slug (e.g. \code{"lassaletta-grassland-share"}).
-Length 1, or the same length as \code{label}. \code{NULL} matches unscoped aliases
-only — 167 of 869, so a \code{NULL} source also narrows the answer sharply.}
+Length 1, or the same length as \code{label}. On the alias route \code{NULL} matches
+unscoped aliases only — 171 of 869 — so a \code{NULL} source narrows that route
+sharply; the name route then gets its turn, subject to the guards above.}
 
 \item{year}{Optional integer vector of years. Length 1, or the same length as
-\code{label}. \code{NULL} matches aliases with no year scope only — which is 17 of the
-869 published aliases, so omitting \code{year} returns \code{NA} for almost every
-label. That is the documented behaviour rather than a bug, but it looks
-exactly like "this label is unknown", so supply a year unless you
-specifically want the unscoped rules.}
+\code{label}. On the alias route \code{NULL} matches aliases with no year scope only,
+which is the 17 of 869 published aliases carrying NEITHER bound — an
+eighteenth is bounded on one side only, and is scoped, not unscoped. The
+name route can still answer
+without a year, but only for a name exactly one polity has ever carried, so
+supplying a year remains much the stronger question: it is what lets a
+label resolve to the right \emph{period} rather than to nothing.}
 }
 \value{
 A character vector of polity codes, \code{NA} where nothing matched.
 }
 \description{
-Maps a country or area \strong{label}, as a source writes it, to a WHEP polity
-code. This complements \code{\link[=add_polity_code]{add_polity_code()}}, which resolves numeric FAOSTAT
-area codes: before this existed there was no supported path from a label to a
-polity, so datasets carrying labels went unresolved. \code{mueller_synthetic_n}'s
-\code{iso3c} column holds FAO-style legacy codes (\code{"BZE"} for Belize, \code{"ROM"} for
-Romania, \code{"ZAR"} for Zaire) and \code{lassaletta_grassland_share}'s \code{Country} holds
-name variants (\code{"Cape Verde"}, \code{"Swaziland"}), none of which resolve against
-\link{polities} directly.
+Maps a country or area \strong{label}, as a source writes it, to a
+WHEP polity code. This complements \code{\link[=add_polity_code]{add_polity_code()}}, which resolves
+numeric FAOSTAT area codes: before this existed there was no supported path
+from a label to a polity, so datasets carrying labels went unresolved.
+\code{mueller_synthetic_n}'s \code{iso3c} column holds FAO-style legacy codes (\code{"BZE"}
+for Belize, \code{"ROM"} for Romania, \code{"ZAR"} for Zaire) and
+\code{lassaletta_grassland_share}'s \code{Country} holds name variants (\code{"Cape Verde"},
+\code{"Swaziland"}), none of which resolve against \link{polities} directly.
 }
 \details{
 The mapping is \link{polity_label_aliases}, a copy of the map published by
@@ -53,11 +56,27 @@ Where several aliases match, the most specific wins: year-scoped over
 unscoped, then source-scoped, then the narrower year range. That ordering
 mirrors \code{matchlib.Matcher.match_alias} upstream, so both sides agree.
 
-Returns \code{NA} when no alias matches, which is a real answer rather than a
-failure. Some labels are aggregates a source keeps reporting after the
-territory stopped existing — \code{"FSU"} runs to 2009 though nothing has held that
-territory since 1991 — and those years are deliberately unmapped rather than
-routed to a polity that had ended.
+Where no alias applies, a second route tries the polity's own
+\code{polity_name}, mirroring upstream's "alias, then ISO/name family + year
+containment". Without it a caller passing the database's own name for a
+polity got \code{NA}: \code{resolve_polity_label("Netherlands")} found nothing while
+\link{polities} carried a polity named exactly that. Two guards bound it.
+\itemize{
+\item A name resolves only when \strong{exactly one} polity carries it in the year
+asked about. 52 pairs of polities share a normalised name and overlap in
+years, so row order would otherwise decide, and \code{NA} is the honest answer.
+\item An alias covering that year outranks the name whatever its source. Every
+alias for \code{"djibouti"} routes to the French Somaliland family, so the name
+route may not answer \code{DJI-1886-2025} over it. Outside its own span a
+year-ranged alias is silent rather than contradicted, so \code{"natal"} in 1900
+still reaches \code{NAT-1895-1910}.
+}
+
+Returns \code{NA} when neither route resolves, which is a real answer rather than
+a failure. Some labels are aggregates a source keeps reporting after the
+territory stopped existing — \code{"FSU"} runs to 2009 though nothing has held
+that territory since 1991 — and those years are deliberately unmapped rather
+than routed to a polity that had ended.
 }
 \examples{
 resolve_polity_label("ZAR", source = "mueller-synthetic-n", year = 2000)

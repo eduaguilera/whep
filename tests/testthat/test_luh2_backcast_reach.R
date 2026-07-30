@@ -10,6 +10,21 @@
 # areas, 187 reachable, 8 not — and those 8 carry 11.91% OF PRODUCTION VALUE. This is not
 # a rounding gap, and the size is why it is pinned rather than noted.
 #
+# A FULL-RANGE BUILD SAYS NINE, AND THAT DOES NOT CONTRADICT THIS. Two differences, both
+# in what is being counted rather than in what is broken:
+#
+#   window  the warning fires on every row with year <= 1961, so a full build's "pre-1962"
+#           is 1850-1961, where historical sources report territories that no longer exist
+#           by 1961. Rebuilt over 1959-1965 the warning says 8, matching this list exactly.
+#   space   the warning counts distinct `area` NAMES; this test counts unreachable
+#           `polity_area_code`s. An area with no crosswalk row has NA for the code and
+#           drops out of a setdiff, while its name survives — so the two need not agree
+#           even on one window.
+#
+# The second difference is the one worth watching: it means this test is blind to exactly
+# the areas that are hardest to reach, and a count taken in name space is the stricter
+# measure of the two.
+#
 # Two classes, and only one is the documented one:
 #
 #   dissolved federations   15 Belgium-Luxembourg, 51 Czechoslovakia, 228 USSR,

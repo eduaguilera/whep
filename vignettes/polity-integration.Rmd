@@ -67,8 +67,8 @@ numeric key.
 
 ## Resolving a label
 
-`resolve_polity_label()` needs **both** a source and a year. Aliases are source-scoped and
-year-ranged, so omitting either silently returns `NA` rather than erring:
+`resolve_polity_label()` tries two routes in order: the alias map first, then the polity's
+own name. Aliases are source-scoped and year-ranged, so naming both gets the curated answer:
 
 ```{r}
 resolve_polity_label(
@@ -79,8 +79,49 @@ resolve_polity_label(
 ```
 
 ```{r}
-# Without a year, nothing resolves — the aliases are all year-ranged.
+# Without a year, a year-ranged alias cannot match, and no polity is NAMED
+# "Ivory Coast" — the database calls it "Côte d'Ivoire".
 resolve_polity_label("Ivory Coast", source = "faostat")
+```
+
+The name route exists because the database's own names were unreachable through the alias
+map. `resolve_polity_label("Netherlands")` returned `NA` while `polities` carried a polity
+named exactly that, so a caller spelling an area the ordinary way got nothing:
+
+```{r}
+resolve_polity_label(
+  c("Netherlands", "Tanzania", "United Kingdom"),
+  year = 2000L
+)
+```
+
+Two guards decide when a name may answer, and both matter more than they look.
+
+A name resolves only when **exactly one** polity carries it in the year asked about. 52 pairs
+of polities share a normalised name and overlap in years: `polity_name` carries parenthesised
+qualifiers like `"Zimbabwe (1900-1953)"` which normalisation drops, and nested periodisations
+put two live candidates in one year. Picking by row order would invent an answer.
+
+```{r}
+# Two Peru periods cover 1865, so the name alone cannot say which.
+resolve_polity_label(c("Peru", "Netherlands"), year = 1865L)
+```
+
+And a curated rule covering that year outranks the name, whatever its source. Every alias for
+`"djibouti"` routes to the French Somaliland family, so the name route is not allowed to
+answer `DJI-1886-2025` over it:
+
+```{r}
+resolve_polity_label("djibouti", year = 1961L)
+resolve_polity_label("burundi", source = "iia", year = 1930L)
+```
+
+Outside its own span a year-ranged rule is silent rather than contradicted, so the name
+answers there:
+
+```{r}
+# natal's only alias covers 1910-1957; Morocco's start at 1961.
+resolve_polity_label(c("natal", "Morocco"), year = 1900L)
 ```
 
 ## Three columns look like an area name; one is safe
@@ -103,6 +144,36 @@ vapply(
 A lot of code joins on `c("year", "area", ...)`, and using either non-canonical column loses rows
 silently — an unmatched join yields `NA`, not an error. Two inputs had exactly that defect:
 `gdp-population` lost 6.4% of its rows and the fodder bridge 13.3%.
+
+## A source that spells an area its own way
+
+`add_area_code()` matched the crosswalk's `area_name` exactly, and the crosswalk carries
+FAOSTAT long forms. Any source using an ordinary short form got `NA` even though the code was
+sitting there — `"Netherlands"` against `"Netherlands (Kingdom of the)"`, `"Tanzania"` against
+`"United Republic of Tanzania"`. Names the exact join cannot match now route through this
+database instead, so both spellings reach the same code:
+
+```{r}
+add_area_code(
+  tibble::tibble(
+    area = c("Netherlands", "Netherlands (Kingdom of the)", "Dummy Country"),
+    year = 2000L
+  ),
+  name_column = "area"
+)
+```
+
+The fallback fills `NA` only, so the crosswalk stays authoritative wherever it has an answer
+and this cannot move data that already matched. It is year-aware because the answer depends on
+the year: `"Czech Republic"` is Czechia (area 167) from 1993 and Czechoslovakia (area 51)
+before it.
+
+`get_primary_residues()` is the one builder that resolves its areas by name, and it measures
+what this was worth. Of 475,688 residue rows, 44,985 (9.5%) carried no area code across 14
+labels. Routing unmatched names through the polities database recovered 34,963 of them;
+rescoping four aliases upstream from `source=faostat` to blanket recovered another 9,822. What
+remains is 200 rows — 0.04% — all Tanzania 1961-1964, held up by the `TAN-1922-1964`
+code/column disagreement that whep-polities baselines rather than guesses at.
 
 ## Datasets that are not keyed by a FAOSTAT area
 

@@ -62,12 +62,25 @@ testthat::test_that("labels that still do not resolve are all explainable", {
   #
   # Bidirectional on purpose: a NEW unresolved label fails, and a baselined one that
   # starts resolving fails too, so the list can only shrink deliberately.
+  #
+  # It shrank by six when `resolve_polity_label()` gained a canonical-name route. Bermuda,
+  # Guadeloupe, Guam, Martinique and both spellings of Reunion are named by a polity but by
+  # no alias, and none of them appears in the crosswalk under these labels either — which
+  # is precisely why they used to resolve to nothing. Both Reunion spellings now answer to
+  # REU-1946-2025, since normalisation folds the accent.
+  #
+  # "China" STAYED, and it is the one that had to be argued rather than accepted. The name
+  # route resolved it to CHN-1950-2025 "China (PRC)", because normalisation drops
+  # parenthesised qualifiers. But this label is area 351, the AGGREGATE of mainland (41),
+  # Hong Kong (96), Macao (128) and Taiwan (214), each reporting separately — so answering
+  # with the mainland polity double-counts against its own components. Upstream publishes
+  # 351 as deliberately unmapped, the resolver now refuses names of such areas, and the
+  # label is unresolved for the same reason it always was.
   baseline <- c(
     "Anguilla",
     "Antarctica",
     "Aruba",
     "Belgium-Luxembourg",
-    "Bermuda",
     "Bouvet Island",
     "British Indian Ocean Territory",
     "Canton and Enderbury Islands",
@@ -80,12 +93,9 @@ testthat::test_that("labels that still do not resolve are all explainable", {
     "Ethiopia PDR",
     "French Southern and Antarctic Territories",
     "Gibraltar",
-    "Guadeloupe",
-    "Guam",
     "Heard and McDonald Islands",
     "Holy See",
     "Johnston Island",
-    "Martinique",
     "Mayotte",
     "Midway Island",
     "Netherlands Antilles",
@@ -94,8 +104,6 @@ testthat::test_that("labels that still do not resolve are all explainable", {
     "Others (adjustment)",
     "Pacific Islands Trust Territory",
     "Pitcairn Islands",
-    "Reunion",
-    "Réunion",
     "RoW",
     "Saint Helena, Ascension and Tristan da Cunha",
     "Saint-Martin (French Part)",
