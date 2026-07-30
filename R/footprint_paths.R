@@ -18,7 +18,12 @@
 #' @param extensions Numeric vector of environmental extensions per sector.
 #' @param labels Tibble with `area_code` and `item_cbs_code` mapping sectors.
 #' @param fd_labels Tibble labelling Y columns, from [build_io_model()].
-#' @param origin_area Optional area code vector limiting origin sectors.
+#' @param origin_area Optional vector limiting origin sectors, compared against
+#'   `labels$area_code`. That is the LEGACY numeric area code, not
+#'   `polity_area_code` — the two differ for 17 areas that keep their own
+#'   aggregation key while FABIO folds them into rest-of-world, so passing the
+#'   wrong one silently returns no rows rather than erroring. Resolve a polity to
+#'   its area codes through [polity_area_crosswalk] if you have a polity in hand.
 #' @param origin_item Optional item code vector limiting origin sectors.
 #' @param output_tol Minimum output considered valid when computing extension
 #'   intensities.

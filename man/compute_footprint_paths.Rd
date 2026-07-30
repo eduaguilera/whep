@@ -32,7 +32,12 @@ compute_footprint_paths(
 
 \item{fd_labels}{Tibble labelling Y columns, from \code{\link[=build_io_model]{build_io_model()}}.}
 
-\item{origin_area}{Optional area code vector limiting origin sectors.}
+\item{origin_area}{Optional vector limiting origin sectors, compared against
+\code{labels$area_code}. That is the LEGACY numeric area code, not
+\code{polity_area_code} — the two differ for 17 areas that keep their own
+aggregation key while FABIO folds them into rest-of-world, so passing the
+wrong one silently returns no rows rather than erroring. Resolve a polity to
+its area codes through \link{polity_area_crosswalk} if you have a polity in hand.}
 
 \item{origin_item}{Optional item code vector limiting origin sectors.}
 
