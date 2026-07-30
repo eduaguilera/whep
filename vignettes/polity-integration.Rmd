@@ -350,18 +350,54 @@ tests do that, one at a time. And the upstream contract tests **skip** without t
 why the pre-push harness runs them explicitly with all five inputs pointed at one checkout: a skipped contract
 test and a passing one look identical in a summary line.
 
+## One gap that looks like five
+
+Four polities account for most of the separate-looking gaps below, and finding that out took
+five independent discoveries, so it is stated once here rather than left to be rediscovered:
+
+| polity | area |
+|---|---|
+| `F51-1947-1993` | Czechoslovakia |
+| `F228-1945-1991` | USSR |
+| `F248-1991-1992` | Yugoslav SFR |
+| `SCG-1992-2006` | Serbia and Montenegro |
+
+They report data, they carry **11.88% of production value at 1961**, and every present-day
+reference table excludes them — correctly, because they no longer exist:
+
+- no LUH2 land series, so their pre-1961 production is not back-cast (`test_luh2_backcast_reach.R`)
+- no row in GLEAM's country table, so the energy extension cannot group them
+  (`test_gleam_hierarchy_coverage.R`)
+- no assignment in six region schemes — UN sub-region, ILO 1–3, IEA, IPCC
+  (`test_region_classifications.R`)
+- no `iso3_code` in the polities database for three of the four, while the package's own tables
+  reference `CSK` and `SUN` — and the database is inconsistent here, since Zaire's twelve polities
+  all carry their successor's `COD` (lbm364dl/whep-polities#55)
+
+The single cause is that a dissolved state has no present-day identifier to join on, and each
+downstream table solves that by omission. So the practical rule for a reader: **any aggregation
+that groups by a present-day classification silently loses roughly a tenth of the 1961 record**,
+and it will not warn. The tests above pin the four by identity so that a *live* country joining
+that set surfaces as a change rather than hiding inside a count.
+
 ## Where the gaps are
 
 Stated rather than hidden, because each is a real limit on what the data can say:
 
-- **Rest-of-world folding.** Areas with no data of their own fold into a `ROW-*` polity, which is
-  what FABIO does. Areas that *do* report data are excluded from the fold, decided by the
-  `observed_rows` column of the published alias map.
-- **Pre-1961 back-casting** needs a LUH2 land series per area. The French overseas departments
-  have none — LUH2 folds *départements* into France — so their earlier production is not
-  back-cast rather than being estimated from an aggregate.
-- **IPCC regions** come from the GLEAM hierarchy, which does not cover 59 of the areas carrying
-  an ISO3. Those use the `Global` coefficient, which covers every category.
+- **Rest-of-world folding, and it is not resolved.** Areas FABIO folds into rest-of-world take a
+  `ROW-*` polity. Sixteen of them report data of their own, so that data is attributed to
+  `ROW-1850-2023` — the Faroe Islands' 2,458 production rows, Palestine's 9,606. At the *polity*
+  level they are excluded from the fold, decided by the `observed_rows` column of the published
+  alias map; at the **numeric** level (`polity_area_code`), which is what the builds aggregate on,
+  they still fold. That split is deliberate and measured: promoting them numerically inflates
+  global `feed` **13.7×**, with the whole increase landing on one area. The cost of not promoting
+  them is measured too — 1,389,871 t of feed demand dropped for want of a Bouwman region on RoW.
+  See whep#419; neither figure is a rounding error and the choice is a modelling decision.
+- **Pre-1961 back-casting** needs a LUH2 land series per area, and the four dissolved federations
+  have none (below).
+- **IPCC regions** come from the GLEAM hierarchy, which does not cover 59 of the 263 areas that
+  carry both an ISO3 and an `area_code` (65 of 269 if areas with no `area_code` are counted).
+  Those use the `Global` coefficient, which covers every category.
 - **Reporting buckets** (`RLAM-1850-2013` and the other regional "Other" rows) end before the
   data does, so their most recent years resolve to nothing.
 - **Most of the crosswalk is unreachable, by design.** The crosswalk deliberately carries whole
