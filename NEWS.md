@@ -59,6 +59,18 @@
   so aborting refuses to build a pipeline that has always had them. Choosing
   sum-vs-first at the cast changes published numbers: #418.
 
+* **`urban_n_reference$area_code` is now an integer FAOSTAT code, not the ISO3 string
+  `"ESP"`** (#401). Every other `area_code` in the package is a numeric FAOSTAT code --
+  the same workflow's own toy example uses `203L` for Spain -- so one concept was keyed
+  two ways and this series could not be joined to any area-keyed table without a hand
+  conversion the column name gave no hint was needed. A breaking type change, and listed
+  as one, though nothing in the package joins this series: it is a benchmark a reader
+  compares against by hand, which is why the column could hold a string for as long as
+  it did and why the fix changes no output. Converted in `data-raw/` rather than in the
+  vendored CSV, which would diverge from its source, and resolved through the crosswalk
+  rather than by writing `203` as a literal -- so a renamed or re-coded territory
+  surfaces as an error instead of a wrong join.
+
 * Missing `iso3_code` and `cow_code` in `polities` are now real `NA`. They were the
   literal string `"NA"`, which upstream has since normalised to NULL at the source,
   so this now holds for `iso3_code` (82 rows), `cow_code` (216) and
