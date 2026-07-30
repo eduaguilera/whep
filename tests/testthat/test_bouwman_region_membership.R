@@ -123,3 +123,59 @@ testthat::test_that("only accounting residuals lack a Bouwman region", {
     )
   )
 })
+
+# The vocabulary tests above establish that nine areas carry no Bouwman region and that
+# eight of them legitimately cannot. What they do not establish is whether it MATTERS —
+# and the feed mix has a warning saying it does:
+#
+#   No Bouwman region for {n} area(s): {dropped} t of feed demand is dropped from the mix.
+#
+# That warning has never fired in any smoke run, and this is why: no livestock production
+# lands on a region-less area at all. Measured on a real 1990-1991 build — 24,351
+# livestock rows, ZERO of them on any of the nine, 0.0000% of livestock value.
+#
+# So the gap is LATENT rather than live, which is the distinction that decides whether a
+# missing region is a defect or a correct exemption. Antarctica has no Bouwman region and
+# no livestock; the continental "Other" buckets have neither. If that ever stops being
+# true the feed mix silently drops the demand, with a warning nobody reads, so it is
+# asserted here instead.
+#
+# Real pins, so it skips on CI, and the skip is listed in the local gate's inventory
+# rather than being silent.
+testthat::test_that("no livestock production lands on an area without a Bouwman region", {
+  testthat::skip_on_ci()
+  prod <- tryCatch(
+    suppressWarnings(suppressMessages(
+      build_primary_production(start_year = 1990, end_year = 1991)
+    )),
+    error = function(e) NULL
+  )
+  testthat::skip_if(is.null(prod), "production pins unavailable")
+  prod <- as.data.frame(prod)
+
+  cw <- as.data.frame(whep::polity_area_crosswalk)
+  coded <- cw[which(!is.na(cw$area_code)), ]
+  by_area <- split(coded$region, coded$area_code)
+  regionless <- as.integer(names(
+    by_area[vapply(by_area, function(v) all(is.na(v)), logical(1))]
+  ))
+  testthat::expect_gt(length(regionless), 5L)
+
+  livestock <- prod[which(!is.na(prod$live_anim_code)), ]
+  # Non-vacuous: no livestock rows at all would make the assertion below meaningless.
+  testthat::expect_gt(nrow(livestock), 1000L)
+
+  stranded <- livestock[which(livestock$polity_area_code %in% regionless), ]
+  testthat::expect_equal(
+    nrow(stranded),
+    0L,
+    info = paste0(
+      "livestock production on areas with no Bouwman region, whose feed demand the ",
+      "mix drops: ",
+      paste(
+        utils::head(sort(unique(stranded$polity_area_code)), 10),
+        collapse = ", "
+      )
+    )
+  )
+})
