@@ -377,41 +377,45 @@ alias_observed <- polity_label_aliases |>
   ) |>
   dplyr::distinct(source_label = .data$source_label)
 
+# Every label of a polity that has data under ANY of its labels. `observed_rows` is
+# counted per LABEL, so a renamed country files its count on the name the area is not
+# called: area 209 is "Eswatini" in both label columns while its 180,663 rows sit on
+# "Swaziland", same polity SWZ-1894-2025. Label matching alone therefore left Eswatini
+# folded into FABIO's rest-of-world bucket while three areas unfolded in the same change
+# took their own codes — and that asymmetry produced a cross-territory denominator in the
+# livestock split shares.
+alias_observed_via_polity <- polity_label_aliases |>
+  dplyr::filter(!startsWith(.data$polity_code, "ROW-")) |>
+  dplyr::filter(
+    .data$polity_code %in%
+      polity_label_aliases$polity_code[which(
+        !is.na(polity_label_aliases$observed_rows) &
+          polity_label_aliases$observed_rows > 0
+      )]
+  ) |>
+  dplyr::distinct(source_label = .data$source_label)
+
 # Match on EITHER label column, not just FAOSTAT_name. Bermuda (17) and Palau (180)
 # carry the literal Excel error string "#N/A" there while their `name` column is
 # correct, so a FAOSTAT_name-only join silently left both folded — 67,310 and 9,051
 # observed rows respectively — and the fix looked like it worked because the other nine
 # areas moved.
 #
-# RENAMED COUNTRIES DEFEAT LABEL MATCHING, and one does today. Area 209 is named
-# "Eswatini" in both label columns, while the 180,663 observed rows sit on the alias
-# "Swaziland" — same polity, SWZ-1894-2025, two labels, and the count attached to the one
-# the area is not called. So Eswatini stayed folded into FABIO's rest-of-world bucket
-# while three areas unfolded in the same change took their own codes, and that asymmetry
-# produced a real defect one layer down: bucket 999 held both rest-of-world and Eswatini,
-# so livestock split shares divided Eswatini's broilers by an Eswatini-plus-rest-of-world
-# total.
+# TWO ROUTES, UNIONED, and the second is gated on `cbs`. Expanding to any label of a
+# data-carrying polity is too broad on its own: it adds 351 China, which is deliberately
+# unmapped against double-counting its components, plus five territories the
+# folded_into_aggregate baseline deliberately keeps folded. All six have cbs = FALSE, and
+# every area the expansion should reach reports its own commodity balances. The gate
+# cannot simply replace the first route either — the twelve territories unfolded earlier
+# are cbs = FALSE and would re-fold.
 #
-# Fixed by naming the label, NOT by generalising. Three broader rules were measured first
-# and each was wrong:
-#
-#   match on polity_code   the column does not exist in this frame yet
-#   match on polity_prefix circular — for a folded area the prefix IS the aggregate key,
-#                          so it loses the ten territories unfolded earlier
-#   match on any label of  too broad — adds 8 areas, including 351 China, which is
-#   a polity with data    deliberately unmapped, and five territories the
-#                          folded_into_aggregate baseline deliberately keeps folded
-#
-# So the exception is explicit and measured rather than inferred. A second renamed country
-# will need adding here, which is worse than a rule that handles it — but better than a
-# rule that silently unfolds China.
-renamed_with_observed_data <- c("Eswatini")
-
-# Match on EITHER label column, plus the renamed-country exceptions above.
+# This replaces a hardcoded `c("Eswatini")` exception with the property that made it an
+# exception. It reaches one further area, 151, whose FAOSTAT_name is NA so no label match
+# could ever succeed; its polity_area_code is already its own, so nothing moves.
 areas_with_observed_data <- regions_for_crosswalk |>
   # `code`, not `area_code` — the latter only exists after the transmute below.
   dplyr::filter(!is.na(.data$code)) |>
-  dplyr::select("code", "FAOSTAT_name", "name") |>
+  dplyr::select("code", "FAOSTAT_name", "name", "cbs") |>
   tidyr::pivot_longer(
     c("FAOSTAT_name", "name"),
     values_to = "label",
@@ -420,7 +424,8 @@ areas_with_observed_data <- regions_for_crosswalk |>
   dplyr::filter(
     .data$label %in%
       alias_observed$source_label |
-      .data$label %in% renamed_with_observed_data
+      (.data$cbs &
+        .data$label %in% alias_observed_via_polity$source_label)
   ) |>
   dplyr::pull("code") |>
   as.integer() |>

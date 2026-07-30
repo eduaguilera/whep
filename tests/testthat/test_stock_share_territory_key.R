@@ -145,3 +145,69 @@ testthat::test_that("no reporting territory shares the FABIO rest-of-world bucke
   )]
   testthat::expect_setequal(differing, 351L)
 })
+
+# The derivation deciding which folded areas keep their own aggregation key has TWO
+# routes, unioned, and the second is gated on `cbs`. Both halves of that structure are
+# load-bearing in ways a future simplification would break, so both are asserted.
+#
+#   route 1  the area's own label carries observed data
+#   route 2  the area reports its own commodity balances AND its polity has data under
+#            ANY of its labels
+#
+# Route 2 exists because `observed_rows` is counted per LABEL, so a renamed country files
+# its count on the name the area is not called -- area 209 is "Eswatini" while its 180,663
+# rows sit on "Swaziland". It replaced a hardcoded exception list containing exactly that
+# one name.
+#
+# The `cbs` gate on route 2 is what keeps it from over-reaching. Ungated it adds six areas
+# that must NOT unfold: 351 China, deliberately unmapped against double-counting its own
+# components, and 42, 65, 161, 190, 239, which the folded_into_aggregate baseline keeps
+# folded because they carry no commodity balances. All six are cbs = FALSE.
+#
+# And the gate cannot simply REPLACE route 1: the twelve territories unfolded earlier in
+# this branch are cbs = FALSE, so a cbs-only rule would re-fold every one of them.
+testthat::test_that("the cbs gate on the polity route is load-bearing", {
+  al <- as.data.frame(whep::polity_label_aliases)
+  r <- as.data.frame(whep::regions_full)
+
+  live <- al[which(!startsWith(al$polity_code, "ROW-")), ]
+  with_data <- which(!is.na(live$observed_rows) & live$observed_rows > 0)
+  obs_polities <- unique(live$polity_code[with_data])
+  labels_direct <- unique(live$source_label[with_data])
+  labels_via_polity <- unique(
+    live$source_label[live$polity_code %in% obs_polities]
+  )
+  testthat::expect_gt(length(labels_via_polity), length(labels_direct))
+
+  matches <- function(labels, require_cbs) {
+    keep <- (r$FAOSTAT_name %in% labels | r$name %in% labels) & !is.na(r$code)
+    if (require_cbs) {
+      keep <- keep & r$cbs
+    }
+    sort(unique(as.integer(r$code[which(keep)])))
+  }
+
+  direct <- matches(labels_direct, FALSE)
+  gated <- union(direct, matches(labels_via_polity, TRUE))
+  ungated <- union(direct, matches(labels_via_polity, FALSE))
+
+  # Ungated, the polity route reaches areas that must stay folded. Named, because the
+  # point is WHICH ones and why.
+  over_reach <- setdiff(ungated, gated)
+  testthat::expect_setequal(over_reach, c(42L, 65L, 161L, 190L, 239L, 351L))
+  testthat::expect_true(all(!r$cbs[match(over_reach, r$code)]))
+
+  # And a cbs-only rule would lose the territories unfolded earlier, so the union is
+  # necessary rather than belt-and-braces.
+  cbs_only <- matches(labels_via_polity, TRUE)
+  testthat::expect_gt(length(setdiff(direct, cbs_only)), 5L)
+
+  # The gated rule is what the built data reflects: Eswatini reaches it, China does not.
+  testthat::expect_true(209L %in% gated)
+  testthat::expect_false(351L %in% gated)
+  cw <- as.data.frame(whep::polity_area_crosswalk)
+  testthat::expect_equal(
+    unique(cw$polity_area_code[which(cw$area_code == 209L)]),
+    209L
+  )
+})
