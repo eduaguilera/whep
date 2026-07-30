@@ -77,7 +77,21 @@ testthat::test_that("the embedded constants match the upstream manifest", {
 testthat::test_that("subthreshold FAOSTAT groups are classified as groups, not unknowns", {
   sub_groups <- whep:::faostat_subthreshold_groups
   testthat::expect_true(is.numeric(sub_groups))
-  testthat::expect_true(420L %in% sub_groups)
+  # The full class, enumerated by sweeping nine pins rather than by collecting one per
+  # smoke run: 420 is a regional group, and the five "(excluding intra-trade)" codes are
+  # multi-territory trade totals. Pinned by identity because the point is WHICH codes are
+  # exempt, and a count would let a real country join the list unnoticed.
+  #
+  #   261 European Union (12) (excluding intra-trade)
+  #   265 China (excluding intra-trade)
+  #   266 European Union (15) (excluding intra-trade)
+  #   268 European Union (25) (excluding intra-trade)
+  #   269 European Union (27) (excluding Croatia) (excluding intra-trade)
+  #   420 Sub-Saharan Africa
+  testthat::expect_setequal(
+    sort(as.integer(sub_groups)),
+    c(261L, 265L, 266L, 268L, 269L, 420L)
+  )
 
   # Must be below the threshold, or it would need no exception and the list would be
   # silently redundant.
@@ -145,4 +159,67 @@ testthat::test_that("the drop classifier puts a subthreshold group in the group 
   # 999999, which is above the threshold and would have been classed a group by the
   # rule itself, making the assertion vacuous.
   testthat::expect_true(grepl("421", all_warns))
+})
+
+# The standing version of the sweep that found these. Two of the six were discovered one
+# at a time by running real builds -- 420 in a production build, 265 in a CBS build -- and
+# each cost a trace through the call stack to attribute, because neither appears in the
+# pins the unit tests cover. Finding the rest that way would have taken one build per code.
+#
+# So instead: sweep every readable pin for unmapped area codes below the threshold, and
+# require that the set is exactly what upstream publishes. A new one fails here, named,
+# instead of surfacing as a warning in someone's build months later.
+#
+# Needs the real pins, so it skips on CI, where they are not available. That skip is
+# reported in the local gate's inventory rather than being silent -- an unrun check is
+# indistinguishable from a passing one, which cost twelve stale baseline entries earlier
+# in this branch.
+testthat::test_that("no pin carries an unmapped sub-threshold code outside the published list", {
+  testthat::skip_on_ci()
+  pins <- c(
+    "faostat-production",
+    "faostat-production-old",
+    "faostat-trade-totals",
+    "faostat-emissions-livestock",
+    "faostat-cbs-new",
+    "faostat-cbs-old-crops",
+    "faostat-cbs-old-animal",
+    "international-yields",
+    "fishstat-trade"
+  )
+  cw <- as.data.frame(whep::polity_area_crosswalk)
+  mapped <- unique(as.integer(stats::na.omit(cw$area_code)))
+  known <- c(
+    as.integer(whep:::faostat_subthreshold_groups),
+    as.integer(whep:::faostat_deliberate_area_codes)
+  )
+  threshold <- as.integer(whep:::faostat_group_code_min)
+
+  found <- integer(0)
+  checked <- 0L
+  for (pin in pins) {
+    d <- tryCatch(whep:::whep_read_file(pin), error = function(e) NULL)
+    if (is.null(d)) {
+      next
+    }
+    nms <- names(d)
+    col <- nms[grepl("^(Area Code|AreaCode|area_code)$", nms)][1]
+    if (is.na(col)) {
+      next
+    }
+    checked <- checked + 1L
+    v <- suppressWarnings(as.integer(d[[col]]))
+    v <- unique(v[!is.na(v)])
+    found <- c(found, v[!v %in% mapped & v < threshold & !v %in% known])
+  }
+  testthat::skip_if(checked == 0L, "no pins reachable")
+  testthat::expect_equal(
+    sort(unique(found)),
+    integer(0),
+    info = paste0(
+      "area codes below the group threshold that no polity claims and upstream does ",
+      "not list, so a real build reports them as unknown: ",
+      paste(sort(unique(found)), collapse = ", ")
+    )
+  )
 })
