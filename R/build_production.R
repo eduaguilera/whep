@@ -421,11 +421,42 @@ build_primary_production <- function(
   dt <- .read_input("luh2-areas", years = years, year_col = "Year")
   data.table::setnames(dt, c("ISO3", "Year"), c("iso3c", "year"))
   dt <- merge(dt, area_bridge, by = "iso3c", all.x = TRUE, sort = FALSE)
+  # Say WHICH KIND of unmatched, because the old single message conflated two facts and
+  # the proportions make that misleading. Measured over the whole pin:
+  #
+  #   -99, LUH2's own unassigned marker   17,876 Mha   0.391% of all LUH2 area
+  #   six real territories                    35 Mha   0.0008%
+  #
+  # The sentinel is 510x the territories, so almost everything the old warning appeared
+  # to be losing is land LUH2 itself does not attribute to any country -- not a gap in
+  # this project's coverage. Reporting them together made a source property read as a
+  # polity-mapping failure.
+  #
+  # The six are Jersey, Guernsey, Isle of Man, Saint Barthelemy, Aland and Sint Maarten.
+  # They ARE in the crosswalk, each with its sovereign's polity (JEY/GGY/IMN ->
+  # GBR-1921-2025, ALA -> Finland, BLM -> France, SXM -> Netherlands), but their rows
+  # carry no FAOSTAT area_code, and `include_unmapped = FALSE` above drops exactly those.
+  # So "not found in polity_area_crosswalk" was wrong about them: the mapping exists, the
+  # area code does not. Attributing their land to the sovereign is a modelling decision
+  # rather than a lookup -- LUH2 reports GBR separately, so folding Jersey in changes what
+  # GBR means -- so it is whep#407 and not a silent fix here.
   unmatched <- unique(dt[is.na(area), iso3c])
   if (length(unmatched) > 0) {
-    cli::cli_warn(
-      "LUH2 ISO3 codes not found in polity_area_crosswalk, dropping: {unmatched}"
-    )
+    sentinels <- unmatched[!grepl("^[A-Z]{3}$", unmatched)]
+    territories <- setdiff(unmatched, sentinels)
+    if (length(sentinels) > 0) {
+      cli::cli_inform(
+        "LUH2 rows with no country assignment in the source, dropping:
+         {sentinels}. Not a coverage gap -- the source does not attribute this land
+         to any territory."
+      )
+    }
+    if (length(territories) > 0) {
+      cli::cli_warn(
+        "LUH2 territories with no FAOSTAT area code, dropping: {territories}. Each has
+         a polity upstream but no area code to aggregate through; see whep#407."
+      )
+    }
   }
   dt <- dt[!is.na(area)]
   dt <- dt[year > 1849]
