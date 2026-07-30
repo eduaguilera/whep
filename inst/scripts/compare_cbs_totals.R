@@ -22,16 +22,26 @@
 #
 # THE BUILD IS NOT REPRODUCIBLE ACROSS SESSIONS, which is why the band is 1% and not zero. Six
 # full-range runs on an unchanged tree gave `rows` of 2,768,578 or 2,764,471 -- a swing of 4,107
-# rows (0.148%) -- with values wobbling in the fourth decimal alongside (`export` 0.008%, `food`
-# 0.003%). Not alternating: the observed order was 578, 471, 578, 471, 471, 578, so it is a
-# random choice between exactly two states. Tracked in whep#420.
+# rows (0.148%) -- with values wobbling in the fourth decimal alongside. Tracked in whep#420.
+#
+# It CONVERGES rather than varying randomly, and it is cache-related. At a window that exercises
+# the pre-1961 path (1950-1965) successive runs gave 1008989, 1008403, 1002576, 1002444, then
+# 1002444 three times: monotonically decreasing to a fixed point, which is a cache filling up.
+# 36 of 75 pin cache entries were refreshed during these builds, so pins are fetched at build
+# time and the output depends on which are already local.
+#
+# So this baseline may encode a mid-warm-up state. Re-record it on a warm cache before treating
+# any figure here as exact; the 1% band absorbs the difference either way.
 #
 # WITHIN a session it is bit-identical, which narrows the cause and rules out the obvious
 # suspects. Two builds in one session with `whep_clear_cache()` between them took 410s and 389s
 # -- both genuinely ran -- and agreed to ten significant figures. So nothing here is
 # order-dependent or thread-dependent, and whep#418's duplicate keys are NOT the cause, though I
-# first guessed they were. Nor is it the pins cache: nothing under
-# `rappdirs::user_cache_dir("pins")` was written during any of these runs.
+# first guessed they were.
+#
+# I also claimed it was not the pins cache, on the strength of
+# `find ~/.cache/pins -newermt "-40 minutes"` returning 0. `bfs` does not accept that relative
+# form and the command measured nothing -- 36 entries had in fact been refreshed. Retracted.
 #
 # If you repeat that experiment, clear the cache. Without it the second build takes 0.0s and
 # returns the first one's result, so "identical" measures nothing -- which is how my first
