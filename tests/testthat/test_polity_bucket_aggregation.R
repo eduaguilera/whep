@@ -133,3 +133,43 @@ test_that("areas in different buckets stay separate", {
   expect_equal(nrow(out), 2L)
   expect_setequal(out$value, c(10, 32))
 })
+
+test_that("a bucket is labelled by the bucket, the same way in every year", {
+  # The label matters beyond tidiness. Three `fill_proxy_growth()` calls group time series
+  # by `c("area", "area_code")`, so a bucket whose name changes between years splits into
+  # two shorter series and gap-filling works on partial history. Taking the name from a
+  # folded member did exactly that: only Sudan reports into bucket 206 before 2012 and both
+  # Sudans after, so the representative could change mid-series — and "South Sudan" sorts
+  # first, so a Sudan + South Sudan sum could be labelled with one of its two parts.
+  #
+  # The bucket has an honest name of its own. All 217 bucket codes are themselves reporting
+  # areas with exactly one non-NA `area_name`, which is also why this is safe: rows with no
+  # `area` are dropped downstream, so an unnamed bucket would lose data in silence.
+  cw <- as.data.frame(whep::polity_area_crosswalk)
+  folded <- unique(cw[
+    !is.na(cw$polity_area_code) & !is.na(cw$area_code),
+    c("area_code", "polity_area_code")
+  ])
+  counts <- table(folded$polity_area_code)
+  bucket <- as.integer(names(counts)[counts > 1][1])
+  testthat::skip_if(is.na(bucket), "no bucket folds several reporting areas")
+  areas <- sort(unique(folded$area_code[folded$polity_area_code == bucket]))
+
+  input <- data.table::data.table(
+    year = rep(c(2005L, 2015L), each = length(areas)),
+    area_code = rep(as.integer(areas), times = 2L),
+    unit = "tonnes",
+    element = "production",
+    item_cbs_code = 15L,
+    value = 1
+  )
+  out <- whep:::.aggregate_to_polities(input, item_cbs_code)
+
+  # One label for the bucket, whatever year it is seen in.
+  expect_equal(length(unique(out$area[out$area_code == bucket])), 1L)
+  # And it is the bucket's own name, not a member's. Index with which(): `cw$area_code`
+  # has NA rows, and `[` on an NA logical returns an NA row rather than dropping it, so
+  # the expected value would otherwise be c("Sudan (former)", NA).
+  own <- unique(cw$area_name[which(cw$area_code == bucket)])
+  expect_equal(unique(out$area[out$area_code == bucket]), own)
+})

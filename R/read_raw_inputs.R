@@ -405,25 +405,35 @@
   has_flag <- "fao_flag" %in% names(dt)
   if (has_flag) {
     dt <- dt[,
-      .(
-        value = sum(value, na.rm = TRUE),
-        polity_name = polity_name[1L],
-        fao_flag = fao_flag[1L]
-      ),
+      .(value = sum(value, na.rm = TRUE), fao_flag = fao_flag[1L]),
       by = by_cols
     ]
   } else {
-    dt <- dt[,
-      .(value = sum(value, na.rm = TRUE), polity_name = polity_name[1L]),
-      by = by_cols
-    ]
+    dt <- dt[, .(value = sum(value, na.rm = TRUE)), by = by_cols]
   }
 
-  data.table::setnames(
-    dt,
-    c("polity_area_code", "polity_name"),
-    c("area_code", "area")
-  )
+  # NAME THE BUCKET FROM THE BUCKET, not from whichever folded member came first.
+  #
+  # Taking `polity_name[1L]` was order-dependent and, worse, year-varying: only Sudan
+  # reports into bucket 206 before 2012 and both Sudans after, so the label could
+  # change mid-series and split the series that the three
+  # `fill_proxy_growth(.by = c("area", "area_code"))` calls depend on. It could also
+  # misdescribe the row — a Sudan + South Sudan sum labelled "South Sudan", which is
+  # the member that happens to sort first.
+  #
+  # Every bucket code is itself a reporting area with exactly one non-NA `area_name`
+  # (217 of 217, checked), so the bucket has a stable and honest name: 206 is
+  # "Sudan (former)", the FABIO region these two fold into, and 999 is "RoW". Checking
+  # that coverage mattered rather than being pedantry — `.select_best_source()` drops
+  # rows with `!is.na(area)`, so an unnamed bucket would have lost data in silence.
+  bucket_names <- .polity_crosswalk(include_unmapped = TRUE)[
+    !is.na(area_code),
+    .(polity_area_code = area_code, .bucket_name = area_name)
+  ]
+  bucket_names <- unique(bucket_names, by = "polity_area_code")
+  dt[bucket_names, area := i..bucket_name, on = "polity_area_code"]
+
+  data.table::setnames(dt, "polity_area_code", "area_code")
   dt
 }
 
