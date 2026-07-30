@@ -130,3 +130,64 @@ testthat::test_that("labels that still do not resolve are all explainable", {
   )]
   testthat::expect_setequal(unresolved, baseline)
 })
+
+# Case is the last way an exact label match fails invisibly, after mojibake and
+# whitespace. The resolver is CASE-INSENSITIVE, which the sweep established rather than
+# assumed: "Algeria", "algeria" and "ALGERIA" all resolve. So the 62 label keys that exist
+# in two capitalisations are not duplicates — they are an any-source historical chain
+# entered in lower case alongside source-scoped rows entered in title case.
+#
+# What matters is whether two spellings of one key ever disagree about the polity in a
+# shared year, because then the answer depends on which row the resolver reaches first.
+# Swept every key and year: 26 do, in three classes.
+#
+#   15  same-family boundary years. An alias `year_end` is inclusive while a polity
+#       `end_year` is exclusive, so adjacent periods both cover the boundary. Benign, and
+#       the same convention the hand-curated Cape Verde rows use.
+#    7  predecessor/successor pairs at a transition year across a family rename:
+#       Bechuanaland/Botswana 1966, Danish West Indies/Virgin Islands 1917, Northern
+#       Rhodesia/Zambia 1964, Southern Rhodesia/Zimbabwe 1964 and similar. The same
+#       boundary phenomenon with a different prefix either side.
+#    4  genuine territorial coexistence: ethiopia (AOI/ETH), israel (PAL/ISR at 1948),
+#       somalia (two protectorates at once), china, manchuria province of (CHN/MAN).
+#
+# ETHIOPIA IS THE ONE WORTH WATCHING, and it is pinned below. Two rows assert different
+# FAMILIES for the identical 1936-1941 range, so "Ethiopia" in 1938 is Africa Orientale
+# Italiana for faostat and Ethiopia for fao1952. Both readings are historically defensible
+# — the country was occupied and administered as part of AOI, while the yearbooks report
+# its own figures — and the mechanism is working. What is missing is any record that the
+# divergence is deliberate, which is whep-polities#53.
+#
+# Pinned rather than asserted-away because the resolution is not wrong, only undocumented:
+# if it changes, that should be a decision someone took and not a silent shift in what
+# "Ethiopia, 1938" means.
+testthat::test_that("label resolution is case-insensitive", {
+  for (variant in c("Algeria", "algeria", "ALGERIA")) {
+    testthat::expect_equal(
+      resolve_polity_label(variant, source = "faostat", year = 2000L),
+      "DZA-1962-2025",
+      info = paste0("case variant did not resolve: ", variant)
+    )
+  }
+})
+
+testthat::test_that("the Ethiopia 1938 divergence stays as documented", {
+  # Source-scoped rows override the any-source default, which is the mechanism.
+  testthat::expect_equal(
+    resolve_polity_label("Ethiopia", source = "fao1952", year = 1938L),
+    "ETH-1936-1941"
+  )
+  testthat::expect_equal(
+    resolve_polity_label("Ethiopia", source = "iia", year = 1938L),
+    "ETH-1936-1941"
+  )
+  # And a source without its own row gets the territorial reading.
+  testthat::expect_equal(
+    resolve_polity_label("Ethiopia", source = "faostat", year = 1938L),
+    "AOI-1936-1941"
+  )
+  testthat::expect_equal(
+    resolve_polity_label("Ethiopia", source = NULL, year = 1938L),
+    "AOI-1936-1941"
+  )
+})
