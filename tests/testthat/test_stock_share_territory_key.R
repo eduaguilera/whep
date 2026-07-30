@@ -103,20 +103,28 @@ testthat::test_that("stock shares are keyed by reporting territory and sum to on
   )
 })
 
-testthat::test_that("no reporting territory shares the FABIO rest-of-world bucket", {
-  # THE PREMISE OF THE FIX ABOVE HAS BEEN REMOVED, and this test is what noticed.
+testthat::test_that("territories sharing the rest-of-world bucket keep correct shares", {
+  # THIS ASSERTED ZERO, and the reversal is worth the space because it changes which line of
+  # defence is load-bearing.
   #
-  # It previously asserted that Eswatini shared polity_area_code 999 with rest-of-world,
-  # which was true and was the cause of the cross-territory denominator. The root of that
-  # was a label match: area 209 is named "Eswatini" in regions_full while its 180,663
-  # observed rows sit on the alias "Swaziland", so the derivation that decides which
-  # folded areas keep their own code could not see its data. Naming the exception fixed
-  # it, Eswatini now aggregates to 209, and the bucket holds only rest-of-world.
+  # The original defect: area 209 Eswatini shared `polity_area_code` 999 with rest-of-world,
+  # so `value / sum(value)` grouped by the bucket divided Eswatini's broilers by an
+  # Eswatini-plus-rest-of-world total. Rest of World's own share came out wrong by a factor
+  # of 222. Two fixes went in together -- `area` was added to the share key, and the areas
+  # reporting their own polities were promoted out of the bucket -- and with both in place
+  # this asserted that nothing shares the bucket at all, i.e. "no longer possible" rather
+  # than "no longer broken".
   #
-  # So the `area` half of the share key is now defence rather than a repair: nothing
-  # shares a bucket today, and if something does again, the shares stay correct. Both
-  # halves are kept deliberately -- the invariant above would pass either way, and this
-  # assertion is what distinguishes "no longer broken" from "no longer possible".
+  # The promotion is withdrawn (whep#419: it inflated global feed 13.7x), so 16 areas share
+  # bucket 999 with rest-of-world again. The shares are still correct, and the test above
+  # proves it empirically rather than by argument: every share group sums to 1. The reason is
+  # the OTHER half of the fix -- the share key is `(year, area_code, area, Item_Code)`, and the
+  # `area` half separates Eswatini from RoW even though `area_code` no longer does.
+  #
+  # So `area` in that key is now LOAD-BEARING, not defence in depth. Dropping it as redundant
+  # -- which it looks, next to `area_code` -- reinstates a cross-territory denominator for all
+  # 16 of these areas. That is why this test now pins the sharing by identity instead of
+  # asserting it away: the condition the key protects against is live.
   cw <- as.data.frame(whep::polity_area_crosswalk)
   in_bucket <- cw[which(cw$polity_area_code == 999L), ]
   testthat::expect_gt(nrow(in_bucket), 40L)
@@ -125,34 +133,35 @@ testthat::test_that("no reporting territory shares the FABIO rest-of-world bucke
     !is.na(in_bucket$polity_code) &
       !startsWith(in_bucket$polity_code, "ROW-")
   )]))
-  testthat::expect_equal(
-    length(own_polity),
-    0L,
-    info = paste0(
-      "areas reporting their own polity while aggregating into rest-of-world, so ",
-      "their shares share a denominator with it: ",
-      paste(own_polity, collapse = ", ")
+  # Pinned by identity: a NEW area joining this set is a territory whose shares depend on the
+  # `area` key, and it should be a deliberate change rather than drift.
+  testthat::expect_setequal(
+    own_polity,
+    c(
+      17L,
+      47L,
+      61L,
+      64L,
+      69L,
+      87L,
+      88L,
+      135L,
+      153L,
+      154L,
+      160L,
+      180L,
+      182L,
+      209L,
+      212L,
+      299L
     )
   )
 
-  # All four areas unfolded in this branch must have their own aggregation key. Eswatini
-  # was the one that silently did not, for three commits.
-  for (code in c(153L, 154L, 209L, 212L)) {
-    rows <- cw[which(cw$area_code == code), ]
-    testthat::expect_true(
-      nrow(rows) > 0L,
-      info = paste0("area ", code, " is absent from the crosswalk")
-    )
-    testthat::expect_true(
-      all(rows$polity_area_code == code),
-      info = paste0(
-        "area ",
-        code,
-        " aggregates into a shared bucket, so its stock shares share a denominator ",
-        "with another territory"
-      )
-    )
-  }
+  # And the protection itself, asserted directly rather than inferred from the invariant: the
+  # bucket must hold more than one distinct `area` label, because that is what keeps the
+  # denominators apart.
+  labels <- unique(in_bucket$area_name[which(!is.na(in_bucket$area_name))])
+  testthat::expect_gt(length(labels), 1L)
 
   # The two tables carrying this column must agree, and now do EVERYWHERE. This
   # assertion previously exempted 351 China, whose crosswalk row held an aggregation key
@@ -233,9 +242,26 @@ testthat::test_that("the cbs gate on the polity route is load-bearing", {
   # The gated rule is what the built data reflects: Eswatini reaches it, China does not.
   testthat::expect_true(209L %in% gated)
   testthat::expect_false(351L %in% gated)
+
+  # And the gate's TWO consequences now differ, which is the whole shape of whep#419.
+  #
+  # It decides two things that used to move together: which polity an area maps to
+  # (`fabio_row_prefix`, polity level) and which numeric bucket its values aggregate into
+  # (`polity_area_code`). The polity-level half is kept -- Eswatini maps to its own polity,
+  # which is what the gate is for and what the measurement showed moves no total. The numeric
+  # half is withdrawn, because promoting these areas inflated global feed 13.7x, so Eswatini's
+  # VALUES still aggregate into 999.
+  #
+  # Asserted rather than left implicit: the two halves being separable is exactly what an
+  # earlier version of this work got wrong in the opposite direction, fixing the polity level
+  # and reporting it as done while the numeric level still folded.
   cw <- as.data.frame(whep::polity_area_crosswalk)
-  testthat::expect_equal(
-    unique(cw$polity_area_code[which(cw$area_code == 209L)]),
-    209L
-  )
+  esw <- cw[which(cw$area_code == 209L), ]
+  testthat::expect_equal(unique(esw$polity_area_code), 999L)
+  testthat::expect_true(all(
+    !startsWith(
+      esw$polity_code[!is.na(esw$polity_code)],
+      "ROW-"
+    )
+  ))
 })
