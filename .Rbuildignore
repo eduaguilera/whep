@@ -40,3 +40,4 @@
 ^inst/extdata/faostat_cropland\.csv$
 ^inst/extdata/cropgrids_land\.csv$
 ^inst/extdata/cropgrids_fallow_land\.csv$
+^whep_.*\.tar\.gz$

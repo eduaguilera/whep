@@ -48,3 +48,4 @@ tree.html
 
 # interactive code diagram (generated, local only)
 diagram/
+*.tar.gz
