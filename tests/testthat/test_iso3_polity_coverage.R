@@ -12,11 +12,12 @@
 #
 #   DISSOLVED STATES (3)         CSK Czechoslovakia, SUN USSR, YUG Yugoslav SFR. Polities for
 #                                these plainly exist -- `F51-1947-1993` is one -- and carry
-#                                `iso3_code = NA`. Upstream is inconsistent here: Zaire's twelve
-#                                polities all carry their successor's COD, Netherlands Antilles
-#                                carries its own ANT, and these carry nothing. Filed as
-#                                lbm364dl/whep-polities#55; until it is decided, a consumer
-#                                resolving CSK or SUN gets nothing back for a polity that exists.
+#                                no iso3_code at all. Upstream is inconsistent here: Burma's
+#                                four polities carry their successor's MMR and Netherlands
+#                                Antilles carries its own ANT, while these carry nothing.
+#                                Filed as whep-polities issue 55; until it is decided, a
+#                                consumer resolving CSK or SUN gets nothing back for a polity
+#                                that plainly exists.
 #
 #   NOT A TERRITORY (4)          NTZ Neutral Zone, OXY "Others (adjustment)", UXY "Unspecified",
 #                                PCI Pacific Islands Trust Territory. Statistical sentinels. No
