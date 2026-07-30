@@ -11,11 +11,11 @@ resolve_polity_label(label, source = NULL, year = NULL)
 
 \item{source}{Optional source slug (e.g. \code{"lassaletta-grassland-share"}).
 Length 1, or the same length as \code{label}. \code{NULL} matches unscoped aliases
-only — 166 of 672, so a \code{NULL} source also narrows the answer sharply.}
+only — 167 of 869, so a \code{NULL} source also narrows the answer sharply.}
 
 \item{year}{Optional integer vector of years. Length 1, or the same length as
-\code{label}. \code{NULL} matches aliases with no year scope only — which is 19 of the
-672 published aliases, so omitting \code{year} returns \code{NA} for almost every
+\code{label}. \code{NULL} matches aliases with no year scope only — which is 17 of the
+869 published aliases, so omitting \code{year} returns \code{NA} for almost every
 label. That is the documented behaviour rather than a bug, but it looks
 exactly like "this label is unknown", so supply a year unless you
 specifically want the unscoped rules.}

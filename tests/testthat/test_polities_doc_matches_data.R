@@ -148,3 +148,59 @@ testthat::test_that("every column of the polity tables is documented", {
     )
   }
 })
+
+# resolve_polity_label()'s @param text quotes three counts, and they are the numbers a
+# caller uses to decide whether to pass `source` and `year` at all: how many aliases are
+# unscoped by source, how many are unscoped by year, and the total. All three were written
+# when there were 672 aliases and went stale as the registry grew to 869 — the docs still
+# said "166 of 672" and "19 of the 672" while the answers were 167 of 869 and 17 of 869.
+#
+# Pinned because prose counts rot silently and these particular ones steer behaviour: a
+# reader told that 19 of 672 aliases are year-unscoped concludes something different from
+# one told 17 of 869. The other structural figures quoted across this branch were
+# re-measured at the same time and were all still correct — 740 polities, 713 live, 27
+# dead, 182 with a recorded polygon area, 17 areas keeping their own aggregation key,
+# 272 and 198 rows in the two reference tables. Only the alias counts moved, because the
+# aliases are what this branch changed.
+testthat::test_that("the alias counts in resolve_polity_label's docs are current", {
+  # Resolve the path the way the test above does. My first version used
+  # file.path("man", ...), which testthat resolves against tests/testthat/ — so it
+  # skipped with the message "absent in an installed package" while the file sat in the
+  # repository root. A skip is invisible in a summary line, and one carrying the wrong
+  # reason is worse than none.
+  rd <- system.file("..", "man", "resolve_polity_label.Rd", package = "whep")
+  if (!file.exists(rd)) {
+    rd <- testthat::test_path("..", "..", "man", "resolve_polity_label.Rd")
+  }
+  testthat::skip_if_not(
+    file.exists(rd),
+    "man/resolve_polity_label.Rd not reachable; absent from an installed package"
+  )
+  doc <- paste(readLines(rd, warn = FALSE), collapse = " ")
+  al <- as.data.frame(whep::polity_label_aliases)
+
+  total <- nrow(al)
+  unscoped_source <- sum(is.na(al$source))
+  unscoped_year <- sum(is.na(al$year_start) & is.na(al$year_end))
+  # Non-vacuous: an empty table would make every grepl below search for "0 of 0".
+  testthat::expect_gt(total, 100L)
+
+  testthat::expect_true(
+    grepl(paste0(unscoped_source, " of ", total), doc, fixed = TRUE),
+    info = paste0(
+      "the source-unscoped count is stale; should read ",
+      unscoped_source,
+      " of ",
+      total
+    )
+  )
+  testthat::expect_true(
+    grepl(paste0(unscoped_year, " of the ", total), doc, fixed = TRUE),
+    info = paste0(
+      "the year-unscoped count is stale; should read ",
+      unscoped_year,
+      " of the ",
+      total
+    )
+  )
+})
