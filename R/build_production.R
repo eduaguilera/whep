@@ -1311,6 +1311,21 @@ build_primary_production <- function(
   # So the key is built from the columns that are actually present. A caller
   # without `area` has no two-names-per-code problem to solve, and keying on
   # `area_code` alone is right for them.
+  #
+  # THE SAME HAZARD IS LIVE AT THREE MORE SITES IN THIS FILE, and saying so is
+  # more useful than implying it was a one-off. A BARE name in
+  # `tidyr::nesting()` falls back to the calling environment; the `.data$name`
+  # pronoun ERRORS on a missing column. Of the eleven nesting sites in R/, four
+  # splice `rlang::syms()`, one (feed_intake_build.R:161) is followed by
+  # `.data$` references to the same columns and so fails loudly, and four are
+  # bare with no such follow-up — lines 1080, 1497 and 1564 here, all nesting on
+  # `area` and `area_code`, plus feed_intake_redistribute.R:747 on
+  # `region_bouwman`.
+  #
+  # Those four are not fixed here because in the production pipeline the columns
+  # are always present, which is exactly what was true of this function until a
+  # test called it directly. Anyone who meets "object 'area' not found" from one
+  # of them is looking at this, not at a corrupted frame.
   key <- intersect(
     c("area_code", "area", "Item_Code", "item_cbs_code"),
     names(shares)
