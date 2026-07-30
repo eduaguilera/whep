@@ -69,6 +69,8 @@
 #'   tonnes; live animals are measured in heads; animal draught is measured as
 #'   annual useful work energy (TJ).
 #'
+#' @inheritSection whep_polity_columns Polity columns
+#'
 #' @export
 #'
 #' @examples

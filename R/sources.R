@@ -10,6 +10,8 @@
 #' @returns A tibble dataframe where each row corresponds to a single year for
 #'   a given source.
 #'
+#' @inheritSection whep_polity_columns Polity columns
+#'
 #' @export
 #'
 #' @examples

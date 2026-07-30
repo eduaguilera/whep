@@ -302,6 +302,28 @@ if (length(topics) > 0L && file.exists("_pkgdown.yml")) {
   missing_topics <- missing_topics[
     !grepl("^(whep-package|reexports|pipe)$", missing_topics)
   ]
+  # Topics marked `@keywords internal` are omitted from a pkgdown site by design, so
+  # requiring them in the index is wrong. Detected from the .Rd rather than added to
+  # the name list above: this gate already carries three hardcoded exemptions, and a
+  # fourth would have made the list the thing to maintain instead of the rule.
+  #
+  # The case that prompted it: whep_polity_columns, a doc-only topic holding the shared
+  # description of the polity columns eight builders emit. It has no user-facing page
+  # because it has no user-facing function.
+  if (length(missing_topics) > 0L) {
+    is_internal <- vapply(
+      missing_topics,
+      function(topic) {
+        rd <- file.path("man", paste0(topic, ".Rd"))
+        if (!file.exists(rd)) {
+          return(FALSE)
+        }
+        any(grepl("\\keyword\\{internal\\}", readLines(rd, warn = FALSE)))
+      },
+      logical(1)
+    )
+    missing_topics <- missing_topics[!is_internal]
+  }
   record(
     "pkgdown index",
     length(missing_topics) == 0L,

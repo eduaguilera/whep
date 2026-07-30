@@ -40,6 +40,8 @@
 #' There is an additional column `domestic_supply` which is
 #' computed as total use excluding `export`.
 #'
+#' @inheritSection whep_polity_columns Polity columns
+#'
 #' @export
 #'
 #' @examples
@@ -274,6 +276,8 @@ get_livestock_cbs <- function(primary_prod) {
 #' `get_wide_cbs()`. This is because they are not primary products, so the
 #' amount from 'production' is actually the amount of subproduct obtained.
 #' TODO: Fix few data where this doesn't hold.
+#'
+#' @inheritSection whep_polity_columns Polity columns
 #'
 #' @export
 #'

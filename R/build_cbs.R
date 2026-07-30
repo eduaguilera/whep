@@ -438,6 +438,8 @@ build_commodity_balances <- function(
 #'   `initial_value_processed`, `conversion_factor_scaling`,
 #'   `final_conversion_factor`, `final_value_processed`.
 #'
+#' @inheritSection whep_polity_columns Polity columns
+#'
 #' @export
 #'
 #' @examples

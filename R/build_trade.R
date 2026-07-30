@@ -33,6 +33,30 @@
 #'   - `value`: Trade quantity.
 #'   - `country_share`: Share of total trade for this partner.
 #'
+#' @inheritSection whep_polity_columns Polity columns
+#'
+#' @section Partner polity columns:
+#' Trade rows have two territories, so the reporting columns above are joined by
+#' `partner_polity_code`, `partner_polity_name` and `partner_polity_has_geometry`,
+#' resolved from `area_code_partner` in the same row's year.
+#'
+#' There is deliberately no `partner_polity_area_code`. Aggregation happens on the
+#' reporting side; a partner is an attribute of a flow rather than a row to group,
+#' and adding a second aggregation key would invite summing a matrix along both
+#' axes at once.
+#'
+#' Reporter and partner resolve through the same crosswalk but the two sides do not
+#' carry the same territories, and the asymmetry is worth knowing before grouping:
+#' 193 distinct reporting polities against 217 partner ones. `ROW-1850-2023` appears
+#' as a PARTNER in 935 rows and as a reporter in none, because the folded
+#' micro-territories are traded WITH while never reporting trade themselves.
+#'
+#' No row has reporter and partner resolving to the same polity, and none has
+#' `area_code == area_code_partner` either — the source reports no territory trading
+#' with itself, so folding cannot create a self-flow out of one. Measured rather than
+#' assumed: this paragraph first claimed the opposite, that folding two members of one
+#' aggregate produces a flow from it to itself, which sounds right and is false.
+#'
 #' @export
 #'
 #' @examples

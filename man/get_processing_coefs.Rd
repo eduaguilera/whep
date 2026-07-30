@@ -59,6 +59,34 @@ TODO: Fix few data where this doesn't hold.
 Reports quantities of commodity balance sheet items used for \code{processing}
 and quantities of their corresponding processed output items.
 }
+\section{Polity columns}{
+
+Every area-keyed output carries the polity its \code{area_code} resolves to in that
+row's year:
+\itemize{
+\item \code{polity_area_code}: the numeric key rows are AGGREGATED on. Not the same as
+the legacy \code{area_code}, and not the same as FABIO's \code{fabio_code}: 17 areas
+keep their own key while FABIO folds them into rest-of-world, so grouping on
+one reproduces WHEP and grouping on the other reproduces FABIO.
+\item \code{reporting_polity_code}: the polity itself, e.g. \code{RUS-2014-2025}. Year-aware —
+the same \code{area_code} resolves to different polities in different years, which
+is the point of the crosswalk.
+\item \code{reporting_polity_name}: its name. Differs from an area's own name where the
+area folds into an aggregate; Bermuda reads "Latin America Other".
+\item \code{reporting_polity_has_geometry}: whether a polygon is attached, for callers
+that need to map or intersect. \code{FALSE} is a documented gap upstream, not an
+error.
+}
+
+Pre-1961 rows resolve to the polity live in the back-cast anchor year rather
+than to the polity live in the row's own year. See \code{\link[=add_polity_code]{add_polity_code()}} for why,
+and for the \code{whep_backcast_anchor} attribute that records it.
+
+Rows whose area resolves to no polity are dropped before this point, with the
+reason reported: a FAOSTAT regional group, a deliberate non-mapping such as 351
+China, or — the case that warns — an area code the project does not know.
+}
+
 \examples{
 get_processing_coefs(example = TRUE)
 }

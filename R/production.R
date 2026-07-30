@@ -80,6 +80,8 @@ get_primary_production <- function(example = FALSE) {
 #'    When necessary, FAOSTAT codes are extended for our needs.
 #' - `value`: The amount of residue produced, measured in tonnes.
 #'
+#' @inheritSection whep_polity_columns Polity columns
+#'
 #' @export
 #'
 #' @examples

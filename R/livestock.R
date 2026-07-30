@@ -50,6 +50,8 @@
 #' - `loss`: The amount that is not used for feed. This is `supply - intake`.
 #' - `loss_share`: The percent that is lost. This is `loss / supply`.
 #'
+#' @inheritSection whep_polity_columns Polity columns
+#'
 #' @export
 #'
 #' @examples
