@@ -29,6 +29,9 @@
 #'   intensities.
 #' @param value_added_floor Minimum non-intermediate leakage share used when
 #'   constructing technical coefficients from `z_mat`.
+#' @param max_column_sum Maximum allowed column sum in A. Must match the value
+#'   used by [compute_footprint()] (default `100`) so the path decomposition
+#'   and the footprint it decomposes share an identical A cap.
 #' @param conserve_extensions If `TRUE`, rescale positive paths within each
 #'   origin area/item so their sum does not exceed the corresponding positive
 #'   extension total.
@@ -51,6 +54,7 @@ compute_footprint_paths <- function(
   origin_item = NULL,
   output_tol = 1e-8,
   value_added_floor = 1e-3,
+  max_column_sum = 100,
   conserve_extensions = TRUE,
   min_value = 0
 ) {
@@ -63,6 +67,7 @@ compute_footprint_paths <- function(
     fd_labels,
     output_tol,
     value_added_floor,
+    max_column_sum,
     conserve_extensions,
     min_value
   )
@@ -108,7 +113,8 @@ compute_footprint_paths <- function(
   a_mat <- .technical_coefficients(
     z_mat,
     x_vec,
-    value_added_floor = value_added_floor
+    value_added_floor = value_added_floor,
+    max_column_sum = max_column_sum
   )
   ia <- Matrix::Diagonal(n) - a_mat
   lu_fact <- .factor_ia(ia)
@@ -330,6 +336,7 @@ compute_footprint_paths <- function(
   fd_labels,
   output_tol,
   value_added_floor,
+  max_column_sum,
   conserve_extensions,
   min_value
 ) {
@@ -344,6 +351,7 @@ compute_footprint_paths <- function(
     value_added_floor = value_added_floor,
     conserve_extensions = conserve_extensions
   )
+  .validate_max_column_sum(max_column_sum)
   if (!is.data.frame(fd_labels) || nrow(fd_labels) != ncol(y_mat)) {
     cli::cli_abort(
       "{.arg fd_labels} must be a data frame with one row per Y column."
@@ -427,6 +435,7 @@ compute_fp_product_paths <- function(
   origin_item = NULL,
   output_tol = 1e-8,
   value_added_floor = 1e-3,
+  max_column_sum = 100,
   conserve_extensions = TRUE,
   min_value = 0
 ) {
@@ -439,6 +448,7 @@ compute_fp_product_paths <- function(
     fd_labels,
     output_tol,
     value_added_floor,
+    max_column_sum,
     conserve_extensions,
     min_value
   )
@@ -484,7 +494,8 @@ compute_fp_product_paths <- function(
   a_mat <- .technical_coefficients(
     z_mat,
     x_vec,
-    value_added_floor = value_added_floor
+    value_added_floor = value_added_floor,
+    max_column_sum = max_column_sum
   )
   ia_t <- Matrix::t(Matrix::Diagonal(n) - a_mat)
   lu_fact <- .factor_ia(ia_t)
@@ -754,8 +765,11 @@ add_footprint_product_stage <- function(
     ))
   }
 
-  area_names <- whep::regions_full |>
-    dplyr::select(product_area = code, product_area_name = name) |>
+  area_names <- .label_reporting_polity_lookup(labels) |>
+    dplyr::transmute(
+      product_area = .data$area_code,
+      product_area_name = .data$reporting_polity_name
+    ) |>
     dplyr::distinct(.data$product_area, .keep_all = TRUE) |>
     data.table::as.data.table()
 

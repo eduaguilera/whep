@@ -117,6 +117,34 @@ testthat::test_that("build_gridded_landuse conserves country totals", {
   testthat::expect_equal(country2, 500, tolerance = 1e-6)
 })
 
+testthat::test_that("country-crop with area but no grid cell warns and keeps others", {
+  # area_code 3 has a national harvested area but no cell in country_grid,
+  # so no grid cell can carry its area. It must not be dropped silently:
+  # warn, while still allocating the country that does have cells.
+  fix <- two_country_fixture()
+  fix$country_areas <- tibble::tribble(
+    ~year, ~area_code, ~item_prod_code, ~harvested_area_ha,
+    2000L,         1L,             15L,               1000,
+    2000L,         3L,             15L,                700
+  )
+
+  testthat::expect_warning(
+    result <- build_gridded_landuse(
+      fix$country_areas,
+      fix$crop_patterns,
+      fix$gridded_cropland,
+      fix$country_grid
+    ),
+    "no allocatable grid cell"
+  )
+
+  # Country 1 (has cells) is fully allocated; country 3 is not fabricated.
+  total <- result |>
+    dplyr::summarise(total = sum(rainfed_ha + irrigated_ha)) |>
+    dplyr::pull(total)
+  testthat::expect_equal(total, 1000, tolerance = 1e-4)
+})
+
 testthat::test_that("build_gridded_landuse applies capacity constraint by default", {
   fix <- two_country_fixture()
   result <- build_gridded_landuse(

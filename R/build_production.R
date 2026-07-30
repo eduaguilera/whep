@@ -2856,17 +2856,25 @@ build_primary_production <- function(
   }
 
   source_key <- c("year", "area", "area_code", "item_prod", "item_prod_code")
-  src_lookup_prod <- df[
+  # Pick the best source per key by ranking every row ONCE and taking the
+  # lowest-ranked (then alphabetical) source per group, instead of calling
+  # .best_prod_source() per group. The per-group call re-ran dplyr::case_when's
+  # formula parsing for every one of millions of groups, which dominated this
+  # step (a ~26 min "Adding historical yields" phase on a global run). Dropping
+  # NA sources up front matches .best_prod_source()'s own NA handling; groups
+  # with only NA sources are simply absent here and pick up NA via the later
+  # left join, exactly as before.
+  ranked <- df[!is.na(source)]
+  ranked[, .src_rank := .prod_source_rank(source)]
+  ranked[is.na(.src_rank), .src_rank := .Machine$integer.max]
+  data.table::setorderv(ranked, c(".src_rank", "source"))
+  src_lookup_prod <- ranked[
     unit %in% c("tonnes", "t"),
-    .(
-      source_prod = .best_prod_source(source)
-    ),
+    .(source_prod = source[1L]),
     by = source_key
   ]
-  src_lookup_any <- df[,
-    .(
-      source_any = .best_prod_source(source)
-    ),
+  src_lookup_any <- ranked[,
+    .(source_any = source[1L]),
     by = source_key
   ]
 
