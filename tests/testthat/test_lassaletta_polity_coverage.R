@@ -49,6 +49,21 @@
 # did exist -- FSU 1961-1991 reaches F228-1945-1991, Czechoslovakia 1961-1992 reaches
 # F51-1947-1993 -- so the gap is precisely the out-of-period tail.
 #
+# ONE OF THE SIX IS NOT ONLY AN ANACHRONISM, and the difference matters to a consumer.
+# The other five are labels for entities that had dissolved or been renamed, so their
+# out-of-period rows have no territory to belong to. "South Sudan" 1961-2009 does: that
+# land was part of Sudan, and this dataset ALSO carries a "Sudan" row for every one of
+# those years, which resolves to SUD-1956-2011 -- the combined pre-secession state that
+# includes the south. So the source has split one territory into two labels, and only one
+# of them is kept.
+#
+# Nothing here is wrong: there was no separate South Sudanese polity before 2011, and
+# `grass_share` is a share rather than a quantity, so the retained row is an
+# approximation rather than a half-count. But a consumer reading SUD-1956-2011's share
+# is reading the northern part's share attributed to the whole territory, and that is
+# worth knowing rather than inferring. Combining the two would need an area weight,
+# which is a modelling decision this test is not the place to make.
+#
 # The 88% -> 98.1% step came from a realisation rather than new curation: I had written
 # the previous residue up as "predecessor-era cases needing curation decisions", when the
 # `faostat` source ALREADY CONTAINED those decisions for the identical labels. Germany
