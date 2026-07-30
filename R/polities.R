@@ -755,7 +755,7 @@ resolve_polity_label <- function(label, source = NULL, year = NULL) {
   #
   # The ALIAS route is untouched. A curator who decides what a given source
   # means by "China" still wins, and that is where such a decision belongs.
-  regions <- as.data.frame(regions_full)
+  regions <- as.data.frame(whep::regions_full)
   regions <- regions[
     regions$code %in% faostat_deliberate_area_codes,
     ,

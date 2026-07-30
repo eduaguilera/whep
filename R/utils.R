@@ -673,6 +673,17 @@ utils::globalVariables(
     "pets",
     "partner_polity",
     "partner_polity_area_code",
+    # An INTERNAL dataset, so `whep::` cannot reach it the way `whep::regions_full`
+    # can. build_trade.R has referenced it unqualified since it was embedded, so this
+    # declaration removes a pre-existing entry from the "no visible binding" NOTE
+    # rather than merely covering a new one.
+    "faostat_deliberate_area_codes",
+    # The `i.` prefix data.table gives a column of the RIGHT-hand table in an
+    # update-join. `.aggregate_to_polities()` names a reporting bucket from the
+    # bucket's own area_name this way, and codetools sees the prefixed form as an
+    # unbound global — every other symbol in that function was already declared here,
+    # so leaving this one out would have grown the "no visible binding" NOTE by one.
+    "i..bucket_name",
     "polity_area_code",
     "polity_code",
     "polity_end_year",
