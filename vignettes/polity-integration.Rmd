@@ -279,6 +279,23 @@ LUH2 territories with no FAOSTAT area code, dropping: JEY, GGY, IMN, BLM, ALA, a
 Each has a polity upstream but no area code to aggregate through; see whep#407.
 ```
 
+A **full-range** build says more, and the difference is worth stating because a narrow window is not a licence to
+claim a clean build. `get_wide_cbs()` at its default range completes with **2,160,968 rows and zero `NA` in both
+`polity_area_code` and `reporting_polity_code`**, and emits four warnings:
+
+| warning | status |
+|---|---|
+| LUH2 territories with no FAOSTAT area code (six, twice — once per land read) | known, whep#407 |
+| Historical extension: **8** areas have no LUH2 land match | pinned by identity in `test_luh2_backcast_reach.R` |
+| **48,174** CBS rows have supply-use imbalance above 50% | pre-existing, and NOT compared against `main` |
+
+The last one deserves its caveat rather than a silent pass. It is a conservation check in
+`R/conservation.R`, no test pins the number, and this work changed values for reporting buckets that fold several
+areas — so the count could in principle have moved. It was not measured on `main`, because doing so costs a second
+full-range build, and the honest thing is to say so rather than to imply the figure has been cleared. What can be
+said is the direction: those rows previously held `dcast`'s row COUNTS where a bucket was duplicated, and counts
+are less likely to balance than the quantities that replaced them.
+
 That is the whole inventory. It was four warnings earlier in this work, and the other three were defects:
 
 - **an unknown area code, twice.** 420 "Sub-Saharan Africa" and 265 "China (excluding intra-trade)" are FAOSTAT
