@@ -14,9 +14,13 @@
 #   Rscript inst/scripts/compare_datasets_to_ref.R                # against origin/main
 #   Rscript inst/scripts/compare_datasets_to_ref.R origin/HEAD~5  # against any git ref
 #
+# Covers `data/*.rda` AND `inst/extdata/*.csv`, because the CSVs have the same failure mode and
+# one of them hid a real defect behind it (whep#404, see `load_one()` below).
+#
 # Compares content only: attributes are ignored, `sf` geometry columns are dropped (a
-# re-serialised geometry compares unequal for reasons that are never the point), and a dataset
-# absent from the ref is reported as new rather than as a difference.
+# re-serialised geometry compares unequal for reasons that are never the point), row ORDER is
+# normalised, CSV columns are read as character so 45 and 45.0 compare equal, and a file absent
+# from the ref is reported as new rather than as a difference.
 
 suppressMessages({
   library(cli)
@@ -27,12 +31,14 @@ ref <- if (length(args) > 0L) args[[1]] else "origin/main"
 
 changed <- system2(
   "git",
-  c("diff", "--name-only", ref, "--", "data/"),
+  c("diff", "--name-only", ref, "--", "data/", "inst/extdata/"),
   stdout = TRUE
 )
-changed <- changed[grepl("\\.rda$", changed)]
+changed <- changed[grepl("\\.(rda|csv)$", changed)]
 if (length(changed) == 0L) {
-  cli::cli_alert_success("No dataset files differ from {.val {ref}}.")
+  cli::cli_alert_success(
+    "No dataset or extdata file differs from {.val {ref}}."
+  )
   quit(status = 0)
 }
 
@@ -41,6 +47,22 @@ dir.create(tmp)
 on.exit(unlink(tmp, recursive = TRUE), add = TRUE)
 
 load_one <- function(path) {
+  # CSVs are compared as data too, and for the same reason the `.rda` comparison exists.
+  # `inst/extdata/cow_to_lpjml.csv` once showed 191 insertions against 190 deletions -- every
+  # line including the header -- which reads as pure quoting churn. It was not: FAOSTAT area 45
+  # was labelled "Mayotte" when 45 is Comoros, so every Comoros grid cell carried Mayotte's
+  # LPJmL index (whep#404). Two real rows hiding behind a whole-file rewrite.
+  #
+  # Read with every column as character, so a rewrite that turns 45 into 45.0 or drops a
+  # thousands separator is not reported as a content change when the value is the same.
+  if (grepl("\\.csv$", path, ignore.case = TRUE)) {
+    return(utils::read.csv(
+      path,
+      colClasses = "character",
+      check.names = FALSE,
+      stringsAsFactors = FALSE
+    ))
+  }
   e <- new.env()
   load(path, envir = e)
   get(ls(e)[1], envir = e)
@@ -50,7 +72,15 @@ flatten <- function(x) {
   if (inherits(x, "sf")) {
     x <- sf::st_drop_geometry(x)
   }
-  as.data.frame(x)
+  x <- as.data.frame(x)
+  # Row order is not content. Regenerating a table often re-sorts it -- cow_to_lpjml.csv moved
+  # its first row from ARM to AFG -- and reporting that as a difference buries the rows that
+  # actually changed. Ordered by every column so the comparison is order-independent.
+  if (nrow(x) > 1L && ncol(x) > 0L) {
+    x <- x[do.call(order, lapply(x, as.character)), , drop = FALSE]
+    rownames(x) <- NULL
+  }
+  x
 }
 
 same <- differing <- new <- broken <- character()
@@ -82,7 +112,7 @@ for (f in changed) {
   if (eq) same <- c(same, base) else differing <- c(differing, base)
 }
 
-cli::cli_h1("{length(changed)} dataset file{?s} differ{?s/} from {.val {ref}}")
+cli::cli_h1("{length(changed)} data file{?s} differ{?s/} from {.val {ref}}")
 
 if (length(same) > 0L) {
   cli::cli_alert_info(
