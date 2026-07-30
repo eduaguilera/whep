@@ -45,6 +45,31 @@ upstream_claims_polygon <- function() {
   mf$claims_polygon_status
 }
 
+# WHAT EVIDENCE EACH BUILDER HAS, because "the tests pass" and "it was run on real data"
+# are different claims and this file only makes the first one. Recorded so a reader does not
+# assume the stronger one.
+#
+#   smoked on real pins        build_primary_production (170,972 rows, 0 polity NA)
+#                             build_commodity_balances, chained (265,124 rows, 0 NA)
+#                             build_detailed_trade (9,966,763 rows, 0 NA across all seven
+#                               columns including partner)
+#   example only, plus a       build_supply_use, get_feed_intake, build_processing_coefs,
+#     transitive argument      get_primary_residues, get_wide_cbs, get_processing_coefs
+#   synthetic geometry         build_gridded_landuse, build_gridded_livestock, the IO and
+#                               footprint outputs, build_constant_territory_series
+#
+# The transitive argument for the middle group: each joins on `area_code` from
+# get_wide_cbs() or get_primary_production(), both of which were smoked at zero polity NA,
+# and none of them resolves a polity itself. So a polity NA there would have to come from
+# the join losing rows, which the assertions below would catch on the example data.
+#
+# It is weaker than a real run and it is why they are listed separately. Three attempts at
+# real runs exceeded a nine-minute budget -- get_feed_intake, build_constant_territory_series
+# and build_supply_use -- because `.cache_get()` is cold in a fresh session, so each rebuilds
+# production and CBS from scratch before doing its own work. Warming the cache costs the same
+# time. The honest position is that these three are unverified on full-scale data, not that
+# they are verified because a test passed.
+
 expect_polity_match <- function(data, code_col, polity_col) {
   testthat::expect_true(code_col %in% names(data))
   testthat::expect_true(polity_col %in% names(data))
