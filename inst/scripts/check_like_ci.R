@@ -180,6 +180,44 @@ record(
   )
 )
 
+# List the distinct warnings, because the count alone is not actionable.
+#
+# The comment below says a summary line does not highlight a warning count moving from
+# 2 to 3. It is worse than that: when it does move, the line says WHICH NUMBER changed
+# and nothing about which warning arrived. This branch hit exactly that — 6 warnings
+# became 7 and the output offered no way to tell what the seventh was without rerunning
+# the whole 40-minute suite with different instrumentation. So print them, once each,
+# with a test that raised them.
+warn_rows <- do.call(
+  rbind,
+  lapply(raw, function(tst) {
+    warns <- Filter(
+      function(e) inherits(e, "expectation_warning"),
+      tst$results
+    )
+    if (length(warns) == 0L) {
+      return(NULL)
+    }
+    data.frame(
+      test = tst$test,
+      msg = trimws(vapply(warns, conditionMessage, character(1))),
+      stringsAsFactors = FALSE
+    )
+  })
+)
+if (!is.null(warn_rows)) {
+  first <- !duplicated(warn_rows$msg)
+  cat(sprintf("\n  %d distinct warning(s) in the suite:\n", sum(first)))
+  for (i in which(first)) {
+    cat(sprintf(
+      "    [%s] %s\n",
+      warn_rows$test[i],
+      substr(gsub("\\s+", " ", warn_rows$msg[i]), 1, 160)
+    ))
+  }
+  cat("\n")
+}
+
 # A warning is indistinguishable from a pass in that summary line too, and one
 # warning class in particular means an assertion tested NOTHING: reading a column
 # that does not exist returns NULL, and NULL is silently benign inside the usual

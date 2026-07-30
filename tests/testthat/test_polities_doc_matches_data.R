@@ -185,8 +185,19 @@ testthat::test_that("the alias counts in resolve_polity_label's docs are current
   # Non-vacuous: an empty table would make every grepl below search for "0 of 0".
   testthat::expect_gt(total, 100L)
 
+  # Match "N of 869" OR "N of the 869". The two counts used to be checked with two
+  # different literal phrasings — one with the article, one without — which coupled this
+  # test to prose style rather than to the data. Rewording the year sentence broke it while
+  # the number was entirely current, and the failure said "the count is stale", which sends
+  # the reader to look at the one thing that had not changed. What is worth asserting is
+  # that the figure matches the table; the article is not part of the claim.
+  current <- function(n) {
+    grepl(paste0(n, " of ", total), doc, fixed = TRUE) ||
+      grepl(paste0(n, " of the ", total), doc, fixed = TRUE)
+  }
+
   testthat::expect_true(
-    grepl(paste0(unscoped_source, " of ", total), doc, fixed = TRUE),
+    current(unscoped_source),
     info = paste0(
       "the source-unscoped count is stale; should read ",
       unscoped_source,
@@ -195,11 +206,11 @@ testthat::test_that("the alias counts in resolve_polity_label's docs are current
     )
   )
   testthat::expect_true(
-    grepl(paste0(unscoped_year, " of the ", total), doc, fixed = TRUE),
+    current(unscoped_year),
     info = paste0(
       "the year-unscoped count is stale; should read ",
       unscoped_year,
-      " of the ",
+      " of ",
       total
     )
   )
