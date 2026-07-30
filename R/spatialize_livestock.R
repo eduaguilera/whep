@@ -587,6 +587,9 @@ build_gridded_livestock <- function(
   } else {
     " ({round(lost_heads)} head{?s} dropped)"
   }
+  # `codes` is integer, so the plural marker must follow an explicit scalar
+  # count: cli's make_quantity() errors on a numeric vector of length > 1.
+  codes <- sort(dropped)
   cli::cli_warn(c(
     paste0(
       "{length(dropped)} countr{?y/ies} have national livestock totals ",
@@ -594,7 +597,7 @@ build_gridded_livestock <- function(
       head_msg,
       ":"
     ),
-    "x" = "area_code{?s} {.val {sort(dropped)}}."
+    "x" = "{length(codes)} area_code{?s}: {.val {codes}}."
   ))
 }
 

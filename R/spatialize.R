@@ -921,11 +921,14 @@ build_gridded_landuse <- function(
   if (nrow(leaked) == 0L) {
     return(invisible(NULL))
   }
+  # `codes` is integer, so the plural marker must follow an explicit scalar
+  # count: cli's make_quantity() errors on a numeric vector of length > 1.
+  codes <- sort(unique(leaked$area_code))
   cli::cli_warn(c(
     "{nrow(leaked)} (country, crop) pair{?s} in year {yr} have national \\
      harvested area but no allocatable grid cell; \\
      {round(sum(leaked$national_area))} ha dropped:",
-    "x" = "area_code{?s} {.val {sort(unique(leaked$area_code))}}."
+    "x" = "{length(codes)} area_code{?s}: {.val {codes}}."
   ))
 }
 

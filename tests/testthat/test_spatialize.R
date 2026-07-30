@@ -145,6 +145,46 @@ testthat::test_that("country-crop with area but no grid cell warns and keeps oth
   testthat::expect_equal(total, 1000, tolerance = 1e-4)
 })
 
+testthat::test_that("unallocated-crop warning survives several area codes", {
+  # Two unallocatable area codes, not one. `area_code` is integer, and cli's
+  # make_quantity() aborts on a numeric quantity of length > 1, so a plural
+  # marker reading the code vector turned this warning into a hard error on
+  # real data (where many countries are unallocatable) while the single-code
+  # fixture above passed.
+  fix <- two_country_fixture()
+  fix$country_areas <- tibble::tribble(
+    ~year, ~area_code, ~item_prod_code, ~harvested_area_ha,
+    2000L,         1L,             15L,               1000,
+    2000L,         3L,             15L,                700,
+    2000L,         4L,             15L,                300
+  )
+
+  testthat::expect_warning(
+    result <- build_gridded_landuse(
+      fix$country_areas,
+      fix$crop_patterns,
+      fix$gridded_cropland,
+      fix$country_grid
+    ),
+    "no allocatable grid cell"
+  )
+
+  # Both unallocatable codes are named, and the placeable country is intact.
+  testthat::expect_warning(
+    build_gridded_landuse(
+      fix$country_areas,
+      fix$crop_patterns,
+      fix$gridded_cropland,
+      fix$country_grid
+    ),
+    "2 area_codes"
+  )
+  total <- result |>
+    dplyr::summarise(total = sum(rainfed_ha + irrigated_ha)) |>
+    dplyr::pull(total)
+  testthat::expect_equal(total, 1000, tolerance = 1e-4)
+})
+
 testthat::test_that("build_gridded_landuse applies capacity constraint by default", {
   fix <- two_country_fixture()
   result <- build_gridded_landuse(
