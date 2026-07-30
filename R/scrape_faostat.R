@@ -88,14 +88,64 @@ get_faostat_data <- function(activity_data, ..., example = FALSE) {
     outCode = "ISO3_CODE"
   )
 
-  # manually fix some crazy countries/ISO3_CODE
-  df[df$area == "China, mainland", "ISO3_CODE"] <- "CHN"
-  df[df$area == "T\u00FCrkiye", "ISO3_CODE"] <- "TUR"
-  df[df$area == "Netherlands (Kingdom of the)", "ISO3_CODE"] <- "NLD"
-  df[df$area == "Sudan", "ISO3_CODE"] <- "SDN"
-  df[df$area == "South Sudan", "ISO3_CODE"] <- "SSD"
-  df[df$area == "Czechia", "ISO3_CODE"] <- "CZE"
-  df[df$area == "Lao People's Democratic Republic", "ISO3_CODE"] <- "LAO"
+  .correct_iso3_from_polities(df)
+}
+
+# Correct `FAOSTAT::fillCountryCode()`'s answer against the polities crosswalk.
+#
+# This replaced seven hardcoded patches introduced as "manually fix some crazy
+# countries/ISO3_CODE": China mainland -> CHN, T\u00FCrkiye -> TUR, Netherlands (Kingdom of the)
+# -> NLD, Sudan -> SDN, South Sudan -> SSD, Czechia -> CZE, and Lao People's Democratic
+# Republic -> LAO. Every one of the seven agrees with `area_iso3c` in the crosswalk, so the
+# list was a hand-maintained copy of something already published -- and a copy that only
+# covers the seven names somebody hit. The next awkward rename lands as a silent NA.
+#
+# The crosswalk is the right authority here rather than a second opinion: this function's
+# input is FAOSTAT area NAMES, and `area_iso3c` is upstream's own statement of the ISO3 for a
+# FAOSTAT area. So it corrects wherever the two disagree, not merely where the code is
+# missing, which is what the seven patches were doing.
+#
+# Restricted to rows with a non-NA `area_code`, i.e. actual reporting areas, and that
+# restriction is what makes the lookup safe. Unrestricted, three names are ambiguous --
+# "France" maps to FRA and BLM, "United Kingdom" to GGY, JEY and IMN, "Finland" to FIN and
+# ALA -- because the crosswalk also carries dependencies that have a polity and an ISO3 but no
+# FAOSTAT area of their own (whep#407). Filtered to reporting areas, all 265 names are unique.
+#
+# Names the crosswalk does not know are left exactly as `fillCountryCode()` returned them:
+# this corrects what it can prove and does not guess.
+.correct_iso3_from_polities <- function(df) {
+  if (!all(c("area", "ISO3_CODE") %in% names(df))) {
+    return(df)
+  }
+  cw <- as.data.frame(whep::polity_area_crosswalk)
+  keep <- which(
+    !is.na(cw$area_name) & !is.na(cw$area_iso3c) & !is.na(cw$area_code)
+  )
+  lookup <- unique(cw[keep, c("area_name", "area_iso3c")])
+
+  authoritative <- lookup$area_iso3c[match(
+    as.character(df$area),
+    lookup$area_name
+  )]
+  current <- as.character(df$ISO3_CODE)
+  differs <- !is.na(authoritative) &
+    (is.na(current) | current != authoritative)
+
+  if (any(differs)) {
+    shown <- unique(paste0(
+      as.character(df$area)[differs],
+      ": ",
+      ifelse(is.na(current[differs]), "NA", current[differs]),
+      " -> ",
+      authoritative[differs]
+    ))
+    cli::cli_inform(c(
+      "i" = "Corrected {sum(differs)} FAOSTAT ISO3 code{?s} against the polities
+         crosswalk.",
+      "*" = "{.val {utils::head(sort(shown), 10)}}"
+    ))
+    df$ISO3_CODE[differs] <- authoritative[differs]
+  }
 
   df
 }

@@ -59,6 +59,18 @@
   so aborting refuses to build a pipeline that has always had them. Choosing
   sum-vs-first at the cast changes published numbers: #418.
 
+* FAOSTAT ISO3 codes are corrected from the polities crosswalk rather than from a
+  hand-maintained list. `.populate_iso3_code()` carried seven patches introduced as
+  "manually fix some crazy countries/ISO3_CODE" -- China mainland, Türkiye, Netherlands
+  (Kingdom of the), Sudan, South Sudan, Czechia and Lao PDR. All seven agree with
+  `area_iso3c` in the crosswalk, so the list was a copy of something already published,
+  and one that covered only the names somebody had hit: the next FAOSTAT rename lands as
+  a silent `NA`. Now every reporting area is checked, disagreements are corrected and
+  reported rather than applied silently, and names the crosswalk does not know keep
+  whatever `FAOSTAT::fillCountryCode()` returned. Restricted to rows with an `area_code`,
+  which is what makes the lookup unambiguous -- unrestricted, "France" maps to both FRA
+  and BLM, and "Finland" to FIN and ALA.
+
 * **`urban_n_reference$area_code` is now an integer FAOSTAT code, not the ISO3 string
   `"ESP"`** (#401). Every other `area_code` in the package is a numeric FAOSTAT code --
   the same workflow's own toy example uses `203L` for Spain -- so one concept was keyed
