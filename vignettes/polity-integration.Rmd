@@ -272,7 +272,8 @@ c(
 
 A build that resolves every row still emits one warning, and knowing which one is the difference between reading
 output and trusting it. On `build_primary_production(1990, 1993)` chained into
-`build_commodity_balances()` — 170,972 and 265,124 rows, **zero `NA` across all four polity columns in both**:
+`build_commodity_balances()` — 170,976 and 265,640 rows, **zero `NA` across all four polity columns in both**
+(checked column by column, not in aggregate):
 
 ```
 LUH2 territories with no FAOSTAT area code, dropping: JEY, GGY, IMN, BLM, ALA, and SXM.
@@ -295,6 +296,12 @@ areas — so the count could in principle have moved. It was not measured on `ma
 full-range build, and the honest thing is to say so rather than to imply the figure has been cleared. What can be
 said is the direction: those rows previously held `dcast`'s row COUNTS where a bucket was duplicated, and counts
 are less likely to balance than the quantities that replaced them.
+
+Those counts are 4 and 516 rows higher than this section reported earlier in the work, and the difference is
+this branch's own doing rather than drift: the bucket-aggregation fix collapses keys that used to be
+duplicated, and `add_area_code()`'s fallback admits rows that used to be dropped for want of a code. The
+figures were re-measured rather than adjusted by arithmetic, and the claim they support — no `NA` in any
+polity column — was re-checked at the same time, because that is the part a reader relies on.
 
 That is the whole inventory. It was four warnings earlier in this work, and the other three were defects:
 
