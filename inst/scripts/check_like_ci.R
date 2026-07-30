@@ -505,6 +505,136 @@ if (file.exists(ignore_path) && length(test_files) > 0L) {
   )
 }
 
+# --- 5d. Exported builders must document the polity columns they emit ---------
+# A consumer reads @return before using an output. Eight exported builders emitted
+# polity columns their documentation never mentioned -- build_detailed_trade omitted
+# all seven, including the partner ones -- so a caller had no way to learn from the
+# docs that they could group by reporting_polity_code.
+#
+# That was found by running the check once by hand. This makes it standing, because
+# the failure mode is a NEW builder: nothing about an undocumented column fails, and
+# the three functions that were already documented are the ones someone happened to
+# touch.
+#
+# Static, and deliberately not by calling the functions: several need real pins, and a
+# gate that needs the network is a gate that gets skipped. Instead it reads which
+# polity columns each builder's code attaches, from the helper calls that attach them,
+# and requires the documentation to mention each one.
+#
+# WHAT IT DOES NOT COVER, stated because the pass line names a count and a count invites
+# being read as completeness: it detects DIRECT calls to the attach helpers, so a function
+# whose polity columns arrive from a callee is invisible to it. Eight builders are
+# verified; get_primary_production, build_commodity_balances, build_processing_coefs,
+# get_processing_coefs and expand_trade_sources emit polity columns they inherit from
+# something else, and their documentation was checked by hand and by
+# test_polities_doc_matches_data.R instead.
+#
+# Following the call graph would close that, and would mean either evaluating the
+# functions or parsing R properly. Neither is worth it for five functions whose docs are
+# already right; what matters is that the gate says so rather than implying it covered
+# them.
+builder_rd <- Sys.glob("man/*.Rd")
+if (length(builder_rd) > 0L) {
+  # Helpers that attach polity columns, and what they add. Kept next to the check
+  # rather than derived, because deriving it would mean running the builders.
+  attaches <- list(
+    ".add_reporting_polity_columns" = c(
+      "polity_area_code",
+      "reporting_polity_code",
+      "reporting_polity_name",
+      "reporting_polity_has_geometry"
+    ),
+    ".add_partner_polity_columns" = c(
+      "partner_polity_code",
+      "partner_polity_name",
+      "partner_polity_has_geometry"
+    ),
+    ".add_trade_polity_columns" = c(
+      "polity_area_code",
+      "reporting_polity_code",
+      "reporting_polity_name",
+      "reporting_polity_has_geometry",
+      "partner_polity_code",
+      "partner_polity_name",
+      "partner_polity_has_geometry"
+    )
+  )
+  exported <- tryCatch(
+    readLines("NAMESPACE", warn = FALSE),
+    error = function(e) character(0)
+  )
+  exported <- gsub(
+    '^export\\(|\\)$|"',
+    "",
+    grep("^export\\(", exported, value = TRUE)
+  )
+
+  undocumented <- character(0)
+  verified <- character(0)
+  for (fn in exported) {
+    rd <- file.path("man", paste0(fn, ".Rd"))
+    if (!file.exists(rd)) {
+      next
+    }
+    src_files <- Sys.glob("R/*.R")
+    body_txt <- ""
+    for (f in src_files) {
+      txt <- paste(readLines(f, warn = FALSE), collapse = "\n")
+      pat <- paste0("(?s)\\n", fn, " <- function.*?\\n\\}")
+      m <- regmatches(txt, regexpr(pat, txt, perl = TRUE))
+      if (length(m) > 0L) {
+        body_txt <- m[[1]]
+        break
+      }
+    }
+    if (!nzchar(body_txt)) {
+      next
+    }
+    adds <- unique(unlist(
+      attaches[vapply(
+        names(attaches),
+        function(h) grepl(h, body_txt, fixed = TRUE),
+        logical(1)
+      )]
+    ))
+    if (length(adds) == 0L) {
+      next
+    }
+    verified <- c(verified, fn)
+    doc <- paste(readLines(rd, warn = FALSE), collapse = " ")
+    missing_cols <- adds[
+      !vapply(
+        adds,
+        function(col) grepl(col, doc, fixed = TRUE),
+        logical(1)
+      )
+    ]
+    if (length(missing_cols) > 0L) {
+      undocumented <- c(
+        undocumented,
+        sprintf("%s (%s)", fn, paste(missing_cols, collapse = ", "))
+      )
+    }
+  }
+  record(
+    "builders document their polity columns",
+    length(undocumented) == 0L,
+    if (length(undocumented) == 0L) {
+      # The number of functions actually VERIFIED, not the number of .Rd files
+      # present. Reporting the latter read as coverage while proving nothing: the
+      # first version of this gate said "270 exported topic(s) checked" and would
+      # have said it just as happily had the body regex matched nothing at all.
+      sprintf(
+        "%d builder(s) verified: %s",
+        length(verified),
+        paste(verified, collapse = ", ")
+      )
+    } else {
+      paste("undocumented:", paste(undocumented, collapse = "; "))
+    }
+  )
+}
+
 # --- 6. Verdict --------------------------------------------------------------
 cat("\n")
 failed <- Filter(function(r) !r$ok, results)
