@@ -498,7 +498,13 @@
 #'
 #' @format A tibble with columns:
 #' \describe{
-#'   \item{area_code}{ISO3 country code (currently only \code{"ESP"}).}
+#'   \item{area_code}{Numeric FAOSTAT area code, as everywhere else in this
+#'     package; currently only \code{203} (Spain). The vendored CSV records the
+#'     ISO3 string \code{"ESP"} and it is resolved to a code through
+#'     [polity_area_crosswalk] at build time, so this series joins to area-keyed
+#'     tables without a hand conversion. It held the string until 0.3.0.9000,
+#'     which meant the one column named \code{area_code} in this package that was
+#'     not one (whep#401).}
 #'   \item{year}{Benchmark calendar year.}
 #'   \item{urban_n_gg}{National-total urban nitrogen applied to agriculture
 #'     (Gg N/year).}

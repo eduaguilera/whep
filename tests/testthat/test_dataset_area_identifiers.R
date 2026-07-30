@@ -92,21 +92,34 @@ test_that("every lassaletta_grassland_share label resolves, bar two aggregates",
   expect_setequal(tail_unresolved, lassaletta_unresolved_names)
 })
 
-test_that("urban_n_reference's area_code is an ISO3 string, not a FAOSTAT area code", {
-  # Documented as a fact rather than asserted away. The column is named
-  # `area_code`, which everywhere else in this package means the numeric FAOSTAT
-  # reporting area, but it holds "ESP". A consumer joining it to `area_code` gets
-  # nothing, and gets it silently. The dataset is Spain-only reference data used
-  # in a derivation, so renaming the column is a breaking change and the
-  # maintainer's call.
+test_that("urban_n_reference's area_code is a FAOSTAT code, as its name says", {
+  # This test asserted the OPPOSITE until the defect was fixed: that the column named
+  # `area_code` held the ISO3 string "ESP". It was written to document the trap rather
+  # than assert it away, on the reasoning that renaming the column would be a breaking
+  # change and the maintainer's call.
+  #
+  # Renaming was never the only option. The column name is right — `area_code` means a
+  # numeric FAOSTAT area everywhere else in this package, and the same workflow's toy
+  # example uses 203L for Spain — so the VALUE was what disagreed. Resolving "ESP" to 203
+  # through the crosswalk at build time keeps the name, keeps the provenance in the
+  # vendored CSV, and makes the series joinable. No output changes, because nothing in the
+  # package joins it: it is a benchmark a reader compares against by hand, which is how
+  # the column could hold a string for as long as it did (whep#401).
+  #
+  # Resolved through the crosswalk rather than written as a literal 203, so a renamed or
+  # re-coded territory becomes a build error instead of a wrong join.
   u <- as.data.frame(whep::urban_n_reference)
-  expect_true(is.character(u$area_code))
-  expect_setequal(unique(u$area_code), "ESP")
-  # And the thing that makes it a trap: it does not resolve as an area code.
+  expect_true(is.numeric(u$area_code))
+  expect_setequal(unique(u$area_code), 203L)
+
+  # And it now resolves as an area code, which is the property the old version asserted
+  # the absence of.
   cw <- as.data.frame(whep::polity_area_crosswalk)
-  expect_false(any(as.character(cw$area_code) %in% unique(u$area_code)))
-  # It WOULD resolve as an iso3, which is what it actually is.
-  expect_true("ESP" %in% known_area_iso3())
+  expect_true(203L %in% as.integer(cw$area_code))
+  expect_setequal(
+    unique(cw$area_name[which(as.integer(cw$area_code) == 203L)]),
+    "Spain"
+  )
 })
 
 test_that("region-taxonomy columns are not expected to resolve to polities", {
@@ -296,15 +309,26 @@ testthat::test_that("a column called area_code holds a numeric area code, or is 
   # gdp-population$area_code, which holds ISO3-shaped prefixes and cannot be renamed because it is a
   # pinned input.
   #
-  # urban_n_reference is the fourth and is BASELINED, not fixed. The test above documents why:
-  # renaming a published dataset's column is a breaking change and the maintainer's call. I built
-  # the fix — rename to `area_iso3c`, derive a numeric `area_code` from the crosswalk — confirmed it
-  # works, and then reverted it, because that earlier deferral is a decision and I had no new
-  # information that overrides it. The evidence I did gather is on the issue instead.
+  # urban_n_reference was the fourth and is now FIXED, so the baseline is empty. That
+  # reverses an earlier decision on this branch and the reasoning matters, because the
+  # earlier decision was not wrong.
+  #
+  # What was declined then: RENAME the column to `area_iso3c` and add a derived numeric
+  # `area_code`. That is a breaking change to a published dataset's schema — a consumer
+  # has to learn a new column — so it was left to the maintainer.
+  #
+  # What was done now: keep the name and correct the VALUE, resolving "ESP" to 203 through
+  # the crosswalk at build time. No column appears or disappears. The only consumer that
+  # breaks is one relying on `area_code` holding something the name says it does not hold.
+  #
+  # And the new information that justifies acting rather than deferring again: nothing in
+  # the package JOINS this dataset. It is a benchmark series a reader compares against by
+  # hand, referenced only in comments and roxygen, so the change is provably output-neutral
+  # — which is what the earlier pass could not say.
   #
   # Swept across every exported dataset so the NEXT one fails here rather than being found by
   # accident five iterations later.
-  baseline <- "urban_n_reference"
+  baseline <- character(0)
 
   exported <- utils::data(package = "whep")$results[, "Item"]
   offenders <- character()
@@ -343,7 +367,9 @@ testthat::test_that("a column called area_code holds a numeric area code, or is 
     )
   )
 
-  # Bidirectional: if the baselined dataset is ever fixed, this fails and the entry comes out.
-  known <- get(baseline, envir = asNamespace("whep"))
-  testthat::expect_false(is.numeric(as.data.frame(known)$area_code))
+  # The baseline is now EMPTY, and that is the interesting part. It held
+  # urban_n_reference, whose area_code was the ISO3 string "ESP" — and the shrink side of
+  # this check is what failed when that was fixed, exactly as intended. An entry that has
+  # been resolved must come out, or the baseline licenses a regression later.
+  testthat::expect_equal(baseline, character(0))
 })

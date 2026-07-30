@@ -74,7 +74,40 @@ n_attenuation_constants <- .read_balance_csv("n_attenuation_constants.csv")
 # provenance). urban_kgn_cap_reference is the DERIVED per-capita rate; it is
 # NOT recomputed here (see data-raw/build_urban_kgn_cap.R for how it was
 # built and how to regenerate it against real HYDE data).
+# `area_code` in the vendored CSV holds the ISO3 string "ESP", while every other
+# `area_code` in this package is a numeric FAOSTAT code — the same workflow's toy example
+# uses 203L for Spain. One concept keyed two ways, so this series could not be joined to
+# any area-keyed table without a hand conversion, and the column name gave no hint that
+# one was needed (whep#401).
+#
+# Converted here rather than in the vendored file, which would diverge from its source, and
+# resolved through the crosswalk rather than by writing 203 as a literal: the mapping ESP ->
+# 203 is upstream's to state, and looking it up means a renamed or re-coded territory
+# surfaces as an error rather than as a wrong join.
+#
+# Latent rather than live: the series is a benchmark a reader compares against by hand and
+# nothing in the package joins it. That is why the column could hold a string for as long as
+# it did, and why fixing it changes no output.
 urban_n_reference <- .read_balance_csv("urban_n_reference.csv")
+local({
+  cw <- as.data.frame(polity_area_crosswalk)
+  iso <- unique(cw[
+    which(!is.na(cw$area_iso3c) & !is.na(cw$area_code)),
+    c("area_iso3c", "area_code")
+  ])
+  chr <- as.character(urban_n_reference$area_code)
+  numeric_already <- !is.na(suppressWarnings(as.integer(chr)))
+  mapped <- iso$area_code[match(chr, iso$area_iso3c)]
+  resolved <- ifelse(numeric_already, suppressWarnings(as.integer(chr)), mapped)
+  if (any(is.na(resolved))) {
+    cli::cli_abort(c(
+      "urban_n_reference$area_code holds values that are neither a FAOSTAT code nor a
+       known area ISO3.",
+      x = "Unresolved: {.val {unique(chr[is.na(resolved)])}}"
+    ))
+  }
+  urban_n_reference$area_code <<- as.integer(resolved)
+})
 urban_kgn_cap_reference <- .read_balance_csv("urban_kgn_cap_reference.csv")
 
 # Module C (Task C4) MANNER process-based ammonia-volatilisation coefficient
