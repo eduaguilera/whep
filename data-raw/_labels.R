@@ -51,3 +51,33 @@ repair_mojibake <- function(x) {
 repair_table_labels <- function(x) {
   dplyr::mutate(x, dplyr::across(dplyr::where(is.character), repair_mojibake))
 }
+
+# "0" is not a country name and not a region.
+#
+# `polities_cats.csv` was exported with a literal "0" wherever a value is
+# absent, in 13 character columns: the `eia` and `iea` country names and every
+# `region_*` classification. `regions_full.csv`, which carries the SAME 40
+# columns over a 198-row superset, uses blanks there and so reads as NA — which
+# is how comparing the two tables turned this up. 17 of their 39 shared columns
+# disagreed, and 13 of those disagreements were this sentinel rather than any
+# difference of opinion.
+#
+# It matters because "0" reads as data. `!is.na(iea)` keeps all 198 rows instead
+# of the 139 that have an IEA name, a join on `iea` matches the 59 zero rows to
+# each other as though they were one country, and grouping by `region_UN` yields
+# a "0" region. `excel_na` already normalises "", "NA", "#N/A", "#DIV/0!" and
+# "#REF!" for exactly this reason; "0" simply was not in the list, and it cannot
+# be added there because a numeric 0 is a real value in columns like `EU27` and
+# `cbs`.
+#
+# So the substitution is restricted to character columns, where "0" cannot be
+# meant.
+blank_zero_sentinels <- function(x) {
+  dplyr::mutate(
+    x,
+    dplyr::across(
+      dplyr::where(is.character),
+      \(v) dplyr::if_else(!is.na(v) & v == "0", NA_character_, v)
+    )
+  )
+}

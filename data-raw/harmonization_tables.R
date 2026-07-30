@@ -59,7 +59,8 @@ source("data-raw/_labels.R")
 regions_full <- file.path(harmonization_dir, "regions_full.csv") |>
   readr::read_csv(show_col_types = FALSE, na = excel_na) |>
   fill_adb_region() |>
-  repair_table_labels()
+  repair_table_labels() |>
+  blank_zero_sentinels()
 
 items_full <- file.path(harmonization_dir, "items_full.csv") |>
   readr::read_csv(show_col_types = FALSE, na = excel_na)
@@ -77,7 +78,8 @@ polities_cats <- file.path(harmonization_dir, "polities_cats.csv") |>
   readr::read_csv(show_col_types = FALSE, na = excel_na) |>
   dplyr::select(!dplyr::starts_with("0...")) |>
   fill_adb_region() |>
-  repair_table_labels()
+  repair_table_labels() |>
+  blank_zero_sentinels()
 
 if (!exists("polity_area_crosswalk")) {
   load(here::here("data", "polity_area_crosswalk.rda"))
