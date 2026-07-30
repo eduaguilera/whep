@@ -156,3 +156,73 @@ testthat::test_that("ADB_Region agrees between the two tables", {
   testthat::expect_equal(sum(!is.na(a$ADB_Region)), 28L)
   testthat::expect_equal(sum(!is.na(b$ADB_Region)), 28L)
 })
+
+# An area that maps to NO polity must carry no aggregation key either. Exactly one row
+# was in that state: 351 China, whose fabio_code is NA, so the polity_area_code if_else
+# fell through to `area_code` and handed it 351 — while its polity_code is NA by design,
+# because FAOSTAT publishes 351 alongside mainland, Hong Kong, Macao and Taiwan and
+# routing it anywhere double-counts all four.
+#
+# It was inert, and that was checked rather than assumed: 351 reached 0 rows of built
+# production and 0 of built trade, because every consumer drops unmapped rows before
+# aggregating. So this was a trap rather than a defect — an aggregation on
+# polity_area_code that did not first filter is.na(polity_code) would have built a China
+# bucket double-counting its own components, and nothing in the published table said not
+# to.
+#
+# Fixing it also closed the last polity_area_code disagreement between the two reference
+# tables: regions_full has always carried NA here, and the crosswalk now does too.
+testthat::test_that("an area with no polity has no aggregation key", {
+  cw <- as.data.frame(whep::polity_area_crosswalk)
+  orphaned <- unique(cw$area_code[which(
+    is.na(cw$polity_code) & !is.na(cw$polity_area_code)
+  )])
+  testthat::expect_equal(
+    length(orphaned),
+    0L,
+    info = paste0(
+      "areas with an aggregation key but no polity, so aggregating on ",
+      "polity_area_code without filtering is.na(polity_code) double-counts them: ",
+      paste(orphaned, collapse = ", ")
+    )
+  )
+
+  # Non-vacuous: 351 must still BE in the crosswalk, unmapped. Dropping the row entirely
+  # would satisfy the assertion above while losing the record that the non-mapping is
+  # deliberate.
+  china <- cw[which(cw$area_code == 351L), ]
+  testthat::expect_gt(nrow(china), 0L)
+  testthat::expect_true(all(is.na(china$polity_code)))
+  testthat::expect_true(all(is.na(china$polity_area_code)))
+})
+
+testthat::test_that("the two reference tables agree on every aggregation key", {
+  r <- as.data.frame(whep::regions_full)
+  r <- r[which(!is.na(r$code)), ]
+  r <- r[!duplicated(r$code), ]
+  cw <- as.data.frame(whep::polity_area_crosswalk)
+  cw <- cw[which(!is.na(cw$area_code)), ]
+  cw <- cw[!duplicated(cw$area_code), ]
+
+  idx <- match(r$code, cw$area_code)
+  from_cw <- cw$polity_area_code[idx]
+  comparable <- !is.na(idx)
+  testthat::expect_gt(sum(comparable), 200L)
+
+  a <- r$polity_area_code[comparable]
+  b <- from_cw[comparable]
+  differing <- r$code[comparable][which(
+    (is.na(a) != is.na(b)) | (!is.na(a) & !is.na(b) & a != b)
+  )]
+  # Zero, not a baseline. The two are built in sequence with regions_full reading the
+  # crosswalk, so any difference means either data-raw ran in the wrong order or the two
+  # derivations have genuinely parted — and both are worth failing on.
+  testthat::expect_equal(
+    length(differing),
+    0L,
+    info = paste0(
+      "areas whose polity_area_code differs between regions_full and the crosswalk: ",
+      paste(utils::head(differing, 10), collapse = ", ")
+    )
+  )
+})

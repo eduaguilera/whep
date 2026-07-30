@@ -127,24 +127,41 @@ testthat::test_that("no reporting territory shares the FABIO rest-of-world bucke
     )
   }
 
-  # And the two tables that carry this column must agree about it. They disagree only on
-  # 351 China, which is deliberately unmapped, and they are built in sequence with
-  # regions_full reading the crosswalk -- so a stale value here means data-raw was run in
-  # the wrong order, which is exactly what happened while making this change.
+  # The two tables carrying this column must agree, and now do EVERYWHERE. This
+  # assertion previously exempted 351 China, whose crosswalk row held an aggregation key
+  # while its polity_code was NA -- an inert trap, since consumers drop unmapped rows
+  # before aggregating, but one that would have built a China bucket double-counting
+  # mainland, Hong Kong, Macao and Taiwan for anyone who aggregated first. Giving an
+  # unmapped area no key closed both the trap and the disagreement.
+  #
+  # test_polities_cats_vs_regions_full.R asserts the same property directly; this keeps it
+  # next to the build-order hazard that produced a stale value here once already.
+  testthat::expect_equal(
+    length(differing_aggregation_keys()),
+    0L,
+    info = paste0(
+      "areas whose polity_area_code differs between regions_full and the crosswalk: ",
+      paste(utils::head(differing_aggregation_keys(), 10), collapse = ", ")
+    )
+  )
+})
+
+# Shared by the assertion above and by test_polities_cats_vs_regions_full.R's version, so
+# the two cannot drift into checking subtly different things.
+differing_aggregation_keys <- function() {
   r <- as.data.frame(whep::regions_full)
   r <- r[which(!is.na(r$code)), ]
   r <- r[!duplicated(r$code), ]
-  key <- cw[which(!is.na(cw$area_code)), ]
-  key <- key[!duplicated(key$area_code), ]
-  idx <- match(r$code, key$area_code)
-  from_cw <- key$polity_area_code[idx]
-  differing <- r$code[which(
-    !is.na(from_cw) &
-      ((!is.na(r$polity_area_code) & r$polity_area_code != from_cw) |
-        is.na(r$polity_area_code))
-  )]
-  testthat::expect_setequal(differing, 351L)
-})
+  cw <- as.data.frame(whep::polity_area_crosswalk)
+  cw <- cw[which(!is.na(cw$area_code)), ]
+  cw <- cw[!duplicated(cw$area_code), ]
+  idx <- match(r$code, cw$area_code)
+  from_cw <- cw$polity_area_code[idx]
+  ok <- !is.na(idx)
+  a <- r$polity_area_code[ok]
+  b <- from_cw[ok]
+  r$code[ok][which((is.na(a) != is.na(b)) | (!is.na(a) & !is.na(b) & a != b))]
+}
 
 # The derivation deciding which folded areas keep their own aggregation key has TWO
 # routes, unioned, and the second is gated on `cbs`. Both halves of that structure are

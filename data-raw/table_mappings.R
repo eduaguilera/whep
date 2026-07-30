@@ -547,6 +547,27 @@ polity_area_crosswalk <- regions_for_crosswalk |>
       .data$fabio_code,
       .data$area_code
     ),
+    # An area that maps to NO polity gets no aggregation key either. Exactly one row is
+    # affected: 351 China, whose fabio_code is NA, so the if_else above fell through to
+    # `area_code` and handed it 351. Its polity_code is NA by design -- FAOSTAT publishes
+    # it alongside mainland, Hong Kong, Macao and Taiwan, so routing it anywhere
+    # double-counts all four.
+    #
+    # Inert today, and checked rather than assumed: 351 reaches 0 rows of built production
+    # and 0 of built trade, because consumers drop unmapped rows before aggregating. It is
+    # a trap rather than a defect -- an aggregation on polity_area_code that does not first
+    # filter is.na(polity_code) would build a China bucket that double-counts its own
+    # components, and nothing in the published table warned against it.
+    #
+    # Two smaller gains: regions_full has always carried NA here, so this removes the last
+    # polity_area_code disagreement between the two tables; and .warn_unmapped_codes(),
+    # which keys on is.na(polity_area_code), can now see 351 and report it as the
+    # deliberate drop it is instead of passing over it.
+    polity_area_code = dplyr::if_else(
+      is.na(.data$polity_code),
+      NA_integer_,
+      .data$polity_area_code
+    ),
     mapping_status = dplyr::case_when(
       !is.na(.data$manual_polity_prefix) & !is.na(.data$polity_code) ~ "manual",
       !is.na(.data$polity_code) ~ "matched",
