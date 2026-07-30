@@ -559,6 +559,23 @@ add_polity_code <- function(
 get_polity_geometries <- function(polity_codes = NULL) {
   out <- polities
   if (!is.null(polity_codes)) {
+    # Say which codes are not in the database, because the alternative is a row
+    # count the caller cannot interpret. Asking for two codes and getting one
+    # row means either "that polity has no geometry" or "that code does not
+    # exist", and those need different fixes. A code can legitimately exist with
+    # no polygon — `has_geometry` reports that, and such a row IS returned — so
+    # silence here only ever hides the typo case.
+    unknown <- setdiff(polity_codes, out$polity_code)
+    if (length(unknown) > 0L) {
+      cli::cli_warn(c(
+        "!" = "{length(unknown)} of {length(polity_codes)} requested polity codes
+           are not in the database, so no rows are returned for them.",
+        "i" = "Unknown: {.val {utils::head(sort(unknown), 5)}}.",
+        "i" = "A polity that exists but has no polygon is returned with
+           {.field has_geometry} FALSE, so this is a code that does not exist rather
+           than a missing geometry."
+      ))
+    }
     out <- out[out$polity_code %in% polity_codes, ]
   }
   out
@@ -683,8 +700,8 @@ resolve_polity_label <- function(label, source = NULL, year = NULL) {
     trimws(gsub("\\s+", " ", x))
   }
   alias_key <- norm(aliases$source_label)
-  # Normalise the inputs once. Both routes below need the same key for a label, and
-  # `norm()` was being recomputed per element per route.
+  # Normalise the inputs once. Both routes below need the same key for a label,
+  # and `norm()` was being recomputed per element per route.
   label_key <- norm(label)
 
   # Canonical-name fallback, tried only after the alias route misses.
@@ -722,21 +739,22 @@ resolve_polity_label <- function(label, source = NULL, year = NULL) {
   pol <- sf::st_drop_geometry(whep::polities)
   name_key <- norm(pol$polity_name)
 
-  # A label that NAMES a deliberately-unmapped reporting area is refused by the name
-  # route, and this guard exists because the route got one wrong.
+  # A label that NAMES a deliberately-unmapped reporting area is refused by the
+  # name route, and this guard exists because the route got one wrong.
   #
-  # FAOSTAT area 351 "China" is the AGGREGATE of mainland (41), Hong Kong (96), Macao
-  # (128) and Taiwan (214), each of which reports separately. Upstream publishes 351 as
-  # deliberately unmapped and this package embeds that list. The name route resolved the
-  # label anyway: normalisation drops parenthesised qualifiers, which is what lets
-  # "Zimbabwe (1900-1953)" answer to "zimbabwe" — and it also folds CHN-1950-2025
-  # "China (PRC)" onto "china". That attributes aggregate rows to the mainland polity and
-  # double-counts them against 41 + 96 + 128 + 214. An earlier, broader rule was rejected
-  # for exactly this case; it came back through a different door, which is why the refusal
-  # is now derived from the published contract rather than from a reviewer noticing.
+  # FAOSTAT area 351 "China" is the AGGREGATE of mainland (41), Hong Kong (96),
+  # Macao (128) and Taiwan (214), each of which reports separately. Upstream
+  # publishes 351 as deliberately unmapped and this package embeds that list.
+  # The name route resolved the label anyway: normalisation drops parenthesised
+  # qualifiers, which is what lets "Zimbabwe (1900-1953)" answer to "zimbabwe" —
+  # and it also folds CHN-1950-2025 "China (PRC)" onto "china". That attributes
+  # aggregate rows to the mainland polity and double-counts them against 41 + 96
+  # + 128 + 214. An earlier, broader rule was rejected for exactly this case; it
+  # came back through a different door, which is why the refusal is now derived
+  # from the published contract rather than from a reviewer noticing.
   #
-  # The ALIAS route is untouched. A curator who decides what a given source means by
-  # "China" still wins, and that is where such a decision belongs.
+  # The ALIAS route is untouched. A curator who decides what a given source
+  # means by "China" still wins, and that is where such a decision belongs.
   regions <- as.data.frame(regions_full)
   regions <- regions[
     regions$code %in% faostat_deliberate_area_codes,

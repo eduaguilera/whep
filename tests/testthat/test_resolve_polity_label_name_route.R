@@ -154,3 +154,24 @@ test_that("the alias route still wins where it applies", {
   # "zimbabwe" rule for the Federation era routes to SRH, not to a ZWE period.
   expect_equal(resolve_polity_label("zimbabwe", year = 1960), "SRH-1953-1964")
 })
+
+test_that("get_polity_geometries names codes it does not know", {
+  # The main geometry accessor filtered with `%in%` and said nothing, so asking for two
+  # codes and getting one row meant either "that polity has no polygon" or "that code does
+  # not exist" — different problems needing different fixes, indistinguishable from a row
+  # count. A polity that exists WITHOUT a polygon is returned, with `has_geometry` FALSE,
+  # so silence here only ever hid the typo case.
+  expect_warning(
+    out <- get_polity_geometries(c("FRA-1919-2025", "NOT-A-REAL-CODE")),
+    "not in the database"
+  )
+  expect_equal(nrow(out), 1L)
+
+  # A request naming only real codes must stay quiet, or the warning becomes noise and
+  # gets muffled at the call site — which would put us back where we started.
+  expect_silent(one <- get_polity_geometries("FRA-1919-2025"))
+  expect_equal(nrow(one), 1L)
+
+  # And the unfiltered call is unchanged.
+  expect_gt(nrow(get_polity_geometries()), 500L)
+})
