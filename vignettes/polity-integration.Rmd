@@ -281,8 +281,10 @@ Each has a polity upstream but no area code to aggregate through; see whep#407.
 ```
 
 A **full-range** build says more, and the difference is worth stating because a narrow window is not a licence to
-claim a clean build. `get_wide_cbs()` at its default range completes with **2,764,471 rows across 195 areas and
-zero `NA` in all four polity columns**, and emits seven warnings:
+claim a clean build. `get_wide_cbs()` at its default range completes with **~2.766 million rows across 195 areas and
+zero `NA` in all four polity columns**. The row count is given loosely on purpose: the build is
+not reproducible run to run, alternating between 2,768,578 and 2,764,471 on an unchanged tree
+(whep#420), so any claim resting on a few thousand rows is inside its own noise, and emits seven warnings:
 
 | warning | status |
 |---|---|

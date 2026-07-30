@@ -26,8 +26,8 @@
 # quietly, and fixing whep#417 forces this list to be updated, which is the signal that it
 # was fixed.
 #
-# The real builds do resolve everything: a full-range `get_wide_cbs()` gives 0 NA across
-# 2,768,578 rows. This is an example-fixture problem, not a coverage gap.
+# The real builds do resolve everything: a full-range `get_wide_cbs()` gives 0 NA across all
+# ~2.766M rows (the count varies by 4,107 between runs -- whep#420 -- the 0 does not). This is an example-fixture problem, not a coverage gap.
 
 .polity_na_counts <- function(builder) {
   out <- tryCatch(

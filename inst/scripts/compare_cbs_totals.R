@@ -20,6 +20,18 @@
 # of columns identical (processing, import, stocks) and others 13x -- so read the SHAPE of the
 # diff, not just whether it is non-zero.
 #
+# THE BUILD IS NOT REPRODUCIBLE RUN TO RUN, which is why the band is 1% and not zero. Four
+# full-range runs on an unchanged tree -- two of them this very script, differing only in
+# whether `--write` was passed -- gave `rows` of 2,768,578 and 2,764,471 alternately, a swing of
+# 4,107 rows (0.148%). Values wobble in the fourth decimal with it: `export` 0.008%, `food`
+# 0.003%. It is not a pins-cache effect; nothing under `rappdirs::user_cache_dir("pins")` was
+# written during those runs. Tracked in whep#420.
+#
+# Two consequences for anyone using this script. A `rows` diff under ~0.2% says nothing at all,
+# so do not chase one. And any comparison that hinges on a few thousand rows -- including
+# against `main` -- is inside the noise and needs repeat runs before it means anything. The
+# defects this script exists to catch are 13x to 266x, orders of magnitude clear of it.
+#
 # Usage:
 #   Rscript inst/scripts/compare_cbs_totals.R            # compare against the baseline
 #   Rscript inst/scripts/compare_cbs_totals.R --write    # record a new baseline
@@ -73,10 +85,16 @@ if (!file.exists(baseline_path)) {
 }
 
 baseline <- data.table::fread(baseline_path)
-cmp <- merge(baseline, current, by = "metric", all = TRUE, suffixes = c(
-  "_baseline",
-  "_current"
-))
+cmp <- merge(
+  baseline,
+  current,
+  by = "metric",
+  all = TRUE,
+  suffixes = c(
+    "_baseline",
+    "_current"
+  )
+)
 cmp[, ratio := value_current / value_baseline]
 cmp[, pct := 100 * (ratio - 1)]
 data.table::setorder(cmp, -ratio)
