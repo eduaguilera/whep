@@ -1,4 +1,24 @@
 # whep (development version)
+
+* **Gridded outputs change for Comoros and Mayotte** (#404). `inst/extdata/cow_to_lpjml.csv`
+  maps FAOSTAT `area_code` to LPJmL's country index and carries its own `iso3c` and
+  `area_name` per row -- a second copy of area identity sitting next to the polities
+  database rather than derived from it, and nothing compared the two. Comparing them found
+  `45,"MYT","Mayotte",153`: FAOSTAT area 45 is **Comoros**, Mayotte is 270 and was absent
+  from the file entirely. `prepare_spatialize_all.R` joins on `area_code` alone, so every
+  Comoros grid cell carried Mayotte's LPJmL index while Mayotte's own cells fell to 0.
+  Corrected to `45 -> COM` with index 46 and a new `270 -> MYT` row.
+
+  Which field was wrong came from the file's own structure rather than assumption: rows are
+  ordered alphabetically by `iso3c` with `lpjml_code` tracking that order (MWI 151, MYS 152,
+  MYT 153, NAM 154), so 153 is where MYT belongs -- the index was right and the `area_code`
+  was wrong. Comoros' index 46 was left unassigned until it could be read from LPJmL's own
+  `managepar.h` (`#define Comoros 46`) rather than inferred from the ordering. With that
+  header available the whole mapping was checked, not just the one row: all 190 indices exist
+  in it, 6.0.5 and 6.1.1 define all 257 identically, and the 22 rows whose names differ from
+  the header are the same countries under another convention ("Laos" against "Lao People's
+  Democratic Republic").
+
 * **`polities_cats` values change: a literal `"0"` becomes `NA`.** That table was exported
   with `"0"` wherever a value is absent, in 13 character columns -- `eia`, `iea` and every
   `region_*` classification -- while `regions_full`, which carries the same 40 columns over a
