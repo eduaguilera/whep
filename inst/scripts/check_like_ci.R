@@ -635,6 +635,53 @@ if (length(builder_rd) > 0L) {
   )
 }
 
+# --- 5e. Prove the gates above can fail --------------------------------------
+# The four checks this script added over this branch were each mutation-tested by hand when
+# written. A hand test proves a gate worked once, on one machine, on the defect its author
+# had in mind — and two of the four shipped subtly wrong anyway, caught only by mutation.
+# inst/scripts/selftest_gates.R makes the claim standing, mirroring
+# scripts/selftest_gates.py in the sibling repository.
+#
+# Run LAST and in a subprocess. Last because it is the only step that asks whether the
+# steps above can fail; in a subprocess because it lifts sections out of THIS file and
+# evaluates them, and doing that in-process would mean a script re-entering itself.
+#
+# The self-test targets sections by banner name and none of its cases targets this one, so
+# there is no recursion — but a subprocess makes that a property of the process boundary
+# rather than of a naming convention someone has to remember.
+#
+# And this gate was itself mutation-tested, since adding an unfailable gate about
+# failability would be its own joke. Breaking one self-test case gives:
+#
+#   gates prove they can fail FAIL | 1 of 4 gate(s) could not be shown to fail:
+#   builders document their polity columns
+#
+# It reads `attr(out, "status")` rather than the verdict text, so a self-test that crashes
+# before printing anything still fails this gate — the distinction that cost two false
+# passes in the sibling repository's harness.
+.gate_clock <- Sys.time()
+selftest <- "inst/scripts/selftest_gates.R"
+if (file.exists(selftest)) {
+  out <- suppressWarnings(system2(
+    file.path(R.home("bin"), "Rscript"),
+    selftest,
+    stdout = TRUE,
+    stderr = TRUE
+  ))
+  code <- attr(out, "status")
+  passed <- is.null(code) || code == 0L
+  verdict <- grep("^(PASS|FAIL):", out, value = TRUE)
+  record(
+    "gates prove they can fail",
+    passed,
+    if (length(verdict) > 0L) {
+      sub("^(PASS|FAIL): ", "", verdict[[1]])
+    } else {
+      "self-test produced no verdict line"
+    }
+  )
+}
+
 # --- 6. Verdict --------------------------------------------------------------
 cat("\n")
 failed <- Filter(function(r) !r$ok, results)
