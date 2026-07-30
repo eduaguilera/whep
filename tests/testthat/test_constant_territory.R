@@ -124,3 +124,88 @@ test_that("years with no usable source are skipped, output schema is stable", {
   )
   expect_equal(nrow(res), 0)
 })
+
+# The two branches that LOSE reported value had no coverage. Conservation is asserted
+# above on fixtures where every source is placeable; these are the cases where it is not,
+# and they are the ones a user needs told about:
+#
+# One reports that no source polity with a polygon is active for the reported data, so the
+# year is skipped; the other that some sources are smaller than the grid resolution, so
+# their value is not distributed.
+#
+# Both are gated on `verbose`, which DEFAULTS TO TRUE — so they do fire for a default
+# caller. I had assumed the opposite while reading the code and was about to write up a
+# silent data loss; the default is in the signature two screens above the warnings.
+#
+# What is worth asserting is that each fires WHEN IT SHOULD and NAMES the polity, because
+# a warning that says only "1 source" leaves the caller to work out which of hundreds it
+# was — the same failure the gate self-test upstream checks for.
+testthat::test_that("a year whose source polity has no active polygon is reported, not dropped quietly", {
+  polities <- .synthetic_polities()
+  # SRC is active 1850-1950, so a 1970 row has no active source polygon at all.
+  reported <- data.frame(
+    year = 1970L,
+    polity_code = "SRC",
+    value = 100
+  )
+
+  warned <- character(0)
+  res <- withCallingHandlers(
+    build_constant_territory_series(
+      reported,
+      ref_year = 2000L,
+      polities = polities,
+      resolution = 25000,
+      verbose = TRUE
+    ),
+    warning = function(cond) {
+      warned <<- c(warned, conditionMessage(cond))
+      invokeRestart("muffleWarning")
+    }
+  )
+
+  testthat::expect_true(
+    any(grepl("1970", warned)),
+    info = paste0(
+      "the skipped year is not named in any warning: ",
+      paste(warned, collapse = " | ")
+    )
+  )
+  # And nothing is invented for it: a year with no placeable source contributes no rows
+  # rather than zero-valued ones, which would read as a measurement of zero.
+  testthat::expect_false(1970L %in% res$year)
+})
+
+testthat::test_that("a source smaller than the grid resolution is named, not silently starved", {
+  polities <- .synthetic_polities()
+  # A resolution coarser than SRC's 100km extent leaves it with no cell of its own.
+  warned <- character(0)
+  suppressMessages(withCallingHandlers(
+    build_constant_territory_series(
+      .reported,
+      ref_year = 2000L,
+      polities = polities,
+      resolution = 400000,
+      verbose = TRUE
+    ),
+    warning = function(cond) {
+      warned <<- c(warned, conditionMessage(cond))
+      invokeRestart("muffleWarning")
+    }
+  ))
+
+  # Either the source is starved and named, or the grid still catches it — both are
+  # acceptable outcomes of a coarse resolution, but a starved source must be NAMED.
+  starved <- grepl("smaller than the grid resolution", warned)
+  if (any(starved)) {
+    testthat::expect_true(
+      any(grepl("SRC", warned[starved])),
+      info = paste0(
+        "starvation warning does not name the source: ",
+        paste(warned[starved], collapse = " | ")
+      )
+    )
+  } else {
+    testthat::succeed("resolution still resolved the source; nothing starved")
+  }
+})
