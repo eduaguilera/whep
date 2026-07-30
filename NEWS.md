@@ -1,4 +1,14 @@
 # whep (development version)
+* **`polities_cats` values change: a literal `"0"` becomes `NA`.** That table was exported
+  with `"0"` wherever a value is absent, in 13 character columns -- `eia`, `iea` and every
+  `region_*` classification -- while `regions_full`, which carries the same 40 columns over a
+  superset of the rows, leaves them blank and so reads as `NA`. `"0"` reads as data:
+  `!is.na(iea)` kept all 198 rows instead of the 139 with an IEA name, a join on `iea` would
+  have matched 59 rows to each other as one country, and grouping by `region_UN` produced a
+  `"0"` region. Cleared in character columns only, since a numeric 0 is a real value in `EU27`
+  and `cbs`. Code that tested those columns against `"0"` must now test `is.na()`; nothing in
+  this package did.
+
 * `resolve_polity_label()` now falls back to a polity's own `polity_name` when no
   alias applies, mirroring upstream's "alias, then ISO/name family + year
   containment". Previously a caller passing the database's own name for a polity
