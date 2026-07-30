@@ -284,3 +284,78 @@ testthat::test_that("observed_rows distinguishes measured-zero from not-measured
   )
   testthat::expect_gt(sum(!is.na(resolved)), 0L)
 })
+
+# Aliases must not resolve a year to a polity that did not exist in it. Swept all 869:
+#
+#   268 have a `year_end` at or past their target's `end_year`, overshooting by exactly
+#       one. That is the convention, not a defect — an alias `year_end` is INCLUSIVE while
+#       a polity `end_year` is EXCLUSIVE, so an alias covering a polity's last year reads
+#       one higher than the span does.
+#     2 overshoot by FOUR: "tanganyika" and "tanzania", both 1922-1964 against
+#       TAN-1922-1964, whose columns say 1922-1961.
+#
+# The cause is upstream and is now gated there: that polity's CODE says 1964 while its
+# columns say 1961, and the aliases were written against the code. A polity code is
+# documented as PREFIX-start-end, so reading years off the identifier is a reasonable thing
+# to do — it is cheaper than a join — and here it gives a different answer from the columns.
+# whep-polities added validate_code_year_agreement.py, which baselines this and NNG-1949-1963
+# pending a curation decision (independence versus union; transfer versus Act of Free
+# Choice).
+#
+# Asserted here as a ceiling on the overshoot rather than as zero, because the one-year case
+# is correct and demanding zero would fail on 268 rows that are fine. What must not grow is
+# the number that overshoot by MORE, since each of those resolves real years to a polity
+# that had ended.
+testthat::test_that("no alias reaches years its target polity did not exist in", {
+  al <- as.data.frame(whep::polity_label_aliases)
+  p <- as.data.frame(sf::st_drop_geometry(as.data.frame(whep::polities)))
+  span <- p[, c("polity_code", "start_year", "end_year")]
+
+  idx <- match(al$polity_code, span$polity_code)
+  # Non-vacuous: unresolvable targets would make every comparison NA and pass.
+  testthat::expect_equal(sum(is.na(idx)), 0L)
+
+  ends <- span$end_year[idx]
+  starts <- span$start_year[idx]
+  overshoot <- ifelse(
+    !is.na(al$year_end) & !is.na(ends),
+    al$year_end - (ends - 1L),
+    0L
+  )
+  overshoot[overshoot < 0L] <- 0L
+
+  # The boundary convention: many aliases sit exactly one year past the exclusive end.
+  testthat::expect_gt(sum(overshoot == 1L), 100L)
+
+  beyond <- al$source_label[which(overshoot > 1L)]
+  testthat::expect_setequal(beyond, c("tanganyika", "tanzania"))
+
+  # THE OTHER DIRECTION, which the first version of this test got wrong by asserting a
+  # one-year bound and finding a 98-year one. Four aliases begin before their target
+  # polity existed:
+  #
+  #   Portuguese Timor  1702-1975  ->  TLS-1800-2025   98 years early
+  #   Gold Coast        1821-1956  ->  GHA-1898-1956   77
+  #   Trieste           1937-1946  ->  TRS-1947-1954   10
+  #   French Morocco    1904-1956  ->  MAR-1911-1958    7
+  #
+  # Portuguese Timor is harmless: 1702 is before the database's own 1800 start, so no
+  # polity could be named and no data exists there. The other three route real pre-existence
+  # years to the earliest polity available — 1821 Gold Coast data reaches a polity created in
+  # 1898 — which is either a deliberate "nearest available" choice or an oversight, and the
+  # registry does not say which.
+  #
+  # Pinned by identity in both directions rather than bounded, because a bound cannot tell
+  # a deliberate historical stretch from a new mistake, and each of these is a specific
+  # curation question.
+  undershoot <- ifelse(
+    !is.na(al$year_start) & !is.na(starts),
+    starts - al$year_start,
+    0L
+  )
+  early <- al$source_label[which(undershoot > 1L)]
+  testthat::expect_setequal(
+    early,
+    c("Portuguese Timor", "Gold Coast", "Trieste", "French Morocco")
+  )
+})
