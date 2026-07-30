@@ -439,3 +439,75 @@ testthat::test_that("no published table carries mojibake in a label", {
     "Curaçao" %in% cw$area_name[which(cw$area_code == 279L)]
   )
 })
+
+# Extending the mojibake sweep to the other ways a label can silently fail to match:
+# leading or trailing whitespace, double spaces, non-breaking spaces, tabs, newlines and
+# control characters. Across the five published tables, all clean except double spaces —
+# one in regions_full$eia and three in polity_label_aliases$source_label.
+#
+# THOSE THREE ARE LOAD-BEARING AND MUST NOT BE TIDIED. Collapsing runs of whitespace in
+# labels is the obvious cleanup and it would break live matches:
+#
+#   "Windward Islands  Grenada"   fao1952   7 observed rows
+#   "Windward Islands  St Lucia"  fao1952   7 observed rows
+#
+# The double space is how the fao1952 yearbook transcription joins a group name to a
+# member, and the data carries it, so the alias must too. `observed_rows` is what settles
+# it — these are not aliases waiting to match something tidier, they are matching now.
+#
+# regions_full$eia holds "Virgin Islands,  U.S.", which is the US EIA's own spelling in a
+# column of source names that nothing joins on.
+testthat::test_that("labels with irregular whitespace are the ones that need it", {
+  al <- as.data.frame(whep::polity_label_aliases)
+  doubled <- al[which(grepl("  ", al$source_label)), ]
+
+  # Pinned by identity. A fourth would be a new label to check rather than more of the
+  # same, and the check that matters is whether it carries data.
+  testthat::expect_setequal(
+    doubled$source_label,
+    c(
+      "British West Indies  Leeward Islands",
+      "Windward Islands  Grenada",
+      "Windward Islands  St Lucia"
+    )
+  )
+
+  # The two that upstream has measured are serving data, so the spacing is the source's
+  # and not a defect. The third belongs to a corpus upstream cannot count, so NA there is
+  # the honest value rather than evidence of inertness.
+  measured <- doubled[which(!is.na(doubled$observed_rows)), ]
+  testthat::expect_gt(nrow(measured), 1L)
+  testthat::expect_true(all(measured$observed_rows > 0))
+
+  # And no OTHER kind of invisible defect anywhere in the published labels, which is the
+  # sweep this test generalises.
+  tables <- c(
+    "regions_full",
+    "polities_cats",
+    "polity_area_crosswalk",
+    "polities",
+    "polity_label_aliases"
+  )
+  bad <- character(0)
+  for (nm in tables) {
+    d <- as.data.frame(get(nm, envir = asNamespace("whep")))
+    if ("geom" %in% names(d)) {
+      d <- sf::st_drop_geometry(d)
+    }
+    for (col in names(d)[vapply(d, is.character, logical(1))]) {
+      v <- d[[col]]
+      if (any(grepl("^\\s|\\s$|[\t\n\r]| ", v), na.rm = TRUE)) {
+        bad <- c(bad, paste0(nm, "$", col))
+      }
+    }
+  }
+  testthat::expect_equal(
+    length(bad),
+    0L,
+    info = paste0(
+      "labels padded with whitespace or carrying tabs, newlines or non-breaking ",
+      "spaces, none of which survive an exact match: ",
+      paste(bad, collapse = ", ")
+    )
+  )
+})
