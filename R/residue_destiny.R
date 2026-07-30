@@ -111,14 +111,18 @@ build_residue_feed_avail <- function(
   feed <- whep::whep_coef_table("residue_feed_fraction") |>
     dplyr::select(region_hanpp, feed_use_fraction)
   global_feed <- feed$feed_use_fraction[feed$region_hanpp == "Global"]
-  x |>
+  joined <- x |>
     dplyr::mutate(
       item_prod_code = as.character(item_prod_code),
       region_krausmann = .residue_recovery_region(.data$region_krausmann)
     ) |>
     dplyr::left_join(cat_map, by = "item_prod_code") |>
     dplyr::left_join(recovery, by = c("cat_krausmann", "region_krausmann")) |>
-    dplyr::left_join(feed, by = "region_hanpp") |>
+    dplyr::left_join(feed, by = "region_hanpp")
+
+  .warn_coef_fallbacks(joined, global_feed)
+
+  joined |>
     dplyr::mutate(
       recovery_rates = tidyr::replace_na(recovery_rates, 0),
       feed_use_fraction = tidyr::replace_na(feed_use_fraction, global_feed),
@@ -129,6 +133,58 @@ build_residue_feed_avail <- function(
       residue_soil_dm_t = residue_dm_t * (1 - recovery_rates)
     ) |>
     dplyr::select(-cat_krausmann, -recovery_rates, -feed_use_fraction)
+}
+
+# Say when a regional coefficient did not match, instead of filling it in silence.
+#
+# Both fills below are `replace_na()`, so an unmatched region is indistinguishable from a
+# matched one afterwards, and neither is an error anywhere. That is how whep#405 survived: the
+# `region_hanpp` column of `residue_feed_fraction.csv` holds **UN M49 sub-regions** while it is
+# joined against `regions_full$region_HANPP`, the two vocabularies share ZERO values, so all 17
+# of the file's regional coefficients are dead and every row takes the Global 0.20 — discarding
+# a published range of 0.05 to 0.45.
+#
+# `recovery_rates` matters more than it looks, because its fallback is not a central estimate
+# but **0**: an unmatched region sends 100% of that row's residue to soil and none to feed or
+# burning. A wrong region there does not nudge a number, it removes a flow.
+#
+# Deliberately a warning and not an abort, and it changes no output: the fills still happen
+# exactly as before. Fixing #405 moves published coefficients for every area, which is a
+# maintainer decision; making the silence audible is not.
+.warn_coef_fallbacks <- function(joined, global_feed) {
+  n <- nrow(joined)
+  if (n == 0L) {
+    return(invisible(NULL))
+  }
+
+  report <- function(col, what, consequence) {
+    missing <- is.na(joined[[col]])
+    if (!any(missing)) {
+      return(invisible(NULL))
+    }
+    regions <- sort(unique(as.character(joined[[what]][missing])))
+    cli::cli_warn(c(
+      "!" = "{sum(missing)} of {n} residue row{?s} matched no {.field {col}}
+         ({round(100 * sum(missing) / n, 1)}%), so {consequence}",
+      "i" = "unmatched {.field {what}} value{?s}:
+         {.val {utils::head(regions, 8)}}",
+      "i" = "A vocabulary mismatch between the coefficient file and
+         {.field regions_full} looks exactly like this — see whep#405."
+    ))
+  }
+
+  report(
+    "feed_use_fraction",
+    "region_hanpp",
+    paste0("each fell back to the global ", global_feed, ".")
+  )
+  report(
+    "recovery_rates",
+    "region_krausmann",
+    "each fell back to 0, sending all of that residue to soil."
+  )
+
+  invisible(NULL)
 }
 
 .residue_recovery_region <- function(region) {

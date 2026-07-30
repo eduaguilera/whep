@@ -49,17 +49,43 @@ test_that("build_residue_feed_avail yields the redistribute_feed contract", {
 })
 
 test_that("calculate_residue_destinies conserves mass with an unmatched region", {
-  out <- whep::calculate_residue_destinies(tibble::tibble(
+  # Mass conservation holds whether or not the region matched, which is exactly why an
+  # unmatched region is hard to notice: nothing about the output looks wrong. The row simply
+  # sends 100% of its residue to soil, because `recovery_rates` falls back to 0 rather than to
+  # a central estimate.
+  #
+  # So the fallbacks now announce themselves, and this test asserts that they do. It is the
+  # only test in the suite that exercises an unmatched region, so without the assertion the
+  # diagnostic could be deleted and nothing would notice. See whep#405, where this same
+  # silence hid a real vocabulary mismatch that killed all 17 regional feed coefficients.
+  x <- tibble::tibble(
     item_prod_code = "15",
     residue_dm_t = 100,
     region_krausmann = "Nowhere",
     region_hanpp = "Nowhere"
-  ))
+  )
+
+  msgs <- character()
+  out <- withCallingHandlers(
+    whep::calculate_residue_destinies(x),
+    warning = function(w) {
+      msgs <<- c(msgs, conditionMessage(w))
+      invokeRestart("muffleWarning")
+    }
+  )
+
   testthat::expect_equal(
     out$residue_feed_dm_t + out$residue_burn_dm_t + out$residue_soil_dm_t,
     100
   )
   testthat::expect_equal(out$residue_soil_dm_t, 100)
+
+  joined <- paste(msgs, collapse = " ")
+  # Both fallbacks fired, and each says which value did not match and what it cost.
+  testthat::expect_match(joined, "feed_use_fraction", fixed = TRUE)
+  testthat::expect_match(joined, "recovery_rates", fixed = TRUE)
+  testthat::expect_match(joined, "Nowhere", fixed = TRUE)
+  testthat::expect_match(joined, "all of that residue to soil", fixed = TRUE)
 })
 
 test_that("region-map guard rejects a krausmann label with two HANPP regions", {
