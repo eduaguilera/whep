@@ -16,7 +16,8 @@
 #' return the consumption-side embodied nitrogen split into domestic and traded
 #' flows. The `category` selects which nitrogen mass is carried as the footprint
 #' intensity (see [build_n_exceedance_extension()]): `"exceedance"` (default),
-#' `"within_boundary"`, or `"production"` (the crop's total surplus).
+#' `"within_boundary"`, or `"production"` (the crop's harvest removal:
+#' harvested product plus used residue plus grazed forage).
 #'
 #' The pipeline is [build_n_exceedance_extension()] to assemble the extension,
 #' [build_footprint()] to trace it through the multi-regional input-output model,

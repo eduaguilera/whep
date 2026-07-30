@@ -30,9 +30,10 @@
 #' Global framing) sums the synthetic-fertiliser and biological-nitrogen-
 #' fixation input terms using `synthetic * syn_tot_agri_ratio + BNF`, the
 #' locked Campbell / Global framing; recycled or internal terms (manure,
-#' deposition, urban, soil-organic-matter mineralization) are excluded. Any finer grid key
-#' (`lon`, `lat`, `item_cbs_code`) is aggregated away to the country total, and
-#' country-years without a matching population row are dropped.
+#' deposition, urban, soil-organic-matter mineralization) are excluded. Any
+#' finer grid key (`lon`, `lat`, `item_cbs_code`) is aggregated away to the
+#' country total, and country-years without a matching population row are
+#' dropped. The chosen framing is stamped on every row.
 #'
 #' @param n_inputs A [build_n_inputs()] long-format output with `fert_type`,
 #'   `n_input_t` and the `year`, `area_code` keys (finer grid keys such as
@@ -47,7 +48,8 @@
 #' @param example If `TRUE`, return a small fixture instead of computing from
 #'   `n_inputs`/`population`. Defaults to `FALSE`.
 #' @return A tibble keyed by `year`, `area_code` with `n_percapita_kg`, the
-#'   country total anthropogenic reactive nitrogen per capita (kg N/cap/yr).
+#'   country total anthropogenic reactive nitrogen per capita (kg N/cap/yr),
+#'   and `framing`, the anthropogenic definition it was computed under.
 #' @export
 #' @examples
 #' build_n_percapita(example = TRUE)
@@ -71,7 +73,8 @@ build_n_percapita <- function(
   .check_columns(population, c("year", "area_code", "population"), "population")
   n_inputs |>
     .n_percapita_anthropogenic(framing, params) |>
-    .n_percapita_per_capita(population)
+    .n_percapita_per_capita(population) |>
+    dplyr::mutate(framing = .env$framing)
 }
 
 # ---- Private helpers -------------------------------------------------------
@@ -140,17 +143,21 @@ build_n_percapita <- function(
     )
 }
 
-# Toy fixture for a runnable example: two countries' per-capita reactive N.
+# Toy fixture for a runnable example: two countries' per-capita reactive N,
+# carrying the same framing stamp the computed path emits.
 .example_n_percapita <- function() {
   tibble::tribble(
     ~year,
     ~area_code,
     ~n_percapita_kg,
+    ~framing,
     2000L,
     10L,
     8.5,
+    "synthetic_bnf",
     2000L,
     20L,
-    22
+    22,
+    "synthetic_bnf"
   )
 }

@@ -74,10 +74,15 @@ testthat::test_that("finer grid keys collapse to one country total row", {
   testthat::expect_equal(sum(out$area_code == 10L), 1L)
 })
 
-testthat::test_that("the output contract is exactly year, area_code, n_percapita_kg", {
+testthat::test_that("the output contract carries the key, value and framing", {
   out <- whep::build_n_percapita(.npc_n_inputs(), .npc_population())
-  testthat::expect_named(out, c("year", "area_code", "n_percapita_kg"))
+  testthat::expect_named(
+    out,
+    c("year", "area_code", "n_percapita_kg", "framing")
+  )
   testthat::expect_equal(nrow(out), 2L)
+  # The chosen framing is provenance, not a silent default (multi-method rule).
+  testthat::expect_true(all(out$framing == "synthetic_bnf"))
 })
 
 testthat::test_that("country-years without a population row drop out", {
@@ -141,6 +146,10 @@ testthat::test_that("build_n_percapita aborts on a missing input column", {
 
 testthat::test_that("the example fixture matches the output contract", {
   out <- whep::build_n_percapita(example = TRUE)
-  testthat::expect_named(out, c("year", "area_code", "n_percapita_kg"))
+  testthat::expect_named(
+    out,
+    c("year", "area_code", "n_percapita_kg", "framing")
+  )
   testthat::expect_true(all(out$n_percapita_kg > 0))
+  testthat::expect_true(all(out$framing == "synthetic_bnf"))
 })

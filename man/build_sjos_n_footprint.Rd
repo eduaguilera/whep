@@ -54,7 +54,8 @@ Trace a per-crop nitrogen category through the FABIO footprint framework and
 return the consumption-side embodied nitrogen split into domestic and traded
 flows. The \code{category} selects which nitrogen mass is carried as the footprint
 intensity (see \code{\link[=build_n_exceedance_extension]{build_n_exceedance_extension()}}): \code{"exceedance"} (default),
-\code{"within_boundary"}, or \code{"production"} (the crop's total surplus).
+\code{"within_boundary"}, or \code{"production"} (the crop's harvest removal:
+harvested product plus used residue plus grazed forage).
 
 The pipeline is \code{\link[=build_n_exceedance_extension]{build_n_exceedance_extension()}} to assemble the extension,
 \code{\link[=build_footprint]{build_footprint()}} to trace it through the multi-regional input-output model,

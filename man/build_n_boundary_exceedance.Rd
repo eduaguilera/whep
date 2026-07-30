@@ -48,7 +48,9 @@ For \code{resolution = "grid"}, a tibble keyed \code{lon}, \code{lat}, \code{are
 \code{item_cbs_code}, \code{year} with \code{area_ha}, \code{critical_kgn_ha},
 \code{actual_kgn_ha}, \code{exceed_share}, \code{exceedance_kgn_ha},
 \code{within_boundary_kgn_ha}, the mass terms \code{exceedance_n_t},
-\code{within_boundary_n_t}, \code{actual_n_t}, and the \code{metric}, \code{land_use},
+\code{within_boundary_n_t}, \code{actual_n_t}, \code{production_n_t} (the harvest-removal
+nitrogen the footprint's \code{"production"} category traces, carried through
+only when the \code{surplus} input supplies it), and the \code{metric}, \code{land_use},
 \code{method_boundary} stamps. For the aggregate resolutions, the grouping key
 with the summed mass terms and the same stamps.
 }

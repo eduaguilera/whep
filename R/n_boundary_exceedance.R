@@ -57,7 +57,9 @@
 #'   `item_cbs_code`, `year` with `area_ha`, `critical_kgn_ha`,
 #'   `actual_kgn_ha`, `exceed_share`, `exceedance_kgn_ha`,
 #'   `within_boundary_kgn_ha`, the mass terms `exceedance_n_t`,
-#'   `within_boundary_n_t`, `actual_n_t`, and the `metric`, `land_use`,
+#'   `within_boundary_n_t`, `actual_n_t`, `production_n_t` (the harvest-removal
+#'   nitrogen the footprint's `"production"` category traces, carried through
+#'   only when the `surplus` input supplies it), and the `metric`, `land_use`,
 #'   `method_boundary` stamps. For the aggregate resolutions, the grouping key
 #'   with the summed mass terms and the same stamps.
 #' @export
