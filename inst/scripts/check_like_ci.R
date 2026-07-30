@@ -86,6 +86,52 @@ if (nzchar(air)) {
   ))
 }
 
+# --- 2b. Non-ASCII characters in R code --------------------------------------
+# `R CMD check --as-cran` reports "checking code files for non-ASCII characters ... WARNING",
+# and the workflow sets `error_on = "warning"`, so ONE non-ASCII character in a string literal
+# fails all five platforms. That is exactly what happened: an em dash inside a `cli_warn()`
+# message in R/residue_destiny.R, 20 local tests passing, five platforms red.
+#
+# This gate could not see it, and nor could any of the others -- air formats it happily, lintr
+# has no such rule, and testthat does not care. So the gate that catches it has to be here.
+#
+# Comments are tolerated by the real check ("except perhaps in comments"), but this reports them
+# separately rather than ignoring them: a `#` line is one refactor away from being code, and the
+# repo already writes prose in ASCII everywhere else.
+r_files <- list.files("R", pattern = "\\.R$", full.names = TRUE)
+nonascii_code <- character()
+nonascii_comment <- character()
+for (f in r_files) {
+  lines <- readLines(f, warn = FALSE, encoding = "UTF-8")
+  hits <- which(vapply(
+    lines,
+    function(ln) any(utf8ToInt(enc2utf8(ln)) > 127L),
+    logical(1),
+    USE.NAMES = FALSE
+  ))
+  for (i in hits) {
+    where <- paste0(f, ":", i)
+    if (grepl("^\\s*#", lines[[i]])) {
+      nonascii_comment <- c(nonascii_comment, where)
+    } else {
+      nonascii_code <- c(nonascii_code, where)
+    }
+  }
+}
+record(
+  "no non-ASCII in R code",
+  length(nonascii_code) == 0L,
+  if (length(nonascii_code) == 0L) {
+    sprintf(
+      "%d file(s) scanned; %d comment line(s) carry non-ASCII, which the real check tolerates",
+      length(r_files),
+      length(nonascii_comment)
+    )
+  } else {
+    paste(utils::head(nonascii_code, 5), collapse = ", ")
+  }
+)
+
 # --- 3. Lint -----------------------------------------------------------------
 lints <- eval(parse(file = file.path("inst", "scripts", "check_lint.R")))
 n_lints <- length(lints)

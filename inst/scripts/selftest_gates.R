@@ -232,6 +232,66 @@ local({
   )
 })
 
+# --- 5. no non-ASCII in R code ------------------------------------------------
+# `R CMD check --as-cran` warns on non-ASCII characters in R code, and the workflow sets
+# `error_on = "warning"`, so a single em dash inside a string literal fails all five platforms.
+# That is not hypothetical: it happened, with 20 local tests passing at the time.
+#
+# Fully isolatable, unlike case 1: the predicate reads files, so it can be pointed at a
+# synthetic directory holding one clean file and one with the defect in a string.
+local({
+  tmp <- file.path(tempdir(), "nonascii_probe")
+  dir.create(tmp, showWarnings = FALSE, recursive = TRUE)
+  on.exit(unlink(tmp, recursive = TRUE), add = TRUE)
+
+  clean <- file.path(tmp, "clean.R")
+  writeLines(c("f <- function() {", "  message(\"plain ascii\")", "}"), clean)
+
+  # The real defect's shape: non-ASCII inside a string, not a comment.
+  dirty <- file.path(tmp, "dirty.R")
+  writeLines(
+    c(
+      "# a comment with an em dash \u2014 which the real check tolerates",
+      "g <- function() {",
+      "  cli::cli_warn(\"see whep#405 \u2014 this dash fails the check\")",
+      "}"
+    ),
+    dirty
+  )
+
+  scan_code <- function(dir) {
+    out <- character()
+    for (f in list.files(dir, pattern = "\\.R$", full.names = TRUE)) {
+      lines <- readLines(f, warn = FALSE, encoding = "UTF-8")
+      hits <- which(vapply(
+        lines,
+        function(ln) any(utf8ToInt(enc2utf8(ln)) > 127L),
+        logical(1),
+        USE.NAMES = FALSE
+      ))
+      for (i in hits) {
+        if (!grepl("^\\s*#", lines[[i]])) {
+          out <- c(out, paste0(basename(f), ":", i))
+        }
+      }
+    }
+    out
+  }
+
+  found <- scan_code(tmp)
+  # Detected the string, and did NOT flag the comment line above it -- both halves matter,
+  # since a gate that flags every comment gets muffled and stops being read.
+  .case(
+    "no non-ASCII in R code",
+    "an em dash inside a string literal, which R CMD check --as-cran fails on",
+    length(found) == 1L && grepl("^dirty[.]R:3$", found[[1]]),
+    sprintf(
+      "flagged %s and left the comment alone",
+      if (length(found)) paste(found, collapse = ", ") else "nothing"
+    )
+  )
+})
+
 # --- verdict -----------------------------------------------------------------
 cat("\n")
 missed <- Filter(function(r) !r$ok, .results)

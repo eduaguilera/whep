@@ -141,7 +141,7 @@ build_residue_feed_avail <- function(
 # matched one afterwards, and neither is an error anywhere. That is how whep#405 survived: the
 # `region_hanpp` column of `residue_feed_fraction.csv` holds **UN M49 sub-regions** while it is
 # joined against `regions_full$region_HANPP`, the two vocabularies share ZERO values, so all 17
-# of the file's regional coefficients are dead and every row takes the Global 0.20 — discarding
+# of the file's regional coefficients are dead and every row takes the Global 0.20, discarding
 # a published range of 0.05 to 0.45.
 #
 # `recovery_rates` matters more than it looks, because its fallback is not a central estimate
@@ -169,7 +169,7 @@ build_residue_feed_avail <- function(
       "i" = "unmatched {.field {what}} value{?s}:
          {.val {utils::head(regions, 8)}}",
       "i" = "A vocabulary mismatch between the coefficient file and
-         {.field regions_full} looks exactly like this — see whep#405."
+         {.field regions_full} looks exactly like this - see whep#405."
     ))
   }
 
