@@ -20,12 +20,22 @@
 # of columns identical (processing, import, stocks) and others 13x -- so read the SHAPE of the
 # diff, not just whether it is non-zero.
 #
-# THE BUILD IS NOT REPRODUCIBLE RUN TO RUN, which is why the band is 1% and not zero. Four
-# full-range runs on an unchanged tree -- two of them this very script, differing only in
-# whether `--write` was passed -- gave `rows` of 2,768,578 and 2,764,471 alternately, a swing of
-# 4,107 rows (0.148%). Values wobble in the fourth decimal with it: `export` 0.008%, `food`
-# 0.003%. It is not a pins-cache effect; nothing under `rappdirs::user_cache_dir("pins")` was
-# written during those runs. Tracked in whep#420.
+# THE BUILD IS NOT REPRODUCIBLE ACROSS SESSIONS, which is why the band is 1% and not zero. Six
+# full-range runs on an unchanged tree gave `rows` of 2,768,578 or 2,764,471 -- a swing of 4,107
+# rows (0.148%) -- with values wobbling in the fourth decimal alongside (`export` 0.008%, `food`
+# 0.003%). Not alternating: the observed order was 578, 471, 578, 471, 471, 578, so it is a
+# random choice between exactly two states. Tracked in whep#420.
+#
+# WITHIN a session it is bit-identical, which narrows the cause and rules out the obvious
+# suspects. Two builds in one session with `whep_clear_cache()` between them took 410s and 389s
+# -- both genuinely ran -- and agreed to ten significant figures. So nothing here is
+# order-dependent or thread-dependent, and whep#418's duplicate keys are NOT the cause, though I
+# first guessed they were. Nor is it the pins cache: nothing under
+# `rappdirs::user_cache_dir("pins")` was written during any of these runs.
+#
+# If you repeat that experiment, clear the cache. Without it the second build takes 0.0s and
+# returns the first one's result, so "identical" measures nothing -- which is how my first
+# attempt at it produced a confident wrong answer.
 #
 # Two consequences for anyone using this script. A `rows` diff under ~0.2% says nothing at all,
 # so do not chase one. And any comparison that hinges on a few thousand rows -- including
