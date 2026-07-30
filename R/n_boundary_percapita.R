@@ -12,10 +12,10 @@
 # population. The world per-capita boundary converts the Tg N/yr planetary
 # limits (boundary_low 60, boundary_high 125) to kg N/cap/yr as
 # boundary_Tg * 1e9 / world_population, where 1e9 is Tg N -> kg N and
-# world_population is nourishment$population summed per year (WHEP population is
-# absolute persons; Global's kg-per-thousand-persons 1e6 factor does not apply
-# here). world_population from the food-supply set approximates the true world
-# population (the set of countries with supply data).
+# world_population comes from the complete population table when supplied
+# (WHEP population is absolute persons; Global's kg-per-thousand-persons 1e6
+# factor does not apply here). Falling back to nourishment population is
+# retained for standalone calls.
 #
 # Integration note: n_percapita is produced by build_n_percapita()
 # (R/n_percapita.R), which aggregates build_n_inputs()'s synthetic + BNF terms
@@ -32,7 +32,9 @@
 #' pressure on the y axis, population as the point weight). The world
 #' per-capita boundary converts the Tg N/yr limits in `params` (`boundary_low`,
 #' `boundary_high`) to kg N/cap/yr by dividing by the world population
-#' (`nourishment` population summed per year). The normalization is the Global
+#' (the complete `population` table summed per year, falling back to
+#' `nourishment`). The upper per-capita boundary is capped at the packaged
+#' `per_capita_cap`. The normalization is the Global
 #' piecewise: `n_percapita_kg / low_pc` below the lower bound, `1 +
 #' (n_percapita_kg - low_pc) / (high_pc - low_pc)` within the band, and `min(1 +
 #' n_percapita_kg / high_pc, 6)` above the upper bound. The result is then
@@ -47,6 +49,9 @@
 #'   (the nourishment normalization, for example a [normalize_nourishment()]
 #'   output) and `population` (absolute persons), whose per-year population sum
 #'   sets the world per-capita boundary.
+#' @param population Optional complete population tibble keyed by `year`,
+#'   `area_code`, with `population` in persons. Supplying it prevents countries
+#'   missing nourishment data from being omitted from the world denominator.
 #' @param params Boundary parameters, defaulting to [n_boundary_params], read
 #'   for the `boundary_low` and `boundary_high` Tg N/yr limits.
 #' @param afs_share The agri-food-system share of the planetary boundary applied
@@ -71,6 +76,7 @@
 build_n_boundary_percapita <- function(
   n_percapita,
   nourishment,
+  population = NULL,
   params = NULL,
   afs_share = 0.8
 ) {
@@ -85,9 +91,11 @@ build_n_boundary_percapita <- function(
     c("year", "area_code", "value_norm", "population"),
     "nourishment"
   )
+  population <- population %||% nourishment
+  .check_columns(population, c("year", "area_code", "population"), "population")
   n_percapita |>
     dplyr::left_join(
-      .n_boundary_world_bounds(nourishment, params),
+      .n_boundary_world_bounds(population, params),
       by = "year"
     ) |>
     dplyr::mutate(
@@ -106,14 +114,15 @@ build_n_boundary_percapita <- function(
 # World per-capita boundary per year: the Tg N/yr low/high limits converted to
 # kg N/cap/yr by 1e9 (Tg N -> kg N) over the year's world population (the
 # nourishment population sum).
-.n_boundary_world_bounds <- function(nourishment, params) {
+.n_boundary_world_bounds <- function(population, params) {
   low_tg <- .n_boundary_param(params, "boundary_low")
   high_tg <- .n_boundary_param(params, "boundary_high")
-  nourishment |>
-    dplyr::summarise(world_pop = sum(.data$population), .by = year) |>
+  cap <- .n_boundary_param(params, "per_capita_cap")
+  population |>
+    dplyr::summarise(world_pop = .sum_if_any(.data$population), .by = year) |>
     dplyr::mutate(
       low_pc = low_tg * 1e9 / .data$world_pop,
-      high_pc = high_tg * 1e9 / .data$world_pop
+      high_pc = pmin(high_tg * 1e9 / .data$world_pop, cap)
     ) |>
     dplyr::select("year", "low_pc", "high_pc")
 }

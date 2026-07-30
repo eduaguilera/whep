@@ -94,15 +94,18 @@ classify_sjos_n <- function(exceedance, nourishment, level_col = sjos_class) {
 # ---- Private helpers -------------------------------------------------------
 
 # Boundary side per crop: "Exceedance" when the crop's exceedance mass is
-# positive, else "Within_boundary" (the all-zero and missing cases guard to
-# "Within_boundary").
+# positive and "Within_boundary" when a complete, known decomposition has no
+# exceedance. Missing boundary evidence remains missing; it is never converted
+# into a valid safe classification.
 .sjos_n_boundary_side <- function(exceedance) {
   dplyr::mutate(
     exceedance,
-    boundary_side = dplyr::if_else(
-      !is.na(.data$exceedance_n_t) & .data$exceedance_n_t > 0,
-      "Exceedance",
-      "Within_boundary"
+    boundary_side = dplyr::case_when(
+      is.na(.data$exceedance_n_t) |
+        is.na(.data$within_boundary_n_t) |
+        is.na(.data$actual_n_t) ~ NA_character_,
+      .data$exceedance_n_t > 0 ~ "Exceedance",
+      .default = "Within_boundary"
     )
   )
 }

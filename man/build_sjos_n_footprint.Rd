@@ -31,7 +31,9 @@ ignored when \code{io} is supplied.}
 
 \item{data}{Optional named list of injected inputs. \code{data$fp_flows} supplies
 pre-traced tidy footprint flows (as from \code{\link[=build_footprint]{build_footprint()}}) directly,
-bypassing the model build, for testing the split logic in isolation.}
+bypassing the model build, for testing the split logic in isolation.
+\code{data$origin_classes} may supply producer classifications keyed by \code{year},
+\code{area_code}, \code{item_cbs_code} (for example \code{\link[=classify_sjos_n]{classify_sjos_n()}} output).}
 
 \item{example}{If \code{TRUE}, return a small hardcoded fixture instead of running
 the pipeline. Defaults to \code{FALSE}.}
@@ -39,10 +41,11 @@ the pipeline. Defaults to \code{FALSE}.}
 \value{
 A named list with two tibbles:
 \itemize{
-\item \code{fp_all}: embodied nitrogen by \code{year}, \code{target_area} (consuming area),
-\code{origin} (\code{"Domestic consumption"} or \code{"Traded"}), \code{item_cbs_code} (the
-consumed crop, the footprint's \code{target_item}) and \code{impact_u} (tonnes N),
-stamped with the traced \code{category}.
+\item \code{fp_all}: embodied nitrogen by \code{year}, producer \code{origin_area} /
+\code{origin_item}, consumer \code{target_area} / \code{target_item}, \code{target_fd},
+\code{origin} (\code{"Domestic consumption"} or \code{"Traded"}), \code{item_cbs_code}
+(an alias of \code{target_item}) and \code{impact_u} (tonnes N), stamped with the
+traced \code{category} and optional producer classes.
 \item \code{fp_food}: \code{fp_all} restricted to food consumption (\code{target_fd == "food"}).
 }
 }

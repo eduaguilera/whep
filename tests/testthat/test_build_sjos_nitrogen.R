@@ -26,23 +26,30 @@
       ~lon, ~lat, ~value,
       0.25, 0.25, 50,
       0.75, 0.25, 120
-    ),
+    ) |>
+      dplyr::mutate(
+        critical_var = "critical_n_surplus",
+        critical_land_use = "ara"
+      ),
     critical_loads = list(
       crit_nh3_emission = tibble::tribble(
         ~lon, ~lat, ~value,
         0.25, 0.25, 20,
         0.75, 0.25, 25
-      ),
+      ) |>
+        dplyr::mutate(critical_var = "crit_nh3_emission"),
       crit_leaching_gw = tibble::tribble(
         ~lon, ~lat, ~value,
         0.25, 0.25, 30,
         0.75, 0.25, 40
-      ),
+      ) |>
+        dplyr::mutate(critical_var = "crit_leaching_gw"),
       crit_load_sw = tibble::tribble(
         ~lon, ~lat, ~value,
         0.25, 0.25, 40,
         0.75, 0.25, 20
-      )
+      ) |>
+        dplyr::mutate(critical_var = "crit_load_sw")
     ),
     cbs_food = tibble::tribble(
       ~year, ~area_code, ~item_cbs_code, ~food_t,
@@ -74,6 +81,17 @@
       ~item_cbs_code, ~Name_biomass,
       2511L, "Wheat",
       2513L, "Barley"
+    ),
+    fp_flows = tibble::tribble(
+      ~year,
+      ~origin_area,
+      ~origin_item,
+      ~target_area,
+      ~target_item,
+      ~target_fd,
+      ~value,
+      2010L, 1L, 2511L, 1L, 2511L, "food", 20,
+      2010L, 1L, 2513L, 1L, 2513L, "food", 0
     )
   )
 }
@@ -173,5 +191,14 @@ testthat::test_that("an injected coherent data fixture composes cleanly", {
   testthat::expect_equal(
     sum(out$footprint$fp_all$impact_u),
     sum(out$boundary_surplus$country$exceedance_n_t)
+  )
+})
+
+testthat::test_that("a real call without IO or traced flows aborts", {
+  data <- .sjos_nitrogen_test_data()
+  data$fp_flows <- NULL
+  testthat::expect_error(
+    whep::build_sjos_nitrogen(data = data),
+    "IO model|fp_flows|domestic"
   )
 })

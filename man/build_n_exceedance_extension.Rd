@@ -12,7 +12,8 @@ build_n_exceedance_extension(
 \arguments{
 \item{exceedance}{A \code{\link[=build_n_boundary_exceedance]{build_n_boundary_exceedance()}} output at
 \code{resolution = "country"}, keyed by \code{year}, \code{area_code}, \code{item_cbs_code}
-with the mass terms \code{exceedance_n_t}, \code{within_boundary_n_t}, \code{actual_n_t}.}
+with the mass terms \code{exceedance_n_t}, \code{within_boundary_n_t}, \code{actual_n_t}
+and, for \code{category = "production"}, \code{production_n_t}.}
 
 \item{category}{Which nitrogen mass to carry into \code{impact_u}: \code{"exceedance"}
 (default), \code{"within_boundary"} or \code{"production"}. Validated with
@@ -28,8 +29,9 @@ Selects one nitrogen category from a
 \code{\link[=build_n_boundary_exceedance]{build_n_boundary_exceedance()}} country-resolution output into the
 \code{impact_u} column of a \code{\link[=build_footprint]{build_footprint()}} extension: \code{"exceedance"} (the
 default) carries \code{exceedance_n_t}, \code{"within_boundary"} carries
-\code{within_boundary_n_t}, and \code{"production"} carries \code{actual_n_t} (the crop's
-total surplus). The chosen category is stamped in \code{method_n_exceedance}.
+\code{within_boundary_n_t}, and \code{"production"} carries \code{production_n_t}
+(harvested product plus used residue plus grazed forage). The chosen
+category is stamped in \code{method_n_exceedance}.
 
 The three categories are traced as three separate extension passes (one call
 per category), not one signed impact: the footprint framework carries a single

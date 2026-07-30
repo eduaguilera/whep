@@ -8,6 +8,7 @@ build_n_percapita(
   n_inputs,
   population,
   framing = c("synthetic_bnf"),
+  params = NULL,
   example = FALSE
 )
 }
@@ -20,8 +21,11 @@ build_n_percapita(
 (absolute persons).}
 
 \item{framing}{How the total anthropogenic reactive nitrogen is defined.
-\code{"synthetic_bnf"} (default) sums the \code{"synthetic"} and \code{"bnf"} \code{fert_type}
-terms (the Campbell / Global framing); other framings can be added.}
+\code{"synthetic_bnf"} (default) scales the \code{"synthetic"} term by
+\code{syn_tot_agri_ratio} and adds the \code{"bnf"} term; other framings can be added.}
+
+\item{params}{Boundary parameters, defaulting to \link{n_boundary_params}, used
+here for \code{syn_tot_agri_ratio}.}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of computing from
 \code{n_inputs}/\code{population}. Defaults to \code{FALSE}.}
@@ -37,9 +41,9 @@ land and divides by population, giving the per-capita reactive nitrogen
 (kg N/cap/yr) that \code{\link[=build_n_boundary_percapita]{build_n_boundary_percapita()}} consumes as its
 \code{n_percapita} input. The default \code{"synthetic_bnf"} framing (the Campbell /
 Global framing) sums the synthetic-fertiliser and biological-nitrogen-
-fixation input terms, the two human-driven new reactive-nitrogen inputs to
-the agri-food system; recycled or internal terms (manure, deposition,
-urban, soil-organic-matter mineralization) are excluded. Any finer grid key
+fixation input terms using \code{synthetic * syn_tot_agri_ratio + BNF}, the
+locked Campbell / Global framing; recycled or internal terms (manure,
+deposition, urban, soil-organic-matter mineralization) are excluded. Any finer grid key
 (\code{lon}, \code{lat}, \code{item_cbs_code}) is aggregated away to the country total, and
 country-years without a matching population row are dropped.
 }

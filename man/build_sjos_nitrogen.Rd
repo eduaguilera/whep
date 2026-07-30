@@ -7,7 +7,7 @@
 build_sjos_nitrogen(
   data = list(),
   surplus_method = "harvest_removal",
-  boundary_land_use = "all",
+  boundary_land_use = "ara",
   nh3_source = "soil",
   footprint_category = "exceedance",
   example = FALSE
@@ -21,15 +21,17 @@ medium critical loads for the pathway boundary), \code{cbs_food}, \code{populati
 \code{n_inputs}, and optionally \code{biomass_coefs} / \code{items_full} for the food
 supply, \code{manure_mgmt_nh3_n_t} for the pathway boundary when
 \code{nh3_source = "total_agricultural"}, and either an \code{io} model or \code{fp_flows}
-for the footprint. When neither \code{io} nor \code{fp_flows} is present the footprint
-is traced through a domestic-closure fixture built from the extension.
+for the footprint. A real call without either source aborts rather than
+fabricating a domestic-only footprint.
 Defaults to \code{list()}.}
 
 \item{surplus_method}{Surplus definition passed to \code{\link[=calculate_n_surplus]{calculate_n_surplus()}},
 \code{"harvest_removal"} (default) or \code{"full_balance"}.}
 
 \item{boundary_land_use}{Land-use scope stamp passed to
-\code{\link[=build_n_boundary_exceedance]{build_n_boundary_exceedance()}}, \code{"all"} (default) or \code{"ara"}.}
+\code{\link[=build_n_boundary_exceedance]{build_n_boundary_exceedance()}}, \code{"ara"} (default, the robust historical
+comparison) or \code{"all"} (all WHEP grassland, a sensitivity rather than a
+reconstructed intensive-grassland class).}
 
 \item{nh3_source}{Air-pressure scope passed to \code{\link[=build_n_pathway_exceedance]{build_n_pathway_exceedance()}},
 \code{"soil"} (default) or \code{"total_agricultural"}.}

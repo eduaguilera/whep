@@ -7,7 +7,7 @@
 build_n_boundary_exceedance(
   surplus,
   critical,
-  land_use = c("all", "ara"),
+  land_use = c("ara", "all"),
   resolution = c("grid", "polity", "country", "image_region"),
   metric = c("surplus", "input"),
   cell_polity = NULL,
@@ -22,7 +22,9 @@ build_n_boundary_exceedance(
 
 \item{critical}{A \code{\link[=read_critical_n]{read_critical_n()}} output (\code{lon}, \code{lat}, \code{value} in
 kg N per hectare), the critical nitrogen surplus for \code{metric = "surplus"}
-or the critical nitrogen input for \code{metric = "input"}.}
+or the critical nitrogen input for \code{metric = "input"}. Every retained
+positive-area cell must have a non-missing critical value; incomplete
+coverage aborts instead of silently dropping the cell.}
 
 \item{land_use}{Land-use scope the \code{critical} layer was read for, \code{"all"}
 (default) or \code{"ara"}; a provenance stamp on the output.}

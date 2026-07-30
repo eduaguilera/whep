@@ -46,12 +46,14 @@
 #'   `no3_n_t`.
 #' @param critical_loads A named list of [read_critical_n()] outputs (each
 #'   `lon`, `lat`, `value` in kg N per hectare) with elements
-#'   `crit_nh3_emission`, `crit_leaching_gw` and `crit_load_sw`.
+#'   `crit_nh3_emission`, `crit_leaching_gw` and `crit_load_sw`. Every
+#'   positive-area balance cell must have a non-missing value in all three
+#'   layers; incomplete coverage aborts instead of silently dropping the cell.
 #' @param nh3_source Air-pressure scope: `"soil"` (default, field `nh3_n_t`
 #'   only, consistent with the surplus boundary) or `"total_agricultural"`
 #'   (also adds manure housing and storage ammonia from
-#'   `data$manure_mgmt_nh3_n_t`, keyed to the balance grid; if absent, warns and
-#'   falls back to soil ammonia).
+#'   `data$manure_mgmt_nh3_n_t`, keyed to the exact balance grid; if absent,
+#'   aborts rather than mislabelling soil-only pressure as total agricultural).
 #' @param resolution Output grain: `"grid"` (default, per crop per cell) or
 #'   `"polity"` / `"country"` (per crop per country, summing the mass terms).
 #' @param data Optional named list of injected inputs. `manure_mgmt_nh3_n_t` (a
@@ -127,7 +129,20 @@ build_n_pathway_exceedance <- function(
   purrr::walk2(
     critical_loads[needed],
     needed,
-    \(layer, nm) .check_columns(layer, c("lon", "lat", "value"), nm)
+    \(layer, nm) {
+      .check_columns(
+        layer,
+        c("lon", "lat", "value", "critical_var"),
+        nm
+      )
+      vars <- unique(layer$critical_var[!is.na(layer$critical_var)])
+      if (!identical(vars, nm)) {
+        cli::cli_abort(c(
+          "Critical-load provenance does not match list element {.field {nm}}.",
+          i = "Found {.val {vars}}."
+        ))
+      }
+    }
   )
 }
 
@@ -140,8 +155,9 @@ build_n_pathway_exceedance <- function(
     .npb_join_one(critical_loads$crit_load_sw, "critical_sw_kgn_ha")
 }
 
-# Inner-join one critical layer by cell, so only cells with all three loads
-# survive (the water minimum needs both sub-media).
+# Left-join one critical layer by cell and explicitly require coverage for
+# positive-area rows. The water minimum needs both sub-media, so a missing load
+# cannot be treated as a valid boundary estimate.
 .npb_join_one <- function(x, layer, name) {
   crit <- dplyr::transmute(
     layer,
@@ -149,7 +165,12 @@ build_n_pathway_exceedance <- function(
     lat = .data$lat,
     "{name}" := .data$value
   )
-  dplyr::inner_join(x, crit, by = c("lon", "lat"))
+  .n_join_critical_complete(
+    x,
+    crit,
+    value_col = name,
+    source = name
+  )
 }
 
 # Air medium: build the per-hectare ammonia pressure (soil, or soil plus manure
@@ -175,27 +196,36 @@ build_n_pathway_exceedance <- function(
 }
 
 # The ammonia mass feeding the air pressure: field nh3_n_t for "soil"; field
-# plus manure housing/storage ammonia for "total_agricultural". A missing
-# manure input warns and falls back to soil, so the two pools stay disjoint and
-# are never double-counted.
+# plus manure housing/storage ammonia for "total_agricultural". A requested
+# total without the manure-management pool aborts; it is never stamped as total
+# while containing soil emissions only.
 .npb_air_nh3 <- function(x, nh3_source, data) {
   manure <- data$manure_mgmt_nh3_n_t
   if (nh3_source != "total_agricultural") {
     return(dplyr::mutate(x, nh3_air_n_t = .data$nh3_n_t))
   }
   if (is.null(manure)) {
-    cli::cli_warn(c(
-      "!" = "No manure-management ammonia supplied for
-             {.val total_agricultural}; using soil ammonia only.",
+    cli::cli_abort(c(
+      "No manure-management ammonia supplied for {.val total_agricultural}.",
       "i" = "Provide {.field data$manure_mgmt_nh3_n_t} keyed to the balance
-             grid to add housing and storage ammonia."
+             grid, or request {.val soil}."
     ))
-    return(dplyr::mutate(x, nh3_air_n_t = .data$nh3_n_t))
   }
+  key <- c("lon", "lat", "area_code", "item_cbs_code", "year")
+  .check_columns(
+    manure,
+    c(key, "manure_mgmt_nh3_n_t"),
+    "manure_mgmt_nh3_n_t"
+  )
   x |>
     dplyr::left_join(
-      manure,
-      by = intersect(.npb_balance_required(), names(manure))
+      dplyr::select(
+        manure,
+        dplyr::all_of(key),
+        "manure_mgmt_nh3_n_t"
+      ),
+      by = key,
+      relationship = "many-to-one"
     ) |>
     dplyr::mutate(
       nh3_air_n_t = .data$nh3_n_t +
@@ -267,7 +297,11 @@ build_n_pathway_exceedance <- function(
 
 # Stamp the air-pressure scope and the boundary mode.
 .npb_stamp <- function(x, nh3_source) {
-  dplyr::mutate(x, nh3_source = nh3_source, method_boundary = "pathway")
+  dplyr::mutate(
+    x,
+    nh3_source = nh3_source,
+    method_boundary = "pathway"
+  )
 }
 
 # Return the requested resolution: the per-crop grid table or the
@@ -310,23 +344,29 @@ build_n_pathway_exceedance <- function(
     "binding_water_medium",
     "binding_boundary",
     "nh3_source",
-    "method_boundary"
+    "method_boundary",
+    dplyr::any_of(c("method_nh3", "method_leaching"))
   )
 }
 
 # Sum the per-medium mass terms over cells to the requested key, carrying the
 # constant provenance stamps.
 .npb_aggregate <- function(x, key) {
+  method_cols <- intersect(c("method_nh3", "method_leaching"), names(x))
   dplyr::summarise(
     x,
-    exceedance_air_n_t = sum(.data$exceedance_air_n_t, na.rm = TRUE),
-    within_air_n_t = sum(.data$within_air_n_t, na.rm = TRUE),
-    actual_air_n_t = sum(.data$actual_air_n_t, na.rm = TRUE),
-    exceedance_water_n_t = sum(.data$exceedance_water_n_t, na.rm = TRUE),
-    within_water_n_t = sum(.data$within_water_n_t, na.rm = TRUE),
-    actual_water_n_t = sum(.data$actual_water_n_t, na.rm = TRUE),
+    exceedance_air_n_t = .sum_if_any(.data$exceedance_air_n_t),
+    within_air_n_t = .sum_if_any(.data$within_air_n_t),
+    actual_air_n_t = .sum_if_any(.data$actual_air_n_t),
+    exceedance_water_n_t = .sum_if_any(.data$exceedance_water_n_t),
+    within_water_n_t = .sum_if_any(.data$within_water_n_t),
+    actual_water_n_t = .sum_if_any(.data$actual_water_n_t),
     nh3_source = dplyr::first(.data$nh3_source),
     method_boundary = dplyr::first(.data$method_boundary),
+    dplyr::across(
+      dplyr::all_of(method_cols),
+      \(v) paste(sort(unique(stats::na.omit(v))), collapse = "|")
+    ),
     .by = dplyr::all_of(key)
   )
 }

@@ -8,8 +8,9 @@
     ~exceedance_n_t,
     ~within_boundary_n_t,
     ~actual_n_t,
-    2010L, 10L, 2511L, 5, 3, 8,
-    2010L, 10L, 2513L, 0, 4, 4
+    ~production_n_t,
+    2010L, 10L, 2511L, 5, 3, 8, 12,
+    2010L, 10L, 2513L, 0, 4, 4, 7
   )
 }
 
@@ -31,12 +32,12 @@ testthat::test_that("the within_boundary category carries within_boundary_n_t", 
   testthat::expect_true(all(out$method_n_exceedance == "within_boundary"))
 })
 
-testthat::test_that("the production category carries actual_n_t", {
+testthat::test_that("the production category carries production_n_t", {
   out <- whep::build_n_exceedance_extension(
     .nex_exceedance_fixture(),
     category = "production"
   )
-  testthat::expect_equal(out$impact_u, c(8, 4))
+  testthat::expect_equal(out$impact_u, c(12, 7))
   testthat::expect_true(all(out$method_n_exceedance == "production"))
 })
 
@@ -80,10 +81,26 @@ testthat::test_that("rows with a missing key are dropped", {
     ~exceedance_n_t,
     ~within_boundary_n_t,
     ~actual_n_t,
-    2010L, 10L, 2511L, 5, 3, 8,
-    2010L, NA_integer_, 2513L, 1, 1, 2
+    ~production_n_t,
+    2010L, 10L, 2511L, 5, 3, 8, 12,
+    2010L, NA_integer_, 2513L, 1, 1, 2, 3
   )
   out <- whep::build_n_exceedance_extension(exceedance)
   testthat::expect_equal(nrow(out), 1L)
   testthat::expect_equal(out$item_cbs_code, 2511L)
+})
+
+testthat::test_that("negative footprint extensions are rejected", {
+  bad <- dplyr::mutate(
+    .nex_exceedance_fixture(),
+    exceedance_n_t = dplyr::if_else(
+      .data$item_cbs_code == 2511L,
+      -1,
+      .data$exceedance_n_t
+    )
+  )
+  testthat::expect_error(
+    whep::build_n_exceedance_extension(bad),
+    "non-negative"
+  )
 })

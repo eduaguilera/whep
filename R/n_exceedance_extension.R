@@ -3,7 +3,7 @@
 # build_footprint() extension tibble (year, area_code, item_cbs_code, impact_u,
 # method_n_exceedance), carrying one of the three per-crop nitrogen categories as
 # the footprint intensity: the exceedance mass, the within-boundary mass, or the
-# crop's total actual surplus. These are Global's Impact_prod_all u_FU categories
+# nitrogen embodied in agricultural production. These are Global's Impact_prod_all u_FU categories
 # (Global/R/sjos_n.r:349) fed into the trade footprint. Kept per item_cbs so the
 # footprint can be traced (locked plan decision 14).
 
@@ -14,8 +14,9 @@
 #' [build_n_boundary_exceedance()] country-resolution output into the
 #' `impact_u` column of a [build_footprint()] extension: `"exceedance"` (the
 #' default) carries `exceedance_n_t`, `"within_boundary"` carries
-#' `within_boundary_n_t`, and `"production"` carries `actual_n_t` (the crop's
-#' total surplus). The chosen category is stamped in `method_n_exceedance`.
+#' `within_boundary_n_t`, and `"production"` carries `production_n_t`
+#' (harvested product plus used residue plus grazed forage). The chosen
+#' category is stamped in `method_n_exceedance`.
 #'
 #' The three categories are traced as three separate extension passes (one call
 #' per category), not one signed impact: the footprint framework carries a single
@@ -30,7 +31,8 @@
 #'
 #' @param exceedance A [build_n_boundary_exceedance()] output at
 #'   `resolution = "country"`, keyed by `year`, `area_code`, `item_cbs_code`
-#'   with the mass terms `exceedance_n_t`, `within_boundary_n_t`, `actual_n_t`.
+#'   with the mass terms `exceedance_n_t`, `within_boundary_n_t`, `actual_n_t`
+#'   and, for `category = "production"`, `production_n_t`.
 #' @param category Which nitrogen mass to carry into `impact_u`: `"exceedance"`
 #'   (default), `"within_boundary"` or `"production"`. Validated with
 #'   [rlang::arg_match()].
@@ -65,6 +67,7 @@ build_n_exceedance_extension <- function(
   exceedance |>
     .nex_select_impact(category) |>
     .nex_drop_bad_keys() |>
+    .nex_validate_impact() |>
     dplyr::mutate(method_n_exceedance = category) |>
     dplyr::select(
       "year",
@@ -83,7 +86,7 @@ build_n_exceedance_extension <- function(
     category,
     exceedance = "exceedance_n_t",
     within_boundary = "within_boundary_n_t",
-    production = "actual_n_t"
+    production = "production_n_t"
   )
 }
 
@@ -104,4 +107,16 @@ build_n_exceedance_extension <- function(
     !is.na(.data$area_code),
     !is.na(.data$item_cbs_code)
   )
+}
+
+# Footprint extensions are non-negative finite masses. Deficits remain
+# available in the upstream surplus diagnostic but cannot enter the Leontief
+# extension as negative pressure.
+.nex_validate_impact <- function(x) {
+  if (any(!is.finite(x$impact_u) | x$impact_u < 0)) {
+    cli::cli_abort(
+      "The selected nitrogen footprint category must be finite and non-negative."
+    )
+  }
+  x
 }

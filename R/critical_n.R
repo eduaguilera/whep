@@ -50,9 +50,11 @@
 #'   Defaults to `NULL`.
 #' @param example If `TRUE`, return a small fixture instead of reading data.
 #'   Defaults to `FALSE`.
-#' @return A tibble with `lon`, `lat` (0.5-degree cell centres) and `value`
+#' @return A tibble with `lon`, `lat` (0.5-degree cell centres), `value`
 #'   (kg N per hectare per year; a categorical impact code for
-#'   `binding_threshold`). NODATA cells are dropped.
+#'   `binding_threshold`) and retained layer provenance: `critical_var`,
+#'   `critical_threshold`, `critical_land_use`, `critical_year` and
+#'   `critical_source`. NODATA cells are dropped.
 #' @export
 #' @examples
 #' read_critical_n(example = TRUE)
@@ -72,20 +74,21 @@ read_critical_n <- function(
   data = NULL,
   example = FALSE
 ) {
-  if (isTRUE(example)) {
-    return(.example_critical_n())
-  }
   var <- rlang::arg_match(var)
   threshold <- rlang::arg_match(threshold)
   land_use <- rlang::arg_match(land_use)
-  grid <- data %||%
-    .read_critical_n_file(
-      .resolve_critical_n_dir(dir),
-      var,
-      threshold,
-      land_use
-    )
-  .critical_n_finalize(grid)
+  grid <- if (isTRUE(example)) {
+    .example_critical_n()
+  } else {
+    data %||%
+      .read_critical_n_file(
+        .resolve_critical_n_dir(dir),
+        var,
+        threshold,
+        land_use
+      )
+  }
+  .critical_n_finalize(grid, var, threshold, land_use)
 }
 
 # ---- Private helpers --------------------------------------------------
@@ -193,8 +196,11 @@ read_critical_n <- function(
     dplyr::filter(.data$value != header[["nodata_value"]])
 }
 
-# Coerce any critical-nitrogen grid to the lon/lat/value output schema.
-.critical_n_finalize <- function(grid) {
+# Coerce any critical-nitrogen grid to the output schema while retaining the
+# selectors that identify the physical layer. Dropping these fields permits a
+# critical-input/arable grid to be silently relabelled as surplus/all
+# downstream.
+.critical_n_finalize <- function(grid, var, threshold, land_use) {
   if (!all(rlang::has_name(grid, c("lon", "lat", "value")))) {
     cli::cli_abort(
       "Critical-nitrogen grid needs columns {.field lon}, {.field lat} and
@@ -202,6 +208,29 @@ read_critical_n <- function(
     )
   }
   grid |>
-    dplyr::select("lon", "lat", "value") |>
+    dplyr::transmute(
+      lon = .data$lon,
+      lat = .data$lat,
+      value = .data$value,
+      critical_var = var,
+      critical_threshold = dplyr::if_else(
+        var %in% c("critical_n_surplus", "critical_n_input", "exceedance"),
+        threshold,
+        NA_character_
+      ),
+      critical_land_use = dplyr::if_else(
+        var %in%
+          c(
+            "critical_n_surplus",
+            "critical_n_input",
+            "exceedance",
+            "binding_threshold"
+          ),
+        land_use,
+        NA_character_
+      ),
+      critical_year = 2010L,
+      critical_source = "Schulte-Uebbing et al. (2022)"
+    ) |>
     tibble::as_tibble()
 }

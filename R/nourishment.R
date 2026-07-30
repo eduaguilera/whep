@@ -105,6 +105,7 @@ normalize_nourishment <- function(
 # Under below a score of 1, Adequate below 2, Over at or above 2.
 .nourish_classify <- function(value_norm) {
   dplyr::case_when(
+    is.na(value_norm) ~ NA_character_,
     value_norm < 1 ~ "Under",
     value_norm < 2 ~ "Adequate",
     .default = "Over"

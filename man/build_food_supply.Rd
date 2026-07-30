@@ -28,7 +28,7 @@ Defaults to \code{FALSE}.}
 }
 \value{
 A tibble keyed by \code{year}, \code{area_code} with \code{protein_g_cap_day},
-\code{energy_kcal_cap_day} and \code{population}.
+\code{energy_kcal_cap_day}, \code{population} and \code{method_food_supply}.
 }
 \description{
 Assembles per-capita protein and dietary-energy supply, the state variable

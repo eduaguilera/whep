@@ -65,7 +65,7 @@ testthat::test_that("the country nourishment broadcasts to multiple crops", {
   testthat::expect_true(all(country10$nourish == "Over"))
 })
 
-testthat::test_that("the all-zero-exceedance guard falls to Within_boundary", {
+testthat::test_that("known zero pressure is within and missing evidence is NA", {
   exceedance <- tibble::tribble(
     ~year,
     ~area_code,
@@ -81,10 +81,15 @@ testthat::test_that("the all-zero-exceedance guard falls to Within_boundary", {
     2010L, 30L, "Adequate"
   )
   out <- whep::classify_sjos_n(exceedance, nourishment)
-  testthat::expect_true(all(out$boundary_side == "Within_boundary"))
-  testthat::expect_true(all(
-    as.character(out$sjos_class) == "Within_boundary Adequate"
-  ))
+  zero <- dplyr::filter(out, .data$item_cbs_code == 2511L)
+  missing <- dplyr::filter(out, .data$item_cbs_code == 2513L)
+  testthat::expect_equal(zero$boundary_side, "Within_boundary")
+  testthat::expect_equal(
+    as.character(zero$sjos_class),
+    "Within_boundary Adequate"
+  )
+  testthat::expect_true(is.na(missing$boundary_side))
+  testthat::expect_true(is.na(missing$sjos_class))
 })
 
 testthat::test_that("level_col renames the classification column", {

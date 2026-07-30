@@ -7,6 +7,7 @@
 build_crop_soil_n2o_extension(
   gwp = c("ar6", "ar5", "ar4"),
   residue_removed_frac = 0.45,
+  synthetic_method = NULL,
   data = list(),
   example = FALSE
 )
@@ -19,6 +20,10 @@ build_crop_soil_n2o_extension(
 from the field (for feed, fuel or construction) and therefore not returned
 to soil. Defaults to \code{0.45}, a global mid-range value; country-specific
 removal (\code{gleam_fracremove}) is a future refinement.}
+
+\item{synthetic_method}{Synthetic-N crop allocation method, \code{"coello"} or
+\code{"area_share"}. When \code{NULL} (default), uses
+\code{data$synthetic_method \%||\% "coello"} for backwards compatibility.}
 
 \item{data}{Optional named list of pre-loaded inputs to avoid remote reads:
 \code{primary_prod} (\code{\link[=get_primary_production]{get_primary_production()}}, for harvested area),

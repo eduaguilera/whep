@@ -45,6 +45,40 @@ testthat::test_that("far-above-bound N is capped at 6 before afs_share", {
   testthat::expect_equal(a30$boundary_norm, 6 * 0.8)
 })
 
+testthat::test_that("the upper per-capita boundary is capped at 40 kg", {
+  population <- tibble::tibble(
+    year = 2000L,
+    area_code = 10L,
+    population = 1e9
+  )
+  bounds <- whep:::.n_boundary_world_bounds(
+    population,
+    whep::n_boundary_params
+  )
+  testthat::expect_equal(bounds$high_pc, 40)
+})
+
+testthat::test_that("complete population sets the world denominator", {
+  full_pop <- dplyr::bind_rows(
+    dplyr::select(.nourish_fixture(), year, area_code, population),
+    tibble::tibble(year = 2000L, area_code = 99L, population = 4e9)
+  )
+  fallback <- whep::build_n_boundary_percapita(
+    .npc_fixture(),
+    .nourish_fixture(),
+    afs_share = 1
+  )
+  complete <- whep::build_n_boundary_percapita(
+    .npc_fixture(),
+    .nourish_fixture(),
+    population = full_pop,
+    afs_share = 1
+  )
+  testthat::expect_false(
+    isTRUE(all.equal(fallback$boundary_norm, complete$boundary_norm))
+  )
+})
+
 testthat::test_that("afs_share scales the boundary norm linearly", {
   full <- whep::build_n_boundary_percapita(
     .npc_fixture(),

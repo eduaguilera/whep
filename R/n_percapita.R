@@ -7,10 +7,10 @@
 # seam that function's file note flagged: its n_percapita input was previously
 # supplied by the caller rather than derived from the N inputs.
 #
-# Framing. "synthetic_bnf" (default, the Campbell / Global framing) treats
-# synthetic fertiliser plus biological nitrogen fixation as the anthropogenic
-# reactive-N proxy: the two human-driven "new" reactive-N inputs to the
-# agri-food system. Recycled or internal terms (manure, atmospheric
+# Framing. "synthetic_bnf" (default, the Campbell / Global framing) scales
+# synthetic fertiliser to total agricultural reactive N with the packaged
+# `syn_tot_agri_ratio`, then adds biological nitrogen fixation. Recycled or
+# internal terms (manure, atmospheric
 # deposition, urban/human N, soil-organic-matter mineralization) are excluded
 # because they are not new fixation of reactive nitrogen. Other framings (e.g.
 # adding atmospheric deposition or manure) can be added as further `framing`
@@ -28,9 +28,9 @@
 #' (kg N/cap/yr) that [build_n_boundary_percapita()] consumes as its
 #' `n_percapita` input. The default `"synthetic_bnf"` framing (the Campbell /
 #' Global framing) sums the synthetic-fertiliser and biological-nitrogen-
-#' fixation input terms, the two human-driven new reactive-nitrogen inputs to
-#' the agri-food system; recycled or internal terms (manure, deposition,
-#' urban, soil-organic-matter mineralization) are excluded. Any finer grid key
+#' fixation input terms using `synthetic * syn_tot_agri_ratio + BNF`, the
+#' locked Campbell / Global framing; recycled or internal terms (manure,
+#' deposition, urban, soil-organic-matter mineralization) are excluded. Any finer grid key
 #' (`lon`, `lat`, `item_cbs_code`) is aggregated away to the country total, and
 #' country-years without a matching population row are dropped.
 #'
@@ -40,8 +40,10 @@
 #' @param population A tibble keyed by `year`, `area_code` with `population`
 #'   (absolute persons).
 #' @param framing How the total anthropogenic reactive nitrogen is defined.
-#'   `"synthetic_bnf"` (default) sums the `"synthetic"` and `"bnf"` `fert_type`
-#'   terms (the Campbell / Global framing); other framings can be added.
+#'   `"synthetic_bnf"` (default) scales the `"synthetic"` term by
+#'   `syn_tot_agri_ratio` and adds the `"bnf"` term; other framings can be added.
+#' @param params Boundary parameters, defaulting to [n_boundary_params], used
+#'   here for `syn_tot_agri_ratio`.
 #' @param example If `TRUE`, return a small fixture instead of computing from
 #'   `n_inputs`/`population`. Defaults to `FALSE`.
 #' @return A tibble keyed by `year`, `area_code` with `n_percapita_kg`, the
@@ -53,12 +55,14 @@ build_n_percapita <- function(
   n_inputs,
   population,
   framing = c("synthetic_bnf"),
+  params = NULL,
   example = FALSE
 ) {
   if (isTRUE(example)) {
     return(.example_n_percapita())
   }
   framing <- rlang::arg_match(framing)
+  params <- params %||% whep::n_boundary_params
   .check_columns(
     n_inputs,
     c("year", "area_code", "fert_type", "n_input_t"),
@@ -66,7 +70,7 @@ build_n_percapita <- function(
   )
   .check_columns(population, c("year", "area_code", "population"), "population")
   n_inputs |>
-    .n_percapita_anthropogenic(framing) |>
+    .n_percapita_anthropogenic(framing, params) |>
     .n_percapita_per_capita(population)
 }
 
@@ -84,20 +88,46 @@ build_n_percapita <- function(
 
 # Sum the framing's fert_type terms to the country total anthropogenic reactive
 # nitrogen (tonnes N) per (year, area_code), collapsing any finer grid key.
-.n_percapita_anthropogenic <- function(n_inputs, framing) {
+.n_percapita_anthropogenic <- function(n_inputs, framing, params) {
   fert_types <- .n_percapita_fert_types(framing)
-  n_inputs |>
+  totals <- n_inputs |>
     dplyr::filter(.data$fert_type %in% fert_types) |>
     dplyr::summarise(
-      anthropogenic_n_t = sum(.data$n_input_t, na.rm = TRUE),
-      .by = c("year", "area_code")
+      n_input_t = .sum_if_any(.data$n_input_t),
+      .by = c("year", "area_code", "fert_type")
+    ) |>
+    tidyr::pivot_wider(
+      names_from = "fert_type",
+      values_from = "n_input_t",
+      values_fill = 0
     )
+  for (term in fert_types) {
+    if (!rlang::has_name(totals, term)) {
+      totals[[term]] <- 0
+    }
+  }
+  ratio <- .n_boundary_param(params, "syn_tot_agri_ratio")
+  dplyr::transmute(
+    totals,
+    year = .data$year,
+    area_code = .data$area_code,
+    anthropogenic_n_t = .data$synthetic * ratio + .data$bnf
+  )
 }
 
 # Divide the country total (converted tonnes N -> kg N) by population to give
 # kg N/cap/yr. The inner join drops country-years lacking a population row (no
 # per-capita denominator), matching build_n_boundary_percapita()'s own join.
 .n_percapita_per_capita <- function(anthropogenic, population) {
+  invalid <- dplyr::filter(
+    population,
+    !is.finite(.data$population) | .data$population <= 0
+  )
+  if (nrow(invalid) > 0L) {
+    cli::cli_abort(
+      "{.arg population} must contain finite, strictly positive denominators."
+    )
+  }
   anthropogenic |>
     dplyr::inner_join(
       dplyr::select(population, "year", "area_code", "population"),

@@ -28,21 +28,24 @@
       0.75, 0.25, 30,
       0.25, 0.75, 20,
       0.75, 0.75, 100
-    ),
+    ) |>
+      dplyr::mutate(critical_var = "crit_nh3_emission"),
     crit_leaching_gw = tibble::tribble(
       ~lon, ~lat, ~value,
       0.25, 0.25, 30,
       0.75, 0.25, 50,
       0.25, 0.75, 45,
       0.75, 0.75, 60
-    ),
+    ) |>
+      dplyr::mutate(critical_var = "crit_leaching_gw"),
     crit_load_sw = tibble::tribble(
       ~lon, ~lat, ~value,
       0.25, 0.25, 40,
       0.75, 0.25, 20,
       0.25, 0.75, 55,
       0.75, 0.75, 70
-    )
+    ) |>
+      dplyr::mutate(critical_var = "crit_load_sw")
   )
 }
 
@@ -110,12 +113,13 @@ testthat::test_that("a zero-area (non-crop) row gets NA binding_boundary, not 'b
   # Regression: rows with area_ha 0/NA (the per-cell deposition / urban / SOM
   # non-crop terms) have NA per-hectare exceedance shares, which fail every
   # case_when comparison and used to fall through to the "both" default. They
-  # must be NA -- a row with no agricultural area has no binding medium.
+  # must be NA -- a row with no agricultural area has no binding medium. Keep
+  # the row even when it lies outside all three critical-load rasters.
   balance <- dplyr::bind_rows(
     .npb_balance_fixture(),
     tibble::tibble(
-      lon = 0.25,
-      lat = 0.25,
+      lon = 9.25,
+      lat = 9.25,
       area_code = 1L,
       item_cbs_code = NA_integer_,
       year = 2010L,
@@ -132,6 +136,22 @@ testthat::test_that("a zero-area (non-crop) row gets NA binding_boundary, not 'b
   na_row <- dplyr::filter(out, is.na(.data$item_cbs_code))
   testthat::expect_equal(nrow(na_row), 1L)
   testthat::expect_true(is.na(na_row$binding_boundary))
+})
+
+testthat::test_that("missing pathway-load coverage aborts", {
+  loads <- .npb_loads_fixture()
+  loads$crit_load_sw <- dplyr::filter(
+    loads$crit_load_sw,
+    .data$lon != 0.75 | .data$lat != 0.75
+  )
+  testthat::expect_error(
+    whep::build_n_pathway_exceedance(
+      .npb_balance_fixture(),
+      loads,
+      resolution = "grid"
+    ),
+    "Critical-layer coverage is incomplete|critical_sw_kgn_ha"
+  )
 })
 
 testthat::test_that("each medium conserves and shares stay in [0, 1]", {
@@ -221,17 +241,16 @@ testthat::test_that("total_agricultural adds manure ammonia to the air", {
   testthat::expect_true(all(total$nh3_source == "total_agricultural"))
 })
 
-testthat::test_that("total_agricultural without manure warns and uses soil", {
-  testthat::expect_warning(
-    out <- whep::build_n_pathway_exceedance(
+testthat::test_that("total_agricultural without manure aborts", {
+  testthat::expect_error(
+    whep::build_n_pathway_exceedance(
       .npb_balance_fixture(),
       .npb_loads_fixture(),
       nh3_source = "total_agricultural",
       resolution = "grid"
     ),
-    "manure|soil ammonia"
+    "manure-management|total_agricultural"
   )
-  testthat::expect_equal(.npb_row(out, 0.25, 2511L)$actual_air_kgn_ha, 40)
 })
 
 testthat::test_that("polity resolution sums the per-medium mass terms", {

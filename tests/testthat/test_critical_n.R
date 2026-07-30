@@ -31,7 +31,19 @@ testthat::test_that("read_critical_n parses an ESRI grid at cell centres", {
   tmp <- withr::local_tempdir()
   .critical_n_write_asc(tmp)
   out <- whep::read_critical_n("critical_n_surplus", dir = tmp)
-  testthat::expect_named(out, c("lon", "lat", "value"))
+  testthat::expect_named(
+    out,
+    c(
+      "lon",
+      "lat",
+      "value",
+      "critical_var",
+      "critical_threshold",
+      "critical_land_use",
+      "critical_year",
+      "critical_source"
+    )
+  )
   testthat::expect_s3_class(out, "tbl_df")
   # 6 cells minus the one NODATA cell.
   testthat::expect_equal(nrow(out), 5L)
@@ -49,7 +61,10 @@ testthat::test_that("read_critical_n parses an ESRI grid at cell centres", {
 
 testthat::test_that("read_critical_n(example = TRUE) returns lon/lat/value", {
   out <- whep::read_critical_n(example = TRUE)
-  pointblank::expect_col_exists(out, c("lon", "lat", "value"))
+  pointblank::expect_col_exists(
+    out,
+    c("lon", "lat", "value", "critical_var", "critical_land_use")
+  )
   testthat::expect_s3_class(out, "tbl_df")
   testthat::expect_gt(nrow(out), 0L)
 })
@@ -61,8 +76,12 @@ testthat::test_that("read_critical_n(data=) bypasses the file read", {
     0.25, 51.75, 12
   )
   out <- whep::read_critical_n(var = "exceedance", data = grid)
-  testthat::expect_named(out, c("lon", "lat", "value"))
+  pointblank::expect_col_exists(
+    out,
+    c("lon", "lat", "value", "critical_var", "critical_land_use")
+  )
   testthat::expect_equal(out$value, c(84, 12))
+  testthat::expect_true(all(out$critical_var == "exceedance"))
 })
 
 testthat::test_that("read_critical_n rejects an unknown var", {

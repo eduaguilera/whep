@@ -48,7 +48,7 @@
 #' @param example If `TRUE`, return a small fixture instead of computing.
 #'   Defaults to `FALSE`.
 #' @return A tibble keyed by `year`, `area_code` with `protein_g_cap_day`,
-#'   `energy_kcal_cap_day` and `population`.
+#'   `energy_kcal_cap_day`, `population` and `method_food_supply`.
 #' @export
 #' @examples
 #' build_food_supply(example = TRUE)
@@ -61,10 +61,12 @@ build_food_supply <- function(
     return(.example_build_food_supply())
   }
   method <- rlang::arg_match(method)
-  if (method == "faostat_fbs") {
-    return(.food_supply_fbs(data))
+  out <- if (method == "faostat_fbs") {
+    .food_supply_fbs(data)
+  } else {
+    .food_supply_whep_native(data)
   }
-  .food_supply_whep_native(data)
+  dplyr::mutate(out, method_food_supply = method)
 }
 
 # ---- Private helpers -------------------------------------------------------

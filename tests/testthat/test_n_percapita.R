@@ -42,20 +42,19 @@ testthat::test_that("only synthetic and bnf are summed into the anthropogenic to
   out <- whep::build_n_percapita(.npc_n_inputs(), .npc_population())
   a10 <- dplyr::filter(out, area_code == 10L)
   a20 <- dplyr::filter(out, area_code == 20L)
-  # area 10: synthetic (2 + 3) + bnf (3) = 8 t; manure_solid (2) and
-  # deposition (1) are excluded. 8 t * 1000 / 1000 persons = 8 kg N/cap.
-  testthat::expect_equal(a10$n_percapita_kg, 8)
-  # area 20: synthetic (10) + bnf (4) = 14 t; urban (5) excluded.
-  # 14 t * 1000 / 2000 persons = 7 kg N/cap.
-  testthat::expect_equal(a20$n_percapita_kg, 7)
+  ratio <- (109 + 33) / (0.85 * 109)
+  # area 10: synthetic (2 + 3) * ratio + bnf (3); manure/deposition excluded.
+  testthat::expect_equal(a10$n_percapita_kg, 5 * ratio + 3)
+  # area 20: synthetic (10) * ratio + bnf (4); urban excluded.
+  testthat::expect_equal(a20$n_percapita_kg, (10 * ratio + 4) / 2)
 })
 
 testthat::test_that("excluded fert_types do not leak into the per-capita value", {
   out <- whep::build_n_percapita(.npc_n_inputs(), .npc_population())
   a10 <- dplyr::filter(out, area_code == 10L)
-  # Were manure_solid (2) and deposition (1) wrongly included, the total would
-  # be 11 t -> 11 kg N/cap, not 8.
-  testthat::expect_false(isTRUE(all.equal(a10$n_percapita_kg, 11)))
+  ratio <- (109 + 33) / (0.85 * 109)
+  expected <- 5 * ratio + 3
+  testthat::expect_equal(a10$n_percapita_kg, expected)
 })
 
 testthat::test_that("the x1000 tonnes->kg over population conversion holds", {
@@ -86,6 +85,17 @@ testthat::test_that("country-years without a population row drop out", {
   out <- whep::build_n_percapita(.npc_n_inputs(), pop_partial)
   testthat::expect_equal(out$area_code, 10L)
   testthat::expect_false(20L %in% out$area_code)
+})
+
+testthat::test_that("zero population aborts instead of producing infinity", {
+  pop <- dplyr::mutate(
+    .npc_population(),
+    population = dplyr::if_else(.data$area_code == 10L, 0, .data$population)
+  )
+  testthat::expect_error(
+    whep::build_n_percapita(.npc_n_inputs(), pop),
+    "strictly positive"
+  )
 })
 
 testthat::test_that("build_n_percapita output composes into build_n_boundary_percapita", {

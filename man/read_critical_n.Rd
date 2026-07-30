@@ -44,9 +44,11 @@ Defaults to \code{NULL}.}
 Defaults to \code{FALSE}.}
 }
 \value{
-A tibble with \code{lon}, \code{lat} (0.5-degree cell centres) and \code{value}
+A tibble with \code{lon}, \code{lat} (0.5-degree cell centres), \code{value}
 (kg N per hectare per year; a categorical impact code for
-\code{binding_threshold}). NODATA cells are dropped.
+\code{binding_threshold}) and retained layer provenance: \code{critical_var},
+\code{critical_threshold}, \code{critical_land_use}, \code{critical_year} and
+\code{critical_source}. NODATA cells are dropped.
 }
 \description{
 Reads one 0.5-degree gridded critical-nitrogen layer from the

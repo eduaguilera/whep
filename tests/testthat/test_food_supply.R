@@ -135,7 +135,11 @@ testthat::test_that("faostat_fbs passes the injected supply through", {
     method = "faostat_fbs",
     data = list(fbs_supply = fbs)
   )
-  testthat::expect_equal(out, fbs)
+  testthat::expect_equal(
+    dplyr::select(out, dplyr::all_of(names(fbs))),
+    fbs
+  )
+  testthat::expect_true(all(out$method_food_supply == "faostat_fbs"))
 })
 
 testthat::test_that("build_food_supply rejects an unknown method", {
@@ -164,7 +168,8 @@ testthat::test_that("build_food_supply(example = TRUE) has the contract shape", 
       "area_code",
       "protein_g_cap_day",
       "energy_kcal_cap_day",
-      "population"
+      "population",
+      "method_food_supply"
     )
   )
 })

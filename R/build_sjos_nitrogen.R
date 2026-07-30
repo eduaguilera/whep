@@ -18,6 +18,8 @@
 # and years line up so no join is empty. The footprint is traced through the
 # documented `data$fp_flows` seam of build_sjos_n_footprint() (a domestic-closure
 # test double for the IO model) so the extension total is conserved end to end.
+# Real calls never fabricate domestic closure: they require an IO model or
+# explicitly supplied pre-traced flows.
 
 #' Assemble the end-to-end SJOS-N output tables.
 #'
@@ -49,13 +51,15 @@
 #'   `n_inputs`, and optionally `biomass_coefs` / `items_full` for the food
 #'   supply, `manure_mgmt_nh3_n_t` for the pathway boundary when
 #'   `nh3_source = "total_agricultural"`, and either an `io` model or `fp_flows`
-#'   for the footprint. When neither `io` nor `fp_flows` is present the footprint
-#'   is traced through a domestic-closure fixture built from the extension.
+#'   for the footprint. A real call without either source aborts rather than
+#'   fabricating a domestic-only footprint.
 #'   Defaults to `list()`.
 #' @param surplus_method Surplus definition passed to [calculate_n_surplus()],
 #'   `"harvest_removal"` (default) or `"full_balance"`.
 #' @param boundary_land_use Land-use scope stamp passed to
-#'   [build_n_boundary_exceedance()], `"all"` (default) or `"ara"`.
+#'   [build_n_boundary_exceedance()], `"ara"` (default, the robust historical
+#'   comparison) or `"all"` (all WHEP grassland, a sensitivity rather than a
+#'   reconstructed intensive-grassland class).
 #' @param nh3_source Air-pressure scope passed to [build_n_pathway_exceedance()],
 #'   `"soil"` (default) or `"total_agricultural"`.
 #' @param footprint_category Which per-crop nitrogen mass the footprint traces,
@@ -76,7 +80,7 @@
 build_sjos_nitrogen <- function(
   data = list(),
   surplus_method = "harvest_removal",
-  boundary_land_use = "all",
+  boundary_land_use = "ara",
   nh3_source = "soil",
   footprint_category = "exceedance",
   example = FALSE
@@ -86,19 +90,26 @@ build_sjos_nitrogen <- function(
     surplus_method = surplus_method,
     boundary_land_use = boundary_land_use,
     nh3_source = nh3_source,
-    footprint_category = footprint_category
+    footprint_category = footprint_category,
+    example = isTRUE(example)
   )
   surplus <- calculate_n_surplus(data$balance, method = opts$surplus_method)
   boundary <- .sjos_boundary_surplus(surplus, data, opts)
   nourishment <- .sjos_nourishment(data)
+  sjos_class <- classify_sjos_n(boundary$country, nourishment)
   list(
     surplus = surplus,
     boundary_surplus = boundary,
     boundary_pathway = .sjos_boundary_pathway(data, opts),
     nourishment = nourishment,
     scatter = .sjos_scatter(data, nourishment),
-    sjos_class = classify_sjos_n(boundary$country, nourishment),
-    footprint = .sjos_footprint(boundary$country, data, opts)
+    sjos_class = sjos_class,
+    footprint = .sjos_footprint(
+      boundary$country,
+      data,
+      opts,
+      sjos_class
+    )
   )
 }
 
@@ -163,34 +174,50 @@ build_sjos_nitrogen <- function(
 .sjos_scatter <- function(data, nourishment) {
   data$n_inputs |>
     build_n_percapita(population = data$population) |>
-    build_n_boundary_percapita(nourishment = nourishment)
+    build_n_boundary_percapita(
+      nourishment = nourishment,
+      population = data$population
+    )
 }
 
-# The embodied-nitrogen trade footprint from the country exceedance. When no IO
-# model or pre-traced flows are supplied, a domestic-closure fixture stands in
-# for the IO model so the extension total is conserved end to end.
-.sjos_footprint <- function(country_exc, data, opts) {
+# The embodied-nitrogen trade footprint from the country exceedance.
+.sjos_footprint <- function(country_exc, data, opts, origin_classes) {
   build_sjos_n_footprint(
     exceedance = country_exc,
     io = data$io,
     category = opts$footprint_category,
-    data = .sjos_fp_data(country_exc, data, opts)
+    data = .sjos_fp_data(country_exc, data, opts, origin_classes)
   )
 }
 
-# Resolve the footprint's tracing input: an injected IO model (the real path),
-# injected pre-traced flows, or the domestic-closure fixture built from the
-# extension.
-.sjos_fp_data <- function(country_exc, data, opts) {
+# Resolve the footprint's tracing input: an injected IO model or explicitly
+# injected pre-traced flows. Domestic closure is a fixture concern only and is
+# supplied by .sjos_n_example_data(); silently creating it here would turn a
+# real no-IO analysis into a false 100% domestic footprint.
+.sjos_fp_data <- function(country_exc, data, opts, origin_classes) {
   if (!is.null(data$io)) {
-    return(list())
+    return(list(origin_classes = origin_classes))
   }
   if (rlang::has_name(data, "fp_flows")) {
-    return(list(fp_flows = data$fp_flows))
+    return(list(
+      fp_flows = data$fp_flows,
+      origin_classes = origin_classes
+    ))
   }
-  list(
-    fp_flows = .sjos_fp_flows_fixture(country_exc, opts$footprint_category)
-  )
+  if (isTRUE(opts$example)) {
+    return(list(
+      fp_flows = .sjos_fp_flows_fixture(
+        country_exc,
+        opts$footprint_category
+      ),
+      origin_classes = origin_classes
+    ))
+  }
+  cli::cli_abort(c(
+    "A real SJOS-N footprint requires an IO model or pre-traced flows.",
+    i = "Supply {.field data$io} or {.field data$fp_flows}; domestic closure is
+         available only through {.code example = TRUE}."
+  ))
 }
 
 # A domestic-closure test double for the IO model: build the footprint extension
@@ -202,6 +229,7 @@ build_sjos_nitrogen <- function(
     dplyr::transmute(
       year = .data$year,
       origin_area = .data$area_code,
+      origin_item = .data$item_cbs_code,
       target_area = .data$area_code,
       target_fd = "food",
       target_item = .data$item_cbs_code,

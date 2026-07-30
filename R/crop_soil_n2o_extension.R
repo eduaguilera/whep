@@ -38,6 +38,9 @@
 #'   from the field (for feed, fuel or construction) and therefore not returned
 #'   to soil. Defaults to `0.45`, a global mid-range value; country-specific
 #'   removal (`gleam_fracremove`) is a future refinement.
+#' @param synthetic_method Synthetic-N crop allocation method, `"coello"` or
+#'   `"area_share"`. When `NULL` (default), uses
+#'   `data$synthetic_method %||% "coello"` for backwards compatibility.
 #' @param data Optional named list of pre-loaded inputs to avoid remote reads:
 #'   `primary_prod` ([get_primary_production()], for harvested area),
 #'   `fertilizer` (the `faostat-fertilizer-nutrients` pin), `manure` (the
@@ -60,6 +63,7 @@
 build_crop_soil_n2o_extension <- function(
   gwp = c("ar6", "ar5", "ar4"),
   residue_removed_frac = 0.45,
+  synthetic_method = NULL,
   data = list(),
   example = FALSE
 ) {
@@ -67,6 +71,12 @@ build_crop_soil_n2o_extension <- function(
   .check_removed_frac(residue_removed_frac)
   if (isTRUE(example)) {
     return(.example_soil_n2o_extension())
+  }
+  if (!is.null(synthetic_method)) {
+    data$synthetic_method <- rlang::arg_match(
+      synthetic_method,
+      c("coello", "area_share")
+    )
   }
 
   primary_prod <- if (is.null(data$primary_prod)) {
@@ -113,7 +123,8 @@ build_crop_soil_n2o_extension <- function(
       year,
       area_code,
       item_cbs_code,
-      n_t = .data$synthetic_n_t * .data$area_share
+      n_t = .data$synthetic_n_t * .data$area_share,
+      method_synthetic = .data$method_synthetic
     )
 }
 
@@ -215,16 +226,44 @@ build_crop_soil_n2o_extension <- function(
 
   dplyr::bind_rows(
     dplyr::mutate(synthetic, impact_u = .data$n_t * factor_synthetic),
-    dplyr::mutate(manure, impact_u = .data$n_t * factor_manure),
-    dplyr::mutate(residue, impact_u = .data$n_t * factor_residue)
+    dplyr::mutate(
+      manure,
+      impact_u = .data$n_t * factor_manure,
+      method_synthetic = NA_character_
+    ),
+    dplyr::mutate(
+      residue,
+      impact_u = .data$n_t * factor_residue,
+      method_synthetic = NA_character_
+    )
   ) |>
     dplyr::summarise(
       impact_u = sum(.data$impact_u, na.rm = TRUE),
+      method_synthetic = {
+        methods <- sort(unique(
+          .data$method_synthetic[!is.na(.data$method_synthetic)]
+        ))
+        if (length(methods) == 0L) {
+          NA_character_
+        } else {
+          paste(
+            methods,
+            collapse = "|"
+          )
+        }
+      },
       .by = c(year, area_code, item_cbs_code)
     ) |>
     dplyr::filter(.data$impact_u > 0) |>
     dplyr::mutate(method_soil_n2o = paste0("IPCC_2019_Tier1_", toupper(gwp))) |>
-    dplyr::select(year, area_code, item_cbs_code, impact_u, method_soil_n2o)
+    dplyr::select(
+      year,
+      area_code,
+      item_cbs_code,
+      impact_u,
+      method_soil_n2o,
+      method_synthetic
+    )
 }
 
 # IPCC 2019 Refinement (Vol 4, Ch 11) Tier 1 managed-soil N2O factors,

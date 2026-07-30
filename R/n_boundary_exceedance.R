@@ -38,7 +38,9 @@
 #'   `n_input_std_t`.
 #' @param critical A [read_critical_n()] output (`lon`, `lat`, `value` in
 #'   kg N per hectare), the critical nitrogen surplus for `metric = "surplus"`
-#'   or the critical nitrogen input for `metric = "input"`.
+#'   or the critical nitrogen input for `metric = "input"`. Every retained
+#'   positive-area cell must have a non-missing critical value; incomplete
+#'   coverage aborts instead of silently dropping the cell.
 #' @param land_use Land-use scope the `critical` layer was read for, `"all"`
 #'   (default) or `"ara"`; a provenance stamp on the output.
 #' @param resolution Output grain: `"grid"` (default, per crop per cell),
@@ -64,7 +66,7 @@
 build_n_boundary_exceedance <- function(
   surplus,
   critical,
-  land_use = c("all", "ara"),
+  land_use = c("ara", "all"),
   resolution = c("grid", "polity", "country", "image_region"),
   metric = c("surplus", "input"),
   cell_polity = NULL,
@@ -77,10 +79,50 @@ build_n_boundary_exceedance <- function(
   resolution <- rlang::arg_match(resolution)
   metric <- rlang::arg_match(metric)
   .check_columns(surplus, .nbx_surplus_required(metric), "surplus")
-  .check_columns(critical, c("lon", "lat", "value"), "critical")
+  .check_columns(
+    critical,
+    c(
+      "lon",
+      "lat",
+      "value",
+      "critical_var",
+      "critical_land_use"
+    ),
+    "critical"
+  )
+  .nbx_validate_critical(critical, metric, land_use)
   surplus |>
+    .nbx_filter_land_use(land_use) |>
     .nbx_grid(critical, metric, land_use) |>
     .nbx_resolve(resolution, cell_polity)
+}
+
+# Fail at the comparison boundary when the supplied critical layer does not
+# match the requested pressure or land-use scope. Provenance is part of the
+# data contract, not a caller-supplied label.
+.nbx_validate_critical <- function(critical, metric, land_use) {
+  expected_var <- if (metric == "input") {
+    "critical_n_input"
+  } else {
+    "critical_n_surplus"
+  }
+  vars <- unique(critical$critical_var[!is.na(critical$critical_var)])
+  scopes <- unique(
+    critical$critical_land_use[!is.na(critical$critical_land_use)]
+  )
+  if (!identical(vars, expected_var)) {
+    cli::cli_abort(c(
+      "The critical layer does not match {.arg metric = {metric}}.",
+      i = "Expected {.val {expected_var}}; found {.val {vars}}."
+    ))
+  }
+  if (!identical(scopes, land_use)) {
+    cli::cli_abort(c(
+      "The critical layer does not match {.arg land_use = {land_use}}.",
+      i = "Found critical land-use scope {.val {scopes}}."
+    ))
+  }
+  invisible(critical)
 }
 
 # ---- Private helpers -------------------------------------------------------
@@ -90,6 +132,23 @@ build_n_boundary_exceedance <- function(
   base <- c("lon", "lat", "area_code", "item_cbs_code", "year", "area_ha")
   extra <- if (metric == "input") "n_input_std_t" else "surplus_kgn_ha"
   c(base, extra)
+}
+
+# Apply the land-use selector to the WHEP item key rather than merely stamping
+# it on the result. CBS 3000/3002/3003 are grass items. The robust historical
+# default is arable/crop land only; `all` retains all WHEP grassland as an
+# explicit sensitivity and must not be interpreted as a measured
+# intensive-grassland reconstruction.
+.nbx_filter_land_use <- function(surplus, land_use) {
+  grass <- c(3000L, 3002L, 3003L)
+  attributed <- dplyr::filter(surplus, !is.na(.data$item_cbs_code))
+  if (land_use == "ara") {
+    return(dplyr::filter(
+      attributed,
+      !.data$item_cbs_code %in% grass
+    ))
+  }
+  attributed
 }
 
 # Per-crop per-cell decomposition: join the cell's critical value to every
@@ -104,10 +163,55 @@ build_n_boundary_exceedance <- function(
     critical_kgn_ha = .data$value
   )
   surplus |>
-    dplyr::inner_join(crit, by = c("lon", "lat")) |>
+    .n_join_critical_complete(
+      crit,
+      value_col = "critical_kgn_ha",
+      source = "critical"
+    ) |>
     .nbx_actual(metric) |>
     .nbx_decompose() |>
     .nbx_stamp(metric, land_use)
+}
+
+# Attach one critical layer without losing unmatched rows. A missing critical
+# value is fatal for rows with positive agricultural area because their
+# boundary split cannot be computed. Zero/non-positive-area rows are retained
+# with NA boundary results: they carry no evaluable per-hectare pressure, but
+# must not disappear merely because they fall outside the critical raster.
+.n_join_critical_complete <- function(x, critical, value_col, source) {
+  joined <- dplyr::left_join(
+    x,
+    critical,
+    by = c("lon", "lat"),
+    relationship = "many-to-one"
+  )
+  uncovered <- is.finite(joined$area_ha) &
+    joined$area_ha > 0 &
+    is.na(joined[[value_col]])
+  if (!any(uncovered)) {
+    return(joined)
+  }
+  cells <- joined[uncovered, c("lon", "lat"), drop = FALSE] |>
+    dplyr::distinct()
+  first_cells <- utils::head(
+    sprintf("(%s, %s)", cells$lon, cells$lat),
+    5L
+  )
+  missing_message <- sprintf(
+    "%s positive-area row(s) in %s cell(s) lack a non-missing value from %s.",
+    sum(uncovered),
+    nrow(cells),
+    source
+  )
+  cells_message <- sprintf(
+    "First uncovered cell(s): %s.",
+    paste(first_cells, collapse = ", ")
+  )
+  cli::cli_abort(c(
+    "Critical-layer coverage is incomplete.",
+    "x" = missing_message,
+    "i" = cells_message
+  ))
 }
 
 # The per-hectare pressure being compared: the surplus rate directly, or the
@@ -159,6 +263,9 @@ build_n_boundary_exceedance <- function(
 .nbx_decompose <- function(x) {
   dplyr::mutate(
     x,
+    # A nitrogen deficit is retained on the upstream surplus table, but is not
+    # a negative environmental pressure or footprint extension.
+    actual_kgn_ha = pmax(.data$actual_kgn_ha, 0),
     exceed_share = .n_exceed_split(
       .data$actual_kgn_ha,
       .data$critical_kgn_ha
@@ -211,6 +318,7 @@ build_n_boundary_exceedance <- function(
     "exceedance_n_t",
     "within_boundary_n_t",
     "actual_n_t",
+    dplyr::any_of("production_n_t"),
     "metric",
     "land_use",
     "method_boundary"
@@ -220,11 +328,18 @@ build_n_boundary_exceedance <- function(
 # Sum the mass terms over cells to the requested key, carrying the constant
 # provenance stamps.
 .nbx_aggregate <- function(grid, key) {
+  mass_cols <- intersect(
+    c(
+      "exceedance_n_t",
+      "within_boundary_n_t",
+      "actual_n_t",
+      "production_n_t"
+    ),
+    names(grid)
+  )
   dplyr::summarise(
     grid,
-    exceedance_n_t = sum(.data$exceedance_n_t, na.rm = TRUE),
-    within_boundary_n_t = sum(.data$within_boundary_n_t, na.rm = TRUE),
-    actual_n_t = sum(.data$actual_n_t, na.rm = TRUE),
+    dplyr::across(dplyr::all_of(mass_cols), .sum_if_any),
     metric = dplyr::first(.data$metric),
     land_use = dplyr::first(.data$land_use),
     method_boundary = dplyr::first(.data$method_boundary),

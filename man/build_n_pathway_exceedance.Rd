@@ -20,13 +20,15 @@ build_n_pathway_exceedance(
 
 \item{critical_loads}{A named list of \code{\link[=read_critical_n]{read_critical_n()}} outputs (each
 \code{lon}, \code{lat}, \code{value} in kg N per hectare) with elements
-\code{crit_nh3_emission}, \code{crit_leaching_gw} and \code{crit_load_sw}.}
+\code{crit_nh3_emission}, \code{crit_leaching_gw} and \code{crit_load_sw}. Every
+positive-area balance cell must have a non-missing value in all three layers;
+incomplete coverage aborts instead of silently dropping the cell.}
 
 \item{nh3_source}{Air-pressure scope: \code{"soil"} (default, field \code{nh3_n_t}
 only, consistent with the surplus boundary) or \code{"total_agricultural"}
 (also adds manure housing and storage ammonia from
-\code{data$manure_mgmt_nh3_n_t}, keyed to the balance grid; if absent, warns and
-falls back to soil ammonia).}
+\code{data$manure_mgmt_nh3_n_t}, keyed to the exact balance grid; if absent,
+aborts rather than mislabelling soil-only pressure as total agricultural).}
 
 \item{resolution}{Output grain: \code{"grid"} (default, per crop per cell) or
 \code{"polity"} / \code{"country"} (per crop per country, summing the mass terms).}

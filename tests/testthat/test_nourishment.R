@@ -86,3 +86,11 @@ testthat::test_that("normalize_nourishment aborts on malformed thresholds", {
     "floor|ceiling"
   )
 })
+
+testthat::test_that("missing nourishment remains unclassified", {
+  out <- whep::normalize_nourishment(
+    tibble::tibble(protein_g_cap_day = NA_real_)
+  )
+  testthat::expect_true(is.na(out$value_norm))
+  testthat::expect_true(is.na(out$nourish))
+})

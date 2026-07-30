@@ -150,6 +150,7 @@ build_nitrogen_balance <- function(
   data$.npp_cache <- .n_balance_npp(data)
   n_inputs <- data$n_inputs %||%
     build_n_inputs(resolution = resolution, data = data)
+  .nb_validate_input_grain(n_inputs, resolution)
 
   .nb_inputs(n_inputs, key) |>
     .nb_outputs(data, key) |>
@@ -198,6 +199,7 @@ build_nitrogen_balance <- function(
 # sum) and n_input_for_n2o_t is a separate sum that DOES include it
 # (N_Figs.R:496).
 .nb_inputs <- function(n_inputs, key) {
+  provenance <- .nb_input_methods(n_inputs, key)
   wide <- n_inputs |>
     dplyr::summarise(
       n_input_t = sum(.data$n_input_t, na.rm = TRUE),
@@ -209,7 +211,7 @@ build_nitrogen_balance <- function(
       values_fill = 0
     ) |>
     .nb_ensure_fert_cols()
-  wide |>
+  out <- wide |>
     dplyr::mutate(
       n_input_full_t = .data$bnf +
         .data$excreta +
@@ -242,6 +244,47 @@ build_nitrogen_balance <- function(
         .data$urban +
         .data$recycling
     )
+  if (is.null(provenance)) {
+    return(out)
+  }
+  dplyr::left_join(out, provenance, by = key)
+}
+
+.nb_validate_input_grain <- function(n_inputs, resolution) {
+  if (resolution != "grid") {
+    return(invisible(n_inputs))
+  }
+  key <- c("lon", "lat", "area_code", "item_cbs_code", "year")
+  .check_columns(n_inputs, key, "n_inputs")
+  incomplete <- !stats::complete.cases(n_inputs[, key, drop = FALSE])
+  if (any(incomplete)) {
+    cli::cli_abort(c(
+      "Grid nitrogen inputs must carry complete grid and item keys.",
+      i = "{sum(incomplete)} row{?s} are incomplete; allocate non-item inputs
+           over agricultural support before building the balance."
+    ))
+  }
+  invisible(n_inputs)
+}
+
+.nb_input_methods <- function(n_inputs, key) {
+  method_cols <- intersect(
+    c("method_recycling_n", "method_synthetic"),
+    names(n_inputs)
+  )
+  if (length(method_cols) == 0L) {
+    return(NULL)
+  }
+  dplyr::summarise(
+    n_inputs,
+    dplyr::across(dplyr::all_of(method_cols), .nb_method_stamp),
+    .by = dplyr::all_of(key)
+  )
+}
+
+.nb_method_stamp <- function(x) {
+  values <- sort(unique(x[!is.na(x) & nzchar(x)]))
+  if (length(values) == 0L) NA_character_ else paste(values, collapse = "|")
 }
 
 # fert_type columns not present after the pivot (a source with zero rows)
@@ -289,16 +332,46 @@ build_nitrogen_balance <- function(
 .nb_add_prod_n <- function(x, data, key) {
   npp <- .n_balance_npp(data)
   if (is.null(npp)) {
-    return(dplyr::mutate(x, prod_n_t = 0, area_ha = NA_real_))
+    area <- .nb_area_support(data, key)
+    if (is.null(area)) {
+      return(dplyr::mutate(x, prod_n_t = 0, area_ha = NA_real_))
+    }
+    return(.nb_merge_output_term(x, dplyr::mutate(area, prod_n_t = 0), key))
   }
-  prod <- npp |>
+  prod_n <- npp |>
     .nb_npp_with_area() |>
     dplyr::summarise(
       prod_n_t = sum(.data$product_n_t, na.rm = TRUE),
-      area_ha = sum(.data$area_ha, na.rm = TRUE),
       .by = dplyr::all_of(key)
     )
+  support <- .nb_area_support(data, key)
+  prod <- if (is.null(support)) {
+    npp |>
+      .nb_npp_with_area() |>
+      dplyr::summarise(
+        area_ha = .sum_if_any(.data$area_ha),
+        .by = dplyr::all_of(key)
+      ) |>
+      dplyr::full_join(prod_n, by = key)
+  } else {
+    dplyr::full_join(prod_n, support, by = key)
+  }
   .nb_merge_output_term(x, prod, key)
+}
+
+# Prefer explicit physical agricultural support for the per-hectare boundary
+# denominator. Harvested area can exceed physical land under multicropping and
+# leaves grass rows without an area; it remains a compatibility fallback only.
+.nb_area_support <- function(data, key) {
+  if (is.null(data$ag_land_support)) {
+    return(NULL)
+  }
+  support <- .ni_land_support(data)
+  support |>
+    dplyr::summarise(
+      area_ha = sum(.data$area_ha),
+      .by = dplyr::all_of(key)
+    )
 }
 
 # The NPP result carries each crop's harvested area (area_ha) when the upstream
@@ -706,7 +779,8 @@ build_nitrogen_balance <- function(
     "total_gwp_co2e_kg",
     "method_nh3",
     "method_soil_n2o",
-    "method_leaching"
+    "method_leaching",
+    intersect(c("method_recycling_n", "method_synthetic"), names(x))
   )
   dplyr::select(x, dplyr::all_of(cols))
 }

@@ -26,7 +26,11 @@
     0.75, 0.25, 120,
     0.25, 0.75, 40,
     0.75, 0.75, 100
-  )
+  ) |>
+    dplyr::mutate(
+      critical_var = "critical_n_surplus",
+      critical_land_use = "ara"
+    )
 }
 
 testthat::test_that("a crop above critical exceeds by the expected share", {
@@ -107,7 +111,7 @@ testthat::test_that("grid resolution retains the per-crop key", {
   )
   testthat::expect_equal(nrow(keyed), nrow(surplus))
   testthat::expect_true(all(out$metric == "surplus"))
-  testthat::expect_true(all(out$land_use == "all"))
+  testthat::expect_true(all(out$land_use == "ara"))
   testthat::expect_true(all(out$method_boundary == "surplus"))
 })
 
@@ -118,7 +122,11 @@ testthat::test_that("the input metric compares per-hectare nitrogen input", {
     0.75, 0.25, 200,
     0.25, 0.75, 100,
     0.75, 0.75, 250
-  )
+  ) |>
+    dplyr::mutate(
+      critical_var = "critical_n_input",
+      critical_land_use = "ara"
+    )
   out <- whep::build_n_boundary_exceedance(
     .nbx_surplus_fixture(),
     critical_input,
@@ -192,7 +200,13 @@ testthat::test_that("a negative critical value clamps the share to 1", {
     ~lon, ~lat, ~area_code, ~item_cbs_code, ~year, ~area_ha, ~surplus_kgn_ha,
     1, 1, 10L, 2511L, 2000L, 100, 50
   )
-  critical <- tibble::tibble(lon = 1, lat = 1, value = -100)
+  critical <- tibble::tibble(
+    lon = 1,
+    lat = 1,
+    value = -100,
+    critical_var = "critical_n_surplus",
+    critical_land_use = "ara"
+  )
   out <- whep::build_n_boundary_exceedance(surplus, critical)
   testthat::expect_equal(out$exceed_share, 1)
   testthat::expect_equal(out$exceedance_kgn_ha, 50)
@@ -215,9 +229,95 @@ testthat::test_that("shares stay in [0, 1] across a critical-value sweep", {
     area_ha = 100,
     surplus_kgn_ha = 40
   )
-  critical <- tibble::tibble(lon = 1:5, lat = 1, value = c(-396, -1, 0, 20, 80))
+  critical <- tibble::tibble(
+    lon = 1:5,
+    lat = 1,
+    value = c(-396, -1, 0, 20, 80),
+    critical_var = "critical_n_surplus",
+    critical_land_use = "ara"
+  )
   out <- whep::build_n_boundary_exceedance(surplus, critical)
   testthat::expect_true(all(out$exceed_share >= 0 & out$exceed_share <= 1))
   testthat::expect_true(all(out$within_boundary_kgn_ha >= 0))
   testthat::expect_true(all(out$exceedance_kgn_ha <= out$actual_kgn_ha))
+})
+
+testthat::test_that("ara excludes grass and all retains it as a sensitivity", {
+  surplus <- dplyr::bind_rows(
+    .nbx_surplus_fixture(),
+    tibble::tibble(
+      lon = 0.25,
+      lat = 0.25,
+      area_code = 1L,
+      item_cbs_code = 3000L,
+      year = 2010L,
+      area_ha = 100,
+      n_input_std_t = 5,
+      surplus_kgn_ha = 20
+    )
+  )
+  ara <- whep::build_n_boundary_exceedance(
+    surplus,
+    .nbx_critical_surplus_fixture()
+  )
+  all_layer <- dplyr::mutate(
+    .nbx_critical_surplus_fixture(),
+    critical_land_use = "all"
+  )
+  all_grass <- whep::build_n_boundary_exceedance(
+    surplus,
+    all_layer,
+    land_use = "all"
+  )
+  testthat::expect_false(3000L %in% ara$item_cbs_code)
+  testthat::expect_true(3000L %in% all_grass$item_cbs_code)
+})
+
+testthat::test_that("critical-layer identity is validated", {
+  wrong <- dplyr::mutate(
+    .nbx_critical_surplus_fixture(),
+    critical_var = "critical_n_input"
+  )
+  testthat::expect_error(
+    whep::build_n_boundary_exceedance(.nbx_surplus_fixture(), wrong),
+    "critical layer|critical_n_surplus"
+  )
+})
+
+testthat::test_that("missing critical coverage aborts", {
+  critical <- dplyr::filter(
+    .nbx_critical_surplus_fixture(),
+    .data$lon != 0.75 | .data$lat != 0.75
+  )
+  testthat::expect_error(
+    whep::build_n_boundary_exceedance(
+      .nbx_surplus_fixture(),
+      critical,
+      resolution = "grid"
+    ),
+    "Critical-layer coverage is incomplete|positive-area"
+  )
+})
+
+testthat::test_that("negative surplus becomes zero pressure, not a negative footprint", {
+  surplus <- tibble::tibble(
+    lon = 1,
+    lat = 1,
+    area_code = 10L,
+    item_cbs_code = 2511L,
+    year = 2000L,
+    area_ha = 100,
+    surplus_kgn_ha = -20
+  )
+  critical <- tibble::tibble(
+    lon = 1,
+    lat = 1,
+    value = 10,
+    critical_var = "critical_n_surplus",
+    critical_land_use = "ara"
+  )
+  out <- whep::build_n_boundary_exceedance(surplus, critical)
+  testthat::expect_equal(out$actual_n_t, 0)
+  testthat::expect_equal(out$within_boundary_n_t, 0)
+  testthat::expect_equal(out$exceedance_n_t, 0)
 })

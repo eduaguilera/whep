@@ -60,10 +60,11 @@
     ~exceedance_n_t,
     ~within_boundary_n_t,
     ~actual_n_t,
-    2000L, 1L, 10L, 100, 40, 140,
-    2000L, 1L, 20L, 20, 10, 30,
-    2000L, 2L, 10L, 40, 20, 60,
-    2000L, 2L, 20L, 15, 5, 20
+    ~production_n_t,
+    2000L, 1L, 10L, 100, 40, 140, 150,
+    2000L, 1L, 20L, 20, 10, 30, 35,
+    2000L, 2L, 10L, 40, 20, 60, 70,
+    2000L, 2L, 20L, 15, 5, 20, 25
   )
 }
 
@@ -152,10 +153,16 @@ testthat::test_that("an unknown category is rejected", {
 
 testthat::test_that("data$fp_flows injects pre-traced flows", {
   flows <- tibble::tribble(
-    ~year, ~origin_area, ~target_area, ~target_item, ~target_fd, ~value,
-    2000L, 1L, 1L, 10L, "food", 60,
-    2000L, 1L, 2L, 10L, "food", 40,
-    2000L, 2L, 2L, 20L, "other_uses", 15
+    ~year,
+    ~origin_area,
+    ~origin_item,
+    ~target_area,
+    ~target_item,
+    ~target_fd,
+    ~value,
+    2000L, 1L, 10L, 1L, 10L, "food", 60,
+    2000L, 1L, 10L, 2L, 10L, "food", 40,
+    2000L, 2L, 20L, 2L, 20L, "other_uses", 15
   )
   out <- whep::build_sjos_n_footprint(
     category = "exceedance",
@@ -176,6 +183,42 @@ testthat::test_that("the example fixture returns fp_all and fp_food", {
   testthat::expect_equal(sum(out$fp_food$impact_u), 155)
   pointblank::expect_col_exists(
     out$fp_all,
-    c("year", "target_area", "origin", "item_cbs_code", "impact_u", "category")
+    c(
+      "year",
+      "origin_area",
+      "origin_item",
+      "target_area",
+      "target_fd",
+      "origin",
+      "item_cbs_code",
+      "impact_u",
+      "category"
+    )
   )
+})
+
+testthat::test_that("producer classes are retained on footprint flows", {
+  classes <- tibble::tribble(
+    ~year,
+    ~area_code,
+    ~item_cbs_code,
+    ~nourish,
+    ~boundary_side,
+    2000L, 1L, 10L, "Adequate", "Exceedance",
+    2000L, 1L, 20L, "Adequate", "Exceedance",
+    2000L, 2L, 10L, "Under", "Within_boundary",
+    2000L, 2L, 20L, "Under", "Exceedance"
+  )
+  out <- suppressMessages(
+    whep::build_sjos_n_footprint(
+      .sjos_fp_exceedance(),
+      io = .sjos_fp_io(),
+      data = list(origin_classes = classes)
+    )
+  )
+  traded <- dplyr::filter(out$fp_all, .data$origin == "Traded")
+  testthat::expect_equal(traded$origin_area, 1L)
+  testthat::expect_equal(traded$origin_item, 10L)
+  testthat::expect_equal(traded$nourish, "Adequate")
+  testthat::expect_equal(traded$boundary_side, "Exceedance")
 })

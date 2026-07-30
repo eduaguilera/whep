@@ -39,7 +39,14 @@ testthat::test_that("crop/soil N2O example has expected structure", {
 
   pointblank::expect_col_exists(
     result,
-    c("year", "area_code", "item_cbs_code", "impact_u", "method_soil_n2o")
+    c(
+      "year",
+      "area_code",
+      "item_cbs_code",
+      "impact_u",
+      "method_soil_n2o",
+      "method_synthetic"
+    )
   )
   pointblank::expect_col_vals_gt(result, "impact_u", 0)
 })
@@ -58,6 +65,7 @@ testthat::test_that("synthetic N is split across crops by harvested area", {
 
   testthat::expect_setequal(result$item_cbs_code, c(2511L, 2513L))
   testthat::expect_true(all(result$method_soil_n2o == "IPCC_2019_Tier1_AR6"))
+  testthat::expect_true(all(result$method_synthetic == "area_share"))
 
   # synthetic factor: (EF1 + FracGASF*EF4 + FracLEACH*EF5) * 44/28 * 1000 * GWP
   per_t_n <- (0.010 + 0.11 * 0.010 + 0.24 * 0.011) * (44 / 28) * 1000 * 273

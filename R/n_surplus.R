@@ -60,6 +60,7 @@ calculate_n_surplus <- function(
   .check_columns(balance, .n_surplus_required(method), "balance")
   balance |>
     .n_surplus_add_value(method) |>
+    .n_surplus_add_production() |>
     .n_surplus_add_intensity()
 }
 
@@ -89,6 +90,22 @@ calculate_n_surplus <- function(
     surplus_n_t = .data$n_input_std_t -
       (.data$prod_n_t + .data$used_residue_n_t + .data$grazed_weeds_n_t),
     method_surplus = "harvest_removal"
+  )
+}
+
+# Carry the nitrogen embodied in agricultural production separately from the
+# soil-surface surplus. The footprint's `production` category must trace this
+# harvest output, not relabel total surplus as production.
+.n_surplus_add_production <- function(x) {
+  terms <- c("prod_n_t", "used_residue_n_t", "grazed_weeds_n_t")
+  if (!all(rlang::has_name(x, terms))) {
+    return(dplyr::mutate(x, production_n_t = NA_real_))
+  }
+  dplyr::mutate(
+    x,
+    production_n_t = .data$prod_n_t +
+      .data$used_residue_n_t +
+      .data$grazed_weeds_n_t
   )
 }
 

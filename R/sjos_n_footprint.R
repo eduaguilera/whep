@@ -6,6 +6,8 @@
 # build_n_exceedance_extension() preserves (locked plan decision 14) is what
 # makes the trace possible: the footprint attributes each crop's nitrogen to the
 # final consumer, so origin_area == target_area is domestic and the rest traded.
+# Origin area/item and final-demand identity are retained, and optional producer
+# SJOS/nourishment classes are joined rather than collapsed away.
 
 #' Build the embodied-nitrogen trade footprint.
 #'
@@ -39,14 +41,17 @@
 #' @param data Optional named list of injected inputs. `data$fp_flows` supplies
 #'   pre-traced tidy footprint flows (as from [build_footprint()]) directly,
 #'   bypassing the model build, for testing the split logic in isolation.
+#'   `data$origin_classes` may supply producer classifications keyed by `year`,
+#'   `area_code`, `item_cbs_code` (for example [classify_sjos_n()] output).
 #' @param example If `TRUE`, return a small hardcoded fixture instead of running
 #'   the pipeline. Defaults to `FALSE`.
 #'
 #' @return A named list with two tibbles:
-#'   - `fp_all`: embodied nitrogen by `year`, `target_area` (consuming area),
-#'     `origin` (`"Domestic consumption"` or `"Traded"`), `item_cbs_code` (the
-#'     consumed crop, the footprint's `target_item`) and `impact_u` (tonnes N),
-#'     stamped with the traced `category`.
+#'   - `fp_all`: embodied nitrogen by `year`, producer `origin_area` /
+#'     `origin_item`, consumer `target_area` / `target_item`, `target_fd`,
+#'     `origin` (`"Domestic consumption"` or `"Traded"`), `item_cbs_code`
+#'     (an alias of `target_item`) and `impact_u` (tonnes N), stamped with the
+#'     traced `category` and optional producer classes.
 #'   - `fp_food`: `fp_all` restricted to food consumption (`target_fd ==
 #'     "food"`).
 #'
@@ -67,10 +72,15 @@ build_sjos_n_footprint <- function(
   category <- rlang::arg_match(category)
   flows <- .sjos_fp_flows(exceedance, io, category, years, data)
   list(
-    fp_all = .sjos_fp_consumption(flows, category),
+    fp_all = .sjos_fp_consumption(
+      flows,
+      category,
+      data$origin_classes
+    ),
     fp_food = .sjos_fp_consumption(
       dplyr::filter(flows, .data$target_fd == "food"),
-      category
+      category,
+      data$origin_classes
     )
   )
 }
@@ -89,8 +99,21 @@ build_sjos_n_footprint <- function(
 
 # Relabel each flow domestic vs traded and aggregate the consumption-side
 # embodied nitrogen by consuming area, origin split, and consumed crop.
-.sjos_fp_consumption <- function(flows, category) {
-  flows |>
+.sjos_fp_consumption <- function(flows, category, origin_classes = NULL) {
+  .check_columns(
+    flows,
+    c(
+      "year",
+      "origin_area",
+      "origin_item",
+      "target_area",
+      "target_item",
+      "target_fd",
+      "value"
+    ),
+    "footprint flows"
+  )
+  out <- flows |>
     dplyr::mutate(
       origin = dplyr::if_else(
         .data$origin_area == .data$target_area,
@@ -99,9 +122,53 @@ build_sjos_n_footprint <- function(
       )
     ) |>
     dplyr::summarise(
-      impact_u = sum(.data$value),
-      .by = c(year, target_area, origin, target_item)
+      impact_u = .sum_if_any(.data$value),
+      .by = c(
+        year,
+        origin_area,
+        origin_item,
+        target_area,
+        target_item,
+        target_fd,
+        origin
+      )
     ) |>
-    dplyr::rename(item_cbs_code = target_item) |>
-    dplyr::mutate(category = category)
+    dplyr::mutate(
+      item_cbs_code = .data$target_item,
+      category = category
+    )
+  .sjos_fp_join_origin_classes(out, origin_classes)
+}
+
+.sjos_fp_join_origin_classes <- function(flows, origin_classes) {
+  if (is.null(origin_classes)) {
+    return(flows)
+  }
+  .check_columns(
+    origin_classes,
+    c("year", "area_code", "item_cbs_code"),
+    "origin_classes"
+  )
+  class_cols <- intersect(
+    c("nourish", "boundary_side", "sjos_class"),
+    names(origin_classes)
+  )
+  classes <- origin_classes |>
+    dplyr::select(
+      "year",
+      "area_code",
+      "item_cbs_code",
+      dplyr::all_of(class_cols)
+    ) |>
+    dplyr::rename(
+      origin_area = area_code,
+      origin_item = item_cbs_code
+    ) |>
+    dplyr::distinct()
+  dplyr::left_join(
+    flows,
+    classes,
+    by = c("year", "origin_area", "origin_item"),
+    relationship = "many-to-one"
+  )
 }

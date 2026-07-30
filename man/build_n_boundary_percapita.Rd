@@ -7,6 +7,7 @@
 build_n_boundary_percapita(
   n_percapita,
   nourishment,
+  population = NULL,
   params = NULL,
   afs_share = 0.8
 )
@@ -21,6 +22,10 @@ build_n_boundary_percapita(
 (the nourishment normalization, for example a \code{\link[=normalize_nourishment]{normalize_nourishment()}}
 output) and \code{population} (absolute persons), whose per-year population sum
 sets the world per-capita boundary.}
+
+\item{population}{Optional complete population tibble keyed by \code{year},
+\code{area_code}, with \code{population} in persons. Supplying it prevents countries
+missing nourishment data from being omitted from the world denominator.}
 
 \item{params}{Boundary parameters, defaulting to \link{n_boundary_params}, read
 for the \code{boundary_low} and \code{boundary_high} Tg N/yr limits.}
@@ -41,7 +46,9 @@ point per country-year: nourishment adequacy on the x axis, boundary
 pressure on the y axis, population as the point weight). The world
 per-capita boundary converts the Tg N/yr limits in \code{params} (\code{boundary_low},
 \code{boundary_high}) to kg N/cap/yr by dividing by the world population
-(\code{nourishment} population summed per year). The normalization is the Global
+(the complete \code{population} table summed per year, falling back to
+\code{nourishment}). The upper per-capita boundary is capped at the packaged
+\code{per_capita_cap}. The normalization is the Global
 piecewise: \code{n_percapita_kg / low_pc} below the lower bound, \code{1 + (n_percapita_kg - low_pc) / (high_pc - low_pc)} within the band, and \code{min(1 + n_percapita_kg / high_pc, 6)} above the upper bound. The result is then
 scaled by \code{afs_share}, the agri-food-system share of the boundary (a
 parameter, default 0.8, flagged provisional).

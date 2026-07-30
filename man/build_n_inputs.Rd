@@ -7,6 +7,7 @@
 build_n_inputs(
   years = NULL,
   resolution = c("grid", "polity"),
+  synthetic_method = NULL,
   data = list(),
   example = FALSE
 )
@@ -17,6 +18,10 @@ keeps every year the assembled inputs cover.}
 
 \item{resolution}{\code{"grid"} (default, per cell/crop/year/fert_type) or
 \code{"polity"} (summed to \code{area_code}/\code{item_cbs_code}/\code{year}/\code{fert_type}).}
+
+\item{synthetic_method}{Synthetic-N crop allocation method, \code{"coello"} or
+\code{"area_share"}. When \code{NULL} (default), uses
+\code{data$synthetic_method \%||\% "coello"} for backwards compatibility.}
 
 \item{data}{Named list of pre-loaded, caller-supplied upstream inputs.
 Each of the following is required for its corresponding \code{fert_type} to
@@ -36,6 +41,11 @@ argument (the \code{\link[=redistribute_feed]{redistribute_feed()}} realised-int
 \code{gridded} (its land-surface layer) and \code{resolution}/\code{methods}
 (forwarded as-is).
 \item \code{nhx}, \code{noy}, \code{cell_polity}: \code{\link[=build_n_deposition]{build_n_deposition()}}'s inputs.
+\item \code{ag_land_support}: agricultural physical land support keyed by \code{lon},
+\code{lat}, \code{area_code}, \code{year}, \code{item_cbs_code}, with \code{land_use}
+(\code{"cropland"} or \code{"grassland"}) and positive \code{area_ha}. Required when
+deposition or another non-item input is present. Cropland rows identify
+crop CBS items; all pasture/rangeland rows use CBS 3000.
 \item \code{urban_population}, \code{cropland_ha}, \code{cell_polity}: \code{\link[=build_urban_n]{build_urban_n()}}'s
 inputs.
 \item \code{carbon_balance}: \code{\link[=build_carbon_balance]{build_carbon_balance()}}'s \code{"grid"}-resolution
@@ -92,11 +102,14 @@ documented gap (perennial-crop standing-biomass N accumulation from
 Spain_Hist's N_balance.R): its source computation was not available for
 this task, so it is never emitted, only reserved in the vocabulary.
 
-Terms that are fundamentally per-cell or per-land-use rather than
-per-crop (\code{"deposition"}, \code{"urban"}, \code{"som_mineralization"}, and
-transported manure whose pooled crop-plus-grass sink does not identify a
-single landing crop) carry \code{item_cbs_code = NA_integer_}, the same "no
-specific item" sentinel already used package-wide for non-crop rows.
+Terms that are fundamentally per-cell or per-land-use rather than per-crop
+are allocated over \code{data$ag_land_support}. Deposition uses both cropland and
+grassland support. \code{"urban"}, \code{"som_mineralization"}, and manure already
+assigned upstream to Cropland but lacking a crop use only local cropland
+support, so manure is not reassigned to grassland after the manure engine's
+capacity allocation. Forest and natural land are outside that support and
+therefore outside the agricultural balance. Grassland is represented by CBS
+3000; no intensive/extensive class is inferred.
 }
 \examples{
 build_n_inputs(example = TRUE)

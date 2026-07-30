@@ -10,11 +10,13 @@
 # crop-spatialized via spatialize_country_n_to_crops(), R/n_balance_
 # spatialize.R).
 #
-# item_cbs_code sentinel convention: terms that are fundamentally per-cell
-# or per-land-use, not per-crop (deposition, urban, SOM mineralization, and
-# transported manure whose pooled crop-plus-grass sink cannot identify a
-# single landing crop), use NA_integer_, the SAME "no specific item" sentinel
-# already used package-wide for non-crop rows, rather than a magic code.
+# Non-item inputs are allocated only over an explicit agricultural land-support
+# table. Deposition is multiplied by agricultural hectares rather than whole-cell
+# area, so forest/natural deposition never enters the agricultural balance.
+# Urban N, SOM mineralization, and manure already assigned upstream to Cropland
+# but lacking a crop are apportioned only across local cropland items. Cropland
+# support carries crop CBS items; all pasture/rangeland support uses CBS 3000
+# without claiming a hard intensive/extensive historical split.
 #
 # accum_loss (perennial-crop standing-biomass N accumulation/decumulation,
 # from Spain_Hist's N_balance.R) is a DOCUMENTED GAP: its source computation
@@ -40,14 +42,20 @@
 #' Spain_Hist's N_balance.R): its source computation was not available for
 #' this task, so it is never emitted, only reserved in the vocabulary.
 #'
-#' Terms that are fundamentally per-cell or per-land-use rather than
-#' per-crop (`"deposition"`, `"urban"`, `"som_mineralization"`, and
-#' transported manure whose pooled crop-plus-grass sink does not identify a
-#' single landing crop) carry `item_cbs_code = NA_integer_`, the same "no
-#' specific item" sentinel already used package-wide for non-crop rows.
+#' Terms that are fundamentally per-cell or per-land-use rather than per-crop
+#' are allocated over `data$ag_land_support`. Deposition uses both cropland and
+#' grassland support. `"urban"`, `"som_mineralization"`, and manure already
+#' assigned upstream to Cropland but lacking a crop use only local cropland
+#' support, so manure is not reassigned to grassland after the manure engine's
+#' capacity allocation. Forest and natural land are outside that support and
+#' therefore outside the agricultural balance. Grassland is represented by CBS
+#' 3000; no intensive/extensive class is inferred.
 #'
 #' @param years Optional integer vector of calendar years to keep. `NULL`
 #'   keeps every year the assembled inputs cover.
+#' @param synthetic_method Synthetic-N crop allocation method, `"coello"` or
+#'   `"area_share"`. When `NULL` (default), uses
+#'   `data$synthetic_method %||% "coello"` for backwards compatibility.
 #' @param resolution `"grid"` (default, per cell/crop/year/fert_type) or
 #'   `"polity"` (summed to `area_code`/`item_cbs_code`/`year`/`fert_type`).
 #' @param data Named list of pre-loaded, caller-supplied upstream inputs.
@@ -67,6 +75,11 @@
 #'     `gridded` (its land-surface layer) and `resolution`/`methods`
 #'     (forwarded as-is).
 #'   * `nhx`, `noy`, `cell_polity`: [build_n_deposition()]'s inputs.
+#'   * `ag_land_support`: agricultural physical land support keyed by `lon`,
+#'     `lat`, `area_code`, `year`, `item_cbs_code`, with `land_use`
+#'     (`"cropland"` or `"grassland"`) and positive `area_ha`. Required when
+#'     deposition or another non-item input is present. Cropland rows identify
+#'     crop CBS items; all pasture/rangeland rows use CBS 3000.
 #'   * `urban_population`, `cropland_ha`, `cell_polity`: [build_urban_n()]'s
 #'     inputs.
 #'   * `carbon_balance`: [build_carbon_balance()]'s `"grid"`-resolution
@@ -107,12 +120,26 @@
 build_n_inputs <- function(
   years = NULL,
   resolution = c("grid", "polity"),
+  synthetic_method = NULL,
   data = list(),
   example = FALSE
 ) {
   resolution <- rlang::arg_match(resolution)
   if (isTRUE(example)) {
     return(.example_n_inputs())
+  }
+  if (!is.null(synthetic_method)) {
+    data$synthetic_method <- rlang::arg_match(
+      synthetic_method,
+      c("coello", "area_share")
+    )
+  }
+  data$.n_input_resolution <- resolution
+  if (
+    resolution == "grid" ||
+      !is.null(data$ag_land_support)
+  ) {
+    data$resolution <- "subnational"
   }
   assembled <- dplyr::bind_rows(
     .n_inputs_bnf(data),
@@ -124,7 +151,9 @@ build_n_inputs <- function(
     .n_inputs_synthetic(data)
   )
   assembled |>
+    .ni_allocate_unattributed(data) |>
     .ni_filter_years(years) |>
+    .ni_validate_resolution(resolution) |>
     .ni_resolve(resolution)
 }
 
@@ -152,6 +181,23 @@ build_n_inputs <- function(
     return(x)
   }
   dplyr::filter(x, .data$year %in% years)
+}
+
+.ni_validate_resolution <- function(x, resolution) {
+  if (
+    resolution == "grid" &&
+      any(
+        is.na(x$lon) |
+          is.na(x$lat) |
+          is.na(x$area_code) |
+          is.na(x$year)
+      )
+  ) {
+    cli::cli_abort(
+      "Grid-resolution nitrogen inputs contain missing spatial keys."
+    )
+  }
+  x
 }
 
 .ni_resolve <- function(x, resolution) {
@@ -420,23 +466,37 @@ build_n_inputs <- function(
   )
 }
 
-# ---- 4. Atmospheric deposition (cell-level, not crop-specific) -----------
+# ---- 4. Atmospheric deposition (agricultural land support only) -----------
 
 .n_inputs_deposition <- function(data) {
   if (is.null(data$cell_polity)) {
     return(.ni_empty())
   }
-  build_n_deposition(
+  support <- .ni_land_support(data)
+  deposition <- build_n_deposition(
     data = list(nhx = data$nhx, noy = data$noy, cell_polity = data$cell_polity)
+  ) |>
+    dplyr::select(
+      "lon",
+      "lat",
+      "area_code",
+      "year",
+      "deposition_kgn_ha"
+    )
+  dplyr::inner_join(
+    support,
+    deposition,
+    by = c("lon", "lat", "area_code", "year"),
+    relationship = "many-to-one"
   ) |>
     dplyr::transmute(
       lon = .data$lon,
       lat = .data$lat,
       area_code = .data$area_code,
-      item_cbs_code = NA_integer_,
+      item_cbs_code = .data$item_cbs_code,
       year = .data$year,
       fert_type = "deposition",
-      n_input_t = .data$deposition_n_t
+      n_input_t = .data$deposition_kgn_ha * .data$area_ha / 1000
     )
 }
 
@@ -494,6 +554,108 @@ build_n_inputs <- function(
       fert_type = "som_mineralization",
       n_input_t = .data$son_change_kgn_ha * .data$area_ha / 1000
     )
+}
+
+# ---- Allocate non-item agricultural inputs over explicit support ------------
+
+.ni_land_support <- function(data) {
+  support <- data$ag_land_support
+  if (is.null(support)) {
+    cli::cli_abort(c(
+      "Non-item nitrogen inputs require explicit agricultural land support.",
+      i = "Supply {.field data$ag_land_support} with cell/polity/year/item,
+           {.field land_use}, and physical {.field area_ha}."
+    ))
+  }
+  .check_columns(
+    support,
+    c(
+      "lon",
+      "lat",
+      "area_code",
+      "item_cbs_code",
+      "year",
+      "land_use",
+      "area_ha"
+    ),
+    "ag_land_support"
+  )
+  out <- support |>
+    dplyr::mutate(
+      land_use = stringr::str_to_lower(.data$land_use),
+      item_cbs_code = as.integer(.data$item_cbs_code)
+    )
+  invalid_land <- setdiff(unique(out$land_use), c("cropland", "grassland"))
+  if (length(invalid_land) > 0L) {
+    cli::cli_abort(c(
+      "{.field ag_land_support$land_use} is agricultural support only.",
+      i = "Unexpected value{?s}: {.val {invalid_land}}."
+    ))
+  }
+  invalid_grass <- dplyr::filter(
+    out,
+    .data$land_use == "grassland",
+    .data$item_cbs_code != 3000L
+  )
+  if (nrow(invalid_grass) > 0L) {
+    cli::cli_abort(
+      "Grassland support must use {.field item_cbs_code = 3000}."
+    )
+  }
+  out |>
+    dplyr::filter(
+      is.finite(.data$area_ha),
+      .data$area_ha > 0,
+      !is.na(.data$item_cbs_code)
+    ) |>
+    dplyr::summarise(
+      area_ha = sum(.data$area_ha),
+      .by = c(
+        "lon",
+        "lat",
+        "area_code",
+        "item_cbs_code",
+        "year",
+        "land_use"
+      )
+    )
+}
+
+.ni_allocate_unattributed <- function(inputs, data) {
+  unattributed <- dplyr::filter(inputs, is.na(.data$item_cbs_code))
+  if (nrow(unattributed) == 0L) {
+    return(inputs)
+  }
+  support <- .ni_land_support(data)
+  allocated <- unattributed |>
+    dplyr::select(-"item_cbs_code") |>
+    dplyr::mutate(.source_row = dplyr::row_number()) |>
+    dplyr::inner_join(
+      dplyr::filter(support, .data$land_use == "cropland"),
+      by = c("lon", "lat", "area_code", "year"),
+      relationship = "many-to-many"
+    ) |>
+    dplyr::mutate(
+      support_ha = sum(.data$area_ha),
+      .by = ".source_row"
+    ) |>
+    dplyr::filter(.data$support_ha > 0) |>
+    dplyr::mutate(
+      n_input_t = .data$n_input_t * .data$area_ha / .data$support_ha
+    ) |>
+    dplyr::select(dplyr::all_of(.ni_schema()))
+  source_mass <- sum(unattributed$n_input_t, na.rm = TRUE)
+  allocated_mass <- sum(allocated$n_input_t, na.rm = TRUE)
+  if (!isTRUE(all.equal(source_mass, allocated_mass, tolerance = 1e-8))) {
+    cli::cli_abort(c(
+      "Could not allocate all non-item nitrogen over agricultural support.",
+      i = "Source: {source_mass} t N; allocated: {allocated_mass} t N."
+    ))
+  }
+  dplyr::bind_rows(
+    dplyr::filter(inputs, !is.na(.data$item_cbs_code)),
+    allocated
+  )
 }
 
 # ---- 7. Synthetic fertiliser (country total -> crop -> grid) -------------

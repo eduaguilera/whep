@@ -98,8 +98,9 @@
 .example_soil_n2o_extension <- function() {
   tibble::tribble(
     ~year, ~area_code, ~item_cbs_code, ~impact_u, ~method_soil_n2o,
-    2010L, 10L, 2511L, 4.126122e8, "IPCC_2019_Tier1_AR6",
-    2010L, 10L, 2513L, 1.768338e8, "IPCC_2019_Tier1_AR6"
+    ~method_synthetic,
+    2010L, 10L, 2511L, 4.126122e8, "IPCC_2019_Tier1_AR6", "coello",
+    2010L, 10L, 2513L, 1.768338e8, "IPCC_2019_Tier1_AR6", "coello"
   )
 }
 
@@ -824,7 +825,11 @@
     0.75, 0.25, 120,
     0.25, 0.75, 40,
     0.75, 0.75, 100
-  )
+  ) |>
+    dplyr::mutate(
+      critical_var = "critical_n_surplus",
+      critical_land_use = "all"
+    )
   build_n_boundary_exceedance(
     surplus = surplus,
     critical = critical,
@@ -842,19 +847,30 @@
 # food subset drops area 1's item-20 other-uses flow (20 t).
 .ex_build_sjos_n_footprint <- function() {
   fp_all <- tibble::tribble(
-    ~year, ~target_area, ~origin, ~item_cbs_code, ~impact_u, ~category,
-    2000L, 1L, "Domestic consumption", 10L, 60, "exceedance",
-    2000L, 1L, "Domestic consumption", 20L, 20, "exceedance",
-    2000L, 2L, "Traded", 10L, 40, "exceedance",
-    2000L, 2L, "Domestic consumption", 10L, 40, "exceedance",
-    2000L, 2L, "Domestic consumption", 20L, 15, "exceedance"
+    ~year, ~origin_area, ~origin_item, ~target_area, ~target_item, ~target_fd,
+    ~origin, ~impact_u, ~item_cbs_code, ~category,
+    2000L, 1L, 10L, 1L, 10L, "food",
+    "Domestic consumption", 60, 10L, "exceedance",
+    2000L, 1L, 20L, 1L, 20L, "other_uses",
+    "Domestic consumption", 20, 20L, "exceedance",
+    2000L, 1L, 10L, 2L, 10L, "food",
+    "Traded", 40, 10L, "exceedance",
+    2000L, 2L, 10L, 2L, 10L, "food",
+    "Domestic consumption", 40, 10L, "exceedance",
+    2000L, 2L, 20L, 2L, 20L, "food",
+    "Domestic consumption", 15, 20L, "exceedance"
   )
   fp_food <- tibble::tribble(
-    ~year, ~target_area, ~origin, ~item_cbs_code, ~impact_u, ~category,
-    2000L, 1L, "Domestic consumption", 10L, 60, "exceedance",
-    2000L, 2L, "Traded", 10L, 40, "exceedance",
-    2000L, 2L, "Domestic consumption", 10L, 40, "exceedance",
-    2000L, 2L, "Domestic consumption", 20L, 15, "exceedance"
+    ~year, ~origin_area, ~origin_item, ~target_area, ~target_item, ~target_fd,
+    ~origin, ~impact_u, ~item_cbs_code, ~category,
+    2000L, 1L, 10L, 1L, 10L, "food",
+    "Domestic consumption", 60, 10L, "exceedance",
+    2000L, 1L, 10L, 2L, 10L, "food",
+    "Traded", 40, 10L, "exceedance",
+    2000L, 2L, 10L, 2L, 10L, "food",
+    "Domestic consumption", 40, 10L, "exceedance",
+    2000L, 2L, 20L, 2L, 20L, "food",
+    "Domestic consumption", 15, 20L, "exceedance"
   )
   list(fp_all = fp_all, fp_food = fp_food)
 }
@@ -880,19 +896,22 @@
       0.25, 0.25, 20,
       0.75, 0.25, 25,
       0.25, 0.75, 15
-    ),
+    ) |>
+      dplyr::mutate(critical_var = "crit_nh3_emission"),
     crit_leaching_gw = tibble::tribble(
       ~lon, ~lat, ~value,
       0.25, 0.25, 30,
       0.75, 0.25, 40,
       0.25, 0.75, 50
-    ),
+    ) |>
+      dplyr::mutate(critical_var = "crit_leaching_gw"),
     crit_load_sw = tibble::tribble(
       ~lon, ~lat, ~value,
       0.25, 0.25, 40,
       0.75, 0.25, 20,
       0.25, 0.75, 60
-    )
+    ) |>
+      dplyr::mutate(critical_var = "crit_load_sw")
   )
   build_n_pathway_exceedance(
     balance = balance,
@@ -910,9 +929,10 @@
 .example_build_food_supply <- function() {
   tibble::tribble(
     ~year, ~area_code, ~protein_g_cap_day, ~energy_kcal_cap_day, ~population,
-    2010L, 10L, 63.3561643836, 1551.900259305, 10000,
-    2010L, 32L, 27.3972602740, 681.002645433, 5000,
-    2011L, 10L, 49.0196078431, 1351.348575261, 10200
+    ~method_food_supply,
+    2010L, 10L, 63.3561643836, 1551.900259305, 10000, "whep_native",
+    2010L, 32L, 27.3972602740, 681.002645433, 5000, "whep_native",
+    2011L, 10L, 49.0196078431, 1351.348575261, 10200, "whep_native"
   )
 }
 
@@ -978,7 +998,11 @@
     0.75, 0.25, 120,
     10.25, 5.25, 50,
     10.75, 5.25, 100
-  )
+  ) |>
+    dplyr::mutate(
+      critical_var = "critical_n_surplus",
+      critical_land_use = "ara"
+    )
 }
 
 # The three medium-specific critical loads (kg N/ha/yr) at the four balance
@@ -991,21 +1015,24 @@
       0.75, 0.25, 25,
       10.25, 5.25, 20,
       10.75, 5.25, 15
-    ),
+    ) |>
+      dplyr::mutate(critical_var = "crit_nh3_emission"),
     crit_leaching_gw = tibble::tribble(
       ~lon, ~lat, ~value,
       0.25, 0.25, 30,
       0.75, 0.25, 40,
       10.25, 5.25, 30,
       10.75, 5.25, 50
-    ),
+    ) |>
+      dplyr::mutate(critical_var = "crit_leaching_gw"),
     crit_load_sw = tibble::tribble(
       ~lon, ~lat, ~value,
       0.25, 0.25, 40,
       0.75, 0.25, 20,
       10.25, 5.25, 40,
       10.75, 5.25, 60
-    )
+    ) |>
+      dplyr::mutate(critical_var = "crit_load_sw")
   )
 }
 

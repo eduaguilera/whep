@@ -218,10 +218,16 @@ spatialize_country_n_to_crops <- function(
 .n_rate_shares_resolve <- function(joined) {
   joined |>
     dplyr::mutate(
-      covered = any(!is.na(.data$kg_n_ha)),
-      rate = dplyr::coalesce(
+      rate_observed = is.finite(.data$kg_n_ha) & .data$kg_n_ha >= 0,
+      covered = any(.data$rate_observed & .data$kg_n_ha > 0),
+      mean_rate = mean(
+        dplyr::if_else(.data$rate_observed, .data$kg_n_ha, NA_real_),
+        na.rm = TRUE
+      ),
+      rate = dplyr::if_else(
+        .data$rate_observed,
         .data$kg_n_ha,
-        mean(.data$kg_n_ha, na.rm = TRUE)
+        .data$mean_rate
       ),
       .by = c(year, area_code)
     ) |>
