@@ -1288,7 +1288,10 @@ build_primary_production <- function(
   split_result <- needs_split |>
     dplyr::select(-item_cbs_code) |>
     dplyr::distinct() |>
-    dplyr::inner_join(shares, by = c("year", "area_code", "Item_Code")) |>
+    dplyr::inner_join(
+      shares,
+      by = c("year", "area_code", "area", "Item_Code")
+    ) |>
     dplyr::mutate(value = value * share) |>
     dplyr::select(year, area, area_code, item_cbs_code, value)
 
@@ -1299,15 +1302,17 @@ build_primary_production <- function(
   shares |>
     tidyr::complete(
       year = target_years,
-      tidyr::nesting(area_code, Item_Code, item_cbs_code)
+      tidyr::nesting(area_code, area, Item_Code, item_cbs_code)
     ) |>
     fill_linear(
       share,
       time_col = year,
-      .by = c("area_code", "Item_Code", "item_cbs_code")
+      .by = c("area_code", "area", "Item_Code", "item_cbs_code")
     ) |>
     dplyr::filter(!is.na(share)) |>
-    dplyr::select(year, area_code, Item_Code, item_cbs_code, share)
+    # `area` is carried through, not dropped: it is half the key now that one
+    # polity_area_code can hold several reporting territories.
+    dplyr::select(year, area_code, area, Item_Code, item_cbs_code, share)
 }
 
 .compute_stock_shares <- function(years) {
@@ -1320,14 +1325,31 @@ build_primary_production <- function(
     dplyr::filter(Item_Code %in% split_parents) |>
     dplyr::select(Item_Code, item_cbs_code)
 
+  # Keyed by `area` as well as `area_code`, because those two stopped being equivalent.
+  # `area_code` here is polity_area_code, and four areas that report their own polity --
+  # New Caledonia, North Macedonia, Eswatini and Syria -- deliberately keep FABIO's 999
+  # bucket so FABIO alignment is untouched. The consequence, which I introduced when I
+  # unfolded them and did not follow through here: the 999 group holds more than one
+  # territory, so `sum(value)` spanned them and produced a CROSS-TERRITORY denominator.
+  #
+  # Eswatini's 1,053,000 broilers over Eswatini-plus-rest-of-world chickens gave a share
+  # of 0.9419, while the true rest-of-world row gave 0.0027 for the identical key. Two
+  # different shares for one (year, area_code, Item_Code, item_cbs_code), so which one a
+  # downstream join picked was a matter of row order. 24 group/time combinations, and it
+  # surfaced only as a duplicate-year warning from fill_linear that I had twice written
+  # off as pre-existing data noise.
+  #
+  # A share describes how ONE territory's stock splits between sub-items, so the
+  # reporting territory is the correct grouping. Summing Eswatini into rest-of-world
+  # would have been the other repair and is wrong: it is reported separately.
   fao_stocks |>
     dplyr::inner_join(split_cbs, by = "item_cbs_code") |>
     dplyr::mutate(
       share = value / sum(value, na.rm = TRUE),
-      .by = c(year, area_code, Item_Code)
+      .by = c(year, area_code, area, Item_Code)
     ) |>
     dplyr::filter(!is.na(share)) |>
-    dplyr::select(year, area_code, Item_Code, item_cbs_code, share)
+    dplyr::select(year, area_code, area, Item_Code, item_cbs_code, share)
 }
 
 .build_livestock_slaughter <- function(fao_combined, years = NULL) {
