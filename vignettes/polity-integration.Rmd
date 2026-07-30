@@ -272,8 +272,8 @@ c(
 
 A build that resolves every row still emits one warning, and knowing which one is the difference between reading
 output and trusting it. On `build_primary_production(1990, 1993)` chained into
-`build_commodity_balances()` — 170,976 and 265,640 rows, **zero `NA` across all four polity columns in both**
-(checked column by column, not in aggregate):
+`build_commodity_balances(p, 1990, 1993)` — 165,417 and 390,020 rows, **zero `NA` across all four polity columns in
+both** (checked column by column, not in aggregate):
 
 ```
 LUH2 territories with no FAOSTAT area code, dropping: JEY, GGY, IMN, BLM, ALA, and SXM.
@@ -281,29 +281,36 @@ Each has a polity upstream but no area code to aggregate through; see whep#407.
 ```
 
 A **full-range** build says more, and the difference is worth stating because a narrow window is not a licence to
-claim a clean build. `get_wide_cbs()` at its default range completes with **2,160,968 rows and zero `NA` in both
-`polity_area_code` and `reporting_polity_code`**, and emits four warnings:
+claim a clean build. `get_wide_cbs()` at its default range completes with **2,764,471 rows across 195 areas and
+zero `NA` in all four polity columns**, and emits seven warnings:
 
 | warning | status |
 |---|---|
 | LUH2 territories with no FAOSTAT area code (six, twice — once per land read) | known, whep#407 |
-| Historical extension: **8** areas have no LUH2 land match | pinned by identity in `test_luh2_backcast_reach.R` |
-| **48,174** CBS rows have supply-use imbalance above 50% | pre-existing, and NOT compared against `main` |
+| Historical extension: **5** areas have no LUH2 land match | pinned by identity in `test_luh2_backcast_reach.R` (four in code space; the difference in kind is documented there) |
+| **24** crop-residue rows lack any `area_code` | down from 44,985; the remainder is whep#417 |
+| **31,642** (key, source) combinations are duplicated at the source cast | pre-existing, now reported — whep#418 |
+| `'fun.aggregate' is NULL, but found duplicate row/column combinations` | data.table's own warning for the line above |
+| **46,424** CBS rows have supply-use imbalance above 50% | pre-existing, **identical on `main`** |
 
-The last one deserves its caveat rather than a silent pass. It is a conservation check in
-`R/conservation.R`, no test pins the number, and this work changed values for reporting buckets that fold several
-areas — so the count could in principle have moved. It was not measured on `main`, because doing so costs a second
-full-range build, and the honest thing is to say so rather than to imply the figure has been cleared. What can be
-said is the direction: those rows previously held `dcast`'s row COUNTS where a bucket was duplicated, and counts
-are less likely to balance than the quantities that replaced them.
+Two of these deserve more than a row in a table.
 
-Those counts are 4 and 516 rows higher than this section reported earlier in the work, and the difference is
-this branch's own doing rather than drift: the bucket-aggregation fix collapses keys that used to be
-duplicated, and `add_area_code()`'s fallback admits rows that used to be dropped for want of a code. The
-figures were re-measured rather than adjusted by arithmetic, and the claim they support — no `NA` in any
-polity column — was re-checked at the same time, because that is the part a reader relies on.
+The **imbalance count is now compared** rather than caveated. It is a conservation check in `R/conservation.R` and
+no test pins the number, so an earlier draft of this section said only that it had not been measured against
+`main`. It has been: a full-range `get_wide_cbs()` on `main` gives **46,424** as well, the same figure to the row.
+That is not luck — this branch ships the numeric aggregation key identical to `main` for all 267 area codes, and
+every column total within 1%.
 
-That is the whole inventory. It was four warnings earlier in this work, and the other three were defects:
+The **duplicated cast keys are the interesting one**, because they are proof of a live defect rather than a
+tolerance. `dcast()` with no `fun.aggregate` answers a duplicate key with `length()`, so those values become row
+COUNTS instead of quantities — and data.table says so itself in the warning immediately below. 31,642 combinations
+in areas 206 and 999 are affected in the shipped build, and they are affected on `main` too; the difference is that
+they were silent there. Fixing it means choosing `sum` or `first` at the cast, which changes published numbers, so
+it is whep#418 rather than a decision taken here. Two earlier attempts to fix it upstream instead — by summing the
+areas that fold into one bucket — were withdrawn after measurement inflated `food` 266x; see the same issue.
+
+That is the whole inventory. Earlier in this work the full-range build emitted four warnings and three of those
+were defects, since fixed:
 
 - **an unknown area code, twice.** 420 "Sub-Saharan Africa" and 265 "China (excluding intra-trade)" are FAOSTAT
   aggregates whose codes sit *below* the `group_code_min` threshold, so the rule of thumb missed them and they

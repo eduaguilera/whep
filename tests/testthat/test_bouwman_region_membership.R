@@ -166,16 +166,33 @@ testthat::test_that("no livestock production lands on an area without a Bouwman 
   testthat::expect_gt(nrow(livestock), 1000L)
 
   stranded <- livestock[which(livestock$polity_area_code %in% regionless), ]
+
+  # NOT zero any more, and the change is the finding rather than a broken expectation.
+  #
+  # This asserted zero while the branch promoted FABIO's rest-of-world members to their own
+  # numeric codes, which gave each of them a Bouwman region. That promotion is withdrawn
+  # (whep#419: it inflated global feed 13.7x), so their livestock production folds back into
+  # 999 RoW — which has no Bouwman region. Measured on the same 1990-1991 build: 246 of 23,343
+  # livestock rows, 0.21% of livestock value, all on 999 and nowhere else.
+  #
+  # So the latent gap is now LIVE, at a small but non-zero magnitude, and the feed mix really
+  # does drop that demand with a warning nobody reads. Pinned by identity — confined to 999 —
+  # plus a bound on the share, which is the part that must not grow quietly. Asserting zero
+  # again would mean re-promoting the areas at the cost of a 13.7x error elsewhere; the honest
+  # state is a measured, bounded, cross-referenced drop.
   testthat::expect_equal(
-    nrow(stranded),
-    0L,
+    sort(unique(stranded$polity_area_code)),
+    999L,
     info = paste0(
       "livestock production on areas with no Bouwman region, whose feed demand the ",
-      "mix drops: ",
+      "mix drops. Only RoW is expected here (whep#419); anything else is a new drop: ",
       paste(
         utils::head(sort(unique(stranded$polity_area_code)), 10),
         collapse = ", "
       )
     )
   )
+  share <- sum(stranded$value, na.rm = TRUE) /
+    sum(livestock$value, na.rm = TRUE)
+  testthat::expect_lt(share, 0.01)
 })

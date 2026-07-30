@@ -29,23 +29,35 @@
   `get_primary_residues()`, the one builder that resolves areas by name, went
   from 44,985 of 475,688 rows (9.5%) with no area code to 200 (0.04%).
 
-* **Values change for reporting buckets that fold several FAOSTAT areas.**
-  `.aggregate_to_polities()` and `.get_traded_residues()` grouped by the bucket
-  code *and* the area name, so areas folding into one bucket under different
-  names were never summed -- 1,525 duplicate keys at 1990-2023, all in FABIO's
-  Sudan region 206, which folds FAOSTAT 206, 276 "Sudan" and 277 "South Sudan".
-  Because `dcast()` without `fun.aggregate` answers a duplicate key with
-  `length()`, those values were row COUNTS, not quantities, in any build that
-  did not happen to die on the resulting type clash. Folded areas now sum, and
-  a bucket is labelled with its own name (206 is `"Sudan (former)"`) rather than
-  a member's, so the label no longer varies by year. See #414 for the remaining
-  modelling question: the summed bucket is still attributed to a single-territory
-  polity.
+* **No value changes.** Every column total of a full-range `get_wide_cbs()` is
+  within 1% of the previous release, and the numeric aggregation key
+  (`polity_area_code`) is identical for all 267 area codes. Two earlier attempts
+  in this cycle to improve on that were withdrawn after measurement, and are
+  recorded here because both looked like fixes:
 
-* `build_commodity_balances()` now aborts if duplicate keys reach the source
+  - Summing the FAOSTAT areas that fold into one reporting bucket. The bucket
+    holds several rows when its members' polities are differently named -- 1,525
+    duplicate keys at 1990-2023, all in FABIO's Sudan region 206 -- which reads
+    as a defect. It is not: the name distinguishes territory-periods, and rows
+    for a member and rows already aggregating that member both land in the
+    bucket, so summing double-counts. Measured: `food` 266x, `domestic_supply`
+    1.9x, `feed` 12x. Grouping by `(bucket, polity_name)` is correct.
+  - Promoting the 16 areas FABIO folds into rest-of-world that report data of
+    their own to their own numeric key. Measured: `feed` 13.7x, `export` 13.2x,
+    `production` 1.8x, with the entire `feed` increase landing on one area
+    (212 Syria, at twelve times the world total). See #419; the attribution
+    problem it was written for is still open, and its cost is now also measured
+    -- 0.21% of livestock feed demand is dropped for want of a Bouwman region on
+    RoW.
+
+* `build_commodity_balances()` now **warns** if duplicate keys reach the source
   cast, naming the area codes, sources and years, rather than silently replacing
-  values with row counts. A build that previously completed with corrupt values
-  for a folded bucket will now fail loudly until the rows are aggregated.
+  values with row counts -- `dcast()` without `fun.aggregate` answers a duplicate
+  key with `length()`, so those values become row COUNTS in any build that does
+  not happen to die on the resulting type clash. A warning rather than an abort
+  because these duplicates are pre-existing and shared with the previous release,
+  so aborting refuses to build a pipeline that has always had them. Choosing
+  sum-vs-first at the cast changes published numbers: #418.
 
 * Missing `iso3_code` and `cow_code` in `polities` are now real `NA`. They were the
   literal string `"NA"`, which upstream has since normalised to NULL at the source,

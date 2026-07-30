@@ -7,7 +7,7 @@
 #   not back-cast.
 #
 # Measured on 1961-62, which is the first year the extension is asked for: 195 production
-# areas, 187 reachable, 8 not — and those 8 carry 11.91% OF PRODUCTION VALUE. This is not
+# areas, 178 reachable, 4 not — and those 4 carry 11.88% OF PRODUCTION VALUE. This is not
 # a rounding gap, and the size is why it is pinned rather than noted.
 #
 # A FULL-RANGE BUILD USED TO SAY NINE, and chasing that down is what fixed it. The
@@ -24,19 +24,22 @@
 # warning works in name space and keeps it. A name-space count is therefore the stricter
 # of the two, and this test is blind to exactly the areas hardest to reach.
 #
-# Measured at full range after the fix: `get_wide_cbs()` completes with 2,160,968 rows,
-# 0 NA in `polity_area_code` and 0 in `reporting_polity_code`, and this warning names
-# eight areas.
+# Measured at full range: `get_wide_cbs()` completes with 2,764,471 rows, 0 NA across all
+# four polity columns, and this warning names FIVE areas in name space against the four this
+# test finds in code space -- the difference in kind described above.
 #
-# Two classes, and only one is the documented one:
+# ONE class now, and the second one leaving is a consequence rather than a fix:
 #
 #   dissolved federations   15 Belgium-Luxembourg, 51 Czechoslovakia, 228 USSR,
 #                           248 Yugoslav SFR. LUH2 has no ISO3 for a state that no longer
-#                           exists, so the bridge has nothing to match. This is the bulk of
-#                           the 11.91%.
-#   French departments      69 French Guiana, 87 Guadeloupe, 135 Martinique, 182 Reunion.
-#                           LUH2 folds departements into France, so their land is present
-#                           but not separable.
+#                           exists, so the bridge has nothing to match. All of the 11.88%.
+#
+# The French departments -- 69 French Guiana, 87 Guadeloupe, 135 Martinique, 182 Reunion --
+# used to form a second class, because this branch promoted them out of FABIO's rest-of-world
+# bucket and they then appeared as areas in their own right, unreachable because LUH2 folds
+# departements into France. That promotion is withdrawn (whep#419: it inflated global feed
+# 13.7x), so they fold into 999 again and are no longer separate areas here. Their land is
+# still not separable in LUH2; they are simply no longer counted at this level.
 #
 # A SHORTCUT THAT DOES NOT WORK, recorded so nobody re-derives it: the polities database has
 # `successor`, so reconstructing a federation's land as the union of its successors' LUH2
@@ -45,7 +48,7 @@
 # to 2 codes for these four areas and almost none of their ISO3s are in LUH2. Reaching the
 # republics would mean going through the polygons rather than through any code field, which
 # is a different piece of work (whep#408).
-testthat::test_that("the LUH2 back-cast gap is the eight areas with no modern ISO3 land", {
+testthat::test_that("the LUH2 back-cast gap is the four dissolved federations", {
   testthat::skip_on_ci()
   luh <- tryCatch(whep:::whep_read_file("luh2-areas"), error = function(e) NULL)
   testthat::skip_if(is.null(luh), "luh2-areas pin unavailable")
@@ -78,10 +81,10 @@ testthat::test_that("the LUH2 back-cast gap is the eight areas with no modern IS
   # class of territory the bridge cannot see, not more of the same.
   testthat::expect_setequal(
     unreached,
-    c(15L, 51L, 69L, 87L, 135L, 182L, 228L, 248L)
+    c(15L, 51L, 228L, 248L)
   )
 
-  # And the share, because 8 of 195 areas sounds negligible and 11.91% of value is not.
+  # And the share, because 4 of 182 areas sounds negligible and 11.88% of value is not.
   # A floor and a ceiling: a large move in either direction means the bridge or the data
   # changed and the reasoning above needs rechecking.
   share <- sum(

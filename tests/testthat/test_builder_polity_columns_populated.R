@@ -27,7 +27,7 @@
 # was fixed.
 #
 # The real builds do resolve everything: a full-range `get_wide_cbs()` gives 0 NA across
-# 2,160,968 rows. This is an example-fixture problem, not a coverage gap.
+# 2,768,578 rows. This is an example-fixture problem, not a coverage gap.
 
 .polity_na_counts <- function(builder) {
   out <- tryCatch(

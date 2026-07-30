@@ -6,7 +6,7 @@
 # and a join on the grouping then drops it in silence.
 #
 # The sibling test compares the two tables' `continent` where both have a row. This one asks
-# the prior question: which areas have no row to compare. 18 of the 217 self-reporting areas
+# the prior question: which areas have no row to compare. 15 of the 201 self-reporting areas
 # (those whose `area_code` is its own `polity_area_code`, so not folded into a bucket), and
 # they fall into three classes, only one of which is a defect:
 #
@@ -15,19 +15,25 @@
 #   6 dissolved entities    Belgium-Luxembourg, Czechoslovakia, Netherlands Antilles,
 #                           Serbia and Montenegro, USSR, Yugoslav SFR. GLEAM is a
 #                           present-day table, so these are absent by construction.
-#   5 LIVE TERRITORIES      Bermuda, Guam, Nauru, Palau, Tuvalu. Each exists today, reports
-#                           under its own area code, and is simply missing from GLEAM's 204
-#                           countries — so each is unclassifiable by the energy extension.
+#   2 LIVE TERRITORIES      Nauru and Tuvalu. Each exists today, reports under its own area
+#                           code, and is simply missing from GLEAM's 204 countries — so each
+#                           is unclassifiable by the energy extension.
 #
 # The third class is the finding. Tuvalu is the sharpest case because
 # `.energy_ldc_iso3()` lists TUV as a least-developed country, so the code asserts a
 # classification for a country the table it joins against cannot represent. All 46 LDC codes
 # do exist in the polities database, so the list itself is sound; the gap is GLEAM's.
 #
+# The counts moved with whep#419. Bermuda, Guam and Palau were in the third class while this
+# branch promoted FABIO's rest-of-world members to their own numeric key; that promotion is
+# withdrawn, so the three fold into ROW again and are no longer self-reporting. They are not
+# "fixed" — their data is inside ROW, which is what #419 is about — they are simply no longer
+# GLEAM's problem. The self-reporting universe went 217 -> 201 for the same reason.
+#
 # Pinned by identity rather than by count: a NEW absence is a country the extension has
 # started dropping, and it would hide inside a number.
 
-test_that("the GLEAM country table's gaps are the known 18, by identity", {
+test_that("the GLEAM country table's gaps are the known 15, by identity", {
   gleam <- tryCatch(
     get("gleam_geographic_hierarchy", envir = asNamespace("whep")),
     error = function(e) NULL
@@ -64,10 +70,7 @@ test_that("the GLEAM country table's gaps are the known 18, by identity", {
       "SUN",
       "YUG",
       # live territories with no GLEAM row — the defect class
-      "BMU",
-      "GUM",
       "NRU",
-      "PLW",
       "TUV"
     )
   )
@@ -104,8 +107,8 @@ test_that("the energy grouping says which live areas it cannot classify", {
     error = function(e) conditionMessage(e)
   )
 
-  # The five live territories, by name.
-  for (nm in c("Bermuda", "Guam", "Nauru", "Palau", "Tuvalu")) {
+  # The two live territories, by name.
+  for (nm in c("Nauru", "Tuvalu")) {
     expect_match(msg, nm, fixed = TRUE)
   }
   # And NOT the thirteen that are legitimately absent: a country table should not carry
