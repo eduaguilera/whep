@@ -546,10 +546,34 @@ polity_area_crosswalk <- regions_for_crosswalk |>
     #
     # So the condition names 999 explicitly. Un-folding rest-of-world is the intent; the
     # former-to-successor redirect is left alone.
+    #
+    # WITHDRAWN, and the reasoning above is left standing because the motivation is still
+    # real -- see whep#419. Un-folding at the NUMERIC level is not safe with the pipeline
+    # as it stands. Measured on a full-range `get_wide_cbs()`, un-folding the 16 areas
+    # FABIO folds into 999 that report data of their own changes global totals:
+    #
+    #   feed        8.232e10 -> 1.132e12   (13.7x)
+    #   export      3.011e10 -> 3.988e11   (13.2x)
+    #   production  1.736e12 -> 3.172e12   ( 1.8x)
+    #
+    # Isolated to this one expression: refolding these areas -- with every other change on
+    # this branch in place -- returns every column to main's total. And it is an artifact,
+    # not recovered data. All of the feed increase lands on ONE area, 212 Syrian Arab
+    # Republic, at 1.049e12 -- twelve times the world total in a single country -- inside
+    # item codes 2590 and 2598, growing monotonically 2.9e10 (2001) to 3.0e11 (2009).
+    # Syria is not a territory too small for FABIO to carry; `fabio_code` 999 for it is
+    # itself suspect. The compounding shape says a share denominator or a carry-forward
+    # scales on bucket membership, so an area that becomes its own bucket takes
+    # bucket-level magnitudes with it.
+    #
+    # Whether to un-fold, and what to fix first, is a modelling decision. This PR ships
+    # the numeric key IDENTICAL to main so the integration is value-neutral, and leaves
+    # the polity-level un-folding (`fabio_row_prefix`) in place, which the same experiment
+    # showed changes no total. The Faroe-Islands/Palestine drop the exception was written
+    # for is therefore still open, and is recorded in whep#419 rather than silently fixed
+    # at the cost of a 13x error elsewhere.
     polity_area_code = dplyr::if_else(
-      !is.na(.data$fabio_code) &
-        !(.data$fabio_code == 999L &
-          .data$area_code %in% areas_with_observed_data),
+      !is.na(.data$fabio_code),
       .data$fabio_code,
       .data$area_code
     ),

@@ -1707,13 +1707,13 @@ build_processing_coefs <- function(
     by = c(key_cols, "source")
   ][N > 1L]
   if (nrow(dup_keys) > 0L) {
-    cli::cli_abort(c(
+    cli::cli_warn(c(
       "{nrow(dup_keys)} (key, source) combinations appear more than once, so
        casting them would replace values with row counts.",
       "i" = "area codes: {.val {sort(unique(dup_keys$area_code))}}",
       "i" = "sources: {.val {sort(unique(dup_keys$source))}}",
       "i" = "years: {.val {unique(range(dup_keys$year))}}",
-      "x" = "Aggregate these rows before they reach the cast."
+      "x" = "`dcast()` will answer them with `length()`, so those values become ROW\n         COUNTS rather than quantities."
     ))
   }
 

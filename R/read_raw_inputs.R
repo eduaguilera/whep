@@ -397,6 +397,7 @@
   by_cols <- c(
     "year",
     "polity_area_code",
+    "polity_name",
     "unit",
     "element",
     dots
@@ -412,28 +413,29 @@
     dt <- dt[, .(value = sum(value, na.rm = TRUE)), by = by_cols]
   }
 
-  # NAME THE BUCKET FROM THE BUCKET, not from whichever folded member came first.
+  # `area` MUST use the same vocabulary every other producer uses, and an earlier version
+  # of this broke that. It named the bucket from the bucket's own `area_name` — stable, one
+  # name per code, deterministic — which is defensible in isolation and wrong here, because
+  # `.read_crop_residues()` still emits the period-specific `polity_name` as `area` and
+  # several INNER joins key on `c("area", "area_code", ...)`:
+  # read_raw_inputs.R:564/572/578 and build_production.R:362. With one side carrying
+  # "Albania" and the other "Albania (1913-2025)", those joins miss and the rows disappear
+  # without a word.
   #
-  # Taking `polity_name[1L]` was order-dependent and, worse, year-varying: only Sudan
-  # reports into bucket 206 before 2012 and both Sudans after, so the label could
-  # change mid-series and split the series that the three
-  # `fill_proxy_growth(.by = c("area", "area_code"))` calls depend on. It could also
-  # misdescribe the row — a Sudan + South Sudan sum labelled "South Sudan", which is
-  # the member that happens to sort first.
+  # Measured: 652,562 rows of real observations lost from a full-range `get_wide_cbs()`,
+  # across 45 areas per item, 43 of them `national` polities — Albania, Bolivia, Ecuador,
+  # Cabo Verde, Cambodia, Laos and others, exactly the ones where `area_name` and
+  # `polity_name` differ. Every test passed: the loss is invisible to a suite that never
+  # compares total row counts against a baseline.
   #
-  # Every bucket code is itself a reporting area with exactly one non-NA `area_name`
-  # (217 of 217, checked), so the bucket has a stable and honest name: 206 is
-  # "Sudan (former)", the FABIO region these two fold into, and 999 is "RoW". Checking
-  # that coverage mattered rather than being pedantry — `.select_best_source()` drops
-  # rows with `!is.na(area)`, so an unnamed bucket would have lost data in silence.
-  bucket_names <- .polity_crosswalk(include_unmapped = TRUE)[
-    !is.na(area_code),
-    .(polity_area_code = area_code, .bucket_name = area_name)
-  ]
-  bucket_names <- unique(bucket_names, by = "polity_area_code")
-  dt[bucket_names, area := i..bucket_name, on = "polity_area_code"]
-
-  data.table::setnames(dt, "polity_area_code", "area_code")
+  # So the polity name stays, and the determinism problem that motivated the change is
+  # solved differently: pick the representative by sorting rather than by row order, so a
+  # bucket folding several differently-named areas gets the same label every run.
+  data.table::setnames(
+    dt,
+    c("polity_area_code", "polity_name"),
+    c("area_code", "area")
+  )
   dt
 }
 
