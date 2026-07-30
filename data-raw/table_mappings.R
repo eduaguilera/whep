@@ -382,6 +382,32 @@ alias_observed <- polity_label_aliases |>
 # correct, so a FAOSTAT_name-only join silently left both folded — 67,310 and 9,051
 # observed rows respectively — and the fix looked like it worked because the other nine
 # areas moved.
+#
+# RENAMED COUNTRIES DEFEAT LABEL MATCHING, and one does today. Area 209 is named
+# "Eswatini" in both label columns, while the 180,663 observed rows sit on the alias
+# "Swaziland" — same polity, SWZ-1894-2025, two labels, and the count attached to the one
+# the area is not called. So Eswatini stayed folded into FABIO's rest-of-world bucket
+# while three areas unfolded in the same change took their own codes, and that asymmetry
+# produced a real defect one layer down: bucket 999 held both rest-of-world and Eswatini,
+# so livestock split shares divided Eswatini's broilers by an Eswatini-plus-rest-of-world
+# total.
+#
+# Fixed by naming the label, NOT by generalising. Three broader rules were measured first
+# and each was wrong:
+#
+#   match on polity_code   the column does not exist in this frame yet
+#   match on polity_prefix circular — for a folded area the prefix IS the aggregate key,
+#                          so it loses the ten territories unfolded earlier
+#   match on any label of  too broad — adds 8 areas, including 351 China, which is
+#   a polity with data    deliberately unmapped, and five territories the
+#                          folded_into_aggregate baseline deliberately keeps folded
+#
+# So the exception is explicit and measured rather than inferred. A second renamed country
+# will need adding here, which is worse than a rule that handles it — but better than a
+# rule that silently unfolds China.
+renamed_with_observed_data <- c("Eswatini")
+
+# Match on EITHER label column, plus the renamed-country exceptions above.
 areas_with_observed_data <- regions_for_crosswalk |>
   # `code`, not `area_code` — the latter only exists after the transmute below.
   dplyr::filter(!is.na(.data$code)) |>
@@ -391,7 +417,11 @@ areas_with_observed_data <- regions_for_crosswalk |>
     values_to = "label",
     values_drop_na = TRUE
   ) |>
-  dplyr::inner_join(alias_observed, by = c("label" = "source_label")) |>
+  dplyr::filter(
+    .data$label %in%
+      alias_observed$source_label |
+      .data$label %in% renamed_with_observed_data
+  ) |>
   dplyr::pull("code") |>
   as.integer() |>
   unique()

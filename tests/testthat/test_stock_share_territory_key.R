@@ -76,12 +76,20 @@ testthat::test_that("stock shares are keyed by reporting territory and sum to on
   )
 })
 
-testthat::test_that("the FABIO bucket holds a reporting territory besides rest-of-world", {
-  # The premise of the fix, pinned because I got it wrong first: I wrote that all four
-  # unfolded areas kept polity_area_code 999, and only ESWATINI did. The other three took
-  # their own codes (New Caledonia 153, North Macedonia 154, Syria 212). One shared bucket
-  # is enough to produce the defect, so the fix stands -- but the reasoning in a comment is
-  # worth no more than the measurement behind it.
+testthat::test_that("no reporting territory shares the FABIO rest-of-world bucket", {
+  # THE PREMISE OF THE FIX ABOVE HAS BEEN REMOVED, and this test is what noticed.
+  #
+  # It previously asserted that Eswatini shared polity_area_code 999 with rest-of-world,
+  # which was true and was the cause of the cross-territory denominator. The root of that
+  # was a label match: area 209 is named "Eswatini" in regions_full while its 180,663
+  # observed rows sit on the alias "Swaziland", so the derivation that decides which
+  # folded areas keep their own code could not see its data. Naming the exception fixed
+  # it, Eswatini now aggregates to 209, and the bucket holds only rest-of-world.
+  #
+  # So the `area` half of the share key is now defence rather than a repair: nothing
+  # shares a bucket today, and if something does again, the shares stay correct. Both
+  # halves are kept deliberately -- the invariant above would pass either way, and this
+  # assertion is what distinguishes "no longer broken" from "no longer possible".
   cw <- as.data.frame(whep::polity_area_crosswalk)
   in_bucket <- cw[which(cw$polity_area_code == 999L), ]
   testthat::expect_gt(nrow(in_bucket), 40L)
@@ -90,20 +98,50 @@ testthat::test_that("the FABIO bucket holds a reporting territory besides rest-o
     !is.na(in_bucket$polity_code) &
       !startsWith(in_bucket$polity_code, "ROW-")
   )]))
-  testthat::expect_setequal(own_polity, 209L)
+  testthat::expect_equal(
+    length(own_polity),
+    0L,
+    info = paste0(
+      "areas reporting their own polity while aggregating into rest-of-world, so ",
+      "their shares share a denominator with it: ",
+      paste(own_polity, collapse = ", ")
+    )
+  )
 
-  # And the three that left the bucket must stay out of it: if one returned, its shares
-  # would rejoin rest-of-world's denominator, which is the defect all over again.
-  for (code in c(153L, 154L, 212L)) {
+  # All four areas unfolded in this branch must have their own aggregation key. Eswatini
+  # was the one that silently did not, for three commits.
+  for (code in c(153L, 154L, 209L, 212L)) {
     rows <- cw[which(cw$area_code == code), ]
+    testthat::expect_true(
+      nrow(rows) > 0L,
+      info = paste0("area ", code, " is absent from the crosswalk")
+    )
     testthat::expect_true(
       all(rows$polity_area_code == code),
       info = paste0(
         "area ",
         code,
-        " is back in a shared aggregation bucket, so its stock shares now share a ",
-        "denominator with another territory"
+        " aggregates into a shared bucket, so its stock shares share a denominator ",
+        "with another territory"
       )
     )
   }
+
+  # And the two tables that carry this column must agree about it. They disagree only on
+  # 351 China, which is deliberately unmapped, and they are built in sequence with
+  # regions_full reading the crosswalk -- so a stale value here means data-raw was run in
+  # the wrong order, which is exactly what happened while making this change.
+  r <- as.data.frame(whep::regions_full)
+  r <- r[which(!is.na(r$code)), ]
+  r <- r[!duplicated(r$code), ]
+  key <- cw[which(!is.na(cw$area_code)), ]
+  key <- key[!duplicated(key$area_code), ]
+  idx <- match(r$code, key$area_code)
+  from_cw <- key$polity_area_code[idx]
+  differing <- r$code[which(
+    !is.na(from_cw) &
+      ((!is.na(r$polity_area_code) & r$polity_area_code != from_cw) |
+        is.na(r$polity_area_code))
+  )]
+  testthat::expect_setequal(differing, 351L)
 })
