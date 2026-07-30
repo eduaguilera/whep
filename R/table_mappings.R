@@ -144,13 +144,24 @@
 #'   these silently loses rows — that defect cost 13.3% of the fodder bridge and
 #'   6.4% of `gdp-population`.
 #' - `cbs`: Logical. `TRUE` where the area has its own commodity balance sheet.
-#'   Load-bearing beyond its own reporting: it gates whether an area whose polity
-#'   has data may be unfolded from the FABIO rest-of-world bucket, which is what
-#'   keeps 351 China and five deliberately-folded territories from unfolding.
+#'   Load-bearing beyond its own reporting: it gates which areas are unfolded from
+#'   the FABIO rest-of-world bucket at the POLITY level, which is what keeps 351
+#'   China and five deliberately-folded territories from unfolding. It no longer
+#'   affects the numeric key — see `fabio_code` below.
 #' - `fabio_code`: FABIO's numeric area, `999` for everything FABIO folds into
-#'   rest-of-world. NOT the same as `polity_area_code`: 17 areas keep their own
-#'   aggregation key while FABIO folds them, so aggregating on `fabio_code`
-#'   reproduces FABIO and aggregating on `polity_area_code` does not.
+#'   rest-of-world — 62 areas. **Equal to `polity_area_code` on every row where
+#'   both are present** (600 of 601 rows with an `area_code`; the exception is 351
+#'   China, which is unmapped by design and has neither). So aggregating on either
+#'   reproduces FABIO.
+#'
+#'   That equality is a deliberate change and reverses what this documentation used
+#'   to say. Sixteen areas that FABIO folds report data of their own, and giving
+#'   them their own aggregation key — so their data stops being attributed to
+#'   `ROW-1850-2023` — inflates global `feed` by 13.7 times, with the whole increase
+#'   landing on one area. The consequence to be aware of is that
+#'   `reporting_polity_code` and `polity_area_code` disagree for those sixteen: the
+#'   crosswalk names the Faroe Islands while the numbers sit in rest-of-world. See
+#'   whep#419, which costs both sides of that choice.
 #' - `polity_type`, `cow_code`, `continent`, `wiki_status`, `polygon_status`,
 #'   `has_geometry`: carried through from [polities] for the matched polity, with
 #'   the same meanings. `wiki_status` matters most: `"retired"` and `"superseded"`

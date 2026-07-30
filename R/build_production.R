@@ -1350,12 +1350,18 @@ build_primary_production <- function(
     dplyr::filter(Item_Code %in% split_parents) |>
     dplyr::select(Item_Code, item_cbs_code)
 
-  # Keyed by `area` as well as `area_code`, because those two stopped being equivalent.
-  # `area_code` here is polity_area_code, and four areas that report their own polity --
-  # New Caledonia, North Macedonia, Eswatini and Syria -- deliberately keep FABIO's 999
-  # bucket so FABIO alignment is untouched. The consequence, which I introduced when I
-  # unfolded them and did not follow through here: the 999 group holds more than one
-  # territory, so `sum(value)` spanned them and produced a CROSS-TERRITORY denominator.
+  # Keyed by `area` as well as `area_code`, and that second key is LOAD-BEARING rather than
+  # defensive -- do not remove it as redundant next to `area_code`.
+  #
+  # `area_code` here is polity_area_code, and SIXTEEN areas that report their own polity keep
+  # FABIO's 999 bucket, so the 999 group holds more than one territory and `sum(value)` spans
+  # them: a CROSS-TERRITORY denominator. Keying by `area` too is the only thing separating them.
+  #
+  # It was four areas when this was written, because the branch then promoted the rest out of
+  # 999. That promotion is withdrawn -- it inflated global feed 13.7x (whep#419) -- so the
+  # condition this key protects against is now live for sixteen areas rather than latent for
+  # four. test_stock_share_territory_key.R asserts both halves: that the sixteen share the
+  # bucket, and that every share group still sums to 1.
   #
   # Eswatini's 1,053,000 broilers over Eswatini-plus-rest-of-world chickens gave a share
   # of 0.9419, while the true rest-of-world row gave 0.0027 for the identical key. Two

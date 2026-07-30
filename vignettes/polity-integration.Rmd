@@ -61,9 +61,15 @@ A resolved row carries both a code and a numeric key, and they answer different 
 - `polity_area_code` — the numeric area key the matrix workflows use. Most builds emit this
   **as** their `area_code`, so it, not the polity code, determines how rows aggregate.
 
-That distinction is load-bearing. Eleven areas that FABIO folds into rest-of-world report data of
-their own, and correcting only their `polity_code` left them still summed into area 999 by the
-numeric key.
+That distinction is load-bearing, and it is live rather than historical. Sixteen areas that FABIO
+folds into rest-of-world report data of their own. Their `polity_code` is corrected to their own
+polity, while their `polity_area_code` is still 999 — so **the crosswalk names a polity that the
+numbers are not aggregated under**. A reader checking `reporting_polity_code` sees the Faroe
+Islands; the values are in `ROW-1850-2023`.
+
+That is deliberate, not an oversight: making the two agree by promoting these areas numerically
+inflates global `feed` 13.7×. It is the single most important thing to know before joining on one
+of these two columns and assuming the other follows. whep#419.
 
 ## Resolving a label
 

@@ -46,13 +46,24 @@ Bermuda reads \code{"Latin America Other"}. Joining downstream on the wrong one 
 these silently loses rows — that defect cost 13.3\% of the fodder bridge and
 6.4\% of \code{gdp-population}.
 \item \code{cbs}: Logical. \code{TRUE} where the area has its own commodity balance sheet.
-Load-bearing beyond its own reporting: it gates whether an area whose polity
-has data may be unfolded from the FABIO rest-of-world bucket, which is what
-keeps 351 China and five deliberately-folded territories from unfolding.
+Load-bearing beyond its own reporting: it gates which areas are unfolded from
+the FABIO rest-of-world bucket at the POLITY level, which is what keeps 351
+China and five deliberately-folded territories from unfolding. It no longer
+affects the numeric key — see \code{fabio_code} below.
 \item \code{fabio_code}: FABIO's numeric area, \code{999} for everything FABIO folds into
-rest-of-world. NOT the same as \code{polity_area_code}: 17 areas keep their own
-aggregation key while FABIO folds them, so aggregating on \code{fabio_code}
-reproduces FABIO and aggregating on \code{polity_area_code} does not.
+rest-of-world — 62 areas. \strong{Equal to \code{polity_area_code} on every row where
+both are present} (600 of 601 rows with an \code{area_code}; the exception is 351
+China, which is unmapped by design and has neither). So aggregating on either
+reproduces FABIO.
+
+That equality is a deliberate change and reverses what this documentation used
+to say. Sixteen areas that FABIO folds report data of their own, and giving
+them their own aggregation key — so their data stops being attributed to
+\code{ROW-1850-2023} — inflates global \code{feed} by 13.7 times, with the whole increase
+landing on one area. The consequence to be aware of is that
+\code{reporting_polity_code} and \code{polity_area_code} disagree for those sixteen: the
+crosswalk names the Faroe Islands while the numbers sit in rest-of-world. See
+whep#419, which costs both sides of that choice.
 \item \code{polity_type}, \code{cow_code}, \code{continent}, \code{wiki_status}, \code{polygon_status},
 \code{has_geometry}: carried through from \link{polities} for the matched polity, with
 the same meanings. \code{wiki_status} matters most: \code{"retired"} and \code{"superseded"}
