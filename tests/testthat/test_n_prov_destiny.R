@@ -989,6 +989,28 @@ test_that(".remove_seeds_from_system leaves non-seed items unchanged", {
 # .finalize_prod_destiny -------------------------------------------------------
 
 test_that(".finalize_prod_destiny combines local, import, export flows", {
+  # `.finalize_prod_destiny()` reads the `biomass_coefs` pin, which lives on a remote host, and
+  # this test had no guard for that host being unreachable. It reddened the whole five-platform
+  # matrix on an unrelated PR: one job got
+  #
+  #   Could not fetch "biomass_coefs" from remote source.
+  #   x No local cached copy was found either.
+  #   Remote host "saco.csic.es" is not reachable.
+  #
+  # while the other four passed. Every other test here that needs a pin already guards this way
+  # -- "eu-agridb-fodder pin unavailable", "production pins unavailable" -- so this brings the
+  # one exception into line rather than inventing a convention.
+  #
+  # The guard skips only when the pin cannot be had. The assertions below still run, and still
+  # fail, whenever it can, so this hides no defect in the function itself.
+  testthat::skip_if(
+    is.null(tryCatch(
+      whep::whep_read_file("biomass_coefs"),
+      error = function(e) NULL
+    )),
+    "biomass_coefs pin unavailable"
+  )
+
   trade_data <- tibble::tribble(
     ~Year, ~Province_name, ~Item, ~Box, ~Irrig_cat, ~food, ~other_uses, ~feed, ~production_n, ~export, ~import,
     2000, "A", "Wheat", "Cropland", "irrig", 30, 10, 20, 100, 40, 0,
