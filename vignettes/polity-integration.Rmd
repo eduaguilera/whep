@@ -313,6 +313,27 @@ The pattern in all three: a warning that fires on every build is read as backgro
 distinguishable only by measuring what they dropped — 0.6% of a pin, a 222× share error, and 0.39% of global land
 against 0.0008%.
 
+## What is guaranteed, and by which check
+
+Prose is easy to write and hard to trust, so each claim above is enforced somewhere. This is the map, so a
+reader can go look rather than take it on faith.
+
+| claim | enforced by |
+|---|---|
+| the resolver honours the published alias map — all 851 ranged aliases resolve to their own target | `test_alias_map_conformance.R` |
+| a name resolves only when one polity carries it in that year, and a year-covering rule outranks it | `test_resolve_polity_label_name_route.R`, by identity |
+| every dataset naming a territory is tied to the polities database by something | `test_area_dataset_census.R` — built on the lazydata environment, because package data is not an export |
+| folded reporting areas sum into their bucket instead of sitting beside each other in it | `test_polity_bucket_aggregation.R`, mutation-tested |
+| duplicate keys never reach the source cast, where values would silently become row counts | a guard in `.select_best_source()`, tested by the same file |
+| `regions_full` and `polities_cats` differ only where a modelling choice says they should | `test_polities_cats_vs_regions_full.R` |
+| the embedded copies match what upstream publishes | `test_polities_upstream_contract.R` and siblings — 51 assertions, and they need the upstream checkout |
+
+Two of those deserve a caveat rather than a tick. The census asserts each area-carrying dataset is
+**referenced** by some test, which is weaker than "its vocabulary agrees with the database" — the per-dataset
+tests do that, one at a time. And the upstream contract tests **skip** without the sibling repository, which is
+why the pre-push harness runs them explicitly with all five inputs pointed at one checkout: a skipped contract
+test and a passing one look identical in a summary line.
+
 ## Where the gaps are
 
 Stated rather than hidden, because each is a real limit on what the data can say:
