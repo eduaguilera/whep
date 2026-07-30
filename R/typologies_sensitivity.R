@@ -6,7 +6,7 @@
 #' @param n_prov_destiny Nitrogen flows tibble. If `NULL`, loaded
 #'   automatically.
 #' @param variation Relative variation applied to each threshold (default
-#'   0.2 = 20\%).
+#'   0.2 = 20%).
 #' @return A tibble with columns `threshold`, `direction`, and
 #'   `agreement_pct`.
 #' @export

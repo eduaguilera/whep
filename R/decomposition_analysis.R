@@ -2043,7 +2043,9 @@ plot_compartment_factor_panels_periods <- function(
 .period_average_panel <- function(panel, group_cols) {
   panel |>
     .assign_period_label() |>
-    dplyr::mutate(year = as.numeric(stringr::str_extract(period_label, "^[0-9]+"))) |>
+    dplyr::mutate(
+      year = as.numeric(stringr::str_extract(period_label, "^[0-9]+"))
+    ) |>
     dplyr::summarise(
       dplyr::across(dplyr::where(is.numeric), ~ mean(.x, na.rm = TRUE)),
       .by = dplyr::all_of(c("year", group_cols))

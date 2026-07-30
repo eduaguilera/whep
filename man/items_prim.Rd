@@ -34,4 +34,7 @@ items_prim
 Maps FAOSTAT primary production items and crop products to their CBS
 counterparts, along with farm and labour classifications.
 }
+\examples{
+head(items_prim)
+}
 \keyword{datasets}

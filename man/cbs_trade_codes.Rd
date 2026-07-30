@@ -30,4 +30,7 @@ Maps detailed FAOSTAT trade item codes to their corresponding CBS item
 categories, enabling aggregation of bilateral trade data into the CBS
 framework.
 }
+\examples{
+head(cbs_trade_codes)
+}
 \keyword{datasets}

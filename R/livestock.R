@@ -5,6 +5,24 @@
 #'
 #' @param example If `TRUE`, return a small example output without downloading
 #'   remote data. Default is `FALSE`.
+#' @param grain Spatial grain of the feed allocation. `"national"` (default, one
+#'   allocation per country) or `"local"` (the per-cell 0.5-degree engine,
+#'   which is heavy and run via [build_feed_intake_local()]; calling it here
+#'   redirects there).
+#' @param demand_tier Demand-estimation tier. `"ipcc"` (default, the rigorous
+#'   IPCC Tier-2 energy demand for the ruminant species it covers, Bouwman FCR
+#'   for pigs and poultry, Krausmann per-head for draft / other species) or
+#'   `"fcr"` (the Bouwman / Krausmann feed-conversion magnitude for every
+#'   species). Both grains allocate with `redistribute_feed()`.
+#' @param feed_mode Whether to distribute surplus feed availability.
+#'   `"historical"` (default) suppresses the surplus-distribution pass: the CBS
+#'   feed element is treated as realised consumption, so leftover availability is
+#'   not dumped onto variable-demand livestock (which would inflate non-grass
+#'   intake). `"scenario"` distributes the surplus.
+#' @param years Integer vector of years to build, or `NULL` (default) for every
+#'   year in the production data (1850-2023 via the LUH2 extension). Restricting
+#'   the range cuts run time proportionally; allocation is independent per year,
+#'   so a subset returns exactly the same rows for those years.
 #'
 #' @returns
 #' A tibble with the feed intake data.
@@ -36,30 +54,24 @@
 #'
 #' @examples
 #' get_feed_intake(example = TRUE)
-get_feed_intake <- function(example = FALSE) {
+get_feed_intake <- function(
+  example = FALSE,
+  grain = c("national", "local"),
+  demand_tier = c("ipcc", "fcr"),
+  feed_mode = c("historical", "scenario"),
+  years = NULL
+) {
+  grain <- rlang::arg_match(grain)
+  demand_tier <- rlang::arg_match(demand_tier)
+  feed_mode <- rlang::arg_match(feed_mode)
   if (example) {
     return(.example_get_feed_intake())
   }
-
-  "feed_intake" |>
-    whep_read_file() |>
-    dplyr::rename_with(tolower) |>
-    add_area_code(name_column = "area") |>
-    add_item_cbs_code(
-      name_column = "live_anim",
-      code_column = "live_anim_code"
-    ) |>
-    add_item_cbs_code(name_column = "item", code_column = "item_cbs_code") |>
-    dplyr::select(
-      year,
-      area_code,
-      live_anim_code,
-      item_cbs_code,
-      feed_type = feedtype,
-      supply,
-      intake,
-      intake_dry_matter = intake_dm,
-      loss,
-      loss_share
-    )
+  .build_redistribute_intake(
+    grain = grain,
+    demand_tier = demand_tier,
+    feed_mode = feed_mode,
+    years = years
+  ) |>
+    .add_reporting_polity_columns()
 }

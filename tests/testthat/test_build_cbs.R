@@ -112,6 +112,41 @@ test_that(".fix_item_codes remaps rice 2804 -> 2807", {
   result <- whep:::.fix_item_codes(df)
   expect_false(2804L %in% result$item_cbs_code)
   expect_true(2807L %in% result$item_cbs_code)
+  expect_equal(
+    result$value[result$item_cbs_code == 2807L],
+    100 * whep:::.rice_milled_extraction_rate()
+  )
+  expect_equal(
+    result$item_cbs[result$item_cbs_code == 2807L],
+    "Rice and products"
+  )
+})
+
+test_that(".fix_item_codes keeps milled rice when old CBS also has paddy equivalent", {
+  df <- tibble::tribble(
+    ~year, ~area_code, ~area, ~element, ~unit, ~item_cbs_code, ~item_cbs, ~value,
+    2000L, 41L, "China", "food", "tonnes", 2805L, "Rice (Milled Equivalent)", 100,
+    2000L, 41L, "China", "food", "tonnes", 2804L, "Rice (Paddy Equivalent)", 150,
+    2000L, 41L, "China", "production", "tonnes", 2804L, "Rice, paddy", 200
+  )
+
+  result <- whep:::.fix_item_codes(df)
+
+  food <- result |>
+    dplyr::filter(.data$element == "food")
+  testthat::expect_equal(nrow(food), 1)
+  testthat::expect_equal(food$item_cbs_code, 2807L)
+  testthat::expect_equal(food$item_cbs, "Rice and products")
+  testthat::expect_equal(food$value, 100)
+
+  production <- result |>
+    dplyr::filter(.data$element == "production")
+  testthat::expect_equal(production$item_cbs_code, 2807L)
+  testthat::expect_equal(production$item_cbs, "Rice and products")
+  testthat::expect_equal(
+    production$value,
+    200 * whep:::.rice_milled_extraction_rate()
+  )
 })
 
 test_that(".fix_item_codes remaps groundnuts 2820 -> 2552", {
@@ -122,6 +157,78 @@ test_that(".fix_item_codes remaps groundnuts 2820 -> 2552", {
 
   result <- whep:::.fix_item_codes(df)
   expect_equal(result$item_cbs_code, 2552L)
+  expect_equal(result$item_cbs, "Groundnuts")
+})
+
+test_that(".read_land_areas_wide tolerates missing LUH2 cropland and pasture rows", {
+  local_mocked_bindings(
+    .read_land_areas = function(years = NULL) {
+      tibble::tibble(
+        year = 2023L,
+        area = "Spain",
+        Land_Use = "urban",
+        Area_Mha = 1
+      )
+    }
+  )
+
+  result <- whep:::.read_land_areas_wide(years = 2023L)
+
+  expect_true(all(c("Cropland", "Pasture", "agriland") %in% names(result)))
+  expect_equal(nrow(result), 0L)
+})
+
+test_that(".fix_palm_kernels tolerates single-year inputs without old palm-kernel anchors", {
+  empty_fbs <- tibble::tibble(
+    year = integer(),
+    area = character(),
+    area_code = integer(),
+    item_cbs = character(),
+    item_cbs_code = integer(),
+    element = character(),
+    value = numeric(),
+    unit = character()
+  )
+  inputs <- list(
+    fbs_old = empty_fbs,
+    fbs_new = tibble::tibble(
+      year = 2023L,
+      area = "Spain",
+      area_code = 203L,
+      item_cbs = "Palmkernel Oil",
+      item_cbs_code = 2577L,
+      element = "production",
+      value = 10,
+      unit = "tonnes"
+    )
+  )
+
+  result <- whep:::.fix_palm_kernels(inputs)
+
+  expect_s3_class(result, "tbl_df")
+  expect_equal(nrow(result), 0L)
+})
+
+test_that(".cbs_impute_trade tolerates missing destiny element columns", {
+  raw <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~value, ~source,
+    2023L, "Spain", 203L, "Wheat", 2511L, "production", 100, "FAOSTAT_prod"
+  )
+
+  result <- whep:::.cbs_impute_trade(raw)
+
+  expect_true(all(
+    c(
+      "food",
+      "feed",
+      "other_uses",
+      "processing",
+      "import",
+      "export",
+      "stock_variation"
+    ) %in%
+      result$element
+  ))
 })
 
 
@@ -142,6 +249,45 @@ test_that(".select_best_source prioritises FAOSTAT_prod source", {
   )
 })
 
+test_that(".select_best_source coalesces integer and double source values", {
+  # Global sources disagree on storage type: the pivoted FAOSTAT_prod /
+  # FAOSTAT_FBS_New inherit an integer raw `value`, while the scaled FBS_Old and
+  # the other-source mean are doubles. fcoalesce() aborts on a mixed set, so the
+  # sources must be coerced to a common numeric type first. Regression for the
+  # global CBS build crashing in `Combining CBS sources`.
+  cbs_raw_all <- tibble::tribble(
+    ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~year, ~value, ~source, ~unit,
+    "China", 41L, "Wheat", 2511L, "production", 2000L, 100L, "FAOSTAT_prod", "tonnes",
+    "China", 41L, "Wheat", 2511L, "production", 2000L, 90.5, "FAOSTAT_FBS_Old", "tonnes",
+    "Brazil", 21L, "Maize", 2514L, "production", 2000L, 55.2, "FAOSTAT_FBS_Old", "tonnes"
+  )
+  result <- whep:::.select_best_source(cbs_raw_all)
+  expect_type(result$value, "double")
+  expect_equal(result$value[result$area_code == 41L], 100)
+  expect_equal(result$value[result$area_code == 21L], 55.2)
+})
+
+test_that(".select_best_source keys on area_code, not periodized name", {
+  # Sources disagree on the `area` name for the same `area_code` (plain name
+  # vs periodized polity name). They must still compete on the integer code
+  # instead of both surviving and being summed downstream (100 + 90 = 190).
+  cbs_raw_all <- tibble::tribble(
+    ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~year, ~value, ~source,
+    "China, mainland", 41L, "Wheat", 2511L, "production", 2010L, 100, "FAOSTAT_prod",
+    "China (PRC)", 41L, "Wheat", 2511L, "production", 2010L, 90, "FAOSTAT_FBS_New"
+  )
+
+  selected <- whep:::.select_best_source(cbs_raw_all)
+  prod <- selected |> dplyr::filter(element == "production")
+  expect_equal(nrow(prod), 1L)
+  expect_equal(prod$value, 100)
+
+  formatted <- whep:::.format_cbs_output(selected)
+  prod_fmt <- formatted |> dplyr::filter(element == "production")
+  expect_equal(nrow(prod_fmt), 1L)
+  expect_equal(prod_fmt$value, 100)
+})
+
 
 # -- .test_cbs -----------------------------------------------------------------
 
@@ -152,6 +298,19 @@ test_that(".test_cbs adds balance check columns", {
   expect_true("balance" %in% names(result))
   expect_true("check" %in% names(result))
   expect_true("domestic_supply" %in% names(result))
+})
+
+test_that(".test_cbs tolerates missing standard element columns", {
+  cbs <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~value,
+    2023L, "Spain", 203L, "Wheat", 2511L, "production", 100
+  )
+
+  result <- whep:::.test_cbs(cbs)
+
+  expect_true(all(c("food", "feed", "import", "export") %in% names(result)))
+  expect_equal(result$feed, 0)
+  expect_true("check" %in% names(result))
 })
 
 
@@ -182,6 +341,28 @@ test_that(".processed_raw creates value_proc column", {
   result <- whep:::.processed_raw(cbs, cb_proc)
   expect_true("value_proc" %in% names(result))
   expect_true("processed_item" %in% names(result))
+})
+
+test_that(".prepare_cb_processing_for_cbs excludes unconditional beer grains", {
+  cb_proc <- tibble::tribble(
+    ~ProcessedItem, ~item_cbs, ~Product_fraction, ~Value_fraction, ~Required,
+    "Barley and products", "Beer", 6.55, 0.9, NA_real_,
+    "Hops", "Beer", 0.28, NA_real_, NA_real_,
+    "Maize and products", "Beer", 6.55, NA_real_, NA_real_,
+    "Maize and products", "Sweeteners, Other", 0.3, NA_real_, NA_real_
+  )
+
+  result <- whep:::.prepare_cb_processing_for_cbs(cb_proc)
+
+  beer_inputs <- result |>
+    dplyr::filter(.data$item_cbs == "Beer") |>
+    dplyr::pull(.data$ProcessedItem)
+
+  expect_setequal(beer_inputs, c("Barley and products", "Hops"))
+  expect_true(any(
+    result$ProcessedItem == "Maize and products" &
+      result$item_cbs == "Sweeteners, Other"
+  ))
 })
 
 
@@ -258,6 +439,80 @@ test_that(".select_best_source uses dataset-specific source names", {
 })
 
 
+# -- historical CBS rows -------------------------------------------------------
+
+test_that(".prepare_historical_cbs accepts generic production-shaped rows", {
+  historical <- tibble::tribble(
+    ~year, ~area_code, ~item_prod_code, ~unit, ~value, ~source,
+    1950L, 203L, "15.0", "tonnes", 100, "future_source",
+    1950L, 203L, "15.0", "tonnes", 120, "historical_future_source",
+    1950L, 203L, "15.0", "ha", 10, "future_source",
+    1800L, 203L, "15.0", "tonnes", 999, "future_source"
+  )
+
+  result <- whep:::.prepare_historical_cbs(
+    historical,
+    years = 1950:1951
+  )
+
+  expect_equal(nrow(result), 1L)
+  expect_equal(result$year, 1950L)
+  expect_equal(result$area, "Spain")
+  expect_equal(result$item_cbs, "Wheat and products")
+  expect_equal(result$item_cbs_code, 2511L)
+  expect_equal(result$element, "production")
+  expect_equal(result$value, 110)
+  expect_true(stringr::str_starts(result$source, "historical_"))
+})
+
+test_that(".cbs_extend_historical preserves observed historical sources", {
+  cbs_raw0 <- tibble::tibble(
+    year = c(1950L, 1961L),
+    area = "Spain",
+    area_code = 203L,
+    item_cbs = "Wheat and products",
+    item_cbs_code = 2511L,
+    element = "food",
+    value = c(50, 100),
+    source = c("historical_test", "FAOSTAT_FBS_Old")
+  )
+  inputs <- list(
+    primary_cbs_area = tibble::tibble(
+      year = 1950:1961,
+      area = "Spain",
+      area_code = 203L,
+      item_cbs = "Wheat and products",
+      item_cbs_code = 2511L,
+      area_ha = 1
+    ),
+    gdp_pop = tibble::tibble(
+      year = 1950:1961,
+      area = "Spain",
+      pop = 1:12
+    ),
+    land_areas_wide = tibble::tibble(
+      year = 1950:1961,
+      area = "Spain",
+      Cropland = 1,
+      Pasture = 0,
+      agriland = 1
+    )
+  )
+
+  result <- whep:::.cbs_extend_historical(cbs_raw0, inputs, 1950:1961)
+
+  observed <- result |>
+    dplyr::filter(.data$year == 1950L, .data$element == "food")
+  filled <- result |>
+    dplyr::filter(.data$year == 1951L, .data$element == "food")
+
+  expect_equal(observed$value, 50)
+  expect_equal(observed$source, "historical_test")
+  expect_false(is.na(filled$value))
+  expect_equal(filled$source, "historical_fill")
+})
+
+
 # -- .format_cbs_output -------------------------------------------------------
 
 test_that(".format_cbs_output returns long format with source column", {
@@ -326,4 +581,27 @@ test_that("trade imputation excludes ethanol, sugar cane, sugar beet", {
 test_that("build_commodity_balances defaults to end_year 2023", {
   formals_cbs <- formals(whep::build_commodity_balances)
   expect_equal(formals_cbs$end_year, 2023)
+})
+
+
+# -- deduplication --------------------------------------------------------------
+
+test_that(".format_cbs_output removes duplicate rows", {
+  df <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~element, ~value, ~source,
+    2000L, 203L, 2511L, "production", 100, "FAOSTAT_prod",
+    2000L, 203L, 2511L, "production", 100, "FAOSTAT_prod",
+    2000L, 203L, 2511L, "import", 50, "FAOSTAT_FBS_New"
+  )
+
+  result <- whep:::.format_cbs_output(df)
+  prod_rows <- result |>
+    dplyr::filter(
+      year == 2000L,
+      area_code == 203L,
+      item_cbs_code == 2511L,
+      element == "production"
+    )
+  expect_equal(nrow(prod_rows), 1L)
+  expect_equal(prod_rows$value, 100)
 })

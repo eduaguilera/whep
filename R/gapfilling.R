@@ -14,6 +14,14 @@
 #' @param time_col The column containing time values. Default: `year`.
 #' @param interpolate Logical. If `TRUE` (default),
 #'   performs linear interpolation.
+#' @param log_space Logical. If `TRUE`, interior interpolation is performed in
+#'   log space (constant compound growth rate) for each gap segment whose two
+#'   bracketing anchors are both finite and strictly positive; any segment with
+#'   a non-positive or non-finite anchor falls back to linear interpolation.
+#'   Default: `FALSE`, i.e. linear interpolation everywhere. Log-space fills are
+#'   labelled `"Log-linear interpolation"` in the source column, distinct from
+#'   `"Linear interpolation"`, so the choice survives downstream. Carrying
+#'   forward or backward is unaffected.
 #' @param fill_forward Logical. If `TRUE` (default),
 #'   carries last value forward.
 #' @param fill_backward Logical. If `TRUE` (default),
@@ -23,6 +31,9 @@
 #'   for variables with high inter-annual variability. If `NULL` (default), no
 #'   smoothing is applied.
 #' @param .by A character vector with the grouping variables (optional).
+#' @param .copy Logical. If `TRUE` (default), data.table inputs are
+#'   defensively copied before mutation. Set to `FALSE` when the caller
+#'   owns the data and does not need the original preserved.
 #'
 #' @return A tibble data frame (ungrouped) where gaps in value_col have been
 #'   filled, and a new "source" variable has been created indicating if the
@@ -47,20 +58,27 @@
 #'   interpolate = FALSE,
 #'   .by = c("category"),
 #' )
+#' fill_linear(sample_tibble, value, log_space = TRUE, .by = c("category"))
 fill_linear <- function(
   data,
   value_col,
   time_col = year,
   interpolate = TRUE,
+  log_space = FALSE,
   fill_forward = TRUE,
   fill_backward = TRUE,
   value_smooth_window = NULL,
-  .by = NULL
+  .by = NULL,
+  .copy = TRUE
 ) {
   value_col_name <- rlang::as_name(rlang::enquo(value_col))
   time_col_name <- rlang::as_name(rlang::enquo(time_col))
   source_col_name <- paste0("source_", value_col_name)
   by_cols <- .by %||% character(0)
+
+  if (!rlang::is_bool(log_space)) {
+    cli::cli_abort("`log_space` must be a single `TRUE` or `FALSE`.")
+  }
 
   n <- nrow(data)
   if (n == 0L) {
@@ -68,13 +86,21 @@ fill_linear <- function(
     return(data)
   }
 
-  # Fast duplicate check: anyDuplicated first, expensive summarise only
-  # if needed
-  dup_cols <- c(by_cols, time_col_name)
+  # Convert once and reuse for both duplicate check and main work
   is_dt <- data.table::is.data.table(data)
-  dt_dup <- if (is_dt) data else data.table::as.data.table(data)
-  if (anyDuplicated(dt_dup[, ..dup_cols]) > 0L) {
-    dups <- dt_dup[, .(n = .N), by = dup_cols][n > 1]
+  dt_work <- if (is_dt && .copy) {
+    data.table::copy(data)
+  } else if (is_dt) {
+    data.table::setalloccol(data)
+    data
+  } else {
+    data.table::as.data.table(data)
+  }
+
+  # Fast duplicate check
+  dup_cols <- c(by_cols, time_col_name)
+  if (anyDuplicated(dt_work[, ..dup_cols]) > 0L) {
+    dups <- dt_work[, .(n = .N), by = dup_cols][n > 1]
     if (nrow(dups) > 0) {
       caller <- tryCatch(
         deparse(sys.call(sys.parent(1L))),
@@ -107,6 +133,7 @@ fill_linear <- function(
       smooth_vals,
       times,
       interpolate,
+      log_space,
       fill_forward,
       fill_backward
     )
@@ -123,12 +150,13 @@ fill_linear <- function(
   if (use_smoothing) {
     # Smoothing requires per-group evaluation; fall back to by= path.
     return(.fill_linear_by_group(
-      data,
+      dt_work,
       value_col_name,
       time_col_name,
       source_col_name,
       by_cols,
       interpolate,
+      log_space,
       fill_forward,
       fill_backward,
       value_smooth_window,
@@ -136,10 +164,15 @@ fill_linear <- function(
     ))
   }
 
-  dt <- if (is_dt) data.table::copy(data) else data.table::as.data.table(data)
+  dt <- dt_work
   sort_cols <- c(by_cols, time_col_name)
-  if (!identical(data.table::key(dt), sort_cols)) {
+  prev_sorted <- attr(data, ".whep_sorted_by")
+  already_sorted <- identical(data.table::key(dt), sort_cols) ||
+    identical(prev_sorted, sort_cols)
+  if (!already_sorted) {
     data.table::setkeyv(dt, sort_cols)
+  } else if (is.null(data.table::key(dt))) {
+    data.table::setattr(dt, "sorted", sort_cols)
   }
 
   val <- dt[[value_col_name]]
@@ -155,7 +188,7 @@ fill_linear <- function(
   nocb_raw <- data.table::nafill(val, "nocb")
 
   # Track which non-NA each fill came from via index-nafill
-  valid_idx <- ifelse(!is_na, seq_len(nn), NA_integer_)
+  valid_idx <- data.table::fifelse(!is_na, seq_len(nn), NA_integer_)
   locf_idx <- data.table::nafill(valid_idx, "locf")
   nocb_idx <- data.table::nafill(valid_idx, "nocb")
 
@@ -190,9 +223,22 @@ fill_linear <- function(
       NA_real_
     )
     interp <- locf + (nocb - locf) * frac
+    if (log_space) {
+      interp_log <- .loglinear_interp(tm, tl, tn, locf, nocb)
+      use_log <- !is.na(interp_log)
+      interp <- data.table::fifelse(use_log, interp_log, interp)
+    }
     mask <- is_na & !is.na(interp) & locf_ok & nocb_ok
     filled[mask] <- interp[mask]
-    source[mask] <- "Linear interpolation"
+    if (log_space) {
+      source[mask] <- data.table::fifelse(
+        use_log[mask],
+        "Log-linear interpolation",
+        "Linear interpolation"
+      )
+    } else {
+      source[mask] <- "Linear interpolation"
+    }
   }
 
   # Carry backward (NAs before first valid in group)
@@ -212,10 +258,12 @@ fill_linear <- function(
   data.table::set(dt, j = value_col_name, value = filled)
   data.table::set(dt, j = source_col_name, value = source)
   data.table::setcolorder(dt, names(data))
-  if (!is_dt) {
-    dt <- tibble::as_tibble(dt)
+  if (is_dt) {
+    attr(dt, ".whep_sorted_by") <- sort_cols
+    dt
+  } else {
+    .dt_to_tibble(dt)
   }
-  dt
 }
 
 # Fallback grouped path for smoothing case (rare).
@@ -226,12 +274,13 @@ fill_linear <- function(
   source_col_name,
   by_cols,
   interpolate,
+  log_space,
   fill_forward,
   fill_backward,
   value_smooth_window,
   is_dt
 ) {
-  dt <- if (is_dt) data.table::copy(data) else data.table::as.data.table(data)
+  dt <- data
   sort_cols <- c(by_cols, time_col_name)
   if (!identical(data.table::key(dt), sort_cols)) {
     data.table::setkeyv(dt, sort_cols)
@@ -258,14 +307,14 @@ fill_linear <- function(
         last_v <- valid[length(valid)]
 
         if (interpolate && length(valid) >= 2L && first_v < last_v) {
-          interp <- .safe_na_approx(sv, x = tm, na.rm = FALSE)
-          if (length(interp) == m) {
+          interp <- .interp_series(sv, tm, log_space)
+          if (length(interp$value) == m) {
             mask <- nna &
-              !is.na(interp) &
+              !is.na(interp$value) &
               seq_len(m) > first_v &
               seq_len(m) < last_v
-            filled[mask] <- interp[mask]
-            src[mask] <- "Linear interpolation"
+            filled[mask] <- interp$value[mask]
+            src[mask] <- .interp_source_label(interp$kind[mask])
           }
         }
         if (fill_backward && first_v > 1L) {
@@ -289,10 +338,12 @@ fill_linear <- function(
   ]
 
   data.table::setcolorder(dt, names(data))
-  if (!is_dt) {
-    dt <- tibble::as_tibble(dt)
+  if (is_dt) {
+    attr(dt, ".whep_sorted_by") <- c(by_cols, time_col_name)
+    dt
+  } else {
+    .dt_to_tibble(dt)
   }
-  dt
 }
 
 # Grouped rolling mean without split/interaction overhead
@@ -314,12 +365,41 @@ fill_linear <- function(
   result
 }
 
+# Convert a data.table to tibble, stripping all data.table attributes.
+.dt_to_tibble <- function(dt) {
+  tibble::as_tibble(as.data.frame(dt))
+}
+
+# Check if a data.frame is already sorted by the given columns.
+# Vectorized O(n × k) lexicographic check — no sorting required.
+.is_sorted_by <- function(data, cols) {
+  n <- nrow(data)
+  if (n <= 1L) {
+    return(TRUE)
+  }
+  ties <- rep(TRUE, n - 1L)
+  for (col in cols) {
+    if (!any(ties)) {
+      return(TRUE)
+    }
+    x <- data[[col]]
+    prev <- x[-n]
+    curr <- x[-1L]
+    if (any(ties & (curr < prev), na.rm = TRUE)) {
+      return(FALSE)
+    }
+    ties <- ties & (curr == prev)
+  }
+  TRUE
+}
+
 # Base R vectorized core for fill_linear (no dplyr)
 .fill_linear_vec <- function(
   orig_vals,
   smooth_vals,
   times,
   interpolate,
+  log_space,
   fill_forward,
   fill_backward
 ) {
@@ -366,11 +446,11 @@ fill_linear <- function(
     if (length(mid_idx) > 0L) {
       na_mid <- mid_idx[is.na(filled[mid_idx])]
       if (length(na_mid) > 0L) {
-        interp <- .safe_na_approx(smooth_vals, x = times, na.rm = FALSE)
-        if (length(interp) == n) {
-          fill_mask <- na_mid[!is.na(interp[na_mid])]
-          filled[fill_mask] <- interp[fill_mask]
-          source[fill_mask] <- "Linear interpolation"
+        interp <- .interp_series(smooth_vals, times, log_space)
+        if (length(interp$value) == n) {
+          fill_mask <- na_mid[!is.na(interp$value[na_mid])]
+          filled[fill_mask] <- interp$value[fill_mask]
+          source[fill_mask] <- .interp_source_label(interp$kind[fill_mask])
         }
       }
     }
@@ -382,6 +462,72 @@ fill_linear <- function(
   source[has_orig] <- "Original"
 
   list(value = filled, source = source)
+}
+
+# Interpolate a series, optionally refilling each interior segment in log space.
+# `smooth_vals` carries NA at gap positions; the non-NA entries are the anchors.
+# The linear baseline is `.safe_na_approx()` (identical to the prior behaviour,
+# so `log_space = FALSE` is a no-op). When `log_space` is TRUE, every gap whose
+# bracketing anchors are both finite and strictly positive is refilled in log
+# space (constant compound growth rate). Returns a list with `value` (the
+# interpolated vector) and `kind` (per-position label: "loglinear", "linear",
+# or NA where no interpolated value was produced).
+.interp_series <- function(smooth_vals, times, log_space) {
+  n <- length(smooth_vals)
+  linear <- .safe_na_approx(smooth_vals, x = times, na.rm = FALSE)
+  if (length(linear) != n) {
+    return(list(value = linear, kind = NA_character_))
+  }
+
+  kind <- data.table::fifelse(is.na(linear), NA_character_, "linear")
+  value <- linear
+
+  if (log_space) {
+    tt <- as.numeric(times)
+    anchor_time <- data.table::fifelse(!is.na(smooth_vals), tt, NA_real_)
+    anchor_val <- as.numeric(smooth_vals)
+    log_val <- .loglinear_interp(
+      tt,
+      data.table::nafill(anchor_time, "locf"),
+      data.table::nafill(anchor_time, "nocb"),
+      data.table::nafill(anchor_val, "locf"),
+      data.table::nafill(anchor_val, "nocb")
+    )
+    use_log <- is.na(smooth_vals) & !is.na(log_val) & !is.na(linear)
+    value[use_log] <- log_val[use_log]
+    kind[use_log] <- "loglinear"
+  }
+
+  list(value = value, kind = kind)
+}
+
+# Log-space (constant-growth) interpolation between bracketing anchors.
+# Returns the interpolated value where both anchors are finite and strictly
+# positive and the anchor times differ; NA elsewhere (the caller keeps its
+# linear value there). Non-positive anchors are floored to 1 before `log()`
+# purely to avoid NaN warnings; those positions are discarded by `usable`.
+.loglinear_interp <- function(t, t0, t1, v0, v1) {
+  span <- t1 - t0
+  usable <- is.finite(v0) &
+    is.finite(v1) &
+    v0 > 0 &
+    v1 > 0 &
+    is.finite(span) &
+    span != 0
+  safe_v0 <- data.table::fifelse(usable, v0, 1)
+  safe_v1 <- data.table::fifelse(usable, v1, 1)
+  frac <- (t - t0) / span
+  out <- exp(log(safe_v0) + frac * (log(safe_v1) - log(safe_v0)))
+  data.table::fifelse(usable, out, NA_real_)
+}
+
+# Map per-position interpolation `kind` labels to source-column strings.
+.interp_source_label <- function(kind) {
+  data.table::fifelse(
+    !is.na(kind) & kind == "loglinear",
+    "Log-linear interpolation",
+    "Linear interpolation"
+  )
 }
 
 #' Fill gaps summing the previous value of a variable to the value of
@@ -960,7 +1106,13 @@ fill_proxy_growth <- function(
 
   dt_data <- data.table::as.data.table(data)
   dt_summary <- data.table::as.data.table(summary_dt)
-  result <- merge(dt_data, dt_summary, by = join_keys, all.x = TRUE)
+  result <- merge(
+    dt_data,
+    dt_summary,
+    by = join_keys,
+    all.x = TRUE,
+    sort = FALSE
+  )
   as.data.frame(result)
 }
 
@@ -1127,12 +1279,14 @@ fill_proxy_growth <- function(
     .parse_proxy_spec(p, data, value_col, .by, FALSE)$spec_name
   })
 
-  # Save original order, sort by group + time
+  # Save original order, sort by group + time (skip if already sorted)
   data$.orig_order <- seq_len(nrow(data))
   sort_cols <- unique(c(by_cols, time_col))
-  dt <- data.table::as.data.table(data)
-  data.table::setorderv(dt, sort_cols)
-  data <- as.data.frame(dt)
+  if (!.is_sorted_by(data, sort_cols)) {
+    dt <- data.table::as.data.table(data)
+    data.table::setorderv(dt, sort_cols)
+    data <- as.data.frame(dt)
+  }
 
   # Compute run structure from raw_missing (static across all levels)
   data <- .fg_add_run_info(data, cols$raw_missing, by_cols)
@@ -1267,7 +1421,7 @@ fill_proxy_growth <- function(
   ]
 
   data <- as.data.frame(
-    merge(dt, run_meta, by = ".run_id", all.x = TRUE)
+    merge(dt, run_meta, by = ".run_id", all.x = TRUE, sort = FALSE)
   )
 
   data$.is_miss_tmp <- NULL
@@ -1297,16 +1451,25 @@ fill_proxy_growth <- function(
 
   is_missing <- !is.na(mets) & mets == "missing"
 
-  # Forward anchor: last non-NA value within group
-  anchor_raw <- ifelse(is.na(vals), NA_real_, vals)
+  # Forward anchor: last non-NA value within group (vectorized LOCF)
+  anchor_raw <- data.table::fifelse(is.na(vals), NA_real_, vals)
+  locf_raw <- data.table::nafill(anchor_raw, "locf")
   if (length(by_cols) > 0) {
-    data$.anchor_tmp <- anchor_raw
-    dt <- data.table::as.data.table(data)
-    dt[, .anchor_tmp := zoo::na.locf(.anchor_tmp, na.rm = FALSE), by = by_cols]
-    anchor <- dt$.anchor_tmp
-    data$.anchor_tmp <- NULL
+    nn <- length(anchor_raw)
+    grp <- data.table::rleidv(
+      data.table::as.data.table(data),
+      cols = by_cols
+    )
+    valid_idx <- data.table::fifelse(
+      !is.na(anchor_raw),
+      seq_len(nn),
+      NA_integer_
+    )
+    locf_idx <- data.table::nafill(valid_idx, "locf")
+    locf_ok <- !is.na(locf_idx) & grp[locf_idx] == grp
+    anchor <- data.table::fifelse(locf_ok, locf_raw, NA_real_)
   } else {
-    anchor <- zoo::na.locf(anchor_raw, na.rm = FALSE)
+    anchor <- locf_raw
   }
 
   # Segments: consecutive target positions, respecting run boundaries
@@ -1314,8 +1477,8 @@ fill_proxy_growth <- function(
   seg_id <- cumsum(seg_change)
 
   # Growth factor and cumulative product per segment
-  g_factor <- ifelse(is.na(growth), NA_real_, 1 + growth)
-  filled <- ave(g_factor, seg_id, FUN = cumprod) * anchor
+  g_factor <- data.table::fifelse(is.na(growth), NA_real_, 1 + growth)
+  filled <- .seg_cumprod(g_factor, seg_id) * anchor
 
   # Validity: anchor > 0, result finite
   valid <- target &
@@ -1323,7 +1486,7 @@ fill_proxy_growth <- function(
     anchor > 0 &
     !is.na(filled) &
     is.finite(filled)
-  valid <- as.logical(ave(as.numeric(valid), seg_id, FUN = cummin)) & target
+  valid <- as.logical(.seg_cummin(as.numeric(valid), seg_id)) & target
 
   vals[valid] <- filled[valid]
   mets[valid & is_missing] <- m_name
@@ -1353,26 +1516,32 @@ fill_proxy_growth <- function(
 
   is_missing <- !is.na(mets) & mets == "missing"
 
-  # Backward anchor: next non-NA value within group
-  anchor_raw <- ifelse(is.na(vals), NA_real_, vals)
+  # Backward anchor: next non-NA value within group (vectorized NOCB)
+  anchor_raw <- data.table::fifelse(is.na(vals), NA_real_, vals)
+  nocb_raw <- data.table::nafill(anchor_raw, "nocb")
+  nn <- length(anchor_raw)
   if (length(by_cols) > 0) {
-    data$.anchor_tmp <- anchor_raw
-    data$.g_tmp <- growth
-    dt <- data.table::as.data.table(data)
-    dt[,
-      `:=`(
-        .anchor_tmp = zoo::na.locf(.anchor_tmp, na.rm = FALSE, fromLast = TRUE),
-        .g_shifted = data.table::shift(.g_tmp, 1L, type = "lead")
-      ),
-      by = by_cols
-    ]
-    anchor <- dt$.anchor_tmp
-    g_shifted <- dt$.g_shifted
-    data$.anchor_tmp <- NULL
-    data$.g_tmp <- NULL
+    grp <- data.table::rleidv(
+      data.table::as.data.table(data),
+      cols = by_cols
+    )
+    valid_idx <- data.table::fifelse(
+      !is.na(anchor_raw),
+      seq_len(nn),
+      NA_integer_
+    )
+    nocb_idx <- data.table::nafill(valid_idx, "nocb")
+    nocb_ok <- !is.na(nocb_idx) & grp[nocb_idx] == grp
+    anchor <- data.table::fifelse(nocb_ok, nocb_raw, NA_real_)
+    # Shift growth forward within groups
+    g_shifted <- c(growth[-1L], NA_real_)
+    first_of_grp <- c(FALSE, diff(grp) != 0L)
+    # Last element of each group has no successor
+    last_of_grp <- c(diff(grp) != 0L, TRUE)
+    g_shifted[last_of_grp] <- NA_real_
   } else {
-    anchor <- zoo::na.locf(anchor_raw, na.rm = FALSE, fromLast = TRUE)
-    g_shifted <- c(growth[-1], NA_real_)
+    anchor <- nocb_raw
+    g_shifted <- c(growth[-1L], NA_real_)
   }
 
   # Segments: consecutive target positions, respecting run boundaries
@@ -1380,15 +1549,13 @@ fill_proxy_growth <- function(
   seg_id <- cumsum(seg_change)
 
   # Reverse cumprod within each segment
-  g_factor <- ifelse(is.na(g_shifted), NA_real_, 1 + g_shifted)
-  rev_cp <- ave(g_factor, seg_id, FUN = function(x) rev(cumprod(rev(x))))
+  g_factor <- data.table::fifelse(is.na(g_shifted), NA_real_, 1 + g_shifted)
+  rev_cp <- .seg_rev_cumprod(g_factor, seg_id)
   filled <- anchor / rev_cp
 
   # Validity: result must be finite and > 0
   valid <- target & !is.na(filled) & is.finite(filled) & filled > 0
-  valid <- as.logical(
-    ave(as.numeric(valid), seg_id, FUN = function(x) rev(cummin(rev(x))))
-  ) &
+  valid <- as.logical(.seg_rev_cummin(as.numeric(valid), seg_id)) &
     target
 
   vals[valid] <- filled[valid]
@@ -1397,6 +1564,39 @@ fill_proxy_growth <- function(
   data[[val_col]] <- vals
   data[[met_col]] <- mets
   data
+}
+
+# Segmented cumprod using data.table by= (avoids ave() overhead).
+.seg_cumprod <- function(x, seg_id) {
+  dt <- data.table::data.table(x = x, seg = seg_id)
+  dt[, cp := cumprod(data.table::fifelse(is.na(x), 1, x)), by = seg]
+  dt[is.na(x), cp := NA_real_]
+  dt$cp
+}
+
+# Reverse segmented cumprod.
+.seg_rev_cumprod <- function(x, seg_id) {
+  nn <- length(x)
+  rev_idx <- nn:1L
+  .seg_cumprod(x[rev_idx], seg_id[rev_idx])[rev_idx]
+}
+
+# Segmented cummin using cumsum-with-resets (fully vectorized).
+# For binary 0/1 input: 1 until first 0 in segment, then 0.
+.seg_cummin <- function(x, seg_id) {
+  seg_start <- c(TRUE, diff(seg_id) != 0L)
+  bad <- 1 - x
+  global_cs <- cumsum(bad)
+  base <- data.table::fifelse(seg_start, global_cs - bad, NA_real_)
+  base <- data.table::nafill(base, "locf")
+  as.numeric((global_cs - base) == 0)
+}
+
+# Reverse segmented cummin.
+.seg_rev_cummin <- function(x, seg_id) {
+  nn <- length(x)
+  rev_idx <- nn:1L
+  .seg_cummin(x[rev_idx], seg_id[rev_idx])[rev_idx]
 }
 
 .fg_fill_bridge_linear_vec <- function(
@@ -1452,7 +1652,13 @@ fill_proxy_growth <- function(
 
   if (nrow(run_anchors) > 0) {
     dt_all <- data.table::as.data.table(data)
-    dt_all <- merge(dt_all, run_anchors, by = ".run_id", all.x = TRUE)
+    dt_all <- merge(
+      dt_all,
+      run_anchors,
+      by = ".run_id",
+      all.x = TRUE,
+      sort = FALSE
+    )
     data <- as.data.frame(dt_all)
     interp <- data$.v0 +
       (data$.v1 - data$.v0) *
@@ -1570,7 +1776,8 @@ fill_proxy_growth <- function(
       dt_all,
       run_meta,
       by = ".run_id",
-      all.x = TRUE
+      all.x = TRUE,
+      sort = FALSE
     )
     data <- as.data.frame(dt_all)
     geo_target <- eligible & !is.na(data$.lambda)
@@ -1708,6 +1915,11 @@ fill_proxy_growth <- function(
 }
 
 .parse_proxy_spec <- function(spec, data, value_col, group_by, verbose) {
+  # Advanced grouped syntax "variable:group1+group2" (optional "[weight]").
+  if (grepl(":", spec)) {
+    return(.parse_grouped_proxy_spec(spec, data))
+  }
+
   weight_col <- NULL
   col_name <- spec
   if (grepl("\\[", spec)) {
@@ -1724,6 +1936,8 @@ fill_proxy_growth <- function(
 
   col_name <- trimws(col_name)
 
+  present <- function(g) intersect(g, names(data))
+
   if (col_name %in% c("global", "all", "total")) {
     if (verbose) {
       message("Using global aggregation (no grouping)")
@@ -1731,6 +1945,7 @@ fill_proxy_growth <- function(
     return(list(
       source_var = value_col,
       group_vars = NULL,
+      present_group_vars = character(),
       weight_col = weight_col,
       spec_name = paste0("global", if (!is.null(weight_col)) "_w" else "")
     ))
@@ -1753,38 +1968,26 @@ fill_proxy_growth <- function(
       return(list(
         source_var = col_name,
         group_vars = group_by,
+        present_group_vars = present(group_by),
         weight_col = weight_col,
         spec_name = paste0(
-          col_name,
-          if (!is.null(weight_col)) "_w" else ""
-        )
-      ))
-    } else {
-      if (verbose) {
-        message(
-          "Auto-detected '",
-          col_name,
-          "' as categorical -> ",
-          "using as grouping variable"
-        )
-      }
-      return(list(
-        source_var = value_col,
-        group_vars = col_name,
-        weight_col = weight_col,
-        spec_name = paste0(
-          value_col,
-          "_",
           col_name,
           if (!is.null(weight_col)) "_w" else ""
         )
       ))
     }
-  } else {
-    warning("Column '", col_name, "' not found in data")
+    if (verbose) {
+      message(
+        "Auto-detected '",
+        col_name,
+        "' as categorical -> ",
+        "using as grouping variable"
+      )
+    }
     return(list(
       source_var = value_col,
       group_vars = col_name,
+      present_group_vars = present(col_name),
       weight_col = weight_col,
       spec_name = paste0(
         value_col,
@@ -1795,10 +1998,28 @@ fill_proxy_growth <- function(
     ))
   }
 
-  parts <- strsplit(spec, ":")[[1]]
-  source_var <- parts[1]
-  rhs <- if (length(parts) > 1) parts[2] else ""
+  cli::cli_warn("Column {.val {col_name}} not found in data.")
+  list(
+    source_var = value_col,
+    group_vars = col_name,
+    present_group_vars = present(col_name),
+    weight_col = weight_col,
+    spec_name = paste0(
+      value_col,
+      "_",
+      col_name,
+      if (!is.null(weight_col)) "_w" else ""
+    )
+  )
+}
 
+# Parse the advanced "variable:group1+group2[weight]" proxy syntax, where the
+# growth reference is `variable` aggregated over the `+`-separated grouping
+# columns (optionally weighted by `weight`).
+.parse_grouped_proxy_spec <- function(spec, data) {
+  parts <- strsplit(spec, ":")[[1]]
+  source_var <- trimws(parts[1])
+  rhs <- if (length(parts) > 1) parts[2] else ""
   if (is.na(rhs)) {
     rhs <- ""
   }
@@ -1830,6 +2051,7 @@ fill_proxy_growth <- function(
   list(
     source_var = source_var,
     group_vars = group_vars,
+    present_group_vars = intersect(group_vars, names(data)),
     weight_col = weight_col,
     spec_name = spec_name
   )

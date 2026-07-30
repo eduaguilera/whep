@@ -7,7 +7,11 @@
 #'
 #' @param make_map If TRUE a map of the typologies will be created.
 #'
-#' @param shapefile_path Path to the shapefile used for mapping provinces.
+#' @param shapefile_path Optional path to a Natural Earth 10m admin-1
+#'   states/provinces shapefile. When `NULL` (default) the layer is
+#'   downloaded from <https://www.naturalearthdata.com> on first use and
+#'   cached locally; set `options(whep.provinces_shapefile = )` to point at
+#'   an existing copy instead.
 #'
 #' @param map_year The year for which the typology map is created.
 #'
@@ -16,16 +20,13 @@
 #' @export
 create_typologies_of_josette <- function(
   make_map = TRUE,
-  shapefile_path = paste0(
-    "C:/PhD/GRAFS/Production Boxes/",
-    "Final Files/Inputs/ne_10m_admin_1_states_provinces.shp"
-  ),
+  shapefile_path = NULL,
   map_year = 1980
 ) {
-  inputs_dir <- "C:/PhD/GRAFS/Production Boxes/Final Files/Inputs"
+  shapefile_path <- .provinces_shapefile(shapefile_path)
 
   # Load datasets
-  data <- .load_inputs_josette(inputs_dir, shapefile_path)
+  data <- .load_inputs_josette(shapefile_path)
   str(data$n_input_df)
 
   consumption <- .calculate_consumption_prod(data$grafs_prod_destiny_git)
@@ -40,7 +41,7 @@ create_typologies_of_josette <- function(
 
   intensive_list <- .calculate_imported_feed(
     data$Livestock_Prod_ygps,
-    data$Codes_coefs,
+    data$livestock_units,
     data$NPP_ygpit,
     data$PIE_FullDestinies_FM,
     data$grafs_prod_destiny_git
@@ -98,53 +99,32 @@ create_typologies_of_josette <- function(
 #' @description Loads all necessary datasets, including shapefiles for
 #' Spanish provinces.
 #' @param shapefile_path The local path where the input data are located.
-#' @param inputs_dir Path to the input data directory.
 #' @keywords internal
 #' @noRd
-.load_inputs_josette <- function(inputs_dir, shapefile_path) {
-  layer_name <- tools::file_path_sans_ext(basename(shapefile_path))
-
-  sf_provinces_spain <- sf::st_read(
-    shapefile_path,
-    query = paste0(
-      "SELECT * FROM ",
-      layer_name,
-      " WHERE iso_a2 = 'ES'"
-    )
-  )
-
+.load_inputs_josette <- function(shapefile_path) {
   list(
-    Livestock_Prod_ygps = readr::read_csv(file.path(
-      inputs_dir,
-      "Livestock_Prod_ygps.csv"
-    )),
-    Codes_coefs = readxl::read_excel(
-      file.path(inputs_dir, "Codes_coefs.xlsx"),
-      sheet = "Liv_LU_coefs"
-    ),
-    codes_coefs_item = readxl::read_excel(
-      file.path(inputs_dir, "Codes_coefs.xlsx"),
-      sheet = "items_full"
-    ),
-    NPP_ygpit = readr::read_csv(file.path(inputs_dir, "NPP_ygpit.csv.gz")),
-    grafs_prod_destiny_git = readr::read_csv(file.path(
-      inputs_dir,
-      "GRAFS_Prod_Destiny_git.csv"
-    )),
-    PIE_FullDestinies_FM = readr::read_csv(file.path(
-      inputs_dir,
-      "PIE_FullDestinies_FM.csv"
-    )),
-    biomass_coefs = readxl::read_excel(
-      file.path(
-        inputs_dir,
-        "Biomass_coefs.xlsx"
-      ),
-      sheet = "Coefs",
-      skip = 1
-    ),
-    sf_provinces_spain = sf_provinces_spain,
-    n_input_df = readr::read_csv(file.path(inputs_dir, "n_inputs_combined.csv"))
+    Livestock_Prod_ygps = whep_read_file("livestock_prod_ygps"),
+    livestock_units = whep_read_file("livestock_units"),
+    codes_coefs_item = whep_read_file("codes_coefs_items_full"),
+    NPP_ygpit = whep_read_file("npp_ygpit"),
+    grafs_prod_destiny_git = .grafs_prod_destiny_legacy(),
+    PIE_FullDestinies_FM = whep_read_file("pie_full_destinies_fm"),
+    biomass_coefs = whep_read_file("biomass_coefs"),
+    sf_provinces_spain = .read_spain_provinces(shapefile_path),
+    # N soil inputs are computed by the package rather than read from a
+    # precomputed file, so they follow the current n_balance pin (including
+    # the corrected Excreta) instead of a frozen snapshot.
+    n_input_df = create_n_soil_inputs() |>
+      dplyr::rename(
+        Year = year,
+        Province_name = province_name,
+        Box = box,
+        MgN_dep = deposition,
+        MgN_fix = fixation,
+        MgN_syn = synthetic,
+        MgN_manure = manure,
+        MgN_urban = urban
+      )
   )
 }
 
@@ -266,8 +246,8 @@ create_typologies_of_josette <- function(
 #'
 #' @param livestock_df A data frame containing livestock production per year
 #' and province.
-#' @param codes_coefs_df A data frame with livestock unit (LU) coefficients for
-#' different categories.
+#' @param livestock_units_df A data frame with livestock unit (LU) coefficients
+#' for different categories.
 #' @param npp_df A data frame with net primary production (NPP) and agricultural
 #'  area (UAA) data.
 #' @param feed_df A data frame containing feed data including import, export,
@@ -281,12 +261,12 @@ create_typologies_of_josette <- function(
 #' @noRd
 .calculate_imported_feed <- function(
   livestock_df,
-  codes_coefs_df,
+  livestock_units_df,
   npp_df,
   feed_df,
   destiny_df
 ) {
-  lu_coefs <- .prepare_lu_coefs(codes_coefs_df)
+  lu_coefs <- .prepare_lu_coefs(livestock_units_df)
   lu_detailed <- .calculate_lu_totals(livestock_df, lu_coefs)
   lu_totals <- .aggregate_lu_totals(lu_detailed)
   area_uaa <- .aggregate_area_aa(npp_df)
@@ -391,6 +371,10 @@ create_typologies_of_josette <- function(
       names_from = Element,
       values_from = Value_destiny_N,
       values_fill = 0
+    ) |>
+    dplyr::summarise(
+      dplyr::across(c(Production, Export, Import), \(x) sum(x, na.rm = TRUE)),
+      .by = Year
     )
 
   # Calculate total Livestock Units (LU) in Spain per year
@@ -503,18 +487,7 @@ create_typologies_of_josette <- function(
   shapefile_path,
   map_year
 ) {
-  layer_name <- tools::file_path_sans_ext(basename(shapefile_path))
-
-  sf_provinces <- sf::st_read(
-    shapefile_path,
-    query = paste0(
-      "SELECT * FROM ",
-      layer_name,
-      " WHERE iso_a2 = 'ES'"
-    )
-  )
-
-  sf_provinces <- sf_provinces |>
+  sf_provinces <- .read_spain_provinces(shapefile_path) |>
     dplyr::mutate(
       name = stringi::stri_trans_general(name, "Latin-ASCII"),
       name = gsub(" ", "_", name),

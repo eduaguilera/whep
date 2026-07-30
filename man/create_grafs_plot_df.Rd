@@ -2,15 +2,24 @@
 % Please edit documentation in R/grafs_plot_df.R
 \name{create_grafs_plot_df}
 \alias{create_grafs_plot_df}
-\title{Create GRAFS plot dataset}
+\title{Create GRAFS plot dataset.}
 \usage{
-create_grafs_plot_df()
+create_grafs_plot_df(example = FALSE)
+}
+\arguments{
+\item{example}{If \code{TRUE}, return a small example output without downloading
+remote data. Default is \code{FALSE}.}
 }
 \value{
-A tibble containing province, year, label, data, and alignment.
+A tibble with columns \code{province}, \code{year}, \code{label}, \code{data}, \code{align}, and
+\code{arrowColor}. Each \code{label} is a GRAFS template token (e.g. \code{{ARAiN}}) and
+\code{data} holds its value as a character string.
 }
 \description{
 Combines land input data and N flows from crops, livestock, imports, and
-exports to generate a dataset of nitrogen (mg_n) by province and year, to
-create a GRAFS plot, offered by Alfredo Rodríguez.
+exports to generate a dataset of nitrogen (MgN) by province and year, ready
+to feed the GRAFS plot package offered by Alfredo Rodriguez.
+}
+\examples{
+create_grafs_plot_df(example = TRUE)
 }

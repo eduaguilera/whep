@@ -5,17 +5,16 @@
 \title{Create WHEP typologies for Spain}
 \usage{
 create_typologies_whep(
-  prod_destiny = create_n_prov_destiny()$prod_destiny,
-  prod_n = create_n_prov_destiny()$grafs_prod_item_n,
+  prod_destiny = create_n_prov_destiny(),
+  prod_n = dplyr::rename(create_n_production(), production_n = prod),
   years = 2020
 )
 }
 \arguments{
-\item{prod_destiny}{Data frame with consumption data
-(food, feed, other_uses).}
+\item{prod_destiny}{Tibble with N flows from \code{create_n_prov_destiny()}.}
 
-\item{prod_n}{Data frame with production data (production_n) from
-grafs_prod_item_n.}
+\item{prod_n}{Tibble with per-item N production from \code{create_n_production()}
+(column \code{prod}, renamed here to \code{production_n}).}
 
 \item{years}{Numeric vector of years to include (default = 2020).}
 }

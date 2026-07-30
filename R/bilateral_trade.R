@@ -5,6 +5,8 @@
 #'
 #' @param example If `TRUE`, return a small example output without
 #'   downloading remote data. Default is `FALSE`.
+#' @param cbs Optional pre-computed wide CBS tibble from
+#'   [get_wide_cbs()]. If `NULL` (default), it is built internally.
 #'
 #' @returns
 #' A tibble with the reported trade between countries. For efficient
@@ -95,20 +97,27 @@
 #'
 #' @examples
 #' get_bilateral_trade(example = TRUE)
-get_bilateral_trade <- function(example = FALSE) {
+get_bilateral_trade <- function(example = FALSE, cbs = NULL) {
   if (example) {
     return(.example_get_bilateral_trade())
   }
 
-  cbs <- get_wide_cbs() |>
+  if (is.null(cbs)) {
+    cbs <- get_wide_cbs()
+  }
+  cbs <- cbs |>
     dplyr::select(year, item_cbs_code, area_code, export, import)
 
+  cli::cli_progress_step("Reading raw bilateral trade data")
   btd <- "bilateral_trade" |>
     whep_read_file() |>
     .clean_bilateral_trade()
 
   codes <- .get_all_country_codes(btd, cbs)
 
+  cli::cli_progress_step(
+    "Balancing trade matrices ({nrow(btd)} year-item groups)"
+  )
   btd |>
     .nest_by_year_item_code(cbs, codes) |>
     .process_bilateral_trade(codes) |>
@@ -119,7 +128,13 @@ get_bilateral_trade <- function(example = FALSE) {
   n <- length(codes)
   code_int <- as.integer(levels(codes))
   ngroups <- nrow(btd)
-  n_cores <- max(1L, parallel::detectCores() %/% 2L)
+  # mclapply() forks, which is unavailable on Windows; run serially there.
+  # Same OS guard as spatialize.R. Output is identical on all platforms.
+  n_cores <- if (.Platform$OS.type == "windows") {
+    1L
+  } else {
+    max(1L, parallel::detectCores() %/% 2L)
+  }
 
   btd$bilateral_trade <- parallel::mclapply(
     seq_len(ngroups),
@@ -135,8 +150,9 @@ get_bilateral_trade <- function(example = FALSE) {
 }
 
 .balance_matrix <- function(trade_matrix, total_trade) {
-  exports <- total_trade$balanced_export
-  imports <- total_trade$balanced_import
+  targets <- .trade_targets(total_trade, trade_matrix)
+  exports <- targets$balanced_export
+  imports <- targets$balanced_import
   n <- length(exports)
 
   if (sum(exports) == 0 && sum(imports) == 0) {
@@ -150,9 +166,20 @@ get_bilateral_trade <- function(example = FALSE) {
   active <- which(exports > 0 | imports > 0)
   sub <- trade_matrix[active, active, drop = FALSE]
   sub[sub == 0] <- 1
+  # RAS/IPF scales multiplicatively, so a cell that is genuinely 0 going in
+  # stays 0 through every iteration; but the seeding line above treats the
+  # diagonal (self-trade, always 0) like any other unobserved zero, which
+  # would let IPF allocate a spurious i -> i flow to hit the row/column
+  # totals. Re-zero it so self-trade can never re-enter the balanced matrix.
+  sub <- .zero_diagonal(sub)
   sub <- .ipf_2d(sub, exports[active], imports[active])
 
-  result <- matrix(0, nrow = n, ncol = n)
+  result <- matrix(
+    0,
+    nrow = n,
+    ncol = n,
+    dimnames = dimnames(trade_matrix)
+  )
   result[active, active] <- sub
   result
 }
@@ -207,9 +234,10 @@ get_bilateral_trade <- function(example = FALSE) {
 }
 
 .fill_missing_trade <- function(trade_matrix, total_trade) {
-  exports <- total_trade$export
-  imports <- total_trade$import
-  balanced_exports <- total_trade$balanced_export
+  targets <- .trade_targets(total_trade, trade_matrix)
+  exports <- targets$export
+  imports <- targets$import
+  balanced_exports <- targets$balanced_export
 
   na_mask <- is.na(trade_matrix)
   estimate <- .estimate_bilateral_trade(exports, imports)
@@ -226,7 +254,59 @@ get_bilateral_trade <- function(example = FALSE) {
   # TODO: Adapt this to our needs
   k_trust_factor <- 0.1
   trade_matrix[na_mask] <- estimate[na_mask] * k_trust_factor
+  # The diagonal (a country trading with itself) starts NA from
+  # .build_trade_matrix() and would otherwise be filled by the estimate above,
+  # like any other missing cell -- but self-trade is never a real flow.
+  .zero_diagonal(trade_matrix)
+}
+
+# Force the diagonal of a country x country trade matrix to exactly 0. A
+# country never trades with itself; used both after estimating missing trade
+# (.fill_missing_trade()) and after IPF's zero-seeding step (.balance_matrix())
+# so self-trade can never re-enter the matrix.
+.zero_diagonal <- function(trade_matrix) {
+  diag(trade_matrix) <- 0
   trade_matrix
+}
+
+.trade_targets <- function(total_trade, trade_matrix) {
+  use_names <- rlang::has_name(total_trade, "area_code") &&
+    !is.null(rownames(trade_matrix)) &&
+    !is.null(colnames(trade_matrix))
+
+  if (!use_names) {
+    return(list(
+      export = total_trade$export,
+      import = total_trade$import,
+      balanced_export = total_trade$balanced_export,
+      balanced_import = total_trade$balanced_import
+    ))
+  }
+
+  area_codes <- as.character(total_trade$area_code)
+  row_idx <- match(rownames(trade_matrix), area_codes)
+  col_idx <- match(colnames(trade_matrix), area_codes)
+
+  list(
+    export = .target_by_index(total_trade$export, row_idx),
+    import = .target_by_index(total_trade$import, col_idx),
+    balanced_export = .target_by_index(
+      total_trade$balanced_export,
+      row_idx
+    ),
+    balanced_import = .target_by_index(
+      total_trade$balanced_import,
+      col_idx
+    )
+  )
+}
+
+.target_by_index <- function(values, idx) {
+  result <- rep(0, length(idx))
+  valid <- !is.na(idx)
+  result[valid] <- values[idx[valid]]
+  result[is.na(result)] <- 0
+  result
 }
 
 .downscale_estimate_matrix <- function(needed_estimates, balances) {
@@ -244,7 +324,7 @@ get_bilateral_trade <- function(example = FALSE) {
     dplyr::mutate(area_code = factor(area_code, levels = codes))
 
   btd |>
-    dplyr::filter(unit == "tonnes") |>
+    dplyr::filter(unit %in% c("tonnes", "heads")) |>
     dplyr::select(-unit) |>
     .filter_only_items_in_cbs(cbs) |>
     tidyr::nest(
@@ -320,6 +400,11 @@ get_bilateral_trade <- function(example = FALSE) {
     ncol = n,
     dimnames = list(code_levels, code_levels)
   )
+  btd <- btd |>
+    dplyr::summarise(
+      value = sum(.data$value, na.rm = TRUE),
+      .by = c("from_code", "to_code")
+    )
   rows <- match(btd$from_code, code_int)
   cols <- match(btd$to_code, code_int)
   m[cbind(rows, cols)] <- btd$value
@@ -336,6 +421,10 @@ get_bilateral_trade <- function(example = FALSE) {
   tcrossprod(exports, imports * scale)
 }
 
+# Iterative proportional fitting of the bilateral trade matrix. This
+# is RAS / biproportional fitting and delegates to the shared core in
+# balance.R; trade matrices are small and dense, so they take the
+# dense scaling path. Returns the best estimate even if not converged.
 .ipf_2d <- function(
   seed,
   target_rows,
@@ -343,29 +432,5 @@ get_bilateral_trade <- function(example = FALSE) {
   max_iter = 1000L,
   tol = 0.1
 ) {
-  m <- seed
-  nr <- nrow(m)
-  nc <- ncol(m)
-  ones <- rep.int(1, nr)
-  check_every <- 5L
-  for (i in seq_len(max_iter)) {
-    rs <- .rowSums(m, nr, nc)
-    rs[rs == 0] <- 1
-    m <- m * (target_rows / rs)
-
-    cs <- .colSums(m, nr, nc)
-    cs[cs == 0] <- 1
-    m <- m * tcrossprod(ones, target_cols / cs)
-
-    if (i %% check_every == 0L) {
-      row_err <- max(abs(
-        .rowSums(m, nr, nc) - target_rows
-      ))
-      col_err <- max(abs(
-        .colSums(m, nr, nc) - target_cols
-      ))
-      if (row_err < tol && col_err < tol) break
-    }
-  }
-  m
+  .ras_iterate(seed, target_rows, target_cols, max_iter, tol)$m
 }

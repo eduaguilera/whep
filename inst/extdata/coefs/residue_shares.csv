@@ -1,0 +1,2017 @@
+item_prod_code,item_prod_name,name_biomass,year,use_share,burn_share,source,to_be_revised
+101,Canary seed,Canary grass,1900,0.595901983291814,0,Spain_Hist,TRUE
+101,Canary seed,Canary grass,1910,0.595901983291814,0,Spain_Hist,TRUE
+101,Canary seed,Canary grass,1922,0.566923015580893,0,Spain_Hist,TRUE
+101,Canary seed,Canary grass,1933,0.570244923257435,0,Spain_Hist,TRUE
+101,Canary seed,Canary grass,1940,0.58899913578199,0,Spain_Hist,TRUE
+101,Canary seed,Canary grass,1950,0.697003380389316,0.0036359594353282,Spain_Hist,TRUE
+101,Canary seed,Canary grass,1960,0.710994621731071,0.0101151882394125,Spain_Hist,TRUE
+101,Canary seed,Canary grass,1970,0.690071229995184,0.0220049426703419,Spain_Hist,TRUE
+101,Canary seed,Canary grass,1980,0.582122043230818,0.0296693349306119,Spain_Hist,TRUE
+101,Canary seed,Canary grass,1990,0.51923227688537,0.0341345083411388,Spain_Hist,TRUE
+101,Canary seed,Canary grass,2000,0.378442796928421,0.0111880296552884,Spain_Hist,TRUE
+101,Canary seed,Canary grass,2008,0.26525497326933,0.00881694032076804,Spain_Hist,TRUE
+103,Mixed grain,Cereals nes,1900,0.595901983291814,0,Spain_Hist,TRUE
+103,Mixed grain,Cereals nes,1910,0.595901983291814,0,Spain_Hist,TRUE
+103,Mixed grain,Cereals nes,1922,0.566923015580893,0,Spain_Hist,TRUE
+103,Mixed grain,Cereals nes,1933,0.570244923257435,0,Spain_Hist,TRUE
+103,Mixed grain,Cereals nes,1940,0.58899913578199,0,Spain_Hist,TRUE
+103,Mixed grain,Cereals nes,1950,0.697003380389316,0.0036359594353282,Spain_Hist,TRUE
+103,Mixed grain,Cereals nes,1960,0.710994621731071,0.0101151882394125,Spain_Hist,TRUE
+103,Mixed grain,Cereals nes,1970,0.690071229995184,0.0220049426703419,Spain_Hist,TRUE
+103,Mixed grain,Cereals nes,1980,0.582122043230818,0.0296693349306119,Spain_Hist,TRUE
+103,Mixed grain,Cereals nes,1990,0.51923227688537,0.0341345083411388,Spain_Hist,TRUE
+103,Mixed grain,Cereals nes,2000,0.378442796928421,0.0111880296552884,Spain_Hist,TRUE
+103,Mixed grain,Cereals nes,2008,0.26525497326933,0.00881694032076804,Spain_Hist,TRUE
+108,Cereals n.e.c.,Cereals nes,1900,0.595901983291814,0,Spain_Hist,TRUE
+108,Cereals n.e.c.,Cereals nes,1910,0.595901983291814,0,Spain_Hist,TRUE
+108,Cereals n.e.c.,Cereals nes,1922,0.566923015580893,0,Spain_Hist,TRUE
+108,Cereals n.e.c.,Cereals nes,1933,0.570244923257435,0,Spain_Hist,TRUE
+108,Cereals n.e.c.,Cereals nes,1940,0.58899913578199,0,Spain_Hist,TRUE
+108,Cereals n.e.c.,Cereals nes,1950,0.697003380389316,0.0036359594353282,Spain_Hist,TRUE
+108,Cereals n.e.c.,Cereals nes,1960,0.710994621731071,0.0101151882394125,Spain_Hist,TRUE
+108,Cereals n.e.c.,Cereals nes,1970,0.690071229995184,0.0220049426703419,Spain_Hist,TRUE
+108,Cereals n.e.c.,Cereals nes,1980,0.582122043230818,0.0296693349306119,Spain_Hist,TRUE
+108,Cereals n.e.c.,Cereals nes,1990,0.51923227688537,0.0341345083411388,Spain_Hist,TRUE
+108,Cereals n.e.c.,Cereals nes,2000,0.378442796928421,0.0111880296552884,Spain_Hist,TRUE
+108,Cereals n.e.c.,Cereals nes,2008,0.26525497326933,0.00881694032076804,Spain_Hist,TRUE
+116,Potatoes,Potato,1900,0.1,0,Spain_Hist,TRUE
+116,Potatoes,Potato,1910,0.1,0,Spain_Hist,TRUE
+116,Potatoes,Potato,1922,0.1,0,Spain_Hist,TRUE
+116,Potatoes,Potato,1933,0.1,0,Spain_Hist,TRUE
+116,Potatoes,Potato,1940,0.1,0,Spain_Hist,TRUE
+116,Potatoes,Potato,1950,0.1,0.225,Spain_Hist,TRUE
+116,Potatoes,Potato,1960,0.1,0.45,Spain_Hist,TRUE
+116,Potatoes,Potato,1970,0.1,0.9,Spain_Hist,TRUE
+116,Potatoes,Potato,1980,0.1,0.9,Spain_Hist,TRUE
+116,Potatoes,Potato,1990,0.1,0.9,Spain_Hist,TRUE
+116,Potatoes,Potato,2000,0.1,0.45,Spain_Hist,TRUE
+116,Potatoes,Potato,2008,0.1,0.225,Spain_Hist,TRUE
+122,Sweet potatoes,Sweet potato,1900,0,0,Spain_Hist,TRUE
+122,Sweet potatoes,Sweet potato,1910,0,0,Spain_Hist,TRUE
+122,Sweet potatoes,Sweet potato,1922,0,0,Spain_Hist,TRUE
+122,Sweet potatoes,Sweet potato,1933,0,0,Spain_Hist,TRUE
+122,Sweet potatoes,Sweet potato,1940,0,0,Spain_Hist,TRUE
+122,Sweet potatoes,Sweet potato,1950,0,0.125,Spain_Hist,TRUE
+122,Sweet potatoes,Sweet potato,1960,0,0.25,Spain_Hist,TRUE
+122,Sweet potatoes,Sweet potato,1970,0,0.5,Spain_Hist,TRUE
+122,Sweet potatoes,Sweet potato,1980,0,0.5,Spain_Hist,TRUE
+122,Sweet potatoes,Sweet potato,1990,0,0.5,Spain_Hist,TRUE
+122,Sweet potatoes,Sweet potato,2000,0,0.33,Spain_Hist,TRUE
+122,Sweet potatoes,Sweet potato,2008,0,0.165,Spain_Hist,TRUE
+135,Yautia,"Roots, other",1900,0.1,0,Spain_Hist,TRUE
+135,Yautia,"Roots, other",1910,0.1,0,Spain_Hist,TRUE
+135,Yautia,"Roots, other",1922,0.1,0,Spain_Hist,TRUE
+135,Yautia,"Roots, other",1933,0.1,0,Spain_Hist,TRUE
+135,Yautia,"Roots, other",1940,0.1,0,Spain_Hist,TRUE
+135,Yautia,"Roots, other",1950,0.1,0.225,Spain_Hist,TRUE
+135,Yautia,"Roots, other",1960,0.1,0.45,Spain_Hist,TRUE
+135,Yautia,"Roots, other",1970,0.1,0.9,Spain_Hist,TRUE
+135,Yautia,"Roots, other",1980,0.1,0.9,Spain_Hist,TRUE
+135,Yautia,"Roots, other",1990,0.1,0.9,Spain_Hist,TRUE
+135,Yautia,"Roots, other",2000,0.1,0.45,Spain_Hist,TRUE
+135,Yautia,"Roots, other",2008,0.1,0.225,Spain_Hist,TRUE
+136,Taro,"Roots, other",1900,0.1,0,Spain_Hist,TRUE
+136,Taro,"Roots, other",1910,0.1,0,Spain_Hist,TRUE
+136,Taro,"Roots, other",1922,0.1,0,Spain_Hist,TRUE
+136,Taro,"Roots, other",1933,0.1,0,Spain_Hist,TRUE
+136,Taro,"Roots, other",1940,0.1,0,Spain_Hist,TRUE
+136,Taro,"Roots, other",1950,0.1,0.225,Spain_Hist,TRUE
+136,Taro,"Roots, other",1960,0.1,0.45,Spain_Hist,TRUE
+136,Taro,"Roots, other",1970,0.1,0.9,Spain_Hist,TRUE
+136,Taro,"Roots, other",1980,0.1,0.9,Spain_Hist,TRUE
+136,Taro,"Roots, other",1990,0.1,0.9,Spain_Hist,TRUE
+136,Taro,"Roots, other",2000,0.1,0.45,Spain_Hist,TRUE
+136,Taro,"Roots, other",2008,0.1,0.225,Spain_Hist,TRUE
+137,Yams,"Roots, other",1900,0.1,0,Spain_Hist,TRUE
+137,Yams,"Roots, other",1910,0.1,0,Spain_Hist,TRUE
+137,Yams,"Roots, other",1922,0.1,0,Spain_Hist,TRUE
+137,Yams,"Roots, other",1933,0.1,0,Spain_Hist,TRUE
+137,Yams,"Roots, other",1940,0.1,0,Spain_Hist,TRUE
+137,Yams,"Roots, other",1950,0.1,0.225,Spain_Hist,TRUE
+137,Yams,"Roots, other",1960,0.1,0.45,Spain_Hist,TRUE
+137,Yams,"Roots, other",1970,0.1,0.9,Spain_Hist,TRUE
+137,Yams,"Roots, other",1980,0.1,0.9,Spain_Hist,TRUE
+137,Yams,"Roots, other",1990,0.1,0.9,Spain_Hist,TRUE
+137,Yams,"Roots, other",2000,0.1,0.45,Spain_Hist,TRUE
+137,Yams,"Roots, other",2008,0.1,0.225,Spain_Hist,TRUE
+149,"Edible roots and tubers with high starch or inulin content, n.e.c., fresh","Roots, other",1900,0.1,0,Spain_Hist,TRUE
+149,"Edible roots and tubers with high starch or inulin content, n.e.c., fresh","Roots, other",1910,0.1,0,Spain_Hist,TRUE
+149,"Edible roots and tubers with high starch or inulin content, n.e.c., fresh","Roots, other",1922,0.1,0,Spain_Hist,TRUE
+149,"Edible roots and tubers with high starch or inulin content, n.e.c., fresh","Roots, other",1933,0.1,0,Spain_Hist,TRUE
+149,"Edible roots and tubers with high starch or inulin content, n.e.c., fresh","Roots, other",1940,0.1,0,Spain_Hist,TRUE
+149,"Edible roots and tubers with high starch or inulin content, n.e.c., fresh","Roots, other",1950,0.1,0.225,Spain_Hist,TRUE
+149,"Edible roots and tubers with high starch or inulin content, n.e.c., fresh","Roots, other",1960,0.1,0.45,Spain_Hist,TRUE
+149,"Edible roots and tubers with high starch or inulin content, n.e.c., fresh","Roots, other",1970,0.1,0.9,Spain_Hist,TRUE
+149,"Edible roots and tubers with high starch or inulin content, n.e.c., fresh","Roots, other",1980,0.1,0.9,Spain_Hist,TRUE
+149,"Edible roots and tubers with high starch or inulin content, n.e.c., fresh","Roots, other",1990,0.1,0.9,Spain_Hist,TRUE
+149,"Edible roots and tubers with high starch or inulin content, n.e.c., fresh","Roots, other",2000,0.1,0.45,Spain_Hist,TRUE
+149,"Edible roots and tubers with high starch or inulin content, n.e.c., fresh","Roots, other",2008,0.1,0.225,Spain_Hist,TRUE
+15,Wheat,Wheat,1900,0.595901983291814,0,Spain_Hist,TRUE
+15,Wheat,Wheat,1910,0.595901983291814,0,Spain_Hist,TRUE
+15,Wheat,Wheat,1922,0.566923015580893,0,Spain_Hist,TRUE
+15,Wheat,Wheat,1933,0.570244923257435,0,Spain_Hist,TRUE
+15,Wheat,Wheat,1940,0.58899913578199,0,Spain_Hist,TRUE
+15,Wheat,Wheat,1950,0.697003380389316,0.0036359594353282,Spain_Hist,TRUE
+15,Wheat,Wheat,1960,0.710994621731071,0.0101151882394125,Spain_Hist,TRUE
+15,Wheat,Wheat,1970,0.690071229995184,0.0220049426703419,Spain_Hist,TRUE
+15,Wheat,Wheat,1980,0.582122043230818,0.0296693349306119,Spain_Hist,TRUE
+15,Wheat,Wheat,1990,0.51923227688537,0.0341345083411388,Spain_Hist,TRUE
+15,Wheat,Wheat,2000,0.378442796928421,0.0111880296552884,Spain_Hist,TRUE
+15,Wheat,Wheat,2008,0.26525497326933,0.00881694032076804,Spain_Hist,TRUE
+156,Sugar cane,Sugarcane,1900,0,0,Spain_Hist,TRUE
+156,Sugar cane,Sugarcane,1910,0,0,Spain_Hist,TRUE
+156,Sugar cane,Sugarcane,1922,0,0,Spain_Hist,TRUE
+156,Sugar cane,Sugarcane,1933,0,0,Spain_Hist,TRUE
+156,Sugar cane,Sugarcane,1940,0,0,Spain_Hist,TRUE
+156,Sugar cane,Sugarcane,1950,0,0,Spain_Hist,TRUE
+156,Sugar cane,Sugarcane,1960,0,0,Spain_Hist,TRUE
+156,Sugar cane,Sugarcane,1970,0,0,Spain_Hist,TRUE
+156,Sugar cane,Sugarcane,1980,0,0,Spain_Hist,TRUE
+156,Sugar cane,Sugarcane,1990,0,0,Spain_Hist,TRUE
+156,Sugar cane,Sugarcane,2000,0,0,Spain_Hist,TRUE
+156,Sugar cane,Sugarcane,2008,0,0,Spain_Hist,TRUE
+157,Sugar beet,Sugar beet,1900,0,0,Spain_Hist,TRUE
+157,Sugar beet,Sugar beet,1910,0,0,Spain_Hist,TRUE
+157,Sugar beet,Sugar beet,1922,0,0,Spain_Hist,TRUE
+157,Sugar beet,Sugar beet,1933,0,0,Spain_Hist,TRUE
+157,Sugar beet,Sugar beet,1940,0,0,Spain_Hist,TRUE
+157,Sugar beet,Sugar beet,1950,0,0,Spain_Hist,TRUE
+157,Sugar beet,Sugar beet,1960,0,0,Spain_Hist,TRUE
+157,Sugar beet,Sugar beet,1970,0,0,Spain_Hist,TRUE
+157,Sugar beet,Sugar beet,1980,0,0,Spain_Hist,TRUE
+157,Sugar beet,Sugar beet,1990,0,0,Spain_Hist,TRUE
+157,Sugar beet,Sugar beet,2000,0,0,Spain_Hist,TRUE
+157,Sugar beet,Sugar beet,2008,0,0,Spain_Hist,TRUE
+161,Other sugar crops n.e.c.,Sugar beet,1900,0,0,Spain_Hist,TRUE
+161,Other sugar crops n.e.c.,Sugar beet,1910,0,0,Spain_Hist,TRUE
+161,Other sugar crops n.e.c.,Sugar beet,1922,0,0,Spain_Hist,TRUE
+161,Other sugar crops n.e.c.,Sugar beet,1933,0,0,Spain_Hist,TRUE
+161,Other sugar crops n.e.c.,Sugar beet,1940,0,0,Spain_Hist,TRUE
+161,Other sugar crops n.e.c.,Sugar beet,1950,0,0,Spain_Hist,TRUE
+161,Other sugar crops n.e.c.,Sugar beet,1960,0,0,Spain_Hist,TRUE
+161,Other sugar crops n.e.c.,Sugar beet,1970,0,0,Spain_Hist,TRUE
+161,Other sugar crops n.e.c.,Sugar beet,1980,0,0,Spain_Hist,TRUE
+161,Other sugar crops n.e.c.,Sugar beet,1990,0,0,Spain_Hist,TRUE
+161,Other sugar crops n.e.c.,Sugar beet,2000,0,0,Spain_Hist,TRUE
+161,Other sugar crops n.e.c.,Sugar beet,2008,0,0,Spain_Hist,TRUE
+176,"Beans, dry",Beans,1900,0.729760104133833,0,Spain_Hist,TRUE
+176,"Beans, dry",Beans,1910,0.729760104133833,0,Spain_Hist,TRUE
+176,"Beans, dry",Beans,1922,0.891171071253078,0,Spain_Hist,TRUE
+176,"Beans, dry",Beans,1933,0.866358084389983,0,Spain_Hist,TRUE
+176,"Beans, dry",Beans,1940,0.80632627055959,0,Spain_Hist,TRUE
+176,"Beans, dry",Beans,1950,0.965278386714851,0.00396890589390633,Spain_Hist,TRUE
+176,"Beans, dry",Beans,1960,0.59818362473419,0.0140635731343034,Spain_Hist,TRUE
+176,"Beans, dry",Beans,1970,0.659701830554374,0.0241611700306395,Spain_Hist,TRUE
+176,"Beans, dry",Beans,1980,0.591898048577478,0.0289752385509991,Spain_Hist,TRUE
+176,"Beans, dry",Beans,1990,0.578703092125079,0.0299120804591194,Spain_Hist,TRUE
+176,"Beans, dry",Beans,2000,0.318613864471049,0.0122649504395211,Spain_Hist,TRUE
+176,"Beans, dry",Beans,2008,0.210781270041875,0.0094706247594975,Spain_Hist,TRUE
+181,"Broad beans and horse beans, dry",Fava bean,1900,0.691838144127413,0,Spain_Hist,TRUE
+181,"Broad beans and horse beans, dry",Fava bean,1910,0.691838144127413,0,Spain_Hist,TRUE
+181,"Broad beans and horse beans, dry",Fava bean,1922,0.619227691720758,0,Spain_Hist,TRUE
+181,"Broad beans and horse beans, dry",Fava bean,1933,0.762609903091478,0,Spain_Hist,TRUE
+181,"Broad beans and horse beans, dry",Fava bean,1940,0.778163401119602,0,Spain_Hist,TRUE
+181,"Broad beans and horse beans, dry",Fava bean,1950,0.830103206324712,0.00203876152410345,Spain_Hist,TRUE
+181,"Broad beans and horse beans, dry",Fava bean,1960,0.628587559227756,0.0129994354270285,Spain_Hist,TRUE
+181,"Broad beans and horse beans, dry",Fava bean,1970,0.761867354563722,0.0169074178259757,Spain_Hist,TRUE
+181,"Broad beans and horse beans, dry",Fava bean,1980,0.647880267925706,0.0250005009772749,Spain_Hist,TRUE
+181,"Broad beans and horse beans, dry",Fava bean,1990,0.491050802027128,0.0361353930560739,Spain_Hist,TRUE
+181,"Broad beans and horse beans, dry",Fava bean,2000,0.326330079079527,0.0121260585765685,Spain_Hist,TRUE
+181,"Broad beans and horse beans, dry",Fava bean,2008,0.274914480308644,0.00870102623629627,Spain_Hist,TRUE
+187,"Peas, dry",Pea,1900,0.867778970160968,0,Spain_Hist,TRUE
+187,"Peas, dry",Pea,1910,0.867778970160969,0,Spain_Hist,TRUE
+187,"Peas, dry",Pea,1922,0.848746495297952,0,Spain_Hist,TRUE
+187,"Peas, dry",Pea,1933,0.848746495297952,0,Spain_Hist,TRUE
+187,"Peas, dry",Pea,1940,0.833819787440799,0,Spain_Hist,TRUE
+187,"Peas, dry",Pea,1950,0.854518765198389,0.00174577481761933,Spain_Hist,TRUE
+187,"Peas, dry",Pea,1960,0.684631045983632,0.0110379133905729,Spain_Hist,TRUE
+187,"Peas, dry",Pea,1970,0.733754766163451,0.0189034116023949,Spain_Hist,TRUE
+187,"Peas, dry",Pea,1980,0.606868331523483,0.0279123484618327,Spain_Hist,TRUE
+187,"Peas, dry",Pea,1990,0.306017659186166,0.0492727461977822,Spain_Hist,TRUE
+187,"Peas, dry",Pea,2000,0.243640225326075,0.0136144759441306,Spain_Hist,TRUE
+187,"Peas, dry",Pea,2008,0.180967715672637,0.00982838741192835,Spain_Hist,TRUE
+191,"Chick peas, dry",Chickpea,1900,0.597758324428388,0,Spain_Hist,TRUE
+191,"Chick peas, dry",Chickpea,1910,0.597758324428387,0,Spain_Hist,TRUE
+191,"Chick peas, dry",Chickpea,1922,0.533120032560401,0,Spain_Hist,TRUE
+191,"Chick peas, dry",Chickpea,1933,0.696314147497042,0,Spain_Hist,TRUE
+191,"Chick peas, dry",Chickpea,1940,0.687164619414562,0,Spain_Hist,TRUE
+191,"Chick peas, dry",Chickpea,1950,0.898980614973262,0.00121223262032086,Spain_Hist,TRUE
+191,"Chick peas, dry",Chickpea,1960,0.629552783092165,0.0129656525917742,Spain_Hist,TRUE
+191,"Chick peas, dry",Chickpea,1970,0.653759768344068,0.0245830564475712,Spain_Hist,TRUE
+191,"Chick peas, dry",Chickpea,1980,0.532962010246817,0.033159697272476,Spain_Hist,TRUE
+191,"Chick peas, dry",Chickpea,1990,0.361929940515532,0.0453029742233972,Spain_Hist,TRUE
+191,"Chick peas, dry",Chickpea,2000,0.23304791801608,0.0138051374757106,Spain_Hist,TRUE
+191,"Chick peas, dry",Chickpea,2008,0.19011094606578,0.00971866864721064,Spain_Hist,TRUE
+195,"Cow peas, dry",Pulses nes,1900,0.728050403259835,0,Spain_Hist,TRUE
+195,"Cow peas, dry",Pulses nes,1910,0.725277795160099,0,Spain_Hist,TRUE
+195,"Cow peas, dry",Pulses nes,1922,0.762777585500759,0,Spain_Hist,TRUE
+195,"Cow peas, dry",Pulses nes,1933,0.768937480031865,0,Spain_Hist,TRUE
+195,"Cow peas, dry",Pulses nes,1940,0.767998415671412,0,Spain_Hist,TRUE
+195,"Cow peas, dry",Pulses nes,1950,0.818936606694692,0.00217276071966369,Spain_Hist,TRUE
+195,"Cow peas, dry",Pulses nes,1960,0.688378629159406,0.0109067479794208,Spain_Hist,TRUE
+195,"Cow peas, dry",Pulses nes,1970,0.735237981147547,0.0187981033385242,Spain_Hist,TRUE
+195,"Cow peas, dry",Pulses nes,1980,0.604620539746776,0.0280719416779789,Spain_Hist,TRUE
+195,"Cow peas, dry",Pulses nes,1990,0.430275497644585,0.0404504396672344,Spain_Hist,TRUE
+195,"Cow peas, dry",Pulses nes,2000,0.227406826001005,0.0139066771319819,Spain_Hist,TRUE
+195,"Cow peas, dry",Pulses nes,2008,0.226270567462672,0.00928475319044794,Spain_Hist,TRUE
+197,"Pigeon peas, dry",Pulses nes,1900,0.728050403259835,0,Spain_Hist,TRUE
+197,"Pigeon peas, dry",Pulses nes,1910,0.725277795160099,0,Spain_Hist,TRUE
+197,"Pigeon peas, dry",Pulses nes,1922,0.762777585500759,0,Spain_Hist,TRUE
+197,"Pigeon peas, dry",Pulses nes,1933,0.768937480031865,0,Spain_Hist,TRUE
+197,"Pigeon peas, dry",Pulses nes,1940,0.767998415671412,0,Spain_Hist,TRUE
+197,"Pigeon peas, dry",Pulses nes,1950,0.818936606694692,0.00217276071966369,Spain_Hist,TRUE
+197,"Pigeon peas, dry",Pulses nes,1960,0.688378629159406,0.0109067479794208,Spain_Hist,TRUE
+197,"Pigeon peas, dry",Pulses nes,1970,0.735237981147547,0.0187981033385242,Spain_Hist,TRUE
+197,"Pigeon peas, dry",Pulses nes,1980,0.604620539746776,0.0280719416779789,Spain_Hist,TRUE
+197,"Pigeon peas, dry",Pulses nes,1990,0.430275497644585,0.0404504396672344,Spain_Hist,TRUE
+197,"Pigeon peas, dry",Pulses nes,2000,0.227406826001005,0.0139066771319819,Spain_Hist,TRUE
+197,"Pigeon peas, dry",Pulses nes,2008,0.226270567462672,0.00928475319044794,Spain_Hist,TRUE
+201,"Lentils, dry",Lentils,1900,0.561408890715262,0,Spain_Hist,TRUE
+201,"Lentils, dry",Lentils,1910,0.561408890715262,0,Spain_Hist,TRUE
+201,"Lentils, dry",Lentils,1922,0.672439155147822,0,Spain_Hist,TRUE
+201,"Lentils, dry",Lentils,1933,0.672439155147822,0,Spain_Hist,TRUE
+201,"Lentils, dry",Lentils,1940,0.691381439661256,0,Spain_Hist,TRUE
+201,"Lentils, dry",Lentils,1950,0.682957622776843,0.00380450852667789,Spain_Hist,TRUE
+201,"Lentils, dry",Lentils,1960,0.507808378178749,0.0172267067637438,Spain_Hist,TRUE
+201,"Lentils, dry",Lentils,1970,0.55405722326454,0.0316619371482176,Spain_Hist,TRUE
+201,"Lentils, dry",Lentils,1980,0.507291329521344,0.0349823156039846,Spain_Hist,TRUE
+201,"Lentils, dry",Lentils,1990,0.304451487636343,0.0493839443778196,Spain_Hist,TRUE
+201,"Lentils, dry",Lentils,2000,0.201787525380758,0.0143678245431464,Spain_Hist,TRUE
+201,"Lentils, dry",Lentils,2008,0.166158916660463,0.0100060930000744,Spain_Hist,TRUE
+203,"Bambara beans, dry",Pulses nes,1900,0.728050403259835,0,Spain_Hist,TRUE
+203,"Bambara beans, dry",Pulses nes,1910,0.725277795160099,0,Spain_Hist,TRUE
+203,"Bambara beans, dry",Pulses nes,1922,0.762777585500759,0,Spain_Hist,TRUE
+203,"Bambara beans, dry",Pulses nes,1933,0.768937480031865,0,Spain_Hist,TRUE
+203,"Bambara beans, dry",Pulses nes,1940,0.767998415671412,0,Spain_Hist,TRUE
+203,"Bambara beans, dry",Pulses nes,1950,0.818936606694692,0.00217276071966369,Spain_Hist,TRUE
+203,"Bambara beans, dry",Pulses nes,1960,0.688378629159406,0.0109067479794208,Spain_Hist,TRUE
+203,"Bambara beans, dry",Pulses nes,1970,0.735237981147547,0.0187981033385242,Spain_Hist,TRUE
+203,"Bambara beans, dry",Pulses nes,1980,0.604620539746776,0.0280719416779789,Spain_Hist,TRUE
+203,"Bambara beans, dry",Pulses nes,1990,0.430275497644585,0.0404504396672344,Spain_Hist,TRUE
+203,"Bambara beans, dry",Pulses nes,2000,0.227406826001005,0.0139066771319819,Spain_Hist,TRUE
+203,"Bambara beans, dry",Pulses nes,2008,0.226270567462672,0.00928475319044794,Spain_Hist,TRUE
+205,Vetches,Vetch,1900,0.880246569877176,0,Spain_Hist,TRUE
+205,Vetches,Vetch,1910,0.880246569877176,0,Spain_Hist,TRUE
+205,Vetches,Vetch,1922,0.880246569877176,0,Spain_Hist,TRUE
+205,Vetches,Vetch,1933,0.880246569877176,0,Spain_Hist,TRUE
+205,Vetches,Vetch,1940,0.880246569877176,0,Spain_Hist,TRUE
+205,Vetches,Vetch,1950,0.880246569877176,0.00419137005429886,Spain_Hist,TRUE
+205,Vetches,Vetch,1960,0.880246569877176,0.00419137005429886,Spain_Hist,TRUE
+205,Vetches,Vetch,1970,0.941673844212876,0.0041411570608858,Spain_Hist,TRUE
+205,Vetches,Vetch,1980,0.810461778046472,0.0134572137587005,Spain_Hist,TRUE
+205,Vetches,Vetch,1990,0.571392751750342,0.0304311146257257,Spain_Hist,TRUE
+205,Vetches,Vetch,2000,0.400657574217877,0.0107881636640782,Spain_Hist,TRUE
+205,Vetches,Vetch,2008,0.349258165309281,0.00780890201628862,Spain_Hist,TRUE
+210,Lupins,Lupin,1900,0.687558509944272,0,Spain_Hist,TRUE
+210,Lupins,Lupin,1910,0.687558509944272,0,Spain_Hist,TRUE
+210,Lupins,Lupin,1922,0.5464693472915,0,Spain_Hist,TRUE
+210,Lupins,Lupin,1933,0.5464693472915,0,Spain_Hist,TRUE
+210,Lupins,Lupin,1940,0.532927834465509,0,Spain_Hist,TRUE
+210,Lupins,Lupin,1950,0.578125306210438,0.00506249632547475,Spain_Hist,TRUE
+210,Lupins,Lupin,1960,0.541524152726526,0,Spain_Hist,TRUE
+210,Lupins,Lupin,1970,0.504922999242615,0.0351504670537743,Spain_Hist,TRUE
+210,Lupins,Lupin,1980,0.309575740519243,0.0490201224231338,Spain_Hist,TRUE
+210,Lupins,Lupin,1990,0.0698672522207805,0.0660394250923246,Spain_Hist,TRUE
+210,Lupins,Lupin,2000,0.0475090662680093,0.0171448368071758,Spain_Hist,TRUE
+210,Lupins,Lupin,2008,0.0133345073679346,0.0118399859115848,Spain_Hist,TRUE
+2108,Flowers,Flowers,1900,0,0,Spain_Hist,TRUE
+2108,Flowers,Flowers,1910,0,0,Spain_Hist,TRUE
+2108,Flowers,Flowers,1922,0,0,Spain_Hist,TRUE
+2108,Flowers,Flowers,1933,0,0,Spain_Hist,TRUE
+2108,Flowers,Flowers,1940,0,0,Spain_Hist,TRUE
+2108,Flowers,Flowers,1950,0,0.25,Spain_Hist,TRUE
+2108,Flowers,Flowers,1960,0,0.5,Spain_Hist,TRUE
+2108,Flowers,Flowers,1970,0,1,Spain_Hist,TRUE
+2108,Flowers,Flowers,1980,0,1,Spain_Hist,TRUE
+2108,Flowers,Flowers,1990,0,1,Spain_Hist,TRUE
+2108,Flowers,Flowers,2000,0,0,Spain_Hist,TRUE
+2108,Flowers,Flowers,2008,0,0,Spain_Hist,TRUE
+211,Other pulses n.e.c.,Pulses nes,1900,0.728050403259835,0,Spain_Hist,TRUE
+211,Other pulses n.e.c.,Pulses nes,1910,0.725277795160099,0,Spain_Hist,TRUE
+211,Other pulses n.e.c.,Pulses nes,1922,0.762777585500759,0,Spain_Hist,TRUE
+211,Other pulses n.e.c.,Pulses nes,1933,0.768937480031865,0,Spain_Hist,TRUE
+211,Other pulses n.e.c.,Pulses nes,1940,0.767998415671412,0,Spain_Hist,TRUE
+211,Other pulses n.e.c.,Pulses nes,1950,0.818936606694692,0.00217276071966369,Spain_Hist,TRUE
+211,Other pulses n.e.c.,Pulses nes,1960,0.688378629159406,0.0109067479794208,Spain_Hist,TRUE
+211,Other pulses n.e.c.,Pulses nes,1970,0.735237981147547,0.0187981033385242,Spain_Hist,TRUE
+211,Other pulses n.e.c.,Pulses nes,1980,0.604620539746776,0.0280719416779789,Spain_Hist,TRUE
+211,Other pulses n.e.c.,Pulses nes,1990,0.430275497644585,0.0404504396672344,Spain_Hist,TRUE
+211,Other pulses n.e.c.,Pulses nes,2000,0.227406826001005,0.0139066771319819,Spain_Hist,TRUE
+211,Other pulses n.e.c.,Pulses nes,2008,0.226270567462672,0.00928475319044794,Spain_Hist,TRUE
+216,"Brazil nuts, in shell",Nuts nes,1900,0.836700022341323,0.0418350011170662,Spain_Hist,TRUE
+216,"Brazil nuts, in shell",Nuts nes,1910,0.847110910708931,0.0423555455354465,Spain_Hist,TRUE
+216,"Brazil nuts, in shell",Nuts nes,1922,0.844085896905837,0.0422042948452919,Spain_Hist,TRUE
+216,"Brazil nuts, in shell",Nuts nes,1933,0.801144240797385,0.0400572120398692,Spain_Hist,TRUE
+216,"Brazil nuts, in shell",Nuts nes,1940,0.80474811631487,0.0402374058157435,Spain_Hist,TRUE
+216,"Brazil nuts, in shell",Nuts nes,1950,0.740636895438313,0.0740636895438313,Spain_Hist,TRUE
+216,"Brazil nuts, in shell",Nuts nes,1960,0.538792981223268,0.16163789436698,Spain_Hist,TRUE
+216,"Brazil nuts, in shell",Nuts nes,1970,0.54383569950757,0.271917849753785,Spain_Hist,TRUE
+216,"Brazil nuts, in shell",Nuts nes,1980,0.555269409320678,0.277634704660339,Spain_Hist,TRUE
+216,"Brazil nuts, in shell",Nuts nes,1990,0.541652902790052,0.270826451395026,Spain_Hist,TRUE
+216,"Brazil nuts, in shell",Nuts nes,2000,0.518178752704189,0.259089376352094,Spain_Hist,TRUE
+216,"Brazil nuts, in shell",Nuts nes,2008,0.518518518518519,0.259259259259259,Spain_Hist,TRUE
+217,"Cashew nuts, in shell",Nuts nes,1900,0.836700022341323,0.0418350011170662,Spain_Hist,TRUE
+217,"Cashew nuts, in shell",Nuts nes,1910,0.847110910708931,0.0423555455354465,Spain_Hist,TRUE
+217,"Cashew nuts, in shell",Nuts nes,1922,0.844085896905837,0.0422042948452919,Spain_Hist,TRUE
+217,"Cashew nuts, in shell",Nuts nes,1933,0.801144240797385,0.0400572120398692,Spain_Hist,TRUE
+217,"Cashew nuts, in shell",Nuts nes,1940,0.80474811631487,0.0402374058157435,Spain_Hist,TRUE
+217,"Cashew nuts, in shell",Nuts nes,1950,0.740636895438313,0.0740636895438313,Spain_Hist,TRUE
+217,"Cashew nuts, in shell",Nuts nes,1960,0.538792981223268,0.16163789436698,Spain_Hist,TRUE
+217,"Cashew nuts, in shell",Nuts nes,1970,0.54383569950757,0.271917849753785,Spain_Hist,TRUE
+217,"Cashew nuts, in shell",Nuts nes,1980,0.555269409320678,0.277634704660339,Spain_Hist,TRUE
+217,"Cashew nuts, in shell",Nuts nes,1990,0.541652902790052,0.270826451395026,Spain_Hist,TRUE
+217,"Cashew nuts, in shell",Nuts nes,2000,0.518178752704189,0.259089376352094,Spain_Hist,TRUE
+217,"Cashew nuts, in shell",Nuts nes,2008,0.518518518518519,0.259259259259259,Spain_Hist,TRUE
+220,"Chestnuts, in shell",Chestnut,1900,0.836700022341323,0.0418350011170662,Spain_Hist,TRUE
+220,"Chestnuts, in shell",Chestnut,1910,0.847110910708931,0.0423555455354465,Spain_Hist,TRUE
+220,"Chestnuts, in shell",Chestnut,1922,0.844085896905837,0.0422042948452919,Spain_Hist,TRUE
+220,"Chestnuts, in shell",Chestnut,1933,0.801144240797385,0.0400572120398692,Spain_Hist,TRUE
+220,"Chestnuts, in shell",Chestnut,1940,0.80474811631487,0.0402374058157435,Spain_Hist,TRUE
+220,"Chestnuts, in shell",Chestnut,1950,0.740636895438313,0.0740636895438313,Spain_Hist,TRUE
+220,"Chestnuts, in shell",Chestnut,1960,0.538792981223268,0.16163789436698,Spain_Hist,TRUE
+220,"Chestnuts, in shell",Chestnut,1970,0.54383569950757,0.271917849753785,Spain_Hist,TRUE
+220,"Chestnuts, in shell",Chestnut,1980,0.555269409320678,0.277634704660339,Spain_Hist,TRUE
+220,"Chestnuts, in shell",Chestnut,1990,0.541652902790052,0.270826451395026,Spain_Hist,TRUE
+220,"Chestnuts, in shell",Chestnut,2000,0.518178752704189,0.259089376352094,Spain_Hist,TRUE
+220,"Chestnuts, in shell",Chestnut,2008,0.518518518518519,0.259259259259259,Spain_Hist,TRUE
+221,"Almonds, in shell",Almonds,1900,0.836700022341323,0.0418350011170662,Spain_Hist,TRUE
+221,"Almonds, in shell",Almonds,1910,0.847110910708931,0.0423555455354465,Spain_Hist,TRUE
+221,"Almonds, in shell",Almonds,1922,0.844085896905837,0.0422042948452919,Spain_Hist,TRUE
+221,"Almonds, in shell",Almonds,1933,0.801144240797385,0.0400572120398692,Spain_Hist,TRUE
+221,"Almonds, in shell",Almonds,1940,0.80474811631487,0.0402374058157435,Spain_Hist,TRUE
+221,"Almonds, in shell",Almonds,1950,0.740636895438313,0.0740636895438313,Spain_Hist,TRUE
+221,"Almonds, in shell",Almonds,1960,0.538792981223268,0.16163789436698,Spain_Hist,TRUE
+221,"Almonds, in shell",Almonds,1970,0.54383569950757,0.271917849753785,Spain_Hist,TRUE
+221,"Almonds, in shell",Almonds,1980,0.555269409320678,0.277634704660339,Spain_Hist,TRUE
+221,"Almonds, in shell",Almonds,1990,0.541652902790052,0.270826451395026,Spain_Hist,TRUE
+221,"Almonds, in shell",Almonds,2000,0.518178752704189,0.259089376352094,Spain_Hist,TRUE
+221,"Almonds, in shell",Almonds,2008,0.518518518518519,0.259259259259259,Spain_Hist,TRUE
+222,"Walnuts, in shell",Walnut,1900,0.836700022341323,0.0418350011170662,Spain_Hist,TRUE
+222,"Walnuts, in shell",Walnut,1910,0.847110910708931,0.0423555455354465,Spain_Hist,TRUE
+222,"Walnuts, in shell",Walnut,1922,0.844085896905837,0.0422042948452919,Spain_Hist,TRUE
+222,"Walnuts, in shell",Walnut,1933,0.801144240797385,0.0400572120398692,Spain_Hist,TRUE
+222,"Walnuts, in shell",Walnut,1940,0.80474811631487,0.0402374058157435,Spain_Hist,TRUE
+222,"Walnuts, in shell",Walnut,1950,0.740636895438313,0.0740636895438313,Spain_Hist,TRUE
+222,"Walnuts, in shell",Walnut,1960,0.538792981223268,0.16163789436698,Spain_Hist,TRUE
+222,"Walnuts, in shell",Walnut,1970,0.54383569950757,0.271917849753785,Spain_Hist,TRUE
+222,"Walnuts, in shell",Walnut,1980,0.555269409320678,0.277634704660339,Spain_Hist,TRUE
+222,"Walnuts, in shell",Walnut,1990,0.541652902790052,0.270826451395026,Spain_Hist,TRUE
+222,"Walnuts, in shell",Walnut,2000,0.518178752704189,0.259089376352094,Spain_Hist,TRUE
+222,"Walnuts, in shell",Walnut,2008,0.518518518518519,0.259259259259259,Spain_Hist,TRUE
+223,"Pistachios, in shell",Pistachios,1900,0.836700022341323,0.0418350011170662,Spain_Hist,TRUE
+223,"Pistachios, in shell",Pistachios,1910,0.847110910708931,0.0423555455354465,Spain_Hist,TRUE
+223,"Pistachios, in shell",Pistachios,1922,0.844085896905837,0.0422042948452919,Spain_Hist,TRUE
+223,"Pistachios, in shell",Pistachios,1933,0.801144240797385,0.0400572120398692,Spain_Hist,TRUE
+223,"Pistachios, in shell",Pistachios,1940,0.80474811631487,0.0402374058157435,Spain_Hist,TRUE
+223,"Pistachios, in shell",Pistachios,1950,0.740636895438313,0.0740636895438313,Spain_Hist,TRUE
+223,"Pistachios, in shell",Pistachios,1960,0.538792981223268,0.16163789436698,Spain_Hist,TRUE
+223,"Pistachios, in shell",Pistachios,1970,0.54383569950757,0.271917849753785,Spain_Hist,TRUE
+223,"Pistachios, in shell",Pistachios,1980,0.555269409320678,0.277634704660339,Spain_Hist,TRUE
+223,"Pistachios, in shell",Pistachios,1990,0.541652902790052,0.270826451395026,Spain_Hist,TRUE
+223,"Pistachios, in shell",Pistachios,2000,0.518178752704189,0.259089376352094,Spain_Hist,TRUE
+223,"Pistachios, in shell",Pistachios,2008,0.518518518518519,0.259259259259259,Spain_Hist,TRUE
+224,Kola nuts,Nuts nes,1900,0.836700022341323,0.0418350011170662,Spain_Hist,TRUE
+224,Kola nuts,Nuts nes,1910,0.847110910708931,0.0423555455354465,Spain_Hist,TRUE
+224,Kola nuts,Nuts nes,1922,0.844085896905837,0.0422042948452919,Spain_Hist,TRUE
+224,Kola nuts,Nuts nes,1933,0.801144240797385,0.0400572120398692,Spain_Hist,TRUE
+224,Kola nuts,Nuts nes,1940,0.80474811631487,0.0402374058157435,Spain_Hist,TRUE
+224,Kola nuts,Nuts nes,1950,0.740636895438313,0.0740636895438313,Spain_Hist,TRUE
+224,Kola nuts,Nuts nes,1960,0.538792981223268,0.16163789436698,Spain_Hist,TRUE
+224,Kola nuts,Nuts nes,1970,0.54383569950757,0.271917849753785,Spain_Hist,TRUE
+224,Kola nuts,Nuts nes,1980,0.555269409320678,0.277634704660339,Spain_Hist,TRUE
+224,Kola nuts,Nuts nes,1990,0.541652902790052,0.270826451395026,Spain_Hist,TRUE
+224,Kola nuts,Nuts nes,2000,0.518178752704189,0.259089376352094,Spain_Hist,TRUE
+224,Kola nuts,Nuts nes,2008,0.518518518518519,0.259259259259259,Spain_Hist,TRUE
+225,"Hazelnuts, in shell",Hazelnut,1900,0.836700022341323,0.0418350011170662,Spain_Hist,TRUE
+225,"Hazelnuts, in shell",Hazelnut,1910,0.847110910708931,0.0423555455354465,Spain_Hist,TRUE
+225,"Hazelnuts, in shell",Hazelnut,1922,0.844085896905837,0.0422042948452919,Spain_Hist,TRUE
+225,"Hazelnuts, in shell",Hazelnut,1933,0.801144240797385,0.0400572120398692,Spain_Hist,TRUE
+225,"Hazelnuts, in shell",Hazelnut,1940,0.80474811631487,0.0402374058157435,Spain_Hist,TRUE
+225,"Hazelnuts, in shell",Hazelnut,1950,0.740636895438313,0.0740636895438313,Spain_Hist,TRUE
+225,"Hazelnuts, in shell",Hazelnut,1960,0.538792981223268,0.16163789436698,Spain_Hist,TRUE
+225,"Hazelnuts, in shell",Hazelnut,1970,0.54383569950757,0.271917849753785,Spain_Hist,TRUE
+225,"Hazelnuts, in shell",Hazelnut,1980,0.555269409320678,0.277634704660339,Spain_Hist,TRUE
+225,"Hazelnuts, in shell",Hazelnut,1990,0.541652902790052,0.270826451395026,Spain_Hist,TRUE
+225,"Hazelnuts, in shell",Hazelnut,2000,0.518178752704189,0.259089376352094,Spain_Hist,TRUE
+225,"Hazelnuts, in shell",Hazelnut,2008,0.518518518518519,0.259259259259259,Spain_Hist,TRUE
+226,Areca nuts,Nuts nes,1900,0.836700022341323,0.0418350011170662,Spain_Hist,TRUE
+226,Areca nuts,Nuts nes,1910,0.847110910708931,0.0423555455354465,Spain_Hist,TRUE
+226,Areca nuts,Nuts nes,1922,0.844085896905837,0.0422042948452919,Spain_Hist,TRUE
+226,Areca nuts,Nuts nes,1933,0.801144240797385,0.0400572120398692,Spain_Hist,TRUE
+226,Areca nuts,Nuts nes,1940,0.80474811631487,0.0402374058157435,Spain_Hist,TRUE
+226,Areca nuts,Nuts nes,1950,0.740636895438313,0.0740636895438313,Spain_Hist,TRUE
+226,Areca nuts,Nuts nes,1960,0.538792981223268,0.16163789436698,Spain_Hist,TRUE
+226,Areca nuts,Nuts nes,1970,0.54383569950757,0.271917849753785,Spain_Hist,TRUE
+226,Areca nuts,Nuts nes,1980,0.555269409320678,0.277634704660339,Spain_Hist,TRUE
+226,Areca nuts,Nuts nes,1990,0.541652902790052,0.270826451395026,Spain_Hist,TRUE
+226,Areca nuts,Nuts nes,2000,0.518178752704189,0.259089376352094,Spain_Hist,TRUE
+226,Areca nuts,Nuts nes,2008,0.518518518518519,0.259259259259259,Spain_Hist,TRUE
+234,"Other nuts (excluding wild edible nuts and groundnuts), in shell, n.e.c.",Nuts nes,1900,0.836700022341323,0.0418350011170662,Spain_Hist,TRUE
+234,"Other nuts (excluding wild edible nuts and groundnuts), in shell, n.e.c.",Nuts nes,1910,0.847110910708931,0.0423555455354465,Spain_Hist,TRUE
+234,"Other nuts (excluding wild edible nuts and groundnuts), in shell, n.e.c.",Nuts nes,1922,0.844085896905837,0.0422042948452919,Spain_Hist,TRUE
+234,"Other nuts (excluding wild edible nuts and groundnuts), in shell, n.e.c.",Nuts nes,1933,0.801144240797385,0.0400572120398692,Spain_Hist,TRUE
+234,"Other nuts (excluding wild edible nuts and groundnuts), in shell, n.e.c.",Nuts nes,1940,0.80474811631487,0.0402374058157435,Spain_Hist,TRUE
+234,"Other nuts (excluding wild edible nuts and groundnuts), in shell, n.e.c.",Nuts nes,1950,0.740636895438313,0.0740636895438313,Spain_Hist,TRUE
+234,"Other nuts (excluding wild edible nuts and groundnuts), in shell, n.e.c.",Nuts nes,1960,0.538792981223268,0.16163789436698,Spain_Hist,TRUE
+234,"Other nuts (excluding wild edible nuts and groundnuts), in shell, n.e.c.",Nuts nes,1970,0.54383569950757,0.271917849753785,Spain_Hist,TRUE
+234,"Other nuts (excluding wild edible nuts and groundnuts), in shell, n.e.c.",Nuts nes,1980,0.555269409320678,0.277634704660339,Spain_Hist,TRUE
+234,"Other nuts (excluding wild edible nuts and groundnuts), in shell, n.e.c.",Nuts nes,1990,0.541652902790052,0.270826451395026,Spain_Hist,TRUE
+234,"Other nuts (excluding wild edible nuts and groundnuts), in shell, n.e.c.",Nuts nes,2000,0.518178752704189,0.259089376352094,Spain_Hist,TRUE
+234,"Other nuts (excluding wild edible nuts and groundnuts), in shell, n.e.c.",Nuts nes,2008,0.518518518518519,0.259259259259259,Spain_Hist,TRUE
+236,Soya beans,Soyabeans,1900,0,0,Spain_Hist,TRUE
+236,Soya beans,Soyabeans,1910,0,0,Spain_Hist,TRUE
+236,Soya beans,Soyabeans,1922,0,0,Spain_Hist,TRUE
+236,Soya beans,Soyabeans,1933,0,0,Spain_Hist,TRUE
+236,Soya beans,Soyabeans,1940,0,0,Spain_Hist,TRUE
+236,Soya beans,Soyabeans,1950,0,0,Spain_Hist,TRUE
+236,Soya beans,Soyabeans,1960,0,0,Spain_Hist,TRUE
+236,Soya beans,Soyabeans,1970,0,0.5,Spain_Hist,TRUE
+236,Soya beans,Soyabeans,1980,0,0.5,Spain_Hist,TRUE
+236,Soya beans,Soyabeans,1990,0,0.5,Spain_Hist,TRUE
+236,Soya beans,Soyabeans,2000,0,0.33,Spain_Hist,TRUE
+236,Soya beans,Soyabeans,2008,0,0.165,Spain_Hist,TRUE
+242,"Groundnuts, excluding shelled","Groundnuts, with shell",1900,0,0,Spain_Hist,TRUE
+242,"Groundnuts, excluding shelled","Groundnuts, with shell",1910,0,0,Spain_Hist,TRUE
+242,"Groundnuts, excluding shelled","Groundnuts, with shell",1922,0,0,Spain_Hist,TRUE
+242,"Groundnuts, excluding shelled","Groundnuts, with shell",1933,0,0,Spain_Hist,TRUE
+242,"Groundnuts, excluding shelled","Groundnuts, with shell",1940,0,0,Spain_Hist,TRUE
+242,"Groundnuts, excluding shelled","Groundnuts, with shell",1950,0,0,Spain_Hist,TRUE
+242,"Groundnuts, excluding shelled","Groundnuts, with shell",1960,0,0,Spain_Hist,TRUE
+242,"Groundnuts, excluding shelled","Groundnuts, with shell",1970,0,0,Spain_Hist,TRUE
+242,"Groundnuts, excluding shelled","Groundnuts, with shell",1980,0,0,Spain_Hist,TRUE
+242,"Groundnuts, excluding shelled","Groundnuts, with shell",1990,0,0,Spain_Hist,TRUE
+242,"Groundnuts, excluding shelled","Groundnuts, with shell",2000,0,0,Spain_Hist,TRUE
+242,"Groundnuts, excluding shelled","Groundnuts, with shell",2008,0,0,Spain_Hist,TRUE
+260,Olives,Olive,1900,0.836700022341323,0.0418350011170662,Spain_Hist,TRUE
+260,Olives,Olive,1910,0.847110910708931,0.0423555455354465,Spain_Hist,TRUE
+260,Olives,Olive,1922,0.844085896905837,0.0422042948452919,Spain_Hist,TRUE
+260,Olives,Olive,1933,0.801144240797385,0.0400572120398693,Spain_Hist,TRUE
+260,Olives,Olive,1940,0.804748116314869,0.0402374058157435,Spain_Hist,TRUE
+260,Olives,Olive,1950,0.740636895438313,0.0740636895438313,Spain_Hist,TRUE
+260,Olives,Olive,1960,0.538792981223268,0.16163789436698,Spain_Hist,TRUE
+260,Olives,Olive,1970,0.54383569950757,0.271917849753785,Spain_Hist,TRUE
+260,Olives,Olive,1980,0.555269409320678,0.277634704660339,Spain_Hist,TRUE
+260,Olives,Olive,1990,0.541652902790052,0.270826451395026,Spain_Hist,TRUE
+260,Olives,Olive,2000,0.518178752704189,0.259089376352094,Spain_Hist,TRUE
+260,Olives,Olive,2008,0.518518518518519,0.259259259259259,Spain_Hist,TRUE
+263,Karite nuts (sheanuts),Nuts nes,1900,0.836700022341323,0.0418350011170662,Spain_Hist,TRUE
+263,Karite nuts (sheanuts),Nuts nes,1910,0.847110910708931,0.0423555455354465,Spain_Hist,TRUE
+263,Karite nuts (sheanuts),Nuts nes,1922,0.844085896905837,0.0422042948452919,Spain_Hist,TRUE
+263,Karite nuts (sheanuts),Nuts nes,1933,0.801144240797385,0.0400572120398692,Spain_Hist,TRUE
+263,Karite nuts (sheanuts),Nuts nes,1940,0.80474811631487,0.0402374058157435,Spain_Hist,TRUE
+263,Karite nuts (sheanuts),Nuts nes,1950,0.740636895438313,0.0740636895438313,Spain_Hist,TRUE
+263,Karite nuts (sheanuts),Nuts nes,1960,0.538792981223268,0.16163789436698,Spain_Hist,TRUE
+263,Karite nuts (sheanuts),Nuts nes,1970,0.54383569950757,0.271917849753785,Spain_Hist,TRUE
+263,Karite nuts (sheanuts),Nuts nes,1980,0.555269409320678,0.277634704660339,Spain_Hist,TRUE
+263,Karite nuts (sheanuts),Nuts nes,1990,0.541652902790052,0.270826451395026,Spain_Hist,TRUE
+263,Karite nuts (sheanuts),Nuts nes,2000,0.518178752704189,0.259089376352094,Spain_Hist,TRUE
+263,Karite nuts (sheanuts),Nuts nes,2008,0.518518518518519,0.259259259259259,Spain_Hist,TRUE
+267,Sunflower seed,Sunflower seed,1900,0,0,Spain_Hist,TRUE
+267,Sunflower seed,Sunflower seed,1910,0,0,Spain_Hist,TRUE
+267,Sunflower seed,Sunflower seed,1922,0,0,Spain_Hist,TRUE
+267,Sunflower seed,Sunflower seed,1933,0,0,Spain_Hist,TRUE
+267,Sunflower seed,Sunflower seed,1940,0,0,Spain_Hist,TRUE
+267,Sunflower seed,Sunflower seed,1950,0,0.125,Spain_Hist,TRUE
+267,Sunflower seed,Sunflower seed,1960,0,0.25,Spain_Hist,TRUE
+267,Sunflower seed,Sunflower seed,1970,0,0.5,Spain_Hist,TRUE
+267,Sunflower seed,Sunflower seed,1980,0,0.5,Spain_Hist,TRUE
+267,Sunflower seed,Sunflower seed,1990,0,0.5,Spain_Hist,TRUE
+267,Sunflower seed,Sunflower seed,2000,0,0.33,Spain_Hist,TRUE
+267,Sunflower seed,Sunflower seed,2008,0,0.165,Spain_Hist,TRUE
+27,Rice,Rice,1900,0.6,0,Spain_Hist,TRUE
+27,Rice,Rice,1910,0.6,0,Spain_Hist,TRUE
+27,Rice,Rice,1922,0.6,0,Spain_Hist,TRUE
+27,Rice,Rice,1933,0.6,0,Spain_Hist,TRUE
+27,Rice,Rice,1940,0.6,0,Spain_Hist,TRUE
+27,Rice,Rice,1950,0.5,0.075,Spain_Hist,TRUE
+27,Rice,Rice,1960,0.4,0.15,Spain_Hist,TRUE
+27,Rice,Rice,1970,0.2,0.3,Spain_Hist,TRUE
+27,Rice,Rice,1980,0,0.5,Spain_Hist,TRUE
+27,Rice,Rice,1990,0,0.5,Spain_Hist,TRUE
+27,Rice,Rice,2000,0,0.25,Spain_Hist,TRUE
+27,Rice,Rice,2008,0,0.25,Spain_Hist,TRUE
+270,Rape or colza seed,Rape,1900,0,0,Spain_Hist,TRUE
+270,Rape or colza seed,Rape,1910,0,0,Spain_Hist,TRUE
+270,Rape or colza seed,Rape,1922,0,0,Spain_Hist,TRUE
+270,Rape or colza seed,Rape,1933,0,0,Spain_Hist,TRUE
+270,Rape or colza seed,Rape,1940,0,0,Spain_Hist,TRUE
+270,Rape or colza seed,Rape,1950,0,0,Spain_Hist,TRUE
+270,Rape or colza seed,Rape,1960,0,0,Spain_Hist,TRUE
+270,Rape or colza seed,Rape,1970,0,0.5,Spain_Hist,TRUE
+270,Rape or colza seed,Rape,1980,0,0,Spain_Hist,TRUE
+270,Rape or colza seed,Rape,1990,0,0.5,Spain_Hist,TRUE
+270,Rape or colza seed,Rape,2000,0,0.33,Spain_Hist,TRUE
+270,Rape or colza seed,Rape,2008,0,0.165,Spain_Hist,TRUE
+275,Tung nuts,Nuts nes,1900,0.836700022341323,0.0418350011170662,Spain_Hist,TRUE
+275,Tung nuts,Nuts nes,1910,0.847110910708931,0.0423555455354465,Spain_Hist,TRUE
+275,Tung nuts,Nuts nes,1922,0.844085896905837,0.0422042948452919,Spain_Hist,TRUE
+275,Tung nuts,Nuts nes,1933,0.801144240797385,0.0400572120398692,Spain_Hist,TRUE
+275,Tung nuts,Nuts nes,1940,0.80474811631487,0.0402374058157435,Spain_Hist,TRUE
+275,Tung nuts,Nuts nes,1950,0.740636895438313,0.0740636895438313,Spain_Hist,TRUE
+275,Tung nuts,Nuts nes,1960,0.538792981223268,0.16163789436698,Spain_Hist,TRUE
+275,Tung nuts,Nuts nes,1970,0.54383569950757,0.271917849753785,Spain_Hist,TRUE
+275,Tung nuts,Nuts nes,1980,0.555269409320678,0.277634704660339,Spain_Hist,TRUE
+275,Tung nuts,Nuts nes,1990,0.541652902790052,0.270826451395026,Spain_Hist,TRUE
+275,Tung nuts,Nuts nes,2000,0.518178752704189,0.259089376352094,Spain_Hist,TRUE
+275,Tung nuts,Nuts nes,2008,0.518518518518519,0.259259259259259,Spain_Hist,TRUE
+280,Safflower seed,Safflower,1900,0,0,Spain_Hist,TRUE
+280,Safflower seed,Safflower,1910,0,0,Spain_Hist,TRUE
+280,Safflower seed,Safflower,1922,0,0,Spain_Hist,TRUE
+280,Safflower seed,Safflower,1933,0,0,Spain_Hist,TRUE
+280,Safflower seed,Safflower,1940,0,0,Spain_Hist,TRUE
+280,Safflower seed,Safflower,1950,0,0,Spain_Hist,TRUE
+280,Safflower seed,Safflower,1960,0,0,Spain_Hist,TRUE
+280,Safflower seed,Safflower,1970,0,0.5,Spain_Hist,TRUE
+280,Safflower seed,Safflower,1980,0,0.5,Spain_Hist,TRUE
+280,Safflower seed,Safflower,1990,0,0.5,Spain_Hist,TRUE
+280,Safflower seed,Safflower,2000,0,0.33,Spain_Hist,TRUE
+280,Safflower seed,Safflower,2008,0,0.165,Spain_Hist,TRUE
+296,Poppy seed,Poppy seeds,1900,0,0,Spain_Hist,TRUE
+296,Poppy seed,Poppy seeds,1910,0,0,Spain_Hist,TRUE
+296,Poppy seed,Poppy seeds,1922,0,0,Spain_Hist,TRUE
+296,Poppy seed,Poppy seeds,1933,0,0,Spain_Hist,TRUE
+296,Poppy seed,Poppy seeds,1940,0,0,Spain_Hist,TRUE
+296,Poppy seed,Poppy seeds,1950,0,0.25,Spain_Hist,TRUE
+296,Poppy seed,Poppy seeds,1960,0,0.5,Spain_Hist,TRUE
+296,Poppy seed,Poppy seeds,1970,0,1,Spain_Hist,TRUE
+296,Poppy seed,Poppy seeds,1980,0,1,Spain_Hist,TRUE
+296,Poppy seed,Poppy seeds,1990,0,1,Spain_Hist,TRUE
+296,Poppy seed,Poppy seeds,2000,0,0,Spain_Hist,TRUE
+296,Poppy seed,Poppy seeds,2008,0,0,Spain_Hist,TRUE
+3001,Pasture,Grass,1900,0,0,Spain_Hist,TRUE
+3001,Pasture,Grass,1910,0,0,Spain_Hist,TRUE
+3001,Pasture,Grass,1922,0,0,Spain_Hist,TRUE
+3001,Pasture,Grass,1933,0,0,Spain_Hist,TRUE
+3001,Pasture,Grass,1940,0,0,Spain_Hist,TRUE
+3001,Pasture,Grass,1950,0,0,Spain_Hist,TRUE
+3001,Pasture,Grass,1960,0,0,Spain_Hist,TRUE
+3001,Pasture,Grass,1970,0,0,Spain_Hist,TRUE
+3001,Pasture,Grass,1980,0,0,Spain_Hist,TRUE
+3001,Pasture,Grass,1990,0,0,Spain_Hist,TRUE
+3001,Pasture,Grass,2000,0,0,Spain_Hist,TRUE
+3001,Pasture,Grass,2008,0,0,Spain_Hist,TRUE
+3002,range,Grass,1900,0,0,Spain_Hist,TRUE
+3002,range,Grass,1910,0,0,Spain_Hist,TRUE
+3002,range,Grass,1922,0,0,Spain_Hist,TRUE
+3002,range,Grass,1933,0,0,Spain_Hist,TRUE
+3002,range,Grass,1940,0,0,Spain_Hist,TRUE
+3002,range,Grass,1950,0,0,Spain_Hist,TRUE
+3002,range,Grass,1960,0,0,Spain_Hist,TRUE
+3002,range,Grass,1970,0,0,Spain_Hist,TRUE
+3002,range,Grass,1980,0,0,Spain_Hist,TRUE
+3002,range,Grass,1990,0,0,Spain_Hist,TRUE
+3002,range,Grass,2000,0,0,Spain_Hist,TRUE
+3002,range,Grass,2008,0,0,Spain_Hist,TRUE
+3003,Fallow,Fallow,1900,0,0,Spain_Hist,TRUE
+3003,Fallow,Fallow,1910,0,0,Spain_Hist,TRUE
+3003,Fallow,Fallow,1922,0,0,Spain_Hist,TRUE
+3003,Fallow,Fallow,1933,0,0,Spain_Hist,TRUE
+3003,Fallow,Fallow,1940,0,0,Spain_Hist,TRUE
+3003,Fallow,Fallow,1950,0,0,Spain_Hist,TRUE
+3003,Fallow,Fallow,1960,0,0,Spain_Hist,TRUE
+3003,Fallow,Fallow,1970,0,0,Spain_Hist,TRUE
+3003,Fallow,Fallow,1980,0,0,Spain_Hist,TRUE
+3003,Fallow,Fallow,1990,0,0,Spain_Hist,TRUE
+3003,Fallow,Fallow,2000,0,0,Spain_Hist,TRUE
+3003,Fallow,Fallow,2008,0,0,Spain_Hist,TRUE
+310,Kapok fruit,Fruits,1900,0.885479511429722,0.0442739755714861,Spain_Hist,TRUE
+310,Kapok fruit,Fruits,1910,0.885479511429722,0.0442739755714861,Spain_Hist,TRUE
+310,Kapok fruit,Fruits,1922,0.91520988605824,0.045760494302912,Spain_Hist,TRUE
+310,Kapok fruit,Fruits,1933,0.871466690327407,0.0435733345163704,Spain_Hist,TRUE
+310,Kapok fruit,Fruits,1940,0.855271988363019,0.0565859462612863,Spain_Hist,TRUE
+310,Kapok fruit,Fruits,1950,0.855271988363019,0.085527198836302,Spain_Hist,TRUE
+310,Kapok fruit,Fruits,1960,0.553594169837658,0.166078250951297,Spain_Hist,TRUE
+310,Kapok fruit,Fruits,1970,0.545225611073899,0.27261280553695,Spain_Hist,TRUE
+310,Kapok fruit,Fruits,1980,0.566618494993553,0.283309247496777,Spain_Hist,TRUE
+310,Kapok fruit,Fruits,1990,0.543025084204557,0.271512542102279,Spain_Hist,TRUE
+310,Kapok fruit,Fruits,2000,0.518178752704189,0.259089376352094,Spain_Hist,TRUE
+310,Kapok fruit,Fruits,2008,0.618768069506164,0.309384034753082,Spain_Hist,TRUE
+328,"Seed cotton, unginned",Seed cotton,1900,0,0,Spain_Hist,TRUE
+328,"Seed cotton, unginned",Seed cotton,1910,0,0,Spain_Hist,TRUE
+328,"Seed cotton, unginned",Seed cotton,1922,0,0,Spain_Hist,TRUE
+328,"Seed cotton, unginned",Seed cotton,1933,0,0,Spain_Hist,TRUE
+328,"Seed cotton, unginned",Seed cotton,1940,0,0,Spain_Hist,TRUE
+328,"Seed cotton, unginned",Seed cotton,1950,0,0,Spain_Hist,TRUE
+328,"Seed cotton, unginned",Seed cotton,1960,0,0,Spain_Hist,TRUE
+328,"Seed cotton, unginned",Seed cotton,1970,0,0.5,Spain_Hist,TRUE
+328,"Seed cotton, unginned",Seed cotton,1980,0,0.5,Spain_Hist,TRUE
+328,"Seed cotton, unginned",Seed cotton,1990,0,0.5,Spain_Hist,TRUE
+328,"Seed cotton, unginned",Seed cotton,2000,0,0.33,Spain_Hist,TRUE
+328,"Seed cotton, unginned",Seed cotton,2008,0,0.165,Spain_Hist,TRUE
+329,Cotton seed,Cottonseed,1900,0,0,Spain_Hist,TRUE
+329,Cotton seed,Cottonseed,1910,0,0,Spain_Hist,TRUE
+329,Cotton seed,Cottonseed,1922,0,0,Spain_Hist,TRUE
+329,Cotton seed,Cottonseed,1933,0,0,Spain_Hist,TRUE
+329,Cotton seed,Cottonseed,1940,0,0,Spain_Hist,TRUE
+329,Cotton seed,Cottonseed,1950,0,0.125,Spain_Hist,TRUE
+329,Cotton seed,Cottonseed,1960,0,0.25,Spain_Hist,TRUE
+329,Cotton seed,Cottonseed,1970,0,0.5,Spain_Hist,TRUE
+329,Cotton seed,Cottonseed,1980,0,0.5,Spain_Hist,TRUE
+329,Cotton seed,Cottonseed,1990,0,0.5,Spain_Hist,TRUE
+329,Cotton seed,Cottonseed,2000,0,0.33,Spain_Hist,TRUE
+329,Cotton seed,Cottonseed,2008,0,0.33,Spain_Hist,TRUE
+333,Linseed,Linseed,1900,0,0,Spain_Hist,TRUE
+333,Linseed,Linseed,1910,0,0,Spain_Hist,TRUE
+333,Linseed,Linseed,1922,0,0,Spain_Hist,TRUE
+333,Linseed,Linseed,1933,0,0,Spain_Hist,TRUE
+333,Linseed,Linseed,1940,0,0,Spain_Hist,TRUE
+333,Linseed,Linseed,1950,0,0.125,Spain_Hist,TRUE
+333,Linseed,Linseed,1960,0,0.25,Spain_Hist,TRUE
+333,Linseed,Linseed,1970,0,0.5,Spain_Hist,TRUE
+333,Linseed,Linseed,1980,0,0.5,Spain_Hist,TRUE
+333,Linseed,Linseed,1990,0,0.5,Spain_Hist,TRUE
+333,Linseed,Linseed,2000,0,0.33,Spain_Hist,TRUE
+333,Linseed,Linseed,2008,0,0.165,Spain_Hist,TRUE
+336,Hempseed,Hemp seed,1900,0,0,Spain_Hist,TRUE
+336,Hempseed,Hemp seed,1910,0,0,Spain_Hist,TRUE
+336,Hempseed,Hemp seed,1922,0,0,Spain_Hist,TRUE
+336,Hempseed,Hemp seed,1933,0,0,Spain_Hist,TRUE
+336,Hempseed,Hemp seed,1940,0,0,Spain_Hist,TRUE
+336,Hempseed,Hemp seed,1950,0,0,Spain_Hist,TRUE
+336,Hempseed,Hemp seed,1960,0,0,Spain_Hist,TRUE
+336,Hempseed,Hemp seed,1970,0,0,Spain_Hist,TRUE
+336,Hempseed,Hemp seed,1980,0,0,Spain_Hist,TRUE
+336,Hempseed,Hemp seed,1990,0,0,Spain_Hist,TRUE
+336,Hempseed,Hemp seed,2000,0,0.33,Spain_Hist,TRUE
+336,Hempseed,Hemp seed,2008,0,0.165,Spain_Hist,TRUE
+358,Cabbages,"Cabbage, Broccoli",1900,0.1,0,Spain_Hist,TRUE
+358,Cabbages,"Cabbage, Broccoli",1910,0.1,0,Spain_Hist,TRUE
+358,Cabbages,"Cabbage, Broccoli",1922,0.1,0,Spain_Hist,TRUE
+358,Cabbages,"Cabbage, Broccoli",1933,0.1,0,Spain_Hist,TRUE
+358,Cabbages,"Cabbage, Broccoli",1940,0.1,0,Spain_Hist,TRUE
+358,Cabbages,"Cabbage, Broccoli",1950,0.1,0.108,Spain_Hist,TRUE
+358,Cabbages,"Cabbage, Broccoli",1960,0.1,0.225,Spain_Hist,TRUE
+358,Cabbages,"Cabbage, Broccoli",1970,0.1,0.45,Spain_Hist,TRUE
+358,Cabbages,"Cabbage, Broccoli",1980,0.1,0.45,Spain_Hist,TRUE
+358,Cabbages,"Cabbage, Broccoli",1990,0.1,0.45,Spain_Hist,TRUE
+358,Cabbages,"Cabbage, Broccoli",2000,0.1,0.18,Spain_Hist,TRUE
+358,Cabbages,"Cabbage, Broccoli",2008,0.1,0.18,Spain_Hist,TRUE
+366,Artichokes,Artichoke,1900,0.1,0,Spain_Hist,TRUE
+366,Artichokes,Artichoke,1910,0.1,0,Spain_Hist,TRUE
+366,Artichokes,Artichoke,1922,0.1,0,Spain_Hist,TRUE
+366,Artichokes,Artichoke,1933,0.1,0,Spain_Hist,TRUE
+366,Artichokes,Artichoke,1940,0.1,0,Spain_Hist,TRUE
+366,Artichokes,Artichoke,1950,0.1,0.108,Spain_Hist,TRUE
+366,Artichokes,Artichoke,1960,0.1,0.225,Spain_Hist,TRUE
+366,Artichokes,Artichoke,1970,0.1,0.45,Spain_Hist,TRUE
+366,Artichokes,Artichoke,1980,0.1,0.45,Spain_Hist,TRUE
+366,Artichokes,Artichoke,1990,0.1,0.45,Spain_Hist,TRUE
+366,Artichokes,Artichoke,2000,0.1,0.18,Spain_Hist,TRUE
+366,Artichokes,Artichoke,2008,0.1,0.18,Spain_Hist,TRUE
+367,Asparagus,Asparagus,1900,0.1,0,Spain_Hist,TRUE
+367,Asparagus,Asparagus,1910,0.1,0,Spain_Hist,TRUE
+367,Asparagus,Asparagus,1922,0.1,0,Spain_Hist,TRUE
+367,Asparagus,Asparagus,1933,0.1,0,Spain_Hist,TRUE
+367,Asparagus,Asparagus,1940,0.1,0,Spain_Hist,TRUE
+367,Asparagus,Asparagus,1950,0.1,0.108,Spain_Hist,TRUE
+367,Asparagus,Asparagus,1960,0.1,0.225,Spain_Hist,TRUE
+367,Asparagus,Asparagus,1970,0.1,0.45,Spain_Hist,TRUE
+367,Asparagus,Asparagus,1980,0.1,0.45,Spain_Hist,TRUE
+367,Asparagus,Asparagus,1990,0.1,0.45,Spain_Hist,TRUE
+367,Asparagus,Asparagus,2000,0.1,0.18,Spain_Hist,TRUE
+367,Asparagus,Asparagus,2008,0.1,0.18,Spain_Hist,TRUE
+372,Lettuce and chicory,Lettuce,1900,0.1,0,Spain_Hist,TRUE
+372,Lettuce and chicory,Lettuce,1910,0.1,0,Spain_Hist,TRUE
+372,Lettuce and chicory,Lettuce,1922,0.1,0,Spain_Hist,TRUE
+372,Lettuce and chicory,Lettuce,1933,0.1,0,Spain_Hist,TRUE
+372,Lettuce and chicory,Lettuce,1940,0.1,0,Spain_Hist,TRUE
+372,Lettuce and chicory,Lettuce,1950,0.1,0.108,Spain_Hist,TRUE
+372,Lettuce and chicory,Lettuce,1960,0.1,0.225,Spain_Hist,TRUE
+372,Lettuce and chicory,Lettuce,1970,0.1,0.45,Spain_Hist,TRUE
+372,Lettuce and chicory,Lettuce,1980,0.1,0.45,Spain_Hist,TRUE
+372,Lettuce and chicory,Lettuce,1990,0.1,0.45,Spain_Hist,TRUE
+372,Lettuce and chicory,Lettuce,2000,0.1,0.18,Spain_Hist,TRUE
+372,Lettuce and chicory,Lettuce,2008,0.1,0.18,Spain_Hist,TRUE
+373,Spinach,Spinach,1900,0.1,0,Spain_Hist,TRUE
+373,Spinach,Spinach,1910,0.1,0,Spain_Hist,TRUE
+373,Spinach,Spinach,1922,0.1,0,Spain_Hist,TRUE
+373,Spinach,Spinach,1933,0.1,0,Spain_Hist,TRUE
+373,Spinach,Spinach,1940,0.1,0,Spain_Hist,TRUE
+373,Spinach,Spinach,1950,0.1,0.108,Spain_Hist,TRUE
+373,Spinach,Spinach,1960,0.1,0.225,Spain_Hist,TRUE
+373,Spinach,Spinach,1970,0.1,0.45,Spain_Hist,TRUE
+373,Spinach,Spinach,1980,0.1,0.45,Spain_Hist,TRUE
+373,Spinach,Spinach,1990,0.1,0.45,Spain_Hist,TRUE
+373,Spinach,Spinach,2000,0.1,0.18,Spain_Hist,TRUE
+373,Spinach,Spinach,2008,0.1,0.18,Spain_Hist,TRUE
+378,Cassava leaves,"Vegetables, other",1900,0.1,0,Spain_Hist,TRUE
+378,Cassava leaves,"Vegetables, other",1910,0.1,0,Spain_Hist,TRUE
+378,Cassava leaves,"Vegetables, other",1922,0.1,0,Spain_Hist,TRUE
+378,Cassava leaves,"Vegetables, other",1933,0.1,0,Spain_Hist,TRUE
+378,Cassava leaves,"Vegetables, other",1940,0.1,0,Spain_Hist,TRUE
+378,Cassava leaves,"Vegetables, other",1950,0.1,0.108,Spain_Hist,TRUE
+378,Cassava leaves,"Vegetables, other",1960,0.1,0.225,Spain_Hist,TRUE
+378,Cassava leaves,"Vegetables, other",1970,0.1,0.45,Spain_Hist,TRUE
+378,Cassava leaves,"Vegetables, other",1980,0.1,0.45,Spain_Hist,TRUE
+378,Cassava leaves,"Vegetables, other",1990,0.1,0.45,Spain_Hist,TRUE
+378,Cassava leaves,"Vegetables, other",2000,0.1,0.18,Spain_Hist,TRUE
+378,Cassava leaves,"Vegetables, other",2008,0.1,0.18,Spain_Hist,TRUE
+388,Tomatoes,Tomato,1900,0.1,0,Spain_Hist,TRUE
+388,Tomatoes,Tomato,1910,0.1,0,Spain_Hist,TRUE
+388,Tomatoes,Tomato,1922,0.1,0,Spain_Hist,TRUE
+388,Tomatoes,Tomato,1933,0.1,0,Spain_Hist,TRUE
+388,Tomatoes,Tomato,1940,0.1,0,Spain_Hist,TRUE
+388,Tomatoes,Tomato,1950,0.1,0.108,Spain_Hist,TRUE
+388,Tomatoes,Tomato,1960,0.1,0.225,Spain_Hist,TRUE
+388,Tomatoes,Tomato,1970,0.1,0.45,Spain_Hist,TRUE
+388,Tomatoes,Tomato,1980,0.1,0.45,Spain_Hist,TRUE
+388,Tomatoes,Tomato,1990,0.1,0.45,Spain_Hist,TRUE
+388,Tomatoes,Tomato,2000,0.1,0.18,Spain_Hist,TRUE
+388,Tomatoes,Tomato,2008,0.1,0.18,Spain_Hist,TRUE
+393,Cauliflowers and broccoli,Cauliflower,1900,0.1,0,Spain_Hist,TRUE
+393,Cauliflowers and broccoli,Cauliflower,1910,0.1,0,Spain_Hist,TRUE
+393,Cauliflowers and broccoli,Cauliflower,1922,0.1,0,Spain_Hist,TRUE
+393,Cauliflowers and broccoli,Cauliflower,1933,0.1,0,Spain_Hist,TRUE
+393,Cauliflowers and broccoli,Cauliflower,1940,0.1,0,Spain_Hist,TRUE
+393,Cauliflowers and broccoli,Cauliflower,1950,0.1,0.108,Spain_Hist,TRUE
+393,Cauliflowers and broccoli,Cauliflower,1960,0.1,0.225,Spain_Hist,TRUE
+393,Cauliflowers and broccoli,Cauliflower,1970,0.1,0.45,Spain_Hist,TRUE
+393,Cauliflowers and broccoli,Cauliflower,1980,0.1,0.45,Spain_Hist,TRUE
+393,Cauliflowers and broccoli,Cauliflower,1990,0.1,0.45,Spain_Hist,TRUE
+393,Cauliflowers and broccoli,Cauliflower,2000,0.1,0.18,Spain_Hist,TRUE
+393,Cauliflowers and broccoli,Cauliflower,2008,0.1,0.18,Spain_Hist,TRUE
+397,Cucumbers and gherkins,Cucumber,1900,0.1,0,Spain_Hist,TRUE
+397,Cucumbers and gherkins,Cucumber,1910,0.1,0,Spain_Hist,TRUE
+397,Cucumbers and gherkins,Cucumber,1922,0.1,0,Spain_Hist,TRUE
+397,Cucumbers and gherkins,Cucumber,1933,0.1,0,Spain_Hist,TRUE
+397,Cucumbers and gherkins,Cucumber,1940,0.1,0,Spain_Hist,TRUE
+397,Cucumbers and gherkins,Cucumber,1950,0.1,0.108,Spain_Hist,TRUE
+397,Cucumbers and gherkins,Cucumber,1960,0.1,0.225,Spain_Hist,TRUE
+397,Cucumbers and gherkins,Cucumber,1970,0.1,0.45,Spain_Hist,TRUE
+397,Cucumbers and gherkins,Cucumber,1980,0.1,0.45,Spain_Hist,TRUE
+397,Cucumbers and gherkins,Cucumber,1990,0.1,0.45,Spain_Hist,TRUE
+397,Cucumbers and gherkins,Cucumber,2000,0.1,0.18,Spain_Hist,TRUE
+397,Cucumbers and gherkins,Cucumber,2008,0.1,0.18,Spain_Hist,TRUE
+399,Eggplants (aubergines),Aubergine,1900,0.1,0,Spain_Hist,TRUE
+399,Eggplants (aubergines),Aubergine,1910,0.1,0,Spain_Hist,TRUE
+399,Eggplants (aubergines),Aubergine,1922,0.1,0,Spain_Hist,TRUE
+399,Eggplants (aubergines),Aubergine,1933,0.1,0,Spain_Hist,TRUE
+399,Eggplants (aubergines),Aubergine,1940,0.1,0,Spain_Hist,TRUE
+399,Eggplants (aubergines),Aubergine,1950,0.1,0.108,Spain_Hist,TRUE
+399,Eggplants (aubergines),Aubergine,1960,0.1,0.225,Spain_Hist,TRUE
+399,Eggplants (aubergines),Aubergine,1970,0.1,0.45,Spain_Hist,TRUE
+399,Eggplants (aubergines),Aubergine,1980,0.1,0.45,Spain_Hist,TRUE
+399,Eggplants (aubergines),Aubergine,1990,0.1,0.45,Spain_Hist,TRUE
+399,Eggplants (aubergines),Aubergine,2000,0.1,0.18,Spain_Hist,TRUE
+399,Eggplants (aubergines),Aubergine,2008,0.1,0.18,Spain_Hist,TRUE
+401,"Chillies and peppers, green (Capsicum spp. and Pimenta spp.)",Pepper,1900,0.1,0,Spain_Hist,TRUE
+401,"Chillies and peppers, green (Capsicum spp. and Pimenta spp.)",Pepper,1910,0.1,0,Spain_Hist,TRUE
+401,"Chillies and peppers, green (Capsicum spp. and Pimenta spp.)",Pepper,1922,0.1,0,Spain_Hist,TRUE
+401,"Chillies and peppers, green (Capsicum spp. and Pimenta spp.)",Pepper,1933,0.1,0,Spain_Hist,TRUE
+401,"Chillies and peppers, green (Capsicum spp. and Pimenta spp.)",Pepper,1940,0.1,0,Spain_Hist,TRUE
+401,"Chillies and peppers, green (Capsicum spp. and Pimenta spp.)",Pepper,1950,0.1,0.108,Spain_Hist,TRUE
+401,"Chillies and peppers, green (Capsicum spp. and Pimenta spp.)",Pepper,1960,0.1,0.225,Spain_Hist,TRUE
+401,"Chillies and peppers, green (Capsicum spp. and Pimenta spp.)",Pepper,1970,0.1,0.45,Spain_Hist,TRUE
+401,"Chillies and peppers, green (Capsicum spp. and Pimenta spp.)",Pepper,1980,0.1,0.45,Spain_Hist,TRUE
+401,"Chillies and peppers, green (Capsicum spp. and Pimenta spp.)",Pepper,1990,0.1,0.45,Spain_Hist,TRUE
+401,"Chillies and peppers, green (Capsicum spp. and Pimenta spp.)",Pepper,2000,0.1,0.18,Spain_Hist,TRUE
+401,"Chillies and peppers, green (Capsicum spp. and Pimenta spp.)",Pepper,2008,0.1,0.18,Spain_Hist,TRUE
+402,"Onions and shallots, green",Onion,1900,0.1,0,Spain_Hist,TRUE
+402,"Onions and shallots, green",Onion,1910,0.1,0,Spain_Hist,TRUE
+402,"Onions and shallots, green",Onion,1922,0.1,0,Spain_Hist,TRUE
+402,"Onions and shallots, green",Onion,1933,0.1,0,Spain_Hist,TRUE
+402,"Onions and shallots, green",Onion,1940,0.1,0,Spain_Hist,TRUE
+402,"Onions and shallots, green",Onion,1950,0.1,0.108,Spain_Hist,TRUE
+402,"Onions and shallots, green",Onion,1960,0.1,0.225,Spain_Hist,TRUE
+402,"Onions and shallots, green",Onion,1970,0.1,0.45,Spain_Hist,TRUE
+402,"Onions and shallots, green",Onion,1980,0.1,0.45,Spain_Hist,TRUE
+402,"Onions and shallots, green",Onion,1990,0.1,0.45,Spain_Hist,TRUE
+402,"Onions and shallots, green",Onion,2000,0.1,0.18,Spain_Hist,TRUE
+402,"Onions and shallots, green",Onion,2008,0.1,0.18,Spain_Hist,TRUE
+403,"Onions and shallots, dry (excluding dehydrated)",Onion,1900,0.1,0,Spain_Hist,TRUE
+403,"Onions and shallots, dry (excluding dehydrated)",Onion,1910,0.1,0,Spain_Hist,TRUE
+403,"Onions and shallots, dry (excluding dehydrated)",Onion,1922,0.1,0,Spain_Hist,TRUE
+403,"Onions and shallots, dry (excluding dehydrated)",Onion,1933,0.1,0,Spain_Hist,TRUE
+403,"Onions and shallots, dry (excluding dehydrated)",Onion,1940,0.1,0,Spain_Hist,TRUE
+403,"Onions and shallots, dry (excluding dehydrated)",Onion,1950,0.1,0.108,Spain_Hist,TRUE
+403,"Onions and shallots, dry (excluding dehydrated)",Onion,1960,0.1,0.225,Spain_Hist,TRUE
+403,"Onions and shallots, dry (excluding dehydrated)",Onion,1970,0.1,0.45,Spain_Hist,TRUE
+403,"Onions and shallots, dry (excluding dehydrated)",Onion,1980,0.1,0.45,Spain_Hist,TRUE
+403,"Onions and shallots, dry (excluding dehydrated)",Onion,1990,0.1,0.45,Spain_Hist,TRUE
+403,"Onions and shallots, dry (excluding dehydrated)",Onion,2000,0.1,0.18,Spain_Hist,TRUE
+403,"Onions and shallots, dry (excluding dehydrated)",Onion,2008,0.1,0.18,Spain_Hist,TRUE
+406,Green garlic,Garlic,1900,0,0,Spain_Hist,TRUE
+406,Green garlic,Garlic,1910,0,0,Spain_Hist,TRUE
+406,Green garlic,Garlic,1922,0,0,Spain_Hist,TRUE
+406,Green garlic,Garlic,1933,0,0,Spain_Hist,TRUE
+406,Green garlic,Garlic,1940,0,0,Spain_Hist,TRUE
+406,Green garlic,Garlic,1950,0,0,Spain_Hist,TRUE
+406,Green garlic,Garlic,1960,0,0,Spain_Hist,TRUE
+406,Green garlic,Garlic,1970,0,0,Spain_Hist,TRUE
+406,Green garlic,Garlic,1980,0,0,Spain_Hist,TRUE
+406,Green garlic,Garlic,1990,0,0,Spain_Hist,TRUE
+406,Green garlic,Garlic,2000,0,0,Spain_Hist,TRUE
+406,Green garlic,Garlic,2008,0,0,Spain_Hist,TRUE
+407,Leeks and other alliaceous vegetables,Leek,1900,0,0,Spain_Hist,TRUE
+407,Leeks and other alliaceous vegetables,Leek,1910,0,0,Spain_Hist,TRUE
+407,Leeks and other alliaceous vegetables,Leek,1922,0,0,Spain_Hist,TRUE
+407,Leeks and other alliaceous vegetables,Leek,1933,0,0,Spain_Hist,TRUE
+407,Leeks and other alliaceous vegetables,Leek,1940,0,0,Spain_Hist,TRUE
+407,Leeks and other alliaceous vegetables,Leek,1950,0,0,Spain_Hist,TRUE
+407,Leeks and other alliaceous vegetables,Leek,1960,0,0,Spain_Hist,TRUE
+407,Leeks and other alliaceous vegetables,Leek,1970,0,0,Spain_Hist,TRUE
+407,Leeks and other alliaceous vegetables,Leek,1980,0,0,Spain_Hist,TRUE
+407,Leeks and other alliaceous vegetables,Leek,1990,0,0,Spain_Hist,TRUE
+407,Leeks and other alliaceous vegetables,Leek,2000,0,0,Spain_Hist,TRUE
+407,Leeks and other alliaceous vegetables,Leek,2008,0,0,Spain_Hist,TRUE
+414,"Other beans, green","Beans, green",1900,0.1,0,Spain_Hist,TRUE
+414,"Other beans, green","Beans, green",1910,0.1,0,Spain_Hist,TRUE
+414,"Other beans, green","Beans, green",1922,0.1,0,Spain_Hist,TRUE
+414,"Other beans, green","Beans, green",1933,0.1,0,Spain_Hist,TRUE
+414,"Other beans, green","Beans, green",1940,0.1,0,Spain_Hist,TRUE
+414,"Other beans, green","Beans, green",1950,0.1,0.108,Spain_Hist,TRUE
+414,"Other beans, green","Beans, green",1960,0,0,Spain_Hist,TRUE
+414,"Other beans, green","Beans, green",1970,0.1,0.45,Spain_Hist,TRUE
+414,"Other beans, green","Beans, green",1980,0.1,0.45,Spain_Hist,TRUE
+414,"Other beans, green","Beans, green",1990,0.1,0.45,Spain_Hist,TRUE
+414,"Other beans, green","Beans, green",2000,0.1,0.18,Spain_Hist,TRUE
+414,"Other beans, green","Beans, green",2008,0.1,0.18,Spain_Hist,TRUE
+417,"Peas, green","Pea, green, with pod",1900,0.1,0,Spain_Hist,TRUE
+417,"Peas, green","Pea, green, with pod",1910,0.1,0,Spain_Hist,TRUE
+417,"Peas, green","Pea, green, with pod",1922,0.1,0,Spain_Hist,TRUE
+417,"Peas, green","Pea, green, with pod",1933,0.1,0,Spain_Hist,TRUE
+417,"Peas, green","Pea, green, with pod",1940,0.1,0,Spain_Hist,TRUE
+417,"Peas, green","Pea, green, with pod",1950,0.1,0.108,Spain_Hist,TRUE
+417,"Peas, green","Pea, green, with pod",1960,0.1,0.225,Spain_Hist,TRUE
+417,"Peas, green","Pea, green, with pod",1970,0.1,0.45,Spain_Hist,TRUE
+417,"Peas, green","Pea, green, with pod",1980,0.1,0.45,Spain_Hist,TRUE
+417,"Peas, green","Pea, green, with pod",1990,0.1,0.45,Spain_Hist,TRUE
+417,"Peas, green","Pea, green, with pod",2000,0.1,0.18,Spain_Hist,TRUE
+417,"Peas, green","Pea, green, with pod",2008,0.1,0.18,Spain_Hist,TRUE
+420,"Broad beans and horse beans, green","Pea, green, with pod",1900,0.1,0,Spain_Hist,TRUE
+420,"Broad beans and horse beans, green","Pea, green, with pod",1910,0.1,0,Spain_Hist,TRUE
+420,"Broad beans and horse beans, green","Pea, green, with pod",1922,0.1,0,Spain_Hist,TRUE
+420,"Broad beans and horse beans, green","Pea, green, with pod",1933,0.1,0,Spain_Hist,TRUE
+420,"Broad beans and horse beans, green","Pea, green, with pod",1940,0.1,0,Spain_Hist,TRUE
+420,"Broad beans and horse beans, green","Pea, green, with pod",1950,0.1,0.108,Spain_Hist,TRUE
+420,"Broad beans and horse beans, green","Pea, green, with pod",1960,0.1,0.225,Spain_Hist,TRUE
+420,"Broad beans and horse beans, green","Pea, green, with pod",1970,0.1,0.45,Spain_Hist,TRUE
+420,"Broad beans and horse beans, green","Pea, green, with pod",1980,0.1,0.45,Spain_Hist,TRUE
+420,"Broad beans and horse beans, green","Pea, green, with pod",1990,0.1,0.45,Spain_Hist,TRUE
+420,"Broad beans and horse beans, green","Pea, green, with pod",2000,0.1,0.18,Spain_Hist,TRUE
+420,"Broad beans and horse beans, green","Pea, green, with pod",2008,0.1,0.18,Spain_Hist,TRUE
+423,String beans,Pulses nes,1900,0.728050403259835,0,Spain_Hist,TRUE
+423,String beans,Pulses nes,1910,0.725277795160099,0,Spain_Hist,TRUE
+423,String beans,Pulses nes,1922,0.762777585500759,0,Spain_Hist,TRUE
+423,String beans,Pulses nes,1933,0.768937480031865,0,Spain_Hist,TRUE
+423,String beans,Pulses nes,1940,0.767998415671412,0,Spain_Hist,TRUE
+423,String beans,Pulses nes,1950,0.818936606694692,0.00217276071966369,Spain_Hist,TRUE
+423,String beans,Pulses nes,1960,0.688378629159406,0.0109067479794208,Spain_Hist,TRUE
+423,String beans,Pulses nes,1970,0.735237981147547,0.0187981033385242,Spain_Hist,TRUE
+423,String beans,Pulses nes,1980,0.604620539746776,0.0280719416779789,Spain_Hist,TRUE
+423,String beans,Pulses nes,1990,0.430275497644585,0.0404504396672344,Spain_Hist,TRUE
+423,String beans,Pulses nes,2000,0.227406826001005,0.0139066771319819,Spain_Hist,TRUE
+423,String beans,Pulses nes,2008,0.226270567462672,0.00928475319044794,Spain_Hist,TRUE
+426,Carrots and turnips,Carrot,1900,0.1,0,Spain_Hist,TRUE
+426,Carrots and turnips,Carrot,1910,0.1,0,Spain_Hist,TRUE
+426,Carrots and turnips,Carrot,1922,0.1,0,Spain_Hist,TRUE
+426,Carrots and turnips,Carrot,1933,0.1,0,Spain_Hist,TRUE
+426,Carrots and turnips,Carrot,1940,0.1,0,Spain_Hist,TRUE
+426,Carrots and turnips,Carrot,1950,0.1,0.108,Spain_Hist,TRUE
+426,Carrots and turnips,Carrot,1960,0.1,0.225,Spain_Hist,TRUE
+426,Carrots and turnips,Carrot,1970,0.1,0.45,Spain_Hist,TRUE
+426,Carrots and turnips,Carrot,1980,0,0,Spain_Hist,TRUE
+426,Carrots and turnips,Carrot,1990,0.1,0.45,Spain_Hist,TRUE
+426,Carrots and turnips,Carrot,2000,0.1,0.18,Spain_Hist,TRUE
+426,Carrots and turnips,Carrot,2008,0.1,0.18,Spain_Hist,TRUE
+430,Okra,"Vegetables, other",1900,0.1,0,Spain_Hist,TRUE
+430,Okra,"Vegetables, other",1910,0.1,0,Spain_Hist,TRUE
+430,Okra,"Vegetables, other",1922,0.1,0,Spain_Hist,TRUE
+430,Okra,"Vegetables, other",1933,0.1,0,Spain_Hist,TRUE
+430,Okra,"Vegetables, other",1940,0.1,0,Spain_Hist,TRUE
+430,Okra,"Vegetables, other",1950,0.1,0.108,Spain_Hist,TRUE
+430,Okra,"Vegetables, other",1960,0.1,0.225,Spain_Hist,TRUE
+430,Okra,"Vegetables, other",1970,0.1,0.45,Spain_Hist,TRUE
+430,Okra,"Vegetables, other",1980,0.1,0.45,Spain_Hist,TRUE
+430,Okra,"Vegetables, other",1990,0.1,0.45,Spain_Hist,TRUE
+430,Okra,"Vegetables, other",2000,0.1,0.18,Spain_Hist,TRUE
+430,Okra,"Vegetables, other",2008,0.1,0.18,Spain_Hist,TRUE
+44,Barley,Barley,1900,0.669989321508601,0,Spain_Hist,TRUE
+44,Barley,Barley,1910,0.669989321508601,0,Spain_Hist,TRUE
+44,Barley,Barley,1922,0.63069116719307,0,Spain_Hist,TRUE
+44,Barley,Barley,1933,0.651047743198744,0,Spain_Hist,TRUE
+44,Barley,Barley,1940,0.671324159959719,0,Spain_Hist,TRUE
+44,Barley,Barley,1950,0.806026166351622,0.00232768600378054,Spain_Hist,TRUE
+44,Barley,Barley,1960,0.796213481096372,0.00713252816162699,Spain_Hist,TRUE
+44,Barley,Barley,1970,0.79408583785197,0.0146199055125101,Spain_Hist,TRUE
+44,Barley,Barley,1980,0.727169763235134,0.0193709468103055,Spain_Hist,TRUE
+44,Barley,Barley,1990,0.506479154643071,0.035039980020342,Spain_Hist,TRUE
+44,Barley,Barley,2000,0.439471204069376,0.0100895183267512,Spain_Hist,TRUE
+44,Barley,Barley,2008,0.414107798686291,0.00703070641576451,Spain_Hist,TRUE
+446,Green corn (maize),"Vegetables, other",1900,0.1,0,Spain_Hist,TRUE
+446,Green corn (maize),"Vegetables, other",1910,0.1,0,Spain_Hist,TRUE
+446,Green corn (maize),"Vegetables, other",1922,0.1,0,Spain_Hist,TRUE
+446,Green corn (maize),"Vegetables, other",1933,0.1,0,Spain_Hist,TRUE
+446,Green corn (maize),"Vegetables, other",1940,0.1,0,Spain_Hist,TRUE
+446,Green corn (maize),"Vegetables, other",1950,0.1,0.108,Spain_Hist,TRUE
+446,Green corn (maize),"Vegetables, other",1960,0.1,0.225,Spain_Hist,TRUE
+446,Green corn (maize),"Vegetables, other",1970,0.1,0.45,Spain_Hist,TRUE
+446,Green corn (maize),"Vegetables, other",1980,0.1,0.45,Spain_Hist,TRUE
+446,Green corn (maize),"Vegetables, other",1990,0.1,0.45,Spain_Hist,TRUE
+446,Green corn (maize),"Vegetables, other",2000,0.1,0.18,Spain_Hist,TRUE
+446,Green corn (maize),"Vegetables, other",2008,0.1,0.18,Spain_Hist,TRUE
+459,Chicory roots,Chicory roots,1900,0,0,Spain_Hist,TRUE
+459,Chicory roots,Chicory roots,1910,0,0,Spain_Hist,TRUE
+459,Chicory roots,Chicory roots,1922,0,0,Spain_Hist,TRUE
+459,Chicory roots,Chicory roots,1933,0,0,Spain_Hist,TRUE
+459,Chicory roots,Chicory roots,1940,0,0,Spain_Hist,TRUE
+459,Chicory roots,Chicory roots,1950,0,0,Spain_Hist,TRUE
+459,Chicory roots,Chicory roots,1960,0,0,Spain_Hist,TRUE
+459,Chicory roots,Chicory roots,1970,0.1,0.45,Spain_Hist,TRUE
+459,Chicory roots,Chicory roots,1980,0.1,0.45,Spain_Hist,TRUE
+459,Chicory roots,Chicory roots,1990,0.1,0.45,Spain_Hist,TRUE
+459,Chicory roots,Chicory roots,2000,0.1,0.18,Spain_Hist,TRUE
+459,Chicory roots,Chicory roots,2008,0.1,0.18,Spain_Hist,TRUE
+461,Locust beans (carobs),Carob,1900,0.836700022341323,0.0418350011170662,Spain_Hist,TRUE
+461,Locust beans (carobs),Carob,1910,0.847110910708931,0.0423555455354465,Spain_Hist,TRUE
+461,Locust beans (carobs),Carob,1922,0.844085896905837,0.0422042948452919,Spain_Hist,TRUE
+461,Locust beans (carobs),Carob,1933,0.801144240797385,0.0400572120398693,Spain_Hist,TRUE
+461,Locust beans (carobs),Carob,1940,0.80474811631487,0.0402374058157435,Spain_Hist,TRUE
+461,Locust beans (carobs),Carob,1950,0.740636895438313,0.0740636895438313,Spain_Hist,TRUE
+461,Locust beans (carobs),Carob,1960,0.538792981223268,0.16163789436698,Spain_Hist,TRUE
+461,Locust beans (carobs),Carob,1970,0.54383569950757,0.271917849753785,Spain_Hist,TRUE
+461,Locust beans (carobs),Carob,1980,0.555269409320678,0.277634704660339,Spain_Hist,TRUE
+461,Locust beans (carobs),Carob,1990,0.541652902790052,0.270826451395026,Spain_Hist,TRUE
+461,Locust beans (carobs),Carob,2000,0.518178752704189,0.259089376352094,Spain_Hist,TRUE
+461,Locust beans (carobs),Carob,2008,0.518518518518519,0.259259259259259,Spain_Hist,TRUE
+463,"Other vegetables, fresh n.e.c.","Vegetables, other",1900,0.1,0,Spain_Hist,TRUE
+463,"Other vegetables, fresh n.e.c.","Vegetables, other",1910,0.1,0,Spain_Hist,TRUE
+463,"Other vegetables, fresh n.e.c.","Vegetables, other",1922,0.1,0,Spain_Hist,TRUE
+463,"Other vegetables, fresh n.e.c.","Vegetables, other",1933,0.1,0,Spain_Hist,TRUE
+463,"Other vegetables, fresh n.e.c.","Vegetables, other",1940,0.1,0,Spain_Hist,TRUE
+463,"Other vegetables, fresh n.e.c.","Vegetables, other",1950,0.1,0.108,Spain_Hist,TRUE
+463,"Other vegetables, fresh n.e.c.","Vegetables, other",1960,0.1,0.225,Spain_Hist,TRUE
+463,"Other vegetables, fresh n.e.c.","Vegetables, other",1970,0.1,0.45,Spain_Hist,TRUE
+463,"Other vegetables, fresh n.e.c.","Vegetables, other",1980,0.1,0.45,Spain_Hist,TRUE
+463,"Other vegetables, fresh n.e.c.","Vegetables, other",1990,0.1,0.45,Spain_Hist,TRUE
+463,"Other vegetables, fresh n.e.c.","Vegetables, other",2000,0.1,0.18,Spain_Hist,TRUE
+463,"Other vegetables, fresh n.e.c.","Vegetables, other",2008,0.1,0.18,Spain_Hist,TRUE
+486,Bananas,"Bananas, platains",1900,0.836700022341323,0.0418350011170662,Spain_Hist,TRUE
+486,Bananas,"Bananas, platains",1910,0.847110910708931,0.0423555455354465,Spain_Hist,TRUE
+486,Bananas,"Bananas, platains",1922,0.844085896905837,0.0422042948452919,Spain_Hist,TRUE
+486,Bananas,"Bananas, platains",1933,0.801144240797385,0.0400572120398693,Spain_Hist,TRUE
+486,Bananas,"Bananas, platains",1940,0.80474811631487,0.0402374058157435,Spain_Hist,TRUE
+486,Bananas,"Bananas, platains",1950,0.740636895438313,0.0740636895438313,Spain_Hist,TRUE
+486,Bananas,"Bananas, platains",1960,0.538792981223268,0.16163789436698,Spain_Hist,TRUE
+486,Bananas,"Bananas, platains",1970,0.54383569950757,0.271917849753785,Spain_Hist,TRUE
+486,Bananas,"Bananas, platains",1980,0.555269409320678,0.277634704660339,Spain_Hist,TRUE
+486,Bananas,"Bananas, platains",1990,0.541652902790052,0.270826451395026,Spain_Hist,TRUE
+486,Bananas,"Bananas, platains",2000,0.518178752704189,0.259089376352094,Spain_Hist,TRUE
+486,Bananas,"Bananas, platains",2008,0.518518518518519,0.259259259259259,Spain_Hist,TRUE
+489,Plantains and cooking bananas,"Bananas, platains",1900,0.836700022341323,0.0418350011170662,Spain_Hist,TRUE
+489,Plantains and cooking bananas,"Bananas, platains",1910,0.847110910708931,0.0423555455354465,Spain_Hist,TRUE
+489,Plantains and cooking bananas,"Bananas, platains",1922,0.844085896905837,0.0422042948452919,Spain_Hist,TRUE
+489,Plantains and cooking bananas,"Bananas, platains",1933,0.801144240797385,0.0400572120398693,Spain_Hist,TRUE
+489,Plantains and cooking bananas,"Bananas, platains",1940,0.80474811631487,0.0402374058157435,Spain_Hist,TRUE
+489,Plantains and cooking bananas,"Bananas, platains",1950,0.740636895438313,0.0740636895438313,Spain_Hist,TRUE
+489,Plantains and cooking bananas,"Bananas, platains",1960,0.538792981223268,0.16163789436698,Spain_Hist,TRUE
+489,Plantains and cooking bananas,"Bananas, platains",1970,0.54383569950757,0.271917849753785,Spain_Hist,TRUE
+489,Plantains and cooking bananas,"Bananas, platains",1980,0.555269409320678,0.277634704660339,Spain_Hist,TRUE
+489,Plantains and cooking bananas,"Bananas, platains",1990,0.541652902790052,0.270826451395026,Spain_Hist,TRUE
+489,Plantains and cooking bananas,"Bananas, platains",2000,0.518178752704189,0.259089376352094,Spain_Hist,TRUE
+489,Plantains and cooking bananas,"Bananas, platains",2008,0.518518518518519,0.259259259259259,Spain_Hist,TRUE
+490,Oranges,Orange,1900,0.836700022341323,0.0418350011170662,Spain_Hist,TRUE
+490,Oranges,Orange,1910,0.847110910708931,0.0423555455354465,Spain_Hist,TRUE
+490,Oranges,Orange,1922,0.844085896905837,0.0422042948452919,Spain_Hist,TRUE
+490,Oranges,Orange,1933,0.801144240797385,0.0400572120398692,Spain_Hist,TRUE
+490,Oranges,Orange,1940,0.80474811631487,0.0402374058157435,Spain_Hist,TRUE
+490,Oranges,Orange,1950,0.740636895438313,0.0740636895438313,Spain_Hist,TRUE
+490,Oranges,Orange,1960,0.538792981223268,0.16163789436698,Spain_Hist,TRUE
+490,Oranges,Orange,1970,0.54383569950757,0.271917849753785,Spain_Hist,TRUE
+490,Oranges,Orange,1980,0.555269409320678,0.277634704660339,Spain_Hist,TRUE
+490,Oranges,Orange,1990,0.541652902790052,0.270826451395026,Spain_Hist,TRUE
+490,Oranges,Orange,2000,0.518178752704189,0.259089376352094,Spain_Hist,TRUE
+490,Oranges,Orange,2008,0.518518518518519,0.259259259259259,Spain_Hist,TRUE
+495,"Tangerines, mandarins, clementines",Mandarin,1900,0.836700022341323,0.0418350011170662,Spain_Hist,TRUE
+495,"Tangerines, mandarins, clementines",Mandarin,1910,0.847110910708931,0.0423555455354465,Spain_Hist,TRUE
+495,"Tangerines, mandarins, clementines",Mandarin,1922,0.844085896905837,0.0422042948452919,Spain_Hist,TRUE
+495,"Tangerines, mandarins, clementines",Mandarin,1933,0.801144240797385,0.0400572120398692,Spain_Hist,TRUE
+495,"Tangerines, mandarins, clementines",Mandarin,1940,0.80474811631487,0.0402374058157435,Spain_Hist,TRUE
+495,"Tangerines, mandarins, clementines",Mandarin,1950,0.740636895438313,0.0740636895438313,Spain_Hist,TRUE
+495,"Tangerines, mandarins, clementines",Mandarin,1960,0.538792981223268,0.16163789436698,Spain_Hist,TRUE
+495,"Tangerines, mandarins, clementines",Mandarin,1970,0.54383569950757,0.271917849753785,Spain_Hist,TRUE
+495,"Tangerines, mandarins, clementines",Mandarin,1980,0.555269409320678,0.277634704660339,Spain_Hist,TRUE
+495,"Tangerines, mandarins, clementines",Mandarin,1990,0.541652902790052,0.270826451395026,Spain_Hist,TRUE
+495,"Tangerines, mandarins, clementines",Mandarin,2000,0.518178752704189,0.259089376352094,Spain_Hist,TRUE
+495,"Tangerines, mandarins, clementines",Mandarin,2008,0.518518518518519,0.259259259259259,Spain_Hist,TRUE
+497,Lemons and limes,Lemon,1900,0.836700022341323,0.0418350011170662,Spain_Hist,TRUE
+497,Lemons and limes,Lemon,1910,0.847110910708931,0.0423555455354465,Spain_Hist,TRUE
+497,Lemons and limes,Lemon,1922,0.844085896905837,0.0422042948452919,Spain_Hist,TRUE
+497,Lemons and limes,Lemon,1933,0.801144240797385,0.0400572120398692,Spain_Hist,TRUE
+497,Lemons and limes,Lemon,1940,0.80474811631487,0.0402374058157435,Spain_Hist,TRUE
+497,Lemons and limes,Lemon,1950,0.740636895438313,0.0740636895438313,Spain_Hist,TRUE
+497,Lemons and limes,Lemon,1960,0.538792981223268,0.16163789436698,Spain_Hist,TRUE
+497,Lemons and limes,Lemon,1970,0.54383569950757,0.271917849753785,Spain_Hist,TRUE
+497,Lemons and limes,Lemon,1980,0.555269409320678,0.277634704660339,Spain_Hist,TRUE
+497,Lemons and limes,Lemon,1990,0.541652902790052,0.270826451395026,Spain_Hist,TRUE
+497,Lemons and limes,Lemon,2000,0.518178752704189,0.259089376352094,Spain_Hist,TRUE
+497,Lemons and limes,Lemon,2008,0.518518518518519,0.259259259259259,Spain_Hist,TRUE
+507,Pomelos and grapefruits,Grapefruit,1900,0.836700022341323,0.0418350011170662,Spain_Hist,TRUE
+507,Pomelos and grapefruits,Grapefruit,1910,0.847110910708931,0.0423555455354465,Spain_Hist,TRUE
+507,Pomelos and grapefruits,Grapefruit,1922,0.844085896905837,0.0422042948452919,Spain_Hist,TRUE
+507,Pomelos and grapefruits,Grapefruit,1933,0.801144240797385,0.0400572120398692,Spain_Hist,TRUE
+507,Pomelos and grapefruits,Grapefruit,1940,0.80474811631487,0.0402374058157435,Spain_Hist,TRUE
+507,Pomelos and grapefruits,Grapefruit,1950,0.740636895438313,0.0740636895438313,Spain_Hist,TRUE
+507,Pomelos and grapefruits,Grapefruit,1960,0.538792981223268,0.16163789436698,Spain_Hist,TRUE
+507,Pomelos and grapefruits,Grapefruit,1970,0.54383569950757,0.271917849753785,Spain_Hist,TRUE
+507,Pomelos and grapefruits,Grapefruit,1980,0.555269409320678,0.277634704660339,Spain_Hist,TRUE
+507,Pomelos and grapefruits,Grapefruit,1990,0.541652902790052,0.270826451395026,Spain_Hist,TRUE
+507,Pomelos and grapefruits,Grapefruit,2000,0.518178752704189,0.259089376352094,Spain_Hist,TRUE
+507,Pomelos and grapefruits,Grapefruit,2008,0.518518518518519,0.259259259259259,Spain_Hist,TRUE
+512,"Other citrus fruit, n.e.c.",Citrus,1900,0.836700022341323,0.0418350011170662,Spain_Hist,TRUE
+512,"Other citrus fruit, n.e.c.",Citrus,1910,0.847110910708931,0.0423555455354465,Spain_Hist,TRUE
+512,"Other citrus fruit, n.e.c.",Citrus,1922,0.844085896905837,0.0422042948452919,Spain_Hist,TRUE
+512,"Other citrus fruit, n.e.c.",Citrus,1933,0.801144240797385,0.0400572120398692,Spain_Hist,TRUE
+512,"Other citrus fruit, n.e.c.",Citrus,1940,0.80474811631487,0.0402374058157435,Spain_Hist,TRUE
+512,"Other citrus fruit, n.e.c.",Citrus,1950,0.740636895438313,0.0740636895438313,Spain_Hist,TRUE
+512,"Other citrus fruit, n.e.c.",Citrus,1960,0.538792981223268,0.16163789436698,Spain_Hist,TRUE
+512,"Other citrus fruit, n.e.c.",Citrus,1970,0.54383569950757,0.271917849753785,Spain_Hist,TRUE
+512,"Other citrus fruit, n.e.c.",Citrus,1980,0.555269409320678,0.277634704660339,Spain_Hist,TRUE
+512,"Other citrus fruit, n.e.c.",Citrus,1990,0.541652902790052,0.270826451395026,Spain_Hist,TRUE
+512,"Other citrus fruit, n.e.c.",Citrus,2000,0.518178752704189,0.259089376352094,Spain_Hist,TRUE
+512,"Other citrus fruit, n.e.c.",Citrus,2008,0.518518518518519,0.259259259259259,Spain_Hist,TRUE
+515,Apples,Apple,1900,0.836700022341323,0.0418350011170662,Spain_Hist,TRUE
+515,Apples,Apple,1910,0.847110910708931,0.0423555455354465,Spain_Hist,TRUE
+515,Apples,Apple,1922,0.844085896905837,0.0422042948452919,Spain_Hist,TRUE
+515,Apples,Apple,1933,0.801144240797385,0.0400572120398693,Spain_Hist,TRUE
+515,Apples,Apple,1940,0.80474811631487,0.0402374058157435,Spain_Hist,TRUE
+515,Apples,Apple,1950,0.740636895438313,0.0740636895438313,Spain_Hist,TRUE
+515,Apples,Apple,1960,0.538792981223268,0.16163789436698,Spain_Hist,TRUE
+515,Apples,Apple,1970,0.54383569950757,0.271917849753785,Spain_Hist,TRUE
+515,Apples,Apple,1980,0.555269409320678,0.277634704660339,Spain_Hist,TRUE
+515,Apples,Apple,1990,0.541652902790052,0.270826451395026,Spain_Hist,TRUE
+515,Apples,Apple,2000,0.518178752704189,0.259089376352094,Spain_Hist,TRUE
+515,Apples,Apple,2008,0.518518518518519,0.259259259259259,Spain_Hist,TRUE
+521,Pears,Pear,1900,0.836700022341323,0.0418350011170662,Spain_Hist,TRUE
+521,Pears,Pear,1910,0.847110910708931,0.0423555455354465,Spain_Hist,TRUE
+521,Pears,Pear,1922,0.844085896905837,0.0422042948452919,Spain_Hist,TRUE
+521,Pears,Pear,1933,0.801144240797385,0.0400572120398692,Spain_Hist,TRUE
+521,Pears,Pear,1940,0.80474811631487,0.0402374058157435,Spain_Hist,TRUE
+521,Pears,Pear,1950,0.740636895438313,0.0740636895438313,Spain_Hist,TRUE
+521,Pears,Pear,1960,0.538792981223268,0.16163789436698,Spain_Hist,TRUE
+521,Pears,Pear,1970,0.54383569950757,0.271917849753785,Spain_Hist,TRUE
+521,Pears,Pear,1980,0.555269409320678,0.277634704660339,Spain_Hist,TRUE
+521,Pears,Pear,1990,0.541652902790052,0.270826451395026,Spain_Hist,TRUE
+521,Pears,Pear,2000,0.518178752704189,0.259089376352094,Spain_Hist,TRUE
+521,Pears,Pear,2008,0.518518518518519,0.259259259259259,Spain_Hist,TRUE
+523,Quinces,Quince,1900,0.836700022341323,0.0418350011170662,Spain_Hist,TRUE
+523,Quinces,Quince,1910,0.847110910708931,0.0423555455354465,Spain_Hist,TRUE
+523,Quinces,Quince,1922,0.844085896905837,0.0422042948452919,Spain_Hist,TRUE
+523,Quinces,Quince,1933,0.801144240797385,0.0400572120398693,Spain_Hist,TRUE
+523,Quinces,Quince,1940,0.80474811631487,0.0402374058157435,Spain_Hist,TRUE
+523,Quinces,Quince,1950,0.740636895438313,0.0740636895438313,Spain_Hist,TRUE
+523,Quinces,Quince,1960,0.538792981223268,0.16163789436698,Spain_Hist,TRUE
+523,Quinces,Quince,1970,0.54383569950757,0.271917849753785,Spain_Hist,TRUE
+523,Quinces,Quince,1980,0.555269409320678,0.277634704660339,Spain_Hist,TRUE
+523,Quinces,Quince,1990,0.541652902790052,0.270826451395026,Spain_Hist,TRUE
+523,Quinces,Quince,2000,0.518178752704189,0.259089376352094,Spain_Hist,TRUE
+523,Quinces,Quince,2008,0.518518518518519,0.259259259259259,Spain_Hist,TRUE
+526,Apricots,Apricot,1900,0.836700022341323,0.0418350011170662,Spain_Hist,TRUE
+526,Apricots,Apricot,1910,0.847110910708931,0.0423555455354465,Spain_Hist,TRUE
+526,Apricots,Apricot,1922,0.844085896905837,0.0422042948452919,Spain_Hist,TRUE
+526,Apricots,Apricot,1933,0.801144240797385,0.0400572120398693,Spain_Hist,TRUE
+526,Apricots,Apricot,1940,0.80474811631487,0.0402374058157435,Spain_Hist,TRUE
+526,Apricots,Apricot,1950,0.740636895438313,0.0740636895438313,Spain_Hist,TRUE
+526,Apricots,Apricot,1960,0.538792981223268,0.16163789436698,Spain_Hist,TRUE
+526,Apricots,Apricot,1970,0.54383569950757,0.271917849753785,Spain_Hist,TRUE
+526,Apricots,Apricot,1980,0.555269409320678,0.277634704660339,Spain_Hist,TRUE
+526,Apricots,Apricot,1990,0.541652902790052,0.270826451395026,Spain_Hist,TRUE
+526,Apricots,Apricot,2000,0.518178752704189,0.259089376352094,Spain_Hist,TRUE
+526,Apricots,Apricot,2008,0.518518518518519,0.259259259259259,Spain_Hist,TRUE
+530,Sour cherries,Berries nes,1900,0.885479511429722,0.0442739755714861,Spain_Hist,TRUE
+530,Sour cherries,Berries nes,1910,0.885479511429722,0.0442739755714861,Spain_Hist,TRUE
+530,Sour cherries,Berries nes,1922,0.91520988605824,0.045760494302912,Spain_Hist,TRUE
+530,Sour cherries,Berries nes,1933,0.871466690327407,0.0435733345163704,Spain_Hist,TRUE
+530,Sour cherries,Berries nes,1940,0.855271988363019,0.0565859462612863,Spain_Hist,TRUE
+530,Sour cherries,Berries nes,1950,0.855271988363019,0.085527198836302,Spain_Hist,TRUE
+530,Sour cherries,Berries nes,1960,0.553594169837658,0.166078250951297,Spain_Hist,TRUE
+530,Sour cherries,Berries nes,1970,0.545225611073899,0.27261280553695,Spain_Hist,TRUE
+530,Sour cherries,Berries nes,1980,0.566618494993553,0.283309247496777,Spain_Hist,TRUE
+530,Sour cherries,Berries nes,1990,0.543025084204557,0.271512542102279,Spain_Hist,TRUE
+530,Sour cherries,Berries nes,2000,0.518178752704189,0.259089376352094,Spain_Hist,TRUE
+530,Sour cherries,Berries nes,2008,0.618768069506164,0.309384034753082,Spain_Hist,TRUE
+531,Cherries,Cherries,1900,0.836700022341323,0.0418350011170662,Spain_Hist,TRUE
+531,Cherries,Cherries,1910,0.847110910708931,0.0423555455354465,Spain_Hist,TRUE
+531,Cherries,Cherries,1922,0.844085896905837,0.0422042948452919,Spain_Hist,TRUE
+531,Cherries,Cherries,1933,0.801144240797385,0.0400572120398693,Spain_Hist,TRUE
+531,Cherries,Cherries,1940,0.80474811631487,0.0402374058157435,Spain_Hist,TRUE
+531,Cherries,Cherries,1950,0.740636895438313,0.0740636895438313,Spain_Hist,TRUE
+531,Cherries,Cherries,1960,0.538792981223268,0.16163789436698,Spain_Hist,TRUE
+531,Cherries,Cherries,1970,0.54383569950757,0.271917849753785,Spain_Hist,TRUE
+531,Cherries,Cherries,1980,0.555269409320678,0.277634704660339,Spain_Hist,TRUE
+531,Cherries,Cherries,1990,0.541652902790052,0.270826451395026,Spain_Hist,TRUE
+531,Cherries,Cherries,2000,0.518178752704189,0.259089376352094,Spain_Hist,TRUE
+531,Cherries,Cherries,2008,0.518518518518519,0.259259259259259,Spain_Hist,TRUE
+534,Peaches and nectarines,Peach,1900,0.836700022341323,0.0418350011170662,Spain_Hist,TRUE
+534,Peaches and nectarines,Peach,1910,0.847110910708931,0.0423555455354465,Spain_Hist,TRUE
+534,Peaches and nectarines,Peach,1922,0.844085896905837,0.0422042948452919,Spain_Hist,TRUE
+534,Peaches and nectarines,Peach,1933,0.801144240797385,0.0400572120398693,Spain_Hist,TRUE
+534,Peaches and nectarines,Peach,1940,0.80474811631487,0.0402374058157435,Spain_Hist,TRUE
+534,Peaches and nectarines,Peach,1950,0.740636895438313,0.0740636895438313,Spain_Hist,TRUE
+534,Peaches and nectarines,Peach,1960,0.538792981223268,0.16163789436698,Spain_Hist,TRUE
+534,Peaches and nectarines,Peach,1970,0.54383569950757,0.271917849753785,Spain_Hist,TRUE
+534,Peaches and nectarines,Peach,1980,0.555269409320678,0.277634704660339,Spain_Hist,TRUE
+534,Peaches and nectarines,Peach,1990,0.541652902790052,0.270826451395026,Spain_Hist,TRUE
+534,Peaches and nectarines,Peach,2000,0.518178752704189,0.259089376352094,Spain_Hist,TRUE
+534,Peaches and nectarines,Peach,2008,0.518518518518519,0.259259259259259,Spain_Hist,TRUE
+536,Plums and sloes,Plum,1900,0.836700022341323,0.0418350011170662,Spain_Hist,TRUE
+536,Plums and sloes,Plum,1910,0.847110910708931,0.0423555455354465,Spain_Hist,TRUE
+536,Plums and sloes,Plum,1922,0.844085896905837,0.0422042948452919,Spain_Hist,TRUE
+536,Plums and sloes,Plum,1933,0.801144240797385,0.0400572120398692,Spain_Hist,TRUE
+536,Plums and sloes,Plum,1940,0.80474811631487,0.0402374058157435,Spain_Hist,TRUE
+536,Plums and sloes,Plum,1950,0.740636895438313,0.0740636895438313,Spain_Hist,TRUE
+536,Plums and sloes,Plum,1960,0.538792981223268,0.16163789436698,Spain_Hist,TRUE
+536,Plums and sloes,Plum,1970,0.54383569950757,0.271917849753785,Spain_Hist,TRUE
+536,Plums and sloes,Plum,1980,0.555269409320678,0.277634704660339,Spain_Hist,TRUE
+536,Plums and sloes,Plum,1990,0.541652902790052,0.270826451395026,Spain_Hist,TRUE
+536,Plums and sloes,Plum,2000,0.518178752704189,0.259089376352094,Spain_Hist,TRUE
+536,Plums and sloes,Plum,2008,0.518518518518519,0.259259259259259,Spain_Hist,TRUE
+541,Other stone fruits,Fruits,1900,0.885479511429722,0.0442739755714861,Spain_Hist,TRUE
+541,Other stone fruits,Fruits,1910,0.885479511429722,0.0442739755714861,Spain_Hist,TRUE
+541,Other stone fruits,Fruits,1922,0.91520988605824,0.045760494302912,Spain_Hist,TRUE
+541,Other stone fruits,Fruits,1933,0.871466690327407,0.0435733345163704,Spain_Hist,TRUE
+541,Other stone fruits,Fruits,1940,0.855271988363019,0.0565859462612863,Spain_Hist,TRUE
+541,Other stone fruits,Fruits,1950,0.855271988363019,0.085527198836302,Spain_Hist,TRUE
+541,Other stone fruits,Fruits,1960,0.553594169837658,0.166078250951297,Spain_Hist,TRUE
+541,Other stone fruits,Fruits,1970,0.545225611073899,0.27261280553695,Spain_Hist,TRUE
+541,Other stone fruits,Fruits,1980,0.566618494993553,0.283309247496777,Spain_Hist,TRUE
+541,Other stone fruits,Fruits,1990,0.543025084204557,0.271512542102279,Spain_Hist,TRUE
+541,Other stone fruits,Fruits,2000,0.518178752704189,0.259089376352094,Spain_Hist,TRUE
+541,Other stone fruits,Fruits,2008,0.618768069506164,0.309384034753082,Spain_Hist,TRUE
+542,Other pome fruits,Fruits,1900,0.885479511429722,0.0442739755714861,Spain_Hist,TRUE
+542,Other pome fruits,Fruits,1910,0.885479511429722,0.0442739755714861,Spain_Hist,TRUE
+542,Other pome fruits,Fruits,1922,0.91520988605824,0.045760494302912,Spain_Hist,TRUE
+542,Other pome fruits,Fruits,1933,0.871466690327407,0.0435733345163704,Spain_Hist,TRUE
+542,Other pome fruits,Fruits,1940,0.855271988363019,0.0565859462612863,Spain_Hist,TRUE
+542,Other pome fruits,Fruits,1950,0.855271988363019,0.085527198836302,Spain_Hist,TRUE
+542,Other pome fruits,Fruits,1960,0.553594169837658,0.166078250951297,Spain_Hist,TRUE
+542,Other pome fruits,Fruits,1970,0.545225611073899,0.27261280553695,Spain_Hist,TRUE
+542,Other pome fruits,Fruits,1980,0.566618494993553,0.283309247496777,Spain_Hist,TRUE
+542,Other pome fruits,Fruits,1990,0.543025084204557,0.271512542102279,Spain_Hist,TRUE
+542,Other pome fruits,Fruits,2000,0.518178752704189,0.259089376352094,Spain_Hist,TRUE
+542,Other pome fruits,Fruits,2008,0.618768069506164,0.309384034753082,Spain_Hist,TRUE
+544,Strawberries,Strawberry,1900,0.1,0,Spain_Hist,TRUE
+544,Strawberries,Strawberry,1910,0.1,0,Spain_Hist,TRUE
+544,Strawberries,Strawberry,1922,0.1,0,Spain_Hist,TRUE
+544,Strawberries,Strawberry,1933,0.1,0,Spain_Hist,TRUE
+544,Strawberries,Strawberry,1940,0.1,0,Spain_Hist,TRUE
+544,Strawberries,Strawberry,1950,0.1,0.108,Spain_Hist,TRUE
+544,Strawberries,Strawberry,1960,0.1,0.225,Spain_Hist,TRUE
+544,Strawberries,Strawberry,1970,0.1,0.45,Spain_Hist,TRUE
+544,Strawberries,Strawberry,1980,0.1,0.45,Spain_Hist,TRUE
+544,Strawberries,Strawberry,1990,0.1,0.45,Spain_Hist,TRUE
+544,Strawberries,Strawberry,2000,0.1,0.18,Spain_Hist,TRUE
+544,Strawberries,Strawberry,2008,0.1,0.18,Spain_Hist,TRUE
+547,Raspberries,Raspberries,1900,0.885479511429722,0.0442739755714861,Spain_Hist,TRUE
+547,Raspberries,Raspberries,1910,0.885479511429722,0.0442739755714861,Spain_Hist,TRUE
+547,Raspberries,Raspberries,1922,0.91520988605824,0.045760494302912,Spain_Hist,TRUE
+547,Raspberries,Raspberries,1933,0.871466690327407,0.0435733345163704,Spain_Hist,TRUE
+547,Raspberries,Raspberries,1940,0.855271988363019,0.0565859462612863,Spain_Hist,TRUE
+547,Raspberries,Raspberries,1950,0.855271988363019,0.085527198836302,Spain_Hist,TRUE
+547,Raspberries,Raspberries,1960,0.553594169837658,0.166078250951297,Spain_Hist,TRUE
+547,Raspberries,Raspberries,1970,0.545225611073899,0.27261280553695,Spain_Hist,TRUE
+547,Raspberries,Raspberries,1980,0.566618494993553,0.283309247496777,Spain_Hist,TRUE
+547,Raspberries,Raspberries,1990,0.543025084204557,0.271512542102279,Spain_Hist,TRUE
+547,Raspberries,Raspberries,2000,0.518178752704189,0.259089376352094,Spain_Hist,TRUE
+547,Raspberries,Raspberries,2008,0.618768069506164,0.309384034753082,Spain_Hist,TRUE
+549,Gooseberries,Berries nes,1900,0.885479511429722,0.0442739755714861,Spain_Hist,TRUE
+549,Gooseberries,Berries nes,1910,0.885479511429722,0.0442739755714861,Spain_Hist,TRUE
+549,Gooseberries,Berries nes,1922,0.91520988605824,0.045760494302912,Spain_Hist,TRUE
+549,Gooseberries,Berries nes,1933,0.871466690327407,0.0435733345163704,Spain_Hist,TRUE
+549,Gooseberries,Berries nes,1940,0.855271988363019,0.0565859462612863,Spain_Hist,TRUE
+549,Gooseberries,Berries nes,1950,0.855271988363019,0.085527198836302,Spain_Hist,TRUE
+549,Gooseberries,Berries nes,1960,0.553594169837658,0.166078250951297,Spain_Hist,TRUE
+549,Gooseberries,Berries nes,1970,0.545225611073899,0.27261280553695,Spain_Hist,TRUE
+549,Gooseberries,Berries nes,1980,0.566618494993553,0.283309247496777,Spain_Hist,TRUE
+549,Gooseberries,Berries nes,1990,0.543025084204557,0.271512542102279,Spain_Hist,TRUE
+549,Gooseberries,Berries nes,2000,0.518178752704189,0.259089376352094,Spain_Hist,TRUE
+549,Gooseberries,Berries nes,2008,0.618768069506164,0.309384034753082,Spain_Hist,TRUE
+550,Currants,Berries nes,1900,0.885479511429722,0.0442739755714861,Spain_Hist,TRUE
+550,Currants,Berries nes,1910,0.885479511429722,0.0442739755714861,Spain_Hist,TRUE
+550,Currants,Berries nes,1922,0.91520988605824,0.045760494302912,Spain_Hist,TRUE
+550,Currants,Berries nes,1933,0.871466690327407,0.0435733345163704,Spain_Hist,TRUE
+550,Currants,Berries nes,1940,0.855271988363019,0.0565859462612863,Spain_Hist,TRUE
+550,Currants,Berries nes,1950,0.855271988363019,0.085527198836302,Spain_Hist,TRUE
+550,Currants,Berries nes,1960,0.553594169837658,0.166078250951297,Spain_Hist,TRUE
+550,Currants,Berries nes,1970,0.545225611073899,0.27261280553695,Spain_Hist,TRUE
+550,Currants,Berries nes,1980,0.566618494993553,0.283309247496777,Spain_Hist,TRUE
+550,Currants,Berries nes,1990,0.543025084204557,0.271512542102279,Spain_Hist,TRUE
+550,Currants,Berries nes,2000,0.518178752704189,0.259089376352094,Spain_Hist,TRUE
+550,Currants,Berries nes,2008,0.618768069506164,0.309384034753082,Spain_Hist,TRUE
+552,Blueberries,Blueberries,1900,0.885479511429722,0.0442739755714861,Spain_Hist,TRUE
+552,Blueberries,Blueberries,1910,0.885479511429722,0.0442739755714861,Spain_Hist,TRUE
+552,Blueberries,Blueberries,1922,0.91520988605824,0.045760494302912,Spain_Hist,TRUE
+552,Blueberries,Blueberries,1933,0.871466690327407,0.0435733345163704,Spain_Hist,TRUE
+552,Blueberries,Blueberries,1940,0.855271988363019,0.0565859462612863,Spain_Hist,TRUE
+552,Blueberries,Blueberries,1950,0.855271988363019,0.085527198836302,Spain_Hist,TRUE
+552,Blueberries,Blueberries,1960,0.553594169837658,0.166078250951297,Spain_Hist,TRUE
+552,Blueberries,Blueberries,1970,0.545225611073899,0.27261280553695,Spain_Hist,TRUE
+552,Blueberries,Blueberries,1980,0.566618494993553,0.283309247496777,Spain_Hist,TRUE
+552,Blueberries,Blueberries,1990,0.543025084204557,0.271512542102279,Spain_Hist,TRUE
+552,Blueberries,Blueberries,2000,0.518178752704189,0.259089376352094,Spain_Hist,TRUE
+552,Blueberries,Blueberries,2008,0.618768069506164,0.309384034753082,Spain_Hist,TRUE
+554,Cranberries,Berries nes,1900,0.885479511429722,0.0442739755714861,Spain_Hist,TRUE
+554,Cranberries,Berries nes,1910,0.885479511429722,0.0442739755714861,Spain_Hist,TRUE
+554,Cranberries,Berries nes,1922,0.91520988605824,0.045760494302912,Spain_Hist,TRUE
+554,Cranberries,Berries nes,1933,0.871466690327407,0.0435733345163704,Spain_Hist,TRUE
+554,Cranberries,Berries nes,1940,0.855271988363019,0.0565859462612863,Spain_Hist,TRUE
+554,Cranberries,Berries nes,1950,0.855271988363019,0.085527198836302,Spain_Hist,TRUE
+554,Cranberries,Berries nes,1960,0.553594169837658,0.166078250951297,Spain_Hist,TRUE
+554,Cranberries,Berries nes,1970,0.545225611073899,0.27261280553695,Spain_Hist,TRUE
+554,Cranberries,Berries nes,1980,0.566618494993553,0.283309247496777,Spain_Hist,TRUE
+554,Cranberries,Berries nes,1990,0.543025084204557,0.271512542102279,Spain_Hist,TRUE
+554,Cranberries,Berries nes,2000,0.518178752704189,0.259089376352094,Spain_Hist,TRUE
+554,Cranberries,Berries nes,2008,0.618768069506164,0.309384034753082,Spain_Hist,TRUE
+558,Other berries and fruits of the genus vaccinium n.e.c.,Berries nes,1900,0.885479511429722,0.0442739755714861,Spain_Hist,TRUE
+558,Other berries and fruits of the genus vaccinium n.e.c.,Berries nes,1910,0.885479511429722,0.0442739755714861,Spain_Hist,TRUE
+558,Other berries and fruits of the genus vaccinium n.e.c.,Berries nes,1922,0.91520988605824,0.045760494302912,Spain_Hist,TRUE
+558,Other berries and fruits of the genus vaccinium n.e.c.,Berries nes,1933,0.871466690327407,0.0435733345163704,Spain_Hist,TRUE
+558,Other berries and fruits of the genus vaccinium n.e.c.,Berries nes,1940,0.855271988363019,0.0565859462612863,Spain_Hist,TRUE
+558,Other berries and fruits of the genus vaccinium n.e.c.,Berries nes,1950,0.855271988363019,0.085527198836302,Spain_Hist,TRUE
+558,Other berries and fruits of the genus vaccinium n.e.c.,Berries nes,1960,0.553594169837658,0.166078250951297,Spain_Hist,TRUE
+558,Other berries and fruits of the genus vaccinium n.e.c.,Berries nes,1970,0.545225611073899,0.27261280553695,Spain_Hist,TRUE
+558,Other berries and fruits of the genus vaccinium n.e.c.,Berries nes,1980,0.566618494993553,0.283309247496777,Spain_Hist,TRUE
+558,Other berries and fruits of the genus vaccinium n.e.c.,Berries nes,1990,0.543025084204557,0.271512542102279,Spain_Hist,TRUE
+558,Other berries and fruits of the genus vaccinium n.e.c.,Berries nes,2000,0.518178752704189,0.259089376352094,Spain_Hist,TRUE
+558,Other berries and fruits of the genus vaccinium n.e.c.,Berries nes,2008,0.618768069506164,0.309384034753082,Spain_Hist,TRUE
+56,Maize (corn),Maize,1900,0.9,0,Spain_Hist,TRUE
+56,Maize (corn),Maize,1910,0.9,0,Spain_Hist,TRUE
+56,Maize (corn),Maize,1922,0.9,0,Spain_Hist,TRUE
+56,Maize (corn),Maize,1933,0.9,0,Spain_Hist,TRUE
+56,Maize (corn),Maize,1940,0.9,0,Spain_Hist,TRUE
+56,Maize (corn),Maize,1950,0.85,0.125,Spain_Hist,TRUE
+56,Maize (corn),Maize,1960,0.7,0.25,Spain_Hist,TRUE
+56,Maize (corn),Maize,1970,0.4,0.5,Spain_Hist,TRUE
+56,Maize (corn),Maize,1980,0.1,0.5,Spain_Hist,TRUE
+56,Maize (corn),Maize,1990,0,0.5,Spain_Hist,TRUE
+56,Maize (corn),Maize,2000,0,0.25,Spain_Hist,TRUE
+56,Maize (corn),Maize,2008,0,0.25,Spain_Hist,TRUE
+560,Grapes,Grapevine,1900,0.836700022341323,0.0418350011170662,Spain_Hist,TRUE
+560,Grapes,Grapevine,1910,0.847110910708931,0.0423555455354465,Spain_Hist,TRUE
+560,Grapes,Grapevine,1922,0.844085896905837,0.0422042948452919,Spain_Hist,TRUE
+560,Grapes,Grapevine,1933,0.801144240797385,0.0400572120398692,Spain_Hist,TRUE
+560,Grapes,Grapevine,1940,0.80474811631487,0.0402374058157435,Spain_Hist,TRUE
+560,Grapes,Grapevine,1950,0.740636895438312,0.0740636895438313,Spain_Hist,TRUE
+560,Grapes,Grapevine,1960,0.538792981223268,0.16163789436698,Spain_Hist,TRUE
+560,Grapes,Grapevine,1970,0.54383569950757,0.271917849753785,Spain_Hist,TRUE
+560,Grapes,Grapevine,1980,0.555269409320678,0.277634704660339,Spain_Hist,TRUE
+560,Grapes,Grapevine,1990,0.541652902790052,0.270826451395026,Spain_Hist,TRUE
+560,Grapes,Grapevine,2000,0.518178752704189,0.259089376352094,Spain_Hist,TRUE
+560,Grapes,Grapevine,2008,0.518518518518519,0.259259259259259,Spain_Hist,TRUE
+567,Watermelons,Watermelon,1900,0.1,0,Spain_Hist,TRUE
+567,Watermelons,Watermelon,1910,0.1,0,Spain_Hist,TRUE
+567,Watermelons,Watermelon,1922,0.1,0,Spain_Hist,TRUE
+567,Watermelons,Watermelon,1933,0.1,0,Spain_Hist,TRUE
+567,Watermelons,Watermelon,1940,0.1,0,Spain_Hist,TRUE
+567,Watermelons,Watermelon,1950,0.1,0.108,Spain_Hist,TRUE
+567,Watermelons,Watermelon,1960,0.1,0.225,Spain_Hist,TRUE
+567,Watermelons,Watermelon,1970,0.1,0.45,Spain_Hist,TRUE
+567,Watermelons,Watermelon,1980,0.1,0.45,Spain_Hist,TRUE
+567,Watermelons,Watermelon,1990,0.1,0.45,Spain_Hist,TRUE
+567,Watermelons,Watermelon,2000,0.1,0.18,Spain_Hist,TRUE
+567,Watermelons,Watermelon,2008,0.1,0.18,Spain_Hist,TRUE
+568,Cantaloupes and other melons,Melon,1900,0.1,0,Spain_Hist,TRUE
+568,Cantaloupes and other melons,Melon,1910,0.1,0,Spain_Hist,TRUE
+568,Cantaloupes and other melons,Melon,1922,0.1,0,Spain_Hist,TRUE
+568,Cantaloupes and other melons,Melon,1933,0.1,0,Spain_Hist,TRUE
+568,Cantaloupes and other melons,Melon,1940,0.1,0,Spain_Hist,TRUE
+568,Cantaloupes and other melons,Melon,1950,0.1,0.108,Spain_Hist,TRUE
+568,Cantaloupes and other melons,Melon,1960,0.1,0.225,Spain_Hist,TRUE
+568,Cantaloupes and other melons,Melon,1970,0.1,0.45,Spain_Hist,TRUE
+568,Cantaloupes and other melons,Melon,1980,0.1,0.45,Spain_Hist,TRUE
+568,Cantaloupes and other melons,Melon,1990,0.1,0.45,Spain_Hist,TRUE
+568,Cantaloupes and other melons,Melon,2000,0.1,0.18,Spain_Hist,TRUE
+568,Cantaloupes and other melons,Melon,2008,0.1,0.18,Spain_Hist,TRUE
+569,Figs,Figs,1900,0.836700022341323,0.0418350011170662,Spain_Hist,TRUE
+569,Figs,Figs,1910,0.847110910708931,0.0423555455354465,Spain_Hist,TRUE
+569,Figs,Figs,1922,0.844085896905837,0.0422042948452919,Spain_Hist,TRUE
+569,Figs,Figs,1933,0.801144240797385,0.0400572120398692,Spain_Hist,TRUE
+569,Figs,Figs,1940,0.80474811631487,0.0402374058157435,Spain_Hist,TRUE
+569,Figs,Figs,1950,0.740636895438313,0.0740636895438313,Spain_Hist,TRUE
+569,Figs,Figs,1960,0.538792981223268,0.16163789436698,Spain_Hist,TRUE
+569,Figs,Figs,1970,0.54383569950757,0.271917849753785,Spain_Hist,TRUE
+569,Figs,Figs,1980,0.555269409320678,0.277634704660339,Spain_Hist,TRUE
+569,Figs,Figs,1990,0.541652902790052,0.270826451395026,Spain_Hist,TRUE
+569,Figs,Figs,2000,0.518178752704189,0.259089376352094,Spain_Hist,TRUE
+569,Figs,Figs,2008,0.518518518518519,0.259259259259259,Spain_Hist,TRUE
+571,"Mangoes, guavas and mangosteens",Fruits,1900,0.885479511429722,0.0442739755714861,Spain_Hist,TRUE
+571,"Mangoes, guavas and mangosteens",Fruits,1910,0.885479511429722,0.0442739755714861,Spain_Hist,TRUE
+571,"Mangoes, guavas and mangosteens",Fruits,1922,0.91520988605824,0.045760494302912,Spain_Hist,TRUE
+571,"Mangoes, guavas and mangosteens",Fruits,1933,0.871466690327407,0.0435733345163704,Spain_Hist,TRUE
+571,"Mangoes, guavas and mangosteens",Fruits,1940,0.855271988363019,0.0565859462612863,Spain_Hist,TRUE
+571,"Mangoes, guavas and mangosteens",Fruits,1950,0.855271988363019,0.085527198836302,Spain_Hist,TRUE
+571,"Mangoes, guavas and mangosteens",Fruits,1960,0.553594169837658,0.166078250951297,Spain_Hist,TRUE
+571,"Mangoes, guavas and mangosteens",Fruits,1970,0.545225611073899,0.27261280553695,Spain_Hist,TRUE
+571,"Mangoes, guavas and mangosteens",Fruits,1980,0.566618494993553,0.283309247496777,Spain_Hist,TRUE
+571,"Mangoes, guavas and mangosteens",Fruits,1990,0.543025084204557,0.271512542102279,Spain_Hist,TRUE
+571,"Mangoes, guavas and mangosteens",Fruits,2000,0.518178752704189,0.259089376352094,Spain_Hist,TRUE
+571,"Mangoes, guavas and mangosteens",Fruits,2008,0.618768069506164,0.309384034753082,Spain_Hist,TRUE
+572,Avocados,Avocado,1900,0,0,Spain_Hist,TRUE
+572,Avocados,Avocado,1910,0,0,Spain_Hist,TRUE
+572,Avocados,Avocado,1922,0,0,Spain_Hist,TRUE
+572,Avocados,Avocado,1933,0,0,Spain_Hist,TRUE
+572,Avocados,Avocado,1940,0.80474811631487,0.0402374058157435,Spain_Hist,TRUE
+572,Avocados,Avocado,1950,0.740636895438313,0.0740636895438313,Spain_Hist,TRUE
+572,Avocados,Avocado,1960,0.538792981223268,0.16163789436698,Spain_Hist,TRUE
+572,Avocados,Avocado,1970,0.54383569950757,0.271917849753785,Spain_Hist,TRUE
+572,Avocados,Avocado,1980,0.555269409320678,0.277634704660339,Spain_Hist,TRUE
+572,Avocados,Avocado,1990,0.541652902790052,0.270826451395026,Spain_Hist,TRUE
+572,Avocados,Avocado,2000,0.518178752704189,0.259089376352094,Spain_Hist,TRUE
+572,Avocados,Avocado,2008,0.518518518518519,0.259259259259259,Spain_Hist,TRUE
+577,Dates,Dates,1900,0.885479511429722,0.0442739755714861,Spain_Hist,TRUE
+577,Dates,Dates,1910,0.885479511429722,0.0442739755714861,Spain_Hist,TRUE
+577,Dates,Dates,1922,0.91520988605824,0.045760494302912,Spain_Hist,TRUE
+577,Dates,Dates,1933,0.871466690327407,0.0435733345163704,Spain_Hist,TRUE
+577,Dates,Dates,1940,0.855271988363019,0.0565859462612863,Spain_Hist,TRUE
+577,Dates,Dates,1950,0.855271988363019,0.085527198836302,Spain_Hist,TRUE
+577,Dates,Dates,1960,0.553594169837658,0.166078250951297,Spain_Hist,TRUE
+577,Dates,Dates,1970,0.545225611073899,0.27261280553695,Spain_Hist,TRUE
+577,Dates,Dates,1980,0.566618494993553,0.283309247496777,Spain_Hist,TRUE
+577,Dates,Dates,1990,0.543025084204557,0.271512542102279,Spain_Hist,TRUE
+577,Dates,Dates,2000,0.518178752704189,0.259089376352094,Spain_Hist,TRUE
+577,Dates,Dates,2008,0.618768069506164,0.309384034753082,Spain_Hist,TRUE
+587,Persimmons,Persimmon,1900,0.885479511429722,0.0442739755714861,Spain_Hist,TRUE
+587,Persimmons,Persimmon,1910,0.885479511429722,0.0442739755714861,Spain_Hist,TRUE
+587,Persimmons,Persimmon,1922,0.91520988605824,0.045760494302912,Spain_Hist,TRUE
+587,Persimmons,Persimmon,1933,0.871466690327407,0.0435733345163704,Spain_Hist,TRUE
+587,Persimmons,Persimmon,1940,0.855271988363019,0.0565859462612863,Spain_Hist,TRUE
+587,Persimmons,Persimmon,1950,0.855271988363019,0.085527198836302,Spain_Hist,TRUE
+587,Persimmons,Persimmon,1960,0.553594169837658,0.166078250951297,Spain_Hist,TRUE
+587,Persimmons,Persimmon,1970,0.545225611073899,0.27261280553695,Spain_Hist,TRUE
+587,Persimmons,Persimmon,1980,0.566618494993553,0.283309247496777,Spain_Hist,TRUE
+587,Persimmons,Persimmon,1990,0.543025084204557,0.271512542102279,Spain_Hist,TRUE
+587,Persimmons,Persimmon,2000,0.518178752704189,0.259089376352094,Spain_Hist,TRUE
+587,Persimmons,Persimmon,2008,0.618768069506164,0.309384034753082,Spain_Hist,TRUE
+591,Cashewapple,Fruits,1900,0.885479511429722,0.0442739755714861,Spain_Hist,TRUE
+591,Cashewapple,Fruits,1910,0.885479511429722,0.0442739755714861,Spain_Hist,TRUE
+591,Cashewapple,Fruits,1922,0.91520988605824,0.045760494302912,Spain_Hist,TRUE
+591,Cashewapple,Fruits,1933,0.871466690327407,0.0435733345163704,Spain_Hist,TRUE
+591,Cashewapple,Fruits,1940,0.855271988363019,0.0565859462612863,Spain_Hist,TRUE
+591,Cashewapple,Fruits,1950,0.855271988363019,0.085527198836302,Spain_Hist,TRUE
+591,Cashewapple,Fruits,1960,0.553594169837658,0.166078250951297,Spain_Hist,TRUE
+591,Cashewapple,Fruits,1970,0.545225611073899,0.27261280553695,Spain_Hist,TRUE
+591,Cashewapple,Fruits,1980,0.566618494993553,0.283309247496777,Spain_Hist,TRUE
+591,Cashewapple,Fruits,1990,0.543025084204557,0.271512542102279,Spain_Hist,TRUE
+591,Cashewapple,Fruits,2000,0.518178752704189,0.259089376352094,Spain_Hist,TRUE
+591,Cashewapple,Fruits,2008,0.618768069506164,0.309384034753082,Spain_Hist,TRUE
+592,Kiwi fruit,Kiwifruit,1900,0.885479511429722,0.0442739755714861,Spain_Hist,TRUE
+592,Kiwi fruit,Kiwifruit,1910,0.885479511429722,0.0442739755714861,Spain_Hist,TRUE
+592,Kiwi fruit,Kiwifruit,1922,0.91520988605824,0.045760494302912,Spain_Hist,TRUE
+592,Kiwi fruit,Kiwifruit,1933,0.871466690327407,0.0435733345163704,Spain_Hist,TRUE
+592,Kiwi fruit,Kiwifruit,1940,0.855271988363019,0.0565859462612863,Spain_Hist,TRUE
+592,Kiwi fruit,Kiwifruit,1950,0.855271988363019,0.085527198836302,Spain_Hist,TRUE
+592,Kiwi fruit,Kiwifruit,1960,0.553594169837658,0.166078250951297,Spain_Hist,TRUE
+592,Kiwi fruit,Kiwifruit,1970,0.545225611073899,0.27261280553695,Spain_Hist,TRUE
+592,Kiwi fruit,Kiwifruit,1980,0.566618494993553,0.283309247496777,Spain_Hist,TRUE
+592,Kiwi fruit,Kiwifruit,1990,0.543025084204557,0.271512542102279,Spain_Hist,TRUE
+592,Kiwi fruit,Kiwifruit,2000,0.518178752704189,0.259089376352094,Spain_Hist,TRUE
+592,Kiwi fruit,Kiwifruit,2008,0.618768069506164,0.309384034753082,Spain_Hist,TRUE
+603,"Other tropical fruits, n.e.c.",Fruits,1900,0.885479511429722,0.0442739755714861,Spain_Hist,TRUE
+603,"Other tropical fruits, n.e.c.",Fruits,1910,0.885479511429722,0.0442739755714861,Spain_Hist,TRUE
+603,"Other tropical fruits, n.e.c.",Fruits,1922,0.91520988605824,0.045760494302912,Spain_Hist,TRUE
+603,"Other tropical fruits, n.e.c.",Fruits,1933,0.871466690327407,0.0435733345163704,Spain_Hist,TRUE
+603,"Other tropical fruits, n.e.c.",Fruits,1940,0.855271988363019,0.0565859462612863,Spain_Hist,TRUE
+603,"Other tropical fruits, n.e.c.",Fruits,1950,0.855271988363019,0.085527198836302,Spain_Hist,TRUE
+603,"Other tropical fruits, n.e.c.",Fruits,1960,0.553594169837658,0.166078250951297,Spain_Hist,TRUE
+603,"Other tropical fruits, n.e.c.",Fruits,1970,0.545225611073899,0.27261280553695,Spain_Hist,TRUE
+603,"Other tropical fruits, n.e.c.",Fruits,1980,0.566618494993553,0.283309247496777,Spain_Hist,TRUE
+603,"Other tropical fruits, n.e.c.",Fruits,1990,0.543025084204557,0.271512542102279,Spain_Hist,TRUE
+603,"Other tropical fruits, n.e.c.",Fruits,2000,0.518178752704189,0.259089376352094,Spain_Hist,TRUE
+603,"Other tropical fruits, n.e.c.",Fruits,2008,0.618768069506164,0.309384034753082,Spain_Hist,TRUE
+619,"Other fruits, n.e.c.",Fruits,1900,0.885479511429722,0.0442739755714861,Spain_Hist,TRUE
+619,"Other fruits, n.e.c.",Fruits,1910,0.885479511429722,0.0442739755714861,Spain_Hist,TRUE
+619,"Other fruits, n.e.c.",Fruits,1922,0.91520988605824,0.045760494302912,Spain_Hist,TRUE
+619,"Other fruits, n.e.c.",Fruits,1933,0.871466690327407,0.0435733345163704,Spain_Hist,TRUE
+619,"Other fruits, n.e.c.",Fruits,1940,0.855271988363019,0.0565859462612863,Spain_Hist,TRUE
+619,"Other fruits, n.e.c.",Fruits,1950,0.855271988363019,0.085527198836302,Spain_Hist,TRUE
+619,"Other fruits, n.e.c.",Fruits,1960,0.553594169837658,0.166078250951297,Spain_Hist,TRUE
+619,"Other fruits, n.e.c.",Fruits,1970,0.545225611073899,0.27261280553695,Spain_Hist,TRUE
+619,"Other fruits, n.e.c.",Fruits,1980,0.566618494993553,0.283309247496777,Spain_Hist,TRUE
+619,"Other fruits, n.e.c.",Fruits,1990,0.543025084204557,0.271512542102279,Spain_Hist,TRUE
+619,"Other fruits, n.e.c.",Fruits,2000,0.518178752704189,0.259089376352094,Spain_Hist,TRUE
+619,"Other fruits, n.e.c.",Fruits,2008,0.618768069506164,0.309384034753082,Spain_Hist,TRUE
+636,"Forage and silage, maize","Maize, green",1900,0,0,Spain_Hist,TRUE
+636,"Forage and silage, maize","Maize, green",1910,0,0,Spain_Hist,TRUE
+636,"Forage and silage, maize","Maize, green",1922,0,0,Spain_Hist,TRUE
+636,"Forage and silage, maize","Maize, green",1933,0,0,Spain_Hist,TRUE
+636,"Forage and silage, maize","Maize, green",1940,0,0,Spain_Hist,TRUE
+636,"Forage and silage, maize","Maize, green",1950,0,0,Spain_Hist,TRUE
+636,"Forage and silage, maize","Maize, green",1960,0,0,Spain_Hist,TRUE
+636,"Forage and silage, maize","Maize, green",1970,0,0,Spain_Hist,TRUE
+636,"Forage and silage, maize","Maize, green",1980,0,0,Spain_Hist,TRUE
+636,"Forage and silage, maize","Maize, green",1990,0,0,Spain_Hist,TRUE
+636,"Forage and silage, maize","Maize, green",2000,0,0,Spain_Hist,TRUE
+636,"Forage and silage, maize","Maize, green",2008,0,0,Spain_Hist,TRUE
+637,"Forage and silage, sorghum","Sorghum, green",1900,0,0,Spain_Hist,TRUE
+637,"Forage and silage, sorghum","Sorghum, green",1910,0,0,Spain_Hist,TRUE
+637,"Forage and silage, sorghum","Sorghum, green",1922,0,0,Spain_Hist,TRUE
+637,"Forage and silage, sorghum","Sorghum, green",1933,0,0,Spain_Hist,TRUE
+637,"Forage and silage, sorghum","Sorghum, green",1940,0,0,Spain_Hist,TRUE
+637,"Forage and silage, sorghum","Sorghum, green",1950,0,0,Spain_Hist,TRUE
+637,"Forage and silage, sorghum","Sorghum, green",1960,0,0,Spain_Hist,TRUE
+637,"Forage and silage, sorghum","Sorghum, green",1970,0,0,Spain_Hist,TRUE
+637,"Forage and silage, sorghum","Sorghum, green",1980,0,0,Spain_Hist,TRUE
+637,"Forage and silage, sorghum","Sorghum, green",1990,0,0,Spain_Hist,TRUE
+637,"Forage and silage, sorghum","Sorghum, green",2000,0,0,Spain_Hist,TRUE
+637,"Forage and silage, sorghum","Sorghum, green",2008,0,0,Spain_Hist,TRUE
+639,"Forage and silage, grasses nes",Other true grasses for fodder,1900,0,0,Spain_Hist,TRUE
+639,"Forage and silage, grasses nes",Other true grasses for fodder,1910,0,0,Spain_Hist,TRUE
+639,"Forage and silage, grasses nes",Other true grasses for fodder,1922,0,0,Spain_Hist,TRUE
+639,"Forage and silage, grasses nes",Other true grasses for fodder,1933,0,0,Spain_Hist,TRUE
+639,"Forage and silage, grasses nes",Other true grasses for fodder,1940,0,0,Spain_Hist,TRUE
+639,"Forage and silage, grasses nes",Other true grasses for fodder,1950,0,0,Spain_Hist,TRUE
+639,"Forage and silage, grasses nes",Other true grasses for fodder,1960,0,0,Spain_Hist,TRUE
+639,"Forage and silage, grasses nes",Other true grasses for fodder,1970,0,0,Spain_Hist,TRUE
+639,"Forage and silage, grasses nes",Other true grasses for fodder,1980,0,0,Spain_Hist,TRUE
+639,"Forage and silage, grasses nes",Other true grasses for fodder,1990,0,0,Spain_Hist,TRUE
+639,"Forage and silage, grasses nes",Other true grasses for fodder,2000,0,0,Spain_Hist,TRUE
+639,"Forage and silage, grasses nes",Other true grasses for fodder,2008,0,0,Spain_Hist,TRUE
+640,"Forage and silage, clover",Clover,1900,0,0,Spain_Hist,TRUE
+640,"Forage and silage, clover",Clover,1910,0,0,Spain_Hist,TRUE
+640,"Forage and silage, clover",Clover,1922,0,0,Spain_Hist,TRUE
+640,"Forage and silage, clover",Clover,1933,0,0,Spain_Hist,TRUE
+640,"Forage and silage, clover",Clover,1940,0,0,Spain_Hist,TRUE
+640,"Forage and silage, clover",Clover,1950,0,0,Spain_Hist,TRUE
+640,"Forage and silage, clover",Clover,1960,0,0,Spain_Hist,TRUE
+640,"Forage and silage, clover",Clover,1970,0,0,Spain_Hist,TRUE
+640,"Forage and silage, clover",Clover,1980,0,0,Spain_Hist,TRUE
+640,"Forage and silage, clover",Clover,1990,0,0,Spain_Hist,TRUE
+640,"Forage and silage, clover",Clover,2000,0,0,Spain_Hist,TRUE
+640,"Forage and silage, clover",Clover,2008,0,0,Spain_Hist,TRUE
+641,"Forage and silage, alfalfa",Alfalfa,1900,0,0,Spain_Hist,TRUE
+641,"Forage and silage, alfalfa",Alfalfa,1910,0,0,Spain_Hist,TRUE
+641,"Forage and silage, alfalfa",Alfalfa,1922,0,0,Spain_Hist,TRUE
+641,"Forage and silage, alfalfa",Alfalfa,1933,0,0,Spain_Hist,TRUE
+641,"Forage and silage, alfalfa",Alfalfa,1940,0,0,Spain_Hist,TRUE
+641,"Forage and silage, alfalfa",Alfalfa,1950,0,0,Spain_Hist,TRUE
+641,"Forage and silage, alfalfa",Alfalfa,1960,0,0,Spain_Hist,TRUE
+641,"Forage and silage, alfalfa",Alfalfa,1970,0,0,Spain_Hist,TRUE
+641,"Forage and silage, alfalfa",Alfalfa,1980,0,0,Spain_Hist,TRUE
+641,"Forage and silage, alfalfa",Alfalfa,1990,0,0,Spain_Hist,TRUE
+641,"Forage and silage, alfalfa",Alfalfa,2000,0,0,Spain_Hist,TRUE
+641,"Forage and silage, alfalfa",Alfalfa,2008,0,0,Spain_Hist,TRUE
+642,"Forage and silage, green oilseeds","Fodder, other",1900,0,0,Spain_Hist,TRUE
+642,"Forage and silage, green oilseeds","Fodder, other",1910,0,0,Spain_Hist,TRUE
+642,"Forage and silage, green oilseeds","Fodder, other",1922,0,0,Spain_Hist,TRUE
+642,"Forage and silage, green oilseeds","Fodder, other",1933,0,0,Spain_Hist,TRUE
+642,"Forage and silage, green oilseeds","Fodder, other",1940,0,0,Spain_Hist,TRUE
+642,"Forage and silage, green oilseeds","Fodder, other",1950,0,0,Spain_Hist,TRUE
+642,"Forage and silage, green oilseeds","Fodder, other",1960,0,0,Spain_Hist,TRUE
+642,"Forage and silage, green oilseeds","Fodder, other",1970,0,0,Spain_Hist,TRUE
+642,"Forage and silage, green oilseeds","Fodder, other",1980,0,0,Spain_Hist,TRUE
+642,"Forage and silage, green oilseeds","Fodder, other",1990,0,0,Spain_Hist,TRUE
+642,"Forage and silage, green oilseeds","Fodder, other",2000,0,0,Spain_Hist,TRUE
+642,"Forage and silage, green oilseeds","Fodder, other",2008,0,0,Spain_Hist,TRUE
+643,"Forage and silage, legumes",Other legumes for green fodder,1900,0,0,Spain_Hist,TRUE
+643,"Forage and silage, legumes",Other legumes for green fodder,1910,0,0,Spain_Hist,TRUE
+643,"Forage and silage, legumes",Other legumes for green fodder,1922,0,0,Spain_Hist,TRUE
+643,"Forage and silage, legumes",Other legumes for green fodder,1933,0,0,Spain_Hist,TRUE
+643,"Forage and silage, legumes",Other legumes for green fodder,1940,0,0,Spain_Hist,TRUE
+643,"Forage and silage, legumes",Other legumes for green fodder,1950,0,0,Spain_Hist,TRUE
+643,"Forage and silage, legumes",Other legumes for green fodder,1960,0,0,Spain_Hist,TRUE
+643,"Forage and silage, legumes",Other legumes for green fodder,1970,0,0,Spain_Hist,TRUE
+643,"Forage and silage, legumes",Other legumes for green fodder,1980,0,0,Spain_Hist,TRUE
+643,"Forage and silage, legumes",Other legumes for green fodder,1990,0,0,Spain_Hist,TRUE
+643,"Forage and silage, legumes",Other legumes for green fodder,2000,0,0,Spain_Hist,TRUE
+643,"Forage and silage, legumes",Other legumes for green fodder,2008,0,0,Spain_Hist,TRUE
+644,Cabbage for fodder,Fodder cabbage,1900,0,0,Spain_Hist,TRUE
+644,Cabbage for fodder,Fodder cabbage,1910,0,0,Spain_Hist,TRUE
+644,Cabbage for fodder,Fodder cabbage,1922,0,0,Spain_Hist,TRUE
+644,Cabbage for fodder,Fodder cabbage,1933,0,0,Spain_Hist,TRUE
+644,Cabbage for fodder,Fodder cabbage,1940,0,0,Spain_Hist,TRUE
+644,Cabbage for fodder,Fodder cabbage,1950,0,0,Spain_Hist,TRUE
+644,Cabbage for fodder,Fodder cabbage,1960,0,0,Spain_Hist,TRUE
+644,Cabbage for fodder,Fodder cabbage,1970,0,0,Spain_Hist,TRUE
+644,Cabbage for fodder,Fodder cabbage,1980,0,0,Spain_Hist,TRUE
+644,Cabbage for fodder,Fodder cabbage,1990,0,0,Spain_Hist,TRUE
+644,Cabbage for fodder,Fodder cabbage,2000,0,0,Spain_Hist,TRUE
+644,Cabbage for fodder,Fodder cabbage,2008,0,0,Spain_Hist,TRUE
+646,Turnips for fodder,"Turnip, for fodder",1900,0,0,Spain_Hist,TRUE
+646,Turnips for fodder,"Turnip, for fodder",1910,0,0,Spain_Hist,TRUE
+646,Turnips for fodder,"Turnip, for fodder",1922,0,0,Spain_Hist,TRUE
+646,Turnips for fodder,"Turnip, for fodder",1933,0,0,Spain_Hist,TRUE
+646,Turnips for fodder,"Turnip, for fodder",1940,0,0,Spain_Hist,TRUE
+646,Turnips for fodder,"Turnip, for fodder",1950,0,0,Spain_Hist,TRUE
+646,Turnips for fodder,"Turnip, for fodder",1960,0,0,Spain_Hist,TRUE
+646,Turnips for fodder,"Turnip, for fodder",1970,0,0,Spain_Hist,TRUE
+646,Turnips for fodder,"Turnip, for fodder",1980,0,0,Spain_Hist,TRUE
+646,Turnips for fodder,"Turnip, for fodder",1990,0,0,Spain_Hist,TRUE
+646,Turnips for fodder,"Turnip, for fodder",2000,0,0,Spain_Hist,TRUE
+646,Turnips for fodder,"Turnip, for fodder",2008,0,0,Spain_Hist,TRUE
+647,Beets for fodder,Fodder beet,1900,0,0,Spain_Hist,TRUE
+647,Beets for fodder,Fodder beet,1910,0,0,Spain_Hist,TRUE
+647,Beets for fodder,Fodder beet,1922,0,0,Spain_Hist,TRUE
+647,Beets for fodder,Fodder beet,1933,0,0,Spain_Hist,TRUE
+647,Beets for fodder,Fodder beet,1940,0,0,Spain_Hist,TRUE
+647,Beets for fodder,Fodder beet,1950,0,0,Spain_Hist,TRUE
+647,Beets for fodder,Fodder beet,1960,0,0,Spain_Hist,TRUE
+647,Beets for fodder,Fodder beet,1970,0,0,Spain_Hist,TRUE
+647,Beets for fodder,Fodder beet,1980,0,0,Spain_Hist,TRUE
+647,Beets for fodder,Fodder beet,1990,0,0,Spain_Hist,TRUE
+647,Beets for fodder,Fodder beet,2000,0,0,Spain_Hist,TRUE
+647,Beets for fodder,Fodder beet,2008,0,0,Spain_Hist,TRUE
+648,Carrots for fodder,"Carrot, for fodder",1900,0,0,Spain_Hist,TRUE
+648,Carrots for fodder,"Carrot, for fodder",1910,0,0,Spain_Hist,TRUE
+648,Carrots for fodder,"Carrot, for fodder",1922,0,0,Spain_Hist,TRUE
+648,Carrots for fodder,"Carrot, for fodder",1933,0,0,Spain_Hist,TRUE
+648,Carrots for fodder,"Carrot, for fodder",1940,0,0,Spain_Hist,TRUE
+648,Carrots for fodder,"Carrot, for fodder",1950,0,0,Spain_Hist,TRUE
+648,Carrots for fodder,"Carrot, for fodder",1960,0,0,Spain_Hist,TRUE
+648,Carrots for fodder,"Carrot, for fodder",1970,0,0,Spain_Hist,TRUE
+648,Carrots for fodder,"Carrot, for fodder",1980,0,0,Spain_Hist,TRUE
+648,Carrots for fodder,"Carrot, for fodder",1990,0,0,Spain_Hist,TRUE
+648,Carrots for fodder,"Carrot, for fodder",2000,0,0,Spain_Hist,TRUE
+648,Carrots for fodder,"Carrot, for fodder",2008,0,0,Spain_Hist,TRUE
+649,Swedes for fodder,Other roots and tubers for fodder,1900,0,0,Spain_Hist,TRUE
+649,Swedes for fodder,Other roots and tubers for fodder,1910,0,0,Spain_Hist,TRUE
+649,Swedes for fodder,Other roots and tubers for fodder,1922,0,0,Spain_Hist,TRUE
+649,Swedes for fodder,Other roots and tubers for fodder,1933,0,0,Spain_Hist,TRUE
+649,Swedes for fodder,Other roots and tubers for fodder,1940,0,0,Spain_Hist,TRUE
+649,Swedes for fodder,Other roots and tubers for fodder,1950,0,0,Spain_Hist,TRUE
+649,Swedes for fodder,Other roots and tubers for fodder,1960,0,0,Spain_Hist,TRUE
+649,Swedes for fodder,Other roots and tubers for fodder,1970,0,0,Spain_Hist,TRUE
+649,Swedes for fodder,Other roots and tubers for fodder,1980,0,0,Spain_Hist,TRUE
+649,Swedes for fodder,Other roots and tubers for fodder,1990,0,0,Spain_Hist,TRUE
+649,Swedes for fodder,Other roots and tubers for fodder,2000,0,0,Spain_Hist,TRUE
+649,Swedes for fodder,Other roots and tubers for fodder,2008,0,0,Spain_Hist,TRUE
+651,Forage products,"Fodder, other",1900,0,0,Spain_Hist,TRUE
+651,Forage products,"Fodder, other",1910,0,0,Spain_Hist,TRUE
+651,Forage products,"Fodder, other",1922,0,0,Spain_Hist,TRUE
+651,Forage products,"Fodder, other",1933,0,0,Spain_Hist,TRUE
+651,Forage products,"Fodder, other",1940,0,0,Spain_Hist,TRUE
+651,Forage products,"Fodder, other",1950,0,0,Spain_Hist,TRUE
+651,Forage products,"Fodder, other",1960,0,0,Spain_Hist,TRUE
+651,Forage products,"Fodder, other",1970,0,0,Spain_Hist,TRUE
+651,Forage products,"Fodder, other",1980,0,0,Spain_Hist,TRUE
+651,Forage products,"Fodder, other",1990,0,0,Spain_Hist,TRUE
+651,Forage products,"Fodder, other",2000,0,0,Spain_Hist,TRUE
+651,Forage products,"Fodder, other",2008,0,0,Spain_Hist,TRUE
+655,Vegetables and roots fodder,"Fodder, other",1900,0,0,Spain_Hist,TRUE
+655,Vegetables and roots fodder,"Fodder, other",1910,0,0,Spain_Hist,TRUE
+655,Vegetables and roots fodder,"Fodder, other",1922,0,0,Spain_Hist,TRUE
+655,Vegetables and roots fodder,"Fodder, other",1933,0,0,Spain_Hist,TRUE
+655,Vegetables and roots fodder,"Fodder, other",1940,0,0,Spain_Hist,TRUE
+655,Vegetables and roots fodder,"Fodder, other",1950,0,0,Spain_Hist,TRUE
+655,Vegetables and roots fodder,"Fodder, other",1960,0,0,Spain_Hist,TRUE
+655,Vegetables and roots fodder,"Fodder, other",1970,0,0,Spain_Hist,TRUE
+655,Vegetables and roots fodder,"Fodder, other",1980,0,0,Spain_Hist,TRUE
+655,Vegetables and roots fodder,"Fodder, other",1990,0,0,Spain_Hist,TRUE
+655,Vegetables and roots fodder,"Fodder, other",2000,0,0,Spain_Hist,TRUE
+655,Vegetables and roots fodder,"Fodder, other",2008,0,0,Spain_Hist,TRUE
+656,"Coffee, green",Coffee,1900,0.836700022341323,0.0418350011170662,Spain_Hist,TRUE
+656,"Coffee, green",Coffee,1910,0.847110910708931,0.0423555455354465,Spain_Hist,TRUE
+656,"Coffee, green",Coffee,1922,0.844085896905837,0.0422042948452919,Spain_Hist,TRUE
+656,"Coffee, green",Coffee,1933,0.801144240797385,0.0400572120398692,Spain_Hist,TRUE
+656,"Coffee, green",Coffee,1940,0.80474811631487,0.0402374058157435,Spain_Hist,TRUE
+656,"Coffee, green",Coffee,1950,0.740636895438313,0.0740636895438313,Spain_Hist,TRUE
+656,"Coffee, green",Coffee,1960,0.538792981223268,0.16163789436698,Spain_Hist,TRUE
+656,"Coffee, green",Coffee,1970,0.54383569950757,0.271917849753785,Spain_Hist,TRUE
+656,"Coffee, green",Coffee,1980,0.555269409320678,0.277634704660339,Spain_Hist,TRUE
+656,"Coffee, green",Coffee,1990,0.541652902790052,0.270826451395026,Spain_Hist,TRUE
+656,"Coffee, green",Coffee,2000,0.518178752704189,0.259089376352094,Spain_Hist,TRUE
+656,"Coffee, green",Coffee,2008,0.518518518518519,0.259259259259259,Spain_Hist,TRUE
+677,Hop cones,Hop,1900,0,0,Spain_Hist,TRUE
+677,Hop cones,Hop,1910,0,0,Spain_Hist,TRUE
+677,Hop cones,Hop,1922,0,0,Spain_Hist,TRUE
+677,Hop cones,Hop,1933,0,0,Spain_Hist,TRUE
+677,Hop cones,Hop,1940,0,0,Spain_Hist,TRUE
+677,Hop cones,Hop,1950,0,0,Spain_Hist,TRUE
+677,Hop cones,Hop,1960,0,0.25,Spain_Hist,TRUE
+677,Hop cones,Hop,1970,0,0.5,Spain_Hist,TRUE
+677,Hop cones,Hop,1980,0,0.5,Spain_Hist,TRUE
+677,Hop cones,Hop,1990,0,0.5,Spain_Hist,TRUE
+677,Hop cones,Hop,2000,0,0.33,Spain_Hist,TRUE
+677,Hop cones,Hop,2008,0,0.165,Spain_Hist,TRUE
+687,"Pepper (Piper spp.), raw","Spices, Other",1900,0,0,Spain_Hist,TRUE
+687,"Pepper (Piper spp.), raw","Spices, Other",1910,0,0,Spain_Hist,TRUE
+687,"Pepper (Piper spp.), raw","Spices, Other",1922,0,0,Spain_Hist,TRUE
+687,"Pepper (Piper spp.), raw","Spices, Other",1933,0,0,Spain_Hist,TRUE
+687,"Pepper (Piper spp.), raw","Spices, Other",1940,0,0,Spain_Hist,TRUE
+687,"Pepper (Piper spp.), raw","Spices, Other",1950,0,0.125,Spain_Hist,TRUE
+687,"Pepper (Piper spp.), raw","Spices, Other",1960,0,0.25,Spain_Hist,TRUE
+687,"Pepper (Piper spp.), raw","Spices, Other",1970,0,0.5,Spain_Hist,TRUE
+687,"Pepper (Piper spp.), raw","Spices, Other",1980,0,0.5,Spain_Hist,TRUE
+687,"Pepper (Piper spp.), raw","Spices, Other",1990,0,0.5,Spain_Hist,TRUE
+687,"Pepper (Piper spp.), raw","Spices, Other",2000,0,0.33,Spain_Hist,TRUE
+687,"Pepper (Piper spp.), raw","Spices, Other",2008,0,0.165,Spain_Hist,TRUE
+689,"Chillies and peppers, dry (Capsicum spp., Pimenta spp.), raw","Chili pepper and peppers, dry",1900,0,0,Spain_Hist,TRUE
+689,"Chillies and peppers, dry (Capsicum spp., Pimenta spp.), raw","Chili pepper and peppers, dry",1910,0,0,Spain_Hist,TRUE
+689,"Chillies and peppers, dry (Capsicum spp., Pimenta spp.), raw","Chili pepper and peppers, dry",1922,0.1,0,Spain_Hist,TRUE
+689,"Chillies and peppers, dry (Capsicum spp., Pimenta spp.), raw","Chili pepper and peppers, dry",1933,0,0,Spain_Hist,TRUE
+689,"Chillies and peppers, dry (Capsicum spp., Pimenta spp.), raw","Chili pepper and peppers, dry",1940,0,0,Spain_Hist,TRUE
+689,"Chillies and peppers, dry (Capsicum spp., Pimenta spp.), raw","Chili pepper and peppers, dry",1950,0,0,Spain_Hist,TRUE
+689,"Chillies and peppers, dry (Capsicum spp., Pimenta spp.), raw","Chili pepper and peppers, dry",1960,0,0,Spain_Hist,TRUE
+689,"Chillies and peppers, dry (Capsicum spp., Pimenta spp.), raw","Chili pepper and peppers, dry",1970,0.1,0.45,Spain_Hist,TRUE
+689,"Chillies and peppers, dry (Capsicum spp., Pimenta spp.), raw","Chili pepper and peppers, dry",1980,0.1,0.45,Spain_Hist,TRUE
+689,"Chillies and peppers, dry (Capsicum spp., Pimenta spp.), raw","Chili pepper and peppers, dry",1990,0.1,0.45,Spain_Hist,TRUE
+689,"Chillies and peppers, dry (Capsicum spp., Pimenta spp.), raw","Chili pepper and peppers, dry",2000,0.1,0.18,Spain_Hist,TRUE
+689,"Chillies and peppers, dry (Capsicum spp., Pimenta spp.), raw","Chili pepper and peppers, dry",2008,0.1,0.18,Spain_Hist,TRUE
+692,"Vanilla, raw","Spices, Other",1900,0,0,Spain_Hist,TRUE
+692,"Vanilla, raw","Spices, Other",1910,0,0,Spain_Hist,TRUE
+692,"Vanilla, raw","Spices, Other",1922,0,0,Spain_Hist,TRUE
+692,"Vanilla, raw","Spices, Other",1933,0,0,Spain_Hist,TRUE
+692,"Vanilla, raw","Spices, Other",1940,0,0,Spain_Hist,TRUE
+692,"Vanilla, raw","Spices, Other",1950,0,0.125,Spain_Hist,TRUE
+692,"Vanilla, raw","Spices, Other",1960,0,0.25,Spain_Hist,TRUE
+692,"Vanilla, raw","Spices, Other",1970,0,0.5,Spain_Hist,TRUE
+692,"Vanilla, raw","Spices, Other",1980,0,0.5,Spain_Hist,TRUE
+692,"Vanilla, raw","Spices, Other",1990,0,0.5,Spain_Hist,TRUE
+692,"Vanilla, raw","Spices, Other",2000,0,0.33,Spain_Hist,TRUE
+692,"Vanilla, raw","Spices, Other",2008,0,0.165,Spain_Hist,TRUE
+693,"Cinnamon and cinnamon-tree flowers, raw","Spices, Other",1900,0,0,Spain_Hist,TRUE
+693,"Cinnamon and cinnamon-tree flowers, raw","Spices, Other",1910,0,0,Spain_Hist,TRUE
+693,"Cinnamon and cinnamon-tree flowers, raw","Spices, Other",1922,0,0,Spain_Hist,TRUE
+693,"Cinnamon and cinnamon-tree flowers, raw","Spices, Other",1933,0,0,Spain_Hist,TRUE
+693,"Cinnamon and cinnamon-tree flowers, raw","Spices, Other",1940,0,0,Spain_Hist,TRUE
+693,"Cinnamon and cinnamon-tree flowers, raw","Spices, Other",1950,0,0.125,Spain_Hist,TRUE
+693,"Cinnamon and cinnamon-tree flowers, raw","Spices, Other",1960,0,0.25,Spain_Hist,TRUE
+693,"Cinnamon and cinnamon-tree flowers, raw","Spices, Other",1970,0,0.5,Spain_Hist,TRUE
+693,"Cinnamon and cinnamon-tree flowers, raw","Spices, Other",1980,0,0.5,Spain_Hist,TRUE
+693,"Cinnamon and cinnamon-tree flowers, raw","Spices, Other",1990,0,0.5,Spain_Hist,TRUE
+693,"Cinnamon and cinnamon-tree flowers, raw","Spices, Other",2000,0,0.33,Spain_Hist,TRUE
+693,"Cinnamon and cinnamon-tree flowers, raw","Spices, Other",2008,0,0.165,Spain_Hist,TRUE
+698,"Cloves (whole stems), raw","Spices, Other",1900,0,0,Spain_Hist,TRUE
+698,"Cloves (whole stems), raw","Spices, Other",1910,0,0,Spain_Hist,TRUE
+698,"Cloves (whole stems), raw","Spices, Other",1922,0,0,Spain_Hist,TRUE
+698,"Cloves (whole stems), raw","Spices, Other",1933,0,0,Spain_Hist,TRUE
+698,"Cloves (whole stems), raw","Spices, Other",1940,0,0,Spain_Hist,TRUE
+698,"Cloves (whole stems), raw","Spices, Other",1950,0,0.125,Spain_Hist,TRUE
+698,"Cloves (whole stems), raw","Spices, Other",1960,0,0.25,Spain_Hist,TRUE
+698,"Cloves (whole stems), raw","Spices, Other",1970,0,0.5,Spain_Hist,TRUE
+698,"Cloves (whole stems), raw","Spices, Other",1980,0,0.5,Spain_Hist,TRUE
+698,"Cloves (whole stems), raw","Spices, Other",1990,0,0.5,Spain_Hist,TRUE
+698,"Cloves (whole stems), raw","Spices, Other",2000,0,0.33,Spain_Hist,TRUE
+698,"Cloves (whole stems), raw","Spices, Other",2008,0,0.165,Spain_Hist,TRUE
+702,"Nutmeg, mace, cardamoms, raw","Spices, Other",1900,0,0,Spain_Hist,TRUE
+702,"Nutmeg, mace, cardamoms, raw","Spices, Other",1910,0,0,Spain_Hist,TRUE
+702,"Nutmeg, mace, cardamoms, raw","Spices, Other",1922,0,0,Spain_Hist,TRUE
+702,"Nutmeg, mace, cardamoms, raw","Spices, Other",1933,0,0,Spain_Hist,TRUE
+702,"Nutmeg, mace, cardamoms, raw","Spices, Other",1940,0,0,Spain_Hist,TRUE
+702,"Nutmeg, mace, cardamoms, raw","Spices, Other",1950,0,0.125,Spain_Hist,TRUE
+702,"Nutmeg, mace, cardamoms, raw","Spices, Other",1960,0,0.25,Spain_Hist,TRUE
+702,"Nutmeg, mace, cardamoms, raw","Spices, Other",1970,0,0.5,Spain_Hist,TRUE
+702,"Nutmeg, mace, cardamoms, raw","Spices, Other",1980,0,0.5,Spain_Hist,TRUE
+702,"Nutmeg, mace, cardamoms, raw","Spices, Other",1990,0,0.5,Spain_Hist,TRUE
+702,"Nutmeg, mace, cardamoms, raw","Spices, Other",2000,0,0.33,Spain_Hist,TRUE
+702,"Nutmeg, mace, cardamoms, raw","Spices, Other",2008,0,0.165,Spain_Hist,TRUE
+71,Rye,Rye,1900,0.856740440747945,0,Spain_Hist,TRUE
+71,Rye,Rye,1910,0.856740440747945,0,Spain_Hist,TRUE
+71,Rye,Rye,1922,0.856740440747945,0,Spain_Hist,TRUE
+71,Rye,Rye,1933,0.831115298568104,0,Spain_Hist,TRUE
+71,Rye,Rye,1940,0.84890142295875,0,Spain_Hist,TRUE
+71,Rye,Rye,1950,0.885563792912036,0.00137323448505557,Spain_Hist,TRUE
+71,Rye,Rye,1960,0.833671473430754,0.00582149842992363,Spain_Hist,TRUE
+71,Rye,Rye,1970,0.931400632985321,0.0048705550580422,Spain_Hist,TRUE
+71,Rye,Rye,1980,0.703397227277956,0.0210587968632651,Spain_Hist,TRUE
+71,Rye,Rye,1990,0.547190937948428,0.0321494434056616,Spain_Hist,TRUE
+71,Rye,Rye,2000,0.562141115103916,0.00788145992812951,Spain_Hist,TRUE
+71,Rye,Rye,2008,0.421684793879505,0.00693978247344595,Spain_Hist,TRUE
+711,"Anise, badian, coriander, cumin, caraway, fennel and juniper berries, raw","Spices, Other",1900,0,0,Spain_Hist,TRUE
+711,"Anise, badian, coriander, cumin, caraway, fennel and juniper berries, raw","Spices, Other",1910,0,0,Spain_Hist,TRUE
+711,"Anise, badian, coriander, cumin, caraway, fennel and juniper berries, raw","Spices, Other",1922,0,0,Spain_Hist,TRUE
+711,"Anise, badian, coriander, cumin, caraway, fennel and juniper berries, raw","Spices, Other",1933,0,0,Spain_Hist,TRUE
+711,"Anise, badian, coriander, cumin, caraway, fennel and juniper berries, raw","Spices, Other",1940,0,0,Spain_Hist,TRUE
+711,"Anise, badian, coriander, cumin, caraway, fennel and juniper berries, raw","Spices, Other",1950,0,0.125,Spain_Hist,TRUE
+711,"Anise, badian, coriander, cumin, caraway, fennel and juniper berries, raw","Spices, Other",1960,0,0.25,Spain_Hist,TRUE
+711,"Anise, badian, coriander, cumin, caraway, fennel and juniper berries, raw","Spices, Other",1970,0,0.5,Spain_Hist,TRUE
+711,"Anise, badian, coriander, cumin, caraway, fennel and juniper berries, raw","Spices, Other",1980,0,0.5,Spain_Hist,TRUE
+711,"Anise, badian, coriander, cumin, caraway, fennel and juniper berries, raw","Spices, Other",1990,0,0.5,Spain_Hist,TRUE
+711,"Anise, badian, coriander, cumin, caraway, fennel and juniper berries, raw","Spices, Other",2000,0,0.33,Spain_Hist,TRUE
+711,"Anise, badian, coriander, cumin, caraway, fennel and juniper berries, raw","Spices, Other",2008,0,0.165,Spain_Hist,TRUE
+720,"Ginger, raw","Spices, Other",1900,0,0,Spain_Hist,TRUE
+720,"Ginger, raw","Spices, Other",1910,0,0,Spain_Hist,TRUE
+720,"Ginger, raw","Spices, Other",1922,0,0,Spain_Hist,TRUE
+720,"Ginger, raw","Spices, Other",1933,0,0,Spain_Hist,TRUE
+720,"Ginger, raw","Spices, Other",1940,0,0,Spain_Hist,TRUE
+720,"Ginger, raw","Spices, Other",1950,0,0.125,Spain_Hist,TRUE
+720,"Ginger, raw","Spices, Other",1960,0,0.25,Spain_Hist,TRUE
+720,"Ginger, raw","Spices, Other",1970,0,0.5,Spain_Hist,TRUE
+720,"Ginger, raw","Spices, Other",1980,0,0.5,Spain_Hist,TRUE
+720,"Ginger, raw","Spices, Other",1990,0,0.5,Spain_Hist,TRUE
+720,"Ginger, raw","Spices, Other",2000,0,0.33,Spain_Hist,TRUE
+720,"Ginger, raw","Spices, Other",2008,0,0.165,Spain_Hist,TRUE
+723,"Other stimulant, spice and aromatic crops, n.e.c.","Spices, Other",1900,0,0,Spain_Hist,TRUE
+723,"Other stimulant, spice and aromatic crops, n.e.c.","Spices, Other",1910,0,0,Spain_Hist,TRUE
+723,"Other stimulant, spice and aromatic crops, n.e.c.","Spices, Other",1922,0,0,Spain_Hist,TRUE
+723,"Other stimulant, spice and aromatic crops, n.e.c.","Spices, Other",1933,0,0,Spain_Hist,TRUE
+723,"Other stimulant, spice and aromatic crops, n.e.c.","Spices, Other",1940,0,0,Spain_Hist,TRUE
+723,"Other stimulant, spice and aromatic crops, n.e.c.","Spices, Other",1950,0,0.125,Spain_Hist,TRUE
+723,"Other stimulant, spice and aromatic crops, n.e.c.","Spices, Other",1960,0,0.25,Spain_Hist,TRUE
+723,"Other stimulant, spice and aromatic crops, n.e.c.","Spices, Other",1970,0,0.5,Spain_Hist,TRUE
+723,"Other stimulant, spice and aromatic crops, n.e.c.","Spices, Other",1980,0,0.5,Spain_Hist,TRUE
+723,"Other stimulant, spice and aromatic crops, n.e.c.","Spices, Other",1990,0,0.5,Spain_Hist,TRUE
+723,"Other stimulant, spice and aromatic crops, n.e.c.","Spices, Other",2000,0,0.33,Spain_Hist,TRUE
+723,"Other stimulant, spice and aromatic crops, n.e.c.","Spices, Other",2008,0,0.165,Spain_Hist,TRUE
+748,"Peppermint, spearmint",Peppermint,1900,0,0,Spain_Hist,TRUE
+748,"Peppermint, spearmint",Peppermint,1910,0,0,Spain_Hist,TRUE
+748,"Peppermint, spearmint",Peppermint,1922,0,0,Spain_Hist,TRUE
+748,"Peppermint, spearmint",Peppermint,1933,0,0,Spain_Hist,TRUE
+748,"Peppermint, spearmint",Peppermint,1940,0,0,Spain_Hist,TRUE
+748,"Peppermint, spearmint",Peppermint,1950,0,0.125,Spain_Hist,TRUE
+748,"Peppermint, spearmint",Peppermint,1960,0,0.25,Spain_Hist,TRUE
+748,"Peppermint, spearmint",Peppermint,1970,0,0.5,Spain_Hist,TRUE
+748,"Peppermint, spearmint",Peppermint,1980,0,0.5,Spain_Hist,TRUE
+748,"Peppermint, spearmint",Peppermint,1990,0,0.5,Spain_Hist,TRUE
+748,"Peppermint, spearmint",Peppermint,2000,0,0.33,Spain_Hist,TRUE
+748,"Peppermint, spearmint",Peppermint,2008,0,0.165,Spain_Hist,TRUE
+75,Oats,Oats,1900,0.566606363471732,0,Spain_Hist,TRUE
+75,Oats,Oats,1910,0.566606363471732,0,Spain_Hist,TRUE
+75,Oats,Oats,1922,0.565095874981737,0,Spain_Hist,TRUE
+75,Oats,Oats,1933,0.567044590407387,0,Spain_Hist,TRUE
+75,Oats,Oats,1940,0.608227399629905,0,Spain_Hist,TRUE
+75,Oats,Oats,1950,0.717441839831065,0.00339069792202722,Spain_Hist,TRUE
+75,Oats,Oats,1960,0.789145632795005,0.00737990285217483,Spain_Hist,TRUE
+75,Oats,Oats,1970,0.660507275694706,0.0241039834256759,Spain_Hist,TRUE
+75,Oats,Oats,1980,0.564366969828992,0.0309299451421416,Spain_Hist,TRUE
+75,Oats,Oats,1990,0.42147566015752,0.0410752281288161,Spain_Hist,TRUE
+75,Oats,Oats,2000,0.46602115511175,0.00961161920798851,Spain_Hist,TRUE
+75,Oats,Oats,2008,0.385258761824133,0.0073768948581104,Spain_Hist,TRUE
+754,"Pyrethrum, dried flowers","Spices, Other",1900,0,0,Spain_Hist,TRUE
+754,"Pyrethrum, dried flowers","Spices, Other",1910,0,0,Spain_Hist,TRUE
+754,"Pyrethrum, dried flowers","Spices, Other",1922,0,0,Spain_Hist,TRUE
+754,"Pyrethrum, dried flowers","Spices, Other",1933,0,0,Spain_Hist,TRUE
+754,"Pyrethrum, dried flowers","Spices, Other",1940,0,0,Spain_Hist,TRUE
+754,"Pyrethrum, dried flowers","Spices, Other",1950,0,0.125,Spain_Hist,TRUE
+754,"Pyrethrum, dried flowers","Spices, Other",1960,0,0.25,Spain_Hist,TRUE
+754,"Pyrethrum, dried flowers","Spices, Other",1970,0,0.5,Spain_Hist,TRUE
+754,"Pyrethrum, dried flowers","Spices, Other",1980,0,0.5,Spain_Hist,TRUE
+754,"Pyrethrum, dried flowers","Spices, Other",1990,0,0.5,Spain_Hist,TRUE
+754,"Pyrethrum, dried flowers","Spices, Other",2000,0,0.33,Spain_Hist,TRUE
+754,"Pyrethrum, dried flowers","Spices, Other",2008,0,0.165,Spain_Hist,TRUE
+767,"Cotton lint, ginned",Cotton fiber,1900,0,0,Spain_Hist,TRUE
+767,"Cotton lint, ginned",Cotton fiber,1910,0,0,Spain_Hist,TRUE
+767,"Cotton lint, ginned",Cotton fiber,1922,0,0,Spain_Hist,TRUE
+767,"Cotton lint, ginned",Cotton fiber,1933,0,0,Spain_Hist,TRUE
+767,"Cotton lint, ginned",Cotton fiber,1940,0,0,Spain_Hist,TRUE
+767,"Cotton lint, ginned",Cotton fiber,1950,0,0.125,Spain_Hist,TRUE
+767,"Cotton lint, ginned",Cotton fiber,1960,0,0.25,Spain_Hist,TRUE
+767,"Cotton lint, ginned",Cotton fiber,1970,0,0.5,Spain_Hist,TRUE
+767,"Cotton lint, ginned",Cotton fiber,1980,0,0.5,Spain_Hist,TRUE
+767,"Cotton lint, ginned",Cotton fiber,1990,0,0.5,Spain_Hist,TRUE
+767,"Cotton lint, ginned",Cotton fiber,2000,0,0.33,Spain_Hist,TRUE
+767,"Cotton lint, ginned",Cotton fiber,2008,0,0.33,Spain_Hist,TRUE
+772,Linum,"Fibres, other",1900,0,0,Spain_Hist,TRUE
+772,Linum,"Fibres, other",1910,0,0,Spain_Hist,TRUE
+772,Linum,"Fibres, other",1922,0,0,Spain_Hist,TRUE
+772,Linum,"Fibres, other",1933,0,0,Spain_Hist,TRUE
+772,Linum,"Fibres, other",1940,0,0,Spain_Hist,TRUE
+772,Linum,"Fibres, other",1950,0,0,Spain_Hist,TRUE
+772,Linum,"Fibres, other",1960,0,0,Spain_Hist,TRUE
+772,Linum,"Fibres, other",1970,0,0,Spain_Hist,TRUE
+772,Linum,"Fibres, other",1980,0,0,Spain_Hist,TRUE
+772,Linum,"Fibres, other",1990,0,0,Spain_Hist,TRUE
+772,Linum,"Fibres, other",2000,0,0,Spain_Hist,TRUE
+772,Linum,"Fibres, other",2008,0,0,Spain_Hist,TRUE
+773,"Flax, processed but not spun",Flax fibre and tow,1900,0,0,Spain_Hist,TRUE
+773,"Flax, processed but not spun",Flax fibre and tow,1910,0,0,Spain_Hist,TRUE
+773,"Flax, processed but not spun",Flax fibre and tow,1922,0,0,Spain_Hist,TRUE
+773,"Flax, processed but not spun",Flax fibre and tow,1933,0,0,Spain_Hist,TRUE
+773,"Flax, processed but not spun",Flax fibre and tow,1940,0,0,Spain_Hist,TRUE
+773,"Flax, processed but not spun",Flax fibre and tow,1950,0,0,Spain_Hist,TRUE
+773,"Flax, processed but not spun",Flax fibre and tow,1960,0,0,Spain_Hist,TRUE
+773,"Flax, processed but not spun",Flax fibre and tow,1970,0,0,Spain_Hist,TRUE
+773,"Flax, processed but not spun",Flax fibre and tow,1980,0,0,Spain_Hist,TRUE
+773,"Flax, processed but not spun",Flax fibre and tow,1990,0,0,Spain_Hist,TRUE
+773,"Flax, processed but not spun",Flax fibre and tow,2000,0,0,Spain_Hist,TRUE
+773,"Flax, processed but not spun",Flax fibre and tow,2008,0,0,Spain_Hist,TRUE
+776,Hemp,"Fibres, other",1900,0,0,Spain_Hist,TRUE
+776,Hemp,"Fibres, other",1910,0,0,Spain_Hist,TRUE
+776,Hemp,"Fibres, other",1922,0,0,Spain_Hist,TRUE
+776,Hemp,"Fibres, other",1933,0,0,Spain_Hist,TRUE
+776,Hemp,"Fibres, other",1940,0,0,Spain_Hist,TRUE
+776,Hemp,"Fibres, other",1950,0,0,Spain_Hist,TRUE
+776,Hemp,"Fibres, other",1960,0,0,Spain_Hist,TRUE
+776,Hemp,"Fibres, other",1970,0,0,Spain_Hist,TRUE
+776,Hemp,"Fibres, other",1980,0,0,Spain_Hist,TRUE
+776,Hemp,"Fibres, other",1990,0,0,Spain_Hist,TRUE
+776,Hemp,"Fibres, other",2000,0,0,Spain_Hist,TRUE
+776,Hemp,"Fibres, other",2008,0,0,Spain_Hist,TRUE
+777,"True hemp, raw or retted","Fibres, other",1900,0,0,Spain_Hist,TRUE
+777,"True hemp, raw or retted","Fibres, other",1910,0,0,Spain_Hist,TRUE
+777,"True hemp, raw or retted","Fibres, other",1922,0,0,Spain_Hist,TRUE
+777,"True hemp, raw or retted","Fibres, other",1933,0,0,Spain_Hist,TRUE
+777,"True hemp, raw or retted","Fibres, other",1940,0,0,Spain_Hist,TRUE
+777,"True hemp, raw or retted","Fibres, other",1950,0,0,Spain_Hist,TRUE
+777,"True hemp, raw or retted","Fibres, other",1960,0,0,Spain_Hist,TRUE
+777,"True hemp, raw or retted","Fibres, other",1970,0,0,Spain_Hist,TRUE
+777,"True hemp, raw or retted","Fibres, other",1980,0,0,Spain_Hist,TRUE
+777,"True hemp, raw or retted","Fibres, other",1990,0,0,Spain_Hist,TRUE
+777,"True hemp, raw or retted","Fibres, other",2000,0,0,Spain_Hist,TRUE
+777,"True hemp, raw or retted","Fibres, other",2008,0,0,Spain_Hist,TRUE
+778,"Kapok fibre, raw","Fibres, other",1900,0,0,Spain_Hist,TRUE
+778,"Kapok fibre, raw","Fibres, other",1910,0,0,Spain_Hist,TRUE
+778,"Kapok fibre, raw","Fibres, other",1922,0,0,Spain_Hist,TRUE
+778,"Kapok fibre, raw","Fibres, other",1933,0,0,Spain_Hist,TRUE
+778,"Kapok fibre, raw","Fibres, other",1940,0,0,Spain_Hist,TRUE
+778,"Kapok fibre, raw","Fibres, other",1950,0,0,Spain_Hist,TRUE
+778,"Kapok fibre, raw","Fibres, other",1960,0,0,Spain_Hist,TRUE
+778,"Kapok fibre, raw","Fibres, other",1970,0,0,Spain_Hist,TRUE
+778,"Kapok fibre, raw","Fibres, other",1980,0,0,Spain_Hist,TRUE
+778,"Kapok fibre, raw","Fibres, other",1990,0,0,Spain_Hist,TRUE
+778,"Kapok fibre, raw","Fibres, other",2000,0,0,Spain_Hist,TRUE
+778,"Kapok fibre, raw","Fibres, other",2008,0,0,Spain_Hist,TRUE
+780,"Jute, raw or retted","Fibres, other",1900,0,0,Spain_Hist,TRUE
+780,"Jute, raw or retted","Fibres, other",1910,0,0,Spain_Hist,TRUE
+780,"Jute, raw or retted","Fibres, other",1922,0,0,Spain_Hist,TRUE
+780,"Jute, raw or retted","Fibres, other",1933,0,0,Spain_Hist,TRUE
+780,"Jute, raw or retted","Fibres, other",1940,0,0,Spain_Hist,TRUE
+780,"Jute, raw or retted","Fibres, other",1950,0,0,Spain_Hist,TRUE
+780,"Jute, raw or retted","Fibres, other",1960,0,0,Spain_Hist,TRUE
+780,"Jute, raw or retted","Fibres, other",1970,0,0,Spain_Hist,TRUE
+780,"Jute, raw or retted","Fibres, other",1980,0,0,Spain_Hist,TRUE
+780,"Jute, raw or retted","Fibres, other",1990,0,0,Spain_Hist,TRUE
+780,"Jute, raw or retted","Fibres, other",2000,0,0,Spain_Hist,TRUE
+780,"Jute, raw or retted","Fibres, other",2008,0,0,Spain_Hist,TRUE
+782,"Kenaf, and other textile bast fibres, raw or retted","Fibres, other",1900,0,0,Spain_Hist,TRUE
+782,"Kenaf, and other textile bast fibres, raw or retted","Fibres, other",1910,0,0,Spain_Hist,TRUE
+782,"Kenaf, and other textile bast fibres, raw or retted","Fibres, other",1922,0,0,Spain_Hist,TRUE
+782,"Kenaf, and other textile bast fibres, raw or retted","Fibres, other",1933,0,0,Spain_Hist,TRUE
+782,"Kenaf, and other textile bast fibres, raw or retted","Fibres, other",1940,0,0,Spain_Hist,TRUE
+782,"Kenaf, and other textile bast fibres, raw or retted","Fibres, other",1950,0,0,Spain_Hist,TRUE
+782,"Kenaf, and other textile bast fibres, raw or retted","Fibres, other",1960,0,0,Spain_Hist,TRUE
+782,"Kenaf, and other textile bast fibres, raw or retted","Fibres, other",1970,0,0,Spain_Hist,TRUE
+782,"Kenaf, and other textile bast fibres, raw or retted","Fibres, other",1980,0,0,Spain_Hist,TRUE
+782,"Kenaf, and other textile bast fibres, raw or retted","Fibres, other",1990,0,0,Spain_Hist,TRUE
+782,"Kenaf, and other textile bast fibres, raw or retted","Fibres, other",2000,0,0,Spain_Hist,TRUE
+782,"Kenaf, and other textile bast fibres, raw or retted","Fibres, other",2008,0,0,Spain_Hist,TRUE
+788,"Ramie, raw or retted","Fibres, other",1900,0,0,Spain_Hist,TRUE
+788,"Ramie, raw or retted","Fibres, other",1910,0,0,Spain_Hist,TRUE
+788,"Ramie, raw or retted","Fibres, other",1922,0,0,Spain_Hist,TRUE
+788,"Ramie, raw or retted","Fibres, other",1933,0,0,Spain_Hist,TRUE
+788,"Ramie, raw or retted","Fibres, other",1940,0,0,Spain_Hist,TRUE
+788,"Ramie, raw or retted","Fibres, other",1950,0,0,Spain_Hist,TRUE
+788,"Ramie, raw or retted","Fibres, other",1960,0,0,Spain_Hist,TRUE
+788,"Ramie, raw or retted","Fibres, other",1970,0,0,Spain_Hist,TRUE
+788,"Ramie, raw or retted","Fibres, other",1980,0,0,Spain_Hist,TRUE
+788,"Ramie, raw or retted","Fibres, other",1990,0,0,Spain_Hist,TRUE
+788,"Ramie, raw or retted","Fibres, other",2000,0,0,Spain_Hist,TRUE
+788,"Ramie, raw or retted","Fibres, other",2008,0,0,Spain_Hist,TRUE
+789,"Sisal, raw","Fibres, other",1900,0,0,Spain_Hist,TRUE
+789,"Sisal, raw","Fibres, other",1910,0,0,Spain_Hist,TRUE
+789,"Sisal, raw","Fibres, other",1922,0,0,Spain_Hist,TRUE
+789,"Sisal, raw","Fibres, other",1933,0,0,Spain_Hist,TRUE
+789,"Sisal, raw","Fibres, other",1940,0,0,Spain_Hist,TRUE
+789,"Sisal, raw","Fibres, other",1950,0,0,Spain_Hist,TRUE
+789,"Sisal, raw","Fibres, other",1960,0,0,Spain_Hist,TRUE
+789,"Sisal, raw","Fibres, other",1970,0,0,Spain_Hist,TRUE
+789,"Sisal, raw","Fibres, other",1980,0,0,Spain_Hist,TRUE
+789,"Sisal, raw","Fibres, other",1990,0,0,Spain_Hist,TRUE
+789,"Sisal, raw","Fibres, other",2000,0,0,Spain_Hist,TRUE
+789,"Sisal, raw","Fibres, other",2008,0,0,Spain_Hist,TRUE
+79,Millet,Millet,1900,0.669989321508601,0,Spain_Hist,TRUE
+79,Millet,Millet,1910,0.669989321508601,0,Spain_Hist,TRUE
+79,Millet,Millet,1922,0.63069116719307,0,Spain_Hist,TRUE
+79,Millet,Millet,1933,0.651047743198744,0,Spain_Hist,TRUE
+79,Millet,Millet,1940,0.671324159959719,0,Spain_Hist,TRUE
+79,Millet,Millet,1950,0.806026166351622,0.071,Spain_Hist,TRUE
+79,Millet,Millet,1960,0.796213481096372,0.071,Spain_Hist,TRUE
+79,Millet,Millet,1970,0.79408583785197,0.071,Spain_Hist,TRUE
+79,Millet,Millet,1980,0,0.071,Spain_Hist,TRUE
+79,Millet,Millet,1990,0,0.071,Spain_Hist,TRUE
+79,Millet,Millet,2000,0,0.018,Spain_Hist,TRUE
+79,Millet,Millet,2008,0,0.012,Spain_Hist,TRUE
+800,"Agave fibres, raw, n.e.c.","Fibres, other",1900,0,0,Spain_Hist,TRUE
+800,"Agave fibres, raw, n.e.c.","Fibres, other",1910,0,0,Spain_Hist,TRUE
+800,"Agave fibres, raw, n.e.c.","Fibres, other",1922,0,0,Spain_Hist,TRUE
+800,"Agave fibres, raw, n.e.c.","Fibres, other",1933,0,0,Spain_Hist,TRUE
+800,"Agave fibres, raw, n.e.c.","Fibres, other",1940,0,0,Spain_Hist,TRUE
+800,"Agave fibres, raw, n.e.c.","Fibres, other",1950,0,0,Spain_Hist,TRUE
+800,"Agave fibres, raw, n.e.c.","Fibres, other",1960,0,0,Spain_Hist,TRUE
+800,"Agave fibres, raw, n.e.c.","Fibres, other",1970,0,0,Spain_Hist,TRUE
+800,"Agave fibres, raw, n.e.c.","Fibres, other",1980,0,0,Spain_Hist,TRUE
+800,"Agave fibres, raw, n.e.c.","Fibres, other",1990,0,0,Spain_Hist,TRUE
+800,"Agave fibres, raw, n.e.c.","Fibres, other",2000,0,0,Spain_Hist,TRUE
+800,"Agave fibres, raw, n.e.c.","Fibres, other",2008,0,0,Spain_Hist,TRUE
+809,"Abaca, manila hemp, raw","Fibres, other",1900,0,0,Spain_Hist,TRUE
+809,"Abaca, manila hemp, raw","Fibres, other",1910,0,0,Spain_Hist,TRUE
+809,"Abaca, manila hemp, raw","Fibres, other",1922,0,0,Spain_Hist,TRUE
+809,"Abaca, manila hemp, raw","Fibres, other",1933,0,0,Spain_Hist,TRUE
+809,"Abaca, manila hemp, raw","Fibres, other",1940,0,0,Spain_Hist,TRUE
+809,"Abaca, manila hemp, raw","Fibres, other",1950,0,0,Spain_Hist,TRUE
+809,"Abaca, manila hemp, raw","Fibres, other",1960,0,0,Spain_Hist,TRUE
+809,"Abaca, manila hemp, raw","Fibres, other",1970,0,0,Spain_Hist,TRUE
+809,"Abaca, manila hemp, raw","Fibres, other",1980,0,0,Spain_Hist,TRUE
+809,"Abaca, manila hemp, raw","Fibres, other",1990,0,0,Spain_Hist,TRUE
+809,"Abaca, manila hemp, raw","Fibres, other",2000,0,0,Spain_Hist,TRUE
+809,"Abaca, manila hemp, raw","Fibres, other",2008,0,0,Spain_Hist,TRUE
+813,"Coir, raw","Fibres, other",1900,0,0,Spain_Hist,TRUE
+813,"Coir, raw","Fibres, other",1910,0,0,Spain_Hist,TRUE
+813,"Coir, raw","Fibres, other",1922,0,0,Spain_Hist,TRUE
+813,"Coir, raw","Fibres, other",1933,0,0,Spain_Hist,TRUE
+813,"Coir, raw","Fibres, other",1940,0,0,Spain_Hist,TRUE
+813,"Coir, raw","Fibres, other",1950,0,0,Spain_Hist,TRUE
+813,"Coir, raw","Fibres, other",1960,0,0,Spain_Hist,TRUE
+813,"Coir, raw","Fibres, other",1970,0,0,Spain_Hist,TRUE
+813,"Coir, raw","Fibres, other",1980,0,0,Spain_Hist,TRUE
+813,"Coir, raw","Fibres, other",1990,0,0,Spain_Hist,TRUE
+813,"Coir, raw","Fibres, other",2000,0,0,Spain_Hist,TRUE
+813,"Coir, raw","Fibres, other",2008,0,0,Spain_Hist,TRUE
+821,"Other fibre crops, raw, n.e.c.","Fibres, other",1900,0,0,Spain_Hist,TRUE
+821,"Other fibre crops, raw, n.e.c.","Fibres, other",1910,0,0,Spain_Hist,TRUE
+821,"Other fibre crops, raw, n.e.c.","Fibres, other",1922,0,0,Spain_Hist,TRUE
+821,"Other fibre crops, raw, n.e.c.","Fibres, other",1933,0,0,Spain_Hist,TRUE
+821,"Other fibre crops, raw, n.e.c.","Fibres, other",1940,0,0,Spain_Hist,TRUE
+821,"Other fibre crops, raw, n.e.c.","Fibres, other",1950,0,0,Spain_Hist,TRUE
+821,"Other fibre crops, raw, n.e.c.","Fibres, other",1960,0,0,Spain_Hist,TRUE
+821,"Other fibre crops, raw, n.e.c.","Fibres, other",1970,0,0,Spain_Hist,TRUE
+821,"Other fibre crops, raw, n.e.c.","Fibres, other",1980,0,0,Spain_Hist,TRUE
+821,"Other fibre crops, raw, n.e.c.","Fibres, other",1990,0,0,Spain_Hist,TRUE
+821,"Other fibre crops, raw, n.e.c.","Fibres, other",2000,0,0,Spain_Hist,TRUE
+821,"Other fibre crops, raw, n.e.c.","Fibres, other",2008,0,0,Spain_Hist,TRUE
+826,Unmanufactured tobacco,Tobacco,1900,0,0,Spain_Hist,TRUE
+826,Unmanufactured tobacco,Tobacco,1910,0,0,Spain_Hist,TRUE
+826,Unmanufactured tobacco,Tobacco,1922,0,0,Spain_Hist,TRUE
+826,Unmanufactured tobacco,Tobacco,1933,0,0,Spain_Hist,TRUE
+826,Unmanufactured tobacco,Tobacco,1940,0,0,Spain_Hist,TRUE
+826,Unmanufactured tobacco,Tobacco,1950,0,0.25,Spain_Hist,TRUE
+826,Unmanufactured tobacco,Tobacco,1960,0,0.5,Spain_Hist,TRUE
+826,Unmanufactured tobacco,Tobacco,1970,0,1,Spain_Hist,TRUE
+826,Unmanufactured tobacco,Tobacco,1980,0,1,Spain_Hist,TRUE
+826,Unmanufactured tobacco,Tobacco,1990,0,1,Spain_Hist,TRUE
+826,Unmanufactured tobacco,Tobacco,2000,0,0,Spain_Hist,TRUE
+826,Unmanufactured tobacco,Tobacco,2008,0,0,Spain_Hist,TRUE
+83,Sorghum,Sorghum,1900,0.64199128898261,0,Spain_Hist,TRUE
+83,Sorghum,Sorghum,1910,0.504061047599546,0,Spain_Hist,TRUE
+83,Sorghum,Sorghum,1922,0.791496397517514,0,Spain_Hist,TRUE
+83,Sorghum,Sorghum,1933,0.795023383721425,0,Spain_Hist,TRUE
+83,Sorghum,Sorghum,1940,0.357289788482604,0,Spain_Hist,TRUE
+83,Sorghum,Sorghum,1950,0.734359810901319,0.00318768226918417,Spain_Hist,TRUE
+83,Sorghum,Sorghum,1960,0.913972825138424,0.00301095112015515,Spain_Hist,TRUE
+83,Sorghum,Sorghum,1970,0.199293801645574,0.0568501400831643,Spain_Hist,TRUE
+83,Sorghum,Sorghum,1980,0,0.071,Spain_Hist,TRUE
+83,Sorghum,Sorghum,1990,0,0.071,Spain_Hist,TRUE
+83,Sorghum,Sorghum,2000,0,0.018,Spain_Hist,TRUE
+83,Sorghum,Sorghum,2008,0,0.012,Spain_Hist,TRUE
+89,Buckwheat,Cereals nes,1900,0.595901983291814,0,Spain_Hist,TRUE
+89,Buckwheat,Cereals nes,1910,0.595901983291814,0,Spain_Hist,TRUE
+89,Buckwheat,Cereals nes,1922,0.566923015580893,0,Spain_Hist,TRUE
+89,Buckwheat,Cereals nes,1933,0.570244923257435,0,Spain_Hist,TRUE
+89,Buckwheat,Cereals nes,1940,0.58899913578199,0,Spain_Hist,TRUE
+89,Buckwheat,Cereals nes,1950,0.697003380389316,0.0036359594353282,Spain_Hist,TRUE
+89,Buckwheat,Cereals nes,1960,0.710994621731071,0.0101151882394125,Spain_Hist,TRUE
+89,Buckwheat,Cereals nes,1970,0.690071229995184,0.0220049426703419,Spain_Hist,TRUE
+89,Buckwheat,Cereals nes,1980,0.582122043230818,0.0296693349306119,Spain_Hist,TRUE
+89,Buckwheat,Cereals nes,1990,0.51923227688537,0.0341345083411388,Spain_Hist,TRUE
+89,Buckwheat,Cereals nes,2000,0.378442796928421,0.0111880296552884,Spain_Hist,TRUE
+89,Buckwheat,Cereals nes,2008,0.26525497326933,0.00881694032076804,Spain_Hist,TRUE
+92,Quinoa,Cereals nes,1900,0.595901983291814,0,Spain_Hist,TRUE
+92,Quinoa,Cereals nes,1910,0.595901983291814,0,Spain_Hist,TRUE
+92,Quinoa,Cereals nes,1922,0.566923015580893,0,Spain_Hist,TRUE
+92,Quinoa,Cereals nes,1933,0.570244923257435,0,Spain_Hist,TRUE
+92,Quinoa,Cereals nes,1940,0.58899913578199,0,Spain_Hist,TRUE
+92,Quinoa,Cereals nes,1950,0.697003380389316,0.0036359594353282,Spain_Hist,TRUE
+92,Quinoa,Cereals nes,1960,0.710994621731071,0.0101151882394125,Spain_Hist,TRUE
+92,Quinoa,Cereals nes,1970,0.690071229995184,0.0220049426703419,Spain_Hist,TRUE
+92,Quinoa,Cereals nes,1980,0.582122043230818,0.0296693349306119,Spain_Hist,TRUE
+92,Quinoa,Cereals nes,1990,0.51923227688537,0.0341345083411388,Spain_Hist,TRUE
+92,Quinoa,Cereals nes,2000,0.378442796928421,0.0111880296552884,Spain_Hist,TRUE
+92,Quinoa,Cereals nes,2008,0.26525497326933,0.00881694032076804,Spain_Hist,TRUE
+94,Fonio,"Roots, other",1900,0.1,0,Spain_Hist,TRUE
+94,Fonio,"Roots, other",1910,0.1,0,Spain_Hist,TRUE
+94,Fonio,"Roots, other",1922,0.1,0,Spain_Hist,TRUE
+94,Fonio,"Roots, other",1933,0.1,0,Spain_Hist,TRUE
+94,Fonio,"Roots, other",1940,0.1,0,Spain_Hist,TRUE
+94,Fonio,"Roots, other",1950,0.1,0.225,Spain_Hist,TRUE
+94,Fonio,"Roots, other",1960,0.1,0.45,Spain_Hist,TRUE
+94,Fonio,"Roots, other",1970,0.1,0.9,Spain_Hist,TRUE
+94,Fonio,"Roots, other",1980,0.1,0.9,Spain_Hist,TRUE
+94,Fonio,"Roots, other",1990,0.1,0.9,Spain_Hist,TRUE
+94,Fonio,"Roots, other",2000,0.1,0.45,Spain_Hist,TRUE
+94,Fonio,"Roots, other",2008,0.1,0.225,Spain_Hist,TRUE
+97,Triticale,Triticale,1900,0.595901983291814,0,Spain_Hist,TRUE
+97,Triticale,Triticale,1910,0.595901983291814,0,Spain_Hist,TRUE
+97,Triticale,Triticale,1922,0.566923015580893,0,Spain_Hist,TRUE
+97,Triticale,Triticale,1933,0.570244923257435,0,Spain_Hist,TRUE
+97,Triticale,Triticale,1940,0.58899913578199,0,Spain_Hist,TRUE
+97,Triticale,Triticale,1950,0.697003380389316,0.0036359594353282,Spain_Hist,TRUE
+97,Triticale,Triticale,1960,0.710994621731071,0.0101151882394125,Spain_Hist,TRUE
+97,Triticale,Triticale,1970,0.690071229995184,0.0220049426703419,Spain_Hist,TRUE
+97,Triticale,Triticale,1980,0.582122043230818,0.0296693349306119,Spain_Hist,TRUE
+97,Triticale,Triticale,1990,0.51923227688537,0.0341345083411388,Spain_Hist,TRUE
+97,Triticale,Triticale,2000,0.378442796928421,0.0111880296552884,Spain_Hist,TRUE
+97,Triticale,Triticale,2008,0.26525497326933,0.00881694032076804,Spain_Hist,TRUE
+996,Temporary grassland,Grass,1900,0,0,Spain_Hist,TRUE
+996,Temporary grassland,Grass,1910,0,0,Spain_Hist,TRUE
+996,Temporary grassland,Grass,1922,0,0,Spain_Hist,TRUE
+996,Temporary grassland,Grass,1933,0,0,Spain_Hist,TRUE
+996,Temporary grassland,Grass,1940,0,0,Spain_Hist,TRUE
+996,Temporary grassland,Grass,1950,0,0,Spain_Hist,TRUE
+996,Temporary grassland,Grass,1960,0,0,Spain_Hist,TRUE
+996,Temporary grassland,Grass,1970,0,0,Spain_Hist,TRUE
+996,Temporary grassland,Grass,1980,0,0,Spain_Hist,TRUE
+996,Temporary grassland,Grass,1990,0,0,Spain_Hist,TRUE
+996,Temporary grassland,Grass,2000,0,0,Spain_Hist,TRUE
+996,Temporary grassland,Grass,2008,0,0,Spain_Hist,TRUE
+Fallow,Fallow,Fallow,1900,0,0,Spain_Hist,TRUE
+Fallow,Fallow,Fallow,1910,0,0,Spain_Hist,TRUE
+Fallow,Fallow,Fallow,1922,0,0,Spain_Hist,TRUE
+Fallow,Fallow,Fallow,1933,0,0,Spain_Hist,TRUE
+Fallow,Fallow,Fallow,1940,0,0,Spain_Hist,TRUE
+Fallow,Fallow,Fallow,1950,0,0,Spain_Hist,TRUE
+Fallow,Fallow,Fallow,1960,0,0,Spain_Hist,TRUE
+Fallow,Fallow,Fallow,1970,0,0,Spain_Hist,TRUE
+Fallow,Fallow,Fallow,1980,0,0,Spain_Hist,TRUE
+Fallow,Fallow,Fallow,1990,0,0,Spain_Hist,TRUE
+Fallow,Fallow,Fallow,2000,0,0,Spain_Hist,TRUE
+Fallow,Fallow,Fallow,2008,0,0,Spain_Hist,TRUE

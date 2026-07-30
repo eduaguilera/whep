@@ -1,0 +1,18 @@
+name_bnf,ndfa,n_harvest_index,below_ground_n_ratio,nonsymbiotic_base_kg_ha,leguminous_share,source
+Alfalfa,0.7,0.9,1.7,,1,"Anglade et al., 2015"
+Beans,0.4,0.75,1.3,,1,"Herridge et al., 2008"
+Clover,0.86,0.9,1.7,,1,"Anglade et al., 2015"
+Fava bean,0.75,0.34,1.3,,1,"Anglade et al., 2015"
+Green leguminous,0.68,0.5,1.3,,1,"Lassaletta et al., 2014, based on Anglade et al., 2015"
+"Groundnuts, with shell",0.68,0.5,1.3,,1,"Herridge et al., 2008"
+Lentils,0.66,0.75,1.3,,1,"Anglade et al., 2015"
+Other pulses,0.68,0.75,1.3,,1,"Lassaletta et al., 2014, based on Anglade et al., 2015"
+Pea,0.71,0.75,1.3,,1,"Anglade et al., 2015"
+Rice,,,,33,0,"Lassaletta et al., 2014, based on Herridge et al., 2008"
+Soyabeans,0.57,0.73,1.4,,1,"Lassaletta et al., 2014, based on Salvagliotti et al., 2008"
+Sugarcane,,,,25,0,"Lassaletta et al., 2014, based on Herridge et al., 2008"
+"Fodder, other",0.68,0.5,1.3,,0.5,Based on share of green leguminous
+Mixed swards,0.68,0.45,1.4,,0.25,Luscher et al. 2014; Suter et al. 2015; Nyfeler et al. 2011
+Meadows,0.68,0.4,1.5,,0.1,Luscher et al. 2014; Ledgard et al. 2001; Roscher et al. 2011
+Fallow,0.68,,,,0.1,Espigares & Peco 1993; Cirujeda et al. 2011
+Weeds,0.68,,,,0.05,Storkey et al. 2012; Fried et al. 2009; Cirujeda et al. 2011

@@ -66,4 +66,7 @@ Comprehensive reference table for all production items, combining CBS
 linkages, biomass names, multiple classification schemes, and crop
 ecological traits.
 }
+\examples{
+head(items_prod_full)
+}
 \keyword{datasets}

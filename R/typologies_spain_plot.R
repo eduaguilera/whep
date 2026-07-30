@@ -1,10 +1,11 @@
 create_typo_ts_plot <- function(
   n_prov_destiny = NULL,
-  shapefile_path = "C:/PhD/GRAFS/Production Boxes/Final Files/Inputs/ne_10m_admin_1_states_provinces.shp",
+  shapefile_path = NULL,
   benchmark_years = seq(1860, 2020, by = 20),
   ncols = NULL,
-  output_path = "C:/PhD/Typologies/Typologies_spain/new_typologies/typologies_spain.png"
+  out_dir = NULL
 ) {
+  shapefile_path <- .provinces_shapefile(shapefile_path)
   if (is.null(n_prov_destiny)) {
     n_prov_destiny <- create_n_prov_destiny()
   }
@@ -404,13 +405,18 @@ create_typo_ts_plot <- function(
   plot_width <- ncols * 4.5
   plot_height <- n_rows * 3.5 + 4
 
-  ggplot2::ggsave(
-    filename = output_path,
-    plot = final_plot,
-    width = plot_width,
-    height = plot_height,
-    dpi = 300
-  )
+  if (!is.null(out_dir)) {
+    if (!dir.exists(out_dir)) {
+      dir.create(out_dir, recursive = TRUE)
+    }
+    ggplot2::ggsave(
+      filename = file.path(out_dir, "typologies_spain.png"),
+      plot = final_plot,
+      width = plot_width,
+      height = plot_height,
+      dpi = 300
+    )
+  }
 
   indicators
 }

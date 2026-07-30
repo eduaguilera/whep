@@ -17,10 +17,23 @@
 #'   are replaced with a linear trend. Default `FALSE`.
 #' @param example Logical. If `TRUE`, return a small hardcoded example
 #'   tibble instead of reading remote data. Default `FALSE`.
+#' @param historical_data Optional harmonized historical CBS or production rows
+#'   to add before the CBS historical extension. May be a data frame or a path
+#'   to a parquet/csv file. CBS-shaped rows should provide `year`, `value`,
+#'   one of `area_code` or `polity_area_code`, one of `item_cbs_code` or
+#'   `item_prod_code`, and preferably `element`. Production-shaped rows without
+#'   `element` are accepted as `production` when their unit is tonnes. Default
+#'   `NULL`.
+#' @param .fixed_data Optional tibble with the same structure as the
+#'   output of the internal `.read_cbs() |> .fix_cbs()` steps. When
+#'   supplied, `primary_all` is ignored and the pipeline skips directly
+#'   to `.qc_cbs()`. Default `NULL`.
 #'
-#' @returns A tibble in long format (see `.read_cbs()` for column
-#'   descriptions), plus a character `qc_flag` column from
-#'   `.qc_cbs()`.
+#' @returns A tibble in long format with columns: `year`, legacy numeric
+#'   `area_code`, numeric `polity_area_code`, `reporting_polity_code`,
+#'   `reporting_polity_name`, `reporting_polity_has_geometry`,
+#'   `item_cbs_code`, `element` (e.g. `"production"`, `"import"`, `"food"`),
+#'   `value`, `source`, and `fao_flag`.
 #'
 #' @export
 #'
@@ -31,13 +44,26 @@ build_commodity_balances <- function(
   start_year = 1850,
   end_year = 2023,
   smooth_carry_forward = FALSE,
-  example = FALSE
+  example = FALSE,
+  historical_data = NULL,
+  .fixed_data = NULL
 ) {
   if (example) {
     return(.example_build_commodity_bal())
   }
-  .read_cbs(primary_all, start_year, end_year) |>
-    .fix_cbs() |>
+  if (is.null(.fixed_data)) {
+    fixed <- .read_cbs(primary_all, start_year, end_year, historical_data) |>
+      .fix_cbs()
+  } else {
+    if (!is.null(historical_data)) {
+      cli::cli_warn(
+        "{.arg historical_data} is ignored when {.arg .fixed_data} is supplied."
+      )
+    }
+    fixed <- .fixed_data
+  }
+  fixed |>
+    dplyr::mutate(value = .round_reproducible(.data$value)) |>
     .qc_cbs(smooth = smooth_carry_forward) |>
     .format_cbs_output()
 }
@@ -60,24 +86,61 @@ build_commodity_balances <- function(
 
   has_flag <- "fao_flag" %in% names(df)
 
-  df |>
+  sel_cols <- c(
+    "year",
+    "area_code",
+    "item_cbs_code",
+    "element",
+    "value",
+    "source"
+  )
+  if (has_flag) {
+    sel_cols <- c(sel_cols, "fao_flag")
+  }
+
+  dt <- df |>
     dplyr::filter(element %in% cbs_elements) |>
-    dplyr::select(
-      year,
-      area_code,
-      item_cbs_code,
-      element,
-      value,
-      source,
-      dplyr::any_of("fao_flag")
-    ) |>
-    .normalise_cbs_values() |>
-    dplyr::summarise(
-      value = .sum_if_any_cbs(value),
-      source = dplyr::first(source),
-      fao_flag = if (has_flag) dplyr::first(fao_flag) else NA_character_,
-      .by = c(year, area_code, item_cbs_code, element)
-    )
+    dplyr::select(dplyr::all_of(sel_cols)) |>
+    .normalise_cbs_values()
+
+  if (!data.table::is.data.table(dt)) {
+    data.table::setDT(dt)
+  }
+
+  by_cols <- c("year", "area_code", "item_cbs_code", "element")
+  # Dedup by key + value only (not source/flag). Fewer sort columns
+  # than unique(dt) on all columns. source[1L] in the aggregation
+  # below handles differing sources for the same key+value.
+  dt <- unique(dt, by = c(by_cols, "value"))
+  if (has_flag) {
+    dt <- dt[,
+      .(
+        value = .sum_if_any_cbs(value),
+        source = source[1L],
+        fao_flag = fao_flag[1L]
+      ),
+      by = by_cols
+    ]
+  } else {
+    dt <- dt[,
+      .(
+        value = .sum_if_any_cbs(value),
+        source = source[1L],
+        fao_flag = NA_character_
+      ),
+      by = by_cols
+    ]
+  }
+  # Final rounding (coarser than the pre-dedup pass): the CBS balancing
+  # cascade amplifies single-ULP input noise up to ~1e-8 relative, so 7 s.f.
+  # (half the rounding unit, ~5e-7, is ~70x the worst observed noise) is needed
+  # to fully absorb it. Done after the grouped sum, so the summed total is the
+  # value that gets stabilised. The pre-dedup pass above stays at 9 s.f. so it
+  # only removes 1-ULP noise without merging genuinely distinct values in the
+  # value-keyed dedup.
+  tibble::as_tibble(as.data.frame(dt)) |>
+    dplyr::mutate(value = .round_reproducible(.data$value, 7)) |>
+    .add_reporting_polity_columns()
 }
 
 .normalise_cbs_values <- function(df) {
@@ -131,7 +194,8 @@ build_commodity_balances <- function(
 .read_cbs <- function(
   primary_all,
   start_year = 1850,
-  end_year = 2023
+  end_year = 2023,
+  historical_data = NULL
 ) {
   output_years <- start_year:end_year
 
@@ -155,6 +219,17 @@ build_commodity_balances <- function(
   # 2. Build first raw CBS (combine sources, select best)
   cli::cli_progress_step("Combining CBS sources")
   cbs_raw0 <- .cbs_combine_sources(inputs)
+  historical_rows <- .prepare_historical_cbs(
+    historical_data,
+    years = output_years
+  )
+  if (nrow(historical_rows) > 0L) {
+    cli::cli_alert_info(
+      "Adding {nrow(historical_rows)} harmonized historical CBS row{?s}"
+    )
+    cbs_raw0 <- dplyr::bind_rows(cbs_raw0, historical_rows) |>
+      .collapse_cbs_observations()
+  }
 
   # 3. Historical extension
   cli::cli_progress_step("Extending CBS historical series")
@@ -238,16 +313,25 @@ build_commodity_balances <- function(
     years
   )
 
+  # Extract source provenance once for all remaining steps.
+  # Each step re-joins the same lookup at its end.
+  src_lookup <- .extract_source_lookup(cbs_raw2)
+
   # 6. Redistribute non-processed items
   cli::cli_progress_step("Redistributing non-processed items")
   cbs_raw3 <- .cbs_redistribute_notprocessed(
     cbs_raw2,
-    proc_result$processd_raw
+    proc_result$processd_raw,
+    src_lookup = src_lookup
   )
 
   # 7. Impute trade and domestic supply
   cli::cli_progress_step("Imputing trade and domestic supply")
-  cbs_raw4 <- .cbs_impute_trade(cbs_raw3, fao_trade_cbs)
+  cbs_raw4 <- .cbs_impute_trade(
+    cbs_raw3,
+    fao_trade_cbs,
+    src_lookup = src_lookup
+  )
 
   # 8. Fill destiny gaps
   cli::cli_progress_step("Filling destiny gaps")
@@ -264,12 +348,13 @@ build_commodity_balances <- function(
   cli::cli_progress_step("Reclassifying processing")
   cbs_raw7 <- .cbs_reclassify_processing(
     cbs_raw6,
-    proc_result$cb_processing_glo
+    proc_result$cb_processing_glo,
+    src_lookup = src_lookup
   )
 
   # 11. Final balancing
   cli::cli_progress_step("Final balancing")
-  .cbs_final_balance(cbs_raw7, years)
+  .cbs_final_balance(cbs_raw7, years, src_lookup = src_lookup)
 }
 
 
@@ -366,7 +451,7 @@ build_processing_coefs <- function(
   if (example) {
     return(.example_build_proc_coefs())
   }
-  cb_proc <- whep::cb_processing
+  cb_proc <- .prepare_cb_processing_for_cbs(whep::cb_processing)
   years <- start_year:end_year
 
   # Convert wide CBS (from build_commodity_balances()) back to long with names
@@ -444,8 +529,14 @@ build_processing_coefs <- function(
 
   # Legacy wide format support
   src_cols <- grep("^source", names(df), value = TRUE)
+  polity_cols <- c(
+    "polity_area_code",
+    "reporting_polity_code",
+    "reporting_polity_name",
+    "reporting_polity_has_geometry"
+  )
   df |>
-    dplyr::select(-dplyr::any_of(src_cols)) |>
+    dplyr::select(-dplyr::any_of(c(src_cols, polity_cols))) |>
     dplyr::mutate(
       stock_variation = -stock_retrieval,
       .keep = "unused"
@@ -484,6 +575,19 @@ build_processing_coefs <- function(
       conversion_factor_scaling = scaling,
       final_conversion_factor = cf,
       final_value_processed = value_proc
+    ) |>
+    .add_reporting_polity_columns()
+}
+
+.prepare_cb_processing_for_cbs <- function(cb_processing) {
+  # FABIO allocates substitutable beverage feedstocks with a separate
+  # optimisation step. In this CBS-only pathway, using every candidate grain as
+  # an unconditional beer process over-allocates beer to high-volume processing
+  # items such as maize.
+  cb_processing |>
+    dplyr::filter(
+      .data$item_cbs != "Beer" |
+        .data$ProcessedItem %in% c("Barley and products", "Hops")
     )
 }
 
@@ -567,14 +671,21 @@ build_processing_coefs <- function(
     cbs_tc[, .(item_code_trade, item_cbs)],
     items,
     by = "item_cbs",
-    all.x = TRUE
+    all.x = TRUE,
+    sort = FALSE
   )
   trade_bridge <- unique(
     trade_bridge[!is.na(item_cbs_code), .(item_code_trade, item_cbs_code)]
   )
 
   dt <- data.table::copy(fao_trade)
-  dt <- merge(dt, trade_bridge, by = "item_code_trade", all.x = TRUE)
+  dt <- merge(
+    dt,
+    trade_bridge,
+    by = "item_code_trade",
+    all.x = TRUE,
+    sort = FALSE
+  )
   dt <- dt[!is.na(item_cbs_code) & element %in% c("import", "export")]
   dt[,
     .(value = sum(value, na.rm = TRUE)),
@@ -611,7 +722,7 @@ build_processing_coefs <- function(
 }
 
 .read_fao_trade <- function(years = NULL) {
-  dt <- .extract_fao("faostat-trade", years = years)
+  dt <- .extract_fao("faostat-trade-totals", years = years)
   if (!data.table::is.data.table(dt)) {
     data.table::setDT(dt)
   }
@@ -628,10 +739,11 @@ build_processing_coefs <- function(
     .(item_cbs, item_cbs_code)
   ]
   cbs_trade <- data.table::as.data.table(whep::cbs_trade_codes)
-  regions <- data.table::as.data.table(whep::regions_full)
-  polities <- data.table::as.data.table(whep::polities)[,
-    .(iso3c, area_code)
+  area_bridge <- .current_area_lookup(include_unmapped = FALSE)[
+    !is.na(area_iso3c),
+    .(iso3c = area_iso3c, area = area_name, area_code = polity_area_code)
   ]
+  area_bridge <- unique(area_bridge, by = "iso3c")
 
   exports <- .read_input(
     "historical-trade-exports",
@@ -665,15 +777,9 @@ build_processing_coefs <- function(
     c("iso3c", "item_code_trade")
   )
 
-  region_bridge <- unique(
-    regions[, .(iso3c, area = polity_name, polity_code)],
-    by = "iso3c"
-  )
-  dt <- merge(dt, region_bridge, by = "iso3c", all.x = TRUE)
-  dt <- merge(dt, polities, by.x = "polity_code", by.y = "iso3c", all.x = TRUE)
-  dt[, polity_code := NULL]
-  dt <- merge(dt, cbs_trade, by = "item_code_trade", all.x = TRUE)
-  dt <- merge(dt, items, by = "item_cbs", all.x = TRUE)
+  dt <- merge(dt, area_bridge, by = "iso3c", all.x = TRUE, sort = FALSE)
+  dt <- merge(dt, cbs_trade, by = "item_code_trade", all.x = TRUE, sort = FALSE)
+  dt <- merge(dt, items, by = "item_cbs", all.x = TRUE, sort = FALSE)
 
   dt <- dt[,
     .(value = sum(value, na.rm = TRUE)),
@@ -684,12 +790,19 @@ build_processing_coefs <- function(
 }
 
 # Enrich codes-only primary output with names needed by the CBS pipeline.
+# build_primary_production() may already return item_cbs_name (a newer, richer
+# output than the "codes-only" shape this function originally assumed);
+# re-adding it via add_item_cbs_name() would collide with the existing column
+# (dplyr suffixes both to .x/.y) and leave no plain item_cbs_name to rename.
+# Skip the join when the name is already present.
 .enrich_primary_with_names <- function(primary_all) {
-  primary_all |>
+  out <- primary_all |>
     add_area_name() |>
-    dplyr::rename(area = area_name) |>
-    add_item_cbs_name(code_column = "item_cbs_code") |>
-    dplyr::rename(item_cbs = item_cbs_name)
+    dplyr::rename(area = area_name)
+  if (!"item_cbs_name" %in% names(out)) {
+    out <- add_item_cbs_name(out, code_column = "item_cbs_code")
+  }
+  dplyr::rename(out, item_cbs = item_cbs_name)
 }
 
 .primary_to_cbs <- function(primary_all) {
@@ -744,6 +857,299 @@ build_processing_coefs <- function(
   dt
 }
 
+.prepare_historical_cbs <- function(historical_data, years) {
+  if (is.null(historical_data)) {
+    return(.empty_historical_cbs())
+  }
+
+  raw <- .read_historical_production(historical_data)
+  if (nrow(raw) == 0L) {
+    return(.empty_historical_cbs())
+  }
+
+  missing <- setdiff(c("year", "value"), names(raw))
+  has_area_code <- "area_code" %in%
+    names(raw) ||
+    "polity_area_code" %in% names(raw)
+  has_item_code <- "item_cbs_code" %in%
+    names(raw) ||
+    "item_prod_code" %in% names(raw)
+  if (length(missing) > 0L || !has_area_code || !has_item_code) {
+    cli::cli_abort(
+      c(
+        "{.arg historical_data} is missing required CBS columns.",
+        "x" = "Required columns: {.field year}, {.field value}, one of {.field area_code} or {.field polity_area_code}, and one of {.field item_cbs_code} or {.field item_prod_code}.",
+        if (length(missing) > 0L) {
+          "x" <- "Missing: {.field {missing}}."
+        }
+      )
+    )
+  }
+
+  raw <- tibble::as_tibble(raw)
+  n_in <- nrow(raw)
+  unit <- .normalise_historical_unit(
+    .coalesce_historical_cols(raw, c("unit", "Unit"))
+  )
+  element <- .coalesce_historical_cols(raw, c("element", "Element"))
+  source <- .coalesce_historical_cols(raw, c("source", "raw_source"))
+  source <- dplyr::if_else(is.na(source) | source == "", "unknown", source)
+  source <- dplyr::if_else(
+    stringr::str_starts(source, "historical_"),
+    source,
+    paste0("historical_", source)
+  )
+
+  area_code <- .coalesce_historical_cols(
+    raw,
+    c("area_code", "polity_area_code")
+  )
+  item_cbs_code <- if ("item_cbs_code" %in% names(raw)) {
+    suppressWarnings(as.integer(as.numeric(raw$item_cbs_code)))
+  } else {
+    rep(NA_integer_, nrow(raw))
+  }
+  item_prod_code <- if ("item_prod_code" %in% names(raw)) {
+    .normalise_historical_code(raw$item_prod_code)
+  } else {
+    rep(NA_character_, nrow(raw))
+  }
+
+  value_multiplier <- dplyr::case_when(
+    unit %in% c("1000 tonnes", "1000 t") ~ 1000,
+    TRUE ~ 1
+  )
+  unit <- dplyr::case_when(
+    unit %in% c("t", "tonne", "tonnes", "1000 tonnes", "1000 t") ~ "tonnes",
+    TRUE ~ unit
+  )
+  element <- dplyr::if_else(
+    (is.na(element) | element == "") & unit == "tonnes",
+    "production",
+    element
+  )
+
+  dt <- data.table::data.table(
+    year = suppressWarnings(as.integer(raw$year)),
+    area = .coalesce_historical_cols(
+      raw,
+      c("area", "area_name", "reporting_polity_name", "raw_country")
+    ),
+    area_code = suppressWarnings(as.integer(as.numeric(area_code))),
+    item_cbs = .coalesce_historical_cols(
+      raw,
+      c("item_cbs", "item_cbs_name")
+    ),
+    item_cbs_code = item_cbs_code,
+    item_prod_code = item_prod_code,
+    element = as.character(element),
+    unit = unit,
+    value = suppressWarnings(as.numeric(raw$value)) * value_multiplier,
+    source = source
+  )
+  dt <- .harmonize_element_names(dt)
+
+  valid_elements <- c(
+    "domestic_supply",
+    "production",
+    "import",
+    "export",
+    "stock_variation",
+    "food",
+    "feed",
+    "seed",
+    "other_uses",
+    "processing",
+    "processing_primary"
+  )
+  dt <- dt[
+    year %in%
+      years &
+      !is.na(area_code) &
+      element %in% valid_elements &
+      (is.na(unit) | unit == "" | unit == "tonnes") &
+      !is.na(value) &
+      is.finite(value)
+  ]
+  if (nrow(dt) == 0L) {
+    return(.empty_historical_cbs())
+  }
+
+  area_lookup <- .current_area_lookup(include_unmapped = TRUE)[
+    !is.na(area_code),
+    .(
+      area_code = as.integer(area_code),
+      area_lookup = area_name
+    )
+  ]
+  area_lookup <- unique(area_lookup, by = "area_code")
+  dt <- merge(dt, area_lookup, by = "area_code", all.x = TRUE, sort = FALSE)
+  dt[, area := data.table::fcoalesce(area_lookup, area)]
+  dt[, area_lookup := NULL]
+
+  cbs_lookup <- data.table::as.data.table(whep::items_full)[
+    !is.na(item_cbs_code),
+    .(
+      item_cbs_code = suppressWarnings(as.integer(as.numeric(item_cbs_code))),
+      item_cbs_lookup = item_cbs
+    )
+  ]
+  cbs_lookup <- unique(cbs_lookup, by = "item_cbs_code")
+  prod_lookup <- data.table::as.data.table(whep::items_prod_full)[
+    !is.na(item_prod_code) & !is.na(item_cbs_code),
+    .(
+      item_prod_code = as.character(item_prod_code),
+      item_cbs_code_from_prod = suppressWarnings(
+        as.integer(as.numeric(item_cbs_code))
+      ),
+      item_cbs_from_prod = item_cbs
+    )
+  ]
+  prod_lookup <- unique(prod_lookup, by = "item_prod_code")
+
+  dt <- merge(dt, cbs_lookup, by = "item_cbs_code", all.x = TRUE, sort = FALSE)
+  dt <- merge(
+    dt,
+    prod_lookup,
+    by = "item_prod_code",
+    all.x = TRUE,
+    sort = FALSE
+  )
+  dt[, `:=`(
+    item_cbs_code = data.table::fcoalesce(
+      item_cbs_code,
+      item_cbs_code_from_prod
+    ),
+    item_cbs = data.table::fcoalesce(
+      item_cbs_lookup,
+      item_cbs_from_prod,
+      item_cbs
+    )
+  )]
+  dt[,
+    c(
+      "item_cbs_lookup",
+      "item_cbs_code_from_prod",
+      "item_cbs_from_prod"
+    ) := NULL
+  ]
+  dt <- dt[!is.na(area) & !is.na(item_cbs) & !is.na(item_cbs_code)]
+  if (nrow(dt) == 0L) {
+    return(.empty_historical_cbs())
+  }
+
+  dt <- .fix_item_codes(dt)
+  key_cols <- c(
+    "year",
+    "area",
+    "area_code",
+    "item_cbs",
+    "item_cbs_code",
+    "element"
+  )
+  # Best source per group WITHOUT calling .best_cbs_source() per group (which
+  # re-ran .cbs_source_rank()'s case_when for every group). Rank every row once,
+  # then take the mean value and the lowest-ranked (then alphabetical) non-NA
+  # source per group by ordering. Left join reproduces NA source for all-NA
+  # groups, exactly as the per-group call returned.
+  dt[, .src_rank := .cbs_source_rank(source, year)]
+  dt[is.na(.src_rank), .src_rank := .Machine$integer.max]
+  val <- dt[, .(value = mean(value, na.rm = TRUE)), by = key_cols]
+  src <- dt[!is.na(source)]
+  data.table::setorderv(src, c(key_cols, ".src_rank", "source"))
+  src <- src[
+    src[, .I[1L], by = key_cols]$V1,
+    c(key_cols, "source"),
+    with = FALSE
+  ]
+  out <- merge(val, src, by = key_cols, all.x = TRUE, sort = FALSE)
+  out <- out[!is.nan(value)]
+  if (nrow(out) < n_in) {
+    cli::cli_alert_info(
+      "Kept {nrow(out)} of {n_in} harmonized historical CBS row{?s} after year/schema filtering and duplicate collapse"
+    )
+  }
+
+  tibble::as_tibble(out[, .historical_cbs_cols(), with = FALSE])
+}
+
+.empty_historical_cbs <- function() {
+  tibble::tibble(
+    year = integer(),
+    area = character(),
+    area_code = integer(),
+    item_cbs = character(),
+    item_cbs_code = integer(),
+    element = character(),
+    source = character(),
+    value = double()
+  )
+}
+
+.historical_cbs_cols <- function() {
+  c(
+    "year",
+    "area",
+    "area_code",
+    "item_cbs",
+    "item_cbs_code",
+    "element",
+    "source",
+    "value"
+  )
+}
+
+.normalise_historical_unit <- function(unit) {
+  unit <- stringr::str_squish(tolower(as.character(unit)))
+  dplyr::case_when(
+    unit %in% c("tons", "ton") ~ "tonnes",
+    TRUE ~ unit
+  )
+}
+
+.collapse_cbs_observations <- function(df) {
+  dt <- data.table::as.data.table(df)
+  if (!"source" %in% names(dt)) {
+    dt[, source := NA_character_]
+  }
+
+  key_cols <- c(
+    "year",
+    "area",
+    "area_code",
+    "item_cbs",
+    "item_cbs_code",
+    "element"
+  )
+  dt <- dt[,
+    .(value = mean(value, na.rm = TRUE)),
+    by = c(key_cols, "source")
+  ]
+  dt <- dt[!is.nan(value)]
+  dt[, .source_rank := .cbs_source_rank(source, year)]
+  data.table::setorderv(dt, c(key_cols, ".source_rank", "source"))
+  out <- dt[dt[, .I[1L], by = key_cols]$V1]
+  out[, .source_rank := NULL]
+  tibble::as_tibble(out)
+}
+
+.cbs_source_rank <- function(source, year) {
+  source <- tidyr::replace_na(source, "")
+  dplyr::case_when(
+    year < 1961L & stringr::str_starts(source, "historical_") ~ 1L,
+    source == "FAOSTAT_prod" ~ 2L,
+    source == "FAOSTAT_FBS_New" ~ 3L,
+    source == "FAOSTAT_FBS_Old_scaled" ~ 4L,
+    source == "FAOSTAT_FBS_Old" ~ 5L,
+    source == "FAOSTAT_CBS" ~ 6L,
+    source == "FAOSTAT_trade" ~ 7L,
+    stringr::str_starts(source, "historical_") ~ 8L,
+    source == "mean" ~ 9L,
+    source == "historical_fill" ~ 10L,
+    TRUE ~ 11L
+  )
+}
+
 .read_crop_residues <- function(years = NULL) {
   items_prod <- whep::items_prod_full
 
@@ -772,23 +1178,20 @@ build_processing_coefs <- function(
     .(item_cbs, item_cbs_code)
   ]
   items_bridge <- unique(items_bridge, by = c("item_cbs", "item_cbs_code"))
-  dt <- merge(dt, items_bridge, by = "item_cbs", all.x = TRUE)
+  dt <- merge(dt, items_bridge, by = "item_cbs", all.x = TRUE, sort = FALSE)
 
   dt <- dt[,
     .(value = sum(value, na.rm = TRUE)),
     by = c("year", "area_code", "item_cbs", "item_cbs_code", "element")
   ]
 
-  regions <- data.table::as.data.table(whep::regions_full)[
-    !is.na(code),
-    .(area_code = code, polity_code, polity_name)
-  ]
-  polities <- data.table::as.data.table(whep::polities)[,
-    .(iso3c, polity_area_code = area_code)
-  ]
-
-  dt <- merge(dt, regions, by = "area_code", all = FALSE)
-  dt <- merge(dt, polities, by.x = "polity_code", by.y = "iso3c", all.x = TRUE)
+  dt <- .add_polity_columns_dt(
+    dt,
+    code_col = "area_code",
+    year_col = "year",
+    include_unmapped = FALSE
+  )
+  dt <- dt[!is.na(polity_code)]
 
   dt <- dt[,
     .(value = sum(value, na.rm = TRUE)),
@@ -820,7 +1223,7 @@ build_processing_coefs <- function(
   )
   varnames_pasture <- c("pastr", "range")
 
-  land_areas |>
+  land_wide <- land_areas |>
     dplyr::mutate(
       land_use = dplyr::if_else(
         Land_Use %in% varnames_cropland,
@@ -837,8 +1240,16 @@ build_processing_coefs <- function(
     tidyr::pivot_wider(
       names_from = land_use,
       values_from = area_mha
-    ) |>
-    dplyr::mutate(agriland = Cropland + Pasture)
+    )
+
+  if (!"Cropland" %in% names(land_wide)) {
+    land_wide$Cropland <- 0
+  }
+  if (!"Pasture" %in% names(land_wide)) {
+    land_wide$Pasture <- 0
+  }
+  land_wide |>
+    dplyr::mutate(agriland = .data$Cropland + .data$Pasture)
 }
 
 # -- Source combination --------------------------------------------------------
@@ -878,7 +1289,7 @@ build_processing_coefs <- function(
 }
 
 .fix_palm_kernels <- function(inputs) {
-  dplyr::bind_rows(
+  pk <- dplyr::bind_rows(
     inputs$fbs_old |>
       dplyr::mutate(source = "FAOSTAT_FBS_Old"),
     inputs$fbs_new |>
@@ -897,7 +1308,16 @@ build_processing_coefs <- function(
       values_from = value,
       values_fill = NA
     ) |>
-    dplyr::rename_with(~ stringr::str_replace(., " ", "_")) |>
+    dplyr::rename_with(~ stringr::str_replace(., " ", "_"))
+
+  if (!"Palm_kernels" %in% names(pk)) {
+    pk$Palm_kernels <- NA_real_
+  }
+  if (!"Palmkernel_Oil" %in% names(pk)) {
+    pk$Palmkernel_Oil <- NA_real_
+  }
+
+  pk |>
     fill_proxy_growth(
       value_col = Palm_kernels,
       proxy_col = "Palmkernel_Oil",
@@ -918,17 +1338,25 @@ build_processing_coefs <- function(
 }
 
 .fill_palm_kernel_destinies <- function(pk, fbs_old) {
+  destinies <- fbs_old |>
+    dplyr::filter(
+      item_cbs == "Palm kernels",
+      element %in% c("food", "other_uses")
+    ) |>
+    tidyr::pivot_wider(
+      names_from = "element",
+      values_from = "value"
+    )
+  if (!"food" %in% names(destinies)) {
+    destinies$food <- NA_real_
+  }
+  if (!"other_uses" %in% names(destinies)) {
+    destinies$other_uses <- NA_real_
+  }
+
   pk |>
     dplyr::left_join(
-      fbs_old |>
-        dplyr::filter(
-          item_cbs == "Palm kernels",
-          element %in% c("food", "other_uses")
-        ) |>
-        tidyr::pivot_wider(
-          names_from = "element",
-          values_from = "value"
-        ),
+      destinies,
       by = c("year", "area", "area_code", "item_cbs", "item_cbs_code", "unit")
     ) |>
     fill_proxy_growth(
@@ -1148,8 +1576,13 @@ build_processing_coefs <- function(
 
 .select_best_source <- function(cbs_raw_all) {
   # Pivot sources into columns — avoids grouped summarise + nth overhead.
+  # Key on the integer `area_code`, not the `area` name: sources disagree on
+  # the name for the same code (plain name vs periodized polity name, e.g.
+  # code 41 -> "China, mainland" vs "China (PRC)"). Keying on the name would
+  # scatter the sources for one country into separate groups so both survive
+  # selection and get summed downstream (double-counting production). The
+  # human-readable name is re-attached from a per-code lookup at the end.
   key_cols <- c(
-    "area",
     "area_code",
     "year",
     "item_cbs",
@@ -1157,112 +1590,143 @@ build_processing_coefs <- function(
     "element"
   )
   group_cols <- c(
-    "area",
     "area_code",
     "item_cbs",
     "item_cbs_code",
     "element"
   )
 
-  wide <- cbs_raw_all |>
-    dplyr::filter(!is.na(area)) |>
-    dplyr::select(dplyr::all_of(key_cols), source, value) |>
-    tidyr::pivot_wider(names_from = source, values_from = value)
+  dt_raw <- data.table::as.data.table(cbs_raw_all)
+  dt_raw <- dt_raw[!is.na(area)]
+  area_lookup <- unique(dt_raw[, .(area_code, area)], by = "area_code")
+  dt_raw <- dt_raw[, c(key_cols, "source", "value"), with = FALSE]
 
-  # Ensure expected columns exist even if a source is absent
-  for (col in c("FAOSTAT_prod", "FAOSTAT_FBS_New", "FAOSTAT_FBS_Old")) {
-    if (!col %in% names(wide)) wide[[col]] <- NA_real_
+  # Pivot only primary sources (3 cols) instead of all sources.
+  # Avoids expensive frankv over many source columns.
+  primary_sources <- c("FAOSTAT_prod", "FAOSTAT_FBS_New", "FAOSTAT_FBS_Old")
+  src_pivot <- dt_raw[source %in% primary_sources]
+  wide <- data.table::dcast(
+    src_pivot,
+    stats::as.formula(paste(
+      paste(key_cols, collapse = " + "),
+      "~ source"
+    )),
+    value.var = "value",
+    fill = NA
+  )
+  for (col in setdiff(primary_sources, names(wide))) {
+    wide[, (col) := NA_real_]
+  }
+
+  # Mean of non-primary sources (computed separately)
+  other_dt <- dt_raw[
+    !source %in% primary_sources & !is.na(value),
+    .(other_mean = mean(value, na.rm = TRUE)),
+    by = key_cols
+  ]
+  wide[other_dt, other_mean := i.other_mean, on = key_cols]
+
+  # Ensure all keys are present (some may only have non-primary sources)
+  other_only <- dt_raw[
+    !source %in% primary_sources,
+    key_cols,
+    with = FALSE
+  ]
+  other_only <- other_only[!wide, on = key_cols]
+  if (nrow(other_only) > 0L) {
+    other_only <- unique(other_only)
+    other_only[other_dt, other_mean := i.other_mean, on = key_cols]
+    wide <- data.table::rbindlist(
+      list(wide, other_only),
+      use.names = TRUE,
+      fill = TRUE
+    )
   }
 
   # --- Harmonize old and new FBS ---
   # Trust FBS_New as the reference. In the overlap period (2010-2013),
   # compute a scaling ratio to align FBS_Old to FBS_New level, then
   # apply it to all FBS_Old years for a smooth transition.
-  overlap_ratio <- wide |>
-    dplyr::filter(
-      year >= 2010L,
-      year <= 2013L,
-      !is.na(FAOSTAT_FBS_New),
-      !is.na(FAOSTAT_FBS_Old),
+  overlap <- wide[
+    year >= 2010L &
+      year <= 2013L &
+      !is.na(FAOSTAT_FBS_New) &
+      !is.na(FAOSTAT_FBS_Old) &
       FAOSTAT_FBS_Old != 0
-    ) |>
-    dplyr::summarise(
+  ]
+  overlap_ratio <- overlap[,
+    .(
       scale_new_old = stats::median(
         FAOSTAT_FBS_New / FAOSTAT_FBS_Old,
         na.rm = TRUE
-      ),
-      .by = dplyr::all_of(group_cols)
-    ) |>
-    dplyr::filter(is.finite(scale_new_old))
-
-  wide <- dplyr::left_join(
-    wide,
-    overlap_ratio,
+      )
+    ),
     by = group_cols
-  )
+  ][is.finite(scale_new_old)]
 
-  # Compute fallback from other sources (CBS, Trade, etc.)
-  other_src_cols <- setdiff(
-    names(wide),
-    c(
-      key_cols,
-      "FAOSTAT_prod",
-      "FAOSTAT_FBS_New",
-      "FAOSTAT_FBS_Old",
-      "scale_new_old"
+  wide[
+    overlap_ratio,
+    scale_new_old := i.scale_new_old,
+    on = group_cols
+  ]
+
+  # Scale FBS_Old to match FBS_New level
+  wide[,
+    FBS_Old_scaled := data.table::fifelse(
+      !is.na(scale_new_old) & !is.na(FAOSTAT_FBS_Old),
+      FAOSTAT_FBS_Old * scale_new_old,
+      FAOSTAT_FBS_Old
     )
+  ]
+
+  # Source selection: Primary > FBS_New > scaled FBS_Old > other. Coerce every
+  # source to double first: the pivoted FAOSTAT_prod / FAOSTAT_FBS_New inherit
+  # the raw `value` type (integer for some global sources), while FBS_Old_scaled
+  # and other_mean are computed doubles, and fcoalesce() aborts on a mixed
+  # integer/double set. Production quantities are continuous, so double is the
+  # correct common type.
+  wide[,
+    value := data.table::fcoalesce(
+      as.double(FAOSTAT_prod),
+      as.double(FAOSTAT_FBS_New),
+      as.double(FBS_Old_scaled),
+      as.double(other_mean)
+    )
+  ]
+  wide[,
+    source := data.table::fcase(
+      !is.na(FAOSTAT_prod),
+      "FAOSTAT_prod",
+      !is.na(FAOSTAT_FBS_New),
+      "FAOSTAT_FBS_New",
+      !is.na(FBS_Old_scaled) & !is.na(scale_new_old) & scale_new_old != 1,
+      "FAOSTAT_FBS_Old_scaled",
+      !is.na(FAOSTAT_FBS_Old),
+      "FAOSTAT_FBS_Old",
+      default = "mean"
+    )
+  ]
+
+  # Clamp negative/infinite values for key elements
+  clamp_elems <- c(
+    "production",
+    "import",
+    "export",
+    "domestic_supply",
+    "food",
+    "feed",
+    "seed",
+    "processing",
+    "other_uses"
   )
-  if (length(other_src_cols) > 0L) {
-    other_mat <- as.matrix(wide[other_src_cols])
-    other_n <- rowSums(!is.na(other_mat))
-    other_s <- rowSums(other_mat, na.rm = TRUE)
-    wide[["other_mean"]] <- ifelse(other_n > 0, other_s / other_n, NA_real_)
-  } else {
-    wide[["other_mean"]] <- NA_real_
-  }
+  wide[
+    element %in% clamp_elems & (value < 0 | is.infinite(value)),
+    value := 0
+  ]
+
+  wide[area_lookup, area := i.area, on = "area_code"]
 
   wide <- wide |>
-    dplyr::mutate(
-      # Scale FBS_Old to match FBS_New level where a ratio exists
-      FBS_Old_scaled = dplyr::if_else(
-        !is.na(scale_new_old) & !is.na(FAOSTAT_FBS_Old),
-        FAOSTAT_FBS_Old * scale_new_old,
-        FAOSTAT_FBS_Old
-      ),
-      # Source selection: Primary > FBS_New > scaled FBS_Old > other
-      value = dplyr::case_when(
-        !is.na(FAOSTAT_prod) ~ FAOSTAT_prod,
-        !is.na(FAOSTAT_FBS_New) ~ FAOSTAT_FBS_New,
-        !is.na(FBS_Old_scaled) ~ FBS_Old_scaled,
-        !is.na(other_mean) ~ other_mean,
-        TRUE ~ NA_real_
-      ),
-      source = dplyr::case_when(
-        !is.na(FAOSTAT_prod) ~ "FAOSTAT_prod",
-        !is.na(FAOSTAT_FBS_New) ~ "FAOSTAT_FBS_New",
-        !is.na(FBS_Old_scaled) & !is.na(scale_new_old) & scale_new_old != 1 ~
-          "FAOSTAT_FBS_Old_scaled",
-        !is.na(FAOSTAT_FBS_Old) ~ "FAOSTAT_FBS_Old",
-        TRUE ~ "mean"
-      ),
-      value = dplyr::if_else(
-        element %in%
-          c(
-            "production",
-            "import",
-            "export",
-            "domestic_supply",
-            "food",
-            "feed",
-            "seed",
-            "processing",
-            "other_uses"
-          ) &
-          (value < 0 | is.infinite(value)),
-        0,
-        value
-      )
-    ) |>
     dplyr::select(
       area,
       area_code,
@@ -1285,12 +1749,51 @@ build_processing_coefs <- function(
   items <- whep::items_full
 
   cbs_hist <- cbs_raw0 |>
-    dplyr::filter(year %in% years, year < 1962) |>
+    dplyr::filter(
+      year %in% years,
+      year < 1962,
+      !is.na(area),
+      !is.na(area_code),
+      !is.na(item_cbs),
+      !is.na(item_cbs_code),
+      !is.na(element)
+    ) |>
+    .collapse_cbs_observations()
+
+  # Vectorised equivalent of the per-group .best_cbs_source() call: rank once,
+  # sort NA/unrecognised sources last, then take the first (best) source per
+  # group. Keeps every !is.na(value) group so all-NA-source groups still yield
+  # observed_source = NA, matching the per-group call.
+  obs_keys <- c(
+    "year",
+    "area",
+    "area_code",
+    "item_cbs",
+    "item_cbs_code",
+    "element"
+  )
+  obs_dt <- data.table::as.data.table(cbs_hist)[!is.na(value)]
+  obs_dt[, .src_rank := .cbs_source_rank(source, year)]
+  obs_dt[is.na(.src_rank) | is.na(source), .src_rank := .Machine$integer.max]
+  data.table::setorderv(
+    obs_dt,
+    c(obs_keys, ".src_rank", "source"),
+    na.last = TRUE
+  )
+  observed_sources <- obs_dt[
+    obs_dt[, .I[1L], by = obs_keys]$V1,
+    c(obs_keys, "source"),
+    with = FALSE
+  ]
+  data.table::setnames(observed_sources, "source", "observed_source")
+
+  cbs_hist <- cbs_hist |>
     dplyr::select(-dplyr::any_of("source"))
 
   cbs_hist <- .cbs_complete_year_nesting_dt(
     cbs_hist,
-    id_cols = c("area", "area_code", "item_cbs", "item_cbs_code", "element")
+    id_cols = c("area", "area_code", "item_cbs", "item_cbs_code", "element"),
+    years = years[years < 1962]
   ) |>
     .fill_historical_destinies(
       inputs$primary_cbs_area,
@@ -1299,17 +1802,41 @@ build_processing_coefs <- function(
       items
     )
 
+  cbs_hist_pre <- cbs_hist |>
+    dplyr::filter(year < 1961) |>
+    dplyr::left_join(
+      tibble::as_tibble(observed_sources),
+      by = c(
+        "year",
+        "area",
+        "area_code",
+        "item_cbs",
+        "item_cbs_code",
+        "element"
+      )
+    ) |>
+    dplyr::mutate(
+      source = dplyr::coalesce(
+        .data$observed_source,
+        "historical_fill"
+      )
+    ) |>
+    dplyr::select(-dplyr::all_of("observed_source"))
+
   dplyr::bind_rows(
-    cbs_hist |>
-      dplyr::filter(year < 1961) |>
-      dplyr::mutate(source = "historical_fill"),
+    cbs_hist_pre,
     cbs_raw0 |> dplyr::filter(year > 1960)
   )
 }
 
-.cbs_complete_year_nesting_dt <- function(df, id_cols) {
+.cbs_complete_year_nesting_dt <- function(df, id_cols, years = NULL) {
   dt <- data.table::as.data.table(df)
-  years_dt <- data.table::data.table(year = sort(unique(dt$year)))
+  complete_years <- if (is.null(years)) {
+    sort(unique(dt$year))
+  } else {
+    sort(unique(years))
+  }
+  years_dt <- data.table::data.table(year = complete_years)
   keys_dt <- unique(dt[, id_cols, with = FALSE])
   years_dt[, .cross_key := 1L]
   keys_dt[, .cross_key := 1L]
@@ -1317,7 +1844,8 @@ build_processing_coefs <- function(
     years_dt,
     keys_dt,
     by = ".cross_key",
-    allow.cartesian = TRUE
+    allow.cartesian = TRUE,
+    sort = FALSE
   )
   skeleton[, .cross_key := NULL]
 
@@ -1325,7 +1853,8 @@ build_processing_coefs <- function(
     skeleton,
     dt,
     by = c("year", id_cols),
-    all.x = TRUE
+    all.x = TRUE,
+    sort = FALSE
   )
 }
 
@@ -1511,41 +2040,46 @@ build_processing_coefs <- function(
 }
 
 .fill_with_proxies <- function(df, gdp_pop, land_wide) {
-  df |>
-    dplyr::left_join(
-      gdp_pop |> dplyr::select(year, area, pop),
-      by = c("year", "area")
-    ) |>
-    dplyr::left_join(
-      land_wide,
-      by = c("year", "area")
-    ) |>
+  by_cols <- c("area", "area_code", "item_cbs", "item_cbs_code")
+  sort_cols <- c(by_cols, "year")
+
+  # Join auxiliary columns first, then sort once for all four fills.
+  dt <- data.table::as.data.table(df)
+  pop_dt <- data.table::as.data.table(gdp_pop)[, .(year, area, pop)]
+  land_dt <- data.table::as.data.table(land_wide)
+  dt <- merge(dt, pop_dt, by = c("year", "area"), all.x = TRUE, sort = FALSE)
+  dt <- merge(dt, land_dt, by = c("year", "area"), all.x = TRUE, sort = FALSE)
+  data.table::setorderv(dt, sort_cols)
+
+  # Four consecutive fills sharing the sort established above.
+  # .is_sorted_by detects sorted state; merge(sort=FALSE) preserves it.
+  as.data.frame(dt) |>
     fill_proxy_growth(
       value_col = food,
       proxy_col = "pop",
       time_col = year,
-      .by = c("area", "item_cbs"),
+      .by = by_cols,
       verbose = FALSE
     ) |>
     fill_proxy_growth(
       value_col = other_uses,
       proxy_col = "pop",
       time_col = year,
-      .by = c("area", "item_cbs"),
+      .by = by_cols,
       verbose = FALSE
     ) |>
     fill_proxy_growth(
       value_col = feed,
       proxy_col = "agriland",
       time_col = year,
-      .by = c("area", "item_cbs"),
+      .by = by_cols,
       verbose = FALSE
     ) |>
     fill_proxy_growth(
       value_col = processing,
       proxy_col = "pop",
       time_col = year,
-      .by = c("area", "item_cbs"),
+      .by = by_cols,
       verbose = FALSE
     )
 }
@@ -1605,7 +2139,7 @@ build_processing_coefs <- function(
 # -- Processing calibration ----------------------------------------------------
 
 .cbs_calibrate_processing <- function(cbs_raw) {
-  cb_proc <- whep::cb_processing
+  cb_proc <- .prepare_cb_processing_for_cbs(whep::cb_processing)
   items <- whep::items_full
 
   cbs_glob <- cbs_raw |>
@@ -1774,163 +2308,150 @@ build_processing_coefs <- function(
     )
 }
 
+.extract_source_lookup <- function(df) {
+  dt <- if (data.table::is.data.table(df)) df else data.table::as.data.table(df)
+  by_cols <- c("year", "area_code", "item_cbs_code", "element")
+  unique(dt[, c(by_cols, "source"), with = FALSE], by = by_cols)
+}
+
 # -- Redistribute non-processed ------------------------------------------------
 
 .cbs_redistribute_notprocessed <- function(
   cbs_raw2,
-  processd_raw
+  processd_raw,
+  src_lookup = NULL
 ) {
-  # Save source provenance before internal processing
-  src_lookup <- cbs_raw2 |>
-    dplyr::distinct(
-      year,
-      area_code,
-      item_cbs_code,
-      element,
-      .keep_all = TRUE
-    ) |>
-    dplyr::select(year, area_code, item_cbs_code, element, source)
-  cbs_raw2 <- cbs_raw2 |>
-    dplyr::select(-dplyr::any_of("source"))
+  if (is.null(src_lookup)) {
+    src_lookup <- .extract_source_lookup(cbs_raw2)
+  }
 
-  not_processed <- cbs_raw2 |>
-    dplyr::filter(element == "processing", value > 0) |>
-    dplyr::select(-element) |>
-    dplyr::anti_join(
-      processd_raw |>
-        dplyr::summarise(
-          value = sum(value),
-          .by = c(year, area, area_code, processed_item)
-        ) |>
-        dplyr::select(-value) |>
-        dplyr::rename(item_cbs = processed_item),
-      by = c("year", "area", "area_code", "item_cbs")
-    ) |>
-    dplyr::left_join(
-      cbs_raw2 |>
-        dplyr::filter(
-          element %in%
-            c(
-              "food",
-              "feed",
-              "other_uses",
-              "export"
-            )
-        ) |>
-        dplyr::mutate(
-          share = value / sum(value),
-          .by = c(year, area, area_code, item_cbs)
-        ) |>
-        dplyr::select(-value),
-      by = c(
-        "year",
-        "area",
-        "area_code",
-        "item_cbs",
-        "item_cbs_code"
-      )
-    ) |>
-    dplyr::mutate(value = value * share) |>
-    dplyr::select(-share)
+  dt <- data.table::as.data.table(cbs_raw2)
+  dt[, source := NULL]
 
-  items <- cbs_raw2 |>
-    dplyr::left_join(
-      not_processed |>
-        dplyr::summarise(
-          value = sum(value),
-          .by = c(year, area, area_code, item_cbs)
-        ) |>
-        dplyr::select(-value) |>
-        dplyr::mutate(has_np = TRUE),
-      by = c("year", "area", "area_code", "item_cbs")
-    )
+  # Items with processing but no matching processed products
+  proc_keys <- data.table::as.data.table(processd_raw)[,
+    .(processed_item = unique(processed_item)),
+    by = .(year, area, area_code)
+  ]
+  data.table::setnames(proc_keys, "processed_item", "item_cbs")
 
-  ok <- items |> dplyr::filter(is.na(has_np))
+  np <- dt[element == "processing" & value > 0]
+  np[, element := NULL]
+  np <- np[!proc_keys, on = c("year", "area", "area_code", "item_cbs")]
 
-  fixed <- items |>
-    dplyr::filter(!is.na(has_np)) |>
-    dplyr::select(-has_np) |>
-    dplyr::bind_rows(not_processed) |>
-    dplyr::summarise(
-      value = sum(value, na.rm = TRUE),
-      .by = c(
-        year,
-        area,
-        area_code,
-        item_cbs,
-        item_cbs_code,
-        element
-      )
-    ) |>
-    dplyr::filter(
-      !is.na(element),
-      element != "processing"
-    ) |>
-    tidyr::pivot_wider(
-      names_from = element,
-      values_from = value,
-      values_fill = 0
-    ) |>
-    dplyr::mutate(
-      domestic_supply = feed + food + seed + other_uses
-    ) |>
-    tidyr::pivot_longer(
-      dplyr::any_of(c(
-        "domestic_supply",
-        "production",
-        "export",
-        "import",
-        "stock_variation",
-        "food",
-        "feed",
-        "seed",
-        "other_uses"
-      )),
-      names_to = "element",
-      values_to = "value"
-    ) |>
-    dplyr::summarise(
-      value = sum(value, na.rm = TRUE),
-      .by = c(year, area, area_code, item_cbs, element)
-    )
+  # Compute destination shares from existing elements
+  shares <- dt[
+    element %in% c("food", "feed", "other_uses", "export")
+  ]
+  shares[,
+    share := value / sum(value),
+    by = .(year, area, area_code, item_cbs)
+  ]
+  shares[, value := NULL]
 
-  dplyr::bind_rows(
-    ok |> dplyr::select(-has_np),
-    fixed
-  ) |>
-    dplyr::select(-dplyr::any_of(c("has_np", "item_cbs_code"))) |>
-    dplyr::left_join(
-      dplyr::distinct(
-        cbs_raw2,
-        item_cbs,
-        item_cbs_code
-      ),
-      by = "item_cbs"
-    ) |>
-    dplyr::left_join(
-      src_lookup,
-      by = c(
-        "year",
-        "area_code",
-        "item_cbs_code",
-        "element"
-      )
-    )
+  np <- merge(
+    np,
+    shares,
+    by = c("year", "area", "area_code", "item_cbs", "item_cbs_code"),
+    all.x = TRUE,
+    sort = FALSE
+  )
+  np[, value := value * share]
+  np[, share := NULL]
+
+  # Mark items that have non-processed redistribution (update-join)
+  np_keys <- unique(np[, .(year, area, area_code, item_cbs)])
+  np_keys[, .has_np := TRUE]
+  dt[
+    np_keys,
+    .has_np := i..has_np,
+    on = c("year", "area", "area_code", "item_cbs")
+  ]
+
+  ok <- dt[is.na(.has_np)]
+  ok[, .has_np := NULL]
+
+  affected <- dt[!is.na(.has_np)]
+  affected[, .has_np := NULL]
+  dt[, .has_np := NULL]
+
+  # Combine affected + redistributed, aggregate
+  combined <- data.table::rbindlist(
+    list(affected, np),
+    use.names = TRUE,
+    fill = TRUE
+  )
+  fixed <- combined[
+    !is.na(element) & element != "processing",
+    .(value = sum(value, na.rm = TRUE)),
+    by = .(year, area, area_code, item_cbs, item_cbs_code, element)
+  ]
+
+  # Pivot wide to recompute domestic_supply, then back to long
+  # Recompute domestic_supply in long format (avoids dcast+melt overhead)
+  elem_cols <- c(
+    "domestic_supply",
+    "production",
+    "export",
+    "import",
+    "stock_variation",
+    "food",
+    "feed",
+    "seed",
+    "other_uses"
+  )
+  fixed <- fixed[element %in% elem_cols]
+  fixed <- fixed[element != "domestic_supply"]
+  ds_new <- fixed[
+    element %in% c("feed", "food", "seed", "other_uses"),
+    .(element = "domestic_supply", value = sum(value, na.rm = TRUE)),
+    by = .(year, area, area_code, item_cbs, item_cbs_code)
+  ]
+  fixed <- data.table::rbindlist(
+    list(fixed, ds_new),
+    use.names = TRUE
+  )
+  fixed <- fixed[,
+    .(value = sum(value, na.rm = TRUE)),
+    by = .(year, area, area_code, item_cbs, element)
+  ]
+
+  # Recombine — add item_cbs_code to fixed before binding
+  items_bridge <- unique(dt[, .(item_cbs, item_cbs_code)])
+  fixed <- merge(
+    fixed,
+    items_bridge,
+    by = "item_cbs",
+    all.x = TRUE,
+    sort = FALSE
+  )
+  out <- data.table::rbindlist(
+    list(
+      ok[, .(year, area, area_code, item_cbs, item_cbs_code, element, value)],
+      fixed
+    ),
+    use.names = TRUE
+  )
+  merge(
+    out,
+    src_lookup,
+    by = c("year", "area_code", "item_cbs_code", "element"),
+    all.x = TRUE,
+    sort = FALSE
+  )
 }
 
 # -- Impute trade + domestic supply --------------------------------------------
 
-.cbs_impute_trade <- function(cbs_raw3, fao_trade_cbs = NULL) {
+.cbs_impute_trade <- function(
+  cbs_raw3,
+  fao_trade_cbs = NULL,
+  src_lookup = NULL
+) {
   # Save source provenance before pivot cycle
-  src_lookup <- cbs_raw3 |>
-    dplyr::distinct(
-      year,
-      area_code,
-      item_cbs_code,
-      element,
-      .keep_all = TRUE
-    ) |>
-    dplyr::select(year, area_code, item_cbs_code, element, source)
+  if (is.null(src_lookup)) {
+    src_lookup <- .extract_source_lookup(cbs_raw3)
+  }
 
   destiny_list <- c(
     "food",
@@ -1976,7 +2497,20 @@ build_processing_coefs <- function(
       names_from = element,
       values_from = value,
       values_fill = NA
-    ) |>
+    )
+
+  for (destiny in destiny_list) {
+    if (!destiny %in% names(wide)) {
+      wide[[destiny]] <- 0
+    }
+  }
+  for (balance_col in c("production", "import", "export", "stock_variation")) {
+    if (!balance_col %in% names(wide)) {
+      wide[[balance_col]] <- NA_real_
+    }
+  }
+
+  wide <- wide |>
     dplyr::mutate(
       dplyr::across(
         dplyr::any_of(destiny_list),
@@ -2180,7 +2714,7 @@ build_processing_coefs <- function(
   items <- unique(items, by = "item_cbs")
 
   dt <- data.table::as.data.table(destiny)
-  dt <- merge(dt, items, by = "item_cbs", all.x = TRUE)
+  dt <- merge(dt, items, by = "item_cbs", all.x = TRUE, sort = FALSE)
 
   grp <- c("year", "area", "area_code", "item_cbs", "item_cbs_code")
   dt[, sum_dests := sum(value, na.rm = TRUE), by = grp]
@@ -2283,8 +2817,14 @@ build_processing_coefs <- function(
     fill = TRUE
   )
 
-  out <- merge(skeleton, destiny_dedup, by = join_keys, all.x = TRUE)
-  fill_linear(out, dest_share, time_col = year, .by = by_cols)
+  out <- merge(
+    skeleton,
+    destiny_dedup,
+    by = join_keys,
+    all.x = TRUE,
+    sort = FALSE
+  )
+  fill_linear(out, dest_share, time_col = year, .by = by_cols, .copy = FALSE)
 }
 
 # Apply filled destiny shares to domestic supply and return final CBS rows.
@@ -2344,19 +2884,18 @@ build_processing_coefs <- function(
     .(year, area, area_code, item_cbs, item_cbs_code, domestic_supply = value)
   ]
 
-  out <- merge(
-    dt,
+  # Update-join: add columns in-place instead of merge+copy
+  dt[
     global_shares,
-    by = c("year", "item_cbs", "item_cbs_code", "element", "elem_cat"),
-    all.x = TRUE
-  )
-
-  merge(
-    out,
+    dest_share_global := i.dest_share_global,
+    on = c("year", "item_cbs", "item_cbs_code", "element", "elem_cat")
+  ]
+  dt[
     ds,
-    by = c("year", "area", "area_code", "item_cbs", "item_cbs_code"),
-    all.x = TRUE
-  )
+    domestic_supply := i.domestic_supply,
+    on = c("year", "area", "area_code", "item_cbs", "item_cbs_code")
+  ]
+  dt
 }
 
 # -- Second round of processed products ---------------------------------------
@@ -2535,21 +3074,18 @@ build_processing_coefs <- function(
 
 .cbs_reclassify_processing <- function(
   cbs_raw6,
-  cb_processing_glo
+  cb_processing_glo,
+  src_lookup = NULL
 ) {
   # Save source provenance before pivot cycle
-  src_lookup <- cbs_raw6 |>
-    dplyr::distinct(
-      year,
-      area_code,
-      item_cbs_code,
-      element,
-      .keep_all = TRUE
-    ) |>
-    dplyr::select(year, area_code, item_cbs_code, element, source)
+  if (is.null(src_lookup)) {
+    src_lookup <- .extract_source_lookup(cbs_raw6)
+  }
 
-  proc_scaling <- cbs_raw6 |>
-    .processed_raw(cb_processing_glo) |>
+  proc_base <- cbs_raw6 |>
+    .processed_raw(cb_processing_glo)
+
+  proc_scaling <- proc_base |>
     dplyr::summarise(
       value_proc = sum(value_proc, na.rm = TRUE),
       .by = c(
@@ -2572,8 +3108,7 @@ build_processing_coefs <- function(
     ) |>
     dplyr::mutate(scaling = value / value_proc)
 
-  proc_coefs_raw <- cbs_raw6 |>
-    .processed_raw(cb_processing_glo) |>
+  proc_coefs_raw <- proc_base |>
     dplyr::rename(value_proc_raw = value_proc) |>
     dplyr::left_join(
       proc_scaling |>
@@ -2697,83 +3232,84 @@ build_processing_coefs <- function(
 
 # -- Final balance -------------------------------------------------------------
 
-.cbs_final_balance <- function(cbs_raw7, years) {
+.cbs_final_balance <- function(cbs_raw7, years, src_lookup = NULL) {
   items <- whep::items_full
 
   # Save source provenance before test_cbs pivot cycles
-  src_lookup <- cbs_raw7 |>
-    dplyr::distinct(
-      year,
-      area_code,
-      item_cbs_code,
-      element,
-      .keep_all = TRUE
-    ) |>
-    dplyr::select(year, area_code, item_cbs_code, element, source)
+  if (is.null(src_lookup)) {
+    src_lookup <- .extract_source_lookup(cbs_raw7)
+  }
+
+  items_dd <- data.table::as.data.table(items)[,
+    .(item_cbs, default_destiny)
+  ]
+  items_dd <- unique(items_dd, by = "item_cbs")
 
   cbs_raw8 <- cbs_raw7 |>
     dplyr::filter(year %in% years) |>
     dplyr::select(-dplyr::any_of("source")) |>
-    .test_cbs() |>
-    dplyr::left_join(
-      items |> dplyr::select(item_cbs, default_destiny),
-      by = "item_cbs"
-    ) |>
-    dplyr::mutate(
+    .test_cbs()
+  cbs_raw8 <- merge(
+    cbs_raw8,
+    items_dd,
+    by = "item_cbs",
+    all.x = TRUE,
+    sort = FALSE
+  )
+  cbs_raw8[,
+    `:=`(
       domestic_supply = pmax(domestic_supply, 0),
-      export = dplyr::if_else(
+      export = data.table::fifelse(
         balance < 0,
         production + import - stock_variation - domestic_supply,
         export
       )
-    ) |>
-    .untest_cbs()
-
-  cbs_raw8 |>
-    .test_cbs() |>
-    dplyr::left_join(
-      items |> dplyr::select(item_cbs, default_destiny),
-      by = "item_cbs"
-    ) |>
-    dplyr::mutate(
-      feed = dplyr::if_else(
-        check == FALSE &
-          destiny_replacement == "default_prone" &
-          default_destiny == "Feed",
-        domestic_supply,
-        feed
-      ),
-      food = dplyr::if_else(
-        check == FALSE &
-          destiny_replacement == "default_prone" &
-          default_destiny == "Food",
-        domestic_supply,
-        food
-      ),
-      other_uses = dplyr::if_else(
-        check == FALSE &
-          destiny_replacement == "default_prone" &
-          default_destiny == "Other_uses",
-        domestic_supply,
-        other_uses
-      ),
-      processing = dplyr::if_else(
-        check == FALSE &
-          destiny_replacement == "default_prone" &
-          default_destiny == "Processing",
-        domestic_supply,
-        processing
-      )
-    ) |>
-    .untest_cbs() |>
-    dplyr::filter(value != 0) |>
-    dplyr::left_join(
-      src_lookup,
-      by = c(
-        "year",
-        "area_code",
-        "item_cbs_code",
-        "element"
-      )
     )
+  ]
+  cbs_raw8[, default_destiny := NULL]
+  cbs_raw8 <- .untest_cbs(cbs_raw8)
+
+  cbs_out <- .test_cbs(cbs_raw8)
+  cbs_out <- merge(
+    cbs_out,
+    items_dd,
+    by = "item_cbs",
+    all.x = TRUE,
+    sort = FALSE
+  )
+  dp_mask <- cbs_out$check == FALSE &
+    cbs_out$destiny_replacement == "default_prone"
+  cbs_out[
+    dp_mask & default_destiny == "Feed",
+    feed := domestic_supply
+  ]
+  cbs_out[
+    dp_mask & default_destiny == "Food",
+    food := domestic_supply
+  ]
+  cbs_out[
+    dp_mask & default_destiny == "Other_uses",
+    other_uses := domestic_supply
+  ]
+  cbs_out[
+    dp_mask & default_destiny == "Processing",
+    processing := domestic_supply
+  ]
+  cbs_out[, default_destiny := NULL]
+  cbs_out <- .untest_cbs(cbs_out)
+
+  if (!data.table::is.data.table(cbs_out)) {
+    data.table::setDT(cbs_out)
+  }
+  cbs_out <- cbs_out[value != 0]
+  if (!data.table::is.data.table(src_lookup)) {
+    data.table::setDT(src_lookup)
+  }
+  merge(
+    cbs_out,
+    src_lookup,
+    by = c("year", "area_code", "item_cbs_code", "element"),
+    all.x = TRUE,
+    sort = FALSE
+  )
 }

@@ -39,7 +39,7 @@ province_landuse_n_inputs_plot <- function(year_plot = 1980) {
       Input
     ) |>
     dplyr::summarise(
-      MgN = sum(mg_n, na.rm = TRUE),
+      mg_n = sum(mg_n, na.rm = TRUE),
       .groups = "drop"
     )
 
@@ -64,18 +64,18 @@ province_landuse_n_inputs_plot <- function(year_plot = 1980) {
   df_grouped <- df |>
     dplyr::group_by(province_name, LandUse, Input) |>
     dplyr::summarise(
-      MgN = sum(MgN),
+      mg_n = sum(mg_n),
       Area_ha = sum(Area_ha),
       .groups = "drop"
     ) |>
     dplyr::mutate(
-      kgN_ha = (MgN * 1000) / Area_ha
+      kgN_ha = (mg_n * 1000) / Area_ha
     )
 
   df_total <- df |>
     dplyr::group_by(province_name, Input) |>
     dplyr::summarise(
-      MgN = sum(MgN),
+      mg_n = sum(mg_n),
       .groups = "drop"
     ) |>
     dplyr::left_join(
@@ -89,7 +89,7 @@ province_landuse_n_inputs_plot <- function(year_plot = 1980) {
     ) |>
     dplyr::mutate(
       LandUse = "Total",
-      kgN_ha = (MgN * 1000) / Area_ha
+      kgN_ha = (mg_n * 1000) / Area_ha
     )
 
   plot_data <- dplyr::bind_rows(df_grouped, df_total)
@@ -138,7 +138,7 @@ province_landuse_n_inputs_plot <- function(year_plot = 1980) {
       )
     ) +
       ggplot2::geom_bar(stat = "identity") +
-      ggplot2::facet_wrap(~Province_name, nrow = 1) +
+      ggplot2::facet_wrap(~province_name, nrow = 1) +
       ggplot2::scale_fill_manual(values = input_colors) +
       ggplot2::labs(
         title = paste(
@@ -203,7 +203,7 @@ prov_all_lu_n_inputs_plot <- function(year_plot = 1980) {
         Urban
       ),
       names_to = "Input",
-      values_to = "MgN"
+      values_to = "mg_n"
     )
 
   areas <- area |>
@@ -228,26 +228,26 @@ prov_all_lu_n_inputs_plot <- function(year_plot = 1980) {
 
   df_grouped <- df |>
     dplyr::group_by(
-      Province_name,
+      province_name,
       LandUse,
       Input
     ) |>
     dplyr::summarise(
-      MgN = sum(MgN, na.rm = TRUE),
+      mg_n = sum(mg_n, na.rm = TRUE),
       Area_ha = sum(Area_ha, na.rm = TRUE),
       .groups = "drop"
     ) |>
     dplyr::mutate(
-      kgN_ha = (MgN * 1000) / Area_ha
+      kgN_ha = (mg_n * 1000) / Area_ha
     )
 
   df_total <- df |>
     dplyr::group_by(
-      Province_name,
+      province_name,
       Input
     ) |>
     dplyr::summarise(
-      MgN = sum(MgN, na.rm = TRUE),
+      mg_n = sum(mg_n, na.rm = TRUE),
       .groups = "drop"
     ) |>
     dplyr::left_join(
@@ -261,7 +261,7 @@ prov_all_lu_n_inputs_plot <- function(year_plot = 1980) {
     ) |>
     dplyr::mutate(
       LandUse = "Total",
-      kgN_ha = (MgN * 1000) / Area_ha
+      kgN_ha = (mg_n * 1000) / Area_ha
     )
 
   plot_data <- dplyr::bind_rows(
@@ -323,7 +323,7 @@ prov_all_lu_n_inputs_plot <- function(year_plot = 1980) {
       )
     ) +
       ggplot2::geom_bar(stat = "identity") +
-      ggplot2::facet_wrap(~Province_name, nrow = 1) +
+      ggplot2::facet_wrap(~province_name, nrow = 1) +
       ggplot2::scale_fill_manual(values = input_colors) +
       ggplot2::labs(
         title = paste(

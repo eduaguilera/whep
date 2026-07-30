@@ -35,4 +35,7 @@ Identifies production items that appear both as primary crop products and
 as harvested-area items, requiring special treatment to avoid
 double-counting in production and biomass accounting.
 }
+\examples{
+head(primary_double)
+}
 \keyword{datasets}

@@ -1,3 +1,96 @@
+#' Manure nitrogen application by crop and country
+#'
+#' @description
+#' Country- and crop-level estimates of manure nitrogen applied to cropland,
+#' from West et al. (2014). Used as a reference for spatializing manure N
+#' inputs in the WHEP pipeline.
+#'
+#' @format
+#' A tibble with one row per crop-country combination containing:
+#' - `Crop_name`: Crop name (character).
+#' - `ISO`: ISO 3166-1 alpha-3 country code.
+#' - `Continent`: Three-letter continent code (e.g. `"AFR"`, `"ASI"`).
+#' - `Manure_N_Mg`: Manure nitrogen applied in megagrams (Mg).
+#'
+#' @source West, P. C. et al. (2014). Leverage points for improving global
+#'   food security and the environment. *Science*, 345(6194), 325–328.
+#'   \doi{10.1126/science.1246067}
+#'
+#' @examples
+#' head(crops_manure_n)
+"crops_manure_n"
+
+#' Grassland share of synthetic nitrogen by country and year
+#'
+#' @description
+#' Country-level time series of the share of synthetic nitrogen applied to
+#' grassland (versus cropland). Used to split national N totals between land
+#' use types in the WHEP nitrogen pipeline.
+#'
+#' @format
+#' A tibble with one row per country-year combination containing:
+#' - `Country`: Country name.
+#' - `year`: Year (numeric).
+#' - `grass_share`: Share of synthetic N applied to grassland (0–1).
+#'
+#' @source Lassaletta et al. nitrogen flow dataset. See pipeline
+#'   documentation for full citation.
+#'
+#' @examples
+#' head(lassaletta_grassland_share)
+"lassaletta_grassland_share"
+
+#' Smil (2001) global synthetic nitrogen production, 1913-2000
+#'
+#' @description
+#' Global synthetic-nitrogen production anchors from Smil (2001)
+#' "Enriching the Earth", Tables 5.2 and 5.3, cross-checked with
+#' Smil (2002) Ambio 31:126-131. Anchor years span 1913 (first
+#' commercial Haber-Bosch plant at BASF Oppau) to 2000. Used by
+#' `prepare_nitrogen_inputs()` to backcast country-level synthetic N
+#' for the pre-FAOSTAT period (years before 1961): the temporal shape
+#' is taken from this global series and downscaled to each country
+#' using its 1961-1965 share of global FAOSTAT synthetic N.
+#'
+#' Pre-1913 values are treated as zero by the consumer and are not
+#' stored here.
+#'
+#' @format A tibble with one row per anchor year:
+#' - `year`: Integer anchor year (1913, 1920, 1925, ..., 2000).
+#' - `global_kt_n`: Global synthetic-N production in kt N.
+#'
+#' @source Smil, V. (2001) *Enriching the Earth: Fritz Haber, Carl
+#'   Bosch, and the Transformation of World Food Production*, MIT
+#'   Press. Tables 5.2 and 5.3.
+#'
+#' @examples
+#' head(smil_2001_synthetic_n_global)
+"smil_2001_synthetic_n_global"
+
+#' Synthetic nitrogen application rates by crop and country
+#'
+#' @description
+#' Country- and crop-process-level synthetic nitrogen application rates
+#' (kg N ha\eqn{^{-1}}), derived from Mueller et al. (2012). Used as
+#' reference crop-specific N rates in the WHEP nitrogen pipeline.
+#'
+#' @format
+#' A tibble with one row per crop-process-country combination containing:
+#' - `proc_code`: Internal process code (e.g. `"p001"`).
+#' - `crop_process`: Descriptive crop process name (e.g. `"Rice production"`).
+#' - `crop_original`: Crop name as in the source dataset.
+#' - `unit`: Unit of the rate value (always `"kgN/ha"`).
+#' - `iso3c`: ISO 3166-1 alpha-3 country code.
+#' - `rate_value`: Nitrogen application rate (kg N ha\eqn{^{-1}}).
+#'
+#' @source Mueller, N. D. et al. (2012). Closing yield gaps through nutrient
+#'   and water management. *Nature*, 490(7419), 254–257.
+#'   \doi{10.1038/nature11420}
+#'
+#' @examples
+#' head(mueller_synthetic_n)
+"mueller_synthetic_n"
+
 #' Animal codes and classifications
 #'
 #' Maps live animal CBS items to their livestock classifications, process codes,
@@ -33,6 +126,9 @@
 #' - `item_bouwman`: Item name used in Bouwman et al. livestock datasets.
 #' @source Derived from [FAOSTAT data](https://www.fao.org/faostat/en/#data/QA)
 #'   and internal livestock classification work.
+#'
+#' @examples
+#' head(animals_codes)
 "animals_codes"
 
 #' Biomass coefficients for crops and livestock products
@@ -108,7 +204,8 @@
 #' - `Residue_humified_kgC_kgC`: Humification coefficient of residue carbon
 #'   (fraction of residue C stabilised as soil organic matter).
 #' - `MgDM_m3`: Megagrams dry matter per cubic metre (bulk density proxy).
-#' - `Root_kgC_kgDM`: Carbon content of roots in kg C per kg root dry matter.
+#' - `Root_kgC_kgDM`: Root plus rhizodeposit carbon in kg C per kg root dry
+#'   matter.
 #' - `Root_humified_kgC_kgC`: Humification coefficient for root carbon.
 #' - `Root_mass_kgC_kgDM`: Root carbon mass in kg C per kg crop dry matter.
 #' - `Rhizodeposits_mass_kgC_kgDM`: Rhizodeposit carbon in kg C per kg crop
@@ -141,7 +238,36 @@
 #' - `Carotenoids_mg_kgFM`: Carotenoid content in mg per kg fresh matter.
 #' @source Compiled from multiple sources including FAO food composition data,
 #'   crop physiology literature, and IPCC Tier 1 coefficients.
+#'
+#' @examples
+#' head(biomass_coefs)
 "biomass_coefs"
+
+#' FAOSTAT crop to LPJmL crop functional type (CFT) mapping
+#'
+#' Maps FAOSTAT primary-production item codes to WHEP's granular
+#' 33-class crop functional type taxonomy and the coarser
+#' LPJmL-compatible parent class. Used by
+#' [build_gridded_landuse()] and [run_spatialize()] to aggregate
+#' spatialized crop-level output into named crop functional types.
+#'
+#' @format
+#' A tibble with one row per mapped FAOSTAT item. Columns:
+#' - `item_prod_code`: Integer FAOSTAT item code.
+#' - `item_prod_name`: Human-readable FAOSTAT item name.
+#' - `cft_name`: Granular WHEP CFT name (33 classes, e.g.
+#'   `"temperate_cereals"`, `"coffee"`, `"oil_crops_oilpalm"`).
+#' - `cft_lpjml`: LPJmL-compatible parent class; one of the 12
+#'   LPJmL v6 named crop CFTs or `"others"`.
+#' - `luh2_type`: LUH2 crop functional type (`c3ann`, `c4ann`,
+#'   `c3per`, or `c3nfx`).
+#' @source Adapted from LandInG's
+#'   `crop_types_FAOSTAT_LPJmL_default.csv` (Ostberg et al. 2023)
+#'   with WHEP granular extensions.
+#'
+#' @examples
+#' head(cft_mapping)
+"cft_mapping"
 
 #' Commodity balance sheet processing fractions
 #'
@@ -155,12 +281,17 @@
 #'   `"Apples and products"`, `"Barley and products"`).
 #' - `item_cbs`: Name of the output CBS category produced by processing (e.g.,
 #'   `"Alcohol, Non-Food"`).
-#' - `Product_fraction`: Fraction of the processed item that yields the output
-#'   product (numeric, 0–1).
+#' - `Product_fraction`: Conversion factor from processed input quantity to
+#'   output product quantity. This can exceed 1 when the output includes added
+#'   mass, such as water in beverages.
 #' - `Value_fraction`: Economic value fraction associated with the output
 #'   product (numeric; largely `NA` in current data).
-#' - `Required`: Reserved column, currently all `NA`.
+#' - `Required`: Marks required co-product links in selected processing
+#'   chains.
 #' @source Derived from FAOSTAT commodity balance sheet processing assumptions.
+#'
+#' @examples
+#' head(cb_processing)
 "cb_processing"
 
 #' CBS to trade item code mapping
@@ -182,6 +313,9 @@
 #'   used to flag mapping inconsistencies during data processing.
 #' @source Derived from [FAOSTAT Detailed Trade Matrix](https://www.fao.org/faostat/en/#data/TM)
 #'   and commodity balance sheet correspondence tables.
+#'
+#' @examples
+#' head(cbs_trade_codes)
 "cbs_trade_codes"
 
 #' Eurostat crop classification codes
@@ -197,6 +331,9 @@
 #'   (e.g., `"Plants harvested green from arable land"`,
 #'   `"Temporary grasses and grazings"`).
 #' @source [Eurostat Agricultural Statistics](https://ec.europa.eu/eurostat/statistics-explained/index.php/Agricultural_statistics).
+#'
+#' @examples
+#' head(crops_eurostat)
 "crops_eurostat"
 
 #' Full CBS item table
@@ -234,6 +371,9 @@
 #'   `"Feed"`, `"Food"`, `"Other_uses"`, `"Processing"`, or `NA`.
 #' @source Derived from [FAOSTAT data](https://www.fao.org/faostat/en/#data/FBS)
 #'   and internal commodity classification work.
+#'
+#' @examples
+#' head(items_full)
 "items_full"
 
 #' Primary production items linked to CBS
@@ -259,6 +399,9 @@
 #'   `"Crop products"`, `"Livestock products"`, `"Grass"`,
 #'   `"Crop residues"`, `"Scavenging"`, `"Livestock"`.
 #' @source Derived from [FAOSTAT Production data](https://www.fao.org/faostat/en/#data/QCL).
+#'
+#' @examples
+#' head(items_prim)
 "items_prim"
 
 #' Full production item table
@@ -317,6 +460,9 @@
 #' - `Cat_Ymax_leg`: Legend label for the `Cat_Ymax` category.
 #' @source Derived from [FAOSTAT Production data](https://www.fao.org/faostat/en/#data/QCL)
 #'   and multiple classification schemes from the literature.
+#'
+#' @examples
+#' head(items_prod_full)
 "items_prod_full"
 
 #' Livestock unit coefficients
@@ -334,6 +480,9 @@
 #'   of 1.0 by convention; smaller animals have proportionally lower values.
 #' @source Based on standard livestock unit definitions from FAO and
 #'   European agricultural statistics.
+#'
+#' @examples
+#' head(liv_lu_coefs)
 "liv_lu_coefs"
 
 #' Polity categories and regional classifications
@@ -345,11 +494,17 @@
 #' @format
 #' A tibble where each row corresponds to one polity (country or territory).
 #' It contains the following columns:
-#' - `polity_code`: ISO 3166-1 alpha-3 country code used as the primary
-#'   identifier (e.g., `"AFG"`, `"ALB"`).
-#' - `polity_name`: Common country or territory name.
+#' - `polity_code`: Legacy current polity prefix, usually ISO 3166-1 alpha-3
+#'   (e.g., `"AFG"`, `"ALB"`).
+#' - `polity_name`: Current polity, country, or territory name.
 #' - `V1`: Internal row index from the source table.
 #' - `code`: Numeric FAOSTAT country code.
+#' - `polity_area_code`: Numeric WHEP reporting area code used in matrix
+#'   workflows.
+#' - `reporting_polity_code`: Current periodized WHEP polity code for `code`.
+#' - `reporting_polity_name`: Current WHEP polity name for `code`.
+#' - `reporting_polity_has_geometry`: Logical flag indicating whether the
+#'   current reporting polity has a polygon.
 #' - `iso3c`: ISO 3166-1 alpha-3 code (character; may duplicate
 #'   `polity_code` or differ for aggregates).
 #' - `FAOSTAT_name`: Country name as used in FAOSTAT.
@@ -392,6 +547,9 @@
 #'   ILO, IEA, and other international statistical sources.
 #' @note Five trailing columns containing only Excel `#REF!` errors in the
 #'   source CSV are dropped at load time and are not part of this dataset.
+#'
+#' @examples
+#' head(polities_cats)
 "polities_cats"
 
 #' Items with double-counting in production statistics
@@ -416,6 +574,9 @@
 #'   - `"Multi"`: Multiple products share the same harvested area.
 #'   - `"Multi_area"`: Multiple products share a recorded area aggregate.
 #' @source Derived from FAOSTAT production methodology documentation.
+#'
+#' @examples
+#' head(primary_double)
 "primary_double"
 
 #' Full polity and region reference table
@@ -428,12 +589,17 @@
 #' A tibble where each row corresponds to one polity or aggregate region. It
 #' contains the following columns (same definitions as `polities_cats`,
 #' minus the five trailing `0...36`–`0...40` artefact columns):
-#' - `polity_code`: Primary polity identifier (ISO 3166-1 alpha-3 or `NA`
-#'   for non-sovereign aggregates).
-#' - `polity_name`: Polity name (`NA` for aggregates not matched to a
-#'   standard polity).
+#' - `polity_code`: Legacy current polity prefix. This is kept for
+#'   compatibility with older code that expected ISO3-like values.
+#' - `polity_name`: Current polity, country, territory, or aggregate name.
 #' - `V1`: Internal row index.
 #' - `code`: Numeric FAOSTAT country/region code.
+#' - `polity_area_code`: Numeric WHEP reporting area code used in matrix
+#'   workflows.
+#' - `reporting_polity_code`: Current periodized WHEP polity code for `code`.
+#' - `reporting_polity_name`: Current WHEP polity name for `code`.
+#' - `reporting_polity_has_geometry`: Logical flag indicating whether the
+#'   current reporting polity has a polygon.
 #' - `iso3c`: ISO 3166-1 alpha-3 code (`NA` for aggregates).
 #' - `FAOSTAT_name`: Name used in FAOSTAT (may be `"#N/A"` for aggregates).
 #' - `EU27`: Logical EU27 membership flag.
@@ -468,4 +634,7 @@
 #' @seealso [polities_cats] for the subset restricted to sovereign countries.
 #' @source Compiled from [FAOSTAT](https://www.fao.org/faostat/), UN M49,
 #'   ILO, IEA, and other international statistical sources.
+#'
+#' @examples
+#' head(regions_full)
 "regions_full"

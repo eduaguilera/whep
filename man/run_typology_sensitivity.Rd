@@ -11,7 +11,7 @@ run_typology_sensitivity(n_prov_destiny = NULL, variation = 0.2)
 automatically.}
 
 \item{variation}{Relative variation applied to each threshold (default
-0.2 = 20\\%).}
+0.2 = 20\%).}
 }
 \value{
 A tibble with columns \code{threshold}, \code{direction}, and

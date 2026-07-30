@@ -10,6 +10,9 @@
 #' uses and feed or cropland (in case of N soil inputs).
 #' Processed items, residues, woody crops, grazed weeds are taken into account.
 #'
+#' @param example If `TRUE`, return a small example output without downloading
+#'   remote data. Default is `FALSE`.
+#'
 #' @return
 #' A final tibble containing N flow data by origin and destiny.
 #' It includes the following columns:
@@ -25,14 +28,20 @@
 #'   - `destiny`: The destiny category of N: population_food,
 #'   population_other_uses, livestock_mono, livestock_rum (feed), export,
 #'   Cropland (for N soil inputs).
-#'   - `MgN`: Nitrogen amount in megagrams (Mg).
+#'   - `mg_n`: Nitrogen amount in megagrams (Mg).
 #'
 #' @export
-create_n_prov_destiny <- function() {
+#'
+#' @examples
+#' create_n_prov_destiny(example = TRUE)
+create_n_prov_destiny <- function(example = FALSE) {
+  if (example) {
+    return(.example_create_n_prov_destiny())
+  }
   codes_coefs_items_full <- whep_read_file("codes_coefs_items_full")
   biomass_coefs <- whep_read_file("biomass_coefs")
   pie_full_destinies_fm <- whep_read_file("pie_full_destinies_fm")
-  processing_coefs <- get_processing_coefs()
+  processing_coefs <- whep_read_file("processing_coefs")
   livestock_prod_ygps <- whep_read_file("stock_prod_ygps")
   crop_area_npp_no_fallow <- whep_read_file("crop_area_npp_ygpitr_no_fallow")
   npp_ygpit <- whep_read_file("npp_ygpit")
@@ -125,11 +134,34 @@ create_n_prov_destiny <- function() {
 #' inputs are aggregated nationally before calculating trade with the
 #' outside.
 #'
+#' @param example If `TRUE`, return a small example output without downloading
+#'   remote data. Default is `FALSE`.
+#'
 #' @return
 #' A final tibble containing national N flow data by origin and destiny.
+#' It includes the following columns:
+#'   - `year`: The year in which the recorded event occurred.
+#'   - `item`: The item which was produced, defined in `names_biomass_cb`.
+#'   - `irrig_cat`: Irrigation form (irrigated or rainfed)
+#'   - `box`: One of the GRAFS model systems: cropland,
+#'   Semi-natural agroecosystems, Livestock, Fish, or Agro-industry.
+#'   - `origin`: The origin category of N: Cropland,
+#'   Semi-natural agroecosystems, Livestock, Fish, Agro-industry, Deposition,
+#'   Fixation, Synthetic, People (waste water), Livestock (manure).
+#'   - `destiny`: The destiny category of N: population_food,
+#'   population_other_uses, livestock_mono, livestock_rum (feed), export,
+#'   Cropland (for N soil inputs).
+#'   - `mg_n`: Nitrogen amount in megagrams (Mg).
+#'   - `province_name`: Set to "Spain" for all national-level rows.
 #'
 #' @export
-create_n_nat_destiny <- function() {
+#'
+#' @examples
+#' create_n_nat_destiny(example = TRUE)
+create_n_nat_destiny <- function(example = FALSE) {
+  if (example) {
+    return(.example_create_n_nat_destiny())
+  }
   prov <- create_n_prov_destiny() |>
     dplyr::rename(
       Year = year,
@@ -1533,9 +1565,9 @@ create_n_nat_destiny <- function() {
 }
 
 #' @title Split local consumption
-#' @description Splits local consumption proportionally according to demand
-#' shares (food, other uses, feed). Feed is further split into
-#' livestock_rum and livestock_mono.
+#' @description Splits local consumption into population food, other uses,
+#' and livestock. Livestock feed is split into livestock_rum (ruminants)
+#' and livestock_mono (monogastric).
 #' @param local_vs_import A dataset containing local and imported consumption.
 #' @param feed_share_rum_mono A dataset with feed shares between ruminants
 #' and monogastric animals.
@@ -1604,10 +1636,16 @@ create_n_nat_destiny <- function() {
 
 
 #' @title Split imported consumption
-#' @description Splits imported consumption as the residual demand after local
-#' allocation with priority for food, then other uses, then feed. Livestock
-#' feed is split into livestock_rum (ruminants) and livestock_mono
+#' @description Splits imports by consumption and assigns origins.
+#' Livestock feed is split into livestock_rum (ruminants) and livestock_mono
 #' (monogastric).
+#' COMMENT: pmin prevents imported N for food and other uses from becoming
+#' unrealistically high.
+#' For human consumption, imports usually replace local supply instead of
+#' adding to it. So I limited imported food and other uses to the smaller
+#' value of imports or local use with pmin. Feed is treated differently because
+#' imports can exceed local production. Fish and Agro-industry are excluded in
+#' pmin because all of these values are considered as imports.
 #' @param local_vs_import A dataset containing local and import consumption.
 #' @param feed_share_rum_mono A dataset with feed shares split into ruminants
 #' and monogastric animals.
@@ -1883,6 +1921,7 @@ create_n_nat_destiny <- function() {
 }
 
 .ensure_livestock_cols <- function(df) {
-  missing <- setdiff(c("ruminant", "monogastric", "pets"), names(df))
+  required <- c("ruminant", "monogastric", "pets")
+  missing <- setdiff(required, names(df))
   dplyr::mutate(df, !!!purrr::map(rlang::set_names(missing), ~0))
 }

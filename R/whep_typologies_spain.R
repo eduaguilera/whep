@@ -3,18 +3,17 @@
 #' @description Calculates all decision variables for the WHEP typology
 #' using only production and consumption data (no import/export).
 #'
-#' @param prod_destiny Data frame with consumption data
-#' (food, feed, other_uses).
-#' @param prod_n Data frame with production data (production_n) from
-#' grafs_prod_item_n.
+#' @param prod_destiny Tibble with N flows from `create_n_prov_destiny()`.
+#' @param prod_n Tibble with per-item N production from `create_n_production()`
+#' (column `prod`, renamed here to `production_n`).
 #' @param years Numeric vector of years to include (default = 2020).
 #'
 #' @return A data frame with Year, Province_name, decision variables,
 #' and Category.
 #' @export
 create_typologies_whep <- function(
-  prod_destiny = create_n_prov_destiny()$prod_destiny,
-  prod_n = create_n_prov_destiny()$grafs_prod_item_n,
+  prod_destiny = create_n_prov_destiny(),
+  prod_n = create_n_production() |> dplyr::rename(production_n = prod),
   years = 2020
 ) {
   prod_destiny <- prod_destiny |>
@@ -29,32 +28,22 @@ create_typologies_whep <- function(
     dplyr::filter(year %in% years, province_name != "Sea")
 
   # --- Feed-Import ------------------------------------------------
-  destiny_shares <- prod_destiny |>
-    dplyr::filter(destiny %in% c("food", "feed", "other_uses")) |>
-    dplyr::group_by(year, province_name, item) |>
-    dplyr::summarise(
-      total_consumption = sum(mg_n, na.rm = TRUE),
-      feed_share = sum(mg_n[destiny == "feed"], na.rm = TRUE) /
-        sum(mg_n, na.rm = TRUE),
-      .groups = "drop"
-    )
-
+  # Imported feed arrives as origin "Outside" already split into the
+  # ruminant/monogastric feed destinies, so it can be summed directly.
   import_feed_df <- prod_destiny |>
-    dplyr::filter(destiny == "import") |>
-    dplyr::left_join(destiny_shares, by = c("year", "province_name", "item")) |>
-    dplyr::mutate(
-      import_feed = mg_n * feed_share
+    dplyr::filter(
+      origin == "Outside",
+      destiny %in% c("livestock_mono", "livestock_rum")
     ) |>
-    dplyr::select(year, province_name, item, box, import_feed) |>
     dplyr::group_by(year, province_name) |>
     dplyr::summarise(
-      feed_import = sum(import_feed, na.rm = TRUE),
+      feed_import = sum(mg_n, na.rm = TRUE),
       .groups = "drop"
     )
 
   # --- 1. Human share ------------------------------------------------------
   food_consumption <- prod_destiny |>
-    dplyr::filter(destiny %in% c("food", "other_uses")) |>
+    dplyr::filter(destiny %in% c("population_food", "population_other_uses")) |>
     dplyr::group_by(year, province_name) |>
     dplyr::summarise(
       food_consumption = sum(mg_n, na.rm = TRUE),
@@ -76,7 +65,7 @@ create_typologies_whep <- function(
 
   # --- 2. Woody share --------------------------------------------------------
   woody_share <- prod_destiny |>
-    dplyr::filter(box %in% c("Cropland", "Semi_natural_agroecosystems")) |>
+    dplyr::filter(box %in% c("Cropland", "semi_natural_agroecosystems")) |>
     dplyr::mutate(
       woody = ifelse(item %in% c("Firewood", "Acorns"), mg_n, 0)
     ) |>
@@ -101,7 +90,7 @@ create_typologies_whep <- function(
 
   # --- 4. Animal ingestion / livestock feed --------------------------------
   animal_ingestion <- prod_destiny |>
-    dplyr::filter(destiny == "feed") |>
+    dplyr::filter(destiny %in% c("livestock_mono", "livestock_rum")) |>
     dplyr::group_by(year, province_name) |>
     dplyr::summarise(
       animal_ingestion = sum(mg_n, na.rm = TRUE),
@@ -111,9 +100,9 @@ create_typologies_whep <- function(
   # --- 5. Grass vs crop feed -------------------------------------------------
   grass_feed <- prod_destiny |>
     dplyr::filter(
-      box == "Semi_natural_agroecosystems",
+      box == "semi_natural_agroecosystems",
       item == "Grassland",
-      destiny == "feed"
+      destiny %in% c("livestock_mono", "livestock_rum")
     ) |>
     dplyr::group_by(year, province_name) |>
     dplyr::summarise(
@@ -122,7 +111,10 @@ create_typologies_whep <- function(
     )
 
   crop_feed <- prod_destiny |>
-    dplyr::filter(box == "Cropland", destiny == "feed") |>
+    dplyr::filter(
+      box == "Cropland",
+      destiny %in% c("livestock_mono", "livestock_rum")
+    ) |>
     dplyr::group_by(year, province_name) |>
     dplyr::summarise(
       crop_feed_N = sum(mg_n, na.rm = TRUE),

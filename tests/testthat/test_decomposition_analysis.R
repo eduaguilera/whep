@@ -487,7 +487,10 @@ test_that("factor rows are tagged with their mechanism and targets as Total", {
   out <- .tag_mechanism(decomp_df)
 
   expect_equal(out$mechanism[out$factor_label == "Size"], "Size")
-  expect_equal(out$mechanism[out$factor_label == "Feed intensity"], "Intensification")
+  expect_equal(
+    out$mechanism[out$factor_label == "Feed intensity"],
+    "Intensification"
+  )
   expect_equal(out$mechanism[out$component_type == "target"], "Total")
 })
 
@@ -505,6 +508,8 @@ test_that("contributions are cumulated over time within each group", {
 
   crop <- out |> dplyr::filter(compartment == "cropland") |> dplyr::arrange(t0)
   expect_equal(crop$cumulative_mgn, c(10, 15))
-  semi_nat <- out |> dplyr::filter(compartment == "semi_natural") |> dplyr::arrange(t0)
+  semi_nat <- out |>
+    dplyr::filter(compartment == "semi_natural") |>
+    dplyr::arrange(t0)
   expect_equal(semi_nat$cumulative_mgn, c(-2, 1))
 })

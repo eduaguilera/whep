@@ -46,4 +46,7 @@ Extended item reference table covering all CBS items, including their
 process and commodity codes, feed type classifications, and default
 material flow destinations.
 }
+\examples{
+head(items_full)
+}
 \keyword{datasets}

@@ -21,6 +21,11 @@
 #'     function already returns the dataset in an `R` object, so the origin is
 #'     irrelevant, and `parquet` is read faster.
 #'
+#'   - `nc` / `nc4`: Returns the path to the downloaded NetCDF instead of its
+#'     contents, because these grids are read lazily by `ncdf4`/`terra` and are
+#'     far too large to materialise as a tibble.
+#'   - `raw`: Returns the file path without any processing.
+#'
 #'   Saving each file in both formats is for transparency and accessibility
 #'   purposes, e.g., having to share the data with non-programmers who can
 #'   easily import a CSV into a spreadsheet. You will most likely never have
@@ -28,9 +33,10 @@
 #'   supplied in e.g. `parquet` format but was in another one.
 #' @param version The version of the file that must be read. Possible values:
 #'   - `NULL`: This is the default value. A frozen version is chosen to make
-#'     the code reproducible. Each release will have its own frozen versions.
-#'     The version is the string that can be found in [`whep_inputs`] in the
-#'     `version` column.
+#'     the code reproducible when the file has a registry version. Each release
+#'     will have its own frozen versions. The version is the string that can be
+#'     found in [`whep_inputs`] in the `version` column. A blank registry version
+#'     requests the latest board version.
 #'   - `"latest"`: This overrides the frozen version and instead fetches the
 #'     latest one that is available. This might or might not match the frozen
 #'     version.
@@ -55,18 +61,17 @@ whep_read_file <- function(file_alias, type = "parquet", version = NULL) {
 
   file_info <- .fetch_file_info(file_alias, whep::whep_inputs)
   version <- .choose_version(file_info$version, version)
-  pin_name <- if (!is.na(file_info$pin_name)) file_info$pin_name else file_alias
 
   paths <- tryCatch(
     .get_local_board() |>
-      pins::pin_download(pin_name, version = version),
+      pins::pin_download(file_alias, version = version),
     error = function(e) {
       tryCatch(
         file_info |>
           .get_remote_board() |>
-          pins::pin_download(pin_name, version = version),
+          pins::pin_download(file_alias, version = version),
         error = function(e) {
-          .get_cache_paths(file_info, pin_name, version, e)
+          .get_cache_paths(file_info, file_alias, version, e)
         }
       )
     }
@@ -92,28 +97,59 @@ whep_read_file <- function(file_alias, type = "parquet", version = NULL) {
 #' @examples
 #' whep_list_file_versions("read_example")
 whep_list_file_versions <- function(file_alias) {
-  if (file_alias == "read_example") {
-    return(.get_local_board() |> pins::pin_versions(file_alias))
+  board <- if (file_alias == "read_example") {
+    .get_local_board()
+  } else {
+    file_alias |>
+      .fetch_file_info(whep::whep_inputs) |>
+      .get_remote_board()
   }
 
-  file_info <- .fetch_file_info(file_alias, whep::whep_inputs)
-  pin_name <- if (!is.na(file_info$pin_name)) file_info$pin_name else file_alias
-
-  file_info |>
-    .get_remote_board() |>
-    pins::pin_versions(pin_name)
+  board |>
+    pins::pin_versions(file_alias)
 }
 
 .read_file <- function(paths, extension) {
   path <- purrr::detect(paths, ~ stringr::str_ends(.x, extension))
+
+  # Only for formats this function knows how to read: an unrecognised
+  # `extension` must still fall through to the "unknown file type" error.
+  known <- c("csv", "parquet", "tar.gz", "tgz", "raw")
+
+  if (is.null(path) && extension %in% known) {
+    # data.txt / _pins.yaml are pins bookkeeping, not readable inputs.
+    available <- paths |>
+      purrr::map_chr(fs::path_ext) |>
+      unique() |>
+      setdiff(c("", "txt", "yaml"))
+    cli::cli_abort(c(
+      "This input has no {.val {extension}} file.",
+      i = "Available format{?s}: {.val {available}}.",
+      i = "Pass {.code type = } to pick one, e.g.
+           {.code whep_read_file(alias, type = \"{available[1]}\")}."
+    ))
+  }
 
   if (extension == "csv") {
     readr::read_csv(path, show_col_types = FALSE)
   } else if (extension == "parquet") {
     path |>
       nanoparquet::read_parquet() |>
-      # Make sure it has `tbl_df` subclass, not present by default
       tibble::as_tibble()
+  } else if (extension %in% c("tar.gz", "tgz")) {
+    # Decompress archive and return paths to extracted files
+    tmpdir <- file.path(tempdir(), basename(tempfile()))
+    dir.create(tmpdir, recursive = TRUE)
+    utils::untar(path, exdir = tmpdir)
+    list.files(tmpdir, full.names = TRUE, recursive = TRUE)
+  } else if (extension %in% c("nc", "nc4")) {
+    # NetCDF is read lazily by the caller (ncdf4/terra open by path, and these
+    # grids are far too large to materialise as a tibble), so hand back the
+    # path rather than the contents.
+    path
+  } else if (extension == "raw") {
+    # Return the raw file path without processing
+    path
   } else {
     extensions <- purrr::map(paths, fs::path_ext)
     cli::cli_abort(
@@ -208,7 +244,16 @@ whep_list_file_versions <- function(file_alias) {
 
 .choose_version <- function(frozen_version, user_version) {
   if (is.null(user_version)) {
-    frozen_version
+    if (
+      length(frozen_version) == 0L ||
+        is.na(frozen_version) ||
+        !nzchar(frozen_version) ||
+        identical(frozen_version, "latest")
+    ) {
+      NULL
+    } else {
+      frozen_version
+    }
   } else if (user_version == "latest") {
     NULL
   } else {

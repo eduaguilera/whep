@@ -21,7 +21,8 @@
     2010, NA, "husbandry", 976, 2807, "use", 3.33e-14,
     1998, 115, "processing", 2544, 2543, "supply", 3.77e+3,
     1967, 238, "husbandry", 960, 2740, "supply", 1.05e+3
-  )
+  ) |>
+    .add_reporting_polity_columns()
 }
 
 .example_get_bilateral_trade <- function() {
@@ -52,8 +53,67 @@
     2010, 150, 1068, 2595, "crops", 2645., 2380., 2176., 2.64e+2, 0.1,
     1978, NA, 1096, 2536, "crops", 159., 143., 42.2, 1.59e+1, 0.1,
     2021, 23, 1053, 2511, "crops", 627., 347., 305., 2.80e+2, 0.446,
-    1977, 114, 976, 2517, "crops", 32.5, 29.2, 25.7, 3.25e+0, 0.1
+    1977, 114, 976, 2517, "crops", 32.5, 29.2, 25.7, 3.25e+0, 0.1,
+    2020, 32, 1053, 3000, "grass", 120., 100., 20., 20., 0.167
+  ) |>
+    .add_reporting_polity_columns()
+}
+
+.example_grassland_extension <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~impact_u, ~method_grassland,
+    1986L, 10L, 3000L, 2.5e7, "occupation",
+    1986L, 100L, 3000L, 8.0e6, "occupation",
+    1987L, 10L, 3000L, 2.5e7, "occupation",
+    1987L, 100L, 3000L, 8.1e6, "occupation"
   )
+}
+
+.example_ghg_extension <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~impact_u, ~method_ghg,
+    1986L, 10L, 960L, 6.156e8, "IPCC_2019_Tier1_AR6",
+    1986L, 10L, 961L, 3.078e9, "IPCC_2019_Tier1_AR6",
+    1986L, 10L, 976L, 1.10565e9, "IPCC_2019_Tier1_AR6",
+    1986L, 100L, 961L, 2.2464e9, "IPCC_2019_Tier1_AR6",
+    1987L, 10L, 961L, 3.10878e9, "IPCC_2019_Tier1_AR6",
+    1987L, 100L, 960L, 8.424e8, "IPCC_2019_Tier1_AR6"
+  )
+}
+
+.example_energy_co2_extension <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~impact_u, ~method_energy,
+    2010L, 21L, 961L, 1.7669e9, "GLEAM_3.0_energy_meat",
+    2010L, 21L, 1053L, 3.4077e9, "GLEAM_3.0_energy_meat",
+    2010L, 231L, 961L, 8.3289e9, "GLEAM_3.0_energy_meat",
+    2010L, 231L, 976L, 5.7395e7, "GLEAM_3.0_energy_meat",
+    2010L, 231L, 1016L, 1.7517e7, "GLEAM_3.0_energy_meat",
+    2010L, 231L, 1049L, 1.9281e9, "GLEAM_3.0_energy_meat",
+    2010L, 231L, 1051L, 2.1423e8, "GLEAM_3.0_energy_meat",
+    2010L, 231L, 1053L, 1.1171e10, "GLEAM_3.0_energy_meat"
+  )
+}
+
+.example_soil_n2o_extension <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~impact_u, ~method_soil_n2o,
+    2010L, 10L, 2511L, 4.126122e8, "IPCC_2019_Tier1_AR6",
+    2010L, 10L, 2513L, 1.768338e8, "IPCC_2019_Tier1_AR6"
+  )
+}
+
+.example_soil_carbon_inputs <- function() {
+  tibble::tribble(
+    ~lon, ~lat, ~area_code, ~item_prod_code, ~year,
+    ~residue_c_mgc_ha_yr, ~root_c_mgc_ha_yr, ~weed_c_mgc_ha_yr,
+    ~manure_c_mgc_ha_yr, ~total_c_input_mgc_ha_yr, ~humified_fraction,
+    0.25, 0.25, 1L, "15", 2020L, 1.5, 1.0, 0.25, 0.5, 3.25, 0.156083313609467,
+    0.75, 0.25, 1L, "15", 2020L, 1.5, 1.0, 0.25, 0.5, 3.25, 0.156083313609467,
+    0.25, 0.25, 1L, "27", 2020L, 1.5, 0.5, 0.25, 0.5, 2.75, 0.152053748675567,
+    0.75, 0.25, 1L, "27", 2020L, 1.5, 0.5, 0.25, 0.5, 2.75, 0.152053748675567
+  ) |>
+    dplyr::mutate(method_c_input = "humified_weighted")
 }
 
 .ex_get_primary_prod <- function() {
@@ -69,7 +129,8 @@
     1981, 130, 486, 2615, NA, "ha", 17600.,
     1962, 171, 122, 2533, NA, "t_ha", 5.15,
     1964, 173, 1037, 2737, 1049, "t_head", 0.0167
-  )
+  ) |>
+    .add_reporting_polity_columns()
 }
 
 .example_get_primary_residues <- function() {
@@ -85,7 +146,8 @@
     2018, 167, 2549, 2105, 13578.,
     1994, 109, 2605, 2105, 5597.,
     1982, 194, 2605, 2106, 280552.
-  )
+  ) |>
+    .add_reporting_polity_columns()
 }
 
 .example_get_processing_coefs <- function() {
@@ -101,23 +163,25 @@
     1974, 103, 2570, 874., 2586, 0.397, 347., 1.0, 0.397, 347.,
     1995, 230, 2625, 59452., 2658, 0.0201, 1195., 1.0, 0.0201, 1195.,
     1970, 223, 2511, 6.80, 2656, 4.74, 32.2, 1.0, 4.74, 32.2
-  )
+  ) |>
+    .add_reporting_polity_columns()
 }
 
 .example_get_wide_cbs <- function() {
   tibble::tribble(
-    ~year, ~area_code, ~item_cbs_code, ~domestic_supply, ~food, ~production, ~feed, ~seed, ~import, ~export, ~other_uses, ~processing, ~stock_retrieval,
-    1987L, 250L, 2106, 13741247., 0., 13741247., 1.37e7, 0., 0., 0., 0., 0., 0.,
-    2012L, 41L, 2633, 82000., 82000., 0., 0., 0., 1.46e5, 68158., 0., 0., 0.,
-    1984L, 123L, 2595, 1207., 0., 3854., 1.21e3, 0., 0., 4147., 0., 0., 0.,
-    1982L, 165L, 2633, 86.5, 86.5, 0., 0., 0., 8.75e1, 1., 0., 0., 0.,
-    1977L, 159L, 2658, 2218., 2218., 0., 0., 0., 2.22e3, 0., 0., 0., 0.,
-    1995L, 234L, 2671, 4312., 0., 2500., 0., 0., 1.99e3, 178., 4312., 0., 0.,
-    1975L, 10L, 677L, 2270., 2270., 2270., 0., 0., 0., 0., 0., 0., 0.,
-    1961L, 156L, 2658, 6877., 6877., 2000., 0., 0., 4.88e3, 0., 0., 0., 0.,
-    1961L, 236L, 2620, 11177., 11177., 0., 0., 0., 1.12e4, 0., 0., 0., 0.,
-    1995L, 49L, 2734, 71117., 71117., 56724., 0., 0., 1.48e4, 0., 0., 0., 0.
-  )
+    ~year, ~area_code, ~item_cbs_code, ~domestic_supply, ~food, ~production, ~feed, ~seed, ~import, ~export, ~other_uses, ~processing, ~stock_withdrawal, ~stock_addition,
+    1987L, 250L, 2106, 13741247., 0., 13741247., 1.37e7, 0., 0., 0., 0., 0., 0., 0.,
+    2012L, 41L, 2633, 82000., 82000., 0., 0., 0., 1.46e5, 68158., 0., 0., 0., 0.,
+    1984L, 123L, 2595, 1207., 0., 3854., 1.21e3, 0., 0., 4147., 0., 0., 0., 0.,
+    1982L, 165L, 2633, 86.5, 86.5, 0., 0., 0., 8.75e1, 1., 0., 0., 0., 0.,
+    1977L, 159L, 2658, 2218., 2218., 0., 0., 0., 2.22e3, 0., 0., 0., 0., 0.,
+    1995L, 234L, 2671, 4312., 0., 2500., 0., 0., 1.99e3, 178., 4312., 0., 0., 0.,
+    1975L, 10L, 677L, 2270., 2270., 2270., 0., 0., 0., 0., 0., 0., 0., 0.,
+    1961L, 156L, 2658, 6877., 6877., 2000., 0., 0., 4.88e3, 0., 0., 0., 0., 0.,
+    1961L, 236L, 2620, 11177., 11177., 0., 0., 0., 1.12e4, 0., 0., 0., 0., 0.,
+    1995L, 49L, 2734, 71117., 71117., 56724., 0., 0., 1.48e4, 0., 0., 0., 0., 0.
+  ) |>
+    .add_reporting_polity_columns()
 }
 
 .example_create_n_prov_destiny <- function() {
@@ -245,7 +309,8 @@
     1935, 211, "270",  2558, NA_character_, "ha",     4018.,     "LUH2_cropland",
     1937,   9, "772",  772,  NA_character_, "ha",     785953.,   "LUH2_cropland",
     2000,   9, "571",  2625, NA_character_, "ha",     236.,      "FAOSTAT_prod"
-  )
+  ) |>
+    .add_reporting_polity_columns()
 }
 
 .example_build_commodity_bal <- function() {
@@ -261,7 +326,8 @@
     1924,  11, 2557, "production",        1.61e2,     "historical_fill", NA_character_,
     1928,  96, 2625, "domestic_supply",   1.85e4,     NA_character_,     NA_character_,
     1879, 236, 2547, "seed",              3.83e-8,    "historical_fill", NA_character_
-  )
+  ) |>
+    .add_reporting_polity_columns()
 }
 
 .example_build_proc_coefs <- function() {
@@ -277,5 +343,413 @@
     2007,  19, 2615,  1044.,       2657, 0.00841, 8.78,      0.415,   0.00349,  3.64,
     1969,  51, 2537,  5589000.,    2542, 0.119,   667851.,   1.07,    0.128,    716000.,
     1984, 171, 2513,  104400.,     2659, 0.0240,  2501.,     0.0575,  0.00138,  144.
+  ) |>
+    .add_reporting_polity_columns()
+}
+
+.example_build_detailed_trade <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~area_code_partner, ~element,
+    ~item_cbs_code, ~unit, ~value, ~country_share,
+    2010L, 4L, 100L, "import", 2511L, "tonnes", 125000., 0.35,
+    2010L, 4L, 79L, "import", 2511L, "tonnes", 89000., 0.25,
+    2015L, 100L, 4L, "export", 2536L, "tonnes", 45000., 0.18,
+    2015L, 100L, 79L, "export", 2536L, "tonnes", 72000., 0.29,
+    2018L, 79L, 4L, "import", 2807L, "tonnes", 310000., 0.42,
+    2018L, 79L, 100L, "import", 2807L, "tonnes", 150000., 0.20,
+    2005L, 4L, 79L, "export", 2555L, "tonnes", 63000., 0.55,
+    2005L, 4L, 100L, "export", 2555L, "tonnes", 28000., 0.24,
+    2012L, 100L, 4L, "import", 2570L, "tonnes", 98000., 0.31,
+    2012L, 100L, 79L, "import", 2570L, "tonnes", 54000., 0.17
+  ) |>
+    .add_trade_polity_columns()
+}
+
+.example_build_trade_prices <- function() {
+  tibble::tribble(
+    ~year, ~item_trade, ~item_code_trade, ~element,
+    ~kdollars, ~tonnes, ~price,
+    2010L, "Wheat", 15L, "export", 3.5e7, 1.2e8, 0.292,
+    2010L, "Wheat", 15L, "import", 3.8e7, 1.3e8, 0.292,
+    2015L, "Rice", 31L, "export", 1.9e7, 4.5e7, 0.422,
+    2015L, "Rice", 31L, "import", 2.0e7, 4.7e7, 0.426,
+    2010L, "Maize", 56L, "export", 2.8e7, 1.1e8, 0.255,
+    2010L, "Maize", 56L, "import", 3.0e7, 1.2e8, 0.250,
+    2018L, "Soybeans", 236L, "export", 5.2e7, 1.5e8, 0.347,
+    2018L, "Soybeans", 236L, "import", 5.5e7, 1.6e8, 0.344,
+    2015L, "Sugar", 162L, "export", 1.1e7, 5.5e7, 0.200,
+    2015L, "Sugar", 162L, "import", 1.2e7, 5.8e7, 0.207
+  )
+}
+
+.example_build_primary_prices <- function() {
+  tibble::tribble(
+    ~year, ~item_prod_code, ~price,
+    2010L, "15", 0.292,
+    2015L, "15", 0.210,
+    2010L, "56", 0.255,
+    2015L, "56", 0.185,
+    2010L, "236", 0.410,
+    2015L, "236", 0.347,
+    2010L, "31", 0.395,
+    2015L, "31", 0.422,
+    2018L, "406", 0.330,
+    2018L, "486", 0.180
+  )
+}
+
+.example_build_cbs_prices <- function() {
+  tibble::tribble(
+    ~year, ~element, ~item_cbs_code, ~price,
+    2010L, "export", 2511L, 0.292,
+    2010L, "import", 2511L, 0.295,
+    2015L, "export", 2807L, 0.422,
+    2015L, "import", 2807L, 0.426,
+    2010L, "export", 2536L, 0.255,
+    2010L, "import", 2536L, 0.250,
+    2018L, "export", 2555L, 0.347,
+    2018L, "import", 2555L, 0.344,
+    2015L, "export", 2105L, 0.029,
+    2015L, "import", 2105L, 0.030
+  )
+}
+
+.example_feed_demand <- function() {
+  tibble::tribble(
+    ~year, ~territory, ~sub_territory, ~livestock_category, ~item_cbs_code,
+    ~feed_group, ~feed_quality, ~demand_dm_t, ~fixed_demand,
+    2000L, "ESP", "prov_a", "cattle", 2514L, "cereals", "high_quality", 100, TRUE,
+    2000L, "ESP", "prov_a", "cattle", 2555L, "grass", "grass", 50, TRUE,
+    2000L, "ESP", "prov_b", "pigs", 2514L, "cereals", "high_quality", 30, TRUE
+  )
+}
+
+.example_feed_avail <- function() {
+  tibble::tribble(
+    ~year, ~sub_territory, ~item_cbs_code, ~feed_group, ~feed_quality,
+    ~avail_dm_t, ~feed_scale,
+    2000L, "prov_a", 2514L, "cereals", "high_quality", 80, "national",
+    2000L, "prov_a", 2555L, "grass", "grass", 40, "provincial",
+    2000L, "prov_b", 2514L, "cereals", "high_quality", 100, "national",
+    2000L, "prov_b", 2555L, "grass", "grass", 60, "provincial"
+  )
+}
+
+.example_crop_land_extension <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~impact_u, ~method_land,
+    2000L, 33L, 2511L, 17562678, "cropland_apportion",
+    2000L, 33L, 2514L, 2159391, "cropland_apportion",
+    2000L, 33L, 2516L, 3206883, "cropland_apportion",
+    2000L, 33L, 2555L, 7782531, "cropland_apportion",
+    2000L, 100L, 2511L, 27345112, "cropland_apportion",
+    2000L, 100L, 2513L, 9810455, "cropland_apportion",
+    2000L, 100L, 2531L, 1204599, "cropland_apportion",
+    2000L, 100L, 2555L, 7218004, "cropland_apportion",
+    2000L, 110L, 2511L, 1188233, "cropland_apportion",
+    2000L, 110L, 2805L, 1503221, "cropland_apportion"
+  )
+}
+
+# afsetools parity fixtures were removed: afsetools::load_general_data() reads
+# Codes_coefs.xlsx via openxlsx (segfaults intermittently on R 4.5.x) and is not
+# a CI dependency, so the live parity test is not run. See test_redistribute_feed.R.
+
+.example_local_intake <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~sub_territory, ~live_anim_code, ~item_cbs_code,
+    ~feed_type, ~supply, ~intake, ~intake_dry_matter, ~loss, ~loss_share,
+    2000L, 724L, "-3.75_40.25", 960L, 3000L, "grass", 1250, 1250, 250, 0, 0,
+    2000L, 724L, "-3.75_40.25", 960L, 2591L, "crops", 11, 11, 10, 0, 0,
+    2000L, 724L, "-3.25_40.25", 961L, 3000L, "grass", 900, 900, 180, 0, 0,
+    2000L, 724L, "-3.25_40.25", 976L, 3500L, "scavenging", 0, 0, 0, 0, 0,
+    2000L, 724L, "-3.25_40.75", 1049L, 2591L, "crops", 22, 22, 20, 0, 0
+  )
+}
+
+.example_build_feed_demand <- function(by = "category") {
+  if (by == "feed_type") {
+    return(tibble::tribble(
+      ~year, ~territory, ~sub_territory, ~livestock_category, ~item_cbs_code,
+      ~feed_group, ~feed_quality, ~demand_dm_t, ~fixed_demand,
+      2000L, "79", NA_character_, "Cattle_milk", NA_integer_,
+      NA_character_, "grass", 1800000, TRUE,
+      2000L, "79", NA_character_, "Cattle_milk", NA_integer_,
+      NA_character_, "high_quality", 2800000, FALSE,
+      2000L, "79", NA_character_, "Cattle_milk", NA_integer_,
+      NA_character_, "residues", 1200000, FALSE,
+      2000L, "79", NA_character_, "Pigs", NA_integer_,
+      NA_character_, "high_quality", 7400000, FALSE,
+      2000L, "79", NA_character_, "Pigs", NA_integer_,
+      NA_character_, "scavenging", 1300000, FALSE
+    ))
+  }
+  tibble::tribble(
+    ~year, ~area_code, ~livestock_category, ~demand_dm_t, ~method_demand,
+    2000L, 79L, "Cattle_milk", 5.8e6, "ipcc_tier2_energy",
+    2000L, 79L, "Cattle_meat", 9.4e6, "ipcc_tier2_energy",
+    2000L, 79L, "Sheep", 1.1e6, "ipcc_tier2_energy",
+    2000L, 79L, "Goats", 2.0e5, "ipcc_tier2_energy",
+    2000L, 79L, "Pigs", 8.7e6, "bouwman_fcr",
+    2000L, 79L, "Poultry", 3.9e6, "bouwman_fcr",
+    2000L, 79L, "Horses", 1.5e5, "krausmann_per_head",
+    2000L, 79L, "Other", 3.0e4, "krausmann_per_head"
+  )
+}
+
+.ex_land_balance_footprint <- function() {
+  tibble::tribble(
+    ~area_code, ~item_cbs_code, ~value, ~method,
+    10L, 3000L, 328899491, "land_balance",
+    41L, 3000L, 391524410, "land_balance",
+    101L, 2615L, 109730, "land_balance",
+    114L, 772L, 962, "land_balance",
+    122L, 2520L, 3865, "land_balance",
+    126L, 2617L, 6491, "land_balance",
+    137L, 2613L, 40.6, "land_balance",
+    179L, 2514L, 5009, "land_balance",
+    188L, 2535L, 1.83, "land_balance",
+    236L, 2537L, 1304, "land_balance"
+  )
+}
+
+# Gridded water-balance fixture. Constructed so that, for every row, the 4-term
+# identity water_input_mm == aet_mm + runoff_mm + drainage_mm +
+# soil_water_change_mm holds exactly (and aet_mm == aet_blue_mm + aet_green_mm),
+# and the additive identity water_input_mm == prec_mm + irrig_mm holds exactly,
+# letting both the closure and prec/irrig-split tests pass. drainage_mm =
+# water_input - aet - runoff - soil_water_change for each row. blue/green
+# consumptive water mirror the blue/green AET (the per-CFT inputs are absent in
+# the fixture); cft_nir_mm is NA (no net-irrigation-requirement input).
+# method_water carries the default cft_native blue/green label.
+.example_water_balance <- function() {
+  label <- "aet:components|drain:seepage|bg:cft_native"
+  tibble::tribble(
+    ~lon, ~lat, ~area_code, ~year, ~water_input_mm, ~prec_mm, ~irrig_mm,
+    ~pet_mm, ~aet_mm, ~aet_blue_mm, ~aet_green_mm, ~blue_consump_mm,
+    ~green_consump_mm, ~cft_nir_mm, ~drainage_mm, ~runoff_mm,
+    ~soil_water_change_mm, ~method_water, ~polity_frac, ~cell_area_ha,
+    9.25, 47.75, 11L, 2000L, 1200, 950, 250, NA, 800, 200, 600, 200, 600, NA,
+    300, 50, 50, label, 1, 30100,
+    9.75, 47.75, 11L, 2000L, 1100, 880, 220, NA, 760, 180, 580, 180, 580, NA,
+    260, 40, 40, label, 1, 30100,
+    -55.25, -12.25, 21L, 2000L, 1800, 1300, 500, NA, 1300, 400, 900, 400, 900,
+    NA, 400, 80, 20, label, 1, 33500,
+    -55.75, -12.25, 21L, 2000L, 1750, 1270, 480, NA, 1260, 380, 880, 380, 880,
+    NA, 400, 70, 20, label, 1, 33500,
+    35.75, -1.25, 79L, 2000L, 900, 720, 180, NA, 650, 150, 500, 150, 500, NA,
+    170, 30, 50, label, 1, 30900,
+    35.25, -1.25, 79L, 2000L, 950, 760, 190, NA, 690, 160, 530, 160, 530, NA,
+    190, 30, 40, label, 1, 30900,
+    -3.75, 40.25, 203L, 2000L, 600, 500, 100, NA, 420, 80, 340, 80, 340, NA,
+    130, 20, 30, label, 1, 27500,
+    -3.25, 40.25, 203L, 2000L, 650, 540, 110, NA, 460, 90, 370, 90, 370, NA,
+    140, 20, 30, label, 1, 27500
+  )
+}
+
+# Monthly SOC climate-driver fixture (one cell, three months). Temperature and
+# topsoil soil-water saturation drive the SOC decomposition modifiers; clay is a
+# soil-texture covariate. precip_mm and pet_mm (monthly) drive the Century
+# modifier; water_minus_pet_mm is the monthly RothC/HSOC surplus (here
+# precip_mm - pet_mm, irrigation zero); water_balance_mm is the annual sum of
+# that surplus (-10 + 5 + 20 = 15), repeated on every month for the AMG modifier.
+# theta/t_field/t_wilt/porosity drive the ICBM moisture response: t_field, t_wilt
+# and porosity are the loam-class references (0.29/0.14/0.43) and theta is the
+# monthly volumetric water content swc_topsoil * porosity.
+.example_soc_climate_drivers <- function() {
+  tibble::tribble(
+    ~lon, ~lat, ~area_code, ~year, ~month, ~temp_c, ~swc_topsoil, ~precip_mm,
+    ~pet_mm, ~water_minus_pet_mm, ~water_balance_mm, ~clay_pct, ~theta,
+    ~t_field, ~t_wilt, ~porosity, ~method_water_input,
+    9.25, 47.75, 11L, 2000L, 1L, 1.2, 0.62, 45, 55, -10, 15, 18, 0.2666,
+    0.29, 0.14, 0.43, "lpjml_prec_irrig",
+    9.25, 47.75, 11L, 2000L, 2L, 3.4, 0.58, 50, 45, 5, 15, 18, 0.2494,
+    0.29, 0.14, 0.43, "lpjml_prec_irrig",
+    9.25, 47.75, 11L, 2000L, 3L, 7.8, 0.51, 60, 40, 20, 15, 18, 0.2193,
+    0.29, 0.14, 0.43, "lpjml_prec_irrig"
+  )
+}
+
+# SOC dynamics selector output (ICBM model, six annual rows). Young and old
+# pool stocks plus their total, with the method_soc stamp naming the model.
+.example_soc_dynamics <- function() {
+  tibble::tribble(
+    ~year, ~y, ~o, ~soc_total, ~method_soc,
+    0L, 2.7488, 47.2512, 50.0000, "icbm",
+    1L, 2.6118, 47.2077, 49.8195, "icbm",
+    2L, 2.5502, 47.1742, 49.7244, "icbm",
+    3L, 2.5226, 47.1453, 49.6679, "icbm",
+    4L, 2.5101, 47.1185, 49.6287, "icbm",
+    5L, 2.5046, 47.0928, 49.5974, "icbm"
+  )
+}
+
+# Historical gridded SOC balance fixture (one cell, two land-use classes, three
+# years). Generated from a real build_carbon_balance(model = "hsoc") run: the
+# cell starts at the fraction-weighted equilibrium density, marches forward on
+# the yearly areas, and in 2001 Cropland shrinks while NonCropland grows so the
+# land-use-change transfer (luc_transfer_mgc_ha) sums to zero across the cell.
+.example_carbon_balance <- function() {
+  tibble::tribble(
+    ~lon, ~lat, ~area_code, ~land_use, ~year, ~area_ha, ~stock_mgc_ha,
+    ~mineralization_mgc_ha, ~c_input_mgc_ha, ~luc_transfer_mgc_ha,
+    ~rate_mgc_ha, ~son_change_kgn_ha, ~method_soc,
+    0.250000, 0.250000, 1L, "Cropland", 2000L, 60.000000, 37.346076,
+    2.096878, 2.500000, 0.000000, 0.403122, -36.647441, "hsoc",
+    0.250000, 0.250000, 1L, "NonCropland", 2000L, 40.000000, 37.346076,
+    2.107845, 1.500000, 0.000000, -0.607845, 55.258678, "hsoc",
+    0.250000, 0.250000, 1L, "Cropland", 2001L, 50.000000, 37.749198,
+    2.119512, 2.500000, -7.549840, 0.380488, -34.589790, "hsoc",
+    0.250000, 0.250000, 1L, "NonCropland", 2001L, 50.000000, 36.940424,
+    2.084950, 1.500000, 7.549840, -0.584950, 53.177282, "hsoc",
+    0.250000, 0.250000, 1L, "Cropland", 2002L, 50.000000, 38.129686,
+    2.140876, 2.500000, 0.000000, 0.359124, -32.647669, "hsoc",
+    0.250000, 0.250000, 1L, "NonCropland", 2002L, 50.000000, 36.355474,
+    2.051935, 1.500000, 0.000000, -0.551935, 50.175910, "hsoc"
+  )
+}
+
+# Toy fixture for read_cru_climate (sampled from a real CRU 4.09 tmp read,
+# degrees Celsius, year 2000).
+.example_cru_climate <- function() {
+  tibble::tribble(
+    ~lon, ~lat, ~year, ~month, ~value, ~var,
+    22.75, -31.25, 2000L, 7L, 8.6, "tmp",
+    49.25, -14.25, 2000L, 1L, 20.8, "tmp",
+    109.75, 1.25, 2000L, 1L, 26.2, "tmp",
+    57.25, 25.75, 2000L, 1L, 20.7, "tmp",
+    -1.75, 27.25, 2000L, 1L, 12.7, "tmp",
+    68.25, 27.25, 2000L, 1L, 16.2, "tmp",
+    -92.75, 38.75, 2000L, 1L, -0.1, "tmp",
+    42.25, 58.75, 2000L, 7L, 19.0, "tmp",
+    18.75, 66.25, 2000L, 7L, 13.0, "tmp",
+    80.75, 72.75, 2000L, 7L, 5.6, "tmp"
+  )
+}
+
+# Gridded LUH2 land-use-class fixture: three 0.5-degree cells, one year, the
+# four carbon-balance classes. Per cell the four fractions tile to 1 and
+# area_ha = fraction * .luh2_cell_area_ha(lat). Mirrors read_luh2_landuse()
+# output at "grid" resolution.
+.example_luh2_landuse <- function() {
+  tibble::tribble(
+    ~lon, ~lat, ~area_code, ~year, ~land_use, ~fraction, ~area_ha,
+    -3.25, 40.25, 203L, 2000L, "cropland", 0.40, 94368.14,
+    -3.25, 40.25, 203L, 2000L, "grassland", 0.20, 47184.07,
+    -3.25, 40.25, 203L, 2000L, "natural", 0.35, 82572.12,
+    -3.25, 40.25, 203L, 2000L, "urban", 0.05, 11796.02,
+    35.25, -1.25, 79L, 2000L, "cropland", 0.30, 92709.98,
+    35.25, -1.25, 79L, 2000L, "grassland", 0.25, 77258.31,
+    35.25, -1.25, 79L, 2000L, "natural", 0.40, 123613.30,
+    35.25, -1.25, 79L, 2000L, "urban", 0.05, 15451.66,
+    9.25, 47.75, 11L, 2000L, "cropland", 0.25, 51958.29,
+    9.25, 47.75, 11L, 2000L, "grassland", 0.20, 41566.63,
+    9.25, 47.75, 11L, 2000L, "natural", 0.50, 103916.58,
+    9.25, 47.75, 11L, 2000L, "urban", 0.05, 10391.66
+  )
+}
+
+# Per-PFT annual LPJmL NPP fixture: two 0.5-degree cells, one year, a handful
+# of PFT bands (one natural tree, one natural grass, the two managed
+# grasslands). Values are per-PFT-stand gC/m2/yr. Mirrors read_lpjml_npp()
+# output. Sampled from the real pft_npp.nc (year 2000, indicative magnitudes).
+.example_lpjml_npp <- function() {
+  tibble::tribble(
+    ~lon, ~lat, ~year, ~npft, ~name_pft, ~value,
+    26.25, 35.25, 2000L, 3L, "temperate needleleaved evergreen tree", 48.6,
+    26.25, 35.25, 2000L, 9L, "Tropical C4 grass", 325.0,
+    26.25, 35.25, 2000L, 10L, "Temperate C3 grass", 66.9,
+    26.25, 35.25, 2000L, 25L, "rainfed grassland", 496.0,
+    -64.25, -35.75, 2000L, 3L, "temperate needleleaved evergreen tree", 699.0,
+    -64.25, -35.75, 2000L, 10L, "Temperate C3 grass", 96.2,
+    -64.25, -35.75, 2000L, 25L, "rainfed grassland", 910.0,
+    -74.75, -52.25, 2000L, 10L, "Temperate C3 grass", 279.0,
+    -74.75, -52.25, 2000L, 25L, "rainfed grassland", 325.0,
+    -74.75, -52.25, 2000L, 41L, "irrigated grassland", 0.0
+  )
+}
+
+# Grassland + natural soil carbon input fixture: two cells, one year, the two
+# carbon-balance classes. c_input_mgc_ha_yr is (NPP - harvest) in MgC/ha/yr
+# (grassland also adds grazing excreta); humified_fraction is the weed value for
+# grassland and the woody value for natural. Mirrors
+# build_grass_natural_carbon_inputs() output at "grid" resolution.
+# nolint start: object_length_linter.
+.example_grass_natural_carbon_inputs <- function() {
+  tibble::tribble(
+    ~lon, ~lat, ~area_code, ~year, ~land_use,
+    ~c_input_mgc_ha_yr, ~humified_fraction, ~method_c_input,
+    26.25, 35.25, 300L, 2000L, "grassland",
+    4.35, 0.1153467, "lpjml_npp_minus_harvest",
+    26.25, 35.25, 300L, 2000L, "natural",
+    4.56, 0.325, "lpjml_npp_minus_harvest",
+    -64.25, -35.75, 32L, 2000L, "grassland",
+    1.95, 0.1153467, "lpjml_npp_minus_harvest",
+    -64.25, -35.75, 32L, 2000L, "natural",
+    9.26, 0.325, "lpjml_npp_minus_harvest"
+  )
+}
+# nolint end
+
+# Per-land-use-class carbon inputs mirroring build_carbon_inputs() output at
+# "grid" resolution: the cropland class (aggregated from per-crop inputs) plus
+# the grassland and natural classes, keyed (lon, lat, area_code, year,
+# land_use) with c_input_mgc_ha_yr and the carbon-weighted humified_fraction.
+.example_carbon_inputs <- function() {
+  tibble::tribble(
+    ~lon, ~lat, ~area_code, ~year, ~land_use,
+    ~c_input_mgc_ha_yr, ~humified_fraction, ~method_c_input,
+    0.25, 0.25, 1L, 2000L, "cropland", 2.75, 0.1818182, "humified_weighted",
+    0.25, 0.25, 1L, 2000L, "grassland", 4.0, 0.1153467, "lpjml_npp_minus_harvest",
+    0.25, 0.25, 1L, 2000L, "natural", 6.0, 0.325, "lpjml_npp_minus_harvest"
+  )
+}
+
+.ex_grazing_feed_footprint <- function() {
+  tibble::tribble(
+    ~area_code, ~item_cbs_code, ~value, ~method,
+    10L, 2848L, 184625300, "grazing_feed_allocation",
+    10L, 2731L, 71204900, "grazing_feed_allocation",
+    41L, 2731L, 38950100, "grazing_feed_allocation",
+    33L, 2848L, 24310700, "grazing_feed_allocation",
+    33L, 2732L, 9875400, "grazing_feed_allocation",
+    100L, 2731L, 6420300, "grazing_feed_allocation",
+    79L, 2848L, 3155800, "grazing_feed_allocation",
+    179L, 2735L, 812600, "grazing_feed_allocation",
+    122L, 2740L, 49120, "grazing_feed_allocation",
+    137L, 2732L, 18430, "grazing_feed_allocation"
+  )
+}
+
+.example_get_faostat_data <- function() {
+  tibble::tribble(
+    ~area, ~item, ~element, ~year, ~value, ~unit, ~ISO3_CODE,
+    "Portugal", "Asses", "stocks", 2010L, 1500, "An", "PRT",
+    "Portugal", "Cattle, dairy", "stocks", 2010L, 245000, "An", "PRT",
+    "Portugal", "Cattle, non-dairy", "stocks", 2010L, 1180000, "An", "PRT",
+    "Portugal", "Chickens, broilers", "stocks", 2010L, 27000, "1000 An", "PRT",
+    "Portugal", "Goats", "stocks", 2010L, 412000, "An", "PRT",
+    "Portugal", "Horses", "stocks", 2010L, 22000, "An", "PRT",
+    "Portugal", "Mules and hinnies", "stocks", 2010L, 3200, "An", "PRT",
+    "Portugal", "Sheep", "stocks", 2010L, 2230000, "An", "PRT",
+    "Portugal", "Swine, breeding", "stocks", 2010L, 340000, "An", "PRT",
+    "Portugal", "Swine, market", "stocks", 2010L, 1980000, "An", "PRT"
+  )
+}
+
+.example_create_grafs_plot_df <- function() {
+  tibble::tribble(
+    ~province, ~year, ~label, ~data, ~align, ~arrowColor,
+    "Huesca", 2000, "{ARAiN}", "12.34", "R", "",
+    "Huesca", 2000, "{CROPS_TO_LIVESTOCK}", "45.6", "L", "",
+    "Huesca", 2000, "{POPULATIONM}", "0.22", "L", "",
+    "Huesca", 2000, "{PROVINCE_NAME}", "Huesca", "L", "",
+    "Huesca", 2000, "{WIDTH_MAX}", "1500", "L", "",
+    "Huesca", 2000, "{YEAR}", "2000", "L", "",
+    "Lleida", 2000, "{ARArN}", "8.9", "R", "",
+    "Lleida", 2000, "{LVSTCKTOTN}", "3.21", "L", "",
+    "Spain", 2000, "{CRPLNDTOTN}", "120.5", "R", "",
+    "Spain", 2000, "{POPULATIONM}", "40.1", "L", ""
   )
 }

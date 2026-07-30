@@ -46,4 +46,7 @@ animals_codes
 Maps live animal CBS items to their livestock classifications, process codes,
 and associated product items used in livestock modeling.
 }
+\examples{
+head(animals_codes)
+}
 \keyword{datasets}

@@ -26,15 +26,17 @@ create_alfredos_typologies <- function(
 
   prod_destiny_mean <- prod_destiny |>
     dplyr::filter(year %in% years) |>
-    dplyr::group_by(year, province_name, box, item, box_destiny, destiny) |>
+    dplyr::group_by(year, province_name, box, item, origin, destiny) |>
     dplyr::summarise(mg_n = mean(mg_n, na.rm = TRUE), .groups = "drop")
 
-  # Grassland N
+  # Grassland N going to livestock (feed) or exported. The former
+  # "box_destiny" values semi_natural_to_livestock / semi_natural_export are
+  # reconstructed from box (already filtered) plus the feed/export destinies.
   grassland <- prod_destiny_mean |>
     dplyr::filter(
-      box == "Semi_natural_agroecosystems",
+      box == "semi_natural_agroecosystems",
       item == "Grassland",
-      box_destiny %in% c("semi_natural_to_livestock", "semi_natural_export")
+      destiny %in% c("livestock_mono", "livestock_rum", "export")
     ) |>
     dplyr::group_by(year, province_name) |>
     dplyr::summarise(grass_N = sum(mg_n, na.rm = TRUE), .groups = "drop")
@@ -48,45 +50,29 @@ create_alfredos_typologies <- function(
       .groups = "drop"
     )
 
-  # Feed and Food + Other_uses share
-  destiny_shares <- prod_destiny_mean |>
-    dplyr::filter(destiny %in% c("feed", "food", "other_uses")) |>
-    dplyr::group_by(year, province_name, item) |>
-    dplyr::summarise(
-      total = sum(mg_n, na.rm = TRUE),
-      feed_share = sum(mg_n[destiny == "feed"], na.rm = TRUE) /
-        sum(mg_n, na.rm = TRUE),
-      human_share = sum(
-        mg_n[destiny %in% c("food", "other_uses")],
-        na.rm = TRUE
-      ) /
-        sum(mg_n, na.rm = TRUE),
-      .groups = "drop"
-    )
-
-  # Feed-import
+  # Feed-import: imported feed arrives as origin "Outside" already split into
+  # the ruminant/monogastric feed destinies, so it can be summed directly.
   feed_imports <- prod_destiny_mean |>
     dplyr::filter(
-      destiny == "import",
-      box %in% c("Cropland", "Semi_natural_agroecosystems")
+      origin == "Outside",
+      destiny %in% c("livestock_mono", "livestock_rum"),
+      box %in% c("Cropland", "semi_natural_agroecosystems")
     ) |>
-    dplyr::left_join(destiny_shares, by = c("year", "province_name", "item")) |>
-    dplyr::mutate(feed_import_N = mg_n * feed_share) |>
     dplyr::group_by(year, province_name) |>
     dplyr::summarise(
-      feed_import_N = sum(feed_import_N, na.rm = TRUE),
+      feed_import_N = sum(mg_n, na.rm = TRUE),
       .groups = "drop"
     )
 
   # Synthetic woody
   woody_share <- prod_destiny_mean |>
     dplyr::filter(
-      box %in% c("Cropland", "Semi_natural_agroecosystems"),
+      box %in% c("Cropland", "semi_natural_agroecosystems"),
       item %in% c("Firewood", "Acorns", "Grassland")
     ) |>
     dplyr::left_join(
       prod_destiny_mean |>
-        dplyr::filter(destiny == "import") |>
+        dplyr::filter(origin == "Outside") |>
         dplyr::group_by(year, province_name, item) |>
         dplyr::summarise(
           imported_mg_n = sum(mg_n, na.rm = TRUE),
@@ -99,7 +85,7 @@ create_alfredos_typologies <- function(
       local_mg_n = ifelse(local_mg_n < 0, 0, local_mg_n),
       woody = ifelse(item %in% c("Firewood", "Acorns"), local_mg_n, 0),
       herbaceous = ifelse(
-        item == "Grassland" & box == "Semi_natural_agroecosystems",
+        item == "Grassland" & box == "semi_natural_agroecosystems",
         local_mg_n,
         0
       )

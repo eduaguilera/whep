@@ -1,0 +1,19 @@
+region_hanpp,feed_use_fraction,source
+Sub-Saharan Africa,0.4,Lal 2005; McIntire 1992
+Northern Africa,0.3,Smil 1999; Lal 2005
+Western Asia,0.3,Smil 1999
+Southern Asia,0.45,Erenstein 2014; Smil 1999
+Eastern Asia,0.3,Smil 1999
+South-Eastern Asia,0.3,Smil 1999
+Central Asia,0.25,Lal 2005
+Western Europe,0.15,Krausmann 2008; Smil 1999
+Eastern Europe,0.2,Krausmann 2008
+Northern Europe,0.15,Krausmann 2008
+Southern Europe,0.2,Krausmann 2008
+Northern America,0.05,Smil 1999
+Latin America and the Caribbean,0.2,Smil 1999
+Caribbean,0.2,Smil 1999
+Oceania,0.05,Smil 1999
+Australia and New Zealand,0.05,Smil 1999
+Melanesia,0.1,Smil 1999
+Global,0.2,default fallback

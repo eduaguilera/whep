@@ -193,12 +193,16 @@ testthat::test_that(".fill_missing_trade only fills NA entries of matrix", {
     ncol = 3
   )
 
+  # Regression for #152: a country never trades with itself, so the
+  # diagonal is always forced to 0 -- including the pre-existing 140/100
+  # values at [1,1]/[2,2], which .fill_missing_trade() now treats as
+  # self-trade rather than ordinary (non-NA, left-alone) cells.
   expected <- matrix(
     # fmt: skip
     c(
-      140.00, 7.65, 2.45,
-      50.00, 100.00, 2.96,
-      3.64, 4.55, 1.46
+      0.00, 7.65, 2.45,
+      50.00, 0.00, 2.96,
+      3.64, 4.55, 0.00
     ),
     byrow = TRUE,
     ncol = 3
@@ -216,13 +220,25 @@ testthat::test_that(".fill_missing_trade only fills NA entries of matrix", {
     testthat::expect_equal(expected, tolerance = 1e-2)
 })
 
-testthat::test_that(".fill_missing_trade does nothing for non-NA matrices", {
+testthat::test_that(".fill_missing_trade zeroes the diagonal even when the rest is unchanged", {
   original <- matrix(
     # fmt: skip
     c(
       140, 40, 30,
       50, 100, 77,
       11, 324, 23
+    ),
+    byrow = TRUE,
+    ncol = 3
+  )
+  # Regression for #152: off-diagonal non-NA cells stay untouched, but the
+  # diagonal (self-trade) is always forced to 0.
+  expected <- matrix(
+    # fmt: skip
+    c(
+      0, 40, 30,
+      50, 0, 77,
+      11, 324, 0
     ),
     byrow = TRUE,
     ncol = 3
@@ -237,7 +253,7 @@ testthat::test_that(".fill_missing_trade does nothing for non-NA matrices", {
 
   original |>
     .fill_missing_trade(total_trade) |>
-    testthat::expect_equal(original, tolerance = 1e-2)
+    testthat::expect_equal(expected, tolerance = 1e-2)
 })
 
 testthat::test_that(".fill_missing_trade fills with 0s if row sum is already past CBS report", {
@@ -250,11 +266,13 @@ testthat::test_that(".fill_missing_trade fills with 0s if row sum is already pas
     byrow = TRUE,
     ncol = 2
   )
+  # Regression for #152: both diagonal entries are forced to 0 (self-trade),
+  # on top of the pre-existing "row sum already past target" 0-fill.
   expected <- matrix(
     # fmt: skip
     c(
-      140, 0,
-      0, 100
+      0, 0,
+      0, 0
     ),
     byrow = TRUE,
     ncol = 2
@@ -292,22 +310,82 @@ testthat::test_that(".balance_matrix makes rows and columns have target sum", {
     byrow = TRUE,
     ncol = 6
   )
+  dimnames(trade_matrix) <- list(
+    as.character(total_trade$area_code),
+    as.character(total_trade$area_code)
+  )
 
   # Rescaling exports to match total sum of 890 imports
   balanced_total_exports <- c(494.44, 296.67, 98.89, 0, 0, 0)
   balanced_total_imports <- c(200, 150, 120, 200, 190, 30)
 
   result <- .balance_matrix(trade_matrix, total_trade)
+  testthat::expect_equal(dimnames(result), dimnames(trade_matrix))
   testthat::expect_equal(
-    rowSums(result),
+    as.numeric(rowSums(result)),
     balanced_total_exports,
     tolerance = 1e-2
   )
   testthat::expect_equal(
-    colSums(result),
+    as.numeric(colSums(result)),
     balanced_total_imports,
     tolerance = 1e-2
   )
+})
+
+testthat::test_that(".balance_matrix aligns targets by country code", {
+  total_trade <- tibble::tibble(
+    area_code = factor(c(2, 3, 1)),
+    export = c(0, 0, 10),
+    import = c(10, 0, 0)
+  ) |>
+    .balance_total_trade()
+
+  trade_matrix <- matrix(
+    1,
+    nrow = 3,
+    ncol = 3,
+    dimnames = list(c("1", "2", "3"), c("1", "2", "3"))
+  )
+
+  result <- .balance_matrix(trade_matrix, total_trade)
+
+  testthat::expect_equal(as.numeric(rowSums(result)), c(10, 0, 0))
+  testthat::expect_equal(as.numeric(colSums(result)), c(0, 10, 0))
+})
+
+testthat::test_that(".balance_matrix never allocates self-trade on the diagonal", {
+  # Regression for #152: .fill_missing_trade()'s na_mask includes the
+  # diagonal, so a large trader (big exports AND big imports) previously got
+  # a spurious i -> i flow seeded by .estimate_bilateral_trade() and then
+  # preserved (often inflated) by IPF's sub[sub == 0] <- 1 seeding step,
+  # stealing mass from its real trading partners. Uses a matrix that
+  # reproduces the exact reported failure mode: country 1 is the largest
+  # trader (1000 export / 900 import) with a mostly-unobserved (NA) row.
+  n <- 4
+  code_int <- c(10L, 20L, 30L, 40L)
+  btd <- tibble::tribble(
+    ~from_code, ~to_code, ~value,
+    10L, 20L, 500,
+    10L, 30L, 300,
+    20L, 10L, 400,
+    30L, 10L, 200,
+    40L, 20L, 50
+  )
+  total_trade <- tibble::tribble(
+    ~area_code, ~export, ~import, ~balanced_export, ~balanced_import,
+    10L, 1000, 900, 1000, 900,
+    20L, 200, 700, 200, 700,
+    30L, 150, 350, 150, 350,
+    40L, 80, 100, 80, 100
+  )
+
+  result <- btd |>
+    .build_trade_matrix(n, code_int) |>
+    .fill_missing_trade(total_trade) |>
+    .balance_matrix(total_trade)
+
+  testthat::expect_equal(as.numeric(diag(result)), rep(0, n))
 })
 
 testthat::test_that(".build_trade_matrix completes missing countries", {
@@ -338,6 +416,22 @@ testthat::test_that(".build_trade_matrix completes missing countries", {
   btd |>
     .build_trade_matrix(n, code_int) |>
     testthat::expect_equal(expected)
+})
+
+testthat::test_that(".build_trade_matrix sums duplicate country pairs", {
+  code_int <- c(1L, 2L, 3L)
+  n <- length(code_int)
+  btd <- tibble::tribble(
+    ~from_code, ~to_code, ~value,
+    1L, 2L, 3,
+    1L, 2L, 4,
+    2L, 3L, 5
+  )
+
+  result <- .build_trade_matrix(btd, n, code_int)
+
+  testthat::expect_equal(result["1", "2"], 7)
+  testthat::expect_equal(result["2", "3"], 5)
 })
 
 testthat::test_that(".ipf_2d converges to target margins", {

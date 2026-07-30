@@ -1,0 +1,6 @@
+n_input_class,n_input_min,n_input_max,rs_adjustment,source
+Very low,0,20,1.2,Poorter & Nagel 2000
+Low,20,60,1.1,Poorter & Nagel 2000
+Medium,60,120,1,Reference (IPCC default)
+High,120,200,0.9,Poorter & Nagel 2000
+Very high,200,10000,0.8,Poorter & Nagel 2000

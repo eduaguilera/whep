@@ -71,6 +71,11 @@ testthat::test_that(".choose_version returns frozen when user is NULL", {
   )
 })
 
+testthat::test_that(".choose_version returns NULL for blank registry version", {
+  testthat::expect_null(.choose_version(NA_character_, NULL))
+  testthat::expect_null(.choose_version("", NULL))
+})
+
 testthat::test_that(".choose_version returns NULL for 'latest'", {
   result <- .choose_version(
     "20240101T000000Z-abc",

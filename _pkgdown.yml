@@ -25,6 +25,225 @@ reference:
   - build_primary_production
   - build_commodity_balances
   - build_processing_coefs
+  - build_detailed_trade
+  - build_trade_prices
+  - build_primary_prices
+  - build_cbs_prices
+
+- title: Spatialization
+  desc: >
+    Disaggregate country-level agricultural data to a 0.5-degree
+    grid. `run_spatialize()` wraps `build_gridded_landuse()` with
+    named presets (LPJmL-faithful vs full WHEP) for direct
+    cross-model comparison.
+  contents:
+  - run_spatialize
+  - build_gridded_landuse
+  - build_gridded_livestock
+
+- title: Constant-territory back-casting
+  desc: >
+    Rebuild historical series onto a fixed reference-year's boundaries by
+    dasymetric spatial reallocation, optionally weighted by LPJmL/WHEP
+    gridded covariates.
+  contents:
+  - build_constant_territory_series
+  - make_lpjml_covariate
+
+- title: LPJmL grass availability
+  desc: >
+    Read managed-grassland net primary production from a finished LPJmL run
+    into grazable above-ground dry-matter availability, the forage supply
+    ceiling for feed allocation.
+  contents:
+  - build_grass_availability
+  - build_grass_availability_lpjml
+  - grass_access_shares
+  - aggregate_grass_to_polity
+  - read_lpjml_grass_productivity
+
+- title: Soil balances - water
+  desc: >
+    Read LPJmL hydrology outputs (drainage, evapotranspiration components,
+    precipitation, irrigation, runoff, discharge, soil water content and the
+    per-crop net irrigation requirement) into tidy long form, close the gridded
+    soil water balance exposing the footprint-relevant terms (precipitation,
+    applied irrigation, blue and green consumptive water, net irrigation
+    requirement), and assemble the monthly climate drivers for the
+    soil-organic-carbon dynamics.
+  contents:
+  - read_lpjml_hydrology
+  - read_lpjml_npp
+  - read_cru_climate
+  - build_water_balance
+  - get_soc_climate_drivers
+
+- title: Soil-balance coefficient tables
+  desc: >
+    Structural parameter tables for the soil-organic-carbon turnover models
+    (HSOC, RothC, ICBM, AMG, Century), the AMG humification coefficient by
+    carbon input type, the soil carbon-to-nitrogen ratios used to convert
+    soil-carbon change into net nitrogen mineralization or sequestration, the
+    per-input-type humification fractions for the HSOC model, and the USDA
+    texture-class soil hydraulic properties (with the HWSD texture-code
+    crosswalk) feeding the ICBM moisture modifier.
+  contents:
+  - soc_turnover_params
+  - amg_h_by_input_type
+  - soil_cn_ratios
+  - residue_humification
+  - soc_soil_cover_curve
+  - soil_hydraulic_by_texture
+  - hwsd_texture_usda
+
+- title: Nitrogen-loss coefficient tables
+  desc: >
+    Coefficient datasets for the nitrogen-loss cascade (Module C): the
+    disaggregated direct N2O emission factors by climate and irrigation, the
+    fertiliser-type N2O modifying factors, the Meisinger and Randall topsoil
+    denitrification matrix with its drainage-class bins, the subsoil nitrate
+    reduction shares, the MANNER ammonia-volatilisation factor tables (plus
+    the synthetic-fertiliser rate/rainfall factors, the organic-manure
+    incorporation-delay factor, the inorganic nitrogen fraction by species
+    and the gross-default technique/incorporation-delay blend), the IPCC
+    2006 Tier 1 direct soil N2O factors, the soil organic matter content
+    bins, and the C:N leaching-attenuation and indirect-N2O constants.
+  contents:
+  - n2o_efs_disaggregated
+  - fertiliser_n2o_modifiers
+  - meisinger_denitrification
+  - drainage_ranges
+  - subsoil_no3_reduction
+  - manner_params
+  - manner_rate_factor
+  - manner_rain_factor
+  - manner_incorporation_factor
+  - manure_inorganic_n
+  - manner_default_technique_mix
+  - n2o_efs_ipcc2006
+  - som_ranges
+  - n_attenuation_constants
+
+- title: Urban nitrogen coefficient tables
+  desc: >
+    Spain historical benchmark series (Module C, Task C3) behind
+    `build_urban_n()`'s global default per-capita urban-N-to-agriculture
+    rate: the raw national-total urban nitrogen series and its derived
+    per-capita rate.
+  contents:
+  - urban_n_reference
+  - urban_kgn_cap_reference
+
+- title: Soil balances - carbon (SOC climate)
+  desc: >
+    Per-model native climate rate-modifying functions for the soil-organic-carbon
+    turnover models. Each model carries its own published temperature and moisture
+    response (RothC/HSOC a*b*c, ICBM re_clim, AMGv2 f(T)*f(H), Century DEFAC),
+    not a shared scalar.
+  contents:
+  - soc_rate_modifier_rothc
+  - soc_rate_modifier_icbm
+  - soc_rate_modifier_amg
+  - soc_rate_modifier_century
+
+- title: Soil balances - carbon (SOC models)
+  desc: >
+    Soil-organic-carbon turnover models sharing a common annual call contract.
+    HSOC (two pools plus inert organic matter) and RothC (five pools) step
+    forward in time; ICBM (two pools) and AMG (active plus stable) are
+    analytical; Century (five pools) integrates an ODE. Each pulls its rate
+    constants from `soc_turnover_params` and takes an annual climate modifier.
+    `calculate_soc_dynamics` is the selector that dispatches to any of them and
+    builds the per-model native climate modifier from supplied climate drivers.
+  contents:
+  - calculate_soc_dynamics
+  - calculate_soc_hsoc
+  - calculate_soc_rothc
+  - calculate_soc_icbm
+  - calculate_soc_amg
+  - calculate_soc_century
+
+- title: Soil balances - carbon (inputs)
+  desc: >
+    Assemble the soil carbon-input layer the turnover models consume: crop
+    residue, root and applied-manure carbon per cell, crop and year in
+    megagrams of carbon per hectare, plus the carbon-weighted humification
+    fraction from `residue_humification`. The grassland and natural-land
+    carbon inputs come from the LPJmL net primary production minus harvested
+    carbon (grassland additionally carrying grazing-excreta carbon).
+  contents:
+  - build_soil_carbon_inputs
+  - build_grass_natural_carbon_inputs
+  - build_carbon_inputs
+
+- title: Soil balances - nitrogen
+  desc: >
+    Gridded nitrogen-balance inputs (Module C). Atmospheric nitrogen
+    deposition from HaNi NHx and NOy, aggregated to WHEP's 0.5-degree grid and
+    converted to a per-hectare rate using the true latitude-dependent cell
+    area. Urban/human-excreta nitrogen from gridded HYDE population and a
+    per-capita rate, with neighbour-cell transport buffering for cells with
+    no local cropland room. Ammonia-N volatilisation from the MANNER
+    process-based model, for synthetic fertiliser and organic manure, plus a
+    gross-default organic-manure variant that fills in the application
+    technique and incorporation delay from a documented placeholder blend
+    instead of requiring per-cell/per-era survey data. Gridded
+    windspeed and soil pH drivers, the cell-polity assembly, and the
+    polity-to-crop-to-grid spatialization of a country-level nitrogen total
+    (Task C6 infrastructure). The gridded nitrogen INPUT assembly combines
+    every source (BNF, residue/root recycling, manure, deposition, urban,
+    soil organic-matter mineralization, synthetic fertiliser) into one
+    long-format table (Task C6 final phase).
+  contents:
+  - read_n_deposition
+  - build_n_deposition
+  - read_hyde_population
+  - build_urban_n
+  - calculate_manner_nh3
+  - calculate_manner_nh3_default
+  - calculate_nh3
+  - calculate_soil_n2o
+  - calculate_n_leaching
+  - calculate_indirect_n2o_nh3
+  - read_lpjml_wind
+  - read_soil_ph
+  - read_soil_hydraulic
+  - build_cell_polity
+  - spatialize_country_n_to_crops
+  - build_n_inputs
+  - build_nitrogen_balance
+
+- title: Soil balances - carbon (historical balance)
+  desc: >
+    Reconstruct per-cell soil-organic-carbon stock trajectories: equilibrium
+    initialisation under the earliest land-use carbon inputs, a forward march on
+    yearly per-cell per-class land-use areas with a carbon-conserving
+    land-use-change transfer, and the derived soil-organic-nitrogen change via
+    the asymmetric soil carbon-to-nitrogen ratios.
+  contents:
+  - build_carbon_balance
+  - read_luh2_landuse
+
+- title: Crop NPP, BNF and coefficient tables
+  desc: >
+    Crop net primary production (products, residues, roots, weeds), biological
+    nitrogen fixation, residue destinies, and the coefficient tables that drive
+    them. Ported from afsetools, item-keyed and multi-method.
+  contents:
+  - whep_coef_table
+  - calculate_potential_npp
+  - calculate_crop_residues
+  - calculate_crop_roots
+  - calculate_crop_npp
+  - calculate_npp_carbon_nitrogen
+  - calculate_crop_npp_components
+  - calculate_crop_bnf
+  - calculate_weed_bnf
+  - calculate_nonsymbiotic_bnf
+  - calculate_bnf
+  - summarize_bnf
+  - calculate_residue_destinies
+  - build_residue_feed_avail
 
 - title: Tidy datasets
   desc: >
@@ -35,10 +254,13 @@ reference:
   contents:
   - build_supply_use
   - get_feed_intake
+  - build_feed_demand
+  - build_feed_intake_local
   - get_primary_production
   - get_primary_residues
   - get_processing_coefs
   - get_wide_cbs
+  - get_livestock_cbs
 - subtitle: Trade
   desc: >
     Bilateral trade datasets.
@@ -55,6 +277,10 @@ reference:
   - calculate_nue_livestock
   - calculate_system_nue
   - create_n_nat_destiny
+  - create_grafs_plot_df
+  - plot_input_output
+  - plot_input_output_livestock
+  - plot_input_output_system
 
 - title: Download large input datasets
   desc: >
@@ -63,6 +289,7 @@ reference:
   - whep_read_file
   - whep_inputs
   - whep_list_file_versions
+  - whep_clear_cache
 
 - title: Code namings
   desc: >
@@ -70,10 +297,13 @@ reference:
 - subtitle: Polities
   contents:
   - polities
+  - polity_area_crosswalk
   - polities_cats
   - regions_full
+  - add_polity_code
   - add_area_code
   - add_area_name
+  - get_polity_geometries
 - subtitle: Commodity balance sheet items
   contents:
   - items_cbs
@@ -96,9 +326,14 @@ reference:
   - animals_codes
   - biomass_coefs
   - cb_processing
+  - cft_mapping
   - crops_eurostat
+  - crops_manure_n
+  - lassaletta_grassland_share
   - liv_lu_coefs
+  - mueller_synthetic_n
   - primary_double
+  - smil_2001_synthetic_n_global
 
 - title: FAOSTAT raw data
   desc: >
@@ -131,6 +366,13 @@ reference:
   - calculate_system_nue
   - create_n_nat_destiny
 
+- title: Data-frame utilities
+  desc: >
+    Complete tabular schemas without losing column types or silently
+    discarding extra fields.
+  contents:
+  - ensure_columns
+
 - title: Gap filling functions
   desc: >
     Functions to fill gaps (NA values) in time-dependent variables using different methods.
@@ -139,11 +381,193 @@ reference:
   - fill_sum
   - fill_proxy_growth
 
+- title: Multi-source consolidation
+  desc: >
+    Reduce a multi-source panel to one winning row per cell by source priority,
+    with measure-aware demotion, coverage and quality tie-breaks, and an
+    isolated-flip continuity override.
+  contents:
+  - consolidate_sources
+
 - title: Decomposition analysis
   desc: >
     Functions for index decomposition analysis.
   contents:
   - calculate_lmdi
+  - decompose_weighted_ratio
+
+- title: Multi-regional input-output model
+  desc: >
+    Build and analyze multi-regional input-output (MRIO) models following the FABIO framework.
+  contents:
+  - build_io_model
+  - compute_leontief_inverse
+  - balance_ras
+  - balance_io_flows
+  - compute_footprint
+  - build_footprint
+  - align_extension
+  - compute_footprint_paths
+  - compute_fp_product_paths
+  - add_footprint_product_stage
+  - build_crop_land_extension
+  - get_crop_land_extension
+  - get_arable_permanent_land
+  - build_fao_arable_fallow_extension
+  - build_cropgrids_land_extension
+  - build_hayr_land_extension
+  - build_grassland_land_extension
+  - build_livestock_ghg_extension
+  - build_energy_co2_extension
+  - build_crop_soil_n2o_extension
+  - gridded_fallow_weights
+  - attribute_fallow_to_crops
+  - plot_footprint_sankey
+  - compute_footprint_balance
+  - build_land_balance_footprint
+  - melt_bilateral_trade
+  - compare_footprint_methods
+  - allocate_grazing_to_products
+  - build_grazing_feed_footprint
+
+- title: Trustworthiness and quality control
+  desc: >
+    Checks that make footprint, balance and time-series results trustworthy:
+    conservation invariants, accounting identities, within-series jump
+    detection (the level-2 detector of the AFE data-validation framework), and
+    other data-quality diagnostics.
+  contents:
+  - check_footprint_conservation
+  - summarise_conservation
+  - assert_footprint_invariants
+  - check_supply_use_balance
+  - check_series_jumps
+- subtitle: Uncertainty and sensitivity
+  desc: >
+    Propagate input uncertainty through a footprint, combine data-quality
+    coefficients of variation, and rank sectors by local sensitivity.
+  contents:
+  - propagate_fp_uncertainty
+  - combine_cov
+  - footprint_sensitivity
+- subtitle: Provenance and reproducibility
+  desc: >
+    Record and carry the code and input versions behind a result so any
+    number can be traced back to what produced it.
+  contents:
+  - record_provenance
+  - attach_provenance
+  - get_provenance
+- subtitle: Scope and transparency
+  desc: >
+    Attach a machine-readable goal-and-scope record (method, boundary,
+    allocation, vintage, limitations) to a footprint result.
+  contents:
+  - footprint_scope
+  - attach_scope
+  - get_scope
+
+- title: Livestock emissions
+  desc: >
+    Calculate livestock GHG emissions using IPCC 2019 Tier 1 and Tier 2
+    methods for enteric methane, manure methane, and manure nitrous oxide.
+  contents:
+  - prepare_livestock_emissions
+  - calculate_livestock_emissions
+  - calculate_enteric_ch4
+  - calculate_manure_emissions
+  - estimate_n_excretion
+  - split_manure_management
+  - apply_management_losses
+  - build_livestock_nutrient_flows
+  - allocate_manure_to_land
+  - allocate_manure_transport
+  - estimate_energy_demand
+  - calculate_cohorts_systems
+  - calculate_uncertainty_bounds
+
+- title: Feed intake
+  desc: >
+    Estimate livestock feed demand and allocate it against feed availability.
+  contents:
+  - redistribute_feed
+- subtitle: Feed coefficient tables
+  desc: >
+    Bouwman and Krausmann feed coefficients, feed taxonomy and diet share caps.
+  contents:
+  - conv_bouwman
+  - conv_krausmann
+  - feed_taxonomy
+  - max_intake_share
+
+- title: Livestock coefficient tables
+  desc: >
+    IPCC and GLEAM coefficient tables for livestock emission calculations.
+- subtitle: GLEAM supplement tables
+  desc: >
+    Data from MacLeod et al. (2018) GLEAM 3.0 Supplement S1.
+  contents:
+  - gleam_animal_weights
+  - gleam_crop_residue_params
+  - gleam_dressing_percentages
+  - gleam_enteric_params
+  - gleam_feed_categories
+  - gleam_feed_composition
+  - gleam_feed_conversion_ratios
+  - gleam_feed_digestibility
+  - gleam_geographic_hierarchy
+  - gleam_livestock_categories
+  - gleam_milk_production
+  - gleam_mms_shares
+  - gleam_field_operation_ef
+  - gleam_mechanization_levels
+  - gleam_processing_transport_ef
+  - gleam_crop_residue_nitrogen
+  - gleam_fracremove
+  - gleam_energy_use_ef
+- subtitle: IPCC 2019 Refinement tables
+  desc: >
+    Emission factors and parameters from IPCC 2019, Vol 4, Ch 10.
+  contents:
+  - ipcc_2019_enteric_ef_cattle
+  - ipcc_2019_enteric_ef_other
+  - ipcc_2019_manure_ch4_ef_cattle
+  - ipcc_2019_manure_ch4_ef_other
+  - ipcc_2019_mcf_manure
+  - ipcc_2019_n_excretion
+  - ipcc_2019_n2o_ef_direct
+  - ipcc_2019_ym
+  - ipcc_2019_bo
+  - ipcc_2019_cfi
+- subtitle: IPCC 2006 tables
+  desc: >
+    Emission factors from IPCC 2006 Guidelines, Vol 4, Ch 10.
+  contents:
+  - ipcc_2006_enteric_ef
+  - ipcc_2006_manure_ef
+  - ipcc_2006_mcf_temp
+- subtitle: Tier 2 parameters
+  desc: >
+    Detailed parameters for IPCC Tier 2 calculations.
+  contents:
+  - ipcc_tier2_energy_coefs
+  - ipcc_tier2_ym_values
+  - ipcc_tier2_bo_values
+  - ipcc_tier2_manure_ash
+  - ipcc_tier2_n_retention
+  - livestock_production_defaults
+  - feed_characteristics
+  - livestock_constants
+- subtitle: Other livestock tables
+  desc: >
+    Climate, manure management, and uncertainty tables.
+  contents:
+  - climate_mcf
+  - regional_mms_distribution
+  - temperature_adjustment
+  - grazing_energy_coefs
+  - indirect_n2o_ef
+  - uncertainty_ranges
 
 - title: Harmonization
   desc: >
