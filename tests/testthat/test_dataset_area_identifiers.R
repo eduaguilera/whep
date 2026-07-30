@@ -373,3 +373,69 @@ testthat::test_that("a column called area_code holds a numeric area code, or is 
   # been resolved must come out, or the baseline licenses a regression later.
   testthat::expect_equal(baseline, character(0))
 })
+
+# No label in a published table may be mojibake. Two territories shipped corrupt:
+# "CuraÃ§ao" for Curaçao and "CÃ´te d'Ivoire" for Côte d'Ivoire, both being UTF-8 bytes
+# decoded as pairs of Latin-1 characters in the vendored harmonization CSVs.
+#
+# Swept across every character column of all four published tables rather than the label
+# columns, because the first repair named four label columns, fixed area 279's `name`, and
+# left the same corruption in `iea`, `water_area` and `Lassaletta`. Mojibake is never
+# wanted in any string column, so the rule is the column's type.
+#
+# It was not costing a join, and that was checked: no alias exists for Curaçao in any
+# spelling, so there was no correct label for the corrupt one to fail to match. It is the
+# same latent shape as Eswatini, whose 180,663 observed rows sat under a name its area is
+# not called — `areas_with_observed_data` matches alias labels against `name` and
+# `FAOSTAT_name`, and area 279's FAOSTAT_name is NA, so the corrupt `name` was its only
+# label.
+testthat::test_that("no published table carries mojibake in a label", {
+  tables <- c(
+    "regions_full",
+    "polities_cats",
+    "polity_area_crosswalk",
+    "polities"
+  )
+  offenders <- character(0)
+  checked <- 0L
+  for (nm in tables) {
+    d <- as.data.frame(get(nm, envir = asNamespace("whep")))
+    if ("geom" %in% names(d)) {
+      d <- sf::st_drop_geometry(d)
+    }
+    for (col in names(d)[vapply(d, is.character, logical(1))]) {
+      checked <- checked + 1L
+      hits <- unique(grep("Ã", d[[col]], value = TRUE))
+      if (length(hits) > 0L) {
+        offenders <- c(
+          offenders,
+          sprintf(
+            "%s$%s (%s)",
+            nm,
+            col,
+            paste(utils::head(hits, 3), collapse = ", ")
+          )
+        )
+      }
+    }
+  }
+  # Non-vacuous: zero character columns would make the loop prove nothing.
+  testthat::expect_gt(checked, 40L)
+  testthat::expect_equal(
+    length(offenders),
+    0L,
+    info = paste0(
+      "mojibake in published labels: ",
+      paste(offenders, collapse = "; ")
+    )
+  )
+
+  # And the two repaired names read correctly, so a repair that silently stopped
+  # working fails here rather than reverting to a corrupt string nobody looks at.
+  r <- as.data.frame(whep::regions_full)
+  testthat::expect_true("Curaçao" %in% r$name)
+  cw <- as.data.frame(whep::polity_area_crosswalk)
+  testthat::expect_true(
+    "Curaçao" %in% cw$area_name[which(cw$area_code == 279L)]
+  )
+})

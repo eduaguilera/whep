@@ -184,13 +184,19 @@ cli::cli_inform(paste0(
   "{length(unique(polity_label_aliases$source_label))} labels."
 ))
 
+# The SAME repair harmonization_tables.R applies. This script re-reads the vendored CSV
+# directly rather than using the built regions_full, so repairing in one place left the
+# crosswalk's area_name corrupt while regions_full$name was clean.
+source("data-raw/_labels.R")
+
 regions_full_raw <- here::here(
   "inst",
   "extdata",
   "harmonization",
   "regions_full.csv"
 ) |>
-  readr::read_csv(show_col_types = FALSE, na = excel_na)
+  readr::read_csv(show_col_types = FALSE, na = excel_na) |>
+  repair_table_labels()
 
 regions_compact <- here::here("inst", "extdata", "regions.csv") |>
   readr::read_csv(show_col_types = FALSE, na = excel_na)

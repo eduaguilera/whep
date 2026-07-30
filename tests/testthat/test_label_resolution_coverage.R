@@ -48,10 +48,17 @@ testthat::test_that("labels that still do not resolve are all explainable", {
   #     Aruba, Bermuda, Guam, Mayotte, Reunion, Martinique and the rest. Undoing that
   #     fold is an approved but separate change; when it lands these start resolving
   #     and this baseline shrinks, which the setequal below will report.
-  #   a vendored encoding defect — "CuraÃ§ao" is "Curaçao" read as Latin-1, and both
-  #     "Reunion" and "Réunion" ship as separate labels. Left as found rather than
-  #     hand-patched, because inst/extdata/harmonization/regions_full.csv is a
-  #     vendored table; reported instead.
+  #   FIXED, and the entry below now reads correctly: "CuraÃ§ao" was "Curaçao" decoded as
+  #     Latin-1. It was left as found and reported (whep#399) on the reasoning that
+  #     inst/extdata/harmonization/regions_full.csv is vendored — but repairing on READ in
+  #     data-raw leaves the vendored file untouched, which is the same override pattern
+  #     `fill_adb_region()` already uses two files over. The label still does not resolve,
+  #     because Curaçao has no alias in any spelling; it is simply spelled correctly now.
+  #
+  #     The companion claim in that issue was WRONG and is withdrawn: "Reunion" and
+  #     "Réunion" are not duplicate spellings of one label. They are area 182's `name` and
+  #     `FAOSTAT_name`, which is the documented short-versus-canonical pattern — exactly
+  #     like Turkey/Türkiye and Czech Republic/Czechia.
   #
   # Bidirectional on purpose: a NEW unresolved label fails, and a baselined one that
   # starts resolving fails too, so the list can only shrink deliberately.
@@ -68,7 +75,7 @@ testthat::test_that("labels that still do not resolve are all explainable", {
     "China",
     "Christmas Island",
     "Cocos (Keeling) Islands",
-    "CuraÃ§ao",
+    "Curaçao",
     "Czechoslovakia",
     "Ethiopia PDR",
     "French Southern and Antarctic Territories",
