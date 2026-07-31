@@ -1486,6 +1486,8 @@ utils::globalVariables(
     ".effective_rank",
     ".coverage_ord",
     ".quality_rank",
+    ".variant_rank",
+    ".best_variant",
     ".prev_source",
     ".next_source",
     ".prev_time",
