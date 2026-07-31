@@ -34,7 +34,8 @@ consolidate_sources(
 - value_col:
 
   Unquoted name of the value column. Coverage counts the cells where
-  this column is non-missing.
+  this column is non-missing, or only those where it is strictly
+  positive when `tie_break$coverage` is `"positive"`.
 
 - source_col:
 
@@ -86,8 +87,11 @@ consolidate_sources(
 
   Optional named list of options breaking equal-rank ties:
 
-  - `coverage`: logical, break ties by broader within-series coverage.
-    Default: `TRUE`.
+  - `coverage`: break ties by broader within-series coverage. `TRUE`
+    (default), or equivalently `"nonmissing"`, counts the cells where
+    `value_col` is non-missing; `"positive"` counts only the cells where
+    it is strictly positive (`value_col` must then be numeric); `FALSE`
+    disables the coverage tie-break.
 
   - `quality_col`: string naming a quality column used as a tie-break
     after coverage. Default: `NULL`.
@@ -96,14 +100,20 @@ consolidate_sources(
     best first (unlisted values rank last). Required when `quality_col`
     is set.
 
+  - `quality_variants`: logical. When `TRUE`, a source contributing
+    several `quality_col` variants of one cell keeps its best-ranked
+    variant instead of aborting; rows sharing source, cell and quality
+    level still abort, as do variants whose best rank is not unique.
+    Requires `quality_col`. Default: `FALSE`.
+
 - continuity_override:
 
   Logical. Revert isolated single-period winner flips. Default: `TRUE`.
 
 - verbose:
 
-  Logical. Report the drop count, name-order ties, and continuity
-  reversions. Default: `TRUE`.
+  Logical. Report the drop count, any resolved quality variants,
+  name-order ties, and continuity reversions. Default: `TRUE`.
 
 ## Value
 
@@ -147,7 +157,12 @@ Selection proceeds in four stages.
     broader within-series coverage (the count of cells the source
     reports across the `.by` group) when `tie_break$coverage`, then by
     `tie_break$quality_col` ordered per `tie_break$quality_levels`, then
-    by ascending source name (reported when `verbose`).
+    by ascending source name (reported when `verbose`). Coverage counts
+    the cells where `value_col` is non-missing, or only the strictly
+    positive ones under `tie_break$coverage = "positive"`, for panels
+    where an exact zero reads as "not reported" as often as "measured
+    zero" and would otherwise inflate the coverage of a mostly-zero
+    series.
 
 4.  **Continuity override.** When enabled, an isolated single-period
     winner flip is reverted: if the immediately preceding and following
@@ -168,8 +183,13 @@ identity is part of the dedup key's semantics, and priority alone cannot
 arbitrate cells whose sources report different measures.
 
 The input must hold at most one row per source per cell; pre-aggregate
-any sub-detail rows first (the function aborts on duplicates rather than
-sum silently).
+any sub-detail rows first (by default the function aborts on duplicates
+rather than sum silently). Set `tie_break$quality_variants` when a
+source legitimately contributes several `tie_break$quality_col` variants
+of one cell (an observed and an interpolated estimate, say): the
+variants then collapse to the best-ranked one before any other stage,
+and only rows sharing a source, a cell *and* a quality level still
+abort.
 
 ## Examples
 

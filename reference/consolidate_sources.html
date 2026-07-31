@@ -83,7 +83,8 @@ long-term historical energy panel.</p>
 
 <dt id="arg-value-col">value_col<a class="anchor" aria-label="anchor" href="#arg-value-col"></a></dt>
 <dd><p>Unquoted name of the value column. Coverage counts the cells
-where this column is non-missing.</p></dd>
+where this column is non-missing, or only those where it is strictly
+positive when <code>tie_break$coverage</code> is <code>"positive"</code>.</p></dd>
 
 
 <dt id="arg-source-col">source_col<a class="anchor" aria-label="anchor" href="#arg-source-col"></a></dt>
@@ -129,12 +130,20 @@ the hard drop. Default: <code>NULL</code>.</p></li>
 
 
 <dt id="arg-tie-break">tie_break<a class="anchor" aria-label="anchor" href="#arg-tie-break"></a></dt>
-<dd><p>Optional named list of options breaking equal-rank ties:</p><ul><li><p><code>coverage</code>: logical, break ties by broader within-series coverage.
-Default: <code>TRUE</code>.</p></li>
+<dd><p>Optional named list of options breaking equal-rank ties:</p><ul><li><p><code>coverage</code>: break ties by broader within-series coverage. <code>TRUE</code>
+(default), or equivalently <code>"nonmissing"</code>, counts the cells where
+<code>value_col</code> is non-missing; <code>"positive"</code> counts only the cells where it
+is strictly positive (<code>value_col</code> must then be numeric); <code>FALSE</code>
+disables the coverage tie-break.</p></li>
 <li><p><code>quality_col</code>: string naming a quality column used as a tie-break
 after coverage. Default: <code>NULL</code>.</p></li>
 <li><p><code>quality_levels</code>: character vector ordering <code>quality_col</code> values best
 first (unlisted values rank last). Required when <code>quality_col</code> is set.</p></li>
+<li><p><code>quality_variants</code>: logical. When <code>TRUE</code>, a source contributing several
+<code>quality_col</code> variants of one cell keeps its best-ranked variant instead
+of aborting; rows sharing source, cell and quality level still abort, as
+do variants whose best rank is not unique. Requires <code>quality_col</code>.
+Default: <code>FALSE</code>.</p></li>
 </ul></dd>
 
 
@@ -144,8 +153,8 @@ flips. Default: <code>TRUE</code>.</p></dd>
 
 
 <dt id="arg-verbose">verbose<a class="anchor" aria-label="anchor" href="#arg-verbose"></a></dt>
-<dd><p>Logical. Report the drop count, name-order ties, and
-continuity reversions. Default: <code>TRUE</code>.</p></dd>
+<dd><p>Logical. Report the drop count, any resolved quality variants,
+name-order ties, and continuity reversions. Default: <code>TRUE</code>.</p></dd>
 
 </dl></div>
     <div class="section level2">
@@ -184,7 +193,11 @@ rows with a real value the winner is the row of lowest effective rank; ties
 are broken by broader within-series coverage (the count of cells the source
 reports across the <code>.by</code> group) when <code>tie_break$coverage</code>, then by
 <code>tie_break$quality_col</code> ordered per <code>tie_break$quality_levels</code>, then by
-ascending source name (reported when <code>verbose</code>).</p></li>
+ascending source name (reported when <code>verbose</code>). Coverage counts the cells
+where <code>value_col</code> is non-missing, or only the strictly positive ones under
+<code>tie_break$coverage = "positive"</code>, for panels where an exact zero reads as
+"not reported" as often as "measured zero" and would otherwise inflate the
+coverage of a mostly-zero series.</p></li>
 <li><p><strong>Continuity override.</strong> When enabled, an isolated single-period winner
 flip is reverted: if the immediately preceding and following periods share
 a different winner that also reports the middle period, that continuous
@@ -200,8 +213,12 @@ measure-consistently</em> (<code>wiki/decisions/measure-consistent-panel-consoli
 measure identity is part of the dedup key's semantics, and priority alone
 cannot arbitrate cells whose sources report different measures.</p>
 <p>The input must hold at most one row per source per cell; pre-aggregate any
-sub-detail rows first (the function aborts on duplicates rather than sum
-silently).</p>
+sub-detail rows first (by default the function aborts on duplicates rather
+than sum silently). Set <code>tie_break$quality_variants</code> when a source
+legitimately contributes several <code>tie_break$quality_col</code> variants of one
+cell (an observed and an interpolated estimate, say): the variants then
+collapse to the best-ranked one before any other stage, and only rows
+sharing a source, a cell <em>and</em> a quality level still abort.</p>
     </div>
 
     <div class="section level2">
