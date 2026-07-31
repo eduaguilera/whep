@@ -782,6 +782,119 @@ record(
   }
 )
 
+# --- 5g. The committed data regenerates from the contract ---------------------
+# Everything else here checks that the data in the tree is self-consistent. This checks
+# something stronger and otherwise unverified: that it can be REGENERATED from the published
+# contract, byte for byte.
+#
+# Why it is worth a gate rather than a one-off. `data/` holds 34 datasets built by two
+# data-raw scripts from the sibling repository's `data/final/`. A reviewer cannot tell by
+# reading whether a committed `.rda` corresponds to what those scripts produce today -- and
+# this branch twice shipped two representations of one decision with only one rebuilt. Once a
+# rebuild is a single command whose success is "git status is empty", drift becomes a diff.
+#
+# Needs the contract, so it skips where the contract tests skip -- which is every CI run,
+# because the upstream repository is private. Costs a few minutes locally, which is the same
+# trade the contract tests already make.
+#
+# Runs in a subprocess with the contract environment set explicitly, and RESTORES the tree
+# afterwards whatever happens: a gate that leaves regenerated data behind would turn a clean
+# checkout dirty and be worse than no gate. The restore is `git checkout --` limited to the
+# paths the scripts write.
+.gate_clock <- Sys.time()
+if (length(candidates) == 0L) {
+  record(
+    "data regenerates from the contract",
+    TRUE,
+    "SKIP - no contract directory found"
+  )
+} else if (
+  length(system2("git", c("status", "--porcelain"), stdout = TRUE)) > 0L
+) {
+  # Refusing on a dirty tree is not fussiness: the check reads `git status` as its verdict,
+  # so pre-existing modifications would either mask a failure or be destroyed by the restore.
+  record(
+    "data regenerates from the contract",
+    TRUE,
+    "SKIP - working tree is dirty, and this gate reads git status as its verdict"
+  )
+} else {
+  regen_paths <- c("data", "inst/extdata", "R/sysdata.rda")
+  contract_dir <- candidates[[1]]
+  regen_env <- c(
+    paste0(
+      "WHEP_POLITIES_MANIFEST=",
+      file.path(contract_dir, "polities_manifest.json")
+    ),
+    paste0(
+      "WHEP_POLITIES_CSV=",
+      file.path(contract_dir, "polities_database.csv")
+    ),
+    paste0(
+      "WHEP_POLITIES_GPKG=",
+      file.path(contract_dir, "polities_database.gpkg")
+    ),
+    paste0(
+      "WHEP_POLITIES_LABEL_ALIAS_MAP=",
+      file.path(contract_dir, "label_alias_map.csv")
+    ),
+    paste0(
+      "WHEP_POLITIES_FAOSTAT_MAP=",
+      file.path(contract_dir, "faostat_area_polity_map.csv")
+    )
+  )
+  regen_ok <- TRUE
+  regen_detail <- ""
+  for (script in c(
+    "data-raw/table_mappings.R",
+    "data-raw/harmonization_tables.R"
+  )) {
+    out <- suppressWarnings(system2(
+      "Rscript",
+      c("-e", shQuote(sprintf('source("%s")', script))),
+      env = regen_env,
+      stdout = TRUE,
+      stderr = TRUE
+    ))
+    code <- attr(out, "status")
+    if (!is.null(code) && code != 0L) {
+      regen_ok <- FALSE
+      regen_detail <- sprintf(
+        "%s failed: %s",
+        script,
+        paste(utils::tail(out, 2), collapse = " | ")
+      )
+      break
+    }
+  }
+  if (regen_ok) {
+    dirty <- system2(
+      "git",
+      c("status", "--porcelain", regen_paths),
+      stdout = TRUE
+    )
+    dirty <- dirty[nzchar(dirty)]
+    regen_ok <- length(dirty) == 0L
+    regen_detail <- if (regen_ok) {
+      "rebuild reproduced the committed data exactly"
+    } else {
+      sprintf(
+        "%d file(s) differ after rebuild: %s",
+        length(dirty),
+        paste(utils::head(trimws(dirty), 4), collapse = ", ")
+      )
+    }
+  }
+  # Restore whatever the rebuild wrote, pass or fail.
+  invisible(system2(
+    "git",
+    c("checkout", "--", regen_paths),
+    stdout = TRUE,
+    stderr = TRUE
+  ))
+  record("data regenerates from the contract", regen_ok, regen_detail)
+}
+
 # --- 5e. Prove the gates above can fail --------------------------------------
 # The four checks this script added over this branch were each mutation-tested by hand when
 # written. A hand test proves a gate worked once, on one machine, on the defect its author
