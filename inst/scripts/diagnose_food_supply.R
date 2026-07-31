@@ -36,23 +36,6 @@
 #   res <- diagnose_food_supply(year = 2010, out_dir = "diag_out")
 # -----------------------------------------------------------------------
 
-# Countries used for readable per-country reporting, with the WHEP figure
-# issue #360 reported for each. The issue's own FAOSTAT column is not carried:
-# it disagrees with FAOSTAT (it gives the Netherlands ~2.0 against an actual
-# 2.90) and was part of what made the issue look like a defect.
-.dfs_reference <- function() {
-  tibble::tribble(
-    ~area_iso3c, ~label,             ~issue_claim,
-    "NLD",       "Netherlands",      7.0,
-    "POL",       "Poland",           5.6,
-    "CHN",       "China (mainland)", 4.8,
-    "USA",       "USA",              2.9,
-    "BRA",       "Brazil",           2.3,
-    "NGA",       "Nigeria",          1.8,
-    "IND",       "India",            1.4
-  )
-}
-
 #' Benchmark the CBS food element and derived protein against FAOSTAT FBS.
 #'
 #' @param year Calendar year to diagnose.
@@ -75,7 +58,9 @@ diagnose_food_supply <- function(year = 2010L, out_dir = ".") {
   print(as.data.frame(attrib))
 
   cli::cli_h1("WHEP against FAOSTAT FBS")
-  cmp <- .dfs_compare(.dfs_whep_national(rows), .dfs_fbs(year))
+  fao <- .dfs_fbs(year)
+  .dfs_check_leaf_rule(fao)
+  cmp <- .dfs_compare(.dfs_whep_national(rows), fao)
   .dfs_report(cmp)
 
   refs <- .dfs_reference_table(cmp)
@@ -104,8 +89,15 @@ diagnose_food_supply <- function(year = 2010L, out_dir = ".") {
     add = TRUE
   )
 
-  primary <- build_primary_production(start_year = year, end_year = year)
-  cbs <- build_commodity_balances(primary, start_year = year, end_year = year)
+  primary <- whep::build_primary_production(
+    start_year = year,
+    end_year = year
+  )
+  cbs <- whep::build_commodity_balances(
+    primary,
+    start_year = year,
+    end_year = year
+  )
   list(cbs = tibble::as_tibble(cbs), global_share_rows = captured$rows)
 }
 
@@ -243,7 +235,7 @@ diagnose_food_supply <- function(year = 2010L, out_dir = ".") {
 # National FAOSTAT reference: population, reported Grand Total protein, and
 # food supply summed over leaf commodities.
 .dfs_fbs <- function(year) {
-  f <- whep_read_file("faostat-fbs-new")
+  f <- whep::whep_read_file("faostat-fbs-new")
   data.table::setDT(f)
   data.table::setnames(
     f,
@@ -274,9 +266,41 @@ diagnose_food_supply <- function(year = 2010L, out_dir = ".") {
   ]
   Reduce(
     function(a, b) merge(a, b, by = "area_code"),
-    list(pop, prot, food)
+    list(pop, prot, food, .dfs_fbs_leaf_protein(f10))
   ) |>
     tibble::as_tibble()
+}
+
+# Protein summed over leaf commodities. Carried only to validate .dfs_is_leaf();
+# the reference protein used for comparison stays FAO's reported Grand Total.
+.dfs_fbs_leaf_protein <- function(f10) {
+  f10[
+    .dfs_is_leaf(item_code) &
+      element == "Protein supply quantity (g/capita/day)",
+    .(leaf_protein_g_day = sum(value, na.rm = TRUE)),
+    by = area_code
+  ]
+}
+
+# Self-check on .dfs_is_leaf(): summing leaves must reproduce FAO's own Grand
+# Total (item 2901). If it does not, the leaf rule is wrong and every quantity
+# this script sums over leaves is wrong with it, so say so loudly.
+.dfs_check_leaf_rule <- function(fao) {
+  ok <- fao[fao$fao_protein_g_day > 0, ]
+  rel <- abs(ok$leaf_protein_g_day - ok$fao_protein_g_day) /
+    ok$fao_protein_g_day
+  cli::cli_alert_info(
+    "Leaf-rule check on {nrow(ok)} areas, leaf sum against FAO Grand Total
+     protein: median relative difference {signif(stats::median(rel), 2)},
+     max {signif(max(rel), 2)}."
+  )
+  if (stats::median(rel) > 0.01) {
+    cli::cli_warn(
+      "The leaf-item rule does not reproduce FAO's Grand Total protein; the
+       food quantities summed over leaves are unreliable."
+    )
+  }
+  invisible(rel)
 }
 
 # Protein per kg fresh matter, following build_food_supply()'s coalesce chain:
@@ -352,6 +376,23 @@ diagnose_food_supply <- function(year = 2010L, out_dir = ".") {
     "Share at or above the {ceiling_g} g Over ceiling:
      FAO {round(100 * mean(cmp$fao_protein_g_day >= ceiling_g), 1)}%,
      WHEP {round(100 * mean(cmp$whep_protein_g_day >= ceiling_g), 1)}%."
+  )
+}
+
+# Countries used for readable per-country reporting, with the WHEP figure
+# issue #360 reported for each. The issue's own FAOSTAT column is not carried:
+# it disagrees with FAOSTAT (it gives the Netherlands ~2.0 against an actual
+# 2.90) and was part of what made the issue look like a defect.
+.dfs_reference <- function() {
+  tibble::tribble(
+    ~area_iso3c, ~label, ~issue_claim,
+    "NLD", "Netherlands", 7.0,
+    "POL", "Poland", 5.6,
+    "CHN", "China (mainland)", 4.8,
+    "USA", "USA", 2.9,
+    "BRA", "Brazil", 2.3,
+    "NGA", "Nigeria", 1.8,
+    "IND", "India", 1.4
   )
 }
 
