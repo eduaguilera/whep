@@ -404,11 +404,45 @@ test_that(".backfill_processing_cf copies the earliest cf mapping backward", {
 
 # .calculate_processed_amounts -----------------------------------------------------
 
+# Coefficient fixtures shared by the processing-conservation tests. n_per_fm is
+# Product_kgDM_kgFM * Product_kgN_kgDM, i.e. tonnes N per tonne fresh matter.
+.test_processing_coefs <- function() {
+  list(
+    items = tibble::tribble(
+      ~item, ~Name_biomass,
+      "Grapes", "grape_bm",
+      "Wine", "wine_bm",
+      "Juice", "juice_bm",
+      "Sunflower seed", "sunflower_bm",
+      "Sunflower Cake", "cake_bm",
+      "Sunflower Oil", "oil_bm",
+      "Beef", "beef_bm"
+    ),
+    biomass = tibble::tribble(
+      ~Name_biomass, ~Product_kgDM_kgFM, ~Product_kgN_kgDM,
+      "grape_bm", 0.2, 0.01, # 0.002   N/t FM
+      "wine_bm", 0.02, 0.005, # 0.0001  N/t FM (nearly N-free)
+      "juice_bm", 0.1, 0.01, # 0.001   N/t FM
+      "sunflower_bm", 0.93, 0.028, # 0.02604 N/t FM
+      "cake_bm", 0.9, 0.08, # 0.072   N/t FM (N-concentrating)
+      "oil_bm", 1.0, 0.0, # 0       N/t FM
+      "beef_bm", 0.3, 0.03
+    )
+  )
+}
+
+.test_n_per_fm <- function(item) {
+  coefs <- .test_processing_coefs()
+  bm <- coefs$items$Name_biomass[coefs$items$item == item]
+  row <- coefs$biomass[coefs$biomass$Name_biomass == bm, ]
+  row$Product_kgDM_kgFM * row$Product_kgN_kgDM
+}
+
 test_that(".calculate_processed_amounts splits and expands production", {
   prod <- tibble::tribble(
     ~Year, ~Province_name, ~Name_biomass, ~Item, ~Box, ~prod_type, ~production_fm,
-    2000, "A", "Grape", "Grapes", "Cropland", "Product", 100,
-    2000, "A", "Beef", "Beef", "Livestock", "Product", 50
+    2000, "A", "grape_bm", "Grapes", "Cropland", "Product", 100,
+    2000, "A", "beef_bm", "Beef", "Livestock", "Product", 50
   )
 
   processing_shares <- tibble::tribble(
@@ -423,15 +457,19 @@ test_that(".calculate_processed_amounts splits and expands production", {
     2000, "Grapes", "Juice", 40, 0.3
   )
 
-  out <- .calculate_processed_amounts(prod, processing_shares, spain_coefs)
-
-  grapes_row <- out$non_processed |> dplyr::filter(Item == "Grapes")
-  expect_equal(grapes_row$production_fm, 60)
+  out <- .calculate_processed_amounts(
+    prod,
+    processing_shares,
+    spain_coefs,
+    .test_processing_coefs()
+  )
 
   # Non-cropland rows pass through unchanged, even if a share exists.
   beef_row <- out$non_processed |> dplyr::filter(Item == "Beef")
   expect_equal(beef_row$production_fm, 50)
 
+  # Wine and juice are N-poorer than grapes, so the outputs stand as computed
+  # and only the N-equivalent mass leaves the primary item.
   wine_row <- out$processed_items |> dplyr::filter(Item == "Wine")
   expect_equal(wine_row$production_fm, 100 * 0.4 * 0.5)
 
@@ -440,6 +478,129 @@ test_that(".calculate_processed_amounts splits and expands production", {
 
   expect_true(all(out$processed_items$Box == "Cropland"))
   expect_true(all(out$processed_items$prod_type == "Product"))
+})
+
+test_that(".calculate_processed_amounts conserves N when outputs are N-poor", {
+  prod <- tibble::tribble(
+    ~Year, ~Province_name, ~Name_biomass, ~Item, ~Box, ~prod_type, ~production_fm,
+    2000, "A", "grape_bm", "Grapes", "Cropland", "Product", 100
+  )
+  processing_shares <- tibble::tribble(
+    ~Year, ~Item, ~share_processing,
+    2000, "Grapes", 0.4
+  )
+  spain_coefs <- tibble::tribble(
+    ~Year, ~Item, ~ProcessedItem, ~value_to_process, ~cf,
+    2000, "Grapes", "Wine", 40, 0.5,
+    2000, "Grapes", "Juice", 40, 0.3
+  )
+
+  out <- .calculate_processed_amounts(
+    prod,
+    processing_shares,
+    spain_coefs,
+    .test_processing_coefs()
+  )
+
+  n_added <- sum(
+    out$processed_items$production_fm *
+      vapply(out$processed_items$Item, .test_n_per_fm, numeric(1))
+  )
+  removed_fm <- 100 - out$non_processed$production_fm
+  n_removed <- removed_fm * .test_n_per_fm("Grapes")
+
+  expect_equal(n_removed, n_added)
+  # Grapes keep the N the named outputs cannot account for, rather than
+  # losing it: only 17.5% of the diverted mass is actually accounted for.
+  expect_equal(removed_fm, 40 * (n_added / (40 * .test_n_per_fm("Grapes"))))
+  expect_lt(removed_fm, 40)
+})
+
+test_that(".calculate_processed_amounts never creates N when outputs are N-rich", {
+  prod <- tibble::tribble(
+    ~Year, ~Province_name, ~Name_biomass, ~Item, ~Box, ~prod_type, ~production_fm,
+    2000, "A", "sunflower_bm", "Sunflower seed", "Cropland", "Product", 100
+  )
+  processing_shares <- tibble::tribble(
+    ~Year, ~Item, ~share_processing,
+    2000, "Sunflower seed", 1
+  )
+  # Unscaled, the cake alone would carry 3.24 t N against the seed's 2.604.
+  spain_coefs <- tibble::tribble(
+    ~Year, ~Item, ~ProcessedItem, ~value_to_process, ~cf,
+    2000, "Sunflower seed", "Sunflower Cake", 100, 0.45,
+    2000, "Sunflower seed", "Sunflower Oil", 100, 0.4
+  )
+
+  out <- .calculate_processed_amounts(
+    prod,
+    processing_shares,
+    spain_coefs,
+    .test_processing_coefs()
+  )
+
+  n_in <- 100 * .test_n_per_fm("Sunflower seed")
+  n_added <- sum(
+    out$processed_items$production_fm *
+      vapply(out$processed_items$Item, .test_n_per_fm, numeric(1))
+  )
+
+  expect_equal(n_added, n_in)
+  expect_equal(out$non_processed$production_fm, 0)
+  # All outputs are scaled by the same factor, so their mix is preserved.
+  cake <- out$processed_items$production_fm[
+    out$processed_items$Item == "Sunflower Cake"
+  ]
+  oil <- out$processed_items$production_fm[
+    out$processed_items$Item == "Sunflower Oil"
+  ]
+  expect_equal(cake / oil, 0.45 / 0.4)
+  expect_lt(cake, 100 * 0.45)
+})
+
+test_that(".calculate_processed_amounts drops substitutions it cannot price in N", {
+  prod <- tibble::tribble(
+    ~Year, ~Province_name, ~Name_biomass, ~Item, ~Box, ~prod_type, ~production_fm,
+    2000, "A", "unknown_bm", "Mystery crop", "Cropland", "Product", 100
+  )
+  processing_shares <- tibble::tribble(
+    ~Year, ~Item, ~share_processing,
+    2000, "Mystery crop", 0.5
+  )
+  spain_coefs <- tibble::tribble(
+    ~Year, ~Item, ~ProcessedItem, ~value_to_process, ~cf,
+    2000, "Mystery crop", "Juice", 50, 0.5
+  )
+
+  expect_warning(
+    out <- .calculate_processed_amounts(
+      prod,
+      processing_shares,
+      spain_coefs,
+      .test_processing_coefs()
+    ),
+    "no usable product N coefficient"
+  )
+
+  expect_equal(out$non_processed$production_fm, 100)
+  expect_equal(sum(out$processed_items$production_fm), 0)
+})
+
+test_that(".processing_n_scaling leaves an exactly balanced substitution alone", {
+  # Outputs carry precisely the input's N: both scales must be 1.
+  candidate <- tibble::tribble(
+    ~Year, ~Province_name, ~Name_biomass, ~Item, ~processed_fm,
+    2000, "A", "grape_bm", "Grapes", 100
+  )
+  outputs <- tibble::tribble(
+    ~Year, ~Province_name, ~Name_biomass, ~Item, ~from_item, ~production_fm,
+    2000, "A", "grape_bm", "Juice", "Grapes", 200
+  )
+
+  out <- .processing_n_scaling(candidate, outputs, .test_processing_coefs())
+
+  expect_equal(out$output_scale, 1)
+  expect_equal(out$removal_scale, 1)
 })
 
 

@@ -85,7 +85,11 @@ create_n_prov_destiny <- function(example = FALSE) {
   processed <- .calculate_processed_amounts(
     prod_combined_boxes,
     processing_shares,
-    spain_coefs
+    spain_coefs,
+    coefs = list(
+      items = codes_coefs_items_full,
+      biomass = biomass_coefs
+    )
   )
 
   food_and_other_uses <- population_yg |>
@@ -867,9 +871,15 @@ create_n_nat_destiny <- function(example = FALSE) {
 #' and, separately, the processed-item quantities it yields. Only Cropland
 #' rows are considered for processing; other boxes pass through unchanged.
 #'
+#' The substitution is N-conserving by construction: the N removed from the
+#' primary item is exactly the N credited to its processed outputs. See
+#' `.processing_n_scaling()` for why that needs enforcing and what it costs.
+#'
 #' @param prod_combined_boxes Dataframe with production_fm by province.
 #' @param processing_shares Output of `.calculate_processing_shares()`.
 #' @param spain_coefs Output of `.spain_processing_coefs()`.
+#' @param coefs Named list with `items` (`codes_coefs_items_full`) and
+#' `biomass` (`biomass_coefs`), used to price each item's N per tonne FM.
 #'
 #' @return A list with 'non_processed' and 'processed_items' dataframes.
 #' @keywords internal
@@ -877,9 +887,10 @@ create_n_nat_destiny <- function(example = FALSE) {
 .calculate_processed_amounts <- function(
   prod_combined_boxes,
   processing_shares,
-  spain_coefs
+  spain_coefs,
+  coefs
 ) {
-  with_share <- prod_combined_boxes |>
+  candidate <- prod_combined_boxes |>
     dplyr::left_join(processing_shares, by = c("Year", "Item")) |>
     dplyr::mutate(
       share_processing = dplyr::if_else(
@@ -890,13 +901,12 @@ create_n_nat_destiny <- function(example = FALSE) {
       processed_fm = production_fm * share_processing
     )
 
-  non_processed <- with_share |>
-    dplyr::mutate(production_fm = production_fm - processed_fm) |>
-    dplyr::select(-share_processing, -processed_fm)
+  outputs <- .expand_processed_items(candidate, spain_coefs)
+  scaling <- .processing_n_scaling(candidate, outputs, coefs)
 
   list(
-    non_processed = non_processed,
-    processed_items = .expand_processed_items(with_share, spain_coefs)
+    non_processed = .subtract_processed_mass(candidate, scaling),
+    processed_items = .scale_processed_items(outputs, scaling)
   )
 }
 
@@ -904,16 +914,25 @@ create_n_nat_destiny <- function(example = FALSE) {
 #' @description Aggregates the processed input mass per item and converts it
 #' into each of its processed-item outputs using the conversion factor.
 #'
-#' @param with_share Production rows joined with share_processing and
+#' The conversion factors are per-output and are *not* co-product shares of a
+#' single physical process: `R/supply_use.R` documents them as the outputs of
+#' a *virtual* process (e.g. 'Wheat and products processing'), so they can sum
+#' to well above 1 for one input item (5.2 for maize in Spain in 2000, where
+#' beer and starch are water-diluted). Applying them all to the same input
+#' mass therefore over-produces, which is why the caller rescales the result
+#' via `.processing_n_scaling()`.
+#'
+#' @param candidate Production rows joined with share_processing and
 #' processed_fm, as built by `.calculate_processed_amounts()`.
 #' @param spain_coefs Output of `.spain_processing_coefs()`.
 #'
 #' @return A dataframe with Year, Province_name, Name_biomass, Item, Box,
-#' production_fm, prod_type — one row per processed item, per province.
+#' production_fm, prod_type and the primary Item it came from (`from_item`) —
+#' one row per processed item, per province.
 #' @keywords internal
 #' @noRd
-.expand_processed_items <- function(with_share, spain_coefs) {
-  with_share |>
+.expand_processed_items <- function(candidate, spain_coefs) {
+  candidate |>
     dplyr::summarise(
       processed_fm = sum(processed_fm, na.rm = TRUE),
       .by = c(Year, Province_name, Name_biomass, Item)
@@ -926,6 +945,7 @@ create_n_nat_destiny <- function(example = FALSE) {
     dplyr::filter(!is.na(ProcessedItem)) |>
     dplyr::mutate(
       production_fm = processed_fm * cf,
+      from_item = Item,
       Item = ProcessedItem,
       Box = "Cropland",
       prod_type = "Product"
@@ -935,10 +955,235 @@ create_n_nat_destiny <- function(example = FALSE) {
       Province_name,
       Name_biomass,
       Item,
+      from_item,
       Box,
       production_fm,
       prod_type
     )
+}
+
+#' @title N-conserving scaling for the processing substitution -----------------
+#' @description Nitrogen is an element: milling, crushing and fermenting can
+#' move it between products but cannot create or destroy it. The raw
+#' conversion factors respect neither bound — measured against the pins, the
+#' unscaled substitution created up to +7.8% of Spain's annual production N
+#' (maize/wheat/barley, whose factors sum to ~5) and destroyed up to 2.8%
+#' (grapes, olives and sugar beet, whose outputs — wine, oil, sugar — are
+#' nearly N-free). This computes, per province-year and primary item, the two
+#' factors that close the balance:
+#'
+#' - `output_scale` caps the processed outputs at the N actually available in
+#'   the input, scaling all of an input's outputs equally so their relative
+#'   mix is untouched.
+#' - `removal_scale` removes from the primary item only the N that the named
+#'   outputs actually account for.
+#'
+#' The second factor is the conservative half. When the outputs are N-poor,
+#' the unaccounted N stays with the primary item rather than disappearing.
+#' Physically that residue is by-product (grape pomace, olive cake, beet
+#' pulp) or an agro-industry loss, and modelling it as unprocessed primary
+#' crop is an approximation: it keeps the mass balance honest but attributes
+#' the residual to the primary item's destinies. Routing it to explicit
+#' by-product items is the open methodological question, tracked separately —
+#' it needs a decision from the model owners, not a default chosen here.
+#'
+#' @param candidate Production rows with processed_fm, as built by
+#' `.calculate_processed_amounts()`.
+#' @param outputs Output of `.expand_processed_items()`.
+#' @param coefs Named list with `items` and `biomass` coefficient tables.
+#'
+#' @return A dataframe with Year, Province_name, Name_biomass, Item,
+#' output_scale and removal_scale.
+#' @keywords internal
+#' @noRd
+.processing_n_scaling <- function(candidate, outputs, coefs) {
+  key <- c("Year", "Province_name", "Name_biomass", "Item")
+
+  n_in <- candidate |>
+    dplyr::filter(processed_fm > 0) |>
+    dplyr::summarise(
+      processed_fm = sum(processed_fm, na.rm = TRUE),
+      .by = dplyr::all_of(key)
+    ) |>
+    .add_product_n_per_fm(coefs) |>
+    dplyr::mutate(n_in = processed_fm * n_per_fm) |>
+    dplyr::select(dplyr::all_of(key), n_in)
+
+  # Priced on the output item, then re-keyed to the primary item it came from.
+  n_out <- outputs |>
+    .add_product_n_per_fm(coefs) |>
+    dplyr::select(-Item) |>
+    dplyr::rename(Item = from_item) |>
+    dplyr::summarise(
+      n_out = sum(production_fm * n_per_fm, na.rm = TRUE),
+      n_missing = sum(is.na(n_per_fm) & production_fm > 0),
+      .by = dplyr::all_of(key)
+    )
+
+  n_in |>
+    dplyr::full_join(n_out, by = key) |>
+    dplyr::mutate(
+      n_out = dplyr::coalesce(n_out, 0),
+      # A missing input coefficient makes the input's N unknown, so any output
+      # N would be created from nothing: drop the substitution for that item
+      # rather than guess a coefficient.
+      ratio = dplyr::if_else(!is.na(n_in) & n_in > 0, n_out / n_in, 0),
+      output_scale = pmin(1, dplyr::if_else(ratio > 0, 1 / ratio, 0)),
+      removal_scale = pmin(1, ratio)
+    ) |>
+    .warn_unpriced_processing() |>
+    dplyr::select(dplyr::all_of(key), output_scale, removal_scale)
+}
+
+#' @title N content per tonne of fresh matter, product basis -------------------
+#' @description Replicates the coefficient choice `.convert_fm_dm_n()` makes
+#' for `prod_type == "Product"` rows, so the conservation scaling and the
+#' final FM to N conversion cannot drift apart.
+#'
+#' @param df Dataframe with `Item` and `Name_biomass` (the primary biomass).
+#' @param coefs Named list with `items` and `biomass` coefficient tables.
+#'
+#' @return `df` with an added `n_per_fm` column (tonnes N per tonne FM).
+#' @keywords internal
+#' @noRd
+.add_product_n_per_fm <- function(df, coefs) {
+  df |>
+    dplyr::left_join(
+      coefs$items |> dplyr::select(item, item_biomass = Name_biomass),
+      by = c("Item" = "item")
+    ) |>
+    dplyr::mutate(
+      biomass_match = dplyr::if_else(
+        Item %in% .special_biomass_items(),
+        Name_biomass,
+        dplyr::coalesce(item_biomass, Name_biomass)
+      )
+    ) |>
+    dplyr::left_join(
+      coefs$biomass |>
+        dplyr::select(
+          Name_biomass,
+          Product_kgDM_kgFM,
+          Product_kgN_kgDM
+        ) |>
+        dplyr::distinct(),
+      by = c("biomass_match" = "Name_biomass")
+    ) |>
+    dplyr::mutate(n_per_fm = Product_kgDM_kgFM * Product_kgN_kgDM) |>
+    dplyr::select(
+      -item_biomass,
+      -biomass_match,
+      -Product_kgDM_kgFM,
+      -Product_kgN_kgDM
+    )
+}
+
+#' @title Items whose conversion coefficients come from the primary biomass ----
+#' @description Aggregate items that carry no biomass coefficients of their
+#' own and fall back to the primary biomass of the row they came from.
+#'
+#' @return A character vector of item names.
+#' @keywords internal
+#' @noRd
+.special_biomass_items <- function() {
+  c(
+    "Nuts and products",
+    "Vegetables, Other",
+    "Fruits, Other",
+    "Cereals, Other",
+    "Pulses, Other and products"
+  )
+}
+
+#' @title Warn about processing flows that cannot be priced in N --------------
+#' @description Surfaces the two cases where the conservation scaling has to
+#' drop a substitution instead of balancing it, so a missing coefficient can
+#' never silently zero a real flow.
+#'
+#' @param scaling Scaling table built inside `.processing_n_scaling()`.
+#'
+#' @return `scaling`, unchanged.
+#' @keywords internal
+#' @noRd
+.warn_unpriced_processing <- function(scaling) {
+  no_input_coef <- scaling |>
+    dplyr::filter(is.na(n_in) | n_in <= 0, n_out > 0) |>
+    dplyr::distinct(Item) |>
+    dplyr::pull(Item)
+
+  if (length(no_input_coef) > 0) {
+    cli::cli_warn(c(
+      "Dropped the processing substitution for {length(no_input_coef)} item{?s}
+       with no usable product N coefficient.",
+      i = "Item{?s}: {.val {no_input_coef}}."
+    ))
+  }
+
+  unpriced_outputs <- scaling |>
+    dplyr::filter(dplyr::coalesce(n_missing, 0L) > 0) |>
+    dplyr::distinct(Item) |>
+    dplyr::pull(Item)
+
+  if (length(unpriced_outputs) > 0) {
+    cli::cli_warn(c(
+      "{length(unpriced_outputs)} primary item{?s} ha{?s/ve} processed outputs
+       with no product N coefficient; their N is counted as zero.",
+      i = "Item{?s}: {.val {unpriced_outputs}}."
+    ))
+  }
+
+  scaling
+}
+
+#' @title Remove the accounted processed mass from the primary item -----------
+#' @description Subtracts `removal_scale * processed_fm` from each production
+#' row, so only the mass whose N is credited to a processed output leaves the
+#' primary item.
+#'
+#' @param candidate Production rows with processed_fm.
+#' @param scaling Output of `.processing_n_scaling()`.
+#'
+#' @return `candidate` with production_fm reduced and helper columns dropped.
+#' @keywords internal
+#' @noRd
+.subtract_processed_mass <- function(candidate, scaling) {
+  candidate |>
+    dplyr::left_join(
+      scaling |> dplyr::select(-output_scale),
+      by = c("Year", "Province_name", "Name_biomass", "Item")
+    ) |>
+    dplyr::mutate(
+      production_fm = production_fm -
+        processed_fm * dplyr::coalesce(removal_scale, 0)
+    ) |>
+    dplyr::select(-share_processing, -processed_fm, -removal_scale)
+}
+
+#' @title Apply the N cap to the processed item quantities ---------------------
+#' @description Scales each processed output so the N credited to an input's
+#' outputs never exceeds the N the input actually carried.
+#'
+#' @param outputs Output of `.expand_processed_items()`.
+#' @param scaling Output of `.processing_n_scaling()`.
+#'
+#' @return `outputs` with production_fm scaled and `from_item` dropped.
+#' @keywords internal
+#' @noRd
+.scale_processed_items <- function(outputs, scaling) {
+  outputs |>
+    dplyr::left_join(
+      scaling |> dplyr::select(-removal_scale),
+      by = c(
+        "Year",
+        "Province_name",
+        "Name_biomass",
+        "from_item" = "Item"
+      )
+    ) |>
+    dplyr::mutate(
+      production_fm = production_fm * dplyr::coalesce(output_scale, 0)
+    ) |>
+    dplyr::select(-from_item, -output_scale)
 }
 
 #' @title Match structure of grafs_prod_combined_no_seeds ----------------------
@@ -1007,18 +1252,10 @@ create_n_nat_destiny <- function(example = FALSE) {
   added_grass_wood_merged,
   biomass_coefs
 ) {
-  special_items <- c(
-    "Nuts and products",
-    "Vegetables, Other",
-    "Fruits, Other",
-    "Cereals, Other",
-    "Pulses, Other and products"
-  )
-
   grazed_no_seeds_primary <- added_grass_wood_merged |>
     dplyr::mutate(
       Biomass_match = dplyr::if_else(
-        Item %in% special_items,
+        Item %in% .special_biomass_items(),
         Name_biomass_primary,
         Name_biomass
       )
