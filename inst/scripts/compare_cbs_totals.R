@@ -47,7 +47,7 @@
 # WITHIN a session it is bit-identical, which narrows the cause and rules out the obvious
 # suspects. Two builds in one session with `whep_clear_cache()` between them took 410s and 389s
 # -- both genuinely ran -- and agreed to ten significant figures. So nothing here is
-# order-dependent or thread-dependent, and whep#418's duplicate keys are NOT the cause, though I
+# order-dependent or thread-dependent, and the duplicate keys of whep#425 are NOT the cause, though I
 # first guessed they were.
 #
 # I also claimed it was not the pins cache, on the strength of

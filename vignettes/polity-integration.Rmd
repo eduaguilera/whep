@@ -297,7 +297,7 @@ not reproducible run to run, alternating between 2,768,578 and 2,764,471 on an u
 | LUH2 territories with no FAOSTAT area code (six, twice — once per land read) | known, whep#407 |
 | Historical extension: **5** areas have no LUH2 land match | pinned by identity in `test_luh2_backcast_reach.R` (four in code space; the difference in kind is documented there) |
 | **24** crop-residue rows lack any `area_code` | down from 44,985; the remainder is whep#417 |
-| **31,642** (key, source) combinations are duplicated at the source cast | pre-existing, now reported — whep#418 |
+| **31,642** (key, source) combinations are duplicated at the source cast | pre-existing, now reported — and the trap is total, not confined to them: whep#425 |
 | `'fun.aggregate' is NULL, but found duplicate row/column combinations` | data.table's own warning for the line above |
 | **46,424** CBS rows have supply-use imbalance above 50% | pre-existing, **identical on `main`** |
 
@@ -314,7 +314,7 @@ tolerance. `dcast()` with no `fun.aggregate` answers a duplicate key with `lengt
 COUNTS instead of quantities — and data.table says so itself in the warning immediately below. 31,642 combinations
 in areas 206 and 999 are affected in the shipped build, and they are affected on `main` too; the difference is that
 they were silent there. Fixing it means choosing `sum` or `first` at the cast, which changes published numbers, so
-it is whep#418 rather than a decision taken here. Two earlier attempts to fix it upstream instead — by summing the
+it is whep#425 rather than a decision taken here. Two earlier attempts to fix it upstream instead — by summing the
 areas that fold into one bucket — were withdrawn, but the 266x measured for the first bundled a second change that alone dropped 702,166 rows. Isolated, summing removes the cast's 10,835 duplicate keys outright and matches the cast-side fix to within a few percent, so it is one of two candidate fixes in whep#425 rather than an error.
 
 That is the whole inventory. Earlier in this work the full-range build emitted four warnings and three of those
@@ -347,7 +347,7 @@ reader can go look rather than take it on faith.
 | every dataset naming a territory is tied to the polities database by something | `test_area_dataset_census.R` — built on the lazydata environment, because package data is not an export |
 | territory-periods sharing a bucket are kept apart, because `area` is a join key and the bucket's total belongs at the cast (whep#425) | `test_polity_bucket_aggregation.R`, mutation-tested |
 | the aggregator's `area` label agrees with what the residues path emits, since `area` is a join key | the same file — two vocabularies for it once dropped 702,166 rows silently |
-| duplicate keys reaching the source cast are **reported**, since `dcast()` would answer them with `length()` | a warning in `.select_best_source()`; 31,642 combinations are affected and were silent on `main` too (#418) |
+| duplicate keys reaching the source cast are **reported**, since `dcast()` would answer them with `length()` | a warning in `.select_best_source()`; 31,642 combinations are affected and were silent on `main` too. The values they corrupt are **every** cast value, not just theirs (#425) |
 | the numeric aggregation key honours FABIO's fold, and both published tables state it identically | `test_polity_area_code_not_folded.R` — promoting these areas inflated global `feed` 13.7× (#419) |
 | `regions_full` and `polities_cats` differ only where a modelling choice says they should | `test_polities_cats_vs_regions_full.R` |
 | the embedded copies match what upstream publishes | `test_polities_upstream_contract.R` and siblings — 51 assertions, and they need the upstream checkout |
