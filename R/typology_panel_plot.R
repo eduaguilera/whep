@@ -9,15 +9,63 @@
 #'   If `NULL`, computed automatically (slow).
 #' @param n_prov_destiny Nitrogen flows tibble from [create_n_prov_destiny()].
 #'   If `NULL`, loaded automatically.
+#' @param area_df Cropland area per year and province, with columns `year`,
+#'   `province_name` and `area_ha`. If `NULL`, read from the `npp_ygpit` pin.
+#' @param typo_df Typology assignment per year and province, with columns
+#'   `year`, `province_name` and `Typology_base`. If `NULL`, derived from
+#'   `create_typo_ts_plot()`.
 #'
 #' @return A patchwork ggplot object.
 #' @export
 #'
 #' @examples
-#' # plot_typology_indicators_panel()
+#' # Two provinces at two dates is enough to exercise the four panels; the
+#' # real figure spans 50 provinces and 1860-2021.
+#' flows <- tibble::tribble(
+#'   ~year, ~province_name, ~box, ~origin, ~destiny, ~mg_n,
+#'   1960, "A", "Cropland", "Synthetic", "Cropland", 900,
+#'   1960, "A", "Cropland", "Outside", "livestock_mono", 300,
+#'   1960, "A", "Cropland", "Cropland", "population_food", 500,
+#'   1960, "B", "Cropland", "Synthetic", "Cropland", 400,
+#'   1960, "B", "Cropland", "Outside", "livestock_mono", 100,
+#'   2000, "A", "Cropland", "Synthetic", "Cropland", 2600,
+#'   2000, "A", "Cropland", "Outside", "livestock_mono", 1800,
+#'   2000, "A", "Cropland", "Cropland", "population_food", 700,
+#'   2000, "B", "Cropland", "Synthetic", "Cropland", 900,
+#'   2000, "B", "Cropland", "Outside", "livestock_mono", 500
+#' )
+#' area_df <- tibble::tribble(
+#'   ~year, ~province_name, ~area_ha,
+#'   1960, "A", 10000,
+#'   1960, "B", 8000,
+#'   2000, "A", 9000,
+#'   2000, "B", 7000
+#' )
+#' typo_df <- tibble::tribble(
+#'   ~year, ~province_name, ~Typology_base,
+#'   1960, "A", "Specialized cropping systems",
+#'   1960, "B", "Semi-natural agroecosystems",
+#'   2000, "A", "Specialized cropping systems",
+#'   2000, "B", "Semi-natural agroecosystems"
+#' )
+#' finn_data <- tibble::tribble(
+#'   ~year, ~province_name, ~finn_index,
+#'   1960, "A", 0.12,
+#'   1960, "B", 0.18,
+#'   2000, "A", 0.07,
+#'   2000, "B", 0.09
+#' )
+#' panel <- plot_typology_indicators_panel(
+#'   finn_data = finn_data,
+#'   n_prov_destiny = flows,
+#'   area_df = area_df,
+#'   typo_df = typo_df
+#' )
 plot_typology_indicators_panel <- function(
   finn_data = NULL,
-  n_prov_destiny = NULL
+  n_prov_destiny = NULL,
+  area_df = NULL,
+  typo_df = NULL
 ) {
   if (is.null(n_prov_destiny)) {
     n_prov_destiny <- create_n_prov_destiny()
@@ -27,8 +75,8 @@ plot_typology_indicators_panel <- function(
   }
 
   flows <- n_prov_destiny |> dplyr::filter(as.numeric(year) <= 2021)
-  area_df <- .panel_area_df()
-  typo_df <- .panel_typology_df()
+  area_df <- area_df %||% .panel_area_df()
+  typo_df <- typo_df %||% .panel_typology_df()
   colors <- .finn_typology_colors()
   periods <- c(1860, 1920, 1960, 2020)
 
@@ -37,9 +85,7 @@ plot_typology_indicators_panel <- function(
   p_pol <- .panel_pollution(flows, area_df, typo_df, colors, periods)
   p_int <- .panel_intensification(flows, area_df, typo_df, colors, periods)
 
-  ((p_ext + p_fci) / (p_pol + p_int)) +
-    patchwork::plot_layout(guides = "collect") &
-    ggplot2::theme(legend.position = "bottom")
+  .wrap_two_by_two(list(p_ext, p_fci, p_pol, p_int))
 }
 
 
@@ -60,16 +106,60 @@ plot_typology_indicators_panel <- function(
 #'   If `NULL`, loaded automatically.
 #' @param n_nat_destiny National nitrogen flows tibble from
 #'   [create_n_nat_destiny()]. If `NULL`, computed automatically (slow).
+#' @param panel_data Named list overriding the two frames otherwise read from
+#'   pins: `area_df` (`year`, `province_name`, `area_ha`) and `typo_df`
+#'   (`year`, `province_name`, `Typology_base`). Missing elements are loaded
+#'   automatically.
 #'
 #' @return A patchwork ggplot object.
 #' @export
 #'
 #' @examples
-#' # plot_typology_periods_panel()
+#' # The four reference periods are 1860-1870, 1920-1930, 1960-1970 and
+#' # 2010-2020, so an example needs at least one year inside two of them.
+#' flows <- tibble::tribble(
+#'   ~year, ~province_name, ~box, ~origin, ~destiny, ~mg_n,
+#'   1865, "A", "Cropland", "Synthetic", "Cropland", 900,
+#'   1865, "A", "Cropland", "Outside", "livestock_mono", 300,
+#'   1865, "B", "Cropland", "Synthetic", "Cropland", 400,
+#'   1965, "A", "Cropland", "Synthetic", "Cropland", 2600,
+#'   1965, "A", "Cropland", "Outside", "livestock_mono", 1800,
+#'   1965, "B", "Cropland", "Synthetic", "Cropland", 900
+#' )
+#' panel_data <- list(
+#'   area_df = tibble::tribble(
+#'     ~year, ~province_name, ~area_ha,
+#'     1865, "A", 10000,
+#'     1865, "B", 8000,
+#'     1965, "A", 9000,
+#'     1965, "B", 7000
+#'   ),
+#'   typo_df = tibble::tribble(
+#'     ~year, ~province_name, ~Typology_base,
+#'     1865, "A", "Specialized cropping systems",
+#'     1865, "B", "Semi-natural agroecosystems",
+#'     1965, "A", "Specialized cropping systems",
+#'     1965, "B", "Semi-natural agroecosystems"
+#'   )
+#' )
+#' finn_data <- tibble::tribble(
+#'   ~year, ~province_name, ~finn_index,
+#'   1865, "A", 0.12,
+#'   1865, "B", 0.18,
+#'   1965, "A", 0.07,
+#'   1965, "B", 0.09
+#' )
+#' panel <- plot_typology_periods_panel(
+#'   finn_data = finn_data,
+#'   n_prov_destiny = flows,
+#'   n_nat_destiny = flows,
+#'   panel_data = panel_data
+#' )
 plot_typology_periods_panel <- function(
   finn_data = NULL,
   n_prov_destiny = NULL,
-  n_nat_destiny = NULL
+  n_nat_destiny = NULL,
+  panel_data = NULL
 ) {
   if (is.null(n_prov_destiny)) {
     n_prov_destiny <- create_n_prov_destiny()
@@ -81,9 +171,10 @@ plot_typology_periods_panel <- function(
     n_nat_destiny <- create_n_nat_destiny()
   }
 
+  panel_data <- panel_data %||% list()
   flows <- n_prov_destiny |> dplyr::filter(as.numeric(year) <= 2021)
-  area_df <- .panel_area_df()
-  typo_df <- .panel_typology_df()
+  area_df <- panel_data$area_df %||% .panel_area_df()
+  typo_df <- panel_data$typo_df %||% .panel_typology_df()
   colors <- .finn_typology_colors()
   national <- .panel_national_context(n_nat_destiny, area_df)
 
@@ -346,6 +437,20 @@ plot_typology_periods_panel <- function(
     ggplot2::theme(
       plot.background = ggplot2::element_rect(fill = "grey40", color = NA)
     )
+}
+
+# Composes four ggplots into a 2x2 grid with a shared bottom legend.
+#
+# Deliberately avoids patchwork's `+`, `/` and `&` operators on plain ggplot
+# objects: those are exported methods that only take effect once patchwork is
+# *attached*, so `p_a + p_b` fails with "Can't add `p_b` to a <ggplot> object"
+# for anyone who has not run library(patchwork). patchwork is a Suggests, and
+# whep never attaches it. wrap_plots() is a plain namespaced call, and the
+# per-panel theme is applied with ggplot2's own `+`.
+.wrap_two_by_two <- function(panels) {
+  panels |>
+    purrr::map(~ .x + ggplot2::theme(legend.position = "bottom")) |>
+    patchwork::wrap_plots(nrow = 2, guides = "collect")
 }
 
 .panel_periods_cross <- function(p_tl, p_tr, p_bl, p_br) {

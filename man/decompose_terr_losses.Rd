@@ -4,7 +4,7 @@
 \alias{decompose_terr_losses}
 \title{Decompose total territorial N losses into compartments and mechanisms}
 \usage{
-decompose_terr_losses(n_prov_destiny = NULL, raw = NULL)
+decompose_terr_losses(n_prov_destiny = NULL, raw = NULL, example = FALSE)
 }
 \arguments{
 \item{n_prov_destiny}{Nitrogen flows tibble from
@@ -15,6 +15,9 @@ decompose_terr_losses(n_prov_destiny = NULL, raw = NULL)
 compartments (\code{npp_ygpit}, \code{codes_coefs}, \code{intake_ygiac},
 \code{n_excretion_ygs}, \code{stock_prod_ygps}, \code{livestock_units},
 \code{population_yg}). Missing elements are loaded automatically.}
+
+\item{example}{If \code{TRUE}, return a small hardcoded output without
+downloading remote data. Default is \code{FALSE}.}
 }
 \value{
 A named list with tibbles \code{detail} (per-compartment LMDI
@@ -42,5 +45,5 @@ a "specialization" mechanism — that signal now lives only in
 }
 }
 \examples{
-# decompose_terr_losses()
+decompose_terr_losses(example = TRUE)
 }

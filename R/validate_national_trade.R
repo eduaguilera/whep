@@ -9,12 +9,20 @@
 #'
 #' @param n_prov_destiny Optional pre-computed output from
 #'   `create_n_prov_destiny()`. If `NULL`, calls that function internally.
+#' @param example If `TRUE`, return a small hardcoded output without
+#'   downloading remote data. Default is `FALSE`.
 #'
 #' @return A tibble with columns `year`, `item`, `net_prov`, `net_fao`, and
 #'   `diff_net` (all in MgN).
 #'
 #' @export
-validate_national_trade <- function(n_prov_destiny = NULL) {
+#'
+#' @examples
+#' validate_national_trade(example = TRUE)
+validate_national_trade <- function(n_prov_destiny = NULL, example = FALSE) {
+  if (example) {
+    return(.example_nat_trade())
+  }
   if (is.null(n_prov_destiny)) {
     n_prov_destiny <- create_n_prov_destiny()
   }
@@ -131,12 +139,23 @@ validate_national_trade <- function(n_prov_destiny = NULL) {
 #'
 #' @param n_prov_destiny Optional pre-computed output from
 #'   `create_n_prov_destiny()`. If `NULL`, calls that function internally.
+#' @param example If `TRUE`, return a small hardcoded output without
+#'   downloading remote data. Default is `FALSE`.
 #'
 #' @return A tibble with columns `year`, `item`, `net_prov`, `net_fao`, and
 #'   `diff_net` (all in MgN).
 #'
 #' @export
-validate_national_trade_raw <- function(n_prov_destiny = NULL) {
+#'
+#' @examples
+#' validate_national_trade_raw(example = TRUE)
+validate_national_trade_raw <- function(
+  n_prov_destiny = NULL,
+  example = FALSE
+) {
+  if (example) {
+    return(.example_nat_trade_raw())
+  }
   if (is.null(n_prov_destiny)) {
     n_prov_destiny <- create_n_prov_destiny()
   }
@@ -179,13 +198,21 @@ validate_national_trade_raw <- function(n_prov_destiny = NULL) {
 #'
 #' @param n_nat_destiny Optional pre-computed output from
 #'   `create_n_nat_destiny()`. If `NULL`, calls that function internally.
+#' @param example If `TRUE`, return a small hardcoded output without
+#'   downloading remote data. Default is `FALSE`.
 #'
 #' @return A tibble with columns `year`, `item`, `category` (`"Crop"` or
 #'   `"Livestock"`), `source` (`"WHEP model"` or `"FAO (raw)"`), `flow`
 #'   (`"Export"` or `"Import"`), and `value_n` (MgN).
 #'
 #' @export
-compute_trade_flows_raw <- function(n_nat_destiny = NULL) {
+#'
+#' @examples
+#' compute_trade_flows_raw(example = TRUE)
+compute_trade_flows_raw <- function(n_nat_destiny = NULL, example = FALSE) {
+  if (example) {
+    return(.example_trade_flows_raw())
+  }
   if (is.null(n_nat_destiny)) {
     n_nat_destiny <- create_n_nat_destiny()
   }
@@ -221,6 +248,16 @@ compute_trade_flows_raw <- function(n_nat_destiny = NULL) {
 #' @return A ggplot object.
 #'
 #' @export
+#'
+#' @examples
+#' validation <- tibble::tribble(
+#'   ~year, ~item, ~net_prov, ~net_fao, ~diff_net,
+#'   1960, "Barley and products", 12000, 9500, 2500,
+#'   1960, "Bovine Meat", -3000, -2800, -200,
+#'   2000, "Barley and products", 56943, 2175, 54768,
+#'   2000, "Bovine Meat", 1601, 1569, 32
+#' )
+#' p <- plot_national_trade_validation(validation)
 plot_national_trade_validation <- function(validation = NULL) {
   if (is.null(validation)) {
     validation <- validate_national_trade()
@@ -279,6 +316,16 @@ plot_national_trade_validation <- function(validation = NULL) {
 #' @return A ggplot object.
 #'
 #' @export
+#'
+#' @examples
+#' trade_flows <- tibble::tribble(
+#'   ~year, ~item, ~source, ~category, ~flow, ~value_n,
+#'   1930, "Nuts and products", "FAO (raw)", "Crop", "Export", 825,
+#'   1930, "Nuts and products", "WHEP model", "Crop", "Export", 910,
+#'   1930, "Bovine Meat", "FAO (raw)", "Livestock", "Import", 340,
+#'   1930, "Bovine Meat", "WHEP model", "Livestock", "Import", 295
+#' )
+#' p <- plot_national_trade_flows_raw(trade_flows)
 plot_national_trade_flows_raw <- function(trade_flows = NULL) {
   if (is.null(trade_flows)) {
     trade_flows <- compute_trade_flows_raw()

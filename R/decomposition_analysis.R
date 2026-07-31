@@ -31,6 +31,8 @@
 #'   extra transition spanning the full analysis window, 1860-1870
 #'   straight to 2010-2020 (the total change) — instead of chaining year
 #'   on year.
+#' @param example If `TRUE`, return a small hardcoded output without
+#'   downloading remote data. Default is `FALSE`.
 #'
 #' @return A tibble from [calculate_lmdi()] with columns `period`,
 #'   `period_years`, `factor_label`, `component_type`, `additive`,
@@ -38,13 +40,17 @@
 #' @export
 #'
 #' @examples
-#' # decompose_cropland_surplus()
+#' decompose_cropland_surplus(example = TRUE)
 decompose_cropland_surplus <- function(
   n_prov_destiny = NULL,
   npp_ygpit = NULL,
   codes_coefs = NULL,
-  by_period = FALSE
+  by_period = FALSE,
+  example = FALSE
 ) {
+  if (example) {
+    return(.example_decomp_cropland())
+  }
   if (is.null(n_prov_destiny)) {
     n_prov_destiny <- create_n_prov_destiny()
   }
@@ -121,6 +127,8 @@ decompose_cropland_surplus <- function(
 #'   extra transition spanning the full analysis window, 1860-1870
 #'   straight to 2010-2020 (the total change) — instead of chaining year
 #'   on year.
+#' @param example If `TRUE`, return a small hardcoded output without
+#'   downloading remote data. Default is `FALSE`.
 #'
 #' @return A tibble from [calculate_lmdi()] with columns `period`,
 #'   `period_years`, `factor_label`, `component_type`, `additive`,
@@ -128,12 +136,16 @@ decompose_cropland_surplus <- function(
 #' @export
 #'
 #' @examples
-#' # decompose_semi_natural_surplus()
+#' decompose_semi_natural_surplus(example = TRUE)
 decompose_semi_natural_surplus <- function(
   n_prov_destiny = NULL,
   npp_ygpit = NULL,
-  by_period = FALSE
+  by_period = FALSE,
+  example = FALSE
 ) {
+  if (example) {
+    return(.example_decomp_seminat())
+  }
   if (is.null(n_prov_destiny)) {
     n_prov_destiny <- create_n_prov_destiny()
   }
@@ -202,6 +214,8 @@ decompose_semi_natural_surplus <- function(
 #'   extra transition spanning the full analysis window, 1860-1870
 #'   straight to 2010-2020 (the total change) — instead of chaining year
 #'   on year.
+#' @param example If `TRUE`, return a small hardcoded output without
+#'   downloading remote data. Default is `FALSE`.
 #'
 #' @return A tibble from [calculate_lmdi()] with columns `period`,
 #'   `period_years`, `factor_label`, `component_type`, `additive`,
@@ -209,15 +223,19 @@ decompose_semi_natural_surplus <- function(
 #' @export
 #'
 #' @examples
-#' # decompose_manure_losses()
+#' decompose_manure_losses(example = TRUE)
 decompose_manure_losses <- function(
   n_prov_destiny = NULL,
   intake_ygiac = NULL,
   n_excretion_ygs = NULL,
   stock_prod_ygps = NULL,
   livestock_units = NULL,
-  by_period = FALSE
+  by_period = FALSE,
+  example = FALSE
 ) {
+  if (example) {
+    return(.example_decomp_manure())
+  }
   if (is.null(n_prov_destiny)) {
     n_prov_destiny <- create_n_prov_destiny()
   }
@@ -294,6 +312,8 @@ decompose_manure_losses <- function(
 #'   extra transition spanning the full analysis window, 1860-1870
 #'   straight to 2010-2020 (the total change) — instead of chaining year
 #'   on year.
+#' @param example If `TRUE`, return a small hardcoded output without
+#'   downloading remote data. Default is `FALSE`.
 #'
 #' @return A tibble from [calculate_lmdi()] with columns `period`,
 #'   `period_years`, `factor_label`, `component_type`, `additive`,
@@ -301,12 +321,16 @@ decompose_manure_losses <- function(
 #' @export
 #'
 #' @examples
-#' # decompose_urban_losses()
+#' decompose_urban_losses(example = TRUE)
 decompose_urban_losses <- function(
   n_prov_destiny = NULL,
   population_yg = NULL,
-  by_period = FALSE
+  by_period = FALSE,
+  example = FALSE
 ) {
+  if (example) {
+    return(.example_decomp_urban())
+  }
   if (is.null(n_prov_destiny)) {
     n_prov_destiny <- create_n_prov_destiny()
   }
@@ -359,6 +383,8 @@ decompose_urban_losses <- function(
 #'   compartments (`npp_ygpit`, `codes_coefs`, `intake_ygiac`,
 #'   `n_excretion_ygs`, `stock_prod_ygps`, `livestock_units`,
 #'   `population_yg`). Missing elements are loaded automatically.
+#' @param example If `TRUE`, return a small hardcoded output without
+#'   downloading remote data. Default is `FALSE`.
 #'
 #' @return A named list with tibbles `detail` (per-compartment LMDI
 #'   output, with `compartment` and `mechanism` columns added),
@@ -367,8 +393,15 @@ decompose_urban_losses <- function(
 #' @export
 #'
 #' @examples
-#' # decompose_terr_losses()
-decompose_terr_losses <- function(n_prov_destiny = NULL, raw = NULL) {
+#' decompose_terr_losses(example = TRUE)
+decompose_terr_losses <- function(
+  n_prov_destiny = NULL,
+  raw = NULL,
+  example = FALSE
+) {
+  if (example) {
+    return(.example_decomp_terr())
+  }
   if (is.null(n_prov_destiny)) {
     n_prov_destiny <- create_n_prov_destiny()
   }
@@ -434,6 +467,8 @@ decompose_terr_losses <- function(n_prov_destiny = NULL, raw = NULL) {
 #'   compartments (`npp_ygpit`, `codes_coefs`, `intake_ygiac`,
 #'   `n_excretion_ygs`, `stock_prod_ygps`, `livestock_units`,
 #'   `population_yg`). Missing elements are loaded automatically.
+#' @param example If `TRUE`, return a small hardcoded output without
+#'   downloading remote data. Default is `FALSE`.
 #'
 #' @return A named list with tibbles `detail` (per-compartment LMDI
 #'   output, with `compartment` and `mechanism` columns added),
@@ -446,11 +481,15 @@ decompose_terr_losses <- function(n_prov_destiny = NULL, raw = NULL) {
 #' @export
 #'
 #' @examples
-#' # decompose_terr_losses_periods()
+#' decompose_terr_losses_periods(example = TRUE)
 decompose_terr_losses_periods <- function(
   n_prov_destiny = NULL,
-  raw = NULL
+  raw = NULL,
+  example = FALSE
 ) {
+  if (example) {
+    return(.example_decomp_terr_periods())
+  }
   if (is.null(n_prov_destiny)) {
     n_prov_destiny <- create_n_prov_destiny()
   }
@@ -539,6 +578,8 @@ decompose_terr_losses_periods <- function(
 #' @param raw Named list overriding any of the raw inputs (`npp_ygpit`,
 #'   `codes_coefs`, `intake_ygiac`, `n_excretion_ygs`, `stock_prod_ygps`,
 #'   `livestock_units`). Missing elements are loaded automatically.
+#' @param example If `TRUE`, return a small hardcoded output without
+#'   downloading remote data. Default is `FALSE`.
 #'
 #' @return A named list with tibbles `cropland_province`,
 #'   `cropland_destiny`, and `livestock_species`, each with columns `year`
@@ -546,11 +587,15 @@ decompose_terr_losses_periods <- function(
 #' @export
 #'
 #' @examples
-#' # decompose_specialization_cov()
+#' decompose_specialization_cov(example = TRUE)
 decompose_specialization_cov <- function(
   n_prov_destiny = NULL,
-  raw = NULL
+  raw = NULL,
+  example = FALSE
 ) {
+  if (example) {
+    return(.example_decomp_spec_cov())
+  }
   if (is.null(n_prov_destiny)) {
     n_prov_destiny <- create_n_prov_destiny()
   }
@@ -627,6 +672,8 @@ decompose_specialization_cov <- function(
 #'
 #' @param n_prov_destiny Nitrogen flows tibble from
 #'   [create_n_prov_destiny()]. If `NULL`, loaded automatically.
+#' @param example If `TRUE`, return a small hardcoded output without
+#'   downloading remote data. Default is `FALSE`.
 #'
 #' @return A named list with tibbles `by_province` (columns `year`,
 #'   `province_name`, `self_sufficiency`, `recycling_ratio`) and `national`
@@ -635,8 +682,14 @@ decompose_specialization_cov <- function(
 #' @export
 #'
 #' @examples
-#' # decompose_crop_livestock_conn()
-decompose_crop_livestock_conn <- function(n_prov_destiny = NULL) {
+#' decompose_crop_livestock_conn(example = TRUE)
+decompose_crop_livestock_conn <- function(
+  n_prov_destiny = NULL,
+  example = FALSE
+) {
+  if (example) {
+    return(.example_decomp_cl_conn())
+  }
   if (is.null(n_prov_destiny)) {
     n_prov_destiny <- create_n_prov_destiny()
   }
@@ -676,6 +729,8 @@ decompose_crop_livestock_conn <- function(n_prov_destiny = NULL) {
 #'
 #' @param n_nat_destiny National nitrogen flows tibble from
 #'   [create_n_nat_destiny()]. If `NULL`, computed automatically (slow).
+#' @param example If `TRUE`, return a small hardcoded output without
+#'   downloading remote data. Default is `FALSE`.
 #'
 #' @return A tibble with columns `year`, `destiny_grp` (one of
 #'   `"domestic_food"`, `"feed"`, `"exported"`, `"non_food"`),
@@ -684,8 +739,11 @@ decompose_crop_livestock_conn <- function(n_prov_destiny = NULL) {
 #' @export
 #'
 #' @examples
-#' # decompose_destiny_mix()
-decompose_destiny_mix <- function(n_nat_destiny = NULL) {
+#' decompose_destiny_mix(example = TRUE)
+decompose_destiny_mix <- function(n_nat_destiny = NULL, example = FALSE) {
+  if (example) {
+    return(.example_decomp_destiny())
+  }
   if (is.null(n_nat_destiny)) {
     n_nat_destiny <- create_n_nat_destiny()
   }
@@ -1612,7 +1670,18 @@ plot_compart_factor_roll_panel <- function(
 #' @export
 #'
 #' @examples
-#' # plot_compart_factor_periods()
+#' # Each argument is a by-period calculate_lmdi() table, as returned by
+#' # decompose_cropland_surplus(by_period = TRUE).
+#' lmdi <- tibble::tribble(
+#'   ~period, ~period_years, ~factor_label, ~component_type, ~additive,
+#'   "1865-1925", 60, "Size", "factor", 5400,
+#'   "1865-1925", 60, "Intensity", "factor", 3600,
+#'   "1865-1925", 60, "Inefficiency", "factor", -1200,
+#'   "1925-1965", 40, "Size", "factor", 4000,
+#'   "1925-1965", 40, "Intensity", "factor", 9200,
+#'   "1925-1965", 40, "Inefficiency", "factor", 2800
+#' )
+#' panel <- plot_compart_factor_periods(lmdi, lmdi, lmdi, lmdi)
 plot_compart_factor_periods <- function(
   cropland = NULL,
   semi_natural = NULL,

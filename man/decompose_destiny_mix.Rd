@@ -4,11 +4,14 @@
 \alias{decompose_destiny_mix}
 \title{Compute the national cropland destiny mix over time}
 \usage{
-decompose_destiny_mix(n_nat_destiny = NULL)
+decompose_destiny_mix(n_nat_destiny = NULL, example = FALSE)
 }
 \arguments{
 \item{n_nat_destiny}{National nitrogen flows tibble from
 \code{\link[=create_n_nat_destiny]{create_n_nat_destiny()}}. If \code{NULL}, computed automatically (slow).}
+
+\item{example}{If \code{TRUE}, return a small hardcoded output without
+downloading remote data. Default is \code{FALSE}.}
 }
 \value{
 A tibble with columns \code{year}, \code{destiny_grp} (one of
@@ -34,5 +37,5 @@ show the local-food -> feed + export transition directly, since
 \code{\link[=decompose_cropland_surplus]{decompose_cropland_surplus()}} no longer carries a destiny factor.
 }
 \examples{
-# decompose_destiny_mix()
+decompose_destiny_mix(example = TRUE)
 }

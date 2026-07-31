@@ -4,11 +4,14 @@
 \alias{create_finn_indicator}
 \title{Calculate Finn Cycling Index for each province and year}
 \usage{
-create_finn_indicator(n_prov_destiny = NULL)
+create_finn_indicator(n_prov_destiny = NULL, example = FALSE)
 }
 \arguments{
 \item{n_prov_destiny}{Nitrogen flows tibble from \code{\link[=create_n_prov_destiny]{create_n_prov_destiny()}}.
 If \code{NULL}, loaded automatically.}
+
+\item{example}{If \code{TRUE}, return a small hardcoded output without
+downloading remote data. Default is \code{FALSE}.}
 }
 \value{
 A tibble with columns \code{year}, \code{province_name}, and \code{finn_index}.
@@ -21,5 +24,5 @@ through internal compartments (Cropland, semi-natural agroecosystems,
 Livestock, and People).
 }
 \examples{
-# create_finn_indicator()
+create_finn_indicator(example = TRUE)
 }

@@ -9,7 +9,8 @@ decompose_cropland_surplus(
   n_prov_destiny = NULL,
   npp_ygpit = NULL,
   codes_coefs = NULL,
-  by_period = FALSE
+  by_period = FALSE,
+  example = FALSE
 )
 }
 \arguments{
@@ -28,6 +29,9 @@ one — 1860-1870 -> 1920-1930 -> 1960-1970 -> 2010-2020 — plus one
 extra transition spanning the full analysis window, 1860-1870
 straight to 2010-2020 (the total change) — instead of chaining year
 on year.}
+
+\item{example}{If \code{TRUE}, return a small hardcoded output without
+downloading remote data. Default is \code{FALSE}.}
 }
 \value{
 A tibble from \code{\link[=calculate_lmdi]{calculate_lmdi()}} with columns \code{period},
@@ -55,5 +59,5 @@ full province x destiny detail for its \code{cropland_province} and
 \code{cropland_destiny} series.
 }
 \examples{
-# decompose_cropland_surplus()
+decompose_cropland_surplus(example = TRUE)
 }

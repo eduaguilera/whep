@@ -11,7 +11,8 @@ decompose_manure_losses(
   n_excretion_ygs = NULL,
   stock_prod_ygps = NULL,
   livestock_units = NULL,
-  by_period = FALSE
+  by_period = FALSE,
+  example = FALSE
 )
 }
 \arguments{
@@ -36,6 +37,9 @@ one — 1860-1870 -> 1920-1930 -> 1960-1970 -> 2010-2020 — plus one
 extra transition spanning the full analysis window, 1860-1870
 straight to 2010-2020 (the total change) — instead of chaining year
 on year.}
+
+\item{example}{If \code{TRUE}, return a small hardcoded output without
+downloading remote data. Default is \code{FALSE}.}
 }
 \value{
 A tibble from \code{\link[=calculate_lmdi]{calculate_lmdi()}} with columns \code{period},
@@ -65,5 +69,5 @@ retaining which species it came from, so the management-loss fraction
 has always been computed nationally, not per species.
 }
 \examples{
-# decompose_manure_losses()
+decompose_manure_losses(example = TRUE)
 }

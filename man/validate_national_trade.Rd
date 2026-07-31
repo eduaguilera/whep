@@ -4,11 +4,14 @@
 \alias{validate_national_trade}
 \title{Validate national net trade balance}
 \usage{
-validate_national_trade(n_prov_destiny = NULL)
+validate_national_trade(n_prov_destiny = NULL, example = FALSE)
 }
 \arguments{
 \item{n_prov_destiny}{Optional pre-computed output from
 \code{create_n_prov_destiny()}. If \code{NULL}, calls that function internally.}
+
+\item{example}{If \code{TRUE}, return a small hardcoded output without
+downloading remote data. Default is \code{FALSE}.}
 }
 \value{
 A tibble with columns \code{year}, \code{item}, \code{net_prov}, \code{net_fao}, and
@@ -20,4 +23,7 @@ trade computed bottom-up (summing provincial net balances per item) against
 official FAOSTAT figures. Because internal inter-province flows cancel out
 pairwise, the sum of provincial net balances equals Spain's true
 international net trade.
+}
+\examples{
+validate_national_trade(example = TRUE)
 }
