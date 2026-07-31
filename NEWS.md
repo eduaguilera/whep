@@ -276,6 +276,13 @@
   `live_anim_code` is supplied as an integer.
 * Fix `build_io_model()` not passing the now-required `feed_mode` argument to
   the feed-redistribution step.
+* `consolidate_sources()` gains two opt-in `tie_break` options for panels whose
+  sources report exact zeros or several quality variants of one cell.
+  `coverage = "positive"` counts the coverage tie-break over strictly positive
+  values instead of non-missing ones, so a zero-padded series no longer wins on
+  inflated coverage; `quality_variants = TRUE` collapses a source's several
+  `quality_col` variants of a cell to its best-ranked one instead of aborting.
+  Both default to the previous behaviour (#139).
 
 # whep 0.3.0
 

@@ -378,10 +378,13 @@ reference:
 - title: Gap filling functions
   desc: >
     Functions to fill gaps (NA values) in time-dependent variables using different methods.
+    `interp_vec()` is the vector-level interpolation primitive behind
+    `fill_linear(log_space = TRUE)`, for callers working with plain vectors.
   contents:
   - fill_linear
   - fill_sum
   - fill_proxy_growth
+  - interp_vec
 
 - title: Multi-source consolidation
   desc: >
