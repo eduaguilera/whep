@@ -36,7 +36,11 @@
 #'   are broken by broader within-series coverage (the count of cells the source
 #'   reports across the `.by` group) when `tie_break$coverage`, then by
 #'   `tie_break$quality_col` ordered per `tie_break$quality_levels`, then by
-#'   ascending source name (reported when `verbose`).
+#'   ascending source name (reported when `verbose`). Coverage counts the cells
+#'   where `value_col` is non-missing, or only the strictly positive ones under
+#'   `tie_break$coverage = "positive"`, for panels where an exact zero reads as
+#'   "not reported" as often as "measured zero" and would otherwise inflate the
+#'   coverage of a mostly-zero series.
 #'
 #'   4. **Continuity override.** When enabled, an isolated single-period winner
 #'   flip is reverted: if the immediately preceding and following periods share
@@ -55,12 +59,17 @@
 #'   cannot arbitrate cells whose sources report different measures.
 #'
 #'   The input must hold at most one row per source per cell; pre-aggregate any
-#'   sub-detail rows first (the function aborts on duplicates rather than sum
-#'   silently).
+#'   sub-detail rows first (by default the function aborts on duplicates rather
+#'   than sum silently). Set `tie_break$quality_variants` when a source
+#'   legitimately contributes several `tie_break$quality_col` variants of one
+#'   cell (an observed and an interpolated estimate, say): the variants then
+#'   collapse to the best-ranked one before any other stage, and only rows
+#'   sharing a source, a cell *and* a quality level still abort.
 #'
 #' @param data A tibble with one row per source per (`.by`, `time_col`) cell.
 #' @param value_col Unquoted name of the value column. Coverage counts the cells
-#'   where this column is non-missing.
+#'   where this column is non-missing, or only those where it is strictly
+#'   positive when `tie_break$coverage` is `"positive"`.
 #' @param source_col Unquoted name of the source-label column.
 #' @param priority Source-to-rank map, as either a named integer vector
 #'   (`c(OWID = 1L, Malanima = 4L)`) or a two-column data frame (source, rank).
@@ -86,16 +95,24 @@
 #'     to, such as `~ region == "WLD"`, evaluated on the rows that survive
 #'     the hard drop. Default: `NULL`.
 #' @param tie_break Optional named list of options breaking equal-rank ties:
-#'   * `coverage`: logical, break ties by broader within-series coverage.
-#'     Default: `TRUE`.
+#'   * `coverage`: break ties by broader within-series coverage. `TRUE`
+#'     (default), or equivalently `"nonmissing"`, counts the cells where
+#'     `value_col` is non-missing; `"positive"` counts only the cells where it
+#'     is strictly positive (`value_col` must then be numeric); `FALSE`
+#'     disables the coverage tie-break.
 #'   * `quality_col`: string naming a quality column used as a tie-break
 #'     after coverage. Default: `NULL`.
 #'   * `quality_levels`: character vector ordering `quality_col` values best
 #'     first (unlisted values rank last). Required when `quality_col` is set.
+#'   * `quality_variants`: logical. When `TRUE`, a source contributing several
+#'     `quality_col` variants of one cell keeps its best-ranked variant instead
+#'     of aborting; rows sharing source, cell and quality level still abort, as
+#'     do variants whose best rank is not unique. Requires `quality_col`.
+#'     Default: `FALSE`.
 #' @param continuity_override Logical. Revert isolated single-period winner
 #'   flips. Default: `TRUE`.
-#' @param verbose Logical. Report the drop count, name-order ties, and
-#'   continuity reversions. Default: `TRUE`.
+#' @param verbose Logical. Report the drop count, any resolved quality variants,
+#'   name-order ties, and continuity reversions. Default: `TRUE`.
 #'
 #' @return
 #'   A tibble with the winning row per (`.by`, `time_col`) cell, the original
@@ -160,7 +177,7 @@ consolidate_sources <- function(
   if (nrow(work) == 0L) {
     return(.cs_empty_result(data))
   }
-  .cs_assert_unique(work, c(cell_keys, cols$source))
+  work <- .cs_resolve_variants(work, cell_keys, cols, tie_break, verbose)
 
   work <- .cs_add_effective_rank(work, measure)
   work <- .cs_add_tiebreaks(work, cols, tie_break)
@@ -180,8 +197,22 @@ consolidate_sources <- function(
 }
 
 .cs_tie_break_opts <- function(tie_break) {
-  defaults <- list(coverage = TRUE, quality_col = NULL, quality_levels = NULL)
+  defaults <- list(
+    coverage = TRUE,
+    quality_col = NULL,
+    quality_levels = NULL,
+    quality_variants = FALSE
+  )
   .cs_merge_opts(tie_break, defaults, "tie_break")
+}
+
+# "off" | "nonmissing" | "positive". `TRUE`/`FALSE` are the historical spellings
+# of "nonmissing"/"off" and stay accepted.
+.cs_coverage_mode <- function(coverage) {
+  if (rlang::is_bool(coverage)) {
+    return(if (coverage) "nonmissing" else "off")
+  }
+  coverage
 }
 
 .cs_merge_opts <- function(opts, defaults, arg_name) {
@@ -212,11 +243,7 @@ consolidate_sources <- function(
   if (length(missing) > 0L) {
     cli::cli_abort("Column{?s} not found in `data`: {.val {missing}}.")
   }
-  if (!is.null(tie_break$quality_col) && is.null(tie_break$quality_levels)) {
-    cli::cli_abort(
-      "`tie_break$quality_levels` is required when `tie_break$quality_col` is set."
-    )
-  }
+  .cs_check_tie_break(data, cols, tie_break)
   .cs_check_measure_basis(data, measure$basis, cols$source)
   reserved <- c("n_sources", "source_rank", "effective_rank", "measure_demoted")
   clash <- intersect(reserved, names(data))
@@ -224,6 +251,44 @@ consolidate_sources <- function(
     cli::cli_abort(
       "`data` already has reserved output column{?s}: {.val {clash}}."
     )
+  }
+  invisible(NULL)
+}
+
+.cs_check_tie_break <- function(data, cols, tie_break) {
+  if (!is.null(tie_break$quality_col) && is.null(tie_break$quality_levels)) {
+    cli::cli_abort(
+      "`tie_break$quality_levels` is required when `tie_break$quality_col` is set."
+    )
+  }
+  .cs_check_coverage_opt(tie_break$coverage, data, cols$value)
+  if (!rlang::is_bool(tie_break$quality_variants)) {
+    cli::cli_abort("`tie_break$quality_variants` must be `TRUE` or `FALSE`.")
+  }
+  if (tie_break$quality_variants && is.null(tie_break$quality_col)) {
+    cli::cli_abort(c(
+      "`tie_break$quality_variants` requires `tie_break$quality_col`.",
+      "i" = "Variants are resolved by `tie_break$quality_levels` order."
+    ))
+  }
+  invisible(NULL)
+}
+
+.cs_check_coverage_opt <- function(coverage, data, value_name) {
+  known <- c("nonmissing", "positive")
+  ok <- rlang::is_bool(coverage) ||
+    (rlang::is_string(coverage) && coverage %in% known)
+  if (!ok) {
+    cli::cli_abort(
+      "`tie_break$coverage` must be {.code TRUE}, {.code FALSE}, {.val nonmissing} or {.val positive}."
+    )
+  }
+  positive <- identical(.cs_coverage_mode(coverage), "positive")
+  if (positive && !is.numeric(data[[value_name]])) {
+    cli::cli_abort(c(
+      "`tie_break$coverage = \"positive\"` needs a numeric value column.",
+      "i" = "{.val {value_name}} is {.cls {class(data[[value_name]])}}."
+    ))
   }
   invisible(NULL)
 }
@@ -247,14 +312,21 @@ consolidate_sources <- function(
   invisible(NULL)
 }
 
-.cs_assert_unique <- function(work, keys) {
-  if (anyDuplicated(work[keys]) > 0L) {
+.cs_assert_unique <- function(work, keys, quality_col = NULL) {
+  if (anyDuplicated(work[keys]) == 0L) {
+    return(invisible(NULL))
+  }
+  if (is.null(quality_col)) {
     cli::cli_abort(c(
       "Multiple rows share the same source and cell.",
-      "i" = "Pre-aggregate `data` to one row per source per cell first."
+      "i" = "Pre-aggregate `data` to one row per source per cell first.",
+      "i" = "Set `tie_break$quality_variants = TRUE` to keep a source's best quality variant instead."
     ))
   }
-  invisible(NULL)
+  cli::cli_abort(c(
+    "Multiple rows share the same source, cell and {.val {quality_col}} value.",
+    "i" = "Pre-aggregate `data` to one row per source per cell and quality level first."
+  ))
 }
 
 # --- Priority and hard drop ---------------------------------------------------
@@ -299,6 +371,64 @@ consolidate_sources <- function(
   out$effective_rank <- integer(0)
   out$measure_demoted <- logical(0)
   out
+}
+
+# --- Per-source quality variants ----------------------------------------------
+
+# Duplicate (cell, source) rows abort by default: silently summing them would
+# hide a double-counted series. When `tie_break$quality_variants` is on they are
+# read as one source's quality variants of the same cell (an observed and an
+# interpolated estimate, say) and collapse to the best-ranked variant. This runs
+# before coverage and rank, so every later stage still sees one row per source
+# per cell. It only ever drops rows, never reorders them.
+.cs_resolve_variants <- function(work, cell_keys, cols, tie_break, verbose) {
+  keys <- c(cell_keys, cols$source)
+  if (!tie_break$quality_variants) {
+    .cs_assert_unique(work, keys)
+    return(work)
+  }
+  quality_col <- tie_break$quality_col
+  .cs_assert_unique(work, c(keys, quality_col), quality_col)
+  best <- .cs_best_variant_mask(
+    work[keys],
+    .cs_quality_rank(work[[quality_col]], tie_break$quality_levels)
+  )
+  .cs_check_variant_tie(work[best, keys, drop = FALSE])
+  .cs_log_variants(sum(!best), verbose)
+  work[best, , drop = FALSE]
+}
+
+.cs_best_variant_mask <- function(key_df, rank) {
+  key_names <- names(key_df)
+  key_df$.variant_rank <- rank
+  key_df |>
+    dplyr::mutate(
+      .best_variant = .variant_rank == min(.variant_rank),
+      .by = dplyr::all_of(key_names)
+    ) |>
+    dplyr::pull(.best_variant)
+}
+
+# Every quality value outside `quality_levels` ranks last, so two unlisted
+# variants of one cell tie for best. Resolving that would need a tie-break the
+# caller never stated, so it aborts instead.
+.cs_check_variant_tie <- function(best_keys) {
+  if (anyDuplicated(best_keys) > 0L) {
+    cli::cli_abort(c(
+      "Per-source cell variants tie on best quality rank.",
+      "i" = "Values outside `tie_break$quality_levels` all rank last; list every quality level to break the tie."
+    ))
+  }
+  invisible(NULL)
+}
+
+.cs_log_variants <- function(n_dropped, verbose) {
+  if (verbose && n_dropped > 0L) {
+    cli::cli_alert_info(
+      "Resolved {n_dropped} per-source cell variant{?s} to the best quality level."
+    )
+  }
+  invisible(NULL)
 }
 
 # --- Effective rank (measure demotion) ----------------------------------------
@@ -348,9 +478,10 @@ consolidate_sources <- function(
 
 .cs_add_tiebreaks <- function(work, cols, tie_break) {
   cell_keys <- c(cols$by, cols$time)
+  mode <- .cs_coverage_mode(tie_break$coverage)
   work$.value_na <- is.na(work[[cols$value]])
-  work <- .cs_add_coverage(work, cols$by, cols$source, cols$value, cols$time)
-  work$.coverage_ord <- if (tie_break$coverage) work$.coverage else 0L
+  work <- .cs_add_coverage(work, cols, mode)
+  work$.coverage_ord <- if (mode == "off") 0L else work$.coverage
   work$.quality_rank <- if (is.null(tie_break$quality_col)) {
     0L
   } else {
@@ -362,9 +493,10 @@ consolidate_sources <- function(
   .cs_add_n_sources(work, cell_keys, cols$source)
 }
 
-.cs_add_coverage <- function(work, by, source_name, value_name, time_name) {
-  grp <- c(by, source_name)
-  cov <- work[!is.na(work[[value_name]]), c(grp, time_name), drop = FALSE]
+.cs_add_coverage <- function(work, cols, mode) {
+  grp <- c(cols$by, cols$source)
+  counted <- .cs_coverage_keep(work[[cols$value]], mode)
+  cov <- work[counted, c(grp, cols$time), drop = FALSE]
   cov <- dplyr::distinct(cov)
   cov <- dplyr::count(
     cov,
@@ -374,6 +506,16 @@ consolidate_sources <- function(
   out <- dplyr::left_join(work, cov, by = grp)
   out$.coverage <- dplyr::coalesce(out$.coverage, 0L)
   out
+}
+
+# Which cells count towards a source's coverage. "positive" exists for panels
+# where an exact zero reads as "not reported" as often as "measured zero", so
+# counting it would inflate the coverage of a series that is mostly zeros.
+.cs_coverage_keep <- function(x, mode) {
+  if (identical(mode, "positive")) {
+    return(!is.na(x) & x > 0)
+  }
+  !is.na(x)
 }
 
 .cs_add_n_sources <- function(work, cell_keys, source_name) {
