@@ -1698,10 +1698,13 @@ build_processing_coefs <- function(
   # counts in place of quantities. The crash was the good case, and it is not
   # the one that should be relied upon.
   #
-  # The cause is fixed in `.aggregate_to_polities()`, which now groups by the
-  # reporting bucket rather than by bucket-plus-name. This guard is the other
-  # half: any future duplicate names itself here instead of being averaged into
-  # the data as a count.
+  # THE CAUSE IS NOT FIXED, and an earlier version of this comment claimed it was --
+  # that `.aggregate_to_polities()` groups by the reporting bucket rather than by
+  # bucket-plus-name. It groups by bucket-plus-name, correctly: the name distinguishes
+  # territory-periods, and collapsing them double-counts, measured at 266x on `food`
+  # (whep#418). So the duplicates remain -- 31,642 (key, source) combinations at full
+  # range, and the same on `main`, where they were silent. This guard reports them
+  # rather than letting `length()` answer for them unremarked.
   dup_keys <- src_pivot[,
     .N,
     by = c(key_cols, "source")
