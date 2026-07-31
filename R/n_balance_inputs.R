@@ -88,10 +88,11 @@
 #'     `grassland_ha` for the grassland side). Supply it to override that
 #'     derivation with a better land surface. Cropland rows identify crop CBS
 #'     items; all pasture/rangeland rows use CBS 3000.
-#'   * `grassland_source`, `grassland_ha`, `states`: forwarded to
-#'     [build_ag_land_support()] when the support is derived.
-#'     `grassland_source` selects its `grassland` argument (`"luh2"` default,
-#'     or `"none"` for cropland-only support).
+#'   * `grassland_source`, `gridded_pasture`, `grassland_ha`, `states`:
+#'     forwarded to [build_ag_land_support()] when the support is derived.
+#'     `grassland_source` selects its `grassland` argument
+#'     (`"gridded_pasture"` default, `"luh2"`, or `"none"` for cropland-only
+#'     support).
 #'   * `urban_population`, `cropland_ha`, `cell_polity`: [build_urban_n()]'s
 #'     inputs.
 #'   * `carbon_balance`: [build_carbon_balance()]'s `"grid"`-resolution
@@ -237,11 +238,12 @@ build_n_inputs <- function(
   }
   build_ag_land_support(
     years = years,
-    grassland = data$grassland_source %||% "luh2",
+    grassland = data$grassland_source %||% "gridded_pasture",
     data = list(
       cell_polity = data$cell_polity,
       type_cropland = data$type_cropland,
       crop_patterns = data$crop_patterns,
+      gridded_pasture = data$gridded_pasture,
       states = data$states,
       grassland_ha = data$grassland_ha
     )

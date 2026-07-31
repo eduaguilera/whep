@@ -71,6 +71,26 @@
   )
 }
 
+.alsf_gridded_pasture <- function() {
+  tibble::tribble(
+    ~lon,
+    ~lat,
+    ~year,
+    ~pasture_ha,
+    ~rangeland_ha,
+    0.25,
+    50.25,
+    2010L,
+    900,
+    100,
+    0.75,
+    50.25,
+    2010L,
+    400,
+    600
+  )
+}
+
 .alsf_states <- function() {
   tibble::tribble(
     ~lon,
@@ -106,6 +126,7 @@
     cell_polity = .alsf_cell_polity(),
     type_cropland = .alsf_type_cropland(),
     crop_patterns = .alsf_crop_patterns(),
+    gridded_pasture = .alsf_gridded_pasture(),
     states = .alsf_states()
   )
 }
@@ -160,11 +181,24 @@ testthat::test_that("a border cell is split by polity_frac", {
 
 testthat::test_that("grassland support is all carried on CBS 3000", {
   out <- whep::build_ag_land_support(data = .alsf_data())
-  grass <- dplyr::filter(out, .data$land_use == "grassland")
-  testthat::expect_true(nrow(grass) > 0)
+  grass <- dplyr::filter(out, .data$land_use == "grassland") |>
+    dplyr::arrange(.data$lon, .data$area_code)
   testthat::expect_setequal(grass$item_cbs_code, 3000L)
-  # 0.01 of a ~197655 ha cell at 50.25 degrees, plus 0.02 of the border cell
-  # split 60/40. The absolute areas follow the spherical cell-area formula.
+  # pasture_ha + rangeland_ha, split by polity_frac: 1000 whole, then 1000
+  # shared 60/40. Pasture and rangeland are pooled, no class inferred.
+  testthat::expect_equal(grass$area_ha, c(1000, 600, 400))
+})
+
+testthat::test_that("the luh2 grassland source stays selectable", {
+  out <- whep::build_ag_land_support(
+    grassland = "luh2",
+    data = .alsf_data()
+  )
+  grass <- dplyr::filter(out, .data$land_use == "grassland")
+  testthat::expect_setequal(grass$item_cbs_code, 3000L)
+  # 0.01 of a cell at 50.25 degrees, plus 0.02 of the border cell split 60/40.
+  # The absolute areas follow the spherical cell-area formula, not the
+  # gridded_pasture hectares the default source reads.
   testthat::expect_equal(
     sum(grass$area_ha),
     0.03 * whep:::.luh2_cell_area_ha(50.25),
@@ -189,14 +223,14 @@ testthat::test_that("years filter the support without touching composition", {
       type_ha = 800
     )
   )
-  data$states <- dplyr::bind_rows(
-    data$states,
+  data$gridded_pasture <- dplyr::bind_rows(
+    data$gridded_pasture,
     tibble::tibble(
       lon = 0.25,
       lat = 50.25,
       year = 2011L,
-      land_use = "pastr",
-      fraction = 0.01
+      pasture_ha = 700,
+      rangeland_ha = 0
     )
   )
   out <- whep::build_ag_land_support(years = 2011L, data = data)

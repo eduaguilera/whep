@@ -49,10 +49,11 @@ absent it is derived natively by \code{\link[=build_ag_land_support]{build_ag_la
 \code{grassland_ha} for the grassland side). Supply it to override that
 derivation with a better land surface. Cropland rows identify crop CBS
 items; all pasture/rangeland rows use CBS 3000.
-\item \code{grassland_source}, \code{grassland_ha}, \code{states}: forwarded to
-\code{\link[=build_ag_land_support]{build_ag_land_support()}} when the support is derived.
-\code{grassland_source} selects its \code{grassland} argument (\code{"luh2"} default,
-or \code{"none"} for cropland-only support).
+\item \code{grassland_source}, \code{gridded_pasture}, \code{grassland_ha}, \code{states}:
+forwarded to \code{\link[=build_ag_land_support]{build_ag_land_support()}} when the support is derived.
+\code{grassland_source} selects its \code{grassland} argument
+(\code{"gridded_pasture"} default, \code{"luh2"}, or \code{"none"} for cropland-only
+support).
 \item \code{urban_population}, \code{cropland_ha}, \code{cell_polity}: \code{\link[=build_urban_n]{build_urban_n()}}'s
 inputs.
 \item \code{carbon_balance}: \code{\link[=build_carbon_balance]{build_carbon_balance()}}'s \code{"grid"}-resolution

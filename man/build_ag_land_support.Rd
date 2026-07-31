@@ -6,7 +6,7 @@
 \usage{
 build_ag_land_support(
   years = NULL,
-  grassland = c("luh2", "none"),
+  grassland = c("gridded_pasture", "luh2", "none"),
   data = list(),
   example = FALSE
 )
@@ -15,17 +15,21 @@ build_ag_land_support(
 \item{years}{Optional integer vector of calendar years to keep. \code{NULL}
 (default) keeps every year the cropland surface covers.}
 
-\item{grassland}{Grassland-support source, \code{"luh2"} (default,
-\code{\link[=read_luh2_landuse]{read_luh2_landuse()}}'s gridded grassland class) or \code{"none"} (cropland-only
-support, an explicit choice rather than a silent gap).}
+\item{grassland}{Grassland-support source. \code{"gridded_pasture"} (default) is
+the prepared per-cell \code{pasture_ha} + \code{rangeland_ha} surface, which shares
+the cropland surface's grid and 1851-2023 span. \code{"luh2"} reads the same
+LUH2 classes through \code{\link[=read_luh2_landuse]{read_luh2_landuse()}} and agrees with it where they
+overlap, but stops at 2015. \code{"none"} returns cropland-only support, an
+explicit choice rather than a silent gap.}
 
 \item{data}{Optional named list of pre-loaded inputs to avoid remote reads:
 \code{cell_polity} (the \code{\link[=build_cell_polity]{build_cell_polity()}} crosswalk), \code{type_cropland}
 (\code{lon}, \code{lat}, \code{year}, \code{luh2_type}, \code{type_ha}), \code{crop_patterns} (\code{lon},
-\code{lat}, \code{item_prod_code}, \code{harvest_fraction}), \code{states} (\code{\link[=read_luh2_landuse]{read_luh2_landuse()}}'s
-raw LUH2 states) and \code{grassland_ha} (\code{lon}, \code{lat}, \code{area_code}, \code{year},
-\code{area_ha}, bypassing the LUH2 read entirely). Each falls back to its
-reader when absent.}
+\code{lat}, \code{item_prod_code}, \code{harvest_fraction}), \code{gridded_pasture} (\code{lon},
+\code{lat}, \code{year}, \code{pasture_ha}, \code{rangeland_ha}), \code{states}
+(\code{\link[=read_luh2_landuse]{read_luh2_landuse()}}'s raw LUH2 states) and \code{grassland_ha} (\code{lon},
+\code{lat}, \code{area_code}, \code{year}, \code{area_ha}, bypassing the grassland read
+entirely). Each falls back to its reader when absent.}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading remote
 data. Defaults to \code{FALSE}.}
@@ -46,9 +50,10 @@ from \code{\link[=read_luh2_landuse]{read_luh2_landuse()}}'s gridded grassland c
 CBS 3000, with no intensive/extensive split inferred. Both sides are split
 across border polities by the same \code{cell_polity} crosswalk.
 
-LUH2 v2h ends in 2015 while the cropland surface extends further. Years with
-cropland but no grassland coverage keep their cropland support and raise a
-warning naming the affected years; supply \code{data$grassland_ha} to cover them.
+Years with cropland but no grassland coverage (a grassland source that runs
+short of the cropland surface, as \code{"luh2"} does after 2015) keep their
+cropland support and raise a warning naming the affected years; supply
+\code{data$grassland_ha} to cover them.
 }
 \examples{
 build_ag_land_support(example = TRUE)

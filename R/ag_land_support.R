@@ -16,18 +16,22 @@
 #   split among its crops and NEVER inflated: harvest_fraction is a harvested
 #   basis and can sum above 1 under multicropping, which would over-credit
 #   deposition if used as an area directly.
-# - GRASSLAND: read_luh2_landuse()'s gridded "grassland" class (LUH2 v2h pastr +
-#   range), all of it carried on CBS 3000. No intensive/extensive split is
-#   inferred, matching the decision recorded in R/n_balance_inputs.R.
+# - GRASSLAND: gridded_pasture.parquet's pasture_ha + rangeland_ha, the same
+#   contract spatialize_livestock() already consumes, all carried on CBS 3000.
+#   No intensive/extensive split is inferred, matching the decision recorded in
+#   R/n_balance_inputs.R. read_luh2_landuse()'s grassland class is the
+#   alternative: verified to agree to the hectare for 2010 (3208.5 Mha both
+#   ways), but it stops at 2015 where gridded_pasture runs to 2023 alongside the
+#   cropland surface, so it is selectable rather than the default.
 #
 # Both sides are split across border polities by the SAME cell_polity crosswalk
 # (read_luh2_landuse() accepts polity_frac through .normalize_country_grid()),
 # so a cell's cropland and grassland cannot land in different polities.
 #
-# LUH2 v2h ends in 2015 while type_cropland runs to 2023, so a full-period run
-# has years with cropland support but no grassland support. Those years are
-# warned about and carry cropland-only support rather than being dropped or
-# back-filled with a fabricated grassland area.
+# A grassland source that runs short of the cropland surface leaves years with
+# cropland support and no grassland support. Those years are warned about and
+# carry cropland-only support rather than being dropped or back-filled with a
+# fabricated grassland area.
 
 #' Build the gridded agricultural land support.
 #'
@@ -43,22 +47,27 @@
 #' CBS 3000, with no intensive/extensive split inferred. Both sides are split
 #' across border polities by the same `cell_polity` crosswalk.
 #'
-#' LUH2 v2h ends in 2015 while the cropland surface extends further. Years with
-#' cropland but no grassland coverage keep their cropland support and raise a
-#' warning naming the affected years; supply `data$grassland_ha` to cover them.
+#' Years with cropland but no grassland coverage (a grassland source that runs
+#' short of the cropland surface, as `"luh2"` does after 2015) keep their
+#' cropland support and raise a warning naming the affected years; supply
+#' `data$grassland_ha` to cover them.
 #'
 #' @param years Optional integer vector of calendar years to keep. `NULL`
 #'   (default) keeps every year the cropland surface covers.
-#' @param grassland Grassland-support source, `"luh2"` (default,
-#'   [read_luh2_landuse()]'s gridded grassland class) or `"none"` (cropland-only
-#'   support, an explicit choice rather than a silent gap).
+#' @param grassland Grassland-support source. `"gridded_pasture"` (default) is
+#'   the prepared per-cell `pasture_ha` + `rangeland_ha` surface, which shares
+#'   the cropland surface's grid and 1851-2023 span. `"luh2"` reads the same
+#'   LUH2 classes through [read_luh2_landuse()] and agrees with it where they
+#'   overlap, but stops at 2015. `"none"` returns cropland-only support, an
+#'   explicit choice rather than a silent gap.
 #' @param data Optional named list of pre-loaded inputs to avoid remote reads:
 #'   `cell_polity` (the [build_cell_polity()] crosswalk), `type_cropland`
 #'   (`lon`, `lat`, `year`, `luh2_type`, `type_ha`), `crop_patterns` (`lon`,
-#'   `lat`, `item_prod_code`, `harvest_fraction`), `states` ([read_luh2_landuse()]'s
-#'   raw LUH2 states) and `grassland_ha` (`lon`, `lat`, `area_code`, `year`,
-#'   `area_ha`, bypassing the LUH2 read entirely). Each falls back to its
-#'   reader when absent.
+#'   `lat`, `item_prod_code`, `harvest_fraction`), `gridded_pasture` (`lon`,
+#'   `lat`, `year`, `pasture_ha`, `rangeland_ha`), `states`
+#'   ([read_luh2_landuse()]'s raw LUH2 states) and `grassland_ha` (`lon`,
+#'   `lat`, `area_code`, `year`, `area_ha`, bypassing the grassland read
+#'   entirely). Each falls back to its reader when absent.
 #' @param example If `TRUE`, return a small fixture instead of reading remote
 #'   data. Defaults to `FALSE`.
 #'
@@ -69,7 +78,7 @@
 #' build_ag_land_support(example = TRUE)
 build_ag_land_support <- function(
   years = NULL,
-  grassland = c("luh2", "none"),
+  grassland = c("gridded_pasture", "luh2", "none"),
   data = list(),
   example = FALSE
 ) {
@@ -218,7 +227,7 @@ build_ag_land_support <- function(
   }
   years <- sort(unique(cropland$year))
   raw <- data$grassland_ha %||%
-    .als_read_luh2_grassland(data, cell_polity, years)
+    .als_read_grassland(data, cell_polity, years, grassland)
   if (is.null(raw) || nrow(raw) == 0L) {
     return(.als_empty())
   }
@@ -244,6 +253,41 @@ build_ag_land_support <- function(
       year = .data$year,
       land_use = "grassland",
       area_ha = .data$area_ha
+    )
+}
+
+.als_read_grassland <- function(data, cell_polity, years, grassland) {
+  if (grassland == "gridded_pasture") {
+    return(.als_read_gridded_pasture(data, cell_polity, years))
+  }
+  .als_read_luh2_grassland(data, cell_polity, years)
+}
+
+# The prepared per-cell pasture + rangeland surface, the same contract
+# spatialize_livestock() already consumes. It shares the cropland surface's grid
+# and 1851-2023 span, so a full-period run needs no grassland back-fill. Border
+# cells are split by the SAME cell_polity crosswalk the cropland side uses.
+.als_read_gridded_pasture <- function(data, cell_polity, years) {
+  raw <- data$gridded_pasture %||%
+    .n_read_parquet_env("WHEP_GRIDDED_PASTURE_PATH")
+  .check_columns(
+    raw,
+    c("lon", "lat", "year", "pasture_ha", "rangeland_ha"),
+    "gridded_pasture"
+  )
+  tibble::as_tibble(raw) |>
+    dplyr::filter(.data$year %in% years) |>
+    dplyr::inner_join(
+      dplyr::select(cell_polity, "lon", "lat", "area_code", "polity_frac"),
+      by = c("lon", "lat"),
+      relationship = "many-to-many"
+    ) |>
+    dplyr::transmute(
+      lon = .data$lon,
+      lat = .data$lat,
+      area_code = .data$area_code,
+      year = .data$year,
+      area_ha = (.data$pasture_ha + .data$rangeland_ha) * .data$polity_frac
     )
 }
 
