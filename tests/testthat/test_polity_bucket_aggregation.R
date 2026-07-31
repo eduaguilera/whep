@@ -28,10 +28,11 @@
 # duplicate keys entirely, and its full-range totals match fixing the cast to within a few
 # percent (`food` 1.0003, `seed` 1.0000, rows 1.0005).
 #
-# So summing upstream is one of TWO candidate fixes for whep#425, not a mistake. This test
-# asserts what the package does today -- periods kept apart, the bucket totalled at the cast --
-# and if #425 is resolved upstream instead, THIS TEST CHANGES WITH IT. That is intended: it is
-# a pin on current behaviour, and its failure on that change is the signal, not a regression.
+# So summing upstream was one of TWO candidate fixes for whep#425, not a mistake. #425 was
+# RESOLVED on the cast side instead (whep#429), which is the equivalent of the two and touches
+# one expression rather than an aggregation grouping. This test still asserts what the package
+# does -- periods kept apart, the bucket totalled at the cast -- and that is now the shipped
+# design rather than a pin awaiting a decision.
 #
 # Isolating it takes care: `.aggregate_to_polities()` has two aggregation branches, flagged and
 # flagless, and every FAOSTAT pin carries a Flag. A probe patching only the flagless branch
@@ -41,18 +42,17 @@
 # Row counts barely moved (2.16M vs 2.81M) while values exploded, which is why 5151 passing
 # tests said nothing: no test compared a magnitude with anything.
 #
-# The downstream TRAP is real and stays guarded. `.select_best_source()` casts these rows wide
-# with no `fun.aggregate`, so data.table falls back to `length()` and values silently become
-# ROW COUNTS. Whether anyone notices is luck: counts are integer, and `FBS_Old_scaled` is
-# double only when `scale_new_old` applies, which depends on the build window — at 1990-2023
-# the build dies in `fcoalesce` with a type clash, over the full range it completes with counts
-# standing in for quantities. The crash is the good case. main has the same duplicates, so the
-# guard warns rather than aborts.
+# The downstream trap that made this delicate is now CLOSED. `.select_best_source()` used to
+# cast these rows wide with no `fun.aggregate`, so data.table fell back to `length()` and every
+# value -- not only the duplicated ones -- became a ROW COUNT: all three primary source columns
+# came back integer with maxima of 4, 4 and 1 where tonnes belong, at a cost of up to 259x on
+# `food`. whep#429 supplies `sum`, because the duplicated rows are one bucket's folded members.
 #
-# And the trap is worse than "duplicated cells become counts": the fallback applies to EVERY
-# cell, so in a real build all three primary source columns come back integer with maxima of
-# 4, 4 and 1 where tonnes belong. whep#425 measures the cost at up to 259x on `food` and
-# recommends `sum`, because these duplicated rows are one bucket's folded members.
+# What that means for THIS test: the duplicates it deliberately creates are now summed at the
+# cast rather than corrupted there, so the arithmetic downstream of the grouping is sound and
+# the grouping is the only thing under test. The warning that used to flag the corruption was
+# repurposed -- it now fires only for duplicates in a bucket that folds no other area -- and the
+# last test in this file asserts both halves of that.
 
 test_that("territory-periods sharing a bucket are kept apart, not summed", {
   cw <- as.data.frame(whep::polity_area_crosswalk)
@@ -123,10 +123,14 @@ test_that("territory-periods sharing a bucket are kept apart, not summed", {
   expect_equal(length(unique(out$area)), 2L)
 })
 
-test_that("the cast reports duplicate keys instead of silently counting them", {
-  # A warning, not an abort: these duplicates exist on main too, so aborting refuses to build
-  # a pipeline that has always had them. It must NAME what it found, or a recurrence is as
-  # hard to diagnose as this one was.
+test_that("the cast SUMS duplicate keys and stays silent when folding explains them", {
+  # REWRITTEN for whep#429. This test used to assert that the cast warned about duplicates
+  # becoming "row counts". That was the correct assertion while whep#425 was open: `dcast()`
+  # with no `fun.aggregate` fell back to `length()`. The cast now supplies `fun.aggregate` and
+  # sums them, so the old message would be a false alarm and the guard was repurposed -- it
+  # fires only for duplicates in a bucket that folds no other FAOSTAT area.
+  #
+  # 206 folds three areas (206, 276, 277), so this is the explained case: sum, no warning.
   dupe <- data.table::data.table(
     area_code = 206L,
     area = "Sudan",
@@ -140,17 +144,30 @@ test_that("the cast reports duplicate keys instead of silently counting them", {
   # `suppressWarnings()` INSIDE `withCallingHandlers()` muffles the warning before the handler
   # can see it, so the handler must do the muffling itself.
   msg <- character()
-  withCallingHandlers(
+  out <- withCallingHandlers(
     whep:::.select_best_source(dupe),
     warning = function(w) {
       msg <<- c(msg, conditionMessage(w))
       invokeRestart("muffleWarning")
     }
   )
-  expect_true(length(msg) > 0L)
-  joined <- paste(msg, collapse = " ")
-  expect_match(joined, "row counts")
-  expect_match(joined, "206")
+  expect_length(msg, 0L)
+  # 42, not 2. The row count is what the old behaviour returned here.
+  expect_equal(as.data.frame(out)$value, 42)
+
+  # The unexplained case still warns. Area 100 (India) maps one-to-one, so a duplicate there is
+  # not accounted for by folding and summing it is a guess.
+  dupe$area_code <- 100L
+  msg2 <- character()
+  withCallingHandlers(
+    whep:::.select_best_source(dupe),
+    warning = function(w) {
+      msg2 <<- c(msg2, conditionMessage(w))
+      invokeRestart("muffleWarning")
+    }
+  )
+  expect_true(length(msg2) > 0L)
+  expect_match(paste(msg2, collapse = " "), "fold no other", fixed = TRUE)
 })
 
 test_that("areas in different buckets stay separate", {
