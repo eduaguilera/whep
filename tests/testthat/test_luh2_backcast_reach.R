@@ -25,10 +25,10 @@
 # of the two, and this test is blind to exactly the areas hardest to reach.
 #
 # Measured at full range after whep#425 was fixed: `get_wide_cbs()` completes with ~2.00M rows
-# (1,999,609 twice in one session, 1,997,944 in another -- it still moves across sessions,
-# whep#420, but by 0.08% rather than the 0.148% seen on the corrupted frame), 0 NA across all
-# four polity columns, and this warning names FIVE areas in name space against the four this
-# test finds in code space -- the difference in kind described above.
+# -- 1,999,609 twice in one session and 1,997,944 in another, so it still moves across sessions
+# under whep#420, by 0.08% where the corrupted frame moved 0.148%. Zero NA across all four
+# polity columns. This warning names FIVE areas in name space against the four this test finds
+# in code space -- the difference in kind described above.
 #
 # The row count fell from ~2.766M because the fix restored quantities: counts are never zero, so
 # the `value != 0` filter had nothing to remove until then. Do not read the drop as lost data.
