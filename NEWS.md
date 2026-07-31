@@ -61,9 +61,12 @@
     as a defect. Grouping by `(bucket, polity_name)` is correct because `area` is a join
     key that four inner joins use, and because the bucket's total belongs at the cast
     in `.select_best_source()`, where the rows are unambiguously one bucket's members
-    (#425). An earlier note here said summing double-counts, measured at 266x on
-    `food`; that measurement bundled a second change which alone dropped 702,166 rows,
-    so it does not support the claim and has been withdrawn.
+    (#425). An earlier note here said summing double-counts, measured at 266x on `food`;
+    that measurement bundled a second change which alone dropped 702,166 rows, and
+    isolating the two shows summing is **not** harmful -- it removes the cast's 10,835
+    duplicate keys outright and matches the cast-side fix to within a few percent. So it
+    is a candidate fix for #425 rather than a mistake, and this release simply keeps the
+    previous behaviour pending that decision.
   - Promoting the 16 areas FABIO folds into rest-of-world that report data of
     their own to their own numeric key. Measured: `feed` 13.7x, `export` 13.2x,
     `production` 1.8x, with the entire `feed` increase landing on one area

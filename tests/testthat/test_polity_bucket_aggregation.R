@@ -18,13 +18,25 @@
 # `main` does, and the bucket's total is computed later, at the cast in `.select_best_source()`,
 # where the rows are unambiguously one bucket's members.
 #
-# What I claimed and cannot support: that summing HERE double-counts, on the strength of
-# measuring `food` inflate 266x when I tried it. That change bundled TWO things -- dropping
-# `polity_name` from the grouping AND relabelling the output with the bucket's stable
-# `area_name` -- and the relabelling alone silently dropped 702,166 rows by creating two
-# vocabularies for a join key. I never separated the effects, so the 266x cannot be attributed
-# to the summing. See whep#425, where the same rows are summed at the cast and that IS the
-# right place for it.
+# WHAT THIS TEST PINS IS THE STATUS QUO, NOT AN IDEAL, and whep#425 proposes changing it.
+#
+# I claimed that summing HERE double-counts, on the strength of measuring `food` inflate 266x
+# when I tried it. That change bundled TWO things -- dropping `polity_name` from the grouping
+# AND relabelling the output with the bucket's stable `area_name` -- and the relabelling alone
+# dropped 702,166 rows by creating two vocabularies for a join key. Isolated properly, with the
+# label vocabulary left untouched, summing here is not harmful: it removes the cast's 10,835
+# duplicate keys entirely, and its full-range totals match fixing the cast to within a few
+# percent (`food` 1.0003, `seed` 1.0000, rows 1.0005).
+#
+# So summing upstream is one of TWO candidate fixes for whep#425, not a mistake. This test
+# asserts what the package does today -- periods kept apart, the bucket totalled at the cast --
+# and if #425 is resolved upstream instead, THIS TEST CHANGES WITH IT. That is intended: it is
+# a pin on current behaviour, and its failure on that change is the signal, not a regression.
+#
+# Isolating it takes care: `.aggregate_to_polities()` has two aggregation branches, flagged and
+# flagless, and every FAOSTAT pin carries a Flag. A probe patching only the flagless branch
+# reports "no change" because it makes none -- I published that non-result once. Confirm a probe
+# ran by checking the duplicate warning disappears.
 #
 # Row counts barely moved (2.16M vs 2.81M) while values exploded, which is why 5151 passing
 # tests said nothing: no test compared a magnitude with anything.

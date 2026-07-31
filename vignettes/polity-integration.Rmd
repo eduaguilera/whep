@@ -315,7 +315,7 @@ COUNTS instead of quantities — and data.table says so itself in the warning im
 in areas 206 and 999 are affected in the shipped build, and they are affected on `main` too; the difference is that
 they were silent there. Fixing it means choosing `sum` or `first` at the cast, which changes published numbers, so
 it is whep#418 rather than a decision taken here. Two earlier attempts to fix it upstream instead — by summing the
-areas that fold into one bucket — were withdrawn, though the 266x measured for it bundled a second change that alone dropped 702,166 rows, so it does not by itself condemn summing; whep#425 sums the same rows at the cast, which is the right place.
+areas that fold into one bucket — were withdrawn, but the 266x measured for the first bundled a second change that alone dropped 702,166 rows. Isolated, summing removes the cast's 10,835 duplicate keys outright and matches the cast-side fix to within a few percent, so it is one of two candidate fixes in whep#425 rather than an error.
 
 That is the whole inventory. Earlier in this work the full-range build emitted four warnings and three of those
 were defects, since fixed:
