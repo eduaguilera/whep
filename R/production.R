@@ -86,6 +86,54 @@ get_primary_production <- function(example = FALSE) {
 #'
 #' @examples
 #' get_primary_residues(example = TRUE)
+# Say when a residue row cannot be attributed to any area, instead of emitting it silently.
+#
+# `add_area_code()` resolves this source by NAME -- it is the only builder that does -- and
+# leaves `area_code` as `NA` where no name matches. Those rows then travel all the way to the
+# output with NA polity columns, and downstream they reach `build_supply_use()`: measured at
+# full range, 160 residue rows carry no area code and exactly 160 of `build_supply_use()`'s
+# 10,118,408 rows have NA polity columns. They are the same rows.
+#
+# Nothing said so. The CBS path warns about the 24 of them that reach its own join, but this
+# builder -- the origin -- was silent, so tracing the supply-use gap took a full-range smoke run
+# instead of reading a warning. Every other unattributable-row path in this package now names
+# itself; this was the exception.
+#
+# Reports rather than drops: the rows stay in the output exactly as before, because whether an
+# unattributable residue row should be dropped is a modelling question and this is a diagnostic.
+# The remainder today is the `TAN-1922-1964` code/column disagreement that upstream baselines
+# rather than guesses at, which is why the years are named.
+.warn_residues_no_area <- function(dt) {
+  if (!"area_code" %in% names(dt)) {
+    return(dt)
+  }
+  missing <- is.na(dt$area_code)
+  if (!any(missing)) {
+    return(dt)
+  }
+  years <- sort(unique(dt$year[missing]))
+  labels <- if ("area" %in% names(dt)) {
+    sort(unique(as.character(dt$area[missing])))
+  } else {
+    character()
+  }
+  # No cli pluralisation markers. `{?s}` keys on "the" quantity, and this message interpolates
+  # a count AND a vector of years, so cli cannot decide which -- it aborts with
+  # "length(object) == 1 is not TRUE". Plain wording costs nothing and cannot fail.
+  n_missing <- sum(missing)
+  cli::cli_warn(c(
+    "!" = "{n_missing} crop-residue rows resolved to no area, so their polity columns are
+       NA and any join on {.field reporting_polity_code} drops them.",
+    "i" = "affected years: {.val {years}}",
+    "i" = if (length(labels) > 0L) {
+      "unresolved labels: {.val {utils::head(labels, 6)}}"
+    } else {
+      "no area label column survives to this point, so the labels cannot be named"
+    }
+  ))
+  dt
+}
+
 get_primary_residues <- function(example = FALSE) {
   if (example) {
     return(.example_get_primary_residues())
@@ -96,6 +144,7 @@ get_primary_residues <- function(example = FALSE) {
     dplyr::rename_with(tolower) |>
     dplyr::filter(product_residue == "Residue") |>
     add_area_code(name_column = "area") |>
+    .warn_residues_no_area() |>
     add_item_cbs_code(
       name_column = "item_cbs_crop",
       code_column = "item_cbs_code_crop"
