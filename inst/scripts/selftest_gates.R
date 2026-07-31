@@ -292,6 +292,62 @@ local({
   )
 })
 
+# --- 6. no polity code in package logic ---------------------------------------
+# The gate that enforces this work's core requirement: area identity comes from the polities
+# database, not from literals. It must distinguish a literal in LOGIC (a bypass that survives
+# a polity being retired upstream) from one in a COMMENT or a TEST (a documented illustration,
+# or a set deliberately pinned by identity). A gate that cannot tell those apart either fires
+# on every roxygen example or catches nothing.
+#
+# Fully isolatable: the predicate reads files, so it can be pointed at a synthetic directory.
+local({
+  tmp <- file.path(tempdir(), "politylit_probe")
+  dir.create(tmp, showWarnings = FALSE, recursive = TRUE)
+  on.exit(unlink(tmp, recursive = TRUE), add = TRUE)
+
+  # A legitimate roxygen mention -- must NOT be flagged.
+  writeLines(
+    c(
+      "#' A code identifies one period (`\"AFG-1919-2025\"`), a prefix names the family.",
+      "f <- function() invisible(NULL)"
+    ),
+    file.path(tmp, "clean.R")
+  )
+  # The defect: a polity code in executable logic.
+  writeLines(
+    c("g <- function() {", "  target <- \"ROW-1850-2023\"", "  target", "}"),
+    file.path(tmp, "dirty.R")
+  )
+
+  scan_logic <- function(dir) {
+    out <- character()
+    for (f in list.files(dir, pattern = "\\.R$", full.names = TRUE)) {
+      lines <- readLines(f, warn = FALSE)
+      for (i in seq_along(lines)) {
+        ln <- lines[[i]]
+        if (grepl("^\\s*#", ln)) {
+          next
+        }
+        if (grepl('"[A-Z]{2,6}[0-9]*-[0-9]{4}-[0-9]{4}"', ln)) {
+          out <- c(out, paste0(basename(f), ":", i))
+        }
+      }
+    }
+    out
+  }
+
+  found <- scan_logic(tmp)
+  .case(
+    "no polity code in package logic",
+    "a polity code literal in executable code, which bypasses the database",
+    length(found) == 1L && grepl("^dirty[.]R:2$", found[[1]]),
+    sprintf(
+      "flagged %s and left the roxygen mention alone",
+      if (length(found)) paste(found, collapse = ", ") else "nothing"
+    )
+  )
+})
+
 # --- verdict -----------------------------------------------------------------
 cat("\n")
 missed <- Filter(function(r) !r$ok, .results)
