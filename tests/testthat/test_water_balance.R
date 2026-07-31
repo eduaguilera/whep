@@ -812,3 +812,53 @@ testthat::test_that("a genuinely mixed NA-weight polity keeps only the valid cel
   )
   testthat::expect_equal(pol$water_input_mm, 860, tolerance = 1e-8)
 })
+
+testthat::test_that(".wb_attach_polity drops unsimulated cells and warns (#381)", {
+  # A, B: simulated (finite drainage) and in the crosswalk -> kept.
+  # C: in the crosswalk but no model data (non-finite drainage, a crosswalk
+  #    cell outside the simulated grid) -> must be dropped, not passed as NaN.
+  # E: simulated but absent from the crosswalk -> warned (would be dropped by
+  #    the join and silently lost from the polity aggregation).
+  terms <- tibble::tribble(
+    ~lon, ~lat, ~drainage_mm, ~aet_mm,
+    0.25, 0.25, 100, 1,
+    0.75, 0.25, 120, 1,
+    0.25, 0.75, NaN, 1,
+    0.75, 0.75, 90, 1
+  )
+  crosswalk <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~polity_frac, ~cell_area_ha,
+    0.25, 0.25, 11L, 1, 30000,
+    0.75, 0.25, 203L, 1, 30000,
+    0.25, 0.75, 250L, 1, 30000,
+    0.15, 0.15, 76L, 1, 30000
+  )
+  warnings <- character(0)
+  out <- withCallingHandlers(
+    whep:::.wb_attach_polity(terms, list(cell_polity = crosswalk)),
+    warning = function(cond) {
+      warnings <<- c(warnings, conditionMessage(cond))
+      invokeRestart("muffleWarning")
+    }
+  )
+  testthat::expect_true(any(grepl("no polity", warnings)))
+  testthat::expect_true(any(grepl("no LPJmL model data", warnings)))
+  testthat::expect_setequal(
+    paste(out$lon, out$lat),
+    c("0.25 0.25", "0.75 0.25")
+  )
+  testthat::expect_true(all(is.finite(out$drainage_mm)))
+})
+
+testthat::test_that("regions.csv carries the iso3c->area_code crosswalk (#381 guard)", {
+  # inst/scripts/prepare_spatialize_all.R maps iso3c -> area_code via
+  # inst/extdata/regions.csv for both the country grid and the cell x polity
+  # crosswalk. Guard the columns it needs so a future schema drift (like the
+  # polities restructure that removed area_code, which silently broke both
+  # rasterisation sections) fails loudly here instead.
+  path <- system.file("extdata", "regions.csv", package = "whep")
+  testthat::expect_true(nzchar(path))
+  regions <- utils::read.csv(path, stringsAsFactors = FALSE)
+  testthat::expect_true(all(c("iso3c", "area_code") %in% names(regions)))
+  testthat::expect_true(any(!is.na(regions$area_code)))
+})
