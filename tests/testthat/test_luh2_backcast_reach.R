@@ -24,9 +24,14 @@
 # warning works in name space and keeps it. A name-space count is therefore the stricter
 # of the two, and this test is blind to exactly the areas hardest to reach.
 #
-# Measured at full range: `get_wide_cbs()` completes with ~2.766M rows -- it alternates between
-# 2,768,578 and 2,764,471 on an unchanged tree, whep#420 -- 0 NA across all four polity columns, and this warning names FIVE areas in name space against the four this
+# Measured at full range after whep#425 was fixed: `get_wide_cbs()` completes with ~2.00M rows
+# (1,999,609 twice in one session, 1,997,944 in another -- it still moves across sessions,
+# whep#420, but by 0.08% rather than the 0.148% seen on the corrupted frame), 0 NA across all
+# four polity columns, and this warning names FIVE areas in name space against the four this
 # test finds in code space -- the difference in kind described above.
+#
+# The row count fell from ~2.766M because the fix restored quantities: counts are never zero, so
+# the `value != 0` filter had nothing to remove until then. Do not read the drop as lost data.
 #
 # ONE class now, and the second one leaving is a consequence rather than a fix:
 #

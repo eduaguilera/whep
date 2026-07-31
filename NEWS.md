@@ -1,5 +1,26 @@
 # whep (development version)
 
+* **Fixed: the commodity-balance cast returned row counts, not quantities**
+  (#425, fixed in #429). `.select_best_source()` cast the three primary sources
+  wide with no `fun.aggregate`, so `data.table::dcast()` fell back to `length()` --
+  and applied it to **every cell, not only the duplicated ones**. One duplicate
+  anywhere turned the whole table into row counts, and duplicates existed in every
+  real build (31,642 combinations at full range, in areas 206 and 999), so the
+  fallback always fired. Published totals were wrong by up to **259x** on `food`
+  and 183x on `seed`; `scale_new_old`, the FBS_New/FBS_Old harmonisation, was
+  rendered inert because with counts every ratio is a small-integer quotient.
+  Re-measured after the fix: food 259.00x, seed 182.69x, feed 11.89x, import 7.09x.
+  **Row count falls ~28%** and that is the fix working, not data lost -- counts are
+  never zero, so the `value != 0` filter had nothing to remove until quantities came
+  back. `sum` rather than `first` because the duplicates are one reporting bucket's
+  folded members and a bucket's total is their sum; all-NA cells stay `NA` rather
+  than collapsing to 0.
+
+  **If you have numbers from an earlier build, they are wrong and need
+  regenerating.** Anything downstream of `build_commodity_balances()` is affected:
+  supply-use, feed, destiny shares and the pre-1961 back-cast.
+  `build_primary_production()` is **not** -- it never passes through this cast.
+
 * **Gridded outputs change for Comoros and Mayotte** (#404). `inst/extdata/cow_to_lpjml.csv`
   maps FAOSTAT `area_code` to LPJmL's country index and carries its own `iso3c` and
   `area_name` per row -- a second copy of area identity sitting next to the polities
@@ -65,8 +86,10 @@
     that measurement bundled a second change which alone dropped 702,166 rows, and
     isolating the two shows summing is **not** harmful -- it removes the cast's 10,835
     duplicate keys outright and matches the cast-side fix to within a few percent. So it
-    is a candidate fix for #425 rather than a mistake, and this release simply keeps the
-    previous behaviour pending that decision.
+    is a candidate fix for #425 rather than a mistake. #425 has since been fixed on the
+    cast side instead (#429), which is the equivalent of the two and touches one
+    expression rather than an aggregation grouping, so this withdrawal stands and the
+    defect it circled is closed.
   - Promoting the 16 areas FABIO folds into rest-of-world that report data of
     their own to their own numeric key. Measured: `feed` 13.7x, `export` 13.2x,
     `production` 1.8x, with the entire `feed` increase landing on one area
@@ -75,18 +98,16 @@
     -- 0.21% of livestock feed demand is dropped for want of a Bouwman region on
     RoW.
 
-* `build_commodity_balances()` now **warns** if duplicate keys reach the source
-  cast, naming the area codes, sources and years, rather than silently replacing
-  values with row counts -- `dcast()` without `fun.aggregate` answers a duplicate
-  key with `length()`, so those values become row COUNTS in any build that does
-  not happen to die on the resulting type clash. A warning rather than an abort
-  because these duplicates are pre-existing and shared with the previous release,
-  so aborting refuses to build a pipeline that has always had them.
-  **The trap is larger than the guard implies** and is now measured in #425: the
-  `length()` fallback applies to every cell, not only duplicated ones, so all three
-  primary source columns come back integer with maxima of 4, 4 and 1 where tonnes
-  belong -- on this release and the previous one alike. Fixing it moves published
-  commodity balances by up to 259x, so it is a review rather than a patch.
+* `build_commodity_balances()` warns when duplicate keys reach the source cast
+  **and folding does not explain them**. This started as a warning that duplicates
+  were being replaced by row counts, which was true until #425 was fixed in #429 and
+  is false now: the cast supplies `fun.aggregate` and sums them. A loud warning about
+  correct behaviour is noise that gets muffled, so what survives is the narrower
+  question the fix raises -- summing duplicates is right when they are one reporting
+  bucket's folded members and unjustified otherwise. The guard therefore fires only
+  for duplicates in a bucket that folds no other FAOSTAT area, and derives that fold
+  set from `polity_area_crosswalk` at build time (206, 238 and 999 today) rather than
+  hardcoding the codes we happened to notice. Silent on a healthy build.
 
 * FAOSTAT ISO3 codes are corrected from the polities crosswalk rather than from a
   hand-maintained list. `.populate_iso3_code()` carried seven patches introduced as

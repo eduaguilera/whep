@@ -29,7 +29,8 @@
 # The real builds mostly resolve everything, and MEASURING THAT SPLIT THE TWO CASES APART.
 # Full-range smoke runs:
 #
-#   get_wide_cbs()        0 NA across ~2.766M rows (count varies by 4,107 -- whep#420 -- the 0 does not)
+#   get_wide_cbs()        0 NA across ~2.00M rows (count still varies across sessions -- whep#420
+#                         -- by ~1,700 rows post-#425; the 0 does not vary)
 #   build_supply_use()    160 NA of 10,118,408   -> REAL, 0.0016%
 #   get_feed_intake()     0 NA of 6,315,042      -> FIXTURE-ONLY
 #
