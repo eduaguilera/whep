@@ -8,13 +8,18 @@
 #'
 #' @param n_prov_destiny Nitrogen flows tibble from [create_n_prov_destiny()].
 #'   If `NULL`, loaded automatically.
+#' @param example If `TRUE`, return a small hardcoded output without
+#'   downloading remote data. Default is `FALSE`.
 #'
 #' @return A tibble with columns `year`, `province_name`, and `finn_index`.
 #' @export
 #'
 #' @examples
-#' # create_finn_indicator()
-create_finn_indicator <- function(n_prov_destiny = NULL) {
+#' create_finn_indicator(example = TRUE)
+create_finn_indicator <- function(n_prov_destiny = NULL, example = FALSE) {
+  if (example) {
+    return(.example_finn_indicator())
+  }
   if (is.null(n_prov_destiny)) {
     n_prov_destiny <- create_n_prov_destiny()
   }
@@ -22,7 +27,7 @@ create_finn_indicator <- function(n_prov_destiny = NULL) {
   mapping <- .finn_mapping()
 
   n_prov_destiny |>
-    dplyr::filter(as.numeric(year) <= 2021) |>
+    dplyr::filter(as.numeric(year) <= .grafs_last_year()) |>
     dplyr::group_by(year, province_name) |>
     dplyr::group_map(~ .finn_for_group(.x, .y, mapping)) |>
     purrr::list_rbind()
@@ -40,21 +45,44 @@ create_finn_indicator <- function(n_prov_destiny = NULL) {
 #'   If `NULL`, computed automatically (slow).
 #' @param n_prov_destiny Passed to [create_finn_indicator()] when
 #'   `finn_data` is `NULL`.
+#' @param typologies Typology assignment per year and province, with columns
+#'   `year`, `province_name` and `Typology_base`. If `NULL`, derived from
+#'   `create_typo_ts_plot()`.
 #'
 #' @return A named list with ggplot objects `evolution`, `periods`, `change`.
 #' @export
 #'
 #' @examples
-#' # plots <- plot_finn_circularity()
+#' # `periods` must name years present in the data.
+#' finn_data <- tibble::tribble(
+#'   ~year, ~province_name, ~finn_index,
+#'   1960, "A", 0.12,
+#'   1960, "B", 0.18,
+#'   2000, "A", 0.07,
+#'   2000, "B", 0.09
+#' )
+#' typologies <- tibble::tribble(
+#'   ~year, ~province_name, ~Typology_base,
+#'   1960, "A", "Specialized cropping systems (intensive)",
+#'   1960, "B", "Semi-natural agroecosystems",
+#'   2000, "A", "Specialized cropping systems (intensive)",
+#'   2000, "B", "Semi-natural agroecosystems"
+#' )
+#' plots <- plot_finn_circularity(
+#'   periods = c(1960, 2000),
+#'   finn_data = finn_data,
+#'   typologies = typologies
+#' )
 plot_finn_circularity <- function(
   periods = c(1860, 1920, 1960, 2020),
   finn_data = NULL,
-  n_prov_destiny = NULL
+  n_prov_destiny = NULL,
+  typologies = NULL
 ) {
   if (is.null(finn_data)) {
     finn_data <- create_finn_indicator(n_prov_destiny)
   }
-  typologies <- create_typo_ts_plot() |>
+  typologies <- (typologies %||% create_typo_ts_plot()) |>
     dplyr::select(year, province_name, Typology_base)
   fci_df <- finn_data |>
     dplyr::mutate(year = as.numeric(year)) |>
@@ -135,9 +163,13 @@ plot_finn_circularity <- function(
     dplyr::group_by(from_comp, to_comp) |>
     dplyr::summarise(mg_n = sum(mg_n, na.rm = TRUE), .groups = "drop")
 
-  idx <- (match(agg$from_comp, compartments) - 1L) *
-    n +
+  # Indexed as [from, to] via an explicit row/column matrix. Computing a
+  # column-major linear index by hand transposes the matrix, which silently
+  # turns the colSums() in .calculate_finn() into outflow instead of inflow.
+  idx <- cbind(
+    match(agg$from_comp, compartments),
     match(agg$to_comp, compartments)
+  )
   flow_matrix[idx] <- agg$mg_n
   flow_matrix
 }

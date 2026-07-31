@@ -27,5 +27,21 @@ mechanism in the other. Contributions are normalized to Gg N/yr (see
 transitions and the Total span very different numbers of years.
 }
 \examples{
-# plot_loss_decomp_periods()
+decomp <- list(
+  by_compartment = tibble::tribble(
+    ~period, ~compartment, ~contribution_per_yr_mgn,
+    "1865-1925", "cropland", 120,
+    "1865-1925", "manure", 40,
+    "1925-1965", "cropland", 260,
+    "1925-1965", "manure", 90
+  ),
+  by_mechanism = tibble::tribble(
+    ~period, ~mechanism, ~contribution_per_yr_mgn,
+    "1865-1925", "Size", 90,
+    "1865-1925", "Inefficiency", 70,
+    "1925-1965", "Size", 150,
+    "1925-1965", "Inefficiency", 200
+  )
+)
+plots <- plot_loss_decomp_periods(decomp)
 }

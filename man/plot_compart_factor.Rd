@@ -38,5 +38,18 @@ opposed to the AFS-wide panels 1-2 from
 total contribution.
 }
 \examples{
-# plot_compart_factor()
+# Each argument is a calculate_lmdi() table; the same shape is reused for
+# all four compartments here.
+lmdi <- tibble::tribble(
+  ~period, ~factor_label, ~component_type, ~additive,
+  "1861-1862", "N surplus", "target", 20000,
+  "1861-1862", "Size", "factor", 9000,
+  "1861-1862", "Intensity", "factor", 7000,
+  "1861-1862", "Inefficiency", "factor", 4000,
+  "1862-1863", "N surplus", "target", 10000,
+  "1862-1863", "Size", "factor", 5000,
+  "1862-1863", "Intensity", "factor", 3000,
+  "1862-1863", "Inefficiency", "factor", 2000
+)
+plots <- plot_compart_factor(lmdi, lmdi, lmdi, lmdi)
 }

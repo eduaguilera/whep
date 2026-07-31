@@ -25,5 +25,19 @@ a supplementary diagnostic reported alongside (not inside) the main
 additive decomposition, per the decomposition proposal.
 }
 \examples{
-# plot_specialization_cov()
+covariance <- list(
+  cropland_province = tibble::tribble(
+    ~year, ~covariance,
+    1960, -0.02,
+    1980, 0.05,
+    2000, 0.11
+  ),
+  livestock_species = tibble::tribble(
+    ~year, ~covariance,
+    1960, 0.01,
+    1980, 0.08,
+    2000, 0.17
+  )
+)
+p <- plot_specialization_cov(covariance)
 }

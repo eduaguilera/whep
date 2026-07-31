@@ -7,90 +7,84 @@
 #'   automatically.
 #' @param variation Relative variation applied to each threshold (default
 #'   0.2 = 20%).
+#' @param baseline Pre-computed indicator table from
+#'   `create_typologies_spain()`, carrying `year`, `province_name` and the
+#'   indicator columns the thresholds act on. If `NULL`, computed
+#'   automatically (slow).
 #' @return A tibble with columns `threshold`, `direction`, and
 #'   `agreement_pct`.
 #' @export
+#'
+#' @examples
+#' # `baseline` carries the indicator columns the thresholds act on plus the
+#' # unperturbed `Typology_base` each perturbation is compared against. Two
+#' # provinces show the output shape; the real analysis runs over 50 provinces
+#' # and 1860-2021.
+#' baseline <- tibble::tribble(
+#'   ~year,
+#'   ~province_name,
+#'   ~production_seminatural,
+#'   ~production_crops,
+#'   ~animal_ingestion,
+#'   ~synthetic_share,
+#'   ~crop_productivity,
+#'   ~Livestock_density,
+#'   ~imported_feed_share,
+#'   ~feed_from_seminatural_share,
+#'   ~local_feed_share,
+#'   ~Manure_share,
+#'   ~Typology_base,
+#'   2000,
+#'   "A",
+#'   1,
+#'   100,
+#'   5,
+#'   0.8,
+#'   40,
+#'   0.1,
+#'   0.1,
+#'   0.1,
+#'   0.1,
+#'   0.1,
+#'   "Specialized cropping systems (intensive)",
+#'   2000,
+#'   "B",
+#'   1,
+#'   10,
+#'   50,
+#'   0.1,
+#'   40,
+#'   0.5,
+#'   0.1,
+#'   0.5,
+#'   0.5,
+#'   0.5,
+#'   "Connected crop-livestock systems (intensive)"
+#' )
+#' sensitivity <- run_typology_sensitivity(baseline = baseline)
 run_typology_sensitivity <- function(
   n_prov_destiny = NULL,
-  variation = 0.2
+  variation = 0.2,
+  baseline = NULL
 ) {
-  thresholds <- .sensitivity_thresholds()
-  baseline <- create_typologies_spain(
-    n_prov_destiny = n_prov_destiny,
-    make_map = FALSE
-  )
+  thresholds <- .typology_thresholds()
+  baseline <- baseline %||%
+    create_typologies_spain(
+      n_prov_destiny = n_prov_destiny,
+      make_map = FALSE
+    )
 
   grid <- .oat_threshold_grid(thresholds, variation)
 
   grid |>
     purrr::pmap(function(threshold, direction, th) {
-      result <- .reclassify_typology(baseline, th)
+      result <- .classify_typology_base(baseline, th)
       .compute_agreement(baseline, result, threshold, direction)
     }) |>
     purrr::list_rbind()
 }
 
 # --- Private helpers ---------------------------------------------------------
-
-.sensitivity_thresholds <- function() {
-  list(
-    synthetic_crop_int = 0.4,
-    crop_productivity_int = 10,
-    synthetic_crop_ext = 0.4,
-    crop_productivity_ext = 10,
-    livestock_density_int = 1.3,
-    imported_feed_int = 0.6,
-    feed_seminatural_int = 0.4,
-    livestock_density_ext_lo = 1.0,
-    livestock_density_ext_hi = 1.3,
-    imported_feed_ext = 0.6,
-    feed_seminatural_ext = 0.4,
-    local_feed_connected = 0.3,
-    manure_connected = 0.25,
-    crop_productivity_connected = 30,
-    local_feed_disconnected = 0.6,
-    manure_disconnected = 0.6
-  )
-}
-
-.reclassify_typology <- function(indicators, th) {
-  indicators |>
-    dplyr::mutate(
-      Typology_base = dplyr::case_when(
-        production_seminatural > production_crops ~
-          "Semi-natural agroecosystems",
-        production_crops > animal_ingestion &
-          synthetic_share > th$synthetic_crop_int &
-          crop_productivity >= th$crop_productivity_int ~
-          "Specialized cropping systems (intensive)",
-        production_crops > animal_ingestion &
-          synthetic_share <= th$synthetic_crop_ext &
-          crop_productivity < th$crop_productivity_ext ~
-          "Specialized cropping systems (extensive)",
-        Livestock_density > th$livestock_density_int &
-          imported_feed_share > th$imported_feed_int &
-          feed_from_seminatural_share < th$feed_seminatural_int ~
-          "Specialized livestock systems (intensive)",
-        Livestock_density > th$livestock_density_ext_lo &
-          Livestock_density <= th$livestock_density_ext_hi &
-          imported_feed_share > th$imported_feed_ext &
-          feed_from_seminatural_share < th$feed_seminatural_ext ~
-          "Specialized livestock systems (extensive)",
-        local_feed_share > th$local_feed_connected &
-          Manure_share > th$manure_connected &
-          crop_productivity >= th$crop_productivity_connected ~
-          "Connected crop-livestock systems (intensive)",
-        local_feed_share > th$local_feed_connected &
-          Manure_share > th$manure_connected &
-          crop_productivity < th$crop_productivity_connected ~
-          "Connected crop-livestock systems (extensive)",
-        local_feed_share < th$local_feed_disconnected &
-          Manure_share < th$manure_disconnected ~
-          "Disconnected crop-livestock systems (intensive)",
-        TRUE ~ "Disconnected crop-livestock systems (extensive)"
-      )
-    )
-}
 
 .oat_threshold_grid <- function(thresholds, variation) {
   names(thresholds) |>

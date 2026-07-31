@@ -7,7 +7,8 @@
 plot_finn_circularity(
   periods = c(1860, 1920, 1960, 2020),
   finn_data = NULL,
-  n_prov_destiny = NULL
+  n_prov_destiny = NULL,
+  typologies = NULL
 )
 }
 \arguments{
@@ -18,6 +19,10 @@ If \code{NULL}, computed automatically (slow).}
 
 \item{n_prov_destiny}{Passed to \code{\link[=create_finn_indicator]{create_finn_indicator()}} when
 \code{finn_data} is \code{NULL}.}
+
+\item{typologies}{Typology assignment per year and province, with columns
+\code{year}, \code{province_name} and \code{Typology_base}. If \code{NULL}, derived from
+\code{create_typo_ts_plot()}.}
 }
 \value{
 A named list with ggplot objects \code{evolution}, \code{periods}, \code{change}.
@@ -28,5 +33,24 @@ typology with interquartile ribbon; (b) FCI distribution at four key
 periods as boxplots; (c) net change in mean FCI from first to last period.
 }
 \examples{
-# plots <- plot_finn_circularity()
+# `periods` must name years present in the data.
+finn_data <- tibble::tribble(
+  ~year, ~province_name, ~finn_index,
+  1960, "A", 0.12,
+  1960, "B", 0.18,
+  2000, "A", 0.07,
+  2000, "B", 0.09
+)
+typologies <- tibble::tribble(
+  ~year, ~province_name, ~Typology_base,
+  1960, "A", "Specialized cropping systems (intensive)",
+  1960, "B", "Semi-natural agroecosystems",
+  2000, "A", "Specialized cropping systems (intensive)",
+  2000, "B", "Semi-natural agroecosystems"
+)
+plots <- plot_finn_circularity(
+  periods = c(1960, 2000),
+  finn_data = finn_data,
+  typologies = typologies
+)
 }

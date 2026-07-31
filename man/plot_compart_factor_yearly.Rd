@@ -36,5 +36,14 @@ matching \code{\link[=plot_loss_decomp_yearly]{plot_loss_decomp_yearly()}}'s yea
 one panel per compartment.
 }
 \examples{
-# plot_compart_factor_yearly()
+lmdi <- tibble::tribble(
+  ~period, ~factor_label, ~component_type, ~additive,
+  "1861-1862", "N surplus", "target", 20000,
+  "1861-1862", "Size", "factor", 9000,
+  "1861-1862", "Intensity", "factor", 7000,
+  "1862-1863", "N surplus", "target", 10000,
+  "1862-1863", "Size", "factor", 5000,
+  "1862-1863", "Intensity", "factor", 3000
+)
+plots <- plot_compart_factor_yearly(lmdi, lmdi, lmdi, lmdi)
 }

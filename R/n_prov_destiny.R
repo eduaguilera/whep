@@ -49,7 +49,7 @@ create_n_prov_destiny <- function(example = FALSE) {
   intake_ygiac <- whep_read_file("intake_ygiac")
   population_yg <- whep_read_file("population_yg")
   n_balance_ygpit_all <- whep_read_file("n_balance_ygpit_all") |>
-    dplyr::filter(Year <= 2021)
+    dplyr::filter(Year <= .grafs_last_year())
 
   biomass_item_merged <- .merge_items_biomass(npp_ygpit, codes_coefs)
   n_soil_inputs <- .calculate_n_soil_inputs(n_balance_ygpit_all, codes_coefs)
@@ -80,7 +80,8 @@ create_n_prov_destiny <- function(example = FALSE) {
     spain_coefs_observed,
     national_production
   ) |>
-    .backfill_processing_shares(first_year)
+    .backfill_processing_shares(first_year) |>
+    .warn_processing_coverage_gap(national_production)
 
   processed <- .calculate_processed_amounts(
     prod_combined_boxes,
@@ -1076,6 +1077,56 @@ create_n_nat_destiny <- function(example = FALSE) {
       -Product_kgDM_kgFM,
       -Product_kgN_kgDM
     )
+}
+
+#' @title Last year every GRAFS input covers ----------------------------------
+#' @description Production data runs to 2023, but two inputs stop earlier:
+#' the `n_balance_ygpit_all` pin ends in 2021, and `processing_coefs` covers
+#' 1961-2021. Years past this cut-off therefore carry no soil-input flows and
+#' no processing at all, so the consumers that need a complete picture clip to
+#' it rather than publish a series with a structural break.
+#'
+#' Raising this is not enough on its own: the inputs themselves have to cover
+#' the extra years first.
+#'
+#' @return An integer year.
+#' @keywords internal
+#' @noRd
+.grafs_last_year <- function() {
+  2021L
+}
+
+#' @title Warn when production outruns the processing coefficients ------------
+#' @description `processing_coefs` is backfilled before its first year but not
+#' extended past its last, so any production year beyond it silently gets a
+#' zero processing share. Surfaces that instead of letting the series break
+#' quietly.
+#'
+#' @param processing_shares Output of `.backfill_processing_shares()`.
+#' @param national_production Output of `.national_item_production()`.
+#'
+#' @return `processing_shares`, unchanged.
+#' @keywords internal
+#' @noRd
+.warn_processing_coverage_gap <- function(
+  processing_shares,
+  national_production
+) {
+  last_coef <- max(processing_shares$Year, na.rm = TRUE)
+  last_prod <- max(national_production$Year, na.rm = TRUE)
+
+  if (last_prod > last_coef) {
+    cli::cli_warn(c(
+      "Processing coefficients end in {last_coef} but production runs to
+       {last_prod}.",
+      i = "{last_prod - last_coef} year{?s} get no processing substitution at
+           all, so {.val {(last_coef + 1L):last_prod}} are not comparable with
+           earlier years.",
+      i = "Clip to {.fun .grafs_last_year} or extend the coefficients."
+    ))
+  }
+
+  processing_shares
 }
 
 #' @title Items whose conversion coefficients come from the primary biomass ----

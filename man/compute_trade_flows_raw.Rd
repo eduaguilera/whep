@@ -4,11 +4,14 @@
 \alias{compute_trade_flows_raw}
 \title{Compute national trade flows: model vs. raw historical FAO series}
 \usage{
-compute_trade_flows_raw(n_nat_destiny = NULL)
+compute_trade_flows_raw(n_nat_destiny = NULL, example = FALSE)
 }
 \arguments{
 \item{n_nat_destiny}{Optional pre-computed output from
 \code{create_n_nat_destiny()}. If \code{NULL}, calls that function internally.}
+
+\item{example}{If \code{TRUE}, return a small hardcoded output without
+downloading remote data. Default is \code{FALSE}.}
 }
 \value{
 A tibble with columns \code{year}, \code{item}, \code{category} (\code{"Crop"} or
@@ -21,8 +24,11 @@ from the national GRAFS model (production and consumption aggregated to
 Spain before splitting into export/import, avoiding the double-counting of
 inter-provincial trade that a province-level sum would introduce) and from
 the raw historical Export/Import series for Spain in
-\code{Europe_FAO_completed.xlsx} (1860-1960), restricted to the item/year
+\code{Europe_FAO_completed.xlsx} (1849-1960), restricted to the item/year
 combinations reported in the raw sheets. Items are classified as \code{"Crop"}
 or \code{"Livestock"} for downstream aggregation, e.g. in
 \code{plot_national_trade_flows_raw()}.
+}
+\examples{
+compute_trade_flows_raw(example = TRUE)
 }

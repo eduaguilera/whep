@@ -5,7 +5,11 @@
 \title{Decompose specialization from diversification via the Olley-Pakes
 allocation covariance}
 \usage{
-decompose_specialization_cov(n_prov_destiny = NULL, raw = NULL)
+decompose_specialization_cov(
+  n_prov_destiny = NULL,
+  raw = NULL,
+  example = FALSE
+)
 }
 \arguments{
 \item{n_prov_destiny}{Nitrogen flows tibble from
@@ -14,6 +18,9 @@ decompose_specialization_cov(n_prov_destiny = NULL, raw = NULL)
 \item{raw}{Named list overriding any of the raw inputs (\code{npp_ygpit},
 \code{codes_coefs}, \code{intake_ygiac}, \code{n_excretion_ygs}, \code{stock_prod_ygps},
 \code{livestock_units}). Missing elements are loaded automatically.}
+
+\item{example}{If \code{TRUE}, return a small hardcoded output without
+downloading remote data. Default is \code{FALSE}.}
 }
 \value{
 A named list with tibbles \code{cropland_province},
@@ -46,5 +53,5 @@ magnitude to the "Specialization" mechanism total from
 \code{\link[=decompose_terr_losses]{decompose_terr_losses()}}, only in sign and trend.
 }
 \examples{
-# decompose_specialization_cov()
+decompose_specialization_cov(example = TRUE)
 }

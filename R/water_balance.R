@@ -450,7 +450,47 @@ get_soc_climate_drivers <- function(
            {.field area_code}, {.field polity_frac}, {.field cell_area_ha}."
     ))
   }
-  dplyr::inner_join(terms, crosswalk, by = c("lon", "lat"))
+  .wb_warn_uncovered_cells(terms, crosswalk)
+  dplyr::inner_join(terms, crosswalk, by = c("lon", "lat")) |>
+    .wb_drop_unsimulated()
+}
+
+# Warn when simulated cells have no polity in the crosswalk (they are dropped by
+# the join, so their water would silently vanish from the polity totals). Keyed
+# on the water terms carrying a real (finite) drainage value.
+.wb_warn_uncovered_cells <- function(terms, crosswalk) {
+  sim <- terms |>
+    dplyr::filter(is.finite(.data$drainage_mm)) |>
+    dplyr::distinct(.data$lon, .data$lat)
+  missing <- dplyr::anti_join(sim, crosswalk, by = c("lon", "lat"))
+  if (nrow(missing) > 0) {
+    cli::cli_warn(c(
+      "!" = "{nrow(missing)} simulated cell{?s} ha{?s/ve} no polity in the
+        cell_polity crosswalk and are dropped from the polity aggregation.",
+      i = "Extend the crosswalk to cover the simulated grid to retain them."
+    ))
+  }
+}
+
+# Drop cell-polity rows that carry a polity label but no model data: crosswalk
+# cells outside the simulated (LPJmL) grid join in with non-finite drainage, and
+# passing that NaN downstream silently poisons leaching (see #381). Warn and
+# drop rather than propagate the NaN or silently discard it.
+.wb_drop_unsimulated <- function(joined) {
+  unsimulated <- !is.finite(joined$drainage_mm)
+  if (any(unsimulated)) {
+    cells <- joined[unsimulated, ] |>
+      dplyr::distinct(.data$lon, .data$lat)
+    cli::cli_warn(c(
+      "!" = "Dropped {sum(unsimulated)} cell-polity row{?s}
+        ({nrow(cells)} cell{?s}) with a polity label but no LPJmL model data
+        (crosswalk cells outside the simulated grid).",
+      i = "Restrict {.code data$cell_polity} to the simulated grid to avoid
+        the non-finite drainage they would otherwise inject."
+    ))
+    joined <- joined |> dplyr::filter(is.finite(.data$drainage_mm))
+  }
+  joined
 }
 
 # Stamp method_water (including the realized blue_green method), select the grid

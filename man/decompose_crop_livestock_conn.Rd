@@ -4,11 +4,14 @@
 \alias{decompose_crop_livestock_conn}
 \title{Compute the crop-livestock connectivity index per province}
 \usage{
-decompose_crop_livestock_conn(n_prov_destiny = NULL)
+decompose_crop_livestock_conn(n_prov_destiny = NULL, example = FALSE)
 }
 \arguments{
 \item{n_prov_destiny}{Nitrogen flows tibble from
 \code{\link[=create_n_prov_destiny]{create_n_prov_destiny()}}. If \code{NULL}, loaded automatically.}
+
+\item{example}{If \code{TRUE}, return a small hardcoded output without
+downloading remote data. Default is \code{FALSE}.}
 }
 \value{
 A named list with tibbles \code{by_province} (columns \code{year},
@@ -40,5 +43,5 @@ values on both, since its livestock has nowhere local to send manure
 and/or its cropland has no local manure to draw on.
 }
 \examples{
-# decompose_crop_livestock_conn()
+decompose_crop_livestock_conn(example = TRUE)
 }

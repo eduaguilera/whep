@@ -9,12 +9,20 @@
 #'
 #' @param n_prov_destiny Optional pre-computed output from
 #'   `create_n_prov_destiny()`. If `NULL`, calls that function internally.
+#' @param example If `TRUE`, return a small hardcoded output without
+#'   downloading remote data. Default is `FALSE`.
 #'
 #' @return A tibble with columns `year`, `item`, `net_prov`, `net_fao`, and
 #'   `diff_net` (all in MgN).
 #'
 #' @export
-validate_national_trade <- function(n_prov_destiny = NULL) {
+#'
+#' @examples
+#' validate_national_trade(example = TRUE)
+validate_national_trade <- function(n_prov_destiny = NULL, example = FALSE) {
+  if (example) {
+    return(.example_nat_trade())
+  }
   if (is.null(n_prov_destiny)) {
     n_prov_destiny <- create_n_prov_destiny()
   }
@@ -124,19 +132,30 @@ validate_national_trade <- function(n_prov_destiny = NULL) {
 #' @description
 #' Validates the provincial GRAFS model's bottom-up national net trade against
 #' the original historical Export/Import series for Spain contained in
-#' `Europe_FAO_completed.xlsx` (1860-1960), the raw source data behind the
+#' `Europe_FAO_completed.xlsx` (1849-1960), the raw source data behind the
 #' package's processed trade figures. Comparison is restricted to the item and
 #' year combinations actually reported in the raw sheets, since coverage there
 #' is sparser than in the processed dataset.
 #'
 #' @param n_prov_destiny Optional pre-computed output from
 #'   `create_n_prov_destiny()`. If `NULL`, calls that function internally.
+#' @param example If `TRUE`, return a small hardcoded output without
+#'   downloading remote data. Default is `FALSE`.
 #'
 #' @return A tibble with columns `year`, `item`, `net_prov`, `net_fao`, and
 #'   `diff_net` (all in MgN).
 #'
 #' @export
-validate_national_trade_raw <- function(n_prov_destiny = NULL) {
+#'
+#' @examples
+#' validate_national_trade_raw(example = TRUE)
+validate_national_trade_raw <- function(
+  n_prov_destiny = NULL,
+  example = FALSE
+) {
+  if (example) {
+    return(.example_nat_trade_raw())
+  }
   if (is.null(n_prov_destiny)) {
     n_prov_destiny <- create_n_prov_destiny()
   }
@@ -172,20 +191,28 @@ validate_national_trade_raw <- function(n_prov_destiny = NULL) {
 #' Spain before splitting into export/import, avoiding the double-counting of
 #' inter-provincial trade that a province-level sum would introduce) and from
 #' the raw historical Export/Import series for Spain in
-#' `Europe_FAO_completed.xlsx` (1860-1960), restricted to the item/year
+#' `Europe_FAO_completed.xlsx` (1849-1960), restricted to the item/year
 #' combinations reported in the raw sheets. Items are classified as `"Crop"`
 #' or `"Livestock"` for downstream aggregation, e.g. in
 #' `plot_national_trade_flows_raw()`.
 #'
 #' @param n_nat_destiny Optional pre-computed output from
 #'   `create_n_nat_destiny()`. If `NULL`, calls that function internally.
+#' @param example If `TRUE`, return a small hardcoded output without
+#'   downloading remote data. Default is `FALSE`.
 #'
 #' @return A tibble with columns `year`, `item`, `category` (`"Crop"` or
 #'   `"Livestock"`), `source` (`"WHEP model"` or `"FAO (raw)"`), `flow`
 #'   (`"Export"` or `"Import"`), and `value_n` (MgN).
 #'
 #' @export
-compute_trade_flows_raw <- function(n_nat_destiny = NULL) {
+#'
+#' @examples
+#' compute_trade_flows_raw(example = TRUE)
+compute_trade_flows_raw <- function(n_nat_destiny = NULL, example = FALSE) {
+  if (example) {
+    return(.example_trade_flows_raw())
+  }
   if (is.null(n_nat_destiny)) {
     n_nat_destiny <- create_n_nat_destiny()
   }
@@ -221,6 +248,16 @@ compute_trade_flows_raw <- function(n_nat_destiny = NULL) {
 #' @return A ggplot object.
 #'
 #' @export
+#'
+#' @examples
+#' validation <- tibble::tribble(
+#'   ~year, ~item, ~net_prov, ~net_fao, ~diff_net,
+#'   1960, "Barley and products", 12000, 9500, 2500,
+#'   1960, "Bovine Meat", -3000, -2800, -200,
+#'   2000, "Barley and products", 56943, 2175, 54768,
+#'   2000, "Bovine Meat", 1601, 1569, 32
+#' )
+#' p <- plot_national_trade_validation(validation)
 plot_national_trade_validation <- function(validation = NULL) {
   if (is.null(validation)) {
     validation <- validate_national_trade()
@@ -279,6 +316,16 @@ plot_national_trade_validation <- function(validation = NULL) {
 #' @return A ggplot object.
 #'
 #' @export
+#'
+#' @examples
+#' trade_flows <- tibble::tribble(
+#'   ~year, ~item, ~source, ~category, ~flow, ~value_n,
+#'   1930, "Nuts and products", "FAO (raw)", "Crop", "Export", 825,
+#'   1930, "Nuts and products", "WHEP model", "Crop", "Export", 910,
+#'   1930, "Bovine Meat", "FAO (raw)", "Livestock", "Import", 340,
+#'   1930, "Bovine Meat", "WHEP model", "Livestock", "Import", 295
+#' )
+#' p <- plot_national_trade_flows_raw(trade_flows)
 plot_national_trade_flows_raw <- function(trade_flows = NULL) {
   if (is.null(trade_flows)) {
     trade_flows <- compute_trade_flows_raw()
@@ -482,9 +529,7 @@ plot_national_trade_flows_raw <- function(trade_flows = NULL) {
 
   all_excluded <- union(excluded_by_box, excluded_items)
 
-  c(Export = "Export", Import = "Import") |>
-    purrr::map(.read_raw_trade_sheet) |>
-    dplyr::bind_rows(.id = "Element") |>
+  .read_raw_trade_data() |>
     dplyr::inner_join(whep::cbs_trade_codes, by = c("Item" = "item_trade")) |>
     dplyr::mutate(Item = item_cbs) |>
     dplyr::filter(!Item %in% all_excluded) |>
@@ -495,30 +540,26 @@ plot_national_trade_flows_raw <- function(trade_flows = NULL) {
     .convert_trade_fm_to_n(codes_coefs_items_full, biomass_coefs)
 }
 
-# Reads one Export/Import sheet of Europe_FAO_completed.xlsx for Spain and
-# reshapes the wide year columns into long format. Values are stored in the
-# raw file as "1000 MT", hence the *1000 conversion to Mg (fresh matter).
-.read_raw_trade_sheet <- function(sheet) {
+# Reads Spain's historical Export/Import series, already reshaped to long
+# format and converted to Mg (fresh matter) by
+# `data-raw/europe_fao_spain_trade.R`. That script extracts it from the source
+# workbook `Europe_FAO_completed.xlsx`, a 19-sheet 35-country compilation of
+# which only these two sheets and only the Spanish rows are ever used; the
+# workbook is not shipped with the package.
+.read_raw_trade_data <- function() {
   path <- system.file(
     "extdata",
-    "Europe_FAO_completed.xlsx",
+    "europe_fao_spain_trade.csv",
     package = "whep"
   )
-  raw <- readxl::read_excel(path, sheet = sheet)
-  year_cols <- names(raw)[stringr::str_detect(names(raw), "^[0-9]{4}\\.0$")]
 
-  raw |>
-    dplyr::filter(Area == "Spain", !is.na(Item)) |>
-    dplyr::select(Item, dplyr::all_of(year_cols)) |>
-    dplyr::mutate(dplyr::across(dplyr::all_of(year_cols), as.numeric)) |>
-    tidyr::pivot_longer(
-      dplyr::all_of(year_cols),
-      names_to = "Year",
-      values_to = "value_fm"
-    ) |>
-    dplyr::mutate(
-      Year = as.integer(readr::parse_number(Year)),
-      value_fm = value_fm * 1000
-    ) |>
-    dplyr::filter(!is.na(value_fm))
+  readr::read_csv(
+    path,
+    col_types = readr::cols(
+      Element = readr::col_character(),
+      Item = readr::col_character(),
+      Year = readr::col_integer(),
+      value_fm = readr::col_double()
+    )
+  )
 }

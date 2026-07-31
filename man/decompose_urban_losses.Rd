@@ -8,7 +8,8 @@ recycling drivers}
 decompose_urban_losses(
   n_prov_destiny = NULL,
   population_yg = NULL,
-  by_period = FALSE
+  by_period = FALSE,
+  example = FALSE
 )
 }
 \arguments{
@@ -24,6 +25,9 @@ one — 1860-1870 -> 1920-1930 -> 1960-1970 -> 2010-2020 — plus one
 extra transition spanning the full analysis window, 1860-1870
 straight to 2010-2020 (the total change) — instead of chaining year
 on year.}
+
+\item{example}{If \code{TRUE}, return a small hardcoded output without
+downloading remote data. Default is \code{FALSE}.}
 }
 \value{
 A tibble from \code{\link[=calculate_lmdi]{calculate_lmdi()}} with columns \code{period},
@@ -51,5 +55,5 @@ excreta-only. Whether the \code{urban}/\code{People} recycling flows already
 folded in some food waste from the original source is unconfirmed.
 }
 \examples{
-# decompose_urban_losses()
+decompose_urban_losses(example = TRUE)
 }
