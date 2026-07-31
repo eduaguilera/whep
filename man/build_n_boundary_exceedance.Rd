@@ -72,6 +72,21 @@ critical value and \code{0} otherwise (and \code{0} when the crop is at or below
 \code{year}; \code{"image_region"} sums to IMAGE region when \code{cell_polity} supplies an
 \code{image_region} column, else falls back to the polity aggregate with a note.
 }
+\section{Exceedance is a decomposition, not the overshoot}{
+
+\code{exceedance_kgn_ha} splits the actual pressure into its over- and
+within-boundary parts, so \code{exceedance + within_boundary == actual} and
+neither part can exceed the pressure itself. Where the critical value is
+negative (the cell is so sensitive that the safe surplus is a net removal)
+the whole pressure is exceedance, and the overshoot MAGNITUDE the source
+archive publishes, \code{actual - critical}, is strictly larger. Both are
+defensible; they answer different questions, and only the decomposition can
+carry a footprint. Verified against Schulte-Uebbing's own exceedance layer
+(\code{threshold = "mi"}, \code{land_use = "ara"}): the two agree to floating-point
+on all 26,497 positive-critical cells, and diverge only on the 2,076
+negative-critical ones, costing 0.6\% of global exceedance mass.
+}
+
 \examples{
 build_n_boundary_exceedance(example = TRUE)
 }

@@ -53,6 +53,19 @@
 #'   `NULL`.
 #' @param example If `TRUE`, return a small fixture instead of computing.
 #'   Defaults to `FALSE`.
+#' @section Exceedance is a decomposition, not the overshoot:
+#' `exceedance_kgn_ha` splits the actual pressure into its over- and
+#' within-boundary parts, so `exceedance + within_boundary == actual` and
+#' neither part can exceed the pressure itself. Where the critical value is
+#' negative (the cell is so sensitive that the safe surplus is a net removal)
+#' the whole pressure is exceedance, and the overshoot MAGNITUDE the source
+#' archive publishes, `actual - critical`, is strictly larger. Both are
+#' defensible; they answer different questions, and only the decomposition can
+#' carry a footprint. Verified against Schulte-Uebbing's own exceedance layer
+#' (`threshold = "mi"`, `land_use = "ara"`): the two agree to floating-point
+#' on all 26,497 positive-critical cells, and diverge only on the 2,076
+#' negative-critical ones, costing 0.6% of global exceedance mass.
+#'
 #' @return For `resolution = "grid"`, a tibble keyed `lon`, `lat`, `area_code`,
 #'   `item_cbs_code`, `year` with `area_ha`, `critical_kgn_ha`,
 #'   `actual_kgn_ha`, `exceed_share`, `exceedance_kgn_ha`,

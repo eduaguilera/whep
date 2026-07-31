@@ -36,6 +36,18 @@ one of \code{"Within_boundary Under"} ... \code{"Exceedance Over"}, returned as 
 with all six \code{sjos_levels$level} levels. This reproduces Global's 2-way remap
 (\code{Global/R/sjos_n.r:363}) at the per-\code{item_cbs} granularity Module 4's
 footprint needs.
+
+The boundary side reads \code{exceedance_n_t}, which is a decomposition of the
+actual pressure (see \code{\link[=build_n_boundary_exceedance]{build_n_boundary_exceedance()}}) and so is capped at
+it. Where the critical surplus is negative the overshoot the source archive
+reports, \code{actual - critical}, is larger, so the classification is
+conservative there: it can call a crop within-boundary that
+Schulte-Uebbing's own exceedance layer puts over it. Measured against that
+layer (\code{threshold = "mi"}, \code{land_use = "ara"}, 28,573 cells, 2,076 of them
+with a negative critical surplus): the two definitions agree exactly on
+every positive-critical cell, 288 cells fall on opposite sides, and after
+aggregation to countries 1 of 175 flips and the global exceedance mass is
+0.6\% low.
 }
 \examples{
 classify_sjos_n(

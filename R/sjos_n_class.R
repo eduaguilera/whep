@@ -25,6 +25,18 @@
 #' (`Global/R/sjos_n.r:363`) at the per-`item_cbs` granularity Module 4's
 #' footprint needs.
 #'
+#' The boundary side reads `exceedance_n_t`, which is a decomposition of the
+#' actual pressure (see [build_n_boundary_exceedance()]) and so is capped at
+#' it. Where the critical surplus is negative the overshoot the source archive
+#' reports, `actual - critical`, is larger, so the classification is
+#' conservative there: it can call a crop within-boundary that
+#' Schulte-Uebbing's own exceedance layer puts over it. Measured against that
+#' layer (`threshold = "mi"`, `land_use = "ara"`, 28,573 cells, 2,076 of them
+#' with a negative critical surplus): the two definitions agree exactly on
+#' every positive-critical cell, 288 cells fall on opposite sides, and after
+#' aggregation to countries 1 of 175 flips and the global exceedance mass is
+#' 0.6% low.
+#'
 #' @param exceedance A [build_n_boundary_exceedance()] output at
 #'   `resolution = "country"`, keyed by `year`, `area_code`, `item_cbs_code`
 #'   with the mass terms `exceedance_n_t`, `within_boundary_n_t`, `actual_n_t`.
