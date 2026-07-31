@@ -72,6 +72,12 @@
 #'   through). Also required:
 #'   * `npp_n_input`: shared with [build_n_inputs()]'s `"recycling"` term
 #'     (see [calculate_npp_carbon_nitrogen()]); used here for `prod_n_t`.
+#'   * `ag_land_support`: the [build_ag_land_support()] table, supplying
+#'     `area_ha` (the per-hectare boundary denominator) on a physical-land
+#'     basis. Derived natively when absent and derivable, and shared with
+#'     [build_n_inputs()] so both see one table; when neither supplied nor
+#'     derivable, `area_ha` falls back to the harvested area the NPP input
+#'     carries.
 #'   * `residue_destiny_input`: [calculate_residue_destinies()]'s required
 #'     input (`item_prod_code`, `residue_dm_t`, plus whatever the chosen
 #'     `residue_destiny_method` needs), for `used_residue_n_t`/
@@ -148,6 +154,11 @@ build_nitrogen_balance <- function(
   # term (both calling .n_balance_npp()) share one result instead of each
   # re-running the full NPP-N pipeline.
   data$.npp_cache <- .n_balance_npp(data)
+  # Materialise the agricultural land support once here so this function's
+  # area_ha denominator and build_n_inputs()'s non-item allocation share ONE
+  # table: derived twice they could disagree, and area_ha would silently fall
+  # back to harvested area even though physical support was available.
+  data$ag_land_support <- .ni_resolve_land_support(data, years = NULL)
   n_inputs <- data$n_inputs %||%
     build_n_inputs(resolution = resolution, data = data)
   .nb_validate_input_grain(n_inputs, resolution)

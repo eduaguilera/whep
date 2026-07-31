@@ -10,9 +10,12 @@
 # crop-spatialized via spatialize_country_n_to_crops(), R/n_balance_
 # spatialize.R).
 #
-# Non-item inputs are allocated only over an explicit agricultural land-support
-# table. Deposition is multiplied by agricultural hectares rather than whole-cell
-# area, so forest/natural deposition never enters the agricultural balance.
+# Non-item inputs are allocated only over an agricultural land-support table,
+# supplied by the caller or derived natively by build_ag_land_support()
+# (R/ag_land_support.R) from the cell_polity/type_cropland/crop_patterns inputs
+# the gridded pipeline already carries. Deposition is multiplied by agricultural
+# hectares rather than whole-cell area, so forest/natural deposition never
+# enters the agricultural balance.
 # Urban N, SOM mineralization, and manure already assigned upstream to Cropland
 # but lacking a crop are apportioned only across local cropland items. Cropland
 # support carries crop CBS items; all pasture/rangeland support uses CBS 3000
@@ -43,7 +46,9 @@
 #' this task, so it is never emitted, only reserved in the vocabulary.
 #'
 #' Terms that are fundamentally per-cell or per-land-use rather than per-crop
-#' are allocated over `data$ag_land_support`. Deposition uses both cropland and
+#' are allocated over the agricultural land support, either supplied as
+#' `data$ag_land_support` or derived by [build_ag_land_support()] from the
+#' gridded inputs already present. Deposition uses both cropland and
 #' grassland support. `"urban"`, `"som_mineralization"`, and manure already
 #' assigned upstream to Cropland but lacking a crop use only local cropland
 #' support, so manure is not reassigned to grassland after the manure engine's
@@ -77,9 +82,16 @@
 #'   * `nhx`, `noy`, `cell_polity`: [build_n_deposition()]'s inputs.
 #'   * `ag_land_support`: agricultural physical land support keyed by `lon`,
 #'     `lat`, `area_code`, `year`, `item_cbs_code`, with `land_use`
-#'     (`"cropland"` or `"grassland"`) and positive `area_ha`. Required when
-#'     deposition or another non-item input is present. Cropland rows identify
-#'     crop CBS items; all pasture/rangeland rows use CBS 3000.
+#'     (`"cropland"` or `"grassland"`) and positive `area_ha`. Optional: when
+#'     absent it is derived natively by [build_ag_land_support()] from
+#'     `cell_polity`, `type_cropland` and `crop_patterns` (plus `states` or
+#'     `grassland_ha` for the grassland side). Supply it to override that
+#'     derivation with a better land surface. Cropland rows identify crop CBS
+#'     items; all pasture/rangeland rows use CBS 3000.
+#'   * `grassland_source`, `grassland_ha`, `states`: forwarded to
+#'     [build_ag_land_support()] when the support is derived.
+#'     `grassland_source` selects its `grassland` argument (`"luh2"` default,
+#'     or `"none"` for cropland-only support).
 #'   * `urban_population`, `cropland_ha`, `cell_polity`: [build_urban_n()]'s
 #'     inputs.
 #'   * `carbon_balance`: [build_carbon_balance()]'s `"grid"`-resolution
@@ -98,8 +110,11 @@
 #'     [coello_synthetic_n] (`year`, `area_code`, `item_cbs_code`,
 #'     `kg_n_ha`); defaults to `whep::coello_synthetic_n`. Used only when
 #'     `synthetic_method = "coello"`.
-#'   * `gridded`, `resolution` (of the manure engine, default `"national"`),
-#'     `methods`: forwarded to [build_livestock_nutrient_flows()].
+#'   * `gridded`, `resolution`, `methods`: forwarded to
+#'     [build_livestock_nutrient_flows()]. `resolution` is the manure engine's
+#'     own axis, not this function's: it defaults to `"subnational"` at
+#'     `resolution = "grid"` (cell-level nitrogen needs cell-level manure) and
+#'     to `"national"` otherwise. A value supplied here is always honoured.
 #' @param example If `TRUE`, return a small fixture instead of assembling
 #'   real data. Defaults to `FALSE`.
 #' @return A tibble. At `resolution = "grid"`: `lon`, `lat`, `area_code`,
@@ -135,12 +150,8 @@ build_n_inputs <- function(
     )
   }
   data$.n_input_resolution <- resolution
-  if (
-    resolution == "grid" ||
-      !is.null(data$ag_land_support)
-  ) {
-    data$resolution <- "subnational"
-  }
+  data$resolution <- .ni_manure_resolution(data, resolution)
+  data$ag_land_support <- .ni_resolve_land_support(data, years)
   assembled <- dplyr::bind_rows(
     .n_inputs_bnf(data),
     .n_inputs_recycling(data),
@@ -198,6 +209,43 @@ build_n_inputs <- function(
     )
   }
   x
+}
+
+# The manure engine's OWN resolution, which is a different axis from this
+# function's. A grid nitrogen build needs cell-level manure, so "subnational" is
+# the default there rather than the engine's own "national". An explicitly
+# supplied data$resolution is a deliberate caller choice and is never
+# overwritten: silently switching method is what the multi-method contract
+# forbids.
+.ni_manure_resolution <- function(data, resolution) {
+  if (!is.null(data$resolution)) {
+    return(data$resolution)
+  }
+  if (resolution == "grid") "subnational" else "national"
+}
+
+# Materialise the agricultural land support ONCE, before assembly, so the
+# deposition term and the unattributed-input allocation share one table instead
+# of each rebuilding it. A caller-supplied table always wins; otherwise it is
+# derived natively by build_ag_land_support() from the cell_polity /
+# type_cropland / crop_patterns inputs the gridded pipeline already carries.
+# Without cell_polity there are no gridded cells to place support on, so NULL is
+# returned and .ni_land_support() reports the missing input if a term needs it.
+.ni_resolve_land_support <- function(data, years) {
+  if (!is.null(data$ag_land_support) || is.null(data$cell_polity)) {
+    return(data$ag_land_support)
+  }
+  build_ag_land_support(
+    years = years,
+    grassland = data$grassland_source %||% "luh2",
+    data = list(
+      cell_polity = data$cell_polity,
+      type_cropland = data$type_cropland,
+      crop_patterns = data$crop_patterns,
+      states = data$states,
+      grassland_ha = data$grassland_ha
+    )
+  )
 }
 
 .ni_resolve <- function(x, resolution) {
@@ -558,13 +606,18 @@ build_n_inputs <- function(
 
 # ---- Allocate non-item agricultural inputs over explicit support ------------
 
+# The support table is materialised once by .ni_resolve_land_support() before
+# assembly, so reaching this abort means no support could be built AND none was
+# supplied (no cell_polity to place the cells against).
 .ni_land_support <- function(data) {
   support <- data$ag_land_support
   if (is.null(support)) {
     cli::cli_abort(c(
-      "Non-item nitrogen inputs require explicit agricultural land support.",
-      i = "Supply {.field data$ag_land_support} with cell/polity/year/item,
-           {.field land_use}, and physical {.field area_ha}."
+      "Non-item nitrogen inputs require agricultural land support.",
+      i = "Supply {.field data$ag_land_support}, or the
+           {.field data$cell_polity} / {.field data$type_cropland} /
+           {.field data$crop_patterns} inputs [build_ag_land_support()] needs
+           to derive it."
     ))
   }
   .check_columns(

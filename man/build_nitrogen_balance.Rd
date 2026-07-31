@@ -31,6 +31,12 @@ through). Also required:
 \itemize{
 \item \code{npp_n_input}: shared with \code{\link[=build_n_inputs]{build_n_inputs()}}'s \code{"recycling"} term
 (see \code{\link[=calculate_npp_carbon_nitrogen]{calculate_npp_carbon_nitrogen()}}); used here for \code{prod_n_t}.
+\item \code{ag_land_support}: the \code{\link[=build_ag_land_support]{build_ag_land_support()}} table, supplying
+\code{area_ha} (the per-hectare boundary denominator) on a physical-land
+basis. Derived natively when absent and derivable, and shared with
+\code{\link[=build_n_inputs]{build_n_inputs()}} so both see one table; when neither supplied nor
+derivable, \code{area_ha} falls back to the harvested area the NPP input
+carries.
 \item \code{residue_destiny_input}: \code{\link[=calculate_residue_destinies]{calculate_residue_destinies()}}'s required
 input (\code{item_prod_code}, \code{residue_dm_t}, plus whatever the chosen
 \code{residue_destiny_method} needs), for \code{used_residue_n_t}/

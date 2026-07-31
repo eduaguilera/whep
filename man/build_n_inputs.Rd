@@ -43,9 +43,16 @@ argument (the \code{\link[=redistribute_feed]{redistribute_feed()}} realised-int
 \item \code{nhx}, \code{noy}, \code{cell_polity}: \code{\link[=build_n_deposition]{build_n_deposition()}}'s inputs.
 \item \code{ag_land_support}: agricultural physical land support keyed by \code{lon},
 \code{lat}, \code{area_code}, \code{year}, \code{item_cbs_code}, with \code{land_use}
-(\code{"cropland"} or \code{"grassland"}) and positive \code{area_ha}. Required when
-deposition or another non-item input is present. Cropland rows identify
-crop CBS items; all pasture/rangeland rows use CBS 3000.
+(\code{"cropland"} or \code{"grassland"}) and positive \code{area_ha}. Optional: when
+absent it is derived natively by \code{\link[=build_ag_land_support]{build_ag_land_support()}} from
+\code{cell_polity}, \code{type_cropland} and \code{crop_patterns} (plus \code{states} or
+\code{grassland_ha} for the grassland side). Supply it to override that
+derivation with a better land surface. Cropland rows identify crop CBS
+items; all pasture/rangeland rows use CBS 3000.
+\item \code{grassland_source}, \code{grassland_ha}, \code{states}: forwarded to
+\code{\link[=build_ag_land_support]{build_ag_land_support()}} when the support is derived.
+\code{grassland_source} selects its \code{grassland} argument (\code{"luh2"} default,
+or \code{"none"} for cropland-only support).
 \item \code{urban_population}, \code{cropland_ha}, \code{cell_polity}: \code{\link[=build_urban_n]{build_urban_n()}}'s
 inputs.
 \item \code{carbon_balance}: \code{\link[=build_carbon_balance]{build_carbon_balance()}}'s \code{"grid"}-resolution
@@ -64,8 +71,11 @@ conserving) or \code{"area_share"} (harvested-area shares only).
 \link{coello_synthetic_n} (\code{year}, \code{area_code}, \code{item_cbs_code},
 \code{kg_n_ha}); defaults to \code{whep::coello_synthetic_n}. Used only when
 \code{synthetic_method = "coello"}.
-\item \code{gridded}, \code{resolution} (of the manure engine, default \code{"national"}),
-\code{methods}: forwarded to \code{\link[=build_livestock_nutrient_flows]{build_livestock_nutrient_flows()}}.
+\item \code{gridded}, \code{resolution}, \code{methods}: forwarded to
+\code{\link[=build_livestock_nutrient_flows]{build_livestock_nutrient_flows()}}. \code{resolution} is the manure engine's
+own axis, not this function's: it defaults to \code{"subnational"} at
+\code{resolution = "grid"} (cell-level nitrogen needs cell-level manure) and
+to \code{"national"} otherwise. A value supplied here is always honoured.
 }}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of assembling
@@ -103,7 +113,9 @@ Spain_Hist's N_balance.R): its source computation was not available for
 this task, so it is never emitted, only reserved in the vocabulary.
 
 Terms that are fundamentally per-cell or per-land-use rather than per-crop
-are allocated over \code{data$ag_land_support}. Deposition uses both cropland and
+are allocated over the agricultural land support, either supplied as
+\code{data$ag_land_support} or derived by \code{\link[=build_ag_land_support]{build_ag_land_support()}} from the
+gridded inputs already present. Deposition uses both cropland and
 grassland support. \code{"urban"}, \code{"som_mineralization"}, and manure already
 assigned upstream to Cropland but lacking a crop use only local cropland
 support, so manure is not reassigned to grassland after the manure engine's

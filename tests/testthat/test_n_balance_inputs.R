@@ -292,6 +292,23 @@
   )
 }
 
+# Gridded grassland hectares, bypassing the LUH2 read when the support table is
+# derived natively rather than injected.
+.nbi_grassland_ha <- function() {
+  tibble::tribble(
+    ~lon,
+    ~lat,
+    ~area_code,
+    ~year,
+    ~area_ha,
+    0.25,
+    50.25,
+    10L,
+    2010L,
+    500
+  )
+}
+
 .nbi_full_data <- function() {
   list(
     bnf_input = .nbi_bnf_input(),
@@ -396,12 +413,44 @@ testthat::test_that("deposition excludes forest and natural land mass", {
   )
 })
 
-testthat::test_that("non-item inputs require explicit agricultural support", {
+testthat::test_that("agricultural support is derived when not supplied", {
   data <- .nbi_full_data()
   data$ag_land_support <- NULL
+  data$grassland_ha <- .nbi_grassland_ha()
+  out <- whep::build_n_inputs(data = data)
+  dep <- out[out$fert_type == "deposition", ]
+  # The 1000 physical cropland ha are split by the crop pattern (0.6 wheat /
+  # 0.2 rice -> 0.75 / 0.25), not by the raw harvest fractions, plus 500 ha of
+  # grassland: the same 1500 charged hectares the injected support gives.
+  testthat::expect_setequal(dep$item_cbs_code, c(2511L, 2807L, 3000L))
+  testthat::expect_equal(sum(dep$n_input_t), 1500)
+  testthat::expect_equal(dep$n_input_t[dep$item_cbs_code == 2511L], 750)
+  testthat::expect_equal(dep$n_input_t[dep$item_cbs_code == 2807L], 250)
+  testthat::expect_equal(dep$n_input_t[dep$item_cbs_code == 3000L], 500)
+})
+
+testthat::test_that("non-item inputs abort when no support can be derived", {
+  data <- .nbi_full_data()
+  data$ag_land_support <- NULL
+  data$type_cropland <- NULL
   testthat::expect_error(
     whep::build_n_inputs(data = data),
-    "ag_land_support|land support"
+    "WHEP_TYPE_CROPLAND_PATH|ag_land_support|land support"
+  )
+})
+
+testthat::test_that("the manure engine resolution is never overwritten", {
+  testthat::expect_equal(
+    whep:::.ni_manure_resolution(list(), "grid"),
+    "subnational"
+  )
+  testthat::expect_equal(
+    whep:::.ni_manure_resolution(list(), "polity"),
+    "national"
+  )
+  testthat::expect_equal(
+    whep:::.ni_manure_resolution(list(resolution = "national"), "grid"),
+    "national"
   )
 })
 
