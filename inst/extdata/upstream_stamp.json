@@ -1,0 +1,11 @@
+{
+  "identity_sha256": "a7ec0f631375e07632eec4b9eee3def9256e8e942bc26bd39f4e561cc7a94fcc",
+  "counts": {
+    "total": 740,
+    "live": 713,
+    "dead": 27
+  },
+  "alias_map_sha256": "3dbd9c078c1c83741006bd1159c1fa3b64ec2f45871d007492d70a7d4bea31b6",
+  "faostat_area_map_sha256": "8695753a881070c5f52b039a6422722323d69c7104a8ba5d2e33017f0e0e79db",
+  "source": "data/final/polities_database.csv"
+}

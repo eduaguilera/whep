@@ -54,6 +54,31 @@ faostat_subthreshold_groups <- sort(as.integer(
   unmapped$subthreshold_group_codes
 ))
 
+# Record WHICH upstream state these datasets were built from, so drift is detectable on a
+# runner that cannot see the upstream repository at all.
+#
+# The contract tests compare the embedded copies against the real upstream files, and skip
+# when those are absent -- which is every CI run, because whep-polities is private. So on CI
+# nothing links `data/*.rda` to a known upstream state, and a rebuild against a DIFFERENT
+# upstream than these constants came from passes everything. That is not hypothetical: this
+# branch twice shipped two representations of one decision with only one of them rebuilt.
+#
+# The stamp is written here rather than anywhere else because this is the one data-raw script
+# that already requires the manifest, so it cannot record a version it did not read.
+upstream_stamp <- list(
+  identity_sha256 = manifest$identity_sha256,
+  counts = manifest$counts,
+  alias_map_sha256 = manifest$label_alias_map$sha256,
+  faostat_area_map_sha256 = manifest$faostat_area_map$sha256,
+  source = manifest$source
+)
+jsonlite::write_json(
+  upstream_stamp,
+  file.path("inst", "extdata", "upstream_stamp.json"),
+  auto_unbox = TRUE,
+  pretty = TRUE
+)
+
 usethis::use_data(
   k_tonnes_per_livestock_unit,
   faostat_group_code_min,
