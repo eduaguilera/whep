@@ -365,3 +365,50 @@ testthat::test_that(".n_synthetic_crop_shares rejects bad method", {
     "method"
   )
 })
+
+testthat::test_that("a country-year with no positive rate falls back cleanly", {
+  primary_prod <- tibble::tribble(
+    ~year,
+    ~area_code,
+    ~item_cbs_code,
+    ~unit,
+    ~value,
+    2010L,
+    10L,
+    2511L,
+    "ha",
+    100,
+    2010L,
+    20L,
+    2511L,
+    "ha",
+    50
+  )
+  # Polity 20's only Coello rate is zero, so it is not "covered" and takes the
+  # harvested-area branch. Shares stay finite and the basis is stamped, rather
+  # than the country-year emitting a NaN share.
+  rates <- tibble::tribble(
+    ~year,
+    ~area_code,
+    ~item_cbs_code,
+    ~kg_n_ha,
+    2010L,
+    10L,
+    2511L,
+    80,
+    2010L,
+    20L,
+    2511L,
+    0
+  )
+  shares <- whep:::.n_synthetic_crop_shares(primary_prod, "coello", rates)
+  testthat::expect_true(all(is.finite(shares$area_share)))
+  testthat::expect_equal(
+    shares$method_synthetic[shares$area_code == 10L],
+    "coello"
+  )
+  testthat::expect_equal(
+    shares$method_synthetic[shares$area_code == 20L],
+    "area_share"
+  )
+})

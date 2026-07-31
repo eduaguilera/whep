@@ -237,6 +237,11 @@ spatialize_country_n_to_crops <- function(
         .data$rate * .data$area_ha,
         .data$area_ha
       ),
+      # sum(weight) is always positive, so this division needs no guard:
+      # .n_crop_area_ha() keeps only rows with value > 0, so every area_ha is
+      # finite and positive, and covered = TRUE requires some crop with a rate
+      # above zero. A country-year with no positive rate takes the area_share
+      # branch, where weight IS area_ha.
       area_share = .data$weight / sum(.data$weight),
       method_synthetic = dplyr::if_else(
         .data$covered,
