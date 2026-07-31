@@ -1605,6 +1605,31 @@ build_processing_coefs <- function(
   # Avoids expensive frankv over many source columns.
   primary_sources <- c("FAOSTAT_prod", "FAOSTAT_FBS_New", "FAOSTAT_FBS_Old")
   src_pivot <- dt_raw[source %in% primary_sources]
+  # `fun.aggregate` is REQUIRED here, and omitting it was a silent data-corruption bug.
+  #
+  # `dcast()` with no `fun.aggregate` falls back to `length()` as soon as ANY duplicate
+  # (key, source) combination exists -- and it applies that function to EVERY cell, not just the
+  # duplicated ones. So one duplicate anywhere turns the whole table into row counts. Measured
+  # before this change, on a real 2010-2023 build:
+  #
+  #   classes = FAOSTAT_FBS_New:integer  FAOSTAT_FBS_Old:integer  FAOSTAT_prod:integer
+  #   maxima  = 4, 4, 1
+  #
+  # Those columns are tonnes. A maximum of 4 is impossible. 31,642 duplicated combinations
+  # exist at full range, in areas 206 and 999, so the fallback fired in every build.
+  #
+  # SUM is the right aggregate, established from the data rather than assumed. The duplicates
+  # are one reporting bucket's folded members: `.aggregate_to_polities()` emits one row per
+  # (bucket, polity_name) and `key_cols` deliberately excludes the name -- see the comment
+  # above, which is why that exclusion is correct. Dumped, bucket 999 in 2010 for wheat holds
+  # four distinct territories with production 0 / 244,000 / 0 / 3,103,000. FABIO's
+  # rest-of-world IS the sum of its members, so summing reproduces the bucket. `first` would
+  # keep one member (0, here) and discard the rest.
+  #
+  # All-NA cells stay NA rather than collapsing to 0: `sum(na.rm = TRUE)` of nothing is 0, and a
+  # zero where there is no observation is a different claim from a missing one. `fill = NA` is
+  # respected either way -- verified on a synthetic cast, absent combinations remain NA whether
+  # or not a function is supplied.
   wide <- data.table::dcast(
     src_pivot,
     stats::as.formula(paste(
@@ -1612,7 +1637,10 @@ build_processing_coefs <- function(
       "~ source"
     )),
     value.var = "value",
-    fill = NA
+    fill = NA,
+    fun.aggregate = function(x) {
+      if (all(is.na(x))) NA_real_ else sum(x, na.rm = TRUE)
+    }
   )
   for (col in setdiff(primary_sources, names(wide))) {
     wide[, (col) := NA_real_]
