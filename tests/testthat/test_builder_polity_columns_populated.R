@@ -26,8 +26,25 @@
 # quietly, and fixing whep#417 forces this list to be updated, which is the signal that it
 # was fixed.
 #
-# The real builds do resolve everything: a full-range `get_wide_cbs()` gives 0 NA across all
-# ~2.766M rows (the count varies by 4,107 between runs -- whep#420 -- the 0 does not). This is an example-fixture problem, not a coverage gap.
+# The real builds mostly resolve everything, and MEASURING THAT SPLIT THE TWO CASES APART.
+# Full-range smoke runs:
+#
+#   get_wide_cbs()        0 NA across ~2.766M rows (count varies by 4,107 -- whep#420 -- the 0 does not)
+#   build_supply_use()    160 NA of 10,118,408   -> REAL, 0.0016%
+#   get_feed_intake()     0 NA of 6,315,042      -> FIXTURE-ONLY
+#
+# So the two pinned non-zero counts below mean different things, and the pins alone hide that:
+#
+#   build_supply_use = 1L   a real defect the fixture happens to reproduce. 160 rows carry no
+#                           `area_code` at all in production, so there is nothing to resolve --
+#                           a missing area, not an unmapped one.
+#   get_feed_intake = 2L    NOT a defect in the builder. The real build emits zero such rows;
+#                           the fixture contains rows that cannot occur in the pipeline. Pinned
+#                           because the fixture does produce them today, not because the builder
+#                           is wrong.
+#
+# Left pinned rather than corrected: fixing the fixture changes what the documented example in
+# `?get_feed_intake` shows, which belongs to whoever owns it (whep#417). This is an example-fixture problem, not a coverage gap.
 
 .polity_na_counts <- function(builder) {
   out <- tryCatch(
@@ -50,7 +67,8 @@ test_that("example builders emit the polity columns they document", {
     build_detailed_trade = 0L,
     get_primary_residues = 0L,
     get_wide_cbs = 0L,
-    # whep#417: rows with no area_code at all reach the output.
+    # whep#417, and the two are different in kind -- see the header. build_supply_use has a
+    # real 160-row gap at full range; get_feed_intake has none, and its 2 are fixture-only.
     build_supply_use = 1L,
     get_feed_intake = 2L
   )
