@@ -12,8 +12,8 @@
 # The first row is a BUNDLE, and reading it as one change cost hours. I attributed the 266x to
 # the summing and wrote that into seven places as fact. Isolated, the relabelling owns all of it
 # -- it created two vocabularies for `area`, a join key, and dropped 702,166 rows -- while the
-# summing is harmless and is in fact a candidate fix for whep#425. One measurement over two
-# candidate causes attributes nothing; run each half alone.
+# summing is harmless, and summing at the cast is what shipped as the fix for whep#425. One
+# measurement over two candidate causes attributes nothing; run each half alone.
 #
 # A full-range build costs several minutes, which is too slow for testthat but trivial next to
 # the hours it takes to find one of these afterwards. Run it before committing any change to
@@ -68,11 +68,24 @@
 # against `main` -- is inside the noise and needs repeat runs before it means anything. The
 # defects this script exists to catch are 13x to 266x, orders of magnitude clear of it.
 #
-# AND THE BASELINE IS NOT A RECORD OF CORRECT VALUES. whep#425: `dcast()`'s `length()` fallback
-# in `.select_best_source()` replaces EVERY cast value with a row count, so the published
-# commodity balances -- and therefore this baseline -- are wrong by up to 259x on `food` today,
-# on `main` equally. This script detects DRIFT, which is still worth having; it does not
-# certify the numbers it pins.
+# THE BASELINE WAS RE-RECORDED AFTER whep#425 WAS FIXED (2026-07-31). The previous one pinned a
+# corrupted build: `dcast()` with no `fun.aggregate` fell back to `length()` and replaced every
+# cast value with a row count. Re-recording measured the fix, and it landed on the predicted
+# magnitudes to three digits:
+#
+#   food 259.00x   seed 182.69x   stock_addition 16.90x   stock_withdrawal 15.98x
+#   feed 11.89x    other_uses 11.50x   import 7.09x   export 2.63x
+#   domestic_supply 1.86x   production 1.77x   processing 1.08x   areas 1.00x
+#   rows 0.7216x (2,768,578 -> 1,997,944)
+#
+# The row DROP is the fix working, not data lost: counts are never zero, so the `value != 0`
+# filter had nothing to remove; with quantities restored it removes ~390k genuine zeros.
+# `processing` at 1.08x and `areas` at 1.00x are the tell that this was a value defect rather
+# than a structural one -- the frame's shape barely moved while its contents changed by 259x.
+#
+# Even so, this script detects DRIFT. It does not certify values: a baseline is only ever as
+# good as the build that produced it, which is what the previous one demonstrated. Read the
+# SHAPE of a diff and ask whether the magnitudes are physically plausible.
 #
 # Usage:
 #   Rscript inst/scripts/compare_cbs_totals.R            # compare against the baseline
@@ -110,7 +123,42 @@ current <- data.table::data.table(
   )
 )
 
+.comparison <- function(baseline, current) {
+  cmp <- merge(
+    baseline,
+    current,
+    by = "metric",
+    all = TRUE,
+    suffixes = c("_baseline", "_current")
+  )
+  cmp[, ratio := value_current / value_baseline]
+  cmp[, pct := 100 * (ratio - 1)]
+  data.table::setorder(cmp, -ratio)
+  cmp
+}
+
+.print_comparison <- function(cmp) {
+  cat("\n")
+  print(cmp[, .(
+    metric,
+    baseline = value_baseline,
+    current = value_current,
+    ratio = round(ratio, 4),
+    pct = round(pct, 3)
+  )])
+}
+
+# `--write` SHOWS WHAT IT IS ABOUT TO OVERWRITE. Re-recording blind is how the previous
+# baseline came to certify a corrupted build: whoever ran it saw only "written, 13 metrics"
+# and had no prompt to ask whether the numbers were plausible. Printing the diff first makes
+# a 259x jump impossible to record without seeing it.
 if (write_mode) {
+  if (file.exists(baseline_path)) {
+    .print_comparison(.comparison(data.table::fread(baseline_path), current))
+    cli::cli_alert_info(
+      "Above: the OUTGOING baseline against this run. Overwriting it now."
+    )
+  }
   data.table::fwrite(current, baseline_path)
   cli::cli_alert_success(
     "Baseline written to {.path {baseline_path}} ({nrow(current)} metrics)."
@@ -126,29 +174,8 @@ if (!file.exists(baseline_path)) {
   ))
 }
 
-baseline <- data.table::fread(baseline_path)
-cmp <- merge(
-  baseline,
-  current,
-  by = "metric",
-  all = TRUE,
-  suffixes = c(
-    "_baseline",
-    "_current"
-  )
-)
-cmp[, ratio := value_current / value_baseline]
-cmp[, pct := 100 * (ratio - 1)]
-data.table::setorder(cmp, -ratio)
-
-cat("\n")
-print(cmp[, .(
-  metric,
-  baseline = value_baseline,
-  current = value_current,
-  ratio = round(ratio, 4),
-  pct = round(pct, 3)
-)])
+cmp <- .comparison(data.table::fread(baseline_path), current)
+.print_comparison(cmp)
 
 # 1% is the band the legitimate changes in this cycle occupied -- label resolutions and
 # residue area codes adding data. Anything outside it is a magnitude change and needs an
