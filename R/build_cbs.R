@@ -1701,10 +1701,14 @@ build_processing_coefs <- function(
   # THE CAUSE IS NOT FIXED, and an earlier version of this comment claimed it was --
   # that `.aggregate_to_polities()` groups by the reporting bucket rather than by
   # bucket-plus-name. It groups by bucket-plus-name, correctly: the name distinguishes
-  # territory-periods, and collapsing them double-counts, measured at 266x on `food`
-  # (whep#418). So the duplicates remain -- 31,642 (key, source) combinations at full
-  # range, and the same on `main`, where they were silent. This guard reports them
-  # rather than letting `length()` answer for them unremarked.
+  # territory-periods, and `area` is a join key that four inner joins use. So the duplicates
+  # arrive here -- 31,642 (key, source) combinations at full range, the same on `main`, where
+  # they were silent -- and THIS is where the bucket's total belongs, because these rows are
+  # unambiguously one bucket's members for one (year, item, element, source).
+  #
+  # They must not merely be reported. `dcast()`'s `length()` fallback replaces EVERY value in
+  # the cast with a row count, not just the duplicated ones, so today all three primary source
+  # columns come back integer with maxima of 4, 4 and 1 where tonnes belong. whep#425.
   dup_keys <- src_pivot[,
     .N,
     by = c(key_cols, "source")

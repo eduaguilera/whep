@@ -1,7 +1,7 @@
-# Folded reporting areas must NOT be summed together just because they share a bucket.
+# Folded reporting areas must not be summed HERE. They must be summed at the cast.
 #
-# This file asserted the opposite until the totals were measured, and the reversal is the
-# point of keeping the history in the comment.
+# Where the bucket's total is computed is the whole subject of this file, and it has moved
+# twice, so the history is kept deliberately.
 #
 # `.aggregate_to_polities()` aggregates to `polity_area_code` — the reporting bucket the
 # polities database defines — grouping by `polity_name` alongside the code. Several FAOSTAT
@@ -10,12 +10,21 @@
 # `(area_code, year, item_cbs, item_cbs_code, element, source)` keys, all in bucket 206, which
 # folds FAOSTAT 206 "Sudan (former)", 276 "Sudan" and 277 "South Sudan".
 #
-# Dropping `polity_name` from the grouping to collapse them is WRONG. The name distinguishes
-# territory-periods, and rows for a member and rows that already aggregate that member both
-# land in the bucket, so summing double-counts. Measured on a full-range `get_wide_cbs()`
-# against main:
+# Dropping `polity_name` from the grouping is still WRONG, but the reason is narrower than an
+# earlier version of this comment claimed, and the difference is worth stating.
 #
-#   food             266x    domestic_supply  1.9x    feed  12x    import  8.3x
+# What is certain: `area` is a JOIN KEY (see the last test in this file), and the residues path
+# emits the polity name, so the aggregator must too. Keeping the periods apart is also what
+# `main` does, and the bucket's total is computed later, at the cast in `.select_best_source()`,
+# where the rows are unambiguously one bucket's members.
+#
+# What I claimed and cannot support: that summing HERE double-counts, on the strength of
+# measuring `food` inflate 266x when I tried it. That change bundled TWO things -- dropping
+# `polity_name` from the grouping AND relabelling the output with the bucket's stable
+# `area_name` -- and the relabelling alone silently dropped 702,166 rows by creating two
+# vocabularies for a join key. I never separated the effects, so the 266x cannot be attributed
+# to the summing. See whep#425, where the same rows are summed at the cast and that IS the
+# right place for it.
 #
 # Row counts barely moved (2.16M vs 2.81M) while values exploded, which is why 5151 passing
 # tests said nothing: no test compared a magnitude with anything.
@@ -26,8 +35,12 @@
 # double only when `scale_new_old` applies, which depends on the build window — at 1990-2023
 # the build dies in `fcoalesce` with a type clash, over the full range it completes with counts
 # standing in for quantities. The crash is the good case. main has the same duplicates, so the
-# guard warns rather than aborts; choosing sum-vs-first at the cast changes published numbers
-# and is whep#418.
+# guard warns rather than aborts.
+#
+# And the trap is worse than "duplicated cells become counts": the fallback applies to EVERY
+# cell, so in a real build all three primary source columns come back integer with maxima of
+# 4, 4 and 1 where tonnes belong. whep#425 measures the cost at up to 259x on `food` and
+# recommends `sum`, because these duplicated rows are one bucket's folded members.
 
 test_that("territory-periods sharing a bucket are kept apart, not summed", {
   cw <- as.data.frame(whep::polity_area_crosswalk)
@@ -86,8 +99,9 @@ test_that("territory-periods sharing a bucket are kept apart, not summed", {
   )
   out <- whep:::.aggregate_to_polities(input, item_cbs_code)
 
-  # Two distinct territory-periods, two rows. Collapsing them to one row of 42 is the
-  # double-count that inflated `food` 266x.
+  # Two distinct territory-periods, two rows. Collapsing them here would also collapse the
+  # `area` label they carry, which four inner joins key on -- and the bucket's total belongs at
+  # the cast, not here (whep#425).
   expect_equal(nrow(out), 2L)
   expect_setequal(out$value, c(10, 32))
   expect_true(all(out$area_code == pair$bucket))

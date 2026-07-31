@@ -315,7 +315,7 @@ COUNTS instead of quantities — and data.table says so itself in the warning im
 in areas 206 and 999 are affected in the shipped build, and they are affected on `main` too; the difference is that
 they were silent there. Fixing it means choosing `sum` or `first` at the cast, which changes published numbers, so
 it is whep#418 rather than a decision taken here. Two earlier attempts to fix it upstream instead — by summing the
-areas that fold into one bucket — were withdrawn after measurement inflated `food` 266x; see the same issue.
+areas that fold into one bucket — were withdrawn, though the 266x measured for it bundled a second change that alone dropped 702,166 rows, so it does not by itself condemn summing; whep#425 sums the same rows at the cast, which is the right place.
 
 That is the whole inventory. Earlier in this work the full-range build emitted four warnings and three of those
 were defects, since fixed:
@@ -345,7 +345,7 @@ reader can go look rather than take it on faith.
 | the resolver honours the published alias map — all 851 ranged aliases resolve to their own target | `test_alias_map_conformance.R` |
 | a name resolves only when one polity carries it in that year, and a year-covering rule outranks it | `test_resolve_polity_label_name_route.R`, by identity |
 | every dataset naming a territory is tied to the polities database by something | `test_area_dataset_census.R` — built on the lazydata environment, because package data is not an export |
-| territory-periods sharing a bucket are kept apart rather than summed — summing them double-counts, `food` by 266× | `test_polity_bucket_aggregation.R`, mutation-tested |
+| territory-periods sharing a bucket are kept apart, because `area` is a join key and the bucket's total belongs at the cast (whep#425) | `test_polity_bucket_aggregation.R`, mutation-tested |
 | the aggregator's `area` label agrees with what the residues path emits, since `area` is a join key | the same file — two vocabularies for it once dropped 702,166 rows silently |
 | duplicate keys reaching the source cast are **reported**, since `dcast()` would answer them with `length()` | a warning in `.select_best_source()`; 31,642 combinations are affected and were silent on `main` too (#418) |
 | the numeric aggregation key honours FABIO's fold, and both published tables state it identically | `test_polity_area_code_not_folded.R` — promoting these areas inflated global `feed` 13.7× (#419) |

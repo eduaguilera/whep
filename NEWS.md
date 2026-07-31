@@ -58,10 +58,12 @@
   - Summing the FAOSTAT areas that fold into one reporting bucket. The bucket
     holds several rows when its members' polities are differently named -- 1,525
     duplicate keys at 1990-2023, all in FABIO's Sudan region 206 -- which reads
-    as a defect. It is not: the name distinguishes territory-periods, and rows
-    for a member and rows already aggregating that member both land in the
-    bucket, so summing double-counts. Measured: `food` 266x, `domestic_supply`
-    1.9x, `feed` 12x. Grouping by `(bucket, polity_name)` is correct.
+    as a defect. Grouping by `(bucket, polity_name)` is correct because `area` is a join
+    key that four inner joins use, and because the bucket's total belongs at the cast
+    in `.select_best_source()`, where the rows are unambiguously one bucket's members
+    (#425). An earlier note here said summing double-counts, measured at 266x on
+    `food`; that measurement bundled a second change which alone dropped 702,166 rows,
+    so it does not support the claim and has been withdrawn.
   - Promoting the 16 areas FABIO folds into rest-of-world that report data of
     their own to their own numeric key. Measured: `feed` 13.7x, `export` 13.2x,
     `production` 1.8x, with the entire `feed` increase landing on one area
@@ -76,8 +78,12 @@
   key with `length()`, so those values become row COUNTS in any build that does
   not happen to die on the resulting type clash. A warning rather than an abort
   because these duplicates are pre-existing and shared with the previous release,
-  so aborting refuses to build a pipeline that has always had them. Choosing
-  sum-vs-first at the cast changes published numbers: #418.
+  so aborting refuses to build a pipeline that has always had them.
+  **The trap is larger than the guard implies** and is now measured in #425: the
+  `length()` fallback applies to every cell, not only duplicated ones, so all three
+  primary source columns come back integer with maxima of 4, 4 and 1 where tonnes
+  belong -- on this release and the previous one alike. Fixing it moves published
+  commodity balances by up to 259x, so it is a review rather than a patch.
 
 * FAOSTAT ISO3 codes are corrected from the polities crosswalk rather than from a
   hand-maintained list. `.populate_iso3_code()` carried seven patches introduced as
