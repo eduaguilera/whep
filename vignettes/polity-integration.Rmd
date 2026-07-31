@@ -355,6 +355,7 @@ reader can go look rather than take it on faith.
 | no published column total drifts unnoticed | `inst/scripts/compare_cbs_totals.R` against a committed baseline — the gap that let two changes inflate values up to 266× while the suite stayed green |
 | a dataset or extdata change is real rather than serialisation churn | `inst/scripts/compare_datasets_to_ref.R`, mutation-tested both ways — 27 of 33 changed `.rda` files here are byte-identical in content |
 | ISO3 codes used by these tables either resolve to a polity or are a documented exemption | `test_iso3_polity_coverage.R`, pinned by identity in four classes |
+| the eight primary builders attach and document polity columns | `check_like_ci.R`'s documentation gate plus `test_builder_polity_columns_populated.R` — **22 further area-keyed exported outputs carry the polity-derived `area_code` but not the columns**, which is whep#424 |
 
 One property is worth stating separately because it is the strongest form of "interconnected" available:
 **the committed data is exactly reproducible from the published contract.** Re-running
