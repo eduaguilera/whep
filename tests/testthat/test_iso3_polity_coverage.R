@@ -156,3 +156,59 @@ testthat::test_that("the dissolved states have polities that simply lack the cod
   testthat::expect_true("MMR" %in% burma$iso3_code)
   testthat::expect_false("BUR" %in% known)
 })
+
+testthat::test_that("upstream's local codes and our unresolvable codes are disjoint", {
+  # Closes the loop with the published contract, and the relationship is the opposite of what I
+  # first assumed -- worth recording, because the wrong version looked obviously right.
+  #
+  # `polities_manifest.json` now publishes `local_iso3_codes`: the 56 values in `polities` that
+  # are LOCAL identifiers rather than ISO 3166 codes, because there is no ISO code for
+  # Austria-Hungary and inventing `AUH` beats leaving it blank.
+  #
+  # I expected CSK, SUN and YUG to be on that list, since they are the dissolved states this
+  # file reports as unresolvable. They are not, and cannot be: a code is "local" because
+  # `polities` USES it, while these are unresolvable precisely because `polities` uses nothing
+  # for them (whep-polities#55). The two sets are therefore **disjoint by construction**:
+  #
+  #   local        = codes polities carries that are not ISO      -> always resolvable here
+  #   unresolvable = codes our tables reference that polities lacks -> never local
+  #
+  # Measured: 56 local, 39 unresolvable, **0 in both**, and the 10 local codes that appear in
+  # our tables are all resolvable.
+  #
+  # That disjointness is the property worth guarding. A local code turning up as unresolvable
+  # would mean upstream dropped a polity while our tables still reference its code -- exactly
+  # the drift this integration exists to prevent, and invisible without comparing the two lists.
+  path <- Sys.getenv("WHEP_POLITIES_MANIFEST", unset = "")
+  testthat::skip_if(
+    path == "" || !file.exists(path),
+    "upstream manifest not reachable; set WHEP_POLITIES_MANIFEST"
+  )
+  mf <- jsonlite::fromJSON(path, simplifyVector = TRUE)
+  local_codes <- mf$local_iso3_codes
+  testthat::skip_if(
+    is.null(local_codes),
+    "manifest predates local_iso3_codes; regenerate upstream"
+  )
+  testthat::expect_gt(length(local_codes), 40L)
+
+  unresolvable <- .unresolvable_iso3()
+
+  # The invariant: nothing upstream calls local may be unresolvable here.
+  testthat::expect_equal(
+    intersect(local_codes, unresolvable),
+    character(0),
+    info = paste(
+      "upstream declares these local, yet they resolve to no polity here --",
+      "either a polity was dropped or the baseline is stale:",
+      paste(intersect(local_codes, unresolvable), collapse = ", ")
+    )
+  )
+
+  # Non-vacuous: some local codes must actually appear in our tables, or the check above is
+  # comparing against nothing. Ten do.
+  cw <- as.data.frame(whep::polity_area_crosswalk)
+  r <- as.data.frame(whep::regions_full)
+  used <- unique(stats::na.omit(c(r$iso3c, cw$area_iso3c)))
+  testthat::expect_gte(length(intersect(local_codes, used)), 5L)
+})
