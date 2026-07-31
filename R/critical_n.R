@@ -26,7 +26,9 @@
 #' media, surface water, groundwater or deposition) and `land_use` (all
 #' agricultural land, arable only, or intensively managed grassland); the three
 #' critical losses and the binding threshold ignore `threshold`. The archive
-#' directory is read from the `WHEP_CRITICAL_N_DIR` environment variable.
+#' directory comes from `dir`, else the `WHEP_CRITICAL_N_DIR` environment
+#' variable, else a local cache that is populated by downloading the archive
+#' from Zenodo on first use (see `dir`).
 #'
 #' @param var Which critical-nitrogen layer to read: one of
 #'   `"critical_n_surplus"`, `"critical_n_input"`, `"exceedance"`,
@@ -44,7 +46,14 @@
 #'   file; used by the binding threshold and the surplus/input/exceedance
 #'   layers.
 #' @param dir Optional path to the archive directory, overriding
-#'   `WHEP_CRITICAL_N_DIR`. Defaults to `NULL`.
+#'   `WHEP_CRITICAL_N_DIR`. Defaults to `NULL`, in which case the archive is
+#'   resolved as: `dir`, then `WHEP_CRITICAL_N_DIR`, then a local cache under
+#'   `rappdirs::user_cache_dir("whep")`. When the cache is empty the 18.4 MB
+#'   CC-BY-4.0 Zenodo archive is downloaded, verified against its published
+#'   MD5 and unpacked there on first use, so a plain `read_critical_n()` call
+#'   works with nothing configured. Unpacking needs a 7-Zip extractor: the
+#'   `archive` package (system libarchive) or a `7z` binary on `PATH`. With
+#'   neither, the call aborts after the download, naming the command to run.
 #' @param data Optional pre-read tibble (`lon`, `lat`, `value`) returned
 #'   directly instead of reading the archive, for tests and injection.
 #'   Defaults to `NULL`.
@@ -93,18 +102,141 @@ read_critical_n <- function(
 
 # ---- Private helpers --------------------------------------------------
 
-# Resolve the critical-nitrogen archive directory from the argument, else the
-# env var.
+# Resolve the critical-nitrogen archive directory: an explicit argument, else
+# the env var, else the local cache (populated by fetching the Zenodo archive
+# on first use, the same download-on-demand pattern .provinces_shapefile()
+# uses in R/natural_earth.R). The archive is 18.4 MB and CC-BY-4.0, so it is
+# small enough and freely enough licensed to fetch rather than require by hand.
 .resolve_critical_n_dir <- function(dir = NULL) {
   resolved <- dir %||% Sys.getenv("WHEP_CRITICAL_N_DIR")
-  if (!.has_path(resolved)) {
+  if (.has_path(resolved)) {
+    return(resolved)
+  }
+  .critn_cached_dir()
+}
+
+.critn_cache_dir <- function() {
+  file.path(rappdirs::user_cache_dir("whep"), "critical_n")
+}
+
+# The single .7z asset of Zenodo record 6395016 (Schulte-Uebbing et al. 2022,
+# CC-BY-4.0) and its published MD5, both read off the record's API metadata.
+.critn_archive_url <- function() {
+  paste0(
+    "https://zenodo.org/api/records/6395016/files/",
+    "Global_critical_N_surpluses_and_N_inputs_and_their_exceedances.7z/content"
+  )
+}
+
+.critn_archive_md5 <- function() "d6b4bf88e9b140bd25a147396e371733"
+
+# The single top-level directory the archive unpacks into. Its presence under
+# <cache>/extracted is what .read_critical_n_file() then reads through, so it
+# doubles as the cache-hit marker.
+.critn_archive_root <- function() {
+  "Global_critical_N_surpluses_and_N_inputs_and_their_exceedances"
+}
+
+# Return the cache directory holding the extracted archive, downloading and
+# unpacking it on first use. `download`/`extract` are injected so the cache-hit
+# and failure paths are testable without touching the network.
+.critn_cached_dir <- function(
+  dir = .critn_cache_dir(),
+  download = .critn_download,
+  extract = .critn_extract
+) {
+  if (dir.exists(file.path(dir, "extracted", .critn_archive_root()))) {
+    return(dir)
+  }
+  archive <- download(dir)
+  extract(archive, file.path(dir, "extracted"))
+  if (!dir.exists(file.path(dir, "extracted", .critn_archive_root()))) {
     cli::cli_abort(c(
-      "No critical-nitrogen archive directory available.",
-      i = "Pass {.arg dir} or set {.envvar WHEP_CRITICAL_N_DIR} to the
-           extracted Zenodo archive (doi:10.5281/zenodo.6395016)."
+      "The critical-nitrogen archive did not unpack as expected.",
+      i = "Expected {.path {file.path('extracted', .critn_archive_root())}}
+           under {.path {dir}}."
     ))
   }
-  resolved
+  dir
+}
+
+# Fetch the .7z into the cache and verify it against the published MD5. An
+# already-downloaded file that still matches is reused, so a failed extraction
+# does not re-download 18.4 MB.
+.critn_download <- function(dir) {
+  path <- file.path(dir, "critical_n_archive.7z")
+  if (.critn_md5_ok(path)) {
+    return(path)
+  }
+  dir.create(dir, recursive = TRUE, showWarnings = FALSE)
+  cli::cli_alert_info(
+    "Downloading the critical-nitrogen archive (18.4 MB) from Zenodo..."
+  )
+  ok <- tryCatch(
+    utils::download.file(
+      .critn_archive_url(),
+      path,
+      mode = "wb",
+      quiet = TRUE
+    ),
+    error = function(e) e
+  )
+  if (inherits(ok, "error") || !.critn_md5_ok(path)) {
+    cli::cli_abort(c(
+      "Could not download the critical-nitrogen archive.",
+      x = if (inherits(ok, "error")) {
+        conditionMessage(ok)
+      } else {
+        "The downloaded file does not match the published MD5."
+      },
+      i = "Download {.url {.critn_archive_url()}} by hand, extract it, and
+           point {.envvar WHEP_CRITICAL_N_DIR} at the result."
+    ))
+  }
+  path
+}
+
+.critn_md5_ok <- function(path) {
+  file.exists(path) &&
+    identical(unname(tools::md5sum(path)), .critn_archive_md5())
+}
+
+# Unpack the .7z with whatever extractor the machine has: the archive package
+# (libarchive) first, then a 7-Zip binary on PATH. Neither is a hard dependency
+# of the package, so when both are missing this aborts -- but only after the
+# archive is already downloaded and checksum-verified, so the message can name
+# the one command left to run.
+.critn_extract <- function(archive, exdir) {
+  dir.create(exdir, recursive = TRUE, showWarnings = FALSE)
+  if (rlang::is_installed("archive")) {
+    archive::archive_extract(archive, dir = exdir)
+    return(invisible(exdir))
+  }
+  bin <- .critn_7z_binary()
+  if (!is.null(bin)) {
+    status <- system2(
+      bin,
+      c("x", "-y", shQuote(archive), paste0("-o", exdir)),
+      stdout = FALSE,
+      stderr = FALSE
+    )
+    if (identical(as.integer(status), 0L)) {
+      return(invisible(exdir))
+    }
+  }
+  cli::cli_abort(c(
+    "No 7-Zip extractor available for the critical-nitrogen archive.",
+    i = "It is already downloaded and MD5-verified at {.path {archive}}.",
+    i = "Run {.code 7z x {basename(archive)} -o{basename(exdir)}} there, or
+         install the {.pkg archive} R package (needs system libarchive), or
+         set {.envvar WHEP_CRITICAL_N_DIR} to an archive extracted elsewhere."
+  ))
+}
+
+.critn_7z_binary <- function() {
+  found <- Sys.which(c("7z", "7za", "7zr", "7zz"))
+  found <- found[nzchar(found)]
+  if (length(found) == 0L) NULL else unname(found[[1L]])
 }
 
 # Read one critical-nitrogen layer from the extracted archive.

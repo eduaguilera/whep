@@ -34,7 +34,14 @@ file; used by the binding threshold and the surplus/input/exceedance
 layers.}
 
 \item{dir}{Optional path to the archive directory, overriding
-\code{WHEP_CRITICAL_N_DIR}. Defaults to \code{NULL}.}
+\code{WHEP_CRITICAL_N_DIR}. Defaults to \code{NULL}, in which case the archive is
+resolved as: \code{dir}, then \code{WHEP_CRITICAL_N_DIR}, then a local cache under
+\code{rappdirs::user_cache_dir("whep")}. When the cache is empty the 18.4 MB
+CC-BY-4.0 Zenodo archive is downloaded, verified against its published
+MD5 and unpacked there on first use, so a plain \code{read_critical_n()} call
+works with nothing configured. Unpacking needs a 7-Zip extractor: the
+\code{archive} package (system libarchive) or a \verb{7z} binary on \code{PATH}. With
+neither, the call aborts after the download, naming the command to run.}
 
 \item{data}{Optional pre-read tibble (\code{lon}, \code{lat}, \code{value}) returned
 directly instead of reading the archive, for tests and injection.
@@ -62,7 +69,9 @@ surplus, input and exceedance are selectable by \code{threshold} (minimum of all
 media, surface water, groundwater or deposition) and \code{land_use} (all
 agricultural land, arable only, or intensively managed grassland); the three
 critical losses and the binding threshold ignore \code{threshold}. The archive
-directory is read from the \code{WHEP_CRITICAL_N_DIR} environment variable.
+directory comes from \code{dir}, else the \code{WHEP_CRITICAL_N_DIR} environment
+variable, else a local cache that is populated by downloading the archive
+from Zenodo on first use (see \code{dir}).
 }
 \examples{
 read_critical_n(example = TRUE)
