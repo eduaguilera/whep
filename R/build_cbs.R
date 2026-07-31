@@ -1685,45 +1685,69 @@ build_processing_coefs <- function(
   # Avoids expensive frankv over many source columns.
   primary_sources <- c("FAOSTAT_prod", "FAOSTAT_FBS_New", "FAOSTAT_FBS_Old")
   src_pivot <- dt_raw[source %in% primary_sources]
+  # `fun.aggregate` is REQUIRED here, and omitting it was a silent data-corruption bug.
+  #
+  # `dcast()` with no `fun.aggregate` falls back to `length()` as soon as ANY duplicate
+  # (key, source) combination exists -- and it applies that function to EVERY cell, not just the
+  # duplicated ones. So one duplicate anywhere turns the whole table into row counts. Measured
+  # before this change, on a real 2010-2023 build:
+  #
+  #   classes = FAOSTAT_FBS_New:integer  FAOSTAT_FBS_Old:integer  FAOSTAT_prod:integer
+  #   maxima  = 4, 4, 1
+  #
+  # Those columns are tonnes. A maximum of 4 is impossible. 31,642 duplicated combinations
+  # exist at full range, in areas 206 and 999, so the fallback fired in every build.
+  #
+  # SUM is the right aggregate, established from the data rather than assumed. The duplicates
+  # are one reporting bucket's folded members: `.aggregate_to_polities()` emits one row per
+  # (bucket, polity_name) and `key_cols` deliberately excludes the name -- see the comment
+  # above, which is why that exclusion is correct. Dumped, bucket 999 in 2010 for wheat holds
+  # four distinct territories with production 0 / 244,000 / 0 / 3,103,000. FABIO's
+  # rest-of-world IS the sum of its members, so summing reproduces the bucket. `first` would
+  # keep one member (0, here) and discard the rest.
+  #
+  # All-NA cells stay NA rather than collapsing to 0: `sum(na.rm = TRUE)` of nothing is 0, and a
+  # zero where there is no observation is a different claim from a missing one. `fill = NA` is
+  # respected either way -- verified on a synthetic cast, absent combinations remain NA whether
+  # or not a function is supplied.
 
-  # REFUSE TO CAST DUPLICATE KEYS, because the default is silent corruption.
+  # The duplicates are now SUMMED correctly, so their existence is no longer a defect -- but it
+  # is still worth checking that they only occur where folding explains them.
   #
-  # `dcast()` with no `fun.aggregate` falls back to `length()` on duplicate
-  # keys, so the "values" become ROW COUNTS. Whether anyone finds out is luck:
-  # counts are integer, and `FBS_Old_scaled` below is double only when
-  # `scale_new_old` applies, which depends on the build window. One real
-  # instance was 1,525 keys in bucket 206 (Sudan and South Sudan folded into one
-  # reporting code without being summed, 2014-2023): at 1990-2023 the build died
-  # in `fcoalesce` with a type clash, and over the full range it completed with
-  # counts in place of quantities. The crash was the good case, and it is not
-  # the one that should be relied upon.
+  # This replaces a warning that said "casting them would replace values with row counts". That
+  # was true before whep#425 was fixed and is false now, and a loud warning about correct
+  # behaviour is noise that gets muffled. What survives is the narrower question: a duplicate
+  # `(key, source)` means several rows share one reporting bucket, which should only happen for
+  # buckets that genuinely fold several FAOSTAT areas. A duplicate on a bucket that folds
+  # nothing would mean rows are colliding for some other reason, and summing them would be
+  # wrong.
   #
-  # THE CAUSE IS NOT FIXED, and an earlier version of this comment claimed it was --
-  # that `.aggregate_to_polities()` groups by the reporting bucket rather than by
-  # bucket-plus-name. It groups by bucket-plus-name, correctly: the name distinguishes
-  # territory-periods, and `area` is a join key that four inner joins use. So the duplicates
-  # arrive here -- 31,642 (key, source) combinations at full range, the same on `main`, where
-  # they were silent -- and THIS is where the bucket's total belongs, because these rows are
-  # unambiguously one bucket's members for one (year, item, element, source).
-  #
-  # They must not merely be reported. `dcast()`'s `length()` fallback replaces EVERY value in
-  # the cast with a row count, not just the duplicated ones, so today all three primary source
-  # columns come back integer with maxima of 4, 4 and 1 where tonnes belong. whep#425.
-  dup_keys <- src_pivot[,
-    .N,
-    by = c(key_cols, "source")
-  ][N > 1L]
+  # Derived from the crosswalk rather than hardcoded to 206 and 999, so a change in what upstream
+  # folds is picked up rather than baked in.
+  dup_keys <- src_pivot[, .N, by = c(key_cols, "source")][N > 1L]
   if (nrow(dup_keys) > 0L) {
-    cli::cli_warn(c(
-      "{nrow(dup_keys)} (key, source) combinations appear more than once, so
-       casting them would replace values with row counts.",
-      "i" = "area codes: {.val {sort(unique(dup_keys$area_code))}}",
-      "i" = "sources: {.val {sort(unique(dup_keys$source))}}",
-      "i" = "years: {.val {unique(range(dup_keys$year))}}",
-      "x" = "`dcast()` will answer them with `length()`, so those values become ROW\n         COUNTS rather than quantities."
+    folding_buckets <- local({
+      cw <- as.data.frame(whep::polity_area_crosswalk)
+      pairs <- unique(cw[
+        which(!is.na(cw$area_code) & !is.na(cw$polity_area_code)),
+        c("area_code", "polity_area_code")
+      ])
+      counts <- table(pairs$polity_area_code)
+      as.integer(names(counts)[counts > 1L])
+    })
+    unexplained <- sort(unique(
+      dup_keys$area_code[!dup_keys$area_code %in% folding_buckets]
     ))
+    if (length(unexplained) > 0L) {
+      cli::cli_warn(c(
+        "!" = "Duplicate (key, source) rows appear in reporting areas that fold no other
+           area, so folding does not explain them and summing them may be wrong.",
+        "i" = "area codes: {.val {unexplained}}",
+        "i" = "Expected duplicates come from buckets that fold several FAOSTAT areas; see
+           whep#425 for why they are summed."
+      ))
+    }
   }
-
   wide <- data.table::dcast(
     src_pivot,
     stats::as.formula(paste(
@@ -1731,7 +1755,10 @@ build_processing_coefs <- function(
       "~ source"
     )),
     value.var = "value",
-    fill = NA
+    fill = NA,
+    fun.aggregate = function(x) {
+      if (all(is.na(x))) NA_real_ else sum(x, na.rm = TRUE)
+    }
   )
   for (col in setdiff(primary_sources, names(wide))) {
     wide[, (col) := NA_real_]
