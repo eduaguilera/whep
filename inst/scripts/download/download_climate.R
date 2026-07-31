@@ -39,6 +39,23 @@ WIND_PINS <- c(
   era5 = "lpjml-wind-era5-2017-2023"
 )
 
+# Downwelling shortwave and longwave, needed only by LPJmL 6.x: 6.x removed the
+# `cloudiness` option and the `cloud` input, so CRU cld cannot drive it. Pinned
+# for the same reasons as wind -- the ISIMIP obsclim bases end in 2019 (W5E5
+# ends there; the v1.1-v1.3 releases are corrections, not extensions), and
+# rebuilding the ERA5 means needs tens of GB of streaming. Section 9d assembles
+# the 1901-2023 forcing from these.
+RADIATION_PINS <- list(
+  rsds = c(
+    base = "lpjml-rsds-isimip-1901-2019",
+    era5 = "lpjml-rsds-era5-2017-2023"
+  ),
+  rlds = c(
+    base = "lpjml-rlds-isimip-1901-2019",
+    era5 = "lpjml-rlds-era5-2017-2023"
+  )
+)
+
 download_climate <- function(dest_dir, timeout = 7200) {
   # download_all() raises the timeout for the whole run, but this is also
   # called on its own, and the default 60 s cannot fetch a ~450 MB CRU file.
@@ -49,6 +66,7 @@ download_climate <- function(dest_dir, timeout = 7200) {
   .download_cru_ts(dest_dir)
   .download_co2(dest_dir)
   .download_wind_pins(dest_dir)
+  .download_radiation_pins(dest_dir)
   invisible()
 }
 
@@ -56,41 +74,66 @@ download_climate <- function(dest_dir, timeout = 7200) {
 # finds them like any other downloaded input rather than asking the user to
 # call whep_read_file() by hand.
 .download_wind_pins <- function(dest_dir) {
-  wind_dir <- file.path(dest_dir, "wind")
-  dir.create(wind_dir, recursive = TRUE, showWarnings = FALSE)
+  .download_climate_pins(
+    dest_dir,
+    subdir = "wind",
+    label = "Wind",
+    pins = WIND_PINS,
+    patterns = c(base = "^wind_gswp3.*\\.nc$", era5 = "^era5_wind.*\\.nc$")
+  )
+}
 
-  for (nm in names(WIND_PINS)) {
-    alias <- WIND_PINS[[nm]]
-    existing <- list.files(
-      wind_dir,
-      pattern = if (nm == "base") {
-        "^wind_gswp3.*\\.nc$"
-      } else {
-        "^era5_wind.*\\.nc$"
-      }
+# Fetches the pinned radiation artefacts, one variable at a time. Absent pins
+# are a warning, not an error: 5.x does not read these at all, so a 5.x-only
+# setup must still complete.
+.download_radiation_pins <- function(dest_dir) {
+  for (variable in names(RADIATION_PINS)) {
+    .download_climate_pins(
+      dest_dir,
+      subdir = "radiation",
+      label = variable,
+      pins = RADIATION_PINS[[variable]],
+      patterns = c(
+        base = sprintf("^%s_gswp3.*\\.nc$", variable),
+        era5 = sprintf("^era5_%s.*\\.nc$", variable)
+      )
     )
+  }
+  invisible()
+}
+
+# Shared pin fetcher for the climate artefacts that cannot be rebuilt from this
+# repo. Copies out of the pins cache into the L_files tree, so the prepare step
+# finds them like any other downloaded input rather than asking the user to call
+# whep_read_file() by hand.
+.download_climate_pins <- function(dest_dir, subdir, label, pins, patterns) {
+  out_dir <- file.path(dest_dir, subdir)
+  dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+
+  for (nm in names(pins)) {
+    alias <- pins[[nm]]
+    existing <- list.files(out_dir, pattern = patterns[[nm]])
     if (length(existing) > 0L) {
-      cli::cli_alert_info("Wind {nm}: already exists ({existing[[1L]]})")
+      cli::cli_alert_info("{label} {nm}: already exists ({existing[[1L]]})")
       next
     }
     cli::cli_alert("Fetching pin {alias}...")
     src <- tryCatch(
       whep::whep_read_file(alias, type = "nc"),
       error = function(e) {
-        cli::cli_warn("Wind {nm}: {conditionMessage(e)}")
+        cli::cli_warn("{label} {nm}: {conditionMessage(e)}")
         NULL
       }
     )
     if (is.null(src) || !file.exists(src[[1L]])) {
       next
     }
-    # Copy out of the pins cache: the prepare step reads from the L_files tree,
-    # and the cache is not a stable location to point a pipeline at.
-    if (!file.copy(src[[1L]], file.path(wind_dir, basename(src[[1L]])))) {
-      cli::cli_warn("Wind {nm}: could not copy into {.path {wind_dir}}")
+    # The pins cache is not a stable location to point a pipeline at.
+    if (!file.copy(src[[1L]], file.path(out_dir, basename(src[[1L]])))) {
+      cli::cli_warn("{label} {nm}: could not copy into {.path {out_dir}}")
       next
     }
-    cli::cli_alert_success("Wind {nm}: {basename(src[[1L]])}")
+    cli::cli_alert_success("{label} {nm}: {basename(src[[1L]])}")
   }
 
   invisible()

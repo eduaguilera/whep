@@ -18,6 +18,10 @@ library(tibble)
 run_lpjml <- function(
   model_path,
   l_files_dir = "LPJmL_inputs",
+  # LPJmL generation to configure for. 6.x needs a different radiation driver
+  # and four extra static inputs; see .radiation_params() and
+  # .lpjml6_static_params(). Default stays 5.9 so existing calls are unchanged.
+  lpjml_version = "5.9",
   sim_path = file.path(model_path, "simulation"),
   export_start = 1851,
   export_end = 2023,
@@ -120,6 +124,24 @@ run_lpjml <- function(
   # prepare_lpjml_wind.R::extend_lpjml_wind() and fetch_era5_wind.py.
   wind_name <- "climate/wind_gswp3-w5e5_era5_1901_2023_monthly.nc"
   co2_name <- "climate/historical_CO2_annual_1765_2025.txt"
+  # LPJmL 6.x removed the `cloudiness` radiation option and the `cloud` input,
+  # so CRU cld is unusable there and the model must be driven by downwelling
+  # shortwave and longwave instead. ISIMIP3a supplies those only to 2019
+  # (W5E5 ends there), so the tail is ERA5, spliced and bias-corrected the same
+  # way as wind. See fetch_era5_radiation.py.
+  swdown_name <- "climate/rsds_gswp3-w5e5_era5_1901_2023_monthly.nc"
+  lwdown_name <- "climate/rlds_gswp3-w5e5_era5_1901_2023_monthly.nc"
+  # 6.x opens these unconditionally and aborts without them (celldata.c:131
+  # for kbf, :175 for slope; all three slope statistics are required even
+  # though filesexist.c names only slope_mean). Written by
+  # prepare_spatialize_all.R Section 10b.
+  kbf_name <- "soil/kbf_30arcmin.nc"
+  slope_names <- c(
+    slope_mean = "soil/slope_mean_30arcmin.nc",
+    slope_min = "soil/slope_min_30arcmin.nc",
+    slope_max = "soil/slope_max_30arcmin.nc"
+  )
+  hydrotopes_name <- "soil/hydrotopes_cti_30arcmin.nc"
   # ISIMIP3a population converted to people/km2 by prepare_spatialize_all.R
   # (Section 9c). Replaces the stock HYDE3 .clm, which stops at 2011.
   popdens_name <- "socioeconomic/popdens_isimip3a_1901_2021.nc"
@@ -213,10 +235,8 @@ run_lpjml <- function(
       # NetCDF precipitation for kg/m2/day and would otherwise inflate it by
       # roughly a month when udunits conversion is enabled.
       `input.prec.unit` = "kg/m2/month",
-      `input.cloud.name` = cloud_name,
-      `input.cloud.fmt` = "cdf",
-      `input.cloud.var` = "cld",
-      `input.cloud.unit` = "%",
+      # Radiation is version-dependent and is bound on after this block; see
+      # .radiation_params() and .lpjml6_static_params().
       `input.wind.name` = wind_name,
       `input.wind.fmt` = "cdf",
       `input.wind.var` = "wind",
@@ -242,6 +262,20 @@ run_lpjml <- function(
       # Lakes — WHEP writes NC; input.cjson updated to cdf/var="lakes"
       `input.lakes.name` = lakes_name,
       `input.lakes.fmt` = "cdf"
+    )
+  }
+
+  # Radiation differs between LPJmL generations, and 6.x needs static terrain
+  # and groundwater fields that 5.x has no concept of. Both are bound on here
+  # so the shared block above stays version-agnostic.
+  simulation_params <- dplyr::bind_cols(
+    simulation_params,
+    .radiation_params(lpjml_version, cloud_name, swdown_name, lwdown_name)
+  )
+  if (.is_lpjml6(lpjml_version)) {
+    simulation_params <- dplyr::bind_cols(
+      simulation_params,
+      .lpjml6_static_params(kbf_name, slope_names, hydrotopes_name)
     )
   }
 
@@ -652,6 +686,75 @@ run_lpjml <- function(
   c(header, sprintf("# source: %s", path), readLines(path, warn = FALSE))
 }
 
+
+# LPJmL 6.x is anything with a major version of 6 or above.
+.is_lpjml6 <- function(lpjml_version) {
+  as.integer(sub("^([0-9]+).*$", "\\1", as.character(lpjml_version))) >= 6L
+}
+
+# Radiation config, which is the hard break between the two generations.
+#
+# 5.x drives radiation from CRU cloud fraction (`cloudiness`). 6.x removed both
+# that option and the `cloud` input, and must instead read downwelling
+# shortwave and longwave under `radiation_lwdown` -- the mode that reads a
+# `lwdown` key (fscanconfig.c:953). ISIMIP publishes downwelling longwave
+# (rlds); net longwave is not published, so `lwnet` cannot be substituted.
+.radiation_params <- function(
+  lpjml_version,
+  cloud_name,
+  swdown_name,
+  lwdown_name
+) {
+  if (!.is_lpjml6(lpjml_version)) {
+    return(tibble(
+      radiation = "cloudiness",
+      `input.cloud.name` = cloud_name,
+      `input.cloud.fmt` = "cdf",
+      `input.cloud.var` = "cld",
+      `input.cloud.unit` = "%"
+    ))
+  }
+  tibble(
+    radiation = "radiation_lwdown",
+    `input.swdown.name` = swdown_name,
+    `input.swdown.fmt` = "cdf",
+    `input.swdown.var` = "rsds",
+    `input.swdown.unit` = "W/m2",
+    `input.lwdown.name` = lwdown_name,
+    `input.lwdown.fmt` = "cdf",
+    `input.lwdown.var` = "rlds",
+    `input.lwdown.unit` = "W/m2"
+  )
+}
+
+# Static fields 6.x opens unconditionally, plus the methane switch.
+#
+# `with_methane` defaults to TRUE upstream, which makes littersom.c subdaily and
+# adds an oxygen pool, a groundwater pool, Sphagnum and two flood-tolerant PFTs.
+# Measured on identical cells it costs ~2x runtime and moves every carbon and
+# water flux by under 0.5%, so it is switched off deliberately rather than
+# inherited. Turn it on only with the atmospheric CH4 input wired, since the
+# upstream default pairs it with `methane = "fixed"`.
+.lpjml6_static_params <- function(kbf_name, slope_names, hydrotopes_name) {
+  tibble(
+    with_methane = FALSE,
+    `input.kbf.name` = kbf_name,
+    `input.kbf.fmt` = "cdf",
+    `input.kbf.var` = "kbf",
+    `input.slope_mean.name` = unname(slope_names[["slope_mean"]]),
+    `input.slope_mean.fmt` = "cdf",
+    `input.slope_mean.var` = "slope",
+    `input.slope_min.name` = unname(slope_names[["slope_min"]]),
+    `input.slope_min.fmt` = "cdf",
+    `input.slope_min.var` = "slope",
+    `input.slope_max.name` = unname(slope_names[["slope_max"]]),
+    `input.slope_max.fmt` = "cdf",
+    `input.slope_max.var` = "slope",
+    `input.hydrotopes.name` = hydrotopes_name,
+    `input.hydrotopes.fmt` = "cdf",
+    `input.hydrotopes.var` = "cti"
+  )
+}
 
 # ---- Entry point ------------------------------------------------------
 
