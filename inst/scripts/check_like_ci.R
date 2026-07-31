@@ -132,6 +132,47 @@ record(
   }
 )
 
+# --- 2c. No polity code hardcoded in package logic --------------------------------
+# The point of this integration is that area identity comes from the polities database rather
+# than from literals scattered through the code. A polity code in logic defeats that: upstream
+# can retire, split or re-period a polity, and a literal keeps pointing at whatever it named.
+#
+# Measured when this gate was written: ZERO polity-code literals in executable R code. The one
+# match in `R/` is a roxygen line explaining that a family PREFIX is not a code
+# (`"AFG-1919-2025"` as an illustration), which is documentation and is why comments are
+# excluded rather than counted.
+#
+# Tests are deliberately not scanned. Several pin sets by identity on purpose --
+# `F51-1947-1993` in test_iso3_polity_coverage.R, the four dissolved federations in
+# test_luh2_backcast_reach.R -- and pinning by identity is the behaviour those tests exist for.
+# A literal in a test is a recorded fact; a literal in logic is a bypass of the database.
+code_files <- list.files("R", pattern = "\\.R$", full.names = TRUE)
+polity_literals <- character()
+for (f in code_files) {
+  lines <- readLines(f, warn = FALSE)
+  for (i in seq_along(lines)) {
+    ln <- lines[[i]]
+    if (grepl("^\\s*#", ln)) {
+      next
+    }
+    if (grepl('"[A-Z]{2,6}[0-9]*-[0-9]{4}-[0-9]{4}"', ln)) {
+      polity_literals <- c(polity_literals, paste0(f, ":", i))
+    }
+  }
+}
+record(
+  "no polity code in package logic",
+  length(polity_literals) == 0L,
+  if (length(polity_literals) == 0L) {
+    sprintf(
+      "%d file(s) scanned; identity comes from the database",
+      length(code_files)
+    )
+  } else {
+    paste(utils::head(polity_literals, 5), collapse = ", ")
+  }
+)
+
 # --- 3. Lint -----------------------------------------------------------------
 lints <- eval(parse(file = file.path("inst", "scripts", "check_lint.R")))
 n_lints <- length(lints)
