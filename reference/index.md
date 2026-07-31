@@ -542,6 +542,9 @@ discarding extra fields.
 
 Functions to fill gaps (NA values) in time-dependent variables using
 different methods.
+[`interp_vec()`](https://eduaguilera.github.io/whep/reference/interp_vec.md)
+is the vector-level interpolation primitive behind
+`fill_linear(log_space = TRUE)`, for callers working with plain vectors.
 
 - [`fill_linear()`](https://eduaguilera.github.io/whep/reference/fill_linear.md)
   : Fill gaps by linear interpolation, or carrying forward or backward.
@@ -550,6 +553,8 @@ different methods.
   another variable.
 - [`fill_proxy_growth()`](https://eduaguilera.github.io/whep/reference/fill_proxy_growth.md)
   : Fill gaps using growth rates from proxy variables
+- [`interp_vec()`](https://eduaguilera.github.io/whep/reference/interp_vec.md)
+  : Interpolate anchor points at arbitrary output positions.
 
 ## Multi-source consolidation
 
