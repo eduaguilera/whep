@@ -17,7 +17,7 @@ A tibble with columns \code{year}, \code{item}, \code{net_prov}, \code{net_fao},
 \description{
 Validates the provincial GRAFS model's bottom-up national net trade against
 the original historical Export/Import series for Spain contained in
-\code{Europe_FAO_completed.xlsx} (1860-1960), the raw source data behind the
+\code{Europe_FAO_completed.xlsx} (1849-1960), the raw source data behind the
 package's processed trade figures. Comparison is restricted to the item and
 year combinations actually reported in the raw sheets, since coverage there
 is sparser than in the processed dataset.

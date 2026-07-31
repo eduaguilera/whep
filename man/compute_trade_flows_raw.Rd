@@ -21,7 +21,7 @@ from the national GRAFS model (production and consumption aggregated to
 Spain before splitting into export/import, avoiding the double-counting of
 inter-provincial trade that a province-level sum would introduce) and from
 the raw historical Export/Import series for Spain in
-\code{Europe_FAO_completed.xlsx} (1860-1960), restricted to the item/year
+\code{Europe_FAO_completed.xlsx} (1849-1960), restricted to the item/year
 combinations reported in the raw sheets. Items are classified as \code{"Crop"}
 or \code{"Livestock"} for downstream aggregation, e.g. in
 \code{plot_national_trade_flows_raw()}.

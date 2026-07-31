@@ -23,5 +23,13 @@ meant as a supplementary diagnostic reported alongside (not inside) the
 main additive decomposition, per the decomposition proposal.
 }
 \examples{
-# plot_crop_livestock_conn()
+connectivity <- list(
+  national = tibble::tribble(
+    ~year, ~self_sufficiency, ~recycling_ratio,
+    1960, 0.95, 0.62,
+    1980, 0.71, 0.48,
+    2000, 0.54, 0.39
+  )
+)
+p <- plot_crop_livestock_conn(connectivity)
 }

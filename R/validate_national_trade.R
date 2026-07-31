@@ -124,7 +124,7 @@ validate_national_trade <- function(n_prov_destiny = NULL) {
 #' @description
 #' Validates the provincial GRAFS model's bottom-up national net trade against
 #' the original historical Export/Import series for Spain contained in
-#' `Europe_FAO_completed.xlsx` (1860-1960), the raw source data behind the
+#' `Europe_FAO_completed.xlsx` (1849-1960), the raw source data behind the
 #' package's processed trade figures. Comparison is restricted to the item and
 #' year combinations actually reported in the raw sheets, since coverage there
 #' is sparser than in the processed dataset.
@@ -172,7 +172,7 @@ validate_national_trade_raw <- function(n_prov_destiny = NULL) {
 #' Spain before splitting into export/import, avoiding the double-counting of
 #' inter-provincial trade that a province-level sum would introduce) and from
 #' the raw historical Export/Import series for Spain in
-#' `Europe_FAO_completed.xlsx` (1860-1960), restricted to the item/year
+#' `Europe_FAO_completed.xlsx` (1849-1960), restricted to the item/year
 #' combinations reported in the raw sheets. Items are classified as `"Crop"`
 #' or `"Livestock"` for downstream aggregation, e.g. in
 #' `plot_national_trade_flows_raw()`.
@@ -482,9 +482,7 @@ plot_national_trade_flows_raw <- function(trade_flows = NULL) {
 
   all_excluded <- union(excluded_by_box, excluded_items)
 
-  c(Export = "Export", Import = "Import") |>
-    purrr::map(.read_raw_trade_sheet) |>
-    dplyr::bind_rows(.id = "Element") |>
+  .read_raw_trade_data() |>
     dplyr::inner_join(whep::cbs_trade_codes, by = c("Item" = "item_trade")) |>
     dplyr::mutate(Item = item_cbs) |>
     dplyr::filter(!Item %in% all_excluded) |>
@@ -495,30 +493,26 @@ plot_national_trade_flows_raw <- function(trade_flows = NULL) {
     .convert_trade_fm_to_n(codes_coefs_items_full, biomass_coefs)
 }
 
-# Reads one Export/Import sheet of Europe_FAO_completed.xlsx for Spain and
-# reshapes the wide year columns into long format. Values are stored in the
-# raw file as "1000 MT", hence the *1000 conversion to Mg (fresh matter).
-.read_raw_trade_sheet <- function(sheet) {
+# Reads Spain's historical Export/Import series, already reshaped to long
+# format and converted to Mg (fresh matter) by
+# `data-raw/europe_fao_spain_trade.R`. That script extracts it from the source
+# workbook `Europe_FAO_completed.xlsx`, a 19-sheet 35-country compilation of
+# which only these two sheets and only the Spanish rows are ever used; the
+# workbook is not shipped with the package.
+.read_raw_trade_data <- function() {
   path <- system.file(
     "extdata",
-    "Europe_FAO_completed.xlsx",
+    "europe_fao_spain_trade.csv",
     package = "whep"
   )
-  raw <- readxl::read_excel(path, sheet = sheet)
-  year_cols <- names(raw)[stringr::str_detect(names(raw), "^[0-9]{4}\\.0$")]
 
-  raw |>
-    dplyr::filter(Area == "Spain", !is.na(Item)) |>
-    dplyr::select(Item, dplyr::all_of(year_cols)) |>
-    dplyr::mutate(dplyr::across(dplyr::all_of(year_cols), as.numeric)) |>
-    tidyr::pivot_longer(
-      dplyr::all_of(year_cols),
-      names_to = "Year",
-      values_to = "value_fm"
-    ) |>
-    dplyr::mutate(
-      Year = as.integer(readr::parse_number(Year)),
-      value_fm = value_fm * 1000
-    ) |>
-    dplyr::filter(!is.na(value_fm))
+  readr::read_csv(
+    path,
+    col_types = readr::cols(
+      Element = readr::col_character(),
+      Item = readr::col_character(),
+      Year = readr::col_integer(),
+      value_fm = readr::col_double()
+    )
+  )
 }

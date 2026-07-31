@@ -22,7 +22,7 @@ create_finn_indicator <- function(n_prov_destiny = NULL) {
   mapping <- .finn_mapping()
 
   n_prov_destiny |>
-    dplyr::filter(as.numeric(year) <= 2021) |>
+    dplyr::filter(as.numeric(year) <= .grafs_last_year()) |>
     dplyr::group_by(year, province_name) |>
     dplyr::group_map(~ .finn_for_group(.x, .y, mapping)) |>
     purrr::list_rbind()
@@ -135,9 +135,13 @@ plot_finn_circularity <- function(
     dplyr::group_by(from_comp, to_comp) |>
     dplyr::summarise(mg_n = sum(mg_n, na.rm = TRUE), .groups = "drop")
 
-  idx <- (match(agg$from_comp, compartments) - 1L) *
-    n +
+  # Indexed as [from, to] via an explicit row/column matrix. Computing a
+  # column-major linear index by hand transposes the matrix, which silently
+  # turns the colSums() in .calculate_finn() into outflow instead of inflow.
+  idx <- cbind(
+    match(agg$from_comp, compartments),
     match(agg$to_comp, compartments)
+  )
   flow_matrix[idx] <- agg$mg_n
   flow_matrix
 }

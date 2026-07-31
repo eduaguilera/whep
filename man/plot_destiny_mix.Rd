@@ -23,5 +23,16 @@ transition described in the decomposition proposal (sections 3 and
 \code{\link[=decompose_cropland_surplus]{decompose_cropland_surplus()}} no longer carries a destiny factor.
 }
 \examples{
-# plot_destiny_mix()
+destiny_mix <- tibble::tribble(
+  ~year, ~destiny_grp, ~share,
+  1960, "domestic_food", 0.55,
+  1960, "feed", 0.30,
+  1960, "exported", 0.10,
+  1960, "non_food", 0.05,
+  2000, "domestic_food", 0.35,
+  2000, "feed", 0.45,
+  2000, "exported", 0.15,
+  2000, "non_food", 0.05
+)
+p <- plot_destiny_mix(destiny_mix)
 }

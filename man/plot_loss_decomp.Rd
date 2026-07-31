@@ -23,5 +23,21 @@ transformation mechanism (scale, specialization, intensification,
 efficiency), as computed by \code{\link[=decompose_terr_losses]{decompose_terr_losses()}}.
 }
 \examples{
-# plot_loss_decomp()
+decomp <- list(
+  by_compartment = tibble::tribble(
+    ~t0, ~compartment, ~contribution_mgn, ~cumulative_mgn,
+    1861, "cropland", 12000, 12000,
+    1861, "manure", 4000, 4000,
+    1862, "cropland", 8000, 20000,
+    1862, "manure", -1000, 3000
+  ),
+  by_mechanism = tibble::tribble(
+    ~t0, ~mechanism, ~contribution_mgn, ~cumulative_mgn,
+    1861, "Size", 9000, 9000,
+    1861, "Inefficiency", 7000, 7000,
+    1862, "Size", 5000, 14000,
+    1862, "Inefficiency", 2000, 9000
+  )
+)
+plots <- plot_loss_decomp(decomp)
 }

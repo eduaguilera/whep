@@ -40,7 +40,6 @@ Imports:
     vctrs,
     withr,
     yaml,
-    readxl,
     stringi,
     zoo
 Encoding: UTF-8
@@ -58,6 +57,7 @@ Suggests:
     ncdf4,
     patchwork,
     pointblank,
+    readxl,
     rmarkdown,
     RSQLite,
     sf,

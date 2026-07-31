@@ -27,5 +27,19 @@ style: one shared y-axis label, each panel keeping its own legend
 aren't collected into one).
 }
 \examples{
-# plot_loss_decomp_rolling_panel()
+decomp <- list(
+  by_compartment = tibble::tribble(
+    ~t0, ~compartment, ~contribution_mgn, ~cumulative_mgn,
+    1861, "cropland", 12000, 12000,
+    1862, "cropland", 8000, 20000,
+    1863, "cropland", 9000, 29000
+  ),
+  by_mechanism = tibble::tribble(
+    ~t0, ~mechanism, ~contribution_mgn, ~cumulative_mgn,
+    1861, "Size", 9000, 9000,
+    1862, "Size", 5000, 14000,
+    1863, "Size", 6000, 20000
+  )
+)
+panel <- plot_loss_decomp_rolling_panel(decomp, window = 3)
 }

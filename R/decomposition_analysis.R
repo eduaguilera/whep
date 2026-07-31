@@ -721,7 +721,23 @@ decompose_destiny_mix <- function(n_nat_destiny = NULL) {
 #' @export
 #'
 #' @examples
-#' # plot_loss_decomp()
+#' decomp <- list(
+#'   by_compartment = tibble::tribble(
+#'     ~t0, ~compartment, ~contribution_mgn, ~cumulative_mgn,
+#'     1861, "cropland", 12000, 12000,
+#'     1861, "manure", 4000, 4000,
+#'     1862, "cropland", 8000, 20000,
+#'     1862, "manure", -1000, 3000
+#'   ),
+#'   by_mechanism = tibble::tribble(
+#'     ~t0, ~mechanism, ~contribution_mgn, ~cumulative_mgn,
+#'     1861, "Size", 9000, 9000,
+#'     1861, "Inefficiency", 7000, 7000,
+#'     1862, "Size", 5000, 14000,
+#'     1862, "Inefficiency", 2000, 9000
+#'   )
+#' )
+#' plots <- plot_loss_decomp(decomp)
 plot_loss_decomp <- function(decomp = NULL) {
   if (is.null(decomp)) {
     decomp <- decompose_terr_losses()
@@ -763,7 +779,23 @@ plot_loss_decomp <- function(decomp = NULL) {
 #' @export
 #'
 #' @examples
-#' # plot_loss_decomp_yearly()
+#' decomp <- list(
+#'   by_compartment = tibble::tribble(
+#'     ~t0, ~compartment, ~contribution_mgn, ~cumulative_mgn,
+#'     1861, "cropland", 12000, 12000,
+#'     1862, "cropland", 8000, 20000,
+#'     1861, "urban", 500, 500,
+#'     1862, "urban", 700, 1200
+#'   ),
+#'   by_mechanism = tibble::tribble(
+#'     ~t0, ~mechanism, ~contribution_mgn, ~cumulative_mgn,
+#'     1861, "Size", 9000, 9000,
+#'     1862, "Size", 5000, 14000,
+#'     1861, "Intensification", 3500, 3500,
+#'     1862, "Intensification", 3700, 7200
+#'   )
+#' )
+#' plots <- plot_loss_decomp_yearly(decomp)
 plot_loss_decomp_yearly <- function(decomp = NULL) {
   if (is.null(decomp)) {
     decomp <- decompose_terr_losses()
@@ -808,7 +840,22 @@ plot_loss_decomp_yearly <- function(decomp = NULL) {
 #' @export
 #'
 #' @examples
-#' # plot_loss_decomp_rolling()
+#' # `window` must not exceed the number of years available per group.
+#' decomp <- list(
+#'   by_compartment = tibble::tribble(
+#'     ~t0, ~compartment, ~contribution_mgn, ~cumulative_mgn,
+#'     1861, "cropland", 12000, 12000,
+#'     1862, "cropland", 8000, 20000,
+#'     1863, "cropland", 9000, 29000
+#'   ),
+#'   by_mechanism = tibble::tribble(
+#'     ~t0, ~mechanism, ~contribution_mgn, ~cumulative_mgn,
+#'     1861, "Size", 9000, 9000,
+#'     1862, "Size", 5000, 14000,
+#'     1863, "Size", 6000, 20000
+#'   )
+#' )
+#' plots <- plot_loss_decomp_rolling(decomp, window = 3)
 plot_loss_decomp_rolling <- function(decomp = NULL, window = 10) {
   if (is.null(decomp)) {
     decomp <- decompose_terr_losses()
@@ -870,7 +917,21 @@ plot_loss_decomp_rolling <- function(decomp = NULL, window = 10) {
 #' @export
 #'
 #' @examples
-#' # plot_loss_decomp_rolling_panel()
+#' decomp <- list(
+#'   by_compartment = tibble::tribble(
+#'     ~t0, ~compartment, ~contribution_mgn, ~cumulative_mgn,
+#'     1861, "cropland", 12000, 12000,
+#'     1862, "cropland", 8000, 20000,
+#'     1863, "cropland", 9000, 29000
+#'   ),
+#'   by_mechanism = tibble::tribble(
+#'     ~t0, ~mechanism, ~contribution_mgn, ~cumulative_mgn,
+#'     1861, "Size", 9000, 9000,
+#'     1862, "Size", 5000, 14000,
+#'     1863, "Size", 6000, 20000
+#'   )
+#' )
+#' panel <- plot_loss_decomp_rolling_panel(decomp, window = 3)
 plot_loss_decomp_rolling_panel <- function(
   decomp = NULL,
   window = 10
@@ -929,7 +990,23 @@ plot_loss_decomp_rolling_panel <- function(
 #' @export
 #'
 #' @examples
-#' # plot_loss_decomp_periods()
+#' decomp <- list(
+#'   by_compartment = tibble::tribble(
+#'     ~period, ~compartment, ~contribution_per_yr_mgn,
+#'     "1865-1925", "cropland", 120,
+#'     "1865-1925", "manure", 40,
+#'     "1925-1965", "cropland", 260,
+#'     "1925-1965", "manure", 90
+#'   ),
+#'   by_mechanism = tibble::tribble(
+#'     ~period, ~mechanism, ~contribution_per_yr_mgn,
+#'     "1865-1925", "Size", 90,
+#'     "1865-1925", "Inefficiency", 70,
+#'     "1925-1965", "Size", 150,
+#'     "1925-1965", "Inefficiency", 200
+#'   )
+#' )
+#' plots <- plot_loss_decomp_periods(decomp)
 plot_loss_decomp_periods <- function(decomp = NULL) {
   if (is.null(decomp)) {
     decomp <- decompose_terr_losses_periods()
@@ -973,7 +1050,23 @@ plot_loss_decomp_periods <- function(decomp = NULL) {
 #' @export
 #'
 #' @examples
-#' # plot_loss_decomp_periods_panel()
+#' decomp <- list(
+#'   by_compartment = tibble::tribble(
+#'     ~period, ~compartment, ~contribution_per_yr_mgn,
+#'     "1865-1925", "cropland", 120,
+#'     "1925-1965", "cropland", 260,
+#'     "1865-1925", "urban", 15,
+#'     "1925-1965", "urban", 35
+#'   ),
+#'   by_mechanism = tibble::tribble(
+#'     ~period, ~mechanism, ~contribution_per_yr_mgn,
+#'     "1865-1925", "Size", 90,
+#'     "1925-1965", "Size", 150,
+#'     "1865-1925", "Intensification", 45,
+#'     "1925-1965", "Intensification", 145
+#'   )
+#' )
+#' panel <- plot_loss_decomp_periods_panel(decomp)
 plot_loss_decomp_periods_panel <- function(decomp = NULL) {
   if (is.null(decomp)) {
     decomp <- decompose_terr_losses_periods()
@@ -1025,7 +1118,21 @@ plot_loss_decomp_periods_panel <- function(decomp = NULL) {
 #' @export
 #'
 #' @examples
-#' # plot_specialization_cov()
+#' covariance <- list(
+#'   cropland_province = tibble::tribble(
+#'     ~year, ~covariance,
+#'     1960, -0.02,
+#'     1980, 0.05,
+#'     2000, 0.11
+#'   ),
+#'   livestock_species = tibble::tribble(
+#'     ~year, ~covariance,
+#'     1960, 0.01,
+#'     1980, 0.08,
+#'     2000, 0.17
+#'   )
+#' )
+#' p <- plot_specialization_cov(covariance)
 plot_specialization_cov <- function(covariance = NULL) {
   if (is.null(covariance)) {
     covariance <- decompose_specialization_cov()
@@ -1070,7 +1177,15 @@ plot_specialization_cov <- function(covariance = NULL) {
 #' @export
 #'
 #' @examples
-#' # plot_crop_livestock_conn()
+#' connectivity <- list(
+#'   national = tibble::tribble(
+#'     ~year, ~self_sufficiency, ~recycling_ratio,
+#'     1960, 0.95, 0.62,
+#'     1980, 0.71, 0.48,
+#'     2000, 0.54, 0.39
+#'   )
+#' )
+#' p <- plot_crop_livestock_conn(connectivity)
 plot_crop_livestock_conn <- function(connectivity = NULL) {
   if (is.null(connectivity)) {
     connectivity <- decompose_crop_livestock_conn()
@@ -1117,7 +1232,18 @@ plot_crop_livestock_conn <- function(connectivity = NULL) {
 #' @export
 #'
 #' @examples
-#' # plot_destiny_mix()
+#' destiny_mix <- tibble::tribble(
+#'   ~year, ~destiny_grp, ~share,
+#'   1960, "domestic_food", 0.55,
+#'   1960, "feed", 0.30,
+#'   1960, "exported", 0.10,
+#'   1960, "non_food", 0.05,
+#'   2000, "domestic_food", 0.35,
+#'   2000, "feed", 0.45,
+#'   2000, "exported", 0.15,
+#'   2000, "non_food", 0.05
+#' )
+#' p <- plot_destiny_mix(destiny_mix)
 plot_destiny_mix <- function(destiny_mix = NULL) {
   if (is.null(destiny_mix)) {
     destiny_mix <- decompose_destiny_mix()
@@ -1169,7 +1295,20 @@ plot_destiny_mix <- function(destiny_mix = NULL) {
 #' @export
 #'
 #' @examples
-#' # plot_compart_factor()
+#' # Each argument is a calculate_lmdi() table; the same shape is reused for
+#' # all four compartments here.
+#' lmdi <- tibble::tribble(
+#'   ~period, ~factor_label, ~component_type, ~additive,
+#'   "1861-1862", "N surplus", "target", 20000,
+#'   "1861-1862", "Size", "factor", 9000,
+#'   "1861-1862", "Intensity", "factor", 7000,
+#'   "1861-1862", "Inefficiency", "factor", 4000,
+#'   "1862-1863", "N surplus", "target", 10000,
+#'   "1862-1863", "Size", "factor", 5000,
+#'   "1862-1863", "Intensity", "factor", 3000,
+#'   "1862-1863", "Inefficiency", "factor", 2000
+#' )
+#' plots <- plot_compart_factor(lmdi, lmdi, lmdi, lmdi)
 plot_compart_factor <- function(
   cropland = NULL,
   semi_natural = NULL,
@@ -1221,7 +1360,16 @@ plot_compart_factor <- function(
 #' @export
 #'
 #' @examples
-#' # plot_compart_factor_yearly()
+#' lmdi <- tibble::tribble(
+#'   ~period, ~factor_label, ~component_type, ~additive,
+#'   "1861-1862", "N surplus", "target", 20000,
+#'   "1861-1862", "Size", "factor", 9000,
+#'   "1861-1862", "Intensity", "factor", 7000,
+#'   "1862-1863", "N surplus", "target", 10000,
+#'   "1862-1863", "Size", "factor", 5000,
+#'   "1862-1863", "Intensity", "factor", 3000
+#' )
+#' plots <- plot_compart_factor_yearly(lmdi, lmdi, lmdi, lmdi)
 plot_compart_factor_yearly <- function(
   cropland = NULL,
   semi_natural = NULL,
@@ -1274,7 +1422,17 @@ plot_compart_factor_yearly <- function(
 #' @export
 #'
 #' @examples
-#' # plot_compart_factor_roll()
+#' # `window` must not exceed the number of periods available per factor.
+#' lmdi <- tibble::tribble(
+#'   ~period, ~factor_label, ~component_type, ~additive,
+#'   "1861-1862", "N surplus", "target", 20000,
+#'   "1861-1862", "Size", "factor", 9000,
+#'   "1862-1863", "N surplus", "target", 10000,
+#'   "1862-1863", "Size", "factor", 5000,
+#'   "1863-1864", "N surplus", "target", 12000,
+#'   "1863-1864", "Size", "factor", 6000
+#' )
+#' plots <- plot_compart_factor_roll(lmdi, lmdi, lmdi, lmdi, window = 3)
 plot_compart_factor_roll <- function(
   cropland = NULL,
   semi_natural = NULL,
@@ -1335,7 +1493,22 @@ plot_compart_factor_roll <- function(
 #' @export
 #'
 #' @examples
-#' # plot_compart_factor_roll_panel()
+#' lmdi <- tibble::tribble(
+#'   ~period, ~factor_label, ~component_type, ~additive,
+#'   "1861-1862", "N surplus", "target", 20000,
+#'   "1861-1862", "Size", "factor", 9000,
+#'   "1862-1863", "N surplus", "target", 10000,
+#'   "1862-1863", "Size", "factor", 5000,
+#'   "1863-1864", "N surplus", "target", 12000,
+#'   "1863-1864", "Size", "factor", 6000
+#' )
+#' panel <- plot_compart_factor_roll_panel(
+#'   lmdi,
+#'   lmdi,
+#'   lmdi,
+#'   lmdi,
+#'   window = 3
+#' )
 plot_compart_factor_roll_panel <- function(
   cropland = NULL,
   semi_natural = NULL,
