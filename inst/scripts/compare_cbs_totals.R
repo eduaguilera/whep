@@ -1,14 +1,19 @@
 # Diff a full-range `get_wide_cbs()` against a committed baseline of COLUMN TOTALS.
 #
 # Why this exists, and why it is a script rather than a test: two changes in this cycle passed
-# 5151 tests while inflating published values by up to 266x. Nothing in the suite compared a
-# magnitude against anything, and the pipeline aggregates and joins, so a wrong grouping
-# double-counts -- values up, rows flat or DOWN. Row count is the least sensitive detector of
-# exactly the defect an aggregation change causes:
+# the entire suite while moving published values by up to 266x. Nothing in the suite compared a
+# magnitude against anything, and row count is the least sensitive detector of what an
+# aggregation change does -- values move while rows stay flat or fall:
 #
 #   change                                        rows            food
-#   summing areas that fold into one bucket        2.16M (-23%)    266x
+#   relabelling `area` + summing folded areas      2.16M (-23%)    266x
 #   promoting FABIO rest-of-world members          2.81M ( -0%)    1.0x, but feed 13.7x
+#
+# The first row is a BUNDLE, and reading it as one change cost hours. I attributed the 266x to
+# the summing and wrote that into seven places as fact. Isolated, the relabelling owns all of it
+# -- it created two vocabularies for `area`, a join key, and dropped 702,166 rows -- while the
+# summing is harmless and is in fact a candidate fix for whep#425. One measurement over two
+# candidate causes attributes nothing; run each half alone.
 #
 # A full-range build costs several minutes, which is too slow for testthat but trivial next to
 # the hours it takes to find one of these afterwards. Run it before committing any change to
@@ -62,6 +67,12 @@
 # so do not chase one. And any comparison that hinges on a few thousand rows -- including
 # against `main` -- is inside the noise and needs repeat runs before it means anything. The
 # defects this script exists to catch are 13x to 266x, orders of magnitude clear of it.
+#
+# AND THE BASELINE IS NOT A RECORD OF CORRECT VALUES. whep#425: `dcast()`'s `length()` fallback
+# in `.select_best_source()` replaces EVERY cast value with a row count, so the published
+# commodity balances -- and therefore this baseline -- are wrong by up to 259x on `food` today,
+# on `main` equally. This script detects DRIFT, which is still worth having; it does not
+# certify the numbers it pins.
 #
 # Usage:
 #   Rscript inst/scripts/compare_cbs_totals.R            # compare against the baseline
