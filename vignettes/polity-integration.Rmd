@@ -287,35 +287,55 @@ Each has a polity upstream but no area code to aggregate through; see whep#407.
 ```
 
 A **full-range** build says more, and the difference is worth stating because a narrow window is not a licence to
-claim a clean build. `get_wide_cbs()` at its default range completes with **~2.766 million rows across 195 areas and
+claim a clean build. `get_wide_cbs()` at its default range completes with **~2.00 million rows across 195 areas and
 zero `NA` in all four polity columns**. The row count is given loosely on purpose: the build is
-not reproducible run to run, alternating between 2,768,578 and 2,764,471 on an unchanged tree
-(whep#420), so any claim resting on a few thousand rows is inside its own noise, and emits seven warnings:
+not reproducible run to run — 1,999,609 twice in one session and 1,997,944 in another
+(whep#420) — so any claim resting on a few thousand rows is inside its own noise, and emits six warnings:
+
+The count fell from ~2.766M when whep#425 was fixed, and the drop is the fix working rather than
+data lost: row counts are never zero, so the `value != 0` filter had nothing to remove until
+quantities were restored. About 390,000 genuine zeros now leave.
 
 | warning | status |
 |---|---|
 | LUH2 territories with no FAOSTAT area code (six, twice — once per land read) | known, whep#407 |
 | Historical extension: **5** areas have no LUH2 land match | pinned by identity in `test_luh2_backcast_reach.R` (four in code space; the difference in kind is documented there) |
+| **200** crop-residue rows resolve to no area (label `"Tanzania"`, years 1961-1964) | added by this branch so the loss is visible rather than silent; whep#417 |
 | **24** crop-residue rows lack any `area_code` | down from 44,985; the remainder is whep#417 |
-| **31,642** (key, source) combinations are duplicated at the source cast | pre-existing, now reported — and the trap is total, not confined to them: whep#425 |
-| `'fun.aggregate' is NULL, but found duplicate row/column combinations` | data.table's own warning for the line above |
-| **46,424** CBS rows have supply-use imbalance above 50% | pre-existing, **identical on `main`** |
+| **47,514** CBS rows have supply-use imbalance above 50% | pre-existing, **identical on `main` to the row**, and on branch-code-with-main-data too |
+
+Counted rather than tallied by hand: a full-range build with every warning captured emits exactly
+six, which is the five rows above with the LUH2 one appearing twice. The same capture confirms
+what the repurposed cast guard is supposed to do — **no** warning matching `fold no other`,
+`fun.aggregate` or `row count` is emitted, so the guard is silent on a healthy build and
+data.table's own duplicate-combination warning is gone.
 
 Two of these deserve more than a row in a table.
 
 The **imbalance count is now compared** rather than caveated. It is a conservation check in `R/conservation.R` and
 no test pins the number, so an earlier draft of this section said only that it had not been measured against
-`main`. It has been: a full-range `get_wide_cbs()` on `main` gives **46,424** as well, the same figure to the row.
-That is not luck — this branch ships the numeric aggregation key identical to `main` for all 267 area codes, and
-every column total within 1%.
+`main`. It has been: a full-range `get_wide_cbs()` on `main` gives **47,514** as well, the same figure to the row,
+and so does branch-code-with-main-data. Three independent builds, one number.
 
-The **duplicated cast keys are the interesting one**, because they are proof of a live defect rather than a
-tolerance. `dcast()` with no `fun.aggregate` answers a duplicate key with `length()`, so those values become row
-COUNTS instead of quantities — and data.table says so itself in the warning immediately below. 31,642 combinations
-in areas 206 and 999 are affected in the shipped build, and they are affected on `main` too; the difference is that
-they were silent there. Fixing it means choosing `sum` or `first` at the cast, which changes published numbers, so
-it is whep#425 rather than a decision taken here. Two earlier attempts to fix it upstream instead — by summing the
-areas that fold into one bucket — were withdrawn, but the 266x measured for the first bundled a second change that alone dropped 702,166 rows. Isolated, summing removes the cast's 10,835 duplicate keys outright and matches the cast-side fix to within a few percent, so it is one of two candidate fixes in whep#425 rather than an error.
+That invariance is worth separating from a claim it was previously bundled with. The imbalance count and the
+numeric aggregation key (identical for all 267 area codes) are neutral. **Column totals are not** — measured on the
+fixed build, `feed` moves +7.0%, `other_uses` +3.1%, `production` +2.0% and `domestic_supply` +1.9% against `main`,
+concentrated in FABIO's rest-of-world bucket. An earlier version of this vignette said every column total was
+within 1%; that was measured while whep#425 made every value a row count, and row counts compare group sizes
+rather than quantities, so it could not have detected what it was taken to rule out. The movement is unexplained
+and tracked in whep#444.
+
+The **duplicated cast keys are gone from this list**, because whep#425 is fixed (whep#429). `dcast()` with no
+`fun.aggregate` answered a duplicate key with `length()` and applied that to every cell, so all values became row
+COUNTS. The cast now supplies `fun.aggregate` and sums them: 31,642 duplicated `(key, source)` combinations still
+arrive, in areas 206 and 999, because they are one reporting bucket's folded members and that is upstream of the
+cast — but summing is what a bucket's total means.
+
+The warning this vignette used to describe has been **repurposed rather than removed**. It said casting would
+replace values with row counts, which is now false, and a loud warning about correct behaviour is noise that gets
+muffled. It now fires only when duplicates appear in a bucket that folds **no** other area, which would mean rows
+are colliding for a reason folding does not explain. The fold set is derived from `polity_area_crosswalk` at build
+time — 206, 238 and 999 today — so a fourth fold appearing surfaces instead of being hardcoded away.
 
 That is the whole inventory. Earlier in this work the full-range build emitted four warnings and three of those
 were defects, since fixed:
@@ -347,7 +367,7 @@ reader can go look rather than take it on faith.
 | every dataset naming a territory is tied to the polities database by something | `test_area_dataset_census.R` — built on the lazydata environment, because package data is not an export |
 | territory-periods sharing a bucket are kept apart, because `area` is a join key and the bucket's total belongs at the cast (whep#425) | `test_polity_bucket_aggregation.R`, mutation-tested |
 | the aggregator's `area` label agrees with what the residues path emits, since `area` is a join key | the same file — two vocabularies for it once dropped 702,166 rows silently |
-| duplicate keys reaching the source cast are **reported**, since `dcast()` would answer them with `length()` | a warning in `.select_best_source()`; 31,642 combinations are affected and were silent on `main` too. The values they corrupt are **every** cast value, not just theirs (#425) |
+| duplicates reaching the source cast are **summed**, and unexplained ones are reported | whep#425 fixed the cast (whep#429). The guard in `.select_best_source()` now fires only for duplicates in a bucket that folds no other area, with the fold set derived from the crosswalk |
 | the numeric aggregation key honours FABIO's fold, and both published tables state it identically | `test_polity_area_code_not_folded.R` — promoting these areas inflated global `feed` 13.7× (#419) |
 | `regions_full` and `polities_cats` differ only where a modelling choice says they should | `test_polities_cats_vs_regions_full.R` |
 | the embedded copies match what upstream publishes | `test_polities_upstream_contract.R` and siblings — 51 assertions, and they need the upstream checkout |
