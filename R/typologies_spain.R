@@ -229,8 +229,7 @@ create_typologies_spain <- function(
         pop_consumption > production_total ~ "Urban systems",
         TRUE ~ Typology_base
       )
-    ) |>
-    dplyr::filter(year <= .grafs_last_year())
+    )
 
   if (make_map) {
     layer_name <- tools::file_path_sans_ext(basename(shapefile_path))

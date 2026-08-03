@@ -1,17 +1,3 @@
-# .filter_analysis_years
-test_that("years after 2021 are dropped from the analysis panel", {
-  panel <- tibble::tribble(
-    ~year, ~value,
-    2020, 1,
-    2021, 2,
-    2022, 3
-  )
-
-  out <- .filter_analysis_years(panel)
-
-  expect_equal(out$year, c(2020, 2021))
-})
-
 # .national_area_panel
 test_that("national area panel sums area/inputs/surplus across finer grain", {
   panel <- tibble::tribble(

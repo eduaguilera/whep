@@ -402,6 +402,95 @@ test_that(".backfill_processing_cf copies the earliest cf mapping backward", {
 })
 
 
+# .forwardfill_processing_shares -----------------------------------------------------
+
+test_that(".forwardfill_processing_shares copies the latest share forward", {
+  processing_shares <- tibble::tribble(
+    ~Year, ~Item, ~share_processing,
+    2020, "Grapes", 0.9,
+    2021, "Grapes", 0.92
+  )
+
+  out <- .forwardfill_processing_shares(processing_shares, last_year = 2023)
+
+  expect_equal(nrow(out), 4)
+  forwardfilled <- out |> dplyr::filter(Year > 2021) |> dplyr::arrange(Year)
+  expect_equal(forwardfilled$Year, c(2022, 2023))
+  expect_equal(forwardfilled$share_processing, c(0.92, 0.92))
+})
+
+test_that(".forwardfill_processing_shares does nothing when data already ends at last_year", {
+  processing_shares <- tibble::tribble(
+    ~Year, ~Item, ~share_processing,
+    2021, "Grapes", 0.9
+  )
+
+  out <- .forwardfill_processing_shares(processing_shares, last_year = 2021)
+
+  expect_equal(nrow(out), 1)
+})
+
+
+# .forwardfill_processing_cf -----------------------------------------------------
+
+test_that(".forwardfill_processing_cf copies the latest cf mapping forward", {
+  spain_coefs <- tibble::tribble(
+    ~Year, ~Item, ~ProcessedItem, ~value_to_process, ~cf,
+    2020, "Grapes", "Wine", 100, 0.67,
+    2021, "Grapes", "Wine", 105, 0.68,
+    2021, "Grapes", "Alcohol, Non-Food", 105, 0.006
+  )
+
+  out <- .forwardfill_processing_cf(spain_coefs, last_year = 2023)
+
+  forwardfilled <- out |>
+    dplyr::filter(Year > 2021) |>
+    dplyr::arrange(Year, ProcessedItem)
+
+  expect_equal(nrow(forwardfilled), 4)
+  expect_setequal(unique(forwardfilled$Year), c(2022, 2023))
+  expect_setequal(
+    unique(forwardfilled$ProcessedItem),
+    c("Wine", "Alcohol, Non-Food")
+  )
+  expect_equal(
+    forwardfilled$cf[
+      forwardfilled$ProcessedItem == "Wine" & forwardfilled$Year == 2022
+    ],
+    0.68
+  )
+})
+
+
+# .forwardfill_population -----------------------------------------------------
+
+test_that(".forwardfill_population copies the latest province row forward", {
+  population_yg <- tibble::tribble(
+    ~Year, ~Province_name, ~Pop_Mpeop_yg,
+    2020, "Huesca", 0.22,
+    2021, "Huesca", 0.221
+  )
+
+  out <- .forwardfill_population(population_yg, last_year = 2023)
+
+  expect_equal(nrow(out), 4)
+  forwardfilled <- out |> dplyr::filter(Year > 2021) |> dplyr::arrange(Year)
+  expect_equal(forwardfilled$Year, c(2022, 2023))
+  expect_equal(forwardfilled$Pop_Mpeop_yg, c(0.221, 0.221))
+})
+
+test_that(".forwardfill_population does nothing when data already ends at last_year", {
+  population_yg <- tibble::tribble(
+    ~Year, ~Province_name, ~Pop_Mpeop_yg,
+    2021, "Huesca", 0.221
+  )
+
+  out <- .forwardfill_population(population_yg, last_year = 2021)
+
+  expect_equal(nrow(out), 1)
+})
+
+
 # .calculate_processed_amounts -----------------------------------------------------
 
 # Coefficient fixtures shared by the processing-conservation tests. n_per_fm is

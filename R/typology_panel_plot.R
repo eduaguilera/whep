@@ -20,7 +20,7 @@
 #'
 #' @examples
 #' # Two provinces at two dates is enough to exercise the four panels; the
-#' # real figure spans 50 provinces and 1860-2021.
+#' # real figure spans 50 provinces and 1860-2023.
 #' flows <- tibble::tribble(
 #'   ~year, ~province_name, ~box, ~origin, ~destiny, ~mg_n,
 #'   1960, "A", "Cropland", "Synthetic", "Cropland", 900,
@@ -74,7 +74,7 @@ plot_typology_indicators_panel <- function(
     finn_data <- create_finn_indicator(n_prov_destiny)
   }
 
-  flows <- n_prov_destiny |> dplyr::filter(as.numeric(year) <= 2021)
+  flows <- n_prov_destiny
   area_df <- area_df %||% .panel_area_df()
   typo_df <- typo_df %||% .panel_typology_df()
   colors <- .finn_typology_colors()
@@ -172,7 +172,7 @@ plot_typology_periods_panel <- function(
   }
 
   panel_data <- panel_data %||% list()
-  flows <- n_prov_destiny |> dplyr::filter(as.numeric(year) <= 2021)
+  flows <- n_prov_destiny
   area_df <- panel_data$area_df %||% .panel_area_df()
   typo_df <- panel_data$typo_df %||% .panel_typology_df()
   colors <- .finn_typology_colors()
@@ -240,7 +240,7 @@ plot_typology_periods_panel <- function(
 }
 
 .panel_national_context <- function(n_nat_destiny, area_df) {
-  nat_flows <- n_nat_destiny |> dplyr::filter(as.numeric(year) <= 2021)
+  nat_flows <- n_nat_destiny
   list(
     flows = nat_flows,
     area_df = .national_area_df(area_df),

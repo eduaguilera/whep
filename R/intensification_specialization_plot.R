@@ -81,13 +81,13 @@ intens_spec_plot <- function() {
         year < 1900 ~ "1860-1900",
         year < 1950 ~ "1900-1950",
         year < 1990 ~ "1950-1990",
-        TRUE ~ "1990-2021"
+        TRUE ~ "1990-2023"
       )
     )
 
   df$Period <- factor(
     df$Period,
-    levels = c("1860-1900", "1900-1950", "1950-1990", "1990-2021")
+    levels = c("1860-1900", "1900-1950", "1950-1990", "1990-2023")
   )
 
   # ---- Plot ----
@@ -119,7 +119,7 @@ intens_spec_plot <- function() {
       x = "Intensification (kg N / ha)",
       y = "Specialization (max synthetic and feed import share)",
       color = "Typology",
-      title = "Provincial intensification and specialization in Spain (1860-2021)"
+      title = "Provincial intensification and specialization in Spain (1860-2023)"
     ) +
     ggplot2::theme_minimal()
 
@@ -230,13 +230,13 @@ circ_intens_plot <- function() {
         year < 1900 ~ "1860-1900",
         year < 1950 ~ "1900-1950",
         year < 1990 ~ "1950-1990",
-        TRUE ~ "1990-2021"
+        TRUE ~ "1990-2023"
       )
     )
 
   df$Period <- factor(
     df$Period,
-    levels = c("1860-1900", "1900-1950", "1950-1990", "1990-2021")
+    levels = c("1860-1900", "1900-1950", "1950-1990", "1990-2023")
   )
 
   # ---- Typology colors ----
@@ -267,7 +267,7 @@ circ_intens_plot <- function() {
       x = "Intensification (kg N / ha)",
       y = "Circularity index",
       color = "Typology",
-      title = "Circularity and intensification in Spanish agro-food systems (1860-2021)"
+      title = "Circularity and intensification in Spanish agro-food systems (1860-2023)"
     ) +
     ggplot2::theme_minimal()
 
@@ -415,7 +415,7 @@ circ_nue_traj_plot <- function() {
       x = "NUE (%)",
       y = "Circularity index",
       color = "Year",
-      title = "Circularity and NUE in Spain (1860-2021)"
+      title = "Circularity and NUE in Spain (1860-2023)"
     ) +
     ggplot2::theme_minimal() +
     ggplot2::theme(
@@ -576,7 +576,7 @@ circ_nue_crop_ts_plot <- function(out_dir = NULL) {
       x = NULL,
       y = "",
       color = "Indicator",
-      title = "Crop N use efficiency and circularity in Spain (1860-2021)"
+      title = "Crop N use efficiency and circularity in Spain (1860-2023)"
     ) +
     ggplot2::scale_y_continuous(
       labels = scales::label_percent(scale = 1),
@@ -1005,13 +1005,13 @@ intens_ts_plot <- function(out_dir = NULL) {
 
   # ---- Plot ----
   p <- ggplot2::ggplot(
-    df |> dplyr::filter(year <= 2021),
+    df,
     ggplot2::aes(x = year, y = system_productivity)
   ) +
     ggplot2::geom_line(color = "#7B2D8B", linewidth = 1.3) +
     ggplot2::scale_x_continuous(
       breaks = seq(1860, 2020, by = 20),
-      limits = c(1860, 2021)
+      limits = c(1860, 2023)
     ) +
     ggplot2::labs(
       x = NULL,
@@ -1153,7 +1153,7 @@ nue_fertilizer_timeseries_plot <- function(out_dir = NULL) {
       x = NULL,
       y = "",
       color = "Indicator",
-      title = "Fertilizer N dependency in Spanish cropland (1860-2021)"
+      title = "Fertilizer N dependency in Spanish cropland (1860-2023)"
     ) +
     ggplot2::scale_y_continuous(
       labels = scales::label_percent(scale = 1),
@@ -1255,7 +1255,7 @@ nue_fertilizer_trajectory_plot <- function(out_dir = NULL) {
       x = "N use efficiency",
       y = "Fertilizer dependency",
       color = "Year",
-      title = "NUE and fertilizer dependency trajectory in Spanish cropland (1860-2021)"
+      title = "NUE and fertilizer dependency trajectory in Spanish cropland (1860-2023)"
     ) +
     ggplot2::theme_minimal() +
     ggplot2::theme(
@@ -1363,7 +1363,7 @@ nrr_cropland_timeseries_plot <- function(out_dir = NULL) {
     ggplot2::labs(
       x = NULL,
       y = "",
-      title = "N recycling rate (NRR) in Spanish cropland (1860-2021)"
+      title = "N recycling rate (NRR) in Spanish cropland (1860-2023)"
     ) +
     ggplot2::scale_y_continuous(
       labels = scales::label_percent(scale = 1),
@@ -1465,7 +1465,7 @@ production_diversity_plot <- function() {
     ggplot2::labs(
       x = NULL,
       y = "Shannon index",
-      title = "Production diversity (Shannon index) in Spain (1860-2021)"
+      title = "Production diversity (Shannon index) in Spain (1860-2023)"
     ) +
     ggplot2::scale_y_continuous(limits = c(0, 1)) +
     ggplot2::theme_minimal()
@@ -1585,7 +1585,7 @@ intens_spec_sec_axis <- function(out_dir = NULL) {
     ggplot2::labs(
       x = NULL,
       color = "Indicator",
-      title = "Intensification and production specialization in Spain (1860-2021)"
+      title = "Intensification and production specialization in Spain (1860-2023)"
     ) +
     ggplot2::theme_minimal() +
     ggplot2::theme(
@@ -1717,7 +1717,7 @@ n_indicators_ts_plot <- function() {
       x = NULL,
       y = NULL,
       color = "Indicator",
-      title = "Nitrogen system indicators for Spain (1860-2021)"
+      title = "Nitrogen system indicators for Spain (1860-2023)"
     ) +
     ggplot2::theme_minimal() +
     ggplot2::theme(
@@ -1858,7 +1858,7 @@ spec_hhi_prod_plot <- function() {
     ggplot2::labs(
       x = NULL,
       y = "HHI index",
-      title = "HHI index of N production in cropland, livestock, semi-natural agroecosystems in Spain (1860-2021)"
+      title = "HHI index of N production in cropland, livestock, semi-natural agroecosystems in Spain (1860-2023)"
     ) +
     ggplot2::theme_minimal() +
     ggplot2::theme(
@@ -1929,7 +1929,7 @@ system_shares_plot <- function() {
       x = NULL,
       y = "",
       fill = "System",
-      title = "Relative contribution of production in cropland, livestock and semi-natural agroecosystems in Spain (1860-2021)"
+      title = "Relative contribution of production in cropland, livestock and semi-natural agroecosystems in Spain (1860-2023)"
     ) +
     ggplot2::scale_y_continuous(
       labels = scales::percent_format(),
@@ -2032,7 +2032,7 @@ ext_dep_plot_national <- function() {
 
   # ---- Plot 1: Dependency ----
   p1 <- ggplot2::ggplot(
-    df |> dplyr::filter(year <= 2021),
+    df,
     ggplot2::aes(x = year, y = external_dependency)
   ) +
     ggplot2::geom_line(
@@ -2045,7 +2045,7 @@ ext_dep_plot_national <- function() {
     ) +
     ggplot2::scale_x_continuous(
       breaks = seq(1860, 2020, by = 20),
-      limits = c(1860, 2021)
+      limits = c(1860, 2023)
     ) +
     ggplot2::labs(
       x = NULL,

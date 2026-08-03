@@ -27,7 +27,6 @@ create_finn_indicator <- function(n_prov_destiny = NULL, example = FALSE) {
   mapping <- .finn_mapping()
 
   n_prov_destiny |>
-    dplyr::filter(as.numeric(year) <= .grafs_last_year()) |>
     dplyr::group_by(year, province_name) |>
     dplyr::group_map(~ .finn_for_group(.x, .y, mapping)) |>
     purrr::list_rbind()

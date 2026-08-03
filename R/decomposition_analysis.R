@@ -66,8 +66,7 @@ decompose_cropland_surplus <- function(
     npp_ygpit,
     codes_coefs
   ) |>
-    .national_area_panel() |>
-    .filter_analysis_years()
+    .national_area_panel()
   .warn_if_sign_change(panel, surplus, character(0), "Cropland surplus")
   if (by_period) {
     panel <- .period_average_panel(panel, character(0))
@@ -154,8 +153,7 @@ decompose_semi_natural_surplus <- function(
   }
 
   panel <- .build_semi_natural_panel(n_prov_destiny, npp_ygpit) |>
-    .national_area_panel() |>
-    .filter_analysis_years()
+    .national_area_panel()
   .warn_if_sign_change(panel, surplus, character(0), "Semi-natural surplus")
   if (by_period) {
     panel <- .period_average_panel(panel, character(0))
@@ -261,8 +259,7 @@ decompose_manure_losses <- function(
     raw$stock_prod_ygps,
     raw$livestock_units
   ) |>
-    .national_manure_panel() |>
-    .filter_analysis_years()
+    .national_manure_panel()
   if (by_period) {
     panel <- .period_average_panel(panel, character(0))
   }
@@ -335,11 +332,14 @@ decompose_urban_losses <- function(
     n_prov_destiny <- create_n_prov_destiny()
   }
   if (is.null(population_yg)) {
-    population_yg <- whep_read_file("population_yg")
+    population_yg <- whep_read_file("population_yg") |>
+      .forwardfill_population(max(
+        as.numeric(n_prov_destiny$year),
+        na.rm = TRUE
+      ))
   }
 
-  panel <- .build_urban_panel(n_prov_destiny, population_yg) |>
-    .filter_analysis_years()
+  panel <- .build_urban_panel(n_prov_destiny, population_yg)
   .warn_if_sign_change(panel, loss, character(0), "Urban losses")
   if (by_period) {
     panel <- .period_average_panel(panel, character(0))
@@ -618,8 +618,7 @@ decompose_specialization_cov <- function(
     n_prov_destiny,
     raw$npp_ygpit,
     raw$codes_coefs
-  ) |>
-    .filter_analysis_years()
+  )
 
   manure_panel <- .build_manure_panel(
     n_prov_destiny,
@@ -627,8 +626,7 @@ decompose_specialization_cov <- function(
     raw$n_excretion_ygs,
     raw$stock_prod_ygps,
     raw$livestock_units
-  ) |>
-    .filter_analysis_years()
+  )
 
   list(
     cropland_province = .cropland_area_surplus_units(
@@ -694,8 +692,7 @@ decompose_crop_livestock_conn <- function(
     n_prov_destiny <- create_n_prov_destiny()
   }
 
-  by_province <- .crop_livestock_conn_panel(n_prov_destiny) |>
-    .filter_analysis_years()
+  by_province <- .crop_livestock_conn_panel(n_prov_destiny)
 
   national <- by_province |>
     dplyr::summarise(
@@ -756,8 +753,7 @@ decompose_destiny_mix <- function(n_nat_destiny = NULL, example = FALSE) {
     dplyr::mutate(
       share = output_mg / sum(output_mg, na.rm = TRUE),
       .by = year
-    ) |>
-    .filter_analysis_years()
+    )
 }
 
 
@@ -2264,18 +2260,6 @@ plot_compart_factor_periods <- function(
     formula = "surplus:total_area*(inputs/total_area)*(surplus/inputs)",
     labels = c(target_label, "Size", "Intensity", "Inefficiency")
   )
-}
-
-# The provincial reconstruction (n_prov_destiny) is only validated through
-# 2021; other raw inputs (population, livestock stock, land use) sometimes
-# extend further, which would otherwise leave incomplete/unreliable trailing
-# years in the panel.
-.last_analysis_year <- function() {
-  2021
-}
-
-.filter_analysis_years <- function(panel) {
-  dplyr::filter(panel, year <= .last_analysis_year())
 }
 
 # Reuses .assign_period_label() (circularity_index.R) for the same four

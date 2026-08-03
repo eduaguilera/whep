@@ -152,8 +152,7 @@ create_typo_ts_plot <- function(
     dplyr::mutate(dplyr::across(
       dplyr::where(is.numeric),
       ~ tidyr::replace_na(., 0)
-    )) |>
-    dplyr::filter(as.numeric(year) <= 2021)
+    ))
 
   indicators <- indicators |>
     dplyr::mutate(

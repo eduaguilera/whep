@@ -401,6 +401,7 @@ utils::globalVariables(
     "AreaCode",
     "arrowColor",
     "backfill_years",
+    "forwardfill_years",
     "balanced_export",
     "balanced_import",
     "balance",

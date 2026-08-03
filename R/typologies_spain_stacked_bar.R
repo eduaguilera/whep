@@ -1,7 +1,6 @@
 typology_stacked_bars <- function() {
   indicators <- create_typo_ts_plot()
-  n_prov_destiny <- create_n_prov_destiny() |>
-    dplyr::filter(as.numeric(year) <= 2021)
+  n_prov_destiny <- create_n_prov_destiny()
 
   typologies_df <- indicators |>
     dplyr::group_by(year, province_name) |>
