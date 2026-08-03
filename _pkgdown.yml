@@ -198,6 +198,7 @@ reference:
   - read_n_deposition
   - build_n_deposition
   - read_hyde_population
+  - read_population
   - build_urban_n
   - calculate_manner_nh3
   - calculate_manner_nh3_default
