@@ -805,3 +805,30 @@ testthat::test_that("all-zero Coello rates fall back to conserving area shares",
   testthat::expect_true(all(res$method_synthetic == "area_share"))
   testthat::expect_false(anyNA(res$n_input_t))
 })
+
+testthat::test_that("a duplicate-ISO3 territory no longer shifts later ones", {
+  # Regression: the previous inline lookup joined on regions_full$code, where
+  # ETH and SDN each carry a second historical row. The join grew the result and
+  # shifted every LATER territory onto the wrong country -- c("ESP","ETH","DEU")
+  # returned 203, 238, 62, silently turning Germany into Ethiopia PDR.
+  testthat::expect_equal(
+    whep:::.manure_territory_to_area_code(c("ESP", "ETH", "DEU")),
+    c(203L, 238L, 79L)
+  )
+  testthat::expect_equal(
+    whep:::.manure_territory_to_area_code(c("SDN", "DEU")),
+    c(206L, 79L)
+  )
+  # Stringified area codes still pass straight through, mixed with ISO3.
+  testthat::expect_equal(
+    whep:::.manure_territory_to_area_code(c("203", "ETH")),
+    c(203L, 238L)
+  )
+})
+
+testthat::test_that("an unresolvable territory still aborts", {
+  testthat::expect_error(
+    whep:::.manure_territory_to_area_code(c("ESP", "NOTACODE")),
+    "NOTACODE"
+  )
+})

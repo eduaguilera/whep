@@ -91,3 +91,15 @@ test_that("get_polity_geometries returns requested polygon rows", {
   )
   expect_true(all(geoms$has_geometry))
 })
+
+# ---- ISO3 -> numeric area_code lookup --------------------------------------
+
+testthat::test_that("the iso3c lookup is unique per code", {
+  lut <- whep:::.iso3c_area_code_lookup()
+  testthat::expect_equal(sum(duplicated(lut$iso3c)), 0L)
+  testthat::expect_equal(
+    whep:::.iso3c_to_area_code(c("ESP", "DEU", "ETH", "SDN")),
+    c(203L, 79L, 238L, 206L)
+  )
+  testthat::expect_true(is.na(whep:::.iso3c_to_area_code("ZZZ")))
+})
