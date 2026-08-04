@@ -158,7 +158,7 @@ test_that(".aggregate_nitrogen_pft area-weights N rates by crop area", {
   )
   out <- tibble::as_tibble(.aggregate_nitrogen_pft(ng))
   expect_equal(nrow(out), 1L)
-  # (200 * 100 + 10 * 1) / (100 + 1) = 20010 / 101
+  # Area-weighted: 200 over 100 ha and 10 over 1 ha gives 20010 over 101.
   expect_equal(out$value, 20010 / 101, tolerance = 1e-9)
   expect_false(isTRUE(all.equal(out$value, 105)))
 })
