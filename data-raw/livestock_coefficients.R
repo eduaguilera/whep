@@ -1203,11 +1203,11 @@ generate_ipcc_2019_tables <- function() {
       "Swine - Breeding",    0.27,
       "Sheep",               0.19,
       "Goats",               0.18,
-      "Horses",              0.33,
+      "Horses",              0.30,
       "Mules and Asses",     0.33,
       "Camels",              0.26,
       "Poultry - Layers",    0.39,
-      "Poultry - Broilers",  0.24
+      "Poultry - Broilers",  0.36
     ),
 
     # Table 10.17: MCF by MMS type and annual average temperature.
@@ -1498,11 +1498,11 @@ generate_ipcc_tier2_params <- function() {
       "Swine - Breeding",     0.27,
       "Sheep",                0.19,
       "Goats",                0.18,
-      "Horses",               0.33,
+      "Horses",               0.30,
       "Mules and Asses",      0.33,
       "Camels",               0.26,
       "Poultry - Layers",     0.39,
-      "Poultry - Broilers",   0.24
+      "Poultry - Broilers",   0.36
     ),
 
     # Ash content of manure (%).
