@@ -7,11 +7,17 @@
 LUH2 v2h, Hurtt, G. C. et al. (2020). Harmonization of global land
 use change and management for the period 850-2100 (LUH2) for CMIP6.
 Geoscientific Model Development 13, 5425-5464. \doi{10.5194/gmd-13-5425-2020}.
+The reference payload is the Global Carbon Budget vintage of that release:
+Chini, L. et al. (2021). Land-use harmonization datasets for annual global
+carbon budgets. Earth System Science Data 13, 4175-4189.
+\doi{10.5194/essd-13-4175-2021}. Data: LUH2-GCB2022,
+\doi{10.5281/zenodo.15556812} (CC-BY-4.0).
 }
 \usage{
 read_luh2_landuse(
   resolution = c("grid", "polity"),
   years = NULL,
+  states_source = c("auto", "local", "zenodo"),
   data = NULL,
   example = FALSE
 )
@@ -23,7 +29,13 @@ read_luh2_landuse(
 \item{years}{Optional integer vector of calendar years to keep. \code{NULL} keeps
 every year present in the source.}
 
-\item{data}{Named list of pre-loaded inputs bypassing the pin read: \code{states}
+\item{states_source}{Which states source to read: \code{"auto"} (default, a
+\code{WHEP_LUH2_DIR} tree when present, else the Zenodo download), \code{"local"}
+(\code{WHEP_LUH2_DIR} only, an error without it) or \code{"zenodo"} (the
+checksum-verified reference vintage only, ignoring any local tree). Recorded
+in the provenance record's \code{input_origin}.}
+
+\item{data}{Named list of pre-loaded inputs bypassing the readers: \code{states}
 (raw per-cell-year-state fractions with \code{lon}, \code{lat}, \code{year}, \code{land_use},
 \code{fraction}) and \code{country_grid} (\code{lon}, \code{lat}, \code{area_code},
 \code{cell_area_frac}). Each falls back to its reader when absent.}
@@ -39,7 +51,8 @@ A tibble with columns \code{lon}, \code{lat}, \code{area_code}, \code{year}, \co
 below, resolved from the \code{area_code} the cell grid assigns and the row's
 \code{year}; the cell-to-area assignment itself is the static present-day grid,
 which is what LUH2 has, so a pre-modern year is the present-day cell's area
-read at that year.
+read at that year. When the states grid was read from a NetCDF, a provenance
+record naming the vintage is attached; read it back with \code{\link[=get_provenance]{get_provenance()}}.
 }
 \description{
 Read the LUH2 v2h gridded land-use "states" product and aggregate its 12
@@ -49,6 +62,15 @@ states' grid-cell fractions (0..1); \code{area_ha} is that fraction times the
 spherical 0.5-degree cell area. At \code{resolution = "polity"} the areas are
 summed to each overlapping polity via the country grid; a border cell keeps
 every polity it overlaps.
+
+The states grid comes from a \code{WHEP_LUH2_DIR} tree when there is one, else the
+reference LUH2-GCB2022 \code{states.nc} is downloaded on demand from Zenodo
+(doi:10.5281/zenodo.15556812, CC-BY-4.0), verified against its published MD5
+and cached. Whichever is read, the vintage (the NetCDF \code{source_id}, e.g.
+\code{"UofMD-landState-LUH2-GCB2022"}) is recorded on the result with
+\code{\link[=attach_provenance]{attach_provenance()}}, and a local tree that is not the reference vintage
+warns: the base v2h release and the annual Global Carbon Budget variants cover
+different years and do not agree.
 }
 \section{Polity columns}{
 
