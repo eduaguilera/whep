@@ -126,6 +126,8 @@ split_manure_management <- function(excretion, options = list()) {
 #' `applied_n` times the post-storage manure C:N (the solid/liquid/excreta value
 #' for the stream's management system), so the applied C:N reflects storage, not
 #' fresh excreta; the carbon and volatile-solids storage losses follow from that.
+#' The grazing stream undergoes no storage and keeps its full carbon and volatile
+#' solids (no storage C:N cap is applied to it).
 #'
 #' @param split A tibble from [split_manure_management()].
 #' @param options A named list. `method` selects the loss method
@@ -213,7 +215,11 @@ apply_management_losses <- function(split, options = list()) {
 
   out |>
     dplyr::mutate(
-      applied_c = pmin(.data$c_stream, .data$applied_n * .data$cn_post),
+      applied_c = dplyr::if_else(
+        .data$stream == "grazing",
+        .data$c_stream,
+        pmin(.data$c_stream, .data$applied_n * .data$cn_post)
+      ),
       c_lost = .data$c_stream - .data$applied_c,
       applied_vs = dplyr::if_else(
         .data$c_stream > 0,
