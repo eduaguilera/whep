@@ -8,12 +8,24 @@ fraction times the spherical 0.5-degree cell area. At
 `resolution = "polity"` the areas are summed to each overlapping polity
 via the country grid; a border cell keeps every polity it overlaps.
 
+The states grid comes from a `WHEP_LUH2_DIR` tree when there is one,
+else the reference LUH2-GCB2022 `states.nc` is downloaded on demand from
+Zenodo (doi:10.5281/zenodo.15556812, CC-BY-4.0), verified against its
+published MD5 and cached. Whichever is read, the vintage (the NetCDF
+`source_id`, e.g. `"UofMD-landState-LUH2-GCB2022"`) is recorded on the
+result with
+[`attach_provenance()`](https://eduaguilera.github.io/whep/reference/attach_provenance.md),
+and a local tree that is not the reference vintage warns: the base v2h
+release and the annual Global Carbon Budget variants cover different
+years and do not agree.
+
 ## Usage
 
 ``` r
 read_luh2_landuse(
   resolution = c("grid", "polity"),
   years = NULL,
+  states_source = c("auto", "local", "zenodo"),
   data = NULL,
   example = FALSE
 )
@@ -25,7 +37,13 @@ LUH2 v2h, Hurtt, G. C. et al. (2020). Harmonization of global land use
 change and management for the period 850-2100 (LUH2) for CMIP6.
 Geoscientific Model Development 13, 5425-5464.
 [doi:10.5194/gmd-13-5425-2020](https://doi.org/10.5194/gmd-13-5425-2020)
-.
+. The reference payload is the Global Carbon Budget vintage of that
+release: Chini, L. et al. (2021). Land-use harmonization datasets for
+annual global carbon budgets. Earth System Science Data 13, 4175-4189.
+[doi:10.5194/essd-13-4175-2021](https://doi.org/10.5194/essd-13-4175-2021)
+. Data: LUH2-GCB2022,
+[doi:10.5281/zenodo.15556812](https://doi.org/10.5281/zenodo.15556812)
+(CC-BY-4.0).
 
 ## Arguments
 
@@ -39,9 +57,17 @@ Geoscientific Model Development 13, 5425-5464.
   Optional integer vector of calendar years to keep. `NULL` keeps every
   year present in the source.
 
+- states_source:
+
+  Which states source to read: `"auto"` (default, a `WHEP_LUH2_DIR` tree
+  when present, else the Zenodo download), `"local"` (`WHEP_LUH2_DIR`
+  only, an error without it) or `"zenodo"` (the checksum-verified
+  reference vintage only, ignoring any local tree). Recorded in the
+  provenance record's `input_origin`.
+
 - data:
 
-  Named list of pre-loaded inputs bypassing the pin read: `states` (raw
+  Named list of pre-loaded inputs bypassing the readers: `states` (raw
   per-cell-year-state fractions with `lon`, `lat`, `year`, `land_use`,
   `fraction`) and `country_grid` (`lon`, `lat`, `area_code`,
   `cell_area_frac`). Each falls back to its reader when absent.
@@ -60,7 +86,10 @@ resolution `lon` and `lat` are dropped and `area_ha` is summed per
 below, resolved from the `area_code` the cell grid assigns and the row's
 `year`; the cell-to-area assignment itself is the static present-day
 grid, which is what LUH2 has, so a pre-modern year is the present-day
-cell's area read at that year.
+cell's area read at that year. When the states grid was read from a
+NetCDF, a provenance record naming the vintage is attached; read it back
+with
+[`get_provenance()`](https://eduaguilera.github.io/whep/reference/get_provenance.md).
 
 ## Polity columns
 

@@ -5,13 +5,29 @@ natural, urban). Per cell-year-class the fraction is the sum of the member
 states' grid-cell fractions (0..1); area_ha is that fraction times the
 spherical 0.5-degree cell area. At resolution = &quot;polity&quot; the areas are
 summed to each overlapping polity via the country grid; a border cell keeps
-every polity it overlaps."><meta property="og:description" content="Read the LUH2 v2h gridded land-use &quot;states&quot; product and aggregate its 12
+every polity it overlaps.
+The states grid comes from a WHEP_LUH2_DIR tree when there is one, else the
+reference LUH2-GCB2022 states.nc is downloaded on demand from Zenodo
+(doi:10.5281/zenodo.15556812, CC-BY-4.0), verified against its published MD5
+and cached. Whichever is read, the vintage (the NetCDF source_id, e.g.
+&quot;UofMD-landState-LUH2-GCB2022&quot;) is recorded on the result with
+attach_provenance(), and a local tree that is not the reference vintage
+warns: the base v2h release and the annual Global Carbon Budget variants cover
+different years and do not agree."><meta property="og:description" content="Read the LUH2 v2h gridded land-use &quot;states&quot; product and aggregate its 12
 subgrid states into the four carbon-balance classes (cropland, grassland,
 natural, urban). Per cell-year-class the fraction is the sum of the member
 states' grid-cell fractions (0..1); area_ha is that fraction times the
 spherical 0.5-degree cell area. At resolution = &quot;polity&quot; the areas are
 summed to each overlapping polity via the country grid; a border cell keeps
-every polity it overlaps."><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
+every polity it overlaps.
+The states grid comes from a WHEP_LUH2_DIR tree when there is one, else the
+reference LUH2-GCB2022 states.nc is downloaded on demand from Zenodo
+(doi:10.5281/zenodo.15556812, CC-BY-4.0), verified against its published MD5
+and cached. Whichever is read, the vintage (the NetCDF source_id, e.g.
+&quot;UofMD-landState-LUH2-GCB2022&quot;) is recorded on the result with
+attach_provenance(), and a local tree that is not the reference vintage
+warns: the base v2h release and the annual Global Carbon Budget variants cover
+different years and do not agree."><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -57,6 +73,14 @@ states' grid-cell fractions (0..1); <code>area_ha</code> is that fraction times 
 spherical 0.5-degree cell area. At <code>resolution = "polity"</code> the areas are
 summed to each overlapping polity via the country grid; a border cell keeps
 every polity it overlaps.</p>
+<p>The states grid comes from a <code>WHEP_LUH2_DIR</code> tree when there is one, else the
+reference LUH2-GCB2022 <code>states.nc</code> is downloaded on demand from Zenodo
+(doi:10.5281/zenodo.15556812, CC-BY-4.0), verified against its published MD5
+and cached. Whichever is read, the vintage (the NetCDF <code>source_id</code>, e.g.
+<code>"UofMD-landState-LUH2-GCB2022"</code>) is recorded on the result with
+<code><a href="attach_provenance.html">attach_provenance()</a></code>, and a local tree that is not the reference vintage
+warns: the base v2h release and the annual Global Carbon Budget variants cover
+different years and do not agree.</p>
     </div>
 
     <div class="section level2">
@@ -64,6 +88,7 @@ every polity it overlaps.</p>
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">read_luh2_landuse</span><span class="op">(</span></span>
 <span>  resolution <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"grid"</span>, <span class="st">"polity"</span><span class="op">)</span>,</span>
 <span>  years <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  states_source <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"auto"</span>, <span class="st">"local"</span>, <span class="st">"zenodo"</span><span class="op">)</span>,</span>
 <span>  data <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  example <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
@@ -74,7 +99,14 @@ every polity it overlaps.</p>
     <p>LUH2 v2h, Hurtt, G. C. et al. (2020). Harmonization of global land
 use change and management for the period 850-2100 (LUH2) for CMIP6.
 Geoscientific Model Development 13, 5425-5464. <a href="https://doi.org/10.5194/gmd-13-5425-2020" class="external-link">doi:10.5194/gmd-13-5425-2020</a>
-.</p>
+.
+The reference payload is the Global Carbon Budget vintage of that release:
+Chini, L. et al. (2021). Land-use harmonization datasets for annual global
+carbon budgets. Earth System Science Data 13, 4175-4189.
+<a href="https://doi.org/10.5194/essd-13-4175-2021" class="external-link">doi:10.5194/essd-13-4175-2021</a>
+. Data: LUH2-GCB2022,
+<a href="https://doi.org/10.5281/zenodo.15556812" class="external-link">doi:10.5281/zenodo.15556812</a>
+ (CC-BY-4.0).</p>
     </div>
     <div class="section level2">
     <h2 id="arguments">Arguments<a class="anchor" aria-label="anchor" href="#arguments"></a></h2>
@@ -90,8 +122,16 @@ Geoscientific Model Development 13, 5425-5464. <a href="https://doi.org/10.5194/
 every year present in the source.</p></dd>
 
 
+<dt id="arg-states-source">states_source<a class="anchor" aria-label="anchor" href="#arg-states-source"></a></dt>
+<dd><p>Which states source to read: <code>"auto"</code> (default, a
+<code>WHEP_LUH2_DIR</code> tree when present, else the Zenodo download), <code>"local"</code>
+(<code>WHEP_LUH2_DIR</code> only, an error without it) or <code>"zenodo"</code> (the
+checksum-verified reference vintage only, ignoring any local tree). Recorded
+in the provenance record's <code>input_origin</code>.</p></dd>
+
+
 <dt id="arg-data">data<a class="anchor" aria-label="anchor" href="#arg-data"></a></dt>
-<dd><p>Named list of pre-loaded inputs bypassing the pin read: <code>states</code>
+<dd><p>Named list of pre-loaded inputs bypassing the readers: <code>states</code>
 (raw per-cell-year-state fractions with <code>lon</code>, <code>lat</code>, <code>year</code>, <code>land_use</code>,
 <code>fraction</code>) and <code>country_grid</code> (<code>lon</code>, <code>lat</code>, <code>area_code</code>,
 <code>cell_area_frac</code>). Each falls back to its reader when absent.</p></dd>
@@ -111,7 +151,8 @@ data. Defaults to <code>FALSE</code>.</p></dd>
 below, resolved from the <code>area_code</code> the cell grid assigns and the row's
 <code>year</code>; the cell-to-area assignment itself is the static present-day grid,
 which is what LUH2 has, so a pre-modern year is the present-day cell's area
-read at that year.</p>
+read at that year. When the states grid was read from a NetCDF, a provenance
+record naming the vintage is attached; read it back with <code><a href="get_provenance.html">get_provenance()</a></code>.</p>
     </div>
     <div class="section level2">
     <h2 id="polity-columns">Polity columns<a class="anchor" aria-label="anchor" href="#polity-columns"></a></h2>

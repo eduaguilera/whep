@@ -248,6 +248,17 @@ comm -23 \
   reads its land surfaces the same way (`WHEP_TYPE_CROPLAND_PATH`,
   `WHEP_CROP_PATTERNS_PATH`, `WHEP_GRIDDED_PASTURE_PATH`,
   `WHEP_POLITY_FRACTION_PATH`).
+- **Two of those download on demand instead of aborting**, because their
+  source is openly licensed and publishes a checksum: the LUH2
+  `states.nc`
+  ([`read_luh2_landuse()`](https://eduaguilera.github.io/whep/reference/read_luh2_landuse.md),
+  Zenodo record 15556812) and the critical-nitrogen archive
+  ([`read_critical_n()`](https://eduaguilera.github.io/whep/reference/read_critical_n.md),
+  Zenodo record 6395016). Both verify the published MD5, cache under
+  `rappdirs::user_cache_dir("whep")`, and treat their env var as an
+  override. Prefer this over a pin for third-party data already
+  published with a stable DOI and checksum — a pin adds an uncheckable
+  second copy (see \#457).
 - **LPJmL outputs are the one input a user cannot obtain**, so unlike
   the third-party rasters above they are **pinned, and
   `WHEP_LPJML_RUN_DIR` is optional**.
