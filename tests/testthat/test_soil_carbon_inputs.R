@@ -580,7 +580,25 @@ test_that(".sci_manure_crop_layer emits the manure-engine crops contract", {
 test_that(".sci_read_manure runs turnkey and yields cropland applied_c", {
   testthat::skip_on_ci()
   testthat::skip_if_not_installed("arrow")
-  applied <- whep:::.sci_read_manure(years = 2010L)
+  # The turnkey read pulls the FAOSTAT pins. Skip when they cannot be reached
+  # instead of letting a remote outage become a check ERROR (#490). Only the
+  # unreachable-pin errors are swallowed: anything else still fails the test,
+  # so a genuine break in .sci_read_manure() cannot hide behind a skip.
+  applied <- tryCatch(
+    suppressWarnings(suppressMessages(whep:::.sci_read_manure(years = 2010L))),
+    error = function(e) {
+      if (
+        stringr::str_detect(
+          conditionMessage(e),
+          "Could not fetch|not reachable"
+        )
+      ) {
+        return(NULL)
+      }
+      stop(e)
+    }
+  )
+  testthat::skip_if(is.null(applied), "manure pins unavailable")
   testthat::expect_true(all(
     c("year", "territory", "land_use", "crop", "applied_c") %in%
       names(applied)
