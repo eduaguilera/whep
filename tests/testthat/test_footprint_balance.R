@@ -79,6 +79,37 @@ testthat::test_that("land balance validates inputs", {
   )
 })
 
+testthat::test_that("balance surfaces extension land without prod/trade", {
+  inp <- .balance_inputs()
+  # Country 5 has 100 ha of land for item 99 but no production and no
+  # trade of it: the balance cannot route it and used to drop it silently.
+  ext <- dplyr::bind_rows(
+    inp$extension,
+    tibble::tibble(area_code = 5L, item_cbs_code = 99L, value = 100)
+  )
+  testthat::expect_warning(
+    fp <- whep::compute_footprint_balance(inp$production, inp$trade, ext),
+    "no production or trade support"
+  )
+  # The supported item keeps all its direct land (30 + 20 = 50 ha) and
+  # the unsupported land is not silently folded into another item.
+  testthat::expect_false(99L %in% fp$item_cbs_code)
+  testthat::expect_equal(sort(fp$value), c(20, 30))
+  testthat::expect_equal(sum(dplyr::filter(fp, item_cbs_code == 10L)$value), 50)
+})
+
+testthat::test_that("balance aborts on NA extension rather than wiping item", {
+  inp <- .balance_inputs()
+  # A single NA land value used to make solve() return an all-NA vector,
+  # silently erasing item 10 for every country. It must abort loudly.
+  ext <- inp$extension
+  ext$value[1] <- NA_real_
+  testthat::expect_error(
+    whep::compute_footprint_balance(inp$production, inp$trade, ext),
+    "finite"
+  )
+})
+
 testthat::test_that("compare_footprint_methods reports differences", {
   a <- tibble::tibble(
     area_code = c(1L, 2L),

@@ -67,6 +67,38 @@
 #' head(smil_2001_synthetic_n_global)
 "smil_2001_synthetic_n_global"
 
+#' Coello (2025) crop-specific synthetic nitrogen application rates
+#'
+#' @description
+#' Corrected average synthetic-nitrogen application rates
+#' (kg N ha\eqn{^{-1}}) by calendar year, FAOSTAT area and CBS crop item,
+#' derived from Coello et al. (2025). Coello's 13 crop groups are
+#' crosswalked to FAOSTAT CBS items via `inst/extdata/coello_mapping.csv`
+#' and [items_prod_full]; native years 1961-2019 are carried forward to
+#' 2023 with [fill_linear]. Used by the package synthetic-fertiliser path
+#' (`method = "coello"`) to differentiate the FAOSTAT national synthetic-N
+#' total across crops while conserving that national total. Rates are the
+#' source values clamped to non-negative; implausible outliers above
+#' 1000 kg N/ha (Coello model-extrapolation artifacts in a few small areas)
+#' are treated as missing, so those crop-area-years follow the missing-rate
+#' fallback (temporal fill where available, else the area-share weight) rather
+#' than skewing the split. The downstream rate-weighted share normalises
+#' within each country-year, so the national total is conserved regardless.
+#'
+#' @format A tibble with one row per year-area-crop:
+#' - `year`: Integer calendar year (1961-2023).
+#' - `area_code`: Integer FAOSTAT area code.
+#' - `item_cbs_code`: Integer CBS crop item code.
+#' - `kg_n_ha`: Synthetic-N application rate (kg N ha\eqn{^{-1}}).
+#'
+#' @source Coello, D. et al. (2025) A global gridded crop-specific
+#'   fertilization dataset from 1961 to 2019. *Scientific Data* 12:40.
+#'   \doi{10.1038/s41597-024-04215-x}
+#'
+#' @examples
+#' head(coello_synthetic_n)
+"coello_synthetic_n"
+
 #' Synthetic nitrogen application rates by crop and country
 #'
 #' @description
@@ -177,16 +209,26 @@
 #' - `Calcium_mg_kgFM`: Calcium content in mg per kg fresh matter.
 #' - `VitaminA_microg_kgFM`: Vitamin A content in micrograms per kg fresh
 #'   matter.
-#' - `Edible_kgDM_kgFM`: Edible dry matter in kg per kg fresh matter.
-#' - `Edible_kgC_kgFM`: Edible carbon in kg C per kg fresh matter.
-#' - `Edible_N_kgFM`: Edible nitrogen in kg N per kg fresh matter.
-#' - `Edible_kgP_kgFM`: Edible phosphorus in kg P per kg fresh matter.
-#' - `Edible_K_kgFM`: Edible potassium in kg K per kg fresh matter.
-#' - `NonEdible_kgDM_kgFM`: Non-edible dry matter in kg per kg fresh matter.
-#' - `NonEdible_kgC_kgFM`: Non-edible carbon in kg C per kg fresh matter.
+#' The ten `Edible_*` and `NonEdible_*` nutrient columns below are **empty in
+#' every row**, upstream in the source workbook as well as here, so no
+#' edible/non-edible nutrient split can be read from them (#361). Use
+#' `Edible_portion` with `N_kgN_kgFM` or `Product_kgN_kgDM` to derive an edible
+#' basis instead, as [build_food_supply()] does.
+#'
+#' - `Edible_kgDM_kgFM`: Edible dry matter in kg per kg fresh matter. Empty.
+#' - `Edible_kgC_kgFM`: Edible carbon in kg C per kg fresh matter. Empty.
+#' - `Edible_N_kgFM`: Edible nitrogen in kg N per kg fresh matter. Empty.
+#' - `Edible_kgP_kgFM`: Edible phosphorus in kg P per kg fresh matter. Empty.
+#' - `Edible_K_kgFM`: Edible potassium in kg K per kg fresh matter. Empty.
+#' - `NonEdible_kgDM_kgFM`: Non-edible dry matter, kg per kg fresh matter.
+#'   Empty.
+#' - `NonEdible_kgC_kgFM`: Non-edible carbon in kg C per kg fresh matter. Empty.
 #' - `NonEdible_kgN_kgFM`: Non-edible nitrogen in kg N per kg fresh matter.
-#' - `NonEdible_kgP_kgFM`: Non-edible phosphorus in kg P per kg fresh matter.
-#' - `NonEdible_kgK_kgFM`: Non-edible potassium in kg K per kg fresh matter.
+#'   Empty.
+#' - `NonEdible_kgP_kgFM`: Non-edible phosphorus, kg P per kg fresh matter.
+#'   Empty.
+#' - `NonEdible_kgK_kgFM`: Non-edible potassium, kg K per kg fresh matter.
+#'   Empty.
 #' - `Product_kgN_kgDM`: Nitrogen content of product in kg N per kg dry
 #'   matter.
 #' - `Product_kgP_kgDM`: Phosphorus content of product in kg P per kg dry

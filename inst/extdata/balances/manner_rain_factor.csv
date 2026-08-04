@@ -1,0 +1,73 @@
+fertiliser,ph_class,rainfall_class,factor
+Urea,pH<7,noraindry,0.7
+Urea,other pH,noraindry,0.7
+AN,pH<7,noraindry,1
+AN,other pH,noraindry,1
+CAN,pH<7,noraindry,1
+CAN,other pH,noraindry,1
+AS,pH<7,noraindry,1
+AS,other pH,noraindry,1
+Urea,pH<7,norainmoderate,0.95
+Urea,other pH,norainmoderate,0.95
+AN,pH<7,norainmoderate,1
+AN,other pH,norainmoderate,1
+CAN,pH<7,norainmoderate,1
+CAN,other pH,norainmoderate,1
+AS,pH<7,norainmoderate,1
+AS,other pH,norainmoderate,0.95
+Urea,pH<7,norainwet,0.9
+Urea,other pH,norainwet,0.9
+AN,pH<7,norainwet,1
+AN,other pH,norainwet,1
+CAN,pH<7,norainwet,1
+CAN,other pH,norainwet,1
+AS,pH<7,norainwet,1
+AS,other pH,norainwet,0.9
+Urea,pH<7,lightraindry,0.8
+Urea,other pH,lightraindry,0.8
+AN,pH<7,lightraindry,1
+AN,other pH,lightraindry,1
+CAN,pH<7,lightraindry,1
+CAN,other pH,lightraindry,1
+AS,pH<7,lightraindry,1
+AS,other pH,lightraindry,1
+Urea,pH<7,lightrainmoderate,0.9
+Urea,other pH,lightrainmoderate,0.9
+AN,pH<7,lightrainmoderate,1
+AN,other pH,lightrainmoderate,1
+CAN,pH<7,lightrainmoderate,1
+CAN,other pH,lightrainmoderate,1
+AS,pH<7,lightrainmoderate,1
+AS,other pH,lightrainmoderate,0.9
+Urea,pH<7,lightrainwet,0.85
+Urea,other pH,lightrainwet,0.85
+AN,pH<7,lightrainwet,1
+AN,other pH,lightrainwet,1
+CAN,pH<7,lightrainwet,1
+CAN,other pH,lightrainwet,1
+AS,pH<7,lightrainwet,1
+AS,other pH,lightrainwet,0.85
+Urea,pH<7,heavyraindry,0.9
+Urea,other pH,heavyraindry,0.9
+AN,pH<7,heavyraindry,1
+AN,other pH,heavyraindry,1
+CAN,pH<7,heavyraindry,1
+CAN,other pH,heavyraindry,1
+AS,pH<7,heavyraindry,1
+AS,other pH,heavyraindry,1
+Urea,pH<7,heavyrainmoderate,0.8
+Urea,other pH,heavyrainmoderate,0.8
+AN,pH<7,heavyrainmoderate,1
+AN,other pH,heavyrainmoderate,1
+CAN,pH<7,heavyrainmoderate,1
+CAN,other pH,heavyrainmoderate,1
+AS,pH<7,heavyrainmoderate,1
+AS,other pH,heavyrainmoderate,0.8
+Urea,pH<7,heavyrainwet,0.75
+Urea,other pH,heavyrainwet,0.75
+AN,pH<7,heavyrainwet,1
+AN,other pH,heavyrainwet,1
+CAN,pH<7,heavyrainwet,1
+CAN,other pH,heavyrainwet,1
+AS,pH<7,heavyrainwet,1
+AS,other pH,heavyrainwet,0.75

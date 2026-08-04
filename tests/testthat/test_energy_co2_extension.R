@@ -95,6 +95,56 @@ testthat::test_that("a group is split across its sectors by slaughtered heads", 
   testthat::expect_equal(cattle / buffalo, 30)
 })
 
+testthat::test_that("areas GLEAM cannot classify are named, not dropped mutely", {
+  # `gleam_geographic_hierarchy` is the country universe of the whole extension,
+  # so an area with no row there gets no grouping, hence no `ef_total`, and the
+  # intensity join in `.energy_co2e_by_group()` used to discard its production
+  # without a word: a Tuvalu-only (area 227) build returned zero rows and raised
+  # nothing. Tuvalu is the sharpest case because `.energy_ldc_iso3()` asserts TUV
+  # is least-developed, i.e. the file claims a GLEAM grouping for a country the
+  # table it joins against cannot represent. The two names are asserted rather
+  # than only the count: whep#415 needs to know WHICH areas to resolve, and the
+  # list moves with the crosswalk (Bermuda, Guam and Palau were in it until they
+  # were folded into FABIO bucket 999, so they no longer report as themselves).
+  testthat::expect_warning(
+    grouping <- .energy_country_grouping(),
+    "GLEAM cannot classify"
+  )
+  # The warning is a statement about the crosswalk, not about any one build, so
+  # it must not change what the grouping itself contains.
+  testthat::expect_setequal(grouping$iso3, gleam_geographic_hierarchy$iso3)
+
+  areas <- testthat::capture_warnings(.energy_country_grouping())
+  testthat::expect_match(areas, "Nauru", all = FALSE)
+  testthat::expect_match(areas, "Tuvalu", all = FALSE)
+})
+
+testthat::test_that("area -> iso3 needs no tie-break across polity periods", {
+  # `.energy_area_iso3()` used to reuse `.current_area_lookup()`, which exists to
+  # pick one "best current" polity per area_code for a different purpose, purely
+  # to read `area_iso3c` off the winning row -- riding on an unstated invariant.
+  # The invariant is real (checked below), so the projection can be taken off the
+  # crosswalk directly; this test pins the invariant so the simpler projection
+  # cannot start silently picking an arbitrary iso3 if it ever breaks.
+  per_area <- whep::polity_area_crosswalk |>
+    tibble::as_tibble() |>
+    dplyr::filter(!is.na(.data$area_code)) |>
+    dplyr::summarise(
+      n_iso3 = dplyr::n_distinct(.data$area_iso3c),
+      .by = "area_code"
+    )
+  testthat::expect_equal(max(per_area$n_iso3), 1L)
+
+  area2iso <- .energy_area_iso3()
+  testthat::expect_named(area2iso, c("area_code", "iso3"))
+  testthat::expect_equal(anyDuplicated(area2iso$area_code), 0L)
+  testthat::expect_false(any(is.na(area2iso$iso3)))
+  testthat::expect_equal(area2iso$iso3[area2iso$area_code == 231L], "USA")
+  # Statistical aggregates with no iso3 (351 "China", which double-counts its
+  # components) stay out, as they did under the old lookup's unmapped filter.
+  testthat::expect_false(351L %in% area2iso$area_code)
+})
+
 testthat::test_that("only the gleam method is available", {
   testthat::expect_error(
     whep::build_energy_co2_extension(method = "fao"),

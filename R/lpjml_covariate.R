@@ -43,11 +43,14 @@ make_lpjml_covariate <- function(
   if (is.function(weighting)) {
     return(weighting)
   }
-  if (!is.character(weighting) || length(weighting) != 1L) {
+  if (!is.character(weighting)) {
     cli::cli_abort(
       "{.arg weighting} must be {.val total_cropland}, {.val crop_pattern}, or a function."
     )
   }
+  # `match.arg()` resolves the default (the full choices vector) to its first
+  # element and validates single-string values, so it must run before any
+  # length check on `weighting`.
   weighting <- match.arg(weighting, c("total_cropland", "crop_pattern"))
   years <- .lpjml_normalize_years(years)
 

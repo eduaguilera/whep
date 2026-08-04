@@ -29,8 +29,9 @@ passed to \code{\link[=allocate_manure_to_land]{allocate_manure_to_land()}}; req
 }
 \value{
 A named list with \code{applied} (manure applied per
-\verb{land_use x crop (x cell)} with all \verb{method_*} provenance columns),
-\code{losses} (management-loss side-streams per polity) and \code{excretion} (the
+\verb{land_use x crop (x cell)} with \code{manure_type} (\code{"Excreta"}/\code{"Solid"}/
+\code{"Liquid"}) and all \verb{method_*} provenance columns), \code{losses}
+(management-loss side-streams per polity) and \code{excretion} (the
 per-category excretion totals).
 }
 \description{
@@ -49,14 +50,14 @@ the nitrogen balance (excreted = applied + management losses) is conserved.
 intake <- tibble::tribble(
   ~year, ~territory, ~sub_territory, ~livestock_category,
   ~item_cbs_code, ~feed_quality, ~intake_dm_t,
-  2020L, "ESP", NA, "Cattle_milk", 2513L, "high_quality", 200,
-  2020L, "ESP", NA, "Cattle_milk", NA, "grass", 600
+  2020L, "203", NA, "Cattle_milk", 2513L, "high_quality", 200,
+  2020L, "203", NA, "Cattle_milk", NA, "grass", 600
 )
 gridded <- list(
   crops = tibble::tribble(
     ~year, ~territory, ~sub_territory, ~crop, ~manure_n_receptivity, ~crop_n_cap,
-    2020L, "ESP", NA, "barley", 6, 200,
-    2020L, "ESP", NA, "wheat", 4, 200
+    2020L, "203", NA, "barley", 6, 200,
+    2020L, "203", NA, "wheat", 4, 200
   )
 )
 build_livestock_nutrient_flows(intake, gridded = gridded)

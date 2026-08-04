@@ -15,6 +15,7 @@ compute_footprint_paths(
   origin_item = NULL,
   output_tol = 1e-08,
   value_added_floor = 0.001,
+  max_column_sum = 100,
   conserve_extensions = TRUE,
   min_value = 0
 )
@@ -32,7 +33,14 @@ compute_footprint_paths(
 
 \item{fd_labels}{Tibble labelling Y columns, from \code{\link[=build_io_model]{build_io_model()}}.}
 
-\item{origin_area}{Optional area code vector limiting origin sectors.}
+\item{origin_area}{Optional vector limiting origin sectors. Each value is
+matched against \code{labels$area_code} -- the LEGACY numeric area code -- and a
+value that matches no \code{area_code} is then resolved through the polity
+vocabulary of \link{polity_area_crosswalk}, so a \code{polity_area_code} (\code{206}, the
+Sudan aggregation bucket) or a \code{polity_code} (\code{"SDN-2011-2025"}) selects
+the area codes it covers. Legacy codes keep their legacy meaning. Values
+that resolve to no sector are dropped with a warning, and a call in which
+nothing resolves aborts instead of returning an empty table.}
 
 \item{origin_item}{Optional item code vector limiting origin sectors.}
 
@@ -41,6 +49,10 @@ intensities.}
 
 \item{value_added_floor}{Minimum non-intermediate leakage share used when
 constructing technical coefficients from \code{z_mat}.}
+
+\item{max_column_sum}{Maximum allowed column sum in A. Must match the value
+used by \code{\link[=compute_footprint]{compute_footprint()}} (default \code{100}) so the path decomposition
+and the footprint it decomposes share an identical A cap.}
 
 \item{conserve_extensions}{If \code{TRUE}, rescale positive paths within each
 origin area/item so their sum does not exceed the corresponding positive

@@ -41,7 +41,9 @@
 #'
 #' @return A tibble with columns `year`, `area_code`, `item_cbs_code`,
 #'   `impact_u` (grassland area in hectares) and `method_grassland` (the chosen
-#'   metric).
+#'   metric), plus the polity columns below.
+#'
+#' @inheritSection whep_polity_columns Polity columns
 #'
 #' @export
 #'
@@ -66,7 +68,10 @@ build_grassland_land_extension <- function(
     faostat_pasture = .grassland_occupation_faostat(data$landuse)
   )
   if (grassland_metric == "occupation") {
-    return(dplyr::mutate(occupation, method_grassland = "occupation"))
+    return(
+      dplyr::mutate(occupation, method_grassland = "occupation") |>
+        .add_reporting_polity_columns()
+    )
   }
 
   .check_usable_grass_yield(usable_grass_yield_dm_t_ha)
@@ -75,7 +80,12 @@ build_grassland_land_extension <- function(
   } else {
     data$feed_intake
   }
-  .grassland_active_grazing(occupation, feed_intake, usable_grass_yield_dm_t_ha)
+  .grassland_active_grazing(
+    occupation,
+    feed_intake,
+    usable_grass_yield_dm_t_ha
+  ) |>
+    .add_reporting_polity_columns()
 }
 
 # LUH2 grassland area (hectares) from primary production, excluding rotational
@@ -98,16 +108,18 @@ build_grassland_land_extension <- function(
 }
 
 # FAOSTAT "Permanent meadows and pastures" area (item 6655), filtered live from
-# the faostat-landuse pin (Value is in 1000 ha). Aggregate FAOSTAT regions are
-# dropped by keeping only codes that map to a real country in regions_full.
+# the faostat-landuse pin (Value is in 1000 ha). Raw FAOSTAT reporting areas are
+# mapped to WHEP polities through polity_area_crosswalk and collapsed to
+# polity_area_code, the same country basis the LUH2 grassland source already
+# uses. Statistical aggregates that overlap their components (e.g. FAOSTAT
+# "China" 351, "World", continents) are unmapped in the crosswalk and dropped
+# here, so they cannot double-count. This replaces an earlier `!is.na(iso3c)`
+# heuristic on regions_full, which reinvented aggregate detection and left the
+# two grassland sources keyed on different area codes (raw FAOSTAT vs polity).
 .grassland_occupation_faostat <- function(landuse = NULL) {
   if (is.null(landuse)) {
     landuse <- whep_read_file("faostat-landuse")
   }
-  valid_codes <- whep::regions_full |>
-    dplyr::filter(!is.na(.data$iso3c)) |>
-    dplyr::pull(.data$code) |>
-    unique()
   landuse |>
     dplyr::filter(.data[["Item Code"]] == 6655, .data$Element == "Area") |>
     dplyr::transmute(
@@ -116,11 +128,23 @@ build_grassland_land_extension <- function(
       item_cbs_code = 3000L,
       impact_u = round(.data$Value * 1000, 1)
     ) |>
-    dplyr::filter(
-      !is.na(.data$impact_u),
-      .data$impact_u > 0,
-      .data$area_code %in% valid_codes
-    )
+    dplyr::filter(!is.na(.data$impact_u), .data$impact_u > 0) |>
+    .grassland_faostat_to_polities()
+}
+
+# Collapse raw FAOSTAT reporting areas to WHEP polity_area_code via the canonical
+# crosswalk, dropping unmapped statistical aggregates. Keeps the extension grain
+# (year, area_code, item_cbs_code); area_code is now a polity_area_code, matching
+# the LUH2 source.
+.grassland_faostat_to_polities <- function(occupation) {
+  occupation |>
+    add_polity_code(code_column = "area_code", year_column = "year") |>
+    dplyr::filter(!is.na(.data$polity_code)) |>
+    dplyr::summarise(
+      impact_u = sum(.data$impact_u, na.rm = TRUE),
+      .by = c(year, polity_area_code, item_cbs_code)
+    ) |>
+    dplyr::rename(area_code = polity_area_code)
 }
 
 .fallow_item_cbs <- function() {
@@ -132,6 +156,12 @@ build_grassland_land_extension <- function(
 }
 
 # Cap grassland area at the area implied by grazing intake and usable yield.
+# Grass intake from get_feed_intake() is booked under permanent grassland
+# (item_cbs 3000) only, while occupation spans all grass items (e.g. 3002
+# temporary grassland). Capping must therefore compare total grazing intake
+# against total grassland area per year/area, then split the capped total back
+# across items in proportion to their occupation, otherwise items with no
+# matching intake row (like 3002) would be silently zeroed.
 .grassland_active_grazing <- function(
   occupation,
   feed_intake,
@@ -141,22 +171,30 @@ build_grassland_land_extension <- function(
     dplyr::filter(.data$feed_type == "grass") |>
     dplyr::summarise(
       grazing_intake_dm_t = sum(.data$intake_dry_matter, na.rm = TRUE),
-      .by = c(year, area_code, item_cbs_code)
+      .by = c(year, area_code)
     ) |>
     dplyr::mutate(
       year = as.integer(.data$year),
-      area_code = as.integer(.data$area_code),
-      item_cbs_code = as.integer(.data$item_cbs_code)
+      area_code = as.integer(.data$area_code)
     )
 
   occupation |>
-    dplyr::left_join(intake, by = c("year", "area_code", "item_cbs_code")) |>
+    dplyr::mutate(
+      occupation_total = sum(.data$impact_u, na.rm = TRUE),
+      .by = c(year, area_code)
+    ) |>
+    dplyr::left_join(intake, by = c("year", "area_code")) |>
     dplyr::mutate(
       grazing_intake_dm_t = tidyr::replace_na(.data$grazing_intake_dm_t, 0),
-      impact_u = pmin(
-        .data$impact_u,
+      capped_total = pmin(
+        .data$occupation_total,
         .data$grazing_intake_dm_t / usable_grass_yield_dm_t_ha,
         na.rm = TRUE
+      ),
+      impact_u = dplyr::if_else(
+        .data$occupation_total > 0,
+        .data$impact_u * .data$capped_total / .data$occupation_total,
+        0
       ),
       method_grassland = "active_grazing"
     ) |>

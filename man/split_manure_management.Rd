@@ -8,8 +8,9 @@ split_manure_management(excretion, options = list())
 }
 \arguments{
 \item{excretion}{A tibble from \code{\link[=estimate_n_excretion]{estimate_n_excretion()}} with \code{year},
-\code{territory}, \code{sub_territory}, \code{livestock_category}, \code{n_excretion},
-\code{c_excretion} and \code{vs_excretion}.}
+\code{territory} (a stringified \code{area_code}, see \code{\link[=estimate_n_excretion]{estimate_n_excretion()}}),
+\code{sub_territory}, \code{livestock_category}, \code{n_excretion}, \code{c_excretion} and
+\code{vs_excretion}.}
 
 \item{options}{A named list. \code{mms_source} selects the MMS-share table
 (\code{"regional_default"}, the global IPCC/GLEAM default in
@@ -32,8 +33,8 @@ the per-species MMS shares sum to one.
 excretion <- tibble::tribble(
   ~year, ~territory, ~sub_territory, ~livestock_category,
   ~n_excretion, ~c_excretion, ~vs_excretion,
-  2020L, "ES", NA, "Cattle_milk", 100, 1900, 60,
-  2020L, "ES", NA, "Pigs", 30, 270, 20
+  2020L, "203", NA, "Cattle_milk", 100, 1900, 60,
+  2020L, "203", NA, "Pigs", 30, 270, 20
 )
 split_manure_management(excretion)
 }
