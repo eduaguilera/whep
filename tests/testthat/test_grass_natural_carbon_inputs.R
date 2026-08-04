@@ -430,3 +430,80 @@ testthat::test_that(".gn_read_stand_frac reads cftfrac.nc grassland stands", {
   )
   testthat::expect_true(all(out$stand_frac > 0 & out$stand_frac <= 1))
 })
+
+# ---- The pin seam ----------------------------------------------------------
+# The pinned artifact exists so a user who has never run LPJmL still gets the
+# real layer. What these guard is that the seam carries ONLY LPJmL-derived
+# quantities: if the excreta or a humification fraction ever leaked into it,
+# the pinned and run-derived paths would silently disagree.
+
+testthat::test_that("net_c seam reproduces the per-PFT path exactly", {
+  from_pfts <- whep::build_grass_natural_carbon_inputs(
+    data = .gn_fixture_data()
+  )
+  seam <- whep:::.gn_net_c_from_lpjml(.gn_fixture_data(), years = NULL)
+  d <- .gn_fixture_data()
+  d$npp <- NULL
+  d$harvestc <- NULL
+  d$stand_frac <- NULL
+  d$net_c <- seam
+  from_seam <- whep::build_grass_natural_carbon_inputs(data = d)
+  testthat::expect_equal(from_seam, from_pfts)
+})
+
+testthat::test_that("the net_c seam holds only LPJmL quantities", {
+  seam <- whep:::.gn_net_c_from_lpjml(.gn_fixture_data(), years = NULL)
+  testthat::expect_setequal(
+    names(seam),
+    c("lon", "lat", "year", "land_use", "npp_c_mgc_ha_yr")
+  )
+  testthat::expect_setequal(unique(seam$land_use), c("grassland", "natural"))
+})
+
+testthat::test_that("excreta still changes the result through the seam", {
+  # The excreta term must stay live on the pinned path. Same net_c, excreta on
+  # vs off: grassland carbon and its humified fraction must both move.
+  seam <- whep:::.gn_net_c_from_lpjml(.gn_fixture_data(), years = NULL)
+  with_ex <- .gn_fixture_data()
+  with_ex$net_c <- seam
+  without <- .gn_fixture_data(excreta = FALSE)
+  without$net_c <- seam
+  a <- whep::build_grass_natural_carbon_inputs(data = with_ex) |>
+    dplyr::filter(land_use == "grassland")
+  b <- whep::build_grass_natural_carbon_inputs(data = without) |>
+    dplyr::filter(land_use == "grassland")
+  testthat::expect_gt(sum(a$c_input_mgc_ha_yr), sum(b$c_input_mgc_ha_yr))
+  testthat::expect_false(isTRUE(all.equal(
+    a$humified_fraction,
+    b$humified_fraction
+  )))
+})
+
+testthat::test_that("data$net_c takes precedence over run and pin", {
+  # A supplied net_c must be used verbatim even with a run directory present,
+  # so no network or NetCDF read happens on the injected path.
+  withr::local_envvar(WHEP_LPJML_RUN_DIR = "/nonexistent/run")
+  d <- .gn_fixture_data()
+  d$npp <- NULL
+  d$harvestc <- NULL
+  d$stand_frac <- NULL
+  d$net_c <- tibble::tribble(
+    ~lon, ~lat, ~year, ~land_use, ~npp_c_mgc_ha_yr,
+    0.25, 0.25, 2000L, "grassland", 2,
+    0.25, 0.25, 2000L, "natural", 5
+  )
+  out <- whep::build_grass_natural_carbon_inputs(data = d)
+  testthat::expect_equal(
+    dplyr::filter(out, land_use == "natural")$c_input_mgc_ha_yr,
+    5
+  )
+})
+
+testthat::test_that("a malformed net_c input is rejected by name", {
+  d <- .gn_fixture_data()
+  d$net_c <- tibble::tibble(lon = 0.25, lat = 0.25, year = 2000L)
+  testthat::expect_error(
+    whep::build_grass_natural_carbon_inputs(data = d),
+    "land_use"
+  )
+})

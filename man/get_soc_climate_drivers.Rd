@@ -12,8 +12,12 @@ get_soc_climate_drivers(
 )
 }
 \arguments{
-\item{run_dir}{Path to the LPJmL run output directory. Defaults to
-\code{Sys.getenv("WHEP_LPJML_RUN_DIR")} via \code{\link[=read_lpjml_hydrology]{read_lpjml_hydrology()}}.}
+\item{run_dir}{Path to the LPJmL run output directory. \code{NULL} (default) uses
+\code{WHEP_LPJML_RUN_DIR} when set, and the pinned \code{lpjml-soc-hydrology}
+artifact otherwise, so running LPJmL is not a prerequisite. That artifact
+holds only the three LPJmL monthly drivers (topsoil saturation,
+precipitation, irrigation); air temperature still comes from CRU and the
+texture products from HWSD, both downloadable, so neither is pinned.}
 
 \item{years}{Optional integer vector of calendar years to keep. \code{NULL} keeps
 every year the inputs cover.}

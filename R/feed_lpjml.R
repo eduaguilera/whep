@@ -252,6 +252,29 @@ read_lpjml_grass_productivity <- function(
   !is.null(path) && !is.na(path) && nzchar(path)
 }
 
+# Read an LPJmL-derived pinned artifact, naming BOTH ways out when it cannot be
+# reached. Without this the failure surfaces as a pins/board error, which hides
+# the fact that a local run directory is an equally valid answer -- the whole
+# point of pinning these layers is that a user has a choice, so the error has to
+# state both options.
+.read_lpjml_pin <- function(alias, envvar = "WHEP_LPJML_RUN_DIR") {
+  tryCatch(
+    whep_read_file(alias),
+    error = function(e) {
+      cli::cli_abort(
+        c(
+          "Could not read the pinned {.val {alias}} artifact.",
+          i = "It is derived from an LPJmL run, so either fetch the pin
+               (network access required) or point {.envvar {envvar}} at a
+               finished local run to derive the layer instead.",
+          x = conditionMessage(e)
+        ),
+        call = NULL
+      )
+    }
+  )
+}
+
 .lpjml_grass_avail_alias <- function() {
   "lpjml-grass-availability"
 }
