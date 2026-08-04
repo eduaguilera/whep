@@ -318,3 +318,38 @@ test_that("n_attenuation_constants transcribes A_CN and indirect EFs", {
   testthat::expect_equal(lookup[["nh3_frac_synthetic"]], 0.11)
   testthat::expect_equal(lookup[["nh3_frac_organic"]], 0.21)
 })
+
+# Module C (Task C3) urban nitrogen benchmark series.
+
+testthat::test_that("urban_n_reference keys its area by FAOSTAT code", {
+  # whep#401: the vendored CSV labels the series with the ISO3 string "ESP",
+  # but the column is named area_code, which everywhere else in this package
+  # means the numeric FAOSTAT code. The other half of this same derivation,
+  # data-raw/build_urban_kgn_cap.R, keeps Spain by filtering on area code
+  # 203L, so while the built dataset held "ESP" the two steps keyed one
+  # concept two ways and this benchmark could not be joined to any area-keyed
+  # table without an undocumented hand conversion. The build now resolves the
+  # label through polity_area_crosswalk. This test fails on the string form:
+  # is.integer("ESP") is FALSE.
+  x <- whep::urban_n_reference
+
+  pointblank::expect_col_exists(x, c("area_code", "year", "urban_n_gg"))
+  testthat::expect_true(is.integer(x$area_code))
+  testthat::expect_setequal(x$area_code, 203L)
+
+  # Resolved, not hard-coded: the code has to be the one the crosswalk gives
+  # for ESP and it has to reach a polity, otherwise the fix would only have
+  # swapped one unjoinable value for another.
+  spain <- whep::polity_area_crosswalk |>
+    dplyr::filter(area_iso3c == "ESP")
+  testthat::expect_setequal(unique(x$area_code), unique(spain$area_code))
+  testthat::expect_true(all(!is.na(spain$polity_code)))
+
+  # The measured series is untouched by the identifier fix: the same ten
+  # benchmark years and the same Gg N as the vendored CSV.
+  testthat::expect_equal(nrow(x), 10L)
+  testthat::expect_equal(min(x$year), 1860)
+  testthat::expect_equal(max(x$year), 2022)
+  testthat::expect_equal(x$urban_n_gg[x$year == 1860], 6.97)
+  testthat::expect_equal(x$urban_n_gg[x$year == 2022], 61.29)
+})
