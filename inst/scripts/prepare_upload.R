@@ -77,7 +77,6 @@ prepare_for_upload <- function(input_path, data_name, ...) {
 }
 
 prepare_for_upload(
-  "C:/PhD/GRAFS/Inputs_SACO/grafs_lookups.xlsx",
-  "livestock_units",
-  sheet = "lu_factors"
+  "C:/PhD/GRAFS/Inputs_SACO/inputs_saco_new/n_balance_ygpit_all.csv",
+  "n_balance_ygpit_all"
 )

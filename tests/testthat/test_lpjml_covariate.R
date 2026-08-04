@@ -73,6 +73,22 @@ testthat::test_that("total cropland covariate reads local prepared inputs", {
   testthat::expect_equal(values[[3]], 0)
 })
 
+testthat::test_that("covariate defaults to total cropland when weighting omitted", {
+  tmp <- withr::local_tempdir()
+  .write_lpjml_covariate_inputs(tmp)
+
+  covariate <- whep::make_lpjml_covariate(
+    input_dir = tmp,
+    years = 2000L
+  )
+  values <- covariate(.lpjml_covariate_points(), 2000L)
+
+  testthat::expect_length(values, 3L)
+  testthat::expect_gt(values[[1]], 0)
+  testthat::expect_gt(values[[2]], values[[1]])
+  testthat::expect_equal(values[[3]], 0)
+})
+
 testthat::test_that("crop-pattern covariate combines LUH2 type and crop pattern", {
   tmp <- withr::local_tempdir()
   .write_lpjml_covariate_inputs(tmp)

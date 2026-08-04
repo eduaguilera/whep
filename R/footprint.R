@@ -21,6 +21,16 @@
 #' entirely and reducing memory from \eqn{O(n^2)} to
 #' \eqn{O(nnz)}.
 #'
+#' The `z_mat` and `l_inv` paths give identical results while the
+#' largest column sum of A stays below 1 (the Leontief inverse is
+#' then non-negative). At or above 1 the paths can diverge: the dense
+#' inverse zeroes negative entries whereas the sparse solve drops the
+#' resulting negative embodied flows, and a precomputed `l_inv` may
+#' have been capped differently (`compute_leontief_inverse()` defaults
+#' to a conservative cap below 1). The `z_mat` path emits a warning
+#' when this happens; `max_column_sum` is ignored when `l_inv` is
+#' supplied directly.
+#'
 #' @param l_inv Leontief inverse matrix from
 #'   [compute_leontief_inverse()]. Ignored when `z_mat` is
 #'   provided.
@@ -125,6 +135,7 @@ compute_footprint <- function(
     max_column_sum,
     conserve_extensions
   )
+  .validate_fd_labels(fd_labels, y_mat)
   if (!rlang::is_bool(report_conservation)) {
     cli::cli_abort("{.arg report_conservation} must be `TRUE` or `FALSE`.")
   }
@@ -158,6 +169,7 @@ compute_footprint <- function(
       value_added_floor = value_added_floor,
       max_column_sum = max_column_sum
     )
+    .warn_sparse_dense_divergence(a_mat)
     ia <- Matrix::Diagonal(n) - a_mat
     lu_fact <- .factor_ia(ia)
     multiply_fn <- function(rhs) f_diag %*% Matrix::solve(lu_fact, rhs)
@@ -505,6 +517,34 @@ compute_footprint <- function(
   )
 }
 
+# --- Sparse-vs-dense reconciliation ---
+
+# Warn when the sparse solve cannot be reconciled with the dense
+# `l_inv` path. For a non-negative A the spectral radius is bounded
+# above by the largest column sum, so a largest column sum below 1
+# guarantees a non-negative Leontief inverse and both paths agree
+# exactly (given the same A). A column sum >= 1 admits a spectral
+# radius >= 1, where the implied inverse can hold negative entries:
+# the dense path (`compute_leontief_inverse()`) zeroes them, while the
+# sparse solve instead drops the resulting negative embodied flows.
+# The two paths then diverge, so this must not be silent (issue #193).
+.warn_sparse_dense_divergence <- function(a_mat) {
+  max_col_sum <- max(Matrix::colSums(a_mat))
+  if (is.finite(max_col_sum) && max_col_sum >= 1) {
+    cli::cli_warn(c(
+      "!" = "Sparse {.arg z_mat} solve may diverge from the dense
+        {.arg l_inv} path.",
+      "i" = "Largest A column sum is {signif(max_col_sum, 4)} (>= 1),
+        so the implied Leontief inverse can contain negative entries.",
+      "i" = "The dense path zeroes them; the sparse path drops the
+        resulting negative embodied flows, giving different footprints.",
+      "i" = "Below 1 the paths agree exactly. Build {.arg l_inv} with the
+        same {.arg max_column_sum} to compare like for like."
+    ))
+  }
+  invisible(a_mat)
+}
+
 # --- Sparse LU factorisation with regularisation ---
 
 # Factor (I - A) with a very small diagonal regularisation as a
@@ -579,6 +619,23 @@ compute_footprint <- function(
   ) {
     cli::cli_abort("{.arg conserve_extensions} must be `TRUE` or `FALSE`.")
   }
+}
+
+.validate_fd_labels <- function(fd_labels, y_mat) {
+  if (is.null(fd_labels)) {
+    return(invisible())
+  }
+  n_fd <- ncol(y_mat)
+  if (nrow(fd_labels) != n_fd) {
+    cli::cli_abort(c(
+      "{.arg fd_labels} must have one row per {.arg y_mat} column.",
+      "x" = "{.arg fd_labels} has {nrow(fd_labels)} row{?s} but
+        {.arg y_mat} has {n_fd} column{?s}.",
+      "i" = "A stale or wrong-year {.arg fd_labels} would otherwise
+        silently yield rows with missing target labels."
+    ))
+  }
+  invisible()
 }
 
 .validate_square_mat <- function(mat, n, name) {

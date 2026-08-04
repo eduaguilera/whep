@@ -142,9 +142,27 @@ build_residue_feed_avail <- function(
       !is.na(.data$input_region),
       !is.na(.data$recovery_region)
     ) |>
-    dplyr::distinct(.data$input_region, .keep_all = TRUE)
+    dplyr::distinct(.data$input_region, .data$recovery_region)
+  .assert_unique_region_map(lookup)
   mapped <- lookup$recovery_region[match(region, lookup$input_region)]
   dplyr::coalesce(mapped, region)
+}
+
+# Guard the krausmann -> HANPP region map against silent fan-out: the earlier
+# distinct(input_region, .keep_all = TRUE) kept the first HANPP region whenever a
+# Krausmann label spanned several, hiding the ambiguity. The map is 1:1 today, so
+# abort loudly if a future regions_full change breaks that (relates to #170).
+.assert_unique_region_map <- function(lookup) {
+  dupes <- unique(lookup$input_region[duplicated(lookup$input_region)])
+  if (length(dupes) > 0L) {
+    cli::cli_abort(
+      c(
+        "Each {.field region_krausmann} must map to one {.field region_HANPP}.",
+        i = "Ambiguous label{?s}: {.val {dupes}}."
+      )
+    )
+  }
+  invisible(lookup)
 }
 
 .residue_destiny_shares <- function(x) {

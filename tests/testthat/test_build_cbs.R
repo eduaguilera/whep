@@ -249,6 +249,45 @@ test_that(".select_best_source prioritises FAOSTAT_prod source", {
   )
 })
 
+test_that(".select_best_source coalesces integer and double source values", {
+  # Global sources disagree on storage type: the pivoted FAOSTAT_prod /
+  # FAOSTAT_FBS_New inherit an integer raw `value`, while the scaled FBS_Old and
+  # the other-source mean are doubles. fcoalesce() aborts on a mixed set, so the
+  # sources must be coerced to a common numeric type first. Regression for the
+  # global CBS build crashing in `Combining CBS sources`.
+  cbs_raw_all <- tibble::tribble(
+    ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~year, ~value, ~source, ~unit,
+    "China", 41L, "Wheat", 2511L, "production", 2000L, 100L, "FAOSTAT_prod", "tonnes",
+    "China", 41L, "Wheat", 2511L, "production", 2000L, 90.5, "FAOSTAT_FBS_Old", "tonnes",
+    "Brazil", 21L, "Maize", 2514L, "production", 2000L, 55.2, "FAOSTAT_FBS_Old", "tonnes"
+  )
+  result <- whep:::.select_best_source(cbs_raw_all)
+  expect_type(result$value, "double")
+  expect_equal(result$value[result$area_code == 41L], 100)
+  expect_equal(result$value[result$area_code == 21L], 55.2)
+})
+
+test_that(".select_best_source keys on area_code, not periodized name", {
+  # Sources disagree on the `area` name for the same `area_code` (plain name
+  # vs periodized polity name). They must still compete on the integer code
+  # instead of both surviving and being summed downstream (100 + 90 = 190).
+  cbs_raw_all <- tibble::tribble(
+    ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~year, ~value, ~source,
+    "China, mainland", 41L, "Wheat", 2511L, "production", 2010L, 100, "FAOSTAT_prod",
+    "China (PRC)", 41L, "Wheat", 2511L, "production", 2010L, 90, "FAOSTAT_FBS_New"
+  )
+
+  selected <- whep:::.select_best_source(cbs_raw_all)
+  prod <- selected |> dplyr::filter(element == "production")
+  expect_equal(nrow(prod), 1L)
+  expect_equal(prod$value, 100)
+
+  formatted <- whep:::.format_cbs_output(selected)
+  prod_fmt <- formatted |> dplyr::filter(element == "production")
+  expect_equal(nrow(prod_fmt), 1L)
+  expect_equal(prod_fmt$value, 100)
+})
+
 
 # -- .test_cbs -----------------------------------------------------------------
 
@@ -565,4 +604,71 @@ test_that(".format_cbs_output removes duplicate rows", {
     )
   expect_equal(nrow(prod_rows), 1L)
   expect_equal(prod_rows$value, 100)
+})
+
+
+# -- .resolve_hist_trade_polities ----------------------------------------------
+
+test_that(".resolve_hist_trade_polities keys on the reported year, not today", {
+  # The historical trade pins are a genuine historical source: 1746-1961 figures
+  # reported under the borders in force at the time, unlike WHEP's pre-1962
+  # FAOSTAT series which are back-cast onto ~1961 territory. Resolution used to
+  # go through .current_area_lookup, which is deliberately year-insensitive, so
+  # every row of an ISO3 got that ISO3's *present-day* polity: all 1,093 India
+  # rows landed on IND-1949-2025 and all 9,522 UK rows on GBR-1921-2025.
+  resolved <- whep:::.resolve_hist_trade_polities(data.table::data.table(
+    iso3c = c("IND", "IND", "IND", "GBR", "GBR"),
+    year = c(1885L, 1920L, 1961L, 1850L, 1961L),
+    value = 1
+  ))
+
+  expect_equal(
+    resolved$polity_code,
+    c(
+      "IND-1800-1893",
+      "IND-1914-1937",
+      "IND-1949-2025",
+      "GBR-1800-1921",
+      "GBR-1921-2025"
+    )
+  )
+
+  # The FABIO aggregation bucket is period-invariant for both ISO3s, which is
+  # why making the lookup year-aware moved no tonnage for them: over the full
+  # pin the totals went 18,455,438,816 t -> 18,453,716,816 t (-0.0093%), and all
+  # of that was the pre-1850 aggregate rows exercised in the next test.
+  expect_equal(resolved$area_code, c(100L, 100L, 100L, 229L, 229L))
+})
+
+test_that(".resolve_hist_trade_polities drops pre-range aggregate rows", {
+  # Guadeloupe and Martinique are folded into the ROW bucket, whose only polity
+  # ROW-1850-2023 is of type "aggregate". .add_polity_columns_dt refuses to
+  # extend aggregate reporting areas outside their range, so an 1830 figure has
+  # no polity and must be dropped rather than back-filled into ROW. That is the
+  # 64 rows / 1,722,000 t the year-aware lookup removes from the feed.
+  resolved <- whep:::.resolve_hist_trade_polities(data.table::data.table(
+    iso3c = c("GLP", "GLP"),
+    year = c(1830L, 1900L),
+    value = 1
+  ))
+
+  expect_true(is.na(resolved$polity_code[1]))
+  expect_true(is.na(resolved$area_code[1]))
+  expect_equal(resolved$polity_code[2], "ROW-1850-2023")
+  expect_equal(resolved$area_code[2], 999L)
+})
+
+test_that(".resolve_hist_trade_polities leaves unknown iso3 labels unresolved", {
+  # The pins carry a handful of labels that are not ISO3 codes in the crosswalk
+  # (a placeholder for unknown origin, "BEL-LUX", "CZH"). They stay NA so the
+  # caller drops them instead of silently attaching them to a wrong polity;
+  # resolving them needs new crosswalk aliases, not a change here.
+  resolved <- whep:::.resolve_hist_trade_polities(data.table::data.table(
+    iso3c = c("BEL-LUX", "ESP"),
+    year = c(1900L, 1900L),
+    value = 1
+  ))
+
+  expect_true(is.na(resolved$polity_code[1]))
+  expect_false(is.na(resolved$polity_code[2]))
 })
