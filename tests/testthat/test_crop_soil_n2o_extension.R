@@ -162,6 +162,88 @@ testthat::test_that("GWP standard rescales soil N2O proportionally", {
   testthat::expect_equal(sum(ar5$impact_u) / sum(ar6$impact_u), 265 / 273)
 })
 
+# Polity vocabulary of the two country totals (#464) -------------------------
+
+testthat::test_that("country N totals are re-keyed onto the polity vocabulary", {
+  # Both pins are read under raw FAOSTAT `Area Code`, but the crop shares they
+  # are split by descend from get_primary_production(), which .aggregate_to_
+  # polities() keys on `polity_area_code`. Before the fix the two vocabularies
+  # were joined directly, so every FAOSTAT reporter whose code differs from its
+  # FABIO bucket silently fell out of the inner join. Measured on the real
+  # 1961-2023 pins that was 19 reporters and 103 country-years per total.
+  #
+  # This exercises the helpers against a fixture rather than the shipped data
+  # because whep ships no fertiliser/manure table: both are remote pins.
+  fertilizer <- tibble::tribble(
+    ~Element, ~Item, ~Year, ~`Area Code`, ~Value,
+    # Sudan split in 2011; FAOSTAT reports both successors, FABIO buckets both
+    # into 206, so the two must be summed under 206, not dropped.
+    "Agricultural Use", "Nutrient nitrogen N (total)", 2015L, 276L, 900,
+    "Agricultural Use", "Nutrient nitrogen N (total)", 2015L, 277L, 100,
+    # Aruba and Eswatini both fold into the "rest of world" bucket 999.
+    "Agricultural Use", "Nutrient nitrogen N (total)", 2015L, 22L, 3,
+    "Agricultural Use", "Nutrient nitrogen N (total)", 2015L, 209L, 7,
+    # Australia's FAOSTAT code already IS its polity area code: unchanged.
+    "Agricultural Use", "Nutrient nitrogen N (total)", 2015L, 10L, 50,
+    # Documented exception: rollups carry no polity and are dropped. 5000 is
+    # "World"; 351 is the "China" aggregate that overlaps 41/96/128/214.
+    "Agricultural Use", "Nutrient nitrogen N (total)", 2015L, 5000L, 1e6,
+    "Agricultural Use", "Nutrient nitrogen N (total)", 2015L, 351L, 1e5
+  )
+  synthetic <- whep:::.synthetic_n_country(fertilizer)
+
+  testthat::expect_named(synthetic, c("year", "area_code", "synthetic_n_t"))
+  testthat::expect_setequal(synthetic$area_code, c(206L, 999L, 10L))
+  testthat::expect_equal(
+    synthetic$synthetic_n_t[match(c(206L, 999L, 10L), synthetic$area_code)],
+    c(1000, 10, 50)
+  )
+
+  manure <- tibble::tribble(
+    ~Item, ~Element, ~Year, ~`Area Code`, ~Value,
+    "All Animals", "Manure applied to soils (N content)", 2015L, 276L, 9000,
+    "All Animals", "Manure applied to soils (N content)", 2015L, 277L, 1000,
+    "All Animals", "Manure applied to soils (N content)", 2015L, 5000L, 1e9
+  )
+  applied <- whep:::.manure_applied_n_country(manure)
+
+  testthat::expect_named(
+    applied,
+    c("year", "area_code", "manure_applied_n_t")
+  )
+  testthat::expect_equal(applied$area_code, 206L)
+  testthat::expect_equal(applied$manure_applied_n_t, 10) # kg N -> tonnes N
+})
+
+testthat::test_that("post-split Sudan fertiliser reaches its polity's crops", {
+  # End-to-end regression for the join the vocabulary mismatch broke. The crop
+  # shares are keyed on 206, the FABIO bucket, while FAOSTAT reports 276 and
+  # 277. Before the fix the inner join in .synthetic_n_inputs() matched nothing
+  # and post-2011 Sudan contributed zero soil N2O; the World row 5000 matched
+  # nothing either, and still must not.
+  f <- .soil_n2o_fixture()
+  f$primary_prod <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~unit, ~value,
+    2015L, 206L, 2511L, "ha", 6000,
+    2015L, 206L, 2513L, "ha", 4000
+  )
+  f$fertilizer <- tibble::tribble(
+    ~Element, ~Item, ~Year, ~`Area Code`, ~Value,
+    "Agricultural Use", "Nutrient nitrogen N (total)", 2015L, 276L, 900,
+    "Agricultural Use", "Nutrient nitrogen N (total)", 2015L, 277L, 100,
+    "Agricultural Use", "Nutrient nitrogen N (total)", 2015L, 5000L, 1e6
+  )
+  f$synthetic_method <- "area_share"
+  result <- whep::build_crop_soil_n2o_extension(data = f)
+
+  testthat::expect_setequal(result$area_code, 206L)
+  testthat::expect_setequal(result$item_cbs_code, c(2511L, 2513L))
+  per_t_n <- (0.010 + 0.11 * 0.010 + 0.24 * 0.011) * (44 / 28) * 1000 * 273
+  testthat::expect_equal(sum(result$impact_u), 1000 * per_t_n)
+  wheat <- result$impact_u[result$item_cbs_code == 2511L]
+  testthat::expect_equal(wheat / sum(result$impact_u), 0.6)
+})
+
 testthat::test_that("residue_removed_frac is validated", {
   f <- .soil_n2o_fixture()
   testthat::expect_error(

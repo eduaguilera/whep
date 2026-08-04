@@ -806,6 +806,40 @@ testthat::test_that("all-zero Coello rates fall back to conserving area shares",
   testthat::expect_false(anyNA(res$n_input_t))
 })
 
+testthat::test_that("build_n_inputs re-keys FAOSTAT synthetic N to polities", {
+  # #464: .n_inputs_synthetic()'s country_totals must speak the same vocabulary
+  # as crop_shares, which descends from get_primary_production() and is keyed on
+  # polity_area_code. FAOSTAT reports Sudan as 276 and South Sudan as 277 after
+  # the 2011 split, both bucketed to 206; the World rollup 5000 has no polity at
+  # all. Before the crosswalk was applied, none of the three joined and this
+  # build emitted zero synthetic N for Sudan. A fixture is used because whep
+  # ships no fertiliser table -- faostat-fertilizer-nutrients is a remote pin.
+  res <- whep::build_n_inputs(
+    resolution = "polity",
+    data = list(
+      primary_prod = tibble::tribble(
+        ~year, ~area_code, ~item_cbs_code, ~unit, ~value,
+        2015L, 206L, 2511L, "ha", 100,
+        2015L, 206L, 2514L, "ha", 100
+      ),
+      fertilizer = tibble::tribble(
+        ~Element, ~Item, ~Year, ~`Area Code`, ~Value,
+        "Agricultural Use", "Nutrient nitrogen N (total)", 2015L, 276L, 700,
+        "Agricultural Use", "Nutrient nitrogen N (total)", 2015L, 277L, 300,
+        "Agricultural Use", "Nutrient nitrogen N (total)", 2015L, 5000L, 1e6
+      ),
+      synthetic_method = "area_share"
+    )
+  ) |>
+    dplyr::filter(.data$fert_type == "synthetic")
+
+  testthat::expect_setequal(res$area_code, 206L)
+  # 700 + 300 summed under the shared bucket, split equally by equal area; the
+  # World rollup contributes nothing.
+  testthat::expect_equal(sum(res$n_input_t), 1000)
+  testthat::expect_equal(res$n_input_t, c(500, 500))
+})
+
 testthat::test_that("a duplicate-ISO3 territory no longer shifts later ones", {
   # Regression: the previous inline lookup joined on regions_full$code, where
   # ETH and SDN each carry a second historical row. The join grew the result and
