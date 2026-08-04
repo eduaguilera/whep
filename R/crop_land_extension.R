@@ -46,7 +46,9 @@
 #'
 #' @return A tibble with columns `year`, `area_code`, `item_cbs_code`,
 #'   `impact_u` (physical land area in hectares), and `method_land` (the chosen
-#'   method).
+#'   method), plus the polity columns below.
+#'
+#' @inheritSection whep_polity_columns Polity columns
 #'
 #' @export
 #'
@@ -97,7 +99,8 @@ build_crop_land_extension <- function(
   )
 
   .aggregate_crop_land_to_cbs(physical, items_prod_full) |>
-    dplyr::mutate(method_land = method)
+    dplyr::mutate(method_land = method) |>
+    .add_reporting_polity_columns()
 }
 
 #' Get the per-crop physical cropland extension from spatialization inputs.
@@ -128,7 +131,10 @@ build_crop_land_extension <- function(
 #'   remote/large data. Defaults to `FALSE`.
 #'
 #' @return A tibble with columns `year`, `area_code`, `item_cbs_code`,
-#'   `impact_u` (physical land in hectares), and `method_land`.
+#'   `impact_u` (physical land in hectares), and `method_land`, plus the polity
+#'   columns below.
+#'
+#' @inheritSection whep_polity_columns Polity columns
 #'
 #' @export
 #'

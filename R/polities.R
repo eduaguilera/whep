@@ -266,6 +266,32 @@ add_polity_code <- function(
   tibble::as_tibble(out)
 }
 
+# ---- ISO3 -> numeric area_code -----------------------------------------
+#
+# The canonical iso3c -> area_code lookup. It maps to `polity_area_code`, NOT
+# to `code`: two ISO3 codes carry a historical predecessor as a second `code`
+# (ETH is both 238 Ethiopia and 62 Ethiopia PDR; SDN is both 276 Sudan and 206
+# Sudan (former)), so a `code` lookup returns two rows for them. Both members
+# of each pair already share one `polity_area_code` (238 and 206), which is
+# also the code the commodity balances actually carry, so mapping there is
+# unique by construction rather than by picking a winner: 257 iso3c, 257 rows.
+.iso3c_area_code_lookup <- function() {
+  whep::regions_full |>
+    dplyr::filter(!is.na(.data$iso3c), !is.na(.data$polity_area_code)) |>
+    dplyr::distinct(
+      iso3c = as.character(.data$iso3c),
+      area_code = as.integer(.data$polity_area_code)
+    )
+}
+
+# Resolve a character vector of ISO3 codes to numeric area codes, preserving
+# length and order. Unknown codes come back NA; the caller decides whether that
+# is fatal, since some callers legitimately carry non-country aggregates.
+.iso3c_to_area_code <- function(iso3c) {
+  lookup <- .iso3c_area_code_lookup()
+  lookup$area_code[match(as.character(iso3c), lookup$iso3c)]
+}
+
 .add_reporting_polity_columns <- function(
   table,
   code_column = "area_code"
@@ -323,7 +349,24 @@ add_polity_code <- function(
     out,
     c(intersect(leading_cols, names(out)), setdiff(names(out), leading_cols))
   )
-  tibble::as_tibble(out)
+  out <- tibble::as_tibble(out)
+  # data.table's over-allocation pointer survives the tibble conversion, which
+  # makes an otherwise unchanged output compare unequal to a plain tibble and
+  # can trigger data.table's shallow-copy warning downstream.
+  attr(out, ".internal.selfref") <- NULL
+  out
+}
+
+# Attach the reporting-polity columns only to a frame that still carries the
+# area key. A few outputs have no `area_code` to resolve a polity from -- the
+# IMAGE-region aggregate is keyed by region, and `calculate_n_surplus()` accepts
+# any balance the caller hands it -- and aborting there would be a regression
+# rather than a caught error.
+.add_polity_columns_if_keyed <- function(table, code_column = "area_code") {
+  if (!rlang::has_name(table, code_column)) {
+    return(table)
+  }
+  .add_reporting_polity_columns(table, code_column = code_column)
 }
 
 .add_partner_polity_columns <- function(

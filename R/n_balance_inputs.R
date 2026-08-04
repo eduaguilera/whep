@@ -129,7 +129,9 @@
 #'   `"total_residue"` when only gross residue N was available; it is `NA` for
 #'   every other `fert_type`. `method_synthetic` records the synthetic
 #'   crop-split basis (`"coello"` or `"area_share"`) on `"synthetic"` rows and
-#'   is `NA` for every other `fert_type`.
+#'   is `NA` for every other `fert_type`. Both grains also carry the polity
+#'   columns below.
+#' @inheritSection whep_polity_columns Polity columns
 #' @export
 #' @examples
 #' build_n_inputs(example = TRUE)
@@ -166,7 +168,8 @@ build_n_inputs <- function(
     .ni_allocate_unattributed(data) |>
     .ni_filter_years(years) |>
     .ni_validate_resolution(resolution) |>
-    .ni_resolve(resolution)
+    .ni_resolve(resolution) |>
+    .add_reporting_polity_columns()
 }
 
 # ---- Private helpers: schema + resolution ------------------------------
@@ -414,19 +417,20 @@ build_n_inputs <- function(
 # ISO3 code (the function's own roxygen @examples and test fixtures use
 # territory = "ESP"). Resolve both rather than assuming one and silently
 # NA-ing the other: try integer parsing first, then fall back to an
-# iso3c -> area_code lookup via whep::regions_full; abort on anything that
-# resolves to neither, rather than propagating NA into area_code.
+# iso3c -> area_code lookup via .iso3c_to_area_code() (R/polities.R); abort on
+# anything that resolves to neither, rather than propagating NA into area_code.
+#
+# That helper matches on polity_area_code and so returns exactly one row per
+# ISO3. The previous inline lookup joined on regions_full$code, where ETH and
+# SDN each carry a historical predecessor as a second row, so a left_join grew
+# the result and shifted every LATER territory onto the wrong country: given
+# c("ESP", "ETH", "DEU") it returned 203, 238, 62 -- Germany silently became
+# Ethiopia PDR -- with only a "number of items to replace" warning.
 .manure_territory_to_area_code <- function(territory) {
   as_int <- suppressWarnings(as.integer(territory))
   still_missing <- is.na(as_int) & !is.na(territory)
   if (any(still_missing)) {
-    iso3_lookup <- whep::regions_full |>
-      dplyr::filter(!is.na(.data$iso3c)) |>
-      dplyr::distinct(.data$iso3c, .data$code)
-    resolved <- tibble::tibble(iso3c = territory[still_missing]) |>
-      dplyr::left_join(iso3_lookup, by = "iso3c") |>
-      dplyr::pull("code")
-    as_int[still_missing] <- resolved
+    as_int[still_missing] <- .iso3c_to_area_code(territory[still_missing])
   }
   unresolved <- unique(territory[is.na(as_int) & !is.na(territory)])
   if (length(unresolved) > 0) {
@@ -566,11 +570,11 @@ build_n_inputs <- function(
     dplyr::transmute(
       lon = .data$lon,
       lat = .data$lat,
-      # build_urban_n() stringifies area_code internally (its manure-
-      # transport reuse needs a character territory key). Resolve either its
-      # normal numeric-string code or an ISO3 fixture/input through the same
-      # checked resolver as the manure path; never turn an ISO3 into silent NA.
-      area_code = .manure_territory_to_area_code(.data$area_code),
+      # build_urban_n() resolves its own territory key (a stringified
+      # area_code, or an ISO3) back to a numeric area_code, through the same
+      # checked resolver as the manure path, so nothing is left to resolve
+      # here and an ISO3 never becomes a silent NA.
+      area_code = .data$area_code,
       item_cbs_code = NA_integer_,
       year = .data$year,
       fert_type = "urban",
@@ -888,5 +892,6 @@ build_n_inputs <- function(
         "coello",
         NA_character_
       )
-    )
+    ) |>
+    .add_reporting_polity_columns()
 }

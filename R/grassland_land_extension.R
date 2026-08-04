@@ -41,7 +41,9 @@
 #'
 #' @return A tibble with columns `year`, `area_code`, `item_cbs_code`,
 #'   `impact_u` (grassland area in hectares) and `method_grassland` (the chosen
-#'   metric).
+#'   metric), plus the polity columns below.
+#'
+#' @inheritSection whep_polity_columns Polity columns
 #'
 #' @export
 #'
@@ -66,7 +68,10 @@ build_grassland_land_extension <- function(
     faostat_pasture = .grassland_occupation_faostat(data$landuse)
   )
   if (grassland_metric == "occupation") {
-    return(dplyr::mutate(occupation, method_grassland = "occupation"))
+    return(
+      dplyr::mutate(occupation, method_grassland = "occupation") |>
+        .add_reporting_polity_columns()
+    )
   }
 
   .check_usable_grass_yield(usable_grass_yield_dm_t_ha)
@@ -75,7 +80,12 @@ build_grassland_land_extension <- function(
   } else {
     data$feed_intake
   }
-  .grassland_active_grazing(occupation, feed_intake, usable_grass_yield_dm_t_ha)
+  .grassland_active_grazing(
+    occupation,
+    feed_intake,
+    usable_grass_yield_dm_t_ha
+  ) |>
+    .add_reporting_polity_columns()
 }
 
 # LUH2 grassland area (hectares) from primary production, excluding rotational

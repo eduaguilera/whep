@@ -48,7 +48,9 @@
 #'   `"grid"` resolution (or `(area_code, item_prod_code, year)` at
 #'   `"polity"`), with `residue_c_mgc_ha_yr`, `root_c_mgc_ha_yr`,
 #'   `weed_c_mgc_ha_yr`, `manure_c_mgc_ha_yr`, `total_c_input_mgc_ha_yr`,
-#'   `humified_fraction` and `method_c_input`.
+#'   `humified_fraction` and `method_c_input`, plus the polity columns below.
+#'
+#' @inheritSection whep_polity_columns Polity columns
 #'
 #' @export
 #'
@@ -72,7 +74,8 @@ build_soil_carbon_inputs <- function(
     d$crop_patterns,
     d$harvested_area
   )
-  .sci_finalise(gridded, resolution, d$residue_humification)
+  .sci_finalise(gridded, resolution, d$residue_humification) |>
+    .add_reporting_polity_columns()
 }
 
 # Private helpers ----

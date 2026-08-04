@@ -66,7 +66,8 @@
     1986L, 100L, 3000L, 8.0e6, "occupation",
     1987L, 10L, 3000L, 2.5e7, "occupation",
     1987L, 100L, 3000L, 8.1e6, "occupation"
-  )
+  ) |>
+    .add_reporting_polity_columns()
 }
 
 .example_ghg_extension <- function() {
@@ -78,7 +79,8 @@
     1986L, 100L, 961L, 2.2464e9, "IPCC_2019_Tier1_AR6",
     1987L, 10L, 961L, 3.10878e9, "IPCC_2019_Tier1_AR6",
     1987L, 100L, 960L, 8.424e8, "IPCC_2019_Tier1_AR6"
-  )
+  ) |>
+    .add_reporting_polity_columns()
 }
 
 .example_energy_co2_extension <- function() {
@@ -92,7 +94,8 @@
     2010L, 231L, 1049L, 1.9281e9, "GLEAM_3.0_energy_meat",
     2010L, 231L, 1051L, 2.1423e8, "GLEAM_3.0_energy_meat",
     2010L, 231L, 1053L, 1.1171e10, "GLEAM_3.0_energy_meat"
-  )
+  ) |>
+    .add_reporting_polity_columns()
 }
 
 .example_soil_n2o_extension <- function() {
@@ -101,7 +104,8 @@
     ~method_synthetic,
     2010L, 10L, 2511L, 4.126122e8, "IPCC_2019_Tier1_AR6", "coello",
     2010L, 10L, 2513L, 1.768338e8, "IPCC_2019_Tier1_AR6", "coello"
-  )
+  ) |>
+    .add_reporting_polity_columns()
 }
 
 .example_soil_carbon_inputs <- function() {
@@ -114,7 +118,8 @@
     0.25, 0.25, 1L, "27", 2020L, 1.5, 0.5, 0.25, 0.5, 2.75, 0.152053748675567,
     0.75, 0.25, 1L, "27", 2020L, 1.5, 0.5, 0.25, 0.5, 2.75, 0.152053748675567
   ) |>
-    dplyr::mutate(method_c_input = "humified_weighted")
+    dplyr::mutate(method_c_input = "humified_weighted") |>
+    .add_reporting_polity_columns()
 }
 
 .ex_get_primary_prod <- function() {
@@ -449,7 +454,8 @@
     2000L, 100L, 2555L, 7218004, "cropland_apportion",
     2000L, 110L, 2511L, 1188233, "cropland_apportion",
     2000L, 110L, 2805L, 1503221, "cropland_apportion"
-  )
+  ) |>
+    .add_reporting_polity_columns()
 }
 
 # afsetools parity fixtures were removed: afsetools::load_general_data() reads
@@ -465,7 +471,8 @@
     2000L, 724L, "-3.25_40.25", 961L, 3000L, "grass", 900, 900, 180, 0, 0,
     2000L, 724L, "-3.25_40.25", 976L, 3500L, "scavenging", 0, 0, 0, 0, 0,
     2000L, 724L, "-3.25_40.75", 1049L, 2591L, "crops", 22, 22, 20, 0, 0
-  )
+  ) |>
+    .add_reporting_polity_columns()
 }
 
 .example_build_feed_demand <- function(by = "category") {
@@ -495,7 +502,8 @@
     2000L, 79L, "Poultry", 3.9e6, "bouwman_fcr",
     2000L, 79L, "Horses", 1.5e5, "krausmann_per_head",
     2000L, 79L, "Other", 3.0e4, "krausmann_per_head"
-  )
+  ) |>
+    .add_reporting_polity_columns()
 }
 
 .ex_land_balance_footprint <- function() {
@@ -569,7 +577,8 @@
     0.29, 0.14, 0.43, "lpjml_prec_irrig",
     9.25, 47.75, 11L, 2000L, 3L, 7.8, 0.51, 60, 40, 20, 15, 18, 0.2193,
     0.29, 0.14, 0.43, "lpjml_prec_irrig"
-  )
+  ) |>
+    .add_reporting_polity_columns()
 }
 
 # SOC dynamics selector output (ICBM model, six annual rows). Young and old
@@ -608,7 +617,8 @@
     2.140876, 2.500000, 0.000000, 0.359124, -32.647669, "hsoc",
     0.250000, 0.250000, 1L, "NonCropland", 2002L, 50.000000, 36.355474,
     2.051935, 1.500000, 0.000000, -0.551935, 50.175910, "hsoc"
-  )
+  ) |>
+    .add_reporting_polity_columns()
 }
 
 # Toy fixture for read_cru_climate (sampled from a real CRU 4.09 tmp read,
@@ -648,7 +658,8 @@
     9.25, 47.75, 11L, 2000L, "grassland", 0.20, 41566.63,
     9.25, 47.75, 11L, 2000L, "natural", 0.50, 103916.58,
     9.25, 47.75, 11L, 2000L, "urban", 0.05, 10391.66
-  )
+  ) |>
+    .add_reporting_polity_columns()
 }
 
 # Per-PFT annual LPJmL NPP fixture: two 0.5-degree cells, one year, a handful
@@ -689,7 +700,8 @@
     1.95, 0.1153467, "lpjml_npp_minus_harvest",
     -64.25, -35.75, 32L, 2000L, "natural",
     9.26, 0.325, "lpjml_npp_minus_harvest"
-  )
+  ) |>
+    .add_reporting_polity_columns()
 }
 # nolint end
 
@@ -704,7 +716,8 @@
     0.25, 0.25, 1L, 2000L, "cropland", 2.75, 0.1818182, "humified_weighted",
     0.25, 0.25, 1L, 2000L, "grassland", 4.0, 0.1153467, "lpjml_npp_minus_harvest",
     0.25, 0.25, 1L, 2000L, "natural", 6.0, 0.325, "lpjml_npp_minus_harvest"
-  )
+  ) |>
+    .add_reporting_polity_columns()
 }
 
 .ex_grazing_feed_footprint <- function() {
@@ -933,7 +946,8 @@
     2010L, 10L, 63.3561643836, 1551.900259305, 10000, "whep_native",
     2010L, 32L, 27.3972602740, 681.002645433, 5000, "whep_native",
     2011L, 10L, 49.0196078431, 1351.348575261, 10200, "whep_native"
-  )
+  ) |>
+    .add_reporting_polity_columns()
 }
 
 # The single coherent input set that drives build_sjos_nitrogen(example = TRUE)
