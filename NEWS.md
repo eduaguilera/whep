@@ -1,5 +1,19 @@
 # whep (development version)
 
+* The manure/nutrient chain now documents **one vocabulary for `territory`**: a
+  stringified `area_code`, what `redistribute_feed()` emits and what the
+  pipeline has always passed. The `@examples` of `estimate_n_excretion()`,
+  `split_manure_management()`, `apply_management_losses()`,
+  `allocate_manure_to_land()`, `allocate_manure_transport()` and
+  `build_livestock_nutrient_flows()` used ISO literals instead (`"ESP"`, and
+  `"ES"`, which the chain's own resolver rejects outright). Passing an `iso3c`
+  still resolves, as a bridge for existing fixtures, but now warns: it can only
+  answer with `polity_area_code`, a FABIO aggregation bucket, which for 62 of
+  the 257 ISO3 codes in `regions_full` is not that territory's own code (61 land
+  on 999, Rest of World; `"SSD"` lands on 206, Sudan (former), where the numeric
+  form `"277"` keeps South Sudan). No published value changes: the pipeline
+  itself never took the ISO3 branch.
+
 * Every area-keyed exported output now carries the **reporting-polity columns**
   (`polity_area_code`, `reporting_polity_code`, `reporting_polity_name`,
   `reporting_polity_has_geometry`), so a caller can tell which territory a row
