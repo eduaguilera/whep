@@ -113,8 +113,11 @@ whep_list_file_versions <- function(file_alias) {
   path <- purrr::detect(paths, ~ stringr::str_ends(.x, extension))
 
   # Only for formats this function knows how to read: an unrecognised
-  # `extension` must still fall through to the "unknown file type" error.
-  known <- c("csv", "parquet", "tar.gz", "tgz", "raw")
+  # `extension` must still fall through to the "unknown file type" error. "nc"
+  # and "nc4" belong here even though they are handed back as paths: without
+  # them a pin with no NetCDF member returned NULL, so the caller failed later
+  # and somewhere else instead of being told which formats the pin does have.
+  known <- c("csv", "parquet", "tar.gz", "tgz", "raw", "nc", "nc4")
 
   if (is.null(path) && extension %in% known) {
     # data.txt / _pins.yaml are pins bookkeeping, not readable inputs.

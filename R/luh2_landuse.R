@@ -1,23 +1,31 @@
 # Gridded yearly land-use-class areas for the historical carbon balance, read
 # from the LUH2 v2h "states" product (Hurtt et al. 2020 GMD). LUH2 v2h reports
 # the FRACTION (0..1) of each grid cell occupied by each of 12 subgrid land-use
-# states, natively at 0.25 degrees over 850-2015. The 12 states are aggregated
+# states, natively at 0.25 degrees from 850 CE on. The 12 states are aggregated
 # here into the four carbon-balance classes (cropland, grassland, natural,
 # urban) and converted to areas via the spherical 0.5-degree cell area; finer
 # native cells are area-aggregated to the 0.5-degree grid. The output matches
 # the land_use input contract of build_carbon_balance(): (lon, lat, area_code,
 # year, land_use, fraction, area_ha) with lowercase class names.
 #
-# NOTE ON THE PIN PAYLOAD (verified 2026-06-30): the registered pin
-# "luh2_v2h_states" currently ships a serialized HDF5/NetCDF blob, not a tidy
-# table: its ".parquet" member is a single STRING column holding the chunked
-# HDF byte stream, and its ".csv" member is the HDF5 file itself (with a
-# CRLF-mangled signature). Neither reads as a tabular LUH2 grid through the
-# tabular readers. The states->classes mapping and the LUH2 v2h spec (12 states,
-# fractions 0..1, 0.25-degree native, 850-2015) are taken from Hurtt et al.
-# (2020). .luh2_read_states() decodes the pin once re-uploaded as a clean
-# NetCDF (or a tidy parquet with lon/lat/year/state/fraction); until then it
-# errors and callers must pass data$states.
+# NOTE ON THE PIN PAYLOAD (verified 2026-08-04): the registered pin
+# "luh2_v2h_states" ships ONE NetCDF member, "states.nc" (6.7 GB), so it must be
+# fetched with type = "nc" (a path read lazily by ncdf4), never as a table. The
+# superseded first version (20251006T152247Z-942cc) held the serialized HDF5
+# byte stream in a ".parquet"/".csv" pair, which is what made the pin look
+# unreadable; the registered version (20260701T083449Z-582d8) is a clean NetCDF.
+#
+# The pinned NetCDF is the LUH2-GCB2022 vintage (source_id
+# "UofMD-landState-LUH2-GCB2022", 1173 yearly steps, 850-2022), NOT the base
+# v2h release (1166 steps, 850-2015). Both trees exist in the wild and give
+# different results, so the vintage actually read is recorded on the output via
+# attach_provenance() rather than assumed. .luh2_nc_years() derives the calendar
+# span from the file's own time axis, so either vintage reads correctly.
+#
+# Fetching the pin emits "NAs introduced by coercion: 6657587367 is out of
+# integer range" from yaml via pins: the payload's byte size overflows R's
+# integer, so the download progress bar loses its total. Benign, upstream, and
+# not a sign the payload is bad.
 
 #' Read gridded yearly LUH2 land-use-class fractions and areas.
 #'
@@ -30,10 +38,21 @@
 #' summed to each overlapping polity via the country grid; a border cell keeps
 #' every polity it overlaps.
 #'
+#' The states grid is read from the registered `luh2_v2h_states` pin. The
+#' `WHEP_LUH2_DIR` environment variable is only a fallback, used when the pin
+#' cannot be fetched. Either way the vintage actually read (the NetCDF
+#' `source_id`, e.g. `"UofMD-landState-LUH2-GCB2022"`) is recorded on the result
+#' with [attach_provenance()], because the base v2h release and the annual
+#' Global Carbon Budget variants cover different years and do not agree.
+#'
 #' @param resolution `"grid"` (default, per cell and class) or `"polity"`
 #'   (aggregated to `area_code` per year and class).
 #' @param years Optional integer vector of calendar years to keep. `NULL` keeps
 #'   every year present in the source.
+#' @param states_source Which states source to read: `"pin"` (default, the
+#'   registered `luh2_v2h_states` pin, falling back to `WHEP_LUH2_DIR` with a
+#'   warning when the pin cannot be fetched) or `"local"` for `WHEP_LUH2_DIR`
+#'   only. Recorded in the provenance record's `input_origin`.
 #' @param data Named list of pre-loaded inputs bypassing the pin read: `states`
 #'   (raw per-cell-year-state fractions with `lon`, `lat`, `year`, `land_use`,
 #'   `fraction`) and `country_grid` (`lon`, `lat`, `area_code`,
@@ -43,16 +62,23 @@
 #' @return A tibble with columns `lon`, `lat`, `area_code`, `year`, `land_use`,
 #'   `fraction` and `area_ha` at `"grid"` resolution; at `"polity"` resolution
 #'   `lon` and `lat` are dropped and `area_ha` is summed per
-#'   `(area_code, year, land_use)`.
+#'   `(area_code, year, land_use)`. When the states grid was read from a NetCDF,
+#'   a provenance record naming the vintage is attached; read it back with
+#'   [get_provenance()].
 #' @source LUH2 v2h, Hurtt, G. C. et al. (2020). Harmonization of global land
 #'   use change and management for the period 850-2100 (LUH2) for CMIP6.
 #'   Geoscientific Model Development 13, 5425-5464. \doi{10.5194/gmd-13-5425-2020}.
+#'   The pinned payload is the Global Carbon Budget vintage of that release:
+#'   Chini, L. et al. (2021). Land-use harmonization datasets for annual global
+#'   carbon budgets. Earth System Science Data 13, 4175-4189.
+#'   \doi{10.5194/essd-13-4175-2021}.
 #' @export
 #' @examples
 #' read_luh2_landuse(example = TRUE)
 read_luh2_landuse <- function(
   resolution = c("grid", "polity"),
   years = NULL,
+  states_source = c("pin", "local"),
   data = NULL,
   example = FALSE
 ) {
@@ -60,8 +86,10 @@ read_luh2_landuse <- function(
     return(.example_luh2_landuse())
   }
   resolution <- rlang::arg_match(resolution)
+  states_source <- rlang::arg_match(states_source)
   data <- data %||% list()
-  states <- data$states %||% .luh2_read_states_source(years = years)
+  states <- data$states %||%
+    .luh2_read_states_source(years = years, states_source = states_source)
   if (!is.null(years)) {
     states <- dplyr::filter(states, .data$year %in% years)
   }
@@ -71,7 +99,8 @@ read_luh2_landuse <- function(
     .luh2_map_classes() |>
     dplyr::mutate(area_ha = .data$fraction * .luh2_cell_area_ha(.data$lat))
 
-  .luh2_to_polity(grid, country_grid, resolution)
+  .luh2_to_polity(grid, country_grid, resolution) |>
+    attach_provenance(get_provenance(states))
 }
 
 # Aggregate the 12 LUH2 states into the four lowercase carbon-balance classes,
@@ -159,38 +188,109 @@ read_luh2_landuse <- function(
 
 # -- States source dispatch ---------------------------------------------------
 
-# Choose the states source: the clean LOCAL LUH2 v2h states.nc when present
-# (the registered pin payload is corrupted, see file header), otherwise fall
-# back to the pin reader. The directory comes from the WHEP_LUH2_DIR env var.
-.luh2_read_states_source <- function(years = NULL) {
-  states_dir <- .luh2_states_dir()
-  if (.has_path(states_dir)) {
-    nc_path <- file.path(states_dir, "states.nc")
-    if (file.exists(nc_path)) {
-      return(.luh2_read_states_nc(nc_path, years = years))
-    }
+# Choose the states source: the registered pin, falling back to a local LUH2
+# tree only when the pin cannot be fetched. Pin-first is deliberate: the pin
+# names its vintage, whereas WHEP_LUH2_DIR may point at any of the v2h trees in
+# circulation, which cover different years and do not agree. states_source =
+# "local" asks for the local tree outright, so it is a selectable source and not
+# only a rescue path.
+.luh2_read_states_source <- function(years = NULL, states_source = "pin") {
+  if (states_source == "local") {
+    return(.luh2_read_states_local(years = years))
   }
-  .luh2_read_states(years = years)
+  states <- tryCatch(
+    .luh2_read_states(years = years),
+    error = function(e) {
+      cli::cli_warn(c(
+        "Could not read the {.val luh2_v2h_states} pin.",
+        i = "Falling back to {.envvar WHEP_LUH2_DIR}.",
+        "Caused by" = conditionMessage(e)
+      ))
+      NULL
+    }
+  )
+  states %||% .luh2_read_states_local(years = years)
+}
+
+# The local fallback tree, WHEP_LUH2_DIR/states.nc. Aborts with the env-var
+# instruction when unset or absent, so a failed pin read is never silently
+# downgraded to an empty result.
+.luh2_read_states_local <- function(years = NULL) {
+  states_dir <- .luh2_states_dir()
+  nc_path <- file.path(states_dir, "states.nc")
+  if (!.has_path(states_dir) || !file.exists(nc_path)) {
+    cli::cli_abort(c(
+      "No LUH2 v2h states source is available.",
+      i = "Set {.envvar WHEP_LUH2_DIR} to a directory holding
+           {.file states.nc}, or pass {.code data$states}."
+    ))
+  }
+  .luh2_read_states_nc(nc_path, years = years, origin = "local")
 }
 
 .luh2_states_dir <- function() {
   Sys.getenv("WHEP_LUH2_DIR", "")
 }
 
-# -- Local states.nc reader ---------------------------------------------------
+# -- states.nc reader (pin payload and local fallback alike) ------------------
 
-# Read the 12 LUH2 v2h state fractions for the requested years from the clean
-# local states.nc and area-aggregate the 0.25-degree native grid to the
-# 0.5-degree carbon grid. Returns long (lon, lat, year, land_use, fraction) on
-# the 0.5-degree cell centres. LUH2 v2h time index 1 = year 850 CE.
-.luh2_read_states_nc <- function(nc_path, years = NULL) {
+# Read the 12 LUH2 v2h state fractions for the requested years from a states.nc
+# and area-aggregate the 0.25-degree native grid to the 0.5-degree carbon grid.
+# Returns long (lon, lat, year, land_use, fraction) on the 0.5-degree cell
+# centres, carrying the vintage record. LUH2 v2h time index 1 = year 850 CE.
+.luh2_read_states_nc <- function(nc_path, years = NULL, origin = "local") {
+  provenance <- .luh2_states_provenance(nc_path, origin)
+  vintage <- provenance$input_source_id
+  span <- paste(
+    provenance$input_first_year,
+    provenance$input_last_year,
+    sep = "-"
+  )
+  cli::cli_alert_info("LUH2 v2h states ({origin}): {.val {vintage}}, {span}.")
   years <- years %||% .luh2_nc_years(nc_path)
-  purrr::map_dfr(years, \(yr) .luh2_read_states_nc_year(nc_path, yr))
+  purrr::map_dfr(years, \(yr) .luh2_read_states_nc_year(nc_path, yr)) |>
+    attach_provenance(provenance)
+}
+
+# Record which LUH2 product a states.nc actually is, extending the
+# record_provenance() schema. The base v2h release (850-2015) and the annual
+# Global Carbon Budget variants (850-2022 for GCB2022) are different products
+# that reproduce different residual statistics, so a result must carry the one
+# that produced it instead of citing the base release by assumption. The pinned
+# version is only claimed when the pin was the source that was read.
+.luh2_states_provenance <- function(nc_path, origin) {
+  years <- .luh2_nc_years(nc_path)
+  record_provenance(aliases = "luh2_v2h_states") |>
+    dplyr::mutate(
+      input_version = dplyr::if_else(
+        origin == "pin",
+        .data$input_version,
+        NA_character_
+      ),
+      input_origin = origin,
+      input_source_id = .luh2_nc_source_id(nc_path),
+      input_first_year = min(years),
+      input_last_year = max(years)
+    )
+}
+
+# The LUH2 vintage a states.nc declares in its CF global attributes. The
+# CMIP6-style releases carry "source_id" ("UofMD-landState-LUH2-GCB2022"); older
+# trees only set "dataset_version_number" or "source".
+.luh2_nc_source_id <- function(nc_path) {
+  nc <- ncdf4::nc_open(nc_path)
+  on.exit(ncdf4::nc_close(nc))
+  named <- ncdf4::ncatt_get(nc, 0)[
+    c("source_id", "dataset_version_number", "source")
+  ]
+  found <- purrr::detect(named, \(x) is.character(x) && nzchar(x))
+  found %||% NA_character_
 }
 
 # Full calendar-year sequence the states.nc covers. LUH2 v2h time index 1 =
-# year 850 CE, so the series spans 850 .. 850 + time_len - 1 (2015 for a
-# complete v2h file). Derived from time_len, not a hardcoded end year.
+# year 850 CE, so the series spans 850 .. 850 + time_len - 1 (2015 for the base
+# v2h release, 2022 for the pinned GCB2022 vintage). Derived from time_len, not
+# a hardcoded end year, so every vintage reads correctly.
 .luh2_nc_years <- function(nc_path) {
   seq(850L, 850L + .luh2_time_len_nc(nc_path) - 1L)
 }
@@ -279,22 +379,25 @@ read_luh2_landuse <- function(
 
 # -- Pin readers --------------------------------------------------------------
 
-# Decode the LUH2 v2h states pin into per-cell-year-state fractions. The current
-# pin payload is a serialized NetCDF blob (see file header); until it is
-# re-uploaded as a clean NetCDF or a tidy parquet this errors and callers must
-# inject data$states.
+# Decode the LUH2 v2h states pin into per-cell-year-state fractions. The
+# registered payload is a single NetCDF member, so it must be fetched with
+# type = "nc" (a path, read lazily by ncdf4) rather than as a table -- asking for
+# the default "parquet" is what made this pin look unreadable. A tidy tabular
+# payload is still decoded, so re-uploading the pin in either shape needs no
+# reader change.
 .luh2_read_states <- function(years = NULL) {
-  raw <- tryCatch(
-    whep_read_file("luh2_v2h_states"),
-    error = function(e) {
-      cli::cli_abort(c(
-        "Could not read the {.val luh2_v2h_states} pin.",
-        i = "Pass {.code data$states} (per-cell-year-state fractions).",
-        "Caused by" = conditionMessage(e)
-      ))
-    }
+  nc_path <- tryCatch(
+    whep_read_file("luh2_v2h_states", type = "nc"),
+    error = function(e) NULL
   )
-  .luh2_tidy_states(raw, years)
+  if (!is.null(nc_path)) {
+    return(.luh2_read_states_nc(nc_path, years = years, origin = "pin"))
+  }
+  # A tabular payload carries no CF attributes, so only the pin version can be
+  # recorded -- there is no source_id to name the vintage with.
+  whep_read_file("luh2_v2h_states") |>
+    .luh2_tidy_states(years) |>
+    attach_provenance(record_provenance(aliases = "luh2_v2h_states"))
 }
 
 # Reshape a raw LUH2 states table into long (lon, lat, year, land_use,

@@ -202,6 +202,58 @@ test_that(".luh2_nc_years defaults to calendar years 850..end, not indices", {
   testthat::expect_false(any(yrs < 850L))
 })
 
+test_that("the pin is the primary states source, not the local directory", {
+  # Issue #457: WHEP_LUH2_DIR may point at any of the v2h trees in circulation,
+  # so the pin (which names its vintage) must win whenever it is readable.
+  testthat::local_mocked_bindings(
+    .luh2_states_dir = function() "/local/tree",
+    .luh2_read_states_local = function(years = NULL) {
+      stop("the local tree must not be read while the pin is readable")
+    },
+    .luh2_read_states = function(years = NULL) {
+      tibble::tibble(origin = "pin", year = years)
+    },
+    .package = "whep"
+  )
+
+  out <- whep:::.luh2_read_states_source(years = 1750L)
+  testthat::expect_equal(out$origin, "pin")
+})
+
+test_that("states_source = 'local' skips the pin outright", {
+  testthat::local_mocked_bindings(
+    .luh2_read_states = function(years = NULL) {
+      stop("the pin must not be fetched when the local tree was asked for")
+    },
+    .luh2_read_states_local = function(years = NULL) {
+      tibble::tibble(origin = "local", year = years)
+    },
+    .package = "whep"
+  )
+
+  out <- whep:::.luh2_read_states_source(
+    years = 1750L,
+    states_source = "local"
+  )
+  testthat::expect_equal(out$origin, "local")
+})
+
+test_that("an unreadable pin falls back to the local directory with a warning", {
+  testthat::local_mocked_bindings(
+    .luh2_read_states = function(years = NULL) stop("board unreachable"),
+    .luh2_read_states_local = function(years = NULL) {
+      tibble::tibble(origin = "local", year = years)
+    },
+    .package = "whep"
+  )
+
+  testthat::expect_warning(
+    out <- whep:::.luh2_read_states_source(years = 1750L),
+    "Falling back"
+  )
+  testthat::expect_equal(out$origin, "local")
+})
+
 test_that("an unset LUH2 directory cannot select a current-directory file", {
   temp_dir <- withr::local_tempdir()
   withr::local_dir(temp_dir)
@@ -211,20 +263,22 @@ test_that("an unset LUH2 directory cannot select a current-directory file", {
     .luh2_read_states_nc = function(...) {
       stop("current-directory states.nc must not be read")
     },
-    .luh2_read_states = function(years = NULL) {
-      tibble::tibble(source = "pin", year = years)
-    },
     .package = "whep"
   )
 
-  out <- whep:::.luh2_read_states_source(years = 1750L)
-  testthat::expect_equal(out$source, "pin")
+  testthat::expect_error(
+    whep:::.luh2_read_states_local(years = 1750L),
+    "No LUH2 v2h states source"
+  )
 })
 
 # Build a tiny synthetic LUH2 v2h states.nc (native grid, one time slice = year
 # 850) carrying the 12 state fractions, so the real NetCDF parser and class
 # mapper can be smoke-tested on CI without the ~6.6 GB luh2_v2h_states pin.
-.luh2_fixture_states_nc <- function() {
+# `global_attrs` writes the CF global attributes the vintage is read from.
+.luh2_fixture_states_nc <- function(
+  global_attrs = list(source_id = "UofMD-landState-LUH2-GCB2022")
+) {
   dir <- withr::local_tempdir(.local_envir = parent.frame())
   lon <- c(-179.875, -179.625, -179.375, -179.125)
   lat <- c(89.875, 89.625)
@@ -255,6 +309,9 @@ test_that("an unset LUH2 directory cannot select a current-directory file", {
     arr <- array(frac[[s]], dim = c(length(lon), length(lat), 1L))
     arr[1L, 1L, 1L] <- fill # one ocean sub-cell -> NA, to exercise the drop
     ncdf4::ncvar_put(nc, s, arr)
+  }
+  for (nm in names(global_attrs)) {
+    ncdf4::ncatt_put(nc, 0, nm, global_attrs[[nm]])
   }
   ncdf4::nc_close(nc)
   list(
@@ -308,6 +365,129 @@ test_that("states.nc parser reads a synthetic file and maps 12 states to 4 class
   testthat::expect_equal(max(crop), fx$cropland, tolerance = 1e-6)
 })
 
+test_that("the pin is fetched as a NetCDF path, not as a table", {
+  # Issue #457: the payload is one .nc member, so the pin reader asked for the
+  # default type = "parquet" and aborted with "this input has no parquet file".
+  fx <- .luh2_fixture_states_nc()
+  asked <- NULL
+  testthat::local_mocked_bindings(
+    whep_read_file = function(file_alias, type = "parquet", ...) {
+      asked <<- c(asked, type)
+      if (type != "nc") {
+        cli::cli_abort("This input has no {.val {type}} file.")
+      }
+      fx$path
+    },
+    .package = "whep"
+  )
+
+  states <- whep:::.luh2_read_states(years = fx$year)
+  testthat::expect_equal(asked, "nc")
+  pointblank::expect_col_exists(
+    states,
+    c("lon", "lat", "year", "land_use", "fraction")
+  )
+  testthat::expect_true(all(states$year == fx$year))
+})
+
+test_that("a tidy tabular payload is still decoded", {
+  # A future re-upload as a tidy parquet must need no reader change, so the
+  # tabular decoder stays reachable when the pin has no NetCDF member.
+  raw <- .luh2_raw_fixture()
+  testthat::local_mocked_bindings(
+    whep_read_file = function(file_alias, type = "parquet", ...) {
+      if (type == "nc") {
+        cli::cli_abort("This input has no {.val nc} file.")
+      }
+      raw
+    },
+    .package = "whep"
+  )
+
+  states <- whep:::.luh2_read_states(years = 1750L)
+  testthat::expect_true(all(states$year == 1750L))
+  testthat::expect_setequal(unique(states$land_use), unique(raw$land_use))
+})
+
+test_that("the LUH2 vintage read is recorded on the result", {
+  # Issue #457: the base v2h release (850-2015) and the Global Carbon Budget
+  # variants (850-2022) are different products, so a result must say which one
+  # produced it instead of citing the base release by assumption.
+  fx <- .luh2_fixture_states_nc()
+  states <- whep:::.luh2_read_states_nc(
+    fx$path,
+    years = fx$year,
+    origin = "pin"
+  )
+  prov <- whep::get_provenance(states)
+
+  pointblank::expect_col_exists(
+    prov,
+    c("input_alias", "input_version", "input_origin", "input_source_id")
+  )
+  testthat::expect_equal(prov$input_alias, "luh2_v2h_states")
+  testthat::expect_equal(prov$input_source_id, "UofMD-landState-LUH2-GCB2022")
+  testthat::expect_equal(prov$input_origin, "pin")
+  testthat::expect_equal(prov$input_first_year, 850L)
+  testthat::expect_equal(prov$input_last_year, 850L)
+  # the pinned version is only claimed when the pin was what was read
+  registered <- whep::whep_inputs |>
+    dplyr::filter(alias == "luh2_v2h_states") |>
+    dplyr::pull(version)
+  testthat::expect_equal(prov$input_version, registered)
+
+  local_read <- whep:::.luh2_read_states_nc(fx$path, years = fx$year)
+  local_prov <- whep::get_provenance(local_read)
+  testthat::expect_equal(local_prov$input_origin, "local")
+  testthat::expect_true(is.na(local_prov$input_version))
+})
+
+test_that("a base-v2h file without source_id falls back to its other attributes", {
+  fx <- .luh2_fixture_states_nc(
+    global_attrs = list(dataset_version_number = "LUH2 v2h")
+  )
+  testthat::expect_equal(
+    whep:::.luh2_nc_source_id(fx$path),
+    "LUH2 v2h"
+  )
+
+  bare <- .luh2_fixture_states_nc(global_attrs = list())
+  testthat::expect_true(is.na(whep:::.luh2_nc_source_id(bare$path)))
+})
+
+test_that("read_luh2_landuse carries the vintage through to its output", {
+  fx <- .luh2_fixture_states_nc()
+  testthat::local_mocked_bindings(
+    .luh2_read_states_source = function(years = NULL, ...) {
+      whep:::.luh2_read_states_nc(fx$path, years = years, origin = "pin")
+    },
+    .luh2_read_country_grid = function() {
+      tibble::tibble(
+        lon = -179.75,
+        lat = 89.75,
+        area_code = 1L,
+        cell_area_frac = 1
+      )
+    },
+    .package = "whep"
+  )
+
+  out <- whep::read_luh2_landuse(resolution = "grid", years = fx$year)
+  testthat::expect_equal(
+    whep::get_provenance(out)$input_source_id,
+    "UofMD-landState-LUH2-GCB2022"
+  )
+
+  # injected states carry no vintage, so no record is invented for them
+  plain <- whep::read_luh2_landuse(
+    data = list(
+      states = .luh2_raw_fixture(),
+      country_grid = .luh2_country_grid_fixture()
+    )
+  )
+  testthat::expect_null(whep::get_provenance(plain))
+})
+
 test_that("real pin smoke test (skipped when unreadable)", {
   # The luh2_v2h_states pin is the ~6.6 GB LUH2 states product. On CI there is
   # no warm cache, so reading it downloads the whole file and hangs the check
@@ -318,6 +498,11 @@ test_that("real pin smoke test (skipped when unreadable)", {
     error = function(e) NULL
   )
   testthat::skip_if(is.null(states), "luh2_v2h_states pin not readable")
+  # the pinned payload is the Global Carbon Budget vintage, 850-2022
+  prov <- whep::get_provenance(states)
+  testthat::expect_equal(prov$input_origin, "pin")
+  testthat::expect_true(!is.na(prov$input_source_id))
+  cat("\nLUH2 pin vintage:", prov$input_source_id, "\n")
   cat(
     "\nLUH2 states found:",
     paste(sort(unique(states$land_use)), collapse = ", "),
@@ -343,7 +528,14 @@ test_that("local states.nc reads at 0.5 deg with plausible year-2000 land use", 
     !file.exists(.luh2_local_states_nc()),
     "local LUH2 states.nc not present"
   )
-  out <- whep::read_luh2_landuse(resolution = "grid", years = 2000L)
+  # ask for the LOCAL states outright: the pin is now the primary source, so
+  # calling read_luh2_landuse() bare would exercise the pin, not this file.
+  out <- whep::read_luh2_landuse(
+    resolution = "grid",
+    years = 2000L,
+    states_source = "local"
+  )
+  local_states <- whep:::.luh2_read_states_local(years = 2000L)
 
   # 0.5-degree grid on the standard 0.5 centres
   testthat::expect_true(all(out$year == 2000L))
@@ -380,7 +572,7 @@ test_that("local states.nc reads at 0.5 deg with plausible year-2000 land use", 
   # retains cells assignable to a polity, so it undercounts the physical
   # global total. Verify the reader's own aggregation against the ~1.5 Gha
   # literature value on the pre-join gridded classes.
-  phys <- whep:::.luh2_read_states_nc(.luh2_local_states_nc(), years = 2000L) |>
+  phys <- local_states |>
     whep:::.luh2_map_classes()
   phys$area_ha <- phys$fraction * whep:::.luh2_cell_area_ha(phys$lat)
   gcrop <- phys |>
@@ -405,7 +597,38 @@ test_that("local states.nc is readable for 1750", {
     !file.exists(.luh2_local_states_nc()),
     "local LUH2 states.nc not present"
   )
-  out <- whep::read_luh2_landuse(resolution = "grid", years = 1750L)
+  out <- whep::read_luh2_landuse(
+    resolution = "grid",
+    years = 1750L,
+    states_source = "local"
+  )
   testthat::expect_true(all(out$year == 1750L))
   testthat::expect_true(nrow(out) > 0L)
+  testthat::expect_equal(whep::get_provenance(out)$input_origin, "local")
+})
+
+test_that("the pin and a same-vintage local tree agree exactly", {
+  # Issue #457: the pin can only replace the local workaround if it decodes to
+  # the same grid. Only meaningful when WHEP_LUH2_DIR holds the pinned vintage.
+  testthat::skip_on_ci()
+  testthat::skip_if(
+    !file.exists(.luh2_local_states_nc()),
+    "local LUH2 states.nc not present"
+  )
+  pinned <- tryCatch(
+    whep:::.luh2_read_states(years = 2000L),
+    error = function(e) NULL
+  )
+  testthat::skip_if(is.null(pinned), "luh2_v2h_states pin not readable")
+  local_states <- whep:::.luh2_read_states_local(years = 2000L)
+  testthat::skip_if(
+    whep::get_provenance(pinned)$input_source_id !=
+      whep::get_provenance(local_states)$input_source_id,
+    "WHEP_LUH2_DIR holds a different LUH2 vintage than the pin"
+  )
+
+  testthat::expect_equal(
+    pinned |> whep::attach_provenance(NULL),
+    local_states |> whep::attach_provenance(NULL)
+  )
 })

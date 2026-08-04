@@ -7,11 +7,16 @@
 LUH2 v2h, Hurtt, G. C. et al. (2020). Harmonization of global land
 use change and management for the period 850-2100 (LUH2) for CMIP6.
 Geoscientific Model Development 13, 5425-5464. \doi{10.5194/gmd-13-5425-2020}.
+The pinned payload is the Global Carbon Budget vintage of that release:
+Chini, L. et al. (2021). Land-use harmonization datasets for annual global
+carbon budgets. Earth System Science Data 13, 4175-4189.
+\doi{10.5194/essd-13-4175-2021}.
 }
 \usage{
 read_luh2_landuse(
   resolution = c("grid", "polity"),
   years = NULL,
+  states_source = c("pin", "local"),
   data = NULL,
   example = FALSE
 )
@@ -22,6 +27,11 @@ read_luh2_landuse(
 
 \item{years}{Optional integer vector of calendar years to keep. \code{NULL} keeps
 every year present in the source.}
+
+\item{states_source}{Which states source to read: \code{"pin"} (default, the
+registered \code{luh2_v2h_states} pin, falling back to \code{WHEP_LUH2_DIR} with a
+warning when the pin cannot be fetched) or \code{"local"} for \code{WHEP_LUH2_DIR}
+only. Recorded in the provenance record's \code{input_origin}.}
 
 \item{data}{Named list of pre-loaded inputs bypassing the pin read: \code{states}
 (raw per-cell-year-state fractions with \code{lon}, \code{lat}, \code{year}, \code{land_use},
@@ -35,7 +45,9 @@ data. Defaults to \code{FALSE}.}
 A tibble with columns \code{lon}, \code{lat}, \code{area_code}, \code{year}, \code{land_use},
 \code{fraction} and \code{area_ha} at \code{"grid"} resolution; at \code{"polity"} resolution
 \code{lon} and \code{lat} are dropped and \code{area_ha} is summed per
-\verb{(area_code, year, land_use)}.
+\verb{(area_code, year, land_use)}. When the states grid was read from a NetCDF,
+a provenance record naming the vintage is attached; read it back with
+\code{\link[=get_provenance]{get_provenance()}}.
 }
 \description{
 Read the LUH2 v2h gridded land-use "states" product and aggregate its 12
@@ -45,6 +57,13 @@ states' grid-cell fractions (0..1); \code{area_ha} is that fraction times the
 spherical 0.5-degree cell area. At \code{resolution = "polity"} the areas are
 summed to each overlapping polity via the country grid; a border cell keeps
 every polity it overlaps.
+
+The states grid is read from the registered \code{luh2_v2h_states} pin. The
+\code{WHEP_LUH2_DIR} environment variable is only a fallback, used when the pin
+cannot be fetched. Either way the vintage actually read (the NetCDF
+\code{source_id}, e.g. \code{"UofMD-landState-LUH2-GCB2022"}) is recorded on the result
+with \code{\link[=attach_provenance]{attach_provenance()}}, because the base v2h release and the annual
+Global Carbon Budget variants cover different years and do not agree.
 }
 \examples{
 read_luh2_landuse(example = TRUE)
