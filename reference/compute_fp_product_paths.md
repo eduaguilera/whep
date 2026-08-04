@@ -62,7 +62,16 @@ compute_fp_product_paths(
 
 - origin_area:
 
-  Optional area code vector limiting origin sectors.
+  Optional vector limiting origin sectors. Each value is matched against
+  `labels$area_code` – the LEGACY numeric area code – and a value that
+  matches no `area_code` is then resolved through the polity vocabulary
+  of
+  [polity_area_crosswalk](https://eduaguilera.github.io/whep/reference/polity_area_crosswalk.md),
+  so a `polity_area_code` (`206`, the Sudan aggregation bucket) or a
+  `polity_code` (`"SDN-2011-2025"`) selects the area codes it covers.
+  Legacy codes keep their legacy meaning. Values that resolve to no
+  sector are dropped with a warning, and a call in which nothing
+  resolves aborts instead of returning an empty table.
 
 - origin_item:
 

@@ -144,6 +144,13 @@
   not passing the now-required `feed_mode` argument to the
   feed-redistribution step.
 
+- Fix mojibake area labels in `regions_full`, `polities_cats` and
+  `polity_area_crosswalk`: Curaçao, Côte d’Ivoire and “Netherlands
+  Antilles / Curaçao” shipped with their accented letters read as pairs
+  of Latin-1 characters. The vendored harmonization CSVs are now
+  repaired on read in `data-raw`
+  ([\#399](https://github.com/eduaguilera/whep/issues/399)).
+
 - [`consolidate_sources()`](https://eduaguilera.github.io/whep/reference/consolidate_sources.md)
   gains two opt-in `tie_break` options for panels whose sources report
   exact zeros or several quality variants of one cell.

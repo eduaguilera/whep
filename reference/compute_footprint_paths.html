@@ -113,7 +113,14 @@ extension intensity \(e_i / X_i\).</p>
 
 
 <dt id="arg-origin-area">origin_area<a class="anchor" aria-label="anchor" href="#arg-origin-area"></a></dt>
-<dd><p>Optional area code vector limiting origin sectors.</p></dd>
+<dd><p>Optional vector limiting origin sectors. Each value is
+matched against <code>labels$area_code</code> – the LEGACY numeric area code – and a
+value that matches no <code>area_code</code> is then resolved through the polity
+vocabulary of <a href="polity_area_crosswalk.html">polity_area_crosswalk</a>, so a <code>polity_area_code</code> (<code>206</code>, the
+Sudan aggregation bucket) or a <code>polity_code</code> (<code>"SDN-2011-2025"</code>) selects
+the area codes it covers. Legacy codes keep their legacy meaning. Values
+that resolve to no sector are dropped with a warning, and a call in which
+nothing resolves aborts instead of returning an empty table.</p></dd>
 
 
 <dt id="arg-origin-item">origin_item<a class="anchor" aria-label="anchor" href="#arg-origin-item"></a></dt>
