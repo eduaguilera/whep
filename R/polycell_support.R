@@ -816,10 +816,13 @@ polycell_shim_view <- function(support) {
 # polygons, so the two footprints do not coincide. A polycell the layer has no
 # row for is booked as having no inland water, which turns that water into
 # land; a water cell no polycell reaches has its water dropped entirely.
-# Neither is a rounding effect -- 1,697 polycell cells holding 0.3673 Gha of
-# whole-cell area take the first path and 1,488 GLWD cells the second -- and
-# EA10 required exactly this disagreement to be handled explicitly rather than
-# absorbed, so both directions are emitted.
+# Neither is a rounding effect. Measured on the shipped polities against GLWD:
+# 1,906 polycell cells holding 0.403 Gha of whole-cell area have no water row,
+# and 110 wet GLWD cells reach no polycell. Only WET cells are reported on the
+# second side, because a dry cell no polycell reaches loses nothing; 1,378
+# further GLWD cells are unmatched but carry no water. EA10 required exactly
+# this disagreement to be handled explicitly rather than absorbed, so both
+# directions are emitted.
 .pcs_water_unmatched <- function(support, water) {
   cells <- support |>
     dplyr::filter(.data$coverage_status != "crosswalk_only") |>
