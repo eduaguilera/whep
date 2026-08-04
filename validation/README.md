@@ -45,6 +45,47 @@ a hardcoded grid.
 | `cache/files/<iso3>/` | The raw downloaded datasets (PDFs, xls, csv, API JSON). **Gitignored** (can be large); re-downloaded from the registry URL if missing. |
 | `cache/findings/<iso3>.json` | Each discover agent writes its extracted, converted national totals here. The compare step reads these files directly — **bulk data never travels through a prompt**. Doubles as a findings cache. Gitignored. |
 | `nass_sum.R` | Deterministic USA extractor: sums STATE rows from the local USDA NASS bulk CSV → national tonnes, writes `cache/findings/USA.json`. No web, no PDF. |
+| `lpjml_faostat_crops.R` | Checks a finished **LPJmL run's** crop output against FAOSTAT per CFT and country. See below. |
+| `lpjml_globalflux.R` | Checks a finished **LPJmL run's** global fluxes for spinup equilibration and against published observational estimates. See below. |
+
+## Validating an LPJmL run (different target)
+
+Everything above validates WHEP's *own* datasets against independent statistics.
+The two `lpjml_*.R` scripts validate something else — a finished **LPJmL model
+run** — so they stand apart: no `autoresearch/` ceremony, no subagents, no
+network. Both are standalone `Rscript`s and both are deliberately
+self-contained, including reading `cft_mapping` from its CSV rather than from
+the installed package: a check that imports the package it is checking is not
+an independent check, and these have to run without `whep` on the library path.
+
+```bash
+# Crops: harvested area, yield level, implied carbon content, spatial pattern,
+# and a run-vs-run diff. Caches the NetCDF read under cache/lpjml_cfts/.
+Rscript validation/lpjml_faostat_crops.R <run_dir> [baseline_run_dir] 2000,2005,2010
+
+# Global fluxes: spinup equilibration per pool, transient fluxes vs
+# observations, and a run-vs-run diff. Reads one CSV; seconds to run.
+Rscript validation/lpjml_globalflux.R <run_dir> [baseline_run_dir] 2000,2010
+```
+
+`<run_dir>` is a run's `output/scenario_1`.
+
+**What these can and cannot establish.** LPJmL only matches FAO yields once its
+maximum LAI has been calibrated per country ([Fader et al.
+2010](https://doi.org/10.1016/j.jhydrol.2010.04.011)), so an uncalibrated run
+sits *above* FAO and an absolute comparison cannot validate a model change. The
+checks are therefore ordered by how few assumptions each needs, and the ones
+that can carry a verdict are constant-free: the Spearman correlation of
+national production (invariant to any per-CFT factor) and the ratio between two
+runs (which cancels the conversion and the calibration state alike). Harvested
+area is the one hard absolute check — `cftfrac` × cell area *is* FAOSTAT "Area
+harvested", same unit, no conversion.
+
+Global GPP is genuinely contested, so `lpjml_globalflux.R` reports which family
+of estimates a run agrees with rather than pretending there is one number:
+satellite-optical products give 120–140 PgC/yr, while carbonyl-sulfide ([Lai et
+al. 2024](https://doi.org/10.1038/s41586-024-08050-3), 157 ± 8.5) and ¹⁸O
+(150–175) are higher, with the gap concentrated in tropical rainforest.
 
 ## Local bulk datasets (USA / NASS)
 
