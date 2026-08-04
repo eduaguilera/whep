@@ -72,7 +72,8 @@
 #'   `aet_blue_mm`, `aet_green_mm`, `blue_consump_mm`, `green_consump_mm`,
 #'   `cft_nir_mm`, `drainage_mm`, `runoff_mm`, `soil_water_change_mm` and
 #'   `method_water`. For `resolution = "polity"`: the same terms aggregated to
-#'   `year` and `area_code`.
+#'   `year` and `area_code`. Both resolutions carry the polity columns below.
+#' @inheritSection whep_polity_columns Polity columns
 #' @export
 #' @examples
 #' build_water_balance(example = TRUE)
@@ -91,7 +92,8 @@ build_water_balance <- function(
     .wb_compute_terms(method) |>
     .wb_blue_green(method) |>
     .wb_attach_polity(data) |>
-    .wb_finalise(method, resolution)
+    .wb_finalise(method, resolution) |>
+    .add_reporting_polity_columns()
 }
 
 #' Assemble monthly SOC climate drivers from CRU climate and LPJmL hydrology.
@@ -156,7 +158,9 @@ build_water_balance <- function(
 #'   modifier driver, repeated across a cell-year's months), `clay_pct`,
 #'   `theta`, `t_field`, `t_wilt` and `porosity` (the ICBM moisture drivers:
 #'   the monthly volumetric soil water content and its static field-capacity,
-#'   wilting-point and porosity references) and `method_water_input`.
+#'   wilting-point and porosity references) and `method_water_input`, plus the
+#'   polity columns below.
+#' @inheritSection whep_polity_columns Polity columns
 #' @export
 #' @examples
 #' get_soc_climate_drivers(example = TRUE)
@@ -174,7 +178,8 @@ get_soc_climate_drivers <- function(
   clay <- .wb_require_input(data$clay, "clay", c("clay_pct"))
   polity <- .wb_require_input(data$cell_polity, "cell_polity", c("area_code"))
   hydraulic <- .socd_soil_hydraulic(data)
-  .assemble_soc_drivers(swc, monthly, clay, polity, hydraulic)
+  .assemble_soc_drivers(swc, monthly, clay, polity, hydraulic) |>
+    .add_reporting_polity_columns()
 }
 
 # ---- Private helpers --------------------------------------------------
@@ -612,11 +617,12 @@ get_soc_climate_drivers <- function(
     grid,
     method_water = .wb_method_label(method, "cft_native")
   )
-  if (resolution == "grid") {
+  out <- if (resolution == "grid") {
     .wb_drop_polity_cols(grid)
   } else {
     .wb_aggregate_polity(grid)
   }
+  .add_reporting_polity_columns(out)
 }
 
 # Topsoil soil-water saturation per cell-month, from data$swc or the reader.

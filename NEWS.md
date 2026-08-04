@@ -1,5 +1,21 @@
 # whep (development version)
 
+* Every area-keyed exported output now carries the **reporting-polity columns**
+  (`polity_area_code`, `reporting_polity_code`, `reporting_polity_name`,
+  `reporting_polity_has_geometry`), so a caller can tell which territory a row
+  belongs to, and whether it has a polygon, without re-joining the crosswalk.
+  This widens the contract from 10 exports to 35, covering the balances
+  (`build_nitrogen_balance()`, `build_carbon_balance()`, `build_water_balance()`,
+  ...), the footprint extensions (`get_crop_land_extension()`,
+  `build_livestock_ghg_extension()`, ...) and the gridded readers
+  (`read_luh2_landuse()`, `get_soc_climate_drivers()`). The columns are
+  additive: no existing column or value changes. `get_faostat_data()` keeps
+  returning raw FAOSTAT area names (it is the pre-resolution reader), and
+  `build_grazing_feed_footprint()`/`build_land_balance_footprint()` are
+  aggregated over time and have no year to resolve a polity against.
+  `build_urban_n()` now returns the numeric WHEP `area_code` rather than the
+  character territory key its manure-transport reuse works in; an ISO3 input
+  still resolves through the same checked resolver as the manure path.
 * Add gridded soil **water, carbon and nitrogen balances** (0.5° cell × polity
   fragment). `build_water_balance()` closes the annual cell water budget from
   LPJmL hydrology and exposes drainage (for N leaching) plus footprint terms;

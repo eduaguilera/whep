@@ -39,7 +39,8 @@ drivers), \code{water_minus_pet_mm} (the monthly RothC/HSOC surplus),
 modifier driver, repeated across a cell-year's months), \code{clay_pct},
 \code{theta}, \code{t_field}, \code{t_wilt} and \code{porosity} (the ICBM moisture drivers:
 the monthly volumetric soil water content and its static field-capacity,
-wilting-point and porosity references) and \code{method_water_input}.
+wilting-point and porosity references) and \code{method_water_input}, plus the
+polity columns below.
 }
 \description{
 Builds the monthly per-cell climate drivers the soil-organic-carbon
@@ -79,6 +80,33 @@ precipitation plus irrigation). Air temperature (CRU) and the soil texture
 products (clay, hydraulic properties) are not LPJmL outputs, hence the mixed
 sources.
 }
+\section{Polity columns}{
+
+Every area-keyed output carries the polity its \code{area_code} resolves to in
+that row's year:
+\itemize{
+\item \code{polity_area_code}: The numeric key rows are AGGREGATED on, for the matrix
+workflows. It is a bucket, not an identity: use \code{reporting_polity_code} to
+say which territory a row belongs to.
+\item \code{reporting_polity_code}: The polity itself, e.g. \code{ESP-1846-1914}. It is
+year-aware, so the same \code{area_code} resolves to different polities in
+different years, which is the point of the crosswalk.
+\item \code{reporting_polity_name}: Its name. It can differ from the area's own name
+where the area folds into an aggregate.
+\item \code{reporting_polity_has_geometry}: Whether the polity has a polygon in the
+WHEP polity database, for callers that need to map or intersect it. \code{FALSE}
+is a documented gap upstream, not an error.
+}
+
+Rows whose \code{area_code} resolves to no polity keep the columns with \code{NA}
+rather than being dropped, so a gap is visible instead of silent.
+
+Rows before the back-cast anchor year resolve to the polity live in that
+anchor year rather than to the polity live in the row's own year, because
+WHEP's pre-anchor series are back-cast onto the anchor-year territory. See
+\code{\link[=add_polity_code]{add_polity_code()}} for the reasoning.
+}
+
 \examples{
 get_soc_climate_drivers(example = TRUE)
 }

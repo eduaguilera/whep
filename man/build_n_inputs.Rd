@@ -94,7 +94,8 @@ used: \code{"residue_soil_returned"} when the upstream NPP input supplied
 \code{"total_residue"} when only gross residue N was available; it is \code{NA} for
 every other \code{fert_type}. \code{method_synthetic} records the synthetic
 crop-split basis (\code{"coello"} or \code{"area_share"}) on \code{"synthetic"} rows and
-is \code{NA} for every other \code{fert_type}.
+is \code{NA} for every other \code{fert_type}. Both grains also carry the polity
+columns below.
 }
 \description{
 Combines biological nitrogen fixation (\code{\link[=calculate_bnf]{calculate_bnf()}}), residue/root N
@@ -124,6 +125,33 @@ capacity allocation. Forest and natural land are outside that support and
 therefore outside the agricultural balance. Grassland is represented by CBS
 3000; no intensive/extensive class is inferred.
 }
+\section{Polity columns}{
+
+Every area-keyed output carries the polity its \code{area_code} resolves to in
+that row's year:
+\itemize{
+\item \code{polity_area_code}: The numeric key rows are AGGREGATED on, for the matrix
+workflows. It is a bucket, not an identity: use \code{reporting_polity_code} to
+say which territory a row belongs to.
+\item \code{reporting_polity_code}: The polity itself, e.g. \code{ESP-1846-1914}. It is
+year-aware, so the same \code{area_code} resolves to different polities in
+different years, which is the point of the crosswalk.
+\item \code{reporting_polity_name}: Its name. It can differ from the area's own name
+where the area folds into an aggregate.
+\item \code{reporting_polity_has_geometry}: Whether the polity has a polygon in the
+WHEP polity database, for callers that need to map or intersect it. \code{FALSE}
+is a documented gap upstream, not an error.
+}
+
+Rows whose \code{area_code} resolves to no polity keep the columns with \code{NA}
+rather than being dropped, so a gap is visible instead of silent.
+
+Rows before the back-cast anchor year resolve to the polity live in that
+anchor year rather than to the polity live in the row's own year, because
+WHEP's pre-anchor series are back-cast onto the anchor-year territory. See
+\code{\link[=add_polity_code]{add_polity_code()}} for the reasoning.
+}
+
 \examples{
 build_n_inputs(example = TRUE)
 }

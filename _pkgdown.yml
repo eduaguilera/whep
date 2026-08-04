@@ -357,6 +357,7 @@ reference:
   - add_area_code
   - add_area_name
   - get_polity_geometries
+  - whep_polity_columns
 - subtitle: Commodity balance sheet items
   contents:
   - items_cbs

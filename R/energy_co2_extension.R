@@ -35,7 +35,9 @@
 #'
 #' @return A tibble with columns `year`, `area_code`, `item_cbs_code`,
 #'   `impact_u` (energy-use emissions in kilograms CO2e) and `method_energy`
-#'   (e.g. `"GLEAM_3.0_energy_meat"`).
+#'   (e.g. `"GLEAM_3.0_energy_meat"`), plus the polity columns below.
+#'
+#' @inheritSection whep_polity_columns Polity columns
 #'
 #' @export
 #'
@@ -61,7 +63,8 @@ build_energy_co2_extension <- function(
   primary_prod |>
     .energy_co2e_by_group(intensity) |>
     .energy_allocate_to_sectors(primary_prod) |>
-    .energy_finalise_extension(method)
+    .energy_finalise_extension(method) |>
+    .add_reporting_polity_columns()
 }
 
 # ---- meat-group definitions ----------------------------------------------
