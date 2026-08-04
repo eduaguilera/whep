@@ -165,11 +165,10 @@ spatialize_country_n_to_crops <- function(
   resolved
 }
 
-# Each crop's share of national harvested cropland area per year (grassland
-# excluded). This is the promoted, shared version of
-# crop_soil_n2o_extension.R's private .crop_area_shares(), which now
-# call-throughs to this function.
-.n_crop_area_shares <- function(primary_prod) {
+# Each crop's harvested cropland hectares per country-year (grassland
+# excluded), the shared numerator of both the area-share and the Coello
+# rate-weighted share.
+.n_crop_area_ha <- function(primary_prod) {
   grass <- c(3000L, 3002L, 3003L)
   primary_prod |>
     dplyr::filter(
@@ -181,12 +180,104 @@ spatialize_country_n_to_crops <- function(
     dplyr::summarise(
       area_ha = sum(.data$value),
       .by = c(year, area_code, item_cbs_code)
-    ) |>
+    )
+}
+
+# Each crop's share of national harvested cropland area per year (grassland
+# excluded). This is the promoted, shared version of
+# crop_soil_n2o_extension.R's private .crop_area_shares(), which now
+# call-throughs to this function.
+.n_crop_area_shares <- function(primary_prod) {
+  .n_crop_area_ha(primary_prod) |>
     dplyr::mutate(
       area_share = .data$area_ha / sum(.data$area_ha),
       .by = c(year, area_code)
     ) |>
     dplyr::select(year, area_code, item_cbs_code, area_share)
+}
+
+# Rate-weighted crop share of the national synthetic-N total: each crop's
+# Coello application rate (kg N/ha) times its harvested area, normalised
+# within (year, area_code) so shares sum to 1 and the FAOSTAT national total
+# is conserved (decision 3). Country-years with no Coello coverage fall back
+# to plain harvested-area shares; the choice is stamped in method_synthetic,
+# never a silent fallback (multi-method contract).
+.n_crop_rate_shares <- function(primary_prod, coello_rates) {
+  .n_crop_area_ha(primary_prod) |>
+    dplyr::left_join(
+      coello_rates,
+      by = c("year", "area_code", "item_cbs_code")
+    ) |>
+    .n_rate_shares_resolve()
+}
+
+# Resolve the joined area+rate table into normalised shares. Within a
+# country-year that has ANY Coello rate, crops missing a rate are imputed the
+# country-year mean rate so every cropland crop still receives a share;
+# country-years with no coverage use area weights.
+.n_rate_shares_resolve <- function(joined) {
+  joined |>
+    dplyr::mutate(
+      rate_observed = is.finite(.data$kg_n_ha) & .data$kg_n_ha >= 0,
+      covered = any(.data$rate_observed & .data$kg_n_ha > 0),
+      mean_rate = mean(
+        dplyr::if_else(.data$rate_observed, .data$kg_n_ha, NA_real_),
+        na.rm = TRUE
+      ),
+      rate = dplyr::if_else(
+        .data$rate_observed,
+        .data$kg_n_ha,
+        .data$mean_rate
+      ),
+      .by = c(year, area_code)
+    ) |>
+    dplyr::mutate(
+      weight = dplyr::if_else(
+        .data$covered,
+        .data$rate * .data$area_ha,
+        .data$area_ha
+      ),
+      # sum(weight) is always positive, so this division needs no guard:
+      # .n_crop_area_ha() keeps only rows with value > 0, so every area_ha is
+      # finite and positive, and covered = TRUE requires some crop with a rate
+      # above zero. A country-year with no positive rate takes the area_share
+      # branch, where weight IS area_ha.
+      area_share = .data$weight / sum(.data$weight),
+      method_synthetic = dplyr::if_else(
+        .data$covered,
+        "coello",
+        "area_share"
+      ),
+      .by = c(year, area_code)
+    ) |>
+    dplyr::select(
+      year,
+      area_code,
+      item_cbs_code,
+      area_share,
+      method_synthetic
+    )
+}
+
+# Shared synthetic-N crop-share origin for both the build_n_inputs() and
+# build_crop_soil_n2o_extension() synthetic paths: default "coello"
+# (rate-weighted, FAOSTAT-conserving) or "area_share" (harvested-area only).
+# Selecting one origin here is what stops the two consumers from diverging
+# (fix at origin, decision 3).
+.n_synthetic_crop_shares <- function(
+  primary_prod,
+  method = c("coello", "area_share"),
+  coello_rates = NULL
+) {
+  method <- rlang::arg_match(method)
+  if (method == "area_share") {
+    return(
+      .n_crop_area_shares(primary_prod) |>
+        dplyr::mutate(method_synthetic = "area_share")
+    )
+  }
+  coello_rates <- coello_rates %||% whep::coello_synthetic_n
+  .n_crop_rate_shares(primary_prod, coello_rates)
 }
 
 # Polity-total N (one fert_type) x crop-area-share -> polity x crop N.

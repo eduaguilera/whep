@@ -26,6 +26,9 @@ plans/
 validation/cache
 validation/cache/
 
+# stale data-object backups (regenerable via data-raw builders)
+data/*.rda.bak
+
 # Build-time-only GAEZ/FAOSTAT-derived grids: regenerable from data-raw, not
 # read at package runtime, so not committed (kept out of the shipped package).
 inst/extdata/grid_aez.csv

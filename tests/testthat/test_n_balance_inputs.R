@@ -277,6 +277,38 @@
   )
 }
 
+.nbi_ag_land_support <- function() {
+  tibble::tribble(
+    ~lon,
+    ~lat,
+    ~area_code,
+    ~item_cbs_code,
+    ~year,
+    ~land_use,
+    ~area_ha,
+    0.25, 50.25, 10L, 2511L, 2010L, "cropland", 700,
+    0.25, 50.25, 10L, 2807L, 2010L, "cropland", 300,
+    0.25, 50.25, 10L, 3000L, 2010L, "grassland", 500
+  )
+}
+
+# Gridded grassland hectares, bypassing the LUH2 read when the support table is
+# derived natively rather than injected.
+.nbi_grassland_ha <- function() {
+  tibble::tribble(
+    ~lon,
+    ~lat,
+    ~area_code,
+    ~year,
+    ~area_ha,
+    0.25,
+    50.25,
+    10L,
+    2010L,
+    500
+  )
+}
+
 .nbi_full_data <- function() {
   list(
     bnf_input = .nbi_bnf_input(),
@@ -292,7 +324,8 @@
     primary_prod = .nbi_primary_prod(),
     fertilizer = .nbi_fertilizer(),
     crop_patterns = .nbi_crop_patterns(),
-    type_cropland = .nbi_type_cropland()
+    type_cropland = .nbi_type_cropland(),
+    ag_land_support = .nbi_ag_land_support()
   )
 }
 
@@ -351,18 +384,74 @@ testthat::test_that("SOM term clamps negative son_change_kgn_ha out", {
   testthat::expect_equal(sum(som$n_input_t), expected_t, tolerance = 1e-6)
 })
 
-testthat::test_that("SOM term uses the NA_integer_ non-crop-specific sentinel", {
+testthat::test_that("SOM mineralization is allocated across cropland crops", {
   out <- whep::build_n_inputs(data = .nbi_full_data())
   som <- out[out$fert_type == "som_mineralization", ]
-  testthat::expect_true(all(is.na(som$item_cbs_code)))
+  testthat::expect_setequal(som$item_cbs_code, c(2511L, 2807L))
+  testthat::expect_equal(sum(som$n_input_t), 0.6)
 })
 
-testthat::test_that("deposition and urban use the NA_integer_ sentinel", {
+testthat::test_that("deposition and urban use agricultural item support", {
   out <- whep::build_n_inputs(data = .nbi_full_data())
   dep <- out[out$fert_type == "deposition", ]
   urb <- out[out$fert_type == "urban", ]
-  testthat::expect_true(nrow(dep) > 0 && all(is.na(dep$item_cbs_code)))
-  testthat::expect_true(nrow(urb) > 0 && all(is.na(urb$item_cbs_code)))
+  testthat::expect_setequal(dep$item_cbs_code, c(2511L, 2807L, 3000L))
+  testthat::expect_setequal(urb$item_cbs_code, c(2511L, 2807L))
+  testthat::expect_false(anyNA(dep$item_cbs_code))
+  testthat::expect_false(anyNA(urb$item_cbs_code))
+})
+
+testthat::test_that("deposition excludes forest and natural land mass", {
+  out <- whep::build_n_inputs(data = .nbi_full_data())
+  dep <- dplyr::filter(out, .data$fert_type == "deposition")
+  # 3e9 g N over a 3000 ha cell = 1000 kg N/ha. Agricultural support is
+  # 1000 ha cropland + 500 ha grassland; the other 1500 ha is not charged.
+  testthat::expect_equal(sum(dep$n_input_t), 1500)
+  testthat::expect_equal(
+    dep$n_input_t[dep$item_cbs_code == 3000L],
+    500
+  )
+})
+
+testthat::test_that("agricultural support is derived when not supplied", {
+  data <- .nbi_full_data()
+  data$ag_land_support <- NULL
+  data$grassland_ha <- .nbi_grassland_ha()
+  out <- whep::build_n_inputs(data = data)
+  dep <- out[out$fert_type == "deposition", ]
+  # The 1000 physical cropland ha are split by the crop pattern (0.6 wheat /
+  # 0.2 rice -> 0.75 / 0.25), not by the raw harvest fractions, plus 500 ha of
+  # grassland: the same 1500 charged hectares the injected support gives.
+  testthat::expect_setequal(dep$item_cbs_code, c(2511L, 2807L, 3000L))
+  testthat::expect_equal(sum(dep$n_input_t), 1500)
+  testthat::expect_equal(dep$n_input_t[dep$item_cbs_code == 2511L], 750)
+  testthat::expect_equal(dep$n_input_t[dep$item_cbs_code == 2807L], 250)
+  testthat::expect_equal(dep$n_input_t[dep$item_cbs_code == 3000L], 500)
+})
+
+testthat::test_that("non-item inputs abort when no support can be derived", {
+  data <- .nbi_full_data()
+  data$ag_land_support <- NULL
+  data$type_cropland <- NULL
+  testthat::expect_error(
+    whep::build_n_inputs(data = data),
+    "WHEP_TYPE_CROPLAND_PATH|ag_land_support|land support"
+  )
+})
+
+testthat::test_that("the manure engine resolution is never overwritten", {
+  testthat::expect_equal(
+    whep:::.ni_manure_resolution(list(), "grid"),
+    "subnational"
+  )
+  testthat::expect_equal(
+    whep:::.ni_manure_resolution(list(), "polity"),
+    "national"
+  )
+  testthat::expect_equal(
+    whep:::.ni_manure_resolution(list(resolution = "national"), "grid"),
+    "national"
+  )
 })
 
 testthat::test_that("urban ISO3 area codes resolve instead of becoming NA", {
@@ -584,6 +673,36 @@ testthat::test_that("unattributed Cropland manure is not mislabeled as grass", {
   testthat::expect_true(is.na(out$item_cbs_code))
 })
 
+testthat::test_that("unattributed Cropland manure stays on cropland support", {
+  inputs <- dplyr::bind_rows(
+    whep:::.ni_empty(),
+    tibble::tibble(
+      lon = 0.25,
+      lat = 50.25,
+      area_code = 10L,
+      item_cbs_code = NA_integer_,
+      year = 2010L,
+      fert_type = "manure_solid",
+      n_input_t = 5,
+      method_recycling_n = NA_character_,
+      method_synthetic = NA_character_
+    )
+  )
+
+  out <- whep:::.ni_allocate_unattributed(
+    inputs,
+    list(ag_land_support = .nbi_ag_land_support())
+  )
+
+  testthat::expect_setequal(out$item_cbs_code, c(2511L, 2807L))
+  testthat::expect_false(3000L %in% out$item_cbs_code)
+  testthat::expect_equal(sum(out$n_input_t), 5)
+  testthat::expect_equal(
+    out$n_input_t[match(c(2511L, 2807L), out$item_cbs_code)],
+    c(3.5, 1.5)
+  )
+})
+
 testthat::test_that("transported manure is retained as an unattributed agricultural input", {
   applied <- tibble::tibble(
     year = 2010L,
@@ -601,4 +720,88 @@ testthat::test_that("transported manure is retained as an unattributed agricultu
   testthat::expect_equal(out$fert_type, "manure_liquid")
   testthat::expect_equal(out$n_input_t, 7)
   testthat::expect_true(is.na(out$item_cbs_code))
+})
+
+# Synthetic fertiliser: Coello rate-weighted crop split (Task 1.4) ------------
+
+.nis_primary_prod <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~unit, ~value,
+    2010L, 10L, 2511L, "ha", 100, # wheat
+    2010L, 10L, 2514L, "ha", 100 # maize
+  )
+}
+.nis_fertilizer <- function() {
+  tibble::tribble(
+    ~Element, ~Item, ~Year, ~`Area Code`, ~Value,
+    "Agricultural Use", "Nutrient nitrogen N (total)", 2010L, 10L, 1000
+  )
+}
+.nis_coello_rates <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~kg_n_ha,
+    2010L, 10L, 2511L, 150,
+    2010L, 10L, 2514L, 50
+  )
+}
+
+testthat::test_that("build_n_inputs conserves FAOSTAT synthetic total", {
+  res <- whep::build_n_inputs(
+    resolution = "polity",
+    data = list(
+      primary_prod = .nis_primary_prod(),
+      fertilizer = .nis_fertilizer(),
+      coello_rates = .nis_coello_rates(),
+      synthetic_method = "coello"
+    )
+  ) |>
+    dplyr::filter(.data$fert_type == "synthetic")
+  testthat::expect_equal(sum(res$n_input_t), 1000) # national total held
+  # wheat takes 0.75 of the 1000 t national total
+  testthat::expect_equal(
+    res$n_input_t[res$item_cbs_code == 2511L],
+    750
+  )
+  testthat::expect_equal(
+    res$n_input_t[res$item_cbs_code == 2514L],
+    250
+  )
+  testthat::expect_true(all(res$method_synthetic == "coello"))
+})
+
+testthat::test_that("build_n_inputs area_share method conserves too", {
+  res <- whep::build_n_inputs(
+    resolution = "polity",
+    data = list(
+      primary_prod = .nis_primary_prod(),
+      fertilizer = .nis_fertilizer(),
+      coello_rates = .nis_coello_rates(),
+      synthetic_method = "area_share"
+    )
+  ) |>
+    dplyr::filter(.data$fert_type == "synthetic")
+  testthat::expect_equal(sum(res$n_input_t), 1000)
+  testthat::expect_equal(
+    res$n_input_t[res$item_cbs_code == 2511L],
+    500
+  ) # equal area -> equal split
+  testthat::expect_true(all(res$method_synthetic == "area_share"))
+})
+
+testthat::test_that("all-zero Coello rates fall back to conserving area shares", {
+  zero_rates <- dplyr::mutate(.nis_coello_rates(), kg_n_ha = 0)
+  res <- whep::build_n_inputs(
+    resolution = "polity",
+    data = list(
+      primary_prod = .nis_primary_prod(),
+      fertilizer = .nis_fertilizer(),
+      coello_rates = zero_rates,
+      synthetic_method = "coello"
+    )
+  ) |>
+    dplyr::filter(.data$fert_type == "synthetic")
+  testthat::expect_equal(sum(res$n_input_t), 1000)
+  testthat::expect_equal(res$n_input_t, c(500, 500))
+  testthat::expect_true(all(res$method_synthetic == "area_share"))
+  testthat::expect_false(anyNA(res$n_input_t))
 })

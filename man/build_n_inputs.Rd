@@ -7,6 +7,7 @@
 build_n_inputs(
   years = NULL,
   resolution = c("grid", "polity"),
+  synthetic_method = NULL,
   data = list(),
   example = FALSE
 )
@@ -17,6 +18,10 @@ keeps every year the assembled inputs cover.}
 
 \item{resolution}{\code{"grid"} (default, per cell/crop/year/fert_type) or
 \code{"polity"} (summed to \code{area_code}/\code{item_cbs_code}/\code{year}/\code{fert_type}).}
+
+\item{synthetic_method}{Synthetic-N crop allocation method, \code{"coello"} or
+\code{"area_share"}. When \code{NULL} (default), uses
+\code{data$synthetic_method \%||\% "coello"} for backwards compatibility.}
 
 \item{data}{Named list of pre-loaded, caller-supplied upstream inputs.
 Each of the following is required for its corresponding \code{fert_type} to
@@ -36,6 +41,19 @@ argument (the \code{\link[=redistribute_feed]{redistribute_feed()}} realised-int
 \code{gridded} (its land-surface layer) and \code{resolution}/\code{methods}
 (forwarded as-is).
 \item \code{nhx}, \code{noy}, \code{cell_polity}: \code{\link[=build_n_deposition]{build_n_deposition()}}'s inputs.
+\item \code{ag_land_support}: agricultural physical land support keyed by \code{lon},
+\code{lat}, \code{area_code}, \code{year}, \code{item_cbs_code}, with \code{land_use}
+(\code{"cropland"} or \code{"grassland"}) and positive \code{area_ha}. Optional: when
+absent it is derived natively by \code{\link[=build_ag_land_support]{build_ag_land_support()}} from
+\code{cell_polity}, \code{type_cropland} and \code{crop_patterns} (plus \code{states} or
+\code{grassland_ha} for the grassland side). Supply it to override that
+derivation with a better land surface. Cropland rows identify crop CBS
+items; all pasture/rangeland rows use CBS 3000.
+\item \code{grassland_source}, \code{gridded_pasture}, \code{grassland_ha}, \code{states}:
+forwarded to \code{\link[=build_ag_land_support]{build_ag_land_support()}} when the support is derived.
+\code{grassland_source} selects its \code{grassland} argument
+(\code{"gridded_pasture"} default, \code{"luh2"}, or \code{"none"} for cropland-only
+support).
 \item \code{urban_population}, \code{cropland_ha}, \code{cell_polity}: \code{\link[=build_urban_n]{build_urban_n()}}'s
 inputs.
 \item \code{carbon_balance}: \code{\link[=build_carbon_balance]{build_carbon_balance()}}'s \code{"grid"}-resolution
@@ -45,10 +63,20 @@ is never computed here.
 \item \code{primary_prod}, \code{fertilizer}, \code{crop_patterns}, \code{type_cropland},
 \code{cell_polity}: the synthetic-fertiliser assembly (country total from
 \code{fertilizer}, the \code{faostat-fertilizer-nutrients} pin, split to crops
-by \code{primary_prod} harvested-area shares, then to cells by
+by the chosen crop-share method, then to cells by
 \code{crop_patterns}/\code{type_cropland}).
-\item \code{gridded}, \code{resolution} (of the manure engine, default \code{"national"}),
-\code{methods}: forwarded to \code{\link[=build_livestock_nutrient_flows]{build_livestock_nutrient_flows()}}.
+\item \code{synthetic_method}: how the synthetic-N country total is split across
+crops, \code{"coello"} (default; Coello 2025 rate-weighted, FAOSTAT-
+conserving) or \code{"area_share"} (harvested-area shares only).
+\item \code{coello_rates}: crop-specific synthetic-N rate table shaped like
+\link{coello_synthetic_n} (\code{year}, \code{area_code}, \code{item_cbs_code},
+\code{kg_n_ha}); defaults to \code{whep::coello_synthetic_n}. Used only when
+\code{synthetic_method = "coello"}.
+\item \code{gridded}, \code{resolution}, \code{methods}: forwarded to
+\code{\link[=build_livestock_nutrient_flows]{build_livestock_nutrient_flows()}}. \code{resolution} is the manure engine's
+own axis, not this function's: it defaults to \code{"subnational"} at
+\code{resolution = "grid"} (cell-level nitrogen needs cell-level manure) and
+to \code{"national"} otherwise. A value supplied here is always honoured.
 }}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of assembling
@@ -57,13 +85,16 @@ real data. Defaults to \code{FALSE}.}
 \value{
 A tibble. At \code{resolution = "grid"}: \code{lon}, \code{lat}, \code{area_code},
 \code{item_cbs_code}, \code{year}, \code{fert_type}, \code{n_input_t},
-\code{method_recycling_n}. At \code{resolution = "polity"}: \code{area_code},
-\code{item_cbs_code}, \code{year}, \code{fert_type}, \code{method_recycling_n}, \code{n_input_t}
-(summed over cells). \code{method_recycling_n} records which residue basis the
-\code{"recycling"} term used: \code{"residue_soil_returned"} when the upstream NPP
-input supplied \code{residue_soil_dm_t} (residue N net of removal for
-feed/fuel/burning) or \code{"total_residue"} when only gross residue N was
-available; it is \code{NA} for every other \code{fert_type}.
+\code{method_recycling_n}, \code{method_synthetic}. At \code{resolution = "polity"}:
+\code{area_code}, \code{item_cbs_code}, \code{year}, \code{fert_type}, \code{method_recycling_n},
+\code{method_synthetic}, \code{n_input_t} (summed over cells).
+\code{method_recycling_n} records which residue basis the \code{"recycling"} term
+used: \code{"residue_soil_returned"} when the upstream NPP input supplied
+\code{residue_soil_dm_t} (residue N net of removal for feed/fuel/burning) or
+\code{"total_residue"} when only gross residue N was available; it is \code{NA} for
+every other \code{fert_type}. \code{method_synthetic} records the synthetic
+crop-split basis (\code{"coello"} or \code{"area_share"}) on \code{"synthetic"} rows and
+is \code{NA} for every other \code{fert_type}.
 }
 \description{
 Combines biological nitrogen fixation (\code{\link[=calculate_bnf]{calculate_bnf()}}), residue/root N
@@ -82,11 +113,16 @@ documented gap (perennial-crop standing-biomass N accumulation from
 Spain_Hist's N_balance.R): its source computation was not available for
 this task, so it is never emitted, only reserved in the vocabulary.
 
-Terms that are fundamentally per-cell or per-land-use rather than
-per-crop (\code{"deposition"}, \code{"urban"}, \code{"som_mineralization"}, and
-transported manure whose pooled crop-plus-grass sink does not identify a
-single landing crop) carry \code{item_cbs_code = NA_integer_}, the same "no
-specific item" sentinel already used package-wide for non-crop rows.
+Terms that are fundamentally per-cell or per-land-use rather than per-crop
+are allocated over the agricultural land support, either supplied as
+\code{data$ag_land_support} or derived by \code{\link[=build_ag_land_support]{build_ag_land_support()}} from the
+gridded inputs already present. Deposition uses both cropland and
+grassland support. \code{"urban"}, \code{"som_mineralization"}, and manure already
+assigned upstream to Cropland but lacking a crop use only local cropland
+support, so manure is not reassigned to grassland after the manure engine's
+capacity allocation. Forest and natural land are outside that support and
+therefore outside the agricultural balance. Grassland is represented by CBS
+3000; no intensive/extensive class is inferred.
 }
 \examples{
 build_n_inputs(example = TRUE)

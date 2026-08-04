@@ -39,6 +39,7 @@
     ~year,
     ~item_prod_code,
     ~item_cbs_code,
+    ~area_ha,
     ~product_dm_t,
     ~residue_dm_t,
     ~root_dm_t,
@@ -48,6 +49,7 @@
     2010L,
     "15",
     2511L,
+    40,
     87.9,
     135.75,
     30,
@@ -178,6 +180,14 @@
   )
 }
 
+.nb_ag_land_support <- function() {
+  tibble::tribble(
+    ~lon, ~lat, ~area_code, ~item_cbs_code, ~year, ~land_use, ~area_ha,
+    0.25, 50.25, 10L, 2511L, 2010L, "cropland", 1000,
+    0.25, 50.25, 10L, 3000L, 2010L, "grassland", 2000
+  )
+}
+
 .nb_carbon_balance <- function() {
   tibble::tribble(
     ~lon,
@@ -289,6 +299,7 @@
     urban_population = .nb_urban_population(),
     cropland_ha = .nb_cropland_ha(),
     cell_polity = .nb_cell_polity(),
+    ag_land_support = .nb_ag_land_support(),
     carbon_balance = .nb_carbon_balance(),
     primary_prod = .nb_primary_prod(),
     fertilizer = .nb_fertilizer(),
@@ -502,6 +513,45 @@ testthat::test_that("example fixture is schema-complete", {
     out,
     c("nue_std", "nue_som", "nue_useful", "surplus_share", "method_nh3")
   )
+})
+
+testthat::test_that("example fixture carries a positive area_ha keyed to the crop", {
+  out <- whep::build_nitrogen_balance(example = TRUE)
+  pointblank::expect_col_exists(out, "area_ha")
+  # area_ha is explicit physical agricultural support, keyed to the crop.
+  testthat::expect_true(all(out$area_ha > 0))
+  testthat::expect_true(rlang::has_name(out, "item_cbs_code"))
+})
+
+testthat::test_that("build_nitrogen_balance emits per-crop area_ha on the grid key", {
+  # Explicit agricultural support supplies the physical crop area (1000 ha
+  # for item_cbs 2511). It must survive on the grid row so boundary pressure
+  # is not computed from harvested-area proxies.
+  out <- .nb_run()
+  pointblank::expect_col_exists(out, "area_ha")
+  crop <- dplyr::filter(out, !is.na(item_cbs_code), item_cbs_code == 2511L)
+  testthat::expect_equal(nrow(crop), 1L)
+  testthat::expect_equal(crop$area_ha, 1000)
+  testthat::expect_true(all(crop$area_ha > 0))
+})
+
+testthat::test_that("resolution = \"polity\" sums area_ha per key over cells", {
+  data <- .nb_data_with_drivers()
+  grid <- .nb_run(data, resolution = "grid")
+  polity <- .nb_run(data, resolution = "polity")
+  pointblank::expect_col_exists(polity, "area_ha")
+  # Single grid cell, so physical crop area is conserved across resolutions.
+  testthat::expect_equal(
+    sum(polity$area_ha),
+    sum(grid$area_ha),
+    tolerance = 1e-6
+  )
+  crop_polity <- dplyr::filter(
+    polity,
+    !is.na(item_cbs_code),
+    item_cbs_code == 2511L
+  )
+  testthat::expect_equal(crop_polity$area_ha, 1000)
 })
 
 testthat::test_that("example fixture closes and has non-negative surplus", {

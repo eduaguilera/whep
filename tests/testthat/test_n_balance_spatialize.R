@@ -289,3 +289,126 @@ testthat::test_that("missing required columns abort with a clear message", {
     "country_totals"
   )
 })
+
+# .n_crop_rate_shares (Coello rate-weighted, conserving crop shares) ----------
+
+.nrs_primary_prod <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~unit, ~value,
+    2010L, 10L, 2511L, "ha", 100, # wheat
+    2010L, 10L, 2514L, "ha", 100, # maize
+    2010L, 10L, 3000L, "ha", 500 # grassland (excluded)
+  )
+}
+.nrs_coello_rates <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~kg_n_ha,
+    2010L, 10L, 2511L, 150, # wheat: high rate
+    2010L, 10L, 2514L, 50 # maize: low rate
+  )
+}
+
+testthat::test_that(".n_crop_rate_shares conserves + differentiates", {
+  res <- whep:::.n_crop_rate_shares(
+    .nrs_primary_prod(),
+    .nrs_coello_rates()
+  )
+  testthat::expect_equal(sum(res$area_share), 1)
+  wheat <- res$area_share[res$item_cbs_code == 2511L]
+  maize <- res$area_share[res$item_cbs_code == 2514L]
+  testthat::expect_gt(wheat, maize) # equal area, higher rate -> higher share
+  # wheat weight (rate 150 x 100 ha) over the two-crop weight sum is 0.75
+  testthat::expect_equal(wheat, 0.75)
+  testthat::expect_true(all(res$method_synthetic == "coello"))
+  testthat::expect_false(any(res$item_cbs_code == 3000L)) # grass excluded
+})
+
+testthat::test_that(".n_crop_rate_shares falls back to area shares", {
+  empty <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~kg_n_ha,
+    2010L, 88L, 2511L, 150 # no coverage for area 10
+  )
+  res <- whep:::.n_crop_rate_shares(.nrs_primary_prod(), empty)
+  testthat::expect_equal(sum(res$area_share), 1)
+  testthat::expect_equal(res$area_share[res$item_cbs_code == 2511L], 0.5)
+  testthat::expect_true(all(res$method_synthetic == "area_share"))
+})
+
+# .n_synthetic_crop_shares (method dispatcher) --------------------------------
+
+testthat::test_that(".n_synthetic_crop_shares dispatches on method", {
+  coello <- whep:::.n_synthetic_crop_shares(
+    .nrs_primary_prod(),
+    "coello",
+    .nrs_coello_rates()
+  )
+  testthat::expect_equal(
+    coello$area_share[coello$item_cbs_code == 2511L],
+    0.75
+  )
+  testthat::expect_true(all(coello$method_synthetic == "coello"))
+
+  area <- whep:::.n_synthetic_crop_shares(
+    .nrs_primary_prod(),
+    "area_share"
+  )
+  testthat::expect_equal(
+    area$area_share[area$item_cbs_code == 2511L],
+    0.5
+  )
+  testthat::expect_true(all(area$method_synthetic == "area_share"))
+})
+
+testthat::test_that(".n_synthetic_crop_shares rejects bad method", {
+  testthat::expect_error(
+    whep:::.n_synthetic_crop_shares(.nrs_primary_prod(), "smil"),
+    "method"
+  )
+})
+
+testthat::test_that("a country-year with no positive rate falls back cleanly", {
+  primary_prod <- tibble::tribble(
+    ~year,
+    ~area_code,
+    ~item_cbs_code,
+    ~unit,
+    ~value,
+    2010L,
+    10L,
+    2511L,
+    "ha",
+    100,
+    2010L,
+    20L,
+    2511L,
+    "ha",
+    50
+  )
+  # Polity 20's only Coello rate is zero, so it is not "covered" and takes the
+  # harvested-area branch. Shares stay finite and the basis is stamped, rather
+  # than the country-year emitting a NaN share.
+  rates <- tibble::tribble(
+    ~year,
+    ~area_code,
+    ~item_cbs_code,
+    ~kg_n_ha,
+    2010L,
+    10L,
+    2511L,
+    80,
+    2010L,
+    20L,
+    2511L,
+    0
+  )
+  shares <- whep:::.n_synthetic_crop_shares(primary_prod, "coello", rates)
+  testthat::expect_true(all(is.finite(shares$area_share)))
+  testthat::expect_equal(
+    shares$method_synthetic[shares$area_code == 10L],
+    "coello"
+  )
+  testthat::expect_equal(
+    shares$method_synthetic[shares$area_code == 20L],
+    "area_share"
+  )
+})
