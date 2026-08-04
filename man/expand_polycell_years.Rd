@@ -22,5 +22,8 @@ resolves to exactly one interval per polycell and a boundary year is never
 counted twice.
 }
 \examples{
-expand_polycell_years(build_polycell_support(example = TRUE), 2015L)
+if (requireNamespace("sf", quietly = TRUE)) {
+  build_polycell_support(geometries = polycell_example_geometries()) |>
+    expand_polycell_years(2010L:2012L)
+}
 }

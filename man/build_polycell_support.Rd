@@ -9,8 +9,7 @@ build_polycell_support(
   geometries = NULL,
   water = NULL,
   ice = NULL,
-  data = list(),
-  example = FALSE
+  data = list()
 )
 }
 \arguments{
@@ -39,18 +38,17 @@ layer (\code{lon}, \code{lat}, \code{terrestrial_ha}, e.g. \code{\link[=read_luh
 transitional \code{polity_frac}; \code{producer_crosswalk} a freshly built
 \code{build_cell_polity_fraction()} table; and \code{crosswalk_year}, the year whose
 polycells the crosswalk's present-day geometry describes (default 2015).}
-
-\item{example}{If \code{TRUE}, return a small hard-coded table instead of running
-the geometry engine, so the documented example needs no \code{sf} and no
-external data.}
 }
 \value{
 A \code{tibble} whose columns are a superset of \code{polycell_id}, \code{cell_id},
 \code{lon}, \code{lat}, \code{polity_code}, \code{area_code}, \code{start_year}, \code{end_year},
 \code{cell_area_ha}, \code{polity_area_ha}, \code{land_area_ha}, \code{inland_water_ha},
 \code{ice_area_ha}, \code{geometry_source}, \code{polygon_status}, \code{split_method},
-\code{coverage_status}, \code{luh2_vintage} and the transitional \code{polity_frac}, plus
-\code{year} when \code{years} is supplied. Diagnostics ride as attributes:
+\code{coverage_status}, \code{area_engine}, \code{luh2_vintage} and the transitional
+\code{polity_frac}, plus \code{year} when \code{years} is supplied. \code{area_engine} is
+\code{"s2"} except on the pieces the spherical engine cannot read back, which
+are measured with \code{terra::expanse()} rather than dropped. Diagnostics ride
+as attributes:
 \code{"unassigned"} (land in the validation layer claimed by no live polity),
 \code{"coverage"} (every live polity interval and whether it had a polygon),
 \code{"overlap"} (cells holding more territory than the cell, because two
@@ -59,12 +57,12 @@ clamped to the polycell's territory), \code{"footprints"} and
 \code{"footprint_diff"} (the deployed crosswalk, the current producer and the
 polycell footprint, reconciled at \code{data$crosswalk_year}).
 
-\code{"overlap"}, \code{"water_excess"} and \code{"unassigned"} are \strong{interval-grain},
-like the table itself: they carry \code{start_year}, and one cell contributes a
-row per interval. Summing them without first filtering to the interval
-covering the year of interest counts the same cell once per epoch. On the
-shipped polities that is the difference between 1,342 clamped polycells
-over all epochs and 94 in 2015.
+\code{"overlap"}, \code{"terra_measured"}, \code{"water_excess"} and \code{"unassigned"} are
+\strong{interval-grain}, like the table itself: they carry \code{start_year}, and one
+cell contributes a row per interval. Summing them without first filtering
+to the interval covering the year of interest counts the same cell once per
+epoch. On the shipped polities that is the difference between 1,342 clamped
+polycells over all epochs and 94 in 2015.
 }
 \description{
 Produce WHEP's canonical spatial support unit, the \strong{polycell}: a
@@ -89,5 +87,10 @@ polycell-year, which is what \code{\link[=expand_polycell_years]{expand_polycell
 area varies within an interval, so the interval grain is the form to store.
 }
 \examples{
-build_polycell_support(example = TRUE)
+if (requireNamespace("sf", quietly = TRUE)) {
+  build_polycell_support(
+    years = 2015L,
+    geometries = polycell_example_geometries()
+  )
+}
 }

@@ -1401,3 +1401,113 @@ testthat::test_that("unassigned land is reported for years with no claim", {
     )
   })
 })
+
+testthat::test_that("an unreadable clip piece is measured, never dropped", {
+  testthat::skip_if_not_installed("sf")
+  testthat::skip_if_not_installed("terra")
+
+  # Real-data regression, on shipped package data so it needs no pins and no
+  # network. `sf::st_intersection()` emits pieces the spherical engine will not
+  # read back, and a planar repair does not always fix them. Discarding those
+  # pieces deleted 1.4255 Mha across 8 polities, including seven whole
+  # Peloponnese and Aegean cells -- 10.07% of GRC-1830-1913 -- while the polity
+  # still reported `coverage_status == "has_geometry"`. The loss broke S-A2
+  # re-aggregation at every pre-1950 year and re-emerged as fake unclaimed land
+  # in the S-A11 diagnostic, so it is pinned here.
+  greece <- whep::get_polity_geometries("GRC-1830-1913")
+  vanished <- c(404252L, 405252L, 407256L, 407257L, 408256L, 408257L, 409255L)
+
+  testthat::expect_warning(
+    result <- whep::build_polycell_support(geometries = greece),
+    "could not be measured by the spherical engine"
+  )
+
+  # Every cell the drop used to swallow is present and carries real area.
+  testthat::expect_true(all(vanished %in% result$cell_id))
+  recovered <- dplyr::filter(result, .data$cell_id %in% vanished)
+  testthat::expect_equal(nrow(recovered), length(vanished))
+  testthat::expect_true(all(recovered$polity_area_ha > 0))
+  testthat::expect_equal(unique(recovered$area_engine), "terra")
+
+  # The substitution is addressable, not inferred: the row column and the
+  # diagnostic agree, and the rest of the polity stays on the spherical engine.
+  testthat::expect_setequal(
+    dplyr::filter(result, .data$area_engine == "terra")$cell_id,
+    vanished
+  )
+  terra_measured <- attr(result, "terra_measured")
+  testthat::expect_equal(nrow(terra_measured), length(vanished))
+  testthat::expect_equal(
+    sum(terra_measured$polity_area_ha),
+    sum(recovered$polity_area_ha)
+  )
+
+  # The recovered area is real land, not a degenerate sliver: an independent
+  # `terra::expanse()` of the polity's own polygon puts it near 466,032 ha.
+  testthat::expect_gt(sum(recovered$polity_area_ha), 4e5)
+  testthat::expect_lt(
+    abs(sum(recovered$polity_area_ha) / 466032 - 1),
+    0.01
+  )
+
+  # And the polity re-aggregates: no piece is missing from the total.
+  testthat::expect_equal(
+    sum(result$polity_area_ha),
+    as.numeric(sf::st_area(sf::st_geometry(greece))) / 1e4,
+    tolerance = 1e-3
+  )
+})
+
+testthat::test_that("inland water never goes negative on a full ice cover", {
+  testthat::skip_if_not_installed("sf")
+
+  # T-A3's contract asserts `inland_water_ha >= 0`. Ice and water are two
+  # independent intersections, so on a polycell the ice covers completely the
+  # headroom `polity_area_ha - ice_area_ha` comes out at -1e-9 rather than 0,
+  # and the clamp then produced a negative water area. 56 Greenland rows in the
+  # real build did exactly that.
+  cell <- pcs_cell(10.25, 45.25)
+  result <- whep::build_polycell_support(
+    years = 2015L,
+    geometries = pcs_one_polity(cell),
+    water = tibble::tibble(lon = 10.25, lat = 45.25, water_frac = 0.3),
+    ice = sf::st_sf(geometry = sf::st_sfc(cell, crs = 4326))
+  )
+
+  testthat::expect_gte(result$inland_water_ha, 0)
+  testthat::expect_gte(result$land_area_ha, 0)
+  testthat::expect_equal(result$ice_area_ha, result$polity_area_ha)
+  testthat::expect_equal(
+    result$land_area_ha + result$inland_water_ha + result$ice_area_ha,
+    result$polity_area_ha,
+    tolerance = 1e-9
+  )
+  result |>
+    pointblank::expect_col_vals_gte(inland_water_ha, 0) |>
+    pointblank::expect_col_vals_gte(land_area_ha, 0)
+})
+
+testthat::test_that("split_method records the water rule wherever it ran", {
+  testthat::skip_if_not_installed("sf")
+
+  # DA-6: the column records which of the two placement rules applied. Water
+  # arrives as a whole-cell fraction and is apportioned, so a single-polity
+  # cell holding water was placed by the pro-rata rule just as a shared one is;
+  # labelling it `polygon_intersection` hid that the cell's water was never
+  # exactly located.
+  alone <- whep::build_polycell_support(
+    years = 2015L,
+    geometries = pcs_one_polity(pcs_cell(10.25, 45.25)),
+    water = tibble::tibble(lon = 10.25, lat = 45.25, water_frac = 0.1)
+  )
+  testthat::expect_equal(
+    alone$split_method,
+    "polygon_intersection+water_pro_rata"
+  )
+
+  dry <- whep::build_polycell_support(
+    years = 2015L,
+    geometries = pcs_one_polity(pcs_cell(10.25, 45.25))
+  )
+  testthat::expect_equal(dry$split_method, "polygon_intersection")
+})

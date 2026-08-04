@@ -159,9 +159,14 @@ testthat::test_that("s2-invalid polygons are repaired, classified and kept", {
 })
 
 testthat::test_that("read_polycell_support prefers a local parquet", {
+  testthat::skip_if_not_installed("sf")
+
   dir <- withr::local_tempdir()
   path <- file.path(dir, "support.parquet")
-  support <- whep::build_polycell_support(example = TRUE)
+  support <- whep::build_polycell_support(
+    years = 2015L,
+    geometries = whep::polycell_example_geometries()
+  )
   nanoparquet::write_parquet(support, path)
   withr::local_envvar(WHEP_POLYCELL_SUPPORT_PATH = path)
 

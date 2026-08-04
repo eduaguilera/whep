@@ -43,16 +43,16 @@
 #'   transitional `polity_frac`; `producer_crosswalk` a freshly built
 #'   `build_cell_polity_fraction()` table; and `crosswalk_year`, the year whose
 #'   polycells the crosswalk's present-day geometry describes (default 2015).
-#' @param example If `TRUE`, return a small hard-coded table instead of running
-#'   the geometry engine, so the documented example needs no `sf` and no
-#'   external data.
 #'
 #' @return A `tibble` whose columns are a superset of `polycell_id`, `cell_id`,
 #'   `lon`, `lat`, `polity_code`, `area_code`, `start_year`, `end_year`,
 #'   `cell_area_ha`, `polity_area_ha`, `land_area_ha`, `inland_water_ha`,
 #'   `ice_area_ha`, `geometry_source`, `polygon_status`, `split_method`,
-#'   `coverage_status`, `luh2_vintage` and the transitional `polity_frac`, plus
-#'   `year` when `years` is supplied. Diagnostics ride as attributes:
+#'   `coverage_status`, `area_engine`, `luh2_vintage` and the transitional
+#'   `polity_frac`, plus `year` when `years` is supplied. `area_engine` is
+#'   `"s2"` except on the pieces the spherical engine cannot read back, which
+#'   are measured with `terra::expanse()` rather than dropped. Diagnostics ride
+#'   as attributes:
 #'   `"unassigned"` (land in the validation layer claimed by no live polity),
 #'   `"coverage"` (every live polity interval and whether it had a polygon),
 #'   `"overlap"` (cells holding more territory than the cell, because two
@@ -61,27 +61,28 @@
 #'   `"footprint_diff"` (the deployed crosswalk, the current producer and the
 #'   polycell footprint, reconciled at `data$crosswalk_year`).
 #'
-#'   `"overlap"`, `"water_excess"` and `"unassigned"` are **interval-grain**,
-#'   like the table itself: they carry `start_year`, and one cell contributes a
-#'   row per interval. Summing them without first filtering to the interval
-#'   covering the year of interest counts the same cell once per epoch. On the
-#'   shipped polities that is the difference between 1,342 clamped polycells
-#'   over all epochs and 94 in 2015.
+#'   `"overlap"`, `"terra_measured"`, `"water_excess"` and `"unassigned"` are
+#'   **interval-grain**, like the table itself: they carry `start_year`, and one
+#'   cell contributes a row per interval. Summing them without first filtering
+#'   to the interval covering the year of interest counts the same cell once per
+#'   epoch. On the shipped polities that is the difference between 1,342 clamped
+#'   polycells over all epochs and 94 in 2015.
 #' @export
 #'
 #' @examples
-#' build_polycell_support(example = TRUE)
+#' if (requireNamespace("sf", quietly = TRUE)) {
+#'   build_polycell_support(
+#'     years = 2015L,
+#'     geometries = polycell_example_geometries()
+#'   )
+#' }
 build_polycell_support <- function(
   years = NULL,
   geometries = NULL,
   water = NULL,
   ice = NULL,
-  data = list(),
-  example = FALSE
+  data = list()
 ) {
-  if (isTRUE(example)) {
-    return(.ex_build_polycell_support())
-  }
   rlang::check_installed("sf")
   old_s2 <- sf::sf_use_s2()
   withr::defer(suppressMessages(sf::sf_use_s2(old_s2)))
@@ -101,6 +102,43 @@ build_polycell_support <- function(
     .pcs_expand(years)
 }
 
+#' A minimal polity geometry table for examples and smoke tests
+#'
+#' @description
+#' Returns one live polity holding a rectangle that spans six 0.5-degree cells,
+#' in the shape [get_polity_geometries()] returns: enough to run
+#' [build_polycell_support()] end to end in a fraction of a second, with no
+#' pins, no rasters and no environment variables.
+#'
+#' @return An `sf` table with `polity_code`, `polity_type`, `wiki_status`,
+#'   `polygon_status`, `start_year`, `end_year`, `area_code` and a `geom`
+#'   multipolygon in WGS84.
+#' @export
+#'
+#' @examples
+#' if (requireNamespace("sf", quietly = TRUE)) {
+#'   polycell_example_geometries()
+#' }
+polycell_example_geometries <- function() {
+  rlang::check_installed("sf")
+  sf::st_sf(
+    polity_code = "AAA-2000-2020",
+    polity_type = "national",
+    wiki_status = "reviewed",
+    polygon_status = "assigned",
+    start_year = 2000L,
+    end_year = 2020L,
+    area_code = 11L,
+    geom = sf::st_sfc(
+      sf::st_polygon(list(cbind(
+        c(10.1, 11.4, 11.4, 10.1, 10.1),
+        c(44.9, 44.9, 45.4, 45.4, 44.9)
+      ))),
+      crs = 4326
+    )
+  )
+}
+
 #' Expand the interval-keyed polycell support to one row per year
 #'
 #' @description
@@ -117,7 +155,10 @@ build_polycell_support <- function(
 #' @export
 #'
 #' @examples
-#' expand_polycell_years(build_polycell_support(example = TRUE), 2015L)
+#' if (requireNamespace("sf", quietly = TRUE)) {
+#'   build_polycell_support(geometries = polycell_example_geometries()) |>
+#'     expand_polycell_years(2010L:2012L)
+#' }
 expand_polycell_years <- function(support, years) {
   .pcs_require_cols(support, c("start_year", "end_year"), "support")
   years <- as.integer(years)
@@ -148,7 +189,21 @@ expand_polycell_years <- function(support, years) {
 #' @export
 #'
 #' @examples
-#' polycell_shim_view(build_polycell_support(example = TRUE))
+#' if (requireNamespace("sf", quietly = TRUE)) {
+#'   build_polycell_support(
+#'     years = 2015L,
+#'     geometries = polycell_example_geometries(),
+#'     data = list(
+#'       crosswalk = tibble::tibble(
+#'         lon = c(10.25, 10.75, 11.25),
+#'         lat = 45.25,
+#'         area_code = 11L,
+#'         polity_frac = 1
+#'       )
+#'     )
+#'   ) |>
+#'     polycell_shim_view()
+#' }
 polycell_shim_view <- function(support) {
   .pcs_require_cols(
     support,
@@ -269,7 +324,9 @@ polycell_shim_view <- function(support) {
   if (length(parts) == 0L) {
     return(NULL)
   }
-  do.call(rbind, parts)
+  out <- do.call(rbind, parts)
+  .pcs_warn_terra(out, "polity clip")
+  out
 }
 
 # A polity that carries no usable polygon receives no polycell at all, which is
@@ -298,8 +355,7 @@ polycell_shim_view <- function(support) {
     return(NULL)
   }
   sf::st_agr(cells) <- "constant"
-  inter <- .pcs_valid_pieces(sf::st_intersection(cells, geom))
-  inter$polity_area_ha <- as.numeric(sf::st_area(inter)) / 1e4
+  inter <- .pcs_measure_pieces(sf::st_intersection(cells, geom))
   inter <- inter[inter$polity_area_ha > .pcs_area_floor_ha(), ]
   if (nrow(inter) == 0L) {
     return(NULL)
@@ -317,16 +373,69 @@ polycell_shim_view <- function(support) {
   inter
 }
 
-# The spherical engine can emit a clipped piece carrying a duplicate vertex and
-# then refuse to read its own output back: it happens on 8 of Russia's 12,730
-# pieces, every one on the antimeridian, and `sf::st_area()` aborts with
-# "Loop 0 is not valid: Edge 1 is degenerate". Repairing planar-side removes the
-# zero-length edge; measured over the affected pieces the area is unchanged
-# (714,451.732 ha either way), because a zero-length edge carries none.
-.pcs_valid_pieces <- function(inter) {
+# The spherical engine can emit a clipped piece it then refuses to read back:
+# most carry a duplicate vertex -- 8 of Russia's 12,730 pieces, all on the
+# antimeridian -- and a planar repair removes the zero-length edge without
+# changing the area (714,451.732 ha either way).
+#
+# A minority stay invalid even after that repair, and they are NOT slivers. On
+# the shipped polities that is 21 pieces holding 1.4191 Mha across 5 polities,
+# among them seven whole Peloponnese and Aegean cells worth 466,032 ha, 10.08%
+# of GRC-1830-1913. Dropping them deleted real territory, broke S-A2
+# re-aggregation at every pre-1950 year, and re-emerged as fake unclaimed land
+# in the S-A11 diagnostic. They are therefore kept and measured with
+# `terra::expanse()`, which does not go through s2, exactly as the ice reader
+# already does.
+#
+# `area_engine` records which engine measured each row, because terra is a
+# WGS84 ellipsoid and differs from s2 by 0.45% at the equator to 0.86% at
+# latitude 84.75: a consumer must be able to see where that substitution
+# happened rather than infer it.
+.pcs_measure_pieces <- function(inter) {
   fixed <- .s2_repair(sf::st_geometry(inter))
   sf::st_geometry(inter) <- fixed$geom
-  inter[fixed$status != "invalid", ]
+  usable <- fixed$status != "invalid"
+  inter$area_engine <- dplyr::if_else(usable, "s2", "terra")
+  inter$polity_area_ha <- rep(NA_real_, nrow(inter))
+  if (any(usable)) {
+    inter$polity_area_ha[usable] <-
+      as.numeric(sf::st_area(fixed$geom[usable])) / 1e4
+  }
+  if (any(!usable)) {
+    inter$polity_area_ha[!usable] <- .pcs_terra_area_ha(fixed$geom[!usable])
+  }
+  inter
+}
+
+# Measured one feature at a time. Handing terra a whole sfc is unsafe here:
+# clipping can return a GEOMETRYCOLLECTION, and `terra::vect()` then warns
+# "not all geometries were transferred" and returns fewer features than it was
+# given, so the shorter area vector would recycle against the rows it is
+# assigned to and mis-align them. It is observed on this layer, not
+# hypothetical: the warning fires on the pieces reaching here. A
+# scalar per feature cannot mis-align, and the polygonal part is extracted
+# first so a mixed-type piece contributes its area rather than nothing.
+.pcs_terra_area_ha <- function(geom) {
+  rlang::check_installed("terra")
+  vapply(seq_along(geom), \(i) .pcs_terra_one_ha(geom[i]), numeric(1L))
+}
+
+.pcs_terra_one_ha <- function(geom) {
+  polys <- .pcs_polygonal_part(geom)
+  if (length(polys) == 0L || all(sf::st_is_empty(polys))) {
+    return(0)
+  }
+  vect <- suppressWarnings(terra::vect(sf::st_sf(geometry = polys)))
+  sum(terra::expanse(vect, unit = "m")) / 1e4
+}
+
+# Type extraction only, run planar-side because the pieces that reach here are
+# exactly the ones the spherical engine refuses to read.
+.pcs_polygonal_part <- function(geom) {
+  old <- sf::sf_use_s2()
+  on.exit(suppressMessages(sf::sf_use_s2(old)), add = TRUE)
+  suppressMessages(sf::sf_use_s2(FALSE))
+  suppressWarnings(sf::st_collection_extract(geom, "POLYGON"))
 }
 
 # Two polygons that only touch intersect in a line, whose area is zero. The
@@ -438,13 +547,32 @@ polycell_shim_view <- function(support) {
     return(out)
   }
   sf::st_agr(sub) <- "constant"
-  hit <- .pcs_valid_pieces(sf::st_intersection(sub, ice_union))
+  # Same treatment as the polity clip: a piece the spherical engine cannot read
+  # back is measured with terra rather than dropped, so ice is never silently
+  # under-subtracted, which would silently inflate land instead.
+  hit <- .pcs_measure_pieces(sf::st_intersection(sub, ice_union))
   if (nrow(hit) == 0L) {
     return(out)
   }
-  areas <- tapply(as.numeric(sf::st_area(hit)) / 1e4, hit$piece, sum)
+  .pcs_warn_terra(hit, "ice clip")
+  areas <- tapply(hit$polity_area_ha, hit$piece, sum)
   out[as.integer(names(areas))] <- as.numeric(areas)
   out
+}
+
+# A substituted area engine is a fact about the numbers, so it is announced
+# once with its magnitude rather than left for a reader to discover.
+.pcs_warn_terra <- function(pieces, what) {
+  n <- sum(pieces$area_engine == "terra")
+  if (n == 0L) {
+    return(invisible(NULL))
+  }
+  ha <- sum(pieces$polity_area_ha[pieces$area_engine == "terra"])
+  cli::cli_warn(c(
+    "{n} {what} piece{?s} could not be measured by the spherical engine.",
+    i = "Measured with {.fn terra::expanse} instead: {round(ha / 1e6, 4)} Mha.
+         Rows carry {.code area_engine == \"terra\"}."
+  ))
 }
 
 # -- Interval algebra ---------------------------------------------------------
@@ -521,9 +649,15 @@ polycell_shim_view <- function(support) {
       .by = c("cell_id", "start_year")
     ) |>
     dplyr::mutate(
+      # The headroom for water is the territory left after ice. Ice is itself
+      # clipped to the polycell, so it cannot really exceed it, but on a fully
+      # ice-covered polycell the two independent intersections differ in the
+      # last bits and the headroom comes out at -1e-9 ha. Flooring the headroom
+      # is what keeps `inland_water_ha` non-negative, which T-A3's contract
+      # asserts and which 56 Greenland rows violated before this floor.
       inland_water_ha = pmin(
         .data$water_pro_rata_ha,
-        .data$polity_area_ha - .data$ice_area_ha
+        pmax(.data$polity_area_ha - .data$ice_area_ha, 0)
       ),
       water_excess_ha = .data$water_pro_rata_ha - .data$inland_water_ha
     ) |>
@@ -536,11 +670,12 @@ polycell_shim_view <- function(support) {
   pieces |>
     dplyr::mutate(
       polycell_id = paste0(.data$polity_code, "@", .data$cell_id),
-      # The DA-19 clamp makes `polity - water - ice >= 0` exactly, but where it
-      # binds the subtraction re-derives a value that is already zero and
-      # float64 returns it as -1e-13 ha on 8 of 564,304 real polycells. The
-      # floor removes that representation artefact only: it can never mask a
-      # real negative, because the clamp has already bounded the terms.
+      # Water is clamped to the territory left after ice and ice is clipped to
+      # the polycell, so the difference is non-negative in exact arithmetic.
+      # Recomputing an already-zero value in float64 still returns -1e-13 ha on
+      # 8 of 564,304 real polycells, which is what this floor removes. It is
+      # not a general safety net: the two clamps above are what bound the
+      # terms, and each is floored where it is formed.
       land_area_ha = pmax(
         .data$polity_area_ha - .data$inland_water_ha - .data$ice_area_ha,
         0
@@ -556,16 +691,20 @@ polycell_shim_view <- function(support) {
     )
 }
 
+# DA-6: the two placement rules are recorded, so a consumer can tell an exactly
+# intersected area from an apportioned one. The pro-rata step is recorded
+# wherever it actually ran, including in a single-polity cell where it runs
+# trivially: the water still arrived as a whole-cell fraction, not as a
+# polygon, and that is the fact the column exists to carry.
 .pcs_add_split_method <- function(pieces) {
-  pieces |>
-    dplyr::mutate(
-      split_method = dplyr::if_else(
-        dplyr::n() > 1L & sum(.data$inland_water_ha) > 0,
-        "polygon_intersection+water_pro_rata",
-        "polygon_intersection"
-      ),
-      .by = c("cell_id", "start_year")
+  dplyr::mutate(
+    pieces,
+    split_method = dplyr::if_else(
+      .data$inland_water_ha > 0,
+      "polygon_intersection+water_pro_rata",
+      "polygon_intersection"
     )
+  )
 }
 
 .pcs_luh2_vintage <- function(luh2) {
@@ -591,6 +730,7 @@ polycell_shim_view <- function(support) {
     "polygon_status",
     "split_method",
     "coverage_status",
+    "area_engine",
     "luh2_vintage",
     "polity_frac"
   )
@@ -683,6 +823,10 @@ polycell_shim_view <- function(support) {
     attr(support, "overlap") <- overlap
     .pcs_warn_overlap(overlap)
   }
+  terra_measured <- .pcs_terra_measured(support)
+  if (nrow(terra_measured) > 0L) {
+    attr(support, "terra_measured") <- terra_measured
+  }
   if (!is.null(water)) {
     attr(support, "water_excess") <- .pcs_water_excess(support)
   }
@@ -742,6 +886,22 @@ polycell_shim_view <- function(support) {
       "end_year",
       "polygon_status",
       "coverage_status"
+    )
+}
+
+# Every polycell whose area came from terra rather than s2, so the engine
+# substitution is addressable per polity rather than only per row.
+.pcs_terra_measured <- function(support) {
+  support |>
+    dplyr::filter(.data$area_engine %in% "terra") |>
+    dplyr::select(
+      "polycell_id",
+      "cell_id",
+      "lon",
+      "lat",
+      "polity_code",
+      "start_year",
+      "polity_area_ha"
     )
 }
 
@@ -951,6 +1111,7 @@ polycell_shim_view <- function(support) {
   c(
     "coverage",
     "overlap",
+    "terra_measured",
     "water_excess",
     "footprints",
     "footprint_diff",
@@ -979,6 +1140,7 @@ polycell_shim_view <- function(support) {
     area_code = integer(),
     polygon_status = character(),
     coverage_status = character(),
+    area_engine = character(),
     ice_area_ha = double()
   )
 }

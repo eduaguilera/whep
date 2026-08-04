@@ -51,6 +51,7 @@ reference:
   - build_polycell_support
   - expand_polycell_years
   - polycell_shim_view
+  - polycell_example_geometries
   - read_polycell_support
   - read_glwd_water
   - read_glaciated_areas

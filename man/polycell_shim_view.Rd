@@ -23,5 +23,19 @@ the commit that reshapes the shared object. The shim is a transition device
 with a scheduled removal, not a permanent contract.
 }
 \examples{
-polycell_shim_view(build_polycell_support(example = TRUE))
+if (requireNamespace("sf", quietly = TRUE)) {
+  build_polycell_support(
+    years = 2015L,
+    geometries = polycell_example_geometries(),
+    data = list(
+      crosswalk = tibble::tibble(
+        lon = c(10.25, 10.75, 11.25),
+        lat = 45.25,
+        area_code = 11L,
+        polity_frac = 1
+      )
+    )
+  ) |>
+    polycell_shim_view()
+}
 }
