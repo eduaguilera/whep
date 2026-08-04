@@ -116,10 +116,120 @@ regions_for_crosswalk <- dplyr::bind_rows(
     )
 )
 
+# UPSTREAM PUBLISHES THE AREA-TO-POLITY MAP. WE USED TO RE-DERIVE IT.
+#
+# `whep-polities` ships `faostat_area_polity_map.csv` as part of its consumer
+# contract: 281 rows, 228 distinct FAOSTAT area codes, every row `high`
+# confidence, each carrying the year span it applies to and a `match_route`
+# recording how it was decided (`iso-equal` 249, `registry` 18, `manual-route` 8,
+# `manual-replace` 5, `manual-span` 1). This package referenced it nowhere and
+# instead inferred the same mapping from the polity code STRING, deriving a
+# prefix with `sub("-.*", "", polity_code)` and joining areas to that.
+#
+# A prefix answers a different question than a curated map, and the answers
+# differ in ways that are all wrong in the same direction -- silently:
+#
+#   * FAOSTAT area 72 Djibouti resolved to NOTHING. Its live polities are
+#     `FRS-1884-1977` and `FRS-1977-2025`, which the map names, but no prefix
+#     derived from `DJI` reaches `FRS`. The mapping had been travelling through
+#     `DJI-1886-2025`, which upstream marks dead, so filtering dead polities
+#     exposed a mapping the prefix could never have reached.
+#   * FAOSTAT area 15 resolved to `BLX-1921-1999` because prefix `BLX` reaches
+#     both that and `BLX-1850-1999` and the tie-break picked the later start.
+#     The map names `BLX-1850-1999` for 1961-1999.
+#   * FAOSTAT area 181 could not reach `SRH-1953-1964` for 1961-1963, and area
+#     206 "Sudan (former)" could not reach `SUD-1956-2011` at all, because those
+#     periods carry a different prefix from the area's ISO3. Both fell back to a
+#     nearest-period stand-in of a state that did not exist in those years.
+#   * `sub("-.*", "")` collapses `MMR-LWR-1852-1885` to `MMR`, so a unit that sat
+#     INSIDE Myanmar joined as though it were a period of Myanmar itself. Five
+#     polities carry that four-part shape, three of them typed `subnational`, and
+#     all five entered the crosswalk this way.
+#
+# So the map is the authority now, joined on `area_code` and year. Prefix
+# inference survives in two places, both narrowed and both labelled in
+# `mapping_source`: for an area the map does not cover at all, which is reported
+# below because the fallback firing is the signal that upstream needs a mapping;
+# and for a period of a mapped area lying outside every span the map declares,
+# which is what keeps pre-FAOSTAT history resolvable.
+#
+# ONE DELIBERATE EXCEPTION: the FABIO Rest-of-World fold still outranks the map.
+# 31 map-covered areas carry `fabio_code == 999` and therefore resolve to
+# `ROW-1850-2023` today (Syria, North Macedonia, Eswatini, New Caledonia,
+# French Guiana, Palestine and 25 more), even though the map names a real polity
+# for each. Letting the map win there would move every Rest-of-World figure, and
+# that fold is tracked separately as #419/#414. It is left standing here on
+# purpose so this change stays confined to the mapping defect.
+whep_polities_faostat_map <- Sys.getenv(
+  "WHEP_POLITIES_FAOSTAT_MAP",
+  unset = path.expand("~/whep-polities/data/final/faostat_area_polity_map.csv")
+)
+if (!file.exists(whep_polities_faostat_map)) {
+  cli::cli_abort(c(
+    "Upstream FAOSTAT area map not found at
+     {.path {whep_polities_faostat_map}}.",
+    "i" = "Point {.envvar WHEP_POLITIES_FAOSTAT_MAP} at the published
+           {.file data/final/faostat_area_polity_map.csv}.",
+    "x" = "This aborts rather than falling back to prefix matching, because a
+           silent fallback is the defect being removed."
+  ))
+}
+
+# THE MAP'S YEAR SPANS ARE INCLUSIVE ON BOTH ENDS, and that is checked against
+# the file rather than assumed: polity codes use an EXCLUSIVE `end_year`, so
+# reading one as the other loses a year at every transition. Two independent
+# reads of the same file agree. Five rows have `year_start == year_end` (areas 4,
+# 29, 184 and 226 for 1961, area 248 for 1991) and each carries observed data, so
+# an exclusive end would make them empty. And 51 of the 53 consecutive-span
+# transitions satisfy `year_start == previous year_end + 1`, which an exclusive
+# reading would turn into a one-year hole every time; the 2 exceptions (areas 205
+# and 240) repeat the boundary year because their `registry` rows copy the
+# polity's own inclusive start and end. Both exceptions are Rest-of-World folded,
+# so neither reaches the join below.
+faostat_area_map <- readr::read_csv(
+  whep_polities_faostat_map,
+  show_col_types = FALSE
+) |>
+  dplyr::transmute(
+    area_code = as.integer(.data$area_code),
+    map_year_start = as.integer(.data$year_start),
+    map_year_end = as.integer(.data$year_end),
+    polity_code = as.character(.data$polity_code),
+    map_match_route = as.character(.data$match_route)
+  )
+
+backwards_spans <- faostat_area_map |>
+  dplyr::filter(.data$map_year_end < .data$map_year_start)
+if (nrow(backwards_spans) > 0L) {
+  cli::cli_abort(c(
+    "The upstream FAOSTAT map carries spans that end before they start.",
+    "x" = "Offending area codes: {.val {backwards_spans$area_code}}.",
+    "i" = "The spans are read as inclusive on both ends."
+  ))
+}
+
+# NO AREA MAY SILENTLY LOSE ITS MAPPING -- that is exactly how Djibouti went
+# missing. A map row naming a polity this package cannot resolve is a contract
+# break, so it stops the build instead of quietly dropping the row.
+unresolvable_map_codes <- setdiff(
+  faostat_area_map$polity_code,
+  live_polity_attrs$polity_code
+)
+if (length(unresolvable_map_codes) > 0L) {
+  cli::cli_abort(c(
+    "The upstream FAOSTAT map names polity codes that are not live polities.",
+    "x" = "Unresolvable: {.val {unresolvable_map_codes}}.",
+    "i" = "Either the polities snapshot predates the map, or upstream retired a
+           polity the map still points at."
+  ))
+}
+
 # Only dissolved-state aggregates whose FAOSTAT reporting does NOT overlap their
 # successor states in time belong here (Czechoslovakia -> Czechia/Slovakia in
 # 1993, USSR -> successors in 1992, Yugoslav SFR -> successors in 1992): the
-# aggregate is the sole China-style overlap, so mapping it is lossless.
+# aggregate is the sole China-style overlap, so mapping it is lossless. All three
+# are now covered by the upstream map, which decided them by `manual-replace`,
+# so these prefixes only matter if upstream ever drops one.
 #
 # FAOSTAT area 351 "China" is deliberately NOT mapped: it is an aggregate of
 # 41 (mainland) + 96 (Hong Kong) + 128 (Macao) + 214 (Taiwan) reported ALONGSIDE
@@ -134,7 +244,7 @@ manual_area_prefixes <- tibble::tribble(
   248L, "F248", "FAOSTAT Yugoslav SFR reporting area maps to WHEP Yugoslavia polities."
 )
 
-polity_area_crosswalk <- regions_for_crosswalk |>
+reporting_areas <- regions_for_crosswalk |>
   dplyr::transmute(
     area_code = as.integer(.data$code),
     area_name = dplyr::coalesce(
@@ -174,21 +284,155 @@ polity_area_crosswalk <- regions_for_crosswalk |>
       # Keep these last so unmatched reporting buckets remain visible.
       .data$reporting_polity_code,
       .data$area_iso3c
-    )
+    ),
+    area_in_map = .data$area_code %in% faostat_area_map$area_code
+  )
+
+# THE PREFIX MAY ONLY REACH A CANONICAL `PREFIX-start-end` CODE. This is the
+# subnational leak, fixed at its root rather than by listing the offenders:
+# `sub("-.*", "")` on `MMR-LWR-1852-1885` yields `MMR`, which is not that
+# polity's family -- it is the family of the entity the unit sat inside. Five
+# polities carry the four-part shape (`AZE-SSR-1920-1991`, `IDN-BLB-1949-1951`,
+# `IDN-JVM-1949-1951`, `IDN-OTH-1949-1951`, `MMR-LWR-1852-1885`), three of them
+# typed `subnational`, and all five entered the crosswalk this way. A prefix
+# carries no information about them, so inference must not reach them; only an
+# explicit upstream map row may.
+canonical_polity_attrs <- live_polity_attrs |>
+  dplyr::filter(grepl("^[^-]+-[0-9]{4}-[0-9]{4}$", .data$polity_code))
+dropped_noncanonical <- nrow(live_polity_attrs) -
+  nrow(canonical_polity_attrs)
+if (dropped_noncanonical > 0L) {
+  cli::cli_inform(
+    "Excluded {dropped_noncanonical} polities whose code is not
+     {.code PREFIX-start-end} from prefix inference; the upstream map is the only
+     route to them."
+  )
+}
+
+mapped_areas <- reporting_areas |>
+  dplyr::filter(.data$area_in_map, is.na(.data$fabio_row_prefix)) |>
+  dplyr::inner_join(
+    faostat_area_map,
+    by = "area_code",
+    relationship = "many-to-many"
   ) |>
   dplyr::left_join(
-    live_polity_attrs,
+    live_polity_attrs |> dplyr::select(!"polity_prefix"),
+    by = "polity_code"
+  ) |>
+  dplyr::mutate(mapping_source = "upstream_map")
+
+# The prefix branch for everything the map does not decide: the Rest-of-World
+# fold, the six regional "Other" buckets, the China aggregate that must stay
+# unmapped, and the rows carrying no reporting area at all.
+prefix_areas <- reporting_areas |>
+  dplyr::filter(!.data$area_in_map | !is.na(.data$fabio_row_prefix)) |>
+  dplyr::left_join(
+    canonical_polity_attrs,
     by = c("mapping_prefix" = "polity_prefix"),
     relationship = "many-to-many"
   ) |>
+  dplyr::mutate(
+    mapping_source = dplyr::if_else(
+      is.na(.data$fabio_row_prefix),
+      "prefix_fallback",
+      "fabio_row_fold"
+    )
+  )
+
+# PERIODS OUTSIDE THE MAP'S REACH STAY REACHABLE. The map spans the years FAOSTAT
+# actually reports, which begin in 1961, so taking it as the ONLY route would
+# delete every pre-1961 period from the crosswalk -- and those are load-bearing:
+# `.resolve_hist_trade_polities()` resolves genuine historical trade sources with
+# the back-cast floor switched OFF precisely because they are reported under
+# their own year's borders. Dropping them would not drop the rows, it would
+# re-attribute an 1890 Austria figure to `AUT-1919-2025` as an out-of-span
+# stand-in. So a prefix-derived period of a mapped area is kept when it overlaps
+# NO span the map declares for that area, and dropped when it does -- which is
+# what keeps `BLX-1921-1999` (1921-1999, overlapping the map's 1961-1999 span for
+# area 15) out while keeping `AFG-1800-1893` in.
+#
+# The comparison is deliberately mixed-convention: `polity_end_year` is EXCLUSIVE
+# so a period covers `start:(end - 1)`, while the map's `map_year_end` is
+# INCLUSIVE. Treating them alike would drop a period that merely abuts a span.
+#
+# AND NOT FOR A STATISTICAL COMPOSITE. Where every polity the map names for an
+# area is typed `aggregate`, the area is a composite reporting unit rather than a
+# territory -- FAOSTAT area 15 Belgium-Luxembourg and area 151 Netherlands
+# Antilles are the two -- and the constituent history that shares its prefix is
+# not the same territory. Inferring a period outside its mapped span would let a
+# 2023 area-151 figure land on `ANT-1816-1960`, a colonial entity that ended 63
+# years earlier. `.add_polity_columns_dt()` already refuses to extend aggregate
+# reporting areas; this keeps the crosswalk from handing it a way around that.
+composite_areas <- faostat_area_map |>
+  dplyr::left_join(
+    live_polity_attrs |> dplyr::select("polity_code", "polity_type"),
+    by = "polity_code"
+  ) |>
+  dplyr::summarise(
+    all_aggregate = all(.data$polity_type == "aggregate"),
+    .by = "area_code"
+  ) |>
+  dplyr::filter(.data$all_aggregate) |>
+  dplyr::pull(.data$area_code)
+
+prefix_candidates <- reporting_areas |>
+  dplyr::filter(
+    .data$area_in_map,
+    is.na(.data$fabio_row_prefix),
+    !.data$area_code %in% composite_areas
+  ) |>
+  dplyr::left_join(
+    canonical_polity_attrs,
+    by = c("mapping_prefix" = "polity_prefix"),
+    relationship = "many-to-many"
+  ) |>
+  dplyr::filter(!is.na(.data$polity_code))
+
+# Subsumes the codes the map itself names for the area: a mapped period always
+# overlaps its own span, every map span having been checked to lie inside its
+# polity's validity.
+shadowed_by_map <- prefix_candidates |>
+  dplyr::distinct(
+    .data$area_code,
+    .data$polity_code,
+    .data$polity_start_year,
+    .data$polity_end_year
+  ) |>
+  dplyr::inner_join(
+    faostat_area_map |>
+      dplyr::select("area_code", "map_year_start", "map_year_end"),
+    by = "area_code",
+    relationship = "many-to-many"
+  ) |>
+  dplyr::filter(
+    .data$polity_start_year <= .data$map_year_end,
+    .data$polity_end_year - 1L >= .data$map_year_start
+  ) |>
+  dplyr::distinct(.data$area_code, .data$polity_code)
+
+outside_map_areas <- prefix_candidates |>
+  dplyr::anti_join(shadowed_by_map, by = c("area_code", "polity_code")) |>
+  dplyr::mutate(mapping_source = "prefix_outside_map")
+
+polity_area_crosswalk <- dplyr::bind_rows(
+  mapped_areas,
+  prefix_areas,
+  outside_map_areas
+) |>
   dplyr::mutate(
     polity_area_code = dplyr::if_else(
       !is.na(.data$fabio_code),
       .data$fabio_code,
       .data$area_code
     ),
+    # A curatorial decision stays labelled as one whether upstream made it (a
+    # `manual-*` route in the published map) or this package did.
+    decided_by_hand = !is.na(.data$manual_polity_prefix) |
+      (!is.na(.data$map_match_route) &
+        startsWith(.data$map_match_route, "manual")),
     mapping_status = dplyr::case_when(
-      !is.na(.data$manual_polity_prefix) & !is.na(.data$polity_code) ~ "manual",
+      .data$decided_by_hand & !is.na(.data$polity_code) ~ "manual",
       !is.na(.data$polity_code) ~ "matched",
       is.na(.data$area_code) ~ "not_a_reporting_area",
       TRUE ~ "unmapped"
@@ -201,6 +445,11 @@ polity_area_crosswalk <- regions_for_crosswalk |>
           999L ~ "FABIO collapses this source area into the Rest of World reporting polity.",
       .data$mapping_status ==
         "unmapped" ~ "No real WHEP polity is available yet; treat this as a statistical reporting area without a polygon.",
+      .data$mapping_status == "manual" ~ paste0(
+        "Upstream FAOSTAT area map decided this period by hand, route ",
+        .data$map_match_route,
+        "."
+      ),
       TRUE ~ NA_character_
     )
   ) |>
@@ -225,10 +474,60 @@ polity_area_crosswalk <- regions_for_crosswalk |>
     wiki_status,
     polygon_status,
     has_geometry,
+    mapping_source,
+    map_year_start,
+    map_year_end,
+    map_match_route,
     mapping_status,
     mapping_note
   ) |>
   dplyr::arrange(.data$area_code, .data$polity_start_year, .data$polity_code)
+
+# THE FALLBACK FIRING IS A FINDING, NOT A DETAIL. Every area named here is one
+# upstream has not mapped, so it is resolved by inference; the list should only
+# ever shrink, and test_polity_faostat_map.R pins it so it cannot grow unnoticed.
+fallback_areas <- polity_area_crosswalk |>
+  dplyr::filter(
+    .data$mapping_source == "prefix_fallback",
+    !is.na(.data$area_code)
+  ) |>
+  dplyr::distinct(.data$area_code) |>
+  dplyr::pull(.data$area_code) |>
+  sort()
+if (length(fallback_areas) > 0L) {
+  cli::cli_inform(c(
+    "!" = "{length(fallback_areas)} reporting area codes are absent from the
+           upstream FAOSTAT map and fell back to prefix matching.",
+    "i" = "Areas: {.val {fallback_areas}}."
+  ))
+}
+
+shadowed_areas <- polity_area_crosswalk |>
+  dplyr::filter(
+    .data$mapping_source == "fabio_row_fold",
+    .data$area_code %in% faostat_area_map$area_code
+  ) |>
+  dplyr::distinct(.data$area_code) |>
+  dplyr::pull(.data$area_code) |>
+  sort()
+if (length(shadowed_areas) > 0L) {
+  cli::cli_inform(c(
+    "!" = "{length(shadowed_areas)} reporting area codes are named by the
+           upstream FAOSTAT map but kept on the FABIO Rest-of-World fold.",
+    "i" = "Areas: {.val {shadowed_areas}}.",
+    "i" = "Lifting the fold is tracked separately and is out of scope here."
+  ))
+}
+
+source_counts <- table(polity_area_crosswalk$mapping_source)
+cli::cli_inform(c(
+  "Built {nrow(polity_area_crosswalk)} crosswalk rows from
+   {nrow(faostat_area_map)} upstream map rows covering
+   {dplyr::n_distinct(faostat_area_map$area_code)} areas.",
+  "i" = "Rows by mapping source:
+         {paste0(names(source_counts), ' ', as.integer(source_counts),
+         collapse = ', ')}."
+))
 
 usethis::use_data(items_cbs, overwrite = TRUE)
 usethis::use_data(items_prod, overwrite = TRUE)
