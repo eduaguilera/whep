@@ -625,7 +625,10 @@ test_that(".resolve_hist_trade_polities keys on the reported year, not today", {
   expect_equal(
     resolved$polity_code,
     c(
-      "IND-1800-1893",
+      # IND-1800-1893 is `superseded` upstream, replaced by the finer IND-1800-1886 /
+      # IND-1886-1893 split. It was returned here until the FAOSTAT area map became the
+      # resolution authority (#517); pinning a superseded polity was the bug, not the fix.
+      "IND-1800-1886",
       "IND-1914-1937",
       "IND-1949-2025",
       "GBR-1800-1921",
