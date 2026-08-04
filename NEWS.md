@@ -1,5 +1,23 @@
 # whep (development version)
 
+* **Crop-residue feed-use fractions are live again.** The
+  `residue_feed_fraction` coefficient table's region column was named
+  `region_hanpp` but held UN M49 sub-regions, and
+  `calculate_residue_destinies(method = "krausmann_regional")` joined it against
+  a `region_hanpp` column the pipeline filled from `regions_full$region_HANPP`.
+  The two vocabularies share no label, so the join matched nothing and every
+  polity silently took the `"Global"` default of `0.20` — a table spanning
+  `0.05` to `0.45`, dead in full. The column is renamed to `region_un_sub`
+  (values unchanged, apart from `South-Eastern Asia` -> `South-eastern Asia` to
+  match `regions_full`), and the method now requires a `region_un_sub` input
+  instead of `region_hanpp`; 230 of 261 areas receive a region-specific
+  fraction, the rest (Micronesia, Polynesia, RoW and areas with no M49
+  sub-region) keep the `0.20` fallback. This **moves published values**:
+  `residue_feed_dm_t` and `residue_burn_dm_t` change, and with them
+  `build_residue_feed_avail()` and the nitrogen balance's `used_residue_n_t` /
+  `burnt_residue_n_t`. `residue_soil_dm_t` and their sum do not change (neither
+  depends on `feed_use_fraction`), so `build_soil_carbon_inputs()`'s residue
+  carbon is unaffected.
 * Every area-keyed exported output now carries the **reporting-polity columns**
   (`polity_area_code`, `reporting_polity_code`, `reporting_polity_name`,
   `reporting_polity_has_geometry`), so a caller can tell which territory a row
