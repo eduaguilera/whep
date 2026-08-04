@@ -43,7 +43,12 @@
 #' @return A tibble with columns `lon`, `lat`, `area_code`, `year`, `land_use`,
 #'   `fraction` and `area_ha` at `"grid"` resolution; at `"polity"` resolution
 #'   `lon` and `lat` are dropped and `area_ha` is summed per
-#'   `(area_code, year, land_use)`.
+#'   `(area_code, year, land_use)`. Both resolutions carry the polity columns
+#'   below, resolved from the `area_code` the cell grid assigns and the row's
+#'   `year`; the cell-to-area assignment itself is the static present-day grid,
+#'   which is what LUH2 has, so a pre-modern year is the present-day cell's area
+#'   read at that year.
+#' @inheritSection whep_polity_columns Polity columns
 #' @source LUH2 v2h, Hurtt, G. C. et al. (2020). Harmonization of global land
 #'   use change and management for the period 850-2100 (LUH2) for CMIP6.
 #'   Geoscientific Model Development 13, 5425-5464. \doi{10.5194/gmd-13-5425-2020}.
@@ -71,7 +76,8 @@ read_luh2_landuse <- function(
     .luh2_map_classes() |>
     dplyr::mutate(area_ha = .data$fraction * .luh2_cell_area_ha(.data$lat))
 
-  .luh2_to_polity(grid, country_grid, resolution)
+  .luh2_to_polity(grid, country_grid, resolution) |>
+    .add_reporting_polity_columns()
 }
 
 # Aggregate the 12 LUH2 states into the four lowercase carbon-balance classes,

@@ -129,7 +129,9 @@
 #'   `"total_residue"` when only gross residue N was available; it is `NA` for
 #'   every other `fert_type`. `method_synthetic` records the synthetic
 #'   crop-split basis (`"coello"` or `"area_share"`) on `"synthetic"` rows and
-#'   is `NA` for every other `fert_type`.
+#'   is `NA` for every other `fert_type`. Both grains also carry the polity
+#'   columns below.
+#' @inheritSection whep_polity_columns Polity columns
 #' @export
 #' @examples
 #' build_n_inputs(example = TRUE)
@@ -166,7 +168,8 @@ build_n_inputs <- function(
     .ni_allocate_unattributed(data) |>
     .ni_filter_years(years) |>
     .ni_validate_resolution(resolution) |>
-    .ni_resolve(resolution)
+    .ni_resolve(resolution) |>
+    .add_reporting_polity_columns()
 }
 
 # ---- Private helpers: schema + resolution ------------------------------
@@ -567,11 +570,11 @@ build_n_inputs <- function(
     dplyr::transmute(
       lon = .data$lon,
       lat = .data$lat,
-      # build_urban_n() stringifies area_code internally (its manure-
-      # transport reuse needs a character territory key). Resolve either its
-      # normal numeric-string code or an ISO3 fixture/input through the same
-      # checked resolver as the manure path; never turn an ISO3 into silent NA.
-      area_code = .manure_territory_to_area_code(.data$area_code),
+      # build_urban_n() resolves its own territory key (a stringified
+      # area_code, or an ISO3) back to a numeric area_code, through the same
+      # checked resolver as the manure path, so nothing is left to resolve
+      # here and an ISO3 never becomes a silent NA.
+      area_code = .data$area_code,
       item_cbs_code = NA_integer_,
       year = .data$year,
       fert_type = "urban",
@@ -889,5 +892,6 @@ build_n_inputs <- function(
         "coello",
         NA_character_
       )
-    )
+    ) |>
+    .add_reporting_polity_columns()
 }

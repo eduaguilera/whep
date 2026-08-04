@@ -51,7 +51,7 @@ data. Defaults to \code{FALSE}.}
 A tibble keyed by \verb{(lon, lat, area_code, year, land_use)} at \code{"grid"}
 resolution (or \verb{(area_code, year, land_use)} at \code{"polity"}), with
 \code{c_input_mgc_ha_yr}, \code{humified_fraction} and \code{method_c_input}, for
-\code{land_use} in \code{"grassland"} and \code{"natural"}.
+\code{land_use} in \code{"grassland"} and \code{"natural"}, plus the polity columns below.
 }
 \description{
 Assemble the carbon returned to soil under grassland and natural vegetation
@@ -75,6 +75,33 @@ the polity's grassland area. The humification fraction is the
 spontaneous-grass value for grassland and the woody-residue value for
 natural land (both from \link{residue_humification}).
 }
+\section{Polity columns}{
+
+Every area-keyed output carries the polity its \code{area_code} resolves to in
+that row's year:
+\itemize{
+\item \code{polity_area_code}: The numeric key rows are AGGREGATED on, for the matrix
+workflows. It is a bucket, not an identity: use \code{reporting_polity_code} to
+say which territory a row belongs to.
+\item \code{reporting_polity_code}: The polity itself, e.g. \code{ESP-1846-1914}. It is
+year-aware, so the same \code{area_code} resolves to different polities in
+different years, which is the point of the crosswalk.
+\item \code{reporting_polity_name}: Its name. It can differ from the area's own name
+where the area folds into an aggregate.
+\item \code{reporting_polity_has_geometry}: Whether the polity has a polygon in the
+WHEP polity database, for callers that need to map or intersect it. \code{FALSE}
+is a documented gap upstream, not an error.
+}
+
+Rows whose \code{area_code} resolves to no polity keep the columns with \code{NA}
+rather than being dropped, so a gap is visible instead of silent.
+
+Rows before the back-cast anchor year resolve to the polity live in that
+anchor year rather than to the polity live in the row's own year, because
+WHEP's pre-anchor series are back-cast onto the anchor-year territory. See
+\code{\link[=add_polity_code]{add_polity_code()}} for the reasoning.
+}
+
 \examples{
 build_grass_natural_carbon_inputs(example = TRUE)
 }

@@ -48,7 +48,9 @@
 #' @param example If `TRUE`, return a small fixture instead of computing.
 #'   Defaults to `FALSE`.
 #' @return A tibble keyed by `year`, `area_code` with `protein_g_cap_day`,
-#'   `energy_kcal_cap_day`, `population` and `method_food_supply`.
+#'   `energy_kcal_cap_day`, `population` and `method_food_supply`, plus the
+#'   polity columns below.
+#' @inheritSection whep_polity_columns Polity columns
 #' @export
 #' @examples
 #' build_food_supply(example = TRUE)
@@ -66,7 +68,8 @@ build_food_supply <- function(
   } else {
     .food_supply_whep_native(data)
   }
-  dplyr::mutate(out, method_food_supply = method)
+  dplyr::mutate(out, method_food_supply = method) |>
+    .add_reporting_polity_columns()
 }
 
 # ---- Private helpers -------------------------------------------------------

@@ -349,7 +349,24 @@ add_polity_code <- function(
     out,
     c(intersect(leading_cols, names(out)), setdiff(names(out), leading_cols))
   )
-  tibble::as_tibble(out)
+  out <- tibble::as_tibble(out)
+  # data.table's over-allocation pointer survives the tibble conversion, which
+  # makes an otherwise unchanged output compare unequal to a plain tibble and
+  # can trigger data.table's shallow-copy warning downstream.
+  attr(out, ".internal.selfref") <- NULL
+  out
+}
+
+# Attach the reporting-polity columns only to a frame that still carries the
+# area key. A few outputs have no `area_code` to resolve a polity from -- the
+# IMAGE-region aggregate is keyed by region, and `calculate_n_surplus()` accepts
+# any balance the caller hands it -- and aborting there would be a regression
+# rather than a caught error.
+.add_polity_columns_if_keyed <- function(table, code_column = "area_code") {
+  if (!rlang::has_name(table, code_column)) {
+    return(table)
+  }
+  .add_reporting_polity_columns(table, code_column = code_column)
 }
 
 .add_partner_polity_columns <- function(

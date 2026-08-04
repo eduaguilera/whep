@@ -106,8 +106,11 @@ testthat::test_that("build_urban_n splits a border cell by polity_frac", {
 
   generated_n_t <- 1000 * 0.9410902351391244 / 1000
   testthat::expect_equal(sum(out$urban_n_t), generated_n_t, tolerance = 1e-9)
+  # The ISO3 the fixture keys cells by is resolved to the numeric WHEP area
+  # code on the way out (203 Spain, 68 France), because the output now carries
+  # the reporting polity that code resolves to.
   testthat::expect_equal(
-    out$urban_n_t[match(c("ESP", "FRA"), out$area_code)],
+    out$urban_n_t[match(c(203L, 68L), out$area_code)],
     generated_n_t * c(0.7, 0.3),
     tolerance = 1e-9
   )

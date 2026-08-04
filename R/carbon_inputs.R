@@ -45,7 +45,9 @@
 #' @return A tibble keyed by `(lon, lat, area_code, year, land_use)` at `"grid"`
 #'   resolution (or `(area_code, year, land_use)` at `"polity"`), with
 #'   `c_input_mgc_ha_yr`, `humified_fraction` and `method_c_input`, for
-#'   `land_use` in `"cropland"`, `"grassland"` and `"natural"`.
+#'   `land_use` in `"cropland"`, `"grassland"` and `"natural"`, plus the polity
+#'   columns below.
+#' @inheritSection whep_polity_columns Polity columns
 #' @source Cropland inputs from [build_soil_carbon_inputs()]; grassland and
 #'   natural inputs from [build_grass_natural_carbon_inputs()]; assembled per
 #'   the WHEP historical carbon-balance design.
@@ -65,7 +67,8 @@ build_carbon_inputs <- function(
   d <- .ci_resolve_inputs(data, years)
   cropland <- .ci_cropland_class(d$cropland, d$crop_area)
   dplyr::bind_rows(cropland, d$grass_natural) |>
-    .ci_finalise(resolution, data$land_use)
+    .ci_finalise(resolution, data$land_use) |>
+    .add_reporting_polity_columns()
 }
 
 # -- Input resolution ---------------------------------------------------------
