@@ -768,19 +768,24 @@ build_processing_coefs <- function(
   ]
   cbs_trade <- data.table::as.data.table(whep::cbs_trade_codes)
 
+  # The exports pin holds reporter exports and the imports pin holds reporter
+  # imports, so label each directly. An earlier version mirrored the flows,
+  # which reversed the direction. Verified against the 1961 FAOSTAT overlap:
+  # on the exports pin USA wheat is ~19.2 Mt (a known 17-19 Mt exporter) vs
+  # ~0.2 Mt on the imports pin, and Egypt (an importer) is ~0.4 vs ~661.
   exports <- .read_input(
     "historical-trade-exports",
     years = years,
     year_col = "year"
   )
-  exports[, element := "import"]
+  exports[, element := "export"]
 
   imports <- .read_input(
     "historical-trade-imports",
     years = years,
     year_col = "year"
   )
-  imports[, element := "export"]
+  imports[, element := "import"]
 
   dt <- data.table::rbindlist(
     list(exports, imports),
@@ -1583,8 +1588,12 @@ build_processing_coefs <- function(
   trade <- traded_res
   trade[, source := "FAOSTAT_trade"]
 
+  # Historical (pre-1961) trade evidence. FAOSTAT trade begins in 1961, so this
+  # is the only import/export source feeding the pre-1961 extension.
+  trade_hist <- .prepare_trade_hist_source(inputs$trade_hist)
+
   dt <- data.table::rbindlist(
-    list(fbs_new, fbs_old, cbs, primary, trade),
+    list(fbs_new, fbs_old, cbs, primary, trade, trade_hist),
     use.names = TRUE,
     fill = TRUE
   )
@@ -1603,6 +1612,20 @@ build_processing_coefs <- function(
   dt_pp[, element := "processing_primary"]
 
   data.table::rbindlist(list(dt, dt_pp), use.names = TRUE, fill = TRUE)
+}
+
+# Label historical trade with its source and restrict it to the pre-1961
+# extension window, where FAOSTAT trade does not reach. The polity resolution
+# itself already happened in .read_historical_trade(), which keys these rows to
+# the polity active in their own reported year.
+.prepare_trade_hist_source <- function(trade_hist) {
+  if (is.null(trade_hist) || nrow(trade_hist) == 0L) {
+    return(data.table::data.table())
+  }
+  dt <- data.table::as.data.table(trade_hist)
+  dt <- dt[year < 1961L]
+  data.table::set(dt, j = "source", value = "trade_hist")
+  dt
 }
 
 .select_best_source <- function(cbs_raw_all) {

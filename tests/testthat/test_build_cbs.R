@@ -513,6 +513,129 @@ test_that(".cbs_extend_historical preserves observed historical sources", {
 })
 
 
+# -- historical trade wiring (issue #141) -------------------------------------
+
+.empty_cbs_component <- function() {
+  # Internal CBS helpers receive data.tables in production; mirror that here.
+  data.table::data.table(
+    year = integer(),
+    area = character(),
+    area_code = integer(),
+    item_cbs = character(),
+    item_cbs_code = integer(),
+    element = character(),
+    value = numeric(),
+    unit = character()
+  )
+}
+
+.make_trade_hist_inputs <- function(with_trade_hist = TRUE) {
+  primary_cbs <- data.table::data.table(
+    year = 1950L,
+    area = "Spain",
+    area_code = 203L,
+    item_cbs = "Wheat and products",
+    item_cbs_code = 2511L,
+    element = "production",
+    value = 5000,
+    unit = "tonnes"
+  )
+  trade_hist <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~value,
+    ~unit,
+    1950L, "Spain", 203L, "Wheat and products", 2511L, "import", 700,
+    "tonnes",
+    1950L, "Spain", 203L, "Wheat and products", 2511L, "export", 200,
+    "tonnes"
+  ) |>
+    data.table::as.data.table()
+  list(
+    fbs_new = .empty_cbs_component(),
+    fbs_old = .empty_cbs_component(),
+    cbs_animals = .empty_cbs_component(),
+    cbs_crops = .empty_cbs_component(),
+    primary_cbs = primary_cbs,
+    crop_residues = .empty_cbs_component(),
+    trade_hist = if (with_trade_hist) trade_hist else NULL
+  )
+}
+
+test_that(".assemble_cbs_sources binds historical trade under its source", {
+  inputs <- .make_trade_hist_inputs()
+  empty <- .empty_cbs_component()
+
+  result <- whep:::.assemble_cbs_sources(
+    inputs,
+    empty,
+    empty,
+    empty,
+    whep::items_full
+  )
+
+  hist_rows <- result |>
+    dplyr::filter(.data$source == "trade_hist")
+  expect_equal(nrow(hist_rows), 2L)
+  expect_setequal(hist_rows$element, c("import", "export"))
+  expect_equal(
+    hist_rows |> dplyr::filter(element == "import") |> dplyr::pull(value),
+    700
+  )
+})
+
+test_that("historical trade reaches pre-1961 CBS import/domestic supply", {
+  ext_inputs <- list(
+    primary_cbs_area = tibble::tibble(
+      year = 1950L,
+      area = "Spain",
+      area_code = 203L,
+      item_cbs = "Wheat and products",
+      item_cbs_code = 2511L,
+      area_ha = 1
+    ),
+    gdp_pop = tibble::tibble(year = 1950L, area = "Spain", pop = 10),
+    land_areas_wide = tibble::tibble(
+      year = 1950L,
+      area = "Spain",
+      Cropland = 1,
+      Pasture = 0,
+      agriland = 1
+    )
+  )
+  empty <- .empty_cbs_component()
+
+  run_extension <- function(with_trade_hist) {
+    inputs <- .make_trade_hist_inputs(with_trade_hist)
+    whep:::.assemble_cbs_sources(
+      inputs,
+      empty,
+      empty,
+      empty,
+      whep::items_full
+    ) |>
+      whep:::.select_best_source() |>
+      tibble::as_tibble() |>
+      whep:::.cbs_extend_historical(ext_inputs, 1950L)
+  }
+
+  value_1950 <- function(ext, el) {
+    ext |>
+      dplyr::filter(.data$year == 1950L, .data$element == el) |>
+      dplyr::pull(value)
+  }
+
+  with_hist <- run_extension(TRUE)
+  expect_equal(value_1950(with_hist, "import"), 700)
+  expect_equal(value_1950(with_hist, "export"), 200)
+  # Domestic supply is production plus imports minus exports: 5000 + 700 - 200.
+  expect_equal(value_1950(with_hist, "domestic_supply"), 5500)
+
+  # Without historical trade, pre-1961 has no import/export evidence at all.
+  without_hist <- run_extension(FALSE)
+  expect_length(value_1950(without_hist, "import"), 0L)
+  expect_length(value_1950(without_hist, "domestic_supply"), 0L)
+})
+
+
 # -- .format_cbs_output -------------------------------------------------------
 
 test_that(".format_cbs_output returns long format with source column", {
