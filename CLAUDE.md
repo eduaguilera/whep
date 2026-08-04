@@ -248,6 +248,20 @@ comm -23 \
   reads its land surfaces the same way (`WHEP_TYPE_CROPLAND_PATH`,
   `WHEP_CROP_PATTERNS_PATH`, `WHEP_GRIDDED_PASTURE_PATH`,
   `WHEP_POLITY_FRACTION_PATH`).
+- **LPJmL outputs are the one input a user cannot obtain**, so unlike
+  the third-party rasters above they are **pinned, and
+  `WHEP_LPJML_RUN_DIR` is optional**.
+  [`build_grass_natural_carbon_inputs()`](https://eduaguilera.github.io/whep/reference/build_grass_natural_carbon_inputs.md)
+  reads `lpjml-grass-natural-net-c` and
+  [`get_soc_climate_drivers()`](https://eduaguilera.github.io/whep/reference/get_soc_climate_drivers.md)
+  reads `lpjml-soc-hydrology` by default; set the env var (or pass
+  `run_dir`) only to derive those layers from a local run instead. Both
+  artifacts hold **only** LPJmL-derived quantities — grazing excreta,
+  humification fractions, CRU air temperature and the HWSD texture
+  products are always computed locally, so the pinned and run-derived
+  paths cannot silently disagree. Regenerate and re-upload them from a
+  new run with `upload_whep_lpjml_soc_artifacts()` in the
+  `~/whep_inputs` project.
 
 ## Package data updates
 

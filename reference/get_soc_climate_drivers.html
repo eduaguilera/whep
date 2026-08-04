@@ -113,8 +113,12 @@ the cell porosity). Clay content is a soil-texture covariate supplied via
 
 
 <dl><dt id="arg-run-dir">run_dir<a class="anchor" aria-label="anchor" href="#arg-run-dir"></a></dt>
-<dd><p>Path to the LPJmL run output directory. Defaults to
-<code>Sys.getenv("WHEP_LPJML_RUN_DIR")</code> via <code><a href="read_lpjml_hydrology.html">read_lpjml_hydrology()</a></code>.</p></dd>
+<dd><p>Path to the LPJmL run output directory. <code>NULL</code> (default) uses
+<code>WHEP_LPJML_RUN_DIR</code> when set, and the pinned <code>lpjml-soc-hydrology</code>
+artifact otherwise, so running LPJmL is not a prerequisite. That artifact
+holds only the three LPJmL monthly drivers (topsoil saturation,
+precipitation, irrigation); air temperature still comes from CRU and the
+texture products from HWSD, both downloadable, so neither is pinned.</p></dd>
 
 
 <dt id="arg-years">years<a class="anchor" aria-label="anchor" href="#arg-years"></a></dt>

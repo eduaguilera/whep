@@ -40,9 +40,13 @@ get_soc_climate_drivers(
 
 - run_dir:
 
-  Path to the LPJmL run output directory. Defaults to
-  `Sys.getenv("WHEP_LPJML_RUN_DIR")` via
-  [`read_lpjml_hydrology()`](https://eduaguilera.github.io/whep/reference/read_lpjml_hydrology.md).
+  Path to the LPJmL run output directory. `NULL` (default) uses
+  `WHEP_LPJML_RUN_DIR` when set, and the pinned `lpjml-soc-hydrology`
+  artifact otherwise, so running LPJmL is not a prerequisite. That
+  artifact holds only the three LPJmL monthly drivers (topsoil
+  saturation, precipitation, irrigation); air temperature still comes
+  from CRU and the texture products from HWSD, both downloadable, so
+  neither is pinned.
 
 - years:
 

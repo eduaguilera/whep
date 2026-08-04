@@ -1,9 +1,16 @@
 # Build grassland and natural-land soil carbon inputs from LPJmL.
 
 Assemble the carbon returned to soil under grassland and natural
-vegetation as the layer the soil-organic-carbon turnover models consume,
-from a finished LPJmL run. The class carbon input is the net primary
-production minus harvested carbon (both per-plant-functional-type,
+vegetation as the layer the soil-organic-carbon turnover models consume.
+The LPJmL-derived net carbon density is read from the pinned
+`lpjml-grass-natural-net-c` artifact by default, so running LPJmL is not
+a prerequisite; pass `run_dir` (or set `WHEP_LPJML_RUN_DIR`) to derive
+it from a finished local run instead, or `data$net_c` to supply it
+directly. The pin holds only LPJmL-derived quantities: the grazing
+excreta, both humification fractions and the polity attachment are
+always computed here, so they never differ between the pinned and the
+run-derived path. The class carbon input is the net primary production
+minus harvested carbon (both per-plant-functional-type,
 [`read_lpjml_npp()`](https://eduaguilera.github.io/whep/reference/read_lpjml_npp.md)),
 floored at zero and converted to megagrams of carbon per hectare per
 year (1 gC/m2 = 0.01 MgC/ha). Natural land sums the eleven natural
@@ -23,6 +30,7 @@ build_grass_natural_carbon_inputs(
   resolution = c("grid", "polity"),
   data = list(),
   years = NULL,
+  run_dir = NULL,
   example = FALSE
 )
 ```
@@ -42,11 +50,15 @@ natural carbon inputs per the WHEP historical carbon-balance design.
 - data:
 
   Named list of pre-loaded inputs, each falling back to its reader when
-  absent: `npp` and `harvestc` (per cell, PFT and year, the
+  absent: `net_c` (the LPJmL net carbon density, `lon`, `lat`, `year`,
+  `land_use`, `npp_c_mgc_ha_yr`; takes precedence over both `run_dir`
+  and the pin); `npp` and `harvestc` (per cell, PFT and year, the
   [`read_lpjml_npp()`](https://eduaguilera.github.io/whep/reference/read_lpjml_npp.md)
   output); `stand_frac` (per cell, year and PFT name the
   managed-grassland stand fractions with columns `lon`, `lat`, `year`,
-  `name_pft`, `stand_frac`); `country_grid` (`lon`, `lat`, `area_code`,
+  `name_pft`, `stand_frac`). Supplying all three of `npp`, `harvestc`
+  and `stand_frac` derives `net_c` without needing a run directory or
+  the pin. Also: `country_grid` (`lon`, `lat`, `area_code`,
   `cell_area_frac`); `land_use` (per-cell class `area_ha`, used to
   spread excreta and to area-weight polity output); `excreta` (the
   `applied` tibble of
@@ -61,6 +73,13 @@ natural carbon inputs per the WHEP historical carbon-balance design.
   keeps every year the inputs cover. Threaded into the default LPJmL
   NPP, stand-fraction and land-use readers so they slice to the
   requested years; ignored for inputs supplied via `data`.
+
+- run_dir:
+
+  Path to a finished LPJmL run output directory holding `pft_npp.nc`,
+  `pft_harvestc.nc` and `cftfrac.nc` (the `scenario_*` output folder).
+  `NULL` (default) uses `WHEP_LPJML_RUN_DIR` when set, and the pinned
+  artifact otherwise.
 
 - example:
 
