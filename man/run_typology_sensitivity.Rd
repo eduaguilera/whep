@@ -35,7 +35,7 @@ same typology as the baseline classification.
 # `baseline` carries the indicator columns the thresholds act on plus the
 # unperturbed `Typology_base` each perturbation is compared against. Two
 # provinces show the output shape; the real analysis runs over 50 provinces
-# and 1860-2021.
+# and 1860-2023.
 baseline <- tibble::tribble(
   ~year,
   ~province_name,

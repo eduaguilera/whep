@@ -67,6 +67,38 @@
 #' head(smil_2001_synthetic_n_global)
 "smil_2001_synthetic_n_global"
 
+#' Coello (2025) crop-specific synthetic nitrogen application rates
+#'
+#' @description
+#' Corrected average synthetic-nitrogen application rates
+#' (kg N ha\eqn{^{-1}}) by calendar year, FAOSTAT area and CBS crop item,
+#' derived from Coello et al. (2025). Coello's 13 crop groups are
+#' crosswalked to FAOSTAT CBS items via `inst/extdata/coello_mapping.csv`
+#' and [items_prod_full]; native years 1961-2019 are carried forward to
+#' 2023 with [fill_linear]. Used by the package synthetic-fertiliser path
+#' (`method = "coello"`) to differentiate the FAOSTAT national synthetic-N
+#' total across crops while conserving that national total. Rates are the
+#' source values clamped to non-negative; implausible outliers above
+#' 1000 kg N/ha (Coello model-extrapolation artifacts in a few small areas)
+#' are treated as missing, so those crop-area-years follow the missing-rate
+#' fallback (temporal fill where available, else the area-share weight) rather
+#' than skewing the split. The downstream rate-weighted share normalises
+#' within each country-year, so the national total is conserved regardless.
+#'
+#' @format A tibble with one row per year-area-crop:
+#' - `year`: Integer calendar year (1961-2023).
+#' - `area_code`: Integer FAOSTAT area code.
+#' - `item_cbs_code`: Integer CBS crop item code.
+#' - `kg_n_ha`: Synthetic-N application rate (kg N ha\eqn{^{-1}}).
+#'
+#' @source Coello, D. et al. (2025) A global gridded crop-specific
+#'   fertilization dataset from 1961 to 2019. *Scientific Data* 12:40.
+#'   \doi{10.1038/s41597-024-04215-x}
+#'
+#' @examples
+#' head(coello_synthetic_n)
+"coello_synthetic_n"
+
 #' Synthetic nitrogen application rates by crop and country
 #'
 #' @description

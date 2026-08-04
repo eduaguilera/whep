@@ -266,6 +266,99 @@ fill_linear <- function(
   }
 }
 
+#' Interpolate anchor points at arbitrary output positions.
+#'
+#' @description
+#' Vector-level interpolation primitive: anchor positions and values in, one
+#' interpolated value per requested output position out. With
+#' `log_space = TRUE` an output point is filled in log space (constant compound
+#' growth rate) whenever both of its bracketing anchors are finite and strictly
+#' positive; every other point falls back to ordinary linear interpolation.
+#'
+#' This is the same rule, and the same internal implementation, that
+#' [fill_linear()] applies with `log_space = TRUE`. `fill_linear()` is a
+#' data-frame gap filler that needs the target rows to already exist;
+#' `interp_vec()` is for callers that hold plain vectors and need values at
+#' positions with no pre-existing row, or that call the primitive once per gap
+#' segment inside their own guard logic.
+#'
+#' @param x Numeric vector of anchor positions, for example years. It does not
+#'   need to be sorted.
+#' @param y Numeric vector of anchor values, the same length as `x`.
+#' @param xout Numeric vector of positions to interpolate at. It does not need
+#'   to be sorted; results follow the order of `xout`.
+#' @param log_space Logical. If `TRUE`, each output point bracketed by two
+#'   finite and strictly positive anchors is interpolated in log space
+#'   (constant compound growth rate); any other point falls back to linear
+#'   interpolation. Default: `FALSE`, i.e. linear interpolation everywhere.
+#' @param rule Either `1` or `2`, passed to [stats::approx()] to handle output
+#'   positions outside the anchor range. `1` (default) returns `NA` there, `2`
+#'   carries the nearest anchor value. Log space never applies outside the
+#'   anchor range.
+#'
+#' @return A list of two vectors, each as long as `xout`:
+#'   * `y`: the interpolated values.
+#'   * `method`: `"loglinear"` where the value came from log space, `"linear"`
+#'     where it came from linear interpolation, and `NA_character_` where no
+#'     value could be produced.
+#'
+#' @details
+#' Anchors with a non-finite position or a missing value are dropped, and
+#' anchors sharing a position are averaged, so that the linear and log-space
+#' paths always see the same anchor set. Anchors whose value is infinite are
+#' kept, but a segment bounded by one is never eligible for log space. If fewer
+#' than two usable anchors remain there is nothing to interpolate between, and
+#' every element of `y` and `method` is `NA`.
+#'
+#' An output position that coincides with an anchor position returns that
+#' anchor's value unchanged, labelled `"linear"`, because nothing needed
+#' interpolating there. In particular log space never rebuilds an anchor value
+#' it was handed, which would perturb it in the last bits.
+#'
+#' @export
+#'
+#' @examples
+#' # Constant compound growth: the 2005 midpoint of 1 and 1024 is 32, whereas
+#' # linear interpolation returns the arithmetic midpoint 512.5.
+#' interp_vec(c(2000, 2010), c(1, 1024), xout = 2005, log_space = TRUE)
+#' interp_vec(c(2000, 2010), c(1, 1024), xout = 2005)
+#'
+#' # A non-positive anchor makes log space undefined, so the point stays linear.
+#' interp_vec(c(2000, 2010), c(0, 10), xout = 2005, log_space = TRUE)
+#'
+#' # Several output positions at once, from an unsorted anchor set. With
+#' # `rule = 2` the position beyond the last anchor carries that anchor value.
+#' interp_vec(
+#'   x = c(2010, 2000, 2005),
+#'   y = c(400, 100, 200),
+#'   xout = c(2002, 2007, 2015),
+#'   log_space = TRUE,
+#'   rule = 2
+#' )
+#'
+#' @seealso [fill_linear()]
+interp_vec <- function(x, y, xout, log_space = FALSE, rule = 1) {
+  .interp_vec_validate(x, y, log_space, rule)
+  xout <- as.numeric(xout)
+  anchors <- .interp_vec_anchors(x, y)
+
+  if (length(anchors$x) < 2L) {
+    return(list(
+      y = rep(NA_real_, length(xout)),
+      method = rep(NA_character_, length(xout))
+    ))
+  }
+
+  linear <- stats::approx(anchors$x, anchors$y, xout = xout, rule = rule)$y
+  method <- rep(NA_character_, length(linear))
+  method[!is.na(linear)] <- "linear"
+
+  if (!log_space) {
+    return(list(y = linear, method = method))
+  }
+  .interp_vec_apply_log(anchors, xout, linear, method)
+}
+
 # Fallback grouped path for smoothing case (rare).
 .fill_linear_by_group <- function(
   data,
@@ -528,6 +621,78 @@ fill_linear <- function(
     "Log-linear interpolation",
     "Linear interpolation"
   )
+}
+
+# Argument checks for interp_vec().
+.interp_vec_validate <- function(x, y, log_space, rule) {
+  if (length(x) != length(y)) {
+    cli::cli_abort(
+      "`x` and `y` must have the same length, not {length(x)} and {length(y)}."
+    )
+  }
+  if (!rlang::is_bool(log_space)) {
+    cli::cli_abort("`log_space` must be a single `TRUE` or `FALSE`.")
+  }
+  if (!rlang::is_scalar_integerish(rule) || !rule %in% c(1L, 2L)) {
+    cli::cli_abort("`rule` must be either 1 or 2.")
+  }
+  invisible(NULL)
+}
+
+# Usable anchors for interp_vec(): numeric, finite position, non-missing value,
+# sorted by position, with tied positions averaged. Collapsing ties here (rather
+# than leaving them to `stats::approx(ties = "mean")`) keeps the linear and the
+# log-space paths on exactly the same anchor set.
+.interp_vec_anchors <- function(x, y) {
+  x <- as.numeric(x)
+  y <- as.numeric(y)
+  keep <- is.finite(x) & !is.na(y)
+  x <- x[keep]
+  y <- y[keep]
+  ord <- order(x)
+  x <- x[ord]
+  y <- y[ord]
+  if (anyDuplicated(x) == 0L) {
+    return(list(x = x, y = y))
+  }
+  tie_id <- cumsum(c(TRUE, diff(x) != 0))
+  list(
+    x = x[!duplicated(tie_id)],
+    y = as.numeric(rowsum(y, tie_id, reorder = FALSE)) / tabulate(tie_id)
+  )
+}
+
+# Replace the linear values of interp_vec() by their log-space counterparts
+# wherever the bracketing anchors allow it. The log-space math is
+# `.loglinear_interp()`, the same helper `fill_linear(log_space = TRUE)` uses,
+# so the two entry points cannot drift apart. Output positions outside the
+# anchor range keep whatever `rule` gave them.
+#
+# Positions that coincide with an anchor keep their linear value too, which
+# `stats::approx()` returns bit-exactly. Nothing needs interpolating there, and
+# rebuilding the value as `exp(log(v0))` would perturb it in the last bits
+# (`exp(log(3)) != 3`). `fill_linear(log_space = TRUE)` never hits this because
+# `.interp_series()` only writes into positions whose value is missing.
+.interp_vec_apply_log <- function(anchors, xout, linear, method) {
+  n_anchors <- length(anchors$x)
+  lower <- findInterval(xout, anchors$x)
+  inside <- !is.na(lower) &
+    lower >= 1L &
+    lower < n_anchors &
+    !xout %in% anchors$x
+  safe_lower <- pmin(pmax(lower, 1L), n_anchors - 1L)
+  safe_lower[is.na(safe_lower)] <- 1L
+  log_value <- .loglinear_interp(
+    xout,
+    anchors$x[safe_lower],
+    anchors$x[safe_lower + 1L],
+    anchors$y[safe_lower],
+    anchors$y[safe_lower + 1L]
+  )
+  use_log <- inside & !is.na(log_value)
+  linear[use_log] <- log_value[use_log]
+  method[use_log] <- "loglinear"
+  list(y = linear, method = method)
 }
 
 #' Fill gaps summing the previous value of a variable to the value of

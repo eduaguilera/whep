@@ -1508,6 +1508,9 @@ utils::globalVariables(
     "cropland_share",
     # n_balance_inputs.R — recycling-N basis provenance stamp
     "method_recycling_n",
+    # n_balance_spatialize.R / n_balance_inputs.R — synthetic-N crop-split
+    # basis provenance stamp (Coello vs area_share, Module 1)
+    "method_synthetic",
     # check_series_jumps.R (level-2 within-series jump detector)
     ".value_now",
     ".value_prev",
@@ -1526,6 +1529,8 @@ utils::globalVariables(
     ".effective_rank",
     ".coverage_ord",
     ".quality_rank",
+    ".variant_rank",
+    ".best_variant",
     ".prev_source",
     ".next_source",
     ".prev_time",
@@ -1814,7 +1819,88 @@ utils::globalVariables(
     "system_N",
     "system_productivity",
     "agri_area_ha",
-    "n_productivity"
+    "n_productivity",
+    # sjos_n coefficient datasets (Module 0, Task 0.4)
+    "n_boundary_params",
+    "nourishment_thresholds",
+    "sjos_levels",
+    "nourish_levels",
+    # n_surplus.R (SJOS-N Module 2, Task 2.1) — surplus decomposition NSE
+    "surplus_n_t",
+    "method_surplus",
+    "surplus_kgn_ha",
+    # n_boundary_exceedance.R (SJOS-N Module 2, Task 2.2) — boundary exceedance
+    # decomposition NSE columns
+    "critical_kgn_ha",
+    "actual_kgn_ha",
+    "exceed_share",
+    "exceedance_kgn_ha",
+    "within_boundary_kgn_ha",
+    "exceedance_n_t",
+    "within_boundary_n_t",
+    "actual_n_t",
+    "metric",
+    "method_boundary",
+    "image_region",
+    # n_pathway_boundary.R (SJOS-N Module 2, Task 2.3) — pathway-mode
+    # per-medium boundary exceedance NSE columns
+    "critical_air_kgn_ha",
+    "critical_gw_kgn_ha",
+    "critical_sw_kgn_ha",
+    "critical_water_kgn_ha",
+    "actual_air_kgn_ha",
+    "actual_water_kgn_ha",
+    "nh3_air_n_t",
+    "manure_mgmt_nh3_n_t",
+    "exceed_share_air",
+    "exceed_share_water",
+    "exceedance_air_kgn_ha",
+    "exceedance_water_kgn_ha",
+    "within_air_kgn_ha",
+    "within_water_kgn_ha",
+    "exceedance_air_n_t",
+    "exceedance_water_n_t",
+    "within_air_n_t",
+    "within_water_n_t",
+    "actual_air_n_t",
+    "actual_water_n_t",
+    "binding_water_medium",
+    "binding_boundary",
+    "nh3_source",
+    # food_supply.R (SJOS-N Module 3, Task 3.1) — per-capita food supply NSE
+    "food_t",
+    "protein_frac_kgfm",
+    "energy_mj_kgfm",
+    "protein_t",
+    "energy_mj",
+    "protein_g_cap_day",
+    "energy_kcal_cap_day",
+    "population",
+    # nourishment.R (SJOS-N Module 3, Task 3.3) — normalization NSE columns
+    "value_norm",
+    "nourish",
+    "bound",
+    # food_gini.R (SJOS-N Module 3, Task 3.4) — between-country Gini + USSR
+    # disaggregation NSE columns
+    "gini",
+    "score",
+    "ussr_area_code",
+    "successor_area_code",
+    "pop_share",
+    # n_boundary_percapita.R (SJOS-N Module 3, Task 3.5) — per-capita boundary
+    # axis NSE columns
+    "n_percapita_kg",
+    "world_pop",
+    "low_pc",
+    "high_pc",
+    "boundary_norm",
+    "nourish_norm",
+    # sjos_n_class.R (SJOS-N Module 4, Task 4.1) — 2-way SJOS classification NSE
+    "boundary_side",
+    "sjos_class",
+    # n_exceedance_extension.R (SJOS-N Module 4, Task 4.2) — footprint extension
+    # category provenance stamp
+    "method_n_exceedance"
   )
 )
 

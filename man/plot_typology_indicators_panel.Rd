@@ -36,7 +36,7 @@ as mean lines per typology with interquartile ribbons.
 }
 \examples{
 # Two provinces at two dates is enough to exercise the four panels; the
-# real figure spans 50 provinces and 1860-2021.
+# real figure spans 50 provinces and 1860-2023.
 flows <- tibble::tribble(
   ~year, ~province_name, ~box, ~origin, ~destiny, ~mg_n,
   1960, "A", "Cropland", "Synthetic", "Cropland", 900,
