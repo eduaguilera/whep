@@ -7,6 +7,7 @@
 build_crop_soil_n2o_extension(
   gwp = c("ar6", "ar5", "ar4"),
   residue_removed_frac = 0.45,
+  synthetic_method = NULL,
   data = list(),
   example = FALSE
 )
@@ -20,18 +21,27 @@ from the field (for feed, fuel or construction) and therefore not returned
 to soil. Defaults to \code{0.45}, a global mid-range value; country-specific
 removal (\code{gleam_fracremove}) is a future refinement.}
 
+\item{synthetic_method}{Synthetic-N crop allocation method, \code{"coello"} or
+\code{"area_share"}. When \code{NULL} (default), uses
+\code{data$synthetic_method \%||\% "coello"} for backwards compatibility.}
+
 \item{data}{Optional named list of pre-loaded inputs to avoid remote reads:
 \code{primary_prod} (\code{\link[=get_primary_production]{get_primary_production()}}, for harvested area),
 \code{fertilizer} (the \code{faostat-fertilizer-nutrients} pin), \code{manure} (the
 \code{faostat-emissions-livestock} pin) and \code{primary_residues}
-(\code{\link[=get_primary_residues]{get_primary_residues()}}). Each falls back to its reader when absent.}
+(\code{\link[=get_primary_residues]{get_primary_residues()}}). Each falls back to its reader when absent.
+\code{synthetic_method} selects the synthetic-N crop split, \code{"coello"}
+(default; Coello 2025 rate-weighted, FAOSTAT-conserving) or
+\code{"area_share"}; \code{coello_rates} overrides the rate table (shaped like
+\link{coello_synthetic_n}), defaulting to \code{whep::coello_synthetic_n}.}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading remote
 data. Defaults to \code{FALSE}.}
 }
 \value{
 A tibble with columns \code{year}, \code{area_code}, \code{item_cbs_code},
-\code{impact_u} (soil N2O in kilograms CO2e) and \code{method_soil_n2o}.
+\code{impact_u} (soil N2O in kilograms CO2e) and \code{method_soil_n2o}, plus the
+polity columns below.
 }
 \description{
 Estimate IPCC 2019 Tier 1 nitrous-oxide emissions from nitrogen applied to
@@ -42,11 +52,13 @@ soil-N2O analogue of \code{\link[=build_livestock_ghg_extension]{build_livestock
 Three nitrogen inputs to soil are included:
 \itemize{
 \item \strong{Synthetic fertiliser} (F_SN): FAOSTAT reports it only as a country total
-(tonnes N per \code{area_code} per year), so it is allocated to crops in
-proportion to each crop's harvested area within the country-year (from
-\code{\link[=get_primary_production]{get_primary_production()}}).
+(tonnes N per \code{area_code} per year), so it is allocated to crops by the
+Coello 2025 rate-weighted, FAOSTAT-conserving crop share (default; the
+national total is preserved), or by harvested-area share when
+\code{synthetic_method = "area_share"}.
 \item \strong{Applied manure} (F_ON): FAOSTAT "Manure applied to soils (N content)"
-country total, allocated to crops by harvested area as for F_SN.
+country total, allocated to crops by harvested area (Coello is a
+synthetic-N rate basis only).
 \item \strong{Crop residues} (F_CR): the dry matter of above-ground residues returned
 to soil (from \code{\link[=get_primary_residues]{get_primary_residues()}}, net of the removed fraction) times
 the crop's residue nitrogen content (IPCC 2019 Table 11.1a).
@@ -64,6 +76,33 @@ Manure deposited by grazing animals (F_PRP, which uses the grazing EF3 on
 pasture) and below-ground residue N are further Tier 1 inputs not yet
 included.
 }
+\section{Polity columns}{
+
+Every area-keyed output carries the polity its \code{area_code} resolves to in
+that row's year:
+\itemize{
+\item \code{polity_area_code}: The numeric key rows are AGGREGATED on, for the matrix
+workflows. It is a bucket, not an identity: use \code{reporting_polity_code} to
+say which territory a row belongs to.
+\item \code{reporting_polity_code}: The polity itself, e.g. \code{ESP-1846-1914}. It is
+year-aware, so the same \code{area_code} resolves to different polities in
+different years, which is the point of the crosswalk.
+\item \code{reporting_polity_name}: Its name. It can differ from the area's own name
+where the area folds into an aggregate.
+\item \code{reporting_polity_has_geometry}: Whether the polity has a polygon in the
+WHEP polity database, for callers that need to map or intersect it. \code{FALSE}
+is a documented gap upstream, not an error.
+}
+
+Rows whose \code{area_code} resolves to no polity keep the columns with \code{NA}
+rather than being dropped, so a gap is visible instead of silent.
+
+Rows before the back-cast anchor year resolve to the polity live in that
+anchor year rather than to the polity live in the row's own year, because
+WHEP's pre-anchor series are back-cast onto the anchor-year territory. See
+\code{\link[=add_polity_code]{add_polity_code()}} for the reasoning.
+}
+
 \examples{
 build_crop_soil_n2o_extension(example = TRUE)
 }

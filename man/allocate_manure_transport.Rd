@@ -8,8 +8,9 @@ allocate_manure_transport(source_cells, sink_cells, options = list())
 }
 \arguments{
 \item{source_cells}{A tibble of cells exporting manure, keyed by \code{year},
-\code{territory} and \code{sub_territory} (a \code{"lon_lat"} cell id), with \code{surplus_n},
-\code{surplus_c} and \code{surplus_vs} (t).}
+\code{territory} (a stringified \code{area_code}, see \code{\link[=estimate_n_excretion]{estimate_n_excretion()}}) and
+\code{sub_territory} (a \code{"lon_lat"} cell id), with \code{surplus_n}, \code{surplus_c} and
+\code{surplus_vs} (t).}
 
 \item{sink_cells}{A tibble of cells with spare capacity, keyed by \code{year},
 \code{territory} and \code{sub_territory}, with \code{room_n} (remaining cropland plus
@@ -40,12 +41,12 @@ source cell's bundle ratio.
 \examples{
 source_cells <- tibble::tribble(
   ~year, ~territory, ~sub_territory, ~surplus_n, ~surplus_c, ~surplus_vs,
-  2020L, "ESP", "1.5_40", 10, 90, 6
+  2020L, "203", "1.5_40", 10, 90, 6
 )
 sink_cells <- tibble::tribble(
   ~year, ~territory, ~sub_territory, ~room_n,
-  2020L, "ESP", "1_40", 4,
-  2020L, "ESP", "2_40", 6
+  2020L, "203", "1_40", 4,
+  2020L, "203", "2_40", 6
 )
 allocate_manure_transport(source_cells, sink_cells)
 }

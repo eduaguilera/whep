@@ -144,8 +144,17 @@ build_detailed_trade <- function(
   items_full <- data.table::as.data.table(whep::items_full)
   items_bridge <- unique(items_full[, .(item_cbs, item_cbs_code)])
 
-  # If the DTM has item names, map through cbs_trade_codes
-  if ("item" %in% names(dt)) {
+  # Prefer the stable trade item *code* join. The code bridge is also more
+  # complete than the name bridge, so this maps more items. Fall back to
+  # joining by item *name* only when no code column is present -- that path is
+  # brittle to label drift, so warn when it is used (relates to #170).
+  if ("item_code_trade" %in% names(dt)) {
+    dt <- merge(dt, bridge, by = "item_code_trade", all.x = TRUE)
+  } else if ("item" %in% names(dt)) {
+    cli::cli_warn(
+      "No trade item code column; joining trade items to CBS items by name,
+       which is brittle to label drift."
+    )
     name_bridge <- unique(cbs_trade[, .(item_trade, item_cbs)])
     dt <- merge(
       dt,
@@ -154,8 +163,6 @@ build_detailed_trade <- function(
       by.y = "item_trade",
       all.x = TRUE
     )
-  } else if ("item_code_trade" %in% names(dt)) {
-    dt <- merge(dt, bridge, by = "item_code_trade", all.x = TRUE)
   }
 
   .warn_unmapped_items(dt)
@@ -246,12 +253,28 @@ build_detailed_trade <- function(
   )
   dt <- dt[, .(value = sum(value, na.rm = TRUE)), by = by_cols]
 
-  # Remove self-trade at polity level
-
-  dt <- dt[area_code != area_code_partner]
+  # Remove self-trade at polity level, but only for genuine single-country
+  # polities. Distinct FAOSTAT areas that collapse to an *aggregate* polity
+  # (e.g. the 62 territories mapped to Rest of World, 999) are different
+  # contemporaneous countries, so a flow between two of them (say American
+  # Samoa -> Andorra) is legitimate bilateral trade, not self-trade -- yet both
+  # collapse to 999, so a naive `a == a` filter would delete it (deepens #152).
+  # Genuine self-trade (same original area) was already dropped upstream in
+  # .read_and_clean_dtm(); here we keep a collapsed `a -> a` row only when `a`
+  # is an aggregate bucket, so its distinct-origin flows survive (aggregated).
+  aggregate_codes <- .aggregate_polity_codes()
+  dt <- dt[area_code != area_code_partner | area_code %in% aggregate_codes]
   dt[value == 0, value := NA_real_]
   dt <- dt[!is.na(value)]
   dt
+}
+
+# Polity codes that are artificial aggregates (e.g. Rest of World, 999) rather
+# than real single countries. Distinct areas collapsing to such a bucket are
+# different countries, so self-loops on them must not be treated as self-trade.
+.aggregate_polity_codes <- function() {
+  crosswalk <- data.table::as.data.table(polity_area_crosswalk)
+  unique(crosswalk[polity_type == "aggregate", polity_area_code])
 }
 
 .compute_country_shares <- function(dt) {

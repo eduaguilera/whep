@@ -868,6 +868,22 @@ cft_to_pft <- c(
 #
 # Rasterize NaturalEarth to a 0.5-degree grid with WHEP area_code.
 
+# iso3c -> area_code from inst/extdata/regions.csv. whep::polities dropped its
+# area_code column in the polity restructure, which silently broke both
+# rasterisation sections against the current schema (#381); this is the
+# canonical replacement, shared so the country grid and the cell x polity
+# crosswalk stay consistent. Verified to reproduce the existing 58,795-cell
+# country_grid pin cell-for-cell with identical codes.
+.spatialize_area_lookup <- function() {
+  path <- system.file("extdata", "regions.csv", package = "whep")
+  regions <- utils::read.csv(path, stringsAsFactors = FALSE)
+  lookup <- regions[
+    !is.na(regions$iso3c) & !is.na(regions$area_code),
+    c("iso3c", "area_code")
+  ]
+  lookup[!duplicated(lookup$iso3c), ]
+}
+
 prepare_country_grid <- function(l_files_dir, target_res) {
   cli::cli_h2("Section 1: Country grid")
 
@@ -878,8 +894,6 @@ prepare_country_grid <- function(l_files_dir, target_res) {
     "ne_10m_admin_0_countries.shp"
   )
   countries <- terra::vect(shp_path)
-  polities <- whep::polities
-
   iso_raw <- as.character(countries$ISO_A3)
   iso_eh <- as.character(countries$ISO_A3_EH)
   iso_adm <- as.character(countries$ADM0_A3)
@@ -889,12 +903,11 @@ prepare_country_grid <- function(l_files_dir, target_res) {
     dplyr::if_else(iso_eh != "-99", iso_eh, iso_adm)
   )
 
-  ne_data <- tibble::tibble(iso3c = iso3c) |>
-    dplyr::left_join(
-      dplyr::select(polities, "iso3c", "area_code"),
-      by = "iso3c"
-    )
-  countries$area_code <- ne_data$area_code
+  countries$area_code <- dplyr::left_join(
+    tibble::tibble(iso3c = iso3c),
+    .spatialize_area_lookup(),
+    by = "iso3c"
+  )$area_code
 
   ref <- terra::rast(
     resolution = target_res,
@@ -907,9 +920,13 @@ prepare_country_grid <- function(l_files_dir, target_res) {
   cli::cli_alert_info("Rasterizing shapefile to {target_res}-degree grid")
   grid_rast <- terra::rasterize(countries, ref, field = "area_code")
 
+  # Coerce to integer BEFORE dropping NA: terra writes its integer NoData as the
+  # sentinel -2147483648, which is not NA, so filtering first would leave those
+  # ocean/unassigned cells in and only NA them at as.integer(). as.integer()
+  # maps the sentinel to NA, then the filter drops it (#381).
   result <- .raster_to_tibble(grid_rast, "area_code") |>
-    dplyr::filter(!is.na(area_code)) |>
-    dplyr::mutate(area_code = as.integer(area_code))
+    dplyr::mutate(area_code = as.integer(area_code)) |>
+    dplyr::filter(!is.na(area_code))
 
   cli::cli_alert_success("country_grid: {nrow(result)} cells")
   result
@@ -927,6 +944,7 @@ prepare_country_grid <- function(l_files_dir, target_res) {
 
 build_cell_polity_fraction <- function(
   l_files_dir,
+  country_grid,
   target_res = 0.5,
   subcells = 6L
 ) {
@@ -938,7 +956,6 @@ build_cell_polity_fraction <- function(
     "ne_10m_admin_0_countries.shp"
   )
   countries <- terra::vect(shp_path)
-  polities <- whep::polities
   iso_raw <- as.character(countries$ISO_A3)
   iso_eh <- as.character(countries$ISO_A3_EH)
   iso_adm <- as.character(countries$ADM0_A3)
@@ -947,11 +964,27 @@ build_cell_polity_fraction <- function(
     iso_raw,
     dplyr::if_else(iso_eh != "-99", iso_eh, iso_adm)
   )
-  countries$area_code <- dplyr::left_join(
+  # Same iso3c -> area_code lookup as the country grid (regions.csv), so the
+  # crosswalk covers exactly the same countries as the simulated grid.
+  matched <- dplyr::left_join(
     tibble::tibble(iso3c = iso3c),
-    dplyr::select(polities, "iso3c", "area_code"),
+    .spatialize_area_lookup(),
     by = "iso3c"
   )$area_code
+  countries$area_code <- matched
+  n_features <- length(matched)
+  n_matched <- sum(!is.na(matched))
+  cli::cli_alert_info(
+    "iso3c -> area_code: matched {n_matched} of {n_features} country features"
+  )
+  if (n_matched < n_features) {
+    unmatched <- sort(unique(iso3c[is.na(matched) & iso3c != "-99"]))
+    cli::cli_warn(c(
+      "!" = "{length(unmatched)} country feature{?s} had no area_code and
+        contribute no cells.",
+      i = "Unmatched iso3c: {unmatched}."
+    ))
+  }
 
   ref <- terra::rast(
     resolution = target_res / subcells,
@@ -968,11 +1001,29 @@ build_cell_polity_fraction <- function(
   ]
   d[, lat := floor((lat + 90) / target_res) * target_res - 90 + target_res / 2]
   counts <- d[, .(n = .N), by = .(lon, lat, area_code)]
+  # Coerce to the integer polity code and drop any subcells that carry no valid
+  # code, before the fraction is normalised, so the crosswalk never emits an NA
+  # area_code and the surviving fractions still sum to 1.
+  counts[, area_code := as.integer(area_code)]
+  counts <- counts[!is.na(area_code)]
+  # Restrict to the simulated model grid: without this the Natural Earth land
+  # mask (Antarctica, small territories, etc.) injects cells LPJmL never
+  # simulates, which arrive downstream with non-finite drainage (see #381). The
+  # cell filter keeps every polity fragment of a retained cell.
+  grid_cells <- unique(
+    data.table::as.data.table(country_grid)[, .(lon, lat)]
+  )
+  before <- nrow(unique(counts[, .(lon, lat)]))
+  counts <- merge(counts, grid_cells, by = c("lon", "lat"))
+  after <- nrow(unique(counts[, .(lon, lat)]))
+  cli::cli_alert_info(
+    "restricted crosswalk to the simulated grid: {before} -> {after} cells"
+  )
+  # Renormalise so each retained cell's polity fractions still sum to 1 after
+  # dropping unassigned subcells.
   counts[, polity_frac := n / sum(n), by = .(lon, lat)]
   cli::cli_alert_success("cell x polity: {nrow(counts)} (cell, polity) rows")
-  tibble::as_tibble(
-    counts[, .(lon, lat, area_code = as.integer(area_code), polity_frac)]
-  )
+  tibble::as_tibble(counts[, .(lon, lat, area_code, polity_frac)])
 }
 
 
@@ -1102,6 +1153,7 @@ prepare_country_areas <- function(
       crop_areas$irrigated_area_ha[needs_fallback] <-
         fallback$irrigated_area_ha
     }
+    crop_areas <- .cap_national_irrigation(crop_areas)
   } else {
     cli::cli_alert_info(
       "MIRCA not found -- using LUH2-proportional irrigation allocation"
@@ -1138,6 +1190,27 @@ prepare_country_areas <- function(
       "harvested_area_ha",
       "irrigated_area_ha"
     )
+}
+
+# Cap summed irrigated area per country-year at the LUH2 national total. MIRCA
+# rescaling makes covered crops absorb the whole national total, so the per-CFT
+# fallback for MIRCA-absent crops would otherwise add irrigation on top of an
+# already-complete allocation (double-counting). Scaling proportionally when the
+# country sum exceeds `total_irrig_ha` conserves the national irrigation total.
+.cap_national_irrigation <- function(crop_areas) {
+  crop_areas |>
+    dplyr::mutate(
+      national_irrig_ha = sum(.data$irrigated_area_ha, na.rm = TRUE),
+      cap_scale = dplyr::if_else(
+        .data$national_irrig_ha > .data$total_irrig_ha &
+          .data$national_irrig_ha > 0,
+        .data$total_irrig_ha / .data$national_irrig_ha,
+        1
+      ),
+      irrigated_area_ha = .data$irrigated_area_ha * .data$cap_scale,
+      .by = c("year", "area_code")
+    ) |>
+    dplyr::select(-"national_irrig_ha", -"cap_scale")
 }
 
 
@@ -4053,14 +4126,1026 @@ prepare_soil_inputs <- function(
 }
 
 
+# ==== Section 9d: Climate forcing (CRU TS, CO2, wind) =====================
+
+# LPJmL input key -> (CRU variable, the unit string run_lpjml.R declares).
+# Keep the units in step with the `input.<x>.unit` entries there: LPJmL uses
+# the config-declared unit for its udunits conversion (getvar_netcdf.c takes
+# `fromstr` from the config when one is given) and only warns when the file
+# attribute differs, so writing the same string avoids a spurious WARNING408.
+LPJML_CRU_VARIABLES <- list(
+  temp = c(var = "tmp", unit = "celsius"),
+  prec = c(var = "pre", unit = "kg/m2/month"),
+  cloud = c(var = "cld", unit = "%"),
+  wetdays = c(var = "wet", unit = "day")
+)
+
+# Derives the LPJmL climate forcing from the raw downloads, writing real
+# files into <lpjml_out_dir>/climate. This replaced a block that symlinked
+# pre-made files from an out-of-tree directory: the symlinks hardcoded the
+# CRU 3.10 names, which end in 2009, so a pipeline re-run could silently
+# relink a 2009 forcing under a config expecting a longer one -- the exact
+# trap behind issue #340.
+prepare_climate_inputs <- function(
+  l_files_dir,
+  lpjml_out_dir,
+  cru_version = NULL,
+  grid_path = NULL,
+  # Where the raw CRU TS release lives. Defaults to the download_climate()
+  # destination; override when the release is already held elsewhere, so a
+  # ~18 GB archive does not have to be duplicated into the L_files tree.
+  cru_dir = file.path(l_files_dir, "CRU"),
+  # Years the run must be forced for; wind is assembled to cover them.
+  target_years = 1901:2023
+) {
+  cli::cli_h2("Section 9d: Climate forcing")
+
+  climate_out <- file.path(lpjml_out_dir, "climate")
+  dir.create(climate_out, recursive = TRUE, showWarnings = FALSE)
+
+  release <- .resolve_cru_release(cru_dir, cru_version)
+  if (is.null(release)) {
+    return(invisible(NULL))
+  }
+  cli::cli_alert_info(
+    "CRU TS {release$version} ({release$first_year}-{release$last_year})"
+  )
+
+  written <- lapply(
+    names(LPJML_CRU_VARIABLES),
+    function(key) {
+      .write_cru_variable(
+        spec = LPJML_CRU_VARIABLES[[key]],
+        cru_dir = cru_dir,
+        climate_out = climate_out,
+        release = release,
+        grid_path = grid_path
+      )
+    }
+  )
+  .prepare_co2_input(l_files_dir, climate_out)
+  .prepare_wind_input(l_files_dir, climate_out, target_years)
+  # Downwelling radiation, needed only by LPJmL 6.x (which dropped the
+  # cloudiness option). Warns and continues when the ERA5 artefacts are absent,
+  # so a 5.x-only setup still completes.
+  .prepare_radiation_inputs(l_files_dir, climate_out, target_years)
+
+  invisible(unlist(written))
+}
+
+.resolve_cru_release <- function(cru_dir, version = NULL) {
+  pattern <- "^cru_ts(\\d+\\.\\d+)\\.(\\d{4})\\.(\\d{4})\\..*\\.dat\\.nc$"
+  found <- if (dir.exists(cru_dir)) {
+    grep(pattern, list.files(cru_dir), value = TRUE)
+  } else {
+    character()
+  }
+  if (length(found) == 0L) {
+    cli::cli_warn(
+      "Climate: no CRU TS files in {.path {cru_dir}} — run
+       download_all(datasets = \"climate\") first; skipping"
+    )
+    return(NULL)
+  }
+
+  parts <- regmatches(found, regexec(pattern, found))
+  versions <- vapply(parts, `[[`, character(1L), 2L)
+  keep <- if (is.null(version)) {
+    versions == max(versions)
+  } else {
+    versions == version
+  }
+  if (!any(keep)) {
+    cli::cli_abort("CRU TS {version} not found in {.path {cru_dir}}")
+  }
+  chosen <- parts[keep][[1L]]
+
+  list(
+    version = chosen[[2L]],
+    first_year = as.integer(chosen[[3L]]),
+    last_year = as.integer(chosen[[4L]])
+  )
+}
+
+.cru_tag <- function(release) {
+  sprintf(
+    "cru_ts%s.%d.%d",
+    release$version,
+    release$first_year,
+    release$last_year
+  )
+}
+
+# Writes one CRU variable as an LPJmL forcing file: keeps only the forcing
+# field (CRU also ships stn/mae/maea diagnostics LPJmL never reads, which are
+# most of the file), stamps the declared unit, and fills the handful of grid
+# cells CRU's land mask misses.
+#
+# Left uncompressed and contiguous like the CRU 3.10 files it replaces: LPJmL
+# runs under MPI with each task reading its own cells, so chunking would make
+# every task inflate whole chunks to reach them.
+.write_cru_variable <- function(
+  spec,
+  cru_dir,
+  climate_out,
+  release,
+  grid_path
+) {
+  variable <- spec[["var"]]
+  tag <- .cru_tag(release)
+  src <- file.path(cru_dir, paste0(tag, ".", variable, ".dat.nc"))
+  if (!file.exists(src)) {
+    cli::cli_warn("Climate: {basename(src)} missing — skipping {variable}")
+    return(NULL)
+  }
+  dst <- file.path(climate_out, paste0(tag, ".", variable, ".dat.nc"))
+
+  .run_nc_tool(
+    "ncks",
+    c(
+      "-O",
+      "-v",
+      paste(variable, "lon", "lat", "time", sep = ","),
+      shQuote(src),
+      shQuote(dst)
+    )
+  )
+  .run_nc_tool(
+    "ncatted",
+    c(
+      "-O",
+      "-a",
+      paste0("units,", variable, ",o,c,", shQuote(spec[["unit"]])),
+      shQuote(dst)
+    )
+  )
+  .verify_cru_steps(dst, release)
+  if (!is.null(grid_path)) {
+    .fill_cru_grid_gaps(dst, grid_path)
+  }
+  cli::cli_alert_success("Climate: {basename(dst)}")
+
+  dst
+}
+
+.run_nc_tool <- function(tool, args) {
+  if (!nzchar(Sys.which(tool))) {
+    cli::cli_abort("{tool} not found on PATH; install NCO (`apt install nco`).")
+  }
+  status <- system2(tool, args)
+  if (status != 0L) {
+    cli::cli_abort("{tool} failed with status {status}")
+  }
+
+  invisible(TRUE)
+}
+
+.verify_cru_steps <- function(path, release) {
+  nc <- ncdf4::nc_open(path)
+  on.exit(ncdf4::nc_close(nc), add = TRUE)
+  expected <- 12L * (release$last_year - release$first_year + 1L)
+  if (nc$dim$time$len != expected) {
+    cli::cli_abort(
+      "{basename(path)} has {nc$dim$time$len} monthly steps, expected
+       {expected} for {release$first_year}-{release$last_year}."
+    )
+  }
+
+  invisible(TRUE)
+}
+
+# CRU's land mask does not quite cover LPJmL's grid: ~20 of 58795 cells --
+# Arctic and small islands, plus lake cells such as Ladoga and the IJsselmeer
+# -- carry no CRU value, and LPJmL aborts on the first of them with
+#   ERROR423: Missing value for cell=... at month 1
+# The CRU 3.10 files dodged this by being filled globally with ocean set to 0;
+# 0 degrees C over land is wrong, so borrow the nearest valid CRU cell. The
+# mask is time-invariant, so one donor lookup serves the whole series.
+.fill_cru_grid_gaps <- function(path, grid_path) {
+  cells <- .read_grid_cells(grid_path)
+  nc <- ncdf4::nc_open(path, write = TRUE)
+  on.exit(ncdf4::nc_close(nc), add = TRUE)
+
+  variable <- setdiff(names(nc$var), c("lon", "lat", "time"))[[1L]]
+  lon <- as.vector(ncdf4::ncvar_get(nc, "lon"))
+  lat <- as.vector(ncdf4::ncvar_get(nc, "lat"))
+  mask <- ncdf4::ncvar_get(
+    nc,
+    variable,
+    start = c(1, 1, 1),
+    count = c(-1, -1, 1)
+  )
+
+  i <- match(round(cells$lon, 2L), round(lon, 2L))
+  j <- match(round(cells$lat, 2L), round(lat, 2L))
+  if (anyNA(i) || anyNA(j)) {
+    cli::cli_abort("LPJmL grid has cells outside the CRU lon/lat axes.")
+  }
+  gaps <- which(!is.finite(mask[cbind(i, j)]))
+  if (length(gaps) == 0L) {
+    return(invisible(0L))
+  }
+
+  valid <- which(is.finite(mask), arr.ind = TRUE)
+  n_steps <- nc$dim$time$len
+  for (k in gaps) {
+    d <- haver_m(
+      cells$lon[[k]],
+      cells$lat[[k]],
+      lon[valid[, 1L]],
+      lat[valid[, 2L]]
+    )
+    donor <- valid[which.min(d), ]
+    series <- ncdf4::ncvar_get(
+      nc,
+      variable,
+      start = c(donor[[1L]], donor[[2L]], 1),
+      count = c(1, 1, n_steps)
+    )
+    ncdf4::ncvar_put(
+      nc,
+      variable,
+      series,
+      start = c(i[[k]], j[[k]], 1),
+      count = c(1, 1, n_steps)
+    )
+  }
+  cli::cli_alert_info(
+    "Climate: filled {length(gaps)} grid cell(s) in {basename(path)}"
+  )
+
+  invisible(length(gaps))
+}
+
+.read_grid_cells <- function(grid_path) {
+  nc <- ncdf4::nc_open(grid_path)
+  on.exit(ncdf4::nc_close(nc), add = TRUE)
+  coord <- ncdf4::ncvar_get(nc, "coord")
+  lon <- as.vector(ncdf4::ncvar_get(nc, "longitude"))
+  lat <- as.vector(ncdf4::ncvar_get(nc, "latitude"))
+  idx <- which(is.finite(coord), arr.ind = TRUE)
+
+  list(lon = lon[idx[, 1L]], lat = lat[idx[, 2L]])
+}
+
+# Extends LPJmL's historical CO2 series with NOAA's global annual means. The
+# two are different products -- they differ by a few tenths of a ppm in the
+# overlap -- so the NOAA tail is offset-corrected onto the existing series
+# rather than concatenated raw, keeping the joint continuous.
+.prepare_co2_input <- function(l_files_dir, climate_out, overlap_years = 5L) {
+  noaa_path <- file.path(l_files_dir, "CO2", "co2_annmean_gl.txt")
+  base_path <- .find_base_co2(climate_out, l_files_dir)
+  if (is.null(base_path) || !file.exists(noaa_path)) {
+    cli::cli_warn("CO2: base series or NOAA file missing — skipping")
+    return(invisible(NULL))
+  }
+
+  existing <- utils::read.table(base_path, col.names = c("year", "ppm"))
+  noaa <- utils::read.table(
+    noaa_path,
+    comment.char = "#",
+    col.names = c("year", "ppm", "unc")
+  )
+  overlap <- merge(existing, noaa, by = "year", suffixes = c("_base", "_noaa"))
+  if (nrow(overlap) < overlap_years) {
+    cli::cli_warn("CO2: only {nrow(overlap)} overlapping years — skipping")
+    return(invisible(NULL))
+  }
+  overlap <- utils::tail(overlap[order(overlap$year), ], overlap_years)
+  offset <- mean(overlap$ppm_base - overlap$ppm_noaa)
+
+  tail_rows <- noaa[noaa$year > max(existing$year), c("year", "ppm")]
+  tail_rows$ppm <- round(tail_rows$ppm + offset, 2L)
+  extended <- rbind(existing, tail_rows)
+  out_path <- file.path(
+    climate_out,
+    sprintf(
+      "historical_CO2_annual_%d_%d.txt",
+      min(extended$year),
+      max(extended$year)
+    )
+  )
+  utils::write.table(
+    extended,
+    out_path,
+    sep = "\t",
+    row.names = FALSE,
+    col.names = FALSE,
+    quote = FALSE
+  )
+  cli::cli_alert_success(
+    "CO2: {basename(out_path)} (NOAA tail offset {round(offset, 3)} ppm)"
+  )
+
+  invisible(out_path)
+}
+
+# Picks the shortest-running historical series as the base to extend, so a
+# re-run finds the original rather than a previously extended output. A
+# path-length heuristic would tie between e.g. _1765_2018 and _1765_2025.
+.find_base_co2 <- function(climate_out, l_files_dir) {
+  pattern <- "^historical_CO2_annual_(\\d{4})_(\\d{4})\\.txt$"
+  candidates <- c(
+    list.files(
+      file.path(l_files_dir, "CO2"),
+      pattern = pattern,
+      full.names = TRUE
+    ),
+    list.files(climate_out, pattern = pattern, full.names = TRUE)
+  )
+  if (length(candidates) == 0L) {
+    return(NULL)
+  }
+  last_year <- as.integer(sub(pattern, "\\2", basename(candidates)))
+
+  candidates[[which.min(last_year)]]
+}
+
+# Reports the last year each prepared forcing supports, so a run's end year
+# can be set to a year that is actually forced. This is the check whose
+# absence let the global_1901-2018 run be configured nine years past the end
+# of its climate (issue #340); the years come from the filenames, which is
+# what LPJmL itself keys the coverage warning off.
+report_forcing_end_years <- function(climate_dir, used = NULL) {
+  files <- if (is.null(used)) {
+    list.files(
+      climate_dir,
+      pattern = "\\.(nc|nc4|txt)$",
+      full.names = TRUE
+    )
+  } else {
+    file.path(climate_dir, basename(used))
+  }
+  files <- files[file.exists(files)]
+  if (length(files) == 0L) {
+    cli::cli_warn("No forcing files in {.path {climate_dir}}")
+    return(invisible(NULL))
+  }
+  # Without `used`, this lists every file present -- including superseded ones
+  # a config no longer names -- so the ceiling reported below would be
+  # whatever the oldest leftover happens to be. Pass the names the run
+  # actually uses to get a ceiling that applies to that run.
+  if (is.null(used)) {
+    cli::cli_alert_warning(
+      "Listing every file present; pass `used =` the run's forcing names for
+       the ceiling that actually applies to it."
+    )
+  }
+
+  ends <- vapply(files, .forcing_last_year, numeric(1L))
+  ends <- sort(ends[is.finite(ends)])
+  if (length(ends) == 0L) {
+    cli::cli_warn("No forcing file names carried a year range")
+    return(invisible(NULL))
+  }
+
+  cli::cli_h3("Forcing end years (earliest first)")
+  for (nm in names(ends)) {
+    cli::cli_li("{basename(nm)}: {ends[[nm]]}")
+  }
+  cli::cli_alert_info(
+    "Binding forcing: {basename(names(ends)[[1L]])} — a run cannot pass
+     {ends[[1L]]}."
+  )
+
+  invisible(ends)
+}
+
+# CO2 is a plain year/ppm table, so its coverage is read from the data; the
+# raster forcings carry their range in the filename.
+.forcing_last_year <- function(path) {
+  if (grepl("\\.txt$", path)) {
+    return(tryCatch(
+      max(utils::read.table(path)[[1L]]),
+      error = function(e) NA_real_
+    ))
+  }
+  found <- regmatches(
+    basename(path),
+    regexec("(\\d{4})[._-](\\d{4})", basename(path))
+  )[[1L]]
+  if (length(found) < 3L) {
+    return(NA_real_)
+  }
+
+  as.numeric(found[[3L]])
+}
+
+# Assembles the LPJmL monthly wind forcing from the two pinned artefacts that
+# download_climate() places under <l_files_dir>/wind: the ISIMIP 1901-2019
+# monthly base and the ERA5 monthly means. Neither is rebuildable from this
+# repo -- the base came from ISIMIP2a chunks via a script that was never
+# committed, and the ERA5 means take ~85 GB of streaming -- hence the pins.
+#
+# Wind is a *hard* LPJmL input: readclimate() aborts on a year outside the
+# file range rather than holding the last year constant, so a short wind file
+# caps the run. It was the last forcing standing short of 2023 (issue #340).
+.prepare_wind_input <- function(l_files_dir, climate_out, target_years) {
+  existing <- list.files(climate_out, pattern = "^wind_.*\\.nc$")
+  if (length(existing) > 0L) {
+    best <- existing[order(
+      vapply(
+        file.path(climate_out, existing),
+        .forcing_last_year,
+        numeric(1L)
+      ),
+      decreasing = TRUE
+    )][[1L]]
+    if (.forcing_last_year(file.path(climate_out, best)) >= max(target_years)) {
+      cli::cli_alert_success("Wind: {best}")
+      return(invisible(file.path(climate_out, best)))
+    }
+  }
+
+  wind_dir <- file.path(l_files_dir, "wind")
+  base <- list.files(
+    wind_dir,
+    pattern = "^wind_gswp3.*\\.nc$",
+    full.names = TRUE
+  )
+  era5 <- list.files(
+    wind_dir,
+    pattern = "^era5_wind.*\\.nc$",
+    full.names = TRUE
+  )
+  if (length(base) == 0L || length(era5) == 0L) {
+    cli::cli_warn(
+      "Wind: need both pinned artefacts in {.path {wind_dir}} — run
+       download_all(datasets = \"climate\") first. LPJmL aborts without wind."
+    )
+    return(invisible(NULL))
+  }
+
+  base <- base[[1L]]
+  base_last <- .forcing_last_year(base)
+  out_path <- file.path(
+    climate_out,
+    sprintf("wind_gswp3-w5e5_era5_1901_%d_monthly.nc", max(target_years))
+  )
+  tail_path <- tempfile(fileext = ".nc")
+  on.exit(unlink(tail_path), add = TRUE)
+
+  cli::cli_alert("Wind: bias-correcting ERA5 onto {basename(base)}...")
+  extend_lpjml_wind(
+    era5_path = era5[[1L]],
+    wind_path = base,
+    out_path = tail_path,
+    target_years = seq(base_last + 1L, max(target_years))
+  )
+  # cdo, not ncks: mergetime reconciles the two time axes.
+  .run_nc_tool(
+    "cdo",
+    c(
+      "-s",
+      "-O",
+      "mergetime",
+      shQuote(base),
+      shQuote(tail_path),
+      shQuote(out_path)
+    )
+  )
+  .verify_wind_coverage(out_path, target_years)
+  cli::cli_alert_success("Wind: {basename(out_path)}")
+
+  invisible(out_path)
+}
+
+.verify_wind_coverage <- function(path, target_years) {
+  nc <- ncdf4::nc_open(path)
+  on.exit(ncdf4::nc_close(nc), add = TRUE)
+  expected <- 12L * (max(target_years) - 1901L + 1L)
+  if (nc$dim$time$len != expected) {
+    cli::cli_abort(
+      "{basename(path)} has {nc$dim$time$len} monthly steps, expected
+       {expected} for 1901-{max(target_years)}."
+    )
+  }
+
+  invisible(TRUE)
+}
+
+extend_lpjml_wind <- function(
+  era5_path,
+  wind_path,
+  out_path,
+  overlap_years = 2017:2019,
+  target_years = 2020:2023,
+  wind_first_year = 1901
+) {
+  .require_cdo()
+  regridded <- .remap_era5_to_lpjml(era5_path)
+  on.exit(unlink(regridded), add = TRUE)
+
+  era5 <- .read_monthly_wind(regridded, "wind")
+  isimip <- .read_monthly_wind(wind_path, "wind")
+  factors <- .wind_bias_factors(era5, isimip, overlap_years, wind_first_year)
+
+  corrected <- .apply_wind_factors(
+    era5,
+    factors,
+    target_years,
+    era5_first_year = min(overlap_years)
+  )
+  .write_wind_tail(corrected, regridded, target_years, out_path)
+  .verify_wind_splice(era5, isimip, factors, overlap_years, wind_first_year)
+
+  invisible(out_path)
+}
+
+# ---- private helpers --------------------------------------------------
+
+.require_cdo <- function() {
+  if (!nzchar(Sys.which("cdo"))) {
+    stop("CDO not found on PATH. Install CDO (e.g. `apt install cdo`).")
+  }
+  invisible(TRUE)
+}
+
+# ERA5 cell centres start at 90N/0E; the LPJmL grid starts at 89.75N/-179.75E.
+# Conservative remapping handles both the half-cell offset and the 0-360 to
+# -180-180 rotation; a nearest-neighbour or plain 2x2 mean would not.
+.remap_era5_to_lpjml <- function(era5_path) {
+  grid_file <- tempfile(fileext = ".txt")
+  writeLines(
+    c(
+      "gridtype = lonlat",
+      "xsize    = 720",
+      "ysize    = 360",
+      "xfirst   = -179.75",
+      "xinc     = 0.5",
+      "yfirst   = 89.75",
+      "yinc     = -0.5"
+    ),
+    grid_file
+  )
+  on.exit(unlink(grid_file), add = TRUE)
+
+  out <- tempfile(fileext = ".nc")
+  .run_nc_tool(
+    "cdo",
+    c(
+      "-s",
+      "-O",
+      paste0("remapcon,", shQuote(grid_file)),
+      shQuote(era5_path),
+      shQuote(out)
+    )
+  )
+
+  out
+}
+
+.read_coord <- function(nc, candidates) {
+  found <- intersect(candidates, c(names(nc$var), names(nc$dim)))
+  if (length(found) == 0L) {
+    stop(
+      "None of ",
+      paste(candidates, collapse = "/"),
+      " found in ",
+      basename(nc$filename)
+    )
+  }
+
+  ncdf4::ncvar_get(nc, found[[1L]])
+}
+
+.read_monthly_wind <- function(path, variable) {
+  nc <- ncdf4::nc_open(path)
+  on.exit(ncdf4::nc_close(nc), add = TRUE)
+  ncdf4::ncvar_get(nc, variable)
+}
+
+# One multiplicative factor per cell and calendar month, so the corrected
+# ERA5 reproduces the ISIMIP seasonal cycle and spatial pattern.
+.wind_bias_factors <- function(era5, isimip, overlap_years, wind_first_year) {
+  era5_first <- min(overlap_years)
+  months <- seq_len(12L)
+  factors <- vapply(
+    months,
+    function(m) {
+      e <- .month_mean(era5, overlap_years, m, era5_first)
+      i <- .month_mean(isimip, overlap_years, m, wind_first_year)
+      # Guard near-calm cells: a ratio against ~0 wind is meaningless.
+      ratio <- ifelse(e > 0.05, i / e, 1)
+      ratio[!is.finite(ratio)] <- 1
+      ratio
+    },
+    matrix(0, nrow = dim(era5)[[1L]], ncol = dim(era5)[[2L]])
+  )
+  dim(factors) <- c(dim(era5)[[1L]], dim(era5)[[2L]], 12L)
+
+  factors
+}
+
+.month_mean <- function(cube, years, month, first_year) {
+  steps <- (years - first_year) * 12L + month
+  slices <- lapply(steps, function(s) cube[,, s])
+  Reduce(`+`, slices) / length(slices)
+}
+
+.apply_wind_factors <- function(era5, factors, target_years, era5_first_year) {
+  slices <- lapply(
+    target_years,
+    function(y) {
+      lapply(
+        seq_len(12L),
+        function(m) era5[,, (y - era5_first_year) * 12L + m] * factors[,, m]
+      )
+    }
+  )
+  out <- array(
+    unlist(slices, use.names = FALSE),
+    dim = c(dim(era5)[[1L]], dim(era5)[[2L]], 12L * length(target_years))
+  )
+
+  out
+}
+
+# Writes the corrected tail with the coordinate layout of the regridded ERA5
+# file, so `cdo mergetime` can splice it onto the existing wind series.
+.write_wind_tail <- function(tail_cube, template_path, target_years, out_path) {
+  .write_climate_tail(
+    tail_cube,
+    template_path,
+    target_years,
+    out_path,
+    "wind",
+    "m/s"
+  )
+}
+
+# Shared by the wind and radiation ERA5 tails: same grid, same time stamping,
+# only the variable name and unit differ.
+.write_climate_tail <- function(
+  tail_cube,
+  template_path,
+  target_years,
+  out_path,
+  variable,
+  units
+) {
+  template <- ncdf4::nc_open(template_path)
+  on.exit(ncdf4::nc_close(template), add = TRUE)
+  # cdo writes lon/lat; the ERA5 fetch writes longitude/latitude.
+  lon <- .read_coord(template, c("longitude", "lon"))
+  lat <- .read_coord(template, c("latitude", "lat"))
+
+  months <- expand.grid(month = seq_len(12L), year = target_years)
+  stamps <- as.numeric(
+    as.Date(sprintf("%d-%02d-15", months$year, months$month)) -
+      as.Date("1900-01-01")
+  )
+
+  dim_lon <- ncdf4::ncdim_def("longitude", "degrees_east", lon)
+  dim_lat <- ncdf4::ncdim_def("latitude", "degrees_north", lat)
+  dim_time <- ncdf4::ncdim_def("time", "days since 1900-01-01", stamps)
+  var_def <- ncdf4::ncvar_def(
+    variable,
+    units,
+    list(dim_lon, dim_lat, dim_time),
+    missval = -1.175494e38,
+    prec = "float"
+  )
+
+  nc <- ncdf4::nc_create(out_path, var_def)
+  on.exit(ncdf4::nc_close(nc), add = TRUE)
+  ncdf4::ncvar_put(nc, var_def, tail_cube)
+
+  invisible(out_path)
+}
+
+# Extend one ISIMIP radiation series (rsds or rlds) to `target_years` with a
+# bias-corrected ERA5 tail.
+#
+# Why: LPJmL 6.x cannot use CRU cloudiness and must read downwelling shortwave
+# and longwave, but the ISIMIP obsclim products supplying those end in 2019
+# (W5E5 ends there; the v1.1-v1.3 releases are corrections, not extensions).
+# That makes radiation the forcing that caps a 6.x run at 2019, exactly as wind
+# capped 5.9.7 at 2019 before its own ERA5 tail (issue #340).
+#
+# The correction is multiplicative per cell and calendar month, fitted on the
+# overlap, identical in form to extend_lpjml_wind(). Radiation is a strictly
+# non-negative flux, so a multiplicative factor cannot drive it below zero.
+extend_lpjml_radiation <- function(
+  era5_path,
+  isimip_path,
+  out_path,
+  variable,
+  overlap_years = 2017:2019,
+  target_years = 2020:2023,
+  isimip_first_year = 1901
+) {
+  .require_cdo()
+  regridded <- .remap_era5_to_lpjml(era5_path)
+  on.exit(unlink(regridded), add = TRUE)
+
+  era5 <- .read_monthly_wind(regridded, variable)
+  isimip <- .read_monthly_wind(isimip_path, variable)
+  factors <- .wind_bias_factors(era5, isimip, overlap_years, isimip_first_year)
+
+  corrected <- .apply_wind_factors(
+    era5,
+    factors,
+    target_years,
+    era5_first_year = min(overlap_years)
+  )
+  .write_climate_tail(
+    corrected,
+    regridded,
+    target_years,
+    out_path,
+    variable,
+    "W m-2"
+  )
+  .verify_wind_splice(
+    era5,
+    isimip,
+    factors,
+    overlap_years,
+    isimip_first_year,
+    units = "W m-2"
+  )
+
+  invisible(out_path)
+}
+
+# Assemble the 6.x radiation forcing: ISIMIP head + bias-corrected ERA5 tail,
+# for both downwelling shortwave and longwave.
+#
+# Mirrors .prepare_wind_input(): skip when an existing file already reaches the
+# target years, otherwise splice and merge. Absent ERA5 artefacts are a warning
+# rather than an error, since a 5.x run does not read these at all.
+.prepare_radiation_inputs <- function(l_files_dir, climate_out, target_years) {
+  written <- character(0)
+  for (variable in c("rsds", "rlds")) {
+    out_path <- file.path(
+      climate_out,
+      sprintf(
+        "%s_gswp3-w5e5_era5_1901_%d_monthly.nc",
+        variable,
+        max(target_years)
+      )
+    )
+    if (
+      file.exists(out_path) &&
+        .forcing_last_year(out_path) >= max(target_years)
+    ) {
+      cli::cli_alert_success("Radiation: {basename(out_path)}")
+      written <- c(written, out_path)
+      next
+    }
+    rad_dir <- file.path(l_files_dir, "radiation")
+    base <- list.files(
+      rad_dir,
+      pattern = sprintf("^%s_gswp3.*\\.nc$", variable),
+      full.names = TRUE
+    )
+    era5 <- list.files(
+      rad_dir,
+      pattern = sprintf("^era5_%s.*\\.nc$", variable),
+      full.names = TRUE
+    )
+    if (length(base) == 0L || length(era5) == 0L) {
+      cli::cli_warn(
+        "Radiation {variable}: need both pinned artefacts in
+         {.path {rad_dir}} — run download_all(datasets = \"climate\") first.
+         Required only for LPJmL 6.x."
+      )
+      next
+    }
+    base <- base[[1L]]
+    tail_path <- tempfile(fileext = ".nc")
+    on.exit(unlink(tail_path), add = TRUE)
+
+    cli::cli_alert("Radiation: splicing ERA5 onto {basename(base)}...")
+    extend_lpjml_radiation(
+      era5_path = era5[[1L]],
+      isimip_path = base,
+      out_path = tail_path,
+      variable = variable,
+      target_years = seq(.forcing_last_year(base) + 1L, max(target_years))
+    )
+    # cdo, not ncks: mergetime reconciles the two time axes.
+    .run_nc_tool(
+      "cdo",
+      c(
+        "-s",
+        "-O",
+        "mergetime",
+        shQuote(base),
+        shQuote(tail_path),
+        shQuote(out_path)
+      )
+    )
+    cli::cli_alert_success("Radiation: wrote {basename(out_path)}")
+    written <- c(written, out_path)
+  }
+  invisible(if (length(written)) written else NULL)
+}
+
+# By construction the corrected ERA5 must reproduce the ISIMIP overlap mean.
+# Checking it catches a mis-rotated longitude axis or a bad remap, which a
+# global mean alone would hide.
+.verify_wind_splice <- function(
+  era5,
+  isimip,
+  factors,
+  overlap_years,
+  wind_first_year,
+  units = "m/s"
+) {
+  era5_first <- min(overlap_years)
+  errors <- vapply(
+    seq_len(12L),
+    function(m) {
+      e <- .month_mean(era5, overlap_years, m, era5_first) * factors[,, m]
+      i <- .month_mean(isimip, overlap_years, m, wind_first_year)
+      max(abs(e - i), na.rm = TRUE)
+    },
+    numeric(1L)
+  )
+
+  raw_corr <- stats::cor(
+    as.vector(.month_mean(era5, overlap_years, 7L, era5_first)),
+    as.vector(.month_mean(isimip, overlap_years, 7L, wind_first_year)),
+    use = "complete.obs"
+  )
+  message(
+    "Overlap check: max |corrected ERA5 - ISIMIP| = ",
+    signif(max(errors), 3L),
+    " ",
+    units,
+    "; raw July spatial correlation = ",
+    round(raw_corr, 4L)
+  )
+  if (raw_corr < 0.8) {
+    stop(
+      "Regridded ERA5 correlates only ",
+      round(raw_corr, 3L),
+      " with ISIMIP wind; the grids are probably misaligned (check the ",
+      "0-360 vs -180-180 longitude convention)."
+    )
+  }
+
+  invisible(TRUE)
+}
+
+# ==== Section 9c: Population density (LPJmL popdens) ======================
+
+# Converts the ISIMIP3a gridded population product into the population
+# density field LPJmL's fire module reads for human ignition, replacing the
+# stock `popdens_HYDE3_1901_2011_bi.clm` and extending 2011 -> 2021.
+#
+# popdens is a *clamped* LPJmL input: it warns (WARNING024) and holds the
+# last year constant rather than aborting, so a short file never blocks a run
+# -- it just silently freezes ignition pressure at 2011 population.
+#
+# The conversion is the point: ISIMIP publishes people *per cell*
+# (`units = "1"`), while src/spitfire/popdens.c opens the input expecting
+# "km-2". A constant cell area would be badly wrong, since a 0.5 degree cell
+# shrinks from ~3090 km2 at the equator to ~15 km2 at 84 N, so area comes
+# from cell_area_ha_by_lat() per latitude band.
+prepare_popdens_input <- function(
+  l_files_dir,
+  lpjml_out_dir,
+  pop_file = "population_histsoc_30arcmin_annual_1901_2021.nc",
+  variable = "total-population"
+) {
+  cli::cli_h2("Section 9c: Population density")
+
+  pop_path <- file.path(l_files_dir, "ISIMIP", "pop", pop_file)
+  if (!file.exists(pop_path)) {
+    cli::cli_warn(
+      "Population: {.path {pop_path}} not found — skipping (LPJmL will fall
+       back to whatever popdens the config names)"
+    )
+    return(invisible(NULL))
+  }
+
+  grid <- make_target_grid()
+  nc <- ncdf4::nc_open(pop_path)
+  on.exit(ncdf4::nc_close(nc), add = TRUE)
+  # ncvar_get returns 1-D arrays for coordinates; the dim attribute makes the
+  # later arithmetic non-conformable, so drop it.
+  src_lon <- as.vector(ncdf4::ncvar_get(nc, "lon"))
+  src_lat <- as.vector(ncdf4::ncvar_get(nc, "lat"))
+  counts <- ncdf4::ncvar_get(nc, variable)
+  years <- .popdens_years(nc)
+
+  lon_idx <- match(sprintf("%.2f", src_lon), grid$lon_key)
+  lat_idx <- match(sprintf("%.2f", src_lat), grid$lat_key)
+  if (all(is.na(lon_idx)) || all(is.na(lat_idx))) {
+    cli::cli_abort("Population grid does not align with the WHEP target grid.")
+  }
+
+  # cell_area_ha_by_lat() is in hectares; 1 km2 = 100 ha.
+  area_km2 <- cell_area_ha_by_lat(grid$lat) / 100
+  density <- .popdens_to_target(counts, lon_idx, lat_idx, area_km2, grid)
+  .check_popdens_totals(counts, density, area_km2, years)
+
+  out_path <- file.path(
+    lpjml_out_dir,
+    "socioeconomic",
+    sprintf("popdens_isimip3a_%d_%d.nc", min(years), max(years))
+  )
+  .write_popdens_nc(density, grid, years, out_path)
+  cli::cli_alert_success("Population: {basename(out_path)}")
+
+  invisible(out_path)
+}
+
+.popdens_years <- function(nc) {
+  time <- ncdf4::ncvar_get(nc, "time")
+  units <- ncdf4::ncatt_get(nc, "time", "units")$value
+  origin <- as.Date(substr(sub("^days since ", "", units), 1L, 10L))
+  if (is.na(origin)) {
+    cli::cli_abort("Cannot parse the population time axis: {units}")
+  }
+
+  as.integer(format(origin + time, "%Y"))
+}
+
+# Ocean and no-data cells become 0 people/km2 rather than NA: LPJmL aborts on
+# a missing value at any cell of its grid (ERROR423), and zero population is
+# physically meaningful, unlike a zero-filled temperature would be.
+.popdens_to_target <- function(counts, lon_idx, lat_idx, area_km2, grid) {
+  counts[!is.finite(counts)] <- 0
+  keep_lon <- !is.na(lon_idx)
+  keep_lat <- !is.na(lat_idx)
+  out <- array(0, dim = c(grid$nlon, grid$nlat, dim(counts)[[3L]]))
+  out[lon_idx[keep_lon], lat_idx[keep_lat], ] <-
+    counts[keep_lon, keep_lat, , drop = FALSE]
+
+  sweep(out, 2L, area_km2, FUN = "/")
+}
+
+# Densities must carry the same people the counts did, over the cells the
+# target grid keeps. This catches an area vector applied along the wrong axis,
+# which per-cell spot checks miss because the values stay plausible.
+.check_popdens_totals <- function(counts, density, area_km2, years) {
+  last <- length(years)
+  recovered <- sum(sweep(density[,, last], 2L, area_km2, FUN = "*"))
+  counts[!is.finite(counts)] <- 0
+  published <- sum(counts[,, last])
+  if (recovered > published * 1.000001) {
+    cli::cli_abort(
+      "Population density integrates to more people than published for
+       {years[[last]]} ({signif(recovered / 1e9, 4)} vs
+       {signif(published / 1e9, 4)} bn)."
+    )
+  }
+
+  cli::cli_alert_info(
+    "Population {years[[last]]}: {signif(recovered / 1e9, 4)} bn on the target
+     grid of {signif(published / 1e9, 4)} bn published"
+  )
+
+  invisible(TRUE)
+}
+
+.write_popdens_nc <- function(density, grid, years, out_path) {
+  dlon <- ncdim_def("longitude", "degrees_east", vals = grid$lon)
+  dlat <- ncdim_def("latitude", "degrees_north", vals = grid$lat)
+  dtime <- ncdim_def(
+    "time",
+    "days since 1901-01-01",
+    vals = as.numeric(as.Date(paste0(years, "-01-01")) - as.Date("1901-01-01"))
+  )
+  # "km-2" matches both src/spitfire/popdens.c and the
+  # `input.popdens.unit` declared in run_lpjml.R, so no udunits conversion
+  # is applied.
+  v <- ncvar_def(
+    "popdens",
+    "km-2",
+    dim = list(dlon, dlat, dtime),
+    longname = "population density",
+    prec = "float",
+    compression = 1
+  )
+
+  nc <- nc_create(out_path, vars = list(v), force_v4 = TRUE)
+  on.exit(nc_close(nc), add = TRUE)
+  ncvar_put(nc, v, density)
+  ncatt_put(nc, 0, "Conventions", "CF-1.8")
+  ncatt_put(nc, 0, "created_by", "WHEP prepare_spatialize_all.R")
+  ncatt_put(nc, 0, "created_date", as.character(Sys.time()))
+  ncatt_put(
+    nc,
+    0,
+    "source",
+    "ISIMIP3a population_histsoc_30arcmin, converted to people per km2"
+  )
+
+  invisible(out_path)
+}
+
 # ==== Section 10a: Write static LPJmL inputs to NetCDF ====================
 
 write_lpjml_static_inputs <- function(
   input_dir,
   lpjml_out_dir,
   drainage_dt = NULL,
-  export_years = NULL,
-  climate_dir = NULL
+  export_years = NULL
 ) {
   cli::cli_h2("Section 10a: Write static LPJmL inputs to NetCDF")
 
@@ -4071,6 +5156,7 @@ write_lpjml_static_inputs <- function(
     "landuse",
     "nitrogen",
     "river_routing",
+    "socioeconomic",
     "soil"
   )
   for (d in lpjml_dirs) {
@@ -4447,35 +5533,220 @@ write_lpjml_static_inputs <- function(
     cli::cli_warn("Deposition: {.path {dep_file}} not found — skipping")
   }
 
-  # ---- 9) Climate (symlinks) ----------------------------------------------
-  climate_mapping <- list(
-    temp = "cru_ts_3_10.1901.2009.tmp.dat.nc",
-    prec = "cru_ts_3_10_01.1901.2009.pre.dat.nc",
-    cloud = "cru_ts_3_10.1901.2009.cld.dat.nc",
-    wind = "wind_gswp3-w5e5_1901_2016_monthly.nc",
-    co2 = "historical_CO2_annual_1765_2018.txt",
-    wetdays = "cru_ts3.20.1901.2011.wet.dat.nc"
-  )
-  if (!is.null(climate_dir) && dir.exists(climate_dir)) {
-    for (nm in names(climate_mapping)) {
-      src_path <- file.path(climate_dir, climate_mapping[[nm]])
-      dst_path <- file.path(lpjml_out_dir, "climate", climate_mapping[[nm]])
-      if (file.exists(src_path)) {
-        if (!file.exists(dst_path)) {
-          file.symlink(src_path, dst_path)
-        }
-        cli::cli_alert_success("Climate: symlinked {nm}")
-      } else {
-        cli::cli_warn("Climate: {nm} not found in {.path {climate_dir}}")
-      }
-    }
-  } else {
-    cli::cli_alert_info(
-      "Climate: no climate_dir provided — use LPJmL climate inputs separately"
-    )
-  }
+  # Climate is no longer handled here. It used to be symlinked in from an
+  # out-of-tree directory under hardcoded filenames; it is now derived from
+  # the raw downloads by prepare_climate_inputs() (Section 9d), like every
+  # other input.
 
   cli::cli_alert_success("Static LPJmL inputs complete")
+}
+
+# ==== Section 10b: LPJmL 6.x mandatory static inputs ========================
+#
+# LPJmL 6.x opens four static fields that 5.9.7 has no concept of and aborts
+# without them: a groundwater baseflow coefficient (`kbf`, celldata.c:131),
+# three slope statistics (`slope_mean`/`slope_min`/`slope_max`, celldata.c:175 —
+# filesexist.c names only slope_mean, but the run demands all three), and
+# hydrotopes (a 3-band compound topographic index).
+#
+# They are not derivable from WHEP data; they come from PIK's standard input
+# set, which stays on local disk and is read via an environment variable like
+# the other multi-GB rasters. PIK ships them as .clm on their own 67420-cell
+# grid, so they must be rewritten as NetCDF on the 0.5 degree grid: the CDF
+# branch of readinputdata() matches by coordinate, while the clm branch reads
+# sequentially in cell order and would misalign every value against WHEP's
+# 58795-cell grid without any error.
+
+# Resolve PIK's standard input directory from the argument or the environment.
+.resolve_lpjml_stock_dir <- function(stock_dir) {
+  resolved <- stock_dir %||% Sys.getenv("WHEP_LPJML_STOCK_DIR")
+  if (!.has_path(resolved)) {
+    cli::cli_abort(c(
+      "No LPJmL standard input directory available.",
+      i = "Pass {.arg stock_dir} or set {.envvar WHEP_LPJML_STOCK_DIR}.",
+      i = "It must contain PIK's grid.clm plus kbf/slope/hydrotope .clm files."
+    ))
+  }
+  resolved
+}
+
+# Read one PIK .clm field, using its sidecar .clm.json for layout and scaling.
+.read_pik_clm <- function(stem, stock_dir, what, size, nbands) {
+  meta_path <- file.path(stock_dir, paste0(stem, ".clm.json"))
+  data_path <- file.path(stock_dir, paste0(stem, ".clm"))
+  if (!file.exists(meta_path) || !file.exists(data_path)) {
+    cli::cli_abort("Missing {.path {stem}.clm} in {.path {stock_dir}}.")
+  }
+  meta <- jsonlite::fromJSON(meta_path)
+  raw <- readBin(data_path, what = "raw", n = file.size(data_path))
+  body <- raw[(meta$offset + 1L):length(raw)]
+  values <- readBin(
+    body,
+    what = what,
+    size = size,
+    n = meta$ncell * nbands,
+    endian = if (isTRUE(meta$bigendian)) "big" else "little",
+    signed = TRUE
+  )
+  list(meta = meta, values = values * meta$scalar)
+}
+
+# Place PIK's cell-ordered values onto the 0.5 degree grid by coordinate.
+.pik_clm_to_grid <- function(values, coords, nbands, grid) {
+  bands <- matrix(values, ncol = nbands, byrow = TRUE)
+  field <- array(NA_real_, dim = c(grid$nlon, grid$nlat, nbands))
+  i <- match(sprintf("%.2f", coords[, 1L]), sprintf("%.2f", grid$lon))
+  j <- match(sprintf("%.2f", coords[, 2L]), sprintf("%.2f", grid$lat))
+  if (anyNA(i) || anyNA(j)) {
+    cli::cli_abort("PIK grid coordinates fall outside the WHEP target grid.")
+  }
+  for (b in seq_len(nbands)) {
+    field[cbind(i, j, b)] <- bands[, b]
+  }
+  field
+}
+
+# Fill cells that WHEP simulates but PIK's grid omits, from the nearest cell
+# that has a value. These are smooth geophysical fields, so a neighbour is
+# defensible where a constant would not be; the same approach fills the CRU
+# land-mask gaps in Section 9d.
+.fill_missing_from_nearest <- function(field, grid, cells) {
+  gi <- match(sprintf("%.2f", cells$lon), sprintf("%.2f", grid$lon))
+  gj <- match(sprintf("%.2f", cells$lat), sprintf("%.2f", grid$lat))
+  missing <- which(!is.finite(field[cbind(gi, gj, rep(1L, length(gi)))]))
+  if (!length(missing)) {
+    return(list(field = field, n_filled = 0L))
+  }
+  have <- which(is.finite(field[,, 1L]), arr.ind = TRUE)
+  hlon <- grid$lon[have[, 1L]]
+  hlat <- grid$lat[have[, 2L]]
+  to_rad <- pi / 180
+  for (k in missing) {
+    d <- 2 *
+      asin(pmin(
+        1,
+        sqrt(
+          sin((hlat - cells$lat[k]) * to_rad / 2)^2 +
+            cos(cells$lat[k] * to_rad) *
+              cos(hlat * to_rad) *
+              sin((hlon - cells$lon[k]) * to_rad / 2)^2
+        )
+      ))
+    n <- which.min(d)
+    field[gi[k], gj[k], ] <- field[have[n, 1L], have[n, 2L], ]
+  }
+  list(field = field, n_filled = length(missing))
+}
+
+# Write one regridded static field. A missing value is mandatory: LPJmL aborts
+# with ERROR402 when a NetCDF input declares none.
+.write_static_nc <- function(
+  out_path,
+  field,
+  var,
+  units,
+  longname,
+  grid,
+  nbands,
+  source_note
+) {
+  dims <- list(
+    ncdf4::ncdim_def("lon", "degrees_east", grid$lon),
+    ncdf4::ncdim_def("lat", "degrees_north", grid$lat)
+  )
+  if (nbands > 1L) {
+    dims <- c(dims, list(ncdf4::ncdim_def("band", "", seq_len(nbands))))
+  } else {
+    field <- field[,, 1L]
+  }
+  v <- ncdf4::ncvar_def(
+    var,
+    units,
+    dims,
+    missval = -9999,
+    longname = longname,
+    prec = "float"
+  )
+  nc <- ncdf4::nc_create(out_path, v, force_v4 = TRUE)
+  on.exit(ncdf4::nc_close(nc), add = TRUE)
+  ncdf4::ncvar_put(nc, v, field)
+  ncdf4::ncatt_put(nc, 0, "Conventions", "CF-1.8")
+  ncdf4::ncatt_put(nc, 0, "created_by", "WHEP prepare_spatialize_all.R")
+  ncdf4::ncatt_put(nc, 0, "source", source_note)
+  invisible(out_path)
+}
+
+# PIK ships these under their own upstream names; `out` is the name LPJmL is
+# pointed at from run_lpjml.R.
+.lpjml6_static_specs <- function() {
+  tibble::tribble(
+    ~stem, ~out, ~var, ~nbands, ~what, ~size, ~longname,
+    "kbf",
+    "kbf_30arcmin.nc",
+    "kbf", 1L, "numeric", 4L,
+    "groundwater baseflow coefficient",
+    "GloSlope-30as_mean",
+    "slope_mean_30arcmin.nc",
+    "slope", 1L, "numeric", 4L,
+    "mean terrain slope",
+    "GloSlope-30as_min",
+    "slope_min_30arcmin.nc",
+    "slope", 1L, "numeric", 4L,
+    "minimum terrain slope",
+    "GloSlope-30as_max",
+    "slope_max_30arcmin.nc",
+    "slope", 1L, "numeric", 4L,
+    "maximum terrain slope",
+    "hydro2_shuffle_new",
+    "hydrotopes_cti_30arcmin.nc",
+    "cti", 3L, "integer", 2L,
+    "compound topographic index (mean, sd, skewness)"
+  )
+}
+
+prepare_lpjml6_static_inputs <- function(
+  input_dir,
+  lpjml_out_dir,
+  stock_dir = NULL
+) {
+  cli::cli_h2("Section 10b: LPJmL 6.x mandatory static inputs")
+  stock <- .resolve_lpjml_stock_dir(stock_dir)
+  out_dir <- file.path(lpjml_out_dir, "soil")
+  dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+
+  grid <- make_target_grid()
+  cells <- nanoparquet::read_parquet(
+    file.path(input_dir, "country_grid.parquet")
+  )
+  pik_grid <- .read_pik_clm("grid", stock, "integer", 2L, 2L)
+  coords <- matrix(pik_grid$values, ncol = 2L, byrow = TRUE)
+
+  specs <- .lpjml6_static_specs()
+  for (k in seq_len(nrow(specs))) {
+    s <- specs[k, ]
+    src <- .read_pik_clm(s$stem, stock, s$what, s$size, s$nbands)
+    if (src$meta$ncell != pik_grid$meta$ncell) {
+      cli::cli_abort("{.file {s$stem}.clm} cell count differs from grid.clm.")
+    }
+    field <- .pik_clm_to_grid(src$values, coords, s$nbands, grid)
+    filled <- .fill_missing_from_nearest(field, grid, cells)
+    out_path <- file.path(out_dir, s$out)
+    .write_static_nc(
+      out_path,
+      filled$field,
+      s$var,
+      "1",
+      s$longname,
+      grid,
+      s$nbands,
+      paste("PIK LPJmL standard input set,", s$stem)
+    )
+    cli::cli_alert_info(
+      "{s$stem}: wrote {.path {s$out}} ({filled$n_filled} cell(s) filled)"
+    )
+  }
+  cli::cli_alert_success("LPJmL 6.x static inputs complete")
+  invisible(out_dir)
 }
 
 # ==== Section 10: Run crop spatialization ==================================
@@ -4690,6 +5961,23 @@ write_lpjml_static_inputs <- function(
   .pft_nc_write_chunk(nc_lu, out, chunk_years, all_years, grid, 32L)
 }
 
+# Collapse per-crop N rates to LPJmL PFT bands with an area-weighted mean
+# (weight = rainfed_ha + irrigated_ha), mirroring the yields writer. Many crops
+# share one band; a plain mean would bias the band rate toward minor-area crops
+# and break the implied applied-N mass (LPJmL multiplies rate x band area).
+.aggregate_nitrogen_pft <- function(ng) {
+  ng <- data.table::as.data.table(ng)
+  ng[, w := rainfed_ha + irrigated_ha]
+  agg <- ng[
+    w > 0,
+    .(num = sum(kg_n_ha * w, na.rm = TRUE), w_sum = sum(w, na.rm = TRUE)),
+    by = .(year, pft, fert_type, row, col)
+  ]
+  agg[, value := num / w_sum]
+  agg[is.nan(value), value := 0]
+  agg[, .(year, pft, fert_type, row, col, value)]
+}
+
 .write_nitrogen_nc_chunks <- function(
   nc_syn,
   nc_man,
@@ -4701,10 +5989,7 @@ write_lpjml_static_inputs <- function(
 ) {
   ng <- data.table::as.data.table(n_dt)
   ng <- coord_to_rowcol(ng, grid)
-  agg <- ng[,
-    .(value = mean(kg_n_ha, na.rm = TRUE)),
-    by = .(year, pft, fert_type, row, col)
-  ]
+  agg <- .aggregate_nitrogen_pft(ng)
   # Duplicate PFTs 1-16 into 17-32 for irrigated bands (LPJmL expects 32 bands)
   # Convert kgN/ha -> g/m2 (LPJmL expects g/m2)
   rf <- agg[, .(year, pft, row, col, value = value * 0.1, fert_type)]
@@ -5396,7 +6681,7 @@ prepare_spatialize_all <- function(
   l_files_dir = "LPJmL_inputs",
   year_range = 1851:2023,
   target_res = 0.5,
-  climate_dir = NULL
+  cru_version = NULL
 ) {
   # For a quick test run use: year_range = 2000:2001
   #
@@ -5424,6 +6709,15 @@ prepare_spatialize_all <- function(
   # Section 1: Country grid
   country_grid <- prepare_country_grid(l_files_dir, target_res)
   .save_parquet(country_grid, output_dir, "country_grid")
+
+  # Section 1b: Cell x polity fractions (fractional crosswalk for the balance
+  # modules; build_cell_polity() reads this parquet).
+  cell_polity_fraction <- build_cell_polity_fraction(
+    l_files_dir,
+    country_grid,
+    target_res
+  )
+  .save_parquet(cell_polity_fraction, output_dir, "cell_polity_fraction")
 
   # Section 5: MIRCA irrigation (run before country_areas so MIRCA
   # is available on the first pass)
@@ -5490,13 +6784,37 @@ prepare_spatialize_all <- function(
   )
   prepare_soil_inputs(l_files_dir, output_dir, lpjml_out_dir, target_res)
 
-  # Section 10a: Write static LPJmL inputs (GADM, routing, deposition, climate)
+  # Section 9c: Population density (LPJmL popdens, ISIMIP3a)
+  prepare_popdens_input(l_files_dir, lpjml_out_dir)
+
+  # Section 10a: Write static LPJmL inputs (GADM, routing, deposition)
   write_lpjml_static_inputs(
     output_dir,
     lpjml_out_dir,
     drainage_dt,
-    export_years = year_range,
-    climate_dir = climate_dir
+    export_years = year_range
+  )
+
+  # Section 10b: LPJmL 6.x mandatory static inputs (kbf, slope, hydrotopes).
+  # Skipped unless PIK's standard input set is available, since 5.9.7 does not
+  # read these and a 5.9.7-only setup should still build end to end.
+  if (nzchar(Sys.getenv("WHEP_LPJML_STOCK_DIR"))) {
+    prepare_lpjml6_static_inputs(output_dir, lpjml_out_dir)
+  } else {
+    cli::cli_alert_info(
+      "Section 10b: {.envvar WHEP_LPJML_STOCK_DIR} unset — skipping LPJmL 6.x
+       static inputs (required only for LPJmL 6.x runs)"
+    )
+  }
+
+  # Section 9d: Climate forcing derived from the raw CRU/CO2/wind downloads.
+  # Runs after 10a because the CRU gap fill needs the grid file 10a writes.
+  prepare_climate_inputs(
+    l_files_dir,
+    lpjml_out_dir,
+    cru_version = cru_version,
+    grid_path = file.path(lpjml_out_dir, "gadm", "grid_gadm_30arcmin.nc"),
+    target_years = year_range[year_range >= 1901L]
   )
 
   # Section 10: Run crop spatialization

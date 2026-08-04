@@ -734,16 +734,39 @@ build_processing_coefs <- function(
   dt
 }
 
+# Resolve an iso3c + year table from a genuine historical trade source to the
+# polity active in its own reported year, adding `area`, `area_code` -- the
+# polity aggregation bucket -- and `polity_code`. Unlike WHEP's pre-1962 FAOSTAT
+# series, which are back-cast onto ~1961 territory, these sources are reported
+# under their own year's borders, so the back-cast floor documented in
+# .add_polity_columns_dt must be switched off. Rows whose iso3c is unknown, or
+# whose reported year predates every period of its area, keep NA and are dropped
+# by the caller.
+.resolve_hist_trade_polities <- function(dt) {
+  area_bridge <- .current_area_lookup(include_unmapped = FALSE)[
+    !is.na(area_iso3c),
+    .(iso3c = area_iso3c, area = area_name, area_code)
+  ]
+  area_bridge <- unique(area_bridge, by = "iso3c")
+
+  out <- merge(dt, area_bridge, by = "iso3c", all.x = TRUE, sort = FALSE)
+  out <- .add_polity_columns_dt(
+    out,
+    code_col = "area_code",
+    year_col = "year",
+    include_unmapped = FALSE,
+    backcast_anchor = -Inf
+  )
+  out[, area_code := polity_area_code]
+  keep <- unique(c(names(dt), "area", "area_code", "polity_code"))
+  out[, keep, with = FALSE]
+}
+
 .read_historical_trade <- function(years = NULL) {
   items <- data.table::as.data.table(whep::items_full)[,
     .(item_cbs, item_cbs_code)
   ]
   cbs_trade <- data.table::as.data.table(whep::cbs_trade_codes)
-  area_bridge <- .current_area_lookup(include_unmapped = FALSE)[
-    !is.na(area_iso3c),
-    .(iso3c = area_iso3c, area = area_name, area_code = polity_area_code)
-  ]
-  area_bridge <- unique(area_bridge, by = "iso3c")
 
   exports <- .read_input(
     "historical-trade-exports",
@@ -777,25 +800,40 @@ build_processing_coefs <- function(
     c("iso3c", "item_code_trade")
   )
 
-  dt <- merge(dt, area_bridge, by = "iso3c", all.x = TRUE, sort = FALSE)
+  dt <- .resolve_hist_trade_polities(dt)
   dt <- merge(dt, cbs_trade, by = "item_code_trade", all.x = TRUE, sort = FALSE)
   dt <- merge(dt, items, by = "item_cbs", all.x = TRUE, sort = FALSE)
 
   dt <- dt[,
     .(value = sum(value, na.rm = TRUE)),
-    by = c("year", "area", "area_code", "item_cbs", "item_cbs_code", "element")
+    by = c(
+      "year",
+      "area",
+      "area_code",
+      "polity_code",
+      "item_cbs",
+      "item_cbs_code",
+      "element"
+    )
   ]
   dt[, unit := "tonnes"]
-  dt[!is.na(area)]
+  dt[!is.na(polity_code)]
 }
 
 # Enrich codes-only primary output with names needed by the CBS pipeline.
+# build_primary_production() may already return item_cbs_name (a newer, richer
+# output than the "codes-only" shape this function originally assumed);
+# re-adding it via add_item_cbs_name() would collide with the existing column
+# (dplyr suffixes both to .x/.y) and leave no plain item_cbs_name to rename.
+# Skip the join when the name is already present.
 .enrich_primary_with_names <- function(primary_all) {
-  primary_all |>
+  out <- primary_all |>
     add_area_name() |>
-    dplyr::rename(area = area_name) |>
-    add_item_cbs_name(code_column = "item_cbs_code") |>
-    dplyr::rename(item_cbs = item_cbs_name)
+    dplyr::rename(area = area_name)
+  if (!"item_cbs_name" %in% names(out)) {
+    out <- add_item_cbs_name(out, code_column = "item_cbs_code")
+  }
+  dplyr::rename(out, item_cbs = item_cbs_name)
 }
 
 .primary_to_cbs <- function(primary_all) {
@@ -1040,13 +1078,22 @@ build_processing_coefs <- function(
     "item_cbs_code",
     "element"
   )
-  out <- dt[,
-    .(
-      value = mean(value, na.rm = TRUE),
-      source = .best_cbs_source(source, year[1L])
-    ),
-    by = key_cols
+  # Best source per group WITHOUT calling .best_cbs_source() per group (which
+  # re-ran .cbs_source_rank()'s case_when for every group). Rank every row once,
+  # then take the mean value and the lowest-ranked (then alphabetical) non-NA
+  # source per group by ordering. Left join reproduces NA source for all-NA
+  # groups, exactly as the per-group call returned.
+  dt[, .src_rank := .cbs_source_rank(source, year)]
+  dt[is.na(.src_rank), .src_rank := .Machine$integer.max]
+  val <- dt[, .(value = mean(value, na.rm = TRUE)), by = key_cols]
+  src <- dt[!is.na(source)]
+  data.table::setorderv(src, c(key_cols, ".src_rank", "source"))
+  src <- src[
+    src[, .I[1L], by = key_cols]$V1,
+    c(key_cols, "source"),
+    with = FALSE
   ]
+  out <- merge(val, src, by = key_cols, all.x = TRUE, sort = FALSE)
   out <- out[!is.nan(value)]
   if (nrow(out) < n_in) {
     cli::cli_alert_info(
@@ -1115,15 +1162,6 @@ build_processing_coefs <- function(
   out <- dt[dt[, .I[1L], by = key_cols]$V1]
   out[, .source_rank := NULL]
   tibble::as_tibble(out)
-}
-
-.best_cbs_source <- function(source, year) {
-  source <- source[!is.na(source)]
-  if (length(source) == 0L) {
-    return(NA_character_)
-  }
-  year <- rep(year, length.out = length(source))
-  source[order(.cbs_source_rank(source, year), source)][[1L]]
 }
 
 .cbs_source_rank <- function(source, year) {
@@ -1569,8 +1607,13 @@ build_processing_coefs <- function(
 
 .select_best_source <- function(cbs_raw_all) {
   # Pivot sources into columns — avoids grouped summarise + nth overhead.
+  # Key on the integer `area_code`, not the `area` name: sources disagree on
+  # the name for the same code (plain name vs periodized polity name, e.g.
+  # code 41 -> "China, mainland" vs "China (PRC)"). Keying on the name would
+  # scatter the sources for one country into separate groups so both survive
+  # selection and get summed downstream (double-counting production). The
+  # human-readable name is re-attached from a per-code lookup at the end.
   key_cols <- c(
-    "area",
     "area_code",
     "year",
     "item_cbs",
@@ -1578,7 +1621,6 @@ build_processing_coefs <- function(
     "element"
   )
   group_cols <- c(
-    "area",
     "area_code",
     "item_cbs",
     "item_cbs_code",
@@ -1586,12 +1628,39 @@ build_processing_coefs <- function(
   )
 
   dt_raw <- data.table::as.data.table(cbs_raw_all)
-  dt_raw <- dt_raw[!is.na(area), c(key_cols, "source", "value"), with = FALSE]
+  dt_raw <- dt_raw[!is.na(area)]
+  area_lookup <- unique(dt_raw[, .(area_code, area)], by = "area_code")
+  dt_raw <- dt_raw[, c(key_cols, "source", "value"), with = FALSE]
 
   # Pivot only primary sources (3 cols) instead of all sources.
   # Avoids expensive frankv over many source columns.
   primary_sources <- c("FAOSTAT_prod", "FAOSTAT_FBS_New", "FAOSTAT_FBS_Old")
   src_pivot <- dt_raw[source %in% primary_sources]
+  # `fun.aggregate` is REQUIRED here, and omitting it was a silent data-corruption bug.
+  #
+  # `dcast()` with no `fun.aggregate` falls back to `length()` as soon as ANY duplicate
+  # (key, source) combination exists -- and it applies that function to EVERY cell, not just the
+  # duplicated ones. So one duplicate anywhere turns the whole table into row counts. Measured
+  # before this change, on a real 2010-2023 build:
+  #
+  #   classes = FAOSTAT_FBS_New:integer  FAOSTAT_FBS_Old:integer  FAOSTAT_prod:integer
+  #   maxima  = 4, 4, 1
+  #
+  # Those columns are tonnes. A maximum of 4 is impossible. 31,642 duplicated combinations
+  # exist at full range, in areas 206 and 999, so the fallback fired in every build.
+  #
+  # SUM is the right aggregate, established from the data rather than assumed. The duplicates
+  # are one reporting bucket's folded members: `.aggregate_to_polities()` emits one row per
+  # (bucket, polity_name) and `key_cols` deliberately excludes the name -- see the comment
+  # above, which is why that exclusion is correct. Dumped, bucket 999 in 2010 for wheat holds
+  # four distinct territories with production 0 / 244,000 / 0 / 3,103,000. FABIO's
+  # rest-of-world IS the sum of its members, so summing reproduces the bucket. `first` would
+  # keep one member (0, here) and discard the rest.
+  #
+  # All-NA cells stay NA rather than collapsing to 0: `sum(na.rm = TRUE)` of nothing is 0, and a
+  # zero where there is no observation is a different claim from a missing one. `fill = NA` is
+  # respected either way -- verified on a synthetic cast, absent combinations remain NA whether
+  # or not a function is supplied.
   wide <- data.table::dcast(
     src_pivot,
     stats::as.formula(paste(
@@ -1599,7 +1668,10 @@ build_processing_coefs <- function(
       "~ source"
     )),
     value.var = "value",
-    fill = NA
+    fill = NA,
+    fun.aggregate = function(x) {
+      if (all(is.na(x))) NA_real_ else sum(x, na.rm = TRUE)
+    }
   )
   for (col in setdiff(primary_sources, names(wide))) {
     wide[, (col) := NA_real_]
@@ -1666,13 +1738,18 @@ build_processing_coefs <- function(
     )
   ]
 
-  # Source selection: Primary > FBS_New > scaled FBS_Old > other
+  # Source selection: Primary > FBS_New > scaled FBS_Old > other. Coerce every
+  # source to double first: the pivoted FAOSTAT_prod / FAOSTAT_FBS_New inherit
+  # the raw `value` type (integer for some global sources), while FBS_Old_scaled
+  # and other_mean are computed doubles, and fcoalesce() aborts on a mixed
+  # integer/double set. Production quantities are continuous, so double is the
+  # correct common type.
   wide[,
     value := data.table::fcoalesce(
-      FAOSTAT_prod,
-      FAOSTAT_FBS_New,
-      FBS_Old_scaled,
-      other_mean
+      as.double(FAOSTAT_prod),
+      as.double(FAOSTAT_FBS_New),
+      as.double(FBS_Old_scaled),
+      as.double(other_mean)
     )
   ]
   wide[,
@@ -1702,6 +1779,8 @@ build_processing_coefs <- function(
     element %in% clamp_elems & (value < 0 | is.infinite(value)),
     value := 0
   ]
+
+  wide[area_lookup, area := i.area, on = "area_code"]
 
   wide <- wide |>
     dplyr::select(
@@ -1737,11 +1816,32 @@ build_processing_coefs <- function(
     ) |>
     .collapse_cbs_observations()
 
-  observed_sources <- data.table::as.data.table(cbs_hist)[
-    !is.na(value),
-    .(observed_source = .best_cbs_source(source, year[1L])),
-    by = c("year", "area", "area_code", "item_cbs", "item_cbs_code", "element")
+  # Vectorised equivalent of the per-group .best_cbs_source() call: rank once,
+  # sort NA/unrecognised sources last, then take the first (best) source per
+  # group. Keeps every !is.na(value) group so all-NA-source groups still yield
+  # observed_source = NA, matching the per-group call.
+  obs_keys <- c(
+    "year",
+    "area",
+    "area_code",
+    "item_cbs",
+    "item_cbs_code",
+    "element"
+  )
+  obs_dt <- data.table::as.data.table(cbs_hist)[!is.na(value)]
+  obs_dt[, .src_rank := .cbs_source_rank(source, year)]
+  obs_dt[is.na(.src_rank) | is.na(source), .src_rank := .Machine$integer.max]
+  data.table::setorderv(
+    obs_dt,
+    c(obs_keys, ".src_rank", "source"),
+    na.last = TRUE
+  )
+  observed_sources <- obs_dt[
+    obs_dt[, .I[1L], by = obs_keys]$V1,
+    c(obs_keys, "source"),
+    with = FALSE
   ]
+  data.table::setnames(observed_sources, "source", "observed_source")
 
   cbs_hist <- cbs_hist |>
     dplyr::select(-dplyr::any_of("source"))

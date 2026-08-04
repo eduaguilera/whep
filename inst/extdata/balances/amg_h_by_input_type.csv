@@ -1,0 +1,8 @@
+match_order,input_type,pattern,h
+1,green_manure,green.?manure,0.20
+2,mineral_manure,mineral.*manure|manure.*mineral,0.30
+3,none,none|no_straw_no_fym|no.straw.no.fym,0.10
+4,manure,fym|manure|compost|organic.?amend|slurry,0.40
+5,residue,residue|straw_returned|straw\.returned,0.13
+6,mineral,mineral,0.13
+7,default,,0.15

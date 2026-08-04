@@ -428,11 +428,13 @@ build_cbs_prices <- function(
           item_cbs_code = 2562L,
           price = x2562
         )]
-        # Remove existing 2562 rows for those years and replace
+        # Replace only the specific (year, element) rows being
+        # estimated. A keyed anti-join avoids the cross-product of
+        # {years} x {elements} that would delete genuine prices for
+        # untouched (year, element) pairs.
         dt <- dt[
-          !(item_cbs_code == 2562L &
-            year %in% pk_new$year &
-            element %in% pk_new$element)
+          !pk_new,
+          on = c("year", "element", "item_cbs_code")
         ]
         items <- data.table::as.data.table(whep::items_full)
         pk_new[,

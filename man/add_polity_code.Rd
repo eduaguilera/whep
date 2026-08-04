@@ -36,4 +36,11 @@ Adds periodized \code{polity_code} information from \link{polity_area_crosswalk}
 a table with FAOSTAT/FABIO \code{area_code} values. If a \code{year} column is
 present, the mapping is year-aware; otherwise the current/default mapping
 is used.
+
+When no mapped period covers a row's year, the nearest period of the same
+area is used as a stand-in and \code{mapping_status} reports \code{"out_of_span"}
+rather than the crosswalk's \code{"matched"}/\code{"manual"}. Such a row is attributed
+to a polity that did not exist in that year, so treat it as a coverage gap:
+either the area needs the missing period added to the crosswalk, or the
+reporting area outlived (or predates) every polity mapped to it.
 }

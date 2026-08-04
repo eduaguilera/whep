@@ -58,7 +58,8 @@ item, ready to route to consumers with
 \code{\link[=compute_footprint_balance]{compute_footprint_balance()}}. Because each step redistributes a
 total without creating or destroying it, the country-level land
 total is conserved whenever an animal fed and produced an output
-there.
+there. Land fed to animals that produced no eligible output item is
+set aside and reported via a warning rather than silently dropped.
 }
 \examples{
 grass_land <- tibble::tibble(

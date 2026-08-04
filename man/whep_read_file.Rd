@@ -17,6 +17,10 @@ possible values in the \code{alias} column of the \code{\link{whep_inputs}} data
 If the \code{parquet} version is available, this is useless because this
 function already returns the dataset in an \code{R} object, so the origin is
 irrelevant, and \code{parquet} is read faster.
+\item \code{nc} / \code{nc4}: Returns the path to the downloaded NetCDF instead of its
+contents, because these grids are read lazily by \code{ncdf4}/\code{terra} and are
+far too large to materialise as a tibble.
+\item \code{raw}: Returns the file path without any processing.
 }
 
 Saving each file in both formats is for transparency and accessibility

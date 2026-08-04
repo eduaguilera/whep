@@ -78,7 +78,7 @@ The PR must pass these GitHub Actions checks:
    - To verify: compare `ls man/*.Rd` topics against `_pkgdown.yml` contents. Every `.Rd` file (except `whep-package.Rd`) must have a matching entry.
    - Run locally: `Rscript -e "pkgdown::build_reference_index()"`
 
-5. **Tests**: `devtools::test()` — 2 pre-existing failures in `test_commodity_balance_sheet.R` are expected (pin format, `skip_on_ci`).
+5. **Tests**: `devtools::test()` — the whole suite must be 100% green (a failing test is a hard `R CMD check --as-cran` ERROR). `test_commodity_balance_sheet.R` uses small self-contained fixtures (no pins, no network) and passes.
 
 ## Before committing
 
@@ -115,8 +115,13 @@ comm -23 \
 - **Primary production**: `build_primary_production()` — FAOSTAT + LUH2 extension (1850–2023).
 - **CBS**: `build_commodity_balances()` — long format output with `source` and `fao_flag` columns.
 - **Processing coefficients**: `build_processing_coefs()` — cascades from CBS.
+- **Soil water balance**: `build_water_balance()` — gridded (0.5° cell × polity) annual water budget from LPJmL hydrology (drainage for N leaching); `get_soc_climate_drivers()` emits the monthly SOC climate drivers.
+- **Soil carbon (SOC)**: `build_carbon_balance()` — historical gridded SOC dynamics (equilibrium init + LUH2-driven march + LUC transfer), yielding ΔSOC → ΔSON. `calculate_soc_dynamics(model = c("hsoc","rothc","icbm","amg","century"))` wraps the five SOC models (default `"hsoc"`); `build_soil_carbon_inputs()` assembles humified C inputs.
+- **Soil nitrogen balance**: `build_nitrogen_balance()` — full gridded N balance (inputs − outputs, NUE indicators, GWP/CO2e). `build_n_inputs()` assembles the input terms; `calculate_nh3()`/`calculate_soil_n2o()`/`calculate_n_leaching()` are the selectable loss methods; `build_n_deposition()`/`build_urban_n()` read gridded deposition and urban/human N.
 - **Source labels**: use dataset-specific names (`FAOSTAT_prod`, `FAOSTAT_FBS_New`, etc.).
-- **New data sources**: register via `whep_inputs.csv` + pins system; prepare with `inst/scripts/prepare_upload.R`.
+- **New data sources**: register via `whep_inputs.csv` + pins system; prepare with `inst/scripts/prepare_upload.R`. Multi-GB rasters (CRU, LPJmL, HYDE, HaNi, wind, LUH2, HWSD) and the Schulte-Uebbing gridded critical-nitrogen archive stay on local disk and are read via env vars (`WHEP_CRU_DIR`, `WHEP_LPJML_RUN_DIR`, `WHEP_HYDE_DIR`, `WHEP_HANI_DIR`, `WHEP_WIND_DIR`, `WHEP_LUH2_DIR`, `WHEP_HWSD_DIR`, `WHEP_CRITICAL_N_DIR`); the readers abort with an instruction when unset (never hardcode the absolute path). The gridded nitrogen balance reads its land surfaces the same way (`WHEP_TYPE_CROPLAND_PATH`, `WHEP_CROP_PATTERNS_PATH`, `WHEP_GRIDDED_PASTURE_PATH`, `WHEP_POLITY_FRACTION_PATH`).
+- **Two of those download on demand instead of aborting**, because their source is openly licensed and publishes a checksum: the LUH2 `states.nc` (`read_luh2_landuse()`, Zenodo record 15556812) and the critical-nitrogen archive (`read_critical_n()`, Zenodo record 6395016). Both verify the published MD5, cache under `rappdirs::user_cache_dir("whep")`, and treat their env var as an override. Prefer this over a pin for third-party data already published with a stable DOI and checksum — a pin adds an uncheckable second copy (see #457).
+- **LPJmL outputs are the one input a user cannot obtain**, so unlike the third-party rasters above they are **pinned, and `WHEP_LPJML_RUN_DIR` is optional**. `build_grass_natural_carbon_inputs()` reads `lpjml-grass-natural-net-c` and `get_soc_climate_drivers()` reads `lpjml-soc-hydrology` by default; set the env var (or pass `run_dir`) only to derive those layers from a local run instead. Both artifacts hold **only** LPJmL-derived quantities — grazing excreta, humification fractions, CRU air temperature and the HWSD texture products are always computed locally, so the pinned and run-derived paths cannot silently disagree. Regenerate and re-upload them from a new run with `upload_whep_lpjml_soc_artifacts()` in the `~/whep_inputs` project.
 
 ## Package data updates
 

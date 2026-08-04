@@ -22,7 +22,7 @@ cli::cli_h1("Building CBS pipeline")
 primary <- whep::build_primary_production()
 cbs <- whep::build_commodity_balances(primary)
 
-# The CBS output is wide: year, area_code, item_cbs_code, + element columns
+# The CBS output is long: year, area_code, item_cbs_code, element, value.
 # We need to identify which export/import values were imputed.
 # Since .cbs_impute_trade() fills NA trade with DS-production residual,
 # imputed values are those where the original FAOSTAT had no trade data.
@@ -36,14 +36,9 @@ original_trade <- cbs_raw |>
   dplyr::filter(element %in% c("import", "export")) |>
   dplyr::select(year, area_code, item_cbs_code, element, value_original = value)
 
-# Final CBS in long format
+# Final CBS is already long (year, area_code, item_cbs_code, element, value).
 cbs_long <- cbs |>
-  dplyr::mutate(stock_variation = -stock_retrieval, .keep = "unused") |>
-  tidyr::pivot_longer(
-    cols = -c(year, area_code, item_cbs_code),
-    names_to = "element",
-    values_to = "value"
-  )
+  dplyr::select(year, area_code, item_cbs_code, element, value)
 
 # Merge to identify imputed trade
 trade_comparison <- cbs_long |>

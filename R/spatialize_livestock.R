@@ -530,6 +530,10 @@ build_gridded_livestock <- function(
       .by = area_code
     )
 
+  # Surface countries with national totals but no allocatable proxy cell
+  # before the inner join below silently drops them.
+  .warn_unallocated_livestock(needed, grid, country_data)
+
   # Join country totals
   join_cols <- dplyr::select(
     country_data,
@@ -557,6 +561,45 @@ build_gridded_livestock <- function(
     )
 }
 
+
+#' Warn about countries whose national totals cannot be allocated.
+#'
+#' A country with national livestock totals but no proxy grid cell (no
+#' land-use weight in any of its cells) would be dropped by the inner
+#' join with `country_data`, leaking its national total. Detect these
+#' and warn with the count, leaked heads (when available), and identities.
+#' @noRd
+.warn_unallocated_livestock <- function(needed, grid, country_data) {
+  dropped <- setdiff(needed, unique(grid$area_code))
+  if (length(dropped) == 0L) {
+    return(invisible(NULL))
+  }
+  lost_heads <- if (rlang::has_name(country_data, "heads")) {
+    country_data |>
+      dplyr::filter(area_code %in% dropped) |>
+      dplyr::pull(heads) |>
+      sum(na.rm = TRUE)
+  } else {
+    NA_real_
+  }
+  head_msg <- if (is.na(lost_heads)) {
+    ""
+  } else {
+    " ({round(lost_heads)} head{?s} dropped)"
+  }
+  # `codes` is integer, so the plural marker must follow an explicit scalar
+  # count: cli's make_quantity() errors on a numeric vector of length > 1.
+  codes <- sort(dropped)
+  cli::cli_warn(c(
+    paste0(
+      "{length(dropped)} countr{?y/ies} have national livestock totals ",
+      "but no proxy grid cell",
+      head_msg,
+      ":"
+    ),
+    "x" = "{length(codes)} area_code{?s}: {.val {codes}}."
+  ))
+}
 
 #' Validate inputs for build_gridded_livestock.
 #' @noRd

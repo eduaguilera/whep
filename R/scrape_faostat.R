@@ -1,4 +1,4 @@
-#' Scrapes activity_data from FAOSTAT and slightly post-processes it
+#' Scrape activity data from FAOSTAT and post-process it
 #'
 #' @description
 #' Important: Dynamically allows for the introduction of subsets as `"..."`.
@@ -10,17 +10,22 @@
 #'   to be one of `c('livestock','crop_area','crop_yield','crop_production')`.
 #' @param ... can be whichever column name from `get_faostat_bulk`,
 #'   particularly `year`, `area` or `ISO3_CODE`.
+#' @param example Logical. If `TRUE`, return a small hardcoded example
+#'   `tibble` instead of scraping FAOSTAT. Useful for offline demos and
+#'   documentation. Default `FALSE`.
 #'
-#' @returns `data.frame` of FAOSTAT for `activity_data`; default is for
-#'   all years and countries.
+#' @returns `tibble` of FAOSTAT for `activity_data` with columns `area`,
+#'   `item`, `element`, `year`, `value`, `unit` and `ISO3_CODE`; default is
+#'   for all years and countries.
 #'
 #' @export
 #'
 #' @examples
-#' \dontrun{
-#' get_faostat_data("livestock", year = 2010, area = "Portugal")
-#' }
-get_faostat_data <- function(activity_data, ...) {
+#' get_faostat_data(example = TRUE)
+get_faostat_data <- function(activity_data, ..., example = FALSE) {
+  if (example) {
+    return(.example_get_faostat_data())
+  }
   # Some functions from FAOSTAT pkg don't work by only using prefixed functions.
   # It is detached again at the end of this function call.
   # Also this is another way to write require("FAOSTAT") without triggering

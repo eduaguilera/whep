@@ -65,6 +65,19 @@ testthat::test_that(".populate_iso3_code keeps China aggregate distinct", {
   testthat::expect_length(dup_codes, 0)
 })
 
+testthat::test_that("get_faostat_data(example = TRUE) returns offline fixture", {
+  result <- whep::get_faostat_data(example = TRUE)
+
+  testthat::expect_s3_class(result, "tbl_df")
+  testthat::expect_named(
+    result,
+    c("area", "item", "element", "year", "value", "unit", "ISO3_CODE")
+  )
+  testthat::expect_type(result$value, "double")
+  testthat::expect_type(result$year, "integer")
+  testthat::expect_gt(nrow(result), 0)
+})
+
 testthat::test_that(".bad_activity_data_param_error returns helpful message", {
   msg <- .bad_activity_data_param_error()
 
