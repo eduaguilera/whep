@@ -251,6 +251,8 @@ long-format table (Task C6 final phase).
   : Build gridded atmospheric nitrogen deposition inputs.
 - [`read_hyde_population()`](https://eduaguilera.github.io/whep/reference/read_hyde_population.md)
   : Read gridded HYDE urban population onto WHEP's grid.
+- [`read_population()`](https://eduaguilera.github.io/whep/reference/read_population.md)
+  : Read national population on WHEP area codes.
 - [`build_urban_n()`](https://eduaguilera.github.io/whep/reference/build_urban_n.md)
   : Build gridded urban/human-excreta nitrogen inputs to agriculture.
 - [`calculate_manner_nh3()`](https://eduaguilera.github.io/whep/reference/calculate_manner_nh3.md)
