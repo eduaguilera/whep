@@ -577,8 +577,13 @@
 #' - `region_test`: Experimental/test regional grouping (may be incomplete).
 #' @source Compiled from [FAOSTAT](https://www.fao.org/faostat/), UN M49,
 #'   ILO, IEA, and other international statistical sources.
-#' @note Five trailing columns containing only Excel `#REF!` errors in the
-#'   source CSV are dropped at load time and are not part of this dataset.
+#' @note Derived from [regions_full] rather than vendored separately: the
+#'   198-code membership is read from `harmonization/polities_cats.csv` and every
+#'   column value comes from `regions_full`, so the two tables cannot disagree
+#'   except where this one deliberately folds an area into a rest-of-world
+#'   aggregate. Two areas are folded, both because they had no commodity balance
+#'   sheet when the table was compiled: Bhutan under `RASI` and Comoros under
+#'   `RAFR`, each with `cbs` `FALSE` and `fabio_code` `999`.
 #'
 #' @examples
 #' head(polities_cats)
