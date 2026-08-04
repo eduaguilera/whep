@@ -14,7 +14,11 @@
 
 suppressMessages(pkgload::load_all(".", quiet = TRUE))
 
-year <- as.integer(commandArgs(trailingOnly = TRUE)[1] %||% "2010")
+# Not `commandArgs(...)[1] %||% "2010"`: subscripting past the end of a
+# character vector yields NA_character_, not NULL, so `%||%` never fires and a
+# no-argument run silently gets year = NA and filters everything away.
+cli_args <- commandArgs(trailingOnly = TRUE)
+year <- as.integer(if (length(cli_args) > 0) cli_args[1] else "2010")
 cli::cli_h1("Nourishment axis, {year}")
 
 cbs_food <- get_wide_cbs() |>
