@@ -12,6 +12,7 @@ build_grass_natural_carbon_inputs(
   resolution = c("grid", "polity"),
   data = list(),
   years = NULL,
+  run_dir = NULL,
   example = FALSE
 )
 }
@@ -20,10 +21,14 @@ build_grass_natural_carbon_inputs(
 (aggregated to \code{area_code}, area-weighting the per-hectare densities).}
 
 \item{data}{Named list of pre-loaded inputs, each falling back to its reader
-when absent: \code{npp} and \code{harvestc} (per cell, PFT and year, the
+when absent: \code{net_c} (the LPJmL net carbon density, \code{lon}, \code{lat}, \code{year},
+\code{land_use}, \code{npp_c_mgc_ha_yr}; takes precedence over both \code{run_dir} and
+the pin); \code{npp} and \code{harvestc} (per cell, PFT and year, the
 \code{\link[=read_lpjml_npp]{read_lpjml_npp()}} output); \code{stand_frac} (per cell, year and PFT name the
 managed-grassland stand fractions with columns \code{lon}, \code{lat}, \code{year},
-\code{name_pft}, \code{stand_frac}); \code{country_grid} (\code{lon}, \code{lat}, \code{area_code},
+\code{name_pft}, \code{stand_frac}). Supplying all three of \code{npp}, \code{harvestc} and
+\code{stand_frac} derives \code{net_c} without needing a run directory or the pin.
+Also: \code{country_grid} (\code{lon}, \code{lat}, \code{area_code},
 \code{cell_area_frac}); \code{land_use} (per-cell class \code{area_ha}, used to spread
 excreta and to area-weight polity output); \code{excreta} (the \code{applied} tibble
 of \code{\link[=build_livestock_nutrient_flows]{build_livestock_nutrient_flows()}}, grassland rows carry \code{applied_c}
@@ -33,6 +38,11 @@ tonnes C); \code{residue_humification} (defaults to \link{residue_humification})
 (default) keeps every year the inputs cover. Threaded into the default
 LPJmL NPP, stand-fraction and land-use readers so they slice to the
 requested years; ignored for inputs supplied via \code{data}.}
+
+\item{run_dir}{Path to a finished LPJmL run output directory holding
+\code{pft_npp.nc}, \code{pft_harvestc.nc} and \code{cftfrac.nc} (the \verb{scenario_*} output
+folder). \code{NULL} (default) uses \code{WHEP_LPJML_RUN_DIR} when set, and the
+pinned artifact otherwise.}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading remote
 data. Defaults to \code{FALSE}.}
@@ -45,8 +55,15 @@ resolution (or \verb{(area_code, year, land_use)} at \code{"polity"}), with
 }
 \description{
 Assemble the carbon returned to soil under grassland and natural vegetation
-as the layer the soil-organic-carbon turnover models consume, from a
-finished LPJmL run. The class carbon input is the net primary production
+as the layer the soil-organic-carbon turnover models consume. The
+LPJmL-derived net carbon density is read from the pinned
+\code{lpjml-grass-natural-net-c} artifact by default, so running LPJmL is not a
+prerequisite; pass \code{run_dir} (or set \code{WHEP_LPJML_RUN_DIR}) to derive it from
+a finished local run instead, or \code{data$net_c} to supply it directly. The
+pin holds only LPJmL-derived quantities: the grazing excreta, both
+humification fractions and the polity attachment are always computed here,
+so they never differ between the pinned and the run-derived path.
+The class carbon input is the net primary production
 minus harvested carbon (both per-plant-functional-type, \code{\link[=read_lpjml_npp]{read_lpjml_npp()}}),
 floored at zero and converted to megagrams of carbon per hectare per year
 (1 gC/m2 = 0.01 MgC/ha). Natural land sums the eleven natural
