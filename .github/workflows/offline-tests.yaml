@@ -1,0 +1,69 @@
+# Guards the invariant from #490: no test may depend on a remote host being up.
+#
+# A test that quietly fetches a pin passes on a warm cache and fails when the
+# host is down, so it shows up as an unrelated red X on whatever PR is in flight
+# and trains reviewers to re-run CI instead of reading it. The other jobs cannot
+# catch this: they have no pin cache, so they hit the network for real and are
+# green exactly when the host happens to answer.
+#
+# This job removes the luck. It runs the suite with:
+#   1. an empty pins cache, so nothing can be served from a warm copy, and
+#   2. http(s)_proxy pointed at a dead port, so every remote read aborts.
+# Any test that reaches out fails here, deterministically, on every run.
+#
+# The proxy vars are set on the test step ONLY -- the setup steps above it need
+# real network access to install dependencies.
+#
+# Reproduce locally:
+#   XDG_CACHE_HOME=$(mktemp -d) http_proxy=http://127.0.0.1:9 \
+#     https_proxy=http://127.0.0.1:9 Rscript -e 'devtools::test()'
+#
+# If this job fails alone, the fix is to give the offending test an offline
+# fixture (see CLAUDE.md), not to skip it and not to relax this job.
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+name: offline-tests.yaml
+
+permissions: read-all
+
+# Cancel a superseded run on the same branch/PR so stale runs do not pile up.
+concurrency:
+  group: offline-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  offline-tests:
+    runs-on: ubuntu-latest
+    # Backstop against a hung test. The suite is a few minutes; the headroom is
+    # for a cold dependency install of the geo stack.
+    timeout-minutes: 30
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          extra-packages: any::devtools
+          needs: check
+
+      - name: Run the test suite with no network access
+        env:
+          # rappdirs::user_cache_dir("pins") resolves to $XDG_CACHE_HOME/pins on
+          # Linux, so an empty XDG_CACHE_HOME is an empty pin cache.
+          XDG_CACHE_HOME: ${{ runner.temp }}/empty-cache
+          http_proxy: http://127.0.0.1:9
+          https_proxy: http://127.0.0.1:9
+        run: |
+          mkdir -p "$XDG_CACHE_HOME"
+          Rscript -e 'devtools::test(stop_on_failure = TRUE)'
+        shell: bash
