@@ -21,6 +21,19 @@
   that year. Additive: `area_code` and every measured value are unchanged, and
   no exported function reads this dataset at runtime. This sets the convention
   for the other territory-keyed coefficient tables.
+
+* `add_polity_code()` no longer presents a **nearest-period stand-in as a real
+  match**. When no mapped period covers a row's year the row still resolves to
+  the nearest period of the same area, but `mapping_status` now reports
+  `"out_of_span"` instead of inheriting the crosswalk's `"matched"`/`"manual"`,
+  so a figure attributed to a polity that did not exist in that year is
+  visible. Over the FAOSTAT era this covers 993 of 16638 resolved area-years
+  across 36 areas, in both directions: FAOSTAT area 206 "Sudan (former)" for
+  1961-2010 resolved to `SDN-2011-2025` (post-secession Sudan, which excludes
+  the territory those figures cover) and area 51 Czechoslovakia for 1994-2023
+  resolved to `F51-1947-1993`, a state that had dissolved. Relabelling only:
+  no `polity_code` assignment changes (0 of 16638), and no exported table
+  carries `mapping_status`, so no published value moves.
 * Every area-keyed exported output now carries the **reporting-polity columns**
   (`polity_area_code`, `reporting_polity_code`, `reporting_polity_name`,
   `reporting_polity_has_geometry`), so a caller can tell which territory a row
