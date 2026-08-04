@@ -1685,7 +1685,26 @@ utils::globalVariables(
     "share_food",
     "share_other",
     "total_gap",
-    "total_production"
+    "total_production",
+    # polycell_support.R (geodesic polycell producer)
+    "polycell_id",
+    "cell_id",
+    "klon",
+    "klat",
+    "polity_area_ha",
+    "land_area_ha",
+    "inland_water_ha",
+    "ice_area_ha",
+    "geometry_source",
+    "polygon_status",
+    "split_method",
+    "coverage_status",
+    "wiki_status",
+    "water_frac",
+    "water_area_cell_ha",
+    "terrestrial_ha",
+    "claimed_land_ha",
+    "unassigned_land_ha"
   )
 )
 
