@@ -171,7 +171,7 @@
 <li>
 <strong>Source labels</strong>: use dataset-specific names (<code>FAOSTAT_prod</code>, <code>FAOSTAT_FBS_New</code>, etc.).</li>
 <li>
-<strong>New data sources</strong>: register via <code>whep_inputs.csv</code> + pins system; prepare with <code>inst/scripts/prepare_upload.R</code>. Multi-GB rasters (CRU, LPJmL, HYDE, HaNi, wind, LUH2, HWSD) stay on local disk and are read via env vars (<code>WHEP_CRU_DIR</code>, <code>WHEP_LPJML_RUN_DIR</code>, <code>WHEP_HYDE_DIR</code>, <code>WHEP_HANI_DIR</code>, <code>WHEP_WIND_DIR</code>, <code>WHEP_LUH2_DIR</code>, <code>WHEP_HWSD_DIR</code>); the readers abort with an instruction when unset (never hardcode the absolute path).</li>
+<strong>New data sources</strong>: register via <code>whep_inputs.csv</code> + pins system; prepare with <code>inst/scripts/prepare_upload.R</code>. Multi-GB rasters (CRU, LPJmL, HYDE, HaNi, wind, LUH2, HWSD) and the Schulte-Uebbing gridded critical-nitrogen archive stay on local disk and are read via env vars (<code>WHEP_CRU_DIR</code>, <code>WHEP_LPJML_RUN_DIR</code>, <code>WHEP_HYDE_DIR</code>, <code>WHEP_HANI_DIR</code>, <code>WHEP_WIND_DIR</code>, <code>WHEP_LUH2_DIR</code>, <code>WHEP_HWSD_DIR</code>, <code>WHEP_CRITICAL_N_DIR</code>); the readers abort with an instruction when unset (never hardcode the absolute path). The gridded nitrogen balance reads its land surfaces the same way (<code>WHEP_TYPE_CROPLAND_PATH</code>, <code>WHEP_CROP_PATTERNS_PATH</code>, <code>WHEP_GRIDDED_PASTURE_PATH</code>, <code>WHEP_POLITY_FRACTION_PATH</code>).</li>
 </ul></div>
 <div class="section level2">
 <h2 id="package-data-updates">Package data updates<a class="anchor" aria-label="anchor" href="#package-data-updates"></a></h2>

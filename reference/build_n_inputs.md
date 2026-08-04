@@ -25,10 +25,16 @@ Spain_Hist's N_balance.R): its source computation was not available for
 this task, so it is never emitted, only reserved in the vocabulary.
 
 Terms that are fundamentally per-cell or per-land-use rather than
-per-crop (`"deposition"`, `"urban"`, `"som_mineralization"`, and
-transported manure whose pooled crop-plus-grass sink does not identify a
-single landing crop) carry `item_cbs_code = NA_integer_`, the same "no
-specific item" sentinel already used package-wide for non-crop rows.
+per-crop are allocated over the agricultural land support, either
+supplied as `data$ag_land_support` or derived by
+[`build_ag_land_support()`](https://eduaguilera.github.io/whep/reference/build_ag_land_support.md)
+from the gridded inputs already present. Deposition uses both cropland
+and grassland support. `"urban"`, `"som_mineralization"`, and manure
+already assigned upstream to Cropland but lacking a crop use only local
+cropland support, so manure is not reassigned to grassland after the
+manure engine's capacity allocation. Forest and natural land are outside
+that support and therefore outside the agricultural balance. Grassland
+is represented by CBS 3000; no intensive/extensive class is inferred.
 
 ## Usage
 
@@ -36,6 +42,7 @@ specific item" sentinel already used package-wide for non-crop rows.
 build_n_inputs(
   years = NULL,
   resolution = c("grid", "polity"),
+  synthetic_method = NULL,
   data = list(),
   example = FALSE
 )
@@ -52,6 +59,12 @@ build_n_inputs(
 
   `"grid"` (default, per cell/crop/year/fert_type) or `"polity"` (summed
   to `area_code`/`item_cbs_code`/`year`/`fert_type`).
+
+- synthetic_method:
+
+  Synthetic-N crop allocation method, `"coello"` or `"area_share"`. When
+  `NULL` (default), uses `data$synthetic_method %||% "coello"` for
+  backwards compatibility.
 
 - data:
 
@@ -83,6 +96,23 @@ build_n_inputs(
     [`build_n_deposition()`](https://eduaguilera.github.io/whep/reference/build_n_deposition.md)'s
     inputs.
 
+  - `ag_land_support`: agricultural physical land support keyed by
+    `lon`, `lat`, `area_code`, `year`, `item_cbs_code`, with `land_use`
+    (`"cropland"` or `"grassland"`) and positive `area_ha`. Optional:
+    when absent it is derived natively by
+    [`build_ag_land_support()`](https://eduaguilera.github.io/whep/reference/build_ag_land_support.md)
+    from `cell_polity`, `type_cropland` and `crop_patterns` (plus
+    `states` or `grassland_ha` for the grassland side). Supply it to
+    override that derivation with a better land surface. Cropland rows
+    identify crop CBS items; all pasture/rangeland rows use CBS 3000.
+
+  - `grassland_source`, `gridded_pasture`, `grassland_ha`, `states`:
+    forwarded to
+    [`build_ag_land_support()`](https://eduaguilera.github.io/whep/reference/build_ag_land_support.md)
+    when the support is derived. `grassland_source` selects its
+    `grassland` argument (`"gridded_pasture"` default, `"luh2"`, or
+    `"none"` for cropland-only support).
+
   - `urban_population`, `cropland_ha`, `cell_polity`:
     [`build_urban_n()`](https://eduaguilera.github.io/whep/reference/build_urban_n.md)'s
     inputs.
@@ -96,12 +126,25 @@ build_n_inputs(
   - `primary_prod`, `fertilizer`, `crop_patterns`, `type_cropland`,
     `cell_polity`: the synthetic-fertiliser assembly (country total from
     `fertilizer`, the `faostat-fertilizer-nutrients` pin, split to crops
-    by `primary_prod` harvested-area shares, then to cells by
+    by the chosen crop-share method, then to cells by
     `crop_patterns`/`type_cropland`).
 
-  - `gridded`, `resolution` (of the manure engine, default
-    `"national"`), `methods`: forwarded to
+  - `synthetic_method`: how the synthetic-N country total is split
+    across crops, `"coello"` (default; Coello 2025 rate-weighted,
+    FAOSTAT- conserving) or `"area_share"` (harvested-area shares only).
+
+  - `coello_rates`: crop-specific synthetic-N rate table shaped like
+    [coello_synthetic_n](https://eduaguilera.github.io/whep/reference/coello_synthetic_n.md)
+    (`year`, `area_code`, `item_cbs_code`, `kg_n_ha`); defaults to
+    [`whep::coello_synthetic_n`](https://eduaguilera.github.io/whep/reference/coello_synthetic_n.md).
+    Used only when `synthetic_method = "coello"`.
+
+  - `gridded`, `resolution`, `methods`: forwarded to
     [`build_livestock_nutrient_flows()`](https://eduaguilera.github.io/whep/reference/build_livestock_nutrient_flows.md).
+    `resolution` is the manure engine's own axis, not this function's:
+    it defaults to `"subnational"` at `resolution = "grid"` (cell-level
+    nitrogen needs cell-level manure) and to `"national"` otherwise. A
+    value supplied here is always honoured.
 
 - example:
 
@@ -111,20 +154,23 @@ build_n_inputs(
 ## Value
 
 A tibble. At `resolution = "grid"`: `lon`, `lat`, `area_code`,
-`item_cbs_code`, `year`, `fert_type`, `n_input_t`, `method_recycling_n`.
-At `resolution = "polity"`: `area_code`, `item_cbs_code`, `year`,
-`fert_type`, `method_recycling_n`, `n_input_t` (summed over cells).
+`item_cbs_code`, `year`, `fert_type`, `n_input_t`, `method_recycling_n`,
+`method_synthetic`. At `resolution = "polity"`: `area_code`,
+`item_cbs_code`, `year`, `fert_type`, `method_recycling_n`,
+`method_synthetic`, `n_input_t` (summed over cells).
 `method_recycling_n` records which residue basis the `"recycling"` term
 used: `"residue_soil_returned"` when the upstream NPP input supplied
 `residue_soil_dm_t` (residue N net of removal for feed/fuel/burning) or
 `"total_residue"` when only gross residue N was available; it is `NA`
-for every other `fert_type`.
+for every other `fert_type`. `method_synthetic` records the synthetic
+crop-split basis (`"coello"` or `"area_share"`) on `"synthetic"` rows
+and is `NA` for every other `fert_type`.
 
 ## Examples
 
 ``` r
 build_n_inputs(example = TRUE)
-#> # A tibble: 9 × 8
+#> # A tibble: 9 × 9
 #>     lon   lat area_code item_cbs_code  year fert_type          n_input_t
 #>   <dbl> <dbl>     <int>         <int> <int> <chr>                  <dbl>
 #> 1 -0.25 -0.25         1          2511  2020 bnf                      3.2
@@ -136,5 +182,5 @@ build_n_inputs(example = TRUE)
 #> 7 -0.25 -0.25         1          3000  2020 excreta                  2.3
 #> 8 -0.25 -0.25         1          2511  2020 manure_solid             1.8
 #> 9 -0.25 -0.25         1          2511  2020 manure_liquid            0.7
-#> # ℹ 1 more variable: method_recycling_n <chr>
+#> # ℹ 2 more variables: method_recycling_n <chr>, method_synthetic <chr>
 ```

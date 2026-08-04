@@ -101,6 +101,12 @@ indicator) over cells.</p></dd>
 readers, e.g. <code>bnf_input</code>/<code>npp_n_input</code>/<code>livestock_intake</code>, propagate
 through). Also required:</p><ul><li><p><code>npp_n_input</code>: shared with <code><a href="build_n_inputs.html">build_n_inputs()</a></code>'s <code>"recycling"</code> term
 (see <code><a href="calculate_npp_carbon_nitrogen.html">calculate_npp_carbon_nitrogen()</a></code>); used here for <code>prod_n_t</code>.</p></li>
+<li><p><code>ag_land_support</code>: the <code><a href="build_ag_land_support.html">build_ag_land_support()</a></code> table, supplying
+<code>area_ha</code> (the per-hectare boundary denominator) on a physical-land
+basis. Derived natively when absent and derivable, and shared with
+<code><a href="build_n_inputs.html">build_n_inputs()</a></code> so both see one table; when neither supplied nor
+derivable, <code>area_ha</code> falls back to the harvested area the NPP input
+carries.</p></li>
 <li><p><code>residue_destiny_input</code>: <code><a href="calculate_residue_destinies.html">calculate_residue_destinies()</a></code>'s required
 input (<code>item_prod_code</code>, <code>residue_dm_t</code>, plus whatever the chosen
 <code>residue_destiny_method</code> needs), for <code>used_residue_n_t</code>/
@@ -145,7 +151,10 @@ real data. Defaults to <code>FALSE</code>.</p></dd>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>A tibble keyed by <code>year</code>/<code>area_code</code>/<code>item_cbs_code</code> (plus
-<code>lon</code>/<code>lat</code> at <code>resolution = "grid"</code>) with the input aggregates
+<code>lon</code>/<code>lat</code> at <code>resolution = "grid"</code>) with <code>area_ha</code> (each crop's
+harvested hectares in the cell, summed over cells at
+<code>resolution = "polity"</code>; used downstream to convert tonnes N to a
+per-hectare rate), the input aggregates
 (<code>n_input_full_t</code>, <code>n_input_full_nosom_t</code>, <code>n_input_std_t</code>,
 <code>n_input_som_t</code>, <code>n_input_for_n2o_t</code>), the output aggregates
 (<code>n_output_residues_t</code>, <code>n_output_som_t</code>, <code>n_output_useful_t</code>,
@@ -161,10 +170,10 @@ the five NUE ratios (<code>nue_std</code>, <code>nue_residues</code>, <code>nue_
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="fu">build_nitrogen_balance</span><span class="op">(</span>example <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 1 × 36</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   area_code item_cbs_code  year n_input_full_t n_input_full_nosom_t</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>          <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>                <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>        10          <span style="text-decoration: underline;">2</span>511  <span style="text-decoration: underline;">2</span>020            100                   98</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 1 × 37</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   area_code item_cbs_code  year area_ha n_input_full_t n_input_full_nosom_t</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>          <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>                <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>        10          <span style="text-decoration: underline;">2</span>511  <span style="text-decoration: underline;">2</span>020     120            100                   98</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 31 more variables: n_input_std_t &lt;dbl&gt;, n_input_som_t &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   n_input_for_n2o_t &lt;dbl&gt;, prod_n_t &lt;dbl&gt;, used_residue_n_t &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   burnt_residue_n_t &lt;dbl&gt;, grazed_weeds_n_t &lt;dbl&gt;,</span></span>

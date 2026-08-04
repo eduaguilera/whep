@@ -33,6 +33,7 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/balance_io_flows.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/balance_ras.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/biomass_coefs.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/build_ag_land_support.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_carbon_balance.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_carbon_inputs.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_cbs_prices.html</loc></url>
@@ -47,6 +48,7 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/build_fao_arable_fallow_extension.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_feed_demand.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_feed_intake_local.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/build_food_supply.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_footprint.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_grass_availability.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_grass_availability_lpjml.html</loc></url>
@@ -60,13 +62,20 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/build_land_balance_footprint.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_livestock_ghg_extension.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_livestock_nutrient_flows.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/build_n_boundary_exceedance.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/build_n_boundary_percapita.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_n_deposition.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/build_n_exceedance_extension.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_n_inputs.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/build_n_pathway_exceedance.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/build_n_percapita.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_nitrogen_balance.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_primary_prices.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_primary_production.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_processing_coefs.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_residue_feed_avail.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/build_sjos_n_footprint.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/build_sjos_nitrogen.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_soil_carbon_inputs.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_supply_use.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_trade_prices.html</loc></url>
@@ -80,6 +89,7 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/calculate_crop_residues.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/calculate_crop_roots.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/calculate_enteric_ch4.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/calculate_food_gini.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/calculate_indirect_n2o_nh3.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/calculate_livestock_emissions.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/calculate_lmdi.html</loc></url>
@@ -87,6 +97,7 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/calculate_manner_nh3_default.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/calculate_manure_emissions.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/calculate_n_leaching.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/calculate_n_surplus.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/calculate_nh3.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/calculate_nonsymbiotic_bnf.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/calculate_npp_carbon_nitrogen.html</loc></url>
@@ -110,7 +121,9 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/check_footprint_conservation.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/check_series_jumps.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/check_supply_use_balance.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/classify_sjos_n.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/climate_mcf.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/coello_synthetic_n.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/combine_cov.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/compare_footprint_methods.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/compute_footprint.html</loc></url>
@@ -133,6 +146,7 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/crops_eurostat.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/crops_manure_n.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/decompose_weighted_ratio.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/disaggregate_ussr.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/drainage_ranges.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/ensure_columns.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/estimate_energy_demand.html</loc></url>
@@ -228,6 +242,10 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/n2o_efs_disaggregated.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/n2o_efs_ipcc2006.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/n_attenuation_constants.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/n_boundary_params.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/normalize_nourishment.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/nourish_levels.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/nourishment_thresholds.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/plot_footprint_sankey.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/plot_input_output.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/plot_input_output_livestock.html</loc></url>
@@ -238,6 +256,7 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/prepare_livestock_emissions.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/primary_double.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/propagate_fp_uncertainty.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/read_critical_n.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/read_cru_climate.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/read_hyde_population.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/read_lpjml_grass_productivity.html</loc></url>
@@ -254,6 +273,7 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/regions_full.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/residue_humification.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/run_spatialize.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/sjos_levels.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/smil_2001_synthetic_n_global.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/soc_rate_modifier_amg.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/soc_rate_modifier_century.html</loc></url>

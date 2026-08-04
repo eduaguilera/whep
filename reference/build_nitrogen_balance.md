@@ -63,6 +63,15 @@ build_nitrogen_balance(
     [`calculate_npp_carbon_nitrogen()`](https://eduaguilera.github.io/whep/reference/calculate_npp_carbon_nitrogen.md));
     used here for `prod_n_t`.
 
+  - `ag_land_support`: the
+    [`build_ag_land_support()`](https://eduaguilera.github.io/whep/reference/build_ag_land_support.md)
+    table, supplying `area_ha` (the per-hectare boundary denominator) on
+    a physical-land basis. Derived natively when absent and derivable,
+    and shared with
+    [`build_n_inputs()`](https://eduaguilera.github.io/whep/reference/build_n_inputs.md)
+    so both see one table; when neither supplied nor derivable,
+    `area_ha` falls back to the harvested area the NPP input carries.
+
   - `residue_destiny_input`:
     [`calculate_residue_destinies()`](https://eduaguilera.github.io/whep/reference/calculate_residue_destinies.md)'s
     required input (`item_prod_code`, `residue_dm_t`, plus whatever the
@@ -121,26 +130,28 @@ build_nitrogen_balance(
 ## Value
 
 A tibble keyed by `year`/`area_code`/`item_cbs_code` (plus `lon`/`lat`
-at `resolution = "grid"`) with the input aggregates (`n_input_full_t`,
-`n_input_full_nosom_t`, `n_input_std_t`, `n_input_som_t`,
-`n_input_for_n2o_t`), the output aggregates (`n_output_residues_t`,
-`n_output_som_t`, `n_output_useful_t`, `n_output_std_t`,
-`n_output_full_t`), the loss terms (`nh3_n_t`, `n2o_direct_n_t`,
-`no3_n_t`, `denitrification_n_t`, `n2o_indirect_no3_n_t`,
-`n2o_indirect_nh3_n_t`), the (post-cap) `som_sequestration_n_t`,
-`n_balance_t`, `surplus_t`, `surplus_share`, the five NUE ratios
-(`nue_std`, `nue_residues`, `nue_som`, `nue_useful`, `nue_full`),
-`total_gwp_co2e_kg`, and the `method_nh3`/
+at `resolution = "grid"`) with `area_ha` (each crop's harvested hectares
+in the cell, summed over cells at `resolution = "polity"`; used
+downstream to convert tonnes N to a per-hectare rate), the input
+aggregates (`n_input_full_t`, `n_input_full_nosom_t`, `n_input_std_t`,
+`n_input_som_t`, `n_input_for_n2o_t`), the output aggregates
+(`n_output_residues_t`, `n_output_som_t`, `n_output_useful_t`,
+`n_output_std_t`, `n_output_full_t`), the loss terms (`nh3_n_t`,
+`n2o_direct_n_t`, `no3_n_t`, `denitrification_n_t`,
+`n2o_indirect_no3_n_t`, `n2o_indirect_nh3_n_t`), the (post-cap)
+`som_sequestration_n_t`, `n_balance_t`, `surplus_t`, `surplus_share`,
+the five NUE ratios (`nue_std`, `nue_residues`, `nue_som`, `nue_useful`,
+`nue_full`), `total_gwp_co2e_kg`, and the `method_nh3`/
 `method_soil_n2o`/`method_leaching` provenance columns.
 
 ## Examples
 
 ``` r
 build_nitrogen_balance(example = TRUE)
-#> # A tibble: 1 × 36
-#>   area_code item_cbs_code  year n_input_full_t n_input_full_nosom_t
-#>       <int>         <int> <int>          <dbl>                <dbl>
-#> 1        10          2511  2020            100                   98
+#> # A tibble: 1 × 37
+#>   area_code item_cbs_code  year area_ha n_input_full_t n_input_full_nosom_t
+#>       <int>         <int> <int>   <dbl>          <dbl>                <dbl>
+#> 1        10          2511  2020     120            100                   98
 #> # ℹ 31 more variables: n_input_std_t <dbl>, n_input_som_t <dbl>,
 #> #   n_input_for_n2o_t <dbl>, prod_n_t <dbl>, used_residue_n_t <dbl>,
 #> #   burnt_residue_n_t <dbl>, grazed_weeds_n_t <dbl>,

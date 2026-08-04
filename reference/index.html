@@ -657,6 +657,13 @@
 
         <dt>
 
+          <code><a href="build_ag_land_support.html">build_ag_land_support()</a></code>
+
+        </dt>
+        <dd>Build the gridded agricultural land support.</dd>
+
+        <dt>
+
           <code><a href="build_n_inputs.html">build_n_inputs()</a></code>
 
         </dt>
@@ -668,6 +675,150 @@
 
         </dt>
         <dd>Build the full nitrogen balance: inputs, outputs, losses and NUE.</dd>
+      </dl></div><div class="section level2">
+      <h2 id="sjos-nitrogen">SJOS - nitrogen<a class="anchor" aria-label="anchor" href="#sjos-nitrogen"></a></h2>
+
+      <div class="section-desc"><p>Safe and Just Operating Space for nitrogen. Reader for the Schulte-Uebbing et al. (2022) gridded critical-nitrogen layers (critical surplus, critical input, exceedance, the medium-specific critical losses and the binding-threshold map) that the boundary-exceedance modules compare the WHEP nitrogen surplus and process-based losses against. The gridded soil-surface nitrogen surplus (net inputs minus harvested-nitrogen exports) and its surplus-mode critical-boundary exceedance, decomposed per crop into the parts within and above the boundary. The pathway-mode boundary instead routes each process-based nitrogen loss to its medium-specific critical load (ammonia to air, nitrate to the tighter of groundwater and surface water), decomposing each medium and naming the binding boundary per crop. The nourishment (“just”) axis supplies per-capita protein and dietary energy, from the commodity-balance food element times the biomass nutrition coefficients divided by population, or from FAOSTAT Food Balance Sheet per-capita supply, and normalizes that supply onto a piecewise adequacy score classified Under, Adequate or Over. The boundary and nourishment sides are then crossed per crop into the 2-way safe-and-just classification, and each crop’s exceedance, within-boundary or total surplus nitrogen becomes the intensity of an embodied-nitrogen trade footprint extension.</p></div>
+
+      <dl></dl></div><div class="section level2">
+
+
+
+
+      <dl><dt>
+
+          <code><a href="read_critical_n.html">read_critical_n()</a></code>
+
+        </dt>
+        <dd>Read a Schulte-Uebbing gridded critical-nitrogen layer.</dd>
+
+        <dt>
+
+          <code><a href="calculate_n_surplus.html">calculate_n_surplus()</a></code>
+
+        </dt>
+        <dd>Calculate the gridded soil-surface nitrogen surplus.</dd>
+
+        <dt>
+
+          <code><a href="build_n_boundary_exceedance.html">build_n_boundary_exceedance()</a></code>
+
+        </dt>
+        <dd>Build the surplus-mode critical-nitrogen boundary exceedance.</dd>
+
+        <dt>
+
+          <code><a href="build_n_pathway_exceedance.html">build_n_pathway_exceedance()</a></code>
+
+        </dt>
+        <dd>Build the pathway-mode critical-nitrogen boundary exceedance.</dd>
+
+        <dt>
+
+          <code><a href="build_food_supply.html">build_food_supply()</a></code>
+
+        </dt>
+        <dd>Build per-capita food supply for the nourishment axis.</dd>
+
+        <dt>
+
+          <code><a href="normalize_nourishment.html">normalize_nourishment()</a></code>
+
+        </dt>
+        <dd>Normalize and classify per-capita nourishment.</dd>
+
+        <dt>
+
+          <code><a href="calculate_food_gini.html">calculate_food_gini()</a></code>
+
+        </dt>
+        <dd>Between-country population-weighted Gini of per-capita food supply.</dd>
+
+        <dt>
+
+          <code><a href="disaggregate_ussr.html">disaggregate_ussr()</a></code>
+
+        </dt>
+        <dd>Split the pre-1992 aggregate USSR supply into successor states.</dd>
+
+        <dt>
+
+          <code><a href="build_n_boundary_percapita.html">build_n_boundary_percapita()</a></code>
+
+        </dt>
+        <dd>Build the per-capita nitrogen-boundary versus nourishment scatter.</dd>
+
+        <dt>
+
+          <code><a href="build_n_percapita.html">build_n_percapita()</a></code>
+
+        </dt>
+        <dd>Build country per-capita anthropogenic reactive nitrogen.</dd>
+
+        <dt>
+
+          <code><a href="classify_sjos_n.html">classify_sjos_n()</a></code>
+
+        </dt>
+        <dd>Classify crops into the 2-way SJOS-N safe-and-just space.</dd>
+
+        <dt>
+
+          <code><a href="build_n_exceedance_extension.html">build_n_exceedance_extension()</a></code>
+
+        </dt>
+        <dd>Build the embodied-nitrogen footprint extension.</dd>
+
+        <dt>
+
+          <code><a href="build_sjos_n_footprint.html">build_sjos_n_footprint()</a></code>
+
+        </dt>
+        <dd>Build the embodied-nitrogen trade footprint.</dd>
+
+        <dt>
+
+          <code><a href="build_sjos_nitrogen.html">build_sjos_nitrogen()</a></code>
+
+        </dt>
+        <dd>Assemble the end-to-end SJOS-N output tables.</dd>
+      </dl></div><div class="section level2">
+      <h2 id="sjos-nitrogen-coefficient-tables">SJOS - nitrogen coefficient tables<a class="anchor" aria-label="anchor" href="#sjos-nitrogen-coefficient-tables"></a></h2>
+
+      <div class="section-desc"><p>Planetary reactive-nitrogen boundary parameters, the nourishment protein/energy thresholds (with the waste-inequality factor and class cutoffs), and the boundary/nourishment classification levels with their plotting colours, feeding the SJOS-N per-capita boundary axis and the 2-way safe-and-just classification.</p></div>
+
+      <dl></dl></div><div class="section level2">
+
+
+
+
+      <dl><dt>
+
+          <code><a href="n_boundary_params.html">n_boundary_params</a></code>
+
+        </dt>
+        <dd>Planetary reactive-nitrogen boundary parameters.</dd>
+
+        <dt>
+
+          <code><a href="nourishment_thresholds.html">nourishment_thresholds</a></code>
+
+        </dt>
+        <dd>Nourishment protein and energy thresholds.</dd>
+
+        <dt>
+
+          <code><a href="sjos_levels.html">sjos_levels</a></code>
+
+        </dt>
+        <dd>Safe-and-just nitrogen classification levels and colours.</dd>
+
+        <dt>
+
+          <code><a href="nourish_levels.html">nourish_levels</a></code>
+
+        </dt>
+        <dd>Nourishment classification levels and colours.</dd>
       </dl></div><div class="section level2">
       <h2 id="soil-balances-carbon-historical-balance-">Soil balances - carbon (historical balance)<a class="anchor" aria-label="anchor" href="#soil-balances-carbon-historical-balance-"></a></h2>
 
@@ -1209,6 +1360,13 @@
 
         </dt>
         <dd>FAOSTAT crop to LPJmL crop functional type (CFT) mapping</dd>
+
+        <dt>
+
+          <code><a href="coello_synthetic_n.html">coello_synthetic_n</a></code>
+
+        </dt>
+        <dd>Coello (2025) crop-specific synthetic nitrogen application rates</dd>
 
         <dt>
 

@@ -15,13 +15,13 @@ Three nitrogen inputs to soil are included:
 
 - **Synthetic fertiliser** (F_SN): FAOSTAT reports it only as a country
   total (tonnes N per `area_code` per year), so it is allocated to crops
-  in proportion to each crop's harvested area within the country-year
-  (from
-  [`get_primary_production()`](https://eduaguilera.github.io/whep/reference/get_primary_production.md)).
+  by the Coello 2025 rate-weighted, FAOSTAT-conserving crop share
+  (default; the national total is preserved), or by harvested-area share
+  when `synthetic_method = "area_share"`.
 
 - **Applied manure** (F_ON): FAOSTAT "Manure applied to soils (N
-  content)" country total, allocated to crops by harvested area as for
-  F_SN.
+  content)" country total, allocated to crops by harvested area (Coello
+  is a synthetic-N rate basis only).
 
 - **Crop residues** (F_CR): the dry matter of above-ground residues
   returned to soil (from
@@ -47,6 +47,7 @@ included.
 build_crop_soil_n2o_extension(
   gwp = c("ar6", "ar5", "ar4"),
   residue_removed_frac = 0.45,
+  synthetic_method = NULL,
   data = list(),
   example = FALSE
 )
@@ -66,6 +67,12 @@ build_crop_soil_n2o_extension(
   Defaults to `0.45`, a global mid-range value; country-specific removal
   (`gleam_fracremove`) is a future refinement.
 
+- synthetic_method:
+
+  Synthetic-N crop allocation method, `"coello"` or `"area_share"`. When
+  `NULL` (default), uses `data$synthetic_method %||% "coello"` for
+  backwards compatibility.
+
 - data:
 
   Optional named list of pre-loaded inputs to avoid remote reads:
@@ -75,7 +82,13 @@ build_crop_soil_n2o_extension(
   pin), `manure` (the `faostat-emissions-livestock` pin) and
   `primary_residues`
   ([`get_primary_residues()`](https://eduaguilera.github.io/whep/reference/get_primary_residues.md)).
-  Each falls back to its reader when absent.
+  Each falls back to its reader when absent. `synthetic_method` selects
+  the synthetic-N crop split, `"coello"` (default; Coello 2025
+  rate-weighted, FAOSTAT-conserving) or `"area_share"`; `coello_rates`
+  overrides the rate table (shaped like
+  [coello_synthetic_n](https://eduaguilera.github.io/whep/reference/coello_synthetic_n.md)),
+  defaulting to
+  [`whep::coello_synthetic_n`](https://eduaguilera.github.io/whep/reference/coello_synthetic_n.md).
 
 - example:
 
@@ -91,9 +104,9 @@ A tibble with columns `year`, `area_code`, `item_cbs_code`, `impact_u`
 
 ``` r
 build_crop_soil_n2o_extension(example = TRUE)
-#> # A tibble: 2 × 5
-#>    year area_code item_cbs_code  impact_u method_soil_n2o    
-#>   <int>     <int>         <int>     <dbl> <chr>              
-#> 1  2010        10          2511 412612200 IPCC_2019_Tier1_AR6
-#> 2  2010        10          2513 176833800 IPCC_2019_Tier1_AR6
+#> # A tibble: 2 × 6
+#>    year area_code item_cbs_code  impact_u method_soil_n2o     method_synthetic
+#>   <int>     <int>         <int>     <dbl> <chr>               <chr>           
+#> 1  2010        10          2511 412612200 IPCC_2019_Tier1_AR6 coello          
+#> 2  2010        10          2513 176833800 IPCC_2019_Tier1_AR6 coello          
 ```

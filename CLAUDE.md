@@ -239,11 +239,15 @@ comm -23 \
   `FAOSTAT_FBS_New`, etc.).
 - **New data sources**: register via `whep_inputs.csv` + pins system;
   prepare with `inst/scripts/prepare_upload.R`. Multi-GB rasters (CRU,
-  LPJmL, HYDE, HaNi, wind, LUH2, HWSD) stay on local disk and are read
-  via env vars (`WHEP_CRU_DIR`, `WHEP_LPJML_RUN_DIR`, `WHEP_HYDE_DIR`,
-  `WHEP_HANI_DIR`, `WHEP_WIND_DIR`, `WHEP_LUH2_DIR`, `WHEP_HWSD_DIR`);
-  the readers abort with an instruction when unset (never hardcode the
-  absolute path).
+  LPJmL, HYDE, HaNi, wind, LUH2, HWSD) and the Schulte-Uebbing gridded
+  critical-nitrogen archive stay on local disk and are read via env vars
+  (`WHEP_CRU_DIR`, `WHEP_LPJML_RUN_DIR`, `WHEP_HYDE_DIR`,
+  `WHEP_HANI_DIR`, `WHEP_WIND_DIR`, `WHEP_LUH2_DIR`, `WHEP_HWSD_DIR`,
+  `WHEP_CRITICAL_N_DIR`); the readers abort with an instruction when
+  unset (never hardcode the absolute path). The gridded nitrogen balance
+  reads its land surfaces the same way (`WHEP_TYPE_CROPLAND_PATH`,
+  `WHEP_CROP_PATTERNS_PATH`, `WHEP_GRIDDED_PASTURE_PATH`,
+  `WHEP_POLITY_FRACTION_PATH`).
 
 ## Package data updates
 

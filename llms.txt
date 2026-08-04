@@ -390,10 +390,81 @@ long-format table (Task C6 final phase).
   : Assemble WHEP's cell-polity crosswalk with true grid-cell area.
 - [`spatialize_country_n_to_crops()`](https://eduaguilera.github.io/whep/reference/spatialize_country_n_to_crops.md)
   : Spatialize a polity-level nitrogen total to crops and grid cells.
+- [`build_ag_land_support()`](https://eduaguilera.github.io/whep/reference/build_ag_land_support.md)
+  : Build the gridded agricultural land support.
 - [`build_n_inputs()`](https://eduaguilera.github.io/whep/reference/build_n_inputs.md)
   : Assemble gridded nitrogen inputs from every WHEP N-input source.
 - [`build_nitrogen_balance()`](https://eduaguilera.github.io/whep/reference/build_nitrogen_balance.md)
   : Build the full nitrogen balance: inputs, outputs, losses and NUE.
+
+## SJOS - nitrogen
+
+Safe and Just Operating Space for nitrogen. Reader for the
+Schulte-Uebbing et al. (2022) gridded critical-nitrogen layers (critical
+surplus, critical input, exceedance, the medium-specific critical losses
+and the binding-threshold map) that the boundary-exceedance modules
+compare the WHEP nitrogen surplus and process-based losses against. The
+gridded soil-surface nitrogen surplus (net inputs minus
+harvested-nitrogen exports) and its surplus-mode critical-boundary
+exceedance, decomposed per crop into the parts within and above the
+boundary. The pathway-mode boundary instead routes each process-based
+nitrogen loss to its medium-specific critical load (ammonia to air,
+nitrate to the tighter of groundwater and surface water), decomposing
+each medium and naming the binding boundary per crop. The nourishment
+(“just”) axis supplies per-capita protein and dietary energy, from the
+commodity-balance food element times the biomass nutrition coefficients
+divided by population, or from FAOSTAT Food Balance Sheet per-capita
+supply, and normalizes that supply onto a piecewise adequacy score
+classified Under, Adequate or Over. The boundary and nourishment sides
+are then crossed per crop into the 2-way safe-and-just classification,
+and each crop’s exceedance, within-boundary or total surplus nitrogen
+becomes the intensity of an embodied-nitrogen trade footprint extension.
+
+- [`read_critical_n()`](https://eduaguilera.github.io/whep/reference/read_critical_n.md)
+  : Read a Schulte-Uebbing gridded critical-nitrogen layer.
+- [`calculate_n_surplus()`](https://eduaguilera.github.io/whep/reference/calculate_n_surplus.md)
+  : Calculate the gridded soil-surface nitrogen surplus.
+- [`build_n_boundary_exceedance()`](https://eduaguilera.github.io/whep/reference/build_n_boundary_exceedance.md)
+  : Build the surplus-mode critical-nitrogen boundary exceedance.
+- [`build_n_pathway_exceedance()`](https://eduaguilera.github.io/whep/reference/build_n_pathway_exceedance.md)
+  : Build the pathway-mode critical-nitrogen boundary exceedance.
+- [`build_food_supply()`](https://eduaguilera.github.io/whep/reference/build_food_supply.md)
+  : Build per-capita food supply for the nourishment axis.
+- [`normalize_nourishment()`](https://eduaguilera.github.io/whep/reference/normalize_nourishment.md)
+  : Normalize and classify per-capita nourishment.
+- [`calculate_food_gini()`](https://eduaguilera.github.io/whep/reference/calculate_food_gini.md)
+  : Between-country population-weighted Gini of per-capita food supply.
+- [`disaggregate_ussr()`](https://eduaguilera.github.io/whep/reference/disaggregate_ussr.md)
+  : Split the pre-1992 aggregate USSR supply into successor states.
+- [`build_n_boundary_percapita()`](https://eduaguilera.github.io/whep/reference/build_n_boundary_percapita.md)
+  : Build the per-capita nitrogen-boundary versus nourishment scatter.
+- [`build_n_percapita()`](https://eduaguilera.github.io/whep/reference/build_n_percapita.md)
+  : Build country per-capita anthropogenic reactive nitrogen.
+- [`classify_sjos_n()`](https://eduaguilera.github.io/whep/reference/classify_sjos_n.md)
+  : Classify crops into the 2-way SJOS-N safe-and-just space.
+- [`build_n_exceedance_extension()`](https://eduaguilera.github.io/whep/reference/build_n_exceedance_extension.md)
+  : Build the embodied-nitrogen footprint extension.
+- [`build_sjos_n_footprint()`](https://eduaguilera.github.io/whep/reference/build_sjos_n_footprint.md)
+  : Build the embodied-nitrogen trade footprint.
+- [`build_sjos_nitrogen()`](https://eduaguilera.github.io/whep/reference/build_sjos_nitrogen.md)
+  : Assemble the end-to-end SJOS-N output tables.
+
+## SJOS - nitrogen coefficient tables
+
+Planetary reactive-nitrogen boundary parameters, the nourishment
+protein/energy thresholds (with the waste-inequality factor and class
+cutoffs), and the boundary/nourishment classification levels with their
+plotting colours, feeding the SJOS-N per-capita boundary axis and the
+2-way safe-and-just classification.
+
+- [`n_boundary_params`](https://eduaguilera.github.io/whep/reference/n_boundary_params.md)
+  : Planetary reactive-nitrogen boundary parameters.
+- [`nourishment_thresholds`](https://eduaguilera.github.io/whep/reference/nourishment_thresholds.md)
+  : Nourishment protein and energy thresholds.
+- [`sjos_levels`](https://eduaguilera.github.io/whep/reference/sjos_levels.md)
+  : Safe-and-just nitrogen classification levels and colours.
+- [`nourish_levels`](https://eduaguilera.github.io/whep/reference/nourish_levels.md)
+  : Nourishment classification levels and colours.
 
 ## Soil balances - carbon (historical balance)
 
@@ -584,6 +655,8 @@ Lookup and coefficient tables used internally across the pipeline.
   : Commodity balance sheet processing fractions
 - [`cft_mapping`](https://eduaguilera.github.io/whep/reference/cft_mapping.md)
   : FAOSTAT crop to LPJmL crop functional type (CFT) mapping
+- [`coello_synthetic_n`](https://eduaguilera.github.io/whep/reference/coello_synthetic_n.md)
+  : Coello (2025) crop-specific synthetic nitrogen application rates
 - [`crops_eurostat`](https://eduaguilera.github.io/whep/reference/crops_eurostat.md)
   : Eurostat crop classification codes
 - [`crops_manure_n`](https://eduaguilera.github.io/whep/reference/crops_manure_n.md)

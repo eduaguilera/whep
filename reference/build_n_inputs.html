@@ -13,11 +13,16 @@ fert_type values: &quot;bnf&quot;, &quot;recycling&quot;, &quot;manure_solid&quo
 documented gap (perennial-crop standing-biomass N accumulation from
 Spain_Hist's N_balance.R): its source computation was not available for
 this task, so it is never emitted, only reserved in the vocabulary.
-Terms that are fundamentally per-cell or per-land-use rather than
-per-crop (&quot;deposition&quot;, &quot;urban&quot;, &quot;som_mineralization&quot;, and
-transported manure whose pooled crop-plus-grass sink does not identify a
-single landing crop) carry item_cbs_code = NA_integer_, the same &quot;no
-specific item&quot; sentinel already used package-wide for non-crop rows."><meta property="og:description" content="Combines biological nitrogen fixation (calculate_bnf()), residue/root N
+Terms that are fundamentally per-cell or per-land-use rather than per-crop
+are allocated over the agricultural land support, either supplied as
+data$ag_land_support or derived by build_ag_land_support() from the
+gridded inputs already present. Deposition uses both cropland and
+grassland support. &quot;urban&quot;, &quot;som_mineralization&quot;, and manure already
+assigned upstream to Cropland but lacking a crop use only local cropland
+support, so manure is not reassigned to grassland after the manure engine's
+capacity allocation. Forest and natural land are outside that support and
+therefore outside the agricultural balance. Grassland is represented by CBS
+3000; no intensive/extensive class is inferred."><meta property="og:description" content="Combines biological nitrogen fixation (calculate_bnf()), residue/root N
 recycling (calculate_npp_carbon_nitrogen()), livestock manure
 (build_livestock_nutrient_flows()), atmospheric deposition
 (build_n_deposition()), urban/human-excreta N (build_urban_n()), soil
@@ -31,11 +36,16 @@ fert_type values: &quot;bnf&quot;, &quot;recycling&quot;, &quot;manure_solid&quo
 documented gap (perennial-crop standing-biomass N accumulation from
 Spain_Hist's N_balance.R): its source computation was not available for
 this task, so it is never emitted, only reserved in the vocabulary.
-Terms that are fundamentally per-cell or per-land-use rather than
-per-crop (&quot;deposition&quot;, &quot;urban&quot;, &quot;som_mineralization&quot;, and
-transported manure whose pooled crop-plus-grass sink does not identify a
-single landing crop) carry item_cbs_code = NA_integer_, the same &quot;no
-specific item&quot; sentinel already used package-wide for non-crop rows."><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
+Terms that are fundamentally per-cell or per-land-use rather than per-crop
+are allocated over the agricultural land support, either supplied as
+data$ag_land_support or derived by build_ag_land_support() from the
+gridded inputs already present. Deposition uses both cropland and
+grassland support. &quot;urban&quot;, &quot;som_mineralization&quot;, and manure already
+assigned upstream to Cropland but lacking a crop use only local cropland
+support, so manure is not reassigned to grassland after the manure engine's
+capacity allocation. Forest and natural land are outside that support and
+therefore outside the agricultural balance. Grassland is represented by CBS
+3000; no intensive/extensive class is inferred."><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -88,11 +98,16 @@ into one long-format tibble of nitrogen inputs to agricultural land.</p>
 documented gap (perennial-crop standing-biomass N accumulation from
 Spain_Hist's N_balance.R): its source computation was not available for
 this task, so it is never emitted, only reserved in the vocabulary.</p>
-<p>Terms that are fundamentally per-cell or per-land-use rather than
-per-crop (<code>"deposition"</code>, <code>"urban"</code>, <code>"som_mineralization"</code>, and
-transported manure whose pooled crop-plus-grass sink does not identify a
-single landing crop) carry <code>item_cbs_code = NA_integer_</code>, the same "no
-specific item" sentinel already used package-wide for non-crop rows.</p>
+<p>Terms that are fundamentally per-cell or per-land-use rather than per-crop
+are allocated over the agricultural land support, either supplied as
+<code>data$ag_land_support</code> or derived by <code><a href="build_ag_land_support.html">build_ag_land_support()</a></code> from the
+gridded inputs already present. Deposition uses both cropland and
+grassland support. <code>"urban"</code>, <code>"som_mineralization"</code>, and manure already
+assigned upstream to Cropland but lacking a crop use only local cropland
+support, so manure is not reassigned to grassland after the manure engine's
+capacity allocation. Forest and natural land are outside that support and
+therefore outside the agricultural balance. Grassland is represented by CBS
+3000; no intensive/extensive class is inferred.</p>
     </div>
 
     <div class="section level2">
@@ -100,6 +115,7 @@ specific item" sentinel already used package-wide for non-crop rows.</p>
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">build_n_inputs</span><span class="op">(</span></span>
 <span>  years <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  resolution <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"grid"</span>, <span class="st">"polity"</span><span class="op">)</span>,</span>
+<span>  synthetic_method <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  data <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  example <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
@@ -119,6 +135,12 @@ keeps every year the assembled inputs cover.</p></dd>
 <code>"polity"</code> (summed to <code>area_code</code>/<code>item_cbs_code</code>/<code>year</code>/<code>fert_type</code>).</p></dd>
 
 
+<dt id="arg-synthetic-method">synthetic_method<a class="anchor" aria-label="anchor" href="#arg-synthetic-method"></a></dt>
+<dd><p>Synthetic-N crop allocation method, <code>"coello"</code> or
+<code>"area_share"</code>. When <code>NULL</code> (default), uses
+<code>data$synthetic_method %||% "coello"</code> for backwards compatibility.</p></dd>
+
+
 <dt id="arg-data">data<a class="anchor" aria-label="anchor" href="#arg-data"></a></dt>
 <dd><p>Named list of pre-loaded, caller-supplied upstream inputs.
 Each of the following is required for its corresponding <code>fert_type</code> to
@@ -136,6 +158,19 @@ argument (the <code><a href="redistribute_feed.html">redistribute_feed()</a></co
 <code>gridded</code> (its land-surface layer) and <code>resolution</code>/<code>methods</code>
 (forwarded as-is).</p></li>
 <li><p><code>nhx</code>, <code>noy</code>, <code>cell_polity</code>: <code><a href="build_n_deposition.html">build_n_deposition()</a></code>'s inputs.</p></li>
+<li><p><code>ag_land_support</code>: agricultural physical land support keyed by <code>lon</code>,
+<code>lat</code>, <code>area_code</code>, <code>year</code>, <code>item_cbs_code</code>, with <code>land_use</code>
+(<code>"cropland"</code> or <code>"grassland"</code>) and positive <code>area_ha</code>. Optional: when
+absent it is derived natively by <code><a href="build_ag_land_support.html">build_ag_land_support()</a></code> from
+<code>cell_polity</code>, <code>type_cropland</code> and <code>crop_patterns</code> (plus <code>states</code> or
+<code>grassland_ha</code> for the grassland side). Supply it to override that
+derivation with a better land surface. Cropland rows identify crop CBS
+items; all pasture/rangeland rows use CBS 3000.</p></li>
+<li><p><code>grassland_source</code>, <code>gridded_pasture</code>, <code>grassland_ha</code>, <code>states</code>:
+forwarded to <code><a href="build_ag_land_support.html">build_ag_land_support()</a></code> when the support is derived.
+<code>grassland_source</code> selects its <code>grassland</code> argument
+(<code>"gridded_pasture"</code> default, <code>"luh2"</code>, or <code>"none"</code> for cropland-only
+support).</p></li>
 <li><p><code>urban_population</code>, <code>cropland_ha</code>, <code>cell_polity</code>: <code><a href="build_urban_n.html">build_urban_n()</a></code>'s
 inputs.</p></li>
 <li><p><code>carbon_balance</code>: <code><a href="build_carbon_balance.html">build_carbon_balance()</a></code>'s <code>"grid"</code>-resolution
@@ -145,10 +180,20 @@ is never computed here.</p></li>
 <li><p><code>primary_prod</code>, <code>fertilizer</code>, <code>crop_patterns</code>, <code>type_cropland</code>,
 <code>cell_polity</code>: the synthetic-fertiliser assembly (country total from
 <code>fertilizer</code>, the <code>faostat-fertilizer-nutrients</code> pin, split to crops
-by <code>primary_prod</code> harvested-area shares, then to cells by
+by the chosen crop-share method, then to cells by
 <code>crop_patterns</code>/<code>type_cropland</code>).</p></li>
-<li><p><code>gridded</code>, <code>resolution</code> (of the manure engine, default <code>"national"</code>),
-<code>methods</code>: forwarded to <code><a href="build_livestock_nutrient_flows.html">build_livestock_nutrient_flows()</a></code>.</p></li>
+<li><p><code>synthetic_method</code>: how the synthetic-N country total is split across
+crops, <code>"coello"</code> (default; Coello 2025 rate-weighted, FAOSTAT-
+conserving) or <code>"area_share"</code> (harvested-area shares only).</p></li>
+<li><p><code>coello_rates</code>: crop-specific synthetic-N rate table shaped like
+<a href="coello_synthetic_n.html">coello_synthetic_n</a> (<code>year</code>, <code>area_code</code>, <code>item_cbs_code</code>,
+<code>kg_n_ha</code>); defaults to <code><a href="coello_synthetic_n.html">whep::coello_synthetic_n</a></code>. Used only when
+<code>synthetic_method = "coello"</code>.</p></li>
+<li><p><code>gridded</code>, <code>resolution</code>, <code>methods</code>: forwarded to
+<code><a href="build_livestock_nutrient_flows.html">build_livestock_nutrient_flows()</a></code>. <code>resolution</code> is the manure engine's
+own axis, not this function's: it defaults to <code>"subnational"</code> at
+<code>resolution = "grid"</code> (cell-level nitrogen needs cell-level manure) and
+to <code>"national"</code> otherwise. A value supplied here is always honoured.</p></li>
 </ul></dd>
 
 
@@ -161,19 +206,22 @@ real data. Defaults to <code>FALSE</code>.</p></dd>
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>A tibble. At <code>resolution = "grid"</code>: <code>lon</code>, <code>lat</code>, <code>area_code</code>,
 <code>item_cbs_code</code>, <code>year</code>, <code>fert_type</code>, <code>n_input_t</code>,
-<code>method_recycling_n</code>. At <code>resolution = "polity"</code>: <code>area_code</code>,
-<code>item_cbs_code</code>, <code>year</code>, <code>fert_type</code>, <code>method_recycling_n</code>, <code>n_input_t</code>
-(summed over cells). <code>method_recycling_n</code> records which residue basis the
-<code>"recycling"</code> term used: <code>"residue_soil_returned"</code> when the upstream NPP
-input supplied <code>residue_soil_dm_t</code> (residue N net of removal for
-feed/fuel/burning) or <code>"total_residue"</code> when only gross residue N was
-available; it is <code>NA</code> for every other <code>fert_type</code>.</p>
+<code>method_recycling_n</code>, <code>method_synthetic</code>. At <code>resolution = "polity"</code>:
+<code>area_code</code>, <code>item_cbs_code</code>, <code>year</code>, <code>fert_type</code>, <code>method_recycling_n</code>,
+<code>method_synthetic</code>, <code>n_input_t</code> (summed over cells).
+<code>method_recycling_n</code> records which residue basis the <code>"recycling"</code> term
+used: <code>"residue_soil_returned"</code> when the upstream NPP input supplied
+<code>residue_soil_dm_t</code> (residue N net of removal for feed/fuel/burning) or
+<code>"total_residue"</code> when only gross residue N was available; it is <code>NA</code> for
+every other <code>fert_type</code>. <code>method_synthetic</code> records the synthetic
+crop-split basis (<code>"coello"</code> or <code>"area_share"</code>) on <code>"synthetic"</code> rows and
+is <code>NA</code> for every other <code>fert_type</code>.</p>
     </div>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="fu">build_n_inputs</span><span class="op">(</span>example <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 9 × 8</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 9 × 9</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>     lon   lat area_code item_cbs_code  year fert_type          n_input_t</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                  <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span> -<span style="color: #BB0000;">0.25</span> -<span style="color: #BB0000;">0.25</span>         1          <span style="text-decoration: underline;">2</span>511  <span style="text-decoration: underline;">2</span>020 bnf                      3.2</span>
@@ -185,7 +233,7 @@ available; it is <code>NA</code> for every other <code>fert_type</code>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">7</span> -<span style="color: #BB0000;">0.25</span> -<span style="color: #BB0000;">0.25</span>         1          <span style="text-decoration: underline;">3</span>000  <span style="text-decoration: underline;">2</span>020 excreta                  2.3</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">8</span> -<span style="color: #BB0000;">0.25</span> -<span style="color: #BB0000;">0.25</span>         1          <span style="text-decoration: underline;">2</span>511  <span style="text-decoration: underline;">2</span>020 manure_solid             1.8</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">9</span> -<span style="color: #BB0000;">0.25</span> -<span style="color: #BB0000;">0.25</span>         1          <span style="text-decoration: underline;">2</span>511  <span style="text-decoration: underline;">2</span>020 manure_liquid            0.7</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 1 more variable: method_recycling_n &lt;chr&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 2 more variables: method_recycling_n &lt;chr&gt;, method_synthetic &lt;chr&gt;</span></span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
