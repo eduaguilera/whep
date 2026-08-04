@@ -151,9 +151,68 @@ build_energy_co2_extension <- function(
   )
 }
 
+# Say which reporting areas the GLEAM schemes cannot classify, because the
+# alternative is nothing at all.
+#
+# `gleam_geographic_hierarchy` defines the country universe for the whole energy
+# extension: all three schemes below are derived from it, so an area absent from
+# that table gets no row -- not a wrong group, no group -- and the intensity join
+# in `.energy_co2e_by_group()` then drops its production in silence.
+#
+# Only areas WHEP treats as a polity in their own right are worth naming.
+# Dissolved entities such as SUN and YUG are absent from a present-day table by
+# construction, the regional buckets RAFR to ROW are aggregates a country table
+# should not carry, and territories folded into a FABIO bucket are represented by
+# that bucket rather than by themselves. What remains on the current crosswalk is
+# Nauru and Tuvalu: they exist today, report under their own area codes, and are
+# unclassifiable. Tuvalu is the sharpest case -- `.energy_ldc_iso3()` lists TUV
+# as least-developed, so this file asserts a classification for a country the
+# table it joins against cannot represent.
+#
+# whep#415 lists Bermuda, Guam and Palau alongside those two. They are no longer
+# named here because the crosswalk now folds all three into FABIO bucket 999, so
+# they are no longer self-reporting; their raw area codes 17, 88 and 180 still
+# carry an iso3 GLEAM has no row for.
+#
+# This WARNS rather than assigning a group. Which GLEAM region an area belongs to
+# is a modelling decision tracked in whep#415, and the source table is not
+# edited either: it is parsed from the GLEAM Excel workbook, so adding rows would
+# make this package's copy diverge from the published source with nothing
+# recording it.
+.warn_areas_gleam_cannot_group <- function() {
+  # `area_code == polity_area_code` keeps the areas that report as themselves,
+  # dropping those aggregated into a FABIO bucket under another code.
+  gaps <- polity_area_crosswalk |>
+    tibble::as_tibble() |>
+    dplyr::filter(
+      !is.na(.data$area_code),
+      !is.na(.data$area_iso3c),
+      .data$area_code == .data$polity_area_code,
+      .data$polity_type != "aggregate",
+      !is.na(.data$polity_end_year),
+      .data$polity_end_year >= 2020,
+      !.data$area_iso3c %in% gleam_geographic_hierarchy$iso3
+    ) |>
+    dplyr::distinct(.data$area_code, .data$area_name)
+  if (nrow(gaps) == 0L) {
+    return(invisible(NULL))
+  }
+  n_gaps <- nrow(gaps)
+  areas <- sort(gaps$area_name)
+  cli::cli_warn(c(
+    "!" = "GLEAM cannot classify {n_gaps} live reporting area{?s}: no row in
+       {.field gleam_geographic_hierarchy}, so the energy extension drops their
+       production.",
+    "i" = "Areas: {.val {areas}}.",
+    "i" = "Assigning them a GLEAM region is a modelling decision; see whep#415."
+  ))
+  invisible(NULL)
+}
+
 # Map each country to its grouping under each of the three GLEAM schemes.
 .energy_country_grouping <- function() {
   ldc <- .energy_ldc_iso3()
+  .warn_areas_gleam_cannot_group()
   gleam_geographic_hierarchy |>
     dplyr::transmute(
       iso3 = .data$iso3,
@@ -327,12 +386,15 @@ build_energy_co2_extension <- function(
   )
 }
 
+# Reporting area -> iso3 for the GLEAM joins. `area_iso3c` is a property of the
+# reporting area, constant across the polity periods sharing an `area_code`
+# (checked: one distinct value for each of the 265 mapped codes), so this needs
+# no tie-breaking between those periods.
 .energy_area_iso3 <- function() {
-  .current_area_lookup(include_unmapped = FALSE) |>
+  polity_area_crosswalk |>
     tibble::as_tibble() |>
-    dplyr::select("area_code", iso3 = "area_iso3c") |>
-    dplyr::filter(!is.na(.data$iso3)) |>
-    dplyr::distinct(.data$area_code, .keep_all = TRUE)
+    dplyr::filter(!is.na(.data$area_code), !is.na(.data$area_iso3c)) |>
+    dplyr::distinct(area_code = .data$area_code, iso3 = .data$area_iso3c)
 }
 
 # ---- attribution to live-animal sectors -----------------------------------
