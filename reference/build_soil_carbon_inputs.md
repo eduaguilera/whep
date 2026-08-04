@@ -53,13 +53,15 @@ build_soil_carbon_inputs(
   from
   [items_prod_full](https://eduaguilera.github.io/whep/reference/items_prod_full.md)
   (matched case-insensitively), and `territory` a stringified
-  `area_code` or `iso3c`); `country_grid` and `crop_patterns` (the
-  spatialization inputs, `crop_patterns` carrying per-cell
-  `crop_area_ha`); `harvested_area` (the FAOSTAT national harvested area
-  per `area_code`, `item_prod_code`, `year` in a `faostat_area_ha`
-  column, used to renormalize each polity-crop-year's spatialized cell
-  area to the national total so per-hectare densities are the national
-  density and carbon mass is conserved; defaults to the same
+  `area_code` – an `iso3c` literal is still resolved but deprecated, see
+  [`estimate_n_excretion()`](https://eduaguilera.github.io/whep/reference/estimate_n_excretion.md));
+  `country_grid` and `crop_patterns` (the spatialization inputs,
+  `crop_patterns` carrying per-cell `crop_area_ha`); `harvested_area`
+  (the FAOSTAT national harvested area per `area_code`,
+  `item_prod_code`, `year` in a `faostat_area_ha` column, used to
+  renormalize each polity-crop-year's spatialized cell area to the
+  national total so per-hectare densities are the national density and
+  carbon mass is conserved; defaults to the same
   [`get_primary_production()`](https://eduaguilera.github.io/whep/reference/get_primary_production.md)
   table the NPP reader uses, and is skipped when a hand-supplied `npp`
   keeps the pipeline offline unless supplied here);

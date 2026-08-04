@@ -68,7 +68,12 @@ comparable.</p>
 <dl><dt id="arg-intake">intake<a class="anchor" aria-label="anchor" href="#arg-intake"></a></dt>
 <dd><p>A tibble of realised feed intake with at least <code>year</code>,
 <code>territory</code>, <code>sub_territory</code>, <code>livestock_category</code>, <code>item_cbs_code</code>,
-<code>feed_quality</code> and <code>intake_dm_t</code> (the <code><a href="redistribute_feed.html">redistribute_feed()</a></code> result).</p></dd>
+<code>feed_quality</code> and <code>intake_dm_t</code> (the <code><a href="redistribute_feed.html">redistribute_feed()</a></code> result).
+<code>territory</code> is a stringified <code>area_code</code> (<code>as.character(area_code)</code>, what
+<code><a href="redistribute_feed.html">redistribute_feed()</a></code> emits and what the whole manure chain carries
+through to the nitrogen inputs); an <code>iso3c</code> literal is still resolved
+there but is deprecated, since it can only answer with an aggregation
+bucket and so loses the territory for 62 of the 257 codes it knows.</p></dd>
 
 
 <dt id="arg-options">options<a class="anchor" aria-label="anchor" href="#arg-options"></a></dt>
@@ -95,14 +100,14 @@ comparable.</p>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="va">intake</span> <span class="op">&lt;-</span> <span class="fu">tibble</span><span class="fu">::</span><span class="fu"><a href="https://tibble.tidyverse.org/reference/tribble.html" class="external-link">tribble</a></span><span class="op">(</span></span></span>
 <span class="r-in"><span>  <span class="op">~</span><span class="va">year</span>, <span class="op">~</span><span class="va">territory</span>, <span class="op">~</span><span class="va">sub_territory</span>, <span class="op">~</span><span class="va">livestock_category</span>,</span></span>
 <span class="r-in"><span>  <span class="op">~</span><span class="va">item_cbs_code</span>, <span class="op">~</span><span class="va">feed_quality</span>, <span class="op">~</span><span class="va">intake_dm_t</span>,</span></span>
-<span class="r-in"><span>  <span class="fl">2020L</span>, <span class="st">"ES"</span>, <span class="cn">NA</span>, <span class="st">"Cattle_milk"</span>, <span class="fl">2513L</span>, <span class="st">"high_quality"</span>, <span class="fl">100</span>,</span></span>
-<span class="r-in"><span>  <span class="fl">2020L</span>, <span class="st">"ES"</span>, <span class="cn">NA</span>, <span class="st">"Cattle_milk"</span>, <span class="cn">NA</span>, <span class="st">"grass"</span>, <span class="fl">500</span></span></span>
+<span class="r-in"><span>  <span class="fl">2020L</span>, <span class="st">"203"</span>, <span class="cn">NA</span>, <span class="st">"Cattle_milk"</span>, <span class="fl">2513L</span>, <span class="st">"high_quality"</span>, <span class="fl">100</span>,</span></span>
+<span class="r-in"><span>  <span class="fl">2020L</span>, <span class="st">"203"</span>, <span class="cn">NA</span>, <span class="st">"Cattle_milk"</span>, <span class="cn">NA</span>, <span class="st">"grass"</span>, <span class="fl">500</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">estimate_n_excretion</span><span class="op">(</span><span class="va">intake</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 1 × 10</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    year territory sub_territory livestock_category n_intake n_excretion</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;lgl&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>020 ES        <span style="color: #BB0000;">NA</span>            Cattle_milk            11.9        9.49</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>020 203       <span style="color: #BB0000;">NA</span>            Cattle_milk            11.9        9.49</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 4 more variables: c_excretion &lt;dbl&gt;, vs_excretion &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_n_excretion &lt;chr&gt;, method_vs &lt;chr&gt;</span></span>
 </code></pre></div>

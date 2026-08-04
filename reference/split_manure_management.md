@@ -19,8 +19,10 @@ split_manure_management(excretion, options = list())
 
   A tibble from
   [`estimate_n_excretion()`](https://eduaguilera.github.io/whep/reference/estimate_n_excretion.md)
-  with `year`, `territory`, `sub_territory`, `livestock_category`,
-  `n_excretion`, `c_excretion` and `vs_excretion`.
+  with `year`, `territory` (a stringified `area_code`, see
+  [`estimate_n_excretion()`](https://eduaguilera.github.io/whep/reference/estimate_n_excretion.md)),
+  `sub_territory`, `livestock_category`, `n_excretion`, `c_excretion`
+  and `vs_excretion`.
 
 - options:
 
@@ -41,20 +43,20 @@ A tibble with one row per
 excretion <- tibble::tribble(
   ~year, ~territory, ~sub_territory, ~livestock_category,
   ~n_excretion, ~c_excretion, ~vs_excretion,
-  2020L, "ES", NA, "Cattle_milk", 100, 1900, 60,
-  2020L, "ES", NA, "Pigs", 30, 270, 20
+  2020L, "203", NA, "Cattle_milk", 100, 1900, 60,
+  2020L, "203", NA, "Pigs", 30, 270, 20
 )
 split_manure_management(excretion)
 #> # A tibble: 7 × 13
 #>    year territory sub_territory livestock_category species_gen loss_category
 #>   <int> <chr>     <lgl>         <chr>              <chr>       <chr>        
-#> 1  2020 ES        NA            Cattle_milk        Cattle      Dairy Cattle 
-#> 2  2020 ES        NA            Cattle_milk        Cattle      Dairy Cattle 
-#> 3  2020 ES        NA            Cattle_milk        Cattle      Dairy Cattle 
-#> 4  2020 ES        NA            Cattle_milk        Cattle      Dairy Cattle 
-#> 5  2020 ES        NA            Pigs               Swine       Swine        
-#> 6  2020 ES        NA            Pigs               Swine       Swine        
-#> 7  2020 ES        NA            Pigs               Swine       Swine        
+#> 1  2020 203       NA            Cattle_milk        Cattle      Dairy Cattle 
+#> 2  2020 203       NA            Cattle_milk        Cattle      Dairy Cattle 
+#> 3  2020 203       NA            Cattle_milk        Cattle      Dairy Cattle 
+#> 4  2020 203       NA            Cattle_milk        Cattle      Dairy Cattle 
+#> 5  2020 203       NA            Pigs               Swine       Swine        
+#> 6  2020 203       NA            Pigs               Swine       Swine        
+#> 7  2020 203       NA            Pigs               Swine       Swine        
 #> # ℹ 7 more variables: cn_species <chr>, mms_type <chr>, stream <chr>,
 #> #   n_stream <dbl>, c_stream <dbl>, vs_stream <dbl>, method_mms <chr>
 ```

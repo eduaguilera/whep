@@ -22,9 +22,11 @@ allocate_manure_transport(source_cells, sink_cells, options = list())
 
 - source_cells:
 
-  A tibble of cells exporting manure, keyed by `year`, `territory` and
-  `sub_territory` (a `"lon_lat"` cell id), with `surplus_n`, `surplus_c`
-  and `surplus_vs` (t).
+  A tibble of cells exporting manure, keyed by `year`, `territory` (a
+  stringified `area_code`, see
+  [`estimate_n_excretion()`](https://eduaguilera.github.io/whep/reference/estimate_n_excretion.md))
+  and `sub_territory` (a `"lon_lat"` cell id), with `surplus_n`,
+  `surplus_c` and `surplus_vs` (t).
 
 - sink_cells:
 
@@ -51,18 +53,18 @@ disposal.
 ``` r
 source_cells <- tibble::tribble(
   ~year, ~territory, ~sub_territory, ~surplus_n, ~surplus_c, ~surplus_vs,
-  2020L, "ESP", "1.5_40", 10, 90, 6
+  2020L, "203", "1.5_40", 10, 90, 6
 )
 sink_cells <- tibble::tribble(
   ~year, ~territory, ~sub_territory, ~room_n,
-  2020L, "ESP", "1_40", 4,
-  2020L, "ESP", "2_40", 6
+  2020L, "203", "1_40", 4,
+  2020L, "203", "2_40", 6
 )
 allocate_manure_transport(source_cells, sink_cells)
 #> # A tibble: 2 × 8
 #>    year territory sub_territory applied_n applied_c applied_vs kind       
 #>   <int> <chr>     <chr>             <dbl>     <dbl>      <dbl> <chr>      
-#> 1  2020 ESP       1_40                  4        36        2.4 transported
-#> 2  2020 ESP       2_40                  6        54        3.6 transported
+#> 1  2020 203       1_40                  4        36        2.4 transported
+#> 2  2020 203       2_40                  6        54        3.6 transported
 #> # ℹ 1 more variable: method_transport <chr>
 ```

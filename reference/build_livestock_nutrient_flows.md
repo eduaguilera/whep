@@ -73,14 +73,14 @@ per-category excretion totals).
 intake <- tibble::tribble(
   ~year, ~territory, ~sub_territory, ~livestock_category,
   ~item_cbs_code, ~feed_quality, ~intake_dm_t,
-  2020L, "ESP", NA, "Cattle_milk", 2513L, "high_quality", 200,
-  2020L, "ESP", NA, "Cattle_milk", NA, "grass", 600
+  2020L, "203", NA, "Cattle_milk", 2513L, "high_quality", 200,
+  2020L, "203", NA, "Cattle_milk", NA, "grass", 600
 )
 gridded <- list(
   crops = tibble::tribble(
     ~year, ~territory, ~sub_territory, ~crop, ~manure_n_receptivity, ~crop_n_cap,
-    2020L, "ESP", NA, "barley", 6, 200,
-    2020L, "ESP", NA, "wheat", 4, 200
+    2020L, "203", NA, "barley", 6, 200,
+    2020L, "203", NA, "wheat", 4, 200
   )
 )
 build_livestock_nutrient_flows(intake, gridded = gridded)
@@ -88,11 +88,11 @@ build_livestock_nutrient_flows(intake, gridded = gridded)
 #> # A tibble: 5 × 20
 #>    year territory sub_territory land_use  crop   source_stream manure_type
 #>   <int> <chr>     <lgl>         <chr>     <chr>  <chr>         <chr>      
-#> 1  2020 ESP       NA            Cropland  barley collected     Solid      
-#> 2  2020 ESP       NA            Cropland  barley collected     Liquid     
-#> 3  2020 ESP       NA            Cropland  wheat  collected     Solid      
-#> 4  2020 ESP       NA            Cropland  wheat  collected     Liquid     
-#> 5  2020 ESP       NA            Grassland NA     grazing       Excreta    
+#> 1  2020 203       NA            Cropland  barley collected     Solid      
+#> 2  2020 203       NA            Cropland  barley collected     Liquid     
+#> 3  2020 203       NA            Cropland  wheat  collected     Solid      
+#> 4  2020 203       NA            Cropland  wheat  collected     Liquid     
+#> 5  2020 203       NA            Grassland NA     grazing       Excreta    
 #> # ℹ 13 more variables: applied_n <dbl>, applied_c <dbl>, applied_vs <dbl>,
 #> #   over_cap <lgl>, method_allocation <chr>, method_cap <chr>,
 #> #   disposal_method <chr>, resolution <chr>, method_n_excretion <chr>,
@@ -103,14 +103,14 @@ build_livestock_nutrient_flows(intake, gridded = gridded)
 #> # A tibble: 1 × 10
 #>    year territory sub_territory n_volatilized n_leached n2o_direct_n   n2_n
 #>   <int> <chr>     <lgl>                 <dbl>     <dbl>        <dbl>  <dbl>
-#> 1  2020 ESP       NA                     2.08    0.0755       0.0289 0.0868
+#> 1  2020 203       NA                     2.08    0.0755       0.0289 0.0868
 #> # ℹ 3 more variables: n2o_indirect_n <dbl>, c_lost <dbl>, vs_destroyed <dbl>
 #> 
 #> $excretion
 #> # A tibble: 1 × 10
 #>    year territory sub_territory livestock_category n_intake n_excretion
 #>   <int> <chr>     <lgl>         <chr>                 <dbl>       <dbl>
-#> 1  2020 ESP       NA            Cattle_milk            15.7        12.6
+#> 1  2020 203       NA            Cattle_milk            15.7        12.6
 #> # ℹ 4 more variables: c_excretion <dbl>, vs_excretion <dbl>,
 #> #   method_n_excretion <chr>, method_vs <chr>
 #> 

@@ -46,16 +46,16 @@ The input rows with `manure_type`, `applied_n`, `applied_c`,
 excretion <- tibble::tribble(
   ~year, ~territory, ~sub_territory, ~livestock_category,
   ~n_excretion, ~c_excretion, ~vs_excretion,
-  2020L, "ES", NA, "Cattle_milk", 100, 1900, 60
+  2020L, "203", NA, "Cattle_milk", 100, 1900, 60
 )
 apply_management_losses(split_manure_management(excretion))
 #> # A tibble: 4 × 19
 #>    year territory sub_territory livestock_category species_gen mms_type         
 #>   <int> <chr>     <lgl>         <chr>              <chr>       <chr>            
-#> 1  2020 ES        NA            Cattle_milk        Cattle      Pasture/Range/Pa…
-#> 2  2020 ES        NA            Cattle_milk        Cattle      Solid Storage    
-#> 3  2020 ES        NA            Cattle_milk        Cattle      Liquid/Slurry    
-#> 4  2020 ES        NA            Cattle_milk        Cattle      Daily Spread     
+#> 1  2020 203       NA            Cattle_milk        Cattle      Pasture/Range/Pa…
+#> 2  2020 203       NA            Cattle_milk        Cattle      Solid Storage    
+#> 3  2020 203       NA            Cattle_milk        Cattle      Liquid/Slurry    
+#> 4  2020 203       NA            Cattle_milk        Cattle      Daily Spread     
 #> # ℹ 13 more variables: manure_type <chr>, stream <chr>, applied_n <dbl>,
 #> #   applied_c <dbl>, applied_vs <dbl>, n_volatilized <dbl>, n_leached <dbl>,
 #> #   n2o_direct_n <dbl>, n2_n <dbl>, n2o_indirect_n <dbl>, c_lost <dbl>,

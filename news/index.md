@@ -2,6 +2,26 @@
 
 ## whep (development version)
 
+- The manure/nutrient chain now documents **one vocabulary for
+  `territory`**: a stringified `area_code`, what
+  [`redistribute_feed()`](https://eduaguilera.github.io/whep/reference/redistribute_feed.md)
+  emits and what the pipeline has always passed. The `@examples` of
+  [`estimate_n_excretion()`](https://eduaguilera.github.io/whep/reference/estimate_n_excretion.md),
+  [`split_manure_management()`](https://eduaguilera.github.io/whep/reference/split_manure_management.md),
+  [`apply_management_losses()`](https://eduaguilera.github.io/whep/reference/apply_management_losses.md),
+  [`allocate_manure_to_land()`](https://eduaguilera.github.io/whep/reference/allocate_manure_to_land.md),
+  [`allocate_manure_transport()`](https://eduaguilera.github.io/whep/reference/allocate_manure_transport.md)
+  and
+  [`build_livestock_nutrient_flows()`](https://eduaguilera.github.io/whep/reference/build_livestock_nutrient_flows.md)
+  used ISO literals instead (`"ESP"`, and `"ES"`, which the chain’s own
+  resolver rejects outright). Passing an `iso3c` still resolves, as a
+  bridge for existing fixtures, but now warns: it can only answer with
+  `polity_area_code`, a FABIO aggregation bucket, which for 62 of the
+  257 ISO3 codes in `regions_full` is not that territory’s own code (61
+  land on 999, Rest of World; `"SSD"` lands on 206, Sudan (former),
+  where the numeric form `"277"` keeps South Sudan). No published value
+  changes: the pipeline itself never took the ISO3 branch.
+
 - Every area-keyed exported output now carries the **reporting-polity
   columns** (`polity_area_code`, `reporting_polity_code`,
   `reporting_polity_name`, `reporting_polity_has_geometry`), so a caller

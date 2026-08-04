@@ -24,8 +24,9 @@ allocate_manure_to_land(applied, gridded = list(), options = list())
 
   A tibble from
   [`apply_management_losses()`](https://eduaguilera.github.io/whep/reference/apply_management_losses.md)
-  with at least `year`, `territory`, `sub_territory`, `stream`,
-  `applied_n`, `applied_c` and `applied_vs`.
+  with at least `year`, `territory` (a stringified `area_code`, see
+  [`estimate_n_excretion()`](https://eduaguilera.github.io/whep/reference/estimate_n_excretion.md)),
+  `sub_territory`, `stream`, `applied_n`, `applied_c` and `applied_vs`.
 
 - gridded:
 
@@ -79,21 +80,21 @@ should not rely on the `manure_type`-broken-out `applied_c`/
 applied <- tibble::tribble(
   ~year, ~territory, ~sub_territory, ~stream, ~manure_type,
   ~applied_n, ~applied_c, ~applied_vs,
-  2020L, "ESP", NA, "collected", "Solid", 80, 800, 40,
-  2020L, "ESP", NA, "grazing", "Excreta", 20, 380, 12
+  2020L, "203", NA, "collected", "Solid", 80, 800, 40,
+  2020L, "203", NA, "grazing", "Excreta", 20, 380, 12
 )
 crops <- tibble::tribble(
   ~year, ~territory, ~sub_territory, ~crop, ~manure_n_receptivity, ~crop_n_cap,
-  2020L, "ESP", NA, "barley", 6, 50,
-  2020L, "ESP", NA, "wheat", 4, 40
+  2020L, "203", NA, "barley", 6, 50,
+  2020L, "203", NA, "wheat", 4, 40
 )
 allocate_manure_to_land(applied, list(crops = crops))
 #> # A tibble: 3 × 14
 #>    year territory sub_territory land_use  crop   source_stream manure_type
 #>   <int> <chr>     <lgl>         <chr>     <chr>  <chr>         <chr>      
-#> 1  2020 ESP       NA            Cropland  barley collected     Solid      
-#> 2  2020 ESP       NA            Cropland  wheat  collected     Solid      
-#> 3  2020 ESP       NA            Grassland NA     grazing       Excreta    
+#> 1  2020 203       NA            Cropland  barley collected     Solid      
+#> 2  2020 203       NA            Cropland  wheat  collected     Solid      
+#> 3  2020 203       NA            Grassland NA     grazing       Excreta    
 #> # ℹ 7 more variables: applied_n <dbl>, applied_c <dbl>, applied_vs <dbl>,
 #> #   over_cap <lgl>, method_allocation <chr>, method_cap <chr>,
 #> #   disposal_method <chr>

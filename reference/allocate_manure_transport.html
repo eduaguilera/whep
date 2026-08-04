@@ -79,8 +79,9 @@ source cell's bundle ratio.</p>
 
 <dl><dt id="arg-source-cells">source_cells<a class="anchor" aria-label="anchor" href="#arg-source-cells"></a></dt>
 <dd><p>A tibble of cells exporting manure, keyed by <code>year</code>,
-<code>territory</code> and <code>sub_territory</code> (a <code>"lon_lat"</code> cell id), with <code>surplus_n</code>,
-<code>surplus_c</code> and <code>surplus_vs</code> (t).</p></dd>
+<code>territory</code> (a stringified <code>area_code</code>, see <code><a href="estimate_n_excretion.html">estimate_n_excretion()</a></code>) and
+<code>sub_territory</code> (a <code>"lon_lat"</code> cell id), with <code>surplus_n</code>, <code>surplus_c</code> and
+<code>surplus_vs</code> (t).</p></dd>
 
 
 <dt id="arg-sink-cells">sink_cells<a class="anchor" aria-label="anchor" href="#arg-sink-cells"></a></dt>
@@ -107,19 +108,19 @@ rows are the un-transportable surplus handed back for local disposal.</p>
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="va">source_cells</span> <span class="op">&lt;-</span> <span class="fu">tibble</span><span class="fu">::</span><span class="fu"><a href="https://tibble.tidyverse.org/reference/tribble.html" class="external-link">tribble</a></span><span class="op">(</span></span></span>
 <span class="r-in"><span>  <span class="op">~</span><span class="va">year</span>, <span class="op">~</span><span class="va">territory</span>, <span class="op">~</span><span class="va">sub_territory</span>, <span class="op">~</span><span class="va">surplus_n</span>, <span class="op">~</span><span class="va">surplus_c</span>, <span class="op">~</span><span class="va">surplus_vs</span>,</span></span>
-<span class="r-in"><span>  <span class="fl">2020L</span>, <span class="st">"ESP"</span>, <span class="st">"1.5_40"</span>, <span class="fl">10</span>, <span class="fl">90</span>, <span class="fl">6</span></span></span>
+<span class="r-in"><span>  <span class="fl">2020L</span>, <span class="st">"203"</span>, <span class="st">"1.5_40"</span>, <span class="fl">10</span>, <span class="fl">90</span>, <span class="fl">6</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">sink_cells</span> <span class="op">&lt;-</span> <span class="fu">tibble</span><span class="fu">::</span><span class="fu"><a href="https://tibble.tidyverse.org/reference/tribble.html" class="external-link">tribble</a></span><span class="op">(</span></span></span>
 <span class="r-in"><span>  <span class="op">~</span><span class="va">year</span>, <span class="op">~</span><span class="va">territory</span>, <span class="op">~</span><span class="va">sub_territory</span>, <span class="op">~</span><span class="va">room_n</span>,</span></span>
-<span class="r-in"><span>  <span class="fl">2020L</span>, <span class="st">"ESP"</span>, <span class="st">"1_40"</span>, <span class="fl">4</span>,</span></span>
-<span class="r-in"><span>  <span class="fl">2020L</span>, <span class="st">"ESP"</span>, <span class="st">"2_40"</span>, <span class="fl">6</span></span></span>
+<span class="r-in"><span>  <span class="fl">2020L</span>, <span class="st">"203"</span>, <span class="st">"1_40"</span>, <span class="fl">4</span>,</span></span>
+<span class="r-in"><span>  <span class="fl">2020L</span>, <span class="st">"203"</span>, <span class="st">"2_40"</span>, <span class="fl">6</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">allocate_manure_transport</span><span class="op">(</span><span class="va">source_cells</span>, <span class="va">sink_cells</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 2 × 8</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    year territory sub_territory applied_n applied_c applied_vs kind       </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>             <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>      <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>      </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>020 ESP       1_40                  4        36        2.4 transported</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span>  <span style="text-decoration: underline;">2</span>020 ESP       2_40                  6        54        3.6 transported</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>020 203       1_40                  4        36        2.4 transported</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span>  <span style="text-decoration: underline;">2</span>020 203       2_40                  6        54        3.6 transported</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 1 more variable: method_transport &lt;chr&gt;</span></span>
 </code></pre></div>
     </div>
