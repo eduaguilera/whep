@@ -34,13 +34,18 @@ known_polity_prefixes <- unique(polity_attrs$polity_prefix)
 
 excel_na <- c("", "NA", "#N/A", "#DIV/0!", "#REF!")
 
+# repair_table_labels(): shared with harmonization_tables.R, which reads the same
+# vendored regions_full.csv to build regions_full and polities_cats.
+source("data-raw/_labels.R")
+
 regions_full_raw <- here::here(
   "inst",
   "extdata",
   "harmonization",
   "regions_full.csv"
 ) |>
-  readr::read_csv(show_col_types = FALSE, na = excel_na)
+  readr::read_csv(show_col_types = FALSE, na = excel_na) |>
+  repair_table_labels()
 
 regions_compact <- here::here("inst", "extdata", "regions.csv") |>
   readr::read_csv(show_col_types = FALSE, na = excel_na)
