@@ -36,9 +36,27 @@
 testthat::test_that("the example fixture matches the documented contract", {
   out <- whep::read_population(example = TRUE)
   testthat::expect_s3_class(out, "tbl_df")
-  testthat::expect_named(out, c("year", "area_code", "population"))
+  # The polity columns are part of the contract now, not an extra: `read_population()`
+  # resolves ISO3 to a numeric `area_code` and carries a `year`, so it is an area-keyed
+  # export with a year and #424 requires it to say which polity each row belongs to.
+  # `expect_named()` is exact, so it has to name them -- and asserting the exact set is
+  # the point: a silently dropped polity column should fail here.
+  testthat::expect_named(
+    out,
+    c(
+      "year",
+      "area_code",
+      "polity_area_code",
+      "reporting_polity_code",
+      "reporting_polity_name",
+      "reporting_polity_has_geometry",
+      "population"
+    )
+  )
   testthat::expect_true(all(out$population > 0))
   testthat::expect_type(out$area_code, "integer")
+  # Populated, not merely present.
+  testthat::expect_false(anyNA(out$reporting_polity_code))
 })
 
 testthat::test_that("ISO3 becomes a numeric area code and thousands persons", {
