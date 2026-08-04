@@ -266,6 +266,32 @@ add_polity_code <- function(
   tibble::as_tibble(out)
 }
 
+# ---- ISO3 -> numeric area_code -----------------------------------------
+#
+# The canonical iso3c -> area_code lookup. It maps to `polity_area_code`, NOT
+# to `code`: two ISO3 codes carry a historical predecessor as a second `code`
+# (ETH is both 238 Ethiopia and 62 Ethiopia PDR; SDN is both 276 Sudan and 206
+# Sudan (former)), so a `code` lookup returns two rows for them. Both members
+# of each pair already share one `polity_area_code` (238 and 206), which is
+# also the code the commodity balances actually carry, so mapping there is
+# unique by construction rather than by picking a winner: 257 iso3c, 257 rows.
+.iso3c_area_code_lookup <- function() {
+  whep::regions_full |>
+    dplyr::filter(!is.na(.data$iso3c), !is.na(.data$polity_area_code)) |>
+    dplyr::distinct(
+      iso3c = as.character(.data$iso3c),
+      area_code = as.integer(.data$polity_area_code)
+    )
+}
+
+# Resolve a character vector of ISO3 codes to numeric area codes, preserving
+# length and order. Unknown codes come back NA; the caller decides whether that
+# is fatal, since some callers legitimately carry non-country aggregates.
+.iso3c_to_area_code <- function(iso3c) {
+  lookup <- .iso3c_area_code_lookup()
+  lookup$area_code[match(as.character(iso3c), lookup$iso3c)]
+}
+
 .add_reporting_polity_columns <- function(
   table,
   code_column = "area_code"
