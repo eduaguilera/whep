@@ -424,10 +424,18 @@ testthat::test_that(".gn_read_stand_frac reads cftfrac.nc grassland stands", {
     names(out),
     c("lon", "lat", "year", "name_pft", "stand_frac")
   )
-  testthat::expect_setequal(
-    unique(out$name_pft),
-    c("rainfed grassland", "irrigated grassland")
-  )
+  # Rainfed grassland must be present; irrigated grassland may legitimately be
+  # ABSENT. LUH2 carries irrigation for the five crop types only (its
+  # management.nc has irrig_c3ann/c4ann/c3per/c4per/c3nfx and no pasture
+  # equivalent), so a LUH2-driven land-use input has an all-zero irrigated
+  # grassland band and the reader, which keeps only positive stand fractions,
+  # emits no such rows. Asserting both bands exist would fail on every
+  # LUH2-driven run -- verified on the 1901-2023 run, where the input file's
+  # band 30 is zero in every cell while band 14 covers 46,370.
+  testthat::expect_true("rainfed grassland" %in% out$name_pft)
+  testthat::expect_true(all(
+    unique(out$name_pft) %in% c("rainfed grassland", "irrigated grassland")
+  ))
   testthat::expect_true(all(out$stand_frac > 0 & out$stand_frac <= 1))
 })
 
