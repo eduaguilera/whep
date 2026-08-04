@@ -198,7 +198,8 @@ test_that(".cropgrids_to_polity_area re-keys CROPGRIDS onto polity area codes", 
     ~area_code, ~item_cbs_code, ~physical_ha, ~harvested_ha,
     276L, 2518L, 999, 1000, # Sudan, sorghum
     277L, 2518L, 240, 300, # South Sudan, sorghum
-    33L, 2518L, 500, 1000 # Canada: code == polity_area_code, untouched
+    33L, 2518L, 500, 1000, # Canada: code == polity_area_code, untouched
+    8888L, 2518L, 90, 100 # not in the crosswalk at all
   )
   res <- whep:::.cropgrids_to_polity_area(cropgrids)
 
@@ -212,6 +213,10 @@ test_that(".cropgrids_to_polity_area re-keys CROPGRIDS onto polity area codes", 
   expect_equal(sdn$physical_ha, 1239)
   expect_equal(sdn$harvested_ha, 1300)
   expect_equal(res$harvested_ha[res$area_code == 33L], 1000)
+  # An area the crosswalk cannot resolve keeps its own code instead of being
+  # dropped, so the re-key degrades to the previous behaviour rather than losing
+  # the area. This guards the coalesce fallback, which nothing else exercises.
+  expect_true(8888L %in% res$area_code)
   # The re-key is an aggregation, so it neither creates nor loses area.
   expect_equal(sum(res$physical_ha), sum(cropgrids$physical_ha))
   expect_equal(sum(res$harvested_ha), sum(cropgrids$harvested_ha))
