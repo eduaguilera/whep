@@ -7,16 +7,17 @@
 LUH2 v2h, Hurtt, G. C. et al. (2020). Harmonization of global land
 use change and management for the period 850-2100 (LUH2) for CMIP6.
 Geoscientific Model Development 13, 5425-5464. \doi{10.5194/gmd-13-5425-2020}.
-The pinned payload is the Global Carbon Budget vintage of that release:
+The reference payload is the Global Carbon Budget vintage of that release:
 Chini, L. et al. (2021). Land-use harmonization datasets for annual global
 carbon budgets. Earth System Science Data 13, 4175-4189.
-\doi{10.5194/essd-13-4175-2021}.
+\doi{10.5194/essd-13-4175-2021}. Data: LUH2-GCB2022,
+\doi{10.5281/zenodo.15556812} (CC-BY-4.0).
 }
 \usage{
 read_luh2_landuse(
   resolution = c("grid", "polity"),
   years = NULL,
-  states_source = c("pin", "local"),
+  states_source = c("auto", "local", "zenodo"),
   data = NULL,
   example = FALSE
 )
@@ -28,12 +29,13 @@ read_luh2_landuse(
 \item{years}{Optional integer vector of calendar years to keep. \code{NULL} keeps
 every year present in the source.}
 
-\item{states_source}{Which states source to read: \code{"pin"} (default, the
-registered \code{luh2_v2h_states} pin, falling back to \code{WHEP_LUH2_DIR} with a
-warning when the pin cannot be fetched) or \code{"local"} for \code{WHEP_LUH2_DIR}
-only. Recorded in the provenance record's \code{input_origin}.}
+\item{states_source}{Which states source to read: \code{"auto"} (default, a
+\code{WHEP_LUH2_DIR} tree when present, else the Zenodo download), \code{"local"}
+(\code{WHEP_LUH2_DIR} only, an error without it) or \code{"zenodo"} (the
+checksum-verified reference vintage only, ignoring any local tree). Recorded
+in the provenance record's \code{input_origin}.}
 
-\item{data}{Named list of pre-loaded inputs bypassing the pin read: \code{states}
+\item{data}{Named list of pre-loaded inputs bypassing the readers: \code{states}
 (raw per-cell-year-state fractions with \code{lon}, \code{lat}, \code{year}, \code{land_use},
 \code{fraction}) and \code{country_grid} (\code{lon}, \code{lat}, \code{area_code},
 \code{cell_area_frac}). Each falls back to its reader when absent.}
@@ -58,12 +60,14 @@ spherical 0.5-degree cell area. At \code{resolution = "polity"} the areas are
 summed to each overlapping polity via the country grid; a border cell keeps
 every polity it overlaps.
 
-The states grid is read from the registered \code{luh2_v2h_states} pin. The
-\code{WHEP_LUH2_DIR} environment variable is only a fallback, used when the pin
-cannot be fetched. Either way the vintage actually read (the NetCDF
-\code{source_id}, e.g. \code{"UofMD-landState-LUH2-GCB2022"}) is recorded on the result
-with \code{\link[=attach_provenance]{attach_provenance()}}, because the base v2h release and the annual
-Global Carbon Budget variants cover different years and do not agree.
+The states grid comes from a \code{WHEP_LUH2_DIR} tree when there is one, else the
+reference LUH2-GCB2022 \code{states.nc} is downloaded on demand from Zenodo
+(doi:10.5281/zenodo.15556812, CC-BY-4.0), verified against its published MD5
+and cached. Whichever is read, the vintage (the NetCDF \code{source_id}, e.g.
+\code{"UofMD-landState-LUH2-GCB2022"}) is recorded on the result with
+\code{\link[=attach_provenance]{attach_provenance()}}, and a local tree that is not the reference vintage
+warns: the base v2h release and the annual Global Carbon Budget variants cover
+different years and do not agree.
 }
 \examples{
 read_luh2_landuse(example = TRUE)
