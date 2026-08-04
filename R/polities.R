@@ -541,3 +541,92 @@ get_polity_geometries <- function(polity_codes = NULL) {
   }
   out
 }
+
+#' Find FAOSTAT areas whose polity resolution is ambiguous
+#'
+#' A FAOSTAT area maps to a sequence of polities that is meant to partition time,
+#' so `(area_code, year)` has exactly one answer. Where two live polities cover the
+#' same year the answer depends on row order rather than on the data, and
+#' [add_polity_code()] silently returns whichever the ordering surfaces.
+#'
+#' This detects that. It is separate from the upstream check that no two periods of
+#' one polity *family* overlap: two different families can both map to one FAOSTAT
+#' area, which is the case this finds and that one does not.
+#'
+#' @param crosswalk A crosswalk frame; defaults to [polity_area_crosswalk].
+#' @return A data frame with one row per ambiguous `(area_code, year)`, carrying
+#'   `area_code`, `year`, `n` and `polity_codes` (comma-separated). Zero rows when
+#'   resolution is unique, which is the intended state.
+#' @keywords internal
+#' @noRd
+.area_year_polity_conflicts <- function(crosswalk = NULL) {
+  cw <- if (is.null(crosswalk)) whep::polity_area_crosswalk else crosswalk
+  cw <- as.data.frame(cw)
+  keep <- !is.na(cw$area_code) &
+    !is.na(cw$polity_code) &
+    !is.na(cw$polity_start_year) &
+    !is.na(cw$polity_end_year)
+  cw <- unique(cw[
+    keep,
+    c("area_code", "polity_code", "polity_start_year", "polity_end_year")
+  ])
+  if (nrow(cw) == 0L) {
+    return(.empty_conflict_frame())
+  }
+
+  # One row per (area, year) a polity covers. `polity_end_year` is EXCLUSIVE, so a
+  # period [1920, 1947) covers 1920:1946 -- getting that wrong would report a
+  # spurious conflict at every boundary.
+  spans <- Map(
+    function(a, p, s, e) {
+      if (e <= s) {
+        return(NULL)
+      }
+      data.frame(
+        area_code = a,
+        year = seq.int(s, e - 1L),
+        polity_code = p,
+        stringsAsFactors = FALSE
+      )
+    },
+    cw$area_code,
+    cw$polity_code,
+    as.integer(cw$polity_start_year),
+    as.integer(cw$polity_end_year)
+  )
+  spans <- spans[!vapply(spans, is.null, logical(1))]
+  if (length(spans) == 0L) {
+    return(.empty_conflict_frame())
+  }
+  long <- do.call(rbind, spans)
+
+  key <- paste(long$area_code, long$year, sep = ":")
+  counts <- table(key)
+  dup <- names(counts)[counts > 1L]
+  if (length(dup) == 0L) {
+    return(.empty_conflict_frame())
+  }
+
+  hit <- long[key %in% dup, ]
+  hit <- hit[order(hit$area_code, hit$year, hit$polity_code), ]
+  agg <- stats::aggregate(
+    polity_code ~ area_code + year,
+    data = hit,
+    FUN = function(x) paste(sort(unique(x)), collapse = ", ")
+  )
+  names(agg)[names(agg) == "polity_code"] <- "polity_codes"
+  agg$n <- lengths(strsplit(agg$polity_codes, ", ", fixed = TRUE))
+  agg <- agg[order(-agg$n, agg$area_code, agg$year), ]
+  rownames(agg) <- NULL
+  agg[, c("area_code", "year", "n", "polity_codes")]
+}
+
+.empty_conflict_frame <- function() {
+  data.frame(
+    area_code = integer(0),
+    year = integer(0),
+    n = integer(0),
+    polity_codes = character(0),
+    stringsAsFactors = FALSE
+  )
+}
