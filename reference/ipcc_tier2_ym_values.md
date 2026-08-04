@@ -21,7 +21,7 @@ IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.12.
 
 ``` r
 ipcc_tier2_ym_values
-#> # A tibble: 16 × 3
+#> # A tibble: 17 × 3
 #>    category feed_situation ym_percent
 #>    <chr>    <chr>               <dbl>
 #>  1 Cattle   High                  6.5
@@ -33,11 +33,12 @@ ipcc_tier2_ym_values
 #>  7 Buffalo  Low                   6.5
 #>  8 Sheep    High                  6.7
 #>  9 Sheep    Medium                6.7
-#> 10 Sheep    Low                   4.7
-#> 11 Goats    High                  5.5
-#> 12 Goats    Medium                5.5
-#> 13 Goats    Low                   5.5
-#> 14 Camels   High                  5  
-#> 15 Camels   Medium                5  
-#> 16 Camels   Low                   5  
+#> 10 Sheep    Low                   6.7
+#> 11 Sheep    Feedlot               6.7
+#> 12 Goats    High                  5.5
+#> 13 Goats    Medium                5.5
+#> 14 Goats    Low                   5.5
+#> 15 Camels   High                  5  
+#> 16 Camels   Medium                5  
+#> 17 Camels   Low                   5  
 ```

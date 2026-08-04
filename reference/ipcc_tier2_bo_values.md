@@ -31,9 +31,9 @@ ipcc_tier2_bo_values
 #>  5 Swine - Breeding          0.27
 #>  6 Sheep                     0.19
 #>  7 Goats                     0.18
-#>  8 Horses                    0.33
+#>  8 Horses                    0.3 
 #>  9 Mules and Asses           0.33
-#> 10 Camels                    0.1 
+#> 10 Camels                    0.26
 #> 11 Poultry - Layers          0.39
-#> 12 Poultry - Broilers        0.24
+#> 12 Poultry - Broilers        0.36
 ```
