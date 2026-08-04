@@ -253,9 +253,14 @@ testthat::test_that("ISO3 excreta territory resolves to area_code, not NA", {
     ~year, ~territory, ~sub_territory, ~land_use, ~crop, ~applied_c,
     2000L, "ESP", NA, "Grassland", NA, 80
   )
-  with_ex <- whep::build_grass_natural_carbon_inputs(
-    resolution = "grid",
-    data = d
+  # The ISO3 form is a deprecated bridge (#463), so resolving it warns; this
+  # test is about it still resolving rather than dropping the excreta carbon.
+  testthat::expect_warning(
+    with_ex <- whep::build_grass_natural_carbon_inputs(
+      resolution = "grid",
+      data = d
+    ),
+    "deprecated"
   )
   without_ex <- whep::build_grass_natural_carbon_inputs(
     resolution = "grid",

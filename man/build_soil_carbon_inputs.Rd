@@ -21,7 +21,9 @@ per \code{area_code}, \code{item_prod_code}, \code{year}, columns \code{residue_
 \code{root_c_t} and \code{weed_npp_c_t}, tonnes C); \code{manure} (the \code{applied} tibble of
 \code{\link[=build_livestock_nutrient_flows]{build_livestock_nutrient_flows()}}, with \code{crop} either an existing
 \code{item_prod_code} or an \code{item_prod} name from \link{items_prod_full} (matched
-case-insensitively), and \code{territory} a stringified \code{area_code} or \code{iso3c});
+case-insensitively), and \code{territory} a stringified \code{area_code} -- an
+\code{iso3c} literal is still resolved but deprecated, see
+\code{\link[=estimate_n_excretion]{estimate_n_excretion()}});
 \code{country_grid} and \code{crop_patterns} (the spatialization inputs,
 \code{crop_patterns} carrying per-cell \code{crop_area_ha}); \code{harvested_area} (the
 FAOSTAT national harvested area per \code{area_code}, \code{item_prod_code}, \code{year}

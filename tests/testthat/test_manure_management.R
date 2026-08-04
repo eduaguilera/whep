@@ -140,6 +140,37 @@ test_that("apply_management_losses conserves C and VS, applied C:N post-storage"
   expect_false(isTRUE(all.equal(coll_cn, rep(excreta_cn[1], length(coll_cn)))))
 })
 
+test_that("grazing retains full C and VS even above storage C:N cap", {
+  # Sheep Excreta C:N is 12.4; feed a high-C:N excretion (C:N = 25) so the
+  # storage cap would bite the grazing stream if it were applied. It must not:
+  # the in-situ stream undergoes no storage and keeps its full C and VS.
+  high_cn <- tibble::tribble(
+    ~year,
+    ~territory,
+    ~sub_territory,
+    ~livestock_category,
+    ~n_excretion,
+    ~c_excretion,
+    ~vs_excretion,
+    2020L,
+    "ES",
+    NA,
+    "Sheep",
+    100,
+    2500,
+    200
+  )
+  res <- whep::apply_management_losses(
+    whep::split_manure_management(high_cn)
+  )
+  graz <- res[res$stream == "grazing", ]
+  frac <- graz$applied_n / 100
+  expect_true(all(abs(graz$applied_c - 2500 * frac) < 1e-8))
+  expect_true(all(abs(graz$applied_vs - 200 * frac) < 1e-8))
+  expect_true(all(abs(graz$c_lost) < 1e-8))
+  expect_true(all(abs(graz$vs_destroyed) < 1e-8))
+})
+
 test_that("apply_management_losses guards bad input", {
   ok <- whep::split_manure_management(.toy_excretion())
   expect_error(

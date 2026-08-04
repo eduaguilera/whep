@@ -303,8 +303,13 @@ diagnose_food_supply <- function(year = 2010L, out_dir = ".") {
   invisible(rel)
 }
 
-# Protein per kg fresh matter, following build_food_supply()'s coalesce chain:
-# edible-portion N, then whole-product N, then dry-matter N; times 6.25.
+# Protein per kg fresh matter on the PRE-#361 basis: the coalesce chain
+# Edible_N_kgFM (empty) -> N_kgN_kgFM -> product N, times 6.25, with no
+# edible-portion scaling. Kept as written so this script keeps reproducing the
+# measurement that motivated #361; it is deliberately no longer a mirror of
+# build_food_supply(), which now defaults to the "edible_portion" basis and does
+# not read Edible_N_kgFM. Pass protein_basis = "whole_commodity" there to
+# reproduce this chain.
 .dfs_protein_lookup <- function() {
   nutrition <- whep::biomass_coefs |>
     dplyr::transmute(
