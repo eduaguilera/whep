@@ -1342,3 +1342,62 @@ testthat::test_that("a cell fully covered by one polity is not an overlap", {
     )
   })
 })
+
+testthat::test_that("unassigned land is reported for years with no claim", {
+  testthat::skip_if_not_installed("sf")
+
+  # S-A11 again, at the fencepost the interval grain introduces. A cell held
+  # 2000-2010 and unclaimed afterwards must still report its land as unassigned
+  # in 2015: keying the diagnostic on the claimed intervals alone leaves that
+  # year with no row at all, and the unclaimed land silently disappears from
+  # the slice. Measured on the shipped polities, that halved the 2015 figure
+  # (158 Mha against 315 Mha).
+  luh2_ha <- 0.7 * pcs_area_ha(pcs_cell(10.25, 45.25))
+  geometries <- pcs_polities(
+    tibble::tribble(
+      ~polity_code, ~start_year, ~end_year,
+      "GON-2000-2010", 2000L, 2010L,
+      "STA-2000-2020", 2000L, 2020L
+    ),
+    list(pcs_inset(10.0, 10.2), pcs_inset(20.0, 20.2))
+  )
+
+  result <- whep::build_polycell_support(
+    years = 2015L,
+    geometries = geometries,
+    data = list(
+      luh2 = tibble::tibble(
+        lon = c(10.25, 20.25),
+        lat = 45.25,
+        terrestrial_ha = luh2_ha
+      )
+    )
+  )
+
+  # The gone polity holds no polycell in 2015 ...
+  testthat::expect_equal(result$polity_code, "STA-2000-2020")
+
+  # ... and all of its cell's land is unassigned that year, not absent.
+  unassigned <- attr(result, "unassigned") |>
+    dplyr::filter(.data$start_year <= 2015L, 2015L < .data$end_year)
+  gone <- dplyr::filter(unassigned, .data$lon == 10.25)
+  testthat::expect_equal(nrow(gone), 1L)
+  testthat::expect_equal(gone$claimed_land_ha, 0)
+  testthat::expect_equal(gone$unassigned_land_ha, luh2_ha, tolerance = 1e-9)
+
+  # The still-live polity's cell reports only its uncovered remainder.
+  live <- dplyr::filter(unassigned, .data$lon == 20.25)
+  testthat::expect_equal(nrow(live), 1L)
+  testthat::expect_lt(live$unassigned_land_ha, gone$unassigned_land_ha)
+  testthat::expect_gt(live$claimed_land_ha, 0)
+
+  # Every year of the domain resolves to exactly one row per cell.
+  every <- attr(result, "unassigned")
+  purrr::walk(c(2000L, 2005L, 2010L, 2019L), \(yr) {
+    slice <- dplyr::filter(every, .data$start_year <= yr, yr < .data$end_year)
+    testthat::expect_equal(
+      nrow(dplyr::distinct(slice, .data$lon, .data$lat)),
+      nrow(slice)
+    )
+  })
+})

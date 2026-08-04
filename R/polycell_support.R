@@ -836,6 +836,12 @@ polycell_shim_view <- function(support) {
 # Land present in the validation layer but claimed by no live polity is
 # emitted, never renormalised into the polities: an unexplained gap that could
 # be either a geometry error or discarded unclaimed land is unattributable.
+#
+# The rows a cell contributes must cover the whole domain, not only the
+# intervals in which somebody claimed it. Keying on the claimed intervals alone
+# under-reports: a cell held 1900-1950 and unclaimed afterwards then has no row
+# covering 2015, and its unassigned land disappears from that year's slice. On
+# the shipped polities that halved the 2015 figure, 158 Mha against 315 Mha.
 .pcs_unassigned <- function(support, luh2) {
   .pcs_require_cols(luh2, c("lon", "lat", "terrestrial_ha"), "data$luh2")
   claimed <- support |>
@@ -844,12 +850,9 @@ polycell_shim_view <- function(support) {
       claimed_land_ha = sum(.data$land_area_ha),
       .by = c("lon", "lat", "start_year", "end_year")
     )
-  luh2 |>
-    dplyr::distinct(.data$lon, .data$lat, .data$terrestrial_ha) |>
-    dplyr::full_join(claimed, by = c("lon", "lat")) |>
+  cells <- dplyr::distinct(luh2, .data$lon, .data$lat, .data$terrestrial_ha)
+  .pcs_cover_domain(claimed, cells, .pcs_domain(support)) |>
     dplyr::mutate(
-      claimed_land_ha = dplyr::coalesce(.data$claimed_land_ha, 0),
-      terrestrial_ha = dplyr::coalesce(.data$terrestrial_ha, 0),
       unassigned_land_ha = pmax(
         .data$terrestrial_ha - .data$claimed_land_ha,
         0
@@ -857,6 +860,67 @@ polycell_shim_view <- function(support) {
     ) |>
     dplyr::filter(.data$unassigned_land_ha > .pcs_area_floor_ha()) |>
     tibble::as_tibble()
+}
+
+.pcs_domain <- function(support) {
+  if (nrow(support) == 0L) {
+    return(c(NA_integer_, NA_integer_))
+  }
+  c(min(support$start_year), max(support$end_year))
+}
+
+# Every stretch of the domain a cell's claimed intervals leave uncovered gets
+# its own row carrying no claim at all, so a year resolves to exactly one row
+# per cell whether or not anybody held it then.
+.pcs_cover_domain <- function(claimed, cells, domain) {
+  covered <- dplyr::inner_join(cells, claimed, by = c("lon", "lat"))
+  gaps <- .pcs_claim_gaps(claimed, cells, domain)
+  dplyr::bind_rows(covered, gaps)
+}
+
+.pcs_claim_gaps <- function(claimed, cells, domain) {
+  dplyr::bind_rows(
+    .pcs_gaps_before(claimed, domain),
+    .pcs_gap_after(claimed, domain),
+    .pcs_never_claimed(claimed, cells, domain)
+  ) |>
+    dplyr::filter(.data$start_year < .data$end_year) |>
+    dplyr::mutate(claimed_land_ha = 0) |>
+    dplyr::inner_join(cells, by = c("lon", "lat"), relationship = "many-to-one")
+}
+
+# The stretch before each claimed interval, back to the previous one.
+.pcs_gaps_before <- function(claimed, domain) {
+  claimed |>
+    dplyr::arrange(.data$lon, .data$lat, .data$start_year) |>
+    dplyr::mutate(
+      previous_end = dplyr::lag(.data$end_year, default = domain[[1L]]),
+      .by = c("lon", "lat")
+    ) |>
+    dplyr::transmute(
+      .data$lon,
+      .data$lat,
+      start_year = .data$previous_end,
+      end_year = .data$start_year
+    )
+}
+
+# The stretch after the last claimed interval, out to the end of the domain.
+.pcs_gap_after <- function(claimed, domain) {
+  claimed |>
+    dplyr::summarise(start_year = max(.data$end_year), .by = c("lon", "lat")) |>
+    dplyr::mutate(end_year = domain[[2L]])
+}
+
+.pcs_never_claimed <- function(claimed, cells, domain) {
+  cells |>
+    dplyr::anti_join(claimed, by = c("lon", "lat")) |>
+    dplyr::transmute(
+      .data$lon,
+      .data$lat,
+      start_year = domain[[1L]],
+      end_year = domain[[2L]]
+    )
 }
 
 # -- Shared helpers -----------------------------------------------------------
