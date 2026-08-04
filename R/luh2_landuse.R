@@ -456,10 +456,13 @@ read_luh2_landuse <- function(
 .luh2_download_states <- function(path, fetch = .luh2_fetch_states) {
   dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
   # R's download timeout defaults to 60 s, which aborts a 6.7 GB fetch long
-  # before it can finish. Raise it for the duration and put it back after.
+  # before it can finish. Any finite budget is really a guess about someone
+  # else's bandwidth, so lift it entirely for the duration and put it back
+  # after. Verified: options(timeout = 0) is unlimited, not a fallback to 60 --
+  # a 75 s drip completes under 0 and is cut off at exactly 60.0 s under 60.
   old_timeout <- getOption("timeout")
   on.exit(options(timeout = old_timeout), add = TRUE)
-  options(timeout = max(old_timeout, .luh2_download_timeout()))
+  options(timeout = .luh2_download_timeout())
   cli::cli_alert_info(
     "Downloading LUH2-GCB2022 states.nc (6.7 GB) from Zenodo; this is cached
      at {.path {dirname(path)}} and fetched only once."
@@ -469,8 +472,11 @@ read_luh2_landuse <- function(
   path
 }
 
-# 4 h, enough for 6.7 GB on a link slow enough to be painful but not broken.
-.luh2_download_timeout <- function() 14400
+# No timeout: 0 disables it in libcurl, so a slow link is slow rather than
+# broken. A stalled connection therefore hangs instead of erroring, which is the
+# deliberate trade -- an interrupted download is resumed by re-running, whereas a
+# timeout that fires on a merely-slow link can never be got past.
+.luh2_download_timeout <- function() 0L
 
 .luh2_fetch_states <- function(path) {
   utils::download.file(.luh2_states_url(), path, mode = "wb", quiet = FALSE)

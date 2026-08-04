@@ -356,9 +356,12 @@ test_that("a download error is reported with the manual instruction", {
   )
 })
 
-test_that("the download raises R's 60 s timeout, then restores it", {
-  # R's default download timeout is 60 s. A 6.7 GB fetch cannot finish inside
-  # that, so an unraised timeout would make the Zenodo path fail every time.
+test_that("the download lifts R's timeout entirely, then restores it", {
+  # R's default download timeout is 60 s: a 6.7 GB fetch cannot finish inside
+  # that, and any finite replacement is a guess about someone else's bandwidth.
+  # 0 disables the timeout in libcurl (verified: a 75 s drip completes under 0
+  # and is cut off at exactly 60.0 s under 60), so it must be exactly 0 here --
+  # max(old, 0) would silently leave the 60 s default in place.
   dir <- withr::local_tempdir()
   path <- file.path(dir, "states.nc")
   withr::local_options(timeout = 60)
@@ -375,7 +378,7 @@ test_that("the download raises R's 60 s timeout, then restores it", {
     ),
     "does not match the published MD5"
   )
-  testthat::expect_gte(seen, 14400)
+  testthat::expect_identical(seen, 0L)
   testthat::expect_equal(getOption("timeout"), 60)
 })
 
@@ -601,24 +604,25 @@ test_that("real Zenodo cache smoke test (skipped when not populated)", {
   )
 })
 
-# ---- Real local states.nc smoke test ---------------------------------------
+# ---- Real states.nc smoke test ---------------------------------------------
+# The real grid from wherever this machine has it: a WHEP_LUH2_DIR tree if one is
+# set, else the populated Zenodo cache. Resolving both matters because the
+# canonical home is now the cache, so keying these plausibility checks on the env
+# var alone would silently stop exercising them.
 .luh2_test_states_path <- function() {
-  file.path(
-    Sys.getenv("WHEP_LUH2_DIR", ""),
-    "states.nc"
-  )
+  local_nc <- file.path(Sys.getenv("WHEP_LUH2_DIR", ""), "states.nc")
+  if (nzchar(Sys.getenv("WHEP_LUH2_DIR")) && file.exists(local_nc)) {
+    return(local_nc)
+  }
+  file.path(whep:::.luh2_cache_dir(), "states.nc")
 }
 
-test_that("local states.nc reads at 0.5 deg with plausible year-2000 land use", {
+test_that("the real states.nc reads at 0.5 deg with plausible year-2000 land use", {
   testthat::skip_if(
     !file.exists(.luh2_test_states_path()),
-    "local LUH2 states.nc not present"
+    "no real LUH2 states.nc present"
   )
-  out <- whep::read_luh2_landuse(
-    resolution = "grid",
-    years = 2000L,
-    states_source = "local"
-  )
+  out <- whep::read_luh2_landuse(resolution = "grid", years = 2000L)
   local_states <- whep:::.luh2_read_states_nc(
     .luh2_test_states_path(),
     years = 2000L,
@@ -680,36 +684,34 @@ test_that("local states.nc reads at 0.5 deg with plausible year-2000 land use", 
   testthat::expect_true(gland > 12 && gland < 14)
 })
 
-test_that("local states.nc is readable for 1750", {
+test_that("the real states.nc is readable for 1750", {
   testthat::skip_if(
     !file.exists(.luh2_test_states_path()),
-    "local LUH2 states.nc not present"
+    "no real LUH2 states.nc present"
   )
-  out <- whep::read_luh2_landuse(
-    resolution = "grid",
-    years = 1750L,
-    states_source = "local"
-  )
+  out <- whep::read_luh2_landuse(resolution = "grid", years = 1750L)
   testthat::expect_true(all(out$year == 1750L))
   testthat::expect_true(nrow(out) > 0L)
-  testthat::expect_equal(whep::get_provenance(out)$input_origin, "local")
+  testthat::expect_true(
+    whep::get_provenance(out)$input_origin %in% c("local", "zenodo")
+  )
 })
 
-test_that("a local tree that IS the reference vintage matches its MD5", {
+test_that("the real reference states.nc matches its published MD5", {
   # Issue #457: the retired pin was byte-identical to the Zenodo asset. That is
   # what makes the published MD5 usable as the vintage check rather than a
   # recorded claim -- assert it against the real file when one is present.
   testthat::skip_on_ci()
-  local_nc <- .luh2_test_states_path()
-  testthat::skip_if(!file.exists(local_nc), "local LUH2 states.nc not present")
+  real_nc <- .luh2_test_states_path()
+  testthat::skip_if(!file.exists(real_nc), "no real LUH2 states.nc present")
   testthat::skip_if(
-    whep:::.luh2_nc_source_id(local_nc) != whep:::.luh2_reference_source_id(),
-    "WHEP_LUH2_DIR holds a different LUH2 vintage than the reference"
+    whep:::.luh2_nc_source_id(real_nc) != whep:::.luh2_reference_source_id(),
+    "the real states.nc is a different LUH2 vintage than the reference"
   )
 
-  testthat::expect_equal(file.size(local_nc), whep:::.luh2_states_bytes())
+  testthat::expect_equal(file.size(real_nc), whep:::.luh2_states_bytes())
   testthat::expect_equal(
-    unname(tools::md5sum(local_nc)),
+    unname(tools::md5sum(real_nc)),
     whep:::.luh2_states_md5()
   )
 })

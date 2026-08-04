@@ -40,11 +40,12 @@ download_luh2 <- function(dest_dir) {
   if (!dir.exists(target_dir)) {
     dir.create(target_dir, recursive = TRUE)
   }
-  # 6.7 GB over the default 60 s timeout never finishes; download_all() raises
-  # this too, but this script is also run on its own.
+  # 6.7 GB over the default 60 s timeout never finishes, and any finite budget is
+  # a guess about someone else's bandwidth. 0 disables the timeout in libcurl.
+  # download_all() raises it too, but this script is also run on its own.
   old_timeout <- getOption("timeout")
   on.exit(options(timeout = old_timeout), add = TRUE)
-  options(timeout = max(old_timeout, 14400))
+  options(timeout = 0L)
 
   assets <- .luh2_zenodo_assets()
   purrr::pwalk(assets, \(asset, local_name, bytes, md5) {
