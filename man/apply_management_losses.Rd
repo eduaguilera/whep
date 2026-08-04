@@ -36,7 +36,7 @@ solids (no storage C:N cap is applied to it).
 excretion <- tibble::tribble(
   ~year, ~territory, ~sub_territory, ~livestock_category,
   ~n_excretion, ~c_excretion, ~vs_excretion,
-  2020L, "ES", NA, "Cattle_milk", 100, 1900, 60
+  2020L, "203", NA, "Cattle_milk", 100, 1900, 60
 )
 apply_management_losses(split_manure_management(excretion))
 }

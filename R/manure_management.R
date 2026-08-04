@@ -8,8 +8,9 @@
 #' the per-species MMS shares sum to one.
 #'
 #' @param excretion A tibble from [estimate_n_excretion()] with `year`,
-#'   `territory`, `sub_territory`, `livestock_category`, `n_excretion`,
-#'   `c_excretion` and `vs_excretion`.
+#'   `territory` (a stringified `area_code`, see [estimate_n_excretion()]),
+#'   `sub_territory`, `livestock_category`, `n_excretion`, `c_excretion` and
+#'   `vs_excretion`.
 #' @param options A named list. `mms_source` selects the MMS-share table
 #'   (`"regional_default"`, the global IPCC/GLEAM default in
 #'   `regional_mms_distribution`).
@@ -23,8 +24,8 @@
 #' excretion <- tibble::tribble(
 #'   ~year, ~territory, ~sub_territory, ~livestock_category,
 #'   ~n_excretion, ~c_excretion, ~vs_excretion,
-#'   2020L, "ES", NA, "Cattle_milk", 100, 1900, 60,
-#'   2020L, "ES", NA, "Pigs", 30, 270, 20
+#'   2020L, "203", NA, "Cattle_milk", 100, 1900, 60,
+#'   2020L, "203", NA, "Pigs", 30, 270, 20
 #' )
 #' split_manure_management(excretion)
 split_manure_management <- function(excretion, options = list()) {
@@ -141,7 +142,7 @@ split_manure_management <- function(excretion, options = list()) {
 #' excretion <- tibble::tribble(
 #'   ~year, ~territory, ~sub_territory, ~livestock_category,
 #'   ~n_excretion, ~c_excretion, ~vs_excretion,
-#'   2020L, "ES", NA, "Cattle_milk", 100, 1900, 60
+#'   2020L, "203", NA, "Cattle_milk", 100, 1900, 60
 #' )
 #' apply_management_losses(split_manure_management(excretion))
 apply_management_losses <- function(split, options = list()) {
