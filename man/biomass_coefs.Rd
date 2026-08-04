@@ -45,16 +45,25 @@ matter).
 \item \code{Calcium_mg_kgFM}: Calcium content in mg per kg fresh matter.
 \item \code{VitaminA_microg_kgFM}: Vitamin A content in micrograms per kg fresh
 matter.
-\item \code{Edible_kgDM_kgFM}: Edible dry matter in kg per kg fresh matter.
-\item \code{Edible_kgC_kgFM}: Edible carbon in kg C per kg fresh matter.
-\item \code{Edible_N_kgFM}: Edible nitrogen in kg N per kg fresh matter.
-\item \code{Edible_kgP_kgFM}: Edible phosphorus in kg P per kg fresh matter.
-\item \code{Edible_K_kgFM}: Edible potassium in kg K per kg fresh matter.
-\item \code{NonEdible_kgDM_kgFM}: Non-edible dry matter in kg per kg fresh matter.
-\item \code{NonEdible_kgC_kgFM}: Non-edible carbon in kg C per kg fresh matter.
+The ten \verb{Edible_*} and \verb{NonEdible_*} nutrient columns below are \strong{empty in
+every row}, upstream in the source workbook as well as here, so no
+edible/non-edible nutrient split can be read from them (#361). Use
+\code{Edible_portion} with \code{N_kgN_kgFM} or \code{Product_kgN_kgDM} to derive an edible
+basis instead, as \code{\link[=build_food_supply]{build_food_supply()}} does.
+\item \code{Edible_kgDM_kgFM}: Edible dry matter in kg per kg fresh matter. Empty.
+\item \code{Edible_kgC_kgFM}: Edible carbon in kg C per kg fresh matter. Empty.
+\item \code{Edible_N_kgFM}: Edible nitrogen in kg N per kg fresh matter. Empty.
+\item \code{Edible_kgP_kgFM}: Edible phosphorus in kg P per kg fresh matter. Empty.
+\item \code{Edible_K_kgFM}: Edible potassium in kg K per kg fresh matter. Empty.
+\item \code{NonEdible_kgDM_kgFM}: Non-edible dry matter, kg per kg fresh matter.
+Empty.
+\item \code{NonEdible_kgC_kgFM}: Non-edible carbon in kg C per kg fresh matter. Empty.
 \item \code{NonEdible_kgN_kgFM}: Non-edible nitrogen in kg N per kg fresh matter.
-\item \code{NonEdible_kgP_kgFM}: Non-edible phosphorus in kg P per kg fresh matter.
-\item \code{NonEdible_kgK_kgFM}: Non-edible potassium in kg K per kg fresh matter.
+Empty.
+\item \code{NonEdible_kgP_kgFM}: Non-edible phosphorus, kg P per kg fresh matter.
+Empty.
+\item \code{NonEdible_kgK_kgFM}: Non-edible potassium, kg K per kg fresh matter.
+Empty.
 \item \code{Product_kgN_kgDM}: Nitrogen content of product in kg N per kg dry
 matter.
 \item \code{Product_kgP_kgDM}: Phosphorus content of product in kg P per kg dry
