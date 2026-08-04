@@ -91,17 +91,26 @@ matter).</p></li>
 <li><p><code>Carbohydrates_g_kgFM</code>: Carbohydrate content in g per kg fresh matter.</p></li>
 <li><p><code>Calcium_mg_kgFM</code>: Calcium content in mg per kg fresh matter.</p></li>
 <li><p><code>VitaminA_microg_kgFM</code>: Vitamin A content in micrograms per kg fresh
-matter.</p></li>
-<li><p><code>Edible_kgDM_kgFM</code>: Edible dry matter in kg per kg fresh matter.</p></li>
-<li><p><code>Edible_kgC_kgFM</code>: Edible carbon in kg C per kg fresh matter.</p></li>
-<li><p><code>Edible_N_kgFM</code>: Edible nitrogen in kg N per kg fresh matter.</p></li>
-<li><p><code>Edible_kgP_kgFM</code>: Edible phosphorus in kg P per kg fresh matter.</p></li>
-<li><p><code>Edible_K_kgFM</code>: Edible potassium in kg K per kg fresh matter.</p></li>
-<li><p><code>NonEdible_kgDM_kgFM</code>: Non-edible dry matter in kg per kg fresh matter.</p></li>
-<li><p><code>NonEdible_kgC_kgFM</code>: Non-edible carbon in kg C per kg fresh matter.</p></li>
-<li><p><code>NonEdible_kgN_kgFM</code>: Non-edible nitrogen in kg N per kg fresh matter.</p></li>
-<li><p><code>NonEdible_kgP_kgFM</code>: Non-edible phosphorus in kg P per kg fresh matter.</p></li>
-<li><p><code>NonEdible_kgK_kgFM</code>: Non-edible potassium in kg K per kg fresh matter.</p></li>
+matter.
+The ten <code>Edible_*</code> and <code>NonEdible_*</code> nutrient columns below are <strong>empty in
+every row</strong>, upstream in the source workbook as well as here, so no
+edible/non-edible nutrient split can be read from them (#361). Use
+<code>Edible_portion</code> with <code>N_kgN_kgFM</code> or <code>Product_kgN_kgDM</code> to derive an edible
+basis instead, as <code><a href="build_food_supply.html">build_food_supply()</a></code> does.</p></li>
+<li><p><code>Edible_kgDM_kgFM</code>: Edible dry matter in kg per kg fresh matter. Empty.</p></li>
+<li><p><code>Edible_kgC_kgFM</code>: Edible carbon in kg C per kg fresh matter. Empty.</p></li>
+<li><p><code>Edible_N_kgFM</code>: Edible nitrogen in kg N per kg fresh matter. Empty.</p></li>
+<li><p><code>Edible_kgP_kgFM</code>: Edible phosphorus in kg P per kg fresh matter. Empty.</p></li>
+<li><p><code>Edible_K_kgFM</code>: Edible potassium in kg K per kg fresh matter. Empty.</p></li>
+<li><p><code>NonEdible_kgDM_kgFM</code>: Non-edible dry matter, kg per kg fresh matter.
+Empty.</p></li>
+<li><p><code>NonEdible_kgC_kgFM</code>: Non-edible carbon in kg C per kg fresh matter. Empty.</p></li>
+<li><p><code>NonEdible_kgN_kgFM</code>: Non-edible nitrogen in kg N per kg fresh matter.
+Empty.</p></li>
+<li><p><code>NonEdible_kgP_kgFM</code>: Non-edible phosphorus, kg P per kg fresh matter.
+Empty.</p></li>
+<li><p><code>NonEdible_kgK_kgFM</code>: Non-edible potassium, kg K per kg fresh matter.
+Empty.</p></li>
 <li><p><code>Product_kgN_kgDM</code>: Nitrogen content of product in kg N per kg dry
 matter.</p></li>
 <li><p><code>Product_kgP_kgDM</code>: Phosphorus content of product in kg P per kg dry

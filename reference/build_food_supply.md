@@ -7,19 +7,23 @@ nourishment axis; dietary energy is a secondary cross-check. The default
 element (tonnes fresh matter, per `year`, `area_code`, `item_cbs_code`)
 by the per-item nutrition coefficients in
 [`whep::biomass_coefs`](https://eduaguilera.github.io/whep/reference/biomass_coefs.md)
-and divides by national population. Protein per kilogram fresh matter
-follows the coalesce chain `Edible_N_kgFM`, then `N_kgN_kgFM`, then
-`Product_kgN_kgDM * Product_kgDM_kgFM` (kg N per kg fresh matter), times
-6.25 (nitrogen-to-protein factor). Energy per kilogram fresh matter
-follows `GE_product_edible_portion_MJ_kgFM`, then `GE_product_MJ_kgFM`
-(MJ per kg fresh matter), converted to kilocalories via `MJ / 0.004184`.
-The energy term is GROSS (combustion) energy, not Atwater metabolisable
-energy, and so is only a secondary cross-check for SJOS-N; Atwater
-factors could refine it (O-B). Food items with no protein coefficient
-after the coalesce chain are excluded with a warning naming the count
-and a few examples (the residual gap-fill, O-B), never silently dropped.
-The `"faostat_fbs"` method returns the injected FAOSTAT Food Balance
-Sheet per-capita supply unchanged, as a cross-check / sensitivity.
+and divides by national population. Protein per kilogram fresh matter is
+nitrogen times 6.25 (nitrogen-to-protein factor), on the basis selected
+by `protein_basis`. The nitrogen density is `N_kgN_kgFM` where
+available, otherwise `Product_kgN_kgDM * Product_kgDM_kgFM`.
+`Edible_N_kgFM` is not read: it is empty in every coefficient row,
+upstream as well as in the packaged data, so the edible basis is derived
+from `Edible_portion` instead of stored redundantly. Energy per kilogram
+fresh matter follows `GE_product_edible_portion_MJ_kgFM`, then
+`GE_product_MJ_kgFM` (MJ per kg fresh matter), converted to kilocalories
+via `MJ / 0.004184`. The energy term is GROSS (combustion) energy, not
+Atwater metabolisable energy, and so is only a secondary cross-check for
+SJOS-N; Atwater factors could refine it (O-B). Food items with no
+protein coefficient after the coalesce chain are excluded with a warning
+naming the count and a few examples (the residual gap-fill, O-B), never
+silently dropped. The `"faostat_fbs"` method returns the injected
+FAOSTAT Food Balance Sheet per-capita supply unchanged, as a cross-check
+/ sensitivity.
 
 ## Usage
 
@@ -27,6 +31,7 @@ Sheet per-capita supply unchanged, as a cross-check / sensitivity.
 build_food_supply(
   method = c("whep_native", "faostat_fbs"),
   data = list(),
+  protein_basis = c("edible_portion", "whole_commodity", "product_nitrogen"),
   example = FALSE
 )
 ```
@@ -53,6 +58,19 @@ build_food_supply(
   For `"faostat_fbs"`: `fbs_supply` (`year`, `area_code`,
   `protein_g_cap_day`, `energy_kcal_cap_day`, `population`) is required.
 
+- protein_basis:
+
+  How the inedible fraction is treated when converting nitrogen density
+  to protein, for `"whep_native"` only: `"edible_portion"` (default)
+  scales the nitrogen density by `Edible_portion`, which is correct when
+  `food_t` is commodity mass while the density applies to the edible
+  part, and agrees best with FAOSTAT FBS; `"whole_commodity"` applies no
+  edible scaling, the behaviour before this argument existed, kept for
+  continuity and sensitivity analysis; `"product_nitrogen"` uses the
+  agronomic `Product_kgN_kgDM` for both the edible and inedible
+  fractions, scaled by `Edible_portion`, ignoring `N_kgN_kgFM`. A
+  missing `Edible_portion` counts as 1.
+
 - example:
 
   If `TRUE`, return a small fixture instead of computing. Defaults to
@@ -61,8 +79,9 @@ build_food_supply(
 ## Value
 
 A tibble keyed by `year`, `area_code` with `protein_g_cap_day`,
-`energy_kcal_cap_day`, `population` and `method_food_supply`, plus the
-polity columns below.
+`energy_kcal_cap_day`, `population`, `method_food_supply` and
+`method_protein_basis` (`NA` for `"faostat_fbs"`), plus the polity
+columns below.
 
 ## Polity columns
 
@@ -98,13 +117,13 @@ for the reasoning.
 
 ``` r
 build_food_supply(example = TRUE)
-#> # A tibble: 3 × 10
+#> # A tibble: 3 × 11
 #>    year area_code polity_area_code reporting_polity_code reporting_polity_name
 #>   <int>     <int>            <int> <chr>                 <chr>                
 #> 1  2010        10               10 AUS-1901-2025         Australia            
 #> 2  2010        32               32 CMR-1961-2025         Cameroon             
 #> 3  2011        10               10 AUS-1901-2025         Australia            
-#> # ℹ 5 more variables: reporting_polity_has_geometry <lgl>,
+#> # ℹ 6 more variables: reporting_polity_has_geometry <lgl>,
 #> #   protein_g_cap_day <dbl>, energy_kcal_cap_day <dbl>, population <dbl>,
-#> #   method_food_supply <chr>
+#> #   method_food_supply <chr>, method_protein_basis <chr>
 ```

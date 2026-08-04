@@ -78,30 +78,40 @@ A tibble where each row corresponds to one product or item. It contains
 - `Calcium_mg_kgFM`: Calcium content in mg per kg fresh matter.
 
 - `VitaminA_microg_kgFM`: Vitamin A content in micrograms per kg fresh
-  matter.
+  matter. The ten `Edible_*` and `NonEdible_*` nutrient columns below
+  are **empty in every row**, upstream in the source workbook as well as
+  here, so no edible/non-edible nutrient split can be read from them
+  (#361). Use `Edible_portion` with `N_kgN_kgFM` or `Product_kgN_kgDM`
+  to derive an edible basis instead, as
+  [`build_food_supply()`](https://eduaguilera.github.io/whep/reference/build_food_supply.md)
+  does.
 
 - `Edible_kgDM_kgFM`: Edible dry matter in kg per kg fresh matter.
+  Empty.
 
-- `Edible_kgC_kgFM`: Edible carbon in kg C per kg fresh matter.
+- `Edible_kgC_kgFM`: Edible carbon in kg C per kg fresh matter. Empty.
 
-- `Edible_N_kgFM`: Edible nitrogen in kg N per kg fresh matter.
+- `Edible_N_kgFM`: Edible nitrogen in kg N per kg fresh matter. Empty.
 
 - `Edible_kgP_kgFM`: Edible phosphorus in kg P per kg fresh matter.
+  Empty.
 
-- `Edible_K_kgFM`: Edible potassium in kg K per kg fresh matter.
+- `Edible_K_kgFM`: Edible potassium in kg K per kg fresh matter. Empty.
 
-- `NonEdible_kgDM_kgFM`: Non-edible dry matter in kg per kg fresh
-  matter.
+- `NonEdible_kgDM_kgFM`: Non-edible dry matter, kg per kg fresh matter.
+  Empty.
 
 - `NonEdible_kgC_kgFM`: Non-edible carbon in kg C per kg fresh matter.
+  Empty.
 
 - `NonEdible_kgN_kgFM`: Non-edible nitrogen in kg N per kg fresh matter.
+  Empty.
 
-- `NonEdible_kgP_kgFM`: Non-edible phosphorus in kg P per kg fresh
-  matter.
+- `NonEdible_kgP_kgFM`: Non-edible phosphorus, kg P per kg fresh matter.
+  Empty.
 
-- `NonEdible_kgK_kgFM`: Non-edible potassium in kg K per kg fresh
-  matter.
+- `NonEdible_kgK_kgFM`: Non-edible potassium, kg K per kg fresh matter.
+  Empty.
 
 - `Product_kgN_kgDM`: Nitrogen content of product in kg N per kg dry
   matter.

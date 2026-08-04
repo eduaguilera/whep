@@ -181,14 +181,15 @@ build_sjos_nitrogen(example = TRUE)
 #> #   critical_water_kgn_ha <dbl>, actual_water_kgn_ha <dbl>, …
 #> 
 #> $nourishment
-#> # A tibble: 2 × 12
+#> # A tibble: 2 × 13
 #>    year area_code polity_area_code reporting_polity_code reporting_polity_name
 #>   <int>     <int>            <int> <chr>                 <chr>                
 #> 1  2010         1                1 ARM-1991-2025         Armenia              
 #> 2  2010         2                2 AFG-1919-2025         Afghanistan          
-#> # ℹ 7 more variables: reporting_polity_has_geometry <lgl>,
+#> # ℹ 8 more variables: reporting_polity_has_geometry <lgl>,
 #> #   protein_g_cap_day <dbl>, energy_kcal_cap_day <dbl>, population <dbl>,
-#> #   method_food_supply <chr>, value_norm <dbl>, nourish <chr>
+#> #   method_food_supply <chr>, method_protein_basis <chr>, value_norm <dbl>,
+#> #   nourish <chr>
 #> 
 #> $scatter
 #> # A tibble: 2 × 5
