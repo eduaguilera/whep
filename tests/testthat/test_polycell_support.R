@@ -82,10 +82,15 @@
 #     carrying it as rows; an attribute is the only tidy carrier left given the
 #     one-row-per-polycell-year output grain.
 #
-# NOT ASSERTED, DELIBERATELY. Whether the inland water of a partially covered
-# cell is apportioned over the cell's territory or over the whole cell changes
-# `inland_water_ha`, and DA-6 does not settle it. The water fixtures below use
-# a fully covered cell, where the two rules coincide.
+# NOT ASSERTED, DELIBERATELY.
+#   * Whether the inland water of a partially covered cell is apportioned over
+#     the cell's territory or over the whole cell changes `inland_water_ha`,
+#     and DA-6 does not settle it. The water fixtures below use a fully covered
+#     cell, where the two rules coincide.
+#   * The schema check is a subset check, so DA-13's transitional `polity_frac`
+#     and DA-12's second footprint may ride alongside. Both are claims about
+#     the interim crosswalk geometry, which these polygon fixtures do not
+#     exercise; they belong to T-A5's before-and-after measurement.
 
 # Helper fixtures --------------------------------------------------------------
 
