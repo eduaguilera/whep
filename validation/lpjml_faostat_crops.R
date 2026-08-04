@@ -231,6 +231,21 @@ read_lpjml_slab <- function(run_dir, file, var, year) {
     start = c(1L, 1L, 1L, time_index),
     count = c(length(lon), length(lat), length(names_pft), 1L)
   )
+  # LPJmL preallocates every output file at its full size before the run
+  # reaches those years, so a year that has not been simulated yet is present
+  # in the file, readable, and entirely fill value. Without this check the
+  # reports would come back empty or near-empty rather than saying why, which
+  # reads as "the model produced nothing" instead of "the run is not finished".
+  if (!any(is.finite(slab))) {
+    stop(
+      "year ",
+      year,
+      " is all fill value in ",
+      file,
+      " -- the run has not simulated it yet",
+      call. = FALSE
+    )
+  }
 
   # Expanded outside tibble(): tibble() evaluates its arguments sequentially
   # with data masking, so `length(lon)` inside the call would resolve to the
