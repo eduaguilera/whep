@@ -421,11 +421,43 @@ build_primary_production <- function(
   dt <- .read_input("luh2-areas", years = years, year_col = "Year")
   data.table::setnames(dt, c("ISO3", "Year"), c("iso3c", "year"))
   dt <- merge(dt, area_bridge, by = "iso3c", all.x = TRUE, sort = FALSE)
+  # Say WHICH KIND of unmatched. The old single message reported two unrelated
+  # facts as one, and the proportions make that misleading. Measured over the
+  # whole pin, 1850-2022:
+  #
+  #   -99, LUH2's own unassigned marker   8,620 Mha   0.358% of all LUH2 area
+  #   the six real territories                19 Mha   0.0008%
+  #
+  # The sentinel is 459x the territories, so almost everything the old warning
+  # appeared to be losing is land LUH2 itself attributes to no country -- a
+  # property of the source, not a gap in this project's coverage.
+  #
+  # The six are Jersey, Guernsey, Isle of Man, Saint-Barthelemy, Aland and Sint
+  # Maarten. Each IS in the crosswalk, carrying its sovereign's polity, but its
+  # row has no FAOSTAT area code and `include_unmapped = FALSE` above drops
+  # exactly those. So "not found in polity_area_crosswalk" was wrong about them:
+  # the mapping exists, the area code does not. Attributing their land to the
+  # sovereign is a modelling decision rather than a lookup -- LUH2 reports GBR
+  # separately, so folding Jersey in changes what GBR means -- so it is whep#407
+  # and the drop behaviour here is deliberately unchanged.
   unmatched <- unique(dt[is.na(area), iso3c])
   if (length(unmatched) > 0) {
-    cli::cli_warn(
-      "LUH2 ISO3 codes not found in polity_area_crosswalk, dropping: {unmatched}"
-    )
+    sentinels <- unmatched[!grepl("^[A-Z]{3}$", unmatched)]
+    territories <- setdiff(unmatched, sentinels)
+    if (length(sentinels) > 0) {
+      cli::cli_inform(
+        "LUH2 rows with no country assignment in the source, dropping:
+         {sentinels}. Not a coverage gap -- the source attributes this land to
+         no territory."
+      )
+    }
+    if (length(territories) > 0) {
+      cli::cli_warn(
+        "LUH2 territories with no FAOSTAT area code, dropping: {territories}.
+         Each has a polity upstream but no area code to aggregate through; see
+         whep#407."
+      )
+    }
   }
   dt <- dt[!is.na(area)]
   dt <- dt[year > 1849]
@@ -1226,7 +1258,10 @@ build_primary_production <- function(
   split_result <- needs_split |>
     dplyr::select(-item_cbs_code) |>
     dplyr::distinct() |>
-    dplyr::inner_join(shares, by = c("year", "area_code", "Item_Code")) |>
+    dplyr::inner_join(
+      shares,
+      by = c("year", "area_code", "area", "Item_Code")
+    ) |>
     dplyr::mutate(value = value * share) |>
     dplyr::select(year, area, area_code, item_cbs_code, value)
 
@@ -1234,18 +1269,23 @@ build_primary_production <- function(
 }
 
 .carry_forward_shares <- function(shares, target_years) {
+  # `area` belongs in the key for the same reason it does in
+  # `.compute_stock_shares()`: one `area_code` can carry two reporting
+  # territories, and without it the two are carried forward as one series with
+  # duplicate years. That is what fill_linear's "Duplicate year values found
+  # within groups" warning was reporting.
   shares |>
     tidyr::complete(
       year = target_years,
-      tidyr::nesting(area_code, Item_Code, item_cbs_code)
+      tidyr::nesting(area_code, area, Item_Code, item_cbs_code)
     ) |>
     fill_linear(
       share,
       time_col = year,
-      .by = c("area_code", "Item_Code", "item_cbs_code")
+      .by = c("area_code", "area", "Item_Code", "item_cbs_code")
     ) |>
     dplyr::filter(!is.na(share)) |>
-    dplyr::select(year, area_code, Item_Code, item_cbs_code, share)
+    dplyr::select(year, area_code, area, Item_Code, item_cbs_code, share)
 }
 
 .compute_stock_shares <- function(years) {
@@ -1258,14 +1298,29 @@ build_primary_production <- function(
     dplyr::filter(Item_Code %in% split_parents) |>
     dplyr::select(Item_Code, item_cbs_code)
 
+  # Keyed by `area` as well as `area_code`, and that second key is LOAD-BEARING
+  # rather than defensive -- do not drop it as redundant next to `area_code`.
+  #
+  # `area_code` here is polity_area_code, the reporting bucket, and a bucket can
+  # hold more than one reporting territory: FAOSTAT area 206 carries both Sudan
+  # and South Sudan from 2012 on. Without `area` the denominator `sum(value)`
+  # spans both territories, so a share describes one territory's stock over two
+  # territories' chickens. Measured on the full pin: 48 distinct
+  # (year, area_code, Item_Code, item_cbs_code) keys had two share rows, all in
+  # bucket 206 for 2012-2023, and in 2015 Sudan's broiler share read 0.6071
+  # where its own broilers over its own chickens are 0.8000.
+  #
+  # A share says how ONE territory's stock splits between sub-items, so the
+  # reporting territory is the right grouping. Summing South Sudan into Sudan
+  # would be the other repair and is wrong: they are reported separately.
   fao_stocks |>
     dplyr::inner_join(split_cbs, by = "item_cbs_code") |>
     dplyr::mutate(
       share = value / sum(value, na.rm = TRUE),
-      .by = c(year, area_code, Item_Code)
+      .by = c(year, area_code, area, Item_Code)
     ) |>
     dplyr::filter(!is.na(share)) |>
-    dplyr::select(year, area_code, Item_Code, item_cbs_code, share)
+    dplyr::select(year, area_code, area, Item_Code, item_cbs_code, share)
 }
 
 .build_livestock_slaughter <- function(fao_combined, years = NULL) {
