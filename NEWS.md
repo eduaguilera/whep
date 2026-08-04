@@ -14,6 +14,13 @@
   form `"277"` keeps South Sudan). No published value changes: the pipeline
   itself never took the ISO3 branch.
 
+* `urban_n_reference` now carries a **`polity_code`** column
+  (`"ESP-1800-2025"`) alongside its numeric `area_code`, so the benchmark series
+  names the territory it measures instead of only the FAOSTAT aggregation bucket
+  `203`. The code is resolved per benchmark year against the polity active in
+  that year. Additive: `area_code` and every measured value are unchanged, and
+  no exported function reads this dataset at runtime. This sets the convention
+  for the other territory-keyed coefficient tables.
 * Every area-keyed exported output now carries the **reporting-polity columns**
   (`polity_area_code`, `reporting_polity_code`, `reporting_polity_name`,
   `reporting_polity_has_geometry`), so a caller can tell which territory a row
