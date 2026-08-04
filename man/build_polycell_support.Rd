@@ -49,20 +49,31 @@ A \code{tibble} whose columns are a superset of \code{polycell_id}, \code{cell_i
 \code{"s2"} except on the pieces the spherical engine cannot read back, which
 are measured with \code{terra::expanse()} rather than dropped. Diagnostics ride
 as attributes:
-\code{"unassigned"} (land in the validation layer claimed by no live polity),
-\code{"coverage"} (every live polity interval and whether it had a polygon),
+\code{"unassigned"} (the validation-layer disagreement, in both directions:
+\code{unassigned_land_ha} where the polities claim less than the layer and
+\code{over_claimed_land_ha} where they claim more), \code{"coverage"} (every live
+polity interval and why it did or did not produce polycells),
 \code{"overlap"} (cells holding more territory than the cell, because two
-polities were handed the same polygon), \code{"water_excess"} (inland water
-clamped to the polycell's territory), \code{"footprints"} and
-\code{"footprint_diff"} (the deployed crosswalk, the current producer and the
-polycell footprint, reconciled at \code{data$crosswalk_year}).
+polities were handed the same polygon), \code{"terra_measured"} (polycells whose
+area came from \code{terra}), \code{"water_excess"} (inland water clamped to the
+polycell's territory), \code{"water_unmatched"} (cells the water layer and the
+polycells do not share), \code{"footprints"} and \code{"footprint_diff"} (the
+deployed crosswalk, the current producer and the polycell footprint,
+reconciled at \code{data$crosswalk_year}).
 
 \code{"overlap"}, \code{"terra_measured"}, \code{"water_excess"} and \code{"unassigned"} are
-\strong{interval-grain}, like the table itself: they carry \code{start_year}, and one
-cell contributes a row per interval. Summing them without first filtering
-to the interval covering the year of interest counts the same cell once per
-epoch. On the shipped polities that is the difference between 1,342 clamped
-polycells over all epochs and 94 in 2015.
+\strong{interval-grain}, like the table itself: they carry \code{start_year} and
+\code{end_year}, and one cell contributes a row per interval. Summing them
+without first filtering to the interval covering the year of interest
+counts the same cell once per epoch. On the shipped polities that is the
+difference between 1,342 clamped polycells over all epochs and 94 in 2015.
+
+When \code{data$crosswalk} is supplied the table also carries the crosswalk rows
+the intersection did not reproduce, so the transitional shim stays
+row-complete. Those rows have \code{coverage_status == "crosswalk_only"} and
+carry \strong{\code{NA}} in every area column, \code{polity_code} and \code{polycell_id}, so an
+unfiltered \code{sum(land_area_ha)} over the output returns \code{NA}. Filter them
+out before aggregating, as \code{\link[=polycell_shim_view]{polycell_shim_view()}} and every diagnostic do.
 }
 \description{
 Produce WHEP's canonical spatial support unit, the \strong{polycell}: a

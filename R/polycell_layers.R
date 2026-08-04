@@ -313,7 +313,8 @@ read_polycell_support <- function(path = NULL, version = NULL) {
 # cannot abort the whole producer, and its geodesic area is measured with
 # `terra::expanse()` instead. This is not hypothetical on either layer: three
 # `ne_10m_glaciated_areas` features and seven shipped polity polygons are
-# s2-invalid, and `sf::st_area()` aborts on all of them.
+# s2-invalid and `sf::st_area()` aborts on all of them; the planar repair
+# recovers four of the seven polities, leaving three unusable.
 .repair_s2_polygons <- function(x) {
   fixed <- .s2_repair(sf::st_geometry(x))
   sf::st_geometry(x) <- fixed$geom

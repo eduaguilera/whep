@@ -17,8 +17,10 @@
 #   DA-12 the deployed crosswalk, today's producer and the polycell footprint.
 #   DA-13 the transitional shim against build_cell_polity(), bit-for-bit.
 #   DA-15 polities with no usable polygon, and pieces measured with terra.
-#   DA-19 inland water clamped to the polycell's territory.
-#   S-A9/S-A11 the LUH2 reconciliation and the unclaimed-land magnitude.
+#   DA-19 inland water clamped to the polycell's territory, and the cells the
+#        water layer and the polycells do not share.
+#   S-A9/S-A11 the LUH2 reconciliation, in BOTH directions, and the
+#        unclaimed-land magnitude.
 #   O    cells holding more territory than the cell (duplicate polygons).
 #   Q-P6 the four orphan cells.
 #
@@ -228,14 +230,31 @@
      {round(sum(luh2$terrestrial_ha) / 1e9, 4)} Gha
      ({round(100 * (claimed / sum(luh2$terrestrial_ha) - 1), 2)}%)."
   )
-  unassigned <- attr(support, "unassigned") |>
+  # Both directions. Reporting only the shortfall reconciles the overshoot away
+  # by construction, which is the silent reconciliation DA-5 forbids.
+  disagreement <- attr(support, "unassigned") |>
     dplyr::filter(.data$start_year <= year, year < .data$end_year)
   cli::cli_text(
-    "unclaimed at {year}: {nrow(unassigned)} cells,
-     {round(sum(unassigned$unassigned_land_ha) / 1e6, 2)} Mha
-     ({round(100 * sum(unassigned$unassigned_land_ha) /
-        sum(luh2$terrestrial_ha), 3)}% of LUH2)."
+    "at {year}: {sum(disagreement$unassigned_land_ha > 0)} cells under-claim
+     {round(sum(disagreement$unassigned_land_ha) / 1e6, 2)} Mha;
+     {sum(disagreement$over_claimed_land_ha > 0)} cells over-claim
+     {round(sum(disagreement$over_claimed_land_ha) / 1e6, 2)} Mha."
   )
+}
+
+.vps_water_unmatched <- function(support) {
+  .vps_h("EA10: cells the water layer and the polycells do not share")
+  unmatched <- attr(support, "water_unmatched")
+  if (is.null(unmatched) || nrow(unmatched) == 0L) {
+    cli::cli_alert_success("The two footprints coincide.")
+    return(invisible(NULL))
+  }
+  print(as.data.frame(dplyr::summarise(
+    unmatched,
+    cells = dplyr::n(),
+    whole_cell_gha = round(sum(.data$cell_area_ha, na.rm = TRUE) / 1e9, 4),
+    .by = "side"
+  )))
 }
 
 .vps_overlap <- function(support, polycells, year) {
@@ -309,7 +328,9 @@
   .vps_footprints(support, crosswalk)
   .vps_coverage(support)
   .vps_water_clamp(support, polycells, year)
+  .vps_water_unmatched(support)
   .vps_unassigned(support, polycells, luh2, year)
+  .vps_unassigned(support, polycells, luh2, historical_year)
   .vps_overlap(support, polycells, year)
   .vps_orphans(polycells, year)
   cli::cli_alert_success("Done.")

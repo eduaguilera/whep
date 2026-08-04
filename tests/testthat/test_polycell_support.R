@@ -1076,7 +1076,15 @@ testthat::test_that("an interval splits where a cell's occupants change", {
     water = tibble::tibble(lon = 10.25, lat = 45.25, water_frac = 0.2)
   )
 
-  wes <- pcs_for(result, "WES-2000-2020") |> dplyr::arrange(start_year)
+  # Restricted to the cell the fixture is about. Both polygons run to the cell
+  # boundary at latitude 45.0, and under s2 the neighbouring cell's own edge is
+  # a great circle that bulges past that line, so each polity also holds a
+  # ~30 ha sliver in the cell below. That sliver is real -- including it is what
+  # makes the polity re-aggregate to its own polygon exactly -- and it is not
+  # what this test is about.
+  wes <- pcs_for(result, "WES-2000-2020") |>
+    pcs_in_cell(10.25, 45.25) |>
+    dplyr::arrange(start_year)
   testthat::expect_equal(wes$start_year, c(2000L, 2010L))
   testthat::expect_equal(wes$end_year, c(2010L, 2020L))
   # Alone in the cell it takes all the water; sharing it, half.
@@ -1086,6 +1094,37 @@ testthat::test_that("an interval splits where a cell's occupants change", {
     tolerance = 1e-6
   )
   testthat::expect_equal(wes$polity_area_ha[[1L]], wes$polity_area_ha[[2L]])
+})
+
+testthat::test_that("the candidate window follows the spherical extent", {
+  testthat::skip_if_not_installed("sf")
+  testthat::skip_if_not_installed("s2")
+
+  # DA-21. Enumerating candidate cells from the polygon's COORDINATE bounding
+  # box omits the cells its neighbours reach into: under s2 a cell edge is a
+  # great circle that bulges past the nominal grid line, so a polity whose own
+  # border runs along that line holds a sliver in the cell beyond it. Measured
+  # on this fixture the omission is 29.80 ha of 108,808.13, a relative
+  # -2.739e-04; the real table lost 1.95e-04 of SWA-1884-1912 the same way, in
+  # whole pieces (78 enumerated against 82). Unioning the coordinate box with
+  # `s2::s2_bounds_rect()` is exact by construction rather than padded.
+  polity <- pcs_rect(10.0, 10.25, 45.0, 45.5)
+  result <- whep::build_polycell_support(
+    years = 2015L,
+    geometries = pcs_one_polity(polity)
+  )
+
+  testthat::expect_equal(
+    sum(result$polity_area_ha),
+    pcs_area_ha(polity),
+    tolerance = 1e-9
+  )
+  # The recovered sliver is a real, separate polycell in the cell below.
+  testthat::expect_equal(dplyr::n_distinct(result$cell_id), 2L)
+  below <- pcs_in_cell(result, 10.25, 44.75)
+  testthat::expect_equal(nrow(below), 1L)
+  testthat::expect_gt(below$polity_area_ha, 1)
+  testthat::expect_lt(below$polity_area_ha, 1e-3 * pcs_area_ha(polity))
 })
 
 testthat::test_that("the shim reproduces the crosswalk bit-for-bit", {
@@ -1220,10 +1259,10 @@ testthat::test_that("apportioned water is clamped to the polycell territory", {
 testthat::test_that("a polity without a usable polygon is reported", {
   testthat::skip_if_not_installed("sf")
 
-  # DA-15: 23 of the shipped polities have empty geometry and 7 more carry a
-  # polygon the spherical engine rejects. None of them can host a polycell, and
-  # a polity that silently contributes zero area is indistinguishable from a
-  # polity with no territory.
+  # DA-15: on the shipped table 23 polities have empty geometry and 3 more
+  # carry a polygon no repair makes readable. None of them can host a polycell,
+  # and a polity that silently contributes zero area is indistinguishable from
+  # a polity with no territory.
   geometries <- pcs_polities(
     tibble::tibble(
       polity_code = c("AAA-2000-2020", "NOG-2000-2020"),
@@ -1238,7 +1277,7 @@ testthat::test_that("a polity without a usable polygon is reported", {
       years = 2015L,
       geometries = geometries
     ),
-    "no usable polygon"
+    "receive"
   )
 
   testthat::expect_equal(result$polity_code, "AAA-2000-2020")
@@ -1409,9 +1448,11 @@ testthat::test_that("an unreadable clip piece is measured, never dropped", {
   # Real-data regression, on shipped package data so it needs no pins and no
   # network. `sf::st_intersection()` emits pieces the spherical engine will not
   # read back, and a planar repair does not always fix them. Discarding those
-  # pieces deleted 1.4255 Mha across 8 polities, including seven whole
-  # Peloponnese and Aegean cells -- 10.07% of GRC-1830-1913 -- while the polity
-  # still reported `coverage_status == "has_geometry"`. The loss broke S-A2
+  # pieces deleted 1,419,140.84 ha over 21 pieces and 5 polities, among them
+  # seven Peloponnese and Aegean pieces worth 466,032 ha -- 10.08% of
+  # GRC-1830-1913 -- while the polity still reported
+  # `coverage_status == "has_geometry"`. They are pieces of cells, not whole
+  # cells: their shares run 0.858 down to 1.7e-05. The loss broke S-A2
   # re-aggregation at every pre-1950 year and re-emerged as fake unclaimed land
   # in the S-A11 diagnostic, so it is pinned here.
   greece <- whep::get_polity_geometries("GRC-1830-1913")
@@ -1419,7 +1460,7 @@ testthat::test_that("an unreadable clip piece is measured, never dropped", {
 
   testthat::expect_warning(
     result <- whep::build_polycell_support(geometries = greece),
-    "could not be measured by the spherical engine"
+    "could not measure"
   )
 
   # Every cell the drop used to swallow is present and carries real area.
@@ -1510,4 +1551,199 @@ testthat::test_that("split_method records the water rule wherever it ran", {
     geometries = pcs_one_polity(pcs_cell(10.25, 45.25))
   )
   testthat::expect_equal(dry$split_method, "polygon_intersection")
+})
+
+testthat::test_that("an ice layer over an unreadable piece does not abort", {
+  testthat::skip_if_not_installed("sf")
+  testthat::skip_if_not_installed("terra")
+
+  # The regression this file previously missed. Keeping an s2-invalid piece in
+  # the geometry column is what makes its area recoverable, but it also means
+  # no s2 predicate may be run across the whole column: `sf::st_intersects()`
+  # aborts on the first such piece with "Loop 0 is not valid". With the shipped
+  # polities and the real ice layer that killed the production call at EVERY
+  # year, because `years` is applied after the clipping and GRC-1830-1913 is
+  # always in the table.
+  #
+  # The two earlier ice tests used synthetic geometry with no invalid pieces,
+  # and the terra test passed no `ice` at all, so nothing exercised the pair.
+  # This does: Greece from shipped package data, with ice over the Aegean.
+  greece <- whep::get_polity_geometries("GRC-1830-1913")
+  aegean <- sf::st_sf(
+    geometry = sf::st_sfc(pcs_rect(23.0, 25.0, 37.5, 39.0), crs = 4326)
+  )
+
+  testthat::expect_warning(
+    result <- whep::build_polycell_support(
+      geometries = greece,
+      ice = aegean
+    ),
+    "could not measure"
+  )
+
+  # It completes, and it completes with the same polycells as without ice.
+  testthat::expect_warning(
+    bare <- whep::build_polycell_support(geometries = greece),
+    "could not measure"
+  )
+  testthat::expect_setequal(result$cell_id, bare$cell_id)
+  testthat::expect_equal(sum(result$polity_area_ha), sum(bare$polity_area_ha))
+
+  # Ice is subtracted on the terra-measured pieces too, not skipped: cells
+  # 407256 and 408256 sit under the Aegean rectangle and are both terra rows.
+  terra_rows <- dplyr::filter(result, .data$area_engine == "terra")
+  testthat::expect_gt(sum(terra_rows$ice_area_ha), 0)
+  testthat::expect_true(all(
+    terra_rows$ice_area_ha <= terra_rows$polity_area_ha * (1 + 1e-9)
+  ))
+
+  # And the identity still holds on every row, whichever engine measured it.
+  testthat::expect_equal(
+    result$land_area_ha + result$inland_water_ha + result$ice_area_ha,
+    result$polity_area_ha,
+    tolerance = 1e-9
+  )
+  testthat::expect_true(all(result$land_area_ha >= 0))
+})
+
+testthat::test_that("a degenerate validity interval is reported, not dropped", {
+  testthat::skip_if_not_installed("sf")
+
+  # A polity whose interval is empty or NA-bounded matches no year, so the
+  # interval algebra drops all of its polycells and the polity disappears
+  # whole. That is the unusable-polygon failure mode relocated, and it is
+  # latent on the 603-row table but live the moment the geometry source is
+  # refreshed to periods that can overlap or invert.
+  geometries <- pcs_polities(
+    tibble::tribble(
+      ~polity_code, ~start_year, ~end_year,
+      "LIV-2000-2020", 2000L, 2020L,
+      "EMP-2000-2000", 2000L, 2000L,
+      "INV-2010-2000", 2010L, 2000L,
+      "NAY-2000-NA", 2000L, NA_integer_
+    ),
+    purrr::map(seq_len(4L), \(i) pcs_inset(10.05 + i, 10.45 + i))
+  )
+
+  testthat::expect_warning(
+    result <- whep::build_polycell_support(
+      years = 2015L,
+      geometries = geometries
+    ),
+    "receive"
+  )
+
+  testthat::expect_equal(result$polity_code, "LIV-2000-2020")
+  coverage <- attr(result, "coverage")
+  broken <- c("EMP-2000-2000", "INV-2010-2000", "NAY-2000-NA")
+  testthat::expect_equal(
+    coverage$coverage_status[match(broken, coverage$polity_code)],
+    rep("invalid_interval", 3L)
+  )
+  testthat::expect_equal(
+    coverage$coverage_status[coverage$polity_code == "LIV-2000-2020"],
+    "has_geometry"
+  )
+})
+
+testthat::test_that("cells the water layer and the polycells miss are named", {
+  testthat::skip_if_not_installed("sf")
+
+  # EA10: the water layer carries the CRU land mask and the polycells carry the
+  # polity polygons, so their footprints differ. A polycell with no water row
+  # is booked as having none, which turns that water into land; a water cell no
+  # polycell reaches loses its water entirely. Both are emitted.
+  result <- whep::build_polycell_support(
+    years = 2015L,
+    geometries = pcs_one_polity(pcs_inset(10.05, 10.45)),
+    water = tibble::tibble(
+      lon = c(20.25, 30.25),
+      lat = 45.25,
+      water_frac = c(0.5, 0)
+    )
+  )
+
+  unmatched <- attr(result, "water_unmatched")
+  testthat::expect_s3_class(unmatched, "data.frame")
+  testthat::expect_setequal(
+    unmatched$side,
+    c("polycell_without_water_cell", "water_cell_without_polycell")
+  )
+  # The polycell's own cell has no water row, so it is reported ...
+  testthat::expect_equal(
+    dplyr::filter(unmatched, .data$side == "polycell_without_water_cell")$lon,
+    10.25
+  )
+  # ... and so is the wet cell no polycell reaches, but not the dry one, which
+  # carries nothing to lose.
+  testthat::expect_equal(
+    dplyr::filter(unmatched, .data$side == "water_cell_without_polycell")$lon,
+    20.25
+  )
+  testthat::expect_equal(result$inland_water_ha, 0)
+})
+
+testthat::test_that("both sides of the LUH2 disagreement are emitted", {
+  testthat::skip_if_not_installed("sf")
+
+  # DA-5 requires the disagreement emitted, never silently reconciled. Keeping
+  # only `pmax(terrestrial - claimed, 0)` reconciles the over-claim away by
+  # construction: at 2015 the real table under-claims 315.50 Mha in some cells
+  # and over-claims 103.03 Mha in others, and only the first was reported.
+  claimed <- pcs_inset(10.0, 10.4)
+  result <- whep::build_polycell_support(
+    years = 2015L,
+    geometries = pcs_one_polity(claimed),
+    data = list(
+      luh2 = tibble::tibble(
+        lon = c(10.25, 20.25),
+        lat = 45.25,
+        # One cell where LUH2 sees more land than the polity claims, one where
+        # it sees far less.
+        terrestrial_ha = c(0.95 * pcs_area_ha(pcs_cell(10.25, 45.25)), 0)
+      )
+    )
+  )
+
+  unassigned <- attr(result, "unassigned")
+  testthat::expect_true(
+    rlang::has_name(unassigned, "over_claimed_land_ha")
+  )
+  under <- dplyr::filter(unassigned, .data$lon == 10.25)
+  testthat::expect_gt(under$unassigned_land_ha, 0)
+  testthat::expect_equal(under$over_claimed_land_ha, 0)
+  # The cell LUH2 calls sea but the run never claimed contributes nothing to
+  # either side, so it must not appear at all.
+  testthat::expect_equal(
+    nrow(dplyr::filter(unassigned, .data$lon == 20.25)),
+    0L
+  )
+})
+
+testthat::test_that("interval diagnostics carry the interval they describe", {
+  testthat::skip_if_not_installed("sf")
+
+  # The roxygen tells a consumer to filter each interval-grain diagnostic to
+  # the interval covering the year of interest. That is only possible if the
+  # diagnostic carries both bounds.
+  same <- pcs_cell(10.25, 45.25)
+  testthat::expect_warning(
+    result <- whep::build_polycell_support(
+      geometries = pcs_live(
+        c("AAA-2000-2020", "BBB-2000-2020"),
+        list(same, same)
+      ),
+      water = tibble::tibble(lon = 10.25, lat = 45.25, water_frac = 0.9),
+      data = list(
+        luh2 = tibble::tibble(lon = 10.25, lat = 45.25, terrestrial_ha = 1e5)
+      )
+    ),
+    "more territory than the cell"
+  )
+
+  purrr::walk(c("overlap", "water_excess", "unassigned"), \(nm) {
+    diagnostic <- attr(result, nm)
+    testthat::expect_true(rlang::has_name(diagnostic, "start_year"))
+    testthat::expect_true(rlang::has_name(diagnostic, "end_year"))
+  })
 })
