@@ -807,8 +807,9 @@ testthat::test_that("all-zero Coello rates fall back to conserving area shares",
 })
 
 testthat::test_that("build_n_inputs re-keys FAOSTAT synthetic N to polities", {
-  # #464: .n_inputs_synthetic()'s country_totals must speak the same vocabulary
-  # as crop_shares, which descends from get_primary_production() and is keyed on
+  # Regression for issue 464. The country_totals built inside
+  # .n_inputs_synthetic must speak the same vocabulary as crop_shares, which
+  # descends from get_primary_production and is keyed on
   # polity_area_code. FAOSTAT reports Sudan as 276 and South Sudan as 277 after
   # the 2011 split, both bucketed to 206; the World rollup 5000 has no polity at
   # all. Before the crosswalk was applied, none of the three joined and this
